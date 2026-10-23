@@ -646,7 +646,7 @@ internal fun interface HazardSink { fun add(cause: DeathCause, adult: Float, you
  * at a place it weighs ([HexGroups.deathsAt]).
  */
 internal fun HexGroups.placeHazards(g: HexGroup, p: Place, weather: Weather, fed: Float, thirst: Float, sick: Float,
-    fire: Float, home: Float, into: HazardSink) {
+    fire: Float, home: Float, shelter: Float = g.band?.shelter ?: 0f, into: HazardSink) {
     val s = g.species; val b = g.band; val t = weather.temperature[p]
     // (Fed as it would be with its fat drawn on, as its week's feeding draws on it: a group foresees its fat too.)
     // (In a band the shortfall is not shared evenly: parents feed their children first, see [CHILDREN_FIRST].)
@@ -655,7 +655,7 @@ internal fun HexGroups.placeHazards(g: HexGroup, p: Place, weather: Weather, fed
     val hungerYoung = if (b == null) hunger else Hazards.hunger(s, g.spent, Hazards.onFat(1f - short * (1f - CHILDREN_FIRST), g.fat, days), days)
     // People keep warm as their body heat allows, through their clothes, fire, shelter and houses: past what they can
     // shiver up, they die of exposure. Animals feel the cold through their coats.
-    val exposure = b?.warmth(airAt(p, weather), fire, home, days)?.odds ?: 0f
+    val exposure = b?.warmth(airAt(p, weather), fire, home, days, shelter)?.odds ?: 0f
     val cold = if (b != null) 0f else Hazards.cold(s, t, weather.date.month); val heat = Hazards.heat(s, t)
     // An outbreak raging where it is kills its share.
     val plague = fauna.outbreakDeaths(s, p)
@@ -684,12 +684,13 @@ private fun shortfallOfAdults(g: HexGroup, fed: Float): Float {
 }
 
 /**
- * [placeHazards] as [g] foresees them at place [p], weighing it: no everyday sickness, and its band's fire and house as they
- * would be there.
+ * [placeHazards] as [g] foresees them at place [p], [km] off, weighing it: no everyday sickness, and its band's fire, house
+ * and shelters as they would be there.
  */
-internal fun HexGroups.foreseenHazards(g: HexGroup, p: Place, weather: Weather, fed: Float, thirst: Float, into: HazardSink) {
+internal fun HexGroups.foreseenHazards(g: HexGroup, p: Place, weather: Weather, fed: Float, thirst: Float, km: Float, into: HazardSink) {
     val b = g.band
-    placeHazards(g, p, weather, fed, thirst, 0f, b?.let { fireAt(g, it, p) } ?: 0f, if (b != null) houseAt(g, p) else 0f, into)
+    placeHazards(g, p, weather, fed, thirst, 0f, b?.let { fireAt(g, it, p) } ?: 0f, if (b != null) houseAt(g, p) else 0f,
+        b?.let { shelterAt(g, it, p, km) } ?: 0f, into)
 }
 
 /** Vipers and scorpions, out in the warm months: the odds for people at place [p] this week. */

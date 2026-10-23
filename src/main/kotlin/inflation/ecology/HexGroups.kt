@@ -628,14 +628,19 @@ class HexGroups(
             val from = hexKm(here, b.raidHex)
             if (from > 0.0) score += RAID_PULL * ((from - hexKm(h, b.raidHex)) / from).toFloat().coerceIn(-1f, 1f)
         }
-        // A band short of sodium heads for the nearest salt it knows of: a week's walk towards it is worth what a week
-        // without it costs (the share of its food that does it no good, [saltFeeds]), as a hungry animal seeks a lick.
+        // A band short of sodium heads for the nearest salt it knows of, as a hungry animal seeks a lick. What it gets there
+        // lasts it years (it keeps [KEEP_YEARS] of [YEAR_NEED]): a year of weeks without the share of its food that salt lack
+        // spoils ([saltFeeds]), a year being as far ahead as a band foresees ([foreseenSurvival]), paid for by the weeks the
+        // walk there takes, at its reach a week.
         // (Not where it can get salt already: on the shore or a salt pan, as [saltFeedsAt] has it.)
         if (b.sodiumShort > 0f && !hw.coast[here.i] && land.salt[g.place] <= 0f) {
             val salt = saltKnown(b, here)
             val from = if (salt >= 0) hexKm(here.i, salt) else 0.0
-            if (from > hex.hexKm)
-                score += (1f - saltFeeds(b.sodiumShort, 1f, tuning.saltLack)) * ((from - hexKm(h.i, salt)) / min(from, reach.toDouble())).toFloat().coerceIn(-1f, 1f)
+            if (from > hex.hexKm) {
+                val weeks = max(1.0, from / reach).toFloat()
+                score += (1f - saltFeeds(b.sodiumShort, 1f, tuning.saltLack)) * stepsPerYear / weeks *
+                    ((from - hexKm(h.i, salt)) / min(from, reach.toDouble())).toFloat().coerceIn(-1f, 1f)
+            }
         }
         // A band with food enough to feast others is drawn to where other bands are (gatherings).
         if (peopleSlot >= 0 && b.holds(Tradition.FEASTS))
@@ -1038,7 +1043,7 @@ class HexGroups(
                 if (!wantAll) { buf.later(p, d, prey, fed, score, beside); continue }
                 if (drowning < 0f) drowning = crossingDeaths(s, h.i, here.i, via)
                 val alive = score
-                score -= survivalSteps(g, deathsAt(c, p, h, fed) + drowning)
+                score -= survivalSteps(g, deathsAt(c, p, h, fed, d) + drowning)
                 if (!score.isFinite()) tellNotANumber(c, t, p, h, drowning, alive)
                 if (explores) buf.explore(p, score + beside, alive - score)
                 seen?.add(p.i to score)
@@ -1067,7 +1072,7 @@ class HexGroups(
             for (k in order) {
                 if (up[k] < bestScore) break
                 val p = Place(buf.laterPlace[k]); val h = hw.hexOf(p)
-                val total = buf.laterScore[k] - survivalSteps(g, deathsAt(c, p, h, buf.laterFed[k]) +
+                val total = buf.laterScore[k] - survivalSteps(g, deathsAt(c, p, h, buf.laterFed[k], buf.laterD[k]) +
                     crossingDeaths(s, h.i, here.i, via)) + buf.laterBeside[k]
                 if (!total.isFinite()) {
                     at.d = buf.laterD[k]; at.prey = buf.laterPrey[k]; at.crowded = Float.NaN; at.fed = buf.laterFed[k]
@@ -1146,7 +1151,7 @@ class HexGroups(
         // (The score is the hand-written one before its small noise and the group's temper, as [scorePlace] gives it.)
         fun parts(p: Place): String {
             val h = hw.hexOf(p); val hunters = huntersKm2(c, p, h)
-            val dying = deathsAt(c, p, h, 0f)
+            val dying = deathsAt(c, p, h, 0f, c.buf.dist[h])
             return "score %.2f: deaths %.4f (%.1f steps) food %.2f crowd %.2f hunters %.2f kg/km2 water %.1f km going %.0f km (%.0f km from goal)".format(
                 seen.firstOrNull { it.first == p.i }?.second ?: Float.NaN, dying, survivalSteps(g, dying), placeValue[kind][p],
                 crowdedBy(s, kinAround(g, kind, h, c.sensed)), hunters,
@@ -1171,10 +1176,10 @@ class HexGroups(
         if (notANumber.incrementAndGet() > 20) return
         val g = c.g; val s = g.species
         val d = c.at.d; val prey = c.at.prey; val crowded = c.at.crowded; val fed = c.at.fed
-        val deaths = deathsAt(c, p, h, fed)
+        val deaths = deathsAt(c, p, h, fed, d)
         val thirst = thirstOdds(g, p, dryAfter(g, p, fed))
         val causes = StringBuilder()
-        foreseenHazards(g, p, c.weather, fed, thirst) { cause, a, y ->
+        foreseenHazards(g, p, c.weather, fed, thirst, d) { cause, a, y ->
             if (a != 0f || y != 0f) causes.append(" ").append(cause).append(" ").append(a).append("/").append(y) }
         val terms = t?.let { "food value %s discomfort %s drain %s suits %s water %s km".format(placeValue[c.kind][p], it.discomfort, it.drain, it.suitsLn, it.waterKm) } ?: "not kept"
         println("not a number: ${s.name} #${g.id} of ${g.size} (${g.adults} grown, ${g.young} young, odds of dying ${g.deathOdds}, fed ${g.fed}) at place ${p.i}, " +
@@ -1279,11 +1284,11 @@ class HexGroups(
      * where it senses them). The young's odds count for the young. (What it shares wherever it goes, age, the background and its own band's ills, is
      * left out: it cannot tell places apart.)
      */
-    private fun deathsAt(c: PlanContext, p: Place, h: Hex, fed: Float): Float {
+    private fun deathsAt(c: PlanContext, p: Place, h: Hex, fed: Float, km: Float): Float {
         val g = c.g; val s = g.species; val weather = c.weather; val b = g.band
         val thirst = thirstOdds(g, p, dryAfter(g, p, fed))
         val odds = c.odds.also { it.adult = 0f; it.young = 0f }
-        foreseenHazards(g, p, weather, fed, thirst, odds)
+        foreseenHazards(g, p, weather, fed, thirst, km, odds)
         var adult = odds.adult; var young = odds.young
         if (b != null) {
             val venom = venomOdds(s, p, weather)
@@ -1401,6 +1406,20 @@ class HexGroups(
         if (p == g.place) return b.fire
         val lit = if (b.hearthWood > 0f) min(1f, b.fire / b.hearthWood) else 1f
         return lit * hearthShare(woodCover(p), g.size.toFloat() / forageHands(g))
+    }
+
+    /**
+     * The brush shelters band [b] (group [g]) would have camped at place [p], [km] off: its shelters now; elsewhere what it
+     * puts up there in the days it had to spare, less the walk's days, as far as it aims to ([shelterDays]). (A band whose
+     * walk takes its spare days sleeps in the open where it comes to: what being caught on the move in the cold costs.)
+     * (Last week's spare days stand for this week's: an estimate.)
+     */
+    internal fun shelterAt(g: HexGroup, b: Band, p: Place, km: Float): Float {
+        if (p == g.place) return b.shelter
+        val people = g.adults.toFloat()
+        if (people <= 0f) return 0f
+        val left = max(0f, b.spareDays - moveDays(g, km) * forageHands(g))
+        return min(b.shelterWill, left / shelterDays(b, people))
     }
 
     /** How far [g] camped at place [p] would be sheltered by houses there it may use (0 for none worth the name). */
