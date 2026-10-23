@@ -393,6 +393,12 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
         return (dT * k).toFloat() to (1.0 - (1.0 - rain) * k).toFloat()
     }
 
+    /**
+     * Extra years of stress, set with weather.stressYears=chance: each year, with this chance, a severe winter or a drought year
+     * of the kinds below comes on top of the usual ones, so that training worlds meet the hard years often (0 when unset).
+     */
+    private val stressYears = Config.float(Config.Key.WEATHER_STRESS_YEARS, 0f).toDouble()
+
     private fun newYear() {
         // Shocks that are over are let go.
         events.removeAll { it.endDay <= date.absoluteDay }
@@ -425,6 +431,14 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
             // High summer: July and August.
             val start = day + 180 + rnd.nextInt(60)
             events += ClimateEvent(ClimateEvent.Kind.HEAT_WAVE, start, start + 12 + rnd.nextInt(20), x, y, 250.0 + 300 * rnd.nextDouble(), 4.0 + 4 * rnd.nextDouble())
+        }
+        // (Drawn only when asked for, so that the usual weather is the same.)
+        if (stressYears > 0.0 && rnd.nextDouble() < stressYears) {
+            val (x, y) = place()
+            if (rnd.nextBoolean()) {
+                val start = day + rnd.nextInt(60)
+                events += ClimateEvent(ClimateEvent.Kind.COLD_WINTER, start, start + 15 + rnd.nextInt(30), x, y, 300.0 + 300 * rnd.nextDouble(), -(5.0 + 4 * rnd.nextDouble()))
+            } else events += ClimateEvent(ClimateEvent.Kind.DROUGHT, day, day + Date.DAYS_PER_YEAR, x, y, 300.0 + 400 * rnd.nextDouble(), 0.5 + 0.2 * rnd.nextDouble())
         }
     }
 

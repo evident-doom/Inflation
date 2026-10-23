@@ -11,7 +11,9 @@ import inflation.world.WorldConfig
  */
 class Sampling(val perKindYear: Int = 1500, val peopleChoices: Float = 8f,
                /** How many times as many of people's choices the critic learns from as the moves do (1: only those drawn); the rest are taken as the best, not learnt from by the moves. */
-               val criticTimes: Float = 4f) {
+               val criticTimes: Float = 4f,
+               /** How many times more a band under the hardest cold or hunger is recorded than one at ease (0: all alike). */
+               val stressBoost: Float = 0f) {
     companion object {
         /**
          * The most of a kind's choices that are recorded, and so drawn by chance instead of the best: a kind
@@ -21,6 +23,9 @@ class Sampling(val perKindYear: Int = 1500, val peopleChoices: Float = 8f,
 
         /** The most of a kind's other choices that are recorded for the critic alone. */
         const val MAX_VALUE_SHARE = 0.5f
+
+        /** The most of a band's choices that are drawn when it is under stress. */
+        const val MAX_STRESSED_SHARE = 0.3f
     }
 }
 
@@ -39,7 +44,7 @@ class Maps(val maps: List<Pair<Long, Double>> = emptyList()) {
 /**
  * HexPpo's command line (see [HexPpo] for the usage), and its learning settings from the config file:
  * `ppo.hidden` (default 48), `ppo.rate` (3e-4), `ppo.residual` (ROLE:X,...; none), `ppo.perKind` (1500),
- * `ppo.peopleChoices` (8), `ppo.criticTimes` (4) and `ppo.waysTrainMover` (true).
+ * `ppo.peopleChoices` (8), `ppo.criticTimes` (4), `ppo.stressBoost` (0) and `ppo.waysTrainMover` (true).
  */
 class PpoOptions(
     val out: File,
@@ -110,7 +115,7 @@ class PpoOptions(
                 burnYears = a.int("--burn-in", 1),
                 learnWays = !a.flag("--no-ways"),
                 waysTrainMover = Config.flag(Config.Key.PPO_WAYS_TRAIN_MOVER, true),
-                sampling = Sampling(Config.int(Config.Key.PPO_PER_KIND, default.perKindYear), Config.float(Config.Key.PPO_PEOPLE_CHOICES, default.peopleChoices), Config.float(Config.Key.PPO_CRITIC_TIMES, default.criticTimes)),
+                sampling = Sampling(Config.int(Config.Key.PPO_PER_KIND, default.perKindYear), Config.float(Config.Key.PPO_PEOPLE_CHOICES, default.peopleChoices), Config.float(Config.Key.PPO_CRITIC_TIMES, default.criticTimes), Config.float(Config.Key.PPO_STRESS_BOOST, default.stressBoost)),
                 maps = Maps(a.string("--maps")?.split(",")?.map { m -> val (s, l) = m.split(":"); s.toLong() to l.toDouble() } ?: emptyList()),
             )
             a.done()
