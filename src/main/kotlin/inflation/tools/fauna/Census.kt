@@ -302,15 +302,17 @@ class Census(private val sim: HexSim) {
             val died = lastYear.filterKeys { it.startsWith(Tally.bandsCladDied(c)) }
             "%s %.0f%%: %.3f, %.3f".format(c.label, 100.0 * (lastYear[Tally.bandsClad(c, Tally.Bands.PEOPLE_WEEKS)] ?: 0) / all.coerceAtLeast(1),
                 died.values.sum() / years.coerceAtLeast(1e-9), (died[Tally.bandsCladDied(c, DeathCause.EXPOSURE)] ?: 0) / years.coerceAtLeast(1e-9)) })
-        println("bands by how well fed through the week, their fat drawn on, last year (share of people-weeks; deaths per person a year of hunger, of exposure, of all; larder, of it meat, and fat at the week's end, days; share of the protein eaten that went to waste): " + Tally.Fed.entries.joinToString(", ") { f ->
+        println("bands by how well fed through the week, their fat drawn on, last year (share of people-weeks; deaths per person a year of hunger, of exposure, of all; larder, of it meat, and fat at the week's end, days; share of the protein eaten that went to waste; salt held, g a person, sodium short, salt here): " + Tally.Fed.entries.joinToString(", ") { f ->
             val pw = (lastYear[Tally.bandsFed(f, Tally.Bands.PEOPLE_WEEKS)] ?: 0).toDouble()
             val all = Tally.Fed.entries.sumOf { (lastYear[Tally.bandsFed(it, Tally.Bands.PEOPLE_WEEKS)] ?: 0).toDouble() }.coerceAtLeast(1.0)
             val years = (pw / stepsPerYear).coerceAtLeast(1e-9); val bw = (lastYear[Tally.bandsFed(f, Tally.Bands.BAND_WEEKS)] ?: 0).toDouble().coerceAtLeast(1.0)
             val died = lastYear.filterKeys { it.startsWith(Tally.bandsFedDied(f)) }
-            "%s %.1f%%: %.3f, %.3f, %.3f; %.1f, %.1f, %.1f; %.0f%%".format(f.label, 100 * pw / all, (died[Tally.bandsFedDied(f, DeathCause.HUNGER)] ?: 0) / years,
+            "%s %.1f%%: %.3f, %.3f, %.3f; %.1f, %.1f, %.1f; %.0f%%; %.0f, %.0f%%, %.0f%%".format(f.label, 100 * pw / all, (died[Tally.bandsFedDied(f, DeathCause.HUNGER)] ?: 0) / years,
                 (died[Tally.bandsFedDied(f, DeathCause.EXPOSURE)] ?: 0) / years, died.values.sum() / years,
                 (lastYear[Tally.bandsFed(f, Tally.Bands.LARDER)] ?: 0) / 10.0 / bw, (lastYear[Tally.bandsFed(f, Tally.Bands.LARDER_MEAT)] ?: 0) / 10.0 / bw,
-                (lastYear[Tally.bandsFed(f, Tally.Bands.FAT)] ?: 0) / 10.0 / bw, (lastYear[Tally.bandsFed(f, Tally.Bands.LEAN_LOST)] ?: 0).toDouble() / bw) })
+                (lastYear[Tally.bandsFed(f, Tally.Bands.FAT)] ?: 0) / 10.0 / bw, (lastYear[Tally.bandsFed(f, Tally.Bands.LEAN_LOST)] ?: 0).toDouble() / bw,
+                (lastYear[Tally.bandsFed(f, Tally.Bands.SALT_HELD)] ?: 0).toDouble() / bw, (lastYear[Tally.bandsFed(f, Tally.Bands.SODIUM_SHORT)] ?: 0).toDouble() / bw,
+                (lastYear[Tally.bandsFed(f, Tally.Bands.SALT_HERE)] ?: 0).toDouble() / bw) })
         run {
             // Meat brought in against meat eaten (each at what it feeds): what a kill beyond the band's hunger leaves to spoil.
             val h = Catalogue.HUMAN
