@@ -166,6 +166,8 @@ object Tally {
         HEARTH("hearth, %"), FUEL_DAYS("fuel days, %"),
         /** The larder and the fat a band held at the week's end, days of its food, tenths summed over band-weeks. */
         LARDER("larder days, 1/10"), FAT("fat days, 1/10"),
+        /** Of the larder, the meat (fresh and dried), days of food, tenths; and the share of the protein eaten that went to waste ([Band.leanLost]), %. */
+        LARDER_MEAT("larder meat days, 1/10"), LEAN_LOST("lean lost, %"),
     }
     /**
      * In the weeks the cold ran a band's people into heat debt through all the cover it had ([WEEKS], tenths): the worst debt

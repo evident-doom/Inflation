@@ -333,6 +333,9 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
             stats.hunting.merge(Tally.bandsFed(fed, Tally.Bands.PEOPLE_WEEKS), g.size, Int::plus)
             stats.hunting.merge(Tally.bandsFed(fed, Tally.Bands.LARDER), (10f * g.larderDays()).roundToInt(), Int::plus)
             stats.hunting.merge(Tally.bandsFed(fed, Tally.Bands.FAT), (10f * g.fat).roundToInt(), Int::plus)
+            val meatKg = Store.entries.filter { it.meat }.sumOf { g.stores[it].toDouble() }.toFloat()
+            stats.hunting.merge(Tally.bandsFed(fed, Tally.Bands.LARDER_MEAT), (10f * meatKg / max(1e-3f, g.dailyNeedKg)).roundToInt(), Int::plus)
+            stats.hunting.merge(Tally.bandsFed(fed, Tally.Bands.LEAN_LOST), (100f * b.leanLost).roundToInt(), Int::plus)
             for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge(Tally.bandsFedDied(fed, cause), k, Int::plus)
         }
         // And, in the weeks the cold ran its people into heat debt through all the cover the band had, what it was and had.
