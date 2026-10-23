@@ -20,6 +20,7 @@ import kotlin.math.min
 import kotlin.math.sqrt
 import kotlin.random.Random
 import inflation.ecology.Band
+import inflation.ecology.BandInputs
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -181,8 +182,19 @@ class MoverPolicy(private val mover: SharedMover, private val record: Concurrent
                   /** Where each band stood when it chose this week, before it moved (see [Standing]); null: not wanted. */
                   private val standing: ConcurrentHashMap<Int, Standing>? = null,
                   /** The share of the choices not drawn that are still recorded for the critic to learn from ([Choice.valueOnly]). */
-                  private val valueRate: (Species) -> Float = { 0f }) : HexPolicy {
+                  private val valueRate: (Species) -> Float = { 0f },
+                  /** How many times more a band at its hardest (cold exposure or hunger) is recorded than one at ease: the nets learn from the weeks that decide (see [Sampling.stressBoost]). */
+                  private val stressBoost: Float = 0f) : HexPolicy {
     private val scratch = ThreadLocal.withInitial { mover.Scratch() }
+
+    /** The chance [g]'s choice is drawn and recorded: its kind's, raised for a band under stress by [stressBoost] (never past [Sampling.MAX_STRESSED_SHARE]). */
+    private fun recordRate(g: HexGroup, state: FloatArray?): Float {
+        val r = rate(g.species)
+        if (stressBoost <= 0f || state == null || state.size <= BandInputs.COLD_ODDS) return r
+        val stress = max(state[BandInputs.COLD_ODDS], 1f - state[BandInputs.FED]).coerceIn(0f, 1f)
+        return min(Sampling.MAX_STRESSED_SHARE, r * (1f + stressBoost * stress))
+    }
+
     override fun choose(g: HexGroup, features: Array<FloatArray>, baseline: FloatArray, rnd: kotlin.random.Random): Int {
         val n = features.size
         val state = g.band?.state; val temper = g.temper
@@ -209,7 +221,7 @@ class MoverPolicy(private val mover: SharedMover, private val record: Concurrent
         if (weighed == 0) return Critic.here(features)
         // Only the choices recorded to learn from are drawn by chance here; every other group takes its best (a band then draws
         // by its will to explore, see [HexGroup.drawn]), so the training worlds live as they would with the networks choosing.
-        if (record == null || rnd.nextFloat() >= rate(g.species)) {
+        if (record == null || rnd.nextFloat() >= recordRate(g, state)) {
             var best = 0; for (k in 1 until n) if (scores[k] > scores[best]) best = k
             // (The groups that take their best still show what a group in their place can expect: the critic learns from a share of them too.)
             if (record != null && valueRate(g.species) > 0f && rnd.nextFloat() < valueRate(g.species)) {
@@ -514,7 +526,7 @@ object HexPpo {
             // A fresh world first settles for [burnSteps] weeks, its choices unrecorded (they come on top of this round's).
             val total = steps + if (week == 0) burnSteps else 0
             val season = { (week % stepsPerYear).toFloat() / stepsPerYear }
-            val policies = models.mapIndexed { i, m -> MoverPolicy(m, record, { s -> rates[s] ?: 0f }, { week }, probes, season, if (ways != null && i == Role.PEOPLE.ordinal) standing else null, { s -> valueRates[s] ?: 0f }) }
+            val policies = models.mapIndexed { i, m -> MoverPolicy(m, record, { s -> rates[s] ?: 0f }, { week }, probes, season, if (ways != null && i == Role.PEOPLE.ordinal) standing else null, { s -> valueRates[s] ?: 0f }, sampling.stressBoost) }
             for (s in kinds) run.groups.policies[s] = policies[role(s)]
             ways?.let { w -> run.groups.ways = WaysSampler(w, record, { waysRate }, { week }, cfg.seed, standing, probes) }
             repeat(if (lifeSteps > 0) min(total, lifeSteps - week) else total) {
