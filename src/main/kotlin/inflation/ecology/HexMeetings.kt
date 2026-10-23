@@ -1357,6 +1357,18 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather) {
             useful += gift / (KEEP_YEARS * need * max(1, taker.adults))
             stats.meeting(Met.Of.GIVEN, m.name.lowercase())
         }
+        // Salt to eat: a band short of sodium is given a year of it for its people by one that holds more than a year of it
+        // for its own, whatever it keeps for curing (a person's year of sodium is some 20 g of salt, [SALT_BODY_YEAR]).
+        if (tb.sodiumShort > 0f) {
+            val spare = gb.goods[Material.SALT] - SALT_BODY_YEAR * giver.size
+            val lack = SALT_BODY_YEAR * taker.size - tb.goods[Material.SALT]
+            if (spare > 0f && lack > 0f) {
+                val gift = min(spare, lack) * min(1f, gb.giveWill)
+                gb.goods[Material.SALT] -= gift; tb.goods[Material.SALT] += gift
+                useful += gift / (SALT_BODY_YEAR * max(1, taker.size))
+                stats.meeting(Met.Of.GIVEN, "salt to eat")
+            }
+        }
         if (useful <= 0f) continue
         tb.befriend(giver.id, TIE_USEFUL * useful); gb.befriend(taker.id, 0.5f * TIE_USEFUL * useful)
         gb.renown += useful
