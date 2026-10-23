@@ -390,7 +390,9 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     var bornExpected = 0f
     // In a band, the elders are past bearing children; they help their daughters raise theirs.
     val band = g.band
-    val mothers = mothersIn(g)
+    val mothersExact = mothersIn(g)
+    // (Whole mothers, the fraction drawn by chance: cutting it would lose half a mother a week, most of all in small bands.)
+    val mothers = mothersExact.toInt() + if (band != null && r.nextFloat() < mothersExact - mothersExact.toInt()) 1 else 0
     val help = if (band != null) min(1f, band.elders * ELDER_MOTHERS / max(1, mothers)) else 0f
     // (Births follow one rule for every kind, groups and residents alike: each mother bears her
     // litter as her food and reserves can build it (people as they are fed), through the birth season; only where just the leading pair of a pack
@@ -410,7 +412,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
                 val due = youngDue(s, kinKm2(g, kinNow), HexFauna.usualDensity(s), tuning.breedSpacing, 1f, share)
                 due * breeding(s, due, g.fat, g.fed, days) * settledFertility(g) * (1f + GRANDMOTHERS * help)
             }
-            bornExpected = mothers * rate
+            bornExpected = mothersExact * rate
             // (A big litter over a short season is more than one a mother a week: the whole ones, and the rest by chance.)
             val whole = rate.toInt()
             mothers * whole + binomial(mothers, rate - whole, r)
@@ -564,12 +566,12 @@ internal fun HexGroups.thirstOdds(g: HexGroup, p: Place, dry: Float): Float {
  * their twenties and early thirties, few in their teens, fewer after thirty-five, none past the
  * childbearing years (the elders).
  */
-private fun mothersIn(g: HexGroup): Int {
+private fun mothersIn(g: HexGroup): Float {
     val band = g.band
     return if (band != null) {
         val first = max(0, g.adults - band.elders - band.ageStage[0] - band.ageStage[1])
-        ((FERTILE_BY_SPAN[0] * first + FERTILE_BY_SPAN[1] * band.ageStage[0] + FERTILE_BY_SPAN[2] * band.ageStage[1]) / 2f).toInt()
-    } else g.adults / 2
+        (FERTILE_BY_SPAN[0] * first + FERTILE_BY_SPAN[1] * band.ageStage[0] + FERTILE_BY_SPAN[2] * band.ageStage[1]) / 2f
+    } else (g.adults / 2).toFloat()
 }
 
 /**
