@@ -1,6 +1,7 @@
 package inflation.tools
 
 import inflation.Config
+import inflation.ecology.BandInputs
 import inflation.ecology.BandWays
 import inflation.ecology.WAYS_OUT
 import inflation.learning.HexPpo
@@ -25,7 +26,8 @@ import kotlin.random.Random
  * except that each arm holds its one way at its value.
  * Config keys: dialArmSize (default 100, bands in each arm; fewer if the world has too few bands for them), dialArmWeeks (default 26, the weeks
  * the ways are held and the return covers), dialArmWays (default all; the numbers of the ways, from 0 in the order of the network's outputs,
- * comma-separated), dialArmValues (default 0.5,1.5; multiples of the scaffold's, between 0 and 2), dialArmGroups (default false; true: an arm for each group of ways, each band scrambling the group's ways between the values at random).
+ * comma-separated), dialArmValues (default 0.5,1.5; multiples of the scaffold's, between 0 and 2), dialArmGroups (default false; true: an arm for each group of ways, each band scrambling the group's ways between the values at random),
+ * dialArmStressTop (default 0; a share of the bands, those under the most stress after a first week, from which the arms are dealt, to see whether the ways matter more to them than to all).
  *
  * Usage: hex-dial-arms [--world NAME] [--replicate R] [--seed N] [--width KM] [--height KM] [--load FILE]
  */
@@ -52,8 +54,16 @@ fun main(args: Array<String>) {
             Arm("all tried (${tested.size} ways)", tested, values.map { forcedWayOutput(it) }, true)
     } else listOf(Arm("control", emptyList(), emptyList())) + tested.flatMap { j -> values.map { v -> Arm("${names[j]} x$v", listOf(j), listOf(forcedWayOutput(v))) } }
 
+    val stressTop = Config.float(Config.Key.DIAL_ARM_STRESS_TOP, 0f)
+    require(stressTop in 0f..1f) { "dialArmStressTop is a share, 0..1" }
     val sim = opts.start()
-    val humans = sim.groups.groups.filter { it.alive && it.species.human && it.band != null }
+    if (stressTop > 0f) sim.step() // (The bands' view of themselves is drawn at the start of a week.)
+    fun stress(g: inflation.ecology.HexGroup): Float { val s = g.band!!.state; return if (s.size <= BandInputs.COLD_ODDS) 0f else max(s[BandInputs.COLD_ODDS], 1f - s[BandInputs.FED]).coerceIn(0f, 1f) }
+    val everyone = sim.groups.groups.filter { it.alive && it.species.human && it.band != null }
+    val humans = if (stressTop > 0f) everyone.sortedByDescending { stress(it) }.take(max(1, (everyone.size * stressTop).toInt())).also { top ->
+        println("%d of %d bands under the most stress taken: stress %.3f to %.3f (all bands: mean %.3f, max %.3f)".format(top.size, everyone.size,
+            stress(top.last()), stress(top.first()), everyone.map { stress(it) }.average(), everyone.maxOf { stress(it) }))
+    } else everyone
     val per = minOf(armSize, humans.size / arms.size)
     require(per >= 2) { "${humans.size} bands for ${arms.size} arms: name fewer ways (dialArmWays) or values (dialArmValues)" }
     if (per < armSize) println("only ${humans.size} bands for ${arms.size} arms: $per in each, not $armSize")
