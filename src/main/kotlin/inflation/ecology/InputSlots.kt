@@ -63,6 +63,8 @@ object BandInputs : InputSlots() {
     // exposure, the wind and wet about the camp, and what it has against them (its fire's share of the week, its houses' shelter).
     val COLD_FOOD = one("cold: extra food"); val COLD_ODDS = one("cold: exposure odds"); val WIND = one("wind"); val WET = one("wet")
     val FIRE_SHARE = one("fire share"); val HOME_SHELTER = one("home shelter")
+    // Its salt: the share of its people's sodium it lacked last week ([Band.sodiumShort]), and the salt to be had where it stands.
+    val SODIUM_SHORT = one("sodium short"); val SALT_HERE = one("salt here")
 }
 
 /** The slots of a pack's view of itself ([animalInputs]). */

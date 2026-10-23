@@ -998,7 +998,7 @@ class HexGroups(
             for (pi in hw.placesOf(h)) {
                 val p = Place(pi)
                 val prey = knownGame(g, kind, p, h)
-                val fed = foreseenFed(g, prey, kin, crowded)
+                val fed = foreseenFed(g, prey, kin, crowded) * saltFeedsAt(g, p, h)
                 val hunters = huntersKm2(c, p, h)
                 at.prey = prey; at.fed = fed; at.hunters = hunters
                 val t = buf.terms.also { fillTerms(it, g, p, weather, date) }
@@ -1292,6 +1292,16 @@ class HexGroups(
         if (s.human) return (prey / (prey + PREY_HALF) - 0.5f * crowded).coerceIn(0f, 1f)
         val needKg = s.dailyIntakeKg * g.warmth * days * (g.adults + 0.5f * g.young) / max(1, g.size)
         return min(1f, HexFauna.RESIDENT_KILL_MOST * prey * Nourishment.PREY * s.needScale / max(1e-6f, kinKm2 * needKg))
+    }
+
+    /**
+     * What band [g]'s food would do for it at place [p] (in hex [h]) for its sodium ([saltFeeds], as its meal has it): as short
+     * as it was last week, unless salt is to be had there (a salt pan or dry lake bed, the shore), which makes up the lack.
+     */
+    internal fun saltFeedsAt(g: HexGroup, p: Place, h: Hex): Float {
+        val b = g.band ?: return 1f
+        if (b.sodiumShort <= 0f || land.salt[p] > 0f || hw.coast[h]) return 1f
+        return saltFeeds(b.sodiumShort, 1f, tuning.saltLack)
     }
 
     /** The odds of the hazards at a place, summed ([deathsAt]). */
