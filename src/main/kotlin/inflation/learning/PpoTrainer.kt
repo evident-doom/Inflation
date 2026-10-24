@@ -89,7 +89,7 @@ class PpoTrainer(private val o: PpoOptions) {
             val nonFinite = NonFinite.take().takeIf { it.isNotEmpty() }?.let { "; not numbers when choosing: $it" } ?: ""
             val line = "round %d  %.0f s (playing %.0f s)  %s mean return: %s%s".format(round, (System.nanoTime() - t0) / 1e9, (tPlay - t0) / 1e9, stats, returns, nonFinite)
             log.write(line)
-            if (round % o.checkEvery == o.checkEvery - 1) {
+            if (o.checkEvery > 0 && round % o.checkEvery == o.checkEvery - 1) {
                 // The ecosystem check runs beside the training (one at a time: a round whose check would start while the
                 // last is still running goes unchecked); the reference check against the hand-written behaviour follows.
                 if (checking == null) {
