@@ -224,7 +224,11 @@ object HexSnapshot {
      * 4.43: people pick fruit at the record's rate ([BAND_FRUIT_DAYS_PER_KG], three times as long as before); shellfish are
      *   gathered off the shore as their own offer, at the Meriam rate and with no skill or tool ([SHELLFISH_DAYS_PER_KG]),
      *   and only fish caught is practice at fishing.
-     * 4.44: a band's gatherers walk to the plant food and carry it home a load at a time ([GATHER_LOAD_KG]), so food
+     * 4.44: a camp is the hex: staying, for the fouling that makes a band want to leave and for the camp weeks the sicknesses
+     *   foresee, is staying in the hex (it was staying on the same ground, so the other ground of a hex looked like a fresh camp
+     *   while the week kept the camp weeks going); the sick a band foresees among the bands gathered at a place are those of
+     *   the whole hex, where the meetings are.
+     * 4.45: a band's gatherers walk to the plant food and carry it home a load at a time ([GATHER_LOAD_KG]), so food
      *   further from camp, and the far side of a place they strip, takes longer a kilo; and they search for roots before
      *   they dig them, longer a kilo the thinner they grow ([ROOT_SEARCH_M2_PER_DAY]); a band's week gives its days first
      *   to food, firewood and shelter as far as they avert the deaths it foresees this week and through the year after
@@ -232,7 +236,7 @@ object HexSnapshot {
      *   and a band choosing its camp counts roots as its gathering would find them ([HexGroups.rootsFound]).
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 44
+    const val MODEL_MINOR = 45
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

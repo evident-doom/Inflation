@@ -1286,7 +1286,8 @@ class HexGroups(
                 else sky * SEASON_PULL * (0.3f * goalQ + (goalQ - g.fed).coerceIn(0f, 1f)) * prog
         }
         score += tuning.bearingPull * pull
-        if (p == g.place) score += STAY - (g.band?.let { stayCost(it) } ?: 0f)
+        // (Staying is staying in the camp's hex: its other ground is the same camp, with the same fouling.)
+        if (h == here) score += STAY - (g.band?.let { stayCost(it) } ?: 0f)
         // Bold animals of kinds that follow people are drawn to their camps: refuse, scraps, warmth.
         if (s.followsPeople && peopleSlot >= 0) score += CAMP_LURE * boldness(g) * min(1f, knownHeads(peopleSlot, p, h, sensed) / 25f)
         g.band?.let { b -> score += bandPull(g, b, month, h, here, p, keepOff, sensed, reach) }
@@ -1315,16 +1316,19 @@ class HexGroups(
             dialUse?.amount(DialSite.CHILDREN_PLAN, b.childWatch, YOUNG_STALKED / b.childWatch.coerceAtLeast(0.25f) * stalked, YOUNG_STALKED * stalked, cut = b.childWatch < 0.25f)
             // The sicknesses it would catch there (marsh fever by the mosquitoes, the flux in a long-kept camp, the cough
             // where people crowd), and the fouling of a camp kept on: weeks camped there go on if it stays, else start afresh.
-            val campWeeks = if (p == g.place) b.campWeeks + 1 else 0
+            val campWeeks = if (h == c.here) b.campWeeks + 1 else 0
             val crowd = peopleCrowding(g, h.i); val t = weather.temperature[p]; val healed = healedShare(b)
             adult += illnessAhead(b, p, t, crowd, campWeeks, healed, false)
             young += illnessAhead(b, p, t, crowd, campWeeks, healed, true) + campFouling(g, campWeeks) * years
             // What it would catch of the bands it sees gathered there (a feast draws bands together, and the cough with them).
             if (h in c.sensed && peopleSlot >= 0) {
-                val stays = p == g.place
-                val others = headsHere[peopleSlot][p] - (if (stays) g.size else 0)
+                // (Bands meet over the whole hex, whichever ground each stands on.)
+                val stays = h == c.here
+                var heads = 0; for (q in hw.placesOf(h)) heads += headsHere[peopleSlot][Place(q)]
+                val others = heads - (if (stays) g.size else 0)
                 if (others > 0) for (ill in Illness.entries) if (ill.contagion > 0f) {
-                    val theirSick = (sickPeople[ill.ordinal][p] - (if (stays) g.size * b.sick[ill] else 0f)).coerceAtLeast(0f) / others
+                    var sick = 0f; for (q in hw.placesOf(h)) sick += sickPeople[ill.ordinal][Place(q)]
+                    val theirSick = (sick - (if (stays) g.size * b.sick[ill] else 0f)).coerceAtLeast(0f) / others
                     val dying = caughtFrom(ill, theirSick, b) * ill.deadly * healed
                     adult += dying; young += dying * ill.young
                 }
