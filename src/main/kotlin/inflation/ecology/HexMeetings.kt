@@ -267,6 +267,8 @@ private class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, packK
     // (A band renders bones' grease where it gathers them: see [greaseOf].)
     val renderDays = if (band != null) BONE_RENDER_DAYS / gatherers.coerceAtLeast(1e-3f) else 0f
     val pickDays = PLANT_HANDLING_DAYS_PER_KG * gs.tuning.plantHandling / gatherers / carry + eats
+    // (People pick fruit a berry at a time, at the record's rate: see [BAND_FRUIT_DAYS_PER_KG].)
+    val fruitDays = if (band != null) BAND_FRUIT_DAYS_PER_KG * gs.tuning.plantHandling / gatherers / carry + eats else pickDays
     val seedDays = SEED_HANDLING_DAYS_PER_KG * gs.tuning.plantHandling / gatherers / carry /
         (1f + (band?.sickleGain(gs.tuning) ?: 0f) + GRINDER_GAIN * (band?.has(Tool.GRINDER) ?: 0f)) + eats
     // Bands gather over all the ground they walked, the women's and children's day round; animals where they end the week.
@@ -301,6 +303,8 @@ private class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, packK
     // What it has got: meat (the meat it took in its meetings with it), small game, carrion and bones, plants, fish; and what
     // all of it feeds, in kg of its need (see [worth]).
     var meat = g.meatMet; var smallGot = 0f; var scraps = 0f; var plants = 0f; var fish = 0f
+    // (Of the fish, what was caught rather than gathered off the shore: that alone is practice at fishing.)
+    var fished = 0f
     // (How fish paid against the gatherers' least paying food taken up, the first pass: see [Offers.pull].)
     var fishPull = 0f
     // (A band's grease rendered from bones, kg, and what it feeds.)
@@ -483,11 +487,11 @@ private class Offers(n: Int) {
     }
 
     /**
-     * How the gatherers' [t] paid after [takeUp]: its yield a day of handling over itself and the least the gatherers took
-     * up (their rate when they stopped): above 1/2 it was taken up, below it ranked out; 0 when none was on offer.
+     * How the gatherers' [t] (of kind [k]) paid after [takeUp]: its yield a day of handling over itself and the least the
+     * gatherers took up (their rate when they stopped): above 1/2 it was taken up, below it ranked out; 0 when none was on offer.
      */
-    fun pull(t: Food): Float {
-        for (i in 0 until m) if (type[i] == t && who[i] == 1) {
+    fun pull(t: Food, k: Int = 0): Float {
+        for (i in 0 until m) if (type[i] == t && kind[i] == k && who[i] == 1) {
             val least = gain[1] / spent[1]
             return if (profit[i] > 0f) profit[i] / (profit[i] + least) else 0f
         }
@@ -596,7 +600,8 @@ private fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
         val slow = band?.slowness(Skill.GATHER, knowHere) ?: 1f
         val eats = w.eats
         val pickQ = (w.pickDays - eats) * slow + eats; val seedQ = (w.seedDays - eats) * slow + eats
-        offer(w, o, Food.FRUIT, 0, Place(q), land.total(Place(q), KgM2(reach * fauna.food.fruit[q])).v / days, 1f, pickQ)
+        val fruitQ = (w.fruitDays - eats) * slow + eats
+        offer(w, o, Food.FRUIT, 0, Place(q), land.total(Place(q), KgM2(reach * fauna.food.fruit[q])).v / days, 1f, fruitQ)
         offer(w, o, Food.ROOTS, 0, Place(q), land.total(Place(q), KgM2(reach * fauna.food.roots[q])).v / days, 1f, ROOT_DIGGING * pickQ)
         offer(w, o, Food.FINDS, 0, Place(q), land.total(Place(q), KgM2(reach * fauna.food.finds[q])).v / days, 1f, ROOT_DIGGING * pickQ)
         // Grass seed must be reaped, threshed and ground: worth it only with the tools and the hands.
@@ -604,10 +609,12 @@ private fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
         // Wild and sown cereals: reaped like grass seed, but richer where they stand.
         offer(w, o, Food.GRAIN, 0, Place(q), land.total(Place(q), KgM2((band?.let { it.gatherShare(true, tuning) * knowHere * part } ?: reach) * fauna.food.grain[q])).v / days, 1f, seedQ)
     }
-    // Bands fish the river, the lake or the sea shore by their camp.
+    // Bands fish the river, the lake or the sea by their camp, as their skill and nets allow ([Band.fishing]); and gather
+    // shellfish off the shore, which wants neither (kind [SHELLFISH_KIND] of the fish offered).
     if (band != null) {
         val h = hw.placeHex[g.place]
-        offer(w, o, Food.FISH, 0, Place(h), fauna.water.fishWithin(h, band.fishing()) / days, 1f, FISH_HANDLING_DAYS_PER_KG / w.gatherHands * band.slowness(Skill.FISH) + w.eats)
+        offer(w, o, Food.FISH, 0, Place(h), fauna.water.fishWithin(h, band.fishing(), HexWater.Catch.FISH) / days, 1f, FISH_HANDLING_DAYS_PER_KG / w.gatherHands * band.slowness(Skill.FISH) + w.eats)
+        offer(w, o, Food.FISH, SHELLFISH_KIND, Place(h), fauna.water.fishWithin(h, 1f, HexWater.Catch.SHELLFISH) / days, 1f, SHELLFISH_DAYS_PER_KG / w.gatherHands + w.eats)
     }
 }
 
@@ -646,7 +653,8 @@ private fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
                 val st = when (o.type[i]) { Food.ROOTS -> Store.ROOTS; Food.SEED -> Store.SEED; else -> Store.FRUIT }.ordinal
                 w.plantKind[st] += fed; w.plantKg[st] += haul.mass
             }
-            Food.FISH -> fauna.water.fishFor(p, expected, band?.fishing() ?: 1f).let { w.fish += it; w.fed += it * w.feeds(Food.FISH) }
+            Food.FISH -> if (o.kind[i] == SHELLFISH_KIND) fauna.water.fishFor(p, expected, 1f, HexWater.Catch.SHELLFISH).let { w.fish += it; w.fed += it * w.feeds(Food.FISH) }
+                else fauna.water.fishFor(p, expected, band?.fishing() ?: 1f, HexWater.Catch.FISH).let { w.fish += it; w.fished += it; w.fed += it * w.feeds(Food.FISH) }
             Food.GRAIN -> {
                 reap(g, Place(p), expected, haul)
                 val fed = haul.kg * w.worth(Food.GRAIN)
@@ -665,7 +673,7 @@ private fun HexGroups.eatTheWeek(w: ForageWeek) {
     val meat = w.meat; val smallGot = w.smallGot; val scraps = w.scraps; val plants = w.plants; val fish = w.fish
     // The resident bands it came on while it searched count towards its search image.
     if (w.searched > 0f) countResidentsMet(g, w.ground, w.met, w.searched, w.today)
-    if (band != null) { practise(g, band, meat > g.meatMet, smallGot, plants, fish); recordFood(g, band, w) }
+    if (band != null) { practise(g, band, meat > g.meatMet, smallGot, plants, w.fished); recordFood(g, band, w) }
     // (All counted at what it feeds, see [ForageWeek.worth]: the meat eaten as far as the rest falls short.)
     val meatWorth = w.feeds(Food.BIG_GAME); val rest = w.fed - meat * meatWorth
     // (What its plant food weighs: raw seed weighs more than it feeds, see [gather].)
@@ -1062,6 +1070,9 @@ private fun HexGroups.gather(g: HexGroup, t: Food, p: Place, expected: Float, ha
     }
     out.kg = took; out.mass = mass
 }
+
+/** The kind of [Food.FISH] offer that is shellfish gathered off the shore (0 is fish caught: see [offerFoods]). */
+const val SHELLFISH_KIND = 1
 
 /**
  * The kinds of food [forage] offers a party; all but [GRAIN] are also a band's effort slots ([FOOD_TYPES]: grain goes by grass seed's).

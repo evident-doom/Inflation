@@ -611,11 +611,11 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     /**
      * People fishing from hex [h]: the spawning run while it is in the river, the river's fish, fish
      * from lakes and from the sea along the coast (its own water and the water hexes next to it), and
-     * shellfish from shallow shores. Takes up to [kg]; returns kg caught. Each source gives at most a
-     * share a week, so a band cannot empty a river. What people take of each is booked with the week's fish flows
-     * ([PEOPLE_FLOWS], tonnes).
+     * shellfish from shallow shores ([what]: the fish, the shellfish or both). Takes up to [kg]; returns kg caught. Each
+     * source gives at most a share a week, so a band cannot empty a river. What people take of each is booked with the
+     * week's fish flows ([PEOPLE_FLOWS], tonnes).
      */
-    fun fishFor(h: Int, kg: Float, skill: Float = 1f): Float {
+    fun fishFor(h: Int, kg: Float, skill: Float = 1f, what: Catch = Catch.ALL): Float {
         var left = kg
         val landKm2 = max(1f, hw.land[h] * hexKm2)
         // A week's fishing gets more the more fish there are, levelling off at what the band wants: a
@@ -628,36 +628,53 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
             stock[q] -= t / areaKm2; left -= t
             fishFlows.merge(flow, t / 1000.0, Double::plus)
         }
-        take(run, h, landKm2, RUN_SEARCH, PEOPLE_FLOWS[0])
-        // Turtles and their eggs on the beach in the nesting months.
-        if (nesting && shoreKm[h] <= 0f) take(sea[TURTLE], h, seaKm2[h], SHELLFISH_SEARCH, PEOPLE_FLOWS[1])
-        take(riverFish, h, landKm2, RIVER_SEARCH, PEOPLE_FLOWS[0])
+        val fish0 = what != Catch.SHELLFISH; val shell = what != Catch.FISH
+        if (fish0) {
+            take(run, h, landKm2, RUN_SEARCH, PEOPLE_FLOWS[0])
+            // Turtles and their eggs on the beach in the nesting months.
+            if (nesting && shoreKm[h] <= 0f) take(sea[TURTLE], h, seaKm2[h], SHELLFISH_SEARCH, PEOPLE_FLOWS[1])
+            take(riverFish, h, landKm2, RIVER_SEARCH, PEOPLE_FLOWS[0])
+        }
         for (q in listOf(h) + (0 until 6).map { hex.neighbour(h, it) }.filter { it >= 0 }) {
-            take(fish, q, waterKm2[q], FISH_SEARCH, PEOPLE_FLOWS[2])
-            take(shellfish, q, seaKm2[q] * shallow[q], SHELLFISH_SEARCH, PEOPLE_FLOWS[3])
+            if (fish0) take(fish, q, waterKm2[q], FISH_SEARCH, PEOPLE_FLOWS[2])
+            if (shell) take(shellfish, q, seaKm2[q] * shallow[q], SHELLFISH_SEARCH, PEOPLE_FLOWS[3])
         }
         return kg - left
     }
 
-    /** What a band fishing from hex [h] with [skill] could catch in a week at most, kg (see [fishFor]). */
-    fun fishWithin(h: Int, skill: Float = 1f): Float {
+    /** What a band fishing from hex [h] with [skill] could catch in a week at most of [what], kg (see [fishFor]). */
+    fun fishWithin(h: Int, skill: Float = 1f, what: Catch = Catch.ALL): Float {
         val landKm2 = max(1f, hw.land[h] * hexKm2)
         fun most(stock: FloatArray, q: Int, areaKm2: Float, search: Float): Float {
             val s = stock[q] * areaKm2
             return if (s > 0f) min(0.5f * s, s * skill / search) else 0f
         }
-        var kg = most(run, h, landKm2, RUN_SEARCH) + most(riverFish, h, landKm2, RIVER_SEARCH)
-        if (nesting && shoreKm[h] <= 0f) kg += most(sea[TURTLE], h, seaKm2[h], SHELLFISH_SEARCH)
+        val fish0 = what != Catch.SHELLFISH; val shell = what != Catch.FISH
+        var kg = 0f
+        if (fish0) {
+            kg += most(run, h, landKm2, RUN_SEARCH) + most(riverFish, h, landKm2, RIVER_SEARCH)
+            if (nesting && shoreKm[h] <= 0f) kg += most(sea[TURTLE], h, seaKm2[h], SHELLFISH_SEARCH)
+        }
         // (The hex and the six round it, in that order, without making a list each time: it is asked often.)
         for (d in -1 until 6) { val q = if (d < 0) h else hex.neighbour(h, d); if (q < 0) continue
-            kg += most(fish, q, waterKm2[q], FISH_SEARCH) + most(shellfish, q, seaKm2[q] * shallow[q], SHELLFISH_SEARCH) }
+            if (fish0) kg += most(fish, q, waterKm2[q], FISH_SEARCH)
+            if (shell) kg += most(shellfish, q, seaKm2[q] * shallow[q], SHELLFISH_SEARCH) }
         return kg
     }
+
+    /**
+     * What a band with fishing [skill] could take from hex [h] in a week at most, kg: the fish as its skill allows, the
+     * shellfish off the shore whatever its skill.
+     */
+    fun bandCatchWithin(h: Int, skill: Float) = fishWithin(h, skill, Catch.FISH) + fishWithin(h, 1f, Catch.SHELLFISH)
 
     /** Share of its needs a fish-eater gets at fish density [f], kg/km²: little where fish are few (shoals are hard to find), most where they are many. */
     private fun fishResponse(f: Float) = f * f / (f * f + FISH_FIND_HALF * FISH_FIND_HALF)
 
     private var nesting = false
+
+    /** What people take from the water: the fish (the runs, river, lake and sea fish, and turtles), the shellfish, or both. */
+    enum class Catch { FISH, SHELLFISH, ALL }
 
     /** Totals: plankton, fish, shellfish, sea animals (t), river fish (t) and sea birds. */
     fun summary(): String {
