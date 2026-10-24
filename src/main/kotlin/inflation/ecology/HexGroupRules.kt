@@ -264,6 +264,17 @@ const val BONE_DAYS = 3f
  * Weiss & Hartman 2004, PNAS 101:2692. Reaping a dense stand with a sickle is faster, unmeasured here.)
  */
 const val ROOT_DIGGING = 2f
+/**
+ * Ground a band's gatherer searches for roots and bulbs in a day, m². Roots must be found before they are dug, so
+ * thin ground takes longer a kilo: Holling's disc equation, days a kilo = digging + 1 / (search x density). Fitted to one
+ * pair of figures. Naive foragers in the southern Cape took about two hours to 2,000 kcal: half of 26 events got there
+ * within two hours (Singels et al. 2015, PeerJ PrePrints 3:e1573). The ground held 52-160 kg/ha of edible underground
+ * organs, fresh (Singels 2013), at about 1.9 kcal/g. The digging time here alone gives some 1,400 kcal/h, so the search
+ * takes the rest: about 190 m² searched an hour, or 1,100 m² over a 6-hour day. This is an approximation. Skilled foragers
+ * search faster than naive ones, and the fit rests on the digging time being right. Fallen mast, counted in the same stock,
+ * is easier to find than bulbs.
+ */
+const val ROOT_SEARCH_M2_PER_DAY = 1100f
 const val SEED_HANDLING_DAYS_PER_KG = 0.5f
 const val FISH_HANDLING_DAYS_PER_KG = 0.3f
 /**

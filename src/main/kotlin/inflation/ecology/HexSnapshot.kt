@@ -225,7 +225,8 @@ object HexSnapshot {
      *   gathered off the shore as their own offer, at the Meriam rate and with no skill or tool ([SHELLFISH_DAYS_PER_KG]),
      *   and only fish caught is practice at fishing.
      * 4.44: a band's gatherers walk to the plant food and carry it home a load at a time ([GATHER_LOAD_KG]), so food
-     *   further from camp, and the far side of a place they strip, takes longer a kilo.
+     *   further from camp, and the far side of a place they strip, takes longer a kilo; and they search for roots before
+     *   they dig them, longer a kilo the thinner they grow ([ROOT_SEARCH_M2_PER_DAY]).
      */
     const val MODEL_MAJOR = 4
     const val MODEL_MINOR = 44

@@ -613,7 +613,10 @@ private fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
         val seedWalk = 2f / 3f * sqrt(seedReach * land.areaKm2[q] / PI.toFloat()) + off
         fun walked(t: Food, km: Float) = km * w.walkDaysPerKm / dryShare(t)
         offer(w, o, Food.FRUIT, 0, Place(q), land.total(Place(q), KgM2(reach * fauna.food.fruit[q])).v / days, 1f, fruitQ + walked(Food.FRUIT, walk))
-        offer(w, o, Food.ROOTS, 0, Place(q), land.total(Place(q), KgM2(reach * fauna.food.roots[q])).v / days, 1f, ROOT_DIGGING * pickQ + walked(Food.ROOTS, walk))
+        // (A band's gatherers must find roots before they dig them: the thinner they grow, the longer a kilo; see [ROOT_SEARCH_M2_PER_DAY].)
+        val rootSearch = if (band != null && fauna.food.roots[q] > 0f) 1f / (ROOT_SEARCH_M2_PER_DAY * fauna.food.roots[q] * w.gatherers) else 0f
+        offer(w, o, Food.ROOTS, 0, Place(q), land.total(Place(q), KgM2(reach * fauna.food.roots[q])).v / days, 1f,
+            ROOT_DIGGING * pickQ + rootSearch + walked(Food.ROOTS, walk))
         offer(w, o, Food.FINDS, 0, Place(q), land.total(Place(q), KgM2(reach * fauna.food.finds[q])).v / days, 1f, ROOT_DIGGING * pickQ + walked(Food.FINDS, walk))
         // Grass seed must be reaped, threshed and ground: worth it only with the tools and the hands.
         offer(w, o, Food.SEED, 0, Place(q), land.total(Place(q), KgM2(seedReach * fauna.food.seeds[q])).v / days, 1f, seedQ + walked(Food.SEED, seedWalk))
