@@ -15,7 +15,7 @@ import kotlin.math.roundToInt
 internal fun HexGroups.startVillages() {
     val bands = groups.filter { it.alive && it.species.human && it.band != null }
     val farm = bands.filter { farmWorth(it.place) > 0f }.sortedByDescending { farmWorth(it.place) }
-    for (g in farm.take(min(farm.size, (tuning.startSettled * bands.size).roundToInt()))) startVillage(g, g.band!!)
+    for (g in farm.take(min(farm.size, (tuning.startSettled * bands.size).roundToInt()))) g.band?.let { startVillage(g, it) }
 }
 
 /** How good place [p] is to farm: the share of its grass that is wild cereal, where drinking water is within [VILLAGE_WATER_KM]; else none. */
