@@ -1,6 +1,5 @@
 package inflation.ecology
 
-import inflation.world.Date
 import inflation.world.Weather
 import kotlin.math.max
 import kotlin.math.min
@@ -9,7 +8,7 @@ import kotlin.math.roundToInt
 /**
  * The days [g]'s band [b] gives first this week to its food, the hearth's firewood and the camp's shelters, as far as they
  * keep its people alive (survival first), by the sim's own foresight: the deaths it foresees this week and through the year
- * after ([yearAhead], as people-months lived, so that deaths put off count) with each split of its days, exposure by its people's body heat ([Band.warmth]) with the fire the
+ * after ([yearAhead]), each counted in full, with each split of its days, exposure by its people's body heat ([Band.warmth]) with the fire the
  * wood keeps and the shelters it puts up, hunger by what the days of foraging bring, its larder, then its fat, then its
  * body's protein paying the shortfall ([Hazards.hunger]); and what this week's food leaves of them carried into the year.
  *
@@ -54,11 +53,10 @@ internal fun HexGroups.survivalDays(g: HexGroup, b: Band, weather: Weather, time
         val onFat = Hazards.onFat(fed, g.fat, days)
         val fat = max(0f, g.fat - (onFat - fed) * days)
         val hunger = Hazards.hunger(s, g.spent, onFat, days)
-        // (People-days lived through this week and the year after, a share of all of them: this week's count too, where the
-        // year after looks bleak whatever is done now.)
+        // (This week's deaths and the year after's, each counted in full: a year that looks bleak whatever is done now, as
+        // it does before a band has a year's food behind it to foresee by, takes nothing from what this week's days do.)
         val week = (1f - w.odds) * (1f - hunger)
-        val after = week * year.alive(s, larderDays - paid, fat, Hazards.spentAfter(s, g.spent, onFat, days), lived = true)
-        return 1f - (days * week + YEAR_DAYS * after) / (days + YEAR_DAYS)
+        return 1f - week + 1f - year.alive(s, larderDays - paid, fat, Hazards.spentAfter(s, g.spent, onFat, days))
     }
     val d = FloatArray(3)
     val least = deaths(asks)
@@ -93,4 +91,3 @@ private const val SHELTER = 2
 /** The pieces the week is given out in ([survivalDays]); and the steps of fire and shelter its body heat is reckoned at. */
 private const val CHUNKS = 40f
 private const val GRID = 20f
-private const val YEAR_DAYS = Date.DAYS_PER_YEAR.toFloat()
