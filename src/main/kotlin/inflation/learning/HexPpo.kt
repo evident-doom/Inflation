@@ -3,6 +3,7 @@ package inflation.learning
 import inflation.run.Nominal
 import inflation.run.freshSim
 import inflation.ecology.HexSim
+import inflation.ecology.HexSnapshot
 import inflation.ecology.Catalogue
 import inflation.Config
 import inflation.ecology.HexFeatures
@@ -511,6 +512,35 @@ object HexPpo {
             }
         }
 
+        /**
+         * Config key `ppo.settledWorlds` (a directory; unset: none): the world that has settled for [burnSteps] weeks is kept there, and
+         * a later start of the same world (seed, size, latitude, kinds and settling) takes it up instead of settling again. It is the
+         * world as the networks of the start that made it settled it. A file that today's code will not load (an older model) is settled again.
+         */
+        private val settledFile = Config.string(Config.Key.PPO_SETTLED_WORLDS)?.let { dir ->
+            File(dir, "w%d-%dx%d-lat%.2f-burn%d-k%08x.bin".format(cfg.seed, cfg.widthKm, cfg.heightKm, cfg.centreLatitude, burnSteps, kinds.map { it.name }.hashCode()))
+        }
+
+        private fun loadSettled() {
+            val f = settledFile?.takeIf { it.isFile } ?: return
+            try {
+                HexSnapshot.load(run, f)
+            } catch (e: Exception) {
+                census("settled world $f not taken up (${e.message?.lines()?.firstOrNull()}): settling afresh")
+                return
+            }
+            week = burnSteps
+            startNumbers.clear(); startNumbers.putAll(numbersByKind())
+            outcomes.record(week, run.groups.groups, run.groups.merged)
+            census("settled world taken up from $f")
+        }
+
+        private fun saveSettled() {
+            val f = settledFile ?: return
+            if (f.exists()) return
+            try { HexSnapshot.save(run, f); census("settled world kept in $f") } catch (e: Exception) { census("settled world not kept: ${e.message}") }
+        }
+
         // (People, the one kind of their role, get [Sampling.peopleChoices] times as many as each animal kind.)
         private fun setRates() {
             // (Nothing is recorded while a fresh world settles.)
@@ -522,6 +552,7 @@ object HexPpo {
 
         /** [steps] more weeks with [models] choosing (and the bands' ways drawn from [ways], else the scaffold's); the choices whose outcome is now all seen, with their returns. */
         fun play(steps: Int, models: List<SharedMover>, ways: LearnedWays?): List<Choice> {
+            if (week == 0 && burnSteps > 0) loadSettled()
             if (week == 0) { setRates(); checkRails() }
             // A fresh world first settles for [burnSteps] weeks, its choices unrecorded (they come on top of this round's).
             val total = steps + if (week == 0) burnSteps else 0
@@ -533,7 +564,7 @@ object HexPpo {
                 run.step()
                 week++
                 // (Growth is judged from the settled world, not from the seeded one: the settling years bring the kinds to their own level.)
-                if (week == burnSteps) { startNumbers.clear(); startNumbers.putAll(numbersByKind()) }
+                if (week == burnSteps) { startNumbers.clear(); startNumbers.putAll(numbersByKind()); saveSettled() }
                 if (week % stepsPerYear == 0) {
                     setRates()
                     census("year %d%s: %s".format(week / stepsPerYear, if (week <= burnSteps) " (settling)" else "", kinds.joinToString(", ") { s -> "${s.name} ${run.groups.count(s)}" }))

@@ -42,6 +42,8 @@ class PpoTrainer(private val o: PpoOptions) {
     private val steps = o.years * WorldConfig().stepsPerYear
     private val log = RunLog(out, "round")
     /** Advantages (in spreads of the kind's) are held within this much of none: a few collapses would otherwise decide a round, the spread being set by them. */
+    /** How many times the step an input that has hardly been trained gets (see [Mlp.smallInputRates]); 1: none. */
+    private val smallInputBoost = Config.float(Config.Key.PPO_SMALL_INPUT_BOOST, 1f)
     private val advantageClip = Config.float(Config.Key.PPO_ADVANTAGE_CLIP, 3f).let { if (it <= 0f) Float.MAX_VALUE else it }
 
     fun run() {
@@ -188,6 +190,7 @@ class PpoTrainer(private val o: PpoOptions) {
         val weight = mine.associateWith { c -> 1f / (kindsHere.size * byKind.getValue(c.kind).size) }
         var skipped = 0
         var clipped = 0L; var seen = 0L
+        val inputRates = if (smallInputBoost > 1f) model.net.smallInputRates(smallInputBoost) else null
         repeat(4) { epoch ->
             for (batch in mine.shuffled(Random(round * 31L + epoch)).chunked(512)) {
                 val parts = inParts(batch) { part -> gradient(model, part, weight) }
@@ -199,7 +202,7 @@ class PpoTrainer(private val o: PpoOptions) {
                 // (Each batch is a share of the whole, so its weights are scaled up to stand for it.)
                 val scale = mine.size.toFloat() / batch.size
                 for (i in gradW.indices) gradW[i] *= scale; for (i in gradId.indices) gradId[i] *= scale
-                adams[mi].net.step(model.net.w, gradW); adams[mi].identity.step(model.identity, gradId)
+                adams[mi].net.step(model.net.w, gradW, inputRates); adams[mi].identity.step(model.identity, gradId)
             }
         }
         model.save(files[mi]); critics[mi].save(Role.entries[mi].criticFile(out), model)
