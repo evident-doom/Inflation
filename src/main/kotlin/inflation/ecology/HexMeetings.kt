@@ -221,10 +221,12 @@ private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float)
     val foodAsk = needDays * hands
     val warm = survivalDays(g, b, w.weather, time, hands, foodAsk, if (w.wantAll > 0f) (w.fed / w.wantAll).coerceIn(0f, 1f) else 1f, fuel, movedCamp(g, b))
     val needs = FloatArray(Activity.entries.size)
+    // (The rest of the hearth's firewood shares the week with the food, as it always did: a fire also cooks, and raw meals
+    // feed less, [RAW_COST].)
     needs[Activity.FOOD.ordinal] = foodAsk
+    needs[Activity.FIREWOOD.ordinal] = max(0f, fuel - warm[Activity.FIREWOOD.ordinal])
     val asks = FloatArray(Activity.entries.size)
     asks[Activity.FOOD.ordinal] = storeDays * hands
-    asks[Activity.FIREWOOD.ordinal] = max(0f, fuel - warm[Activity.FIREWOOD.ordinal])
     choreAsks(g, b, w.weather.date, asks, warm)
     // (The band weighs the rest of the asks against each other by its ways: see [timeWay].)
     time.plan(needs, asks, FloatArray(asks.size) { i -> timeWay(Activity.entries[i])?.let { b.will[it] } ?: 1f }, warm)
