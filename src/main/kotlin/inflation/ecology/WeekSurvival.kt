@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.world.Date
 import inflation.world.Weather
 import kotlin.math.max
 import kotlin.math.min
@@ -53,7 +54,11 @@ internal fun HexGroups.survivalDays(g: HexGroup, b: Band, weather: Weather, time
         val onFat = Hazards.onFat(fed, g.fat, days)
         val fat = max(0f, g.fat - (onFat - fed) * days)
         val hunger = Hazards.hunger(s, g.spent, onFat, days)
-        return 1f - (1f - w.odds) * (1f - hunger) * year.alive(s, larderDays - paid, fat, Hazards.spentAfter(s, g.spent, onFat, days), lived = true)
+        // (People-days lived through this week and the year after, a share of all of them: this week's count too, where the
+        // year after looks bleak whatever is done now.)
+        val week = (1f - w.odds) * (1f - hunger)
+        val after = week * year.alive(s, larderDays - paid, fat, Hazards.spentAfter(s, g.spent, onFat, days), lived = true)
+        return 1f - (days * week + YEAR_DAYS * after) / (days + YEAR_DAYS)
     }
     val d = FloatArray(3)
     val least = deaths(asks)
@@ -88,3 +93,4 @@ private const val SHELTER = 2
 /** The pieces the week is given out in ([survivalDays]); and the steps of fire and shelter its body heat is reckoned at. */
 private const val CHUNKS = 40f
 private const val GRID = 20f
+private const val YEAR_DAYS = Date.DAYS_PER_YEAR.toFloat()
