@@ -156,6 +156,8 @@ class HexGroups(
                 groups += g
             }
         }
+        // (A world begun once farming is known starts some bands as villages: t.startSettled.)
+        if (tuning.startSettled > 0f) startVillages()
     }
 
     /**

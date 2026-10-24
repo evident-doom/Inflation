@@ -38,6 +38,11 @@ class Tuning(private val read: (String) -> String? = Config::tuning) {
      * lies in the mountains); 0 is the winter solstice, 30 days to a month. A save carries its own date.
      */
     val startDay = i("startDay", inflation.world.Date.START_DAY).also { require(it in 0 until inflation.world.Date.DAYS_PER_YEAR) { "t.startDay is $it: a day of the year, 0-359" } }
+    /**
+     * A world begun once farming is known: the share of people's bands that start as villages on the best farm ground
+     * (houses standing, grain stored and sown, the ways of living in houses known: [inflation.ecology.startVillages]); 0, none.
+     */
+    val startSettled = f("startSettled", 0f).also { require(it in 0f..1f) { "t.startSettled is $it: a share of the bands, 0-1" } }
     /** The food cost of keeping warm, against [inflation.ecology.COLD_COST]. */
     val coldCost = f("coldCost", 1f)
 
