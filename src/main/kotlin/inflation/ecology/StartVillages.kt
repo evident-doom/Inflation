@@ -44,6 +44,7 @@ private fun HexGroups.startVillage(g: HexGroup, b: Band) {
     // (Ground and baked, a kilo of grain feeds as a kilo of need: [seedValue] with grinding stones.)
     val stored = VILLAGE_STORE_DAYS * g.dailyNeedKg + if (ripening) 0f else harvest
     addFood(g.stores, g.storeKgPer, Store.SEED, stored * seedValue(b), stored)
+    b.seedCorn = g.stores[Store.SEED]
 }
 
 /** Ways a village starts knowing: storage bins sealed with clay, pit houses, gruel boiled with hot stones; and how well it knows them. */
