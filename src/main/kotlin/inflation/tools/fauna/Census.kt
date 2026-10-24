@@ -216,10 +216,11 @@ class Census(private val sim: HexSim) {
         val stands = (0 until land.n).count { f.cereal[it] > 0.01f }
         val fields = (0 until land.n).filter { f.field[it] > 0f || f.fieldGrain[it] > 0f }
         val atHome = groups.groups.filter { it.alive && it.band?.atHome == true }
-        println("cereals: wild stands in %d places; places with sown fields (sown or ripe) %d, the share of their ears that hold their grain: most %.2f, mean %.2f, their plots bearing %.2f of rested ground; grain reaped by people %.0f t in the last year; stored grain %.0f t (bands at home %.0f t); grain standing %.0f t, ripened in the last year %.0f t; bands at home on cereal ground %d of %d".format(
+        println("cereals: wild stands in %d places; places with sown fields (sown or ripe) %d, the share of their ears that hold their grain: most %.2f, mean %.2f, this year's fields bearing %.2f of rested ground, worn ground %.1f km²; grain reaped by people %.0f t in the last year; stored grain %.0f t (bands at home %.0f t); grain standing %.0f t, ripened in the last year %.0f t; bands at home on cereal ground %d of %d".format(
             stands, fields.size, fields.maxOfOrNull { f.fieldDomestic[it] } ?: 0f,
             if (fields.isEmpty()) 0.0 else fields.map { f.fieldDomestic[it].toDouble() }.average(),
-            if (fields.isEmpty()) 1.0 else fields.map { f.fieldSoil[it].toDouble() }.average(), grainReaped,
+            fields.filter { f.field[it] > 0f }.map { f.cropSoil(Place(it)).toDouble() }.average().takeIf { it.isFinite() } ?: 1.0,
+            (0 until land.n).sumOf { f.fieldWorn[it] * land.areaKm2[it].toDouble() }, grainReaped,
             gs.sumOf { it.stores[Store.SEED].toDouble() } / 1000,
             atHome.sumOf { it.stores[Store.SEED].toDouble() } / 1000,
             (0 until land.n).sumOf { (f.grain[it] + f.fieldGrain[it]) * land.areaKm2[it] * 1e6 } / 1000, f.grainRipenedLastYear,
