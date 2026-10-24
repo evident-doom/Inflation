@@ -46,19 +46,23 @@ internal class YearAhead(private val odds: FloatArray, private val fed: FloatArr
     /**
      * The share of people of kind [s] alive through the months ahead, starting with [larderDays] of the need in the larder,
      * [fat] days of fat and [spent] days of body protein burnt: the larder and then the fat pay the shortfalls as they come.
+     * With [lived], the share alive on average through the months instead of at their end (people-months lived, a share of
+     * all of them), which counts deaths put off: where all would be dead by the year's end whatever is done now, what is done
+     * now still counts for the months it keeps them.
      */
-    fun alive(s: Species, larderDays: Float, fat: Float, spent: Float): Float {
+    fun alive(s: Species, larderDays: Float, fat: Float, spent: Float, lived: Boolean = false): Float {
         val days = Date.DAYS_PER_MONTH
         var larder = larderDays; var fatLeft = fat; var burnt = spent
-        var alive = 1f
+        var alive = 1f; var sum = 0f
         for (k in odds.indices) {
             var fed = fed[k]
             val paid = min(max(0f, 1f - fed) * days, larder); larder -= paid; fed += paid / days
             val onFat = Hazards.onFat(fed, fatLeft, days); fatLeft = max(0f, fatLeft - (onFat - fed) * days)
             val hunger = Hazards.hunger(s, burnt, onFat, days); burnt = Hazards.spentAfter(s, burnt, onFat, days)
             alive *= (1f - odds[k]) * (1f - hunger) * (1f - s.backgroundMortality / Date.MONTHS_PER_YEAR)
+            sum += alive
         }
-        return alive
+        return if (lived) sum / odds.size else alive
     }
 }
 
