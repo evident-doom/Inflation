@@ -236,9 +236,12 @@ object HexSnapshot {
      * 4.47: a plot cropped year after year bears less, and mends as it rests ([HexFood.fieldSoil], Broadbalk).
      * 4.48: the wear is the worn ground's, not the whole place's ([HexFood.fieldWorn]): a field is sown on rested ground
      *   first ([HexFood.cropSoil], [HexFood.SEED_RATE]), so a plot of a few hectares no longer wears a place of square kilometres.
+     * 4.49: a band aims to store, besides a month against bad weeks, the days its food fell short over the year
+     *   ([Band.leanDays], from [Band.monthSupply]), its store choice a share of both ([Band.storeShare]); it was a month
+     *   or two at most, so no band could lay by for a winter.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 48
+    const val MODEL_MINOR = 49
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

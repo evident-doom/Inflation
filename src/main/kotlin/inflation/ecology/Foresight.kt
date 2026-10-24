@@ -19,6 +19,7 @@ import kotlin.math.roundToInt
  * Not foreseen: disease, outbreaks, raids, beasts, fire and flood, thirst; tools and clothes wearing out over the year; the
  * larder spoiling. The food a band will get is last years', so what it does differently now shows only through its
  * stores, its fat and what keeping warm takes. What training may judge a band's state by ([HexGroup.foreseen]).
+ * On the way it reckons the days of food the band falls short of over the year before its larder pays ([Band.leanDays]).
  */
 internal fun HexGroups.foreseenSurvival(g: HexGroup, b: Band, weather: Weather): Float {
     val s = g.species; val p = g.place; val now = weather.date.month
@@ -26,7 +27,7 @@ internal fun HexGroups.foreseenSurvival(g: HexGroup, b: Band, weather: Weather):
     val home = b.homeShelter()
     var larder = g.larder / g.dailyNeedKg.coerceAtLeast(1e-3f)
     var fat = g.fat; var spent = g.spent
-    var alive = 1f
+    var alive = 1f; var lean = 0f
     for (k in 1..Date.MONTHS_PER_YEAR) {
         val m = (now + k) % Date.MONTHS_PER_YEAR
         val t = weather.usualTemperature(m, p)
@@ -34,11 +35,13 @@ internal fun HexGroups.foreseenSurvival(g: HexGroup, b: Band, weather: Weather):
         // (The food it got then, against what keeping warm will take, as [warmthNeed] has it: more food to keep warm is less
         // of the need met.)
         var fed = b.monthSupply[m] / warmthNeed(w, b.fire)
-        val paid = min(max(0f, 1f - fed) * days, larder); larder -= paid; fed += paid / days
+        val short = max(0f, 1f - fed) * days; lean += short
+        val paid = min(short, larder); larder -= paid; fed += paid / days
         val onFat = Hazards.onFat(fed, fat, days); fat = max(0f, fat - (onFat - fed) * days)
         val hunger = Hazards.hunger(s, spent, onFat, days); spent = Hazards.spentAfter(s, spent, onFat, days)
         alive *= (1f - w.odds) * (1f - hunger) * (1f - s.backgroundMortality / Date.MONTHS_PER_YEAR)
     }
+    b.leanDays = lean
     return alive
 }
 

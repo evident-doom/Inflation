@@ -649,7 +649,7 @@ class HexGroups(
         }
         // A band with food enough to feast others is drawn to where other bands are (gatherings).
         if (peopleSlot >= 0 && b.holds(Tradition.FEASTS))
-            dialUse?.choice(DialSite.STORE_FEAST, b.storeAim / STORE_AIM_DAYS, g.larder > b.storeAim * g.dailyNeedKg, g.larder > STORE_AIM_DAYS * g.dailyNeedKg)
+            dialUse?.choice(DialSite.STORE_FEAST, b.storeShare, g.larder > b.storeAim * g.dailyNeedKg, g.larder > b.storeAimAt1 * g.dailyNeedKg)
         if (peopleSlot >= 0 && b.holds(Tradition.FEASTS) && g.larder > b.storeAim * g.dailyNeedKg) {
             val others = knownHeads(peopleSlot, p, h, sensed) - (if (p == g.place) g.size else 0)
             if (others > 0f) score += GATHER_PULL * min(1f, others / GATHER_HEADS)

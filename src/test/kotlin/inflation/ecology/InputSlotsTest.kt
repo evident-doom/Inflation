@@ -38,7 +38,7 @@ class InputSlotsTest {
         val b = g.band!!
         assertTrue(b.will.a.contentEquals(fresh.will.a), "ways")
         assertTrue(b.effort.contentEquals(fresh.effort), "effort")
-        assertEquals(fresh.storeAim, b.storeAim)
+        assertEquals(fresh.storeShare, b.storeShare)
         assertTrue(b.makeFirst.a.contentEquals(fresh.makeFirst.a), "make first")
         assertEquals(fresh.scoutShare, b.scoutShare); assertEquals(fresh.shunSick, b.shunSick)
     }
