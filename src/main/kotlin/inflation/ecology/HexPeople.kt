@@ -914,17 +914,14 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
  * out by the chore's own rules, as things stand when it plans (it moved camp, if it did, but has not yet foraged).
  * Drying and skinning follow the catch, so they ask what they would have liked last week.
  */
-internal fun HexGroups.choreAsks(g: HexGroup, b: Band, date: Date, asks: FloatArray, warm: FloatArray? = null) {
+internal fun HexGroups.choreAsks(g: HexGroup, b: Band, date: Date, asks: FloatArray, first: FloatArray? = null) {
     val p = g.place; val h = hw.hexOf(p); val people = g.adults.toFloat()
-    val moved = b.campPlace.none || h != hw.hexOf(b.campPlace)
+    val moved = movedCamp(g, b)
     fun ask(a: Activity, days: Float) { asks[a.ordinal] = if (days.isFinite()) max(0f, days) else 0f }
     if (moved && !b.campPlace.none) ask(Activity.CACHING, min(1f, b.cacheWill) * leftBehindKg(g, b) * cacheCare(b) / CACHE_KG_A_DAY)
     ask(Activity.MATERIALS, gatherMaterials(g, b, p, h, people, land.m2(p), null))
-    // (The shelters a camp usually has keep its people warm, and go into [warm] when given; sturdier ones are asked for.)
-    val lack = shelterLack(b, moved)
-    val usual = if (warm != null) min(lack, max(0f, min(1f, b.shelterWill) - if (moved) 0f else b.shelter)) else 0f
-    warm?.set(Activity.SHELTER.ordinal, (usual * shelterDays(b, people)).takeIf { it.isFinite() } ?: 0f)
-    ask(Activity.SHELTER, (lack - usual) * shelterDays(b, people))
+    // (What the shelters it aims at take beyond the days already given them first, when given: [survivalDays].)
+    ask(Activity.SHELTER, shelterLack(b, moved) * shelterDays(b, people) - (first?.get(Activity.SHELTER.ordinal) ?: 0f))
     ask(Activity.CUSTOMS, cleanDays(b, people) + nurseDays(b, people))
     ask(Activity.TRAINING, Skill.entries.sumOf { s -> (learners(b, s, people) * APPRENTICE_DAYS * s.complexity).toDouble() }.toFloat())
     ask(Activity.TOOLS, makeTools(b, people, null))
@@ -939,6 +936,9 @@ internal fun HexGroups.choreAsks(g: HexGroup, b: Band, date: Date, asks: FloatAr
     ask(Activity.DRYING, b.dryAsk)
     ask(Activity.SKINS, b.skinAsk)
 }
+
+/** Whether [g]'s band [b] has come to a new camp this week (or has none yet), where no shelter of its stands. */
+internal fun HexGroups.movedCamp(g: HexGroup, b: Band) = b.campPlace.none || hw.hexOf(g.place) != hw.hexOf(b.campPlace)
 
 /** The country [g]'s band comes to know this week: what it walks, and what it sees round about from the high points on its way, its scouts further still. */
 private fun HexGroups.learnCountry(g: HexGroup, b: Band, weather: Weather) {

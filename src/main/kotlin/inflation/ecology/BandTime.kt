@@ -101,20 +101,17 @@ class BandTime(left: Float, private val pace: FloatArray? = null) {
     fun spentOn(a: Activity) = spent[a.ordinal]
 
     /**
-     * Holds for each activity its share of the time left (survival first): first what keeps its people [warm] at night
-     * (the camp's shelter: a cold night in the open kills sooner than a hungry day, which the larder and fat bridge), then
-     * what else it [needs] to live through the week (food for the week's want, the hearth's firewood), then of the rest its
-     * share ([shareOut]) of what else it [asks], weighed by [weights] (1 each by default).
+     * Holds for each activity its share of the time left (survival first): first what it [needs] to live (the days
+     * [survivalDays] gives food, firewood and shelter), then of the rest its share ([shareOut]) of what else it [asks],
+     * weighed by [weights] (1 each by default).
      */
-    fun plan(needs0: FloatArray, asks0: FloatArray, weights: FloatArray? = null, warm0: FloatArray? = null) {
-        for (i in asked.indices) asked[i] = needs0[i] + asks0[i] + (warm0?.get(i) ?: 0f)
+    fun plan(needs0: FloatArray, asks0: FloatArray, weights: FloatArray? = null) {
+        for (i in asked.indices) asked[i] = needs0[i] + asks0[i]
         // (Days of work asked, as people's days at each activity's pace.)
         val needs = FloatArray(needs0.size) { needs0[it] / pace(Activity.entries[it]) }
         val asks = FloatArray(asks0.size) { asks0[it] / pace(Activity.entries[it]) }
         val ones = FloatArray(needs.size) { 1f }
-        val warmed = warm0?.let { w -> shareOut(FloatArray(w.size) { w[it] / pace(Activity.entries[it]) }, ones, max(0f, left)) }
-        val fed = shareOut(needs, ones, max(0f, left - (warmed?.sum() ?: 0f)))
-        val first = if (warmed == null) fed else FloatArray(fed.size) { fed[it] + warmed[it] }
+        val first = shareOut(needs, ones, max(0f, left))
         short = asks.sum() > max(0f, left - first.sum())
         val then = shareOut(asks, weights ?: ones, max(0f, left - first.sum()))
         if (weights != null) shareOut(asks, ones, max(0f, left - first.sum())).forEachIndexed { i, d -> heldAtOne[i] = first[i] + d }

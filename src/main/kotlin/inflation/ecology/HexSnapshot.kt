@@ -226,8 +226,9 @@ object HexSnapshot {
      *   and only fish caught is practice at fishing.
      * 4.44: a band's gatherers walk to the plant food and carry it home a load at a time ([GATHER_LOAD_KG]), so food
      *   further from camp, and the far side of a place they strip, takes longer a kilo; and they search for roots before
-     *   they dig them, longer a kilo the thinner they grow ([ROOT_SEARCH_M2_PER_DAY]); a band's week holds the days for
-     *   the camp's usual shelters before the week's food and firewood ([BandTime.plan]);
+     *   they dig them, longer a kilo the thinner they grow ([ROOT_SEARCH_M2_PER_DAY]); a band's week gives its days first
+     *   to food, firewood and shelter as far as they avert the deaths it foresees this week and through the year after
+     *   ([survivalDays]), in place of the week's food and firewood shared pro rata;
      *   and a band choosing its camp counts roots as its gathering would find them ([HexGroups.rootsFound]).
      */
     const val MODEL_MAJOR = 4
