@@ -283,6 +283,26 @@ const val BAND_FRUIT_DAYS_PER_KG = 0.45f
  * (Bliege Bird & Bird 2002, Human Nature 13: 239-267), so no skill slows it.
  */
 const val SHELLFISH_DAYS_PER_KG = 0.12f
+/**
+ * Gatherers walk out to the food and carry it home a load at a time, so food further off takes longer a kilo: the walk
+ * there and back over the load (the marginal value theorem at its simplest). Walking speed, km/h, and a gatherer's load,
+ * fresh kg: 4 km/h and a !Kung mother's 12 kg of mongongo nuts, Lee's usual loads being 10-15 kg (Blurton Jones, Hawkes &
+ * Draper 1994, J Anthropol Res 50: 217-248, pp. 228-232).
+ */
+const val WALK_KM_PER_HOUR = 4f
+const val GATHER_LOAD_KG = 12f
+/**
+ * Dry matter's share of a kg of each plant food as carried, by which [GATHER_LOAD_KG] holds less of the plant stocks'
+ * dry kilos. Fruit: !Kung Grewia's 434 g fresh an hour at 500-740 kcal/h (Blurton Jones, Hawkes & Draper 1994) is some
+ * 1.2-1.7 kcal/g fresh, against Hadza berries' 3.2 dry ([Nourishment.FRUIT]): about 0.45. Roots and seed are guesses
+ * (tubers mostly water; grain about a tenth): unsourced. Small finds are reckoned as found.
+ */
+const val FRUIT_DRY = 0.45f
+const val ROOTS_DRY = 0.3f
+const val SEED_DRY = 0.9f
+fun dryShare(t: Food) = when (t) {
+    Food.FRUIT -> FRUIT_DRY; Food.ROOTS -> ROOTS_DRY; Food.SEED, Food.GRAIN -> SEED_DRY; else -> 1f
+}
 /** Times a party plans its week's foraging over: if others took what it planned on, it looks again at what is left. */
 const val FORAGE_PASSES = 3
 

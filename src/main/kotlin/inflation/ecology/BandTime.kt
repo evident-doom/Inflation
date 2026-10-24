@@ -27,9 +27,10 @@ enum class Activity(val label: String, val par: Float, val where: Workplace) {
      */
     val restSaves: Float get() = 1f - dayRate(par) / dayRate(FOOD.par)
 
-    private companion object {
+    companion object {
+        /** Hours of a working day. */
         const val WORK_HOURS = 6f
-        fun dayRate(par: Float) = (8f * 1f + WORK_HOURS * par + (24f - 8f - WORK_HOURS) * 1.45f) / 24f
+        private fun dayRate(par: Float) = (8f * 1f + WORK_HOURS * par + (24f - 8f - WORK_HOURS) * 1.45f) / 24f
     }
 }
 

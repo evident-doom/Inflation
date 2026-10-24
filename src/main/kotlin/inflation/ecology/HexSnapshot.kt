@@ -224,9 +224,11 @@ object HexSnapshot {
      * 4.43: people pick fruit at the record's rate ([BAND_FRUIT_DAYS_PER_KG], three times as long as before); shellfish are
      *   gathered off the shore as their own offer, at the Meriam rate and with no skill or tool ([SHELLFISH_DAYS_PER_KG]),
      *   and only fish caught is practice at fishing.
+     * 4.44: a band's gatherers walk to the plant food and carry it home a load at a time ([GATHER_LOAD_KG]), so food
+     *   further from camp, and the far side of a place they strip, takes longer a kilo.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 43
+    const val MODEL_MINOR = 44
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

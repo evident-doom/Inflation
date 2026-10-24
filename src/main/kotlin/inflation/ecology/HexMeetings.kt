@@ -29,6 +29,7 @@ import java.util.stream.Collectors
 import java.util.stream.IntStream
 import kotlin.math.ceil
 import kotlin.math.sqrt
+import kotlin.math.PI
 
 // Hunting along the way, and the meetings of a week settled one by one in the order they happen.
 
@@ -271,6 +272,9 @@ private class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, packK
     val fruitDays = if (band != null) BAND_FRUIT_DAYS_PER_KG * gs.tuning.plantHandling / gatherers / carry + eats else pickDays
     val seedDays = SEED_HANDLING_DAYS_PER_KG * gs.tuning.plantHandling / gatherers / carry /
         (1f + (band?.sickleGain(gs.tuning) ?: 0f) + GRINDER_GAIN * (band?.has(Tool.GRINDER) ?: 0f)) + eats
+    // (A band's gatherers walk to the food and carry it home: party-days a km of the way out costs a fresh kg brought
+    // home, there and back; see [GATHER_LOAD_KG]. An animal eats where it finds.)
+    val walkDaysPerKm = if (band != null) 2f / (WALK_KM_PER_HOUR * Activity.WORK_HOURS * GATHER_LOAD_KG * carry * gatherers) else 0f
     // Bands gather over all the ground they walked, the women's and children's day round; animals where they end the week.
     val gatherAt = if (band != null) g.path.toList().mapNotNull { h: Int -> gs.hw.placeNear(g.place, Hex(h)).takeIf { !it.none }?.i }
         .ifEmpty { listOf(g.place.i) } else listOf(g.place.i)
@@ -601,13 +605,20 @@ private fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
         val eats = w.eats
         val pickQ = (w.pickDays - eats) * slow + eats; val seedQ = (w.seedDays - eats) * slow + eats
         val fruitQ = (w.fruitDays - eats) * slow + eats
-        offer(w, o, Food.FRUIT, 0, Place(q), land.total(Place(q), KgM2(reach * fauna.food.fruit[q])).v / days, 1f, fruitQ)
-        offer(w, o, Food.ROOTS, 0, Place(q), land.total(Place(q), KgM2(reach * fauna.food.roots[q])).v / days, 1f, ROOT_DIGGING * pickQ)
-        offer(w, o, Food.FINDS, 0, Place(q), land.total(Place(q), KgM2(reach * fauna.food.finds[q])).v / days, 1f, ROOT_DIGGING * pickQ)
+        val seedReach = band?.let { it.gatherShare(true, tuning) * knowHere * part } ?: reach
+        // (Gatherers take the near ground first: the share they reach of a place as a disc about the camp, two thirds of
+        // its radius out on average; a place round the camp lies half a hex further. The walk takes no skill.)
+        val off = if (qi < w.gatherAt.size) 0f else hex.hexKm.toFloat() / 2f
+        val walk = 2f / 3f * sqrt(reach * land.areaKm2[q] / PI.toFloat()) + off
+        val seedWalk = 2f / 3f * sqrt(seedReach * land.areaKm2[q] / PI.toFloat()) + off
+        fun walked(t: Food, km: Float) = km * w.walkDaysPerKm / dryShare(t)
+        offer(w, o, Food.FRUIT, 0, Place(q), land.total(Place(q), KgM2(reach * fauna.food.fruit[q])).v / days, 1f, fruitQ + walked(Food.FRUIT, walk))
+        offer(w, o, Food.ROOTS, 0, Place(q), land.total(Place(q), KgM2(reach * fauna.food.roots[q])).v / days, 1f, ROOT_DIGGING * pickQ + walked(Food.ROOTS, walk))
+        offer(w, o, Food.FINDS, 0, Place(q), land.total(Place(q), KgM2(reach * fauna.food.finds[q])).v / days, 1f, ROOT_DIGGING * pickQ + walked(Food.FINDS, walk))
         // Grass seed must be reaped, threshed and ground: worth it only with the tools and the hands.
-        offer(w, o, Food.SEED, 0, Place(q), land.total(Place(q), KgM2((band?.let { it.gatherShare(true, tuning) * knowHere * part } ?: reach) * fauna.food.seeds[q])).v / days, 1f, seedQ)
+        offer(w, o, Food.SEED, 0, Place(q), land.total(Place(q), KgM2(seedReach * fauna.food.seeds[q])).v / days, 1f, seedQ + walked(Food.SEED, seedWalk))
         // Wild and sown cereals: reaped like grass seed, but richer where they stand.
-        offer(w, o, Food.GRAIN, 0, Place(q), land.total(Place(q), KgM2((band?.let { it.gatherShare(true, tuning) * knowHere * part } ?: reach) * fauna.food.grain[q])).v / days, 1f, seedQ)
+        offer(w, o, Food.GRAIN, 0, Place(q), land.total(Place(q), KgM2(seedReach * fauna.food.grain[q])).v / days, 1f, seedQ + walked(Food.GRAIN, seedWalk))
     }
     // Bands fish the river, the lake or the sea by their camp, as their skill and nets allow ([Band.fishing]); and gather
     // shellfish off the shore, which wants neither (kind [SHELLFISH_KIND] of the fish offered).
