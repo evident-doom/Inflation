@@ -56,6 +56,12 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
     val field = FloatArray(n)
     val fieldGrain = FloatArray(n)
     val fieldDomestic = FloatArray(n)
+    /**
+     * How short of water a sown field has been since midwinter: the days it has stood ([fieldDays]) and the sum over
+     * them of its water stress ([waterStress]), so that a dry season ripens less of it.
+     */
+    val fieldDays = FloatArray(n)
+    val fieldStress = FloatArray(n)
     /** The share wild cereals would make of a place's grass in its climate, colder by [dT] and with [rainShare] of its rain. */
     private fun cerealShare(p: Place, dT: Float = 0f, rainShare: Float = 1f): Float {
         val h = land.hw.placeHex[p]
@@ -120,6 +126,8 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
             small.deposit(DeadPool.LITTER, p, KgM2(rotted))
             // Wild cereals ripen with the other grasses; ears that shatter shed their grain within weeks,
             // those that hold it keep it for months. Sown fields ripen with them.
+            // (A sown field counts the water it is short of, week by week, till it ripens.)
+            if (field[p] > 0f && season < SEED_TO) { fieldDays[p] += days; fieldStress[p] += waterStress(p) * days }
             if (cereal[p] > 0f || field[p] > 0f || fieldGrain[p] > 0f) {
                 // (As the season advances: a cold year that never reaches its full warmth ripens only part of its grain.)
                 val advance = max(0f, weather.temperature[p] - 5f) * days / land.plants.annualGdd[p].coerceAtLeast(1f)
@@ -127,7 +135,8 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
                 if (inWindow > 0f) {
                     val share = inWindow / (SEED_TO - SEED_FROM)
                     val ripe = land.plants.consume(p, LifeForm.HERB, KgM2(GRAIN_SHARE * cereal[p] * land.plants.herb[p] * share)).v
-                    val sownRipe = land.plants.consume(p, LifeForm.HERB, KgM2(FIELD_YIELD * field[p] * share)).v
+                    val watered = if (fieldDays[p] > 0f) fieldStress[p] / fieldDays[p] else 1f
+                    val sownRipe = land.plants.consume(p, LifeForm.HERB, KgM2(FIELD_YIELD * watered * field[p] * share)).v
                     grain[p] += ripe; fieldGrain[p] += sownRipe
                     ripenedNow[p] += ripe + sownRipe
                 }
@@ -136,9 +145,11 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
                 val fieldLost = fieldGrain[p] * shedShare(fieldDomestic[p])
                 fieldGrain[p] = max(0f, fieldGrain[p] - fieldLost); small.deposit(DeadPool.LITTER, p, KgM2(fieldLost))
                 // After the year's ripening, the sown crop is spent, and a stand that seeded itself
-                // drifts back toward the wild (ears that hold their grain cannot sow themselves).
-                if ((season > SEED_TO && season - advance <= SEED_TO) || (weather.date.month == 0 && weather.date.dayOfMonth <= days && field[p] > 0f)) {
-                    field[p] = 0f
+                // drifts back toward the wild (ears that hold their grain cannot sow themselves). A crop that has not
+                // ripened by the end of summer has failed. (Not at midwinter: what was sown in autumn stands through the
+                // winter and ripens the next summer.)
+                if ((season > SEED_TO && season - advance <= SEED_TO) || (weather.date.month == FIELD_FAILS_MONTH && weather.date.dayOfMonth <= days && field[p] > 0f)) {
+                    field[p] = 0f; fieldDays[p] = 0f; fieldStress[p] = 0f
                     domestic[p] = MUTANT + (domestic[p] - MUTANT) * (1f - WILD_DRIFT)
                 }
             }
@@ -163,6 +174,16 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
         if (add <= 0f) return
         fieldDomestic[p] = (fieldDomestic[p] * field[p] + domestic * add) / (field[p] + add)
         field[p] += add
+    }
+
+    /**
+     * How fully a crop at [p] can draw water this week, 0..1: all it needs while the soil holds more than [CROP_DEPLETION]
+     * of the water it can give plants up, then less in proportion to what is left (FAO-56 water-stress coefficient Ks, with
+     * the depletion fraction of wheat; a grain crop's yield falls about as its water use does, Ky about 1).
+     */
+    private fun waterStress(p: Place): Float {
+        val cap = land.hydro.soilCap[p]
+        return if (cap <= 0f) 0f else (land.hydro.soil[p] / ((1f - CROP_DEPLETION) * cap)).coerceIn(0f, 1f)
     }
 
     /** The share of ripe grain shed this week by a stand whose ears hold their grain as [domestic] (0 wild) of them. */
@@ -206,6 +227,14 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
         const val GRAIN_HOLD_DAYS = 120f
         const val WILD_DRIFT = 0.3f
         const val FIELD_YIELD = 6f
+        /**
+         * Share of the water a soil can give plants that a grain crop draws down before it goes short: 0.55 for wheat (Allen,
+         * Pereira, Raes & Smith 1998, FAO Irrigation and Drainage Paper 56, table 22); yield falls about one for one with the
+         * water use lost (Ky 1.0 for wheat: Doorenbos & Kassam 1979, FAO Paper 33). Both figures from memory, unchecked.
+         */
+        const val CROP_DEPLETION = 0.55f
+        /** The month (0 from midwinter) by whose start a sown crop that has not ripened has failed: the last before the autumn sowing. */
+        const val FIELD_FAILS_MONTH = 8
         /** Share of a wild stand whose ears hold their grain (rare mutants, kept down by their failing to sow themselves). */
         const val MUTANT = 0.003f
         const val SEED_DAYS = 40f
