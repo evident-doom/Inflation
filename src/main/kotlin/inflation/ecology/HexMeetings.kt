@@ -236,7 +236,11 @@ private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float)
         "plan: %.1f person-days, moving %.1f; first for survival: food %.1f of %.1f, firewood %.1f of %.1f, shelter %.1f; held food %.1f, firewood %.1f, shelter %.1f; stores asked %.1f; short %s".format(
             time.total, time.spentOn(Activity.MOVING), first[Activity.FOOD.ordinal], foodAsk, first[Activity.FIREWOOD.ordinal], fuel,
             first[Activity.SHELTER.ordinal], time.heldFor(Activity.FOOD), time.heldFor(Activity.FIREWOOD), time.heldFor(Activity.SHELTER),
-            storeDays * hands, time.short)
+            storeDays * hands, time.short) + run {
+            val air = airAt(g.place, w.weather); val home = b.homeShelter()
+            val cold = b.warmth(air, 0f, home, days); val warm = b.warmth(air, 1f, home, days)
+            "; exposure odds without a fire %.2g, with a full one %.2g (%.1f °C, shelter %.2f, fire now %.2f)".format(cold.odds, warm.odds, air.meanC, b.shelter, b.fire)
+        }
     }
     w.fuelDays = fetchFuel(g, b, hands, if (fuel > 0f) min(1f, time.leftFor(Activity.FIREWOOD) / fuel) else 1f)
     time.spend(Activity.FIREWOOD, w.fuelDays * hands)
