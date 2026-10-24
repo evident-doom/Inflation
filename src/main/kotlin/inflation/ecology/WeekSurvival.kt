@@ -41,7 +41,8 @@ internal fun HexGroups.survivalDays(g: HexGroup, b: Band, weather: Weather, time
     val shelterAsk = max(0f, b.shelterWill - shelter0) * shelterDays(b, people)
     val asks = FloatArray(3); asks[FOOD] = foodAsk; asks[FIRE] = fuelAsk; asks[SHELTER] = shelterAsk
     val acts = arrayOf(Activity.FOOD, Activity.FIREWOOD, Activity.SHELTER)
-    // (Its body heat at each fire and shelter, worked out once a week for each, to the twentieth.)
+    // (Its body heat at each fire and shelter, worked out once a week for each, to the hundredth: a fire cut short by a long
+    // walk is a small share of one, and coarser steps would round it to none.)
     val warmthAt = HashMap<Int, Warmth>()
     fun warmth(fire: Float, shelter: Float): Warmth {
         val f = (fire * GRID).roundToInt(); val sh = (shelter * GRID).roundToInt()
@@ -96,6 +97,6 @@ private const val FIRE = 1
 private const val SHELTER = 2
 /** The pieces the week is given out in ([survivalDays]); and the steps of fire and shelter its body heat is reckoned at. */
 private const val CHUNKS = 40f
-private const val GRID = 20f
+private const val GRID = 100f
 /** Fewer deaths than this, a share of the band, are no deaths averted: the rounding in the reckoning, not a difference. */
 private const val AVERTS_NONE = 1e-6f
