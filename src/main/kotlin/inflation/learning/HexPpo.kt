@@ -11,6 +11,7 @@ import inflation.ecology.Temperament
 import inflation.ecology.HexGroup
 import inflation.ecology.HexPolicy
 import inflation.ecology.Species
+import inflation.world.WorldCache
 import inflation.world.WorldConfig
 import java.io.File
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -513,13 +514,15 @@ object HexPpo {
         }
 
         /**
-         * Config key `ppo.settledWorlds` (a directory; unset: none): the world that has settled for [burnSteps] weeks is kept there, and
-         * a later start of the same world (seed, size, latitude, kinds and settling) takes it up instead of settling again. It is the
-         * world as the networks of the start that made it settled it. A file that today's code will not load (an older model) is settled again.
+         * The world that has settled for [burnSteps] weeks is kept (in `~/.inflation/settled-worlds`, or the directory the config key
+         * `ppo.settledWorlds` names; empty or `off`: not kept), and a later start of the same world (its settings and world-making
+         * code, kinds, settling and model version) takes it up instead of settling again. It is the world as the networks of the start
+         * that made it settled it. A file that today's code will not load is settled again.
          */
-        private val settledFile = Config.string(Config.Key.PPO_SETTLED_WORLDS)?.let { dir ->
-            File(dir, "w%d-%dx%d-lat%.2f-burn%d-k%08x.bin".format(cfg.seed, cfg.widthKm, cfg.heightKm, cfg.centreLatitude, burnSteps, kinds.map { it.name }.hashCode()))
-        }
+        private val settledFile = (Config.string(Config.Key.PPO_SETTLED_WORLDS) ?: File(System.getProperty("user.home"), ".inflation/settled-worlds").path)
+            .takeIf { it.isNotBlank() && it != "off" }?.let { dir ->
+                File(dir, "settled-%016x-burn%d-k%08x-m%d.%d.bin".format(WorldCache.key(cfg), burnSteps, kinds.map { it.name }.hashCode(), HexSnapshot.MODEL_MAJOR, HexSnapshot.MODEL_MINOR))
+            }
 
         private fun loadSettled() {
             val f = settledFile?.takeIf { it.isFile } ?: return
@@ -538,7 +541,13 @@ object HexPpo {
         private fun saveSettled() {
             val f = settledFile ?: return
             if (f.exists()) return
-            try { HexSnapshot.save(run, f); census("settled world kept in $f") } catch (e: Exception) { census("settled world not kept: ${e.message}") }
+            // (Written under a name of its own and moved into place whole: starts side by side may settle the same world at once.)
+            val mine = File(f.path + ".${ProcessHandle.current().pid()}-${System.nanoTime()}.part")
+            try {
+                HexSnapshot.save(run, mine)
+                java.nio.file.Files.move(mine.toPath(), f.toPath(), java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+                census("settled world kept in $f")
+            } catch (e: Exception) { mine.delete(); census("settled world not kept: ${e.message}") }
         }
 
         // (People, the one kind of their role, get [Sampling.peopleChoices] times as many as each animal kind.)

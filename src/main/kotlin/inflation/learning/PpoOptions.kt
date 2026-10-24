@@ -61,6 +61,7 @@ class PpoOptions(
     val rate: Float,
     /** How much of the hand-written score each role's network starts from, by role. */
     val residual: Map<Role, Float>,
+    /** A check of the networks every this many rounds (0: none). */
     val checkEvery: Int,
     val checkSeeds: Int,
     /** Check on the training maps instead of fresh worlds: how well they are fitted, not how well the networks do elsewhere. */
