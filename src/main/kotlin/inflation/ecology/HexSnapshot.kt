@@ -242,9 +242,12 @@ object HexSnapshot {
      * 4.50: a band keeps what it reaps from sown fields as seed corn and sows it first ([Band.seedCorn]); the grain it
      *   gathers from wild stands no longer mixes into the seed it sows (sown fields went from 0.75 to 0.02 ears that hold their
      *   grain within five years, as wild grain swamped the seed).
+     * 4.51: a band weighs a camp by the ripe grain standing there, wild and sown, as it weighs other plant food ([campPlants]);
+     *   and the crop it has sown draws it to stay by it till it is reaped ([HexGroups.cropPull], [Band.sownPlace]): before, no
+     *   choice of camp saw grain at all, and villages walked away from their fields.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 50
+    const val MODEL_MINOR = 51
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

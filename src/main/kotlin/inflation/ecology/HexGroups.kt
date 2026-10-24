@@ -625,6 +625,7 @@ class HexGroups(
         if (dead > 0f) score += ANCESTOR_PULL * min(1f, dead / 10f)
         // Houses it may use draw it (its own or any left empty); a camp where someone died lately is shunned by those who leave their dead.
         score += HOME_PULL * housesAt(g, h.i)
+        score += cropPull(g, b, h)
         if (h == b.unluckyHex) score -= UNLUCKY
         // It keeps off the known homes of bands it is not close to (unless set on raiding them).
         if (b.raidHex != h && keepOff != null && h in keepOff) score -= TRESPASS_AVOID
@@ -661,6 +662,21 @@ class HexGroups(
         return score
     }
 
+    /**
+     * What the crop band [b] (group [g]) has sown and not yet reaped draws it to the hex it stands in: leaving it, the band
+     * would lose its harvest (others reap a field no one keeps), a loss paid for over the weeks it keeps a camp ([Band.stayWeeks]),
+     * as a move's lost days are. The harvest is its share of the field as the sim would ripen it now ([HexFood.fieldExpect]),
+     * in weeks of its food.
+     */
+    private fun cropPull(g: HexGroup, b: Band, h: Hex): Float {
+        val f = b.sownPlace
+        if (f.none || hw.placeHex[f.i] != h.i) return 0f
+        val food = fauna.food
+        val kg = min(b.sownKg, food.field[f] * land.m2(f))
+        if (kg <= 0f) return 0f
+        return kg * food.fieldExpect(f) * seedValue(b) / (g.dailyNeedKg.coerceAtLeast(1e-3f) * days) / b.stayWeeks
+    }
+
     /** Heads of kind slot [k] in place [p] as a group knows them: seen in its own hex and the six around, else expected. */
     private fun knownHeads(k: Int, p: Place, h: Hex, sensed: IntArray): Float = if (h in sensed) headsHere[k][p].toFloat() else expectHeads[k][p]
 
@@ -682,7 +698,8 @@ class HexGroups(
         val fuel = fuelShare(woodCover(p), 1f)
         return (1f + CAMP_SAFETY * land.bestDefence[p] + CAVE_CAMP * land.caves[p]) / (1f + w * w) * (1f - fuel)
     }
-    internal fun campPlants(p: Place) = KgM2(fauna.food.fruit[p] + fauna.food.roots[p] + fauna.food.seeds[p]).perKm2.v * PLANT_FOOD_WEIGHT * campFactor(p)
+    internal fun campPlants(p: Place) = KgM2(fauna.food.fruit[p] + fauna.food.roots[p] + fauna.food.seeds[p] + fauna.food.grain[p] + fauna.food.fieldGrain[p]).perKm2.v *
+        PLANT_FOOD_WEIGHT * campFactor(p)
 
     /**
      * Bands burn off the dry grass around their camps in the dry season: the burn greens up and draws

@@ -372,6 +372,9 @@ class Band(kinds: Int) {
      * and of the rest, gathered from wild stands, the share from ears that hold their grain.
      */
     var seedCorn = 0f
+    /** Where it sowed this year's crop ([Place.NONE] for nowhere) and the kg it sowed there: what it would lose by leaving (HexGroups.cropPull). */
+    var sownPlace = Place.NONE
+    var sownKg = 0f
     var seedDomestic = 0f
     var grainDomestic = 0f
     /** Its ways ([BandWay]), as [setWays] sets them each week from its ways' outputs: 1 each for the scaffold's way. Read through the names below. */
@@ -1432,7 +1435,11 @@ private fun HexGroups.sowGrain(g: HexGroup, b: Band, p: Place, date: Date, time:
             val corn = b.seedCornIn(g); val fromCorn = min(sow, corn)
             val domestic = (fromCorn * b.seedDomestic + (sow - fromCorn) * b.grainDomestic) / sow
             g.stores[Store.SEED] -= sow; b.seedCorn = corn - fromCorn; time.spend(Activity.SOWING, sow * SOW_DAYS_PER_KG)
-            fauna.food.sow(p, land.spread(p, Kg(sow * g.storeKgPer[Store.SEED])), domestic)
+            val kg = sow * g.storeKgPer[Store.SEED]
+            // (A field sown afresh, or sown where last year's crop is spent, is this year's crop.)
+            if (b.sownPlace != p || fauna.food.field[p] <= 0f) b.sownKg = 0f
+            b.sownPlace = p; b.sownKg += kg
+            fauna.food.sow(p, land.spread(p, Kg(kg)), domestic)
             stats.meeting(Met.BANDS_SOWED)
             note(g) { "sowed %.0f kg of grain at home".format(sow) }
         }
