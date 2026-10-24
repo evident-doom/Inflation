@@ -156,6 +156,8 @@ class HexGroups(
                 groups += g
             }
         }
+        // (A world begun once farming is known starts some bands as villages: t.startSettled.)
+        if (tuning.startSettled > 0f) startVillages()
     }
 
     /**
@@ -601,12 +603,12 @@ class HexGroups(
     private fun knownGame(g: HexGroup, kind: Int, p: Place, h: Hex): Float = placeValue[kind][p] + (g.band?.let { fishWorth(g, it, h) } ?: 0f)
 
     /**
-     * The fish and shellfish band [b] could take from hex [h] in a week, with its skill ([HexWater.fishWithin]; less
+     * The fish and shellfish band [b] could take from hex [h] in a week, with its skill ([HexWater.bandCatchWithin]; less
      * plain where it is a stranger), as the game standing on the ground that would yield as much to its hunters: game
      * is met over the ground its party sweeps in a week ([sweptKm2]) and caught at [CATCH].
      */
     private fun fishWorth(g: HexGroup, b: Band, h: Hex): Float =
-        fauna.water.fishWithin(h.i, b.fishing()) * (if (b.knows(h.i)) 1f else 0.5f) / (sweptKm2(g.species) * CATCH)
+        fauna.water.bandCatchWithin(h.i, b.fishing()) * (if (b.knows(h.i)) 1f else 0.5f) / (sweptKm2(g.species) * CATCH)
 
     /**
      * What draws band [b] (group [g]) to place [p] in hex [h] or puts it off, beyond what any group weighs: its
@@ -917,7 +919,7 @@ class HexGroups(
         f[Feature.BEYOND_OWN_GROUND] = beyond; f[Feature.OTHERS_MARKS] = foreign
         // The fish and shellfish a band could take there, with its skill, against its need (the
         // shore and the river are plain to see; how rich they are, less so where it is a stranger).
-        f[Feature.FISH] = g.band?.let { b -> min(2f, fauna.water.fishWithin(h.i, b.fishing()) * Nourishment.FISH * s.needScale / (g.size * s.dailyIntakeKg * days).coerceAtLeast(1f)) *
+        f[Feature.FISH] = g.band?.let { b -> min(2f, fauna.water.bandCatchWithin(h.i, b.fishing()) * Nourishment.FISH * s.needScale / (g.size * s.dailyIntakeKg * days).coerceAtLeast(1f)) *
             (if (b.knows(h.i)) 1f else 0.5f) } ?: 0f
         // What it remembers of this hex: in this season, or failing that in any.
         val mem = g.memory

@@ -329,6 +329,12 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
             val clad = if (b.has(Tool.CLOTHES) >= 0.5f) Tally.Clad.CLAD else Tally.Clad.POORLY_CLAD
             stats.hunting.merge(Tally.bandsClad(clad, Tally.Bands.PEOPLE_WEEKS), g.size, Int::plus)
             for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge(Tally.bandsCladDied(clad, cause), k, Int::plus)
+            // And by how it lives, settled or on the move: what each way of life costs and gives.
+            val way = bandLifeway(b)
+            stats.hunting.merge(Tally.bandsLiving(way, Tally.Bands.BAND_WEEKS), 1, Int::plus)
+            stats.hunting.merge(Tally.bandsLiving(way, Tally.Bands.PEOPLE_WEEKS), g.size, Int::plus)
+            if (o.births > 0) stats.hunting.merge(Tally.bandsLiving(way, Tally.Bands.BORN), o.births, Int::plus)
+            for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge(Tally.bandsLivingDied(way, cause), k, Int::plus)
             // And by how well it was fed, with what it held against hunger: who starves, and with what in hand.
             val fed = Tally.Fed.of(g.fed)
             stats.hunting.merge(Tally.bandsFed(fed, Tally.Bands.BAND_WEEKS), 1, Int::plus)

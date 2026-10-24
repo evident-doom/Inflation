@@ -259,10 +259,30 @@ const val BONE_DAYS = 3f
 /**
  * Digging roots and searching out small finds take this many times as long a kilo as picking fruit; days of
  * all hands to reap, thresh and grind a kilo of grass seed by hand; to catch and clean a kilo of fish.
+ * (Grass seed: 0.5 days of 6 working hours is 0.33 kg an hour bare-handed, some 0.6 with sickle and grinder; gathering
+ * fallen wild cereal grain in northern Israel gave 0.18-0.58 kg of dehusked grain an hour, 0.34 on average: Kislev,
+ * Weiss & Hartman 2004, PNAS 101:2692. Reaping a dense stand with a sickle is faster, unmeasured here.)
  */
 const val ROOT_DIGGING = 2f
 const val SEED_HANDLING_DAYS_PER_KG = 0.5f
 const val FISH_HANDLING_DAYS_PER_KG = 0.3f
+/**
+ * Days of a band's hands to pick a kilo of wild fruit (dry matter), at a start band's skill: berries one by one off the
+ * bush. Hadza berry patches give 1,045 kcal/h (Salvadora persica) to 2,089 kcal/h (Cordia gharaf), !Kung Grewia 434 g of
+ * fresh berries an hour, some 500-740 kcal/h (Blurton Jones, Hawkes & Draper 1994, J Anthropol Res 50: 217-248, citing
+ * Hawkes, O'Connell & Blurton Jones). At [Nourishment.FRUIT] and a 6-hour day this gives a start band with full baskets
+ * about 1,600 kcal/h and a master about 2,300: the top of the Hadza range, an approximation. (The [PLANT_HANDLING_DAYS_PER_KG]
+ * that fruit took before, 0.15, was halved from 0.3 to fit the plant share of food when every food was weighed by the kg,
+ * and was not looked at again when foods came to be weighed by their energy: some 6,900 kcal/h, 3-14 times the record.)
+ */
+const val BAND_FRUIT_DAYS_PER_KG = 0.45f
+/**
+ * Days of a band's hands to gather a kilo of shellfish meat off the shore at low tide: Meriam reef-flat collecting gives
+ * 1,492 ± 173 kcal/h (Bliege Bird, Smith & Bird 2001, Behav Ecol Sociobiol 50: 9-19), at [Nourishment.FISH] and a 6-hour
+ * day about 0.12 days a kilo. Collecting needs no tool, and its returns go by the collector's size, not by experience
+ * (Bliege Bird & Bird 2002, Human Nature 13: 239-267), so no skill slows it.
+ */
+const val SHELLFISH_DAYS_PER_KG = 0.12f
 /** Times a party plans its week's foraging over: if others took what it planned on, it looks again at what is left. */
 const val FORAGE_PASSES = 3
 

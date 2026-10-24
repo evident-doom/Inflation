@@ -1599,6 +1599,10 @@ const val VENOM = 0.002f
 /** Yearly deaths from marsh fever among people camped by a marsh in the warm months. */
 const val MARSH_FEVER = 0.05f
 
+/** How [b] lives, for the reports: settled at home in its houses or at a camp kept half a year or more, else mobile. */
+internal fun HexGroups.bandLifeway(b: Band) =
+    if (b.atHome || b.campWeeks >= stepsPerYear / 2f) Tally.Lifeway.SETTLED else Tally.Lifeway.MOBILE
+
 /** Settled life with stores shortens the spacing of births. */
 internal fun HexGroups.settledFertility(g: HexGroup): Float {
     val b = g.band ?: return 1f
@@ -1874,7 +1878,7 @@ private fun HexGroups.ecosystemInputs(g: HexGroup, b: Band, into: FloatArray) {
     into[x.TREES] = min(1f, land.plants.tree[p] / 10f); into[x.SHRUBS] = min(1f, land.plants.shrub[p] / 2f); into[x.GRASS] = min(1f, land.plants.herb[p] / 0.5f)
     val need = (g.dailyNeedKg * days).coerceAtLeast(1f)
     fun weeks(kg: Float) = (kg / need).let { it / (1f + it) }
-    into[x.FISH] = weeks(fauna.water.fishWithin(h, b.fishing()))
+    into[x.FISH] = weeks(fauna.water.bandCatchWithin(h, b.fishing()))
     // Plants: what its gatherers would strip from the camp's own ground in a week (as in [forage]).
     val food = fauna.food
     val pick = min(0.9f, b.gatherShare(false, tuning) * b.gatherRange)
