@@ -44,14 +44,18 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
      * Wild cereals: large-seeded annual grasses (wild wheat and barley here), as a share of a place's
      * grass, where winters are wet, summers dry and the ground broken (the hilly flanks). Their ripe
      * grain, kg/m², is shed within weeks by ears that shatter; [domestic] is the share of the stand
-     * whose ears hold their grain (0 wild), which sickle harvests and sowing raise and which drifts
-     * back where the stand seeds itself. [field] is grain sown here this year, kg/m², which ripens to
-     * [FIELD_YIELD] times as much.
+     * whose ears hold their grain (0 wild: rare mutants, [MUTANT]), which drifts back there where the
+     * stand seeds itself. [field] is grain sown here this year, kg/m², which ripens to
+     * [FIELD_YIELD] times as much into [fieldGrain], a crop of its own: the share of its ears that hold their grain is
+     * [fieldDomestic], what was sown, not the wild stand's about it (a sown plot is reaped as a plot, not as a share of the
+     * hillside's stand).
      */
     val cereal = perPlace(n) { p -> cerealShare(p) }
     val grain = FloatArray(n)
     val domestic = FloatArray(n) { p -> if (cereal[p] > 0f) MUTANT else 0f }
     val field = FloatArray(n)
+    val fieldGrain = FloatArray(n)
+    val fieldDomestic = FloatArray(n)
     /** The share wild cereals would make of a place's grass in its climate, colder by [dT] and with [rainShare] of its rain. */
     private fun cerealShare(p: Place, dT: Float = 0f, rainShare: Float = 1f): Float {
         val h = land.hw.placeHex[p]
@@ -116,19 +120,21 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
             small.deposit(DeadPool.LITTER, p, KgM2(rotted))
             // Wild cereals ripen with the other grasses; ears that shatter shed their grain within weeks,
             // those that hold it keep it for months. Sown fields ripen with them.
-            if (cereal[p] > 0f || field[p] > 0f) {
+            if (cereal[p] > 0f || field[p] > 0f || fieldGrain[p] > 0f) {
                 // (As the season advances: a cold year that never reaches its full warmth ripens only part of its grain.)
                 val advance = max(0f, weather.temperature[p] - 5f) * days / land.plants.annualGdd[p].coerceAtLeast(1f)
                 val inWindow = (min(season, SEED_TO) - max(season - advance, SEED_FROM)).coerceAtLeast(0f)
                 if (inWindow > 0f) {
-                    val ripe = land.plants.consume(p, LifeForm.HERB,
-                        KgM2((GRAIN_SHARE * cereal[p] * land.plants.herb[p] + FIELD_YIELD * field[p]) * inWindow / (SEED_TO - SEED_FROM))).v
-                    grain[p] += ripe
-                    ripenedNow[p] += ripe
+                    val share = inWindow / (SEED_TO - SEED_FROM)
+                    val ripe = land.plants.consume(p, LifeForm.HERB, KgM2(GRAIN_SHARE * cereal[p] * land.plants.herb[p] * share)).v
+                    val sownRipe = land.plants.consume(p, LifeForm.HERB, KgM2(FIELD_YIELD * field[p] * share)).v
+                    grain[p] += ripe; fieldGrain[p] += sownRipe
+                    ripenedNow[p] += ripe + sownRipe
                 }
-                val wild = 1f - domestic[p]
-                val lost = grain[p] * (wild * min(1f, days / SEED_DAYS) + (1f - wild) * min(1f, days / GRAIN_HOLD_DAYS))
+                val lost = grain[p] * shedShare(domestic[p])
                 grain[p] = max(0f, grain[p] - lost); small.deposit(DeadPool.LITTER, p, KgM2(lost))
+                val fieldLost = fieldGrain[p] * shedShare(fieldDomestic[p])
+                fieldGrain[p] = max(0f, fieldGrain[p] - fieldLost); small.deposit(DeadPool.LITTER, p, KgM2(fieldLost))
                 // After the year's ripening, the sown crop is spent, and a stand that seeded itself
                 // drifts back toward the wild (ears that hold their grain cannot sow themselves).
                 if ((season > SEED_TO && season - advance <= SEED_TO) || (weather.date.month == 0 && weather.date.dayOfMonth <= days && field[p] > 0f)) {
@@ -151,9 +157,21 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
         }
     }
 
-    /** Names the food stocks: fruit, grass seed, small finds, roots, grain and sown seed. */
+    /** Sows [kg] of grain at [p], of which [domestic] are of ears that hold their grain: the field's crop takes after what was sown in it. */
+    fun sow(p: Place, kg: KgM2, domestic: Float) {
+        val add = max(0f, kg.v)
+        if (add <= 0f) return
+        fieldDomestic[p] = (fieldDomestic[p] * field[p] + domestic * add) / (field[p] + add)
+        field[p] += add
+    }
+
+    /** The share of ripe grain shed this week by a stand whose ears hold their grain as [domestic] (0 wild) of them. */
+    private fun shedShare(domestic: Float) = (1f - domestic) * min(1f, days / SEED_DAYS) + domestic * min(1f, days / GRAIN_HOLD_DAYS)
+
+    /** Names the food stocks: fruit, grass seed, small finds, roots, grain, sown seed and the grain of sown fields. */
     internal fun listStocks(stocks: Stocks) {
-        for ((name, a) in listOf(StockName.FRUIT to fruit, StockName.GRASS_SEED to seeds, StockName.SMALL_FINDS to finds, StockName.ROOTS to roots, StockName.GRAIN to grain, StockName.SOWN_SEED to field))
+        for ((name, a) in listOf(StockName.FRUIT to fruit, StockName.GRASS_SEED to seeds, StockName.SMALL_FINDS to finds, StockName.ROOTS to roots, StockName.GRAIN to grain, StockName.SOWN_SEED to field,
+            StockName.FIELD_GRAIN to fieldGrain))
             stocks.perM2(name, a, land.areaM2)
     }
 

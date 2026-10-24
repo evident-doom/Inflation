@@ -1406,11 +1406,7 @@ private fun HexGroups.sowGrain(g: HexGroup, b: Band, p: Place, date: Date, time:
         dialUse?.amount(DialSite.SOWING, b.sowWill, sow, minOf(stock * SOW_SHARE, left / SOW_DAYS_PER_KG))
         if (sow > 0.1f) {
             g.stores[Store.SEED] -= sow; time.spend(Activity.SOWING, sow * SOW_DAYS_PER_KG)
-            val food = fauna.food
-            val standing = food.cereal[p] * land.plants.herb[p] * HexFood.GRAIN_SHARE + food.field[p]
-            val add = land.spread(p, Kg(sow * g.storeKgPer[Store.SEED])).v
-            food.domestic[p] = (food.domestic[p] * standing + b.seedDomestic * add) / (standing + add).coerceAtLeast(1e-9f)
-            food.field[p] += add
+            fauna.food.sow(p, land.spread(p, Kg(sow * g.storeKgPer[Store.SEED])), b.seedDomestic)
             stats.meeting(Met.BANDS_SOWED)
             note(g) { "sowed %.0f kg of grain at home".format(sow) }
         }
