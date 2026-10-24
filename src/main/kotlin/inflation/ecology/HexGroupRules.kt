@@ -259,6 +259,9 @@ const val BONE_DAYS = 3f
 /**
  * Digging roots and searching out small finds take this many times as long a kilo as picking fruit; days of
  * all hands to reap, thresh and grind a kilo of grass seed by hand; to catch and clean a kilo of fish.
+ * (Grass seed: 0.5 days of 6 working hours is 0.33 kg an hour bare-handed, some 0.6 with sickle and grinder; gathering
+ * fallen wild cereal grain in northern Israel gave 0.18-0.58 kg of dehusked grain an hour, 0.34 on average: Kislev,
+ * Weiss & Hartman 2004, PNAS 101:2692. Reaping a dense stand with a sickle is faster, unmeasured here.)
  */
 const val ROOT_DIGGING = 2f
 const val SEED_HANDLING_DAYS_PER_KG = 0.5f
