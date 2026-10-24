@@ -233,9 +233,10 @@ object HexSnapshot {
      * 4.46: a field sown in autumn stands through the winter and ripens the next summer (it was struck off at midwinter,
      *   so no sown field ever ripened); a field ripens as much less as it went short of water since midwinter
      *   ([HexFood.CROP_DEPLETION], FAO-56).
+     * 4.47: a plot cropped year after year bears less, and mends as it rests ([HexFood.fieldSoil], Broadbalk).
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 46
+    const val MODEL_MINOR = 47
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

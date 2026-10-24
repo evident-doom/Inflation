@@ -62,6 +62,11 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
      */
     val fieldDays = FloatArray(n)
     val fieldStress = FloatArray(n)
+    /**
+     * How well the plot sown at each place would bear against fresh or rested ground, 0..1: worn down by each year it is cropped
+     * ([CROP_WEAR], toward [CROPPED_FLOOR]), mended by each year it rests ([REST_MEND]).
+     */
+    val fieldSoil = FloatArray(n) { 1f }
     /** The share wild cereals would make of a place's grass in its climate, colder by [dT] and with [rainShare] of its rain. */
     private fun cerealShare(p: Place, dT: Float = 0f, rainShare: Float = 1f): Float {
         val h = land.hw.placeHex[p]
@@ -136,7 +141,7 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
                     val share = inWindow / (SEED_TO - SEED_FROM)
                     val ripe = land.plants.consume(p, LifeForm.HERB, KgM2(GRAIN_SHARE * cereal[p] * land.plants.herb[p] * share)).v
                     val watered = if (fieldDays[p] > 0f) fieldStress[p] / fieldDays[p] else 1f
-                    val sownRipe = land.plants.consume(p, LifeForm.HERB, KgM2(FIELD_YIELD * watered * field[p] * share)).v
+                    val sownRipe = land.plants.consume(p, LifeForm.HERB, KgM2(FIELD_YIELD * watered * fieldSoil[p] * field[p] * share)).v
                     grain[p] += ripe; fieldGrain[p] += sownRipe
                     ripenedNow[p] += ripe + sownRipe
                 }
@@ -149,6 +154,8 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
                 // ripened by the end of summer has failed. (Not at midwinter: what was sown in autumn stands through the
                 // winter and ripens the next summer.)
                 if ((season > SEED_TO && season - advance <= SEED_TO) || (weather.date.month == FIELD_FAILS_MONTH && weather.date.dayOfMonth <= days && field[p] > 0f)) {
+                    // (The plot wears with each year's crop and mends with each year it rests.)
+                    fieldSoil[p] = if (field[p] > 0f) CROPPED_FLOOR + (fieldSoil[p] - CROPPED_FLOOR) * (1f - CROP_WEAR) else 1f - (1f - fieldSoil[p]) * (1f - REST_MEND)
                     field[p] = 0f; fieldDays[p] = 0f; fieldStress[p] = 0f
                     domestic[p] = MUTANT + (domestic[p] - MUTANT) * (1f - WILD_DRIFT)
                 }
@@ -233,6 +240,15 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
          * water use lost (Ky 1.0 for wheat: Doorenbos & Kassam 1979, FAO Paper 33). Both figures from memory, unchecked.
          */
         const val CROP_DEPLETION = 0.55f
+        /**
+         * How a plot cropped year after year bears against rested ground, and how fast it wears and mends. Broadbalk's unmanured
+         * plot gives about 1.2 t/ha of grain in continuous wheat and 2.6 t/ha after a two-year break (Rothamsted guide 1991,
+         * e-RA guide1991-10-16), so cropping wears a plot to about 0.45 of rested ground and two years' rest mend most of it (0.7
+         * a year leaves a tenth of the loss after two). How fast it wears is not in that record: half the way a year is a guess.
+         */
+        const val CROPPED_FLOOR = 0.45f
+        const val CROP_WEAR = 0.5f
+        const val REST_MEND = 0.7f
         /** The month (0 from midwinter) by whose start a sown crop that has not ripened has failed: the last before the autumn sowing. */
         const val FIELD_FAILS_MONTH = 8
         /** Share of a wild stand whose ears hold their grain (rare mutants, kept down by their failing to sow themselves). */
