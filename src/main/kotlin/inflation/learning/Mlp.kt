@@ -27,6 +27,24 @@ class Mlp(val sizes: IntArray, val w: FloatArray = FloatArray(count(sizes))) {
 
     /** The index in [w] of layer [l]'s weight from input [i] to unit [j] (layers from 1). */
     fun at(l: Int, i: Int, j: Int) = offs[l] + i * sizes[l] + j
+    /**
+     * A step scale for each weight of [w] that gives the first layer's weights from an input that has hardly been trained (its mean
+     * absolute weight below the inputs' average) up to [max] times the step, in proportion to how far below it is: an input that
+     * comes in at zero weight (see Schema) then catches up in rounds rather than in weeks of Adam's small steps. Others 1.
+     */
+    fun smallInputRates(max: Float): FloatArray {
+        val rates = FloatArray(w.size) { 1f }
+        val h = sizes[1]
+        val means = FloatArray(sizes[0]) { i -> var s = 0f; for (j in 0 until h) s += kotlin.math.abs(w[at(1, i, j)]); s / h }
+        val avg = means.average().toFloat()
+        if (avg <= 0f) return rates
+        for (i in means.indices) {
+            val r = if (means[i] <= 0f) max else (avg / means[i]).coerceIn(1f, max)
+            if (r > 1f) for (j in 0 until h) rates[at(1, i, j)] = r
+        }
+        return rates
+    }
+
     /** The index in [w] of layer [l]'s bias of unit [j]. */
     fun biasAt(l: Int, j: Int) = offs[l] + sizes[l - 1] * sizes[l] + j
 
@@ -212,14 +230,15 @@ class Adam(n: Int, private val rate: Float, private val b1: Float = 0.9f, privat
     private val v = FloatArray(n)
     private var t = 0
 
-    fun step(w: FloatArray, grad: FloatArray) {
+    /** One step; [rates], if given, scales the step of each weight (1: as is). */
+    fun step(w: FloatArray, grad: FloatArray, rates: FloatArray? = null) {
         t++
         val c1 = 1f - Math.pow(b1.toDouble(), t.toDouble()).toFloat()
         val c2 = 1f - Math.pow(b2.toDouble(), t.toDouble()).toFloat()
         for (i in w.indices) {
             m[i] = b1 * m[i] + (1 - b1) * grad[i]
             v[i] = b2 * v[i] + (1 - b2) * grad[i] * grad[i]
-            w[i] -= rate * (m[i] / c1) / (sqrt(v[i] / c2) + 1e-8f)
+            w[i] -= rate * (rates?.get(i) ?: 1f) * (m[i] / c1) / (sqrt(v[i] / c2) + 1e-8f)
         }
     }
 }
