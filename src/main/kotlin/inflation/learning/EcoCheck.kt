@@ -17,7 +17,7 @@ import kotlin.math.sqrt
  * each role do better with its new network than with its kept one, the other roles as they now are?
  *
  * The test world ([Config] key `ppo.checkWorld`, default lake-1) runs from its settled state for
- * `ppo.checkYears` years (default 5), its weather drawn `ppo.checkReplicates` ways (default 3, other ones at each check), each
+ * `ppo.checkYears` years (default 10: the 5-year check hardly separated nets near carrying capacity, 10 years did, 2026-10-24), its weather drawn `ppo.checkReplicates` ways (default 3, other ones at each check), each
  * way with: every role's new network ("new"); every role's kept one ("kept"); and, for each role, its
  * kept network with the others' new ("kept hunters" and so on). The runs are their own processes, beside
  * the training, each under the training's own config with only the networks changed. A role's new network is kept when, set against its kept one with the others' new (all
@@ -34,7 +34,7 @@ import kotlin.math.sqrt
  */
 class EcoCheck(private val out: File) {
     private val world = TestWorlds.named(Config.string(Config.Key.PPO_CHECK_WORLD) ?: "lake-1")
-    private val years = Config.int(Config.Key.PPO_CHECK_YEARS, 5)
+    private val years = Config.int(Config.Key.PPO_CHECK_YEARS, 10)
     private val replicates = Config.int(Config.Key.PPO_CHECK_REPLICATES, 3)
     /** Whether fewer people in every weather keeps the hunters' new network out (it always does for the people's). */
     private val hunterPeopleVeto = Config.flag(Config.Key.PPO_HUNTER_PEOPLE_VETO, true)
