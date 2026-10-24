@@ -13,9 +13,10 @@ import kotlin.math.roundToInt
  * body's protein paying the shortfall ([Hazards.hunger]); and what this week's food leaves of them carried into the year.
  *
  * The days go a few at a time to whichever of the three averts the most deaths for its days (or for all it asks, where a
- * little does nothing, as wood in a cold too deep for half a fire), until the deaths it still foresees are within one step
- * of chance ([HexGroups.survivalSteps]) of those it would foresee with all three as it asks, or the week is spent. The rest
- * of their asks are shared with the other chores ([BandTime.plan]).
+ * little does nothing, as wood in a cold too deep for half a fire), until each has all it asks, none averts any more, or
+ * the week is spent: when the week holds all three, each gets what it asks as far as it averts deaths; when it does not,
+ * the days go where they keep the most alive. (Its deaths are reckoned, not drawn, so there is no chance to allow for.)
+ * The rest of their asks, the days that avert no death (wood in a warm week), are shared with the other chores ([BandTime.plan]).
  *
  * [foodAsk]: the person-days of work that would forage the rest of the week's want, [gotShare] of it got already;
  * [fuelAsk]: those that would fetch all the hearth asks ([fuelAsk]); [moved]: whether it has come to a new camp, where no
@@ -59,12 +60,11 @@ internal fun HexGroups.survivalDays(g: HexGroup, b: Band, weather: Weather, time
         return 1f - week + 1f - year.alive(s, larderDays - paid, fat, Hazards.spentAfter(s, g.spent, onFat, days))
     }
     val d = FloatArray(3)
-    val least = deaths(asks)
     var now = deaths(d)
     var left = time.left
     val chunk = max(1e-3f, time.left / CHUNKS)
     val trial = FloatArray(3)
-    while (left > 1e-4f && survivalSteps(g, now - least) >= 1f) {
+    while (left > 1e-4f) {
         var best = -1; var bestGain = 0f; var bestWork = 0f
         for (i in 0 until 3) {
             val room = asks[i] - d[i]
@@ -73,8 +73,8 @@ internal fun HexGroups.survivalDays(g: HexGroup, b: Band, weather: Weather, time
             // (A few days more, or all it asks: whichever does more for its days.)
             for (work in floatArrayOf(min(room, chunk * pace), min(room, left * pace))) {
                 d.copyInto(trial); trial[i] += work
-                val gain = (now - deaths(trial)) / (work / pace)
-                if (gain > bestGain) { best = i; bestGain = gain; bestWork = work }
+                val averted = now - deaths(trial); val gain = averted / (work / pace)
+                if (averted > AVERTS_NONE && gain > bestGain) { best = i; bestGain = gain; bestWork = work }
             }
         }
         if (best < 0) break
@@ -91,3 +91,5 @@ private const val SHELTER = 2
 /** The pieces the week is given out in ([survivalDays]); and the steps of fire and shelter its body heat is reckoned at. */
 private const val CHUNKS = 40f
 private const val GRID = 20f
+/** Fewer deaths than this, a share of the band, are no deaths averted: the rounding in the reckoning, not a difference. */
+private const val AVERTS_NONE = 1e-6f
