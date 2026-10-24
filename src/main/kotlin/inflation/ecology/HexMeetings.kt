@@ -201,8 +201,8 @@ private fun restedDays(w: ForageWeek, time: BandTime) {
 /**
  * A band's plan of its week, made once [forage] sees what food asks of it: [needDays] of its hands' week to eat what it
  * wants this week, [storeDays] more to lay by what it aims to keep. The walk, when it moved camp ([moveDays]), and digging
- * soaks for water, where that is the only water, come off first. Then what it needs to live through the week (food for the
- * week, the hearth's firewood); then the rest of what each activity asks for ([choreAsks]: the stores and its chores),
+ * soaks for water, where that is the only water, come off first. Then what keeps it warm (the hearth's firewood, the camp's
+ * usual shelters), then the week's food; then the rest of what each activity asks for ([choreAsks]: the stores and its chores),
  * shared out when it comes to more than the days left ([BandTime.plan]). Leisure asks for nothing: it is what the week
  * leaves (and takes less food: [restedDays]). Then it fetches the hearth's firewood in the days the plan gives it.
  */
@@ -214,21 +214,23 @@ private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float)
     if (land.drink.mustDig(g.place, w.s.dailyTravelKm)) time.spend(Activity.FOOD, HexDrinkingWater.DIG_SHARE * days * hands)
     // (Moving camp takes its days first: everyone walks, at the pace of the slowest, see [moveDays].)
     time.spend(Activity.MOVING, min(days.toFloat(), moveDays(g, max(0, g.path.size - 1) * hex.hexKm.toFloat())) * hands)
+    // (What keeps it warm comes first, the hearth's firewood and the camp's usual shelters; then the week's food.)
+    val warm = FloatArray(Activity.entries.size)
+    warm[Activity.FIREWOOD.ordinal] = fuelAsk(g, hands)
     val needs = FloatArray(Activity.entries.size)
     needs[Activity.FOOD.ordinal] = needDays * hands
-    needs[Activity.FIREWOOD.ordinal] = fuelAsk(g, hands)
     val asks = FloatArray(Activity.entries.size)
     asks[Activity.FOOD.ordinal] = storeDays * hands
-    choreAsks(g, b, w.weather.date, asks)
+    choreAsks(g, b, w.weather.date, asks, warm)
     // (The band weighs the asks against each other by its ways: see [timeWay].)
-    time.plan(needs, asks, FloatArray(asks.size) { i -> timeWay(Activity.entries[i])?.let { b.will[it] } ?: 1f })
+    time.plan(needs, asks, FloatArray(asks.size) { i -> timeWay(Activity.entries[i])?.let { b.will[it] } ?: 1f }, warm)
     b.binding?.let { bind ->
         if (time.short) for (a in Activity.entries) if (asks[a.ordinal] > 0f) bind[a.ordinal] += 1f
         if (g.path.size > 1) bind[Binding.MOVES] += 1f
     }
     dialUse?.let { u -> for (a in Activity.entries) timeWay(a)?.let { way ->
         if (asks[a.ordinal] > 0f) u.amount(DialSite.TIME_WEIGHTS, b.will[way], time.heldFor(a), time.heldAtOneFor(a), dial = way.slot) } }
-    val fuel = needs[Activity.FIREWOOD.ordinal]
+    val fuel = warm[Activity.FIREWOOD.ordinal]
     w.fuelDays = fetchFuel(g, b, hands, if (fuel > 0f) min(1f, time.leftFor(Activity.FIREWOOD) / fuel) else 1f)
     time.spend(Activity.FIREWOOD, w.fuelDays * hands)
     time.release(Activity.FIREWOOD)
