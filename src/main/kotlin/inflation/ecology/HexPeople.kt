@@ -1874,7 +1874,7 @@ private fun HexGroups.ecosystemInputs(g: HexGroup, b: Band, into: FloatArray) {
     into[x.TREES] = min(1f, land.plants.tree[p] / 10f); into[x.SHRUBS] = min(1f, land.plants.shrub[p] / 2f); into[x.GRASS] = min(1f, land.plants.herb[p] / 0.5f)
     val need = (g.dailyNeedKg * days).coerceAtLeast(1f)
     fun weeks(kg: Float) = (kg / need).let { it / (1f + it) }
-    into[x.FISH] = weeks(fauna.water.fishWithin(h, b.fishing()))
+    into[x.FISH] = weeks(fauna.water.bandCatchWithin(h, b.fishing()))
     // Plants: what its gatherers would strip from the camp's own ground in a week (as in [forage]).
     val food = fauna.food
     val pick = min(0.9f, b.gatherShare(false, tuning) * b.gatherRange)
