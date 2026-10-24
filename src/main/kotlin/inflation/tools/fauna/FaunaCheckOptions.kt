@@ -20,7 +20,7 @@ class FaunaCheckOptions(
     val historyFile: File?,
     val saveFile: File?,
     val loadFile: File?,
-    /** Draws the weather afresh after a load (0: carries on the saved weather). */
+    /** Draws the weather afresh, after a load or on a fresh world (0: the saved weather, or the seed's). */
     val replicate: Long,
     val testWorld: TestWorlds.Entry?,
 ) {
@@ -35,8 +35,9 @@ class FaunaCheckOptions(
             val t0 = System.nanoTime()
             HexSnapshot.load(sim, f)
             println("carrying on the world saved in $f, at ${sim.weather.date} (loaded in %.1f s)".format((System.nanoTime() - t0) / 1e9))
-            if (replicate != 0L) { sim.weather.reseed(replicate); println("weather drawn afresh: replicate $replicate") }
         }
+        // (A fresh world's weather is drawn afresh too, so its replicates are other weathers on the same land.)
+        if (replicate != 0L) { sim.weather.reseed(replicate); println("weather drawn afresh: replicate $replicate") }
         Tuning.changed().takeIf { it.isNotEmpty() }?.let { println("tuning: $it") }
         LearnedModel.fromConfig(sim.groups) { println(it) }
         return sim

@@ -12,8 +12,8 @@ import inflation.tools.fauna.FaunaCheckOptions
  *
  * Usage (--history FILE writes the week-by-week history as CSV for the graphs; --save FILE saves the
  * world every five years and at the end, --load FILE carries on a saved one; --world NAME carries on
- * one of the settled test worlds, see [TestWorlds]; --replicate R draws the weather afresh after a
- * load, for another run from the same start): hex-fauna-check [--seed N] [--width KM] [--height KM]
+ * one of the settled test worlds, see [TestWorlds]; --replicate R draws the weather afresh (after a
+ * load or on a fresh world), for another run from the same start): hex-fauna-check [--seed N] [--width KM] [--height KM]
  * [--years N] [--save FILE] [--load FILE] [--world NAME] [--replicate R]
  */
 fun main(args: Array<String>) = faunaCheck(args)
