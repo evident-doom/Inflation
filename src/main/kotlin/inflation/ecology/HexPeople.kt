@@ -1599,6 +1599,10 @@ const val VENOM = 0.002f
 /** Yearly deaths from marsh fever among people camped by a marsh in the warm months. */
 const val MARSH_FEVER = 0.05f
 
+/** How [b] lives, for the reports: settled at home in its houses or at a camp kept half a year or more, else mobile. */
+internal fun HexGroups.bandLifeway(b: Band) =
+    if (b.atHome || b.campWeeks >= stepsPerYear / 2f) Tally.Lifeway.SETTLED else Tally.Lifeway.MOBILE
+
 /** Settled life with stores shortens the spacing of births. */
 internal fun HexGroups.settledFertility(g: HexGroup): Float {
     val b = g.band ?: return 1f

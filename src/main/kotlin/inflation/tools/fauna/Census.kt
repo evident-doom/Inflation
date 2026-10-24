@@ -302,6 +302,14 @@ class Census(private val sim: HexSim) {
             val died = lastYear.filterKeys { it.startsWith(Tally.bandsCladDied(c)) }
             "%s %.0f%%: %.3f, %.3f".format(c.label, 100.0 * (lastYear[Tally.bandsClad(c, Tally.Bands.PEOPLE_WEEKS)] ?: 0) / all.coerceAtLeast(1),
                 died.values.sum() / years.coerceAtLeast(1e-9), (died[Tally.bandsCladDied(c, DeathCause.EXPOSURE)] ?: 0) / years.coerceAtLeast(1e-9)) })
+        println("bands by how they live, last year (settled: at home in their houses or at a camp kept half a year or more; share of people-weeks; people a band; births / deaths per 1000 people a year; deaths per 1000 a year by cause, largest first): " + Tally.Lifeway.entries.joinToString(", ") { w ->
+            val pw = (lastYear[Tally.bandsLiving(w, Tally.Bands.PEOPLE_WEEKS)] ?: 0).toDouble()
+            val all = Tally.Lifeway.entries.sumOf { (lastYear[Tally.bandsLiving(it, Tally.Bands.PEOPLE_WEEKS)] ?: 0).toDouble() }.coerceAtLeast(1.0)
+            val years = (pw / stepsPerYear).coerceAtLeast(1e-9)
+            val died = lastYear.filterKeys { it.startsWith(Tally.bandsLivingDied(w)) }.mapKeys { Tally.diedOf(it.key) }
+            "%s %.0f%%, %.1f a band: %.1f / %.1f (%s)".format(w.label, 100 * pw / all, pw / (lastYear[Tally.bandsLiving(w, Tally.Bands.BAND_WEEKS)] ?: 0).toDouble().coerceAtLeast(1.0),
+                1000 * (lastYear[Tally.bandsLiving(w, Tally.Bands.BORN)] ?: 0) / years, 1000 * died.values.sum() / years,
+                died.entries.sortedByDescending { it.value }.joinToString(" ") { "%s %.1f".format(it.key, 1000 * it.value / years) }) })
         println("bands by how well fed through the week, their fat drawn on, last year (share of people-weeks; deaths per person a year of hunger, of exposure, of all; larder, of it meat, and fat at the week's end, days; share of the protein eaten that went to waste; salt held, g a person, sodium short, salt here; share that know of salt, km to the nearest known): " + Tally.Fed.entries.joinToString(", ") { f ->
             val pw = (lastYear[Tally.bandsFed(f, Tally.Bands.PEOPLE_WEEKS)] ?: 0).toDouble()
             val all = Tally.Fed.entries.sumOf { (lastYear[Tally.bandsFed(it, Tally.Bands.PEOPLE_WEEKS)] ?: 0).toDouble() }.coerceAtLeast(1.0)
