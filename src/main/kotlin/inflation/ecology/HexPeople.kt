@@ -366,8 +366,14 @@ class Band(kinds: Int) {
      */
     val herd = FloatArray(kinds)
     val herdTame = FloatArray(kinds)
-    /** Of the grain in its stores, the share from ears that hold their grain (what it would sow). */
+    /**
+     * Of the grain in its stores, what it reaped from sown fields and keeps to sow first, its seed corn (as its stores count
+     * it; eaten last, so no more than its grain: [seedCornIn]), and the share of that from ears that hold their grain;
+     * and of the rest, gathered from wild stands, the share from ears that hold their grain.
+     */
+    var seedCorn = 0f
     var seedDomestic = 0f
+    var grainDomestic = 0f
     /** Its ways ([BandWay]), as [setWays] sets them each week from its ways' outputs: 1 each for the scaffold's way. Read through the names below. */
     val will = enumFloats<BandWay> { 1f }
     /** Its choices: how much of its stored grain it sows in autumn at its home (the scaffold: some, once it has houses). */
@@ -566,7 +572,7 @@ class Band(kinds: Int) {
         o.ties.clear(); o.ties.putAll(ties); o.appointment = appointment
         o.houseHex = houseHex; o.house = house; o.homeEarth = homeEarth; o.homeGroundC = homeGroundC; o.palisade = palisade; herdTame.copyInto(o.herdTame); herd.copyInto(o.herd)
         o.houseLives = houseLives; o.houseFood = houseFood; foodFrom.copyInto(o.foodFrom); o.fishPull = fishPull; monthSupply.copyInto(o.monthSupply); o.leanDays = leanDays
-        o.seedDomestic = seedDomestic; o.sinceRaided = sinceRaided; o.sisu = sisu
+        o.seedDomestic = seedDomestic; o.grainDomestic = grainDomestic; o.seedCorn = seedCorn * share; seedCorn -= o.seedCorn; o.sinceRaided = sinceRaided; o.sisu = sisu
         o.knownHomes.putAll(knownHomes); o.knownLineage.putAll(knownLineage)
         skills.copyInto(o.skills)
         knowsSkill.copyInto(o.knowsSkill)
@@ -627,7 +633,12 @@ class Band(kinds: Int) {
             a.kit[i] += w * (b.kit[i] - a.kit[i])
         }
         if (dried + bDried > 0f) a.salted = (dried * a.salted + bDried * b.salted) / (dried + bDried)
-        if (seed + bSeed > 0f) a.seedDomestic = (seed * a.seedDomestic + bSeed * b.seedDomestic) / (seed + bSeed)
+        // (Seed corn blended by the seed corn each held, the rest of the grain by the rest.)
+        val corn = min(a.seedCorn, seed); val bCorn = min(b.seedCorn, bSeed)
+        if (corn + bCorn > 0f) a.seedDomestic = (corn * a.seedDomestic + bCorn * b.seedDomestic) / (corn + bCorn)
+        val wild = seed - corn; val bWild = bSeed - bCorn
+        if (wild + bWild > 0f) a.grainDomestic = (wild * a.grainDomestic + bWild * b.grainDomestic) / (wild + bWild)
+        a.seedCorn = corn + bCorn
         for (i in Illness.entries) { a.sick[i] += w * (b.sick[i] - a.sick[i]); a.immune[i] += w * (b.immune[i] - a.immune[i]) }
         a.hurt += w * (b.hurt - a.hurt); a.lame += w * (b.lame - a.lame)
         a.ornaments += b.ornaments; a.exotic += b.exotic
@@ -1417,13 +1428,19 @@ private fun HexGroups.sowGrain(g: HexGroup, b: Band, p: Place, date: Date, time:
         val sow = minOf(stock * SOW_SHARE * b.sowWill, left / SOW_DAYS_PER_KG)
         dialUse?.amount(DialSite.SOWING, b.sowWill, sow, minOf(stock * SOW_SHARE, left / SOW_DAYS_PER_KG))
         if (sow > 0.1f) {
-            g.stores[Store.SEED] -= sow; time.spend(Activity.SOWING, sow * SOW_DAYS_PER_KG)
-            fauna.food.sow(p, land.spread(p, Kg(sow * g.storeKgPer[Store.SEED])), b.seedDomestic)
+            // (Its seed corn first, then grain gathered from the wild stands.)
+            val corn = b.seedCornIn(g); val fromCorn = min(sow, corn)
+            val domestic = (fromCorn * b.seedDomestic + (sow - fromCorn) * b.grainDomestic) / sow
+            g.stores[Store.SEED] -= sow; b.seedCorn = corn - fromCorn; time.spend(Activity.SOWING, sow * SOW_DAYS_PER_KG)
+            fauna.food.sow(p, land.spread(p, Kg(sow * g.storeKgPer[Store.SEED])), domestic)
             stats.meeting(Met.BANDS_SOWED)
             note(g) { "sowed %.0f kg of grain at home".format(sow) }
         }
     }
 }
+
+/** [Band.seedCorn] as [g]'s stores hold it: grain is eaten, spoils, is given and taken from the wild grain first. */
+internal fun Band.seedCornIn(g: HexGroup) = min(seedCorn, g.stores[Store.SEED])
 
 /** Whether [g]'s band [b] sows at place [p] now: in autumn, at home or at a camp it has kept long enough to build at, where grass grain grows. */
 private fun HexGroups.canSow(g: HexGroup, b: Band, p: Place, date: Date) =

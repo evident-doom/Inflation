@@ -59,7 +59,8 @@ internal fun carryRules(): Map<String, Pair<OnSplit, OnJoin>> {
     rule(OnSplit.FRESH, OnJoin.SUM, "favours")
     // Wealth and animals.
     rule(OnSplit.SHARED, OnJoin.SUM, "ornaments", "exotic", "herd")
-    rule(OnSplit.COPIED, OnJoin.BLENDED, "herdTame", "seedDomestic")
+    rule(OnSplit.COPIED, OnJoin.BLENDED, "herdTame", "seedDomestic", "grainDomestic")
+    rule(OnSplit.SHARED, OnJoin.SUM, "seedCorn")
     rule(OnSplit.COPIED, OnJoin.LOST, "sinceRaided")
     // Its ways' choices.
     rule(OnSplit.CHOSEN, OnJoin.CHOSEN, "storeShare", "will", "makeFirst", "effort")

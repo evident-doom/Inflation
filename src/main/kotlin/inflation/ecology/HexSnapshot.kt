@@ -239,9 +239,12 @@ object HexSnapshot {
      * 4.49: a band aims to store, besides a month against bad weeks, the days its food fell short over the year
      *   ([Band.leanDays], from [Band.monthSupply]), its store choice a share of both ([Band.storeShare]); it was a month
      *   or two at most, so no band could lay by for a winter.
+     * 4.50: a band keeps what it reaps from sown fields as seed corn and sows it first ([Band.seedCorn]); the grain it
+     *   gathers from wild stands no longer mixes into the seed it sows (sown fields went from 0.75 to 0.02 ears that hold their
+     *   grain within five years, as wild grain swamped the seed).
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 49
+    const val MODEL_MINOR = 50
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
