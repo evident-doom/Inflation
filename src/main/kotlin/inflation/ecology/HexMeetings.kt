@@ -607,7 +607,7 @@ private fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
         // Grass seed must be reaped, threshed and ground: worth it only with the tools and the hands.
         offer(w, o, Food.SEED, 0, Place(q), land.total(Place(q), KgM2((band?.let { it.gatherShare(true, tuning) * knowHere * part } ?: reach) * fauna.food.seeds[q])).v / days, 1f, seedQ)
         // Wild and sown cereals: reaped like grass seed, but richer where they stand.
-        offer(w, o, Food.GRAIN, 0, Place(q), land.total(Place(q), KgM2((band?.let { it.gatherShare(true, tuning) * knowHere * part } ?: reach) * fauna.food.grain[q])).v / days, 1f, seedQ)
+        offer(w, o, Food.GRAIN, 0, Place(q), land.total(Place(q), KgM2((band?.let { it.gatherShare(true, tuning) * knowHere * part } ?: reach) * (fauna.food.grain[q] + fauna.food.fieldGrain[q]))).v / days, 1f, seedQ)
     }
     // Bands fish the river, the lake or the sea by their camp, as their skill and nets allow ([Band.fishing]); and gather
     // shellfish off the shore, which wants neither (kind [SHELLFISH_KIND] of the fish offered).
@@ -1008,12 +1008,18 @@ private fun siftDown(a: LongArray, from: Int, m: Int) {
 /** [forage]'s reaping of wild or sown grain at place [p], [expected] kg a party could take: [out] gets the kilos it is worth, and weighs. */
 private fun HexGroups.reap(g: HexGroup, p: Place, expected: Float, out: Haul) {
     val band = g.band
-    val taken = land.total(p, fauna.food.take(fauna.food.grain, p, land.spread(p, Kg(expected)))).v
+    // (Sown fields are reaped first: their grain stands thick in one plot; then the wild stand.)
+    val food = fauna.food
+    val want = land.spread(p, Kg(expected)).v
+    val fromField = food.take(food.fieldGrain, p, KgM2(want)).v
+    val fromWild = food.take(food.grain, p, KgM2(want - fromField)).v
+    val taken = land.total(p, KgM2(fromField + fromWild)).v
     val took = taken * seedValue(band) * (band?.cookValue(Food.GRAIN) ?: 1f)
     out.kg = took; out.mass = taken
     // A sickle takes the ears that hold their grain more than those that shatter at a touch.
     if (band != null && took > 0f) {
-        val d = fauna.food.domestic[p]; val sel = SICKLE_SELECT * band.has(Tool.SICKLE)
+        val d = (food.fieldDomestic[p] * fromField + food.domestic[p] * fromWild) / (fromField + fromWild).coerceAtLeast(1e-12f)
+        val sel = SICKLE_SELECT * band.has(Tool.SICKLE)
         val harvested = d * (1f + sel) / (1f + sel * d).coerceAtLeast(1e-6f)
         val have = g.stores[Store.SEED]
         band.seedDomestic = (band.seedDomestic * have + harvested * took) / (have + took).coerceAtLeast(1e-6f)

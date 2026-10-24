@@ -140,6 +140,7 @@ enum class StockName(val label: String) {
     SMALL_FINDS("small finds"),
     ROOTS("roots"),
     GRAIN("grain"),
+    FIELD_GRAIN("field grain"),
     SOWN_SEED("sown seed"),
     LITTER("litter"),
     SOIL_ORGANIC_MATTER("soil organic matter"),

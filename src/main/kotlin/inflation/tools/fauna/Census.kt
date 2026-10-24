@@ -214,14 +214,14 @@ class Census(private val sim: HexSim) {
         }
         val f = fauna.food
         val stands = (0 until land.n).count { f.cereal[it] > 0.01f }
-        val fields = (0 until land.n).filter { f.domestic[it] > 0.01f }
+        val fields = (0 until land.n).filter { f.field[it] > 0f || f.fieldGrain[it] > 0f }
         val atHome = groups.groups.filter { it.alive && it.band?.atHome == true }
-        println("cereals: wild stands in %d places; places with ears that hold their grain %d, most %.2f, mean there %.2f; grain reaped by people %.0f t in the last year; stored grain %.0f t (bands at home %.0f t); grain standing %.0f t, ripened in the last year %.0f t; bands at home on cereal ground %d of %d".format(
-            stands, fields.size, fields.maxOfOrNull { f.domestic[it] } ?: 0f,
-            if (fields.isEmpty()) 0.0 else fields.map { f.domestic[it].toDouble() }.average(), grainReaped,
+        println("cereals: wild stands in %d places; places with sown fields (sown or ripe) %d, the share of their ears that hold their grain: most %.2f, mean %.2f; grain reaped by people %.0f t in the last year; stored grain %.0f t (bands at home %.0f t); grain standing %.0f t, ripened in the last year %.0f t; bands at home on cereal ground %d of %d".format(
+            stands, fields.size, fields.maxOfOrNull { f.fieldDomestic[it] } ?: 0f,
+            if (fields.isEmpty()) 0.0 else fields.map { f.fieldDomestic[it].toDouble() }.average(), grainReaped,
             gs.sumOf { it.stores[Store.SEED].toDouble() } / 1000,
             atHome.sumOf { it.stores[Store.SEED].toDouble() } / 1000,
-            (0 until land.n).sumOf { f.grain[it] * land.areaKm2[it] * 1e6 } / 1000, f.grainRipenedLastYear,
+            (0 until land.n).sumOf { (f.grain[it] + f.fieldGrain[it]) * land.areaKm2[it] * 1e6 } / 1000, f.grainRipenedLastYear,
             atHome.count { f.cereal[it.place] > 0f }, atHome.size))
     }
 
