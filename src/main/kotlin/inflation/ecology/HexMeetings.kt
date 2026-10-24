@@ -230,6 +230,12 @@ private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float)
     }
     dialUse?.let { u -> for (a in Activity.entries) timeWay(a)?.let { way ->
         if (asks[a.ordinal] > 0f) u.amount(DialSite.TIME_WEIGHTS, b.will[way], time.heldFor(a), time.heldAtOneFor(a), dial = way.slot) } }
+    note(g) {
+        "plan: %.1f person-days, moving %.1f; warm asked %.1f, held %.1f (firewood %.1f, shelter %.1f); food needed %.1f, held %.1f; stores asked %.1f, held %.1f; short %s".format(
+            time.total, time.spentOn(Activity.MOVING), warm.sum(), time.heldFor(Activity.FIREWOOD) + time.heldFor(Activity.SHELTER),
+            warm[Activity.FIREWOOD.ordinal], warm[Activity.SHELTER.ordinal], needs[Activity.FOOD.ordinal], time.heldFor(Activity.FOOD),
+            asks[Activity.FOOD.ordinal], max(0f, time.heldFor(Activity.FOOD) - needs[Activity.FOOD.ordinal]), time.short)
+    }
     val fuel = warm[Activity.FIREWOOD.ordinal]
     w.fuelDays = fetchFuel(g, b, hands, if (fuel > 0f) min(1f, time.leftFor(Activity.FIREWOOD) / fuel) else 1f)
     time.spend(Activity.FIREWOOD, w.fuelDays * hands)
@@ -750,6 +756,11 @@ private fun HexGroups.eatTheWeek(w: ForageWeek) {
         land.books?.let { bookEaten(it, gorge * meatShare(null), HexSmallLife.DUNG * gorge) }
     }
     g.fed = (eaten / wantAll).coerceIn(0f, 1f)
+    if (band != null) note(g) {
+        "ate %.0f of %.0f kg wanted (fed %.2f); larder left %.0f kg (%s); fat %.1f days; sodium short %.0f%%, salt %.1f kg; lean lost %.0f%%".format(
+            eaten, wantAll, g.fed, g.larder, Store.entries.joinToString(" ") { "${it.name.lowercase()} %.0f".format(g.stores[it]) },
+            g.fat, 100f * band.sodiumShort, band.goods[Material.SALT], 100f * band.leanLost)
+    }
     // What the pack could not finish is left for the scavengers; what it ate comes back in part as dung.
     small.deposit(DeadPool.CARRION, g.place, Kg(spare))
     // (A band's meat eaten already holds the small game, scraps and fish it ate; what it stored is not yet eaten.)
