@@ -4,6 +4,7 @@ import inflation.Args
 import inflation.Config
 import inflation.ecology.HexSim
 import inflation.ecology.HexSnapshot
+import inflation.ecology.startVillages
 import inflation.Tuning
 import inflation.learning.LearnedModel
 import inflation.run.TestWorlds
