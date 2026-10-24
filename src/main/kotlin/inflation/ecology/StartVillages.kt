@@ -11,6 +11,8 @@ import kotlin.math.roundToInt
  * the best farm ground ([farmWorth]), start as villages ([startVillage]); the rest start as foragers, as in any world. Fewer
  * start so where too few bands stand on farm ground. Nothing keeps a village a village afterwards: it stays, moves, sows or
  * splits by the same choices as any band, and the ways of living in houses pass to its neighbours as other ways do.
+ * A fresh world starts them as it makes its bands; a world carried on from a save starts them when it is taken up (so a
+ * save of a world that had villages, carried on with the key set again, starts more).
  */
 internal fun HexGroups.startVillages() {
     val bands = groups.filter { it.alive && it.species.human && it.band != null }
