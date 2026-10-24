@@ -914,14 +914,14 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
  * out by the chore's own rules, as things stand when it plans (it moved camp, if it did, but has not yet foraged).
  * Drying and skinning follow the catch, so they ask what they would have liked last week.
  */
-internal fun HexGroups.choreAsks(g: HexGroup, b: Band, date: Date, asks: FloatArray, first: FloatArray? = null) {
+internal fun HexGroups.choreAsks(g: HexGroup, b: Band, date: Date, asks: FloatArray, warm: FloatArray? = null) {
     val p = g.place; val h = hw.hexOf(p); val people = g.adults.toFloat()
     val moved = movedCamp(g, b)
     fun ask(a: Activity, days: Float) { asks[a.ordinal] = if (days.isFinite()) max(0f, days) else 0f }
     if (moved && !b.campPlace.none) ask(Activity.CACHING, min(1f, b.cacheWill) * leftBehindKg(g, b) * cacheCare(b) / CACHE_KG_A_DAY)
     ask(Activity.MATERIALS, gatherMaterials(g, b, p, h, people, land.m2(p), null))
     // (What the shelters it aims at take beyond the days already given them first, when given: [survivalDays].)
-    ask(Activity.SHELTER, shelterLack(b, moved) * shelterDays(b, people) - (first?.get(Activity.SHELTER.ordinal) ?: 0f))
+    ask(Activity.SHELTER, shelterLack(b, moved) * shelterDays(b, people) - (warm?.get(Activity.SHELTER.ordinal) ?: 0f))
     ask(Activity.CUSTOMS, cleanDays(b, people) + nurseDays(b, people))
     ask(Activity.TRAINING, Skill.entries.sumOf { s -> (learners(b, s, people) * APPRENTICE_DAYS * s.complexity).toDouble() }.toFloat())
     ask(Activity.TOOLS, makeTools(b, people, null))
