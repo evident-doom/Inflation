@@ -221,9 +221,12 @@ object HexSnapshot {
      * 4.41: a band short of sodium heads for the nearest salt it knows of, pan or shore ([HexGroups.saltSources]).
      * 4.42: the salt pull weighs a year of salt against the weeks the walk takes; a band foresees the shelters it would have at
      *   a place it moves to ([HexGroups.shelterAt]): none where the walk takes the days it had to spare.
+     * 4.43: people pick fruit at the record's rate ([BAND_FRUIT_DAYS_PER_KG], three times as long as before); shellfish are
+     *   gathered off the shore as their own offer, at the Meriam rate and with no skill or tool ([SHELLFISH_DAYS_PER_KG]),
+     *   and only fish caught is practice at fishing.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 42
+    const val MODEL_MINOR = 43
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
