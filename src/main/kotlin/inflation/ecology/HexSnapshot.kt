@@ -221,9 +221,13 @@ object HexSnapshot {
      * 4.41: a band short of sodium heads for the nearest salt it knows of, pan or shore ([HexGroups.saltSources]).
      * 4.42: the salt pull weighs a year of salt against the weeks the walk takes; a band foresees the shelters it would have at
      *   a place it moves to ([HexGroups.shelterAt]): none where the walk takes the days it had to spare.
+     * 4.43: a camp is the hex: staying, for the fouling that makes a band want to leave and for the camp weeks the sicknesses
+     *   foresee, is staying in the hex (it was staying on the same ground, so the other ground of a hex looked like a fresh camp
+     *   while the week kept the camp weeks going); the sick a band foresees among the bands gathered at a place are those of
+     *   the whole hex, where the meetings are.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 42
+    const val MODEL_MINOR = 43
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
