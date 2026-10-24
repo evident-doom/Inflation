@@ -234,9 +234,11 @@ object HexSnapshot {
      *   so no sown field ever ripened); a field ripens as much less as it went short of water since midwinter
      *   ([HexFood.CROP_DEPLETION], FAO-56).
      * 4.47: a plot cropped year after year bears less, and mends as it rests ([HexFood.fieldSoil], Broadbalk).
+     * 4.48: the wear is the worn ground's, not the whole place's ([HexFood.fieldWorn]): a field is sown on rested ground
+     *   first ([HexFood.cropSoil], [HexFood.SEED_RATE]), so a plot of a few hectares no longer wears a place of square kilometres.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 47
+    const val MODEL_MINOR = 48
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
