@@ -230,9 +230,12 @@ object HexSnapshot {
      *   the whole hex, where the meetings are.
      * 4.45: a sown field is a crop of its own ([HexFood.fieldGrain], [HexFood.fieldDomestic]): it takes after the seed sown
      *   in it and is reaped before the wild stand, instead of mixing into the whole place's wild stand, which swamped it.
+     * 4.46: a field sown in autumn stands through the winter and ripens the next summer (it was struck off at midwinter,
+     *   so no sown field ever ripened); a field ripens as much less as it went short of water since midwinter
+     *   ([HexFood.CROP_DEPLETION], FAO-56).
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 45
+    const val MODEL_MINOR = 46
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
