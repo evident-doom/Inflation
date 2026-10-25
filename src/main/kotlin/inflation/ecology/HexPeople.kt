@@ -1995,7 +1995,7 @@ private fun HexGroups.ecosystemInputs(g: HexGroup, b: Band, into: FloatArray) {
     val pick = min(0.9f, b.gatherShare(false, tuning) * b.gatherRange)
     val reap = min(0.9f, b.gatherShare(true, tuning) * b.gatherRange)
     into[x.FRUIT] = weeks(land.total(p, KgM2(pick * food.fruit[p])).v)
-    into[x.ROOTS] = weeks(land.total(p, KgM2(pick * food.roots[p])).v)
+    into[x.ROOTS] = weeks(land.total(p, KgM2(pick * food.underground(p))).v)
     into[x.SEED] = weeks(land.total(p, KgM2(reap * food.seeds[p])).v)
     // Game: what it could catch in a week of searching its swept ground, as its move scores it.
     val swept = sweptKm2(s) * CATCH

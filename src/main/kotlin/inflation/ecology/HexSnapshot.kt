@@ -259,9 +259,13 @@ object HexSnapshot {
      *   for the firewood and shelters as far as they avert the deaths it foresees this week and through the year after
      *   ([survivalDays]), then for the week's food and the rest of the firewood;
      *   and a band choosing its camp counts roots as its gathering would find them ([HexGroups.rootsFound]).
+     * 4.56: fallen mast is a stock of its own ([HexFood.mast]), no longer counted with the bulbs and roots: a band picks it up
+     *   as it picks fruit, without searching for it ([MAST_KIND]); and bulbs and roots cannot be dug from frozen ground
+     *   ([HexFood.diggable], the week's air at or below [inflation.world.HexDrinkingWater.THAW_C]), for people and rooting
+     *   animals alike. (A 4.55 save loads with its mast still among its roots, where it rots away within the half year.)
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 55
+    const val MODEL_MINOR = 56
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

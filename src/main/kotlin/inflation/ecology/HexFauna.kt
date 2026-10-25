@@ -625,7 +625,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val total = d.grass + d.browse + d.fruit + d.roots
         if (total <= 0f) return 0f
         val plants = land.palatable[p] * d.grass * land.plants.herb[p] +
-            (d.browse * land.plants.browse(p) + d.fruit * food.fruit[p] + d.roots * food.roots[p]) / REACH
+            (d.browse * land.plants.browse(p) + d.fruit * food.fruit[p] + d.roots * food.underground(p)) / REACH
         return plants / total * HexFood.access(s, land.crag[p])
     }
 
@@ -786,7 +786,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             // (Biting insects harassing them cost them feeding time.)
             avail[k] = reachOf(s, p)
         }
-        z.spareG = grass; z.spareB = browse; z.spareF = food.fruit[p]; z.spareR = food.roots[p]
+        z.spareG = grass; z.spareB = browse; z.spareF = food.fruit[p]; z.spareR = food.underground(p)
         val b = z.b
         val gp = grassProtein(p); val bp = browseProtein(p)
         for (k in byMass) {
@@ -936,7 +936,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val eatG = z.eatG; val eatB = z.eatB
         // What is left of the week's grazing and browsing ([grazeLeft]).
         grazeLeft[p] = max(0f, grass - eatG); browseLeft[p] = max(0f, browse - eatB)
-        val dug = food.take(food.roots, p, KgM2(z.eatR)).v
+        val dug = food.takeUnderground(p, KgM2(z.eatR)).v
         val ate = food.take(food.fruit, p, KgM2(z.eatF)).v
         val eaten = land.plants.consume(p, LifeForm.HERB, KgM2(eatG)).v +
             land.plants.eatBrowse(p, KgM2(eatB)).v +
