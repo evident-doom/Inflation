@@ -263,12 +263,14 @@ object HexSnapshot {
      *   as it picks fruit, without searching for it ([MAST_KIND]); and bulbs and roots cannot be dug from frozen ground
      *   ([HexFood.diggable], the week's air at or below [inflation.world.HexDrinkingWater.THAW_C]), for people and rooting
      *   animals alike. (A 4.55 save loads with its mast still among its roots, where it rots away within the half year.)
-     * 4.57: only the trees that bear food bear mast and fruit, by kind of country ([HexFood.FOOD_TREES]: none from spruce, fir
+     * 4.57: with no ways network, bands hold the scaffold's ways every week ([Band.scaffoldWays]): before, bands of a saved
+     *   world kept the ways the network it was settled under last gave them (the storm worlds: natufian-4's, at model 4.0).
+     * 4.58: only the trees that bear food bear mast and fruit, by kind of country ([HexFood.FOOD_TREES]: none from spruce, fir
      *   or larch), and the trees' crop swings from year to year, the same over all the land for each group of trees but apart
      *   between them ([inflation.world.MastTrees], [inflation.world.Weather.mastCrop]).
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 57
+    const val MODEL_MINOR = 58
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
