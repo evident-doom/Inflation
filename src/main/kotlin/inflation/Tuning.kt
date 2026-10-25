@@ -26,9 +26,8 @@ class Tuning(private val read: (String) -> String? = Config::tuning) {
     val campFouling = f("campFouling", 1f)
     /** Marsh fever among people camped by marshes, against [inflation.ecology.MARSH_FEVER]. */
     val marshFever = f("marshFever", 1f)
-    /** People's births, and the extra births of settled, well-stocked bands ([inflation.ecology.SETTLED_FERTILITY]), against their present rates. */
+    /** People's births against their present rate ([inflation.ecology.HUMAN_BIRTHS]). */
     val humanBirths = f("humanBirths", 1f)
-    val settledFertility = f("settledFertility", 1f)
     /** The number of bands people start with, against the usual (a world started afresh; 4, 16, 64: how much more the land could carry than its people start at). */
     val peopleStart = f("peopleStart", 1f)
     /** The size of the bands people start in, against the usual, the same people in fewer, larger bands (2: half as many bands, twice the size). */
