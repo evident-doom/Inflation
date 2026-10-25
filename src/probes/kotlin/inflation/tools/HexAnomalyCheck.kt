@@ -102,7 +102,7 @@ fun main(args: Array<String>) {
                 val d = fauna.adults[boar][p] + fauna.young[boar][p]; if (d <= 0f) continue
                 val hd = (d * land.areaKm2[p]).toDouble()
                 bHeads[m] += hd; bFed[m] += hd * fauna.fed[boar][p]; bOver[m] += hd * d / usual
-                bRoots[m] += hd * fauna.food.roots[p]; bFruit[m] += hd * fauna.food.fruit[p]
+                bRoots[m] += hd * (fauna.food.roots[p] + fauna.food.mast[p]); bFruit[m] += hd * fauna.food.fruit[p]
                 val b = when { d < 0.5f * usual -> 0; d < usual -> 1; d < 2f * usual -> 2; d < 4f * usual -> 3; d < 8f * usual -> 4; else -> 5 }
                 byCrowd[b] += hd; byCrowdFed[b] += hd * fauna.fed[boar][p]
             }

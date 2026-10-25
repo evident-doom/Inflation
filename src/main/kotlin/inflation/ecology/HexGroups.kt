@@ -724,14 +724,15 @@ class HexGroups(
     internal fun campPlants(p: Place) = KgM2(fauna.food.fruit[p] + rootsFound(p) + fauna.food.seeds[p] + fauna.food.grain[p] + fauna.food.fieldGrain[p]).perKm2.v *
         PLANT_FOOD_WEIGHT * campFactor(p)
     /**
-     * The roots at [p] as a band's gathering would find them, kg/m²: the thinner they grow, the more of a gatherer's day
-     * goes to finding them ([ROOT_SEARCH_M2_PER_DAY]), so they count as the share of the day that is digging. (A hand's
-     * digging at the start rate, without skill or baskets: an approximation of [forage]'s own rate.)
+     * The roots at [p] as a band's gathering would find them this week, kg/m²: the thinner they grow, the more of a
+     * gatherer's day goes to finding them ([ROOT_SEARCH_M2_PER_DAY]), so they count as the share of the day that is digging
+     * (none while the ground is frozen, [HexFood.diggable]); and the mast lying under the trees, which needs no search. (A
+     * hand's digging at the start rate, without skill or baskets: an approximation of [forage]'s own rate.)
      */
     internal fun rootsFound(p: Place): Float {
-        val kg = fauna.food.roots[p]
+        val kg = fauna.food.diggable(p)
         val dug = ROOT_DIGGING * PLANT_HANDLING_DAYS_PER_KG * ROOT_SEARCH_M2_PER_DAY * kg
-        return kg * dug / (1f + dug)
+        return kg * dug / (1f + dug) + fauna.food.mast[p]
     }
 
     /**

@@ -66,7 +66,7 @@ fun main(args: Array<String>) {
             1000.0 * heads / km2,
             mean { _, p -> groups.campValue(human, Place(p)).toDouble() },
             mean { _, p -> groups.preyHere(human, Place(p)).toDouble() },
-            mean { _, p -> ((run.fauna.food.fruit[p] + run.fauna.food.roots[p] + run.fauna.food.seeds[p]) * 1e6f *
+            mean { _, p -> ((run.fauna.food.fruit[p] + run.fauna.food.roots[p] + run.fauna.food.mast[p] + run.fauna.food.seeds[p]) * 1e6f *
                 inflation.ecology.PLANT_FOOD_WEIGHT).toDouble() },
             mean { _, p -> land.drink.peopleWaterKm(Place(p)).toDouble() },
             mean { h, _ -> run.fauna.water.fishWithin(h, 1f).toDouble() },

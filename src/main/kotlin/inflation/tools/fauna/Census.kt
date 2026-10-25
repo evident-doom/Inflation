@@ -255,7 +255,7 @@ class Census(private val sim: HexSim) {
         val f = fauna.food
         for (pl in 0 until land.n) {
             val h = hw.placeHex[pl]; val a = land.areaKm2[pl].toDouble()
-            value[h] += (f.fruit[pl] + f.roots[pl] + f.seeds[pl] + f.finds[pl]) * 1e6 * a
+            value[h] += (f.fruit[pl] + f.roots[pl] + f.mast[pl] + f.seeds[pl] + f.finds[pl]) * 1e6 * a
             for (k in fauna.kinds.indices) value[h] += 0.1 * fauna.adults[k][pl] * fauna.kinds[k].massKg * a
         }
         for (h in 0 until hex.size) if (hw.land[h] > 0f) value[h] += fauna.water.fishWithin(h).toDouble()
