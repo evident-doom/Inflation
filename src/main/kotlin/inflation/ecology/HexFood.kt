@@ -143,8 +143,7 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
                 if (inWindow > 0f) {
                     val share = inWindow / (SEED_TO - SEED_FROM)
                     val ripe = land.plants.consume(p, LifeForm.HERB, KgM2(GRAIN_SHARE * cereal[p] * land.plants.herb[p] * share)).v
-                    val watered = if (fieldDays[p] > 0f) fieldStress[p] / fieldDays[p] else 1f
-                    val sownRipe = land.plants.consume(p, LifeForm.HERB, KgM2(FIELD_YIELD * watered * cropSoil(p) * field[p] * share)).v
+                    val sownRipe = land.plants.consume(p, LifeForm.HERB, KgM2(fieldExpect(p) * field[p] * share)).v
                     grain[p] += ripe; fieldGrain[p] += sownRipe
                     ripenedNow[p] += ripe + sownRipe
                 }
@@ -184,6 +183,12 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
         fieldDomestic[p] = (fieldDomestic[p] * field[p] + domestic * add) / (field[p] + add)
         field[p] += add
     }
+
+    /**
+     * What a kilo sown at [p] ripens to as its field stands now: [FIELD_YIELD], less as the field has gone short of water since
+     * midwinter ([waterStress]) and on the ground it is sown on ([cropSoil]).
+     */
+    fun fieldExpect(p: Place): Float = FIELD_YIELD * (if (fieldDays[p] > 0f) fieldStress[p] / fieldDays[p] else 1f) * cropSoil(p)
 
     /** The share of [p]'s land under this year's field: grain sown at [SEED_RATE] (thicker sowing covers no more than the place). */
     private fun sownShare(p: Place) = min(1f, field[p] / SEED_RATE)

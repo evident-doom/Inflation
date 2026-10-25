@@ -42,7 +42,7 @@ private fun HexGroups.startVillage(g: HexGroup, b: Band) {
     val food = fauna.food
     val ripening = land.plants.gdd[p] / land.plants.annualGdd[p].coerceAtLeast(1f) < HexFood.SEED_TO
     val harvest = VILLAGE_FIELD_DAYS * g.dailyNeedKg
-    if (ripening) food.sow(p, land.spread(p, Kg(harvest / HexFood.FIELD_YIELD)), 1f)
+    if (ripening) { food.sow(p, land.spread(p, Kg(harvest / HexFood.FIELD_YIELD)), 1f); b.sownPlace = p; b.sownKg = harvest / HexFood.FIELD_YIELD }
     // (Ground and baked, a kilo of grain feeds as a kilo of need: [seedValue] with grinding stones.)
     val stored = VILLAGE_STORE_DAYS * g.dailyNeedKg + if (ripening) 0f else harvest
     addFood(g.stores, g.storeKgPer, Store.SEED, stored * seedValue(b), stored)
