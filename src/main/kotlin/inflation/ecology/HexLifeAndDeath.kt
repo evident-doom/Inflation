@@ -927,8 +927,7 @@ internal fun HexGroups.stalkRate(g: HexGroup, b: Band, p: Place, pressure: Float
     val spread = b.gatherRange * b.gatherRange
     dialUse?.let { u ->
         val dogs = 1f - DOGS_GUARD * min(1f, b.dogShare)
-        u.amount(DialSite.NIGHT_FIRE_GUARD, b.nightFire, guard, (1f - FIRE_GUARD * b.fire * b.nightWood) * dogs * (1f - LOOKOUTS_GUARD * min(1f, 10f * b.scoutShare)),
-            cut = b.nightFire > 1f)
+        u.amount(DialSite.NIGHT_FIRE_GUARD, b.nightFire, guard, (1f - FIRE_GUARD * b.fire * b.nightWood) * dogs * (1f - LOOKOUTS_GUARD * min(1f, 10f * b.scoutShare)))
         u.amount(DialSite.SCOUTS_GUARD, b.will[BandWay.SCOUTS], guard, (1f - FIRE_GUARD * b.nightGuard) * dogs * (1f - LOOKOUTS_GUARD * min(1f, 10f * SCOUT_SHARE)),
             cut = 10f * b.scoutShare > 1f)
         u.amount(DialSite.GATHER_SPREAD, b.gatherRange, spread, 1f)

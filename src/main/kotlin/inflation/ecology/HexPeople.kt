@@ -26,6 +26,7 @@ import kotlin.math.cos
 import kotlin.math.exp
 import kotlin.math.sqrt
 import kotlin.math.sin
+import kotlin.math.pow
 
 // What makes bands of people more than a pack: skills learned in practice, tools made from what the
 // country gives, and camps they stay in.
@@ -406,8 +407,8 @@ class Band(kinds: Int) {
     val will = enumFloats<BandWay> { 1f }
     /** Its choices: how much of its stored grain it sows in autumn at its home (the scaffold: some, once it has houses). */
     val sowWill get() = will[BandWay.SOWING]
-    /** How far a band with worn kit holds back from laying food by, to mend first (0 not at all, 1 wholly). */
-    val mendFirst get() = will[BandWay.MENDING_FIRST].coerceAtMost(1f)
+    /** How far a band with worn kit holds back from laying food by, to mend first (0 not at all; [ALL_AT_ONE] at the scaffold's 1, more of it above). */
+    val mendFirst get() = shareOfWill(will[BandWay.MENDING_FIRST], ALL_AT_ONE)
     /**
      * Its choices against the dangers (1 for each gives the scaffold's way):
      * - how far from camp its gatherers go, against today's reach: further brings more food and
@@ -424,8 +425,8 @@ class Band(kinds: Int) {
     val shunSick get() = 0.5f * will[BandWay.SHUNNING_THE_SICK]
     /** How keen it is to go into country it does not know (1: the usual wariness of strange ground; 2: drawn to it). */
     val explore get() = will[BandWay.EXPLORING]
-    /** The fire as it guards the camp at night: kept only as faithfully as the band chooses. */
-    val nightGuard get() = fire * min(1f, nightFire) * nightWood
+    /** The fire as it guards the camp at night: kept only as faithfully as the band chooses (a bigger fire above 1, guarding less for each log more). */
+    val nightGuard get() = fire * moreOfWill(nightFire) * nightWood
     /** Share of the night's firewood it had this week. */
     var nightWood = 1f
     /** Share of the hearth's firewood (warmth and cooking) it fetched this week: its fire burns only as far as that goes. */
@@ -864,7 +865,7 @@ private fun shelterLack(b: Band, moved: Boolean) = max(0f, b.shelterWill - if (m
 /** A fire through the night burns wood: where there is little, the night goes dark. Returns the wood burnt, kg. */
 private fun burnNightFire(b: Band, people: Float): Float {
     val wood = b.goods
-    val want = NIGHT_WOOD * people * min(1f, b.nightFire)
+    val want = NIGHT_WOOD * people * b.nightFire
     val got = min(want, wood[Material.WOOD])
     wood[Material.WOOD] -= got
     b.nightWood = if (want > 0f) got / want else 1f
@@ -913,7 +914,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     b.fire *= b.hearthWood
     val woodBefore = b.goods[Material.WOOD]
     val nightBurnt = burnNightFire(b, people)
-    dialUse?.amount(DialSite.NIGHT_FIRE_WOOD, b.nightFire, nightBurnt, min(NIGHT_WOOD * people, woodBefore), cut = b.nightFire > 1f)
+    dialUse?.amount(DialSite.NIGHT_FIRE_WOOD, b.nightFire, nightBurnt, min(NIGHT_WOOD * people, woodBefore))
     // With the time still to spare, a band that has kept its camp a while builds stone-footed houses
     // there, as far as it has gathered the stone and timber (and starts afresh where it settles
     // anew); houses it has left weather away.
@@ -2151,8 +2152,9 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
         } else b.raid = if (raid.weeks > 1) Raid(raid.hex, raid.on, raid.weeks - 1) else null
         return
     }
-    val hungry = g.fed < RAID_HUNGER * b.raidWill.coerceAtMost(1.6f)
-    dialUse?.choice(DialSite.RAIDS_HUNGER, b.raidWill, hungry, g.fed < RAID_HUNGER, cut = b.raidWill > 1.6f)
+    // (A readier band plots on less hunger: each step of readiness closes the same share of what is left of the gap to fed.)
+    val hungry = g.fed < shareOfWill(b.raidWill, RAID_HUNGER)
+    dialUse?.choice(DialSite.RAIDS_HUNGER, b.raidWill, hungry, g.fed < RAID_HUNGER)
     val within = ArrayList<Int>()
     for ((id, h) in b.knownHomes) {
         if (b.tie(id) > 0f) continue
@@ -2197,6 +2199,21 @@ internal fun HexGroups.fightRaids(weather: Weather) {
  * Fighting: surprise and the lie of the land.
  */
 const val RAID_HUNGER = 0.6f
+
+/**
+ * A way's [will] as a share of a whole: [atOne] at the scaffold's 1, and each further unit of will taking the same share of
+ * what is left, so more of the same buys ever less and the whole is never reached (no cap: the band finds its own balance).
+ */
+internal fun shareOfWill(will: Float, atOne: Float) = 1f - (1f - atOne).pow(max(0f, will))
+
+/** A way's [will] as an effect that each further unit adds less to: 1 at the scaffold's 1, about 1.37 at 2, never above 1.58. */
+internal fun moreOfWill(will: Float) = (1f - exp(-max(0f, will))) / (1f - exp(-1f))
+
+/**
+ * The share a way that can at most take all (dry all the fresh meat, hold back all storing to mend) takes at the scaffold's 1:
+ * an estimate, leaving the usual a tenth short of all so that more of the same has room above it.
+ */
+const val ALL_AT_ONE = 0.9f
 const val RAID_RANGE_KM = 60.0
 const val RAID_PLOT = 0.3f
 const val RAID_WEEKS = 4

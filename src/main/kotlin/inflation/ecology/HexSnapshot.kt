@@ -261,6 +261,9 @@ object HexSnapshot {
      *   and a band choosing its camp counts roots as its gathering would find them ([HexGroups.rootsFound]).
      * 4.56: bands burn off dry grass where any fire would take ([HexFires.canBurn]); their own stricter test (soil under 40 mm,
      *   forage under 0.4 green, herbs over 0.3) was not met at any camp in 5 years on storm-1, so the burning-off way was never read.
+     *   Ways that stopped at the scaffold's 1 go on above it as more of the same for ever less ([shareOfWill], [moreOfWill]): a
+     *   bigger night fire (wood as the will, guarding less for each log more), drying and mending first ([ALL_AT_ONE] at 1),
+     *   giving beyond the lack and beyond a tenth of the larder, repaying more than is owed, plotting raids on less hunger.
      */
     const val MODEL_MAJOR = 4
     const val MODEL_MINOR = 56
