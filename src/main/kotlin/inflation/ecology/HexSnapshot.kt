@@ -262,8 +262,8 @@ object HexSnapshot {
      * 4.56: herding is no longer for settled bands only: any band may take young in the hunt to keep, and learn herding;
      *   its herders' days come out of field work's time ([herdDays], about [HERD_KG_A_HERDER] kg of stock a herder), held before
      *   the week's food, and none on the days the herd walks with the band to a new camp; what they cannot
-     *   keep it culls, in place of a flat cap of two head a person, and it eats the herd's increase beyond what its spare
-     *   days could herd; a band choosing its camp weighs what poor forage
+     *   keep it culls, in place of a flat cap of two head a person, and it eats what the herd grows to beyond the stock its
+     *   herders keep in a usual week (a year's mean); a band choosing its camp weighs what poor forage
      *   there would cost its herd ([HexGroups.herdLoss]); villages started by t.startSettled start with a herd, and
      *   t.startHerders starts a share of mobile bands with one.
      */
