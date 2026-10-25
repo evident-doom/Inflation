@@ -670,9 +670,13 @@ private fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
             ROOT_DIGGING * pickQ + walked(Food.ROOTS, walk))
         offer(w, o, Food.FINDS, 0, Place(q), land.total(Place(q), KgM2(reach * fauna.food.finds[q])).v / days, 1f, ROOT_DIGGING * pickQ + walked(Food.FINDS, walk))
         // Grass seed must be reaped, threshed and ground: worth it only with the tools and the hands.
-        offer(w, o, Food.SEED, 0, Place(q), land.total(Place(q), KgM2(seedReach * fauna.food.seeds[q])).v / days, 1f, seedQ + walked(Food.SEED, seedWalk))
+        // (The small seeds of wild grasses take longer a kilo than wild cereal's, [SMALL_SEED_SLOWER]; both must be found, as
+        // fruit is.)
+        offer(w, o, Food.SEED, 0, Place(q), land.total(Place(q), KgM2(seedReach * food.seeds[q])).v / days, 1f,
+            (seedQ - eats) * SMALL_SEED_SLOWER + eats + sought(food.seeds[q]) + walked(Food.SEED, seedWalk))
         // Wild and sown cereals: reaped like grass seed, but richer where they stand.
-        offer(w, o, Food.GRAIN, 0, Place(q), land.total(Place(q), KgM2(seedReach * (fauna.food.grain[q] + fauna.food.fieldGrain[q]))).v / days, 1f, seedQ + walked(Food.GRAIN, seedWalk))
+        val cereal = food.grain[q] + food.fieldGrain[q]
+        offer(w, o, Food.GRAIN, 0, Place(q), land.total(Place(q), KgM2(seedReach * cereal)).v / days, 1f, seedQ + sought(cereal) + walked(Food.GRAIN, seedWalk))
     }
     // Bands fish the river, the lake or the sea by their camp, as their skill and nets allow ([Band.fishing]); and gather
     // shellfish off the shore, which wants neither (kind [SHELLFISH_KIND] of the fish offered).

@@ -283,7 +283,8 @@ object HexSnapshot {
      * 4.61: bands search for fruit and mast as they do for roots, the thinner the longer a kilo ([PLANT_SIGHT_M2_PER_DAY]),
      *   and must pound and leach the bitter share of the mast before they eat it ([MAST_BITTER], [MAST_LEACH_DAYS_PER_KG]),
      *   which only bands that know leaching and have water by them can, and a band choosing its camp counts the mast at the
-     *   share of its days that is gathering it ([MAST_GATHERED]); the census counts bands' plant food by what it came from
+     *   share of its days that is gathering it ([MAST_GATHERED]); grass seed and cereal grain are searched for as fruit is,
+     *   and wild grasses' small seeds take [SMALL_SEED_SLOWER] times as long a kilo as wild cereal; the census counts bands' plant food by what it came from
      *   ([PlantFrom]).
      */
     const val MODEL_MAJOR = 4
