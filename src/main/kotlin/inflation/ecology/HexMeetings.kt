@@ -202,7 +202,7 @@ private fun restedDays(w: ForageWeek, time: BandTime) {
  * A band's plan of its week, made once [forage] sees what food asks of it: [needDays] of its hands' week to eat what it
  * wants this week, [storeDays] more to lay by what it aims to keep. The walk, when it moved camp ([moveDays]), and digging
  * soaks for water, where that is the only water, come off first. Then the days the hearth's firewood and the camp's
- * shelters take to keep its people warm ([survivalDays]), then the week's food; then the rest of what each activity asks for ([choreAsks]: the rest of the week's food, the stores and its chores),
+ * shelters take to keep its people warm ([survivalDays]), then the week's food and its herders' days; then the rest of what each activity asks for ([choreAsks]: the rest of the week's food, the stores and its chores),
  * shared out when it comes to more than the days left ([BandTime.plan]). Leisure asks for nothing: it is what the week
  * leaves (and takes less food: [restedDays]). Then it fetches the hearth's firewood in the days the plan gives it.
  */
@@ -225,6 +225,9 @@ private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float)
     // feed less, [RAW_COST].)
     needs[Activity.FOOD.ordinal] = foodAsk
     needs[Activity.FIREWOOD.ordinal] = max(0f, fuel - warm[Activity.FIREWOOD.ordinal])
+    // (So do its herders' days, as far as the band does not walk with its herd this week: its animals are food on the hoof,
+    // and what it cannot herd it must cull, [keepHerds].)
+    needs[Activity.SOWING.ordinal] = herdDays(b) * (1f - walkedShare(time))
     val asks = FloatArray(Activity.entries.size)
     asks[Activity.FOOD.ordinal] = storeDays * hands
     choreAsks(g, b, w.weather.date, asks, warm)

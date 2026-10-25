@@ -17,7 +17,9 @@ import kotlin.math.roundToInt
 internal fun HexGroups.startVillages() {
     val bands = groups.filter { it.alive && it.species.human && it.band != null }
     val farm = bands.filter { farmWorth(it.place) > 0f }.sortedByDescending { farmWorth(it.place) }
-    for (g in farm.take(min(farm.size, (tuning.startSettled * bands.size).roundToInt()))) g.band?.let { startVillage(g, it) }
+    val started = farm.take(min(farm.size, (tuning.startSettled * bands.size).roundToInt())).map { g -> g.band?.let { startVillage(g, it) } }
+    println("villages started: ${started.size} of ${bands.size} bands, with herds " + started.filterNotNull().groupBy { it.first }.entries.joinToString(", ") { (k, l) ->
+        "%s %.0f head in %d".format(fauna.kinds[k].name, l.sumOf { it.second.toDouble() }, l.size) }.ifEmpty { "none" })
 }
 
 /**
@@ -30,7 +32,9 @@ internal fun HexGroups.startHerders() {
     val bands = groups.filter { it.alive && it.species.human && it.band?.atHome == false }
     val worth = bands.associateWith { g -> herdKind(g.place)?.let { k -> herdForage(g.place, fauna.kinds[k], startHerdSize(g, k)).fed } ?: 0f }
     val ground = bands.filter { worth.getValue(it) > 0f }.sortedByDescending { worth.getValue(it) }
-    for (g in ground.take(min(ground.size, (tuning.startHerders * bands.size).roundToInt()))) g.band?.let { startHerd(g, it) }
+    val started = ground.take(min(ground.size, (tuning.startHerders * bands.size).roundToInt())).mapNotNull { g -> g.band?.let { startHerd(g, it) } }
+    println("herds started: ${started.size} of ${bands.size} mobile bands, " + started.groupBy { it.first }.entries.joinToString(", ") { (k, l) ->
+        "%s %.0f head in %d".format(fauna.kinds[k].name, l.sumOf { it.second.toDouble() }, l.size) }.ifEmpty { "none" })
 }
 
 /**
@@ -45,19 +49,20 @@ private fun HexGroups.herdKind(p: Place): Int? = fauna.kinds.indices
 private fun HexGroups.startHerdSize(g: HexGroup, k: Int) = HERD_START_KG * g.size / fauna.kinds[k].massKg
 
 /**
- * Band [g] ([b]) starts as herders where it stands: a herd of the kind best kept there ([herdKind]), taken from the wild
+ * Band [g] ([b]) starts as herders where it stands (the kind and head it started with; null, none): a herd of the kind best kept there ([herdKind]), taken from the wild
  * there (no more than live there), grown [HERD_START_TAME] tame, and herding known ([HERD_SKILL]).
  */
-private fun HexGroups.startHerd(g: HexGroup, b: Band) {
+private fun HexGroups.startHerd(g: HexGroup, b: Band): Pair<Int, Float>? {
     val p = g.place
-    val k = herdKind(p) ?: return
+    val k = herdKind(p) ?: return null
     val area = land.areaKm2[p]
     val n = min(startHerdSize(g, k), fauna.adults[k][p] * area)
-    if (n <= 0f) return
+    if (n <= 0f) return null
     fauna.adults[k][p] -= n / area
     b.herdTame[k] = (b.herdTame[k] * b.herd[k] + HERD_START_TAME * n) / (b.herd[k] + n)
     b.herd[k] += n
     b.knowsSkill[Skill.TENDING] = true; b.skills[Skill.TENDING] = max(b.skills[Skill.TENDING], HERD_SKILL); b.lastUsed[Skill.TENDING] = b.weeks
+    return k to n
 }
 
 /** How good place [p] is to farm: the share of its grass that is wild cereal, where drinking water is within [VILLAGE_WATER_KM]; else none. */
@@ -69,7 +74,7 @@ private fun HexGroups.farmWorth(p: Place) = if (land.drink.waterKm[p] < VILLAGE_
  * its food in grain, of ears that hold their grain; and last autumn's sowing in the ground, enough to ripen to
  * [VILLAGE_FIELD_DAYS] of its food (or, where this year's grain has ripened already, that harvest in store).
  */
-private fun HexGroups.startVillage(g: HexGroup, b: Band) {
+private fun HexGroups.startVillage(g: HexGroup, b: Band): Pair<Int, Float>? {
     val p = g.place
     val h = hw.placeHex[p]
     for (s in VILLAGE_SKILLS) { b.knowsSkill[s] = true; b.skills[s] = max(b.skills[s], VILLAGE_SKILL); b.lastUsed[s] = b.weeks }
@@ -88,7 +93,7 @@ private fun HexGroups.startVillage(g: HexGroup, b: Band) {
     addFood(g.stores, g.storeKgPer, Store.SEED, stored * seedValue(b), stored)
     b.seedCorn = g.stores[Store.SEED]
     // (Villages kept goats and sheep from the first: the herd a herding band starts with.)
-    startHerd(g, b)
+    return startHerd(g, b)
 }
 
 /** Ways a village starts knowing: storage bins sealed with clay, pit houses, gruel boiled with hot stones; and how well it knows them. */

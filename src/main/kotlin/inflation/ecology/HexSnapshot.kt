@@ -260,8 +260,9 @@ object HexSnapshot {
      *   ([survivalDays]), then for the week's food and the rest of the firewood;
      *   and a band choosing its camp counts roots as its gathering would find them ([HexGroups.rootsFound]).
      * 4.56: herding is no longer for settled bands only: any band may take young in the hunt to keep, and learn herding;
-     *   its herders' days come out of field work's time ([herdDays], about [HERD_KG_A_HERDER] kg of stock a herder), and what
-     *   they cannot keep it culls, in place of a flat cap of two head a person; a band choosing its camp weighs what poor forage
+     *   its herders' days come out of field work's time ([herdDays], about [HERD_KG_A_HERDER] kg of stock a herder), held with
+     *   the week's food before the chores, and none on the days the herd walks with the band to a new camp; what they cannot
+     *   keep it culls, in place of a flat cap of two head a person; a band choosing its camp weighs what poor forage
      *   there would cost its herd ([HexGroups.herdLoss]); villages started by t.startSettled start with a herd, and
      *   t.startHerders starts a share of mobile bands with one.
      */

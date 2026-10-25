@@ -987,8 +987,6 @@ internal fun HexGroups.choreAsks(g: HexGroup, b: Band, date: Date, asks: FloatAr
     }
     // (Its own crop, ripe, it brings in wherever it has come from: the field work is sowing's time.)
     cropRipe(g, b).takeIf { it > 0f }?.let { asks[Activity.SOWING.ordinal] += it * reapDaysPerKg(b, tuning) }
-    // (And its herding, wherever it is.)
-    asks[Activity.SOWING.ordinal] += herdDays(b)
     ask(Activity.DRYING, b.dryAsk)
     ask(Activity.SKINS, b.skinAsk)
 }
@@ -2318,8 +2316,9 @@ fun serveOfMake(t: Tool, fine: Float, tuning: Tuning): Float = if (fineMaterial(
 private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTime) {
     val p = g.place
     val moved = max(0, g.path.size - 1)
-    // (Herding is field work: the days come out of sowing's time, as the harvest's do.)
-    val need = herdDays(b)
+    // (Herding is field work: the days come out of sowing's time, as the harvest's do; on the days the band walks to a new
+    // camp, the herd walks with it.)
+    val need = herdDays(b) * (1f - walkedShare(time))
     val tended = if (need > 0f) min(1f, time.leftFor(Activity.SOWING) / need) else 1f
     if (need > 0f) time.spend(Activity.SOWING, need * tended)
     for (k in b.herd.indices) {
@@ -2376,6 +2375,9 @@ internal fun HexGroups.herdForage(p: Place, s: Species, n: Float): HerdForage {
     return HerdForage(need, min(need * d.grass / total, land.palatable[p] * land.plants.herb[p] * 0.1f),
         min(need * d.browse / total, land.plants.browse(p)))
 }
+
+/** The share of the week [time] its band spent walking to a new camp. */
+internal fun walkedShare(time: BandTime) = if (time.total > 0f) min(1f, time.spentOn(Activity.MOVING) / time.total) else 0f
 
 /**
  * Person-days [b]'s herders take a week to keep its animals: herded on foot, a herder keeps about [HERD_KG_A_HERDER] kg of
