@@ -20,7 +20,6 @@ import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.min
-import kotlin.math.pow
 import inflation.world.Biome
 import inflation.world.Weather
 import java.util.stream.IntStream
