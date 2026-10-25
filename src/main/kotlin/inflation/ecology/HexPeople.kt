@@ -520,8 +520,6 @@ class Band(kinds: Int) {
     @Transient var herded = 1f
     /** What a day's foraging brings it, kg of its need, month by month: a mean over the years (below 0 till it has foraged then; [herdPays]). */
     @Transient val forageReturn = FloatArray(Date.MONTHS_PER_YEAR) { -1f }
-    /** The stock its herders keep in a usual week, kg on the hoof: a mean over about a year of what they kept and could have ([keepHerds]; below 0 till it has one). */
-    @Transient var herdRoom = -1f
     /** Person-days drying and skinning would have liked last week: what they ask of this week's plan (they follow the catch). */
     var dryAsk = 0f
     var skinAsk = 0f
@@ -2347,7 +2345,7 @@ fun serveOfMake(t: Tool, fine: Float, tuning: Tuning): Float = if (fineMaterial(
  * A band's kept animals' week: they graze round the camp ([herdForage]), breed in their season as they are fed and as tame
  * as they have grown, give milk after it ([milkKg]), die, and run off as wild as they still are; they are herded in the field
  * work's time ([herdDays], [Band.herded]), and what its herders cannot keep the band culls (meat in its stores), as it eats
- * what its herd grows to beyond the stock its herders keep in a usual week; and generation by
+ * its herd's yearly increase week by week ([herdIncrease]) unless its spare days would keep that too; and generation by
  * generation they grow tamer, since the docile stay and breed.
  */
 private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTime) {
@@ -2356,13 +2354,8 @@ private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTime
     // harvest's do; on the days the band walks to a new camp, the herd walks with it.)
     val tended = b.herded
     b.herded = 1f
-    // The stock its herders could keep, kg on the hoof: what they kept this week and what the week's days nobody asked for
-    // would keep, as a mean over about a year, since its herd grows in the birth season and dwindles the rest of the year.
-    var heldKg = 0f
-    for (k in b.herd.indices) heldKg += b.herd[k] * fauna.kinds[k].massKg
-    val room = heldKg * tended + time.unheld * HERD_KG_A_HERDER * herdSkill(b) / days
-    b.herdRoom = if (b.herdRoom < 0f) room else b.herdRoom + min(1f, years) * (room - b.herdRoom)
-    var spareKg = b.herdRoom
+    // The stock the week's days nobody asked for would keep besides, kg on the hoof.
+    var spareKg = time.unheld * HERD_KG_A_HERDER * herdSkill(b) / days
     fun slaughter(k: Int, heads: Float, flow: HerdFlow) {
         val s = fauna.kinds[k]
         herdFlows[flow] += heads
@@ -2409,14 +2402,17 @@ private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTime
             slaughter(k, cull, HerdFlow.CULLED)
             stats.meeting(Met.KEPT_ANIMALS_CULLED)
         }
-        // Beyond the stock its herders keep in a usual week it eats its herd: herders live on their herds' increase, and a
-        // herd let grow past what its herders keep would take its days from the food. A herd whose increase brings a
-        // herder less than a day's foraging brings it eats down, a week's food at a time.
+        // Herders live on their herds' increase: the band eats what its herd adds in a year, week by week through the year
+        // (its births come in one season, its losses all year), and keeps it only where the days nobody asked for would
+        // keep it too, since a herd let grow takes its days from the food. A herd whose increase brings a herder less than
+        // a day's foraging brings it eats down, a week's food at a time.
         val pays = herdPays(g, b, k)
         if (pays) herdFlows[HerdFlow.KG_PAYS] += n * s.massKg
-        val kept = if (pays) min(n, spareKg / s.massKg)
+        val increase = n * max(0f, herdIncrease(b, k, fed)) * years
+        val grows = pays && increase * s.massKg <= spareKg
+        if (grows) spareKg -= increase * s.massKg
+        val kept = if (grows) n else if (pays) max(0f, n - increase)
             else max(0f, n - g.dailyNeedKg * days / (s.massKg * MEAT_SHARE * Nourishment.MEAT * g.species.needScale))
-        spareKg -= kept * s.massKg
         if (n > kept) slaughter(k, n - kept, HerdFlow.EATEN)
         n = kept
         if (n < 0.5f) { fauna.adults[k][p] += n / area; n = 0f }
@@ -2474,11 +2470,21 @@ internal fun HexGroups.herdPays(g: HexGroup, b: Band, k: Int): Boolean {
     val lean = b.forageReturn.filter { it >= 0f }.minOrNull() ?: return true
     val s = fauna.kinds[k]; val tame = b.herdTame[k]
     val mothers = 0.5f * (0.3f + 0.7f * tame)
-    val increase = mothers * s.youngPerFemale - s.backgroundMortality - HERD_RUN_OFF * (1f - tame) * b.lapse(Skill.TENDING)
+    val increase = herdIncrease(b, k)
     val heads = HERD_KG_A_HERDER * herdSkill(b) / s.massKg
     val day = heads * (increase * s.massKg * MEAT_SHARE * Nourishment.MEAT + mothers * tame * milkKg(s) * Nourishment.MILK) *
         g.species.needScale / Date.DAYS_PER_YEAR
     return day >= lean
+}
+
+/**
+ * The share [b]'s herd of kind [k] adds in a year as [keepHerds] has it, fed as far as [fed]: births by its tameness, less
+ * its deaths and those that run off.
+ */
+internal fun HexGroups.herdIncrease(b: Band, k: Int, fed: Float = 1f): Float {
+    val s = fauna.kinds[k]; val tame = b.herdTame[k]
+    return 0.5f * (0.3f + 0.7f * tame) * s.youngPerFemale * fed - s.backgroundMortality - 0.5f * (1f - fed) -
+        HERD_RUN_OFF * (1f - tame) * b.lapse(Skill.TENDING)
 }
 
 /**
