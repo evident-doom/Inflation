@@ -9,6 +9,7 @@ import inflation.world.HexDrinkingWater
 import inflation.world.Biome
 import inflation.world.HexLand
 import inflation.world.LifeForm
+import inflation.world.MastTrees
 import inflation.world.Weather
 import kotlin.math.max
 import kotlin.math.min
@@ -104,22 +105,29 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
     }
 
     /**
-     * The share of [p]'s trees that bear food (oaks, beech, hazel, wild fruit trees), by its kinds of country ([FOOD_TREES]).
-     * (Fixed by the world, so not taken from a saved run.)
+     * The share of [p]'s trees that bear food (oaks, beech, hazel, wild fruit trees), by its kinds of country ([FOOD_TREES]),
+     * for each group of trees whose crops go together ([MastTrees]). (Fixed by the world, so not taken from a saved run.)
      */
-    @Transient private val foodTrees = FloatArray(n) { p ->
-        val h = land.hw.placeHex[p]
-        var s = 0f; var w = 0f
-        for (b in Biome.entries) { val share = land.hw.biome[b.ordinal][h]; if (share <= 0f) continue; s += share * (FOOD_TREES[b] ?: 0f); w += share }
-        if (w > 0f) s / w else 0f
+    @Transient private val foodTrees = Array(MastTrees.entries.size) { FloatArray(n) }.also { by ->
+        for (p in 0 until n) {
+            val h = land.hw.placeHex[p]
+            var w = 0f
+            for (b in Biome.entries) { val share = land.hw.biome[b.ordinal][h]; if (share <= 0f) continue; w += share
+                val (t, bears) = FOOD_TREES[b] ?: continue; by[t.ordinal][p] += share * bears }
+            if (w > 0f) for (t in by) t[p] /= w
+        }
     }
-    /** The fruiting share of [p]'s trees this year, kg/m²: the food-bearing trees ([foodTrees]) in this year's mast crop ([Weather.mastCrop]). */
-    private fun treeBearing(p: Place, crop: Float) = TREE_BEARING * foodTrees[p] * crop * land.plants.tree[p]
+    /** The fruiting share of [p]'s trees this year, kg/m²: the food-bearing trees ([foodTrees]) of each group in its year's mast crop ([Weather.mastCrop]). */
+    private fun treeBearing(p: Place, crop: FloatArray): Float {
+        var s = 0f
+        for (t in crop.indices) s += foodTrees[t][p] * crop[t]
+        return TREE_BEARING * s * land.plants.tree[p]
+    }
     /**
      * Fruit-bearing plants at [p] in a year of mast crop [crop], kg/m²: the edible share of the shrubs ([HexLand.palatable])
      * and the fruiting share of trees ([treeBearing]).
      */
-    private fun bearing(p: Place, crop: Float) = land.palatable[p] * 0.5f * land.plants.shrub[p] + treeBearing(p, crop)
+    private fun bearing(p: Place, crop: FloatArray) = land.palatable[p] * 0.5f * land.plants.shrub[p] + treeBearing(p, crop)
     private fun rootsCap(p: Place) = ROOTS_SHARE * land.palatable[p] * land.plants.herb[p] + REED_ROOTS * land.waterlogged[p]
 
     private var standYear = -1
@@ -342,12 +350,15 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
          * make them up; no measured shares were found): oak, beech, hazel and wild fruit in broadleaved and Mediterranean
          * woods and in open oak woodland; oak, elm and wild fruit among the alder, willow, ash and poplar of floodplain forest;
          * pistachio, wild almond and oak scattered on steppe and in scrub; little in conifer forest (a few stone pines and
-         * hazel), none in alder swamp, mangrove or bog. Spruce, fir and larch seed feeds no one here.
+         * hazel), none in alder swamp, mangrove or bog. Spruce, fir and larch seed feeds no one here. Each kind of country's
+         * trees go with one group whose crops boom and bust together ([MastTrees]).
          */
-        val FOOD_TREES: Map<Biome, Float> = mapOf(
-            Biome.TEMPERATE_FOREST to 1f, Biome.MEDITERRANEAN_WOODLAND to 1f, Biome.OPEN_WOODLAND to 1f,
-            Biome.FLOODPLAIN_FOREST to 0.3f, Biome.STEPPE to 0.5f, Biome.SHRUBLAND to 0.5f, Biome.SEMI_DESERT to 0.3f,
-            Biome.DESERT to 0.3f, Biome.CONIFER_FOREST to 0.1f, Biome.ALPINE_MEADOW to 0.1f,
+        val FOOD_TREES: Map<Biome, Pair<MastTrees, Float>> = mapOf(
+            Biome.TEMPERATE_FOREST to (MastTrees.TEMPERATE to 1f), Biome.OPEN_WOODLAND to (MastTrees.TEMPERATE to 1f),
+            Biome.FLOODPLAIN_FOREST to (MastTrees.TEMPERATE to 0.3f),
+            Biome.MEDITERRANEAN_WOODLAND to (MastTrees.DRY to 1f), Biome.STEPPE to (MastTrees.DRY to 0.5f),
+            Biome.SHRUBLAND to (MastTrees.DRY to 0.5f), Biome.SEMI_DESERT to (MastTrees.DRY to 0.3f), Biome.DESERT to (MastTrees.DRY to 0.3f),
+            Biome.CONIFER_FOREST to (MastTrees.CONIFER to 0.1f), Biome.ALPINE_MEADOW to (MastTrees.CONIFER to 0.1f),
         )
         /**
          * Bulbs, corms, tubers and rhizomes to be dug, per kg/m² of herbs; days to replace them, and for fallen mast to

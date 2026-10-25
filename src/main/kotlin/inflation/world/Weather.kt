@@ -48,6 +48,13 @@ class ClimateEvent(
  *
  * [elevation] gives the terrain the wind meets; without it, rain does not depend on the wind.
  */
+/**
+ * Groups of food-bearing trees whose mast crops boom and bust together ([Weather.mastCrop]), each apart from the others:
+ * the deciduous oaks, beech and hazel of the temperate woods; the evergreen oaks, pistachio and wild almond of the
+ * Mediterranean, the steppe and the dry scrub; the stone pines and hazel among the conifers.
+ */
+enum class MastTrees { TEMPERATE, DRY, CONIFER }
+
 class Weather(@Transient private val places: Places, private val cfg: WorldConfig) {
     /** The usual mean temperature at place [p] in [month] (0-based), °C: the climate's, not this year's weather. */
     fun usualTemperature(month: Int, p: Place) = places.monthlyTemp[month][p.i]
@@ -105,13 +112,17 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
     }
 
     /**
-     * This year's mast crop against an average year's, for all the land at once ([inflation.ecology.HexFood.mast]): oaks bear
-     * in boom and bust years, a median population CV of [MAST_CV] (Schermer et al. 2019, Ecol Lett 22:98: 30 French oak
-     * stands over 14 years), in step over areas the size of this land (seed crops went out of step only beyond some 2,000 km,
-     * USGS, a transcontinental North American tree). Drawn as a lognormal of mean 1 each year, from its own stream so that the
-     * weather draws as before.
+     * This year's mast crop against an average year's, for each group of food-bearing trees ([MastTrees]), over all the
+     * land at once ([inflation.ecology.HexFood.mast]): oaks bear in boom and bust years, a median population CV of [MAST_CV]
+     * (Schermer et al. 2019, Ecol Lett 22:98: 30 French oak stands over 14 years), in step within a group over areas the
+     * size of this land (seed crops went out of step only beyond some 2,000 km, USGS, a transcontinental North American
+     * tree), but not between groups: crops of different genera keep little in step (Koenig & Knops 1998 and later,
+     * from memory), so one group's bust year can be another's boom. Each group draws a lognormal of mean 1 each year,
+     * from its own stream so that the weather draws as before.
      */
-    var mastCrop = 1f; private set
+    val mastCrop = FloatArray(MastTrees.entries.size) { 1f }
+    /** This year's mast crop of the trees of group [t] ([mastCrop]). */
+    fun mastCrop(t: MastTrees) = mastCrop[t.ordinal]
     private var mastRnd = Random(cfg.seed * 37 + 11)
 
     /** How much a place's rain swings from year to year against the average: most in the desert (bust years), least where it is wet. */
@@ -423,7 +434,7 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
         val next = 2 * r * cos(2 * PI / period) * oscillation - r * r * oscillationPrev + 0.75 * gaussian()
         oscillationPrev = oscillation; oscillation = next
         decadal = 0.9 * decadal + sqrt(1 - 0.81) * gaussian()
-        mastCrop = mastFrom(inflation.gaussian(mastRnd))
+        for (t in MastTrees.entries) mastCrop[t.ordinal] = mastFrom(inflation.gaussian(mastRnd))
 
         val day = date.absoluteDay
         fun place() = Pair(rnd.nextDouble() * places.widthKm / places.cellKm, rnd.nextDouble() * places.heightKm / places.cellKm)
@@ -536,7 +547,7 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
     private fun gaussian(): Double = inflation.gaussian(rnd)
 
     companion object {
-        /** The year-to-year swing of the trees' mast crop ([mastCrop]): its coefficient of variation. */
+        /** The year-to-year swing of each group's mast crop ([mastCrop]): its coefficient of variation. */
         const val MAST_CV = 1.3
         /** The year's mast crop ([mastCrop]) for a standard normal draw [z]: a lognormal of mean 1 and coefficient of variation [MAST_CV]. */
         internal fun mastFrom(z: Double): Float {

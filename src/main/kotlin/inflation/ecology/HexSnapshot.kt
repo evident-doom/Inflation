@@ -264,7 +264,8 @@ object HexSnapshot {
      *   ([HexFood.diggable], the week's air at or below [inflation.world.HexDrinkingWater.THAW_C]), for people and rooting
      *   animals alike. (A 4.55 save loads with its mast still among its roots, where it rots away within the half year.)
      * 4.57: only the trees that bear food bear mast and fruit, by kind of country ([HexFood.FOOD_TREES]: none from spruce, fir
-     *   or larch), and the trees' crop swings from year to year, the same over all the land ([inflation.world.Weather.mastCrop]).
+     *   or larch), and the trees' crop swings from year to year, the same over all the land for each group of trees but apart
+     *   between them ([inflation.world.MastTrees], [inflation.world.Weather.mastCrop]).
      */
     const val MODEL_MAJOR = 4
     const val MODEL_MINOR = 57
@@ -274,7 +275,7 @@ object HexSnapshot {
      * numbers would land on the wrong entries; entries added at the end keep the fresh model's values.
      */
     internal val ORDERED: List<Class<out Enum<*>>> = listOf(Skill::class.java, Tool::class.java, Material::class.java, Store::class.java,
-        Illness::class.java, Tradition::class.java, Biome::class.java, BandWay::class.java)
+        Illness::class.java, Tradition::class.java, Biome::class.java, BandWay::class.java, inflation.world.MastTrees::class.java)
 
     /** Writes the state of [sim] to [file]. */
     fun save(sim: HexSim, file: File) {
