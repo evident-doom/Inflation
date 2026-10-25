@@ -245,9 +245,12 @@ object HexSnapshot {
      * 4.51: a band weighs a camp by the ripe grain standing there, wild and sown, as it weighs other plant food ([campPlants]);
      *   and the crop it has sown draws it to stay by it till it is reaped ([HexGroups.cropPull], [Band.sownPlace]): before, no
      *   choice of camp saw grain at all, and villages walked away from their fields.
+     * 4.52: a band brings in its own ripe crop whole as seed corn, as field work in sowing's time ([harvestCrop]), at the
+     *   reaping rate of any grain ([reapDaysPerKg]); before, a crop was reaped only a week's meals and stores at a time, and
+     *   most of it stood till it was shed or reaped by others (seed corn fell twentyfold in ten years).
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 51
+    const val MODEL_MINOR = 52
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
