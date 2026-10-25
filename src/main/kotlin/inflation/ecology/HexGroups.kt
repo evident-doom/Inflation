@@ -766,8 +766,8 @@ class HexGroups(
         for (g in groups) {
             if (!g.alive || !g.species.human) continue
             val p = g.place
-            val dry = land.hydro.soil[p] < DRY_SOIL_MM && weather.temperature[p] > 15f && land.plants.green[p] < 0.4f
-            if (dry && land.plants.herb[p] > 0.3f && land.fire.burnt[p] < 0.1f &&
+            // (Dry enough by the same test that lets any fire take: a gate of its own, stricter, had kept bands from ever burning.)
+            if (land.fire.canBurn(p, weather) && land.fire.burnt[p] < 0.1f &&
                 drawn(DialSite.BURNING_OFF, g.band?.burnWill ?: 1f, rnd.nextFloat(), BURN_OFF * (g.band?.burnWill ?: 1f)) { BURN_OFF }) {
                 land.fire.ignite(p)
                 stats.meeting(Met.BANDS_BURNED_OFF_GRASS)

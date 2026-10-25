@@ -93,6 +93,7 @@ class FaunaCheck(private val sim: HexSim, private val options: FaunaCheckOptions
         people.printAgainstTheRecord(deaths, hunting)
         deaths.printResidentDeathsThisYear()
         println("     droughts under way: " + sim.weather.droughts())
+        println("     fires this year: " + sim.land.fire.yearReport())
         hunting.endYear()
         print("     "); census.printSkillsAndCereals(hunting.grainReapedLastYear)
         System.out.flush()
