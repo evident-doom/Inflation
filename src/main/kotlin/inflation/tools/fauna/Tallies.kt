@@ -11,6 +11,7 @@ import inflation.ecology.WeekStats
 import inflation.ecology.Band
 import inflation.ecology.Built
 import inflation.ecology.FoodFrom
+import inflation.ecology.HerdFlow
 import inflation.ecology.HexGroup
 import inflation.ecology.HexSim
 import inflation.ecology.Skill
@@ -18,6 +19,7 @@ import inflation.ecology.Species
 import inflation.ecology.Tool
 import inflation.ecology.Material
 import inflation.ecology.Tradition
+import inflation.ecology.bandLifeway
 import inflation.ecology.boldness
 import inflation.ecology.houseFoodAYear
 import inflation.ecology.houseLivesAYear
@@ -400,6 +402,15 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
             100.0 * livedLives.count { it >= 0.01 } / bs.size.coerceAtLeast(1), 100.0 * livedFood.count { it >= 0.01 * need } / bs.size.coerceAtLeast(1))
     }
 
+    /** What became of kept animals since the last census ([HerdFlow]): heads in and out by cause, and the shares herded and fed. */
+    private fun herdFlows(): String {
+        val f = sim.groups.herdFlows
+        val kg = f[HerdFlow.KG].coerceAtLeast(1e-6f)
+        return "; since last: born %.0f, died %.0f, ran off %.0f, culled for want of herders %.0f, eaten of the increase %.0f; herded %.2f, fed %.2f, in herds that pay %.2f".format(
+            f[HerdFlow.BORN], f[HerdFlow.DIED], f[HerdFlow.RAN_OFF], f[HerdFlow.CULLED], f[HerdFlow.EATEN], f[HerdFlow.KG_TENDED] / kg, f[HerdFlow.KG_FED] / kg, f[HerdFlow.KG_PAYS] / kg)
+            .also { f.fill(0f) }
+    }
+
     /** What bands hold a grown person (what a camp move must carry or leave), kept herds, ornaments and shell, grave goods. */
     private fun goods(bands: List<HexGroup>, bs: List<Band>): String {
         val hw = sim.hw; val land = sim.land; val fauna = sim.fauna
@@ -409,8 +420,9 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
             Material.entries.joinToString(", ") { m -> "%s %.1f".format(m.name.lowercase(), bs.sumOf { it.goods[m].toDouble() } / adults) } + ")" +
             " | kept herds: " + fauna.kinds.indices.filter { k -> bs.any { it.herd.size > k && it.herd[k] >= 1f } }.joinToString(", ") { k ->
                 val keepers = bs.filter { it.herd.size > k && it.herd[k] >= 1f }
-                "%s %.0f head in %d bands (tame %.2f)".format(fauna.kinds[k].name, keepers.sumOf { it.herd[k].toDouble() }, keepers.size,
-                    keepers.map { it.herdTame[k].toDouble() }.average()) }.ifEmpty { "none" } +
+                "%s %.0f head in %d bands, %d of them mobile (tame %.2f)".format(fauna.kinds[k].name, keepers.sumOf { it.herd[k].toDouble() },
+                    keepers.size, keepers.count { sim.groups.bandLifeway(it) == Tally.Lifeway.MOBILE }, keepers.map { it.herdTame[k].toDouble() }.average()) }.ifEmpty { "none" } +
+            herdFlows() +
             " | ornaments %.1f a person (%.0f%% of shell), shell beads a person inland %.2f, by the sea %.2f; graves with goods %d (richest hold %.0f%% of goods)".format(
                 bs.sumOf { it.ornaments.toDouble() } / headsOf(bands),
                 100.0 * bs.sumOf { it.exotic.toDouble() } / bs.sumOf { it.ornaments.toDouble() }.coerceAtLeast(1e-9),

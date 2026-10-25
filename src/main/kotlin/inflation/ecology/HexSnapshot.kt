@@ -268,9 +268,18 @@ object HexSnapshot {
      * 4.58: 4.57's reset to the scaffold's ways ran in the wrong place: its `else` bound to the band test inside the loop, so
      *   with a ways network every non-band group reset all bands to the scaffold's ways after the network set them (and waysForce
      *   with them), and without one the reset never ran. Now it runs only without a ways network, as 4.57 meant.
+     * 4.59: herding is no longer for settled bands only: any band may take young in the hunt to keep, and learn herding;
+     *   its herders' days come out of field work's time ([herdDays], about [HERD_KG_A_HERDER] kg of stock a herder), held before
+     *   the week's food, and none on the days the herd walks with the band to a new camp; what they cannot
+     *   keep it culls, in place of a flat cap of two head a person, and it eats what the herd grows to beyond the stock its
+     *   herders keep in a usual week (a year's mean), and eats down a herd whose increase
+     *   brings a herder less than a day's foraging brings it ([herdPays]); a band choosing its camp weighs what poor forage
+     *   there would cost its herd ([HexGroups.herdLoss]); villages started by t.startSettled start with a herd, and
+     *   t.startHerders starts a share of mobile bands with one; kept herds no longer lose a share for each hex a move takes
+     *   them (HERD_MOVE_LOSS, no source).
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 58
+    const val MODEL_MINOR = 59
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

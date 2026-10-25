@@ -4,6 +4,7 @@ import inflation.Args
 import inflation.Config
 import inflation.ecology.HexSim
 import inflation.ecology.HexSnapshot
+import inflation.ecology.startHerders
 import inflation.ecology.startVillages
 import inflation.Tuning
 import inflation.learning.LearnedModel
@@ -39,6 +40,7 @@ class FaunaCheckOptions(
             // (The saved state took the place of the villages the fresh world started with: a world carried on starts its
             // villages now, among the bands it carries on with.)
             if (sim.groups.tuning.startSettled > 0f) sim.groups.startVillages()
+            if (sim.groups.tuning.startHerders > 0f) sim.groups.startHerders()
         }
         // (A fresh world's weather is drawn afresh too, so its replicates are other weathers on the same land.)
         if (replicate != 0L) { sim.weather.reseed(replicate); println("weather drawn afresh: replicate $replicate") }
