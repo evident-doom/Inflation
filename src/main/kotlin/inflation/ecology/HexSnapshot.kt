@@ -277,16 +277,19 @@ object HexSnapshot {
      *   there would cost its herd ([HexGroups.herdLoss]); villages started by t.startSettled start with a herd, and
      *   t.startHerders starts a share of mobile bands with one; kept herds no longer lose a share for each hex a move takes
      *   them (HERD_MOVE_LOSS, no source).
+     * 4.60: only the trees that bear food bear mast and fruit, by kind of country ([HexFood.FOOD_TREES]: none from spruce, fir
+     *   or larch), and the trees' crop swings from year to year, the same over all the land for each group of trees but apart
+     *   between them ([inflation.world.MastTrees], [inflation.world.Weather.mastCrop]).
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 59
+    const val MODEL_MINOR = 60
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
      * numbers would land on the wrong entries; entries added at the end keep the fresh model's values.
      */
     internal val ORDERED: List<Class<out Enum<*>>> = listOf(Skill::class.java, Tool::class.java, Material::class.java, Store::class.java,
-        Illness::class.java, Tradition::class.java, Biome::class.java, BandWay::class.java)
+        Illness::class.java, Tradition::class.java, Biome::class.java, BandWay::class.java, inflation.world.MastTrees::class.java)
 
     /** Writes the state of [sim] to [file]. */
     fun save(sim: HexSim, file: File) {
