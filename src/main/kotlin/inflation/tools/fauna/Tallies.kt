@@ -406,8 +406,8 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
     private fun herdFlows(): String {
         val f = sim.groups.herdFlows
         val kg = f[HerdFlow.KG].coerceAtLeast(1e-6f)
-        return "; since last: born %.0f, died %.0f, ran off %.0f, culled for want of herders %.0f, eaten of the increase %.0f; herded %.2f, fed %.2f, in herds that pay %.2f".format(
-            f[HerdFlow.BORN], f[HerdFlow.DIED], f[HerdFlow.RAN_OFF], f[HerdFlow.CULLED], f[HerdFlow.EATEN], f[HerdFlow.KG_TENDED] / kg, f[HerdFlow.KG_FED] / kg, f[HerdFlow.KG_PAYS] / kg)
+        return "; since last: born %.0f, died %.0f, ran off %.0f, culled for want of herders %.0f, eaten of the increase %.0f, milk %.0f t; herded %.2f, fed %.2f, in herds that pay %.2f".format(
+            f[HerdFlow.BORN], f[HerdFlow.DIED], f[HerdFlow.RAN_OFF], f[HerdFlow.CULLED], f[HerdFlow.EATEN], f[HerdFlow.MILK_KG] / 1000f, f[HerdFlow.KG_TENDED] / kg, f[HerdFlow.KG_FED] / kg, f[HerdFlow.KG_PAYS] / kg)
             .also { f.fill(0f) }
     }
 

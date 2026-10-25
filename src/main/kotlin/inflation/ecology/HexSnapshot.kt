@@ -295,7 +295,10 @@ object HexSnapshot {
      *   day only dogs. Scouts no longer guard the camp as lookouts: they keep beasts off by where they find them. A band counts
      *   its walls in what a house is worth to it and in choosing its camp. Beasts take a tenth as many at most ([STALKED]),
      *   as foragers' records have it, and the nominal check counts those taken. (People net 5: a new way output.)
-     * 4.63: bands search for fruit and mast as they do for roots, the thinner the longer a kilo ([PLANT_SIGHT_M2_PER_DAY]),
+     * 4.63: a band weighs its herd against what a day's foraging brings in its leanest month ([herdPays], [Band.forageReturn]
+     *   month by month), since a herd is food kept alive till then; and its herd's mothers give milk after the birth season
+     *   ([milkKg], [Nourishment.MILK]): before, meat alone never paid a herder anywhere, and every herd was eaten in a year.
+     * 4.65: bands search for fruit and mast as they do for roots, the thinner the longer a kilo ([PLANT_SIGHT_M2_PER_DAY]),
      *   and must pound and leach the bitter share of the mast before they eat it ([MAST_BITTER], [MAST_LEACH_DAYS_PER_KG]),
      *   which only bands that know leaching and have water by them can, and a band choosing its camp counts the mast at the
      *   share of its days that is gathering it ([MAST_GATHERED]); grass seed and cereal grain are searched for as fruit is,
@@ -303,7 +306,7 @@ object HexSnapshot {
      *   ([PlantFrom]).
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 63
+    const val MODEL_MINOR = 65
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

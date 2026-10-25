@@ -16,6 +16,7 @@ import inflation.world.HexDrinkingWater
 import inflation.world.HexLand
 import inflation.world.HexWorld
 import inflation.world.Weather
+import inflation.world.Date
 import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -179,11 +180,11 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         time?.spend(Activity.FOOD, (w.busy - busy0) * w.hands)
     }
     if (w.band != null && w.time == null) planWeek(w, 0f, 0f)
-    // (What a day's foraging brought it this week, kg of its need, kept as a mean over about a year: what a herder's day
-    // must bring to be worth it, [herdPays].)
+    // (What a day's foraging brought it this week, kg of its need, kept month by month as a mean over the years: what a
+    // herder's day must bring to be worth it, [herdPays].)
     w.band?.let { b -> w.time?.spentOn(Activity.FOOD)?.takeIf { it > 0f }?.let { d ->
-        val got = w.fed / d
-        b.forageReturn = if (b.forageReturn < 0f) got else b.forageReturn + min(1f, years) * (got - b.forageReturn)
+        val got = w.fed / d; val m = weather.date.month; val was = b.forageReturn[m]
+        b.forageReturn[m] = if (was < 0f) got else was + min(1f, years * Date.MONTHS_PER_YEAR) * (got - was)
     } }
     w.time?.let { restedDays(w, it) }
     w.time?.release(Activity.FOOD)

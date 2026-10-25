@@ -29,6 +29,8 @@ object Nourishment {
     const val MEAT = 0.48f
     /** Freshwater fish as caught and cleaned: about 110 kcal/100 g (USDA SR carp 127, pike 88, trout 119). */
     const val FISH = 0.44f
+    /** Goat's milk as milked: 69 kcal/100 g (USDA SR "milk, goat, fluid"); sheep's is richer, cows' leaner. */
+    const val MILK = 0.276f
     /** Small finds, eggs, insects, honey: about 150 kcal/100 g as a guess at the mix (eggs 143, honey 304); no source for the mix. */
     const val FINDS = 0.6f
 
