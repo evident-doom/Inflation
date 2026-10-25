@@ -525,7 +525,7 @@ class Band(kinds: Int) {
     var skinAsk = 0f
     /**
      * Its choices: how much of its effort goes to each kind of food ([FOOD_TYPES]: big game, small
-     * game, carrion, bones, fruit, roots, grass seed, small finds, fish), 1 the scaffold's. Big game's
+     * game, carrion, bones, fruit, roots, grass seed, small finds, fish), 1 the scaffold's, with no most. Big game's
      * sets how many of its hands go hunting ([HUNTERS_SHARE] of them at 1, see [huntersShare]).
      */
     val effort = FloatArray(FOOD_TYPES) { 1f }
@@ -2080,7 +2080,8 @@ internal fun HexGroups.setWays(g: HexGroup, weather: Weather, ways: BandWays, in
     ways.choose(g, inputs, out)
     if (g.id == watched) control?.ways(g, out)
     fun squash(x: Float) = 2f / (1f + exp(-x))
-    for (t in 0 until FOOD_TYPES) b.effort[t] = squash(out[t])
+    // (Efforts have no ceiling: more on one food is less on the rest, see [splitDays].)
+    for (t in 0 until FOOD_TYPES) b.effort[t] = exp(out[t])
     b.storeShare = squash(out[STORE_AIM_SLOT])
     for (t in Tool.entries) b.makeFirst[t] = squash(out[MAKE_FIRST_SLOT + t.ordinal])
     for (w in BandWay.entries) b.will[w] = squash(out[w.slot])

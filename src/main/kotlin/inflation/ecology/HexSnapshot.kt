@@ -307,9 +307,11 @@ object HexSnapshot {
      *   share of its days that is gathering it ([MAST_GATHERED]); grass seed and cereal grain are searched for as fruit is,
      *   and wild grasses' small seeds take [SMALL_SEED_SLOWER] times as long a kilo as wild cereal; the census counts bands' plant food by what it came from
      *   ([PlantFrom]).
+     * 4.66: a band's effort on each food is e^x of its ways network's output, with no most; before, 2/(1+e^-x) held every
+     *   effort under twice the scaffold's, so no network could put more than that into fish or small game (people net 6).
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 65
+    const val MODEL_MINOR = 66
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
