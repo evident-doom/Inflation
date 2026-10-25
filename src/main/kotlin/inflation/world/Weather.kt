@@ -48,6 +48,13 @@ class ClimateEvent(
  *
  * [elevation] gives the terrain the wind meets; without it, rain does not depend on the wind.
  */
+/**
+ * Groups of food-bearing trees whose mast crops boom and bust together ([Weather.mastCrop]), each apart from the others:
+ * the deciduous oaks, beech and hazel of the temperate woods; the evergreen oaks, pistachio and wild almond of the
+ * Mediterranean, the steppe and the dry scrub; the stone pines and hazel among the conifers.
+ */
+enum class MastTrees { TEMPERATE, DRY, CONIFER }
+
 class Weather(@Transient private val places: Places, private val cfg: WorldConfig) {
     /** The usual mean temperature at place [p] in [month] (0-based), °C: the climate's, not this year's weather. */
     fun usualTemperature(month: Int, p: Place) = places.monthlyTemp[month][p.i]
@@ -99,7 +106,24 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
     private var rnd = Random(cfg.seed * 31 + 7)
 
     /** Draws the weather's turns (regimes, droughts) afresh from [replicate]: a run carried on from a saved world then meets other years' weather. */
-    fun reseed(replicate: Long) { rnd = Random(cfg.seed * 31 + 7 + replicate * 0x9E3779B97F4A7C15uL.toLong()) }
+    fun reseed(replicate: Long) {
+        rnd = Random(cfg.seed * 31 + 7 + replicate * 0x9E3779B97F4A7C15uL.toLong())
+        mastRnd = Random(cfg.seed * 37 + 11 + replicate * 0x9E3779B97F4A7C15uL.toLong())
+    }
+
+    /**
+     * This year's mast crop against an average year's, for each group of food-bearing trees ([MastTrees]), over all the
+     * land at once ([inflation.ecology.HexFood.mast]): oaks bear in boom and bust years, a median population CV of [MAST_CV]
+     * (Schermer et al. 2019, Ecol Lett 22:98: 30 French oak stands over 14 years), in step within a group over areas the
+     * size of this land (seed crops went out of step only beyond some 2,000 km, USGS, a transcontinental North American
+     * tree), but not between groups: crops of different genera keep little in step (Koenig & Knops 1998 and later,
+     * from memory), so one group's bust year can be another's boom. Each group draws a lognormal of mean 1 each year,
+     * from its own stream so that the weather draws as before.
+     */
+    val mastCrop = FloatArray(MastTrees.entries.size) { 1f }
+    /** This year's mast crop of the trees of group [t] ([mastCrop]). */
+    fun mastCrop(t: MastTrees) = mastCrop[t.ordinal]
+    private var mastRnd = Random(cfg.seed * 37 + 11)
 
     /** How much a place's rain swings from year to year against the average: most in the desert (bust years), least where it is wet. */
     @Transient private val yearSwing = FloatArray(n) { i ->
@@ -410,6 +434,7 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
         val next = 2 * r * cos(2 * PI / period) * oscillation - r * r * oscillationPrev + 0.75 * gaussian()
         oscillationPrev = oscillation; oscillation = next
         decadal = 0.9 * decadal + sqrt(1 - 0.81) * gaussian()
+        for (t in MastTrees.entries) mastCrop[t.ordinal] = mastFrom(inflation.gaussian(mastRnd))
 
         val day = date.absoluteDay
         fun place() = Pair(rnd.nextDouble() * places.widthKm / places.cellKm, rnd.nextDouble() * places.heightKm / places.cellKm)
@@ -522,6 +547,13 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
     private fun gaussian(): Double = inflation.gaussian(rnd)
 
     companion object {
+        /** The year-to-year swing of each group's mast crop ([mastCrop]): its coefficient of variation. */
+        const val MAST_CV = 1.3
+        /** The year's mast crop ([mastCrop]) for a standard normal draw [z]: a lognormal of mean 1 and coefficient of variation [MAST_CV]. */
+        internal fun mastFrom(z: Double): Float {
+            val sigma2 = ln(1.0 + MAST_CV * MAST_CV)
+            return exp(sqrt(sigma2) * z - sigma2 / 2).toFloat()
+        }
         /** Whether what falls at a week's mean air temperature [t], °C, falls as snow: the one rule for rain and snow. */
         fun snows(t: Float) = t < 0f
         /** Snow melted per degree-day above freezing on level ground, mm; the part of it that the air's warmth melts without the sun (Hock 1999: about 1.8). */

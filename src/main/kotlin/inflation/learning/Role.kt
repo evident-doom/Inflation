@@ -17,7 +17,7 @@ enum class Role {
     /**
      * The version of its networks (the mover and the ways network that goes with it): raise the major by hand when
      * either changes structure (see [NetVersion]). History: 1 = hunters' and people's networks as of model 4.17; people 2 = the bands' ways network with the carry and time outputs (model 4.23); people 3 = one network for the
-     * week's plan: the ways read the mover's last hidden layer at the place chosen, and train it (model 4.26); people 4 = the ways' keenness on each way of building (model 4.29); people 5 = the night watch (model 4.60).
+     * week's plan: the ways read the mover's last hidden layer at the place chosen, and train it (model 4.26); people 4 = the ways' keenness on each way of building (model 4.29); people 5 = the night watch (model 4.61).
      */
     val net get() = if (this == PEOPLE) NetVersion(PEOPLE_MAJOR, 0) else NetVersion(HUNTERS_MAJOR, 0)
 
