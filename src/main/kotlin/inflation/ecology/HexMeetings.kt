@@ -366,6 +366,8 @@ private class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, packK
             u.amount(DialSite.STORING, band.storeWill(t), weights[t.ordinal], worths[t.ordinal], dial = storeWay(t).slot)
     }
     val plantKind = FloatArray(Store.entries.size)
+    // (The same by the plant food it came from, for the census.)
+    val plantFrom = FloatArray(PlantFrom.entries.size)
     // (And what it weighs, which grinding, cooking and leaching do not change: see [addFood].)
     val plantKg = FloatArray(Store.entries.size)
     var busy = 0f
@@ -646,24 +648,37 @@ private fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
         val walk = 2f / 3f * sqrt(reach * land.areaKm2[q] / PI.toFloat()) + off
         val seedWalk = 2f / 3f * sqrt(seedReach * land.areaKm2[q] / PI.toFloat()) + off
         fun walked(t: Food, km: Float) = km * w.walkDaysPerKm / dryShare(t)
-        offer(w, o, Food.FRUIT, 0, Place(q), land.total(Place(q), KgM2(reach * fauna.food.fruit[q])).v / days, 1f, fruitQ + walked(Food.FRUIT, walk))
-        // (A band's gatherers must find roots before they dig them: the thinner they grow, the longer a kilo; see
-        // [ROOT_SEARCH_M2_PER_DAY]. None are dug in frozen ground, [HexFood.diggable]. The mast lying under the trees needs no
-        // search: it is picked up a nut at a time, as fruit is picked ([MAST_KIND]). An animal roots for both as one.)
+        // (A band's gatherers must find fruit before they pick it, as they must roots: the thinner it grows, the longer a
+        // kilo; see [PLANT_SIGHT_M2_PER_DAY].)
         val food = fauna.food
+        fun sought(density: Float) = if (band != null && density > 0f) 1f / (PLANT_SIGHT_M2_PER_DAY * density * w.gatherers) else 0f
+        offer(w, o, Food.FRUIT, 0, Place(q), land.total(Place(q), KgM2(reach * food.fruit[q])).v / days, 1f,
+            fruitQ + sought(food.fruit[q]) + walked(Food.FRUIT, walk))
+        // (Roots likewise, searched out over less ground a day, [ROOT_SEARCH_M2_PER_DAY]; none are dug in frozen ground,
+        // [HexFood.diggable]. The mast lying under the trees is picked up a nut at a time, as fruit is picked ([MAST_KIND]);
+        // its bitter share must be leached before it is eaten, by bands that know how and have water by them
+        // ([MAST_LEACH_DAYS_PER_KG]). An animal roots for both as one.)
         if (band != null) {
             val bulbs = food.diggable(Place(q))
             val rootSearch = if (bulbs > 0f) 1f / (ROOT_SEARCH_M2_PER_DAY * bulbs * w.gatherers) else 0f
             offer(w, o, Food.ROOTS, 0, Place(q), land.total(Place(q), KgM2(reach * bulbs)).v / days, 1f,
                 ROOT_DIGGING * pickQ + rootSearch + walked(Food.ROOTS, walk))
-            offer(w, o, Food.ROOTS, MAST_KIND, Place(q), land.total(Place(q), KgM2(reach * food.mast[q])).v / days, 1f, fruitQ + walked(Food.ROOTS, walk))
+            val bitter = if (band.leachesMast(land.drink.water[q] >= Thresholds.WET || land.drink.waterKm[q] < 3f)) MAST_BITTER else 0f
+            val eaten = 1f - MAST_BITTER + bitter
+            val leach = bitter / eaten * MAST_LEACH_DAYS_PER_KG / w.gatherers * band.slowness(Skill.LEACHING)
+            offer(w, o, Food.ROOTS, MAST_KIND, Place(q), land.total(Place(q), KgM2(reach * eaten * food.mast[q])).v / days, 1f,
+                fruitQ + leach + sought(food.mast[q]) + walked(Food.ROOTS, walk))
         } else offer(w, o, Food.ROOTS, 0, Place(q), land.total(Place(q), KgM2(reach * food.underground(Place(q)))).v / days, 1f,
             ROOT_DIGGING * pickQ + walked(Food.ROOTS, walk))
         offer(w, o, Food.FINDS, 0, Place(q), land.total(Place(q), KgM2(reach * fauna.food.finds[q])).v / days, 1f, ROOT_DIGGING * pickQ + walked(Food.FINDS, walk))
         // Grass seed must be reaped, threshed and ground: worth it only with the tools and the hands.
-        offer(w, o, Food.SEED, 0, Place(q), land.total(Place(q), KgM2(seedReach * fauna.food.seeds[q])).v / days, 1f, seedQ + walked(Food.SEED, seedWalk))
+        // (The small seeds of wild grasses take longer a kilo than wild cereal's, [SMALL_SEED_SLOWER]; both must be found, as
+        // fruit is.)
+        offer(w, o, Food.SEED, 0, Place(q), land.total(Place(q), KgM2(seedReach * food.seeds[q])).v / days, 1f,
+            (seedQ - eats) * SMALL_SEED_SLOWER + eats + sought(food.seeds[q]) + walked(Food.SEED, seedWalk))
         // Wild and sown cereals: reaped like grass seed, but richer where they stand.
-        offer(w, o, Food.GRAIN, 0, Place(q), land.total(Place(q), KgM2(seedReach * (fauna.food.grain[q] + fauna.food.fieldGrain[q]))).v / days, 1f, seedQ + walked(Food.GRAIN, seedWalk))
+        val cereal = food.grain[q] + food.fieldGrain[q]
+        offer(w, o, Food.GRAIN, 0, Place(q), land.total(Place(q), KgM2(seedReach * cereal)).v / days, 1f, seedQ + sought(cereal) + walked(Food.GRAIN, seedWalk))
     }
     // Bands fish the river, the lake or the sea by their camp, as their skill and nets allow ([Band.fishing]); and gather
     // shellfish off the shore, which wants neither (kind [SHELLFISH_KIND] of the fish offered).
@@ -708,6 +723,10 @@ private fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
                 w.plants += haul.kg; w.fed += haul.kg * w.feeds(o.type[i])
                 val st = when (o.type[i]) { Food.ROOTS -> Store.ROOTS; Food.SEED -> Store.SEED; else -> Store.FRUIT }.ordinal
                 w.plantKind[st] += fed; w.plantKg[st] += haul.mass
+                val from = when (o.type[i]) { Food.FRUIT -> PlantFrom.FRUIT; Food.SEED -> PlantFrom.SEED; Food.FINDS -> PlantFrom.FINDS
+                    else -> if (o.kind[i] == MAST_KIND) PlantFrom.MAST else PlantFrom.BULBS }
+                w.plantFrom[from.ordinal] += fed
+                if (from == PlantFrom.MAST && haul.kg > 0f && band != null && band.knowsSkill[Skill.LEACHING]) band.practise(Skill.LEACHING)
             }
             Food.FISH -> if (o.kind[i] == SHELLFISH_KIND) fauna.water.fishFor(p, expected, 1f, HexWater.Catch.SHELLFISH).let { w.fish += it; w.fed += it * w.feeds(Food.FISH) }
                 else fauna.water.fishFor(p, expected, band?.fishing() ?: 1f, HexWater.Catch.FISH).let { w.fish += it; w.fished += it; w.fed += it * w.feeds(Food.FISH) }
@@ -715,6 +734,7 @@ private fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
                 reap(g, Place(p), expected, haul)
                 val fed = haul.kg * w.worth(Food.GRAIN)
                 w.plants += haul.kg; w.fed += haul.kg * w.feeds(Food.GRAIN); w.plantKind[Store.SEED.ordinal] += fed; w.plantKg[Store.SEED.ordinal] += haul.mass
+                w.plantFrom[PlantFrom.GRAIN.ordinal] += fed
             }
         }
     }
@@ -887,6 +907,7 @@ private fun HexGroups.tallyForage(w: ForageWeek, meatEaten: Float) {
         stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.ASKED), wantAll.toInt(), Int::plus)
         stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.MEAT), (meat * w.worth(Food.BIG_GAME) + smallFed + scrapsFed).toInt(), Int::plus)
         stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.PLANTS), plantsFed.toInt(), Int::plus)
+        for (f in PlantFrom.entries) stats.hunting.merge(Tally.plantsFrom(f), w.plantFrom[f.ordinal].toInt(), Int::plus)
         stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.FISH), (fish * w.worth(Food.FISH)).toInt(), Int::plus)
         stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.BAND_WEEKS), 1, Int::plus); stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.PEOPLE_WEEKS), g.size, Int::plus)
         stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.HEARTH), (100f * band.hearthWood).toInt(), Int::plus)
@@ -1161,6 +1182,9 @@ private fun HexGroups.gather(g: HexGroup, t: Food, kind: Int, p: Place, expected
     }
     out.kg = took; out.mass = mass
 }
+
+/** The plant food a band's gathering came from, as the census counts it ([Tally.plantsFrom]). */
+enum class PlantFrom(val label: String) { FRUIT("fruit"), MAST("mast"), BULBS("bulbs and roots"), SEED("grass seed"), GRAIN("cereal grain"), FINDS("small finds") }
 
 /** The kind of [Food.FISH] offer that is shellfish gathered off the shore (0 is fish caught: see [offerFoods]). */
 const val SHELLFISH_KIND = 1

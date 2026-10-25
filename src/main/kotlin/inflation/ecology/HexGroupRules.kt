@@ -292,7 +292,37 @@ const val ROOT_DIGGING = 2f
  * is easier to find than bulbs.
  */
 const val ROOT_SEARCH_M2_PER_DAY = 1100f
+/**
+ * Ground a band's gatherer scans for fruit on the bush, mast under the trees and ripe seed heads in a day, m²: as for roots
+ * ([ROOT_SEARCH_M2_PER_DAY]), the thinner the food the longer a kilo, but fruit and nuts are seen, not dug for. An estimate,
+ * no measured figure found: some 2 km/h while searching (half the walking pace, [WALK_KM_PER_HOUR]) over a 6-hour day
+ * and a swath of some 5 m in which a bush's fruit or a scatter of acorns is seen, 60,000 m². Field returns with travel
+ * and processing run several times below those in the patch (mongongo 1,600-5,200 kcal/h on site, 460-910 with travel
+ * and processing: Blurton Jones, Hawkes & Draper 1994), but most of that gap is the walk to the groves ([GATHER_LOAD_KG])
+ * and the cracking; the search itself costs little where fruit or mast is thick.
+ */
+const val PLANT_SIGHT_M2_PER_DAY = 60_000f
+/**
+ * The share of the mast that is bitter and must be leached before it is eaten: the acorns of most oaks, and wild bitter
+ * almonds, against beech nuts, hazel nuts, pine nuts and sweet acorns. An estimate, no measured share found.
+ */
+const val MAST_BITTER = 0.7f
+/**
+ * Days of a band's hands to pound and leach a dry kg of bitter mast, at a start band's skill, on top of gathering and
+ * shelling it ([BAND_FRUIT_DAYS_PER_KG]). From two small trials, weak sources: the whole process came to some 364 kcal/h
+ * (Garza, a hobby trial of 100 acorns), or about 11 h a kg of kernel at 4.0 kcal/g (Kievman et al. 2025); gathering and
+ * shelling took some 4 h a kg of kernel (Low Tech Institute 2017), leaving about 7 h, 1.2 days of 6 hours. Acorn processing
+ * takes much more labour for its food than most plant foods (Basgall 1987, as cited by Glassow; no figure).
+ */
+const val MAST_LEACH_DAYS_PER_KG = 1.2f
 const val SEED_HANDLING_DAYS_PER_KG = 0.5f
+/**
+ * How many times as long a kilo the small seeds of wild grasses take as wild cereal grain ([SEED_HANDLING_DAYS_PER_KG],
+ * fitted to wild wheat and barley): beaten into baskets, parched, winnowed and ground, small seeds return some 300-1,000
+ * kcal/h, about 600 after they are found (Gremillion 2004, and Simms 1987 as consistent with it, both as cited in a review
+ * of the Eastern Agricultural Complex; secondary), against some 1,100 kcal/h for wild cereal at the bare-handed rate here.
+ */
+const val SMALL_SEED_SLOWER = 2f
 const val FISH_HANDLING_DAYS_PER_KG = 0.3f
 /**
  * Days of a band's hands to pick a kilo of wild fruit (dry matter), at a start band's skill: berries one by one off the
@@ -304,6 +334,8 @@ const val FISH_HANDLING_DAYS_PER_KG = 0.3f
  * and was not looked at again when foods came to be weighed by their energy: some 6,900 kcal/h, 3-14 times the record.)
  */
 const val BAND_FRUIT_DAYS_PER_KG = 0.45f
+/** The share of a kg of mast's days that is gathering it, the rest leaching its bitter share: how a band choosing its camp counts it ([HexGroups.rootsFound]). */
+const val MAST_GATHERED = BAND_FRUIT_DAYS_PER_KG / (BAND_FRUIT_DAYS_PER_KG + MAST_BITTER * MAST_LEACH_DAYS_PER_KG)
 /**
  * Days of a band's hands to gather a kilo of shellfish meat off the shore at low tide: Meriam reef-flat collecting gives
  * 1,492 ± 173 kcal/h (Bliege Bird, Smith & Bird 2001, Behav Ecol Sociobiol 50: 9-19), at [Nourishment.FISH] and a 6-hour

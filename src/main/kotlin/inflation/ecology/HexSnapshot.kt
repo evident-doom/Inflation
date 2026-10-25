@@ -301,9 +301,15 @@ object HexSnapshot {
      * 4.64: a band eats its herd's yearly increase week by week, at what it is fed ([herdIncrease]), and keeps it where the days
      *   nobody asked for would herd it too; before, it ate all beyond a year's mean of what its herders kept, and as the herd
      *   dwindled outside the birth season that mean followed it down, so even herds that paid shrank to nothing in a few years.
+     * 4.65: bands search for fruit and mast as they do for roots, the thinner the longer a kilo ([PLANT_SIGHT_M2_PER_DAY]),
+     *   and must pound and leach the bitter share of the mast before they eat it ([MAST_BITTER], [MAST_LEACH_DAYS_PER_KG]),
+     *   which only bands that know leaching and have water by them can, and a band choosing its camp counts the mast at the
+     *   share of its days that is gathering it ([MAST_GATHERED]); grass seed and cereal grain are searched for as fruit is,
+     *   and wild grasses' small seeds take [SMALL_SEED_SLOWER] times as long a kilo as wild cereal; the census counts bands' plant food by what it came from
+     *   ([PlantFrom]).
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 64
+    const val MODEL_MINOR = 65
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
