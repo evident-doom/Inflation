@@ -454,9 +454,9 @@ internal fun HexGroups.visitKin(weather: Weather) {
         }
         val o = best ?: continue
         // (How much the band visited gives is its choice; and it owes the favours it owes.)
-        val share = min(0.9f, BAND_GIFT * (if (o.band!!.holds(Tradition.SHARING)) 2f else 1f) * o.band!!.giveWill)
-        o.band?.let { ob -> val base = BAND_GIFT * (if (ob.holds(Tradition.SHARING)) 2f else 1f)
-            dialUse?.amount(DialSite.GIVE_VISIT, ob.giveWill, share, min(0.9f, base), cut = base * ob.giveWill > 0.9f) }
+        val base = min(0.9f, BAND_GIFT * (if (o.band!!.holds(Tradition.SHARING)) 2f else 1f))
+        val share = 0.9f * shareOfWill(o.band!!.giveWill, base / 0.9f)
+        o.band?.let { ob -> dialUse?.amount(DialSite.GIVE_VISIT, ob.giveWill, share, base) }
         val week = g.dailyNeedKg * days
         val need = (1f - g.fed) * week + week
         val gift = given(o, g, min(share * o.larder, need), need)
@@ -656,10 +656,13 @@ internal fun helped(giver: HexGroup, taker: HexGroup, kg: Float) {
  */
 internal fun HexGroups.given(giver: HexGroup, taker: HexGroup, chosen: Float, need: Float): Float {
     val gb = giver.band ?: return chosen
-    val due = min(gb.owesTo(taker.id) * FAVOUR_DAYS * taker.dailyNeedKg, min(0.9f * giver.larder, need))
+    val owed = gb.owesTo(taker.id) * FAVOUR_DAYS * taker.dailyNeedKg
+    val room = min(0.9f * giver.larder, need)
+    val due = min(owed, room)
     if (due <= 0f) return chosen
-    val gift = max(chosen, due * gb.repayWill.coerceIn(0f, 1f))
-    dialUse?.amount(DialSite.REPAYING, gb.repayWill, gift, max(chosen, due), cut = gb.repayWill > 1f)
+    // (Above its 1 a band returns more than it owes, as far as the need and its larder go: food for regard.)
+    val gift = max(chosen, min(owed * max(0f, gb.repayWill), room))
+    dialUse?.amount(DialSite.REPAYING, gb.repayWill, gift, max(chosen, due))
     if (gift < due) taker.band?.befriend(giver.id, -TIE_GIFT * (due - gift) / due)
     stats.meeting(if (gift < due) Met.FAVOURS_HELD_BACK else Met.FAVOURS_RETURNED)
     return gift

@@ -265,6 +265,12 @@ const val SMALL_SENSE_KM = 0.02f
 const val SMALL_CATCH = 0.3f
 const val SMALL_HUNTER_KG = 15f
 const val SMALL_HANDLING_DAYS_PER_KG = 0.3f
+/**
+ * Share of the small game a hunter would find on bare ground that full ground cover hides from it ([HexPlants.groundCover]):
+ * burnt ground shows its burrows and tracks (Bird, Bird & Parker 2005, Hum. Ecol. 33:443: Martu burning raises the
+ * returns on burrowed small prey; the size here is an estimate).
+ */
+const val SMALL_HIDE = 0.5f
 const val PLANT_HANDLING_DAYS_PER_KG = 0.15f
 const val BONE_DAYS = 3f
 /**

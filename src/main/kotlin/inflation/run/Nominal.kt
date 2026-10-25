@@ -89,7 +89,7 @@ object Nominal {
     /**
      * People taken by beasts of prey in a year, per head on average: foragers lose few to them, the Hiwi none in their
      * records (Hill, Hurtado & Walker 2007), the Agta, whose men pythons attacked often, some 0.26 a thousand a year
-     * (Headland & Greene 2011), the most found; at most four times that (the runs before model 4.61: 3.8-5).
+     * (Headland & Greene 2011), the most found; at most four times that (the runs before model 4.62: 3.8-5).
      */
     const val BEASTS_TAKE_PEOPLE_MAX = 0.001
     /**
