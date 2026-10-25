@@ -259,9 +259,11 @@ object HexSnapshot {
      *   for the firewood and shelters as far as they avert the deaths it foresees this week and through the year after
      *   ([survivalDays]), then for the week's food and the rest of the firewood;
      *   and a band choosing its camp counts roots as its gathering would find them ([HexGroups.rootsFound]).
+     * 4.56: bands burn off dry grass where any fire would take ([HexFires.canBurn]); their own stricter test (soil under 40 mm,
+     *   forage under 0.4 green, herbs over 0.3) was not met at any camp in 5 years on storm-1, so the burning-off way was never read.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 55
+    const val MODEL_MINOR = 56
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
