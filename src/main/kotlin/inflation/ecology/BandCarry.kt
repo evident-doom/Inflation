@@ -40,7 +40,7 @@ internal fun carryRules(): Map<String, Pair<OnSplit, OnJoin>> {
     rule(OnSplit.COPIED, OnJoin.MAX, "skills", "plants", "renown", "grudge")
     rule(OnSplit.COPIED, OnJoin.ANY, "knowsSkill", "knows", "known")
     rule(OnSplit.DRAWN, OnJoin.SUM, "holders")
-    rule(OnSplit.COPIED, OnJoin.LOST, "lastUsed", "seasonPlace", "seasonQ", "monthSupply", "weeks", "traditions", "words", "rite", "riteStrength", "knownHomes", "knownLineage")
+    rule(OnSplit.COPIED, OnJoin.LOST, "lastUsed", "seasonPlace", "seasonQ", "monthSupply", "leanDays", "weeks", "traditions", "words", "rite", "riteStrength", "knownHomes", "knownLineage")
     // Health.
     rule(OnSplit.COPIED, OnJoin.BLENDED, "sick", "immune", "hurt", "lame")
     rule(OnSplit.FRESH, OnJoin.LOST, "cleaned", "nursed", "beastLoss")
@@ -50,7 +50,7 @@ internal fun carryRules(): Map<String, Pair<OnSplit, OnJoin>> {
     rule(OnSplit.COPIED, OnJoin.BLENDED, "kit", "fine", "salted", "leanLost", "sodiumShort", "lineage", "inbred", "sisu")
     // Camp, home and raids.
     rule(OnSplit.COPIED, OnJoin.LOST, "campWeeks", "stayWeeks", "campPlace", "appointment", "houseHex", "house", "homeEarth", "homeGroundC", "palisade", "fire",
-        "houseLives", "houseFood", "foodFrom", "fishPull")
+        "houseLives", "houseFood", "foodFrom", "fishPull", "weaningFood")
     rule(OnSplit.FRESH, OnJoin.LOST, "cache", "cacheKgPer", "cachePlace", "raid", "unlucky",
         "shelter", "atHome", "nightWood", "hearthWood", "spareDays", "dogShare", "dryAsk", "skinAsk", "houseLivesWeek", "houseFoodWeek")
     // Ties.
@@ -59,9 +59,12 @@ internal fun carryRules(): Map<String, Pair<OnSplit, OnJoin>> {
     rule(OnSplit.FRESH, OnJoin.SUM, "favours")
     // Wealth and animals.
     rule(OnSplit.SHARED, OnJoin.SUM, "ornaments", "exotic", "herd")
-    rule(OnSplit.COPIED, OnJoin.BLENDED, "herdTame", "seedDomestic")
+    rule(OnSplit.COPIED, OnJoin.BLENDED, "herdTame", "seedDomestic", "grainDomestic")
+    rule(OnSplit.SHARED, OnJoin.SUM, "seedCorn")
+    // (The crop stays with the band that sowed it: an offshoot sowed nothing, and a joining band's crop is left to whoever reaps it.)
+    rule(OnSplit.FRESH, OnJoin.LOST, "sownPlace", "sownKg")
     rule(OnSplit.COPIED, OnJoin.LOST, "sinceRaided")
     // Its ways' choices.
-    rule(OnSplit.CHOSEN, OnJoin.CHOSEN, "storeAim", "will", "makeFirst", "effort")
+    rule(OnSplit.CHOSEN, OnJoin.CHOSEN, "storeShare", "will", "makeFirst", "effort")
     return r
 }

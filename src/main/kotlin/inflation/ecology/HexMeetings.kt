@@ -287,8 +287,7 @@ private class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, packK
     val pickDays = PLANT_HANDLING_DAYS_PER_KG * gs.tuning.plantHandling / gatherers / carry + eats
     // (People pick fruit a berry at a time, at the record's rate: see [BAND_FRUIT_DAYS_PER_KG].)
     val fruitDays = if (band != null) BAND_FRUIT_DAYS_PER_KG * gs.tuning.plantHandling / gatherers / carry + eats else pickDays
-    val seedDays = SEED_HANDLING_DAYS_PER_KG * gs.tuning.plantHandling / gatherers / carry /
-        (1f + (band?.sickleGain(gs.tuning) ?: 0f) + GRINDER_GAIN * (band?.has(Tool.GRINDER) ?: 0f)) + eats
+    val seedDays = reapDaysPerKg(band, gs.tuning) / gatherers / carry + eats
     // (A band's gatherers walk to the food and carry it home: party-days a km of the way out costs a fresh kg brought
     // home, there and back; see [GATHER_LOAD_KG]. An animal eats where it finds.)
     val walkDaysPerKm = if (band != null) 2f / (WALK_KM_PER_HOUR * Activity.WORK_HOURS * GATHER_LOAD_KG * carry * gatherers) else 0f
@@ -638,7 +637,7 @@ private fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
         // Grass seed must be reaped, threshed and ground: worth it only with the tools and the hands.
         offer(w, o, Food.SEED, 0, Place(q), land.total(Place(q), KgM2(seedReach * fauna.food.seeds[q])).v / days, 1f, seedQ + walked(Food.SEED, seedWalk))
         // Wild and sown cereals: reaped like grass seed, but richer where they stand.
-        offer(w, o, Food.GRAIN, 0, Place(q), land.total(Place(q), KgM2(seedReach * fauna.food.grain[q])).v / days, 1f, seedQ + walked(Food.GRAIN, seedWalk))
+        offer(w, o, Food.GRAIN, 0, Place(q), land.total(Place(q), KgM2(seedReach * (fauna.food.grain[q] + fauna.food.fieldGrain[q]))).v / days, 1f, seedQ + walked(Food.GRAIN, seedWalk))
     }
     // Bands fish the river, the lake or the sea by their camp, as their skill and nets allow ([Band.fishing]); and gather
     // shellfish off the shore, which wants neither (kind [SHELLFISH_KIND] of the fish offered).
@@ -736,6 +735,10 @@ private fun HexGroups.eatTheWeek(w: ForageWeek) {
         meal.eatForSodium(sodiumNeed / SODIUM_PER_KG_MEAT, got, plantKg, g)
         meal.eat(got, plantKg, g)
         band.leanLost = meal.leanLost
+        // (Its weanlings get gruel as far as there is seed, eaten this week or still in store: their share of the meals is
+        // already in its need, so they eat seed and the rest eat the rest in its stead.)
+        val weaned = band.gruel() * min(1f, (meal.ateSeed + g.stores[Store.SEED]) / (WEANING_SHARE * wantAll).coerceAtLeast(1e-3f))
+        band.weaningFood += (weaned - band.weaningFood) / stepsPerYear
         val ateMeat = meal.ateMeat; val ateKg = meal.ateKg; val ateMeatKg = meal.ateMeatKg
         eaten = wantAll - meal.need
         land.books?.flow(Books.Stuff.MATTER, "eaten", -ateKg.toDouble())
@@ -754,6 +757,7 @@ private fun HexGroups.eatTheWeek(w: ForageWeek) {
         stats.hunting.merge(Tally.of(s, Tally.OfKind.MEAT_EATEN), ateMeat.toInt(), Int::plus)
         stats.hunting.merge(Tally.of(s, Tally.OfKind.PLANTS_EATEN), (eaten - ateMeat).toInt(), Int::plus)
         keepAndSpoil(w, got, plantKg, pelts)
+        band.seedCorn = band.seedCornIn(g)
         spare = 0f; meatEaten = ateMeatKg
     }
     // Gorging: what is left of a kill is eaten beyond need, as far as the gut holds and reserves are short.
@@ -788,7 +792,7 @@ private fun HexGroups.eatTheWeek(w: ForageWeek) {
  * protein beyond the ceiling not at all), and also by weight; [leanLost] is the share of the protein it ate that went to waste.
  */
 private class Meal(val wantAll: Float) {
-    var need = wantAll; var ateMeat = 0f; var ateKg = 0f; var ateMeatKg = 0f; var ateDriedKg = 0f
+    var need = wantAll; var ateMeat = 0f; var ateKg = 0f; var ateMeatKg = 0f; var ateDriedKg = 0f; var ateSeed = 0f
     private var room = Nourishment.PROTEIN_MOST * wantAll; private var protein = 0f; private var lost = 0f
     val leanLost get() = if (protein > 0f) lost / protein else 0f
 
@@ -833,6 +837,7 @@ private class Meal(val wantAll: Float) {
         val fed = if (beyond) e * (1f - p) else e
         need -= fed; protein += e * p; if (beyond) lost += e * p else room -= e * p
         ateKg += e * kgPer; if (st.meat) { ateMeat += fed; ateMeatKg += e * kgPer }; if (st == Store.DRIED) ateDriedKg += e * kgPer
+        if (st == Store.SEED) ateSeed += fed
         return e
     }
 }
@@ -1044,18 +1049,34 @@ private fun siftDown(a: LongArray, from: Int, m: Int) {
 /** [forage]'s reaping of wild or sown grain at place [p], [expected] kg a party could take: [out] gets the kilos it is worth, and weighs. */
 private fun HexGroups.reap(g: HexGroup, p: Place, expected: Float, out: Haul) {
     val band = g.band
-    val taken = land.total(p, fauna.food.take(fauna.food.grain, p, land.spread(p, Kg(expected)))).v
+    // (Sown fields are reaped first: their grain stands thick in one plot; then the wild stand.)
+    val food = fauna.food
+    val want = land.spread(p, Kg(expected)).v
+    val fromField = food.take(food.fieldGrain, p, KgM2(want)).v
+    val fromWild = food.take(food.grain, p, KgM2(want - fromField)).v
+    val taken = land.total(p, KgM2(fromField + fromWild)).v
     val took = taken * seedValue(band) * (band?.cookValue(Food.GRAIN) ?: 1f)
     out.kg = took; out.mass = taken
-    // A sickle takes the ears that hold their grain more than those that shatter at a touch.
+    // A sickle takes the ears that hold their grain more than those that shatter at a touch. What is reaped from a sown
+    // field is kept as seed corn; what is reaped from the wild stand goes with the rest of the grain.
     if (band != null && took > 0f) {
-        val d = fauna.food.domestic[p]; val sel = SICKLE_SELECT * band.has(Tool.SICKLE)
-        val harvested = d * (1f + sel) / (1f + sel * d).coerceAtLeast(1e-6f)
-        val have = g.stores[Store.SEED]
-        band.seedDomestic = (band.seedDomestic * have + harvested * took) / (have + took).coerceAtLeast(1e-6f)
+        fun harvested(d: Float) = band.reapedDomestic(d)
+        val tookField = took * fromField / (fromField + fromWild).coerceAtLeast(1e-12f); val tookWild = took - tookField
+        // (The week's reaping is kept with the stores at the week's end, where the seed corn is held to the grain kept.)
+        val corn = band.seedCorn; val wild = max(0f, g.stores[Store.SEED] - corn)
+        if (tookField > 0f) band.seedDomestic = (band.seedDomestic * corn + harvested(food.fieldDomestic[p]) * tookField) / (corn + tookField)
+        if (tookWild > 0f) band.grainDomestic = (band.grainDomestic * wild + harvested(food.domestic[p]) * tookWild) / (wild + tookWild)
+        band.seedCorn = corn + tookField
         stats.hunting.merge(Tally.of(g.species, Tally.OfKind.GRAIN_REAPED), took.toInt(), Int::plus)
     }
 }
+
+/** Person-days to reap, thresh and clean a kilo of grain or grass seed: [SEED_HANDLING_DAYS_PER_KG] by hand, less with a sickle and grinding stones. */
+internal fun reapDaysPerKg(band: Band?, tuning: inflation.Tuning) =
+    SEED_HANDLING_DAYS_PER_KG * tuning.plantHandling / (1f + (band?.sickleGain(tuning) ?: 0f) + GRINDER_GAIN * (band?.has(Tool.GRINDER) ?: 0f))
+
+/** Of grain whose ears hold their grain at share [d], the share in what band [b] reaps: a sickle takes them more than those that shatter at a touch. */
+internal fun Band.reapedDomestic(d: Float): Float { val sel = SICKLE_SELECT * has(Tool.SICKLE); return d * (1f + sel) / (1f + sel * d).coerceAtLeast(1e-6f) }
 
 /** [forage]'s count of the resident bands [g] came on unseen ([met] per animal, by place of its hunting [ground] and kind) in the [searched] share of its week. */
 private fun HexGroups.countResidentsMet(g: HexGroup, ground: HuntGround, met: FloatArray, searched: Float, today: Double) {
@@ -1432,7 +1453,7 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather) {
             cut = keen == 0f && hb.feastWill > 0f)
         if (keen <= 0f) continue
         val spare = host.larder - hb.storeAim * host.dailyNeedKg
-        dialUse?.amount(DialSite.STORE_HOST, hb.storeAim / STORE_AIM_DAYS, max(0f, spare), max(0f, host.larder - STORE_AIM_DAYS * host.dailyNeedKg))
+        dialUse?.amount(DialSite.STORE_HOST, hb.storeShare, max(0f, spare), max(0f, host.larder - hb.storeAimAt1 * host.dailyNeedKg))
         if (spare <= 0f) continue
         val meal = min(spare, FEAST_KG * guest.size * keen)
         moveFood(host, guest, meal)
@@ -1500,7 +1521,7 @@ private fun storeWant(g: HexGroup, band: Band, aimDays: Float) =
 private fun countStoreWork(u: DialUse, g: HexGroup, b: Band, work: Float) {
     val worn = b.worn()
     val mendAt1 = if (worn) storeWant(g, b) * (1f - 1f) else storeWant(g, b)
-    u.amount(DialSite.STORE_WANT, b.storeAim / STORE_AIM_DAYS, work, if (worn) storeWant(g, b, STORE_AIM_DAYS) * (1f - b.mendFirst) else storeWant(g, b, STORE_AIM_DAYS))
+    u.amount(DialSite.STORE_WANT, b.storeShare, work, if (worn) storeWant(g, b, b.storeAimAt1) * (1f - b.mendFirst) else storeWant(g, b, b.storeAimAt1))
     if (worn) u.amount(DialSite.MENDING_FIRST, b.will[BandWay.MENDING_FIRST], work, mendAt1, cut = b.will[BandWay.MENDING_FIRST] > 1f)
 }
 

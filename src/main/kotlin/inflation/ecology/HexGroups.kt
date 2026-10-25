@@ -625,6 +625,7 @@ class HexGroups(
         if (dead > 0f) score += ANCESTOR_PULL * min(1f, dead / 10f)
         // Houses it may use draw it (its own or any left empty); a camp where someone died lately is shunned by those who leave their dead.
         score += HOME_PULL * housesAt(g, h.i)
+        score += cropPull(g, b, h)
         if (h == b.unluckyHex) score -= UNLUCKY
         // It keeps off the known homes of bands it is not close to (unless set on raiding them).
         if (b.raidHex != h && keepOff != null && h in keepOff) score -= TRESPASS_AVOID
@@ -649,7 +650,7 @@ class HexGroups(
         }
         // A band with food enough to feast others is drawn to where other bands are (gatherings).
         if (peopleSlot >= 0 && b.holds(Tradition.FEASTS))
-            dialUse?.choice(DialSite.STORE_FEAST, b.storeAim / STORE_AIM_DAYS, g.larder > b.storeAim * g.dailyNeedKg, g.larder > STORE_AIM_DAYS * g.dailyNeedKg)
+            dialUse?.choice(DialSite.STORE_FEAST, b.storeShare, g.larder > b.storeAim * g.dailyNeedKg, g.larder > b.storeAimAt1 * g.dailyNeedKg)
         if (peopleSlot >= 0 && b.holds(Tradition.FEASTS) && g.larder > b.storeAim * g.dailyNeedKg) {
             val others = knownHeads(peopleSlot, p, h, sensed) - (if (p == g.place) g.size else 0)
             if (others > 0f) score += GATHER_PULL * min(1f, others / GATHER_HEADS)
@@ -659,6 +660,21 @@ class HexGroups(
         if (!b.knows(h.i)) score -= UNKNOWN_COUNTRY * (2f - b.explore)
         if (!b.knows(h.i)) dialUse?.amount(DialSite.EXPLORE_SCORE, b.explore, UNKNOWN_COUNTRY * (2f - b.explore), UNKNOWN_COUNTRY)
         return score
+    }
+
+    /**
+     * What the crop band [b] (group [g]) has sown and not yet reaped draws it to the hex it stands in: leaving it, the band
+     * would lose its harvest (others reap a field no one keeps), a loss paid for over the weeks it keeps a camp ([Band.stayWeeks]),
+     * as a move's lost days are. The harvest is its share of the field as the sim would ripen it now ([HexFood.fieldExpect]),
+     * in weeks of its food.
+     */
+    private fun cropPull(g: HexGroup, b: Band, h: Hex): Float {
+        val f = b.sownPlace
+        if (f.none || hw.placeHex[f.i] != h.i) return 0f
+        val food = fauna.food
+        val kg = min(b.sownKg, food.field[f] * land.m2(f))
+        if (kg <= 0f) return 0f
+        return kg * food.fieldExpect(f) * seedValue(b) / (g.dailyNeedKg.coerceAtLeast(1e-3f) * days) / b.stayWeeks
     }
 
     /** Heads of kind slot [k] in place [p] as a group knows them: seen in its own hex and the six around, else expected. */
@@ -682,7 +698,8 @@ class HexGroups(
         val fuel = fuelShare(woodCover(p), 1f)
         return (1f + CAMP_SAFETY * land.bestDefence[p] + CAVE_CAMP * land.caves[p]) / (1f + w * w) * (1f - fuel)
     }
-    internal fun campPlants(p: Place) = KgM2(fauna.food.fruit[p] + rootsFound(p) + fauna.food.seeds[p]).perKm2.v * PLANT_FOOD_WEIGHT * campFactor(p)
+    internal fun campPlants(p: Place) = KgM2(fauna.food.fruit[p] + rootsFound(p) + fauna.food.seeds[p] + fauna.food.grain[p] + fauna.food.fieldGrain[p]).perKm2.v *
+        PLANT_FOOD_WEIGHT * campFactor(p)
     /**
      * The roots at [p] as a band's gathering would find them, kg/m²: the thinner they grow, the more of a gatherer's day
      * goes to finding them ([ROOT_SEARCH_M2_PER_DAY]), so they count as the share of the day that is digging. (A hand's

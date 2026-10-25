@@ -19,9 +19,13 @@ import kotlin.math.roundToInt
  * Not foreseen: disease, outbreaks, raids, beasts, fire and flood, thirst; tools and clothes wearing out over the year; the
  * larder spoiling. The food a band will get is last years', so what it does differently now shows only through its
  * stores, its fat and what keeping warm takes. What training may judge a band's state by ([HexGroup.foreseen]).
+ * On the way it reckons the days of food the band falls short of over the year before its larder pays ([Band.leanDays]).
  */
-internal fun HexGroups.foreseenSurvival(g: HexGroup, b: Band, weather: Weather): Float =
-    yearAhead(g, b, weather).alive(g.species, g.larder / g.dailyNeedKg.coerceAtLeast(1e-3f), g.fat, g.spent)
+internal fun HexGroups.foreseenSurvival(g: HexGroup, b: Band, weather: Weather): Float {
+    val year = yearAhead(g, b, weather)
+    b.leanDays = year.leanDays
+    return year.alive(g.species, g.larder / g.dailyNeedKg.coerceAtLeast(1e-3f), g.fat, g.spent)
+}
 
 /**
  * The months of the year ahead as [foreseenSurvival] reckons them for band [b] (group [g]), worked out once: each month's
@@ -43,6 +47,9 @@ internal fun HexGroups.yearAhead(g: HexGroup, b: Band, weather: Weather): YearAh
 
 /** The months ahead in order from next month ([yearAhead]): the exposure odds and the share of the need met in each. */
 internal class YearAhead(private val odds: FloatArray, private val fed: FloatArray) {
+    /** The days of food it falls short of over the months ahead, before its larder pays ([Band.leanDays]). */
+    val leanDays: Float = run { var lean = 0f; for (f in fed) lean += max(0f, 1f - f) * Date.DAYS_PER_MONTH; lean }
+
     /**
      * The share of people of kind [s] alive through the months ahead, starting with [larderDays] of the need in the larder,
      * [fat] days of fat and [spent] days of body protein burnt: the larder and then the fat pay the shortfalls as they come.

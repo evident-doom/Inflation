@@ -433,14 +433,14 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         } else {
             val rate = if (s.human) {
                 val stepsInSeason = s.birthMonths * Date.DAYS_PER_MONTH / days.toFloat()
-                s.youngPerFemale * g.fed * settledFertility(g) * HUMAN_BIRTHS * tuning.humanBirths * (1f + GRANDMOTHERS * help) / stepsInSeason
+                s.youngPerFemale * g.fed * (band?.let { birthSpacing(it) } ?: 1f) * HUMAN_BIRTHS * tuning.humanBirths * (1f + GRANDMOTHERS * help) / stepsInSeason
             } else {
                 // (By the residents' rule: a week's share of the season, no more than the mother has left of it, spaced by how crowded her kind is.)
                 val share = seasonShare(s, g.birthMonth, max(0f, 1f - g.bred), date, days)
                 g.bred += share
                 // (Meat is rich in protein: their young are short of none.)
                 val due = youngDue(s, kinKm2(g, kinNow), HexFauna.usualDensity(s), tuning.breedSpacing, 1f, share)
-                due * breeding(s, due, g.fat, g.fed, days) * settledFertility(g) * (1f + GRANDMOTHERS * help)
+                due * breeding(s, due, g.fat, g.fed, days) * (1f + GRANDMOTHERS * help)
             }
             bornExpected = mothersExact * rate
             // (A big litter over a short season is more than one a mother a week: the whole ones, and the rest by chance.)

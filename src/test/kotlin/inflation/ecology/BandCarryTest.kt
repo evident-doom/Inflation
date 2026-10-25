@@ -28,11 +28,12 @@ class BandCarryTest {
     }
 
     @Test
-    fun `an offshoot takes its share of the herd and keeps the grain and raid memory`() {
-        val a = Band(1); a.herd[0] = 10f; a.seedDomestic = 0.7f; a.sinceRaided = 3
+    fun `an offshoot takes its share of the herd and seed corn and keeps the grain and raid memory`() {
+        val a = Band(1); a.herd[0] = 10f; a.seedDomestic = 0.7f; a.seedCorn = 10f; a.sinceRaided = 3
         val o = Band(1)
         a.splitInto(o, 2, 8, 0.2f, Random(1)) {}
         assertEquals(2f, o.herd[0], 1e-6f); assertEquals(8f, a.herd[0], 1e-6f)
         assertEquals(0.7f, o.seedDomestic); assertEquals(3, o.sinceRaided)
+        assertEquals(2f, o.seedCorn, 1e-6f); assertEquals(8f, a.seedCorn, 1e-6f)
     }
 }

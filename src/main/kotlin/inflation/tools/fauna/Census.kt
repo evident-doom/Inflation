@@ -26,6 +26,10 @@ import inflation.ecology.set
 import inflation.ecology.contains
 import inflation.ecology.Place
 import inflation.ecology.hexOf
+import inflation.ecology.seedCornIn
+import inflation.ecology.bandLifeway
+import inflation.ecology.birthSpacing
+import kotlin.math.max
 
 /**
  * The model as it stands, over the whole map: each method prints one or a few lines of a fauna check's
@@ -214,15 +218,35 @@ class Census(private val sim: HexSim) {
         }
         val f = fauna.food
         val stands = (0 until land.n).count { f.cereal[it] > 0.01f }
-        val fields = (0 until land.n).filter { f.domestic[it] > 0.01f }
+        val fields = (0 until land.n).filter { f.field[it] > 0f || f.fieldGrain[it] > 0f }
         val atHome = groups.groups.filter { it.alive && it.band?.atHome == true }
-        println("cereals: wild stands in %d places; places with ears that hold their grain %d, most %.2f, mean there %.2f; grain reaped by people %.0f t in the last year; stored grain %.0f t (bands at home %.0f t); grain standing %.0f t, ripened in the last year %.0f t; bands at home on cereal ground %d of %d".format(
-            stands, fields.size, fields.maxOfOrNull { f.domestic[it] } ?: 0f,
-            if (fields.isEmpty()) 0.0 else fields.map { f.domestic[it].toDouble() }.average(), grainReaped,
+        println("cereals: wild stands in %d places; places with sown fields (sown or ripe) %d, the share of their ears that hold their grain: most %.2f, mean %.2f, this year's fields bearing %.2f of rested ground, worn ground %.1f km²; grain reaped by people %.0f t in the last year; stored grain %.0f t (bands at home %.0f t); grain standing %.0f t, ripened in the last year %.0f t; bands at home on cereal ground %d of %d".format(
+            stands, fields.size, fields.maxOfOrNull { f.fieldDomestic[it] } ?: 0f,
+            if (fields.isEmpty()) 0.0 else fields.map { f.fieldDomestic[it].toDouble() }.average(),
+            fields.filter { f.field[it] > 0f }.map { f.cropSoil(Place(it)).toDouble() }.average().takeIf { it.isFinite() } ?: 1.0,
+            (0 until land.n).sumOf { f.fieldWorn[it] * land.areaKm2[it].toDouble() }, grainReaped,
             gs.sumOf { it.stores[Store.SEED].toDouble() } / 1000,
             atHome.sumOf { it.stores[Store.SEED].toDouble() } / 1000,
-            (0 until land.n).sumOf { f.grain[it] * land.areaKm2[it] * 1e6 } / 1000, f.grainRipenedLastYear,
+            (0 until land.n).sumOf { (f.grain[it] + f.fieldGrain[it]) * land.areaKm2[it] * 1e6 } / 1000, f.grainRipenedLastYear,
             atHome.count { f.cereal[it.place] > 0f }, atHome.size))
+        // (Where the ears that hold their grain are kept: in the fields standing, by weight, and in the bands' seed corn and other grain.)
+        val sown = (0 until land.n).filter { f.field[it] > 0f }
+        val sownKg = sown.sumOf { f.field[it] * land.areaKm2[it] * 1e6 }
+        val bands = groups.groups.mapNotNull { g -> g.band?.takeIf { g.alive }?.let { b -> Triple(b, b.seedCornIn(g), g.stores[Store.SEED] - b.seedCornIn(g)) } }
+        val cornSum = bands.sumOf { it.second.toDouble() }
+        val wild = bands.sumOf { it.third.toDouble() }
+        println("cereals seed: sown and standing in %d places, %.1f t, of it from ears that hold their grain %.2f (by weight); bands holding seed corn %d of %d, %.1f t, of it from ears that hold their grain %.2f; their other grain %.1f t, %.2f".format(
+            sown.size, sownKg / 1000, if (sownKg > 0) sown.sumOf { f.fieldDomestic[it] * f.field[it] * land.areaKm2[it] * 1e6 } / sownKg else 0.0,
+            bands.count { it.second > 0f }, bands.size, cornSum / 1000, if (cornSum > 0) bands.sumOf { it.first.seedDomestic * it.second.toDouble() } / cornSum else 0.0,
+            wild / 1000, if (wild > 0) bands.sumOf { it.first.grainDomestic * it.third.toDouble() } / wild else 0.0))
+        // (What spaces births: gruel to wean on, and children carried on the band's moves; people-weighted.)
+        println("births by how bands live (people; share of weanlings weaned on gruel; camp moves a year; births against a band without weaning food): " + Tally.Lifeway.entries.joinToString(", ") { way ->
+            val ofWay = groups.groups.filter { g -> g.alive && g.band?.let { groups.bandLifeway(it) == way } == true }
+            val people = ofWay.sumOf { it.size.toDouble() }.coerceAtLeast(1.0)
+            fun mean(v: (inflation.ecology.Band) -> Float) = ofWay.sumOf { g -> g.band?.let { v(it).toDouble() * g.size } ?: 0.0 } / people
+            "%s %d: %.2f; %.1f; %.2f".format(way.label, ofWay.sumOf { it.size }, mean { it.weaningFood },
+                mean { groups.stepsPerYear / max(it.stayWeeks, it.campWeeks + 1f) }, mean { groups.birthSpacing(it) })
+        })
     }
 
     /** How unequal the land is for people: food to be had in each land hex (plant foods, game, fish). */

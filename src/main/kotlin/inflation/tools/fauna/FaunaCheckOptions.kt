@@ -4,6 +4,7 @@ import inflation.Args
 import inflation.Config
 import inflation.ecology.HexSim
 import inflation.ecology.HexSnapshot
+import inflation.ecology.startVillages
 import inflation.Tuning
 import inflation.learning.LearnedModel
 import inflation.run.TestWorlds
@@ -35,6 +36,9 @@ class FaunaCheckOptions(
             val t0 = System.nanoTime()
             HexSnapshot.load(sim, f)
             println("carrying on the world saved in $f, at ${sim.weather.date} (loaded in %.1f s)".format((System.nanoTime() - t0) / 1e9))
+            // (The saved state took the place of the villages the fresh world started with: a world carried on starts its
+            // villages now, among the bands it carries on with.)
+            if (sim.groups.tuning.startSettled > 0f) sim.groups.startVillages()
         }
         // (A fresh world's weather is drawn afresh too, so its replicates are other weathers on the same land.)
         if (replicate != 0L) { sim.weather.reseed(replicate); println("weather drawn afresh: replicate $replicate") }

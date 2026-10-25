@@ -11,6 +11,8 @@ import kotlin.math.roundToInt
  * the best farm ground ([farmWorth]), start as villages ([startVillage]); the rest start as foragers, as in any world. Fewer
  * start so where too few bands stand on farm ground. Nothing keeps a village a village afterwards: it stays, moves, sows or
  * splits by the same choices as any band, and the ways of living in houses pass to its neighbours as other ways do.
+ * A fresh world starts them as it makes its bands; a world carried on from a save starts them when it is taken up (so a
+ * save of a world that had villages, carried on with the key set again, starts more).
  */
 internal fun HexGroups.startVillages() {
     val bands = groups.filter { it.alive && it.species.human && it.band != null }
@@ -40,15 +42,11 @@ private fun HexGroups.startVillage(g: HexGroup, b: Band) {
     val food = fauna.food
     val ripening = land.plants.gdd[p] / land.plants.annualGdd[p].coerceAtLeast(1f) < HexFood.SEED_TO
     val harvest = VILLAGE_FIELD_DAYS * g.dailyNeedKg
-    if (ripening) {
-        val standing = food.cereal[p] * land.plants.herb[p] * HexFood.GRAIN_SHARE + food.field[p]
-        val sown = land.spread(p, Kg(harvest / HexFood.FIELD_YIELD)).v
-        food.domestic[p] = (food.domestic[p] * standing + sown) / (standing + sown).coerceAtLeast(1e-9f)
-        food.field[p] += sown
-    }
+    if (ripening) { food.sow(p, land.spread(p, Kg(harvest / HexFood.FIELD_YIELD)), 1f); b.sownPlace = p; b.sownKg = harvest / HexFood.FIELD_YIELD }
     // (Ground and baked, a kilo of grain feeds as a kilo of need: [seedValue] with grinding stones.)
     val stored = VILLAGE_STORE_DAYS * g.dailyNeedKg + if (ripening) 0f else harvest
     addFood(g.stores, g.storeKgPer, Store.SEED, stored * seedValue(b), stored)
+    b.seedCorn = g.stores[Store.SEED]
 }
 
 /** Ways a village starts knowing: storage bins sealed with clay, pit houses, gruel boiled with hot stones; and how well it knows them. */

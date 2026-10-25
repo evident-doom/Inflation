@@ -167,8 +167,31 @@ internal fun HexGroups.moveDays(g: HexGroup, km: Float) = km * (g.band?.let { re
  * besides a child (Lee 1979, from memory: to check).
  */
 const val CARRY_KG = 15f
-/** Most that settled life with stores raises births (birth spacing about 4 years to under 3). */
-const val SETTLED_FERTILITY = 0.4f
+/**
+ * The spacing of a mother's births, years, as pregnancy ([GESTATION_YEARS]), the wait to conceive again once she is fertile
+ * ([CONCEIVE_YEARS]: months at a monthly chance of about a sixth, with early losses; Bongaarts and Potter 1983, from memory), and
+ * the months nursing keeps her from it: [NURSING_YEARS_MOST] where a child lives on the breast till it eats what grown people
+ * eat (the !Kung spaced births about four years, Howell 1979, from memory), down to [NURSING_YEARS_LEAST] where soft food
+ * weans it early (traditional farmers' months without ovulation, about 12 to 18, Bongaarts and Potter 1983, from memory).
+ * The base rate ([HUMAN_BIRTHS]) is the first spacing's, [SPACING_MOST].
+ */
+const val GESTATION_YEARS = 0.75f
+const val CONCEIVE_YEARS = 0.7f
+const val NURSING_YEARS_MOST = 2.55f
+const val NURSING_YEARS_LEAST = 1.25f
+const val SPACING_MOST = GESTATION_YEARS + CONCEIVE_YEARS + NURSING_YEARS_MOST
+/**
+ * Share of a band's food its weanlings ask, the seed that weans them all as gruel (an estimate: under-fours about a sixth of
+ * a forager band, Howell 1979, from memory, at about a third of a grown share).
+ */
+const val WEANING_SHARE = 0.05f
+/**
+ * A mother carries a child on the band's moves till it walks them, about four years old (Lee 1979; the backload, Blurton
+ * Jones 1986, both from memory): a mother of a band that moves camp as often as the !Kung, about [CARRY_MOVES] times a year
+ * (Kelly 1995, from memory), spaces her births so; one that moves less, the less (in proportion: an estimate).
+ */
+const val CARRY_YEARS = 4f
+const val CARRY_MOVES = 5f
 /** Extra yearly deaths among children in a camp kept for a year or more. */
 const val CAMP_FOULING = 0.02f
 /** People's deaths of thirst against an animal's at the same days without water. */
@@ -290,6 +313,8 @@ class Band(kinds: Int) {
     var houseFoodWeek = 0f
     /** Its food over about a year by where it came from ([FoodFrom]), kg a person a day (a running mean, [HexGroups.recordFood]). */
     val foodFrom = FloatArray(FoodFrom.entries.size)
+    /** Over about a year, the share of its weanlings it could wean on gruel ([gruel], [WEANING_SHARE]; a running mean, at its meals). */
+    var weaningFood = 0f
     /**
      * Over about a year, how its fishing paid against the least paying food its gatherers took up, as fish's yield a day of
      * handling over itself and that least yield: above 1/2 fish was worth taking up, 0 no fish in reach ([Offers.pull]).
@@ -302,8 +327,20 @@ class Band(kinds: Int) {
     /** The kg each kind in the cache weighs for each kg of its worth (see [addFood]). */
     val cacheKgPer = enumFloats<Store> { 1f }
     var cachePlace = Place.NONE
-    /** Its choices: days of food it aims to keep in store (the scaffold's; a learned policy sets its own). */
-    var storeAim = STORE_AIM_DAYS
+    /**
+     * Its choices: how much of its foreseen want it aims to keep in store (the scaffold's 1; a learned policy sets its own).
+     * Days of food it aims to keep: that share of [STORE_AIM_DAYS] against bad weeks and of the days its food fell short over
+     * the last years' months ([leanDays]), to carry it through the lean months.
+     */
+    var storeShare = 1f
+    /**
+     * Days of its food it went short of over a year, month by month as it got food in each month over the last years
+     * ([monthSupply]) against what keeping warm takes then ([warmthNeed]); [foreseenSurvival] reckons it.
+     */
+    var leanDays = 0f
+    val storeAim get() = storeShare * storeAimAt1
+    /** [storeAim] at the scaffold's [storeShare]. */
+    val storeAimAt1 get() = STORE_AIM_DAYS + leanDays
     /**
      * Its appointment: the hex where it means to be in a month of the year, kept by a moon count
      * (with sky lore, to the month; without, a month either way), -1 for none; taken up from its
@@ -354,8 +391,17 @@ class Band(kinds: Int) {
      */
     val herd = FloatArray(kinds)
     val herdTame = FloatArray(kinds)
-    /** Of the grain in its stores, the share from ears that hold their grain (what it would sow). */
+    /**
+     * Of the grain in its stores, what it reaped from sown fields and keeps to sow first, its seed corn (as its stores count
+     * it; eaten last, so no more than its grain: [seedCornIn]), and the share of that from ears that hold their grain;
+     * and of the rest, gathered from wild stands, the share from ears that hold their grain.
+     */
+    var seedCorn = 0f
+    /** Where it sowed this year's crop ([Place.NONE] for nowhere) and the kg it sowed there: what it would lose by leaving (HexGroups.cropPull). */
+    var sownPlace = Place.NONE
+    var sownKg = 0f
     var seedDomestic = 0f
+    var grainDomestic = 0f
     /** Its ways ([BandWay]), as [setWays] sets them each week from its ways' outputs: 1 each for the scaffold's way. Read through the names below. */
     val will = enumFloats<BandWay> { 1f }
     /** Its choices: how much of its stored grain it sows in autumn at its home (the scaffold: some, once it has houses). */
@@ -553,8 +599,8 @@ class Band(kinds: Int) {
     fun splitInto(o: Band, adults: Int, stay: Int, share: Float, r: Random, copied: (Band) -> Unit) {
         o.ties.clear(); o.ties.putAll(ties); o.appointment = appointment
         o.houseHex = houseHex; o.house = house; o.homeEarth = homeEarth; o.homeGroundC = homeGroundC; o.palisade = palisade; herdTame.copyInto(o.herdTame); herd.copyInto(o.herd)
-        o.houseLives = houseLives; o.houseFood = houseFood; foodFrom.copyInto(o.foodFrom); o.fishPull = fishPull; monthSupply.copyInto(o.monthSupply)
-        o.seedDomestic = seedDomestic; o.sinceRaided = sinceRaided; o.sisu = sisu
+        o.houseLives = houseLives; o.houseFood = houseFood; foodFrom.copyInto(o.foodFrom); o.fishPull = fishPull; monthSupply.copyInto(o.monthSupply); o.leanDays = leanDays
+        o.seedDomestic = seedDomestic; o.grainDomestic = grainDomestic; o.seedCorn = seedCorn * share; seedCorn -= o.seedCorn; o.sinceRaided = sinceRaided; o.sisu = sisu
         o.knownHomes.putAll(knownHomes); o.knownLineage.putAll(knownLineage)
         skills.copyInto(o.skills)
         knowsSkill.copyInto(o.knowsSkill)
@@ -615,7 +661,12 @@ class Band(kinds: Int) {
             a.kit[i] += w * (b.kit[i] - a.kit[i])
         }
         if (dried + bDried > 0f) a.salted = (dried * a.salted + bDried * b.salted) / (dried + bDried)
-        if (seed + bSeed > 0f) a.seedDomestic = (seed * a.seedDomestic + bSeed * b.seedDomestic) / (seed + bSeed)
+        // (Seed corn blended by the seed corn each held, the rest of the grain by the rest.)
+        val corn = min(a.seedCorn, seed); val bCorn = min(b.seedCorn, bSeed)
+        if (corn + bCorn > 0f) a.seedDomestic = (corn * a.seedDomestic + bCorn * b.seedDomestic) / (corn + bCorn)
+        val wild = seed - corn; val bWild = bSeed - bCorn
+        if (wild + bWild > 0f) a.grainDomestic = (wild * a.grainDomestic + bWild * b.grainDomestic) / (wild + bWild)
+        a.seedCorn = corn + bCorn
         for (i in Illness.entries) { a.sick[i] += w * (b.sick[i] - a.sick[i]); a.immune[i] += w * (b.immune[i] - a.immune[i]) }
         a.hurt += w * (b.hurt - a.hurt); a.lame += w * (b.lame - a.lame)
         a.ornaments += b.ornaments; a.exotic += b.exotic
@@ -880,6 +931,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     time.release(Activity.ORNAMENTS)
     // In autumn a band at home, or long at its camp, sows a share of its stored grain there: a plot that ripens
     // next summer to several times as much, of the kind of ears it sowed.
+    harvestCrop(g, b, time)
     sowGrain(g, b, p, date, time)
     time.release(Activity.SOWING)
     // A band at home that has been raided in the last year rings its houses with a palisade, as far
@@ -933,6 +985,8 @@ internal fun HexGroups.choreAsks(g: HexGroup, b: Band, date: Date, asks: FloatAr
         if (fortifies(b)) ask(Activity.PALISADE,
             minOf(1f - palisadeAt(g, h.i), b.goods[Material.WOOD] / (PALISADE_WOOD * people)).coerceAtLeast(0f) * PALISADE_DAYS * people)
     }
+    // (Its own crop, ripe, it brings in wherever it has come from: the field work is sowing's time.)
+    cropRipe(g, b).takeIf { it > 0f }?.let { asks[Activity.SOWING.ordinal] += it * reapDaysPerKg(b, tuning) }
     ask(Activity.DRYING, b.dryAsk)
     ask(Activity.SKINS, b.skinAsk)
 }
@@ -1344,7 +1398,7 @@ private fun HexGroups.buildHouse(g: HexGroup, b: Band, p: Place, h: Hex, people:
         val longEnough = b.campWeeks >= houseAfterWeeks(b)
         val stocked = g.larder >= 0.5f * b.storeAim * g.dailyNeedKg
         u.choice(DialSite.HOUSES, b.houseWill, longEnough && stocked, b.campWeeks >= HOUSE_AFTER_YEARS * stepsPerYear && stocked, cut = b.houseWill < 0.1f)
-        u.choice(DialSite.STORE_HOUSES, b.storeAim / STORE_AIM_DAYS, longEnough && stocked, longEnough && g.larder >= 0.5f * STORE_AIM_DAYS * g.dailyNeedKg)
+        u.choice(DialSite.STORE_HOUSES, b.storeShare, longEnough && stocked, longEnough && g.larder >= 0.5f * b.storeAimAt1 * g.dailyNeedKg)
     } }
     if (b.campWeeks < houseAfterWeeks(b) || left <= 0f || people <= 0f || g.fed < 0.9f || g.larder < 0.5f * b.storeAim * g.dailyNeedKg) return 0f
     val sheltered = housesAt(g, h.i)
@@ -1409,17 +1463,56 @@ private fun HexGroups.sowGrain(g: HexGroup, b: Band, p: Place, date: Date, time:
         val sow = minOf(stock * SOW_SHARE * b.sowWill, left / SOW_DAYS_PER_KG)
         dialUse?.amount(DialSite.SOWING, b.sowWill, sow, minOf(stock * SOW_SHARE, left / SOW_DAYS_PER_KG))
         if (sow > 0.1f) {
-            g.stores[Store.SEED] -= sow; time.spend(Activity.SOWING, sow * SOW_DAYS_PER_KG)
-            val food = fauna.food
-            val standing = food.cereal[p] * land.plants.herb[p] * HexFood.GRAIN_SHARE + food.field[p]
-            val add = land.spread(p, Kg(sow * g.storeKgPer[Store.SEED])).v
-            food.domestic[p] = (food.domestic[p] * standing + b.seedDomestic * add) / (standing + add).coerceAtLeast(1e-9f)
-            food.field[p] += add
+            // (Its seed corn first, then grain gathered from the wild stands.)
+            val corn = b.seedCornIn(g); val fromCorn = min(sow, corn)
+            val domestic = (fromCorn * b.seedDomestic + (sow - fromCorn) * b.grainDomestic) / sow
+            g.stores[Store.SEED] -= sow; b.seedCorn = corn - fromCorn; time.spend(Activity.SOWING, sow * SOW_DAYS_PER_KG)
+            val kg = sow * g.storeKgPer[Store.SEED]
+            // (A field sown afresh, or sown where last year's crop is spent, is this year's crop.)
+            if (b.sownPlace != p || fauna.food.field[p] <= 0f) b.sownKg = 0f
+            b.sownPlace = p; b.sownKg += kg
+            fauna.food.sow(p, land.spread(p, Kg(kg)), domestic)
             stats.meeting(Met.BANDS_SOWED)
             note(g) { "sowed %.0f kg of grain at home".format(sow) }
         }
     }
 }
+
+/**
+ * The ripe grain of the crop [g]'s band [b] sowed ([Band.sownPlace]), kg, where the band is in that hex: its share of what
+ * stands there, by the seed it sowed against all sown there (all of it once the year's sowing is struck off).
+ */
+private fun HexGroups.cropRipe(g: HexGroup, b: Band): Float {
+    val f = b.sownPlace
+    if (f.none || b.sownKg <= 0f || hw.placeHex[f.i] != hw.placeHex[g.place.i]) return 0f
+    val food = fauna.food
+    val share = if (food.field[f] > 0f) min(1f, b.sownKg / (food.field[f] * land.m2(f))) else 1f
+    return food.fieldGrain[f] * land.m2(f) * share
+}
+
+/**
+ * [g]'s band [b] brings in its ripe crop ([cropRipe]) in the [time] days to spare, as seed corn: a crop is reaped whole
+ * when it is ripe, not a week's meals at a time.
+ */
+private fun HexGroups.harvestCrop(g: HexGroup, b: Band, time: BandTime) {
+    val ripe = cropRipe(g, b); val left = time.leftFor(Activity.SOWING)
+    if (ripe <= 0f || left <= 0f) return
+    val perKg = reapDaysPerKg(b, tuning)
+    val f = b.sownPlace; val food = fauna.food
+    val kg = land.total(f, food.take(food.fieldGrain, f, land.spread(f, Kg(min(ripe, left / perKg))))).v
+    if (kg <= 0f) return
+    time.spend(Activity.SOWING, kg * perKg)
+    val worth = kg * seedValue(b) * b.cookValue(Food.GRAIN)
+    val corn = b.seedCorn
+    b.seedDomestic = (b.seedDomestic * corn + b.reapedDomestic(food.fieldDomestic[f]) * worth) / (corn + worth)
+    b.seedCorn = corn + worth
+    addFood(g.stores, g.storeKgPer, Store.SEED, worth, kg)
+    stats.hunting.merge(Tally.of(g.species, Tally.OfKind.GRAIN_REAPED), worth.toInt(), Int::plus)
+    note(g) { "brought in %.0f kg of its crop".format(kg) }
+}
+
+/** [Band.seedCorn] as [g]'s stores hold it: grain is eaten, spoils, is given and taken from the wild grain first. */
+internal fun Band.seedCornIn(g: HexGroup) = min(seedCorn, g.stores[Store.SEED])
 
 /** Whether [g]'s band [b] sows at place [p] now: in autumn, at home or at a camp it has kept long enough to build at, where grass grain grows. */
 private fun HexGroups.canSow(g: HexGroup, b: Band, p: Place, date: Date) =
@@ -1607,11 +1700,25 @@ const val MARSH_FEVER = 0.05f
 internal fun HexGroups.bandLifeway(b: Band) =
     if (b.atHome || b.campWeeks >= stepsPerYear / 2f) Tally.Lifeway.SETTLED else Tally.Lifeway.MOBILE
 
-/** Settled life with stores shortens the spacing of births. */
-internal fun HexGroups.settledFertility(g: HexGroup): Float {
-    val b = g.band ?: return 1f
-    return 1f + SETTLED_FERTILITY * tuning.settledFertility * min(1f, b.campWeeks / (stepsPerYear / 2f)) * min(1f, g.larderDays() / WELL_STOCKED_DAYS)
+/**
+ * [b]'s births against those of a band without weaning food ([SPACING_MOST] over its spacing): gruel weans children early
+ * ([Band.weaningFood]), but a mother carries each child on the band's moves till it walks them ([CARRY_YEARS]).
+ */
+internal fun HexGroups.birthSpacing(b: Band): Float {
+    val nursing = NURSING_YEARS_MOST - (NURSING_YEARS_MOST - NURSING_YEARS_LEAST) * b.weaningFood
+    // (A band at home or long at one camp moves the less: the weeks it has kept this camp count as well as its usual stay.)
+    val moves = stepsPerYear / max(b.stayWeeks, b.campWeeks + 1f)
+    val carried = CARRY_YEARS * min(1f, moves / CARRY_MOVES)
+    return SPACING_MOST / max(GESTATION_YEARS + CONCEIVE_YEARS + nursing, carried)
 }
+
+/**
+ * How far [b] can make its seed into gruel, soft food to wean a child on: ground to meal ([Tool.GRINDER], too heavy to take
+ * along, so a band that moves camp leaves its querns behind) and boiled with hot stones, in baskets. (Whole seed boiled is
+ * no weanling's food, as raw seed is poor food for anyone: [seedValue].)
+ */
+internal fun Band.gruel(): Float =
+    if (knowsSkill[Skill.STONE_BOILING]) fire * skill(Skill.STONE_BOILING) * max(has(Tool.BASKET), 0.5f) * has(Tool.GRINDER) else 0f
 
 /** Extra yearly deaths among children of a camp kept long: refuse, flies and fouled water. */
 internal fun HexGroups.campFouling(g: HexGroup, campWeeks: Int = g.band?.campWeeks ?: 0): Float {
@@ -1685,7 +1792,7 @@ enum class Store(val lostWeekly: Float, val meat: Boolean, val protein: Float) {
 }
 /** The order a band eats its food in: what spoils first, first. */
 val EAT_ORDER = listOf(Store.FRESH, Store.FRUIT, Store.ROOTS, Store.DRIED, Store.SEED, Store.GREASE)
-/** The scaffold's store: days of food a band aims to keep; share of the gap it works to close a week. */
+/** The scaffold's store: days of food a band aims to keep against bad weeks, besides its lean months ([Band.leanDays]); share of the gap it works to close a week. */
 const val STORE_AIM_DAYS = 30f
 const val STORE_FILL = 0.25f
 /** Person-days to dry or smoke a kilo of meat or fish (cutting it thin, tending the racks and fire), at full skill. */
@@ -1932,7 +2039,7 @@ internal fun HexGroups.fillBandStates(weather: Weather) {
     for (g in list) g.band!!.beastLoss *= 0.9f
 }
 
-/** Sets a band's ways from [ways]' outputs: 0 is the scaffold (effort 1, stores [STORE_AIM_DAYS], every tool alike). */
+/** Sets a band's ways from [ways]' outputs: 0 is the scaffold (effort 1, stores [Band.storeAimAt1], every tool alike). */
 /** Files every living band under the hex it is in now ([HexGroups.bandIndex]), for [bandInputs]' bands about. */
 internal fun HexGroups.indexBands() {
     bandIndex.clear()
@@ -1947,7 +2054,7 @@ internal fun HexGroups.setWays(g: HexGroup, weather: Weather, ways: BandWays, in
     if (g.id == watched) control?.ways(g, out)
     fun squash(x: Float) = 2f / (1f + exp(-x))
     for (t in 0 until FOOD_TYPES) b.effort[t] = squash(out[t])
-    b.storeAim = STORE_AIM_DAYS * squash(out[STORE_AIM_SLOT])
+    b.storeShare = squash(out[STORE_AIM_SLOT])
     for (t in Tool.entries) b.makeFirst[t] = squash(out[MAKE_FIRST_SLOT + t.ordinal])
     for (w in BandWay.entries) b.will[w] = squash(out[w.slot])
 }

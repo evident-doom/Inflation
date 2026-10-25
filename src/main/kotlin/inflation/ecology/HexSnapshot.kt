@@ -228,15 +228,40 @@ object HexSnapshot {
      *   foresee, is staying in the hex (it was staying on the same ground, so the other ground of a hex looked like a fresh camp
      *   while the week kept the camp weeks going); the sick a band foresees among the bands gathered at a place are those of
      *   the whole hex, where the meetings are.
-     * 4.45: a band's gatherers walk to the plant food and carry it home a load at a time ([GATHER_LOAD_KG]), so food
+     * 4.45: a sown field is a crop of its own ([HexFood.fieldGrain], [HexFood.fieldDomestic]): it takes after the seed sown
+     *   in it and is reaped before the wild stand, instead of mixing into the whole place's wild stand, which swamped it.
+     * 4.46: a field sown in autumn stands through the winter and ripens the next summer (it was struck off at midwinter,
+     *   so no sown field ever ripened); a field ripens as much less as it went short of water since midwinter
+     *   ([HexFood.CROP_DEPLETION], FAO-56).
+     * 4.47: a plot cropped year after year bears less, and mends as it rests ([HexFood.fieldSoil], Broadbalk).
+     * 4.48: the wear is the worn ground's, not the whole place's ([HexFood.fieldWorn]): a field is sown on rested ground
+     *   first ([HexFood.cropSoil], [HexFood.SEED_RATE]), so a plot of a few hectares no longer wears a place of square kilometres.
+     * 4.49: a band aims to store, besides a month against bad weeks, the days its food fell short over the year
+     *   ([Band.leanDays], from [Band.monthSupply]), its store choice a share of both ([Band.storeShare]); it was a month
+     *   or two at most, so no band could lay by for a winter.
+     * 4.50: a band keeps what it reaps from sown fields as seed corn and sows it first ([Band.seedCorn]); the grain it
+     *   gathers from wild stands no longer mixes into the seed it sows (sown fields went from 0.75 to 0.02 ears that hold their
+     *   grain within five years, as wild grain swamped the seed).
+     * 4.51: a band weighs a camp by the ripe grain standing there, wild and sown, as it weighs other plant food ([campPlants]);
+     *   and the crop it has sown draws it to stay by it till it is reaped ([HexGroups.cropPull], [Band.sownPlace]): before, no
+     *   choice of camp saw grain at all, and villages walked away from their fields.
+     * 4.52: a band brings in its own ripe crop whole as seed corn, as field work in sowing's time ([harvestCrop]), at the
+     *   reaping rate of any grain ([reapDaysPerKg]); before, a crop was reaped only a week's meals and stores at a time, and
+     *   most of it stood till it was shed or reaped by others (seed corn fell twentyfold in ten years).
+     * 4.53: people's births are spaced by what weans their children and by carrying them ([birthSpacing]): gruel of seed
+     *   ([Band.weaningFood]) shortens nursing, and a mother of a band that moves camp often spaces births till a child walks
+     *   the moves; this replaces the flat bonus of settled, well-stocked bands (settledFertility).
+     * 4.54: weaning gruel is of seed ground to meal ([Band.gruel] needs a grinder): before, 72-88% of weanlings were weaned on
+     *   gruel in mobile and settled bands alike, so weaning food did not tell the two ways of life apart.
+     * 4.55: a band's gatherers walk to the plant food and carry it home a load at a time ([GATHER_LOAD_KG]), so food
      *   further from camp, and the far side of a place they strip, takes longer a kilo; and they search for roots before
-     *   they dig them, longer a kilo the thinner they grow ([ROOT_SEARCH_M2_PER_DAY]); a band's week gives its days first
-     *   to food, firewood and shelter as far as they avert the deaths it foresees this week and through the year after
-     *   ([survivalDays]), in place of the week's food and firewood shared pro rata;
+     *   they dig them, longer a kilo the thinner they grow ([ROOT_SEARCH_M2_PER_DAY]); a band's week holds its days first
+     *   for the firewood and shelters as far as they avert the deaths it foresees this week and through the year after
+     *   ([survivalDays]), then for the week's food and the rest of the firewood;
      *   and a band choosing its camp counts roots as its gathering would find them ([HexGroups.rootsFound]).
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 45
+    const val MODEL_MINOR = 55
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
