@@ -264,6 +264,17 @@ const val BONE_DAYS = 3f
  * Weiss & Hartman 2004, PNAS 101:2692. Reaping a dense stand with a sickle is faster, unmeasured here.)
  */
 const val ROOT_DIGGING = 2f
+/**
+ * Ground a band's gatherer searches for roots and bulbs in a day, m². Roots must be found before they are dug, so
+ * thin ground takes longer a kilo: Holling's disc equation, days a kilo = digging + 1 / (search x density). Fitted to one
+ * pair of figures. Naive foragers in the southern Cape took about two hours to 2,000 kcal: half of 26 events got there
+ * within two hours (Singels et al. 2015, PeerJ PrePrints 3:e1573). The ground held 52-160 kg/ha of edible underground
+ * organs, fresh (Singels 2013), at about 1.9 kcal/g. The digging time here alone gives some 1,400 kcal/h, so the search
+ * takes the rest: about 190 m² searched an hour, or 1,100 m² over a 6-hour day. This is an approximation. Skilled foragers
+ * search faster than naive ones, and the fit rests on the digging time being right. Fallen mast, counted in the same stock,
+ * is easier to find than bulbs.
+ */
+const val ROOT_SEARCH_M2_PER_DAY = 1100f
 const val SEED_HANDLING_DAYS_PER_KG = 0.5f
 const val FISH_HANDLING_DAYS_PER_KG = 0.3f
 /**
@@ -283,6 +294,26 @@ const val BAND_FRUIT_DAYS_PER_KG = 0.45f
  * (Bliege Bird & Bird 2002, Human Nature 13: 239-267), so no skill slows it.
  */
 const val SHELLFISH_DAYS_PER_KG = 0.12f
+/**
+ * Gatherers walk out to the food and carry it home a load at a time, so food further off takes longer a kilo: the walk
+ * there and back over the load (the marginal value theorem at its simplest). Walking speed, km/h, and a gatherer's load,
+ * fresh kg: 4 km/h and a !Kung mother's 12 kg of mongongo nuts, Lee's usual loads being 10-15 kg (Blurton Jones, Hawkes &
+ * Draper 1994, J Anthropol Res 50: 217-248, pp. 228-232).
+ */
+const val WALK_KM_PER_HOUR = 4f
+const val GATHER_LOAD_KG = 12f
+/**
+ * Dry matter's share of a kg of each plant food as carried, by which [GATHER_LOAD_KG] holds less of the plant stocks'
+ * dry kilos. Fruit: !Kung Grewia's 434 g fresh an hour at 500-740 kcal/h (Blurton Jones, Hawkes & Draper 1994) is some
+ * 1.2-1.7 kcal/g fresh, against Hadza berries' 3.2 dry ([Nourishment.FRUIT]): about 0.45. Roots and seed are guesses
+ * (tubers mostly water; grain about a tenth): unsourced. Small finds are reckoned as found.
+ */
+const val FRUIT_DRY = 0.45f
+const val ROOTS_DRY = 0.3f
+const val SEED_DRY = 0.9f
+fun dryShare(t: Food) = when (t) {
+    Food.FRUIT -> FRUIT_DRY; Food.ROOTS -> ROOTS_DRY; Food.SEED, Food.GRAIN -> SEED_DRY; else -> 1f
+}
 /** Times a party plans its week's foraging over: if others took what it planned on, it looks again at what is left. */
 const val FORAGE_PASSES = 3
 

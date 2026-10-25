@@ -22,27 +22,51 @@ import kotlin.math.roundToInt
  * On the way it reckons the days of food the band falls short of over the year before its larder pays ([Band.leanDays]).
  */
 internal fun HexGroups.foreseenSurvival(g: HexGroup, b: Band, weather: Weather): Float {
-    val s = g.species; val p = g.place; val now = weather.date.month
-    val days = Date.DAYS_PER_MONTH
+    val year = yearAhead(g, b, weather)
+    b.leanDays = year.leanDays
+    return year.alive(g.species, g.larder / g.dailyNeedKg.coerceAtLeast(1e-3f), g.fat, g.spent)
+}
+
+/**
+ * The months of the year ahead as [foreseenSurvival] reckons them for band [b] (group [g]), worked out once: each month's
+ * exposure odds and the share of its need the food it got then meets, against what keeping warm will take then.
+ */
+internal fun HexGroups.yearAhead(g: HexGroup, b: Band, weather: Weather): YearAhead {
+    val p = g.place; val now = weather.date.month
     val home = b.homeShelter()
-    var larder = g.larder / g.dailyNeedKg.coerceAtLeast(1e-3f)
-    var fat = g.fat; var spent = g.spent
-    var alive = 1f; var lean = 0f
+    val odds = FloatArray(Date.MONTHS_PER_YEAR); val fed = FloatArray(Date.MONTHS_PER_YEAR)
     for (k in 1..Date.MONTHS_PER_YEAR) {
         val m = (now + k) % Date.MONTHS_PER_YEAR
-        val t = weather.usualTemperature(m, p)
-        val w = b.warmth(airAt(p, weather, t), b.fire, home, days)
+        val w = b.warmth(airAt(p, weather, weather.usualTemperature(m, p)), b.fire, home, Date.DAYS_PER_MONTH)
         // (The food it got then, against what keeping warm will take, as [warmthNeed] has it: more food to keep warm is less
         // of the need met.)
-        var fed = b.monthSupply[m] / warmthNeed(w, b.fire)
-        val short = max(0f, 1f - fed) * days; lean += short
-        val paid = min(short, larder); larder -= paid; fed += paid / days
-        val onFat = Hazards.onFat(fed, fat, days); fat = max(0f, fat - (onFat - fed) * days)
-        val hunger = Hazards.hunger(s, spent, onFat, days); spent = Hazards.spentAfter(s, spent, onFat, days)
-        alive *= (1f - w.odds) * (1f - hunger) * (1f - s.backgroundMortality / Date.MONTHS_PER_YEAR)
+        odds[k - 1] = w.odds; fed[k - 1] = b.monthSupply[m] / warmthNeed(w, b.fire)
     }
-    b.leanDays = lean
-    return alive
+    return YearAhead(odds, fed)
+}
+
+/** The months ahead in order from next month ([yearAhead]): the exposure odds and the share of the need met in each. */
+internal class YearAhead(private val odds: FloatArray, private val fed: FloatArray) {
+    /** The days of food it falls short of over the months ahead, before its larder pays ([Band.leanDays]). */
+    val leanDays: Float = run { var lean = 0f; for (f in fed) lean += max(0f, 1f - f) * Date.DAYS_PER_MONTH; lean }
+
+    /**
+     * The share of people of kind [s] alive through the months ahead, starting with [larderDays] of the need in the larder,
+     * [fat] days of fat and [spent] days of body protein burnt: the larder and then the fat pay the shortfalls as they come.
+     */
+    fun alive(s: Species, larderDays: Float, fat: Float, spent: Float): Float {
+        val days = Date.DAYS_PER_MONTH
+        var larder = larderDays; var fatLeft = fat; var burnt = spent
+        var alive = 1f
+        for (k in odds.indices) {
+            var fed = fed[k]
+            val paid = min(max(0f, 1f - fed) * days, larder); larder -= paid; fed += paid / days
+            val onFat = Hazards.onFat(fed, fatLeft, days); fatLeft = max(0f, fatLeft - (onFat - fed) * days)
+            val hunger = Hazards.hunger(s, burnt, onFat, days); burnt = Hazards.spentAfter(s, burnt, onFat, days)
+            alive *= (1f - odds[k]) * (1f - hunger) * (1f - s.backgroundMortality / Date.MONTHS_PER_YEAR)
+        }
+        return alive
+    }
 }
 
 /**

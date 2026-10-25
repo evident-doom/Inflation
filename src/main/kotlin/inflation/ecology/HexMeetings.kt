@@ -29,6 +29,7 @@ import java.util.stream.Collectors
 import java.util.stream.IntStream
 import kotlin.math.ceil
 import kotlin.math.sqrt
+import kotlin.math.PI
 
 // Hunting along the way, and the meetings of a week settled one by one in the order they happen.
 
@@ -200,8 +201,8 @@ private fun restedDays(w: ForageWeek, time: BandTime) {
 /**
  * A band's plan of its week, made once [forage] sees what food asks of it: [needDays] of its hands' week to eat what it
  * wants this week, [storeDays] more to lay by what it aims to keep. The walk, when it moved camp ([moveDays]), and digging
- * soaks for water, where that is the only water, come off first. Then what it needs to live through the week (food for the
- * week, the hearth's firewood); then the rest of what each activity asks for ([choreAsks]: the stores and its chores),
+ * soaks for water, where that is the only water, come off first. Then the days the hearth's firewood and the camp's
+ * shelters take to keep its people warm ([survivalDays]), then the week's food; then the rest of what each activity asks for ([choreAsks]: the rest of the week's food, the stores and its chores),
  * shared out when it comes to more than the days left ([BandTime.plan]). Leisure asks for nothing: it is what the week
  * leaves (and takes less food: [restedDays]). Then it fetches the hearth's firewood in the days the plan gives it.
  */
@@ -213,21 +214,38 @@ private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float)
     if (land.drink.mustDig(g.place, w.s.dailyTravelKm)) time.spend(Activity.FOOD, HexDrinkingWater.DIG_SHARE * days * hands)
     // (Moving camp takes its days first: everyone walks, at the pace of the slowest, see [moveDays].)
     time.spend(Activity.MOVING, min(days.toFloat(), moveDays(g, max(0, g.path.size - 1) * hex.hexKm.toFloat())) * hands)
+    // (Then the days that keep its people alive this week and through the year after, by its own foresight ([survivalDays]):
+    // food, the hearth's firewood and the camp's shelters, each as far as it averts deaths for its days; a band that has
+    // walked most of its week gives what is left where it does most.)
+    val fuel = fuelAsk(g, hands)
+    val foodAsk = needDays * hands
+    val warm = survivalDays(g, b, w.weather, time, hands, foodAsk, if (w.wantAll > 0f) (w.fed / w.wantAll).coerceIn(0f, 1f) else 1f, fuel, movedCamp(g, b))
     val needs = FloatArray(Activity.entries.size)
-    needs[Activity.FOOD.ordinal] = needDays * hands
-    needs[Activity.FIREWOOD.ordinal] = fuelAsk(g, hands)
+    // (The rest of the hearth's firewood shares the week with the food, as it always did: a fire also cooks, and raw meals
+    // feed less, [RAW_COST].)
+    needs[Activity.FOOD.ordinal] = foodAsk
+    needs[Activity.FIREWOOD.ordinal] = max(0f, fuel - warm[Activity.FIREWOOD.ordinal])
     val asks = FloatArray(Activity.entries.size)
     asks[Activity.FOOD.ordinal] = storeDays * hands
-    choreAsks(g, b, w.weather.date, asks)
-    // (The band weighs the asks against each other by its ways: see [timeWay].)
-    time.plan(needs, asks, FloatArray(asks.size) { i -> timeWay(Activity.entries[i])?.let { b.will[it] } ?: 1f })
+    choreAsks(g, b, w.weather.date, asks, warm)
+    // (The band weighs the rest of the asks against each other by its ways: see [timeWay].)
+    time.plan(needs, asks, FloatArray(asks.size) { i -> timeWay(Activity.entries[i])?.let { b.will[it] } ?: 1f }, warm)
     b.binding?.let { bind ->
         if (time.short) for (a in Activity.entries) if (asks[a.ordinal] > 0f) bind[a.ordinal] += 1f
         if (g.path.size > 1) bind[Binding.MOVES] += 1f
     }
     dialUse?.let { u -> for (a in Activity.entries) timeWay(a)?.let { way ->
         if (asks[a.ordinal] > 0f) u.amount(DialSite.TIME_WEIGHTS, b.will[way], time.heldFor(a), time.heldAtOneFor(a), dial = way.slot) } }
-    val fuel = needs[Activity.FIREWOOD.ordinal]
+    note(g) {
+        "plan: %.1f person-days, moving %.1f; food asked %.1f; first for warmth: firewood %.1f of %.1f, shelter %.1f; held food %.1f, firewood %.1f, shelter %.1f; stores asked %.1f; short %s".format(
+            time.total, time.spentOn(Activity.MOVING), foodAsk, warm[Activity.FIREWOOD.ordinal], fuel,
+            warm[Activity.SHELTER.ordinal], time.heldFor(Activity.FOOD), time.heldFor(Activity.FIREWOOD), time.heldFor(Activity.SHELTER),
+            storeDays * hands, time.short) + run {
+            val air = airAt(g.place, w.weather); val home = b.homeShelter()
+            val unlit = b.warmth(air, 0f, home, days); val lit = b.warmth(air, 1f, home, days)
+            "; exposure odds without a fire %.2g, with a full one %.2g (%.1f °C, shelter %.2f, fire now %.2f)".format(unlit.odds, lit.odds, air.meanC, b.shelter, b.fire)
+        }
+    }
     w.fuelDays = fetchFuel(g, b, hands, if (fuel > 0f) min(1f, time.leftFor(Activity.FIREWOOD) / fuel) else 1f)
     time.spend(Activity.FIREWOOD, w.fuelDays * hands)
     time.release(Activity.FIREWOOD)
@@ -270,6 +288,9 @@ private class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, packK
     // (People pick fruit a berry at a time, at the record's rate: see [BAND_FRUIT_DAYS_PER_KG].)
     val fruitDays = if (band != null) BAND_FRUIT_DAYS_PER_KG * gs.tuning.plantHandling / gatherers / carry + eats else pickDays
     val seedDays = reapDaysPerKg(band, gs.tuning) / gatherers / carry + eats
+    // (A band's gatherers walk to the food and carry it home: party-days a km of the way out costs a fresh kg brought
+    // home, there and back; see [GATHER_LOAD_KG]. An animal eats where it finds.)
+    val walkDaysPerKm = if (band != null) 2f / (WALK_KM_PER_HOUR * Activity.WORK_HOURS * GATHER_LOAD_KG * carry * gatherers) else 0f
     // Bands gather over all the ground they walked, the women's and children's day round; animals where they end the week.
     val gatherAt = if (band != null) g.path.toList().mapNotNull { h: Int -> gs.hw.placeNear(g.place, Hex(h)).takeIf { !it.none }?.i }
         .ifEmpty { listOf(g.place.i) } else listOf(g.place.i)
@@ -600,13 +621,23 @@ private fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
         val eats = w.eats
         val pickQ = (w.pickDays - eats) * slow + eats; val seedQ = (w.seedDays - eats) * slow + eats
         val fruitQ = (w.fruitDays - eats) * slow + eats
-        offer(w, o, Food.FRUIT, 0, Place(q), land.total(Place(q), KgM2(reach * fauna.food.fruit[q])).v / days, 1f, fruitQ)
-        offer(w, o, Food.ROOTS, 0, Place(q), land.total(Place(q), KgM2(reach * fauna.food.roots[q])).v / days, 1f, ROOT_DIGGING * pickQ)
-        offer(w, o, Food.FINDS, 0, Place(q), land.total(Place(q), KgM2(reach * fauna.food.finds[q])).v / days, 1f, ROOT_DIGGING * pickQ)
+        val seedReach = band?.let { it.gatherShare(true, tuning) * knowHere * part } ?: reach
+        // (Gatherers take the near ground first: the share they reach of a place as a disc about the camp, two thirds of
+        // its radius out on average; a place round the camp lies half a hex further. The walk takes no skill.)
+        val off = if (qi < w.gatherAt.size) 0f else hex.hexKm.toFloat() / 2f
+        val walk = 2f / 3f * sqrt(reach * land.areaKm2[q] / PI.toFloat()) + off
+        val seedWalk = 2f / 3f * sqrt(seedReach * land.areaKm2[q] / PI.toFloat()) + off
+        fun walked(t: Food, km: Float) = km * w.walkDaysPerKm / dryShare(t)
+        offer(w, o, Food.FRUIT, 0, Place(q), land.total(Place(q), KgM2(reach * fauna.food.fruit[q])).v / days, 1f, fruitQ + walked(Food.FRUIT, walk))
+        // (A band's gatherers must find roots before they dig them: the thinner they grow, the longer a kilo; see [ROOT_SEARCH_M2_PER_DAY].)
+        val rootSearch = if (band != null && fauna.food.roots[q] > 0f) 1f / (ROOT_SEARCH_M2_PER_DAY * fauna.food.roots[q] * w.gatherers) else 0f
+        offer(w, o, Food.ROOTS, 0, Place(q), land.total(Place(q), KgM2(reach * fauna.food.roots[q])).v / days, 1f,
+            ROOT_DIGGING * pickQ + rootSearch + walked(Food.ROOTS, walk))
+        offer(w, o, Food.FINDS, 0, Place(q), land.total(Place(q), KgM2(reach * fauna.food.finds[q])).v / days, 1f, ROOT_DIGGING * pickQ + walked(Food.FINDS, walk))
         // Grass seed must be reaped, threshed and ground: worth it only with the tools and the hands.
-        offer(w, o, Food.SEED, 0, Place(q), land.total(Place(q), KgM2((band?.let { it.gatherShare(true, tuning) * knowHere * part } ?: reach) * fauna.food.seeds[q])).v / days, 1f, seedQ)
+        offer(w, o, Food.SEED, 0, Place(q), land.total(Place(q), KgM2(seedReach * fauna.food.seeds[q])).v / days, 1f, seedQ + walked(Food.SEED, seedWalk))
         // Wild and sown cereals: reaped like grass seed, but richer where they stand.
-        offer(w, o, Food.GRAIN, 0, Place(q), land.total(Place(q), KgM2((band?.let { it.gatherShare(true, tuning) * knowHere * part } ?: reach) * (fauna.food.grain[q] + fauna.food.fieldGrain[q]))).v / days, 1f, seedQ)
+        offer(w, o, Food.GRAIN, 0, Place(q), land.total(Place(q), KgM2(seedReach * (fauna.food.grain[q] + fauna.food.fieldGrain[q]))).v / days, 1f, seedQ + walked(Food.GRAIN, seedWalk))
     }
     // Bands fish the river, the lake or the sea by their camp, as their skill and nets allow ([Band.fishing]); and gather
     // shellfish off the shore, which wants neither (kind [SHELLFISH_KIND] of the fish offered).
@@ -738,6 +769,11 @@ private fun HexGroups.eatTheWeek(w: ForageWeek) {
         land.books?.let { bookEaten(it, gorge * meatShare(null), HexSmallLife.DUNG * gorge) }
     }
     g.fed = (eaten / wantAll).coerceIn(0f, 1f)
+    if (band != null) note(g) {
+        "ate %.0f of %.0f kg wanted (fed %.2f); larder left %.0f kg (%s); fat %.1f days; sodium short %.0f%%, salt %.1f kg; lean lost %.0f%%".format(
+            eaten, wantAll, g.fed, g.larder, Store.entries.joinToString(" ") { "${it.name.lowercase()} %.0f".format(g.stores[it]) },
+            g.fat, 100f * band.sodiumShort, band.goods[Material.SALT], 100f * band.leanLost)
+    }
     // What the pack could not finish is left for the scavengers; what it ate comes back in part as dung.
     small.deposit(DeadPool.CARRION, g.place, Kg(spare))
     // (A band's meat eaten already holds the small game, scraps and fish it ate; what it stored is not yet eaten.)

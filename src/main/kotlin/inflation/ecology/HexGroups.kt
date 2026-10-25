@@ -79,7 +79,7 @@ class HexGroups(
             val fit = fauna.monthFit(s, Place(p), m)
             // The game it can catch there, by weight.
             val prey = huntable[kindSlot[s.index]][p] +
-                if (s.human) KgM2(fauna.food.fruit[p] + fauna.food.roots[p] + fauna.food.seeds[p]).perKm2.v * PLANT_FOOD_WEIGHT else 0f
+                if (s.human) KgM2(fauna.food.fruit[p] + rootsFound(Place(p)) + fauna.food.seeds[p]).perKm2.v * PLANT_FOOD_WEIGHT else 0f
             // Hunters that live on the water in their prey (cheetahs, leopards) care less how far it is.
             val w = land.drink.waterKm[p] / (2f * s.dailyTravelKm) * (if (s.waterFromFood >= 0.8f) 0.3f else 1f)
             prey / (prey + PREY_HALF) * fit / (1f + w * w)
@@ -698,8 +698,18 @@ class HexGroups(
         val fuel = fuelShare(woodCover(p), 1f)
         return (1f + CAMP_SAFETY * land.bestDefence[p] + CAVE_CAMP * land.caves[p]) / (1f + w * w) * (1f - fuel)
     }
-    internal fun campPlants(p: Place) = KgM2(fauna.food.fruit[p] + fauna.food.roots[p] + fauna.food.seeds[p] + fauna.food.grain[p] + fauna.food.fieldGrain[p]).perKm2.v *
+    internal fun campPlants(p: Place) = KgM2(fauna.food.fruit[p] + rootsFound(p) + fauna.food.seeds[p] + fauna.food.grain[p] + fauna.food.fieldGrain[p]).perKm2.v *
         PLANT_FOOD_WEIGHT * campFactor(p)
+    /**
+     * The roots at [p] as a band's gathering would find them, kg/m²: the thinner they grow, the more of a gatherer's day
+     * goes to finding them ([ROOT_SEARCH_M2_PER_DAY]), so they count as the share of the day that is digging. (A hand's
+     * digging at the start rate, without skill or baskets: an approximation of [forage]'s own rate.)
+     */
+    internal fun rootsFound(p: Place): Float {
+        val kg = fauna.food.roots[p]
+        val dug = ROOT_DIGGING * PLANT_HANDLING_DAYS_PER_KG * ROOT_SEARCH_M2_PER_DAY * kg
+        return kg * dug / (1f + dug)
+    }
 
     /**
      * Bands burn off the dry grass around their camps in the dry season: the burn greens up and draws

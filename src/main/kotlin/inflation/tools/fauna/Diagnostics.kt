@@ -45,8 +45,14 @@ class Diagnostics(private val sim: HexSim) {
     fun beforeStep(y: Int, w: Int) {
         Config.string(Config.Key.HUNT_DIAG)?.let { kinds -> if (w % 13 == 6) for (kind in kinds.split(',')) hunters(w, kind) }
         if (Config.flag(Config.Key.FED_DIAG, false) && y == 1 && w % 13 == 6) fed(w)
-        Config.string(Config.Key.FOLLOW)?.let { kind -> if (groups.groups.none { it.id == groups.watched && it.alive }) groups.watched =
-            groups.groups.firstOrNull { it.alive && it.species.name == kind }?.id ?: -1 }
+        // (With followHungry, the group followed is the hungriest of its kind fed under [FOLLOW_FED], whenever the one followed is gone or fed again.)
+        Config.string(Config.Key.FOLLOW)?.let { kind ->
+            if (Config.flag(Config.Key.FOLLOW_HUNGRY, false)) {
+                if (groups.groups.none { it.id == groups.watched && it.alive && it.fed < FOLLOW_FED })
+                    groups.watched = groups.groups.filter { it.alive && it.species.name == kind && it.fed < FOLLOW_FED }.minByOrNull { it.fed }?.id ?: -1
+            } else if (groups.groups.none { it.id == groups.watched && it.alive }) groups.watched =
+                groups.groups.firstOrNull { it.alive && it.species.name == kind }?.id ?: -1
+        }
     }
 
     fun afterStep() {
@@ -122,3 +128,6 @@ class Diagnostics(private val sim: HexSim) {
         }
     }
 }
+
+/** followHungry: fed below this share of its want, a group counts as hungry enough to follow. */
+private const val FOLLOW_FED = 0.9f

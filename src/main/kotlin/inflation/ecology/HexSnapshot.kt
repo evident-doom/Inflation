@@ -253,9 +253,15 @@ object HexSnapshot {
      *   the moves; this replaces the flat bonus of settled, well-stocked bands (settledFertility).
      * 4.54: weaning gruel is of seed ground to meal ([Band.gruel] needs a grinder): before, 72-88% of weanlings were weaned on
      *   gruel in mobile and settled bands alike, so weaning food did not tell the two ways of life apart.
+     * 4.55: a band's gatherers walk to the plant food and carry it home a load at a time ([GATHER_LOAD_KG]), so food
+     *   further from camp, and the far side of a place they strip, takes longer a kilo; and they search for roots before
+     *   they dig them, longer a kilo the thinner they grow ([ROOT_SEARCH_M2_PER_DAY]); a band's week holds its days first
+     *   for the firewood and shelters as far as they avert the deaths it foresees this week and through the year after
+     *   ([survivalDays]), then for the week's food and the rest of the firewood;
+     *   and a band choosing its camp counts roots as its gathering would find them ([HexGroups.rootsFound]).
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 54
+    const val MODEL_MINOR = 55
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
