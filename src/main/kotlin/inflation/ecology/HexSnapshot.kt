@@ -298,6 +298,9 @@ object HexSnapshot {
      * 4.63: a band weighs its herd against what a day's foraging brings in its leanest month ([herdPays], [Band.forageReturn]
      *   month by month), since a herd is food kept alive till then; and its herd's mothers give milk after the birth season
      *   ([milkKg], [Nourishment.MILK]): before, meat alone never paid a herder anywhere, and every herd was eaten in a year.
+     * 4.64: a band eats its herd's yearly increase week by week, at what it is fed ([herdIncrease]), and keeps it where the days
+     *   nobody asked for would herd it too; before, it ate all beyond a year's mean of what its herders kept, and as the herd
+     *   dwindled outside the birth season that mean followed it down, so even herds that paid shrank to nothing in a few years.
      * 4.65: bands search for fruit and mast as they do for roots, the thinner the longer a kilo ([PLANT_SIGHT_M2_PER_DAY]),
      *   and must pound and leach the bitter share of the mast before they eat it ([MAST_BITTER], [MAST_LEACH_DAYS_PER_KG]),
      *   which only bands that know leaching and have water by them can, and a band choosing its camp counts the mast at the
