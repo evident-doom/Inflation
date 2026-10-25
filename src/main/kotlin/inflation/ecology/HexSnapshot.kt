@@ -272,7 +272,8 @@ object HexSnapshot {
      *   the fire, dogs, a night watch (a new way, [BandWay.NIGHT_WATCH]: hours awake by turns, paid for in the next day's work,
      *   [watchPace]), house walls ([HOUSE_GUARD], as they hold: [wallGuard]) and a palisade ([PALISADE_GUARD]) keep beasts off; by
      *   day only dogs. Scouts no longer guard the camp as lookouts: they keep beasts off by where they find them. A band counts
-     *   its walls in what a house is worth to it and in choosing its camp. (People net 5: a new way output.)
+     *   its walls in what a house is worth to it and in choosing its camp. Beasts take a tenth as many at most ([STALKED]),
+     *   as foragers' records have it, and the nominal check counts those taken. (People net 5: a new way output.)
      */
     const val MODEL_MAJOR = 4
     const val MODEL_MINOR = 60

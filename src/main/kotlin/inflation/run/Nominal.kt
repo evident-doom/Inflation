@@ -2,6 +2,7 @@ package inflation.run
 
 import inflation.KindStock
 import inflation.StockName
+import inflation.ecology.ByBeast
 import inflation.ecology.Catalogue
 import inflation.ecology.HexHistory
 import inflation.ecology.HexHistory.Key
@@ -85,6 +86,12 @@ object Nominal {
      * before model 2.17, up to 0.64).
      */
     const val DEATHS_BALANCE = 0.1
+    /**
+     * People taken by beasts of prey in a year, per head on average: foragers lose few to them, the Hiwi none in their
+     * records (Hill, Hurtado & Walker 2007), the Agta, whose men pythons attacked often, some 0.26 a thousand a year
+     * (Headland & Greene 2011), the most found; at most four times that (the runs on model 4.60 before the change: 3.8-5).
+     */
+    const val BEASTS_TAKE_PEOPLE_MAX = 0.001
     /**
      * All big hunting kinds' biomass (packs, lone hunters and resident hunters, not people) against the plant-eaters':
      * 10 t of prey carries some 90 kg of each kind of carnivore that hunts it (Carbone & Gittleman 2002), so the
@@ -297,6 +304,20 @@ object Nominal {
                         "year %d: heads %s to %s, born %s, died %s: %s heads %s, over %s of its %s".format(y + 1, fmt(h0), fmt(h1), fmt(b), fmt(d), fmt(abs(off)),
                             if (off > 0) "more dead than lost" else "lost beyond the dead", fmt(DEATHS_BALANCE), fmt(mean))
                     }
+                }
+            }
+        }
+        // People taken by beasts of prey, against their heads.
+        run {
+            val people = Catalogue.HUMAN.name
+            val keys = Catalogue.all.filter { it.takesPeople > 0f }.map { Key.deaths(people, ByBeast.of(ByBeast.How.TAKEN_BY, it).label) }.filter { it in h.series }
+            if (keys.isEmpty()) return@run
+            for (y in 0 until years) {
+                val heads = yearly(Key.animals(people), y)
+                if (!(heads >= animals(people).floor)) continue
+                val taken = keys.sumOf { k -> yearly(k, y).let { if (it.isNaN()) 0.0 else it } }
+                t.check(taken <= BEASTS_TAKE_PEOPLE_MAX * heads, "people taken by beasts") {
+                    "%s taken in year %d of %s heads on average, over %s a head".format(fmt(taken), y + 1, fmt(heads), fmt(BEASTS_TAKE_PEOPLE_MAX))
                 }
             }
         }

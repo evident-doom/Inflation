@@ -968,7 +968,10 @@ data class Stalking(val rate: Float, val by: Species?) {
 
 /**
  * Of the beasts that take people ([Species.takesPeople]): the yearly share of people they take at most
- * where they are thick, from the unwary in thick cover with no fire, dogs or lookouts; density of beast flesh, kg/km² weighted, at which they take
+ * where they are thick, from the unwary in thick cover with no fire, dogs or watch (an estimate, set against the record:
+ * foragers lose few to beasts, the Hiwi none in their records though anacondas, caimans and jaguars attacked them, Hill,
+ * Hurtado & Walker 2007; the Agta, a quarter of whose men pythons attacked, some 0.26 a thousand a year, Headland & Greene
+ * 2011; at 0.02, ten times this, the bands lost 4-5 a thousand a year on model 4.60, many times either); density of beast flesh, kg/km² weighted, at which they take
  * half that; a band size the company factor is set for; how much a fire at night and dogs each keep off; the share of the
  * loss that falls at night, at camp, against out at work by day (an estimate: in Tanzania lions took people mostly after dark at
  * or by their houses, and over a quarter in the fields, most asleep alone in makeshift huts, Packer et al. 2005, Nature 436:
@@ -976,7 +979,7 @@ data class Stalking(val rate: Float, val by: Species?) {
  * palisade does (an estimate: thorn enclosures in Kenya still lose livestock, chain-link fencing cut that by about three
  * quarters, Conservation Evidence 2017); how much more often children are taken.
  */
-const val STALKED = 0.02f
+const val STALKED = 0.002f
 const val STALKED_HALF = 3f
 const val STALKED_BAND = 25f
 const val FIRE_GUARD = 0.5f
