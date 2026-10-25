@@ -906,6 +906,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     time.release(Activity.ORNAMENTS)
     // In autumn a band at home, or long at its camp, sows a share of its stored grain there: a plot that ripens
     // next summer to several times as much, of the kind of ears it sowed.
+    harvestCrop(g, b, time)
     sowGrain(g, b, p, date, time)
     time.release(Activity.SOWING)
     // A band at home that has been raided in the last year rings its houses with a palisade, as far
@@ -958,6 +959,8 @@ internal fun HexGroups.choreAsks(g: HexGroup, b: Band, date: Date, asks: FloatAr
         if (fortifies(b)) ask(Activity.PALISADE,
             minOf(1f - palisadeAt(g, h.i), b.goods[Material.WOOD] / (PALISADE_WOOD * people)).coerceAtLeast(0f) * PALISADE_DAYS * people)
     }
+    // (Its own crop, ripe, it brings in wherever it has come from: the field work is sowing's time.)
+    cropRipe(g, b).takeIf { it > 0f }?.let { asks[Activity.SOWING.ordinal] += it * reapDaysPerKg(b, tuning) }
     ask(Activity.DRYING, b.dryAsk)
     ask(Activity.SKINS, b.skinAsk)
 }
@@ -1444,6 +1447,39 @@ private fun HexGroups.sowGrain(g: HexGroup, b: Band, p: Place, date: Date, time:
             note(g) { "sowed %.0f kg of grain at home".format(sow) }
         }
     }
+}
+
+/**
+ * The ripe grain of the crop [g]'s band [b] sowed ([Band.sownPlace]), kg, where the band is in that hex: its share of what
+ * stands there, by the seed it sowed against all sown there (all of it once the year's sowing is struck off).
+ */
+private fun HexGroups.cropRipe(g: HexGroup, b: Band): Float {
+    val f = b.sownPlace
+    if (f.none || b.sownKg <= 0f || hw.placeHex[f.i] != hw.placeHex[g.place.i]) return 0f
+    val food = fauna.food
+    val share = if (food.field[f] > 0f) min(1f, b.sownKg / (food.field[f] * land.m2(f))) else 1f
+    return food.fieldGrain[f] * land.m2(f) * share
+}
+
+/**
+ * [g]'s band [b] brings in its ripe crop ([cropRipe]) in the [time] days to spare, as seed corn: a crop is reaped whole
+ * when it is ripe, not a week's meals at a time.
+ */
+private fun HexGroups.harvestCrop(g: HexGroup, b: Band, time: BandTime) {
+    val ripe = cropRipe(g, b); val left = time.leftFor(Activity.SOWING)
+    if (ripe <= 0f || left <= 0f) return
+    val perKg = reapDaysPerKg(b, tuning)
+    val f = b.sownPlace; val food = fauna.food
+    val kg = land.total(f, food.take(food.fieldGrain, f, land.spread(f, Kg(min(ripe, left / perKg))))).v
+    if (kg <= 0f) return
+    time.spend(Activity.SOWING, kg * perKg)
+    val worth = kg * seedValue(b) * b.cookValue(Food.GRAIN)
+    val corn = b.seedCorn
+    b.seedDomestic = (b.seedDomestic * corn + b.reapedDomestic(food.fieldDomestic[f]) * worth) / (corn + worth)
+    b.seedCorn = corn + worth
+    addFood(g.stores, g.storeKgPer, Store.SEED, worth, kg)
+    stats.hunting.merge(Tally.of(g.species, Tally.OfKind.GRAIN_REAPED), worth.toInt(), Int::plus)
+    note(g) { "brought in %.0f kg of its crop".format(kg) }
 }
 
 /** [Band.seedCorn] as [g]'s stores hold it: grain is eaten, spoils, is given and taken from the wild grain first. */

@@ -269,8 +269,7 @@ private class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, packK
     val pickDays = PLANT_HANDLING_DAYS_PER_KG * gs.tuning.plantHandling / gatherers / carry + eats
     // (People pick fruit a berry at a time, at the record's rate: see [BAND_FRUIT_DAYS_PER_KG].)
     val fruitDays = if (band != null) BAND_FRUIT_DAYS_PER_KG * gs.tuning.plantHandling / gatherers / carry + eats else pickDays
-    val seedDays = SEED_HANDLING_DAYS_PER_KG * gs.tuning.plantHandling / gatherers / carry /
-        (1f + (band?.sickleGain(gs.tuning) ?: 0f) + GRINDER_GAIN * (band?.has(Tool.GRINDER) ?: 0f)) + eats
+    val seedDays = reapDaysPerKg(band, gs.tuning) / gatherers / carry + eats
     // Bands gather over all the ground they walked, the women's and children's day round; animals where they end the week.
     val gatherAt = if (band != null) g.path.toList().mapNotNull { h: Int -> gs.hw.placeNear(g.place, Hex(h)).takeIf { !it.none }?.i }
         .ifEmpty { listOf(g.place.i) } else listOf(g.place.i)
@@ -1020,8 +1019,7 @@ private fun HexGroups.reap(g: HexGroup, p: Place, expected: Float, out: Haul) {
     // A sickle takes the ears that hold their grain more than those that shatter at a touch. What is reaped from a sown
     // field is kept as seed corn; what is reaped from the wild stand goes with the rest of the grain.
     if (band != null && took > 0f) {
-        val sel = SICKLE_SELECT * band.has(Tool.SICKLE)
-        fun harvested(d: Float) = d * (1f + sel) / (1f + sel * d).coerceAtLeast(1e-6f)
+        fun harvested(d: Float) = band.reapedDomestic(d)
         val tookField = took * fromField / (fromField + fromWild).coerceAtLeast(1e-12f); val tookWild = took - tookField
         // (The week's reaping is kept with the stores at the week's end, where the seed corn is held to the grain kept.)
         val corn = band.seedCorn; val wild = max(0f, g.stores[Store.SEED] - corn)
@@ -1031,6 +1029,13 @@ private fun HexGroups.reap(g: HexGroup, p: Place, expected: Float, out: Haul) {
         stats.hunting.merge(Tally.of(g.species, Tally.OfKind.GRAIN_REAPED), took.toInt(), Int::plus)
     }
 }
+
+/** Person-days to reap, thresh and clean a kilo of grain or grass seed: [SEED_HANDLING_DAYS_PER_KG] by hand, less with a sickle and grinding stones. */
+internal fun reapDaysPerKg(band: Band?, tuning: inflation.Tuning) =
+    SEED_HANDLING_DAYS_PER_KG * tuning.plantHandling / (1f + (band?.sickleGain(tuning) ?: 0f) + GRINDER_GAIN * (band?.has(Tool.GRINDER) ?: 0f))
+
+/** Of grain whose ears hold their grain at share [d], the share in what band [b] reaps: a sickle takes them more than those that shatter at a touch. */
+internal fun Band.reapedDomestic(d: Float): Float { val sel = SICKLE_SELECT * has(Tool.SICKLE); return d * (1f + sel) / (1f + sel * d).coerceAtLeast(1e-6f) }
 
 /** [forage]'s count of the resident bands [g] came on unseen ([met] per animal, by place of its hunting [ground] and kind) in the [searched] share of its week. */
 private fun HexGroups.countResidentsMet(g: HexGroup, ground: HuntGround, met: FloatArray, searched: Float, today: Double) {
