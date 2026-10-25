@@ -2342,10 +2342,14 @@ private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTime
         small.deposit(DeadPool.CARRION, p, Kg(died * s.massKg))
         fauna.adults[k][p] += (lost - died) / area
         n = max(0f, n + born - lost)
+        herdFlows[HerdFlow.BORN] += born; herdFlows[HerdFlow.DIED] += died; herdFlows[HerdFlow.RAN_OFF] += lost - died
+        val kg = n * s.massKg
+        herdFlows[HerdFlow.KG] += kg; herdFlows[HerdFlow.KG_TENDED] += kg * tended; herdFlows[HerdFlow.KG_FED] += kg * fed
         // What its herders cannot keep it culls for meat (the rest of the carcass for the scavengers).
         if (tended < 1f) {
             val cull = n * (1f - tended)
             n -= cull
+            herdFlows[HerdFlow.CULLED] += cull
             // (Kept at what it feeds, as the week's meat: [Nourishment.MEAT].)
             val culled = cull * s.massKg * MEAT_SHARE
             addFood(g.stores, g.storeKgPer, Store.FRESH, culled * Nourishment.MEAT * g.species.needScale, culled)
@@ -2358,6 +2362,12 @@ private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTime
         if (b.knowsSkill[Skill.TENDING]) b.practise(Skill.TENDING, 0.5f * PRACTICE)
     }
 }
+
+/**
+ * What became of bands' kept animals, for the census ([HexGroups.herdFlows]): heads born, dead, run off or strayed, and culled
+ * for want of herders; and kg on the hoof weighed by the share herded, by the share fed, and in all (week by week).
+ */
+enum class HerdFlow { BORN, DIED, RAN_OFF, CULLED, KG_TENDED, KG_FED, KG }
 
 /** What [n] kept animals of kind [s] ask of place [p]'s ground this week, and the grass and browse they can get there, kg/m². */
 internal class HerdForage(val need: Float, val grass: Float, val browse: Float) {
