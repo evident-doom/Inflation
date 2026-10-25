@@ -270,6 +270,8 @@ class Band(kinds: Int) {
     val fine = enumFloats<Tool> { if (it == Tool.CLOTHES) 0f else 1f }
     /** Of its dried meat and fish, the share salted (with trade on). */
     var salted = 0f
+    /** Of its dried meat and fish, how long on the whole it was dried for, against drying at the scaffold's 1 (the longer, the better it keeps: [driedKeep]). */
+    var dryDepth = 1f
     /** Of the protein it ate last week, the share beyond what could feed it ([Nourishment.PROTEIN_MOST]): what it knows lean food is worth. */
     var leanLost = 0f
     /** Of its people's sodium need last week, the share that neither meat, salted meat nor its salt met ([saltFeeds]): what it knows it lacks. */
@@ -407,8 +409,13 @@ class Band(kinds: Int) {
     val will = enumFloats<BandWay> { 1f }
     /** Its choices: how much of its stored grain it sows in autumn at its home (the scaffold: some, once it has houses). */
     val sowWill get() = will[BandWay.SOWING]
-    /** How far a band with worn kit holds back from laying food by, to mend first (0 not at all; [ALL_AT_ONE] at the scaffold's 1, more of it above). */
-    val mendFirst get() = shareOfWill(will[BandWay.MENDING_FIRST], ALL_AT_ONE)
+    /** How far a band with worn kit holds back from laying food by, to mend first (0 not at all, all of it from the scaffold's 1 up). */
+    val mendFirst get() = will[BandWay.MENDING_FIRST].coerceIn(0f, 1f)
+    /**
+     * Share of a full kit below which it counts a tool worn ([worn]): [MEND_BELOW] up to the scaffold's 1, and above it more of the
+     * same, mending first ever sooner (each unit of will above 1 the same share of the rest of the way to a full kit: [shareOfWill]).
+     */
+    val mendBelow get() = shareOfWill(max(1f, will[BandWay.MENDING_FIRST]), MEND_BELOW)
     /**
      * Its choices against the dangers (1 for each gives the scaffold's way):
      * - how far from camp its gatherers go, against today's reach: further brings more food and
@@ -618,7 +625,7 @@ class Band(kinds: Int) {
         kit.copyInto(o.kit)
         knows.copyInto(o.knows)
         fine.copyInto(o.fine)
-        o.salted = salted
+        o.salted = salted; o.dryDepth = dryDepth
         o.renown = renown
         rite.copyInto(o.rite); o.riteStrength = riteStrength
         traditions.copyInto(o.traditions); words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
@@ -662,6 +669,7 @@ class Band(kinds: Int) {
             a.kit[i] += w * (b.kit[i] - a.kit[i])
         }
         if (dried + bDried > 0f) a.salted = (dried * a.salted + bDried * b.salted) / (dried + bDried)
+        if (dried + bDried > 0f) a.dryDepth = (dried * a.dryDepth + bDried * b.dryDepth) / (dried + bDried)
         // (Seed corn blended by the seed corn each held, the rest of the grain by the rest.)
         val corn = min(a.seedCorn, seed); val bCorn = min(b.seedCorn, bSeed)
         if (corn + bCorn > 0f) a.seedDomestic = (corn * a.seedDomestic + bCorn * b.seedDomestic) / (corn + bCorn)
@@ -756,8 +764,8 @@ class Band(kinds: Int) {
     /** The way of its craft it uses for [t]. */
     fun makeWay(t: Tool) = Skill.of(t.skill.domain).filter { knowsSkill[it] }.maxByOrNull { skill(it) * it.gain } ?: t.skill
     fun has(t: Tool) = kit[t]
-    /** Whether any tool it knows is worn below [MEND_BELOW] of a full kit. */
-    fun worn() = Tool.entries.any { knows[it] && kit[it] < MEND_BELOW }
+    /** Whether any tool it knows is worn below [below] of a full kit (as far as its way of mending first goes: [mendBelow]). */
+    fun worn(below: Float = mendBelow) = Tool.entries.any { knows[it] && kit[it] < below }
 
     /** How its weapons, hunting skill and dogs do against [prey], against an ordinary armed, practised band without dogs (1). */
     fun huntEdge(prey: Species, tuning: Tuning) =
@@ -2208,12 +2216,6 @@ internal fun shareOfWill(will: Float, atOne: Float) = 1f - (1f - atOne).pow(max(
 
 /** A way's [will] as an effect that each further unit adds less to: 1 at the scaffold's 1, about 1.37 at 2, never above 1.58. */
 internal fun moreOfWill(will: Float) = (1f - exp(-max(0f, will))) / (1f - exp(-1f))
-
-/**
- * The share a way that can at most take all (dry all the fresh meat, hold back all storing to mend) takes at the scaffold's 1:
- * an estimate, leaving the usual a tenth short of all so that more of the same has room above it.
- */
-const val ALL_AT_ONE = 0.9f
 const val RAID_RANGE_KM = 60.0
 const val RAID_PLOT = 0.3f
 const val RAID_WEEKS = 4

@@ -909,16 +909,21 @@ private fun HexGroups.keepAndSpoil(w: ForageWeek, got: FloatArray, gotKg: FloatA
     // drying takes its time by what it weighs. What it would have liked to dry is what drying asks of next week's plan.)
     val freshKgPer = g.storeKgPer[Store.FRESH].coerceAtLeast(1e-6f)
     val dryDays = time.leftFor(Activity.DRYING)
-    val dryShare = shareOfWill(band.dryWill, ALL_AT_ONE)
-    val dried = min(g.stores[Store.FRESH] * dryShare, dryDays * dryRate / DRY_DAYS_PER_KG / freshKgPer)
-    dialUse?.amount(DialSite.DRYING, band.dryWill, dried, min(g.stores[Store.FRESH] * ALL_AT_ONE, dryDays * dryRate / DRY_DAYS_PER_KG / freshKgPer))
-    band.dryAsk = if (dryRate > 0f) g.stores[Store.FRESH] * dryShare * freshKgPer * DRY_DAYS_PER_KG / dryRate else 0f
+    // (All of it from the scaffold's 1 up; above 1 more of the same: dried for longer, a kilo taking that much more of its
+    // days and keeping that much better ([driedKeep]).)
+    val dryShare = band.dryWill.coerceIn(0f, 1f)
+    val depth = max(1f, band.dryWill)
+    val daysPerKg = DRY_DAYS_PER_KG * depth
+    val dried = min(g.stores[Store.FRESH] * dryShare, dryDays * dryRate / daysPerKg / freshKgPer)
+    dialUse?.amount(DialSite.DRYING, band.dryWill, dried, min(g.stores[Store.FRESH], dryDays * dryRate / DRY_DAYS_PER_KG / freshKgPer))
+    band.dryAsk = if (dryRate > 0f) g.stores[Store.FRESH] * dryShare * freshKgPer * daysPerKg / dryRate else 0f
     if (dried > 0f) {
         val saltedNow = min(dried, salt / SALT_PER_KG); band.goods[Material.SALT] -= saltedNow * SALT_PER_KG
         val before = g.stores[Store.DRIED]; band.salted = (before * band.salted + saltedNow) / (before + dried)
+        band.dryDepth = (before * band.dryDepth + dried * depth) / (before + dried)
         g.stores[Store.FRESH] -= dried; addFood(g.stores, g.storeKgPer, Store.DRIED, dried, dried * g.storeKgPer[Store.FRESH]); band.practise(if (salting >= max(sun, smoke)) Skill.SALTING else if (smoke > sun) Skill.SMOKING else Skill.STORE)
     }
-    time.spendAtMost(Activity.DRYING, if (dried > 0f) dried * freshKgPer * DRY_DAYS_PER_KG / dryRate else 0f)
+    time.spendAtMost(Activity.DRYING, if (dried > 0f) dried * freshKgPer * daysPerKg / dryRate else 0f)
     time.release(Activity.DRYING)
     band.skinAsk = SKIN_DAYS * pelts
     val unskinned = skinSmallGame(band, time, pelts)
@@ -1168,10 +1173,13 @@ private val FORAGE_DIAG = Config.string(Config.Key.FORAGE_DIAG)
 private fun diagSampled(g: HexGroup, weather: Weather, share: Float, salt: Int) =
     unitOf(mix64(g.id * HASH_A + weather.date.absoluteDay * HASH_B + salt * HASH_C)) < share
 
-/** How much of the usual loss band [band]'s dried meat and fish suffer: smoked keeps longer than sun-dried, salted longer still. */
+/**
+ * How much of the usual loss band [band]'s dried meat and fish suffer: smoked keeps longer than sun-dried, salted longer still,
+ * and dried for longer ([Band.dryDepth]) longer in proportion (drier meat keeps longer; the proportion is an estimate).
+ */
 internal fun HexGroups.driedKeep(band: Band): Float {
     val smoked = if (band.knowsSkill[Skill.SMOKING]) 1f - SMOKE_KEEP * band.skill(Skill.SMOKING) else 1f
-    return smoked * (1f - tuning.saltKeep * band.salted)
+    return smoked * (1f - tuning.saltKeep * band.salted) / max(1f, band.dryDepth)
 }
 
 /**
@@ -1523,7 +1531,7 @@ private fun storeWant(g: HexGroup, band: Band, aimDays: Float) =
 /** Counts in [u] how band [b]'s store aim and its mending first set the food [work] it works to lay by ([storeWork]). */
 private fun countStoreWork(u: DialUse, g: HexGroup, b: Band, work: Float) {
     val worn = b.worn()
-    val mendAt1 = if (worn) storeWant(g, b) * (1f - ALL_AT_ONE) else storeWant(g, b)
+    val mendAt1 = if (b.worn(MEND_BELOW)) 0f else storeWant(g, b)
     u.amount(DialSite.STORE_WANT, b.storeShare, work, if (worn) storeWant(g, b, b.storeAimAt1) * (1f - b.mendFirst) else storeWant(g, b, b.storeAimAt1))
     if (worn) u.amount(DialSite.MENDING_FIRST, b.will[BandWay.MENDING_FIRST], work, mendAt1)
 }

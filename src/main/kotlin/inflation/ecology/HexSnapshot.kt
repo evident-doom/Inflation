@@ -262,8 +262,10 @@ object HexSnapshot {
      * 4.56: bands burn off dry grass where any fire would take ([HexFires.canBurn]); their own stricter test (soil under 40 mm,
      *   forage under 0.4 green, herbs over 0.3) was not met at any camp in 5 years on storm-1, so the burning-off way was never read.
      *   Ways that stopped at the scaffold's 1 go on above it as more of the same for ever less ([shareOfWill], [moreOfWill]): a
-     *   bigger night fire (wood as the will, guarding less for each log more), drying and mending first ([ALL_AT_ONE] at 1),
-     *   giving beyond the lack and beyond a tenth of the larder, repaying more than is owed, plotting raids on less hunger.
+     *   bigger night fire (wood as the will, guarding less for each log more), giving beyond the lack and beyond a tenth of the
+     *   larder, repaying more than is owed, plotting raids on less hunger; drying all the fresh meat and fish and holding back
+     *   all storing to mend stay all at 1, and above it go on as drying for longer (a kilo taking that much more time and
+     *   keeping that much better: [Band.dryDepth]) and mending first ever sooner ([Band.mendBelow]).
      */
     const val MODEL_MAJOR = 4
     const val MODEL_MINOR = 56
