@@ -1,6 +1,5 @@
 package inflation.tools.fauna
 
-import inflation.ecology.PlantFrom
 import inflation.ecology.Hex
 import inflation.StockName
 import inflation.Stocks
@@ -357,8 +356,6 @@ class Census(private val sim: HexSim) {
             val asked = cs.sumOf { v(Tally.bandsIn(it, Tally.Bands.ASKED)) }.coerceAtLeast(1.0)
             println("bands' food, last year (of food wanted: meat and fish brought in, of it eaten, plants got): %.0f%%, %.0f%%, %.0f%%".format(
                 100 * brought / asked, 100 * eaten / brought.coerceAtLeast(1.0), 100 * cs.sumOf { v(Tally.bandsIn(it, Tally.Bands.PLANTS)) } / asked))
-            println("bands' plant food, last year (of food wanted, by what it feeds): " + PlantFrom.entries.joinToString(", ") { f ->
-                "%s %.1f%%".format(f.label, 100 * v(Tally.plantsFrom(f)) / asked) })
         }
         println("bands by kind of country, last year (hearth fire fed by the firewood got, share of the days spent fetching it): " + cs.joinToString(", ") { c ->
             val w = weeks(c).toDouble().coerceAtLeast(1.0)

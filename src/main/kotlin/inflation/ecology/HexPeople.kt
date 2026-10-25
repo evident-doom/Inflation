@@ -744,8 +744,6 @@ class Band(kinds: Int) {
         }
         return 1f + fire * v
     }
-    /** Whether it can make food of bitter mast, acorns leached in running water or a sand basin: if it knows how and has water by it. */
-    fun leachesMast(water: Boolean) = knowsSkill[Skill.LEACHING] && water
     /**
      * Food a band makes of the bitter and poisonous plants beside each kilo of plants it finds palatable
      * where the edible share of the plants is [palatable], kg: none unless it knows how to leach them and
