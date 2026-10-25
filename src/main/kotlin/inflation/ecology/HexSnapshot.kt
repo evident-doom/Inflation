@@ -263,6 +263,8 @@ object HexSnapshot {
      *   as it picks fruit, without searching for it ([MAST_KIND]); and bulbs and roots cannot be dug from frozen ground
      *   ([HexFood.diggable], the week's air at or below [inflation.world.HexDrinkingWater.THAW_C]), for people and rooting
      *   animals alike. (A 4.55 save loads with its mast still among its roots, where it rots away within the half year.)
+     * 4.57: with no ways network, bands hold the scaffold's ways every week ([Band.scaffoldWays]): before, bands of a saved
+     *   world kept the ways the network it was settled under last gave them (the storm worlds: natufian-4's, at model 4.0).
      * 4.58: bands burn off dry grass where any fire would take ([HexFires.canBurn]); their own stricter test (soil under 40 mm,
      *   forage under 0.4 green, herbs over 0.3) was not met at any camp in 5 years on storm-1, so the burning-off way was never read.
      *   Ways that stopped at the scaffold's 1 go on above it as more of the same for ever less ([shareOfWill], [moreOfWill]): a
