@@ -143,8 +143,8 @@ dropped. The generated world itself is kept in `~/.inflation/world-cache` and lo
 while the world-generating code and settings are unchanged (`worldCache=false` turns this off).
 
 Short tests start from settled test worlds rather than from year 0, so they see a change's effect
-and not the first years' swings. `./gradlew testWorld -PtestArgs="build full-1 full-2 full-3"` runs
-each of the three full-map seeds for 30 years (`--years N`) under the config file's keys and keeps it
+and not the first years' swings. `./gradlew testWorld -PtestArgs="build m455-1 m455-2 m455-3"` runs
+each of the three full-map seeds (m455-1..3, the set in use) for 30 years (`--years N`) under the config file's keys and keeps it
 in `~/.inflation/test-worlds`; `testWorld -PtestArgs="list"` shows what is built and from which
 commit. A change is tested with `testWorld -PtestArgs="ab --variant change.properties"`: the base and
 the variant (the change's keys laid over the base config) run for 3 years on each full map, twice
