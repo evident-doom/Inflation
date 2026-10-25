@@ -6,6 +6,7 @@ import inflation.Books
 import inflation.Stocks
 import inflation.KgM2
 import inflation.world.HexDrinkingWater
+import inflation.world.Biome
 import inflation.world.HexLand
 import inflation.world.LifeForm
 import inflation.world.Weather
@@ -102,9 +103,23 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
         return CEREAL_MAX * climate * cerealGround[p]
     }
 
-    /** Fruit-bearing plants at [p], kg/m²: shrubs and the fruiting share of trees. */
-    // (Only the edible kinds bear food people eat, see [HexLand.palatable].)
-    private fun bearing(p: Place) = land.palatable[p] * (0.5f * land.plants.shrub[p] + TREE_BEARING * land.plants.tree[p])
+    /**
+     * The share of [p]'s trees that bear food (oaks, beech, hazel, wild fruit trees), by its kinds of country ([FOOD_TREES]).
+     * (Fixed by the world, so not taken from a saved run.)
+     */
+    @Transient private val foodTrees = FloatArray(n) { p ->
+        val h = land.hw.placeHex[p]
+        var s = 0f; var w = 0f
+        for (b in Biome.entries) { val share = land.hw.biome[b.ordinal][h]; if (share <= 0f) continue; s += share * (FOOD_TREES[b] ?: 0f); w += share }
+        if (w > 0f) s / w else 0f
+    }
+    /** The fruiting share of [p]'s trees this year, kg/m²: the food-bearing trees ([foodTrees]) in this year's mast crop ([Weather.mastCrop]). */
+    private fun treeBearing(p: Place, crop: Float) = TREE_BEARING * foodTrees[p] * crop * land.plants.tree[p]
+    /**
+     * Fruit-bearing plants at [p] in a year of mast crop [crop], kg/m²: the edible share of the shrubs ([HexLand.palatable])
+     * and the fruiting share of trees ([treeBearing]).
+     */
+    private fun bearing(p: Place, crop: Float) = land.palatable[p] * 0.5f * land.plants.shrub[p] + treeBearing(p, crop)
     private fun rootsCap(p: Place) = ROOTS_SHARE * land.palatable[p] * land.plants.herb[p] + REED_ROOTS * land.waterlogged[p]
 
     private var standYear = -1
@@ -131,11 +146,11 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
             // Fruit ripens from midsummer to autumn, as many as the spring's flowers were pollinated
             // for and the spring was wet enough to fill; then it falls: the shrubs' berries rot, the trees'
             // acorns and nuts lie on the ground as mast for rooting animals through the winter.
-            val ripe = if (season in FRUIT_FROM..FRUIT_TO) FRUIT_SHARE * bearing(p) * small.fruitSet(p) *
+            val ripe = if (season in FRUIT_FROM..FRUIT_TO) FRUIT_SHARE * bearing(p, weather.mastCrop) * small.fruitSet(p) *
                 min(1f, land.plants.moisture[p] / 0.5f) / FRUIT_DAYS else 0f
             val fallen = fruit[p] * min(1f, days / FRUIT_DAYS)
             // (It grows on the shrubs and trees that bear it, and comes off them.)
-            val shrubBears = 0.5f * land.plants.shrub[p]; val treeBears = TREE_BEARING * land.plants.tree[p]
+            val shrubBears = land.palatable[p] * 0.5f * land.plants.shrub[p]; val treeBears = treeBearing(p, weather.mastCrop)
             val fromShrub = if (shrubBears + treeBears > 0f) shrubBears / (shrubBears + treeBears) else 1f
             val newFruit = days * ripe
             val bore = if (newFruit > 0f) (land.plants.consume(p, LifeForm.SHRUB, KgM2(newFruit * fromShrub)) +
@@ -322,6 +337,18 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
          * boar ate over 90% of it: Zeman et al. 2016, Acta Univ. Agric. Silvic. Mendel. Brun. 64:579).
          */
         const val TREE_BEARING = 1.25f
+        /**
+         * The share of the trees that bear food people and beasts eat, by kind of country (an estimate, by the trees that
+         * make them up; no measured shares were found): oak, beech, hazel and wild fruit in broadleaved and Mediterranean
+         * woods and in open oak woodland; oak, elm and wild fruit among the alder, willow, ash and poplar of floodplain forest;
+         * pistachio, wild almond and oak scattered on steppe and in scrub; little in conifer forest (a few stone pines and
+         * hazel), none in alder swamp, mangrove or bog. Spruce, fir and larch seed feeds no one here.
+         */
+        val FOOD_TREES: Map<Biome, Float> = mapOf(
+            Biome.TEMPERATE_FOREST to 1f, Biome.MEDITERRANEAN_WOODLAND to 1f, Biome.OPEN_WOODLAND to 1f,
+            Biome.FLOODPLAIN_FOREST to 0.3f, Biome.STEPPE to 0.5f, Biome.SHRUBLAND to 0.5f, Biome.SEMI_DESERT to 0.3f,
+            Biome.DESERT to 0.3f, Biome.CONIFER_FOREST to 0.1f, Biome.ALPINE_MEADOW to 0.1f,
+        )
         /**
          * Bulbs, corms, tubers and rhizomes to be dug, per kg/m² of herbs; days to replace them, and for fallen mast to
          * rot or sprout. About 1-3 g/m² dry under 0.15-0.3 kg/m² of herbs: edible underground storage organs in the southern
