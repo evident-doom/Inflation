@@ -1708,9 +1708,13 @@ internal fun HexGroups.birthSpacing(b: Band): Float {
     return SPACING_MOST / max(GESTATION_YEARS + CONCEIVE_YEARS + nursing, carried)
 }
 
-/** How far [b] can make its seed into gruel, soft food to wean a child on: boiled with hot stones, in baskets. */
+/**
+ * How far [b] can make its seed into gruel, soft food to wean a child on: ground to meal ([Tool.GRINDER], too heavy to take
+ * along, so a band that moves camp leaves its querns behind) and boiled with hot stones, in baskets. (Whole seed boiled is
+ * no weanling's food, as raw seed is poor food for anyone: [seedValue].)
+ */
 internal fun Band.gruel(): Float =
-    if (knowsSkill[Skill.STONE_BOILING]) fire * skill(Skill.STONE_BOILING) * max(has(Tool.BASKET), 0.5f) else 0f
+    if (knowsSkill[Skill.STONE_BOILING]) fire * skill(Skill.STONE_BOILING) * max(has(Tool.BASKET), 0.5f) * has(Tool.GRINDER) else 0f
 
 /** Extra yearly deaths among children of a camp kept long: refuse, flies and fouled water. */
 internal fun HexGroups.campFouling(g: HexGroup, campWeeks: Int = g.band?.campWeeks ?: 0): Float {

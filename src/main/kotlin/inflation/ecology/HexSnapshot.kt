@@ -251,9 +251,11 @@ object HexSnapshot {
      * 4.53: people's births are spaced by what weans their children and by carrying them ([birthSpacing]): gruel of seed
      *   ([Band.weaningFood]) shortens nursing, and a mother of a band that moves camp often spaces births till a child walks
      *   the moves; this replaces the flat bonus of settled, well-stocked bands (settledFertility).
+     * 4.54: weaning gruel is of seed ground to meal ([Band.gruel] needs a grinder): before, 72-88% of weanlings were weaned on
+     *   gruel in mobile and settled bands alike, so weaning food did not tell the two ways of life apart.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 53
+    const val MODEL_MINOR = 54
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
