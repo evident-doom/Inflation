@@ -20,6 +20,7 @@ import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.min
+import kotlin.math.pow
 import inflation.world.Biome
 import inflation.world.Weather
 import java.util.stream.IntStream
@@ -270,6 +271,8 @@ class Band(kinds: Int) {
     val fine = enumFloats<Tool> { if (it == Tool.CLOTHES) 0f else 1f }
     /** Of its dried meat and fish, the share salted (with trade on). */
     var salted = 0f
+    /** Of its dried meat and fish, how long on the whole it was dried for, against drying at the scaffold's 1 (the longer, the better it keeps: [driedKeep]). */
+    var dryDepth = 1f
     /** Of the protein it ate last week, the share beyond what could feed it ([Nourishment.PROTEIN_MOST]): what it knows lean food is worth. */
     var leanLost = 0f
     /** Of its people's sodium need last week, the share that neither meat, salted meat nor its salt met ([saltFeeds]): what it knows it lacks. */
@@ -289,10 +292,12 @@ class Band(kinds: Int) {
     @Transient var coldPace = 1f
     @Transient var campPace = 1f
     @Transient var hungerPace = 1f
-    /** The share of its people's time at work [where] that is work this week ([Sisu]). */
+    /** The share of its working time its people work for the sleep its night watch takes ([watchPace]); set as the week starts. */
+    @Transient var sleepPace = 1f
+    /** The share of its people's time at work [where] that is work this week ([Sisu], [watchPace]). */
     fun paceAt(where: Workplace) = when (where) {
-        Workplace.OUT -> coldPace * hungerPace
-        Workplace.CAMP -> campPace * hungerPace
+        Workplace.OUT -> coldPace * hungerPace * sleepPace
+        Workplace.CAMP -> campPace * hungerPace * sleepPace
         Workplace.NONE -> 1f
     }
     /** [paceAt] each [Activity]'s workplace, by its ordinal (for [BandTime]). */
@@ -363,6 +368,8 @@ class Band(kinds: Int) {
      */
     var homeEarth = 0f
     var homeGroundC = 0f
+    /** At home: how well its houses' walls keep beasts of prey out at night ([wallGuard], over the houses that shelter it), 0..1. */
+    var homeWalls = 0f
     /** Where it knows other bands have their houses (band id to hex), and their descent (main lineage). */
     val knownHomes = HashMap<Int, Int>()
     val knownLineage = HashMap<Int, Int>()
@@ -407,8 +414,13 @@ class Band(kinds: Int) {
     val will = enumFloats<BandWay> { 1f }
     /** Its choices: how much of its stored grain it sows in autumn at its home (the scaffold: some, once it has houses). */
     val sowWill get() = will[BandWay.SOWING]
-    /** How far a band with worn kit holds back from laying food by, to mend first (0 not at all, 1 wholly). */
-    val mendFirst get() = will[BandWay.MENDING_FIRST].coerceAtMost(1f)
+    /** How far a band with worn kit holds back from laying food by, to mend first (0 not at all, all of it from the scaffold's 1 up). */
+    val mendFirst get() = will[BandWay.MENDING_FIRST].coerceIn(0f, 1f)
+    /**
+     * Share of a full kit below which it counts a tool worn ([worn]): [MEND_BELOW] up to the scaffold's 1, and above it more of the
+     * same, mending first ever sooner (each unit of will above 1 the same share of the rest of the way to a full kit: [shareOfWill]).
+     */
+    val mendBelow get() = shareOfWill(max(1f, will[BandWay.MENDING_FIRST]), MEND_BELOW)
     /**
      * Its choices against the dangers (1 for each gives the scaffold's way):
      * - how far from camp its gatherers go, against today's reach: further brings more food and
@@ -425,8 +437,8 @@ class Band(kinds: Int) {
     val shunSick get() = 0.5f * will[BandWay.SHUNNING_THE_SICK]
     /** How keen it is to go into country it does not know (1: the usual wariness of strange ground; 2: drawn to it). */
     val explore get() = will[BandWay.EXPLORING]
-    /** The fire as it guards the camp at night: kept only as faithfully as the band chooses. */
-    val nightGuard get() = fire * min(1f, nightFire) * nightWood
+    /** The fire as it guards the camp at night: kept only as faithfully as the band chooses (a bigger fire above 1, guarding less for each log more). */
+    val nightGuard get() = fire * moreOfWill(nightFire) * nightWood
     /** Share of the night's firewood it had this week. */
     var nightWood = 1f
     /** Share of the hearth's firewood (warmth and cooking) it fetched this week: its fire burns only as far as that goes. */
@@ -479,6 +491,8 @@ class Band(kinds: Int) {
     var atHome = false
     /** Its choices: the share of its adults out scouting rather than foraging. */
     val scoutShare get() = SCOUT_SHARE * will[BandWay.SCOUTS]
+    /** Hours a night its people keep watch by turns: [WATCH_HOURS] at the scaffold's 1 (one awake at a time through the dark), as many more as its way asks. */
+    val watchHours get() = WATCH_HOURS * max(0f, will[BandWay.NIGHT_WATCH])
     /** Its choices: how it ranks making each tool ([Tool]) with its spare time (the scaffold: the most worn first). */
     val makeFirst = enumFloats<Tool> { 1f }
     /**
@@ -607,7 +621,7 @@ class Band(kinds: Int) {
 
     fun splitInto(o: Band, adults: Int, stay: Int, share: Float, r: Random, copied: (Band) -> Unit) {
         o.ties.clear(); o.ties.putAll(ties); o.appointment = appointment
-        o.houseHex = houseHex; o.house = house; o.homeEarth = homeEarth; o.homeGroundC = homeGroundC; o.palisade = palisade; herdTame.copyInto(o.herdTame); herd.copyInto(o.herd)
+        o.houseHex = houseHex; o.house = house; o.homeEarth = homeEarth; o.homeWalls = homeWalls; o.homeGroundC = homeGroundC; o.palisade = palisade; herdTame.copyInto(o.herdTame); herd.copyInto(o.herd)
         o.houseLives = houseLives; o.houseFood = houseFood; foodFrom.copyInto(o.foodFrom); o.fishPull = fishPull; monthSupply.copyInto(o.monthSupply); o.leanDays = leanDays
         o.seedDomestic = seedDomestic; o.grainDomestic = grainDomestic; o.seedCorn = seedCorn * share; seedCorn -= o.seedCorn; o.sinceRaided = sinceRaided; o.sisu = sisu
         o.knownHomes.putAll(knownHomes); o.knownLineage.putAll(knownLineage)
@@ -626,7 +640,7 @@ class Band(kinds: Int) {
         kit.copyInto(o.kit)
         knows.copyInto(o.knows)
         fine.copyInto(o.fine)
-        o.salted = salted
+        o.salted = salted; o.dryDepth = dryDepth
         o.renown = renown
         rite.copyInto(o.rite); o.riteStrength = riteStrength
         traditions.copyInto(o.traditions); words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
@@ -670,6 +684,7 @@ class Band(kinds: Int) {
             a.kit[i] += w * (b.kit[i] - a.kit[i])
         }
         if (dried + bDried > 0f) a.salted = (dried * a.salted + bDried * b.salted) / (dried + bDried)
+        if (dried + bDried > 0f) a.dryDepth = (dried * a.dryDepth + bDried * b.dryDepth) / (dried + bDried)
         // (Seed corn blended by the seed corn each held, the rest of the grain by the rest.)
         val corn = min(a.seedCorn, seed); val bCorn = min(b.seedCorn, bSeed)
         if (corn + bCorn > 0f) a.seedDomestic = (corn * a.seedDomestic + bCorn * b.seedDomestic) / (corn + bCorn)
@@ -764,8 +779,8 @@ class Band(kinds: Int) {
     /** The way of its craft it uses for [t]. */
     fun makeWay(t: Tool) = Skill.of(t.skill.domain).filter { knowsSkill[it] }.maxByOrNull { skill(it) * it.gain } ?: t.skill
     fun has(t: Tool) = kit[t]
-    /** Whether any tool it knows is worn below [MEND_BELOW] of a full kit. */
-    fun worn() = Tool.entries.any { knows[it] && kit[it] < MEND_BELOW }
+    /** Whether any tool it knows is worn below [below] of a full kit (as far as its way of mending first goes: [mendBelow]). */
+    fun worn(below: Float = mendBelow) = Tool.entries.any { knows[it] && kit[it] < below }
 
     /** How its weapons, hunting skill and dogs do against [prey], against an ordinary armed, practised band without dogs (1). */
     fun huntEdge(prey: Species, tuning: Tuning) =
@@ -873,7 +888,7 @@ private fun shelterLack(b: Band, moved: Boolean) = max(0f, b.shelterWill - if (m
 /** A fire through the night burns wood: where there is little, the night goes dark. Returns the wood burnt, kg. */
 private fun burnNightFire(b: Band, people: Float): Float {
     val wood = b.goods
-    val want = NIGHT_WOOD * people * min(1f, b.nightFire)
+    val want = NIGHT_WOOD * people * b.nightFire
     val got = min(want, wood[Material.WOOD])
     wood[Material.WOOD] -= got
     b.nightWood = if (want > 0f) got / want else 1f
@@ -922,7 +937,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     b.fire *= b.hearthWood
     val woodBefore = b.goods[Material.WOOD]
     val nightBurnt = burnNightFire(b, people)
-    dialUse?.amount(DialSite.NIGHT_FIRE_WOOD, b.nightFire, nightBurnt, min(NIGHT_WOOD * people, woodBefore), cut = b.nightFire > 1f)
+    dialUse?.amount(DialSite.NIGHT_FIRE_WOOD, b.nightFire, nightBurnt, min(NIGHT_WOOD * people, woodBefore))
     // With the time still to spare, a band that has kept its camp a while builds stone-footed houses
     // there, as far as it has gathered the stone and timber (and starts afresh where it settles
     // anew); houses it has left weather away.
@@ -934,6 +949,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     b.house = if (b.houseHex.none) 0f else housesAt(g, b.houseHex.i)
     b.atHome = b.houseHex == h && b.house > 0.05f
     b.homeEarth = if (b.atHome) earthAt(g, h.i) else 0f
+    b.homeWalls = if (b.atHome) wallsAt(g, h.i) else 0f
     b.homeGroundC = if (b.atHome) (0 until Date.MONTHS_PER_YEAR).sumOf { weather.usualTemperature(it, p).toDouble() }.toFloat() / Date.MONTHS_PER_YEAR else 0f
     // With time still to spare, it makes ornaments of shell and bone: they are given, worn and buried.
     makeOrnaments(b, people, time)
@@ -1866,7 +1882,9 @@ enum class BandWay(val label: String) {
      * take each this week ([buildHouse]): they differ in what they cost and in how warm a sunken one keeps and how a mudbrick one
      * wears in the rain ([sunkenM], [MUD_EROSION]).
      */
-    BUILD_STONE_FOOTING("build: stone footing"), BUILD_PIT_HOUSE("build: pit house"), BUILD_MUDBRICK("build: mudbrick");
+    BUILD_STONE_FOOTING("build: stone footing"), BUILD_PIT_HOUSE("build: pit house"), BUILD_MUDBRICK("build: mudbrick"),
+    /** Hours its people keep awake by turns through the night, armed, by the fire ([Band.watchHours]): sleep lost against beasts kept off. */
+    NIGHT_WATCH("night watch");
     /** Its place among the ways' outputs. */
     val slot = MAKE_FIRST_SLOT + Tool.entries.size + ordinal
 }
@@ -2161,8 +2179,9 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
         } else b.raid = if (raid.weeks > 1) Raid(raid.hex, raid.on, raid.weeks - 1) else null
         return
     }
-    val hungry = g.fed < RAID_HUNGER * b.raidWill.coerceAtMost(1.6f)
-    dialUse?.choice(DialSite.RAIDS_HUNGER, b.raidWill, hungry, g.fed < RAID_HUNGER, cut = b.raidWill > 1.6f)
+    // (A readier band plots on less hunger: each step of readiness closes the same share of what is left of the gap to fed.)
+    val hungry = g.fed < shareOfWill(b.raidWill, RAID_HUNGER)
+    dialUse?.choice(DialSite.RAIDS_HUNGER, b.raidWill, hungry, g.fed < RAID_HUNGER)
     val within = ArrayList<Int>()
     for ((id, h) in b.knownHomes) {
         if (b.tie(id) > 0f) continue
@@ -2207,6 +2226,15 @@ internal fun HexGroups.fightRaids(weather: Weather) {
  * Fighting: surprise and the lie of the land.
  */
 const val RAID_HUNGER = 0.6f
+
+/**
+ * A way's [will] as a share of a whole: [atOne] at the scaffold's 1, and each further unit of will taking the same share of
+ * what is left, so more of the same buys ever less and the whole is never reached (no cap: the band finds its own balance).
+ */
+internal fun shareOfWill(will: Float, atOne: Float) = 1f - (1f - atOne).pow(max(0f, will))
+
+/** A way's [will] as an effect that each further unit adds less to: 1 at the scaffold's 1, about 1.37 at 2, never above 1.58. */
+internal fun moreOfWill(will: Float) = (1f - exp(-max(0f, will))) / (1f - exp(-1f))
 const val RAID_RANGE_KM = 60.0
 const val RAID_PLOT = 0.3f
 const val RAID_WEEKS = 4
@@ -2544,6 +2572,32 @@ fun sunkenM(way: Skill) = when (way) { Skill.PIT_HOUSE -> 1f; Skill.MUDBRICK -> 
  * sunken walls: the year's swing of the soil's warmth falls off with depth as exp(-depth / [SOIL_DAMPING_M]).
  */
 fun earthGain(way: Skill) = 1f - exp(-sunkenM(way) / SOIL_DAMPING_M)
+
+/**
+ * How well the walls of a house built [way] keep beasts of prey out at night, 0..1: stone-footed and mudbrick walls whole; a
+ * pit house, whose roof of brush and earth comes down to the ground, [PIT_WALLS] of that. (Lions break into thatched houses
+ * and makeshift huts to take those asleep inside, Packer et al. 2005, Nature 436: 927; the shares are estimates.)
+ */
+fun wallGuard(way: Skill) = if (way == Skill.PIT_HOUSE) PIT_WALLS else 1f
+const val PIT_WALLS = 0.5f
+
+/**
+ * The share of their working time [adults] keep at work when they keep [watchHours] of watch a night between them: each hour
+ * awake comes out of someone's sleep, and a short night costs the next day's work about [SLEEP_PACE] of the hours lost against
+ * a night's [SLEEP_HOURS] (an estimate). No cap: a band that watches all night all of it works ever less.
+ */
+fun watchPace(watchHours: Float, adults: Int) = max(0f, 1f - SLEEP_PACE * watchHours / (max(1, adults) * SLEEP_HOURS))
+/**
+ * Night watch: hours awake a night at the scaffold's 1 (one awake at a time through about ten hours of dark); a night's sleep,
+ * h; the share of the hours lost the next day's work loses (estimates); the share of the loss to beasts at night a watch of
+ * [WATCH_HOURS] keeps off, each more of it the same share of what is left ([shareOfWill]) (an estimate: in Kenya bomas lost
+ * fewer livestock at night the more people were in them, while herders by day made no difference, Woodroffe et al. 2007, via
+ * Conservation Evidence).
+ */
+const val WATCH_HOURS = 10f
+const val SLEEP_HOURS = 8f
+const val SLEEP_PACE = 0.5f
+const val WATCH_GUARD = 0.4f
 
 /**
  * The depth over which the soil's yearly swing of warmth falls to 1/e, m: sqrt(2 κ / ω) for a moist soil's thermal diffusivity

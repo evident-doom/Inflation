@@ -1,6 +1,8 @@
 package inflation.run
 
 import inflation.StockName
+import inflation.ecology.ByBeast
+import inflation.ecology.Catalogue
 import inflation.ecology.HexHistory
 import inflation.ecology.HexHistory.Key
 import inflation.ecology.HexSim
@@ -54,6 +56,15 @@ class NominalTest {
         assertTrue(off.findings.any { it.what == "deaths of roe deer" }, off.report())
         val even = Nominal.history(history(mapOf(dead to 10f, Key.births("roe deer") to 10f)))
         assertTrue(even.ok, even.report())
+    }
+
+    @Test
+    fun `people taken by beasts beyond what foragers lose are found, and a few pass`() {
+        val people = Catalogue.HUMAN.name
+        val taken = Key.deaths(people, ByBeast.of(ByBeast.How.TAKEN_BY, Catalogue.LION).label)
+        fun run(perWeek: Float) = Nominal.history(history(mapOf(Key.animals(people) to 1000f, taken to perWeek, Key.births(people) to perWeek)))
+        assertTrue(run(0.1f).findings.any { it.what == "people taken by beasts" }, run(0.1f).report())
+        assertTrue(run(0.005f).findings.none { it.what == "people taken by beasts" }, run(0.005f).report())
     }
 
     @Test

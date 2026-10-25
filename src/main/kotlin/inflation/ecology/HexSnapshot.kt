@@ -277,19 +277,37 @@ object HexSnapshot {
      *   there would cost its herd ([HexGroups.herdLoss]); villages started by t.startSettled start with a herd, and
      *   t.startHerders starts a share of mobile bands with one; kept herds no longer lose a share for each hex a move takes
      *   them (HERD_MOVE_LOSS, no source).
-     * 4.60: a band weighs its herd against what a day's foraging brings in its leanest month ([herdPays], [Band.forageReturn]
+     * 4.60: only the trees that bear food bear mast and fruit, by kind of country ([HexFood.FOOD_TREES]: none from spruce, fir
+     *   or larch), and the trees' crop swings from year to year, the same over all the land for each group of trees but apart
+     *   between them ([inflation.world.MastTrees], [inflation.world.Weather.mastCrop]).
+     * 4.61: bands burn off dry grass where any fire would take ([HexFires.canBurn]); their own stricter test (soil under 40 mm,
+     *   forage under 0.4 green, herbs over 0.3) was not met at any camp in 5 years on storm-1, so the burning-off way was never read.
+     *   Ways that stopped at the scaffold's 1 go on above it as more of the same for ever less ([shareOfWill], [moreOfWill]): a
+     *   bigger night fire (wood as the will, guarding less for each log more), giving beyond the lack and beyond a tenth of the
+     *   larder, repaying more than is owed, plotting raids on less hunger; drying all the fresh meat and fish and holding back
+     *   all storing to mend stay all at 1, and above it go on as drying for longer (a kilo taking that much more time and
+     *   keeping that much better: [Band.dryDepth]) and mending first ever sooner ([Band.mendBelow]).
+     *   Standing grass and scrub hide small game from those who hunt it ([smallSeen], [HexPlants.groundCover]): burnt and
+     *   grazed ground shows more of it.
+     * 4.62: the loss to beasts of prey is split between night at camp ([NIGHT_STALKED]) and day at work ([stalkGuard]): by night
+     *   the fire, dogs, a night watch (a new way, [BandWay.NIGHT_WATCH]: hours awake by turns, paid for in the next day's work,
+     *   [watchPace]), house walls ([HOUSE_GUARD], as they hold: [wallGuard]) and a palisade ([PALISADE_GUARD]) keep beasts off; by
+     *   day only dogs. Scouts no longer guard the camp as lookouts: they keep beasts off by where they find them. A band counts
+     *   its walls in what a house is worth to it and in choosing its camp. Beasts take a tenth as many at most ([STALKED]),
+     *   as foragers' records have it, and the nominal check counts those taken. (People net 5: a new way output.)
+     * 4.63: a band weighs its herd against what a day's foraging brings in its leanest month ([herdPays], [Band.forageReturn]
      *   month by month), since a herd is food kept alive till then; and its herd's mothers give milk after the birth season
      *   ([milkKg], [Nourishment.MILK]): before, meat alone never paid a herder anywhere, and every herd was eaten in a year.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 60
+    const val MODEL_MINOR = 63
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
      * numbers would land on the wrong entries; entries added at the end keep the fresh model's values.
      */
     internal val ORDERED: List<Class<out Enum<*>>> = listOf(Skill::class.java, Tool::class.java, Material::class.java, Store::class.java,
-        Illness::class.java, Tradition::class.java, Biome::class.java, BandWay::class.java)
+        Illness::class.java, Tradition::class.java, Biome::class.java, BandWay::class.java, inflation.world.MastTrees::class.java)
 
     /** Writes the state of [sim] to [file]. */
     fun save(sim: HexSim, file: File) {

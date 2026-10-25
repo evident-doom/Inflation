@@ -49,6 +49,15 @@ internal fun HexGroups.earthAt(g: HexGroup, h: Int): Float {
     return if (room > 0f) earth / room else 0f
 }
 
+/** How well the walls of the houses at hex [h] that [g] may use keep beasts of prey out ([wallGuard]), over the room they give. */
+internal fun HexGroups.wallsAt(g: HexGroup, h: Int): Float {
+    var room = 0f; var walls = 0f
+    for (s in built) if (s.kind == Built.HOUSES && s.hex == h && s.done && usable(s, g)) {
+        val r = s.built * s.size; room += r; walls += r * wallGuard(Skill.entries[s.design.coerceAtLeast(0)])
+    }
+    return if (room > 0f) walls / room else 0f
+}
+
 /** How much of a palisade stands at hex [h] that [g] may use, 0..1. */
 internal fun HexGroups.palisadeAt(g: HexGroup, h: Int): Float {
     var ring = 0f

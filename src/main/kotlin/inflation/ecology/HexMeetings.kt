@@ -610,7 +610,8 @@ private fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
         val area = land.areaKm2[p]
         val swept = min(area, sweep)
         val small = this.small
-        offer(w, o, Food.SMALL_GAME, 0, Place(p.i), small.smallPreyKg(Place(p.i)) * min(area, w.smallSweep) * w.smallCatch / days, 1f, w.smallDays)
+        // (Small game in cover is found the less, on burnt or grazed bare ground the more: [smallSeen].)
+        offer(w, o, Food.SMALL_GAME, 0, Place(p.i), small.smallPreyKg(Place(p.i)) * min(area, w.smallSweep * smallSeen(Place(p.i))) * w.smallCatch / days, 1f, w.smallDays)
         if (w.d.carrion > 0f) {
             // (At most half of what lies on the ground searched: the rest is not found in time, or others get it;
             // and only the scavengers by trade, which watch the vultures and quarter the ground for it, find
@@ -689,7 +690,7 @@ private fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
                 w.busy += kills1 * o.time[i] * w.party[0]
                 w.meat += haul.kg; w.fed += haul.kg * w.feeds(Food.BIG_GAME)
             }
-            Food.SMALL_GAME -> small.catchSmallIn(Place(p), Kg(expected), min(land.areaKm2[p], w.smallSweep), w.weather).v.let { w.smallGot += it; w.fed += it * w.feeds(Food.SMALL_GAME) }
+            Food.SMALL_GAME -> small.catchSmallIn(Place(p), Kg(expected), min(land.areaKm2[p], w.smallSweep * smallSeen(Place(p))), w.weather).v.let { w.smallGot += it; w.fed += it * w.feeds(Food.SMALL_GAME) }
             Food.CARRION -> scavenge(g, Place(p), expected, w.sweep, w.rnd).let { w.scraps += it; w.fed += it * w.feeds(Food.CARRION) }
             Food.BONES -> small.crackBonesIn(Place(p), Kg(expected), min(land.areaKm2[p], w.sweep)).v.let { kg ->
                 if (band == null) { w.scraps += kg; w.fed += kg * w.worth(Food.BONES) }
@@ -934,15 +935,21 @@ private fun HexGroups.keepAndSpoil(w: ForageWeek, got: FloatArray, gotKg: FloatA
     // drying takes its time by what it weighs. What it would have liked to dry is what drying asks of next week's plan.)
     val freshKgPer = g.storeKgPer[Store.FRESH].coerceAtLeast(1e-6f)
     val dryDays = time.leftFor(Activity.DRYING)
-    val dried = min(g.stores[Store.FRESH] * min(1f, band.dryWill), dryDays * dryRate / DRY_DAYS_PER_KG / freshKgPer)
-    dialUse?.amount(DialSite.DRYING, band.dryWill, dried, min(g.stores[Store.FRESH], dryDays * dryRate / DRY_DAYS_PER_KG / freshKgPer), cut = band.dryWill > 1f)
-    band.dryAsk = if (dryRate > 0f) g.stores[Store.FRESH] * min(1f, band.dryWill) * freshKgPer * DRY_DAYS_PER_KG / dryRate else 0f
+    // (All of it from the scaffold's 1 up; above 1 more of the same: dried for longer, a kilo taking that much more of its
+    // days and keeping that much better ([driedKeep]).)
+    val dryShare = band.dryWill.coerceIn(0f, 1f)
+    val depth = max(1f, band.dryWill)
+    val daysPerKg = DRY_DAYS_PER_KG * depth
+    val dried = min(g.stores[Store.FRESH] * dryShare, dryDays * dryRate / daysPerKg / freshKgPer)
+    dialUse?.amount(DialSite.DRYING, band.dryWill, dried, min(g.stores[Store.FRESH], dryDays * dryRate / DRY_DAYS_PER_KG / freshKgPer))
+    band.dryAsk = if (dryRate > 0f) g.stores[Store.FRESH] * dryShare * freshKgPer * daysPerKg / dryRate else 0f
     if (dried > 0f) {
         val saltedNow = min(dried, salt / SALT_PER_KG); band.goods[Material.SALT] -= saltedNow * SALT_PER_KG
         val before = g.stores[Store.DRIED]; band.salted = (before * band.salted + saltedNow) / (before + dried)
+        band.dryDepth = (before * band.dryDepth + dried * depth) / (before + dried)
         g.stores[Store.FRESH] -= dried; addFood(g.stores, g.storeKgPer, Store.DRIED, dried, dried * g.storeKgPer[Store.FRESH]); band.practise(if (salting >= max(sun, smoke)) Skill.SALTING else if (smoke > sun) Skill.SMOKING else Skill.STORE)
     }
-    time.spendAtMost(Activity.DRYING, if (dried > 0f) dried * freshKgPer * DRY_DAYS_PER_KG / dryRate else 0f)
+    time.spendAtMost(Activity.DRYING, if (dried > 0f) dried * freshKgPer * daysPerKg / dryRate else 0f)
     time.release(Activity.DRYING)
     band.skinAsk = SKIN_DAYS * pelts
     val unskinned = skinSmallGame(band, time, pelts)
@@ -1199,10 +1206,13 @@ private val FORAGE_DIAG = Config.string(Config.Key.FORAGE_DIAG)
 private fun diagSampled(g: HexGroup, weather: Weather, share: Float, salt: Int) =
     unitOf(mix64(g.id * HASH_A + weather.date.absoluteDay * HASH_B + salt * HASH_C)) < share
 
-/** How much of the usual loss band [band]'s dried meat and fish suffer: smoked keeps longer than sun-dried, salted longer still. */
+/**
+ * How much of the usual loss band [band]'s dried meat and fish suffer: smoked keeps longer than sun-dried, salted longer still,
+ * and dried for longer ([Band.dryDepth]) longer in proportion (drier meat keeps longer; the proportion is an estimate).
+ */
 internal fun HexGroups.driedKeep(band: Band): Float {
     val smoked = if (band.knowsSkill[Skill.SMOKING]) 1f - SMOKE_KEEP * band.skill(Skill.SMOKING) else 1f
-    return smoked * (1f - tuning.saltKeep * band.salted)
+    return smoked * (1f - tuning.saltKeep * band.salted) / max(1f, band.dryDepth)
 }
 
 /**
@@ -1296,6 +1306,9 @@ const val RAW_SEED = 0.6f
 /** Beer: grain brewed for each guest at a feast, kg; how much more a feast with beer binds. */
 const val BEER_KG = 1f
 const val BEER_TIES = 0.5f
+
+/** Share of the ground a party searches for small game at place [p] over which it finds it: less in standing cover ([SMALL_HIDE]). */
+internal fun HexGroups.smallSeen(p: Place) = 1f - SMALL_HIDE * land.plants.groundCover(p)
 
 /** How readily [s] catches small game it comes on, 0..1: the smaller and nimbler the hunter, the better; cover hides the prey from all but stalkers. */
 internal fun smallCatch(s: Species) = SMALL_CATCH * min(1f, SMALL_HUNTER_KG / s.massKg)
@@ -1412,9 +1425,10 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather) {
     val close = (rich.band?.tie(poor.id) ?: 0f).coerceAtLeast(0f)
     if (poor.fed < (if (sharing) 0.9f else 0.8f) && rich.larder > 0f) {
         // (As much as the giver chooses to give.)
-        val chosen = min(0.9f, BAND_GIFT * (if (sharing) 2f else 1f) * (1f + close) * (rich.band?.giveWill ?: 1f)) * rich.larder
-        rich.band?.let { rb -> dialUse?.amount(DialSite.GIVE_MEETING, rb.giveWill, chosen, min(0.9f, BAND_GIFT * (if (sharing) 2f else 1f) * (1f + close)) * rich.larder,
-            cut = BAND_GIFT * (if (sharing) 2f else 1f) * (1f + close) * rb.giveWill > 0.9f) }
+        // (Of the nine tenths of its larder it could spare: more of the same gives ever less of what is left.)
+        val atOne = min(0.9f, BAND_GIFT * (if (sharing) 2f else 1f) * (1f + close))
+        val chosen = 0.9f * shareOfWill(rich.band?.giveWill ?: 1f, atOne / 0.9f) * rich.larder
+        rich.band?.let { rb -> dialUse?.amount(DialSite.GIVE_MEETING, rb.giveWill, chosen, atOne * rich.larder) }
         // (And no less than the favours it owes the poor band, as fully as it returns them.)
         val week = poor.dailyNeedKg * days
         val gift = given(rich, poor, chosen, (1f - poor.fed) * week + week)
@@ -1451,8 +1465,9 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather) {
             val spare = gb.goods[m] - KEEP_YEARS * need * giver.adults
             val lack = KEEP_YEARS * need * taker.adults - tb.goods[m]
             if (spare <= 0f || lack <= 0f) continue
-            val gift = min(spare, lack) * min(1f, gb.giveWill)
-            dialUse?.amount(DialSite.GIVE_SPARE, gb.giveWill, gift, min(spare, lack), cut = gb.giveWill > 1f)
+            // (Above its 1 a band gives beyond what the other lacks, as far as it can spare: goods given away for the regard they win.)
+            val gift = min(spare, lack * gb.giveWill)
+            dialUse?.amount(DialSite.GIVE_SPARE, gb.giveWill, gift, min(spare, lack))
             gb.goods[m] -= gift; tb.goods[m] += gift
             useful += gift / (KEEP_YEARS * need * max(1, taker.adults))
             stats.meeting(Met.Of.GIVEN, m.name.lowercase())
@@ -1535,7 +1550,7 @@ internal fun HexGroups.slipsAway(g: HexGroup, other: HexGroup, p: Place): Boolea
 
 /**
  * The food [band] works to lay by this week: while its kit is worn it holds back from storing as far as its way of
- * mending first goes ([Band.mendFirst]: the scaffold's 1 stores nothing, mending from the time the stores would take).
+ * mending first goes ([Band.mendFirst]: the scaffold's 1 stores a tenth of it, mending in the time the rest would take).
  */
 internal fun HexGroups.storeWork(g: HexGroup, band: Band) = if (band.worn()) storeWant(g, band) * (1f - band.mendFirst) else storeWant(g, band)
 
@@ -1552,9 +1567,9 @@ private fun storeWant(g: HexGroup, band: Band, aimDays: Float) =
 /** Counts in [u] how band [b]'s store aim and its mending first set the food [work] it works to lay by ([storeWork]). */
 private fun countStoreWork(u: DialUse, g: HexGroup, b: Band, work: Float) {
     val worn = b.worn()
-    val mendAt1 = if (worn) storeWant(g, b) * (1f - 1f) else storeWant(g, b)
+    val mendAt1 = if (b.worn(MEND_BELOW)) 0f else storeWant(g, b)
     u.amount(DialSite.STORE_WANT, b.storeShare, work, if (worn) storeWant(g, b, b.storeAimAt1) * (1f - b.mendFirst) else storeWant(g, b, b.storeAimAt1))
-    if (worn) u.amount(DialSite.MENDING_FIRST, b.will[BandWay.MENDING_FIRST], work, mendAt1, cut = b.will[BandWay.MENDING_FIRST] > 1f)
+    if (worn) u.amount(DialSite.MENDING_FIRST, b.will[BandWay.MENDING_FIRST], work, mendAt1)
 }
 
 /**

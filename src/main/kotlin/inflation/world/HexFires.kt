@@ -21,10 +21,16 @@ class HexFires(land: HexLand) : HexLandPart(land) {
     val burning = FloatArray(n)
     /** Fires this step: the place each started in and the km² it burned. */
     val fires = ArrayList<Fire>()
+    /** For the yearly report ([yearReport]): fires bands set, those that took, and km² burnt by theirs and by the rest. */
+    @Transient private var setYear = 0
+    @Transient private var tookYear = 0
+    @Transient private var peopleKm2Year = 0.0
+    @Transient private var wildKm2Year = 0.0
 
     private fun fuel(p: Place) = (plants.herb[p] + 0.5f * plants.shrub[p]) * (1f - 0.8f * (1f - exp(-plants.grazing[p] / GRAZE_SCALE)))
 
-    private fun canBurn(p: Place, weather: Weather) =
+    /** Whether place [p] would burn this week if lit: fuel enough, not flooded, dry soil, warm and rainless. */
+    internal fun canBurn(p: Place, weather: Weather) =
         hydro.flood[p] <= 0f && fuel(p) >= 0.2f && hydro.soil[p] / hydro.soilCap[p] < 0.3f && weather.temperature[p] > 15f && weather.precipitation[p] < 5f
 
     /** Fires people have set, to be lit next step. */
@@ -41,6 +47,7 @@ class HexFires(land: HexLand) : HexLandPart(land) {
         fires.clear()
         val set = HashSet<Place>()
         while (true) set += lit.poll() ?: break
+        setYear += set.size
         for (i in 0 until n) {
             val p = Place(i)
             if (burning[p] > 0f || !canBurn(p, weather)) continue
@@ -70,6 +77,7 @@ class HexFires(land: HexLand) : HexLandPart(land) {
                 }
             }
             fires += Fire(p.i, km2)
+            if (p in set) { tookYear++; peopleKm2Year += km2 } else wildKm2Year += km2
         }
     }
 
@@ -85,6 +93,11 @@ class HexFires(land: HexLand) : HexLandPart(land) {
         plants.fertility[p] = min(1f, plants.fertility[p] + 0.01f * share)
         return before - plants.biomass(p)
     }
+
+    /** The year's fires so far, as a line for the report, and starts the count afresh. */
+    fun yearReport(): String =
+        "bands set %d (%d took), km² burnt by their fires %.0f, by others %.0f".format(setYear, tookYear, peopleKm2Year, wildKm2Year)
+            .also { setYear = 0; tookYear = 0; peopleKm2Year = 0.0; wildKm2Year = 0.0 }
 
     private fun hash(p: Place, salt: Int): Float {
         return unitOf(mix64(land.seed * HASH_A + plants.stepCount * HASH_A + p.i * HASH_B + salt * HASH_C))
