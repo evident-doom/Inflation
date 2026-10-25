@@ -139,6 +139,8 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
     fun canopy(p: Place) = min(1f, tree[p] / (0.4f * LifeForm.TREE.maxBiomass))
     /** Cover to hide in at place [p], 0..1: scrub and forest. */
     fun cover(p: Place) = min(1f, shrub[p] / 2f + canopy(p))
+    /** Cover on the ground at place [p], 0..1, that small game hides in: standing grass and herbs (full at their most) and scrub; fire and grazing take it off. */
+    fun groundCover(p: Place) = min(1f, herb[p] / LifeForm.HERB.maxBiomass + shrub[p] / 2f)
 
     fun ceiling(form: LifeForm, p: Place): Float {
         val m = ((moisture[p] - form.moistureMin) / (form.moistureFull - form.moistureMin)).coerceIn(0f, 1f)
