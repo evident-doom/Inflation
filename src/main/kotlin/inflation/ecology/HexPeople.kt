@@ -19,6 +19,7 @@ import inflation.world.LifeForm
 import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlin.math.min
+import kotlin.math.pow
 import inflation.world.Biome
 import inflation.world.Weather
 import java.util.stream.IntStream
@@ -2458,6 +2459,12 @@ const val PIT_WALLS = 0.5f
  * a night's [SLEEP_HOURS] (an estimate). No cap: a band that watches all night all of it works ever less.
  */
 fun watchPace(watchHours: Float, adults: Int) = max(0f, 1f - SLEEP_PACE * watchHours / (max(1, adults) * SLEEP_HOURS))
+
+/**
+ * A way's [will] as a share of a whole: [atOne] at the scaffold's 1, and each further unit of will taking the same share of
+ * what is left, so more of the same buys ever less and the whole is never reached (no cap: the band finds its own balance).
+ */
+internal fun shareOfWill(will: Float, atOne: Float) = 1f - (1f - atOne).pow(max(0f, will))
 /**
  * Night watch: hours awake a night at the scaffold's 1 (one awake at a time through about ten hours of dark); a night's sleep,
  * h; the share of the hours lost the next day's work loses (estimates); the share of the loss to beasts at night a watch of
