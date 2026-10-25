@@ -277,9 +277,12 @@ object HexSnapshot {
      *   there would cost its herd ([HexGroups.herdLoss]); villages started by t.startSettled start with a herd, and
      *   t.startHerders starts a share of mobile bands with one; kept herds no longer lose a share for each hex a move takes
      *   them (HERD_MOVE_LOSS, no source).
+     * 4.60: a band weighs its herd against what a day's foraging brings in its leanest month ([herdPays], [Band.forageReturn]
+     *   month by month), since a herd is food kept alive till then; and its herd's mothers give milk after the birth season
+     *   ([milkKg], [Nourishment.MILK]): before, meat alone never paid a herder anywhere, and every herd was eaten in a year.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 59
+    const val MODEL_MINOR = 60
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

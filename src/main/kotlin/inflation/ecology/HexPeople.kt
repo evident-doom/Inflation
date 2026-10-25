@@ -17,6 +17,7 @@ import inflation.Config
 import inflation.world.Date
 import inflation.world.LifeForm
 import kotlin.math.max
+import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.min
 import inflation.world.Biome
@@ -504,8 +505,8 @@ class Band(kinds: Int) {
     @Transient var week: BandTime? = null
     /** The share of its herd its herders kept this week, as its week's plan gave them days ([herdDays]; 1 till it plans). */
     @Transient var herded = 1f
-    /** What a day's foraging brings it, kg of its need: a mean over about a year (below 0 till it has foraged; [herdPays]). */
-    @Transient var forageReturn = -1f
+    /** What a day's foraging brings it, kg of its need, month by month: a mean over the years (below 0 till it has foraged then; [herdPays]). */
+    @Transient val forageReturn = FloatArray(Date.MONTHS_PER_YEAR) { -1f }
     /** The stock its herders keep in a usual week, kg on the hoof: a mean over about a year of what they kept and could have ([keepHerds]; below 0 till it has one). */
     @Transient var herdRoom = -1f
     /** Person-days drying and skinning would have liked last week: what they ask of this week's plan (they follow the catch). */
@@ -2317,7 +2318,7 @@ fun serveOfMake(t: Tool, fine: Float, tuning: Tuning): Float = if (fineMaterial(
 
 /**
  * A band's kept animals' week: they graze round the camp ([herdForage]), breed in their season as they are fed and as tame
- * as they have grown, die, and run off as wild as they still are; they are herded in the field
+ * as they have grown, give milk after it ([milkKg]), die, and run off as wild as they still are; they are herded in the field
  * work's time ([herdDays], [Band.herded]), and what its herders cannot keep the band culls (meat in its stores), as it eats
  * what its herd grows to beyond the stock its herders keep in a usual week; and generation by
  * generation they grow tamer, since the docile stay and breed.
@@ -2355,6 +2356,13 @@ private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTime
         val inSeason = monthsFrom(s.birthMonth, date.month) < s.birthMonths
         val born = if (inSeason) n * 0.5f * s.youngPerFemale * fed * (0.3f + 0.7f * tame) /
             (s.birthMonths * Date.DAYS_PER_MONTH.toFloat() / days) else 0f
+        // Its mothers give milk through the lactation after the birth season, as they are fed and as tame as they are.
+        val lactating = monthsFrom(s.birthMonth, date.month) * Date.DAYS_PER_MONTH < s.birthMonths * Date.DAYS_PER_MONTH + LACTATION_DAYS
+        if (lactating) {
+            val milk = n * 0.5f * (0.3f + 0.7f * tame) * tame * fed * milkKg(s) * days / LACTATION_DAYS
+            addFood(g.stores, g.storeKgPer, Store.FRESH, milk * Nourishment.MILK * g.species.needScale, milk)
+            herdFlows[HerdFlow.MILK_KG] += milk
+        }
         val dying = (s.backgroundMortality + 0.5f * (1f - fed)) * years
         val running = HERD_RUN_OFF * (1f - tame) * b.lapse(Skill.TENDING) * years
         val lost = n * min(0.9f, dying + running)
@@ -2393,10 +2401,10 @@ private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTime
 
 /**
  * What became of bands' kept animals, for the census ([HexGroups.herdFlows]): heads born, dead, run off or strayed, culled
- * for want of herders, and eaten of the herd's increase; and kg on the hoof weighed by the share herded, by the share fed, in herds that pay their herders ([herdPays]), and in
+ * for want of herders, and eaten of the herd's increase; milk, kg; and kg on the hoof weighed by the share herded, by the share fed, in herds that pay their herders ([herdPays]), and in
  * all (week by week).
  */
-enum class HerdFlow { BORN, DIED, RAN_OFF, CULLED, EATEN, KG_TENDED, KG_FED, KG_PAYS, KG }
+enum class HerdFlow { BORN, DIED, RAN_OFF, CULLED, EATEN, MILK_KG, KG_TENDED, KG_FED, KG_PAYS, KG }
 
 /** What [n] kept animals of kind [s] ask of place [p]'s ground this week, and the grass and browse they can get there, kg/m². */
 internal class HerdForage(val need: Float, val grass: Float, val browse: Float) {
@@ -2429,18 +2437,31 @@ internal fun HexGroups.herdDays(b: Band): Float {
 }
 
 /**
- * Whether a herder's day with [g]'s band [b]'s herd of kind [k] brings it at least what a day's foraging does ([Band.forageReturn]):
- * the herd's yearly increase as [keepHerds] has it, well fed (births by its tameness, less its deaths and those that run
- * off), on the stock a herder keeps, at its meat. (Its mean day's foraging stands for its last one; a herd also keeps
- * food alive through the lean months, which this does not count.)
+ * Whether a herder's day with [g]'s band [b]'s herd of kind [k] brings it at least what a day's foraging does in its leanest
+ * month ([Band.forageReturn]): a herd is food kept alive till the lean months, when a day's foraging brings least. The
+ * herd's day is its yearly increase as [keepHerds] has it, well fed (births by its tameness, less its deaths and those
+ * that run off), at its meat, and its mothers' milk ([milkKg], as tame as they are), on the stock a herder keeps. (Its
+ * mean day's foraging stands for its last one; the milking is taken to be in the herders' days.)
  */
 internal fun HexGroups.herdPays(g: HexGroup, b: Band, k: Int): Boolean {
-    if (b.forageReturn < 0f) return true
+    val lean = b.forageReturn.filter { it >= 0f }.minOrNull() ?: return true
     val s = fauna.kinds[k]; val tame = b.herdTame[k]
-    val increase = 0.5f * s.youngPerFemale * (0.3f + 0.7f * tame) - s.backgroundMortality - HERD_RUN_OFF * (1f - tame) * b.lapse(Skill.TENDING)
-    val day = HERD_KG_A_HERDER * herdSkill(b) * increase * MEAT_SHARE * Nourishment.MEAT * g.species.needScale / Date.DAYS_PER_YEAR
-    return day >= b.forageReturn
+    val mothers = 0.5f * (0.3f + 0.7f * tame)
+    val increase = mothers * s.youngPerFemale - s.backgroundMortality - HERD_RUN_OFF * (1f - tame) * b.lapse(Skill.TENDING)
+    val heads = HERD_KG_A_HERDER * herdSkill(b) / s.massKg
+    val day = heads * (increase * s.massKg * MEAT_SHARE * Nourishment.MEAT + mothers * tame * milkKg(s) * Nourishment.MILK) *
+        g.species.needScale / Date.DAYS_PER_YEAR
+    return day >= lean
 }
+
+/**
+ * The milk a mother of kind [s] gives its keepers in a lactation, kg: an indigenous goat milked once a day in the open,
+ * 56 kg in 101 days (Hagos, Gizaw and Urge 2017, Begait goats, western Tigray; the kids suckle besides), taken by the
+ * mother's weight against its 40 kg (as M^0.75; the scaling an estimate). Early herds' mothers likely gave less.
+ */
+internal fun milkKg(s: Species) = MILK_KG_GOAT * (s.massKg / 40f).pow(0.75f)
+const val MILK_KG_GOAT = 56f
+const val LACTATION_DAYS = 101f
 
 /** How much of a practised herder's stock [b]'s herders keep each: half, unpractised. */
 private fun herdSkill(b: Band) = 0.5f + 0.5f * min(1f, b.skill(Skill.TENDING))
