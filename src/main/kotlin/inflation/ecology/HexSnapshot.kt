@@ -248,9 +248,12 @@ object HexSnapshot {
      * 4.52: a band brings in its own ripe crop whole as seed corn, as field work in sowing's time ([harvestCrop]), at the
      *   reaping rate of any grain ([reapDaysPerKg]); before, a crop was reaped only a week's meals and stores at a time, and
      *   most of it stood till it was shed or reaped by others (seed corn fell twentyfold in ten years).
+     * 4.53: people's births are spaced by what weans their children and by carrying them ([birthSpacing]): gruel of seed
+     *   ([Band.weaningFood]) shortens nursing, and a mother of a band that moves camp often spaces births till a child walks
+     *   the moves; this replaces the flat bonus of settled, well-stocked bands (settledFertility).
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 52
+    const val MODEL_MINOR = 53
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

@@ -167,8 +167,31 @@ internal fun HexGroups.moveDays(g: HexGroup, km: Float) = km * (g.band?.let { re
  * besides a child (Lee 1979, from memory: to check).
  */
 const val CARRY_KG = 15f
-/** Most that settled life with stores raises births (birth spacing about 4 years to under 3). */
-const val SETTLED_FERTILITY = 0.4f
+/**
+ * The spacing of a mother's births, years, as pregnancy ([GESTATION_YEARS]), the wait to conceive again once she is fertile
+ * ([CONCEIVE_YEARS]: months at a monthly chance of about a sixth, with early losses; Bongaarts and Potter 1983, from memory), and
+ * the months nursing keeps her from it: [NURSING_YEARS_MOST] where a child lives on the breast till it eats what grown people
+ * eat (the !Kung spaced births about four years, Howell 1979, from memory), down to [NURSING_YEARS_LEAST] where soft food
+ * weans it early (traditional farmers' months without ovulation, about 12 to 18, Bongaarts and Potter 1983, from memory).
+ * The base rate ([HUMAN_BIRTHS]) is the first spacing's, [SPACING_MOST].
+ */
+const val GESTATION_YEARS = 0.75f
+const val CONCEIVE_YEARS = 0.7f
+const val NURSING_YEARS_MOST = 2.55f
+const val NURSING_YEARS_LEAST = 1.25f
+const val SPACING_MOST = GESTATION_YEARS + CONCEIVE_YEARS + NURSING_YEARS_MOST
+/**
+ * Share of a band's food its weanlings ask, the seed that weans them all as gruel (an estimate: under-fours about a sixth of
+ * a forager band, Howell 1979, from memory, at about a third of a grown share).
+ */
+const val WEANING_SHARE = 0.05f
+/**
+ * A mother carries a child on the band's moves till it walks them, about four years old (Lee 1979; the backload, Blurton
+ * Jones 1986, both from memory): a mother of a band that moves camp as often as the !Kung, about [CARRY_MOVES] times a year
+ * (Kelly 1995, from memory), spaces her births so; one that moves less, the less (in proportion: an estimate).
+ */
+const val CARRY_YEARS = 4f
+const val CARRY_MOVES = 5f
 /** Extra yearly deaths among children in a camp kept for a year or more. */
 const val CAMP_FOULING = 0.02f
 /** People's deaths of thirst against an animal's at the same days without water. */
@@ -290,6 +313,8 @@ class Band(kinds: Int) {
     var houseFoodWeek = 0f
     /** Its food over about a year by where it came from ([FoodFrom]), kg a person a day (a running mean, [HexGroups.recordFood]). */
     val foodFrom = FloatArray(FoodFrom.entries.size)
+    /** Over about a year, the share of its weanlings it could wean on gruel ([gruel], [WEANING_SHARE]; a running mean, at its meals). */
+    var weaningFood = 0f
     /**
      * Over about a year, how its fishing paid against the least paying food its gatherers took up, as fish's yield a day of
      * handling over itself and that least yield: above 1/2 fish was worth taking up, 0 no fish in reach ([Offers.pull]).
@@ -1671,11 +1696,21 @@ const val MARSH_FEVER = 0.05f
 internal fun HexGroups.bandLifeway(b: Band) =
     if (b.atHome || b.campWeeks >= stepsPerYear / 2f) Tally.Lifeway.SETTLED else Tally.Lifeway.MOBILE
 
-/** Settled life with stores shortens the spacing of births. */
-internal fun HexGroups.settledFertility(g: HexGroup): Float {
-    val b = g.band ?: return 1f
-    return 1f + SETTLED_FERTILITY * tuning.settledFertility * min(1f, b.campWeeks / (stepsPerYear / 2f)) * min(1f, g.larderDays() / WELL_STOCKED_DAYS)
+/**
+ * [b]'s births against those of a band without weaning food ([SPACING_MOST] over its spacing): gruel weans children early
+ * ([Band.weaningFood]), but a mother carries each child on the band's moves till it walks them ([CARRY_YEARS]).
+ */
+internal fun HexGroups.birthSpacing(b: Band): Float {
+    val nursing = NURSING_YEARS_MOST - (NURSING_YEARS_MOST - NURSING_YEARS_LEAST) * b.weaningFood
+    // (A band at home or long at one camp moves the less: the weeks it has kept this camp count as well as its usual stay.)
+    val moves = stepsPerYear / max(b.stayWeeks, b.campWeeks + 1f)
+    val carried = CARRY_YEARS * min(1f, moves / CARRY_MOVES)
+    return SPACING_MOST / max(GESTATION_YEARS + CONCEIVE_YEARS + nursing, carried)
 }
+
+/** How far [b] can make its seed into gruel, soft food to wean a child on: boiled with hot stones, in baskets. */
+internal fun Band.gruel(): Float =
+    if (knowsSkill[Skill.STONE_BOILING]) fire * skill(Skill.STONE_BOILING) * max(has(Tool.BASKET), 0.5f) else 0f
 
 /** Extra yearly deaths among children of a camp kept long: refuse, flies and fouled water. */
 internal fun HexGroups.campFouling(g: HexGroup, campWeeks: Int = g.band?.campWeeks ?: 0): Float {

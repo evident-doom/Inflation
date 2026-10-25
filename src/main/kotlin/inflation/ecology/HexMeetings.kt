@@ -704,6 +704,10 @@ private fun HexGroups.eatTheWeek(w: ForageWeek) {
         meal.eatForSodium(sodiumNeed / SODIUM_PER_KG_MEAT, got, plantKg, g)
         meal.eat(got, plantKg, g)
         band.leanLost = meal.leanLost
+        // (Its weanlings get gruel as far as there is seed, eaten this week or still in store: their share of the meals is
+        // already in its need, so they eat seed and the rest eat the rest in its stead.)
+        val weaned = band.gruel() * min(1f, (meal.ateSeed + g.stores[Store.SEED]) / (WEANING_SHARE * wantAll).coerceAtLeast(1e-3f))
+        band.weaningFood += (weaned - band.weaningFood) / stepsPerYear
         val ateMeat = meal.ateMeat; val ateKg = meal.ateKg; val ateMeatKg = meal.ateMeatKg
         eaten = wantAll - meal.need
         land.books?.flow(Books.Stuff.MATTER, "eaten", -ateKg.toDouble())
@@ -752,7 +756,7 @@ private fun HexGroups.eatTheWeek(w: ForageWeek) {
  * protein beyond the ceiling not at all), and also by weight; [leanLost] is the share of the protein it ate that went to waste.
  */
 private class Meal(val wantAll: Float) {
-    var need = wantAll; var ateMeat = 0f; var ateKg = 0f; var ateMeatKg = 0f; var ateDriedKg = 0f
+    var need = wantAll; var ateMeat = 0f; var ateKg = 0f; var ateMeatKg = 0f; var ateDriedKg = 0f; var ateSeed = 0f
     private var room = Nourishment.PROTEIN_MOST * wantAll; private var protein = 0f; private var lost = 0f
     val leanLost get() = if (protein > 0f) lost / protein else 0f
 
@@ -797,6 +801,7 @@ private class Meal(val wantAll: Float) {
         val fed = if (beyond) e * (1f - p) else e
         need -= fed; protein += e * p; if (beyond) lost += e * p else room -= e * p
         ateKg += e * kgPer; if (st.meat) { ateMeat += fed; ateMeatKg += e * kgPer }; if (st == Store.DRIED) ateDriedKg += e * kgPer
+        if (st == Store.SEED) ateSeed += fed
         return e
     }
 }

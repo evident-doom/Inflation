@@ -27,6 +27,9 @@ import inflation.ecology.contains
 import inflation.ecology.Place
 import inflation.ecology.hexOf
 import inflation.ecology.seedCornIn
+import inflation.ecology.bandLifeway
+import inflation.ecology.birthSpacing
+import kotlin.math.max
 
 /**
  * The model as it stands, over the whole map: each method prints one or a few lines of a fauna check's
@@ -236,6 +239,14 @@ class Census(private val sim: HexSim) {
             sown.size, sownKg / 1000, if (sownKg > 0) sown.sumOf { f.fieldDomestic[it] * f.field[it] * land.areaKm2[it] * 1e6 } / sownKg else 0.0,
             bands.count { it.second > 0f }, bands.size, cornSum / 1000, if (cornSum > 0) bands.sumOf { it.first.seedDomestic * it.second.toDouble() } / cornSum else 0.0,
             wild / 1000, if (wild > 0) bands.sumOf { it.first.grainDomestic * it.third.toDouble() } / wild else 0.0))
+        // (What spaces births: gruel to wean on, and children carried on the band's moves; people-weighted.)
+        println("births by how bands live (people; share of weanlings weaned on gruel; camp moves a year; births against a band without weaning food): " + Tally.Lifeway.entries.joinToString(", ") { way ->
+            val ofWay = groups.groups.filter { g -> g.alive && g.band?.let { groups.bandLifeway(it) == way } == true }
+            val people = ofWay.sumOf { it.size.toDouble() }.coerceAtLeast(1.0)
+            fun mean(v: (inflation.ecology.Band) -> Float) = ofWay.sumOf { g -> g.band?.let { v(it).toDouble() * g.size } ?: 0.0 } / people
+            "%s %d: %.2f; %.1f; %.2f".format(way.label, ofWay.sumOf { it.size }, mean { it.weaningFood },
+                mean { groups.stepsPerYear / max(it.stayWeeks, it.campWeeks + 1f) }, mean { groups.birthSpacing(it) })
+        })
     }
 
     /** How unequal the land is for people: food to be had in each land hex (plant foods, game, fish). */
