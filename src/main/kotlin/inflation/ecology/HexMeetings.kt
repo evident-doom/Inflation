@@ -68,8 +68,8 @@ internal fun HexGroups.hunt(weather: Weather) {
     // Bands first set their ways for the week.
     // (Where the bands about it stand now, after this week's moves, as its own place is.)
     if (ways != null || control != null) indexBands()
-    if (ways != null) for (g in hunters) if (g.band != null) setWays(g, weather, ways, inputs, out)
     // (Without a ways network the bands keep the scaffold's ways, not those a saved world's bands last had from theirs.)
+    if (ways != null) { for (g in hunters) if (g.band != null) setWays(g, weather, ways, inputs, out) }
     else for (g in hunters) g.band?.scaffoldWays()
     dialUse?.let { u -> for (g in hunters) if (g.band != null) u.bandWeeks.increment() }
     // (A band followed under the player's hand sets its ways every week, so the player's pins hold.)
