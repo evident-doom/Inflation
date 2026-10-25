@@ -502,6 +502,8 @@ class Band(kinds: Int) {
     var spareDays = 0f
     /** Its week's time, as planned when it foraged ([BandTime]; null till then, and once the week's chores are done). */
     @Transient var week: BandTime? = null
+    /** The share of its herd its herders kept this week, as its week's plan gave them days ([herdDays]; 1 till it plans). */
+    @Transient var herded = 1f
     /** Person-days drying and skinning would have liked last week: what they ask of this week's plan (they follow the catch). */
     var dryAsk = 0f
     var skinAsk = 0f
@@ -890,7 +892,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     campAndCache(g, b, p, h, weather, date, time)
     time.release(Activity.CACHING)
     keepAnimals(g, b)
-    keepHerds(g, b, date, time)
+    keepHerds(g, b, date)
     val people = g.adults.toFloat()
     gatherMaterials(g, b, p, h, people, area, time)
     time.release(Activity.MATERIALS)
@@ -2310,17 +2312,16 @@ fun serveOfMake(t: Tool, fine: Float, tuning: Tuning): Float = if (fineMaterial(
 /**
  * A band's kept animals' week: they graze round the camp ([herdForage]), breed in their season as they are fed and as tame
  * as they have grown, die, run off as wild as they still are, and are lost on long moves; they are herded in the field
- * work's [time] ([herdDays]), and what its herders cannot keep the band culls (meat in its stores); and generation by
+ * work's time ([herdDays], [Band.herded]), and what its herders cannot keep the band culls (meat in its stores); and generation by
  * generation they grow tamer, since the docile stay and breed.
  */
-private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTime) {
+private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date) {
     val p = g.place
     val moved = max(0, g.path.size - 1)
-    // (Herding is field work: the days come out of sowing's time, as the harvest's do; on the days the band walks to a new
-    // camp, the herd walks with it.)
-    val need = herdDays(b) * (1f - walkedShare(time))
-    val tended = if (need > 0f) min(1f, time.leftFor(Activity.SOWING) / need) else 1f
-    if (need > 0f) time.spend(Activity.SOWING, need * tended)
+    // (Herding is field work: its days came out of sowing's time when the band planned its week ([Band.herded]), as the
+    // harvest's do; on the days the band walks to a new camp, the herd walks with it.)
+    val tended = b.herded
+    b.herded = 1f
     for (k in b.herd.indices) {
         var n = b.herd[k]
         if (n <= 0f) continue
