@@ -302,7 +302,8 @@ object HexSnapshot {
      *   nobody asked for would herd it too; before, it ate all beyond a year's mean of what its herders kept, and as the herd
      *   dwindled outside the birth season that mean followed it down, so even herds that paid shrank to nothing in a few years.
      * 4.66: 4.65 taken back (search for plant food by density, leached mast, slower small seeds): bands fell 12-31% in 10
-     *   years on the m455 worlds, unable to make up the plant food with other foods.
+     *   years on the m455 worlds, unable to make up the plant food with other foods. Its census of bands' plant food by what
+     *   it came from stays ([PlantFrom]).
      */
     const val MODEL_MAJOR = 4
     const val MODEL_MINOR = 66

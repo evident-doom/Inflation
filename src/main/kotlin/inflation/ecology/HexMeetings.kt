@@ -366,6 +366,8 @@ private class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, packK
             u.amount(DialSite.STORING, band.storeWill(t), weights[t.ordinal], worths[t.ordinal], dial = storeWay(t).slot)
     }
     val plantKind = FloatArray(Store.entries.size)
+    // (The same by the plant food it came from, for the census.)
+    val plantFrom = FloatArray(PlantFrom.entries.size)
     // (And what it weighs, which grinding, cooking and leaching do not change: see [addFood].)
     val plantKg = FloatArray(Store.entries.size)
     var busy = 0f
@@ -708,6 +710,9 @@ private fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
                 w.plants += haul.kg; w.fed += haul.kg * w.feeds(o.type[i])
                 val st = when (o.type[i]) { Food.ROOTS -> Store.ROOTS; Food.SEED -> Store.SEED; else -> Store.FRUIT }.ordinal
                 w.plantKind[st] += fed; w.plantKg[st] += haul.mass
+                val from = when (o.type[i]) { Food.FRUIT -> PlantFrom.FRUIT; Food.SEED -> PlantFrom.SEED; Food.FINDS -> PlantFrom.FINDS
+                    else -> if (o.kind[i] == MAST_KIND) PlantFrom.MAST else PlantFrom.BULBS }
+                w.plantFrom[from.ordinal] += fed
             }
             Food.FISH -> if (o.kind[i] == SHELLFISH_KIND) fauna.water.fishFor(p, expected, 1f, HexWater.Catch.SHELLFISH).let { w.fish += it; w.fed += it * w.feeds(Food.FISH) }
                 else fauna.water.fishFor(p, expected, band?.fishing() ?: 1f, HexWater.Catch.FISH).let { w.fish += it; w.fished += it; w.fed += it * w.feeds(Food.FISH) }
@@ -715,6 +720,7 @@ private fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
                 reap(g, Place(p), expected, haul)
                 val fed = haul.kg * w.worth(Food.GRAIN)
                 w.plants += haul.kg; w.fed += haul.kg * w.feeds(Food.GRAIN); w.plantKind[Store.SEED.ordinal] += fed; w.plantKg[Store.SEED.ordinal] += haul.mass
+                w.plantFrom[PlantFrom.GRAIN.ordinal] += fed
             }
         }
     }
@@ -887,6 +893,7 @@ private fun HexGroups.tallyForage(w: ForageWeek, meatEaten: Float) {
         stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.ASKED), wantAll.toInt(), Int::plus)
         stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.MEAT), (meat * w.worth(Food.BIG_GAME) + smallFed + scrapsFed).toInt(), Int::plus)
         stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.PLANTS), plantsFed.toInt(), Int::plus)
+        for (f in PlantFrom.entries) stats.hunting.merge(Tally.plantsFrom(f), w.plantFrom[f.ordinal].toInt(), Int::plus)
         stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.FISH), (fish * w.worth(Food.FISH)).toInt(), Int::plus)
         stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.BAND_WEEKS), 1, Int::plus); stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.PEOPLE_WEEKS), g.size, Int::plus)
         stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.HEARTH), (100f * band.hearthWood).toInt(), Int::plus)
@@ -1161,6 +1168,9 @@ private fun HexGroups.gather(g: HexGroup, t: Food, kind: Int, p: Place, expected
     }
     out.kg = took; out.mass = mass
 }
+
+/** The plant food a band's gathering came from, as the census counts it ([Tally.plantsFrom]). */
+enum class PlantFrom(val label: String) { FRUIT("fruit"), MAST("mast"), BULBS("bulbs and roots"), SEED("grass seed"), GRAIN("cereal grain"), FINDS("small finds") }
 
 /** The kind of [Food.FISH] offer that is shellfish gathered off the shore (0 is fish caught: see [offerFoods]). */
 const val SHELLFISH_KIND = 1
