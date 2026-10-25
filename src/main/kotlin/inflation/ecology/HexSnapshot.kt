@@ -298,9 +298,12 @@ object HexSnapshot {
      * 4.63: a band weighs its herd against what a day's foraging brings in its leanest month ([herdPays], [Band.forageReturn]
      *   month by month), since a herd is food kept alive till then; and its herd's mothers give milk after the birth season
      *   ([milkKg], [Nourishment.MILK]): before, meat alone never paid a herder anywhere, and every herd was eaten in a year.
+     * 4.64: a band eats its herd's yearly increase week by week, at what it is fed ([herdIncrease]), and keeps it where the days
+     *   nobody asked for would herd it too; before, it ate all beyond a year's mean of what its herders kept, and as the herd
+     *   dwindled outside the birth season that mean followed it down, so even herds that paid shrank to nothing in a few years.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 63
+    const val MODEL_MINOR = 64
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
