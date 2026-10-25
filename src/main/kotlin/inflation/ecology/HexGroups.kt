@@ -159,8 +159,10 @@ class HexGroups(
                 groups += g
             }
         }
-        // (A world begun once farming is known starts some bands as villages: t.startSettled.)
+        // (A world begun once farming is known starts some bands as villages, t.startSettled; once herding is known, some
+        // bands with herds, t.startHerders.)
         if (tuning.startSettled > 0f) startVillages()
+        if (tuning.startHerders > 0f) startHerders()
     }
 
     /**
@@ -649,6 +651,7 @@ class HexGroups(
         // Houses it may use draw it (its own or any left empty); a camp where someone died lately is shunned by those who leave their dead.
         score += HOME_PULL * housesAt(g, h.i)
         score += cropPull(g, b, h)
+        score -= herdLoss(g, b, p)
         if (h == b.unluckyHex) score -= UNLUCKY
         // It keeps off the known homes of bands it is not close to (unless set on raiding them).
         if (b.raidHex != h && keepOff != null && h in keepOff) score -= TRESPASS_AVOID
@@ -698,6 +701,24 @@ class HexGroups(
         val kg = min(b.sownKg, food.field[f] * land.m2(f))
         if (kg <= 0f) return 0f
         return kg * food.fieldExpect(f) * seedValue(b) / (g.dailyNeedKg.coerceAtLeast(1e-3f) * days) / b.stayWeeks
+    }
+
+    /**
+     * What a camp at [p] would cost band [b]'s (group [g]'s) kept animals a week, in weeks of its food: as far as they would go
+     * short of forage there ([herdForage], the reckoning that feeds them), those that would die of it and the young that
+     * would not be born ([keepHerds]' rule, its birth season taken over the year), at their meat.
+     */
+    private fun herdLoss(g: HexGroup, b: Band, p: Place): Float {
+        var kg = 0f
+        for (k in b.herd.indices) {
+            val n = b.herd[k]
+            if (n <= 0f) continue
+            val s = fauna.kinds[k]
+            val short = 1f - herdForage(p, s, n).fed
+            if (short <= 0f) continue
+            kg += n * short * 0.5f * (1f + s.youngPerFemale * (0.3f + 0.7f * b.herdTame[k])) * years * s.massKg
+        }
+        return kg * MEAT_SHARE * Nourishment.MEAT * g.species.needScale / (g.dailyNeedKg.coerceAtLeast(1e-3f) * days)
     }
 
     /** Heads of kind slot [k] in place [p] as a group knows them: seen in its own hex and the six around, else expected. */

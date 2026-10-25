@@ -985,8 +985,8 @@ private fun HexGroups.huntGame(g: HexGroup, k: Int, p: Place, expected: Float, k
     val na = min(kills1 - ny, (fauna.adults[k][p] * area).toInt())
     kills1 = na + ny
     if (kills1 <= 0) return kills1
-    // A band at home may keep young it catches, to raise by its camp.
-    if (band != null && band.atHome && ny > 0 && k < band.herd.size) {
+    // A band may keep young it catches, to raise by its camp and drive along when it moves.
+    if (band != null && ny > 0 && k < band.herd.size) {
         val kept = binomial(ny, min(1f, CAPTURE * band.keepWill * ps.domestication.average().toFloat()), rnd)
         dialUse?.amount(DialSite.KEEP_CAPTURE, band.keepWill, min(1f, CAPTURE * band.keepWill * ps.domestication.average().toFloat()),
             min(1f, CAPTURE * ps.domestication.average().toFloat()), cut = CAPTURE * band.keepWill * ps.domestication.average().toFloat() > 1f)

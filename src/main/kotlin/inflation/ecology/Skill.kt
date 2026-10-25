@@ -113,7 +113,7 @@ enum class Skill(val domain: Domain, val floor: Float, val start: Float = 0f, va
     STALK(Domain.STALKING, 0.2f, 0.8f, practice = HUNTING_PRACTICE),
     BUTCHER(Domain.BUTCHERY, 0.5f, 0.8f),
     /** Tending kept animals: fewer run off or are lost on the move, more can be kept, and they grow tame faster under practised hands. */
-    TENDING(Domain.HERDING, CRAFT_FLOOR, known = false, invent = 0.05f, teach = 0.1f, settled = true, ref = 0.5f),
+    TENDING(Domain.HERDING, CRAFT_FLOOR, known = false, invent = 0.05f, teach = 0.1f, ref = 0.5f),
     /** Apprenticeship: how fast the band's young and newcomers come to its skills (all practice goes faster or slower). */
     SHOWING(Domain.TEACHING, CRAFT_FLOOR, 0.5f),
     /** Songs, stories and names that keep know-how from fading. */

@@ -890,7 +890,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     campAndCache(g, b, p, h, weather, date, time)
     time.release(Activity.CACHING)
     keepAnimals(g, b)
-    keepHerds(g, b, date)
+    keepHerds(g, b, date, time)
     val people = g.adults.toFloat()
     gatherMaterials(g, b, p, h, people, area, time)
     time.release(Activity.MATERIALS)
@@ -987,6 +987,8 @@ internal fun HexGroups.choreAsks(g: HexGroup, b: Band, date: Date, asks: FloatAr
     }
     // (Its own crop, ripe, it brings in wherever it has come from: the field work is sowing's time.)
     cropRipe(g, b).takeIf { it > 0f }?.let { asks[Activity.SOWING.ordinal] += it * reapDaysPerKg(b, tuning) }
+    // (And its herding, wherever it is.)
+    asks[Activity.SOWING.ordinal] += herdDays(b)
     ask(Activity.DRYING, b.dryAsk)
     ask(Activity.SKINS, b.skinAsk)
 }
@@ -1328,6 +1330,7 @@ private fun HexGroups.wearAndInvent(b: Band, years: Float) {
     // So with ways of working: a band practised at a kind of work now and then hits on a new way of doing it.
     // (Salting is hit on only with salt to hand.)
     for (s in Skill.entries) if (!b.knowsSkill[s] && (!s.settled || b.atHome) && (s != Skill.SALTING || b.goods[Material.SALT] > 0f) &&
+        (s != Skill.TENDING || b.herd.any { it > 0f }) &&
         s.needs.let { it == null || (b.knowsSkill[it] && b.skills[it] >= NEEDS_LEVEL) } &&
         rnd.nextFloat() < s.invent * INVENT * b.edge(Skill.TINKER) * years * (0.5f + b.skill(s.domain))) {
         b.knowsSkill[s] = true
@@ -2307,25 +2310,27 @@ fun wearOfMake(t: Tool, fine: Float, tuning: Tuning): Float = when (fineMaterial
 fun serveOfMake(t: Tool, fine: Float, tuning: Tuning): Float = if (fineMaterial(t) != Material.STONE) 1f else tuning.poorStoneEdge + (1f - tuning.poorStoneEdge) * fine
 
 /**
- * A band's kept animals' week: they graze round the camp, breed in their season as they are fed
- * and as tame as they have grown, die, run off as wild as they still are, and are lost on long
- * moves; the band culls what it cannot keep (meat in its stores); and generation by generation they
- * grow tamer, since the docile stay and breed.
+ * A band's kept animals' week: they graze round the camp ([herdForage]), breed in their season as they are fed and as tame
+ * as they have grown, die, run off as wild as they still are, and are lost on long moves; they are herded in the field
+ * work's [time] ([herdDays]), and what its herders cannot keep the band culls (meat in its stores); and generation by
+ * generation they grow tamer, since the docile stay and breed.
  */
-private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date) {
+private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTime) {
     val p = g.place
     val moved = max(0, g.path.size - 1)
+    // (Herding is field work: the days come out of sowing's time, as the harvest's do.)
+    val need = herdDays(b)
+    val tended = if (need > 0f) min(1f, time.leftFor(Activity.SOWING) / need) else 1f
+    if (need > 0f) time.spend(Activity.SOWING, need * tended)
     for (k in b.herd.indices) {
         var n = b.herd[k]
         if (n <= 0f) continue
         val s = fauna.kinds[k]
         val tame = b.herdTame[k]
         // Grazing round the camp.
-        val need = land.spread(p, Kg(n * s.dailyIntakeKg * days))
-        val d = s.diet; val total = (d.grass + d.browse).coerceAtLeast(1e-6f)
-        val got = land.plants.consume(p, LifeForm.HERB, min(need * d.grass / total, KgM2(land.palatable[p] * land.plants.herb[p] * 0.1f))) +
-            land.plants.eatBrowse(p, need * d.browse / total)
-        val fed = if (need.v > 0f) min(1f, got / need) else 1f
+        val f = herdForage(p, s, n)
+        val got = land.plants.consume(p, LifeForm.HERB, KgM2(f.grass)) + land.plants.eatBrowse(p, KgM2(f.browse))
+        val fed = if (f.need > 0f) min(1f, got.v / f.need) else 1f
         val inSeason = monthsFrom(s.birthMonth, date.month) < s.birthMonths
         val born = if (inSeason) n * 0.5f * s.youngPerFemale * fed * (0.3f + 0.7f * tame) /
             (s.birthMonths * Date.DAYS_PER_MONTH.toFloat() / days) else 0f
@@ -2338,11 +2343,10 @@ private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date) {
         small.deposit(DeadPool.CARRION, p, Kg(died * s.massKg))
         fauna.adults[k][p] += (lost - died) / area
         n = max(0f, n + born - lost)
-        // What it cannot keep it culls for meat (the rest of the carcass for the scavengers).
-        val most = HERD_PER_PERSON * g.size * b.edge(Skill.TENDING)
-        if (n > most) {
-            val cull = n - most
-            n = most
+        // What its herders cannot keep it culls for meat (the rest of the carcass for the scavengers).
+        if (tended < 1f) {
+            val cull = n * (1f - tended)
+            n -= cull
             // (Kept at what it feeds, as the week's meat: [Nourishment.MEAT].)
             val culled = cull * s.massKg * MEAT_SHARE
             addFood(g.stores, g.storeKgPer, Store.FRESH, culled * Nourishment.MEAT * g.species.needScale, culled)
@@ -2356,16 +2360,44 @@ private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date) {
     }
 }
 
+/** What [n] kept animals of kind [s] ask of place [p]'s ground this week, and the grass and browse they can get there, kg/m². */
+internal class HerdForage(val need: Float, val grass: Float, val browse: Float) {
+    val fed get() = if (need > 0f) min(1f, (grass + browse) / need) else 1f
+}
+
+/**
+ * The forage [n] kept animals of kind [s] find round a camp at [p] in a week: their week's intake ([Species.dailyIntakeKg]),
+ * grass and browse in their diet's shares, as far as the place has them (grass to a tenth of the palatable herbage a week).
+ * The same reckoning feeds them ([keepHerds]) and weighs a camp for them ([HexGroups.herdLoss]).
+ */
+internal fun HexGroups.herdForage(p: Place, s: Species, n: Float): HerdForage {
+    val need = land.spread(p, Kg(n * s.dailyIntakeKg * days)).v
+    val d = s.diet; val total = (d.grass + d.browse).coerceAtLeast(1e-6f)
+    return HerdForage(need, min(need * d.grass / total, land.palatable[p] * land.plants.herb[p] * 0.1f),
+        min(need * d.browse / total, land.plants.browse(p)))
+}
+
+/**
+ * Person-days [b]'s herders take a week to keep its animals: herded on foot, a herder keeps about [HERD_KG_A_HERDER] kg of
+ * stock on the hoof, and the unpractised take up to twice as long.
+ */
+internal fun HexGroups.herdDays(b: Band): Float {
+    var kg = 0f
+    for (k in b.herd.indices) if (b.herd[k] > 0f) kg += b.herd[k] * fauna.kinds[k].massKg
+    return kg / HERD_KG_A_HERDER * days / (0.5f + 0.5f * min(1f, b.skill(Skill.TENDING)))
+}
+
 /**
  * Herding: chance a young animal caught in the hunt is kept and raised instead of eaten (times its
- * kind's tameability), by a band at home; yearly share of the still-wild that run off, and share lost
- * for each hex a move takes them; most kept animals a person tends; yearly growth of tameness.
+ * kind's tameability); yearly share of the still-wild that run off, and share lost for each hex a move takes them;
+ * yearly growth of tameness. And the stock a herder keeps on foot, kg on the hoof: about a hundred sheep and goats
+ * (Dahl and Hjort 1976, from memory, to check), at 40 kg a head.
  */
 const val CAPTURE = 0.5f
 const val HERD_RUN_OFF = 0.5f
 const val HERD_MOVE_LOSS = 0.05f
-const val HERD_PER_PERSON = 2f
 const val TAMING_RATE = 0.01f
+const val HERD_KG_A_HERDER = 4000f
 
 /**
  * A band's fire: practised bands carry embers when they move and light it again at once; the
