@@ -259,16 +259,21 @@ object HexSnapshot {
      *   for the firewood and shelters as far as they avert the deaths it foresees this week and through the year after
      *   ([survivalDays]), then for the week's food and the rest of the firewood;
      *   and a band choosing its camp counts roots as its gathering would find them ([HexGroups.rootsFound]).
-     * 4.56: herding is no longer for settled bands only: any band may take young in the hunt to keep, and learn herding;
+     * 4.56: fallen mast is a stock of its own ([HexFood.mast]), no longer counted with the bulbs and roots: a band picks it up
+     *   as it picks fruit, without searching for it ([MAST_KIND]); and bulbs and roots cannot be dug from frozen ground
+     *   ([HexFood.diggable], the week's air at or below [inflation.world.HexDrinkingWater.THAW_C]), for people and rooting
+     *   animals alike. (A 4.55 save loads with its mast still among its roots, where it rots away within the half year.)
+     * 4.57: herding is no longer for settled bands only: any band may take young in the hunt to keep, and learn herding;
      *   its herders' days come out of field work's time ([herdDays], about [HERD_KG_A_HERDER] kg of stock a herder), held before
      *   the week's food, and none on the days the herd walks with the band to a new camp; what they cannot
      *   keep it culls, in place of a flat cap of two head a person, and it eats what the herd grows to beyond the stock its
      *   herders keep in a usual week (a year's mean); a band choosing its camp weighs what poor forage
      *   there would cost its herd ([HexGroups.herdLoss]); villages started by t.startSettled start with a herd, and
-     *   t.startHerders starts a share of mobile bands with one.
+     *   t.startHerders starts a share of mobile bands with one; kept herds no longer lose a share for each hex a move takes
+     *   them (HERD_MOVE_LOSS, no source).
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 56
+    const val MODEL_MINOR = 57
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

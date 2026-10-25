@@ -133,7 +133,7 @@ class HexDrinkingWater(land: HexLand) : HexLandPart(land) {
             // The streams within reach are the hex's main river and its creeks (from 0.1 m³/s in a usual
             // year); they shrink with the main river, and a bed holds drinkable pools while a trickle runs.
             val running = if (hydro.meanFlow[h] > 0f) (hydro.flow[h] / hydro.meanFlow[h] * HexHydrology.CREEK / HexHydrology.TRICKLE).coerceIn(0f, 1f) else 0f
-            val thawed = weather.temperature[p] > -2f
+            val thawed = weather.temperature[p] > THAW_C
             val wet = hydro.soil[p] / hydro.soilCap[p]
             // Springs run on the ground water under the place: they weaken when it runs low after years of drought.
             val springs = nearSpring[p] * hydro.springFlow(p)
@@ -177,6 +177,12 @@ class HexDrinkingWater(land: HexLand) : HexLandPart(land) {
          * are rarely deeper than 2-3 m, from memory).
          */
         const val DIG_M = 3f
+        /**
+         * The week's mean air, °C, below which the ground is frozen too hard to dig with a stick, and springs and pools freeze
+         * (an approximation, from memory: frost goes down over weeks of cold, and snow keeps the ground under it warmer; a
+         * week's air stands for both). Bulbs and roots go by it too ([inflation.ecology.HexFood.diggable]).
+         */
+        const val THAW_C = -2f
         /**
          * Dry beds: least ground a valley drains to have one, km²; their width, m; depth of the sand and
          * gravel in them, m, and the share of it water can fill; how fast the water in it sinks away after a

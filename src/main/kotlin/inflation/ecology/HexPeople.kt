@@ -2000,7 +2000,7 @@ private fun HexGroups.ecosystemInputs(g: HexGroup, b: Band, into: FloatArray) {
     val pick = min(0.9f, b.gatherShare(false, tuning) * b.gatherRange)
     val reap = min(0.9f, b.gatherShare(true, tuning) * b.gatherRange)
     into[x.FRUIT] = weeks(land.total(p, KgM2(pick * food.fruit[p])).v)
-    into[x.ROOTS] = weeks(land.total(p, KgM2(pick * food.roots[p])).v)
+    into[x.ROOTS] = weeks(land.total(p, KgM2(pick * food.underground(p))).v)
     into[x.SEED] = weeks(land.total(p, KgM2(reap * food.seeds[p])).v)
     // Game: what it could catch in a week of searching its swept ground, as its move scores it.
     val swept = sweptKm2(s) * CATCH
@@ -2313,14 +2313,13 @@ fun serveOfMake(t: Tool, fine: Float, tuning: Tuning): Float = if (fineMaterial(
 
 /**
  * A band's kept animals' week: they graze round the camp ([herdForage]), breed in their season as they are fed and as tame
- * as they have grown, die, run off as wild as they still are, and are lost on long moves; they are herded in the field
+ * as they have grown, die, and run off as wild as they still are; they are herded in the field
  * work's time ([herdDays], [Band.herded]), and what its herders cannot keep the band culls (meat in its stores), as it eats
  * what its herd grows to beyond the stock its herders keep in a usual week; and generation by
  * generation they grow tamer, since the docile stay and breed.
  */
 private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTime) {
     val p = g.place
-    val moved = max(0, g.path.size - 1)
     // (Herding is field work: its days came out of sowing's time when the band planned its week ([Band.herded]), as the
     // harvest's do; on the days the band walks to a new camp, the herd walks with it.)
     val tended = b.herded
@@ -2353,7 +2352,7 @@ private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTime
         val born = if (inSeason) n * 0.5f * s.youngPerFemale * fed * (0.3f + 0.7f * tame) /
             (s.birthMonths * Date.DAYS_PER_MONTH.toFloat() / days) else 0f
         val dying = (s.backgroundMortality + 0.5f * (1f - fed)) * years
-        val running = HERD_RUN_OFF * (1f - tame) * b.lapse(Skill.TENDING) * years + HERD_MOVE_LOSS * (1f - tame) * moved * b.lapse(Skill.TENDING)
+        val running = HERD_RUN_OFF * (1f - tame) * b.lapse(Skill.TENDING) * years
         val lost = n * min(0.9f, dying + running)
         // (The dead lie by the camp; those that run off or stray go wild among their kind.)
         val died = if (dying + running > 0f) lost * dying / (dying + running) else 0f
@@ -2425,13 +2424,14 @@ private fun herdSkill(b: Band) = 0.5f + 0.5f * min(1f, b.skill(Skill.TENDING))
 
 /**
  * Herding: chance a young animal caught in the hunt is kept and raised instead of eaten (times its
- * kind's tameability); yearly share of the still-wild that run off, and share lost for each hex a move takes them;
- * yearly growth of tameness. And the stock a herder keeps on foot, kg on the hoof: about a hundred sheep and goats
+ * kind's tameability); yearly share of the still-wild that run off (an estimate, no source); yearly growth of
+ * tameness. (Herded flocks lose next to nothing on the move: flock records of herded sheep and goats count no strays and
+ * 0-1% of their outflow to predators, Assen and Aklilu 2012, mixed farms in Tigray, not nomads; so a move costs a herd only
+ * its walk.) And the stock a herder keeps on foot, kg on the hoof: about a hundred sheep and goats
  * (Dahl and Hjort 1976, from memory, to check), at 40 kg a head.
  */
 const val CAPTURE = 0.5f
 const val HERD_RUN_OFF = 0.5f
-const val HERD_MOVE_LOSS = 0.05f
 const val TAMING_RATE = 0.01f
 const val HERD_KG_A_HERDER = 4000f
 

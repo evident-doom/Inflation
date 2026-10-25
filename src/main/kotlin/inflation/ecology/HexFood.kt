@@ -5,6 +5,7 @@ import inflation.ecology.HexSmallLife.DeadPool
 import inflation.Books
 import inflation.Stocks
 import inflation.KgM2
+import inflation.world.HexDrinkingWater
 import inflation.world.HexLand
 import inflation.world.LifeForm
 import inflation.world.Weather
@@ -19,8 +20,9 @@ import java.util.stream.IntStream
  *
  * - Fruit, berries, seeds and nuts on shrubs and trees: ripen from midsummer to autumn, as many as
  *   the spring's flowers were pollinated for; what is not eaten falls and rots into the litter.
- * - Bulbs, roots and fallen mast that rooting animals dig up: bulbs and roots from the herbs, slow to
- *   replace; the mast is the trees' fruit fallen in autumn, lying on the ground through the winter.
+ * - Bulbs and roots that rooting animals and people dig up, from the herbs, slow to replace: none to be had while the
+ *   ground is frozen.
+ * - Mast: the trees' fruit (acorns, nuts) fallen in autumn, lying on the ground through the winter, picked up, not dug.
  *
  * (The standing dead grass is not one of them: it is the cured grass, grazed as the grass is, see [HexPlants.nourishment].)
  *
@@ -40,6 +42,23 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
      */
     val finds = FloatArray(n)
     val roots = perPlace(n) { p -> rootsCap(p) * 0.7f }
+    /** Fallen mast, kg/m²: acorns and nuts on the ground, the trees' share of the fallen [fruit]; rots or sprouts as old roots rot. */
+    val mast = FloatArray(n)
+    /**
+     * This week, whether the ground at each place is frozen too hard to dig: a week's mean air below [HexDrinkingWater.THAW_C],
+     * the rule a soak in a dry bed goes by. Bulbs and roots cannot be had then; the mast lying on it can.
+     */
+    @Transient private val frozen = BooleanArray(n)
+    /** The bulbs and roots at [p] that can be dug this week, kg/m²: none while the ground is frozen. */
+    fun diggable(p: Place) = if (frozen[p]) 0f else roots[p]
+    /** What rooting animals find under the trees and in the ground at [p] this week, kg/m²: the roots they can dig and the mast. */
+    fun underground(p: Place) = diggable(p) + mast[p]
+    /** Takes up to [want] of what is [underground] at [p], from the roots and the mast as each makes of it; returns what was taken. */
+    fun takeUnderground(p: Place, want: KgM2): KgM2 {
+        val all = underground(p); if (all <= 0f || want.v <= 0f) return KgM2(0f)
+        val w = min(want.v, all); val fromRoots = w * diggable(p) / all
+        return KgM2(take(roots, p, KgM2(fromRoots)).v + take(mast, p, KgM2(w - fromRoots)).v)
+    }
     /**
      * Wild cereals: large-seeded annual grasses (wild wheat and barley here), as a share of a place's
      * grass, where winters are wet, summers dry and the ground broken (the hilly flanks). Their ripe
@@ -108,6 +127,7 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
             // midwinter. Seed ripens early, fruit from midsummer to autumn, roots and bulbs fill as the
             // plants die back; a warm year brings all of it on earlier, high ground later.
             val season = land.plants.gdd[p] / land.plants.annualGdd[p].coerceAtLeast(1f)
+            frozen[p] = weather.temperature[p] <= HexDrinkingWater.THAW_C
             // Fruit ripens from midsummer to autumn, as many as the spring's flowers were pollinated
             // for and the spring was wet enough to fill; then it falls: the shrubs' berries rot, the trees'
             // acorns and nuts lie on the ground as mast for rooting animals through the winter.
@@ -127,11 +147,13 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
             val shed = seeds[p] * min(1f, days / SEED_DAYS)
             seeds[p] = max(0f, seeds[p] + land.plants.consume(p, LifeForm.HERB, KgM2(days * ripeSeed)).v - shed)
             small.deposit(DeadPool.LITTER, p, KgM2(shed))
-            // (Roots and bulbs fill from the plants above them; old ones rot into the litter.)
+            // (Roots and bulbs fill from the plants above them; old ones rot into the litter, as the mast does.)
             val r = rootsCap(p) * (if (season >= ROOTS_FROM) 3f else 0.5f) / ROOTS_DAYS
             val rotted = roots[p] * min(1f, days / ROOTS_DAYS)
-            roots[p] = max(0f, roots[p] + land.plants.consume(p, LifeForm.HERB, KgM2(days * r)).v + fallen * (1f - fromShrub) - rotted)
-            small.deposit(DeadPool.LITTER, p, KgM2(rotted))
+            roots[p] = max(0f, roots[p] + land.plants.consume(p, LifeForm.HERB, KgM2(days * r)).v - rotted)
+            val mastRotted = mast[p] * min(1f, days / ROOTS_DAYS)
+            mast[p] = max(0f, mast[p] + fallen * (1f - fromShrub) - mastRotted)
+            small.deposit(DeadPool.LITTER, p, KgM2(rotted + mastRotted))
             // Wild cereals ripen with the other grasses; ears that shatter shed their grain within weeks,
             // those that hold it keep it for months. Sown fields ripen with them.
             // (A sown field counts the water it is short of, week by week, till it ripens.)
@@ -231,9 +253,9 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
     /** The share of ripe grain shed this week by a stand whose ears hold their grain as [domestic] (0 wild) of them. */
     private fun shedShare(domestic: Float) = (1f - domestic) * min(1f, days / SEED_DAYS) + domestic * min(1f, days / GRAIN_HOLD_DAYS)
 
-    /** Names the food stocks: fruit, grass seed, small finds, roots, grain, sown seed and the grain of sown fields. */
+    /** Names the food stocks: fruit, grass seed, small finds, roots, mast, grain, sown seed and the grain of sown fields. */
     internal fun listStocks(stocks: Stocks) {
-        for ((name, a) in listOf(StockName.FRUIT to fruit, StockName.GRASS_SEED to seeds, StockName.SMALL_FINDS to finds, StockName.ROOTS to roots, StockName.GRAIN to grain, StockName.SOWN_SEED to field,
+        for ((name, a) in listOf(StockName.FRUIT to fruit, StockName.GRASS_SEED to seeds, StockName.SMALL_FINDS to finds, StockName.ROOTS to roots, StockName.MAST to mast, StockName.GRAIN to grain, StockName.SOWN_SEED to field,
             StockName.FIELD_GRAIN to fieldGrain))
             stocks.perM2(name, a, land.areaM2)
     }

@@ -9,7 +9,7 @@ import inflation.run.gitCommit
 import java.io.File
 import java.util.Properties
 
-private const val USAGE = "testWorld list | testWorld build NAME... [--years N] [--commit HASH] | testWorld ab --variant FILE [--base FILE] [--worlds full-1,full-2,full-3] [--years 3] [--replicates 2] [--parallel 1] [--out DIR] | testWorld ab-report DIR [--worlds a,b] [--replicates 2] | testWorld nominal HISTORY.csv... | testWorld compare --full A.csv,B.csv [--full-variant A2.csv,B2.csv] NAME=BASE.csv[,VARIANT.csv] ...\n" +
+private const val USAGE = "testWorld list | testWorld build NAME... [--years N] [--commit HASH] | testWorld adopt NAME STATE.bin [--years N] [--commit HASH] [--config TEXT] | testWorld ab --variant FILE [--base FILE] [--worlds m455-1,m455-2,m455-3] [--years 3] [--replicates 2] [--parallel 1] [--out DIR] | testWorld ab-report DIR [--worlds a,b] [--replicates 2] | testWorld nominal HISTORY.csv... | testWorld compare --full A.csv,B.csv [--full-variant A2.csv,B2.csv] NAME=BASE.csv[,VARIANT.csv] ...\n" +
     "a test on a settled world: hexFauna --world NAME --years N [--replicate R] [--history FILE]"
 
 /** The testWorld program: see [TestWorlds]. */
@@ -23,6 +23,14 @@ fun main(args: Array<String>) {
             val names = a.rest(); a.done()
             require(names.isNotEmpty()) { "build which? ${TestWorlds.ALL.joinToString(", ") { it.name }}" }
             for (n in names) build(TestWorlds.named(n), years, commit)
+        }
+        "adopt" -> {
+            val years = a.int("--years", TestWorlds.SETTLE_YEARS)
+            val commit = a.string("--commit") ?: gitCommit()
+            val config = a.string("--config") ?: ""
+            val (name, file) = a.rest().also { require(it.size == 2) { "adopt NAME STATE.bin" } }
+            a.done()
+            adopt(TestWorlds.named(name), File(file), years, commit, config)
         }
         "ab" -> {
             val variant = requireNotNull(a.file("--variant")) { "ab needs --variant FILE (config keys of the change)" }
@@ -63,6 +71,19 @@ fun main(args: Array<String>) {
 
 /** The test worlds named in [list], comma-separated. */
 private fun named(list: String) = list.split(',').map { TestWorlds.named(it.trim()) }
+
+/** Keeps [state], a save settled elsewhere (same code and seed), as test world [e]; [config] is the config it was settled under, as "key value, ...". */
+private fun adopt(e: TestWorlds.Entry, state: File, years: Int, commit: String, config: String) {
+    require(state.isFile) { "no save at $state" }
+    e.dir.mkdirs()
+    state.copyTo(e.state, overwrite = true)
+    val p = Properties()
+    p["name"] = e.name; p["seed"] = "${e.seed}"; p["widthKm"] = "${e.widthKm}"; p["heightKm"] = "${e.heightKm}"
+    p["years"] = "$years"; p["commit"] = commit; p["built"] = java.time.LocalDateTime.now().withNano(0).toString()
+    p["worldKey"] = e.worldKey; p["config"] = config
+    e.about.writer().use { p.store(it, "test world ${e.name}, adopted by testWorld adopt") }
+    println("test world ${e.name} kept from $state: ${e.state} (%.0f MB)".format(e.state.length() / 1e6))
+}
 
 /** Settles test world [e] for [years] years and saves it, with its history and how it was made. */
 private fun build(e: TestWorlds.Entry, years: Int, commit: String = gitCommit()) {
