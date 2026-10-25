@@ -362,6 +362,8 @@ class Band(kinds: Int) {
      */
     var homeEarth = 0f
     var homeGroundC = 0f
+    /** At home: how well its houses' walls keep beasts of prey out at night ([wallGuard], over the houses that shelter it), 0..1. */
+    var homeWalls = 0f
     /** Where it knows other bands have their houses (band id to hex), and their descent (main lineage). */
     val knownHomes = HashMap<Int, Int>()
     val knownLineage = HashMap<Int, Int>()
@@ -600,7 +602,7 @@ class Band(kinds: Int) {
 
     fun splitInto(o: Band, adults: Int, stay: Int, share: Float, r: Random, copied: (Band) -> Unit) {
         o.ties.clear(); o.ties.putAll(ties); o.appointment = appointment
-        o.houseHex = houseHex; o.house = house; o.homeEarth = homeEarth; o.homeGroundC = homeGroundC; o.palisade = palisade; herdTame.copyInto(o.herdTame); herd.copyInto(o.herd)
+        o.houseHex = houseHex; o.house = house; o.homeEarth = homeEarth; o.homeWalls = homeWalls; o.homeGroundC = homeGroundC; o.palisade = palisade; herdTame.copyInto(o.herdTame); herd.copyInto(o.herd)
         o.houseLives = houseLives; o.houseFood = houseFood; foodFrom.copyInto(o.foodFrom); o.fishPull = fishPull; monthSupply.copyInto(o.monthSupply); o.leanDays = leanDays
         o.seedDomestic = seedDomestic; o.grainDomestic = grainDomestic; o.seedCorn = seedCorn * share; seedCorn -= o.seedCorn; o.sinceRaided = sinceRaided; o.sisu = sisu
         o.knownHomes.putAll(knownHomes); o.knownLineage.putAll(knownLineage)
@@ -927,6 +929,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     b.house = if (b.houseHex.none) 0f else housesAt(g, b.houseHex.i)
     b.atHome = b.houseHex == h && b.house > 0.05f
     b.homeEarth = if (b.atHome) earthAt(g, h.i) else 0f
+    b.homeWalls = if (b.atHome) wallsAt(g, h.i) else 0f
     b.homeGroundC = if (b.atHome) (0 until Date.MONTHS_PER_YEAR).sumOf { weather.usualTemperature(it, p).toDouble() }.toFloat() / Date.MONTHS_PER_YEAR else 0f
     // With time still to spare, it makes ornaments of shell and bone: they are given, worn and buried.
     makeOrnaments(b, people, time)
@@ -2434,6 +2437,14 @@ fun sunkenM(way: Skill) = when (way) { Skill.PIT_HOUSE -> 1f; Skill.MUDBRICK -> 
  * sunken walls: the year's swing of the soil's warmth falls off with depth as exp(-depth / [SOIL_DAMPING_M]).
  */
 fun earthGain(way: Skill) = 1f - exp(-sunkenM(way) / SOIL_DAMPING_M)
+
+/**
+ * How well the walls of a house built [way] keep beasts of prey out at night, 0..1: stone-footed and mudbrick walls whole; a
+ * pit house, whose roof of brush and earth comes down to the ground, [PIT_WALLS] of that. (Lions break into thatched houses
+ * and makeshift huts to take those asleep inside, Packer et al. 2005, Nature 436: 927; the shares are estimates.)
+ */
+fun wallGuard(way: Skill) = if (way == Skill.PIT_HOUSE) PIT_WALLS else 1f
+const val PIT_WALLS = 0.5f
 
 /**
  * The depth over which the soil's yearly swing of warmth falls to 1/e, m: sqrt(2 κ / ω) for a moist soil's thermal diffusivity

@@ -1352,7 +1352,9 @@ class HexGroups(
         var adult = odds.adult; var young = odds.young
         if (b != null) {
             val venom = venomOdds(s, p, weather)
-            val stalked = stalkRate(g, b, p, residentManEaters(p) + (if (h in c.sensed) manEaterKm2[h.i] else 0f))
+            // (At its houses it would sleep behind their walls.)
+            val walled = if (h == b.houseHex) b.house * wallsAt(g, h.i) else 0f
+            val stalked = stalkRate(g, b, p, residentManEaters(p) + (if (h in c.sensed) manEaterKm2[h.i] else 0f), walled)
             adult += venom + stalked; young += venom + YOUNG_STALKED / b.childWatch.coerceAtLeast(0.25f) * stalked
             dialUse?.amount(DialSite.CHILDREN_PLAN, b.childWatch, YOUNG_STALKED / b.childWatch.coerceAtLeast(0.25f) * stalked, YOUNG_STALKED * stalked, cut = b.childWatch < 0.25f)
             // The sicknesses it would catch there (marsh fever by the mosquitoes, the flux in a long-kept camp, the cough

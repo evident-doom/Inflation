@@ -478,7 +478,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         Hazard(DeathCause.OTHER, healed * s.backgroundMortality * (if (s.human) tuning.humanOther else 1f) * years,
             healed * cared * s.youngMortality * (if (s.human) tuning.humanYoung else 1f) * years))
     placeHazards(g, g.place, weather, g.fed, thirst, sick, band?.fire ?: 0f, band?.homeShelter() ?: 0f) { c, a, y -> hazards += Hazard(c, a, y) }
-    band?.let { houseWorthWeek(g, it, weather) }
+    band?.let { houseWorthWeek(g, it, weather, stalked) }
     g.spent = Hazards.spentAfter(s, g.spent, g.fed, days)
     // (No beast to blame, none taken: a hazard of none weighs nothing in sharing the deaths, and is left out.)
     hazards.addAll(listOfNotNull(
@@ -727,14 +727,18 @@ private fun HexGroups.shareDeaths(hazards: List<Hazard>, adults: Int, young: Int
 
 /**
  * What a whole house where [g]'s band is would have done for it this week, against the houses it has, by the week's own rules
- * ([placeHazards], [warmthNeed]): the cold and exposure deaths it would have averted and the food keeping warm takes that it
+ * ([placeHazards], [warmthNeed], [stalkRate]): the cold and exposure deaths it would have averted, and those to beasts of prey
+ * ([stalked], this week's) behind its walls (its own houses', or solid ones), and the food keeping warm takes that it
  * would have saved; with what its stores and raids added this week ([keepWorth], [raidWorth]), folded into the band's running
  * worth of a house ([Band.houseLives], [Band.houseFood]) a person a year, over about a year. Changes nothing else.
  */
-private fun HexGroups.houseWorthWeek(g: HexGroup, b: Band, weather: Weather) {
+private fun HexGroups.houseWorthWeek(g: HexGroup, b: Band, weather: Weather, stalked: Float) {
     val s = g.species; val fire = b.fire; val now = b.homeShelter(); val air = airAt(g.place, weather)
     val d = max(0f, b.warmth(air, fire, now, days).odds - b.warmth(air, fire, 1f, days).odds)
     b.houseLivesWeek += g.adults * d + g.young * min(1f, 1.5f * d)
+    val walls = if (b.homeWalls > 0f) b.homeWalls else 1f
+    val taken = stalked * (1f - (1f - HOUSE_GUARD * walls) / (1f - HOUSE_GUARD * now * b.homeWalls))
+    b.houseLivesWeek += (g.adults + g.young * YOUNG_STALKED / b.childWatch.coerceAtLeast(0.25f)) * max(0f, taken)
     b.houseFoodWeek += max(0f, warmthNeed(s, b, g.place, weather, fire, now) - warmthNeed(s, b, g.place, weather, fire, 1f)) * g.dailyNeedKg / g.warmth.coerceAtLeast(1e-3f) * days
     val people = max(1, g.size).toFloat(); val k = 1f / stepsPerYear
     b.houseLives += k * (b.houseLivesWeek / people * stepsPerYear - b.houseLives)
@@ -917,19 +921,24 @@ private inline fun HexGroups.eachResidentManEater(p: Place, each: (Species, Floa
     }
 }
 
-/** The yearly-scaled share of band [b] (group [g]) beasts of prey would take a week camped at place [p], where their flesh is [pressure] kg/km² (see [stalkedBy]). */
-internal fun HexGroups.stalkRate(g: HexGroup, b: Band, p: Place, pressure: Float): Float {
+/**
+ * The yearly-scaled share of band [b] (group [g]) beasts of prey would take a week camped at place [p], where their flesh is
+ * [pressure] kg/km² (see [stalkedBy]), asleep behind house walls as far as [walled] (its houses' shelter times how their walls hold).
+ */
+internal fun HexGroups.stalkRate(g: HexGroup, b: Band, p: Place, pressure: Float, walled: Float = b.homeShelter() * b.homeWalls): Float {
     if (pressure <= 0f) return 0f
     val h = hw.placeHex[p]
     val cover = 0.5f + land.plants.cover(p)
-    val guard = (1f - FIRE_GUARD * b.nightGuard) * (1f - DOGS_GUARD * min(1f, b.dogShare)) * (1f - LOOKOUTS_GUARD * min(1f, 10f * b.scoutShare))
+    // (A band asleep in its houses is behind their walls: [HOUSE_GUARD], as far as they shelter it and hold, [Band.homeWalls].)
+    val walls = 1f - HOUSE_GUARD * walled
+    val guard = (1f - FIRE_GUARD * b.nightGuard) * (1f - DOGS_GUARD * min(1f, b.dogShare)) * (1f - LOOKOUTS_GUARD * min(1f, 10f * b.scoutShare)) * walls
     // (Gatherers spread further from camp leave more ground to watch: about as its square.)
     val spread = b.gatherRange * b.gatherRange
     dialUse?.let { u ->
         val dogs = 1f - DOGS_GUARD * min(1f, b.dogShare)
-        u.amount(DialSite.NIGHT_FIRE_GUARD, b.nightFire, guard, (1f - FIRE_GUARD * b.fire * b.nightWood) * dogs * (1f - LOOKOUTS_GUARD * min(1f, 10f * b.scoutShare)),
+        u.amount(DialSite.NIGHT_FIRE_GUARD, b.nightFire, guard, (1f - FIRE_GUARD * b.fire * b.nightWood) * dogs * (1f - LOOKOUTS_GUARD * min(1f, 10f * b.scoutShare)) * walls,
             cut = b.nightFire > 1f)
-        u.amount(DialSite.SCOUTS_GUARD, b.will[BandWay.SCOUTS], guard, (1f - FIRE_GUARD * b.nightGuard) * dogs * (1f - LOOKOUTS_GUARD * min(1f, 10f * SCOUT_SHARE)),
+        u.amount(DialSite.SCOUTS_GUARD, b.will[BandWay.SCOUTS], guard, (1f - FIRE_GUARD * b.nightGuard) * dogs * (1f - LOOKOUTS_GUARD * min(1f, 10f * SCOUT_SHARE)) * walls,
             cut = 10f * b.scoutShare > 1f)
         u.amount(DialSite.GATHER_SPREAD, b.gatherRange, spread, 1f)
     }
@@ -948,7 +957,8 @@ data class Stalking(val rate: Float, val by: Species?) {
  * Of the beasts that take people ([Species.takesPeople]): the yearly share of people they take at most
  * where they are thick, from the unwary in thick cover with no fire, dogs or lookouts; density of beast flesh, kg/km² weighted, at which they take
  * half that; a band size the company factor is set for; how much a fire at night, dogs and lookouts
- * each keep off; how much more often children are taken.
+ * each keep off; how much whole houses with solid walls keep off, those inside asleep behind them through the night though
+ * out by day (an estimate: [wallGuard]); how much more often children are taken.
  */
 const val STALKED = 0.02f
 const val STALKED_HALF = 3f
@@ -956,4 +966,5 @@ const val STALKED_BAND = 25f
 const val FIRE_GUARD = 0.5f
 const val DOGS_GUARD = 0.5f
 const val LOOKOUTS_GUARD = 0.3f
+const val HOUSE_GUARD = 0.5f
 const val YOUNG_STALKED = 2f
