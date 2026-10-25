@@ -143,7 +143,7 @@ private fun countHands(u: DialUse, g: HexGroup, b: Band, hands: Int) {
 internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather: Weather) {
     val w = ForageWeek(this, g, sweep, packKg, weather)
     huntingOdds(w)
-    val o = Offers(w.games + g.path.size * 4 + (w.gatherAt.size + w.roundCamp.size) * 5 + 1)
+    val o = Offers(w.games + g.path.size * 4 + (w.gatherAt.size + w.roundCamp.size) * 6 + 2)
     // The party plans its week on what it finds, eats, and if others got there first and it is still
     // hungry, looks again at what is left.
     for (pass in 0 until FORAGE_PASSES) {
@@ -629,10 +629,18 @@ private fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
         val seedWalk = 2f / 3f * sqrt(seedReach * land.areaKm2[q] / PI.toFloat()) + off
         fun walked(t: Food, km: Float) = km * w.walkDaysPerKm / dryShare(t)
         offer(w, o, Food.FRUIT, 0, Place(q), land.total(Place(q), KgM2(reach * fauna.food.fruit[q])).v / days, 1f, fruitQ + walked(Food.FRUIT, walk))
-        // (A band's gatherers must find roots before they dig them: the thinner they grow, the longer a kilo; see [ROOT_SEARCH_M2_PER_DAY].)
-        val rootSearch = if (band != null && fauna.food.roots[q] > 0f) 1f / (ROOT_SEARCH_M2_PER_DAY * fauna.food.roots[q] * w.gatherers) else 0f
-        offer(w, o, Food.ROOTS, 0, Place(q), land.total(Place(q), KgM2(reach * fauna.food.roots[q])).v / days, 1f,
-            ROOT_DIGGING * pickQ + rootSearch + walked(Food.ROOTS, walk))
+        // (A band's gatherers must find roots before they dig them: the thinner they grow, the longer a kilo; see
+        // [ROOT_SEARCH_M2_PER_DAY]. None are dug in frozen ground, [HexFood.diggable]. The mast lying under the trees needs no
+        // search: it is picked up a nut at a time, as fruit is picked ([MAST_KIND]). An animal roots for both as one.)
+        val food = fauna.food
+        if (band != null) {
+            val bulbs = food.diggable(Place(q))
+            val rootSearch = if (bulbs > 0f) 1f / (ROOT_SEARCH_M2_PER_DAY * bulbs * w.gatherers) else 0f
+            offer(w, o, Food.ROOTS, 0, Place(q), land.total(Place(q), KgM2(reach * bulbs)).v / days, 1f,
+                ROOT_DIGGING * pickQ + rootSearch + walked(Food.ROOTS, walk))
+            offer(w, o, Food.ROOTS, MAST_KIND, Place(q), land.total(Place(q), KgM2(reach * food.mast[q])).v / days, 1f, fruitQ + walked(Food.ROOTS, walk))
+        } else offer(w, o, Food.ROOTS, 0, Place(q), land.total(Place(q), KgM2(reach * food.underground(Place(q)))).v / days, 1f,
+            ROOT_DIGGING * pickQ + walked(Food.ROOTS, walk))
         offer(w, o, Food.FINDS, 0, Place(q), land.total(Place(q), KgM2(reach * fauna.food.finds[q])).v / days, 1f, ROOT_DIGGING * pickQ + walked(Food.FINDS, walk))
         // Grass seed must be reaped, threshed and ground: worth it only with the tools and the hands.
         offer(w, o, Food.SEED, 0, Place(q), land.total(Place(q), KgM2(seedReach * fauna.food.seeds[q])).v / days, 1f, seedQ + walked(Food.SEED, seedWalk))
@@ -676,7 +684,7 @@ private fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
                 }
             }
             Food.FRUIT, Food.ROOTS, Food.SEED, Food.FINDS -> {
-                gather(g, o.type[i], Place(p), expected, w.hands, haul)
+                gather(g, o.type[i], o.kind[i], Place(p), expected, w.hands, haul)
                 if (haul.busy > 0f) w.busy += haul.busy
                 val fed = haul.kg * w.worth(o.type[i])
                 w.plants += haul.kg; w.fed += haul.kg * w.feeds(o.type[i])
@@ -1100,15 +1108,17 @@ private fun HexGroups.countResidentsMet(g: HexGroup, ground: HuntGround, met: Fl
 }
 
 /**
- * [forage]'s gathering of plant food [t] (fruit, roots, grass seed or small finds) at place [p], [expected] kg a
- * party could take: [out] gets the kilos it is worth once seed is ground and food cooked or leached, what they weigh, and the
- * party-days the leaching took ([hands] at it).
+ * [forage]'s gathering of plant food [t] (fruit, roots of [kind]: a band's bulbs and roots, or its [MAST_KIND], an animal's
+ * both, grass seed or small finds) at place [p], [expected] kg a party could take: [out] gets the kilos it is worth once seed
+ * is ground and food cooked or leached, what they weigh, and the party-days the leaching took ([hands] at it).
  */
-private fun HexGroups.gather(g: HexGroup, t: Food, p: Place, expected: Float, hands: Int, out: Haul) {
+private fun HexGroups.gather(g: HexGroup, t: Food, kind: Int, p: Place, expected: Float, hands: Int, out: Haul) {
     val s = g.species; val band = g.band
     out.busy = 0f
-    val stock = when (t) { Food.FRUIT -> fauna.food.fruit; Food.ROOTS -> fauna.food.roots; Food.SEED -> fauna.food.seeds; else -> fauna.food.finds }
-    val taken = land.total(p, fauna.food.take(stock, p, land.spread(p, Kg(expected)))).v
+    val food = fauna.food
+    val stock = when (t) { Food.FRUIT -> food.fruit; Food.ROOTS -> if (kind == MAST_KIND) food.mast else food.roots; Food.SEED -> food.seeds; else -> food.finds }
+    fun take(kg: KgM2) = if (t == Food.ROOTS && band == null) food.takeUnderground(p, kg) else food.take(stock, p, kg)
+    val taken = land.total(p, take(land.spread(p, Kg(expected)))).v
     var took = taken; var mass = taken
     // Raw seed is poorly digested; ground and baked into bread it feeds fully.
     if (t == Food.SEED) took *= seedValue(band)
@@ -1120,7 +1130,7 @@ private fun HexGroups.gather(g: HexGroup, t: Food, p: Place, expected: Float, ha
             var extra = took * band.detoxExtra(land.palatable[p], land.drink.water[p] >= Thresholds.WET || land.drink.waterKm[p] < 3f)
             // (What is leached is more of the plants, bitter before: taken from them, as far as there is any.)
             if (extra > 0f) {
-                val more = land.total(p, fauna.food.take(stock, p, land.spread(p, Kg(extra * taken / took)))).v
+                val more = land.total(p, take(land.spread(p, Kg(extra * taken / took)))).v
                 extra = more * took / taken; mass += more
             }
             if (extra > 0f) {
@@ -1136,6 +1146,11 @@ private fun HexGroups.gather(g: HexGroup, t: Food, p: Place, expected: Float, ha
 
 /** The kind of [Food.FISH] offer that is shellfish gathered off the shore (0 is fish caught: see [offerFoods]). */
 const val SHELLFISH_KIND = 1
+/**
+ * The kind of a band's [Food.ROOTS] offer that is the fallen mast (0 is bulbs and roots dug: see [offerFoods]), picked up as
+ * fruit is picked ([BAND_FRUIT_DAYS_PER_KG]): pine nuts in the Great Basin gave some 840-1,400 kcal/h (Simms 1987, from memory).
+ */
+const val MAST_KIND = 1
 
 /**
  * The kinds of food [forage] offers a party; all but [GRAIN] are also a band's effort slots ([FOOD_TYPES]: grain goes by grass seed's).

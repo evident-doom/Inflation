@@ -136,6 +136,17 @@ const val PLANT_FOOD_WEIGHT = 0.5f
 const val CAMP_SAFETY = 0.5f
 /** Days of food a band has stored when the world begins. */
 const val START_LARDER_DAYS = 30f
+/**
+ * The spread of people's bands' sizes when the world begins, as the sd of their log: foragers' residential camps run from about
+ * half to about twice the usual size, a dozen to fifty or so about a mean of 25-30 (Kelly 1995; Marlowe 2005; both from memory,
+ * to check), which a lognormal of sd 0.4 spans in nine bands of ten (an estimate fitted to that range).
+ */
+const val START_BAND_SPREAD = 0.4f
+/**
+ * The same for packs: wolf packs run from a pair to a dozen or more about a mean of 5-8, lion prides and hyena clans as widely
+ * about theirs (Mech and Boitani 2003; Kruuk 1972; both from memory, to check): a lognormal of sd 0.5 (an estimate).
+ */
+const val START_PACK_SPREAD = 0.5f
 /** Share of its larder a band gives one that is going hungry, when they meet. */
 const val BAND_GIFT = 0.3f
 /** Chance a band burns off the dry grass around its camp in a dry-season week, to bring up green grass that draws game. */

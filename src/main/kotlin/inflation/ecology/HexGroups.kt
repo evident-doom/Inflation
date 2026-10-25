@@ -25,6 +25,7 @@ import inflation.world.HexMap
 import inflation.world.HexWorld
 import inflation.world.Weather
 import kotlin.math.exp
+import kotlin.math.roundToInt
 import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.pow
@@ -133,9 +134,11 @@ class HexGroups(
             val count = if (s.human) (usual * tuning.peopleStart).toInt() else usual
             val weights = if (uniformStart) FloatArray(n) { p -> land.areaKm2[p] } else startWeights(s)
             val total = weights.sum()
-            repeat(count) {
+            // (Groups start of all sizes about the usual, the same heads in all: [startSizes].)
+            val sizes = startSizes(s, unit, count)
+            for (size in sizes) {
                 val p = inflation.drawWeighted(weights, total, rnd)
-                val g = spawn(s, Place(p), unit)
+                val g = spawn(s, Place(p), size)
                 if (s.human) {
                     g.larder = START_LARDER_DAYS * g.dailyNeedKg
                     val (x, y) = hex.centreKm(hw.placeHex[p])
@@ -158,6 +161,26 @@ class HexGroups(
         }
         // (A world begun once farming is known starts some bands as villages: t.startSettled.)
         if (tuning.startSettled > 0f) startVillages()
+    }
+
+    /**
+     * The adults of each of [s]'s groups at the start: [count] groups' worth of [unit] adults, shared out in groups whose sizes
+     * spread about [unit] as bands' camps and packs do (lognormal, [START_BAND_SPREAD] for people, [START_PACK_SPREAD] for
+     * packs), each of at least a pair (a lone hunter where its kind hunts alone) and at most what a group holds before it splits
+     * ([Species.maxGroupSize]). Its own stream of chance for each kind, from the world's seed.
+     */
+    private fun startSizes(s: Species, unit: Int, count: Int): IntArray {
+        val r = Random(seedBase * 41 + 7 + 1009L * s.name.hashCode())
+        val spread = if (s.human) START_BAND_SPREAD else START_PACK_SPREAD
+        val least = min(2, unit)
+        var left = count * unit
+        val sizes = ArrayList<Int>()
+        while (left > 0) {
+            val drawn = (unit * exp(spread * gaussian(r))).roundToInt().coerceIn(least, max(least, s.maxGroupSize))
+            val size = if (left - drawn < least) left else drawn
+            sizes += size; left -= size
+        }
+        return sizes.toIntArray()
     }
 
     /**
@@ -701,14 +724,15 @@ class HexGroups(
     internal fun campPlants(p: Place) = KgM2(fauna.food.fruit[p] + rootsFound(p) + fauna.food.seeds[p] + fauna.food.grain[p] + fauna.food.fieldGrain[p]).perKm2.v *
         PLANT_FOOD_WEIGHT * campFactor(p)
     /**
-     * The roots at [p] as a band's gathering would find them, kg/m²: the thinner they grow, the more of a gatherer's day
-     * goes to finding them ([ROOT_SEARCH_M2_PER_DAY]), so they count as the share of the day that is digging. (A hand's
-     * digging at the start rate, without skill or baskets: an approximation of [forage]'s own rate.)
+     * The roots at [p] as a band's gathering would find them this week, kg/m²: the thinner they grow, the more of a
+     * gatherer's day goes to finding them ([ROOT_SEARCH_M2_PER_DAY]), so they count as the share of the day that is digging
+     * (none while the ground is frozen, [HexFood.diggable]); and the mast lying under the trees, which needs no search. (A
+     * hand's digging at the start rate, without skill or baskets: an approximation of [forage]'s own rate.)
      */
     internal fun rootsFound(p: Place): Float {
-        val kg = fauna.food.roots[p]
+        val kg = fauna.food.diggable(p)
         val dug = ROOT_DIGGING * PLANT_HANDLING_DAYS_PER_KG * ROOT_SEARCH_M2_PER_DAY * kg
-        return kg * dug / (1f + dug)
+        return kg * dug / (1f + dug) + fauna.food.mast[p]
     }
 
     /**
