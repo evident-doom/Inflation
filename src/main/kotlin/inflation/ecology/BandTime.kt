@@ -104,7 +104,7 @@ class BandTime(left: Float, private val pace: FloatArray? = null) {
      * Holds for each activity its share of the time left (survival first): first what keeps its people [warm] this week
      * (the hearth's firewood and the camp's shelters as far as they avert deaths, [survivalDays]: a cold night without them
      * kills within the week, where a hungry week is bridged by the larder and fat), then what else it [needs] (the week's
-     * food, the rest of the hearth's firewood and its herders' days), then of the rest its share ([shareOut]) of what else it [asks], weighed by [weights] (1 each by default).
+     * food and the rest of the hearth's firewood), then of the rest its share ([shareOut]) of what else it [asks], weighed by [weights] (1 each by default).
      */
     fun plan(needs0: FloatArray, asks0: FloatArray, weights: FloatArray? = null, warm0: FloatArray? = null) {
         for (i in asked.indices) asked[i] = needs0[i] + asks0[i] + (warm0?.get(i) ?: 0f)
