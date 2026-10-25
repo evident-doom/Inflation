@@ -42,6 +42,11 @@ class Tuning(private val read: (String) -> String? = Config::tuning) {
      * (houses standing, grain stored and sown, the ways of living in houses known: [inflation.ecology.startVillages]); 0, none.
      */
     val startSettled = f("startSettled", 0f).also { require(it in 0f..1f) { "t.startSettled is $it: a share of the bands, 0-1" } }
+    /**
+     * A world begun once herding is known: the share of people's mobile bands that start with a tame herd, those whose camps best
+     * feed one ([inflation.ecology.startHerders]); 0, none. (Villages started by [startSettled] start with a herd as well.)
+     */
+    val startHerders = f("startHerders", 0f).also { require(it in 0f..1f) { "t.startHerders is $it: a share of the bands, 0-1" } }
     /** The food cost of keeping warm, against [inflation.ecology.COLD_COST]. */
     val coldCost = f("coldCost", 1f)
 
