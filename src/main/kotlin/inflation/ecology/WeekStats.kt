@@ -155,6 +155,8 @@ object Tally {
     /** What a hunting kind's diet asked for ([ASKED]) and got of each part, kg (meat includes fish). */
     enum class DietPart(val label: String) { ASKED("asked"), MEAT("meat"), SMALL_PREY("small prey"), CARRION("carrion"), PLANTS("plants") }
     fun diet(s: Species, part: DietPart) = of(s.name, "diet ${part.label}, kg")
+    /** Bands' plant food got by the plant food it came from, at what it feeds, kg of need. */
+    fun plantsFrom(f: PlantFrom) = TallyKey.raw("bands' plants from ${f.label}")
 
     /** What bands' tallies by the kind of country they are in ([bandsIn]) and by their clothing ([bandsClad]) count. */
     enum class Bands(val label: String) {

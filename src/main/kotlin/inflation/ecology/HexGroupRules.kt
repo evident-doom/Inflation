@@ -286,6 +286,29 @@ const val ROOT_DIGGING = 2f
  * is easier to find than bulbs.
  */
 const val ROOT_SEARCH_M2_PER_DAY = 1100f
+/**
+ * Ground a band's gatherer scans for fruit on the bush and mast under the trees in a day, m²: as for roots
+ * ([ROOT_SEARCH_M2_PER_DAY]), the thinner the food the longer a kilo, but fruit and nuts are seen, not dug for. An estimate,
+ * no measured figure found: some 2 km/h while searching (half the walking pace, [WALK_KM_PER_HOUR]) over a 6-hour day
+ * and a swath of some 5 m in which a bush's fruit or a scatter of acorns is seen, 60,000 m². Field returns with travel
+ * and processing run several times below those in the patch (mongongo 1,600-5,200 kcal/h on site, 460-910 with travel
+ * and processing: Blurton Jones, Hawkes & Draper 1994), but most of that gap is the walk to the groves ([GATHER_LOAD_KG])
+ * and the cracking; the search itself costs little where fruit or mast is thick.
+ */
+const val PLANT_SIGHT_M2_PER_DAY = 60_000f
+/**
+ * The share of the mast that is bitter and must be leached before it is eaten: the acorns of most oaks, and wild bitter
+ * almonds, against beech nuts, hazel nuts, pine nuts and sweet acorns. An estimate, no measured share found.
+ */
+const val MAST_BITTER = 0.7f
+/**
+ * Days of a band's hands to pound and leach a dry kg of bitter mast, at a start band's skill, on top of gathering and
+ * shelling it ([BAND_FRUIT_DAYS_PER_KG]). From two small trials, weak sources: the whole process came to some 364 kcal/h
+ * (Garza, a hobby trial of 100 acorns), or about 11 h a kg of kernel at 4.0 kcal/g (Kievman et al. 2025); gathering and
+ * shelling took some 4 h a kg of kernel (Low Tech Institute 2017), leaving about 7 h, 1.2 days of 6 hours. Acorn processing
+ * takes much more labour for its food than most plant foods (Basgall 1987, as cited by Glassow; no figure).
+ */
+const val MAST_LEACH_DAYS_PER_KG = 1.2f
 const val SEED_HANDLING_DAYS_PER_KG = 0.5f
 const val FISH_HANDLING_DAYS_PER_KG = 0.3f
 /**
