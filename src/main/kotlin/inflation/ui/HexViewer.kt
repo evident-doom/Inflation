@@ -491,6 +491,69 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             { x -> Color(x, 0.25f, 1f - x, 0.75f) }, listOf(0f to "lowest band", 0.5f to "between", 1f to "highest band"),
             "hexes of one band left clear")
 
+        /**
+         * People's works by hex ([worksBox]): houses (room for how many, standing or begun) and palisades from the structures
+         * that stand ([inflation.ecology.HexGroups.built]); this year's sown fields, their ripe grain and the share of ears that
+         * hold their grain; and ground worn by cropping ([inflation.ecology.HexFood.fieldWorn]).
+         */
+        private fun paintWorks(g: Graphics2D, sx: (Float) -> Int, sy: (Float) -> Int, onScreen: (Int, Int) -> Boolean) {
+            val room = FloatArray(hex.size); val begun = FloatArray(hex.size); val fence = FloatArray(hex.size)
+            for (st in groups.built) if (st.hex >= 0) when (st.kind) {
+                Built.HOUSES -> if (st.done) room[st.hex] += st.built * st.size else begun[st.hex] += st.built * st.size
+                Built.PALISADE -> fence[st.hex] = max(fence[st.hex], st.built)
+            }
+            val food = fauna.food
+            val sownKg = FloatArray(hex.size); val ripeKg = FloatArray(hex.size); val tame = FloatArray(hex.size); val wornKm2 = FloatArray(hex.size)
+            for (p in 0 until land.n) {
+                val h = hw.placeHex[p]; val m2 = land.areaKm2[p] * 1e6f
+                val kg = food.field[p] * m2
+                sownKg[h] += kg; tame[h] += food.fieldDomestic[p] * kg; ripeKg[h] += food.fieldGrain[p] * m2
+                wornKm2[h] += food.fieldWorn[p] * land.areaKm2[p]
+            }
+            val z = max(0.6, scale).toFloat()
+            for (h in 0 until hex.size) {
+                if (room[h] + begun[h] + fence[h] + sownKg[h] + ripeKg[h] + wornKm2[h] <= 0f || !onScreen(h, 1)) continue
+                val (cx, cy) = hex.centreKm(h)
+                val x = sx(cx.toFloat()); val y = sy(cy.toFloat())
+                if (room[h] + begun[h] > 0f) {
+                    // A house, larger for room for more people; filled when whole, outlined while only begun.
+                    val r = (z * (3f + 1.5f * ln(1f + (room[h] + begun[h]) / 10f))).toInt().coerceAtLeast(2)
+                    val hx = x + (6 * z).toInt(); val hy = y - (6 * z).toInt()
+                    val xs = intArrayOf(hx - r, hx, hx + r, hx + r, hx - r); val ys = intArrayOf(hy, hy - r, hy, hy + r, hy + r)
+                    g.color = Color(0.45f, 0.25f, 0.1f, 0.95f)
+                    if (room[h] > 0f) g.fillPolygon(xs, ys, 5)
+                    g.color = Color(1f, 0.95f, 0.85f, 0.95f); g.drawPolygon(xs, ys, 5)
+                    if (fence[h] > 0f) {
+                        // The palisade: a ring round the houses, as much of it as stands.
+                        val stroke = g.stroke; g.stroke = BasicStroke(1.5f * z)
+                        g.color = Color(0.3f, 0.15f, 0.05f, 0.95f)
+                        g.drawArc(hx - 2 * r, hy - 2 * r, 4 * r, 4 * r, 90, -(360 * fence[h]).toInt())
+                        g.stroke = stroke
+                    }
+                }
+                if (sownKg[h] + ripeKg[h] + wornKm2[h] > 0f) {
+                    val fx = x - (9 * z).toInt(); val fy = y + (3 * z).toInt(); val w = (6 * z).toInt().coerceAtLeast(3)
+                    if (sownKg[h] + ripeKg[h] > 0f) {
+                        // A field: green while it grows, gold when there is ripe grain; ringed white where most ears hold their grain.
+                        g.color = if (ripeKg[h] > 0f) Color(0.95f, 0.75f, 0.15f, 0.95f) else Color(0.35f, 0.7f, 0.2f, 0.95f)
+                        g.fillRect(fx, fy, w, w)
+                        g.color = Color(0.25f, 0.15f, 0.05f, 0.9f)
+                        g.drawLine(fx, fy + w / 3, fx + w, fy + w / 3); g.drawLine(fx, fy + 2 * w / 3, fx + w, fy + 2 * w / 3)
+                        if (sownKg[h] > 0f && tame[h] / sownKg[h] > 0.5f) { g.color = Color.WHITE; g.drawRect(fx - 1, fy - 1, w + 1, w + 1) }
+                    } else {
+                        // Ground worn by cropping and left to rest.
+                        g.color = Color(0.55f, 0.4f, 0.25f, 0.8f); g.drawRect(fx, fy, w, w); g.drawLine(fx, fy + w, fx + w, fy)
+                    }
+                }
+            }
+        }
+        private val worksLegend = MapLegend("Works", "People's works: a house (to the upper right of a hex's centre) where houses stand, filled when " +
+            "whole, outlined while only begun, larger for room for more people; a brown ring round it for a palisade, as much of the ring as stands. " +
+            "A field (to the lower left) where grain was sown this year: green while it grows, gold with ripe grain standing, ringed white where most " +
+            "of the sown seed is of ears that hold their grain; an outlined, crossed square for ground worn by cropping and left to rest.",
+            swatches = listOf(MapLegend.Swatch(Color(0.45f, 0.25f, 0.1f), "houses"), MapLegend.Swatch(Color(0.35f, 0.7f, 0.2f), "field growing"),
+                MapLegend.Swatch(Color(0.95f, 0.75f, 0.15f), "field ripe"), MapLegend.Swatch(Color(0.55f, 0.4f, 0.25f), "worn ground")))
+
         private fun paintMap(g: Graphics2D) {
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
             val plain = Measure.entries[tintChoice.selectedIndex] == Measure.LAND_WATER
@@ -1086,69 +1149,6 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
 
     companion object {
         /** The colour of a landmark on the map (passes are drawn as triangles). */
-        /**
-         * People's works by hex ([worksBox]): houses (room for how many, standing or begun) and palisades from the structures
-         * that stand ([inflation.ecology.HexGroups.built]); this year's sown fields, their ripe grain and the share of ears that
-         * hold their grain; and ground worn by cropping ([inflation.ecology.HexFood.fieldWorn]).
-         */
-        private fun paintWorks(g: Graphics2D, sx: (Float) -> Int, sy: (Float) -> Int, onScreen: (Int, Int) -> Boolean) {
-            val room = FloatArray(hex.size); val begun = FloatArray(hex.size); val fence = FloatArray(hex.size)
-            for (st in groups.built) if (st.hex >= 0) when (st.kind) {
-                Built.HOUSES -> if (st.done) room[st.hex] += st.built * st.size else begun[st.hex] += st.built * st.size
-                Built.PALISADE -> fence[st.hex] = max(fence[st.hex], st.built)
-            }
-            val food = fauna.food
-            val sownKg = FloatArray(hex.size); val ripeKg = FloatArray(hex.size); val tame = FloatArray(hex.size); val wornKm2 = FloatArray(hex.size)
-            for (p in 0 until land.n) {
-                val h = hw.placeHex[p]; val m2 = land.areaKm2[p] * 1e6f
-                val kg = food.field[p] * m2
-                sownKg[h] += kg; tame[h] += food.fieldDomestic[p] * kg; ripeKg[h] += food.fieldGrain[p] * m2
-                wornKm2[h] += food.fieldWorn[p] * land.areaKm2[p]
-            }
-            val z = max(0.6, scale).toFloat()
-            for (h in 0 until hex.size) {
-                if (room[h] + begun[h] + fence[h] + sownKg[h] + ripeKg[h] + wornKm2[h] <= 0f || !onScreen(h, 1)) continue
-                val (cx, cy) = hex.centreKm(h)
-                val x = sx(cx.toFloat()); val y = sy(cy.toFloat())
-                if (room[h] + begun[h] > 0f) {
-                    // A house, larger for room for more people; filled when whole, outlined while only begun.
-                    val r = (z * (3f + 1.5f * ln(1f + (room[h] + begun[h]) / 10f))).toInt().coerceAtLeast(2)
-                    val hx = x + (6 * z).toInt(); val hy = y - (6 * z).toInt()
-                    val xs = intArrayOf(hx - r, hx, hx + r, hx + r, hx - r); val ys = intArrayOf(hy, hy - r, hy, hy + r, hy + r)
-                    g.color = Color(0.45f, 0.25f, 0.1f, 0.95f)
-                    if (room[h] > 0f) g.fillPolygon(xs, ys, 5)
-                    g.color = Color(1f, 0.95f, 0.85f, 0.95f); g.drawPolygon(xs, ys, 5)
-                    if (fence[h] > 0f) {
-                        // The palisade: a ring round the houses, as much of it as stands.
-                        val stroke = g.stroke; g.stroke = BasicStroke(1.5f * z)
-                        g.color = Color(0.3f, 0.15f, 0.05f, 0.95f)
-                        g.drawArc(hx - 2 * r, hy - 2 * r, 4 * r, 4 * r, 90, -(360 * fence[h]).toInt())
-                        g.stroke = stroke
-                    }
-                }
-                if (sownKg[h] + ripeKg[h] + wornKm2[h] > 0f) {
-                    val fx = x - (9 * z).toInt(); val fy = y + (3 * z).toInt(); val w = (6 * z).toInt().coerceAtLeast(3)
-                    if (sownKg[h] + ripeKg[h] > 0f) {
-                        // A field: green while it grows, gold when there is ripe grain; ringed white where most ears hold their grain.
-                        g.color = if (ripeKg[h] > 0f) Color(0.95f, 0.75f, 0.15f, 0.95f) else Color(0.35f, 0.7f, 0.2f, 0.95f)
-                        g.fillRect(fx, fy, w, w)
-                        g.color = Color(0.25f, 0.15f, 0.05f, 0.9f)
-                        g.drawLine(fx, fy + w / 3, fx + w, fy + w / 3); g.drawLine(fx, fy + 2 * w / 3, fx + w, fy + 2 * w / 3)
-                        if (sownKg[h] > 0f && tame[h] / sownKg[h] > 0.5f) { g.color = Color.WHITE; g.drawRect(fx - 1, fy - 1, w + 1, w + 1) }
-                    } else {
-                        // Ground worn by cropping and left to rest.
-                        g.color = Color(0.55f, 0.4f, 0.25f, 0.8f); g.drawRect(fx, fy, w, w); g.drawLine(fx, fy + w, fx + w, fy)
-                    }
-                }
-            }
-        }
-        private val worksLegend = MapLegend("Works", "People's works: a house (to the upper right of a hex's centre) where houses stand, filled when " +
-            "whole, outlined while only begun, larger for room for more people; a brown ring round it for a palisade, as much of the ring as stands. " +
-            "A field (to the lower left) where grain was sown this year: green while it grows, gold with ripe grain standing, ringed white where most " +
-            "of the sown seed is of ears that hold their grain; an outlined, crossed square for ground worn by cropping and left to rest.",
-            swatches = listOf(MapLegend.Swatch(Color(0.45f, 0.25f, 0.1f), "houses"), MapLegend.Swatch(Color(0.35f, 0.7f, 0.2f), "field growing"),
-                MapLegend.Swatch(Color(0.95f, 0.75f, 0.15f), "field ripe"), MapLegend.Swatch(Color(0.55f, 0.4f, 0.25f), "worn ground")))
-
         private fun featureColour(k: HexGeography.Kind) = when (k) {
             HexGeography.Kind.RIVER, HexGeography.Kind.LAKE, HexGeography.Kind.BAY, HexGeography.Kind.STRAIT -> Color(0.1f, 0.25f, 0.7f)
             HexGeography.Kind.VALLEY, HexGeography.Kind.FLOODPLAIN -> Color(0.15f, 0.4f, 0.4f)
