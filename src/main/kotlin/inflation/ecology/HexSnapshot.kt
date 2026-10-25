@@ -270,6 +270,8 @@ object HexSnapshot {
      *   larder, repaying more than is owed, plotting raids on less hunger; drying all the fresh meat and fish and holding back
      *   all storing to mend stay all at 1, and above it go on as drying for longer (a kilo taking that much more time and
      *   keeping that much better: [Band.dryDepth]) and mending first ever sooner ([Band.mendBelow]).
+     *   Standing grass and scrub hide small game from those who hunt it ([smallSeen], [HexPlants.groundCover]): burnt and
+     *   grazed ground shows more of it.
      */
     const val MODEL_MAJOR = 4
     const val MODEL_MINOR = 58

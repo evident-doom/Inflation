@@ -593,7 +593,8 @@ private fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
         val area = land.areaKm2[p]
         val swept = min(area, sweep)
         val small = this.small
-        offer(w, o, Food.SMALL_GAME, 0, Place(p.i), small.smallPreyKg(Place(p.i)) * min(area, w.smallSweep) * w.smallCatch / days, 1f, w.smallDays)
+        // (Small game in cover is found the less, on burnt or grazed bare ground the more: [smallSeen].)
+        offer(w, o, Food.SMALL_GAME, 0, Place(p.i), small.smallPreyKg(Place(p.i)) * min(area, w.smallSweep * smallSeen(Place(p.i))) * w.smallCatch / days, 1f, w.smallDays)
         if (w.d.carrion > 0f) {
             // (At most half of what lies on the ground searched: the rest is not found in time, or others get it;
             // and only the scavengers by trade, which watch the vultures and quarter the ground for it, find
@@ -672,7 +673,7 @@ private fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
                 w.busy += kills1 * o.time[i] * w.party[0]
                 w.meat += haul.kg; w.fed += haul.kg * w.feeds(Food.BIG_GAME)
             }
-            Food.SMALL_GAME -> small.catchSmallIn(Place(p), Kg(expected), min(land.areaKm2[p], w.smallSweep), w.weather).v.let { w.smallGot += it; w.fed += it * w.feeds(Food.SMALL_GAME) }
+            Food.SMALL_GAME -> small.catchSmallIn(Place(p), Kg(expected), min(land.areaKm2[p], w.smallSweep * smallSeen(Place(p))), w.weather).v.let { w.smallGot += it; w.fed += it * w.feeds(Food.SMALL_GAME) }
             Food.CARRION -> scavenge(g, Place(p), expected, w.sweep, w.rnd).let { w.scraps += it; w.fed += it * w.feeds(Food.CARRION) }
             Food.BONES -> small.crackBonesIn(Place(p), Kg(expected), min(land.areaKm2[p], w.sweep)).v.let { kg ->
                 if (band == null) { w.scraps += kg; w.fed += kg * w.worth(Food.BONES) }
@@ -1288,6 +1289,9 @@ const val RAW_SEED = 0.6f
 /** Beer: grain brewed for each guest at a feast, kg; how much more a feast with beer binds. */
 const val BEER_KG = 1f
 const val BEER_TIES = 0.5f
+
+/** Share of the ground a party searches for small game at place [p] over which it finds it: less in standing cover ([SMALL_HIDE]). */
+internal fun HexGroups.smallSeen(p: Place) = 1f - SMALL_HIDE * land.plants.groundCover(p)
 
 /** How readily [s] catches small game it comes on, 0..1: the smaller and nimbler the hunter, the better; cover hides the prey from all but stalkers. */
 internal fun smallCatch(s: Species) = SMALL_CATCH * min(1f, SMALL_HUNTER_KG / s.massKg)
