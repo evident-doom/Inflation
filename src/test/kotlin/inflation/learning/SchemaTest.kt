@@ -112,7 +112,7 @@ class SchemaTest {
         assertEquals(WAYS_OUT, Schema.WAYS_OUT.size)
         for (w in BandWay.entries) assertEquals(w.label, Schema.WAYS_OUT[w.slot], w.name)
         assertEquals("scouts", Schema.WAYS_OUT[FOOD_TYPES + 1 + Tool.entries.size])
-        assertEquals("build: mudbrick", Schema.WAYS_OUT.last())
+        assertEquals("night watch", Schema.WAYS_OUT.last())
     }
 
     /** A band's effort slots are every kind of food before grain (it goes by grass seed's). */

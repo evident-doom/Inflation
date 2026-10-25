@@ -268,8 +268,11 @@ object HexSnapshot {
      * 4.58: 4.57's reset to the scaffold's ways ran in the wrong place: its `else` bound to the band test inside the loop, so
      *   with a ways network every non-band group reset all bands to the scaffold's ways after the network set them (and waysForce
      *   with them), and without one the reset never ran. Now it runs only without a ways network, as 4.57 meant.
-     * 4.60: houses keep beasts of prey out at night ([HOUSE_GUARD], as their walls hold: [wallGuard]), and a band counts that
-     *   in what a house is worth to it and in choosing its camp.
+     * 4.60: the loss to beasts of prey is split between night at camp ([NIGHT_STALKED]) and day at work ([stalkGuard]): by night
+     *   the fire, dogs, a night watch (a new way, [BandWay.NIGHT_WATCH]: hours awake by turns, paid for in the next day's work,
+     *   [watchPace]), house walls ([HOUSE_GUARD], as they hold: [wallGuard]) and a palisade ([PALISADE_GUARD]) keep beasts off; by
+     *   day only dogs. Scouts no longer guard the camp as lookouts: they keep beasts off by where they find them. A band counts
+     *   its walls in what a house is worth to it and in choosing its camp. (People net 5: a new way output.)
      */
     const val MODEL_MAJOR = 4
     const val MODEL_MINOR = 60

@@ -288,10 +288,12 @@ class Band(kinds: Int) {
     @Transient var coldPace = 1f
     @Transient var campPace = 1f
     @Transient var hungerPace = 1f
-    /** The share of its people's time at work [where] that is work this week ([Sisu]). */
+    /** The share of its working time its people work for the sleep its night watch takes ([watchPace]); set as the week starts. */
+    @Transient var sleepPace = 1f
+    /** The share of its people's time at work [where] that is work this week ([Sisu], [watchPace]). */
     fun paceAt(where: Workplace) = when (where) {
-        Workplace.OUT -> coldPace * hungerPace
-        Workplace.CAMP -> campPace * hungerPace
+        Workplace.OUT -> coldPace * hungerPace * sleepPace
+        Workplace.CAMP -> campPace * hungerPace * sleepPace
         Workplace.NONE -> 1f
     }
     /** [paceAt] each [Activity]'s workplace, by its ordinal (for [BandTime]). */
@@ -480,6 +482,8 @@ class Band(kinds: Int) {
     var atHome = false
     /** Its choices: the share of its adults out scouting rather than foraging. */
     val scoutShare get() = SCOUT_SHARE * will[BandWay.SCOUTS]
+    /** Hours a night its people keep watch by turns: [WATCH_HOURS] at the scaffold's 1 (one awake at a time through the dark), as many more as its way asks. */
+    val watchHours get() = WATCH_HOURS * max(0f, will[BandWay.NIGHT_WATCH])
     /** Its choices: how it ranks making each tool ([Tool]) with its spare time (the scaffold: the most worn first). */
     val makeFirst = enumFloats<Tool> { 1f }
     /**
@@ -1861,7 +1865,9 @@ enum class BandWay(val label: String) {
      * take each this week ([buildHouse]): they differ in what they cost and in how warm a sunken one keeps and how a mudbrick one
      * wears in the rain ([sunkenM], [MUD_EROSION]).
      */
-    BUILD_STONE_FOOTING("build: stone footing"), BUILD_PIT_HOUSE("build: pit house"), BUILD_MUDBRICK("build: mudbrick");
+    BUILD_STONE_FOOTING("build: stone footing"), BUILD_PIT_HOUSE("build: pit house"), BUILD_MUDBRICK("build: mudbrick"),
+    /** Hours its people keep awake by turns through the night, armed, by the fire ([Band.watchHours]): sleep lost against beasts kept off. */
+    NIGHT_WATCH("night watch");
     /** Its place among the ways' outputs. */
     val slot = MAKE_FIRST_SLOT + Tool.entries.size + ordinal
 }
@@ -2445,6 +2451,24 @@ fun earthGain(way: Skill) = 1f - exp(-sunkenM(way) / SOIL_DAMPING_M)
  */
 fun wallGuard(way: Skill) = if (way == Skill.PIT_HOUSE) PIT_WALLS else 1f
 const val PIT_WALLS = 0.5f
+
+/**
+ * The share of their working time [adults] keep at work when they keep [watchHours] of watch a night between them: each hour
+ * awake comes out of someone's sleep, and a short night costs the next day's work about [SLEEP_PACE] of the hours lost against
+ * a night's [SLEEP_HOURS] (an estimate). No cap: a band that watches all night all of it works ever less.
+ */
+fun watchPace(watchHours: Float, adults: Int) = max(0f, 1f - SLEEP_PACE * watchHours / (max(1, adults) * SLEEP_HOURS))
+/**
+ * Night watch: hours awake a night at the scaffold's 1 (one awake at a time through about ten hours of dark); a night's sleep,
+ * h; the share of the hours lost the next day's work loses (estimates); the share of the loss to beasts at night a watch of
+ * [WATCH_HOURS] keeps off, each more of it the same share of what is left ([shareOfWill]) (an estimate: in Kenya bomas lost
+ * fewer livestock at night the more people were in them, while herders by day made no difference, Woodroffe et al. 2007, via
+ * Conservation Evidence).
+ */
+const val WATCH_HOURS = 10f
+const val SLEEP_HOURS = 8f
+const val SLEEP_PACE = 0.5f
+const val WATCH_GUARD = 0.4f
 
 /**
  * The depth over which the soil's yearly swing of warmth falls to 1/e, m: sqrt(2 κ / ω) for a moist soil's thermal diffusivity
