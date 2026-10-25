@@ -265,12 +265,24 @@ object HexSnapshot {
      *   animals alike. (A 4.55 save loads with its mast still among its roots, where it rots away within the half year.)
      * 4.57: with no ways network, bands hold the scaffold's ways every week ([Band.scaffoldWays]): before, bands of a saved
      *   world kept the ways the network it was settled under last gave them (the storm worlds: natufian-4's, at model 4.0).
-     * 4.58: only the trees that bear food bear mast and fruit, by kind of country ([HexFood.FOOD_TREES]: none from spruce, fir
+     * 4.58: 4.57's reset to the scaffold's ways ran in the wrong place: its `else` bound to the band test inside the loop, so
+     *   with a ways network every non-band group reset all bands to the scaffold's ways after the network set them (and waysForce
+     *   with them), and without one the reset never ran. Now it runs only without a ways network, as 4.57 meant.
+     * 4.59: herding is no longer for settled bands only: any band may take young in the hunt to keep, and learn herding;
+     *   its herders' days come out of field work's time ([herdDays], about [HERD_KG_A_HERDER] kg of stock a herder), held before
+     *   the week's food, and none on the days the herd walks with the band to a new camp; what they cannot
+     *   keep it culls, in place of a flat cap of two head a person, and it eats what the herd grows to beyond the stock its
+     *   herders keep in a usual week (a year's mean), and eats down a herd whose increase
+     *   brings a herder less than a day's foraging brings it ([herdPays]); a band choosing its camp weighs what poor forage
+     *   there would cost its herd ([HexGroups.herdLoss]); villages started by t.startSettled start with a herd, and
+     *   t.startHerders starts a share of mobile bands with one; kept herds no longer lose a share for each hex a move takes
+     *   them (HERD_MOVE_LOSS, no source).
+     * 4.60: only the trees that bear food bear mast and fruit, by kind of country ([HexFood.FOOD_TREES]: none from spruce, fir
      *   or larch), and the trees' crop swings from year to year, the same over all the land for each group of trees but apart
      *   between them ([inflation.world.MastTrees], [inflation.world.Weather.mastCrop]).
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 58
+    const val MODEL_MINOR = 60
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

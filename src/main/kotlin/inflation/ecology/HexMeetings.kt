@@ -68,8 +68,8 @@ internal fun HexGroups.hunt(weather: Weather) {
     // Bands first set their ways for the week.
     // (Where the bands about it stand now, after this week's moves, as its own place is.)
     if (ways != null || control != null) indexBands()
-    if (ways != null) for (g in hunters) if (g.band != null) setWays(g, weather, ways, inputs, out)
     // (Without a ways network the bands keep the scaffold's ways, not those a saved world's bands last had from theirs.)
+    if (ways != null) { for (g in hunters) if (g.band != null) setWays(g, weather, ways, inputs, out) }
     else for (g in hunters) g.band?.scaffoldWays()
     dialUse?.let { u -> for (g in hunters) if (g.band != null) u.bandWeeks.increment() }
     // (A band followed under the player's hand sets its ways every week, so the player's pins hold.)
@@ -179,6 +179,12 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         time?.spend(Activity.FOOD, (w.busy - busy0) * w.hands)
     }
     if (w.band != null && w.time == null) planWeek(w, 0f, 0f)
+    // (What a day's foraging brought it this week, kg of its need, kept as a mean over about a year: what a herder's day
+    // must bring to be worth it, [herdPays].)
+    w.band?.let { b -> w.time?.spentOn(Activity.FOOD)?.takeIf { it > 0f }?.let { d ->
+        val got = w.fed / d
+        b.forageReturn = if (b.forageReturn < 0f) got else b.forageReturn + min(1f, years) * (got - b.forageReturn)
+    } }
     w.time?.let { restedDays(w, it) }
     w.time?.release(Activity.FOOD)
     eatTheWeek(w)
@@ -204,9 +210,9 @@ private fun restedDays(w: ForageWeek, time: BandTime) {
  * A band's plan of its week, made once [forage] sees what food asks of it: [needDays] of its hands' week to eat what it
  * wants this week, [storeDays] more to lay by what it aims to keep. The walk, when it moved camp ([moveDays]), and digging
  * soaks for water, where that is the only water, come off first. Then the days the hearth's firewood and the camp's
- * shelters take to keep its people warm ([survivalDays]), then the week's food; then the rest of what each activity asks for ([choreAsks]: the rest of the week's food, the stores and its chores),
+ * shelters take to keep its people warm ([survivalDays]), then its herders' days, then the week's food; then the rest of what each activity asks for ([choreAsks]: the rest of the week's food, the stores and its chores),
  * shared out when it comes to more than the days left ([BandTime.plan]). Leisure asks for nothing: it is what the week
- * leaves (and takes less food: [restedDays]). Then it fetches the hearth's firewood in the days the plan gives it.
+ * leaves (and takes less food: [restedDays]). Then it fetches the hearth's firewood, and herds, in the days the plan gives them.
  */
 private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float) {
     val g = w.g; val b = checkNotNull(w.band); val hands = w.hands
@@ -227,6 +233,10 @@ private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float)
     // feed less, [RAW_COST].)
     needs[Activity.FOOD.ordinal] = foodAsk
     needs[Activity.FIREWOOD.ordinal] = max(0f, fuel - warm[Activity.FIREWOOD.ordinal])
+    // (Its herders' days, as far as the band does not walk with its herd this week, are held before the week's food: its
+    // animals are food on the hoof, and what it cannot herd it must cull ([keepHerds]); shared out with the food, they were
+    // cut whenever foraging alone would fill the week, and the cuts compounded week on week till no herd was left.)
+    warm[Activity.SOWING.ordinal] += herdDays(b) * (1f - walkedShare(time))
     val asks = FloatArray(Activity.entries.size)
     asks[Activity.FOOD.ordinal] = storeDays * hands
     choreAsks(g, b, w.weather.date, asks, warm)
@@ -251,6 +261,10 @@ private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float)
     w.fuelDays = fetchFuel(g, b, hands, if (fuel > 0f) min(1f, time.leftFor(Activity.FIREWOOD) / fuel) else 1f)
     time.spend(Activity.FIREWOOD, w.fuelDays * hands)
     time.release(Activity.FIREWOOD)
+    // (And its herders go out with the herd in the days the plan gives them, before the foraging can eat into them.)
+    val herd = herdDays(b) * (1f - walkedShare(time))
+    b.herded = if (herd > 0f) min(1f, time.leftFor(Activity.SOWING) / herd) else 1f
+    if (herd > 0f) time.spend(Activity.SOWING, herd * b.herded)
     w.workDays = days - w.fuelDays
     w.time = time
 }
@@ -995,8 +1009,8 @@ private fun HexGroups.huntGame(g: HexGroup, k: Int, p: Place, expected: Float, k
     val na = min(kills1 - ny, (fauna.adults[k][p] * area).toInt())
     kills1 = na + ny
     if (kills1 <= 0) return kills1
-    // A band at home may keep young it catches, to raise by its camp.
-    if (band != null && band.atHome && ny > 0 && k < band.herd.size) {
+    // A band may keep young it catches, to raise by its camp and drive along when it moves.
+    if (band != null && ny > 0 && k < band.herd.size) {
         val kept = binomial(ny, min(1f, CAPTURE * band.keepWill * ps.domestication.average().toFloat()), rnd)
         dialUse?.amount(DialSite.KEEP_CAPTURE, band.keepWill, min(1f, CAPTURE * band.keepWill * ps.domestication.average().toFloat()),
             min(1f, CAPTURE * ps.domestication.average().toFloat()), cut = CAPTURE * band.keepWill * ps.domestication.average().toFloat() > 1f)
