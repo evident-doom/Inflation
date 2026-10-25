@@ -26,6 +26,7 @@ import inflation.ecology.set
 import inflation.ecology.contains
 import inflation.ecology.Place
 import inflation.ecology.hexOf
+import inflation.ecology.seedCornIn
 
 /**
  * The model as it stands, over the whole map: each method prints one or a few lines of a fauna check's
@@ -225,6 +226,16 @@ class Census(private val sim: HexSim) {
             atHome.sumOf { it.stores[Store.SEED].toDouble() } / 1000,
             (0 until land.n).sumOf { (f.grain[it] + f.fieldGrain[it]) * land.areaKm2[it] * 1e6 } / 1000, f.grainRipenedLastYear,
             atHome.count { f.cereal[it.place] > 0f }, atHome.size))
+        // (Where the ears that hold their grain are kept: in the fields standing, by weight, and in the bands' seed corn and other grain.)
+        val sown = (0 until land.n).filter { f.field[it] > 0f }
+        val sownKg = sown.sumOf { f.field[it] * land.areaKm2[it] * 1e6 }
+        val bands = groups.groups.mapNotNull { g -> g.band?.takeIf { g.alive }?.let { b -> Triple(b, b.seedCornIn(g), g.stores[Store.SEED] - b.seedCornIn(g)) } }
+        val cornSum = bands.sumOf { it.second.toDouble() }
+        val wild = bands.sumOf { it.third.toDouble() }
+        println("cereals seed: sown and standing in %d places, %.1f t, of it from ears that hold their grain %.2f (by weight); bands holding seed corn %d of %d, %.1f t, of it from ears that hold their grain %.2f; their other grain %.1f t, %.2f".format(
+            sown.size, sownKg / 1000, if (sownKg > 0) sown.sumOf { f.fieldDomestic[it] * f.field[it] * land.areaKm2[it] * 1e6 } / sownKg else 0.0,
+            bands.count { it.second > 0f }, bands.size, cornSum / 1000, if (cornSum > 0) bands.sumOf { it.first.seedDomestic * it.second.toDouble() } / cornSum else 0.0,
+            wild / 1000, if (wild > 0) bands.sumOf { it.first.grainDomestic * it.third.toDouble() } / wild else 0.0))
     }
 
     /** How unequal the land is for people: food to be had in each land hex (plant foods, game, fish). */
