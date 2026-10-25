@@ -16,7 +16,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.math.abs
 
 /**
- * Settled worlds kept ready for short tests: three seeds of the full map (and one small map for checking that code runs), each run
+ * Settled worlds kept ready for short tests (the set in use is [FULL]): three seeds of the full map (and one small map for checking that code runs), each run
  * for some years and saved, so a test of a change starts from a world past its first years' swings
  * (the animals' slow climb from their start numbers, the plants finding their level) and needs only the
  * years the change itself takes to show. They live in ~/.inflation/test-worlds/NAME: state.bin (the
@@ -34,6 +34,7 @@ import kotlin.math.abs
  * Usage:
  *   testWorld list
  *   testWorld build NAME... [--years N] [--commit HASH]   (settles each and saves it; the config file's keys apply, as in hexFauna)
+ *   testWorld adopt NAME STATE.bin [--years N] [--commit HASH] [--config "t.startDay 150"]   (keeps a save settled elsewhere as NAME and writes its about.properties)
  *   testWorld ab --variant FILE [--base FILE] [--worlds full-1,full-2,full-3] [--years 3] [--replicates 2] [--parallel 1] [--out DIR]
  *        (FILE: config keys; the variant's are laid over the base's, the base being the run's own config file unless given)
  *   testWorld ab-report DIR [--worlds a,b] [--replicates 2]   (the report again from runs already made)
@@ -80,10 +81,15 @@ object TestWorlds {
         Entry("storm-1", 1, 1000, 2000, "the full map, summer storms"),
         Entry("storm-2", 2, 1000, 2000, "the full map, summer storms"),
         Entry("storm-3", 3, 1000, 2000, "the full map, summer storms"),
+        // The same seeds, settled for 30 years on main 2d296cf (model 4.55) from t.startDay=150 (#392 and the settled/mobile
+        // work before it): the set in use, replacing storm-1..3, which settle to about 1.5 times the people level of today's code.
+        Entry("m455-1", 1, 1000, 2000, "the full map, model 4.55"),
+        Entry("m455-2", 2, 1000, 2000, "the full map, model 4.55"),
+        Entry("m455-3", 3, 1000, 2000, "the full map, model 4.55"),
     )
 
-    /** The worlds a change is tested on. */
-    val FULL = ALL.filter { it.name.startsWith("full-") }
+    /** The worlds a change is tested on unless --worlds says otherwise: the set in use. */
+    val FULL = ALL.filter { it.name.startsWith("m455-") }
 
     fun named(name: String): Entry = ALL.firstOrNull { it.name == name } ?: error("no test world $name; they are ${ALL.joinToString(", ") { it.name }}")
 
