@@ -265,11 +265,14 @@ object HexSnapshot {
      *   animals alike. (A 4.55 save loads with its mast still among its roots, where it rots away within the half year.)
      * 4.57: with no ways network, bands hold the scaffold's ways every week ([Band.scaffoldWays]): before, bands of a saved
      *   world kept the ways the network it was settled under last gave them (the storm worlds: natufian-4's, at model 4.0).
-     * 4.59: houses keep beasts of prey out at night ([HOUSE_GUARD], as their walls hold: [wallGuard]), and a band counts that
+     * 4.58: 4.57's reset to the scaffold's ways ran in the wrong place: its `else` bound to the band test inside the loop, so
+     *   with a ways network every non-band group reset all bands to the scaffold's ways after the network set them (and waysForce
+     *   with them), and without one the reset never ran. Now it runs only without a ways network, as 4.57 meant.
+     * 4.60: houses keep beasts of prey out at night ([HOUSE_GUARD], as their walls hold: [wallGuard]), and a band counts that
      *   in what a house is worth to it and in choosing its camp.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 59
+    const val MODEL_MINOR = 60
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
