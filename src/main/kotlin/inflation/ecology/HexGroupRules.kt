@@ -315,8 +315,6 @@ const val MAST_BITTER = 0.7f
  * takes much more labour for its food than most plant foods (Basgall 1987, as cited by Glassow; no figure).
  */
 const val MAST_LEACH_DAYS_PER_KG = 1.2f
-/** The share of a kg of mast's days that is gathering it, the rest leaching its bitter share: how a band choosing its camp counts it ([HexGroups.rootsFound]). */
-const val MAST_GATHERED = BAND_FRUIT_DAYS_PER_KG / (BAND_FRUIT_DAYS_PER_KG + MAST_BITTER * MAST_LEACH_DAYS_PER_KG)
 const val SEED_HANDLING_DAYS_PER_KG = 0.5f
 /**
  * How many times as long a kilo the small seeds of wild grasses take as wild cereal grain ([SEED_HANDLING_DAYS_PER_KG],
@@ -336,6 +334,8 @@ const val FISH_HANDLING_DAYS_PER_KG = 0.3f
  * and was not looked at again when foods came to be weighed by their energy: some 6,900 kcal/h, 3-14 times the record.)
  */
 const val BAND_FRUIT_DAYS_PER_KG = 0.45f
+/** The share of a kg of mast's days that is gathering it, the rest leaching its bitter share: how a band choosing its camp counts it ([HexGroups.rootsFound]). */
+const val MAST_GATHERED = BAND_FRUIT_DAYS_PER_KG / (BAND_FRUIT_DAYS_PER_KG + MAST_BITTER * MAST_LEACH_DAYS_PER_KG)
 /**
  * Days of a band's hands to gather a kilo of shellfish meat off the shore at low tide: Meriam reef-flat collecting gives
  * 1,492 ± 173 kcal/h (Bliege Bird, Smith & Bird 2001, Behav Ecol Sociobiol 50: 9-19), at [Nourishment.FISH] and a 6-hour
