@@ -19,6 +19,7 @@ import inflation.world.LifeForm
 import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlin.math.min
+import kotlin.math.pow
 import inflation.world.Biome
 import inflation.world.Weather
 import java.util.stream.IntStream
@@ -26,7 +27,6 @@ import kotlin.math.cos
 import kotlin.math.exp
 import kotlin.math.sqrt
 import kotlin.math.sin
-import kotlin.math.pow
 
 // What makes bands of people more than a pack: skills learned in practice, tools made from what the
 // country gives, and camps they stay in.
@@ -291,10 +291,12 @@ class Band(kinds: Int) {
     @Transient var coldPace = 1f
     @Transient var campPace = 1f
     @Transient var hungerPace = 1f
-    /** The share of its people's time at work [where] that is work this week ([Sisu]). */
+    /** The share of its working time its people work for the sleep its night watch takes ([watchPace]); set as the week starts. */
+    @Transient var sleepPace = 1f
+    /** The share of its people's time at work [where] that is work this week ([Sisu], [watchPace]). */
     fun paceAt(where: Workplace) = when (where) {
-        Workplace.OUT -> coldPace * hungerPace
-        Workplace.CAMP -> campPace * hungerPace
+        Workplace.OUT -> coldPace * hungerPace * sleepPace
+        Workplace.CAMP -> campPace * hungerPace * sleepPace
         Workplace.NONE -> 1f
     }
     /** [paceAt] each [Activity]'s workplace, by its ordinal (for [BandTime]). */
@@ -365,6 +367,8 @@ class Band(kinds: Int) {
      */
     var homeEarth = 0f
     var homeGroundC = 0f
+    /** At home: how well its houses' walls keep beasts of prey out at night ([wallGuard], over the houses that shelter it), 0..1. */
+    var homeWalls = 0f
     /** Where it knows other bands have their houses (band id to hex), and their descent (main lineage). */
     val knownHomes = HashMap<Int, Int>()
     val knownLineage = HashMap<Int, Int>()
@@ -486,6 +490,8 @@ class Band(kinds: Int) {
     var atHome = false
     /** Its choices: the share of its adults out scouting rather than foraging. */
     val scoutShare get() = SCOUT_SHARE * will[BandWay.SCOUTS]
+    /** Hours a night its people keep watch by turns: [WATCH_HOURS] at the scaffold's 1 (one awake at a time through the dark), as many more as its way asks. */
+    val watchHours get() = WATCH_HOURS * max(0f, will[BandWay.NIGHT_WATCH])
     /** Its choices: how it ranks making each tool ([Tool]) with its spare time (the scaffold: the most worn first). */
     val makeFirst = enumFloats<Tool> { 1f }
     /**
@@ -614,7 +620,7 @@ class Band(kinds: Int) {
 
     fun splitInto(o: Band, adults: Int, stay: Int, share: Float, r: Random, copied: (Band) -> Unit) {
         o.ties.clear(); o.ties.putAll(ties); o.appointment = appointment
-        o.houseHex = houseHex; o.house = house; o.homeEarth = homeEarth; o.homeGroundC = homeGroundC; o.palisade = palisade; herdTame.copyInto(o.herdTame); herd.copyInto(o.herd)
+        o.houseHex = houseHex; o.house = house; o.homeEarth = homeEarth; o.homeWalls = homeWalls; o.homeGroundC = homeGroundC; o.palisade = palisade; herdTame.copyInto(o.herdTame); herd.copyInto(o.herd)
         o.houseLives = houseLives; o.houseFood = houseFood; foodFrom.copyInto(o.foodFrom); o.fishPull = fishPull; monthSupply.copyInto(o.monthSupply); o.leanDays = leanDays
         o.seedDomestic = seedDomestic; o.grainDomestic = grainDomestic; o.seedCorn = seedCorn * share; seedCorn -= o.seedCorn; o.sinceRaided = sinceRaided; o.sisu = sisu
         o.knownHomes.putAll(knownHomes); o.knownLineage.putAll(knownLineage)
@@ -944,6 +950,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     b.house = if (b.houseHex.none) 0f else housesAt(g, b.houseHex.i)
     b.atHome = b.houseHex == h && b.house > 0.05f
     b.homeEarth = if (b.atHome) earthAt(g, h.i) else 0f
+    b.homeWalls = if (b.atHome) wallsAt(g, h.i) else 0f
     b.homeGroundC = if (b.atHome) (0 until Date.MONTHS_PER_YEAR).sumOf { weather.usualTemperature(it, p).toDouble() }.toFloat() / Date.MONTHS_PER_YEAR else 0f
     // With time still to spare, it makes ornaments of shell and bone: they are given, worn and buried.
     makeOrnaments(b, people, time)
@@ -1876,7 +1883,9 @@ enum class BandWay(val label: String) {
      * take each this week ([buildHouse]): they differ in what they cost and in how warm a sunken one keeps and how a mudbrick one
      * wears in the rain ([sunkenM], [MUD_EROSION]).
      */
-    BUILD_STONE_FOOTING("build: stone footing"), BUILD_PIT_HOUSE("build: pit house"), BUILD_MUDBRICK("build: mudbrick");
+    BUILD_STONE_FOOTING("build: stone footing"), BUILD_PIT_HOUSE("build: pit house"), BUILD_MUDBRICK("build: mudbrick"),
+    /** Hours its people keep awake by turns through the night, armed, by the fire ([Band.watchHours]): sleep lost against beasts kept off. */
+    NIGHT_WATCH("night watch");
     /** Its place among the ways' outputs. */
     val slot = MAKE_FIRST_SLOT + Tool.entries.size + ordinal
 }
@@ -2544,6 +2553,32 @@ fun sunkenM(way: Skill) = when (way) { Skill.PIT_HOUSE -> 1f; Skill.MUDBRICK -> 
  * sunken walls: the year's swing of the soil's warmth falls off with depth as exp(-depth / [SOIL_DAMPING_M]).
  */
 fun earthGain(way: Skill) = 1f - exp(-sunkenM(way) / SOIL_DAMPING_M)
+
+/**
+ * How well the walls of a house built [way] keep beasts of prey out at night, 0..1: stone-footed and mudbrick walls whole; a
+ * pit house, whose roof of brush and earth comes down to the ground, [PIT_WALLS] of that. (Lions break into thatched houses
+ * and makeshift huts to take those asleep inside, Packer et al. 2005, Nature 436: 927; the shares are estimates.)
+ */
+fun wallGuard(way: Skill) = if (way == Skill.PIT_HOUSE) PIT_WALLS else 1f
+const val PIT_WALLS = 0.5f
+
+/**
+ * The share of their working time [adults] keep at work when they keep [watchHours] of watch a night between them: each hour
+ * awake comes out of someone's sleep, and a short night costs the next day's work about [SLEEP_PACE] of the hours lost against
+ * a night's [SLEEP_HOURS] (an estimate). No cap: a band that watches all night all of it works ever less.
+ */
+fun watchPace(watchHours: Float, adults: Int) = max(0f, 1f - SLEEP_PACE * watchHours / (max(1, adults) * SLEEP_HOURS))
+/**
+ * Night watch: hours awake a night at the scaffold's 1 (one awake at a time through about ten hours of dark); a night's sleep,
+ * h; the share of the hours lost the next day's work loses (estimates); the share of the loss to beasts at night a watch of
+ * [WATCH_HOURS] keeps off, each more of it the same share of what is left ([shareOfWill]) (an estimate: in Kenya bomas lost
+ * fewer livestock at night the more people were in them, while herders by day made no difference, Woodroffe et al. 2007, via
+ * Conservation Evidence).
+ */
+const val WATCH_HOURS = 10f
+const val SLEEP_HOURS = 8f
+const val SLEEP_PACE = 0.5f
+const val WATCH_GUARD = 0.4f
 
 /**
  * The depth over which the soil's yearly swing of warmth falls to 1/e, m: sqrt(2 κ / ω) for a moist soil's thermal diffusivity

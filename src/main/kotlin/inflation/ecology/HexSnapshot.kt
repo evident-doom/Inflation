@@ -289,7 +289,13 @@ object HexSnapshot {
      *   keeping that much better: [Band.dryDepth]) and mending first ever sooner ([Band.mendBelow]).
      *   Standing grass and scrub hide small game from those who hunt it ([smallSeen], [HexPlants.groundCover]): burnt and
      *   grazed ground shows more of it.
-     * 4.62: bands search for fruit and mast as they do for roots, the thinner the longer a kilo ([PLANT_SIGHT_M2_PER_DAY]),
+     * 4.62: the loss to beasts of prey is split between night at camp ([NIGHT_STALKED]) and day at work ([stalkGuard]): by night
+     *   the fire, dogs, a night watch (a new way, [BandWay.NIGHT_WATCH]: hours awake by turns, paid for in the next day's work,
+     *   [watchPace]), house walls ([HOUSE_GUARD], as they hold: [wallGuard]) and a palisade ([PALISADE_GUARD]) keep beasts off; by
+     *   day only dogs. Scouts no longer guard the camp as lookouts: they keep beasts off by where they find them. A band counts
+     *   its walls in what a house is worth to it and in choosing its camp. Beasts take a tenth as many at most ([STALKED]),
+     *   as foragers' records have it, and the nominal check counts those taken. (People net 5: a new way output.)
+     * 4.63: bands search for fruit and mast as they do for roots, the thinner the longer a kilo ([PLANT_SIGHT_M2_PER_DAY]),
      *   and must pound and leach the bitter share of the mast before they eat it ([MAST_BITTER], [MAST_LEACH_DAYS_PER_KG]),
      *   which only bands that know leaching and have water by them can, and a band choosing its camp counts the mast at the
      *   share of its days that is gathering it ([MAST_GATHERED]); grass seed and cereal grain are searched for as fruit is,
@@ -297,7 +303,7 @@ object HexSnapshot {
      *   ([PlantFrom]).
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 62
+    const val MODEL_MINOR = 63
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
