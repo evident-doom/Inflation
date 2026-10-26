@@ -607,7 +607,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         // Shelter: crags, dens, thickets and trees, as the prey uses them; small prey hide in any cover.
         // (Hunters that follow the scent find much of what hides; shelter counts for half against them.)
         // (But crags are a wild goat's whole defence: no hunter follows it up a cliff.)
-        val refuge = 1f - (if (ps.habitat.rugged >= 0.5f) 1f else 0.5f) * SHELTER_EFFECT * Niches.shelter(ps, p, land)
+        val k = slots[ps.index]
+        val shelter = if (k >= 0) Niches.shelter(ps, p, land, groundShelter[k][p]) else Niches.shelter(ps, p, land)
+        val refuge = 1f - (if (ps.habitat.rugged >= 0.5f) 1f else 0.5f) * SHELTER_EFFECT * shelter
         // Small prey hide in thick cover from hunters that run them down; a stalker uses the same cover to get close.
         val hide = 1f - HIDING * land.plants.cover(p) * (1f - s.stalking) * max(0f, 1f - massKg / HIDING_KG)
         // Stalkers hunt by night: dark weeks around the new moon hide them, bright ones give them away.
@@ -618,6 +620,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val room = 1f - COURSING_COVER * (1f - s.stalking) * land.plants.cover(p)
         return refuge * hide * dark * speed * room
     }
+
+    /** Each kind's [Niches.groundShelter] at each place: fixed for the run, so worked out once. */
+    @delegate:Transient private val groundShelter by lazy { Array(kinds.size) { k -> FloatArray(n) { p -> Niches.groundShelter(kinds[k], Place(p), land) } } }
 
     /** The game each resident hunter takes at each place ([game]) while the residents move; null otherwise. */
     @Transient private var preyNow: Array<FloatArray?>? = null
