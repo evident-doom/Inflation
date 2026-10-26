@@ -46,7 +46,7 @@ internal fun HexGroups.sowGrain(g: HexGroup, b: Band, p: Place, date: Date, time
  * The ripe grain of the crop [g]'s band [b] sowed ([Band.sownPlace]), kg, where the band is in that hex: its share of what
  * stands there, by the seed it sowed against all sown there (all of it once the year's sowing is struck off).
  */
-internal fun HexGroups.cropRipe(g: HexGroup, b: Band): Float {
+internal fun GroupWorld.cropRipe(g: HexGroup, b: Band): Float {
     val f = b.sownPlace
     if (f.none || b.sownKg <= 0f || hw.placeHex[f.i] != hw.placeHex[g.place.i]) return 0f
     val food = fauna.food
@@ -79,7 +79,7 @@ internal fun HexGroups.harvestCrop(g: HexGroup, b: Band, time: BandTime) {
 internal fun Band.seedCornIn(g: HexGroup) = min(seedCorn, g.stores[Store.SEED])
 
 /** Whether [g]'s band [b] sows at place [p] now: in autumn, at home or at a camp it has kept long enough to build at, where grass grain grows. */
-internal fun HexGroups.canSow(g: HexGroup, b: Band, p: Place, date: Date) =
+internal fun GroupWorld.canSow(g: HexGroup, b: Band, p: Place, date: Date) =
     (b.atHome || b.campWeeks >= houseAfterWeeks(b)) && date.month in SOW_MONTHS && fauna.food.cereal[p] > 0f
 
 /**

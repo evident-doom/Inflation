@@ -261,14 +261,14 @@ const val VENOM = 0.002f
 const val MARSH_FEVER = 0.05f
 
 /** How [b] lives, for the reports: settled at home in its houses or at a camp kept half a year or more, else mobile. */
-internal fun HexGroups.bandLiving(b: Band) =
+internal fun GroupWorld.bandLiving(b: Band) =
     if (b.atHome || b.campWeeks >= stepsPerYear / 2f) Tally.Living.SETTLED else Tally.Living.MOBILE
 
 /**
  * [b]'s births against those of a band without weaning food ([SPACING_MOST] over its spacing): gruel weans children early
  * ([Band.weaningFood]), but a mother carries each child on the band's moves till it walks them ([CARRY_YEARS]).
  */
-internal fun HexGroups.birthSpacing(b: Band): Float {
+internal fun GroupWorld.birthSpacing(b: Band): Float {
     val nursing = NURSING_YEARS_MOST - (NURSING_YEARS_MOST - NURSING_YEARS_LEAST) * b.weaningFood
     // (A band at home or long at one camp moves the less: the weeks it has kept this camp count as well as its usual stay.)
     val moves = stepsPerYear / max(b.stayWeeks, b.campWeeks + 1f)

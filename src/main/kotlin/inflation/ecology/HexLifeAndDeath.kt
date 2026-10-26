@@ -549,7 +549,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
 }
 
 /** Reserves carry [g] through lean weeks; a group that ate (nearly) its fill lays them on, most in late summer and autumn. */
-private fun HexGroups.feedOnReserves(g: HexGroup) {
+private fun GroupWorld.feedOnReserves(g: HexGroup) {
     val s = g.species
     if (g.fed < WELL_FED) { val draw = min(g.fat, (1f - g.fed) * days); g.fat -= draw; g.fed = min(1f, g.fed + draw / days) }
     else { val gain = FAT_EFFICIENCY * g.surplus; val back = min(g.spent, gain); g.spent -= back
@@ -575,22 +575,22 @@ private fun HexGroups.woundsWeek(band: Band): Float {
 }
 
 /** Whether a group of [s] can drink at place [p] ([Hazards.canDrink]). */
-internal fun HexGroups.canDrink(s: Species, p: Place) = Hazards.canDrink(land.drink, s, p)
+internal fun GroupWorld.canDrink(s: Species, p: Place) = Hazards.canDrink(land.drink, s, p)
 
 /** [g] drinks where there is water; otherwise days without water mount, eased by the water in green food. Returns the deaths from thirst, a year's rate. */
-private fun HexGroups.thirstWeek(g: HexGroup): Float {
+private fun GroupWorld.thirstWeek(g: HexGroup): Float {
     g.dry = dryAfter(g, g.place, g.fed)
     return thirstOdds(g, g.place, g.dry)
 }
 
 /** Days [g] would have gone without water by the end of the week at place [p], fed [fed]: none where it can drink. */
-internal fun HexGroups.dryAfter(g: HexGroup, p: Place, fed: Float): Float =
+internal fun GroupWorld.dryAfter(g: HexGroup, p: Place, fed: Float): Float =
     if (canDrink(g.species, p)) 0f
     // Plant-eaters get water from green food; hunters from the body water of what they eat, in any season.
     else g.dry + Hazards.dryDays(g.species, days, fed, land.plants.green[p])
 
 /** The share of [g] that dies of thirst at place [p], [dry] days without water. */
-internal fun HexGroups.thirstOdds(g: HexGroup, p: Place, dry: Float): Float {
+internal fun GroupWorld.thirstOdds(g: HexGroup, p: Place, dry: Float): Float {
     val s = g.species
     // (People carry water in skins and know every spring: they suffer far less from it than animals.)
     // (Strangers to the country do not know its springs.)
@@ -634,7 +634,7 @@ private fun HexGroups.sicknessWeek(g: HexGroup, weather: Weather, kinNow: HashMa
  * [g]'s kind's heads per km² about it: its numbers, its own included, over the ground it ranges over (its hex, and the
  * six round it where its kind's home range reaches beyond one hex, [HexGroups.rangesWide]).
  */
-private fun HexGroups.kinKm2(g: HexGroup, kinNow: HashMap<Long, Int>): Float {
+private fun GroupWorld.kinKm2(g: HexGroup, kinNow: HashMap<Long, Int>): Float {
     val s = g.species
     val h0 = hw.placeHex[g.place]
     var heads = 0; var hexes = 0
@@ -662,7 +662,7 @@ internal fun interface HazardSink { fun add(cause: DeathCause, adult: Float, you
  * and eagles. The one rule for the week's deaths ([liveWeek]) and for those a group foresees
  * at a place it weighs ([HexGroups.deathsAt]).
  */
-internal fun HexGroups.placeHazards(g: HexGroup, p: Place, weather: Weather, fed: Float, thirst: Float, sick: Float,
+internal fun GroupWorld.placeHazards(g: HexGroup, p: Place, weather: Weather, fed: Float, thirst: Float, sick: Float,
     fire: Float, home: Float, shelter: Float = g.band?.shelter ?: 0f, into: HazardSink) {
     val s = g.species; val b = g.band; val t = weather.temperature[p]
     // (Fed as it would be with its fat drawn on, as its week's feeding draws on it: a group foresees its fat too.)
@@ -711,10 +711,10 @@ internal fun HexGroups.foreseenHazards(g: HexGroup, p: Place, weather: Weather, 
 }
 
 /** Vipers and scorpions, out in the warm months: the odds for people at place [p] this week. */
-internal fun HexGroups.venomOdds(s: Species, p: Place, weather: Weather) = if (s.human && weather.temperature[p] > 18f) VENOM * years else 0f
+internal fun GroupWorld.venomOdds(s: Species, p: Place, weather: Weather) = if (s.human && weather.temperature[p] > 18f) VENOM * years else 0f
 
 /** The week's deaths, [adults] and [young], shared among the [hazards] by how much each weighed for them (drawn from [r]); what is left over is "other". */
-private fun HexGroups.shareDeaths(hazards: List<Hazard>, adults: Int, young: Int, r: Random): ArrayList<Died> {
+private fun GroupWorld.shareDeaths(hazards: List<Hazard>, adults: Int, young: Int, r: Random): ArrayList<Died> {
     val died = ArrayList<Died>()
     for ((n, ofYoung) in listOf(adults to false, young to true)) {
         val of = LinkedHashMap<DeathReason, Int>()
@@ -755,7 +755,7 @@ private fun HexGroups.houseWorthWeek(g: HexGroup, b: Band, weather: Weather, sta
 }
 
 /** [g]'s young grow up, and in a band the adults age through three spans of adult life, then become elders (drawn from [r]); returns how many young grew up. */
-private fun HexGroups.growUp(g: HexGroup, r: Random): Int {
+private fun GroupWorld.growUp(g: HexGroup, r: Random): Int {
     val s = g.species
     val band = g.band
     val up = binomial(g.young, years / s.yearsToMaturity, r)
@@ -844,7 +844,7 @@ internal fun HexGroups.mergeAndPair(date: Date) {
 }
 
 /** Band [from] joins band [into]: its people, food, goods and knowledge come with it. */
-private fun HexGroups.joinBand(into: HexGroup, from: HexGroup, week: Int) {
+private fun GroupWorld.joinBand(into: HexGroup, from: HexGroup, week: Int) {
     val w = from.adults.toFloat() / (into.adults + from.adults).coerceAtLeast(1)
     into.band!!.absorb(from.band!!, from.adults, w, into.stores[Store.DRIED], from.stores[Store.DRIED],
         into.stores[Store.SEED], from.stores[Store.SEED], into.id, from.id)
@@ -915,14 +915,14 @@ internal fun HexGroups.stalkedBy(g: HexGroup, b: Band, kinNow: HashMap<Long, Int
 }
 
 /** The man-eaters' flesh in resident animals at place [p], kg/km², weighted by how readily each takes people ([Species.takesPeople]). */
-internal fun HexGroups.residentManEaters(p: Place): Float {
+internal fun GroupWorld.residentManEaters(p: Place): Float {
     var v = 0f
     eachResidentManEater(p) { _, f -> v += f }
     return v
 }
 
 /** Calls [each] with every resident kind that takes people at place [p] and its flesh there, kg/km², weighted by [Species.takesPeople]. */
-private inline fun HexGroups.eachResidentManEater(p: Place, each: (Species, Float) -> Unit) {
+private inline fun GroupWorld.eachResidentManEater(p: Place, each: (Species, Float) -> Unit) {
     for ((ki, k) in fauna.kinds.withIndex()) {
         val w = k.takesPeople; if (w <= 0f) continue
         each(k, w * (fauna.adults[ki][p] + fauna.young[ki][p]) * k.massKg)

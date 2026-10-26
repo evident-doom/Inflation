@@ -36,7 +36,7 @@ internal fun tieBreak(id: Int, other: Int, day: Long): Long {
 }
 
 /** The day [g] enters each hex of its path: effort so far over its pace, the first hex on day 0. */
-internal fun HexGroups.timetable(s: Species, path: HexArray): FloatArray {
+internal fun GroupWorld.timetable(s: Species, path: HexArray): FloatArray {
     val out = FloatArray(path.size)
     if (path.size <= 1) return out
     val cross = hex.crossings[Catalogue.travel(s).ordinal]
@@ -249,7 +249,7 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather) {
  * finds the other senses it, v how fast they close on each other, T the time both spend about
  * (searching, at the same hours) and A the place's size.
  */
-internal fun HexGroups.encounters(a: HexGroup, b: HexGroup, p: Place, span: Float): Float {
+internal fun GroupWorld.encounters(a: HexGroup, b: HexGroup, p: Place, span: Float): Float {
     // By the keener's senses.
     val r = max(a.species.senseKm, b.species.senseKm)
     val v = sqrt(a.species.dailyTravelKm * a.species.dailyTravelKm + b.species.dailyTravelKm * b.species.dailyTravelKm)
@@ -341,7 +341,7 @@ internal fun HexGroups.mark() {
  * strangers, gives way and turns back. Packs of near equal strength fight: now and then one dies,
  * and the loser gives up the ground.
  */
-internal fun HexGroups.rivalsMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk: Int, bi: Int, h: Hex, stop: IntArray) {
+internal fun GroupWorld.rivalsMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk: Int, bi: Int, h: Hex, stop: IntArray) {
     stats.meeting(Met.RIVAL_PACKS)
     val sa = a.adults * (if (a.home == h) HOME_ADVANTAGE else 1f); val sb = b.adults * (if (b.home == h) HOME_ADVANTAGE else 1f)
     val ratio = max(sa, sb) / max(1f, min(sa, sb))

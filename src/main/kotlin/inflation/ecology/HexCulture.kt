@@ -378,7 +378,7 @@ internal fun HexGroups.raidStrengths(g: HexGroup, o: HexGroup, ob: Band, planned
 }
 
 /** One or two young adults from each band join the other; their descent and skills come with them. */
-private fun HexGroups.marryOut(a: HexGroup, bandA: Band, b: HexGroup, bandB: Band) {
+private fun GroupWorld.marryOut(a: HexGroup, bandA: Band, b: HexGroup, bandB: Band) {
     val sa = min(2, a.adults / 4).coerceAtLeast(1).toFloat() / a.adults
     val sb = min(2, b.adults / 4).coerceAtLeast(1).toFloat() / b.adults
     val kin = kinship(bandA.lineage, bandB.lineage)

@@ -31,7 +31,7 @@ import kotlin.math.PI
 // Hunting and foraging along the way: what a group gets, eats, stores and keeps of its week's food.
 
 /** How catchable prey [ps] is for hunter [s] in place [p], 0..1, this week ([HexFauna.catchable], as resident hunters reckon it too). */
-internal fun HexGroups.catchable(s: Species, ps: Species, p: Place): Float = fauna.catchable(s, ps, ps.massKg, p)
+internal fun GroupWorld.catchable(s: Species, ps: Species, p: Place): Float = fauna.catchable(s, ps, ps.massKg, p)
 
 /**
  * Hunters (and bands) feed along their way: the resident game of every place they passed, small game,
@@ -379,7 +379,7 @@ private class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, packK
  * far as it goes. (A party ranges round where it goes, not only through it; what is left over after that is the same
  * ground searched again, which finds no more game.) The places nearest in height to its own.
  */
-internal fun HexGroups.huntGround(g: HexGroup, km2: Float): HuntGround {
+internal fun GroupWorld.huntGround(g: HexGroup, km2: Float): HuntGround {
     val path = g.path; val area = land.areaKm2
     var places = IntArray(path.size + 6); var swept = FloatArray(path.size + 6); var m = 0
     fun indexOf(p: Int): Int { for (i in 0 until m) if (places[i] == p) return i; return -1 }
@@ -432,7 +432,7 @@ internal class HuntGround(val place: IntArray, val km2: FloatArray) { val size g
  * it does not look for (prey switching, see [SEARCH_HALF]). (What depends on the kind alone is reckoned once a kind,
  * what depends on the place alone once a place.)
  */
-private fun HexGroups.huntingOdds(w: ForageWeek) {
+private fun GroupWorld.huntingOdds(w: ForageWeek) {
     val g = w.g; val s = g.species; val band = g.band; val nk = w.nk
     val adults = fauna.adults; val young = fauna.young
     val edge = FloatArray(nk); val image = FloatArray(nk); val meets = FloatArray(nk); val view = FloatArray(2)
@@ -871,7 +871,7 @@ private fun bookEaten(b: Books, kg: Float, dung: Float) {
  * (its need counted in the whole weight of its kills, see [creditShare]) and [rest], kg, and dropped [dung]; and the [spare]
  * it left lies as carrion at the whole weight credited, more than the meat it is (a known leak). A band's meal is booked as it eats.
  */
-private fun HexGroups.bookForage(b: Books, band: Band?, meatEaten: Float, rest: Float, fish: Float, spare: Float, dung: Float) {
+private fun GroupWorld.bookForage(b: Books, band: Band?, meatEaten: Float, rest: Float, fish: Float, spare: Float, dung: Float) {
     b.flow(Books.Stuff.MATTER, "to and from the water life", fish.toDouble())
     if (band == null) {
         bookEaten(b, meatEaten * meatShare(null) + rest, 0f)
@@ -947,7 +947,7 @@ private fun HexGroups.keepAndSpoil(w: ForageWeek, got: EnumFloats<Store>, gotKg:
  * together (hare, fox, marmot) clothe as well as a few big hides. [pelts] kg were set aside from the small game
  * caught, in the [time] it has to spare; returns the kg left unskinned, for the scavengers.
  */
-private fun HexGroups.skinSmallGame(b: Band, time: BandTime, pelts: Float): Float {
+private fun GroupWorld.skinSmallGame(b: Band, time: BandTime, pelts: Float): Float {
     val skinDays = min(time.leftFor(Activity.SKINS), SKIN_DAYS * pelts)
     b.goods[Material.HIDE] += skinDays / SKIN_DAYS
     time.spend(Activity.SKINS, skinDays)
@@ -956,7 +956,7 @@ private fun HexGroups.skinSmallGame(b: Band, time: BandTime, pelts: Float): Floa
 }
 
 /** Tallies the hide in the [took] kg of hide, bone and sinew a band took from kills of [ps] (none if no band), by [source]; returns [took]. */
-internal fun HexGroups.tallyHide(source: Tally.HideSource, ps: Species, took: Float?): Float {
+internal fun GroupWorld.tallyHide(source: Tally.HideSource, ps: Species, took: Float?): Float {
     if (took == null || took <= 0f) return 0f
     val p = ps.products
     stats.hunting.merge(Tally.hide(source), (1000f * took * p.hide / (p.hide + p.bone + p.sinew)).roundToInt(), Int::plus)
@@ -1045,7 +1045,7 @@ private fun siftDown(a: LongArray, from: Int, m: Int) {
 }
 
 /** [forage]'s reaping of wild or sown grain at place [p], [expected] kg a party could take: [out] gets the kilos it is worth, and weighs. */
-private fun HexGroups.reap(g: HexGroup, p: Place, expected: Float, out: Haul) {
+private fun GroupWorld.reap(g: HexGroup, p: Place, expected: Float, out: Haul) {
     val band = g.band
     // (Sown fields are reaped first: their grain stands thick in one plot; then the wild stand.)
     val food = fauna.food
@@ -1077,7 +1077,7 @@ internal fun reapDaysPerKg(band: Band?, tuning: inflation.Tuning) =
 internal fun Band.reapedDomestic(d: Float): Float { val sel = SICKLE_SELECT * has(Tool.SICKLE); return d * (1f + sel) / (1f + sel * d).coerceAtLeast(1e-6f) }
 
 /** [forage]'s count of the resident bands [g] came on unseen ([met] per animal, by place of its hunting [ground] and kind) in the [searched] share of its week. */
-private fun HexGroups.countResidentsMet(g: HexGroup, ground: HuntGround, met: FloatArray, searched: Float, today: Double) {
+private fun GroupWorld.countResidentsMet(g: HexGroup, ground: HuntGround, met: FloatArray, searched: Float, today: Double) {
     val nk = fauna.kinds.size
     val counts = FloatArray(Catalogue.all.size)
     for (j in 0 until ground.size) {
@@ -1096,7 +1096,7 @@ private fun HexGroups.countResidentsMet(g: HexGroup, ground: HuntGround, met: Fl
  * both, grass seed or small finds) at place [p], [expected] kg a party could take: [out] gets the kilos it is worth once seed
  * is ground and food cooked or leached, what they weigh, and the party-days the leaching took ([hands] at it).
  */
-private fun HexGroups.gather(g: HexGroup, t: Food, kind: Int, p: Place, expected: Float, hands: Int, out: Haul) {
+private fun GroupWorld.gather(g: HexGroup, t: Food, kind: Int, p: Place, expected: Float, hands: Int, out: Haul) {
     val s = g.species; val band = g.band
     out.busy = 0f
     val food = fauna.food
@@ -1161,7 +1161,7 @@ private fun diagSampled(g: HexGroup, weather: Weather, share: Float, salt: Int) 
  * How much of the usual loss band [band]'s dried meat and fish suffer: smoked keeps longer than sun-dried, salted longer still,
  * and dried for longer ([Band.dryDepth]) longer in proportion (drier meat keeps longer; the proportion is an estimate).
  */
-internal fun HexGroups.driedKeep(band: Band): Float {
+internal fun GroupWorld.driedKeep(band: Band): Float {
     val smoked = if (band.knowsSkill[Skill.SMOKING]) 1f - SMOKE_KEEP * band.skill(Skill.SMOKING) else 1f
     return smoked * (1f - tuning.saltKeep * band.salted) / max(1f, band.dryDepth)
 }
@@ -1170,7 +1170,7 @@ internal fun HexGroups.driedKeep(band: Band): Float {
  * The food a whole house would have kept from spoiling in [g]'s stores this week against the houses it has ([home]), less what
  * mice would have taken from its pits: kg of need, by [spoil]'s rates and the mice's. For [Band.houseFood].
  */
-internal fun HexGroups.keepWorth(g: HexGroup, b: Band, home: Float): Float {
+internal fun GroupWorld.keepWorth(g: HexGroup, b: Band, home: Float): Float {
     val more = 1f - home
     if (more <= 0f) return 0f
     var kept = 0f
@@ -1182,7 +1182,7 @@ internal fun HexGroups.keepWorth(g: HexGroup, b: Band, home: Float): Float {
 }
 
 /** Spoils a week of [stores] at [t] °C, each kind at its own rate; returns kg lost (weighed at [kgPer] for each kg of worth). */
-internal fun HexGroups.spoil(stores: EnumFloats<Store>, t: Float, keep: Float = 1f, driedKeep: Float = 1f, kgPer: EnumFloats<Store>? = null): Float {
+internal fun GroupWorld.spoil(stores: EnumFloats<Store>, t: Float, keep: Float = 1f, driedKeep: Float = 1f, kgPer: EnumFloats<Store>? = null): Float {
     var lost = 0f
     val warm = if (t <= 0f) 0f else min(2.8f, exp(0.069f * (t - 15f)))
     for (st in Store.entries) {
@@ -1195,7 +1195,7 @@ internal fun HexGroups.spoil(stores: EnumFloats<Store>, t: Float, keep: Float = 
 }
 
 /** [forage]'s practice for band [band] of [g] at what it did this week (and its tally of fish). */
-private fun HexGroups.practise(g: HexGroup, band: Band, hunted: Boolean, smallGot: Float, plants: Float, fish: Float) {
+private fun GroupWorld.practise(g: HexGroup, band: Band, hunted: Boolean, smallGot: Float, plants: Float, fish: Float) {
     if (hunted) band.practise(Skill.HUNT)
     if (smallGot > 0f) band.practise(Skill.SMALL_GAME)
     if (plants > 0f) { band.practise(Skill.GATHER); learnPlants(band, hw.placeHex[g.place]) }
@@ -1205,7 +1205,7 @@ private fun HexGroups.practise(g: HexGroup, band: Band, hunted: Boolean, smallGo
 }
 
 /** [g]'s band [band]'s food this week by where it came from, and how its fishing paid, into its running means over about a year. */
-private fun HexGroups.recordFood(g: HexGroup, band: Band, w: ForageWeek) {
+private fun GroupWorld.recordFood(g: HexGroup, band: Band, w: ForageWeek) {
     val k = 1f / stepsPerYear; val per = 1f / (max(1, g.size) * days)
     fun add(f: FoodFrom, kg: Float) { band.foodFrom[f] += k * (kg * per - band.foodFrom[f]) }
     add(FoodFrom.PLANTS, w.plants); add(FoodFrom.SMALL_GAME, w.smallGot); add(FoodFrom.FISH, w.fish)
@@ -1243,7 +1243,7 @@ internal fun creditShare(band: Band?) = if (band == null) 1f else meatShare(band
  * For the books: [credit] kg added to [hunter]'s meat in hand (taken off when below zero) from a kill of [kg] that left
  * [carrion] kg; a beast holds only [meatShare] of what it is credited, so the rest of a kill credited whole goes nowhere.
  */
-internal fun HexGroups.bookKill(hunter: HexGroup, credit: Float, kg: Float, carrion: Float) {
+internal fun GroupWorld.bookKill(hunter: HexGroup, credit: Float, kg: Float, carrion: Float) {
     land.books?.leak(Books.Stuff.MATTER, "hunters' kills credited at more or less than they weigh (young, rivals, theft)",
         (credit * meatShare(hunter.band) / creditShare(hunter.band) + carrion - kg).toDouble())
 }
@@ -1259,7 +1259,7 @@ const val BEER_KG = 1f
 const val BEER_TIES = 0.5f
 
 /** Share of the ground a party searches for small game at place [p] over which it finds it: less in standing cover ([SMALL_HIDE]). */
-internal fun HexGroups.smallSeen(p: Place) = 1f - SMALL_HIDE * land.plants.groundCover(p)
+internal fun GroupWorld.smallSeen(p: Place) = 1f - SMALL_HIDE * land.plants.groundCover(p)
 
 /** How readily [s] catches small game it comes on, 0..1: the smaller and nimbler the hunter, the better; cover hides the prey from all but stalkers. */
 internal fun smallCatch(s: Species) = SMALL_CATCH * min(1f, SMALL_HUNTER_KG / s.massKg)
@@ -1268,7 +1268,7 @@ internal fun smallCatch(s: Species) = SMALL_CATCH * min(1f, SMALL_HUNTER_KG / s.
  * The food [band] works to lay by this week: while its kit is worn it holds back from storing as far as its way of
  * mending first goes ([Band.mendFirst]: the scaffold's 1 stores a tenth of it, mending in the time the rest would take).
  */
-internal fun HexGroups.storeWork(g: HexGroup, band: Band) = if (band.worn()) storeWant(g, band) * (1f - band.mendFirst) else storeWant(g, band)
+internal fun GroupWorld.storeWork(g: HexGroup, band: Band) = if (band.worn()) storeWant(g, band) * (1f - band.mendFirst) else storeWant(g, band)
 
 /**
  * What band [g] works this week to lay by towards the stores it aims to keep (its choice), kg: a share
@@ -1299,7 +1299,7 @@ internal fun seenFirst(open: Float, clear: Float, band: Band?, ps: Species): Flo
 }
 
 /** [seenFirst]'s parts at place [p] for hunter [s]: how open the ground is to a hunter of its way, and how clear the weather and cover leave the view. */
-private fun HexGroups.openness(s: Species, p: Place, weather: Weather, out: FloatArray) {
+private fun GroupWorld.openness(s: Species, p: Place, weather: Weather, out: FloatArray) {
     val cover = land.plants.cover(p)
     out[0] = VIGILANCE * (1f - cover) * (1f - s.stalking)
     out[1] = 0.5f + 0.5f * sight(p, weather) / (1f - SIGHT_COVER * cover).coerceAtLeast(0.1f)
