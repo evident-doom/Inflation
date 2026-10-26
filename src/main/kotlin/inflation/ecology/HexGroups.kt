@@ -78,6 +78,8 @@ class HexGroups(
     val groups = ArrayList<HexGroup>()
     /** What bands have built that stands in the world ([Structure]): no band's own, any band's to use. */
     val built = ArrayList<Structure>()
+    /** (The [built] by hex, as the list last stood: see [structuresAt].) */
+    @Volatile @Transient internal var builtByHex: StructureIndex? = null
     /** (Whether a world saved before [built] was kept has had its bands' houses raised in it: see [tendStructures].) */
     @Transient internal var structuresSeen = false
     /** Bands' kept animals since the census last read them ([HerdFlow]): heads born, dead, run off and culled, and kg herded and fed. */

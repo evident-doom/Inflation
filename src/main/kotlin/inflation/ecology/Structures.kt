@@ -31,49 +31,74 @@ class Structure(var kind: Built = Built.HOUSES, var hex: Hex = Hex.NONE, var des
 /** Whether [g] may use [s]: nobody else is using it this week. */
 private fun usable(s: Structure, g: HexGroup) = s.user < 0 || s.user == g.id
 
+/**
+ * [HexGroups.built] by hex, in the list's order (so sums over a hex come out as over the list), for [structuresAt]. The list
+ * only gains new structures at its end and loses some ([tendStructures]), so its size and last one tell whether it has changed.
+ */
+internal class StructureIndex(built: List<Structure>, hexes: Int) {
+    val size = built.size
+    val last = built.lastOrNull()
+    val start = IntArray(hexes + 1)
+    val items: Array<Structure?> = arrayOfNulls(built.size)
+    init {
+        for (s in built) if (!s.hex.none) start[s.hex.i + 1]++
+        for (h in 0 until hexes) start[h + 1] += start[h]
+        val at = start.copyOf()
+        for (s in built) if (!s.hex.none) items[at[s.hex.i]++] = s
+    }
+    fun current(built: List<Structure>) = size == built.size && last === built.lastOrNull()
+}
+
+/** [f] for each structure at hex [h], in [HexGroups.built]'s order. */
+private inline fun HexGroups.structuresAt(h: Hex, f: (Structure) -> Unit) {
+    if (h.none) return
+    val x = builtByHex?.takeIf { it.current(built) } ?: StructureIndex(built, hex.size).also { builtByHex = it }
+    for (i in x.start[h.i] until x.start[h.i + 1]) f(x.items[i]!!)
+}
+
 /** How far the houses at hex [h] that [g] may use shelter its grown people, 0..1. */
 internal fun HexGroups.housesAt(g: HexGroup, h: Hex): Float {
     var room = 0f
-    for (s in built) if (s.kind == Built.HOUSES && s.hex == h && s.done && usable(s, g)) room += s.built * s.size
+    structuresAt(h) { s -> if (s.kind == Built.HOUSES && s.done && usable(s, g)) room += s.built * s.size }
     return min(1f, room / max(1, g.adults))
 }
 
 /** How far the houses begun at hex [h] that [g] may use and that are not yet whole would shelter its grown people, 0..1: what it has to show for its work on them. */
 internal fun HexGroups.housesBegunAt(g: HexGroup, h: Hex): Float {
     var room = 0f
-    for (s in built) if (s.kind == Built.HOUSES && s.hex == h && !s.done && usable(s, g)) room += s.built * s.size
+    structuresAt(h) { s -> if (s.kind == Built.HOUSES && !s.done && usable(s, g)) room += s.built * s.size }
     return min(1f, room / max(1, g.adults))
 }
 
 /** How far the houses at hex [h] that [g] may use bring the ground's warmth in ([earthGain]), over the room they give. */
 internal fun HexGroups.earthAt(g: HexGroup, h: Hex): Float {
     var room = 0f; var earth = 0f
-    for (s in built) if (s.kind == Built.HOUSES && s.hex == h && s.done && usable(s, g)) {
+    structuresAt(h) { s -> if (s.kind == Built.HOUSES && s.done && usable(s, g)) {
         val r = s.built * s.size; room += r; earth += r * earthGain(Skill.entries[s.design.coerceAtLeast(0)])
-    }
+    } }
     return if (room > 0f) earth / room else 0f
 }
 
 /** How well the walls of the houses at hex [h] that [g] may use keep beasts of prey out ([wallGuard]), over the room they give. */
 internal fun HexGroups.wallsAt(g: HexGroup, h: Hex): Float {
     var room = 0f; var walls = 0f
-    for (s in built) if (s.kind == Built.HOUSES && s.hex == h && s.done && usable(s, g)) {
+    structuresAt(h) { s -> if (s.kind == Built.HOUSES && s.done && usable(s, g)) {
         val r = s.built * s.size; room += r; walls += r * wallGuard(Skill.entries[s.design.coerceAtLeast(0)])
-    }
+    } }
     return if (room > 0f) walls / room else 0f
 }
 
 /** How much of a palisade stands at hex [h] that [g] may use, 0..1. */
 internal fun HexGroups.palisadeAt(g: HexGroup, h: Hex): Float {
     var ring = 0f
-    for (s in built) if (s.kind == Built.PALISADE && s.hex == h && s.done && usable(s, g)) ring = max(ring, s.built)
+    structuresAt(h) { s -> if (s.kind == Built.PALISADE && s.done && usable(s, g)) ring = max(ring, s.built) }
     return ring
 }
 
 /** How much of a palisade not yet whole stands at hex [h] that [g] may use, 0..1. */
 internal fun HexGroups.palisadeBegunAt(g: HexGroup, h: Hex): Float {
     var ring = 0f
-    for (s in built) if (s.kind == Built.PALISADE && s.hex == h && !s.done && usable(s, g)) ring = max(ring, s.built)
+    structuresAt(h) { s -> if (s.kind == Built.PALISADE && !s.done && usable(s, g)) ring = max(ring, s.built) }
     return ring
 }
 
@@ -85,7 +110,7 @@ internal fun buildOn(s: Structure, add: Float) {
 
 /** [g] takes up what stands at hex [h] that nobody else is using this week. */
 internal fun HexGroups.useStructures(g: HexGroup, h: Hex) {
-    for (s in built) if (s.hex == h && s.user < 0) s.user = g.id
+    structuresAt(h) { s -> if (s.user < 0) s.user = g.id }
 }
 
 /** What [g] is building of [kind] at hex [h] and has not finished, or a new one begun there (houses for [size] grown people). */
