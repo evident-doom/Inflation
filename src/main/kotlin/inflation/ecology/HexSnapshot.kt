@@ -171,7 +171,7 @@ object HexSnapshot {
      * ceiling, then plant food and grease, and lean food beyond it feeds by its fat alone; it weighs lean food in its choice by
      * the share of its protein that went to waste the week before ([Band.leanLost], also a ways input). A band that knows
      * stone boiling renders grease from the bones it comes on ([greaseOf]), kept as a store of its own ([Store.GREASE]).
-     * 4.17: a band's food efforts split its gatherers' days ([splitDays]): an effort above 1 meets its food more and every
+     * 4.17: a band's food efforts split its gatherers' days (splitDays, gone in 4.67): an effort above 1 meets its food more and every
      * other gatherers' food less, by the mean effort weighed by the days each would take; at every effort 1 as before.
      * 4.18: houses and palisades stand in the world ([Structure]), no band's own: any band may use those nobody else is using,
      * they weather away while nobody does, and a band building at its camp builds for those of its people the houses there do
@@ -310,12 +310,15 @@ object HexSnapshot {
      *   ([PlantFrom]).
      * 4.66: a band's effort on each food is e^x of its ways network's output, with no most; before, 2/(1+e^-x) held every
      *   effort under twice the scaffold's, so no network could put more than that into fish or small game (people net 6).
-     * 4.67: a herd that brings a herder less than a lean month's day foraging is eaten down by as much of it a year as falls
+     * 4.67: a band's food efforts weigh each food in its gatherers' ranking ([offer]) instead of how often they meet it:
+     *   a food ranked above what it pays is taken up before better ones, at its true yield, so the net's choice costs food;
+     *   before, an effort only scaled a food's rate, which could never bring a food the ranking left out into the diet (people net 7).
+     * 4.68: a herd that brings a herder less than a lean month's day foraging is eaten down by as much of it a year as falls
      *   short ([herdWorth]), besides its increase; before, it was eaten down a week's food at a time, and herds that fell just
      *   short for a few weeks went whole: every herd that came to an end had stopped paying, by under half.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 67
+    const val MODEL_MINOR = 68
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
