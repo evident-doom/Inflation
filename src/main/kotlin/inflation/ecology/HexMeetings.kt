@@ -161,7 +161,6 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         val left = w.aim - w.fed
         if (left <= 0.01f * w.wantAll) break
         offerFoods(w, o)
-        if (w.band != null) splitDays(w, o)
         o.takeUp()
         if (pass == 0 && w.band != null) w.fishPull = o.pull(Food.FISH)
         note(g) {
@@ -354,8 +353,6 @@ private class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, packK
     var fishPull = 0f
     // (A band's grease rendered from bones, kg, and what it feeds.)
     var grease = 0f; var greaseFed = 0f
-    // (Its gatherers' days each food would take at the scaffold's efforts this pass: see [splitDays].)
-    val demand = FloatArray(FOOD_TYPES)
     var fed = g.meatMet * feeds(Food.BIG_GAME)
     // A band also works to fill its stores towards what it aims to keep (its choice); party-days spent this week.
     // (A band holding to demand sharing stores less: what it lays by is asked of it.)
@@ -547,55 +544,27 @@ private class Offers(n: Int) {
 }
 
 /**
- * Offers [t] to [w]'s party in [o]: [r] a day of [e] kg each, taking [h] days each. A band meets each kind of food the
- * more, the more of its effort it puts into it (big game: the more hunters it sends, see [huntersShare]).
+ * Offers [t] to [w]'s party in [o]: [r] a day of [e] kg each, taking [h] days each. A band's gatherers rank each kind of
+ * food by what it weighs it at, times its effort on it: above 1 they take it up before foods that pay more, and below 1
+ * leave it for ones that pay less, and either way get what it truly yields ([Offers.takeUp]). (Big game's effort is
+ * the hunters' share instead, see [huntersShare].)
  */
 private fun HexGroups.offer(w: ForageWeek, o: Offers, t: Food, k: Int, p: Place, r: Float, e: Float, h: Float) {
     val band = w.band
-    // (What it would ask of the gatherers' days at the scaffold's effort: see [splitDays].)
-    if (band != null && t != Food.BIG_GAME && r > 0f && e > 0f) w.demand[when (t) { Food.GRAIN -> Food.SEED; else -> t }.ordinal] += r * h
-    val rr = if (band != null && t != Food.BIG_GAME) r * band.effort[when (t) { Food.GRAIN -> Food.SEED; else -> t }.ordinal] else r
+    val keen = if (band != null && t != Food.BIG_GAME) band.effort[when (t) { Food.GRAIN -> Food.SEED; else -> t }.ordinal] else 1f
     if (band != null && t != Food.BIG_GAME && r > 0f) dialUse?.let { u -> val f = when (t) { Food.GRAIN -> Food.SEED; else -> t }.ordinal
-        u.amount(DialSite.EFFORT_RATE, band.effort[f], rr, r, dial = f) }
-    if (rr <= 0f || e <= 0f || (band != null && t != Food.BIG_GAME && w.gatherers <= 0f)) return
+        u.amount(DialSite.EFFORT_RANK, keen, keen, 1f, dial = f) }
+    if (r <= 0f || e <= 0f || (band != null && t != Food.BIG_GAME && w.gatherers <= 0f)) return
     // (Biting insects slow people at whatever they do out there; fish are offered at the camp, whose place stands for the water they fish.)
     val hh = if (band != null) h * (1f + HexSmallLife.HARASS_TIME * small.harassment(p)) else h
-    o.add(t, k, p, rr, e, e * w.feeds(t), e * w.weigh(t), hh, if (band != null && t != Food.BIG_GAME) 1 else 0)
-}
-
-/**
- * A band's efforts split its gatherers' days between the kinds of food: an effort above 1 searches more for a food, and
- * so less for the rest. Each effort raises its food's rate of meeting ([offer]); then all the gatherers' foods are met the
- * less by the mean effort, each food weighed by the days it would take of them at the scaffold's ([ForageWeek.demand]),
- * so that the days stay a week's. At every effort 1 the week is as it was without them.
- */
-private fun HexGroups.splitDays(w: ForageWeek, o: Offers) {
-    val band = checkNotNull(w.band)
-    val mean = meanEffort(w.demand, band.effort)
-    if (mean <= 0f) return
-    for (i in 0 until o.m) if (o.who[i] == 1) o.rate[i] /= mean
-}
-
-/**
- * The mean of [effort] over the gatherers' foods, each weighed by the days it would [demand] at the scaffold's efforts
- * (big game is the hunters', not counted); 0 where no food asks any. A food that asks for no end of days, because there are
- * no gatherers' hands to take them (infinite), takes none of theirs and is left out.
- */
-internal fun meanEffort(demand: FloatArray, effort: FloatArray): Float {
-    var at1 = 0f; var asked = 0f
-    for (t in 0 until FOOD_TYPES) {
-        if (t == Food.BIG_GAME.ordinal || !demand[t].isFinite()) continue
-        at1 += demand[t]; asked += demand[t] * effort[t]
-    }
-    val mean = asked / at1
-    return if (at1 > 0f && mean.isFinite() && mean > 0f) mean else 0f
+    o.add(t, k, p, r, e, e * w.feeds(t), e * w.weigh(t) * keen, hh, if (band != null && t != Food.BIG_GAME) 1 else 0)
 }
 
 /** [forage]'s foods on offer to [w]'s party in a pass, into [o]: along its way, round its camp and, for a band, in the water by it. */
 private fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
     val g = w.g; val band = w.band; val nk = w.nk; val sweep = w.sweep; val days = this.days
     val adults = fauna.adults; val young = fauna.young
-    o.m = 0; w.demand.fill(0f)
+    o.m = 0
     // (What a kill is worth to it: see below. Its butchers' skill grows with each kill, so once a pass.)
     val credit = creditShare(band); val most = (1f + SURPLUS_EAT) * w.wantAll
     // Big game over its hunting ground. (A band's hunters fan out over less of it than the whole band would, as for a
