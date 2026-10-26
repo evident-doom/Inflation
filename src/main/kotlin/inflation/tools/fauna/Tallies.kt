@@ -372,7 +372,7 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
      */
     private fun designs(bands: List<HexGroup>, bs: List<Band>): String {
         val room = DoubleArray(Skill.entries.size)
-        for (s in sim.groups.built) if (s.kind == Built.HOUSES && s.done) room[s.design.coerceAtLeast(0)] += (s.built * s.size).toDouble()
+        for (s in sim.groups.bands.built) if (s.kind == Built.HOUSES && s.done) room[s.design.coerceAtLeast(0)] += (s.built * s.size).toDouble()
         val all = room.sum().coerceAtLeast(1e-9)
         val groups = sim.groups; val weather = sim.weather
         val home = bands.mapNotNull { g -> g.band?.takeIf { it.atHome }?.let { b -> Triple(weather.temperature[g.place.i], b, b.warmth(groups.airAt(g.place, weather), b.fire, b.homeShelter(), groups.days)) } }
@@ -405,7 +405,7 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
 
     /** What became of kept animals since the last census ([HerdFlow]): heads in and out by cause, and the shares herded and fed. */
     private fun herdFlows(): String {
-        val f = sim.groups.herdFlows
+        val f = sim.groups.bands.herdFlows
         val kg = f[HerdFlow.KG].coerceAtLeast(1e-6f)
         return "; since last: born %.0f, died %.0f, ran off %.0f, culled for want of herders %.0f, eaten of the increase %.0f, milk %.0f t; herded %.2f, fed %.2f, in herds that pay %.2f".format(
             f[HerdFlow.BORN], f[HerdFlow.DIED], f[HerdFlow.RAN_OFF], f[HerdFlow.CULLED], f[HerdFlow.EATEN], f[HerdFlow.MILK_KG] / 1000f, f[HerdFlow.KG_TENDED] / kg, f[HerdFlow.KG_FED] / kg, f[HerdFlow.KG_PAYS] / kg)

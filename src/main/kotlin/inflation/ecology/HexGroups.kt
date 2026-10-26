@@ -71,14 +71,6 @@ class HexGroups(
     uniformStart: Boolean = false,
 ) : GroupWorld(hw, land, fauna, days, seed) {
     val groups = ArrayList<HexGroup>()
-    /** What bands have built that stands in the world ([Structure]): no band's own, any band's to use. */
-    val built = ArrayList<Structure>()
-    /** (The [built] by hex, as the list last stood: see [structuresAt].) */
-    @Volatile @Transient internal var builtByHex: StructureIndex? = null
-    /** (Whether a world saved before [built] was kept has had its bands' houses raised in it: see [tendStructures].) */
-    @Transient internal var structuresSeen = false
-    /** Bands' kept animals since the census last read them ([HerdFlow]): heads born, dead, run off and culled, and kg herded and fed. */
-    @Transient val herdFlows = enumFloats<HerdFlow>()
     internal var nextId = 0
     /**
      * The kinds that live as groups: the hunters other than the residents' ([Catalogue.residentHunters]), and people (plant-eaters
@@ -115,6 +107,9 @@ class HexGroups(
     @delegate:Transient internal val sickPeople by lazy { Array(Illness.entries.size) { FloatArray(n) } }
     /** The beasts of prey in each place as the week's choosing begins, kg (the hunters other than people). */
     @delegate:Transient internal val beastKg by lazy { FloatArray(n) }
+    /** What the bands share ([Bands]; saves from before it was split out kept its tables here). */
+    @field:MovedInto("built", "followersByHex", "bandHex", "houseOf", "materialSources\$delegate", "saltSources\$delegate")
+    val bands = Bands(this)
     /**
      * How each group chooses where to go ([GroupPlanner]; saves from before it was split out kept its tables and its usual densities here).
      */
@@ -368,10 +363,6 @@ class HexGroups(
 
     /** The groups that merged into another in the last step (gone from [groups]), with their numbers when they did ([HexGroup.mergedSize]). */
     @Transient val merged = ArrayList<HexGroup>()
-    /** Bands by the hex they are in ([indexBands]): at the start of the week for [fillBandStates], after the moves for [setWays]. */
-    @Transient internal val bandIndex = HashMap<Hex, ArrayList<HexGroup>>()
-    /** Raiders that reached their target's home this week, with the band they came for: fought once every band has had its week. */
-    @Transient internal val raidsDue = ArrayList<Pair<HexGroup, HexGroup>>()
     /** Outbreaks breaking out among the groups this week, by kind and hex (see [liveWeek]), started once all have lived it. */
     internal val outbreaksStarting: MutableSet<Long> = ConcurrentHashMap.newKeySet()
     /** The worn ways between hexes ([PathWear]; saves from before it was split out kept them here as paths). */
@@ -410,42 +401,7 @@ class HexGroups(
 
     /** The worn paths read as a graph of landmarks and the legs between them. */
     val routes = HexRoutes(this)
-    /**
-     * Where each material bands give each other ([TRADED]) is got (trade on): for each, the hexes where
-     * it is richest, one in a square of [SOURCE_KM] at most, for bands' rites to take them to.
-     */
-    @delegate:Transient internal val materialSources: Map<Material, HexArray> by lazy {
-        TRADED.associateWith { m ->
-            val share = requireNotNull(m.deposit) { "no deposits known for traded $m" }(land)
-            val best = HashMap<Long, Int>()
-            for (p in 0 until n) {
-                if (share[p] < SOURCE_MIN) continue
-                val (x, y) = hex.centreKm(hw.placeHex[p]); val key = (x / SOURCE_KM).toLong() * 100_000 + (y / SOURCE_KM).toLong()
-                val b = best[key]; if (b == null || share[p] > share[b]) best[key] = p
-            }
-            best.values.map { hw.placeHex[it] }.sorted().toHexArray()
-        }
-    }
 
-    /**
-     * Where people get salt to eat: the salt pans and dry lake beds richest in it ([materialSources]) and the shore, where
-     * it dries out of sea spray and pools ([SEA_SALT_A_WEEK]), each one in a square of [SOURCE_KM] at most.
-     */
-    @delegate:Transient internal val saltSources: HexArray by lazy {
-        val shore = HashMap<Long, Hex>()
-        for (h in hex.all) if (hw.coast[h]) {
-            val (x, y) = hex.centreKm(h); shore.putIfAbsent((x / SOURCE_KM).toLong() * 100_000 + (y / SOURCE_KM).toLong(), h)
-        }
-        (materialSources.getValue(Material.SALT).toList() + shore.values).distinct().sorted().toHexArray()
-    }
-    /** The nearest of the [saltSources] band [b] knows, from hex [here], or -1 if it knows none (kept on the band till it moves on). */
-    internal fun saltKnown(b: Band, here: Hex): Hex {
-        if (b.saltFrom == here) return b.saltAt
-        var best = Hex.NONE; var bestKm = Double.MAX_VALUE
-        for (h in saltSources) if (b.knows(h)) { val km = hexKm(here, h); if (km < bestKm) { bestKm = km; best = h } }
-        b.saltFrom = here; b.saltAt = best
-        return best
-    }
 
 
 
@@ -507,12 +463,6 @@ class HexGroups(
     }
 
 
-    /** Packs of kinds that follow people, by the hex they end the week in (for taming). */
-    internal var followersByHex: Map<Hex, List<HexGroup>> = emptyMap()
-    /** Each living band's hex by its id, as of this week's camps (for visiting, see [cultureWeek]). */
-    internal var bandHex: Map<Int, Hex> = emptyMap()
-    /** Where each living band with a standing house has it, by the band's id (set each week before the bands' own weeks). */
-    internal var houseOf: Map<Int, Hex> = emptyMap()
 
     /** How big a group of [g]'s kind grows before it splits: packs and prides keep their kind's size, bands as their ways hold them together. */
     internal fun maxSize(g: HexGroup): Int {

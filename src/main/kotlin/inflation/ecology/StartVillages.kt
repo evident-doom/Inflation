@@ -84,7 +84,7 @@ private fun HexGroups.startVillage(g: HexGroup, b: Band): Pair<Int, Float>? {
     val h = hw.placeHex[p]
     for (s in VILLAGE_SKILLS) { b.knowsSkill[s] = true; b.skills[s] = max(b.skills[s], VILLAGE_SKILL); b.lastUsed[s] = b.weeks }
     for (t in listOf(Tool.SICKLE, Tool.GRINDER)) { b.knows[t] = true; b.kit[t] = 1f }
-    built += Structure(Built.HOUSES, h, Skill.PIT_HOUSE.ordinal, g.id, g.adults.toFloat()).also { buildOn(it, 1f); it.user = g.id }
+    bands.built += Structure(Built.HOUSES, h, Skill.PIT_HOUSE.ordinal, g.id, g.adults.toFloat()).also { buildOn(it, 1f); it.user = g.id }
     b.houseHex = h; b.house = housesAt(g, h); b.atHome = true
     b.campPlace = p; b.campWeeks = stepsPerYear.roundToInt()
     b.seedDomestic = 1f

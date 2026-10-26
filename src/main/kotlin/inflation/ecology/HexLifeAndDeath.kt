@@ -189,10 +189,10 @@ internal fun protein(b: Bites, grass: Float, browse: Float): Float =
 
 internal fun HexGroups.demography(weather: Weather, date: Date) {
     // Bands keep or move camp, gather materials and make their tools.
-    followersByHex = groups.filter { it.alive && it.species.followsPeople && !it.species.human }.groupBy { hw.placeHex[it.place] }
-    bandHex = groups.filter { it.alive && it.band != null }.associate { it.id to hw.placeHex[it.place] }
+    bands.followersByHex = groups.filter { it.alive && it.species.followsPeople && !it.species.human }.groupBy { hw.placeHex[it.place] }
+    bands.bandHex = groups.filter { it.alive && it.band != null }.associate { it.id to hw.placeHex[it.place] }
     tendStructures(weather)
-    houseOf = groups.filter { g -> g.alive && g.band.let { it != null && !it.houseHex.none && it.house >= Thresholds.HOUSE_STANDING } }
+    bands.houseOf = groups.filter { g -> g.alive && g.band.let { it != null && !it.houseHex.none && it.house >= Thresholds.HOUSE_STANDING } }
         .associate { it.id to it.band!!.houseHex }
     Profile.part("people: camps, tools, culture") {
         for (g in groups) if (g.alive && g.band != null) {
@@ -356,7 +356,7 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
             stats.hunting.merge(Tally.bandsFed(fed, Tally.Bands.SODIUM_SHORT), (100f * b.sodiumShort).roundToInt(), Int::plus)
             val saltHere = if (hw.coast[hw.placeHex[g.place]]) 1f else min(1f, 5f * land.salt[g.place])
             stats.hunting.merge(Tally.bandsFed(fed, Tally.Bands.SALT_HERE), (100f * saltHere).roundToInt(), Int::plus)
-            val salt = saltKnown(b, hw.placeHex[g.place])
+            val salt = bands.saltKnown(b, hw.placeHex[g.place])
             if (!salt.none) {
                 stats.hunting.merge(Tally.bandsFed(fed, Tally.Bands.SALT_KNOWN), 1, Int::plus)
                 stats.hunting.merge(Tally.bandsFed(fed, Tally.Bands.SALT_KM), hexKm(hw.placeHex[g.place], salt).roundToInt(), Int::plus)

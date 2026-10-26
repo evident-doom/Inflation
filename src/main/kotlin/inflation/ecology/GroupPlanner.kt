@@ -753,7 +753,7 @@ internal class GroupPlanner(private val gs: HexGroups) {
         // walk there takes, at its reach a week.
         // (Not where it can get salt already: on the shore or a salt pan, as [saltFeedsAt] has it.)
         if (b.sodiumShort > 0f && !gs.hw.coast[here] && gs.land.salt[g.place] <= 0f) {
-            val salt = gs.saltKnown(b, here)
+            val salt = gs.bands.saltKnown(b, here)
             val from = if (!salt.none) gs.hexKm(here, salt) else 0.0
             if (from > gs.hex.hexKm) {
                 val weeks = max(1.0, from / reach).toFloat()

@@ -498,7 +498,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
          */
         private fun paintWorks(g: Graphics2D, sx: (Float) -> Int, sy: (Float) -> Int, onScreen: (Hex, Int) -> Boolean) {
             val room = FloatArray(hex.size); val begun = FloatArray(hex.size); val fence = FloatArray(hex.size)
-            for (st in groups.built) if (!st.hex.none) when (st.kind) {
+            for (st in groups.bands.built) if (!st.hex.none) when (st.kind) {
                 Built.HOUSES -> if (st.done) room[st.hex] += st.built * st.size else begun[st.hex] += st.built * st.size
                 Built.PALISADE -> fence[st.hex] = max(fence[st.hex], st.built)
             }

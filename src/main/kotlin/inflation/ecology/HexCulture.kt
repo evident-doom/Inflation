@@ -485,7 +485,7 @@ internal fun HexGroups.cultureWeek(g: HexGroup) {
     // moved on) is forgotten: it is no longer ground to keep off, nor a place to raid.
     if (b.knownHomes.isNotEmpty()) {
         val it = b.knownHomes.entries.iterator()
-        while (it.hasNext()) { val (id, hh) = it.next(); if (hh in g.path && houseOf[id] != hh) { it.remove(); b.knownLineage.remove(id) } }
+        while (it.hasNext()) { val (id, hh) = it.next(); if (hh in g.path && bands.houseOf[id] != hh) { it.remove(); b.knownLineage.remove(id) } }
     }
     // Once a year, a band without an appointment makes one, where its dead lie or where it has met
     // most bands, in the season it fared best there.
@@ -510,7 +510,7 @@ internal fun HexGroups.cultureWeek(g: HexGroup) {
         val fade = TIE_FADE * days / Date.DAYS_PER_YEAR.toFloat()
         val here = hw.placeHex[g.place]
         val near = HashSet<Int>()
-        for ((k, v) in b.ties) if (v > 0f) bandHex[k]?.let { h -> if (hexKm(here, h) <= VISIT_RINGS * hex.hexKm) near += k }
+        for ((k, v) in b.ties) if (v > 0f) bands.bandHex[k]?.let { h -> if (hexKm(here, h) <= VISIT_RINGS * hex.hexKm) near += k }
         val leisure = b.spareDays / (forageHands(g) * days).toFloat()
         val visited = if (near.isEmpty()) 0f else 1f - exp(-leisure / (VISIT_SHARE * near.size))
         if (near.isNotEmpty()) stats.meeting(Met.BANDS_VISITED_FRIENDS)
@@ -589,7 +589,7 @@ internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
     for (m in TRADED) {
         val want = 1f - b.goods[m] / (KEEP_YEARS * YEAR_NEED[m] * max(1, g.adults))
         if (want <= 0f) continue
-        for (h in materialSources.getValue(m)) if (b.knows(h)) {
+        for (h in bands.materialSources.getValue(m)) if (b.knows(h)) {
             val km = hex.distanceKm(here, h)
             if (km > tuning.roundArrivedKm) consider((hw.firstPlaceIn(h)).i, month, APPOINT_MIN * SOURCE_RITE * want)
         }

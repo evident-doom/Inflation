@@ -51,7 +51,7 @@ internal class StructureIndex(built: List<Structure>, hexes: Int) {
 /** [f] for each structure at hex [h], in [HexGroups.built]'s order. */
 private inline fun HexGroups.structuresAt(h: Hex, f: (Structure) -> Unit) {
     if (h.none) return
-    val x = builtByHex?.takeIf { it.current(built) } ?: StructureIndex(built, hex.size).also { builtByHex = it }
+    val x = bands.builtByHex?.takeIf { it.current(bands.built) } ?: StructureIndex(bands.built, hex.size).also { bands.builtByHex = it }
     for (i in x.start[h.i] until x.start[h.i + 1]) f(x.items[i])
 }
 
@@ -114,8 +114,8 @@ internal fun HexGroups.useStructures(g: HexGroup, h: Hex) {
 
 /** What [g] is building of [kind] at hex [h] and has not finished, or a new one begun there (houses for [size] grown people). */
 internal fun HexGroups.buildingAt(g: HexGroup, kind: Built, h: Hex, design: Int, size: Float): Structure =
-    built.firstOrNull { it.kind == kind && it.hex == h && it.user == g.id && it.built < 1f }
-        ?: Structure(kind, h, design, g.id, size).also { it.user = g.id; built += it }
+    bands.built.firstOrNull { it.kind == kind && it.hex == h && it.user == g.id && it.built < 1f }
+        ?: Structure(kind, h, design, g.id, size).also { it.user = g.id; bands.built += it }
 
 /**
  * Once a week, before the bands' own weeks: what a band left (it is no longer at that hex, or dead) is free to anyone, and
@@ -123,11 +123,11 @@ internal fun HexGroups.buildingAt(g: HexGroup, kind: Built, h: Hex, design: Int,
  * besides, used or not ([MUD_EROSION]): the band using it mends it as it would build.
  */
 internal fun HexGroups.tendStructures(weather: Weather) {
-    if (!structuresSeen) { structuresSeen = true; raiseSavedHouses() }
-    if (built.isEmpty()) return
+    if (!bands.structuresSeen) { bands.structuresSeen = true; raiseSavedHouses() }
+    if (bands.built.isEmpty()) return
     val where = HashMap<Int, Hex>()
     for (g in groups) if (g.alive && g.band != null) where[g.id] = hw.placeHex[g.place]
-    for (s in built) {
+    for (s in bands.built) {
         if (s.user >= 0 && where[s.user] != s.hex) s.user = -1
         if (s.user < 0) s.built = max(0f, s.built - HOUSE_DECAY * years)
         if (s.kind == Built.HOUSES && s.design == Skill.MUDBRICK.ordinal) {
@@ -136,7 +136,7 @@ internal fun HexGroups.tendStructures(weather: Weather) {
             if (places.isNotEmpty()) s.built = max(0f, s.built - MUD_EROSION * rain / places.size / MUD_WALL_MM)
         }
     }
-    built.removeAll { it.user < 0 && it.built <= 0f }
+    bands.built.removeAll { it.user < 0 && it.built <= 0f }
 }
 
 /**
@@ -146,11 +146,11 @@ internal fun HexGroups.tendStructures(weather: Weather) {
 private fun HexGroups.raiseSavedHouses() {
     for (g in groups) {
         val b = g.band ?: continue
-        if (!g.alive || b.houseHex.none || built.any { it.builder == g.id }) continue
+        if (!g.alive || b.houseHex.none || bands.built.any { it.builder == g.id }) continue
         val h = b.houseHex; val here = hw.placeHex[g.place] == h
-        if (b.house > 0f) built += Structure(Built.HOUSES, h, Skill.STONE_FOOTING.ordinal, g.id, g.adults.toFloat()).also {
+        if (b.house > 0f) bands.built += Structure(Built.HOUSES, h, Skill.STONE_FOOTING.ordinal, g.id, g.adults.toFloat()).also {
             it.built = b.house; it.done = true; if (here) it.user = g.id }
-        if (b.palisade > 0f) built += Structure(Built.PALISADE, h, -1, g.id, g.adults.toFloat()).also {
+        if (b.palisade > 0f) bands.built += Structure(Built.PALISADE, h, -1, g.id, g.adults.toFloat()).also {
             it.built = b.palisade; it.done = true; if (here) it.user = g.id }
     }
 }

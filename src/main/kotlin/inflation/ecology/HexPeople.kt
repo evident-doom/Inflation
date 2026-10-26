@@ -740,7 +740,7 @@ private fun HexGroups.buildHouse(g: HexGroup, b: Band, p: Place, h: Hex, people:
     // It builds the way it knows that its stone, timber and clay go furthest with, as keen as it is on each (or goes on with
     // what it began).
     val clay = land.drink.water[p] >= Thresholds.WET || land.drink.waterKm[p] < 3f
-    val begun = built.firstOrNull { it.kind == Built.HOUSES && it.hex == h && it.user == g.id && it.built < 1f }
+    val begun = bands.built.firstOrNull { it.kind == Built.HOUSES && it.hex == h && it.user == g.id && it.built < 1f }
     val size = begun?.size ?: (people * (1f - sheltered))
     // (Each way weighed by how far this week's stone, timber and days take it, and by the band's keenness on it: [buildWay].)
     val known = Skill.BUILDING_WAYS.filter { b.knowsSkill[it] && (it != Skill.MUDBRICK || clay) }
@@ -905,7 +905,7 @@ private fun HexGroups.forget(b: Band) {
  */
 private fun HexGroups.keepAnimals(g: HexGroup, b: Band) {
     val h = hw.placeHex[g.place]
-    for (o in followersByHex[h].orEmpty()) {
+    for (o in bands.followersByHex[h].orEmpty()) {
         if (!o.alive) continue
         val s = o.species
         val bold = boldness(o)
@@ -1157,7 +1157,7 @@ internal fun HexGroups.bandInputs(g: HexGroup, weather: Weather, into: FloatArra
     for (d in -1 until 6) {
         val h = if (d < 0) here else hex.neighbour(here, d)
         if (h.none) continue
-        for (o in bandIndex[h] ?: continue) {
+        for (o in bands.bandIndex[h] ?: continue) {
             if (o === g) continue
             val ob = o.band ?: continue
             val t = b.tie(o.id)
@@ -1263,8 +1263,8 @@ internal fun HexGroups.fillBandStates(weather: Weather) {
 /** Sets a band's ways from [ways]' outputs: 0 is the scaffold (effort 1, stores [Band.storeAimAt1], every tool alike). */
 /** Files every living band under the hex it is in now ([HexGroups.bandIndex]), for [bandInputs]' bands about. */
 internal fun HexGroups.indexBands() {
-    bandIndex.clear()
-    for (g in groups) if (g.alive && g.band != null) bandIndex.getOrPut(hw.placeHex[g.place]) { ArrayList() } += g
+    bands.bandIndex.clear()
+    for (g in groups) if (g.alive && g.band != null) bands.bandIndex.getOrPut(hw.placeHex[g.place]) { ArrayList() } += g
 }
 
 internal fun HexGroups.setWays(g: HexGroup, weather: Weather, ways: BandWays, inputs: FloatArray, out: FloatArray) {
@@ -1368,7 +1368,7 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
     b.raid?.let { raid ->
         if (here == raid.hex) {
             val target = groups.firstOrNull { it.id == raid.on && it.alive && hw.placeHex[it.place] == here }
-            if (target?.band != null) raidsDue += g to target
+            if (target?.band != null) bands.raidsDue += g to target
             b.raid = null
         } else b.raid = if (raid.weeks > 1) Raid(raid.hex, raid.on, raid.weeks - 1) else null
         return
@@ -1407,11 +1407,11 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
 
 /** The raids set for this week ([plotRaid]), in the bands' order, each if both bands are still alive and the target still there. */
 internal fun HexGroups.fightRaids(weather: Weather) {
-    for ((g, target) in raidsDue) {
+    for ((g, target) in bands.raidsDue) {
         val b = g.band ?: continue; val tb = target.band ?: continue
         if (g.alive && target.alive && hw.placeHex[target.place] == hw.placeHex[g.place]) fight(g, b, target, tb, planned = true, weather)
     }
-    raidsDue.clear()
+    bands.raidsDue.clear()
 }
 
 /**
@@ -1554,7 +1554,7 @@ private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTime
     var spareKg = time.unheld * HERD_KG_A_HERDER * herdSkill(b) / days
     fun slaughter(k: Int, heads: Float, flow: HerdFlow) {
         val s = fauna.kinds[k]
-        herdFlows[flow] += heads
+        bands.herdFlows[flow] += heads
         // (Kept at what it feeds, as the week's meat: [Nourishment.MEAT]; the rest of the carcass for the scavengers.)
         val meat = heads * s.massKg * MEAT_SHARE
         addFood(g.stores, g.storeKgPer, Store.FRESH, meat * Nourishment.MEAT * g.species.needScale, meat)
@@ -1577,7 +1577,7 @@ private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTime
         if (lactating) {
             val milk = n * 0.5f * (0.3f + 0.7f * tame) * tame * fed * milkKg(s) * days / LACTATION_DAYS
             addFood(g.stores, g.storeKgPer, Store.FRESH, milk * Nourishment.MILK * g.species.needScale, milk)
-            herdFlows[HerdFlow.MILK_KG] += milk
+            bands.herdFlows[HerdFlow.MILK_KG] += milk
         }
         val dying = (s.backgroundMortality + 0.5f * (1f - fed)) * years
         val running = HERD_RUN_OFF * (1f - tame) * b.lapse(Skill.TENDING) * years
@@ -1588,9 +1588,9 @@ private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTime
         small.deposit(DeadPool.CARRION, p, Kg(died * s.massKg))
         fauna.adults[k][p] += (lost - died) / area
         n = max(0f, n + born - lost)
-        herdFlows[HerdFlow.BORN] += born; herdFlows[HerdFlow.DIED] += died; herdFlows[HerdFlow.RAN_OFF] += lost - died
+        bands.herdFlows[HerdFlow.BORN] += born; bands.herdFlows[HerdFlow.DIED] += died; bands.herdFlows[HerdFlow.RAN_OFF] += lost - died
         val kg = n * s.massKg
-        herdFlows[HerdFlow.KG] += kg; herdFlows[HerdFlow.KG_TENDED] += kg * tended; herdFlows[HerdFlow.KG_FED] += kg * fed
+        bands.herdFlows[HerdFlow.KG] += kg; bands.herdFlows[HerdFlow.KG_TENDED] += kg * tended; bands.herdFlows[HerdFlow.KG_FED] += kg * fed
         // What its herders cannot keep it culls for meat.
         if (tended < 1f) {
             val cull = n * (1f - tended)
@@ -1603,7 +1603,7 @@ private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTime
         // keep it too, since a herd let grow takes its days from the food. A herd whose increase brings a herder less than
         // a day's foraging brings it eats down, a week's food at a time.
         val pays = herdPays(g, b, k)
-        if (pays) herdFlows[HerdFlow.KG_PAYS] += n * s.massKg
+        if (pays) bands.herdFlows[HerdFlow.KG_PAYS] += n * s.massKg
         val increase = n * max(0f, herdIncrease(b, k, fed)) * years
         val grows = pays && increase * s.massKg <= spareKg
         if (grows) spareKg -= increase * s.massKg
