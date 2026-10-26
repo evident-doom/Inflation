@@ -10,7 +10,7 @@ import inflation.learning.Schema
 import kotlin.random.Random
 
 /** Each group's view of itself fills every slot it names, and a band's ways at zero are the scaffold's. */
-class InputSlotsTest {
+class NamedSlotsTest {
     private val cfg = WorldConfig(seed = 5, widthKm = 200, heightKm = 200, erosionSteps = 10, plates = 6, oceanMarginKm = 40.0)
 
     @Test

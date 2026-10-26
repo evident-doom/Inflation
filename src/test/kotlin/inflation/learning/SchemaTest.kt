@@ -101,7 +101,7 @@ class SchemaTest {
             HexFeatures.USUAL_AHEAD + 1 to "usual temperature, month 2 ahead",
             HexFeatures.USUAL_AHEAD + 2 to "usual temperature, month 3 ahead"
         )
-        assertEquals(HexFeatures.SIZE, named.size)
+        assertEquals(HexFeatures.size, named.size)
         for ((slot, name) in named) assertEquals(name, Schema.PLACE[slot], "feature slot $slot")
     }
 

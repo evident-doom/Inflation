@@ -31,7 +31,7 @@ class PeopleMoverTest {
         assertEquals(WAYS_IN, now.band)
         val ob = old.net.buffers(); val nb = now.net.buffers()
         repeat(20) {
-            val feat = FloatArray(HexFeatures.SIZE) { rnd.nextFloat() }
+            val feat = FloatArray(HexFeatures.size) { rnd.nextFloat() }
             val state = FloatArray(WAYS_IN) { rnd.nextFloat() }
             old.fill(Catalogue.HUMAN, feat, null, ob.a[0]); now.fill(Catalogue.HUMAN, feat, state, nb.a[0])
             assertEquals(old.net.forward(ob), now.net.forward(nb), 1e-5f)

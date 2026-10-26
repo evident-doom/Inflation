@@ -54,7 +54,7 @@ class ClimateEvent(
  */
 enum class MastTrees { TEMPERATE, DRY, CONIFER }
 
-class Weather(@Transient private val places: Places, private val cfg: WorldConfig) {
+class Weather(@Transient private val places: Places, private val cfg: WorldConfig, tuning: inflation.Tuning = inflation.Tuning.config) {
     /** The usual mean temperature at place [p] in [month] (0-based), °C: the climate's, not this year's weather. */
     fun usualTemperature(month: Int, p: Place) = places.monthlyTemp[month][p.i]
     /** Weather on every cell of [grid]; with [elevation] the wind's rain follows the terrain. */
@@ -404,10 +404,10 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
     /**
      * A long climate shock, like the Younger Dryas (about 12,900 years ago: some 1,200 years colder
      * and drier, setting in over decades and lifting quickly), set with
-     * climateShock=startYear,years,degrees,rainShare (for example 20,1200,-4,0.7): the
+     * climateShock=startYear,years,degrees,rainShare ([inflation.Tuning.climateShock]; for example 20,1200,-4,0.7): the
      * temperature offset and the share of the rain, now; nothing when unset.
      */
-    private val shockSpec = Config.string(Config.Key.CLIMATE_SHOCK)?.split(",")?.map { it.trim().toDouble() }
+    @Transient private val shockSpec = tuning.climateShock
     fun shock(): Pair<Float, Float> {
         val s = shockSpec ?: return 0f to 1f
         val (start, years, dT, rain) = s
@@ -422,7 +422,7 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
      * Extra years of stress, set with weather.stressYears=chance: each year, with this chance, a severe winter or a drought year
      * of the kinds below comes on top of the usual ones, so that training worlds meet the hard years often (0 when unset).
      */
-    private val stressYears = Config.float(Config.Key.WEATHER_STRESS_YEARS, 0f).toDouble()
+    @Transient private val stressYears = tuning.weatherStressYears
 
     private fun newYear() {
         // Shocks that are over are let go.

@@ -30,7 +30,7 @@ class TemperamentTest {
             FloatArray(Catalogue.all.size * SharedMover.IDENTITY))
         val oldNames = Schema.MOVER_IN.dropLast(Temperament.AXES)
         val now = SharedMover(Schema.fit(old.net, oldNames, Schema.MOVER_OUT, Schema.MOVER_IN, Schema.MOVER_OUT), old.identity)
-        val f = FloatArray(HexFeatures.SIZE) { rnd.nextFloat() }
+        val f = FloatArray(HexFeatures.size) { rnd.nextFloat() }
         val ob = old.net.buffers(); val nb = now.net.buffers()
         now.fill(Catalogue.HUMAN, f, null, nb.a[0], floatArrayOf(1f, -1f, 0.5f, 0.3f))
         nb.a[0].copyInto(ob.a[0], 0, 0, ob.a[0].size)

@@ -941,7 +941,6 @@ private fun HexGroups.bookForage(b: Books, band: Band?, meatEaten: Float, rest: 
     b.flow(Books.Stuff.MATTER, "dung and frass", dung.toDouble())
 }
 
-
 /**
  * [forage]'s end of a band's week with its food: what is left of the week's [got] (kg by [Store]) is kept, its hands
  * dry fresh meat and fish and keep the small game's skins in the days its week gives them ([planWeek]), and the stores
@@ -1190,9 +1189,6 @@ private fun HexGroups.gather(g: HexGroup, t: Food, kind: Int, p: Place, expected
     out.kg = took; out.mass = mass
 }
 
-/** The plant food a band's gathering came from, as the census counts it ([Tally.plantsFrom]). */
-enum class PlantFrom(val label: String) { FRUIT("fruit"), MAST("mast"), BULBS("bulbs and roots"), SEED("grass seed"), GRAIN("cereal grain"), FINDS("small finds") }
-
 /** The kind of [Food.FISH] offer that is shellfish gathered off the shore (0 is fish caught: see [offerFoods]). */
 const val SHELLFISH_KIND = 1
 /**
@@ -1200,21 +1196,6 @@ const val SHELLFISH_KIND = 1
  * fruit is picked ([BAND_FRUIT_DAYS_PER_KG]): pine nuts in the Great Basin gave some 840-1,400 kcal/h (Simms 1987, from memory).
  */
 const val MAST_KIND = 1
-
-/**
- * The kinds of food [forage] offers a party; all but [GRAIN] are also a band's effort slots ([FOOD_TYPES]: grain goes by grass seed's).
- * [energy]: what a kg of it as a band takes it (plant food dry, before grinding or cooking) nourishes, in [Nourishment]'s
- * units. A pack's big game is whole prey ([Nourishment.PREY]); a band's is what its butchers make of it. Bones are reckoned
- * as prey for the beasts that crack them; a band renders their grease ([greaseOf]). [protein]: the share of that energy
- * that is protein, which feeds people only so far ([Nourishment.PROTEIN_MOST]).
- */
-enum class Food(val label: String, val energy: Float, val protein: Float) {
-    BIG_GAME("big game", Nourishment.MEAT, Nourishment.PROTEIN_MEAT), SMALL_GAME("small game", Nourishment.PREY, Nourishment.PROTEIN_MEAT),
-    CARRION("carrion", Nourishment.PREY, Nourishment.PROTEIN_MEAT), BONES("bones", Nourishment.PREY, 0f),
-    FRUIT("fruit", Nourishment.FRUIT, Nourishment.PROTEIN_FRUIT), ROOTS("roots", Nourishment.ROOTS, Nourishment.PROTEIN_ROOTS),
-    SEED("grass seed", Nourishment.GRAIN, Nourishment.PROTEIN_GRAIN), FINDS("small finds", Nourishment.FINDS, Nourishment.PROTEIN_FINDS),
-    FISH("fish", Nourishment.FISH, Nourishment.PROTEIN_FISH), GRAIN("grain", Nourishment.GRAIN, Nourishment.PROTEIN_GRAIN)
-}
 
 /**
  * The grease a band renders from a kg of bones it gathers, kg: bones smashed small and boiled with hot stones, the fat skimmed

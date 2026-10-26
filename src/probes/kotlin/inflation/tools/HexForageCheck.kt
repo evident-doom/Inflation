@@ -25,7 +25,7 @@ fun main(args: Array<String>) {
     val a = Args(args, "hex-forage-check [--seed N] [--years N]")
     val cfg = WorldConfig().let { it.copy(seed = a.long("--seed", it.seed)) }; val years = a.int("--years", 6)
     a.done()
-    val run = freshSim(cfg, Catalogue.learned.filter { !it.human || Config.flag(Config.Key.PEOPLE, true) })
+    val run = freshSim(cfg, Catalogue.learned.filter { !it.human || inflation.Tuning.config.people })
     val land = run.groups.land; val n = land.plants.herb.size
     val area = land.areaKm2; val total = area.sum().toDouble()
     fun mean(f: (Int) -> Float) = (0 until n).sumOf { f(it).toDouble() * area[it] } / total

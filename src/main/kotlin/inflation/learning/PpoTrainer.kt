@@ -262,7 +262,7 @@ class PpoTrainer(private val o: PpoOptions) {
                 if (dOut == 0f) continue
                 model.net.backward(bufs[k], dOut, gradW, dIn)
                 val s = c.kind
-                for (e in 0 until SharedMover.IDENTITY) gradId[s.index * SharedMover.IDENTITY + e] += dIn[HexFeatures.SIZE + SharedMover.KIND + e]
+                for (e in 0 until SharedMover.IDENTITY) gradId[s.index * SharedMover.IDENTITY + e] += dIn[HexFeatures.size + SharedMover.KIND + e]
             }
         }
         return Triple(gradW, gradId, clippedN)

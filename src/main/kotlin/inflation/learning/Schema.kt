@@ -29,8 +29,8 @@ data class NetVersion(val major: Int, val minor: Int) {
  * a new choice takes its hand-written default at an output of 0 (as the bands' ways do).
  */
 object Schema {
-    /** The place features a group sees of a candidate place ([HexFeatures.NAMES]). */
-    val PLACE get() = HexFeatures.NAMES
+    /** The place features a group sees of a candidate place ([HexFeatures.names]). */
+    val PLACE get() = HexFeatures.names
     /** A kind's traits, then its learned identity (see [SharedMover.kindInputs]). */
     val KIND = listOf("mass", "speed", "daily travel", "group size", "grass", "browse", "fruit and roots", "meat", "small prey", "carrion", "migratory", "carnivore", "stalking", "foresight")
         .also { require(it.size == SharedMover.KIND) }

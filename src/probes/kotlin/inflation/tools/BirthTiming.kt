@@ -34,7 +34,7 @@ fun main(args: Array<String>) {
     val names = a.string("--kinds")?.split(",")?.map { it.trim().replace('_', ' ') }
     val still = a.flag("--still")
     a.done()
-    val tuning = Tuning { if (still && it == "t.residentMoveWeeks") "1000000" else Config.tuning(it) }
+    val tuning = Tuning(read = { if (still && it == "t.residentMoveWeeks") "1000000" else Config.tuning(it) })
     val sim = HexSim(WorldCache.load(cfg) { }, tuning = tuning)
     named?.let { TestWorlds.check(it, sim); HexSnapshot.load(sim, it.state); println("carrying on ${it.state} at ${sim.weather.date}") }
     LearnedModel.fromConfig(sim.groups) { println(it) }

@@ -43,7 +43,7 @@ class WaysPpoTest {
             val x = FloatArray(WAYS_IN) { rnd.nextFloat() }
             // Every draw took way 0 higher than the middle; half did well (or badly, by [sign]), half the opposite way round, as
             // the people's critic judged them.
-            val at = Probe(FloatArray(HexFeatures.SIZE), x, null, FloatArray(Critic.GROUP))
+            val at = Probe(FloatArray(HexFeatures.size), x, null, FloatArray(Critic.GROUP))
             val cs = (0 until 400).map { k ->
                 val a = FloatArray(WAYS_OUT); a[0] = 0.3f
                 val logp = (0 until WAYS_OUT).sumOf { i -> val z = a[i] / kotlin.math.exp(st.ways.logStd[i]); (-0.5f * z * z - st.ways.logStd[i]).toDouble() }.toFloat()
@@ -66,7 +66,7 @@ class WaysPpoTest {
         val st = WaysPpo.State(dir, 16, 1e-2f)
         val rnd = Random(4)
         val x = FloatArray(WAYS_IN) { rnd.nextFloat() }
-        val at = Probe(FloatArray(HexFeatures.SIZE), x, null, FloatArray(Critic.GROUP))
+        val at = Probe(FloatArray(HexFeatures.size), x, null, FloatArray(Critic.GROUP))
         val idle = BandWay.TIME_TOOLS.slot
         val spreadBefore = st.ways.logStd[idle]
         val cs = (0 until 400).map { k ->
@@ -109,7 +109,7 @@ class WaysPpoTest {
         for (i in st.ways.net.w.indices) st.ways.net.w[i] += 0.05f * (Random(i).nextFloat() - 0.5f)
         val rnd = Random(4)
         val x = FloatArray(WAYS_IN) { rnd.nextFloat() }
-        val at = Probe(FloatArray(HexFeatures.SIZE), x, null, FloatArray(Critic.GROUP))
+        val at = Probe(FloatArray(HexFeatures.size), x, null, FloatArray(Critic.GROUP))
         val input = FloatArray(mover.inputs) { rnd.nextFloat() - 0.5f }
         // (The middle the ways give now, reading the mover's units: what the draws are made about.)
         val mb = mover.net.buffers(); input.copyInto(mb.a[0]); mover.net.forward(mb)
@@ -139,7 +139,7 @@ class WaysPpoTest {
         val g = inflation.ecology.HexGroup(3, Catalogue.HUMAN, inflation.world.Place(0), 10, 4)
         val x = FloatArray(WAYS_IN)
         // (Where the band stood before it moved, as its mover would leave it each week.)
-        fun stood(w: Int) { standing[g.id] = Standing(w, Probe(FloatArray(HexFeatures.SIZE), x, null, FloatArray(Critic.GROUP))) }
+        fun stood(w: Int) { standing[g.id] = Standing(w, Probe(FloatArray(HexFeatures.size), x, null, FloatArray(Critic.GROUP))) }
         val draws = (0 until 2 * WaysPpo.SEASON).map { week = it; stood(it); FloatArray(WAYS_OUT).also { o -> sampler.choose(g, x, o) }.toList() }
         val start = (WaysPpo.SEASON - g.id % WaysPpo.SEASON) % WaysPpo.SEASON
         // The same draw all season, a new one when the next begins.

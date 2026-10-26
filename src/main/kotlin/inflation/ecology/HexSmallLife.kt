@@ -611,7 +611,8 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
                     birdLedger[k][BirdLedger.INSECT_DAYS][p] += days
                 }
                 var x = logistic(p, f[p] + arrived, if (month in b.breedMonths && mild) inSeason(b.growth, b.breedMonths.count()) * (1f - hunger) else 0f,
-                    b.deaths * (1f + hunger), birdCapacity(k, p), grazes = true, ledger = birdLedger[k], born = Nest.BIRDS)
+                    b.deaths * (1f + hunger), birdCapacity(k, p), grazes = true, grown = birdLedger[k][BirdLedger.GROWN], died = birdLedger[k][BirdLedger.DIED],
+                    crowdedTo = birdLedger[k][BirdLedger.CROWDED], born = Nest.BIRDS)
                 // Insect-eating migrants leave a place where the insects have failed, for one where they boom.
                 if (b.followsInsects && fed < 0.5f && x > 0f) {
                     val go = x * (1f - 2f * fed)
@@ -628,7 +629,8 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     private fun stepTortoises(p: Place, t: Float, month: Int): Boolean {
         val active = t in 14f..33f && land.hydro.soil[p] > 8f
         tortoises[p] = logistic(p, tortoises[p], if (active && month in 4..8) inSeason(0.3f, 5) else 0f, if (active) 0.08f else 0.03f,
-            tortoiseCapacity(p), grazes = true, ledger = tortLedger, born = Nest.TORTOISES)
+            tortoiseCapacity(p), grazes = true, grown = tortLedger[TortLedger.GROWN], died = tortLedger[TortLedger.DIED],
+            crowdedTo = tortLedger[TortLedger.CROWDED], born = Nest.TORTOISES)
         nest(p, Nest.TORTOISES, tortoises[p], 0f)
         if (active) tortLedger[TortLedger.DAYS_OUT][p] += days; if (active && month in 4..8) tortLedger[TortLedger.BREEDING_DAYS][p] += days
         return active
@@ -729,7 +731,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
      * [k], in place [p]. An empty place stays empty until animals spread in from around it.
      */
     private fun logistic(p: Place, x: Float, r: Float, d: Float, k: Float, grazes: Boolean = false, counted: Boolean = true,
-        ledger: Array<FloatArray>? = null, born: Nest? = null): Float {
+        grown: FloatArray? = null, died: FloatArray? = null, crowdedTo: FloatArray? = null, born: Nest? = null): Float {
         val kk = max(k, 0.01f)
         val dead = min(x, x * d * years * if (x > kk) 2f else 1f)
         var change = x * r * years * (1f - x / kk)
@@ -741,7 +743,9 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         if (counted && change > 0f) grew(p, change)
         val crowded = if (change < 0f) min(x - dead, -change) else 0f
         if (counted) smallDead[p] += dead + crowded
-        if (ledger != null) { ledger[Ledger.GROWN][p] += max(0f, change); ledger[Ledger.DIED][p] += dead; ledger[Ledger.CROWDED][p] += crowded }
+        if (grown != null) grown[p] += max(0f, change)
+        if (died != null) died[p] += dead
+        if (crowdedTo != null) crowdedTo[p] += crowded
         if (born != null) newborn[born][p] += max(0f, change)
         return max(0f, x - dead + max(0f, change) - crowded)
     }
@@ -925,7 +929,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
      * insects), 2 died of crowding, 3 left (migrants, and insect-eaters leaving a failed place), 4 came
      * back, 5 burnt; 6 days fed (weighted by how well), 7 days out eating insects.
      */
-    val birdLedger = Array(BIRDS.size) { Array(BirdLedger.SIZE) { FloatArray(n) } }
+    val birdLedger = Array(BIRDS.size) { enumTables<BirdLedger>(n) }
     fun birdCapacityAt(k: Int, p: Place) = birdCapacity(k, p)
     /** Grubs dug since cleared, kg/km² (for checks). */
     val grubsDug = FloatArray(n)
@@ -936,7 +940,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
      * 5 insects they ate, 6 insects they needed, 7 insects the birds ate. (Hunters at the same place
      * in parallel may undercount 4 a little.)
      */
-    val herpLedger = Array(HerpLedger.SIZE) { FloatArray(n) }
+    val herpLedger = enumTables<HerpLedger>(n)
     /**
      * Reptiles and amphibians taken by hunters since the ledger was cleared, kg/km², by who took
      * them: the resident kind of that index, or (at [Taker.GROUPS]) the hunting packs and
@@ -947,13 +951,13 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
      * The same for tortoises (for checks), kg/km² unless said: 0 grown, 1 died, 2 died of crowding, 3 taken by
      * hunters, 4 burnt; 5 days out in the breeding months, 6 days out; and taken by who, as [herpTakenBy].
      */
-    val tortLedger = Array(TortLedger.SIZE) { FloatArray(n) }
+    val tortLedger = enumTables<TortLedger>(n)
     val tortTakenBy = Array(Taker.KINDS_AND_GROUPS) { FloatArray(n) }
     /**
      * Rodents, hares, hyrax and birds (0..3) taken since cleared, kg/km², by who took them: as [herpTakenBy],
      * and foxes and wildcats ([Taker.FOXES]), eagles ([Taker.EAGLES]), owls ([Taker.OWLS]). For checks.
      */
-    val preyTakenBy = Array(Prey.SIZE) { Array(Taker.ALL) { FloatArray(n) } }
+    val preyTakenBy = Array(Prey.entries.size) { Array(Taker.ALL) { FloatArray(n) } }
     private fun birdSum(p: Place): Float { var all = 0f; for (b in bird) all += b[p]; return all }
     private fun noteTaken(p: Place, who: Taker, r0: Float, ha0: Float, hy0: Float, b0: Float) {
         val t = preyTakenBy
@@ -1353,59 +1357,20 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     }
 }
 
-/** The slots [HexSmallLife.logistic] fills in a ledger: what grew, what died, what died of crowding. */
-object Ledger {
-    const val GROWN = 0
-    const val DIED = 1
-    const val CROWDED = 2
-}
-
 /** Slots of [HexSmallLife.herpLedger]. */
-object HerpLedger {
-    const val BORN = 0
-    const val DIED_OUT = 1
-    const val HUNGER = 2
-    const val LYING_UP = 3
-    const val HUNTED = 4
-    const val ATE = 5
-    const val NEEDED = 6
-    const val EATEN_BY_BIRDS = 7
-    const val SIZE = 8
-}
+enum class HerpLedger { BORN, DIED_OUT, HUNGER, LYING_UP, HUNTED, ATE, NEEDED, EATEN_BY_BIRDS }
 
-/** Slots of [HexSmallLife.tortLedger] (the first three as [Ledger]). */
-object TortLedger {
-    const val GROWN = 0
-    const val DIED = 1
-    const val CROWDED = 2
-    const val HUNTED = 3
-    const val BURNT = 4
-    const val BREEDING_DAYS = 5
-    const val DAYS_OUT = 6
-    const val SIZE = 7
-}
+/** Slots of [HexSmallLife.tortLedger]. */
+enum class TortLedger { GROWN, DIED, CROWDED, HUNTED, BURNT, BREEDING_DAYS, DAYS_OUT }
 
-/** Slots of each kind's [HexSmallLife.birdLedger] (the first three as [Ledger]). */
-object BirdLedger {
-    const val GROWN = 0
-    const val DIED = 1
-    const val CROWDED = 2
-    const val LEFT = 3
-    const val BACK = 4
-    const val BURNT = 5
-    const val FED_DAYS = 6
-    const val INSECT_DAYS = 7
-    const val SIZE = 8
-}
+/** Slots of each kind's [HexSmallLife.birdLedger]. */
+enum class BirdLedger { GROWN, DIED, CROWDED, LEFT, BACK, BURNT, FED_DAYS, INSECT_DAYS }
 
 /** The small prey of [HexSmallLife.preyTakenBy]. */
-object Prey {
-    const val RODENTS = 0
-    const val HARES = 1
-    const val HYRAX = 2
-    const val BIRDS = 3
-    const val SIZE = 4
-}
+enum class Prey { RODENTS, HARES, HYRAX, BIRDS }
+
+/** Prey [p]'s entry of a table kept per [Prey]. */
+@Suppress("NOTHING_TO_INLINE") inline operator fun <T> Array<T>.get(p: Prey) = this[p.ordinal]
 
 /** Ways of hunting small prey, for [HexSmallLife.reach]: stalking and pouncing beasts, rooting beasts, people. */
 enum class SmallHunt { STALK, ROOT, PEOPLE }

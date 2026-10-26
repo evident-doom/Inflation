@@ -68,9 +68,9 @@ class SharedMover(val net: Mlp, val identity: FloatArray) {
 
     /** Writes a candidate's whole input for kind [s]: its place features, the kind's part, the group's temperament [temper], and (people's) the band's view of itself, [state]. */
     fun fill(s: Species, features: FloatArray, state: FloatArray?, into: FloatArray, temper: FloatArray? = null) {
-        features.copyInto(into, 0, 0, min(features.size, HexFeatures.SIZE))
-        kindInputs(s, into, HexFeatures.SIZE)
-        for (k in 0 until Temperament.AXES) into[HexFeatures.SIZE + KIND + IDENTITY + k] = temper?.getOrElse(k) { 0f } ?: 0f
+        features.copyInto(into, 0, 0, min(features.size, HexFeatures.size))
+        kindInputs(s, into, HexFeatures.size)
+        for (k in 0 until Temperament.AXES) into[HexFeatures.size + KIND + IDENTITY + k] = temper?.getOrElse(k) { 0f } ?: 0f
         if (band > 0) { into.fill(0f, INPUTS, inputs); state?.copyInto(into, INPUTS, 0, min(state.size, band)) }
     }
 
@@ -101,7 +101,7 @@ class SharedMover(val net: Mlp, val identity: FloatArray) {
      * the bit, with the part all candidates share (the kind, the temperament, the band) read once.
      */
     fun netScores(s: Species, features: Array<FloatArray>, state: FloatArray?, temper: FloatArray?, sc: Scratch): FloatArray {
-        val n = features.size; val v = HexFeatures.SIZE
+        val n = features.size; val v = HexFeatures.size
         if (sc.out.size < n) sc.out = FloatArray(2 * n)
         if (n == 0) return sc.out
         if (sc.rows.size < n * v) sc.rows = FloatArray(2 * n * v)
@@ -126,7 +126,7 @@ class SharedMover(val net: Mlp, val identity: FloatArray) {
     companion object {
         const val KIND = 14
         const val IDENTITY = 6
-        val INPUTS = HexFeatures.SIZE + KIND + IDENTITY + Temperament.AXES
+        val INPUTS = HexFeatures.size + KIND + IDENTITY + Temperament.AXES
 
         fun random(hidden: Int, rnd: Random, band: Int = 0) = SharedMover(Mlp.random(intArrayOf(INPUTS + band, hidden, hidden, 1), rnd), FloatArray(Catalogue.all.size * IDENTITY) { 0.1f * (rnd.nextFloat() - 0.5f) })
 
@@ -202,12 +202,12 @@ class MoverPolicy(private val mover: SharedMover, private val record: Concurrent
         val n = features.size
         val state = g.band?.state; val temper = g.temper
         if (standing != null && g.band != null && n > 0)
-            standing[g.id] = Standing(week(), Probe(features[Critic.here(features)].copyOf(HexFeatures.SIZE), state?.copyOf(), temper.copyOf(), Critic.groupState(g, season())))
+            standing[g.id] = Standing(week(), Probe(features[Critic.here(features)].copyOf(HexFeatures.size), state?.copyOf(), temper.copyOf(), Critic.groupState(g, season())))
         if (probes != null) probes[g.id]?.let { waiting -> synchronized(waiting) {
             val w = week()
             val due = waiting.filter { it.week + Critic.boot(it.kind) == w }
             if (due.isNotEmpty()) {
-                val p = Probe(features[Critic.here(features)].copyOf(HexFeatures.SIZE), state?.copyOf(), temper.copyOf(), Critic.groupState(g, season()))
+                val p = Probe(features[Critic.here(features)].copyOf(HexFeatures.size), state?.copyOf(), temper.copyOf(), Critic.groupState(g, season()))
                 // (Where it then stood is unknown to the critic if any of it is not a number: its whole horizon counts as seen.)
                 val known = p.features.allFinite() && p.band.allFinite() && p.temper.allFinite() && p.group.allFinite()
                 if (known) for (c in due) c.probe = p
@@ -219,7 +219,7 @@ class MoverPolicy(private val mover: SharedMover, private val record: Concurrent
         // A place whose score or features are not numbers is never taken, as with the hand-written score; and if no place
         // can be weighed the group stays where it is. One such number learnt from makes the whole network not a number.
         var weighed = 0
-        for (k in 0 until n) if (scores[k].isFinite() && features[k].allFinite(HexFeatures.SIZE)) weighed++ else {
+        for (k in 0 until n) if (scores[k].isFinite() && features[k].allFinite(HexFeatures.size)) weighed++ else {
             NonFinite.note(g.species, features[k], baseline[k], net[k], mover.pull(temper, features[k])); scores[k] = Float.NEGATIVE_INFINITY }
         if (weighed == 0) return Critic.here(features)
         // Only the choices recorded to learn from are drawn by chance here; every other group takes its best (a band then draws
@@ -230,7 +230,7 @@ class MoverPolicy(private val mover: SharedMover, private val record: Concurrent
             if (record != null && valueRate(g.species) > 0f && rnd.nextFloat() < valueRate(g.species)) {
                 val group = Critic.groupState(g, season())
                 if (temper.allFinite() && state.allFinite() && group.allFinite()) {
-                    val c = Choice(g.species, g.id, g.size, week(), arrayOf(features[Critic.here(features)].copyOf(HexFeatures.SIZE)), 0, 0f)
+                    val c = Choice(g.species, g.id, g.size, week(), arrayOf(features[Critic.here(features)].copyOf(HexFeatures.size)), 0, 0f)
                         .also { it.temper = temper.copyOf(); if (mover.band > 0) it.band = state?.copyOf(); it.group = group; it.valueOnly = true }
                     record += c
                     probes?.computeIfAbsent(g.id) { ArrayList() }?.let { waiting -> synchronized(waiting) { waiting += c } }
@@ -247,7 +247,7 @@ class MoverPolicy(private val mover: SharedMover, private val record: Concurrent
         if (!temper.allFinite() || !state.allFinite() || !group.allFinite()) { NonFinite.note(g.species, "group"); return taken }
         // (The places not weighed are left out of what is learnt.)
         val kept = (0 until n).filter { scores[it] > Float.NEGATIVE_INFINITY }
-        val c = Choice(g.species, g.id, g.size, week(), Array(kept.size) { features[kept[it]].copyOf(HexFeatures.SIZE) }, kept.indexOf(taken), ln(max(p[taken], 1e-8f)))
+        val c = Choice(g.species, g.id, g.size, week(), Array(kept.size) { features[kept[it]].copyOf(HexFeatures.size) }, kept.indexOf(taken), ln(max(p[taken], 1e-8f)))
             .also { it.baseline = FloatArray(kept.size) { baseline[kept[it]] }; it.temper = temper.copyOf(); if (mover.band > 0) it.band = state?.copyOf(); it.group = group }
         record += c
         probes?.computeIfAbsent(g.id) { ArrayList() }?.let { waiting -> synchronized(waiting) { waiting += c } }
@@ -287,7 +287,7 @@ object NonFinite {
 
     /** A place [features] whose score was not a number: the hand-written score [baseline], the network's [net], the temperament's [pull]. */
     fun note(s: Species, features: FloatArray, baseline: Float, net: Float, pull: Float) {
-        for (i in 0 until min(features.size, HexFeatures.SIZE)) if (!features[i].isFinite()) note(s, "feature ${HexFeatures.NAMES[i]}")
+        for (i in 0 until min(features.size, HexFeatures.size)) if (!features[i].isFinite()) note(s, "feature ${HexFeatures.names[i]}")
         if (!baseline.isFinite()) note(s, "hand-written score")
         if (!net.isFinite()) note(s, "network")
         if (!pull.isFinite()) note(s, "pull")
@@ -388,7 +388,7 @@ object HexPpo {
             for (s in kinds) run.groups.policies[s] = HexPolicy { g, f, b, rnd ->
                 var best = 0; for (k in b.indices) if (b[k] > b[best]) best = k
                 if (rnd.nextFloat() < (rates[g.species] ?: 0f)) {
-                    kept += Shown(g.species, Array(f.size) { k -> f[k].copyOf(HexFeatures.SIZE) }, b.copyOf(), run.weather.date.absoluteDay, g.id, g.band?.state?.copyOf(), g.temper.copyOf())
+                    kept += Shown(g.species, Array(f.size) { k -> f[k].copyOf(HexFeatures.size) }, b.copyOf(), run.weather.date.absoluteDay, g.id, g.band?.state?.copyOf(), g.temper.copyOf())
                 }
                 best
             }
@@ -424,7 +424,7 @@ object HexPpo {
                                 val dOut = w * (p[k] - q[k])
                                 if (dOut == 0f) continue
                                 model.net.backward(bufs[k], dOut, gradW, dIn)
-                                for (e in 0 until SharedMover.IDENTITY) gradId[c.kind.index * SharedMover.IDENTITY + e] += dIn[HexFeatures.SIZE + SharedMover.KIND + e]
+                                for (e in 0 until SharedMover.IDENTITY) gradId[c.kind.index * SharedMover.IDENTITY + e] += dIn[HexFeatures.size + SharedMover.KIND + e]
                             }
                         }
                         Triple(gradW, gradId, l)

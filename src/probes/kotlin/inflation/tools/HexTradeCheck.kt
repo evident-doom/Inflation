@@ -7,7 +7,7 @@ import inflation.learning.RunScore
 import inflation.run.freshSim
 import inflation.Args
 import inflation.ecology.Catalogue
-import inflation.ecology.ROUNDS
+import inflation.Tuning
 import inflation.ecology.TRADED
 import inflation.ecology.Tool
 import inflation.ecology.YEAR_NEED
@@ -34,7 +34,7 @@ fun main(args: Array<String>) {
     val a = Args(args, "hex-trade-check [--seeds A,B] [--size KM] [--years N]")
     val seeds = a.string("--seeds")?.split(",")?.map { it.toLong() } ?: listOf(91L); val size = a.int("--size", 600); val years = a.int("--years", 4)
     a.done()
-    println("rounds ${if (ROUNDS) "on" else "off"}, $size km, $years years")
+    println("rounds ${if (Tuning.config.rounds) "on" else "off"}, $size km, $years years")
     val lines = seeds.parallelStream().map { seed ->
         val run = freshSim(WorldConfig(seed = seed, widthKm = size, heightKm = size), Catalogue.learned)
         val hw = run.hw; val land = run.groups.land

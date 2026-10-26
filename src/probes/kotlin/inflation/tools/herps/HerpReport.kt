@@ -3,6 +3,7 @@ package inflation.tools.herps
 import inflation.ecology.Taker
 import inflation.ecology.HexSim
 import inflation.ecology.BirdLedger
+import inflation.ecology.Prey
 import inflation.ecology.HerpLedger
 import inflation.ecology.HexSmallLife
 import inflation.ecology.TortLedger
@@ -57,7 +58,7 @@ class HerpReport(run: HexSim, private val regions: HerpRegions, private val t: H
     }
 
     private fun herpLedger() {
-        val ledger = Array(HerpLedger.SIZE) { i -> regions.byClass { sl.herpLedger[i][it].toDouble() } }
+        val ledger = HerpLedger.entries.map { e -> regions.byClass { sl.herpLedger[e][it].toDouble() } }
         val last = regions.byClass { sl.herps[it].toDouble() }
         println("last $show years, as % of the mean herps a year: born, died out, hunger, lying up, hunters, rest (spread, fire, cap), net change; fed while out; insects eaten kg/km2 a year by herps and by birds")
         println("%-16s%8s%8s%8s%8s%8s%8s%8s%8s%8s%8s%10s%10s".format("class", "herps", "born", "old", "hunger", "lying", "hunters", "rest", "net", "fed",
@@ -65,7 +66,7 @@ class HerpReport(run: HexSim, private val regions: HerpRegions, private val t: H
         for (c in regions.present) {
             val ci = c.ordinal
             val m = t.herpMean[ci]
-            fun l(i: Int) = ledger[i][ci]
+            fun l(e: HerpLedger) = ledger[e.ordinal][ci]
             fun pct(x: Double) = 100.0 * x / show / m
             val net = last[ci] - t.herpsAtStart[ci]
             val rest = net - (l(HerpLedger.BORN) - l(HerpLedger.DIED_OUT) - l(HerpLedger.HUNGER) - l(HerpLedger.LYING_UP) - l(HerpLedger.HUNTED))
@@ -87,7 +88,7 @@ class HerpReport(run: HexSim, private val regions: HerpRegions, private val t: H
     }
 
     private fun tortoises() {
-        val ledger = Array(TortLedger.SIZE) { i -> regions.byClass { sl.tortLedger[i][it].toDouble() } }
+        val ledger = TortLedger.entries.map { e -> regions.byClass { sl.tortLedger[e][it].toDouble() } }
         val takers = Array(sl.tortTakenBy.size) { i -> regions.byClass { sl.tortTakenBy[i][it].toDouble() } }
         println("tortoises: yearly mean kg/km2, year 1..$years (cap: the capacity they grow toward, as at the start)")
         for (c in regions.present) println("%-16s%8.2f |".format(c.label, t.tortCapacity[c.ordinal] / classArea[c.ordinal]) +
@@ -98,7 +99,7 @@ class HerpReport(run: HexSim, private val regions: HerpRegions, private val t: H
         for (c in regions.present) {
             val ci = c.ordinal
             val m = t.tortMean[ci]
-            fun l(i: Int) = ledger[i][ci]
+            fun l(e: TortLedger) = ledger[e.ordinal][ci]
             fun pct(x: Double) = if (m > 0) 100.0 * x / show / m else Double.NaN
             val ty = t.tortYearly[ci]
             val net = (ty[years - 1] - (if (years > show) ty[years - show - 1] else ty[0])) / show
@@ -113,7 +114,7 @@ class HerpReport(run: HexSim, private val regions: HerpRegions, private val t: H
     }
 
     private fun preyTakers() {
-        for ((ki, kind) in listOf("rodents", "hares", "hyrax", "birds").withIndex()) {
+        for (prey in Prey.entries) { val ki = prey.ordinal; val kind = prey.name.lowercase()
             println("$kind taken, last $show years, % of their mean a year, by who took them (largest first; kg/km2 the mean)")
             val takers = Array(sl.preyTakenBy[ki].size) { i -> regions.byClass { sl.preyTakenBy[ki][i][it].toDouble() } }
             for (c in regions.present) {
@@ -139,16 +140,17 @@ class HerpReport(run: HexSim, private val regions: HerpRegions, private val t: H
         println("birds, last $show years, as % of their mean a year: grown, died, crowded, left, came back, burnt, rest (hunters, spread), net; share fed on insects while eating them (- for kinds that eat none)")
         println("%-16s%8s%8s%8s%8s%8s%8s%8s%8s%8s%8s".format("kind", "kg/km2", "grown", "died", "crowd", "left", "back", "burnt", "rest", "net", "fed"))
         for (k in birds.indices) {
-            val l = DoubleArray(BirdLedger.SIZE) { i -> regions.overMap { sl.birdLedger[k][i][it].toDouble() } }
+            val ledger = BirdLedger.entries.map { e -> regions.overMap { sl.birdLedger[k][e][it].toDouble() } }
+            fun l(e: BirdLedger) = ledger[e.ordinal]
             val m = t.birdMean[k]
             fun pct(x: Double) = if (m > 0) 100.0 * x / show / m else Double.NaN
             val net = (t.birdYearly[k][years - 1] - t.birdYearly[k][maxOf(0, years - show - 1)]) / show
-            val rest = net - (l[BirdLedger.GROWN] - l[BirdLedger.DIED] - l[BirdLedger.CROWDED] - l[BirdLedger.LEFT] + l[BirdLedger.BACK] -
-                l[BirdLedger.BURNT]) / show
-            println("%-16s%8.2f%8.0f%8.0f%8.0f%8.0f%8.0f%8.0f%8.0f%8.0f%8s".format(birds[k].name, m / allArea, pct(l[BirdLedger.GROWN]),
-                pct(l[BirdLedger.DIED]), pct(l[BirdLedger.CROWDED]), pct(l[BirdLedger.LEFT]), pct(l[BirdLedger.BACK]), pct(l[BirdLedger.BURNT]),
+            val rest = net - (l(BirdLedger.GROWN) - l(BirdLedger.DIED) - l(BirdLedger.CROWDED) - l(BirdLedger.LEFT) + l(BirdLedger.BACK) -
+                l(BirdLedger.BURNT)) / show
+            println("%-16s%8.2f%8.0f%8.0f%8.0f%8.0f%8.0f%8.0f%8.0f%8.0f%8s".format(birds[k].name, m / allArea, pct(l(BirdLedger.GROWN)),
+                pct(l(BirdLedger.DIED)), pct(l(BirdLedger.CROWDED)), pct(l(BirdLedger.LEFT)), pct(l(BirdLedger.BACK)), pct(l(BirdLedger.BURNT)),
                 if (m > 0) 100.0 * rest / m else Double.NaN, if (m > 0) 100.0 * net / m else Double.NaN,
-                if (l[BirdLedger.INSECT_DAYS] > 0) "%.2f".format(l[BirdLedger.FED_DAYS] / l[BirdLedger.INSECT_DAYS]) else "-")
+                if (l(BirdLedger.INSECT_DAYS) > 0) "%.2f".format(l(BirdLedger.FED_DAYS) / l(BirdLedger.INSECT_DAYS)) else "-")
             )  // "-": a kind that eats no insects
         }
     }

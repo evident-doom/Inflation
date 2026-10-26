@@ -39,12 +39,11 @@ internal class StructureIndex(built: List<Structure>, hexes: Int) {
     val size = built.size
     val last = built.lastOrNull()
     val start = IntArray(hexes + 1)
-    val items: Array<Structure?> = arrayOfNulls(built.size)
+    /** The structures that stand somewhere, by hex (a stable sort, so in the list's order within a hex). */
+    val items: List<Structure> = built.filter { !it.hex.none }.sortedBy { it.hex }
     init {
-        for (s in built) if (!s.hex.none) start[s.hex.i + 1]++
+        for (s in items) start[s.hex.i + 1]++
         for (h in 0 until hexes) start[h + 1] += start[h]
-        val at = start.copyOf()
-        for (s in built) if (!s.hex.none) items[at[s.hex.i]++] = s
     }
     fun current(built: List<Structure>) = size == built.size && last === built.lastOrNull()
 }
@@ -53,7 +52,7 @@ internal class StructureIndex(built: List<Structure>, hexes: Int) {
 private inline fun HexGroups.structuresAt(h: Hex, f: (Structure) -> Unit) {
     if (h.none) return
     val x = builtByHex?.takeIf { it.current(built) } ?: StructureIndex(built, hex.size).also { builtByHex = it }
-    for (i in x.start[h.i] until x.start[h.i + 1]) f(x.items[i]!!)
+    for (i in x.start[h.i] until x.start[h.i + 1]) f(x.items[i])
 }
 
 /** How far the houses at hex [h] that [g] may use shelter its grown people, 0..1. */

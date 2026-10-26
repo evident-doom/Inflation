@@ -131,201 +131,134 @@ fun interface HexPolicy {
  * how much effort it takes to reach, whether it means staying, the pull of the season's remembered
  * place, the way to better country it senses, and the group's own state and the time of year.
  */
-object HexFeatures {
-    // Each slot's name in saved networks is [inflation.learning.Schema.PLACE] at the same index; SchemaTest checks they line up.
+object HexFeatures : NamedSlots() {
+    // Each slot is named where it is placed, as a learned network's `.names` file records it (see [inflation.learning.Schema]):
+    // the strings must not change, or saved networks lose the input.
     /** The food there for the group, 0..1. */
-    const val FOOD = 0
+    val FOOD = one("food")
     /** How well the climate there suits its kind, log. */
-    const val CLIMATE = 1
+    val CLIMATE = one("climate suits")
     /** Crowding by its own kind. */
-    const val CROWDING = 2
+    val CROWDING = one("crowding")
     /** The hunters about. */
-    const val HUNTERS = 3
+    val HUNTERS = one("hunters")
     /** Its discomfort there now: the cold or heat, and what the place drains from it. */
-    const val DISCOMFORT = 4
+    val DISCOMFORT = one("discomfort")
     /** Its discomfort there as the forecast reads. */
-    const val DISCOMFORT_FORECAST = 5
+    val DISCOMFORT_FORECAST = one("discomfort forecast")
     /** 1 where the snow is deeper than its kind can go. */
-    const val SNOW_OVER_LIMIT = 6
+    val SNOW_OVER_LIMIT = one("snow over limit")
     /** The snow against its kind's limit. */
-    const val SNOW = 7
+    val SNOW = one("snow")
     /** How far up or down the place lies, km. */
-    const val CLIMB = 8
+    val CLIMB = one("climb")
     /** The effort of getting there, against its reach. */
-    const val EFFORT = 9
+    val EFFORT = one("effort")
     /** 1 for the place it is in: staying. */
-    const val STAYS = 10
+    val STAYS = one("stays")
     /** 1 for a place in its own hex. */
-    const val SAME_HEX = 11
+    val SAME_HEX = one("same hex")
     /** How far going there brings it toward its goal place. */
-    const val TOWARD_BEARING = 12
+    val TOWARD_BEARING = one("toward bearing")
     /** How much better it did at its goal place than it is fed now. */
-    const val SEASON_PLACE = 13
+    val SEASON_PLACE = one("season's place")
     /** How fed it is. */
-    const val FED = 14
+    val FED = one("fed")
     /** Its fat against its kind's most. */
-    const val FAT = 15
+    val FAT = one("fat")
     /** The time of year, sine. */
-    const val SEASON_SIN = 16
+    val SEASON_SIN = one("season sin")
     /** The time of year, cosine. */
-    const val SEASON_COS = 17
+    val SEASON_COS = one("season cos")
     /** 1 if it is restless. */
-    const val RESTLESS = 18
+    val RESTLESS = one("restless")
     /** How far the water is there, in days' travel. */
-    const val WATER_DISTANCE = 19
+    val WATER_DISTANCE = one("water distance")
     /** How long it has gone without water, against how long it can. */
-    const val DAYS_DRY = 20
+    val DAYS_DRY = one("days dry")
     /** The pull of better country it senses. */
-    const val PULL = 21
+    val PULL = one("pull")
     /** The moon. */
-    const val MOON = 22
+    val MOON = one("moon")
     /** The time to its births, sine. */
-    const val TO_BIRTHS_SIN = 23
+    val TO_BIRTHS_SIN = one("to births sin")
     /** The time to its births, cosine. */
-    const val TO_BIRTHS_COS = 24
+    val TO_BIRTHS_COS = one("to births cos")
     /** 1 if it remembers the place ([PlaceMemory]). */
-    const val REMEMBERED = 25
+    val REMEMBERED = one("remembered")
     /** 1 if it remembers it from this season. */
-    const val REMEMBERED_SAME_SEASON = 26
+    val REMEMBERED_SAME_SEASON = one("remembered same season")
     /** How fed it was there. */
-    const val REMEMBERED_FED = 27
+    val REMEMBERED_FED = one("remembered fed")
     /** The water it found there. */
-    const val REMEMBERED_WATER = 28
+    val REMEMBERED_WATER = one("remembered water")
     /** The danger it met there. */
-    const val REMEMBERED_DANGER = 29
+    val REMEMBERED_DANGER = one("remembered danger")
     /** How long ago, against a year. */
-    const val REMEMBERED_AGE = 30
+    val REMEMBERED_AGE = one("remembered age")
     /** Its ancestors buried there. */
-    const val ANCESTORS = 31
+    val ANCESTORS = one("ancestors")
     /** The pull of its appointment. */
-    const val APPOINTMENT = 32
+    val APPOINTMENT = one("appointment")
     /** Its houses there. */
-    const val HOUSES = 33
+    val HOUSES = one("houses")
     /** Its own size against its kind's usual group, log. */
-    const val OWN_SIZE = 34
+    val OWN_SIZE = one("own size")
     /** The lasting water there through the dry season. */
-    const val LASTING_WATER = 35
+    val LASTING_WATER = one("lasting water")
     /** Sickness raging there among its kind. */
-    const val SICKNESS = 36
+    val SICKNESS = one("sickness")
     /** Tree cover. */
-    const val TREES = 37
+    val TREES = one("trees")
     /** Shrub cover. */
-    const val SHRUBS = 38
+    val SHRUBS = one("shrubs")
     /** Grass cover. */
-    const val GRASS = 39
+    val GRASS = one("grass")
     /** Waterlogged ground ([HexLand.waterlogged]). */
-    const val MARSH = 40
+    val MARSH = one("marsh")
     /** Water now against its usual. */
-    const val WATER_AGAINST_USUAL = 41
+    val WATER_AGAINST_USUAL = one("water against usual")
     /** Worn paths. */
-    const val PATHS = 42
+    val PATHS = one("paths")
     /** Herds about this month: kept for the layout until retraining, 0. */
-    const val HERDS_ABOUT = 43
+    val HERDS_ABOUT = one("herds about")
     /** Dung. */
-    const val DUNG = 44
+    val DUNG = one("dung")
     /** Grazing and browsing this week, and carcasses and bones. */
-    const val GRAZING_AND_KILLS = 45
+    val GRAZING_AND_KILLS = one("grazing and kills")
     /** For a band, 1 if it knows the hex (1 for animals). */
-    const val KNOWN_GROUND = 46
+    val KNOWN_GROUND = one("known ground")
     /** For a pack holding ground, how far beyond it the hex lies (0 within it, against its ground's size). */
-    const val BEYOND_OWN_GROUND = 47
+    val BEYOND_OWN_GROUND = one("beyond own ground")
     /** How fresh another pack of its kind's mark is there. */
-    const val OTHERS_MARKS = 48
+    val OTHERS_MARKS = one("others' marks")
     /** For a band, the fish and shellfish it could take there in a week with its skill, against its week's need (0 for animals). */
-    const val FISH = 49
+    val FISH = one("fish and shellfish")
     /** For a herd, how far going there kept to the way it had been heading: kept for the layout until retraining, 0. */
-    const val KEEPS_HEADING = 50
+    val KEEPS_HEADING = one("keeps heading")
     /** For a band on its yearly round, how far the place takes it on toward the round's place this month (0 off a round). */
-    const val ON_ROUND = 51
+    val ON_ROUND = one("on round")
     /** For a herd, how good the forage there was: kept for the layout until retraining, 0. */
-    const val FORAGE_QUALITY = 52
+    val FORAGE_QUALITY = one("forage quality")
     /** The fear of ground where game was killed lately ([HexFauna.afraid]). */
-    const val KILL_FEAR = 53
+    val KILL_FEAR = one("kill fear")
     /** The share of the place burning this week. */
-    const val BURNING = 54
+    val BURNING = one("burning")
     /** 1 if a freeze is coming with snow beyond what it can dig through, as its kind foresees. */
-    const val SNOW_AHEAD = 55
+    val SNOW_AHEAD = one("snow ahead")
     /** How much stronger another kind's hunting party holding the place is than its own, when it can tell (0 when none is). */
-    const val STRONGER_HUNTER = 56
+    val STRONGER_HUNTER = one("stronger hunter")
     /** For a band, the most it remembers finding at the hex of a rarer material it lacks ([PlaceMemory.found] times how far it lacks it; 0 for animals). */
-    const val REMEMBERED_LACKED = 57
+    val REMEMBERED_LACKED = one("remembered lacked")
     /**
      * For a band, how far the place takes it toward where it remembers the most of a rarer material it lacks, times how much
      * it lacks it (0 with nothing lacked or remembered, or within a hex of it).
      */
-    const val TOWARD_LACKED = 58
+    val TOWARD_LACKED = one("toward lacked")
     /**
      * The place's usual temperature in each of the next three months, against 20 °C: what any forager knows of their country
      * from the seasons past (lore, not a forecast), for a network to learn what the cold to come means ([LORE_MONTHS]).
      */
-    const val USUAL_AHEAD = 59
+    val USUAL_AHEAD = block(List(LORE_MONTHS) { k -> "usual temperature, month ${k + 1} ahead" })
     const val LORE_MONTHS = 3
-    const val SIZE = USUAL_AHEAD + LORE_MONTHS
-
-    /**
-     * Each feature's name, as a learned network's `.names` file records it (see [inflation.learning.Schema]): set by
-     * the feature's slot, so a slot moved keeps its name. The strings must not change, or saved networks lose the input.
-     */
-    val NAMES: List<String> = arrayOfNulls<String>(SIZE).also {
-        it[FOOD] = "food"
-        it[CLIMATE] = "climate suits"
-        it[CROWDING] = "crowding"
-        it[HUNTERS] = "hunters"
-        it[DISCOMFORT] = "discomfort"
-        it[DISCOMFORT_FORECAST] = "discomfort forecast"
-        it[SNOW_OVER_LIMIT] = "snow over limit"
-        it[SNOW] = "snow"
-        it[CLIMB] = "climb"
-        it[EFFORT] = "effort"
-        it[STAYS] = "stays"
-        it[SAME_HEX] = "same hex"
-        it[TOWARD_BEARING] = "toward bearing"
-        it[SEASON_PLACE] = "season's place"
-        it[FED] = "fed"
-        it[FAT] = "fat"
-        it[SEASON_SIN] = "season sin"
-        it[SEASON_COS] = "season cos"
-        it[RESTLESS] = "restless"
-        it[WATER_DISTANCE] = "water distance"
-        it[DAYS_DRY] = "days dry"
-        it[PULL] = "pull"
-        it[MOON] = "moon"
-        it[TO_BIRTHS_SIN] = "to births sin"
-        it[TO_BIRTHS_COS] = "to births cos"
-        it[REMEMBERED] = "remembered"
-        it[REMEMBERED_SAME_SEASON] = "remembered same season"
-        it[REMEMBERED_FED] = "remembered fed"
-        it[REMEMBERED_WATER] = "remembered water"
-        it[REMEMBERED_DANGER] = "remembered danger"
-        it[REMEMBERED_AGE] = "remembered age"
-        it[ANCESTORS] = "ancestors"
-        it[APPOINTMENT] = "appointment"
-        it[HOUSES] = "houses"
-        it[OWN_SIZE] = "own size"
-        it[LASTING_WATER] = "lasting water"
-        it[SICKNESS] = "sickness"
-        it[TREES] = "trees"
-        it[SHRUBS] = "shrubs"
-        it[GRASS] = "grass"
-        it[MARSH] = "marsh"
-        it[WATER_AGAINST_USUAL] = "water against usual"
-        it[PATHS] = "paths"
-        it[HERDS_ABOUT] = "herds about"
-        it[DUNG] = "dung"
-        it[GRAZING_AND_KILLS] = "grazing and kills"
-        it[KNOWN_GROUND] = "known ground"
-        it[BEYOND_OWN_GROUND] = "beyond own ground"
-        it[OTHERS_MARKS] = "others' marks"
-        it[FISH] = "fish and shellfish"
-        it[KEEPS_HEADING] = "keeps heading"
-        it[ON_ROUND] = "on round"
-        it[FORAGE_QUALITY] = "forage quality"
-        it[KILL_FEAR] = "kill fear"
-        it[BURNING] = "burning"
-        it[SNOW_AHEAD] = "snow ahead"
-        it[STRONGER_HUNTER] = "stronger hunter"
-        it[REMEMBERED_LACKED] = "remembered lacked"
-        it[TOWARD_LACKED] = "toward lacked"
-        for (k in 0 until LORE_MONTHS) it[USUAL_AHEAD + k] = "usual temperature, month ${k + 1} ahead"
-    }.mapIndexed { k, n -> requireNotNull(n) { "feature $k has no name" } }
 }

@@ -45,3 +45,13 @@ inline fun <reified E : Enum<E>> enumBools(init: (E) -> Boolean = { false }): En
 inline fun <reified E : Enum<E>> enumInts(init: (E) -> Int = { 0 }): EnumInts<E> {
     val es = enumEntries<E>(); return EnumInts(IntArray(es.size) { init(es[it]) })
 }
+
+/** A per-place table (kg/km² by place, say) for each entry of enum [E], read by the entry: a ledger of flows. See [EnumFloats]. */
+@JvmInline value class EnumTables<E : Enum<E>>(val a: Array<FloatArray>) {
+    @Suppress("NOTHING_TO_INLINE") inline operator fun get(e: E) = a[e.ordinal]
+    /** Every entry's table set to 0. */
+    fun clear() { for (t in a) t.fill(0f) }
+}
+
+/** A table of [n] floats for each entry of [E]. */
+inline fun <reified E : Enum<E>> enumTables(n: Int): EnumTables<E> = EnumTables(Array(enumEntries<E>().size) { FloatArray(n) })

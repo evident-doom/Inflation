@@ -48,7 +48,7 @@ class StringKeysTest {
         "ecology/WeekStats.kt" to (1 to "children's expected deaths by cause label, for printing"),
         "ecology/HexWater.kt" to (2 to "fish flows by name, printed and put in the history whole"),
         "ecology/Catalogue.kt" to (1 to "settled densities by kind name, read from a properties file"),
-        "ecology/HexPeople.kt" to (1 to "Band fields by name, checked by BandCarryTest"),
+        "ecology/Band.kt" to (1 to "Band fields by name, checked by BandCarryTest"),
         "ecology/BandCarry.kt" to (2 to "Band fields by name, checked by BandCarryTest"),
         "Profile.kt" to (3 to "phase timings by phase name"),
         "ecology/HexHistory.kt" to (5 to "history series: the CSV columns are text"),

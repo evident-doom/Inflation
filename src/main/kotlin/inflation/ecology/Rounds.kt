@@ -5,7 +5,7 @@ package inflation.ecology
  * a round its culture holds to (see [Band.riteFor]); packs keep none. The pull is added to the hand-written score and,
  * outside the network, to a learned mover's (see the "on round" feature and SharedMover.pull).
  */
-internal fun roundOf(g: HexGroup, month: Int): RoundPull? = if (ROUNDS) g.band?.riteFor(month) else null
+internal fun HexGroups.roundOf(g: HexGroup, month: Int): RoundPull? = if (tuning.rounds) g.band?.riteFor(month) else null
 
 /** The place a round draws a group to this month, and how strongly (see [roundOf]). */
 data class RoundPull(val place: Int, val strength: Float)

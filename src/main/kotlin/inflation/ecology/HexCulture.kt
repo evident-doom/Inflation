@@ -547,14 +547,14 @@ const val RITE_SHIFT = 0.1f
 fun riteStrengthAt(lineage: Int, tuning: Tuning) = tuning.riteFounderMax * Math.floorMod((lineage + 7) * 2_654_435_761L.toInt() xor 0x5bd1e995, 1000) / 1000f
 
 /**
- * A band's rites through the year (rounds on, see [ROUNDS]): about once a year a band whose rites
+ * A band's rites through the year (rounds on, see [inflation.Tuning.rounds]): about once a year a band whose rites
  * have room for another takes up one where its story is: the graves of its dead, where bands gather
  * (both in the season they mark), or a far landmark it knows, walked to or told of (a pass, a spring,
  * a path's end: the further, the more it stands for); and now and then it lets one go, less often
  * where songs and stories keep them. Nothing here weighs what a rite brings.
  */
 internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
-    if (!ROUNDS) return
+    if (!tuning.rounds) return
     val b = g.band ?: return
     val keep = if (b.holds(Tradition.ORAL_TRADITION)) 0.5f else 1f
     for (m in 0 until 12) if (b.rite[m] >= 0 && rnd.nextFloat() < RITE_FORGET * keep * years) {
@@ -608,7 +608,7 @@ const val SOURCE_RITE = 2f
 
 /** A band split off from another: its hold on the rites drifts, and now and then one shifts by a month (rounds on). */
 internal fun HexGroups.riteInherit(nb: Band) {
-    if (!ROUNDS) return
+    if (!tuning.rounds) return
     nb.riteStrength = (nb.riteStrength + riteDrift * (2f * rnd.nextFloat() - 1f) * 1.73f).coerceAtLeast(0f)
     if (rnd.nextFloat() < RITE_SHIFT) {
         val ms = (0 until 12).filter { nb.rite[it] >= 0 }
@@ -628,7 +628,7 @@ internal fun HexGroups.riteInherit(nb: Band) {
  * month it has none, and its hold moves toward theirs, as far as they understand each other.
  */
 internal fun HexGroups.riteMeet(lo: Band, hi: Band, u: Float) {
-    if (!ROUNDS) return
+    if (!tuning.rounds) return
     for (m in 0 until 12) if (hi.rite[m] >= 0 && lo.rite[m] < 0 && lo.rite.count { it >= 0 } < RITE_SITES && hi.rite[m] !in lo.rite &&
         rnd.nextFloat() < COPY_TRADITION * u) {
         lo.rite[m] = hi.rite[m]; stats.meeting(Met.BANDS_TOOK_UP_ANOTHERS_RITE)

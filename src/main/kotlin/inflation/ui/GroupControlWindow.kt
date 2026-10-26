@@ -390,7 +390,7 @@ class GroupControlWindow(
         val sb = StringBuilder()
         sb.appendLine("What it sees of %s%s (as the network reads it):".format(where(d.places[i]), if (i == d.model) " — the model's pick" else ""))
         val f = d.features[i]
-        for ((k, n) in Schema.PLACE.withIndex()) if (k < HexFeatures.SIZE && f[k] != 0f) sb.appendLine("  %-26s %7.2f".format(n, f[k]))
+        for ((k, n) in Schema.PLACE.withIndex()) if (k < HexFeatures.size && f[k] != 0f) sb.appendLine("  %-26s %7.2f".format(n, f[k]))
         sb.appendLine("  (features at 0 not listed)")
         return sb.toString()
     }

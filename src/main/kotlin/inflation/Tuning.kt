@@ -6,7 +6,11 @@ package inflation
  * (`HexLand.tuning`), so that a test can build another. The first group are multipliers on an existing parameter
  * (1 leaves it as it is); the rest are the parameters themselves.
  */
-class Tuning(private val read: (String) -> String? = Config::tuning) {
+class Tuning(
+    private val read: (String) -> String? = Config::tuning,
+    /** The run's plain settings (not t.NAME) that change what the model does, as [Config] reads them. */
+    private val setting: (Config.Key) -> String? = Config::string,
+) {
     private fun f(name: String, default: Float) = read("t.$name")?.toFloat() ?: default
     private fun d(name: String, default: Double) = read("t.$name")?.toDouble() ?: default
     private fun i(name: String, default: Int) = read("t.$name")?.toInt() ?: default
@@ -119,7 +123,7 @@ class Tuning(private val read: (String) -> String? = Config::tuning) {
     val denMonths = i("denMonths", 3)
     val denKm = f("denKm", 15f)
 
-    // Bands' yearly rounds, their rites (see [inflation.ecology.ROUNDS]).
+    // Bands' yearly rounds, their rites (see [rounds]).
     /** How strongly a round draws a learned mover's choice, outside its network (per unit of the "on round" feature). */
     val roundNetPull = f("roundNetPull", 1.5f)
     /** How strongly a round draws the hand-written choice: per unit of progress toward its place this month (a full week's going toward it). */
@@ -145,6 +149,19 @@ class Tuning(private val read: (String) -> String? = Config::tuning) {
     val saltLack = f("saltLack", 0.15f)
     /** How much less salted meat and fish spoil. */
     val saltKeep = f("saltKeep", 0.7f)
+
+    // The run's switches: plain keys, not tuning (t.NAME), that change what the model does.
+    /** Bands keep yearly rounds by their rites ([inflation.ecology.roundOf]); rounds=false leaves them out. */
+    val rounds = setting(Config.Key.ROUNDS)?.toBooleanStrict() ?: true
+    /** People live in the world; people=false leaves them out, for comparison runs. */
+    val people = setting(Config.Key.PEOPLE)?.toBooleanStrict() ?: true
+    /**
+     * A long climate shock ([inflation.world.Weather.shock]): climateShock=startYear,years,degrees,rainShare (for example
+     * 20,1200,-4,0.7 for something like the Younger Dryas); null when unset.
+     */
+    val climateShock: List<Double>? = setting(Config.Key.CLIMATE_SHOCK)?.split(",")?.map { it.trim().toDouble() }
+    /** Each year's chance of an extra severe winter or drought year (weather.stressYears), so training worlds meet hard years often; 0 when unset. */
+    val weatherStressYears = (setting(Config.Key.WEATHER_STRESS_YEARS)?.toFloat() ?: 0f).toDouble()
 
     companion object {
         /** The run's settings, as the config file gives them. */

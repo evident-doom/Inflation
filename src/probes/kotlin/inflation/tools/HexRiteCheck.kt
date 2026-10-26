@@ -6,7 +6,7 @@ import inflation.learning.RunScore
 import inflation.run.freshSim
 import inflation.Args
 import inflation.ecology.Catalogue
-import inflation.ecology.ROUNDS
+import inflation.Tuning
 import inflation.world.Date
 import inflation.world.WorldConfig
 import inflation.world.get
@@ -28,7 +28,7 @@ fun main(args: Array<String>) {
     val seeds = a.string("--seeds")?.split(",")?.map { it.toLong() } ?: listOf(91L); val size = a.int("--size", 600); val years = a.int("--years", 4)
     a.done()
     val kinds = Catalogue.learned
-    println("rounds ${if (ROUNDS) "on" else "off"}, $size km, $years years")
+    println("rounds ${if (Tuning.config.rounds) "on" else "off"}, $size km, $years years")
     val lines = seeds.parallelStream().map { seed ->
         val run = freshSim(WorldConfig(seed = seed, widthKm = size, heightKm = size), kinds)
         val hw = run.hw; val hex = run.hex

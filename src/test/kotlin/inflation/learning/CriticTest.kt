@@ -15,7 +15,7 @@ class CriticTest {
         val critic = Critic(Mlp.random(intArrayOf(model.inputs + Critic.GROUP, Critic.HIDDEN, Critic.HIDDEN, 1), Random(91)))
         val rnd = Random(2)
         fun choice(): Choice {
-            val here = FloatArray(HexFeatures.SIZE).also { it[HexFeatures.STAYS] = 1f }
+            val here = FloatArray(HexFeatures.size).also { it[HexFeatures.STAYS] = 1f }
             val fed = rnd.nextFloat()
             return Choice(gazelle, 1, 10, 0, arrayOf(here), 0, 0f).also {
                 it.group = floatArrayOf(0.5f, 0.2f, fed, 0f, 1f, 0f, 1f)

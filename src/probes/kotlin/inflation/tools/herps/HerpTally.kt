@@ -61,8 +61,8 @@ class HerpTally(private val run: HexSim, private val regions: HerpRegions, val y
     /** Before step [w]: at the start of the shown years, clears the model's ledgers and notes the herps. */
     fun beforeStep(w: Int) {
         if (w != start) return
-        for (l in sl.herpLedger) l.fill(0f); for (l in sl.herpTakenBy) l.fill(0f); for (l in sl.tortLedger) l.fill(0f); for (l in sl.tortTakenBy) l.fill(0f)
-        for (k in sl.preyTakenBy) for (l in k) l.fill(0f); sl.grubsDug.fill(0f); for (k in sl.birdLedger) for (l in k) l.fill(0f)
+        sl.herpLedger.clear(); for (l in sl.herpTakenBy) l.fill(0f); sl.tortLedger.clear(); for (l in sl.tortTakenBy) l.fill(0f)
+        for (k in sl.preyTakenBy) for (l in k) l.fill(0f); sl.grubsDug.fill(0f); for (k in sl.birdLedger) k.clear()
         for (p in 0 until n) if (regions.classOf[p] >= 0) herpsAtStart[regions.classOf[p]] += (sl.herps[p] * land.areaKm2[p]).toDouble()
     }
 

@@ -35,7 +35,7 @@ class HexSim(
     val cfg = world.config
     val hex = HexMap(world)
     val hw = HexWorld(world, hex)
-    val weather = Weather(hw.weatherPlaces(cfg), cfg).also { it.begin(tuning.startDay) }
+    val weather = Weather(hw.weatherPlaces(cfg), cfg, tuning).also { it.begin(tuning.startDay) }
     val land = HexLand(hw, cfg.seed, tuning)
     /** The week's tallies for the reports ([WeekStats]), shared by the residents and the groups like the books; not saved. */
     @Transient val stats = WeekStats()

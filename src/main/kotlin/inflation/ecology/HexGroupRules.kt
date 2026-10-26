@@ -421,10 +421,5 @@ const val CARRION_FOUND = 0.5f
 const val SCAVENGER_CARRION = 0.5f
 
 
-
-
-/** Bands' yearly rounds and rites (see [roundOf]): on unless rounds=false (their strengths in [inflation.Tuning]). */
-val ROUNDS = Config.flag(Config.Key.ROUNDS, true)
-
 /** Months over which a group's sense of how thick each kind usually is follows the change (about a year). */
 const val USUAL_MONTHS = 12f

@@ -1,10 +1,10 @@
 package inflation.ecology
 
 /**
- * The numbers of a group's view of itself, laid out by name: each slot, or block of slots, is named where it is
+ * The numbers a learned network reads or writes, laid out by name: each slot, or block of slots, is named where it is
  * placed, so the name a learned network's `.names` file records for a slot cannot drift from what is written there.
  */
-abstract class InputSlots {
+abstract class NamedSlots {
     private val list = ArrayList<String>()
     /** One slot, [name]d; its index. */
     protected fun one(name: String): Int { list += name; return list.size - 1 }
@@ -17,7 +17,7 @@ abstract class InputSlots {
 }
 
 /** The slots of a band's view of itself ([bandInputs]). */
-object BandInputs : InputSlots() {
+object BandInputs : NamedSlots() {
     val YEAR_SIN = one("year sin"); val YEAR_COS = one("year cos")
     val FED = one("fed"); val LARDER = one("larder")
     val STORES = block(Store.entries.map { "store:${it.name.lowercase()}" })
@@ -68,7 +68,7 @@ object BandInputs : InputSlots() {
 }
 
 /** The slots of a pack's view of itself ([animalInputs]). */
-object AnimalInputs : InputSlots() {
+object AnimalInputs : NamedSlots() {
     val YEAR_SIN = one("year sin"); val YEAR_COS = one("year cos")
     val FED = one("fed"); val FAT = one("fat"); val DAYS_DRY = one("days dry"); val OWN_SIZE = one("own size"); val YOUNG = one("young per adult")
     val WARY = one("wary"); val HOLDS_GROUND = one("holds ground"); val WEEKS_HUNGRY = one("weeks hungry"); val TEMPERATURE = one("temperature")
@@ -77,4 +77,16 @@ object AnimalInputs : InputSlots() {
     val GRASS = one("diet:grass"); val BROWSE = one("diet:browse"); val FRUIT_AND_ROOTS = one("diet:fruit and roots")
     val MEAT = one("diet:meat"); val SMALL_PREY = one("diet:small prey"); val CARRION = one("diet:carrion")
     val TEMPER = block(Temperament.NAMES.map { "temper:$it" })
+}
+
+/** The slots of a band's ways ([setWays]' outputs, [BandWays]), each 0 for the scaffold's choice. */
+object WaysOut : NamedSlots() {
+    /** Its effort on each food it sets one for ([FOOD_TYPES]: the [Food] kinds but grain, which goes by grass seed's). */
+    val EFFORTS = block(List(FOOD_TYPES) { "effort:$it" })
+    /** The days of food it aims to keep. */
+    val STORE_AIM = one("store aim")
+    /** How it ranks making each [Tool] first. */
+    val MAKE_FIRST = block(Tool.entries.map { "make first:${it.name.lowercase()}" })
+    /** Its [BandWay]s, in their order ([BandWay.slot]). */
+    val WAYS = block(BandWay.entries.map { it.label })
 }
