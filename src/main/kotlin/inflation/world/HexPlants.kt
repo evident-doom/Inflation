@@ -217,7 +217,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             if (weather.date.month == 0 && weather.date.dayOfMonth <= days) { gdd[p] = 0f; grassAge[p] = 0f }
             gdd[p] += max(0f, weather.temperature[p] - 5f) * days
         }
-        val years = days / Date.DAYS_PER_YEAR.toFloat()
+        val years = Date.years(days)
         val memory = 1 - exp(-days / 360f)
         if (stepCount++ % 5 == 0) seedSources()
         if (!shootsSet) {

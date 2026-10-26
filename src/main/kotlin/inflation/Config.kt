@@ -80,7 +80,7 @@ object Config {
         DIAL_USE("dialUse"),
         FED_DIAG("fedDiag"),
         SHRUB_DIAG("shrubDiag"),
-        T_HUNT_DIAG("t.huntDiag"),
+        HUNT_STEPS("huntSteps"),
         AUDIT("audit");
 
         override fun toString() = key
@@ -96,6 +96,9 @@ object Config {
         "t.superLure", "t.scoutKm", "t.scoutChance", "t.scoutMargin", "t.plateauKm", "t.plateauM", "t.plantEaterHerds", "t.formSwap",
         "t.contentWeeks", "t.huntersHalf", "t.headingKeep", "t.headingMoved", "t.headingPull", "t.roundStrength", "t.roundTrekDays",
         "t.roundDrift", "t.roundSwitch", "t.roundStart", "t.roundKmCost", "herdWays", "migDiag", "crowdDiag", "ppo.migrationWeight")
+
+    /** Config file keys that were renamed, and their name now. */
+    private val MOVED = mapOf("t.huntDiag" to "huntSteps")
 
     private val props = Properties()
     /** The keys set in the file that the run has read. */
@@ -120,6 +123,8 @@ object Config {
         }
         val unknown = props.stringPropertyNames().filter { it in GONE || it.startsWith("no") && it in RENAMED }
         require(unknown.isEmpty()) { "config keys no longer read: ${unknown.joinToString(", ")} (see config.example.properties)" }
+        val moved = props.stringPropertyNames().filter { it in MOVED }.sorted()
+        require(moved.isEmpty()) { "config keys renamed: ${moved.joinToString(", ") { "$it is now ${MOVED[it]}" }}" }
         val known = known()
         val strange = props.stringPropertyNames().filter { it !in known }.sorted()
         require(strange.isEmpty()) { "config keys the code does not read (misspelt?): ${strange.joinToString(", ")} (see config.example.properties)" }
@@ -148,3 +153,6 @@ object Config {
     fun set(prefix: String): String = props.stringPropertyNames().filter { it.startsWith(prefix) }.sorted()
         .joinToString(", ") { "${it.removePrefix(prefix)} ${read(it)}" }
 }
+
+/** The folder [name] under ~/.inflation, where worlds, caches and test worlds are kept between runs. */
+fun inflationHome(name: String): File = File(System.getProperty("user.home"), ".inflation/$name")

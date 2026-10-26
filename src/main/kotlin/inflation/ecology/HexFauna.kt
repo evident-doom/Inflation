@@ -382,7 +382,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     @Transient var record: PlaceRecord? = null
         set(v) { field = v; small.record = v }
 
-    private val years = days / Date.DAYS_PER_YEAR.toFloat()
+    private val years = Date.years(days)
     /** How each kind travels between places. */
     @Transient private val travel = kinds.map { Catalogue.travel(it) }
     /** Young born this week, by kind (for the history). */
@@ -451,8 +451,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     /** Share of [s]'s diet that is plants. */
     fun plantShare(s: Species): Float {
         val d = s.diet
-        val all = d.grass + d.browse + d.fruit + d.roots + d.meat + d.smallPrey + d.carrion
-        return if (all <= 0f) 1f else (d.grass + d.browse + d.fruit + d.roots) / all
+        val all = d.total
+        return if (all <= 0f) 1f else d.plants / all
     }
 
     /** Of the kinds that can hibernate, those asleep in their winter dens, by place (null for the kinds that cannot; see [sleepOrWake]). */
@@ -560,7 +560,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     fun fareFor(s: Species, p: Place): Float {
         if (!s.carnivore) return foodFor(s, p)
         val d = s.diet
-        val plants = d.grass + d.browse + d.fruit + d.roots; val animal = d.meat + d.smallPrey + d.carrion
+        val plants = d.plants; val animal = d.animal
         if (plants + animal <= 0f) return 0f
         val kg = (d.meat * (preyNow?.get(slot(s))?.get(p) ?: game(s, p)) + d.smallPrey * small.smallPreyKg(p) + d.carrion * KgM2(small.carrion[p]).perKm2.v) / animal.coerceAtLeast(1e-6f)
         return (animal * kg * Thresholds.FOOD_HALF / PREY_HALF + plants * foodFor(s, p)) / (plants + animal)
@@ -884,7 +884,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val needAll = (adults[k][p] + 0.5f * young[k][p]) * s.dailyIntakeKg * coldNeed(s, feltC(s, p, weather.temperature[p]), weather.date.month, tuning) *
             days / 1e6f / (Nourishment.PREY * s.needScale) // all of the diet, in kg of prey per m2 that would feed it ([Nourishment.PREY])
         if (ps < 1f && needAll > 0f) {
-            val d = s.diet; val all = d.grass + d.browse + d.fruit + d.roots + d.meat + d.smallPrey + d.carrion
+            val d = s.diet; val all = d.total
             val animalNeed = needAll * (1f - ps)
             val plantGap = if (ps > 0f) needAll * ps * max(0f, 1f - z.got[k]) else 0f
             // Carrion first, where it eats any: a carcass lying there costs no chase and no digging, so

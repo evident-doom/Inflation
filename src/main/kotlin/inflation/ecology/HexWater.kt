@@ -45,7 +45,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     private val world = hw.world
     private val size = hex.size
     private val hexKm2 = hex.areaKm2.toFloat()
-    private val years = days / Date.DAYS_PER_YEAR.toFloat()
+    private val years = Date.years(days)
 
     /** Open water in each hex, km²: sea, and lake (fresh or closed). */
     @Transient val seaKm2 = FloatArray(size) { hw.sea[it] * hexKm2 }
@@ -576,7 +576,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
             colonyBirds[c] = if (b < 2f) 0f else b
         }
         // Young birds from thriving colonies settle empty cliffs nearby, once a year.
-        if (stepsDone++ % (Date.DAYS_PER_YEAR / days) == 0) for (c in colonyHex.indices) {
+        if (stepsDone++ % Date.stepsPerYear(days) == 0) for (c in colonyHex.indices) {
             if (colonyBirds[c] > 0f) continue
             val src = colonyHex.indices.filter { colonyBirds[it] > 500f && hex.distanceKm(colonyHex[it], colonyHex[c]) <= RESETTLE_KM }
                 .maxByOrNull { colonyBirds[it] } ?: continue

@@ -67,5 +67,10 @@ data class Date(val absoluteDay: Long) {
         const val START_DAY = 90
         /** Days from one new moon to the next. */
         const val SYNODIC_MONTH = 29.530589
+
+        /** The share of a year that [days] days are. */
+        fun years(days: Int): Float = days / DAYS_PER_YEAR.toFloat()
+        /** Steps of [days] days in a year. */
+        fun stepsPerYear(days: Int): Int = DAYS_PER_YEAR / days
     }
 }

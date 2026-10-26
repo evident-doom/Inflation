@@ -15,7 +15,14 @@ data class Diet(
     val meat: Float = 0f,
     val smallPrey: Float = 0f,
     val carrion: Float = 0f,
-)
+) {
+    /** Share of animal food: meat, small prey and carrion. */
+    val animal: Float get() = meat + smallPrey + carrion
+    /** Share of plant food: grass, browse, fruit and roots. */
+    val plants: Float get() = grass + browse + fruit + roots
+    /** All the shares (1 for a full diet). */
+    val total: Float get() = grass + browse + fruit + roots + meat + smallPrey + carrion
+}
 
 /**
  * Where a species likes to be, each from -1 (avoids) to 1 (seeks): [cover] (forest, thicket, broken
@@ -182,7 +189,7 @@ class Species(
     /** [shelters] as an array, for [Niches.shelter]'s loop. */
     internal val shelterArray: Array<Niches.Shelter> = shelters.toTypedArray()
     /** Mostly eats animals. */
-    val carnivore: Boolean get() = diet.meat + diet.smallPrey + diet.carrion > 0.5f
+    val carnivore: Boolean get() = diet.animal > 0.5f
     /** What kind of group it lives in, for the kinds that live in groups: a band of people or a pack of hunters. */
     val lifeway: Lifeway get() = if (human) Lifeway.BAND else Lifeway.PACK
     /** Hunts in packs: a meat-eater that is not people. */
@@ -255,8 +262,8 @@ object Allometry {
      * so the need does not jump as the animal share passes a half.
      */
     fun dailyIntakeKg(massKg: Float, diet: Diet): Float {
-        val animal = diet.meat + diet.smallPrey + diet.carrion
-        val plants = diet.grass + diet.browse + diet.roots + diet.fruit
+        val animal = diet.animal
+        val plants = diet.plants
         val share = if (animal + plants > 0f) animal / (animal + plants) else 0f
         return (0.2f * share + 0.08f * (1f - share)) * massKg.pow(0.75f)
     }

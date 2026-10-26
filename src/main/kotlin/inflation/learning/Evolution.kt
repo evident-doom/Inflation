@@ -1,5 +1,6 @@
 package inflation.learning
 
+import inflation.gaussianF
 import inflation.ecology.Species
 import inflation.run.freshSim
 import inflation.ecology.HexSim
@@ -14,9 +15,6 @@ import java.io.File
 import kotlin.random.Random
 import inflation.ecology.AnimalWay
 
-/** A standard normal draw, as a float (see [inflation.gaussian]). */
-internal fun gaussian(rnd: Random): Float = inflation.gaussian(rnd).toFloat()
-
 /**
  * Evolution strategies with mirrored noise: each generation a network is tried as [pairs] pairs of
  * variants, the centre plus and minus [sigma] times a draw of noise, and the centre itself last; the
@@ -27,7 +25,7 @@ class EvolutionStrategy(val pairs: Int, val sigma: Float) {
     val count = 2 * pairs + 1
 
     /** This generation's noise for a network of [size] weights. */
-    fun noise(rnd: Random, size: Int) = Array(pairs) { FloatArray(size) { gaussian(rnd) } }
+    fun noise(rnd: Random, size: Int) = Array(pairs) { FloatArray(size) { gaussianF(rnd) } }
 
     fun variants(centre: Mlp, eps: Array<FloatArray>) = Array(count) { v ->
         val m = centre.copy()

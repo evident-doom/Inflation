@@ -317,7 +317,7 @@ class Band(kinds: Int) {
     var houseLivesWeek = 0f
     var houseFoodWeek = 0f
     /** Its food over about a year by where it came from ([FoodFrom]), kg a person a day (a running mean, [HexGroups.recordFood]). */
-    val foodFrom = FloatArray(FoodFrom.entries.size)
+    val foodFrom = enumFloats<FoodFrom>()
     /** Over about a year, the share of its weanlings it could wean on gruel ([gruel], [WEANING_SHARE]; a running mean, at its meals). */
     var weaningFood = 0f
     /**

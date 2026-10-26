@@ -37,8 +37,8 @@ const val COLD_RESTLESS = 0.25f
  * (Where they see or read sign, by what they find: see [knownGame].)
  */
 internal fun HexGroups.lifewayValue(s: Species, p: Place): Float = when (s.lifeway) {
-    Lifeway.BAND -> dietValue(s, Place(p.i), preyHere(s, Place(p.i))) * campFactor(Place(p.i)) + campPlants(Place(p.i))
-    Lifeway.PACK -> dietValue(s, Place(p.i), preyHere(s, Place(p.i)))
+    Lifeway.BAND -> dietValue(s, p, preyHere(s, p)) * campFactor(p) + campPlants(p)
+    Lifeway.PACK -> dietValue(s, p, preyHere(s, p))
 }
 
 /**

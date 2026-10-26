@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.gaussianF
 import inflation.run.freshSim
 import inflation.Args
 import inflation.Config
@@ -48,7 +49,7 @@ fun main(args: Array<String>) {
     val horizon = 52; val discount = HexPpo.PEOPLE_DISCOUNT
     val kinds = Catalogue.learned
     fun perturbed(id: Int) = Random(id * 31L + 7).nextFloat() < 0.5f
-    fun waysDraw(id: Int, salt: Long) = Random(id * 1_000_003L + salt).let { r -> FloatArray(WAYS_OUT) { gaussian(r) * 0.3f } }
+    fun waysDraw(id: Int, salt: Long) = Random(id * 1_000_003L + salt).let { r -> FloatArray(WAYS_OUT) { gaussianF(r) * 0.3f } }
 
     class Out(val ret: Map<Int, Double>, val retH: Map<Int, DoubleArray>, val draws: Map<Int, FloatArray>,
         val moveAlt: Map<Int, Pair<Float, Float>>, val stepMs: Double)
@@ -181,4 +182,3 @@ fun main(args: Array<String>) {
 
 private val HS = intArrayOf(1, 2, 4, 8, 13, 26, 52)
 
-private fun gaussian(r: Random): Float = inflation.learning.gaussian(r)

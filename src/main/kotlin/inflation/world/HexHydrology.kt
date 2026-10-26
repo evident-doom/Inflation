@@ -118,7 +118,7 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
     init {
         // Start each aquifer at the level where what comes in over a usual year (its share of the long-term
         // runoff, and what comes underground from the hexes above) matches what drains out.
-        val stepsPerYear = Date.DAYS_PER_YEAR / days
+        val stepsPerYear = Date.stepsPerYear(days)
         val inflow = DoubleArray(hex.size)
         for (h in order) {
             for (p in hw.placeList(Hex(h))) {

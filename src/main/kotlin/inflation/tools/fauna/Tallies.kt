@@ -326,7 +326,7 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
                 "fish %.0f kg/wk: skill fish %.2f, small game %.2f, hunt %.2f, nets %.2f; food a person a day %s; fish pull %.2f".format(
                     third.map { it.first.toDouble() }.average(), mean { it.skills[Skill.FISH] }, mean { it.skills[Skill.SMALL_GAME] },
                     mean { it.skills[Skill.HUNT] }, mean { it.kit[Tool.NET] },
-                    FoodFrom.entries.joinToString(", ") { f -> "%s %.2f".format(f.label, mean { it.foodFrom[f.ordinal] }) }, mean { it.fishPull })
+                    FoodFrom.entries.joinToString(", ") { f -> "%s %.2f".format(f.label, mean { it.foodFrom[f] }) }, mean { it.fishPull })
             }
         }
     }

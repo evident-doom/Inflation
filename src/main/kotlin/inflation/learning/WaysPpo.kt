@@ -1,5 +1,6 @@
 package inflation.learning
 
+import inflation.gaussianF
 import inflation.ecology.BandWays
 import inflation.ecology.Binding
 import inflation.ecology.Catalogue
@@ -108,7 +109,7 @@ class WaysSampler(private val ways: LearnedWays, private val record: ConcurrentL
         var logp = 0f
         val terms = FloatArray(WAYS_OUT)
         for (i in 0 until WAYS_OUT) {
-            val z = gaussian(rnd)
+            val z = gaussianF(rnd)
             out[i] = mean[i] + exp(ways.logStd[i]) * z
             terms[i] = -0.5f * z * z - ways.logStd[i]
             logp += terms[i]

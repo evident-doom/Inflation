@@ -54,9 +54,9 @@ class BandTime(left: Float, private val pace: FloatArray? = null) {
     /** Person-days still unspent, held or not. */
     var left = left
         private set
-    private val spent = FloatArray(Activity.entries.size)
-    private val held = FloatArray(Activity.entries.size)
-    private val heldAtOne = FloatArray(Activity.entries.size)
+    private val spent = enumFloats<Activity>()
+    private val held = enumFloats<Activity>()
+    private val heldAtOne = enumFloats<Activity>()
     /** What each activity asked for this week, person-days (none before a [plan]). */
     val asked = FloatArray(Activity.entries.size)
     /** Whether the asks beyond what the week needs came to more than the days left for them (false before a [plan]). */
@@ -77,28 +77,28 @@ class BandTime(left: Float, private val pace: FloatArray? = null) {
      * Person-days of work [a] may do now: what is held for it, and what is held for no one, at its [pace]. (What each
      * activity asks, plans and spends is days of work; what the week holds and has left is its people's days.)
      */
-    fun leftFor(a: Activity) = max(0f, left - held.sum() + held[a.ordinal]) * pace(a)
+    fun leftFor(a: Activity) = max(0f, left - held.sum() + held[a]) * pace(a)
 
     /** Takes [personDays] of work for [a]: from what is held for it first. */
     fun spend(a: Activity, personDays: Float) {
         val days = personDays / pace(a)
-        spent[a.ordinal] += days; left -= days; lost += days - personDays; held[a.ordinal] = max(0f, held[a.ordinal] - days)
+        spent[a] += days; left -= days; lost += days - personDays; held[a] = max(0f, held[a] - days)
     }
 
     /** Takes [personDays] for [a], but never more than it may take ([leftFor]). */
     fun spendAtMost(a: Activity, personDays: Float) = spend(a, min(personDays, leftFor(a)))
 
     /** Counts [personDays] as gone to [a] before this stretch began (the time foraging took, worked out apart). */
-    fun took(a: Activity, personDays: Float) { spent[a.ordinal] += personDays }
+    fun took(a: Activity, personDays: Float) { spent[a] += personDays }
 
     /** What is still held for [a] after its turn is free for the activities after it. */
-    fun release(a: Activity) { held[a.ordinal] = 0f }
+    fun release(a: Activity) { held[a] = 0f }
 
     /** Sets what is left to no less than none. */
     fun noneBelowZero() { left = max(0f, left) }
 
     /** Person-days that went to [a] so far, the time lost to the cold and hunger in it included. */
-    fun spentOn(a: Activity) = spent[a.ordinal]
+    fun spentOn(a: Activity) = spent[a]
 
     /**
      * Holds for each activity its share of the time left (survival first): first what keeps its people [warm] this week
@@ -117,17 +117,17 @@ class BandTime(left: Float, private val pace: FloatArray? = null) {
         val first = if (warmed == null) fed else FloatArray(fed.size) { fed[it] + warmed[it] }
         short = asks.sum() > max(0f, left - first.sum())
         val then = shareOut(asks, weights ?: ones, max(0f, left - first.sum()))
-        if (weights != null) shareOut(asks, ones, max(0f, left - first.sum())).forEachIndexed { i, d -> heldAtOne[i] = first[i] + d }
-        for (i in held.indices) { held[i] = first[i] + then[i]; if (weights == null) heldAtOne[i] = held[i] }
+        if (weights != null) shareOut(asks, ones, max(0f, left - first.sum())).forEachIndexed { i, d -> heldAtOne.a[i] = first[i] + d }
+        for (i in held.a.indices) { held.a[i] = first[i] + then[i]; if (weights == null) heldAtOne.a[i] = held.a[i] }
     }
 
     /** People's days the [plan] held for [a], and would have held were every weight 1 (for counting the weights' use, [DialUse]). */
-    fun heldFor(a: Activity) = held[a.ordinal]
-    fun heldAtOneFor(a: Activity) = heldAtOne[a.ordinal]
+    fun heldFor(a: Activity) = held[a]
+    fun heldAtOneFor(a: Activity) = heldAtOne[a]
 
     /** Adds what went to each of [activities] to [census] (tenths of a day). */
     fun count(census: MutableMap<TallyKey, Int>, vararg activities: Activity) {
-        for (a in activities) census.merge(Tally.bandTime(a), (spent[a.ordinal] * 10f).roundToInt(), Int::plus)
+        for (a in activities) census.merge(Tally.bandTime(a), (spent[a] * 10f).roundToInt(), Int::plus)
     }
 
     /** Adds what went to every [Activity] to [census] (tenths of a day), so a new activity needs no list of its own here. */

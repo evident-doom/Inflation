@@ -1,5 +1,6 @@
 package inflation.run
 
+import inflation.inflationHome
 import inflation.Config
 import inflation.StockName
 import inflation.ecology.HexHistory
@@ -53,7 +54,7 @@ object TestWorlds {
         fun info(): Properties? = about.takeIf { it.isFile }?.let { f -> Properties().also { p -> f.reader().use { p.load(it) } } }
     }
 
-    val root = File(System.getProperty("user.home"), ".inflation/test-worlds")
+    val root = inflationHome("test-worlds")
 
     /** Years a test world is settled for unless told otherwise. */
     const val SETTLE_YEARS = 30

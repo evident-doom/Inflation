@@ -156,7 +156,7 @@ class Vegetation(private val world: World, private val seed: Long, private val t
     /** Advances one step using the weather, water and eruptions of that step. */
     fun step(weather: Weather, water: LiveWater, ash: FloatArray) {
         val days = world.config.daysPerStep
-        val years = days / Date.DAYS_PER_YEAR.toFloat()
+        val years = Date.years(days)
         val memory = 1 - exp(-days / 360f)
         if (stepCount++ % 5 == 0) seedSources()
         spreadFires(weather, water, years)

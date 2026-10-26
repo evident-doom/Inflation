@@ -1,5 +1,6 @@
 package inflation.learning
 
+import inflation.inflationHome
 import inflation.run.Nominal
 import inflation.run.freshSim
 import inflation.ecology.HexSim
@@ -130,7 +131,7 @@ class SharedMover(val net: Mlp, val identity: FloatArray) {
         fun random(hidden: Int, rnd: Random, band: Int = 0) = SharedMover(Mlp.random(intArrayOf(INPUTS + band, hidden, hidden, 1), rnd), FloatArray(Catalogue.all.size * IDENTITY) { 0.1f * (rnd.nextFloat() - 0.5f) })
 
         /** Whether a mover saved in [file] is people's (it reads the band's view of itself too). */
-        fun isPeople(file: File) = file.name.startsWith("people")
+        fun isPeople(file: File) = file.name.startsWith(Role.PEOPLE.label)
 
         fun load(file: File): SharedMover {
             // (Fitted by name to today's inputs: see [Schema]. A people's network saved before it read
@@ -519,7 +520,7 @@ object HexPpo {
          * code, kinds, settling and model version) takes it up instead of settling again. It is the world as the networks of the start
          * that made it settled it. A file that today's code will not load is settled again.
          */
-        private val settledFile = (Config.string(Config.Key.PPO_SETTLED_WORLDS) ?: File(System.getProperty("user.home"), ".inflation/settled-worlds").path)
+        private val settledFile = (Config.string(Config.Key.PPO_SETTLED_WORLDS) ?: inflationHome("settled-worlds").path)
             .takeIf { it.isNotBlank() && it != "off" }?.let { dir ->
                 File(dir, "settled-%016x-burn%d-k%08x-m%d.%d.bin".format(WorldCache.key(cfg), burnSteps, kinds.map { it.name }.hashCode(), HexSnapshot.MODEL_MAJOR, HexSnapshot.MODEL_MINOR))
             }

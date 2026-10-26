@@ -45,7 +45,7 @@ internal fun HexGroups.illnessWeek(g: HexGroup, b: Band, weather: Weather, r: ko
         deaths[i] = b.sick[i] * d.deadly * ending
         val recovered = b.sick[i] * ending
         b.sick[i] -= recovered
-        b.immune[i] = min(1f, b.immune[i] + recovered * (1f - d.deadly)) * (1f - days / Date.DAYS_PER_YEAR.toFloat() / d.immuneYears.coerceAtLeast(0.1f))
+        b.immune[i] = min(1f, b.immune[i] + recovered * (1f - d.deadly)) * (1f - Date.years(days) / d.immuneYears.coerceAtLeast(0.1f))
         if (b.sick[i] < 1e-4f) b.sick[i] = 0f
     }
     return deaths

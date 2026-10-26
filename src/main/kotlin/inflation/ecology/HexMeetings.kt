@@ -367,7 +367,7 @@ private class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, packK
     }
     val plantKind = FloatArray(Store.entries.size)
     // (The same by the plant food it came from, for the census.)
-    val plantFrom = FloatArray(PlantFrom.entries.size)
+    val plantFrom = enumFloats<PlantFrom>()
     // (And what it weighs, which grinding, cooking and leaching do not change: see [addFood].)
     val plantKg = FloatArray(Store.entries.size)
     var busy = 0f
@@ -613,16 +613,16 @@ private fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
         val swept = min(area, sweep)
         val small = this.small
         // (Small game in cover is found the less, on burnt or grazed bare ground the more: [smallSeen].)
-        offer(w, o, Food.SMALL_GAME, 0, Place(p.i), small.smallPreyKg(Place(p.i)) * min(area, w.smallSweep * smallSeen(Place(p.i))) * w.smallCatch / days, 1f, w.smallDays)
+        offer(w, o, Food.SMALL_GAME, 0, p, small.smallPreyKg(p) * min(area, w.smallSweep * smallSeen(p)) * w.smallCatch / days, 1f, w.smallDays)
         if (w.d.carrion > 0f) {
             // (At most half of what lies on the ground searched: the rest is not found in time, or others get it;
             // and only the scavengers by trade, which watch the vultures and quarter the ground for it, find
             // that much: a wolf or a band comes on a carcass now and then, not every week.)
             val found = CARRION_FOUND * min(1f, w.d.carrion / SCAVENGER_CARRION)
-            offer(w, o, Food.CARRION, 0, Place(p.i), KgM2(found * small.carrion[p]).perKm2.over(swept).v / days, 1f, w.eats)
-            if (Niches.cracksBones(w.s)) offer(w, o, Food.BONES, 0, Place(p.i), KgM2(found * small.bones[p]).perKm2.over(swept).v / days, 1f, w.eats * BONE_DAYS)
+            offer(w, o, Food.CARRION, 0, p, KgM2(found * small.carrion[p]).perKm2.over(swept).v / days, 1f, w.eats)
+            if (Niches.cracksBones(w.s)) offer(w, o, Food.BONES, 0, p, KgM2(found * small.bones[p]).perKm2.over(swept).v / days, 1f, w.eats * BONE_DAYS)
             else if (band != null && w.worth(Food.BONES) > 0f)
-                offer(w, o, Food.BONES, 0, Place(p.i), KgM2(found * small.bones[p]).perKm2.over(swept).v / days, 1f, w.renderDays + w.eats * GREASE_YIELD)
+                offer(w, o, Food.BONES, 0, p, KgM2(found * small.bones[p]).perKm2.over(swept).v / days, 1f, w.renderDays + w.eats * GREASE_YIELD)
         }
     }
     // (The ground it walked, then the country round its camp, which holds none of it.)
@@ -725,7 +725,7 @@ private fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
                 w.plantKind[st] += fed; w.plantKg[st] += haul.mass
                 val from = when (o.type[i]) { Food.FRUIT -> PlantFrom.FRUIT; Food.SEED -> PlantFrom.SEED; Food.FINDS -> PlantFrom.FINDS
                     else -> if (o.kind[i] == MAST_KIND) PlantFrom.MAST else PlantFrom.BULBS }
-                w.plantFrom[from.ordinal] += fed
+                w.plantFrom[from] += fed
                 if (from == PlantFrom.MAST && haul.kg > 0f && band != null && band.knowsSkill[Skill.LEACHING]) band.practise(Skill.LEACHING)
             }
             Food.FISH -> if (o.kind[i] == SHELLFISH_KIND) fauna.water.fishFor(p, expected, 1f, HexWater.Catch.SHELLFISH).let { w.fish += it; w.fed += it * w.feeds(Food.FISH) }
@@ -734,7 +734,7 @@ private fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
                 reap(g, Place(p), expected, haul)
                 val fed = haul.kg * w.worth(Food.GRAIN)
                 w.plants += haul.kg; w.fed += haul.kg * w.feeds(Food.GRAIN); w.plantKind[Store.SEED.ordinal] += fed; w.plantKg[Store.SEED.ordinal] += haul.mass
-                w.plantFrom[PlantFrom.GRAIN.ordinal] += fed
+                w.plantFrom[PlantFrom.GRAIN] += fed
             }
         }
     }
@@ -907,7 +907,7 @@ private fun HexGroups.tallyForage(w: ForageWeek, meatEaten: Float) {
         stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.ASKED), wantAll.toInt(), Int::plus)
         stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.MEAT), (meat * w.worth(Food.BIG_GAME) + smallFed + scrapsFed).toInt(), Int::plus)
         stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.PLANTS), plantsFed.toInt(), Int::plus)
-        for (f in PlantFrom.entries) stats.hunting.merge(Tally.plantsFrom(f), w.plantFrom[f.ordinal].toInt(), Int::plus)
+        for (f in PlantFrom.entries) stats.hunting.merge(Tally.plantsFrom(f), w.plantFrom[f].toInt(), Int::plus)
         stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.FISH), (fish * w.worth(Food.FISH)).toInt(), Int::plus)
         stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.BAND_WEEKS), 1, Int::plus); stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.PEOPLE_WEEKS), g.size, Int::plus)
         stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.HEARTH), (100f * band.hearthWood).toInt(), Int::plus)
@@ -1271,7 +1271,7 @@ internal fun HexGroups.spoil(stores: EnumFloats<Store>, t: Float, keep: Float = 
 private fun HexGroups.practise(g: HexGroup, band: Band, hunted: Boolean, smallGot: Float, plants: Float, fish: Float) {
     if (hunted) band.practise(Skill.HUNT)
     if (smallGot > 0f) band.practise(Skill.SMALL_GAME)
-    if (plants > 0f) { band.practise(Skill.GATHER); learnPlants(band, hw.placeHex[g.place]) }
+    if (plants > 0f) { band.practise(Skill.GATHER); learnPlants(band, hw.hexOf(g.place)) }
     if (fish > 0f) band.practise(Skill.FISH)
     if (band.fire > 0f) band.practise(Skill.ROASTING)
     stats.hunting.merge(Tally.of(g.species, Tally.OfKind.FISH), fish.toInt(), Int::plus)
@@ -1280,7 +1280,7 @@ private fun HexGroups.practise(g: HexGroup, band: Band, hunted: Boolean, smallGo
 /** [g]'s band [band]'s food this week by where it came from, and how its fishing paid, into its running means over about a year. */
 private fun HexGroups.recordFood(g: HexGroup, band: Band, w: ForageWeek) {
     val k = 1f / stepsPerYear; val per = 1f / (max(1, g.size) * days)
-    fun add(f: FoodFrom, kg: Float) { band.foodFrom[f.ordinal] += k * (kg * per - band.foodFrom[f.ordinal]) }
+    fun add(f: FoodFrom, kg: Float) { band.foodFrom[f] += k * (kg * per - band.foodFrom[f]) }
     add(FoodFrom.PLANTS, w.plants); add(FoodFrom.SMALL_GAME, w.smallGot); add(FoodFrom.FISH, w.fish)
     add(FoodFrom.BIG_GAME, w.meat); add(FoodFrom.CARRION, w.scraps)
     band.fishPull += k * (w.fishPull - band.fishPull)

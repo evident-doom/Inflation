@@ -38,6 +38,9 @@ fun gaussian(r: kotlin.random.Random): Double {
     return sqrt(-2 * ln(u)) * cos(2 * Math.PI * r.nextDouble())
 }
 
+/** A standard normal draw from [r], as a float ([gaussian]). */
+fun gaussianF(r: kotlin.random.Random): Float = gaussian(r).toFloat()
+
 /** An index drawn at random by [weights] (summing to [total]), from [r]. */
 fun drawWeighted(weights: FloatArray, total: Float, r: kotlin.random.Random): Int {
     var u = r.nextFloat() * total; var i = 0
@@ -48,7 +51,7 @@ fun drawWeighted(weights: FloatArray, total: Float, r: kotlin.random.Random): In
 /** A Poisson draw of [mean] from [r] (normal, rounded to the nearest count, above a mean of 30). */
 fun poisson(mean: Float, r: kotlin.random.Random): Int {
     if (mean <= 0f) return 0
-    if (mean > 30f) return (mean + sqrt(mean) * gaussian(r).toFloat()).roundToInt().coerceAtLeast(0)
+    if (mean > 30f) return (mean + sqrt(mean) * gaussianF(r)).roundToInt().coerceAtLeast(0)
     val l = exp(-mean.toDouble()); var k = 0; var pr = 1.0
     do { k++; pr *= r.nextDouble() } while (pr > l)
     return k - 1
@@ -63,7 +66,7 @@ fun binomial(n: Int, p: Float, r: kotlin.random.Random): Int {
     if (n <= 0 || p <= 0f) return 0
     if (p >= 1f) return n
     if (n <= 50) { var k = 0; repeat(n) { if (r.nextFloat() < p) k++ }; return k }
-    if (n * p >= 10f && n * (1 - p) >= 10f) return (n * p + sqrt(n * p * (1 - p)) * gaussian(r).toFloat()).roundToInt().coerceIn(0, n)
+    if (n * p >= 10f && n * (1 - p) >= 10f) return (n * p + sqrt(n * p * (1 - p)) * gaussianF(r)).roundToInt().coerceIn(0, n)
     if (p > 0.5f) return n - binomial(n, 1f - p, r)
     // (Rare successes: the tries up to each next one are geometric.)
     val lq = ln(1.0 - p); var k = 0; var at = 0L

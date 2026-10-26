@@ -2,8 +2,8 @@ package inflation.ecology
 
 import kotlin.math.roundToInt
 
-/** Diagnostic (t.huntDiag): counts each step of the hunt by prey kind, into the history ("hunt diag/KIND/STEP"). */
-internal val HUNT_DIAG = inflation.Config.flag(inflation.Config.Key.T_HUNT_DIAG, false)
+/** Diagnostic (huntSteps): counts each step of the hunt by prey kind, into the history ("hunt diag/KIND/STEP"). */
+internal val HUNT_DIAG = inflation.Config.flag(inflation.Config.Key.HUNT_STEPS, false)
 
 /** A step of the hunt that [diag] counts. */
 internal enum class HuntStep(val label: String) {

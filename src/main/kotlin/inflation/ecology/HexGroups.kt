@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.gaussianF
 import inflation.KindStock
 import inflation.StockName
 import inflation.ecology.HexSmallLife.DeadPool
@@ -117,7 +118,7 @@ class HexGroups(
     @Transient var hunterWays: AnimalWays? = null
     /** This week's tallies ([HexLand.stats]). */
     val stats get() = land.stats
-    internal val years = days / Date.DAYS_PER_YEAR.toFloat()
+    internal val years = Date.years(days)
     internal val small get() = fauna.small
 
     init {
@@ -180,7 +181,7 @@ class HexGroups(
         var left = count * unit
         val sizes = ArrayList<Int>()
         while (left > 0) {
-            val drawn = (unit * exp(spread * gaussian(r))).roundToInt().coerceIn(least, max(least, s.maxGroupSize))
+            val drawn = (unit * exp(spread * gaussianF(r))).roundToInt().coerceIn(least, max(least, s.maxGroupSize))
             val size = if (left - drawn < least) left else drawn
             sizes += size; left -= size
         }
@@ -1579,7 +1580,6 @@ class HexGroups(
 
     internal fun poisson(mean: Float, r: Random): Int = inflation.poisson(mean, r)
     internal fun binomial(n: Int, p: Float, r: Random): Int = inflation.binomial(n, p, r)
-    internal fun gaussian(r: Random): Float = inflation.gaussian(r).toFloat()
 
     /** A random stream of group [id]'s own for the week starting on [day]: the same whatever the cores do. */
     internal fun groupRandom(id: Int, day: Long) = Random(seedBase * 1_000_003L + id * 7_919L + day)
@@ -1599,7 +1599,7 @@ internal fun HexGroups.plantKnow(b: Band, h: Hex): Float {
 }
 
 /** A week's gathering in hex [h] teaches band [b] its country's plants. */
-internal fun HexGroups.learnPlants(b: Band, h: Int) {
+internal fun HexGroups.learnPlants(b: Band, h: Hex) {
     var w = 0f
     for (k in Biome.entries) w += hw.biome[k.ordinal][h]
     if (w <= 0f) return

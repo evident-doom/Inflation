@@ -182,7 +182,7 @@ internal class ViewLayers(private val sim: HexSim) {
                 (grass + fauna.browseLeft[p] * d.browse / gb) * HexFood.access(s, land.crag[p]) * fauna.tether(s, Place(p))
             }
         }
-        fun fodderShare(s: Species): Float { val d = s.diet; val all = d.grass + d.browse + d.fruit + d.roots + d.meat + d.smallPrey + d.carrion
+        fun fodderShare(s: Species): Float { val d = s.diet; val all = d.total
             return if (all > 0f) (d.grass + d.browse) / all else 0f }
         val shortBy = HashMap<Species, DoubleArray>()
         for ((k, s) in fauna.kinds.withIndex()) {

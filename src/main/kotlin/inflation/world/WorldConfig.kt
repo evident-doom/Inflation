@@ -58,7 +58,7 @@ data class WorldConfig(
     }
 
     /** Steps in a year of [Date.DAYS_PER_YEAR] days. */
-    val stepsPerYear: Int get() = Date.DAYS_PER_YEAR / daysPerStep
+    val stepsPerYear: Int get() = Date.stepsPerYear(daysPerStep)
 
     val width: Int get() = (widthKm / cellKm).toInt()
     val height: Int get() = (heightKm / cellKm).toInt()

@@ -108,7 +108,7 @@ class Critic(val net: Mlp, private val scale: HashMap<String, Scale> = HashMap()
         fun boot(s: Species) = if (s.human) PEOPLE_BOOT else BOOT
 
         /** Where [c]'s group stood: the candidate that is staying put (else the first). */
-        fun here(c: Choice) = c.inputs.indices.firstOrNull { c.inputs[it].getOrElse(HexFeatures.STAYS) { 0f } > 0.5f } ?: 0
+        fun here(c: Choice) = here(c.inputs)
         fun here(features: Array<FloatArray>) = features.indices.firstOrNull { features[it].getOrElse(HexFeatures.STAYS) { 0f } > 0.5f } ?: 0
 
         /**

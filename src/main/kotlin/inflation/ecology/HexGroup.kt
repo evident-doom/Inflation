@@ -30,12 +30,12 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
     /** Weeks in a row it has gone hungry (fed under half); the last hexes it hunted in, newest first. */
     var lean = 0
     val recent = IntArray(4) { -1 }
-    /** Lineage tag for learning, -1 for none; the group it split from (-1 for none); its size when it merged into another (-1 if it did
-     * not), for following a choice's outcome. */
+    /** Lineage tag for learning, -1 for none; the group it split from (-1 for none). */
     var tag = -1
     var parent = -1
     /** The places it remembers (see [PlaceMemory]). */
     val memory = PlaceMemory()
+    /** Its size when it merged into another (-1 if it did not), for following a choice's outcome. */
     var mergedSize = -1
     /** The group it merged into, the step it did (else -1): for following what became of its members. Not saved: read in the same step. */
     @Transient var mergedInto = -1

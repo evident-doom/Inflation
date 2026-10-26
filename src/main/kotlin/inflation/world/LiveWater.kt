@@ -72,7 +72,7 @@ class LiveWater(private val world: World) {
 
     init {
         // Start near the long-term state: moist soil, groundwater at its mean level.
-        val stepsPerYear = Date.DAYS_PER_YEAR / days
+        val stepsPerYear = Date.stepsPerYear(days)
         for (i in 0 until n) {
             if (world.isSea[i]) continue
             soil[i] = SOIL_CAPACITY * 0.6f

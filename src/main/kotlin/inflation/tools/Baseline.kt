@@ -22,13 +22,16 @@ import java.io.File
  *   baseline list
  *   baseline show NAME      (loads each network into today's model, by name, and says what it lacks)
  */
+private const val USAGE = "baseline save NAME FROM_DIR [--ways FILE] [--hunter-ways FILE] [--commit HASH] [--note TEXT] | baseline list | baseline show NAME"
+
 fun main(args: Array<String>) {
     val root = baselinesRoot()
+    val a = Args(args.drop(1).toTypedArray(), USAGE)
     when (args.getOrNull(0)) {
         "save" -> {
-            val name = args[1]; val from = File(args[2])
-            val a = Args(args.copyOfRange(3, args.size), "baseline save NAME FROM_DIR [--ways FILE] [--hunter-ways FILE] [--commit HASH] [--note TEXT]")
             val ways = a.file("--ways"); val hunterWays = a.file("--hunter-ways"); val commit = a.string("--commit") ?: gitCommit(); val note = a.string("--note") ?: ""
+            val (name, fromPath) = a.rest().also { require(it.size == 2) { "save NAME FROM_DIR" } }
+            val from = File(fromPath)
             a.done()
             val dir = File(root, name)
             require(!dir.exists()) { "baseline $name exists already: baselines are kept as they are" }
@@ -42,11 +45,12 @@ fun main(args: Array<String>) {
             File(dir, "info.txt").writeText("kept ${java.time.LocalDateTime.now()}\nfrom ${from.path}${listOfNotNull(ways, hunterWays).joinToString("") { " and ${it.path}" }}\ncommit $commit\n$note\n")
             println("kept baseline $name in $dir")
         }
-        "list" -> root.listFiles()?.filter { it.isDirectory }?.sortedBy { it.name }?.forEach { d ->
+        "list" -> { a.done(); root.listFiles()?.filter { it.isDirectory }?.sortedBy { it.name }?.forEach { d ->
             println("%-24s %s".format(d.name, File(d, "info.txt").takeIf { it.exists() }?.readLines()?.joinToString(" | ") ?: ""))
-        }
+        } }
         "show" -> {
-            val dir = File(root, args[1])
+            val name = a.rest().singleOrNull() ?: error("show NAME"); a.done()
+            val dir = File(root, name)
             File(dir, "info.txt").takeIf { it.exists() }?.let { println(it.readText().trim()) }
             for (r in Role.entries) {
                 val f = r.file(dir)
@@ -54,7 +58,7 @@ fun main(args: Array<String>) {
             }
             for (k in WaysKind.entries) File(dir, k.file).takeIf { it.exists() }?.let { report("${k.label}' ways", it, k.inNames, k.outNames) }
         }
-        else -> println("usage: baseline save NAME FROM_DIR [--ways FILE] [--hunter-ways FILE] [--commit HASH] [--note TEXT] | baseline list | baseline show NAME")
+        else -> println("usage: $USAGE")
     }
 }
 

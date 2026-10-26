@@ -1,5 +1,6 @@
 package inflation.world
 
+import inflation.inflationHome
 import inflation.Config
 import inflation.store.Reader
 import inflation.store.Restorer
@@ -82,7 +83,7 @@ private fun <T : Any> kept(file: File, magic: Int, name: String, log: (String) -
  */
 object WorldCache {
     private const val WORLD_MAGIC = 0x48455857 // "HEXW"
-    val dir = File(System.getProperty("user.home"), ".inflation/world-cache")
+    val dir = inflationHome("world-cache")
 
     fun load(cfg: WorldConfig, log: (String) -> Unit = {}): World {
         if (!Config.flag(Config.Key.WORLD_CACHE, true)) return World.generate(cfg, log = log)
@@ -106,7 +107,7 @@ object WorldCache {
  */
 object LandformCache {
     private const val MAGIC = 0x4845584C // "HEXL"
-    val dir = File(System.getProperty("user.home"), ".inflation/landform-cache")
+    val dir = inflationHome("landform-cache")
     private val PARTS = listOf("Tectonics", "Volcan", "Geology", "Erosion", "Hydrology", "Drainage", "Noise", "Grid", "FloatHeap", "Rock", "World", "Landform", "Plate")
 
     fun load(cfg: WorldConfig, log: (String) -> Unit = {}): Landform {

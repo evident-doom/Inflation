@@ -42,8 +42,8 @@ object Niches {
             Shelter.CRAG -> land.cragShelter[p]
             // Dens: burrows in broken ground, and best of all caves.
             Shelter.DEN -> maxOf(land.denShelter[p], land.caves[p])
-            Shelter.THICKET -> land.plants.cover(Place(p.i))
-            Shelter.TREE -> land.plants.canopy(Place(p.i))
+            Shelter.THICKET -> land.plants.cover(p)
+            Shelter.TREE -> land.plants.canopy(p)
             // Reed beds, marsh and deep water: those that swim or wade take to it.
             Shelter.WATER -> min(1f, land.floodShare[p] + 0.5f * (land.drink.nearRiver[p] + land.drink.nearLake[p]))
         })

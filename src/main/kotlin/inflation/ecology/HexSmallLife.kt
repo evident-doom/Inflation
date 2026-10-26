@@ -153,7 +153,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     /** Migrant birds leaving this week from each place, kg (summed in place order after the parallel loop, so the sum is the same on any number of cores). */
     private val leaving = Array(BIRDS.size) { FloatArray(n) }
     private var lastMonth = -1
-    private val years = days / Date.DAYS_PER_YEAR.toFloat()
+    private val years = Date.years(days)
     /**
      * For the books (see [Books]), this step, kg; null when they are not kept: what the small animals grew (born and
      * grown, from what they ate or from their rates), ate, and dropped as dung and frass.
