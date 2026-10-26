@@ -41,7 +41,7 @@ internal fun weakShare(g: HexGroup) = g.band?.let { b -> ((b.elders + (b.hurt + 
  * Km [g]'s band covers in a day of moving camp: at the pace of its slowest, its adults under their loads ([carriedKg],
  * [loadedKmh]) or its walking children if it has any, held back by its weak ([weakShare]) and by thick cover where it camps.
  */
-internal fun HexGroups.campKmADay(g: HexGroup): Float {
+internal fun GroupWorld.campKmADay(g: HexGroup): Float {
     val b = g.band
     val adults = if (b != null) loadedKmh(g.species.massKg, carriedKg(g, b)) else WALK_KMH
     return MOVE_HOURS * min(adults, if (g.young > 0) CHILD_PACE * WALK_KMH else adults) * (1f - WEAK_SLOW * weakShare(g)) /
@@ -49,7 +49,7 @@ internal fun HexGroups.campKmADay(g: HexGroup): Float {
 }
 
 /** Days [g]'s band takes to move its camp [km], all its people walking (and its adults back for each load past the first): they are not at work. */
-internal fun HexGroups.moveDays(g: HexGroup, km: Float) = km * (g.band?.let { relayWalks(it) } ?: 1f) / campKmADay(g)
+internal fun GroupWorld.moveDays(g: HexGroup, km: Float) = km * (g.band?.let { relayWalks(it) } ?: 1f) / campKmADay(g)
 
 /**
  * What an adult carries in a load when the camp moves, food and goods together, kg: !Kung women carried about 15 kg
@@ -59,7 +59,7 @@ const val CARRY_KG = 15f
 /** Extra yearly deaths among children in a camp kept for a year or more. */
 const val CAMP_FOULING = 0.02f
 /** Whether [g]'s band [b] has come to a new camp this week (or has none yet), where no shelter of its stands. */
-internal fun HexGroups.movedCamp(g: HexGroup, b: Band) = b.campPlace.none || hw.placeHex[g.place] != hw.placeHex[b.campPlace]
+internal fun GroupWorld.movedCamp(g: HexGroup, b: Band) = b.campPlace.none || hw.placeHex[g.place] != hw.placeHex[b.campPlace]
 
 /** The country [g]'s band comes to know this week: what it walks, and what it sees round about from the high points on its way, its scouts further still. */
 internal fun HexGroups.learnCountry(g: HexGroup, b: Band, weather: Weather) {
@@ -98,15 +98,15 @@ internal fun cacheCare(b: Band) = max(1f, b.cacheWill)
  * where they crop out (good stone, salt, ochre), what they keep of them ([KEEP_YEARS] of [YEAR_NEED]), since what is left
  * behind is not to be had again on the way.
  */
-private fun HexGroups.mendingKg(b: Band, m: Material, people: Float) =
+private fun GroupWorld.mendingKg(b: Band, m: Material, people: Float) =
     people * (b.stayWeeks / stepsPerYear * Tool.entries.sumOf { t -> if (b.knows[t] && !t.heavy) ((t.recipe[m] ?: 0f) * t.wearPerYear).toDouble() else 0.0 }.toFloat() +
         KEEP_YEARS * YEAR_NEED[m])
 
 /** The kg of goods [g]'s band [b] takes along on a camp move before its food: what it has of what it takes first ([mendingKg]). */
-private fun HexGroups.mendingStockKg(g: HexGroup, b: Band) = Material.entries.sumOf { m -> min(b.goods[m], mendingKg(b, m, g.adults.toFloat())).toDouble() }.toFloat()
+private fun GroupWorld.mendingStockKg(g: HexGroup, b: Band) = Material.entries.sumOf { m -> min(b.goods[m], mendingKg(b, m, g.adults.toFloat())).toDouble() }.toFloat()
 
 /** The kg of its stores [g]'s band [b] cannot carry in its loads ([carryKg], [carryLoads]) beside its mending stock: what it caches or leaves when it moves camp. */
-internal fun HexGroups.leftBehindKg(g: HexGroup, b: Band): Float {
+internal fun GroupWorld.leftBehindKg(g: HexGroup, b: Band): Float {
     val total = g.larder
     val carry = max(0f, carryKg(g, b) * carryLoads(b) - mendingStockKg(g, b))
     if (total <= carry) return 0f
@@ -228,7 +228,7 @@ internal fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, weat
 }
 
 /** What [b] cannot carry is left behind at place [p] (and goes back to the ground); at a camp it keeps, it stacks building stone and timber beyond that. */
-internal fun HexGroups.leaveExcess(b: Band, p: Place, people: Float, area: Float) {
+internal fun GroupWorld.leaveExcess(b: Band, p: Place, people: Float, area: Float) {
     val gd = b.goods
     for (m in Material.entries) {
         val over = gd[m] - carried(b, m, people)
@@ -240,7 +240,7 @@ internal fun HexGroups.leaveExcess(b: Band, p: Place, people: Float, area: Float
 }
 
 /** Gives up a band's cache: what is in it goes back to the ground. */
-internal fun HexGroups.dropCache(b: Band) {
+internal fun GroupWorld.dropCache(b: Band) {
     if (!b.cachePlace.none) small.deposit(DeadPool.LITTER, b.cachePlace, Kg(b.cacheMass()))
     b.cache.fill(0f); b.cachePlace = Place.NONE
 }
@@ -269,7 +269,7 @@ internal fun HexGroups.campFouling(g: HexGroup, campWeeks: Int = g.band?.campWee
 /** How fouled a band's camp is, 0..1: not at all for its first two months, fully after a year more. */
 internal fun HexGroups.fouled(b: Band) = fouled(b.campWeeks)
 /** How fouled a camp kept [campWeeks] weeks is (see [fouled]). */
-internal fun HexGroups.fouled(campWeeks: Int) = min(1f, max(0f, campWeeks - stepsPerYear / 6f) / stepsPerYear)
+internal fun GroupWorld.fouled(campWeeks: Int) = min(1f, max(0f, campWeeks - stepsPerYear / 6f) / stepsPerYear)
 
 /** How much a band would rather leave its camp than stay: the camp fouled (less where it keeps it clean), against the graves of its dead. */
 internal fun HexGroups.stayCost(b: Band): Float {

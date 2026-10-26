@@ -27,7 +27,7 @@ const val TEACH = 0.2f
  * own rate of gathering. With no [time] it gathers nothing, and returns the person-days it would have liked (else 0).
  */
 @IgnorableReturnValue
-internal fun HexGroups.gatherMaterials(g: HexGroup, b: Band, p: Place, h: Hex, people: Float, m2: Float, time: BandTime?): Float {
+internal fun GroupWorld.gatherMaterials(g: HexGroup, b: Band, p: Place, h: Hex, people: Float, m2: Float, time: BandTime?): Float {
     val gd = b.goods
     var asked = 0f
     /** Takes up to [give] kg of [m], as far as the band lacks it and has the time at [perDay] kg a person-day; returns what it took. */
@@ -82,20 +82,20 @@ internal fun HexGroups.gatherMaterials(g: HexGroup, b: Band, p: Place, h: Hex, p
  * What [b] carries of [m] at most, kg: its share of the goods a person carries, and at a camp it has kept long enough to build
  * at ([houseAfterWeeks]), building stone and timber stacked beyond that.
  */
-internal fun HexGroups.carried(b: Band, m: Material, people: Float): Float {
+internal fun GroupWorld.carried(b: Band, m: Material, people: Float): Float {
     val stack = if (m == Material.STONE || m == Material.WOOD) (if (b.campWeeks >= houseAfterWeeks(b)) HOUSE_STONE + HOUSE_WOOD else 0f) else 0f
     return (GOODS_PER_PERSON + stack) * people
 }
 
 /** How far [g]'s band [b] lacks [m]: 1 with none of it, 0 with all it carries ([carried]). */
-internal fun HexGroups.lacking(g: HexGroup, b: Band, m: Material) = max(0f, 1f - b.goods[m] / carried(b, m, g.adults.toFloat()).coerceAtLeast(1e-3f))
+internal fun GroupWorld.lacking(g: HexGroup, b: Band, m: Material) = max(0f, 1f - b.goods[m] / carried(b, m, g.adults.toFloat()).coerceAtLeast(1e-3f))
 
 /**
  * The work [b]'s customs ask of it this week, from [time] (person-days) after the firewood: keeping the camp clean
  * (middens carried off, water fetched apart from them) and nursing its sick and hurt. Each is done as far as the time
  * goes, and helps only as far as it was done.
  */
-internal fun HexGroups.keepCustoms(b: Band, people: Float, time: BandTime) {
+internal fun GroupWorld.keepCustoms(b: Band, people: Float, time: BandTime) {
     val clean = cleanDays(b, people)
     b.cleaned = if (clean > 0f) min(1f, time.leftFor(Activity.CUSTOMS) / clean) else 1f
     time.spend(Activity.CUSTOMS, b.cleaned * clean)
@@ -107,14 +107,14 @@ internal fun HexGroups.keepCustoms(b: Band, people: Float, time: BandTime) {
 }
 
 /** Person-days [b]'s [people] give a week to keeping clean, if it holds to it. */
-internal fun HexGroups.cleanDays(b: Band, people: Float) = if (b.holds(Tradition.HYGIENE)) HYGIENE_DAYS * people * days else 0f
+internal fun GroupWorld.cleanDays(b: Band, people: Float) = if (b.holds(Tradition.HYGIENE)) HYGIENE_DAYS * people * days else 0f
 
 /** Person-days [b] gives a week to nursing its sick and hurt among its [people], if it holds to it. */
-internal fun HexGroups.nurseDays(b: Band, people: Float) =
+internal fun GroupWorld.nurseDays(b: Band, people: Float) =
     if (b.holds(Tradition.MEDICINE)) NURSE_DAYS * people * (b.hurt + b.sick.sum()).coerceAtMost(1f) * days else 0f
 
 /** [b]'s tools wear out in use (slowly lying idle); a band with a use for a tool or practised at a kind of work now and then hits on a new one. */
-internal fun HexGroups.wearAndInvent(b: Band, years: Float) {
+internal fun GroupWorld.wearAndInvent(b: Band, years: Float) {
     for (t in Tool.entries) {
         // Tools wear out in use; lying idle, slowly (cords rot, hafts dry and crack).
         val inUse = t == Tool.CLOTHES || t.uses.any { b.weeks - b.lastUsed[it] <= 1 }
@@ -187,7 +187,7 @@ internal fun HexGroups.makeTools(b: Band, people: Float, time: BandTime?): Float
 }
 
 /** Ornaments of shell and bone, made with the [time] days [b] has still to spare. */
-internal fun HexGroups.makeOrnaments(b: Band, people: Float, time: BandTime) {
+internal fun GroupWorld.makeOrnaments(b: Band, people: Float, time: BandTime) {
     val gd = b.goods
     val left = time.leftFor(Activity.ORNAMENTS)
     if (left > 0f && people > 0f) {
@@ -206,7 +206,7 @@ internal fun ornamentsWanted(b: Band, people: Float) =
     min(b.goods[Material.SHELL] / SHELL_EACH + b.goods[Material.BONE] / BONE_EACH, ORNAMENTS_PER_PERSON * people - b.ornaments).coerceAtLeast(0f)
 
 /** Knowledge fades fast unused, unless songs and stories keep [b]'s; hand skills last for years; a way no one holds is lost. */
-internal fun HexGroups.forget(b: Band) {
+internal fun GroupWorld.forget(b: Band) {
     val forgetKnowledge = (if (b.holds(Tradition.ORAL_TRADITION)) FORGET_KNOWLEDGE * 0.4f else FORGET_KNOWLEDGE) * b.lapse(Skill.LORE)
     for (s in Skill.entries) {
         val unused = b.weeks - b.lastUsed[s] > 4
@@ -227,7 +227,7 @@ const val IDLE_WEAR = 0.3f
 const val TOOLLESS = 0.2f
 
 /** Two bands that meet show each other tools one of them does not know, the more readily the better they understand each other ([understood]). */
-internal fun HexGroups.teach(a: Band, b: Band, understood: Float, aDoesBetter: Float = 0f) {
+internal fun GroupWorld.teach(a: Band, b: Band, understood: Float, aDoesBetter: Float = 0f) {
     for (k in Tool.entries) if (a.knows[k] != b.knows[k] && rnd.nextFloat() < TEACH * (0.5f + 0.5f * understood)) {
         a.knows[k] = true; b.knows[k] = true
         stats.meeting(Met.Of.LEARNED, k.name.lowercase())

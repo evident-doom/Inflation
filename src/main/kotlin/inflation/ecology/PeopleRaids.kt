@@ -27,7 +27,7 @@ internal fun HexGroups.buildPalisade(g: HexGroup, b: Band, h: Hex, people: Float
 }
 
 /** Whether [b] rings its houses with a palisade: at home, raided lately (by its will), with the ring not whole. */
-internal fun HexGroups.fortifies(b: Band) = b.atHome && b.sinceRaided < stepsPerYear * b.fortifyWill && b.palisade < 1f
+internal fun GroupWorld.fortifies(b: Band) = b.atHome && b.sinceRaided < stepsPerYear * b.fortifyWill && b.palisade < 1f
 
 /**
  * A band driven by hunger or a feud, knowing where a band it is not close to has its home within

@@ -50,7 +50,7 @@ internal fun burnNightFire(b: Band, people: Float): Float {
 }
 
 /** Weeks [b] keeps a camp before it builds houses there: sooner the keener it is ([BandWay.HOUSES]). */
-internal fun HexGroups.houseAfterWeeks(b: Band) = HOUSE_AFTER_YEARS * stepsPerYear / b.houseWill.coerceAtLeast(0.1f)
+internal fun GroupWorld.houseAfterWeeks(b: Band) = HOUSE_AFTER_YEARS * stepsPerYear / b.houseWill.coerceAtLeast(0.1f)
 
 /**
  * The hearth's firewood for the week, fetched by [hands] before they forage: dead wood from the trees and scrub
@@ -58,7 +58,7 @@ internal fun HexGroups.houseAfterWeeks(b: Band) = HOUSE_AFTER_YEARS * stepsPerYe
  * A band goes without rather than give more than [FUEL_MOST] of its days to it, and fetches only the [share] of that its
  * week's plan gives it ([planWeek]). Returns the days it took.
  */
-internal fun HexGroups.fetchFuel(g: HexGroup, b: Band, hands: Int, share: Float = 1f): Float {
+internal fun GroupWorld.fetchFuel(g: HexGroup, b: Band, hands: Int, share: Float = 1f): Float {
     val p = g.place
     val want = HEARTH_WOOD * days * g.size
     val tree = land.plants.tree[p]; val shrub = land.plants.shrub[p]
@@ -76,7 +76,7 @@ internal fun HexGroups.fetchFuel(g: HexGroup, b: Band, hands: Int, share: Float 
 }
 
 /** The person-days [g]'s [hands] would give the hearth's firewood this week ([fetchFuel] with all it asks). */
-internal fun HexGroups.fuelAsk(g: HexGroup, hands: Int): Float {
+internal fun GroupWorld.fuelAsk(g: HexGroup, hands: Int): Float {
     val cover = woodCover(g.place)
     return if (HEARTH_WOOD * g.size <= 0f || cover <= 0f) 0f else fuelShare(cover, g.size.toFloat() / hands) * days * hands
 }
@@ -106,7 +106,7 @@ internal fun HexGroups.warmthNeed(s: Species, b: Band?, p: Place, weather: Weath
     else warmthNeed(b.warmth(airAt(p, weather, t), fire, home, days), fire)
 
 /** A band's need for its week's [w] (its body heat) with a fire of [fire]: see [warmthNeed]. */
-internal fun HexGroups.warmthNeed(w: Warmth, fire: Float) = (1f + tuning.coldCost * w.extra) * (1f + RAW_COST * (1f - fire))
+internal fun GroupWorld.warmthNeed(w: Warmth, fire: Float) = (1f + tuning.coldCost * w.extra) * (1f + RAW_COST * (1f - fire))
 
 /**
  * Houses: [g]'s band, having kept its camp a while, builds stone-footed houses there with the [time] days to spare, as
