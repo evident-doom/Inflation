@@ -22,7 +22,7 @@ import inflation.ecology.Species
 import inflation.ecology.Tool
 import inflation.ecology.Material
 import inflation.ecology.Tradition
-import inflation.ecology.bandLifeway
+import inflation.ecology.bandLiving
 import inflation.ecology.boldness
 import inflation.ecology.houseFoodAYear
 import inflation.ecology.houseLivesAYear
@@ -424,7 +424,7 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
             " | kept herds: " + fauna.kinds.indices.filter { k -> bs.any { it.herd.size > k && it.herd[k] >= 1f } }.joinToString(", ") { k ->
                 val keepers = bs.filter { it.herd.size > k && it.herd[k] >= 1f }
                 "%s %.0f head in %d bands, %d of them mobile (tame %.2f)".format(fauna.kinds[k].name, keepers.sumOf { it.herd[k].toDouble() },
-                    keepers.size, keepers.count { sim.groups.bandLifeway(it) == Tally.Lifeway.MOBILE }, keepers.map { it.herdTame[k].toDouble() }.average()) }.ifEmpty { "none" } +
+                    keepers.size, keepers.count { sim.groups.bandLiving(it) == Tally.Living.MOBILE }, keepers.map { it.herdTame[k].toDouble() }.average()) }.ifEmpty { "none" } +
             herdFlows() +
             " | ornaments %.1f a person (%.0f%% of shell), shell beads a person inland %.2f, by the sea %.2f; graves with goods %d (richest hold %.0f%% of goods)".format(
                 bs.sumOf { it.ornaments.toDouble() } / headsOf(bands),

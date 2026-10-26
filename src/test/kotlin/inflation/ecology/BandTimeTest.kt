@@ -30,9 +30,9 @@ class BandTimeTest {
     @Test
     fun `what is held for one is kept from the others till it is released`() {
         val time = BandTime(10f)
-        val asks = FloatArray(Activity.entries.size)
-        asks[Activity.FOOD.ordinal] = 6f; asks[Activity.LEISURE.ordinal] = 6f
-        time.plan(FloatArray(asks.size), asks)
+        val asks = enumFloats<Activity>()
+        asks[Activity.FOOD] = 6f; asks[Activity.LEISURE] = 6f
+        time.plan(enumFloats(), asks)
         assertEquals(5f, time.leftFor(Activity.FOOD), 1e-3f)
         assertEquals(0f, time.leftFor(Activity.TOOLS), 1e-3f)
         time.spend(Activity.FOOD, 3f)
@@ -52,9 +52,9 @@ class BandTimeTest {
     @Test
     fun `the days no activity asks for are the week's rest`() {
         val time = BandTime(10f)
-        val asks = FloatArray(Activity.entries.size)
-        asks[Activity.FOOD.ordinal] = 3f; asks[Activity.TOOLS.ordinal] = 2f
-        time.plan(FloatArray(asks.size), asks)
+        val asks = enumFloats<Activity>()
+        asks[Activity.FOOD] = 3f; asks[Activity.TOOLS] = 2f
+        time.plan(enumFloats(), asks)
         assertEquals(5f, time.unheld, 1e-3f)
         time.spend(Activity.FOOD, 1f)
         assertEquals(5f, time.unheld, 1e-3f)
@@ -63,8 +63,8 @@ class BandTimeTest {
     @Test
     fun `what a band needs to live through the week comes before the rest`() {
         val time = BandTime(10f)
-        val needs = FloatArray(Activity.entries.size); val asks = FloatArray(Activity.entries.size)
-        needs[Activity.FOOD.ordinal] = 7f; asks[Activity.LEISURE.ordinal] = 6f; asks[Activity.TOOLS.ordinal] = 3f
+        val needs = enumFloats<Activity>(); val asks = enumFloats<Activity>()
+        needs[Activity.FOOD] = 7f; asks[Activity.LEISURE] = 6f; asks[Activity.TOOLS] = 3f
         time.plan(needs, asks)
         assertEquals(7f, time.leftFor(Activity.FOOD), 1e-3f)
         assertEquals(1f, time.leftFor(Activity.TOOLS), 1e-3f)
@@ -72,7 +72,7 @@ class BandTimeTest {
 
     @Test
     fun `work at half pace takes twice the people's days, the rest lost`() {
-        val pace = FloatArray(Activity.entries.size) { 1f }.also { it[Activity.FOOD.ordinal] = 0.5f }
+        val pace = enumFloats<Activity> { 1f }.also { it[Activity.FOOD] = 0.5f }
         val t = BandTime(10f, pace)
         assertEquals(5f, t.leftFor(Activity.FOOD), 1e-6f)
         assertEquals(10f, t.leftFor(Activity.TOOLS), 1e-6f)

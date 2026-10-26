@@ -28,7 +28,7 @@ import inflation.world.get
 import inflation.world.set
 import inflation.world.Place
 import inflation.ecology.seedCornIn
-import inflation.ecology.bandLifeway
+import inflation.ecology.bandLiving
 import inflation.ecology.birthSpacing
 import kotlin.math.max
 
@@ -241,8 +241,8 @@ class Census(private val sim: HexSim) {
             bands.count { it.second > 0f }, bands.size, cornSum / 1000, if (cornSum > 0) bands.sumOf { it.first.seedDomestic * it.second.toDouble() } / cornSum else 0.0,
             wild / 1000, if (wild > 0) bands.sumOf { it.first.grainDomestic * it.third.toDouble() } / wild else 0.0))
         // (What spaces births: gruel to wean on, and children carried on the band's moves; people-weighted.)
-        println("births by how bands live (people; share of weanlings weaned on gruel; camp moves a year; births against a band without weaning food): " + Tally.Lifeway.entries.joinToString(", ") { way ->
-            val ofWay = groups.groups.filter { g -> g.alive && g.band?.let { groups.bandLifeway(it) == way } == true }
+        println("births by how bands live (people; share of weanlings weaned on gruel; camp moves a year; births against a band without weaning food): " + Tally.Living.entries.joinToString(", ") { way ->
+            val ofWay = groups.groups.filter { g -> g.alive && g.band?.let { groups.bandLiving(it) == way } == true }
             val people = ofWay.sumOf { it.size.toDouble() }.coerceAtLeast(1.0)
             fun mean(v: (inflation.ecology.Band) -> Float) = ofWay.sumOf { g -> g.band?.let { v(it).toDouble() * g.size } ?: 0.0 } / people
             "%s %d: %.2f; %.1f; %.2f".format(way.label, ofWay.sumOf { it.size }, mean { it.weaningFood },
@@ -327,9 +327,9 @@ class Census(private val sim: HexSim) {
             val died = lastYear.filterKeys { it.startsWith(Tally.bandsCladDied(c)) }
             "%s %.0f%%: %.3f, %.3f".format(c.label, 100.0 * (lastYear[Tally.bandsClad(c, Tally.Bands.PEOPLE_WEEKS)] ?: 0) / all.coerceAtLeast(1),
                 died.values.sum() / years.coerceAtLeast(1e-9), (died[Tally.bandsCladDied(c, DeathCause.EXPOSURE)] ?: 0) / years.coerceAtLeast(1e-9)) })
-        println("bands by how they live, last year (settled: at home in their houses or at a camp kept half a year or more; share of people-weeks; people a band; births / deaths per 1000 people a year; deaths per 1000 a year by cause, largest first): " + Tally.Lifeway.entries.joinToString(", ") { w ->
+        println("bands by how they live, last year (settled: at home in their houses or at a camp kept half a year or more; share of people-weeks; people a band; births / deaths per 1000 people a year; deaths per 1000 a year by cause, largest first): " + Tally.Living.entries.joinToString(", ") { w ->
             val pw = (lastYear[Tally.bandsLiving(w, Tally.Bands.PEOPLE_WEEKS)] ?: 0).toDouble()
-            val all = Tally.Lifeway.entries.sumOf { (lastYear[Tally.bandsLiving(it, Tally.Bands.PEOPLE_WEEKS)] ?: 0).toDouble() }.coerceAtLeast(1.0)
+            val all = Tally.Living.entries.sumOf { (lastYear[Tally.bandsLiving(it, Tally.Bands.PEOPLE_WEEKS)] ?: 0).toDouble() }.coerceAtLeast(1.0)
             val years = (pw / stepsPerYear).coerceAtLeast(1e-9)
             val died = lastYear.filterKeys { it.startsWith(Tally.bandsLivingDied(w)) }.mapKeys { Tally.diedOf(it.key) }
             "%s %.0f%%, %.1f a band: %.1f / %.1f (%s)".format(w.label, 100 * pw / all, pw / (lastYear[Tally.bandsLiving(w, Tally.Bands.BAND_WEEKS)] ?: 0).toDouble().coerceAtLeast(1.0),

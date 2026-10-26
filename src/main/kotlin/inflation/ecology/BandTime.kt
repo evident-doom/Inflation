@@ -48,7 +48,7 @@ enum class Workplace { OUT, CAMP, NONE }
  * what nobody asked for ([leftFor]), in turn, each as far as it goes; what one did not use is free for those after it
  * ([release]). What each took is kept for the census of band time.
  */
-class BandTime(left: Float, private val pace: FloatArray? = null) {
+class BandTime(left: Float, private val pace: EnumFloats<Activity>? = null) {
     /** Person-days in all, as it began. */
     val total = left
     /** Person-days still unspent, held or not. */
@@ -58,7 +58,7 @@ class BandTime(left: Float, private val pace: FloatArray? = null) {
     private val held = enumFloats<Activity>()
     private val heldAtOne = enumFloats<Activity>()
     /** What each activity asked for this week, person-days (none before a [plan]). */
-    val asked = FloatArray(Activity.entries.size)
+    val asked = enumFloats<Activity>()
     /** Whether the asks beyond what the week needs came to more than the days left for them (false before a [plan]). */
     var short = false
         private set
@@ -67,7 +67,7 @@ class BandTime(left: Float, private val pace: FloatArray? = null) {
     val unheld get() = max(0f, left - held.sum())
 
     /** How much of a person-day spent at [a] is work this week, the rest lost to the cold and hunger ([Band.paceAt]; 1 when not given). */
-    fun pace(a: Activity) = pace?.get(a.ordinal)?.coerceAtLeast(PACE_LEAST) ?: 1f
+    fun pace(a: Activity) = pace?.get(a)?.coerceAtLeast(PACE_LEAST) ?: 1f
 
     /** Person-days lost to the cold and hunger in what was spent so far (see [pace]). */
     var lost = 0f
@@ -106,17 +106,17 @@ class BandTime(left: Float, private val pace: FloatArray? = null) {
      * kills within the week, where a hungry week is bridged by the larder and fat), then what else it [needs] (the week's
      * food and the rest of the hearth's firewood), then of the rest its share ([shareOut]) of what else it [asks], weighed by [weights] (1 each by default).
      */
-    fun plan(needs0: FloatArray, asks0: FloatArray, weights: FloatArray? = null, warm0: FloatArray? = null) {
-        for (i in asked.indices) asked[i] = needs0[i] + asks0[i] + (warm0?.get(i) ?: 0f)
+    fun plan(needs0: EnumFloats<Activity>, asks0: EnumFloats<Activity>, weights: EnumFloats<Activity>? = null, warm0: EnumFloats<Activity>? = null) {
+        for (a in Activity.entries) asked[a] = needs0[a] + asks0[a] + (warm0?.get(a) ?: 0f)
         // (Days of work asked, as people's days at each activity's pace.)
-        val needs = FloatArray(needs0.size) { needs0[it] / pace(Activity.entries[it]) }
-        val asks = FloatArray(asks0.size) { asks0[it] / pace(Activity.entries[it]) }
+        val needs = FloatArray(needs0.a.size) { needs0.a[it] / pace(Activity.entries[it]) }
+        val asks = FloatArray(asks0.a.size) { asks0.a[it] / pace(Activity.entries[it]) }
         val ones = FloatArray(needs.size) { 1f }
-        val warmed = warm0?.let { w -> shareOut(FloatArray(w.size) { w[it] / pace(Activity.entries[it]) }, ones, max(0f, left)) }
+        val warmed = warm0?.let { w -> shareOut(FloatArray(w.a.size) { w.a[it] / pace(Activity.entries[it]) }, ones, max(0f, left)) }
         val fed = shareOut(needs, ones, max(0f, left - (warmed?.sum() ?: 0f)))
         val first = if (warmed == null) fed else FloatArray(fed.size) { fed[it] + warmed[it] }
         short = asks.sum() > max(0f, left - first.sum())
-        val then = shareOut(asks, weights ?: ones, max(0f, left - first.sum()))
+        val then = shareOut(asks, weights?.a ?: ones, max(0f, left - first.sum()))
         if (weights != null) shareOut(asks, ones, max(0f, left - first.sum())).forEachIndexed { i, d -> heldAtOne.a[i] = first[i] + d }
         for (i in held.a.indices) { held.a[i] = first[i] + then[i]; if (weights == null) heldAtOne.a[i] = held.a[i] }
     }

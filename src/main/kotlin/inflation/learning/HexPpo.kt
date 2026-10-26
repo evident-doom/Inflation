@@ -340,6 +340,7 @@ object HexPpo {
     const val PEOPLE_DISCOUNT = 0.98f
     /** The fewest animals of a kind its tenfold growth is measured from: a kind may grow from a few groups to this tenfold before the world counts as off the rails. */
     const val GROWTH_FLOOR = 10_000
+    /** How far a learning step may move a choice's odds from those it was drawn by (PPO's clip), for the movers and the ways networks alike. */
     const val CLIP = 0.2f
     /**
      * Parts each batch of learning is split into, to be worked on all cores; the same on every machine,

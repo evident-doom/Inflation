@@ -1,6 +1,7 @@
 package inflation.learning
 
 import inflation.gaussianF
+import inflation.learning.HexPpo.CLIP
 import inflation.ecology.BandWays
 import inflation.ecology.Binding
 import inflation.ecology.Catalogue
@@ -137,7 +138,6 @@ class WaysSampler(private val ways: LearnedWays, private val record: ConcurrentL
 object WaysPpo {
     /** Ways draws recorded a year in each world (bands are many; a share is enough). */
     const val PER_YEAR = 6000
-    const val CLIP = 0.2f
     /** Pull toward keeping the spreads wide (per way, on its log). */
     const val ENTROPY = 0.002f
     /**
