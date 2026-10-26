@@ -10,7 +10,7 @@ import kotlin.math.abs
  * ([WAYS_OUT_NAMES]), or -1 where the site reads several (an effort by food, the tools' ranking), given when counted.
  */
 enum class DialSite(val label: String, val dial: Int) {
-    EFFORT_RATE("foraging: how often it meets the food", -1),
+    EFFORT_RANK("foraging: how highly it ranks the food", -1),
     HUNTERS_SHARE("foraging: share of its hands hunting", Food.BIG_GAME.ordinal),
     STORE_FEAST("place choice: larder above aim draws to a feast", WaysOut.STORE_AIM),
     STORE_HOST("feast: what the host can spare above aim", WaysOut.STORE_AIM),
