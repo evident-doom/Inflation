@@ -1603,8 +1603,9 @@ private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTime
         }
         // Herders live on their herds' increase: the band eats what its herd adds in a year, week by week through the year
         // (its births come in one season, its losses all year), and keeps it only where the days nobody asked for would
-        // keep it too, since a herd let grow takes its days from the food. A herd whose increase brings a herder less than
-        // a day's foraging brings it eats down, a week's food at a time.
+        // keep it too, since a herd let grow takes its days from the food. A herd whose day brings a herder less than a
+        // lean month's day foraging brings it eats down besides, as much of it in a year as falls short ([herdWorth]): one
+        // that nearly pays dwindles slowly, one that pays nothing goes in a year.
         val worth = herdWorth(g, b, k)
         val pays = worth >= 1f
         if (pays) bands.herdFlows[HerdFlow.KG_PAYS] += n * s.massKg
@@ -1612,10 +1613,11 @@ private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTime
         val increase = n * max(0f, herdIncrease(b, k, fed)) * years
         val grows = pays && increase * s.massKg <= spareKg
         if (grows) spareKg -= increase * s.massKg
-        val kept = if (grows) n else if (pays) max(0f, n - increase)
-            else max(0f, n - g.dailyNeedKg * days / (s.massKg * MEAT_SHARE * Nourishment.MEAT * g.species.needScale))
-        if (n > kept) slaughter(k, n - kept, if (pays) HerdFlow.EATEN else HerdFlow.EATEN_UNPAID)
-        n = kept
+        val eaten = if (grows) 0f else min(n, increase)
+        val short = min(n - eaten, n * max(0f, 1f - worth) * years)
+        if (eaten > 0f) slaughter(k, eaten, HerdFlow.EATEN)
+        if (short > 0f) slaughter(k, short, HerdFlow.EATEN_UNPAID)
+        n -= eaten + short
         if (n < 0.5f) { fauna.adults[k][p] += n / area; n = 0f; bands.herdFlows[if (pays) HerdFlow.ENDED else HerdFlow.ENDED_UNPAID] += 1f }
         b.herd[k] = n
         b.herdTame[k] = tame + TAMING_RATE * b.edge(Skill.TENDING) * years * (1f - tame)

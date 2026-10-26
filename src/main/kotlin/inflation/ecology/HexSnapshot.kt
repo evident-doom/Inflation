@@ -310,9 +310,12 @@ object HexSnapshot {
      *   ([PlantFrom]).
      * 4.66: a band's effort on each food is e^x of its ways network's output, with no most; before, 2/(1+e^-x) held every
      *   effort under twice the scaffold's, so no network could put more than that into fish or small game (people net 6).
+     * 4.67: a herd that brings a herder less than a lean month's day foraging is eaten down by as much of it a year as falls
+     *   short ([herdWorth]), besides its increase; before, it was eaten down a week's food at a time, and herds that fell just
+     *   short for a few weeks went whole: every herd that came to an end had stopped paying, by under half.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 66
+    const val MODEL_MINOR = 67
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
