@@ -241,7 +241,7 @@ const val CLIMB_J_PER_KG_M = 33f
  * view (half in [SIGHT_RAIN_MM] of rain or snow a week), so does the haze over hot ground, and thick
  * cover hides game from all but those close by.
  */
-fun HexGroups.sight(p: Place, weather: Weather): Float {
+fun GroupWorld.sight(p: Place, weather: Weather): Float {
     val wet = 1f / (1f + weather.precipitation[p] / SIGHT_RAIN_MM)
     val haze = if (weather.temperature[p] > SIGHT_HAZE_C) 0.8f else 1f
     return wet * haze * (1f - SIGHT_COVER * land.plants.cover(p))
@@ -371,13 +371,13 @@ fun dryShare(t: Food) = when (t) {
 const val FORAGE_PASSES = 3
 
 /** Ground a hunting party of kind [s] sweeps in a week, km² (shared over the hexes it passes): its going, by the width it senses. */
-fun HexGroups.sweptKm2(s: Species) = s.dailyTravelKm * days * 2f * s.senseKm * SEARCHING
+fun GroupWorld.sweptKm2(s: Species) = s.dailyTravelKm * days * 2f * s.senseKm * SEARCHING
 /**
  * Ground hunting party [g] searches in a week about place [p], km² (shared over the hexes it passes): [sweptKm2], a
  * bigger party fanning out over more of it (as the square root of its numbers against its kind's usual party), a band's
  * trackers reading sign further off, and less of it seen when rain, haze or cover hide game ([sight]).
  */
-fun HexGroups.searchKm2(g: HexGroup, p: Place, weather: Weather) = sweptKm2(g.species) * (g.band?.edge(Skill.TRACK) ?: 1f) *
+fun GroupWorld.searchKm2(g: HexGroup, p: Place, weather: Weather) = sweptKm2(g.species) * (g.band?.edge(Skill.TRACK) ?: 1f) *
     sqrt(max(1, g.adults).toFloat() / g.species.groupSize) * sight(p, weather)
 /** Share of a kill's weight that is eaten. */
 const val MEAT_SHARE = 0.6f

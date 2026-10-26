@@ -64,17 +64,12 @@ import kotlin.math.sqrt
  * rivals. Young are born in season, the hungry and the old die, and groups too big for their food split.
  */
 class HexGroups(
-    internal val hw: HexWorld, internal val land: HexLand, internal val fauna: HexFauna, internal val days: Int, seed: Long,
+    hw: HexWorld, land: HexLand, fauna: HexFauna, days: Int, seed: Long,
     /** The kinds that live as groups here (default: the hunting packs and people). */
     kindsHere: List<Species>? = null,
     /** Start every kind spread evenly over the land, wherever it suits it or not (to see them find their country). */
     uniformStart: Boolean = false,
-) {
-    internal val hex = hw.hex
-    internal val n = land.n
-    internal val tuning get() = land.tuning
-    internal val rnd = Random(seed * 41 + 3)
-    internal val seedBase = seed
+) : GroupWorld(hw, land, fauna, days, seed) {
     val groups = ArrayList<HexGroup>()
     /** What bands have built that stands in the world ([Structure]): no band's own, any band's to use. */
     val built = ArrayList<Structure>()
@@ -130,10 +125,6 @@ class HexGroups(
     @Transient var dialUse: DialUse? = null
     /** How packs set their ways each week ([AnimalWays]); null for the hand-written ways. */
     @Transient var hunterWays: AnimalWays? = null
-    /** This week's tallies ([HexSim.stats]). */
-    val stats get() = fauna.stats
-    internal val years = Date.years(days)
-    internal val small get() = fauna.small
 
     init {
         // The residents swim the same straits.
@@ -229,7 +220,6 @@ class HexGroups(
         }
     }
 
-    internal fun foodFor(s: Species, p: Place) = fauna.foodFor(s, p)
 
     /** Where groups of [s] start or wander in: by area, how the ground and climate suit it, and water within its reach in a usual year. */
     private fun startWeights(s: Species) = FloatArray(n) { p -> startWeight(s, Place(p)) }
@@ -742,38 +732,6 @@ class HexGroups(
     /** Heads of kind slot [k] in place [p] as a group knows them: seen in its own hex and the six around, else expected. */
     private fun knownHeads(k: Int, p: Place, h: Hex, sensed: HexArray): Float = if (h in sensed) headsHere[k][p].toFloat() else expectHeads[k][p]
 
-    /**
-     * What place [p] offers a band for a camp, as game-weight per km²: the game it can hunt there, and
-     * the fruit, nuts and roots it can gather (counted at their weight against meat), the more so where
-     * the camp can stand on high, broken or water-girt ground safe from lions and raiders.
-     */
-    internal fun campValue(s: Species, p: Place): Float = preyHere(s, p) * campFactor(p) + campPlants(p)
-    /**
-     * What a camp's game is worth to a band, times: the more where the camp is safe, the less the further water is,
-     * and the less the more of its days the hearth's firewood takes there ([fuelShare], for a band whose every mouth
-     * fetches: the place's worth to bands at large). Where there is too little wood, the cold and the raw meals it
-     * costs are in [drain].
-     */
-    internal fun campFactor(p: Place): Float {
-        // Water close to camp: women and children fetch it every day (from a well dug in a dry bed, where water lies near).
-        val w = land.drink.peopleWaterKm(p) / 3f
-        val fuel = fuelShare(woodCover(p), 1f)
-        return (1f + CAMP_SAFETY * land.bestDefence[p] + CAVE_CAMP * land.caves[p]) / (1f + w * w) * (1f - fuel)
-    }
-    internal fun campPlants(p: Place) = KgM2(fauna.food.fruit[p] + rootsFound(p) + fauna.food.seeds[p] + fauna.food.grain[p] + fauna.food.fieldGrain[p]).perKm2.v *
-        PLANT_FOOD_WEIGHT * campFactor(p)
-    /**
-     * The roots at [p] as a band's gathering would find them this week, kg/m²: the thinner they grow, the more of a
-     * gatherer's day goes to finding them ([ROOT_SEARCH_M2_PER_DAY]), so they count as the share of the day that is digging
-     * (none while the ground is frozen, [HexFood.diggable]); and the mast lying under the trees, as the share of its days
-     * that is gathering it, the rest going to leaching its bitter share ([MAST_LEACH_DAYS_PER_KG]). (A hand's work at the
-     * start rate, without skill or baskets: an approximation of [forage]'s own rate.)
-     */
-    internal fun rootsFound(p: Place): Float {
-        val kg = fauna.food.diggable(p)
-        val dug = ROOT_DIGGING * PLANT_HANDLING_DAYS_PER_KG * ROOT_SEARCH_M2_PER_DAY * kg
-        return kg * dug / (1f + dug) + fauna.food.mast[p] * MAST_GATHERED
-    }
 
     /**
      * Bands burn off the dry grass around their camps in the dry season: the burn greens up and draws
@@ -792,12 +750,6 @@ class HexGroups(
         }
     }
 
-    /**
-     * The model's clock: the step [date] falls in (what the groups' "weeks" count: a step of [days] days), and how
-     * many steps make a year, for counts of weeks compared against spans of years.
-     */
-    internal fun stepOf(date: Date) = (date.absoluteDay / days).toInt()
-    internal val stepsPerYear get() = Date.stepsPerYear(days).toFloat()
 
     /** Packs of kinds that follow people, by the hex they end the week in (for taming). */
     internal var followersByHex: Map<Hex, List<HexGroup>> = emptyMap()
@@ -1474,12 +1426,7 @@ class HexGroups(
     internal fun survivalSteps(g: HexGroup, dying: Float) =
         Hazards.survivalSteps(dying, g.deathOdds, g.species.backgroundMortality * years, g.size.toFloat())
 
-    internal fun hexKm(a: Hex, b: Hex): Double = hex.distanceKm(a, b)
-    internal fun territoryKm(s: Species) = sqrt(max(1f, s.startKm2PerAnimal) * s.groupSize / Math.PI.toFloat()) + 5f
 
-    internal fun discomfort(s: Species, p: Place, weather: Weather): Float {
-        return s.discomfortC(weather.temperature[p], weather.date.month) / 10f
-    }
 
     /**
      * What place [p] drains from group [g] this week, as a share of its week's need (the unit the going
@@ -1492,16 +1439,6 @@ class HexGroups(
         return warmthNeed(s, b, p, weather, b?.let { fireAt(g, it, p) } ?: 0f, if (b != null) houseAt(g, p) else 0f, t) - 1f + bitten(s, p)
     }
 
-    /**
-     * The week's weather at place [p] as people's body heat meets it ([BodyHeat]), at [t] °C: the swing between night and day
-     * under a sky as cloudy as the week's rain and snow make it, the wind at a person's height (less in woods and thickets), the
-     * rain that wets clothes, and whether snow lies.
-     */
-    internal fun airAt(p: Place, weather: Weather, t: Float = weather.temperature[p]): Air {
-        val snow = weather.snowpack[p] > BodyHeat.SNOW_LIES_MM
-        val wind = hypot(weather.windEast(p.i), weather.windSouth(p.i)) * BodyHeat.BODY_WIND * (1f - BodyHeat.FOREST_CALM * land.plants.cover(p))
-        return Air(t, Air.swingC(Air.opaque(weather.precipitation[p] / days), snow), wind, Air.wet(weather.rain(p.i), days), snow)
-    }
 
     /**
      * The fire band [b] (group [g]) would keep camped at place [p]: its fire now; elsewhere the fire it keeps lit, as far
@@ -1531,18 +1468,6 @@ class HexGroups(
     /** How far [g] camped at place [p] would be sheltered by houses there it may use (0 for none worth the name). */
     internal fun houseAt(g: HexGroup, p: Place) = housesAt(g, hw.placeHex[p]).takeIf { it > 0.05f } ?: 0f
 
-    /**
-     * What the biting insects at [p] cost a group of kind [s] this week, as a share of the working time
-     * people lose to them. Hunters lose nothing to them here, so they do not mind them.
-     */
-    internal fun bitten(s: Species, p: Place): Float {
-        val h = small.harassment(p)
-        return when {
-            h <= 0f -> 0f
-            s.human -> HexSmallLife.HARASS_TIME * h / (1f + HexSmallLife.HARASS_TIME * h)
-            else -> 0f
-        }
-    }
 
     /**
      * The heads of its own kind per km² group [g] (of kind slot [kind]) foresees about it in hex [h]: its kind there as
@@ -1561,58 +1486,28 @@ class HexGroups(
         return if (area > 0f) (max(0f, heads) + g.size) / area else 0f
     }
 
-    /** How crowded kind [s] is among [kinKm2] of its own kind per km², 0..1: the one measure ([Hazards.crowding]) as x / (1 + x). */
-    internal fun crowdedBy(s: Species, kinKm2: Float): Float {
-        val x = Hazards.crowding(kinKm2, HexFauna.usualDensity(s))
-        return x / (1f + x)
-    }
 
-    /** Whether kind [s]'s home range reaches beyond its hex, so that it counts its kind over the six round it too. */
-    internal fun rangesWide(s: Species) = territoryKm(s) > 0.6f * hex.hexKm
 
-    /**
-     * What place [p] offers a hunter of kind [s] by its whole diet, kg/km²: the big game it can catch
-     * ([game]), the small prey on the ground and the carrion lying there, each by its share of the
-     * diet. A jackal looks for rodents and carrion, a lion for big game.
-     */
-    internal fun dietValue(s: Species, p: Place, game: Float): Float {
-        // Small game is searched for over a narrower strip than big game, and carrion only by those that eat it.
-        val smallWorth = smallCatch(s) * SMALL_SENSE_KM / (s.senseKm * SEARCHING * CATCH)
-        return game + smallWorth * small.smallPreyKg(p) + (if (s.diet.carrion > 0f) KgM2(small.carrion[p]).perKm2.v else 0f)
-    }
 
-    /** The resident game hunter [s] sees at place [p], kg per km² ([HexFauna.game], as resident hunters count it). */
-    internal fun preyHere(s: Species, p: Place): Float = fauna.game(s, p)
 
-    /** Mean moonlight over this week's nights, 0 (new moon) to 1 (full). */
-    internal val moon get() = fauna.moon
 
     /** Time spent settling meetings, ns, over the run (for measuring the cost). */
     @Transient var meetNs = 0L
 
 
-    internal fun poisson(mean: Float, r: Random): Int = inflation.poisson(mean, r)
-    internal fun binomial(n: Int, p: Float, r: Random): Int = inflation.binomial(n, p, r)
 
-    /** A random stream of group [id]'s own for the week starting on [day]: the same whatever the cores do. */
-    internal fun groupRandom(id: Int, day: Long) = Random(seedBase * 1_000_003L + id * 7_919L + day)
-    /** A group's own stream for its choice of ground this week (apart from [groupRandom]'s, which its week's life draws on). */
-    internal fun policyRandom(id: Int, day: Long) = Random((seedBase * 1_000_003L + id * 7_919L + day) * 0x9E3779B97F4A7C15uL.toLong() + 0x2545F4914F6CDD1DL)
 
-    internal fun hashNoise(id: Int, p: Place): Float {
-        return unitOf(mix64Once(id * HASH_A + p.i * HASH_B + seedBase * HASH_C))
-    }
 }
 
 /** How well band [b] knows the plants of hex [h]'s country: [PLANT_FLOOR] for a stranger to 1. */
-internal fun HexGroups.plantKnow(b: Band, h: Hex): Float {
+internal fun GroupWorld.plantKnow(b: Band, h: Hex): Float {
     var s = 0f; var w = 0f
     for (k in Biome.entries) { val share = hw.biome[k.ordinal][h]; if (share > 0f) { s += share * b.plants[k]; w += share } }
     return PLANT_FLOOR + (1f - PLANT_FLOOR) * (if (w > 0f) s / w else 0f)
 }
 
 /** A week's gathering in hex [h] teaches band [b] its country's plants. */
-internal fun HexGroups.learnPlants(b: Band, h: Hex) {
+internal fun GroupWorld.learnPlants(b: Band, h: Hex) {
     var w = 0f
     for (k in Biome.entries) w += hw.biome[k.ordinal][h]
     if (w <= 0f) return

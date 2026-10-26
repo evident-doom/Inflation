@@ -595,7 +595,7 @@ internal fun HexGroups.fuelAsk(g: HexGroup, hands: Int): Float {
 }
 
 /** How thickly dead wood lies about place [p], 0 (none) to 1 (trees or scrub thick enough to fetch [FUEL_A_DAY] a person-day). */
-internal fun HexGroups.woodCover(p: Place) = min(1f, (land.plants.tree[p] + land.plants.shrub[p]) / 3f)
+internal fun GroupWorld.woodCover(p: Place) = min(1f, (land.plants.tree[p] + land.plants.shrub[p]) / 3f)
 
 /**
  * The share of its hands' days a band gives to the hearth's firewood at wood cover [cover] ([woodCover]), [perHand]
@@ -1635,7 +1635,7 @@ internal class HerdForage(val need: Float, val grass: Float, val browse: Float) 
  * grass and browse in their diet's shares, as far as the place has them (grass to a tenth of the palatable herbage a week).
  * The same reckoning feeds them ([keepHerds]) and weighs a camp for them ([HexGroups.herdLoss]).
  */
-internal fun HexGroups.herdForage(p: Place, s: Species, n: Float): HerdForage {
+internal fun GroupWorld.herdForage(p: Place, s: Species, n: Float): HerdForage {
     val need = land.spread(p, Kg(n * s.dailyIntakeKg * days)).v
     val d = s.diet; val total = (d.grass + d.browse).coerceAtLeast(1e-6f)
     return HerdForage(need, min(need * d.grass / total, land.palatable[p] * land.plants.herb[p] * 0.1f),
@@ -1649,7 +1649,7 @@ internal fun walkedShare(time: BandTime) = if (time.total > 0f) min(1f, time.spe
  * Person-days [b]'s herders take a week to keep its animals: herded on foot, a herder keeps about [HERD_KG_A_HERDER] kg of
  * stock on the hoof, and the unpractised take up to twice as long.
  */
-internal fun HexGroups.herdDays(b: Band): Float {
+internal fun GroupWorld.herdDays(b: Band): Float {
     var kg = 0f
     for (k in b.herd.indices) if (b.herd[k] > 0f) kg += b.herd[k] * fauna.kinds[k].massKg
     return kg / HERD_KG_A_HERDER * days / herdSkill(b)
@@ -1662,7 +1662,7 @@ internal fun HexGroups.herdDays(b: Band): Float {
  * that run off), at its meat, and its mothers' milk ([milkKg], as tame as they are), on the stock a herder keeps. (Its
  * mean day's foraging stands for its last one; the milking is taken to be in the herders' days.)
  */
-internal fun HexGroups.herdPays(g: HexGroup, b: Band, k: Int): Boolean {
+internal fun GroupWorld.herdPays(g: HexGroup, b: Band, k: Int): Boolean {
     val lean = b.forageReturn.filter { it >= 0f }.minOrNull() ?: return true
     val s = fauna.kinds[k]; val tame = b.herdTame[k]
     val mothers = 0.5f * (0.3f + 0.7f * tame)
@@ -1677,7 +1677,7 @@ internal fun HexGroups.herdPays(g: HexGroup, b: Band, k: Int): Boolean {
  * The share [b]'s herd of kind [k] adds in a year as [keepHerds] has it, fed as far as [fed]: births by its tameness, less
  * its deaths and those that run off.
  */
-internal fun HexGroups.herdIncrease(b: Band, k: Int, fed: Float = 1f): Float {
+internal fun GroupWorld.herdIncrease(b: Band, k: Int, fed: Float = 1f): Float {
     val s = fauna.kinds[k]; val tame = b.herdTame[k]
     return 0.5f * (0.3f + 0.7f * tame) * s.youngPerFemale * fed - s.backgroundMortality - 0.5f * (1f - fed) -
         HERD_RUN_OFF * (1f - tame) * b.lapse(Skill.TENDING)
@@ -1712,7 +1712,7 @@ const val HERD_KG_A_HERDER = 4000f
  * A band's fire: practised bands carry embers when they move and light it again at once; the
  * unpractised may fail at the hand drill for days, and learn as they go.
  */
-private fun HexGroups.keepFire(g: HexGroup, b: Band) {
+private fun GroupWorld.keepFire(g: HexGroup, b: Band) {
     val skill = b.skills[Skill.FIRE]
     if (g.path.size > 1 && rnd.nextFloat() >= skill) b.fire = 0f
     if (b.fire >= 1f) return
@@ -1826,7 +1826,7 @@ val KNOW_AT_HOME = PLANT_FLOOR + (1f - PLANT_FLOOR) * 0.9f
  * half a year, the dead take theirs with them, and a person can keep up only so many. A way held by
  * too few falls back toward what they can pass on (see [Skill.cap]).
  */
-internal fun HexGroups.trainHolders(g: HexGroup, b: Band, time: BandTime) {
+internal fun GroupWorld.trainHolders(g: HexGroup, b: Band, time: BandTime) {
     val adults = g.adults.toFloat()
     if (b.holders.a[0] < 0f) for (s in Skill.entries) {
         b.holders[s] = if (b.knowsSkill[s]) adults * s.share else 0f
@@ -1863,7 +1863,7 @@ internal fun HexGroups.trainHolders(g: HexGroup, b: Band, time: BandTime) {
  * The learners of way [s] [b] would bring on this week among its [adults], time allowing: as far as it lacks holders of a
  * way in use, as fast as they learn. (Learning from a holder is quick; working it out alone is slow.)
  */
-private fun HexGroups.learners(b: Band, s: Skill, adults: Float): Float {
+private fun GroupWorld.learners(b: Band, s: Skill, adults: Float): Float {
     if (!b.knowsSkill[s] || b.weeks - b.lastUsed[s] > DISUSE_YEARS * stepsPerYear) return 0f
     val pace = (if (b.holders[s] >= 1f) 1f else SELF_TAUGHT) * b.learning
     return minOf(adults * s.share - b.holders[s], adults * TRAINED_A_WEEK * pace).coerceAtLeast(0f)

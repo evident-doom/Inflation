@@ -161,7 +161,7 @@ private fun HexGroups.raiseSavedHouses() {
  * ([Weather.usualTemperature]; the wind, rain and snow as this week's there), by the same rules as the week's deaths
  * ([placeHazards]), with its band's clothes, fire and shelters.
  */
-internal fun HexGroups.houseLivesAYear(b: Band, p: Place, weather: Weather): Float {
+internal fun GroupWorld.houseLivesAYear(b: Band, p: Place, weather: Weather): Float {
     val fire = b.fire
     var saved = 0f
     for (m in 0 until Date.MONTHS_PER_YEAR) {

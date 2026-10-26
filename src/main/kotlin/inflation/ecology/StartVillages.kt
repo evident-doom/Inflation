@@ -46,18 +46,18 @@ internal fun HexGroups.startHerders() {
  * The kind a band at [p] would keep: of the plant-eaters living there, the one whose worst of Diamond's criteria
  * ([Species.domestication]) is best, since a kind fails as stock on any one of them (Diamond 1997); null where none live there.
  */
-private fun HexGroups.herdKind(p: Place): Int? = fauna.kinds.indices
+private fun GroupWorld.herdKind(p: Place): Int? = fauna.kinds.indices
     .filter { k -> fauna.kinds[k].let { it.diet.grass + it.diet.browse > 0.5f } && fauna.adults[k][p] * land.areaKm2[p] >= 1f }
     .maxByOrNull { k -> fauna.kinds[k].domestication.min() }
 
 /** The head of kind [k] band [g] starts its herd with: [HERD_START_KG] on the hoof for each of its people. */
-private fun HexGroups.startHerdSize(g: HexGroup, k: Int) = HERD_START_KG * g.size / fauna.kinds[k].massKg
+private fun GroupWorld.startHerdSize(g: HexGroup, k: Int) = HERD_START_KG * g.size / fauna.kinds[k].massKg
 
 /**
  * Band [g] ([b]) starts as herders where it stands (the kind and head it started with; null, none): a herd of the kind best kept there ([herdKind]), taken from the wild
  * there (no more than live there), grown [HERD_START_TAME] tame, and herding known ([HERD_SKILL]).
  */
-private fun HexGroups.startHerd(g: HexGroup, b: Band): Pair<Int, Float>? {
+private fun GroupWorld.startHerd(g: HexGroup, b: Band): Pair<Int, Float>? {
     val p = g.place
     val k = herdKind(p) ?: return null
     val area = land.areaKm2[p]
@@ -71,7 +71,7 @@ private fun HexGroups.startHerd(g: HexGroup, b: Band): Pair<Int, Float>? {
 }
 
 /** How good place [p] is to farm: the share of its grass that is wild cereal, where drinking water is within [VILLAGE_WATER_KM]; else none. */
-private fun HexGroups.farmWorth(p: Place) = if (land.drink.waterKm[p] < VILLAGE_WATER_KM) fauna.food.cereal[p] else 0f
+private fun GroupWorld.farmWorth(p: Place) = if (land.drink.waterKm[p] < VILLAGE_WATER_KM) fauna.food.cereal[p] else 0f
 
 /**
  * Band [g] ([b]) starts as a village where it stands: pit houses for its grown people standing at its camp, kept a year

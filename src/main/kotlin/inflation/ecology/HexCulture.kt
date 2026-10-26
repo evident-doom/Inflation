@@ -627,7 +627,7 @@ internal fun HexGroups.riteInherit(nb: Band) {
  * Two bands talking (rounds on): the one doing less well may take up a rite of the other's in a
  * month it has none, and its hold moves toward theirs, as far as they understand each other.
  */
-internal fun HexGroups.riteMeet(lo: Band, hi: Band, u: Float) {
+internal fun GroupWorld.riteMeet(lo: Band, hi: Band, u: Float) {
     if (!tuning.rounds) return
     for (m in 0 until 12) if (hi.rite[m] >= 0 && lo.rite[m] < 0 && lo.rite.count { it >= 0 } < RITE_SITES && hi.rite[m] !in lo.rite &&
         rnd.nextFloat() < COPY_TRADITION * u) {

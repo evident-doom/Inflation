@@ -61,7 +61,7 @@ internal fun HexGroups.illnessWeek(g: HexGroup, b: Band, weather: Weather, r: ko
  * [COUGH_FIRST] of them). The one rule for the week's sickness ([illnessWeek]) and for the sickness a band foresees at a
  * place ([HexGroups.deathsAt]).
  */
-internal fun HexGroups.catching(d: Illness, b: Band, p: Place, t: Float, crowd: Float, campWeeks: Int): Float = when (d) {
+internal fun GroupWorld.catching(d: Illness, b: Band, p: Place, t: Float, crowd: Float, campWeeks: Int): Float = when (d) {
     Illness.FLUX -> FLUX_RATE * (min(1f, campWeeks / (stepsPerYear / 2f)) + 0.3f * crowd) * (if (t > 15f) 1f else 0.3f) * b.hygiene
     // (As many mosquitoes as breed in the standing water about the camp: marsh, floods, sodden
     // ground after rain; the parasite ripens in them only in warm weeks.)
@@ -74,7 +74,7 @@ internal fun HexGroups.catching(d: Illness, b: Band, p: Place, t: Float, crowd: 
  * at place [p] (at [t] °C, as crowded as [crowd], camped there [campWeeks] weeks), healers saving [healed] of them: what
  * the place's sickness costs a band choosing it ([HexGroups.deathsAt]).
  */
-internal fun HexGroups.illnessAhead(b: Band, p: Place, t: Float, crowd: Float, campWeeks: Int, healed: Float, young: Boolean): Float {
+internal fun GroupWorld.illnessAhead(b: Band, p: Place, t: Float, crowd: Float, campWeeks: Int, healed: Float, young: Boolean): Float {
     var dying = 0f
     for (d in Illness.entries) {
         val open = (1f - b.sick[d] - b.immune[d]).coerceAtLeast(0f)

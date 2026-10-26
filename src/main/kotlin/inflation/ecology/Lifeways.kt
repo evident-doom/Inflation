@@ -20,7 +20,7 @@ import inflation.world.Weather
  * A pack when hungry, without ground of its own, thirsty or astray; a band when hungry, thirsty, astray, due
  * somewhere soon, behind its round, or ill at ease where it is (in the cold: [coldRestless]; or the heat).
  */
-internal fun HexGroups.restless(g: HexGroup, weather: Weather, thirsty: Boolean, astray: Boolean, dueSoon: Boolean, onRound: Boolean, goalFar: Boolean): Boolean {
+internal fun GroupWorld.restless(g: HexGroup, weather: Weather, thirsty: Boolean, astray: Boolean, dueSoon: Boolean, onRound: Boolean, goalFar: Boolean): Boolean {
     val s = g.species
     return when (s.lifeway) {
         Lifeway.BAND -> g.fed < Thresholds.HUNGRY || thirsty || astray || dueSoon || (onRound && goalFar) ||
@@ -42,7 +42,7 @@ const val COLD_RESTLESS = 0.25f
  * values it. A band: the game it expects, small game and carrion as for a pack, and the plant food, as good camping ground ([campFactor]).
  * (Where they see or read sign, by what they find: see [knownGame].)
  */
-internal fun HexGroups.lifewayValue(s: Species, p: Place): Float = when (s.lifeway) {
+internal fun GroupWorld.lifewayValue(s: Species, p: Place): Float = when (s.lifeway) {
     Lifeway.BAND -> dietValue(s, p, preyHere(s, p)) * campFactor(p) + campPlants(p)
     Lifeway.PACK -> dietValue(s, p, preyHere(s, p))
 }
