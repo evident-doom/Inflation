@@ -963,7 +963,10 @@ internal fun HexGroups.leaveDead(g: HexGroup) {
     for (m in ROTS) b.goods[m] = 0f
     dropCache(b)
     val area = land.areaKm2[p]
-    for (k in b.herd.indices) if (b.herd[k] > 0f) { fauna.adults[k][p] += b.herd[k] / area; b.herd[k] = 0f; b.herdTame[k] = 0f }
+    for (k in b.herd.indices) if (b.herd[k] > 0f) {
+        fauna.adults[k][p] += b.herd[k] / area; bands.herdFlows[HerdFlow.FREED] += b.herd[k]; bands.herdFlows[HerdFlow.ENDED_FREED] += 1f
+        b.herd[k] = 0f; b.herdTame[k] = 0f
+    }
 }
 
 /** How much more slowly a tool wears lying idle than in use; how much of a craft a band learns making do without its tools. */
@@ -1609,9 +1612,9 @@ private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTime
         if (grows) spareKg -= increase * s.massKg
         val kept = if (grows) n else if (pays) max(0f, n - increase)
             else max(0f, n - g.dailyNeedKg * days / (s.massKg * MEAT_SHARE * Nourishment.MEAT * g.species.needScale))
-        if (n > kept) slaughter(k, n - kept, HerdFlow.EATEN)
+        if (n > kept) slaughter(k, n - kept, if (pays) HerdFlow.EATEN else HerdFlow.EATEN_UNPAID)
         n = kept
-        if (n < 0.5f) { fauna.adults[k][p] += n / area; n = 0f }
+        if (n < 0.5f) { fauna.adults[k][p] += n / area; n = 0f; bands.herdFlows[if (pays) HerdFlow.ENDED else HerdFlow.ENDED_UNPAID] += 1f }
         b.herd[k] = n
         b.herdTame[k] = tame + TAMING_RATE * b.edge(Skill.TENDING) * years * (1f - tame)
         if (b.knowsSkill[Skill.TENDING]) b.practise(Skill.TENDING, 0.5f * PRACTICE)
@@ -1620,10 +1623,11 @@ private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTime
 
 /**
  * What became of bands' kept animals, for the census ([HexGroups.herdFlows]): heads born, dead, run off or strayed, culled
- * for want of herders, and eaten of the herd's increase; milk, kg; and kg on the hoof weighed by the share herded, by the share fed, in herds that pay their herders ([herdPays]), and in
- * all (week by week).
+ * for want of herders, eaten of the herd's increase, eaten down for not paying ([herdPays]), and gone wild with a band that
+ * died out ([leaveDead]); milk, kg; and kg on the hoof weighed by the share herded, by the share fed, in herds that pay their
+ * herders, and in all (week by week); and herds that came to an end, as they paid, did not, or went wild with their band.
  */
-enum class HerdFlow { BORN, DIED, RAN_OFF, CULLED, EATEN, MILK_KG, KG_TENDED, KG_FED, KG_PAYS, KG }
+enum class HerdFlow { BORN, DIED, RAN_OFF, CULLED, EATEN, EATEN_UNPAID, FREED, MILK_KG, KG_TENDED, KG_FED, KG_PAYS, KG, ENDED, ENDED_UNPAID, ENDED_FREED }
 
 /** What [n] kept animals of kind [s] ask of place [p]'s ground this week, and the grass and browse they can get there, kg/m². */
 internal class HerdForage(val need: Float, val grass: Float, val browse: Float) {
