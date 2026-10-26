@@ -316,6 +316,8 @@ object HexSnapshot {
      * 4.68: a herd that brings a herder less than a lean month's day foraging is eaten down by as much of it a year as falls
      *   short ([herdWorth]), besides its increase; before, it was eaten down a week's food at a time, and herds that fell just
      *   short for a few weeks went whole: every herd that came to an end had stopped paying, by under half.
+     *   What a day's foraging brings a band month by month ([Band.forageReturn]) is saved now, so a loaded band weighs its herd as
+     *   it did.
      */
     const val MODEL_MAJOR = 4
     const val MODEL_MINOR = 68
