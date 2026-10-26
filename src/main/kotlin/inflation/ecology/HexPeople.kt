@@ -1605,8 +1605,10 @@ private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTime
         // (its births come in one season, its losses all year), and keeps it only where the days nobody asked for would
         // keep it too, since a herd let grow takes its days from the food. A herd whose increase brings a herder less than
         // a day's foraging brings it eats down, a week's food at a time.
-        val pays = herdPays(g, b, k)
+        val worth = herdWorth(g, b, k)
+        val pays = worth >= 1f
         if (pays) bands.herdFlows[HerdFlow.KG_PAYS] += n * s.massKg
+        bands.herdFlows[when { worth < 0.5f -> HerdFlow.KG_WORTH_HALF; worth < 1f -> HerdFlow.KG_WORTH_UNDER; worth < 2f -> HerdFlow.KG_WORTH_OVER; else -> HerdFlow.KG_WORTH_TWICE }] += n * s.massKg
         val increase = n * max(0f, herdIncrease(b, k, fed)) * years
         val grows = pays && increase * s.massKg <= spareKg
         if (grows) spareKg -= increase * s.massKg
@@ -1625,9 +1627,11 @@ private fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTime
  * What became of bands' kept animals, for the census ([HexGroups.herdFlows]): heads born, dead, run off or strayed, culled
  * for want of herders, eaten of the herd's increase, eaten down for not paying ([herdPays]), and gone wild with a band that
  * died out ([leaveDead]); milk, kg; and kg on the hoof weighed by the share herded, by the share fed, in herds that pay their
- * herders, and in all (week by week); and herds that came to an end, as they paid, did not, or went wild with their band.
+ * herders, and in all (week by week), and by what a herder's day brings against a lean month's foraging day ([herdWorth]:
+ * under half, under 1, under 2, more); and herds that came to an end, as they paid, did not, or went wild with their band.
  */
-enum class HerdFlow { BORN, DIED, RAN_OFF, CULLED, EATEN, EATEN_UNPAID, FREED, MILK_KG, KG_TENDED, KG_FED, KG_PAYS, KG, ENDED, ENDED_UNPAID, ENDED_FREED }
+enum class HerdFlow { BORN, DIED, RAN_OFF, CULLED, EATEN, EATEN_UNPAID, FREED, MILK_KG, KG_TENDED, KG_FED, KG_PAYS, KG,
+    KG_WORTH_HALF, KG_WORTH_UNDER, KG_WORTH_OVER, KG_WORTH_TWICE, ENDED, ENDED_UNPAID, ENDED_FREED }
 
 /** What [n] kept animals of kind [s] ask of place [p]'s ground this week, and the grass and browse they can get there, kg/m². */
 internal class HerdForage(val need: Float, val grass: Float, val browse: Float) {
@@ -1659,22 +1663,25 @@ internal fun GroupWorld.herdDays(b: Band): Float {
     return kg / HERD_KG_A_HERDER * days / herdSkill(b)
 }
 
+/** Whether a herder's day with [g]'s band [b]'s herd of kind [k] brings it at least what a day's foraging does in its leanest month ([herdWorth]). */
+internal fun GroupWorld.herdPays(g: HexGroup, b: Band, k: Int) = herdWorth(g, b, k) >= 1f
+
 /**
- * Whether a herder's day with [g]'s band [b]'s herd of kind [k] brings it at least what a day's foraging does in its leanest
- * month ([Band.forageReturn]): a herd is food kept alive till the lean months, when a day's foraging brings least. The
+ * What a herder's day with [g]'s band [b]'s herd of kind [k] brings it against what a day's foraging does in its leanest
+ * month ([Band.forageReturn]; without a month foraged yet, without bound): a herd is food kept alive till the lean months, when a day's foraging brings least. The
  * herd's day is its yearly increase as [keepHerds] has it, well fed (births by its tameness, less its deaths and those
  * that run off), at its meat, and its mothers' milk ([milkKg], as tame as they are), on the stock a herder keeps. (Its
  * mean day's foraging stands for its last one; the milking is taken to be in the herders' days.)
  */
-internal fun GroupWorld.herdPays(g: HexGroup, b: Band, k: Int): Boolean {
-    val lean = b.forageReturn.filter { it >= 0f }.minOrNull() ?: return true
+internal fun GroupWorld.herdWorth(g: HexGroup, b: Band, k: Int): Float {
+    val lean = b.forageReturn.filter { it >= 0f }.minOrNull()?.takeIf { it > 0f } ?: return Float.POSITIVE_INFINITY
     val s = fauna.kinds[k]; val tame = b.herdTame[k]
     val mothers = 0.5f * (0.3f + 0.7f * tame)
     val increase = herdIncrease(b, k)
     val heads = HERD_KG_A_HERDER * herdSkill(b) / s.massKg
     val day = heads * (increase * s.massKg * MEAT_SHARE * Nourishment.MEAT + mothers * tame * milkKg(s) * Nourishment.MILK) *
         g.species.needScale / Date.DAYS_PER_YEAR
-    return day >= lean
+    return day / lean
 }
 
 /**
