@@ -355,7 +355,7 @@ class Band(kinds: Int) {
      * game, carrion, bones, fruit, roots, grass seed, small finds, fish), 1 the scaffold's, with no most. Big game's
      * sets how many of its hands go hunting ([HUNTERS_SHARE] of them at 1, see [huntersShare]).
      */
-    val effort = FloatArray(FOOD_TYPES) { 1f }
+    val effort = FoodEfforts()
     /** Sets its ways to the scaffold's: every effort, its store aim, its tools' order and every [BandWay] at 1 (what a ways network's 0 gives). */
     fun scaffoldWays() { effort.fill(1f); storeShare = 1f; makeFirst.fill(1f); will.fill(1f) }
     /**

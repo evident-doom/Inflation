@@ -75,5 +75,21 @@ val EAT_ORDER = listOf(Store.FRESH, Store.FRUIT, Store.ROOTS, Store.DRIED, Store
 /** Kinds of food a band sets its effort on (see [forage]): the [Food] kinds before grain (the last), which goes by grass seed's. */
 const val FOOD_TYPES = 9
 
+/**
+ * A band's effort on each kind of [Food] ([Band.effort]): one slot for each kind but grain, which goes by grass seed's
+ * ([FOOD_TYPES] slots, laid out as the ways network's efforts, [WaysOut.EFFORTS]). As a field it compiles to the array
+ * itself, so a save keeps its layout.
+ */
+@JvmInline value class FoodEfforts(val a: FloatArray) {
+    constructor() : this(FloatArray(FOOD_TYPES) { 1f })
+    @Suppress("NOTHING_TO_INLINE") inline operator fun get(t: Food) = a[slot(t)]
+    fun fill(v: Float) = a.fill(v)
+
+    companion object {
+        /** The effort slot of [t]: its own, grain's being grass seed's. */
+        @Suppress("NOTHING_TO_INLINE") inline fun slot(t: Food) = (if (t == Food.GRAIN) Food.SEED else t).ordinal
+    }
+}
+
 /** Where a band's food came from, as [Band.foodFrom] counts it. */
 enum class FoodFrom(val label: String) { PLANTS("plants"), SMALL_GAME("small game"), FISH("fish"), BIG_GAME("big game"), CARRION("carrion") }
