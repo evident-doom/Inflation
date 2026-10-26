@@ -78,7 +78,7 @@ Bands try the other ways of a craft now and then, so a better new way can overta
 
 If learning cost nothing, a band could hold every skill at once, a single meeting passed a way on, and forgetting were weak, every skill would drift to every band. The record shows the opposite: regional toolkits, crafts lost by small or isolated groups (Tasmania, after it was cut off), and specialists.
 
-The mechanisms, most important first (in `HexPeople.kt` and `HexCulture.kt`):
+The mechanisms, most important first (in `HexPeople.kt`, `PeopleCrafts.kt` and `HexCulture.kt`):
 
 1. **Skills live in people.** Each skill has a number of holders in the band, not just a level. A band can keep only so many people practised: each person has time for a few crafts. The band's level in a skill depends on its best few holders. When a band splits, its holders are divided between the two bands, so a splinter group can lose a craft outright. Small, isolated bands lose complex skills, and large, connected ones keep them (Henrich's model of cultural loss). (`Band.holders`, divided on a split, with `SLOTS` ways a person keeps up.)
 2. **Learning takes time.** Practice and teaching come out of the spare days the band also spends on making, building and feasts. What a band practises is one of its choices, for the learned ways to take over. Specialisation follows: a band invests in what its country rewards. (Training holders takes person-days from the band's spare time: `APPRENTICE_DAYS`.)
