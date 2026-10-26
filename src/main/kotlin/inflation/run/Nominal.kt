@@ -1,5 +1,6 @@
 package inflation.run
 
+import inflation.ecology.Lifeway
 import inflation.KindStock
 import inflation.StockName
 import inflation.ecology.ByBeast
@@ -448,7 +449,7 @@ object Nominal {
                 if (!v.isNaN()) t.check(v >= least, "people, ${way.label}") { "%s of the bands' heads, under %s".format(fmt(v), fmt(least)) }
             }
         }
-        for (s in sim.groups.kinds) if (s.pack) HexHistory.holdingGround(sim.groups, s)?.let { v ->
+        for (s in sim.groups.kinds) if (s.lifeway == Lifeway.PACK) HexHistory.holdingGround(sim.groups, s)?.let { v ->
             t.check(v >= HOLDING_MIN, "${s.name}, packs holding ground") { "%s of its packs, under %s".format(fmt(v), fmt(HOLDING_MIN)) }
         }
         // The books (audit=true): what no process explains, against the stock.

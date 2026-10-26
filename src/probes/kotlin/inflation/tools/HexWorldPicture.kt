@@ -1,6 +1,9 @@
 package inflation.tools
 
-import inflation.ecology.Hex
+import inflation.world.get
+import inflation.world.set
+
+import inflation.world.Hex
 import inflation.world.Biome
 import inflation.world.HexWorld
 import kotlin.math.min
@@ -19,11 +22,11 @@ object HexWorldPicture {
         val g = img.createGraphics()
         g.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON)
         val r = hex.hexKm / sqrt(3.0)
-        for (h in 0 until size) {
+        for (h in hex.all) {
             val (cx, cy) = hex.centreKm(h)
             val xs = IntArray(6) { ((cx + r * cos(Math.PI / 6 + it * Math.PI / 3)) * pxPerKm).toInt() }
             val ys = IntArray(6) { ((cy + r * sin(Math.PI / 6 + it * Math.PI / 3)) * pxPerKm).toInt() }
-            val b = mainBiome(Hex(h))
+            val b = mainBiome(h)
             val colour = when {
                 b == null || land[h] < 0.5f -> if (sea[h] >= lake[h]) Biome.OCEAN.rgb else Biome.LAKE.rgb
                 else -> {
@@ -41,12 +44,12 @@ object HexWorldPicture {
         }
         g.stroke = java.awt.BasicStroke((0.8 * pxPerKm).toFloat())
         g.color = java.awt.Color.BLACK
-        for (h in 0 until size) {
+        for (h in hex.all) {
             if (land[h] < 0.5f) continue
             val (cx, cy) = hex.centreKm(h)
             for (d in 0 until 6) {
                 val n = hex.neighbour(h, d)
-                if (n < 0 || land[n] < 0.5f || hex.crossing[h * 6 + d].isFinite()) continue
+                if (n.none || land[n] < 0.5f || hex.crossing[hex.edge(h, d)].isFinite()) continue
                 // The shared edge: the corners at angles -30° + 60°·d and +30° + 60°·d from the centre.
                 val a0 = Math.toRadians(-30.0 + 60.0 * d); val a1 = Math.toRadians(30.0 + 60.0 * d)
                 g.drawLine(((cx + r * cos(a0)) * pxPerKm).toInt(), ((cy + r * sin(a0)) * pxPerKm).toInt(),

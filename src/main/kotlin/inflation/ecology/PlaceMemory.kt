@@ -1,5 +1,10 @@
 package inflation.ecology
 
+import inflation.world.Hex
+import inflation.world.HexArray
+import inflation.world.get
+import inflation.world.set
+
 /**
  * What a group remembers of places it has been to (or, for bands, been told of): for each a hex and
  * a season (a quarter of the year), how well it fed there, the water, how dangerous it was, when
@@ -8,7 +13,7 @@ package inflation.ecology
  * (see [HexFeatures]): the hand-written behaviour does not read it.
  */
 class PlaceMemory {
-    val hex = IntArray(MEMORY_SLOTS) { -1 }
+    val hex = HexArray(MEMORY_SLOTS)
     val season = IntArray(MEMORY_SLOTS)
     val fed = FloatArray(MEMORY_SLOTS)
     val water = FloatArray(MEMORY_SLOTS)
@@ -26,23 +31,23 @@ class PlaceMemory {
     fun foundAt(i: Int, k: Int) = found[i * RARE.size + k]
 
     /** Of all seasons at hex [h]: its dead buried there, and bands met there. */
-    fun deadAt(h: Hex): Float { var s = 0f; for (i in 0 until MEMORY_SLOTS) if (hex[i] == h.i) s += dead[i]; return s }
-    fun metAt(h: Hex): Float { var s = 0f; for (i in 0 until MEMORY_SLOTS) if (hex[i] == h.i) s += met[i]; return s }
+    fun deadAt(h: Hex): Float { var s = 0f; for (i in 0 until MEMORY_SLOTS) if (hex[i] == h) s += dead[i]; return s }
+    fun metAt(h: Hex): Float { var s = 0f; for (i in 0 until MEMORY_SLOTS) if (hex[i] == h) s += met[i]; return s }
 
     /** Adds [n] to slot of hex [h] in season [s]'s count in [what] (making the slot if need be). */
-    fun mark(h: Int, s: Int, week: Int, perYear: Float, what: FloatArray, n: Float) {
+    fun mark(h: Hex, s: Int, week: Int, perYear: Float, what: FloatArray, n: Float) {
         var i = find(h, s)
         if (i < 0) { record(h, s, 0.5f, 0.5f, 0f, week, perYear); i = find(h, s) }
         if (i >= 0) what[i] += n
     }
 
-    fun find(h: Int, s: Int): Int { for (i in 0 until MEMORY_SLOTS) if (hex[i] == h && season[i] == s) return i; return -1 }
+    fun find(h: Hex, s: Int): Int { for (i in 0 until MEMORY_SLOTS) if (hex[i] == h && season[i] == s) return i; return -1 }
 
     /**
      * Records this week ([week], a step, [perYear] of them to a year) at hex [h] in season [s]: blended into what it
      * remembered there, or into a new slot.
      */
-    fun record(h: Int, s: Int, fedNow: Float, waterNow: Float, dangerNow: Float, week: Int, perYear: Float, ownVisit: Boolean = true, trust: Float = 1f,
+    fun record(h: Hex, s: Int, fedNow: Float, waterNow: Float, dangerNow: Float, week: Int, perYear: Float, ownVisit: Boolean = true, trust: Float = 1f,
         finds: FloatArray? = null, findsAt: Int = 0) {
         var i = find(h, s)
         if (i >= 0) {
@@ -56,7 +61,7 @@ class PlaceMemory {
         // The slot least worth keeping: empty, else the poorest weighed by how long ago it was.
         i = 0; var worst = Float.MAX_VALUE
         for (k in 0 until MEMORY_SLOTS) {
-            if (hex[k] < 0) { i = k; break }
+            if (hex[k].none) { i = k; break }
             // (Graves and meeting places are not forgotten.)
             val keep = fed[k] - danger[k] - (week - lastWeek[k]) / perYear + dead[k] + 0.2f * met[k]
             if (keep < worst) { worst = keep; i = k }
@@ -74,7 +79,7 @@ class PlaceMemory {
 
     /** Takes in what [o] remembers that it does not, as hearsay worth [trust] (where it found the rarer materials as told). */
     fun hear(o: PlaceMemory, week: Int, perYear: Float, trust: Float) {
-        for (k in 0 until MEMORY_SLOTS) if (o.hex[k] >= 0 && o.own[k]) record(o.hex[k], o.season[k], o.fed[k], o.water[k], o.danger[k], week,
+        for (k in 0 until MEMORY_SLOTS) if (!o.hex[k].none && o.own[k]) record(o.hex[k], o.season[k], o.fed[k], o.water[k], o.danger[k], week,
             perYear, ownVisit = false, trust = trust, finds = o.found, findsAt = k * RARE.size)
     }
 

@@ -1,5 +1,9 @@
 package inflation.tools
 
+import inflation.world.Place
+import inflation.world.get
+import inflation.world.set
+
 import inflation.world.Date
 import inflation.world.HexHydrology
 import inflation.world.HexLand
@@ -125,7 +129,7 @@ fun main(args: Array<String>) {
             val month = s * 12 / stepsY
             for (p in ps) {
                 if (hl.hydro.flood[p] > 0f) floodWeeks[p]++
-                val wf = hl.hydro.wetFloor(inflation.ecology.Place(p)) / hl.floodShare[p]
+                val wf = hl.hydro.wetFloor(inflation.world.Place(p)) / hl.floodShare[p]
                 if (wf < minWet[p]) minWet[p] = wf
                 if (hl.hydro.flow[hw.placeHex[p]] < HexHydrology.TRICKLE) dry[p] = true
                 herbYear[p] += hl.plants.herb[p] / stepsY

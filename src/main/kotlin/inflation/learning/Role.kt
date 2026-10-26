@@ -1,5 +1,6 @@
 package inflation.learning
 
+import inflation.ecology.Lifeway
 import inflation.ecology.Species
 import java.io.File
 
@@ -40,7 +41,7 @@ enum class Role {
         private const val PEOPLE_MAJOR = 6
 
         /** The role of group kind [s] (every group is a hunter or people). */
-        fun of(s: Species) = if (s.human) PEOPLE else HUNTERS
+        fun of(s: Species) = when (s.lifeway) { Lifeway.BAND -> PEOPLE; Lifeway.PACK -> HUNTERS }
 
         /** The role called [label] (as on the command line). */
         fun named(label: String) = entries.firstOrNull { it.label == label } ?: error("no role \"$label\": roles are ${entries.joinToString()}")

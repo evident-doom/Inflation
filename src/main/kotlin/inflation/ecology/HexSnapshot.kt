@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Profile
 import inflation.store.Named
 import inflation.store.Reader
 import inflation.store.Restorer

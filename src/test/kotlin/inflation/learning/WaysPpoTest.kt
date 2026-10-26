@@ -1,5 +1,9 @@
 package inflation.learning
 
+import inflation.world.Place
+import inflation.world.get
+import inflation.world.set
+
 import inflation.ecology.BandWay
 import inflation.ecology.Binding
 import inflation.ecology.Catalogue
@@ -132,7 +136,7 @@ class WaysPpoTest {
         var week = 0
         val standing = java.util.concurrent.ConcurrentHashMap<Int, Standing>()
         val sampler = WaysSampler(w, record, { 1f }, { week }, 5L, standing)
-        val g = inflation.ecology.HexGroup(3, Catalogue.HUMAN, inflation.ecology.Place(0), 10, 4)
+        val g = inflation.ecology.HexGroup(3, Catalogue.HUMAN, inflation.world.Place(0), 10, 4)
         val x = FloatArray(WAYS_IN)
         // (Where the band stood before it moved, as its mover would leave it each week.)
         fun stood(w: Int) { standing[g.id] = Standing(w, Probe(FloatArray(HexFeatures.SIZE), x, null, FloatArray(Critic.GROUP))) }

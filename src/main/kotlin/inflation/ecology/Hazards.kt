@@ -1,5 +1,9 @@
 package inflation.ecology
 
+import inflation.world.Place
+import inflation.world.get
+import inflation.world.set
+
 import inflation.world.HexDrinkingWater
 import kotlin.math.max
 import kotlin.math.min

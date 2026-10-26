@@ -1,8 +1,5 @@
 package inflation.world
 
-import inflation.ecology.Place
-import inflation.ecology.get
-import inflation.ecology.set
 import kotlin.math.max
 import kotlin.math.min
 

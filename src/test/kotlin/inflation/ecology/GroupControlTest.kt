@@ -1,5 +1,10 @@
 package inflation.ecology
 
+import inflation.world.HexArray
+import inflation.world.Hex
+import inflation.world.get
+import inflation.world.set
+
 import inflation.world.World
 import inflation.world.WorldConfig
 import java.io.File
@@ -46,7 +51,7 @@ class GroupControlTest {
         val sim = HexSim(world)
         // (A band with land about it, not one on an islet: bands start near water, some on the coast.)
         val band = sim.groups.groups.first { g -> g.band != null && (0 until 6).count { d ->
-            val nh = sim.hex.neighbour(sim.hw.placeHex[g.place.i], d); nh >= 0 && sim.hw.placesOf(Hex(nh)).isNotEmpty() } == 6 }
+            val nh = sim.hex.neighbour(sim.hw.placeHex[g.place.i], d); !nh.none && sim.hw.placesOf(nh).isNotEmpty() } == 6 }
         sim.groups.watched = band.id
         var asked: MoveDecision? = null; var chosen = -1
         sim.groups.control = object : GroupControl {
@@ -74,7 +79,7 @@ class GroupControlTest {
         val sim = HexSim(world)
         val pack = sim.groups.groups.first { !it.species.human }
         sim.groups.watched = pack.id
-        var places = IntArray(0); var chosen: Int; var way = IntArray(0)
+        var places = IntArray(0); var chosen: Int; var way = HexArray.EMPTY
         sim.groups.control = object : GroupControl {
             override fun move(d: MoveDecision): Int {
                 places = d.places

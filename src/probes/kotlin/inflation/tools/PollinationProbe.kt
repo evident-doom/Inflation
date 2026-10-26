@@ -1,5 +1,9 @@
 package inflation.tools
 
+import inflation.world.Place
+import inflation.world.get
+import inflation.world.set
+
 /**
  * A probe for the pollinators: runs the hex world for some years and prints, at each month, the
  * fruit set ([HexSmallLife.fruitSet]) weighted by the fruit the plants could bear,
@@ -23,8 +27,8 @@ fun main(args: Array<String>) {
     val t0 = System.nanoTime()
     val sim = HexSim(WorldCache.load(cfg) { println(it) })
     println("world in %.0f s".format((System.nanoTime() - t0) / 1e9))
-    val land = sim.land; val sl = sim.fauna.small; val hw = sim.hw; val cols = sim.hex.cols; val rows = sim.hex.rows
-    fun third(p: Int) = (3 * (hw.placeHex[p] / cols) / rows).coerceIn(0, 2)
+    val land = sim.land; val sl = sim.fauna.small; val hw = sim.hw; val rows = sim.hex.rows
+    fun third(p: Int) = (3 * sim.hex.row(hw.placeHex[p]) / rows).coerceIn(0, 2)
     var lastMonth = -1
     val steps = years * 360 / cfg.daysPerStep
     for (s in 0 until steps) {
@@ -36,13 +40,13 @@ fun main(args: Array<String>) {
             for (p in 0 until land.n) {
                 val t = third(p); val a = land.areaKm2[p].toDouble()
                 val bear = land.palatable[p] * (0.5f * land.plants.shrub[p] + 0.05f * land.plants.tree[p]) * min(1f, land.plants.moisture[p] / 0.5f) * a
-                w[t] += bear; ws[t] += bear * sl.fruitSet(inflation.ecology.Place(p)); if (sl.pollination[p] < 0.9f) low[t] += bear
+                w[t] += bear; ws[t] += bear * sl.fruitSet(inflation.world.Place(p)); if (sl.pollination[p] < 0.9f) low[t] += bear
                 po[t] += sl.pollinators[p] * a; area[t] += a
             }
             fun tonnes(f: FloatArray) = (0 until land.n).sumOf { (f[it] * land.areaKm2[it]).toDouble() } / 1000
             val kinds = HexSmallLife.BIRDS.indices.joinToString(" ") { "%s %.0f".format(HexSmallLife.BIRDS[it].name.replace(' ', '_'), tonnes(sl.bird[it])) }
             val hz = DoubleArray(3); val hzA = DoubleArray(3)
-            for (p in 0 until land.n) { val t = third(p); val a = land.areaKm2[p].toDouble(); hz[t] += sl.harassment(inflation.ecology.Place(p)) * a; hzA[t] += a }
+            for (p in 0 until land.n) { val t = third(p); val a = land.areaKm2[p].toDouble(); hz[t] += sl.harassment(inflation.world.Place(p)) * a; hzA[t] += a }
             println("      harassment by biting insects N/M/S %.3f %.3f %.3f".format(hz[0] / hzA[0], hz[1] / hzA[1], hz[2] / hzA[2]))
             println("      t: insects %.0f, pollinators %.0f, biting %.0f, herps %.0f, foxes %.0f | birds %s".format(tonnes(sl.insects), tonnes(sl.pollinators),
                 tonnes(sl.biting), tonnes(sl.herps), tonnes(sl.foxes), kinds))

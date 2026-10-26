@@ -1,5 +1,11 @@
 package inflation.ecology
 
+import inflation.world.Hex
+import inflation.world.HexArray
+import inflation.world.Place
+import inflation.world.get
+import inflation.world.set
+
 import inflation.world.Weather
 
 /*
@@ -46,7 +52,7 @@ internal fun HexGroups.lifewayValue(s: Species, p: Place): Float = when (s.lifew
  * game it knows of there ([prey]), less crowding, and less where a much stronger hunter of another kind holds sway (they
  * hear the roars and smell the marks: cheetahs and hyenas keep out of lions' way, jackals out of wolves').
  */
-internal fun HexGroups.foodTerm(g: HexGroup, p: Place, h: Hex, sensed: IntArray, prey: Float, crowded: Float): Float {
+internal fun HexGroups.foodTerm(g: HexGroup, p: Place, h: Hex, sensed: HexArray, prey: Float, crowded: Float): Float {
     val danger = if (h in sensed && topKind[p] >= 0 && topKind[p] != g.species.index && topStrength[p] > 2f * strength(g)) AVOID_STRONGER else 0f
     return prey / (prey + PREY_HALF) - 0.5f * crowded - danger
 }

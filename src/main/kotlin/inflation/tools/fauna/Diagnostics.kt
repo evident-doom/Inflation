@@ -1,5 +1,7 @@
 package inflation.tools.fauna
 
+import inflation.ecology.set
+import inflation.ecology.get
 import inflation.ecology.Thresholds
 import inflation.ecology.DialUse
 import inflation.ecology.WAYS_OUT_NAMES
@@ -7,11 +9,9 @@ import inflation.Config
 import inflation.ecology.HexFood
 import inflation.ecology.HexGroup
 import inflation.ecology.HexSim
-import inflation.ecology.get
-import inflation.ecology.set
-import inflation.ecology.contains
-import inflation.ecology.Place
-import inflation.ecology.hexOf
+import inflation.world.get
+import inflation.world.set
+import inflation.world.Place
 
 /**
  * The extra lines a fauna check prints when the config asks for them:

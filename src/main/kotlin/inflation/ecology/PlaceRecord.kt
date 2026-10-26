@@ -1,5 +1,9 @@
 package inflation.ecology
 
+import inflation.world.Place
+import inflation.world.get
+import inflation.world.set
+
 /**
  * For the viewer: where things died this week and by what, and how much of the dead matter on the
  * ground went (rotted, eaten, weathered), place by place. It is kept only while something reads it

@@ -1,7 +1,7 @@
-package inflation.ecology
+package inflation.world
 
 import inflation.Books
-import inflation.world.Weather
+import inflation.Profile
 
 /**
  * A named part of the week, run with the week's [Weather]: timed ([Profile]) and, when the books are kept, checked

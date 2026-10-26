@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.world.HexArray
 import inflation.world.Date
 import inflation.world.Weather
 
@@ -27,7 +28,7 @@ class MoveDecision(
     val features: Array<FloatArray>,
     val handScores: FloatArray,
     val netScores: FloatArray?,
-    val paths: Array<IntArray>,
+    val paths: Array<HexArray>,
     /** The model's pick (an index into [places]); whether a learned network chose it. */
     val model: Int,
     val learned: Boolean,
@@ -50,7 +51,7 @@ private val HAND_WRITTEN_ANIMAL_WAYS = AnimalWays { _, _, out -> out.fill(0f) }
 /** Asks [control] where the followed group [g] goes, among the candidates weighed in [HexGroups.plan]; returns the place. */
 internal fun HexGroups.askControl(
     g: HexGroup, weather: Weather, date: Date, policy: HexPolicy?, cand: HexGroups.IntList, feats: ArrayList<FloatArray>, hand: FloatArray,
-    modelPlace: Int, restless: Boolean, reach: Float, goal: Int, onRound: Boolean, pathTo: (Int) -> IntArray,
+    modelPlace: Int, restless: Boolean, reach: Float, goal: Int, onRound: Boolean, pathTo: (Int) -> HexArray,
 ): Int {
     val ctl = control ?: return modelPlace
     val n = cand.size

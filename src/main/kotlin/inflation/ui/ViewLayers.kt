@@ -1,8 +1,14 @@
 package inflation.ui
 
-import inflation.ecology.Place
-import inflation.ecology.HexFauna
+import inflation.world.toHexArray
+import inflation.world.HexArray
+import inflation.world.Hex
 import inflation.ecology.get
+import inflation.world.set
+
+import inflation.world.Place
+import inflation.ecology.HexFauna
+import inflation.world.get
 import inflation.ecology.HexSim
 import inflation.ecology.PlaceRecord
 import inflation.ecology.HexFood
@@ -163,10 +169,10 @@ internal class ViewLayers(private val sim: HexSim) {
             if (!g.alive || g.species.human) continue
             hunterKg[hw.placeHex[g.place]] += (g.adults + 0.3 * g.young) * g.species.massKg
         }
-        now[Measure.HUNTERS_PER_PREY.name] = FloatArray(nh) { h ->
-            if (area[h] <= 0) return@FloatArray Float.NaN
+        now[Measure.HUNTERS_PER_PREY.name] = hex.floats { h ->
+            if (area[h] <= 0) return@floats Float.NaN
             var hu = hunterKg[h]; var pr = preyKg[h]; var km2 = area[h]
-            for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0) { hu += hunterKg[q]; pr += preyKg[q]; km2 += area[q] } }
+            for (d in 0 until 6) { val q = hex.neighbour(h, d); if (!q.none) { hu += hunterKg[q]; pr += preyKg[q]; km2 += area[q] } }
             if (pr < MIN_GAME_KG_KM2 * km2) Float.NaN else min(100.0, 100.0 * hu / pr).toFloat()
         }
 
@@ -196,7 +202,7 @@ internal class ViewLayers(private val sim: HexSim) {
         val shortKm2 = DoubleArray(nh); val byPlenty = DoubleArray(nh)
         for ((s, sh) in shortBy) {
             val u = usableFor(s)
-            for (h in 0 until nh) {
+            for (h in hex.all) {
                 if (sh[h] <= 0.0 || area[h] <= 0) continue
                 var best = 0f
                 for (q in overLand2(h)) { val v = u[q]; if (!v.isNaN() && v > best) best = v }
@@ -242,16 +248,16 @@ internal class ViewLayers(private val sim: HexSim) {
     var plenty = FloatArray(0); private set
 
     /** The hexes with land within two steps of [h] over land (not across a strait). */
-    private val ring2 = HashMap<Int, IntArray>()
-    private fun overLand2(h: Int): IntArray = ring2.getOrPut(h) {
+    private val ring2 = HashMap<Hex, HexArray>()
+    private fun overLand2(h: Hex): HexArray = ring2.getOrPut(h) {
         val out = linkedSetOf(h)
         for (d in 0 until 6) {
             val q = hex.neighbour(h, d)
-            if (q < 0 || hw.land[q] <= 0f) continue
+            if (q.none || hw.land[q] <= 0f) continue
             out += q
-            for (e in 0 until 6) { val r = hex.neighbour(q, e); if (r >= 0 && hw.land[r] > 0f) out += r }
+            for (e in 0 until 6) { val r = hex.neighbour(q, e); if (!r.none && hw.land[r] > 0f) out += r }
         }
-        out.toIntArray()
+        out.toHexArray()
     }
 
     private fun closeMonth() {
@@ -275,7 +281,7 @@ internal class ViewLayers(private val sim: HexSim) {
     fun monthsKept(key: String) = months[key]?.count { it != null } ?: 0
 
     /** [key]'s monthly means at hex [h], by month (NaN where not kept). */
-    fun byMonth(key: String, h: Int): FloatArray = FloatArray(Date.MONTHS_PER_YEAR) { months[key]?.get(it)?.get(h) ?: Float.NaN }
+    fun byMonth(key: String, h: Hex): FloatArray = FloatArray(Date.MONTHS_PER_YEAR) { months[key]?.get(it)?.get(h) ?: Float.NaN }
 
     /**
      * The swing over the year at each hex: (highest month - lowest) / mean of the months, or for a measure

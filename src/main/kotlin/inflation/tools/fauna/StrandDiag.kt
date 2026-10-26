@@ -1,10 +1,13 @@
 package inflation.tools.fauna
 
+import inflation.world.get
+import inflation.world.set
+
 import inflation.ecology.FaunaKind
 import inflation.ecology.Danger
 import inflation.ecology.enumFloats
 import inflation.ecology.disease
-import inflation.ecology.Place
+import inflation.world.Place
 import inflation.ecology.HexFauna
 import inflation.ecology.HexSim
 import java.io.File

@@ -1,5 +1,10 @@
 package inflation.ecology
 
+import inflation.world.Hex
+import inflation.world.Place
+import inflation.world.get
+import inflation.world.set
+
 import inflation.world.Date
 import inflation.world.Weather
 import kotlin.math.max
@@ -17,7 +22,7 @@ enum class Built { HOUSES, PALISADE }
  * as far as it stands, as it weathers and is mended.
  * (All its fields have defaults, so that a saved one loads.)
  */
-class Structure(var kind: Built = Built.HOUSES, var hex: Int = -1, var design: Int = -1, var builder: Int = -1, var size: Float = 0f) {
+class Structure(var kind: Built = Built.HOUSES, var hex: Hex = Hex.NONE, var design: Int = -1, var builder: Int = -1, var size: Float = 0f) {
     var built = 0f
     var user = -1
     var done = false
@@ -27,21 +32,21 @@ class Structure(var kind: Built = Built.HOUSES, var hex: Int = -1, var design: I
 private fun usable(s: Structure, g: HexGroup) = s.user < 0 || s.user == g.id
 
 /** How far the houses at hex [h] that [g] may use shelter its grown people, 0..1. */
-internal fun HexGroups.housesAt(g: HexGroup, h: Int): Float {
+internal fun HexGroups.housesAt(g: HexGroup, h: Hex): Float {
     var room = 0f
     for (s in built) if (s.kind == Built.HOUSES && s.hex == h && s.done && usable(s, g)) room += s.built * s.size
     return min(1f, room / max(1, g.adults))
 }
 
 /** How far the houses begun at hex [h] that [g] may use and that are not yet whole would shelter its grown people, 0..1: what it has to show for its work on them. */
-internal fun HexGroups.housesBegunAt(g: HexGroup, h: Int): Float {
+internal fun HexGroups.housesBegunAt(g: HexGroup, h: Hex): Float {
     var room = 0f
     for (s in built) if (s.kind == Built.HOUSES && s.hex == h && !s.done && usable(s, g)) room += s.built * s.size
     return min(1f, room / max(1, g.adults))
 }
 
 /** How far the houses at hex [h] that [g] may use bring the ground's warmth in ([earthGain]), over the room they give. */
-internal fun HexGroups.earthAt(g: HexGroup, h: Int): Float {
+internal fun HexGroups.earthAt(g: HexGroup, h: Hex): Float {
     var room = 0f; var earth = 0f
     for (s in built) if (s.kind == Built.HOUSES && s.hex == h && s.done && usable(s, g)) {
         val r = s.built * s.size; room += r; earth += r * earthGain(Skill.entries[s.design.coerceAtLeast(0)])
@@ -50,7 +55,7 @@ internal fun HexGroups.earthAt(g: HexGroup, h: Int): Float {
 }
 
 /** How well the walls of the houses at hex [h] that [g] may use keep beasts of prey out ([wallGuard]), over the room they give. */
-internal fun HexGroups.wallsAt(g: HexGroup, h: Int): Float {
+internal fun HexGroups.wallsAt(g: HexGroup, h: Hex): Float {
     var room = 0f; var walls = 0f
     for (s in built) if (s.kind == Built.HOUSES && s.hex == h && s.done && usable(s, g)) {
         val r = s.built * s.size; room += r; walls += r * wallGuard(Skill.entries[s.design.coerceAtLeast(0)])
@@ -59,14 +64,14 @@ internal fun HexGroups.wallsAt(g: HexGroup, h: Int): Float {
 }
 
 /** How much of a palisade stands at hex [h] that [g] may use, 0..1. */
-internal fun HexGroups.palisadeAt(g: HexGroup, h: Int): Float {
+internal fun HexGroups.palisadeAt(g: HexGroup, h: Hex): Float {
     var ring = 0f
     for (s in built) if (s.kind == Built.PALISADE && s.hex == h && s.done && usable(s, g)) ring = max(ring, s.built)
     return ring
 }
 
 /** How much of a palisade not yet whole stands at hex [h] that [g] may use, 0..1. */
-internal fun HexGroups.palisadeBegunAt(g: HexGroup, h: Int): Float {
+internal fun HexGroups.palisadeBegunAt(g: HexGroup, h: Hex): Float {
     var ring = 0f
     for (s in built) if (s.kind == Built.PALISADE && s.hex == h && !s.done && usable(s, g)) ring = max(ring, s.built)
     return ring
@@ -79,12 +84,12 @@ internal fun buildOn(s: Structure, add: Float) {
 }
 
 /** [g] takes up what stands at hex [h] that nobody else is using this week. */
-internal fun HexGroups.useStructures(g: HexGroup, h: Int) {
+internal fun HexGroups.useStructures(g: HexGroup, h: Hex) {
     for (s in built) if (s.hex == h && s.user < 0) s.user = g.id
 }
 
 /** What [g] is building of [kind] at hex [h] and has not finished, or a new one begun there (houses for [size] grown people). */
-internal fun HexGroups.buildingAt(g: HexGroup, kind: Built, h: Int, design: Int, size: Float): Structure =
+internal fun HexGroups.buildingAt(g: HexGroup, kind: Built, h: Hex, design: Int, size: Float): Structure =
     built.firstOrNull { it.kind == kind && it.hex == h && it.user == g.id && it.built < 1f }
         ?: Structure(kind, h, design, g.id, size).also { it.user = g.id; built += it }
 
@@ -96,13 +101,13 @@ internal fun HexGroups.buildingAt(g: HexGroup, kind: Built, h: Int, design: Int,
 internal fun HexGroups.tendStructures(weather: Weather) {
     if (!structuresSeen) { structuresSeen = true; raiseSavedHouses() }
     if (built.isEmpty()) return
-    val where = HashMap<Int, Int>()
+    val where = HashMap<Int, Hex>()
     for (g in groups) if (g.alive && g.band != null) where[g.id] = hw.placeHex[g.place]
     for (s in built) {
         if (s.user >= 0 && where[s.user] != s.hex) s.user = -1
         if (s.user < 0) s.built = max(0f, s.built - HOUSE_DECAY * years)
         if (s.kind == Built.HOUSES && s.design == Skill.MUDBRICK.ordinal) {
-            val places = hw.placesOf(Hex(s.hex))
+            val places = hw.placesOf(s.hex)
             var rain = 0f; for (p in places) rain += weather.rain(p)
             if (places.isNotEmpty()) s.built = max(0f, s.built - MUD_EROSION * rain / places.size / MUD_WALL_MM)
         }
@@ -118,7 +123,7 @@ private fun HexGroups.raiseSavedHouses() {
     for (g in groups) {
         val b = g.band ?: continue
         if (!g.alive || b.houseHex.none || built.any { it.builder == g.id }) continue
-        val h = b.houseHex.i; val here = hw.placeHex[g.place] == h
+        val h = b.houseHex; val here = hw.placeHex[g.place] == h
         if (b.house > 0f) built += Structure(Built.HOUSES, h, Skill.STONE_FOOTING.ordinal, g.id, g.adults.toFloat()).also {
             it.built = b.house; it.done = true; if (here) it.user = g.id }
         if (b.palisade > 0f) built += Structure(Built.PALISADE, h, -1, g.id, g.adults.toFloat()).also {

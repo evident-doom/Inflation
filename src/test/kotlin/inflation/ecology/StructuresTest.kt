@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.world.Hex
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -9,7 +10,7 @@ import kotlin.test.assertTrue
 class StructuresTest {
     @Test
     fun `a structure is done once it first stands whole, and stays done as it weathers and is mended`() {
-        val s = Structure(Built.HOUSES, 0, -1, 1, 10f)
+        val s = Structure(Built.HOUSES, Hex(0), -1, 1, 10f)
         buildOn(s, 0.6f)
         assertFalse(s.done, "half built")
         buildOn(s, 0.5f)

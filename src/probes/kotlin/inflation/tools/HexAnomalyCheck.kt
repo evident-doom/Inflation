@@ -1,9 +1,13 @@
 package inflation.tools
 
+import inflation.ecology.get
+import inflation.world.Place
+import inflation.world.set
+
 import inflation.ecology.FaunaKind
 import inflation.Args
 import inflation.ecology.Fed
-import inflation.ecology.get
+import inflation.world.get
 import inflation.ecology.HexFauna
 import inflation.ecology.HexSim
 import inflation.ecology.HexSnapshot
@@ -83,9 +87,9 @@ fun main(args: Array<String>) {
             val pl = land.plants
             herbW[c] += ar * pl.herb[p]; shrubW[c] += ar * pl.shrub[p]; greenW[c] += ar * pl.green[p]; palW[c] += ar * land.palatable[p]
             val reach = HexFauna.REACH
-            canW[c] += ar * (reach * land.palatable[p] * pl.herb[p] + pl.browse(inflation.ecology.Place(p)))
+            canW[c] += ar * (reach * land.palatable[p] * pl.herb[p] + pl.browse(inflation.world.Place(p)))
             // (What was taken: what could be, less what was left.)
-            tookW[c] += ar * (reach * land.palatable[p] * pl.herb[p] + pl.browse(inflation.ecology.Place(p)) - fauna.grazeLeft[p] - fauna.browseLeft[p])
+            tookW[c] += ar * (reach * land.palatable[p] * pl.herb[p] + pl.browse(inflation.world.Place(p)) - fauna.grazeLeft[p] - fauna.browseLeft[p])
             leftW[c] += ar * (fauna.grazeLeft[p] + fauna.browseLeft[p])
             var res = 0.0
             for ((k, s) in fauna.kinds.withIndex()) {

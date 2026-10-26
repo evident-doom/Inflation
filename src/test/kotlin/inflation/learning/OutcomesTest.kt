@@ -1,5 +1,9 @@
 package inflation.learning
 
+import inflation.world.Place
+import inflation.world.get
+import inflation.world.set
+
 import inflation.ecology.Catalogue
 import inflation.ecology.HexGroup
 import kotlin.test.Test
@@ -7,7 +11,7 @@ import kotlin.test.assertEquals
 
 class OutcomesTest {
     private val wolf = Catalogue.all.first { it.name == "wolf" }
-    private fun pack(id: Int, adults: Int) = HexGroup(id, wolf, inflation.ecology.Place(0), adults, 0)
+    private fun pack(id: Int, adults: Int) = HexGroup(id, wolf, inflation.world.Place(0), adults, 0)
 
     @Test
     fun `a pack that takes another in is not credited with its animals, and the one that joined fares as the pack it joined`() {
@@ -48,7 +52,7 @@ class OutcomesTest {
     @Test
     fun `a band's luck in its own births and deaths is taken out`() {
         val o = Outcomes()
-        val band = HexGroup(1, Catalogue.HUMAN, inflation.ecology.Place(0), 20, 0)
+        val band = HexGroup(1, Catalogue.HUMAN, inflation.world.Place(0), 20, 0)
         o.record(0, listOf(band), emptyList())
         // Week 1: two more by luck alone.
         band.adults += 2; band.luck += 2f
@@ -59,11 +63,11 @@ class OutcomesTest {
     @Test
     fun `members are foreseen as the groups they are in foresee`() {
         val o = Outcomes()
-        val band = HexGroup(1, Catalogue.HUMAN, inflation.ecology.Place(0), 20, 0).also { it.foreseen = 0.9f }
+        val band = HexGroup(1, Catalogue.HUMAN, inflation.world.Place(0), 20, 0).also { it.foreseen = 0.9f }
         o.record(0, listOf(band), emptyList())
         // Week 1: 10 split off into a band foreseeing worse.
         band.adults -= 10; band.foreseen = 0.8f
-        val off = HexGroup(2, Catalogue.HUMAN, inflation.ecology.Place(0), 10, 0).also { it.parent = band.id; it.foreseen = 0.5f }
+        val off = HexGroup(2, Catalogue.HUMAN, inflation.world.Place(0), 10, 0).also { it.parent = band.id; it.foreseen = 0.5f }
         o.record(1, listOf(band, off), emptyList())
         val fore = FloatArray(1)
         assertEquals(20f, o.own(1, 0, 1, fore)[0], 1e-4f)

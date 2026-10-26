@@ -1,5 +1,11 @@
 package inflation.tools
 
+import inflation.world.toHexArray
+import inflation.world.HexArray
+import inflation.ecology.set
+import inflation.ecology.get
+import inflation.world.Hex
+
 import inflation.run.TestWorlds
 import inflation.Args
 import inflation.ecology.HexSim
@@ -8,11 +14,9 @@ import inflation.world.RiverClass
 import inflation.world.WorldConfig
 import kotlin.math.abs
 import kotlin.math.sqrt
-import inflation.ecology.get
-import inflation.ecology.set
-import inflation.ecology.contains
-import inflation.ecology.Place
-import inflation.ecology.hexOf
+import inflation.world.get
+import inflation.world.set
+import inflation.world.Place
 
 /**
  * How much hexes differ from their neighbours: whether the map's fields (warmth, rain, soil,
@@ -50,7 +54,7 @@ fun main(args: Array<String>) {
 
     // Inland hexes: all land, and so are their neighbours.
     val full = BooleanArray(H) { hw.land[it] >= 0.999f }
-    val inland = (0 until H).filter { h -> full[h] && (0 until 6).all { d -> hex.neighbour(h, d).let { it >= 0 && full[it] } } }
+    val inland = hex.all.filter { h -> full[h] && (0 until 6).all { d -> hex.neighbour(h, d).let { !it.none && full[it] } } }
     val isIn = BooleanArray(H).also { for (h in inland) it[h] = true }
     println("${inland.size} inland hexes of ${(0 until H).count { hw.land[it] > 0f }} with land; hex ${hex.hexKm} km")
 
@@ -63,25 +67,25 @@ fun main(args: Array<String>) {
     // Hex distance by breadth over the rings, for the lags measured.
     val lags = intArrayOf(1, 2, 3, 5, 8, 13, 20)
     val maxLag = lags.last()
-    val ringsOf: Array<Array<IntArray>> = Array(H) { emptyArray() }
+    val ringsOf: Array<Array<HexArray>> = Array(H) { emptyArray() }
     java.util.stream.IntStream.range(0, inland.size).parallel().forEach { idx ->
         val h = inland[idx]
-        val seen = HashSet<Int>().apply { add(h) }
+        val seen = HashSet<Hex>().apply { add(h) }
         var ring = listOf(h)
-        val out = arrayOfNulls<IntArray>(maxLag + 1)
-        for (k in 1..maxLag) { ring = hex.nextRing(ring, seen); if (k in lags) out[k] = ring.filter { isIn[it] && it > h }.toIntArray() }
-        ringsOf[h] = Array(maxLag + 1) { out[it] ?: IntArray(0) }
+        val out = arrayOfNulls<HexArray>(maxLag + 1)
+        for (k in 1..maxLag) { ring = hex.nextRing(ring, seen); if (k in lags) out[k] = ring.filter { isIn[it] && it > h }.toHexArray() }
+        ringsOf[h] = Array(maxLag + 1) { out[it] ?: HexArray.EMPTY }
     }
 
     // The hexes within [REGION] rings of each inland hex (itself included), for the spread of its region.
     val REGION = 5
-    val regionOf: Array<IntArray> = Array(H) { IntArray(0) }
+    val regionOf: Array<HexArray> = Array(H) { HexArray.EMPTY }
     java.util.stream.IntStream.range(0, inland.size).parallel().forEach { idx ->
         val h = inland[idx]
-        val seen = HashSet<Int>().apply { add(h) }
+        val seen = HashSet<Hex>().apply { add(h) }
         var ring = listOf(h); val all = arrayListOf(h)
         for (k in 1..REGION) { ring = hex.nextRing(ring, seen); all += ring.filter { full[it] } }
-        regionOf[h] = all.toIntArray()
+        regionOf[h] = all.toHexArray()
     }
 
     fun line(name: String, v: DoubleArray, fine: ((Int) -> Double)? = null) {
@@ -98,7 +102,7 @@ fun main(args: Array<String>) {
         }
         // By axis, at lag 1.
         val axis = DoubleArray(3); val axisN = LongArray(3)
-        for (h in inland) for (d in 0 until 3) { val o = hex.neighbour(h, d); if (o >= 0 && isIn[o]) { val x = v[h] - v[o]; axis[d] += x * x; axisN[d]++ } }
+        for (h in inland) for (d in 0 until 3) { val o = hex.neighbour(h, d); if (!o.none && isIn[o]) { val x = v[h] - v[o]; axis[d] += x * x; axisN[d]++ } }
         for (d in 0 until 3) axis[d] = 0.5 * axis[d] / axisN[d] / variance
         var anom = 0.0; var peaks = 0; var pits = 0; var peakBy = 0.0; var pitBy = 0.0
         var best = 0.0; var typical = 0.0; var worst = 0.0; var regions = 0
@@ -107,7 +111,7 @@ fun main(args: Array<String>) {
             val rg = regionOf[h]; var rm = 0.0; for (o in rg) rm += v[o]; rm /= rg.size
             var rv = 0.0; for (o in rg) rv += (v[o] - rm) * (v[o] - rm); rv /= rg.size
             regionVar += rv
-            if (h % 7 == 0 && rg.size >= 60) {
+            if (h.i % 7 == 0 && rg.size >= 60) {
                 val sorted = rg.map { v[it] }.sorted()
                 best += sorted.last()
                 typical += sorted[sorted.size / 2]

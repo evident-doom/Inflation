@@ -1,6 +1,9 @@
 package inflation.tools.herps
 
-import inflation.ecology.Place
+import inflation.world.get
+import inflation.world.set
+
+import inflation.world.Place
 import inflation.ecology.HexSim
 
 /** The kinds of climate a herp check sorts places into, by yearly mean temperature (°C) and rain (mm). */
@@ -31,11 +34,11 @@ class HerpRegions(run: HexSim) {
     /** Each place's [ClimateClass] ordinal, or -1 where nothing grows. */
     val classOf = IntArray(n) { p ->
         val hw = run.hw
-        if (land.plants.biomass(inflation.ecology.Place(p)) <= 0f) -1
+        if (land.plants.biomass(inflation.world.Place(p)) <= 0f) -1
         else ClimateClass.of((0 until 12).map { hw.placeTemp(Place(p), it) }.average().toFloat(),
             (0 until 12).sumOf { hw.precip[it][hw.placeHex[p]].toDouble() }.toFloat()).ordinal
     }
-    val forest = BooleanArray(n) { p -> land.plants.canopy(inflation.ecology.Place(p)) > 0.5f }
+    val forest = BooleanArray(n) { p -> land.plants.canopy(inflation.world.Place(p)) > 0.5f }
     val classArea = DoubleArray(ClimateClass.entries.size)
     /** Land in the open [0] and under forest [1]. */
     val forestArea = DoubleArray(2)

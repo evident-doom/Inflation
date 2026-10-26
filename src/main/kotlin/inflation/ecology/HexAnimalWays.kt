@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.world.get
 import inflation.world.Weather
 import kotlin.math.ln
 import kotlin.math.max

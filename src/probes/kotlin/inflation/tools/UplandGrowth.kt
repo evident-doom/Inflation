@@ -1,13 +1,16 @@
 package inflation.tools
 
-import inflation.ecology.Hex
+import inflation.world.get
+import inflation.world.set
+
+import inflation.world.Hex
 import inflation.ecology.FaunaKind
 import inflation.ecology.disease
 import inflation.ecology.EnumFloats
 import inflation.ecology.Danger
 import inflation.ecology.Growth
 import inflation.ecology.enumFloats
-import inflation.ecology.Place
+import inflation.world.Place
 import inflation.Args
 import inflation.ecology.HexFauna
 import inflation.ecology.HexSim
@@ -62,8 +65,8 @@ fun main(args: Array<String>) {
             for (p in 0 until land.n) { val area = land.areaKm2[p]; grown += ad[p] * area; little += yo[p] * area; fatDays += fauna.reserve[k][p] * ad[p] * area }
             if (grown <= 0.0) continue
             val ypg = (little / grown).toFloat(); val fat = (fatDays / grown).toFloat()
-            for (h in 0 until hex.size) {
-                val lo = hw.placeIn(HexWorld.LOW, Hex(h)); val hi = hw.placeIn(HexWorld.HIGH, Hex(h))
+            for (h in hex.all) {
+                val lo = hw.placeIn(HexWorld.LOW, h); val hi = hw.placeIn(HexWorld.HIGH, h)
                 if (lo.none || hi == lo) continue
                 val nLo = (ad[lo.i] + yo[lo.i]) * land.areaKm2[lo.i].toDouble(); val nHi = (ad[hi.i] + yo[hi.i]) * land.areaKm2[hi.i].toDouble()
                 val n = nLo + nHi; if (n <= 0.0) continue

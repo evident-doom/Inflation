@@ -1,5 +1,9 @@
 package inflation.ecology
 
+import inflation.world.Place
+import inflation.world.get
+import inflation.world.set
+
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals

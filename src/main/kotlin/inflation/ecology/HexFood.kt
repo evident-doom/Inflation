@@ -1,5 +1,11 @@
 package inflation.ecology
 
+import inflation.world.Place
+import inflation.world.perPlace
+import inflation.world.forEachPlace
+import inflation.world.get
+import inflation.world.set
+
 import inflation.StockName
 import inflation.ecology.HexSmallLife.DeadPool
 import inflation.Books

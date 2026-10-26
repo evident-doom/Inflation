@@ -1,5 +1,9 @@
 package inflation.ecology
 
+import inflation.world.Place
+import inflation.world.get
+import inflation.world.set
+
 import inflation.StockName
 import inflation.Stocks
 import inflation.world.Biome

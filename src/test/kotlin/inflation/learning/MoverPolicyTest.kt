@@ -1,9 +1,12 @@
 package inflation.learning
 
+import inflation.world.get
+import inflation.world.set
+
 import inflation.ecology.Catalogue
 import inflation.ecology.HexFeatures
 import inflation.ecology.HexGroup
-import inflation.ecology.Place
+import inflation.world.Place
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.random.Random
 import kotlin.test.Test

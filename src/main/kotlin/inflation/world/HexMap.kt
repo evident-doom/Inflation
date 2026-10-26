@@ -37,8 +37,15 @@ class HexMap(private val world: World, val hexKm: Double = 10.0) {
     val cols = (grid.width * grid.cellKm / hexKm).toInt() + 1
     val rows = (grid.height * grid.cellKm / rowKm).toInt() + 1
     val size = cols * rows
+    /** Every hex, in order: `for (h in hex.all)`. */
+    val all get() = HexRange(size)
+    /** A value per hex, from [init]: `hex.floats { h -> ... }`. */
+    inline fun floats(init: (Hex) -> Float) = FloatArray(size) { init(Hex(it)) }
+    inline fun bools(init: (Hex) -> Boolean) = BooleanArray(size) { init(Hex(it)) }
+    inline fun ints(init: (Hex) -> Int) = IntArray(size) { init(Hex(it)) }
+    inline fun <reified T> array(init: (Hex) -> T) = Array(size) { init(Hex(it)) }
     /** The hex each fine cell belongs to. */
-    val owner = IntArray(grid.size)
+    val owner = HexArray(grid.size)
     /** Per hex: fine cells, of which land; the fine cell at its heart (easiest ground near its centre), -1 if all sea. */
     val cells = IntArray(size)
     val landCells = IntArray(size)
@@ -82,29 +89,29 @@ class HexMap(private val world: World, val hexKm: Double = 10.0) {
             if (!world.isSea[i]) landCells[h]++
             if (world.isSea[i] || world.water.isLake(i)) wet[h]++
         }
-        for (h in 0 until size) water[h] = wet[h] * 2 > cells[h]
+        for (h in all) water[h] = wet[h] * 2 > cells[h]
         summarise()
-        for (h in 0 until size) if (water[h]) heart[h] = -1
+        for (h in all) if (water[h]) heart[h] = -1
         riversOnEdges()
-        java.util.stream.IntStream.range(0, size).parallel().forEach { a ->
-            if (heart[a] < 0) return@forEach
+        java.util.stream.IntStream.range(0, size).parallel().forEachHex { a ->
+            if (heart[a] < 0) return@forEachHex
             for (d in 0 until 3) {
                 val b = neighbour(a, d)
-                if (b < 0 || heart[b] < 0) continue
+                if (b.none || heart[b] < 0) continue
                 for (tr in Travel.entries) {
                     cross(a, b, d, tr)
                     // The whole crossing: the ground, plus the river on the border, if any.
-                    val g = ground[tr.ordinal][a * 6 + d]
-                    val w = tr.water(riverDepthM[a * 6 + d])
+                    val g = ground[tr.ordinal][edge(a, d)]
+                    val w = tr.water(riverDepthM[edge(a, d)])
                     val e = if (!g.isFinite() || !w.isFinite()) Float.POSITIVE_INFINITY else g + (w - 1f) * RIVER_KM
-                    crossings[tr.ordinal][a * 6 + d] = e; crossings[tr.ordinal][b * 6 + (d + 3) % 6] = e
+                    crossings[tr.ordinal][edge(a, d)] = e; crossings[tr.ordinal][edge(b, (d + 3) % 6)] = e
                 }
             }
         }
     }
 
     /** The hex containing the point (x, y) km. */
-    fun hexAt(xKm: Double, yKm: Double): Int {
+    fun hexAt(xKm: Double, yKm: Double): Hex {
         // To axial coordinates (pointy-top), round in cube coordinates, back to odd-row offset.
         val q = (sqrt(3.0) / 3 * xKm - 1.0 / 3 * yKm) / (hexKm / sqrt(3.0))
         val r = (2.0 / 3 * yKm) / (hexKm / sqrt(3.0))
@@ -115,38 +122,46 @@ class HexMap(private val world: World, val hexKm: Double = 10.0) {
         if (dx > dy && dx > dz) rx = -ry - rz else if (!(dy > dz)) rz = -rx - ry
         val row = rz.toInt()
         val col = rx.toInt() + (row - (row and 1)) / 2
-        return row.coerceIn(0, rows - 1) * cols + col.coerceIn(0, cols - 1)
+        return Hex(row.coerceIn(0, rows - 1) * cols + col.coerceIn(0, cols - 1))
     }
 
     /** Centre of hex [h], km. */
-    fun centreKm(h: Int): Pair<Double, Double> {
-        val col = h % cols; val row = h / cols
+    fun centreKm(h: Hex): Pair<Double, Double> {
+        val col = h.i % cols; val row = h.i / cols
         return hexKm * (col + 0.5 * (row and 1)) to rowKm * row
     }
 
     /** Distance between the centres of hexes [a] and [b], km. */
-    fun distanceKm(a: Int, b: Int): Double {
-        val ra = a / cols; val rb = b / cols
-        val dx = hexKm * ((a - ra * cols) - (b - rb * cols) + 0.5 * ((ra and 1) - (rb and 1)))
+    fun distanceKm(a: Hex, b: Hex): Double {
+        val ra = a.i / cols; val rb = b.i / cols
+        val dx = hexKm * ((a.i - ra * cols) - (b.i - rb * cols) + 0.5 * ((ra and 1) - (rb and 1)))
         val dy = rowKm * (ra - rb)
         return kotlin.math.sqrt(dx * dx + dy * dy)
     }
 
     /** The hexes next to [ring] not yet in [seen] (which takes them in), in the order they are reached: the next ring outward. */
-    fun nextRing(ring: List<Int>, seen: MutableSet<Int>): List<Int> {
-        val next = ArrayList<Int>()
-        for (h in ring) for (d in 0 until 6) { val q = neighbour(h, d); if (q >= 0 && seen.add(q)) next += q }
+    fun nextRing(ring: List<Hex>, seen: MutableSet<Hex>): List<Hex> {
+        val next = ArrayList<Hex>()
+        for (h in ring) for (d in 0 until 6) { val q = neighbour(h, d); if (!q.none && seen.add(q)) next += q }
         return next
     }
 
-    /** The neighbour of [h] in direction [d] (0 E, 1 SE, 2 SW, 3 W, 4 NW, 5 NE), or -1 off the map. */
-    fun neighbour(h: Int, d: Int): Int {
-        val col = h % cols; val row = h / cols
+    /** The neighbour of [h] in direction [d] (0 E, 1 SE, 2 SW, 3 W, 4 NW, 5 NE), or [Hex.NONE] off the map. */
+    fun neighbour(h: Hex, d: Int): Hex {
+        val col = h.i % cols; val row = h.i / cols
         val odd = row and 1
         val (dc, dr) = if (odd == 1) ODD[d] else EVEN[d]
         val c = col + dc; val r = row + dr
-        return if (c < 0 || r < 0 || c >= cols || r >= rows) -1 else r * cols + c
+        return if (c < 0 || r < 0 || c >= cols || r >= rows) Hex.NONE else Hex(r * cols + c)
     }
+
+    /** Hex [h]'s column and row in the odd-row offset layout; the hex at column [col] of row [row]. */
+    fun col(h: Hex): Int = h.i % cols
+    fun row(h: Hex): Int = h.i / cols
+    fun at(col: Int, row: Int): Hex = Hex(row * cols + col)
+
+    /** Hex [h]'s border in direction [d], as an index into the arrays kept per border ([crossings], [passM], ...). */
+    fun edge(h: Hex, d: Int): Int = h.i * 6 + d
 
     private fun summarise() {
         val elevs = Array(size) { ArrayList<Float>() }
@@ -159,7 +174,7 @@ class HexMap(private val world: World, val hexKm: Double = 10.0) {
             if (s < 0.05f) flatN[h]++
             if (s > 0.45f) cragN[h]++
         }
-        for (h in 0 until size) {
+        for (h in all) {
             val e = elevs[h]
             if (e.isEmpty()) continue
             e.sort()
@@ -207,7 +222,7 @@ class HexMap(private val world: World, val hexKm: Double = 10.0) {
     }
 
     /** Works out the border between [a] and its neighbour [b] in direction [d], keeping to the two hexes. */
-    private fun cross(a: Int, b: Int, d: Int, tr: Travel) {
+    private fun cross(a: Hex, b: Hex, d: Int, tr: Travel) {
         val walk = costs[tr.ordinal]
         val from = heart[a]; val to = heart[b]
         val sc = crossScratch.get()
@@ -240,8 +255,8 @@ class HexMap(private val world: World, val hexKm: Double = 10.0) {
         while (i != from) { top = max(top, world.elevation[i]); i = via[i] }
         val e = dist[to]
         val back = (d + 3) % 6
-        ground[tr.ordinal][a * 6 + d] = e; ground[tr.ordinal][b * 6 + back] = e
-        if (tr == Travel.FOOT) { passM[a * 6 + d] = top; passM[b * 6 + back] = top }
+        ground[tr.ordinal][edge(a, d)] = e; ground[tr.ordinal][edge(b, back)] = e
+        if (tr == Travel.FOOT) { passM[edge(a, d)] = top; passM[edge(b, back)] = top }
         } finally { sc.reset() }
     }
 
@@ -269,14 +284,14 @@ class HexMap(private val world: World, val hexKm: Double = 10.0) {
             val ax = (grid.x(i) + 0.5) * ck; val ay = (grid.y(i) + 0.5) * ck
             val bx = (grid.x(r) + 0.5) * ck; val by = (grid.y(r) + 0.5) * ck
             // The hexes near the reach, and their borders.
-            val near = HashSet<Int>()
-            for (h in intArrayOf(owner[i], owner[r])) { near += h; for (d in 0 until 6) neighbour(h, d).let { if (it >= 0) near += it } }
+            val near = HashSet<Hex>()
+            for (h in listOf(owner[i], owner[r])) { near += h; for (d in 0 until 6) neighbour(h, d).let { if (!it.none) near += it } }
             for (h in near) for (d in 0 until 3) {
                 val n = neighbour(h, d)
-                if (n < 0 || n !in near) continue
+                if (n.none || n !in near) continue
                 val (hx, hy) = centreKm(h); val (nx, ny) = centreKm(n)
                 if (!segmentsCross(ax, ay, bx, by, hx, hy, nx, ny)) continue
-                val k = h * 6 + d; val back = n * 6 + (d + 3) % 6
+                val k = edge(h, d); val back = edge(n, (d + 3) % 6)
                 val best = if (riverDepthM[k] == 0f) depth else min(riverDepthM[k], depth)
                 riverDepthM[k] = best; riverDepthM[back] = best
                 riverM3s[k] = max(riverM3s[k], world.water.discharge[i]); riverM3s[back] = riverM3s[k]
@@ -292,18 +307,18 @@ class HexMap(private val world: World, val hexKm: Double = 10.0) {
     }
 
     /** Least effort from hex [a] to every hex, over the borders, travelling as [tr]; infinite where there is no way. */
-    fun efforts(a: Int, tr: Travel = Travel.FOOT): FloatArray {
+    fun efforts(a: Hex, tr: Travel = Travel.FOOT): FloatArray {
         val crossing = crossings[tr.ordinal]
         val dist = FloatArray(size) { Float.POSITIVE_INFINITY }
-        val q = PriorityQueue<Pair<Float, Int>>(compareBy { it.first })
+        val q = PriorityQueue<Pair<Float, Hex>>(compareBy { it.first })
         dist[a] = 0f; q += 0f to a
         while (q.isNotEmpty()) {
             val (d, h) = q.poll()
             if (d > dist[h]) continue
             for (k in 0 until 6) {
                 val n = neighbour(h, k)
-                if (n < 0) continue
-                val nd = d + crossing[h * 6 + k]
+                if (n.none) continue
+                val nd = d + crossing[edge(h, k)]
                 if (nd < dist[n]) { dist[n] = nd; q += nd to n }
             }
         }

@@ -1,5 +1,11 @@
 package inflation.ecology
 
+import inflation.world.runPhases
+import inflation.world.Phase
+import inflation.world.Hex
+import inflation.world.get
+import inflation.world.set
+
 import inflation.Books
 import inflation.StockName
 import inflation.Stocks
@@ -31,7 +37,9 @@ class HexSim(
     val hw = HexWorld(world, hex)
     val weather = Weather(hw.weatherPlaces(cfg), cfg).also { it.begin(tuning.startDay) }
     val land = HexLand(hw, cfg.seed, tuning)
-    val fauna = HexFauna(hw, land, cfg.daysPerStep)
+    /** The week's tallies for the reports ([WeekStats]), shared by the residents and the groups like the books; not saved. */
+    @Transient val stats = WeekStats()
+    val fauna = HexFauna(hw, land, cfg.daysPerStep, stats)
     val groups = HexGroups(hw, land, fauna, cfg.daysPerStep, cfg.seed, kinds, uniformStart)
     /** Volcanoes erupting at their own rates; the ash falls downwind on the places. */
     val eruptions = Eruptions(world.grid, world.volcanoes, cfg.seed)
@@ -67,7 +75,7 @@ class HexSim(
     fun step() {
         // (What changed between steps, as a save loaded into the world or the viewer's hand, is charged to that.)
         books?.check("between steps")
-        land.stats.clear()
+        stats.clear()
         runPhases(phases, weather, books)
     }
 
@@ -86,7 +94,7 @@ class HexSim(
     private fun fallingAsh() {
         for (p in 0 until land.n) if (land.plants.ash[p] > 0f) land.plants.ash[p] = if (land.plants.ash[p] < 0.05f) 0f else land.plants.ash[p] * ashKeep
         val now = eruptions.step(weather.date, cfg.daysPerStep, wind = { c ->
-            val p = hw.firstPlaceIn(Hex(hex.owner[c]))
+            val p = hw.firstPlaceIn(hex.owner[c])
             if (p.none) 1f to 0f else weather.windEast(p.i) to weather.windSouth(p.i)
         }) { c, mm -> val p = cellPlace[c]; if (p >= 0) land.plants.ash[p] += mm / hw.placeCells[p].size }
         for (e in now) weather.volcanicForcing(e.vei, e.volcano.x, e.volcano.y)

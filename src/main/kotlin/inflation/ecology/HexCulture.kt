@@ -1,5 +1,11 @@
 package inflation.ecology
 
+import inflation.world.Hex
+import inflation.world.HexArray
+import inflation.world.toHexArray
+import inflation.world.get
+import inflation.world.set
+
 import inflation.ecology.HexSmallLife.DeadPool
 import inflation.Kg
 import inflation.Tuning
@@ -255,7 +261,7 @@ private fun HexGroups.tellOfCountry(a: HexGroup, bandA: Band, b: HexGroup, bandB
     // And where each has its houses, and the homes of others they know of: settled bands can be found.
     fun showsHome(teller: HexGroup, bt: Band, hearer: Band) {
         if (bt.houseHex.none || bt.house < Thresholds.HOUSE_STANDING) return
-        hearer.knownHomes[teller.id] = bt.houseHex.i
+        hearer.knownHomes[teller.id] = bt.houseHex
         hearer.knownLineage[teller.id] = bt.mainLineage()
     }
     fun tellsHomes(bt: Band, hearer: HexGroup, bh: Band) {
@@ -288,7 +294,7 @@ private fun HexGroups.raid(g: HexGroup, b: Band, o: HexGroup, ob: Band, understo
     val feud = b.grudge[ob.mainLineage()] > FEUD
     val hunger = if (o.larder > 10f * o.dailyNeedKg) (1f - g.fed) else 0f
     // (On ground it holds as its own, a band drives off those it is not close to: trespass.)
-    val trespass = if (b.claims(hw.hexOf(g.place), g.memory) && b.tie(o.id) <= 0f) CLAIM_PRESSURE else 0f
+    val trespass = if (b.claims(hw.placeHex[g.place], g.memory) && b.tie(o.id) <= 0f) CLAIM_PRESSURE else 0f
     val pressure = if (feud) 1f else maxOf(hunger, min(1f, peopleCrowding(g)), trespass)
     // Strangers (never met before) and those of other customs are easier to fight.
     val stranger = if (o.id !in b.ties) STRANGER_HOSTILITY else 0f
@@ -432,7 +438,7 @@ internal fun HexGroups.visitKin(weather: Weather) {
     val today = weather.date.absoluteDay
     val hungry = groups.filter { it.alive && it.band != null && it.fed < VISIT_FED && it.larder < it.dailyNeedKg * days }.sortedBy { tieBreak(it.id, 0, today) }
     if (hungry.isEmpty()) return
-    val byHex = HashMap<Int, ArrayList<HexGroup>>()
+    val byHex = HashMap<Hex, ArrayList<HexGroup>>()
     for (g in groups) if (g.alive && g.band != null && g.larder > 0f) byHex.getOrPut(hw.placeHex[g.place]) { ArrayList() } += g
     for (g in hungry) {
         // The best-stocked band within two hexes, the nearer the better.
@@ -490,12 +496,12 @@ internal fun HexGroups.cultureWeek(g: HexGroup) {
         val mem = g.memory
         var best = -1; var bestScore = 0f
         for (i in 0 until PlaceMemory.MEMORY_SLOTS) {
-            if (mem.hex[i] < 0) continue
+            if (mem.hex[i].none) continue
             val score = mem.dead[i] + 0.5f * mem.met[i] + mem.fed[i]
             if (mem.dead[i] + mem.met[i] >= APPOINT_MIN && score > bestScore) { bestScore = score; best = i }
         }
         if (best >= 0) {
-            b.appointment = Appointment(Hex(mem.hex[best]), mem.season[best] * 3 + 1)
+            b.appointment = Appointment(mem.hex[best], mem.season[best] * 3 + 1)
             stats.meeting(Met.BANDS_MADE_AN_APPOINTMENT)
         }
     }
@@ -515,7 +521,7 @@ internal fun HexGroups.cultureWeek(g: HexGroup) {
     if (rnd.nextFloat() < years) {
         val here = hw.placeHex[g.place]
         for (w in b.known.indices) { var bits = b.known[w]; while (bits != 0L) { val i = java.lang.Long.numberOfTrailingZeros(bits); bits = bits and (bits - 1)
-            val h = w * 64 + i
+            val h = Hex(w * 64 + i)
             if (hex.distanceKm(h, here) > REMEMBERED_KM && rnd.nextFloat() < 0.5f * routes.forgetShare(h)) b.known[w] = b.known[w] and (1L shl i).inv() } }
     }
     b.inbred += (1f - b.inbred) / (2f * max(2, g.adults)) * years / GENERATION_YEARS
@@ -567,17 +573,17 @@ internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
     }
     val mem = g.memory
     for (i in 0 until PlaceMemory.MEMORY_SLOTS) {
-        if (mem.hex[i] < 0) continue
+        if (mem.hex[i].none) continue
         val month = mem.season[i] * 3 + 1
-        if (mem.dead[i] >= APPOINT_MIN) consider((hw.firstPlaceIn(Hex(mem.hex[i]))).i, month, mem.dead[i])
-        if (mem.met[i] >= APPOINT_MIN) consider((hw.firstPlaceIn(Hex(mem.hex[i]))).i, month, 0.5f * mem.met[i])
+        if (mem.dead[i] >= APPOINT_MIN) consider((hw.firstPlaceIn(mem.hex[i])).i, month, mem.dead[i])
+        if (mem.met[i] >= APPOINT_MIN) consider((hw.firstPlaceIn(mem.hex[i])).i, month, 0.5f * mem.met[i])
     }
     val here = hw.placeHex[g.place]; val month = weather.date.month
     for (h in routes.landmarks) {
         val k = routes.kind(h)
         if ((k != HexRoutes.Kind.PASS && k != HexRoutes.Kind.WATER && k != HexRoutes.Kind.END) || !b.knows(h)) continue
         val km = hex.distanceKm(here, h)
-        if (km > REMEMBERED_KM) consider((hw.firstPlaceIn(Hex(h))).i, month, APPOINT_MIN * (km / REMEMBERED_KM).toFloat())
+        if (km > REMEMBERED_KM) consider((hw.firstPlaceIn(h)).i, month, APPOINT_MIN * (km / REMEMBERED_KM).toFloat())
     }
     // (Where the good stone, salt or ochre it lacks is got, if it knows the place: the stronger its want, the likelier.)
     for (m in TRADED) {
@@ -585,7 +591,7 @@ internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
         if (want <= 0f) continue
         for (h in materialSources.getValue(m)) if (b.knows(h)) {
             val km = hex.distanceKm(here, h)
-            if (km > tuning.roundArrivedKm) consider((hw.firstPlaceIn(Hex(h))).i, month, APPOINT_MIN * SOURCE_RITE * want)
+            if (km > tuning.roundArrivedKm) consider((hw.firstPlaceIn(h)).i, month, APPOINT_MIN * SOURCE_RITE * want)
         }
     }
     if (bestPlace >= 0) { b.rite[bestMonth] = bestPlace; stats.meeting(Met.BANDS_TOOK_UP_A_RITE) }

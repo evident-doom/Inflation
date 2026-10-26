@@ -1,8 +1,10 @@
 package inflation.ui
 
-import inflation.ecology.Hex
+import inflation.ecology.set
+import inflation.ecology.get
+import inflation.world.Hex
 import inflation.ecology.FaunaKind
-import inflation.ecology.Place
+import inflation.world.Place
 import inflation.learning.LearnedModel
 import inflation.Args
 import inflation.Config
@@ -79,10 +81,8 @@ import javax.swing.JFileChooser
 import javax.swing.filechooser.FileNameExtensionFilter
 import java.awt.Point
 import java.awt.BasicStroke
-import inflation.ecology.get
-import inflation.ecology.set
-import inflation.ecology.contains
-import inflation.ecology.hexOf
+import inflation.world.get
+import inflation.world.set
 
 /**
  * Watches the hex world: the fine terrain with its hex borders (see [HexPicture]) as the ground,
@@ -184,13 +184,13 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
      * The place whose weather stands for hex [h]: its own low ground, or for a sea or lake hex the
      * nearest land within a few rings (the weather is worked out on land only); -1 if none.
      */
-    private fun windPlace(h: Int): Int {
-        hw.firstPlaceIn(Hex(h)).takeIf { !it.none }?.let { return it.i }
+    private fun windPlace(h: Hex): Int {
+        hw.firstPlaceIn(h).takeIf { !it.none }?.let { return it.i }
         var ring = listOf(h); val seen = hashSetOf(h)
         repeat(4) {
-            val next = ArrayList<Int>()
-            for (r in ring) for (d in 0 until 6) { val q = hex.neighbour(r, d); if (q >= 0 && seen.add(q)) next += q }
-            for (q in next) hw.firstPlaceIn(Hex(q)).takeIf { !it.none }?.let { return it.i }
+            val next = ArrayList<Hex>()
+            for (r in ring) for (d in 0 until 6) { val q = hex.neighbour(r, d); if (!q.none && seen.add(q)) next += q }
+            for (q in next) hw.firstPlaceIn(q).takeIf { !it.none }?.let { return it.i }
             ring = next
         }
         return -1
@@ -223,7 +223,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         waterLayers.map { "water: " + it.first }.toTypedArray()) }
     private val map = MapPanel()
     /** The hex being inspected, -1 for none, and its groups. */
-    @Volatile private var picked = -1
+    @Volatile private var picked = Hex.NONE
     private val info = JTextArea(14, 40).apply {
         isEditable = false; (caret as DefaultCaret).updatePolicy = DefaultCaret.NEVER_UPDATE
         font = Font(Font.MONOSPACED, Font.PLAIN, 12)
@@ -255,9 +255,9 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         tintChoice.addActionListener {
             causeChoice.isEnabled = Measure.entries[tintChoice.selectedIndex].byCause
             map.repaint()
-            if (picked >= 0) inspect(picked)
+            if (!picked.none) inspect(picked)
         }
-        modeChoice.addActionListener { map.repaint() }; causeChoice.addActionListener { map.repaint(); if (picked >= 0) inspect(picked) }
+        modeChoice.addActionListener { map.repaint() }; causeChoice.addActionListener { map.repaint(); if (!picked.none) inspect(picked) }
         windBox.addActionListener { map.repaint() }
         riversBox.addActionListener { rivers.visible = riversBox.isSelected; map.repaint() }
         huntersBox.addActionListener { map.repaint() }
@@ -374,7 +374,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
     private fun snapshot() {
         val list = ArrayList<Shown>(groups.groups.size)
         // Groups ending the week in the same hex stand side by side.
-        val inHex = HashMap<Int, Int>(); val slotOf = HashMap<Int, Int>()
+        val inHex = HashMap<Hex, Int>(); val slotOf = HashMap<Int, Int>()
         for (g in groups.groups) if (g.alive) { val h = hw.placeHex[g.place]; slotOf[g.id] = inHex.getOrDefault(h, 0); inHex.merge(h, 1, Int::plus) }
         for (g in groups.groups) {
             if (!g.alive) continue
@@ -389,7 +389,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             val pts = ArrayList<Float>()
             val start = lastDrawn[g.id] ?: end
             pts += start.first; pts += start.second
-            for (ph in g.path.drop(1).dropLast(1)) { val (x, y) = hex.centreKm(ph); pts += x.toFloat(); pts += y.toFloat() }
+            for (ph in g.path.toList().drop(1).dropLast(1)) { val (x, y) = hex.centreKm(ph); pts += x.toFloat(); pts += y.toFloat() }
             pts += end.first; pts += end.second
             // How well it is doing: fed last week and its reserves.
             val health = (0.5f * g.fed + 0.5f * g.fat / g.species.maxFatDays.coerceAtLeast(1f)).coerceIn(0f, 1f)
@@ -407,7 +407,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         }
         // Following a group (in the follow window): the week's log, for the panel when that group is picked.
         followLog = if (groups.watched >= 0) groups.watchLog.joinToString("\n") else ""
-        SwingUtilities.invokeLater { if (picked >= 0) inspect(picked) }
+        SwingUtilities.invokeLater { if (!picked.none) inspect(picked) }
         frames = max(8, 30 / stepsPerSecond); frame = 0
         // (The texts are made here, on the simulation's thread, from the world as the week left it.)
         val dateText = "   year ${weather.date.year}, month ${weather.date.month + 1}, day ${weather.date.dayOfMonth}"
@@ -496,9 +496,9 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
          * that stand ([inflation.ecology.HexGroups.built]); this year's sown fields, their ripe grain and the share of ears that
          * hold their grain; and ground worn by cropping ([inflation.ecology.HexFood.fieldWorn]).
          */
-        private fun paintWorks(g: Graphics2D, sx: (Float) -> Int, sy: (Float) -> Int, onScreen: (Int, Int) -> Boolean) {
+        private fun paintWorks(g: Graphics2D, sx: (Float) -> Int, sy: (Float) -> Int, onScreen: (Hex, Int) -> Boolean) {
             val room = FloatArray(hex.size); val begun = FloatArray(hex.size); val fence = FloatArray(hex.size)
-            for (st in groups.built) if (st.hex >= 0) when (st.kind) {
+            for (st in groups.built) if (!st.hex.none) when (st.kind) {
                 Built.HOUSES -> if (st.done) room[st.hex] += st.built * st.size else begun[st.hex] += st.built * st.size
                 Built.PALISADE -> fence[st.hex] = max(fence[st.hex], st.built)
             }
@@ -511,7 +511,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                 wornKm2[h] += food.fieldWorn[p] * land.areaKm2[p]
             }
             val z = max(0.6, scale).toFloat()
-            for (h in 0 until hex.size) {
+            for (h in hex.all) {
                 if (room[h] + begun[h] + fence[h] + sownKg[h] + ripeKg[h] + wornKm2[h] <= 0f || !onScreen(h, 1)) continue
                 val (cx, cy) = hex.centreKm(h)
                 val x = sx(cx.toFloat()); val y = sy(cy.toFloat())
@@ -563,14 +563,14 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             fun sx(km: Float) = (ox + km * kmPx).toInt()
             fun sy(km: Float) = (oy + km * kmPx).toInt()
             // Hexes whose centre lies more than [hexes] hexes off the screen are skipped: at a close zoom most of the map is.
-            fun onScreen(h: Int, hexes: Int = 1): Boolean {
+            fun onScreen(h: Hex, hexes: Int = 1): Boolean {
                 val (cx, cy) = hex.centreKm(h)
                 val margin = hexes * hex.hexKm * kmPx
                 val x = ox + cx * kmPx; val y = oy + cy * kmPx
                 return x > -margin && y > -margin && x < width + margin && y < height + margin
             }
             // Hex [h] filled with [colour], or with [fill] false outlined.
-            fun hexagon(h: Int, colour: Color, fill: Boolean = true) {
+            fun hexagon(h: Hex, colour: Color, fill: Boolean = true) {
                 val (cx, cy) = hex.centreKm(h); val rad = hex.hexKm / sqrt(3.0)
                 val xs = IntArray(6) { sx((cx + rad * cos(Math.PI / 6 + it * Math.PI / 3)).toFloat()) }
                 val ys = IntArray(6) { sy((cy + rad * sin(Math.PI / 6 + it * Math.PI / 3)).toFloat()) }
@@ -586,7 +586,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                 val legend = paintTint(tint, mode, key, colours)
                 legends += legend
                 if (legendText.text != legend.text) SwingUtilities.invokeLater { legendText.text = legend.text }
-                for (h in 0 until hex.size) {
+                for (h in hex.all) {
                     val colour = colours[h] ?: continue
                     if (!onScreen(h)) continue
                     hexagon(h, colour)
@@ -595,8 +595,8 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             // Wind as small arrows, every few hexes, longer and brighter the stronger.
             if (windBox.isSelected) {
                 val every = max(1, (2.0 / scale).toInt())
-                for (h in 0 until hex.size) {
-                    val col = h % hex.cols; val row = h / hex.cols
+                for (h in hex.all) {
+                    val col = hex.col(h); val row = hex.row(h)
                     if (col % every != 0 || row % every != 0 || !onScreen(h, every + 1)) continue
                     val p = windPlace(h).takeIf { it >= 0 } ?: continue
                     val u = weather.windEast(p); val v = weather.windSouth(p)
@@ -617,8 +617,8 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             if (pk >= 0) {
                 val (b, k) = if (pk < fauna.kinds.size) fauna.bearings to pk else groups.bearings to pk - fauna.kinds.size
                 val every = max(1, (2.0 / scale).toInt())
-                for (h in 0 until hex.size) {
-                    val col = h % hex.cols; val row = h / hex.cols
+                for (h in hex.all) {
+                    val col = hex.col(h); val row = hex.row(h)
                     if (col % every != 0 || row % every != 0 || hex.heart[h] < 0 || !onScreen(h, every + 1)) continue
                     val u = b.east[k][h]; val v = b.south[k][h]
                     val st = hypot(u, v)
@@ -647,25 +647,25 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                 else {
                     // Life in the water: its density per hex as it is kept (sea hexes too).
                     val stock = waterLayers[r - fauna.kinds.size - groups.kinds.size].second
-                    for (h in 0 until hex.size) { area[h] = 1.0; dens[h] = stock[h].toDouble() }
+                    for (h in hex.all) { area[h] = 1.0; dens[h] = stock[h].toDouble() }
                 }
                 val up = if (heightBox.isSelected && r < fauna.kinds.size) upDown(r, dens) else null
                 if (up != null) {
                     legends += upDownLegend
-                    for (h in 0 until hex.size) {
+                    for (h in hex.all) {
                         val x = up[h]; if (x.isNaN() || !onScreen(h)) continue
                         hexagon(h, Color(x, 0.25f, 1f - x, 0.75f))
                     }
                 } else {
                 // Shaded against the densest twentieth of hexes, so that thin spreads show too.
-                val values = (0 until hex.size).filter { area[it] > 0 && dens[it] > 0 }.map { dens[it] / area[it] }.sorted()
+                val values = hex.all.filter { area[it] > 0 && dens[it] > 0 }.map { dens[it] / area[it] }.sorted()
                 val top = (if (values.isEmpty()) 0.0 else values[(values.size * 0.95).toInt().coerceAtMost(values.size - 1)]).coerceAtLeast(1e-6)
                 val water = r >= fauna.kinds.size + groups.kinds.size
                 val name = residentChoice.selectedItem.toString()
                 legends += MapLegend(name, name, { x -> Color(1f, 0.1f, 0.6f, 0.6f * sqrt(x).coerceIn(0.15f, 1f)) },
                     listOf(0f to "few", 0.25f to MapLegend.num((top / 4).toFloat()), 1f to MapLegend.num(top.toFloat()) + "+"),
                     (if (water) "as kept per hex" else "head per km²") + "; full at the densest twentieth of hexes; clear where none")
-                for (h in 0 until hex.size) {
+                for (h in hex.all) {
                     if (area[h] <= 0) continue
                     if (dens[h] <= 0 || !onScreen(h)) continue
                     val v = sqrt(dens[h] / area[h] / top).toFloat().coerceIn(0.15f, 1f)
@@ -678,11 +678,11 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             val flow = flowShown
             if (flowBox.isSelected && flow != null && flow.kind == r) {
                 val every = max(1, (1.5 / scale).toInt())
-                val mags = (0 until hex.size).map { hypot(flow.east[it], flow.south[it]) }.filter { it > 0f }.sorted()
+                val mags = flow.east.indices.map { hypot(flow.east[it], flow.south[it]) }.filter { it > 0f }.sorted()
                 val top = (if (mags.isEmpty()) 0f else mags[(mags.size * 0.95).toInt().coerceAtMost(mags.size - 1)]).coerceAtLeast(1e-9f)
                 g.color = Color.WHITE
-                for (h in 0 until hex.size) {
-                    val col = h % hex.cols; val row = h / hex.cols
+                for (h in hex.all) {
+                    val col = hex.col(h); val row = hex.row(h)
                     if (col % every != 0 || row % every != 0 || !onScreen(h, every + 1)) continue
                     val u = flow.east[h]; val v = flow.south[h]
                     val m = hypot(u, v); if (m < 0.05f * top) continue
@@ -703,11 +703,11 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             // Paths: hex centre to hex centre, each pair once, darker and wider the more worn.
             if (pathsBox.isSelected) {
                 val stroke = g.stroke
-                for (h in 0 until hex.size) for (d in 0 until 3) {
+                for (h in hex.all) for (d in 0 until 3) {
                     if (!onScreen(h, 2)) break
-                    val nh = hex.neighbour(h, d); if (nh < 0) continue
+                    val nh = hex.neighbour(h, d); if (nh.none) continue
                     val back = (0 until 6).firstOrNull { hex.neighbour(nh, it) == h } ?: continue
-                    val s = max(groups.wear.paths[h * 6 + d], groups.wear.paths[nh * 6 + back])
+                    val s = max(groups.wear.paths[hex.edge(h, d)], groups.wear.paths[hex.edge(nh, back)])
                     if (s < 0.05f) continue
                     val (x0, y0) = hex.centreKm(h); val (x1, y1) = hex.centreKm(nh)
                     g.color = Color(0.45f, 0.3f, 0.12f, (0.25f + 0.65f * s).coerceAtMost(1f))
@@ -731,7 +731,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                 for (h in routes.landmarks) {
                     val (cx, cy) = hex.centreKm(h); val x = sx(cx.toFloat()); val y = sy(cy.toFloat())
                     val k = routes.kind(h)
-                    val rr = if (routes.places.getOrNull(routes.placeOf[h]) == h) r else max(1, r / 2)
+                    val rr = if (routes.placeOf[h] >= 0 && routes.places[routes.placeOf[h]] == h) r else max(1, r / 2)
                     g.color = landmarkColour(k)
                     if (k == HexRoutes.Kind.PASS || k == HexRoutes.Kind.PEAK) g.fillPolygon(intArrayOf(x - rr, x, x + rr), intArrayOf(y + rr, y - rr, y + rr), 3)
                     else g.fillOval(x - rr, y - rr, 2 * rr, 2 * rr)
@@ -773,7 +773,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                 legends += worksLegend
             }
             // The hex being inspected.
-            if (picked >= 0) {
+            if (!picked.none) {
                 g.stroke = BasicStroke(2.5f); hexagon(picked, Color.WHITE, false); g.stroke = BasicStroke(1f)
             }
             // The groups, each part of the way along the hexes it walked this week; at the end of the
@@ -854,13 +854,13 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             return l[(l.size * 0.05).toInt()] to l[(l.size * 0.95).toInt().coerceAtMost(l.size - 1)]
         }
         fun f(x: Float) = MapLegend.num(x)
-        fun shade(h: Int, a: Float) { out[h] = rgba(tint.r, tint.g, tint.b, a) }
+        fun shade(h: Hex, a: Float) { out[h] = rgba(tint.r, tint.g, tint.b, a) }
         val kept = layers.monthsKept(key)
         when (mode) {
             ViewLayers.Mode.WEEK -> {
                 if (tint.weeks) {
                     val full = ln(1f + 104f)
-                    for (h in v.indices) if (!v[h].isNaN() && v[h] > 0f) shade(h, 0.05f + 0.75f * min(1f, ln(1f + v[h]) / full))
+                    for (h in v.indices) if (!v[h].isNaN() && v[h] > 0f) shade(Hex(h), 0.05f + 0.75f * min(1f, ln(1f + v[h]) / full))
                     return MapLegend(title, "${tint.label}: what lies there over what went in a week. Pale: gone within days; full: two years or more (accumulating).",
                         { x -> if (x <= 0f) null else rgba(tint.r, tint.g, tint.b, 0.05f + 0.75f * x) },
                         listOf(0f to "0", ln(1f + 4f) / full to "4", ln(1f + 20f) / full to "20", 1f to "104+"),
@@ -994,15 +994,15 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
     }
 
     /** Fills the side panel with what is in hex [h]: its ground, weather, plants, residents and borders, and the groups standing in it. */
-    private fun inspect(h: Int) = worldLock.whileStill { inspectNow(h) }
+    private fun inspect(h: Hex) = worldLock.whileStill { inspectNow(h) }
 
-    private fun inspectNow(h: Int) {
+    private fun inspectNow(h: Hex) {
         val sb = StringBuilder()
         val (cx, cy) = hex.centreKm(h)
-        sb.appendLine("Hex %d at (%.0f, %.0f) km%s".format(h, cx, cy, if (hex.water[h]) " - water" else ""))
-        for (p in hw.placesOf(Hex(h))) {
+        sb.appendLine("Hex %d at (%.0f, %.0f) km%s".format(h.i, cx, cy, if (hex.water[h]) " - water" else ""))
+        for (p in hw.placesOf(h)) {
             sb.appendLine("%s (%.0f m, %.0f km²): %.1f °C, snow %.0f mm, soil water %.0f mm".format(
-                if (hw.placeBand[p] == HexWorld.HIGH) "high ground" else if (hw.placesOf(Hex(h)).size > 1) "low ground" else "the hex", hw.placeElevationM[p], land.areaKm2[p], weather.temperature[p], weather.snowpack[p], land.hydro.soil[p]))
+                if (hw.placeBand[p] == HexWorld.HIGH) "high ground" else if (hw.placesOf(h).size > 1) "low ground" else "the hex", hw.placeElevationM[p], land.areaKm2[p], weather.temperature[p], weather.snowpack[p], land.hydro.soil[p]))
             sb.appendLine("   herbs %.2f shrubs %.2f trees %.1f kg/m², green %.0f%%, rugged %.2f, refuge %.2f, lookout %.0f km".format(
                 land.plants.herb[p], land.plants.shrub[p], land.plants.tree[p], 100 * land.plants.green[p],
                 land.ruggedness[p], land.bestDefence[p], land.bestViewKm[p]))
@@ -1019,7 +1019,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         var totalArea = 0f
         val residents = DoubleArray(fauna.kinds.size)
         var food = 0.0; var small = 0.0; var carrion = 0.0
-        for (p in hw.placesOf(Hex(h))) {
+        for (p in hw.placesOf(h)) {
             val a = land.areaKm2[p]; totalArea += a
             for (k in fauna.kinds.indices) residents[k] += ((fauna.adults[k][p] + fauna.young[k][p]) * a).toDouble()
             food += ((land.plants.herb[p] + land.plants.shrub[p]) * a).toDouble() // kg/m² × km² = 1e6 kg
@@ -1044,7 +1044,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                 if (m.any { !it.isNaN() }) sb.appendLine("   by month: " + m.withIndex().filter { !it.value.isNaN() }
                     .joinToString(" ") { "%d:%.3g".format(it.index + 1, it.value) })
             }
-            if (tint == Measure.HUNGRY_BY_PLENTY && h < layers.hunger.size) sb.appendLine(
+            if (tint == Measure.HUNGRY_BY_PLENTY && h.i < layers.hunger.size) sb.appendLine(
                 "   grazers and browsers going short %.2f a km² (head-equivalents); most they could eat within 2 hexes %.3f kg/m²".format(layers.hunger[h],
                     layers.plenty[h]))
             if (tint.byCause) sb.appendLine("   by cause: " + PlaceRecord.Cause.entries.joinToString(", ") { c ->
@@ -1053,8 +1053,8 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         sb.append("borders (on foot, ground + water):")
         val dirs = arrayOf("E", "SE", "SW", "W", "NW", "NE")
         for (d in 0 until 6) {
-            val e = hex.crossing[h * 6 + d]
-            val depth = hex.riverDepthM[h * 6 + d]
+            val e = hex.crossing[hex.edge(h, d)]
+            val depth = hex.riverDepthM[hex.edge(h, d)]
             sb.append("  ${dirs[d]} " + (if (e.isFinite()) "%.0f".format(e) else "no way") + (if (depth > HexMap.KNEE) " (river %.1f m)".format(depth) else ""))
         }
         info.text = sb.toString()
@@ -1112,7 +1112,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
      * The country of hex [h] in words: its kinds of country, how thick the grass, scrub and trees
      * are, how green, and the fruit and dry fodder this season.
      */
-    private fun describe(h: Int): String {
+    private fun describe(h: Hex): String {
         val names = Biome.entries.map { it to hw.biome[it.ordinal][h] }.filter { it.second >= 0.1f }.sortedByDescending { it.second }
         val parts = ArrayList<String>()
         if (hw.sea[h] > 0.3f) parts += "%s sea".format(share(hw.sea[h]))
@@ -1120,7 +1120,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         for ((b, s) in names.take(3)) parts += "%s %s".format(share(s), b.label)
         // Plants over the land, area-weighted over its low and high ground.
         var a = 0.0; var herb = 0.0; var shrub = 0.0; var tree = 0.0; var green = 0.0; var fruit = 0.0; var snow = 0.0; var burnt = 0.0
-        for (p in hw.placesOf(Hex(h))) {
+        for (p in hw.placesOf(h)) {
             val w = land.areaKm2[p].toDouble(); a += w
             herb += land.plants.herb[p] * w; shrub += land.plants.shrub[p] * w; tree += land.plants.tree[p] * w; green += land.plants.green[p] * w
             fruit += fauna.food.fruit[p] * w; snow += weather.snowpack[p] * w; burnt += land.fire.burnt[p] * w

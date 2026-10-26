@@ -1,7 +1,9 @@
 package inflation.tools.fauna
 
+import inflation.ecology.set
+import inflation.ecology.get
 import inflation.ecology.PlantFrom
-import inflation.ecology.Hex
+import inflation.world.Hex
 import inflation.StockName
 import inflation.Stocks
 import inflation.ecology.Activity
@@ -12,7 +14,7 @@ import inflation.ecology.HexGeography
 import inflation.ecology.Fed
 import inflation.ecology.HexFauna
 import inflation.ecology.TallyKey
-import inflation.ecology.get
+import inflation.world.get
 import inflation.ecology.HexSim
 import inflation.ecology.Skill
 import inflation.ecology.Species
@@ -22,11 +24,9 @@ import inflation.world.Biome
 import inflation.world.HexWorld
 import kotlin.math.abs
 import java.util.Random
-import inflation.ecology.get
-import inflation.ecology.set
-import inflation.ecology.contains
-import inflation.ecology.Place
-import inflation.ecology.hexOf
+import inflation.world.get
+import inflation.world.set
+import inflation.world.Place
 import inflation.ecology.seedCornIn
 import inflation.ecology.bandLifeway
 import inflation.ecology.birthSpacing
@@ -144,9 +144,9 @@ class Census(private val sim: HexSim) {
 
     /** Paths: how many ways are worn, and whether they gather where the going is hard (broken ground, rivers). */
     fun printPaths() {
-        val worn = (0 until hex.size).filter { groups.wear.at(it) > 0.3f }
-        val rug = { h: Int -> hw.firstPlaceIn(Hex(h)).takeIf { !it.none }?.let { land.ruggedness[it] } ?: 0f }
-        val landHexes = (0 until hex.size).filter { hw.land[it] > 0.5f }
+        val worn = hex.all.filter { groups.wear.at(it) > 0.3f }
+        val rug = { h: Hex -> hw.firstPlaceIn(h).takeIf { !it.none }?.let { land.ruggedness[it] } ?: 0f }
+        val landHexes = hex.all.filter { hw.land[it] > 0.5f }
         println("     paths: %d hexes with a worn path (%.1f%% of land); ruggedness where worn %.2f against %.2f overall; mean wear %.3f".format(
             worn.size, 100.0 * worn.size / landHexes.size.coerceAtLeast(1), worn.map { rug(it).toDouble() }.average().takeIf { !it.isNaN() } ?: 0.0,
             landHexes.map { rug(it).toDouble() }.average(), groups.wear.paths.average()))
@@ -158,7 +158,7 @@ class Census(private val sim: HexSim) {
     /** How many groups, how big, and how much of the land they cover. */
     fun printGroupSpread() {
         val live = groups.groups.filter { it.alive }
-        val landHexes = (0 until hex.size).count { hw.land[it] > 0.5f }
+        val landHexes = hex.all.count { hw.land[it] > 0.5f }
         println("     packs and bands (groups, mean size, hexes held of land hexes): " +
             groups.kinds.joinToString(", ") { s ->
             val gs = live.filter { it.species == s }
@@ -259,8 +259,8 @@ class Census(private val sim: HexSim) {
             value[h] += (f.fruit[pl] + f.roots[pl] + f.mast[pl] + f.seeds[pl] + f.finds[pl]) * 1e6 * a
             for (k in fauna.kinds.indices) value[h] += 0.1 * fauna.adults[k][pl] * fauna.kinds[k].massKg * a
         }
-        for (h in 0 until hex.size) if (hw.land[h] > 0f) value[h] += fauna.water.fishWithin(h).toDouble()
-        val v = (0 until hex.size).filter { hw.land[it] > 0.5f }.map { value[it] }.sorted()
+        for (h in hex.all) if (hw.land[h] > 0f) value[h] += fauna.water.fishWithin(h).toDouble()
+        val v = hex.all.filter { hw.land[it] > 0.5f }.map { value[it] }.sorted()
         if (v.isEmpty()) return
         val total = v.sum().coerceAtLeast(1e-9)
         var cum = 0.0; var area = 0.0
@@ -375,7 +375,7 @@ class Census(private val sim: HexSim) {
     /** Islands: land cut off from the largest land by sea; which kinds live there now. */
     fun printIslands() {
         val comp = IntArray(hex.size) { -1 }; var nc = 0; val sizes = ArrayList<Int>()
-        for (h0 in 0 until hex.size) {
+        for (h0 in hex.all) {
             if (hex.heart[h0] < 0 || comp[h0] >= 0) continue
             val stack = ArrayDeque(listOf(h0)); comp[h0] = nc; var c = 0
             while (stack.isNotEmpty()) {
@@ -383,7 +383,7 @@ class Census(private val sim: HexSim) {
                 c++
                 for (d in 0 until 6) {
                     val b = hex.neighbour(h, d)
-                    if (b >= 0 && hex.heart[b] >= 0 && comp[b] < 0) {
+                    if (!b.none && hex.heart[b] >= 0 && comp[b] < 0) {
                         comp[b] = nc
                         stack.addLast(b)
                     }

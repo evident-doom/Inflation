@@ -1,5 +1,7 @@
 package inflation.tools
 
+import inflation.ecology.set
+import inflation.ecology.get
 import inflation.learning.RunScore
 import inflation.run.freshSim
 import inflation.Args
@@ -7,12 +9,10 @@ import inflation.ecology.Catalogue
 import inflation.ecology.ROUNDS
 import inflation.world.Date
 import inflation.world.WorldConfig
-import inflation.ecology.get
-import inflation.ecology.set
-import inflation.ecology.contains
-import inflation.ecology.Place
-import inflation.ecology.Hex
-import inflation.ecology.hexOf
+import inflation.world.get
+import inflation.world.set
+import inflation.world.Place
+import inflation.world.Hex
 
 /**
  * What bands' rites do (run once as is, once with rounds=false, same seeds): each year, how far a
@@ -32,12 +32,12 @@ fun main(args: Array<String>) {
     val lines = seeds.parallelStream().map { seed ->
         val run = freshSim(WorldConfig(seed = seed, widthKm = size, heightKm = size), kinds)
         val hw = run.hw; val hex = run.hex
-        fun chief(h: Int): Int { var best = 0; for (b in hw.biome.indices) if (hw.biome[b][h] > hw.biome[best][h]) best = b; return best }
+        fun chief(h: Hex): Int { var best = 0; for (b in hw.biome.indices) if (hw.biome[b][h] > hw.biome[best][h]) best = b; return best }
         val stepsPerYear = Date.DAYS_PER_YEAR / WorldConfig().daysPerStep
         val score = RunScore(run, listOf(Catalogue.HUMAN))
         val sb = StringBuilder("seed $seed:")
         repeat(years) { y ->
-            val from = HashMap<Int, Int>(); val far = HashMap<Int, Double>(); val home = HashMap<Int, Int>(); val strayed = HashSet<Int>()
+            val from = HashMap<Int, Hex>(); val far = HashMap<Int, Double>(); val home = HashMap<Int, Int>(); val strayed = HashSet<Int>()
             var riteKm = 0.0; var riteWeeks = 0; var riteAt = 0
             for (g in run.groups.groups) if (g.alive && g.species.human) { val h = hw.placeHex[g.place]; from[g.id] = h; home[g.id] = chief(h) }
             repeat(stepsPerYear) {

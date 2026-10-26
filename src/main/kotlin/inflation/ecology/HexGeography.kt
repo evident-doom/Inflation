@@ -1,6 +1,11 @@
 package inflation.ecology
 
 import inflation.world.Biome
+import inflation.world.Hex
+import inflation.world.HexArray
+import inflation.world.get
+import inflation.world.set
+import inflation.world.toHexArray
 import inflation.world.HexWorld
 import inflation.world.RiverClass
 import kotlin.random.Random
@@ -26,7 +31,7 @@ class HexGeography(private val hw: HexWorld) {
     }
 
     /** One feature: [hexes] in order from source to mouth for a river; [parent], the feature it lies in or joins (-1: none). */
-    class Feature(val id: Int, val kind: Kind, val hexes: IntArray, var parent: Int, var name: String = "") {
+    class Feature(val id: Int, val kind: Kind, val hexes: HexArray, var parent: Int, var name: String = "") {
         /** The hex to write its name at: the middle of a river, the heart (farthest from its edge) of a stretch of country. */
         var label = hexes[hexes.size / 2]
     }
@@ -37,7 +42,7 @@ class HexGeography(private val hw: HexWorld) {
     /** Per hex: the features it lies in, smallest first. */
     val at: Array<IntArray>
 
-    private fun land(h: Int) = hw.land[h] > 0.5f
+    private fun land(h: Hex) = hw.land[h] > 0.5f
     private val rings = (GATHER_KM / 2 / hex.hexKm).toInt()
     private val minHexes = (Math.PI * (GATHER_KM / 2) * (GATHER_KM / 2) / hex.areaKm2).toInt()
     /** Valleys and floodplains to the river they belong to (and are named after). */
@@ -62,7 +67,7 @@ class HexGeography(private val hw: HexWorld) {
         name()
     }
 
-    @IgnorableReturnValue private fun add(kind: Kind, hexes: IntArray, parent: Int = -1): Feature {
+    @IgnorableReturnValue private fun add(kind: Kind, hexes: HexArray, parent: Int = -1): Feature {
         val f = Feature(all.size, kind, hexes, parent); all += f; return f
     }
 
@@ -96,9 +101,9 @@ class HexGeography(private val hw: HexWorld) {
         }
         val riverId = IntArray(stems.size)
         for ((s, cells) in stems.withIndex()) {
-            val hexes = ArrayList<Int>()
+            val hexes = ArrayList<Hex>()
             for (c in cells) { val h = hex.owner[c]; if (hexes.lastOrNull() != h) hexes += h }
-            riverId[s] = add(Kind.RIVER, hexes.toIntArray()).id
+            riverId[s] = add(Kind.RIVER, hexes.toHexArray()).id
         }
         for (s in stems.indices) if (joins[s] >= 0) all[riverId[s]].parent = riverId[joins[s]]
         // The valley: the cells draining to the river before any other (followed down, with the way remembered).
@@ -123,23 +128,23 @@ class HexGeography(private val hw: HexWorld) {
             val r = fp.riverOf[i]
             if (fp.isFloodplain[i] && r >= 0 && stemOf[r] >= 0) fCount[h].merge(stemOf[r], 1, Int::plus)
         }
-        val valleys = Array(stems.size) { ArrayList<Int>() }; val plains = Array(stems.size) { ArrayList<Int>() }
-        for (h in 0 until hex.size) {
+        val valleys = Array(stems.size) { ArrayList<Hex>() }; val plains = Array(stems.size) { ArrayList<Hex>() }
+        for (h in hex.all) {
             if (!land(h)) continue
             vCount[h].maxByOrNull { it.value }?.let { valleys[it.key] += h }
             fCount[h].maxByOrNull { it.value }?.let { if (it.value * 2 > landN[h]) plains[it.key] += h }
         }
         val valleyId = IntArray(stems.size) { -1 }
-        for (s in stems.indices) if (valleys[s].isNotEmpty()) valleyId[s] = add(Kind.VALLEY, valleys[s].toIntArray()).id
+        for (s in stems.indices) if (valleys[s].isNotEmpty()) valleyId[s] = add(Kind.VALLEY, valleys[s].toHexArray()).id
         for (s in stems.indices) if (joins[s] >= 0 && valleyId[s] >= 0) all[valleyId[s]].parent = valleyId[joins[s]]
         for (s in stems.indices) if (valleyId[s] >= 0) riverOf[valleyId[s]] = riverId[s]
-        for (s in stems.indices) if (plains[s].isNotEmpty()) riverOf[add(Kind.FLOODPLAIN, plains[s].toIntArray(), valleyId[s]).id] = riverId[s]
+        for (s in stems.indices) if (plains[s].isNotEmpty()) riverOf[add(Kind.FLOODPLAIN, plains[s].toHexArray(), valleyId[s]).id] = riverId[s]
     }
 
     /** The country by what covers it: mountains, then the kind of ground most of the hex is; its stretches large enough. */
-    private fun regions(): List<Pair<Kind, IntArray>> {
+    private fun regions(): List<Pair<Kind, HexArray>> {
         val cover = arrayOfNulls<Kind>(hex.size)
-        for (h in 0 until hex.size) {
+        for (h in hex.all) {
             if (!land(h)) continue
             mountain(h)?.let { cover[h] = it; continue }
             val b = Biome.entries.maxBy { hw.biome[it.ordinal][h] }
@@ -152,7 +157,7 @@ class HexGeography(private val hw: HexWorld) {
                 else -> null
             }
         }
-        val out = ArrayList<Pair<Kind, IntArray>>()
+        val out = ArrayList<Pair<Kind, HexArray>>()
         for (c in components { cover[it] != null }.groupBySame { cover[it] }) if (c.size >= minHexes) {
             out += cover[c[0]]!! to c
             // The deep forest: where it is more than half a place's ground from the forest's edge.
@@ -171,7 +176,7 @@ class HexGeography(private val hw: HexWorld) {
      * with more than 300 m between the lowest and highest ground about it (the hex, about 7 km either way of its
      * centre). Its lowest class, under 1000 m, is told apart as hills.
      */
-    private fun mountain(h: Int): Kind? {
+    private fun mountain(h: Hex): Kind? {
         val mid = hex.midM[h]; val relief = hex.highM[h] - hex.lowM[h]
         return when {
             mid >= 2500f || (mid >= 1000f && relief > 300f) -> Kind.MOUNTAINS
@@ -186,10 +191,10 @@ class HexGeography(private val hw: HexWorld) {
      * that width and grown out again by as much (a morphological opening), the narrow parts not growing back.
      */
     private fun coast() {
-        fun sea(h: Int) = hw.sea[h] > 0.5f
+        fun sea(h: Hex) = hw.sea[h] > 0.5f
         val lands = components { land(it) }.sortedByDescending { it.size }
         // (Land running off the map may be part of more beyond it: not taken for an island.)
-        val islands = lands.drop(1).filter { c -> c.all { h -> (0 until 6).all { d -> hex.neighbour(h, d) >= 0 } } }
+        val islands = lands.drop(1).filter { c -> c.all { h -> (0 until 6).all { d -> !hex.neighbour(h, d).none } } }
         val island = BooleanArray(hex.size); for (c in islands) for (h in c) island[h] = true
         // The separate land masses (lakes counted with the land), to tell a strait between two of them.
         val massOf = IntArray(hex.size) { -1 }
@@ -198,16 +203,16 @@ class HexGeography(private val hw: HexWorld) {
         // broad stretches, or water between two land masses each with a long shore on it, is a neck (an isthmus, a strait), not a peninsula or
         // bay. Land is judged at two widths, the ground one place draws on and a range ([RANGE_KM]); a part
         // found the same at both is one feature.
-        val seen = HashSet<List<Int>>()
+        val seen = HashSet<List<Hex>>()
         for (widthKm in doubleArrayOf(GATHER_KM, RANGE_KM)) {
             val k = Math.ceil(widthKm / 2 / hex.hexKm).toInt()
-            fun narrowParts(inside: (Int) -> Boolean, end: Kind, neck: Kind) {
+            fun narrowParts(inside: (Hex) -> Boolean, end: Kind, neck: Kind) {
                 val core = opened(k, inside)
                 val coreId = IntArray(hex.size) { -1 }
                 for ((i, c) in components { core[it] }.withIndex()) for (h in c) coreId[h] = i
                 for (c in components { inside(it) && !core[it] && !island[it] }) {
-                    if (c.size < 2 * k + 1 || !seen.add(c.sorted())) continue
-                    val round = c.flatMap { h -> (0 until 6).map { hex.neighbour(h, it) } }.filter { it >= 0 }
+                    if (c.size < 2 * k + 1 || !seen.add(c.toList().sortedBy { it.i })) continue
+                    val round = c.toList().flatMap { h -> (0 until 6).map { hex.neighbour(h, it) } }.filter { !it.none }
                     val cores = round.filter { coreId[it] >= 0 }.map { coreId[it] }.toSet()
                     // (Water between two land masses: most of it lies within the judged half width of both, with the two
                     // on opposite sides of it.)
@@ -223,8 +228,8 @@ class HexGeography(private val hw: HexWorld) {
     }
 
     /** Whether two land masses lie within [k] rings of sea hex [h] on opposite sides of it (more than a right angle apart). */
-    private fun betweenMasses(h: Int, k: Int, massOf: IntArray): Boolean {
-        val nearest = HashMap<Int, Int>()
+    private fun betweenMasses(h: Hex, k: Int, massOf: IntArray): Boolean {
+        val nearest = HashMap<Int, Hex>()
         val seen = hashSetOf(h); var ring = listOf(h)
         for (r in 0 until k) { ring = hex.nextRing(ring, seen); for (q in ring) if (massOf[q] >= 0) nearest.putIfAbsent(massOf[q], q) }
         if (nearest.size < 2) return false
@@ -234,56 +239,56 @@ class HexGeography(private val hw: HexWorld) {
     }
 
     /** The hexes for which [inside] holds that an opening by [k] rings keeps: all but the parts narrower than 2[k] + 1 hexes. */
-    private fun opened(k: Int, inside: (Int) -> Boolean): BooleanArray {
+    private fun opened(k: Int, inside: (Hex) -> Boolean): BooleanArray {
         // (Beyond the map's edge counts as more of the same, so the edge makes nothing narrow.)
-        var core = BooleanArray(hex.size) { inside(it) }
+        var core = hex.bools { inside(it) }
         repeat(k) {
             val c = core
-            core = BooleanArray(hex.size) { h -> c[h] && (0 until 6).all { d -> hex.neighbour(h, d).let { q -> q < 0 || c[q] } } }
+            core = hex.bools { h -> c[h] && (0 until 6).all { d -> hex.neighbour(h, d).let { q -> q.none || c[q] } } }
         }
         repeat(k) {
             val c = core
-            core = BooleanArray(hex.size) { h -> c[h] || inside(h) && (0 until 6).any { d -> hex.neighbour(h, d).let { q -> q >= 0 && c[q] } } }
+            core = hex.bools { h -> c[h] || inside(h) && (0 until 6).any { d -> hex.neighbour(h, d).let { q -> !q.none && c[q] } } }
         }
         return core
     }
 
     /** The connected stretches of hexes for which [inside] holds. */
-    private fun components(inside: (Int) -> Boolean): List<IntArray> {
-        val seen = BooleanArray(hex.size); val out = ArrayList<IntArray>()
-        for (h0 in 0 until hex.size) {
+    private fun components(inside: (Hex) -> Boolean): List<HexArray> {
+        val seen = BooleanArray(hex.size); val out = ArrayList<HexArray>()
+        for (h0 in hex.all) {
             if (seen[h0] || !inside(h0)) continue
-            val c = ArrayList<Int>(); val stack = arrayListOf(h0); seen[h0] = true
+            val c = ArrayList<Hex>(); val stack = arrayListOf(h0); seen[h0] = true
             while (stack.isNotEmpty()) {
                 val h = stack.removeAt(stack.size - 1); c += h
-                for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0 && !seen[q] && inside(q)) { seen[q] = true; stack += q } }
+                for (d in 0 until 6) { val q = hex.neighbour(h, d); if (!q.none && !seen[q] && inside(q)) { seen[q] = true; stack += q } }
             }
-            out += c.toIntArray()
+            out += c.toHexArray()
         }
         return out
     }
 
     /** Split each stretch into the connected parts that share a [key]. */
-    private fun List<IntArray>.groupBySame(key: (Int) -> Any?): List<IntArray> = flatMap { c ->
-        val set = c.toHashSet()
-        val seen = HashSet<Int>(); val out = ArrayList<IntArray>()
+    private fun List<HexArray>.groupBySame(key: (Hex) -> Any?): List<HexArray> = flatMap { c ->
+        val set = c.toList().toHashSet()
+        val seen = HashSet<Hex>(); val out = ArrayList<HexArray>()
         for (h0 in c) {
             if (!seen.add(h0)) continue
-            val k = key(h0); val part = ArrayList<Int>(); val stack = arrayListOf(h0)
+            val k = key(h0); val part = ArrayList<Hex>(); val stack = arrayListOf(h0)
             while (stack.isNotEmpty()) {
                 val h = stack.removeAt(stack.size - 1); part += h
-                for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0 && q in set && q !in seen && key(q) == k) { seen += q; stack += q } }
+                for (d in 0 until 6) { val q = hex.neighbour(h, d); if (!q.none && q in set && q !in seen && key(q) == k) { seen += q; stack += q } }
             }
-            out += part.toIntArray()
+            out += part.toHexArray()
         }
         out
     }
 
     /** Rings from [h] out to the nearest hex for which [outside] holds, or to the map's edge; past [rings], [rings] + 2. */
-    private fun ringsTo(h: Int, outside: (Int) -> Boolean): Int {
+    private fun ringsTo(h: Hex, outside: (Hex) -> Boolean): Int {
         val seen = hashSetOf(h); var ring = listOf(h)
         for (r in 1..rings + 1) {
-            if (ring.any { q -> (0 until 6).any { hex.neighbour(q, it) < 0 } }) return r
+            if (ring.any { q -> (0 until 6).any { hex.neighbour(q, it).none } }) return r
             ring = hex.nextRing(ring, seen)
             if (ring.any(outside)) return r
         }
@@ -291,15 +296,15 @@ class HexGeography(private val hw: HexWorld) {
     }
 
     /** The hex of [hexes] farthest from their edge. */
-    private fun heart(hexes: IntArray): Int {
-        val inF = hexes.toHashSet()
-        val depth = HashMap<Int, Int>(); var front = hexes.filter { h -> (0 until 6).any { d -> hex.neighbour(h, d).let { it < 0 || it !in inF } } }
+    private fun heart(hexes: HexArray): Hex {
+        val inF = hexes.toList().toHashSet()
+        val depth = HashMap<Hex, Int>(); var front = hexes.toList().filter { h -> (0 until 6).any { d -> hex.neighbour(h, d).let { it.none || it !in inF } } }
         for (h in front) depth[h] = 0
         var k = 0
         while (front.isNotEmpty()) {
             k++
-            val next = ArrayList<Int>()
-            for (h in front) for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0 && q in inF && q !in depth) { depth[q] = k; next += q } }
+            val next = ArrayList<Hex>()
+            for (h in front) for (d in 0 until 6) { val q = hex.neighbour(h, d); if (!q.none && q in inF && q !in depth) { depth[q] = k; next += q } }
             front = next
         }
         return depth.maxByOrNull { it.value }?.key ?: hexes[0]
@@ -313,7 +318,7 @@ class HexGeography(private val hw: HexWorld) {
         for (f in all.sortedByDescending { it.hexes.size }) {
             if (f.kind == Kind.VALLEY || f.kind == Kind.FLOODPLAIN) continue
             val at = if (f.kind == Kind.RIVER) f.hexes.last() else f.label
-            val rnd = Random(world.config.seed * 1_000_003 + at.toLong() * 31 + f.kind.ordinal)
+            val rnd = Random(world.config.seed * 1_000_003 + at.i.toLong() * 31 + f.kind.ordinal)
             var w: String
             do { w = word(rnd) } while (!used.add(w))
             f.name = when (f.kind) {
@@ -347,5 +352,5 @@ class HexGeography(private val hw: HexWorld) {
     }.joinToString(", ")
 
     /** How [h] is told: the features it lies in, smallest first, e.g. "Tamu Floodplain, in Kela Steppe". */
-    fun where(h: Int): String = at[h].joinToString(", ") { all[it].name }
+    fun where(h: Hex): String = at[h].joinToString(", ") { all[it].name }
 }

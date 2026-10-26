@@ -1,5 +1,12 @@
 package inflation.ecology
 
+import inflation.world.set
+import inflation.world.get
+import inflation.world.Hex
+import inflation.world.HexArray
+import inflation.world.HexList
+import inflation.world.forEachHex
+import inflation.world.toHexArray
 import inflation.Tuning
 import inflation.Config
 
@@ -48,33 +55,33 @@ class HexBearings(
 
     @Transient private val cx = DoubleArray(size); @Transient private val cy = DoubleArray(size)
     /** Hexes within [inflation.Tuning.nearKm] of each land hex. */
-    @Transient private val near: Array<IntArray>
+    @Transient private val near: Array<HexArray>
     /** For each of those, the way to it (unit vector) times how much a place there weighs, and the weight. */
     @Transient private val nearE: Array<FloatArray>; @Transient private val nearS: Array<FloatArray>; @Transient private val nearW: Array<FloatArray>
     /** Peaks in sight of each land hex, beyond [inflation.Tuning.nearKm]; and the hexes of each peak's massif. */
-    @Transient private val inSight: Array<IntArray>
-    @Transient private val massif: Array<IntArray>
+    @Transient private val inSight: Array<HexArray>
+    @Transient private val massif: Array<HexArray>
     /** Which way it gets warmer over the year, unit vector per hex. */
     @Transient private val warmerE = FloatArray(size); @Transient private val warmerS = FloatArray(size)
 
     init {
-        for (h in 0 until size) { val (x, y) = hex.centreKm(h); cx[h] = x; cy[h] = y }
-        fun within(h: Int, km: Double): IntArray {
+        for (h in hex.all) { val (x, y) = hex.centreKm(h); cx[h] = x; cy[h] = y }
+        fun within(h: Hex, km: Double): HexArray {
             val r = (km / (hex.hexKm * 0.86)).toInt() + 1
-            val col = h % hex.cols; val row = h / hex.cols
-            val out = ArrayList<Int>()
+            val col = hex.col(h); val row = hex.row(h)
+            val out = HexList()
             for (rr in max(0, row - r)..min(hex.rows - 1, row + r)) for (cc in max(0, col - r - 1)..min(hex.cols - 1, col + r + 1)) {
-                val q = rr * hex.cols + cc
+                val q = hex.at(cc, rr)
                 if (hex.heart[q] >= 0 && len(cx[q] - cx[h], cy[q] - cy[h]) <= km) out += q
             }
-            return out.toIntArray()
+            return out.toHexArray()
         }
-        val land = (0 until size).filter { hex.heart[it] >= 0 }
-        near = Array(size) { IntArray(0) }
-        land.parallelStream().forEach { h -> near[h] = within(h, tuning.nearKm).filter { it != h }.toIntArray() }
+        val land = hex.all.filter { hex.heart[it] >= 0 }
+        near = Array(size) { HexArray.EMPTY }
+        land.parallelStream().forEach { h -> near[h] = within(h, tuning.nearKm).filter { it != h }.toHexArray() }
         nearE = Array(size) { FloatArray(near[it].size) }; nearS = Array(size) { FloatArray(near[it].size) }; nearW = Array(size) { FloatArray(near[it].size) }
         land.parallelStream().forEach { h ->
-            for ((i, q) in near[h].withIndex()) {
+            for (i in near[h].indices) { val q = near[h][i]
                 val dx = cx[q] - cx[h]; val dy = cy[q] - cy[h]; val d = len(dx, dy)
                 val wt = 1.0 / (1.0 + d / tuning.fadeKm)
                 nearE[h][i] = (wt * dx / d).toFloat(); nearS[h][i] = (wt * dy / d).toFloat(); nearW[h][i] = wt.toFloat()
@@ -84,15 +91,15 @@ class HexBearings(
         val top = FloatArray(size)
         for (p in 0 until hw.placeHex.size) { val h = hw.placeHex[p]; for (c in hw.placeCells[p]) top[h] = max(top[h], hw.world.elevation[c]) }
         val peaks = land.filter { h -> top[h] >= PEAK_M && within(h, PEAK_SPACING_KM).all { top[it] <= top[h] } }
-        massif = Array(size) { IntArray(0) }
+        massif = Array(size) { HexArray.EMPTY }
         for (pk in peaks) massif[pk] = within(pk, MASSIF_KM)
-        inSight = Array(size) { IntArray(0) }
+        inSight = Array(size) { HexArray.EMPTY }
         land.parallelStream().forEach { h ->
             val eye = hw.elevationM[h]
             inSight[h] = peaks.filter { pk ->
                 val d = len(cx[pk] - cx[h], cy[pk] - cy[h])
                 d > tuning.nearKm && d <= min(FAR_KM, 3.57 * sqrt(max(0f, top[pk] - eye).toDouble()))
-            }.toIntArray()
+            }.toHexArray()
         }
         // The lie of the climate: a plane fitted to the year's mean temperature over [CLIMATE_KM] around.
         val meanT = FloatArray(size) { h -> (0 until 12).sumOf { hw.temp[it][h].toDouble() }.toFloat() / 12f }
@@ -100,9 +107,9 @@ class HexBearings(
             var sxx = 0.0; var sxy = 0.0; var syy = 0.0; var sxt = 0.0; var syt = 0.0
             val step = 3
             val r = (CLIMATE_KM / (hex.hexKm * 0.86)).toInt()
-            val col = h % hex.cols; val row = h / hex.cols
+            val col = hex.col(h); val row = hex.row(h)
             for (rr in max(0, row - r)..min(hex.rows - 1, row + r) step step) for (cc in max(0, col - r)..min(hex.cols - 1, col + r) step step) {
-                val q = rr * hex.cols + cc
+                val q = hex.at(cc, rr)
                 if (hex.heart[q] < 0) continue
                 val dx = cx[q] - cx[h]; val dy = cy[q] - cy[h]
                 if (len(dx, dy) > CLIMATE_KM) continue
@@ -140,8 +147,8 @@ class HexBearings(
             val hq = FloatArray(size)
             for (p in 0 until places) { val h = hw.placeHex[p]; if (pq[p] > hq[h]) hq[h] = pq[p] }
             val be = east[k]; val bs = south[k]
-            IntStream.range(0, size).parallel().forEach { h ->
-                if (hex.heart[h] < 0) return@forEach
+            IntStream.range(0, size).parallel().forEachHex { h ->
+                if (hex.heart[h] < 0) return@forEachHex
                 val here = hq[h]
                 var ve = 0f; var vs = 0f; var w = 0f; var best = here
                 val nq = near[h]; val ne = nearE[h]; val ns = nearS[h]; val nw = nearW[h]
@@ -184,11 +191,11 @@ class HexBearings(
     @delegate:Transient private val hexWaterNormalC by lazy { Array(hw.hex.size) { h -> HexFauna.laggedNormals { m -> hw.temp[m][h] } } }
 
     /** How far moving from hex [from] to hex [to] goes along kind [k]'s bearing, in units of [km]. */
-    fun along(k: Int, from: Int, to: Int, km: Double): Float =
+    fun along(k: Int, from: Hex, to: Hex, km: Double): Float =
         ((east[k][from] * (cx[to] - cx[from]) + south[k][from] * (cy[to] - cy[from])) / km).toFloat()
 
     /** The bearing's strength for kind [k] at hex [h], 0..1. */
-    fun strength(k: Int, h: Int): Float = len(east[k][h], south[k][h])
+    fun strength(k: Int, h: Hex): Float = len(east[k][h], south[k][h])
 
     companion object {
         /** Peaks: lowest standing out, m; one per this spacing at most, km; the massif a peak stands for, km; furthest seen, km. */

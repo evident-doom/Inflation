@@ -90,10 +90,10 @@ fun main(args: Array<String>) {
         outcomes.record(week, sim.groups.groups, sim.groups.merged)
     }
     val horizons = listOf(13, weeks).distinct()
-    fun ret(id: Int, h: Int): Double {
-        val own = outcomes.own(id, 0, h)
+    fun ret(id: Int, horizon: Int): Double {
+        val own = outcomes.own(id, 0, horizon)
         var sum = 0.0; var norm = 0.0; var d = 1.0
-        for (k in 1..h) { sum += d * own[k - 1] / max(1, start.getValue(id)); norm += d; d *= HexPpo.PEOPLE_DISCOUNT }
+        for (k in 1..horizon) { sum += d * own[k - 1] / max(1, start.getValue(id)); norm += d; d *= HexPpo.PEOPLE_DISCOUNT }
         return sum / norm
     }
     fun mean(x: List<Double>) = x.average()

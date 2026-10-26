@@ -1,5 +1,15 @@
 package inflation.ecology
 
+import inflation.Profile
+import inflation.world.Hex
+import inflation.world.forEachHex
+import inflation.world.placeList
+import inflation.world.HexArray
+import inflation.world.toHexArray
+import inflation.world.Place
+import inflation.world.get
+import inflation.world.set
+
 import inflation.ecology.HexSmallLife.DeadPool
 import inflation.Books
 import inflation.KgM2
@@ -83,15 +93,15 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     val run = FloatArray(size)
     /** River distance up from the sea, km; the mouth hex (-1 if none); cascades fish cannot pass. */
     @Transient private val upKm = FloatArray(size)
-    @Transient private val mouth = IntArray(size) { -1 }
+    @Transient private val mouth = HexArray(size)
     @Transient private val cascade = BooleanArray(size)
 
     /** Sea animals, kg/km² of sea, per kind of [SEA]. */
     val sea = Array(SEA.size) { FloatArray(size) }
     /** Sea-bird colonies: the coast hex, the birds, and the sea hexes within reach. */
-    val colonyHex = ArrayList<Int>()
+    val colonyHex = ArrayList<Hex>()
     val colonyBirds = ArrayList<Float>()
-    private val colonyReach = ArrayList<IntArray>()
+    private val colonyReach = ArrayList<HexArray>()
     /** Sea animals and fish that died this week, kg/km²: they sink and feed the nutrients. */
     private val dead = FloatArray(size)
 
@@ -134,7 +144,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
                 if (near) shallowCells[h]++
             }
         }
-        for (h in 0 until size) {
+        for (h in hex.all) {
             if (seaCells[h] > 0) {
                 depthM[h] = (depthSum[h] / seaCells[h]).toFloat()
                 shallow[h] = shallowCells[h].toFloat() / seaCells[h]
@@ -147,24 +157,24 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     /** Distance from each hex to land, hex by hex. */
     private fun measureShore() {
         val dist = FloatArray(size) { Float.MAX_VALUE }
-        val queue = ArrayDeque<Int>()
-        for (h in 0 until size) if (hw.land[h] > 0f) { dist[h] = 0f; queue += h }
+        val queue = ArrayDeque<Hex>()
+        for (h in hex.all) if (hw.land[h] > 0f) { dist[h] = 0f; queue += h }
         while (queue.isNotEmpty()) {
             val h = queue.removeFirst()
             for (d in 0 until 6) {
                 val q = hex.neighbour(h, d)
-                if (q >= 0 && dist[q] > dist[h] + hex.hexKm) { dist[q] = (dist[h] + hex.hexKm).toFloat(); queue += q }
+                if (!q.none && dist[q] > dist[h] + hex.hexKm) { dist[q] = (dist[h] + hex.hexKm).toFloat(); queue += q }
             }
         }
-        for (h in 0 until size) shoreKm[h] = dist[h]
+        for (h in hex.all) shoreKm[h] = dist[h]
     }
 
     /** Rivers into the sea: each land hex whose river leaves the land feeds the sea hexes around its mouth, m³/s. */
     private fun riverMouthFlows(): FloatArray {
         val mouthFlow = FloatArray(size)
-        for (h in 0 until size) {
-            if (land.hydro.meanFlow[h] <= 0f || hw.land[h] <= 0f || land.hydro.down[h] >= 0) continue
-            for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0 && seaKm2[q] > 0f) mouthFlow[q] += land.hydro.meanFlow[h] / 6f }
+        for (h in hex.all) {
+            if (land.hydro.meanFlow[h] <= 0f || hw.land[h] <= 0f || !land.hydro.down[h].none) continue
+            for (d in 0 until 6) { val q = hex.neighbour(h, d); if (!q.none && seaKm2[q] > 0f) mouthFlow[q] += land.hydro.meanFlow[h] / 6f }
             if (seaKm2[h] > 0f) mouthFlow[h] += land.hydro.meanFlow[h]
         }
         return mouthFlow
@@ -176,7 +186,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
      * m³/s).
      */
     private fun startWater(mouthFlow: FloatArray) {
-        for (h in 0 until size) {
+        for (h in hex.all) {
             if (waterKm2[h] <= 0f) continue
             supply[h] = if (seaKm2[h] <= 0f) (if (closedLake[h] > 0.5f) 0.2f else 0.6f)
                 else min(1f, 0.15f + 0.45f * exp(-max(0f, depthM[h]) / 150f) + 0.4f * min(1f, mouthFlow[h] / 50f))
@@ -187,11 +197,11 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
                 val (cx, cy) = hex.centreKm(h)
                 for (d in 0 until 6) {
                     val q = hex.neighbour(h, d)
-                    if (q < 0 || hw.land[q] <= 0f) continue
+                    if (q.none || hw.land[q] <= 0f) continue
                     val (qx, qy) = hex.centreKm(q); e += cx - qx; s += cy - qy
-                    if (windPlace[h] < 0) windPlace[h] = (hw.firstPlaceIn(Hex(q))).i
+                    if (windPlace[h] < 0) windPlace[h] = (hw.firstPlaceIn(q)).i
                 }
-                if (hw.land[h] > 0f && windPlace[h] < 0) windPlace[h] = (hw.firstPlaceIn(Hex(h))).i
+                if (hw.land[h] > 0f && windPlace[h] < 0) windPlace[h] = (hw.firstPlaceIn(h)).i
                 val len = hypot(e, s)
                 if (len > 0) { offE[h] = (e / len).toFloat(); offS[h] = (s / len).toFloat() }
             }
@@ -203,19 +213,19 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
 
     /** Rivers: distance up from the sea and cascades, down the network from the mouths; the first river fish. */
     private fun walkRivers() {
-        val byDist = (0 until size).filter { land.hydro.meanFlow[it] >= RiverClass.STREAM.minDischarge && hw.land[it] > 0f }
-        @IgnorableReturnValue fun up(h: Int): Float {
-            if (mouth[h] != -1 || upKm[h] < 0f) return upKm[h]
+        val byDist = hex.all.filter { land.hydro.meanFlow[it] >= RiverClass.STREAM.minDischarge && hw.land[it] > 0f }
+        @IgnorableReturnValue fun up(h: Hex): Float {
+            if (!mouth[h].none || upKm[h] < 0f) return upKm[h]
             upKm[h] = -1f // being worked out
             val d = land.hydro.down[h]
-            if (d < 0) {
+            if (d.none) {
                 // The river ends here: at the sea it is a mouth; in a closed basin no run comes up it.
-                val atSea = hw.coast[h] || (0 until 6).any { val q = hex.neighbour(h, it); q >= 0 && seaKm2[q] > 0f }
+                val atSea = hw.coast[h] || (0 until 6).any { val q = hex.neighbour(h, it); !q.none && seaKm2[q] > 0f }
                 if (atSea) { mouth[h] = h; upKm[h] = 0f; return 0f }
                 return -1f
             }
             val below = up(d)
-            if (below < 0f || mouth[d] < 0) { upKm[h] = -1f; return -1f }
+            if (below < 0f || mouth[d].none) { upKm[h] = -1f; return -1f }
             mouth[h] = mouth[d]; upKm[h] = below + hex.hexKm.toFloat()
             cascade[h] = cascade[d] || (hw.elevationM[h] - hw.elevationM[d]) / (hex.hexKm.toFloat() * 1000f) > CASCADE_GRADIENT
             return upKm[h]
@@ -226,30 +236,30 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
 
     /** Sea-bird colonies: the most broken coast in each stretch, fishing the sea within reach. */
     private fun placeColonies() {
-        val blocks = HashMap<Long, Int>()
-        for (h in 0 until size) {
+        val blocks = HashMap<Long, Hex>()
+        for (h in hex.all) {
             if (!hw.coast[h] || hw.land[h] <= 0f) continue
-            val p = hw.firstPlaceIn(Hex(h)).takeIf { !it.none } ?: continue
+            val p = hw.firstPlaceIn(h).takeIf { !it.none } ?: continue
             if (land.ruggedness[p] < 0.3f) continue
             val (x, y) = hex.centreKm(h)
             val key = (x / COLONY_SPACING_KM).toLong() * 100000 + (y / COLONY_SPACING_KM).toLong()
             val best = blocks[key]
-            val pb = best?.let { b -> hw.firstPlaceIn(Hex(b)).takeIf { !it.none } }
+            val pb = best?.let { b -> hw.firstPlaceIn(b).takeIf { !it.none } }
             if (best == null || pb == null || land.ruggedness[p] > land.ruggedness[pb]) blocks[key] = h
         }
         for (c in blocks.values.sorted()) {
-            val reach = (0 until size).filter { seaKm2[it] > 0f && hex.distanceKm(it, c) <= BIRD_FORAGE_KM }.toIntArray()
+            val reach = hex.all.filter { seaKm2[it] > 0f && hex.distanceKm(it, c) <= BIRD_FORAGE_KM }.toHexArray()
             if (reach.isEmpty()) continue
             colonyHex += c; colonyBirds += 2000f; colonyReach += reach
         }
     }
 
     /** Fish the sea or lake water of [h] can carry, kg/km²: they follow the plankton. */
-    private fun fishCapacity(h: Int) = if (waterKm2[h] > 0f) MAX_FISH * phyto[h] / (phyto[h] + 5f) else 0f
-    private fun shellCapacity(h: Int) = MAX_SHELLFISH * phyto[h] / (phyto[h] + 3f)
+    private fun fishCapacity(h: Hex) = if (waterKm2[h] > 0f) MAX_FISH * phyto[h] / (phyto[h] + 5f) else 0f
+    private fun shellCapacity(h: Hex) = MAX_SHELLFISH * phyto[h] / (phyto[h] + 3f)
 
     /** River fish the hex can carry, kg per km² of its land: per km of river, by its width and warmth. */
-    private fun riverCapacity(h: Int, month: Int): Float {
+    private fun riverCapacity(h: Hex, month: Int): Float {
         val q = max(land.hydro.flow[h], 0.01f)
         val widthKm = Channel.widthM(q) / 1000f
         val warm = ((hw.temp[month][h] + 5f) / 25f).coerceIn(0.2f, 1.2f)
@@ -275,7 +285,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     @Transient val fishFlows = ConcurrentHashMap<String, Double>()
     // (Summed in adders during the parallel loop, without contention, and written to [fishFlows] after it.)
     @Transient private val flowAdders = ConcurrentHashMap<String, DoubleAdder>()
-    private fun flow(key: String, kgPerKm2: Float, h: Int) {
+    private fun flow(key: String, kgPerKm2: Float, h: Hex) {
         if (kgPerKm2 != 0f) flowAdders.computeIfAbsent(key) { DoubleAdder() }.add((kgPerKm2 * waterKm2[h] / 1000f).toDouble())
     }
     @Transient private val eatenBy = SEA.map { "eaten by ${it.name}" }
@@ -285,7 +295,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         val date = weather.date
         val month = date.month
         val light = (Date(date.absoluteDay).dayLengthHours(38.0) / 12.0).toFloat()
-        IntStream.range(0, size).parallel().forEach { h ->
+        IntStream.range(0, size).parallel().forEachHex { h ->
             val pt = Profile.mark()
             if (waterKm2[h] > 0f) {
                 // Upwelling: the wind's drift is bent to the right; where it carries water off the coast, deep water wells up.
@@ -367,9 +377,9 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
                     // Food wanted, kg over the hex, and what the litter can give.
                     val want = change / FISH_EFFICIENCY * landKm2h
                     var litterKg = 0.0
-                    for (p in hw.placesOf(Hex(h))) litterKg += small.litter[p] * land.areaKm2[p] * 1e6
+                    for (p in hw.placesOf(h)) litterKg += small.litter[p] * land.areaKm2[p] * 1e6
                     val ate = min(want, 0.5f * litterKg.toFloat())
-                    if (ate > 0f) for (p in hw.placesOf(Hex(h))) {
+                    if (ate > 0f) for (p in hw.placesOf(h)) {
                         run { val l0 = small.litter[p]; small.litter[p] *= 1f - ate / litterKg.toFloat()
                             land.books?.flow(Books.Stuff.MATTER, "to and from the water life", (small.litter[p] - l0) * land.areaM2[p].toDouble()) }
                     }
@@ -389,10 +399,10 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         fishFlows[DRIFT_FLOW] = (fishTonnes() - before).toDouble()
         for ((key, a) in flowAdders) { val v = a.sumThenReset(); if (v != 0.0) fishFlows.merge(key, v, Double::plus) }
         // Fish come back up the rivers from below, but not past a cascade.
-        for (h in 0 until size) {
+        for (h in hex.all) {
             val d = land.hydro.down[h]
             // (A hex all lake or sea on the river's course has no river of its own to come up into.)
-            if (d < 0 || landKm2[h] <= 0f || riverFish[h] <= 0f && land.hydro.meanFlow[h] < RiverClass.STREAM.minDischarge) continue
+            if (d.none || landKm2[h] <= 0f || riverFish[h] <= 0f && land.hydro.meanFlow[h] < RiverClass.STREAM.minDischarge) continue
             val river = hw.land[d] > 0f
             val below = if (river) riverFish[d] else fish[d]
             val diff = below - riverFish[h]
@@ -411,17 +421,17 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     }
 
     /** For each sea hex the sea hexes next to it nearer the shore; and how many lie seaward of each. */
-    @Transient private val shoreward = Array(size) { h ->
-        if (seaKm2[h] <= 0f) IntArray(0) else (0 until 6).map { hex.neighbour(h, it) }
-            .filter { it >= 0 && seaKm2[it] > 0f && shoreKm[it] < shoreKm[h] }.toIntArray()
+    @Transient private val shoreward = hex.array { h ->
+        if (seaKm2[h] <= 0f) HexArray.EMPTY else (0 until 6).map { hex.neighbour(h, it) }
+            .filter { !it.none && seaKm2[it] > 0f && shoreKm[it] < shoreKm[h] }.toHexArray()
     }
-    @Transient private val seaward = IntArray(size).also { c -> for (h in 0 until size) for (q in shoreward[h]) c[q]++ }
+    @Transient private val seaward = IntArray(size).also { c -> for (h in hex.all) for (q in shoreward[h]) c[q]++ }
 
     /** Moves a share of the fish a step towards the shore ([inshore]) or back out to sea. */
     private fun shoal(inshore: Boolean) {
         val old = fish.copyOf()
         val share = SHOAL * days / Date.DAYS_PER_MONTH.toFloat()
-        for (h in 0 until size) for (q in shoreward[h]) {
+        for (h in hex.all) for (q in shoreward[h]) {
             val kg = if (inshore) share * old[h] * seaKm2[h] / shoreward[h].size else share * old[q] * seaKm2[q] / seaward[q]
             val from = if (inshore) h else q; val to = if (inshore) q else h
             fish[from] -= kg / seaKm2[from]; fish[to] += kg / seaKm2[to]
@@ -433,12 +443,12 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         // Exchange between neighbouring water of the same kind (sea with sea, lake with lake), as much
         // leaving one as reaches the other: what moves is the density difference over the narrower water.
         val old = f.copyOf()
-        IntStream.range(0, size).parallel().forEach { h ->
-            if (waterKm2[h] <= 0f) return@forEach
+        IntStream.range(0, size).parallel().forEachHex { h ->
+            if (waterKm2[h] <= 0f) return@forEachHex
             var delta = 0f
             for (d in 0 until 6) {
                 val q = hex.neighbour(h, d)
-                if (q < 0 || waterKm2[q] <= 0f || (seaKm2[q] > 0f) != (seaKm2[h] > 0f)) continue
+                if (q.none || waterKm2[q] <= 0f || (seaKm2[q] > 0f) != (seaKm2[h] > 0f)) continue
                 delta += DRIFT / 6f * (old[q] - old[h]) * min(waterKm2[h], waterKm2[q]) / waterKm2[h]
             }
             f[h] = max(0f, old[h] + delta)
@@ -447,7 +457,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
 
 
     /** Sea animals in hex [h]: each eats its food, breeds in its season as it ate, and dies back. */
-    private fun stepSea(h: Int, month: Int) {
+    private fun stepSea(h: Hex, month: Int) {
         if (seaKm2[h] <= 0f) return
         for ((k, a) in SEA.withIndex()) {
             val m = sea[k][h]
@@ -487,9 +497,9 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
             val f = sea[k]
             val old = f.copyOf()
             val share = min(0.5f, a.dailyKm * 30f / hex.hexKm.toFloat() / 50f)
-            for (h in 0 until size) {
+            for (h in hex.all) {
                 if (old[h] <= 0f) continue
-                val nb = (0 until 6).map { hex.neighbour(h, it) }.filter { it >= 0 && seaKm2[it] > 0f && shoreKm[it] <= a.maxShoreKm }
+                val nb = (0 until 6).map { hex.neighbour(h, it) }.filter { !it.none && seaKm2[it] > 0f && shoreKm[it] <= a.maxShoreKm }
                 if (nb.isEmpty()) continue
                 // Towards the better fed and the less crowded: the richer and emptier the water around, the more go there.
                 val usual = a.massKg / a.startKm2
@@ -519,9 +529,9 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         if (on && !running) {
             // The run gathers off each mouth.
             runStock.fill(0f)
-            val mouths = HashSet<Int>(); for (h in 0 until size) if (mouth[h] >= 0 && !cascade[h]) mouths += mouth[h]
+            val mouths = HashSet<Hex>(); for (h in hex.all) if (!mouth[h].none && !cascade[h]) mouths += mouth[h]
             for (m in mouths) for (d in 0 until 6) {
-                val q = hex.neighbour(m, d); if (q < 0 || seaKm2[q] <= 0f) continue
+                val q = hex.neighbour(m, d); if (q.none || seaKm2[q] <= 0f) continue
                 val taken = RUN_SHARE * fish[q]
                 fish[q] -= taken; runStock[m] += taken * waterKm2[q]
             }
@@ -529,16 +539,16 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         } else if (running) {
             // What is left of the run in the rivers, after this week's catch, goes back into each mouth's stock.
             // (Fish that found no water to swim up last week wait off the mouth.)
-            for (m in 0 until size) runStock[m] = runWaiting[m]
-            for (h in 0 until size) if (mouth[h] >= 0 && run[h] > 0f) runStock[mouth[h]] += run[h] * landKm2[h]
+            runWaiting.copyInto(runStock)
+            for (h in hex.all) if (!mouth[h].none && run[h] > 0f) runStock[mouth[h]] += run[h] * landKm2[h]
         }
         run.fill(0f)
         if (!running) return
         if (!on) {
             // The run is over: the survivors go back to the sea off the mouth, the spent ones die.
-            for (m in 0 until size) {
+            for (m in hex.all) {
                 if (runStock[m] <= 0f) continue
-                val seas = (0 until 6).map { hex.neighbour(m, it) }.filter { it >= 0 && seaKm2[it] > 0f }
+                val seas = (0 until 6).map { hex.neighbour(m, it) }.filter { !it.none && seaKm2[it] > 0f }
                 val area = seas.sumOf { waterKm2[it].toDouble() }.toFloat()
                 if (area > 0f) for (q in seas) { fish[q] += RUN_SURVIVAL * runStock[m] / area; dead[q] += (1f - RUN_SURVIVAL) * runStock[m] / area }
             }
@@ -548,14 +558,14 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         // Up the rivers as far as the front has come.
         val front = day * RUN_KM_PER_DAY
         val weight = FloatArray(size); val total = FloatArray(size)
-        for (h in 0 until size) {
+        for (h in hex.all) {
             val m = mouth[h]
-            if (m < 0 || cascade[h] || upKm[h] > front || landKm2[h] <= 0f) continue
+            if (m.none || cascade[h] || upKm[h] > front || landKm2[h] <= 0f) continue
             if (land.hydro.flow[h] / max(land.hydro.meanFlow[h], 1e-3f) < 0.2f) continue // too little water to swim up
             weight[h] = min(1f, land.hydro.meanFlow[h] / 30f) * exp(-upKm[h] / 150f); total[m] += weight[h]
         }
-        for (h in 0 until size) if (weight[h] > 0f) run[h] = runStock[mouth[h]] * weight[h] / total[mouth[h]] / landKm2[h]
-        for (m in 0 until size) runWaiting[m] = if (total[m] > 0f) 0f else runStock[m]
+        for (h in hex.all) if (weight[h] > 0f) run[h] = runStock[mouth[h]] * weight[h] / total[mouth[h]] / landKm2[h]
+        for (m in hex.all) runWaiting[m] = if (total[m] > 0f) 0f else runStock[m]
     }
 
     /** Sea-bird colonies fish the sea within reach; a colony grows when they eat well and shrinks when not. */
@@ -589,11 +599,11 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     @Transient private val landKm2 = FloatArray(size) { hw.land[it] * hexKm2 }
 
     /** Leaves [kg] of dead fish on the banks of hex [h]: carrion on its places, by their area. */
-    private fun bankCarrion(h: Int, kg: Float) {
+    private fun bankCarrion(h: Hex, kg: Float) {
         var area = 0f
-        for (p in hw.placesOf(Hex(h))) area += land.areaKm2[p]
+        for (p in hw.placesOf(h)) area += land.areaKm2[p]
         if (area <= 0f) return
-        for (p in hw.placesOf(Hex(h))) small.deposit(DeadPool.CARRION, Place(p), KgM2(kg / area / 1e6f))
+        for (p in hw.placeList(h)) small.deposit(DeadPool.CARRION, p, KgM2(kg / area / 1e6f))
         land.books?.flow(Books.Stuff.MATTER, "to and from the water life", kg.toDouble())
     }
     fun fishTonnes() = fish.indices.sumOf { (fish[it] * waterKm2[it]).toDouble() }.toFloat() / 1000f
@@ -604,7 +614,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     /** Mean zooplankton at sea, g/m². */
     fun zooMean(): Float {
         var s = 0.0; var a = 0.0
-        for (h in 0 until size) if (seaKm2[h] > 0f) { s += zoo[h] * seaKm2[h]; a += seaKm2[h] }
+        for (h in hex.all) if (seaKm2[h] > 0f) { s += zoo[h] * seaKm2[h]; a += seaKm2[h] }
         return if (a > 0) (s / a).toFloat() else 0f
     }
 
@@ -615,12 +625,12 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
      * source gives at most a share a week, so a band cannot empty a river. What people take of each is booked with the
      * week's fish flows ([PEOPLE_FLOWS], tonnes).
      */
-    fun fishFor(h: Int, kg: Float, skill: Float = 1f, what: Catch = Catch.ALL): Float {
+    fun fishFor(h: Hex, kg: Float, skill: Float = 1f, what: Catch = Catch.ALL): Float {
         var left = kg
         val landKm2 = max(1f, hw.land[h] * hexKm2)
         // A week's fishing gets more the more fish there are, levelling off at what the band wants: a
         // stock [search] times what it wants (less for skilled hands) gives it half (Holling).
-        fun take(stock: FloatArray, q: Int, areaKm2: Float, search: Float, flow: String) {
+        fun take(stock: FloatArray, q: Hex, areaKm2: Float, search: Float, flow: String) {
             if (left <= 0f || areaKm2 <= 0f) return
             val s = stock[q] * areaKm2
             if (s <= 0f) return
@@ -635,7 +645,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
             if (nesting && shoreKm[h] <= 0f) take(sea[TURTLE], h, seaKm2[h], SHELLFISH_SEARCH, PEOPLE_FLOWS[1])
             take(riverFish, h, landKm2, RIVER_SEARCH, PEOPLE_FLOWS[0])
         }
-        for (q in listOf(h) + (0 until 6).map { hex.neighbour(h, it) }.filter { it >= 0 }) {
+        for (q in listOf(h) + (0 until 6).map { hex.neighbour(h, it) }.filter { !it.none }) {
             if (fish0) take(fish, q, waterKm2[q], FISH_SEARCH, PEOPLE_FLOWS[2])
             if (shell) take(shellfish, q, seaKm2[q] * shallow[q], SHELLFISH_SEARCH, PEOPLE_FLOWS[3])
         }
@@ -643,9 +653,9 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     }
 
     /** What a band fishing from hex [h] with [skill] could catch in a week at most of [what], kg (see [fishFor]). */
-    fun fishWithin(h: Int, skill: Float = 1f, what: Catch = Catch.ALL): Float {
+    fun fishWithin(h: Hex, skill: Float = 1f, what: Catch = Catch.ALL): Float {
         val landKm2 = max(1f, hw.land[h] * hexKm2)
-        fun most(stock: FloatArray, q: Int, areaKm2: Float, search: Float): Float {
+        fun most(stock: FloatArray, q: Hex, areaKm2: Float, search: Float): Float {
             val s = stock[q] * areaKm2
             return if (s > 0f) min(0.5f * s, s * skill / search) else 0f
         }
@@ -656,7 +666,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
             if (nesting && shoreKm[h] <= 0f) kg += most(sea[TURTLE], h, seaKm2[h], SHELLFISH_SEARCH)
         }
         // (The hex and the six round it, in that order, without making a list each time: it is asked often.)
-        for (d in -1 until 6) { val q = if (d < 0) h else hex.neighbour(h, d); if (q < 0) continue
+        for (d in -1 until 6) { val q = if (d < 0) h else hex.neighbour(h, d); if (q.none) continue
             if (fish0) kg += most(fish, q, waterKm2[q], FISH_SEARCH)
             if (shell) kg += most(shellfish, q, seaKm2[q] * shallow[q], SHELLFISH_SEARCH) }
         return kg
@@ -666,7 +676,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
      * What a band with fishing [skill] could take from hex [h] in a week at most, kg: the fish as its skill allows, the
      * shellfish off the shore whatever its skill.
      */
-    fun bandCatchWithin(h: Int, skill: Float) = fishWithin(h, skill, Catch.FISH) + fishWithin(h, 1f, Catch.SHELLFISH)
+    fun bandCatchWithin(h: Hex, skill: Float) = fishWithin(h, skill, Catch.FISH) + fishWithin(h, 1f, Catch.SHELLFISH)
 
     /** Share of its needs a fish-eater gets at fish density [f], kg/km²: little where fish are few (shoals are hard to find), most where they are many. */
     private fun fishResponse(f: Float) = f * f / (f * f + FISH_FIND_HALF * FISH_FIND_HALF)
@@ -680,7 +690,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     fun summary(): String {
         fun t(a: FloatArray, area: FloatArray) = a.indices.sumOf { (a[it] * area[it]).toDouble() } / 1000
         val landKm2 = FloatArray(size) { hw.land[it] * hexKm2 }
-        val sea0 = (0 until size).filter { seaKm2[it] > 0f }
+        val sea0 = hex.all.filter { seaKm2[it] > 0f }
         val zooMean = sea0.sumOf { (zoo[it] * seaKm2[it]).toDouble() } / sea0.sumOf { seaKm2[it].toDouble() }.coerceAtLeast(1.0)
         val phytoMean = sea0.sumOf { (phyto[it] * seaKm2[it]).toDouble() } / sea0.sumOf { seaKm2[it].toDouble() }.coerceAtLeast(1.0)
         return "plankton at sea %.2f / %.3f g/m², ".format(phytoMean, zooMean) +

@@ -1,13 +1,7 @@
 package inflation.world
 
-import inflation.ecology.Hex
 import inflation.Books
-import inflation.ecology.Phase
-import inflation.ecology.runPhases
-import inflation.ecology.WeekStats
 import inflation.Tuning
-import inflation.ecology.Place
-import inflation.ecology.get
 import inflation.Config
 import inflation.Kg
 import inflation.KgM2
@@ -28,7 +22,7 @@ class HexLand(internal val hw: HexWorld, internal val seed: Long, /** The run's 
     private val hex = hw.hex
     val n = hw.placeCells.size
     /** Every place, in order. */
-    val places get() = inflation.ecology.PlaceRange(n)
+    val places get() = inflation.world.PlaceRange(n)
     internal val days = world.config.daysPerStep
     internal val stepSeconds = days * 86_400.0
 
@@ -119,19 +113,17 @@ class HexLand(internal val hw: HexWorld, internal val seed: Long, /** The run's 
     @Transient val neighbours: Array<IntArray> = Array(n) { p ->
         val h = hw.placeHex[p]
         val out = ArrayList<Int>()
-        for (q in hw.placesOf(Hex(h))) if (q != p) out += q
+        for (q in hw.placesOf(h)) if (q != p) out += q
         for (d in 0 until 6) {
             val nh = hex.neighbour(h, d)
-            if (nh < 0) continue
-            for (q in hw.placesOf(Hex(nh))) out += q
+            if (nh.none) continue
+            for (q in hw.placesOf(nh)) out += q
         }
         out.toIntArray()
     }
     @Transient internal val slopeShade = hw.sunlight.shade
     /** The books of the run's water and matter, when kept (see [Books]); the parts and the ecology book their flows in them. */
     @Transient var books: Books? = null
-    /** The week's tallies for the reports ([WeekStats]), shared by every part like the books; not saved. */
-    @Transient val stats = WeekStats()
 
     // ---------------------------------------------------------------- the parts (saved before they were split out as the land's own fields)
 

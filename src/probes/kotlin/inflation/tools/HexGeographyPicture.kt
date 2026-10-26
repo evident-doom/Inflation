@@ -1,5 +1,8 @@
 package inflation.tools
 
+import inflation.world.Hex
+import inflation.world.set
+import inflation.world.get
 import inflation.Args
 import inflation.ecology.HexGeography
 import inflation.ui.HexPicture
@@ -32,14 +35,14 @@ fun main(args: Array<String>) {
     println("features in %.1f s: %s".format((System.nanoTime() - t0) / 1e9, f.summary()))
     for (x in f.all.sortedByDescending { it.hexes.size }.take(40))
         println("  %-12s %-28s %5d hexes  in %s".format(x.kind.label, x.name, x.hexes.size, if (x.parent >= 0) f.all[x.parent].name else "-"))
-    val land = (0 until hex.size).filter { hw.land[it] > 0.5f }
-    for (h in land.shuffled(kotlin.random.Random(1)).take(8)) println("  hex $h: ${f.where(h)}")
+    val land = hex.all.filter { hw.land[it] > 0.5f }
+    for (h in land.shuffled(kotlin.random.Random(1)).take(8)) println("  hex ${h.i}: ${f.where(h)}")
     val img = HexPicture.render(world, hex, 0.0, 0.0, cfg.widthKm.toDouble(), cfg.heightKm.toDouble(), px)
     val g = img.createGraphics()
     g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
     g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON)
-    fun x(h: Int) = (hex.centreKm(h).first * px).toInt()
-    fun y(h: Int) = (hex.centreKm(h).second * px).toInt()
+    fun x(h: Hex) = (hex.centreKm(h).first * px).toInt()
+    fun y(h: Hex) = (hex.centreKm(h).second * px).toInt()
     val tint = mapOf(
         HexGeography.Kind.MOUNTAINS to Color(120, 80, 60, 90), HexGeography.Kind.HILLS to Color(170, 130, 90, 50), HexGeography.Kind.FOREST to Color(0, 90, 0, 60),
         HexGeography.Kind.DEEP_FOREST to Color(0, 60, 0, 90), HexGeography.Kind.WOODLAND to Color(90, 140, 40, 50),

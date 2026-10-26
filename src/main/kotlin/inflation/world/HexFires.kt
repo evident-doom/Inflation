@@ -6,9 +6,6 @@ import inflation.HASH_C
 import inflation.mix64
 import inflation.unitOf
 import inflation.Config
-import inflation.ecology.Place
-import inflation.ecology.get
-import inflation.ecology.set
 
 import kotlin.math.exp
 import kotlin.math.max

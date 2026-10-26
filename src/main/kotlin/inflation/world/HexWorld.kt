@@ -1,8 +1,5 @@
 package inflation.world
 
-import inflation.ecology.Hex
-import inflation.ecology.Place
-import inflation.ecology.get
 import kotlin.math.abs
 import kotlin.math.max
 
@@ -67,7 +64,7 @@ class HexWorld(val world: World, val hex: HexMap) {
                 grid.forNeighbours(i) { j, _ -> if (!world.isSea[j]) coast[hex.owner[j]] = true }
             }
         }
-        for (h in 0 until size) {
+        for (h in hex.all) {
             val n = cells[h].toFloat().coerceAtLeast(1f)
             sea[h] /= n; lake[h] /= n
             val l = landN[h]
@@ -87,7 +84,7 @@ class HexWorld(val world: World, val hex: HexMap) {
      * where its land rises far enough ([SPLIT_RELIEF_M]), two: its low ground and its high ground, split at the
      * height half its land lies below.
      */
-    val placeHex: IntArray
+    val placeHex: HexArray
     /** Whether each place is its hex's low ground ([LOW], also a hex's only place) or its high ground ([HIGH]). */
     val placeBand: IntArray
     /** The fine cells of each place. */
@@ -117,14 +114,14 @@ class HexWorld(val world: World, val hex: HexMap) {
         for (i in 0 until grid.size) if (!world.isSea[i] && !world.water.isLake(i)) cellsOf[hex.owner[i]] += i
         // A hex is split where the land between its lowest and highest tenth rises more than [SPLIT_RELIEF_M], and
         // each half would hold at least [MIN_HALF_CELLS] cells; the split is at the median height of its land.
-        for (h in 0 until size) {
+        for (h in hex.all) {
             val cs = cellsOf[h]
             if (cs.size < 2 * MIN_HALF_CELLS) continue
             val e = FloatArray(cs.size) { world.elevation[cs[it]] }.also { it.sort() }
             if (e[(e.size * 9) / 10] - e[e.size / 10] > SPLIT_RELIEF_M) splitM[h] = e[e.size / 2]
         }
-        val hexes = ArrayList<Int>(); val bands = ArrayList<Int>(); val cells = ArrayList<IntArray>()
-        for (h in 0 until size) {
+        val hexes = HexList(); val bands = ArrayList<Int>(); val cells = ArrayList<IntArray>()
+        for (h in hex.all) {
             val cs = cellsOf[h]
             if (cs.isEmpty()) continue
             var (hi, lo) = cs.partition { bandAt(it) == HIGH }
@@ -132,7 +129,7 @@ class HexWorld(val world: World, val hex: HexMap) {
             low[h] = hexes.size; hexes += h; bands += LOW; cells += lo.toIntArray()
             if (hi.isNotEmpty()) { high[h] = hexes.size; hexes += h; bands += HIGH; cells += hi.toIntArray() } else high[h] = low[h]
         }
-        placeHex = hexes.toIntArray(); placeBand = bands.toIntArray(); placeCells = cells.toTypedArray()
+        placeHex = hexes.toHexArray(); placeBand = bands.toIntArray(); placeCells = cells.toTypedArray()
         placesIn = Array(size) { h -> when { low[h] < 0 -> IntArray(0); high[h] == low[h] -> intArrayOf(low[h]); else -> intArrayOf(low[h], high[h]) } }
         placeElevationM = FloatArray(placeCells.size) { p -> (placeCells[p].sumOf { world.elevation[it].toDouble() } / placeCells[p].size).toFloat() }
     }

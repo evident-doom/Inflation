@@ -1,5 +1,8 @@
 package inflation.tools.fauna
 
+import inflation.world.Hex
+import inflation.world.set
+import inflation.world.get
 import inflation.ecology.BandWays
 import inflation.ecology.HexGroup
 import inflation.ecology.HexSim
@@ -43,13 +46,13 @@ class WaysLog(private val sim: HexSim, file: File) {
     }
 
     /** The distance in km from each hex to the nearest hex that [isSource], by steps of hexes (the sea and lakes counted as any ground). */
-    private fun kmFrom(isSource: (Int) -> Boolean): FloatArray {
+    private fun kmFrom(isSource: (Hex) -> Boolean): FloatArray {
         val steps = IntArray(hex.size) { -1 }
-        val queue = ArrayDeque<Int>()
-        for (h in 0 until hex.size) if (isSource(h)) { steps[h] = 0; queue.addLast(h) }
+        val queue = ArrayDeque<Hex>()
+        for (h in hex.all) if (isSource(h)) { steps[h] = 0; queue.addLast(h) }
         while (queue.isNotEmpty()) {
             val h = queue.removeFirst()
-            for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0 && steps[q] < 0) { steps[q] = steps[h] + 1; queue.addLast(q) } }
+            for (d in 0 until 6) { val q = hex.neighbour(h, d); if (!q.none && steps[q] < 0) { steps[q] = steps[h] + 1; queue.addLast(q) } }
         }
         return FloatArray(hex.size) { if (steps[it] < 0) Float.NaN else (steps[it] * hex.hexKm).toFloat() }
     }
@@ -61,13 +64,13 @@ class WaysLog(private val sim: HexSim, file: File) {
         // Where it stands now, after this week's move, and the hex it set out from ([HexGroup.path]: the hexes it passed this week, its own last).
         val place = g.place.i
         val here = hw.placeHex[place]
-        val from = g.path.firstOrNull() ?: here
+        val from = if (g.path.isEmpty()) here else g.path[0]
         val (x, y) = hex.centreKm(here)
-        row.append(',').append(here).append(',').append(place).append(',').append(hw.placeBand[place]).append(',').append(x).append(',').append(y)
+        row.append(',').append(here.i).append(',').append(place).append(',').append(hw.placeBand[place]).append(',').append(x).append(',').append(y)
             .append(',').append(sim.cfg.northLatitude - y / WorldConfig.KM_PER_DEGREE).append(',').append(hw.placeElevationM[place])
             .append(',').append(Biome.entries[hw.placeBiome[place]].name.lowercase())
             .append(',').append(sim.land.hydro.meanFlow[here]).append(',').append(riverKm[here]).append(',').append(coastKm[here])
-            .append(',').append(if (from != here) 1 else 0).append(',').append(from).append(',').append(if (from != here) hex.distanceKm(from, here) else 0.0)
+            .append(',').append(if (from != here) 1 else 0).append(',').append(from.i).append(',').append(if (from != here) hex.distanceKm(from, here) else 0.0)
         for (v in inputs) row.append(',').append(v)
         for (v in out) row.append(',').append(v)
         row.append('\n')

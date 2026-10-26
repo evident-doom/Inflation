@@ -1,13 +1,8 @@
 package inflation.world
 
-import inflation.ecology.Hex
 import inflation.Books
 import inflation.StockName
 import inflation.Stocks
-import inflation.ecology.Place
-import inflation.ecology.get
-import inflation.ecology.placeList
-import inflation.ecology.set
 
 import kotlin.math.exp
 import kotlin.math.max
@@ -31,10 +26,10 @@ import kotlin.math.min
  */
 class HexHydrology(land: HexLand) : HexLandPart(land) {
     /** The hex each hex's main river flows into, -1 at the sea or a closed basin. */
-    @Transient val down = IntArray(hex.size) { -1 }
+    @Transient val down = HexArray(hex.size)
     /** Long-term mean flow of each hex's main river, m³/s. */
     @Transient val meanFlow = FloatArray(hex.size)
-    @Transient private val order: IntArray
+    @Transient private val order: HexArray
 
     init {
         val main = IntArray(hex.size) { -1 }
@@ -48,8 +43,8 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
         // the corner of a hex where a bigger river runs passes it by (sending it down that hex's river
         // instead would leave the hex it enters next dry, though its river is the biggest there).
         val isMain = BooleanArray(grid.size)
-        for (h in 0 until hex.size) if (main[h] >= 0) isMain[main[h]] = true
-        for (h in 0 until hex.size) {
+        for (h in hex.all) if (main[h] >= 0) isMain[main[h]] = true
+        for (h in hex.all) {
             val m = main[h]
             if (m < 0) continue
             meanFlow[h] = world.water.discharge[m]
@@ -64,12 +59,12 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
         }
         // Upstream first.
         val inDeg = IntArray(hex.size)
-        for (h in 0 until hex.size) if (down[h] >= 0) inDeg[down[h]]++
-        val q = ArrayDeque<Int>()
-        for (h in 0 until hex.size) if (inDeg[h] == 0) q += h
-        val o = ArrayList<Int>(hex.size)
-        while (q.isNotEmpty()) { val h = q.removeFirst(); o += h; val d = down[h]; if (d >= 0 && --inDeg[d] == 0) q += d }
-        order = o.toIntArray()
+        for (h in hex.all) if (!down[h].none) inDeg[down[h]]++
+        val q = ArrayDeque<Hex>()
+        for (h in hex.all) if (inDeg[h] == 0) q += h
+        val o = HexList(hex.size)
+        while (q.isNotEmpty()) { val h = q.removeFirst(); o += h; val d = down[h]; if (!d.none && --inDeg[d] == 0) q += d }
+        order = o.toHexArray()
         // (Each hex drains to the hex whose main river its own reaches downstream on the fine grid, which
         // has no loops, so neither has this; a hex left out would never route its water, so make sure.)
         check(order.size == hex.size) { "hex rivers form a loop: ${hex.size - order.size} hexes never drain" }
@@ -111,7 +106,7 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
     /** Ground water under each place, mm over the place (starts settled: see the init below). */
     val groundwater = FloatArray(n)
     /** The lowest place of each hex, where its stream runs and ground water from above comes out; -1 for sea. */
-    @Transient private val valley = IntArray(hex.size) { hw.firstPlaceIn(Hex(it)).i }
+    @Transient private val valley = hex.ints { hw.firstPlaceIn(it).i }
     /** Whether a hex has a stream its ground water seeps into; if not, the ground water goes on underground to the hex below. */
     @Transient private val stream = BooleanArray(hex.size) { meanFlow[it] >= CREEK }
 
@@ -121,12 +116,12 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
         val stepsPerYear = Date.stepsPerYear(days)
         val inflow = DoubleArray(hex.size)
         for (h in order) {
-            for (p in hw.placeList(Hex(h))) {
+            for (p in hw.placeList(h)) {
                 var input = intake[p] * mean(p.i) { world.climate.runoff[it] } / stepsPerYear
                 if (p.i == valley[h]) input += (inflow[h] / land.areaM2[p] * 1000.0).toFloat()
                 groundwater[p] = if (drain[p] > 0f) min(aquiferCap[p], input / drain[p]) else aquiferCap[p]
                 val d = down[h]
-                if (!stream[h] && d >= 0) inflow[d] += groundwater[p] * drain[p] / 1000.0 * land.areaM2[p]
+                if (!stream[h] && !d.none) inflow[d] += groundwater[p] * drain[p] / 1000.0 * land.areaM2[p]
             }
         }
     }
@@ -160,9 +155,9 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
                 lakeEvap[m][h] += world.climate.monthlyPet[m][i] / 1000.0 * area
             }
         }
-        for (h in 0 until hex.size) lakeAt[h + 1] = lakeAt[h] + depths[h].size
+        for (h in hex.all) lakeAt[h.i + 1] = lakeAt[h] + depths[h].size
         lakeHold = DoubleArray(lakeAt[hex.size])
-        for (h in 0 until hex.size) {
+        for (h in hex.all) {
             val d = depths[h].sortedDescending()
             // With the k deepest cells wet and the surface down at the k-th's depth, each holds its depth less that.
             var deeper = 0.0
@@ -173,8 +168,8 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
     val lakeM3 = lakeFull.copyOf()
 
     /** The share of hex [h]'s lake beds under water when its lakes hold [m3]: a low lake covers only its deeper cells. */
-    private fun wetShare(h: Int, m3: Double): Double {
-        val from = lakeAt[h]; val n = lakeAt[h + 1] - from
+    private fun wetShare(h: Hex, m3: Double): Double {
+        val from = lakeAt[h]; val n = lakeAt[h.i + 1] - from
         if (n == 0) return 0.0
         // (The fewest deepest cells that hold it, all of them when it is more than the shallowest's mark.)
         var lo = 1; var hi = n
@@ -286,11 +281,11 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
                 volume[h] += over
             }
             val d = down[h]
-            for (p in hw.placeList(Hex(h))) {
+            for (p in hw.placeList(h)) {
                 val out = groundwater[p] * drain[p]
                 groundwater[p] -= out
                 val m3 = out / 1000.0 * land.areaM2[p]
-                if (!stream[h] && d >= 0) underground[d] += m3 else volume[h] += m3
+                if (!stream[h] && !d.none) underground[d] += m3 else volume[h] += m3
             }
             // The lakes take what runs in, with the rain on their beds, and give up what the sun takes from their open
             // water, which shrinks as they sink; full, they pass on what comes in beyond it.
@@ -304,7 +299,7 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
             }
             val raw = (volume[h] / land.stepSeconds).toFloat()
             flow[h] = raw
-            for (p in hw.placeList(Hex(h))) {
+            for (p in hw.placeList(h)) {
                 flood[p] = if (land.floodShare[p] <= 0f || meanFlow[h] < RiverClass.STREAM.minDischarge) 0f else Channel.floodStageM(flow[h], meanFlow[h])
             }
             // Where the aquifer lies below the river, the river loses water through its bed, and a flood
@@ -312,14 +307,14 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
             if (v >= 0 && volume[h] > 0.0) {
                 val wetM2 = Channel.widthM(raw).toDouble() * hw.hex.hexKm * 1000.0
                 var lose = 0.0
-                for (p in hw.placeList(Hex(h))) {
+                for (p in hw.placeList(h)) {
                     val bed = (if (p.i == v) wetM2 else 0.0) + (if (flood[p] > 0f) land.floodShare[p] * land.areaM2[p].toDouble() else 0.0)
                     if (bed <= 0.0) continue
                     soak[p] = (BED_CONDUCTIVITY * days * bed * (1f - groundwater[p] / aquiferCap[p]).coerceIn(0f, 1f)).toFloat()
                     lose += soak[p]
                 }
                 val share = if (lose > 0.0) min(1.0, volume[h] / lose) else 0.0
-                if (lose > 0.0) for (p in hw.placeList(Hex(h))) {
+                if (lose > 0.0) for (p in hw.placeList(h)) {
                     val bed = (if (p.i == v) wetM2 else 0.0) + (if (flood[p] > 0f) land.floodShare[p] * land.areaM2[p].toDouble() else 0.0)
                     if (bed <= 0.0) continue
                     val m3 = soak[p] * share
@@ -331,7 +326,7 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
             // the place, then from what flows through the hex.
             // (The sunny and the shaded slopes are wetted each to the same depth; what the place gives is their mean over it.)
             var want = 0.0
-            for (p in hw.placeList(Hex(h))) {
+            for (p in hw.placeList(h)) {
                 val to = soakTo(p, h); soakTarget[p] = to
                 var need = (1 - land.slopeShade[p]) * max(0f, to - soil[p]) + land.slopeShade[p] * max(0f, to - soilShade[p])
                 soak[p] = 0f
@@ -343,7 +338,7 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
             }
             if (want > 0.0) {
                 val share = min(1.0, volume[h] / want).toFloat()
-                for (p in hw.placeList(Hex(h))) {
+                for (p in hw.placeList(h)) {
                     if (soak[p] <= 0f) continue
                     val to = soakTarget[p]
                     val gap = (1 - land.slopeShade[p]) * max(0f, to - soil[p]) + land.slopeShade[p] * max(0f, to - soilShade[p])
@@ -352,14 +347,14 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
                 }
             }
             // Where the beds ran this week (the place shed water, or a flood came down), the water fills the sands under them.
-            for (p in hw.placeList(Hex(h))) {
+            for (p in hw.placeList(h)) {
                 if (drink.bedM2[p] <= 0f || drink.sand[p] >= 1f) continue
                 if (!ranOff[p] && flood[p] <= 0f) continue
                 val m3 = min(volume[h], ((1f - drink.sand[p]) * HexDrinkingWater.SAND_M * HexDrinkingWater.SAND_YIELD * drink.bedM2[p]).toDouble())
                 if (m3 <= 0.0) continue
                 drink.sand[p] += (m3 / (HexDrinkingWater.SAND_M * HexDrinkingWater.SAND_YIELD * drink.bedM2[p])).toFloat(); volume[h] -= m3
             }
-            if (d >= 0) volume[d] += volume[h] else outflow += volume[h]
+            if (!d.none) volume[d] += volume[h] else outflow += volume[h]
         }
         if (books != null) {
             books.flow(Books.Stuff.WATER, "rain and snowmelt", rainIn)
@@ -404,11 +399,11 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
             weather.snowSun[p] += mm; weather.snowShade[p] += mm; weather.snowpack[p] += mm
         }
         for (h in order) {
-            val ps = hw.placesOf(Hex(h))
+            val ps = hw.placesOf(h)
             for (i in ps.indices.reversed()) {
                 val m3 = take(ps[i])
                 if (m3 <= 0.0) continue
-                val to = if (i > 0) ps[i - 1] else down[h].let { d -> if (d >= 0) valley[d] else -1 }
+                val to = if (i > 0) ps[i - 1] else down[h].let { d -> if (!d.none) valley[d] else -1 }
                 if (to >= 0) give(to, m3) else off += m3
             }
         }
@@ -433,7 +428,7 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
         if (soilShade[p] < to) soilShade[p] += part * (to - soilShade[p])
     }
 
-    private fun soakTo(p: Place, h: Int): Float {
+    private fun soakTo(p: Place, h: Hex): Float {
         var to = 0f
         // A flood soaks the floodplain's share of the place.
         if (flood[p] > 0f) to = soilCap[p] * land.floodShare[p]
@@ -473,16 +468,16 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
         for (h in order) {
             if (load[h] <= 0.0) continue
             var flooded = 0.0
-            for (p in hw.placeList(Hex(h))) if (flood[p] > 0f) flooded += land.floodShare[p] * land.areaM2[p]
+            for (p in hw.placeList(h)) if (flood[p] > 0f) flooded += land.floodShare[p] * land.areaM2[p]
             if (flooded > 0.0) {
                 val laid = load[h] * FLOOD_TRAP
-                for (p in hw.placeList(Hex(h))) {
+                for (p in hw.placeList(h)) {
                     if (flood[p] <= 0f) continue
                     laidKgM2[p] += (laid * land.floodShare[p] * land.areaM2[p] / flooded / land.areaM2[p]).toFloat()
                 }
                 load[h] -= laid
             }
-            val d = down[h]; if (d >= 0) load[d] += load[h]
+            val d = down[h]; if (!d.none) load[d] += load[h]
         }
     }
 

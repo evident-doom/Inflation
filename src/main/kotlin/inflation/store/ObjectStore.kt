@@ -3,7 +3,10 @@ package inflation.store
 import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.lang.reflect.Field
+import java.lang.reflect.Method
 import java.lang.reflect.Modifier
+import java.lang.reflect.ParameterizedType
+import java.lang.reflect.Type
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.IdentityHashMap
@@ -40,6 +43,36 @@ internal fun fields(c: Class<*>): List<Field> = fieldCache.getOrPut(c) {
     }
     out
 }
+
+/**
+ * A Kotlin value class (as [inflation.world.Hex] or [inflation.world.HexArray]). Boxed, in a list, a map or an array of them,
+ * it is written as the value it wraps, so a save holds it as a plain int or int array; read back, it is boxed again as the
+ * code declares it there ([boxed]).
+ */
+internal class ValueClass(val box: Method, val unbox: Method)
+private val valueClasses = java.util.concurrent.ConcurrentHashMap<Class<*>, java.util.Optional<ValueClass>>()
+internal fun valueClass(c: Class<*>): ValueClass? = valueClasses.getOrPut(c) {
+    java.util.Optional.ofNullable(runCatching {
+        val unbox = c.getDeclaredMethod("unbox-impl")
+        ValueClass(c.getDeclaredMethod("box-impl", unbox.returnType), unbox)
+    }.getOrNull())
+}.orElse(null)
+
+/** [v] as the value class [t] declares, where the save holds the value it wraps; else [v] as it is. */
+internal fun boxed(v: Any?, t: Type?): Any? {
+    val c = when (t) {
+        is Class<*> -> t
+        is ParameterizedType -> t.rawType as? Class<*>
+        is java.lang.reflect.WildcardType -> t.upperBounds.firstOrNull() as? Class<*>
+        else -> null
+    } ?: return v
+    if (v == null || v === Skip || c.isInstance(v)) return v
+    val vc = valueClass(c) ?: return v
+    return runCatching { vc.box.invoke(null, v) }.getOrDefault(v)
+}
+
+/** The [k]th type argument of [t] (the elements' type of a List<Hex>, say), or null. */
+private fun typeArg(t: Type?, k: Int): Type? = (t as? ParameterizedType)?.actualTypeArguments?.getOrNull(k)
 
 /** The names of [c]'s @Transient fields, its own and inherited (for a property by lazy, its `name$delegate` field). */
 private fun transientNames(c: Class<*>): Set<String> {
@@ -96,7 +129,8 @@ internal class Writer(val out: DataOutputStream, val keep: (Class<*>) -> Boolean
             is List<*> -> { out.writeByte(T.LIST); out.writeInt(v.size); for (x in v) value(x) }
             is Set<*> -> { out.writeByte(T.SET); out.writeInt(v.size); for (x in v) value(x) }
             is Map<*, *> -> { out.writeByte(T.MAP); out.writeInt(v.size); for ((a, b) in v) { value(a); value(b) } }
-            else -> if (named != null && named.type.isInstance(v)) { out.writeByte(T.NAMED); out.writeUTF(named.nameOf(v)) } else obj(v)
+            else -> if (named != null && named.type.isInstance(v)) { out.writeByte(T.NAMED); out.writeUTF(named.nameOf(v)) }
+                else valueClass(v.javaClass)?.let { value(it.unbox.invoke(v)) } ?: obj(v)
         }
     }
 
@@ -217,7 +251,7 @@ internal class Restorer {
         for (f in fs) {
             val saved = node.fields[f.name] ?: continue
             val cur = f.get(target)
-            val v = make(saved, cur, f.type)
+            val v = make(saved, cur, f.type, f.genericType)
             if (v === cur || v === Skip) continue
             if (v == null && f.type.isPrimitive) continue
             if (v != null && !box(f.type).isInstance(v)) { dropped += "${target.javaClass.simpleName}.${f.name} (now another type)"; continue }
@@ -226,7 +260,7 @@ internal class Restorer {
     }
 
     /** The live value for a saved [node], reusing [cur] where it can; [Skip] to leave things as they are. */
-    fun make(node: Node, cur: Any?, type: Class<*>): Any? = when (node) {
+    fun make(node: Node, cur: Any?, type: Class<*>, generic: Type? = null): Any? = when (node) {
         Skip -> Skip
         is Value -> {
             val v = node.v
@@ -250,12 +284,12 @@ internal class Restorer {
             val a = if (cur is Array<*> && cur.size >= node.items.size) cur as Array<Any?>
                 else runCatching { java.lang.reflect.Array.newInstance(Class.forName(node.component), node.items.size) as Array<Any?> }.getOrNull()
             if (a == null) Skip
-            else { for (i in node.items.indices) { val v = make(node.items[i], a.getOrNull(i), a.javaClass.componentType); if (v !== Skip) a[i] = v }; a }
+            else { for (i in node.items.indices) { val v = boxed(make(node.items[i], a.getOrNull(i), a.javaClass.componentType), a.javaClass.componentType); if (v !== Skip) a[i] = v }; a }
         }
         is Many -> {
             val old = (cur as? Collection<*>)?.toList() ?: emptyList()
             // What was not saved (a learned policy, say) stays as it was.
-            val items = node.items.mapIndexed { i, n -> make(n, old.getOrNull(i), Any::class.java).let { if (it === Skip) old.getOrNull(i) else it } }
+            val items = node.items.mapIndexed { i, n -> boxed(make(n, old.getOrNull(i), Any::class.java), typeArg(generic, 0)).let { if (it === Skip) old.getOrNull(i) else it } }
             @Suppress("UNCHECKED_CAST")
             val inPlace = cur is MutableCollection<*> && runCatching { (cur as MutableCollection<Any?>).clear(); cur.addAll(items) }.isSuccess
             when {
@@ -270,8 +304,8 @@ internal class Restorer {
             val old = HashMap(m)
             m.clear()
             for ((kn, vn) in node.items) {
-                val k = make(kn, null, Any::class.java); if (k === Skip) continue
-                val v = make(vn, old[k], Any::class.java)
+                val k = boxed(make(kn, null, Any::class.java), typeArg(generic, 0)); if (k === Skip) continue
+                val v = boxed(make(vn, old[k], Any::class.java), typeArg(generic, 1))
                 val kept = if (v === Skip) old[k] else v
                 // (A concurrent map holds no nulls: an entry whose value could not be made is left out.)
                 if (kept == null && m is ConcurrentMap<*, *>) continue

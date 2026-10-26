@@ -5,9 +5,6 @@ import inflation.StockName
 import inflation.Stocks
 import inflation.KgM2
 import inflation.Tuning
-import inflation.ecology.Place
-import inflation.ecology.get
-import inflation.ecology.set
 
 import kotlin.math.exp
 import kotlin.math.max

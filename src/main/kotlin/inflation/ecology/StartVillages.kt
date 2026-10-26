@@ -1,5 +1,10 @@
 package inflation.ecology
 
+import inflation.world.Hex
+import inflation.world.Place
+import inflation.world.get
+import inflation.world.set
+
 import inflation.Kg
 import inflation.world.Date
 import kotlin.math.max
@@ -80,7 +85,7 @@ private fun HexGroups.startVillage(g: HexGroup, b: Band): Pair<Int, Float>? {
     for (s in VILLAGE_SKILLS) { b.knowsSkill[s] = true; b.skills[s] = max(b.skills[s], VILLAGE_SKILL); b.lastUsed[s] = b.weeks }
     for (t in listOf(Tool.SICKLE, Tool.GRINDER)) { b.knows[t] = true; b.kit[t] = 1f }
     built += Structure(Built.HOUSES, h, Skill.PIT_HOUSE.ordinal, g.id, g.adults.toFloat()).also { buildOn(it, 1f); it.user = g.id }
-    b.houseHex = Hex(h); b.house = housesAt(g, h); b.atHome = true
+    b.houseHex = h; b.house = housesAt(g, h); b.atHome = true
     b.campPlace = p; b.campWeeks = stepsPerYear.roundToInt()
     b.seedDomestic = 1f
     // Its field ripens with the grass this summer; where the grain has ripened already this year, the harvest is in store.

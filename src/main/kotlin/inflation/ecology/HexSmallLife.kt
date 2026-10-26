@@ -1,5 +1,11 @@
 package inflation.ecology
 
+import inflation.Profile
+import inflation.world.Place
+import inflation.world.forEachPlace
+import inflation.world.get
+import inflation.world.set
+
 import inflation.Kg
 import inflation.KgKm2
 import inflation.KgM2

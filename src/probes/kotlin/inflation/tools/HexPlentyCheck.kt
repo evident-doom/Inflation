@@ -1,7 +1,12 @@
 package inflation.tools
 
-import inflation.ecology.Hex
-import inflation.ecology.Place
+import inflation.world.toHexArray
+import inflation.world.HexArray
+import inflation.world.get
+import inflation.world.set
+
+import inflation.world.Hex
+import inflation.world.Place
 import inflation.Args
 import inflation.Tuning
 import inflation.ecology.HexSim
@@ -64,11 +69,11 @@ fun main(args: Array<String>) {
     fun weigh(c: Int, p: Int, s: inflation.ecology.Species, hm: Double) {
         val w = sim.weather
         fCrag[c] += hm * HexFood.access(s, land.crag[p]); fTether[c] += hm * fauna.tether(s, Place(p))
-        fHarass[c] += hm * (1f - HexSmallLife.HARASS_FEED * fauna.small.harassment(inflation.ecology.Place(p)))
+        fHarass[c] += hm * (1f - HexSmallLife.HARASS_FEED * fauna.small.harassment(inflation.world.Place(p)))
         if (w.snowpack[p] > s.snowLimitMm) fSnow[c] += hm
-        fQuality[c] += hm * land.plants.nourishment(inflation.ecology.Place(p))
+        fQuality[c] += hm * land.plants.nourishment(inflation.world.Place(p))
         fCold[c] += hm * coldNeed(s, fauna.feltC(s, Place(p), w.temperature[p]), w.date.month, tuning)
-        val h = hw.placeHex[p]; fBandNb[c] += hm * (0 until 6).count { d -> val q = hex.neighbour(h, d); q >= 0 && !hw.placeNear(Place(p), Hex(q)).none }
+        val h = hw.placeHex[p]; fBandNb[c] += hm * (0 until 6).count { d -> val q = hex.neighbour(h, d); !q.none && !hw.placeNear(Place(p), q).none }
         fLeftHere[c] += hm * (fauna.grazeLeft[p] + fauna.browseLeft[p])
     }
 
@@ -95,7 +100,7 @@ fun main(args: Array<String>) {
         val overLand = FloatArray(nh) { h ->
             if (cls[h] < 0 || v[h].isNaN()) return@FloatArray Float.NaN
             var best = 0f
-            for (q in landRing2(sim, h)) { val l = left[q]; if (!l.isNaN() && l > best) best = l }
+            for (q in landRing2(sim, Hex(h))) { val l = left[q]; if (!l.isNaN() && l > best) best = l }
             hunger[h] * best
         }
         fun topOf(x: FloatArray): Float { val s = x.filter { !it.isNaN() }.sorted(); return if (s.isEmpty()) Float.MAX_VALUE else s[(0.95 * (s.size - 1)).toInt()] }
@@ -114,8 +119,8 @@ fun main(args: Array<String>) {
                 if (heads[h] < FEW) topFew[c]++
                 topEaterHere[c] += eaterKg[h] / area[h]
                 // (The hex that gives the plenty.)
-                var best = h; var bv = -1f
-                for (q in ring2(sim, h)) { val l = left[q]; if (!l.isNaN() && l > bv) { bv = l; best = q } }
+                var best = Hex(h); var bv = -1f
+                for (q in ring2(sim, Hex(h))) { val l = left[q]; if (!l.isNaN() && l > bv) { bv = l; best = q } }
                 topEaterThere[c] += eaterKg[best] / area[best]
             }
         }
@@ -172,13 +177,13 @@ internal class HexClasses(sim: HexSim) {
     private val hex = sim.hex; private val hw = sim.hw; private val nh = hex.size
     private val mass = IntArray(nh) { -1 }; private val massSize = ArrayList<Int>()
     init {
-        for (h0 in 0 until nh) {
+        for (h0 in hex.all) {
             if (hw.land[h0] <= 0f || mass[h0] >= 0) continue
             val id = massSize.size; var size = 0
-            val stack = ArrayDeque<Int>().apply { add(h0) }; mass[h0] = id
+            val stack = ArrayDeque<Hex>().apply { add(h0) }; mass[h0] = id
             while (stack.isNotEmpty()) {
                 val h = stack.removeLast(); size++
-                for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0 && hw.land[q] > 0f && mass[q] < 0) { mass[q] = id; stack.add(q) } }
+                for (d in 0 until 6) { val q = hex.neighbour(h, d); if (!q.none && hw.land[q] > 0f && mass[q] < 0) { mass[q] = id; stack.add(q) } }
             }
             massSize += size
         }
@@ -187,7 +192,7 @@ internal class HexClasses(sim: HexSim) {
         if (hw.land[h] <= 0f) -1
         else if (massSize[mass[h]] <= SMALL_ISLAND) 0
         else if (hw.coast[h]) 1
-        else if ((0 until 6).all { d -> val q = hex.neighbour(h, d); q < 0 || hw.land[q] <= 0f || hw.elevationM[q] < hw.elevationM[h] } && hw.elevationM[h] >= PEAK_M) 2
+        else if ((0 until 6).all { d -> val q = hex.neighbour(Hex(h), d); q.none || hw.land[q] <= 0f || hw.elevationM[q] < hw.elevationM[h] } && hw.elevationM[h] >= PEAK_M) 2
         else if (hw.elevationM[h] >= HIGH_M) 3
         else 4
     }
@@ -208,20 +213,20 @@ internal class HexClasses(sim: HexSim) {
 private const val FEW = 20.0
 
 /** The land hexes within two steps of [h] over land (not across a strait). */
-private val landRings = HashMap<Int, IntArray>()
-private fun landRing2(sim: HexSim, h: Int): IntArray = landRings.getOrPut(h) {
+private val landRings = HashMap<Hex, HexArray>()
+private fun landRing2(sim: HexSim, h: Hex): HexArray = landRings.getOrPut(h) {
     val out = linkedSetOf(h)
     for (d in 0 until 6) {
-        val q = sim.hex.neighbour(h, d); if (q < 0 || sim.hw.land[q] <= 0f) continue
+        val q = sim.hex.neighbour(h, d); if (q.none || sim.hw.land[q] <= 0f) continue
         out += q
-        for (e in 0 until 6) { val r = sim.hex.neighbour(q, e); if (r >= 0 && sim.hw.land[r] > 0f) out += r }
+        for (e in 0 until 6) { val r = sim.hex.neighbour(q, e); if (!r.none && sim.hw.land[r] > 0f) out += r }
     }
-    out.toIntArray()
+    out.toHexArray()
 }
 
-private val rings = HashMap<Int, IntArray>()
-private fun ring2(sim: HexSim, h: Int): IntArray = rings.getOrPut(h) {
+private val rings = HashMap<Hex, HexArray>()
+private fun ring2(sim: HexSim, h: Hex): HexArray = rings.getOrPut(h) {
     val out = linkedSetOf(h)
-    for (d in 0 until 6) { val q = sim.hex.neighbour(h, d); if (q >= 0) { out += q; for (e in 0 until 6) { val r = sim.hex.neighbour(q, e); if (r >= 0) out += r } } }
-    out.toIntArray()
+    for (d in 0 until 6) { val q = sim.hex.neighbour(h, d); if (!q.none) { out += q; for (e in 0 until 6) { val r = sim.hex.neighbour(q, e); if (!r.none) out += r } } }
+    out.toHexArray()
 }

@@ -192,8 +192,6 @@ class Species(
     val carnivore: Boolean get() = diet.animal > 0.5f
     /** What kind of group it lives in, for the kinds that live in groups: a band of people or a pack of hunters. */
     val lifeway: Lifeway get() = if (human) Lifeway.BAND else Lifeway.PACK
-    /** Hunts in packs: a meat-eater that is not people. */
-    val pack: Boolean get() = carnivore && !human
     /**
      * Days of food it can carry as fat. Mammals store some 0.075 M^1.19 kg of fat and burn about 317 M^0.75 kJ a
      * day at rest, so fat lasts 9.3 M^0.44 days at rest (Lindstedt and Boyce 1985); on the move they burn some

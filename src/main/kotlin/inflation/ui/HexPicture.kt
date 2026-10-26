@@ -1,5 +1,9 @@
 package inflation.ui
 
+import inflation.world.Hex
+import inflation.world.get
+import inflation.world.set
+
 import inflation.Args
 import inflation.world.HexMap
 import inflation.world.World
@@ -79,7 +83,7 @@ object HexPicture {
         }
         // Hex outlines, faint, and every border coloured by what it takes to cross on foot.
         val r = hex.hexKm / sqrt(3.0)
-        for (a in 0 until hex.size) {
+        for (a in hex.all) {
             val (cx, cy) = hex.centreKm(a)
             if (cx < x0 - hex.hexKm || cx > x0 + w + hex.hexKm || cy < y0 - hex.hexKm || cy > y0 + h + hex.hexKm) continue
             for (d in 0 until 6) {
@@ -88,9 +92,9 @@ object HexPicture {
                 val xa = sx(cx + r * cos(a0)); val ya = sy(cy + r * sin(a0)); val xb = sx(cx + r * cos(a1)); val yb = sy(cy + r * sin(a1))
                 gr.stroke = BasicStroke(0.6f); gr.color = Color(255, 255, 255, 45)
                 gr.drawLine(xa, ya, xb, yb)
-                if (b < 0 || hex.heart[a] < 0 || hex.heart[b] < 0 || b < a) continue
+                if (b.none || hex.heart[a] < 0 || hex.heart[b] < 0 || b < a) continue
                 // The ground: colour by effort over it, rivers left aside.
-                val e = hex.ground[HexMap.Travel.FOOT.ordinal][a * 6 + d] / hex.hexKm.toFloat()
+                val e = hex.ground[HexMap.Travel.FOOT.ordinal][hex.edge(a, d)] / hex.hexKm.toFloat()
                 val (colour, width) = when {
                     !e.isFinite() -> Color.BLACK to 3.0f
                     e >= 4f -> Color(0xe0401a) to 2.4f
@@ -103,7 +107,7 @@ object HexPicture {
                     gr.drawLine(xa, ya, xb, yb)
                 }
                 // The water, on top: a river on this border, by depth at its best crossing.
-                val depth = hex.riverDepthM[a * 6 + d]
+                val depth = hex.riverDepthM[hex.edge(a, d)]
                 if (depth <= HexMap.KNEE) continue
                 gr.color = when { depth > 1.5f -> Color(0x0a1f6e); depth > 1.0f -> Color(0x1f55d0); else -> Color(0x6fb4ff) }
                 gr.stroke = BasicStroke(1.1f * px / 2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)

@@ -1,14 +1,14 @@
 package inflation.tools
 
+import inflation.ecology.set
+import inflation.ecology.get
 import inflation.tools.fauna.FaunaCheckOptions
 import inflation.world.Date
 import kotlin.math.hypot
-import inflation.ecology.get
-import inflation.ecology.set
-import inflation.ecology.contains
-import inflation.ecology.Place
-import inflation.ecology.Hex
-import inflation.ecology.hexOf
+import inflation.world.get
+import inflation.world.set
+import inflation.world.Place
+import inflation.world.Hex
 
 /**
  * Whether the groups follow their kind's sense of better country (the pull the viewer draws as yellow
@@ -40,12 +40,12 @@ fun main(args: Array<String>) {
     val acc = Array(kinds.size) { Acc() }
     val kindOf = kinds.withIndex().associate { it.value to it.index }
     // Where each group stood at the start of the month, and the pull there then (east, south).
-    class Start(val hex: Int, val e: Float, val s: Float)
+    class Start(val hex: Hex, val e: Float, val s: Float)
     var month = -1
     var starts = HashMap<Int, Start>()
     val t0 = System.nanoTime()
     repeat(steps) { w ->
-        val before = HashMap<Int, Int>(groups.groups.size * 2)
+        val before = HashMap<Int, Hex>(groups.groups.size * 2)
         for (g in groups.groups) if (g.alive) before[g.id] = placeHex[g.place]
         sim.step()
         val m = b.month

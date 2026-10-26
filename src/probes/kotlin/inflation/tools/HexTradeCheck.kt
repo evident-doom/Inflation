@@ -1,5 +1,8 @@
 package inflation.tools
 
+import inflation.world.Hex
+import inflation.ecology.set
+import inflation.ecology.get
 import inflation.learning.RunScore
 import inflation.run.freshSim
 import inflation.Args
@@ -14,11 +17,9 @@ import inflation.world.WorldConfig
 import inflation.ecology.HexGroup
 import inflation.ecology.Store
 import java.util.TreeMap
-import inflation.ecology.get
-import inflation.ecology.set
-import inflation.ecology.contains
-import inflation.ecology.Place
-import inflation.ecology.hexOf
+import inflation.world.get
+import inflation.world.set
+import inflation.world.Place
 
 /**
  * What trade does (with rounds on for the rites at the sources): where good stone, salt
@@ -37,7 +38,7 @@ fun main(args: Array<String>) {
     val lines = seeds.parallelStream().map { seed ->
         val run = freshSim(WorldConfig(seed = seed, widthKm = size, heightKm = size), Catalogue.learned)
         val hw = run.hw; val land = run.groups.land
-        fun chief(h: Int): Int { var best = 0; for (b in hw.biome.indices) if (hw.biome[b][h] > hw.biome[best][h]) best = b; return best }
+        fun chief(h: Hex): Int { var best = 0; for (b in hw.biome.indices) if (hw.biome[b][h] > hw.biome[best][h]) best = b; return best }
         val stepsPerYear = Date.DAYS_PER_YEAR / WorldConfig().daysPerStep
         val score = RunScore(run, listOf(Catalogue.HUMAN))
         val sb = StringBuilder("seed $seed: places with good stone %d, salt %d, ochre %d of %d".format(

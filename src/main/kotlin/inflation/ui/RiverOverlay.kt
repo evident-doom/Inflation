@@ -1,5 +1,10 @@
 package inflation.ui
 
+import inflation.world.HexArray
+import inflation.world.Hex
+import inflation.world.hexArray
+import inflation.world.set
+import inflation.world.get
 import inflation.world.HexLand
 import inflation.world.HexMap
 import inflation.world.RiverClass
@@ -25,7 +30,7 @@ import kotlin.math.pow
 class RiverOverlay(world: World, hex: HexMap, private val land: HexLand) {
     private val ax: FloatArray; private val ay: FloatArray; private val bx: FloatArray; private val by: FloatArray
     /** Long-term flow of each stretch, m³/s, and the hex whose flow now it follows. */
-    private val usual: FloatArray; private val src: IntArray
+    private val usual: FloatArray; private val src: HexArray
 
     init {
         val g = world.grid
@@ -40,7 +45,7 @@ class RiverOverlay(world: World, hex: HexMap, private val land: HexLand) {
         }
         val isMain = BooleanArray(g.size); for (m in main) if (m >= 0) isMain[m] = true
         // Upstream first: a cell's biggest donor is settled before the cell itself.
-        val follows = IntArray(g.size) { hex.owner[it] }
+        val follows = hexArray(g.size) { hex.owner[it] }
         val bigDonor = IntArray(g.size) { -1 }
         val stack = world.water.drainage.stack
         for (k in stack.size - 1 downTo 0) {
@@ -56,7 +61,7 @@ class RiverOverlay(world: World, hex: HexMap, private val land: HexLand) {
         bx = FloatArray(cells.size) { ((g.x(recv[cells[it]]) + 0.5) * ck).toFloat() }
         by = FloatArray(cells.size) { ((g.y(recv[cells[it]]) + 0.5) * ck).toFloat() }
         usual = FloatArray(cells.size) { discharge[cells[it]] }
-        src = IntArray(cells.size) { follows[cells[it]] }
+        src = hexArray(cells.size) { follows[cells[it]] }
     }
 
     /** Whether the rivers are drawn at all (the viewer's "River flows" box). */

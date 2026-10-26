@@ -1,6 +1,9 @@
 package inflation.tools
 
-import inflation.ecology.Place
+import inflation.world.get
+import inflation.world.set
+
+import inflation.world.Place
 import inflation.Args
 import inflation.ecology.HexSim
 import inflation.world.Biome

@@ -1,6 +1,9 @@
 package inflation.tools
 
-import inflation.ecology.Place
+import inflation.world.get
+import inflation.world.set
+
+import inflation.world.Place
 import inflation.run.TestWorlds
 import inflation.Args
 import inflation.ecology.DeathCause
@@ -69,9 +72,9 @@ fun main(args: Array<String>) {
                 val edge = (ad + yd) < 0.01f * usual
                 a.heads[m] += heads
                 a.fed[m] += heads * f
-                a.wetFloor[m] += heads * land.hydro.wetFloor(inflation.ecology.Place(p))
+                a.wetFloor[m] += heads * land.hydro.wetFloor(inflation.world.Place(p))
                 a.flood[m] += heads * land.floodShare[p]
-                a.table[m] += heads * land.hydro.waterTableM(inflation.ecology.Place(p))
+                a.table[m] += heads * land.hydro.waterTableM(inflation.world.Place(p))
                 a.green[m] += heads * land.plants.green[p]
                 a.tether[m] += heads * t
                 a.hunger[m] += died

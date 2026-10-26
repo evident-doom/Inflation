@@ -1,5 +1,7 @@
 package inflation.tools
 
+import inflation.world.set
+import inflation.world.get
 import inflation.Args
 import inflation.world.Date
 import inflation.world.HexMap
@@ -29,7 +31,7 @@ fun main(args: Array<String>) {
     val world = World.generate(cfg)
     val hw = HexWorld(world, HexMap(world))
     val n = hw.placeCells.size
-    println("%d places (height bands of %d hexes)".format(n, hw.placeHex.distinct().size))
+    println("%d places (height bands of %d hexes)".format(n, hw.placeHex.toList().distinct().size))
     val fine = Weather(world.grid, world.climate, cfg, world.elevation)
     val coarse = Weather(hw.weatherPlaces(cfg), cfg)
     val steps = years * Date.DAYS_PER_YEAR / cfg.daysPerStep

@@ -4,7 +4,7 @@ import inflation.ecology.FaunaKind
 import inflation.ecology.HexHistory
 import inflation.ecology.HexSim
 import inflation.ecology.HexSnapshot
-import inflation.ecology.Profile
+import inflation.Profile
 import inflation.run.Nominal
 
 /**

@@ -1,5 +1,7 @@
 package inflation.tools
 
+import inflation.world.set
+import inflation.world.get
 import inflation.Args
 import inflation.ecology.HexSim
 import inflation.ecology.HexSnapshot

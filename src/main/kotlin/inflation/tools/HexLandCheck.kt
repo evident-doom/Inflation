@@ -1,5 +1,7 @@
 package inflation.tools
 
+import inflation.world.set
+import inflation.world.get
 import inflation.Args
 import inflation.world.HexLand
 import inflation.world.HexMap
@@ -47,7 +49,7 @@ fun main(args: Array<String>) {
         val h = hw.hex.owner[i]
         if (main[h] < 0 || world.water.discharge[i] > world.water.discharge[main[h]]) main[h] = i
     }
-    val hexes = (0 until hw.hex.size).filter { land.hydro.meanFlow[it] >= RiverClass.STREAM.minDischarge }
+    val hexes = hw.hex.all.filter { land.hydro.meanFlow[it] >= RiverClass.STREAM.minDischarge }
     val flowF = DoubleArray(hexes.size); val flowC = DoubleArray(hexes.size)
     repeat(steps) {
         var t0 = System.nanoTime()

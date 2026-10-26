@@ -1,5 +1,8 @@
 package inflation.tools.fauna
 
+import inflation.world.Hex
+import inflation.ecology.set
+import inflation.ecology.get
 import inflation.ecology.ADULT_YEARS
 import inflation.ecology.Tally
 import inflation.ecology.ByBeast
@@ -24,11 +27,9 @@ import inflation.ecology.boldness
 import inflation.ecology.houseFoodAYear
 import inflation.ecology.houseLivesAYear
 import java.util.TreeMap
-import inflation.ecology.get
-import inflation.ecology.set
-import inflation.ecology.contains
-import inflation.ecology.Place
-import inflation.ecology.hexOf
+import inflation.world.get
+import inflation.world.set
+import inflation.world.Place
 import inflation.world.Date
 
 /** Deaths and births by "kind:cause" over the run, from the model's weekly ledgers. */
@@ -216,7 +217,7 @@ class MovementTally(private val sim: HexSim) {
             for (h in a.indices) {
                 if (a[h] <= 0.0 && b[h] <= 0.0) continue
                 byHex += kotlin.math.abs(a[h] / ta - b[h] / tb)
-                val (x, y) = hex.centreKm(h)
+                val (x, y) = hex.centreKm(Hex(h))
                 val cell = (x / CELL_KM).toLong() * 100_000 + (y / CELL_KM).toLong()
                 cellA.merge(cell, a[h] / ta, Double::plus); cellB.merge(cell, b[h] / tb, Double::plus)
             }
@@ -254,7 +255,7 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
     private var motherWeeks = 0.0
     private var moves = 0
     /** Hexes each band walked this year, and its last camp. */
-    private val walked = HashMap<Int, HashSet<Int>>(); private val lastCamp = HashMap<Int, Int>()
+    private val walked = HashMap<Int, HashSet<Hex>>(); private val lastCamp = HashMap<Int, Hex>()
     /** Camp moves and band-weeks since last read, of bands without houses [0] and with [1]. */
     private val movesHouse = LongArray(2); private val bandWeeksHouse = LongArray(2)
     /** Appointments due and kept since last read: of bands in their appointment's month, how many are at its hex. */
@@ -279,7 +280,7 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
             val ap = b.appointment
             if (!g.alive || ap == null || ap.month != sim.weather.date.month) continue
             apptDue++
-            if (hw.placeHex[g.place] == ap.hex.i) apptKept++
+            if (hw.placeHex[g.place] == ap.hex) apptKept++
         }
         for (g in groups.groups) if (g.alive && g.band != null) {
             bandWeeks++; bandHeads += g.size; childWeeks += g.young; adultWeeks += g.adults; motherWeeks += (g.adults - g.band!!.elders) / 2.0

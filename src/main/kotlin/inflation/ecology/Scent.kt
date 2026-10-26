@@ -1,5 +1,9 @@
 package inflation.ecology
 
+import inflation.world.Hex
+import inflation.world.get
+import inflation.world.set
+
 /**
  * Scent marks of each hunting kind on each hex: how fresh (0..1, fading week by week unless
  * renewed) and whose. A pack marks the ground it works ([mark]); others of its kind keep off fresh marks.

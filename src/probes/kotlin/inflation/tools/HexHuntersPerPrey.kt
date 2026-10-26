@@ -1,8 +1,13 @@
 package inflation.tools
 
+import inflation.world.toHexArray
+import inflation.world.HexArray
+import inflation.world.Hex
+import inflation.world.set
+import inflation.ecology.get
 import inflation.tools.fauna.FaunaCheckOptions
 import inflation.world.Biome
-import inflation.ecology.get
+import inflation.world.get
 
 /**
  * What the viewer's "Hunters per prey" layer is made of: after four weeks from the start (a test world's
@@ -56,7 +61,7 @@ fun main(args: Array<String>) {
     val value = DoubleArray(nh) { h ->
         if (area[h] <= 0) return@DoubleArray Double.NaN
         var hu = hunterKg[h]; var pr = preyKg[h]
-        for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0) { hu += hunterKg[q]; pr += preyKg[q] } }
+        for (d in 0 until 6) { val q = hex.neighbour(Hex(h), d); if (!q.none) { hu += hunterKg[q]; pr += preyKg[q] } }
         if (pr <= 0.0) (if (hu > 0.0) 100.0 else 0.0) else minOf(100.0, 100.0 * hu / pr)
     }
 

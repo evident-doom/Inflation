@@ -1,16 +1,16 @@
 package inflation.tools
 
+import inflation.ecology.set
+import inflation.ecology.get
 import inflation.run.freshSim
 import inflation.Args
 import inflation.ecology.Catalogue
 import inflation.world.Date
 import inflation.world.WorldConfig
-import inflation.ecology.get
-import inflation.ecology.set
-import inflation.ecology.contains
-import inflation.ecology.Place
-import inflation.ecology.Hex
-import inflation.ecology.hexOf
+import inflation.world.get
+import inflation.world.set
+import inflation.world.Place
+import inflation.world.Hex
 
 /**
  * What the land offers people by how far it lies from the sea: land hexes in rings by their
@@ -43,24 +43,24 @@ fun main(args: Array<String>) {
     val hex = run.hex; val hw = run.hw; val land = run.land; val groups = run.groups
     // Rings from the sea.
     val ring = IntArray(hex.size) { -1 }
-    var front = (0 until hex.size).filter { hex.heart[it] < 0 }
+    var front = hex.all.filter { hex.heart[it] < 0 }
     for (h in front) ring[h] = 0
     var r = 0
     while (front.isNotEmpty() && r < 12) {
         r++
-        val next = ArrayList<Int>()
-        for (h in front) for (d in 0 until 6) { val q = hex.neighbour(h, d); if (q >= 0 && ring[q] < 0 && hex.heart[q] >= 0) { ring[q] = r; next += q } }
+        val next = ArrayList<Hex>()
+        for (h in front) for (d in 0 until 6) { val q = hex.neighbour(h, d); if (!q.none && ring[q] < 0 && hex.heart[q] >= 0) { ring[q] = r; next += q } }
         front = next
     }
-    val people = HashMap<Int, Int>()
+    val people = HashMap<Hex, Int>()
     for (g in groups.groups) if (g.alive && g.species.human) people.merge(hw.placeHex[g.place], g.size, Int::plus)
     println("ring (hexes from the sea) | land km² | people per 1000 km² | camp value | game | plants | water km (people) | fish+shellfish kg/week | marsh share | safe-camp ground | child deaths a year in floods / fires")
     for (rr in 1..12) {
-        val hs = (0 until hex.size).filter { (ring[it] == rr || (rr == 12 && ring[it] >= 12)) && !hw.firstPlaceIn(Hex(it)).none }
+        val hs = hex.all.filter { (ring[it] == rr || (rr == 12 && ring[it] >= 12)) && !hw.firstPlaceIn(it).none }
         if (hs.isEmpty()) continue
-        val ps = hs.map { hw.firstPlaceIn(Hex(it)) }
+        val ps = hs.map { hw.firstPlaceIn(it) }
         val km2 = ps.sumOf { land.areaKm2[it].toDouble() }
-        fun mean(f: (Int, Int) -> Double) = hs.indices.sumOf { i -> f(hs[i], (ps[i]).i) * land.areaKm2[ps[i]] } / km2
+        fun mean(f: (Hex, Int) -> Double) = hs.indices.sumOf { i -> f(hs[i], (ps[i]).i) * land.areaKm2[ps[i]] } / km2
         val heads = hs.sumOf { people[it] ?: 0 }
         println("%2d%s | %8.0f | %6.1f | %8.0f | %8.0f | %8.0f | %5.1f | %7.0f | %.3f | %.2f | %.3f / %.3f".format(rr, if (rr == 12) "+" else " ", km2,
             1000.0 * heads / km2,

@@ -1,6 +1,4 @@
-package inflation.ecology
-
-import inflation.Config
+package inflation
 
 import java.lang.management.ManagementFactory
 import java.util.concurrent.ConcurrentHashMap

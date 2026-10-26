@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.world.get
 import inflation.world.Biome
 import inflation.world.Date
 import inflation.world.Weather

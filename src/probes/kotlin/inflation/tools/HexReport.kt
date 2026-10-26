@@ -1,5 +1,8 @@
 package inflation.tools
 
+import inflation.world.Hex
+import inflation.world.set
+import inflation.world.get
 import inflation.Args
 import inflation.world.HexMap
 import inflation.world.HexWorld
@@ -36,14 +39,14 @@ fun main(args: Array<String>) {
     println("world %d x %d km at %.0f km cells generated in %.0f s".format(cfg.widthKm, cfg.heightKm, cfg.cellKm, (System.nanoTime() - t0) / 1e9))
     t0 = System.nanoTime()
     val hex = HexMap(world, hexKm)
-    val land = (0 until hex.size).filter { hex.heart[it] >= 0 }
+    val land = hex.all.filter { hex.heart[it] >= 0 }
     println("%.0f km hexes: %d, of them %d with land; summarised in %.1f s".format(hexKm, hex.size, land.size, (System.nanoTime() - t0) / 1e9))
     // Borders between land hexes.
     var open = 0; var hard = 0; var dear = 0; var none = 0; var pass = 0; var river = 0; var bigRiver = 0
     for (a in land) for (d in 0 until 3) {
         val b = hex.neighbour(a, d)
-        if (b < 0 || hex.heart[b] < 0) continue
-        val e = hex.crossing[a * 6 + d]
+        if (b.none || hex.heart[b] < 0) continue
+        val e = hex.crossing[hex.edge(a, d)]
         when {
             !e.isFinite() -> none++
             e < 1.5 * hexKm -> open++
@@ -52,17 +55,17 @@ fun main(args: Array<String>) {
         }
         if (e.isFinite()) {
             val lo = maxOf(world.elevation[hex.heart[a]], world.elevation[hex.heart[b]])
-            if (hex.passM[a * 6 + d] - lo > 300f) pass++
-            if (hex.riverM3s[a * 6 + d] > 10f) river++
-            if (hex.riverM3s[a * 6 + d] > 200f) bigRiver++
+            if (hex.passM[hex.edge(a, d)] - lo > 300f) pass++
+            if (hex.riverM3s[hex.edge(a, d)] > 10f) river++
+            if (hex.riverM3s[hex.edge(a, d)] > 200f) bigRiver++
         }
     }
     val all = open + hard + dear + none
-    val ringed = land.count { h -> (0 until 6).all { d -> val n = hex.neighbour(h, d); n < 0 || hex.heart[n] < 0 || !hex.crossing[h * 6 + d].isFinite() } &&
-        (0 until 6).any { d -> val n = hex.neighbour(h, d); n >= 0 && hex.heart[n] >= 0 } }
+    val ringed = land.count { h -> (0 until 6).all { d -> val n = hex.neighbour(h, d); n.none || hex.heart[n] < 0 || !hex.crossing[hex.edge(h, d)].isFinite() } &&
+        (0 until 6).any { d -> val n = hex.neighbour(h, d); !n.none && hex.heart[n] >= 0 } }
     println("land hexes with no way out on foot to any land neighbour: %d".format(ringed))
-    val isRinged = { h: Int -> (0 until 6).all { d -> val n = hex.neighbour(h, d); n < 0 || hex.heart[n] < 0 || !hex.crossing[h * 6 + d].isFinite() } &&
-        (0 until 6).any { d -> val n = hex.neighbour(h, d); n >= 0 && hex.heart[n] >= 0 } }
+    val isRinged = { h: Hex -> (0 until 6).all { d -> val n = hex.neighbour(h, d); n.none || hex.heart[n] < 0 || !hex.crossing[hex.edge(h, d)].isFinite() } &&
+        (0 until 6).any { d -> val n = hex.neighbour(h, d); !n.none && hex.heart[n] >= 0 } }
     println("  of them mostly land: %d".format(land.count { isRinged(it) && hex.landCells[it] > hex.cells[it] / 2 }))
     for (h in land.filter { isRinged(it) && hex.landCells[it] > hex.cells[it] / 2 }.take(12)) {
         val cs = (0 until world.grid.size).filter { hex.owner[it] == h }
@@ -96,8 +99,8 @@ fun main(args: Array<String>) {
         val es = ArrayList<Float>(); var shut = 0
         for (a in land) for (d in 0 until 3) {
             val b = hex.neighbour(a, d)
-            if (b < 0 || hex.heart[b] < 0) continue
-            if (c[a * 6 + d].isFinite()) es += c[a * 6 + d] / hexKm.toFloat() else shut++
+            if (b.none || hex.heart[b] < 0) continue
+            if (c[hex.edge(a, d)].isFinite()) es += c[hex.edge(a, d)] / hexKm.toFloat() else shut++
         }
         println("  %-6s borders with no way %.1f%%; effort to cross median %.1f× flat, 90%% %.1f×"
             .format(tr.name.lowercase(), 100.0 * shut / (shut + es.size), pct(es, .5), pct(es, .9)))
@@ -189,17 +192,17 @@ private fun draw(world: World, hex: HexMap, file: java.io.File) {
     val gr = img.createGraphics()
     gr.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON)
     val px = scale / world.grid.cellKm
-    for (a in 0 until hex.size) {
+    for (a in hex.all) {
         if (hex.heart[a] < 0) continue
         val (ax, ay) = hex.centreKm(a)
         for (d in 0 until 3) {
             val b = hex.neighbour(a, d)
-            if (b < 0 || hex.heart[b] < 0) continue
+            if (b.none || hex.heart[b] < 0) continue
             val (bx, by) = hex.centreKm(b)
-            val e = hex.crossing[a * 6 + d]
+            val e = hex.crossing[hex.edge(a, d)]
             gr.color = when {
                 !e.isFinite() -> java.awt.Color.BLACK
-                hex.riverM3s[a * 6 + d] > 200f -> java.awt.Color(0x2060ff)
+                hex.riverM3s[hex.edge(a, d)] > 200f -> java.awt.Color(0x2060ff)
                 e >= 4 * hex.hexKm -> java.awt.Color(0xd02020)
                 e >= 1.5 * hex.hexKm -> java.awt.Color(0xff9020)
                 else -> java.awt.Color(255, 255, 255, 90)

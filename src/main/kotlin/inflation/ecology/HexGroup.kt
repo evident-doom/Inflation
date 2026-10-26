@@ -1,4 +1,10 @@
 package inflation.ecology
+
+import inflation.world.Hex
+import inflation.world.HexArray
+import inflation.world.Place
+import inflation.world.get
+import inflation.world.set
 import inflation.world.HexLand
 import kotlin.math.exp
 import kotlin.math.max
@@ -15,7 +21,7 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
     /** What it ate this week beyond its needs, days of food: laid on as reserves (see [liveWeek]). */
     var surplus = 0f
     /** The hexes it passed through this week, in order (its own last), and the day it entered each. */
-    var path = IntArray(0)
+    var path = HexArray.EMPTY
     var days = FloatArray(0)
     /** The height it gained this week, from the place it left to the place it came to, m (none going down): see [walkCost]. */
     var climbedM = 0f
@@ -29,7 +35,7 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
     var dry = 0f
     /** Weeks in a row it has gone hungry (fed under half); the last hexes it hunted in, newest first. */
     var lean = 0
-    val recent = IntArray(4) { -1 }
+    val recent = HexArray(4)
     /** Lineage tag for learning, -1 for none; the group it split from (-1 for none). */
     var tag = -1
     var parent = -1

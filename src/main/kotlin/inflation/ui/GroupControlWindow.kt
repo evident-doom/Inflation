@@ -1,5 +1,9 @@
 package inflation.ui
 
+import inflation.world.HexArray
+import inflation.world.Hex
+import inflation.ecology.set
+import inflation.ecology.get
 import inflation.ecology.ANIMAL_WAYS_OUT
 import inflation.ecology.FOOD_TYPES
 import inflation.ecology.Food
@@ -55,11 +59,9 @@ import inflation.ecology.Tradition
 import java.util.ArrayDeque
 import kotlin.math.atan2
 import kotlin.math.hypot
-import inflation.ecology.get
-import inflation.ecology.set
-import inflation.ecology.contains
-import inflation.ecology.Place
-import inflation.ecology.hexOf
+import inflation.world.get
+import inflation.world.set
+import inflation.world.Place
 
 /**
  * The group controls of follow mode: a window beside the overview map that shows the followed group
@@ -110,7 +112,7 @@ class GroupControlWindow(
     private val handsOff = JCheckBox("Model decides", false)
     private val reset = JButton("Undo my changes")
     /** Where the followed group went in the last few weeks, newest last (the hexes of each week's way). */
-    private val trail = ArrayDeque<IntArray>()
+    private val trail = ArrayDeque<HexArray>()
     /** The groups it saw about it when it last chose (to show where they went). */
     @Volatile private var seenBefore = emptySet<Int>()
     private val next = JButton("Next step")
@@ -322,12 +324,12 @@ class GroupControlWindow(
     }
 
     /** The groups now in hex [h] and the six about it. */
-    private fun nearIds(h: Int): Set<Int> {
-        val near = HashSet<Int>().also { it += h; for (k in 0 until 6) hex.neighbour(h, k).takeIf { n -> n >= 0 }?.let { n -> it += n } }
+    private fun nearIds(h: Hex): Set<Int> {
+        val near = HashSet<Hex>().also { it += h; for (k in 0 until 6) hex.neighbour(h, k).takeIf { n -> !n.none }?.let { n -> it += n } }
         return groups.groups.filter { it.alive && hw.placeHex[it.place] in near }.map { it.id }.toSet()
     }
 
-    private fun where(p: Int) = "hex %d, %.0f m".format(hw.placeHex[p], hw.placeElevationM[p])
+    private fun where(p: Int) = "hex %d, %.0f m".format(hw.placeHex[p].i, hw.placeElevationM[p])
 
     private fun statusText(g: HexGroup, d: MoveDecision?): String {
         val s = g.species
@@ -349,7 +351,7 @@ class GroupControlWindow(
                 .joinToString(", ") { "%s %.0f%%".format(it.name.lowercase(), 100 * b.kit[it]) })
             sb.appendLine("customs: " + Tradition.entries.filter { b.holds(it) }.joinToString(", ") { it.name.lowercase().replace('_', ' ') }
                 .ifEmpty { "none" })
-            sb.appendLine("knows %d hexes; knows the homes of %d bands".format((0 until hex.size).count { b.knows(it) }, b.knownHomes.size))
+            sb.appendLine("knows %d hexes; knows the homes of %d bands".format(hex.all.count { b.knows(it) }, b.knownHomes.size))
             b.raid?.let { sb.appendLine("set on a raid at hex %d".format(it.hex.i)) }
             b.appointment?.let { sb.appendLine("meets others at hex %d in month %d".format(it.hex.i, it.month + 1)) }
         } else sb.appendLine(if (!g.home.none) "holds ground about hex %d".format(g.home.i) else "holds no ground")
@@ -523,20 +525,20 @@ class GroupControlWindow(
                 ((cy + halfH) * px).toInt(), null)
             rivers.draw(g, width / 2.0 - cx * kmPx, height / 2.0 - cy * kmPx, kmPx, width, height)
             val rad = hex.hexKm / sqrt(3.0)
-            fun outline(h: Int): Pair<IntArray, IntArray> {
+            fun outline(h: Hex): Pair<IntArray, IntArray> {
                 val (hx, hy) = hex.centreKm(h)
                 return IntArray(6) { sx(hx + rad * cos(Math.PI / 6 + it * Math.PI / 3)) } to IntArray(6) { sy(hy + rad * sin(Math.PI / 6 + it * Math.PI / 3)) }
             }
             // The hexes in view: a band sees only dimly the country it does not know.
             val b = grp.band
-            val inView = ArrayList<Int>()
+            val inView = ArrayList<Hex>()
             run {
                 val h0 = hex.hexAt(cx - halfW, cy - halfH); val h1 = hex.hexAt(cx + halfW, cy + halfH)
-                val c0 = (if (h0 >= 0) h0 % hex.cols else 0) - 1; val c1 = (if (h1 >= 0) h1 % hex.cols else hex.cols - 1) + 1
-                val r0 = (if (h0 >= 0) h0 / hex.cols else 0) - 1; val r1 = (if (h1 >= 0) h1 / hex.cols else hex.rows - 1) + 1
-                for (r in max(0, r0)..min(hex.rows - 1, r1)) for (c in max(0, c0)..min(hex.cols - 1, c1)) inView += r * hex.cols + c
+                val c0 = hex.col(h0) - 1; val c1 = hex.col(h1) + 1
+                val r0 = hex.row(h0) - 1; val r1 = hex.row(h1) + 1
+                for (r in max(0, r0)..min(hex.rows - 1, r1)) for (c in max(0, c0)..min(hex.cols - 1, c1)) inView += hex.at(c, r)
             }
-            if (b != null) for (h in inView) if (h < hex.size && !b.knows(h)) {
+            if (b != null) for (h in inView) if (!b.knows(h)) {
                 val (xs, ys) = outline(h)
                 g.color = Color(0f, 0f, 0f, 0.45f)
                 g.fillPolygon(xs, ys, 6)
@@ -544,7 +546,7 @@ class GroupControlWindow(
             // The places it can reach, coloured by how the model scores them (the best green, the worst red).
             if (d != null) {
                 val scores = d.netScores ?: d.handScores
-                val best = HashMap<Int, Int>()
+                val best = HashMap<Hex, Int>()
                 for (i in d.places.indices) { val h = hw.placeHex[d.places[i]]; val o = best[h]; if (o == null || scores[i] > scores[o]) best[h] = i }
                 val sorted = scores.sortedArray(); val n = sorted.size
                 for ((h, i) in best) {
@@ -620,9 +622,9 @@ class GroupControlWindow(
             run { val (xs, ys) = outline(centre); g.color = Color.WHITE; g.stroke = BasicStroke(2f); g.drawPolygon(xs, ys, 6); g.stroke = BasicStroke(1f) }
             // The groups about it that it can see: in its hex and the next, each with the way it came this
             // week; and those it saw last time that have since gone, faint, with the way they went.
-            val nearHexes = HashSet<Int>().also { it += centre; for (k in 0 until 6) hex.neighbour(centre, k).takeIf { n -> n >= 0 }?.let { n -> it += n } }
+            val nearHexes = HashSet<Hex>().also { it += centre; for (k in 0 until 6) hex.neighbour(centre, k).takeIf { n -> !n.none }?.let { n -> it += n } }
             val gone = seenBefore
-            val slot = HashMap<Int, Int>()
+            val slot = HashMap<Hex, Int>()
             val shownHere = groups.groups.filter { it.alive && (hw.placeHex[it.place] in nearHexes || it.id in gone) }
             g.font = g.font.deriveFont(10f)
             for (o in shownHere.sortedBy { if (it === grp) 0 else 1 }) {

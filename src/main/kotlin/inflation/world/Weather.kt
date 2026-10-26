@@ -1,7 +1,6 @@
 package inflation.world
 
 import inflation.Config
-import inflation.ecology.Place
 
 import kotlin.math.PI
 import kotlin.math.cos

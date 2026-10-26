@@ -1,5 +1,10 @@
 package inflation
 
+import inflation.world.Hex
+import inflation.world.Place
+import inflation.world.get
+import inflation.world.set
+
 import inflation.ecology.DeathCause
 import inflation.ecology.HuntStep
 import inflation.ecology.Met
@@ -45,7 +50,7 @@ class StringKeysTest {
         "ecology/Catalogue.kt" to (1 to "settled densities by kind name, read from a properties file"),
         "ecology/HexPeople.kt" to (1 to "Band fields by name, checked by BandCarryTest"),
         "ecology/BandCarry.kt" to (2 to "Band fields by name, checked by BandCarryTest"),
-        "ecology/Profile.kt" to (3 to "phase timings by phase name"),
+        "Profile.kt" to (3 to "phase timings by phase name"),
         "ecology/HexHistory.kt" to (5 to "history series: the CSV columns are text"),
         "run/TestWorlds.kt" to (1 to "runs by test-world name, user input"),
         "run/Nominal.kt" to (1 to "history series grouped by kind name, as the CSV columns name them"),
@@ -98,7 +103,7 @@ class StringKeysTest {
     fun `no new Any`() = check("""(?::\s*Any\??\b|<Any\??>|vararg \w+: Any)""", mapOf(
         "Books.kt" to (4 to "the stock registry takes the tables it sums, of several array types, only for the audit"),
         "run/Nominal.kt" to (1 to "walks a part's tables by reflection"),
-        "store/ObjectStore.kt" to (14 to "saves are by field name and runtime type"),
+        "store/ObjectStore.kt" to (16 to "saves are by field name and runtime type; boxed value classes go as the value they wrap"),
         "ui/GroupControlWindow.kt" to (1 to "Swing's table model"),
         "ui/HexHistoryPanel.kt" to (1 to "Swing's tree nodes"),
         "world/WorldCaches.kt" to (1 to "the cache reader"),
@@ -109,7 +114,7 @@ class StringKeysTest {
         "ecology/Catalogue.kt" to (1 to "the kinds' list, read from the file's own object"),
         "ecology/HexSnapshot.kt" to (20 to "saves are by field name: the order and roster checks"),
         "run/Nominal.kt" to (4 to "lists a part's tables for the check"),
-        "store/ObjectStore.kt" to (46 to "saves are by field name and runtime type"),
+        "store/ObjectStore.kt" to (49 to "saves are by field name and runtime type; boxed value classes are boxed again by the declared type"),
         "world/FreeAir.kt" to (1 to "a resource that ships in the jar"),
         "world/WorldCaches.kt" to (2 to "the jar's resources and the cache reader"),
     ), "reflection", "Use a typed interface", ".")
@@ -117,14 +122,30 @@ class StringKeysTest {
     @Test
     fun `places are passed as Place, not as Int`() = check("""[(, ][pq]: Int\b""", mapOf(
         "ecology/HexFauna.kt" to (2 to "the resident flow tables are Int arrays: a neighbour's index and one way of a flow"),
-        "ecology/HexWater.kt" to (2 to "the fish stocks are kept per hex: q is a hex index here (a Hex type is not applied there yet)"),
         "ecology/HexGroups.kt" to (2 to "pathTo walks the hexes on Int arrays; where() is a debug text"),
         "ecology/HexCulture.kt" to (1 to "a place or -1, kept in an Int list of the places held"),
         "ecology/HexMeetings.kt" to (2 to "the places a group swept, kept in an Int array of the week's sweep"),
         "world/Weather.kt" to (2 to "the weather serves the fine grid and the places: one index type would be wrong"),
         "world/HexHydrology.kt" to (2 to "the glacier flow's places in a hex's Int list"),
         "world/HexLand.kt" to (2 to "mean over a place's cells, used by the array initialisers"),
-    ), "places as Int parameters", "Take a Place (ecology/Indices.kt)", "ecology", "world")
+    ), "places as Int parameters", "Take a Place (world/Indices.kt)", "ecology", "world")
+
+    @Test
+    fun `hexes are passed as Hex, not as Int`() = check("""[(, ](h|hh|nh|h0|h1|here|home|\w*Hex): Int\b|\b(val|var) (\w*[hH]ex\w*|here|home)(: Int\b| = IntArray\b)""", mapOf(
+        "ui/HexHistoryPanel.kt" to (2 to "a chart's width and height, not a hex"),
+    ), "hexes as Int", "Take a Hex, or a HexArray for several (world/Indices.kt)", ".")
+
+    @Test
+    fun `hexes are made from Ints only where an index is turned into one`() = check("""\bHex\(""", mapOf(
+        "world/Indices.kt" to (20 to "the index types themselves: iterators and arrays turn their ints into hexes"),
+        "world/HexMap.kt" to (7 to "the map's own layout: a column and row, a point, and the per-hex builders"),
+        "ecology/HexCulture.kt" to (1 to "the hexes a band knows are kept as bits"),
+        "ecology/HexGroups.kt" to (1 to "the reach search's heap packs effort and hex into one long"),
+        "ecology/HexLifeAndDeath.kt" to (1 to "outbreaks starting are keyed by kind and hex in one long"),
+        "ecology/HexRoutes.kt" to (2 to "lake shares keyed by lake and hex in one long; the first hex of a row, for the landmarks' search"),
+        "tools/fauna/Tallies.kt" to (1 to "a per-hex table walked by its index"),
+        "ui/HexViewer.kt" to (1 to "a layer's per-hex values walked by their index"),
+    ), "Hex made from an Int", "Take the Hex from the map (HexMap.all, neighbour, owner, HexWorld.placeHex)", ".")
 
     @Test
     fun `key labels are each their own`() {

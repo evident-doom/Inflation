@@ -1,11 +1,14 @@
 package inflation.tools
 
+import inflation.world.get
+import inflation.world.set
+
 import inflation.ecology.FaunaKind
 import inflation.ecology.enumFloats
 import inflation.ecology.disease
 import inflation.ecology.EnumFloats
 import inflation.ecology.Danger
-import inflation.ecology.Place
+import inflation.world.Place
 import inflation.Args
 import inflation.ecology.HexFauna
 import inflation.ecology.HexSim

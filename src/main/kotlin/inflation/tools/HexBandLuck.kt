@@ -1,5 +1,8 @@
 package inflation.tools
 
+import inflation.world.set
+import inflation.world.get
+import inflation.world.hexArray
 import inflation.ecology.Catalogue
 import inflation.ecology.Met
 import inflation.ecology.DeathCause
@@ -43,7 +46,7 @@ fun main(args: Array<String>) {
         returned += gs.stats.meetings[Met.FAVOURS_RETURNED.key] ?: 0; heldBack += gs.stats.meetings[Met.FAVOURS_HELD_BACK.key] ?: 0
         for ((k, n) in gs.stats.deaths) if (k.startsWith(people)) deaths.merge(Tally.whatOf(k), n.toLong(), Long::plus)
         val bands = gs.groups.filter { it.alive && it.band != null }
-        val hexOf = IntArray(bands.size) { sim.hw.placeHex[bands[it].place.i] }
+        val hexOf = hexArray(bands.size) { sim.hw.placeHex[bands[it].place] }
         val week = bands.map { it.dailyNeedKg * sim.cfg.daysPerStep }
         val hungry = BooleanArray(bands.size) { bands[it].fed < VISIT_FED && bands[it].larder < week[it] }
         for ((i, g) in bands.withIndex()) {

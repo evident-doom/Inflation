@@ -17,13 +17,13 @@ import java.util.zip.GZIPOutputStream
 /**
  * The world-package classes that play no part in making a world, left out of the caches' keys so that
  * changing them does not make every world again: the caches themselves, the hex model run on the
- * world (Hex*, Weather* and its ClimateEvent, Sunlight, Eruption*), and the fine reference models only
+ * world (Hex*, Place*, the index types of IndicesKt, Weather* and its ClimateEvent, Sunlight, Eruption*), and the fine reference models only
  * hex-land-check runs (LiveWater with its works, Vegetation and its LifeForm). WorldCacheTest checks that
  * making a world and keeping it touches none of them.
  */
 private fun makesNoWorld(simpleClassName: String) = listOf(
     "WorldCache", "LandformCache", "Hex", "Weather", "ClimateEvent", "Sunlight", "Eruption", "LiveWater", "Dam", "Diversion", "Irrigation", "Vegetation",
-    "LifeForm",
+    "LifeForm", "Phase", "Place", "IndicesKt",
 ).any { simpleClassName.startsWith(it) }
 
 /**

@@ -1,6 +1,10 @@
 package inflation.tools
 
-import inflation.ecology.Hex
+import inflation.world.Place
+import inflation.world.get
+import inflation.world.set
+
+import inflation.world.Hex
 import inflation.world.HexHydrology
 import inflation.world.HexLand
 import inflation.world.HexMap
@@ -59,7 +63,7 @@ fun main(args: Array<String>) {
                 if (forPeople < minPeople[p]) minPeople[p] = forPeople
                 if (land.drink.waterKm[p] > maxKm[p]) maxKm[p] = land.drink.waterKm[p]
                 if (cls[p] >= 0) rain[cls[p]] += weather.precipitation[p] * land.areaKm2[p]
-                if (land.drink.nearSpring[p] > 0f) { val h = hw.placeHex[p]; sMin[h] = minOf(sMin[h], land.hydro.springFlow(inflation.ecology.Place(p))) }
+                if (land.drink.nearSpring[p] > 0f) { val h = hw.placeHex[p]; sMin[h] = minOf(sMin[h], land.hydro.springFlow(inflation.world.Place(p))) }
             }
             for (h in 0 until hw.hex.size) if (rcls[h] >= 0) {
                 val r = land.hydro.flow[h] / land.hydro.meanFlow[h]
@@ -71,10 +75,10 @@ fun main(args: Array<String>) {
         println("== year %d  ground water: dry-season low / wet-season high %.2f, mean against the start %.2f; water and plants %.1f ms a step"
             .format(y, lo / hi, (lo + hi) / 2 / stock0, landNs / 1e6 / stepsY))
         landNs = 0L
-        if (y == years - 1) for (h in 0 until hw.hex.size) if (rcls[h] >= 1 && dryWeeks[h] > 0)
+        if (y == years - 1) for (h in hw.hex.all) if (rcls[h] >= 1 && dryWeeks[h] > 0)
             println("    below a trickle: hex %d, usual %.0f m³/s, %d weeks, lowest %.4f of usual, %d places, land share %.2f, drains to %d".format(
-                h, land.hydro.meanFlow[h], dryWeeks[h], rMin[h],
-                hw.placesOf(Hex(h)).size, hw.land[h], land.hydro.down[h]))
+                h.i, land.hydro.meanFlow[h], dryWeeks[h], rMin[h],
+                hw.placesOf(h).size, hw.land[h], land.hydro.down[h].i))
         for ((c, cl) in classes.withIndex()) {
             val ps = (0 until n).filter { cls[it] == c }; if (ps.isEmpty()) continue
             val a = ps.sumOf { land.areaKm2[it].toDouble() }
@@ -90,10 +94,10 @@ fun main(args: Array<String>) {
             if (dry.isNotEmpty()) println(
                 "  %-20s   where people find none: by a stream bed %.0f%% of places (mean share %.2f); water table %.0f m down (median)".format(
                 "", 100.0 * dry.count { land.drink.nearRiver[it] > 0f } / dry.size, dry.map { land.drink.nearRiver[it].toDouble() }.average(),
-                dry.map { land.hydro.waterTableM(inflation.ecology.Place(it)) }.sorted()[dry.size / 2]))
+                dry.map { land.hydro.waterTableM(inflation.world.Place(it)) }.sorted()[dry.size / 2]))
         }
         for ((c, r) in rivers.withIndex()) {
-            val hs = (0 until hw.hex.size).filter { rcls[it] == c }; if (hs.isEmpty()) continue
+            val hs = hw.hex.all.filter { rcls[it] == c }; if (hs.isEmpty()) continue
             println("  %-22s lowest week %.3f of mean flow (median hex); hexes ever under 2%%: %.3f; ever below a trickle: %.3f; weeks below a trickle %.2f%%"
                 .format(
                 r.first, hs.map { rMin[it] }.sorted()[hs.size / 2], hs.count { rMin[it] < 0.02f }.toDouble() / hs.size,
