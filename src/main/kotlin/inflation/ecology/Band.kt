@@ -127,7 +127,7 @@ class Band(kinds: Int) {
         Workplace.NONE -> 1f
     }
     /** [paceAt] each [Activity]'s workplace, by its ordinal (for [BandTime]). */
-    fun paces() = FloatArray(Activity.entries.size) { paceAt(Activity.entries[it].where) }
+    fun paces() = enumFloats<Activity> { paceAt(it.where) }
     /** Its name among the bands for the useful gifts it has given (fading a fifth a year; with trade on). */
     var renown = 0f
     var campWeeks = 0

@@ -218,15 +218,15 @@ object Tally {
     fun bandsFedDied(fed: Fed, cause: DeathReason) = TallyKey.raw(bandsFedDied(fed).text + cause.label)
     fun bandsFedDied(fed: Fed) = TallyKey.raw("bands fed ${fed.label}:$DIED_OF")
     /**
-     * How a band lives: [SETTLED], at home in its houses or at a camp it has kept half a year or more ([HexGroups.bandLifeway]);
+     * How a band lives: [SETTLED], at home in its houses or at a camp it has kept half a year or more ([HexGroups.bandLiving]);
      * else [MOBILE]. The line is the report's, not the model's: nothing chooses by it.
      */
-    enum class Lifeway(val label: String) { SETTLED("settled"), MOBILE("mobile") }
+    enum class Living(val label: String) { SETTLED("settled"), MOBILE("mobile") }
     /** Bands' tallies by how they live. */
-    fun bandsLiving(way: Lifeway, what: Bands) = TallyKey.raw("bands ${way.label}:${what.label}")
+    fun bandsLiving(way: Living, what: Bands) = TallyKey.raw("bands ${way.label}:${what.label}")
     /** Bands' deaths of [cause] by how they live; [bandsLivingDied] (way) starts all of them. */
-    fun bandsLivingDied(way: Lifeway, cause: DeathReason) = TallyKey.raw(bandsLivingDied(way).text + cause.label)
-    fun bandsLivingDied(way: Lifeway) = TallyKey.raw("bands ${way.label}:$DIED_OF")
+    fun bandsLivingDied(way: Living, cause: DeathReason) = TallyKey.raw(bandsLivingDied(way).text + cause.label)
+    fun bandsLivingDied(way: Living) = TallyKey.raw("bands ${way.label}:$DIED_OF")
     /** The cause of a death in a [bandsDied] or [bandsCladDied] key (or [bandsLivingDied]). */
     fun diedOf(key: TallyKey) = key.text.substringAfter(DIED_OF)
     private const val DIED_OF = "died of "

@@ -299,14 +299,14 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
  * out by the chore's own rules, as things stand when it plans (it moved camp, if it did, but has not yet foraged).
  * Drying and skinning follow the catch, so they ask what they would have liked last week.
  */
-internal fun HexGroups.choreAsks(g: HexGroup, b: Band, date: Date, asks: FloatArray, warm: FloatArray? = null) {
+internal fun HexGroups.choreAsks(g: HexGroup, b: Band, date: Date, asks: EnumFloats<Activity>, warm: EnumFloats<Activity>? = null) {
     val p = g.place; val h = hw.placeHex[p]; val people = g.adults.toFloat()
     val moved = movedCamp(g, b)
-    fun ask(a: Activity, days: Float) { asks[a.ordinal] = if (days.isFinite()) max(0f, days) else 0f }
+    fun ask(a: Activity, days: Float) { asks[a] = if (days.isFinite()) max(0f, days) else 0f }
     if (moved && !b.campPlace.none) ask(Activity.CACHING, min(1f, b.cacheWill) * leftBehindKg(g, b) * cacheCare(b) / CACHE_KG_A_DAY)
     ask(Activity.MATERIALS, gatherMaterials(g, b, p, h, people, land.m2(p), null))
     // (What the shelters it aims at take beyond the days already given them first, when given: [survivalDays].)
-    ask(Activity.SHELTER, shelterLack(b, moved) * shelterDays(b, people) - (warm?.get(Activity.SHELTER.ordinal) ?: 0f))
+    ask(Activity.SHELTER, shelterLack(b, moved) * shelterDays(b, people) - (warm?.get(Activity.SHELTER) ?: 0f))
     ask(Activity.CUSTOMS, cleanDays(b, people) + nurseDays(b, people))
     ask(Activity.TRAINING, Skill.entries.sumOf { s -> (learners(b, s, people) * APPRENTICE_DAYS * s.complexity).toDouble() }.toFloat())
     ask(Activity.TOOLS, makeTools(b, people, null))
@@ -319,7 +319,7 @@ internal fun HexGroups.choreAsks(g: HexGroup, b: Band, date: Date, asks: FloatAr
             minOf(1f - palisadeAt(g, h), b.goods[Material.WOOD] / (PALISADE_WOOD * people)).coerceAtLeast(0f) * PALISADE_DAYS * people)
     }
     // (Its own crop, ripe, it brings in wherever it has come from: the field work is sowing's time.)
-    cropRipe(g, b).takeIf { it > 0f }?.let { asks[Activity.SOWING.ordinal] += it * reapDaysPerKg(b, tuning) }
+    cropRipe(g, b).takeIf { it > 0f }?.let { asks[Activity.SOWING] += it * reapDaysPerKg(b, tuning) }
     ask(Activity.DRYING, b.dryAsk)
     ask(Activity.SKINS, b.skinAsk)
 }
@@ -1033,8 +1033,8 @@ const val VENOM = 0.002f
 const val MARSH_FEVER = 0.05f
 
 /** How [b] lives, for the reports: settled at home in its houses or at a camp kept half a year or more, else mobile. */
-internal fun HexGroups.bandLifeway(b: Band) =
-    if (b.atHome || b.campWeeks >= stepsPerYear / 2f) Tally.Lifeway.SETTLED else Tally.Lifeway.MOBILE
+internal fun HexGroups.bandLiving(b: Band) =
+    if (b.atHome || b.campWeeks >= stepsPerYear / 2f) Tally.Living.SETTLED else Tally.Living.MOBILE
 
 /**
  * [b]'s births against those of a band without weaning food ([SPACING_MOST] over its spacing): gruel weans children early

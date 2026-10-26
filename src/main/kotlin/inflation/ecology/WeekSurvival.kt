@@ -28,8 +28,8 @@ import kotlin.math.roundToInt
  * shelter stands. Returns the person-days of work for the firewood and the shelters (none for the rest).
  */
 internal fun HexGroups.survivalDays(g: HexGroup, b: Band, weather: Weather, time: BandTime, hands: Int, foodAsk: Float, gotShare: Float,
-    fuelAsk: Float, moved: Boolean): FloatArray {
-    val first = FloatArray(Activity.entries.size)
+    fuelAsk: Float, moved: Boolean): EnumFloats<Activity> {
+    val first = enumFloats<Activity>()
     val s = g.species; val p = g.place; val people = g.adults.toFloat()
     val year = yearAhead(g, b, weather)
     val air = airAt(p, weather); val home = b.homeShelter()
@@ -88,7 +88,7 @@ internal fun HexGroups.survivalDays(g: HexGroup, b: Band, weather: Weather, time
         d[best] += bestWork; left -= bestWork / time.pace(acts[best])
         now = deaths(d)
     }
-    for (i in FIRE..SHELTER) first[acts[i].ordinal] = d[i]
+    for (i in FIRE..SHELTER) first[acts[i]] = d[i]
     return first
 }
 
