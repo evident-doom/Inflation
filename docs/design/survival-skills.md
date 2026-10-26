@@ -1,6 +1,6 @@
 # Survival skills: a ladder from the naked floor, with checkpoints
 
-The skills are in `Skill.kt` and `HexPeople.kt`.
+The skills are in `Skill.kt` and `PeopleCrafts.kt` (learning, teaching and forgetting them).
 
 ## Idea
 
