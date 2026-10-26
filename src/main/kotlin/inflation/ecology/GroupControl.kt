@@ -50,7 +50,7 @@ private val HAND_WRITTEN_ANIMAL_WAYS = AnimalWays { _, _, out -> out.fill(0f) }
 
 /** Asks [control] where the followed group [g] goes, among the candidates weighed in [HexGroups.plan]; returns the place. */
 internal fun HexGroups.askControl(
-    g: HexGroup, weather: Weather, date: Date, policy: HexPolicy?, cand: HexGroups.IntList, feats: ArrayList<FloatArray>, hand: FloatArray,
+    g: HexGroup, weather: Weather, date: Date, policy: HexPolicy?, cand: GroupPlanner.IntList, feats: ArrayList<FloatArray>, hand: FloatArray,
     modelPlace: Int, restless: Boolean, reach: Float, goal: Int, onRound: Boolean, pathTo: (Int) -> HexArray,
 ): Int {
     val ctl = control ?: return modelPlace

@@ -53,6 +53,6 @@ internal fun GroupWorld.lifewayValue(s: Species, p: Place): Float = when (s.life
  * hear the roars and smell the marks: cheetahs and hyenas keep out of lions' way, jackals out of wolves').
  */
 internal fun HexGroups.foodTerm(g: HexGroup, p: Place, h: Hex, sensed: HexArray, prey: Float, crowded: Float): Float {
-    val danger = if (h in sensed && topKind[p] >= 0 && topKind[p] != g.species.index && topStrength[p] > 2f * strength(g)) AVOID_STRONGER else 0f
+    val danger = if (h in sensed && planner.topKind[p] >= 0 && planner.topKind[p] != g.species.index && planner.topStrength[p] > 2f * strength(g)) AVOID_STRONGER else 0f
     return prey / (prey + PREY_HALF) - 0.5f * crowded - danger
 }
