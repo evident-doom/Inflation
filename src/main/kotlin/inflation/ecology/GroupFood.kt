@@ -261,8 +261,8 @@ private class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, packK
     val hands = forageHands(g).also { h -> gs.dialUse?.let { u -> band?.let { b -> countHands(u, g, b, h) } } }
     // A band splits: its hunters go after big game, searching all the days they are out, while the rest
     // gather, fish and snare (see [HUNTERS_SHARE]); an animal's party forages as one.
-    val hunt = band?.let { b -> huntersShare(b).also { v -> gs.dialUse?.amount(DialSite.HUNTERS_SHARE, b.effort[Food.BIG_GAME.ordinal], v,
-        HUNTERS_SHARE.coerceIn(0f, 1f), cut = HUNTERS_SHARE * b.effort[Food.BIG_GAME.ordinal] > 1f) } } ?: 1f
+    val hunt = band?.let { b -> huntersShare(b).also { v -> gs.dialUse?.amount(DialSite.HUNTERS_SHARE, b.effort[Food.BIG_GAME], v,
+        HUNTERS_SHARE.coerceIn(0f, 1f), cut = HUNTERS_SHARE * b.effort[Food.BIG_GAME] > 1f) } } ?: 1f
     val gatherHands = if (band != null) hands * (1f - hunt) else hands.toFloat()
     // (Walking costs food, see [walkCost]; a band's days at rest take less, see [restedDays].)
     var wantAll = g.dailyNeedKg * gs.days * (1f + gs.walkCost(g))
@@ -522,8 +522,8 @@ private class Offers(n: Int) {
  */
 private fun HexGroups.offer(w: ForageWeek, o: Offers, t: Food, k: Int, p: Place, r: Float, e: Float, h: Float) {
     val band = w.band
-    val keen = if (band != null && t != Food.BIG_GAME) band.effort[when (t) { Food.GRAIN -> Food.SEED; else -> t }.ordinal] else 1f
-    if (band != null && t != Food.BIG_GAME && r > 0f) dialUse?.let { u -> val f = when (t) { Food.GRAIN -> Food.SEED; else -> t }.ordinal
+    val keen = if (band != null && t != Food.BIG_GAME) band.effort[t] else 1f
+    if (band != null && t != Food.BIG_GAME && r > 0f) dialUse?.let { u -> val f = FoodEfforts.slot(t)
         u.amount(DialSite.EFFORT_RANK, keen, keen, 1f, dial = f) }
     if (r <= 0f || e <= 0f || (band != null && t != Food.BIG_GAME && w.gatherers <= 0f)) return
     // (Biting insects slow people at whatever they do out there; fish are offered at the camp, whose place stands for the water they fish.)

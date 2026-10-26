@@ -46,7 +46,7 @@ const val CHILD_GATHER = 0.15f
  */
 const val HUNTERS_SHARE = 0.5f
 /** The share of [band]'s hands that hunt this week: [HUNTERS_SHARE] at the scaffold's effort on big game, all at twice it. */
-internal fun huntersShare(band: Band) = (HUNTERS_SHARE * band.effort[Food.BIG_GAME.ordinal]).coerceIn(0f, 1f)
+internal fun huntersShare(band: Band) = (HUNTERS_SHARE * band.effort[Food.BIG_GAME]).coerceIn(0f, 1f)
 /** Extra small game and fish with nets and snares. */
 const val NET_GAIN = 1f
 /** Most of each kind of plant food in a place a band can gather in a week, at full skill and without tools. */
@@ -488,7 +488,7 @@ internal fun HexGroups.setWays(g: HexGroup, weather: Weather, ways: BandWays, in
     if (g.id == watched) control?.ways(g, out)
     fun squash(x: Float) = 2f / (1f + exp(-x))
     // (Efforts have no ceiling: ranking a food above what it pays costs the food it would have paid, see [offer].)
-    for (t in 0 until FOOD_TYPES) b.effort[t] = exp(out[WaysOut.EFFORTS + t])
+    for (t in 0 until FOOD_TYPES) b.effort.a[t] = exp(out[WaysOut.EFFORTS + t])
     b.storeShare = squash(out[WaysOut.STORE_AIM])
     for (t in Tool.entries) b.makeFirst[t] = squash(out[WaysOut.MAKE_FIRST + t.ordinal])
     for (w in BandWay.entries) b.will[w] = squash(out[w.slot])

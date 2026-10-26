@@ -37,7 +37,7 @@ class NamedSlotsTest {
         sim.groups.setWays(g, sim.weather, { _, _, out -> out.fill(0f) }, FloatArray(WAYS_IN), FloatArray(WAYS_OUT))
         val b = g.band!!
         assertTrue(b.will.a.contentEquals(fresh.will.a), "ways")
-        assertTrue(b.effort.contentEquals(fresh.effort), "effort")
+        assertTrue(b.effort.a.contentEquals(fresh.effort.a), "effort")
         assertEquals(fresh.storeShare, b.storeShare)
         assertTrue(b.makeFirst.a.contentEquals(fresh.makeFirst.a), "make first")
         assertEquals(fresh.scoutShare, b.scoutShare); assertEquals(fresh.shunSick, b.shunSick)
