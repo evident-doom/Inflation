@@ -154,6 +154,7 @@ internal fun HexGroups.makeTools(b: Band, people: Float, time: BandTime?): Float
         // (Counted under the tool it put first: whether the order differs from the scaffold's, most worn first.)
         u.choice(DialSite.MAKE_FIRST, b.makeFirst[order[0]], order != order1, false, dial = WaysOut.MAKE_FIRST + order[0].ordinal)
     } }
+    if (time != null) b.clothesMade = if (Tool.CLOTHES in order) Tally.ClothesMade.NOT_REACHED else null
     for (t in order) {
         val left = time?.leftFor(Activity.TOOLS) ?: Float.MAX_VALUE
         if (left <= 0f || people <= 0f) break
@@ -167,6 +168,7 @@ internal fun HexGroups.makeTools(b: Band, people: Float, time: BandTime?): Float
         // for it; clothes are tanned with ochre as far as it goes.)
         val made = fineMaterial(t)
         for ((m, perPerson) in t.recipe) if (m != made) can = min(can, gd[m] / max(1e-3f, perPerson * use(m) * people))
+        if (time != null && t == Tool.CLOTHES) b.clothesMade = clothesMade(1f - b.kit[t], left / daysEach, can)
         if (can <= 0f) continue
         for ((m, perPerson) in t.recipe) if (m != made) gd[m] = max(0f, gd[m] - can * perPerson * use(m) * people)
         if (time == null) { asked += can * daysEach; continue }
@@ -184,6 +186,13 @@ internal fun HexGroups.makeTools(b: Band, people: Float, time: BandTime?): Float
         if (t.hafted) b.practise(Skill.GLUING)
     }
     return asked
+}
+
+/** What stopped a week's clothes making ([Band.clothesMade]): [want] of a kit wanted, [byTime] of it the days allowed, [can] made. */
+private fun clothesMade(want: Float, byTime: Float, can: Float) = when {
+    can >= 0.999f * want -> Tally.ClothesMade.MADE
+    byTime <= 1.001f * can -> Tally.ClothesMade.TIME_SHORT
+    else -> Tally.ClothesMade.GOODS_SHORT
 }
 
 /** Ornaments of shell and bone, made with the [time] days [b] has still to spare. */

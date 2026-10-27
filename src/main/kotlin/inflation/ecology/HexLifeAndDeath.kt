@@ -362,6 +362,8 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
                 stats.hunting.merge(Tally.bandsFed(fed, Tally.Bands.SALT_KM), hexKm(hw.placeHex[g.place], salt).roundToInt(), Int::plus)
             }
             for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge(Tally.bandsFedDied(fed, cause), k, Int::plus)
+            // And by its spare days and its herd: whether work it took on left its people short of what keeps them alive.
+            bookSqueeze(g, b, o.causes)
         }
         // And, in the weeks the cold ran its people into heat debt through all the cover the band had, what it was and had.
         val b = g.band
