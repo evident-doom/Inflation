@@ -251,7 +251,7 @@ object Tally {
     enum class TimeTotal(val label: String) { ALL("all"), LEFT("left"), LOST("lost to cold and hunger") }
 
     /** Where people's hides came from. */
-    enum class HideSource(val label: String) { RESIDENTS("residents"), SMALL_PELTS("small pelts") }
+    enum class HideSource(val label: String) { RESIDENTS("residents"), SMALL_PELTS("small pelts"), HERDS("herds") }
     /** Hide people got from [source], grams. */
     fun hide(source: HideSource) = TallyKey.raw("people hide:${source.label}")
 }

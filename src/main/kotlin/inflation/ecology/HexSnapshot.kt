@@ -315,6 +315,8 @@ object HexSnapshot {
      *   before, an effort only scaled a food's rate, which could never bring a food the ranking left out into the diet (people net 7).
      * 4.68: a herder keeps 200 goats, fewer of bigger beasts as their weight to the half power ([headsAHerder]); before, 4,000 kg
      *   on the hoof of any kind (a hundred goats, from memory), which made a herder's day bring half what shepherds' does.
+     *   A slaughtered herd beast gives its hides, bone and sinew as a kill does ([Band.skin]); before, they went to the
+     *   scavengers, and herding bands wore thinner clothes in their cold weeks (0.6-0.8 clo against 1.1).
      */
     const val MODEL_MAJOR = 4
     const val MODEL_MINOR = 68

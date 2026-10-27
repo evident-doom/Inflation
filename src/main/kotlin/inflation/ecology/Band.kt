@@ -362,9 +362,9 @@ class Band(kinds: Int) {
      * Hides, bone and sinew from [n] of the game it killed, what each kind yields (see [Species.products]), out of the
      * [left] kg of the carcasses not eaten; returns the kg taken.
      */
-    fun skin(s: Species, n: Int, left: Float): Float {
+    fun skin(s: Species, n: Float, left: Float): Float {
         val p = s.products; val each = p.hide + p.bone + p.sinew
-        if (n <= 0 || each <= 0f || left <= 0f) return 0f
+        if (n <= 0f || each <= 0f || left <= 0f) return 0f
         val share = min(1f, left / (n * each))
         goods[Material.HIDE] += n * p.hide * share
         goods[Material.BONE] += n * p.bone * share

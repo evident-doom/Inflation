@@ -155,10 +155,12 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
     fun slaughter(k: Int, heads: Float, flow: HerdFlow) {
         val s = fauna.kinds[k]
         bands.herdFlows[flow] += heads
-        // (Kept at what it feeds, as the week's meat: [Nourishment.MEAT]; the rest of the carcass for the scavengers.)
+        // (Kept at what it feeds, as the week's meat: [Nourishment.MEAT]; its hides, bone and sinew as a kill's ([Band.skin]);
+        // the rest of the carcass for the scavengers.)
         val meat = heads * s.massKg * MEAT_SHARE
         addFood(g.stores, g.storeKgPer, Store.FRESH, meat * Nourishment.MEAT * g.species.needScale, meat)
-        small.deposit(DeadPool.CARRION, p, Kg(heads * s.massKg * (1f - MEAT_SHARE)))
+        val left = heads * s.massKg * (1f - MEAT_SHARE)
+        small.deposit(DeadPool.CARRION, p, Kg(left - tallyHide(Tally.HideSource.HERDS, s, b.skin(s, heads, left))))
     }
     for (k in b.herd.indices) {
         var n = b.herd[k]
