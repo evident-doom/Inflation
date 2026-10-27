@@ -368,11 +368,15 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
         )
         /**
          * Bulbs, corms, tubers and rhizomes to be dug, per kg/m² of herbs; days to replace them, and for fallen mast to
-         * rot or sprout. About 1-3 g/m² dry under 0.15-0.3 kg/m² of herbs: edible underground storage organs in the southern
-         * Cape's shrublands, sampled at random, came to 52-160 kg/ha fresh by kind of country (Singels 2013, thesis,
-         * Stellenbosch University; taken here as about 30% dry, from memory), and the Cape is the richest in bulbs there is.
+         * rot or sprout. Edible underground storage organs in the southern Cape's shrublands, sampled at random, came to
+         * 52-160 kg/ha fresh by kind of country (Singels 2013, thesis, Stellenbosch University), at 41-228 kcal/100 g fresh,
+         * most of them corms at 170-230 (Singels et al. 2015, PeerJ PrePrints 3:e1573), some 1.9 kcal/g: 10-30 kcal/m². Counted
+         * by their energy in kg of roots ([Nourishment.ROOTS], 2.5 kcal/g), 4-12 g/m² under 0.15-0.3 kg/m² of herbs, as
+         * [ROOT_SEARCH_M2_PER_DAY] was fitted to the same ground. (Before, the fresh weight was taken as 30% dry, a figure
+         * from memory, which left the ground with some 2/5 of the energy the search was fitted to.) The Cape is among the
+         * richest in bulbs there is, so this is a high mean; the plots are patchy (most under 200 kg/ha, hotspots over 3,000).
          */
-        const val ROOTS_SHARE = 0.01f
+        const val ROOTS_SHARE = 0.03f
         const val ROOTS_DAYS = 180f
         /** Small finds a day in season: honey per kg/m² of shrubs (and trees) at full pollination, truffles and snails per kg/m² of herbs,
          * eggs per kg of birds; days they keep. */

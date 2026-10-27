@@ -314,7 +314,8 @@ object HexSnapshot {
      *   a food ranked above what it pays is taken up before better ones, at its true yield, so the net's choice costs food;
      *   before, an effort only scaled a food's rate, which could never bring a food the ranking left out into the diet (people net 7).
      * 4.68: mast a band lays by keeps as seed does ([Store.SEED], 0.5% lost a week); before, it went in with roots and lost
-     *   3% a week, four fifths in a year, so no band could carry a good mast year over a poor one.
+     *   3% a week, four fifths in a year, so no band could carry a good mast year over a poor one. Roots and bulbs in the
+     *   ground are counted by their energy, as the root search was fitted ([HexFood.ROOTS_SHARE] 0.01 to 0.03).
      */
     const val MODEL_MAJOR = 4
     const val MODEL_MINOR = 68
