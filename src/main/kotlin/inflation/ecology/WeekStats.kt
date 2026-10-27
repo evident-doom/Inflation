@@ -177,6 +177,8 @@ object Tally {
         SALT_HELD("salt held, g a person"), SODIUM_SHORT("sodium short, %"), SALT_HERE("salt here, %"),
         /** The band-weeks it knew of a place to get salt ([HexGroups.saltSources]), and how far the nearest was then, km summed. */
         SALT_KNOWN("knows salt, band-weeks"), SALT_KM("nearest known salt, km"),
+        /** For [Herding]: people-weeks clad (a kit of at least half), children-weeks, mobile band-weeks ([Living.MOBILE]), and the air where they stood, tenths of °C summed over people-weeks. */
+        CLAD_WEEKS("clad people-weeks"), CHILD_WEEKS("children-weeks"), MOBILE_WEEKS("mobile band-weeks"), AIR("air, 1/10 °C"),
     }
     /**
      * In the weeks the cold ran a band's people into heat debt through all the cover it had ([WEEKS], tenths): the worst debt
@@ -227,7 +229,14 @@ object Tally {
     /** Bands' deaths of [cause] by how they live; [bandsLivingDied] (way) starts all of them. */
     fun bandsLivingDied(way: Living, cause: DeathReason) = TallyKey.raw(bandsLivingDied(way).text + cause.label)
     fun bandsLivingDied(way: Living) = TallyKey.raw("bands ${way.label}:$DIED_OF")
-    /** The cause of a death in a [bandsDied] or [bandsCladDied] key (or [bandsLivingDied]). */
+    /** Whether a band keeps a herd: [HERDING], any head. The line is the report's, not the model's: nothing chooses by it. */
+    enum class Herding(val label: String) { HERDING("herding"), NOT_HERDING("not herding") }
+    /** Bands' tallies by whether they keep a herd. */
+    fun bandsHerding(h: Herding, what: Bands) = TallyKey.raw("bands ${h.label}:${what.label}")
+    /** Bands' deaths of [cause] by whether they keep a herd, the [young] apart; [bandsHerdingDied] (h, young) starts all of them. */
+    fun bandsHerdingDied(h: Herding, young: Boolean, cause: DeathReason) = TallyKey.raw(bandsHerdingDied(h, young).text + cause.label)
+    fun bandsHerdingDied(h: Herding, young: Boolean) = TallyKey.raw("bands ${h.label}:${if (young) "children " else "grown "}$DIED_OF")
+    /** The cause of a death in a [bandsDied] or [bandsCladDied] key (or [bandsLivingDied], [bandsHerdingDied]). */
     fun diedOf(key: TallyKey) = key.text.substringAfter(DIED_OF)
     private const val DIED_OF = "died of "
 

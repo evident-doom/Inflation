@@ -343,6 +343,16 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
             stats.hunting.merge(Tally.bandsLiving(way, Tally.Bands.PEOPLE_WEEKS), g.size, Int::plus)
             if (o.births > 0) stats.hunting.merge(Tally.bandsLiving(way, Tally.Bands.BORN), o.births, Int::plus)
             for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge(Tally.bandsLivingDied(way, cause), k, Int::plus)
+            // And by whether it keeps a herd: what herding costs its people, its children apart.
+            val herding = if (b.herd.any { it > 0f }) Tally.Herding.HERDING else Tally.Herding.NOT_HERDING
+            stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.BAND_WEEKS), 1, Int::plus)
+            stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.PEOPLE_WEEKS), g.size, Int::plus)
+            stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.CHILD_WEEKS), g.young, Int::plus)
+            if (clad == Tally.Clad.CLAD) stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.CLAD_WEEKS), g.size, Int::plus)
+            if (way == Tally.Living.MOBILE) stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.MOBILE_WEEKS), 1, Int::plus)
+            stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.AIR), (10f * weather.temperature[g.place] * g.size).roundToInt(), Int::plus)
+            if (o.births > 0) stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.BORN), o.births, Int::plus)
+            for (d in o.causes) if (d.n > 0) stats.hunting.merge(Tally.bandsHerdingDied(herding, d.young, d.cause), d.n, Int::plus)
             // And by how well it was fed, with what it held against hunger: who starves, and with what in hand.
             val fed = Tally.Fed.of(g.fed)
             stats.hunting.merge(Tally.bandsFed(fed, Tally.Bands.BAND_WEEKS), 1, Int::plus)
