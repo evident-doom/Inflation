@@ -179,6 +179,8 @@ object Tally {
         SALT_KNOWN("knows salt, band-weeks"), SALT_KM("nearest known salt, km"),
         /** For [Herding]: people-weeks clad (a kit of at least half), children-weeks, mobile band-weeks ([Living.MOBILE]), and the air where they stood, tenths of °C summed over people-weeks. */
         CLAD_WEEKS("clad people-weeks"), CHILD_WEEKS("children-weeks"), MOBILE_WEEKS("mobile band-weeks"), AIR("air, 1/10 °C"),
+        /** For [Herding]: how well fed through the week ([HexGroup.fed], at most 1), thousandths summed over people-weeks. */
+        FED("fed, 1/1000"),
     }
     /**
      * In the weeks the cold ran a band's people into heat debt through all the cover it had ([WEEKS], tenths): the worst debt
@@ -229,8 +231,13 @@ object Tally {
     /** Bands' deaths of [cause] by how they live; [bandsLivingDied] (way) starts all of them. */
     fun bandsLivingDied(way: Living, cause: DeathReason) = TallyKey.raw(bandsLivingDied(way).text + cause.label)
     fun bandsLivingDied(way: Living) = TallyKey.raw("bands ${way.label}:$DIED_OF")
-    /** Whether a band keeps a herd: [HERDING], any head. The line is the report's, not the model's: nothing chooses by it. */
-    enum class Herding(val label: String) { HERDING("herding"), NOT_HERDING("not herding") }
+    /**
+     * Whether a band keeps a herd, and how much of its hands' days the herd asks ([herdDays]): under a tenth, a tenth to 0.3,
+     * or more. The line is the report's, not the model's: nothing chooses by it.
+     */
+    enum class Herding(val label: String, val below: Float) {
+        LIGHT("herd under 10%", 0.1f), MID("herd 10-30%", 0.3f), HEAVY("herd 30%+", Float.POSITIVE_INFINITY), NOT_HERDING("not herding", 0f)
+    }
     /** Bands' tallies by whether they keep a herd. */
     fun bandsHerding(h: Herding, what: Bands) = TallyKey.raw("bands ${h.label}:${what.label}")
     fun bandsHerding(h: Herding, cold: Cold) = TallyKey.raw("bands ${h.label}:cold ${cold.label}")

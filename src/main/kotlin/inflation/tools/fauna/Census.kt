@@ -335,18 +335,19 @@ class Census(private val sim: HexSim) {
             "%s %.0f%%, %.1f a band: %.1f / %.1f (%s)".format(w.label, 100 * pw / all, pw / (lastYear[Tally.bandsLiving(w, Tally.Bands.BAND_WEEKS)] ?: 0).toDouble().coerceAtLeast(1.0),
                 1000 * (lastYear[Tally.bandsLiving(w, Tally.Bands.BORN)] ?: 0) / years, 1000 * died.values.sum() / years,
                 died.entries.sortedByDescending { it.value }.joinToString(" ") { "%s %.1f".format(it.key, 1000 * it.value / years) }) })
-        println("bands by whether they keep a herd, last year (share of people-weeks; people a band; clad, mobile; children a person; air where they stood, °C; births per 1000 people a year; grown deaths per 1000 grown a year, children's per 1000 children, by cause, largest first): " + Tally.Herding.entries.joinToString(", ") { h ->
+        println("bands by whether they keep a herd and how much of their hands' days it asks, last year (share of people-weeks; people a band; clad, mobile; children a person; fed; air where they stood, °C; births per 1000 people a year; grown deaths per 1000 grown a year, children's per 1000 children, by cause, largest first): " + Tally.Herding.entries.joinToString(", ") { h ->
             fun v(k: Tally.Bands) = (lastYear[Tally.bandsHerding(h, k)] ?: 0).toDouble()
             val pw = v(Tally.Bands.PEOPLE_WEEKS); val cw = v(Tally.Bands.CHILD_WEEKS); val bw = v(Tally.Bands.BAND_WEEKS).coerceAtLeast(1.0)
             val all = Tally.Herding.entries.sumOf { (lastYear[Tally.bandsHerding(it, Tally.Bands.PEOPLE_WEEKS)] ?: 0).toDouble() }.coerceAtLeast(1.0)
             val grownYears = ((pw - cw) / stepsPerYear).coerceAtLeast(1e-9); val childYears = (cw / stepsPerYear).coerceAtLeast(1e-9)
             fun died(young: Boolean) = lastYear.filterKeys { it.startsWith(Tally.bandsHerdingDied(h, young)) }.mapKeys { Tally.diedOf(it.key) }
             fun causes(young: Boolean, years: Double) = died(young).entries.sortedByDescending { it.value }.joinToString(" ") { "%s %.1f".format(it.key, 1000 * it.value / years) }
-            "%s %.0f%%, %.1f a band; %.0f%%, %.0f%%; %.2f; %.1f; %.1f; grown %.1f (%s); children %.1f (%s)".format(h.label, 100 * pw / all, pw / bw,
+            "%s %.0f%%, %.1f a band; %.0f%%, %.0f%%; %.2f; %.2f; %.1f; %.1f; grown %.1f (%s); children %.1f (%s)".format(h.label, 100 * pw / all, pw / bw,
                 100 * v(Tally.Bands.CLAD_WEEKS) / pw.coerceAtLeast(1.0), 100 * v(Tally.Bands.MOBILE_WEEKS) / bw, cw / pw.coerceAtLeast(1.0),
+                v(Tally.Bands.FED) / 1000 / pw.coerceAtLeast(1.0),
                 v(Tally.Bands.AIR) / 10 / pw.coerceAtLeast(1.0), 1000 * v(Tally.Bands.BORN) / (pw / stepsPerYear).coerceAtLeast(1e-9),
                 1000 * died(false).values.sum() / grownYears, causes(false, grownYears), 1000 * died(true).values.sum() / childYears, causes(true, childYears)) })
-        println("bands by whether they keep a herd, last year (foraged of food wanted; hearth fire, share of days fetching firewood; share of their days on each work and lost to cold and hunger; in weeks of heat debt, share of band-weeks: worst debt Wh/m², night air °C, clothes clo, fire, shelter or house, share at a new camp, share of days spare): " + Tally.Herding.entries.joinToString(" | ") { h ->
+        println("bands by whether they keep a herd and how much of their hands' days it asks, last year (foraged of food wanted; hearth fire, share of days fetching firewood; share of their days on each work and lost to cold and hunger; in weeks of heat debt, share of band-weeks: worst debt Wh/m², night air °C, clothes clo, fire, shelter or house, share at a new camp, share of days spare): " + Tally.Herding.entries.joinToString(" | ") { h ->
             fun v(k: Tally.Bands) = (lastYear[Tally.bandsHerding(h, k)] ?: 0).toDouble()
             fun c(k: Tally.Cold) = (lastYear[Tally.bandsHerding(h, k)] ?: 0).toDouble()
             fun t(a: Activity) = (lastYear[Tally.bandsHerdingTime(h, a)] ?: 0).toDouble()

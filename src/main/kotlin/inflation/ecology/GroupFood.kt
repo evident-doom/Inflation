@@ -859,7 +859,7 @@ private fun HexGroups.tallyForage(w: ForageWeek, meatEaten: Float) {
         stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.HEARTH), (100f * band.hearthWood).toInt(), Int::plus)
         stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.FUEL_DAYS), (100f * w.fuelDays / days).toInt(), Int::plus)
         // (And by whether it keeps a herd: what it foraged against what it wanted, and its hearth.)
-        val herding = bandHerding(band)
+        val herding = bandHerding(band, g.adults)
         stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.ASKED), wantAll.toInt(), Int::plus)
         stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.MEAT), (meat * w.worth(Food.BIG_GAME) + smallFed + scrapsFed + fish * w.worth(Food.FISH)).toInt(), Int::plus)
         stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.PLANTS), plantsFed.toInt(), Int::plus)
