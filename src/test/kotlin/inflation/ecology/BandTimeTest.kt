@@ -71,6 +71,18 @@ class BandTimeTest {
     }
 
     @Test
+    fun `the fire comes before the food, the food before the herd, and the herd before the rest`() {
+        val time = BandTime(10f)
+        val warm = enumFloats<Activity>(); val kept = enumFloats<Activity>(); val needs = enumFloats<Activity>(); val asks = enumFloats<Activity>()
+        warm[Activity.FIREWOOD] = 3f; needs[Activity.FOOD] = 5f; kept[Activity.SOWING] = 4f; asks[Activity.TOOLS] = 3f
+        time.plan(needs, asks, warm0 = warm, kept = kept)
+        assertEquals(3f, time.heldFor(Activity.FIREWOOD), 1e-3f)
+        assertEquals(5f, time.heldFor(Activity.FOOD), 1e-3f)
+        assertEquals(2f, time.heldFor(Activity.SOWING), 1e-3f)
+        assertEquals(0f, time.heldFor(Activity.TOOLS), 1e-3f)
+    }
+
+    @Test
     fun `work at half pace takes twice the people's days, the rest lost`() {
         val pace = enumFloats<Activity> { 1f }.also { it[Activity.FOOD] = 0.5f }
         val t = BandTime(10f, pace)

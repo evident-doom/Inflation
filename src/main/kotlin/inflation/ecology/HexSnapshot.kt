@@ -319,7 +319,8 @@ object HexSnapshot {
      * 4.69: a herder keeps 200 goats, fewer of bigger beasts as their weight to the half power ([headsAHerder]); before, 4,000 kg
      *   on the hoof of any kind (a hundred goats, from memory), which made a herder's day bring half what shepherds' does.
      *   A slaughtered herd beast gives its hides, bone and sinew as a kill does ([Band.skin]); before, they went to the
-     *   scavengers.
+     *   scavengers. Its herders' days are held after the week's food and before the other asks ([BandTime.plan]); before,
+     *   with the fire and shelters, so a band that shrank kept its whole herd, which took its firewood and food till it died.
      */
     const val MODEL_MAJOR = 4
     const val MODEL_MINOR = 69
