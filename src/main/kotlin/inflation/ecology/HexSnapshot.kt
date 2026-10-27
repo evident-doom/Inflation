@@ -313,9 +313,11 @@ object HexSnapshot {
      * 4.67: a band's food efforts weigh each food in its gatherers' ranking ([offer]) instead of how often they meet it:
      *   a food ranked above what it pays is taken up before better ones, at its true yield, so the net's choice costs food;
      *   before, an effort only scaled a food's rate, which could never bring a food the ranking left out into the diet (people net 7).
+     * 4.68: mast a band lays by keeps as seed does ([Store.SEED], 0.5% lost a week); before, it went in with roots and lost
+     *   3% a week, four fifths in a year, so no band could carry a good mast year over a poor one.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 67
+    const val MODEL_MINOR = 68
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

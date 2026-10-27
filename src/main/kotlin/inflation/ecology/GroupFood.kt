@@ -668,7 +668,8 @@ private fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
                 if (haul.busy > 0f) w.busy += haul.busy
                 val fed = haul.kg * w.worth(o.type[i])
                 w.plants += haul.kg; w.fed += haul.kg * w.feeds(o.type[i])
-                val st = when (o.type[i]) { Food.ROOTS -> Store.ROOTS; Food.SEED -> Store.SEED; else -> Store.FRUIT }
+                // (Mast, dried, keeps as seed does, for a year or more; bulbs and roots as roots.)
+                val st = when (o.type[i]) { Food.ROOTS -> if (o.kind[i] == MAST_KIND) Store.SEED else Store.ROOTS; Food.SEED -> Store.SEED; else -> Store.FRUIT }
                 w.plantKind[st] += fed; w.plantKg[st] += haul.mass
                 val from = when (o.type[i]) { Food.FRUIT -> PlantFrom.FRUIT; Food.SEED -> PlantFrom.SEED; Food.FINDS -> PlantFrom.FINDS
                     else -> if (o.kind[i] == MAST_KIND) PlantFrom.MAST else PlantFrom.BULBS }
