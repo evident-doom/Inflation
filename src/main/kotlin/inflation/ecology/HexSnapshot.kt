@@ -270,7 +270,7 @@ object HexSnapshot {
      *   with a ways network every non-band group reset all bands to the scaffold's ways after the network set them (and waysForce
      *   with them), and without one the reset never ran. Now it runs only without a ways network, as 4.57 meant.
      * 4.59: herding is no longer for settled bands only: any band may take young in the hunt to keep, and learn herding;
-     *   its herders' days come out of field work's time ([herdDays], about [HERD_KG_A_HERDER] kg of stock a herder), held before
+     *   its herders' days come out of field work's time ([herdDays], about 4,000 kg of stock a herder), held before
      *   the week's food, and none on the days the herd walks with the band to a new camp; what they cannot
      *   keep it culls, in place of a flat cap of two head a person, and it eats what the herd grows to beyond the stock its
      *   herders keep in a usual week (a year's mean), and eats down a herd whose increase
@@ -313,9 +313,11 @@ object HexSnapshot {
      * 4.67: a band's food efforts weigh each food in its gatherers' ranking ([offer]) instead of how often they meet it:
      *   a food ranked above what it pays is taken up before better ones, at its true yield, so the net's choice costs food;
      *   before, an effort only scaled a food's rate, which could never bring a food the ranking left out into the diet (people net 7).
+     * 4.68: a herder keeps 200 goats, fewer of bigger beasts as their weight to the half power ([headsAHerder]); before, 4,000 kg
+     *   on the hoof of any kind (a hundred goats, from memory), which made a herder's day bring half what shepherds' does.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 67
+    const val MODEL_MINOR = 68
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
