@@ -212,18 +212,15 @@ private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float)
     // feed less, [RAW_COST].)
     needs[Activity.FOOD] = foodAsk
     needs[Activity.FIREWOOD] = max(0f, fuel - warm[Activity.FIREWOOD])
-    // (Its herders' days, as far as the band does not walk with its herd this week, are held after the fire and shelters
-    // and before the week's food: its animals are food on the hoof, and what it cannot herd it must cull ([keepHerds]);
-    // shared out with the food, they were cut whenever foraging alone would fill the week, and the cuts compounded week
-    // on week till no herd was left; held with the fire and shelters, a herd grown in the slack weeks took their days in
-    // the cold ones, and herding bands died of exposure 4 to 28 times as often as the rest.)
-    val kept = enumFloats<Activity>()
-    kept[Activity.SOWING] = herdDays(b) * (1f - walkedShare(time))
+    // (Its herders' days, as far as the band does not walk with its herd this week, are held before the week's food: its
+    // animals are food on the hoof, and what it cannot herd it must cull ([keepHerds]); shared out with the food, they were
+    // cut whenever foraging alone would fill the week, and the cuts compounded week on week till no herd was left.)
+    warm[Activity.SOWING] += herdDays(b) * (1f - walkedShare(time))
     val asks = enumFloats<Activity>()
     asks[Activity.FOOD] = storeDays * hands
     choreAsks(g, b, w.weather.date, asks, warm)
     // (The band weighs the rest of the asks against each other by its ways: see [timeWay].)
-    time.plan(needs, asks, enumFloats<Activity> { a -> timeWay(a)?.let { b.will[it] } ?: 1f }, warm, kept)
+    time.plan(needs, asks, enumFloats<Activity> { a -> timeWay(a)?.let { b.will[it] } ?: 1f }, warm)
     b.binding?.let { bind ->
         if (time.short) for (a in Activity.entries) if (asks[a] > 0f) bind[a.ordinal] += 1f
         if (g.path.size > 1) bind[Binding.MOVES] += 1f
