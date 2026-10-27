@@ -315,6 +315,8 @@ object HexSnapshot {
      *   before, an effort only scaled a food's rate, which could never bring a food the ranking left out into the diet (people net 7).
      * 4.68: a herder keeps 200 goats, fewer of bigger beasts as their weight to the half power ([headsAHerder]); before, 4,000 kg
      *   on the hoof of any kind (a hundred goats, from memory), which made a herder's day bring half what shepherds' does.
+     *   Its herders' days are held after the fire and the camp's shelters and before the food ([BandTime.plan]); before,
+     *   with the fire and shelters, so a herd took their days in the cold weeks.
      */
     const val MODEL_MAJOR = 4
     const val MODEL_MINOR = 68
