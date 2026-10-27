@@ -313,13 +313,16 @@ object HexSnapshot {
      * 4.67: a band's food efforts weigh each food in its gatherers' ranking ([offer]) instead of how often they meet it:
      *   a food ranked above what it pays is taken up before better ones, at its true yield, so the net's choice costs food;
      *   before, an effort only scaled a food's rate, which could never bring a food the ranking left out into the diet (people net 7).
-     * 4.68: a herder keeps 200 goats, fewer of bigger beasts as their weight to the half power ([headsAHerder]); before, 4,000 kg
+     * 4.68: mast a band lays by keeps as seed does ([Store.SEED], 0.5% lost a week); before, it went in with roots and lost
+     *   3% a week, four fifths in a year, so no band could carry a good mast year over a poor one. Roots and bulbs in the
+     *   ground are counted by their energy, as the root search was fitted ([HexFood.ROOTS_SHARE] 0.01 to 0.03).
+     * 4.69: a herder keeps 200 goats, fewer of bigger beasts as their weight to the half power ([headsAHerder]); before, 4,000 kg
      *   on the hoof of any kind (a hundred goats, from memory), which made a herder's day bring half what shepherds' does.
      *   A slaughtered herd beast gives its hides, bone and sinew as a kill does ([Band.skin]); before, they went to the
-     *   scavengers, and herding bands wore thinner clothes in their cold weeks (0.6-0.8 clo against 1.1).
+     *   scavengers.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 68
+    const val MODEL_MINOR = 69
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
