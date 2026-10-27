@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.enumTables
 import inflation.Profile
 import inflation.world.Place
 import inflation.world.forEachPlace

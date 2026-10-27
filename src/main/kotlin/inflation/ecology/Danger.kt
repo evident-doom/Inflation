@@ -1,5 +1,7 @@
 package inflation.ecology
 
+import inflation.EnumFloats
+
 /**
  * What can kill a resident animal in a week, as the shares of them it takes: hunger, cold, heat, thirst; the grown's fire,
  * flood and snow (`_A`) and the young's (`_Y`); the crowding (the pile-up of animals, not a death by itself); the hunters'

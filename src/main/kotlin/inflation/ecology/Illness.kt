@@ -1,5 +1,7 @@
 package inflation.ecology
 
+import inflation.EnumFloats
+import inflation.enumFloats
 import inflation.world.Place
 import inflation.world.get
 import inflation.world.set

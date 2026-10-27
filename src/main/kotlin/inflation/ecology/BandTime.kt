@@ -3,6 +3,8 @@ package inflation.ecology
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
+import inflation.EnumFloats
+import inflation.enumFloats
 
 /**
  * The kinds of work that take a band's time, each by its line in the census of band time ([Tally.bandTime]); and its leisure.

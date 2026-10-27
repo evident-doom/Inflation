@@ -11,6 +11,8 @@ import inflation.ecology.HexSmallLife.DeadPool
 import inflation.Books
 import inflation.Stocks
 import inflation.KgM2
+import inflation.EnumFloats
+import inflation.enumTables
 import inflation.world.HexDrinkingWater
 import inflation.world.Biome
 import inflation.world.HexLand
@@ -114,26 +116,26 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
      * The share of [p]'s trees that bear food (oaks, beech, hazel, wild fruit trees), by its kinds of country ([FOOD_TREES]),
      * for each group of trees whose crops go together ([MastTrees]). (Fixed by the world, so not taken from a saved run.)
      */
-    @Transient private val foodTrees = Array(MastTrees.entries.size) { FloatArray(n) }.also { by ->
+    @Transient private val foodTrees = enumTables<MastTrees>(n).also { by ->
         for (p in 0 until n) {
             val h = land.hw.placeHex[p]
             var w = 0f
             for (b in Biome.entries) { val share = land.hw.biome[b.ordinal][h]; if (share <= 0f) continue; w += share
-                val (t, bears) = FOOD_TREES[b] ?: continue; by[t.ordinal][p] += share * bears }
-            if (w > 0f) for (t in by) t[p] /= w
+                val (t, bears) = FOOD_TREES[b] ?: continue; by[t][p] += share * bears }
+            if (w > 0f) for (t in by.a) t[p] /= w
         }
     }
     /** The fruiting share of [p]'s trees this year, kg/m²: the food-bearing trees ([foodTrees]) of each group in its year's mast crop ([Weather.mastCrop]). */
-    private fun treeBearing(p: Place, crop: FloatArray): Float {
+    private fun treeBearing(p: Place, crop: EnumFloats<MastTrees>): Float {
         var s = 0f
-        for (t in crop.indices) s += foodTrees[t][p] * crop[t]
+        for (t in crop.a.indices) s += foodTrees.a[t][p] * crop.a[t]
         return TREE_BEARING * s * land.plants.tree[p]
     }
     /**
      * Fruit-bearing plants at [p] in a year of mast crop [crop], kg/m²: the edible share of the shrubs ([HexLand.palatable])
      * and the fruiting share of trees ([treeBearing]).
      */
-    private fun bearing(p: Place, crop: FloatArray) = land.palatable[p] * 0.5f * land.plants.shrub[p] + treeBearing(p, crop)
+    private fun bearing(p: Place, crop: EnumFloats<MastTrees>) = land.palatable[p] * 0.5f * land.plants.shrub[p] + treeBearing(p, crop)
     private fun rootsCap(p: Place) = ROOTS_SHARE * land.palatable[p] * land.plants.herb[p] + REED_ROOTS * land.waterlogged[p]
 
     private var standYear = -1

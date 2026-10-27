@@ -6,7 +6,7 @@ import inflation.world.set
 import inflation.ecology.FaunaKind
 import inflation.ecology.Danger
 import inflation.ecology.Growth
-import inflation.ecology.enumFloats
+import inflation.enumFloats
 import inflation.ecology.disease
 import inflation.world.Place
 import inflation.Args

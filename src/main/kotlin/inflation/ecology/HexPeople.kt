@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.EnumFloats
 import inflation.world.get
 import inflation.world.set
 import inflation.ecology.HexSmallLife.DeadPool
