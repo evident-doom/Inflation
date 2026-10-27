@@ -1,6 +1,7 @@
 package inflation.ecology
 
 import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.roundToInt
 
 /** Weeks the census's running mean of a band's spare days reaches back, about a season ([Band.spareMean]). The report's, not the model's. */
@@ -15,7 +16,8 @@ const val WEEK_FULL = 0.05f
  * its leisure not yet taken): the days each asked and did not get, and whether it got less than [SQUEEZED] of its ask in a
  * week that ran out of days, so that the work before it took its days. Also keeps the running mean of its spare days the
  * census groups bands by ([bookSqueeze]), and how its clothes making went ([makeTools]). Counts only: the week is as it was.
- * (Food's ask includes the stores it aims at; drying's and skins' are last week's; herding's is sowing's.)
+ * (Food's ask includes the stores it aims at; drying's and skins' are last week's; herding's is sowing's. An ask is counted
+ * up to the week's days.)
  */
 internal fun HexGroups.countSqueeze(b: Band, time: BandTime) {
     val total = time.total
@@ -25,7 +27,9 @@ internal fun HexGroups.countSqueeze(b: Band, time: BandTime) {
     val full = spare < WEEK_FULL
     for (a in Activity.entries) {
         if (a == Activity.LEISURE || a == Activity.MOVING) continue
-        val ask = time.asked[a]
+        // (An ask beyond the whole week, as materials' year of need can be, is counted as the week: no week could give more,
+        // and the tally, tenths of a day in an Int, would overflow.)
+        val ask = min(time.asked[a], total)
         if (ask <= 0f) continue
         val missing = max(0f, ask - time.workedOn(a))
         fun add(k: Tally.Squeeze, v: Int) { stats.hunting.merge(Tally.squeeze(a, k), v, Int::plus) }
