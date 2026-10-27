@@ -1,5 +1,7 @@
 package inflation.ecology
 
+import inflation.EnumFloats
+import inflation.enumFloats
 import inflation.Profile
 import inflation.world.Phase
 import inflation.world.Hex

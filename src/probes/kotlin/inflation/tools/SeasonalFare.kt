@@ -4,9 +4,9 @@ import inflation.world.get
 import inflation.world.set
 
 import inflation.ecology.FaunaKind
-import inflation.ecology.enumFloats
+import inflation.enumFloats
 import inflation.ecology.disease
-import inflation.ecology.EnumFloats
+import inflation.EnumFloats
 import inflation.ecology.Danger
 import inflation.world.Place
 import inflation.Args

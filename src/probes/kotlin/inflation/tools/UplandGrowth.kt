@@ -6,10 +6,10 @@ import inflation.world.set
 import inflation.world.Hex
 import inflation.ecology.FaunaKind
 import inflation.ecology.disease
-import inflation.ecology.EnumFloats
+import inflation.EnumFloats
 import inflation.ecology.Danger
 import inflation.ecology.Growth
-import inflation.ecology.enumFloats
+import inflation.enumFloats
 import inflation.world.Place
 import inflation.Args
 import inflation.ecology.HexFauna
