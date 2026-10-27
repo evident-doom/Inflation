@@ -245,11 +245,11 @@ object Tally {
     fun bandsSpareDied(spare: Spare, cause: DeathReason) = TallyKey.raw(bandsSpareDied(spare).text + cause.label)
     fun bandsSpareDied(spare: Spare) = TallyKey.raw("bands spare ${spare.label}:$DIED_OF")
     /** Whether a band keeps a herd ([Band.herd]). */
-    enum class Herding(val label: String) { HERDING("keeping a herd"), NONE("keeping none") }
-    /** Bands' tallies by whether they keep a herd; [bandsHerdingDied] (herding) starts all their deaths. */
-    fun bandsHerding(h: Herding, what: Bands) = TallyKey.raw("bands ${h.label}:${what.label}")
-    fun bandsHerdingDied(h: Herding, cause: DeathReason) = TallyKey.raw(bandsHerdingDied(h).text + cause.label)
-    fun bandsHerdingDied(h: Herding) = TallyKey.raw("bands ${h.label}:$DIED_OF")
+    enum class HerdKept(val label: String) { HERDING("keeping a herd"), NONE("keeping none") }
+    /** Bands' tallies by whether they keep a herd; [bandsHerdKeptDied] (herding) starts all their deaths. */
+    fun bandsHerdKept(h: HerdKept, what: Bands) = TallyKey.raw("bands ${h.label}:${what.label}")
+    fun bandsHerdKeptDied(h: HerdKept, cause: DeathReason) = TallyKey.raw(bandsHerdKeptDied(h).text + cause.label)
+    fun bandsHerdKeptDied(h: HerdKept) = TallyKey.raw("bands ${h.label}:$DIED_OF")
     /** How a band's week of making clothes went, where it wanted any ([Band.clothesMade]). */
     enum class ClothesMade(val label: String) {
         MADE("made all it wanted"), TIME_SHORT("short of time"), GOODS_SHORT("short of hide or sinew"), NOT_REACHED("time gone before clothes came up")

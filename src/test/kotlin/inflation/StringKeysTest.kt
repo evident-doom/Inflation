@@ -165,7 +165,7 @@ class StringKeysTest {
         unique("Tally.HideSource", Tally.HideSource.entries.map { it.label })
         unique("Tally.Squeeze", Tally.Squeeze.entries.map { it.label })
         unique("Tally.Spare", Tally.Spare.entries.map { it.label })
-        unique("Tally.Herding", Tally.Herding.entries.map { it.label })
+        unique("Tally.HerdKept", Tally.HerdKept.entries.map { it.label })
         unique("Tally.ClothesMade", Tally.ClothesMade.entries.map { it.label })
     }
 }

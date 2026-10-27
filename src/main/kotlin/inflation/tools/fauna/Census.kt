@@ -399,12 +399,12 @@ class Census(private val sim: HexSim) {
                 sp.label + " " + group(v(Tally.bandsSpare(sp, Tally.Bands.PEOPLE_WEEKS)), spareAll, v(Tally.bandsSpare(sp, Tally.Bands.BAND_WEEKS)),
                     v(Tally.bandsSpare(sp, Tally.Bands.CLOTHES)), lastYear.filterKeys { it.startsWith(Tally.bandsSpareDied(sp)) })
             })
-        val herdAll = Tally.Herding.entries.sumOf { v(Tally.bandsHerding(it, Tally.Bands.PEOPLE_WEEKS)) }
+        val herdAll = Tally.HerdKept.entries.sumOf { v(Tally.bandsHerdKept(it, Tally.Bands.PEOPLE_WEEKS)) }
         println("bands by whether they keep a herd, squeeze census, last year (share of people-weeks, people a band; clothes; deaths per 1000 people a year, by cause; mean spare days over the last season): " +
-            Tally.Herding.entries.joinToString(", ") { h ->
-                val bw = v(Tally.bandsHerding(h, Tally.Bands.BAND_WEEKS))
-                h.label + " " + group(v(Tally.bandsHerding(h, Tally.Bands.PEOPLE_WEEKS)), herdAll, bw, v(Tally.bandsHerding(h, Tally.Bands.CLOTHES)),
-                    lastYear.filterKeys { it.startsWith(Tally.bandsHerdingDied(h)) }) + "; spare %.0f%%".format(100 * v(Tally.bandsHerding(h, Tally.Bands.SPARE)) / 1000 / bw.coerceAtLeast(1.0))
+            Tally.HerdKept.entries.joinToString(", ") { h ->
+                val bw = v(Tally.bandsHerdKept(h, Tally.Bands.BAND_WEEKS))
+                h.label + " " + group(v(Tally.bandsHerdKept(h, Tally.Bands.PEOPLE_WEEKS)), herdAll, bw, v(Tally.bandsHerdKept(h, Tally.Bands.CLOTHES)),
+                    lastYear.filterKeys { it.startsWith(Tally.bandsHerdKeptDied(h)) }) + "; spare %.0f%%".format(100 * v(Tally.bandsHerdKept(h, Tally.Bands.SPARE)) / 1000 / bw.coerceAtLeast(1.0))
             })
         val wanted = Tally.ClothesMade.entries.sumOf { v(Tally.clothesMade(it)) }
         println("bands' clothes making, last year (band-weeks clothes were wanted: %.0f%% of band-weeks; by what stopped them): ".format(100 * wanted / weeks) +

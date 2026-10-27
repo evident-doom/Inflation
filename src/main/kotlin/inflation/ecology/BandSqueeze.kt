@@ -49,10 +49,10 @@ internal fun HexGroups.bookSqueeze(g: HexGroup, b: Band, causes: List<Died>) {
     add(Tally.bandsSpare(spare, Tally.Bands.PEOPLE_WEEKS), g.size)
     add(Tally.bandsSpare(spare, Tally.Bands.CLOTHES), clo)
     for ((cause, k) in causes) if (k > 0) add(Tally.bandsSpareDied(spare, cause), k)
-    val h = if (b.herd.any { it > 0f }) Tally.Herding.HERDING else Tally.Herding.NONE
-    add(Tally.bandsHerding(h, Tally.Bands.BAND_WEEKS), 1)
-    add(Tally.bandsHerding(h, Tally.Bands.PEOPLE_WEEKS), g.size)
-    add(Tally.bandsHerding(h, Tally.Bands.CLOTHES), clo)
-    add(Tally.bandsHerding(h, Tally.Bands.SPARE), (1000f * b.spareMean).roundToInt())
-    for ((cause, k) in causes) if (k > 0) add(Tally.bandsHerdingDied(h, cause), k)
+    val h = if (b.herd.any { it > 0f }) Tally.HerdKept.HERDING else Tally.HerdKept.NONE
+    add(Tally.bandsHerdKept(h, Tally.Bands.BAND_WEEKS), 1)
+    add(Tally.bandsHerdKept(h, Tally.Bands.PEOPLE_WEEKS), g.size)
+    add(Tally.bandsHerdKept(h, Tally.Bands.CLOTHES), clo)
+    add(Tally.bandsHerdKept(h, Tally.Bands.SPARE), (1000f * b.spareMean).roundToInt())
+    for ((cause, k) in causes) if (k > 0) add(Tally.bandsHerdKeptDied(h, cause), k)
 }
