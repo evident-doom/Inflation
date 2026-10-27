@@ -55,6 +55,7 @@ class BandTime(left: Float, private val pace: EnumFloats<Activity>? = null) {
     var left = left
         private set
     private val spent = enumFloats<Activity>()
+    private val worked = enumFloats<Activity>()
     private val held = enumFloats<Activity>()
     private val heldAtOne = enumFloats<Activity>()
     /** What each activity asked for this week, person-days (none before a [plan]). */
@@ -82,20 +83,23 @@ class BandTime(left: Float, private val pace: EnumFloats<Activity>? = null) {
     /** Takes [personDays] of work for [a]: from what is held for it first. */
     fun spend(a: Activity, personDays: Float) {
         val days = personDays / pace(a)
-        spent[a] += days; left -= days; lost += days - personDays; held[a] = max(0f, held[a] - days)
+        spent[a] += days; worked[a] += personDays; left -= days; lost += days - personDays; held[a] = max(0f, held[a] - days)
     }
 
     /** Takes [personDays] for [a], but never more than it may take ([leftFor]). */
     fun spendAtMost(a: Activity, personDays: Float) = spend(a, min(personDays, leftFor(a)))
 
     /** Counts [personDays] as gone to [a] before this stretch began (the time foraging took, worked out apart). */
-    fun took(a: Activity, personDays: Float) { spent[a] += personDays }
+    fun took(a: Activity, personDays: Float) { spent[a] += personDays; worked[a] += personDays }
 
     /** What is still held for [a] after its turn is free for the activities after it. */
     fun release(a: Activity) { held[a] = 0f }
 
     /** Sets what is left to no less than none. */
     fun noneBelowZero() { left = max(0f, left) }
+
+    /** Days of work done at [a] so far, as [asked] counts them (the time lost to the cold and hunger left out). */
+    fun workedOn(a: Activity) = worked[a]
 
     /** Person-days that went to [a] so far, the time lost to the cold and hunger in it included. */
     fun spentOn(a: Activity) = spent[a]
