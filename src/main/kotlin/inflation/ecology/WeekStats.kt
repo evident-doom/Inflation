@@ -233,6 +233,10 @@ object Tally {
     enum class Herding(val label: String) { HERDING("herding"), NOT_HERDING("not herding") }
     /** Bands' tallies by whether they keep a herd. */
     fun bandsHerding(h: Herding, what: Bands) = TallyKey.raw("bands ${h.label}:${what.label}")
+    fun bandsHerding(h: Herding, cold: Cold) = TallyKey.raw("bands ${h.label}:cold ${cold.label}")
+    /** Bands' time on [a] (or lost, [t]) by whether they keep a herd, tenths of a day. */
+    fun bandsHerdingTime(h: Herding, a: Activity) = TallyKey.raw("bands ${h.label}:time ${a.label}")
+    fun bandsHerdingTime(h: Herding, t: TimeTotal) = TallyKey.raw("bands ${h.label}:time ${t.label}")
     /** Bands' deaths of [cause] by whether they keep a herd, the [young] apart; [bandsHerdingDied] (h, young) starts all of them. */
     fun bandsHerdingDied(h: Herding, young: Boolean, cause: DeathReason) = TallyKey.raw(bandsHerdingDied(h, young).text + cause.label)
     fun bandsHerdingDied(h: Herding, young: Boolean) = TallyKey.raw("bands ${h.label}:${if (young) "children " else "grown "}$DIED_OF")

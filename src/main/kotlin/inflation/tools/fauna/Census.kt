@@ -346,6 +346,19 @@ class Census(private val sim: HexSim) {
                 100 * v(Tally.Bands.CLAD_WEEKS) / pw.coerceAtLeast(1.0), 100 * v(Tally.Bands.MOBILE_WEEKS) / bw, cw / pw.coerceAtLeast(1.0),
                 v(Tally.Bands.AIR) / 10 / pw.coerceAtLeast(1.0), 1000 * v(Tally.Bands.BORN) / (pw / stepsPerYear).coerceAtLeast(1e-9),
                 1000 * died(false).values.sum() / grownYears, causes(false, grownYears), 1000 * died(true).values.sum() / childYears, causes(true, childYears)) })
+        println("bands by whether they keep a herd, last year (foraged of food wanted; hearth fire, share of days fetching firewood; share of their days on each work and lost to cold and hunger; in weeks of heat debt, share of band-weeks: worst debt Wh/m², night air °C, clothes clo, fire, shelter or house, share at a new camp, share of days spare): " + Tally.Herding.entries.joinToString(" | ") { h ->
+            fun v(k: Tally.Bands) = (lastYear[Tally.bandsHerding(h, k)] ?: 0).toDouble()
+            fun c(k: Tally.Cold) = (lastYear[Tally.bandsHerding(h, k)] ?: 0).toDouble()
+            fun t(a: Activity) = (lastYear[Tally.bandsHerdingTime(h, a)] ?: 0).toDouble()
+            val bw = v(Tally.Bands.BAND_WEEKS).coerceAtLeast(1.0); val n = c(Tally.Cold.WEEKS).coerceAtLeast(1.0)
+            val days = Activity.entries.sumOf { t(it) }.coerceAtLeast(1.0)
+            "%s: %.0f%%; %.0f%%, %.0f%%; %s, lost %.0f%%; heat debt %.0f%%: %.0f, %.1f, %.1f, %.2f, %.2f, %.0f%%, %.0f%%".format(h.label,
+                100 * (v(Tally.Bands.MEAT) + v(Tally.Bands.PLANTS)) / v(Tally.Bands.ASKED).coerceAtLeast(1.0),
+                v(Tally.Bands.HEARTH) / bw, v(Tally.Bands.FUEL_DAYS) / bw,
+                Activity.entries.filter { t(it) > 0.0 }.joinToString(" ") { "%s %.0f%%".format(it.label, 100 * t(it) / days) },
+                100 * (lastYear[Tally.bandsHerdingTime(h, Tally.TimeTotal.LOST)] ?: 0) / days,
+                100 * c(Tally.Cold.WEEKS) / 10 / bw, c(Tally.Cold.SHORT) / n, c(Tally.Cold.AIR) / n, c(Tally.Cold.CLOTHES) / n,
+                c(Tally.Cold.FIRE) / n, c(Tally.Cold.SHELTER) / n, 100 * c(Tally.Cold.MOVED) / n, 100 * c(Tally.Cold.SPARE) / n) })
         println("bands by how well fed through the week, their fat drawn on, last year (share of people-weeks; deaths per person a year of hunger, of exposure, of all; larder, of it meat, and fat at the week's end, days; share of the protein eaten that went to waste; salt held, g a person, sodium short, salt here; share that know of salt, km to the nearest known): " + Tally.Fed.entries.joinToString(", ") { f ->
             val pw = (lastYear[Tally.bandsFed(f, Tally.Bands.PEOPLE_WEEKS)] ?: 0).toDouble()
             val all = Tally.Fed.entries.sumOf { (lastYear[Tally.bandsFed(it, Tally.Bands.PEOPLE_WEEKS)] ?: 0).toDouble() }.coerceAtLeast(1.0)
