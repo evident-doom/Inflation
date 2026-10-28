@@ -194,7 +194,7 @@ private fun restedDays(w: ForageWeek, time: BandTime) {
  * soaks for water, where that is the only water, come off first. Then the days the hearth's firewood and the camp's
  * shelters take to keep its people warm ([survivalDays]), then its herders' days, then the week's food; then the rest of what each activity asks for ([choreAsks]: the rest of the week's food, the stores and its chores),
  * shared out when it comes to more than the days left ([BandTime.plan]). Leisure asks for nothing: it is what the week
- * leaves (and takes less food: [restedDays]). Then it fetches the hearth's firewood, puts up its shelters and herds, in the days the plan gives them.
+ * leaves (and takes less food: [restedDays]). Then it fetches the hearth's firewood, and herds, in the days the plan gives them.
  */
 private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float) {
     val g = w.g; val b = checkNotNull(w.band); val hands = w.hands
@@ -244,8 +244,6 @@ private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float)
     w.fuelDays = fetchFuel(g, b, hands, if (fuel > 0f) min(1f, time.leftFor(Activity.FIREWOOD) / fuel) else 1f)
     time.spend(Activity.FIREWOOD, w.fuelDays * hands)
     time.release(Activity.FIREWOOD)
-    // (It puts up its camp's shelters in the days the plan gives them, before the foraging can eat into them: [putUpShelter].)
-    putUpShelter(b, g.adults.toFloat(), time, movedCamp(g, b))
     // (And its herders go out with the herd in the days the plan gives them, before the foraging can eat into them.)
     val herd = herdDays(b) * (1f - walkedShare(time))
     b.herded = if (herd > 0f) min(1f, time.leftFor(Activity.SOWING) / herd) else 1f

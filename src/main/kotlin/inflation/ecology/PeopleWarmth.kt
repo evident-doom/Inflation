@@ -15,15 +15,9 @@ import kotlin.math.exp
 
 // Bands' warmth: shelters and houses, the hearth's firewood, the night's fire and watch.
 
-/**
- * At any camp a band first puts up brush shelters, quickly (and leaves them when it moves on: [moved], come to a new camp).
- * It does so as soon as its week is planned, in the days the plan gives them, before the foraging can eat into them
- * ([planWeek]); and again with what its chores leave ([bandWeek]). (Built only after the foraging and the other chores, its
- * few held days were the first a week's overrun took: in a trace of 2026-10-28, bands whose plan held all the shelter they
- * aimed at slept in the open at a new camp, and died of exposure there by a fire.)
- */
-internal fun putUpShelter(b: Band, people: Float, time: BandTime, moved: Boolean = false) {
-    if (moved) b.shelter = 0f
+/** At any camp a band first puts up brush shelters, quickly (and leaves them when it moves on). */
+internal fun putUpShelter(b: Band, people: Float, time: BandTime) {
+    if (b.campWeeks == 0) b.shelter = 0f
     val shelterDays = shelterDays(b, people)
     val lack = shelterLack(b, moved = false)
     val left = time.leftFor(Activity.SHELTER)
