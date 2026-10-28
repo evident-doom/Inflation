@@ -103,14 +103,21 @@ internal fun HexGroups.palisadeBegunAt(g: HexGroup, h: Hex): Float {
 
 /**
  * How much of the river at hex [h] the weirs there that [g] may use stand across, 0..1 ([HexWater.riverWidthM]): their
- * length as far as it stands, over the river's width. Begun ones ([begun]) count only once whole.
+ * length as far as it stands, over the river's width. Begun ones count only once whole.
  */
-internal fun HexGroups.weirAt(g: HexGroup, h: Hex, begun: Boolean = false): Float {
+internal fun HexGroups.weirAt(g: HexGroup, h: Hex): Float {
     val width = fauna.water.riverWidthM(h)
     if (width <= 0f) return 0f
     var m = 0f
-    structuresAt(h) { s -> if (s.kind == Built.WEIR && (s.done || begun) && usable(s, g)) m += s.built * s.size }
+    structuresAt(h) { s -> if (s.kind == Built.WEIR && s.done && usable(s, g)) m += s.built * s.size }
     return min(1f, m / width)
+}
+
+/** The weir at hex [h] that does not stand whole (begun, or worn) that [g] may use and that stands furthest, if any: the one it builds on or mends ([buildWeir]). */
+internal fun HexGroups.weirBegunAt(g: HexGroup, h: Hex): Structure? {
+    var best: Structure? = null; var most = -1f
+    structuresAt(h) { s -> if (s.kind == Built.WEIR && s.built < 1f && usable(s, g) && s.built * s.size > most) { best = s; most = s.built * s.size } }
+    return best
 }
 
 /** The length of a weir a band would build across the river at hex [h], m: as wide as the river, up to [WEIR_MAX_M]. */

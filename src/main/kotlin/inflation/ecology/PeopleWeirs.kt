@@ -16,9 +16,16 @@ import kotlin.math.min
 internal fun GroupWorld.weirDays(lengthM: Float, kgWeek: Float) =
     if (kgWeek > 0f) WEIR_TEND_DAYS_PER_M * lengthM * days / kgWeek + WEIR_HANDLING_DAYS_PER_KG else Float.MAX_VALUE
 
-/** The length of a weir across the river at hex [h] that [g]'s band would still build or mend there, m (see [weirLengthM]). */
-private fun HexGroups.weirLack(g: HexGroup, h: Hex): Float =
-    max(0f, weirLengthM(h) - weirAt(g, h, begun = true) * fauna.water.riverWidthM(h))
+/**
+ * The length of weir across the river at hex [h] that [g]'s band would still build or mend there, m (see [weirLengthM]):
+ * what the whole weirs there lack of it, and of that what the weir not standing whole there that stands furthest
+ * ([weirBegunAt]) lacks. (Other begun ones are left to the current: their stretches would not join into one weir.)
+ */
+private fun HexGroups.weirLack(g: HexGroup, h: Hex): Float {
+    val lack = max(0f, weirLengthM(h) - weirAt(g, h) * fauna.water.riverWidthM(h))
+    val begun = weirBegunAt(g, h) ?: return lack
+    return min(lack, (1f - begun.built) * begun.size)
+}
 
 /**
  * The person-days [g]'s band [b] asks this week for building or mending a weir across the river at its camp, hex [h]: where
@@ -37,8 +44,8 @@ internal fun HexGroups.buildWeir(g: HexGroup, b: Band, h: Hex, time: BandTime) {
     if (left <= 0f || b.weirPull <= 0.5f || gd[Material.WOOD] <= 0f) return
     val m = minOf(weirLack(g, h), left / WEIR_DAYS_PER_M, gd[Material.WOOD] / WEIR_WOOD_KG_PER_M)
     if (m <= 0f) return
-    // (On the weir it is building or mending there, or a new one.)
-    val s = buildingAt(g, Built.WEIR, h, -1, weirLengthM(h))
+    // (On the weir not standing whole there that stands furthest, or a new one.)
+    val s = weirBegunAt(g, h)?.also { it.user = g.id } ?: buildingAt(g, Built.WEIR, h, -1, weirLengthM(h))
     val add = min(1f - s.built, m / s.size)
     if (add <= 0f) return
     gd[Material.WOOD] -= add * s.size * WEIR_WOOD_KG_PER_M; buildOn(s, add); time.spend(Activity.WEIRS, add * s.size * WEIR_DAYS_PER_M)
