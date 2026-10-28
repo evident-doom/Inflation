@@ -92,6 +92,10 @@ internal fun HexGroups.bookSqueeze(g: HexGroup, b: Band, causes: List<Died>, wea
                 b.planShelterFirst, b.diagFoodHeld, b.diagFoodSpent, b.diagShelterHeld, b.diagShelterLeft))
     }
     for ((cause, k) in causes) if (k > 0) add(Tally.bandsWarmedDied(spare, warmed, cause), k)
+    // (What a whole house would have done for its week, by the week's air.)
+    val worth = bands.houseWorth[HouseAir.of(airAt(g.place, weather).meanC).ordinal]
+    for (x in HouseWorth.entries) worth[x] += b.houseWeek[x]
+    b.houseWeek.fill(0f)
     val h = if (b.herd.any { it > 0f }) Tally.HerdKept.HERDING else Tally.HerdKept.NONE
     add(Tally.bandsHerdKept(h, Tally.Bands.BAND_WEEKS), 1)
     add(Tally.bandsHerdKept(h, Tally.Bands.PEOPLE_WEEKS), g.size)

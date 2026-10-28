@@ -139,7 +139,7 @@ class Band(kinds: Int) {
     /**
      * What a whole house would have been worth to it where it was, a person a year, as it lived its weeks (a running mean over
      * about a year, [houseWorthWeek]): the lives it would have saved (cold, exposure, raids) and the food, kg of need (keeping
-     * warm, stores kept from spoiling, less to raiders, less to mice taken off). What a band weighs a house by.
+     * warm, stores kept from spoiling, less to raiders, less to mice taken off). (Nothing weighs a house by it yet: the census reports it.)
      */
     var houseLives = 0f
     var houseFood = 0f
@@ -371,6 +371,8 @@ class Band(kinds: Int) {
     @Transient var diagFoodSpent = 0f
     @Transient var diagShelterHeld = 0f
     @Transient var diagShelterLeft = 0f
+    /** What a whole house would have done for its week, part by part ([HouseWorth]), for the census only ([bookSqueeze]). */
+    @Transient val houseWeek = enumFloats<HouseWorth>()
     /** The share of its herd its herders kept this week, as its week's plan gave them days ([herdDays]; 1 till it plans). */
     @Transient var herded = 1f
     /** What a day's foraging brings it, kg of its need, month by month: a mean over the years (below 0 till it has foraged then; [herdPays]). */

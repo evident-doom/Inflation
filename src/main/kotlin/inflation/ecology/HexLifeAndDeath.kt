@@ -759,12 +759,25 @@ private fun GroupWorld.shareDeaths(hazards: List<Hazard>, adults: Int, young: In
  */
 private fun HexGroups.houseWorthWeek(g: HexGroup, b: Band, weather: Weather, stalked: Float) {
     val s = g.species; val fire = b.fire; val now = b.homeShelter(); val air = airAt(g.place, weather)
-    val d = max(0f, b.warmth(air, fire, now, days).odds - b.warmth(air, fire, 1f, days).odds)
-    b.houseLivesWeek += g.adults * d + g.young * min(1f, 1.5f * d)
+    val had = b.warmth(air, fire, now, days); val whole = b.warmth(air, fire, 1f, days)
+    fun lives(d: Float) = g.adults * d + g.young * min(1f, 1.5f * d)
+    val exposure = lives(max(0f, had.odds - whole.odds))
+    b.houseLivesWeek += exposure
     val walls = if (b.homeWalls > 0f) b.homeWalls else 1f
     val taken = stalked * (1f - stalkGuard(b, walls, b.fencedNow()) / stalkGuard(b, b.walledNow(), b.fencedNow()))
-    b.houseLivesWeek += (g.adults + g.young * YOUNG_STALKED / b.childWatch.coerceAtLeast(0.25f)) * max(0f, taken)
-    b.houseFoodWeek += max(0f, warmthNeed(s, b, g.place, weather, fire, now) - warmthNeed(s, b, g.place, weather, fire, 1f)) * g.dailyNeedKg / g.warmth.coerceAtLeast(1e-3f) * days
+    val beasts = (g.adults + g.young * YOUNG_STALKED / b.childWatch.coerceAtLeast(0.25f)) * max(0f, taken)
+    b.houseLivesWeek += beasts
+    val warmKg = max(0f, warmthNeed(s, b, g.place, weather, fire, now) - warmthNeed(s, b, g.place, weather, fire, 1f)) * g.dailyNeedKg / g.warmth.coerceAtLeast(1e-3f) * days
+    b.houseFoodWeek += warmKg
+    // (For the census: the parts, and against what a brush shelter does and no cover at all.)
+    val bare = b.warmth(air, fire, 0f, days, 0f)
+    val w = b.houseWeek
+    w[HouseWorth.PEOPLE_WEEKS] += g.size.toFloat(); w[HouseWorth.ROOFED_WEEKS] += g.size * now
+    w[HouseWorth.EXPOSURE] += exposure; w[HouseWorth.STALKED] += beasts; w[HouseWorth.WARM_KG] += warmKg
+    w[HouseWorth.SHELTER_EXPOSURE] += lives(max(0f, bare.odds - b.warmth(air, fire, 0f, days, 1f).odds))
+    w[HouseWorth.BARE_EXPOSURE] += lives(max(0f, bare.odds - whole.odds))
+    w[HouseWorth.WORK_DAYS] += g.adults * days * max(0f, whole.pace - had.pace)
+    w[HouseWorth.CRAFT_DAYS] += g.adults * days * max(0f, whole.campPace - had.campPace)
     val people = max(1, g.size).toFloat(); val k = 1f / stepsPerYear
     b.houseLives += k * (b.houseLivesWeek / people * stepsPerYear - b.houseLives)
     b.houseFood += k * (b.houseFoodWeek / people * stepsPerYear - b.houseFood)
