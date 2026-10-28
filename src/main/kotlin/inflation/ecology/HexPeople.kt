@@ -131,6 +131,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     // Making and mending takes the time still to spare, the tools it ranks first first (the
     // scaffold: the most worn); each as far as the time, the scarcest material and the skill allow.
     dialUse?.amount(DialSite.SHELTERS, b.shelterWill, b.shelterWill, 1f)
+    if (WARM_DIAG) { b.diagShelterHeld = time.heldFor(Activity.SHELTER); b.diagShelterLeft = time.leftFor(Activity.SHELTER) }
     putUpShelter(b, people, time)
     keepCustoms(b, people, time)
     trainHolders(g, b, time)

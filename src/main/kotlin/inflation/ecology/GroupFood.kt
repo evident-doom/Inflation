@@ -167,6 +167,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         val got = w.fed / d; val m = weather.date.month; val was = b.forageReturn[m]
         b.forageReturn[m] = if (was < 0f) got else was + min(1f, years * Date.MONTHS_PER_YEAR) * (got - was)
     } }
+    if (WARM_DIAG) w.band?.let { b -> w.time?.let { b.diagFoodSpent = it.spentOn(Activity.FOOD) } }
     w.time?.let { restedDays(w, it) }
     w.time?.release(Activity.FOOD)
     eatTheWeek(w)
@@ -194,7 +195,7 @@ private fun restedDays(w: ForageWeek, time: BandTime) {
  * soaks for water, where that is the only water, come off first. Then the days the hearth's firewood and the camp's
  * shelters take to keep its people warm ([survivalDays]), then the week's food, then its herders' days; then the rest of what each activity asks for ([choreAsks]: the rest of the week's food, the stores and its chores),
  * shared out when it comes to more than the days left ([BandTime.plan]). Leisure asks for nothing: it is what the week
- * leaves (and takes less food: [restedDays]). Then it fetches the hearth's firewood, and herds, in the days the plan gives them.
+ * leaves (and takes less food: [restedDays]). Then it fetches the hearth's firewood, puts up its shelters and herds, in the days the plan gives them.
  */
 private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float) {
     val g = w.g; val b = checkNotNull(w.band); val hands = w.hands
@@ -226,6 +227,7 @@ private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float)
     choreAsks(g, b, w.weather.date, asks, warm)
     // (The band weighs the rest of the asks against each other by its ways: see [timeWay].)
     time.plan(needs, asks, enumFloats<Activity> { a -> timeWay(a)?.let { b.will[it] } ?: 1f }, warm, kept)
+    if (WARM_DIAG) b.diagFoodHeld = time.heldFor(Activity.FOOD)
     b.binding?.let { bind ->
         if (time.short) for (a in Activity.entries) if (asks[a] > 0f) bind[a.ordinal] += 1f
         if (g.path.size > 1) bind[Binding.MOVES] += 1f
@@ -245,6 +247,8 @@ private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float)
     w.fuelDays = fetchFuel(g, b, hands, if (fuel > 0f) min(1f, time.leftFor(Activity.FIREWOOD) / fuel) else 1f)
     time.spend(Activity.FIREWOOD, w.fuelDays * hands)
     time.release(Activity.FIREWOOD)
+    // (It puts up its camp's shelters in the days the plan gives them, before the foraging can eat into them: [putUpShelter].)
+    putUpShelter(b, g.adults.toFloat(), time, movedCamp(g, b))
     // (And its herders go out with the herd in the days the plan gives them, before the foraging can eat into them.)
     val herd = herdDays(b) * (1f - walkedShare(time))
     b.herded = if (herd > 0f) min(1f, time.leftFor(Activity.SOWING) / herd) else 1f
