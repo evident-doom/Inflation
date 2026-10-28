@@ -496,12 +496,12 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
         val bands = sim.groups.bands; val kinds = sim.fauna.kinds
         val parts = kinds.indices.mapNotNull { k ->
             val f = bands.kindFlows[k]; val young = bands.keptYoung.getAndSet(k, 0); val begun = bands.herdsBegun.getAndSet(k, 0)
-            val line = if (young == 0 && f[HerdFlow.KG] <= 0f && f[HerdFlow.ENDED] + f[HerdFlow.ENDED_UNPAID] + f[HerdFlow.ENDED_FREED] <= 0f) null
+            val line = if (young == 0 && f[HerdFlow.KG] <= 0f && f[HerdFlow.ENDED] + f[HerdFlow.ENDED_UNPAID] + f[HerdFlow.ENDED_PET] + f[HerdFlow.ENDED_FREED] <= 0f) null
             else {
                 val kg = f[HerdFlow.KG].coerceAtLeast(1e-6f)
-                "%s: young kept %d, herds begun %d, born %.0f, culled for want of herders %.0f, eaten down for not paying %.0f, ended %.0f paying / %.0f not, in herds that pay %.2f, increase %.2f a year, a herder's day %.2f of a lean month's foraging".format(
-                    kinds[k].name, young, begun, f[HerdFlow.BORN], f[HerdFlow.CULLED], f[HerdFlow.EATEN_UNPAID], f[HerdFlow.ENDED], f[HerdFlow.ENDED_UNPAID],
-                    f[HerdFlow.KG_PAYS] / kg, f[HerdFlow.INCREASE_KG] / kg, f[HerdFlow.WORTH_KG] / f[HerdFlow.KG_WORTH_KNOWN].coerceAtLeast(1e-6f))
+                "%s: young kept %d, herds begun %d, born %.0f, culled for want of herders %.0f, eaten down for not paying %.0f, ended %.0f paying / %.0f not / %.0f as pets, as pets %.2f, in herds that pay %.2f, increase %.2f a year, a herder's day %.2f of a lean month's foraging".format(
+                    kinds[k].name, young, begun, f[HerdFlow.BORN], f[HerdFlow.CULLED], f[HerdFlow.EATEN_UNPAID], f[HerdFlow.ENDED], f[HerdFlow.ENDED_UNPAID], f[HerdFlow.ENDED_PET],
+                    f[HerdFlow.KG_PET] / kg, f[HerdFlow.KG_PAYS] / kg, f[HerdFlow.INCREASE_KG] / kg, f[HerdFlow.WORTH_KG] / f[HerdFlow.KG_WORTH_KNOWN].coerceAtLeast(1e-6f))
             }
             f.fill(0f)
             line

@@ -241,6 +241,13 @@ class Band(kinds: Int) {
      */
     var herdGrew = BooleanArray(kinds)
     /**
+     * Of each kind, the years left of the time its herd, begun from young caught in the hunt, is kept as pets: small animals
+     * kept for their own sake, as companions, and not yet weighed as food ([keepHerds]) till the young it was begun with have
+     * grown ([Species.yearsToMaturity]). 0 for a herd kept for food. (Empty in a band loaded from a save made before it;
+     * [keepHerds] sizes it to [herd].)
+     */
+    var herdPet = FloatArray(kinds)
+    /**
      * Of the grain in its stores, what it reaped from sown fields and keeps to sow first, its seed corn (as its stores count
      * it; eaten last, so no more than its grain: [seedCornIn]), and the share of that from ears that hold their grain;
      * and of the rest, gathered from wild stands, the share from ears that hold their grain.
@@ -501,7 +508,7 @@ class Band(kinds: Int) {
 
     fun splitInto(o: Band, adults: Int, stay: Int, share: Float, r: Random, copied: (Band) -> Unit) {
         o.ties.clear(); o.ties.putAll(ties); o.appointment = appointment
-        o.houseHex = houseHex; o.house = house; o.homeEarth = homeEarth; o.homeWalls = homeWalls; o.homeGroundC = homeGroundC; o.palisade = palisade; herdTame.copyInto(o.herdTame); herd.copyInto(o.herd); herdGrew.copyInto(o.herdGrew)
+        o.houseHex = houseHex; o.house = house; o.homeEarth = homeEarth; o.homeWalls = homeWalls; o.homeGroundC = homeGroundC; o.palisade = palisade; herdTame.copyInto(o.herdTame); herd.copyInto(o.herd); herdGrew.copyInto(o.herdGrew); herdPet.copyInto(o.herdPet)
         o.houseLives = houseLives; o.houseFood = houseFood; foodFrom.copyInto(o.foodFrom); o.fishPull = fishPull; monthSupply.copyInto(o.monthSupply); freeShare.copyInto(o.freeShare); o.leanDays = leanDays
         o.seedDomestic = seedDomestic; o.grainDomestic = grainDomestic; o.seedCorn = seedCorn * share; seedCorn -= o.seedCorn; o.sinceRaided = sinceRaided; o.sisu = sisu
         o.knownHomes.putAll(knownHomes); o.knownLineage.putAll(knownLineage)
@@ -578,6 +585,8 @@ class Band(kinds: Int) {
             val n = a.herd[i] + b.herd[i]
             if (n > 0f) a.herdTame[i] = (a.herd[i] * a.herdTame[i] + b.herd[i] * b.herdTame[i]) / n
             a.herd[i] = n
+            // (Pets while either band's were: the joined herd is weighed as food once the younger has grown.)
+            if (i < a.herdPet.size && i < b.herdPet.size) a.herdPet[i] = max(a.herdPet[i], b.herdPet[i])
         }
         a.renown = max(a.renown, b.renown)
         for (i in Tool.entries) a.knows[i] = a.knows[i] || b.knows[i]
