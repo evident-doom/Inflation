@@ -91,12 +91,20 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     val riverFish = FloatArray(size)
     val shellfish = FloatArray(size)
     val run = FloatArray(size)
+    /** Of the run, kg: held below the weirs across the river in each hex this week, in reach of their traps ([weirFor]). */
+    val penned = FloatArray(size)
+    /** The run's fish that came up to each hex this week bound for the river above it, kg (before the weirs there stop any). */
+    @Transient private val passing = FloatArray(size)
+    /** How much of the river in each hex whole weirs stand across, 0..1, as the bands last left them ([HexGroups.tendStructures]). */
+    @Transient val weirBlock = FloatArray(size)
     /** River distance up from the sea, km; the mouth hex (-1 if none); cascades fish cannot pass. */
     @Transient private val upKm = FloatArray(size)
     @Transient private val mouth = HexArray(size)
     @Transient private val cascade = BooleanArray(size)
     /** The spawning grounds of each river mouth, km²: the land of the stream hexes draining to it below the first cascade (0 for a hex that is no mouth). */
     @Transient private val spawningKm2 = FloatArray(size)
+    /** The hexes that drain to a mouth, nearest the sea first. */
+    @Transient private var upOrder = HexArray.EMPTY
 
     /** Sea animals, kg/km² of sea, per kind of [SEA]. */
     val sea = Array(SEA.size) { FloatArray(size) }
@@ -235,6 +243,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         for (h in byDist) up(h)
         for (h in byDist) riverFish[h] = 0.7f * riverCapacity(h, 6)
         for (h in byDist) if (!mouth[h].none && !cascade[h]) spawningKm2[mouth[h]] += hw.land[h] * hexKm2
+        upOrder = hex.all.filter { !mouth[it].none }.sortedBy { upKm[it] }.toHexArray()
     }
 
     /** Sea-bird colonies: the most broken coast in each stretch, fishing the sea within reach. */
@@ -553,8 +562,9 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
             // (Fish that found no water to swim up last week wait off the mouth.)
             runWaiting.copyInto(runStock)
             for (h in hex.all) if (!mouth[h].none && run[h] > 0f) runStock[mouth[h]] += run[h] * landKm2[h]
+            for (h in hex.all) if (penned[h] > 0f) runStock[mouth[h]] += penned[h]
         }
-        run.fill(0f)
+        run.fill(0f); penned.fill(0f); passing.fill(0f)
         if (!running) return
         if (!on) {
             // The run is over: the survivors go back to the sea off the mouth, the spent ones die.
@@ -576,7 +586,18 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
             if (land.hydro.flow[h] / max(land.hydro.meanFlow[h], 1e-3f) < 0.2f) continue // too little water to swim up
             weight[h] = min(1f, land.hydro.meanFlow[h] / 30f) * exp(-upKm[h] / 150f); total[m] += weight[h]
         }
-        for (h in hex.all) if (weight[h] > 0f) run[h] = runStock[mouth[h]] * weight[h] / total[mouth[h]] / landKm2[h]
+        // Each hex's share of the run ([weight]) has to come up past the weirs below it: each stops [WEIR_RUN_SHARE] of the fish
+        // passing it, where it stands across the whole river, and holds them below it ([penned]); the hexes above get the rest.
+        val bound = FloatArray(size); val above = FloatArray(size); val through = FloatArray(size)
+        for (h in upOrder) if (weight[h] > 0f) bound[h] = runStock[mouth[h]] * weight[h] / total[mouth[h]]
+        for (i in upOrder.indices.reversed()) { val h = upOrder[i]; val d = land.hydro.down[h]; if (!d.none && mouth[d] == mouth[h]) above[d] += above[h] + bound[h] }
+        for (h in upOrder) {
+            val d = land.hydro.down[h]
+            through[h] = if (d.none || mouth[d] != mouth[h]) 1f else through[d] * (1f - WEIR_RUN_SHARE * weirBlock[d])
+            passing[h] = through[h] * above[h]
+            penned[h] = WEIR_RUN_SHARE * weirBlock[h] * passing[h]
+            if (bound[h] > 0f) run[h] = bound[h] * through[h] / landKm2[h]
+        }
         for (m in hex.all) runWaiting[m] = if (total[m] > 0f) 0f else runStock[m]
     }
 
@@ -694,22 +715,32 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     fun riverWidthM(h: Hex) = if (hw.riverKm[h] > 0f) Channel.widthM(max(land.hydro.meanFlow[h], 0.01f)) else 0f
 
     /**
-     * What a weir across [blocked] of the river in hex [h] could take this week at most, kg: its traps stop a share of the
-     * run passing up ([WEIR_RUN_SHARE]) and of the river's own fish, which move less ([WEIR_RIVER_SHARE]).
+     * What a weir across [blocked] of the river in hex [h] could take this week at most, kg: the run's fish its traps hold
+     * back from the river above ([penned], [WEIR_RUN_SHARE] of those passing up), and a share of the river's own fish, which
+     * move less ([WEIR_RIVER_SHARE]).
      */
     fun weirWithin(h: Hex, blocked: Float): Float {
         if (blocked <= 0f) return 0f
-        return blocked * (WEIR_RUN_SHARE * run[h] + WEIR_RIVER_SHARE * riverFish[h]) * max(1f, hw.land[h] * hexKm2)
+        return pennedFor(h, blocked) + blocked * WEIR_RIVER_SHARE * riverFish[h] * max(1f, hw.land[h] * hexKm2)
     }
+
+    /** What a weir across [blocked] of the river in hex [h] would take this week at most, kg, where none stood ([weirWithin]): the share of the run passing up that it would stop. */
+    fun weirWouldTake(h: Hex, blocked: Float): Float {
+        if (blocked <= 0f) return 0f
+        return blocked * (WEIR_RUN_SHARE * passing[h] + WEIR_RIVER_SHARE * riverFish[h] * max(1f, hw.land[h] * hexKm2))
+    }
+
+    /** The run's fish held below the weirs in hex [h] that weirs across [blocked] of the river there hold, kg: their share of what all of them stop. */
+    private fun pennedFor(h: Hex, blocked: Float) = if (weirBlock[h] > 0f) penned[h] * min(1f, blocked / weirBlock[h]) else 0f
 
     /** People emptying the traps of a weir across [blocked] of the river in hex [h]: takes up to [kg] of [weirWithin]; returns kg caught. */
     fun weirFor(h: Hex, kg: Float, blocked: Float): Float {
         val most = weirWithin(h, blocked)
         if (most <= 0f || kg <= 0f) return 0f
-        val share = min(kg, most) / most * blocked
-        val fromRun = share * WEIR_RUN_SHARE * run[h]; val fromRiver = share * WEIR_RIVER_SHARE * riverFish[h]
-        run[h] -= fromRun; riverFish[h] -= fromRiver
-        val got = (fromRun + fromRiver) * max(1f, hw.land[h] * hexKm2)
+        val share = min(kg, most) / most
+        val fromRun = share * pennedFor(h, blocked); val fromRiver = share * blocked * WEIR_RIVER_SHARE * riverFish[h]
+        penned[h] -= fromRun; riverFish[h] -= fromRiver
+        val got = fromRun + fromRiver * max(1f, hw.land[h] * hexKm2)
         fishFlows.merge(WEIR_FLOW, got / 1000.0, Double::plus)
         return got
     }
@@ -834,12 +865,12 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         const val FISH_SEARCH = 100f
         const val SHELLFISH_SEARCH = 50f
         /**
-         * Share a week of the run in a hex, and of the river's own fish, that the traps of a weir across the whole river stop.
-         * Weirs across a run river stopped nearly all of it: the Heiltsuk stone traps held all the salmon there were till
-         * the walls were opened, and the Kepel dam's pens filled as fast as the fishers could empty them, so that its middle
-         * was left open some days to let the fish by (Waterman & Kroeber 1938). Half a week stands for that (the run's fish
-         * are spread over the river below the front, not all passing the weir in a week; an estimate). The river's own fish
-         * keep to their reach and meet the traps only as they move: a twentieth a week (an estimate).
+         * Share a week of the run's fish passing up a hex, and of the river's own fish there, that the traps of a weir across
+         * the whole river stop. Weirs across a run river stopped nearly all of it: the Heiltsuk stone traps held all the
+         * salmon there were till the walls were opened, and the Kepel dam's pens filled as fast as the fishers could empty
+         * them, so that its middle was left open some days to let the fish by (Waterman & Kroeber 1938). Half stands for that:
+         * the fish that go by while the traps are full or the weir open (an estimate). The river's own fish keep to their
+         * reach and meet the traps only as they move: a twentieth a week (an estimate).
          */
         const val WEIR_RUN_SHARE = 0.5f
         const val WEIR_RIVER_SHARE = 0.05f

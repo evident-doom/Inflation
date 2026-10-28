@@ -139,7 +139,7 @@ internal fun HexGroups.buildingAt(g: HexGroup, kind: Built, h: Hex, design: Int,
  */
 internal fun HexGroups.tendStructures(weather: Weather) {
     if (!bands.structuresSeen) { bands.structuresSeen = true; raiseSavedHouses() }
-    if (bands.built.isEmpty()) return
+    if (bands.built.isEmpty()) { fauna.water.weirBlock.fill(0f); return }
     val where = HashMap<Int, Hex>()
     for (g in groups) if (g.alive && g.band != null) where[g.id] = hw.placeHex[g.place]
     for (s in bands.built) {
@@ -154,6 +154,12 @@ internal fun HexGroups.tendStructures(weather: Weather) {
         }
     }
     bands.built.removeAll { it.user < 0 && it.built <= 0f }
+    // (How much of each river the weirs that stand whole hold back the run from, whoever uses them: [HexWater.weirBlock].)
+    val block = fauna.water.weirBlock
+    block.fill(0f)
+    val at = HashSet<Hex>()
+    for (s in bands.built) if (s.kind == Built.WEIR && s.done) { block[s.hex] += s.built * s.size; at += s.hex }
+    for (h in at) block[h] = min(1f, block[h] / max(fauna.water.riverWidthM(h), 1e-3f))
 }
 
 /**
