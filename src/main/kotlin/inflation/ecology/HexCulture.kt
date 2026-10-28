@@ -12,6 +12,9 @@ import inflation.ecology.HexSmallLife.DeadPool
 import inflation.Kg
 import inflation.Tuning
 import inflation.Config
+import inflation.HASH_A
+import inflation.HASH_B
+import inflation.mix64
 
 import inflation.world.Biome
 import inflation.world.Date
@@ -25,21 +28,34 @@ import kotlin.math.exp
 // the band ([Band]); it changes when bands meet, when they split, and now and then by itself.
 
 /**
- * A tradition: a practice or belief a band holds, passed on to both halves when it splits, copied
- * from neighbours who do better, and now and then taken up or dropped. Each has a concrete effect.
+ * A tradition: a practice or belief a band holds, passed on to both halves when it splits, and now and then taken up or
+ * dropped. Each has a concrete effect. Know-how ([mark] false) is copied from neighbours who do better; a [mark], a custom
+ * of who a band is (how it treats its dead, whom it marries, what it will not eat, how it feasts), goes the way most of the
+ * bands about go ([conformist]), whoever does better: such customs are learned from parents and from the many, not weighed
+ * by what they bring (Hewlett, De Silvestri and Guglielmino 2002; Henrich and Boyd 1998).
  */
-enum class Tradition(val about: String) {
-    BURIAL("the dead are buried near camp: the band is loath to leave its place"),
-    SKY_LORE("sun, moon and stars are watched: the band keeps its seasonal round on time"),
-    TABOO_YOUNG("mothers and young are not hunted: game is spared in its breeding years"),
-    ORAL_TRADITION("songs, stories and genealogies: knowledge and skills fade more slowly"),
-    FEASTS("dance, song and shared feasts: bands grow larger before they split"),
-    MEDICINE("herbs, setting bones, care of the sick: fewer die of wounds and illness"),
-    EXOGAMY("partners are taken from other bands: less inbreeding, skills travel"),
-    HYGIENE("middens and water kept apart, camps cleaned: a kept camp fouls slowly"),
-    SHARING("food is shared on demand: insurance against hunger, but little point in storing up for oneself"),
-    LEAVE_DEAD("after a death the camp is unlucky and abandoned (unless the band buries its dead)"),
+enum class Tradition(val about: String, val mark: Boolean) {
+    BURIAL("the dead are buried near camp: the band is loath to leave its place", true),
+    SKY_LORE("sun, moon and stars are watched: the band keeps its seasonal round on time", false),
+    TABOO_YOUNG("mothers and young are not hunted: game is spared in its breeding years", true),
+    ORAL_TRADITION("songs, stories and genealogies: knowledge and skills fade more slowly", false),
+    FEASTS("dance, song and shared feasts: bands grow larger before they split", true),
+    MEDICINE("herbs, setting bones, care of the sick: fewer die of wounds and illness", false),
+    EXOGAMY("partners are taken from other bands: less inbreeding, skills travel", true),
+    HYGIENE("middens and water kept apart, camps cleaned: a kept camp fouls slowly", false),
+    SHARING("food is shared on demand: insurance against hunger, but little point in storing up for oneself", false),
+    LEAVE_DEAD("after a death the camp is unlucky and abandoned (unless the band buries its dead)", true),
 }
+
+/**
+ * Conformist learning (Henrich and Boyd 1998): the weight a band gives a way held by share [s] of the bands it has seen,
+ * s + [CONFORMITY_D] s (1 - s) (2s - 1): above its share where most hold it, below where few do.
+ */
+fun conformist(s: Float) = s + CONFORMITY_D * s * (1f - s) * (2f * s - 1f)
+/** How strongly bands follow the many in their marks (Henrich and Boyd's D, 0..1). Not measured: the full strength, so the effect shows. */
+const val CONFORMITY_D = 1f
+/** Years over which a band's sense of what the bands about hold ([Band.heard]) fades to a third. Not measured. */
+const val HEARD_YEARS = 2f
 
 /**
  * A deliberately small language: a fixed set of concepts, each named by a band with a word of its
@@ -157,10 +173,13 @@ const val FEAST_KG = 3f
 const val GATHER_PULL = 0.3f
 const val GATHER_HEADS = 150f
 
-/** The lineage a band founded at hex centre ([x], [y]) km descends from. */
+/**
+ * The lineage a band founded at hex centre ([x], [y]) km descends from: one of [LINEAGES], drawn for each block of country
+ * [LINEAGE_KM] across, so that blocks far apart share one only by chance (not in a pattern repeating across the map).
+ */
 fun lineageAt(x: Double, y: Double): Int {
-    val bx = (x / LINEAGE_KM).toInt(); val by = (y / LINEAGE_KM).toInt()
-    return Math.floorMod(bx, 4) + 4 * Math.floorMod(by, 4)
+    val bx = Math.floorDiv(x.toLong(), LINEAGE_KM.toLong()); val by = Math.floorDiv(y.toLong(), LINEAGE_KM.toLong())
+    return ((mix64(bx * HASH_A + by * HASH_B) ushr 33) % LINEAGES).toInt()
 }
 
 /** Words of a band founded at ([x], [y]) km: half named as in its own country, half as in the wider region, so neighbours understand each other in part. */
@@ -223,9 +242,22 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
     fun doing(g: HexGroup) = g.wellOff() + g.young.toFloat() / max(1, g.adults) +
         STANDING * (g.band?.ornaments ?: 0f) / max(1, g.size) + RENOWN * (g.band?.renown ?: 0f)
     val (lo, hi) = if (doing(a) < doing(b)) bandA to bandB else bandB to bandA
-    for (t in Tradition.entries) if (hi.holds(t) != lo.holds(t) && rnd.nextFloat() < COPY_TRADITION * u) {
-        lo.traditions[t] = hi.holds(t)
-        stats.meeting(if (hi.holds(t)) Met.Of.TOOK_UP else Met.Of.TOOK_LEAVE_OF, t.name.lowercase())
+    // Each sees what the other holds, as far as it understands it.
+    bandA.hear(bandB, u); bandB.hear(bandA, u)
+    for (t in Tradition.entries) {
+        if (hi.holds(t) == lo.holds(t)) continue
+        // A mark goes the way most of the bands about go: either may take up the other's, the likelier the more of the bands
+        // it has seen hold that way (one draw for the two, so neither comes first).
+        val (from, to) = if (!t.mark) {
+            if (rnd.nextFloat() < COPY_TRADITION * u) hi to lo else continue
+        } else {
+            val toA = COPY_TRADITION * u * conformist(bandA.heardShare(t, bandB.holds(t)))
+            val toB = COPY_TRADITION * u * conformist(bandB.heardShare(t, bandA.holds(t)))
+            val r = rnd.nextFloat()
+            if (r < toA) bandB to bandA else if (r < toA + toB) bandA to bandB else continue
+        }
+        to.traditions[t] = from.holds(t)
+        stats.meeting(if (from.holds(t)) Met.Of.TOOK_UP else Met.Of.TOOK_LEAVE_OF, t.name.lowercase())
     }
     riteMeet(lo, hi, u)
     teach(bandA, bandB, u, (doing(a) - doing(b)).coerceIn(-1f, 1f))
@@ -544,6 +576,9 @@ internal fun HexGroups.cultureWeek(g: HexGroup) {
             if (hex.distanceKm(h, here) > REMEMBERED_KM && rnd.nextFloat() < 0.5f * routes.forgetShare(h)) b.known[w] = b.known[w] and (1L shl i).inv() } }
     }
     b.inbred += (1f - b.inbred) / (2f * max(2, g.adults)) * years / GENERATION_YEARS
+    val keep = exp(-years / HEARD_YEARS)
+    for (t in Tradition.entries) b.heard[t] *= keep
+    b.heardOf *= keep
     for (i in b.grudge.indices) b.grudge[i] *= 1f - GRUDGE_FADE * years
     if (rnd.nextFloat() < WORD_DRIFT * Language.CONCEPTS * years) b.words[rnd.nextInt(Language.CONCEPTS)] = rnd.nextInt(Language.FORMS)
     for (t in Tradition.entries) {

@@ -63,6 +63,11 @@ class Band(kinds: Int) {
     val seasonQ = FloatArray(12)
     /** The food it got in each month over the last years, as a share of its need before keeping warm ([foresee]). */
     val monthSupply = FloatArray(12) { 1f }
+    /**
+     * The share of its hands' days left in each month once its fire, shelters and food are held ([BandTime.vital]), a mean
+     * over the years (below 0 till it has planned a week then): what its leanest month could give its herders ([keepHerds]).
+     */
+    val freeShare = FloatArray(12) { -1f }
     /** Share of its people sick with each [Illness] now, and share spared for having had it. */
     val sick = enumFloats<Illness>()
     val immune = enumFloats<Illness> { it.endemic }
@@ -230,6 +235,11 @@ class Band(kinds: Int) {
      */
     val herd = FloatArray(kinds)
     val herdTame = FloatArray(kinds)
+    /**
+     * Of each kind, whether its herd kept its increase to grow at its last week's keeping ([keepHerds]), and so fed the band
+     * only its milk. (Empty in a band loaded from a save made before it; [keepHerds] sizes it to [herd].)
+     */
+    var herdGrew = BooleanArray(kinds)
     /**
      * Of the grain in its stores, what it reaped from sown fields and keeps to sow first, its seed corn (as its stores count
      * it; eaten last, so no more than its grain: [seedCornIn]), and the share of that from ears that hold their grain;
@@ -406,6 +416,24 @@ class Band(kinds: Int) {
      * founding lineage), how inbred its children are, its grudges against each lineage's people.
      */
     val traditions = enumBools<Tradition>()
+    /**
+     * What it has seen held about it, for its marks ([Tradition.mark]): of the bands it met lately, each as far as it understood
+     * them, how many held each tradition ([heard]) of how many in all ([heardOf]); fading over [HEARD_YEARS] ([HexGroups.cultureWeek]).
+     */
+    val heard = enumFloats<Tradition>()
+    var heardOf = 0f
+    /** Counts band [o], understood as far as [u], among those it has met lately ([heard]). */
+    fun hear(o: Band, u: Float) {
+        for (t in Tradition.entries) if (o.holds(t)) heard[t] += u
+        heardOf += u
+    }
+    /**
+     * The share of the bands it met lately, itself counted as one, that hold [t] as [held] (for its marks: [conformist]).
+     */
+    fun heardShare(t: Tradition, held: Boolean): Float {
+        val n = if (held) heard[t] else heardOf - heard[t]
+        return (n + (if (holds(t) == held) 1f else 0f)) / (heardOf + 1f)
+    }
     val words = IntArray(Language.CONCEPTS)
     val lineage = FloatArray(LINEAGES)
     var inbred = 0.02f
@@ -475,8 +503,8 @@ class Band(kinds: Int) {
 
     fun splitInto(o: Band, adults: Int, stay: Int, share: Float, r: Random, copied: (Band) -> Unit) {
         o.ties.clear(); o.ties.putAll(ties); o.appointment = appointment
-        o.houseHex = houseHex; o.house = house; o.homeEarth = homeEarth; o.homeWalls = homeWalls; o.homeGroundC = homeGroundC; o.palisade = palisade; herdTame.copyInto(o.herdTame); herd.copyInto(o.herd)
-        o.houseLives = houseLives; o.houseFood = houseFood; foodFrom.copyInto(o.foodFrom); o.fishPull = fishPull; monthSupply.copyInto(o.monthSupply); o.leanDays = leanDays
+        o.houseHex = houseHex; o.house = house; o.homeEarth = homeEarth; o.homeWalls = homeWalls; o.homeGroundC = homeGroundC; o.palisade = palisade; herdTame.copyInto(o.herdTame); herd.copyInto(o.herd); herdGrew.copyInto(o.herdGrew)
+        o.houseLives = houseLives; o.houseFood = houseFood; foodFrom.copyInto(o.foodFrom); o.fishPull = fishPull; monthSupply.copyInto(o.monthSupply); freeShare.copyInto(o.freeShare); o.leanDays = leanDays
         o.seedDomestic = seedDomestic; o.grainDomestic = grainDomestic; o.seedCorn = seedCorn * share; seedCorn -= o.seedCorn; o.sinceRaided = sinceRaided; o.sisu = sisu
         o.knownHomes.putAll(knownHomes); o.knownLineage.putAll(knownLineage)
         skills.copyInto(o.skills)
@@ -497,7 +525,7 @@ class Band(kinds: Int) {
         o.salted = salted; o.dryDepth = dryDepth
         o.renown = renown
         rite.copyInto(o.rite); o.riteStrength = riteStrength
-        traditions.copyInto(o.traditions); words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
+        traditions.copyInto(o.traditions); heard.copyInto(o.heard); o.heardOf = heardOf; words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
         o.inbred = inbred; o.campWeeks = campWeeks; o.campPlace = campPlace; o.known = known.copyOf(); kept.copyInto(o.kept)
         copied(o)
         for (i in o.kept.indices) { o.kept[i] *= share; kept[i] -= o.kept[i] }
@@ -557,6 +585,8 @@ class Band(kinds: Int) {
         for (i in Tool.entries) a.knows[i] = a.knows[i] || b.knows[i]
         for (i in a.lineage.indices) a.lineage[i] += w * (b.lineage[i] - a.lineage[i])
         for (i in a.grudge.indices) a.grudge[i] = max(a.grudge[i], b.grudge[i])
+        for (t in Tradition.entries) a.heard[t] += b.heard[t]
+        a.heardOf += b.heardOf
         for ((k, v) in b.ties) if (k != id) a.ties[k] = max(a.tie(k), v)
         a.ties.remove(bId)
         for ((k, v) in b.favours) if (k != id) a.favours.merge(k, v, Float::plus)

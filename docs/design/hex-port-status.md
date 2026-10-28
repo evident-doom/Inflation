@@ -125,7 +125,7 @@ hex learning tools. (The 1 km model's `Simulation` has since been removed; the h
 | Tools made from local materials, worn out, carried | yes (spear, bow, net, sickle, grinding stone, basket, clothes) |
 | Tools hit on and shown to bands met | yes |
 | Camp kept: births closer with stores, children sicken in a fouled camp, bands leave fouled camps | yes |
-| Traditions with effects, copied from bands doing better, taken up and dropped | yes (ten) |
+| Traditions with effects, taken up and dropped: know-how copied from bands doing better, marks (burial, leaving the dead, marrying out, sparing young game, feasts) from the many bands met | yes (ten) |
 | Language as words per concept, understanding between bands | yes (naming game, drift) |
 | Marrying out, lineage mix, inbreeding | yes |
 | Elders and grandmothers | yes |
