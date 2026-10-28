@@ -227,6 +227,13 @@ private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float)
     choreAsks(g, b, w.weather.date, asks, warm)
     // (The band weighs the rest of the asks against each other by its ways: see [timeWay].)
     time.plan(needs, asks, enumFloats<Activity> { a -> timeWay(a)?.let { b.will[it] } ?: 1f }, warm, kept)
+    // (What its fire, shelters and food leave of the week, kept month by month as a mean over the years: what its
+    // leanest month could give its herders, [keepHerds].)
+    run {
+        val free = if (time.total > 0f) max(0f, time.left - time.vital) / time.total else 0f
+        val m = w.weather.date.month; val was = b.freeShare[m]
+        b.freeShare[m] = if (was < 0f) free else was + min(1f, years * Date.MONTHS_PER_YEAR) * (free - was)
+    }
     if (WARM_DIAG) b.diagFoodHeld = time.heldFor(Activity.FOOD)
     b.binding?.let { bind ->
         if (time.short) for (a in Activity.entries) if (asks[a] > 0f) bind[a.ordinal] += 1f
