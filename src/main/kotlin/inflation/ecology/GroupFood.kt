@@ -1080,9 +1080,9 @@ private fun HexGroups.huntGame(g: HexGroup, k: Int, p: Place, expected: Float, k
         dialUse?.amount(DialSite.KEEP_CAPTURE, band.keepWill, min(1f, CAPTURE * band.keepWill * keepable),
             min(1f, CAPTURE * keepable), cut = CAPTURE * band.keepWill * keepable > 1f)
         if (kept > 0) {
-            // (Raised by hand from young, they come to the camp as tame as a herd's, [RAISED_TAME], as far as their kind's
-            // worst criterion lets them: a kind of bad temper stays wild however raised.)
-            band.herdTame[k] = (band.herdTame[k] * band.herd[k] + min(RAISED_TAME, keepable) * kept) / (band.herd[k] + kept)
+            // (Raised by hand from young, they come to the camp as tame as a herd's, [RAISED_TAME], whatever their kind: how
+            // well a kind keeps on foot shows in how many stray, [straying].)
+            band.herdTame[k] = (band.herdTame[k] * band.herd[k] + RAISED_TAME * kept) / (band.herd[k] + kept)
             // (A herd begun so is kept as pets till they have grown: [Band.herdPet].)
             if (band.herd[k] < 0.5f) {
                 bands.herdsBegun.incrementAndGet(k)

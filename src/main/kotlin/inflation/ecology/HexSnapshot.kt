@@ -364,9 +364,13 @@ object HexSnapshot {
      * 4.82: kept animals stray as the square of their wildness ([HERD_RUN_OFF] 0.5 × (1 − tameness)²; still 2% a year at
      *   tameness 0.8): a 0.6-tame herd loses 8% a year, a 0.2-tame one 32%; before, in a straight line, half-wild ostriches
      *   lost little enough to be herded on foot.
+     * 4.83: young raised by hand come [RAISED_TAME] tame whatever their kind (before, no tamer than its worst criterion, so
+     *   raised kids and lambs stayed 0.6 and never paid); a kind's ease on foot (the worse of panic and social structure)
+     *   scales the straying instead ([straying], [HERD_EASE] 0.6): at tameness 0.8 goats, sheep and boar lose 2% a year,
+     *   aurochs 11%, ostrich 18%, red deer 27%.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 82
+    const val MODEL_MINOR = 83
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
