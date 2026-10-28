@@ -31,6 +31,9 @@ import inflation.ecology.seedCornIn
 import inflation.ecology.bandLiving
 import inflation.ecology.birthSpacing
 import kotlin.math.max
+import inflation.ecology.GATHER_KM
+import inflation.ecology.Language
+import inflation.ecology.Tradition
 
 /**
  * The model as it stands, over the whole map: each method prints one or a few lines of a fauna check's
@@ -499,6 +502,76 @@ class Census(private val sim: HexSim) {
             "%d / %s / %s".format(sizes[c], gs.joinToString(",").ifEmpty { "-" }, res.joinToString(",").ifEmpty { "-" }) })
     }
 
+    /**
+     * The identity census, two to four lines: whether bands form regions of one tongue and one set of customs, how alike bands
+     * are by distance apart, and how this year's meetings went by how alike the bands were ([thisYear], the hunting ledger's
+     * year so far: see [Tally.meetingsBy]). Bands within [GATHER_KM] of each other are neighbours; neighbours that understand
+     * each other at [REGION_UNDERSTOOD] or better and hold at most [REGION_CUSTOMS_APART] of their traditions differently are
+     * of one region, and so are the neighbours of those (single linkage). A band bordering another region has a neighbour in
+     * it. The lines are the report's: nothing in the model reads them.
+     */
+    fun printIdentity(thisYear: Map<TallyKey, Int>) {
+        val bands = groups.groups.mapNotNull { g -> g.band?.takeIf { g.alive }?.let { g to it } }
+        val n = bands.size
+        if (n < 2) return
+        val at = Array(n) { hw.placeHex[bands[it].first.place] }
+        val parent = IntArray(n) { it }
+        fun root(i: Int): Int {
+            var r = i
+            while (parent[r] != r) r = parent[r]
+            var j = i
+            while (parent[j] != r) { val next = parent[j]; parent[j] = r; j = next }
+            return r
+        }
+        // (Every pair once: by distance class for the means, and the neighbours for the regions.)
+        val pairs = LongArray(IDENTITY_KM.size + 1); val understood = DoubleArray(pairs.size); val apart = DoubleArray(pairs.size)
+        val sameLineage = LongArray(pairs.size)
+        val nearA = ArrayList<Int>(); val nearB = ArrayList<Int>()
+        for (i in 0 until n) {
+            val bi = bands[i].second; val li = bi.mainLineage()
+            for (j in i + 1 until n) {
+                val bj = bands[j].second
+                val km = hex.distanceKm(at[i], at[j])
+                val u = Language.understanding(bi.words, bj.words)
+                val off = Tradition.entries.count { bi.holds(it) != bj.holds(it) }
+                var c = 0
+                while (c < IDENTITY_KM.size && km >= IDENTITY_KM[c]) c++
+                pairs[c]++; understood[c] += u.toDouble(); apart[c] += off.toDouble()
+                if (li == bj.mainLineage()) sameLineage[c]++
+                if (km <= GATHER_KM) {
+                    nearA += i; nearB += j
+                    if (u >= REGION_UNDERSTOOD && off <= REGION_CUSTOMS_APART) { val ri = root(i); val rj = root(j); if (ri != rj) parent[ri] = rj }
+                }
+            }
+        }
+        val people = DoubleArray(n); val members = IntArray(n)
+        for (i in 0 until n) { val r = root(i); people[r] += bands[i].first.size.toDouble(); members[r]++ }
+        val border = BooleanArray(n)
+        for (k in nearA.indices) if (root(nearA[k]) != root(nearB[k])) { border[nearA[k]] = true; border[nearB[k]] = true }
+        val all = people.sum().coerceAtLeast(1.0)
+        val regions = (0 until n).filter { members[it] >= 2 }.map { people[it] }.sorted()
+        fun q(f: Double) = if (regions.isEmpty()) 0.0 else regions[((regions.size - 1) * f).toInt()]
+        println("     identity: %d bands; %d regions of 2 bands or more hold %.0f%% of people (people a region: median %.0f, tenth %.0f, ninetieth %.0f; largest %.0f%% of people); %d bands alone; %.0f%% of bands border another region"
+            .format(n, regions.size, 100 * regions.sum() / all, q(0.5), q(0.1), q(0.9), 100 * (regions.lastOrNull() ?: 0.0) / all,
+                (0 until n).count { members[root(it)] < 2 }, 100.0 * border.count { it } / n))
+        val classes = List(pairs.size) { c ->
+            val lo = if (c == 0) 0.0 else IDENTITY_KM[c - 1]
+            if (c < IDENTITY_KM.size) "%.0f-%.0f km".format(lo, IDENTITY_KM[c]) else "%.0f km and over".format(lo)
+        }
+        println("     identity by distance apart (pairs: understood / customs apart / same main lineage): " + pairs.indices.filter { pairs[it] > 0 }.joinToString(", ") { c ->
+            "%s %d: %.2f / %.1f / %.0f%%".format(classes[c], pairs[c], understood[c] / pairs[c], apart[c] / pairs[c], 100.0 * sameLineage[c] / pairs[c]) })
+        fun line(label: String, key: (Tally.MeetingEnd) -> TallyKey): String {
+            fun v(e: Tally.MeetingEnd) = thisYear[key(e)] ?: 0
+            val met = v(Tally.MeetingEnd.MET)
+            return "%s %d/%d/%d/%d".format(label, met, v(Tally.MeetingEnd.RAIDED), v(Tally.MeetingEnd.PARTNERS), v(Tally.MeetingEnd.RAIDED_HOME)) +
+                (if (met > 0) " (%.0f raids a thousand meetings)".format(1000.0 * v(Tally.MeetingEnd.RAIDED) / met) else "")
+        }
+        println("     meetings this year by understanding (met / raided at meeting / exchanged partners / raided at home): " +
+            Tally.Understood.entries.joinToString(", ") { u -> line(u.label) { e -> Tally.meetingsBy(u, e) } })
+        println("     meetings this year by customs (met / raided at meeting / exchanged partners / raided at home): " +
+            Tally.CustomsApart.entries.joinToString(", ") { c -> line(c.label) { e -> Tally.meetingsBy(c, e) } })
+    }
+
     /** Where each kind lives at the end: share on low ground (and in unsplit hexes) and on high ground. */
     fun printHeights() {
         println("share of each kind on low ground (and in unsplit hexes), and on high ground:")
@@ -510,3 +583,13 @@ class Census(private val sim: HexSim) {
         }
     }
 }
+
+/**
+ * The identity census's lines between regions ([Census.printIdentity]): neighbours that understand each other at this or
+ * better and hold at most this many traditions differently are of one region. The report's, not measured; and the edges of
+ * its distance classes, km (a band's gathering ground, the 150 km blocks founders' words and descent come from, a 450 km
+ * region's words, and the 600 km after which founders' lineages repeat).
+ */
+private const val REGION_UNDERSTOOD = 0.75f
+private const val REGION_CUSTOMS_APART = 1
+private val IDENTITY_KM = doubleArrayOf(50.0, 150.0, 450.0, 600.0)
