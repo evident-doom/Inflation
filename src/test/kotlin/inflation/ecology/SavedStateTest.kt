@@ -43,7 +43,7 @@ class SavedStateTest {
     private val stillOnThisWorld = setOf(
         "weather.meltwater", "weather.meltSun", "weather.meltShade", "land.hydro.flood", "land.hydro.soak", "land.plants.cured",
         "land.plants.curedShade", "land.plants.ash", "land.fire.burning", "land.fire.burnt", "fauna.huntedByResidents", "fauna.small.locusts",
-        "fauna.small.returning", "fauna.small.waiting", "fauna.small.leaving", "fauna.small.newborn", "fauna.water.run",
+        "fauna.small.returning", "fauna.small.waiting", "fauna.small.leaving", "fauna.small.newborn", "fauna.water.run", "fauna.water.penned",
         "fauna.water.runStock", "fauna.water.runWaiting", "fauna.food.cereal", "fauna.food.domestic", "fauna.food.field",
         "fauna.food.ripenedNow", "fauna.food.fieldGrain", "fauna.food.fieldDomestic", "fauna.food.fieldDays", "fauna.food.fieldStress", "fauna.food.fieldSoil", "fauna.food.fieldWorn",
         // (A worn route forms from many crossings: on this small world a year may or may not see the first one, or a way along it.)
