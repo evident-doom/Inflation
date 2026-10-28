@@ -331,7 +331,8 @@ object HexSnapshot {
      * 4.72: a band keeps its herd's increase, females with it, while its leanest month would still herd the herd grown,
      *   and culls above that, a month's share of the excess a week ([Band.freeShare]: the share of its days its fire,
      *   shelters and food leave, month by month); before, it kept the increase only where that week's spare days would
-     *   herd it, so a herd could only hold or shrink.
+     *   herd it, so a herd could only hold or shrink. A herd that kept its increase to grow feeds the band only its milk
+     *   ([Band.herdGrew]), and the band forages for the rest.
      */
     const val MODEL_MAJOR = 4
     const val MODEL_MINOR = 72

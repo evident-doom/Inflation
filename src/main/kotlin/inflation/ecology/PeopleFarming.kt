@@ -221,6 +221,7 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
         val increase = n * max(0f, herdIncrease(b, k, fed)) * years
         val grows = pays && increase / headsAHerder(s) <= (room ?: spare)
         if (grows) { if (room != null) room -= increase / headsAHerder(s) else spare -= increase / headsAHerder(s) }
+        b.herdGrew[k] = grows
         val kept = if (grows) n else if (pays) max(0f, n - increase)
             else max(0f, n - g.dailyNeedKg * days / (s.massKg * MEAT_SHARE * Nourishment.MEAT * g.species.needScale))
         if (n > kept) slaughter(k, n - kept, if (pays) HerdFlow.EATEN else HerdFlow.EATEN_UNPAID)
@@ -301,8 +302,8 @@ internal fun GroupWorld.herdWorth(g: HexGroup, b: Band, k: Int): Float {
 
 /**
  * What [g]'s band [b] can count on its herds to feed it in the week of [date], in kg of its need as [forage] counts food:
- * the week's share of each herd's yearly increase, which [keepHerds] eats, and the milk of its mothers in milk. The band
- * forages only for the rest of its week's food.
+ * the week's share of each herd's yearly increase, which [keepHerds] eats unless the herd kept it to grow last week
+ * ([Band.herdGrew]), and the milk of its mothers in milk. The band forages only for the rest of its week's food.
  */
 internal fun GroupWorld.herdFoodWeek(g: HexGroup, b: Band, date: Date): Float {
     var food = 0f
@@ -310,7 +311,7 @@ internal fun GroupWorld.herdFoodWeek(g: HexGroup, b: Band, date: Date): Float {
         val n = b.herd[k]
         if (n <= 0f) continue
         val s = fauna.kinds[k]; val tame = b.herdTame[k]
-        food += n * max(0f, herdIncrease(b, k)) * years * s.massKg * MEAT_SHARE * Nourishment.MEAT
+        if (!b.herdGrew[k]) food += n * max(0f, herdIncrease(b, k)) * years * s.massKg * MEAT_SHARE * Nourishment.MEAT
         if (lactating(s, date)) food += n * 0.5f * (0.3f + 0.7f * tame) * tame * milkKg(s) * days / LACTATION_DAYS * Nourishment.MILK
     }
     return food * g.species.needScale
