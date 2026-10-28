@@ -193,6 +193,8 @@ object Tally {
          */
         PLAN_FIRE("fire planned, %"), FIRE_GOT("fire got, %"), LIT("fire lit, %"), PLAN_ODDS("exposure planned, 1/10000"),
         ODDS("exposure, 1/10000"), LEFT("days after the walk, %"), SHELTER_ASKED("shelter asked, band-weeks"), SHELTER_FIRST("shelter held first, %"),
+        /** What keeping warm adds to a band's food ([Warmth.extra]), and the shelter its survival pass aimed at ([Band.shelterAim]), summed over band-weeks. */
+        WARM_EXTRA("keeping warm extra, 1/1000"), AIM("shelter aimed, 1/100"),
     }
     /**
      * In the weeks the cold ran a band's people into heat debt through all the cover it had ([WEEKS], tenths): the worst debt
@@ -316,6 +318,15 @@ object Tally {
         KILLS_OVER("kills beyond expected"), KILLS_UNDER("kills short of expected"), HAUL("hauling"), DIG("digging soaks")
     }
     fun foodTime(k: FoodTime) = TallyKey.raw("band foraging time:${k.label}")
+    /** How far a band's shelters stood at the week's end ([Band.shelter]): the first bin it falls [below]. The report's line. */
+    enum class Hut(val label: String, val below: Float) {
+        NONE("no hut", 0.5f), LIGHT("light hut", 1.05f), PART("part thatched", 1.5f), THATCHED("thatched", Float.POSITIVE_INFINITY);
+        companion object { fun of(s: Float) = entries.firstOrNull { s < it.below } ?: THATCHED }
+    }
+    /** Bands' tallies by how far their shelters stood; [bandsHutDied] (hut) starts all their deaths. */
+    fun bandsHut(h: Hut, what: Bands) = TallyKey.raw("bands shelter ${h.label}:${what.label}")
+    fun bandsHutDied(h: Hut, cause: DeathReason) = TallyKey.raw(bandsHutDied(h).text + cause.label)
+    fun bandsHutDied(h: Hut) = TallyKey.raw("bands shelter ${h.label}:$DIED_OF")
     /** Whether a band keeps a herd ([Band.herd]). */
     enum class HerdKept(val label: String) { HERDING("keeping a herd"), NONE("keeping none") }
     /** Bands' tallies by whether they keep a herd; [bandsHerdKeptDied] (herding) starts all their deaths. */
