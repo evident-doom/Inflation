@@ -338,9 +338,12 @@ object HexSnapshot {
      * 4.74: a river's spring run is as big as its spawning grounds hold ([HexWater.RUN_KG_PER_KM2], fitted to the Rhine's
      *   salmon) as far as the sea off its mouth can give; before, it was a twentieth of the fish off the mouth whatever the
      *   river, some 600 t a year over the whole map.
+     * 4.75: a band's marks ([Tradition.mark]: burial, leaving the dead, marrying out, sparing young game, feasts) go the way most
+     *   of the bands it has met lately go ([conformist], [Band.heard]), not the way of the band doing better; know-how is still
+     *   copied from the better off. Founders' lineages are drawn per 150 km block ([lineageAt]) instead of repeating every 600 km.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 74
+    const val MODEL_MINOR = 75
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
