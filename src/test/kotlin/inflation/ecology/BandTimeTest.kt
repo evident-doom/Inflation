@@ -72,19 +72,6 @@ class BandTimeTest {
     }
 
     @Test
-    fun `days spent past an activity's hold come off the others' holds in proportion`() {
-        val time = BandTime(10f)
-        val asks = enumFloats<Activity>()
-        asks[Activity.FOOD] = 4f; asks[Activity.TOOLS] = 3f; asks[Activity.CUSTOMS] = 3f
-        time.plan(enumFloats(), asks)
-        time.spend(Activity.FOOD, 6f)
-        assertEquals(2f, time.leftFor(Activity.TOOLS), 1e-3f)
-        assertEquals(2f, time.leftFor(Activity.CUSTOMS), 1e-3f)
-        time.spend(Activity.TOOLS, 2f); time.release(Activity.TOOLS)
-        assertEquals(2f, time.leftFor(Activity.CUSTOMS), 1e-3f)
-    }
-
-    @Test
     fun `work at half pace takes twice the people's days, the rest lost`() {
         val pace = enumFloats<Activity> { 1f }.also { it[Activity.FOOD] = 0.5f }
         val t = BandTime(10f, pace)

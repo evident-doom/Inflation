@@ -316,8 +316,8 @@ object HexSnapshot {
      * 4.68: mast a band lays by keeps as seed does ([Store.SEED], 0.5% lost a week); before, it went in with roots and lost
      *   3% a week, four fifths in a year, so no band could carry a good mast year over a poor one. Roots and bulbs in the
      *   ground are counted by their energy, as the root search was fitted ([HexFood.ROOTS_SHARE] 0.01 to 0.03).
-     * 4.69: a band puts up its camp's shelters as soon as its week is planned, before foraging ([putUpShelter]); days a chore
-     *   spends past its hold come off the others' holds in proportion, not off whichever chore comes next ([BandTime.spend]).
+     * 4.69: a band puts up its camp's shelters as soon as its week is planned, before foraging can overrun into their days
+     *   ([putUpShelter]); built after the foraging and the other chores, they were the first a week's overrun took.
      */
     const val MODEL_MAJOR = 4
     const val MODEL_MINOR = 69
