@@ -338,14 +338,16 @@ object HexSnapshot {
      * 4.74: a river's spring run is as big as its spawning grounds hold ([HexWater.RUN_KG_PER_KM2], fitted to the Rhine's
      *   salmon) as far as the sea off its mouth can give; before, it was a twentieth of the fish off the mouth whatever the
      *   river, some 600 t a year over the whole map.
-     * 4.75: a band keeps its herd's increase, females with it, while its leanest month would still herd the herd grown,
+     * 4.75: a weir holds back a share of the run's fish passing up its hex bound for the river above ([HexWater.penned]), and
+     *   the hexes above get the rest; before, it took a share of its own hex's part of the run, as if no fish went by it.
+     * 4.76: a band keeps its herd's increase, females with it, while its leanest month would still herd the herd grown,
      *   and culls above that, a month's share of the excess a week ([Band.freeShare]: the share of its days its fire,
      *   shelters and food leave, month by month); before, it kept the increase only where that week's spare days would
      *   herd it, so a herd could only hold or shrink. A herd that kept its increase to grow feeds the band only its milk
      *   ([Band.herdGrew]), and the band forages for the rest.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 75
+    const val MODEL_MINOR = 76
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

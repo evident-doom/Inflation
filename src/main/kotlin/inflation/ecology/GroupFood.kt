@@ -667,7 +667,7 @@ private fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
         // (What fish from a whole weir there would pay it, as it weighs them, a day of handling: whether one would be worth
         // building, see [weirAsk].)
         val whole = weirLengthM(h)
-        val wholeKg = if (whole > 0f) fauna.water.weirWithin(h, whole / width) else 0f
+        val wholeKg = if (whole > 0f) fauna.water.weirWouldTake(h, whole / width) else 0f
         w.weirProbe = if (wholeKg > 0f && w.gatherers > 0f)
             w.weigh(Food.FISH) * band.effort[Food.FISH] / harassedDays(g.place, weirDays(whole, wholeKg) / w.gatherHands + w.eats) else 0f
     }
