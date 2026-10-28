@@ -335,9 +335,12 @@ object HexSnapshot {
      *   stream; the mover and the people net's fish input see their catch.
      * 4.73: a band puts up its camp's shelters as soon as its week is planned, before foraging can overrun into their days
      *   ([putUpShelter]); built after the foraging and the other chores, they were the first a week's overrun took.
+     * 4.74: a river's spring run is as big as its spawning grounds hold ([HexWater.RUN_KG_PER_KM2], fitted to the Rhine's
+     *   salmon) as far as the sea off its mouth can give; before, it was a twentieth of the fish off the mouth whatever the
+     *   river, some 600 t a year over the whole map.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 73
+    const val MODEL_MINOR = 74
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

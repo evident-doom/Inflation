@@ -95,6 +95,8 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     @Transient private val upKm = FloatArray(size)
     @Transient private val mouth = HexArray(size)
     @Transient private val cascade = BooleanArray(size)
+    /** The spawning grounds of each river mouth, km²: the land of the stream hexes draining to it below the first cascade (0 for a hex that is no mouth). */
+    @Transient private val spawningKm2 = FloatArray(size)
 
     /** Sea animals, kg/km² of sea, per kind of [SEA]. */
     val sea = Array(SEA.size) { FloatArray(size) }
@@ -232,6 +234,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         }
         for (h in byDist) up(h)
         for (h in byDist) riverFish[h] = 0.7f * riverCapacity(h, 6)
+        for (h in byDist) if (!mouth[h].none && !cascade[h]) spawningKm2[mouth[h]] += hw.land[h] * hexKm2
     }
 
     /** Sea-bird colonies: the most broken coast in each stretch, fishing the sea within reach. */
@@ -518,7 +521,9 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     private var running = false
 
     /**
-     * Spring spawning run: at its start a share of the fish off each river mouth gathers and goes up
+     * Spring spawning run: at its start the fish off each river mouth that spawn up it gather, as many as its spawning
+     * grounds hold ([RUN_KG_PER_KM2] of the land along its streams below the first cascade, [spawningKm2]) and the sea
+     * off the mouth can give ([RUN_MAX_SHARE]), and go up
      * the river (as far as the front has come, while there is water to swim up), where people and
      * bears take what they can; at its end the survivors go back to the sea, and the spent fish die
      * in the river.
@@ -529,12 +534,18 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         if (on && !running) {
             // The run gathers off each mouth.
             runStock.fill(0f)
-            val mouths = HashSet<Hex>(); for (h in hex.all) if (!mouth[h].none && !cascade[h]) mouths += mouth[h]
-            for (m in mouths) for (d in 0 until 6) {
-                val q = hex.neighbour(m, d); if (q.none || seaKm2[q] <= 0f) continue
-                val taken = RUN_SHARE * fish[q]
-                fish[q] -= taken; runStock[m] += taken * waterKm2[q]
-                fishFlows.merge(RUN_FLOW, taken * waterKm2[q] / 1000.0, Double::plus)
+            for (m in hex.all) {
+                if (spawningKm2[m] <= 0f) continue
+                var offshore = 0f
+                for (d in 0 until 6) { val q = hex.neighbour(m, d); if (!q.none && seaKm2[q] > 0f) offshore += fish[q] * waterKm2[q] }
+                if (offshore <= 0f) continue
+                val share = min(RUN_MAX_SHARE, RUN_KG_PER_KM2 * spawningKm2[m] / offshore)
+                for (d in 0 until 6) {
+                    val q = hex.neighbour(m, d); if (q.none || seaKm2[q] <= 0f) continue
+                    val taken = share * fish[q]
+                    fish[q] -= taken; runStock[m] += taken * waterKm2[q]
+                    fishFlows.merge(RUN_FLOW, taken * waterKm2[q] / 1000.0, Double::plus)
+                }
             }
             running = true
         } else if (running) {
@@ -774,8 +785,18 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         const val RUN_START_DAY = 120
         const val RUN_DAYS = 60
         const val RUN_KM_PER_DAY = 20f
-        /** Share of the fish off a river mouth that run up it in spring; share of the run that lives to go back. */
-        const val RUN_SHARE = 0.05f
+        /**
+         * Fish that run up a river in spring, kg a year per km² of its spawning grounds ([spawningKm2]). Fitted to the Rhine's
+         * salmon: up to 250,000 caught a year in the 19th century (Lachsverein; the Lorelei reach the richest), at some 9 kg each
+         * (an estimate), over its 185,000 km² basin, about 12 kg/km² caught; the run itself larger, as the fishers took half of
+         * it or more (the catch efficiency the Columbia's pre-dam estimates assume, 50-67%: NPPC 1986, via CRITFC 2016). So 20.
+         * (The Columbia before the dams ran 6-16 million salmon a year, some 50-140 kg/km²: the richest known, not this world's.)
+         * The stream hexes' land stands for the basin.
+         */
+        const val RUN_KG_PER_KM2 = 20f
+        /** Most of the fish off a mouth that run up it in a spring (an estimate): a poor sea feeds a poor run. */
+        const val RUN_MAX_SHARE = 0.5f
+        /** Share of the run that lives to go back to the sea. */
         const val RUN_SURVIVAL = 0.7f
         /**
          * Upwelling: daily share of the gap to the deep water's nutrients mixed up at full strength; wind for
