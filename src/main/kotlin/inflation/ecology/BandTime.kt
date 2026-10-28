@@ -64,6 +64,8 @@ class BandTime(left: Float, private val pace: EnumFloats<Activity>? = null) {
     private val heldAtOne = enumFloats<Activity>()
     /** What each activity asked for this week, person-days (none before a [plan]). */
     val asked = enumFloats<Activity>()
+    /** Of [asked], what it asked first, to keep its people warm (none before a [plan]). */
+    val askedFirst = enumFloats<Activity>()
     /** Whether the asks beyond what the week needs came to more than the days left for them (false before a [plan]). */
     var short = false
         private set
@@ -117,7 +119,7 @@ class BandTime(left: Float, private val pace: EnumFloats<Activity>? = null) {
      */
     fun plan(needs0: EnumFloats<Activity>, asks0: EnumFloats<Activity>, weights: EnumFloats<Activity>? = null, warm0: EnumFloats<Activity>? = null,
              kept: EnumFloats<Activity>? = null) {
-        for (a in Activity.entries) asked[a] = needs0[a] + asks0[a] + (warm0?.get(a) ?: 0f) + (kept?.get(a) ?: 0f)
+        for (a in Activity.entries) { asked[a] = needs0[a] + asks0[a] + (warm0?.get(a) ?: 0f) + (kept?.get(a) ?: 0f); askedFirst[a] = warm0?.get(a) ?: 0f }
         // (Days of work asked, as people's days at each activity's pace.)
         val needs = FloatArray(needs0.a.size) { needs0.a[it] / pace(Activity.entries[it]) }
         val asks = FloatArray(asks0.a.size) { asks0.a[it] / pace(Activity.entries[it]) }

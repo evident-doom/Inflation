@@ -166,6 +166,7 @@ class StringKeysTest {
         unique("Tally.Squeeze", Tally.Squeeze.entries.map { it.label })
         unique("Tally.Spare", Tally.Spare.entries.map { it.label })
         unique("Tally.HerdKept", Tally.HerdKept.entries.map { it.label })
+        unique("Tally.Warmed", Tally.Warmed.entries.map { it.label })
         unique("Tally.ClothesMade", Tally.ClothesMade.entries.map { it.label })
     }
 }

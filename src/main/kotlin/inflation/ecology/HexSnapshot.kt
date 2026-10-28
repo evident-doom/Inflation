@@ -333,9 +333,11 @@ object HexSnapshot {
      *   they take and a little landing and gutting a kilo ([weirDays]), so they pay only where many fish pass (a spawning
      *   run). Before, every kilo of fish took the same handling wherever and whenever it was caught. Weirs wear in the
      *   stream; the mover and the people net's fish input see their catch.
+     * 4.73: a band puts up its camp's shelters as soon as its week is planned, before foraging can overrun into their days
+     *   ([putUpShelter]); built after the foraging and the other chores, they were the first a week's overrun took.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 72
+    const val MODEL_MINOR = 73
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
