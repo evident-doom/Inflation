@@ -57,7 +57,7 @@ class CultureAndMeetingsTest {
     }
 
     @Test
-    fun `regard: strangers of other customs are warier than kin and friends, and the raid chance is the one it always was`() {
+    fun `regard - strangers of other customs are warier than kin and friends, and the raid chance is the one it always was`() {
         val b = Band(0); val o = Band(0)
         b.lineage[3] = 1f; o.lineage[4] = 1f
         o.traditions[Tradition.BURIAL] = !b.holds(Tradition.BURIAL); o.traditions[Tradition.FEASTS] = !b.holds(Tradition.FEASTS)
