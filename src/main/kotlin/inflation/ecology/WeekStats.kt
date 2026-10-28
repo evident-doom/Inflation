@@ -272,11 +272,20 @@ object Tally {
         SAME("same customs", 1), FEW("1-2 customs apart", 3), MANY("3+ customs apart", Int.MAX_VALUE);
         companion object { fun of(n: Int) = entries.first { n < it.below } }
     }
+    /**
+     * How wary of each other two bands that met were ([Regard.wariness], the warier side's): how much readier than at its least
+     * either was to fight the other, given what drove it. The first bin it falls [below]; for the identity census.
+     */
+    enum class Wary(val label: String, val below: Float) {
+        LITTLE("wary under 0.5", 0.5f), SOME("wary 0.5 to 1", 1f), MORE("wary 1 to 1.5", 1.5f), MOST("wary 1.5 and over", Float.POSITIVE_INFINITY);
+        companion object { fun of(w: Float) = entries.firstOrNull { w < it.below } ?: MOST }
+    }
     /** What came of two bands meeting, or of a raid set on a home, for the identity census. */
     enum class MeetingEnd(val label: String) { MET("met"), RAIDED("raided at meeting"), PARTNERS("exchanged partners"), RAIDED_HOME("raided at home") }
-    /** Meetings of bands that ended in [what], by how well they understood each other, and by how far apart their customs were. */
+    /** Meetings of bands that ended in [what], by how well they understood each other, how far apart their customs were, and how wary they were. */
     fun meetingsBy(u: Understood, what: MeetingEnd) = TallyKey.raw("meetings ${u.label}:${what.label}")
     fun meetingsBy(c: CustomsApart, what: MeetingEnd) = TallyKey.raw("meetings ${c.label}:${what.label}")
+    fun meetingsBy(w: Wary, what: MeetingEnd) = TallyKey.raw("meetings ${w.label}:${what.label}")
     /**
      * How a band's chores fared against what they asked of its week ([HexGroups.countSqueeze]): the band-weeks each asked for
      * days, those it got less than [SQUEEZED] of its ask in a week that ran out of days, and the days asked and not got, tenths;

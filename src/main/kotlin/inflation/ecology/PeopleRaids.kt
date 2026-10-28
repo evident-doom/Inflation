@@ -82,7 +82,8 @@ internal fun HexGroups.fightRaids(weather: Weather) {
     for ((g, target) in bands.raidsDue) {
         val b = g.band ?: continue; val tb = target.band ?: continue
         if (g.alive && target.alive && hw.placeHex[target.place] == hw.placeHex[g.place]) {
-            tallyMeeting(b, tb, Tally.MeetingEnd.RAIDED_HOME)
+            val u = Language.understanding(b.words, tb.words)
+            tallyMeeting(MetAs(Regard(b, target.id, tb, u), Regard(tb, g.id, b, u)), Tally.MeetingEnd.RAIDED_HOME)
             fight(g, b, target, tb, planned = true, weather)
         }
     }

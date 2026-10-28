@@ -57,6 +57,27 @@ class CultureAndMeetingsTest {
     }
 
     @Test
+    fun `regard: strangers of other customs are warier than kin and friends, and the raid chance is the one it always was`() {
+        val b = Band(0); val o = Band(0)
+        b.lineage[3] = 1f; o.lineage[4] = 1f
+        o.traditions[Tradition.BURIAL] = !b.holds(Tradition.BURIAL); o.traditions[Tradition.FEASTS] = !b.holds(Tradition.FEASTS)
+        val r = Regard(b, 7, o, 0.4f)
+        assertTrue(r.stranger); assertEquals(2, r.customsApart); assertEquals(0f, r.kin)
+        // (The raid chance as written out in the raid itself before the regard took it over.)
+        fun before(drive: Float, u: Float, tie: Float, stranger: Boolean) =
+            drive * (0.5f + 0.5f * (1f - u)) * (1f - 0.5f * kinship(b.lineage, o.lineage)) *
+                (1f - TIE_PEACE * maxOf(0f, tie)) * (1f + (if (stranger) STRANGER_HOSTILITY else 0f) +
+                CUSTOMS_HOSTILITY * (2f / Tradition.entries.size))
+        val drive = RAID * 1.3f * 0.7f
+        assertEquals(before(drive, 0.4f, 0f, true), r.fightChance(drive))
+        val wary = r.wariness
+        b.befriend(7, 0.5f)
+        assertEquals(before(drive, 0.4f, b.tie(7), false), r.fightChance(drive), "read as it stands now")
+        assertTrue(r.wariness < wary && r.trust > 0.5f * 0.4f && r.takesUpPlace > 0.3f * 0.4f)
+        assertEquals(0.5f * (b.tie(7) + 0f), Regard.close(r, Regard(o, 1, b, 0.4f)))
+    }
+
+    @Test
     fun `tie-breaks repeat for the same day and favour neither group week after week`() {
         assertEquals(tieBreak(1, 2, 40), tieBreak(1, 2, 40))
         assertNotEquals(tieBreak(1, 2, 40), tieBreak(1, 2, 47))

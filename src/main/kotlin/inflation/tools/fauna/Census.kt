@@ -503,9 +503,9 @@ class Census(private val sim: HexSim) {
     }
 
     /**
-     * The identity census, two to four lines: whether bands form regions of one tongue and one set of customs, how alike bands
-     * are by distance apart, and how this year's meetings went by how alike the bands were ([thisYear], the hunting ledger's
-     * year so far: see [Tally.meetingsBy]). Bands within [GATHER_KM] of each other are neighbours; neighbours that understand
+     * The identity census, two to five lines: whether bands form regions of one tongue and one set of customs, how alike bands
+     * are by distance apart, and how this year's meetings went by how alike and how wary of each other the bands were
+     * ([thisYear], the hunting ledger's year so far: see [Tally.meetingsBy]). Bands within [GATHER_KM] of each other are neighbours; neighbours that understand
      * each other at [REGION_UNDERSTOOD] or better and hold at most [REGION_CUSTOMS_APART] of their traditions differently are
      * of one region, and so are the neighbours of those (single linkage). A band bordering another region has a neighbour in
      * it. The lines are the report's: nothing in the model reads them.
@@ -570,6 +570,8 @@ class Census(private val sim: HexSim) {
             Tally.Understood.entries.joinToString(", ") { u -> line(u.label) { e -> Tally.meetingsBy(u, e) } })
         println("     meetings this year by customs (met / raided at meeting / exchanged partners / raided at home): " +
             Tally.CustomsApart.entries.joinToString(", ") { c -> line(c.label) { e -> Tally.meetingsBy(c, e) } })
+        println("     meetings this year by wariness (met / raided at meeting / exchanged partners / raided at home): " +
+            Tally.Wary.entries.joinToString(", ") { w -> line(w.label) { e -> Tally.meetingsBy(w, e) } })
     }
 
     /** Where each kind lives at the end: share on low ground (and in unsplit hexes) and on high ground. */

@@ -129,7 +129,7 @@ hex learning tools. (The 1 km model's `Simulation` has since been removed; the h
 | Language as words per concept, understanding between bands | yes (naming game, drift) |
 | Marrying out, lineage mix, inbreeding | yes |
 | Elders and grandmothers | yes |
-| Raids for food and feuds, grudges against lineages | yes |
+| Raids for food and feuds, grudges against lineages; at a meeting, one regard of the other band (understanding, kin, tie, strangers, customs apart) sets the raid odds, the trust in what it is told and the taking up of its meeting place | yes |
 | Desert kites | removed (later than the Natufian; Olli, 2026-10-15) |
 | Crowding sickness | yes (people in the hex and the six round it) |
 | Burning off, camp fires against lions and hyenas, defensible camps | yes |
