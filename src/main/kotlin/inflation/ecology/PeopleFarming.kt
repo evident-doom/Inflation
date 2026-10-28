@@ -152,6 +152,16 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
     b.herded = 1f
     // The herders the week's days nobody asked for would make besides.
     var spare = time.unheld * herdSkill(b) / days
+    // And the herders its leanest month leaves room for, once its fire, shelters and food are had ([Band.freeShare]),
+    // less those its herds take now: a herd grows towards what the band could herd in its worst month, and is culled
+    // above it, so that it never takes the days that keep its people alive. (Measured from the band's weeks, not from
+    // the herd: a capacity measured from the herd itself ratchets down, see 4.64 in [HexSnapshot].) Null till it has
+    // planned a week of every month; till then, the spare days alone.
+    val herders = b.herd.indices.sumOf { k -> (b.herd[k] / headsAHerder(fauna.kinds[k])).toDouble() }.toFloat()
+    val capacity = b.freeShare.takeIf { f -> f.all { it >= 0f } }?.let { f -> f.min() * time.total / days * herdSkill(b) }
+    var room = capacity?.let { it - herders }
+    // (Above it, the band culls a month's share of the excess a week, as it eats: not all at once, to rot.)
+    val over = if (capacity != null && herders > capacity) (1f - capacity / herders) * min(1f, years * Date.MONTHS_PER_YEAR) else 0f
     fun slaughter(k: Int, heads: Float, flow: HerdFlow) {
         val s = fauna.kinds[k]
         bands.herdFlows[flow] += heads
@@ -200,16 +210,17 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
             stats.meeting(Met.KEPT_ANIMALS_CULLED)
         }
         // Herders live on their herds' increase: the band eats what its herd adds in a year, week by week through the year
-        // (its births come in one season, its losses all year), and keeps it only where the days nobody asked for would
-        // keep it too, since a herd let grow takes its days from the food. A herd whose increase brings a herder less than
+        // (its births come in one season, its losses all year), and keeps it, its females with it, where its leanest
+        // month would still herd the herd grown ([room]; till it knows its months, where this week's spare days would). A herd whose increase brings a herder less than
         // a day's foraging brings it eats down, a week's food at a time.
         val worth = herdWorth(g, b, k)
         val pays = worth >= 1f
         if (pays) bands.herdFlows[HerdFlow.KG_PAYS] += n * s.massKg
         bands.herdFlows[when { worth < 0.5f -> HerdFlow.KG_WORTH_HALF; worth < 1f -> HerdFlow.KG_WORTH_UNDER; worth < 2f -> HerdFlow.KG_WORTH_OVER; else -> HerdFlow.KG_WORTH_TWICE }] += n * s.massKg
+        if (over > 0f) { slaughter(k, n * over, HerdFlow.EATEN); n -= n * over }
         val increase = n * max(0f, herdIncrease(b, k, fed)) * years
-        val grows = pays && increase / headsAHerder(s) <= spare
-        if (grows) spare -= increase / headsAHerder(s)
+        val grows = pays && increase / headsAHerder(s) <= (room ?: spare)
+        if (grows) { if (room != null) room -= increase / headsAHerder(s) else spare -= increase / headsAHerder(s) }
         val kept = if (grows) n else if (pays) max(0f, n - increase)
             else max(0f, n - g.dailyNeedKg * days / (s.massKg * MEAT_SHARE * Nourishment.MEAT * g.species.needScale))
         if (n > kept) slaughter(k, n - kept, if (pays) HerdFlow.EATEN else HerdFlow.EATEN_UNPAID)

@@ -328,9 +328,13 @@ object HexSnapshot {
      *   domestication criterion where that is less; before, they came as tame as the
      *   band's herd of their kind, wild where it had none, so they ran off, bred little and were eaten within weeks.
      *   The odds of keeping one go by its kind's worst domestication criterion, not their mean.
+     * 4.72: a band keeps its herd's increase, females with it, while its leanest month would still herd the herd grown,
+     *   and culls above that, a month's share of the excess a week ([Band.freeShare]: the share of its days its fire,
+     *   shelters and food leave, month by month); before, it kept the increase only where that week's spare days would
+     *   herd it, so a herd could only hold or shrink.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 71
+    const val MODEL_MINOR = 72
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

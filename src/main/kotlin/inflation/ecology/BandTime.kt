@@ -65,6 +65,9 @@ class BandTime(left: Float, private val pace: EnumFloats<Activity>? = null) {
     /** Whether the asks beyond what the week needs came to more than the days left for them (false before a [plan]). */
     var short = false
         private set
+    /** Person-days the [plan] held first, for warmth and for the week's needs (its fire, shelters and food). */
+    var vital = 0f
+        private set
 
     /** Person-days held for no activity: the week's rest, as planned. */
     val unheld get() = max(0f, left - held.sum())
@@ -122,6 +125,7 @@ class BandTime(left: Float, private val pace: EnumFloats<Activity>? = null) {
         val ones = FloatArray(needs.size) { 1f }
         val warmed = warm0?.let { w -> shareOut(FloatArray(w.a.size) { w.a[it] / pace(Activity.entries[it]) }, ones, max(0f, left)) }
         val fed = shareOut(needs, ones, max(0f, left - (warmed?.sum() ?: 0f)))
+        vital = (warmed?.sum() ?: 0f) + fed.sum()
         val tended = kept?.let { k -> shareOut(FloatArray(k.a.size) { k.a[it] / pace(Activity.entries[it]) }, ones, max(0f, left - (warmed?.sum() ?: 0f) - fed.sum())) }
         val first = FloatArray(fed.size) { fed[it] + (warmed?.get(it) ?: 0f) + (tended?.get(it) ?: 0f) }
         short = asks.sum() > max(0f, left - first.sum())
