@@ -157,6 +157,7 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
     // above it, so that it never takes the days that keep its people alive. (Measured from the band's weeks, not from
     // the herd: a capacity measured from the herd itself ratchets down, see 4.64 in [HexSnapshot].) Null till it has
     // planned a week of every month; till then, the spare days alone.
+    if (b.herdGrew.size != b.herd.size) b.herdGrew = BooleanArray(b.herd.size)
     val herders = b.herd.indices.sumOf { k -> (b.herd[k] / headsAHerder(fauna.kinds[k])).toDouble() }.toFloat()
     val capacity = b.freeShare.takeIf { f -> f.all { it >= 0f } }?.let { f -> f.min() * time.total / days * herdSkill(b) }
     var room = capacity?.let { it - herders }
@@ -311,7 +312,7 @@ internal fun GroupWorld.herdFoodWeek(g: HexGroup, b: Band, date: Date): Float {
         val n = b.herd[k]
         if (n <= 0f) continue
         val s = fauna.kinds[k]; val tame = b.herdTame[k]
-        if (!b.herdGrew[k]) food += n * max(0f, herdIncrease(b, k)) * years * s.massKg * MEAT_SHARE * Nourishment.MEAT
+        if (!b.herdGrew.getOrElse(k) { false }) food += n * max(0f, herdIncrease(b, k)) * years * s.massKg * MEAT_SHARE * Nourishment.MEAT
         if (lactating(s, date)) food += n * 0.5f * (0.3f + 0.7f * tame) * tame * milkKg(s) * days / LACTATION_DAYS * Nourishment.MILK
     }
     return food * g.species.needScale

@@ -233,8 +233,11 @@ class Band(kinds: Int) {
      */
     val herd = FloatArray(kinds)
     val herdTame = FloatArray(kinds)
-    /** Of each kind, whether its herd kept its increase to grow at its last week's keeping ([keepHerds]), and so fed the band only its milk. */
-    val herdGrew = BooleanArray(kinds)
+    /**
+     * Of each kind, whether its herd kept its increase to grow at its last week's keeping ([keepHerds]), and so fed the band
+     * only its milk. (Empty in a band loaded from a save made before it; [keepHerds] sizes it to [herd].)
+     */
+    var herdGrew = BooleanArray(kinds)
     /**
      * Of the grain in its stores, what it reaped from sown fields and keeps to sow first, its seed corn (as its stores count
      * it; eaten last, so no more than its grain: [seedCornIn]), and the share of that from ears that hold their grain;
