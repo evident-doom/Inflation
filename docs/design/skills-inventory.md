@@ -38,7 +38,7 @@ Each row is a skill. It has variants by tool or material, and constants of the m
 | **Health** | medicine | herbs, wound care, bone setting | `PEOPLE_SICK`, `MARSH_FEVER`, the `MEDICINE` custom |
 | | midwifery and child care | weaning foods (gruel), carrying | `youngMortality`, `birthSpacing` |
 | | camp hygiene | middens, latrines, moving camp | `CAMP_FOULING` |
-| **Animals** | taming and herding | pens, fences, dogs | `CAPTURE`, `TAMING_RATE`, `HERD_RUN_OFF`, `HERD_KG_A_HERDER`, `herdLoss` |
+| **Animals** | taming and herding | pens, fences, dogs | `CAPTURE`, `TAMING_RATE`, `HERD_RUN_OFF`, `HERD_GOATS_A_HERDER`, `HERD_MASS_EXP`, `herdLoss` |
 | | dog keeping | — | `DOG_*` |
 | **Crafts** | bead and ornament making | drills, abrasives | `ORNAMENT_DAYS`, `SHELL_EACH` |
 | | ground stone | grinders, axes for clearing forest, stone vessels | `GRINDER` recipe |

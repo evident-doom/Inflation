@@ -270,7 +270,7 @@ object HexSnapshot {
      *   with a ways network every non-band group reset all bands to the scaffold's ways after the network set them (and waysForce
      *   with them), and without one the reset never ran. Now it runs only without a ways network, as 4.57 meant.
      * 4.59: herding is no longer for settled bands only: any band may take young in the hunt to keep, and learn herding;
-     *   its herders' days come out of field work's time ([herdDays], about [HERD_KG_A_HERDER] kg of stock a herder), held before
+     *   its herders' days come out of field work's time ([herdDays], about 4,000 kg of stock a herder), held before
      *   the week's food, and none on the days the herd walks with the band to a new camp; what they cannot
      *   keep it culls, in place of a flat cap of two head a person, and it eats what the herd grows to beyond the stock its
      *   herders keep in a usual week (a year's mean), and eats down a herd whose increase
@@ -316,9 +316,14 @@ object HexSnapshot {
      * 4.68: mast a band lays by keeps as seed does ([Store.SEED], 0.5% lost a week); before, it went in with roots and lost
      *   3% a week, four fifths in a year, so no band could carry a good mast year over a poor one. Roots and bulbs in the
      *   ground are counted by their energy, as the root search was fitted ([HexFood.ROOTS_SHARE] 0.01 to 0.03).
+     * 4.69: a herder keeps 200 goats, fewer of bigger beasts as their weight to the half power ([headsAHerder]); before, 4,000 kg
+     *   on the hoof of any kind (a hundred goats, from memory), which made a herder's day bring half what shepherds' does.
+     *   A slaughtered herd beast gives its hides, bone and sinew as a kill does ([Band.skin]); before, they went to the
+     *   scavengers. Its herders' days are held after the week's food and before the other asks ([BandTime.plan]); before,
+     *   with the fire and shelters, so a band that shrank kept its whole herd, which took its firewood and food till it died.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 68
+    const val MODEL_MINOR = 69
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

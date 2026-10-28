@@ -120,12 +120,12 @@ class HuntTally(private val sim: HexSim) {
         })
     }
 
-    /** Where people's hides came from this year: kg a person from resident game and small pelts. */
+    /** Where people's hides came from this year: kg a person from resident game, small pelts and their herds. */
     fun printPeoplesHides() {
         val heads = sim.groups.groups.filter { it.alive && it.species.human }.sumOf { it.size }.coerceAtLeast(1)
         fun kg(source: Tally.HideSource) = (year[Tally.hide(source)] ?: 0) / 1000.0 / heads
-        println("     people's hides (kg a person this year: resident game / small pelts): %.2f / %.2f"
-            .format(kg(Tally.HideSource.RESIDENTS), kg(Tally.HideSource.SMALL_PELTS)))
+        println("     people's hides (kg a person this year: resident game / small pelts / herds): %.2f / %.2f / %.2f"
+            .format(kg(Tally.HideSource.RESIDENTS), kg(Tally.HideSource.SMALL_PELTS), kg(Tally.HideSource.HERDS)))
     }
 
     /**

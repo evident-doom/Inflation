@@ -191,7 +191,7 @@ private fun restedDays(w: ForageWeek, time: BandTime) {
  * A band's plan of its week, made once [forage] sees what food asks of it: [needDays] of its hands' week to eat what it
  * wants this week, [storeDays] more to lay by what it aims to keep. The walk, when it moved camp ([moveDays]), and digging
  * soaks for water, where that is the only water, come off first. Then the days the hearth's firewood and the camp's
- * shelters take to keep its people warm ([survivalDays]), then its herders' days, then the week's food; then the rest of what each activity asks for ([choreAsks]: the rest of the week's food, the stores and its chores),
+ * shelters take to keep its people warm ([survivalDays]), then the week's food, then its herders' days; then the rest of what each activity asks for ([choreAsks]: the rest of the week's food, the stores and its chores),
  * shared out when it comes to more than the days left ([BandTime.plan]). Leisure asks for nothing: it is what the week
  * leaves (and takes less food: [restedDays]). Then it fetches the hearth's firewood, and herds, in the days the plan gives them.
  */
@@ -214,15 +214,17 @@ private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float)
     // feed less, [RAW_COST].)
     needs[Activity.FOOD] = foodAsk
     needs[Activity.FIREWOOD] = max(0f, fuel - warm[Activity.FIREWOOD])
-    // (Its herders' days, as far as the band does not walk with its herd this week, are held before the week's food: its
-    // animals are food on the hoof, and what it cannot herd it must cull ([keepHerds]); shared out with the food, they were
-    // cut whenever foraging alone would fill the week, and the cuts compounded week on week till no herd was left.)
-    warm[Activity.SOWING] += herdDays(b) * (1f - walkedShare(time))
+    // (Its herders' days, as far as the band does not walk with its herd this week, are held after the week's food and
+    // before every other ask: what it cannot herd it culls and eats ([keepHerds]). Shared out with the asks, they were cut
+    // whenever foraging alone would fill the week, and the cuts compounded week on week till no herd was left; held with
+    // the fire and shelters, a band that shrank kept its whole herd, which took its firewood and food till it died.)
+    val kept = enumFloats<Activity>()
+    kept[Activity.SOWING] = herdDays(b) * (1f - walkedShare(time))
     val asks = enumFloats<Activity>()
     asks[Activity.FOOD] = storeDays * hands
     choreAsks(g, b, w.weather.date, asks, warm)
     // (The band weighs the rest of the asks against each other by its ways: see [timeWay].)
-    time.plan(needs, asks, enumFloats<Activity> { a -> timeWay(a)?.let { b.will[it] } ?: 1f }, warm)
+    time.plan(needs, asks, enumFloats<Activity> { a -> timeWay(a)?.let { b.will[it] } ?: 1f }, warm, kept)
     b.binding?.let { bind ->
         if (time.short) for (a in Activity.entries) if (asks[a] > 0f) bind[a.ordinal] += 1f
         if (g.path.size > 1) bind[Binding.MOVES] += 1f
@@ -861,6 +863,13 @@ private fun HexGroups.tallyForage(w: ForageWeek, meatEaten: Float) {
         stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.BAND_WEEKS), 1, Int::plus); stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.PEOPLE_WEEKS), g.size, Int::plus)
         stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.HEARTH), (100f * band.hearthWood).toInt(), Int::plus)
         stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.FUEL_DAYS), (100f * w.fuelDays / days).toInt(), Int::plus)
+        // (And by whether it keeps a herd: what it foraged against what it wanted, and its hearth.)
+        val herding = bandHerding(band, g.adults)
+        stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.ASKED), wantAll.toInt(), Int::plus)
+        stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.MEAT), (meat * w.worth(Food.BIG_GAME) + smallFed + scrapsFed + fish * w.worth(Food.FISH)).toInt(), Int::plus)
+        stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.PLANTS), plantsFed.toInt(), Int::plus)
+        stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.HEARTH), (100f * band.hearthWood).toInt(), Int::plus)
+        stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.FUEL_DAYS), (100f * w.fuelDays / days).toInt(), Int::plus)
     }
 }
 
@@ -1004,7 +1013,7 @@ private fun HexGroups.huntGame(g: HexGroup, k: Int, p: Place, expected: Float, k
     out.kg = na * kgEach + ny * young
     // (Hides, bone and sinew come out of what the hunters leave of the carcasses.)
     val leftA = na * leftOver(ps, kgEach, band)
-    small.deposit(DeadPool.CARRION, p, KgM2((leftA + ny * (HexFauna.YOUNG_WEIGHT * ps.massKg - young) - tallyHide(Tally.HideSource.RESIDENTS, ps, band?.skin(ps, na, leftA))) / (area * 1e6f)))
+    small.deposit(DeadPool.CARRION, p, KgM2((leftA + ny * (HexFauna.YOUNG_WEIGHT * ps.massKg - young) - tallyHide(Tally.HideSource.RESIDENTS, ps, band?.skin(ps, na.toFloat(), leftA))) / (area * 1e6f)))
     band?.let { it.practise(Skill.HUNT); it.practise(Skill.TRACK); it.practise(Skill.STALK); it.practise(Skill.BUTCHER) }
     stats.kills.merge(ps, kills1, Int::plus)
     note(g) { "killed %d %s".format(kills1, ps.name) }
