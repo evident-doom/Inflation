@@ -328,14 +328,21 @@ object HexSnapshot {
      *   domestication criterion where that is less; before, they came as tame as the
      *   band's herd of their kind, wild where it had none, so they ran off, bred little and were eaten within weeks.
      *   The odds of keeping one go by its kind's worst domestication criterion, not their mean.
-     * 4.72: a band keeps its herd's increase, females with it, while its leanest month would still herd the herd grown,
+     * 4.72: weirs ([Built.WEIR], [buildWeir]): a band builds a fence of stakes and traps across the river at its camp where
+     *   fish from one would rank in among its gatherers' foods ([Band.weirPull]); its fish take the traps' watch over what
+     *   they take and a little landing and gutting a kilo ([weirDays]), so they pay only where many fish pass (a spawning
+     *   run). Before, every kilo of fish took the same handling wherever and whenever it was caught. Weirs wear in the
+     *   stream; the mover and the people net's fish input see their catch.
+     * 4.73: a band puts up its camp's shelters as soon as its week is planned, before foraging can overrun into their days
+     *   ([putUpShelter]); built after the foraging and the other chores, they were the first a week's overrun took.
+     * 4.74: a band keeps its herd's increase, females with it, while its leanest month would still herd the herd grown,
      *   and culls above that, a month's share of the excess a week ([Band.freeShare]: the share of its days its fire,
      *   shelters and food leave, month by month); before, it kept the increase only where that week's spare days would
      *   herd it, so a herd could only hold or shrink. A herd that kept its increase to grow feeds the band only its milk
      *   ([Band.herdGrew]), and the band forages for the rest.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 72
+    const val MODEL_MINOR = 74
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

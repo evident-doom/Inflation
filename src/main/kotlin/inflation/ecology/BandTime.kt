@@ -12,12 +12,14 @@ import inflation.enumFloats
  * 2004, Human energy requirements, table 5.1: collecting water or wood 4.4; planting, weeding, gathering 4.1; domestic chores
  * by hand 2.3; light leisure 1.4, sitting 1.5). Foraging and hunting are taken as gathering, building and digging as planting
  * and weeding, fetching materials as collecting wood, crafts, skins and the customs' cleaning and nursing as domestic chores;
- * moving camp as gathering, its walking costed apart ([walkCost]). These pairings are estimates.
+ * moving camp as gathering, its walking costed apart ([walkCost]), building weirs as fetching wood (the stakes are cut and
+ * carried, and driven in the stream). These pairings are estimates.
  */
 enum class Activity(val label: String, val par: Float, val where: Workplace) {
     FIREWOOD("firewood", 4.4f, Workplace.OUT), FOOD("food", 4.1f, Workplace.OUT), DRYING("drying", 2.3f, Workplace.CAMP), SKINS("skins", 2.3f, Workplace.CAMP),
     SHELTER("shelter", 4.1f, Workplace.OUT), CUSTOMS("customs", 2.3f, Workplace.CAMP), TRAINING("training", 2.3f, Workplace.CAMP), TOOLS("tools", 2.3f, Workplace.CAMP),
     HOUSES("houses", 4.1f, Workplace.OUT), ORNAMENTS("ornaments", 2.3f, Workplace.CAMP), SOWING("sowing", 4.1f, Workplace.OUT), PALISADE("palisade", 4.1f, Workplace.OUT),
+    WEIRS("weirs", 4.4f, Workplace.OUT),
     MATERIALS("materials", 4.4f, Workplace.OUT), CACHING("caching", 4.1f, Workplace.OUT), MOVING("moving", 4.1f, Workplace.OUT), LEISURE("leisure", 1.45f, Workplace.NONE);
 
     /**
@@ -62,6 +64,8 @@ class BandTime(left: Float, private val pace: EnumFloats<Activity>? = null) {
     private val heldAtOne = enumFloats<Activity>()
     /** What each activity asked for this week, person-days (none before a [plan]). */
     val asked = enumFloats<Activity>()
+    /** Of [asked], what it asked first, to keep its people warm (none before a [plan]). */
+    val askedFirst = enumFloats<Activity>()
     /** Whether the asks beyond what the week needs came to more than the days left for them (false before a [plan]). */
     var short = false
         private set
@@ -118,7 +122,7 @@ class BandTime(left: Float, private val pace: EnumFloats<Activity>? = null) {
      */
     fun plan(needs0: EnumFloats<Activity>, asks0: EnumFloats<Activity>, weights: EnumFloats<Activity>? = null, warm0: EnumFloats<Activity>? = null,
              kept: EnumFloats<Activity>? = null) {
-        for (a in Activity.entries) asked[a] = needs0[a] + asks0[a] + (warm0?.get(a) ?: 0f) + (kept?.get(a) ?: 0f)
+        for (a in Activity.entries) { asked[a] = needs0[a] + asks0[a] + (warm0?.get(a) ?: 0f) + (kept?.get(a) ?: 0f); askedFirst[a] = warm0?.get(a) ?: 0f }
         // (Days of work asked, as people's days at each activity's pace.)
         val needs = FloatArray(needs0.a.size) { needs0.a[it] / pace(Activity.entries[it]) }
         val asks = FloatArray(asks0.a.size) { asks0.a[it] / pace(Activity.entries[it]) }

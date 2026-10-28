@@ -160,6 +160,8 @@ class Band(kinds: Int) {
      * handling over itself and that least yield: above 1/2 fish was worth taking up, 0 no fish in reach ([Offers.pull]).
      */
     var fishPull = 0f
+    /** This week, how fish from a whole weir across the river by its camp would have pulled against that least yield ([Offers.pullAt]): above 1/2 one would pay; 0 no river or no fish passing. */
+    var weirPull = 0f
     var campPlace = Place.NONE
     /** Food it left in a cache at an old camp, kg, and where (-1 for none). */
     val cache = enumFloats<Store>()
@@ -361,6 +363,24 @@ class Band(kinds: Int) {
     @Transient var spareSeen = false
     /** How making clothes went this week ([makeTools]; null where it wanted none): for the census only. */
     @Transient var clothesMade: Tally.ClothesMade? = null
+    /**
+     * What its week's survival pass reckoned with ([survivalDays]), for the census only: the fire, the week's exposure odds,
+     * the share of its hands' days left after the walk, and the share of the shelter it asked that it held first (below 0
+     * where it asked none).
+     */
+    @Transient var planFire = 0f
+    @Transient var planOdds = 0f
+    @Transient var planLeft = 0f
+    @Transient var planShelterFirst = -1f
+    /** The air and cover its survival pass reckoned the week's exposure with (for warmDiag only: [bookSqueeze]). */
+    @Transient var planAir: Air? = null
+    @Transient var planCover: Cover? = null
+    @Transient var planSisu = 0f
+    /** People-days its plan held for food and what foraging spent; held for shelter and what was left it when it built (warmDiag only). */
+    @Transient var diagFoodHeld = 0f
+    @Transient var diagFoodSpent = 0f
+    @Transient var diagShelterHeld = 0f
+    @Transient var diagShelterLeft = 0f
     /** The share of its herd its herders kept this week, as its week's plan gave them days ([herdDays]; 1 till it plans). */
     @Transient var herded = 1f
     /** What a day's foraging brings it, kg of its need, month by month: a mean over the years (below 0 till it has foraged then; [herdPays]). */

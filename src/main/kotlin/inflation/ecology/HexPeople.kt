@@ -131,6 +131,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     // Making and mending takes the time still to spare, the tools it ranks first first (the
     // scaffold: the most worn); each as far as the time, the scarcest material and the skill allow.
     dialUse?.amount(DialSite.SHELTERS, b.shelterWill, b.shelterWill, 1f)
+    if (WARM_DIAG) { b.diagShelterHeld = time.heldFor(Activity.SHELTER); b.diagShelterLeft = time.leftFor(Activity.SHELTER) }
     putUpShelter(b, people, time)
     keepCustoms(b, people, time)
     trainHolders(g, b, time)
@@ -171,6 +172,9 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     // as its time and timber go.
     buildPalisade(g, b, h, people, time)
     b.palisade = if (b.houseHex.none) 0f else palisadeAt(g, b.houseHex)
+    // Where fish crowd the river by its camp, it builds a weir across it with traps, or mends the one there, as far as its
+    // time and timber go.
+    buildWeir(g, b, h, time)
     // What no chore took is its leisure. (Counted once every chore has had its time.)
     time.noneBelowZero()
     b.spareDays = time.left
@@ -222,6 +226,7 @@ internal fun HexGroups.choreAsks(g: HexGroup, b: Band, date: Date, asks: EnumFlo
         if (canSow(g, b, p, date)) ask(Activity.SOWING, g.stores[Store.SEED] * SOW_SHARE * b.sowWill * SOW_DAYS_PER_KG)
         if (fortifies(b)) ask(Activity.PALISADE,
             minOf(1f - palisadeAt(g, h), b.goods[Material.WOOD] / (PALISADE_WOOD * people)).coerceAtLeast(0f) * PALISADE_DAYS * people)
+        ask(Activity.WEIRS, weirAsk(g, b, h))
     }
     // (Its own crop, ripe, it brings in wherever it has come from: the field work is sowing's time.)
     cropRipe(g, b).takeIf { it > 0f }?.let { asks[Activity.SOWING] += it * reapDaysPerKg(b, tuning) }
@@ -436,7 +441,7 @@ private fun HexGroups.ecosystemInputs(g: HexGroup, b: Band, into: FloatArray) {
     into[x.TREES] = min(1f, land.plants.tree[p] / 10f); into[x.SHRUBS] = min(1f, land.plants.shrub[p] / 2f); into[x.GRASS] = min(1f, land.plants.herb[p] / 0.5f)
     val need = (g.dailyNeedKg * days).coerceAtLeast(1f)
     fun weeks(kg: Float) = (kg / need).let { it / (1f + it) }
-    into[x.FISH] = weeks(fauna.water.bandCatchWithin(h, b.fishing()))
+    into[x.FISH] = weeks(fauna.water.bandCatchWithin(h, b.fishing()) + fauna.water.weirWithin(h, weirAt(g, h)))
     // Plants: what its gatherers would strip from the camp's own ground in a week (as in [forage]).
     val food = fauna.food
     val pick = min(0.9f, b.gatherShare(false, tuning) * b.gatherRange)

@@ -1,5 +1,7 @@
 package inflation.ecology
 
+import inflation.Config
+import inflation.world.Weather
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -10,6 +12,15 @@ const val SPARE_WEEKS = 13f
 const val SQUEEZED = 0.9f
 /** A week whose spare days came to less than this share of its hands' days ran out of days ([countSqueeze]). The report's line. */
 const val WEEK_FULL = 0.05f
+
+/** warmDiag=true: each week a band loses people to exposure, what its survival pass reckoned with and what came, on stderr (the first [WARM_DIAG_LINES]). */
+internal val WARM_DIAG = Config.flag(Config.Key.WARM_DIAG, false)
+private const val WARM_DIAG_LINES = 400
+private var warmDiagLines = 0
+
+private fun describe(air: Air?, c: Cover?, sisu: Float, odds: Float) = if (air == null || c == null) "none" else
+    "air %.1f °C swing %.1f wind %.1f wet %.2f snow %s; clo %.2f fire %.2f shelter %.2f home %.2f house %.1f °C; sisu %.2f; odds %.2g".format(
+        air.meanC, air.swingC, air.windMs, air.wet, air.snow, c.clothesClo, c.fire, c.shelter, c.home, c.houseWarmC, sisu, odds)
 
 /**
  * Counts for the census how [b]'s chores fared this week against what each asked of its plan ([time], all its chores done,
@@ -36,6 +47,7 @@ internal fun HexGroups.countSqueeze(b: Band, time: BandTime) {
         add(Tally.Squeeze.ASKED_WEEKS, 1)
         add(Tally.Squeeze.ASKED_DAYS, (10f * ask).roundToInt())
         add(Tally.Squeeze.MISSING_DAYS, (10f * missing).roundToInt())
+        add(Tally.Squeeze.FIRST_DAYS, (10f * min(time.askedFirst[a], ask)).roundToInt())
         if (full && missing > (1f - SQUEEZED) * ask) add(Tally.Squeeze.SHORT_WEEKS, 1)
     }
     b.clothesMade?.let { stats.hunting.merge(Tally.clothesMade(it), 1, Int::plus) }
@@ -44,8 +56,10 @@ internal fun HexGroups.countSqueeze(b: Band, time: BandTime) {
 /**
  * Books [g]'s band [b]'s week, and its deaths ([causes]), by its spare days over the last season ([Band.spareMean]) and by
  * whether it keeps a herd, with its clothes: whether bands whose weeks are full die of what spare days would have kept off.
+ * And by its spare days with how it was kept warm at the week's end ([Tally.Warmed]), the week's air and whether it came to
+ * a new camp: whether the full weeks' exposure deaths come with a fire or shelters cut short, or with the cold of where they are.
  */
-internal fun HexGroups.bookSqueeze(g: HexGroup, b: Band, causes: List<Died>) {
+internal fun HexGroups.bookSqueeze(g: HexGroup, b: Band, causes: List<Died>, weather: Weather) {
     fun add(k: TallyKey, v: Int) { stats.hunting.merge(k, v, Int::plus) }
     val clo = (10f * b.clothesClo()).roundToInt()
     val spare = Tally.Spare.of(b.spareMean)
@@ -53,6 +67,31 @@ internal fun HexGroups.bookSqueeze(g: HexGroup, b: Band, causes: List<Died>) {
     add(Tally.bandsSpare(spare, Tally.Bands.PEOPLE_WEEKS), g.size)
     add(Tally.bandsSpare(spare, Tally.Bands.CLOTHES), clo)
     for ((cause, k) in causes) if (k > 0) add(Tally.bandsSpareDied(spare, cause), k)
+    val warmed = Tally.Warmed.of(b.fire, if (b.shelterWill > 0f) b.shelter / b.shelterWill else 1f)
+    add(Tally.bandsWarmed(spare, warmed, Tally.Bands.BAND_WEEKS), 1)
+    add(Tally.bandsWarmed(spare, warmed, Tally.Bands.PEOPLE_WEEKS), g.size)
+    add(Tally.bandsWarmed(spare, warmed, Tally.Bands.CAMP_AIR), (10f * airAt(g.place, weather).meanC).roundToInt())
+    if (b.campWeeks == 0) add(Tally.bandsWarmed(spare, warmed, Tally.Bands.MOVED), 1)
+    // (What its survival pass reckoned with against what came: the fire, its lighting and the week's exposure odds.)
+    fun put(what: Tally.Bands, x: Float) = add(Tally.bandsWarmed(spare, warmed, what), x.roundToInt())
+    put(Tally.Bands.PLAN_FIRE, 100f * b.planFire); put(Tally.Bands.FIRE_GOT, 100f * b.fire)
+    put(Tally.Bands.LIT, 100f * if (b.hearthWood > 0f) min(1f, b.fire / b.hearthWood) else 1f)
+    put(Tally.Bands.PLAN_ODDS, 1e4f * b.planOdds)
+    put(Tally.Bands.ODDS, 1e4f * b.warmth(airAt(g.place, weather), b.fire, b.homeShelter(), days).odds)
+    put(Tally.Bands.LEFT, 100f * b.planLeft)
+    if (b.planShelterFirst >= 0f) { put(Tally.Bands.SHELTER_ASKED, 1f); put(Tally.Bands.SHELTER_FIRST, 100f * b.planShelterFirst) }
+    if (WARM_DIAG && causes.any { it.cause == DeathCause.EXPOSURE && it.n > 0 } && warmDiagLines < WARM_DIAG_LINES) {
+        warmDiagLines++
+        val air = airAt(g.place, weather)
+        System.err.println("warmDiag ${weather.date} band ${g.id} spare ${spare.label} ${warmed.label} new ${b.campWeeks == 0} died " +
+            causes.filter { it.cause == DeathCause.EXPOSURE }.sumOf { it.n } + " of ${g.size}; " +
+            "planned ${describe(b.planAir, b.planCover, b.planSisu, b.planOdds)}; got " +
+            describe(air, b.cover(air.meanC, b.fire, b.homeShelter()), b.sisu, b.warmth(air, b.fire, b.homeShelter(), days).odds) +
+            "; will %.2f, lit %.2f, hearth wood %.2f".format(b.shelterWill, if (b.hearthWood > 0f) b.fire / b.hearthWood else 1f, b.hearthWood) +
+            "; shelter asked first %.2f of its ask; food held %.1f spent %.1f person-days; shelter held %.2f left it %.2f".format(
+                b.planShelterFirst, b.diagFoodHeld, b.diagFoodSpent, b.diagShelterHeld, b.diagShelterLeft))
+    }
+    for ((cause, k) in causes) if (k > 0) add(Tally.bandsWarmedDied(spare, warmed, cause), k)
     val h = if (b.herd.any { it > 0f }) Tally.HerdKept.HERDING else Tally.HerdKept.NONE
     add(Tally.bandsHerdKept(h, Tally.Bands.BAND_WEEKS), 1)
     add(Tally.bandsHerdKept(h, Tally.Bands.PEOPLE_WEEKS), g.size)

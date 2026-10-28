@@ -91,6 +91,13 @@ internal fun HexGroups.survivalDays(g: HexGroup, b: Band, weather: Weather, time
         now = deaths(d)
     }
     for (i in FIRE..SHELTER) first[acts[i]] = d[i]
+    // (What it reckoned with, for the census: [bookSqueeze].)
+    b.planFire = if (asks[FIRE] > 0f) hearthAll * min(1f, d[FIRE] / asks[FIRE]) else hearthAll
+    val planShelter = shelter0 + if (asks[SHELTER] > 0f) (b.shelterWill - shelter0) * min(1f, d[SHELTER] / asks[SHELTER]) else 0f
+    b.planOdds = warmth(b.planFire, planShelter).odds
+    if (WARM_DIAG) { b.planAir = air; b.planCover = b.cover(air.meanC, b.planFire, home, planShelter); b.planSisu = b.sisu }
+    b.planLeft = if (time.total > 0f) time.left / time.total else 0f
+    b.planShelterFirst = if (asks[SHELTER] > 0f) min(1f, d[SHELTER] / asks[SHELTER]) else -1f
     return first
 }
 
