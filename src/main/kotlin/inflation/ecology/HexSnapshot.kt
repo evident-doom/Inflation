@@ -371,9 +371,13 @@ object HexSnapshot {
      *   the weeks the band expects to stay on ([Band.stayWeeks], [yearAhead]). Before, a kilo a person a day kept those
      *   about it 10 °C warmer, and a house's air 10 °C more, whatever the cold or the cover, and a shelter was weighed by
      *   its first week alone.
+     * 4.84: young raised by hand come [RAISED_TAME] tame whatever their kind (before, no tamer than its worst criterion, so
+     *   raised kids and lambs stayed 0.6 and never paid); a kind's ease on foot (the worse of panic and social structure)
+     *   scales the straying instead ([straying], [HERD_EASE] 0.6): at tameness 0.8 goats, sheep and boar lose 2% a year,
+     *   aurochs 11%, ostrich 18%, red deer 27%.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 83
+    const val MODEL_MINOR = 84
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
