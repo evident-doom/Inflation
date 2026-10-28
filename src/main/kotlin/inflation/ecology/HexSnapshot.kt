@@ -333,9 +333,12 @@ object HexSnapshot {
      *   they take and a little landing and gutting a kilo ([weirDays]), so they pay only where many fish pass (a spawning
      *   run). Before, every kilo of fish took the same handling wherever and whenever it was caught. Weirs wear in the
      *   stream; the mover and the people net's fish input see their catch.
+     * 4.73: a river's spring run is as big as its spawning grounds hold ([HexWater.RUN_KG_PER_KM2], fitted to the Rhine's
+     *   salmon) as far as the sea off its mouth can give; before, it was a twentieth of the fish off the mouth whatever the
+     *   river, some 600 t a year over the whole map.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 72
+    const val MODEL_MINOR = 73
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
