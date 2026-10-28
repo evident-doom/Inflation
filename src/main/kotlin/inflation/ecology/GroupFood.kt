@@ -1083,7 +1083,12 @@ private fun HexGroups.huntGame(g: HexGroup, k: Int, p: Place, expected: Float, k
             // (Raised by hand from young, they come to the camp as tame as a herd's, [RAISED_TAME], as far as their kind's
             // worst criterion lets them: a kind of bad temper stays wild however raised.)
             band.herdTame[k] = (band.herdTame[k] * band.herd[k] + min(RAISED_TAME, keepable) * kept) / (band.herd[k] + kept)
-            if (band.herd[k] < 0.5f) bands.herdsBegun.incrementAndGet(k)
+            // (A herd begun so is kept as pets till they have grown: [Band.herdPet].)
+            if (band.herd[k] < 0.5f) {
+                bands.herdsBegun.incrementAndGet(k)
+                if (band.herdPet.size != band.herd.size) band.herdPet = FloatArray(band.herd.size)
+                band.herdPet[k] = ps.yearsToMaturity
+            }
             bands.keptYoung.addAndGet(k, kept)
             band.herd[k] += kept; ny -= kept
             fauna.young[k][p] = max(0f, fauna.young[k][p] - kept / area)

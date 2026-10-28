@@ -60,6 +60,7 @@ internal fun carryRules(): Map<String, Pair<OnSplit, OnJoin>> {
     rule(OnSplit.FRESH, OnJoin.SUM, "favours")
     // Wealth and animals.
     rule(OnSplit.SHARED, OnJoin.SUM, "ornaments", "exotic", "herd")
+    rule(OnSplit.COPIED, OnJoin.MAX, "herdPet")
     rule(OnSplit.COPIED, OnJoin.BLENDED, "herdTame", "seedDomestic", "grainDomestic")
     rule(OnSplit.SHARED, OnJoin.SUM, "seedCorn")
     // (The crop stays with the band that sowed it: an offshoot sowed nothing, and a joining band's crop is left to whoever reaps it.)

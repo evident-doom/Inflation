@@ -356,9 +356,12 @@ object HexSnapshot {
      *   pass thatches as far as it averts deaths, whatever the band's ways aim at ([shelterWork], [Band.shelterAim]);
      *   before, the tenth of a day's hut gave the warmth too. The survival pass counts the food its days leave unforaged
      *   (before, it reckoned with all the week's food got, so the warmth's days were free).
+     * 4.80: a herd begun from young caught in the hunt is kept as pets till they have grown ([Band.herdPet],
+     *   [Species.yearsToMaturity]): kept whole and not weighed as food; before, it was weighed at once, and young of kinds
+     *   that pay only when tame were eaten within the week.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 79
+    const val MODEL_MINOR = 80
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
