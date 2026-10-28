@@ -93,7 +93,7 @@ class StringKeysTest {
 
     @Test
     fun `no casts in the model`() = check("""\bas\s+[A-Z]""", mapOf(
-        "store/ObjectStore.kt" to (7 to "saves are by field name and runtime type: the one reflective store"),
+        "store/ObjectStore.kt" to (9 to "saves are by field name and runtime type: the one reflective store; hash maps and sets written in key order"),
         "ui/HexHistoryPanel.kt" to (7 to "Swing's tree and component API"),
         "ui/HexViewer.kt" to (2 to "Swing's caret API"),
         "ui/WorldLock.kt" to (1 to "Swing's Graphics"),
@@ -104,7 +104,7 @@ class StringKeysTest {
     fun `no new Any`() = check("""(?::\s*Any\??\b|<Any\??>|vararg \w+: Any)""", mapOf(
         "Books.kt" to (4 to "the stock registry takes the tables it sums, of several array types, only for the audit"),
         "run/Nominal.kt" to (1 to "walks a part's tables by reflection"),
-        "store/ObjectStore.kt" to (16 to "saves are by field name and runtime type; boxed value classes go as the value they wrap"),
+        "store/ObjectStore.kt" to (18 to "saves are by field name and runtime type; boxed value classes go as the value they wrap; hash map keys ordered as they come"),
         "ui/GroupControlWindow.kt" to (1 to "Swing's table model"),
         "ui/HexHistoryPanel.kt" to (1 to "Swing's tree nodes"),
         "world/WorldCaches.kt" to (1 to "the cache reader"),
@@ -115,7 +115,7 @@ class StringKeysTest {
         "ecology/Catalogue.kt" to (1 to "the kinds' list, read from the file's own object"),
         "ecology/HexSnapshot.kt" to (20 to "saves are by field name: the order and roster checks"),
         "run/Nominal.kt" to (4 to "lists a part's tables for the check"),
-        "store/ObjectStore.kt" to (49 to "saves are by field name and runtime type; boxed value classes are boxed again by the declared type"),
+        "store/ObjectStore.kt" to (52 to "saves are by field name and runtime type; boxed value classes are boxed again by the declared type; a hash map's keys sorted by their runtime class"),
         "world/FreeAir.kt" to (1 to "a resource that ships in the jar"),
         "world/WorldCaches.kt" to (2 to "the jar's resources and the cache reader"),
     ), "reflection", "Use a typed interface", ".")
