@@ -361,9 +361,12 @@ object HexSnapshot {
      *   that pay only when tame were eaten within the week.
      * 4.81: kept animals still wild stray at a fifth of the rate ([HERD_RUN_OFF] 0.1, was 0.5 with no source): a herd as tame
      *   as one at world start loses 2% a year, as herded goats in central Mali lost to straying and predators.
+     * 4.82: kept animals stray as the square of their wildness ([HERD_RUN_OFF] 0.5 × (1 − tameness)²; still 2% a year at
+     *   tameness 0.8): a 0.6-tame herd loses 8% a year, a 0.2-tame one 32%; before, in a straight line, half-wild ostriches
+     *   lost little enough to be herded on foot.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 81
+    const val MODEL_MINOR = 82
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
