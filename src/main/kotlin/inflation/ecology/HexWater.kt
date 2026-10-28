@@ -730,6 +730,9 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         return blocked * (WEIR_RUN_SHARE * passing[h] + WEIR_RIVER_SHARE * riverFish[h] * max(1f, hw.land[h] * hexKm2))
     }
 
+    /** The run's fish that came up to hex [h] this week bound for the river above it, kg (for the census). */
+    fun passingAt(h: Hex) = passing[h]
+
     /** The run's fish held below the weirs in hex [h] that weirs across [blocked] of the river there hold, kg: their share of what all of them stop. */
     private fun pennedFor(h: Hex, blocked: Float) = if (weirBlock[h] > 0f) penned[h] * min(1f, blocked / weirBlock[h]) else 0f
 

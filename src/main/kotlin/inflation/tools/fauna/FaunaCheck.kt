@@ -90,6 +90,7 @@ class FaunaCheck(private val sim: HexSim, private val options: FaunaCheckOptions
         census.printChoices()
         census.printHuntersFamilies()
         people.printBands()
+        people.printRunSites()
         census.printIdentity(hunting.year)
         people.printAgainstTheRecord(deaths, hunting)
         deaths.printResidentDeathsThisYear()

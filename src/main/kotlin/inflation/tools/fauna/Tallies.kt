@@ -26,6 +26,11 @@ import inflation.ecology.bandLiving
 import inflation.ecology.boldness
 import inflation.ecology.houseFoodAYear
 import inflation.ecology.houseLivesAYear
+import inflation.ecology.HexWater.Companion.WEIR_RUN_SHARE
+import inflation.ecology.WEIR_DAYS_PER_M
+import inflation.ecology.WEIR_MAX_M
+import inflation.ecology.WEIR_TEND_DAYS_PER_M
+import inflation.ecology.WEIR_WOOD_KG_PER_M
 import java.util.TreeMap
 import inflation.world.get
 import inflation.world.set
@@ -260,6 +265,13 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
     private val movesHouse = LongArray(2); private val bandWeeksHouse = LongArray(2)
     /** Appointments due and kept since last read: of bands in their appointment's month, how many are at its hex. */
     private var apptDue = 0L; private var apptKept = 0L
+    /**
+     * The spring run's fish that came up past each hex bound for the river above it, kg, summed over the run so far
+     * ([HexWater.passingAt]), and the band-weeks camped at each hex in it; and the same for the last whole run.
+     */
+    private var runPassed = DoubleArray(sim.hex.size); private var runCamped = IntArray(sim.hex.size)
+    private var lastPassed = DoubleArray(0); private var lastCamped = IntArray(0)
+    private var runWeeks = 0; private var lastRunWeeks = 0
 
     fun startYear() {
         bandWeeks = 0.0; bandHeads = 0.0; childWeeks = 0.0; adultWeeks = 0.0; motherWeeks = 0.0; moves = 0
@@ -288,6 +300,46 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
             for (q in g.path) walked.getOrPut(g.id) { HashSet() } += q
             lastCamp.put(g.id, h)?.let { if (it != h) moves++ }
         }
+        runWeek()
+    }
+
+    /** This week's spring run past each hex, and the bands camped in its way ([runPassed]); a run ended keeps its sums. */
+    private fun runWeek() {
+        val water = sim.groups.fauna.water
+        var any = false
+        for (h in sim.hex.all) { val kg = water.passingAt(h); if (kg > 0f) { runPassed[h.i] += kg.toDouble(); any = true } }
+        if (any) {
+            runWeeks++
+            for (g in sim.groups.groups) if (g.alive && g.band != null) runCamped[sim.hw.placeHex[g.place].i]++
+        } else if (runWeeks > 0) {
+            lastPassed = runPassed; lastCamped = runCamped; lastRunWeeks = runWeeks
+            runPassed = DoubleArray(sim.hex.size); runCamped = IntArray(sim.hex.size); runWeeks = 0
+        }
+    }
+
+    /**
+     * The 20 hexes the most of the last whole spring run came up past, bound for the river above: the tonnes that passed, what
+     * a weir across the river there (up to [WEIR_MAX_M]) would have stopped of them ([HexWater.WEIR_RUN_SHARE]) a week of the run,
+     * the days and timber to build it and the days a week to tend it ([WEIR_DAYS_PER_M], [WEIR_WOOD_KG_PER_M],
+     * [WEIR_TEND_DAYS_PER_M]), the weirs whole there, and the band-weeks camped there and within 20 km during the run.
+     * Where, if anywhere, a weir could feed a band.
+     */
+    fun printRunSites() {
+        if (lastRunWeeks == 0) return
+        val water = sim.groups.fauna.water; val hex = sim.hex
+        val top = sim.hex.all.filter { lastPassed[it.i] > 0.0 }.sortedByDescending { lastPassed[it.i] }.take(20)
+        val camps = sim.hex.all.filter { lastCamped[it.i] > 0 }
+        val whole = sim.groups.bands.built.filter { it.kind == Built.WEIR && it.done }.groupingBy { it.hex }.eachCount()
+        val sizes = sim.groups.groups.filter { it.alive && it.band != null }.map { it.size.toDouble() }
+        println("     spring run, last whole run (%d weeks), %d hexes it passed; mean band %.0f people; most passed: ".format(lastRunWeeks,
+            sim.hex.all.count { lastPassed[it.i] > 0.0 }, if (sizes.isEmpty()) 0.0 else sizes.average()) + top.joinToString("; ") { h ->
+            val width = water.riverWidthM(h); val len = minOf(width, WEIR_MAX_M)
+            val stops = if (width > 0f) WEIR_RUN_SHARE * len / width * lastPassed[h.i] / lastRunWeeks else 0.0
+            val near = camps.filter { hex.distanceKm(it, h) <= 20.0 }.sumOf { lastCamped[it.i] }
+            "%.1f t passed, river %.0f m, weir stops %.0f kg/wk, builds in %.0f days and %.1f t wood, tends %.0f days/wk, %d whole there, band-weeks there %d, within 20 km %d".format(
+                lastPassed[h.i] / 1000.0, width, stops, len * WEIR_DAYS_PER_M, len * WEIR_WOOD_KG_PER_M / 1000.0, len * WEIR_TEND_DAYS_PER_M * 7.0,
+                whole[h] ?: 0, lastCamped[h.i], near)
+        })
     }
 
     /** Camp moves a year of bands with houses or without, since last read. */
