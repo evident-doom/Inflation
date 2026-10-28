@@ -215,7 +215,7 @@ internal fun HexGroups.choreAsks(g: HexGroup, b: Band, date: Date, asks: EnumFlo
     if (moved && !b.campPlace.none) ask(Activity.CACHING, min(1f, b.cacheWill) * leftBehindKg(g, b) * cacheCare(b) / CACHE_KG_A_DAY)
     ask(Activity.MATERIALS, gatherMaterials(g, b, p, h, people, land.m2(p), null))
     // (What the shelters it aims at take beyond the days already given them first, when given: [survivalDays].)
-    ask(Activity.SHELTER, shelterLack(b, moved) * shelterDays(b, people) - (warm?.get(Activity.SHELTER) ?: 0f))
+    ask(Activity.SHELTER, shelterWork(b, people, if (moved) 0f else b.shelter, b.shelterWill) - (warm?.get(Activity.SHELTER) ?: 0f))
     ask(Activity.CUSTOMS, cleanDays(b, people) + nurseDays(b, people))
     ask(Activity.TRAINING, Skill.entries.sumOf { s -> (learners(b, s, people) * APPRENTICE_DAYS * s.complexity).toDouble() }.toFloat())
     ask(Activity.TOOLS, makeTools(b, people, null))
@@ -249,7 +249,8 @@ internal fun HexGroups.leaveDead(g: HexGroup) {
     val area = land.areaKm2[p]
     for (k in b.herd.indices) if (b.herd[k] > 0f) {
         fauna.adults[k][p] += b.herd[k] / area; bands.herdFlows[HerdFlow.FREED] += b.herd[k]; bands.herdFlows[HerdFlow.ENDED_FREED] += 1f
-        b.herd[k] = 0f; b.herdTame[k] = 0f
+        bands.kindFlows[k][HerdFlow.FREED] += b.herd[k]; bands.kindFlows[k][HerdFlow.ENDED_FREED] += 1f
+        b.herd[k] = 0f; b.herdTame[k] = 0f; if (k < b.herdPet.size) b.herdPet[k] = 0f
     }
 }
 
@@ -413,7 +414,7 @@ internal fun HexGroups.bandInputs(g: HexGroup, weather: Weather, into: FloatArra
     val air = airAt(g.place, weather); val cold = b.warmth(air, b.fire, b.homeShelter(), days)
     into[x.COLD_FOOD] = min(1f, cold.extra); into[x.COLD_ODDS] = min(1f, 10f * cold.odds)
     into[x.WIND] = min(1f, air.windMs / 10f); into[x.WET] = air.wet
-    into[x.FIRE_SHARE] = b.fire; into[x.HOME_SHELTER] = b.homeShelter()
+    into[x.FIRE_SHARE] = min(1f, b.fire); into[x.HOME_SHELTER] = b.homeShelter()
     // Its salt: the share of its people's sodium it lacked last week, and the salt to be had where it stands (a pan, the shore).
     into[x.SODIUM_SHORT] = b.sodiumShort
     into[x.SALT_HERE] = if (hw.coast[hw.placeHex[g.place]]) 1f else min(1f, 5f * land.salt[g.place])

@@ -551,19 +551,22 @@ class HexGroups(
 
 
     /**
-     * The fire band [b] (group [g]) would keep camped at place [p]: its fire now; elsewhere the fire it keeps lit, as far
-     * as the wood its hands can fetch there feeds it ([hearthShare], as [fetchFuel] fetches it). (A band that had no
-     * wood at all this week counts on keeping a fire lit where there is wood.)
+     * The fire band [b] (group [g]) would keep camped at place [p]: its fire now; elsewhere the fire it keeps lit, as big
+     * as the days it gives firewood now fetch there, and at least a cooking fire as far as the wood its hands can fetch
+     * there feeds it ([hearthShare], as [fetchFuel] fetches it). (A band that had no wood at all this week counts on
+     * keeping a fire lit where there is wood.)
      */
     internal fun fireAt(g: HexGroup, b: Band, p: Place): Float {
         if (p == g.place) return b.fire
         val lit = if (b.hearthWood > 0f) min(1f, b.fire / b.hearthWood) else 1f
-        return lit * hearthShare(woodCover(p), g.size.toFloat() / forageHands(g))
+        val here = woodCover(g.place); val there = woodCover(p)
+        val same = if (here > 0f) b.hearthWood * there / here else 0f
+        return lit * max(same, hearthShare(there, g.size.toFloat() / forageHands(g)))
     }
 
     /**
      * The brush shelters band [b] (group [g]) would have camped at place [p], [km] off: its shelters now; elsewhere what it
-     * puts up there in the days it had to spare, less the walk's days, as far as it aims to ([shelterDays]). (A band whose
+     * puts up there in the days it had to spare, less the walk's days, as far as it aims to ([shelterReach]). (A band whose
      * walk takes its spare days sleeps in the open where it comes to: what being caught on the move in the cold costs.)
      * (Last week's spare days stand for this week's: an estimate.)
      */
@@ -572,7 +575,7 @@ class HexGroups(
         val people = g.adults.toFloat()
         if (people <= 0f) return 0f
         val left = max(0f, b.spareDays - moveDays(g, km) * forageHands(g))
-        return min(b.shelterWill, left / shelterDays(b, people))
+        return shelterReach(b, people, 0f, b.shelterWill, left)
     }
 
     /** How far [g] camped at place [p] would be sheltered by houses there it may use (0 for none worth the name). */

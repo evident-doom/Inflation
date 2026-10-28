@@ -1,5 +1,7 @@
 package inflation.tools.fauna
 
+import inflation.EnumFloats
+import inflation.enumFloats
 import inflation.world.Hex
 import inflation.ecology.set
 import inflation.ecology.get
@@ -25,6 +27,8 @@ import inflation.ecology.Tradition
 import inflation.ecology.bandLiving
 import inflation.ecology.boldness
 import inflation.ecology.houseFoodAYear
+import inflation.ecology.HouseAir
+import inflation.ecology.HouseWorth
 import inflation.ecology.houseLivesAYear
 import inflation.ecology.HexWater.Companion.WEIR_RUN_SHARE
 import inflation.ecology.WEIR_DAYS_PER_M
@@ -472,7 +476,29 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
         val livedLives = bs.map { it.houseLives.toDouble() }; val livedFood = bs.map { it.houseFood.toDouble() }
         return " | a house would be worth a person a year, at usual temperatures: lives %.4f, food %.0f kg (%.1f%% of need); as the bands lived the year: lives %.4f, food %.0f kg (%.1f%% of need), bands where it saves a life per 100 person-years or more %.0f%%, or 1%% of need %.0f%%".format(
             lives.mean(), food.mean(), 100.0 * food.mean() / need, livedLives.mean(), livedFood.mean(), 100.0 * livedFood.mean() / need,
-            100.0 * livedLives.count { it >= 0.01 } / bs.size.coerceAtLeast(1), 100.0 * livedFood.count { it >= 0.01 * need } / bs.size.coerceAtLeast(1))
+            100.0 * livedLives.count { it >= 0.01 } / bs.size.coerceAtLeast(1), 100.0 * livedFood.count { it >= 0.01 * need } / bs.size.coerceAtLeast(1)) +
+            houseParts()
+    }
+
+    /**
+     * What a whole house would have done for bands' weeks since the last census, part by part ([HouseWorth]), a person a
+     * year, and by the week's air ([HouseAir]): what houses' worth is made of, and what a brush shelter already does.
+     */
+    private fun houseParts(): String {
+        val by = sim.groups.bands.houseWorth
+        val all = enumFloats<HouseWorth>().also { a -> for (w in by) for (x in HouseWorth.entries) a[x] += w[x] }
+        fun a(w: EnumFloats<HouseWorth>, x: HouseWorth) = w[x].toDouble() / w[HouseWorth.PEOPLE_WEEKS].toDouble().coerceAtLeast(1.0) * stepsPerYear
+        return "; since last, a person a year: lives from exposure %.4f (against the shelters they had), from beasts %.4f, from raids %.4f; ".format(
+                a(all, HouseWorth.EXPOSURE), a(all, HouseWorth.STALKED), a(all, HouseWorth.RAIDS)) +
+            "for comparison a whole brush shelter against none %.4f, a whole house against no cover %.4f; ".format(a(all, HouseWorth.SHELTER_EXPOSURE), a(all, HouseWorth.BARE_EXPOSURE)) +
+            "food from keeping warm %.1f kg, stores kept %.1f kg, kept from raiders %.1f kg, in lives from hunger %.4f, grown people's body protein days spared %.3f; days given back to the cold, were all days at work out %.2f, at crafts %.2f; under a roof %.1f%% of person-weeks".format(
+                a(all, HouseWorth.WARM_KG), a(all, HouseWorth.KEPT_KG), a(all, HouseWorth.RAID_KG), a(all, HouseWorth.HUNGER), a(all, HouseWorth.PROTEIN_DAYS), a(all, HouseWorth.WORK_DAYS), a(all, HouseWorth.CRAFT_DAYS),
+                100.0 * all[HouseWorth.ROOFED_WEEKS] / all[HouseWorth.PEOPLE_WEEKS].toDouble().coerceAtLeast(1.0)) +
+            " | by the week's air: " + HouseAir.entries.joinToString(", ") { c -> val w = by[c.ordinal]
+                "%s %.0f%% of person-weeks, exposure %.4f, shelter against none %.4f, house against no cover %.4f, warm %.1f kg, work days %.2f".format(c.label,
+                    100.0 * w[HouseWorth.PEOPLE_WEEKS] / all[HouseWorth.PEOPLE_WEEKS].toDouble().coerceAtLeast(1.0), a(w, HouseWorth.EXPOSURE),
+                    a(w, HouseWorth.SHELTER_EXPOSURE), a(w, HouseWorth.BARE_EXPOSURE), a(w, HouseWorth.WARM_KG), a(w, HouseWorth.WORK_DAYS)) }
+                .also { for (w in by) w.fill(0f) }
     }
 
     /** What became of kept animals since the last census ([HerdFlow]): heads in and out by cause, and the shares herded and fed. */
@@ -483,7 +509,30 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
             f[HerdFlow.BORN], f[HerdFlow.DIED], f[HerdFlow.RAN_OFF], f[HerdFlow.CULLED], f[HerdFlow.EATEN], f[HerdFlow.EATEN_UNPAID], f[HerdFlow.FREED], f[HerdFlow.MILK_KG] / 1000f,
             f[HerdFlow.KG_TENDED] / kg, f[HerdFlow.KG_FED] / kg, f[HerdFlow.KG_PAYS] / kg,
             f[HerdFlow.KG_WORTH_HALF] / kg, f[HerdFlow.KG_WORTH_UNDER] / kg, f[HerdFlow.KG_WORTH_OVER] / kg, f[HerdFlow.KG_WORTH_TWICE] / kg, f[HerdFlow.ENDED], f[HerdFlow.ENDED_UNPAID], f[HerdFlow.ENDED_FREED])
-            .also { f.fill(0f) }
+            .also { f.fill(0f) } + kindFlows()
+    }
+
+    /**
+     * The same by kind ([Bands.kindFlows]), for kinds caught, kept or let go since the last census: young caught and kept, herds
+     * begun from none so, head born, culled for want of herders, eaten down for not paying, herds ended paying and not; and
+     * on the hoof, the share in herds that pay, the yearly increase and what a herder's day brings against a lean month's
+     * foraging, each a mean by kg.
+     */
+    private fun kindFlows(): String {
+        val bands = sim.groups.bands; val kinds = sim.fauna.kinds
+        val parts = kinds.indices.mapNotNull { k ->
+            val f = bands.kindFlows[k]; val young = bands.keptYoung.getAndSet(k, 0); val begun = bands.herdsBegun.getAndSet(k, 0)
+            val line = if (young == 0 && f[HerdFlow.KG] <= 0f && f[HerdFlow.ENDED] + f[HerdFlow.ENDED_UNPAID] + f[HerdFlow.ENDED_PET] + f[HerdFlow.ENDED_FREED] <= 0f) null
+            else {
+                val kg = f[HerdFlow.KG].coerceAtLeast(1e-6f)
+                "%s: young kept %d, herds begun %d, born %.0f, culled for want of herders %.0f, eaten down for not paying %.0f, ended %.0f paying / %.0f not / %.0f as pets, as pets %.2f, in herds that pay %.2f, increase %.2f a year, a herder's day %.2f of a lean month's foraging".format(
+                    kinds[k].name, young, begun, f[HerdFlow.BORN], f[HerdFlow.CULLED], f[HerdFlow.EATEN_UNPAID], f[HerdFlow.ENDED], f[HerdFlow.ENDED_UNPAID], f[HerdFlow.ENDED_PET],
+                    f[HerdFlow.KG_PET] / kg, f[HerdFlow.KG_PAYS] / kg, f[HerdFlow.INCREASE_KG] / kg, f[HerdFlow.WORTH_KG] / f[HerdFlow.KG_WORTH_KNOWN].coerceAtLeast(1e-6f))
+            }
+            f.fill(0f)
+            line
+        }
+        return " | kept herds by kind since last: " + parts.joinToString("; ").ifEmpty { "none" }
     }
 
     /** What bands hold a grown person (what a camp move must carry or leave), kept herds, ornaments and shell, grave goods. */

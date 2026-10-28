@@ -343,9 +343,37 @@ object HexSnapshot {
      * 4.76: a band's marks ([Tradition.mark]: burial, leaving the dead, marrying out, sparing young game, feasts) go the way most
      *   of the bands it has met lately go ([conformist], [Band.heard]), not the way of the band doing better; know-how is still
      *   copied from the better off. Founders' lineages are drawn per 150 km block ([lineageAt]) instead of repeating every 600 km.
+     * 4.77: a band keeps its herd's increase, females with it, while its leanest month would still herd the herd grown,
+     *   and culls above that, a month's share of the excess a week ([Band.freeShare]: the share of its days its fire,
+     *   shelters and food leave, month by month); before, it kept the increase only where that week's spare days would
+     *   herd it, so a herd could only hold or shrink. A herd that kept its increase to grow feeds the band only its milk
+     *   ([Band.herdGrew]), and the band forages for the rest.
+     * 4.78: the spring run's fish are a food of their own for a band on the river ([RUN_KIND]): a kilo takes the wait for fish
+     *   to come within a fisher's reach ([HexWater.runWithinReach], [HexWater.RUN_REACH_M]) and its landing, so a run crowding a
+     *   narrow river pays many times what a thin one does; before, they were one with the river's own fish at 0.3 days a kilo.
+     * 4.79: a light hut (a tenth of a person-day each) keeps off the wind and rain and holds the bedding but no warmth; its
+     *   thatching, some 2 person-days each ([THATCH_DAYS]), holds the warmth in ([SHELTER_C]), and the week's survival
+     *   pass thatches as far as it averts deaths, whatever the band's ways aim at ([shelterWork], [Band.shelterAim]);
+     *   before, the tenth of a day's hut gave the warmth too. The survival pass counts the food its days leave unforaged
+     *   (before, it reckoned with all the week's food got, so the warmth's days were free).
+     * 4.80: a herd begun from young caught in the hunt is kept as pets till they have grown ([Band.herdPet],
+     *   [Species.yearsToMaturity]): kept whole and not weighed as food; before, it was weighed at once, and young of kinds
+     *   that pay only when tame were eaten within the week.
+     * 4.81: kept animals still wild stray at a fifth of the rate ([HERD_RUN_OFF] 0.1, was 0.5 with no source): a herd as tame
+     *   as one at world start loses 2% a year, as herded goats in central Mali lost to straying and predators.
+     * 4.82: kept animals stray as the square of their wildness ([HERD_RUN_OFF] 0.5 × (1 − tameness)²; still 2% a year at
+     *   tameness 0.8): a 0.6-tame herd loses 8% a year, a 0.2-tame one 32%; before, in a straight line, half-wild ostriches
+     *   lost little enough to be herded on foot.
+     * 4.83: a fire warms by the wood it burns ([BodyHeat.fireC]): a kilo a person a day a degree in the open, 0.67 in a
+     *   light hut, half a kilo in a hut thatched whole, and a house's air 0.15 ([FIRE_HOUSE_KG_C]); a whole cooking fire
+     *   burns a kilo ([HEARTH_WOOD]), and the survival pass burns more as far as it averts deaths, up to the days a band
+     *   gives firewood at most ([fuelMost]). The survival pass reckons the year after under the shelter it weighs through
+     *   the weeks the band expects to stay on ([Band.stayWeeks], [yearAhead]). Before, a kilo a person a day kept those
+     *   about it 10 °C warmer, and a house's air 10 °C more, whatever the cold or the cover, and a shelter was weighed by
+     *   its first week alone.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 76
+    const val MODEL_MINOR = 83
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

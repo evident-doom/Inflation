@@ -63,6 +63,11 @@ class Band(kinds: Int) {
     val seasonQ = FloatArray(12)
     /** The food it got in each month over the last years, as a share of its need before keeping warm ([foresee]). */
     val monthSupply = FloatArray(12) { 1f }
+    /**
+     * The share of its hands' days left in each month once its fire, shelters and food are held ([BandTime.vital]), a mean
+     * over the years (below 0 till it has planned a week then): what its leanest month could give its herders ([keepHerds]).
+     */
+    val freeShare = FloatArray(12) { -1f }
     /** Share of its people sick with each [Illness] now, and share spared for having had it. */
     val sick = enumFloats<Illness>()
     val immune = enumFloats<Illness> { it.endemic }
@@ -139,7 +144,7 @@ class Band(kinds: Int) {
     /**
      * What a whole house would have been worth to it where it was, a person a year, as it lived its weeks (a running mean over
      * about a year, [houseWorthWeek]): the lives it would have saved (cold, exposure, raids) and the food, kg of need (keeping
-     * warm, stores kept from spoiling, less to raiders, less to mice taken off). What a band weighs a house by.
+     * warm, stores kept from spoiling, less to raiders, less to mice taken off). (Nothing weighs a house by it yet: the census reports it.)
      */
     var houseLives = 0f
     var houseFood = 0f
@@ -231,6 +236,18 @@ class Band(kinds: Int) {
     val herd = FloatArray(kinds)
     val herdTame = FloatArray(kinds)
     /**
+     * Of each kind, whether its herd kept its increase to grow at its last week's keeping ([keepHerds]), and so fed the band
+     * only its milk. (Empty in a band loaded from a save made before it; [keepHerds] sizes it to [herd].)
+     */
+    var herdGrew = BooleanArray(kinds)
+    /**
+     * Of each kind, the years left of the time its herd, begun from young caught in the hunt, is kept as pets: small animals
+     * kept for their own sake, as companions, and not yet weighed as food ([keepHerds]) till the young it was begun with have
+     * grown ([Species.yearsToMaturity]). 0 for a herd kept for food. (Empty in a band loaded from a save made before it;
+     * [keepHerds] sizes it to [herd].)
+     */
+    var herdPet = FloatArray(kinds)
+    /**
      * Of the grain in its stores, what it reaped from sown fields and keeps to sow first, its seed corn (as its stores count
      * it; eaten last, so no more than its grain: [seedCornIn]), and the share of that from ears that hold their grain;
      * and of the rest, gathered from wild stands, the share from ears that hold their grain.
@@ -269,10 +286,10 @@ class Band(kinds: Int) {
     /** How keen it is to go into country it does not know (1: the usual wariness of strange ground; 2: drawn to it). */
     val explore get() = will[BandWay.EXPLORING]
     /** The fire as it guards the camp at night: kept only as faithfully as the band chooses (a bigger fire above 1, guarding less for each log more). */
-    val nightGuard get() = fire * moreOfWill(nightFire) * nightWood
+    val nightGuard get() = min(1f, fire) * moreOfWill(nightFire) * nightWood
     /** Share of the night's firewood it had this week. */
     var nightWood = 1f
-    /** Share of the hearth's firewood (warmth and cooking) it fetched this week: its fire burns only as far as that goes. */
+    /** The hearth's firewood it fetched this week, a person a day in whole cooking fires ([fireOf]): its fire burns only as far as that goes. */
     var hearthWood = 1f
     /** Its choices: how ready it is to go raiding, and to fortify (1 the scaffold's). */
     val raidWill get() = will[BandWay.RAIDS]
@@ -362,6 +379,8 @@ class Band(kinds: Int) {
     @Transient var planOdds = 0f
     @Transient var planLeft = 0f
     @Transient var planShelterFirst = -1f
+    /** The shelters its week's survival pass would put up ([survivalDays]): what it builds to first ([putUpShelter]). Set as the week is planned. */
+    @Transient var shelterAim = 0f
     /** The air and cover its survival pass reckoned the week's exposure with (for warmDiag only: [bookSqueeze]). */
     @Transient var planAir: Air? = null
     @Transient var planCover: Cover? = null
@@ -371,6 +390,8 @@ class Band(kinds: Int) {
     @Transient var diagFoodSpent = 0f
     @Transient var diagShelterHeld = 0f
     @Transient var diagShelterLeft = 0f
+    /** What a whole house would have done for its week, part by part ([HouseWorth]), for the census only ([bookSqueeze]). */
+    @Transient val houseWeek = enumFloats<HouseWorth>()
     /** The share of its herd its herders kept this week, as its week's plan gave them days ([herdDays]; 1 till it plans). */
     @Transient var herded = 1f
     /** What a day's foraging brings it, kg of its need, month by month: a mean over the years (below 0 till it has foraged then; [herdPays]). */
@@ -491,8 +512,8 @@ class Band(kinds: Int) {
 
     fun splitInto(o: Band, adults: Int, stay: Int, share: Float, r: Random, copied: (Band) -> Unit) {
         o.ties.clear(); o.ties.putAll(ties); o.appointment = appointment
-        o.houseHex = houseHex; o.house = house; o.homeEarth = homeEarth; o.homeWalls = homeWalls; o.homeGroundC = homeGroundC; o.palisade = palisade; herdTame.copyInto(o.herdTame); herd.copyInto(o.herd)
-        o.houseLives = houseLives; o.houseFood = houseFood; foodFrom.copyInto(o.foodFrom); o.fishPull = fishPull; monthSupply.copyInto(o.monthSupply); o.leanDays = leanDays
+        o.houseHex = houseHex; o.house = house; o.homeEarth = homeEarth; o.homeWalls = homeWalls; o.homeGroundC = homeGroundC; o.palisade = palisade; herdTame.copyInto(o.herdTame); herd.copyInto(o.herd); herdGrew.copyInto(o.herdGrew); herdPet.copyInto(o.herdPet)
+        o.houseLives = houseLives; o.houseFood = houseFood; foodFrom.copyInto(o.foodFrom); o.fishPull = fishPull; monthSupply.copyInto(o.monthSupply); freeShare.copyInto(o.freeShare); o.leanDays = leanDays
         o.seedDomestic = seedDomestic; o.grainDomestic = grainDomestic; o.seedCorn = seedCorn * share; seedCorn -= o.seedCorn; o.sinceRaided = sinceRaided; o.sisu = sisu
         o.knownHomes.putAll(knownHomes); o.knownLineage.putAll(knownLineage)
         skills.copyInto(o.skills)
@@ -568,6 +589,8 @@ class Band(kinds: Int) {
             val n = a.herd[i] + b.herd[i]
             if (n > 0f) a.herdTame[i] = (a.herd[i] * a.herdTame[i] + b.herd[i] * b.herdTame[i]) / n
             a.herd[i] = n
+            // (Pets while either band's were: the joined herd is weighed as food once the younger has grown.)
+            if (i < a.herdPet.size && i < b.herdPet.size) a.herdPet[i] = max(a.herdPet[i], b.herdPet[i])
         }
         a.renown = max(a.renown, b.renown)
         for (i in Tool.entries) a.knows[i] = a.knows[i] || b.knows[i]
@@ -598,7 +621,7 @@ class Band(kinds: Int) {
      * from partners; on strange ground people find little and risk the wrong plants.
      */
     val plants = enumFloats<Biome>()
-    /** Share of the week it has had a fire going: warmth, cooked food. */
+    /** Its fire this week: the share of the week it was lit, times the wood it burnt a person a day in whole cooking fires ([HEARTH_WOOD]). Cooks at 1; a bigger fire only warms more. */
     var fire = 0f
     /**
      * How much longer than an ordinary practised forager (bands start at [START_CRAFT]) it takes over
@@ -690,8 +713,8 @@ class Band(kinds: Int) {
     fun clothesClo() = CLOTHES_CLO * has(Tool.CLOTHES) * skill(Skill.SEWING)
     /** How far houses shelter it where it is: its home's, at home. */
     fun homeShelter() = if (atHome) house else 0f
-    /** How much warmer than [t] °C outside its houses keep: by their hearths and the people in them, and the ground's warmth through sunken walls. */
-    fun houseWarmC(t: Float, fire: Float = 1f) = HOUSE_C * fire + homeEarth * max(0f, homeGroundC - t)
+    /** How much warmer than [t] °C outside its houses keep: by the wood their hearths burn ([fire], [FIRE_HOUSE_KG_C]), and the ground's warmth through sunken walls. */
+    fun houseWarmC(t: Float, fire: Float = 1f) = fire * HEARTH_WOOD / FIRE_HOUSE_KG_C + homeEarth * max(0f, homeGroundC - t)
     /** What it has against the cold at [t] °C with a fire of [fire] and houses sheltering it as far as [home] ([BodyHeat]). */
     fun cover(t: Float, fire: Float, home: Float, shelter: Float = this.shelter) = Cover(clothesClo(), fire, shelter, home, houseWarmC(t, fire))
     /**

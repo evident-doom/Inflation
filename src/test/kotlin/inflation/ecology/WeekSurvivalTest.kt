@@ -21,8 +21,8 @@ class WeekSurvivalTest {
                 val b = g.band!!
                 val hands = forageHands(g)
                 val time = BandTime(days * hands)
-                val food = days * hands * 0.6f; val fuel = fuelAsk(g, hands)
-                val first = survivalDays(g, b, sim.weather, time, hands, food, 0f, fuel, movedCamp(g, b))
+                val food = days * hands * 0.6f; val fuel = fuelMost(g, hands)
+                val first = survivalDays(g, b, sim.weather, time, hands, food, 0f, movedCamp(g, b))
                 assertTrue(first[Activity.FOOD] == 0f, "food ${first[Activity.FOOD]}")
                 assertTrue(first[Activity.FIREWOOD] in 0f..fuel * 1.0001f + 1e-4f, "firewood ${first[Activity.FIREWOOD]} of $fuel")
                 val warmth = first.sum()

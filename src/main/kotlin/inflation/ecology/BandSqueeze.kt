@@ -92,6 +92,20 @@ internal fun HexGroups.bookSqueeze(g: HexGroup, b: Band, causes: List<Died>, wea
                 b.planShelterFirst, b.diagFoodHeld, b.diagFoodSpent, b.diagShelterHeld, b.diagShelterLeft))
     }
     for ((cause, k) in causes) if (k > 0) add(Tally.bandsWarmedDied(spare, warmed, cause), k)
+    // (And by how far its shelters stood: whether bands thatch, and what the cold costs them in food and lives.)
+    val hut = Tally.Hut.of(b.shelter)
+    add(Tally.bandsHut(hut, Tally.Bands.BAND_WEEKS), 1)
+    add(Tally.bandsHut(hut, Tally.Bands.PEOPLE_WEEKS), g.size)
+    add(Tally.bandsHut(hut, Tally.Bands.CAMP_AIR), (10f * airAt(g.place, weather).meanC).roundToInt())
+    add(Tally.bandsHut(hut, Tally.Bands.FED), (1000f * min(1f, g.fed) * g.size).roundToInt())
+    add(Tally.bandsHut(hut, Tally.Bands.WARM_EXTRA), (1000f * b.warmth(airAt(g.place, weather), b.fire, b.homeShelter(), days).extra).roundToInt())
+    add(Tally.bandsHut(hut, Tally.Bands.AIM), (100f * b.shelterAim).roundToInt())
+    if (b.campWeeks == 0) add(Tally.bandsHut(hut, Tally.Bands.MOVED), 1)
+    for ((cause, k) in causes) if (k > 0) add(Tally.bandsHutDied(hut, cause), k)
+    // (What a whole house would have done for its week, by the week's air.)
+    val worth = bands.houseWorth[HouseAir.of(airAt(g.place, weather).meanC).ordinal]
+    for (x in HouseWorth.entries) worth[x] += b.houseWeek[x]
+    b.houseWeek.fill(0f)
     val h = if (b.herd.any { it > 0f }) Tally.HerdKept.HERDING else Tally.HerdKept.NONE
     add(Tally.bandsHerdKept(h, Tally.Bands.BAND_WEEKS), 1)
     add(Tally.bandsHerdKept(h, Tally.Bands.PEOPLE_WEEKS), g.size)

@@ -80,6 +80,16 @@ class Bands internal constructor(private val world: GroupWorld) {
     /** Bands' kept animals since the census last read them ([HerdFlow]): heads born, dead, run off and culled, and kg herded and fed. */
     @Transient val herdFlows = enumFloats<HerdFlow>()
 
+    /** What a whole house would have done for bands' weeks since the census last read it, by the week's air ([HouseAir], [HouseWorth]). */
+    @Transient val houseWorth = HouseAir.entries.map { enumFloats<HouseWorth>() }
+
+    /** The same by kind, as [HexFauna.kinds] indexes them. */
+    @delegate:Transient val kindFlows by lazy { Array(world.fauna.kinds.size) { enumFloats<HerdFlow>() } }
+
+    /** Young caught in the hunt and kept, and herds begun from none so, by kind, since the census last read them (hunts run on many cores at once). */
+    @delegate:Transient val keptYoung by lazy { java.util.concurrent.atomic.AtomicIntegerArray(world.fauna.kinds.size) }
+    @delegate:Transient val herdsBegun by lazy { java.util.concurrent.atomic.AtomicIntegerArray(world.fauna.kinds.size) }
+
     /** Bands by the hex they are in ([indexBands]): at the start of the week for [fillBandStates], after the moves for [setWays]. */
     @Transient internal val bandIndex = HashMap<Hex, ArrayList<HexGroup>>()
 

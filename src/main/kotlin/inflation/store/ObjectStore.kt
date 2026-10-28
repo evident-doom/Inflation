@@ -127,11 +127,26 @@ internal class Writer(val out: DataOutputStream, val keep: (Class<*>) -> Boolean
             } else { out.writeByte(T.ARRAY); out.writeUTF(v.javaClass.componentType.name); out.writeInt(v.size); for (x in v) value(x) }
             is Lazy<*> -> if (lazies || v.isInitialized()) { out.writeByte(T.LAZY); value(v.value) } else out.writeByte(T.SKIP)
             is List<*> -> { out.writeByte(T.LIST); out.writeInt(v.size); for (x in v) value(x) }
-            is Set<*> -> { out.writeByte(T.SET); out.writeInt(v.size); for (x in v) value(x) }
-            is Map<*, *> -> { out.writeByte(T.MAP); out.writeInt(v.size); for ((a, b) in v) { value(a); value(b) } }
+            is Set<*> -> { out.writeByte(T.SET); out.writeInt(v.size); for (x in inOrder(v, v) { it }) value(x) }
+            is Map<*, *> -> { out.writeByte(T.MAP); out.writeInt(v.size); for ((a, b) in inOrder(v.entries, v) { it.key }) { value(a); value(b) } }
             else -> if (named != null && named.type.isInstance(v)) { out.writeByte(T.NAMED); out.writeUTF(named.nameOf(v)) }
                 else valueClass(v.javaClass)?.let { value(it.unbox.invoke(v)) } ?: obj(v)
         }
+    }
+
+    /**
+     * The entries of hash map or set [of] in an order of their own, by key where the keys are all of one kind that can be
+     * ordered: a hash table's order follows its history (one grown and shrunk again keeps its larger table, one loaded
+     * does not), so the same entries would be written in another order. Others as they come.
+     */
+    private fun <T> inOrder(items: Collection<T>, of: Any, key: (T) -> Any?): Collection<T> {
+        val hashed = (of is java.util.HashMap<*, *> && of !is LinkedHashMap<*, *>) || (of is java.util.HashSet<*> && of !is LinkedHashSet<*>) ||
+            of is java.util.concurrent.ConcurrentHashMap<*, *>
+        if (!hashed || items.size < 2) return items
+        val kind = key(items.first())?.javaClass ?: return items
+        if (!Comparable::class.java.isAssignableFrom(kind) || items.any { key(it)?.javaClass != kind }) return items
+        @Suppress("UNCHECKED_CAST")
+        return items.sortedWith { a, b -> (key(a) as Comparable<Any>).compareTo(key(b) as Any) }
     }
 
     private fun obj(v: Any) {

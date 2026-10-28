@@ -759,12 +759,37 @@ private fun GroupWorld.shareDeaths(hazards: List<Hazard>, adults: Int, young: In
  */
 private fun HexGroups.houseWorthWeek(g: HexGroup, b: Band, weather: Weather, stalked: Float) {
     val s = g.species; val fire = b.fire; val now = b.homeShelter(); val air = airAt(g.place, weather)
-    val d = max(0f, b.warmth(air, fire, now, days).odds - b.warmth(air, fire, 1f, days).odds)
-    b.houseLivesWeek += g.adults * d + g.young * min(1f, 1.5f * d)
+    val had = b.warmth(air, fire, now, days); val whole = b.warmth(air, fire, 1f, days)
+    fun lives(d: Float) = g.adults * d + g.young * min(1f, 1.5f * d)
+    val exposure = lives(max(0f, had.odds - whole.odds))
+    b.houseLivesWeek += exposure
     val walls = if (b.homeWalls > 0f) b.homeWalls else 1f
     val taken = stalked * (1f - stalkGuard(b, walls, b.fencedNow()) / stalkGuard(b, b.walledNow(), b.fencedNow()))
-    b.houseLivesWeek += (g.adults + g.young * YOUNG_STALKED / b.childWatch.coerceAtLeast(0.25f)) * max(0f, taken)
-    b.houseFoodWeek += max(0f, warmthNeed(s, b, g.place, weather, fire, now) - warmthNeed(s, b, g.place, weather, fire, 1f)) * g.dailyNeedKg / g.warmth.coerceAtLeast(1e-3f) * days
+    val beasts = (g.adults + g.young * YOUNG_STALKED / b.childWatch.coerceAtLeast(0.25f)) * max(0f, taken)
+    b.houseLivesWeek += beasts
+    val warmKg = max(0f, warmthNeed(s, b, g.place, weather, fire, now) - warmthNeed(s, b, g.place, weather, fire, 1f)) * g.dailyNeedKg / g.warmth.coerceAtLeast(1e-3f) * days
+    b.houseFoodWeek += warmKg
+    // (For the census: the parts, and against what a brush shelter does and no cover at all.)
+    val bare = b.warmth(air, fire, 0f, days, 0f)
+    val w = b.houseWeek
+    w[HouseWorth.PEOPLE_WEEKS] += g.size.toFloat(); w[HouseWorth.ROOFED_WEEKS] += g.size * now
+    w[HouseWorth.EXPOSURE] += exposure; w[HouseWorth.STALKED] += beasts; w[HouseWorth.WARM_KG] += warmKg
+    w[HouseWorth.SHELTER_EXPOSURE] += lives(max(0f, bare.odds - b.warmth(air, fire, 0f, days, 1f).odds))
+    w[HouseWorth.BARE_EXPOSURE] += lives(max(0f, bare.odds - whole.odds))
+    w[HouseWorth.WORK_DAYS] += g.adults * days * max(0f, whole.pace - had.pace)
+    w[HouseWorth.CRAFT_DAYS] += g.adults * days * max(0f, whole.campPace - had.campPace)
+    // (And its food in lives: the hunger deaths it would have averted this week by the week's own rule ([placeHazards]),
+    // and the days of body protein it would have spared against hunger later ([Hazards.spentAfter]).)
+    val more = b.houseFoodWeek / max(1e-3f, g.dailyNeedKg * days)
+    if (more > 0f) {
+        fun starve(fed: Float, young: Boolean): Float {
+            val short = shortfallOfAdults(g, fed) * (if (young) 1f - CHILDREN_FIRST else 1f)
+            return Hazards.hunger(s, g.spent, Hazards.onFat(1f - short, g.fat, days), days)
+        }
+        w[HouseWorth.HUNGER] += g.adults * max(0f, starve(g.fed, false) - starve(g.fed + more, false)) +
+            g.young * max(0f, min(1f, 1.5f * starve(g.fed, true)) - min(1f, 1.5f * starve(g.fed + more, true)))
+        w[HouseWorth.PROTEIN_DAYS] += g.adults * max(0f, Hazards.spentAfter(s, g.spent, g.fed, days) - Hazards.spentAfter(s, g.spent, g.fed + more, days))
+    }
     val people = max(1, g.size).toFloat(); val k = 1f / stepsPerYear
     b.houseLives += k * (b.houseLivesWeek / people * stepsPerYear - b.houseLives)
     b.houseFood += k * (b.houseFoodWeek / people * stepsPerYear - b.houseFood)
@@ -976,7 +1001,7 @@ internal fun HexGroups.stalkRate(g: HexGroup, b: Band, p: Place, pressure: Float
     // (Gatherers spread further from camp leave more ground to watch: about as its square.)
     val spread = b.gatherRange * b.gatherRange
     dialUse?.let { u ->
-        u.amount(DialSite.NIGHT_FIRE_GUARD, b.nightFire, guard, stalkGuard(b, walled, fenced, nightGuard = b.fire * b.nightWood))
+        u.amount(DialSite.NIGHT_FIRE_GUARD, b.nightFire, guard, stalkGuard(b, walled, fenced, nightGuard = min(1f, b.fire) * b.nightWood))
         u.amount(DialSite.NIGHT_WATCH_GUARD, b.will[BandWay.NIGHT_WATCH], guard, stalkGuard(b, walled, fenced, watchHours = WATCH_HOURS))
         u.amount(DialSite.GATHER_SPREAD, b.gatherRange, spread, 1f)
     }
