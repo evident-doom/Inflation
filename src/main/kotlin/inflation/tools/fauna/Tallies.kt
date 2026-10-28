@@ -271,6 +271,9 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
      */
     private var runPassed = DoubleArray(sim.hex.size); private var runCamped = IntArray(sim.hex.size)
     private var lastPassed = DoubleArray(0); private var lastCamped = IntArray(0)
+    /** Summed over the band-weeks camped at each hex in the run ([runCamped]): the bands' weir pull ([Band.weirPull]) and their timber, kg. */
+    private var runPull = DoubleArray(sim.hex.size); private var runWood = DoubleArray(sim.hex.size)
+    private var lastPull = DoubleArray(0); private var lastWood = DoubleArray(0)
     private var runWeeks = 0; private var lastRunWeeks = 0
 
     fun startYear() {
@@ -310,10 +313,16 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
         for (h in sim.hex.all) { val kg = water.passingAt(h); if (kg > 0f) { runPassed[h.i] += kg.toDouble(); any = true } }
         if (any) {
             runWeeks++
-            for (g in sim.groups.groups) if (g.alive && g.band != null) runCamped[sim.hw.placeHex[g.place].i]++
+            for (g in sim.groups.groups) {
+                val b = g.band ?: continue
+                if (!g.alive) continue
+                val i = sim.hw.placeHex[g.place].i
+                runCamped[i]++; runPull[i] += b.weirPull.toDouble(); runWood[i] += b.goods[Material.WOOD].toDouble()
+            }
         } else if (runWeeks > 0) {
-            lastPassed = runPassed; lastCamped = runCamped; lastRunWeeks = runWeeks
+            lastPassed = runPassed; lastCamped = runCamped; lastPull = runPull; lastWood = runWood; lastRunWeeks = runWeeks
             runPassed = DoubleArray(sim.hex.size); runCamped = IntArray(sim.hex.size); runWeeks = 0
+            runPull = DoubleArray(sim.hex.size); runWood = DoubleArray(sim.hex.size)
         }
     }
 
@@ -321,8 +330,8 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
      * The 20 hexes the most of the last whole spring run came up past, bound for the river above: the tonnes that passed, what
      * a weir across the river there (up to [WEIR_MAX_M]) would have stopped of them ([HexWater.WEIR_RUN_SHARE]) a week of the run,
      * the days and timber to build it and the days a week to tend it ([WEIR_DAYS_PER_M], [WEIR_WOOD_KG_PER_M],
-     * [WEIR_TEND_DAYS_PER_M]), the weirs whole there, and the band-weeks camped there and within 20 km during the run.
-     * Where, if anywhere, a weir could feed a band.
+     * [WEIR_TEND_DAYS_PER_M]), the weirs whole and begun there, the band-weeks camped there and within 20 km during the run,
+     * and those bands' mean weir pull and timber. Where, if anywhere, a weir could feed a band, and what keeps bands from one.
      */
     fun printRunSites() {
         if (lastRunWeeks == 0) return
@@ -330,15 +339,17 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
         val top = sim.hex.all.filter { lastPassed[it.i] > 0.0 }.sortedByDescending { lastPassed[it.i] }.take(20)
         val camps = sim.hex.all.filter { lastCamped[it.i] > 0 }
         val whole = sim.groups.bands.built.filter { it.kind == Built.WEIR && it.done }.groupingBy { it.hex }.eachCount()
+        val begunM = sim.groups.bands.built.filter { it.kind == Built.WEIR && !it.done }.groupBy { it.hex }.mapValues { (_, l) -> l.sumOf { (it.built * it.size).toDouble() } }
         val sizes = sim.groups.groups.filter { it.alive && it.band != null }.map { it.size.toDouble() }
         println("     spring run, last whole run (%d weeks), %d hexes it passed; mean band %.0f people; most passed: ".format(lastRunWeeks,
             sim.hex.all.count { lastPassed[it.i] > 0.0 }, if (sizes.isEmpty()) 0.0 else sizes.average()) + top.joinToString("; ") { h ->
             val width = water.riverWidthM(h); val len = minOf(width, WEIR_MAX_M)
             val stops = if (width > 0f) WEIR_RUN_SHARE * len / width * lastPassed[h.i] / lastRunWeeks else 0.0
             val near = camps.filter { hex.distanceKm(it, h) <= 20.0 }.sumOf { lastCamped[it.i] }
-            "%.1f t passed, river %.0f m, weir stops %.0f kg/wk, builds in %.0f days and %.1f t wood, tends %.0f days/wk, %d whole there, band-weeks there %d, within 20 km %d".format(
+            val weeks = lastCamped[h.i].coerceAtLeast(1)
+            "%.1f t passed, river %.0f m, weir stops %.0f kg/wk, builds in %.0f days and %.1f t wood, tends %.0f days/wk, %d whole there, %.0f m begun, band-weeks there %d (weir pull %.2f, wood %.0f kg), within 20 km %d".format(
                 lastPassed[h.i] / 1000.0, width, stops, len * WEIR_DAYS_PER_M, len * WEIR_WOOD_KG_PER_M / 1000.0, len * WEIR_TEND_DAYS_PER_M * 7.0,
-                whole[h] ?: 0, lastCamped[h.i], near)
+                whole[h] ?: 0, begunM[h] ?: 0.0, lastCamped[h.i], lastPull[h.i] / weeks, lastWood[h.i] / weeks, near)
         })
     }
 
