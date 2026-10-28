@@ -194,7 +194,7 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
             tally(k, HerdFlow.MILK_KG, milk)
         }
         val dying = (s.backgroundMortality + 0.5f * (1f - fed)) * years
-        val running = HERD_RUN_OFF * (1f - tame) * (1f - tame) * b.lapse(Skill.TENDING) * years
+        val running = straying(s, tame) * b.lapse(Skill.TENDING) * years
         val lost = n * min(0.9f, dying + running)
         // (The dead lie by the camp; those that run off or stray go wild among their kind.)
         val died = if (dying + running > 0f) lost * dying / (dying + running) else 0f
@@ -340,7 +340,18 @@ private fun lactating(s: Species, date: Date) =
 internal fun GroupWorld.herdIncrease(b: Band, k: Int, fed: Float = 1f): Float {
     val s = fauna.kinds[k]; val tame = b.herdTame[k]
     return 0.5f * (0.3f + 0.7f * tame) * s.youngPerFemale * fed - s.backgroundMortality - 0.5f * (1f - fed) -
-        HERD_RUN_OFF * (1f - tame) * (1f - tame) * b.lapse(Skill.TENDING)
+        straying(s, tame) * b.lapse(Skill.TENDING)
+}
+
+/**
+ * The yearly share of a kept herd of kind [s] that strays, [tame] as it is: [HERD_RUN_OFF] times the square of how far the
+ * herd falls short of being kept on foot, its tameness times the kind's ease on foot (the worse of Diamond's panic and
+ * social-structure criteria) against [HERD_EASE], a goat's.
+ */
+internal fun straying(s: Species, tame: Float): Float {
+    val ease = min(s.domestication[4], s.domestication[5])
+    val wild = max(0f, 1f - tame * ease / HERD_EASE)
+    return HERD_RUN_OFF * wild * wild
 }
 
 /**
@@ -357,9 +368,11 @@ private fun herdSkill(b: Band) = 0.5f + 0.5f * min(1f, b.skill(Skill.TENDING))
 
 /**
  * Herding: chance a young animal caught in the hunt is kept and raised instead of eaten (times its
- * kind's tameability); yearly share that run off, [HERD_RUN_OFF] times the square of their wildness (the square an estimate,
- * so that the wilder stray far more: a kind of panic and temper, as an ostrich, is not kept on foot), set so that a herd as
- * tame as one at world start (0.8) loses 2% a year to straying (goats of central Mali, 1978-83: adults died 12.7% a year, slightly more
+ * kind's tameability); yearly share that run off, [HERD_RUN_OFF] times the square of their wildness ([straying]; the square an
+ * estimate, so that the wilder stray far more), their wildness reckoned from their tameness times their kind's ease on foot, the
+ * worse of Diamond's panic and social-structure criteria, against a goat's ([HERD_EASE] 0.6, an estimate: a kind that panics or
+ * keeps no herd, as an ostrich or a deer, is not kept on foot however tame), set so that a goat herd
+ * as tame as one at world start (0.8) loses 2% a year to straying (goats of central Mali, 1978-83: adults died 12.7% a year, slightly more
  * than 17% of goat deaths "lost" or taken by predators, mainly dogs; FAO x5531e, ch. 13; the wild-type stock of the first
  * herds, as at Ganj Dareh some 10,000 years ago, still bred and paid its herders, Daly et al. 2021, from the press release);
  * yearly growth of tameness. (Herded flocks lose next to nothing on the move: flock records of herded sheep and goats count no strays and
@@ -368,13 +381,14 @@ private fun herdSkill(b: Band) = 0.5f + 0.5f * min(1f, b.skill(Skill.TENDING))
  * 200-600 head go with one to three shepherds (Encyclopaedia Iranica, "Cupan"). Bigger beasts fewer, as their weight to the
  * power [HERD_MASS_EXP], an estimate between the goats and camel herds of 50-60 head kept by young men (ODI Pastoral
  * Development Network paper 5337; the herders to a herd not given). Young caught and raised by hand come as tame as a
- * herd started at world start ([RAISED_TAME], an estimate), or no tamer than their kind's worst criterion: young of wild hoofed animals reared by people take them as
+ * herd started at world start ([RAISED_TAME], an estimate), whatever their kind: young of wild hoofed animals reared by people take them as
  * their own and stay by them (imprinting; Price 1984, "Behavioral aspects of animal domestication", from memory), long
  * before their kind changes in body.
  */
 const val CAPTURE = 0.5f
 const val RAISED_TAME = 0.8f
 const val HERD_RUN_OFF = 0.5f
+const val HERD_EASE = 0.6f
 const val TAMING_RATE = 0.01f
 const val HERD_GOATS_A_HERDER = 200f
 const val GOAT_KG = 40f
