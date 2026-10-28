@@ -998,9 +998,11 @@ private fun HexGroups.huntGame(g: HexGroup, k: Int, p: Place, expected: Float, k
     if (kills1 <= 0) return kills1
     // A band may keep young it catches, to raise by its camp and drive along when it moves.
     if (band != null && ny > 0 && k < band.herd.size) {
-        val kept = binomial(ny, min(1f, CAPTURE * band.keepWill * ps.domestication.average().toFloat()), rnd)
-        dialUse?.amount(DialSite.KEEP_CAPTURE, band.keepWill, min(1f, CAPTURE * band.keepWill * ps.domestication.average().toFloat()),
-            min(1f, CAPTURE * ps.domestication.average().toFloat()), cut = CAPTURE * band.keepWill * ps.domestication.average().toFloat() > 1f)
+        // (A kind is kept by the worst of Diamond's criteria, since it fails as stock on any one, as [herdKind] chooses.)
+        val keepable = ps.domestication.min()
+        val kept = binomial(ny, min(1f, CAPTURE * band.keepWill * keepable), rnd)
+        dialUse?.amount(DialSite.KEEP_CAPTURE, band.keepWill, min(1f, CAPTURE * band.keepWill * keepable),
+            min(1f, CAPTURE * keepable), cut = CAPTURE * band.keepWill * keepable > 1f)
         if (kept > 0) {
             // (Raised by hand from young, they come to the camp as tame as a herd's, [RAISED_TAME]; their kind's own
             // tameness was weighed in catching them.)

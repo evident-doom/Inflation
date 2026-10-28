@@ -326,6 +326,7 @@ object HexSnapshot {
      *   was culled for want of herders.
      * 4.71: young caught in the hunt and kept come [RAISED_TAME] tame, as raised by hand; before, they came as tame as the
      *   band's herd of their kind, wild where it had none, so they ran off, bred little and were eaten within weeks.
+     *   The odds of keeping one go by its kind's worst domestication criterion, not their mean.
      */
     const val MODEL_MAJOR = 4
     const val MODEL_MINOR = 71
