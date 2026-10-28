@@ -10,15 +10,15 @@ import inflation.world.Weather
 import kotlin.math.max
 import kotlin.math.min
 
-/** What bands build that stands in the world: houses, and a palisade round the houses at a hex. */
-enum class Built { HOUSES, PALISADE }
+/** What bands build that stands in the world: houses, a palisade round the houses at a hex, and weirs across its river. */
+enum class Built { HOUSES, PALISADE, WEIR }
 
 /**
  * A thing built that stands at hex [hex], whoever built it: no band owns it. Any band that comes on it empty may use it
  * ([user], the band using it this week, -1 for none), and it weathers away while nobody does. [builder] is the band that
  * began it, kept only as a fact of the bands' dealings. Houses ([Built.HOUSES]) shelter [size] grown people when whole,
  * built in the way [design] (a [Skill]'s ordinal); [built] is how far they stand, 0..1. A palisade's [built] is how much of
- * a ring round the houses at its hex stands. Nothing shelters or guards till it is first [done] (whole); after that it serves
+ * a ring round the houses at its hex stands. A weir's [size] is its length, m, across the river at its hex. Nothing shelters or guards till it is first [done] (whole); after that it serves
  * as far as it stands, as it weathers and is mended.
  * (All its fields have defaults, so that a saved one loads.)
  */
@@ -101,6 +101,21 @@ internal fun HexGroups.palisadeBegunAt(g: HexGroup, h: Hex): Float {
     return ring
 }
 
+/**
+ * How much of the river at hex [h] the weirs there that [g] may use stand across, 0..1 ([HexWater.riverWidthM]): their
+ * length as far as it stands, over the river's width. Begun ones ([begun]) count only once whole.
+ */
+internal fun HexGroups.weirAt(g: HexGroup, h: Hex, begun: Boolean = false): Float {
+    val width = fauna.water.riverWidthM(h)
+    if (width <= 0f) return 0f
+    var m = 0f
+    structuresAt(h) { s -> if (s.kind == Built.WEIR && (s.done || begun) && usable(s, g)) m += s.built * s.size }
+    return min(1f, m / width)
+}
+
+/** The length of a weir a band would build across the river at hex [h], m: as wide as the river, up to [WEIR_MAX_M]. */
+internal fun HexGroups.weirLengthM(h: Hex) = min(fauna.water.riverWidthM(h), WEIR_MAX_M)
+
 /** [s] built on by [add] (of the whole); it is [Structure.done] once it first stands whole. */
 internal fun buildOn(s: Structure, add: Float) {
     s.built = min(1f, s.built + add)
@@ -130,6 +145,8 @@ internal fun HexGroups.tendStructures(weather: Weather) {
     for (s in bands.built) {
         if (s.user >= 0 && where[s.user] != s.hex) s.user = -1
         if (s.user < 0) s.built = max(0f, s.built - HOUSE_DECAY * years)
+        // (A weir stands in the stream: the current and the floods wear it, used or not, and the band using it mends it.)
+        if (s.kind == Built.WEIR) s.built = max(0f, s.built - WEIR_WEAR * years)
         if (s.kind == Built.HOUSES && s.design == Skill.MUDBRICK.ordinal) {
             val places = hw.placesOf(s.hex)
             var rain = 0f; for (p in places) rain += weather.rain(p)

@@ -155,6 +155,8 @@ class Band(kinds: Int) {
      * handling over itself and that least yield: above 1/2 fish was worth taking up, 0 no fish in reach ([Offers.pull]).
      */
     var fishPull = 0f
+    /** This week, how fish from a whole weir across the river by its camp would have pulled against that least yield ([Offers.pullAt]): above 1/2 one would pay; 0 no river or no fish passing. */
+    var weirPull = 0f
     var campPlace = Place.NONE
     /** Food it left in a cache at an old camp, kg, and where (-1 for none). */
     val cache = enumFloats<Store>()

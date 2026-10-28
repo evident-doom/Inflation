@@ -71,6 +71,7 @@ enum class Met(val label: String) {
     BANDS_BACK_AT_A_CACHE("bands back at a cache"),
     BANDS_BUILT_HOUSES("bands built houses"),
     BANDS_BUILT_PALISADES("bands built palisades"),
+    BANDS_BUILT_WEIRS("bands built weirs"),
     BANDS_BURNED_OFF_GRASS("bands burned off grass"),
     BANDS_EXCHANGED_PARTNERS("bands exchanged partners"),
     BANDS_KEPT_AWAY_FROM_THE_SICK("bands kept away from the sick"),

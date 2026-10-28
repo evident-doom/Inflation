@@ -324,9 +324,14 @@ object HexSnapshot {
      * 4.70: a band forages only for what its herds will not feed it that week ([herdFoodWeek]: their increase and milk);
      *   before, it planned to forage its whole week's food, so in its lean months foraging took every day and the herd
      *   was culled for want of herders.
+     * 4.71: weirs ([Built.WEIR], [buildWeir]): a band builds a fence of stakes and traps across the river at its camp where
+     *   fish from one would rank in among its gatherers' foods ([Band.weirPull]); its fish take the traps' watch over what
+     *   they take and a little landing and gutting a kilo ([weirDays]), so they pay only where many fish pass (a spawning
+     *   run). Before, every kilo of fish took the same handling wherever and whenever it was caught. Weirs wear in the
+     *   stream; the mover and the people net's fish input see their catch.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 70
+    const val MODEL_MINOR = 71
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
