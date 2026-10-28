@@ -306,6 +306,16 @@ object Tally {
     fun bandsWarmed(spare: Spare, w: Warmed, what: Bands) = TallyKey.raw("bands spare ${spare.label} warmed ${w.label}:${what.label}")
     fun bandsWarmedDied(spare: Spare, w: Warmed, cause: DeathReason) = TallyKey.raw(bandsWarmedDied(spare, w).text + cause.label)
     fun bandsWarmedDied(spare: Spare, w: Warmed) = TallyKey.raw("bands spare ${spare.label} warmed ${w.label}:$DIED_OF")
+    /**
+     * A band's foraging against its week's plan ([countFoodTime]), tenths of people-days summed over band-weeks: the
+     * band-weeks, the days the plan left it, those it spent and those past them, the band-weeks it went more than 5% past
+     * them, and what kills beyond and short of those expected, extra hauling and digging soaks took.
+     */
+    enum class FoodTime(val label: String) {
+        WEEKS("band-weeks"), ROOM("days left it"), SPENT("days spent"), OVER("days past"), OVER_WEEKS("weeks past"),
+        KILLS_OVER("kills beyond expected"), KILLS_UNDER("kills short of expected"), HAUL("hauling"), DIG("digging soaks")
+    }
+    fun foodTime(k: FoodTime) = TallyKey.raw("band foraging time:${k.label}")
     /** Whether a band keeps a herd ([Band.herd]). */
     enum class HerdKept(val label: String) { HERDING("keeping a herd"), NONE("keeping none") }
     /** Bands' tallies by whether they keep a herd; [bandsHerdKeptDied] (herding) starts all their deaths. */
