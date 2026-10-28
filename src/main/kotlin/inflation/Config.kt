@@ -72,6 +72,7 @@ object Config {
         HUNT_DIAG("huntDiag"),
         PLAN_DIAG("planDiag"),
         FORAGE_DIAG("forageDiag"),
+        WARM_DIAG("warmDiag"),
         FOLLOW("follow"),
         FOLLOW_HUNGRY("followHungry"),
         STRAND_DIAG("strandDiag"),

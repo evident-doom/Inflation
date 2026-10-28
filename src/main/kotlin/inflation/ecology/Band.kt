@@ -360,6 +360,10 @@ class Band(kinds: Int) {
     @Transient var planOdds = 0f
     @Transient var planLeft = 0f
     @Transient var planShelterFirst = -1f
+    /** The air and cover its survival pass reckoned the week's exposure with (for warmDiag only: [bookSqueeze]). */
+    @Transient var planAir: Air? = null
+    @Transient var planCover: Cover? = null
+    @Transient var planSisu = 0f
     /** The share of its herd its herders kept this week, as its week's plan gave them days ([herdDays]; 1 till it plans). */
     @Transient var herded = 1f
     /** What a day's foraging brings it, kg of its need, month by month: a mean over the years (below 0 till it has foraged then; [herdPays]). */
