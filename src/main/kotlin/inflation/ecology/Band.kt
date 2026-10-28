@@ -1,5 +1,8 @@
 package inflation.ecology
 
+import inflation.enumFloats
+import inflation.enumBools
+import inflation.enumInts
 import inflation.world.Hex
 import inflation.world.HexArray
 import inflation.world.toHexArray
@@ -343,6 +346,11 @@ class Band(kinds: Int) {
     var spareDays = 0f
     /** Its week's time, as planned when it foraged ([BandTime]; null till then, and once the week's chores are done). */
     @Transient var week: BandTime? = null
+    /** The share of its hands' days left spare, as a running mean over about a season ([SPARE_WEEKS]), once [spareSeen]: for the census only. */
+    @Transient var spareMean = 0f
+    @Transient var spareSeen = false
+    /** How making clothes went this week ([makeTools]; null where it wanted none): for the census only. */
+    @Transient var clothesMade: Tally.ClothesMade? = null
     /** The share of its herd its herders kept this week, as its week's plan gave them days ([herdDays]; 1 till it plans). */
     @Transient var herded = 1f
     /** What a day's foraging brings it, kg of its need, month by month: a mean over the years (below 0 till it has foraged then; [herdPays]). */

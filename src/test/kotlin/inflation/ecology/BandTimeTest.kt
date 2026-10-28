@@ -4,6 +4,7 @@ import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import inflation.enumFloats
 
 class BandTimeTest {
     @Test
@@ -92,5 +93,15 @@ class BandTimeTest {
         assertEquals(6f, t.left, 1e-6f)
         assertEquals(2f, t.lost, 1e-6f)
         assertEquals(4f, t.spentOn(Activity.FOOD), 1e-6f)
+    }
+
+    @Test
+    fun `work done is counted apart from the days the cold and hunger took`() {
+        val time = BandTime(10f, enumFloats<Activity> { a -> if (a == Activity.TOOLS) 0.5f else 1f })
+        time.spend(Activity.TOOLS, 2f)
+        time.took(Activity.FOOD, 3f)
+        assertEquals(4f, time.spentOn(Activity.TOOLS), 1e-4f)
+        assertEquals(2f, time.workedOn(Activity.TOOLS), 1e-4f)
+        assertEquals(3f, time.workedOn(Activity.FOOD), 1e-4f)
     }
 }

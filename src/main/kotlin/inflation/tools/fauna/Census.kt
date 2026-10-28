@@ -398,6 +398,44 @@ class Census(private val sim: HexSim) {
     }
 
     /** Islands: land cut off from the largest land by sea; which kinds live there now. */
+    /**
+     * Bands' weeks against what their chores asked (stage 0 of the band-choices review, report only): each chore's share of
+     * band-weeks it asked days, of them the share it got less than [inflation.ecology.SQUEEZED] of its ask in a week that ran
+     * out of days, and the share of its asked days not got; then bands by their spare days over the last season and by
+     * whether they keep a herd, with their clothes and deaths by cause; and what stopped their clothes making.
+     */
+    fun printSqueeze(lastYear: Map<TallyKey, Int>, stepsPerYear: Int) {
+        fun v(k: TallyKey) = (lastYear[k] ?: 0).toDouble()
+        val weeks = Tally.Spare.entries.sumOf { v(Tally.bandsSpare(it, Tally.Bands.BAND_WEEKS)) }.coerceAtLeast(1.0)
+        println("bands' chores against their asks, last year (share of band-weeks it asked days; of them, share it got under 90% of its ask in a week that ran out of days; share of the days asked not got): " +
+            Activity.entries.filter { v(Tally.squeeze(it, Tally.Squeeze.ASKED_WEEKS)) > 0 }.joinToString(", ") { a ->
+                val asked = v(Tally.squeeze(a, Tally.Squeeze.ASKED_WEEKS))
+                "%s %.0f%%, %.1f%%, %.1f%%".format(a.label, 100 * asked / weeks, 100 * v(Tally.squeeze(a, Tally.Squeeze.SHORT_WEEKS)) / asked,
+                    100 * v(Tally.squeeze(a, Tally.Squeeze.MISSING_DAYS)) / v(Tally.squeeze(a, Tally.Squeeze.ASKED_DAYS)).coerceAtLeast(1.0))
+            })
+        fun group(pw: Double, all: Double, bw: Double, clo: Double, died: Map<TallyKey, Int>) = run {
+            val years = (pw / stepsPerYear).coerceAtLeast(1e-9)
+            "%.0f%%, %.1f a band; %.2f clo; %.1f (%s)".format(100 * pw / all.coerceAtLeast(1.0), pw / bw.coerceAtLeast(1.0), clo / 10 / bw.coerceAtLeast(1.0),
+                1000 * died.values.sum() / years, died.entries.sortedByDescending { it.value }.take(6).joinToString(" ") { "%s %.1f".format(Tally.diedOf(it.key), 1000 * it.value / years) })
+        }
+        val spareAll = Tally.Spare.entries.sumOf { v(Tally.bandsSpare(it, Tally.Bands.PEOPLE_WEEKS)) }
+        println("bands by spare days over the last season, last year (share of people-weeks, people a band; clothes; deaths per 1000 people a year, by cause, largest first): " +
+            Tally.Spare.entries.joinToString(", ") { sp ->
+                sp.label + " " + group(v(Tally.bandsSpare(sp, Tally.Bands.PEOPLE_WEEKS)), spareAll, v(Tally.bandsSpare(sp, Tally.Bands.BAND_WEEKS)),
+                    v(Tally.bandsSpare(sp, Tally.Bands.CLOTHES)), lastYear.filterKeys { it.startsWith(Tally.bandsSpareDied(sp)) })
+            })
+        val herdAll = Tally.HerdKept.entries.sumOf { v(Tally.bandsHerdKept(it, Tally.Bands.PEOPLE_WEEKS)) }
+        println("bands by whether they keep a herd, squeeze census, last year (share of people-weeks, people a band; clothes; deaths per 1000 people a year, by cause; mean spare days over the last season): " +
+            Tally.HerdKept.entries.joinToString(", ") { h ->
+                val bw = v(Tally.bandsHerdKept(h, Tally.Bands.BAND_WEEKS))
+                h.label + " " + group(v(Tally.bandsHerdKept(h, Tally.Bands.PEOPLE_WEEKS)), herdAll, bw, v(Tally.bandsHerdKept(h, Tally.Bands.CLOTHES)),
+                    lastYear.filterKeys { it.startsWith(Tally.bandsHerdKeptDied(h)) }) + "; spare %.0f%%".format(100 * v(Tally.bandsHerdKept(h, Tally.Bands.SPARE)) / 1000 / bw.coerceAtLeast(1.0))
+            })
+        val wanted = Tally.ClothesMade.entries.sumOf { v(Tally.clothesMade(it)) }
+        println("bands' clothes making, last year (band-weeks clothes were wanted: %.0f%% of band-weeks; by what stopped them): ".format(100 * wanted / weeks) +
+            Tally.ClothesMade.entries.joinToString(", ") { c -> "%s %.0f%%".format(c.label, 100 * v(Tally.clothesMade(c)) / wanted.coerceAtLeast(1.0)) })
+    }
+
     fun printIslands() {
         val comp = IntArray(hex.size) { -1 }; var nc = 0; val sizes = ArrayList<Int>()
         for (h0 in hex.all) {

@@ -1,6 +1,7 @@
 package inflation.world
 
 import inflation.Config
+import inflation.enumFloats
 
 import kotlin.math.PI
 import kotlin.math.cos
@@ -119,9 +120,7 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
      * from memory), so one group's bust year can be another's boom. Each group draws a lognormal of mean 1 each year,
      * from its own stream so that the weather draws as before.
      */
-    val mastCrop = FloatArray(MastTrees.entries.size) { 1f }
-    /** This year's mast crop of the trees of group [t] ([mastCrop]). */
-    fun mastCrop(t: MastTrees) = mastCrop[t.ordinal]
+    val mastCrop = enumFloats<MastTrees> { 1f }
     private var mastRnd = Random(cfg.seed * 37 + 11)
 
     /** How much a place's rain swings from year to year against the average: most in the desert (bust years), least where it is wet. */
@@ -433,7 +432,7 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
         val next = 2 * r * cos(2 * PI / period) * oscillation - r * r * oscillationPrev + 0.75 * gaussian()
         oscillationPrev = oscillation; oscillation = next
         decadal = 0.9 * decadal + sqrt(1 - 0.81) * gaussian()
-        for (t in MastTrees.entries) mastCrop[t.ordinal] = mastFrom(inflation.gaussian(mastRnd))
+        for (t in MastTrees.entries) mastCrop[t] = mastFrom(inflation.gaussian(mastRnd))
 
         val day = date.absoluteDay
         fun place() = Pair(rnd.nextDouble() * places.widthKm / places.cellKm, rnd.nextDouble() * places.heightKm / places.cellKm)

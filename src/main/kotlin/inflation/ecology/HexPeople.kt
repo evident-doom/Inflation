@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.EnumFloats
 import inflation.world.get
 import inflation.world.set
 import inflation.ecology.HexSmallLife.DeadPool
@@ -173,6 +174,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     // What no chore took is its leisure. (Counted once every chore has had its time.)
     time.noneBelowZero()
     b.spareDays = time.left
+    countSqueeze(b, time)
     time.spend(Activity.LEISURE, time.left)
     time.countEach(stats.hunting)
     time.count(stats.hunting, Tally.TimeTotal.LEFT, time.left)

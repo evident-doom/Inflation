@@ -1,5 +1,7 @@
 package inflation.ecology
 
+import inflation.EnumFloats
+import inflation.enumFloats
 import inflation.world.Weather
 import kotlin.math.max
 import kotlin.math.min

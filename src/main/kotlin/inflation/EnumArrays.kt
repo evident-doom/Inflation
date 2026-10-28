@@ -1,4 +1,4 @@
-package inflation.ecology
+package inflation
 
 import kotlin.enums.enumEntries
 

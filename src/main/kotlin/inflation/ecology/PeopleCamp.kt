@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.enumFloats
 import inflation.world.Hex
 import inflation.world.Place
 import inflation.world.get
