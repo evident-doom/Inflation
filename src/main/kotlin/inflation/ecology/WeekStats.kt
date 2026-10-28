@@ -71,6 +71,7 @@ enum class Met(val label: String) {
     BANDS_BACK_AT_A_CACHE("bands back at a cache"),
     BANDS_BUILT_HOUSES("bands built houses"),
     BANDS_BUILT_PALISADES("bands built palisades"),
+    BANDS_BUILT_WEIRS("bands built weirs"),
     BANDS_BURNED_OFF_GRASS("bands burned off grass"),
     BANDS_EXCHANGED_PARTNERS("bands exchanged partners"),
     BANDS_KEPT_AWAY_FROM_THE_SICK("bands kept away from the sick"),
@@ -177,6 +178,10 @@ object Tally {
         SALT_HELD("salt held, g a person"), SODIUM_SHORT("sodium short, %"), SALT_HERE("salt here, %"),
         /** The band-weeks it knew of a place to get salt ([HexGroups.saltSources]), and how far the nearest was then, km summed. */
         SALT_KNOWN("knows salt, band-weeks"), SALT_KM("nearest known salt, km"),
+        /** For [Herding]: people-weeks clad (a kit of at least half), children-weeks, mobile band-weeks ([Living.MOBILE]), and the air where they stood, tenths of °C summed over people-weeks. */
+        CLAD_WEEKS("clad people-weeks"), CHILD_WEEKS("children-weeks"), MOBILE_WEEKS("mobile band-weeks"), AIR("air, 1/10 °C"),
+        /** For [Herding]: how well fed through the week ([HexGroup.fed], at most 1), thousandths summed over people-weeks. */
+        FED("fed, 1/1000"),
         /** Its clothes ([Band.clothesClo]), clo, and its spare days over the last season ([Band.spareMean]), share: tenths and thousandths summed over band-weeks. */
         CLOTHES("clothes clo, 1/10"), SPARE("spare days, 1/1000"),
         /** The week's mean air at its camp, °C, tenths summed over band-weeks; the band-weeks it came to a new camp. */
@@ -239,6 +244,22 @@ object Tally {
     fun bandsLivingDied(way: Living, cause: DeathReason) = TallyKey.raw(bandsLivingDied(way).text + cause.label)
     fun bandsLivingDied(way: Living) = TallyKey.raw("bands ${way.label}:$DIED_OF")
     /**
+     * Whether a band keeps a herd, and how much of its hands' days the herd asks ([herdDays]): under a tenth, a tenth to 0.3,
+     * or more. The line is the report's, not the model's: nothing chooses by it.
+     */
+    enum class Herding(val label: String, val below: Float) {
+        LIGHT("herd under 10%", 0.1f), MID("herd 10-30%", 0.3f), HEAVY("herd 30%+", Float.POSITIVE_INFINITY), NOT_HERDING("not herding", 0f)
+    }
+    /** Bands' tallies by whether they keep a herd. */
+    fun bandsHerding(h: Herding, what: Bands) = TallyKey.raw("bands ${h.label}:${what.label}")
+    fun bandsHerding(h: Herding, cold: Cold) = TallyKey.raw("bands ${h.label}:cold ${cold.label}")
+    /** Bands' time on [a] (or lost, [t]) by whether they keep a herd, tenths of a day. */
+    fun bandsHerdingTime(h: Herding, a: Activity) = TallyKey.raw("bands ${h.label}:time ${a.label}")
+    fun bandsHerdingTime(h: Herding, t: TimeTotal) = TallyKey.raw("bands ${h.label}:time ${t.label}")
+    /** Bands' deaths of [cause] by whether they keep a herd, the [young] apart; [bandsHerdingDied] (h, young) starts all of them. */
+    fun bandsHerdingDied(h: Herding, young: Boolean, cause: DeathReason) = TallyKey.raw(bandsHerdingDied(h, young).text + cause.label)
+    fun bandsHerdingDied(h: Herding, young: Boolean) = TallyKey.raw("bands ${h.label}:${if (young) "children " else "grown "}$DIED_OF")
+    /**
      * How a band's chores fared against what they asked of its week ([HexGroups.countSqueeze]): the band-weeks each asked for
      * days, those it got less than [SQUEEZED] of its ask in a week that ran out of days, and the days asked and not got, tenths;
      * and of the days asked, those the survival pass asked first ([survivalDays]), tenths.
@@ -279,7 +300,7 @@ object Tally {
     }
     /** Band-weeks clothes making went as [c]. */
     fun clothesMade(c: ClothesMade) = TallyKey.raw("band clothes:${c.label}")
-    /** The cause of a death in a [bandsDied] or [bandsCladDied] key (or [bandsLivingDied]). */
+    /** The cause of a death in a [bandsDied] or [bandsCladDied] key (or [bandsLivingDied], [bandsHerdingDied], [bandsHerdKeptDied]). */
     fun diedOf(key: TallyKey) = key.text.substringAfter(DIED_OF)
     private const val DIED_OF = "died of "
 
@@ -290,7 +311,7 @@ object Tally {
     enum class TimeTotal(val label: String) { ALL("all"), LEFT("left"), LOST("lost to cold and hunger") }
 
     /** Where people's hides came from. */
-    enum class HideSource(val label: String) { RESIDENTS("residents"), SMALL_PELTS("small pelts") }
+    enum class HideSource(val label: String) { RESIDENTS("residents"), SMALL_PELTS("small pelts"), HERDS("herds") }
     /** Hide people got from [source], grams. */
     fun hide(source: HideSource) = TallyKey.raw("people hide:${source.label}")
 }

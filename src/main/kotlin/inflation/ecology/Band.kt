@@ -155,6 +155,8 @@ class Band(kinds: Int) {
      * handling over itself and that least yield: above 1/2 fish was worth taking up, 0 no fish in reach ([Offers.pull]).
      */
     var fishPull = 0f
+    /** This week, how fish from a whole weir across the river by its camp would have pulled against that least yield ([Offers.pullAt]): above 1/2 one would pay; 0 no river or no fish passing. */
+    var weirPull = 0f
     var campPlace = Place.NONE
     /** Food it left in a cache at an old camp, kg, and where (-1 for none). */
     val cache = enumFloats<Store>()
@@ -388,9 +390,9 @@ class Band(kinds: Int) {
      * Hides, bone and sinew from [n] of the game it killed, what each kind yields (see [Species.products]), out of the
      * [left] kg of the carcasses not eaten; returns the kg taken.
      */
-    fun skin(s: Species, n: Int, left: Float): Float {
+    fun skin(s: Species, n: Float, left: Float): Float {
         val p = s.products; val each = p.hide + p.bone + p.sinew
-        if (n <= 0 || each <= 0f || left <= 0f) return 0f
+        if (n <= 0f || each <= 0f || left <= 0f) return 0f
         val share = min(1f, left / (n * each))
         goods[Material.HIDE] += n * p.hide * share
         goods[Material.BONE] += n * p.bone * share

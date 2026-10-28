@@ -501,6 +501,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             for (st in groups.bands.built) if (!st.hex.none) when (st.kind) {
                 Built.HOUSES -> if (st.done) room[st.hex] += st.built * st.size else begun[st.hex] += st.built * st.size
                 Built.PALISADE -> fence[st.hex] = max(fence[st.hex], st.built)
+                Built.WEIR -> {} // (weirs are not drawn)
             }
             val food = fauna.food
             val sownKg = FloatArray(hex.size); val ripeKg = FloatArray(hex.size); val tame = FloatArray(hex.size); val wornKm2 = FloatArray(hex.size)

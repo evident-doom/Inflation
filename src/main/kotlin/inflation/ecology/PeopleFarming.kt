@@ -150,15 +150,17 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
     // harvest's do; on the days the band walks to a new camp, the herd walks with it.)
     val tended = b.herded
     b.herded = 1f
-    // The stock the week's days nobody asked for would keep besides, kg on the hoof.
-    var spareKg = time.unheld * HERD_KG_A_HERDER * herdSkill(b) / days
+    // The herders the week's days nobody asked for would make besides.
+    var spare = time.unheld * herdSkill(b) / days
     fun slaughter(k: Int, heads: Float, flow: HerdFlow) {
         val s = fauna.kinds[k]
         bands.herdFlows[flow] += heads
-        // (Kept at what it feeds, as the week's meat: [Nourishment.MEAT]; the rest of the carcass for the scavengers.)
+        // (Kept at what it feeds, as the week's meat: [Nourishment.MEAT]; its hides, bone and sinew as a kill's ([Band.skin]);
+        // the rest of the carcass for the scavengers.)
         val meat = heads * s.massKg * MEAT_SHARE
         addFood(g.stores, g.storeKgPer, Store.FRESH, meat * Nourishment.MEAT * g.species.needScale, meat)
-        small.deposit(DeadPool.CARRION, p, Kg(heads * s.massKg * (1f - MEAT_SHARE)))
+        val left = heads * s.massKg * (1f - MEAT_SHARE)
+        small.deposit(DeadPool.CARRION, p, Kg(left - tallyHide(Tally.HideSource.HERDS, s, b.skin(s, heads, left))))
     }
     for (k in b.herd.indices) {
         var n = b.herd[k]
@@ -173,8 +175,7 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
         val born = if (inSeason) n * 0.5f * s.youngPerFemale * fed * (0.3f + 0.7f * tame) /
             (s.birthMonths * Date.DAYS_PER_MONTH.toFloat() / days) else 0f
         // Its mothers give milk through the lactation after the birth season, as they are fed and as tame as they are.
-        val lactating = monthsFrom(s.birthMonth, date.month) * Date.DAYS_PER_MONTH < s.birthMonths * Date.DAYS_PER_MONTH + LACTATION_DAYS
-        if (lactating) {
+        if (lactating(s, date)) {
             val milk = n * 0.5f * (0.3f + 0.7f * tame) * tame * fed * milkKg(s) * days / LACTATION_DAYS
             addFood(g.stores, g.storeKgPer, Store.FRESH, milk * Nourishment.MILK * g.species.needScale, milk)
             bands.herdFlows[HerdFlow.MILK_KG] += milk
@@ -207,8 +208,8 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
         if (pays) bands.herdFlows[HerdFlow.KG_PAYS] += n * s.massKg
         bands.herdFlows[when { worth < 0.5f -> HerdFlow.KG_WORTH_HALF; worth < 1f -> HerdFlow.KG_WORTH_UNDER; worth < 2f -> HerdFlow.KG_WORTH_OVER; else -> HerdFlow.KG_WORTH_TWICE }] += n * s.massKg
         val increase = n * max(0f, herdIncrease(b, k, fed)) * years
-        val grows = pays && increase * s.massKg <= spareKg
-        if (grows) spareKg -= increase * s.massKg
+        val grows = pays && increase / headsAHerder(s) <= spare
+        if (grows) spare -= increase / headsAHerder(s)
         val kept = if (grows) n else if (pays) max(0f, n - increase)
             else max(0f, n - g.dailyNeedKg * days / (s.massKg * MEAT_SHARE * Nourishment.MEAT * g.species.needScale))
         if (n > kept) slaughter(k, n - kept, if (pays) HerdFlow.EATEN else HerdFlow.EATEN_UNPAID)
@@ -251,14 +252,20 @@ internal fun GroupWorld.herdForage(p: Place, s: Species, n: Float): HerdForage {
 internal fun walkedShare(time: BandTime) = if (time.total > 0f) min(1f, time.spentOn(Activity.MOVING) / time.total) else 0f
 
 /**
- * Person-days [b]'s herders take a week to keep its animals: herded on foot, a herder keeps about [HERD_KG_A_HERDER] kg of
- * stock on the hoof, and the unpractised take up to twice as long.
+ * Person-days [b]'s herders take a week to keep its animals: herded on foot, a herder keeps [headsAHerder] of each kind,
+ * and the unpractised take up to twice as long.
  */
 internal fun GroupWorld.herdDays(b: Band): Float {
-    var kg = 0f
-    for (k in b.herd.indices) if (b.herd[k] > 0f) kg += b.herd[k] * fauna.kinds[k].massKg
-    return kg / HERD_KG_A_HERDER * days / herdSkill(b)
+    var herders = 0f
+    for (k in b.herd.indices) if (b.herd[k] > 0f) herders += b.herd[k] / headsAHerder(fauna.kinds[k])
+    return herders * days / herdSkill(b)
 }
+
+/**
+ * The head of kind [s] a practised herder keeps on foot: [HERD_GOATS_A_HERDER] goats, fewer of bigger beasts, as their
+ * weight to the power [HERD_MASS_EXP] (more weight on the hoof a herder in big beasts than in small).
+ */
+internal fun headsAHerder(s: Species) = HERD_GOATS_A_HERDER * (s.massKg / GOAT_KG).pow(-HERD_MASS_EXP)
 
 /** Whether a herder's day with [g]'s band [b]'s herd of kind [k] brings it at least what a day's foraging does in its leanest month ([herdWorth]). */
 internal fun GroupWorld.herdPays(g: HexGroup, b: Band, k: Int) = herdWorth(g, b, k) >= 1f
@@ -275,11 +282,32 @@ internal fun GroupWorld.herdWorth(g: HexGroup, b: Band, k: Int): Float {
     val s = fauna.kinds[k]; val tame = b.herdTame[k]
     val mothers = 0.5f * (0.3f + 0.7f * tame)
     val increase = herdIncrease(b, k)
-    val heads = HERD_KG_A_HERDER * herdSkill(b) / s.massKg
+    val heads = headsAHerder(s) * herdSkill(b)
     val day = heads * (increase * s.massKg * MEAT_SHARE * Nourishment.MEAT + mothers * tame * milkKg(s) * Nourishment.MILK) *
         g.species.needScale / Date.DAYS_PER_YEAR
     return day / lean
 }
+
+/**
+ * What [g]'s band [b] can count on its herds to feed it in the week of [date], in kg of its need as [forage] counts food:
+ * the week's share of each herd's yearly increase, which [keepHerds] eats, and the milk of its mothers in milk. The band
+ * forages only for the rest of its week's food.
+ */
+internal fun GroupWorld.herdFoodWeek(g: HexGroup, b: Band, date: Date): Float {
+    var food = 0f
+    for (k in b.herd.indices) {
+        val n = b.herd[k]
+        if (n <= 0f) continue
+        val s = fauna.kinds[k]; val tame = b.herdTame[k]
+        food += n * max(0f, herdIncrease(b, k)) * years * s.massKg * MEAT_SHARE * Nourishment.MEAT
+        if (lactating(s, date)) food += n * 0.5f * (0.3f + 0.7f * tame) * tame * milkKg(s) * days / LACTATION_DAYS * Nourishment.MILK
+    }
+    return food * g.species.needScale
+}
+
+/** Whether mothers of kind [s] are in milk at [date]: through the lactation after the birth season. */
+private fun lactating(s: Species, date: Date) =
+    monthsFrom(s.birthMonth, date.month) * Date.DAYS_PER_MONTH < s.birthMonths * Date.DAYS_PER_MONTH + LACTATION_DAYS
 
 /**
  * The share [b]'s herd of kind [k] adds in a year as [keepHerds] has it, fed as far as [fed]: births by its tameness, less
@@ -308,10 +336,18 @@ private fun herdSkill(b: Band) = 0.5f + 0.5f * min(1f, b.skill(Skill.TENDING))
  * kind's tameability); yearly share of the still-wild that run off (an estimate, no source); yearly growth of
  * tameness. (Herded flocks lose next to nothing on the move: flock records of herded sheep and goats count no strays and
  * 0-1% of their outflow to predators, Assen and Aklilu 2012, mixed farms in Tigray, not nomads; so a move costs a herd only
- * its walk.) And the stock a herder keeps on foot, kg on the hoof: about a hundred sheep and goats
- * (Dahl and Hjort 1976, from memory, to check), at 40 kg a head.
+ * its walk.) And the head a herder keeps on foot ([headsAHerder]): 200 goats of [GOAT_KG]; Iranian nomads' flocks of
+ * 200-600 head go with one to three shepherds (Encyclopaedia Iranica, "Cupan"). Bigger beasts fewer, as their weight to the
+ * power [HERD_MASS_EXP], an estimate between the goats and camel herds of 50-60 head kept by young men (ODI Pastoral
+ * Development Network paper 5337; the herders to a herd not given). Young caught and raised by hand come as tame as a
+ * herd started at world start ([RAISED_TAME], an estimate), or no tamer than their kind's worst criterion: young of wild hoofed animals reared by people take them as
+ * their own and stay by them (imprinting; Price 1984, "Behavioral aspects of animal domestication", from memory), long
+ * before their kind changes in body.
  */
 const val CAPTURE = 0.5f
+const val RAISED_TAME = 0.8f
 const val HERD_RUN_OFF = 0.5f
 const val TAMING_RATE = 0.01f
-const val HERD_KG_A_HERDER = 4000f
+const val HERD_GOATS_A_HERDER = 200f
+const val GOAT_KG = 40f
+const val HERD_MASS_EXP = 0.5f

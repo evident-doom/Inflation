@@ -343,6 +343,17 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
             stats.hunting.merge(Tally.bandsLiving(way, Tally.Bands.PEOPLE_WEEKS), g.size, Int::plus)
             if (o.births > 0) stats.hunting.merge(Tally.bandsLiving(way, Tally.Bands.BORN), o.births, Int::plus)
             for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge(Tally.bandsLivingDied(way, cause), k, Int::plus)
+            // And by whether it keeps a herd: what herding costs its people, its children apart.
+            val herding = bandHerding(b, g.adults)
+            stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.BAND_WEEKS), 1, Int::plus)
+            stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.PEOPLE_WEEKS), g.size, Int::plus)
+            stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.CHILD_WEEKS), g.young, Int::plus)
+            stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.FED), (1000f * min(1f, g.fed) * g.size).roundToInt(), Int::plus)
+            if (clad == Tally.Clad.CLAD) stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.CLAD_WEEKS), g.size, Int::plus)
+            if (way == Tally.Living.MOBILE) stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.MOBILE_WEEKS), 1, Int::plus)
+            stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.AIR), (10f * weather.temperature[g.place] * g.size).roundToInt(), Int::plus)
+            if (o.births > 0) stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.BORN), o.births, Int::plus)
+            for (d in o.causes) if (d.n > 0) stats.hunting.merge(Tally.bandsHerdingDied(herding, d.young, d.cause), d.n, Int::plus)
             // And by how well it was fed, with what it held against hunger: who starves, and with what in hand.
             val fed = Tally.Fed.of(g.fed)
             stats.hunting.merge(Tally.bandsFed(fed, Tally.Bands.BAND_WEEKS), 1, Int::plus)
@@ -371,7 +382,11 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
             val air = airAt(g.place, weather)
             val w = b.warmth(air, b.fire, b.homeShelter(), days)
             if (w.debt > 0f) {
-                fun add(k: Tally.Cold, v: Float) { stats.hunting.merge(Tally.bandsIn(c, k), (10f * v).roundToInt(), Int::plus) }
+                val herding = bandHerding(b, g.adults)
+                fun add(k: Tally.Cold, v: Float) {
+                    stats.hunting.merge(Tally.bandsIn(c, k), (10f * v).roundToInt(), Int::plus)
+                    stats.hunting.merge(Tally.bandsHerding(herding, k), (10f * v).roundToInt(), Int::plus)
+                }
                 add(Tally.Cold.WEEKS, 1f); add(Tally.Cold.SHORT, w.debt); add(Tally.Cold.AIR, air.nightC)
                 add(Tally.Cold.CLOTHES, b.clothesClo()); add(Tally.Cold.FIRE, b.fire); add(Tally.Cold.SHELTER, max(b.shelter, b.homeShelter()))
                 add(Tally.Cold.MOVED, if (b.campWeeks == 0) 1f else 0f); add(Tally.Cold.AIM, b.shelterWill)

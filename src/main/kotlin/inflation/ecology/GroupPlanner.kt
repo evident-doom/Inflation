@@ -394,9 +394,9 @@ internal class GroupPlanner(private val gs: HexGroups) {
             min(1f, KgM2(gs.fauna.small.carrion[p] + gs.fauna.small.bones[p]).perKm2.v / 20f)
         f[Feature.KNOWN_GROUND] = g.band?.let { if (it.knows(h)) 1f else 0f } ?: 1f
         f[Feature.BEYOND_OWN_GROUND] = beyond; f[Feature.OTHERS_MARKS] = foreign
-        // The fish and shellfish a band could take there, with its skill, against its need (the
-        // shore and the river are plain to see; how rich they are, less so where it is a stranger).
-        f[Feature.FISH] = g.band?.let { b -> min(2f, gs.fauna.water.bandCatchWithin(h, b.fishing()) * Nourishment.FISH * s.needScale / (g.size * s.dailyIntakeKg * gs.days).coerceAtLeast(1f)) *
+        // The fish and shellfish a band could take there, with its skill, and from a weir standing there that it may use,
+        // against its need (the shore and the river are plain to see; how rich they are, less so where it is a stranger).
+        f[Feature.FISH] = g.band?.let { b -> min(2f, catchWithin(g, b, h) * Nourishment.FISH * s.needScale / (g.size * s.dailyIntakeKg * gs.days).coerceAtLeast(1f)) *
             (if (b.knows(h)) 1f else 0.5f) } ?: 0f
         // What it remembers of this hex: in this season, or failing that in any.
         val mem = g.memory
@@ -715,12 +715,16 @@ internal class GroupPlanner(private val gs: HexGroups) {
     private fun knownGame(g: HexGroup, kind: Int, p: Place, h: Hex): Float = placeValue[kind][p] + (g.band?.let { fishWorth(g, it, h) } ?: 0f)
 
     /**
-     * The fish and shellfish band [b] could take from hex [h] in a week, with its skill ([HexWater.bandCatchWithin]; less
+     * The fish and shellfish band [b] could take from hex [h] in a week, with its skill and its weirs ([catchWithin]; less
      * plain where it is a stranger), as the game standing on the ground that would yield as much to its hunters: game
      * is met over the ground its party sweeps in a week ([sweptKm2]) and caught at [CATCH].
      */
     private fun fishWorth(g: HexGroup, b: Band, h: Hex): Float =
-        gs.fauna.water.bandCatchWithin(h, b.fishing()) * (if (b.knows(h)) 1f else 0.5f) / (gs.sweptKm2(g.species) * CATCH)
+        catchWithin(g, b, h) * (if (b.knows(h)) 1f else 0.5f) / (gs.sweptKm2(g.species) * CATCH)
+
+    /** The fish and shellfish band [b] (group [g]) could take from hex [h] in a week ([HexWater.bandCatchWithin]), and from a weir standing there that it may use ([HexWater.weirWithin]). */
+    private fun catchWithin(g: HexGroup, b: Band, h: Hex): Float =
+        gs.fauna.water.bandCatchWithin(h, b.fishing()) + gs.fauna.water.weirWithin(h, gs.weirAt(g, h))
 
     /**
      * What draws band [b] (group [g]) to place [p] in hex [h] or puts it off, beyond what any group weighs: its

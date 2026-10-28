@@ -11,6 +11,7 @@ import inflation.min
 import inflation.world.Date
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 import inflation.world.Weather
 import java.util.stream.IntStream
 import kotlin.math.cos
@@ -171,6 +172,9 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     // as its time and timber go.
     buildPalisade(g, b, h, people, time)
     b.palisade = if (b.houseHex.none) 0f else palisadeAt(g, b.houseHex)
+    // Where fish crowd the river by its camp, it builds a weir across it with traps, or mends the one there, as far as its
+    // time and timber go.
+    buildWeir(g, b, h, time)
     // What no chore took is its leisure. (Counted once every chore has had its time.)
     time.noneBelowZero()
     b.spareDays = time.left
@@ -179,6 +183,10 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     time.countEach(stats.hunting)
     time.count(stats.hunting, Tally.TimeTotal.LEFT, time.left)
     time.count(stats.hunting, Tally.TimeTotal.LOST, time.lost)
+    // (And by whether it keeps a herd, tenths of a day: where a herding band's days go.)
+    val herding = bandHerding(b, g.adults)
+    for (a in Activity.entries) stats.hunting.merge(Tally.bandsHerdingTime(herding, a), (10f * time.spentOn(a)).roundToInt(), Int::plus)
+    stats.hunting.merge(Tally.bandsHerdingTime(herding, Tally.TimeTotal.LOST), (10f * time.lost).roundToInt(), Int::plus)
     // (The wood burnt through the night goes to the air; what went into tools, houses, palisades and ornaments
     // is not kept as matter, and they do not go back to the ground as they wear: a known leak.)
     land.books?.let { bk ->
@@ -218,6 +226,7 @@ internal fun HexGroups.choreAsks(g: HexGroup, b: Band, date: Date, asks: EnumFlo
         if (canSow(g, b, p, date)) ask(Activity.SOWING, g.stores[Store.SEED] * SOW_SHARE * b.sowWill * SOW_DAYS_PER_KG)
         if (fortifies(b)) ask(Activity.PALISADE,
             minOf(1f - palisadeAt(g, h), b.goods[Material.WOOD] / (PALISADE_WOOD * people)).coerceAtLeast(0f) * PALISADE_DAYS * people)
+        ask(Activity.WEIRS, weirAsk(g, b, h))
     }
     // (Its own crop, ripe, it brings in wherever it has come from: the field work is sowing's time.)
     cropRipe(g, b).takeIf { it > 0f }?.let { asks[Activity.SOWING] += it * reapDaysPerKg(b, tuning) }
@@ -264,6 +273,12 @@ const val VENOM = 0.002f
 const val MARSH_FEVER = 0.05f
 
 /** How [b] lives, for the reports: settled at home in its houses or at a camp kept half a year or more, else mobile. */
+/** Whether [b], [hands] strong, keeps a herd and how much of its days the herd asks, for the census ([Tally.Herding]). */
+internal fun GroupWorld.bandHerding(b: Band, hands: Int): Tally.Herding {
+    if (b.herd.none { it > 0f }) return Tally.Herding.NOT_HERDING
+    val load = herdDays(b) / (days * hands.coerceAtLeast(1)).toFloat()
+    return Tally.Herding.entries.first { it != Tally.Herding.NOT_HERDING && load < it.below }
+}
 internal fun GroupWorld.bandLiving(b: Band) =
     if (b.atHome || b.campWeeks >= stepsPerYear / 2f) Tally.Living.SETTLED else Tally.Living.MOBILE
 
@@ -426,7 +441,7 @@ private fun HexGroups.ecosystemInputs(g: HexGroup, b: Band, into: FloatArray) {
     into[x.TREES] = min(1f, land.plants.tree[p] / 10f); into[x.SHRUBS] = min(1f, land.plants.shrub[p] / 2f); into[x.GRASS] = min(1f, land.plants.herb[p] / 0.5f)
     val need = (g.dailyNeedKg * days).coerceAtLeast(1f)
     fun weeks(kg: Float) = (kg / need).let { it / (1f + it) }
-    into[x.FISH] = weeks(fauna.water.bandCatchWithin(h, b.fishing()))
+    into[x.FISH] = weeks(fauna.water.bandCatchWithin(h, b.fishing()) + fauna.water.weirWithin(h, weirAt(g, h)))
     // Plants: what its gatherers would strip from the camp's own ground in a week (as in [forage]).
     val food = fauna.food
     val pick = min(0.9f, b.gatherShare(false, tuning) * b.gatherRange)

@@ -270,7 +270,7 @@ object HexSnapshot {
      *   with a ways network every non-band group reset all bands to the scaffold's ways after the network set them (and waysForce
      *   with them), and without one the reset never ran. Now it runs only without a ways network, as 4.57 meant.
      * 4.59: herding is no longer for settled bands only: any band may take young in the hunt to keep, and learn herding;
-     *   its herders' days come out of field work's time ([herdDays], about [HERD_KG_A_HERDER] kg of stock a herder), held before
+     *   its herders' days come out of field work's time ([herdDays], about 4,000 kg of stock a herder), held before
      *   the week's food, and none on the days the herd walks with the band to a new camp; what they cannot
      *   keep it culls, in place of a flat cap of two head a person, and it eats what the herd grows to beyond the stock its
      *   herders keep in a usual week (a year's mean), and eats down a herd whose increase
@@ -316,11 +316,28 @@ object HexSnapshot {
      * 4.68: mast a band lays by keeps as seed does ([Store.SEED], 0.5% lost a week); before, it went in with roots and lost
      *   3% a week, four fifths in a year, so no band could carry a good mast year over a poor one. Roots and bulbs in the
      *   ground are counted by their energy, as the root search was fitted ([HexFood.ROOTS_SHARE] 0.01 to 0.03).
-     * 4.69: a band puts up its camp's shelters as soon as its week is planned, before foraging can overrun into their days
+     * 4.69: a herder keeps 200 goats, fewer of bigger beasts as their weight to the half power ([headsAHerder]); before, 4,000 kg
+     *   on the hoof of any kind (a hundred goats, from memory), which made a herder's day bring half what shepherds' does.
+     *   A slaughtered herd beast gives its hides, bone and sinew as a kill does ([Band.skin]); before, they went to the
+     *   scavengers. Its herders' days are held after the week's food and before the other asks ([BandTime.plan]); before,
+     *   with the fire and shelters, so a band that shrank kept its whole herd, which took its firewood and food till it died.
+     * 4.70: a band forages only for what its herds will not feed it that week ([herdFoodWeek]: their increase and milk);
+     *   before, it planned to forage its whole week's food, so in its lean months foraging took every day and the herd
+     *   was culled for want of herders.
+     * 4.71: young caught in the hunt and kept come [RAISED_TAME] tame, as raised by hand, or as tame as their kind's worst
+     *   domestication criterion where that is less; before, they came as tame as the
+     *   band's herd of their kind, wild where it had none, so they ran off, bred little and were eaten within weeks.
+     *   The odds of keeping one go by its kind's worst domestication criterion, not their mean.
+     * 4.72: weirs ([Built.WEIR], [buildWeir]): a band builds a fence of stakes and traps across the river at its camp where
+     *   fish from one would rank in among its gatherers' foods ([Band.weirPull]); its fish take the traps' watch over what
+     *   they take and a little landing and gutting a kilo ([weirDays]), so they pay only where many fish pass (a spawning
+     *   run). Before, every kilo of fish took the same handling wherever and whenever it was caught. Weirs wear in the
+     *   stream; the mover and the people net's fish input see their catch.
+     * 4.73: a band puts up its camp's shelters as soon as its week is planned, before foraging can overrun into their days
      *   ([putUpShelter]); built after the foraging and the other chores, they were the first a week's overrun took.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 69
+    const val MODEL_MINOR = 73
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
