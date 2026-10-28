@@ -414,6 +414,24 @@ class Band(kinds: Int) {
      * founding lineage), how inbred its children are, its grudges against each lineage's people.
      */
     val traditions = enumBools<Tradition>()
+    /**
+     * What it has seen held about it, for its marks ([Tradition.mark]): of the bands it met lately, each as far as it understood
+     * them, how many held each tradition ([heard]) of how many in all ([heardOf]); fading over [HEARD_YEARS] ([HexGroups.cultureWeek]).
+     */
+    val heard = enumFloats<Tradition>()
+    var heardOf = 0f
+    /** Counts band [o], understood as far as [u], among those it has met lately ([heard]). */
+    fun hear(o: Band, u: Float) {
+        for (t in Tradition.entries) if (o.holds(t)) heard[t] += u
+        heardOf += u
+    }
+    /**
+     * The share of the bands it met lately, itself counted as one, that hold [t] as [held] (for its marks: [conformist]).
+     */
+    fun heardShare(t: Tradition, held: Boolean): Float {
+        val n = if (held) heard[t] else heardOf - heard[t]
+        return (n + (if (holds(t) == held) 1f else 0f)) / (heardOf + 1f)
+    }
     val words = IntArray(Language.CONCEPTS)
     val lineage = FloatArray(LINEAGES)
     var inbred = 0.02f
@@ -505,7 +523,7 @@ class Band(kinds: Int) {
         o.salted = salted; o.dryDepth = dryDepth
         o.renown = renown
         rite.copyInto(o.rite); o.riteStrength = riteStrength
-        traditions.copyInto(o.traditions); words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
+        traditions.copyInto(o.traditions); heard.copyInto(o.heard); o.heardOf = heardOf; words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
         o.inbred = inbred; o.campWeeks = campWeeks; o.campPlace = campPlace; o.known = known.copyOf(); kept.copyInto(o.kept)
         copied(o)
         for (i in o.kept.indices) { o.kept[i] *= share; kept[i] -= o.kept[i] }
@@ -565,6 +583,8 @@ class Band(kinds: Int) {
         for (i in Tool.entries) a.knows[i] = a.knows[i] || b.knows[i]
         for (i in a.lineage.indices) a.lineage[i] += w * (b.lineage[i] - a.lineage[i])
         for (i in a.grudge.indices) a.grudge[i] = max(a.grudge[i], b.grudge[i])
+        for (t in Tradition.entries) a.heard[t] += b.heard[t]
+        a.heardOf += b.heardOf
         for ((k, v) in b.ties) if (k != id) a.ties[k] = max(a.tie(k), v)
         a.ties.remove(bId)
         for ((k, v) in b.favours) if (k != id) a.favours.merge(k, v, Float::plus)
