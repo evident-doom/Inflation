@@ -87,7 +87,9 @@ internal fun HexGroups.bookSqueeze(g: HexGroup, b: Band, causes: List<Died>, wea
             causes.filter { it.cause == DeathCause.EXPOSURE }.sumOf { it.n } + " of ${g.size}; " +
             "planned ${describe(b.planAir, b.planCover, b.planSisu, b.planOdds)}; got " +
             describe(air, b.cover(air.meanC, b.fire, b.homeShelter()), b.sisu, b.warmth(air, b.fire, b.homeShelter(), days).odds) +
-            "; will %.2f, lit %.2f, hearth wood %.2f".format(b.shelterWill, if (b.hearthWood > 0f) b.fire / b.hearthWood else 1f, b.hearthWood))
+            "; will %.2f, lit %.2f, hearth wood %.2f".format(b.shelterWill, if (b.hearthWood > 0f) b.fire / b.hearthWood else 1f, b.hearthWood) +
+            "; shelter asked first %.2f of its ask; food held %.1f spent %.1f person-days; shelter held %.2f left it %.2f".format(
+                b.planShelterFirst, b.diagFoodHeld, b.diagFoodSpent, b.diagShelterHeld, b.diagShelterLeft))
     }
     for ((cause, k) in causes) if (k > 0) add(Tally.bandsWarmedDied(spare, warmed, cause), k)
     val h = if (b.herd.any { it > 0f }) Tally.HerdKept.HERDING else Tally.HerdKept.NONE

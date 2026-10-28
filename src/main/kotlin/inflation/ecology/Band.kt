@@ -364,6 +364,11 @@ class Band(kinds: Int) {
     @Transient var planAir: Air? = null
     @Transient var planCover: Cover? = null
     @Transient var planSisu = 0f
+    /** People-days its plan held for food and what foraging spent; held for shelter and what was left it when it built (warmDiag only). */
+    @Transient var diagFoodHeld = 0f
+    @Transient var diagFoodSpent = 0f
+    @Transient var diagShelterHeld = 0f
+    @Transient var diagShelterLeft = 0f
     /** The share of its herd its herders kept this week, as its week's plan gave them days ([herdDays]; 1 till it plans). */
     @Transient var herded = 1f
     /** What a day's foraging brings it, kg of its need, month by month: a mean over the years (below 0 till it has foraged then; [herdPays]). */

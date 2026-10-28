@@ -166,6 +166,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         val got = w.fed / d; val m = weather.date.month; val was = b.forageReturn[m]
         b.forageReturn[m] = if (was < 0f) got else was + min(1f, years * Date.MONTHS_PER_YEAR) * (got - was)
     } }
+    if (WARM_DIAG) w.band?.let { b -> w.time?.let { b.diagFoodSpent = it.spentOn(Activity.FOOD) } }
     w.time?.let { restedDays(w, it) }
     w.time?.release(Activity.FOOD)
     eatTheWeek(w)
@@ -226,6 +227,7 @@ private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float)
     choreAsks(g, b, w.weather.date, asks, warm)
     // (The band weighs the rest of the asks against each other by its ways: see [timeWay].)
     time.plan(needs, asks, enumFloats<Activity> { a -> timeWay(a)?.let { b.will[it] } ?: 1f }, warm, keeps)
+    if (WARM_DIAG) b.diagFoodHeld = time.heldFor(Activity.FOOD)
     b.binding?.let { bind ->
         if (time.short) for (a in Activity.entries) if (asks[a] > 0f) bind[a.ordinal] += 1f
         if (g.path.size > 1) bind[Binding.MOVES] += 1f
