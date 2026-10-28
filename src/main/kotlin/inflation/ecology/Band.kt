@@ -372,6 +372,8 @@ class Band(kinds: Int) {
     @Transient var planOdds = 0f
     @Transient var planLeft = 0f
     @Transient var planShelterFirst = -1f
+    /** The shelters its week's survival pass would put up ([survivalDays]): what it builds to first ([putUpShelter]). Set as the week is planned. */
+    @Transient var shelterAim = 0f
     /** The air and cover its survival pass reckoned the week's exposure with (for warmDiag only: [bookSqueeze]). */
     @Transient var planAir: Air? = null
     @Transient var planCover: Cover? = null

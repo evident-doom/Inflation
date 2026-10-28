@@ -563,7 +563,7 @@ class HexGroups(
 
     /**
      * The brush shelters band [b] (group [g]) would have camped at place [p], [km] off: its shelters now; elsewhere what it
-     * puts up there in the days it had to spare, less the walk's days, as far as it aims to ([shelterDays]). (A band whose
+     * puts up there in the days it had to spare, less the walk's days, as far as it aims to ([shelterReach]). (A band whose
      * walk takes its spare days sleeps in the open where it comes to: what being caught on the move in the cold costs.)
      * (Last week's spare days stand for this week's: an estimate.)
      */
@@ -572,7 +572,7 @@ class HexGroups(
         val people = g.adults.toFloat()
         if (people <= 0f) return 0f
         val left = max(0f, b.spareDays - moveDays(g, km) * forageHands(g))
-        return min(b.shelterWill, left / shelterDays(b, people))
+        return shelterReach(b, people, 0f, b.shelterWill, left)
     }
 
     /** How far [g] camped at place [p] would be sheltered by houses there it may use (0 for none worth the name). */

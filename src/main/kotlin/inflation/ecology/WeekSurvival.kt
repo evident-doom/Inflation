@@ -39,8 +39,9 @@ internal fun HexGroups.survivalDays(g: HexGroup, b: Band, weather: Weather, time
     val cover = woodCover(p)
     val hearthWant = HEARTH_WOOD * g.size
     val hearthAll = if (hearthWant <= 0f) 1f else if (cover <= 0f) 0f else hearthShare(cover, g.size.toFloat() / max(1, hands))
+    // (Its shelters as far as a thatched hut, whatever its ways aim at: they are its people's lives, [shelterWork].)
     val shelter0 = if (moved) 0f else b.shelter
-    val shelterAsk = max(0f, b.shelterWill - shelter0) * shelterDays(b, people)
+    val shelterAsk = shelterWork(b, people, shelter0, SHELTER_MOST)
     val asks = FloatArray(3); asks[FOOD] = foodAsk; asks[FIRE] = fuelAsk; asks[SHELTER] = shelterAsk
     val acts = arrayOf(Activity.FOOD, Activity.FIREWOOD, Activity.SHELTER)
     // (Its body heat at each fire and shelter, worked out once a week for each, to the hundredth: a fire cut short by a long
@@ -53,7 +54,7 @@ internal fun HexGroups.survivalDays(g: HexGroup, b: Band, weather: Weather, time
     val larderDays = g.larder / g.dailyNeedKg.coerceAtLeast(1e-3f)
     fun deaths(d: FloatArray): Float {
         val fire = if (asks[FIRE] > 0f) hearthAll * min(1f, d[FIRE] / asks[FIRE]) else hearthAll
-        val shelter = shelter0 + if (asks[SHELTER] > 0f) (b.shelterWill - shelter0) * min(1f, d[SHELTER] / asks[SHELTER]) else 0f
+        val shelter = shelterReach(b, people, shelter0, SHELTER_MOST, d[SHELTER])
         val w = warmth(fire, shelter)
         // (The want was reckoned at the fire it had: a warmer or colder week needs less or more, [warmthNeed].)
         val needs = warmthNeed(w, fire) / g.warmth.coerceAtLeast(1e-3f)
@@ -93,7 +94,8 @@ internal fun HexGroups.survivalDays(g: HexGroup, b: Band, weather: Weather, time
     for (i in FIRE..SHELTER) first[acts[i]] = d[i]
     // (What it reckoned with, for the census: [bookSqueeze].)
     b.planFire = if (asks[FIRE] > 0f) hearthAll * min(1f, d[FIRE] / asks[FIRE]) else hearthAll
-    val planShelter = shelter0 + if (asks[SHELTER] > 0f) (b.shelterWill - shelter0) * min(1f, d[SHELTER] / asks[SHELTER]) else 0f
+    val planShelter = shelterReach(b, people, shelter0, SHELTER_MOST, d[SHELTER])
+    b.shelterAim = planShelter
     b.planOdds = warmth(b.planFire, planShelter).odds
     if (WARM_DIAG) { b.planAir = air; b.planCover = b.cover(air.meanC, b.planFire, home, planShelter); b.planSisu = b.sisu }
     b.planLeft = if (time.total > 0f) time.left / time.total else 0f

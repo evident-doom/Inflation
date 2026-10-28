@@ -348,9 +348,13 @@ object HexSnapshot {
      *   shelters and food leave, month by month); before, it kept the increase only where that week's spare days would
      *   herd it, so a herd could only hold or shrink. A herd that kept its increase to grow feeds the band only its milk
      *   ([Band.herdGrew]), and the band forages for the rest.
+     * 4.78: a light hut (a tenth of a person-day each) keeps off the wind and rain and holds the bedding but no warmth; its
+     *   thatching, some 2 person-days each ([THATCH_DAYS]), holds the warmth in ([SHELTER_C]), and the week's survival
+     *   pass thatches as far as it averts deaths, whatever the band's ways aim at ([shelterWork], [Band.shelterAim]);
+     *   before, the tenth of a day's hut gave the warmth too.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 77
+    const val MODEL_MINOR = 78
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
