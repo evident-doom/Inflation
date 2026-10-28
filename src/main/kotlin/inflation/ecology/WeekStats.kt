@@ -179,6 +179,8 @@ object Tally {
         SALT_KNOWN("knows salt, band-weeks"), SALT_KM("nearest known salt, km"),
         /** Its clothes ([Band.clothesClo]), clo, and its spare days over the last season ([Band.spareMean]), share: tenths and thousandths summed over band-weeks. */
         CLOTHES("clothes clo, 1/10"), SPARE("spare days, 1/1000"),
+        /** The week's mean air at its camp, °C, tenths summed over band-weeks; the band-weeks it came to a new camp. */
+        AIR("air °C, 1/10"), MOVED("new camp, band-weeks"),
     }
     /**
      * In the weeks the cold ran a band's people into heat debt through all the cover it had ([WEEKS], tenths): the worst debt
@@ -231,9 +233,11 @@ object Tally {
     fun bandsLivingDied(way: Living) = TallyKey.raw("bands ${way.label}:$DIED_OF")
     /**
      * How a band's chores fared against what they asked of its week ([HexGroups.countSqueeze]): the band-weeks each asked for
-     * days, those it got less than [SQUEEZED] of its ask in a week that ran out of days, and the days asked and not got, tenths.
+     * days, those it got less than [SQUEEZED] of its ask in a week that ran out of days, and the days asked and not got, tenths;
+     * and of the days asked, those the survival pass asked first ([survivalDays]), tenths.
      */
-    enum class Squeeze(val label: String) { ASKED_WEEKS("weeks asked"), SHORT_WEEKS("weeks short"), ASKED_DAYS("days asked"), MISSING_DAYS("days missing") }
+    enum class Squeeze(val label: String) { ASKED_WEEKS("weeks asked"), SHORT_WEEKS("weeks short"), ASKED_DAYS("days asked"), MISSING_DAYS("days missing"),
+        FIRST_DAYS("days asked first") }
     fun squeeze(a: Activity, what: Squeeze) = TallyKey.raw("band squeeze:${a.label}:${what.label}")
     /** A band's spare days over the last season or so ([Band.spareMean], a share of its hands' days): the first bin it falls [below]. */
     enum class Spare(val label: String, val below: Float) {
@@ -244,6 +248,18 @@ object Tally {
     fun bandsSpare(spare: Spare, what: Bands) = TallyKey.raw("bands spare ${spare.label}:${what.label}")
     fun bandsSpareDied(spare: Spare, cause: DeathReason) = TallyKey.raw(bandsSpareDied(spare).text + cause.label)
     fun bandsSpareDied(spare: Spare) = TallyKey.raw("bands spare ${spare.label}:$DIED_OF")
+    /**
+     * How a band was kept warm at the week's end: its fire ([Band.fire]) and its shelters against those it aims at
+     * ([Band.shelterWill]), each at least half or not. The report's line.
+     */
+    enum class Warmed(val label: String) {
+        BOTH("fire and shelter"), FIRE("fire, little shelter"), SHELTER("shelter, little fire"), NEITHER("little of either");
+        companion object { fun of(fire: Float, shelter: Float) = if (fire >= 0.5f) (if (shelter >= 0.5f) BOTH else FIRE) else if (shelter >= 0.5f) SHELTER else NEITHER }
+    }
+    /** Bands' tallies by their spare days and how they were kept warm; [bandsWarmedDied] (spare, warmed) starts all their deaths. */
+    fun bandsWarmed(spare: Spare, w: Warmed, what: Bands) = TallyKey.raw("bands spare ${spare.label} warmed ${w.label}:${what.label}")
+    fun bandsWarmedDied(spare: Spare, w: Warmed, cause: DeathReason) = TallyKey.raw(bandsWarmedDied(spare, w).text + cause.label)
+    fun bandsWarmedDied(spare: Spare, w: Warmed) = TallyKey.raw("bands spare ${spare.label} warmed ${w.label}:$DIED_OF")
     /** Whether a band keeps a herd ([Band.herd]). */
     enum class HerdKept(val label: String) { HERDING("keeping a herd"), NONE("keeping none") }
     /** Bands' tallies by whether they keep a herd; [bandsHerdKeptDied] (herding) starts all their deaths. */

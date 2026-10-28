@@ -406,6 +406,23 @@ class Census(private val sim: HexSim) {
                 h.label + " " + group(v(Tally.bandsHerdKept(h, Tally.Bands.PEOPLE_WEEKS)), herdAll, bw, v(Tally.bandsHerdKept(h, Tally.Bands.CLOTHES)),
                     lastYear.filterKeys { it.startsWith(Tally.bandsHerdKeptDied(h)) }) + "; spare %.0f%%".format(100 * v(Tally.bandsHerdKept(h, Tally.Bands.SPARE)) / 1000 / bw.coerceAtLeast(1.0))
             })
+        println("warmth's days the survival pass asked first, last year (share of all the days each asked): " +
+            listOf(Activity.FIREWOOD, Activity.SHELTER).joinToString(", ") { a ->
+                "%s %.1f%%".format(a.label, 100 * v(Tally.squeeze(a, Tally.Squeeze.FIRST_DAYS)) / v(Tally.squeeze(a, Tally.Squeeze.ASKED_DAYS)).coerceAtLeast(1.0))
+            })
+        println("bands by spare days over the last season and how they were kept warm at the week's end, last year (share of the spare bin's people-weeks; mean air °C; share of band-weeks at a new camp; exposure, hunger and all deaths per 1000 people a year): " +
+            Tally.Spare.entries.joinToString("; ") { sp ->
+                val all = Tally.Warmed.entries.sumOf { v(Tally.bandsWarmed(sp, it, Tally.Bands.PEOPLE_WEEKS)) }
+                sp.label + ": " + Tally.Warmed.entries.joinToString(", ") { w ->
+                    val pw = v(Tally.bandsWarmed(sp, w, Tally.Bands.PEOPLE_WEEKS)); val bw = v(Tally.bandsWarmed(sp, w, Tally.Bands.BAND_WEEKS)).coerceAtLeast(1.0)
+                    val years = (pw / stepsPerYear).coerceAtLeast(1e-9)
+                    val died = lastYear.filterKeys { it.startsWith(Tally.bandsWarmedDied(sp, w)) }
+                    fun of(c: DeathCause) = died[Tally.bandsWarmedDied(sp, w, c)] ?: 0
+                    "%s %.0f%% %.1f °C new %.0f%% exp %.1f hun %.1f all %.1f".format(w.label, 100 * pw / all.coerceAtLeast(1.0),
+                        v(Tally.bandsWarmed(sp, w, Tally.Bands.AIR)) / 10 / bw, 100 * v(Tally.bandsWarmed(sp, w, Tally.Bands.MOVED)) / bw,
+                        1000 * of(DeathCause.EXPOSURE) / years, 1000 * of(DeathCause.HUNGER) / years, 1000 * died.values.sum() / years)
+                }
+            })
         val wanted = Tally.ClothesMade.entries.sumOf { v(Tally.clothesMade(it)) }
         println("bands' clothes making, last year (band-weeks clothes were wanted: %.0f%% of band-weeks; by what stopped them): ".format(100 * wanted / weeks) +
             Tally.ClothesMade.entries.joinToString(", ") { c -> "%s %.0f%%".format(c.label, 100 * v(Tally.clothesMade(c)) / wanted.coerceAtLeast(1.0)) })

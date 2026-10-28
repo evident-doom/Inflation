@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.world.Weather
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -36,6 +37,7 @@ internal fun HexGroups.countSqueeze(b: Band, time: BandTime) {
         add(Tally.Squeeze.ASKED_WEEKS, 1)
         add(Tally.Squeeze.ASKED_DAYS, (10f * ask).roundToInt())
         add(Tally.Squeeze.MISSING_DAYS, (10f * missing).roundToInt())
+        add(Tally.Squeeze.FIRST_DAYS, (10f * min(time.askedFirst[a], ask)).roundToInt())
         if (full && missing > (1f - SQUEEZED) * ask) add(Tally.Squeeze.SHORT_WEEKS, 1)
     }
     b.clothesMade?.let { stats.hunting.merge(Tally.clothesMade(it), 1, Int::plus) }
@@ -44,8 +46,10 @@ internal fun HexGroups.countSqueeze(b: Band, time: BandTime) {
 /**
  * Books [g]'s band [b]'s week, and its deaths ([causes]), by its spare days over the last season ([Band.spareMean]) and by
  * whether it keeps a herd, with its clothes: whether bands whose weeks are full die of what spare days would have kept off.
+ * And by its spare days with how it was kept warm at the week's end ([Tally.Warmed]), the week's air and whether it came to
+ * a new camp: whether the full weeks' exposure deaths come with a fire or shelters cut short, or with the cold of where they are.
  */
-internal fun HexGroups.bookSqueeze(g: HexGroup, b: Band, causes: List<Died>) {
+internal fun HexGroups.bookSqueeze(g: HexGroup, b: Band, causes: List<Died>, weather: Weather) {
     fun add(k: TallyKey, v: Int) { stats.hunting.merge(k, v, Int::plus) }
     val clo = (10f * b.clothesClo()).roundToInt()
     val spare = Tally.Spare.of(b.spareMean)
@@ -53,6 +57,12 @@ internal fun HexGroups.bookSqueeze(g: HexGroup, b: Band, causes: List<Died>) {
     add(Tally.bandsSpare(spare, Tally.Bands.PEOPLE_WEEKS), g.size)
     add(Tally.bandsSpare(spare, Tally.Bands.CLOTHES), clo)
     for ((cause, k) in causes) if (k > 0) add(Tally.bandsSpareDied(spare, cause), k)
+    val warmed = Tally.Warmed.of(b.fire, if (b.shelterWill > 0f) b.shelter / b.shelterWill else 1f)
+    add(Tally.bandsWarmed(spare, warmed, Tally.Bands.BAND_WEEKS), 1)
+    add(Tally.bandsWarmed(spare, warmed, Tally.Bands.PEOPLE_WEEKS), g.size)
+    add(Tally.bandsWarmed(spare, warmed, Tally.Bands.AIR), (10f * airAt(g.place, weather).meanC).roundToInt())
+    if (b.campWeeks == 0) add(Tally.bandsWarmed(spare, warmed, Tally.Bands.MOVED), 1)
+    for ((cause, k) in causes) if (k > 0) add(Tally.bandsWarmedDied(spare, warmed, cause), k)
     val h = if (b.herd.any { it > 0f }) Tally.HerdKept.HERDING else Tally.HerdKept.NONE
     add(Tally.bandsHerdKept(h, Tally.Bands.BAND_WEEKS), 1)
     add(Tally.bandsHerdKept(h, Tally.Bands.PEOPLE_WEEKS), g.size)
