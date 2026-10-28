@@ -351,7 +351,8 @@ object HexSnapshot {
      * 4.78: a light hut (a tenth of a person-day each) keeps off the wind and rain and holds the bedding but no warmth; its
      *   thatching, some 2 person-days each ([THATCH_DAYS]), holds the warmth in ([SHELTER_C]), and the week's survival
      *   pass thatches as far as it averts deaths, whatever the band's ways aim at ([shelterWork], [Band.shelterAim]);
-     *   before, the tenth of a day's hut gave the warmth too.
+     *   before, the tenth of a day's hut gave the warmth too. The survival pass counts the food its days leave unforaged
+     *   (before, it reckoned with all the week's food got, so the warmth's days were free).
      */
     const val MODEL_MAJOR = 4
     const val MODEL_MINOR = 78
