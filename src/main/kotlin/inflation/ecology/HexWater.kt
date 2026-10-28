@@ -678,6 +678,30 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
      */
     fun bandCatchWithin(h: Hex, skill: Float) = fishWithin(h, skill, Catch.FISH) + fishWithin(h, 1f, Catch.SHELLFISH)
 
+    /** Width of the river through hex [h] at its mean flow, m; 0 where no stream runs. */
+    fun riverWidthM(h: Hex) = if (hw.riverKm[h] > 0f) Channel.widthM(max(land.hydro.meanFlow[h], 0.01f)) else 0f
+
+    /**
+     * What a weir across [blocked] of the river in hex [h] could take this week at most, kg: its traps stop a share of the
+     * run passing up ([WEIR_RUN_SHARE]) and of the river's own fish, which move less ([WEIR_RIVER_SHARE]).
+     */
+    fun weirWithin(h: Hex, blocked: Float): Float {
+        if (blocked <= 0f) return 0f
+        return blocked * (WEIR_RUN_SHARE * run[h] + WEIR_RIVER_SHARE * riverFish[h]) * max(1f, hw.land[h] * hexKm2)
+    }
+
+    /** People emptying the traps of a weir across [blocked] of the river in hex [h]: takes up to [kg] of [weirWithin]; returns kg caught. */
+    fun weirFor(h: Hex, kg: Float, blocked: Float): Float {
+        val most = weirWithin(h, blocked)
+        if (most <= 0f || kg <= 0f) return 0f
+        val share = min(kg, most) / most * blocked
+        val fromRun = share * WEIR_RUN_SHARE * run[h]; val fromRiver = share * WEIR_RIVER_SHARE * riverFish[h]
+        run[h] -= fromRun; riverFish[h] -= fromRiver
+        val got = (fromRun + fromRiver) * max(1f, hw.land[h] * hexKm2)
+        fishFlows.merge(PEOPLE_FLOWS[0], got / 1000.0, Double::plus)
+        return got
+    }
+
     /** Share of its needs a fish-eater gets at fish density [f], kg/km²: little where fish are few (shoals are hard to find), most where they are many. */
     private fun fishResponse(f: Float) = f * f / (f * f + FISH_FIND_HALF * FISH_FIND_HALF)
 
@@ -784,6 +808,16 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         const val RIVER_SEARCH = 20f
         const val FISH_SEARCH = 100f
         const val SHELLFISH_SEARCH = 50f
+        /**
+         * Share a week of the run in a hex, and of the river's own fish, that the traps of a weir across the whole river stop.
+         * Weirs across a run river stopped nearly all of it: the Heiltsuk stone traps held all the salmon there were till
+         * the walls were opened, and the Kepel dam's pens filled as fast as the fishers could empty them, so that its middle
+         * was left open some days to let the fish by (Waterman & Kroeber 1938). Half a week stands for that (the run's fish
+         * are spread over the river below the front, not all passing the weir in a week; an estimate). The river's own fish
+         * keep to their reach and meet the traps only as they move: a twentieth a week (an estimate).
+         */
+        const val WEIR_RUN_SHARE = 0.5f
+        const val WEIR_RIVER_SHARE = 0.05f
         /** Fish, kg/km², at which hunters find them half as easily as in a rich sea. */
         const val FISH_HALF = 1000f
         /** Fish (kg/km²) at which a fish-eating sea animal gets half of what it needs. */

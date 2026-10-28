@@ -12,12 +12,14 @@ import inflation.enumFloats
  * 2004, Human energy requirements, table 5.1: collecting water or wood 4.4; planting, weeding, gathering 4.1; domestic chores
  * by hand 2.3; light leisure 1.4, sitting 1.5). Foraging and hunting are taken as gathering, building and digging as planting
  * and weeding, fetching materials as collecting wood, crafts, skins and the customs' cleaning and nursing as domestic chores;
- * moving camp as gathering, its walking costed apart ([walkCost]). These pairings are estimates.
+ * moving camp as gathering, its walking costed apart ([walkCost]), building weirs as fetching wood (the stakes are cut and
+ * carried, and driven in the stream). These pairings are estimates.
  */
 enum class Activity(val label: String, val par: Float, val where: Workplace) {
     FIREWOOD("firewood", 4.4f, Workplace.OUT), FOOD("food", 4.1f, Workplace.OUT), DRYING("drying", 2.3f, Workplace.CAMP), SKINS("skins", 2.3f, Workplace.CAMP),
     SHELTER("shelter", 4.1f, Workplace.OUT), CUSTOMS("customs", 2.3f, Workplace.CAMP), TRAINING("training", 2.3f, Workplace.CAMP), TOOLS("tools", 2.3f, Workplace.CAMP),
     HOUSES("houses", 4.1f, Workplace.OUT), ORNAMENTS("ornaments", 2.3f, Workplace.CAMP), SOWING("sowing", 4.1f, Workplace.OUT), PALISADE("palisade", 4.1f, Workplace.OUT),
+    WEIRS("weirs", 4.4f, Workplace.OUT),
     MATERIALS("materials", 4.4f, Workplace.OUT), CACHING("caching", 4.1f, Workplace.OUT), MOVING("moving", 4.1f, Workplace.OUT), LEISURE("leisure", 1.45f, Workplace.NONE);
 
     /**

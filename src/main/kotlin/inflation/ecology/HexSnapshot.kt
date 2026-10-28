@@ -328,9 +328,14 @@ object HexSnapshot {
      *   domestication criterion where that is less; before, they came as tame as the
      *   band's herd of their kind, wild where it had none, so they ran off, bred little and were eaten within weeks.
      *   The odds of keeping one go by its kind's worst domestication criterion, not their mean.
+     * 4.72: weirs ([Built.WEIR], [buildWeir]): a band builds a fence of stakes and traps across the river at its camp where
+     *   fish from one would rank in among its gatherers' foods ([Band.weirPull]); its fish take the traps' watch over what
+     *   they take and a little landing and gutting a kilo ([weirDays]), so they pay only where many fish pass (a spawning
+     *   run). Before, every kilo of fish took the same handling wherever and whenever it was caught. Weirs wear in the
+     *   stream; the mover and the people net's fish input see their catch.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 71
+    const val MODEL_MINOR = 72
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
