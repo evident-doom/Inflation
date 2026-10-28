@@ -249,6 +249,7 @@ internal fun HexGroups.leaveDead(g: HexGroup) {
     val area = land.areaKm2[p]
     for (k in b.herd.indices) if (b.herd[k] > 0f) {
         fauna.adults[k][p] += b.herd[k] / area; bands.herdFlows[HerdFlow.FREED] += b.herd[k]; bands.herdFlows[HerdFlow.ENDED_FREED] += 1f
+        bands.kindFlows[k][HerdFlow.FREED] += b.herd[k]; bands.kindFlows[k][HerdFlow.ENDED_FREED] += 1f
         b.herd[k] = 0f; b.herdTame[k] = 0f
     }
 }
