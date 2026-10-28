@@ -197,7 +197,11 @@ fun kinship(a: FloatArray, b: FloatArray): Float { var s = 0f; for (i in a.indic
 internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weather): Boolean {
     val bandA = a.band ?: return false; val bandB = b.band ?: return false
     val u = Language.understanding(bandA.words, bandB.words)
-    if (raid(a, bandA, b, bandB, u, weather) || raid(b, bandB, a, bandA, u, weather)) return true
+    tallyMeeting(bandA, bandB, Tally.MeetingEnd.MET)
+    if (raid(a, bandA, b, bandB, u, weather) || raid(b, bandB, a, bandA, u, weather)) {
+        tallyMeeting(bandA, bandB, Tally.MeetingEnd.RAIDED)
+        return true
+    }
     // A band that sees sickness among the others may keep away: no talk, no partners, no feast.
     fun showsSickness(x: Band) = x.sick.sum() > SICK_SHOWS
     fun shuns(x: Band) = drawn(DialSite.SHUN_SICK, x.will[BandWay.SHUNNING_THE_SICK], rnd.nextFloat(), x.shunSick) { 0.5f }
@@ -235,8 +239,20 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
         marryOut(a, bandA, b, bandB)
         bandA.befriend(b.id, TIE_MARRY); bandB.befriend(a.id, TIE_MARRY)
         stats.meeting(Met.BANDS_EXCHANGED_PARTNERS)
+        tallyMeeting(bandA, bandB, Tally.MeetingEnd.PARTNERS)
     }
     return false
+}
+
+/**
+ * Counts what came of bands [a] and [b] meeting ([what]) by how well they understand each other and how far apart their
+ * customs are: for the identity census. Nothing in the model reads it back, and it draws no chance.
+ */
+internal fun GroupWorld.tallyMeeting(a: Band, b: Band, what: Tally.MeetingEnd) {
+    val u = Tally.Understood.of(Language.understanding(a.words, b.words))
+    val c = Tally.CustomsApart.of(Tradition.entries.count { a.holds(it) != b.holds(it) })
+    stats.hunting.merge(Tally.meetingsBy(u, what), 1, Int::plus)
+    stats.hunting.merge(Tally.meetingsBy(c, what), 1, Int::plus)
 }
 
 /**

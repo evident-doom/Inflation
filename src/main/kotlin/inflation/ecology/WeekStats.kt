@@ -260,6 +260,24 @@ object Tally {
     fun bandsHerdingDied(h: Herding, young: Boolean, cause: DeathReason) = TallyKey.raw(bandsHerdingDied(h, young).text + cause.label)
     fun bandsHerdingDied(h: Herding, young: Boolean) = TallyKey.raw("bands ${h.label}:${if (young) "children " else "grown "}$DIED_OF")
     /**
+     * How well two bands that met understand each other ([Language.understanding]): the first bin it falls [below]. For the
+     * identity census; the line is the report's, not the model's: nothing chooses by it.
+     */
+    enum class Understood(val label: String, val below: Float) {
+        LITTLE("understood under 0.5", 0.5f), PART("understood 0.5 to 0.85", 0.85f), WELL("understood 0.85 and over", Float.POSITIVE_INFINITY);
+        companion object { fun of(u: Float) = entries.firstOrNull { u < it.below } ?: WELL }
+    }
+    /** How many of their [Tradition]s two bands that met hold differently: the first bin the count is [below]. */
+    enum class CustomsApart(val label: String, val below: Int) {
+        SAME("same customs", 1), FEW("1-2 customs apart", 3), MANY("3+ customs apart", Int.MAX_VALUE);
+        companion object { fun of(n: Int) = entries.first { n < it.below } }
+    }
+    /** What came of two bands meeting, or of a raid set on a home, for the identity census. */
+    enum class MeetingEnd(val label: String) { MET("met"), RAIDED("raided at meeting"), PARTNERS("exchanged partners"), RAIDED_HOME("raided at home") }
+    /** Meetings of bands that ended in [what], by how well they understood each other, and by how far apart their customs were. */
+    fun meetingsBy(u: Understood, what: MeetingEnd) = TallyKey.raw("meetings ${u.label}:${what.label}")
+    fun meetingsBy(c: CustomsApart, what: MeetingEnd) = TallyKey.raw("meetings ${c.label}:${what.label}")
+    /**
      * How a band's chores fared against what they asked of its week ([HexGroups.countSqueeze]): the band-weeks each asked for
      * days, those it got less than [SQUEEZED] of its ask in a week that ran out of days, and the days asked and not got, tenths;
      * and of the days asked, those the survival pass asked first ([survivalDays]), tenths.

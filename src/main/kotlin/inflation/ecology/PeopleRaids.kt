@@ -81,7 +81,10 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
 internal fun HexGroups.fightRaids(weather: Weather) {
     for ((g, target) in bands.raidsDue) {
         val b = g.band ?: continue; val tb = target.band ?: continue
-        if (g.alive && target.alive && hw.placeHex[target.place] == hw.placeHex[g.place]) fight(g, b, target, tb, planned = true, weather)
+        if (g.alive && target.alive && hw.placeHex[target.place] == hw.placeHex[g.place]) {
+            tallyMeeting(b, tb, Tally.MeetingEnd.RAIDED_HOME)
+            fight(g, b, target, tb, planned = true, weather)
+        }
     }
     bands.raidsDue.clear()
 }
