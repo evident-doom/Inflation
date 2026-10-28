@@ -135,7 +135,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         if (left <= 0.01f * w.wantAll) break
         offerFoods(w, o)
         o.takeUp()
-        if (pass == 0 && w.band != null) { w.fishPull = o.pull(Food.FISH); w.weirPull = o.pullAt(w.weirProbe) }
+        if (pass == 0 && w.band != null) { w.fishPull = max(o.pull(Food.FISH), o.pull(Food.FISH, RUN_KIND)); w.weirPull = o.pullAt(w.weirProbe) }
         note(g) {
             "pass %d: took up %d of %d foods, best first: ".format(pass + 1, o.used, o.m) + (0 until min(o.used, 6)).joinToString(", ") { r -> val i = o.order[r]
                 (if (o.type[i] == Food.BIG_GAME) fauna.kinds[o.kind[i]].name else o.type[i].label) + " %.1f kg/day of work".format(o.profit[i]) }
@@ -655,6 +655,14 @@ private fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
         val h = hw.placeHex[g.place]
         offer(w, o, Food.FISH, 0, g.place, fauna.water.fishWithin(h, band.fishing(), HexWater.Catch.FISH) / days, 1f, FISH_HANDLING_DAYS_PER_KG / w.gatherHands * band.slowness(Skill.FISH) + w.eats)
         offer(w, o, Food.FISH, SHELLFISH_KIND, g.place, fauna.water.fishWithin(h, 1f, HexWater.Catch.SHELLFISH) / days, 1f, SHELLFISH_DAYS_PER_KG / w.gatherHands + w.eats)
+        // And the spring run's fish going up the river by the camp, speared or dip-netted from the bank (kind [RUN_KIND]): a
+        // kilo takes the wait for fish to come within reach ([HexWater.runWithinReach]), slower for unskilled hands, and its
+        // landing and gutting ([WEIR_HANDLING_DAYS_PER_KG]). The more fish go by, the less the wait: where the run crowds a
+        // narrow river it pays as nothing else does, and elsewhere hardly at all.
+        val runKg = fauna.water.fishWithin(h, band.fishing(), HexWater.Catch.RUN)
+        val reachKg = fauna.water.runWithinReach(h)
+        if (runKg > 0f && reachKg > 0f)
+            offer(w, o, Food.FISH, RUN_KIND, g.place, runKg / days, 1f, (band.slowness(Skill.FISH) / reachKg + WEIR_HANDLING_DAYS_PER_KG) / w.gatherHands + w.eats)
         // And fish trapped at a weir across the river by the camp, where one stands that it may use (kind [WEIR_KIND]): the
         // tending of its traps over what they take, and the landing and gutting of each kilo ([weirDays]). A weir pays
         // only where many fish pass; it wants no fishing skill.
@@ -714,6 +722,7 @@ private fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
                 if (from == PlantFrom.MAST && haul.kg > 0f && band != null && band.knowsSkill[Skill.LEACHING]) band.practise(Skill.LEACHING)
             }
             Food.FISH -> if (o.kind[i] == SHELLFISH_KIND) fauna.water.fishFor(hw.placeHex[p], expected, 1f, HexWater.Catch.SHELLFISH).let { w.fish += it; w.fed += it * w.feeds(Food.FISH) }
+                else if (o.kind[i] == RUN_KIND) fauna.water.fishFor(hw.placeHex[p], expected, band?.fishing() ?: 1f, HexWater.Catch.RUN).let { w.fish += it; w.fished += it; w.fed += it * w.feeds(Food.FISH) }
                 else if (o.kind[i] == WEIR_KIND) fauna.water.weirFor(hw.placeHex[p], expected, weirAt(g, hw.placeHex[p])).let { w.fish += it; w.fished += it; w.fed += it * w.feeds(Food.FISH) }
                 else fauna.water.fishFor(hw.placeHex[p], expected, band?.fishing() ?: 1f, HexWater.Catch.FISH).let { w.fish += it; w.fished += it; w.fed += it * w.feeds(Food.FISH) }
             Food.GRAIN -> {
@@ -1185,6 +1194,8 @@ private fun GroupWorld.gather(g: HexGroup, t: Food, kind: Int, p: Place, expecte
 const val SHELLFISH_KIND = 1
 /** The kind of [Food.FISH] offer that is fish taken from the traps of a weir ([Built.WEIR]). */
 const val WEIR_KIND = 2
+/** The kind of [Food.FISH] offer that is the spring run's fish taken from the bank ([HexWater.runWithinReach]). */
+const val RUN_KIND = 3
 /**
  * The kind of a band's [Food.ROOTS] offer that is the fallen mast (0 is bulbs and roots dug: see [offerFoods]), picked up as
  * fruit is picked ([BAND_FRUIT_DAYS_PER_KG]): pine nuts in the Great Basin gave some 840-1,400 kcal/h (Simms 1987, from memory).
