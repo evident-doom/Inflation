@@ -2,10 +2,7 @@ package inflation.ecology
 
 import inflation.EnumFloats
 import inflation.enumFloats
-import inflation.world.Date
 import inflation.world.Weather
-import kotlin.math.ceil
-import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -17,14 +14,6 @@ import kotlin.math.roundToInt
  * ([warmthNeed]) and so its hunger, this week and through the year after ([yearAhead]), each counted in full, with all the
  * week's food it wants got. These come before the food in the week ([BandTime.plan]): a cold night kills within the week,
  * a hungry week is bridged by the larder and fat.
- *
- * A shelter is not this week's alone: it stands, once put up, for as long as the band keeps the camp, and what it averts
- * through the stay counts with this week's. The stay ahead is taken as the weeks the band keeps a camp ([Band.stayWeeks])
- * less this one, wherever it is in its stay (moves are chosen afresh each week; an estimate), its months at the place's usual
- * temperatures as the year ahead's are ([yearAhead]), from next month on; past the stay, the year ahead stays as foreseen.
- * Valued by this week alone, the shelters a band came to a new camp to put up averted nothing in a mild week and were left to
- * the other chores' share, and full weeks put up less than nine tenths of what they aimed at four times in five (the
- * squeeze census, 2026-10-27), while bands with no days to spare died of exposure two to four times as often.
  *
  * The food itself is not priced so: what a band foresees of its hunger is by the food it got in each month over the last
  * years, which in its first year it has none of (all foreseen dead whatever is done now) and which does not see the fat a
@@ -62,26 +51,6 @@ internal fun HexGroups.survivalDays(g: HexGroup, b: Band, weather: Weather, time
         return warmthAt.getOrPut(f * 10_000 + sh) { b.warmth(air, f / GRID, home, days, sh / GRID) }
     }
     val larderDays = g.larder / g.dailyNeedKg.coerceAtLeast(1e-3f)
-    // (The months of the stay ahead, after this week, and each month's exposure odds through them by the shelter standing,
-    // worked out once for each step of [STAY_GRID] and taken between the two steps either side. Only where it would build.)
-    val stayMonths = if (shelterAsk > 0f) max(0f, b.stayWeeks - 1f) * Date.MONTHS_PER_YEAR / stepsPerYear else 0f
-    val months = min(Date.MONTHS_PER_YEAR, ceil(stayMonths).toInt())
-    val stayOddsAt = HashMap<Int, Float>()
-    fun stayOdds(i: Int, step: Int) = stayOddsAt.getOrPut(i * 1_000 + step) {
-        val t = weather.usualTemperature((weather.date.month + i + 1) % Date.MONTHS_PER_YEAR, p)
-        b.warmth(airAt(p, weather, t), b.fire, home, Date.DAYS_PER_MONTH, step / STAY_GRID).odds
-    }
-    val yearOdds = FloatArray(Date.MONTHS_PER_YEAR) { year.odds(it) }
-    fun aheadOdds(shelter: Float): FloatArray {
-        if (months == 0) return yearOdds
-        val x = shelter.coerceAtLeast(0f) * STAY_GRID; val lo = floor(x).toInt(); val f = x - lo
-        for (i in 0 until months) {
-            val stayed = min(1f, stayMonths - i)
-            val o = stayOdds(i, lo) * (1f - f) + (if (f > 0f) stayOdds(i, lo + 1) * f else 0f)
-            yearOdds[i] = stayed * o + (1f - stayed) * year.odds(i)
-        }
-        return yearOdds
-    }
     fun deaths(d: FloatArray): Float {
         val fire = if (asks[FIRE] > 0f) hearthAll * min(1f, d[FIRE] / asks[FIRE]) else hearthAll
         val shelter = shelter0 + if (asks[SHELTER] > 0f) (b.shelterWill - shelter0) * min(1f, d[SHELTER] / asks[SHELTER]) else 0f
@@ -96,7 +65,7 @@ internal fun HexGroups.survivalDays(g: HexGroup, b: Band, weather: Weather, time
         // (This week's deaths and the year after's, each counted in full: a year that looks bleak whatever is done now, as
         // it does before a band has a year's food behind it to foresee by, takes nothing from what this week's days do.)
         val week = (1f - w.odds) * (1f - hunger)
-        return 1f - week + 1f - year.alive(s, larderDays - paid, fat, Hazards.spentAfter(s, g.spent, onFat, days), aheadOdds(shelter))
+        return 1f - week + 1f - year.alive(s, larderDays - paid, fat, Hazards.spentAfter(s, g.spent, onFat, days))
     }
     // (Reckoned with all the week's food it wants: see above.)
     val d = FloatArray(3); d[FOOD] = asks[FOOD]
@@ -138,7 +107,5 @@ private const val SHELTER = 2
 /** The pieces the week is given out in ([survivalDays]); and the steps of fire and shelter its body heat is reckoned at. */
 private const val CHUNKS = 40f
 private const val GRID = 100f
-/** The steps of shelter the months of a stay ahead are reckoned at ([survivalDays]): fewer, as each is a month's reckoning. */
-private const val STAY_GRID = 10f
 /** Fewer deaths than this, a share of the band, are no deaths averted: the rounding in the reckoning, not a difference. */
 private const val AVERTS_NONE = 1e-6f

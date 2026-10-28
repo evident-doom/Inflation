@@ -192,7 +192,7 @@ private fun restedDays(w: ForageWeek, time: BandTime) {
  * A band's plan of its week, made once [forage] sees what food asks of it: [needDays] of its hands' week to eat what it
  * wants this week, [storeDays] more to lay by what it aims to keep. The walk, when it moved camp ([moveDays]), and digging
  * soaks for water, where that is the only water, come off first. Then the days the hearth's firewood and the camp's
- * shelters take to keep its people warm ([survivalDays]), then its herders' days (never at the warmth's cost), then the week's food; then the rest of what each activity asks for ([choreAsks]: the rest of the week's food, the stores and its chores),
+ * shelters take to keep its people warm ([survivalDays]), then its herders' days, then the week's food; then the rest of what each activity asks for ([choreAsks]: the rest of the week's food, the stores and its chores),
  * shared out when it comes to more than the days left ([BandTime.plan]). Leisure asks for nothing: it is what the week
  * leaves (and takes less food: [restedDays]). Then it fetches the hearth's firewood, puts up its shelters and herds, in the days the plan gives them.
  */
@@ -217,16 +217,13 @@ private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float)
     needs[Activity.FIREWOOD] = max(0f, fuel - warm[Activity.FIREWOOD])
     // (Its herders' days, as far as the band does not walk with its herd this week, are held before the week's food: its
     // animals are food on the hoof, and what it cannot herd it must cull ([keepHerds]); shared out with the food, they were
-    // cut whenever foraging alone would fill the week, and the cuts compounded week on week till no herd was left. But only
-    // after the warmth's days: held with them, pro rata, a week too short for both cut the fire and shelters that avert deaths
-    // for the herd's sake, which no death was ever weighed against.)
-    val keeps = enumFloats<Activity>()
-    keeps[Activity.SOWING] = herdDays(b) * (1f - walkedShare(time))
+    // cut whenever foraging alone would fill the week, and the cuts compounded week on week till no herd was left.)
+    warm[Activity.SOWING] += herdDays(b) * (1f - walkedShare(time))
     val asks = enumFloats<Activity>()
     asks[Activity.FOOD] = storeDays * hands
     choreAsks(g, b, w.weather.date, asks, warm)
     // (The band weighs the rest of the asks against each other by its ways: see [timeWay].)
-    time.plan(needs, asks, enumFloats<Activity> { a -> timeWay(a)?.let { b.will[it] } ?: 1f }, warm, keeps)
+    time.plan(needs, asks, enumFloats<Activity> { a -> timeWay(a)?.let { b.will[it] } ?: 1f }, warm)
     if (WARM_DIAG) b.diagFoodHeld = time.heldFor(Activity.FOOD)
     b.binding?.let { bind ->
         if (time.short) for (a in Activity.entries) if (asks[a] > 0f) bind[a.ordinal] += 1f
