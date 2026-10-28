@@ -44,9 +44,9 @@ class BodyHeatTest {
 
     @Test
     fun `those who do not persevere break off work to warm up and carry less heat debt, those who do work on`() {
-        // (Cold and wet enough that the work chills them beyond what shivering makes up, while the camp's fire and shelter warm them again.)
+        // (Cold and wet enough that the work chills them beyond what shivering makes up, while the camp's fire and thatched huts warm them again.)
         val raw = air(-5f, windMs = 6f, wet = 0.5f)
-        val c = cover(1f, fire = 1f, shelter = 1f)
+        val c = cover(1f, fire = 1f, shelter = 2f)
         val on = BodyHeat.week(raw, c, 7, sisu = 1f)
         val off = BodyHeat.week(raw, c, 7, sisu = 0f)
         assertEquals(1f, on.pace)

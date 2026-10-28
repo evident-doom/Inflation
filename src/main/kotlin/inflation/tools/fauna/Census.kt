@@ -461,6 +461,25 @@ class Census(private val sim: HexSim) {
                         m(Tally.Bands.LEFT, bw), 100 * asked / bw.coerceAtLeast(1.0), m(Tally.Bands.SHELTER_FIRST, asked))
                 }
             })
+        println("bands by how far their shelters stood at the week's end, last year (share of people-weeks; mean air °C; share of band-weeks at a new camp; fed %%; keeping warm adds %%; survival pass aimed at; exposure, hunger and all deaths per 1000 people a year): " +
+            Tally.Hut.entries.joinToString(", ") { h ->
+                val all = Tally.Hut.entries.sumOf { v(Tally.bandsHut(it, Tally.Bands.PEOPLE_WEEKS)) }
+                val pw = v(Tally.bandsHut(h, Tally.Bands.PEOPLE_WEEKS)); val bw = v(Tally.bandsHut(h, Tally.Bands.BAND_WEEKS)).coerceAtLeast(1.0)
+                val years = (pw / stepsPerYear).coerceAtLeast(1e-9)
+                val died = lastYear.filterKeys { it.startsWith(Tally.bandsHutDied(h)) }
+                fun of(c: DeathCause) = died[Tally.bandsHutDied(h, c)] ?: 0
+                "%s %.0f%% %.1f °C new %.0f%% fed %.0f%% warm +%.1f%% aim %.2f exp %.1f hun %.1f all %.1f".format(h.label, 100 * pw / all.coerceAtLeast(1.0),
+                    v(Tally.bandsHut(h, Tally.Bands.CAMP_AIR)) / 10 / bw, 100 * v(Tally.bandsHut(h, Tally.Bands.MOVED)) / bw,
+                    100 * v(Tally.bandsHut(h, Tally.Bands.FED)) / 1000 / pw.coerceAtLeast(1.0), 100 * v(Tally.bandsHut(h, Tally.Bands.WARM_EXTRA)) / 1000 / bw,
+                    v(Tally.bandsHut(h, Tally.Bands.AIM)) / 100 / bw,
+                    1000 * of(DeathCause.EXPOSURE) / years, 1000 * of(DeathCause.HUNGER) / years, 1000 * died.values.sum() / years)
+            })
+        fun ft(k: Tally.FoodTime) = v(Tally.foodTime(k))
+        val ftWeeks = ft(Tally.FoodTime.WEEKS).coerceAtLeast(1.0)
+        println(("bands' foraging against the days its week's plan left it, last year (people-days a band-week): left %.1f, spent %.1f, past what was left %.2f; " +
+            "weeks more than 5%% past %.1f%%; kills beyond those expected took %.2f, kills short of them saved %.2f, extra hauling %.2f, digging soaks %.2f").format(
+            ft(Tally.FoodTime.ROOM) / 10 / ftWeeks, ft(Tally.FoodTime.SPENT) / 10 / ftWeeks, ft(Tally.FoodTime.OVER) / 10 / ftWeeks, 100 * ft(Tally.FoodTime.OVER_WEEKS) / ftWeeks,
+            ft(Tally.FoodTime.KILLS_OVER) / 10 / ftWeeks, ft(Tally.FoodTime.KILLS_UNDER) / 10 / ftWeeks, ft(Tally.FoodTime.HAUL) / 10 / ftWeeks, ft(Tally.FoodTime.DIG) / 10 / ftWeeks))
         val wanted = Tally.ClothesMade.entries.sumOf { v(Tally.clothesMade(it)) }
         println("bands' clothes making, last year (band-weeks clothes were wanted: %.0f%% of band-weeks; by what stopped them): ".format(100 * wanted / weeks) +
             Tally.ClothesMade.entries.joinToString(", ") { c -> "%s %.0f%%".format(c.label, 100 * v(Tally.clothesMade(c)) / wanted.coerceAtLeast(1.0)) })
