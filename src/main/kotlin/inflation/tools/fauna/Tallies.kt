@@ -428,8 +428,8 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
         return "; since last, a person a year: lives from exposure %.4f (against the shelters they had), from beasts %.4f, from raids %.4f; ".format(
                 a(all, HouseWorth.EXPOSURE), a(all, HouseWorth.STALKED), a(all, HouseWorth.RAIDS)) +
             "for comparison a whole brush shelter against none %.4f, a whole house against no cover %.4f; ".format(a(all, HouseWorth.SHELTER_EXPOSURE), a(all, HouseWorth.BARE_EXPOSURE)) +
-            "food from keeping warm %.1f kg, stores kept %.1f kg, kept from raiders %.1f kg; days given back to the cold, were all days at work out %.2f, at crafts %.2f; under a roof %.1f%% of person-weeks".format(
-                a(all, HouseWorth.WARM_KG), a(all, HouseWorth.KEPT_KG), a(all, HouseWorth.RAID_KG), a(all, HouseWorth.WORK_DAYS), a(all, HouseWorth.CRAFT_DAYS),
+            "food from keeping warm %.1f kg, stores kept %.1f kg, kept from raiders %.1f kg, in lives from hunger %.4f, grown people's body protein days spared %.3f; days given back to the cold, were all days at work out %.2f, at crafts %.2f; under a roof %.1f%% of person-weeks".format(
+                a(all, HouseWorth.WARM_KG), a(all, HouseWorth.KEPT_KG), a(all, HouseWorth.RAID_KG), a(all, HouseWorth.HUNGER), a(all, HouseWorth.PROTEIN_DAYS), a(all, HouseWorth.WORK_DAYS), a(all, HouseWorth.CRAFT_DAYS),
                 100.0 * all[HouseWorth.ROOFED_WEEKS] / all[HouseWorth.PEOPLE_WEEKS].toDouble().coerceAtLeast(1.0)) +
             " | by the week's air: " + HouseAir.entries.joinToString(", ") { c -> val w = by[c.ordinal]
                 "%s %.0f%% of person-weeks, exposure %.4f, shelter against none %.4f, house against no cover %.4f, warm %.1f kg, work days %.2f".format(c.label,

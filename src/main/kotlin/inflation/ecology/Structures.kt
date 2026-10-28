@@ -183,12 +183,13 @@ private fun HexGroups.raiseSavedHouses() {
  * [Band.houseFood], and what they leave out, for the census only. Person-weeks, and those under a roof (its own houses'
  * share); lives from exposure (against the shelters it had), beasts of prey and raids; for comparison, the exposure lives
  * a whole brush shelter saved over none and a whole house over no cover at all, with the same fire; kg of need from keeping
- * warm, stores kept from spoiling and mice, and stores kept from raiders; and the person-days the house would have given
+ * warm, stores kept from spoiling and mice, and stores kept from raiders; that food in lives (the hunger deaths it would
+ * have averted that week) and in days of body protein it would have spared the grown against later hunger; and the person-days the house would have given
  * back to the cold, had all the week's days been out at work (warming breaks, [Warmth.pace]) or at crafts in camp
  * ([Warmth.campPace]).
  */
 enum class HouseWorth { PEOPLE_WEEKS, ROOFED_WEEKS, EXPOSURE, STALKED, RAIDS, SHELTER_EXPOSURE, BARE_EXPOSURE, WARM_KG, KEPT_KG, RAID_KG,
-    WORK_DAYS, CRAFT_DAYS }
+    HUNGER, PROTEIN_DAYS, WORK_DAYS, CRAFT_DAYS }
 
 /** The week's mean air at a band's camp, °C: the first bin it falls [below]. The report's line. */
 enum class HouseAir(val label: String, val below: Float) {

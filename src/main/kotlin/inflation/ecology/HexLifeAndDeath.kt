@@ -778,6 +778,18 @@ private fun HexGroups.houseWorthWeek(g: HexGroup, b: Band, weather: Weather, sta
     w[HouseWorth.BARE_EXPOSURE] += lives(max(0f, bare.odds - whole.odds))
     w[HouseWorth.WORK_DAYS] += g.adults * days * max(0f, whole.pace - had.pace)
     w[HouseWorth.CRAFT_DAYS] += g.adults * days * max(0f, whole.campPace - had.campPace)
+    // (And its food in lives: the hunger deaths it would have averted this week by the week's own rule ([placeHazards]),
+    // and the days of body protein it would have spared against hunger later ([Hazards.spentAfter]).)
+    val more = b.houseFoodWeek / max(1e-3f, g.dailyNeedKg * days)
+    if (more > 0f) {
+        fun starve(fed: Float, young: Boolean): Float {
+            val short = shortfallOfAdults(g, fed) * (if (young) 1f - CHILDREN_FIRST else 1f)
+            return Hazards.hunger(s, g.spent, Hazards.onFat(1f - short, g.fat, days), days)
+        }
+        w[HouseWorth.HUNGER] += g.adults * max(0f, starve(g.fed, false) - starve(g.fed + more, false)) +
+            g.young * max(0f, min(1f, 1.5f * starve(g.fed, true)) - min(1f, 1.5f * starve(g.fed + more, true)))
+        w[HouseWorth.PROTEIN_DAYS] += g.adults * max(0f, Hazards.spentAfter(s, g.spent, g.fed, days) - Hazards.spentAfter(s, g.spent, g.fed + more, days))
+    }
     val people = max(1, g.size).toFloat(); val k = 1f / stepsPerYear
     b.houseLives += k * (b.houseLivesWeek / people * stepsPerYear - b.houseLives)
     b.houseFood += k * (b.houseFoodWeek / people * stepsPerYear - b.houseFood)
