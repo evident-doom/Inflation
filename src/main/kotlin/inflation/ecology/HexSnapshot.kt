@@ -324,7 +324,8 @@ object HexSnapshot {
      * 4.70: a band forages only for what its herds will not feed it that week ([herdFoodWeek]: their increase and milk);
      *   before, it planned to forage its whole week's food, so in its lean months foraging took every day and the herd
      *   was culled for want of herders.
-     * 4.71: young caught in the hunt and kept come [RAISED_TAME] tame, as raised by hand; before, they came as tame as the
+     * 4.71: young caught in the hunt and kept come [RAISED_TAME] tame, as raised by hand, or as tame as their kind's worst
+     *   domestication criterion where that is less; before, they came as tame as the
      *   band's herd of their kind, wild where it had none, so they ran off, bred little and were eaten within weeks.
      *   The odds of keeping one go by its kind's worst domestication criterion, not their mean.
      */
