@@ -414,7 +414,7 @@ internal fun HexGroups.bandInputs(g: HexGroup, weather: Weather, into: FloatArra
     val air = airAt(g.place, weather); val cold = b.warmth(air, b.fire, b.homeShelter(), days)
     into[x.COLD_FOOD] = min(1f, cold.extra); into[x.COLD_ODDS] = min(1f, 10f * cold.odds)
     into[x.WIND] = min(1f, air.windMs / 10f); into[x.WET] = air.wet
-    into[x.FIRE_SHARE] = b.fire; into[x.HOME_SHELTER] = b.homeShelter()
+    into[x.FIRE_SHARE] = min(1f, b.fire); into[x.HOME_SHELTER] = b.homeShelter()
     // Its salt: the share of its people's sodium it lacked last week, and the salt to be had where it stands (a pan, the shore).
     into[x.SODIUM_SHORT] = b.sodiumShort
     into[x.SALT_HERE] = if (hw.coast[hw.placeHex[g.place]]) 1f else min(1f, 5f * land.salt[g.place])

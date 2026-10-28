@@ -30,18 +30,28 @@ internal fun HexGroups.foreseenSurvival(g: HexGroup, b: Band, weather: Weather):
 
 /**
  * The months of the year ahead as [foreseenSurvival] reckons them for band [b] (group [g]), worked out once: each month's
- * exposure odds and the share of its need the food it got then meets, against what keeping warm will take then.
+ * exposure odds and the share of its need the food it got then meets, against what keeping warm will take then. Through
+ * the [stayDays] it expects to keep its camp its shelters stand at [shelter] (the week's survival pass weighs a shelter by
+ * it, [survivalDays]); otherwise, and after, as they are.
  */
-internal fun HexGroups.yearAhead(g: HexGroup, b: Band, weather: Weather): YearAhead {
+internal fun HexGroups.yearAhead(g: HexGroup, b: Band, weather: Weather, shelter: Float = b.shelter, stayDays: Float = 0f): YearAhead {
     val p = g.place; val now = weather.date.month
     val home = b.homeShelter()
     val odds = FloatArray(Date.MONTHS_PER_YEAR); val fed = FloatArray(Date.MONTHS_PER_YEAR)
     for (k in 1..Date.MONTHS_PER_YEAR) {
         val m = (now + k) % Date.MONTHS_PER_YEAR
-        val w = b.warmth(airAt(p, weather, weather.usualTemperature(m, p)), b.fire, home, Date.DAYS_PER_MONTH)
+        val air = airAt(p, weather, weather.usualTemperature(m, p))
+        val w = b.warmth(air, b.fire, home, Date.DAYS_PER_MONTH)
         // (The food it got then, against what keeping warm will take, as [warmthNeed] has it: more food to keep warm is less
         // of the need met.)
         odds[k - 1] = w.odds; fed[k - 1] = b.monthSupply[m] / warmthNeed(w, b.fire)
+        // (The share of the month it is still at its camp, under the shelters it weighs.)
+        val stays = ((stayDays - (k - 1) * Date.DAYS_PER_MONTH) / Date.DAYS_PER_MONTH).coerceIn(0f, 1f)
+        if (stays > 0f && shelter != b.shelter) {
+            val ws = b.warmth(air, b.fire, home, Date.DAYS_PER_MONTH, shelter)
+            odds[k - 1] += stays * (ws.odds - w.odds)
+            fed[k - 1] += stays * (b.monthSupply[m] / warmthNeed(ws, b.fire) - fed[k - 1])
+        }
     }
     return YearAhead(odds, fed)
 }

@@ -214,10 +214,10 @@ private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float)
     // walked most of its week gives what is left where it does most.)
     val fuel = fuelAsk(g, hands)
     val foodAsk = needDays * hands
-    val warm = survivalDays(g, b, w.weather, time, hands, foodAsk, if (w.wantAll > 0f) (w.fed / w.wantAll).coerceIn(0f, 1f) else 1f, fuel, movedCamp(g, b))
+    val warm = survivalDays(g, b, w.weather, time, hands, foodAsk, if (w.wantAll > 0f) (w.fed / w.wantAll).coerceIn(0f, 1f) else 1f, movedCamp(g, b))
     val needs = enumFloats<Activity>()
-    // (The rest of the hearth's firewood shares the week with the food, as it always did: a fire also cooks, and raw meals
-    // feed less, [RAW_COST].)
+    // (The rest of a whole cooking fire's firewood shares the week with the food, as it always did: raw meals feed less,
+    // [RAW_COST]. More wood than that only warms, and the survival pass weighs it.)
     needs[Activity.FOOD] = foodAsk
     needs[Activity.FIREWOOD] = max(0f, fuel - warm[Activity.FIREWOOD])
     // (Its herders' days, as far as the band does not walk with its herd this week, are held after the week's food and
@@ -256,7 +256,7 @@ private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float)
             "; exposure odds without a fire %.2g, with a full one %.2g (%.1f °C, shelter %.2f, fire now %.2f)".format(unlit.odds, lit.odds, air.meanC, b.shelter, b.fire)
         }
     }
-    w.fuelDays = fetchFuel(g, b, hands, if (fuel > 0f) min(1f, time.leftFor(Activity.FIREWOOD) / fuel) else 1f)
+    w.fuelDays = fetchFuel(g, b, hands, min(time.leftFor(Activity.FIREWOOD), max(fuel, warm[Activity.FIREWOOD])))
     time.spend(Activity.FIREWOOD, w.fuelDays * hands)
     time.release(Activity.FIREWOOD)
     // (It puts up its camp's shelters in the days the plan gives them, before the foraging can eat into them: [putUpShelter].)
@@ -964,7 +964,7 @@ private fun HexGroups.keepAndSpoil(w: ForageWeek, got: EnumFloats<Store>, gotKg:
     for (st in Store.entries) addFood(g.stores, g.storeKgPer, st, got[st], gotKg[st])
     // (Racks in the sun dry little in wet weather; smoking over a slow fire works in any.)
     val sun = band.skill(Skill.STORE) / (1f + weather.precipitation[g.place] / DRY_RAIN_MM)
-    val smoke = if (band.knowsSkill[Skill.SMOKING] && band.fire > 0f) band.skill(Skill.SMOKING) * band.fire else 0f
+    val smoke = if (band.knowsSkill[Skill.SMOKING] && band.fire > 0f) band.skill(Skill.SMOKING) * min(1f, band.fire) else 0f
     // (A band that knows salting and has salt salts what it cures: salt cures in any weather.)
     val salt = if (band.knowsSkill[Skill.SALTING]) band.goods[Material.SALT] else 0f
     val salting = if (salt > 0f) band.skill(Skill.SALTING) else 0f

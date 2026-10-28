@@ -1001,7 +1001,7 @@ internal fun HexGroups.stalkRate(g: HexGroup, b: Band, p: Place, pressure: Float
     // (Gatherers spread further from camp leave more ground to watch: about as its square.)
     val spread = b.gatherRange * b.gatherRange
     dialUse?.let { u ->
-        u.amount(DialSite.NIGHT_FIRE_GUARD, b.nightFire, guard, stalkGuard(b, walled, fenced, nightGuard = b.fire * b.nightWood))
+        u.amount(DialSite.NIGHT_FIRE_GUARD, b.nightFire, guard, stalkGuard(b, walled, fenced, nightGuard = min(1f, b.fire) * b.nightWood))
         u.amount(DialSite.NIGHT_WATCH_GUARD, b.will[BandWay.NIGHT_WATCH], guard, stalkGuard(b, walled, fenced, watchHours = WATCH_HOURS))
         u.amount(DialSite.GATHER_SPREAD, b.gatherRange, spread, 1f)
     }
