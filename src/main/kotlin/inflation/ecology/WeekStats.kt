@@ -181,6 +181,13 @@ object Tally {
         CLOTHES("clothes clo, 1/10"), SPARE("spare days, 1/1000"),
         /** The week's mean air at its camp, °C, tenths summed over band-weeks; the band-weeks it came to a new camp. */
         AIR("air °C, 1/10"), MOVED("new camp, band-weeks"),
+        /**
+         * Its fire as its week's survival pass reckoned it, as it got it, and the share of that lit ([keepFire]), %; the
+         * week's exposure odds as reckoned and as it came, 1/10000; the share of its hands' days left after the walk, %; the
+         * band-weeks it asked for shelter and the share of that it held first, % ([Band.planFire] and the rest).
+         */
+        PLAN_FIRE("fire planned, %"), FIRE_GOT("fire got, %"), LIT("fire lit, %"), PLAN_ODDS("exposure planned, 1/10000"),
+        ODDS("exposure, 1/10000"), LEFT("days after the walk, %"), SHELTER_ASKED("shelter asked, band-weeks"), SHELTER_FIRST("shelter held first, %"),
     }
     /**
      * In the weeks the cold ran a band's people into heat debt through all the cover it had ([WEEKS], tenths): the worst debt

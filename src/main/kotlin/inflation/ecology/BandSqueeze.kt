@@ -62,6 +62,14 @@ internal fun HexGroups.bookSqueeze(g: HexGroup, b: Band, causes: List<Died>, wea
     add(Tally.bandsWarmed(spare, warmed, Tally.Bands.PEOPLE_WEEKS), g.size)
     add(Tally.bandsWarmed(spare, warmed, Tally.Bands.AIR), (10f * airAt(g.place, weather).meanC).roundToInt())
     if (b.campWeeks == 0) add(Tally.bandsWarmed(spare, warmed, Tally.Bands.MOVED), 1)
+    // (What its survival pass reckoned with against what came: the fire, its lighting and the week's exposure odds.)
+    fun put(what: Tally.Bands, x: Float) = add(Tally.bandsWarmed(spare, warmed, what), x.roundToInt())
+    put(Tally.Bands.PLAN_FIRE, 100f * b.planFire); put(Tally.Bands.FIRE_GOT, 100f * b.fire)
+    put(Tally.Bands.LIT, 100f * if (b.hearthWood > 0f) min(1f, b.fire / b.hearthWood) else 1f)
+    put(Tally.Bands.PLAN_ODDS, 1e4f * b.planOdds)
+    put(Tally.Bands.ODDS, 1e4f * b.warmth(airAt(g.place, weather), b.fire, b.homeShelter(), days).odds)
+    put(Tally.Bands.LEFT, 100f * b.planLeft)
+    if (b.planShelterFirst >= 0f) { put(Tally.Bands.SHELTER_ASKED, 1f); put(Tally.Bands.SHELTER_FIRST, 100f * b.planShelterFirst) }
     for ((cause, k) in causes) if (k > 0) add(Tally.bandsWarmedDied(spare, warmed, cause), k)
     val h = if (b.herd.any { it > 0f }) Tally.HerdKept.HERDING else Tally.HerdKept.NONE
     add(Tally.bandsHerdKept(h, Tally.Bands.BAND_WEEKS), 1)
