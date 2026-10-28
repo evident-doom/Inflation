@@ -343,9 +343,11 @@ object HexSnapshot {
      * 4.76: a band's marks ([Tradition.mark]: burial, leaving the dead, marrying out, sparing young game, feasts) go the way most
      *   of the bands it has met lately go ([conformist], [Band.heard]), not the way of the band doing better; know-how is still
      *   copied from the better off. Founders' lineages are drawn per 150 km block ([lineageAt]) instead of repeating every 600 km.
+     * 4.77: a band builds on the weir begun at its camp that stands furthest ([weirBegunAt]); before, two begun weirs whose
+     *   stretches together spanned the river left nothing to build, and neither was ever finished.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 76
+    const val MODEL_MINOR = 77
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
