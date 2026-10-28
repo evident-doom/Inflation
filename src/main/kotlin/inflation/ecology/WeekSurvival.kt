@@ -25,27 +25,23 @@ import kotlin.math.roundToInt
  *
  * The days go a few at a time to whichever of the two averts the more deaths for its days (or for all it asks, where a
  * little does nothing, as wood in a cold too deep for half a fire), until each has all it asks, neither averts any more, or
- * the week is spent. (The deaths are reckoned, not drawn, so there is no chance to allow for.) What they ask beyond, the
+ * the week is spent. The fire asks all the days a band gives firewood at most ([fuelMost]): the more wood it burns the
+ * warmer it keeps them ([fireOf], [BodyHeat.fireC]), the more so in a thatched hut or a house. (The deaths are reckoned, not drawn, so there is no chance to allow for.) What they ask beyond, the
  * days that avert no death (wood in a warm week), is shared with the other chores.
  *
  * [foodAsk]: the person-days of work that would forage the rest of the week's want, [gotShare] of it got already;
- * [fuelAsk]: those that would fetch all the hearth asks ([fuelAsk]); [moved]: whether it has come to a new camp, where no
- * shelter stands. Returns the person-days of work for the firewood and the shelters (none for the rest).
+ * [moved]: whether it has come to a new camp, where no shelter stands. Returns the person-days of work for the firewood and the shelters (none for the rest).
  */
 internal fun HexGroups.survivalDays(g: HexGroup, b: Band, weather: Weather, time: BandTime, hands: Int, foodAsk: Float, gotShare: Float,
-    fuelAsk: Float, moved: Boolean): EnumFloats<Activity> {
+    moved: Boolean): EnumFloats<Activity> {
     val first = enumFloats<Activity>()
     val s = g.species; val p = g.place; val people = g.adults.toFloat()
     val year = yearAhead(g, b, weather)
     val air = airAt(p, weather); val home = b.homeShelter()
-    // (What all the wood asked for keeps of the hearth: less where wood is so thin that the most a band gives it falls short, [fuelShare].)
-    val cover = woodCover(p)
-    val hearthWant = HEARTH_WOOD * g.size
-    val hearthAll = if (hearthWant <= 0f) 1f else if (cover <= 0f) 0f else hearthShare(cover, g.size.toFloat() / max(1, hands))
     // (Its shelters as far as a thatched hut, whatever its ways aim at: they are its people's lives, [shelterWork].)
     val shelter0 = if (moved) 0f else b.shelter
     val shelterAsk = shelterWork(b, people, shelter0, SHELTER_MOST)
-    val asks = FloatArray(3); asks[FOOD] = foodAsk; asks[FIRE] = fuelAsk; asks[SHELTER] = shelterAsk
+    val asks = FloatArray(3); asks[FOOD] = foodAsk; asks[FIRE] = fuelMost(g, hands); asks[SHELTER] = shelterAsk
     val acts = arrayOf(Activity.FOOD, Activity.FIREWOOD, Activity.SHELTER)
     // (Its body heat at each fire and shelter, worked out once a week for each, to the hundredth: a fire cut short by a long
     // walk is a small share of one, and coarser steps would round it to none.)
@@ -61,7 +57,7 @@ internal fun HexGroups.survivalDays(g: HexGroup, b: Band, weather: Weather, time
     fun foodWork(d: FloatArray) =
         min(asks[FOOD], max(0f, total - d[FIRE] / time.pace(Activity.FIREWOOD) - d[SHELTER] / time.pace(Activity.SHELTER)) * time.pace(Activity.FOOD))
     fun deaths(d: FloatArray): Float {
-        val fire = if (asks[FIRE] > 0f) hearthAll * min(1f, d[FIRE] / asks[FIRE]) else hearthAll
+        val fire = fireOf(g, d[FIRE])
         val shelter = shelterReach(b, people, shelter0, SHELTER_MOST, d[SHELTER])
         val w = warmth(fire, shelter)
         // (The want was reckoned at the fire it had: a warmer or colder week needs less or more, [warmthNeed].)
@@ -100,7 +96,7 @@ internal fun HexGroups.survivalDays(g: HexGroup, b: Band, weather: Weather, time
     }
     for (i in FIRE..SHELTER) first[acts[i]] = d[i]
     // (What it reckoned with, for the census: [bookSqueeze].)
-    b.planFire = if (asks[FIRE] > 0f) hearthAll * min(1f, d[FIRE] / asks[FIRE]) else hearthAll
+    b.planFire = fireOf(g, d[FIRE])
     val planShelter = shelterReach(b, people, shelter0, SHELTER_MOST, d[SHELTER])
     b.shelterAim = planShelter
     b.planOdds = warmth(b.planFire, planShelter).odds

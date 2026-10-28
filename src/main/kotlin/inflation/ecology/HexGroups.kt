@@ -551,14 +551,17 @@ class HexGroups(
 
 
     /**
-     * The fire band [b] (group [g]) would keep camped at place [p]: its fire now; elsewhere the fire it keeps lit, as far
-     * as the wood its hands can fetch there feeds it ([hearthShare], as [fetchFuel] fetches it). (A band that had no
-     * wood at all this week counts on keeping a fire lit where there is wood.)
+     * The fire band [b] (group [g]) would keep camped at place [p]: its fire now; elsewhere the fire it keeps lit, as big
+     * as the days it gives firewood now fetch there, and at least a cooking fire as far as the wood its hands can fetch
+     * there feeds it ([hearthShare], as [fetchFuel] fetches it). (A band that had no wood at all this week counts on
+     * keeping a fire lit where there is wood.)
      */
     internal fun fireAt(g: HexGroup, b: Band, p: Place): Float {
         if (p == g.place) return b.fire
         val lit = if (b.hearthWood > 0f) min(1f, b.fire / b.hearthWood) else 1f
-        return lit * hearthShare(woodCover(p), g.size.toFloat() / forageHands(g))
+        val here = woodCover(g.place); val there = woodCover(p)
+        val same = if (here > 0f) b.hearthWood * there / here else 0f
+        return lit * max(same, hearthShare(there, g.size.toFloat() / forageHands(g)))
     }
 
     /**

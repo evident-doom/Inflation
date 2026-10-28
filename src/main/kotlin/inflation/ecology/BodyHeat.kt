@@ -48,8 +48,8 @@ class Air(val meanC: Float, val swingC: Float, val windMs: Float, val wet: Float
 
 /**
  * What a band has against the cold, as [BodyHeat] reckons with it: the insulation of the clothes its people wear by day,
- * clo ([clothesClo]); its fire, 0..1; the brush shelters at its camp ([shelter], as [Band.shelter]: 1 a whole one for
- * everyone, more for sturdier); how far it sleeps in houses ([home], 0..1); and how much warmer than the air a house keeps
+ * clo ([clothesClo]); its fire ([Band.fire]: the wood it burns a person a day, in whole cooking fires, [HEARTH_WOOD]); the
+ * brush shelters at its camp ([shelter], as [Band.shelter]: 1 a light hut for everyone, 2 thatched whole); how far it sleeps in houses ([home], 0..1); and how much warmer than the air a house keeps
  * ([houseWarmC], °C).
  */
 class Cover(val clothesClo: Float, val fire: Float, val shelter: Float, val home: Float, val houseWarmC: Float)
@@ -127,9 +127,10 @@ object BodyHeat {
         val bed = if (house) BED_R else BED_R * hut
         val nightClo = c.clothesClo * (1f + NIGHT_COVER)
         val ground = if (air.snow) min(0f, air.meanC) else air.meanC
-        // (A house's hearth warms its air, [Cover.houseWarmC]; those beside it, at a camp or in a house, it warms besides.)
-        val campC = air.meanC + warmer + FIRE_CAMP_C * c.fire
-        val sleepC = air.nightC + warmer + FIRE_SLEEP_C * c.fire
+        // (A house's hearth warms its air, [Cover.houseWarmC]; at a camp the fire warms those about it by the wood it burns.)
+        val fireC = if (house) 0f else fireC(c.fire, thatch)
+        val campC = air.meanC + warmer + fireC
+        val sleepC = air.nightC + warmer + FIRE_SLEEP_SHARE * fireC
         val lCamp = loss(camp, campC, inWind, 0f, c.clothesClo, inWet)
         val lSleep = loss(rest, sleepC, inWind, 0f, nightClo, inWet) * (1f - LYING_CONTACT) + breath(rest, sleepC) * LYING_CONTACT +
             LYING_CONTACT * (skinC(rest) - ground) / (CONTACT_R + bed + if (air.snow) SNOW_R else SOIL_R)
@@ -256,11 +257,33 @@ object BodyHeat {
     /** How much the hides and robes piled on in the night add to the day's clothes, as a share of them (an estimate). */
     const val NIGHT_COVER = 1f
     /**
-     * How much warmer a fire keeps those about it, awake by it and asleep beside it banked, °C at a whole fire (estimates);
-     * a hut thatched whole, by the warmth of the bodies in it (as [SHELTER_C]).
+     * How much warmer a camp's fire of [fire] keeps those about it awake, °C: by the wood it burns, a person a day, in whole
+     * cooking fires ([HEARTH_WOOD]), over what each degree takes ([FIRE_OPEN_KG_C] in the open or a light hut, as low as
+     * [FIRE_HUT_KG_C] in a hut thatched whole, by its [thatch] 0..1).
      */
-    const val FIRE_CAMP_C = 10f
-    const val FIRE_SLEEP_C = 5f
+    fun fireC(fire: Float, thatch: Float): Float {
+        val th = thatch.coerceIn(0f, 1f)
+        return fire * HEARTH_WOOD * ((1f - th) / FIRE_OPEN_KG_C + th / FIRE_HUT_KG_C)
+    }
+
+    /**
+     * Firewood a person a day that keeps those about a fire 1 °C warmer, kg: in the open or a light hut, which holds none
+     * of its warmth; in a hut thatched whole; and the share of it that warms them asleep beside it banked.
+     *
+     * A Sami tent hut or stallo-hut burnt some 8-10 kg a person a day through the winter, its fire kept all day (3.6 kg of
+     * dry birch an hour in a stallo-hut, Liedgren and Östlund 2011, Journal of Archaeological Science 38: 903; about 42 m³ of
+     * dead pine a year for a family of five, Östlund, Liedgren and Josefsson 2013, Arctic, Antarctic, and Alpine Research
+     * 45: 372, as Rautio et al. 2016, Landscape Ecology 31: 337, give it), nearly three times what the log farmhouses about
+     * them burnt; held some 15-20 °C above a northern Swedish winter's, that is about 0.5 kg for each degree (a reckoning
+     * here, not the authors').
+     *
+     * In the open nothing holds the warmth: a fire warms only by what those facing it catch of its radiance, about a tenth
+     * to a fifth of the wood's heat radiated and a fraction of that caught, a few tens of watts a person from a kilo a day,
+     * a degree or two (a reckoning here; no measure of an open camp's fire against the cold was found): 1 kg a degree.
+     */
+    const val FIRE_OPEN_KG_C = 1f
+    const val FIRE_HUT_KG_C = 0.5f
+    const val FIRE_SLEEP_SHARE = 0.5f
     /** The share of the body's skin on the ground lying asleep (an estimate); the resistance of the clothes pressed under it, m²K/W (an estimate). */
     const val LYING_CONTACT = 0.2f
     const val CONTACT_R = 0.03f
