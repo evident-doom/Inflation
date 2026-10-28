@@ -351,9 +351,14 @@ object HexSnapshot {
      * 4.78: the spring run's fish are a food of their own for a band on the river ([RUN_KIND]): a kilo takes the wait for fish
      *   to come within a fisher's reach ([HexWater.runWithinReach], [HexWater.RUN_REACH_M]) and its landing, so a run crowding a
      *   narrow river pays many times what a thin one does; before, they were one with the river's own fish at 0.3 days a kilo.
+     * 4.79: a light hut (a tenth of a person-day each) keeps off the wind and rain and holds the bedding but no warmth; its
+     *   thatching, some 2 person-days each ([THATCH_DAYS]), holds the warmth in ([SHELTER_C]), and the week's survival
+     *   pass thatches as far as it averts deaths, whatever the band's ways aim at ([shelterWork], [Band.shelterAim]);
+     *   before, the tenth of a day's hut gave the warmth too. The survival pass counts the food its days leave unforaged
+     *   (before, it reckoned with all the week's food got, so the warmth's days were free).
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 78
+    const val MODEL_MINOR = 79
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

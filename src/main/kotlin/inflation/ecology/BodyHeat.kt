@@ -119,10 +119,12 @@ object BodyHeat {
         val work = Activity.FOOD.par * rest
         // At camp and asleep: in a house, still dry air warmed by its hearth and the ground, with beds; at a camp, the wind as
         // the shelters break it, the rain as their roofs keep it off, a little warmth held under them and the fire's.
-        val inWind = if (house) HOUSE_AIR_MS else air.windMs * (1f - WINDBREAK).pow(c.shelter)
-        val inWet = if (house) 0f else air.wet * (1f - ROOF).pow(c.shelter)
-        val warmer = if (house) c.houseWarmC else SHELTER_C * c.shelter
-        val bed = if (house) BED_R else BED_R * c.shelter
+        // (A light hut keeps off the wind and rain and holds the bedding; only its thatching holds any warmth in: [shelterWork].)
+        val hut = min(1f, c.shelter); val thatch = max(0f, c.shelter - 1f)
+        val inWind = if (house) HOUSE_AIR_MS else air.windMs * (1f - WINDBREAK).pow(hut)
+        val inWet = if (house) 0f else air.wet * (1f - ROOF).pow(hut)
+        val warmer = if (house) c.houseWarmC else SHELTER_C * thatch
+        val bed = if (house) BED_R else BED_R * hut
         val nightClo = c.clothesClo * (1f + NIGHT_COVER)
         val ground = if (air.snow) min(0f, air.meanC) else air.meanC
         // (A house's hearth warms its air, [Cover.houseWarmC]; those beside it, at a camp or in a house, it warms besides.)
@@ -255,7 +257,7 @@ object BodyHeat {
     const val NIGHT_COVER = 1f
     /**
      * How much warmer a fire keeps those about it, awake by it and asleep beside it banked, °C at a whole fire (estimates);
-     * a whole brush shelter, by the warmth of the bodies in it (as [SHELTER_C]).
+     * a hut thatched whole, by the warmth of the bodies in it (as [SHELTER_C]).
      */
     const val FIRE_CAMP_C = 10f
     const val FIRE_SLEEP_C = 5f

@@ -404,8 +404,9 @@ private fun raidWorth(o: HexGroup, ob: Band, sg: Float, so: Float) {
     val works = if (ob.atHome) 1f + HOUSE_DEFENCE * ob.house + PALISADE_DEFENCE * ob.palisade else 1f
     val whole = 1f + HOUSE_DEFENCE + (if (ob.atHome) PALISADE_DEFENCE * ob.palisade else 0f)
     val so1 = so * whole / works
-    ob.houseLivesWeek += max(0f, o.adults * RAID_DEATHS * (sg / (sg + so) - sg / (sg + so1)))
-    if (sg > so && sg <= so1) ob.houseFoodWeek += RAID_TAKE * o.larder
+    val lives = max(0f, o.adults * RAID_DEATHS * (sg / (sg + so) - sg / (sg + so1)))
+    ob.houseLivesWeek += lives; ob.houseWeek[HouseWorth.RAIDS] += lives
+    if (sg > so && sg <= so1) { ob.houseFoodWeek += RAID_TAKE * o.larder; ob.houseWeek[HouseWorth.RAID_KG] += RAID_TAKE * o.larder }
 }
 
 /**

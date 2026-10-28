@@ -179,6 +179,25 @@ private fun HexGroups.raiseSavedHouses() {
 }
 
 /**
+ * What a whole house would have done for a band's week against the houses it had: the parts of [Band.houseLives] and
+ * [Band.houseFood], and what they leave out, for the census only. Person-weeks, and those under a roof (its own houses'
+ * share); lives from exposure (against the shelters it had), beasts of prey and raids; for comparison, the exposure lives
+ * a whole brush shelter saved over none and a whole house over no cover at all, with the same fire; kg of need from keeping
+ * warm, stores kept from spoiling and mice, and stores kept from raiders; that food in lives (the hunger deaths it would
+ * have averted that week) and in days of body protein it would have spared the grown against later hunger; and the person-days the house would have given
+ * back to the cold, had all the week's days been out at work (warming breaks, [Warmth.pace]) or at crafts in camp
+ * ([Warmth.campPace]).
+ */
+enum class HouseWorth { PEOPLE_WEEKS, ROOFED_WEEKS, EXPOSURE, STALKED, RAIDS, SHELTER_EXPOSURE, BARE_EXPOSURE, WARM_KG, KEPT_KG, RAID_KG,
+    HUNGER, PROTEIN_DAYS, WORK_DAYS, CRAFT_DAYS }
+
+/** The week's mean air at a band's camp, °C: the first bin it falls [below]. The report's line. */
+enum class HouseAir(val label: String, val below: Float) {
+    DEEP("below -10 °C", -10f), FROST("-10 to 0 °C", 0f), COOL("0 to 10 °C", 10f), MILD("10 °C and over", Float.POSITIVE_INFINITY);
+    companion object { fun of(c: Float) = entries.firstOrNull { c < it.below } ?: MILD }
+}
+
+/**
  * The lives a year houses would save for each of [b]'s grown people camped at place [p], whole and sheltering them all,
  * against none: the deaths of exposure they would avert month by month at the place's usual temperatures
  * ([Weather.usualTemperature]; the wind, rain and snow as this week's there), by the same rules as the week's deaths

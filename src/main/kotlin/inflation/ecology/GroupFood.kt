@@ -168,6 +168,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         b.forageReturn[m] = if (was < 0f) got else was + min(1f, years * Date.MONTHS_PER_YEAR) * (got - was)
     } }
     if (WARM_DIAG) w.band?.let { b -> w.time?.let { b.diagFoodSpent = it.spentOn(Activity.FOOD) } }
+    w.time?.let { countFoodTime(w, it) }
     w.time?.let { restedDays(w, it) }
     w.time?.release(Activity.FOOD)
     eatTheWeek(w)
@@ -202,7 +203,10 @@ private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float)
     // (Its work goes the slower, the colder and hungrier its people: see [Sisu].)
     val time = BandTime(days * hands.toFloat(), b.paces())
     // (Digging soaks and drawing their water, see [HexDrinkingWater.mustDig]: counted with the food.)
-    if (land.drink.mustDig(g.place, w.s.dailyTravelKm)) time.spend(Activity.FOOD, HexDrinkingWater.DIG_SHARE * days * hands)
+    if (land.drink.mustDig(g.place, w.s.dailyTravelKm)) {
+        w.digDays = HexDrinkingWater.DIG_SHARE * days * hands
+        time.spend(Activity.FOOD, w.digDays)
+    }
     // (Moving camp takes its days first: everyone walks, at the pace of the slowest, see [moveDays].)
     time.spend(Activity.MOVING, min(days.toFloat(), moveDays(g, max(0, g.path.size - 1) * hex.hexKm.toFloat())) * hands)
     // (Then the days that keep its people alive this week and through the year after, by its own foresight ([survivalDays]):
@@ -227,6 +231,7 @@ private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float)
     choreAsks(g, b, w.weather.date, asks, warm)
     // (The band weighs the rest of the asks against each other by its ways: see [timeWay].)
     time.plan(needs, asks, enumFloats<Activity> { a -> timeWay(a)?.let { b.will[it] } ?: 1f }, warm, kept)
+    w.room = time.leftFor(Activity.FOOD) / time.pace(Activity.FOOD)
     // (What its fire, shelters and food leave of the week, kept month by month as a mean over the years: what its
     // leanest month could give its herders, [keepHerds].)
     run {
@@ -255,7 +260,7 @@ private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float)
     time.spend(Activity.FIREWOOD, w.fuelDays * hands)
     time.release(Activity.FIREWOOD)
     // (It puts up its camp's shelters in the days the plan gives them, before the foraging can eat into them: [putUpShelter].)
-    putUpShelter(b, g.adults.toFloat(), time, movedCamp(g, b))
+    putUpShelter(b, g.adults.toFloat(), time, movedCamp(g, b), max(b.shelterWill, b.shelterAim))
     // (And its herders go out with the herd in the days the plan gives them, before the foraging can eat into them.)
     val herd = herdDays(b) * (1f - walkedShare(time))
     b.herded = if (herd > 0f) min(1f, time.leftFor(Activity.SOWING) / herd) else 1f
@@ -366,6 +371,16 @@ private class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, packK
     // (And what it weighs, which grinding, cooking and leaching do not change: see [addFood].)
     val plantKg = enumFloats<Store>()
     var busy = 0f
+    /**
+     * For the census of foraging's days against its plan ([countFoodTime]), days of a hand: what kills beyond and short of
+     * those expected took and saved, and what hauling took beyond the take itself; and the people-days digging soaks took,
+     * and those the plan left foraging (its hold and what no one held).
+     */
+    var killOver = 0f
+    var killUnder = 0f
+    var haulOver = 0f
+    var digDays = 0f
+    var room = 0f
     // A band fetches the hearth's firewood first and forages in the days left, as far as its week's plan gives them
     // (see [planWeek]); an animal forages all week.
     var fuelDays = 0f
@@ -693,6 +708,8 @@ private fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
         when (o.type[i]) {
             Food.BIG_GAME -> {
                 val kills1 = huntGame(g, o.kind[i], Place(p), expected, o.kg[i], w.spareYoung, w.rnd, haul)
+                val luck = (kills1 - expected) * o.time[i] * w.party[0]
+                if (luck > 0f) w.killOver += luck else w.killUnder -= luck
                 if (kills1 <= 0) continue
                 w.busy += kills1 * o.time[i] * w.party[0]
                 w.meat += haul.kg; w.fed += haul.kg * w.feeds(Food.BIG_GAME)
@@ -710,7 +727,7 @@ private fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
             }
             Food.FRUIT, Food.ROOTS, Food.SEED, Food.FINDS -> {
                 gather(g, o.type[i], o.kind[i], Place(p), expected, w.hands, haul)
-                if (haul.busy > 0f) w.busy += haul.busy
+                if (haul.busy > 0f) { w.busy += haul.busy; w.haulOver += haul.busy }
                 val fed = haul.kg * w.worth(o.type[i])
                 w.plants += haul.kg; w.fed += haul.kg * w.feeds(o.type[i])
                 // (Mast, dried, keeps as seed does, for a year or more; bulbs and roots as roots.)
@@ -982,7 +999,8 @@ private fun HexGroups.keepAndSpoil(w: ForageWeek, got: EnumFloats<Store>, gotKg:
     // And it spoils, each kind at its own rate, fresh meat the faster the warmer.
     // (In storage pits at home stores keep better, though mice get into the grain, nuts and roots.)
     val home = if (band.atHome) band.house else 0f
-    band.houseFoodWeek += keepWorth(g, band, home)
+    val kept = keepWorth(g, band, home)
+    band.houseFoodWeek += kept; band.houseWeek[HouseWorth.KEPT_KG] += kept
     // (Pits sealed with clay and plaster keep the mice out.)
     var rotten = spoil(g.stores, weather.temperature[g.place], 1f - PIT_KEEP * home, driedKeep(band), g.storeKgPer)
     val sealed = if (band.knowsSkill[Skill.SEALING]) 1f - SEAL_KEEP * band.skill(Skill.SEALING) else 1f
@@ -1016,6 +1034,22 @@ internal fun GroupWorld.tallyHide(source: Tally.HideSource, ps: Species, took: F
     val p = ps.products
     stats.hunting.merge(Tally.hide(source), (1000f * took * p.hide / (p.hide + p.bone + p.sinew)).roundToInt(), Int::plus)
     return took
+}
+
+/**
+ * Counts for the census how a band's foraging ([w], its week's [time]) fared against the days its plan left it: the
+ * people-days it spent, those past what the plan left it, and what kills beyond and short of those expected, extra hauling
+ * and digging soaks took. Counts only.
+ */
+private fun HexGroups.countFoodTime(w: ForageWeek, time: BandTime) {
+    val pace = time.pace(Activity.FOOD); val hands = w.hands / pace
+    val spent = time.spentOn(Activity.FOOD) - w.digDays / pace
+    val over = max(0f, spent - w.room)
+    fun add(k: Tally.FoodTime, x: Float) { stats.hunting.merge(Tally.foodTime(k), (10f * x).roundToInt(), Int::plus) }
+    add(Tally.FoodTime.WEEKS, 0.1f); add(Tally.FoodTime.ROOM, w.room); add(Tally.FoodTime.SPENT, spent); add(Tally.FoodTime.OVER, over)
+    if (over > 0.05f * w.room) add(Tally.FoodTime.OVER_WEEKS, 0.1f)
+    add(Tally.FoodTime.KILLS_OVER, w.killOver * hands); add(Tally.FoodTime.KILLS_UNDER, w.killUnder * hands)
+    add(Tally.FoodTime.HAUL, w.haulOver * hands); add(Tally.FoodTime.DIG, w.digDays / pace)
 }
 
 /** What one of [forage]'s takes brought: kilos of food, and party-days spent on it beyond the take itself. */

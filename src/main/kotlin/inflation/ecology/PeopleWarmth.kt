@@ -20,30 +20,46 @@ import kotlin.math.exp
  * It does so as soon as its week is planned, in the days the plan gives them, before the foraging can eat into them
  * ([planWeek]); and again with what its chores leave ([bandWeek]). (Built only after the foraging and the other chores, its
  * few held days were the first a week's overrun took: in a trace of 2026-10-28, bands whose plan held all the shelter they
- * aimed at slept in the open at a new camp, and died of exposure there by a fire.)
+ * aimed at slept in the open at a new camp, and died of exposure there by a fire.) It builds as far as it aims ([aim]: its
+ * ways', or more where its week's survival pass would thatch them, [survivalDays]): a light hut first, then its thatching.
  */
-internal fun putUpShelter(b: Band, people: Float, time: BandTime, moved: Boolean = false) {
+internal fun putUpShelter(b: Band, people: Float, time: BandTime, moved: Boolean = false, aim: Float = b.shelterWill) {
     if (moved) b.shelter = 0f
-    val shelterDays = shelterDays(b, people)
-    val lack = shelterLack(b, moved = false)
+    val to = min(SHELTER_MOST, aim)
     val left = time.leftFor(Activity.SHELTER)
-    if (lack > 0f && left > 0f && people > 0f) {
-        val built = min(lack, left / shelterDays)
-        b.shelter += built
-        time.spend(Activity.SHELTER, built * shelterDays)
+    if (to > b.shelter && left > 0f && people > 0f) {
+        val built = shelterReach(b, people, b.shelter, to, left)
+        time.spend(Activity.SHELTER, shelterWork(b, people, b.shelter, built))
+        b.shelter = built
         b.practise(Skill.WOODWORK, 0.2f * PRACTICE)
     }
     time.release(Activity.SHELTER)
 }
 
-/** Person-days [b]'s [people] take to put up whole shelters. (A debris hut takes a novice an afternoon, the practised an hour.) */
-internal fun shelterDays(b: Band, people: Float) = SHELTER_DAYS * people / b.skill(Skill.WOODWORK)
-
 /**
- * What [b] lacks of the shelter it aims at: none stands at a camp it has just come to ([moved]). (Above the default it
- * builds sturdier: thatched thicker and banked with earth, warmer as it took longer.)
+ * Person-days [b]'s [people] take to bring their shelters from [from] to [to]: up to 1, a light hut of poles and brush or
+ * leaves ([SHELTER_DAYS] a whole one), which keeps off the wind and rain and holds the bedding; beyond, up to
+ * [SHELTER_MOST], its thatching, thick enough to hold the warmth in ([THATCH_DAYS] a whole one, [BodyHeat]). The practised
+ * build faster.
  */
-internal fun shelterLack(b: Band, moved: Boolean) = max(0f, b.shelterWill - if (moved) 0f else b.shelter)
+internal fun shelterWork(b: Band, people: Float, from: Float, to: Float): Float {
+    if (to <= from || people <= 0f) return 0f
+    val hut = max(0f, min(1f, to) - min(1f, from)); val thatch = max(0f, max(1f, to) - max(1f, from))
+    return people * (hut * SHELTER_DAYS + thatch * THATCH_DAYS) / b.skill(Skill.WOODWORK)
+}
+
+/** How far [days] person-days of [b]'s [people] bring their shelters from [from] towards [to] ([shelterWork] the other way). */
+internal fun shelterReach(b: Band, people: Float, from: Float, to: Float, days: Float): Float {
+    if (to <= from || people <= 0f || days <= 0f) return max(from, 0f)
+    val per = people / b.skill(Skill.WOODWORK)
+    var s = from; var d = days
+    if (s < 1f) {
+        val hut = min(1f, to) - s; val need = hut * SHELTER_DAYS * per
+        if (d < need) return s + d / (SHELTER_DAYS * per)
+        s += hut; d -= need
+    }
+    return if (to > s) s + min(to - s, d / (THATCH_DAYS * per)) else s
+}
 
 /** A fire through the night burns wood: where there is little, the night goes dark. Returns the wood burnt, kg. */
 internal fun burnNightFire(b: Band, people: Float): Float {
@@ -174,7 +190,7 @@ internal fun HexGroups.buildHouse(g: HexGroup, b: Band, p: Place, h: Hex, people
 const val HOUSE_DAYS = 20f
 /**
  * Stone and timber for one person's share of a stone-footed house, kg; person-days for one person's share of a brush
- * shelter (a debris hut for about five takes a novice an afternoon, from memory); how much warmer a whole brush shelter keeps
+ * shelter (a debris hut for about five takes a novice an afternoon, from memory); how much warmer a hut thatched whole keeps
  * those in it, by their own warmth, °C (an estimate; what else it does against the cold: [BodyHeat]); how much warmer a house
  * keeps its air than the air outside with its hearth fire kept, °C: 10 °C on the mean over two winters in two reconstructed
  * Viking Age houses of wattle and daub with a central hearth, the side facing the fire warmer still (Christensen 2013,
@@ -185,6 +201,15 @@ const val HOUSE_STONE = 150f
 const val HOUSE_WOOD = 60f
 const val SHELTER_DAYS = 0.1f
 const val SHELTER_C = 3f
+/**
+ * Person-days for one person's share of thatching a hut whole, thick enough to hold the warmth in: a 2.5 m dome of cane
+ * ribs thatched with grass took one man seven days, five of them gathering the grass (Primitive Technology, "Grass Hut",
+ * 2016, one build): some 2 for each of the three or four it sleeps. (A light hut: a Ju/'hoansi shade hut went up in about
+ * half an hour for four people, bushguide101.com; a Baka leaf hut in about an hour, a group's work, as recalled on a garden
+ * exhibit's page: a tenth of a day each or less, [SHELTER_DAYS].) The most a band's shelters reach: a light hut, thatched.
+ */
+const val THATCH_DAYS = 2f
+const val SHELTER_MOST = 2f
 const val HOUSE_AFTER_YEARS = 0.5f
 const val HOUSE_DECAY = 0.3f
 const val HOUSE_C = 10f
