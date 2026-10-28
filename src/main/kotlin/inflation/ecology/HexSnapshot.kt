@@ -371,9 +371,14 @@ object HexSnapshot {
      *   the weeks the band expects to stay on ([Band.stayWeeks], [yearAhead]). Before, a kilo a person a day kept those
      *   about it 10 °C warmer, and a house's air 10 °C more, whatever the cold or the cover, and a shelter was weighed by
      *   its first week alone.
+     * 4.84: all a band does toward another goes by its [Regard] of it. Setting out to raid a home and robbing a cache now
+     *   take the same wariness as a raid at a meeting ([Regard.fightChance]: less among kin and those who understand each
+     *   other, more on strangers and those of other customs); a band sets out by its regard of the band it is warier of, and
+     *   of homes about as safe falls on that one before the nearest. Each band believes what it is told by its own trust of
+     *   the other; before, both by the first band's.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 83
+    const val MODEL_MINOR = 84
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
