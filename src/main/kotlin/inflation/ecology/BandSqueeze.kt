@@ -70,7 +70,7 @@ internal fun HexGroups.bookSqueeze(g: HexGroup, b: Band, causes: List<Died>, wea
     val warmed = Tally.Warmed.of(b.fire, if (b.shelterWill > 0f) b.shelter / b.shelterWill else 1f)
     add(Tally.bandsWarmed(spare, warmed, Tally.Bands.BAND_WEEKS), 1)
     add(Tally.bandsWarmed(spare, warmed, Tally.Bands.PEOPLE_WEEKS), g.size)
-    add(Tally.bandsWarmed(spare, warmed, Tally.Bands.AIR), (10f * airAt(g.place, weather).meanC).roundToInt())
+    add(Tally.bandsWarmed(spare, warmed, Tally.Bands.CAMP_AIR), (10f * airAt(g.place, weather).meanC).roundToInt())
     if (b.campWeeks == 0) add(Tally.bandsWarmed(spare, warmed, Tally.Bands.MOVED), 1)
     // (What its survival pass reckoned with against what came: the fire, its lighting and the week's exposure odds.)
     fun put(what: Tally.Bands, x: Float) = add(Tally.bandsWarmed(spare, warmed, what), x.roundToInt())

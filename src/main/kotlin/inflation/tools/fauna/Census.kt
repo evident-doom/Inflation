@@ -444,7 +444,7 @@ class Census(private val sim: HexSim) {
                     val died = lastYear.filterKeys { it.startsWith(Tally.bandsWarmedDied(sp, w)) }
                     fun of(c: DeathCause) = died[Tally.bandsWarmedDied(sp, w, c)] ?: 0
                     "%s %.0f%% %.1f °C new %.0f%% exp %.1f hun %.1f all %.1f".format(w.label, 100 * pw / all.coerceAtLeast(1.0),
-                        v(Tally.bandsWarmed(sp, w, Tally.Bands.AIR)) / 10 / bw, 100 * v(Tally.bandsWarmed(sp, w, Tally.Bands.MOVED)) / bw,
+                        v(Tally.bandsWarmed(sp, w, Tally.Bands.CAMP_AIR)) / 10 / bw, 100 * v(Tally.bandsWarmed(sp, w, Tally.Bands.MOVED)) / bw,
                         1000 * of(DeathCause.EXPOSURE) / years, 1000 * of(DeathCause.HUNGER) / years, 1000 * died.values.sum() / years)
                 }
             })

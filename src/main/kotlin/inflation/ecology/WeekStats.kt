@@ -185,7 +185,7 @@ object Tally {
         /** Its clothes ([Band.clothesClo]), clo, and its spare days over the last season ([Band.spareMean]), share: tenths and thousandths summed over band-weeks. */
         CLOTHES("clothes clo, 1/10"), SPARE("spare days, 1/1000"),
         /** The week's mean air at its camp, °C, tenths summed over band-weeks; the band-weeks it came to a new camp. */
-        AIR("air °C, 1/10"), MOVED("new camp, band-weeks"),
+        CAMP_AIR("camp air °C, 1/10"), MOVED("new camp, band-weeks"),
         /**
          * Its fire as its week's survival pass reckoned it, as it got it, and the share of that lit ([keepFire]), %; the
          * week's exposure odds as reckoned and as it came, 1/10000; the share of its hands' days left after the walk, %; the
