@@ -128,7 +128,7 @@ object BodyHeat {
         val nightClo = c.clothesClo * (1f + NIGHT_COVER)
         val ground = if (air.snow) min(0f, air.meanC) else air.meanC
         // (A house's hearth warms its air, [Cover.houseWarmC]; at a camp the fire warms those about it by the wood it burns.)
-        val fireC = if (house) 0f else fireC(c.fire, thatch)
+        val fireC = if (house) 0f else fireC(c.fire, c.shelter)
         val campC = air.meanC + warmer + fireC
         val sleepC = air.nightC + warmer + FIRE_SLEEP_SHARE * fireC
         val lCamp = loss(camp, campC, inWind, 0f, c.clothesClo, inWet)
@@ -258,12 +258,12 @@ object BodyHeat {
     const val NIGHT_COVER = 1f
     /**
      * How much warmer a camp's fire of [fire] keeps those about it awake, °C: by the wood it burns, a person a day, in whole
-     * cooking fires ([HEARTH_WOOD]), over what each degree takes ([FIRE_OPEN_KG_C] in the open or a light hut, as low as
-     * [FIRE_HUT_KG_C] in a hut thatched whole, by its [thatch] 0..1).
+     * cooking fires ([HEARTH_WOOD]), over what each degree takes: [FIRE_OPEN_KG_C] in the open, [FIRE_HUT_KG_C] in a hut
+     * thatched whole ([shelter] 2), and a light hut ([shelter] 1) between, its walls throwing back some of the fire's heat.
      */
-    fun fireC(fire: Float, thatch: Float): Float {
-        val th = thatch.coerceIn(0f, 1f)
-        return fire * HEARTH_WOOD * ((1f - th) / FIRE_OPEN_KG_C + th / FIRE_HUT_KG_C)
+    fun fireC(fire: Float, shelter: Float): Float {
+        val walls = shelter.coerceIn(0f, SHELTER_MOST) / SHELTER_MOST
+        return fire * HEARTH_WOOD * ((1f - walls) / FIRE_OPEN_KG_C + walls / FIRE_HUT_KG_C)
     }
 
     /**
@@ -279,7 +279,10 @@ object BodyHeat {
      *
      * In the open nothing holds the warmth: a fire warms only by what those facing it catch of its radiance, about a tenth
      * to a fifth of the wood's heat radiated and a fraction of that caught, a few tens of watts a person from a kilo a day,
-     * a degree or two (a reckoning here; no measure of an open camp's fire against the cold was found): 1 kg a degree.
+     * a degree or two (a reckoning here; no measure of an open camp's fire against the cold was found): 1 kg a degree. (An
+     * outdoor campfire raised the standard effective temperature 5-7 °C at 1.5 m and nothing at 4 m, Watanabe, Hatano and
+     * Ishii 2023, Journal of the Human-Environment System 25: 57; its wood burnt was not found.) A light hut's walls, a
+     * windbreak or lean-to behind those by the fire, throw back some of its heat: halfway to a thatched hut (an estimate).
      */
     const val FIRE_OPEN_KG_C = 1f
     const val FIRE_HUT_KG_C = 0.5f

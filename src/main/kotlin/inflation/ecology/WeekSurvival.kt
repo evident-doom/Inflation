@@ -2,6 +2,7 @@ package inflation.ecology
 
 import inflation.EnumFloats
 import inflation.enumFloats
+import inflation.world.Date
 import inflation.world.Weather
 import kotlin.math.max
 import kotlin.math.min
@@ -25,12 +26,16 @@ import kotlin.math.roundToInt
  *
  * The days go a few at a time to whichever of the two averts the more deaths for its days (or for all it asks, where a
  * little does nothing, as wood in a cold too deep for half a fire), until each has all it asks, neither averts any more, or
- * the week is spent. The fire asks all the days a band gives firewood at most ([fuelMost]): the more wood it burns the
- * warmer it keeps them ([fireOf], [BodyHeat.fireC]), the more so in a thatched hut or a house. (The deaths are reckoned, not drawn, so there is no chance to allow for.) What they ask beyond, the
- * days that avert no death (wood in a warm week), is shared with the other chores.
+ * the week is spent. A shelter stands while the band keeps its camp: what it averts through the weeks the band expects to
+ * stay on ([Band.stayWeeks], up to a year) counts too, at those weeks' usual cold with the fire it keeps now, its food got
+ * in full. The fire asks all the days a band gives firewood at most ([fuelMost]): the more wood it burns the warmer it
+ * keeps them ([fireOf], [BodyHeat.fireC]), the more so in a thatched hut or a house. (The deaths are reckoned, not drawn,
+ * so there is no chance to allow for.) What they ask beyond, the days that avert no death (wood in a warm week), is
+ * shared with the other chores.
  *
  * [foodAsk]: the person-days of work that would forage the rest of the week's want, [gotShare] of it got already;
- * [moved]: whether it has come to a new camp, where no shelter stands. Returns the person-days of work for the firewood and the shelters (none for the rest).
+ * [moved]: whether it has come to a new camp, where no shelter stands. Returns the person-days of work for the firewood and
+ * the shelters (none for the rest).
  */
 internal fun HexGroups.survivalDays(g: HexGroup, b: Band, weather: Weather, time: BandTime, hands: Int, foodAsk: Float, gotShare: Float,
     moved: Boolean): EnumFloats<Activity> {
@@ -51,6 +56,28 @@ internal fun HexGroups.survivalDays(g: HexGroup, b: Band, weather: Weather, time
         return warmthAt.getOrPut(f * 10_000 + sh) { b.warmth(air, f / GRID, home, days, sh / GRID) }
     }
     val larderDays = g.larder / g.dailyNeedKg.coerceAtLeast(1e-3f)
+    // (The weeks it expects to stay on after this one, by month of the year, up to a year: what a shelter averts in them,
+    // worked out once for each shelter to the hundredth.)
+    val stayOn = min(stepsPerYear, b.stayWeeks - (if (moved) 0 else b.campWeeks) - 1f)
+    val monthWeeks = FloatArray(Date.MONTHS_PER_YEAR)
+    run { var k = 1; var left = stayOn; while (left > 0f) { monthWeeks[weather.date.plusDays(k * days).month] += min(1f, left); left -= 1f; k++ } }
+    val fire0 = b.fire
+    val laterAt = HashMap<Int, Float>()
+    fun later(shelter: Float): Float {
+        if (stayOn <= 0f) return 0f
+        val sh = (shelter * GRID).roundToInt()
+        return laterAt.getOrPut(sh) {
+            var dead = 0f
+            for (m in 0 until Date.MONTHS_PER_YEAR) {
+                if (monthWeeks[m] <= 0f) continue
+                val w = b.warmth(airAt(p, weather, weather.usualTemperature(m, p)), fire0, home, days, sh / GRID)
+                val fed = min(1f, g.warmth.coerceAtLeast(1e-3f) / warmthNeed(w, fire0))
+                val hunger = Hazards.hunger(s, g.spent, Hazards.onFat(fed, g.fat, days), days)
+                dead += monthWeeks[m] * (1f - (1f - w.odds) * (1f - hunger))
+            }
+            dead
+        }
+    }
     // (The food gets what the warmth leaves of the week, as far as it asks: days held for the fire and shelters are days not
     // foraged, and a week they leave short is bridged by the larder and fat, or is hunger, now and in the year after.)
     val total = time.left
@@ -70,7 +97,7 @@ internal fun HexGroups.survivalDays(g: HexGroup, b: Band, weather: Weather, time
         // (This week's deaths and the year after's, each counted in full: a year that looks bleak whatever is done now, as
         // it does before a band has a year's food behind it to foresee by, takes nothing from what this week's days do.)
         val week = (1f - w.odds) * (1f - hunger)
-        return 1f - week + 1f - year.alive(s, larderDays - paid, fat, Hazards.spentAfter(s, g.spent, onFat, days))
+        return 1f - week + 1f - year.alive(s, larderDays - paid, fat, Hazards.spentAfter(s, g.spent, onFat, days)) + later(shelter)
     }
     val d = FloatArray(3)
     var now = deaths(d)

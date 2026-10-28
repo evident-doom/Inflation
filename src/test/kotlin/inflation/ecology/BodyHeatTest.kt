@@ -9,9 +9,9 @@ class BodyHeatTest {
     private fun air(meanC: Float, windMs: Float = 2f, wet: Float = 0f, snow: Boolean = false) = Air(meanC, 8f, windMs, wet, snow)
     private fun cover(clo: Float = 1f, fire: Float = 0f, shelter: Float = 0f, home: Float = 0f) =
         Cover(clo, fire, shelter, home, fire * HEARTH_WOOD / FIRE_HOUSE_KG_C)
-    /** A fire that keeps those about it 10 °C warmer in the open or a light hut, and in a hut thatched whole; one keeping a house's air 20 °C warmer. */
-    private val open10 = 10f * BodyHeat.FIRE_OPEN_KG_C / HEARTH_WOOD
-    private val thatched10 = 10f * BodyHeat.FIRE_HUT_KG_C / HEARTH_WOOD
+    /** A fire that keeps those about it 10 °C warmer in a light hut, and in a hut thatched whole; one keeping a house's air 20 °C warmer. */
+    private val open10 = 10f / BodyHeat.fireC(1f, 1f)
+    private val thatched10 = 10f / BodyHeat.fireC(1f, 2f)
     private val house20 = 20f * FIRE_HOUSE_KG_C / HEARTH_WOOD
 
     @Test
@@ -29,9 +29,10 @@ class BodyHeatTest {
     @Test
     fun `the same wood warms more in a thatched hut than in a light one, and most in a house`() {
         assertEquals(1f / BodyHeat.FIRE_OPEN_KG_C, BodyHeat.fireC(1f, 0f), 1e-6f)
-        assertEquals(1f / BodyHeat.FIRE_HUT_KG_C, BodyHeat.fireC(1f, 1f), 1e-6f)
-        assertTrue(BodyHeat.fireC(2f, 0.5f) == 2f * BodyHeat.fireC(1f, 0.5f), "twice the wood, twice the warmth")
-        assertTrue(HEARTH_WOOD / FIRE_HOUSE_KG_C > BodyHeat.fireC(1f, 1f))
+        assertEquals(1f / BodyHeat.FIRE_HUT_KG_C, BodyHeat.fireC(1f, 2f), 1e-6f)
+        assertTrue(BodyHeat.fireC(1f, 1f) > BodyHeat.fireC(1f, 0f) && BodyHeat.fireC(1f, 1f) < BodyHeat.fireC(1f, 2f), "a light hut's walls between")
+        assertTrue(BodyHeat.fireC(2f, 1f) == 2f * BodyHeat.fireC(1f, 1f), "twice the wood, twice the warmth")
+        assertTrue(HEARTH_WOOD / FIRE_HOUSE_KG_C > BodyHeat.fireC(1f, 2f))
         val cold = air(-5f, windMs = 3f)
         assertTrue(BodyHeat.week(cold, cover(1.5f, fire = 3f, shelter = 2f), 7).extra < BodyHeat.week(cold, cover(1.5f, fire = 3f, shelter = 1f), 7).extra)
     }

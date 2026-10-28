@@ -359,11 +359,12 @@ object HexSnapshot {
      * 4.80: a herd begun from young caught in the hunt is kept as pets till they have grown ([Band.herdPet],
      *   [Species.yearsToMaturity]): kept whole and not weighed as food; before, it was weighed at once, and young of kinds
      *   that pay only when tame were eaten within the week.
-     * 4.81: a fire warms by the wood it burns ([BodyHeat.fireC]): a kilo a person a day a degree in the open or a light hut,
-     *   half that in a hut thatched whole, and a house's air 0.15 ([FIRE_HOUSE_KG_C]); a whole cooking fire burns a kilo
-     *   ([HEARTH_WOOD]), and the survival pass burns more as far as it averts deaths, up to the days a band gives firewood
-     *   at most ([fuelMost]). Before, a kilo a person a day kept those about it 10 °C warmer, and a house's air 10 °C
-     *   more, whatever the cold or the cover.
+     * 4.81: a fire warms by the wood it burns ([BodyHeat.fireC]): a kilo a person a day a degree in the open, 0.67 in a
+     *   light hut, half a kilo in a hut thatched whole, and a house's air 0.15 ([FIRE_HOUSE_KG_C]); a whole cooking fire
+     *   burns a kilo ([HEARTH_WOOD]), and the survival pass burns more as far as it averts deaths, up to the days a band
+     *   gives firewood at most ([fuelMost]). The survival pass counts what a shelter averts through the weeks the band
+     *   expects to stay on ([Band.stayWeeks]). Before, a kilo a person a day kept those about it 10 °C warmer, and a
+     *   house's air 10 °C more, whatever the cold or the cover, and a shelter was weighed by its first week alone.
      */
     const val MODEL_MAJOR = 4
     const val MODEL_MINOR = 81
