@@ -207,6 +207,40 @@ private val UNIVERSAL = setOf(Tradition.EXOGAMY, Tradition.SHARING, Tradition.ME
 fun kinship(a: FloatArray, b: FloatArray): Float { var s = 0f; for (i in a.indices) s += a[i] * b[i]; return s }
 
 /**
+ * How band [of] stands toward band [to] (of group [toId]) when they meet, understanding each other as far as [understood]
+ * (taken as the meeting began): its tie to them, whether they are strangers, how near kin they are and how far apart their
+ * customs, each read as it stands when asked. Everything in a meeting that turns on how one band sees the other (whether it
+ * comes to blows, how far it believes what it is told, whose meeting place it takes up) reads it from here.
+ */
+internal class Regard(private val of: Band, private val toId: Int, private val to: Band, val understood: Float) {
+    val tie get() = of.tie(toId)
+    val close get() = max(0f, tie)
+    /** Never met before. */
+    val stranger get() = toId !in of.ties
+    val kin get() = kinship(of.lineage, to.lineage)
+    val customsApart get() = Tradition.entries.count { of.holds(it) != to.holds(it) }
+
+    /**
+     * The chance [of] falls on [to], [drive] being the chance at its least (what drives it, by its readiness): the less they
+     * understand each other and the less kin, the likelier; close friends hardly; strangers and those of other customs the
+     * likelier.
+     */
+    fun fightChance(drive: Float) = drive * (0.5f + 0.5f * (1f - understood)) * (1f - 0.5f * kin) * (1f - TIE_PEACE * close) *
+        (1f + (if (stranger) STRANGER_HOSTILITY else 0f) + CUSTOMS_HOSTILITY * (customsApart.toFloat() / Tradition.entries.size))
+    /** How many times readier than at its least [of] is to fight [to] ([fightChance] of 1). */
+    val wariness get() = fightChance(1f)
+    /** How far [of] believes what [to] tells it of the places it remembers. */
+    val trust get() = (0.5f + 0.5f * close) * understood
+    /** The chance [of] takes up [to]'s meeting place over its own weaker one. */
+    val takesUpPlace get() = understood * (0.3f + 0.7f * close)
+
+    companion object {
+        /** How close two bands are to each other, between them. */
+        fun close(ab: Regard, ba: Regard) = max(0f, 0.5f * (ab.tie + ba.tie))
+    }
+}
+
+/**
  * Two bands meet. If one is hungry and the other well stocked, or one holds a feud against the
  * other's people, it may raid: the less they understand each other, the likelier. Otherwise they
  * talk: they bring a few words into line, the less successful band may take up the other's ways,
@@ -216,9 +250,11 @@ fun kinship(a: FloatArray, b: FloatArray): Float { var s = 0f; for (i in a.indic
 internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weather): Boolean {
     val bandA = a.band ?: return false; val bandB = b.band ?: return false
     val u = Language.understanding(bandA.words, bandB.words)
-    tallyMeeting(bandA, bandB, Tally.MeetingEnd.MET)
-    if (raid(a, bandA, b, bandB, u, weather) || raid(b, bandB, a, bandA, u, weather)) {
-        tallyMeeting(bandA, bandB, Tally.MeetingEnd.RAIDED)
+    val ab = Regard(bandA, b.id, bandB, u); val ba = Regard(bandB, a.id, bandA, u)
+    val metAs = MetAs(ab, ba)
+    tallyMeeting(metAs, Tally.MeetingEnd.MET)
+    if (raid(a, bandA, b, bandB, ab, weather) || raid(b, bandB, a, bandA, ba, weather)) {
+        tallyMeeting(metAs, Tally.MeetingEnd.RAIDED)
         return true
     }
     // A band that sees sickness among the others may keep away: no talk, no partners, no feast.
@@ -230,7 +266,7 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
     }
     // Meeting in peace makes them a little closer; how close they are colours the rest.
     bandA.befriend(b.id, TIE_MEET); bandB.befriend(a.id, TIE_MEET)
-    val close = max(0f, 0.5f * (bandA.tie(b.id) + bandB.tie(a.id)))
+    val close = Regard.close(ab, ba)
     // The naming game: the larger band's word tends to win.
     repeat(WORDS_PER_MEETING) {
         val k = rnd.nextInt(Language.CONCEPTS)
@@ -264,35 +300,46 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
     // And the sick among them pass on what is catching.
     passIllness(bandA, bandB)
     // Each tells the other of the country it knows round about, as far as they understand each other.
-    if (rnd.nextFloat() < u * (0.6f + 0.4f * close)) tellOfCountry(a, bandA, b, bandB, u, weather)
+    if (rnd.nextFloat() < u * (0.6f + 0.4f * close)) tellOfCountry(a, bandA, b, bandB, ab, ba, weather)
     // Partners: where either holds to marrying out, young adults change bands, both ways.
     val marry = (if (bandA.holds(Tradition.EXOGAMY)) 0.5f else 0f) + (if (bandB.holds(Tradition.EXOGAMY)) 0.5f else 0f)
     if (a.adults >= 2 && b.adults >= 2 && rnd.nextFloat() < MARRY * marry * (0.5f + close)) {
         marryOut(a, bandA, b, bandB)
         bandA.befriend(b.id, TIE_MARRY); bandB.befriend(a.id, TIE_MARRY)
         stats.meeting(Met.BANDS_EXCHANGED_PARTNERS)
-        tallyMeeting(bandA, bandB, Tally.MeetingEnd.PARTNERS)
+        tallyMeeting(metAs, Tally.MeetingEnd.PARTNERS)
     }
     return false
 }
 
 /**
- * Counts what came of bands [a] and [b] meeting ([what]) by how well they understand each other and how far apart their
- * customs are: for the identity census. Nothing in the model reads it back, and it draws no chance.
+ * How two bands stood toward each other as they met ([ab], one's regard of the other, and [ba]): how well they understood
+ * each other, how far apart their customs were, and how wary the warier was. For the identity census: taken once, so that
+ * all a meeting came to is counted in the classes it began in.
  */
-internal fun GroupWorld.tallyMeeting(a: Band, b: Band, what: Tally.MeetingEnd) {
-    val u = Tally.Understood.of(Language.understanding(a.words, b.words))
-    val c = Tally.CustomsApart.of(Tradition.entries.count { a.holds(it) != b.holds(it) })
-    stats.hunting.merge(Tally.meetingsBy(u, what), 1, Int::plus)
-    stats.hunting.merge(Tally.meetingsBy(c, what), 1, Int::plus)
+internal class MetAs(ab: Regard, ba: Regard) {
+    val understood = Tally.Understood.of(ab.understood)
+    val customs = Tally.CustomsApart.of(ab.customsApart)
+    val wary = Tally.Wary.of(max(ab.wariness, ba.wariness))
 }
 
 /**
- * Bands [a] and [b] that understand each other as far as [u] tell each other of the country round about,
+ * Counts what came of two bands meeting ([what]) by how they stood toward each other ([metAs]): for the identity census.
+ * Nothing in the model reads it back, and it draws no chance.
+ */
+internal fun GroupWorld.tallyMeeting(metAs: MetAs, what: Tally.MeetingEnd) {
+    stats.hunting.merge(Tally.meetingsBy(metAs.understood, what), 1, Int::plus)
+    stats.hunting.merge(Tally.meetingsBy(metAs.customs, what), 1, Int::plus)
+    stats.hunting.merge(Tally.meetingsBy(metAs.wary, what), 1, Int::plus)
+}
+
+/**
+ * Bands [a] and [b] (regarding each other as [ab] and [ba]) tell each other of the country round about,
  * the routes they know, where they met, where their homes and those of others they know are, the
  * appointments they keep, and the places they remember (as far as they trust each other).
  */
-private fun HexGroups.tellOfCountry(a: HexGroup, bandA: Band, b: HexGroup, bandB: Band, u: Float, weather: Weather) {
+private fun HexGroups.tellOfCountry(a: HexGroup, bandA: Band, b: HexGroup, bandB: Band, ab: Regard, ba: Regard, weather: Weather) {
+    val u = ab.understood
     val h0 = hw.placeHex[a.place]
     var ring = listOf(h0); val seen = hashSetOf(h0)
     for (r in 0..TOLD_RINGS) {
@@ -322,37 +369,32 @@ private fun HexGroups.tellOfCountry(a: HexGroup, bandA: Band, b: HexGroup, bandB
     }
     showsHome(b, bandB, bandA); showsHome(a, bandA, bandB)
     tellsHomes(bandB, a, bandA); tellsHomes(bandA, b, bandB)
-    fun adopt(x: HexGroup, bx: Band, y: HexGroup, by: Band) {
+    fun adopt(x: HexGroup, bx: Band, y: HexGroup, by: Band, r: Regard) {
         if (by.appointHex.none || by.appointHex == bx.appointHex) return
         val theirs = y.memory.deadAt(by.appointHex) + y.memory.metAt(by.appointHex)
         val ours = if (!bx.appointHex.none) x.memory.deadAt(bx.appointHex) + x.memory.metAt(bx.appointHex) else 0f
-        if (theirs > ours && rnd.nextFloat() < u * (0.3f + 0.7f * max(0f, bx.tie(y.id)))) {
+        if (theirs > ours && rnd.nextFloat() < r.takesUpPlace) {
             bx.appointment = by.appointment
             stats.meeting(Met.BANDS_TOOK_UP_ANOTHERS_APPOINTMENT)
         }
     }
-    adopt(a, bandA, b, bandB); adopt(b, bandB, a, bandA)
+    adopt(a, bandA, b, bandB, ab); adopt(b, bandB, a, bandA, ba)
     // And of the places they remember, as far as they trust each other.
-    val trust = (0.5f + 0.5f * max(0f, bandA.tie(b.id))) * u
+    val trust = ab.trust
     a.memory.hear(b.memory, wk, stepsPerYear, trust); b.memory.hear(a.memory, wk, stepsPerYear, trust)
 }
 
-/** [g] raids [o] if it is hungry and [o] has food, or holds a feud against its people. Returns whether it did. */
-private fun HexGroups.raid(g: HexGroup, b: Band, o: HexGroup, ob: Band, understood: Float, weather: Weather): Boolean {
+/** [g] raids [o] (as it regards it: [r]) if it is hungry and [o] has food, or holds a feud against its people. Returns whether it did. */
+private fun HexGroups.raid(g: HexGroup, b: Band, o: HexGroup, ob: Band, r: Regard, weather: Weather): Boolean {
     // What drives a raid: an old feud, or competition (hunger with food in the other's larder, or too
     // many people on the same country); kin and those who understand each other fight less.
     val feud = b.grudge[ob.mainLineage()] > FEUD
     val hunger = if (o.larder > 10f * o.dailyNeedKg) (1f - g.fed) else 0f
     // (On ground it holds as its own, a band drives off those it is not close to: trespass.)
-    val trespass = if (b.claims(hw.placeHex[g.place], g.memory) && b.tie(o.id) <= 0f) CLAIM_PRESSURE else 0f
+    val trespass = if (b.claims(hw.placeHex[g.place], g.memory) && r.tie <= 0f) CLAIM_PRESSURE else 0f
     val pressure = if (feud) 1f else maxOf(hunger, min(1f, peopleCrowding(g)), trespass)
-    // Strangers (never met before) and those of other customs are easier to fight.
-    val stranger = if (o.id !in b.ties) STRANGER_HOSTILITY else 0f
-    val otherWays = Tradition.entries.count { b.holds(it) != ob.holds(it) }.toFloat() / Tradition.entries.size
-    // (Whether it comes to blows is the band's choice: its readiness to raid.)
-    val chance = RAID * b.raidWill * pressure * (0.5f + 0.5f * (1f - understood)) * (1f - 0.5f * kinship(b.lineage, ob.lineage)) *
-        (1f - TIE_PEACE * max(0f, b.tie(o.id))) *
-        (1f + stranger + CUSTOMS_HOSTILITY * otherWays)
+    // (Whether it comes to blows is the band's choice: its readiness to raid; and how it regards the others.)
+    val chance = r.fightChance(RAID * b.raidWill * pressure)
     if (!drawn(DialSite.RAIDS_MEETING, b.raidWill, rnd.nextFloat(), chance) { chance / b.raidWill.coerceAtLeast(1e-6f) }) return false
     fight(g, b, o, ob, planned = false, weather)
     return true
