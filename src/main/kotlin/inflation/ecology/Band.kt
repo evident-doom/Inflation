@@ -286,10 +286,10 @@ class Band(kinds: Int) {
     /** How keen it is to go into country it does not know (1: the usual wariness of strange ground; 2: drawn to it). */
     val explore get() = will[BandWay.EXPLORING]
     /** The fire as it guards the camp at night: kept only as faithfully as the band chooses (a bigger fire above 1, guarding less for each log more). */
-    val nightGuard get() = fire * moreOfWill(nightFire) * nightWood
+    val nightGuard get() = min(1f, fire) * moreOfWill(nightFire) * nightWood
     /** Share of the night's firewood it had this week. */
     var nightWood = 1f
-    /** Share of the hearth's firewood (warmth and cooking) it fetched this week: its fire burns only as far as that goes. */
+    /** The hearth's firewood it fetched this week, a person a day in whole cooking fires ([fireOf]): its fire burns only as far as that goes. */
     var hearthWood = 1f
     /** Its choices: how ready it is to go raiding, and to fortify (1 the scaffold's). */
     val raidWill get() = will[BandWay.RAIDS]
@@ -621,7 +621,7 @@ class Band(kinds: Int) {
      * from partners; on strange ground people find little and risk the wrong plants.
      */
     val plants = enumFloats<Biome>()
-    /** Share of the week it has had a fire going: warmth, cooked food. */
+    /** Its fire this week: the share of the week it was lit, times the wood it burnt a person a day in whole cooking fires ([HEARTH_WOOD]). Cooks at 1; a bigger fire only warms more. */
     var fire = 0f
     /**
      * How much longer than an ordinary practised forager (bands start at [START_CRAFT]) it takes over
@@ -713,8 +713,8 @@ class Band(kinds: Int) {
     fun clothesClo() = CLOTHES_CLO * has(Tool.CLOTHES) * skill(Skill.SEWING)
     /** How far houses shelter it where it is: its home's, at home. */
     fun homeShelter() = if (atHome) house else 0f
-    /** How much warmer than [t] °C outside its houses keep: by their hearths and the people in them, and the ground's warmth through sunken walls. */
-    fun houseWarmC(t: Float, fire: Float = 1f) = HOUSE_C * fire + homeEarth * max(0f, homeGroundC - t)
+    /** How much warmer than [t] °C outside its houses keep: by the wood their hearths burn ([fire], [FIRE_HOUSE_KG_C]), and the ground's warmth through sunken walls. */
+    fun houseWarmC(t: Float, fire: Float = 1f) = fire * HEARTH_WOOD / FIRE_HOUSE_KG_C + homeEarth * max(0f, homeGroundC - t)
     /** What it has against the cold at [t] °C with a fire of [fire] and houses sheltering it as far as [home] ([BodyHeat]). */
     fun cover(t: Float, fire: Float, home: Float, shelter: Float = this.shelter) = Cover(clothesClo(), fire, shelter, home, houseWarmC(t, fire))
     /**

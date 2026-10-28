@@ -77,27 +77,35 @@ internal fun GroupWorld.houseAfterWeeks(b: Band) = HOUSE_AFTER_YEARS * stepsPerY
 /**
  * The hearth's firewood for the week, fetched by [hands] before they forage: dead wood from the trees and scrub
  * round the camp, quick to gather where they are thick and slow where they are few, for everyone in the band.
- * A band goes without rather than give more than [FUEL_MOST] of its days to it, and fetches only the [share] of that its
- * week's plan gives it ([planWeek]). Returns the days it took.
+ * It fetches in the [given] person-days its week's plan gives it ([planWeek]), but never more than [FUEL_MOST] of
+ * its days ([fuelMost]), and its fire burns all it fetches ([Band.hearthWood], [fireOf]). Returns the days each hand took.
  */
-internal fun GroupWorld.fetchFuel(g: HexGroup, b: Band, hands: Int, share: Float = 1f): Float {
+internal fun GroupWorld.fetchFuel(g: HexGroup, b: Band, hands: Int, given: Float): Float {
     val p = g.place
-    val want = HEARTH_WOOD * days * g.size
     val tree = land.plants.tree[p]; val shrub = land.plants.shrub[p]
     val cover = woodCover(p)
-    if (want <= 0f || cover <= 0f) { b.hearthWood = if (want <= 0f) 1f else 0f; return 0f }
-    val perHand = g.size.toFloat() / hands
-    val spent = fuelShare(cover, perHand) * days * share
-    b.hearthWood = hearthShare(cover, perHand) * share
-    val got = b.hearthWood * want
+    if (g.size <= 0 || hands <= 0 || cover <= 0f) { b.hearthWood = if (g.size <= 0) 1f else 0f; return 0f }
+    val spent = min(given, fuelMost(g, hands))
+    b.hearthWood = fireOf(g, spent)
+    val got = spent * FUEL_A_DAY * cover
     val m2 = land.m2(p)
     val burnt = land.plants.consume(p, LifeForm.TREE, Kg(got * tree / (tree + shrub)).perM2(m2)).v +
         land.plants.consume(p, LifeForm.SHRUB, Kg(got * shrub / (tree + shrub)).perM2(m2)).v
     land.books?.flow(Books.Stuff.MATTER, "burnt", -burnt * m2.toDouble())
-    return spent
+    return spent / hands
 }
 
-/** The person-days [g]'s [hands] would give the hearth's firewood this week ([fetchFuel] with all it asks). */
+/** The most person-days [g]'s [hands] give the hearth's firewood in a week: [FUEL_MOST] of their days, where there is wood. */
+internal fun GroupWorld.fuelMost(g: HexGroup, hands: Int) = if (g.size <= 0 || woodCover(g.place) <= 0f) 0f else FUEL_MOST * days * hands
+
+/**
+ * The fire [personDays] of firewood keep for [g]'s people this week ([Band.fire]): the wood a person a day, in whole cooking
+ * fires ([HEARTH_WOOD]); a bigger fire warms them more ([BodyHeat.fireC], [Band.houseWarmC]).
+ */
+internal fun GroupWorld.fireOf(g: HexGroup, personDays: Float) =
+    if (g.size <= 0) 0f else personDays * FUEL_A_DAY * woodCover(g.place) / (HEARTH_WOOD * days * g.size)
+
+/** The person-days [g]'s [hands] would give the hearth's firewood for a whole cooking fire this week ([HEARTH_WOOD], [fetchFuel]). */
 internal fun GroupWorld.fuelAsk(g: HexGroup, hands: Int): Float {
     val cover = woodCover(g.place)
     return if (HEARTH_WOOD * g.size <= 0f || cover <= 0f) 0f else fuelShare(cover, g.size.toFloat() / hands) * days * hands
@@ -128,7 +136,7 @@ internal fun HexGroups.warmthNeed(s: Species, b: Band?, p: Place, weather: Weath
     else warmthNeed(b.warmth(airAt(p, weather, t), fire, home, days), fire)
 
 /** A band's need for its week's [w] (its body heat) with a fire of [fire]: see [warmthNeed]. */
-internal fun GroupWorld.warmthNeed(w: Warmth, fire: Float) = (1f + tuning.coldCost * w.extra) * (1f + RAW_COST * (1f - fire))
+internal fun GroupWorld.warmthNeed(w: Warmth, fire: Float) = (1f + tuning.coldCost * w.extra) * (1f + RAW_COST * (1f - min(1f, fire)))
 
 /**
  * Houses: [g]'s band, having kept its camp a while, builds stone-footed houses there with the [time] days to spare, as
@@ -191,11 +199,7 @@ const val HOUSE_DAYS = 20f
 /**
  * Stone and timber for one person's share of a stone-footed house, kg; person-days for one person's share of a brush
  * shelter (a debris hut for about five takes a novice an afternoon, from memory); how much warmer a hut thatched whole keeps
- * those in it, by their own warmth, °C (an estimate; what else it does against the cold: [BodyHeat]); how much warmer a house
- * keeps its air than the air outside with its hearth fire kept, °C: 10 °C on the mean over two winters in two reconstructed
- * Viking Age houses of wattle and daub with a central hearth, the side facing the fire warmer still (Christensen 2013,
- * "Living Conditions and Indoor Air Quality in a Reconstructed Viking House", EXARC Journal 2013/3). Those beside the
- * hearth are warmed by it besides, as at a camp ([BodyHeat.FIRE_CAMP_C]).
+ * those in it, by their own warmth, °C (an estimate; what else it does against the cold: [BodyHeat]).
  */
 const val HOUSE_STONE = 150f
 const val HOUSE_WOOD = 60f
@@ -212,7 +216,16 @@ const val THATCH_DAYS = 2f
 const val SHELTER_MOST = 2f
 const val HOUSE_AFTER_YEARS = 0.5f
 const val HOUSE_DECAY = 0.3f
-const val HOUSE_C = 10f
+/**
+ * Firewood a person a day that keeps a house's air 1 °C warmer than outside, kg: its walls and roof hold the hearth's
+ * warmth. Houses with hearths or stoves in the Himalaya burn 1.4 kg a person a day in summer and 4.3 in winter at
+ * Lahaul, 3200 m (Rawat, Vishvakarma and Todaria 2009, Biomass and Bioenergy 33: 1547), and about 2 in the heating
+ * season in the Western Pamirs (Mislimshoeva et al. 2014, Mountain Research and Development 34(2)): 0.1-0.2 kg a degree
+ * over what cooking takes, for a winter some 15-25 °C below the warmth kept (a reckoning here; the sources give no
+ * temperatures). Two reconstructed Viking Age houses with a central hearth kept 10 °C over the outside air on the mean
+ * through two winters (Christensen 2013, EXARC Journal 2013/3): at this, 1.5 kg a person a day.
+ */
+const val FIRE_HOUSE_KG_C = 0.15f
 const val PIT_KEEP = 0.5f
 const val MICE = 0.01f
 const val HOUSE_DEFENCE = 0.5f
@@ -224,6 +237,8 @@ const val HOME_PULL = 0.15f
  */
 internal fun GroupWorld.keepFire(g: HexGroup, b: Band) {
     val skill = b.skills[Skill.FIRE]
+    // (Last week's fire, as far as it was lit: a bigger one is still one fire.)
+    b.fire = min(1f, b.fire)
     if (g.path.size > 1 && rnd.nextFloat() >= skill) b.fire = 0f
     if (b.fire >= 1f) return
     // Each day it tries; the first day it succeeds it has fire for the rest of the week.
@@ -298,9 +313,9 @@ const val SOIL_DAMPING_M = 2.2f
 /** Firewood a fire through the night burns in a week, kg a person. */
 const val NIGHT_WOOD = 3f
 /**
- * Firewood the hearth burns for warmth and cooking, kg a person a day (about 1-2 in household fuel surveys of
- * people cooking on open fires, from memory); dead wood one person gathers in a day where trees or scrub are
- * thick, kg (head-loads of 20-30 kg, from memory).
+ * Firewood a whole cooking fire burns, kg a person a day (1.4 in summer in houses at Lahaul, 3200 m, where little goes to
+ * warmth, Rawat et al. 2009, as [FIRE_HOUSE_KG_C]; more warms them more, [BodyHeat.fireC]); dead wood one person gathers in
+ * a day where trees or scrub are thick, kg (head-loads of 20-30 kg, from memory).
  */
 const val HEARTH_WOOD = 1f
 const val FUEL_A_DAY = 25f
