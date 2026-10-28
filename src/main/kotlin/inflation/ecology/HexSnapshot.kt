@@ -324,9 +324,11 @@ object HexSnapshot {
      * 4.70: a band forages only for what its herds will not feed it that week ([herdFoodWeek]: their increase and milk);
      *   before, it planned to forage its whole week's food, so in its lean months foraging took every day and the herd
      *   was culled for want of herders.
+     * 4.71: young caught in the hunt and kept come [RAISED_TAME] tame, as raised by hand; before, they came as tame as the
+     *   band's herd of their kind, wild where it had none, so they ran off, bred little and were eaten within weeks.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 70
+    const val MODEL_MINOR = 71
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

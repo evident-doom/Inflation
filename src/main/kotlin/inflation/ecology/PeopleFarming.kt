@@ -339,9 +339,13 @@ private fun herdSkill(b: Band) = 0.5f + 0.5f * min(1f, b.skill(Skill.TENDING))
  * its walk.) And the head a herder keeps on foot ([headsAHerder]): 200 goats of [GOAT_KG]; Iranian nomads' flocks of
  * 200-600 head go with one to three shepherds (Encyclopaedia Iranica, "Cupan"). Bigger beasts fewer, as their weight to the
  * power [HERD_MASS_EXP], an estimate between the goats and camel herds of 50-60 head kept by young men (ODI Pastoral
- * Development Network paper 5337; the herders to a herd not given).
+ * Development Network paper 5337; the herders to a herd not given). Young caught and raised by hand come as tame as a
+ * herd started at world start ([RAISED_TAME], an estimate): young of wild hoofed animals reared by people take them as
+ * their own and stay by them (imprinting; Price 1984, "Behavioral aspects of animal domestication", from memory), long
+ * before their kind changes in body.
  */
 const val CAPTURE = 0.5f
+const val RAISED_TAME = 0.8f
 const val HERD_RUN_OFF = 0.5f
 const val TAMING_RATE = 0.01f
 const val HERD_GOATS_A_HERDER = 200f

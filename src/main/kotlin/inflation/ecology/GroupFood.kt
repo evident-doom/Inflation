@@ -1002,6 +1002,9 @@ private fun HexGroups.huntGame(g: HexGroup, k: Int, p: Place, expected: Float, k
         dialUse?.amount(DialSite.KEEP_CAPTURE, band.keepWill, min(1f, CAPTURE * band.keepWill * ps.domestication.average().toFloat()),
             min(1f, CAPTURE * ps.domestication.average().toFloat()), cut = CAPTURE * band.keepWill * ps.domestication.average().toFloat() > 1f)
         if (kept > 0) {
+            // (Raised by hand from young, they come to the camp as tame as a herd's, [RAISED_TAME]; their kind's own
+            // tameness was weighed in catching them.)
+            band.herdTame[k] = (band.herdTame[k] * band.herd[k] + RAISED_TAME * kept) / (band.herd[k] + kept)
             band.herd[k] += kept; ny -= kept
             fauna.young[k][p] = max(0f, fauna.young[k][p] - kept / area)
             stats.meeting(Met.YOUNG_ANIMALS_KEPT, kept)
