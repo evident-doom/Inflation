@@ -534,6 +534,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
                 val q = hex.neighbour(m, d); if (q.none || seaKm2[q] <= 0f) continue
                 val taken = RUN_SHARE * fish[q]
                 fish[q] -= taken; runStock[m] += taken * waterKm2[q]
+                fishFlows.merge(RUN_FLOW, taken * waterKm2[q] / 1000.0, Double::plus)
             }
             running = true
         } else if (running) {
@@ -698,7 +699,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         val fromRun = share * WEIR_RUN_SHARE * run[h]; val fromRiver = share * WEIR_RIVER_SHARE * riverFish[h]
         run[h] -= fromRun; riverFish[h] -= fromRiver
         val got = (fromRun + fromRiver) * max(1f, hw.land[h] * hexKm2)
-        fishFlows.merge(PEOPLE_FLOWS[0], got / 1000.0, Double::plus)
+        fishFlows.merge(WEIR_FLOW, got / 1000.0, Double::plus)
         return got
     }
 
@@ -737,6 +738,9 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     companion object {
         /** The fish flow that is the week's net change of the sea and lake fish, and so may be negative. */
         const val DRIFT_FLOW = "drift (net)"
+        /** In [fishFlows]: what people took from the traps of weirs ([weirFor]), and the fish gathered off the mouths for a spring's run, tonnes. */
+        const val WEIR_FLOW = "eaten by people: at weirs"
+        const val RUN_FLOW = "gathered for the spring run"
         /** People's catch in [fishFlows]: river fish and the runs, turtles, sea and lake fish, shellfish. */
         val PEOPLE_FLOWS = listOf("eaten by people: river fish", "eaten by people: turtles", "eaten by people: sea and lake fish", "eaten by people: shellfish")
         val SEA = listOf(
