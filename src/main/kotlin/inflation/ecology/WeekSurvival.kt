@@ -40,8 +40,7 @@ internal fun HexGroups.survivalDays(g: HexGroup, b: Band, weather: Weather, time
     val hearthWant = HEARTH_WOOD * g.size
     val hearthAll = if (hearthWant <= 0f) 1f else if (cover <= 0f) 0f else hearthShare(cover, g.size.toFloat() / max(1, hands))
     val shelter0 = if (moved) 0f else b.shelter
-    val shelterEach = shelterDays(b, people, cover)
-    val shelterAsk = if (shelterEach.isFinite()) max(0f, b.shelterWill - shelter0) * shelterEach else 0f
+    val shelterAsk = max(0f, b.shelterWill - shelter0) * shelterDays(b, people)
     val asks = FloatArray(3); asks[FOOD] = foodAsk; asks[FIRE] = fuelAsk; asks[SHELTER] = shelterAsk
     val acts = arrayOf(Activity.FOOD, Activity.FIREWOOD, Activity.SHELTER)
     // (Its body heat at each fire and shelter, worked out once a week for each, to the hundredth: a fire cut short by a long

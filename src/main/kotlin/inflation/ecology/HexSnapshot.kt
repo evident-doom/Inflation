@@ -348,12 +348,9 @@ object HexSnapshot {
      *   shelters and food leave, month by month); before, it kept the increase only where that week's spare days would
      *   herd it, so a herd could only hold or shrink. A herd that kept its increase to grow feeds the band only its milk
      *   ([Band.herdGrew]), and the band forages for the rest.
-     * 4.78: brush shelters cost their poles and brush, cut about the camp as fast as firewood comes in there
-     *   ([SHELTER_WOOD], [shelterDays]; none where there is no wood), and wear a share a week while the camp is kept
-     *   ([SHELTER_WEAR]); before, they took a tenth of a person-day each, of nothing, and stood as long as the camp.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 78
+    const val MODEL_MINOR = 77
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

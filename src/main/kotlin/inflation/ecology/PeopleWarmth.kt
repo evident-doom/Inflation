@@ -20,39 +20,24 @@ import kotlin.math.exp
  * It does so as soon as its week is planned, in the days the plan gives them, before the foraging can eat into them
  * ([planWeek]); and again with what its chores leave ([bandWeek]). (Built only after the foraging and the other chores, its
  * few held days were the first a week's overrun took: in a trace of 2026-10-28, bands whose plan held all the shelter they
- * aimed at slept in the open at a new camp, and died of exposure there by a fire.) Its poles and brush are cut about the
- * camp ([shelterDays], [SHELTER_WOOD]), where there is wood to cut.
+ * aimed at slept in the open at a new camp, and died of exposure there by a fire.)
  */
-internal fun GroupWorld.putUpShelter(g: HexGroup, b: Band, people: Float, time: BandTime, moved: Boolean = false) {
+internal fun putUpShelter(b: Band, people: Float, time: BandTime, moved: Boolean = false) {
     if (moved) b.shelter = 0f
-    val shelterDays = shelterDays(b, people, woodCover(g.place))
+    val shelterDays = shelterDays(b, people)
     val lack = shelterLack(b, moved = false)
     val left = time.leftFor(Activity.SHELTER)
-    if (lack > 0f && left > 0f && people > 0f && shelterDays.isFinite()) {
+    if (lack > 0f && left > 0f && people > 0f) {
         val built = min(lack, left / shelterDays)
         b.shelter += built
         time.spend(Activity.SHELTER, built * shelterDays)
-        cutWood(g.place, built * SHELTER_WOOD * people, "cut for shelters")
         b.practise(Skill.WOODWORK, 0.2f * PRACTICE)
     }
     time.release(Activity.SHELTER)
 }
 
-/**
- * Brush shelters wear while a band keeps its camp: leaves and brush dry, sag and leak, and are made good again ([putUpShelter])
- * or let go ([SHELTER_WEAR]). Once a week, as the week is planned ([planWeek]); none at a camp it has just come to ([moved]).
- */
-internal fun GroupWorld.wearShelter(b: Band, moved: Boolean) {
-    if (!moved) b.shelter *= max(0f, 1f - SHELTER_WEAR * days / 7f)
-}
-
-/**
- * Person-days [b]'s [people] take to put up whole shelters where the wood lies as thick as [cover] ([woodCover]): building
- * them (a debris hut takes a novice an afternoon, the practised an hour), and cutting their poles and brush ([SHELTER_WOOD])
- * as fast as wood comes in there ([FUEL_A_DAY], the firewood's rule). None can be put up where there is no wood (infinite).
- */
-internal fun shelterDays(b: Band, people: Float, cover: Float) =
-    if (cover <= 0f) Float.POSITIVE_INFINITY else people * (SHELTER_DAYS / b.skill(Skill.WOODWORK) + SHELTER_WOOD / (FUEL_A_DAY * cover))
+/** Person-days [b]'s [people] take to put up whole shelters. (A debris hut takes a novice an afternoon, the practised an hour.) */
+internal fun shelterDays(b: Band, people: Float) = SHELTER_DAYS * people / b.skill(Skill.WOODWORK)
 
 /**
  * What [b] lacks of the shelter it aims at: none stands at a camp it has just come to ([moved]). (Above the default it
@@ -82,23 +67,18 @@ internal fun GroupWorld.houseAfterWeeks(b: Band) = HOUSE_AFTER_YEARS * stepsPerY
 internal fun GroupWorld.fetchFuel(g: HexGroup, b: Band, hands: Int, share: Float = 1f): Float {
     val p = g.place
     val want = HEARTH_WOOD * days * g.size
+    val tree = land.plants.tree[p]; val shrub = land.plants.shrub[p]
     val cover = woodCover(p)
     if (want <= 0f || cover <= 0f) { b.hearthWood = if (want <= 0f) 1f else 0f; return 0f }
     val perHand = g.size.toFloat() / hands
     val spent = fuelShare(cover, perHand) * days * share
     b.hearthWood = hearthShare(cover, perHand) * share
-    cutWood(p, b.hearthWood * want, "burnt")
-    return spent
-}
-
-/** Takes [kg] of wood from place [p]'s trees and scrub, each as far as it grows there, booked as [flow]: the hearth's, a shelter's. */
-internal fun GroupWorld.cutWood(p: Place, kg: Float, flow: String) {
-    val tree = land.plants.tree[p]; val shrub = land.plants.shrub[p]
-    if (kg <= 0f || tree + shrub <= 0f) return
+    val got = b.hearthWood * want
     val m2 = land.m2(p)
-    val cut = land.plants.consume(p, LifeForm.TREE, Kg(kg * tree / (tree + shrub)).perM2(m2)).v +
-        land.plants.consume(p, LifeForm.SHRUB, Kg(kg * shrub / (tree + shrub)).perM2(m2)).v
-    land.books?.flow(Books.Stuff.MATTER, flow, -cut * m2.toDouble())
+    val burnt = land.plants.consume(p, LifeForm.TREE, Kg(got * tree / (tree + shrub)).perM2(m2)).v +
+        land.plants.consume(p, LifeForm.SHRUB, Kg(got * shrub / (tree + shrub)).perM2(m2)).v
+    land.books?.flow(Books.Stuff.MATTER, "burnt", -burnt * m2.toDouble())
+    return spent
 }
 
 /** The person-days [g]'s [hands] would give the hearth's firewood this week ([fetchFuel] with all it asks). */
@@ -205,13 +185,6 @@ const val HOUSE_STONE = 150f
 const val HOUSE_WOOD = 60f
 const val SHELTER_DAYS = 0.1f
 const val SHELTER_C = 3f
-/**
- * Poles and brush for one person's share of a whole brush shelter, kg (an estimate: a light dome hut for four or five, a
- * frame of a dozen or so poles thatched with brush and leaves, at some 50 kg); the share of a shelter that wears away in a
- * week while the camp is kept (an estimate: leaf and brush thatch dries, sags and leaks within a few months).
- */
-const val SHELTER_WOOD = 10f
-const val SHELTER_WEAR = 0.05f
 const val HOUSE_AFTER_YEARS = 0.5f
 const val HOUSE_DECAY = 0.3f
 const val HOUSE_C = 10f
