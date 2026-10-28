@@ -321,9 +321,12 @@ object HexSnapshot {
      *   A slaughtered herd beast gives its hides, bone and sinew as a kill does ([Band.skin]); before, they went to the
      *   scavengers. Its herders' days are held after the week's food and before the other asks ([BandTime.plan]); before,
      *   with the fire and shelters, so a band that shrank kept its whole herd, which took its firewood and food till it died.
+     * 4.70: a band forages only for what its herds will not feed it that week ([herdFoodWeek]: their increase and milk);
+     *   before, it planned to forage its whole week's food, so in its lean months foraging took every day and the herd
+     *   was culled for want of herders.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 69
+    const val MODEL_MINOR = 70
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

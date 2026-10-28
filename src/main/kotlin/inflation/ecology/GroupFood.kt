@@ -144,7 +144,8 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         val intake = o.fed[0] / o.spent[0] + o.fed[1] / o.spent[1]
         // (A band plans its week once it sees what food asks of it: see [planWeek]. It forages no longer than the plan gives it.)
         if (w.band != null && w.time == null) {
-            val need = max(0f, w.wantAll - w.fed)
+            // (What its herds will feed it this week it need not forage for: their increase and milk, see [herdFoodWeek].)
+            val need = max(0f, w.wantAll - w.fed - herdFoodWeek(g, w.band, weather.date))
             fun daysFor(kg: Float) = if (intake > 0f) min(days.toFloat(), kg / intake) else 0f
             planWeek(w, daysFor(need), daysFor(left) - daysFor(need))
         }
