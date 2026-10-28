@@ -84,10 +84,17 @@ class BandTime(left: Float, private val pace: EnumFloats<Activity>? = null) {
      */
     fun leftFor(a: Activity) = max(0f, left - held.sum() + held[a]) * pace(a)
 
-    /** Takes [personDays] of work for [a]: from what is held for it first. */
+    /**
+     * Takes [personDays] of work for [a]: from what is held for it first, then from what is held for no one. Beyond those
+     * (foraging, whose kills take the time they take), what is held for the others gives way, each in proportion to its hold.
+     * (Left as it was, the overrun fell on whichever chore came next in the week, whatever it was: in a trace of 2026-10-28
+     * foraging spent 10-80% past its plan in the weeks bands died of exposure, and the shelters held for were never put up.)
+     */
     fun spend(a: Activity, personDays: Float) {
         val days = personDays / pace(a)
         spent[a] += days; worked[a] += personDays; left -= days; lost += days - personDays; held[a] = max(0f, held[a] - days)
+        val holds = held.sum(); val over = holds - max(0f, left)
+        if (over > 0f && holds > 0f) { val keep = max(0f, 1f - over / holds); for (i in held.a.indices) held.a[i] *= keep }
     }
 
     /** Takes [personDays] for [a], but never more than it may take ([leftFor]). */
