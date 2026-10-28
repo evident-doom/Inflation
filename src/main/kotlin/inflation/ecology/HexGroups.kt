@@ -572,7 +572,7 @@ class HexGroups(
         val people = g.adults.toFloat()
         if (people <= 0f) return 0f
         val left = max(0f, b.spareDays - moveDays(g, km) * forageHands(g))
-        return min(b.shelterWill, left / shelterDays(b, people))
+        return min(b.shelterWill, left / shelterDays(b, people, woodCover(p)))
     }
 
     /** How far [g] camped at place [p] would be sheltered by houses there it may use (0 for none worth the name). */

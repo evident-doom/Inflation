@@ -214,6 +214,8 @@ private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float)
     // walked most of its week gives what is left where it does most.)
     val fuel = fuelAsk(g, hands)
     val foodAsk = needDays * hands
+    // (Its shelters, as they have worn since last week: [wearShelter].)
+    wearShelter(b, movedCamp(g, b))
     val warm = survivalDays(g, b, w.weather, time, hands, foodAsk, if (w.wantAll > 0f) (w.fed / w.wantAll).coerceIn(0f, 1f) else 1f, fuel, movedCamp(g, b))
     val needs = enumFloats<Activity>()
     // (The rest of the hearth's firewood shares the week with the food, as it always did: a fire also cooks, and raw meals
@@ -260,7 +262,7 @@ private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float)
     time.spend(Activity.FIREWOOD, w.fuelDays * hands)
     time.release(Activity.FIREWOOD)
     // (It puts up its camp's shelters in the days the plan gives them, before the foraging can eat into them: [putUpShelter].)
-    putUpShelter(b, g.adults.toFloat(), time, movedCamp(g, b))
+    putUpShelter(g, b, g.adults.toFloat(), time, movedCamp(g, b))
     // (And its herders go out with the herd in the days the plan gives them, before the foraging can eat into them.)
     val herd = herdDays(b) * (1f - walkedShare(time))
     b.herded = if (herd > 0f) min(1f, time.leftFor(Activity.SOWING) / herd) else 1f
