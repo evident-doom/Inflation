@@ -194,7 +194,7 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
             tally(k, HerdFlow.MILK_KG, milk)
         }
         val dying = (s.backgroundMortality + 0.5f * (1f - fed)) * years
-        val running = HERD_RUN_OFF * (1f - tame) * b.lapse(Skill.TENDING) * years
+        val running = HERD_RUN_OFF * (1f - tame) * (1f - tame) * b.lapse(Skill.TENDING) * years
         val lost = n * min(0.9f, dying + running)
         // (The dead lie by the camp; those that run off or stray go wild among their kind.)
         val died = if (dying + running > 0f) lost * dying / (dying + running) else 0f
@@ -340,7 +340,7 @@ private fun lactating(s: Species, date: Date) =
 internal fun GroupWorld.herdIncrease(b: Band, k: Int, fed: Float = 1f): Float {
     val s = fauna.kinds[k]; val tame = b.herdTame[k]
     return 0.5f * (0.3f + 0.7f * tame) * s.youngPerFemale * fed - s.backgroundMortality - 0.5f * (1f - fed) -
-        HERD_RUN_OFF * (1f - tame) * b.lapse(Skill.TENDING)
+        HERD_RUN_OFF * (1f - tame) * (1f - tame) * b.lapse(Skill.TENDING)
 }
 
 /**
@@ -357,8 +357,12 @@ private fun herdSkill(b: Band) = 0.5f + 0.5f * min(1f, b.skill(Skill.TENDING))
 
 /**
  * Herding: chance a young animal caught in the hunt is kept and raised instead of eaten (times its
- * kind's tameability); yearly share of the still-wild that run off (an estimate, no source); yearly growth of
- * tameness. (Herded flocks lose next to nothing on the move: flock records of herded sheep and goats count no strays and
+ * kind's tameability); yearly share that run off, [HERD_RUN_OFF] times the square of their wildness (the square an estimate,
+ * so that the wilder stray far more: a kind of panic and temper, as an ostrich, is not kept on foot), set so that a herd as
+ * tame as one at world start (0.8) loses 2% a year to straying (goats of central Mali, 1978-83: adults died 12.7% a year, slightly more
+ * than 17% of goat deaths "lost" or taken by predators, mainly dogs; FAO x5531e, ch. 13; the wild-type stock of the first
+ * herds, as at Ganj Dareh some 10,000 years ago, still bred and paid its herders, Daly et al. 2021, from the press release);
+ * yearly growth of tameness. (Herded flocks lose next to nothing on the move: flock records of herded sheep and goats count no strays and
  * 0-1% of their outflow to predators, Assen and Aklilu 2012, mixed farms in Tigray, not nomads; so a move costs a herd only
  * its walk.) And the head a herder keeps on foot ([headsAHerder]): 200 goats of [GOAT_KG]; Iranian nomads' flocks of
  * 200-600 head go with one to three shepherds (Encyclopaedia Iranica, "Cupan"). Bigger beasts fewer, as their weight to the
