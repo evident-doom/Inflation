@@ -18,11 +18,12 @@ class CultureAndMeetingsTest {
     }
 
     @Test
-    fun `lineages tile the map and kinship is the chance of a shared founder`() {
+    fun `lineages are drawn per block without a repeating pattern, and kinship is the chance of a shared founder`() {
         val seen = HashSet<Int>()
         for (x in 0 until 8) for (y in 0 until 8) seen += lineageAt(x * LINEAGE_KM + 1, y * LINEAGE_KM + 1)
         assertEquals((0 until LINEAGES).toSet(), seen)
-        assertEquals(lineageAt(1.0, 1.0), lineageAt(4 * LINEAGE_KM + 1, 1.0), "four blocks on, the lineages repeat")
+        assertEquals(lineageAt(1.0, 1.0), lineageAt(LINEAGE_KM - 1, LINEAGE_KM - 1), "one block, one lineage")
+        assertNotEquals(lineageAt(1.0, 1.0), lineageAt(4 * LINEAGE_KM + 1, 1.0), "four blocks on, no repeat")
         val a = FloatArray(LINEAGES).also { it[3] = 1f }; val b = FloatArray(LINEAGES).also { it[4] = 1f }
         val half = FloatArray(LINEAGES).also { it[3] = 0.5f; it[4] = 0.5f }
         assertEquals(1f, kinship(a, a)); assertEquals(0f, kinship(a, b)); assertEquals(0.5f, kinship(a, half))
@@ -39,6 +40,20 @@ class CultureAndMeetingsTest {
             assertTrue(s >= 0f && s < inflation.Tuning.config.riteFounderMax, "lineage $l rite strength $s")
         }
         assertTrue((0 until LINEAGES).map { traditionsAt(it).a.toList() }.toSet().size > 1, "all lineages start alike")
+    }
+
+    @Test
+    fun `marks follow the many, and what a band has seen counts itself as one`() {
+        assertEquals(0.5f, conformist(0.5f), 1e-6f)
+        assertTrue(conformist(0.8f) > 0.8f && conformist(0.2f) < 0.2f, "the many count for more than their share")
+        assertEquals(0f, conformist(0f)); assertEquals(1f, conformist(1f))
+        val b = Band(0); val o = Band(0)
+        o.traditions[Tradition.BURIAL] = true
+        assertEquals(0f, b.heardShare(Tradition.BURIAL, true), "seen no one: only itself, which does not bury")
+        b.hear(o, 1f); b.hear(o, 1f); b.hear(o, 1f)
+        assertEquals(0.75f, b.heardShare(Tradition.BURIAL, true), 1e-6f)
+        assertEquals(0.25f, b.heardShare(Tradition.BURIAL, false), 1e-6f)
+        assertTrue(Tradition.entries.any { it.mark } && Tradition.entries.any { !it.mark })
     }
 
     @Test
