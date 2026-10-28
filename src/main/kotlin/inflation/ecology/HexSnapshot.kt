@@ -359,9 +359,11 @@ object HexSnapshot {
      * 4.80: a herd begun from young caught in the hunt is kept as pets till they have grown ([Band.herdPet],
      *   [Species.yearsToMaturity]): kept whole and not weighed as food; before, it was weighed at once, and young of kinds
      *   that pay only when tame were eaten within the week.
+     * 4.81: kept animals still wild stray at a fifth of the rate ([HERD_RUN_OFF] 0.1, was 0.5 with no source): a herd as tame
+     *   as one at world start loses 2% a year, as herded goats in central Mali lost to straying and predators.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 80
+    const val MODEL_MINOR = 81
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
