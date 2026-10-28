@@ -109,18 +109,26 @@ class BandTime(left: Float, private val pace: EnumFloats<Activity>? = null) {
     /**
      * Holds for each activity its share of the time left (survival first): first what keeps its people [warm] this week
      * (the hearth's firewood and the camp's shelters as far as they avert deaths, [survivalDays]: a cold night without them
-     * kills within the week, where a hungry week is bridged by the larder and fat), then what else it [needs] (the week's
-     * food and the rest of the hearth's firewood), then of the rest its share ([shareOut]) of what else it [asks], weighed by [weights] (1 each by default).
+     * kills within the week, where a hungry week is bridged by the larder and fat), then what it [keeps] going (its herders'
+     * days: never at the cost of the warmth), then what else it [needs] (the week's food and the rest of the hearth's
+     * firewood), then of the rest its share ([shareOut]) of what else it [asks], weighed by [weights] (1 each by default).
      */
-    fun plan(needs0: EnumFloats<Activity>, asks0: EnumFloats<Activity>, weights: EnumFloats<Activity>? = null, warm0: EnumFloats<Activity>? = null) {
-        for (a in Activity.entries) asked[a] = needs0[a] + asks0[a] + (warm0?.get(a) ?: 0f)
+    fun plan(needs0: EnumFloats<Activity>, asks0: EnumFloats<Activity>, weights: EnumFloats<Activity>? = null, warm0: EnumFloats<Activity>? = null,
+        keeps: EnumFloats<Activity>? = null) {
+        for (a in Activity.entries) asked[a] = needs0[a] + asks0[a] + (warm0?.get(a) ?: 0f) + (keeps?.get(a) ?: 0f)
         // (Days of work asked, as people's days at each activity's pace.)
-        val needs = FloatArray(needs0.a.size) { needs0.a[it] / pace(Activity.entries[it]) }
-        val asks = FloatArray(asks0.a.size) { asks0.a[it] / pace(Activity.entries[it]) }
+        fun days(w: EnumFloats<Activity>) = FloatArray(w.a.size) { w.a[it] / pace(Activity.entries[it]) }
+        val needs = days(needs0)
+        val asks = days(asks0)
         val ones = FloatArray(needs.size) { 1f }
-        val warmed = warm0?.let { w -> shareOut(FloatArray(w.a.size) { w.a[it] / pace(Activity.entries[it]) }, ones, max(0f, left)) }
-        val fed = shareOut(needs, ones, max(0f, left - (warmed?.sum() ?: 0f)))
-        val first = if (warmed == null) fed else FloatArray(fed.size) { fed[it] + warmed[it] }
+        var first = FloatArray(needs.size)
+        // (Each tier in turn from what the ones before it left.)
+        for (tier in listOfNotNull(warm0, keeps)) {
+            val got = shareOut(days(tier), ones, max(0f, left - first.sum()))
+            first = FloatArray(first.size) { first[it] + got[it] }
+        }
+        val fed = shareOut(needs, ones, max(0f, left - first.sum()))
+        first = FloatArray(fed.size) { fed[it] + first[it] }
         short = asks.sum() > max(0f, left - first.sum())
         val then = shareOut(asks, weights?.a ?: ones, max(0f, left - first.sum()))
         if (weights != null) shareOut(asks, ones, max(0f, left - first.sum())).forEachIndexed { i, d -> heldAtOne.a[i] = first[i] + d }
