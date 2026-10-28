@@ -175,8 +175,7 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
         val born = if (inSeason) n * 0.5f * s.youngPerFemale * fed * (0.3f + 0.7f * tame) /
             (s.birthMonths * Date.DAYS_PER_MONTH.toFloat() / days) else 0f
         // Its mothers give milk through the lactation after the birth season, as they are fed and as tame as they are.
-        val lactating = monthsFrom(s.birthMonth, date.month) * Date.DAYS_PER_MONTH < s.birthMonths * Date.DAYS_PER_MONTH + LACTATION_DAYS
-        if (lactating) {
+        if (lactating(s, date)) {
             val milk = n * 0.5f * (0.3f + 0.7f * tame) * tame * fed * milkKg(s) * days / LACTATION_DAYS
             addFood(g.stores, g.storeKgPer, Store.FRESH, milk * Nourishment.MILK * g.species.needScale, milk)
             bands.herdFlows[HerdFlow.MILK_KG] += milk
@@ -288,6 +287,27 @@ internal fun GroupWorld.herdWorth(g: HexGroup, b: Band, k: Int): Float {
         g.species.needScale / Date.DAYS_PER_YEAR
     return day / lean
 }
+
+/**
+ * What [g]'s band [b] can count on its herds to feed it in the week of [date], in kg of its need as [forage] counts food:
+ * the week's share of each herd's yearly increase, which [keepHerds] eats, and the milk of its mothers in milk. The band
+ * forages only for the rest of its week's food.
+ */
+internal fun GroupWorld.herdFoodWeek(g: HexGroup, b: Band, date: Date): Float {
+    var food = 0f
+    for (k in b.herd.indices) {
+        val n = b.herd[k]
+        if (n <= 0f) continue
+        val s = fauna.kinds[k]; val tame = b.herdTame[k]
+        food += n * max(0f, herdIncrease(b, k)) * years * s.massKg * MEAT_SHARE * Nourishment.MEAT
+        if (lactating(s, date)) food += n * 0.5f * (0.3f + 0.7f * tame) * tame * milkKg(s) * days / LACTATION_DAYS * Nourishment.MILK
+    }
+    return food * g.species.needScale
+}
+
+/** Whether mothers of kind [s] are in milk at [date]: through the lactation after the birth season. */
+private fun lactating(s: Species, date: Date) =
+    monthsFrom(s.birthMonth, date.month) * Date.DAYS_PER_MONTH < s.birthMonths * Date.DAYS_PER_MONTH + LACTATION_DAYS
 
 /**
  * The share [b]'s herd of kind [k] adds in a year as [keepHerds] has it, fed as far as [fed]: births by its tameness, less
