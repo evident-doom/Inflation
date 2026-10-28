@@ -48,18 +48,14 @@ internal fun HexGroups.yearAhead(g: HexGroup, b: Band, weather: Weather): YearAh
 
 /** The months ahead in order from next month ([yearAhead]): the exposure odds and the share of the need met in each. */
 internal class YearAhead(private val odds: FloatArray, private val fed: FloatArray) {
-    /** The exposure odds in month [i] ahead (0 for next month). */
-    fun odds(i: Int) = odds[i]
-
     /** The days of food it falls short of over the months ahead, before its larder pays ([Band.leanDays]). */
     val leanDays: Float = run { var lean = 0f; for (f in fed) lean += max(0f, 1f - f) * Date.DAYS_PER_MONTH; lean }
 
     /**
      * The share of people of kind [s] alive through the months ahead, starting with [larderDays] of the need in the larder,
      * [fat] days of fat and [spent] days of body protein burnt: the larder and then the fat pay the shortfalls as they come.
-     * ([odds]: each month's exposure odds, when other than those foreseen, as with shelters that stand through a stay.)
      */
-    fun alive(s: Species, larderDays: Float, fat: Float, spent: Float, odds: FloatArray = this.odds): Float {
+    fun alive(s: Species, larderDays: Float, fat: Float, spent: Float): Float {
         val days = Date.DAYS_PER_MONTH
         var larder = larderDays; var fatLeft = fat; var burnt = spent
         var alive = 1f
