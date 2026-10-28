@@ -509,7 +509,30 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
             f[HerdFlow.BORN], f[HerdFlow.DIED], f[HerdFlow.RAN_OFF], f[HerdFlow.CULLED], f[HerdFlow.EATEN], f[HerdFlow.EATEN_UNPAID], f[HerdFlow.FREED], f[HerdFlow.MILK_KG] / 1000f,
             f[HerdFlow.KG_TENDED] / kg, f[HerdFlow.KG_FED] / kg, f[HerdFlow.KG_PAYS] / kg,
             f[HerdFlow.KG_WORTH_HALF] / kg, f[HerdFlow.KG_WORTH_UNDER] / kg, f[HerdFlow.KG_WORTH_OVER] / kg, f[HerdFlow.KG_WORTH_TWICE] / kg, f[HerdFlow.ENDED], f[HerdFlow.ENDED_UNPAID], f[HerdFlow.ENDED_FREED])
-            .also { f.fill(0f) }
+            .also { f.fill(0f) } + kindFlows()
+    }
+
+    /**
+     * The same by kind ([Bands.kindFlows]), for kinds caught, kept or let go since the last census: young caught and kept, herds
+     * begun from none so, head born, culled for want of herders, eaten down for not paying, herds ended paying and not; and
+     * on the hoof, the share in herds that pay, the yearly increase and what a herder's day brings against a lean month's
+     * foraging, each a mean by kg.
+     */
+    private fun kindFlows(): String {
+        val bands = sim.groups.bands; val kinds = sim.fauna.kinds
+        val parts = kinds.indices.mapNotNull { k ->
+            val f = bands.kindFlows[k]; val young = bands.keptYoung.getAndSet(k, 0); val begun = bands.herdsBegun.getAndSet(k, 0)
+            val line = if (young == 0 && f[HerdFlow.KG] <= 0f && f[HerdFlow.ENDED] + f[HerdFlow.ENDED_UNPAID] + f[HerdFlow.ENDED_FREED] <= 0f) null
+            else {
+                val kg = f[HerdFlow.KG].coerceAtLeast(1e-6f)
+                "%s: young kept %d, herds begun %d, born %.0f, culled for want of herders %.0f, eaten down for not paying %.0f, ended %.0f paying / %.0f not, in herds that pay %.2f, increase %.2f a year, a herder's day %.2f of a lean month's foraging".format(
+                    kinds[k].name, young, begun, f[HerdFlow.BORN], f[HerdFlow.CULLED], f[HerdFlow.EATEN_UNPAID], f[HerdFlow.ENDED], f[HerdFlow.ENDED_UNPAID],
+                    f[HerdFlow.KG_PAYS] / kg, f[HerdFlow.INCREASE_KG] / kg, f[HerdFlow.WORTH_KG] / f[HerdFlow.KG_WORTH_KNOWN].coerceAtLeast(1e-6f))
+            }
+            f.fill(0f)
+            line
+        }
+        return " | kept herds by kind since last: " + parts.joinToString("; ").ifEmpty { "none" }
     }
 
     /** What bands hold a grown person (what a camp move must carry or leave), kept herds, ornaments and shell, grave goods. */

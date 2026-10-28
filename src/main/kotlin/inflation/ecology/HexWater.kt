@@ -671,9 +671,9 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
             stock[q] -= t / areaKm2; left -= t
             fishFlows.merge(flow, t / 1000.0, Double::plus)
         }
-        val fish0 = what != Catch.SHELLFISH; val shell = what != Catch.FISH
+        val fish0 = what == Catch.FISH || what == Catch.ALL; val shell = what == Catch.SHELLFISH || what == Catch.ALL
+        if (what == Catch.RUN || what == Catch.ALL) take(run, h, landKm2, RUN_SEARCH, PEOPLE_FLOWS[0])
         if (fish0) {
-            take(run, h, landKm2, RUN_SEARCH, PEOPLE_FLOWS[0])
             // Turtles and their eggs on the beach in the nesting months.
             if (nesting && shoreKm[h] <= 0f) take(sea[TURTLE], h, seaKm2[h], SHELLFISH_SEARCH, PEOPLE_FLOWS[1])
             take(riverFish, h, landKm2, RIVER_SEARCH, PEOPLE_FLOWS[0])
@@ -692,10 +692,11 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
             val s = stock[q] * areaKm2
             return if (s > 0f) min(0.5f * s, s * skill / search) else 0f
         }
-        val fish0 = what != Catch.SHELLFISH; val shell = what != Catch.FISH
+        val fish0 = what == Catch.FISH || what == Catch.ALL; val shell = what == Catch.SHELLFISH || what == Catch.ALL
         var kg = 0f
+        if (what == Catch.RUN || what == Catch.ALL) kg += most(run, h, landKm2, RUN_SEARCH)
         if (fish0) {
-            kg += most(run, h, landKm2, RUN_SEARCH) + most(riverFish, h, landKm2, RIVER_SEARCH)
+            kg += most(riverFish, h, landKm2, RIVER_SEARCH)
             if (nesting && shoreKm[h] <= 0f) kg += most(sea[TURTLE], h, seaKm2[h], SHELLFISH_SEARCH)
         }
         // (The hex and the six round it, in that order, without making a list each time: it is asked often.)
@@ -709,7 +710,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
      * What a band with fishing [skill] could take from hex [h] in a week at most, kg: the fish as its skill allows, the
      * shellfish off the shore whatever its skill.
      */
-    fun bandCatchWithin(h: Hex, skill: Float) = fishWithin(h, skill, Catch.FISH) + fishWithin(h, 1f, Catch.SHELLFISH)
+    fun bandCatchWithin(h: Hex, skill: Float) = fishWithin(h, skill, Catch.FISH) + fishWithin(h, skill, Catch.RUN) + fishWithin(h, 1f, Catch.SHELLFISH)
 
     /** Width of the river through hex [h] at its mean flow, m; 0 where no stream runs. */
     fun riverWidthM(h: Hex) = if (hw.riverKm[h] > 0f) Channel.widthM(max(land.hydro.meanFlow[h], 0.01f)) else 0f
@@ -733,6 +734,17 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     /** The run's fish that came up to hex [h] this week bound for the river above it, kg (for the census). */
     fun passingAt(h: Hex) = passing[h]
 
+    /**
+     * The run's fish that come within reach of one fisher on the bank of the river in hex [h] in a day, kg: of those going by
+     * (the ones bound for the river above, [passing], and those holding in the hex's own reach), the share within
+     * [RUN_REACH_M] of where they stand, by the river's width.
+     */
+    fun runWithinReach(h: Hex): Float {
+        val width = riverWidthM(h)
+        if (width <= 0f) return 0f
+        return (passing[h] + run[h] * max(1f, hw.land[h] * hexKm2)) / days * min(1f, RUN_REACH_M / width)
+    }
+
     /** The run's fish held below the weirs in hex [h] that weirs across [blocked] of the river there hold, kg: their share of what all of them stop. */
     private fun pennedFor(h: Hex, blocked: Float) = if (weirBlock[h] > 0f) penned[h] * min(1f, blocked / weirBlock[h]) else 0f
 
@@ -754,7 +766,8 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     private var nesting = false
 
     /** What people take from the water: the fish (the runs, river, lake and sea fish, and turtles), the shellfish, or both. */
-    enum class Catch { FISH, SHELLFISH, ALL }
+    /** What a band fishes for: the river's, the lake's and the sea's own fish; shellfish; the spring run ([run]); or all of them. */
+    enum class Catch { FISH, SHELLFISH, ALL, RUN }
 
     /** Totals: plankton, fish, shellfish, sea animals (t), river fish (t) and sea birds. */
     fun summary(): String {
@@ -876,6 +889,14 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
          * reach and meet the traps only as they move: a twentieth a week (an estimate).
          */
         const val WEIR_RUN_SHARE = 0.5f
+        /**
+         * How far out from where they stand (bank, rock or platform) fishers take the run's fish going by, m: the hoop of
+         * a dip net swept on its pole, or the reach of a leister or a harpoon (an estimate). As a check, dip-netters on the
+         * mid-Columbia between The Dalles and Celilo Falls often took several hundred fish a day each (Hunn 1990,
+         * Nch'i-Wana, as cited by the Northwest Power and Conservation Council); a 17 m river with some 5 t a day going by
+         * gives one fisher some 800 kg a day within this reach here.
+         */
+        const val RUN_REACH_M = 3f
         const val WEIR_RIVER_SHARE = 0.05f
         /** Fish, kg/km², at which hunters find them half as easily as in a rich sea. */
         const val FISH_HALF = 1000f

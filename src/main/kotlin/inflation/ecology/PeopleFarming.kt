@@ -163,9 +163,10 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
     var room = capacity?.let { it - herders }
     // (Above it, the band culls a month's share of the excess a week, as it eats: not all at once, to rot.)
     val over = if (capacity != null && herders > capacity) (1f - capacity / herders) * min(1f, years * Date.MONTHS_PER_YEAR) else 0f
+    fun tally(k: Int, f: HerdFlow, v: Float) { bands.herdFlows[f] += v; bands.kindFlows[k][f] += v }
     fun slaughter(k: Int, heads: Float, flow: HerdFlow) {
         val s = fauna.kinds[k]
-        bands.herdFlows[flow] += heads
+        tally(k, flow, heads)
         // (Kept at what it feeds, as the week's meat: [Nourishment.MEAT]; its hides, bone and sinew as a kill's ([Band.skin]);
         // the rest of the carcass for the scavengers.)
         val meat = heads * s.massKg * MEAT_SHARE
@@ -189,7 +190,7 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
         if (lactating(s, date)) {
             val milk = n * 0.5f * (0.3f + 0.7f * tame) * tame * fed * milkKg(s) * days / LACTATION_DAYS
             addFood(g.stores, g.storeKgPer, Store.FRESH, milk * Nourishment.MILK * g.species.needScale, milk)
-            bands.herdFlows[HerdFlow.MILK_KG] += milk
+            tally(k, HerdFlow.MILK_KG, milk)
         }
         val dying = (s.backgroundMortality + 0.5f * (1f - fed)) * years
         val running = HERD_RUN_OFF * (1f - tame) * b.lapse(Skill.TENDING) * years
@@ -200,9 +201,11 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
         small.deposit(DeadPool.CARRION, p, Kg(died * s.massKg))
         fauna.adults[k][p] += (lost - died) / area
         n = max(0f, n + born - lost)
-        bands.herdFlows[HerdFlow.BORN] += born; bands.herdFlows[HerdFlow.DIED] += died; bands.herdFlows[HerdFlow.RAN_OFF] += lost - died
+        tally(k, HerdFlow.BORN, born); tally(k, HerdFlow.DIED, died); tally(k, HerdFlow.RAN_OFF, lost - died)
         val kg = n * s.massKg
-        bands.herdFlows[HerdFlow.KG] += kg; bands.herdFlows[HerdFlow.KG_TENDED] += kg * tended; bands.herdFlows[HerdFlow.KG_FED] += kg * fed
+        tally(k, HerdFlow.KG, kg); tally(k, HerdFlow.KG_TENDED, kg * tended); tally(k, HerdFlow.KG_FED, kg * fed)
+        // (For the census by kind: what it adds in a year, and what a herder's day of it brings against a lean month's foraging.)
+        tally(k, HerdFlow.INCREASE_KG, herdIncrease(b, k, fed) * kg)
         // What its herders cannot keep it culls for meat.
         if (tended < 1f) {
             val cull = n * (1f - tended)
@@ -216,8 +219,9 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
         // a day's foraging brings it eats down, a week's food at a time.
         val worth = herdWorth(g, b, k)
         val pays = worth >= 1f
-        if (pays) bands.herdFlows[HerdFlow.KG_PAYS] += n * s.massKg
-        bands.herdFlows[when { worth < 0.5f -> HerdFlow.KG_WORTH_HALF; worth < 1f -> HerdFlow.KG_WORTH_UNDER; worth < 2f -> HerdFlow.KG_WORTH_OVER; else -> HerdFlow.KG_WORTH_TWICE }] += n * s.massKg
+        if (pays) tally(k, HerdFlow.KG_PAYS, n * s.massKg)
+        tally(k, when { worth < 0.5f -> HerdFlow.KG_WORTH_HALF; worth < 1f -> HerdFlow.KG_WORTH_UNDER; worth < 2f -> HerdFlow.KG_WORTH_OVER; else -> HerdFlow.KG_WORTH_TWICE }, n * s.massKg)
+        if (worth.isFinite()) { tally(k, HerdFlow.KG_WORTH_KNOWN, n * s.massKg); tally(k, HerdFlow.WORTH_KG, worth * n * s.massKg) }
         if (over > 0f) { slaughter(k, n * over, HerdFlow.EATEN); n -= n * over }
         val increase = n * max(0f, herdIncrease(b, k, fed)) * years
         val grows = pays && increase / headsAHerder(s) <= (room ?: spare)
@@ -227,7 +231,7 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
             else max(0f, n - g.dailyNeedKg * days / (s.massKg * MEAT_SHARE * Nourishment.MEAT * g.species.needScale))
         if (n > kept) slaughter(k, n - kept, if (pays) HerdFlow.EATEN else HerdFlow.EATEN_UNPAID)
         n = kept
-        if (n < 0.5f) { fauna.adults[k][p] += n / area; n = 0f; bands.herdFlows[if (pays) HerdFlow.ENDED else HerdFlow.ENDED_UNPAID] += 1f }
+        if (n < 0.5f) { fauna.adults[k][p] += n / area; n = 0f; tally(k, if (pays) HerdFlow.ENDED else HerdFlow.ENDED_UNPAID, 1f) }
         b.herd[k] = n
         b.herdTame[k] = tame + TAMING_RATE * b.edge(Skill.TENDING) * years * (1f - tame)
         if (b.knowsSkill[Skill.TENDING]) b.practise(Skill.TENDING, 0.5f * PRACTICE)
@@ -239,10 +243,13 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
  * for want of herders, eaten of the herd's increase, eaten down for not paying ([herdPays]), and gone wild with a band that
  * died out ([leaveDead]); milk, kg; and kg on the hoof weighed by the share herded, by the share fed, in herds that pay their
  * herders, and in all (week by week), and by what a herder's day brings against a lean month's foraging day ([herdWorth]:
- * under half, under 1, under 2, more); and herds that came to an end, as they paid, did not, or went wild with their band.
+ * under half, under 1, under 2, more); and herds that came to an end, as they paid, did not, or went wild with their band. By
+ * kind only ([Bands.kindFlows]): the yearly increase, and what a herder's day brings, each weighed by kg on the hoof (where
+ * the band has foraged a month to weigh it against).
  */
 enum class HerdFlow { BORN, DIED, RAN_OFF, CULLED, EATEN, EATEN_UNPAID, FREED, MILK_KG, KG_TENDED, KG_FED, KG_PAYS, KG,
-    KG_WORTH_HALF, KG_WORTH_UNDER, KG_WORTH_OVER, KG_WORTH_TWICE, ENDED, ENDED_UNPAID, ENDED_FREED }
+    KG_WORTH_HALF, KG_WORTH_UNDER, KG_WORTH_OVER, KG_WORTH_TWICE, ENDED, ENDED_UNPAID, ENDED_FREED,
+    INCREASE_KG, KG_WORTH_KNOWN, WORTH_KG }
 
 /** What [n] kept animals of kind [s] ask of place [p]'s ground this week, and the grass and browse they can get there, kg/m². */
 internal class HerdForage(val need: Float, val grass: Float, val browse: Float) {
