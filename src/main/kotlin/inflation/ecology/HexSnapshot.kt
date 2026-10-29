@@ -396,7 +396,9 @@ object HexSnapshot {
      * 4.89: kept herds bear young as their kind breeds without pens or incubators ([herdMothers]: captive breeding against
      *   a goat's, [HERD_BREEDS] 0.7; ostrich 71%, red deer 43%, goat, sheep, boar, aurochs whole) and lose some each year to
      *   fighting by their temper ([fighting]: 0.5 × (1 − disposition / [HERD_TEMPER] 0.6)²; goat and sheep none, horse 1%,
-     *   boar 6%, red deer 13%, ostrich and aurochs 22%). Before, every kind bred at its wild rate when kept and none fought.
+     *   boar 6%, red deer 13%, ostrich and aurochs 22%); a herd begun from young is kept as pets only as long as its temper
+     *   allows ([petYears]: years to maturity × disposition / [HERD_TEMPER], goats whole, ostrich and aurochs a third). Before,
+     *   every kind bred at its wild rate when kept, none fought, and every kind was a pet till grown.
      */
     const val MODEL_MAJOR = 4
     const val MODEL_MINOR = 89

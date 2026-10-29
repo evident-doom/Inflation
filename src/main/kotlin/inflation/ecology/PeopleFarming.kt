@@ -351,6 +351,13 @@ internal fun GroupWorld.herdIncrease(b: Band, k: Int, fed: Float = 1f): Float {
 internal fun herdMothers(s: Species, tame: Float) = 0.5f * (0.3f + 0.7f * tame) * min(1f, s.domestication[2] / HERD_BREEDS)
 
 /**
+ * The years young of kind [s] caught in the hunt are kept as pets ([Band.herdPet]): till they have grown
+ * ([Species.yearsToMaturity]), or as much sooner as their kind's temper (Diamond's disposition criterion) falls short of a
+ * goat's, [HERD_TEMPER]: nobody keeps a pet that bites or wrecks the camp, and the temper shows as the young grow.
+ */
+internal fun petYears(s: Species) = s.yearsToMaturity * min(1f, s.domestication[3] / HERD_TEMPER)
+
+/**
  * The yearly share of a kept herd of kind [s] that kill or maim each other or are put down as dangerous, however tame:
  * [HERD_RUN_OFF] times the square of how far its kind's temper (Diamond's disposition criterion) falls short of a goat's,
  * [HERD_TEMPER]; without pens the keepers cannot part the fighters.
