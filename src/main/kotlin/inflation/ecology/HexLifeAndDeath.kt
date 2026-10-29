@@ -201,6 +201,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
             cultureWeek(g)
             riteWeek(g, weather)
         }
+        beliefSplits()
         // Holy places fade while no one comes.
         if (tuning.rounds) { val keep = exp(-years / SANCTITY_YEARS); for (p in land.sanctity.indices) land.sanctity[p] *= keep }
         fightRaids(weather)
@@ -252,6 +253,25 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
     }
     groups += born
     Profile.part("groups: merging and pairing") { mergeAndPair(date) }
+}
+
+/**
+ * Bands whose belief is strained past what it bears ([Band.strainBorne]) split (rounds on): half go their own way without
+ * it, and the strain leaves with them. A band smaller than its kind's usual one holds together and clings on. Nothing
+ * here weighs whether the belief pays.
+ */
+internal fun HexGroups.beliefSplits() {
+    if (!tuning.rounds) return
+    val strained = groups.filter { g -> g.alive && g.size >= g.species.groupSize && g.band.let { it != null && it.strain > it.strainBorne() } }
+    for (g in strained) {
+        val a = g.adults / 2; val y = g.young / 2
+        g.adults -= a; g.young -= y
+        val n = splitOff(g, a, y)
+        n.band?.dropBelief()
+        g.band?.strain = 0f
+        groups += n
+        stats.meeting(Met.BANDS_SPLIT_OVER_THEIR_BELIEF)
+    }
 }
 
 /**
