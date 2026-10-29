@@ -33,7 +33,7 @@ import kotlin.math.roundToInt
  * so there is no chance to allow for.) What they ask beyond, the days that avert no death (wood in a warm week), is
  * shared with the other chores.
  *
- * Its clothes are weighed the same way (model 4.93): the days that make or mend its kit of clothes, as far as its hides and
+ * Its clothes are weighed the same way: the days that make or mend its kit of clothes, as far as its hides and
  * sinew go ([makeTools]), keep its people warmer this week and through the year after ([yearAhead]), as the fire and the
  * shelters do. Before, clothes were made only in the days the chores' shares left them.
  *
