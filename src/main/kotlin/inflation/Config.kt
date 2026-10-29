@@ -59,6 +59,8 @@ object Config {
         PPO_FORESEEN_SHAPE("ppo.foreseenShape"),
         PPO_STRESS_BOOST("ppo.stressBoost"),
         PPO_MAX_SHARE("ppo.maxShare"),
+        PPO_MOVER_KIT_WEIGHT("ppo.moverKitWeight"),
+        PPO_WAYS_PLACE_WEIGHT("ppo.waysPlaceWeight"),
         PPO_SMALL_INPUT_BOOST("ppo.smallInputBoost"),
         PPO_SETTLED_WORLDS("ppo.settledWorlds"),
         WEATHER_STRESS_YEARS("weather.stressYears"),

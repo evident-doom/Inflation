@@ -5,7 +5,9 @@ import inflation.world.get
 import inflation.world.set
 
 import inflation.ecology.Catalogue
+import inflation.ecology.DeathClass
 import inflation.ecology.HexGroup
+import inflation.ecology.LOST_ALL
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -73,5 +75,28 @@ class OutcomesTest {
         assertEquals(20f, o.own(1, 0, 1, fore)[0], 1e-4f)
         assertEquals(10f * 0.8f + 10f * 0.5f, fore[0], 1e-4f)
         assertEquals(0.9f, o.foreseen(1, 0), 1e-6f)
+    }
+
+    @Test
+    fun `the deaths the odds made likely are kept by class for the members, a week's whole to the band that held them all`() {
+        val o = Outcomes()
+        val band = HexGroup(1, Catalogue.HUMAN, inflation.world.Place(0), 20, 0)
+        o.record(0, listOf(band), emptyList())
+        // Week 1: 2 expected to die of the cold, 1 of hunger, 4 in all.
+        band.addLost(DeathClass.KIT.ordinal, 2f); band.addLost(DeathClass.FOOD.ordinal, 1f); band.addLost(LOST_ALL, 4f)
+        o.record(1, listOf(band), emptyList())
+        // Week 2: 5 more of the cold; 10 members leave as a new band that week.
+        band.addLost(DeathClass.KIT.ordinal, 5f); band.addLost(LOST_ALL, 5f)
+        band.adults -= 10
+        val off = HexGroup(2, Catalogue.HUMAN, inflation.world.Place(0), 10, 0).also { it.parent = band.id }
+        o.record(2, listOf(band, off), emptyList())
+        val lost = FloatArray(6)
+        o.own(1, 0, 2, null, lost)
+        assertEquals(2f, lost[DeathClass.KIT.ordinal], 1e-4f)
+        assertEquals(1f, lost[DeathClass.FOOD.ordinal], 1e-4f)
+        assertEquals(4f, lost[LOST_ALL], 1e-4f)
+        // (In week 2 the band's 20 members, all there at week 1, own the whole band's expected deaths of the week.)
+        assertEquals(5f, lost[3 + DeathClass.KIT.ordinal], 1e-4f)
+        assertEquals(0f, lost[3 + DeathClass.FOOD.ordinal], 1e-4f)
     }
 }

@@ -52,6 +52,15 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
      * their choices made likely, not by chance; animals keep 0).
      */
     var luck = 0f
+    /**
+     * A band's deaths as the week's odds made them likely, summed since it began (training, with [luck]; not saved, and so not made until first added to): of the causes in
+     * [DeathClass.KIT], in [DeathClass.FOOD], and of all of them, at those indices ([LOST_ALL] for all).
+     */
+    @Transient var lost: FloatArray? = null
+    /** Adds [heads] to the deaths expected in class [c] (a [DeathClass] ordinal, or [LOST_ALL]). */
+    fun addLost(c: Int, heads: Float) { (lost ?: FloatArray(3).also { lost = it })[c] += heads }
+    /** The deaths expected so far in class [c] ([lost]). */
+    fun lost(c: Int) = lost?.get(c) ?: 0f
     /** A band's foreseen survival: the share of its people alive a year ahead as it stands ([foreseenSurvival]); 1 for animals. */
     var foreseen = 1f
     /** The month its young are born in; -1 until its first week (then its kind's). */

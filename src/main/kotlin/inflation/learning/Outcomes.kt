@@ -16,10 +16,16 @@ import kotlin.math.min
 class Outcomes {
     private class Track(var base: Int) {
         var size = IntArray(64); var gain = IntArray(64); var luck = FloatArray(64) { Float.NaN }; var fore = FloatArray(64) { 1f }; var n = 0
+        /** The week's deaths as its odds made them likely, by class (three to a week, as [HexGroup.lost]). */
+        var lost = FloatArray(3 * 64)
         private fun grow(i: Int) {
-            if (i >= size.size) { val m = max(2 * size.size, i + 1); size = size.copyOf(m); gain = gain.copyOf(m); val old = luck.size; luck = luck.copyOf(m); fore = fore.copyOf(m); for (k in old until m) { luck[k] = Float.NaN; fore[k] = 1f } }
+            if (i >= size.size) { val m = max(2 * size.size, i + 1); size = size.copyOf(m); gain = gain.copyOf(m); lost = lost.copyOf(3 * m); val old = luck.size; luck = luck.copyOf(m); fore = fore.copyOf(m); for (k in old until m) { luck[k] = Float.NaN; fore[k] = 1f } }
         }
-        fun set(w: Int, s: Int, l: Float, f: Float) { val i = w - base; if (i < 0) return; grow(i); size[i] = s; luck[i] = l; fore[i] = f; n = max(n, i + 1) }
+        fun set(w: Int, s: Int, l: Float, f: Float, week: FloatArray?) {
+            val i = w - base; if (i < 0) return; grow(i); size[i] = s; luck[i] = l; fore[i] = f; n = max(n, i + 1)
+            for (c in 0 until 3) lost[3 * i + c] = week?.get(c) ?: 0f
+        }
+        fun lost(w: Int, c: Int) = (w - base).let { if (it in 0 until n) lost[3 * it + c] else 0f }
         fun took(w: Int, members: Int) { val i = w - base; if (i < 0) return; grow(i); gain[i] += members; n = max(n, i + 1) }
         fun size(w: Int) = (w - base).let { if (it in 0 until n) size[it] else 0 }
         fun gain(w: Int) = (w - base).let { if (it in 0 until n) gain[it] else 0 }
@@ -29,7 +35,7 @@ class Outcomes {
         fun cut(w: Int) {
             val d = w - base; if (d <= 0) return
             val keep = luck(w - 1)
-            if (d >= n) { n = 0; size.fill(0); gain.fill(0); luck.fill(Float.NaN); fore.fill(1f) } else { size = size.copyOfRange(d, size.size); gain = gain.copyOfRange(d, gain.size); luck = luck.copyOfRange(d, luck.size); fore = fore.copyOfRange(d, fore.size); n -= d; if (luck[0].isNaN()) luck[0] = keep }
+            if (d >= n) { n = 0; size.fill(0); gain.fill(0); lost.fill(0f); luck.fill(Float.NaN); fore.fill(1f) } else { size = size.copyOfRange(d, size.size); gain = gain.copyOfRange(d, gain.size); lost = lost.copyOfRange(3 * d, lost.size); luck = luck.copyOfRange(d, luck.size); fore = fore.copyOfRange(d, fore.size); n -= d; if (luck[0].isNaN()) luck[0] = keep }
             base = w
         }
     }
@@ -40,13 +46,16 @@ class Outcomes {
     private val born = HashMap<Int, Int>()
     private val children = HashMap<Int, MutableList<Int>>()
     private val joined = HashMap<Int, Join>()
+    /** What each band's [HexGroup.lost] stood at last week, for this week's. */
+    private val lastLost = HashMap<Int, FloatArray>()
 
     /** Week [week]'s numbers: [groups] (the world's list) and [merged], those that joined another this week. */
     fun record(week: Int, groups: Collection<HexGroup>, merged: Collection<HexGroup>) {
         for (g in groups) {
             if (g.parent >= 0 && g.id !in born) { born[g.id] = week; children.getOrPut(g.parent) { ArrayList() } += g.id }
             val tr = tracks.getOrPut(g.id) { Track(week) }
-            tr.set(week, if (g.alive) g.size else 0, if (g.species.human) g.luck else 0f, if (g.species.human && g.alive) g.foreseen else 1f)
+            val thisWeek = if (g.species.human) lastLost.getOrPut(g.id) { FloatArray(3) }.let { was -> FloatArray(3) { c -> (g.lost(c) - was[c]).also { was[c] = g.lost(c) } } } else null
+            tr.set(week, if (g.alive) g.size else 0, if (g.species.human) g.luck else 0f, if (g.species.human && g.alive) g.foreseen else 1f, thisWeek)
         }
         for (g in merged) {
             if (g.id in joined || g.mergedSize < 0) continue
@@ -59,18 +68,19 @@ class Outcomes {
     /**
      * How the members of group [id] at week [from] fare through week [from] + [weeks]: their numbers at
      * each of those weeks (index 0 for week from+1); and into [foreseen] (if given), of those numbers, the
-     * share each group they are then in foresees alive a year ahead, summed ([HexGroup.foreseen]).
+     * share each group they are then in foresees alive a year ahead, summed ([HexGroup.foreseen]); and into [lost] (if given, three to a
+     * week), of the deaths the week's odds made likely among them, by class ([HexGroup.lost]: the members' share of their group's).
      */
-    fun own(id: Int, from: Int, weeks: Int, foreseen: FloatArray? = null): FloatArray {
+    fun own(id: Int, from: Int, weeks: Int, foreseen: FloatArray? = null, lost: FloatArray? = null): FloatArray {
         val out = FloatArray(weeks)
-        follow(id, from, tracks[id]?.size(from)?.toFloat() ?: 0f, from + weeks, out, from, 0, foreseen)
+        follow(id, from, tracks[id]?.size(from)?.toFloat() ?: 0f, from + weeks, out, from, 0, foreseen, lost)
         return out
     }
 
     /** Group [id]'s foreseen survival as it stood in week [w] (1 if not a band, or not seen then). */
     fun foreseen(id: Int, w: Int): Float = tracks[id]?.fore(w) ?: 1f
 
-    private fun follow(id0: Int, from: Int, start: Float, to: Int, out: FloatArray, base: Int, depth: Int, foreseen: FloatArray?) {
+    private fun follow(id0: Int, from: Int, start: Float, to: Int, out: FloatArray, base: Int, depth: Int, foreseen: FloatArray?, lost: FloatArray?) {
         var id = id0; var own = start
         for (w in from + 1..to) {
             if (own <= 0f) return
@@ -89,8 +99,9 @@ class Outcomes {
                     val share = own / before * members
                     out[w - base - 1] += share
                     if (foreseen != null) foreseen[w - base - 1] += share * (tracks[c]?.fore(w) ?: 1f)
-                    follow(c, w, share, to, out, base, depth + 1, foreseen)
+                    follow(c, w, share, to, out, base, depth + 1, foreseen, lost)
                 }
+                if (lost != null) for (k in 0 until 3) lost[3 * (w - base - 1) + k] += own / before * tr.lost(w, k)
                 // Its own births and deaths, less those it took in and, for bands, less their luck this week.
                 val kept = tr.size(w) - tr.gain(w) - (tr.luck(w) - tr.luck(w - 1))
                 own *= max(0f, kept) / before
@@ -106,6 +117,7 @@ class Outcomes {
         while (it.hasNext()) { val (id, tr) = it.next(); if (id !in here && tr.base + tr.n <= oldest) it.remove() else tr.cut(oldest) }
         joined.keys.retainAll(tracks.keys)
         born.keys.retainAll(tracks.keys)
+        lastLost.keys.retainAll(tracks.keys)
         children.keys.retainAll(tracks.keys)
     }
 }

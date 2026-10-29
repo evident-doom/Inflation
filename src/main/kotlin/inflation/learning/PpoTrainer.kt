@@ -147,12 +147,16 @@ class PpoTrainer(private val o: PpoOptions) {
             for (c in mine) { expected[c] = critic.value(model, c); judged[c] = critic.target(model, c) }
             // (The critic learns too from the groups that took their best, [Choice.valueOnly]: judged, not judging.)
             critic.learn(model, mine + valueOnly.filter { Role.of(it.kind).ordinal == mi }, round)
+            // (What the deaths of people cost their choices' returns, by cause class: the weights on them, if any, are in [HexPpo.Player].)
+            if (mi == Role.PEOPLE.ordinal) mine.filter { !it.valueOnly && it !is WaysChoice }.takeIf { it.isNotEmpty() }?.let { ms ->
+                stats.append("people's returns lose %.4f to cold and camp, %.4f to going without, %.4f in all; ".format(ms.map { it.lostKit.toDouble() }.average(), ms.map { it.lostFood.toDouble() }.average(), ms.map { it.lostAll.toDouble() }.average()))
+            }
             val worst = explained.entries.sortedBy { it.value }.take(3).joinToString(", ") { "%s %.2f".format(it.key.name, it.value) }
             stats.append("%s critic explains %.2f (least: %s), %.0f%% seen again (%.0f s); ".format(Role.entries[mi], explained.values.average(), worst, 100.0 * mine.count { it.probe != null } / mine.size, (System.nanoTime() - t0) / 1e9))
         }
         for ((_, cs) in byKind) {
             val mean = cs.map { judged.getValue(it).toDouble() }.average().toFloat()
-            val gap = cs.associateWith { c -> judged.getValue(c) - (expected[c] ?: mean) }
+            val gap = cs.associateWith { c -> judged.getValue(c) - (expected[c] ?: mean) + c.credit }
             val sd = sqrt(gap.values.map { (it * it).toDouble() }.average()).toFloat().coerceAtLeast(1e-3f)
             for (c in cs) c.advantage = (gap.getValue(c) / sd).coerceIn(-advantageClip, advantageClip)
         }
@@ -169,7 +173,7 @@ class PpoTrainer(private val o: PpoOptions) {
         val model = models[Role.PEOPLE.ordinal]; val critic = critics[Role.PEOPLE.ordinal]
         val expected = FloatArray(cs.size) { critic.value(model, cs[it]) }
         val judged = FloatArray(cs.size) { critic.target(model, cs[it]) }
-        val gap = FloatArray(cs.size) { judged[it] - expected[it] }
+        val gap = FloatArray(cs.size) { judged[it] - expected[it] + cs[it].credit }
         val mean = gap.average().toFloat()
         val sd = sqrt(gap.map { ((it - mean) * (it - mean)).toDouble() }.average()).toFloat().coerceAtLeast(1e-3f)
         for ((k, c) in cs.withIndex()) c.advantage = ((gap[k] - mean) / sd).coerceIn(-advantageClip, advantageClip)
