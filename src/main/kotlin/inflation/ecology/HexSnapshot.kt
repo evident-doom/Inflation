@@ -380,9 +380,13 @@ object HexSnapshot {
      *   other, more on strangers and those of other customs); a band sets out by its regard of the band it is warier of, and
      *   of homes about as safe falls on that one before the nearest. Each band believes what it is told by its own trust of
      *   the other; before, both by the first band's.
+     * 4.86: every lineage keeps a resident kind as its totem ([totemAt], [Band.totem]), which its hunters leave alone unless
+     *   the band went hungry the week before; a band known to have eaten of it ([TOTEM_SHAME_YEARS]) is not seen to keep it.
+     *   A totem passes to offshoots, goes the way most bands about go as a mark does, and now and then is given up or taken
+     *   up; it is one of the customs bands count each other apart by ([CUSTOMS], [Regard.customsApart]).
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 85
+    const val MODEL_MINOR = 86
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

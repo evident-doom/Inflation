@@ -522,7 +522,7 @@ class Census(private val sim: HexSim) {
     }
 
     /**
-     * The identity census, two to five lines: whether bands form regions of one tongue and one set of customs, how alike bands
+     * The identity census, three to six lines: whether bands form regions of one tongue and one set of customs, how alike bands
      * are by distance apart, and how this year's meetings went by how alike and how wary of each other the bands were
      * ([thisYear], the hunting ledger's year so far: see [Tally.meetingsBy]). Bands within [GATHER_KM] of each other are neighbours; neighbours that understand
      * each other at [REGION_UNDERSTOOD] or better and hold at most [REGION_CUSTOMS_APART] of their traditions differently are
@@ -544,7 +544,7 @@ class Census(private val sim: HexSim) {
         }
         // (Every pair once: by distance class for the means, and the neighbours for the regions.)
         val pairs = LongArray(IDENTITY_KM.size + 1); val understood = DoubleArray(pairs.size); val apart = DoubleArray(pairs.size)
-        val sameLineage = LongArray(pairs.size)
+        val sameLineage = LongArray(pairs.size); val sameTotem = LongArray(pairs.size)
         val nearA = ArrayList<Int>(); val nearB = ArrayList<Int>()
         for (i in 0 until n) {
             val bi = bands[i].second; val li = bi.mainLineage()
@@ -552,11 +552,13 @@ class Census(private val sim: HexSim) {
                 val bj = bands[j].second
                 val km = hex.distanceKm(at[i], at[j])
                 val u = Language.understanding(bi.words, bj.words)
-                val off = Tradition.entries.count { bi.holds(it) != bj.holds(it) }
+                // (Customs as the bands reckon them, the totem one of them: see [inflation.ecology.Regard.customsApart].)
+                val off = Tradition.entries.count { bi.holds(it) != bj.holds(it) } + (if (bi.totem != bj.totem) 1 else 0)
                 var c = 0
                 while (c < IDENTITY_KM.size && km >= IDENTITY_KM[c]) c++
                 pairs[c]++; understood[c] += u.toDouble(); apart[c] += off.toDouble()
                 if (li == bj.mainLineage()) sameLineage[c]++
+                if (!bi.totem.none && bi.totem == bj.totem) sameTotem[c]++
                 if (km <= GATHER_KM) {
                     nearA += i; nearB += j
                     if (u >= REGION_UNDERSTOOD && off <= REGION_CUSTOMS_APART) { val ri = root(i); val rj = root(j); if (ri != rj) parent[ri] = rj }
@@ -577,8 +579,12 @@ class Census(private val sim: HexSim) {
             val lo = if (c == 0) 0.0 else IDENTITY_KM[c - 1]
             if (c < IDENTITY_KM.size) "%.0f-%.0f km".format(lo, IDENTITY_KM[c]) else "%.0f km and over".format(lo)
         }
-        println("     identity by distance apart (pairs: understood / customs apart / same main lineage): " + pairs.indices.filter { pairs[it] > 0 }.joinToString(", ") { c ->
-            "%s %d: %.2f / %.1f / %.0f%%".format(classes[c], pairs[c], understood[c] / pairs[c], apart[c] / pairs[c], 100.0 * sameLineage[c] / pairs[c]) })
+        println("     identity by distance apart (pairs: understood / customs apart / same main lineage / same totem): " + pairs.indices.filter { pairs[it] > 0 }.joinToString(", ") { c ->
+            "%s %d: %.2f / %.1f / %.0f%% / %.0f%%".format(classes[c], pairs[c], understood[c] / pairs[c], apart[c] / pairs[c], 100.0 * sameLineage[c] / pairs[c],
+                100.0 * sameTotem[c] / pairs[c]) })
+        val kept = bands.mapNotNull { (_, b) -> b.totem.takeIf { !it.none }?.i }
+        println("     totems: %.0f%% of bands keep one, %d kinds kept, %.0f%% known lately to have eaten of theirs".format(
+            100.0 * kept.size / n, kept.toSet().size, 100.0 * bands.count { it.second.totemBroken > 0f } / n))
         fun line(label: String, key: (Tally.MeetingEnd) -> TallyKey): String {
             fun v(e: Tally.MeetingEnd) = thisYear[key(e)] ?: 0
             val met = v(Tally.MeetingEnd.MET)

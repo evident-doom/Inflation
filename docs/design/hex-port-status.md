@@ -126,6 +126,7 @@ hex learning tools. (The 1 km model's `Simulation` has since been removed; the h
 | Tools hit on and shown to bands met | yes |
 | Camp kept: births closer with stores, children sicken in a fouled camp, bands leave fouled camps | yes |
 | Traditions with effects, taken up and dropped: know-how copied from bands doing better, marks (burial, leaving the dead, marrying out, sparing young game, feasts) from the many bands met | yes (ten) |
+| A totem per lineage: a resident kind its hunters leave alone unless hungry; passed on as a mark, a custom bands count each other apart by, not seen kept by a band known to have eaten of it | yes |
 | Language as words per concept, understanding between bands | yes (naming game, drift) |
 | Marrying out, lineage mix, inbreeding | yes |
 | Elders and grandmothers | yes |

@@ -67,7 +67,7 @@ class CultureAndMeetingsTest {
         fun before(drive: Float, u: Float, tie: Float, stranger: Boolean) =
             drive * (0.5f + 0.5f * (1f - u)) * (1f - 0.5f * kinship(b.lineage, o.lineage)) *
                 (1f - TIE_PEACE * maxOf(0f, tie)) * (1f + (if (stranger) STRANGER_HOSTILITY else 0f) +
-                CUSTOMS_HOSTILITY * (2f / Tradition.entries.size))
+                CUSTOMS_HOSTILITY * (2f / CUSTOMS))
         val drive = RAID * 1.3f * 0.7f
         assertEquals(before(drive, 0.4f, 0f, true), r.fightChance(drive))
         val wary = r.wariness
@@ -78,11 +78,37 @@ class CultureAndMeetingsTest {
         assertTrue(r.friend && !r.feud)
         // (Unheard, it reads their words as they stand; and no band is ever warier than the most there is.)
         assertEquals(Language.understanding(b.words, o.words), Regard(b, 7, o).understood)
-        val far = Band(0).also { f -> f.lineage[5] = 1f; for (t in Tradition.entries) f.traditions[t] = !b.holds(t) }
+        val far = Band(0).also { f -> f.lineage[5] = 1f; f.totem = FaunaKind(2); for (t in Tradition.entries) f.traditions[t] = !b.holds(t) }
         assertTrue(Regard(b, 9, far, 0f).wariness <= Regard.MOST_WARY)
         assertEquals(Regard.MOST_WARY, Regard(b, 9, far, 0f).wariness, 1e-6f)
         b.grudge[5] = FEUD + 0.1f
         assertTrue(Regard(b, 9, far).feud)
+    }
+
+    @Test
+    fun `a lineage's bands share a totem, one that eats of it is not seen to keep it, and the many sway which is kept`() {
+        assertEquals(totemAt(3, 20), totemAt(3, 20))
+        assertTrue((0 until LINEAGES).all { totemAt(it, 20).i in 0 until 20 })
+        assertTrue((0 until LINEAGES).map { totemAt(it, 20) }.toSet().size > 4, "lineages keep few totems among them")
+        assertTrue(totemAt(3, 0).none)
+        val b = Band(20); val o = Band(20)
+        b.lineage[3] = 1f; o.lineage[3] = 1f
+        b.ensureTotem(20); o.ensureTotem(20)
+        assertEquals(totemAt(3, 20), b.totem); assertEquals(b.totem, o.totem)
+        assertEquals(0, Regard(b, 1, o, 1f).customsApart, "one lineage, one totem")
+        o.totemBroken = TOTEM_SHAME_YEARS
+        assertTrue(o.keptTotem.none)
+        assertEquals(1, Regard(b, 1, o, 1f).customsApart, "a band known to have eaten of its totem is one custom apart")
+        // (Seen: three bands keeping another kind; itself counts for its own.)
+        val other = FaunaKind((b.totem.i + 1) % 20)
+        val c = Band(20).also { it.totem = other; it.totemChosen = true }
+        repeat(3) { b.hear(c, 1f) }
+        assertEquals(0.75f, b.heardTotemShare(other), 1e-6f)
+        assertEquals(0.25f, b.heardTotemShare(b.totem), 1e-6f)
+        // (A band from a save made before totems hears of none until its first week.)
+        val old = Band(0); old.hear(c, 1f)
+        old.ensureTotem(20)
+        assertEquals(21, old.heardTotem.size); assertEquals(totemAt(old.mainLineage(), 20), old.totem)
     }
 
     @Test

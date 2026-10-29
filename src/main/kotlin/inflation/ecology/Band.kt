@@ -431,10 +431,12 @@ class Band(kinds: Int) {
      */
     val heard = enumFloats<Tradition>()
     var heardOf = 0f
-    /** Counts band [o], understood as far as [u], among those it has met lately ([heard]). */
+    /** Counts band [o], understood as far as [u], among those it has met lately ([heard], [heardTotem]). */
     fun hear(o: Band, u: Float) {
         for (t in Tradition.entries) if (o.holds(t)) heard[t] += u
         heardOf += u
+        val i = totemSlot(o.keptTotem)
+        if (i < heardTotem.size) heardTotem[i] += u
     }
     /**
      * The share of the bands it met lately, itself counted as one, that hold [t] as [held] (for its marks: [conformist]).
@@ -442,6 +444,31 @@ class Band(kinds: Int) {
     fun heardShare(t: Tradition, held: Boolean): Float {
         val n = if (held) heard[t] else heardOf - heard[t]
         return (n + (if (holds(t) == held) 1f else 0f)) / (heardOf + 1f)
+    }
+    /**
+     * The resident kind its people do not hunt or eat (its totem; [FaunaKind.NONE] for none), and whether it has one yet
+     * (a band from a save made before totems takes its lineage's at its first week: see [ensureTotem]). Of the bands it met
+     * lately, how many kept each kind as theirs, the last for none ([heardTotem], fading as [heard]). Years left that the bands
+     * of its totem who meet it know it ate of it ([totemBroken]; see [keptTotem]).
+     */
+    var totem = FaunaKind.NONE
+    var totemChosen = false
+    var heardTotem = FloatArray(kinds + 1)
+    var totemBroken = 0f
+    /** Its totem as the bands it meets see it: none while it is known to have eaten of it. */
+    val keptTotem get() = if (totemBroken > 0f) FaunaKind.NONE else totem
+    /** [k]'s place in [heardTotem]: none the last. */
+    fun totemSlot(k: FaunaKind) = if (k.none) heardTotem.size - 1 else k.i
+    /** The share of the bands it met lately, itself counted as one, that keep [k] as their totem (for [conformist]). */
+    fun heardTotemShare(k: FaunaKind): Float {
+        val i = totemSlot(k)
+        return ((if (i < heardTotem.size) heardTotem[i] else 0f) + (if (totem == k) 1f else 0f)) / (heardOf + 1f)
+    }
+    /** Gives a band without a totem yet ([totemChosen]) its lineage's, among [kinds] resident kinds, and room to hear of them all. */
+    fun ensureTotem(kinds: Int) {
+        if (heardTotem.size != kinds + 1) heardTotem = FloatArray(kinds + 1)
+        if (totemChosen) return
+        totem = totemAt(mainLineage(), kinds); totemChosen = true
     }
     val words = IntArray(Language.CONCEPTS)
     val lineage = FloatArray(LINEAGES)
@@ -534,7 +561,8 @@ class Band(kinds: Int) {
         o.salted = salted; o.dryDepth = dryDepth
         o.renown = renown
         rite.copyInto(o.rite); o.riteStrength = riteStrength
-        traditions.copyInto(o.traditions); heard.copyInto(o.heard); o.heardOf = heardOf; words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
+        traditions.copyInto(o.traditions); heard.copyInto(o.heard); o.heardOf = heardOf
+        o.totem = totem; o.totemChosen = totemChosen; o.heardTotem = heardTotem.copyOf(); o.totemBroken = totemBroken; words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
         o.inbred = inbred; o.campWeeks = campWeeks; o.campPlace = campPlace; o.known = known.copyOf(); kept.copyInto(o.kept)
         copied(o)
         for (i in o.kept.indices) { o.kept[i] *= share; kept[i] -= o.kept[i] }
@@ -598,6 +626,7 @@ class Band(kinds: Int) {
         for (i in a.grudge.indices) a.grudge[i] = max(a.grudge[i], b.grudge[i])
         for (t in Tradition.entries) a.heard[t] += b.heard[t]
         a.heardOf += b.heardOf
+        for (i in 0 until min(a.heardTotem.size, b.heardTotem.size)) a.heardTotem[i] += b.heardTotem[i]
         for ((k, v) in b.ties) if (k != id) a.ties[k] = max(a.tie(k), v)
         a.ties.remove(bId)
         for ((k, v) in b.favours) if (k != id) a.favours.merge(k, v, Float::plus)
@@ -742,6 +771,7 @@ class Band(kinds: Int) {
             lineage[l] = 1f
             wordsAt(x, y).copyInto(words)
             traditionsAt(l).copyInto(traditions)
+            totem = totemAt(l, kinds); totemChosen = true
             riteStrength = riteStrengthAt(l, tuning)
             skills[Skill.GATHER] = START_CRAFT; skills[Skill.SMALL_GAME] = START_CRAFT; skills[Skill.HUNT] = START_CRAFT
             skills[Skill.FISH] = if (nearWater) 0.5f else 0.1f; skills[Skill.STORE] = 0.4f

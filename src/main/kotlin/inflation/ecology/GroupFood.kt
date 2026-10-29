@@ -388,6 +388,9 @@ private class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, packK
     /** A band's week's time, once planned ([planWeek]). */
     var time: BandTime? = null
     val spareYoung = band?.holds(Tradition.TABOO_YOUNG) == true
+    // The kind its hunters leave alone, its totem: unless the band went hungry last week, when it hunts that too, and the
+    // bands of its totem who meet it come to know it ([Band.totemBroken]). (Its resident kind's index; -1 for none.)
+    val avoid = if (band != null && g.fed >= Thresholds.HUNGRY) band.totem.i else -1
     // The ground its hunters search for game this week, and how much of each place (see [huntGround]).
     val ground = gs.huntGround(g, sweep * g.path.size.coerceAtLeast(1) * sqrt(hunt))
     // The odds a meeting with each kind ends in a kill, in each place of that ground (they do not change within the week).
@@ -487,7 +490,7 @@ private fun GroupWorld.huntingOdds(w: ForageWeek) {
             w.met[i] = meets[k] * (1f - seenFirst(view[0], view[1], band, ps)) / ps.groupSize
             w.odds[i] = success * w.met[i] * image[k]
             w.stalks[i] = 1f / success.coerceIn(1e-3f, 1f)
-            if (!(w.odds[i] <= 0f)) w.gameAt[w.games++] = i
+            if (!(w.odds[i] <= 0f) && k != w.avoid) w.gameAt[w.games++] = i
         }
     }
     w.gameFrom[w.ground.size] = w.games
@@ -711,6 +714,10 @@ private fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
                 val luck = (kills1 - expected) * o.time[i] * w.party[0]
                 if (luck > 0f) w.killOver += luck else w.killUnder -= luck
                 if (kills1 <= 0) continue
+                if (band != null && o.kind[i] == band.totem.i) {
+                    band.totemBroken = TOTEM_SHAME_YEARS
+                    stats.meeting(Met.BANDS_ATE_THEIR_TOTEM)
+                }
                 w.busy += kills1 * o.time[i] * w.party[0]
                 w.meat += haul.kg; w.fed += haul.kg * w.feeds(Food.BIG_GAME)
             }

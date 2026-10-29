@@ -40,7 +40,8 @@ internal fun carryRules(): Map<String, Pair<OnSplit, OnJoin>> {
     rule(OnSplit.COPIED, OnJoin.MAX, "skills", "plants", "renown", "grudge")
     rule(OnSplit.COPIED, OnJoin.ANY, "knowsSkill", "knows", "known")
     rule(OnSplit.DRAWN, OnJoin.SUM, "holders")
-    rule(OnSplit.COPIED, OnJoin.SUM, "heard", "heardOf")
+    rule(OnSplit.COPIED, OnJoin.SUM, "heard", "heardOf", "heardTotem")
+    rule(OnSplit.COPIED, OnJoin.LOST, "totem", "totemChosen", "totemBroken")
     rule(OnSplit.COPIED, OnJoin.LOST, "lastUsed", "seasonPlace", "seasonQ", "monthSupply", "freeShare", "herdGrew", "leanDays", "weeks", "traditions", "words", "rite", "riteStrength", "knownHomes", "knownLineage")
     // Health.
     rule(OnSplit.COPIED, OnJoin.BLENDED, "sick", "immune", "hurt", "lame")
