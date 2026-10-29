@@ -300,9 +300,10 @@ internal fun HexGroups.villages(): Map<Hex, List<HexGroup>> {
 /**
  * What the census reads of villages ([villages]) since it last did: weeks counted; village-weeks; bands and people in
  * them, summed over the weeks; people living settled and all bands' people, the same; village-weeks with a palisade
- * standing; villages that ended and the weeks they had lasted; the most bands in one village.
+ * standing; villages that ended and the weeks they had lasted; the most bands in one village; people in villages at home in
+ * their houses (the rest camped long).
  */
-enum class VillageFlow { WEEKS, VILLAGE_WEEKS, BANDS, PEOPLE, SETTLED_PEOPLE, ALL_PEOPLE, PALISADED, ENDED, ENDED_WEEKS, MOST_BANDS }
+enum class VillageFlow { WEEKS, VILLAGE_WEEKS, BANDS, PEOPLE, SETTLED_PEOPLE, ALL_PEOPLE, PALISADED, ENDED, ENDED_WEEKS, MOST_BANDS, PEOPLE_AT_HOME }
 
 /** Books this week's villages for the census ([Bands.villageFlows]): once a week, after the bands' weeks. */
 internal fun HexGroups.tallyVillages() {
@@ -319,6 +320,7 @@ internal fun HexGroups.tallyVillages() {
         f[VillageFlow.VILLAGE_WEEKS] += 1f
         f[VillageFlow.BANDS] += bs.size.toFloat()
         f[VillageFlow.PEOPLE] += bs.sumOf { it.size }.toFloat()
+        f[VillageFlow.PEOPLE_AT_HOME] += bs.sumOf { g -> if (g.band?.atHome == true) g.size else 0 }.toFloat()
         f[VillageFlow.MOST_BANDS] = max(f[VillageFlow.MOST_BANDS], bs.size.toFloat())
         if (bs.any { g -> g.band.let { it != null && it.atHome && it.palisade > 0.05f } }) f[VillageFlow.PALISADED] += 1f
         age[h] = (age[h] ?: 0) + 1
