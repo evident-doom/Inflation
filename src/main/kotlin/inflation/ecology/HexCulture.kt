@@ -14,6 +14,7 @@ import inflation.Tuning
 import inflation.Config
 import inflation.HASH_A
 import inflation.HASH_B
+import inflation.HASH_C
 import inflation.mix64
 
 import inflation.world.Biome
@@ -46,6 +47,25 @@ enum class Tradition(val about: String, val mark: Boolean) {
     SHARING("food is shared on demand: insurance against hunger, but little point in storing up for oneself", false),
     LEAVE_DEAD("after a death the camp is unlucky and abandoned (unless the band buries its dead)", true),
 }
+
+/**
+ * Where a band that buries its dead ([Tradition.BURIAL]) lays them, a mark of its own: in the camp where they died
+ * ([AT_CAMP]), or carried to the place where most of its dead lie ([AT_ANCESTORS]), as Natufian bands brought their dead
+ * back to base camps and cemeteries (Bar-Yosef 1998; Grosman 2013). Carrying them costs the bearers' walk there and back;
+ * it gathers the band's graves, and so its claims, its pull to its ancestors and its appointments, in one place.
+ */
+enum class BurialWay(val about: String) {
+    AT_CAMP("the dead are buried where the band camps"),
+    AT_ANCESTORS("the dead are carried to the place where most of the band's dead lie"),
+}
+
+/** Person-days digging a grave and the rites at it take, a death. An estimate; no figure found. */
+const val BURY_DAYS = 2f
+/** Bearers who carry one of the dead to its ancestors' place, there and back ([BurialWay.AT_ANCESTORS]). An estimate. */
+const val BEARERS = 4f
+/** How far bearers carry one of the dead: a day's walk, before the body has begun to rot in most weather. Farther off
+ *  the band lays it where it camps. */
+val BODY_CARRY_KM = (WALK_KM_PER_HOUR * Activity.WORK_HOURS).toDouble()
 
 /**
  * Conformist learning (Henrich and Boyd 1998): the weight a band gives a way held by share [s] of the bands it has seen,
@@ -201,8 +221,11 @@ fun wordsAt(x: Double, y: Double): IntArray {
 fun totemAt(lineage: Int, kinds: Int) =
     if (kinds <= 0) FaunaKind.NONE else FaunaKind(((mix64(lineage.toLong() * HASH_B + HASH_A) ushr 33) % kinds).toInt())
 
-/** How many customs bands are counted apart by ([Regard.customsApart]): their traditions and their totem. */
-val CUSTOMS = Tradition.entries.size + 1
+/** How many customs bands are counted apart by ([Regard.customsApart]): their traditions, their totem and their burial way. */
+val CUSTOMS = Tradition.entries.size + 2
+
+/** Where the dead of lineage [lineage]'s bands are laid ([Band.burialWay]): one way drawn for each lineage. */
+fun burialWayAt(lineage: Int) = BurialWay.entries[((mix64(lineage.toLong() * HASH_C + HASH_B) ushr 33) % BurialWay.entries.size).toInt()]
 
 /**
  * Years the bands that keep a totem hold it against a band of it that ate of its kind ([Band.totemBroken]): a year, as it
@@ -244,8 +267,12 @@ internal class Regard(private val of: Band, private val toId: Int, private val t
     val grudge get() = of.grudge[to.mainLineage()]
     val feud get() = grudge > FEUD
     val kin get() = kinship(of.lineage, to.lineage)
-    /** How many of its customs ([CUSTOMS]: its traditions and its totem, as the other keeps it) the other holds otherwise. */
-    val customsApart get() = Tradition.entries.count { of.holds(it) != to.holds(it) } + (if (of.totem != to.keptTotem) 1 else 0)
+    /**
+     * How many of its customs ([CUSTOMS]: its traditions, its totem as the other keeps it, and where it lays its dead, if both
+     * bury them) the other holds otherwise.
+     */
+    val customsApart get() = Tradition.entries.count { of.holds(it) != to.holds(it) } + (if (of.totem != to.keptTotem) 1 else 0) +
+        (if (of.holds(Tradition.BURIAL) && to.holds(Tradition.BURIAL) && of.burialWay != to.burialWay) 1 else 0)
 
     /**
      * The chance [of] falls on [to], [drive] being the chance at its least (what drives it, by its readiness): the less they
@@ -278,7 +305,7 @@ internal class Regard(private val of: Band, private val toId: Int, private val t
  */
 internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weather): Boolean {
     val bandA = a.band ?: return false; val bandB = b.band ?: return false
-    bandA.ensureTotem(fauna.kinds.size); bandB.ensureTotem(fauna.kinds.size)
+    bandA.ensureMarks(fauna.kinds.size); bandB.ensureMarks(fauna.kinds.size)
     val u = Language.understanding(bandA.words, bandB.words)
     val ab = Regard(bandA, b.id, bandB, u); val ba = Regard(bandB, a.id, bandA, u)
     val metAs = MetAs(ab, ba)
@@ -333,6 +360,14 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
         val r = rnd.nextFloat()
         if (r < toA) { bandA.totem = keptB; bandA.totemBroken = 0f; stats.meeting(Met.BANDS_TOOK_UP_ANOTHERS_TOTEM) }
         else if (r < toA + toB) { bandB.totem = keptA; bandB.totemBroken = 0f; stats.meeting(Met.BANDS_TOOK_UP_ANOTHERS_TOTEM) }
+    }
+    // And where bands that both bury their dead lay them.
+    if (bandA.holds(Tradition.BURIAL) && bandB.holds(Tradition.BURIAL) && bandA.burialWay != bandB.burialWay) {
+        val toA = COPY_TRADITION * u * conformist(bandA.heardBurialShare(bandB.burialWay))
+        val toB = COPY_TRADITION * u * conformist(bandB.heardBurialShare(bandA.burialWay))
+        val r = rnd.nextFloat()
+        if (r < toA) { bandA.burialWay = bandB.burialWay; stats.meeting(Met.BANDS_TOOK_UP_ANOTHERS_BURIAL) }
+        else if (r < toA + toB) { bandB.burialWay = bandA.burialWay; stats.meeting(Met.BANDS_TOOK_UP_ANOTHERS_BURIAL) }
     }
     riteMeet(lo, hi, u)
     teach(bandA, bandB, u, (doing(a) - doing(b)).coerceIn(-1f, 1f))
@@ -659,8 +694,9 @@ internal fun HexGroups.cultureWeek(g: HexGroup) {
     val keep = exp(-years / HEARD_YEARS)
     for (t in Tradition.entries) b.heard[t] *= keep
     b.heardOf *= keep
-    b.ensureTotem(fauna.kinds.size)
+    b.ensureMarks(fauna.kinds.size)
     for (i in b.heardTotem.indices) b.heardTotem[i] *= keep
+    for (w in BurialWay.entries) b.heardBurial[w] *= keep
     b.totemBroken = max(0f, b.totemBroken - years)
     // (Now and then a band gives up its totem, or one without takes up a kind as its own, as with its traditions.)
     if (fauna.kinds.isNotEmpty() && rnd.nextFloat() < (if (b.totem.none) TAKE_UP else DROP) * years) {
@@ -675,6 +711,17 @@ internal fun HexGroups.cultureWeek(g: HexGroup) {
             stats.meeting(if (held) Met.Of.DROPPED else Met.Of.TOOK_UP, t.name.lowercase())
         }
     }
+}
+
+/** Where most of [g]'s dead lie, of the places it remembers ([PlaceMemory.deadAt]); none if it remembers no graves. */
+internal fun ancestorsHex(g: HexGroup): Hex {
+    val m = g.memory; var best = Hex.NONE; var most = 0f
+    for (i in 0 until PlaceMemory.MEMORY_SLOTS) {
+        val h = m.hex[i]; if (h.none) continue
+        val d = m.deadAt(h)
+        if (d > most) { most = d; best = h }
+    }
+    return best
 }
 
 /** Most months of the year a band's rites take it somewhere ([Band.rite]). */
