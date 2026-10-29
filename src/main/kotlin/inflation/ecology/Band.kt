@@ -523,6 +523,8 @@ class Band(kinds: Int) {
     var riteHeld = -1L
     /** The site of the rite its days are owed to ([riteOwed]), held once they are given; -1: none under way. */
     var riteDue = -1
+    /** The month, counted from the world's start, it last held a rite to the end (-1: never). */
+    var riteKept = -1L
 
     fun holds(t: Tradition) = traditions[t]
     fun mainLineage(): Int { var best = 0; for (i in lineage.indices) if (lineage[i] > lineage[best]) best = i; return best }
@@ -572,7 +574,7 @@ class Band(kinds: Int) {
         fine.copyInto(o.fine)
         o.salted = salted; o.dryDepth = dryDepth
         o.renown = renown
-        rite.copyInto(o.rite); o.riteStrength = riteStrength; o.riteHeld = riteHeld
+        rite.copyInto(o.rite); o.riteStrength = riteStrength; o.riteHeld = riteHeld; o.riteKept = riteKept
         traditions.copyInto(o.traditions); heard.copyInto(o.heard); o.heardOf = heardOf
         o.totem = totem; o.marksChosen = marksChosen; o.heardTotem = heardTotem.copyOf(); o.totemBroken = totemBroken
         o.burialWay = burialWay; heardBurial.copyInto(o.heardBurial); words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)

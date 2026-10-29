@@ -630,9 +630,9 @@ class Census(private val sim: HexSim) {
         for ((_, b) in bands) for (p in b.rite.toSet()) if (p >= 0) bySite.merge(p, 1, Int::plus)
         val shared = bySite.values.sorted()
         val holy = land.sanctity.sortedDescending()
-        println("     rites: %.0f%% of bands keep rites (%.1f sites a band), %.0f%% of those held one in the past year, %.1f person-days a band still owed to rites; %d sites, bands a site median %d, largest %d, %d sites kept by 5 bands or more; holiest places' sanctity %.0f / %.0f / %.0f, %d places of 100 or more"
+        println("     rites: %.0f%% of bands keep rites (%.1f sites a band), %.0f%% of those held one to the end in the past year, %.1f person-days a band still owed to rites; %d sites, bands a site median %d, largest %d, %d sites kept by 5 bands or more; holiest places' sanctity %.0f / %.0f / %.0f, %d places of 100 or more"
             .format(100.0 * keeping.size / n, if (keeping.isEmpty()) 0.0 else keeping.sumOf { (_, b) -> b.rite.count { it >= 0 } }.toDouble() / keeping.size,
-                if (keeping.isEmpty()) 0.0 else 100.0 * keeping.count { (_, b) -> b.riteHeld >= 0 && now - b.riteHeld < 12 } / keeping.size,
+                if (keeping.isEmpty()) 0.0 else 100.0 * keeping.count { (_, b) -> b.riteKept >= 0 && now - b.riteKept < 12 } / keeping.size,
                 bands.sumOf { it.second.riteOwed.toDouble() } / n.coerceAtLeast(1),
                 shared.size, if (shared.isEmpty()) 0 else shared[shared.size / 2], shared.lastOrNull() ?: 0, shared.count { it >= 5 },
                 holy.getOrElse(0) { 0f }, holy.getOrElse(9) { 0f }, holy.getOrElse(99) { 0f }, holy.count { it >= 100f }))

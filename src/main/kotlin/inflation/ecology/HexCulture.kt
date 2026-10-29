@@ -759,6 +759,7 @@ internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
     // (A rite whose days are all given is held; one whose month ran out before they were, was cut short.)
     if (b.riteDue >= 0 && b.riteOwed <= 0f) {
         land.sanctity[b.riteDue] += g.adults.toFloat()
+        b.riteKept = now
         stats.meeting(Met.BANDS_HELD_A_RITE)
         b.riteDue = -1
     } else if (b.riteDue >= 0 && b.riteHeld != now) {

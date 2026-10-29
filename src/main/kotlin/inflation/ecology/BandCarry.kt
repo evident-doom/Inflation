@@ -44,7 +44,7 @@ internal fun carryRules(): Map<String, Pair<OnSplit, OnJoin>> {
     rule(OnSplit.COPIED, OnJoin.LOST, "totem", "marksChosen", "totemBroken", "burialWay")
     rule(OnSplit.FRESH, OnJoin.SUM, "burialOwed", "riteOwed")
     rule(OnSplit.FRESH, OnJoin.LOST, "riteDue")
-    rule(OnSplit.COPIED, OnJoin.LOST, "lastUsed", "seasonPlace", "seasonQ", "monthSupply", "freeShare", "herdGrew", "leanDays", "weeks", "traditions", "words", "rite", "riteStrength", "riteHeld", "knownHomes", "knownLineage")
+    rule(OnSplit.COPIED, OnJoin.LOST, "lastUsed", "seasonPlace", "seasonQ", "monthSupply", "freeShare", "herdGrew", "leanDays", "weeks", "traditions", "words", "rite", "riteStrength", "riteHeld", "riteKept", "knownHomes", "knownLineage")
     // Health.
     rule(OnSplit.COPIED, OnJoin.BLENDED, "sick", "immune", "hurt", "lame")
     rule(OnSplit.FRESH, OnJoin.LOST, "cleaned", "nursed", "beastLoss")
