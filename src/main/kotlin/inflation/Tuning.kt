@@ -131,6 +131,11 @@ class Tuning(
     /** Within this of its round's place this month, km, a band has arrived and goes about it as it likes (half a range across). */
     val roundArrivedKm = d("roundArrived", 50.0)
     /**
+     * How strongly the place a band remembers doing best at this time of year draws it, where no round does: per unit of
+     * progress toward it ([inflation.ecology.SEASON_PULL] by default).
+     */
+    val seasonPull = f("seasonPull", inflation.ecology.SEASON_PULL)
+    /**
      * The widest hold on its rites a founding band can have: each band holds to the rites by which it keeps its round,
      * by lineage, as its traditions are. A well-fed band feels a hold under 1 hardly at all (the round's pull grows with
      * how much better the place promises than it fares now), so the range reaches well above it. Not measured otherwise:

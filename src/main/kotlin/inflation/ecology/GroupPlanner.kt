@@ -488,7 +488,7 @@ internal class GroupPlanner(private val gs: HexGroups) {
             // (A round draws it on however well it fares where it is: it is what its rites keep in this month.)
             // (A hungry band stops to forage before going on: the round draws it the less the hungrier it is.)
             if (fromHere > gs.hex.hexKm) score += if (onRound) sky * gs.tuning.roundPull * roundStrength * (g.fed / 0.7f).coerceIn(0f, 1f) * prog
-                else sky * SEASON_PULL * (0.3f * goalQ + (goalQ - g.fed).coerceIn(0f, 1f)) * prog
+                else sky * gs.tuning.seasonPull * (0.3f * goalQ + (goalQ - g.fed).coerceIn(0f, 1f)) * prog
         }
         if (parts != null) { parts[MoveTerm.ROUND.ordinal] += score - last; last = score }
         score += gs.tuning.bearingPull * pull
