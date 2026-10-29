@@ -185,15 +185,15 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
         val got = land.plants.consume(p, LifeForm.HERB, KgM2(f.grass)) + land.plants.eatBrowse(p, KgM2(f.browse))
         val fed = if (f.need > 0f) min(1f, got.v / f.need) else 1f
         val inSeason = monthsFrom(s.birthMonth, date.month) < s.birthMonths
-        val born = if (inSeason) n * 0.5f * s.youngPerFemale * fed * (0.3f + 0.7f * tame) /
+        val born = if (inSeason) n * herdMothers(s, tame) * s.youngPerFemale * fed /
             (s.birthMonths * Date.DAYS_PER_MONTH.toFloat() / days) else 0f
         // Its mothers give milk through the lactation after the birth season, as they are fed and as tame as they are.
         if (lactating(s, date)) {
-            val milk = n * 0.5f * (0.3f + 0.7f * tame) * tame * fed * milkKg(s) * days / LACTATION_DAYS
+            val milk = n * herdMothers(s, tame) * tame * fed * milkKg(s) * days / LACTATION_DAYS
             addFood(g.stores, g.storeKgPer, Store.FRESH, milk * Nourishment.MILK * g.species.needScale, milk)
             tally(k, HerdFlow.MILK_KG, milk)
         }
-        val dying = (s.backgroundMortality + 0.5f * (1f - fed)) * years
+        val dying = (s.backgroundMortality + 0.5f * (1f - fed) + fighting(s)) * years
         val running = straying(s, tame) * b.lapse(Skill.TENDING) * years
         val lost = n * min(0.9f, dying + running)
         // (The dead lie by the camp; those that run off or stray go wild among their kind.)
@@ -304,7 +304,7 @@ internal fun GroupWorld.herdPays(g: HexGroup, b: Band, k: Int) = herdWorth(g, b,
 internal fun GroupWorld.herdWorth(g: HexGroup, b: Band, k: Int): Float {
     val lean = b.forageReturn.filter { it >= 0f }.minOrNull()?.takeIf { it > 0f } ?: return Float.POSITIVE_INFINITY
     val s = fauna.kinds[k]; val tame = b.herdTame[k]
-    val mothers = 0.5f * (0.3f + 0.7f * tame)
+    val mothers = herdMothers(s, tame)
     val increase = herdIncrease(b, k)
     val heads = headsAHerder(s) * herdSkill(b)
     val day = heads * (increase * s.massKg * MEAT_SHARE * Nourishment.MEAT + mothers * tame * milkKg(s) * Nourishment.MILK) *
@@ -324,7 +324,7 @@ internal fun GroupWorld.herdFoodWeek(g: HexGroup, b: Band, date: Date): Float {
         if (n <= 0f) continue
         val s = fauna.kinds[k]; val tame = b.herdTame[k]
         if (!b.herdGrew.getOrElse(k) { false }) food += n * max(0f, herdIncrease(b, k)) * years * s.massKg * MEAT_SHARE * Nourishment.MEAT
-        if (lactating(s, date)) food += n * 0.5f * (0.3f + 0.7f * tame) * tame * milkKg(s) * days / LACTATION_DAYS * Nourishment.MILK
+        if (lactating(s, date)) food += n * herdMothers(s, tame) * tame * milkKg(s) * days / LACTATION_DAYS * Nourishment.MILK
     }
     return food * g.species.needScale
 }
@@ -339,8 +339,25 @@ private fun lactating(s: Species, date: Date) =
  */
 internal fun GroupWorld.herdIncrease(b: Band, k: Int, fed: Float = 1f): Float {
     val s = fauna.kinds[k]; val tame = b.herdTame[k]
-    return 0.5f * (0.3f + 0.7f * tame) * s.youngPerFemale * fed - s.backgroundMortality - 0.5f * (1f - fed) -
+    return herdMothers(s, tame) * s.youngPerFemale * fed - s.backgroundMortality - 0.5f * (1f - fed) - fighting(s) -
         straying(s, tame) * b.lapse(Skill.TENDING)
+}
+
+/**
+ * The share of a kept herd of kind [s] that bear young in a year, [tame] as it is: its females, as tame as they are, and as
+ * far as their kind mates and rears young in a camp without pens or incubators (Diamond's captive-breeding criterion)
+ * against [HERD_BREEDS], a goat's. No more than their kind's wild rate: a herd does not out-breed its kind.
+ */
+internal fun herdMothers(s: Species, tame: Float) = 0.5f * (0.3f + 0.7f * tame) * min(1f, s.domestication[2] / HERD_BREEDS)
+
+/**
+ * The yearly share of a kept herd of kind [s] that kill or maim each other or are put down as dangerous, however tame:
+ * [HERD_RUN_OFF] times the square of how far its kind's temper (Diamond's disposition criterion) falls short of a goat's,
+ * [HERD_TEMPER]; without pens the keepers cannot part the fighters.
+ */
+internal fun fighting(s: Species): Float {
+    val wild = max(0f, 1f - s.domestication[3] / HERD_TEMPER)
+    return HERD_RUN_OFF * wild * wild
 }
 
 /**
@@ -383,12 +400,17 @@ private fun herdSkill(b: Band) = 0.5f + 0.5f * min(1f, b.skill(Skill.TENDING))
  * Development Network paper 5337; the herders to a herd not given). Young caught and raised by hand come as tame as a
  * herd started at world start ([RAISED_TAME], an estimate), whatever their kind: young of wild hoofed animals reared by people take them as
  * their own and stay by them (imprinting; Price 1984, "Behavioral aspects of animal domestication", from memory), long
- * before their kind changes in body.
+ * before their kind changes in body. Kinds also differ in how they breed and how they get on kept without pens or incubators,
+ * by the other two of Diamond's criteria (Guns, Germs, and Steel, ch. 9, from memory): their young as their captive breeding
+ * against a goat's ([HERD_BREEDS] 0.7, [herdMothers]), their deaths from fighting by their disposition against a goat's
+ * ([HERD_TEMPER] 0.6, [fighting]); the scales and the square estimates, the criteria the catalogue's.
  */
 const val CAPTURE = 0.5f
 const val RAISED_TAME = 0.8f
 const val HERD_RUN_OFF = 0.5f
 const val HERD_EASE = 0.6f
+const val HERD_BREEDS = 0.7f
+const val HERD_TEMPER = 0.6f
 const val TAMING_RATE = 0.01f
 const val HERD_GOATS_A_HERDER = 200f
 const val GOAT_KG = 40f

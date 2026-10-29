@@ -393,9 +393,13 @@ object HexSnapshot {
      *   carried by [BEARERS] to where most of its dead lie if that is within a day's walk ([BODY_CARRY_KM]), the bearers' walk there and
      *   back owed too. The way passes on as a mark does and counts apart between bands that both bury. Before, burials
      *   took no time.
+     * 4.89: kept herds bear young as their kind breeds without pens or incubators ([herdMothers]: captive breeding against
+     *   a goat's, [HERD_BREEDS] 0.7; ostrich 71%, red deer 43%, goat, sheep, boar, aurochs whole) and lose some each year to
+     *   fighting by their temper ([fighting]: 0.5 × (1 − disposition / [HERD_TEMPER] 0.6)²; goat and sheep none, horse 1%,
+     *   boar 6%, red deer 13%, ostrich and aurochs 22%). Before, every kind bred at its wild rate when kept and none fought.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 88
+    const val MODEL_MINOR = 89
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

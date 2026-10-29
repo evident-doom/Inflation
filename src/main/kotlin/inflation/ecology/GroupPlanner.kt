@@ -837,7 +837,7 @@ internal class GroupPlanner(private val gs: HexGroups) {
             val s = gs.fauna.kinds[k]
             val short = 1f - gs.herdForage(p, s, n).fed
             if (short <= 0f) continue
-            kg += n * short * 0.5f * (1f + s.youngPerFemale * (0.3f + 0.7f * b.herdTame[k])) * gs.years * s.massKg
+            kg += n * short * (0.5f + s.youngPerFemale * herdMothers(s, b.herdTame[k])) * gs.years * s.massKg
         }
         return kg * MEAT_SHARE * Nourishment.MEAT * g.species.needScale / (g.dailyNeedKg.coerceAtLeast(1e-3f) * gs.days)
     }
