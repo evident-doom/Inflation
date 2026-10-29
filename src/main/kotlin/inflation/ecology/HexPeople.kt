@@ -320,7 +320,7 @@ internal fun HexGroups.tallyVillages() {
         f[VillageFlow.BANDS] += bs.size.toFloat()
         f[VillageFlow.PEOPLE] += bs.sumOf { it.size }.toFloat()
         f[VillageFlow.MOST_BANDS] = max(f[VillageFlow.MOST_BANDS], bs.size.toFloat())
-        if (bs.any { it.band!!.atHome && it.band!!.palisade > 0.05f }) f[VillageFlow.PALISADED] += 1f
+        if (bs.any { g -> g.band.let { it != null && it.atHome && it.palisade > 0.05f } }) f[VillageFlow.PALISADED] += 1f
         age[h] = (age[h] ?: 0) + 1
     }
     val ages = age.entries.iterator()
