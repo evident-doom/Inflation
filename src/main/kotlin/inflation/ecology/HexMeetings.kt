@@ -144,7 +144,7 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather) {
     // Bands that hold to sharing give more, and sooner.
     val sharing = rich.band?.holds(Tradition.SHARING) == true
     // (More to a band it is close to.)
-    val close = (rich.band?.tie(poor.id) ?: 0f).coerceAtLeast(0f)
+    val close = rich.band?.let { rb -> poor.band?.let { Regard(rb, poor.id, it).close } } ?: 0f
     if (poor.fed < (if (sharing) 0.9f else 0.8f) && rich.larder > 0f) {
         // (As much as the giver chooses to give.)
         // (Of the nine tenths of its larder it could spare: more of the same gives ever less of what is left.)
@@ -166,7 +166,7 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather) {
     // Gifts: bands close to each other give each other ornaments, which travel on along the ties.
     for ((giver, taker) in listOf(a to b, b to a)) {
         val gb = giver.band ?: continue; val tb = taker.band ?: continue
-        if (gb.tie(taker.id) < 0.3f || gb.ornaments < 1f) continue
+        if (Regard(gb, taker.id, tb).tie < FRIEND_TIE || gb.ornaments < 1f) continue
         val gift = min(1f, ORNAMENT_GIFT * gb.giveWill) * gb.ornaments
         dialUse?.amount(DialSite.GIVE_ORNAMENTS, gb.giveWill, gift, min(1f, ORNAMENT_GIFT) * gb.ornaments, cut = ORNAMENT_GIFT * gb.giveWill > 1f)
         if (gift <= 0f) continue
@@ -180,7 +180,7 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather) {
     // the giver's name goes about among the bands.
     for ((giver, taker) in listOf(a to b, b to a)) {
         val gb = giver.band ?: continue; val tb = taker.band ?: continue
-        if (gb.tie(taker.id) < FEUD_GIFT) continue
+        if (Regard(gb, taker.id, tb).tie < FEUD_GIFT) continue
         var useful = 0f
         for (m in TRADED) {
             val need = YEAR_NEED[m]

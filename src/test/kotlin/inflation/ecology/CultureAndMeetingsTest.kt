@@ -75,6 +75,14 @@ class CultureAndMeetingsTest {
         assertEquals(before(drive, 0.4f, b.tie(7), false), r.fightChance(drive), "read as it stands now")
         assertTrue(r.wariness < wary && r.trust > 0.5f * 0.4f && r.takesUpPlace > 0.3f * 0.4f)
         assertEquals(0.5f * (b.tie(7) + 0f), Regard.close(r, Regard(o, 1, b, 0.4f)))
+        assertTrue(r.friend && !r.feud)
+        // (Unheard, it reads their words as they stand; and no band is ever warier than the most there is.)
+        assertEquals(Language.understanding(b.words, o.words), Regard(b, 7, o).understood)
+        val far = Band(0).also { f -> f.lineage[5] = 1f; for (t in Tradition.entries) f.traditions[t] = !b.holds(t) }
+        assertTrue(Regard(b, 9, far, 0f).wariness <= Regard.MOST_WARY)
+        assertEquals(Regard.MOST_WARY, Regard(b, 9, far, 0f).wariness, 1e-6f)
+        b.grudge[5] = FEUD + 0.1f
+        assertTrue(Regard(b, 9, far).feud)
     }
 
     @Test

@@ -161,6 +161,8 @@ const val TIE_MARRY = 0.3f
 const val TIE_RAID = 0.8f
 const val TIE_FADE = 0.5f
 const val TIE_PEACE = 0.8f
+/** A tie above which a band counts the other a friend ([Regard.friend]). */
+const val FRIEND_TIE = 0.3f
 /**
  * Share of its hands' week a band gives to leisure at which visits keep a tie with one friendly band near most of the way
  * from fading (1 - 1/e): visits to more bands share the same leisure. Foragers spend much of their free time visiting
@@ -207,16 +209,24 @@ private val UNIVERSAL = setOf(Tradition.EXOGAMY, Tradition.SHARING, Tradition.ME
 fun kinship(a: FloatArray, b: FloatArray): Float { var s = 0f; for (i in a.indices) s += a[i] * b[i]; return s }
 
 /**
- * How band [of] stands toward band [to] (of group [toId]) when they meet, understanding each other as far as [understood]
- * (taken as the meeting began): its tie to them, whether they are strangers, how near kin they are and how far apart their
- * customs, each read as it stands when asked. Everything in a meeting that turns on how one band sees the other (whether it
- * comes to blows, how far it believes what it is told, whose meeting place it takes up) reads it from here.
+ * How band [of] stands toward band [to] (of group [toId]): how well they understand each other (at a meeting, [heard] as it
+ * began; otherwise their words as they stand), its tie to them, whether they are strangers, its grudge against their people,
+ * how near kin they are and how far apart their customs, each read as it stands when asked. Everything between two bands
+ * that turns on how one sees the other reads it from here: whether it comes to blows at a meeting, sets out to raid its home
+ * or robs its cache, what it gives, how far it believes what it is told, whose meeting place it takes up, and whom it counts
+ * as friend or foe about it.
  */
-internal class Regard(private val of: Band, private val toId: Int, private val to: Band, val understood: Float) {
+internal class Regard(private val of: Band, private val toId: Int, private val to: Band, private var heard: Float = -1f) {
+    val understood: Float get() { if (heard < 0f) heard = Language.understanding(of.words, to.words); return heard }
     val tie get() = of.tie(toId)
     val close get() = max(0f, tie)
+    /** Close enough to count as friends: given ornaments, its cache left alone. */
+    val friend get() = tie > FRIEND_TIE
     /** Never met before. */
     val stranger get() = toId !in of.ties
+    /** Its grudge against their people (their main lineage), and whether it is a feud: enough to raid them unprovoked. */
+    val grudge get() = of.grudge[to.mainLineage()]
+    val feud get() = grudge > FEUD
     val kin get() = kinship(of.lineage, to.lineage)
     val customsApart get() = Tradition.entries.count { of.holds(it) != to.holds(it) }
 
@@ -237,6 +247,8 @@ internal class Regard(private val of: Band, private val toId: Int, private val t
     companion object {
         /** How close two bands are to each other, between them. */
         fun close(ab: Regard, ba: Regard) = max(0f, 0.5f * (ab.tie + ba.tie))
+        /** The most [wariness] can be: strangers of wholly other customs, no kin, not understood at all. */
+        const val MOST_WARY = 1f + STRANGER_HOSTILITY + CUSTOMS_HOSTILITY
     }
 }
 
@@ -379,16 +391,15 @@ private fun HexGroups.tellOfCountry(a: HexGroup, bandA: Band, b: HexGroup, bandB
         }
     }
     adopt(a, bandA, b, bandB, ab); adopt(b, bandB, a, bandA, ba)
-    // And of the places they remember, as far as they trust each other.
-    val trust = ab.trust
-    a.memory.hear(b.memory, wk, stepsPerYear, trust); b.memory.hear(a.memory, wk, stepsPerYear, trust)
+    // And of the places they remember, each as far as it trusts the other.
+    a.memory.hear(b.memory, wk, stepsPerYear, ab.trust); b.memory.hear(a.memory, wk, stepsPerYear, ba.trust)
 }
 
 /** [g] raids [o] (as it regards it: [r]) if it is hungry and [o] has food, or holds a feud against its people. Returns whether it did. */
 private fun HexGroups.raid(g: HexGroup, b: Band, o: HexGroup, ob: Band, r: Regard, weather: Weather): Boolean {
     // What drives a raid: an old feud, or competition (hunger with food in the other's larder, or too
     // many people on the same country); kin and those who understand each other fight less.
-    val feud = b.grudge[ob.mainLineage()] > FEUD
+    val feud = r.feud
     val hunger = if (o.larder > 10f * o.dailyNeedKg) (1f - g.fed) else 0f
     // (On ground it holds as its own, a band drives off those it is not close to: trespass.)
     val trespass = if (b.claims(hw.placeHex[g.place], g.memory) && r.tie <= 0f) CLAIM_PRESSURE else 0f

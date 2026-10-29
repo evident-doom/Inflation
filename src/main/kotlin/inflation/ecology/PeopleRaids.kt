@@ -50,26 +50,39 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
     dialUse?.choice(DialSite.RAIDS_HUNGER, b.raidWill, hungry, g.fed < RAID_HUNGER)
     val within = ArrayList<Int>()
     for ((id, h) in b.knownHomes) {
-        if (b.tie(id) > 0f) continue
         val feud = (b.knownLineage[id] ?: -1).let { it >= 0 && b.grudge[it] > FEUD }
         if (!hungry && !feud) continue
         if (hexKm(here, h) <= RAID_RANGE_KM) within += id
     }
-    if (within.isNotEmpty() && drawn(DialSite.RAIDS_PLOT, b.raidWill, rnd.nextFloat(), RAID_PLOT * b.raidWill * days / 7f) { RAID_PLOT * days / 7f }) {
+    if (within.isEmpty()) return
+    // Whether it sets out turns on how it regards the bands it could fall on ([Regard.fightChance]): the warier of one of them,
+    // the likelier; never on a band it is close to. (No regard is warier than [Regard.MOST_WARY], so a draw above that chance
+    // needs no look at them.)
+    val drive = RAID_PLOT * b.raidWill * days / 7f
+    val u = rnd.nextFloat()
+    if (dialUse == null && u >= drive * Regard.MOST_WARY) return
+    val them = ArrayList<Pair<HexGroup, Regard>>()
+    for (id in within) {
+        val o = groups.firstOrNull { it.id == id && it.alive } ?: continue
+        val r = Regard(b, id, o.band ?: continue)
+        if (r.tie <= 0f) them += o to r
+    }
+    if (them.isEmpty()) return
+    val wariest = them.maxOf { it.second.wariness }
+    if (drawn(DialSite.RAIDS_PLOT, b.raidWill, u, drive * wariest) { RAID_PLOT * days / 7f * wariest }) {
         // Above all it keeps alive: it falls on the home where it would lose fewest of its own (the defenders as it
         // knows them, at home behind their works; see [raidStrengths]); of homes about as safe (within a step of its
-        // score, see [survivalSteps]), the nearest.
-        val dying = HashMap<Int, Float>()
-        for (id in within) {
-            val o = groups.firstOrNull { it.id == id && it.alive } ?: continue
+        // score, see [survivalSteps]), the one it is warier of, then the nearest.
+        val dying = HashMap<Int, Float>(); val wary = HashMap<Int, Float>()
+        for ((o, r) in them) {
             val ob = o.band ?: continue
             val (sg, so) = raidStrengths(g, o, ob, planned = true, atHome = true, weather)
-            dying[id] = RAID_DEATHS * so / (sg + so)
+            dying[o.id] = RAID_DEATHS * so / (sg + so); wary[o.id] = r.wariness
         }
         if (dying.isEmpty()) return
         val least = dying.values.min()
         val best = dying.keys.filter { survivalSteps(g, dying.getValue(it) - least) <= 1f }
-            .minWith(compareBy<Int> { hexKm(here, b.knownHomes.getValue(it)) }.thenBy { it })
+            .minWith(compareByDescending<Int> { wary.getValue(it) }.thenBy { hexKm(here, b.knownHomes.getValue(it)) }.thenBy { it })
         val at = b.knownHomes.getValue(best)
         b.raid = Raid(at, best, RAID_WEEKS)
         stats.meeting(Met.RAIDS_SET_OUT)

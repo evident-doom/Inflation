@@ -392,8 +392,8 @@ internal fun HexGroups.bandInputs(g: HexGroup, weather: Weather, into: FloatArra
         for (o in bands.bandIndex[h] ?: continue) {
             if (o === g) continue
             val ob = o.band ?: continue
-            val t = b.tie(o.id)
-            if (t > 0.3f) friends++ else if (t < 0f || b.grudge[ob.mainLineage()] > 0.5f) foes++ else strangers++
+            val r = Regard(b, o.id, ob)
+            if (r.friend) friends++ else if (r.tie < 0f || r.grudge > 0.5f) foes++ else strangers++
             theirSick += ob.sick.sum(); near++
         }
     }

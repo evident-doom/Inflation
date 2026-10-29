@@ -307,11 +307,14 @@ internal fun HexGroups.robCaches(weather: Weather) {
             val owners = caches[h] ?: continue
             for (o in owners) {
                 val ob = o.band ?: continue
-                if (o === g || b.tie(o.id) > 0.3f || ob.cacheKg <= 1f) continue
+                if (o === g || ob.cacheKg <= 1f) continue
+                val r = Regard(b, o.id, ob)
+                if (r.friend) continue
                 if (!drawn(DialSite.SCOUTS_FIND_CACHE, b.will[BandWay.SCOUTS], rnd.nextFloat(), CACHE_FIND * sight(ob.cachePlace, weather) * (1f + b.scoutShare * 5f) / cacheCare(ob))
                     { CACHE_FIND * sight(ob.cachePlace, weather) * (1f + SCOUT_SHARE * 5f) / cacheCare(ob) }) continue
-                // (Found, it is the band's choice whether to take from it.)
-                if (!drawn(DialSite.ROB_TAKE, b.robWill, rnd.nextFloat(), min(1f, b.robWill), cut = b.robWill > 1f) { 1f }) continue
+                // (Found, it is the band's choice whether to take from it: by its readiness, and the less so the less wary it is of
+                // the owners, as with coming to blows; see [Regard.fightChance].)
+                if (!drawn(DialSite.ROB_TAKE, b.robWill, rnd.nextFloat(), r.fightChance(min(1f, b.robWill)), cut = b.robWill > 1f) { r.wariness }) continue
                 val takeShare = CACHE_TAKE * max(1f, b.robWill)
                 dialUse?.amount(DialSite.ROB_SHARE, b.robWill, takeShare, CACHE_TAKE, cut = b.robWill < 1f)
                 val room = max(0f, carryKg(g, b) - g.larder)
