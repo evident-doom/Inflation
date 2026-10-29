@@ -291,7 +291,16 @@ internal class GroupPlanner(private val gs: HexGroups) {
             best = Place(candPlaces[policy.choose(g, Array(nc) { candFeats[it] }, buf.candScores.copyOf(nc), gs.policyRandom(g.id, date.absoluteDay))])
         }
         // (A choice the policy drew by chance to learn from stands; every other band draws by its will to explore, in training worlds as outside them.)
+        val chosen = best
         if (explores && !g.drawn) best = explored(g, policy, buf, best, date)
+        // (For the census: whether the band would have moved by its best choice, and whether it moved by its draw.)
+        if (g.band != null) {
+            val k = s.index * 4
+            exploreCounts.incrementAndGet(k)
+            if (chosen != g.place) exploreCounts.incrementAndGet(k + 1)
+            if (best != g.place) exploreCounts.incrementAndGet(k + 2)
+            if (best != g.place && chosen == g.place) exploreCounts.incrementAndGet(k + 3)
+        }
         lap("choosing: network")
         // The hexes passed on the way to [p], by the cheapest chain.
         fun pathTo(p: Int): HexArray {
@@ -986,4 +995,10 @@ internal class GroupPlanner(private val gs: HexGroups) {
 
     /** Choices made in planning, by kind: (slot 0 unused: every group weighs every week), weighed and stayed, weighed and moved. */
     val planCounts = AtomicIntegerArray(64 * 3)
+    /**
+     * Bands' weeks by kind, for the census: weeks weighed, those its best choice (the hand-written score's or its network's)
+     * would have moved it, those it moved, and those it moved only by its will to explore's draw ([explored]), the best
+     * staying put. Not saved: the census's, cleared as it prints.
+     */
+    @Transient val exploreCounts = AtomicIntegerArray(64 * 4)
 }

@@ -177,6 +177,13 @@ class Census(private val sim: HexSim) {
             val all = c.sum().coerceAtLeast(1)
             "%s %.0f/%.0f/%.0f%%".format(s.name, 100.0 * c[0] / all, 100.0 * c[1] / all, 100.0 * c[2] / all)
         })
+        val banded = groups.kinds.filter { groups.planner.exploreCounts[it.index * 4] > 0 }
+        if (banded.isNotEmpty()) println("     bands' moves, share of band-weeks (its best choice would move / moved / moved only by its will to explore's draw): " +
+            banded.joinToString(", ") { s ->
+                val c = IntArray(4) { groups.planner.exploreCounts.getAndSet(s.index * 4 + it, 0) }
+                val all = c[0].coerceAtLeast(1)
+                "%s %.1f/%.1f/%.1f%%".format(s.name, 100.0 * c[1] / all, 100.0 * c[2] / all, 100.0 * c[3] / all)
+            })
     }
 
     /** The hunters' families: packs, how many hold ground and could breed, lone animals, adults and young. */
