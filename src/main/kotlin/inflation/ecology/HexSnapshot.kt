@@ -407,14 +407,18 @@ object HexSnapshot {
      *   and the place grows holier by the adults at it and by the dead laid there ([HexLand.sanctity], fading over
      *   [SANCTITY_YEARS]); what the month does not give cuts the rite short. A band taking up a rite is drawn to a holier
      *   place. Before, a rite asked nothing.
-     * 4.92: a band's kill of grown game carries the animal's fat ([HexFauna.fatShare]: its reserves as a share of the most its
+     * 4.92: a band's belief (its rites as a whole) is strained by each rite cut short ([Band.strain], easing in weeks it
+     *   eats its fill) and grows older while kept ([Band.beliefYears]); past what it bears ([Band.strainBorne]: [STRAIN_SPLIT],
+     *   more the older the belief) a band of its kind's usual size or more splits, half going without the belief
+     *   ([beliefSplits]). Before, rites cut short cost nothing beyond the days given.
+     * 4.93: a band's kill of grown game carries the animal's fat ([HexFauna.fatShare]: its reserves as a share of the most its
      *   body can hold, [Species.mostFatShare]), as much as its butchers take ([fatOfKill]); the fat feeds as grease
      *   ([Nourishment.GREASE], no protein) and the rest of the meat as lean, so a fat autumn kill is worth more than a lean
      *   one at the end of winter, and the hunters' choice weighs it. What is not eaten that week keeps with the fresh meat.
      *   Before, every kill was lean meat ([Nourishment.MEAT]) whatever the animal's state.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 92
+    const val MODEL_MINOR = 93
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
