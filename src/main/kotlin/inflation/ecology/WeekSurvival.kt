@@ -56,8 +56,11 @@ internal fun HexGroups.survivalDays(g: HexGroup, b: Band, weather: Weather, time
     }
     val larderDays = g.larder / g.dailyNeedKg.coerceAtLeast(1e-3f)
     // (The year after under each shelter it might put up, worked out once for each to the hundredth: through the days it
-    // expects to stay on after this week.)
-    val stayDays = max(0f, b.stayWeeks - (if (moved) 0 else b.campWeeks) - 1f) * days
+    // expects to stay on after this week. It decides each week whether to move on, so the weeks it has kept the camp take
+    // nothing from those still to come: with a week's chance of leaving of one in its usual stay, it stays that less this
+    // week. The weeks it has kept this camp count as well as its usual stay, as for its moves ([birthSpacing]). Before,
+    // its usual stay less the weeks kept: a band that had outstayed it was reckoned to leave next week, whatever it did.)
+    val stayDays = (max(b.stayWeeks, (if (moved) 0 else b.campWeeks) + 1f) - 1f) * days
     val yearAt = HashMap<Int, YearAhead>()
     fun year(shelter: Float): YearAhead {
         val sh = (shelter * GRID).roundToInt()

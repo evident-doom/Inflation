@@ -384,9 +384,13 @@ object HexSnapshot {
      *   the band went hungry the week before; a band known to have eaten of it ([TOTEM_SHAME_YEARS]) is not seen to keep it.
      *   A totem passes to offshoots, goes the way most bands about go as a mark does, and now and then is given up or taken
      *   up; it is one of the customs bands count each other apart by ([CUSTOMS], [Regard.customsApart]).
+     * 4.87: the survival pass reckons a shelter through the weeks a band expects to stay on as one that decides each week
+     *   whether to move: its usual stay less this week, or the weeks it has kept the camp where those are more
+     *   ([Band.stayWeeks], [survivalDays]). Before, its usual stay less the weeks it had kept the camp, so a band that had
+     *   outstayed its usual stay weighed a shelter by this week alone.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 86
+    const val MODEL_MINOR = 87
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
