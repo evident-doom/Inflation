@@ -384,16 +384,22 @@ object HexSnapshot {
      *   the band went hungry the week before; a band known to have eaten of it ([TOTEM_SHAME_YEARS]) is not seen to keep it.
      *   A totem passes to offshoots, goes the way most bands about go as a mark does, and now and then is given up or taken
      *   up; it is one of the customs bands count each other apart by ([CUSTOMS], [Regard.customsApart]).
+     * 4.87: burials cost the band its customs' time ([Band.burialOwed]: [BURY_DAYS] a death, before cleaning and nursing),
+     *   and a band that buries its dead lays them by its lineage's way ([BurialWay], [burialWayAt]): where it camps, or
+     *   carried by [BEARERS] to where most of its dead lie if that is within [REMEMBERED_KM], the bearers' walk there and
+     *   back owed too. The way passes on as a mark does and counts apart between bands that both bury. Before, burials
+     *   took no time.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 86
+    const val MODEL_MINOR = 87
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
      * numbers would land on the wrong entries; entries added at the end keep the fresh model's values.
      */
     internal val ORDERED: List<Class<out Enum<*>>> = listOf(Skill::class.java, Tool::class.java, Material::class.java, Store::class.java,
-        Illness::class.java, Tradition::class.java, Biome::class.java, BandWay::class.java, inflation.world.MastTrees::class.java)
+        Illness::class.java, Tradition::class.java, Biome::class.java, BandWay::class.java, inflation.world.MastTrees::class.java,
+        BurialWay::class.java)
 
     /** Writes the state of [sim] to [file]. */
     fun save(sim: HexSim, file: File) {

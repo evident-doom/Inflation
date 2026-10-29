@@ -425,12 +425,21 @@ private fun HexGroups.mournDead(g: HexGroup, o: Outcome, date: Date) {
     // Where a beast took one of them, the band remembers the place as dangerous.
     if (s.human && o.causes.any { it.cause.isTakenBy() && it.n > 0 })
         g.memory.mark(hw.placeHex[g.place], PlaceMemory.seasonOf(date.month), stepOf(date), stepsPerYear, g.memory.danger, 1f)
-    if (s.human && o.deaths > 0 && g.band?.holds(Tradition.BURIAL) == true) {
-        g.memory.mark(hw.placeHex[g.place], PlaceMemory.seasonOf(date.month), stepOf(date), stepsPerYear, g.memory.dead, o.deaths.toFloat())
-        land.burials[g.place] += o.deaths.toFloat()
+    if (s.human && o.deaths > 0) g.band?.takeIf { it.holds(Tradition.BURIAL) }?.let { b ->
+        // Where it lays them by its way ([BurialWay]): where it camps, or carried to where most of its dead lie, if that is
+        // country it still knows ([REMEMBERED_KM]); the digging and any carrying are owed of its customs' time.
+        val camp = hw.placeHex[g.place]
+        val site = if (b.burialWay == BurialWay.AT_ANCESTORS) ancestorsHex(g) else Hex.NONE
+        val at = if (!site.none && hexKm(camp, site) <= REMEMBERED_KM) site else camp
+        val p = if (at == camp) g.place else hw.placeNear(g.place, at).takeIf { !it.none } ?: g.place
+        val carryKm = if (at == camp) 0.0 else hexKm(camp, at)
+        b.burialOwed += o.deaths * (BURY_DAYS + BEARERS * (2.0 * carryKm / (WALK_KM_PER_HOUR * Activity.WORK_HOURS)).toFloat())
+        if (at != camp) { stats.meeting(Met.BANDS_CARRIED_THEIR_DEAD); note(g) { "carried its dead to its ancestors at hex %d".format(at.i) } }
+        g.memory.mark(at, PlaceMemory.seasonOf(date.month), stepOf(date), stepsPerYear, g.memory.dead, o.deaths.toFloat())
+        land.burials[p] += o.deaths.toFloat()
         // Ornaments go into the grave with them: the more a band has, the richer its graves.
-        g.band?.let { b -> val goods = min(b.ornaments, GRAVE_GOODS * b.ornaments * o.deaths)
-            b.takeOrnaments(goods); land.graveGoods[g.place] += goods }
+        val goods = min(b.ornaments, GRAVE_GOODS * b.ornaments * o.deaths)
+        b.takeOrnaments(goods); land.graveGoods[p] += goods
     }
 }
 
