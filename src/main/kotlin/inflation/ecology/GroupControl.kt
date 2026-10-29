@@ -34,9 +34,8 @@ class MoveDecision(
     val learned: Boolean,
     val restless: Boolean,
     val reachKm: Float,
-    /** The place its round or its memory of the season draws it to (-1 none), and whether it is on its round. */
+    /** The place its memory of the season draws it to (-1 none). */
     val goal: Int,
-    val onRound: Boolean,
     /** What it knows of itself (a band: [Band.state], as its networks read it; a pack: [animalInputs]). */
     val knows: FloatArray,
     /** The ways the model would set this week (0 the hand-written way each), and whether a learned network sets them. */
@@ -51,7 +50,7 @@ private val HAND_WRITTEN_ANIMAL_WAYS = AnimalWays { _, _, out -> out.fill(0f) }
 /** Asks [control] where the followed group [g] goes, among the candidates weighed in [HexGroups.plan]; returns the place. */
 internal fun HexGroups.askControl(
     g: HexGroup, weather: Weather, date: Date, policy: HexPolicy?, cand: GroupPlanner.IntList, feats: ArrayList<FloatArray>, hand: FloatArray,
-    modelPlace: Int, restless: Boolean, reach: Float, goal: Int, onRound: Boolean, pathTo: (Int) -> HexArray,
+    modelPlace: Int, restless: Boolean, reach: Float, goal: Int, pathTo: (Int) -> HexArray,
 ): Int {
     val ctl = control ?: return modelPlace
     val n = cand.size
@@ -73,7 +72,7 @@ internal fun HexGroups.askControl(
         out = FloatArray(ANIMAL_WAYS_OUT); (w ?: HAND_WRITTEN_ANIMAL_WAYS).choose(g, knows.copyOf(), out); learnedWays = w != null
     }
     val d = MoveDecision(g, date, places, features, scores, net, Array(n) { pathTo(places[it]) }, model, policy != null, restless, reach, goal,
-        onRound, knows, out, learnedWays)
+        knows, out, learnedWays)
     val pick = ctl.move(d).takeIf { it in 0 until n } ?: model
     // A pack's ways were set before it chose (bands set theirs as they forage): the player's pins take hold now.
     if (band == null) setAnimalWays(g, weather, hunterWays ?: HAND_WRITTEN_ANIMAL_WAYS, FloatArray(ANIMAL_WAYS_IN),

@@ -8,8 +8,10 @@ import inflation.StockName
 import inflation.Stocks
 import inflation.ecology.Activity
 import inflation.ecology.Catalogue
+import inflation.ecology.Mind
 import inflation.ecology.DeathCause
 import inflation.ecology.Tally
+import inflation.ecology.VillageFlow
 import inflation.ecology.HexGeography
 import inflation.ecology.Fed
 import inflation.ecology.HexFauna
@@ -360,6 +362,28 @@ class Census(private val sim: HexSim) {
             "%s %.0f%%, %.1f a band: %.1f / %.1f (%s)".format(w.label, 100 * pw / all, pw / (lastYear[Tally.bandsLiving(w, Tally.Bands.BAND_WEEKS)] ?: 0).toDouble().coerceAtLeast(1.0),
                 1000 * (lastYear[Tally.bandsLiving(w, Tally.Bands.BORN)] ?: 0) / years, 1000 * died.values.sum() / years,
                 died.entries.sortedByDescending { it.value }.joinToString(" ") { "%s %.1f".format(it.key, 1000 * it.value / years) }) })
+        println("bands by mind, last year (nets: today's choosing; plans: the planning kind, t.planners; share of people-weeks and of band-weeks; people a band; share of band-weeks at a new camp; births / deaths per 1000 people a year; deaths per 1000 a year by cause, largest first): " + Mind.entries.joinToString(", ") { m ->
+            val pw = (lastYear[Tally.bandsMind(m, Tally.Bands.PEOPLE_WEEKS)] ?: 0).toDouble()
+            val all = Mind.entries.sumOf { (lastYear[Tally.bandsMind(it, Tally.Bands.PEOPLE_WEEKS)] ?: 0).toDouble() }.coerceAtLeast(1.0)
+            val bw = (lastYear[Tally.bandsMind(m, Tally.Bands.BAND_WEEKS)] ?: 0).toDouble().coerceAtLeast(1.0)
+            val years = (pw / stepsPerYear).coerceAtLeast(1e-9)
+            val died = lastYear.filterKeys { it.startsWith(Tally.bandsMindDied(m)) }.mapKeys { Tally.diedOf(it.key) }
+            val bwAll = Mind.entries.sumOf { (lastYear[Tally.bandsMind(it, Tally.Bands.BAND_WEEKS)] ?: 0).toDouble() }.coerceAtLeast(1.0)
+            "%s %.0f%% (of band-weeks %.0f%%), %.1f a band, moved %.0f%%: %.1f / %.1f (%s)".format(m.label, 100 * pw / all, 100 * (lastYear[Tally.bandsMind(m, Tally.Bands.BAND_WEEKS)] ?: 0) / bwAll,
+                pw / bw, 100 * (lastYear[Tally.bandsMind(m, Tally.Bands.MOVES)] ?: 0) / bw,
+                1000 * (lastYear[Tally.bandsMind(m, Tally.Bands.BORN)] ?: 0) / years, 1000 * died.values.sum() / years,
+                died.entries.sortedByDescending { it.value }.joinToString(" ") { "%s %.1f".format(it.key, 1000 * it.value / years) }) })
+        run {
+            // Villages: hexes where two or more bands live settled ([villages]).
+            val f = groups.bands.villageFlows
+            val weeks = f[VillageFlow.WEEKS].toDouble().coerceAtLeast(1.0); val vw = f[VillageFlow.VILLAGE_WEEKS].toDouble()
+            val now = groups.bands.villageAge
+            println("villages since the census last read them (two or more bands living settled in one hex; nothing chooses by it): standing now %d, the oldest %d weeks; in a week %.1f villages, %.1f bands and %.0f people a village, most bands in one %.0f; people in villages %.0f%% of those settled, %.0f%% of all, %.0f%% of them at home in houses (the rest camped half a year or more); with a palisade standing %.0f%% of village-weeks; %.0f ended, after %.1f weeks on average".format(
+                now.size, now.values.maxOrNull() ?: 0, vw / weeks, f[VillageFlow.BANDS] / vw.coerceAtLeast(1.0), f[VillageFlow.PEOPLE] / vw.coerceAtLeast(1.0), f[VillageFlow.MOST_BANDS].toDouble(),
+                100 * f[VillageFlow.PEOPLE] / f[VillageFlow.SETTLED_PEOPLE].toDouble().coerceAtLeast(1.0), 100 * f[VillageFlow.PEOPLE] / f[VillageFlow.ALL_PEOPLE].toDouble().coerceAtLeast(1.0), 100 * f[VillageFlow.PEOPLE_AT_HOME] / f[VillageFlow.PEOPLE].toDouble().coerceAtLeast(1.0),
+                100 * f[VillageFlow.PALISADED] / vw.coerceAtLeast(1.0), f[VillageFlow.ENDED].toDouble(), f[VillageFlow.ENDED_WEEKS] / f[VillageFlow.ENDED].toDouble().coerceAtLeast(1.0)))
+            f.fill(0f)
+        }
         println("bands by whether they keep a herd and how much of their hands' days it asks, last year (share of people-weeks; people a band; clad, mobile; children a person; fed; air where they stood, °C; births per 1000 people a year; grown deaths per 1000 grown a year, children's per 1000 children, by cause, largest first): " + Tally.Herding.entries.joinToString(", ") { h ->
             fun v(k: Tally.Bands) = (lastYear[Tally.bandsHerding(h, k)] ?: 0).toDouble()
             val pw = v(Tally.Bands.PEOPLE_WEEKS); val cw = v(Tally.Bands.CHILD_WEEKS); val bw = v(Tally.Bands.BAND_WEEKS).coerceAtLeast(1.0)
@@ -624,6 +648,22 @@ class Census(private val sim: HexSim) {
             .format(100.0 * kept.size / n, kept.toSet().size, 100.0 * bands.count { it.second.totemBroken > 0f } / n, 100.0 * bury.size / n,
                 if (bury.isEmpty()) 0.0 else 100.0 * bury.count { it.second.burialWay == BurialWay.AT_ANCESTORS } / bury.size,
                 if (bury.isEmpty()) 0.0 else bury.sumOf { it.second.burialOwed.toDouble() } / bury.size))
+        val now = weather.date.year * 12 + weather.date.month
+        val keeping = bands.filter { (_, b) -> b.rite.any { it >= 0 } }
+        val bySite = HashMap<Int, Int>()
+        for ((_, b) in bands) for (p in b.rite.toSet()) if (p >= 0) bySite.merge(p, 1, Int::plus)
+        val shared = bySite.values.sorted()
+        val holy = land.sanctity.sortedDescending()
+        println("     rites: %.0f%% of bands keep rites (%.1f sites a band), %.0f%% of those held one to the end in the past year, %.1f person-days a band still owed to rites; %d sites, bands a site median %d, largest %d, %d sites kept by 5 bands or more; holiest places' sanctity %.0f / %.0f / %.0f, %d places of 100 or more"
+            .format(100.0 * keeping.size / n, if (keeping.isEmpty()) 0.0 else keeping.sumOf { (_, b) -> b.rite.count { it >= 0 } }.toDouble() / keeping.size,
+                if (keeping.isEmpty()) 0.0 else 100.0 * keeping.count { (_, b) -> b.riteKept >= 0 && now - b.riteKept < 12 } / keeping.size,
+                bands.sumOf { it.second.riteOwed.toDouble() } / n.coerceAtLeast(1),
+                shared.size, if (shared.isEmpty()) 0 else shared[shared.size / 2], shared.lastOrNull() ?: 0, shared.count { it >= 5 },
+                holy.getOrElse(0) { 0f }, holy.getOrElse(9) { 0f }, holy.getOrElse(99) { 0f }, holy.count { it >= 100f }))
+        val ages = keeping.map { it.second.beliefYears }.sorted()
+        println("     beliefs: %.0f%% of bands keep none; belief kept a median of %.1f years (ninetieth %.1f); strain %.2f a band against %.2f borne"
+            .format(100.0 * (n - keeping.size) / n.coerceAtLeast(1), ages.getOrElse(ages.size / 2) { 0f }, ages.getOrElse((ages.size * 9) / 10) { 0f },
+                keeping.sumOf { it.second.strain.toDouble() } / keeping.size.coerceAtLeast(1), keeping.sumOf { it.second.strainBorne().toDouble() } / keeping.size.coerceAtLeast(1)))
         fun line(label: String, key: (Tally.MeetingEnd) -> TallyKey): String {
             fun v(e: Tally.MeetingEnd) = thisYear[key(e)] ?: 0
             val met = v(Tally.MeetingEnd.MET)

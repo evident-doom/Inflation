@@ -243,7 +243,7 @@ class Band(kinds: Int) {
     /**
      * Of each kind, the years left of the time its herd, begun from young caught in the hunt, is kept as pets: small animals
      * kept for their own sake, as companions, and not yet weighed as food ([keepHerds]) till the young it was begun with have
-     * grown ([Species.yearsToMaturity]). 0 for a herd kept for food. (Empty in a band loaded from a save made before it;
+     * grown, or sooner for a kind of bad temper ([petYears]). 0 for a herd kept for food. (Empty in a band loaded from a save made before it;
      * [keepHerds] sizes it to [herd].)
      */
     var herdPet = FloatArray(kinds)
@@ -506,26 +506,40 @@ class Band(kinds: Int) {
     fun learn(h: Hex, size: Int) { if (known.size * 64 < size) known = known.copyOf((size + 63) / 64); known[h.i / 64] = known[h.i / 64] or (1L shl (h.i % 64)) }
 
     /**
-     * The rite its culture holds it to in [month], if any: the place it must go to then and how strongly
-     * (see [inflation.ecology.roundOf]): the site of its rite that month ([rite]) at the strength its
-     * people hold to their rites ([riteStrength]); none in a month without a site, or with no hold.
-     */
-    fun riteFor(month: Int): RoundPull? {
-        if (riteStrength <= 0f) return null
-        // (A rite's month is spent at its site: the band is drawn there from the month before, and kept
-        // there until the month after, unless that has its own.)
-        val site = if (rite[month] >= 0) rite[month] else rite[wrapMonth(month - 1)]
-        return if (site >= 0) RoundPull(site, riteStrength) else null
-    }
-    /**
-     * Its rites: for each month, the place its round of observance takes it to then (-1: none) — the
-     * graves of its dead, where bands gather, far landmarks it walked to or was told of (see [riteWeek]).
-     * Handed down whole to bands that split off, taken up from bands met, now and then let go; never
-     * chosen for what they bring, so a rite that costs lives lasts as long as the line that keeps it.
+     * Its rites: for each month, the place it holds sacred then (-1: none) — the graves of its dead, where
+     * bands gather, far landmarks it walked to or was told of (see [riteWeek]). Handed down whole to bands
+     * that split off, taken up from bands met, now and then let go: customs that mark a band's line. They
+     * do not draw its moves (model 4.89): a trip to a rite's site will be an action the band chooses.
      */
     val rite = IntArray(12) { -1 }
     /** How strongly its people hold to their rites (0: not at all; see [inflation.Tuning.riteFounderMax]). */
     var riteStrength = 0f
+    /**
+     * The person-days its rites still ask of it ([riteOwed]: [RITE_DAYS] an adult for each rite held, done as its customs'
+     * time allows after its burials, [GroupWorld.keepCustoms], in the rite's month only), and the month, counted from the world's start, it last held
+     * one ([riteHeld]), so that a rite is owed once in its month.
+     */
+    var riteOwed = 0f
+    var riteHeld = -1L
+    /** The site of the rite its days are owed to ([riteOwed]), held once they are given; -1: none under way. */
+    var riteDue = -1
+    /** The month, counted from the world's start, it last held a rite to the end (-1: never). */
+    var riteKept = -1L
+    /**
+     * Its belief is its rites as a whole: the years it has kept them ([beliefYears], its weight: the older, the more strain
+     * it bears), and the strain of rites it could not hold ([strain]: one a rite cut short, easing in weeks it eats its
+     * fill), which splits the band once it passes what the belief bears ([strainBorne]).
+     */
+    var beliefYears = 0f
+    var strain = 0f
+    /** How it chooses ([Mind]): today's way, or the planning kind's. Handed down whole at a split; a band never joins one of the other mind. */
+    var mind = Mind.NETS
+    /** The strain its belief bears before part of the band breaks from it. */
+    fun strainBorne() = STRAIN_SPLIT * (1f + beliefYears / BELIEF_AGE_YEARS)
+    /** Gives up its belief: its rites, its hold on them and what they asked of it (the part of a band that broke away). */
+    fun dropBelief() {
+        rite.fill(-1); riteStrength = 0f; beliefYears = 0f; strain = 0f; riteOwed = 0f; riteDue = -1
+    }
 
     fun holds(t: Tradition) = traditions[t]
     fun mainLineage(): Int { var best = 0; for (i in lineage.indices) if (lineage[i] > lineage[best]) best = i; return best }
@@ -575,7 +589,7 @@ class Band(kinds: Int) {
         fine.copyInto(o.fine)
         o.salted = salted; o.dryDepth = dryDepth
         o.renown = renown
-        rite.copyInto(o.rite); o.riteStrength = riteStrength
+        rite.copyInto(o.rite); o.riteStrength = riteStrength; o.riteHeld = riteHeld; o.riteKept = riteKept; o.beliefYears = beliefYears; o.strain = strain; o.mind = mind
         traditions.copyInto(o.traditions); heard.copyInto(o.heard); o.heardOf = heardOf
         o.totem = totem; o.marksChosen = marksChosen; o.heardTotem = heardTotem.copyOf(); o.totemBroken = totemBroken
         o.burialWay = burialWay; heardBurial.copyInto(o.heardBurial); words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
@@ -645,6 +659,7 @@ class Band(kinds: Int) {
         for (i in 0 until min(a.heardTotem.size, b.heardTotem.size)) a.heardTotem[i] += b.heardTotem[i]
         for (w in BurialWay.entries) a.heardBurial[w] += b.heardBurial[w]
         a.burialOwed += b.burialOwed
+        a.riteOwed += b.riteOwed
         for ((k, v) in b.ties) if (k != id) a.ties[k] = max(a.tie(k), v)
         a.ties.remove(bId)
         for ((k, v) in b.favours) if (k != id) a.favours.merge(k, v, Float::plus)

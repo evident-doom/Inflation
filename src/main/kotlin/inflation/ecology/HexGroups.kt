@@ -171,6 +171,8 @@ class HexGroups(
         // bands with herds, t.startHerders.)
         if (tuning.startSettled > 0f) startVillages()
         if (tuning.startHerders > 0f) startHerders()
+        // (Some founding bands start with the planning kind's mind, t.planners.)
+        foundMinds()
     }
 
     /**

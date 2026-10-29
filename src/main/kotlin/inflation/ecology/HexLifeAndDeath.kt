@@ -20,6 +20,7 @@ import inflation.world.HexLand
 import inflation.world.HexWorld
 import inflation.world.LifeForm
 import inflation.world.Weather
+import kotlin.math.exp
 import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.pow
@@ -200,6 +201,9 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
             cultureWeek(g)
             riteWeek(g, weather)
         }
+        beliefSplits()
+        // Holy places fade while no one comes.
+        if (tuning.rounds) { val keep = exp(-years / SANCTITY_YEARS); for (p in land.sanctity.indices) land.sanctity[p] *= keep }
         fightRaids(weather)
     }
     // Hunters remember where they hunted, and a pack long hungry on its ground gives it up.
@@ -248,7 +252,27 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         }
     }
     groups += born
+    tallyVillages()
     Profile.part("groups: merging and pairing") { mergeAndPair(date) }
+}
+
+/**
+ * Bands whose belief is strained past what it bears ([Band.strainBorne]) split (rounds on): half go their own way without
+ * it, and the strain leaves with them. A band smaller than its kind's usual one holds together and clings on. Nothing
+ * here weighs whether the belief pays.
+ */
+internal fun HexGroups.beliefSplits() {
+    if (!tuning.rounds) return
+    val strained = groups.filter { g -> g.alive && g.size >= g.species.groupSize && g.band.let { it != null && it.strain > it.strainBorne() } }
+    for (g in strained) {
+        val a = g.adults / 2; val y = g.young / 2
+        g.adults -= a; g.young -= y
+        val n = splitOff(g, a, y)
+        n.band?.dropBelief()
+        g.band?.strain = 0f
+        groups += n
+        stats.meeting(Met.BANDS_SPLIT_OVER_THEIR_BELIEF)
+    }
 }
 
 /**
@@ -343,6 +367,12 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
             stats.hunting.merge(Tally.bandsLiving(way, Tally.Bands.PEOPLE_WEEKS), g.size, Int::plus)
             if (o.births > 0) stats.hunting.merge(Tally.bandsLiving(way, Tally.Bands.BORN), o.births, Int::plus)
             for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge(Tally.bandsLivingDied(way, cause), k, Int::plus)
+            // And by how it chooses ([Mind]): the two kinds of band side by side.
+            stats.hunting.merge(Tally.bandsMind(b.mind, Tally.Bands.BAND_WEEKS), 1, Int::plus)
+            stats.hunting.merge(Tally.bandsMind(b.mind, Tally.Bands.PEOPLE_WEEKS), g.size, Int::plus)
+            if (o.births > 0) stats.hunting.merge(Tally.bandsMind(b.mind, Tally.Bands.BORN), o.births, Int::plus)
+            if (g.path.size > 1) stats.hunting.merge(Tally.bandsMind(b.mind, Tally.Bands.MOVES), 1, Int::plus)
+            for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge(Tally.bandsMindDied(b.mind, cause), k, Int::plus)
             // And by whether it keeps a herd: what herding costs its people, its children apart.
             val herding = bandHerding(b, g.adults)
             stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.BAND_WEEKS), 1, Int::plus)
@@ -437,6 +467,7 @@ private fun HexGroups.mournDead(g: HexGroup, o: Outcome, date: Date) {
         if (at != camp) { stats.meeting(Met.BANDS_CARRIED_THEIR_DEAD); note(g) { "carried its dead to its ancestors at hex %d".format(at.i) } }
         g.memory.mark(at, PlaceMemory.seasonOf(date.month), stepOf(date), stepsPerYear, g.memory.dead, o.deaths.toFloat())
         land.burials[p] += o.deaths.toFloat()
+        land.sanctity[p] += o.deaths.toFloat()
         // Ornaments go into the grave with them: the more a band has, the richer its graves.
         val goods = min(b.ornaments, GRAVE_GOODS * b.ornaments * o.deaths)
         b.takeOrnaments(goods); land.graveGoods[p] += goods
@@ -869,8 +900,10 @@ internal fun HexGroups.mergeAndPair(date: Date) {
         var ring = listOf(h0); val seen = hashSetOf(h0)
         for (r in 0..VISIT_RINGS) {
             for (h in ring) for (o in bandsByHex[h].orEmpty()) {
-                if (o === g || !o.alive || o.size + g.size > maxSize(o)) continue
-                val k = kinship(b.lineage, o.band!!.lineage) / (1f + r)
+                // (A band joins only one of its own mind: the two kinds of choosing stay apart.)
+                val ob = o.band ?: continue
+                if (o === g || !o.alive || o.size + g.size > maxSize(o) || ob.mind != b.mind) continue
+                val k = kinship(b.lineage, ob.lineage) / (1f + r)
                 if (k > bestKin) { bestKin = k; best = o }
             }
             if (best != null || r == VISIT_RINGS) break
