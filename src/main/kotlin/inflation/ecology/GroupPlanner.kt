@@ -148,21 +148,14 @@ internal class GroupPlanner(private val gs: HexGroups) {
         val thirsty = g.dry > 0.5f * s.daysWithoutWater
         // The place a band remembers doing best at this time of year: while it is far off, the band is on its way.
         val month = wrapMonth(date.month + if (date.dayOfMonth > Date.DAYS_PER_MONTH / 2) 1 else 0)
-        // (Its round, if its rites keep one, else the place it remembers doing best at this time of year.)
-        // (Within [inflation.Tuning.roundArrivedKm] of the round's place it has arrived, and goes about it as it likes.)
-        val round = gs.roundOf(g, month)?.takeIf { gs.hexKm(here, gs.hw.placeHex[it.place]) > gs.tuning.roundArrivedKm }
-        val onRound = round != null
-        val goal = round?.place ?: g.band?.seasonPlace?.get(month) ?: -1
-        val remembered = g.band?.seasonQ?.get(month) ?: 0f
-        val goalQ = if (round != null) max(remembered, round.strength) else remembered
-        val roundStrength = round?.strength ?: 0f
-        val goalFar = goal >= 0 && s.human && gs.hexKm(here, gs.hw.placeHex[goal]) > 2 * gs.hex.hexKm
+        val goal = g.band?.seasonPlace?.get(month) ?: -1
+        val goalQ = g.band?.seasonQ?.get(month) ?: 0f
         // Far out of its country, it treks.
         val astray = gs.bearings.strength(gs.kindSlot[s.index], here) > ASTRAY
         // (A band whose appointment falls this month or next, and is not there, sets off: it is restless.)
         val dueSoon = g.band?.let { b -> b.appointment.let { ap -> ap != null && ap.hex != here && monthsFrom(month, ap.month) <= 1 } ||
             b.unluckyHex == here || b.raid != null } ?: false
-        val restless = gs.restless(g, weather, thirsty, astray, dueSoon, onRound, goalFar)
+        val restless = gs.restless(g, weather, thirsty, astray, dueSoon)
         // (Every group weighs its places every week.)
         val capture = gs.control != null && g.id == gs.watched
         // (A band goes at the pace of its slowest: the old, the sick and the lamed hold it back.)
@@ -212,7 +205,7 @@ internal class GroupPlanner(private val gs: HexGroups) {
                 val q = lacked[k] * mem.foundAt(i, k)
                 if (q > lackedQ) { lackedQ = q; lackedHex = mem.hex[i] }
             } }
-        val c = PlanContext(g, kind, here, sensed, month, goal, goalQ, onRound, roundStrength, fromHere, reach, thirsty, restless, season, keepOff,
+        val c = PlanContext(g, kind, here, sensed, month, goal, goalQ, fromHere, reach, thirsty, restless, season, keepOff,
             weather, date, goalHex, predatorKg, buf, lacked, lackedHex, lackedQ, if (!lackedHex.none) gs.hexKm(here, lackedHex) else 0.0)
         val at = c.at
         for (ri in 0 until reached.size) {
@@ -318,7 +311,7 @@ internal class GroupPlanner(private val gs: HexGroups) {
             chain.reverse(); return chain.toHexArray()
         }
         if (capture) best = Place(gs.askControl(g, weather, date, policy, buf.candPlaces, buf.candFeats, buf.candScores, best.i,
-            restless, reach, goal, onRound) { pathTo(it) })
+            restless, reach, goal) { pathTo(it) })
         // (A band's ways read how its mover saw the place it goes to: see [HexGroup.plan].)
         if (g.band != null) {
             var k = -1
@@ -379,8 +372,6 @@ internal class GroupPlanner(private val gs: HexGroups) {
         if (goal >= 0) {
             f[Feature.TOWARD_BEARING] = if (fromHere > gs.hex.hexKm) ((fromHere - toGoal) / fromHere).toFloat().coerceIn(-1f, 1f) else 0f
             f[Feature.SEASON_PLACE] = (c.goalQ - g.fed).coerceIn(-1f, 1f)
-            // (On its round, how far the place takes it on toward the round's place this month: see [SharedMover.pull].)
-            if (c.onRound) f[Feature.ON_ROUND] = f[Feature.TOWARD_BEARING] * c.roundStrength
         }
         f[Feature.FED] = g.fed
         f[Feature.FAT] = g.fat / s.maxFatDays.coerceAtLeast(1f)
@@ -444,7 +435,7 @@ internal class GroupPlanner(private val gs: HexGroups) {
         val d = c.at.d; val toGoal = c.at.toGoal; val offGround = c.at.offGround; val pull = c.at.pull
         val prey = c.at.prey; val crowded = c.at.crowded
         val g = c.g; val s = g.species; val here = c.here; val sensed = c.sensed; val month = c.month; val goal = c.goal
-        val goalQ = c.goalQ; val onRound = c.onRound; val roundStrength = c.roundStrength; val fromHere = c.fromHere; val reach = c.reach
+        val goalQ = c.goalQ; val fromHere = c.fromHere; val reach = c.reach
         val thirsty = c.thirsty; val keepOff = c.keepOff; val weather = c.weather
         // Its food or game there, against crowding (see [foodTerm]).
         var score = gs.foodTerm(g, p, h, sensed, prey, crowded)
@@ -482,15 +473,12 @@ internal class GroupPlanner(private val gs: HexGroups) {
         // Bands remember where they did best each month and are drawn back there.
         if (goal >= 0 && s.human) {
             // The season's place draws a band on, the more so the better it promises and the worse it fares now.
-            // Bands that watch the sky keep their round on time.
+            // Bands that watch the sky keep to their season's place on time.
             val sky = if (g.band?.holds(Tradition.SKY_LORE) == true) 1.3f else 1f
             val prog = ((fromHere - toGoal) / min(fromHere, reach.toDouble())).toFloat().coerceIn(-1f, 1f)
-            // (A round draws it on however well it fares where it is: it is what its rites keep in this month.)
-            // (A hungry band stops to forage before going on: the round draws it the less the hungrier it is.)
-            if (fromHere > gs.hex.hexKm) score += if (onRound) sky * gs.tuning.roundPull * roundStrength * (g.fed / 0.7f).coerceIn(0f, 1f) * prog
-                else sky * gs.tuning.seasonPull * (0.3f * goalQ + (goalQ - g.fed).coerceIn(0f, 1f)) * prog
+            if (fromHere > gs.hex.hexKm) score += sky * gs.tuning.seasonPull * (0.3f * goalQ + (goalQ - g.fed).coerceIn(0f, 1f)) * prog
         }
-        if (parts != null) { parts[MoveTerm.ROUND.ordinal] += score - last; last = score }
+        if (parts != null) { parts[MoveTerm.SEASON.ordinal] += score - last; last = score }
         score += gs.tuning.bearingPull * pull
         if (parts != null) { parts[MoveTerm.BEARING.ordinal] += score - last; last = score }
         // (Staying is staying in the camp's hex: its other ground is the same camp, with the same fouling.)
@@ -647,11 +635,11 @@ internal class GroupPlanner(private val gs: HexGroups) {
      * hexes and the place being weighed ([at]).
      */
     private class PlanContext(val g: HexGroup, val kind: Int, val here: Hex, val sensed: HexArray, val month: Int, val goal: Int, val goalQ: Float,
-        val onRound: Boolean, val roundStrength: Float, val fromHere: Double, val reach: Float, val thirsty: Boolean, val restless: Boolean,
+        val fromHere: Double, val reach: Float, val thirsty: Boolean, val restless: Boolean,
         /** The time of year as an angle, 0 at the year's start ([Date.START_DAY]). */
         val season: Double, val keepOff: HexArray?,
         val weather: Weather, val date: Date,
-        /** The hex of its season's place or round ([goal]), else [Hex.NONE]. */
+        /** The hex of its season's place ([goal]), else [Hex.NONE]. */
         val goalHex: Hex, val predatorKg: FloatArray, val buf: Scratch,
         /** For a band, how far it lacks each rarer material ([PlaceMemory.RARE]); the remembered hex with the most of what it lacks, how much, and how far off (km). */
         val lacked: FloatArray?, val lackedHex: Hex, val lackedQ: Float, val lackedFrom: Double) {
@@ -1055,7 +1043,7 @@ internal class GroupPlanner(private val gs: HexGroups) {
  */
 enum class MoveTerm(val label: String) {
     FOOD("food"), COLD("cold and drain"), FORECAST("coming weather"), WATER("water and snow"), WALK("walk"), MOVE_DAYS("move days"),
-    ROUND("round and season"), BEARING("bearing"), STAY("staying"), BAND("band pulls"), DEATHS("deaths"), BESIDE("noise and temper")
+    SEASON("season's place"), BEARING("bearing"), STAY("staying"), BAND("band pulls"), DEATHS("deaths"), BESIDE("noise and temper")
 }
 const val MOVE_TRACE_WEEKS = 0
 const val MOVE_TRACE_MOVES = 1
