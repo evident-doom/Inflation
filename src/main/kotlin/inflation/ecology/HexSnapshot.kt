@@ -45,10 +45,9 @@ object HexSnapshot {
     private const val MAGIC = 0x48455853 // "HEXS"
     /**
      * The layout of the file. 2: what lazy fields hold is saved. 3: the order of [ORDERED]'s entries is saved. 4: the model
-     * version and the kinds kept by kind are saved; older saves are refused, as nothing says what model made them. 5: the model
-     * version is the major alone. Older code refuses newer saves.
+     * version and the kinds kept by kind are saved; older saves are refused, as nothing says what model made them. Older code refuses newer saves.
      */
-    private const val VERSION = 5
+    private const val VERSION = 4
 
     /**
      * What saved state means. Raise it by hand with a change after which a saved world's numbers would mean something else
@@ -78,7 +77,7 @@ object HexSnapshot {
             out.writeLong(sim.cfg.seed); out.writeInt(sim.land.n); out.writeLong(sim.weather.date.absoluteDay)
             out.writeInt(ORDERED.size)
             for (e in ORDERED) { out.writeUTF(e.name); out.writeInt(e.enumConstants.size); for (c in e.enumConstants) out.writeUTF(c.name) }
-            out.writeInt(MODEL_MAJOR)
+            out.writeInt(MODEL_MAJOR); out.writeInt(0) // the slot the minor version had; read and ignored, so older saves still load
             val rs = rosters(sim)
             out.writeInt(rs.size)
             for ((name, kinds) in rs) { out.writeUTF(name); out.writeInt(kinds.size); for (k in kinds) out.writeUTF(k) }
@@ -104,7 +103,7 @@ object HexSnapshot {
                 val name = inp.readUTF(); val saved = List(inp.readInt()) { inp.readUTF() }
                 orderProblem(name, saved)?.let { throw IllegalArgumentException("$file: $it") }
             }
-            val major = inp.readInt()
+            val major = inp.readInt(); inp.readInt() // the retired minor version
             modelProblem(major)?.let { throw IllegalArgumentException("$file: $it") }
             val code = rosters(sim).toMap()
             repeat(inp.readInt()) {
