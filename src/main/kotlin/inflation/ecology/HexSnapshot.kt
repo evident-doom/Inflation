@@ -407,13 +407,17 @@ object HexSnapshot {
      *   and the place grows holier by the adults at it and by the dead laid there ([HexLand.sanctity], fading over
      *   [SANCTITY_YEARS]); what the month does not give cuts the rite short. A band taking up a rite is drawn to a holier
      *   place. Before, a rite asked nothing.
-     * 4.92: neighbours defend ([raidSides]): when a band at home is raided, the other bands at home in its hex stand with
+     * 4.92: a band's belief (its rites as a whole) is strained by each rite cut short ([Band.strain], easing in weeks it
+     *   eats its fill) and grows older while kept ([Band.beliefYears]); past what it bears ([Band.strainBorne]: [STRAIN_SPLIT],
+     *   more the older the belief) a band of its kind's usual size or more splits, half going without the belief
+     *   ([beliefSplits]). Before, rites cut short cost nothing beyond the days given.
+     * 4.93: neighbours defend ([raidSides]): when a band at home is raided, the other bands at home in its hex stand with
      *   it, each with the share of its people by which it is closer to the raided than to the raiders ([Regard.close]),
      *   behind its own houses and palisade, and lose people and remember the raiders in the same share. Before, the
      *   raided band stood alone whoever lived beside it.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 92
+    const val MODEL_MINOR = 93
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

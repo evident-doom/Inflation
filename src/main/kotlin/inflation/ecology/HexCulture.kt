@@ -767,6 +767,14 @@ internal fun ancestorsHex(g: HexGroup): Hex {
 const val RITE_SITES = 3
 /** Person-days each adult gives a rite held at its site: the gathering, the dances, the telling. An estimate; no figure found. */
 const val RITE_DAYS = 2f
+/**
+ * Strain a young belief bears before part of the band breaks from it: rites cut short, about the year's rites missed; a
+ * belief kept [BELIEF_AGE_YEARS] bears twice that (older beliefs are clung to). Strain eases to a third over
+ * [STRAIN_EASE_YEARS] of weeks the band eats its fill. Estimates; no figure found.
+ */
+const val STRAIN_SPLIT = 3f
+const val BELIEF_AGE_YEARS = 25f
+const val STRAIN_EASE_YEARS = 1f
 /** Years over which a place's sanctity fades to a third (1/e) while no rites are held and no dead laid there: about a generation. An estimate. */
 const val SANCTITY_YEARS = 25f
 /** How much a band's hold on its rites changes when it splits: a fifth of the founders' range, as temperament drifts. Not measured. */
@@ -788,8 +796,8 @@ fun riteStrengthAt(lineage: Int, tuning: Tuning) = tuning.riteFounderMax * Math.
  * A rite obliges: at the start of its month the band's adults owe [RITE_DAYS] each of their customs' time, and, unless
  * the band is camped at the site ([inflation.Tuning.roundArrivedKm]), the walk there and back. Nothing weighs the trip
  * against what it brings; the band does not move for it, its adults go and come back. Once the days are given the rite
- * is held and the place grows holier by the adults at it; what the month does not give cuts the rite short, and nothing
- * is held.
+ * is held and the place grows holier by the adults at it; what the month does not give cuts the rite short, nothing
+ * is held, and the band's belief is strained ([Band.strain]; see [HexGroups.beliefSplits]).
  */
 internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
     if (!tuning.rounds) return
@@ -802,9 +810,12 @@ internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
         stats.meeting(Met.BANDS_HELD_A_RITE)
         b.riteDue = -1
     } else if (b.riteDue >= 0 && b.riteHeld != now) {
-        b.riteOwed = 0f; b.riteDue = -1
+        b.riteOwed = 0f; b.riteDue = -1; b.strain += 1f
         stats.meeting(Met.BANDS_CUT_A_RITE_SHORT)
     }
+    // (A belief grows older while it is kept; its strain eases while the band eats its fill.)
+    if (b.rite.any { it >= 0 }) b.beliefYears += years
+    if (g.fed >= Thresholds.HUNGRY) b.strain *= exp(-years / STRAIN_EASE_YEARS)
     val site = b.rite[weather.date.month]
     if (site >= 0 && b.riteHeld != now) {
         val km = hex.distanceKm(hw.placeHex[g.place], hw.placeHex[site])
