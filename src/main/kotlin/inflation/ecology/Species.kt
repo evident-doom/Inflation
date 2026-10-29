@@ -198,6 +198,8 @@ class Species(
      * [Allometry.FIELD_OVER_BASAL] times that: a gazelle 14 days, an aurochs 68. A sleeper needs a quarter.
      */
     val maxFatDays: Float get() = 9.3f / Allometry.FIELD_OVER_BASAL * massKg.pow(0.44f) * if (hibernates) 4f else 1f
+    /** The most of its body that can be fat, the share [maxFatDays] fills: 0.075 M^1.19 kg over M (Lindstedt and Boyce 1985). */
+    val mostFatShare: Float get() = 0.075f * massKg.pow(0.19f)
     /** Dry-matter (or meat) intake per adult per day, kg. */
     val dailyIntakeKg: Float get() = if (intakeKg > 0f) intakeKg else Allometry.dailyIntakeKg(massKg, diet)
     /**

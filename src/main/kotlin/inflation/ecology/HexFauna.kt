@@ -376,6 +376,14 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     val bred = Array(kinds.size) { FloatArray(n) }
     /** Days of food each kind carries as fat in each place. */
     val reserve = Array(kinds.size) { k -> FloatArray(n) { 0.5f * kinds[k].maxFatDays } }
+    /**
+     * The share of a grown [k]'s body at [p] that is fat: the most it can carry ([Species.mostFatShare]) as far as its
+     * reserves are full ([reserve] against [Species.maxFatDays]). Fat at the end of a lean winter, fat in a good autumn.
+     */
+    fun fatShare(k: Int, p: Place): Float {
+        val s = kinds[k]
+        return s.mostFatShare * (reserve[k][p] / s.maxFatDays.coerceAtLeast(1e-3f)).coerceIn(0f, 1f)
+    }
     /** For kinds that sleep through the winter: how well fed they went to sleep, 0..1. */
     private val autumnFed = Array(kinds.size) { FloatArray(n) { 0.8f } }
     /** Days each kind has gone without water in each place, as a group keeps them (see [HexGroup.dry]): they mount week to week until it drinks. */

@@ -27,6 +27,7 @@ import inflation.ecology.Species
 import inflation.ecology.Store
 import inflation.ecology.Stuck
 import inflation.world.Biome
+import inflation.world.Date
 import inflation.world.HexWorld
 import kotlin.math.abs
 import java.util.Random
@@ -421,6 +422,10 @@ class Census(private val sim: HexSim) {
                 100 * brought / asked, 100 * eaten / brought.coerceAtLeast(1.0), 100 * cs.sumOf { v(Tally.bandsIn(it, Tally.Bands.PLANTS)) } / asked))
             println("bands' plant food, last year (of food wanted, by what it feeds): " + PlantFrom.entries.joinToString(", ") { f ->
                 "%s %.1f%%".format(f.label, 100 * v(Tally.plantsFrom(f)) / asked) })
+            // (A fat kill is worth more than a lean one: when in the year bands kill, and how fat what they bring in is.)
+            println("bands' kills of big game by month, last year (kills; fat in the meat brought in, by weight): " + (0 until Date.MONTHS_PER_YEAR).joinToString(", ") { m ->
+                val lean = v(Tally.bandKills(m, Tally.KillPart.LEAN_KG)); val fat = v(Tally.bandKills(m, Tally.KillPart.FAT_KG))
+                "%d: %.0f; %.1f%%".format(m + 1, v(Tally.bandKills(m, Tally.KillPart.KILLS)), 100 * fat / (lean + fat).coerceAtLeast(1.0)) })
         }
         println("bands by kind of country, last year (hearth fire fed by the firewood got, share of the days spent fetching it): " + cs.joinToString(", ") { c ->
             val w = weeks(c).toDouble().coerceAtLeast(1.0)
