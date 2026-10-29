@@ -124,7 +124,6 @@ class StringKeysTest {
     fun `places are passed as Place, not as Int`() = check("""[(, ][pq]: Int\b""", mapOf(
         "ecology/HexFauna.kt" to (2 to "the resident flow tables are Int arrays: a neighbour's index and one way of a flow"),
         "ecology/GroupPlanner.kt" to (2 to "pathTo takes a candidate place from an Int list; where() is a debug text"),
-        "ecology/HexCulture.kt" to (1 to "a place or -1, kept in an Int list of the places held"),
         "ecology/GroupFood.kt" to (2 to "the places a group swept, kept in an Int array of the week's sweep"),
         "world/Weather.kt" to (2 to "the weather serves the fine grid and the places: one index type would be wrong"),
         "world/HexHydrology.kt" to (2 to "the glacier flow's places in a hex's Int list"),
