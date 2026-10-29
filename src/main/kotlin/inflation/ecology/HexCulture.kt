@@ -24,6 +24,7 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.abs
 import kotlin.math.exp
+import kotlin.math.roundToInt
 
 // What passes between bands: words, traditions, partners and grudges. A band's culture is data on
 // the band ([Band]); it changes when bands meet, when they split, and now and then by itself.
@@ -489,12 +490,20 @@ internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planne
         ob.grudge[b.mainLineage()] += 0.5f * GRUDGE; ob.befriend(g.id, -0.5f * TIE_RAID)
         return
     }
-    val (sg, so) = raidStrengths(g, o, ob, planned, ob.atHome, weather)
-    raidWorth(o, ob, sg, so)
-    // Each side loses some of its people, the more so against the stronger side.
+    val sides = raidSides(g, o, ob, planned, ob.atHome, weather)
+    val sg = sides.raiders; val so = sides.defenders
+    raidWorth(o, ob, sg, so, sides.own)
+    // Each side loses some of its people, the more so against the stronger side; neighbours who stood with the raided
+    // lose theirs as the raided do, of as many as came.
     val lostG = binomial(g.adults, RAID_DEATHS * so / (sg + so), rnd)
     val lostO = binomial(o.adults, RAID_DEATHS * sg / (sg + so), rnd)
-    for ((who, lost) in listOf(g to lostG, o to lostO)) if (lost > 0) {
+    val losses = arrayListOf(g to lostG, o to lostO)
+    for (n in sides.helpers) {
+        losses += n.group to binomial((n.share * n.group.adults).roundToInt(), RAID_DEATHS * sg / (sg + so), rnd)
+        stats.meeting(Met.NEIGHBOURS_DEFENDED)
+        note(n.group) { "stood with band #%d against band #%d".format(o.id, g.id) }
+    }
+    for ((who, lost) in losses) if (lost > 0) {
         adultsDied(who, lost, rnd)
         // (And as many again are wounded, some to be lamed for life.)
         who.band?.wounded(WOUNDED_PER_DEAD * lost, who.adults)
@@ -508,29 +517,46 @@ internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planne
     ob.grudge[b.mainLineage()] += GRUDGE
     ob.befriend(g.id, -TIE_RAID); b.befriend(o.id, -0.3f * TIE_RAID)
     if (lostG > 0) b.grudge[ob.mainLineage()] += 0.3f * GRUDGE
+    // (Those who stood with them remember the raiders too, as far as they stood.)
+    for (n in sides.helpers) { n.band.grudge[b.mainLineage()] += n.share * GRUDGE; n.band.befriend(g.id, -n.share * TIE_RAID) }
 }
 
 /**
- * What a whole house would have done for [o] (band [ob]) in a raid of strength [sg] on its [so], against the houses it has:
+ * What a whole house would have done for [o] (band [ob]) in a raid of strength [sg] on its [so] (its [own] and its neighbours'), against the houses it has:
  * the lives it would have saved and the food it would have kept from the raiders, by [fight]'s rules; for [Band.houseLives]
  * and [Band.houseFood].
  */
-private fun raidWorth(o: HexGroup, ob: Band, sg: Float, so: Float) {
+private fun raidWorth(o: HexGroup, ob: Band, sg: Float, so: Float, own: Float) {
     val works = if (ob.atHome) 1f + HOUSE_DEFENCE * ob.house + PALISADE_DEFENCE * ob.palisade else 1f
     val whole = 1f + HOUSE_DEFENCE + (if (ob.atHome) PALISADE_DEFENCE * ob.palisade else 0f)
-    val so1 = so * whole / works
+    // (Its own part of the defence, [own], behind a whole house; the neighbours who stood with it as they were.)
+    val so1 = so + own * (whole / works - 1f)
     val lives = max(0f, o.adults * RAID_DEATHS * (sg / (sg + so) - sg / (sg + so1)))
     ob.houseLivesWeek += lives; ob.houseWeek[HouseWorth.RAIDS] += lives
     if (sg > so && sg <= so1) { ob.houseFoodWeek += RAID_TAKE * o.larder; ob.houseWeek[HouseWorth.RAID_KG] += RAID_TAKE * o.larder }
 }
 
+/** A band [group] (band [band]) at home where a neighbour is raided, standing with it with [share] of its people ([raidSides]). */
+internal class Helper(val group: HexGroup, val band: Band, val share: Float)
+
+/** The sides of a raid: the [raiders]' strength, the raided band's [own] and its [helpers], with theirs. */
+internal class RaidSides(val raiders: Float, val own: Float, val helpers: List<Helper>, private val helped: Float) {
+    /** All who hold off the raiders. */
+    val defenders get() = own + helped
+}
+
+/** The raiders' [g] and the defenders' [o] (band [ob]) strengths when [g] falls on [o] where it is ([raidSides]). */
+internal fun HexGroups.raidStrengths(g: HexGroup, o: HexGroup, ob: Band, planned: Boolean, atHome: Boolean, weather: Weather): Pair<Float, Float> =
+    raidSides(g, o, ob, planned, atHome, weather).let { it.raiders to it.defenders }
+
 /**
- * The raiders' [g] and the defenders' [o] (band [ob]) strengths when [g] falls on [o] where it is: a planned raid may
- * take it by surprise, the less so the more it sees (scouts, open ground, moonlight); defenders [atHome] gain from high,
- * broken ground, their houses and a palisade. The one rule for a raid ([fight]) and for a raiding band weighing its
- * target ([plotRaid]).
+ * The sides when [g] falls on [o] (band [ob]) where it is: a planned raid may take it by surprise, the less so the more it
+ * sees (scouts, open ground, moonlight); defenders [atHome] gain from high, broken ground, their houses and a palisade, and
+ * the other bands at home in the same hex stand with them, each with as many of its people as it is closer to the raided
+ * than to the raiders (by its [Regard] of each: a band that holds neither close, or the raiders as close, stays out), behind
+ * its own houses and palisade. The one rule for a raid ([fight]) and for a raiding band weighing its target ([plotRaid]).
  */
-internal fun HexGroups.raidStrengths(g: HexGroup, o: HexGroup, ob: Band, planned: Boolean, atHome: Boolean, weather: Weather): Pair<Float, Float> {
+internal fun HexGroups.raidSides(g: HexGroup, o: HexGroup, ob: Band, planned: Boolean, atHome: Boolean, weather: Weather): RaidSides {
     val p = o.place
     // Surprise: a planned raid at night, in cover, on a band that keeps no lookout.
     val seen = (sight(p, weather) * (0.5f + 0.5f * moon) * (1f + 5f * ob.scoutShare)).coerceIn(0f, 1f)
@@ -540,7 +566,20 @@ internal fun HexGroups.raidStrengths(g: HexGroup, o: HexGroup, ob: Band, planned
     // The defenders' ground and works.
     val ground = 1f + HIGH_GROUND * land.bestDefence[p]
     val works = if (atHome) 1f + HOUSE_DEFENCE * ob.house + PALISADE_DEFENCE * ob.palisade else 1f
-    return strength(g) * surprise to strength(o) * ground * works
+    val helpers = ArrayList<Helper>(); var helped = 0f
+    val gb = g.band
+    if (atHome && gb != null) {
+        val h = hw.placeHex[p]
+        for (n in groups) {
+            val nb = n.band ?: continue
+            if (n === o || n === g || !n.alive || !nb.atHome || hw.placeHex[n.place] != h) continue
+            val share = Regard(nb, o.id, ob).close - Regard(nb, g.id, gb).close
+            if (share <= 0f) continue
+            helpers += Helper(n, nb, share)
+            helped += share * strength(n) * ground * (1f + HOUSE_DEFENCE * nb.house + PALISADE_DEFENCE * nb.palisade)
+        }
+    }
+    return RaidSides(strength(g) * surprise, strength(o) * ground * works, helpers, helped)
 }
 
 /** One or two young adults from each band join the other; their descent and skills come with them. */

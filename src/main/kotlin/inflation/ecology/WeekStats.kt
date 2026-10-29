@@ -105,6 +105,7 @@ enum class Met(val label: String) {
     KEPT_ANIMALS_CULLED("kept animals culled"),
     KILL_STOLEN("kill stolen"),
     LARDERS_RAIDED("larders raided"),
+    NEIGHBOURS_DEFENDED("neighbours stood with the raided"),
     ORNAMENTS_GIVEN("ornaments given"),
     PACK_GAVE_WAY("pack gave way"),
     PACKS_FOUGHT("packs fought"),
