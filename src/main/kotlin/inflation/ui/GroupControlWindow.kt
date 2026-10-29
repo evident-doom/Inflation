@@ -362,7 +362,7 @@ class GroupControlWindow(
             sb.appendLine()
             sb.appendLine(if (d.restless) "restless (hungry, thirsty, astray, or due somewhere): it will go far" else "weighing where to graze or camp")
             sb.appendLine("it can reach %d places, within %.0f km of effort".format(d.places.size, d.reachKm))
-            if (d.goal >= 0) sb.appendLine("%s draws it to %s, %.0f km off".format(if (d.onRound) "its round" else "its memory of the season", where(d.goal),
+            if (d.goal >= 0) sb.appendLine("%s draws it to %s, %.0f km off".format("its memory of the season", where(d.goal),
                 hex.distanceKm(hw.placeHex[g.place], hw.placeHex[d.goal])))
             sb.appendLine("where to go is chosen by " + if (d.learned) "the learned network" else "the hand-written score")
             sb.appendLine("its ways are set by " + if (d.waysLearned) "the learned network" else "the hand-written ways")
@@ -578,7 +578,7 @@ class GroupControlWindow(
                     val lx = (width / 2 + (len * cos(ang)).toInt() + 8).coerceIn(4, width - 130)
                     val ly = (height / 2 + (len * sin(ang)).toInt() - 6).coerceIn(14, height - 4)
                     g.color = pink
-                    g.drawString((if (d.onRound) "its round" else "its season's place") + ", %.0f km".format(hex.distanceKm(centre, gh)), lx, ly)
+                    g.drawString("its season's place" + ", %.0f km".format(hex.distanceKm(centre, gh)), lx, ly)
                 }
                 groups.kindSlot[grp.species.index].takeIf { it >= 0 }?.let { kind ->
                     val e = groups.bearings.east[kind][centre]; val so = groups.bearings.south[kind][centre]
