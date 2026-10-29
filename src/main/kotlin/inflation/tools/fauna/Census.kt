@@ -14,6 +14,11 @@ import inflation.ecology.HexGeography
 import inflation.ecology.Fed
 import inflation.ecology.HexFauna
 import inflation.ecology.TallyKey
+import inflation.ecology.MoveTerm
+import inflation.ecology.MOVE_TRACE_WEEKS
+import inflation.ecology.MOVE_TRACE_MOVES
+import inflation.ecology.MOVE_TRACE_SUMS
+import inflation.ecology.MOVE_TRACE_LEADS
 import inflation.world.get
 import inflation.ecology.HexSim
 import inflation.ecology.Skill
@@ -184,6 +189,15 @@ class Census(private val sim: HexSim) {
                 val all = c[0].coerceAtLeast(1)
                 "%s %.1f/%.1f/%.1f%%".format(s.name, 100.0 * c[1] / all, 100.0 * c[2] / all, 100.0 * c[3] / all)
             })
+        // (moveTrace=true only: [GroupPlanner.bookMove].)
+        val mc = groups.planner.moveCounts
+        if (mc[MOVE_TRACE_WEEKS] > 0) {
+            val m = LongArray(mc.length()) { mc.getAndSet(it, 0) }
+            val moves = m[MOVE_TRACE_MOVES].coerceAtLeast(1).toDouble()
+            println("     bands' moves by the hand-written score: %.1f%% of band-weeks; on them, each part of the score where it went less staying's, mean (the moves it did most for): ".format(
+                100.0 * m[MOVE_TRACE_MOVES] / m[MOVE_TRACE_WEEKS]) + MoveTerm.entries.joinToString(", ") { t ->
+                "%s %+.3f (%.0f%%)".format(t.label, m[MOVE_TRACE_SUMS + t.ordinal] / 1e4 / moves, 100.0 * m[MOVE_TRACE_LEADS + t.ordinal] / moves) })
+        }
     }
 
     /** The hunters' families: packs, how many hold ground and could breed, lone animals, adults and young. */

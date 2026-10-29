@@ -31,6 +31,7 @@ import inflation.HASH_C
 import inflation.mix64Once
 import inflation.unitOf
 import inflation.Config
+import kotlin.math.roundToLong
 
 import inflation.world.Date
 import inflation.world.HexLand
@@ -176,6 +177,9 @@ internal class GroupPlanner(private val gs: HexGroups) {
         lap("choosing: reach (least-effort search)")
         var best = g.place; var bestScore = Float.NEGATIVE_INFINITY
         val policy = gs.policies[s]
+        // (moveTrace: a band choosing by the hand-written score books what moved it, [bookMove].)
+        val traced = MOVE_TRACE && g.band != null && policy == null
+        if (traced) buf.stayParts.fill(0f)
         // (For a followed group: every place it weighed, and how it scored.)
         // planDiag=kind: once a month, one group's reasons, for the place it chose and the best-placed step toward its season's place.
         val diag = PLAN_DIAG == s.name && goal >= 0 && date.dayOfMonth <= gs.days && g.id % 97 == 0
@@ -239,14 +243,18 @@ internal class GroupPlanner(private val gs: HexGroups) {
                 val hunters = huntersKm2(c, p, h)
                 at.prey = prey; at.fed = fed; at.hunters = hunters
                 val t = buf.terms.also { fillTerms(it, g, p, weather, date) }
-                var score = scorePlace(c, t, p, h)
+                val tp = if (traced) buf.moveParts.also { it.fill(0f) } else null
+                var score = scorePlace(c, t, p, h, tp)
                 // (Above all, it keeps alive: see below.)
                 val beside = 0.02f * (gs.hashNoise(g.id, p) - 0.5f) + gs.temperPull(g, p, h, hunters, crowded)
                 // (Where only the best place is wanted, its deaths are worked out after, best first, see below.)
                 if (!wantAll) { buf.later(p, d, prey, fed, score, beside); continue }
                 if (drowning < 0f) drowning = crossingDeaths(s, h, here, via)
                 val alive = score
-                score -= gs.survivalSteps(g, deathsAt(c, p, h, fed, d) + drowning)
+                val steps = gs.survivalSteps(g, deathsAt(c, p, h, fed, d) + drowning)
+                score -= steps
+                if (tp != null) { tp[MoveTerm.DEATHS.ordinal] = -steps; tp[MoveTerm.BESIDE.ordinal] = beside
+                    if (p == g.place) tp.copyInto(buf.stayParts) }
                 if (!score.isFinite()) tellNotANumber(c, t, p, h, drowning, alive)
                 if (explores) buf.explore(p, score + beside, alive - score)
                 seen?.add(p.i to score)
@@ -261,7 +269,7 @@ internal class GroupPlanner(private val gs: HexGroups) {
                 }
                 score += beside
                 if (capture) buf.candScores[candPlaces.size - 1] = score
-                if (score > bestScore) { bestScore = score; best = p }
+                if (score > bestScore) { bestScore = score; best = p; tp?.copyInto(buf.bestParts) }
             }
         }
         // Above all, it keeps alive: the share of it that would die at a place this week weighs against all the rest
@@ -292,6 +300,7 @@ internal class GroupPlanner(private val gs: HexGroups) {
         }
         // (A choice the policy drew by chance to learn from stands; every other band draws by its will to explore, in training worlds as outside them.)
         val chosen = best
+        if (traced) bookMove(chosen != g.place, buf)
         if (explores && !g.drawn) best = explored(g, policy, buf, best, date)
         // (For the census: whether the band would have moved by its best choice, and whether it moved by its draw.)
         if (g.band != null) {
@@ -431,7 +440,7 @@ internal class GroupPlanner(private val gs: HexGroups) {
      * its food or game, crowding and hunters, the cold, heat and flies, its own kind of country, what it senses coming,
      * water, the going, the season's place or round, its bearing, staying, and a band's own pulls.
      */
-    private fun scorePlace(c: PlanContext, t: PlaceTerms, p: Place, h: Hex): Float {
+    private fun scorePlace(c: PlanContext, t: PlaceTerms, p: Place, h: Hex, parts: FloatArray? = null): Float {
         val d = c.at.d; val toGoal = c.at.toGoal; val offGround = c.at.offGround; val pull = c.at.pull
         val prey = c.at.prey; val crowded = c.at.crowded
         val g = c.g; val s = g.species; val here = c.here; val sensed = c.sensed; val month = c.month; val goal = c.goal
@@ -439,10 +448,14 @@ internal class GroupPlanner(private val gs: HexGroups) {
         val thirsty = c.thirsty; val keepOff = c.keepOff; val weather = c.weather
         // Its food or game there, against crowding (see [foodTerm]).
         var score = gs.foodTerm(g, p, h, sensed, prey, crowded)
+        // (moveTrace: each part of the score as it is added, [MoveTerm].)
+        var last = 0f
+        if (parts != null) { parts[MoveTerm.FOOD.ordinal] += score - last; last = score }
         // The cold or heat it bears there, and what the place drains from it (the extra food the
         // cold burns, the feeding or working time the flies take), weighed as the going is: in
         // shares of the week's need.
         score -= 0.5f * t.discomfort + t.drain + offGround
+        if (parts != null) { parts[MoveTerm.COLD.ordinal] += score - last; last = score }
         // Its own kind of country: open plains for a cheetah, crags for a wild goat, whatever the food.
         if (!s.human) score += GROUP_HABITAT * t.suitsLn
         // What it senses coming, as keenly as its kind does: a cold snap or heat wave, snow
@@ -451,16 +464,20 @@ internal class GroupPlanner(private val gs: HexGroups) {
         score -= 0.5f * s.foresight * t.aheadC / 10f
         if (tAhead < 0f && weather.snowpack[p] + weather.forecastRain(p.i) > s.snowLimitMm) score -= 0.5f * s.foresight
         if (gs.land.hydro.soil[p] < DRY_SOIL_MM) score += 0.3f * s.foresight * min(1f, weather.forecastRain(p.i) / RAIN_AHEAD_MM)
+        if (parts != null) { parts[MoveTerm.FORECAST.ordinal] += score - last; last = score }
         // Water: a thirsty group heads for it; any group keeps within reach of it, the more so the more often it must drink.
         // (People can dig for water in a dry bed where it lies near.)
         score -= (0.02f + 0.3f * g.dry / s.daysWithoutWater) * t.waterKm / s.dailyTravelKm
         if (thirsty && !gs.canDrink(s, p)) score -= 1f
         if (weather.snowpack[p] > s.snowLimitMm) score -= 1f
+        if (parts != null) { parts[MoveTerm.WATER.ordinal] += score - last; last = score }
         // The going costs food: a share of the week's need, the height gained as the level walk it equals (see [walkCost]).
         score -= WALK_COST * (d + climbKmPerM(s.massKg) * max(0f, gs.hw.placeElevationM[p.i] - gs.hw.placeElevationM[g.place.i])) / gs.days
+        if (parts != null) { parts[MoveTerm.WALK.ordinal] += score - last; last = score }
         // A band moving camp loses the days the walk takes from its week's work, beyond those it had to spare; the new camp
         // pays them back over the weeks it will keep it (as foragers weigh travel time against a patch's stay).
         g.band?.let { b -> score -= max(0f, gs.moveDays(g, d) - b.spareDays / forageHands(g)) / (gs.days * b.stayWeeks) }
+        if (parts != null) { parts[MoveTerm.MOVE_DAYS.ordinal] += score - last; last = score }
         // (Above all, it keeps alive: its deaths there are weighed against all this by the caller, see [planInner].)
         // Bands remember where they did best each month and are drawn back there.
         if (goal >= 0 && s.human) {
@@ -473,14 +490,18 @@ internal class GroupPlanner(private val gs: HexGroups) {
             if (fromHere > gs.hex.hexKm) score += if (onRound) sky * gs.tuning.roundPull * roundStrength * (g.fed / 0.7f).coerceIn(0f, 1f) * prog
                 else sky * SEASON_PULL * (0.3f * goalQ + (goalQ - g.fed).coerceIn(0f, 1f)) * prog
         }
+        if (parts != null) { parts[MoveTerm.ROUND.ordinal] += score - last; last = score }
         score += gs.tuning.bearingPull * pull
+        if (parts != null) { parts[MoveTerm.BEARING.ordinal] += score - last; last = score }
         // (Staying is staying in the camp's hex: its other ground is the same camp, with the same fouling.)
         if (h == here) score += STAY - (g.band?.let { gs.stayCost(it) } ?: 0f)
+        if (parts != null) { parts[MoveTerm.STAY.ordinal] += score - last; last = score }
         // Bold animals of kinds that follow people are drawn to their camps: refuse, scraps, warmth.
         if (s.followsPeople && gs.peopleSlot >= 0) score += CAMP_LURE * boldness(g) * min(1f, knownHeads(gs.peopleSlot, p, h, sensed) / 25f)
         g.band?.let { b -> score += bandPull(g, b, month, h, here, p, keepOff, sensed, reach) }
         // A hungry pack gives up ground it has hunted out lately and looks further afield.
         if (g.fed < Thresholds.HUNGRY && (h == here || h in g.recent)) score -= HUNGRY_LEAVE
+        if (parts != null) parts[MoveTerm.BAND.ordinal] += score - last
         return score
     }
 
@@ -849,6 +870,8 @@ internal class GroupPlanner(private val gs: HexGroups) {
         val candPlaces = IntList(); val candFeats = ArrayList<FloatArray>(); var candScores = FloatArray(64)
         /** For a band, every place weighed ([exploreChoice]): the place, its whole hand-written score, and the survival steps it would cost. */
         val explPlaces = IntList(); var explScores = FloatArray(64); var explDeaths = FloatArray(64)
+        /** moveTrace: the parts of the place being weighed, of the best so far and of staying ([MoveTerm]). */
+        val moveParts = FloatArray(MoveTerm.entries.size); val bestParts = FloatArray(MoveTerm.entries.size); val stayParts = FloatArray(MoveTerm.entries.size)
         fun explore(p: Place, score: Float, deaths: Float) {
             val k = explPlaces.size
             if (k == explScores.size) { explScores = explScores.copyOf(2 * k); explDeaths = explDeaths.copyOf(2 * k) }
@@ -1001,4 +1024,43 @@ internal class GroupPlanner(private val gs: HexGroups) {
      * staying put. Not saved: the census's, cleared as it prints.
      */
     @Transient val exploreCounts = AtomicIntegerArray(64 * 4)
+
+    /**
+     * moveTrace: bands' weeks weighed by the hand-written score ([MOVE_TRACE_WEEKS]), those it moved them ([MOVE_TRACE_MOVES]), and on its
+     * moves, each part of the score of the place it chose less staying's, summed, 1/10000 ([MOVE_TRACE_SUMS]), and the moves each
+     * part did the most for ([MOVE_TRACE_LEADS]). Not saved: the census's, cleared as it prints.
+     */
+    @Transient val moveCounts = java.util.concurrent.atomic.AtomicLongArray(2 + 2 * MoveTerm.entries.size)
+
+    /** moveTrace: books a band's week ([moveCounts]): whether the hand-written score moved it, and if so, by what parts. */
+    private fun bookMove(moved: Boolean, buf: Scratch) {
+        moveCounts.incrementAndGet(MOVE_TRACE_WEEKS)
+        if (!moved) return
+        moveCounts.incrementAndGet(MOVE_TRACE_MOVES)
+        var lead = 0; var leadGain = Float.NEGATIVE_INFINITY
+        for (k in MoveTerm.entries.indices) {
+            val gain = buf.bestParts[k] - buf.stayParts[k]
+            moveCounts.addAndGet(MOVE_TRACE_SUMS + k, (1e4f * gain).roundToLong())
+            if (gain > leadGain) { leadGain = gain; lead = k }
+        }
+        moveCounts.incrementAndGet(MOVE_TRACE_LEADS + lead)
+    }
 }
+
+/**
+ * The parts of the hand-written score of a place ([GroupPlanner.scorePlace]), as moveTrace books them: its food, the cold
+ * and drain there, what is coming (and its own kind of country), water and snow, the walk, the days a camp's move takes,
+ * the season's round or place, the bearing, staying put (and the camp's cost), the band's other pulls (and the hungry
+ * leaving ground), the deaths there in survival steps, and the noise and temper beside.
+ */
+enum class MoveTerm(val label: String) {
+    FOOD("food"), COLD("cold and drain"), FORECAST("coming weather"), WATER("water and snow"), WALK("walk"), MOVE_DAYS("move days"),
+    ROUND("round and season"), BEARING("bearing"), STAY("staying"), BAND("band pulls"), DEATHS("deaths"), BESIDE("noise and temper")
+}
+const val MOVE_TRACE_WEEKS = 0
+const val MOVE_TRACE_MOVES = 1
+const val MOVE_TRACE_SUMS = 2
+val MOVE_TRACE_LEADS = MOVE_TRACE_SUMS + MoveTerm.entries.size
+
+/** moveTrace=true: [GroupPlanner.bookMove] each band-week chosen by the hand-written score. Report-only. */
+internal val MOVE_TRACE = Config.flag(Config.Key.MOVE_TRACE, false)
