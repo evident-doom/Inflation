@@ -195,6 +195,22 @@ fun wordsAt(x: Double, y: Double): IntArray {
 }
 
 /**
+ * The resident kind (of [kinds]) the bands of [lineage] keep as their totem, and neither hunt nor eat: one drawn for each
+ * lineage, so that a lineage's bands share it, and lineages only by chance.
+ */
+fun totemAt(lineage: Int, kinds: Int) =
+    if (kinds <= 0) FaunaKind.NONE else FaunaKind(((mix64(lineage.toLong() * HASH_B + HASH_A) ushr 33) % kinds).toInt())
+
+/** How many customs bands are counted apart by ([Regard.customsApart]): their traditions and their totem. */
+val CUSTOMS = Tradition.entries.size + 1
+
+/**
+ * Years the bands that keep a totem hold it against a band of it that ate of its kind ([Band.totemBroken]): a year, as it
+ * goes round the bands that meet. An estimate; no figure found.
+ */
+const val TOTEM_SHAME_YEARS = 1f
+
+/**
  * The traditions a band founded in a lineage's country starts with. Marrying out, sharing food,
  * caring for the sick and handing down knowledge are near universal among foragers, so every band
  * holds them; the others come about a quarter each, the same for neighbours.
@@ -228,7 +244,8 @@ internal class Regard(private val of: Band, private val toId: Int, private val t
     val grudge get() = of.grudge[to.mainLineage()]
     val feud get() = grudge > FEUD
     val kin get() = kinship(of.lineage, to.lineage)
-    val customsApart get() = Tradition.entries.count { of.holds(it) != to.holds(it) }
+    /** How many of its customs ([CUSTOMS]: its traditions and its totem, as the other keeps it) the other holds otherwise. */
+    val customsApart get() = Tradition.entries.count { of.holds(it) != to.holds(it) } + (if (of.totem != to.keptTotem) 1 else 0)
 
     /**
      * The chance [of] falls on [to], [drive] being the chance at its least (what drives it, by its readiness): the less they
@@ -236,7 +253,7 @@ internal class Regard(private val of: Band, private val toId: Int, private val t
      * likelier.
      */
     fun fightChance(drive: Float) = drive * (0.5f + 0.5f * (1f - understood)) * (1f - 0.5f * kin) * (1f - TIE_PEACE * close) *
-        (1f + (if (stranger) STRANGER_HOSTILITY else 0f) + CUSTOMS_HOSTILITY * (customsApart.toFloat() / Tradition.entries.size))
+        (1f + (if (stranger) STRANGER_HOSTILITY else 0f) + CUSTOMS_HOSTILITY * (customsApart.toFloat() / CUSTOMS))
     /** How many times readier than at its least [of] is to fight [to] ([fightChance] of 1). */
     val wariness get() = fightChance(1f)
     /** How far [of] believes what [to] tells it of the places it remembers. */
@@ -261,6 +278,7 @@ internal class Regard(private val of: Band, private val toId: Int, private val t
  */
 internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weather): Boolean {
     val bandA = a.band ?: return false; val bandB = b.band ?: return false
+    bandA.ensureTotem(fauna.kinds.size); bandB.ensureTotem(fauna.kinds.size)
     val u = Language.understanding(bandA.words, bandB.words)
     val ab = Regard(bandA, b.id, bandB, u); val ba = Regard(bandB, a.id, bandA, u)
     val metAs = MetAs(ab, ba)
@@ -306,6 +324,15 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
         }
         to.traditions[t] = from.holds(t)
         stats.meeting(if (from.holds(t)) Met.Of.TOOK_UP else Met.Of.TOOK_LEAVE_OF, t.name.lowercase())
+    }
+    // A totem goes the same way as a mark: either may take up the other's as the other keeps it (none, if it ate of its own).
+    val keptA = bandA.keptTotem; val keptB = bandB.keptTotem
+    if (keptA != keptB) {
+        val toA = COPY_TRADITION * u * conformist(bandA.heardTotemShare(keptB))
+        val toB = COPY_TRADITION * u * conformist(bandB.heardTotemShare(keptA))
+        val r = rnd.nextFloat()
+        if (r < toA) { bandA.totem = keptB; bandA.totemBroken = 0f; stats.meeting(Met.BANDS_TOOK_UP_ANOTHERS_TOTEM) }
+        else if (r < toA + toB) { bandB.totem = keptA; bandB.totemBroken = 0f; stats.meeting(Met.BANDS_TOOK_UP_ANOTHERS_TOTEM) }
     }
     riteMeet(lo, hi, u)
     teach(bandA, bandB, u, (doing(a) - doing(b)).coerceIn(-1f, 1f))
@@ -632,6 +659,13 @@ internal fun HexGroups.cultureWeek(g: HexGroup) {
     val keep = exp(-years / HEARD_YEARS)
     for (t in Tradition.entries) b.heard[t] *= keep
     b.heardOf *= keep
+    b.ensureTotem(fauna.kinds.size)
+    for (i in b.heardTotem.indices) b.heardTotem[i] *= keep
+    b.totemBroken = max(0f, b.totemBroken - years)
+    // (Now and then a band gives up its totem, or one without takes up a kind as its own, as with its traditions.)
+    if (fauna.kinds.isNotEmpty() && rnd.nextFloat() < (if (b.totem.none) TAKE_UP else DROP) * years) {
+        b.totem = if (b.totem.none) FaunaKind(rnd.nextInt(fauna.kinds.size)) else FaunaKind.NONE; b.totemBroken = 0f
+    }
     for (i in b.grudge.indices) b.grudge[i] *= 1f - GRUDGE_FADE * years
     if (rnd.nextFloat() < WORD_DRIFT * Language.CONCEPTS * years) b.words[rnd.nextInt(Language.CONCEPTS)] = rnd.nextInt(Language.FORMS)
     for (t in Tradition.entries) {

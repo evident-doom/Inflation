@@ -68,6 +68,7 @@ class WeekStats {
 
 /** What the week's [meetings][WeekStats.meetings] count, each under its [label]. */
 enum class Met(val label: String) {
+    BANDS_ATE_THEIR_TOTEM("bands ate their totem"),
     BANDS_BACK_AT_A_CACHE("bands back at a cache"),
     BANDS_BUILT_HOUSES("bands built houses"),
     BANDS_BUILT_PALISADES("bands built palisades"),
@@ -85,6 +86,7 @@ enum class Met(val label: String) {
     BANDS_TOOK_UP_A_RITE("bands took up a rite"),
     BANDS_TOOK_UP_ANOTHERS_APPOINTMENT("bands took up another's appointment"),
     BANDS_TOOK_UP_ANOTHERS_RITE("bands took up another's rite"),
+    BANDS_TOOK_UP_ANOTHERS_TOTEM("bands took up another's totem"),
     BANDS_VISITED_FRIENDS("bands visited friends"),
     CACHES_ROBBED("caches robbed"),
     FAVOURS_HELD_BACK("favours held back"),
