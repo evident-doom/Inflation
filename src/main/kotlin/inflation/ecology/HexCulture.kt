@@ -787,7 +787,7 @@ internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
         b.riteOwed = (RITE_DAYS + walk) * g.adults
     }
     // Plenty after long want is an omen too: where and when the hunger broke.
-    if (g.lean > 0 && g.fed >= 1f) omen(b, g.place, weather.date, g.lean / LEAN_USUAL_WEEKS, Met.BANDS_MARKED_PLENTY_AFTER_WANT)
+    if (g.lean > 0 && g.fed >= Thresholds.HUNGRY) omen(b, g.place, weather.date, g.lean / LEAN_USUAL_WEEKS, Met.BANDS_MARKED_PLENTY_AFTER_WANT)
     // An omen fades unless it is borne out: the same month going well again where it fell, a year or more on.
     if (b.omenPlace >= 0) {
         b.omenWeight *= exp(-years / OMEN_YEARS)
