@@ -243,7 +243,7 @@ class Band(kinds: Int) {
     /**
      * Of each kind, the years left of the time its herd, begun from young caught in the hunt, is kept as pets: small animals
      * kept for their own sake, as companions, and not yet weighed as food ([keepHerds]) till the young it was begun with have
-     * grown ([Species.yearsToMaturity]). 0 for a herd kept for food. (Empty in a band loaded from a save made before it;
+     * grown, or sooner for a kind of bad temper ([petYears]). 0 for a herd kept for food. (Empty in a band loaded from a save made before it;
      * [keepHerds] sizes it to [herd].)
      */
     var herdPet = FloatArray(kinds)
