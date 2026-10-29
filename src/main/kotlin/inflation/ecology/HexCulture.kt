@@ -747,12 +747,15 @@ fun riteStrengthAt(lineage: Int, tuning: Tuning) = tuning.riteFounderMax * Math.
  * ([HexLand.sanctity]: how many held rites there and lie buried there, as against the band's own number).
  *
  * In a month of its rite, once it has come to the site ([inflation.Tuning.roundArrivedKm]), the band holds the rite: its
- * adults owe [RITE_DAYS] each of their customs' time, and the place grows holier by the people at it.
+ * adults owe [RITE_DAYS] each of their customs' time that month (what the month does not give is lost: the rite was cut
+ * short), and the place grows holier by the people at it.
  */
 internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
     if (!tuning.rounds) return
     val b = g.band ?: return
     val now = weather.date.year * 12 + weather.date.month
+    // (A rite is held in its month: what its days the band could not spare by the month's end, it cut short.)
+    if (b.riteOwed > 0f && b.riteHeld != now) { b.riteOwed = 0f; stats.meeting(Met.BANDS_CUT_A_RITE_SHORT) }
     val site = b.rite[weather.date.month]
     if (site >= 0 && b.riteHeld != now && hex.distanceKm(hw.placeHex[g.place], hw.placeHex[site]) <= tuning.roundArrivedKm) {
         b.riteHeld = now

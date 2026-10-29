@@ -394,7 +394,7 @@ object HexSnapshot {
      *   back owed too. The way passes on as a mark does and counts apart between bands that both bury. Before, burials
      *   took no time.
      * 4.89: a band holds its rite once it has come to the site in the rite's month ([riteWeek]): its adults owe [RITE_DAYS]
-     *   each of their customs' time ([Band.riteOwed], after burials), and the place grows holier by the people at it and by
+     *   each of their customs' time that month ([Band.riteOwed], after burials; what the month does not give is cut), and the place grows holier by the people at it and by
      *   the dead laid there ([HexLand.sanctity], fading over [SANCTITY_YEARS]); a band taking up a rite is drawn to a holier
      *   place. Before, a rite drew a band to its site and asked nothing there.
      */

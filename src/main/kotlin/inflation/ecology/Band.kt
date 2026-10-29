@@ -528,7 +528,7 @@ class Band(kinds: Int) {
     var riteStrength = 0f
     /**
      * The person-days its rites still ask of it ([riteOwed]: [RITE_DAYS] an adult for each rite held, done as its customs'
-     * time allows after its burials: [GroupWorld.keepCustoms]), and the month, counted from the world's start, it last held
+     * time allows after its burials, [GroupWorld.keepCustoms], in the rite's month only), and the month, counted from the world's start, it last held
      * one ([riteHeld]), so that a rite is held once in its month.
      */
     var riteOwed = 0f
