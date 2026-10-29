@@ -18,12 +18,12 @@ import inflation.world.Weather
 /**
  * Whether [g] is restless this week: it ranges as far as it can, and weighs its places whether content or not.
  * A pack when hungry, without ground of its own, thirsty or astray; a band when hungry, thirsty, astray, due
- * somewhere soon, behind its round, or ill at ease where it is (in the cold: [coldRestless]; or the heat).
+ * somewhere soon, or ill at ease where it is (in the cold: [coldRestless]; or the heat).
  */
-internal fun GroupWorld.restless(g: HexGroup, weather: Weather, thirsty: Boolean, astray: Boolean, dueSoon: Boolean, onRound: Boolean, goalFar: Boolean): Boolean {
+internal fun GroupWorld.restless(g: HexGroup, weather: Weather, thirsty: Boolean, astray: Boolean, dueSoon: Boolean): Boolean {
     val s = g.species
     return when (s.lifeway) {
-        Lifeway.BAND -> g.fed < Thresholds.HUNGRY || thirsty || astray || dueSoon || (onRound && goalFar) ||
+        Lifeway.BAND -> g.fed < Thresholds.HUNGRY || thirsty || astray || dueSoon ||
             (g.band?.let { coldRestless(it.warmth(airAt(g.place, weather), it.fire, it.homeShelter(), days)) } ?: false) ||
             s.hotC(weather.temperature[g.place]) / 10f > 0.5f
         Lifeway.PACK -> g.fed < Thresholds.HUNGRY || g.home.none || thirsty || astray

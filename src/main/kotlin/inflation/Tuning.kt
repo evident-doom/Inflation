@@ -123,18 +123,17 @@ class Tuning(
     val denMonths = i("denMonths", 3)
     val denKm = f("denKm", 15f)
 
-    // Bands' yearly rounds, their rites (see [rounds]).
-    /** How strongly a round draws a learned mover's choice, outside its network (per unit of the "on round" feature). */
-    val roundNetPull = f("roundNetPull", 1.5f)
-    /** How strongly a round draws the hand-written choice: per unit of progress toward its place this month (a full week's going toward it). */
-    val roundPull = f("roundPull", 1.5f)
-    /** Within this of its round's place this month, km, a band has arrived and goes about it as it likes (half a range across). */
+    // Bands' rites (see [rounds]).
+    /** A band takes up no rite at a site within this of where it is, km (half a range across): a rite is somewhere it goes. */
     val roundArrivedKm = d("roundArrived", 50.0)
     /**
-     * The widest hold on its rites a founding band can have: each band holds to the rites by which it keeps its round,
-     * by lineage, as its traditions are. A well-fed band feels a hold under 1 hardly at all (the round's pull grows with
-     * how much better the place promises than it fares now), so the range reaches well above it. Not measured otherwise:
-     * wide on purpose, so that some lines are bound by their rites and others hardly, and the world sorts them.
+     * How strongly the place a band remembers doing best at this time of year draws it: per unit of
+     * progress toward it ([inflation.ecology.SEASON_PULL] by default).
+     */
+    val seasonPull = f("seasonPull", inflation.ecology.SEASON_PULL)
+    /**
+     * The widest hold on its rites a founding band can have, by lineage, as its traditions are: a custom it keeps
+     * and passes on (it no longer draws the band's moves: see model 4.89). Not measured: wide on purpose.
      */
     val riteFounderMax = f("riteMax", 3f)
 
@@ -151,7 +150,7 @@ class Tuning(
     val saltKeep = f("saltKeep", 0.7f)
 
     // The run's switches: plain keys, not tuning (t.NAME), that change what the model does.
-    /** Bands keep yearly rounds by their rites ([inflation.ecology.roundOf]); rounds=false leaves them out. */
+    /** Bands keep rites, sites through the year, as customs ([inflation.ecology.riteWeek]); rounds=false leaves them out. */
     val rounds = setting(Config.Key.ROUNDS)?.toBooleanStrict() ?: true
     /** People live in the world; people=false leaves them out, for comparison runs. */
     val people = setting(Config.Key.PEOPLE)?.toBooleanStrict() ?: true

@@ -37,7 +37,7 @@ import kotlin.math.exp
  */
 enum class Tradition(val about: String, val mark: Boolean) {
     BURIAL("the dead are buried near camp: the band is loath to leave its place", true),
-    SKY_LORE("sun, moon and stars are watched: the band keeps its seasonal round on time", false),
+    SKY_LORE("sun, moon and stars are watched: the band keeps to its season's places on time", false),
     TABOO_YOUNG("mothers and young are not hunted: game is spared in its breeding years", true),
     ORAL_TRADITION("songs, stories and genealogies: knowledge and skills fade more slowly", false),
     FEASTS("dance, song and shared feasts: bands grow larger before they split", true),
@@ -746,22 +746,31 @@ fun riteStrengthAt(lineage: Int, tuning: Tuning) = tuning.riteFounderMax * Math.
  * where songs and stories keep them. Nothing here weighs what a rite brings, except that a holier place draws more
  * ([HexLand.sanctity]: how many held rites there and lie buried there, as against the band's own number).
  *
- * In a month of its rite, once it has come to the site ([inflation.Tuning.roundArrivedKm]), the band holds the rite: its
- * adults owe [RITE_DAYS] each of their customs' time that month (what the month does not give is lost: the rite was cut
- * short), and the place grows holier by the people at it.
+ * A rite obliges: at the start of its month the band's adults owe [RITE_DAYS] each of their customs' time, and, unless
+ * the band is camped at the site ([inflation.Tuning.roundArrivedKm]), the walk there and back. Nothing weighs the trip
+ * against what it brings; the band does not move for it, its adults go and come back. Once the days are given the rite
+ * is held and the place grows holier by the adults at it; what the month does not give cuts the rite short, and nothing
+ * is held.
  */
 internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
     if (!tuning.rounds) return
     val b = g.band ?: return
     val now = weather.date.year * 12 + weather.date.month
-    // (A rite is held in its month: what its days the band could not spare by the month's end, it cut short.)
-    if (b.riteOwed > 0f && b.riteHeld != now) { b.riteOwed = 0f; stats.meeting(Met.BANDS_CUT_A_RITE_SHORT) }
-    val site = b.rite[weather.date.month]
-    if (site >= 0 && b.riteHeld != now && hex.distanceKm(hw.placeHex[g.place], hw.placeHex[site]) <= tuning.roundArrivedKm) {
-        b.riteHeld = now
-        b.riteOwed += RITE_DAYS * g.adults
-        land.sanctity[site] += g.size.toFloat()
+    // (A rite whose days are all given is held; one whose month ran out before they were, was cut short.)
+    if (b.riteDue >= 0 && b.riteOwed <= 0f) {
+        land.sanctity[b.riteDue] += g.adults.toFloat()
         stats.meeting(Met.BANDS_HELD_A_RITE)
+        b.riteDue = -1
+    } else if (b.riteDue >= 0 && b.riteHeld != now) {
+        b.riteOwed = 0f; b.riteDue = -1
+        stats.meeting(Met.BANDS_CUT_A_RITE_SHORT)
+    }
+    val site = b.rite[weather.date.month]
+    if (site >= 0 && b.riteHeld != now) {
+        val km = hex.distanceKm(hw.placeHex[g.place], hw.placeHex[site])
+        val walk = if (km <= tuning.roundArrivedKm) 0f else (2.0 * km / (WALK_KM_PER_HOUR * Activity.WORK_HOURS)).toFloat()
+        b.riteHeld = now; b.riteDue = site
+        b.riteOwed = (RITE_DAYS + walk) * g.adults
     }
     val keep = if (b.holds(Tradition.ORAL_TRADITION)) 0.5f else 1f
     for (m in 0 until 12) if (b.rite[m] >= 0 && rnd.nextFloat() < RITE_FORGET * keep * years) {

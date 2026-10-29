@@ -246,8 +246,6 @@ object HexFeatures : NamedSlots() {
     val FISH = one("fish and shellfish")
     /** For a herd, how far going there kept to the way it had been heading: kept for the layout until retraining, 0. */
     val KEEPS_HEADING = one("keeps heading")
-    /** For a band on its yearly round, how far the place takes it on toward the round's place this month (0 off a round). */
-    val ON_ROUND = one("on round")
     /** For a herd, how good the forage there was: kept for the layout until retraining, 0. */
     val FORAGE_QUALITY = one("forage quality")
     /** The fear of ground where game was killed lately ([HexFauna.afraid]). */

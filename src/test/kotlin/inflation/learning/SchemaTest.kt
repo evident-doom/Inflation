@@ -89,7 +89,6 @@ class SchemaTest {
             HexFeatures.OTHERS_MARKS to "others' marks",
             HexFeatures.FISH to "fish and shellfish",
             HexFeatures.KEEPS_HEADING to "keeps heading",
-            HexFeatures.ON_ROUND to "on round",
             HexFeatures.FORAGE_QUALITY to "forage quality",
             HexFeatures.KILL_FEAR to "kill fear",
             HexFeatures.BURNING to "burning",

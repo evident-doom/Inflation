@@ -393,13 +393,17 @@ object HexSnapshot {
      *   carried by [BEARERS] to where most of its dead lie if that is within a day's walk ([BODY_CARRY_KM]), the bearers' walk there and
      *   back owed too. The way passes on as a mark does and counts apart between bands that both bury. Before, burials
      *   took no time.
-     * 4.89: a band holds its rite once it has come to the site in the rite's month ([riteWeek]): its adults owe [RITE_DAYS]
-     *   each of their customs' time that month ([Band.riteOwed], after burials; what the month does not give is cut), and the place grows holier by the people at it and by
-     *   the dead laid there ([HexLand.sanctity], fading over [SANCTITY_YEARS]); a band taking up a rite is drawn to a holier
-     *   place. Before, a rite drew a band to its site and asked nothing there.
+     * 4.89: a band's rites no longer draw its moves: no round pull on the hand-written score or a learned mover's,
+     *   no restlessness when far from a rite's site, no "on round" feature. Rites stay as customs ([Band.rite]). An A/B
+     *   (10 years, m455-1..3 and a fresh seed) had more people without the pull on every world, +2 to +55%.
+     * 4.91: a rite obliges ([riteWeek]): in its month the band's adults owe [RITE_DAYS] each of their customs' time and,
+     *   unless camped at the site, the walk there and back ([Band.riteOwed], after burials); once given, the rite is held
+     *   and the place grows holier by the adults at it and by the dead laid there ([HexLand.sanctity], fading over
+     *   [SANCTITY_YEARS]); what the month does not give cuts the rite short. A band taking up a rite is drawn to a holier
+     *   place. Before, a rite asked nothing.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 89
+    const val MODEL_MINOR = 91
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

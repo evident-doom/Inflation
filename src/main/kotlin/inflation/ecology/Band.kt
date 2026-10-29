@@ -506,22 +506,10 @@ class Band(kinds: Int) {
     fun learn(h: Hex, size: Int) { if (known.size * 64 < size) known = known.copyOf((size + 63) / 64); known[h.i / 64] = known[h.i / 64] or (1L shl (h.i % 64)) }
 
     /**
-     * The rite its culture holds it to in [month], if any: the place it must go to then and how strongly
-     * (see [inflation.ecology.roundOf]): the site of its rite that month ([rite]) at the strength its
-     * people hold to their rites ([riteStrength]); none in a month without a site, or with no hold.
-     */
-    fun riteFor(month: Int): RoundPull? {
-        if (riteStrength <= 0f) return null
-        // (A rite's month is spent at its site: the band is drawn there from the month before, and kept
-        // there until the month after, unless that has its own.)
-        val site = if (rite[month] >= 0) rite[month] else rite[wrapMonth(month - 1)]
-        return if (site >= 0) RoundPull(site, riteStrength) else null
-    }
-    /**
-     * Its rites: for each month, the place its round of observance takes it to then (-1: none) — the
-     * graves of its dead, where bands gather, far landmarks it walked to or was told of (see [riteWeek]).
-     * Handed down whole to bands that split off, taken up from bands met, now and then let go; never
-     * chosen for what they bring, so a rite that costs lives lasts as long as the line that keeps it.
+     * Its rites: for each month, the place it holds sacred then (-1: none) — the graves of its dead, where
+     * bands gather, far landmarks it walked to or was told of (see [riteWeek]). Handed down whole to bands
+     * that split off, taken up from bands met, now and then let go: customs that mark a band's line. They
+     * do not draw its moves (model 4.89): a trip to a rite's site will be an action the band chooses.
      */
     val rite = IntArray(12) { -1 }
     /** How strongly its people hold to their rites (0: not at all; see [inflation.Tuning.riteFounderMax]). */
@@ -529,10 +517,12 @@ class Band(kinds: Int) {
     /**
      * The person-days its rites still ask of it ([riteOwed]: [RITE_DAYS] an adult for each rite held, done as its customs'
      * time allows after its burials, [GroupWorld.keepCustoms], in the rite's month only), and the month, counted from the world's start, it last held
-     * one ([riteHeld]), so that a rite is held once in its month.
+     * one ([riteHeld]), so that a rite is owed once in its month.
      */
     var riteOwed = 0f
     var riteHeld = -1L
+    /** The site of the rite its days are owed to ([riteOwed]), held once they are given; -1: none under way. */
+    var riteDue = -1
 
     fun holds(t: Tradition) = traditions[t]
     fun mainLineage(): Int { var best = 0; for (i in lineage.indices) if (lineage[i] > lineage[best]) best = i; return best }
