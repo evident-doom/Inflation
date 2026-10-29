@@ -729,10 +729,13 @@ class Band(kinds: Int) {
     /** How its weapons, hunting skill and dogs do against [prey], against an ordinary armed, practised band without dogs (1). */
     fun huntEdge(prey: Species, tuning: Tuning) =
         skill(Skill.HUNT) * edge(Skill.STALK) * (WEAPONLESS + (1f - WEAPONLESS) * has(Tool.SPEAR) * serveOfMake(Tool.SPEAR, fine[Tool.SPEAR], tuning) +
-            BOW_GAIN * has(Tool.BOW) * serveOfMake(Tool.BOW, fine[Tool.BOW], tuning) * min(1f, prey.speedKmh / 70f)) * (1f + DOG_HUNT * dogShare)
+            BOW_GAIN * has(Tool.BOW) * serveOfMake(Tool.BOW, fine[Tool.BOW], tuning) * min(1f, prey.speedKmh / 70f)) *
+            (1f + DOG_HUNT * dogShare * max(0f, 1f - prey.massKg / DOG_PREY_KG))
 
-    /** Its dogs against its hunters (one to three a full pack): they track, bay and hold game, and bark at night. */
+    /** Its dogs against its hunters (one to three a full pack): they track, bay and hold small game, and bark at night. */
     var dogShare = 0f
+    /** How far its dogs were fed this week, 0..1 (1 with none; for the census). */
+    @Transient var dogFed = 1f
 
     /** Its people's fighting weight per kg: with spears and bows lions and hyenas give way; without, they are no match. */
     fun ferocity(s: Species) = s.ferocity * (WEAPONLESS + (1f - WEAPONLESS) * has(Tool.SPEAR) + 0.5f * has(Tool.BOW))

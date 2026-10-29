@@ -393,9 +393,15 @@ object HexSnapshot {
      *   carried by [BEARERS] to where most of its dead lie if that is within a day's walk ([BODY_CARRY_KM]), the bearers' walk there and
      *   back owed too. The way passes on as a mark does and counts apart between bands that both bury. Before, burials
      *   took no time.
+     * 4.89: dogs eat. They live on what lies about the camp ([DeadPool.CARRION]) and a little of the band's food
+     *   ([DOG_FED_SHARE] of a full pack's need, the less the hungrier the band), whelp as they are fed ([DOG_BIRTHS]), die as camp dogs do
+     *   ([DOG_DEATHS] 0.49 a year, Koster 2008) and of hunger, and help the hunt of small game only, nothing from
+     *   [DOG_PREY_KG] up. Those of a band that dies out go off as a pack of their wild kind. Before, they grew with the
+     *   band's own feeding to at most 0.3 an adult, ate nothing, lost 10% a year and added a fifth to
+     *   every hunt.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 88
+    const val MODEL_MINOR = 89
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
