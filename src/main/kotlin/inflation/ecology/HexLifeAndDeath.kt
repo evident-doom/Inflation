@@ -248,6 +248,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         }
     }
     groups += born
+    tallyVillages()
     Profile.part("groups: merging and pairing") { mergeAndPair(date) }
 }
 

@@ -10,6 +10,7 @@ import inflation.ecology.Activity
 import inflation.ecology.Catalogue
 import inflation.ecology.DeathCause
 import inflation.ecology.Tally
+import inflation.ecology.VillageFlow
 import inflation.ecology.HexGeography
 import inflation.ecology.Fed
 import inflation.ecology.HexFauna
@@ -360,6 +361,17 @@ class Census(private val sim: HexSim) {
             "%s %.0f%%, %.1f a band: %.1f / %.1f (%s)".format(w.label, 100 * pw / all, pw / (lastYear[Tally.bandsLiving(w, Tally.Bands.BAND_WEEKS)] ?: 0).toDouble().coerceAtLeast(1.0),
                 1000 * (lastYear[Tally.bandsLiving(w, Tally.Bands.BORN)] ?: 0) / years, 1000 * died.values.sum() / years,
                 died.entries.sortedByDescending { it.value }.joinToString(" ") { "%s %.1f".format(it.key, 1000 * it.value / years) }) })
+        run {
+            // Villages: hexes where two or more bands live settled ([villages]).
+            val f = groups.bands.villageFlows
+            val weeks = f[VillageFlow.WEEKS].toDouble().coerceAtLeast(1.0); val vw = f[VillageFlow.VILLAGE_WEEKS].toDouble()
+            val now = groups.bands.villageAge
+            println("villages since the census last read them (two or more bands living settled in one hex; nothing chooses by it): standing now %d, the oldest %d weeks; in a week %.1f villages, %.1f bands and %.0f people a village, most bands in one %.0f; people in villages %.0f%% of those settled, %.0f%% of all; with a palisade standing %.0f%% of village-weeks; %.0f ended, after %.1f weeks on average".format(
+                now.size, now.values.maxOrNull() ?: 0, vw / weeks, f[VillageFlow.BANDS] / vw.coerceAtLeast(1.0), f[VillageFlow.PEOPLE] / vw.coerceAtLeast(1.0), f[VillageFlow.MOST_BANDS].toDouble(),
+                100 * f[VillageFlow.PEOPLE] / f[VillageFlow.SETTLED_PEOPLE].toDouble().coerceAtLeast(1.0), 100 * f[VillageFlow.PEOPLE] / f[VillageFlow.ALL_PEOPLE].toDouble().coerceAtLeast(1.0),
+                100 * f[VillageFlow.PALISADED] / vw.coerceAtLeast(1.0), f[VillageFlow.ENDED].toDouble(), f[VillageFlow.ENDED_WEEKS] / f[VillageFlow.ENDED].toDouble().coerceAtLeast(1.0)))
+            f.fill(0f)
+        }
         println("bands by whether they keep a herd and how much of their hands' days it asks, last year (share of people-weeks; people a band; clad, mobile; children a person; fed; air where they stood, °C; births per 1000 people a year; grown deaths per 1000 grown a year, children's per 1000 children, by cause, largest first): " + Tally.Herding.entries.joinToString(", ") { h ->
             fun v(k: Tally.Bands) = (lastYear[Tally.bandsHerding(h, k)] ?: 0).toDouble()
             val pw = v(Tally.Bands.PEOPLE_WEEKS); val cw = v(Tally.Bands.CHILD_WEEKS); val bw = v(Tally.Bands.BAND_WEEKS).coerceAtLeast(1.0)

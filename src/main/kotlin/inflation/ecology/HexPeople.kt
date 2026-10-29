@@ -9,6 +9,7 @@ import inflation.Kg
 import inflation.KgM2
 import inflation.min
 import inflation.world.Date
+import inflation.world.Hex
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -282,6 +283,52 @@ internal fun GroupWorld.bandHerding(b: Band, hands: Int): Tally.Herding {
 }
 internal fun GroupWorld.bandLiving(b: Band) =
     if (b.atHome || b.campWeeks >= stepsPerYear / 2f) Tally.Living.SETTLED else Tally.Living.MOBILE
+
+/**
+ * The villages this week, for the reports: the hexes where two or more bands live settled ([bandLiving]), with those
+ * bands. Nothing chooses by it.
+ */
+internal fun HexGroups.villages(): Map<Hex, List<HexGroup>> {
+    val byHex = HashMap<Hex, ArrayList<HexGroup>>()
+    for (g in groups) {
+        val b = g.band ?: continue
+        if (g.alive && bandLiving(b) == Tally.Living.SETTLED) byHex.getOrPut(hw.placeHex[g.place]) { ArrayList() } += g
+    }
+    return byHex.filterValues { it.size >= 2 }
+}
+
+/**
+ * What the census reads of villages ([villages]) since it last did: weeks counted; village-weeks; bands and people in
+ * them, summed over the weeks; people living settled and all bands' people, the same; village-weeks with a palisade
+ * standing; villages that ended and the weeks they had lasted; the most bands in one village.
+ */
+enum class VillageFlow { WEEKS, VILLAGE_WEEKS, BANDS, PEOPLE, SETTLED_PEOPLE, ALL_PEOPLE, PALISADED, ENDED, ENDED_WEEKS, MOST_BANDS }
+
+/** Books this week's villages for the census ([Bands.villageFlows]): once a week, after the bands' weeks. */
+internal fun HexGroups.tallyVillages() {
+    val f = bands.villageFlows; val age = bands.villageAge
+    val now = villages()
+    f[VillageFlow.WEEKS] += 1f
+    for (g in groups) {
+        val b = g.band ?: continue
+        if (!g.alive) continue
+        f[VillageFlow.ALL_PEOPLE] += g.size.toFloat()
+        if (bandLiving(b) == Tally.Living.SETTLED) f[VillageFlow.SETTLED_PEOPLE] += g.size.toFloat()
+    }
+    for ((h, bs) in now) {
+        f[VillageFlow.VILLAGE_WEEKS] += 1f
+        f[VillageFlow.BANDS] += bs.size.toFloat()
+        f[VillageFlow.PEOPLE] += bs.sumOf { it.size }.toFloat()
+        f[VillageFlow.MOST_BANDS] = max(f[VillageFlow.MOST_BANDS], bs.size.toFloat())
+        if (bs.any { it.band!!.atHome && it.band!!.palisade > 0.05f }) f[VillageFlow.PALISADED] += 1f
+        age[h] = (age[h] ?: 0) + 1
+    }
+    val ages = age.entries.iterator()
+    while (ages.hasNext()) {
+        val e = ages.next()
+        if (e.key !in now) { f[VillageFlow.ENDED] += 1f; f[VillageFlow.ENDED_WEEKS] += e.value.toFloat(); ages.remove() }
+    }
+}
 
 /**
  * [b]'s births against those of a band without weaning food ([SPACING_MOST] over its spacing): gruel weans children early
