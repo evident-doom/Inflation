@@ -261,6 +261,8 @@ private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float)
     time.release(Activity.FIREWOOD)
     // (It puts up its camp's shelters in the days the plan gives them, before the foraging can eat into them: [putUpShelter].)
     putUpShelter(b, g.adults.toFloat(), time, movedCamp(g, b), max(b.shelterWill, b.shelterAim))
+    // (And makes the clothes the plan gives days first, before the foraging can eat into them: [survivalDays].)
+    if (warm[Activity.TOOLS] > 0f) makeTools(b, g.adults.toFloat(), time, Tool.CLOTHES, warm[Activity.TOOLS])
     // (And its herders go out with the herd in the days the plan gives them, before the foraging can eat into them.)
     val herd = herdDays(b) * (1f - walkedShare(time))
     b.herded = if (herd > 0f) min(1f, time.leftFor(Activity.SOWING) / herd) else 1f
