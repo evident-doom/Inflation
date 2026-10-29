@@ -19,6 +19,7 @@ import inflation.mix64
 
 import inflation.world.Biome
 import inflation.world.Date
+import inflation.world.Place
 import inflation.world.Weather
 import kotlin.math.max
 import kotlin.math.min
@@ -798,9 +799,9 @@ internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
  * an omen it remembers over the next [OMEN_YEARS] (the greater kept before the lesser), which becomes a rite in its month
  * if borne out (see [riteWeek], [riteMeet]), or at once if it was very great ([OMEN_AT_ONCE]).
  */
-internal fun GroupWorld.omen(b: Band, place: Int, date: Date, weight: Float, kind: Met) {
+internal fun GroupWorld.omen(b: Band, place: Place, date: Date, weight: Float, kind: Met) {
     if (weight < SALIENT || weight <= b.omenWeight) return
-    b.omenPlace = place; b.omenMonth = date.month; b.omenYear = date.year; b.omenWeight = weight
+    b.omenPlace = place.i; b.omenMonth = date.month; b.omenYear = date.year; b.omenWeight = weight
     stats.meeting(kind)
     if (weight >= OMEN_AT_ONCE) bearRite(b)
 }
