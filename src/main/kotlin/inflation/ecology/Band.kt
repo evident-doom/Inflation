@@ -525,6 +525,19 @@ class Band(kinds: Int) {
     var riteDue = -1
     /** The month, counted from the world's start, it last held a rite to the end (-1: never). */
     var riteKept = -1L
+    /**
+     * Its belief is its rites as a whole: the years it has kept them ([beliefYears], its weight: the older, the more strain
+     * it bears), and the strain of rites it could not hold ([strain]: one a rite cut short, easing in weeks it eats its
+     * fill), which splits the band once it passes what the belief bears ([strainBorne]).
+     */
+    var beliefYears = 0f
+    var strain = 0f
+    /** The strain its belief bears before part of the band breaks from it. */
+    fun strainBorne() = STRAIN_SPLIT * (1f + beliefYears / BELIEF_AGE_YEARS)
+    /** Gives up its belief: its rites, its hold on them and what they asked of it (the part of a band that broke away). */
+    fun dropBelief() {
+        rite.fill(-1); riteStrength = 0f; beliefYears = 0f; strain = 0f; riteOwed = 0f; riteDue = -1
+    }
 
     fun holds(t: Tradition) = traditions[t]
     fun mainLineage(): Int { var best = 0; for (i in lineage.indices) if (lineage[i] > lineage[best]) best = i; return best }
@@ -574,7 +587,7 @@ class Band(kinds: Int) {
         fine.copyInto(o.fine)
         o.salted = salted; o.dryDepth = dryDepth
         o.renown = renown
-        rite.copyInto(o.rite); o.riteStrength = riteStrength; o.riteHeld = riteHeld; o.riteKept = riteKept
+        rite.copyInto(o.rite); o.riteStrength = riteStrength; o.riteHeld = riteHeld; o.riteKept = riteKept; o.beliefYears = beliefYears; o.strain = strain
         traditions.copyInto(o.traditions); heard.copyInto(o.heard); o.heardOf = heardOf
         o.totem = totem; o.marksChosen = marksChosen; o.heardTotem = heardTotem.copyOf(); o.totemBroken = totemBroken
         o.burialWay = burialWay; heardBurial.copyInto(o.heardBurial); words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
