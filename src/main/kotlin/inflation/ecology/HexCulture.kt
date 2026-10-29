@@ -370,7 +370,7 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
         if (r < toA) { bandA.burialWay = bandB.burialWay; stats.meeting(Met.BANDS_TOOK_UP_ANOTHERS_BURIAL) }
         else if (r < toA + toB) { bandB.burialWay = bandA.burialWay; stats.meeting(Met.BANDS_TOOK_UP_ANOTHERS_BURIAL) }
     }
-    riteMeet(lo, hi, u)
+    riteMeet(bandA, bandB, ab, ba)
     teach(bandA, bandB, u, (doing(a) - doing(b)).coerceIn(-1f, 1f))
     // And the sick among them pass on what is catching.
     passIllness(bandA, bandB)
@@ -843,18 +843,25 @@ internal fun HexGroups.riteInherit(nb: Band) {
 }
 
 /**
- * Two bands talking (rounds on): the one doing less well may take up a rite of the other's in a
- * month it has none, and its hold moves toward theirs, as far as they understand each other.
+ * Two bands talking (rounds on): each may take up a rite of the other's in a month it has none, as far as it believes what
+ * the other tells ([Regard.trust]: understanding and closeness), never because the other does better; and each one's hold
+ * on its rites moves toward the other's as far. Two that marked the same place each hear their omen told again.
  */
-internal fun GroupWorld.riteMeet(lo: Band, hi: Band, u: Float) {
+internal fun GroupWorld.riteMeet(a: Band, b: Band, ab: Regard, ba: Regard) {
     if (!tuning.rounds) return
     // (Two bands that marked the same place each hear their omen told again: it is borne out for both.)
-    if (lo.omenPlace >= 0 && lo.omenPlace == hi.omenPlace) { bearRite(lo); bearRite(hi) }
-    for (m in 0 until 12) if (hi.rite[m] >= 0 && lo.rite[m] < 0 && lo.rite.count { it >= 0 } < RITE_SITES && hi.rite[m] !in lo.rite &&
-        rnd.nextFloat() < COPY_TRADITION * u) {
-        lo.rite[m] = hi.rite[m]; stats.meeting(Met.BANDS_TOOK_UP_ANOTHERS_RITE)
+    if (a.omenPlace >= 0 && a.omenPlace == b.omenPlace) { bearRite(a); bearRite(b) }
+    fun takeUp(to: Band, from: Band, belief: Float) {
+        for (m in 0 until 12) if (from.rite[m] >= 0 && to.rite[m] < 0 && to.rite.count { it >= 0 } < RITE_SITES && from.rite[m] !in to.rite &&
+            rnd.nextFloat() < COPY_TRADITION * belief) {
+            to.rite[m] = from.rite[m]; stats.meeting(Met.BANDS_TOOK_UP_ANOTHERS_RITE)
+        }
     }
-    lo.riteStrength += COPY_TRADITION * u * (hi.riteStrength - lo.riteStrength)
+    val tA = ab.trust; val tB = ba.trust
+    takeUp(a, b, tA); takeUp(b, a, tB)
+    val sa = a.riteStrength; val sb = b.riteStrength
+    a.riteStrength += COPY_TRADITION * tA * (sb - sa)
+    b.riteStrength += COPY_TRADITION * tB * (sa - sb)
 }
 
 /**
