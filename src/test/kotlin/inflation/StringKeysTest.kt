@@ -77,7 +77,7 @@ class StringKeysTest {
         "ecology/HexGeography.kt" to (1 to "the cover of a core, set while building"),
         "ecology/HexGroups.kt" to (3 to "the path and time of a group that chose to move"),
         "ecology/GroupPlanner.kt" to (1 to "the reach cache merge"),
-        "ecology/HexLifeAndDeath.kt" to (5 to "a band of a people group: the caller has chosen people"),
+        "ecology/HexLifeAndDeath.kt" to (4 to "a band of a people group: the caller has chosen people"),
         "ecology/HexPeople.kt" to (2 to "a band of a people group: the caller has chosen people"),
         "ecology/HexSmallLife.kt" to (1 to "the months a bird is present: set for the kinds that follow insects"),
         "learning/PpoTrainer.kt" to (1 to "a player is made for every world before the round"),

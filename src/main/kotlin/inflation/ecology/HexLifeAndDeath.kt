@@ -367,6 +367,12 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
             stats.hunting.merge(Tally.bandsLiving(way, Tally.Bands.PEOPLE_WEEKS), g.size, Int::plus)
             if (o.births > 0) stats.hunting.merge(Tally.bandsLiving(way, Tally.Bands.BORN), o.births, Int::plus)
             for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge(Tally.bandsLivingDied(way, cause), k, Int::plus)
+            // And by how it chooses ([Mind]): the two kinds of band side by side.
+            stats.hunting.merge(Tally.bandsMind(b.mind, Tally.Bands.BAND_WEEKS), 1, Int::plus)
+            stats.hunting.merge(Tally.bandsMind(b.mind, Tally.Bands.PEOPLE_WEEKS), g.size, Int::plus)
+            if (o.births > 0) stats.hunting.merge(Tally.bandsMind(b.mind, Tally.Bands.BORN), o.births, Int::plus)
+            if (g.path.size > 1) stats.hunting.merge(Tally.bandsMind(b.mind, Tally.Bands.MOVES), 1, Int::plus)
+            for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge(Tally.bandsMindDied(b.mind, cause), k, Int::plus)
             // And by whether it keeps a herd: what herding costs its people, its children apart.
             val herding = bandHerding(b, g.adults)
             stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.BAND_WEEKS), 1, Int::plus)
@@ -894,8 +900,10 @@ internal fun HexGroups.mergeAndPair(date: Date) {
         var ring = listOf(h0); val seen = hashSetOf(h0)
         for (r in 0..VISIT_RINGS) {
             for (h in ring) for (o in bandsByHex[h].orEmpty()) {
-                if (o === g || !o.alive || o.size + g.size > maxSize(o)) continue
-                val k = kinship(b.lineage, o.band!!.lineage) / (1f + r)
+                // (A band joins only one of its own mind: the two kinds of choosing stay apart.)
+                val ob = o.band ?: continue
+                if (o === g || !o.alive || o.size + g.size > maxSize(o) || ob.mind != b.mind) continue
+                val k = kinship(b.lineage, ob.lineage) / (1f + r)
                 if (k > bestKin) { bestKin = k; best = o }
             }
             if (best != null || r == VISIT_RINGS) break

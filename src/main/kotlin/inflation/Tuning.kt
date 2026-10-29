@@ -51,6 +51,11 @@ class Tuning(
      * feed one ([inflation.ecology.startHerders]); 0, none. (Villages started by [startSettled] start with a herd as well.)
      */
     val startHerders = f("startHerders", 0f).also { require(it in 0f..1f) { "t.startHerders is $it: a share of the bands, 0-1" } }
+    /**
+     * The share of people's founding bands that start with the planning kind's mind ([inflation.ecology.Mind.PLANS]): they
+     * choose from the week's menu of activities, and their camp and days follow from what they hold; 0, none.
+     */
+    val planners = f("planners", 0f).also { require(it in 0f..1f) { "t.planners is $it: a share of the bands, 0-1" } }
     /** The food cost of keeping warm, against [inflation.ecology.COLD_COST]. */
     val coldCost = f("coldCost", 1f)
 
