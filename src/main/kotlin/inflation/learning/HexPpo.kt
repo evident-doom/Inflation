@@ -23,6 +23,8 @@ import kotlin.math.min
 import kotlin.math.sqrt
 import kotlin.random.Random
 import inflation.ecology.Band
+import inflation.ecology.DeathClass
+import inflation.ecology.LOST_ALL
 import inflation.ecology.BandInputs
 import java.util.concurrent.ConcurrentHashMap
 
@@ -165,6 +167,13 @@ open class Choice(val kind: Species, val groupId: Int, val size: Int, val week: 
     /** Where the group stood, and how it was, [Critic.boot] weeks on (null if it was not seen choosing then). */
     var probe: Probe? = null
     var advantage = 0f
+    /**
+     * Added to what it is judged against, for the move or the ways draw alone, never to what the critic learns: the deaths, by the cause
+     * classes, that this choice is not to answer for in full (see [HexPpo.Player]'s `moverKitWeight`, `waysPlaceWeight`).
+     */
+    var credit = 0f
+    /** The deaths the odds made likely among the members over the horizon, as the share of the return they cost: of cold and camp, of going without, of all causes. */
+    var lostKit = 0f; var lostFood = 0f; var lostAll = 0f
     /** Recorded for the critic alone (taken as the best was, not drawn): it judges no move, only teaches what a group in its place can expect. */
     var valueOnly = false
 }
@@ -485,6 +494,16 @@ object HexPpo {
          * only roughly here. Deaths within the horizon count both in the return and in the share still alive.
          */
         private val shape = Config.float(Config.Key.PPO_FORESEEN_SHAPE, 1f)
+        /**
+         * Config keys `ppo.moverKitWeight` and `ppo.waysPlaceWeight` (default 1: none): the deaths a band's choices are judged by are told
+         * apart by cause. A move is judged by deaths of cold and camp ([DeathClass.KIT]), which the ways (what it wears, its fire, shelter
+         * and camp) act on more, at this weight; a ways draw by deaths of causes neither food nor kit (beasts, snakes, sickness, raids...),
+         * which the move acts on more, at its weight. The share of the return those deaths cost, less than whole, is given back to the choice
+         * as [Choice.credit]. Deaths of going without count whole in both: the move and the food efforts both answer for them. The critic
+         * is not told: it learns the whole return, so that one baseline serves both.
+         */
+        private val moverKitWeight = Config.float(Config.Key.PPO_MOVER_KIT_WEIGHT, 1f)
+        private val waysPlaceWeight = Config.float(Config.Key.PPO_WAYS_PLACE_WEIGHT, 1f)
         /** Recorded choices waiting to see their group again [Critic.boot] weeks on. */
         private val probes = ConcurrentHashMap<Int, MutableList<Choice>>()
         /** Where each band stood this week before it moved: what its ways draw is judged from. */
@@ -594,7 +613,8 @@ object HexPpo {
                 val discount = if (c.kind.human) PEOPLE_DISCOUNT else DISCOUNT
                 // (Judged by the fate of the group's own members, so that taking others in is no gain.)
                 val fore = if (c.kind.human && shape != 0f) FloatArray(horizon) else null
-                val own = outcomes.own(c.groupId, c.week, horizon, fore)
+                val lost = if (c.kind.human) FloatArray(3 * horizon) else null
+                val own = outcomes.own(c.groupId, c.week, horizon, fore, lost)
                 val boot = Critic.boot(c.kind)
                 var part = 0f; var tail = 0f
                 for (k in 1..horizon) {
@@ -602,6 +622,20 @@ object HexPpo {
                     sum += d * m; norm += d
                     if (k <= boot) part += d * m else tail += d
                     d *= discount
+                }
+                if (lost != null) {
+                    // (A death in week j costs the weeks from j on: its weight in the return is theirs, the discounted weeks from there on over all.)
+                    val n = c.size.coerceAtLeast(1).toFloat()
+                    var before = 0f; var dk = 1f
+                    for (k in 1..horizon) {
+                        val worth = (norm - before) / norm
+                        c.lostKit += lost[3 * (k - 1) + DeathClass.KIT.ordinal] / n * worth
+                        c.lostFood += lost[3 * (k - 1) + DeathClass.FOOD.ordinal] / n * worth
+                        c.lostAll += lost[3 * (k - 1) + LOST_ALL] / n * worth
+                        before += dk; dk *= discount
+                    }
+                    val placeLost = max(0f, c.lostAll - c.lostKit - c.lostFood)
+                    c.credit = if (c is WaysChoice) (1f - waysPlaceWeight) * placeLost else (1f - moverKitWeight) * c.lostKit
                 }
                 c.ret = sum / norm
                 c.part = part / norm

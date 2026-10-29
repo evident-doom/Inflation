@@ -14,6 +14,11 @@ import inflation.ecology.HexGeography
 import inflation.ecology.Fed
 import inflation.ecology.HexFauna
 import inflation.ecology.TallyKey
+import inflation.ecology.MoveTerm
+import inflation.ecology.MOVE_TRACE_WEEKS
+import inflation.ecology.MOVE_TRACE_MOVES
+import inflation.ecology.MOVE_TRACE_SUMS
+import inflation.ecology.MOVE_TRACE_LEADS
 import inflation.world.get
 import inflation.ecology.HexSim
 import inflation.ecology.Skill
@@ -178,6 +183,22 @@ class Census(private val sim: HexSim) {
             val all = c.sum().coerceAtLeast(1)
             "%s %.0f/%.0f/%.0f%%".format(s.name, 100.0 * c[0] / all, 100.0 * c[1] / all, 100.0 * c[2] / all)
         })
+        val banded = groups.kinds.filter { groups.planner.exploreCounts[it.index * 4] > 0 }
+        if (banded.isNotEmpty()) println("     bands' moves, share of band-weeks (its best choice would move / moved / moved only by its will to explore's draw): " +
+            banded.joinToString(", ") { s ->
+                val c = IntArray(4) { groups.planner.exploreCounts.getAndSet(s.index * 4 + it, 0) }
+                val all = c[0].coerceAtLeast(1)
+                "%s %.1f/%.1f/%.1f%%".format(s.name, 100.0 * c[1] / all, 100.0 * c[2] / all, 100.0 * c[3] / all)
+            })
+        // (moveTrace=true only: [GroupPlanner.bookMove].)
+        val mc = groups.planner.moveCounts
+        if (mc[MOVE_TRACE_WEEKS] > 0) {
+            val m = LongArray(mc.length()) { mc.getAndSet(it, 0) }
+            val moves = m[MOVE_TRACE_MOVES].coerceAtLeast(1).toDouble()
+            println("     bands' moves by the hand-written score: %.1f%% of band-weeks; on them, each part of the score where it went less staying's, mean (the moves it did most for): ".format(
+                100.0 * m[MOVE_TRACE_MOVES] / m[MOVE_TRACE_WEEKS]) + MoveTerm.entries.joinToString(", ") { t ->
+                "%s %+.3f (%.0f%%)".format(t.label, m[MOVE_TRACE_SUMS + t.ordinal] / 1e4 / moves, 100.0 * m[MOVE_TRACE_LEADS + t.ordinal] / moves) })
+        }
     }
 
     /** The hunters' families: packs, how many hold ground and could breed, lone animals, adults and young. */
@@ -475,6 +496,19 @@ class Census(private val sim: HexSim) {
                     v(Tally.bandsHut(h, Tally.Bands.AIM)) / 100 / bw,
                     1000 * of(DeathCause.EXPOSURE) / years, 1000 * of(DeathCause.HUNGER) / years, 1000 * died.values.sum() / years)
             })
+        // (thatchTrace=true only: [bookThatchTrace].)
+        if (Tally.Hut.entries.any { v(Tally.thatchTrace(it, Tally.Thatch.WEEKS)) > 0 })
+            println("bands' survival pass short of a thatched hut, by how far its shelters reached, last year (band-weeks; what thatching on would have done by the pass's own reckoning, its fire as planned: " +
+                "deaths averted per 1000 band-weeks this week of exposure / hunger / through the year after, a negative brings deaths; person-days it would take / the pass left, a band-week; " +
+                "weeks expected to stay on; share of band-weeks it would avert deaths and fit, avert them but not fit, avert none): " +
+                Tally.Hut.entries.filter { v(Tally.thatchTrace(it, Tally.Thatch.WEEKS)) > 0 }.joinToString(", ") { h ->
+                    fun t(k: Tally.Thatch) = v(Tally.thatchTrace(h, k))
+                    val bw = t(Tally.Thatch.WEEKS)
+                    "%s %.0f exp %.2f hun %.2f year %.2f days %.1f/%.1f stay %.1f worth %.0f%% short %.0f%% not %.0f%%".format(h.label, bw,
+                        1000 * t(Tally.Thatch.EXPOSURE) / 1e4 / bw, 1000 * t(Tally.Thatch.HUNGER) / 1e4 / bw, 1000 * t(Tally.Thatch.YEAR) / 1e4 / bw,
+                        t(Tally.Thatch.DAYS) / 10 / bw, t(Tally.Thatch.LEFT) / 10 / bw, t(Tally.Thatch.STAY) / 10 / bw,
+                        100 * t(Tally.Thatch.WORTH_FITS) / bw, 100 * t(Tally.Thatch.WORTH_SHORT) / bw, 100 * t(Tally.Thatch.NOT_WORTH) / bw)
+                })
         fun ft(k: Tally.FoodTime) = v(Tally.foodTime(k))
         val ftWeeks = ft(Tally.FoodTime.WEEKS).coerceAtLeast(1.0)
         println(("bands' foraging against the days its week's plan left it, last year (people-days a band-week): left %.1f, spent %.1f, past what was left %.2f; " +

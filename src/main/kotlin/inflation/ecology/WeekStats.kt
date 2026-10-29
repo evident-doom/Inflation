@@ -340,6 +340,17 @@ object Tally {
     fun bandsHut(h: Hut, what: Bands) = TallyKey.raw("bands shelter ${h.label}:${what.label}")
     fun bandsHutDied(h: Hut, cause: DeathReason) = TallyKey.raw(bandsHutDied(h).text + cause.label)
     fun bandsHutDied(h: Hut) = TallyKey.raw("bands shelter ${h.label}:$DIED_OF")
+    /**
+     * What thatching on to the full would have done, by the survival pass's own reckoning, in the band-weeks it stopped short
+     * ([WEEKS]): deaths averted this week of exposure and of hunger and through the year after, people, 1/10000 (a negative
+     * brings deaths); the days it would take and those the pass left, and the weeks the band expects to stay on, tenths; and
+     * the band-weeks it would avert deaths and its days fit in those left, would avert them but not fit, or would not.
+     */
+    enum class Thatch(val label: String) {
+        WEEKS("band-weeks"), EXPOSURE("exposure averted"), HUNGER("hunger averted"), YEAR("year averted"), DAYS("days"), LEFT("days left"),
+        STAY("stay weeks"), WORTH_FITS("worth, fits"), WORTH_SHORT("worth, short of days"), NOT_WORTH("not worth")
+    }
+    fun thatchTrace(h: Hut, what: Thatch) = TallyKey.raw("thatch trace ${h.label}:${what.label}")
     /** Whether a band keeps a herd ([Band.herd]). */
     enum class HerdKept(val label: String) { HERDING("keeping a herd"), NONE("keeping none") }
     /** Bands' tallies by whether they keep a herd; [bandsHerdKeptDied] (herding) starts all their deaths. */
