@@ -396,6 +396,12 @@ object HexSnapshot {
      * 4.89: a band's rites no longer draw its moves: no round pull on the hand-written score or a learned mover's,
      *   no restlessness when far from a rite's site, no "on round" feature. Rites stay as customs ([Band.rite]). An A/B
      *   (10 years, m455-1..3 and a fresh seed) had more people without the pull on every world, +2 to +55%.
+     * 4.90: kept herds bear young as their kind breeds without pens or incubators ([herdMothers]: captive breeding against
+     *   a goat's, [HERD_BREEDS] 0.7; ostrich 71%, red deer 43%, goat, sheep, boar, aurochs whole) and lose some each year to
+     *   fighting by their temper ([fighting]: 0.5 × (1 − disposition / [HERD_TEMPER] 0.6)²; goat and sheep none, horse 1%,
+     *   boar 6%, red deer 13%, ostrich and aurochs 22%); a herd begun from young is kept as pets only as long as its temper
+     *   allows ([petYears]: years to maturity × disposition / [HERD_TEMPER], goats whole, ostrich and aurochs a third). Before,
+     *   every kind bred at its wild rate when kept, none fought, and every kind was a pet till grown.
      * 4.91: a rite obliges ([riteWeek]): in its month the band's adults owe [RITE_DAYS] each of their customs' time and,
      *   unless camped at the site, the walk there and back ([Band.riteOwed], after burials); once given, the rite is held
      *   and the place grows holier by the adults at it and by the dead laid there ([HexLand.sanctity], fading over
