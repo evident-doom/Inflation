@@ -63,6 +63,9 @@ enum class BurialWay(val about: String) {
 const val BURY_DAYS = 2f
 /** Bearers who carry one of the dead to its ancestors' place, there and back ([BurialWay.AT_ANCESTORS]). An estimate. */
 const val BEARERS = 4f
+/** How far bearers carry one of the dead: a day's walk, before the body has begun to rot in most weather. Farther off
+ *  the band lays it where it camps. */
+val BODY_CARRY_KM = (WALK_KM_PER_HOUR * Activity.WORK_HOURS).toDouble()
 
 /**
  * Conformist learning (Henrich and Boyd 1998): the weight a band gives a way held by share [s] of the bands it has seen,

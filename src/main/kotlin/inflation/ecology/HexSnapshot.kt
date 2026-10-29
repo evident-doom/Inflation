@@ -390,7 +390,7 @@ object HexSnapshot {
      *   outstayed its usual stay weighed a shelter by this week alone.
      * 4.88: burials cost the band its customs' time ([Band.burialOwed]: [BURY_DAYS] a death, before cleaning and nursing),
      *   and a band that buries its dead lays them by its lineage's way ([BurialWay], [burialWayAt]): where it camps, or
-     *   carried by [BEARERS] to where most of its dead lie if that is within [REMEMBERED_KM], the bearers' walk there and
+     *   carried by [BEARERS] to where most of its dead lie if that is within a day's walk ([BODY_CARRY_KM]), the bearers' walk there and
      *   back owed too. The way passes on as a mark does and counts apart between bands that both bury. Before, burials
      *   took no time.
      */
