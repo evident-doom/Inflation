@@ -388,9 +388,11 @@ object HexSnapshot {
      *   whether to move: its usual stay less this week, or the weeks it has kept the camp where those are more
      *   ([Band.stayWeeks], [survivalDays]). Before, its usual stay less the weeks it had kept the camp, so a band that had
      *   outstayed its usual stay weighed a shelter by this week alone.
+     * 4.88: a band's hand-written choice of place weighs a third of its temperament ([BAND_TEMPER]): its leanings spread as
+     *   the pull of staying put, not three times it. Before, they outweighed what a move costs and decided some 45% of its moves.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 87
+    const val MODEL_MINOR = 88
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
