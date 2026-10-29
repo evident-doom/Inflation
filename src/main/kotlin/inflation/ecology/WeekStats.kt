@@ -175,6 +175,8 @@ object Tally {
         /** Food wanted, and got of meat (with small game and carrion), plants and fish, kg. */
         ASKED("asked"), MEAT("meat"), PLANTS("plants"), FISH("fish"),
         BAND_WEEKS("band-weeks"), PEOPLE_WEEKS("people-weeks"), BORN("born"),
+        /** Band-weeks it moved camp. */
+        MOVES("camp moves"),
         /** Deaths foreseen a year ahead ([HexGroup.foreseen]): people-weeks times the share foreseen to die, thousandths. */
         FORESEEN("foreseen deaths, 1/1000"),
         /** Perseverance ([Band.sisu]): people-weeks times the band's, thousandths. */
@@ -256,6 +258,11 @@ object Tally {
     /** Bands' deaths of [cause] by how they live; [bandsLivingDied] (way) starts all of them. */
     fun bandsLivingDied(way: Living, cause: DeathReason) = TallyKey.raw(bandsLivingDied(way).text + cause.label)
     fun bandsLivingDied(way: Living) = TallyKey.raw("bands ${way.label}:$DIED_OF")
+    /** Bands' tallies by how they choose ([Mind]). */
+    fun bandsMind(mind: Mind, what: Bands) = TallyKey.raw("bands of mind ${mind.label}:${what.label}")
+    /** Bands' deaths of [cause] by how they choose; [bandsMindDied] (mind) starts all of them. */
+    fun bandsMindDied(mind: Mind, cause: DeathReason) = TallyKey.raw(bandsMindDied(mind).text + cause.label)
+    fun bandsMindDied(mind: Mind) = TallyKey.raw("bands of mind ${mind.label}:$DIED_OF")
     /**
      * Whether a band keeps a herd, and how much of its hands' days the herd asks ([herdDays]): under a tenth, a tenth to 0.3,
      * or more. The line is the report's, not the model's: nothing chooses by it.
