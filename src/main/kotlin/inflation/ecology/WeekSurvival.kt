@@ -120,9 +120,9 @@ internal fun HexGroups.survivalDays(g: HexGroup, b: Band, weather: Weather, time
     if (THATCH_TRACE && asks[SHELTER] - d[SHELTER] > 1e-3f) {
         // (What thatching on to the full would have done by its own reckoning, its fire as planned: [bookThatchTrace].)
         val had = FloatArray(3); val full = FloatArray(3); val thatched = d.copyOf(); thatched[SHELTER] = asks[SHELTER]
-        deaths(d, had); deaths(thatched, full)
+        val averted = deaths(d, had) - deaths(thatched, full)
         val extra = (asks[SHELTER] - d[SHELTER]) / time.pace(Activity.SHELTER)
-        bookThatchTrace(planShelter, g.size.toFloat(), had, full, extra, left, stayDays / days)
+        bookThatchTrace(planShelter, g.size.toFloat(), had, full, averted, extra, left, stayDays / days)
     }
     return first
 }
@@ -131,13 +131,13 @@ internal fun HexGroups.survivalDays(g: HexGroup, b: Band, weather: Weather, time
  * thatchTrace=true: for the census, each band-week its survival pass stopped short of a thatched hut, what thatching on to
  * the full would have done by the pass's own reckoning, its fire as planned: the deaths it would avert this week of
  * exposure and of hunger and through the year after ([had] against [full], shares of the band; a negative is deaths it would
- * bring, the food its days leave unforaged), the days it would take ([extra], of its hands') against those the pass left
- * ([left]), and the weeks it expects to stay on ([stayWeeks]). By how far its shelters reached ([shelter]). Counts only.
+ * bring, the food its days leave unforaged; [averted] all of them), the days it would take ([extra], of its hands')
+ * against those the pass left ([left]), and the weeks it expects to stay on ([stayWeeks]). By how far its shelters reached ([shelter]). Counts only.
  */
-private fun HexGroups.bookThatchTrace(shelter: Float, people: Float, had: FloatArray, full: FloatArray, extra: Float, left: Float, stayWeeks: Float) {
+private fun HexGroups.bookThatchTrace(shelter: Float, people: Float, had: FloatArray, full: FloatArray, averted: Float, extra: Float, left: Float,
+    stayWeeks: Float) {
     val hut = Tally.Hut.of(shelter)
     fun add(k: Tally.Thatch, v: Float) { stats.hunting.merge(Tally.thatchTrace(hut, k), v.roundToInt(), Int::plus) }
-    val averted = (had[0] - full[0]) + (had[1] - full[1]) + (had[2] - full[2])
     add(Tally.Thatch.WEEKS, 1f)
     add(Tally.Thatch.EXPOSURE, 1e4f * people * (had[0] - full[0]))
     add(Tally.Thatch.HUNGER, 1e4f * people * (had[1] - full[1]))
