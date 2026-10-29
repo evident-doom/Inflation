@@ -62,22 +62,9 @@ object Temperament {
     }
 }
 
-/**
- * What temperament pulls group [g] toward place [p] (in hex [h]) with: the hand-written path's share. A band's pulls at
- * [BAND_TEMPER] of its temperament.
- */
+/** What temperament pulls group [g] toward place [p] (in hex [h]) with: the hand-written path's share. */
 internal fun GroupWorld.temperPull(g: HexGroup, p: Place, h: Hex, hunters: Float, crowded: Float): Float {
     var remembered = 0f
     for (i in g.memory.hex.indices) if (g.memory.hex[i] == h) { remembered = 1f; break }
-    val pull = Temperament.pull(g.temper, hunters / (hunters + 3f), remembered, if (p == g.place) 1f else 0f, crowded)
-    return if (g.species.human) BAND_TEMPER * pull else pull
+    return Temperament.pull(g.temper, hunters / (hunters + 3f), remembered, if (p == g.place) 1f else 0f, crowded)
 }
-
-/**
- * The share of its temperament a band's hand-written choice of place weighs: a third, so that bands' spread is the pull of
- * staying put ([STAY]), not three times it ([Temperament.FOUNDER_SD]). At the whole, a band's leanings, unmeasured, outweighed
- * what a move costs it (the walk, its days, leaving its camp: about 0.11 on a move) and moved it in some 45% of its moves,
- * into the full weeks where its people went hungry (m455-1, 2026-10-29). Its temperament itself is kept whole, as saved
- * worlds hold it and the networks read it.
- */
-const val BAND_TEMPER = 1f / 3f
