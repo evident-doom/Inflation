@@ -474,6 +474,19 @@ class Census(private val sim: HexSim) {
                     v(Tally.bandsHut(h, Tally.Bands.AIM)) / 100 / bw,
                     1000 * of(DeathCause.EXPOSURE) / years, 1000 * of(DeathCause.HUNGER) / years, 1000 * died.values.sum() / years)
             })
+        // (thatchTrace=true only: [bookThatchTrace].)
+        if (Tally.Hut.entries.any { v(Tally.thatchTrace(it, Tally.Thatch.WEEKS)) > 0 })
+            println("bands' survival pass short of a thatched hut, by how far its shelters reached, last year (band-weeks; what thatching on would have done by the pass's own reckoning, its fire as planned: " +
+                "deaths averted per 1000 band-weeks this week of exposure / hunger / through the year after, a negative brings deaths; person-days it would take / the pass left, a band-week; " +
+                "weeks expected to stay on; share of band-weeks it would avert deaths and fit, avert them but not fit, avert none): " +
+                Tally.Hut.entries.filter { v(Tally.thatchTrace(it, Tally.Thatch.WEEKS)) > 0 }.joinToString(", ") { h ->
+                    fun t(k: Tally.Thatch) = v(Tally.thatchTrace(h, k))
+                    val bw = t(Tally.Thatch.WEEKS)
+                    "%s %.0f exp %.2f hun %.2f year %.2f days %.1f/%.1f stay %.1f worth %.0f%% short %.0f%% not %.0f%%".format(h.label, bw,
+                        1000 * t(Tally.Thatch.EXPOSURE) / 1e4 / bw, 1000 * t(Tally.Thatch.HUNGER) / 1e4 / bw, 1000 * t(Tally.Thatch.YEAR) / 1e4 / bw,
+                        t(Tally.Thatch.DAYS) / 10 / bw, t(Tally.Thatch.LEFT) / 10 / bw, t(Tally.Thatch.STAY) / 10 / bw,
+                        100 * t(Tally.Thatch.WORTH_FITS) / bw, 100 * t(Tally.Thatch.WORTH_SHORT) / bw, 100 * t(Tally.Thatch.NOT_WORTH) / bw)
+                })
         fun ft(k: Tally.FoodTime) = v(Tally.foodTime(k))
         val ftWeeks = ft(Tally.FoodTime.WEEKS).coerceAtLeast(1.0)
         println(("bands' foraging against the days its week's plan left it, last year (people-days a band-week): left %.1f, spent %.1f, past what was left %.2f; " +

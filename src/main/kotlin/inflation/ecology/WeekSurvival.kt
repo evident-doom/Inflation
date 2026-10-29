@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Config
 import inflation.EnumFloats
 import inflation.enumFloats
 import inflation.world.Weather
@@ -67,7 +68,7 @@ internal fun HexGroups.survivalDays(g: HexGroup, b: Band, weather: Weather, time
     val total = time.left
     fun foodWork(d: FloatArray) =
         min(asks[FOOD], max(0f, total - d[FIRE] / time.pace(Activity.FIREWOOD) - d[SHELTER] / time.pace(Activity.SHELTER)) * time.pace(Activity.FOOD))
-    fun deaths(d: FloatArray): Float {
+    fun deaths(d: FloatArray, parts: FloatArray? = null): Float {
         val fire = fireOf(g, d[FIRE])
         val shelter = shelterReach(b, people, shelter0, SHELTER_MOST, d[SHELTER])
         val w = warmth(fire, shelter)
@@ -81,7 +82,9 @@ internal fun HexGroups.survivalDays(g: HexGroup, b: Band, weather: Weather, time
         // (This week's deaths and the year after's, each counted in full: a year that looks bleak whatever is done now, as
         // it does before a band has a year's food behind it to foresee by, takes nothing from what this week's days do.)
         val week = (1f - w.odds) * (1f - hunger)
-        return 1f - week + 1f - year(shelter).alive(s, larderDays - paid, fat, Hazards.spentAfter(s, g.spent, onFat, days))
+        val yearDied = 1f - year(shelter).alive(s, larderDays - paid, fat, Hazards.spentAfter(s, g.spent, onFat, days))
+        if (parts != null) { parts[0] = 1f - w.odds; parts[1] = (1f - w.odds) * hunger; parts[2] = yearDied }
+        return 1f - week + yearDied
     }
     val d = FloatArray(3)
     var now = deaths(d)
@@ -114,8 +117,37 @@ internal fun HexGroups.survivalDays(g: HexGroup, b: Band, weather: Weather, time
     if (WARM_DIAG) { b.planAir = air; b.planCover = b.cover(air.meanC, b.planFire, home, planShelter); b.planSisu = b.sisu }
     b.planLeft = if (time.total > 0f) time.left / time.total else 0f
     b.planShelterFirst = if (asks[SHELTER] > 0f) min(1f, d[SHELTER] / asks[SHELTER]) else -1f
+    if (THATCH_TRACE && asks[SHELTER] - d[SHELTER] > 1e-3f) {
+        // (What thatching on to the full would have done by its own reckoning, its fire as planned: [bookThatchTrace].)
+        val had = FloatArray(3); val full = FloatArray(3); val thatched = d.copyOf(); thatched[SHELTER] = asks[SHELTER]
+        val averted = deaths(d, had) - deaths(thatched, full)
+        val extra = (asks[SHELTER] - d[SHELTER]) / time.pace(Activity.SHELTER)
+        bookThatchTrace(planShelter, g.size.toFloat(), had, full, averted, extra, left, stayDays / days)
+    }
     return first
 }
+
+/**
+ * thatchTrace=true: for the census, each band-week its survival pass stopped short of a thatched hut, what thatching on to
+ * the full would have done by the pass's own reckoning, its fire as planned: the deaths it would avert this week of
+ * exposure and of hunger and through the year after ([had] against [full], shares of the band; a negative is deaths it would
+ * bring, the food its days leave unforaged; [averted] all of them), the days it would take ([extra], of its hands')
+ * against those the pass left ([left]), and the weeks it expects to stay on ([stayWeeks]). By how far its shelters reached ([shelter]). Counts only.
+ */
+private fun HexGroups.bookThatchTrace(shelter: Float, people: Float, had: FloatArray, full: FloatArray, averted: Float, extra: Float, left: Float,
+    stayWeeks: Float) {
+    val hut = Tally.Hut.of(shelter)
+    fun add(k: Tally.Thatch, v: Float) { stats.hunting.merge(Tally.thatchTrace(hut, k), v.roundToInt(), Int::plus) }
+    add(Tally.Thatch.WEEKS, 1f)
+    add(Tally.Thatch.EXPOSURE, 1e4f * people * (had[0] - full[0]))
+    add(Tally.Thatch.HUNGER, 1e4f * people * (had[1] - full[1]))
+    add(Tally.Thatch.YEAR, 1e4f * people * (had[2] - full[2]))
+    add(Tally.Thatch.DAYS, 10f * extra); add(Tally.Thatch.LEFT, 10f * left); add(Tally.Thatch.STAY, 10f * stayWeeks)
+    add(if (averted <= AVERTS_NONE) Tally.Thatch.NOT_WORTH else if (extra <= left) Tally.Thatch.WORTH_FITS else Tally.Thatch.WORTH_SHORT, 1f)
+}
+
+/** thatchTrace=true: [bookThatchTrace] each band-week. Report-only; costs two more reckonings a band-week. */
+internal val THATCH_TRACE = Config.flag(Config.Key.THATCH_TRACE, false)
 
 private const val FOOD = 0
 private const val FIRE = 1
