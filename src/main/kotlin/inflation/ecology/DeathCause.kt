@@ -32,6 +32,23 @@ enum class DeathCause(override val label: String, override val shown: PlaceRecor
 }
 
 /**
+ * The deaths a band's own dials act on, for judging its choices apart by cause (training, [DeathReason.deathClass]): [KIT] those of
+ * the cold and the camp (what it wears, its fire and shelter, a clean camp, tended wounds), [FOOD] those of going without
+ * (hunger, thirst, protein, the orphaned). Every other cause (beasts, snakes, sickness, raids, old age...) is of neither.
+ */
+enum class DeathClass { KIT, FOOD }
+
+/** The index in [HexGroup.lost] of the deaths of all causes (those of a [DeathClass] are at its ordinal). */
+const val LOST_ALL = 2
+
+/** The class of deaths this is, if it is one a band's dials act on (else null). */
+fun DeathReason.deathClass(): DeathClass? = when (this) {
+    DeathCause.COLD, DeathCause.EXPOSURE, DeathCause.HEAT, DeathCause.CAMP_FOULING, DeathCause.WOUNDS -> DeathClass.KIT
+    DeathCause.HUNGER, DeathCause.THIRST, DeathCause.SHORT_OF_PROTEIN, DeathCause.ORPHANED -> DeathClass.FOOD
+    else -> null
+}
+
+/**
  * A death to a beast of another kind: [how] it came, [by] which kind ("taken by lion", "killed by wolf"). One instance
  * for each pair ([of]), so that it keys a map by identity, as an enum does.
  */
