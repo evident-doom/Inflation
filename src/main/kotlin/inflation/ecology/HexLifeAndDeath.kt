@@ -20,6 +20,7 @@ import inflation.world.HexLand
 import inflation.world.HexWorld
 import inflation.world.LifeForm
 import inflation.world.Weather
+import kotlin.math.exp
 import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.pow
@@ -200,6 +201,8 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
             cultureWeek(g)
             riteWeek(g, weather)
         }
+        // Holy places fade while no one comes.
+        if (tuning.rounds) { val keep = exp(-years / SANCTITY_YEARS); for (p in land.sanctity.indices) land.sanctity[p] *= keep }
         fightRaids(weather)
     }
     // Hunters remember where they hunted, and a pack long hungry on its ground gives it up.
@@ -437,6 +440,7 @@ private fun HexGroups.mournDead(g: HexGroup, o: Outcome, date: Date) {
         if (at != camp) { stats.meeting(Met.BANDS_CARRIED_THEIR_DEAD); note(g) { "carried its dead to its ancestors at hex %d".format(at.i) } }
         g.memory.mark(at, PlaceMemory.seasonOf(date.month), stepOf(date), stepsPerYear, g.memory.dead, o.deaths.toFloat())
         land.burials[p] += o.deaths.toFloat()
+        land.sanctity[p] += o.deaths.toFloat()
         // Ornaments go into the grave with them: the more a band has, the richer its graves.
         val goods = min(b.ornaments, GRAVE_GOODS * b.ornaments * o.deaths)
         b.takeOrnaments(goods); land.graveGoods[p] += goods

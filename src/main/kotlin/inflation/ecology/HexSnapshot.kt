@@ -402,9 +402,14 @@ object HexSnapshot {
      *   boar 6%, red deer 13%, ostrich and aurochs 22%); a herd begun from young is kept as pets only as long as its temper
      *   allows ([petYears]: years to maturity × disposition / [HERD_TEMPER], goats whole, ostrich and aurochs a third). Before,
      *   every kind bred at its wild rate when kept, none fought, and every kind was a pet till grown.
+     * 4.91: a rite obliges ([riteWeek]): in its month the band's adults owe [RITE_DAYS] each of their customs' time and,
+     *   unless camped at the site, the walk there and back ([Band.riteOwed], after burials); once given, the rite is held
+     *   and the place grows holier by the adults at it and by the dead laid there ([HexLand.sanctity], fading over
+     *   [SANCTITY_YEARS]); what the month does not give cuts the rite short. A band taking up a rite is drawn to a holier
+     *   place. Before, a rite asked nothing.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 90
+    const val MODEL_MINOR = 91
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

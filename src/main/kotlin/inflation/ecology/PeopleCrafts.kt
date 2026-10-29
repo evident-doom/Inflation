@@ -92,7 +92,7 @@ internal fun GroupWorld.lacking(g: HexGroup, b: Band, m: Material) = max(0f, 1f 
 
 /**
  * The work [b]'s customs ask of it this week, from [time] (person-days) after the firewood: its burials first (the digging
- * and carrying its dead still ask, [Band.burialOwed]; what the time does not cover waits for next week), then keeping the
+ * and carrying its dead still ask, [Band.burialOwed]; what the time does not cover waits for next week), its rites held ([Band.riteOwed]), then keeping the
  * camp clean (middens carried off, water fetched apart from them) and nursing its sick and hurt. Each is done as far as
  * the time goes, and helps only as far as it was done.
  */
@@ -100,6 +100,10 @@ internal fun GroupWorld.keepCustoms(b: Band, people: Float, time: BandTime) {
     if (b.burialOwed > 0f) {
         val paid = min(b.burialOwed, max(0f, time.leftFor(Activity.CUSTOMS)))
         time.spend(Activity.CUSTOMS, paid); b.burialOwed -= paid
+    }
+    if (b.riteOwed > 0f) {
+        val paid = min(b.riteOwed, max(0f, time.leftFor(Activity.CUSTOMS)))
+        time.spend(Activity.CUSTOMS, paid); b.riteOwed -= paid
     }
     val clean = cleanDays(b, people)
     b.cleaned = if (clean > 0f) min(1f, time.leftFor(Activity.CUSTOMS) / clean) else 1f
