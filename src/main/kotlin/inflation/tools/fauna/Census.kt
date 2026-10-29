@@ -8,6 +8,7 @@ import inflation.StockName
 import inflation.Stocks
 import inflation.ecology.Activity
 import inflation.ecology.Catalogue
+import inflation.ecology.Mind
 import inflation.ecology.DeathCause
 import inflation.ecology.Tally
 import inflation.ecology.VillageFlow
@@ -360,6 +361,15 @@ class Census(private val sim: HexSim) {
             val died = lastYear.filterKeys { it.startsWith(Tally.bandsLivingDied(w)) }.mapKeys { Tally.diedOf(it.key) }
             "%s %.0f%%, %.1f a band: %.1f / %.1f (%s)".format(w.label, 100 * pw / all, pw / (lastYear[Tally.bandsLiving(w, Tally.Bands.BAND_WEEKS)] ?: 0).toDouble().coerceAtLeast(1.0),
                 1000 * (lastYear[Tally.bandsLiving(w, Tally.Bands.BORN)] ?: 0) / years, 1000 * died.values.sum() / years,
+                died.entries.sortedByDescending { it.value }.joinToString(" ") { "%s %.1f".format(it.key, 1000 * it.value / years) }) })
+        println("bands by mind, last year (nets: today's choosing; plans: the planning kind, t.planners; share of people-weeks; people a band; share of band-weeks at a new camp; births / deaths per 1000 people a year; deaths per 1000 a year by cause, largest first): " + Mind.entries.joinToString(", ") { m ->
+            val pw = (lastYear[Tally.bandsMind(m, Tally.Bands.PEOPLE_WEEKS)] ?: 0).toDouble()
+            val all = Mind.entries.sumOf { (lastYear[Tally.bandsMind(it, Tally.Bands.PEOPLE_WEEKS)] ?: 0).toDouble() }.coerceAtLeast(1.0)
+            val bw = (lastYear[Tally.bandsMind(m, Tally.Bands.BAND_WEEKS)] ?: 0).toDouble().coerceAtLeast(1.0)
+            val years = (pw / stepsPerYear).coerceAtLeast(1e-9)
+            val died = lastYear.filterKeys { it.startsWith(Tally.bandsMindDied(m)) }.mapKeys { Tally.diedOf(it.key) }
+            "%s %.0f%%, %.1f a band, moved %.0f%%: %.1f / %.1f (%s)".format(m.label, 100 * pw / all, pw / bw, 100 * (lastYear[Tally.bandsMind(m, Tally.Bands.MOVES)] ?: 0) / bw,
+                1000 * (lastYear[Tally.bandsMind(m, Tally.Bands.BORN)] ?: 0) / years, 1000 * died.values.sum() / years,
                 died.entries.sortedByDescending { it.value }.joinToString(" ") { "%s %.1f".format(it.key, 1000 * it.value / years) }) })
         run {
             // Villages: hexes where two or more bands live settled ([villages]).
