@@ -540,7 +540,7 @@ object HexPpo {
          */
         private val settledFile = (Config.string(Config.Key.PPO_SETTLED_WORLDS) ?: inflationHome("settled-worlds").path)
             .takeIf { it.isNotBlank() && it != "off" }?.let { dir ->
-                File(dir, "settled-%016x-burn%d-k%08x-m%d.%d.bin".format(WorldCache.key(cfg), burnSteps, kinds.map { it.name }.hashCode(), HexSnapshot.MODEL_MAJOR, HexSnapshot.MODEL_MINOR))
+                File(dir, "settled-%016x-burn%d-k%08x-m%d.bin".format(WorldCache.key(cfg), burnSteps, kinds.map { it.name }.hashCode(), HexSnapshot.MODEL_MAJOR))
             }
 
         private fun loadSettled() {
