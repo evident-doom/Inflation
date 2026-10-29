@@ -37,7 +37,7 @@ import kotlin.math.exp
  */
 enum class Tradition(val about: String, val mark: Boolean) {
     BURIAL("the dead are buried near camp: the band is loath to leave its place", true),
-    SKY_LORE("sun, moon and stars are watched: the band keeps its seasonal round on time", false),
+    SKY_LORE("sun, moon and stars are watched: the band keeps to its season's places on time", false),
     TABOO_YOUNG("mothers and young are not hunted: game is spared in its breeding years", true),
     ORAL_TRADITION("songs, stories and genealogies: knowledge and skills fade more slowly", false),
     FEASTS("dance, song and shared feasts: bands grow larger before they split", true),

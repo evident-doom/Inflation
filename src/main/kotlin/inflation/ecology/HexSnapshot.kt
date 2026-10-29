@@ -393,9 +393,12 @@ object HexSnapshot {
      *   carried by [BEARERS] to where most of its dead lie if that is within a day's walk ([BODY_CARRY_KM]), the bearers' walk there and
      *   back owed too. The way passes on as a mark does and counts apart between bands that both bury. Before, burials
      *   took no time.
+     * 4.89: a band's rites no longer draw its moves: no round pull on the hand-written score or a learned mover's,
+     *   no restlessness when far from a rite's site, no "on round" feature. Rites stay as customs ([Band.rite]). An A/B
+     *   (10 years, m455-1..3 and a fresh seed) had more people without the pull on every world, +2 to +55%.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 88
+    const val MODEL_MINOR = 89
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
