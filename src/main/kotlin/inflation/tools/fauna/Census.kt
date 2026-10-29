@@ -39,6 +39,7 @@ import kotlin.math.max
 import inflation.ecology.GATHER_KM
 import inflation.ecology.Language
 import inflation.ecology.Tradition
+import inflation.ecology.BurialWay
 
 /**
  * The model as it stands, over the whole map: each method prints one or a few lines of a fauna check's
@@ -587,7 +588,8 @@ class Census(private val sim: HexSim) {
                 val km = hex.distanceKm(at[i], at[j])
                 val u = Language.understanding(bi.words, bj.words)
                 // (Customs as the bands reckon them, the totem one of them: see [inflation.ecology.Regard.customsApart].)
-                val off = Tradition.entries.count { bi.holds(it) != bj.holds(it) } + (if (bi.totem != bj.totem) 1 else 0)
+                val off = Tradition.entries.count { bi.holds(it) != bj.holds(it) } + (if (bi.totem != bj.totem) 1 else 0) +
+                    (if (bi.holds(Tradition.BURIAL) && bj.holds(Tradition.BURIAL) && bi.burialWay != bj.burialWay) 1 else 0)
                 var c = 0
                 while (c < IDENTITY_KM.size && km >= IDENTITY_KM[c]) c++
                 pairs[c]++; understood[c] += u.toDouble(); apart[c] += off.toDouble()
@@ -617,8 +619,11 @@ class Census(private val sim: HexSim) {
             "%s %d: %.2f / %.1f / %.0f%% / %.0f%%".format(classes[c], pairs[c], understood[c] / pairs[c], apart[c] / pairs[c], 100.0 * sameLineage[c] / pairs[c],
                 100.0 * sameTotem[c] / pairs[c]) })
         val kept = bands.mapNotNull { (_, b) -> b.totem.takeIf { !it.none }?.i }
-        println("     totems: %.0f%% of bands keep one, %d kinds kept, %.0f%% known lately to have eaten of theirs".format(
-            100.0 * kept.size / n, kept.toSet().size, 100.0 * bands.count { it.second.totemBroken > 0f } / n))
+        val bury = bands.filter { it.second.holds(Tradition.BURIAL) }
+        println("     totems: %.0f%% of bands keep one, %d kinds kept, %.0f%% known lately to have eaten of theirs; burial: %.0f%% of bands bury their dead, %.0f%% of those carry them to their ancestors, %.1f person-days a band still owed to burials"
+            .format(100.0 * kept.size / n, kept.toSet().size, 100.0 * bands.count { it.second.totemBroken > 0f } / n, 100.0 * bury.size / n,
+                if (bury.isEmpty()) 0.0 else 100.0 * bury.count { it.second.burialWay == BurialWay.AT_ANCESTORS } / bury.size,
+                if (bury.isEmpty()) 0.0 else bury.sumOf { it.second.burialOwed.toDouble() } / bury.size))
         fun line(label: String, key: (Tally.MeetingEnd) -> TallyKey): String {
             fun v(e: Tally.MeetingEnd) = thisYear[key(e)] ?: 0
             val met = v(Tally.MeetingEnd.MET)
