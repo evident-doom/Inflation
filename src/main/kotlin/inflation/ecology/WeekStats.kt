@@ -85,6 +85,7 @@ enum class Met(val label: String) {
     BANDS_TOLD_OF_COUNTRY("bands told of country"),
     BANDS_TOLD_OF_ROUTES("bands told of routes"),
     BANDS_TOOK_UP_A_RITE("bands took up a rite"),
+    BANDS_HELD_A_RITE("bands held a rite at its site"),
     BANDS_TOOK_UP_ANOTHERS_APPOINTMENT("bands took up another's appointment"),
     BANDS_TOOK_UP_ANOTHERS_BURIAL("bands took up another's burial way"),
     BANDS_TOOK_UP_ANOTHERS_RITE("bands took up another's rite"),

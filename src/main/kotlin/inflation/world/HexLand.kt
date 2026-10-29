@@ -71,6 +71,11 @@ class HexLand(internal val hw: HexWorld, internal val seed: Long, /** The run's 
 
     /** The dead buried at each place (graves weather away over centuries), and the ornaments buried with them. */
     val burials = FloatArray(n)
+    /**
+     * How holy each place is: the people who held rites there and the dead laid there, fading over the years no one comes
+     * ([inflation.ecology.SANCTITY_YEARS]). Bands taking up a rite are drawn to a holier place ([inflation.ecology.riteWeek]).
+     */
+    val sanctity = FloatArray(n)
     val graveGoods = FloatArray(n)
     /** Share of the ground where good knapping stone (flint, obsidian) crops out. */
     @Transient val stone = FloatArray(n) { p -> mean(p) { if (world.geology.minerals[it] and (Mineral.FLINT or Mineral.OBSIDIAN) != 0) 1f else 0f } }

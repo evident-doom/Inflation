@@ -393,9 +393,13 @@ object HexSnapshot {
      *   carried by [BEARERS] to where most of its dead lie if that is within a day's walk ([BODY_CARRY_KM]), the bearers' walk there and
      *   back owed too. The way passes on as a mark does and counts apart between bands that both bury. Before, burials
      *   took no time.
+     * 4.89: a band holds its rite once it has come to the site in the rite's month ([riteWeek]): its adults owe [RITE_DAYS]
+     *   each of their customs' time ([Band.riteOwed], after burials), and the place grows holier by the people at it and by
+     *   the dead laid there ([HexLand.sanctity], fading over [SANCTITY_YEARS]); a band taking up a rite is drawn to a holier
+     *   place. Before, a rite drew a band to its site and asked nothing there.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 88
+    const val MODEL_MINOR = 89
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

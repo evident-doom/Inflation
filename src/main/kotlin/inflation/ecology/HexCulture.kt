@@ -726,6 +726,10 @@ internal fun ancestorsHex(g: HexGroup): Hex {
 
 /** Most months of the year a band's rites take it somewhere ([Band.rite]). */
 const val RITE_SITES = 3
+/** Person-days each adult gives a rite held at its site: the gathering, the dances, the telling. An estimate; no figure found. */
+const val RITE_DAYS = 2f
+/** Years over which a place's sanctity fades to a third (1/e) while no rites are held and no dead laid there: about a generation. An estimate. */
+const val SANCTITY_YEARS = 25f
 /** How much a band's hold on its rites changes when it splits: a fifth of the founders' range, as temperament drifts. Not measured. */
 internal val HexGroups.riteDrift get() = tuning.riteFounderMax / 5f
 /** Chance at a split that one of the offshoot's rites shifts by a month (the telling changes). Not measured. */
@@ -739,11 +743,23 @@ fun riteStrengthAt(lineage: Int, tuning: Tuning) = tuning.riteFounderMax * Math.
  * have room for another takes up one where its story is: the graves of its dead, where bands gather
  * (both in the season they mark), or a far landmark it knows, walked to or told of (a pass, a spring,
  * a path's end: the further, the more it stands for); and now and then it lets one go, less often
- * where songs and stories keep them. Nothing here weighs what a rite brings.
+ * where songs and stories keep them. Nothing here weighs what a rite brings, except that a holier place draws more
+ * ([HexLand.sanctity]: how many held rites there and lie buried there, as against the band's own number).
+ *
+ * In a month of its rite, once it has come to the site ([inflation.Tuning.roundArrivedKm]), the band holds the rite: its
+ * adults owe [RITE_DAYS] each of their customs' time, and the place grows holier by the people at it.
  */
 internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
     if (!tuning.rounds) return
     val b = g.band ?: return
+    val now = weather.date.year * 12 + weather.date.month
+    val site = b.rite[weather.date.month]
+    if (site >= 0 && b.riteHeld != now && hex.distanceKm(hw.placeHex[g.place], hw.placeHex[site]) <= tuning.roundArrivedKm) {
+        b.riteHeld = now
+        b.riteOwed += RITE_DAYS * g.adults
+        land.sanctity[site] += g.size.toFloat()
+        stats.meeting(Met.BANDS_HELD_A_RITE)
+    }
     val keep = if (b.holds(Tradition.ORAL_TRADITION)) 0.5f else 1f
     for (m in 0 until 12) if (b.rite[m] >= 0 && rnd.nextFloat() < RITE_FORGET * keep * years) {
         b.rite[m] = -1
@@ -752,7 +768,8 @@ internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
     if (b.rite.count { it >= 0 } >= RITE_SITES || rnd.nextFloat() >= years) return
     val held = b.rite.toHashSet()
     var bestPlace = -1; var bestMonth = -1; var bestScore = 0f
-    fun consider(p: Int, month: Int, score: Float) {
+    fun consider(p: Int, month: Int, story: Float) {
+        val score = if (p >= 0) story + land.sanctity[p] / max(1, g.size) else story
         if (p >= 0 && p !in held && b.rite[month] < 0 && score > bestScore) {
             bestScore = score
             bestPlace = p
