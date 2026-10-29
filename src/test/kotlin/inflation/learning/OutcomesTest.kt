@@ -91,7 +91,8 @@ class OutcomesTest {
         val off = HexGroup(2, Catalogue.HUMAN, inflation.world.Place(0), 10, 0).also { it.parent = band.id }
         o.record(2, listOf(band, off), emptyList())
         val lost = FloatArray(6)
-        o.own(1, 0, 2, null, lost)
+        val own = o.own(1, 0, 2, null, lost)
+        assertEquals(20f, own[0], 1e-4f)
         assertEquals(2f, lost[DeathClass.KIT.ordinal], 1e-4f)
         assertEquals(1f, lost[DeathClass.FOOD.ordinal], 1e-4f)
         assertEquals(4f, lost[LOST_ALL], 1e-4f)
