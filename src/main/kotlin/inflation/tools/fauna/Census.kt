@@ -649,8 +649,8 @@ class Census(private val sim: HexSim) {
                 shared.size, if (shared.isEmpty()) 0 else shared[shared.size / 2], shared.lastOrNull() ?: 0, shared.count { it >= 5 },
                 holy.getOrElse(0) { 0f }, holy.getOrElse(9) { 0f }, holy.getOrElse(99) { 0f }, holy.count { it >= 100f }))
         val ages = keeping.map { it.second.beliefYears }.sorted()
-        println("     beliefs: %.0f%% of bands keep none; belief kept a median of %.1f years (ninetieth %.1f); strain %.2f a band against %.2f borne"
-            .format(100.0 * (n - keeping.size) / n.coerceAtLeast(1), ages.getOrElse(ages.size / 2) { 0f }, ages.getOrElse((ages.size * 9) / 10) { 0f },
+        println("     beliefs: %.0f%% of bands keep none, %.0f%% remember an omen; belief kept a median of %.1f years (ninetieth %.1f); strain %.2f a band against %.2f borne"
+            .format(100.0 * (n - keeping.size) / n.coerceAtLeast(1), 100.0 * bands.count { it.second.omenPlace >= 0 } / n.coerceAtLeast(1), ages.getOrElse(ages.size / 2) { 0f }, ages.getOrElse((ages.size * 9) / 10) { 0f },
                 keeping.sumOf { it.second.strain.toDouble() } / keeping.size.coerceAtLeast(1), keeping.sumOf { it.second.strainBorne().toDouble() } / keeping.size.coerceAtLeast(1)))
         fun line(label: String, key: (Tally.MeetingEnd) -> TallyKey): String {
             fun v(e: Tally.MeetingEnd) = thisYear[key(e)] ?: 0

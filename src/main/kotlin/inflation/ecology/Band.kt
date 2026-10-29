@@ -532,11 +532,20 @@ class Band(kinds: Int) {
      */
     var beliefYears = 0f
     var strain = 0f
+    /**
+     * The omen it remembers ([GroupWorld.omen]): the place, month and year of a salient event and how many times what it
+     * is used to it was ([omenWeight], fading); -1: none. And its usual deaths a week a head ([deathsUsual], over about a year).
+     */
+    var omenPlace = -1
+    var omenMonth = 0
+    var omenYear = 0L
+    var omenWeight = 0f
+    var deathsUsual = 0f
     /** The strain its belief bears before part of the band breaks from it. */
     fun strainBorne() = STRAIN_SPLIT * (1f + beliefYears / BELIEF_AGE_YEARS)
     /** Gives up its belief: its rites, its hold on them and what they asked of it (the part of a band that broke away). */
     fun dropBelief() {
-        rite.fill(-1); riteStrength = 0f; beliefYears = 0f; strain = 0f; riteOwed = 0f; riteDue = -1
+        rite.fill(-1); riteStrength = 0f; beliefYears = 0f; strain = 0f; riteOwed = 0f; riteDue = -1; omenPlace = -1; omenWeight = 0f
     }
 
     fun holds(t: Tradition) = traditions[t]
@@ -588,6 +597,7 @@ class Band(kinds: Int) {
         o.salted = salted; o.dryDepth = dryDepth
         o.renown = renown
         rite.copyInto(o.rite); o.riteStrength = riteStrength; o.riteHeld = riteHeld; o.riteKept = riteKept; o.beliefYears = beliefYears; o.strain = strain
+        o.omenPlace = omenPlace; o.omenMonth = omenMonth; o.omenYear = omenYear; o.omenWeight = omenWeight; o.deathsUsual = deathsUsual
         traditions.copyInto(o.traditions); heard.copyInto(o.heard); o.heardOf = heardOf
         o.totem = totem; o.marksChosen = marksChosen; o.heardTotem = heardTotem.copyOf(); o.totemBroken = totemBroken
         o.burialWay = burialWay; heardBurial.copyInto(o.heardBurial); words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)

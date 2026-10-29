@@ -411,9 +411,14 @@ object HexSnapshot {
      *   eats its fill) and grows older while kept ([Band.beliefYears]); past what it bears ([Band.strainBorne]: [STRAIN_SPLIT],
      *   more the older the belief) a band of its kind's usual size or more splits, half going without the belief
      *   ([beliefSplits]). Before, rites cut short cost nothing beyond the days given.
+     * 4.93: rites are born of omens ([omen]): a week's deaths [SALIENT] times what the band is used to ([Band.deathsUsual]) or
+     *   plenty after [SALIENT] times [LEAN_USUAL_WEEKS] of want, remembered over [OMEN_YEARS] and made a rite in its month and place when borne
+     *   out (that month going well there a year on, or another band that marked the same place met), or at once if
+     *   [OMEN_AT_ONCE] times the usual. Before, a band took up about a rite a year at its graves, gathering places, far
+     *   landmarks or material sources, drawn to holier places, and let a fifth of its rites go a year.
      */
     const val MODEL_MAJOR = 4
-    const val MODEL_MINOR = 92
+    const val MODEL_MINOR = 93
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the
