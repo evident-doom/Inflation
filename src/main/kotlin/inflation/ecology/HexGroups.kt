@@ -472,9 +472,9 @@ class HexGroups(
     internal fun maxSize(g: HexGroup): Int {
         val s = g.species
         return g.band?.let { b ->
-            // Feasts keep the peace in bigger bands; a settled band without them quarrels and splits sooner.
-            val size = if (b.holds(Tradition.FEASTS)) (s.maxGroupSize * FEAST_SIZE).toInt()
-                else if (b.atHome) (s.maxGroupSize * SETTLED_QUARRELS).toInt() else s.maxGroupSize
+            // A band at home in its houses holds a village's number; feasts keep the peace in bigger bands, settled or not.
+            val most = if (b.atHome) max(s.maxGroupSize, SETTLED_SIZE) else s.maxGroupSize
+            val size = if (b.holds(Tradition.FEASTS)) (most * FEAST_SIZE).toInt() else most
             // A strained belief is one more quarrel: strained as far as it bears, a band holds together at half the size.
             if (tuning.rounds && b.strain > 0f) (size / (1f + b.strain / b.strainBorne())).toInt() else size
         } ?: s.maxGroupSize
