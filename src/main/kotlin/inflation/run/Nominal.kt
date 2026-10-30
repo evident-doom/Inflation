@@ -83,14 +83,13 @@ object Nominal {
     /**
      * A kind's heads must add up over each year: the heads it gained, against its young born less its deaths of every
      * cause, may differ by at most this share of its heads on average (heads that went extinct in a place, and the
-     * rounding of whole animals in groups; the runs: within 0.06, but for the deaths booked beyond the capped odds
-     * before model 2.17, up to 0.64).
+     * rounding of whole animals in groups; the runs: within 0.06).
      */
     const val DEATHS_BALANCE = 0.1
     /**
      * People taken by beasts of prey in a year, per head on average: foragers lose few to them, the Hiwi none in their
      * records (Hill, Hurtado & Walker 2007), the Agta, whose men pythons attacked often, some 0.26 a thousand a year
-     * (Headland & Greene 2011), the most found; at most four times that (the runs before model 4.62: 3.8-5).
+     * (Headland & Greene 2011), the most found; at most four times that.
      */
     const val BEASTS_TAKE_PEOPLE_MAX = 0.001
     /**

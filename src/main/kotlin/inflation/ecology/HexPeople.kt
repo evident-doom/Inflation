@@ -254,10 +254,13 @@ internal fun HexGroups.leaveDead(g: HexGroup, freed: MutableList<HexGroup>) {
     for (m in ROTS) b.goods[m] = 0f
     dropCache(b)
     val area = land.areaKm2[p]
-    for (k in b.herd.indices) if (b.herd[k] > 0f) {
-        fauna.adults[k][p] += b.herd[k] / area; bands.herdFlows[HerdFlow.FREED] += b.herd[k]; bands.herdFlows[HerdFlow.ENDED_FREED] += 1f
-        bands.kindFlows[k][HerdFlow.FREED] += b.herd[k]; bands.kindFlows[k][HerdFlow.ENDED_FREED] += 1f
-        b.herd[k] = 0f; b.herdTame[k] = 0f; if (k < b.herdPet.size) b.herdPet[k] = 0f
+    val young = b.youngHerd()
+    for (k in b.herd.indices) if (b.herd[k] + young[k] > 0f) {
+        val heads = b.herd[k] + young[k]
+        fauna.adults[k][p] += b.herd[k] / area; fauna.young[k][p] += young[k] / area
+        bands.herdFlows[HerdFlow.FREED] += heads; bands.herdFlows[HerdFlow.ENDED_FREED] += 1f
+        bands.kindFlows[k][HerdFlow.FREED] += heads; bands.kindFlows[k][HerdFlow.ENDED_FREED] += 1f
+        b.herd[k] = 0f; young[k] = 0f; b.herdTame[k] = 0f; if (k < b.herdPet.size) b.herdPet[k] = 0f
     }
     for (i in b.kept.indices) {
         val n = b.kept[i].toInt()
@@ -296,7 +299,7 @@ const val MARSH_FEVER = 0.05f
 /** How [b] lives, for the reports: settled at home in its houses or at a camp kept half a year or more, else mobile. */
 /** Whether [b], [hands] strong, keeps a herd and how much of its days the herd asks, for the census ([Tally.Herding]). */
 internal fun GroupWorld.bandHerding(b: Band, hands: Int): Tally.Herding {
-    if (b.herd.none { it > 0f }) return Tally.Herding.NOT_HERDING
+    if (!b.keepsAnimals()) return Tally.Herding.NOT_HERDING
     val load = herdDays(b) / (days * hands.coerceAtLeast(1)).toFloat()
     return Tally.Herding.entries.first { it != Tally.Herding.NOT_HERDING && load < it.below }
 }
@@ -304,8 +307,9 @@ internal fun GroupWorld.bandLiving(b: Band) =
     if (b.atHome || b.campWeeks >= stepsPerYear / 2f) Tally.Living.SETTLED else Tally.Living.MOBILE
 
 /**
- * The villages this week, for the reports: the hexes where two or more bands live settled ([bandLiving]), with those
- * bands. Nothing chooses by it.
+ * The villages this week, for the reports: the hexes where two or more bands live settled ([bandLiving]), or one band at
+ * home there larger than any camp of its kind ([Species.maxGroupSize]: bands at home together that grew alike become one,
+ * and a village of one band is still a village), with those bands. Nothing chooses by it.
  */
 internal fun HexGroups.villages(): Map<Hex, List<HexGroup>> {
     val byHex = HashMap<Hex, ArrayList<HexGroup>>()
@@ -313,7 +317,7 @@ internal fun HexGroups.villages(): Map<Hex, List<HexGroup>> {
         val b = g.band ?: continue
         if (g.alive && bandLiving(b) == Tally.Living.SETTLED) byHex.getOrPut(hw.placeHex[g.place]) { ArrayList() } += g
     }
-    return byHex.filterValues { it.size >= 2 }
+    return byHex.filterValues { it.size >= 2 || it[0].let { g -> g.band?.atHome == true && g.size > g.species.maxGroupSize } }
 }
 
 /**

@@ -824,7 +824,7 @@ internal class GroupPlanner(private val gs: HexGroups) {
     private fun herdLoss(g: HexGroup, b: Band, p: Place): Float {
         var kg = 0f
         for (k in b.herd.indices) {
-            val n = b.herd[k]
+            val n = b.herd[k] + 0.5f * b.herdYoung.getOrElse(k) { 0f }
             if (n <= 0f) continue
             val s = gs.fauna.kinds[k]
             val short = 1f - gs.herdForage(p, s, n).fed

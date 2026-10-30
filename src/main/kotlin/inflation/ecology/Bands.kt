@@ -86,6 +86,9 @@ class Bands internal constructor(private val world: GroupWorld) {
     /** The same by kind, as [HexFauna.kinds] indexes them. */
     @delegate:Transient val kindFlows by lazy { Array(world.fauna.kinds.size) { enumFloats<HerdFlow>() } }
 
+    /** Heads of kept herds beasts of prey took since the history last read them, by kind ([keepHerds], [HexHistory]). */
+    @delegate:Transient val takenWeek by lazy { FloatArray(world.fauna.kinds.size) }
+
     /** Young caught in the hunt and kept, and herds begun from none so, by kind, since the census last read them (hunts run on many cores at once). */
     @delegate:Transient val keptYoung by lazy { java.util.concurrent.atomic.AtomicIntegerArray(world.fauna.kinds.size) }
     @delegate:Transient val herdsBegun by lazy { java.util.concurrent.atomic.AtomicIntegerArray(world.fauna.kinds.size) }
