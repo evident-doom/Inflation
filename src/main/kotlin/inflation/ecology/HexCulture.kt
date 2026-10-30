@@ -752,7 +752,7 @@ fun riteStrengthAt(lineage: Int, tuning: Tuning) = tuning.riteFounderMax * Math.
 
 /**
  * A band's rites through the year (rounds on, see [inflation.Tuning.rounds]). A rite is born of an omen ([omen]): a
- * salient event at a place in a month (many deaths in a week, plenty after long want) that is borne out. Nothing here
+ * salient event at a place in a month (many deaths in a week, plenty after long want, a strange sign) that is borne out. Nothing here
  * weighs what a rite brings, and a rite is not let go: a belief ends with the bands that keep it, or with the part of a
  * band that breaks from it ([beliefSplits]).
  *
@@ -788,6 +788,10 @@ internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
     }
     // Plenty after long want is an omen too: where and when the hunger broke.
     if (g.lean > 0 && g.fed >= Thresholds.HUNGRY) omen(b, g.place, weather.date, g.lean / LEAN_USUAL_WEEKS, Met.BANDS_MARKED_PLENTY_AFTER_WANT)
+    // So is the strange thing with no cause in the world: a white bird, a shape in the trees, a lightning strike, a
+    // misborn child, a fall. It befalls the band where it is, and the stranger the rarer ([STRANGE_SIGNS_A_YEAR]).
+    if (rnd.nextFloat() < STRANGE_SIGNS_A_YEAR * years)
+        omen(b, g.place, weather.date, 1f / (1f - rnd.nextFloat()), Met.BANDS_MARKED_A_STRANGE_SIGN)
     // An omen fades unless it is borne out: the same month going well again where it fell, a year or more on.
     if (b.omenPlace >= 0) {
         b.omenWeight *= exp(-years / OMEN_YEARS)
@@ -875,6 +879,13 @@ const val SALIENT = 3f
 const val OMEN_AT_ONCE = 10f
 const val OMEN_YEARS = 1f
 const val LEAN_USUAL_WEEKS = 4f
+
+/**
+ * Strange things a band sees in a year, good signs and bad alike; how strange each is, against the usual, falls off as
+ * one over it (a third are [SALIENT], a tenth [OMEN_AT_ONCE]). Nothing in the world causes them and nothing follows from
+ * them but the rite they may become. Estimate; no figure found.
+ */
+const val STRANGE_SIGNS_A_YEAR = 1f
 
 /** Days of a band's food that make one favour ([Band.favours]): a week. */
 const val FAVOUR_DAYS = 7f

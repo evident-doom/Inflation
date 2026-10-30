@@ -79,6 +79,7 @@ enum class Met(val label: String) {
     BANDS_KEPT_AWAY_FROM_THE_SICK("bands kept away from the sick"),
     BANDS_MARKED_A_DEATH_TOLL("bands marked a death toll as an omen"),
     BANDS_MARKED_PLENTY_AFTER_WANT("bands marked plenty after want as an omen"),
+    BANDS_MARKED_A_STRANGE_SIGN("bands marked a strange sign as an omen"),
     BANDS_MADE_AN_APPOINTMENT("bands made an appointment"),
     BANDS_MAULED_AT_A_CARCASS("bands mauled at a carcass"),
     BANDS_MET("bands met"),
