@@ -101,14 +101,17 @@ internal fun HexGroups.bookSqueeze(g: HexGroup, b: Band, causes: List<Died>, wea
     stats.book(hutSplit, Tally.Bands.AIM, (100f * b.shelterAim).roundToInt())
     if (b.campWeeks == 0) stats.book(hutSplit, Tally.Bands.MOVED, 1)
     stats.bookDeaths(hutSplit, causes)
-    // (What a whole house would have done for its week, by the week's air.)
-    val worth = bands.houseWorth[HouseAir.of(airAt(g.place, weather).meanC).ordinal]
-    for (x in HouseWorth.entries) worth[x] += b.houseWeek[x]
-    b.houseWeek.fill(0f)
     val h = if (b.keepsAnimals()) Tally.HerdKept.HERDING else Tally.HerdKept.NONE
     val keptSplit = BandSplit.herdKept(h)
     stats.bookWeek(keptSplit, g.size)
     stats.book(keptSplit, Tally.Bands.CLOTHES, clo)
     stats.book(keptSplit, Tally.Bands.SPARE, (1000f * b.spareMean).roundToInt())
     stats.bookDeaths(keptSplit, causes)
+}
+
+/** Books what a whole house would have done for [g]'s band [b] this week, by the week's air ([HouseWorth]), and clears the band's week of it. */
+internal fun HexGroups.bookHouseWorth(g: HexGroup, b: Band, weather: Weather) {
+    val worth = bands.houseWorth[HouseAir.of(airAt(g.place, weather).meanC).ordinal]
+    for (x in HouseWorth.entries) worth[x] += b.houseWeek[x]
+    b.houseWeek.fill(0f)
 }

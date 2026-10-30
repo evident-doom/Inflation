@@ -351,7 +351,9 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
     fauna.record?.let { rec -> for ((cause, k) in o.causes) if (k > 0) rec.group(s, g.place, cause, k) }
     // People's deaths by age apart, for the history: the young (children) and the grown (the elders too).
     if (s.human) for (d in o.causes) if (d.n > 0) (if (d.young) stats.youngDeaths else stats.adultDeaths).merge(Tally.of(s, d.cause), d.n, Int::plus)
-    if (s.human) {
+    if (s.human) g.band?.let { bookHouseWorth(g, it, weather) }
+    // (The census's splits of bands are booked only where a census reads them: [WeekStats.bandSplits].)
+    if (s.human && stats.bandSplits) {
         val c = Biome.entries[biomeOfPlace[g.place]]
         val country = BandSplit.country(c)
         stats.bookDeaths(country, o.causes)

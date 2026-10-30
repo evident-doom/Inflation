@@ -63,9 +63,9 @@ enum class BurialWay(val about: String) {
 }
 
 /** Person-days digging a grave and the rites at it take, a death. An estimate; no figure found. */
-const val BURY_DAYS = 2f
+internal const val BURY_DAYS = 2f
 /** Bearers who carry one of the dead to its ancestors' place, there and back ([BurialWay.AT_ANCESTORS]). An estimate. */
-const val BEARERS = 4f
+internal const val BEARERS = 4f
 /** How far bearers carry one of the dead: a day's walk, before the body has begun to rot in most weather. Farther off
  *  the band lays it where it camps. */
 val BODY_CARRY_KM = (WALK_KM_PER_HOUR * Activity.WORK_HOURS).toDouble()
@@ -76,9 +76,9 @@ val BODY_CARRY_KM = (WALK_KM_PER_HOUR * Activity.WORK_HOURS).toDouble()
  */
 fun conformist(s: Float) = s + CONFORMITY_D * s * (1f - s) * (2f * s - 1f)
 /** How strongly bands follow the many in their marks (Henrich and Boyd's D, 0..1). Not measured: the full strength, so the effect shows. */
-const val CONFORMITY_D = 1f
+internal const val CONFORMITY_D = 1f
 /** Years over which a band's sense of what the bands about hold ([Band.heard]) fades to a third. Not measured. */
-const val HEARD_YEARS = 2f
+internal const val HEARD_YEARS = 2f
 
 /**
  * A deliberately small language: a fixed set of concepts, each named by a band with a word of its
@@ -92,127 +92,127 @@ object Language {
 }
 
 /** Founding lineages tracked in a band's descent; the size of the blocks of country they start in, km. */
-const val LINEAGES = 16
-const val LINEAGE_KM = 150.0
+internal const val LINEAGES = 16
+internal const val LINEAGE_KM = 150.0
 /** Years in a generation, for how fast inbreeding builds in a closed band. */
-const val GENERATION_YEARS = 25f
+internal const val GENERATION_YEARS = 25f
 /**
  * Extra yearly deaths among children per unit of inbreeding. First cousins' children (F = 0.0625)
  * die before adulthood some 4% more often than others (Bittles and Neel 1994, from memory): about
  * 0.6 per unit of F over fifteen years.
  */
-const val INBREEDING_DEATHS = 0.04f
+internal const val INBREEDING_DEATHS = 0.04f
 /** Chance a meeting of bands that take partners from outside ends in an exchange (half when only one of them holds to it). */
-const val MARRY = 0.5f
+internal const val MARRY = 0.5f
 /** Kinship with a partner from another band, per unit of shared descent (about second cousins). */
-const val OUTSIDER_KIN = 0.03f
+internal const val OUTSIDER_KIN = 0.03f
 /**
  * Years an adult spends bearing and raising children before becoming an elder; elders' extra yearly
  * deaths. Foragers who reach 45 live some 20 years more on average (Gurven and Kaplan 2007, from
  * memory): about 5% a year with the ordinary deaths.
  */
-const val ADULT_YEARS = 30f
-const val ELDER_DEATHS = 0.03f
+internal const val ADULT_YEARS = 30f
+internal const val ELDER_DEATHS = 0.03f
 /** Mothers one elder can help; most that grandmothers raise births and cut children's deaths, when there are enough of them. */
-const val ELDER_MOTHERS = 3f
+internal const val ELDER_MOTHERS = 3f
 /** How many births a woman has in each third of her adult life (about 15-25, 25-35, 35-45) against her best years. */
 val FERTILE_BY_SPAN = floatArrayOf(0.75f, 1f, 0.5f)
-const val GRANDMOTHERS = 0.3f
-const val ELDER_CARE = 0.3f
+internal const val GRANDMOTHERS = 0.3f
+internal const val ELDER_CARE = 0.3f
 /** Words two bands bring into line when they meet; yearly chance a word changes by itself. */
-const val WORDS_PER_MEETING = 3
-const val WORD_DRIFT = 0.0003f
+internal const val WORDS_PER_MEETING = 3
+internal const val WORD_DRIFT = 0.0003f
 /** Chance at a meeting that a band takes up a tradition the more successful one holds, at full understanding. */
-const val COPY_TRADITION = 0.1f
+internal const val COPY_TRADITION = 0.1f
 /** Yearly chance a band takes up a tradition by itself, or drops one. */
-const val TAKE_UP = 0.0005f
-const val DROP = 0.0005f
+internal const val TAKE_UP = 0.0005f
+internal const val DROP = 0.0005f
 /** Chance a band raids one it meets, at full pressure (a feud, hunger with food in the other's larder, or crowded country); share of the larder taken. */
-const val RAID = 0.015f
-const val RAID_TAKE = 0.5f
+internal const val RAID = 0.015f
+internal const val RAID_TAKE = 0.5f
 /**
  * Share of each side's adults a raid kills at most, against the other's strength; and the wounded who live for each one it
  * kills. Most violent wounds in prehistoric skeletons are healed ones (Nasca highlands, McCool and colleagues 2021; Jebel
  * Sahaba, Crevecoeur and colleagues 2021: people who had lived through several attacks), but none of these gives a ratio:
  * both numbers are estimates, set so a raid leaves as many hurt as before (once 8% killed and two wounded for each).
  */
-const val RAID_DEATHS = 0.04f
-const val RAID_WOUNDED_PER_DEAD = 5f
+internal const val RAID_DEATHS = 0.04f
+internal const val RAID_WOUNDED_PER_DEAD = 5f
 /** Grudge held for a raid suffered, and the share that fades a year (half in about seven years). */
-const val GRUDGE = 1f
-const val GRUDGE_FADE = 0.1f
+internal const val GRUDGE = 1f
+internal const val GRUDGE_FADE = 0.1f
 /** A band's grudge against another's lineage above which it raids it unprovoked. */
-const val FEUD = 0.9f
+internal const val FEUD = 0.9f
 /** Rings of hexes round a meeting whose country bands tell each other of; country further than this from a band's camp is half forgotten each year. */
-const val TOLD_RINGS = 4
-const val REMEMBERED_KM = 100.0
+internal const val TOLD_RINGS = 4
+internal const val REMEMBERED_KM = 100.0
 /** A band fed under this share of its fill with nothing laid by goes to a better-stocked band within this many rings of hexes. */
-const val VISIT_FED = 0.6f
-const val VISIT_RINGS = 2
+internal const val VISIT_FED = 0.6f
+internal const val VISIT_RINGS = 2
 /** Adults below which a band joins kin nearby: too few to hunt, gather, guard and marry within. */
-const val SMALL_BAND = 8
+internal const val SMALL_BAND = 8
 /** How much a fouled camp puts a band off staying, and how much the graves of its dead hold it. */
-const val FOUL_AVOID = 0.3f
-const val BURIAL_STAY = 0.1f
+internal const val FOUL_AVOID = 0.3f
+internal const val BURIAL_STAY = 0.1f
 /** Most a band of [Tradition.FEASTS] grows to before it splits, against its kind's usual most. */
-const val FEAST_SIZE = 1.3f
+internal const val FEAST_SIZE = 1.3f
 /** How much likelier a raid is on strangers (never met before), and on bands of wholly other customs. */
-const val STRANGER_HOSTILITY = 0.5f
+internal const val STRANGER_HOSTILITY = 0.5f
 /** How much a band's ornaments per head add to its standing (its ways are the more copied). */
-const val STANDING = 0.05f
+internal const val STANDING = 0.05f
 /** How hard a band presses those it finds on ground it holds (graves, houses, appointment place); how strongly bands keep off others' known homes. */
-const val CLAIM_PRESSURE = 0.7f
-const val TRESPASS_AVOID = 0.2f
+internal const val CLAIM_PRESSURE = 0.7f
+internal const val TRESPASS_AVOID = 0.2f
 /** How strongly a band on a raid heads for its target. */
-const val RAID_PULL = 0.8f
-const val CUSTOMS_HOSTILITY = 1f
+internal const val RAID_PULL = 0.8f
+internal const val CUSTOMS_HOSTILITY = 1f
 /** How strongly an unlucky camp (a death, among bands that leave their dead) is shunned, and for how many weeks. */
-const val UNLUCKY = 0.6f
-const val UNLUCKY_WEEKS = 8
+internal const val UNLUCKY = 0.6f
+internal const val UNLUCKY_WEEKS = 8
 /** Share of its store aim a band holding to demand sharing keeps (what it stores is asked of it). */
-const val SHARING_STORE = 0.5f
+internal const val SHARING_STORE = 0.5f
 /** Most people a band at home in its houses holds before it splits. Villages are larger than forager camps: early villages
  * without bigger institutions split at 127 to 170 (Taraco Peninsula, Bandy 2004: mean about 127, splits near 170;
  * Hutterite colonies kept under about 150, splitting at 168 on average, Alberti 2014; both as summarised by Dunbar 2022);
  * Natufian settlements about 60 to 100, PPNA villages about 330 (Kuijt 2000), held by rites and shared buildings. */
-const val SETTLED_SIZE = 150
+internal const val SETTLED_SIZE = 150
 /** How alike ([alike]) two bands at home in one hex must find each other, both ways, to become one. No source gives where people
  * living together come to feel one group; an estimate, set so halves of a split (alike about 1) are one again at once, and bands
  * of one tongue and the same customs need kin or a close tie (unrelated, the same customs and fully understood, alike 0.8 with
  * no tie and 0.96 at a full tie). */
-const val ONE_GROUP = 0.9f
+internal const val ONE_GROUP = 0.9f
 /** Tie between the two halves of a band when it splits: they were one band the week before, and grow apart only as ties fade. */
-const val SPLIT_TIE = 1f
+internal const val SPLIT_TIE = 1f
 /** Graves and meetings at a place (in a band's memory) before it makes an appointment there. */
-const val APPOINT_MIN = 3f
+internal const val APPOINT_MIN = 3f
 /** How strongly an appointment draws a band in its month, and its ancestors' places draw it at any time. */
-const val APPOINT_PULL = 0.5f
-const val ANCESTOR_PULL = 0.15f
+internal const val APPOINT_PULL = 0.5f
+internal const val ANCESTOR_PULL = 0.15f
 /**
  * Ties between bands: how much closer a peaceful meeting, a gift, a feast and an exchange of
  * partners bring them (of the way left to full friendship), how far a raid sets them back; share
  * of a tie lost a year unless renewed; how much a full friendship lowers the chance of a raid.
  */
-const val TIE_MEET = 0.05f
-const val TIE_GIFT = 0.2f
-const val TIE_FEAST = 0.3f
-const val TIE_MARRY = 0.3f
-const val TIE_RAID = 0.8f
-const val TIE_FADE = 0.5f
-const val TIE_PEACE = 0.8f
+internal const val TIE_MEET = 0.05f
+internal const val TIE_GIFT = 0.2f
+internal const val TIE_FEAST = 0.3f
+internal const val TIE_MARRY = 0.3f
+internal const val TIE_RAID = 0.8f
+internal const val TIE_FADE = 0.5f
+internal const val TIE_PEACE = 0.8f
 /** A tie above which a band counts the other a friend ([Regard.friend]). */
-const val FRIEND_TIE = 0.3f
+internal const val FRIEND_TIE = 0.3f
 /**
  * Share of its hands' week a band gives to leisure at which visits keep a tie with one friendly band near most of the way
  * from fading (1 - 1/e): visits to more bands share the same leisure. Foragers spend much of their free time visiting
  * other camps (Lee 1979, Wiessner on hxaro); the rate is an estimate, no time-use figure found.
  */
-const val VISIT_SHARE = 0.18f
+internal const val VISIT_SHARE = 0.18f
 /** A feast: food set before each guest, kg; days of food a band keeps back for itself beyond its aim before it feasts others. */
-const val FEAST_KG = 3f
+internal const val FEAST_KG = 3f
 /** How strongly a band with food to feast others is drawn to where other bands are, and the people there at which the draw is full. */
-const val GATHER_PULL = 0.3f
-const val GATHER_HEADS = 150f
+internal const val GATHER_PULL = 0.3f
+internal const val GATHER_HEADS = 150f
 
 /**
  * The lineage a band founded at hex centre ([x], [y]) km descends from: one of [LINEAGES], drawn for each block of country
@@ -258,7 +258,7 @@ fun burialWayAt(lineage: Int) = BurialWay.entries[((mix64(lineage.toLong() * HAS
  * Years the bands that keep a totem hold it against a band of it that ate of its kind ([Band.totemBroken]): a year, as it
  * goes round the bands that meet. An estimate; no figure found.
  */
-const val TOTEM_SHAME_YEARS = 1f
+internal const val TOTEM_SHAME_YEARS = 1f
 
 /**
  * The traditions a band founded in a lineage's country starts with. Marrying out, sharing food,
@@ -671,24 +671,24 @@ internal fun ancestorsHex(g: HexGroup): Hex {
 }
 
 /** Most months of the year a band's rites take it somewhere ([Band.rite]). */
-const val RITE_SITES = 3
+internal const val RITE_SITES = 3
 /** Person-days each adult gives a rite held at its site: the gathering, the dances, the telling. An estimate; no figure found. */
-const val RITE_DAYS = 2f
+internal const val RITE_DAYS = 2f
 /**
  * Strain a young belief bears ([Band.strainBorne]): rites held back from, about the year's rites. Strained that far, a
  * band holds together at half its size ([HexGroups.maxSize]), and the part that leaves at a split goes without the belief
  * as likely as the strain is near it. A belief kept [BELIEF_AGE_YEARS] bears twice that (older beliefs are clung to). Strain eases to a third over
  * [STRAIN_EASE_YEARS] of weeks the band eats its fill. Estimates; no figure found.
  */
-const val STRAIN_SPLIT = 3f
-const val BELIEF_AGE_YEARS = 25f
-const val STRAIN_EASE_YEARS = 1f
+internal const val STRAIN_SPLIT = 3f
+internal const val BELIEF_AGE_YEARS = 25f
+internal const val STRAIN_EASE_YEARS = 1f
 /** Years over which a place's sanctity fades to a third (1/e) while no rites are held and no dead laid there: about a generation. An estimate. */
-const val SANCTITY_YEARS = 25f
+internal const val SANCTITY_YEARS = 25f
 /** How much a band's hold on its rites changes when it splits: a fifth of the founders' range, as temperament drifts. Not measured. */
 internal val HexGroups.riteDrift get() = tuning.riteFounderMax / 5f
 /** Chance at a split that one of the offshoot's rites shifts by a month (the telling changes). Not measured. */
-const val RITE_SHIFT = 0.1f
+internal const val RITE_SHIFT = 0.1f
 
 /** The founders' hold on their rites in lineage [lineage] (the same for every band of it, as [traditionsAt]). */
 fun riteStrengthAt(lineage: Int, tuning: Tuning) = tuning.riteFounderMax * Math.floorMod((lineage + 7) * 2_654_435_761L.toInt() xor 0x5bd1e995, 1000) / 1000f
@@ -855,8 +855,8 @@ internal fun GroupWorld.bearRite(b: Band) {
  * Material sources (trade on): the square each is gathered from, km; the least share of a place's
  * ground for it to count. Not measured.
  */
-const val SOURCE_KM = 50.0
-const val SOURCE_MIN = 0.1f
+internal const val SOURCE_KM = 50.0
+internal const val SOURCE_MIN = 0.1f
 
 /** A band split off from another: its hold on the rites drifts, and now and then one shifts by a month (rounds on). */
 internal fun HexGroups.riteInherit(nb: Band) {
@@ -904,20 +904,20 @@ internal fun GroupWorld.riteMeet(a: Band, b: Band, ab: Regard, ba: Regard) {
  * is a rite at once. A band can't make a rite of what is usual for it.
  * Estimates; no figure found.
  */
-const val SALIENT = 3f
-const val OMEN_AT_ONCE = 10f
-const val OMEN_YEARS = 1f
-const val LEAN_USUAL_WEEKS = 4f
+internal const val SALIENT = 3f
+internal const val OMEN_AT_ONCE = 10f
+internal const val OMEN_YEARS = 1f
+internal const val LEAN_USUAL_WEEKS = 4f
 
 /**
  * Strange things a band sees in a year, good signs and bad alike; how strange each is, against the usual, falls off as
  * one over it (a third are [SALIENT], a tenth [OMEN_AT_ONCE]). Nothing in the world causes them and nothing follows from
  * them but the rite they may become. Estimate; no figure found.
  */
-const val STRANGE_SIGNS_A_YEAR = 1f
+internal const val STRANGE_SIGNS_A_YEAR = 1f
 
 /** Days of a band's food that make one favour ([Band.favours]): a week. */
-const val FAVOUR_DAYS = 7f
+internal const val FAVOUR_DAYS = 7f
 
 /**
  * [giver] helped [taker] with [kg] of food: [taker] owes it favours, the more the more of its needs the

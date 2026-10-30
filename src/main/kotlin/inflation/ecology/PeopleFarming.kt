@@ -136,8 +136,8 @@ internal fun boldness(g: HexGroup) = if (g.bold < 0f) g.species.boldShare else g
  * Taming: weekly drift towards boldness of a pack that lives by people's camps (centuries, not
  * years); yearly chance a band takes a pup from such a pack, at full boldness and tameability.
  */
-const val BOLD_DRIFT = 0.0003f
-const val TAME = 0.5f
+internal const val BOLD_DRIFT = 0.0003f
+internal const val TAME = 0.5f
 /**
  * Dogs. Pups raised a dog a year when fed: half are bitches, of one litter a year of about 5 (an estimate, from memory), half
  * of the pups dying as newborns (Koster 2008, Mayangna and Miskito, Nicaragua). Yearly deaths of grown dogs: 49% (Koster
@@ -147,19 +147,19 @@ const val TAME = 0.5f
  * falling to nothing at [DOG_PREY_KG]: dogs met agouti and paca far more often but red brocket deer no more (Koster 2008),
  * and gains are limited to some prey (Lupo 2017); the size a guess. How much a full pack keeps off night attacks (no source).
  */
-const val DOG_BIRTHS = 1.25f
-const val DOG_DEATHS = 0.49f
-const val DOG_FED_SHARE = 0.13f
-const val DOG_HUNT = 1f
-const val DOG_PREY_KG = 25f
-const val DOG_GUARD = 0.5f
+internal const val DOG_BIRTHS = 1.25f
+internal const val DOG_DEATHS = 0.49f
+internal const val DOG_FED_SHARE = 0.13f
+internal const val DOG_HUNT = 1f
+internal const val DOG_PREY_KG = 25f
+internal const val DOG_GUARD = 0.5f
 /**
  * Sowing: months (0 the one after midwinter) for sowing in autumn; share of its stored grain a band
  * sows; person-days to clear, sow and weed for each kg sown.
  */
 val SOW_MONTHS = 9..10
-const val SOW_SHARE = 0.3f
-const val SOW_DAYS_PER_KG = 0.5f
+internal const val SOW_SHARE = 0.3f
+internal const val SOW_DAYS_PER_KG = 0.5f
 /**
  * A band's kept animals' week: they graze round the camp ([herdForage]), breed in their season as they are fed and as tame
  * as they have grown, give milk after it ([milkKg]), die, and run off as wild as they still are; they are herded in the field
@@ -429,44 +429,31 @@ internal fun straying(s: Species, tame: Float): Float {
  * mother's weight against its 40 kg (as M^0.75; the scaling an estimate). Early herds' mothers likely gave less.
  */
 internal fun milkKg(s: Species) = MILK_KG_GOAT * (s.massKg / 40f).pow(0.75f)
-const val MILK_KG_GOAT = 56f
-const val LACTATION_DAYS = 101f
+internal const val MILK_KG_GOAT = 56f
+internal const val LACTATION_DAYS = 101f
 
 /** How much of a practised herder's stock [b]'s herders keep each: half, unpractised. */
 private fun herdSkill(b: Band) = 0.5f + 0.5f * min(1f, b.skill(Skill.TENDING))
 
-/**
- * Herding: chance a young animal caught in the hunt is kept and raised instead of eaten (times its
- * kind's tameability); yearly share that run off, [HERD_RUN_OFF] times the square of their wildness ([straying]; the square an
- * estimate, so that the wilder stray far more), their wildness reckoned from their tameness times their kind's ease on foot, the
- * worse of Diamond's panic and social-structure criteria, against a goat's ([HERD_EASE] 0.6, an estimate: a kind that panics or
- * keeps no herd, as an ostrich or a deer, is not kept on foot however tame), so that a goat herd as tame as one at world
- * start (0.8) loses 2% a year to straying (an estimate: no record gives half-tame herds' straying; the wild-type stock of the first
- * herds, as at Ganj Dareh some 10,000 years ago, still bred and paid its herders, Daly et al. 2021, from the press release).
- * Tame herded flocks stray not at all, as [straying] has it: flock records of herded sheep and goats count no strays and
- * 0-1% of their outflow to predators, Assen and Aklilu 2012, mixed farms in Tigray, not nomads; so a move costs a herd only
- * its walk. Beasts of prey take their share in the hunt ([raidHerd]), not here: the goats of central Mali, 1978-83, whose
- * adults died 12.7% a year, slightly more than 17% of the deaths "lost" or taken by predators, mainly dogs (FAO x5531e,
- * ch. 13), are a check on the two together. [HERD_FIGHTING], the same scale for deaths from fighting ([fighting]);
- * yearly growth of tameness. And the head a herder keeps on foot ([headsAHerder]): 200 goats of [GOAT_KG]; Iranian nomads' flocks of
- * 200-600 head go with one to three shepherds (Encyclopaedia Iranica, "Cupan"). Bigger beasts fewer, as their weight to the
- * power [HERD_MASS_EXP], an estimate between the goats and camel herds of 50-60 head kept by young men (ODI Pastoral
- * Development Network paper 5337; the herders to a herd not given). Young caught and raised by hand come as tame as a
- * herd started at world start ([RAISED_TAME], an estimate), whatever their kind: young of wild hoofed animals reared by people take them as
- * their own and stay by them (imprinting; Price 1984, "Behavioral aspects of animal domestication", from memory), long
- * before their kind changes in body. Kinds also differ in how they breed and how they get on kept without pens or incubators,
- * by the other two of Diamond's criteria (Guns, Germs, and Steel, ch. 9, from memory): their young as their captive breeding
- * against a goat's ([HERD_BREEDS] 0.7, [herdMothers]), their deaths from fighting by their disposition against a goat's
- * ([HERD_TEMPER] 0.6, [fighting]); the scales and the square estimates, the criteria the catalogue's.
- */
-const val CAPTURE = 0.5f
-const val RAISED_TAME = 0.8f
-const val HERD_RUN_OFF = 0.5f
-const val HERD_FIGHTING = 0.5f
-const val HERD_EASE = 0.6f
-const val HERD_BREEDS = 0.7f
-const val HERD_TEMPER = 0.6f
-const val TAMING_RATE = 0.01f
-const val HERD_GOATS_A_HERDER = 200f
-const val GOAT_KG = 40f
-const val HERD_MASS_EXP = 0.5f
+/** Chance a young animal caught in the hunt is kept and raised instead of eaten, times its kind's tameability. An estimate. See docs/herding-constants.md for these constants. */
+internal const val CAPTURE = 0.5f
+/** How tame young raised by hand come, whatever their kind (imprinting; Price 1984). An estimate. */
+internal const val RAISED_TAME = 0.8f
+/** Yearly share of a kept herd that strays: this times the square of its wildness ([straying]). An estimate. */
+internal const val HERD_RUN_OFF = 0.5f
+/** Yearly share of a kept herd lost to fighting: this times the square of the kind's lack of temper ([fighting]). An estimate. */
+internal const val HERD_FIGHTING = 0.5f
+/** A goat's ease on foot (the worse of Diamond's panic and social-structure criteria), the scale for [straying]. An estimate. */
+internal const val HERD_EASE = 0.6f
+/** A goat's captive breeding (Diamond's criterion), the scale for [herdMothers]. */
+internal const val HERD_BREEDS = 0.7f
+/** A goat's temperament (Diamond's disposition criterion), the scale for [fighting] and [petYears]. */
+internal const val HERD_TEMPER = 0.6f
+/** Yearly growth of a herd's tameness. */
+internal const val TAMING_RATE = 0.01f
+/** Goats a herder keeps on foot (Iranian nomads: 200-600 head to one to three shepherds, Encyclopaedia Iranica, "Cupan"). */
+internal const val HERD_GOATS_A_HERDER = 200f
+/** A goat's weight, the base for [HERD_MASS_EXP]. */
+internal const val GOAT_KG = 40f
+/** Bigger beasts fewer to a herder, as their weight to this power. An estimate between goats and camel herds of 50-60 head (ODI Pastoral Development Network paper 5337). */
+internal const val HERD_MASS_EXP = 0.5f

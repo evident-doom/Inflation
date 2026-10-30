@@ -54,6 +54,9 @@ class WeekStats {
     /** The residents' deaths this week by "kind:cause", head (fractions: the residents are densities). */
     val residentDeaths = TreeMap<TallyKey, Double>()
 
+    /** Whether the census's splits of bands (by country, clothing, way of living and so on: [BandSplit]) are booked in [hunting]: set by the census that reads them, as booking them costs a band-week some forty ledger merges. */
+    var bandSplits = false
+
     /** Counts [n] more of [what] in [meetings]. */
     fun meeting(what: Met, n: Int = 1) { meetings.merge(what.key, n, Int::plus) }
     /** Counts [n] more of [what] of [of] (a kind, a skill, a custom...) in [meetings]. */
