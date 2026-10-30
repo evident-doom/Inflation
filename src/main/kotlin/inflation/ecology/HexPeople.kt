@@ -274,7 +274,7 @@ internal fun HexGroups.leaveDead(g: HexGroup, freed: MutableList<HexGroup>) {
 }
 
 /**
- * [n] dogs of kind [s] gone wild at [p]: a new pack of their wild kind, bold of people, with ground of its own and [fatShare]
+ * [n] dogs of kind [s] gone wild at [p]: a new pack of their wild kind, bold of people, without ground, with [fatShare]
  * of their kind's most fat; null if not one whole dog went, or the kind lives in no groups here. (The caller adds it to the groups.)
  */
 internal fun HexGroups.dogsGoWild(s: Species, p: Place, n: Int, fatShare: Float = 0.5f): HexGroup? {
