@@ -679,7 +679,7 @@ const val SKIN_DAYS = 0.5f
 /**
  * Wounds: how much less the hurt and the lamed do; yearly share of adults hurt by mishaps (falls,
  * cuts, sprains, snakebite gone bad) at the usual gathering range; wounded who live for each one
- * killed in a fight, by prey or by a beast; weekly share of the wounded who heal, untended and with
+ * killed by prey or by a beast (in raids, [RAID_WOUNDED_PER_DEAD]); weekly share of the wounded who heal, untended and with
  * the best care; weekly share whose wound festers and kills, untended (care saves most); share of
  * the healed lamed for life, untended (care halves it); yearly share of the lamed lost as the band's
  * people turn over.
