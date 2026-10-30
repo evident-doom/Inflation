@@ -519,7 +519,7 @@ class Band(kinds: Int) {
      * Its rites: for each month, the place it holds sacred then (-1: none) — the graves of its dead, where
      * bands gather, far landmarks it walked to or was told of (see [riteWeek]). Handed down whole to bands
      * that split off, taken up from bands met, now and then let go: customs that mark a band's line. They
-     * do not draw its moves (model 4.89): a trip to a rite's site will be an action the band chooses.
+     * do not draw its moves: a trip to a rite's site will be an action the band chooses.
      */
     val rite = IntArray(12) { -1 }
     /** How strongly its people hold to their rites (0: not at all; see [inflation.Tuning.riteFounderMax]). */

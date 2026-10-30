@@ -975,14 +975,15 @@ internal fun alike(r: Regard) = 1f - r.wariness / Regard.MOST_WARY
 
 /** Band [from] joins band [into]: its people, food, goods and knowledge come with it. */
 private fun GroupWorld.joinBand(into: HexGroup, from: HexGroup, week: Int) {
+    val intoBand = into.band ?: return; val fromBand = from.band ?: return
     val w = from.adults.toFloat() / (into.adults + from.adults).coerceAtLeast(1)
-    into.band!!.absorb(from.band!!, from.adults, w, into.stores[Store.DRIED], from.stores[Store.DRIED],
+    intoBand.absorb(fromBand, from.adults, w, into.stores[Store.DRIED], from.stores[Store.DRIED],
         into.stores[Store.SEED], from.stores[Store.SEED], into.id, from.id)
     into.fed += w * (from.fed - into.fed); into.fat += w * (from.fat - into.fat); into.spent += w * (from.spent - into.spent); into.bred += w * (from.bred - into.bred)
     for (i in Store.entries) addFood(into.stores, into.storeKgPer, i, from.stores[i], from.stores[i] * from.storeKgPer[i])
     into.memory.hear(from.memory, week, stepsPerYear, 1f)
     // (Its cache is left: no one goes back for it.)
-    dropCache(from.band!!)
+    dropCache(fromBand)
     from.mergedSize = from.size; from.mergedInto = into.id
     into.adults += from.adults; into.young += from.young
     from.adults = 0; from.young = 0; from.larder = 0f
@@ -1109,7 +1110,7 @@ data class Stalking(val rate: Float, val by: Species?) {
  * where they are thick, from the unwary in thick cover with no fire, dogs or watch (an estimate, set against the record:
  * foragers lose few to beasts, the Hiwi none in their records though anacondas, caimans and jaguars attacked them, Hill,
  * Hurtado & Walker 2007; the Agta, a quarter of whose men pythons attacked, some 0.26 a thousand a year, Headland & Greene
- * 2011; at 0.02, ten times this, the bands lost 4-5 a thousand a year before model 4.62, many times either); density of beast flesh, kg/km² weighted, at which they take
+ * 2011; at 0.02, ten times this, the bands lost 4-5 a thousand a year, many times either); density of beast flesh, kg/km² weighted, at which they take
  * half that; a band size the company factor is set for; how much a fire at night and dogs each keep off; the share of the
  * loss that falls at night, at camp, against out at work by day (an estimate: in Tanzania lions took people mostly after dark at
  * or by their houses, and over a quarter in the fields, most asleep alone in makeshift huts, Packer et al. 2005, Nature 436:

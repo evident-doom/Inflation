@@ -36,7 +36,6 @@ import inflation.world.Date
 import inflation.world.HexWorld
 import kotlin.math.abs
 import java.util.Random
-import inflation.world.get
 import inflation.world.set
 import inflation.world.Place
 import inflation.ecology.seedCornIn

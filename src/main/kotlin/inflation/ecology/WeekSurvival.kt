@@ -15,14 +15,12 @@ import kotlin.math.roundToInt
  * ([warmthNeed]) and so its hunger, this week and through the year after ([yearAhead]), each counted in full; and the food
  * the days they take leave unforaged: the food gets what they leave of the week, as far as it asks, and a week left short is
  * bridged by the larder and fat, or is hunger. These come before the food in the week ([BandTime.plan]): a cold night kills
- * within the week, a hungry week is bridged by the larder and fat. (Reckoned with all the week's food got whatever the
- * warmth took, a thatched hut's two days a person were free, and its days came out of the foraging: hunger twice main's in a
- * 10-year run of 2026-10-28.)
+ * within the week, a hungry week is bridged by the larder and fat.
  *
  * The food is not bid for days itself: what a band foresees of its hunger is by the food it got in each month over the last
  * years, which in its first year it has none of (all foreseen dead whatever is done now) and which does not see the fat a
- * short week burns, so a shortfall would look free (a 2026-10-24 check: hunger deaths ten times main's). Holding the warmth
- * only after the food, pro rata, left bands that had walked most of their week a tenth of a fire (exposure five times main's).
+ * short week burns, so a shortfall would look free. Holding the warmth
+ * only after the food, pro rata, left bands that had walked most of their week a tenth of a fire.
  *
  * The days go a few at a time to whichever of the two averts the more deaths for its days (or for all it asks, where a
  * little does nothing, as wood in a cold too deep for half a fire), until each has all it asks, neither averts any more, or
@@ -35,7 +33,7 @@ import kotlin.math.roundToInt
  *
  * Its clothes are weighed the same way: the days that make or mend its kit of clothes, as far as its hides and
  * sinew go ([makeTools]), keep its people warmer this week and through the year after ([yearAhead]), as the fire and the
- * shelters do. Before, clothes were made only in the days the chores' shares left them.
+ * shelters do.
  *
  * [foodAsk]: the person-days of work that would forage the rest of the week's want, [gotShare] of it got already;
  * [moved]: whether it has come to a new camp, where no shelter stands. Returns the person-days of work for the firewood,
@@ -61,7 +59,7 @@ internal fun HexGroups.survivalDays(g: HexGroup, b: Band, weather: Weather, time
     val warmthAt = HashMap<Long, Warmth>()
     fun warmth(fire: Float, shelter: Float, clothes: Float = clothes0): Warmth {
         val f = (fire * GRID).roundToInt(); val sh = (shelter * GRID).roundToInt(); val c = (clothes * GRID).roundToInt()
-        // (The kit it has is reckoned as it is, not to the hundredth: a band that makes no clothes this week is reckoned as before.)
+        // (The kit it has is reckoned as it is, not to the hundredth: a band that makes no clothes this week keeps its kit as it is.)
         val kit = if (c == (clothes0 * GRID).roundToInt()) clothes0 else c / GRID
         return warmthAt.getOrPut((f * 10_000L + sh) * 1_000L + c) { b.warmth(air, f / GRID, home, days, sh / GRID, kit) }
     }
@@ -69,8 +67,7 @@ internal fun HexGroups.survivalDays(g: HexGroup, b: Band, weather: Weather, time
     // (The year after under each shelter it might put up, worked out once for each to the hundredth: through the days it
     // expects to stay on after this week. It decides each week whether to move on, so the weeks it has kept the camp take
     // nothing from those still to come: with a week's chance of leaving of one in its usual stay, it stays that less this
-    // week. The weeks it has kept this camp count as well as its usual stay, as for its moves ([birthSpacing]). Before,
-    // its usual stay less the weeks kept: a band that had outstayed it was reckoned to leave next week, whatever it did.)
+    // week. The weeks it has kept this camp count as well as its usual stay, as for its moves ([birthSpacing]).)
     val stayDays = (max(b.stayWeeks, (if (moved) 0 else b.campWeeks) + 1f) - 1f) * days
     val yearAt = HashMap<Int, YearAhead>()
     fun year(shelter: Float, clothes: Float): YearAhead {

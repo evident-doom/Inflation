@@ -374,8 +374,7 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
         } else {
             val toA = COPY_TRADITION * u * conformist(bandA.heardShare(t, bandB.holds(t)))
             val toB = COPY_TRADITION * u * conformist(bandB.heardShare(t, bandA.holds(t)))
-            val r = rnd.nextFloat()
-            if (r < toA) bandB to bandA else if (r < toA + toB) bandA to bandB else continue
+            when (takeUpSide(rnd.nextFloat(), toA, toB)) { TakeUp.A -> bandB to bandA; TakeUp.B -> bandA to bandB; TakeUp.NEITHER -> continue }
         }
         to.traditions[t] = from.holds(t)
         stats.meeting(if (from.holds(t)) Met.Of.TOOK_UP else Met.Of.TOOK_LEAVE_OF, t.name.lowercase())
@@ -385,17 +384,21 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
     if (keptA != keptB) {
         val toA = COPY_TRADITION * u * conformist(bandA.heardTotemShare(keptB))
         val toB = COPY_TRADITION * u * conformist(bandB.heardTotemShare(keptA))
-        val r = rnd.nextFloat()
-        if (r < toA) { bandA.totem = keptB; bandA.totemBroken = 0f; stats.meeting(Met.BANDS_TOOK_UP_ANOTHERS_TOTEM) }
-        else if (r < toA + toB) { bandB.totem = keptA; bandB.totemBroken = 0f; stats.meeting(Met.BANDS_TOOK_UP_ANOTHERS_TOTEM) }
+        when (takeUpSide(rnd.nextFloat(), toA, toB)) {
+            TakeUp.A -> { bandA.totem = keptB; bandA.totemBroken = 0f; stats.meeting(Met.BANDS_TOOK_UP_ANOTHERS_TOTEM) }
+            TakeUp.B -> { bandB.totem = keptA; bandB.totemBroken = 0f; stats.meeting(Met.BANDS_TOOK_UP_ANOTHERS_TOTEM) }
+            TakeUp.NEITHER -> {}
+        }
     }
     // And where bands that both bury their dead lay them.
     if (bandA.holds(Tradition.BURIAL) && bandB.holds(Tradition.BURIAL) && bandA.burialWay != bandB.burialWay) {
         val toA = COPY_TRADITION * u * conformist(bandA.heardBurialShare(bandB.burialWay))
         val toB = COPY_TRADITION * u * conformist(bandB.heardBurialShare(bandA.burialWay))
-        val r = rnd.nextFloat()
-        if (r < toA) { bandA.burialWay = bandB.burialWay; stats.meeting(Met.BANDS_TOOK_UP_ANOTHERS_BURIAL) }
-        else if (r < toA + toB) { bandB.burialWay = bandA.burialWay; stats.meeting(Met.BANDS_TOOK_UP_ANOTHERS_BURIAL) }
+        when (takeUpSide(rnd.nextFloat(), toA, toB)) {
+            TakeUp.A -> { bandA.burialWay = bandB.burialWay; stats.meeting(Met.BANDS_TOOK_UP_ANOTHERS_BURIAL) }
+            TakeUp.B -> { bandB.burialWay = bandA.burialWay; stats.meeting(Met.BANDS_TOOK_UP_ANOTHERS_BURIAL) }
+            TakeUp.NEITHER -> {}
+        }
     }
     riteMeet(bandA, bandB, ab, ba)
     teach(bandA, bandB, u, (doing(a) - doing(b)).coerceIn(-1f, 1f))
@@ -413,6 +416,12 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
     }
     return false
 }
+
+/** Which of two bands a meeting's one draw has take up the other's way: [A], [B], or neither. */
+private enum class TakeUp { A, B, NEITHER }
+
+/** The one draw [r] for the two sides of a take-up, so that neither comes first: A below [toA], B in the [toB] after it. */
+private fun takeUpSide(r: Float, toA: Float, toB: Float) = if (r < toA) TakeUp.A else if (r < toA + toB) TakeUp.B else TakeUp.NEITHER
 
 /**
  * How two bands stood toward each other as they met ([ab], one's regard of the other, and [ba]): how well they understood
