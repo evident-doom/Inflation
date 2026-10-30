@@ -171,6 +171,8 @@ class HexGroups(
         // bands with herds, t.startHerders.)
         if (tuning.startSettled > 0f) startVillages()
         if (tuning.startHerders > 0f) startHerders()
+        // (Some founding bands start with the planning kind's mind, t.planners.)
+        foundMinds()
     }
 
     /**
@@ -279,8 +281,10 @@ class HexGroups(
             // (Groups that merged into another this week, kept for following what became of their choices.)
             merged.clear(); for (g in groups) if (!g.alive && g.mergedSize >= 0) merged += g
             // (A band that died out leaves what it had; one that joined another took it along.)
-            for (g in groups) if (!g.alive && g.mergedSize < 0) leaveDead(g)
+            val freed = ArrayList<HexGroup>()
+            for (g in groups) if (!g.alive && g.mergedSize < 0) leaveDead(g, freed)
             groups.removeIf { !it.alive }
+            groups += freed
             newcomers(it.date)
         },
         Phase("groups: remembering places") { remember(it.date) },

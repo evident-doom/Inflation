@@ -127,6 +127,10 @@ hex learning tools. (The 1 km model's `Simulation` has since been removed; the h
 | Camp kept: births closer with stores, children sicken in a fouled camp, bands leave fouled camps | yes |
 | Traditions with effects, taken up and dropped: know-how copied from bands doing better, marks (burial, leaving the dead, marrying out, sparing young game, feasts) from the many bands met | yes (ten) |
 | A totem per lineage: a resident kind its hunters leave alone unless hungry; passed on as a mark, a custom bands count each other apart by, not seen kept by a band known to have eaten of it | yes |
+| Burial ways for bands that bury: at camp, or carried to where most of their dead lie if within a day's walk; digging and carrying cost customs time; passed on as a mark | yes |
+| Rites oblige: in the rite's month each adult owes customs days and the walk to the site and back; held once given, else cut short; sanctity per place from rites and graves (fading over a generation), holier places draw new rites | yes |
+| Beliefs strained by rites cut short split their bands: half go without the belief, older beliefs bear more | yes |
+| Rites born of omens: a week's death toll far above the usual, plenty after long want, or a strange sign drawn at random (about one a year, a third salient) where the band is, borne out by the same month going well there again or by another band that marked the same place; no yearly take-up and no letting rites go; rites copied between bands met as far as each trusts the other, not from the better-off | yes |
 | Language as words per concept, understanding between bands | yes (naming game, drift) |
 | Marrying out, lineage mix, inbreeding | yes |
 | Elders and grandmothers | yes |

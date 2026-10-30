@@ -90,6 +90,12 @@ class Bands internal constructor(private val world: GroupWorld) {
     @delegate:Transient val keptYoung by lazy { java.util.concurrent.atomic.AtomicIntegerArray(world.fauna.kinds.size) }
     @delegate:Transient val herdsBegun by lazy { java.util.concurrent.atomic.AtomicIntegerArray(world.fauna.kinds.size) }
 
+    /** Villages since the census last read them ([VillageFlow], [tallyVillages]). */
+    @Transient val villageFlows = enumFloats<VillageFlow>()
+
+    /** The weeks in a row each hex that is a village now has been one ([tallyVillages]). */
+    @Transient internal val villageAge = HashMap<Hex, Int>()
+
     /** Bands by the hex they are in ([indexBands]): at the start of the week for [fillBandStates], after the moves for [setWays]. */
     @Transient internal val bandIndex = HashMap<Hex, ArrayList<HexGroup>>()
 
@@ -107,7 +113,7 @@ class Bands internal constructor(private val world: GroupWorld) {
 
     /**
      * Where each material bands give each other ([TRADED]) is got (trade on): for each, the hexes where
-     * it is richest, one in a square of [SOURCE_KM] at most, for bands' rites to take them to.
+     * it is richest, one in a square of [SOURCE_KM] at most.
      */
     @delegate:Transient internal val materialSources: Map<Material, HexArray> by lazy {
         TRADED.associateWith { m ->

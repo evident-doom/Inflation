@@ -61,9 +61,7 @@ class SharedMover(val net: Mlp, val identity: FloatArray) {
 
     /** What the group's temperament [temper] pulls it toward a candidate place with [features] (see [Temperament.pull]): added to the network's score, as to the hand-written one. */
     fun pull(temper: FloatArray?, features: FloatArray): Float =
-        (if (temper == null) 0f else Temperament.pull(temper, features[HexFeatures.HUNTERS], features[HexFeatures.REMEMBERED], features[HexFeatures.STAYS], features[HexFeatures.CROWDING])) +
-            // A band's yearly round draws it on outside the network, as tradition does, so that learning does not unlearn it.
-            inflation.Tuning.config.roundNetPull * features.getOrElse(HexFeatures.ON_ROUND) { 0f }
+        if (temper == null) 0f else Temperament.pull(temper, features[HexFeatures.HUNTERS], features[HexFeatures.REMEMBERED], features[HexFeatures.STAYS], features[HexFeatures.CROWDING])
 
     /** How many numbers of the band's own view ([Band.state]) it reads after the kind's part: [WAYS_IN] for people, 0 for animals. */
     val band get() = inputs - INPUTS
@@ -542,7 +540,7 @@ object HexPpo {
          */
         private val settledFile = (Config.string(Config.Key.PPO_SETTLED_WORLDS) ?: inflationHome("settled-worlds").path)
             .takeIf { it.isNotBlank() && it != "off" }?.let { dir ->
-                File(dir, "settled-%016x-burn%d-k%08x-m%d.%d.bin".format(WorldCache.key(cfg), burnSteps, kinds.map { it.name }.hashCode(), HexSnapshot.MODEL_MAJOR, HexSnapshot.MODEL_MINOR))
+                File(dir, "settled-%016x-burn%d-k%08x-m%d.bin".format(WorldCache.key(cfg), burnSteps, kinds.map { it.name }.hashCode(), HexSnapshot.MODEL_MAJOR))
             }
 
         private fun loadSettled() {

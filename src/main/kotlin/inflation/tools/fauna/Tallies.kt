@@ -93,6 +93,8 @@ class DeathTally(private val sim: HexSim) {
 class HuntTally(private val sim: HexSim) {
     /** This year's tallies, and the hunters' fed sums and group-weeks, by kind. */
     val year = TreeMap<TallyKey, Int>()
+    /** This year's meeting and culture tallies ([inflation.ecology.Met]), summed over its weeks. */
+    val meetingsYear = TreeMap<TallyKey, Int>()
     private val fedSum = HashMap<String, Double>()
     private val groupWeeks = HashMap<String, Int>()
     /** The tallies of the last whole year, and of this one so far. */
@@ -102,13 +104,14 @@ class HuntTally(private val sim: HexSim) {
     var grainReapedLastYear = 0.0; private set
     private var grainReapedNow = 0.0
 
-    fun startYear() { year.clear(); fedSum.clear(); groupWeeks.clear() }
+    fun startYear() { year.clear(); meetingsYear.clear(); fedSum.clear(); groupWeeks.clear() }
 
     fun week() {
         val groups = sim.groups
         grainReapedNow += (groups.stats.hunting[Tally.of(Catalogue.HUMAN, Tally.OfKind.GRAIN_REAPED)] ?: 0) / 1000.0
         for ((key, v) in groups.stats.hunting) year.merge(key, v, Int::plus)
         for ((key, v) in groups.stats.hunting) now.merge(key, v, Int::plus)
+        for ((key, v) in groups.stats.meetings) meetingsYear.merge(key, v, Int::plus)
         for (g in groups.groups) if (g.alive && g.species.carnivore) {
             fedSum.merge(g.species.name, g.fed.toDouble(), Double::plus)
             groupWeeks.merge(g.species.name, 1, Int::plus)
@@ -417,7 +420,8 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
             " | elders %.0f%% of adults, children inbred %.3f".format(100.0 * bs.sumOf { it.elders } / bands.sumOf { it.adults }.coerceAtLeast(1),
                 bs.map { it.inbred.toDouble() }.average()) +
             " | caches %d".format(bs.count { !it.cachePlace.none }) +
-            " | dogs %.0f in %d bands, wolf packs' boldness %.2f".format(bs.sumOf { it.kept.sum().toDouble() }, bs.count { it.kept.sum() >= 1f },
+            " | dogs %.0f in %d bands, fed %.2f, wolf packs' boldness %.2f".format(bs.sumOf { it.kept.sum().toDouble() }, bs.count { it.kept.sum() >= 1f },
+                bs.filter { it.kept.sum() >= 1f }.map { it.dogFed.toDouble() }.average(),
                 groups.groups.filter { it.alive && it.species.followsPeople && !it.species.human }.map { boldness(it).toDouble() }.average()) +
             " | country known %.0f km²".format(bs.map { b -> b.known.sumOf { java.lang.Long.bitCount(it) }.toDouble() }.average() * hex.areaKm2) +
             " | camp weeks %.1f, larder days %.0f".format(bs.map { it.campWeeks }.average(),

@@ -261,6 +261,8 @@ private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float)
     time.release(Activity.FIREWOOD)
     // (It puts up its camp's shelters in the days the plan gives them, before the foraging can eat into them: [putUpShelter].)
     putUpShelter(b, g.adults.toFloat(), time, movedCamp(g, b), max(b.shelterWill, b.shelterAim))
+    // (And makes the clothes the plan gives days first, before the foraging can eat into them: [survivalDays].)
+    if (warm[Activity.TOOLS] > 0f) makeTools(b, g.adults.toFloat(), time, Tool.CLOTHES, warm[Activity.TOOLS])
     // (And its herders go out with the herd in the days the plan gives them, before the foraging can eat into them.)
     val herd = herdDays(b) * (1f - walkedShare(time))
     b.herded = if (herd > 0f) min(1f, time.leftFor(Activity.SOWING) / herd) else 1f
@@ -1090,11 +1092,11 @@ private fun HexGroups.huntGame(g: HexGroup, k: Int, p: Place, expected: Float, k
             // (Raised by hand from young, they come to the camp as tame as a herd's, [RAISED_TAME], whatever their kind: how
             // well a kind keeps on foot shows in how many stray, [straying].)
             band.herdTame[k] = (band.herdTame[k] * band.herd[k] + RAISED_TAME * kept) / (band.herd[k] + kept)
-            // (A herd begun so is kept as pets till they have grown: [Band.herdPet].)
+            // (A herd begun so is kept as pets till they have grown, or sooner as their temper shows: [Band.herdPet], [petYears].)
             if (band.herd[k] < 0.5f) {
                 bands.herdsBegun.incrementAndGet(k)
                 if (band.herdPet.size != band.herd.size) band.herdPet = FloatArray(band.herd.size)
-                band.herdPet[k] = ps.yearsToMaturity
+                band.herdPet[k] = petYears(ps)
             }
             bands.keptYoung.addAndGet(k, kept)
             band.herd[k] += kept; ny -= kept

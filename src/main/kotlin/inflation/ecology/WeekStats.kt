@@ -74,17 +74,24 @@ enum class Met(val label: String) {
     BANDS_BUILT_PALISADES("bands built palisades"),
     BANDS_BUILT_WEIRS("bands built weirs"),
     BANDS_BURNED_OFF_GRASS("bands burned off grass"),
+    BANDS_CARRIED_THEIR_DEAD("bands carried their dead to their ancestors"),
     BANDS_EXCHANGED_PARTNERS("bands exchanged partners"),
     BANDS_KEPT_AWAY_FROM_THE_SICK("bands kept away from the sick"),
-    BANDS_LET_A_RITE_GO("bands let a rite go"),
+    BANDS_MARKED_A_DEATH_TOLL("bands marked a death toll as an omen"),
+    BANDS_MARKED_PLENTY_AFTER_WANT("bands marked plenty after want as an omen"),
+    BANDS_MARKED_A_STRANGE_SIGN("bands marked a strange sign as an omen"),
     BANDS_MADE_AN_APPOINTMENT("bands made an appointment"),
     BANDS_MAULED_AT_A_CARCASS("bands mauled at a carcass"),
     BANDS_MET("bands met"),
     BANDS_SOWED("bands sowed"),
     BANDS_TOLD_OF_COUNTRY("bands told of country"),
     BANDS_TOLD_OF_ROUTES("bands told of routes"),
-    BANDS_TOOK_UP_A_RITE("bands took up a rite"),
+    BANDS_BORE_A_RITE("bands bore a rite of an omen"),
+    BANDS_HELD_A_RITE("bands held a rite at its site"),
+    BANDS_CUT_A_RITE_SHORT("bands cut a rite short for want of days"),
+    BANDS_SPLIT_OVER_THEIR_BELIEF("bands split over their belief"),
     BANDS_TOOK_UP_ANOTHERS_APPOINTMENT("bands took up another's appointment"),
+    BANDS_TOOK_UP_ANOTHERS_BURIAL("bands took up another's burial way"),
     BANDS_TOOK_UP_ANOTHERS_RITE("bands took up another's rite"),
     BANDS_TOOK_UP_ANOTHERS_TOTEM("bands took up another's totem"),
     BANDS_VISITED_FRIENDS("bands visited friends"),
@@ -121,7 +128,7 @@ enum class Met(val label: String) {
     enum class Of(val before: String, val after: String = "") {
         NEWCOMERS("newcomers: "), SEA_CROSSINGS("sea crossings: "), HIT_ON("band hit on "), LOST("band lost "), TOOK_A_PUP("bands took a ", " pup"),
         LEARNED("band learned "), TOOK_UP("band took up "), TOOK_LEAVE_OF("band took leave of "), DROPPED("band dropped "), GIVEN("", " given"),
-        TURNED_BACK_BY("bands turned back by ");
+        TURNED_BACK_BY("bands turned back by "), DOGS_GONE_WILD("dogs gone wild as ", " packs");
 
         fun key(of: String) = before + of + after
     }
@@ -166,6 +173,8 @@ object Tally {
         /** Food wanted, and got of meat (with small game and carrion), plants and fish, kg. */
         ASKED("asked"), MEAT("meat"), PLANTS("plants"), FISH("fish"),
         BAND_WEEKS("band-weeks"), PEOPLE_WEEKS("people-weeks"), BORN("born"),
+        /** Band-weeks it moved camp. */
+        MOVES("camp moves"),
         /** Deaths foreseen a year ahead ([HexGroup.foreseen]): people-weeks times the share foreseen to die, thousandths. */
         FORESEEN("foreseen deaths, 1/1000"),
         /** Perseverance ([Band.sisu]): people-weeks times the band's, thousandths. */
@@ -247,6 +256,11 @@ object Tally {
     /** Bands' deaths of [cause] by how they live; [bandsLivingDied] (way) starts all of them. */
     fun bandsLivingDied(way: Living, cause: DeathReason) = TallyKey.raw(bandsLivingDied(way).text + cause.label)
     fun bandsLivingDied(way: Living) = TallyKey.raw("bands ${way.label}:$DIED_OF")
+    /** Bands' tallies by how they choose ([Mind]). */
+    fun bandsMind(mind: Mind, what: Bands) = TallyKey.raw("bands of mind ${mind.label}:${what.label}")
+    /** Bands' deaths of [cause] by how they choose; [bandsMindDied] (mind) starts all of them. */
+    fun bandsMindDied(mind: Mind, cause: DeathReason) = TallyKey.raw(bandsMindDied(mind).text + cause.label)
+    fun bandsMindDied(mind: Mind) = TallyKey.raw("bands of mind ${mind.label}:$DIED_OF")
     /**
      * Whether a band keeps a herd, and how much of its hands' days the herd asks ([herdDays]): under a tenth, a tenth to 0.3,
      * or more. The line is the report's, not the model's: nothing chooses by it.
@@ -338,6 +352,17 @@ object Tally {
     fun bandsHut(h: Hut, what: Bands) = TallyKey.raw("bands shelter ${h.label}:${what.label}")
     fun bandsHutDied(h: Hut, cause: DeathReason) = TallyKey.raw(bandsHutDied(h).text + cause.label)
     fun bandsHutDied(h: Hut) = TallyKey.raw("bands shelter ${h.label}:$DIED_OF")
+    /**
+     * What thatching on to the full would have done, by the survival pass's own reckoning, in the band-weeks it stopped short
+     * ([WEEKS]): deaths averted this week of exposure and of hunger and through the year after, people, 1/10000 (a negative
+     * brings deaths); the days it would take and those the pass left, and the weeks the band expects to stay on, tenths; and
+     * the band-weeks it would avert deaths and its days fit in those left, would avert them but not fit, or would not.
+     */
+    enum class Thatch(val label: String) {
+        WEEKS("band-weeks"), EXPOSURE("exposure averted"), HUNGER("hunger averted"), YEAR("year averted"), DAYS("days"), LEFT("days left"),
+        STAY("stay weeks"), WORTH_FITS("worth, fits"), WORTH_SHORT("worth, short of days"), NOT_WORTH("not worth")
+    }
+    fun thatchTrace(h: Hut, what: Thatch) = TallyKey.raw("thatch trace ${h.label}:${what.label}")
     /** Whether a band keeps a herd ([Band.herd]). */
     enum class HerdKept(val label: String) { HERDING("keeping a herd"), NONE("keeping none") }
     /** Bands' tallies by whether they keep a herd; [bandsHerdKeptDied] (herding) starts all their deaths. */

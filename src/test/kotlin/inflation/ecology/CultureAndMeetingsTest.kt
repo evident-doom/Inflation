@@ -80,7 +80,8 @@ class CultureAndMeetingsTest {
         assertEquals(Language.understanding(b.words, o.words), Regard(b, 7, o).understood)
         val far = Band(0).also { f -> f.lineage[5] = 1f; f.totem = FaunaKind(2); for (t in Tradition.entries) f.traditions[t] = !b.holds(t) }
         assertTrue(Regard(b, 9, far, 0f).wariness <= Regard.MOST_WARY)
-        assertEquals(Regard.MOST_WARY, Regard(b, 9, far, 0f).wariness, 1e-6f)
+        // (No pair differs in every custom: where they lay their dead counts only where both bury them.)
+        assertEquals(1f + STRANGER_HOSTILITY + CUSTOMS_HOSTILITY * (CUSTOMS - 1f) / CUSTOMS, Regard(b, 9, far, 0f).wariness, 1e-6f)
         b.grudge[5] = FEUD + 0.1f
         assertTrue(Regard(b, 9, far).feud)
     }
@@ -93,7 +94,7 @@ class CultureAndMeetingsTest {
         assertTrue(totemAt(3, 0).none)
         val b = Band(20); val o = Band(20)
         b.lineage[3] = 1f; o.lineage[3] = 1f
-        b.ensureTotem(20); o.ensureTotem(20)
+        b.ensureMarks(20); o.ensureMarks(20)
         assertEquals(totemAt(3, 20), b.totem); assertEquals(b.totem, o.totem)
         assertEquals(0, Regard(b, 1, o, 1f).customsApart, "one lineage, one totem")
         o.totemBroken = TOTEM_SHAME_YEARS
@@ -101,14 +102,44 @@ class CultureAndMeetingsTest {
         assertEquals(1, Regard(b, 1, o, 1f).customsApart, "a band known to have eaten of its totem is one custom apart")
         // (Seen: three bands keeping another kind; itself counts for its own.)
         val other = FaunaKind((b.totem.i + 1) % 20)
-        val c = Band(20).also { it.totem = other; it.totemChosen = true }
+        val c = Band(20).also { it.totem = other; it.marksChosen = true }
         repeat(3) { b.hear(c, 1f) }
         assertEquals(0.75f, b.heardTotemShare(other), 1e-6f)
         assertEquals(0.25f, b.heardTotemShare(b.totem), 1e-6f)
         // (A band from a save made before totems hears of none until its first week.)
         val old = Band(0); old.hear(c, 1f)
-        old.ensureTotem(20)
+        old.ensureMarks(20)
         assertEquals(21, old.heardTotem.size); assertEquals(totemAt(old.mainLineage(), 20), old.totem)
+        assertEquals(burialWayAt(old.mainLineage()), old.burialWay)
+    }
+
+    @Test
+    fun `where bands lay their dead counts apart only between bands that bury them, and follows the many`() {
+        assertEquals(BurialWay.entries.toSet(), (0 until LINEAGES).map { burialWayAt(it) }.toSet(), "every way some lineage's")
+        val b = Band(0); val o = Band(0)
+        b.burialWay = BurialWay.AT_CAMP; o.burialWay = BurialWay.AT_ANCESTORS
+        assertEquals(0, Regard(b, 1, o, 1f).customsApart, "neither buries")
+        b.traditions[Tradition.BURIAL] = true; o.traditions[Tradition.BURIAL] = true
+        assertEquals(1, Regard(b, 1, o, 1f).customsApart)
+        repeat(3) { b.hear(o, 1f) }
+        assertEquals(0.75f, b.heardBurialShare(BurialWay.AT_ANCESTORS), 1e-6f)
+        assertEquals(0.25f, b.heardBurialShare(BurialWay.AT_CAMP), 1e-6f)
+        val c = Band(0)
+        b.hear(c, 1f)
+        assertEquals(0.75f, b.heardBurialShare(BurialWay.AT_ANCESTORS), 1e-6f, "bands that leave their dead do not count")
+    }
+
+    @Test
+    fun `an older belief bears more strain, and the part that breaks from it keeps none of it`() {
+        val b = Band(0)
+        assertEquals(STRAIN_SPLIT, b.strainBorne(), 1e-6f)
+        b.beliefYears = BELIEF_AGE_YEARS
+        assertEquals(2f * STRAIN_SPLIT, b.strainBorne(), 1e-6f, "a belief a generation old bears twice the strain")
+        b.rite[3] = 7; b.riteStrength = 2f; b.strain = 5f; b.riteOwed = 4f; b.riteDue = 7
+        b.dropBelief()
+        assertTrue(b.rite.all { it < 0 })
+        assertEquals(0f, b.riteStrength); assertEquals(0f, b.beliefYears); assertEquals(0f, b.strain); assertEquals(0f, b.riteOwed)
+        assertEquals(-1, b.riteDue)
     }
 
     @Test

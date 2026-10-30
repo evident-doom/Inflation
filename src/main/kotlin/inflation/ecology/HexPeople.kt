@@ -9,6 +9,7 @@ import inflation.Kg
 import inflation.KgM2
 import inflation.min
 import inflation.world.Date
+import inflation.world.Hex
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -216,9 +217,10 @@ internal fun HexGroups.choreAsks(g: HexGroup, b: Band, date: Date, asks: EnumFlo
     ask(Activity.MATERIALS, gatherMaterials(g, b, p, h, people, land.m2(p), null))
     // (What the shelters it aims at take beyond the days already given them first, when given: [survivalDays].)
     ask(Activity.SHELTER, shelterWork(b, people, if (moved) 0f else b.shelter, b.shelterWill) - (warm?.get(Activity.SHELTER) ?: 0f))
-    ask(Activity.CUSTOMS, cleanDays(b, people) + nurseDays(b, people))
+    ask(Activity.CUSTOMS, b.burialOwed + b.riteOwed + cleanDays(b, people) + nurseDays(b, people))
     ask(Activity.TRAINING, Skill.entries.sumOf { s -> (learners(b, s, people) * APPRENTICE_DAYS * s.complexity).toDouble() }.toFloat())
-    ask(Activity.TOOLS, makeTools(b, people, null))
+    // (What its kit asks beyond the clothes' days given first, when given: [survivalDays].)
+    ask(Activity.TOOLS, makeTools(b, people, null) - (warm?.get(Activity.TOOLS) ?: 0f))
     ask(Activity.ORNAMENTS, ornamentsWanted(b, people) * ORNAMENT_DAYS)
     // (A band that has just moved builds, sows and fortifies nothing where it has come to.)
     if (!moved) {
@@ -236,9 +238,10 @@ internal fun HexGroups.choreAsks(g: HexGroup, b: Band, date: Date, asks: EnumFlo
 
 /**
  * What a band that has died out leaves where it was: its food and the materials that rot go back to the ground,
- * its cache with them, and its herd goes wild among the animals of its kind there.
+ * its cache with them, its herd goes wild among the animals of its kind there, and its dogs go off as a pack of their
+ * wild kind (wild dogs are wolves), bold of people, added to [freed].
  */
-internal fun HexGroups.leaveDead(g: HexGroup) {
+internal fun HexGroups.leaveDead(g: HexGroup, freed: MutableList<HexGroup>) {
     val b = g.band ?: return
     val p = g.place
     val rots = ROTS.sumOf { b.goods[it].toDouble() }.toFloat()
@@ -251,6 +254,19 @@ internal fun HexGroups.leaveDead(g: HexGroup) {
         fauna.adults[k][p] += b.herd[k] / area; bands.herdFlows[HerdFlow.FREED] += b.herd[k]; bands.herdFlows[HerdFlow.ENDED_FREED] += 1f
         bands.kindFlows[k][HerdFlow.FREED] += b.herd[k]; bands.kindFlows[k][HerdFlow.ENDED_FREED] += 1f
         b.herd[k] = 0f; b.herdTame[k] = 0f; if (k < b.herdPet.size) b.herdPet[k] = 0f
+    }
+    for (i in b.kept.indices) {
+        val n = b.kept[i].toInt()
+        b.kept[i] = 0f
+        val s = Catalogue.all[i]
+        if (n < 1 || s !in kinds) continue
+        val pack = HexGroup(nextId++, s, p, n, 0)
+        pack.temper = Temperament.founder(pack.id, seedBase)
+        pack.fat = 0.5f * s.maxFatDays
+        pack.bold = 1f
+        claimGround(pack, hw.placeHex[p])
+        freed += pack
+        stats.meeting(Met.Of.DOGS_GONE_WILD, s.name, n)
     }
 }
 
@@ -282,6 +298,54 @@ internal fun GroupWorld.bandHerding(b: Band, hands: Int): Tally.Herding {
 }
 internal fun GroupWorld.bandLiving(b: Band) =
     if (b.atHome || b.campWeeks >= stepsPerYear / 2f) Tally.Living.SETTLED else Tally.Living.MOBILE
+
+/**
+ * The villages this week, for the reports: the hexes where two or more bands live settled ([bandLiving]), with those
+ * bands. Nothing chooses by it.
+ */
+internal fun HexGroups.villages(): Map<Hex, List<HexGroup>> {
+    val byHex = HashMap<Hex, ArrayList<HexGroup>>()
+    for (g in groups) {
+        val b = g.band ?: continue
+        if (g.alive && bandLiving(b) == Tally.Living.SETTLED) byHex.getOrPut(hw.placeHex[g.place]) { ArrayList() } += g
+    }
+    return byHex.filterValues { it.size >= 2 }
+}
+
+/**
+ * What the census reads of villages ([villages]) since it last did: weeks counted; village-weeks; bands and people in
+ * them, summed over the weeks; people living settled and all bands' people, the same; village-weeks with a palisade
+ * standing; villages that ended and the weeks they had lasted; the most bands in one village; people in villages at home in
+ * their houses (the rest camped long).
+ */
+enum class VillageFlow { WEEKS, VILLAGE_WEEKS, BANDS, PEOPLE, SETTLED_PEOPLE, ALL_PEOPLE, PALISADED, ENDED, ENDED_WEEKS, MOST_BANDS, PEOPLE_AT_HOME }
+
+/** Books this week's villages for the census ([Bands.villageFlows]): once a week, after the bands' weeks. */
+internal fun HexGroups.tallyVillages() {
+    val f = bands.villageFlows; val age = bands.villageAge
+    val now = villages()
+    f[VillageFlow.WEEKS] += 1f
+    for (g in groups) {
+        val b = g.band ?: continue
+        if (!g.alive) continue
+        f[VillageFlow.ALL_PEOPLE] += g.size.toFloat()
+        if (bandLiving(b) == Tally.Living.SETTLED) f[VillageFlow.SETTLED_PEOPLE] += g.size.toFloat()
+    }
+    for ((h, bs) in now) {
+        f[VillageFlow.VILLAGE_WEEKS] += 1f
+        f[VillageFlow.BANDS] += bs.size.toFloat()
+        f[VillageFlow.PEOPLE] += bs.sumOf { it.size }.toFloat()
+        f[VillageFlow.PEOPLE_AT_HOME] += bs.sumOf { g -> if (g.band?.atHome == true) g.size else 0 }.toFloat()
+        f[VillageFlow.MOST_BANDS] = max(f[VillageFlow.MOST_BANDS], bs.size.toFloat())
+        if (bs.any { g -> g.band.let { it != null && it.atHome && it.palisade > 0.05f } }) f[VillageFlow.PALISADED] += 1f
+        age[h] = (age[h] ?: 0) + 1
+    }
+    val ages = age.entries.iterator()
+    while (ages.hasNext()) {
+        val e = ages.next()
+        if (e.key !in now) { f[VillageFlow.ENDED] += 1f; f[VillageFlow.ENDED_WEEKS] += e.value.toFloat(); ages.remove() }
+    }
+}
 
 /**
  * [b]'s births against those of a band without weaning food ([SPACING_MOST] over its spacing): gruel weans children early

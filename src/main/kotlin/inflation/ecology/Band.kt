@@ -243,7 +243,7 @@ class Band(kinds: Int) {
     /**
      * Of each kind, the years left of the time its herd, begun from young caught in the hunt, is kept as pets: small animals
      * kept for their own sake, as companions, and not yet weighed as food ([keepHerds]) till the young it was begun with have
-     * grown ([Species.yearsToMaturity]). 0 for a herd kept for food. (Empty in a band loaded from a save made before it;
+     * grown, or sooner for a kind of bad temper ([petYears]). 0 for a herd kept for food. (Empty in a band loaded from a save made before it;
      * [keepHerds] sizes it to [herd].)
      */
     var herdPet = FloatArray(kinds)
@@ -437,6 +437,7 @@ class Band(kinds: Int) {
         heardOf += u
         val i = totemSlot(o.keptTotem)
         if (i < heardTotem.size) heardTotem[i] += u
+        if (o.holds(Tradition.BURIAL)) heardBurial[o.burialWay] += u
     }
     /**
      * The share of the bands it met lately, itself counted as one, that hold [t] as [held] (for its marks: [conformist]).
@@ -447,12 +448,13 @@ class Band(kinds: Int) {
     }
     /**
      * The resident kind its people do not hunt or eat (its totem; [FaunaKind.NONE] for none), and whether it has one yet
-     * (a band from a save made before totems takes its lineage's at its first week: see [ensureTotem]). Of the bands it met
+     * (a band from a save made before totems takes its lineage's at its first week: see [ensureMarks]). Of the bands it met
      * lately, how many kept each kind as theirs, the last for none ([heardTotem], fading as [heard]). Years left that the bands
      * of its totem who meet it know it ate of it ([totemBroken]; see [keptTotem]).
      */
     var totem = FaunaKind.NONE
-    var totemChosen = false
+    /** Whether it has its totem and burial way yet ([ensureMarks]). */
+    var marksChosen = false
     var heardTotem = FloatArray(kinds + 1)
     var totemBroken = 0f
     /** Its totem as the bands it meets see it: none while it is known to have eaten of it. */
@@ -464,11 +466,24 @@ class Band(kinds: Int) {
         val i = totemSlot(k)
         return ((if (i < heardTotem.size) heardTotem[i] else 0f) + (if (totem == k) 1f else 0f)) / (heardOf + 1f)
     }
-    /** Gives a band without a totem yet ([totemChosen]) its lineage's, among [kinds] resident kinds, and room to hear of them all. */
-    fun ensureTotem(kinds: Int) {
+    /**
+     * Where it lays its dead, if it buries them ([Tradition.BURIAL]); of the burying bands it met lately, how many laid them
+     * each way ([heardBurial], fading as [heard]); and the person-days its burials still ask of it ([burialOwed]: digging, and
+     * carrying the dead to its ancestors, done as its customs' time allows: [GroupWorld.keepCustoms]).
+     */
+    var burialWay = BurialWay.AT_CAMP
+    val heardBurial = enumFloats<BurialWay>()
+    var burialOwed = 0f
+    /** The share of the burying bands it met lately, itself counted as one, that lay their dead as [w] (for [conformist]). */
+    fun heardBurialShare(w: BurialWay) = (heardBurial[w] + (if (burialWay == w) 1f else 0f)) / (heardBurial.sum() + 1f)
+    /**
+     * Gives a band without its marks yet ([marksChosen]) its lineage's totem (among [kinds] resident kinds) and burial way,
+     * and room to hear of every kind.
+     */
+    fun ensureMarks(kinds: Int) {
         if (heardTotem.size != kinds + 1) heardTotem = FloatArray(kinds + 1)
-        if (totemChosen) return
-        totem = totemAt(mainLineage(), kinds); totemChosen = true
+        if (marksChosen) return
+        totem = totemAt(mainLineage(), kinds); burialWay = burialWayAt(mainLineage()); marksChosen = true
     }
     val words = IntArray(Language.CONCEPTS)
     val lineage = FloatArray(LINEAGES)
@@ -491,26 +506,49 @@ class Band(kinds: Int) {
     fun learn(h: Hex, size: Int) { if (known.size * 64 < size) known = known.copyOf((size + 63) / 64); known[h.i / 64] = known[h.i / 64] or (1L shl (h.i % 64)) }
 
     /**
-     * The rite its culture holds it to in [month], if any: the place it must go to then and how strongly
-     * (see [inflation.ecology.roundOf]): the site of its rite that month ([rite]) at the strength its
-     * people hold to their rites ([riteStrength]); none in a month without a site, or with no hold.
-     */
-    fun riteFor(month: Int): RoundPull? {
-        if (riteStrength <= 0f) return null
-        // (A rite's month is spent at its site: the band is drawn there from the month before, and kept
-        // there until the month after, unless that has its own.)
-        val site = if (rite[month] >= 0) rite[month] else rite[wrapMonth(month - 1)]
-        return if (site >= 0) RoundPull(site, riteStrength) else null
-    }
-    /**
-     * Its rites: for each month, the place its round of observance takes it to then (-1: none) — the
-     * graves of its dead, where bands gather, far landmarks it walked to or was told of (see [riteWeek]).
-     * Handed down whole to bands that split off, taken up from bands met, now and then let go; never
-     * chosen for what they bring, so a rite that costs lives lasts as long as the line that keeps it.
+     * Its rites: for each month, the place it holds sacred then (-1: none) — the graves of its dead, where
+     * bands gather, far landmarks it walked to or was told of (see [riteWeek]). Handed down whole to bands
+     * that split off, taken up from bands met, now and then let go: customs that mark a band's line. They
+     * do not draw its moves (model 4.89): a trip to a rite's site will be an action the band chooses.
      */
     val rite = IntArray(12) { -1 }
     /** How strongly its people hold to their rites (0: not at all; see [inflation.Tuning.riteFounderMax]). */
     var riteStrength = 0f
+    /**
+     * The person-days its rites still ask of it ([riteOwed]: [RITE_DAYS] an adult for each rite held, done as its customs'
+     * time allows after its burials, [GroupWorld.keepCustoms], in the rite's month only), and the month, counted from the world's start, it last held
+     * one ([riteHeld]), so that a rite is owed once in its month.
+     */
+    var riteOwed = 0f
+    var riteHeld = -1L
+    /** The site of the rite its days are owed to ([riteOwed]), held once they are given; -1: none under way. */
+    var riteDue = -1
+    /** The month, counted from the world's start, it last held a rite to the end (-1: never). */
+    var riteKept = -1L
+    /**
+     * Its belief is its rites as a whole: the years it has kept them ([beliefYears], its weight: the older, the more strain
+     * it bears), and the strain of rites it could not hold ([strain]: one a rite cut short, easing in weeks it eats its
+     * fill), which splits the band once it passes what the belief bears ([strainBorne]).
+     */
+    var beliefYears = 0f
+    var strain = 0f
+    /**
+     * The omen it remembers ([GroupWorld.omen]): the place, month and year of a salient event and how many times what it
+     * is used to it was ([omenWeight], fading); -1: none. And its usual deaths a week a head ([deathsUsual], over about a year).
+     */
+    var omenPlace = -1
+    var omenMonth = 0
+    var omenYear = 0L
+    var omenWeight = 0f
+    var deathsUsual = 0f
+    /** How it chooses ([Mind]): today's way, or the planning kind's. Handed down whole at a split; a band never joins one of the other mind. */
+    var mind = Mind.NETS
+    /** The strain its belief bears before part of the band breaks from it. */
+    fun strainBorne() = STRAIN_SPLIT * (1f + beliefYears / BELIEF_AGE_YEARS)
+    /** Gives up its belief: its rites, its hold on them and what they asked of it (the part of a band that broke away). */
+    fun dropBelief() {
+        rite.fill(-1); riteStrength = 0f; beliefYears = 0f; strain = 0f; riteOwed = 0f; riteDue = -1; omenPlace = -1; omenWeight = 0f
+    }
 
     fun holds(t: Tradition) = traditions[t]
     fun mainLineage(): Int { var best = 0; for (i in lineage.indices) if (lineage[i] > lineage[best]) best = i; return best }
@@ -560,9 +598,11 @@ class Band(kinds: Int) {
         fine.copyInto(o.fine)
         o.salted = salted; o.dryDepth = dryDepth
         o.renown = renown
-        rite.copyInto(o.rite); o.riteStrength = riteStrength
+        rite.copyInto(o.rite); o.riteStrength = riteStrength; o.riteHeld = riteHeld; o.riteKept = riteKept; o.beliefYears = beliefYears; o.strain = strain
+        o.omenPlace = omenPlace; o.omenMonth = omenMonth; o.omenYear = omenYear; o.omenWeight = omenWeight; o.deathsUsual = deathsUsual; o.mind = mind
         traditions.copyInto(o.traditions); heard.copyInto(o.heard); o.heardOf = heardOf
-        o.totem = totem; o.totemChosen = totemChosen; o.heardTotem = heardTotem.copyOf(); o.totemBroken = totemBroken; words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
+        o.totem = totem; o.marksChosen = marksChosen; o.heardTotem = heardTotem.copyOf(); o.totemBroken = totemBroken
+        o.burialWay = burialWay; heardBurial.copyInto(o.heardBurial); words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
         o.inbred = inbred; o.campWeeks = campWeeks; o.campPlace = campPlace; o.known = known.copyOf(); kept.copyInto(o.kept)
         copied(o)
         for (i in o.kept.indices) { o.kept[i] *= share; kept[i] -= o.kept[i] }
@@ -627,6 +667,9 @@ class Band(kinds: Int) {
         for (t in Tradition.entries) a.heard[t] += b.heard[t]
         a.heardOf += b.heardOf
         for (i in 0 until min(a.heardTotem.size, b.heardTotem.size)) a.heardTotem[i] += b.heardTotem[i]
+        for (w in BurialWay.entries) a.heardBurial[w] += b.heardBurial[w]
+        a.burialOwed += b.burialOwed
+        a.riteOwed += b.riteOwed
         for ((k, v) in b.ties) if (k != id) a.ties[k] = max(a.tie(k), v)
         a.ties.remove(bId)
         for ((k, v) in b.favours) if (k != id) a.favours.merge(k, v, Float::plus)
@@ -711,10 +754,13 @@ class Band(kinds: Int) {
     /** How its weapons, hunting skill and dogs do against [prey], against an ordinary armed, practised band without dogs (1). */
     fun huntEdge(prey: Species, tuning: Tuning) =
         skill(Skill.HUNT) * edge(Skill.STALK) * (WEAPONLESS + (1f - WEAPONLESS) * has(Tool.SPEAR) * serveOfMake(Tool.SPEAR, fine[Tool.SPEAR], tuning) +
-            BOW_GAIN * has(Tool.BOW) * serveOfMake(Tool.BOW, fine[Tool.BOW], tuning) * min(1f, prey.speedKmh / 70f)) * (1f + DOG_HUNT * dogShare)
+            BOW_GAIN * has(Tool.BOW) * serveOfMake(Tool.BOW, fine[Tool.BOW], tuning) * min(1f, prey.speedKmh / 70f)) *
+            (1f + DOG_HUNT * dogShare * max(0f, 1f - prey.massKg / DOG_PREY_KG))
 
-    /** Its dogs against its hunters (one to three a full pack): they track, bay and hold game, and bark at night. */
+    /** Its dogs against its hunters (one to three a full pack): they track, bay and hold small game, and bark at night. */
     var dogShare = 0f
+    /** How far its dogs were fed this week, 0..1 (1 with none; for the census). */
+    @Transient var dogFed = 1f
 
     /** Its people's fighting weight per kg: with spears and bows lions and hyenas give way; without, they are no match. */
     fun ferocity(s: Species) = s.ferocity * (WEAPONLESS + (1f - WEAPONLESS) * has(Tool.SPEAR) + 0.5f * has(Tool.BOW))
@@ -739,20 +785,22 @@ class Band(kinds: Int) {
     /** How much better (above 1) or worse it does at [s] than a start band. */
     fun edge(s: Skill) = 1f / lapse(s)
     /** The insulation of the clothes its people wear by day, clo: a whole kit at [CLOTHES_CLO], as well sewn as its hands sew. */
-    fun clothesClo() = CLOTHES_CLO * has(Tool.CLOTHES) * skill(Skill.SEWING)
+    fun clothesClo(clothes: Float = has(Tool.CLOTHES)) = CLOTHES_CLO * clothes * skill(Skill.SEWING)
     /** How far houses shelter it where it is: its home's, at home. */
     fun homeShelter() = if (atHome) house else 0f
     /** How much warmer than [t] °C outside its houses keep: by the wood their hearths burn ([fire], [FIRE_HOUSE_KG_C]), and the ground's warmth through sunken walls. */
     fun houseWarmC(t: Float, fire: Float = 1f) = fire * HEARTH_WOOD / FIRE_HOUSE_KG_C + homeEarth * max(0f, homeGroundC - t)
-    /** What it has against the cold at [t] °C with a fire of [fire] and houses sheltering it as far as [home] ([BodyHeat]). */
-    fun cover(t: Float, fire: Float, home: Float, shelter: Float = this.shelter) = Cover(clothesClo(), fire, shelter, home, houseWarmC(t, fire))
+    /** What it has against the cold at [t] °C with a fire of [fire] and houses sheltering it as far as [home] ([BodyHeat]), in a kit of [clothes]. */
+    fun cover(t: Float, fire: Float, home: Float, shelter: Float = this.shelter, clothes: Float = has(Tool.CLOTHES)) =
+        Cover(clothesClo(clothes), fire, shelter, home, houseWarmC(t, fire))
     /**
      * Its week of [days] in [air] with a fire of [fire] and houses sheltering it as far as [home], by its people's body heat
      * ([BodyHeat]): the food keeping warm takes, and the deaths of exposure. Fur clothes, robes at night, a fire, a shelter
      * with its bedding or a house keep people alive in deep cold; the naked die of exposure in a night a few degrees above
      * freezing, wet and windy.
      */
-    fun warmth(air: Air, fire: Float, home: Float, days: Int, shelter: Float = this.shelter) = BodyHeat.week(air, cover(air.meanC, fire, home, shelter), days, sisu)
+    fun warmth(air: Air, fire: Float, home: Float, days: Int, shelter: Float = this.shelter, clothes: Float = has(Tool.CLOTHES)) =
+        BodyHeat.week(air, cover(air.meanC, fire, home, shelter, clothes), days, sisu)
 
     companion object {
         /**
@@ -771,7 +819,7 @@ class Band(kinds: Int) {
             lineage[l] = 1f
             wordsAt(x, y).copyInto(words)
             traditionsAt(l).copyInto(traditions)
-            totem = totemAt(l, kinds); totemChosen = true
+            totem = totemAt(l, kinds); burialWay = burialWayAt(l); marksChosen = true
             riteStrength = riteStrengthAt(l, tuning)
             skills[Skill.GATHER] = START_CRAFT; skills[Skill.SMALL_GAME] = START_CRAFT; skills[Skill.HUNT] = START_CRAFT
             skills[Skill.FISH] = if (nearWater) 0.5f else 0.1f; skills[Skill.STORE] = 0.4f
