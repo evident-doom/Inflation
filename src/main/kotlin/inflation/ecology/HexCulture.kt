@@ -1042,7 +1042,8 @@ internal fun GroupWorld.riteMeet(a: Band, b: Band, ab: Regard, ba: Regard) {
 
 /**
  * Omens ([Band.omenPlace]): what a band marks is [SALIENT] times what it is used to or more (deaths in a week against its
- * usual, [Band.deathsUsual]; weeks of hunger broken, against [LEAN_USUAL_WEEKS], a hungry month a year); it fades to a
+ * usual, [Band.deathsUsual]; steps of hunger broken, against [LEAN_USUAL_WEEKS], two hungry steps on end, so that a
+ * spell of six or more, about five weeks, is marked); it fades to a
  * third over [OMEN_YEARS] and is forgotten once no more than the usual, unless borne out; one [OMEN_AT_ONCE] times the usual
  * is a rite at once. A band can't make a rite of what is usual for it.
  * Estimates; no figure found.
@@ -1050,7 +1051,7 @@ internal fun GroupWorld.riteMeet(a: Band, b: Band, ab: Regard, ba: Regard) {
 const val SALIENT = 3f
 const val OMEN_AT_ONCE = 10f
 const val OMEN_YEARS = 1f
-const val LEAN_USUAL_WEEKS = 4f
+const val LEAN_USUAL_WEEKS = 2f
 
 /**
  * Strange things a band sees in a year, good signs and bad alike; how strange each is, against the usual, falls off as
