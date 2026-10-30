@@ -14,8 +14,8 @@ import kotlin.math.roundToInt
  * its week goes in tiers ([PlanTier]):
  * - what its customs owe ([PlanTier.OBLIGED]: rites and burials, keeping clean and nursing where it holds to them, its ornaments), not
  *   scored in lives: belief and custom decide them, and what cannot be paid strains them as now;
- * - what it holds by lives saved ([PlanTier.SCORED]): a few days at a time to whichever of the stores and the houses saves the
- *   more lives a day ([planLives]), until neither saves any more or the days are gone;
+ * - what it holds by lives saved ([PlanTier.SCORED]): first to whichever of the stores and the houses saves the
+ *   more lives a day ([planRates]), each as far as it asks, while it saves any;
  * - what has no reckoning in lives yet ([PlanTier.UNRECKONED]: tools beyond the clothes, training, materials, drying, skins, caching,
  *   sowing, palisade, weirs), shared out at equal weights of what is left, no dials;
  * - and what is left is its leisure ([PlanTier.LEISURE]), held as such, so no chore takes it.
@@ -38,30 +38,15 @@ internal fun HexGroups.planDays(g: HexGroup, b: Band, weather: Weather, time: Ba
     val paid = BandTime.shareOut(owed, floatArrayOf(1f, 1f), left)
     given[Activity.CUSTOMS] = paid[0] * time.pace(Activity.CUSTOMS); given[Activity.ORNAMENTS] = paid[1] * time.pace(Activity.ORNAMENTS)
     left -= paid.sum()
-    // What it holds by lives saved.
-    val lives = planLives(g, b, weather, perDay, asks[Activity.HOUSES] > 0f)
+    // What it holds by lives saved: each item's days at the lives a day of it saves, the best first, each as far as it
+    // asks this week ([planRates]).
+    val rate = planRates(g, b, weather, perDay, asks[Activity.HOUSES] > 0f)
     val ask = floatArrayOf(asks[Activity.FOOD], asks[Activity.HOUSES])
     val acts = arrayOf(Activity.FOOD, Activity.HOUSES)
     val d = FloatArray(SCORED_ITEMS)
-    var now = lives.saved(d)
-    val chunk = max(1e-3f, left / CHUNKS)
-    val trial = FloatArray(SCORED_ITEMS)
-    while (left > 1e-4f) {
-        var best = -1; var bestGain = 0f; var bestWork = 0f
-        for (i in 0 until SCORED_ITEMS) {
-            val room = ask[i] - d[i]
-            if (room <= 0f) continue
-            val pace = time.pace(acts[i])
-            // (A few days more, or all it asks: whichever saves more for its days, as in [survivalDays].)
-            for (work in floatArrayOf(min(room, chunk * pace), min(room, left * pace))) {
-                d.copyInto(trial); trial[i] += work
-                val more = lives.saved(trial) - now; val gain = more / (work / pace)
-                if (more > SAVES_NONE * g.size && gain > bestGain) { best = i; bestGain = gain; bestWork = work }
-            }
-        }
-        if (best < 0) break
-        d[best] += bestWork; left -= bestWork / time.pace(acts[best])
-        now = lives.saved(d)
+    for (i in (0 until SCORED_ITEMS).sortedByDescending { rate[it] }) {
+        if (rate[i] <= SAVES_NONE * g.size || left <= 0f) continue
+        d[i] = min(ask[i], left * time.pace(acts[i])); left -= d[i] / time.pace(acts[i])
     }
     for (i in 0 until SCORED_ITEMS) given[acts[i]] = d[i]
     left = max(0f, left)
@@ -80,38 +65,42 @@ internal fun HexGroups.planDays(g: HexGroup, b: Band, weather: Weather, time: Ba
     add(PlanTier.ASKED_BEYOND, max(0f, rest.sum() - shared.sum()))
     add(PlanTier.STORES_ASKED, days(Activity.FOOD, ask[0])); add(PlanTier.STORES_HELD, days(Activity.FOOD, d[0]))
     add(PlanTier.HOUSES_ASKED, days(Activity.HOUSES, ask[1])); add(PlanTier.HOUSES_HELD, days(Activity.HOUSES, d[1]))
-    stats.hunting.merge(Tally.planTier(PlanTier.LIVES), (1e4f * (now - lives.saved(FloatArray(SCORED_ITEMS)))).roundToInt(), Int::plus)
+    stats.hunting.merge(Tally.planTier(PlanTier.LIVES), (1e4f * (d[0] * rate[0] + d[1] * rate[1])).roundToInt(), Int::plus)
     return given
 }
 
 /**
- * What [planDays]' scored items save of band [b]'s (group [g]'s) people through the year ahead, by the sim's own forecast
- * ([yearAhead], [YearAhead.alive]):
- * - the stores ([Activity.FOOD] beyond the week's food): what [perDay] kg a day of work lays by, in the larder from now;
+ * The lives a day of work at each of [planDays]' scored items saves of band [b]'s (group [g]'s) people through the year ahead,
+ * by the sim's own forecast ([yearAhead], [YearAhead.alive]), each reckoned over the whole of what it is for and shared
+ * out over the days the whole takes:
+ * - the stores ([Activity.FOOD] beyond the week's food): filling its larder to the stores it aims at ([Band.storeAimAt1]:
+ *   its lean days foreseen and a margin), at [perDay] kg a day of work;
  * - houses ([Activity.HOUSES]): a whole house's lives a year ([houseLivesAYear]: exposure averted) and its food a year
- *   ([houseFoodAYear]: what keeping warm no longer takes, as larder), over the years it expects to stay ([Band.stayWeeks]),
- *   a day of work worth its share of a whole house's days ([HOUSE_DAYS] a person). Its effects come in only once it is
- *   whole; the share is the forecast's estimate.
+ *   ([houseFoodAYear]: what keeping warm no longer takes, as larder) over the years it expects to stay ([Band.stayWeeks]),
+ *   over a whole house's days ([HOUSE_DAYS] a person).
+ * (Reckoned a week's work at a time, from what it has, the first days of either did nothing: a larder a few days fuller
+ * leaves a lean spell that burns past the body's protein as deadly, and a house's food came in as a week's sliver of it.
+ * The forecast foresaw as much hunger as came, and more (ab461c, 2026-10-30), yet the stores were given 2 to 3% of their
+ * ask, the houses none (ab461b). A whole is worth what it saves; the band works towards it a week at a time.)
  * Not foreseen, as in [yearAhead]: the larder spoiling or raided, and the year beyond the next. ([houses]: whether it asks
  * for days for houses; the houses are reckoned only then.)
  */
-private fun HexGroups.planLives(g: HexGroup, b: Band, weather: Weather, perDay: Float, houses: Boolean): PlanLives {
+private fun HexGroups.planRates(g: HexGroup, b: Band, weather: Weather, perDay: Float, houses: Boolean): FloatArray {
     val year = yearAhead(g, b, weather)
     val need = g.dailyNeedKg.coerceAtLeast(1e-3f)
     val people = g.size.toFloat()
-    val stayYears = max(b.stayWeeks, b.campWeeks + 1f) / stepsPerYear
-    val houseDays = HOUSE_DAYS * g.adults.coerceAtLeast(1)
-    // (Reckoned only when it asks for days for houses.)
-    val houseLives = if (houses) houseLivesAYear(b, g.place, weather) * people * stayYears / houseDays else 0f
-    val houseKg = if (houses) houseFoodAYear(g, b, g.place, weather) * people * stayYears / houseDays else 0f
-    return PlanLives { d ->
-        val kg = d[0] * perDay + d[1] * houseKg
-        people * year.alive(g.species, (g.larder + kg) / need, g.fat, g.spent) + d[1] * houseLives
+    fun alive(kg: Float) = people * year.alive(g.species, (g.larder + kg) / need, g.fat, g.spent)
+    val now = alive(0f)
+    val rate = FloatArray(SCORED_ITEMS)
+    val gap = b.storeAimAt1 * need - g.larder
+    if (gap > 0f && perDay > 0f) rate[0] = (alive(gap) - now) / (gap / perDay)
+    if (houses) {
+        val stayYears = max(b.stayWeeks, b.campWeeks + 1f) / stepsPerYear
+        val kg = houseFoodAYear(g, b, g.place, weather) * people * stayYears
+        rate[1] = (houseLivesAYear(b, g.place, weather) * people * stayYears + alive(kg) - now) / (HOUSE_DAYS * g.adults.coerceAtLeast(1))
     }
+    return rate
 }
-
-/** The people of a band alive through the year ahead with the days of work [planDays] gives each scored item. */
-private fun interface PlanLives { fun saved(d: FloatArray): Float }
 
 /**
  * The tiers of a [Mind.PLANS] band's week beyond its essentials ([planDays]), for the census, person-days ([LIVES]: the
@@ -128,7 +117,5 @@ enum class PlanTier(val label: String) {
 private val UNRECKONED_ACTS = arrayOf(Activity.TOOLS, Activity.TRAINING, Activity.MATERIALS, Activity.DRYING, Activity.SKINS, Activity.CACHING,
     Activity.SOWING, Activity.PALISADE, Activity.WEIRS)
 private const val SCORED_ITEMS = 2
-/** The pieces the week is given out in, as in [survivalDays]. */
-private const val CHUNKS = 40f
 /** Fewer lives than this a person are none saved: the rounding in the reckoning, not a difference. */
 private const val SAVES_NONE = 1e-6f
