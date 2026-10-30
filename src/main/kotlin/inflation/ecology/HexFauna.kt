@@ -287,6 +287,13 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     val strongest = FloatArray(n)
 
     /**
+     * The bands camped in each place with kept herds, by place, as the week starts ([HexGroups.herdsForBeasts] fills it before
+     * the residents' week): the resident hunters take from their herds as from game ([huntResidents]). Not saved: made afresh
+     * each week from the bands.
+     */
+    @Transient internal var keptAt: Map<Int, List<Band>>? = null
+
+    /**
      * The odds that a resident of kind [k] at place [p] (one of its young if [young]) is killed by hunters in a week, all of
      * them: the residents' hunters as they hunted there this week ([residentKillOdds]) and the hunting parties as they did
      * in their last week ([groupKilled]).
@@ -336,6 +343,12 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             wY[j] = young[j][p] * ym * catchable(hunter, s, ym, p)
             total += wA[j] + wY[j]
         }
+        // (And the herds kept at bands' camps there, as their kind in the wild, through each band's guard against beasts
+        // ([stalkGuard]: by night its fire, dogs, watch and palisade, by day its dogs); kg per km² as the game.)
+        val camps = keptAt?.get(p.i)
+        val wK = if (camps != null) Array(camps.size) { c -> val b = camps[c]; val guard = stalkGuard(b, 0f, b.fencedNow())
+            FloatArray(b.herd.size) { j -> if (j == k.i || b.herd[j] < 1f) 0f else { val s = kinds[j]
+                (b.herd[j] / area * s.massKg * catchable(hunter, s, s.massKg, p) * guard).also { total += it } } } } else null
         if (total <= 0f) return KgM2.ZERO
         // (Its need is reckoned in the weight of the prey it kills, the parts it leaves included ([Allometry.dailyIntakeKg]);
         // of each kill it eats [MEAT_SHARE] and leaves the rest as carrion. At most [RESIDENT_KILL_MOST] of the game in the
@@ -353,6 +366,19 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             adults[j][p] = max(0f, adults[j][p] - fromA / s.massKg)
             young[j][p] = max(0f, young[j][p] - fromY / (YOUNG_WEIGHT * s.massKg))
             huntedByResidents[j][p] += (fromA / s.massKg + fromY / (YOUNG_WEIGHT * s.massKg)) * land.areaKm2[p]
+            small.deposit(DeadPool.CARRION, p, KgKm2(kg * (1f - MEAT_SHARE)).perM2)
+            ate += KgKm2(kg).perM2
+            ateBook?.add(-(kg * MEAT_SHARE * area).toDouble())
+        }
+        // (What it takes of the herds comes out of the bands' herds, the band to learn of it as it keeps them: [Band.herdTaken].)
+        if (camps != null && wK != null) for ((c, b) in camps.withIndex()) for (j in b.herd.indices) {
+            if (wK[c][j] <= 0f) continue
+            val s = kinds[j]
+            val heads = min(b.herd[j], want.v * wK[c][j] / total * area / s.massKg)
+            val kg = heads * s.massKg / area
+            b.herd[j] -= heads
+            if (b.herdTaken.size != b.herd.size) b.herdTaken = FloatArray(b.herd.size)
+            b.herdTaken[j] += heads
             small.deposit(DeadPool.CARRION, p, KgKm2(kg * (1f - MEAT_SHARE)).perM2)
             ate += KgKm2(kg).perM2
             ateBook?.add(-(kg * MEAT_SHARE * area).toDouble())

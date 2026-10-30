@@ -61,7 +61,7 @@ class StringKeysTest {
 
     @Test
     fun `the model matches no keys by their text`() = check("""\.(?:startsWith|endsWith|substringAfter|substringBefore|removePrefix|removeSuffix)\(""", mapOf(
-        "ecology/HexHistory.kt" to (19 to "history series by prefix: the CSV columns are text (reports only)"),
+        "ecology/HexHistory.kt" to (20 to "history series by prefix: the CSV columns are text (reports only)"),
         "ecology/WeekStats.kt" to (8 to "the Tally builders' own parsing"),
         "ecology/HuntDiag.kt" to (2 to "the hunt steps' own prefix"),
         "ecology/HexSnapshot.kt" to (2 to "class names when saving"),
