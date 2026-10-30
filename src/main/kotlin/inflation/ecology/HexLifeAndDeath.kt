@@ -205,6 +205,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
             cultureWeek(g)
             riteWeek(g, weather)
         }
+        groups += bands.strays; bands.strays.clear()
         // Holy places fade while no one comes.
         if (tuning.rounds) { val keep = exp(-years / SANCTITY_YEARS); for (p in land.sanctity.indices) land.sanctity[p] *= keep }
         fightRaids(weather)
