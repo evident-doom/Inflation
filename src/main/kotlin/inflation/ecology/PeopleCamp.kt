@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.EnumFloats
 import inflation.enumFloats
 import inflation.world.Hex
 import inflation.world.Place
@@ -108,20 +109,50 @@ private fun GroupWorld.mendingStockKg(g: HexGroup, b: Band) = Material.entries.s
 
 /** The kg of its stores [g]'s band [b] cannot carry in its loads ([carryKg], [carryLoads]) beside its mending stock: what it caches or leaves when it moves camp. */
 internal fun GroupWorld.leftBehindKg(g: HexGroup, b: Band): Float {
-    val left = leftBehindShare(g, b)
-    if (left <= 0f) return 0f
-    return Store.entries.sumOf { (g.stores[it] * left * g.storeKgPer[it]).toDouble() }.toFloat()
+    val carried = storesCarried(g, b)
+    return Store.entries.sumOf { ((g.stores[it] - carried[it]) * g.storeKgPer[it]).toDouble() }.toFloat()
 }
 
 /** The share of its stores [g]'s band [b] cannot carry on a camp move ([leftBehindKg]): 0 where it carries them all. */
 internal fun GroupWorld.leftBehindShare(g: HexGroup, b: Band): Float {
     val total = g.larder
-    val carry = foodCarried(g, b)
-    return if (total <= carry) 0f else 1f - carry / total
+    return if (total <= 0f) 0f else max(0f, 1f - storesCarried(g, b).sum() / total)
 }
 
-/** The food [g]'s band [b] can carry on a camp move, in its loads beside its mending stock: what it does not cache or leave. */
-internal fun GroupWorld.foodCarried(g: HexGroup, b: Band) = max(0f, carryKg(g, b) * carryLoads(b) - mendingStockKg(g, b))
+/** The kg of food [g]'s band [b] has room for on a camp move, in its loads beside its mending stock. */
+internal fun GroupWorld.foodRoomKg(g: HexGroup, b: Band) = max(0f, carryKg(g, b) * carryLoads(b) - mendingStockKg(g, b))
+
+/**
+ * What of its stores [g]'s band [b] carries on a camp move, by kind, as [HexGroup.stores] counts them: what keeps longest
+ * first ([CARRY_ORDER]), each kind as far as its weight ([HexGroup.storeKgPer]) leaves room ([foodRoomKg]). What it cannot
+ * carry is cached or left.
+ */
+internal fun GroupWorld.storesCarried(g: HexGroup, b: Band): EnumFloats<Store> {
+    val carried = enumFloats<Store>()
+    var room = foodRoomKg(g, b)
+    for (st in CARRY_ORDER) {
+        val kgPer = g.storeKgPer[st].coerceAtLeast(1e-6f)
+        val x = min(g.stores[st], room / kgPer)
+        carried[st] = x; room = max(0f, room - x * kgPer)
+    }
+    return carried
+}
+
+/**
+ * The food [g]'s band [b] can carry on a camp move, as its stores count it: what it carries ([storesCarried]) where it
+ * cannot carry all of them; else as much as its room would hold of food weighing what its stores weigh on the mean. For
+ * the forecast's moves ([yearAhead], [storesAlive]).
+ */
+internal fun GroupWorld.foodCarried(g: HexGroup, b: Band): Float {
+    val room = foodRoomKg(g, b)
+    val carried = storesCarried(g, b)
+    var worth = 0f; var kg = 0f
+    for (st in Store.entries) { worth += carried[st]; kg += carried[st] * g.storeKgPer[st] }
+    return if (worth < g.larder) worth else if (kg > 0f) room * worth / kg else room
+}
+
+/** The order a band packs its stores in on a camp move ([storesCarried]): what keeps longest first, the reverse of [EAT_ORDER]. */
+private val CARRY_ORDER = EAT_ORDER.reversed()
 
 /** What [g]'s band can carry in one load, kg: its adults' loads, more with baskets and bags. */
 private fun carryKg(g: HexGroup, b: Band) = CARRY_KG * max(1, g.adults) * (1f + BASKET_GAIN * b.has(Tool.BASKET))
@@ -155,19 +186,18 @@ internal fun loadedKmh(massKg: Float, loadKg: Float): Float {
  */
 internal fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, weather: Weather, date: Date, time: BandTime) {
     if (b.campPlace.none || h != hw.placeHex[b.campPlace]) {
-        // Moving camp: food that cannot be carried is cached at the old camp (an older cache is given
+        // Moving camp: it packs what keeps longest first ([storesCarried]); food that cannot be carried is cached at the old camp (an older cache is given
         // up to the mice), and the grinding stones are left behind.
         if (!b.campPlace.none) {
             // (Some goods are taken first: see [mendingKg].)
             b.movedCamp = true
-            val carry = foodCarried(g, b)
+            val carried = storesCarried(g, b)
             dialUse?.amount(DialSite.CARRY_LOADS, carryLoads(b), carryKg(g, b) * carryLoads(b), carryKg(g, b))
             val total = g.larder
-            if (total > carry) {
+            if (total > carried.sum()) {
                 // (It chooses how much of what it cannot carry to cache, as far as its time to dig and cover the pits goes;
                 // the rest is left where it lies. Above the default it caches all of it with more care, see [cacheCare]:
                 // the pits deeper and better hidden, at as much more time for each kg.)
-                val left = 1f - carry / total
                 val leftKg = leftBehindKg(g, b)
                 val care = cacheCare(b)
                 fun cachedAt(will: Float, care: Float) =
@@ -178,10 +208,11 @@ internal fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, weat
                 if (cached > 0f) dropCache(b)
                 var abandoned = 0f
                 // (Not food it got or lost as the forecast counts it, [foresee]: what moving costs it is foreseen on its own.)
-                b.leftBehind += left * total
-                b.larderMoved(g, LarderMove.LEFT, -left * total)
+                val leftWorth = total - carried.sum()
+                b.leftBehind += leftWorth
+                b.larderMoved(g, LarderMove.LEFT, -leftWorth)
                 for (i in Store.entries) {
-                    val x = g.stores[i] * left
+                    val x = g.stores[i] - carried[i]
                     g.stores[i] -= x
                     if (cached > 0f) { b.cache[i] = x * cached; b.cacheKgPer[i] = g.storeKgPer[i] }
                     abandoned += x * (1f - cached) * g.storeKgPer[i]
@@ -195,7 +226,7 @@ internal fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, weat
             // kind alike; what does not fit is left at the old camp (and goes back to the ground).
             val people = g.adults.toFloat()
             val spare = Material.entries.sumOf { m -> max(0f, b.goods[m] - mendingKg(b, m, people)).toDouble() }.toFloat()
-            val room = max(0f, carry - g.larder)
+            val room = max(0f, foodRoomKg(g, b) - Store.entries.sumOf { (g.stores[it] * g.storeKgPer[it]).toDouble() }.toFloat())
             if (spare > room) {
                 val left = 1f - room / spare
                 var rots = 0f
