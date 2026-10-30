@@ -157,13 +157,8 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         if (FORAGE_DIAG == w.s.name && diagSampled(g, weather, 0.002f, 1)) System.err.println(
             "forage ${w.s.name} adults ${g.adults} want ${w.wantAll} left $left offers ${o.m} used ${o.used} gain ${o.gain.toList()} spent ${o.spent.toList()} f $f: " +
             o.order.take(min(6, o.m)).joinToString("; ") { "t${o.type[it].ordinal} k${o.kind[it]} r=${o.rate[it]} e=${o.kg[it]} h=${o.time[it]}" })
-        val meat0 = w.meat; val kills0 = w.kills; val killDays0 = w.killDays
         takeFoods(w, o, f)
         time?.spend(Activity.FOOD, (w.busy - busy0) * w.hands)
-        // A bear's band it came on at its kills drives it off one (a pack; see [residentRivalsMeet]): if still hungry, it
-        // hunts again in the next pass.
-        if (w.band == null) residentRivalsMeet(g, w.ground, w.met, f, w.meat - meat0, w.kills - kills0, w.killDays - killDays0, w.rnd)
-            .let { m -> w.meat += m; w.fed += m * w.feeds(Food.BIG_GAME) }
     }
     if (w.band != null && w.time == null) planWeek(w, 0f, 0f)
     // (What a day's foraging brought it this week, kg of its need, kept month by month as a mean over the years: what a
@@ -346,8 +341,6 @@ private class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, packK
     // What it has got: meat (the meat it took in its meetings with it), small game, carrion and bones, plants, fish; and what
     // all of it feeds, in kg of its need (see [worth]).
     var meat = g.meatMet; var smallGot = 0f; var scraps = 0f; var plants = 0f; var fish = 0f
-    // (Its kills of big game this week, and the party-days it spent at them, handling and eating.)
-    var kills = 0; var killDays = 0f
     // (Of the fish, what was caught rather than gathered off the shore: that alone is practice at fishing.)
     var fished = 0f
     // (How fish paid against the gatherers' least paying food taken up, the first pass: see [Offers.pull]. And what fish from a
@@ -733,7 +726,6 @@ private fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
                 }
                 w.busy += kills1 * o.time[i] * w.party[0]
                 w.meat += haul.kg; w.fed += haul.kg * w.feeds(Food.BIG_GAME)
-                w.kills += kills1; w.killDays += kills1 * HANDLING_DAYS + haul.kg * w.eats
             }
             Food.SMALL_GAME -> small.catchSmallIn(Place(p), Kg(expected), min(land.areaKm2[p], w.smallSweep * smallSeen(Place(p))), w.weather).v.let { w.smallGot += it; w.fed += it * w.feeds(Food.SMALL_GAME) }
             Food.CARRION -> scavenge(g, Place(p), expected, w.sweep, w.rnd).let { w.scraps += it; w.fed += it * w.feeds(Food.CARRION) }

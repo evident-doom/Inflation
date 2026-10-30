@@ -734,9 +734,9 @@ object Catalogue {
     fun resident(s: Species) = !s.carnivore || s in residentHunters
 
     /**
-     * Residents that meet other beasts of prey as rivals as well as game: the [residentHunters] and the brown bear, which
-     * robs wolves of their kills (from memory of the record). A band of them much stronger than a pack drives it off its kill
-     * ([residentRivalsMeet]); the jackals and lynx keep out of the way of a much stronger party ([HexFauna.strongest]).
+     * Residents that are rivals of the other beasts of prey as well as their game: the [residentHunters] and the brown bear.
+     * The jackals and lynx keep out of the way of a much stronger party ([HexFauna.strongest]). (A bear robbing a pack's
+     * kill waits for a rule of bears finding kills by scent.)
      */
     val residentRivals by lazy { setOf(JACKAL, LYNX, BEAR) }
 
