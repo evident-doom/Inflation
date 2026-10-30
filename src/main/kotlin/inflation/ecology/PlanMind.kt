@@ -17,15 +17,16 @@ enum class Mind(val label: String) { NETS("nets"), PLANS("plans") }
 /**
  * Each founding band's mind: [inflation.Tuning.planners] of them, drawn by the band's id from the world's seed (its own
  * hashed draw, so the world's stream of chance is untouched), start as [Mind.PLANS]; the rest as [Mind.NETS]. A saved world
- * carried on draws its bands' minds the same way once it is loaded, unless it has planning bands already: a world settled
- * with nets alone (every test world) takes up [inflation.Tuning.planners] as a fresh one does, and one that has planning
- * bands keeps the minds it had, splits' heirs and all.
+ * carried on with [inflation.Tuning.planners] above 0 draws every band's mind afresh the same way once it is loaded, so a
+ * world settled with nets alone (every test world) takes it up as a fresh one does; a split's heirs then draw by their own
+ * ids. (Before, a loaded world kept its minds once any band was a planning one, and a band the fresh world drew before
+ * the load could carry its mind into it: one test world took up 1% where all was asked.)
  */
 internal fun HexGroups.foundMinds() {
-    if (tuning.planners <= 0f || groups.any { it.band?.mind == Mind.PLANS }) return
+    if (tuning.planners <= 0f) return
     for (g in groups) g.band?.let { b ->
         // (The full finaliser: one round of it left founders' ids, which run in order, clumped, about 30% where 50% was asked.)
-        if (unitOf(mix64(seedBase * HASH_A + g.id * HASH_B + MIND_SALT)) < tuning.planners) b.mind = Mind.PLANS
+        b.mind = if (unitOf(mix64(seedBase * HASH_A + g.id * HASH_B + MIND_SALT)) < tuning.planners) Mind.PLANS else Mind.NETS
     }
 }
 

@@ -232,8 +232,11 @@ private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float,
     choreAsks(g, b, w.weather.date, asks, warm)
     // (The band weighs the rest of the asks against each other by its ways: see [timeWay]. A planning band holds its days by
     // its customs, the lives they save and what is left: [planDays].)
-    if (b.mind == Mind.PLANS) time.plan(needs, planDays(g, b, w.weather, time, needs, asks, warm, kept, perDay), null, warm, kept)
-    else time.plan(needs, asks, enumFloats<Activity> { a -> timeWay(a)?.let { b.will[it] } ?: 1f }, warm, kept)
+    if (b.mind == Mind.PLANS) {
+        time.plan(needs, planDays(g, b, w.weather, time, needs, asks, warm, kept, perDay), null, warm, kept)
+        // (What each chore asked, not what it was given, for the census of the week's squeeze: [countSqueeze].)
+        for (a in Activity.entries) if (a != Activity.LEISURE) time.asked[a] = needs[a] + asks[a] + warm[a] + kept[a]
+    } else time.plan(needs, asks, enumFloats<Activity> { a -> timeWay(a)?.let { b.will[it] } ?: 1f }, warm, kept)
     w.room = time.leftFor(Activity.FOOD) / time.pace(Activity.FOOD)
     // (What its fire, shelters and food leave of the week, kept month by month as a mean over the years: what its
     // leanest month could give its herders, [keepHerds].)
