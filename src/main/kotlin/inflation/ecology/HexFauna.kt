@@ -1960,11 +1960,6 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         const val SPILL_HUNGER = 0.1f
         /** Share of its usual density a kind starts at. */
         const val START_SHARE = 0.5f
-        /**
-         * Most a plant-eater can eat in a week as a multiple of its need: coarse food fills the gut before it nourishes,
-         * so poor dry forage cannot be fully made up for (a quarter more at most).
-         */
-        const val GUT_FILL = 1.25f
         /** Forage quality (against green, 1) at which a herbivore's gut just holds its need: middling forage. */
         const val GUT_QREF = 0.8f
         /** Seed carried by fruit-eaters: kg of fruit eaten per km² that seeds a place fully; share kept from week to week. */

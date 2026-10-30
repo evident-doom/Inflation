@@ -112,8 +112,10 @@ class Species(
      */
     val fibreDigestion: Float = 1f,
     /**
-     * A hindgut fermenter (horses, asses): on poor forage it eats more and passes it fast. Ruminants
-     * and the rest eat less of poor forage, as it fills the gut before it nourishes.
+     * A hindgut fermenter (horses, asses): it passes poor forage fast and eats as much of it as of good, where ruminants
+     * and the rest eat less of it, as it fills the gut before it nourishes. Not more of it: Przewalski's horses ate least
+     * in late winter, on their most fibrous food, some 40% less than at the autumn peak, and lost 17-22% of their
+     * weight over the winter (Kuntz et al. 2006, J Exp Biol 209:4557).
      */
     val hindgut: Boolean = false,
     /**
@@ -243,7 +245,7 @@ class Species(
 
 /** How much more (or less) than its need a plant-eater eats of forage of [quality] (0..1, 1 fresh and green). */
 fun gutFill(s: Species, quality: Float): Float =
-    if (s.hindgut) min(HexFauna.GUT_FILL, 1f / quality.coerceAtLeast(1e-3f)) else min(1f, 0.5f + 0.5f * quality / 0.8f * s.fibreDigestion)
+    if (s.hindgut) 1f else min(1f, 0.5f + 0.5f * quality / 0.8f * s.fibreDigestion)
 
 object Allometry {
     /**
