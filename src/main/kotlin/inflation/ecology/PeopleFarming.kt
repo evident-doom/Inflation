@@ -205,6 +205,7 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
         if (b.herdTaken[k] > 0f) { tally(k, HerdFlow.TAKEN, b.herdTaken[k]); bands.takenWeek[k] += b.herdTaken[k]; b.herdTaken[k] = 0f }
         var n = b.herd[k]; var y = young[k]
         if (n + y <= 0f) continue
+        val n0 = n
         val s = fauna.kinds[k]
         val tame = b.herdTame[k]
         // Grazing round the camp. (The young eat about half what a grown one does, as the residents' do.)
@@ -233,6 +234,9 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
         // The young grow up as the residents' young do, over the years to maturity.
         val up = y * min(1f, years / s.yearsToMaturity)
         y -= up; n += up
+        // (What the grown herd gained this week: its young grown up, less the grown ones lost. That much the band can eat
+        // without eating into its mothers, for only the grown ones bear young.)
+        val nUp = n; val gained = max(0f, n - n0)
         tally(k, HerdFlow.BORN, born); tally(k, HerdFlow.DIED, died + diedY); tally(k, HerdFlow.RAN_OFF, lost - died + lostY - diedY)
         val kg = (n + HexFauna.YOUNG_WEIGHT * y) * s.massKg
         tally(k, HerdFlow.KG, kg); tally(k, HerdFlow.KG_TENDED, kg * tended); tally(k, HerdFlow.KG_FED, kg * fed)
@@ -259,7 +263,7 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
         tally(k, when { worth < 0.5f -> HerdFlow.KG_WORTH_HALF; worth < 1f -> HerdFlow.KG_WORTH_UNDER; worth < 2f -> HerdFlow.KG_WORTH_OVER; else -> HerdFlow.KG_WORTH_TWICE }, kg)
         if (worth.isFinite()) { tally(k, HerdFlow.KG_WORTH_KNOWN, kg); tally(k, HerdFlow.WORTH_KG, worth * kg) }
         if (over > 0f) { slaughter(k, n * over, HerdFlow.EATEN); n -= n * over }
-        val increase = n * max(0f, herdIncrease(b, k, fed)) * years
+        val increase = if (nUp > 0f) gained * n / nUp else 0f
         val grows = pet || pays && increase / headsAHerder(s) <= (room ?: spare)
         if (grows && !pet) { if (room != null) room -= increase / headsAHerder(s) else spare -= increase / headsAHerder(s) }
         b.herdGrew[k] = grows
@@ -367,13 +371,15 @@ private fun lactating(s: Species, date: Date) =
     monthsFrom(s.birthMonth, date.month) * Date.DAYS_PER_MONTH < s.birthMonths * Date.DAYS_PER_MONTH + LACTATION_DAYS
 
 /**
- * The share [b]'s herd of kind [k] adds in a year as [keepHerds] has it, fed as far as [fed]: births by its tameness, less
- * its deaths and those that run off.
+ * The share [b]'s grown herd of kind [k] adds in a year as [keepHerds] has it, fed as far as [fed], once its young are of
+ * every age: births by its tameness, as many as live to grow up, less the grown ones' deaths and those that run off. The
+ * young die and run off at the grown ones' yearly rate and grow up at one over [Species.yearsToMaturity] a year, so
+ * 1 / (1 + rate * years to maturity) of them grow up.
  */
 internal fun GroupWorld.herdIncrease(b: Band, k: Int, fed: Float = 1f): Float {
     val s = fauna.kinds[k]; val tame = b.herdTame[k]
-    return herdMothers(s, tame) * s.youngPerFemale * fed - s.backgroundMortality - 0.5f * (1f - fed) - fighting(s) -
-        straying(s, tame) * b.lapse(Skill.TENDING)
+    val lost = s.backgroundMortality + 0.5f * (1f - fed) + fighting(s) + straying(s, tame) * b.lapse(Skill.TENDING)
+    return herdMothers(s, tame) * s.youngPerFemale * fed / (1f + lost * s.yearsToMaturity) - lost
 }
 
 /**
