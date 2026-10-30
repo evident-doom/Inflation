@@ -587,7 +587,7 @@ object Catalogue {
         habitat = Habitat(cover = -1f, wet = -0.5f),
         defence = 0.4f,
         // Ostriches ferment fibre in a long hindgut: volatile fatty acids from it may give up to 76% of a growing
-        // chick's metabolisable energy (Swart, Mackie and Hayes 1993). Like horses, they eat more of poor forage.
+        // chick's metabolisable energy (Swart, Mackie and Hayes 1993). Like horses, they eat as much of poor forage as of good.
         hindgut = true,
         activity = floatArrayOf(0.2f, 0.6f, 0.2f, 0f),
     )
