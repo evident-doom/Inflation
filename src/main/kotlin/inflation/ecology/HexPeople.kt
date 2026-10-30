@@ -394,7 +394,7 @@ internal fun moveFood(from: HexGroup, to: HexGroup, value: Float, why: LarderMov
     val total = from.larder
     if (total <= 0f || value <= 0f) return
     val share = min(1f, value / total)
-    if (why != null) { from.band?.forecastTrace?.moved(from, why, -min(value, total)); to.band?.forecastTrace?.moved(to, why, min(value, total)) }
+    if (why != null) { from.band?.larderMoved(from, why, -min(value, total)); to.band?.larderMoved(to, why, min(value, total)) }
     for (st in Store.entries) {
         val x = from.stores[st] * share
         from.stores[st] -= x; addFood(to.stores, to.storeKgPer, st, x, x * from.storeKgPer[st])

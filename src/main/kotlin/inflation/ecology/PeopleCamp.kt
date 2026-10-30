@@ -179,7 +179,7 @@ internal fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, weat
                 var abandoned = 0f
                 // (Not food it got or lost as the forecast counts it, [foresee]: what moving costs it is foreseen on its own.)
                 b.leftBehind += left * total
-                b.forecastTrace?.moved(g, LarderMove.LEFT, -left * total)
+                b.larderMoved(g, LarderMove.LEFT, -left * total)
                 for (i in Store.entries) {
                     val x = g.stores[i] * left
                     g.stores[i] -= x

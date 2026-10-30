@@ -3,6 +3,7 @@
 package inflation.ecology
 
 import inflation.world.Biome
+import inflation.world.Season
 import java.util.TreeMap
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentSkipListMap
@@ -277,6 +278,17 @@ object Tally {
     }
     /** Bands' forecasts of mind [mind] in [bin], [what] ([bookCalibration]). */
     fun calibration(mind: Mind, bin: ForeseenBin, what: Calib) = TallyKey.raw("foreseen calibration ${mind.label}:${bin.label}:${what.label}")
+    /** What moved bands' larders of mind [mind] in [season], by [why], person-days of the need before keeping warm ([Band.larderFlow]). */
+    fun larderFlow(mind: Mind, season: Season, why: LarderMove) = TallyKey.raw("larder flow ${mind.label}:${season.name}:${why.label}")
+    /** What a band's larder held when its people died of hunger, days of its need before keeping warm. */
+    enum class LarderAt(val label: String, val below: Float) {
+        EMPTY("under a day", 1f), SOME("1-10 days", 10f), FULL("10 days and over", Float.POSITIVE_INFINITY);
+        companion object { fun of(days: Float) = entries.first { days < it.below } }
+    }
+    /** Hunger deaths in bands of mind [mind] by what their larder held then ([LarderAt]). */
+    fun starvedAt(mind: Mind, at: LarderAt) = TallyKey.raw("starved at larder ${mind.label}:${at.label}")
+    /** Hunger deaths in bands of mind [mind] that moved camp in the month before. */
+    fun starvedMoved(mind: Mind) = TallyKey.raw("starved after a move ${mind.label}")
     /** A planning band's days in each tier of its week beyond its essentials ([planDays]), tenths of a day. */
     fun planTier(t: PlanTier) = TallyKey.raw("plans:${t.label}")
     /** Bands' deaths of [cause] by how they choose; [bandsMindDied] (mind) starts all of them. */

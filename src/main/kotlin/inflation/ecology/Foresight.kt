@@ -216,6 +216,12 @@ internal fun HexGroups.foresee(weather: Weather) {
     for (g in groups) { val b = g.band ?: continue; if (!g.alive) continue
         val c = Biome.entries[biomeOfPlace[g.place]]
         stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.FORESEEN), (1000f * (1f - g.foreseen) * g.size).roundToInt(), Int::plus)
+        // (What moved its larder this week, person-days of the need before keeping warm, by the season: where stores go.)
+        val perDay = (g.dailyNeedKg / g.warmth.coerceAtLeast(1e-3f)).coerceAtLeast(1e-3f) / g.size.coerceAtLeast(1)
+        for (why in LarderMove.entries) {
+            val kg = b.larderFlow[why.ordinal]; b.larderFlow[why.ordinal] = 0f
+            if (kg != 0f) stats.hunting.merge(Tally.larderFlow(b.mind, weather.date.season, why), (kg / perDay).roundToInt(), Int::plus)
+        }
         // (And by how many it foresaw dead, for the calibration against the deaths that came in the year after: [bookCalibration].)
         val bin = ForeseenBin.of(1f - g.foreseen)
         val row = b.foreseenAt * ForeseenBin.entries.size

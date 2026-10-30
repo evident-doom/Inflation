@@ -94,6 +94,12 @@ internal class ForecastTrace(private val head: String, private val startMonth: I
     }
 }
 
+/** [kg] of group [g]'s food moved into its larder (below 0, out) for [why]: for the census ([Band.larderFlow]) and the trace. */
+internal fun Band.larderMoved(g: HexGroup, why: LarderMove, kg: Float) {
+    larderFlow[why.ordinal] += kg
+    forecastTrace?.moved(g, why, kg)
+}
+
 /**
  * What moved food into or out of a band's larder, for [ForecastTrace]: raided, given to visiting kin, given at a meeting, eaten
  * at a feast (between bands); eaten from it, the week's food kept in it, spoilt or got at by mice, cached or left at the old

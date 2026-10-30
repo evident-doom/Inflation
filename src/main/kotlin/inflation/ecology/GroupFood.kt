@@ -808,7 +808,7 @@ private fun HexGroups.eatTheWeek(w: ForageWeek) {
         val stored = g.larder
         meal.eatForSodium(sodiumNeed / SODIUM_PER_KG_MEAT, got, plantKg, g)
         meal.eat(got, plantKg, g)
-        band.forecastTrace?.moved(g, LarderMove.ATE, g.larder - stored)
+        band.larderMoved(g, LarderMove.ATE, g.larder - stored)
         band.leanLost = meal.leanLost
         // (Its weanlings get gruel as far as there is seed, eaten this week or still in store: their share of the meals is
         // already in its need, so they eat seed and the rest eat the rest in its stead.)
@@ -980,7 +980,7 @@ private fun HexGroups.keepAndSpoil(w: ForageWeek, got: EnumFloats<Store>, gotKg:
     // What is left is kept; spare hands dry fresh meat and fish over the fire, as fast as their skill allows.
     val unkept = g.larder
     for (st in Store.entries) addFood(g.stores, g.storeKgPer, st, got[st], gotKg[st])
-    band.forecastTrace?.moved(g, LarderMove.KEPT, g.larder - unkept)
+    band.larderMoved(g, LarderMove.KEPT, g.larder - unkept)
     // (Racks in the sun dry little in wet weather; smoking over a slow fire works in any.)
     val sun = band.skill(Skill.STORE) / (1f + weather.precipitation[g.place] / DRY_RAIN_MM)
     val smoke = if (band.knowsSkill[Skill.SMOKING] && band.fire > 0f) band.skill(Skill.SMOKING) * min(1f, band.fire) else 0f
@@ -1032,7 +1032,7 @@ private fun HexGroups.keepAndSpoil(w: ForageWeek, got: EnumFloats<Store>, gotKg:
         }
         if (band.knowsSkill[Skill.SEALING] && g.larder > 0f) band.practise(Skill.SEALING, 0.2f * PRACTICE)
     }
-    band.forecastTrace?.moved(g, LarderMove.SPOILT, g.larder - unspoilt)
+    band.larderMoved(g, LarderMove.SPOILT, g.larder - unspoilt)
     small.deposit(DeadPool.CARRION, g.place, Kg(rotten + unskinned))
 }
 

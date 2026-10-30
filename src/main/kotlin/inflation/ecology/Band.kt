@@ -98,6 +98,8 @@ class Band(kinds: Int) {
     /** forecastTrace=true: its year ahead as foreseen, and what came, while it is followed ([traceForecast]); whether it has been. */
     @Transient internal var forecastTrace: ForecastTrace? = null
     @Transient var forecastTraced = false
+    /** What moved food into its larder (below 0, out) this week by [LarderMove], kg ([larderMoved]): for the census, at [foresee]. */
+    @Transient val larderFlow = FloatArray(LarderMove.entries.size)
     /**
      * The share of its hands' days left in each month once its fire, shelters and food are held ([BandTime.vital]), a mean
      * over the years (below 0 till it has planned a week then): what its leanest month could give its herders ([keepHerds]).
