@@ -134,13 +134,13 @@ internal fun HexGroups.meet(weather: Weather) {
 
 /**
  * Two bands meet: they share news of good ground (each learns where the other did best this month),
- * and a band that is going hungry is given a share of the other's larder.
+ * and a band that is going hungry is given a share of the other's larder. [rite]: the gathering they meet at, if any ([gatherAtRite]).
  */
-internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather) {
+internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rite: RiteGathering? = null) {
     stats.meeting(Met.BANDS_MET)
     note(a) { "met band #%d (%d people; tie %.2f)".format(b.id, b.size, a.band?.tie(b.id) ?: 0f) }
     note(b) { "met band #%d (%d people; tie %.2f)".format(a.id, a.size, b.band?.tie(a.id) ?: 0f) }
-    if (meetingEndsInRaid(a, b, weather)) return
+    if (meetingEndsInRaid(a, b, weather, rite)) return
     val (poor, rich) = if (a.wellOff() < b.wellOff()) a to b else b to a
     // Bands that hold to sharing give more, and sooner.
     val sharing = rich.band?.holds(Tradition.SHARING) == true

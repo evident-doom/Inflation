@@ -10,6 +10,7 @@ import inflation.KgM2
 import inflation.min
 import inflation.world.Date
 import inflation.world.Hex
+import inflation.world.Place
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -266,15 +267,28 @@ internal fun HexGroups.leaveDead(g: HexGroup, freed: MutableList<HexGroup>) {
         val n = b.kept[i].toInt()
         b.kept[i] = 0f
         val s = Catalogue.all[i]
-        if (n < 1 || s !in kinds) continue
-        val pack = HexGroup(nextId++, s, p, n, 0)
-        pack.temper = Temperament.founder(pack.id, seedBase)
-        pack.fat = 0.5f * s.maxFatDays
-        pack.bold = 1f
-        claimGround(pack, hw.placeHex[p])
+        val pack = dogsGoWild(s, p, n) ?: continue
         freed += pack
         stats.meeting(Met.Of.DOGS_GONE_WILD, s.name, n)
     }
+}
+
+/**
+ * [n] dogs of kind [s] gone wild at [p]: a new pack of their wild kind, bold of people, without ground, with [fatShare]
+ * of their kind's most fat; null if not one whole dog went, or the kind lives in no groups here. (The caller adds it to the groups.)
+ */
+internal fun HexGroups.dogsGoWild(s: Species, p: Place, n: Int, fatShare: Float = 0.5f): HexGroup? {
+    if (n < 1 || s !in kinds) return null
+    val pack = HexGroup(nextId++, s, p, n, 0)
+    pack.temper = Temperament.founder(pack.id, seedBase)
+    pack.fat = fatShare * s.maxFatDays
+    pack.bold = 1f
+    // (No ground of its own: it settles by the rule every pack without ground follows ([settle]), only where no pack of its
+    // kind has fresh marks, and till then bears no young and dies as such packs do. Taking the camp's hex outright overwrote
+    // the marks of the pack already there and gave each a litter.)
+    // (Counted among its kind's births: heads that came into the wild that no wild mother bore, so its heads add up.)
+    stats.births.merge(s, n, Int::plus)
+    return pack
 }
 
 /** How much a band is put off country it does not know (beside the pull of better country it senses); hexes round its first camp it knows from the start. */

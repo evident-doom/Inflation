@@ -18,23 +18,23 @@ import kotlin.math.sqrt
 // Bands' camps: moving camp at the pace of the slowest, what they carry and cache, and the fouling of a camp kept long.
 
 /** Extra plant food with sickles (seed), grinding stones (seed and roots) and baskets (all of it, and stores). */
-const val SICKLE_GAIN = 0.3f
-const val GRINDER_GAIN = 0.4f
-const val BASKET_GAIN = 0.3f
+internal const val SICKLE_GAIN = 0.3f
+internal const val GRINDER_GAIN = 0.4f
+internal const val BASKET_GAIN = 0.3f
 /**
  * Moving camp: an unloaded adult's walking pace over rough ground, km/h (on roads people walk about 5); a walking child's
  * pace against an adult's, as the square root of its leg length (Froude scaling; legs about 0.55 an adult's at six
  * years); hours a band walks in a day of moving camp (an estimate: no source found).
  */
-const val WALK_KMH = 4f
-const val CHILD_PACE = 0.74f
-const val MOVE_HOURS = 6f
+internal const val WALK_KMH = 4f
+internal const val CHILD_PACE = 0.74f
+internal const val MOVE_HOURS = 6f
 /**
  * Weeks a band expects to keep a camp before it has kept any (foragers moved camp some 5 to 60 times a year, Kelly 1995,
  * from memory: about 4 weeks a camp near the middle), and the share of the gap each move closes in its running mean.
  */
-const val STAY_WEEKS_START = 4f
-const val STAY_LEARN = 0.2f
+internal const val STAY_WEEKS_START = 4f
+internal const val STAY_LEARN = 0.2f
 /** Share of [g]'s people who hold it back on the move: the old, the hurt and lamed, the sick. */
 internal fun weakShare(g: HexGroup) = g.band?.let { b -> ((b.elders + (b.hurt + b.lame) * g.adults + b.sick.sum() * g.size) / g.size.coerceAtLeast(1)).coerceIn(0f, 1f) } ?: 0f
 
@@ -56,19 +56,19 @@ internal fun GroupWorld.moveDays(g: HexGroup, km: Float) = km * (g.band?.let { r
  * What an adult carries in a load when the camp moves, food and goods together, kg: !Kung women carried about 15 kg
  * besides a child (Lee 1979, from memory: to check).
  */
-const val CARRY_KG = 15f
+internal const val CARRY_KG = 15f
 /** Extra yearly deaths among children in a camp kept for a year or more. */
-const val CAMP_FOULING = 0.02f
+internal const val CAMP_FOULING = 0.02f
 /** People whose camping fouls a hex by a week of camping each week: a band of a camp's size, as fouling went by a band's weeks before it went by the place. */
-const val FOUL_PEOPLE = 50f
+internal const val FOUL_PEOPLE = 50f
 /**
  * Weeks of fouling a hex nobody camps at clears each week. Most gut sicknesses die in the soil within about 20 days and nearly all
  * within 70 to 100 (faecal coliforms, Salmonella, enteroviruses, Entamoeba cysts; roundworm eggs keep for months: survival table
  * at 20-30 °C, PMC7158167): an estimate from those, a year's fouling gone in about a season.
  */
-const val FOUL_CLEAR = 4f
+internal const val FOUL_CLEAR = 4f
 /** How much of its standing a midden nobody tends loses a year (it is no longer kept apart from the camp): an estimate. */
-const val MIDDEN_WEAR = 0.3f
+internal const val MIDDEN_WEAR = 0.3f
 /** Whether [g]'s band [b] has come to a new camp this week (or has none yet), where no shelter of its stands. */
 internal fun GroupWorld.movedCamp(g: HexGroup, b: Band) = b.campPlace.none || hw.placeHex[g.place] != hw.placeHex[b.campPlace]
 
@@ -270,7 +270,7 @@ internal fun Band.takeFromCache(to: HexGroup, kg: Float) {
 internal fun Band.cacheMass() = massOf(cache, cacheKgPer)
 
 /** Share of a cache lost each week to damp, mice and thieves. */
-const val CACHE_SPOIL = 0.02f
+internal const val CACHE_SPOIL = 0.02f
 /**
  * Extra yearly deaths among children of a camp kept long: refuse, flies and fouled water, by the weeks of fouling [campWeeks]
  * the ground of hex [h] holds ([campWeeksAt]) and how far the band or the hex's midden keeps it clean ([hygieneAt]).
@@ -280,8 +280,11 @@ internal fun HexGroups.campFouling(g: HexGroup, h: Hex = hw.placeHex[g.place], c
     return CAMP_FOULING * tuning.campFouling * fouled(campWeeks) * hygieneAt(b, h) * (1f - 0.3f * b.medicine)
 }
 
-/** How fouled a camp kept [campWeeks] weeks is, 0..1: not at all for its first two months, fully after a year more. */
+/** How fouled a camp kept [campWeeks] weeks is, 0..1: not at all for its first two months, fully after a year more ([fullyFouledWeeks]). */
 internal fun GroupWorld.fouled(campWeeks: Int) = min(1f, max(0f, campWeeks - stepsPerYear / 6f) / stepsPerYear)
+
+/** The camp weeks at which [fouled] reaches 1 (two months and a year): the most fouling the ground holds ([foulGround]). Change it with [fouled]. */
+internal fun GroupWorld.fullyFouledWeeks() = stepsPerYear * 7f / 6f
 
 /** The weeks of camping whose fouling the ground of hex [h] holds ([Bands.fouledWeeks]). */
 internal fun HexGroups.campWeeksAt(h: Hex) = bands.fouledWeeks[h].toInt()
@@ -313,7 +316,7 @@ internal fun HexGroups.foulGround() {
         people[h] += g.size.toFloat()
         if (b.holds(Tradition.HYGIENE)) kept[h] += g.size * b.cleaned
     }
-    val most = stepsPerYear * 7f / 6f
+    val most = fullyFouledWeeks()
     for (h in 0 until hex.size) {
         weeks[h] = if (people[h] > 0f) min(most, weeks[h] + people[h] / FOUL_PEOPLE) else max(0f, weeks[h] - FOUL_CLEAR)
         val tended = if (people[h] > 0f) kept[h] / people[h] else 0f
@@ -333,11 +336,11 @@ internal fun HexGroups.stayCost(g: HexGroup, b: Band): Float {
  * Caches: yearly share dug up where diggers are thick; rodents and foxes (kg/km²) at which they
  * count fully; chance a band passing a hex finds another's cache there; share it takes.
  */
-const val CACHE_DUG = 2f
-const val CACHE_RODENTS_HALF = 200f
-const val CACHE_FOXES_HALF = 20f
-const val CACHE_FIND = 0.15f
-const val CACHE_TAKE = 0.6f
+internal const val CACHE_DUG = 2f
+internal const val CACHE_RODENTS_HALF = 200f
+internal const val CACHE_FOXES_HALF = 20f
+internal const val CACHE_FIND = 0.15f
+internal const val CACHE_TAKE = 0.6f
 /**
  * Bands passing through another band's cache may find it and carry off what they can, unless they
  * are close to its owners: the more it lies in the open and the more they see, the likelier. The
@@ -386,4 +389,4 @@ internal fun HexGroups.robCaches(weather: Weather) {
  */
 val TRADED = listOf(Material.STONE, Material.SALT, Material.OCHRE)
 val YEAR_NEED = enumFloats<Material> { when (it) { Material.STONE -> 1f; Material.SALT -> 4f; Material.OCHRE -> 0.2f; else -> 0f } }
-const val KEEP_YEARS = 1f
+internal const val KEEP_YEARS = 1f

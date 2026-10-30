@@ -7,11 +7,11 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 
 /** Weeks the census's running mean of a band's spare days reaches back, about a season ([Band.spareMean]). The report's, not the model's. */
-const val SPARE_WEEKS = 13f
+internal const val SPARE_WEEKS = 13f
 /** A chore that got less than this share of its ask in a week that ran out of days was squeezed ([countSqueeze]). The report's line. */
-const val SQUEEZED = 0.9f
+internal const val SQUEEZED = 0.9f
 /** A week whose spare days came to less than this share of its hands' days ran out of days ([countSqueeze]). The report's line. */
-const val WEEK_FULL = 0.05f
+internal const val WEEK_FULL = 0.05f
 
 /** warmDiag=true: each week a band loses people to exposure, what its survival pass reckoned with and what came, on stderr (the first [WARM_DIAG_LINES]). */
 internal val WARM_DIAG = Config.flag(Config.Key.WARM_DIAG, false)
