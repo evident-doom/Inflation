@@ -258,15 +258,24 @@ internal fun HexGroups.leaveDead(g: HexGroup, freed: MutableList<HexGroup>) {
         val n = b.kept[i].toInt()
         b.kept[i] = 0f
         val s = Catalogue.all[i]
-        if (n < 1 || s !in kinds) continue
-        val pack = HexGroup(nextId++, s, p, n, 0)
-        pack.temper = Temperament.founder(pack.id, seedBase)
-        pack.fat = 0.5f * s.maxFatDays
-        pack.bold = 1f
-        claimGround(pack, hw.placeHex[p])
+        val pack = dogsGoWild(s, p, n) ?: continue
         freed += pack
         stats.meeting(Met.Of.DOGS_GONE_WILD, s.name, n)
     }
+}
+
+/**
+ * [n] dogs of kind [s] gone wild at [p]: a new pack of their wild kind, bold of people, with ground of its own; null if not one
+ * whole dog went, or the kind lives in no groups here. (The caller adds it to the groups.)
+ */
+internal fun HexGroups.dogsGoWild(s: Species, p: Place, n: Int): HexGroup? {
+    if (n < 1 || s !in kinds) return null
+    val pack = HexGroup(nextId++, s, p, n, 0)
+    pack.temper = Temperament.founder(pack.id, seedBase)
+    pack.fat = 0.5f * s.maxFatDays
+    pack.bold = 1f
+    claimGround(pack, hw.placeHex[p])
+    return pack
 }
 
 /** How much a band is put off country it does not know (beside the pull of better country it senses); hexes round its first camp it knows from the start. */

@@ -118,11 +118,18 @@ internal fun HexGroups.keepAnimals(g: HexGroup, b: Band) {
         if (given > 0f) ate += eatStores(g, given * Nourishment.MEAT * g.species.needScale)
         val fed = min(1f, ate / want)
         need += want; got += ate
-        // They whelp as they are fed and die as their kind does by people's camps, and of hunger (as kept herds do).
-        val dying = (DOG_DEATHS + 0.5f * (1f - fed)) * years
-        val died = k * min(0.9f, dying)
+        // They whelp as they are fed and die as their kind does by people's camps. A camp that does not feed them they
+        // leave rather than starve by it (as fast as hunger would kill kept herds): they join a pack of their wild kind
+        // about the camp, or go off as one.
+        val died = k * min(0.9f, DOG_DEATHS * years)
         small.deposit(DeadPool.CARRION, p, Kg(died * s.massKg))
-        b.kept[i] = max(0f, k + k * DOG_BIRTHS * fed * years - died)
+        val left = binomial(k.toInt(), min(0.9f, 0.5f * (1f - fed) * years), rnd)
+        if (left > 0) {
+            val pack = bands.followersByHex[h].orEmpty().firstOrNull { it.alive && it.species == s }
+            if (pack != null) pack.adults += left else dogsGoWild(s, p, left)?.let { bands.strays += it }
+            stats.meeting(Met.Of.DOGS_LEFT, s.name, left)
+        }
+        b.kept[i] = max(0f, k + k * DOG_BIRTHS * fed * years - died - left)
         dogs += b.kept[i]
     }
     b.dogFed = if (need > 0f) min(1f, got / need) else 1f
