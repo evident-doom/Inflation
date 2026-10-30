@@ -198,7 +198,10 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
         val left = heads * s.massKg * (1f - MEAT_SHARE)
         small.deposit(DeadPool.CARRION, p, Kg(left - tallyHide(Tally.HideSource.HERDS, s, b.skin(s, heads, left))))
     }
+    if (b.herdTaken.size != b.herd.size) b.herdTaken = FloatArray(b.herd.size)
     for (k in b.herd.indices) {
+        // (What beasts of prey took from it while they hunted this week: [raidHerd].)
+        if (b.herdTaken[k] > 0f) { tally(k, HerdFlow.TAKEN, b.herdTaken[k]); b.herdTaken[k] = 0f }
         var n = b.herd[k]
         if (n <= 0f) continue
         val s = fauna.kinds[k]
@@ -266,7 +269,7 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
 }
 
 /**
- * What became of bands' kept animals, for the census ([HexGroups.herdFlows]): heads born, dead, run off or strayed, culled
+ * What became of bands' kept animals, for the census ([HexGroups.herdFlows]): heads born, dead, run off or strayed, taken by beasts of prey ([raidHerd]), culled
  * for want of herders, eaten of the herd's increase, eaten down for not paying ([herdPays]), and gone wild with a band that
  * died out ([leaveDead]); milk, kg; and kg on the hoof weighed by the share herded, by the share fed, in herds that pay their
  * herders, and in all (week by week), and by what a herder's day brings against a lean month's foraging day ([herdWorth]:
@@ -274,7 +277,7 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
  * kind only ([Bands.kindFlows]): the yearly increase, and what a herder's day brings, each weighed by kg on the hoof (where
  * the band has foraged a month to weigh it against); kg kept as pets ([Band.herdPet]), and pets' herds that came to an end.
  */
-enum class HerdFlow { BORN, DIED, RAN_OFF, CULLED, EATEN, EATEN_UNPAID, FREED, MILK_KG, KG_TENDED, KG_FED, KG_PAYS, KG,
+enum class HerdFlow { BORN, DIED, RAN_OFF, TAKEN, CULLED, EATEN, EATEN_UNPAID, FREED, MILK_KG, KG_TENDED, KG_FED, KG_PAYS, KG,
     KG_WORTH_HALF, KG_WORTH_UNDER, KG_WORTH_OVER, KG_WORTH_TWICE, ENDED, ENDED_UNPAID, ENDED_FREED,
     INCREASE_KG, KG_WORTH_KNOWN, WORTH_KG, KG_PET, ENDED_PET }
 
@@ -382,12 +385,12 @@ internal fun petYears(s: Species) = s.yearsToMaturity * min(1f, s.domestication[
 
 /**
  * The yearly share of a kept herd of kind [s] that kill or maim each other or are put down as dangerous, however tame:
- * [HERD_RUN_OFF] times the square of how far its kind's temper (Diamond's disposition criterion) falls short of a goat's,
+ * [HERD_FIGHTING] times the square of how far its kind's temper (Diamond's disposition criterion) falls short of a goat's,
  * [HERD_TEMPER]; without pens the keepers cannot part the fighters.
  */
 internal fun fighting(s: Species): Float {
     val wild = max(0f, 1f - s.domestication[3] / HERD_TEMPER)
-    return HERD_RUN_OFF * wild * wild
+    return HERD_FIGHTING * wild * wild
 }
 
 /**
@@ -418,13 +421,15 @@ private fun herdSkill(b: Band) = 0.5f + 0.5f * min(1f, b.skill(Skill.TENDING))
  * kind's tameability); yearly share that run off, [HERD_RUN_OFF] times the square of their wildness ([straying]; the square an
  * estimate, so that the wilder stray far more), their wildness reckoned from their tameness times their kind's ease on foot, the
  * worse of Diamond's panic and social-structure criteria, against a goat's ([HERD_EASE] 0.6, an estimate: a kind that panics or
- * keeps no herd, as an ostrich or a deer, is not kept on foot however tame), set so that a goat herd
- * as tame as one at world start (0.8) loses 2% a year to straying (goats of central Mali, 1978-83: adults died 12.7% a year, slightly more
- * than 17% of goat deaths "lost" or taken by predators, mainly dogs; FAO x5531e, ch. 13; the wild-type stock of the first
- * herds, as at Ganj Dareh some 10,000 years ago, still bred and paid its herders, Daly et al. 2021, from the press release);
- * yearly growth of tameness. (Herded flocks lose next to nothing on the move: flock records of herded sheep and goats count no strays and
+ * keeps no herd, as an ostrich or a deer, is not kept on foot however tame), so that a goat herd as tame as one at world
+ * start (0.8) loses 2% a year to straying (an estimate: no record gives half-tame herds' straying; the wild-type stock of the first
+ * herds, as at Ganj Dareh some 10,000 years ago, still bred and paid its herders, Daly et al. 2021, from the press release).
+ * Tame herded flocks stray not at all, as [straying] has it: flock records of herded sheep and goats count no strays and
  * 0-1% of their outflow to predators, Assen and Aklilu 2012, mixed farms in Tigray, not nomads; so a move costs a herd only
- * its walk.) And the head a herder keeps on foot ([headsAHerder]): 200 goats of [GOAT_KG]; Iranian nomads' flocks of
+ * its walk. Beasts of prey take their share in the hunt ([raidHerd]), not here: the goats of central Mali, 1978-83, whose
+ * adults died 12.7% a year, slightly more than 17% of the deaths "lost" or taken by predators, mainly dogs (FAO x5531e,
+ * ch. 13), are a check on the two together. [HERD_FIGHTING], the same scale for deaths from fighting ([fighting]);
+ * yearly growth of tameness. And the head a herder keeps on foot ([headsAHerder]): 200 goats of [GOAT_KG]; Iranian nomads' flocks of
  * 200-600 head go with one to three shepherds (Encyclopaedia Iranica, "Cupan"). Bigger beasts fewer, as their weight to the
  * power [HERD_MASS_EXP], an estimate between the goats and camel herds of 50-60 head kept by young men (ODI Pastoral
  * Development Network paper 5337; the herders to a herd not given). Young caught and raised by hand come as tame as a
@@ -438,6 +443,7 @@ private fun herdSkill(b: Band) = 0.5f + 0.5f * min(1f, b.skill(Skill.TENDING))
 const val CAPTURE = 0.5f
 const val RAISED_TAME = 0.8f
 const val HERD_RUN_OFF = 0.5f
+const val HERD_FIGHTING = 0.5f
 const val HERD_EASE = 0.6f
 const val HERD_BREEDS = 0.7f
 const val HERD_TEMPER = 0.6f

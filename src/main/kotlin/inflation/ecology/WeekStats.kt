@@ -109,6 +109,7 @@ enum class Met(val label: String) {
     HUNGRY_BANDS_FED_BY_KIN("hungry bands fed by kin"),
     HUNTERS_OF_OTHER_KINDS("hunters of other kinds"),
     KEPT_ANIMALS_CULLED("kept animals culled"),
+    KEPT_ANIMALS_TAKEN("kept animals taken by beasts"),
     KILL_STOLEN("kill stolen"),
     LARDERS_RAIDED("larders raided"),
     NEIGHBOURS_DEFENDED("neighbours stood with the raided"),
@@ -168,7 +169,7 @@ object Tally {
 
     /** What a kind's [hunting][WeekStats.hunting] tallies count. */
     enum class OfKind(val label: String) {
-        KILLS_OF_RESIDENTS("kills of residents"), CHILDREN_DIED("children died"), MEAT_EATEN("meat eaten, kg"),
+        KILLS_OF_RESIDENTS("kills of residents"), KILLS_OF_KEPT("kills of kept animals"), CHILDREN_DIED("children died"), MEAT_EATEN("meat eaten, kg"),
         PLANTS_EATEN("plants eaten, kg"), GRAIN_REAPED("grain reaped, kg"), PLANTS_LEACHED("plants leached, kg"), FISH("fish, kg"),
     }
 

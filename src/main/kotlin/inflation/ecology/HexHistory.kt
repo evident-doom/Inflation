@@ -107,7 +107,7 @@ class HexHistory {
         fun huntersOf(key: String) = if (key.startsWith(HUNTERS)) Hunters.entries.firstOrNull { key.endsWith("/" + it.label) } else null
         /** Whether a series counts events in each week (summed over a period) rather than a state (averaged). */
         fun isFlow(key: String) = isDeaths(key) || key.startsWith(ADULT_DEATHS) || key.startsWith(YOUNG_DEATHS) || key.startsWith(BIRTHS) || key.startsWith(KILLS) || key.startsWith(FISH_FLOWS) || key == RAIN ||
-            huntersOf(key) == Hunters.KILLS
+            huntersOf(key) == Hunters.KILLS || huntersOf(key) == Hunters.KEPT_KILLS
     }
 
     /** What a [Key.people] series measures, by the bands' heads. */
@@ -130,6 +130,8 @@ class HexHistory {
         FED("food got of need"),
         /** Animals it killed (from herds and residents), in the week. */
         KILLS("kills"),
+        /** Bands' kept animals it killed, in the week ([raidHerd]). */
+        KEPT_KILLS("kept animals killed"),
         /** The share of its packs that hold ground of their own (not of bands). */
         HOLDING("share of packs holding ground"),
     }
@@ -171,6 +173,7 @@ class HexHistory {
             if (asked > 0) put(Key.hunters(s.name, Hunters.FED), ((v(Tally.diet(s, Tally.DietPart.MEAT)) + v(Tally.diet(s, Tally.DietPart.SMALL_PREY)) + v(Tally.diet(s, Tally.DietPart.CARRION)) +
                 v(Tally.diet(s, Tally.DietPart.PLANTS))) / asked).toFloat())
             put(Key.hunters(s.name, Hunters.KILLS), v(Tally.of(s, Tally.OfKind.KILLS_OF_RESIDENTS)).toFloat())
+            put(Key.hunters(s.name, Hunters.KEPT_KILLS), v(Tally.of(s, Tally.OfKind.KILLS_OF_KEPT)).toFloat())
             if (!s.human) holdingGround(groups, s)?.let { put(Key.hunters(s.name, Hunters.HOLDING), it.toFloat()) }
         }
         peopleWays(groups)?.let { by -> for (w in PeopleWay.entries) if (!by[w.ordinal].isNaN()) put(Key.people(w), by[w.ordinal].toFloat()) }
