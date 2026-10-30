@@ -96,6 +96,7 @@ enum class Met(val label: String) {
     BANDS_CUT_A_RITE_SHORT("bands cut a rite short for want of days"),
     BANDS_HELD_A_RITE_IN_A_LESSER_FORM("bands held a rite in a lesser form"),
     BANDS_GATHERED_AT_A_RITE("bands met at a rite they held together"),
+    RAIDS_ON_HOLY_GROUND("raids at a rite both keep, the peace broken"),
     BANDS_MOVED_A_RITE_TO_A_BETTER_MONTH("bands moved a rite to a month of plenty"),
     BANDS_SPLIT("bands split"),
     BANDS_SPLIT_OVER_THEIR_BELIEF("bands split over their belief"),

@@ -95,6 +95,17 @@ class CultureAndMeetingsTest {
     }
 
     @Test
+    fun `at a rite both keep, a band holds the peace as far as it holds to its rites`() {
+        val b = Band(0); val o = Band(0)
+        b.lineage[3] = 1f; o.lineage[4] = 1f
+        val r = Regard(b, 7, o, 0.4f); val anywhere = r.fightChance(1f)
+        r.holy = true
+        b.riteStrength = 0f; assertEquals(anywhere, r.fightChance(1f), "no hold on its rites: as anywhere")
+        b.riteStrength = 1f; assertEquals(0.5f * anywhere, r.fightChance(1f), 1e-6f)
+        b.riteStrength = 3f; assertEquals(0.25f * anywhere, r.fightChance(1f), 1e-6f)
+    }
+
+    @Test
     fun `a lineage's bands share a totem, one that eats of it is not seen to keep it, and the many sway which is kept`() {
         assertEquals(totemAt(3, 20), totemAt(3, 20))
         assertTrue((0 until LINEAGES).all { totemAt(it, 20).i in 0 until 20 })
