@@ -29,6 +29,9 @@ import inflation.ecology.MOVE_TRACE_LEADS
 import inflation.world.get
 import inflation.ecology.HexSim
 import inflation.ecology.Skill
+import inflation.ecology.Built
+import inflation.ecology.Tool
+import inflation.ecology.wellReachM
 import inflation.ecology.Species
 import inflation.ecology.Store
 import inflation.ecology.Stuck
@@ -413,6 +416,18 @@ class Census(private val sim: HexSim) {
                 100 * f[VillageFlow.PEOPLE] / f[VillageFlow.SETTLED_PEOPLE].toDouble().coerceAtLeast(1.0), 100 * f[VillageFlow.PEOPLE] / f[VillageFlow.ALL_PEOPLE].toDouble().coerceAtLeast(1.0), 100 * f[VillageFlow.PEOPLE_AT_HOME] / f[VillageFlow.PEOPLE].toDouble().coerceAtLeast(1.0),
                 100 * f[VillageFlow.PALISADED] / vw.coerceAtLeast(1.0), f[VillageFlow.ENDED].toDouble(), f[VillageFlow.ENDED_WEEKS] / f[VillageFlow.ENDED].toDouble().coerceAtLeast(1.0)))
             f.fill(0f)
+        }
+        run {
+            // Wells ([Built.WELL]), as they stand now, and the bands that know them and draw from them.
+            val wells = groups.bands.built.filter { it.kind == Built.WELL }
+            val whole = wells.filter { it.done }
+            val wet = whole.count { s -> hw.placesOf(s.hex).any { land.drink.well[it] >= 0.5f } }
+            val bs = groups.groups.filter { it.alive }.mapNotNull { g -> g.band?.let { g to it } }
+            println("wells now (nothing chooses by it): %d whole, %d of them reaching water this week, %.1f m deep on average as they stand; %d begun; bands knowing wells %d of %d, with picks %d; bands drawing water from one this week %d, at home with water only from under the ground over the year %.0f%% of bands at home".format(
+                whole.size, wet, whole.map { wellReachM(it).toDouble() }.average().takeIf { it.isFinite() } ?: 0.0, wells.size - whole.size,
+                bs.count { it.second.knowsSkill[Skill.WELLS] }, bs.size, bs.count { it.second.knows[Tool.PICK] },
+                bs.count { land.drink.drawsFromWell(it.first.place, it.first.species.dailyTravelKm) },
+                100.0 * bs.filter { it.second.atHome }.let { h -> h.sumOf { it.second.waterShort.toDouble() } / h.size.coerceAtLeast(1) }))
         }
         println("bands by whether they keep a herd and how much of their hands' days it asks, last year (share of people-weeks; people a band; clad, mobile; children a person; fed; air where they stood, °C; births per 1000 people a year; grown deaths per 1000 grown a year, children's per 1000 children, by cause, largest first): " + Tally.Herding.entries.joinToString(", ") { h ->
             fun v(k: Tally.Bands) = (lastYear[Tally.bandsHerding(h, k)] ?: 0).toDouble()

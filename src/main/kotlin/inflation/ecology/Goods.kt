@@ -79,4 +79,9 @@ enum class Tool(val recipe: Map<Material, Float>, val skill: Skill, val wearPerY
         known = true),
     /** Sewn, fitted clothes and footwear of hide and fur: winter becomes bearable. */
     CLOTHES(mapOf(Material.HIDE to 4f, Material.SINEW to 0.3f, Material.BONE to 0.05f), Skill.HIDEWORK, 0.5f, 4f, emptyList(), Skill.STORE, known = true),
+    /**
+     * Picks of antler or bone hafted in wood: wells are sunk the faster ([PICK_GAIN]). Antler picks dug the flint mines of
+     * Neolithic Europe; the recipe and wear are estimates. Hit on only by a band that knows wells.
+     */
+    PICK(mapOf(Material.BONE to 1f, Material.WOOD to 0.5f, Material.SINEW to 0.05f), Skill.BONE_TOOLS, 0.5f, 1f, listOf(Skill.WELLS), Skill.WELLS, hafted = true),
 }

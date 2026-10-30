@@ -95,10 +95,10 @@ object Hazards {
      * animals, soft snow too), or where water is within its going ([fetchKm]); a kind that keeps to the water's edge
      * ([Species.maxWaterKm], kept there by its range) always can. People carry water home in skins, gourds and ostrich
      * eggshells: anywhere within the day's round will do; and they dig for it in a dry bed where the water lies near
-     * ([HexDrinkingWater.dug]).
+     * ([HexDrinkingWater.dug]), or draw it from a well ([HexDrinkingWater.well]).
      */
     fun canDrink(drink: HexDrinkingWater, s: Species, p: Place): Boolean {
-        if (s.human) { val fetch = s.dailyTravelKm; return drink.water[p] >= Thresholds.WET || drink.waterKm[p] <= fetch || drink.mustDig(p, fetch) }
+        if (s.human) { val fetch = s.dailyTravelKm; return drink.water[p] >= Thresholds.WET || drink.waterKm[p] <= fetch || drink.mustDig(p, fetch) || drink.drawsFromWell(p, fetch) }
         return s.maxWaterKm.isFinite() || drink.animalWater(p) >= Thresholds.WET || drink.waterKm[p] <= fetchKm(s)
     }
 

@@ -158,14 +158,15 @@ internal fun GroupWorld.wearAndInvent(b: Band, years: Float) {
             (if (t.hafted) b.lapse(Skill.GLUING) else 1f) * wearOfMake(t, b.fine[t], tuning))
         // A band that has a use for a tool now and then hits on it: bows where game is shy and
         // fast, sickles and grinding stones where it reaps seed, and so on.
-        if (!b.knows[t] && rnd.nextFloat() < INVENT * b.edge(Skill.TINKER) * years * (0.5f + b.skills[t.serves])) {
+        if (!b.knows[t] && (t != Tool.PICK || b.knowsSkill[Skill.WELLS]) && rnd.nextFloat() < INVENT * b.edge(Skill.TINKER) * years * (0.5f + b.skills[t.serves])) {
             b.knows[t] = true
             stats.meeting(Met.Of.HIT_ON, t.name.lowercase())
         }
     }
     // So with ways of working: a band practised at a kind of work now and then hits on a new way of doing it.
-    // (Salting is hit on only with salt to hand.)
+    // (Salting is hit on only with salt to hand; wells only by a band that has had to dig for its water at home.)
     for (s in Skill.entries) if (!b.knowsSkill[s] && (!s.settled || b.atHome) && (s != Skill.SALTING || b.goods[Material.SALT] > 0f) &&
+        (s != Skill.WELLS || b.waterShort > 0f) &&
         (s != Skill.TENDING || b.keepsAnimals()) &&
         s.needs.let { it == null || (b.knowsSkill[it] && b.skills[it] >= NEEDS_LEVEL) } &&
         rnd.nextFloat() < s.invent * INVENT * b.edge(Skill.TINKER) * years * (0.5f + b.skill(s.domain))) {

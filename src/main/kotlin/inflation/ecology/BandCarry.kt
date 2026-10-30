@@ -54,7 +54,7 @@ internal fun carryRules(): Map<String, Pair<OnSplit, OnJoin>> {
     rule(OnSplit.COPIED, OnJoin.BLENDED, "kit", "fine", "salted", "dryDepth", "leanLost", "sodiumShort", "lineage", "inbred", "sisu")
     // Camp, home and raids.
     rule(OnSplit.COPIED, OnJoin.LOST, "campWeeks", "stayWeeks", "campPlace", "appointment", "houseHex", "house", "drivenFrom", "drivenBy", "homeEarth", "homeWalls", "homeGroundC", "palisade", "fire",
-        "houseLives", "houseFood", "foodFrom", "fishPull", "weaningFood")
+        "houseLives", "houseFood", "foodFrom", "fishPull", "weaningFood", "waterShort")
     rule(OnSplit.FRESH, OnJoin.LOST, "cache", "cacheKgPer", "cachePlace", "raid", "unlucky",
         "shelter", "atHome", "nightWood", "hearthWood", "spareDays", "dogShare", "dryAsk", "skinAsk", "weirPull", "houseLivesWeek", "houseFoodWeek")
     // Ties.
