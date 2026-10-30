@@ -178,6 +178,12 @@ object Tally {
     fun diet(s: Species, part: DietPart) = of(s.name, "diet ${part.label}, kg")
     /** Bands' plant food got by the plant food it came from, at what it feeds, kg of need. */
     fun plantsFrom(f: PlantFrom) = TallyKey.raw("bands' plants from ${f.label}")
+    /** What bands' kills of big game by month ([bandKills]) count: the kills, and their meat brought in by weight, lean and fat. */
+    enum class KillPart(val label: String) { KILLS("kills"), LEAN_KG("lean, kg"), FAT_KG("fat, kg") }
+    /** Bands' kills of big game in [month] (0 from midwinter): [part] of them. */
+    fun bandKills(month: Int, part: KillPart) = TallyKey.raw("bands' kills in month ${month + 1}, ${part.label}")
+    /** Bands' kills of big game of the kind named [kind]: [part] of them. */
+    fun bandKillsOf(kind: String, part: KillPart) = of(kind, "bands' kills, ${part.label}")
 
     /** What bands' tallies by the kind of country they are in ([bandsIn]) and by their clothing ([bandsClad]) count. */
     enum class Bands(val label: String) {

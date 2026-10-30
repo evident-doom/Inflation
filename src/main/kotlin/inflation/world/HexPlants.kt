@@ -112,8 +112,14 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
     /** How much of the forage in place [p] is fresh, leafy growth, 0..1: the green part of it, less as it ripens. */
     fun leafy(p: Place) = green[p] * (1f - maturity(p))
 
-    /** Nourishment per kg of forage in place [p] this week, against fresh growth: about two thirds when dry, dormant or ripe. */
-    fun nourishment(p: Place) = tuning.dryValue + (1f - tuning.dryValue) * leafy(p)
+    /**
+     * Nourishment per kg of forage in place [p] this week, against fresh growth: about two thirds when just dry, dormant or
+     * ripe, falling toward straw's as the cured grass weathers ([hayFresh]): the lean end of a dry season or a winter.
+     */
+    fun nourishment(p: Place): Float {
+        val dry = tuning.strawValue + (tuning.dryValue - tuning.strawValue) * hayFresh[p]
+        return dry + (1f - dry) * leafy(p)
+    }
 
     /** Volcanic ash lying on each place, mm (set from the eruptions each week). */
     val ash = FloatArray(n)

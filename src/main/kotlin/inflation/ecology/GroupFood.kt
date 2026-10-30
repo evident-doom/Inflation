@@ -348,6 +348,9 @@ private class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, packK
     // What it has got: meat (the meat it took in its meetings with it), small game, carrion and bones, plants, fish; and what
     // all of it feeds, in kg of its need (see [worth]).
     var meat = g.meatMet; var smallGot = 0f; var scraps = 0f; var plants = 0f; var fish = 0f
+    // (The fat of its kills, kg, apart from the lean [meat]; and what a kg of it feeds, as grease: see [fatOfKill].)
+    var killFat = 0f
+    val fatFeeds = s.needScale * Nourishment.GREASE
     // (Of the fish, what was caught rather than gathered off the shore: that alone is practice at fishing.)
     var fished = 0f
     // (How fish paid against the gatherers' least paying food taken up, the first pass: see [Offers.pull]. And what fish from a
@@ -601,12 +604,13 @@ private class Offers(n: Int) {
 }
 
 /**
- * Offers [t] to [w]'s party in [o]: [r] a day of [e] kg each, taking [h] days each. A band's gatherers rank each kind of
+ * Offers [t] to [w]'s party in [o]: [r] a day of [e] kg each, taking [h] days each, each kg feeding [rich] times a kg of [t]
+ * (a kill's fat, [fatOfKill]), weighed also for the food [spared] a kill takes from a rival (see [offerFoods]). A band's gatherers rank each kind of
  * food by what it weighs it at, times its effort on it: above 1 they take it up before foods that pay more, and below 1
  * leave it for ones that pay less, and either way get what it truly yields ([Offers.takeUp]). (Big game's effort is
  * the hunters' share instead, see [huntersShare].)
  */
-private fun HexGroups.offer(w: ForageWeek, o: Offers, t: Food, k: Int, p: Place, r: Float, e: Float, h: Float, spared: Float = 0f, herd: Int = -1) {
+private fun HexGroups.offer(w: ForageWeek, o: Offers, t: Food, k: Int, p: Place, r: Float, e: Float, h: Float, spared: Float = 0f, herd: Int = -1, rich: Float = 1f) {
     val band = w.band
     val keen = if (band != null && t != Food.BIG_GAME) band.effort[t] else 1f
     if (band != null && t != Food.BIG_GAME && r > 0f) dialUse?.let { u -> val f = FoodEfforts.slot(t)
@@ -614,7 +618,7 @@ private fun HexGroups.offer(w: ForageWeek, o: Offers, t: Food, k: Int, p: Place,
     if (r <= 0f || e <= 0f || (band != null && t != Food.BIG_GAME && w.gatherers <= 0f)) return
     // (Biting insects slow people at whatever they do out there; fish are offered at the camp, whose place stands for the water they fish.)
     val hh = if (band != null) harassedDays(p, h) else h
-    o.add(t, k, p, r, e, e * w.feeds(t), (e + spared) * w.weigh(t) * keen, hh, if (band != null && t != Food.BIG_GAME) 1 else 0, herd)
+    o.add(t, k, p, r, e, e * w.feeds(t) * rich, (e * rich + spared) * w.weigh(t) * keen, hh, if (band != null && t != Food.BIG_GAME) 1 else 0, herd)
 }
 
 /** [h] days of a band's work at place [p], as biting insects slow it there ([HexSmallLife.HARASS_TIME]). */
@@ -641,9 +645,15 @@ private fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
             // A kill is worth what the party can eat of it, gorging included (a band also what it can
             // dry); the rest is left to others.
             val meat1 = min(fauna.kinds[k].massKg * credit, most)
+            // (A band's kill of a grown one is the richer for its fat, the young lean: what it weighs is what its kills would be, as
+            // many grown as there are among them.)
+            val rich = if (band != null && meat1 > 0f) {
+                val fat1 = fatOfKill(k, Place(p), meat1, band) * adults[k][p] / dens
+                1f + fat1 / meat1 * (w.fatFeeds / w.feeds(Food.BIG_GAME).coerceAtLeast(1e-6f) - 1f)
+            } else 1f
             // (Each kill also costs the stalks and chases that failed before it.)
             offer(w, o, Food.BIG_GAME, k, Place(p), dens * huntSwept * w.odds[i] / days, meat1, HANDLING_DAYS + STALK_DAYS * w.stalks[i] + meat1 * w.eats,
-                spared[k])
+                spared[k], rich = rich)
         }
     }
     // And the herds kept at bands' camps on it, as their kind in the wild ([herdOdds]).
@@ -783,7 +793,17 @@ private fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
                     stats.meeting(Met.BANDS_ATE_THEIR_TOTEM)
                 }
                 w.busy += kills1 * o.time[i] * w.party[0]
-                w.meat += haul.kg; w.fed += haul.kg * w.feeds(Food.BIG_GAME)
+                // (Its fat feeds as grease, the rest as lean meat; for the census, the kills by month and by prey kind, lean and fat by weight.)
+                w.meat += haul.kg - haul.fat; w.killFat += haul.fat
+                w.fed += (haul.kg - haul.fat) * w.feeds(Food.BIG_GAME) + haul.fat * w.fatFeeds
+                if (band != null) { val m = w.weather.date.month
+                    stats.hunting.merge(Tally.bandKills(m, Tally.KillPart.KILLS), kills1, Int::plus)
+                    stats.hunting.merge(Tally.bandKills(m, Tally.KillPart.LEAN_KG), (haul.kg - haul.fat).roundToInt(), Int::plus)
+                    stats.hunting.merge(Tally.bandKills(m, Tally.KillPart.FAT_KG), haul.fat.roundToInt(), Int::plus)
+                    val prey = fauna.kinds[o.kind[i]].name
+                    stats.hunting.merge(Tally.bandKillsOf(prey, Tally.KillPart.KILLS), kills1, Int::plus)
+                    stats.hunting.merge(Tally.bandKillsOf(prey, Tally.KillPart.LEAN_KG), (haul.kg - haul.fat).roundToInt(), Int::plus)
+                    stats.hunting.merge(Tally.bandKillsOf(prey, Tally.KillPart.FAT_KG), haul.fat.roundToInt(), Int::plus) }
             }
             Food.SMALL_GAME -> small.catchSmallIn(Place(p), Kg(expected), min(land.areaKm2[p], w.smallSweep * smallSeen(Place(p))), w.weather).v.let { w.smallGot += it; w.fed += it * w.feeds(Food.SMALL_GAME) }
             Food.CARRION -> scavenge(g, Place(p), expected, w.sweep, w.rnd).let { w.scraps += it; w.fed += it * w.feeds(Food.CARRION) }
@@ -832,9 +852,9 @@ private fun HexGroups.eatTheWeek(w: ForageWeek) {
     val meat = w.meat; val smallGot = w.smallGot; val scraps = w.scraps; val plants = w.plants; val fish = w.fish
     // The resident bands it came on while it searched count towards its search image.
     if (w.searched > 0f) countResidentsMet(g, w.ground, w.met, w.searched, w.today)
-    if (band != null) { practise(g, band, meat > g.meatMet, smallGot, plants, w.fished); recordFood(g, band, w) }
+    if (band != null) { practise(g, band, meat + w.killFat > g.meatMet, smallGot, plants, w.fished); recordFood(g, band, w) }
     // (All counted at what it feeds, see [ForageWeek.worth]: the meat eaten as far as the rest falls short.)
-    val meatWorth = w.feeds(Food.BIG_GAME); val rest = w.fed - meat * meatWorth
+    val meatWorth = w.feeds(Food.BIG_GAME); val rest = w.fed - meat * meatWorth - w.killFat * w.fatFeeds
     // (What its plant food weighs: raw seed weighs more than it feeds, see [gather].)
     val plantMass = w.plantKg.sum()
     var meatEaten = min(meat, max(0f, (wantAll - rest) / meatWorth))
@@ -856,7 +876,8 @@ private fun HexGroups.eatTheWeek(w: ForageWeek) {
         // (Fresh food is kept at what it feeds, with what it weighs, as plant food is: see [ForageWeek.worth].)
         plantKg[Store.FRESH] = meat + smallGot - pelts + scraps + fish
         got[Store.FRESH] = w.worth(Food.BIG_GAME) * meat + w.worth(Food.SMALL_GAME) * (smallGot - pelts) + w.worth(Food.CARRION) * scraps + w.worth(Food.FISH) * fish
-        plantKg[Store.GREASE] = w.grease; got[Store.GREASE] = w.greaseFed
+        // (The fat of its kills is eaten as grease is: it holds no protein.)
+        plantKg[Store.GREASE] = w.grease + w.killFat; got[Store.GREASE] = w.greaseFed + w.killFat * w.fatFeeds
         val meal = Meal(wantAll)
         // (Salt hunger: its people eat meat for its sodium before anything else, as far as the kill and the larder have it. Salt
         // appetite is inborn: mammals short of sodium seek it out and prefer salty food unlearned, Denton 1982, The Hunger for Salt.)
@@ -975,7 +996,7 @@ private fun HexGroups.tallyForage(w: ForageWeek, meatEaten: Float) {
     val g = w.g; val s = w.s; val band = w.band; val wantAll = w.wantAll
     val meat = w.meat; val smallGot = w.smallGot; val scraps = w.scraps; val fish = w.fish
     // (Each at what it feeds, in kg of its need as asked: see [ForageWeek.worth].)
-    val meatFed = meatEaten * w.worth(Food.BIG_GAME) + fish * w.worth(Food.FISH)
+    val meatFed = meatEaten * w.worth(Food.BIG_GAME) + w.killFat * w.fatFeeds + fish * w.worth(Food.FISH)
     val smallFed = smallGot * w.worth(Food.SMALL_GAME); val scrapsFed = scraps * w.worth(Food.CARRION)
     val plantsFed = w.plantKind.sum()
     stats.hunting.merge(Tally.diet(s, Tally.DietPart.ASKED), wantAll.toInt(), Int::plus)
@@ -987,7 +1008,7 @@ private fun HexGroups.tallyForage(w: ForageWeek, meatEaten: Float) {
     if (band != null) {
         val c = Biome.entries[biomeOfPlace[g.place]]
         stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.ASKED), wantAll.toInt(), Int::plus)
-        stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.MEAT), (meat * w.worth(Food.BIG_GAME) + smallFed + scrapsFed).toInt(), Int::plus)
+        stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.MEAT), (meat * w.worth(Food.BIG_GAME) + w.killFat * w.fatFeeds + smallFed + scrapsFed).toInt(), Int::plus)
         stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.PLANTS), plantsFed.toInt(), Int::plus)
         for (f in PlantFrom.entries) stats.hunting.merge(Tally.plantsFrom(f), w.plantFrom[f].toInt(), Int::plus)
         stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.FISH), (fish * w.worth(Food.FISH)).toInt(), Int::plus)
@@ -997,7 +1018,7 @@ private fun HexGroups.tallyForage(w: ForageWeek, meatEaten: Float) {
         // (And by whether it keeps a herd: what it foraged against what it wanted, and its hearth.)
         val herding = bandHerding(band, g.adults)
         stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.ASKED), wantAll.toInt(), Int::plus)
-        stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.MEAT), (meat * w.worth(Food.BIG_GAME) + smallFed + scrapsFed + fish * w.worth(Food.FISH)).toInt(), Int::plus)
+        stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.MEAT), (meat * w.worth(Food.BIG_GAME) + w.killFat * w.fatFeeds + smallFed + scrapsFed + fish * w.worth(Food.FISH)).toInt(), Int::plus)
         stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.PLANTS), plantsFed.toInt(), Int::plus)
         stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.HEARTH), (100f * band.hearthWood).toInt(), Int::plus)
         stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.FUEL_DAYS), (100f * w.fuelDays / days).toInt(), Int::plus)
@@ -1031,6 +1052,13 @@ private fun GroupWorld.bookForage(b: Books, band: Band?, meatEaten: Float, rest:
 private fun HexGroups.keepAndSpoil(w: ForageWeek, got: EnumFloats<Store>, gotKg: EnumFloats<Store>, pelts: Float) {
     val g = w.g; val band = checkNotNull(w.band); val weather = w.weather
     val time = checkNotNull(w.time)
+    // (What is left of its kills' fat keeps with the fresh meat, as the carcass it came on: only rendered grease keeps as
+    // grease. Of the grease left, the kills' fat is its share of the week's.)
+    val killFatFed = w.killFat * w.fatFeeds
+    if (killFatFed > 0f && got[Store.GREASE] > 0f) {
+        val share = killFatFed / (killFatFed + w.greaseFed); val fed = got[Store.GREASE] * share; val kg = gotKg[Store.GREASE] * share
+        got[Store.GREASE] -= fed; gotKg[Store.GREASE] -= kg; got[Store.FRESH] += fed; gotKg[Store.FRESH] += kg
+    }
     // What is left is kept; spare hands dry fresh meat and fish over the fire, as fast as their skill allows.
     for (st in Store.entries) addFood(g.stores, g.storeKgPer, st, got[st], gotKg[st])
     // (Racks in the sun dry little in wet weather; smoking over a slow fire works in any.)
@@ -1124,7 +1152,7 @@ private fun HexGroups.countFoodTime(w: ForageWeek, time: BandTime) {
 }
 
 /** What one of [forage]'s takes brought: kilos of food, and party-days spent on it beyond the take itself. */
-private class Haul { var kg = 0f; var busy = 0f; var mass = 0f }
+private class Haul { var kg = 0f; var busy = 0f; var mass = 0f; var fat = 0f }
 
 /**
  * [forage]'s raid on herd [hg] at place [p]: [expected] kills on average, each worth [kgEach] to the beast, out of the band's
@@ -1139,7 +1167,8 @@ private fun HexGroups.raidHerd(g: HexGroup, hg: HerdGame, p: Place, expected: Fl
     b.herd[hg.k] -= kills1.toFloat()
     if (b.herdTaken.size != b.herd.size) b.herdTaken = FloatArray(b.herd.size)
     b.herdTaken[hg.k] += kills1.toFloat()
-    out.kg = kills1 * kgEach
+    // (Kept herds have no fat state yet: their meat is lean.)
+    out.kg = kills1 * kgEach; out.fat = 0f
     small.deposit(DeadPool.CARRION, p, Kg(kills1 * leftOver(ps, kgEach, null)))
     stats.meeting(Met.KEPT_ANIMALS_TAKEN, kills1)
     stats.hunting.merge(Tally.of(s, Tally.OfKind.KILLS_OF_KEPT), kills1, Int::plus)
@@ -1193,6 +1222,7 @@ private fun HexGroups.huntGame(g: HexGroup, k: Int, p: Place, expected: Float, k
     fauna.groupKilled[k][p] += kills1 / (dens * area)
     val young = min(HexFauna.YOUNG_WEIGHT * ps.massKg, kgEach)
     out.kg = na * kgEach + ny * young
+    out.fat = na * fatOfKill(k, p, kgEach, band)
     // (Hides, bone and sinew come out of what the hunters leave of the carcasses.)
     val leftA = na * leftOver(ps, kgEach, band)
     small.deposit(DeadPool.CARRION, p, KgM2((leftA + ny * (HexFauna.YOUNG_WEIGHT * ps.massKg - young) - tallyHide(Tally.HideSource.RESIDENTS, ps, band?.skin(ps, na.toFloat(), leftA))) / (area * 1e6f)))
@@ -1203,6 +1233,18 @@ private fun HexGroups.huntGame(g: HexGroup, k: Int, p: Place, expected: Float, k
     stats.hunting.merge(Tally.of(s, Tally.OfKind.KILLS_OF_RESIDENTS), kills1, Int::plus)
     diag(ps, HuntStep.RESIDENT_KILLS, kills1.toFloat())
     return kills1
+}
+
+/**
+ * The fat of a kill of a grown [k] at [p], kg, worth [kgEach] to [band]: the animal's fat ([HexFauna.fatShare]), as much of it
+ * as its butchers take (all of it at [MEAT_MOST]) and as the party takes of the carcass. None for a beast: to it a kill is
+ * whole prey, fat and all ([Nourishment.PREY]).
+ */
+internal fun HexGroups.fatOfKill(k: Int, p: Place, kgEach: Float, band: Band?): Float {
+    if (band == null || kgEach <= 0f) return 0f
+    val ps = fauna.kinds[k]
+    val body = fauna.fatShare(k, p) * ps.massKg * min(1f, meatShare(band) / MEAT_MOST)
+    return min(kgEach, body * min(1f, kgEach / (ps.massKg * creditShare(band)).coerceAtLeast(1e-6f)))
 }
 
 /**
@@ -1407,7 +1449,7 @@ private fun GroupWorld.recordFood(g: HexGroup, band: Band, w: ForageWeek) {
     val k = 1f / stepsPerYear; val per = 1f / (max(1, g.size) * days)
     fun add(f: FoodFrom, kg: Float) { band.foodFrom[f] += k * (kg * per - band.foodFrom[f]) }
     add(FoodFrom.PLANTS, w.plants); add(FoodFrom.SMALL_GAME, w.smallGot); add(FoodFrom.FISH, w.fish)
-    add(FoodFrom.BIG_GAME, w.meat); add(FoodFrom.CARRION, w.scraps)
+    add(FoodFrom.BIG_GAME, w.meat + w.killFat); add(FoodFrom.CARRION, w.scraps)
     band.fishPull += k * (w.fishPull - band.fishPull)
     // (Whether a weir would pay goes with the season's fish, so it is this week's, not a running worth.)
     band.weirPull = w.weirPull

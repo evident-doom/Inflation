@@ -31,6 +31,7 @@ import inflation.ecology.Species
 import inflation.ecology.Store
 import inflation.ecology.Stuck
 import inflation.world.Biome
+import inflation.world.Date
 import inflation.world.HexWorld
 import kotlin.math.abs
 import java.util.Random
@@ -131,10 +132,16 @@ class Census(private val sim: HexSim) {
                 inN[k] / inA.coerceAtLeast(1.0)) })
         println("     residents fed from (fresh plants / prey and carrion / reserves, shares of need per animal this year): " +
             fauna.kinds.indices.joinToString(", ") { k ->
-            val ff = fauna.fedFrom[k]; val h = ff[Fed.HEADS].sumThenReset().coerceAtLeast(1e-9)
-            "%s %.2f/%.2f/%.2f".format(fauna.kinds[k].name, ff[Fed.PLANTS].sumThenReset() / h,
-                ff[Fed.ANIMAL].sumThenReset() / h, ff[Fed.RESERVES].sumThenReset() / h)
+            val ff = fauna.fedFrom[k]; val h = ff[Fed.HEADS].sum().coerceAtLeast(1e-9)
+            "%s %.2f/%.2f/%.2f".format(fauna.kinds[k].name, ff[Fed.PLANTS].sum() / h, ff[Fed.ANIMAL].sum() / h, ff[Fed.RESERVES].sum() / h)
         })
+        println("     residents' plants by food (forage / fruit / roots and fallen mast, shares of need per animal this year): " +
+            fauna.kinds.indices.joinToString(", ") { k ->
+            val ff = fauna.fedFrom[k]; val h = ff[Fed.HEADS].sum().coerceAtLeast(1e-9)
+            val fruit = ff[Fed.FRUIT].sum() / h; val under = ff[Fed.UNDERGROUND].sum() / h
+            "%s %.2f/%.2f/%.2f".format(fauna.kinds[k].name, ff[Fed.PLANTS].sum() / h - fruit - under, fruit, under)
+        })
+        for (ff in fauna.fedFrom) for (a in ff) a.reset()
         println("     residents held hungry with no better place next door (share of head-weeks this year / of those at a closed border / most in one week): " +
             fauna.kinds.indices.filter { fauna.stuck[it][Stuck.HEADS.ordinal] > 0.0 }.joinToString(", ") { k ->
             val st = fauna.stuck[k]; val h = st[Stuck.HEADS.ordinal]
@@ -436,6 +443,14 @@ class Census(private val sim: HexSim) {
                 100 * brought / asked, 100 * eaten / brought.coerceAtLeast(1.0), 100 * cs.sumOf { v(Tally.bandsIn(it, Tally.Bands.PLANTS)) } / asked))
             println("bands' plant food, last year (of food wanted, by what it feeds): " + PlantFrom.entries.joinToString(", ") { f ->
                 "%s %.1f%%".format(f.label, 100 * v(Tally.plantsFrom(f)) / asked) })
+            // (A fat kill is worth more than a lean one: when in the year bands kill, and how fat what they bring in is.)
+            println("bands' kills of big game by month, last year (kills; fat in the meat brought in, by weight): " + (0 until Date.MONTHS_PER_YEAR).joinToString(", ") { m ->
+                val lean = v(Tally.bandKills(m, Tally.KillPart.LEAN_KG)); val fat = v(Tally.bandKills(m, Tally.KillPart.FAT_KG))
+                "%d: %.0f; %.1f%%".format(m + 1, v(Tally.bandKills(m, Tally.KillPart.KILLS)), 100 * fat / (lean + fat).coerceAtLeast(1.0)) })
+            println("bands' kills of big game by prey kind, last year (kills; meat brought in, kg; fat in it, by weight): " + fauna.kinds
+                .map { s -> s.name to Tally.KillPart.entries.map { v(Tally.bandKillsOf(s.name, it)) } }
+                .filter { it.second[0] > 0.0 }.sortedByDescending { it.second[1] + it.second[2] }
+                .joinToString(", ") { (name, n) -> "%s %.0f; %.0f; %.1f%%".format(name, n[0], n[1] + n[2], 100 * n[2] / (n[1] + n[2]).coerceAtLeast(1.0)) })
         }
         println("bands by kind of country, last year (hearth fire fed by the firewood got, share of the days spent fetching it): " + cs.joinToString(", ") { c ->
             val w = weeks(c).toDouble().coerceAtLeast(1.0)
