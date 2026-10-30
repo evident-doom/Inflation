@@ -606,7 +606,7 @@ class Census(private val sim: HexSim) {
      * of one region, and so are the neighbours of those (single linkage). A band bordering another region has a neighbour in
      * it. The rites' year, from [metYear] (the year's culture tallies summed over its weeks), counts every rite's month
      * once, held or cut short, and again by how far the band was from the site when it was (see [RiteWalk]); the raids' year counts
-     * every raid and what came of it. The lines are the report's: nothing in the model reads them.
+     * every raid and what came of it; the bands' year every split and every joining. The lines are the report's: nothing in the model reads them.
      */
     fun printIdentity(thisYear: Map<TallyKey, Int>, metYear: Map<TallyKey, Int>) {
         val bands = groups.groups.mapNotNull { g -> g.band?.takeIf { g.alive }?.let { g to it } }
@@ -692,6 +692,8 @@ class Census(private val sim: HexSim) {
         println("     raids' year: %d at meetings, %d on homes; %d raided bands slipped away, %d larders taken, %d bands driven from their homes; %d times neighbours stood with the raided"
             .format(met(Met.RAIDS), met(Met.RAIDS_ON_HOMES), met(Met.RAIDED_BANDS_SLIPPED_AWAY), met(Met.LARDERS_RAIDED), met(Met.BANDS_DRIVEN_FROM_HOME),
                 met(Met.NEIGHBOURS_DEFENDED)))
+        println("     bands' year: %d split, %d small bands joined kin, %d bands at home together became one"
+            .format(met(Met.BANDS_SPLIT), met(Met.SMALL_BANDS_JOINED_KIN), met(Met.BANDS_BECAME_ONE)))
         fun of(m: Met.Of, w: RiteWalk) = metYear[m.tally(w.label)] ?: 0
         println("     rites by the band's distance from the site: " + RiteWalk.entries.joinToString("; ") { w ->
             val h = of(Met.Of.RITES_HELD, w); val c = of(Met.Of.RITES_CUT_SHORT, w)
