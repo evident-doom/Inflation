@@ -9,6 +9,7 @@ import inflation.Stocks
 import inflation.ecology.Activity
 import inflation.ecology.Catalogue
 import inflation.ecology.Mind
+import inflation.ecology.PlanTier
 import inflation.ecology.DeathCause
 import inflation.ecology.Tally
 import inflation.ecology.VillageFlow
@@ -373,6 +374,17 @@ class Census(private val sim: HexSim) {
                 pw / bw, 100 * (lastYear[Tally.bandsMind(m, Tally.Bands.MOVES)] ?: 0) / bw,
                 1000 * (lastYear[Tally.bandsMind(m, Tally.Bands.BORN)] ?: 0) / years, 1000 * died.values.sum() / years,
                 died.entries.sortedByDescending { it.value }.joinToString(" ") { "%s %.1f".format(it.key, 1000 * it.value / years) }) })
+        run {
+            // A planning band's days beyond its essentials, by tier ([planDays]).
+            val pw = (lastYear[Tally.bandsMind(Mind.PLANS, Tally.Bands.PEOPLE_WEEKS)] ?: 0).toDouble()
+            if (pw > 0.0) {
+                fun v(t: PlanTier) = (lastYear[Tally.planTier(t)] ?: 0).toDouble()
+                val all = (PlanTier.entries - PlanTier.ASKED_BEYOND - PlanTier.LIVES).sumOf { v(it) }.coerceAtLeast(1.0)
+                println("planning bands' days beyond their essentials, last year (share of those days by tier; unreckoned asks not given, as a share of those days; lives the days held by lives were reckoned to save, per 1000 people a year): " +
+                    listOf(PlanTier.OBLIGED, PlanTier.SCORED, PlanTier.UNRECKONED, PlanTier.LEISURE).joinToString(", ") { "%s %.0f%%".format(it.label, 100 * v(it) / all) } +
+                    "; %s %.0f%%; %.1f".format(PlanTier.ASKED_BEYOND.label, 100 * v(PlanTier.ASKED_BEYOND) / all, 1000 * v(PlanTier.LIVES) / 1e4 / (pw / stepsPerYear).coerceAtLeast(1e-9)))
+            }
+        }
         run {
             // Villages: hexes where two or more bands live settled ([villages]).
             val f = groups.bands.villageFlows

@@ -256,6 +256,8 @@ object Tally {
     fun bandsLivingDied(way: Living) = TallyKey.raw("bands ${way.label}:$DIED_OF")
     /** Bands' tallies by how they choose ([Mind]). */
     fun bandsMind(mind: Mind, what: Bands) = TallyKey.raw("bands of mind ${mind.label}:${what.label}")
+    /** A planning band's days in each tier of its week beyond its essentials ([planDays]), tenths of a day. */
+    fun planTier(t: PlanTier) = TallyKey.raw("plans:${t.label}")
     /** Bands' deaths of [cause] by how they choose; [bandsMindDied] (mind) starts all of them. */
     fun bandsMindDied(mind: Mind, cause: DeathReason) = TallyKey.raw(bandsMindDied(mind).text + cause.label)
     fun bandsMindDied(mind: Mind) = TallyKey.raw("bands of mind ${mind.label}:$DIED_OF")

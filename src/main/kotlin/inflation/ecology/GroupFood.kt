@@ -51,7 +51,8 @@ internal fun HexGroups.hunt(weather: Weather) {
     // (Where the bands about it stand now, after this week's moves, as its own place is.)
     if (ways != null || control != null) indexBands()
     // (Without a ways network the bands keep the scaffold's ways, not those a saved world's bands last had from theirs.)
-    if (ways != null) { for (g in hunters) if (g.band != null) setWays(g, weather, ways, inputs, out) }
+    // (A planning band reads no ways: it keeps the scaffold's, [planDays].)
+    if (ways != null) { for (g in hunters) g.band?.let { b -> if (b.mind == Mind.PLANS) b.scaffoldWays() else setWays(g, weather, ways, inputs, out) } }
     else for (g in hunters) g.band?.scaffoldWays()
     dialUse?.let { u -> for (g in hunters) if (g.band != null) u.bandWeeks.increment() }
     // (A band followed under the player's hand sets its ways every week, so the player's pins hold.)
@@ -147,7 +148,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
             // (What its herds will feed it this week it need not forage for: their increase and milk, see [herdFoodWeek].)
             val need = max(0f, w.wantAll - w.fed - herdFoodWeek(g, w.band, weather.date))
             fun daysFor(kg: Float) = if (intake > 0f) min(days.toFloat(), kg / intake) else 0f
-            planWeek(w, daysFor(need), daysFor(left) - daysFor(need))
+            planWeek(w, daysFor(need), daysFor(left) - daysFor(need), if (intake > 0f) intake / w.hands.coerceAtLeast(1) else 0f)
         }
         val time = w.time
         var f = if (intake > 0f) min(1f, left / (w.workDays * intake)) else 0f
@@ -160,7 +161,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         takeFoods(w, o, f)
         time?.spend(Activity.FOOD, (w.busy - busy0) * w.hands)
     }
-    if (w.band != null && w.time == null) planWeek(w, 0f, 0f)
+    if (w.band != null && w.time == null) planWeek(w, 0f, 0f, 0f)
     // (What a day's foraging brought it this week, kg of its need, kept month by month as a mean over the years: what a
     // herder's day must bring to be worth it, [herdPays].)
     w.band?.let { b -> w.time?.spentOn(Activity.FOOD)?.takeIf { it > 0f }?.let { d ->
@@ -198,7 +199,7 @@ private fun restedDays(w: ForageWeek, time: BandTime) {
  * shared out when it comes to more than the days left ([BandTime.plan]). Leisure asks for nothing: it is what the week
  * leaves (and takes less food: [restedDays]). Then it fetches the hearth's firewood, puts up its shelters and herds, in the days the plan gives them.
  */
-private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float) {
+private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float, perDay: Float) {
     val g = w.g; val b = checkNotNull(w.band); val hands = w.hands
     // (Its work goes the slower, the colder and hungrier its people: see [Sisu].)
     val time = BandTime(days * hands.toFloat(), b.paces())
@@ -229,8 +230,10 @@ private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float)
     val asks = enumFloats<Activity>()
     asks[Activity.FOOD] = storeDays * hands
     choreAsks(g, b, w.weather.date, asks, warm)
-    // (The band weighs the rest of the asks against each other by its ways: see [timeWay].)
-    time.plan(needs, asks, enumFloats<Activity> { a -> timeWay(a)?.let { b.will[it] } ?: 1f }, warm, kept)
+    // (The band weighs the rest of the asks against each other by its ways: see [timeWay]. A planning band holds its days by
+    // its customs, the lives they save and what is left: [planDays].)
+    if (b.mind == Mind.PLANS) time.plan(needs, planDays(g, b, w.weather, time, needs, asks, warm, kept, perDay), null, warm, kept)
+    else time.plan(needs, asks, enumFloats<Activity> { a -> timeWay(a)?.let { b.will[it] } ?: 1f }, warm, kept)
     w.room = time.leftFor(Activity.FOOD) / time.pace(Activity.FOOD)
     // (What its fire, shelters and food leave of the week, kept month by month as a mean over the years: what its
     // leanest month could give its herders, [keepHerds].)
