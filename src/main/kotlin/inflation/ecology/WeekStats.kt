@@ -169,6 +169,8 @@ object Tally {
     enum class KillPart(val label: String) { KILLS("kills"), LEAN_KG("lean, kg"), FAT_KG("fat, kg") }
     /** Bands' kills of big game in [month] (0 from midwinter): [part] of them. */
     fun bandKills(month: Int, part: KillPart) = TallyKey.raw("bands' kills in month ${month + 1}, ${part.label}")
+    /** Bands' kills of big game of the kind named [kind]: [part] of them. */
+    fun bandKillsOf(kind: String, part: KillPart) = of(kind, "bands' kills, ${part.label}")
 
     /** What bands' tallies by the kind of country they are in ([bandsIn]) and by their clothing ([bandsClad]) count. */
     enum class Bands(val label: String) {

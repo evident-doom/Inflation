@@ -438,6 +438,10 @@ class Census(private val sim: HexSim) {
             println("bands' kills of big game by month, last year (kills; fat in the meat brought in, by weight): " + (0 until Date.MONTHS_PER_YEAR).joinToString(", ") { m ->
                 val lean = v(Tally.bandKills(m, Tally.KillPart.LEAN_KG)); val fat = v(Tally.bandKills(m, Tally.KillPart.FAT_KG))
                 "%d: %.0f; %.1f%%".format(m + 1, v(Tally.bandKills(m, Tally.KillPart.KILLS)), 100 * fat / (lean + fat).coerceAtLeast(1.0)) })
+            println("bands' kills of big game by prey kind, last year (kills; meat brought in, kg; fat in it, by weight): " + fauna.kinds
+                .map { s -> s.name to Tally.KillPart.entries.map { v(Tally.bandKillsOf(s.name, it)) } }
+                .filter { it.second[0] > 0.0 }.sortedByDescending { it.second[1] + it.second[2] }
+                .joinToString(", ") { (name, n) -> "%s %.0f; %.0f; %.1f%%".format(name, n[0], n[1] + n[2], 100 * n[2] / (n[1] + n[2]).coerceAtLeast(1.0)) })
         }
         println("bands by kind of country, last year (hearth fire fed by the firewood got, share of the days spent fetching it): " + cs.joinToString(", ") { c ->
             val w = weeks(c).toDouble().coerceAtLeast(1.0)

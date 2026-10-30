@@ -729,13 +729,17 @@ private fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
                     stats.meeting(Met.BANDS_ATE_THEIR_TOTEM)
                 }
                 w.busy += kills1 * o.time[i] * w.party[0]
-                // (Its fat feeds as grease, the rest as lean meat; for the census, the kills by month, lean and fat by weight.)
+                // (Its fat feeds as grease, the rest as lean meat; for the census, the kills by month and by prey kind, lean and fat by weight.)
                 w.meat += haul.kg - haul.fat; w.killFat += haul.fat
                 w.fed += (haul.kg - haul.fat) * w.feeds(Food.BIG_GAME) + haul.fat * w.fatFeeds
                 if (band != null) { val m = w.weather.date.month
                     stats.hunting.merge(Tally.bandKills(m, Tally.KillPart.KILLS), kills1, Int::plus)
                     stats.hunting.merge(Tally.bandKills(m, Tally.KillPart.LEAN_KG), (haul.kg - haul.fat).roundToInt(), Int::plus)
-                    stats.hunting.merge(Tally.bandKills(m, Tally.KillPart.FAT_KG), haul.fat.roundToInt(), Int::plus) }
+                    stats.hunting.merge(Tally.bandKills(m, Tally.KillPart.FAT_KG), haul.fat.roundToInt(), Int::plus)
+                    val prey = fauna.kinds[o.kind[i]].name
+                    stats.hunting.merge(Tally.bandKillsOf(prey, Tally.KillPart.KILLS), kills1, Int::plus)
+                    stats.hunting.merge(Tally.bandKillsOf(prey, Tally.KillPart.LEAN_KG), (haul.kg - haul.fat).roundToInt(), Int::plus)
+                    stats.hunting.merge(Tally.bandKillsOf(prey, Tally.KillPart.FAT_KG), haul.fat.roundToInt(), Int::plus) }
             }
             Food.SMALL_GAME -> small.catchSmallIn(Place(p), Kg(expected), min(land.areaKm2[p], w.smallSweep * smallSeen(Place(p))), w.weather).v.let { w.smallGot += it; w.fed += it * w.feeds(Food.SMALL_GAME) }
             Food.CARRION -> scavenge(g, Place(p), expected, w.sweep, w.rnd).let { w.scraps += it; w.fed += it * w.feeds(Food.CARRION) }
