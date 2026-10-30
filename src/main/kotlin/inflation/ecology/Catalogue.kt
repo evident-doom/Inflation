@@ -320,6 +320,8 @@ object Catalogue {
         fearOfPeople = 0.7f, boldShare = 0.03f,
         diet = Diet(meat = 0.6f, smallPrey = 0.35f, carrion = 0.05f),
         groupSize = 2, maxGroupSize = 4,
+        // (Solitary: grown leopards live and hunt alone, a mother with her cubs aside; pairs only to mate. From memory.)
+        foragingParty = 1,
         dailyTravelKm = 6f, maxDailyTravelKm = 20f, senseKm = 4f,
         daysWithoutWater = 6, waterFromFood = 0.8f,
         birthMonth = 6, birthMonths = 1, youngPerFemale = 1.5f, yearsToMaturity = 2.5f,
@@ -373,6 +375,9 @@ object Catalogue {
         fearOfPeople = 0.5f, boldShare = 0.1f,
         diet = Diet(meat = 0.1f, smallPrey = 0.25f, carrion = 0.55f, fruit = 0.1f),
         groupSize = 2, maxGroupSize = 5,
+        // (They rest in pairs, now and then up to four, but forage alone; several may come to a carcass, not together:
+        // hyaenidae.org, striped hyaena social behaviour. In the Negev some go about with wolf packs: Dinets and Eligulashvili 2016.)
+        foragingParty = 1,
         dailyTravelKm = 12f, maxDailyTravelKm = 40f, senseKm = 10f,
         daysWithoutWater = 4, waterFromFood = 0.6f,
         birthMonth = 5, birthMonths = 2, youngPerFemale = 2f, yearsToMaturity = 2f,
