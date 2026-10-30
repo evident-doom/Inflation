@@ -8,6 +8,7 @@ import inflation.StockName
 import inflation.Stocks
 import inflation.ecology.Activity
 import inflation.ecology.Catalogue
+import inflation.ecology.Met
 import inflation.ecology.Mind
 import inflation.ecology.DeathCause
 import inflation.ecology.Tally
@@ -586,9 +587,10 @@ class Census(private val sim: HexSim) {
      * ([thisYear], the hunting ledger's year so far: see [Tally.meetingsBy]). Bands within [GATHER_KM] of each other are neighbours; neighbours that understand
      * each other at [REGION_UNDERSTOOD] or better and hold at most [REGION_CUSTOMS_APART] of their traditions differently are
      * of one region, and so are the neighbours of those (single linkage). A band bordering another region has a neighbour in
-     * it. The lines are the report's: nothing in the model reads them.
+     * it. The rites' year, from [metYear] (the year's culture tallies summed over its weeks), counts every rite's month
+     * once, held or cut short. The lines are the report's: nothing in the model reads them.
      */
-    fun printIdentity(thisYear: Map<TallyKey, Int>) {
+    fun printIdentity(thisYear: Map<TallyKey, Int>, metYear: Map<TallyKey, Int>) {
         val bands = groups.groups.mapNotNull { g -> g.band?.takeIf { g.alive }?.let { g to it } }
         val n = bands.size
         if (n < 2) return
@@ -664,6 +666,11 @@ class Census(private val sim: HexSim) {
         println("     beliefs: %.0f%% of bands keep none, %.0f%% remember an omen; belief kept a median of %.1f years (ninetieth %.1f); strain %.2f a band against %.2f borne"
             .format(100.0 * (n - keeping.size) / n.coerceAtLeast(1), 100.0 * bands.count { it.second.omenPlace >= 0 } / n.coerceAtLeast(1), ages.getOrElse(ages.size / 2) { 0f }, ages.getOrElse((ages.size * 9) / 10) { 0f },
                 keeping.sumOf { it.second.strain.toDouble() } / keeping.size.coerceAtLeast(1), keeping.sumOf { it.second.strainBorne().toDouble() } / keeping.size.coerceAtLeast(1)))
+        fun met(m: Met) = metYear[m.key] ?: 0
+        val held = met(Met.BANDS_HELD_A_RITE); val cut = met(Met.BANDS_CUT_A_RITE_SHORT)
+        println("     rites' year: %d held, %d cut short (%.0f%% held); omens marked: %d death tolls, %d plenty after want, %d strange signs; %d rites born of them; %d bands split over their belief"
+            .format(held, cut, 100.0 * held / (held + cut).coerceAtLeast(1), met(Met.BANDS_MARKED_A_DEATH_TOLL), met(Met.BANDS_MARKED_PLENTY_AFTER_WANT),
+                met(Met.BANDS_MARKED_A_STRANGE_SIGN), met(Met.BANDS_BORE_A_RITE), met(Met.BANDS_SPLIT_OVER_THEIR_BELIEF)))
         fun line(label: String, key: (Tally.MeetingEnd) -> TallyKey): String {
             fun v(e: Tally.MeetingEnd) = thisYear[key(e)] ?: 0
             val met = v(Tally.MeetingEnd.MET)

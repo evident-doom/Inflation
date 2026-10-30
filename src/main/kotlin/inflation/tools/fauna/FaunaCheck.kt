@@ -91,7 +91,7 @@ class FaunaCheck(private val sim: HexSim, private val options: FaunaCheckOptions
         census.printHuntersFamilies()
         people.printBands()
         people.printRunSites()
-        census.printIdentity(hunting.year)
+        census.printIdentity(hunting.year, hunting.meetingsYear)
         people.printAgainstTheRecord(deaths, hunting)
         deaths.printResidentDeathsThisYear()
         println("     droughts under way: " + sim.weather.droughts())
