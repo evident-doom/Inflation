@@ -133,7 +133,7 @@ internal fun grassUnderSnow(s: Species, snowMm: Float): Float = (1f - snowMm / s
 
 /**
  * How animals of [s] eating diet [d] feed where the forage nourishes [q], asking [need] kg per m² this week, from
- * [pantry]: grass (as far as it gets at it under the snow, [underSnow], see [grassUnderSnow]) and browse as far as the gut fills at that nourishment, fruit and roots, then
+ * [pantry]: grass and roots (as far as it gets at them under the snow, [underSnow], see [grassUnderSnow]), browse as far as the gut fills at that nourishment, fruit, then
  * switching between them for a shortfall; into [out]. The standing straw is the cured grass, eaten as grass at what it
  * nourishes ([HexPlants.nourishment]). Each food feeds by its energy ([Nourishment]): grass and browse at [q], fruit and roots
  * at theirs, all by [Species.needScale] in kg of its need ([Bites.got], [Bites.short]). The one rule for the residents' week's grazing
@@ -150,7 +150,10 @@ internal fun grassUnderSnow(s: Species, snowMm: Float): Float = (1f - snowMm / s
     val grass = pantry.grass(underSnow * want * fill * d.grass / total)
     val browse = pantry.browse(want * fill * d.browse / total)
     val fruit = pantry.fruit(want * d.fruit / total / Nourishment.FRUIT)
-    val roots = pantry.roots(want * d.roots / total / Nourishment.ROOTS)
+    // (Roots and the mast on the ground lie under the snow as the grass does, and are dug out the same way: boar root less
+    // the deeper the snow, keep to oak woods under 40 cm of it and still find acorns there, Chiyojima et al., Mammalian
+    // Science 2022; deep snow stops their rooting and starves them, Okarma et al., Acta Theriologica 1995.)
+    val roots = pantry.roots(underSnow * want * d.roots / total / Nourishment.ROOTS)
     // Diet switching: a food that fell short is made up from the others: grass and browse as far as the gut holds,
     // fruit and roots to at most (1 + SWITCH) times their usual share (an ostrich out of fruit season picks more shoots
     // and leaves).
@@ -173,7 +176,7 @@ internal fun grassUnderSnow(s: Species, snowMm: Float): Float = (1f - snowMm / s
         gap -= browse2 * qf; room -= browse2 }
     if (gap > 0f && d.grass > 0f && underSnow > 0f) { grass2 = pantry.grass(underSnow * min(gap / qf, room)); gap -= grass2 * qf; room -= grass2 }
     if (gap > 0f && d.fruit > 0f) { fruit2 = pantry.fruit(min(gap, SWITCH * want * d.fruit / total) / Nourishment.FRUIT); gap -= fruit2 * Nourishment.FRUIT }
-    if (gap > 0f && d.roots > 0f) { roots2 = pantry.roots(min(gap, SWITCH * want * d.roots / total) / Nourishment.ROOTS); gap -= roots2 * Nourishment.ROOTS }
+    if (gap > 0f && d.roots > 0f && underSnow > 0f) { roots2 = pantry.roots(underSnow * min(gap, SWITCH * want * d.roots / total) / Nourishment.ROOTS); gap -= roots2 * Nourishment.ROOTS }
     val short = max(0f, gap) * s.needScale
     // Grass and browse nourish fully only when green; fruit and roots keep their value.
     val got = ((grass + browse + grass2 + browse2) * q + (fruit + fruit2) * Nourishment.FRUIT + (roots + roots2) * Nourishment.ROOTS) * s.needScale
