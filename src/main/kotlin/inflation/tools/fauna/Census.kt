@@ -9,6 +9,7 @@ import inflation.Stocks
 import inflation.ecology.Activity
 import inflation.ecology.Catalogue
 import inflation.ecology.Met
+import inflation.ecology.CustomsPart
 import inflation.ecology.RiteWalk
 import inflation.ecology.Mind
 import inflation.ecology.DeathCause
@@ -678,6 +679,13 @@ class Census(private val sim: HexSim) {
             "%s %d held, %d cut short (%.0f%% held, %.0f%% of their days given)".format(w.label, h, c, 100.0 * h / (h + c).coerceAtLeast(1),
                 of(Met.Of.RITES_CUT_SHORT_PERCENT_GIVEN, w).toDouble() / c.coerceAtLeast(1))
         })
+        fun days(m: Met.Of, part: CustomsPart) = (metYear[m.tally(part.label)] ?: 0) / 10.0
+        val parts = listOf(CustomsPart.BURIALS, CustomsPart.RITES, CustomsPart.CLEANING, CustomsPart.NURSING)
+        val planned = days(Met.Of.CUSTOMS_DAYS_TO_HAND, CustomsPart.HELD); val free = days(Met.Of.CUSTOMS_DAYS_TO_HAND, CustomsPart.FREE)
+        println("     customs' time this year, person-days got of asked: " + parts.joinToString("; ") { part ->
+            val asked = days(Met.Of.CUSTOMS_DAYS_ASKED, part); val got = days(Met.Of.CUSTOMS_DAYS_GIVEN, part)
+            "%s %.0f of %.0f (%.0f%%)".format(part.label, got, asked, 100.0 * got / asked.coerceAtLeast(1e-9))
+        } + "; to hand for them %.0f, %.0f%% of it held by the plan, the rest free".format(planned + free, 100.0 * planned / (planned + free).coerceAtLeast(1e-9)))
         fun line(label: String, key: (Tally.MeetingEnd) -> TallyKey): String {
             fun v(e: Tally.MeetingEnd) = thisYear[key(e)] ?: 0
             val met = v(Tally.MeetingEnd.MET)

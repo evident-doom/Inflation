@@ -790,6 +790,7 @@ internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
     if (site >= 0 && b.riteHeld != now) {
         b.riteHeld = now; b.riteDue = site
         b.riteOwed = riteDays(riteKm(g, site)) * g.adults
+        stats.meeting(Met.Of.CUSTOMS_DAYS_ASKED, CustomsPart.RITES.label, (10f * b.riteOwed).roundToInt())
     }
     // Plenty after long want is an omen too: where and when the hunger broke.
     if (g.lean > 0 && g.fed >= Thresholds.HUNGRY) omen(b, g.place, weather.date, g.lean / LEAN_USUAL_WEEKS, Met.BANDS_MARKED_PLENTY_AFTER_WANT)

@@ -11,6 +11,7 @@ import inflation.Tuning
 import inflation.world.LifeForm
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 // Bands' goods, tools and skills: gathering materials, making and wearing tools and ornaments, customs, teaching, forgetting and wounds.
 
@@ -87,6 +88,14 @@ internal fun GroupWorld.carried(b: Band, m: Material, people: Float): Float {
     return (GOODS_PER_PERSON + stack) * people
 }
 
+/**
+ * The parts of a band's customs' time, for the report ([keepCustoms]): what each asks and is given, and the days to hand for
+ * them as the week's plan held them ([HELD]) or as nobody had asked for them ([FREE]).
+ */
+enum class CustomsPart(val label: String) {
+    BURIALS("burials"), RITES("rites"), CLEANING("cleaning"), NURSING("nursing"), HELD("held by the plan"), FREE("free")
+}
+
 /** How far [g]'s band [b] lacks [m]: 1 with none of it, 0 with all it carries ([carried]). */
 internal fun GroupWorld.lacking(g: HexGroup, b: Band, m: Material) = max(0f, 1f - b.goods[m] / carried(b, m, g.adults.toFloat()).coerceAtLeast(1e-3f))
 
@@ -97,20 +106,36 @@ internal fun GroupWorld.lacking(g: HexGroup, b: Band, m: Material) = max(0f, 1f 
  * the time goes, and helps only as far as it was done.
  */
 internal fun GroupWorld.keepCustoms(b: Band, people: Float, time: BandTime) {
+    // (For the report: what each part of the customs asked and got, and how much of the time was the plan's and how much free.)
+    val heldDays = time.heldFor(Activity.CUSTOMS) * time.pace(Activity.CUSTOMS)
+    val canDays = time.leftFor(Activity.CUSTOMS)
+    // (Burials and rites are counted as asked when they fall due: [mournDead], [riteWeek].)
+    fun tally(part: CustomsPart, asked: Float, given: Float) {
+        if (asked > 0f && (part == CustomsPart.CLEANING || part == CustomsPart.NURSING)) stats.meeting(Met.Of.CUSTOMS_DAYS_ASKED, part.label, (10f * asked).roundToInt())
+        if (given > 0f) stats.meeting(Met.Of.CUSTOMS_DAYS_GIVEN, part.label, (10f * given).roundToInt())
+    }
     if (b.burialOwed > 0f) {
         val paid = min(b.burialOwed, max(0f, time.leftFor(Activity.CUSTOMS)))
+        tally(CustomsPart.BURIALS, b.burialOwed, paid)
         time.spend(Activity.CUSTOMS, paid); b.burialOwed -= paid
     }
     if (b.riteOwed > 0f) {
         val paid = min(b.riteOwed, max(0f, time.leftFor(Activity.CUSTOMS)))
+        tally(CustomsPart.RITES, b.riteOwed, paid)
         time.spend(Activity.CUSTOMS, paid); b.riteOwed -= paid
     }
     val clean = cleanDays(b, people)
     b.cleaned = if (clean > 0f) min(1f, time.leftFor(Activity.CUSTOMS) / clean) else 1f
+    tally(CustomsPart.CLEANING, clean, b.cleaned * clean)
     time.spend(Activity.CUSTOMS, b.cleaned * clean)
     val nurse = nurseDays(b, people)
     b.nursed = if (nurse > 0f) min(1f, time.leftFor(Activity.CUSTOMS) / nurse) else 1f
+    tally(CustomsPart.NURSING, nurse, b.nursed * nurse)
     time.spend(Activity.CUSTOMS, b.nursed * nurse)
+    if (heldDays > 0f || canDays > 0f) {
+        stats.meeting(Met.Of.CUSTOMS_DAYS_TO_HAND, CustomsPart.HELD.label, (10f * min(heldDays, canDays)).roundToInt())
+        stats.meeting(Met.Of.CUSTOMS_DAYS_TO_HAND, CustomsPart.FREE.label, (10f * max(0f, canDays - heldDays)).roundToInt())
+    }
     time.noneBelowZero()
     time.release(Activity.CUSTOMS)
 }
