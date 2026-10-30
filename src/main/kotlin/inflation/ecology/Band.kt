@@ -526,9 +526,16 @@ class Band(kinds: Int) {
     /** The month, counted from the world's start, it last held a rite to the end (-1: never). */
     var riteKept = -1L
     /**
+     * What the rite under way asked of it at its month's start ([riteAsked], person-days), and the days of that month it
+     * gave to neither its needs nor its customs ([riteSpare]): what it could have given the rite and gave to other work.
+     */
+    var riteAsked = 0f
+    var riteSpare = 0f
+    /**
      * Its belief is its rites as a whole: the years it has kept them ([beliefYears], its weight: the older, the more strain
-     * it bears), and the strain of rites it could not hold ([strain]: one a rite cut short, easing in weeks it eats its
-     * fill), which splits the band once it passes what the belief bears ([strainBorne]).
+     * it bears), and the strain of rites it held back from ([strain]: up to one a rite cut short, as far as the days it
+     * did not give went to other work than its needs; easing in weeks it eats its fill), which splits the band once it
+     * passes what the belief bears ([strainBorne]).
      */
     var beliefYears = 0f
     var strain = 0f
@@ -547,7 +554,7 @@ class Band(kinds: Int) {
     fun strainBorne() = STRAIN_SPLIT * (1f + beliefYears / BELIEF_AGE_YEARS)
     /** Gives up its belief: its rites, its hold on them and what they asked of it (the part of a band that broke away). */
     fun dropBelief() {
-        rite.fill(-1); riteStrength = 0f; beliefYears = 0f; strain = 0f; riteOwed = 0f; riteDue = -1; omenPlace = -1; omenWeight = 0f
+        rite.fill(-1); riteStrength = 0f; beliefYears = 0f; strain = 0f; riteOwed = 0f; riteAsked = 0f; riteSpare = 0f; riteDue = -1; omenPlace = -1; omenWeight = 0f
     }
 
     fun holds(t: Tradition) = traditions[t]
@@ -669,7 +676,7 @@ class Band(kinds: Int) {
         for (i in 0 until min(a.heardTotem.size, b.heardTotem.size)) a.heardTotem[i] += b.heardTotem[i]
         for (w in BurialWay.entries) a.heardBurial[w] += b.heardBurial[w]
         a.burialOwed += b.burialOwed
-        a.riteOwed += b.riteOwed
+        a.riteOwed += b.riteOwed; a.riteAsked += b.riteAsked; a.riteSpare += b.riteSpare
         for ((k, v) in b.ties) if (k != id) a.ties[k] = max(a.tie(k), v)
         a.ties.remove(bId)
         for ((k, v) in b.favours) if (k != id) a.favours.merge(k, v, Float::plus)
