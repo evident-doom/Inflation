@@ -36,4 +36,14 @@ class BandCarryTest {
         assertEquals(0.7f, o.seedDomestic); assertEquals(3, o.sinceRaided)
         assertEquals(2f, o.seedCorn, 1e-6f); assertEquals(8f, a.seedCorn, 1e-6f)
     }
+
+    @Test
+    fun `a joining band's people keep what they foresaw`() {
+        val bins = ForeseenBin.entries.size
+        val a = Band(1); val b = Band(1)
+        a.foreseenShares[0] = 1f; a.foreseenAt = 1
+        b.foreseenShares[3 * bins + bins - 1] = 1f; b.foreseenAt = 4
+        a.absorb(b, 5, 0.25f, 0f, 0f, 0f, 0f, 1, 2)
+        assertEquals(0.75f, a.foreseenShares[0], 1e-6f); assertEquals(0.25f, a.foreseenShares[bins - 1], 1e-6f)
+    }
 }

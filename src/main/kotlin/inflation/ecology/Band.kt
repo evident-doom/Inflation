@@ -610,10 +610,13 @@ class Band(kinds: Int) {
     /** How it chooses ([Mind]): today's way, or the planning kind's. Handed down whole at a split; a band never joins one of the other mind. */
     var mind = Mind.NETS
     /**
-     * Its foreseen deaths ([HexGroup.foreseen]) each of the last [FORESEEN_WEEKS] weeks, by [ForeseenBin] (-1 where none yet),
-     * a ring from [foreseenAt]: the census books its deaths against what it foresaw in the year before them ([bookCalibration]).
+     * The shares of its people that foresaw each [ForeseenBin] of deaths ([HexGroup.foreseen]) in each of the last
+     * [FORESEEN_WEEKS] weeks, a ring of weeks from [foreseenAt] ([ForeseenBin.entries] a week; all 0 for a week before it
+     * foresaw): the census books its deaths against what its people foresaw in the year before them ([bookCalibration]).
+     * A band that joins it brings its own, blended by adults ([absorb]): its people die by what they foresaw, not by what
+     * the band they joined did. (Before, a joining band's were lost, and starving bands are the ones that join others.)
      */
-    val foreseenRing = ByteArray(FORESEEN_WEEKS) { -1 }
+    val foreseenShares = FloatArray(FORESEEN_WEEKS * ForeseenBin.entries.size)
     var foreseenAt = 0
     /** The strain its belief bears before part of the band breaks from it. */
     fun strainBorne() = STRAIN_SPLIT * (1f + beliefYears / BELIEF_AGE_YEARS)
@@ -671,7 +674,7 @@ class Band(kinds: Int) {
         o.salted = salted; o.dryDepth = dryDepth
         o.renown = renown
         rite.copyInto(o.rite); o.riteStrength = riteStrength; o.riteHeld = riteHeld; o.riteKept = riteKept; o.beliefYears = beliefYears; o.strain = strain
-        o.omenPlace = omenPlace; o.omenMonth = omenMonth; o.omenYear = omenYear; o.omenWeight = omenWeight; o.deathsUsual = deathsUsual; o.mind = mind; foreseenRing.copyInto(o.foreseenRing); o.foreseenAt = foreseenAt
+        o.omenPlace = omenPlace; o.omenMonth = omenMonth; o.omenYear = omenYear; o.omenWeight = omenWeight; o.deathsUsual = deathsUsual; o.mind = mind; foreseenShares.copyInto(o.foreseenShares); o.foreseenAt = foreseenAt
         traditions.copyInto(o.traditions); heard.copyInto(o.heard); o.heardOf = heardOf
         o.totem = totem; o.marksChosen = marksChosen; o.heardTotem = heardTotem.copyOf(); o.totemBroken = totemBroken
         o.burialWay = burialWay; heardBurial.copyInto(o.heardBurial); words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
@@ -724,6 +727,12 @@ class Band(kinds: Int) {
         a.seedCorn = corn + bCorn
         for (i in Illness.entries) { a.sick[i] += w * (b.sick[i] - a.sick[i]); a.immune[i] += w * (b.immune[i] - a.immune[i]) }
         a.hurt += w * (b.hurt - a.hurt); a.lame += w * (b.lame - a.lame)
+        // (What their people foresaw, week by week back: by adults, so the deaths to come are booked by who foresaw what.)
+        val bins = ForeseenBin.entries.size
+        for (j in 0 until FORESEEN_WEEKS) {
+            val ia = Math.floorMod(a.foreseenAt - 1 - j, FORESEEN_WEEKS) * bins; val ib = Math.floorMod(b.foreseenAt - 1 - j, FORESEEN_WEEKS) * bins
+            for (i in 0 until bins) a.foreseenShares[ia + i] += w * (b.foreseenShares[ib + i] - a.foreseenShares[ia + i])
+        }
         // (Its larder as last seen, a person's days: the two larders are put together, so near enough the two blended.)
         a.larderSeen += w * (b.larderSeen - a.larderSeen)
         a.ornaments += b.ornaments; a.exotic += b.exotic

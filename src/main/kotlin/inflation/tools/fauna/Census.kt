@@ -387,7 +387,7 @@ class Census(private val sim: HexSim) {
             val all = ForeseenBin.entries.sumOf { v(it, Tally.Calib.PEOPLE_WEEKS) }.coerceAtLeast(1.0)
             m.label + ": " + ForeseenBin.entries.joinToString(", ") { b ->
                 val pw = v(b, Tally.Calib.PEOPLE_WEEKS).coerceAtLeast(1.0)
-                "%s %.0f%%: %.3f / %.3f / %.3f".format(b.label, 100 * v(b, Tally.Calib.PEOPLE_WEEKS) / all, v(b, Tally.Calib.FORESEEN) / 1000 / pw, v(b, Tally.Calib.DIED) / pw, v(b, Tally.Calib.HUNGER) / pw)
+                "%s %.0f%%: %.3f / %.3f / %.3f".format(b.label, 100 * v(b, Tally.Calib.PEOPLE_WEEKS) / all, v(b, Tally.Calib.FORESEEN) / 1000 / pw, v(b, Tally.Calib.DIED) / 1000 / pw, v(b, Tally.Calib.HUNGER) / 1000 / pw)
             }
         })
         run {

@@ -216,7 +216,9 @@ internal fun HexGroups.foresee(weather: Weather) {
         stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.FORESEEN), (1000f * (1f - g.foreseen) * g.size).roundToInt(), Int::plus)
         // (And by how many it foresaw dead, for the calibration against the deaths that came in the year after: [bookCalibration].)
         val bin = ForeseenBin.of(1f - g.foreseen)
-        b.foreseenRing[b.foreseenAt] = bin.ordinal.toByte(); b.foreseenAt = (b.foreseenAt + 1) % FORESEEN_WEEKS
+        val row = b.foreseenAt * ForeseenBin.entries.size
+        for (i in ForeseenBin.entries.indices) b.foreseenShares[row + i] = if (i == bin.ordinal) 1f else 0f
+        b.foreseenAt = (b.foreseenAt + 1) % FORESEEN_WEEKS
         stats.hunting.merge(Tally.calibration(b.mind, bin, Tally.Calib.PEOPLE_WEEKS), g.size, Int::plus)
         stats.hunting.merge(Tally.calibration(b.mind, bin, Tally.Calib.FORESEEN), (1000f * (1f - g.foreseen) * g.size).roundToInt(), Int::plus)
         stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.SISU), (1000f * b.sisu * g.size).roundToInt(), Int::plus)
@@ -227,7 +229,7 @@ internal fun HexGroups.foresee(weather: Weather) {
 /** yearSpread=false: the year ahead is reckoned as one usual year ([YearAhead.alive]), for comparing. */
 internal val YEAR_SPREAD = Config.flag(Config.Key.YEAR_SPREAD, true)
 
-/** Weeks back a band's deaths are booked against what it foresaw ([Band.foreseenRing]): the year its forecast looks ahead. */
+/** Weeks back a band's deaths are booked against what its people foresaw ([Band.foreseenShares]): the year its forecast looks ahead. */
 const val FORESEEN_WEEKS = 52
 
 /** Bands' forecasts by the share of their people they foresee dead in the year ahead ([HexGroup.foreseen]), for the calibration. */
@@ -238,17 +240,19 @@ enum class ForeseenBin(val label: String, val below: Float) {
 }
 
 /**
- * Books [n] deaths of [cause] in band [b] against each of the forecasts it made in the year before them ([Band.foreseenRing]):
- * over many band-weeks, the deaths that came in the year after a forecast in each [ForeseenBin], to set against the people
- * foreseen and how many of them were foreseen dead. For the census only.
+ * Books [n] deaths of [cause] in band [b] against each of the forecasts its people made in the year before them
+ * ([Band.foreseenShares], as shares of its people), thousandths: over many band-weeks, the deaths that came in the year after
+ * a forecast in each [ForeseenBin], to set against the people foreseen and how many of them were foreseen dead. For the census only.
  */
 internal fun HexGroups.bookCalibration(b: Band, cause: DeathReason, n: Int) {
-    val counts = IntArray(ForeseenBin.entries.size)
-    for (k in b.foreseenRing) if (k >= 0) counts[k.toInt()]++
-    for (i in counts.indices) if (counts[i] > 0) {
+    val bins = ForeseenBin.entries.size
+    val shares = FloatArray(bins)
+    for (j in 0 until FORESEEN_WEEKS) for (i in 0 until bins) shares[i] += b.foreseenShares[j * bins + i]
+    for (i in 0 until bins) if (shares[i] > 0f) {
         val bin = ForeseenBin.entries[i]
-        stats.hunting.merge(Tally.calibration(b.mind, bin, Tally.Calib.DIED), n * counts[i], Int::plus)
-        if (cause == DeathCause.HUNGER) stats.hunting.merge(Tally.calibration(b.mind, bin, Tally.Calib.HUNGER), n * counts[i], Int::plus)
+        val k = (1000f * n * shares[i]).roundToInt()
+        stats.hunting.merge(Tally.calibration(b.mind, bin, Tally.Calib.DIED), k, Int::plus)
+        if (cause == DeathCause.HUNGER) stats.hunting.merge(Tally.calibration(b.mind, bin, Tally.Calib.HUNGER), k, Int::plus)
     }
     b.forecastTrace?.died(n, cause == DeathCause.HUNGER)
 }
