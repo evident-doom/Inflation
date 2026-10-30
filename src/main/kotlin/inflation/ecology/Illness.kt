@@ -113,8 +113,8 @@ internal fun caughtFrom(d: Illness, theirSick: Float, b: Band) = d.contagion * t
  * the mosquitoes swarm in the warm months (at half their worst); weekly chance a cough breaks out among crowded people (times the
  * crowding squared), and the share it first strikes; how much keeping away from the sick spares a band.
  */
-const val FLUX_RATE = 0.003f
-const val FEVER_RATE = 0.03f
-const val COUGH_BREAKS = 0.0002f
-const val COUGH_FIRST = 0.2f
-const val HYGIENE_GUARD = 0.4f
+internal const val FLUX_RATE = 0.003f
+internal const val FEVER_RATE = 0.03f
+internal const val COUGH_BREAKS = 0.0002f
+internal const val COUGH_FIRST = 0.2f
+internal const val HYGIENE_GUARD = 0.4f

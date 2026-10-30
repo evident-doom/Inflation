@@ -1373,16 +1373,16 @@ private fun GroupWorld.gather(g: HexGroup, t: Food, kind: Int, p: Place, expecte
 }
 
 /** The kind of [Food.FISH] offer that is shellfish gathered off the shore (0 is fish caught: see [offerFoods]). */
-const val SHELLFISH_KIND = 1
+internal const val SHELLFISH_KIND = 1
 /** The kind of [Food.FISH] offer that is fish taken from the traps of a weir ([Built.WEIR]). */
-const val WEIR_KIND = 2
+internal const val WEIR_KIND = 2
 /** The kind of [Food.FISH] offer that is the spring run's fish taken from the bank ([HexWater.runWithinReach]). */
-const val RUN_KIND = 3
+internal const val RUN_KIND = 3
 /**
  * The kind of a band's [Food.ROOTS] offer that is the fallen mast (0 is bulbs and roots dug: see [offerFoods]), picked up as
  * fruit is picked ([BAND_FRUIT_DAYS_PER_KG]): pine nuts in the Great Basin gave some 840-1,400 kcal/h (Simms 1987, from memory).
  */
-const val MAST_KIND = 1
+internal const val MAST_KIND = 1
 
 /**
  * The grease a band renders from a kg of bones it gathers, kg: bones smashed small and boiled with hot stones, the fat skimmed
@@ -1392,9 +1392,9 @@ const val MAST_KIND = 1
  */
 internal fun greaseOf(band: Band) = if (band.knowsSkill[Skill.STONE_BOILING])
     GREASE_YIELD * band.skill(Skill.STONE_BOILING) * max(band.has(Tool.BASKET), 0.5f) else 0f
-const val GREASE_YIELD = 0.05f
+internal const val GREASE_YIELD = 0.05f
 /** Person-days to smash and boil a kg of bones for their grease, with the fuel to heat the stones (a guess: "many hours"). */
-const val BONE_RENDER_DAYS = 0.2f
+internal const val BONE_RENDER_DAYS = 0.2f
 
 private val FORAGE_DIAG = Config.string(Config.Key.FORAGE_DIAG)
 
@@ -1480,7 +1480,7 @@ private fun HexGroups.scavenge(g: HexGroup, p: Place, expected: Float, sweep: Fl
 }
 
 /** Chance a band scavenging a carcass where hunters are thick has one of its people mauled by them. */
-const val SCAVENGE_RISK = 0.01f
+internal const val SCAVENGE_RISK = 0.01f
 
 /** Share of a carcass a hunter takes as food: a band as its butchers' skill allows (all the fat and marrow, at best). */
 internal fun meatShare(band: Band?) = if (band == null) MEAT_SHARE else min(MEAT_MOST, MEAT_SHARE * band.edge(Skill.BUTCHER))
@@ -1499,14 +1499,14 @@ internal fun GroupWorld.bookKill(hunter: HexGroup, credit: Float, kg: Float, car
 }
 /** What is left of a kill of [ps] as carrion when the hunter took [kgEach] of it towards its need. */
 internal fun leftOver(ps: Species, kgEach: Float, band: Band?) = max(0f, ps.massKg - kgEach * meatShare(band) / creditShare(band))
-const val MEAT_MOST = 0.7f
+internal const val MEAT_MOST = 0.7f
 
 /** What a kilo of reaped seed or grain feeds against a kilo of other food: raw, little; ground and baked, fully. */
 internal fun seedValue(band: Band?) = RAW_SEED + (1f - RAW_SEED) * (band?.has(Tool.GRINDER) ?: 0f)
-const val RAW_SEED = 0.6f
+internal const val RAW_SEED = 0.6f
 /** Beer: grain brewed for each guest at a feast, kg; how much more a feast with beer binds. */
-const val BEER_KG = 1f
-const val BEER_TIES = 0.5f
+internal const val BEER_KG = 1f
+internal const val BEER_TIES = 0.5f
 
 /** Share of the ground a party searches for small game at place [p] over which it finds it: less in standing cover ([SMALL_HIDE]). */
 internal fun GroupWorld.smallSeen(p: Place) = 1f - SMALL_HIDE * land.plants.groundCover(p)

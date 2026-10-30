@@ -35,7 +35,7 @@ internal fun GroupWorld.restless(g: HexGroup, weather: Weather, thirsty: Boolean
  * better: when keeping warm takes [COLD_RESTLESS] more food or more, or the cold kills (both estimates).
  */
 private fun coldRestless(w: Warmth) = w.extra >= COLD_RESTLESS || w.odds > 0f
-const val COLD_RESTLESS = 0.25f
+internal const val COLD_RESTLESS = 0.25f
 
 /**
  * What place [p] is worth to kind [s] this week, before crowding, hunters and the going. A pack: the game it may expect there, as its diet

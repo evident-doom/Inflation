@@ -45,7 +45,6 @@ class StringKeysTest {
         "ui/ViewLayers.kt" to (5 to "the viewer's layer names, shown as text"),
         "tools/fauna/Tallies.kt" to (4 to "causes and readers' sums by the text after the kind, for printing"),
         "tools/HexBandLuck.kt" to (1 to "people's deaths by cause, for printing"),
-        "ecology/WeekStats.kt" to (1 to "children's expected deaths by cause label, for printing"),
         "ecology/HexWater.kt" to (2 to "fish flows by name, printed and put in the history whole"),
         "ecology/Catalogue.kt" to (1 to "settled densities by kind name, read from a properties file"),
         "ecology/Band.kt" to (1 to "Band fields by name, checked by BandCarryTest"),

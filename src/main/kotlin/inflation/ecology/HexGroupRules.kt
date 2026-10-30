@@ -17,14 +17,14 @@ import kotlin.math.sqrt
 // The numbers the packs and bands on the hexes live by.
 
 /** Days of going a week's net shift amounts to, at the usual pace or a trek's. */
-const val SHIFT_DAYS = 2f
+internal const val SHIFT_DAYS = 2f
 /** Snow depth that doubles the effort of going, mm. */
-const val SNOW_EFFORT_MM = 150f
+internal const val SNOW_EFFORT_MM = 150f
 /** How much more than its needs an animal eats, at most, when food is plentiful and its reserves are short; share of that surplus laid on as reserves. */
-const val SURPLUS_EAT = 0.3f
-const val FAT_EFFICIENCY = 0.6f
+internal const val SURPLUS_EAT = 0.3f
+internal const val FAT_EFFICIENCY = 0.6f
 /** A newborn's weight against its mother's, paid from her reserves. */
-const val NEWBORN_SHARE = 0.08f
+internal const val NEWBORN_SHARE = 0.08f
 /** A newborn of [s], in days of its mother's food: what she gives of her reserves or her food to bear it. */
 fun youngDays(s: Species) = NEWBORN_SHARE * s.massKg / s.dailyIntakeKg
 
@@ -71,135 +71,135 @@ fun offSeason(s: Species, start: Int) = (start + s.birthMonths + (12 - s.birthMo
 /** Days of reserves a mother of [s] fed [fed] over [days] gives up for [young] young: what her spare food did not build. */
 fun fromReserves(s: Species, young: Float, fed: Float, days: Int) = max(0f, young * youngDays(s) - spareDays(fed, days))
 /** Share of its fill above which a group lays on reserves rather than drawing on them (a week's food is never exactly what it needs). */
-const val WELL_FED = 0.9f
+internal const val WELL_FED = 0.9f
 /**
  * How far fruit, roots or prey stretch to make up for a food that fell short: to (1 + this) times their usual
  * share; and browse for grass under snow (grass and browse otherwise go as far as the gut holds).
  */
-const val SWITCH = 1f
+internal const val SWITCH = 1f
 /** Scent marks: share of freshness kept from week to week; below what freshness a mark no longer keeps others off. */
-const val MARK_KEEP = 0.85f
-const val MARK_FRESH = 0.3f
+internal const val MARK_KEEP = 0.85f
+internal const val MARK_FRESH = 0.3f
 /**
  * Hunters of other kinds: strength ratio from which the stronger robs a kill (with this chance), and the
  * chance a much stronger party kills an adult of the other, or one of its young.
  */
-const val THEFT_RATIO = 1.3f
-const val THEFT = 0.5f
-const val INTRAGUILD_KILL = 0.01f
-const val INTRAGUILD_KILL_YOUNG = 0.1f
+internal const val THEFT_RATIO = 1.3f
+internal const val THEFT = 0.5f
+internal const val INTRAGUILD_KILL = 0.01f
+internal const val INTRAGUILD_KILL_YOUNG = 0.1f
 /** How much a hunting party is put off a place held by a much stronger party of another kind. */
-const val AVOID_STRONGER = 0.3f
+internal const val AVOID_STRONGER = 0.3f
 /** How much of a courser's success thick cover takes away (a cheetah in a wood runs into trees). */
-const val COURSING_COVER = 0.7f
+internal const val COURSING_COVER = 0.7f
 /** How much a pack weighs its own kind of country (the log of [HexFauna.suits]) in choosing its ground. */
-const val GROUP_HABITAT = 0.15f
+internal const val GROUP_HABITAT = 0.15f
 /**
  * Paths: share of the way to fully worn one passage of a group of [PATH_MASS_KG] or more wears;
  * weekly share plants take back at the greenest (less on bare ground); weight of a group that wears
  * a path at the full rate, kg; how much a fully worn path eases the going on middling ground (more
  * on broken); how much likelier hunters meet game, or people, on a busy path (they wait there).
  */
-const val PATH_WEAR = 0.05f
-const val PATH_FADE = 0.03f
-const val PATH_MASS_KG = 3000f
-const val PATH_EASE = 0.5f
-const val AMBUSH = 1f
+internal const val PATH_WEAR = 0.05f
+internal const val PATH_FADE = 0.03f
+internal const val PATH_MASS_KG = 3000f
+internal const val PATH_EASE = 0.5f
+internal const val AMBUSH = 1f
 /**
  * Sea crossings: most hexes of open sea between two coasts that count as a strait; effort of each km swum
  * against a km walked; share of a swimming group that drowns on a strait as wide as all it can swim (young
  * twice that).
  */
-const val SEA_HEXES = 2
-const val SWIM_EFFORT = 10f
-const val DROWN = 0.05f
+internal const val SEA_HEXES = 2
+internal const val SWIM_EFFORT = 10f
+internal const val DROWN = 0.05f
 /** Newcomers: a kind with fewer groups than this gets this many more once a year (see [HexGroups.newcomers]). */
-const val NEWCOMER_BELOW = 5
-const val NEWCOMERS = 3
+internal const val NEWCOMER_BELOW = 5
+internal const val NEWCOMERS = 3
 /** What a band takes a sign it cannot read to be: a middling value, neither good nor bad. */
-const val SIGN_GUESS = 0.3f
+internal const val SIGN_GUESS = 0.3f
 /**
  * How much harder thick cover makes people's going; share of what the camp's own hex gives that each hex
  * round it gives a band's gatherers at the usual range.
  */
-const val COVER_GOING = 0.5f
-const val RING_REACH = 0.15f
+internal const val COVER_GOING = 0.5f
+internal const val RING_REACH = 0.15f
 /** How much the old, the sick and the lamed slow a band's going (all of it so: this share slower). */
-const val WEAK_SLOW = 0.6f
+internal const val WEAK_SLOW = 0.6f
 /** Hunting is worked region by region in squares this wide, km (wider than twice any party's week). */
-const val HUNT_BLOCK_KM = 300f
+internal const val HUNT_BLOCK_KM = 300f
 /** Parties that kept near home this week are worked in squares this wide, km (see [hunt]). */
-const val HUNT_FINE_KM = 100f
+internal const val HUNT_FINE_KM = 100f
 /** How far a lone hunter goes looking for a mate in a week, km. */
-const val MATE_SEARCH_KM = 50.0
+internal const val MATE_SEARCH_KM = 50.0
 /** How much the best shelter takes off a hunter's chance; how likely a group that senses danger first slips away. */
-const val SHELTER_EFFECT = 0.7f
-const val AVOID_SKILL = 0.6f
+internal const val SHELTER_EFFECT = 0.7f
+internal const val AVOID_SKILL = 0.6f
 /** People: plant food counted against game by weight (it is easier to come by, but not all is worth gathering); how much a safe camp site adds. */
-const val PLANT_FOOD_WEIGHT = 0.5f
-const val CAMP_SAFETY = 0.5f
+internal const val PLANT_FOOD_WEIGHT = 0.5f
+internal const val CAMP_SAFETY = 0.5f
 /** Days of food a band has stored when the world begins. */
-const val START_LARDER_DAYS = 30f
+internal const val START_LARDER_DAYS = 30f
 /**
  * The spread of people's bands' sizes when the world begins, as the sd of their log: foragers' residential camps run from about
  * half to about twice the usual size, a dozen to fifty or so about a mean of 25-30 (Kelly 1995; Marlowe 2005; both from memory,
  * to check), which a lognormal of sd 0.4 spans in nine bands of ten (an estimate fitted to that range).
  */
-const val START_BAND_SPREAD = 0.4f
+internal const val START_BAND_SPREAD = 0.4f
 /**
  * The same for packs: wolf packs run from a pair to a dozen or more about a mean of 5-8, lion prides and hyena clans as widely
  * about theirs (Mech and Boitani 2003; Kruuk 1972; both from memory, to check): a lognormal of sd 0.5 (an estimate).
  */
-const val START_PACK_SPREAD = 0.5f
+internal const val START_PACK_SPREAD = 0.5f
 /** Share of its larder a band gives one that is going hungry, when they meet. */
-const val BAND_GIFT = 0.3f
+internal const val BAND_GIFT = 0.3f
 /** Chance a band burns off the dry grass around its camp in a dry-season week, to bring up green grass that draws game. */
-const val BURN_OFF = 0.1f
+internal const val BURN_OFF = 0.1f
 /** How much a camp fire through the night keeps lions and hyenas from taking people. */
-const val CAMPFIRE = 0.7f
+internal const val CAMPFIRE = 0.7f
 /** Soil water below which a place is in a dry spell, mm; rain ahead that promises relief, mm a week. */
-const val DRY_SOIL_MM = 40f
-const val RAIN_AHEAD_MM = 20f
+internal const val DRY_SOIL_MM = 40f
+internal const val RAIN_AHEAD_MM = 20f
 /** Prey, kg per km² weighed by catchability, at which a place is half as good as it gets for a hunter. */
-const val PREY_HALF = 200f
+internal const val PREY_HALF = 200f
 /** Pull of the season's remembered place, and of staying where one is. */
-const val SEASON_PULL = 1.0f
+internal const val SEASON_PULL = 1.0f
 /** For tracing: the kind whose groups' reasons the plan prints (planDiag=kind). */
 val PLAN_DIAG: String? = Config.string(Config.Key.PLAN_DIAG)
 /** Strength of the pull to better country beyond which a group treks rather than drifts. */
-const val ASTRAY = 0.5f
+internal const val ASTRAY = 0.5f
 /** How far a band's inherited seasonal places may lie from where it starts, km. */
-const val SEASON_RANGE_KM = 200.0
+internal const val SEASON_RANGE_KM = 200.0
 /**
  * How much farther ground counts against nearer when a band's forebears chose its seasonal places: a place at
  * the edge of the range is worth 1/(1 + this) of one at home.
  */
-const val SEASON_DISTANCE = 0.25f
-const val STAY = 0.05f
+internal const val SEASON_DISTANCE = 0.25f
+internal const val STAY = 0.05f
 /** Share of a remembered season's place's worth kept each week the band is elsewhere (about a tenth lost a year). */
-const val MEMORY_FADE = 0.998f
+internal const val MEMORY_FADE = 0.998f
 /** How much a hungry pack is put off ground it has hunted out lately; weeks of hunger over which it widens its range to three times its usual ground. */
-const val HUNGRY_LEAVE = 0.5f
-const val GIVE_UP_WEEKS = 4
+internal const val HUNGRY_LEAVE = 0.5f
+internal const val GIVE_UP_WEEKS = 4
 /**
  * How much a fed pack's hand-written score is put off ground beyond its territory, and ground another pack of
  * its kind has freshly marked: enough that it keeps to its own about as if those places were not weighed
  * at all, while a learned policy sees both and may weigh them otherwise.
  */
-const val KEEP_TO_GROUND = 2f
-const val KEEP_OFF_MARKS = 2f
+internal const val KEEP_TO_GROUND = 2f
+internal const val KEEP_OFF_MARKS = 2f
 /** Chance a chase at a fully catchable quarry succeeds. */
-const val CATCH = 0.35f
+internal const val CATCH = 0.35f
 /**
  * Time making a kill takes, days (the last rush, pulling it down, dragging it off); time each stalk or chase takes, whether
  * or not it ends in a kill (about an hour of a day: stalks of tens of minutes, chases of a minute or two, from memory);
  * and eating at this many kg a day per kg of hunter.
  */
-const val HANDLING_DAYS = 0.3f
-const val STALK_DAYS = 0.04f
-const val EATING_RATE = 0.15f
+internal const val HANDLING_DAYS = 0.3f
+internal const val STALK_DAYS = 0.04f
+internal const val EATING_RATE = 0.15f
 /** Share of the time a hunting party on the move is searching, and sensing prey on either side as far as its kind senses. */
-const val SEARCHING = 0.3f
+internal const val SEARCHING = 0.3f
 
 /**
  * A warm-blooded animal below its comfortable range burns more to keep warm: [COLD_COST] more food
@@ -207,8 +207,8 @@ const val SEARCHING = 0.3f
  * (People's, by their body heat: [BodyHeat].)
  */
 fun coldNeed(s: Species, felt: Float, month: Int, tuning: Tuning): Float = min(COLD_MAX, 1f + COLD_COST * tuning.coldCost * s.coldC(felt, month) / 10f)
-const val COLD_COST = 0.1f
-const val COLD_MAX = 1.6f
+internal const val COLD_COST = 0.1f
+internal const val COLD_MAX = 1.6f
 
 /**
  * What the week's going costs [g] in food, as a share of a week's need: each km of net shift (the
@@ -224,7 +224,7 @@ fun HexGroups.walkCost(g: HexGroup): Float = WALK_COST * max(0, g.path.size - 1)
         .also { v -> dialUse?.amount(DialSite.GATHER_WALK, b.gatherRange, v, 0f) } } ?: 0f) +
     // (And the height it gained on the way costs as the level walk it equals, see [climbKmPerM].)
     WALK_COST * climbKmPerM(g.species.massKg) * g.climbedM / days
-const val WALK_COST = 0.011f
+internal const val WALK_COST = 0.011f
 
 /**
  * The km of level walking that a metre climbed costs as much as, for an animal of [massKg]: lifting its body takes
@@ -234,7 +234,7 @@ const val WALK_COST = 0.011f
  * Going down is taken as free: on the gentle slopes of a week's going it costs no more than the level.
  */
 fun climbKmPerM(massKg: Float): Float = CLIMB_J_PER_KG_M / (10.7f * massKg.pow(-0.316f)) / 1000f
-const val CLIMB_J_PER_KG_M = 33f
+internal const val CLIMB_J_PER_KG_M = 33f
 
 /**
  * How far a group sees this week against a clear day in the open, 0..1: rain, snow and fog cut the
@@ -246,37 +246,37 @@ fun GroupWorld.sight(p: Place, weather: Weather): Float {
     val haze = if (weather.temperature[p] > SIGHT_HAZE_C) 0.8f else 1f
     return wet * haze * (1f - SIGHT_COVER * land.plants.cover(p))
 }
-const val SIGHT_RAIN_MM = 60f
-const val SIGHT_HAZE_C = 32f
-const val SIGHT_COVER = 0.5f
+internal const val SIGHT_RAIN_MM = 60f
+internal const val SIGHT_HAZE_C = 32f
+internal const val SIGHT_COVER = 0.5f
 /**
  * Country: what a band sees of the land from the high points on its way (the line of sight from
  * them, as far as the weather lets it see), at most [SIGHT_RINGS] rings of hexes; and how many more
  * rings scouts range when it sends a share of its people ahead of the camp ([SCOUT_RINGS] when two
  * or more go).
  */
-const val SIGHT_RINGS = 4
-const val SCOUT_RINGS = 3
+internal const val SIGHT_RINGS = 4
+internal const val SCOUT_RINGS = 3
 /** The scaffold's share of a band's adults out scouting rather than foraging. */
-const val SCOUT_SHARE = 0.05f
+internal const val SCOUT_SHARE = 0.05f
 /**
  * Optimal foraging: how far to each side of its way a hunter finds small game, km; the share of
  * small game met that a hunter of [SMALL_HUNTER_KG] or less catches (bigger ones are clumsier with
  * it); days to catch a kilo of it (many tries for each vole or hare); days to pick a kilo of fruit
  * or dig one of roots; how much longer bones take to crack and eat than meat.
  */
-const val SMALL_SENSE_KM = 0.02f
-const val SMALL_CATCH = 0.3f
-const val SMALL_HUNTER_KG = 15f
-const val SMALL_HANDLING_DAYS_PER_KG = 0.3f
+internal const val SMALL_SENSE_KM = 0.02f
+internal const val SMALL_CATCH = 0.3f
+internal const val SMALL_HUNTER_KG = 15f
+internal const val SMALL_HANDLING_DAYS_PER_KG = 0.3f
 /**
  * Share of the small game a hunter would find on bare ground that full ground cover hides from it ([HexPlants.groundCover]):
  * burnt ground shows its burrows and tracks (Bird, Bird & Parker 2005, Hum. Ecol. 33:443: Martu burning raises the
  * returns on burrowed small prey; the size here is an estimate).
  */
-const val SMALL_HIDE = 0.5f
-const val PLANT_HANDLING_DAYS_PER_KG = 0.15f
-const val BONE_DAYS = 3f
+internal const val SMALL_HIDE = 0.5f
+internal const val PLANT_HANDLING_DAYS_PER_KG = 0.15f
+internal const val BONE_DAYS = 3f
 /**
  * Digging roots and searching out small finds take this many times as long a kilo as picking fruit; days of
  * all hands to reap, thresh and grind a kilo of grass seed by hand; to catch and clean a kilo of fish.
@@ -284,7 +284,7 @@ const val BONE_DAYS = 3f
  * fallen wild cereal grain in northern Israel gave 0.18-0.58 kg of dehusked grain an hour, 0.34 on average: Kislev,
  * Weiss & Hartman 2004, PNAS 101:2692. Reaping a dense stand with a sickle is faster, unmeasured here.)
  */
-const val ROOT_DIGGING = 2f
+internal const val ROOT_DIGGING = 2f
 /**
  * Ground a band's gatherer searches for roots and bulbs in a day, m². Roots must be found before they are dug, so
  * thin ground takes longer a kilo: Holling's disc equation, days a kilo = digging + 1 / (search x density). Fitted to one
@@ -295,7 +295,7 @@ const val ROOT_DIGGING = 2f
  * search faster than naive ones, and the fit rests on the digging time being right. Fallen mast, counted in the same stock,
  * is easier to find than bulbs.
  */
-const val ROOT_SEARCH_M2_PER_DAY = 1100f
+internal const val ROOT_SEARCH_M2_PER_DAY = 1100f
 /**
  * Ground a band's gatherer scans for fruit on the bush, mast under the trees and ripe seed heads in a day, m²: as for roots
  * ([ROOT_SEARCH_M2_PER_DAY]), the thinner the food the longer a kilo, but fruit and nuts are seen, not dug for. An estimate,
@@ -305,12 +305,12 @@ const val ROOT_SEARCH_M2_PER_DAY = 1100f
  * and processing: Blurton Jones, Hawkes & Draper 1994), but most of that gap is the walk to the groves ([GATHER_LOAD_KG])
  * and the cracking; the search itself costs little where fruit or mast is thick.
  */
-const val PLANT_SIGHT_M2_PER_DAY = 60_000f
+internal const val PLANT_SIGHT_M2_PER_DAY = 60_000f
 /**
  * The share of the mast that is bitter and must be leached before it is eaten: the acorns of most oaks, and wild bitter
  * almonds, against beech nuts, hazel nuts, pine nuts and sweet acorns. An estimate, no measured share found.
  */
-const val MAST_BITTER = 0.7f
+internal const val MAST_BITTER = 0.7f
 /**
  * Days of a band's hands to pound and leach a dry kg of bitter mast, at a start band's skill, on top of gathering and
  * shelling it ([BAND_FRUIT_DAYS_PER_KG]). From two small trials, weak sources: the whole process came to some 364 kcal/h
@@ -318,16 +318,16 @@ const val MAST_BITTER = 0.7f
  * shelling took some 4 h a kg of kernel (Low Tech Institute 2017), leaving about 7 h, 1.2 days of 6 hours. Acorn processing
  * takes much more labour for its food than most plant foods (Basgall 1987, as cited by Glassow; no figure).
  */
-const val MAST_LEACH_DAYS_PER_KG = 1.2f
-const val SEED_HANDLING_DAYS_PER_KG = 0.5f
+internal const val MAST_LEACH_DAYS_PER_KG = 1.2f
+internal const val SEED_HANDLING_DAYS_PER_KG = 0.5f
 /**
  * How many times as long a kilo the small seeds of wild grasses take as wild cereal grain ([SEED_HANDLING_DAYS_PER_KG],
  * fitted to wild wheat and barley): beaten into baskets, parched, winnowed and ground, small seeds return some 300-1,000
  * kcal/h, about 600 after they are found (Gremillion 2004, and Simms 1987 as consistent with it, both as cited in a review
  * of the Eastern Agricultural Complex; secondary), against some 1,100 kcal/h for wild cereal at the bare-handed rate here.
  */
-const val SMALL_SEED_SLOWER = 2f
-const val FISH_HANDLING_DAYS_PER_KG = 0.3f
+internal const val SMALL_SEED_SLOWER = 2f
+internal const val FISH_HANDLING_DAYS_PER_KG = 0.3f
 /**
  * Days of a band's hands to pick a kilo of wild fruit (dry matter), at a start band's skill: berries one by one off the
  * bush. Hadza berry patches give 1,045 kcal/h (Salvadora persica) to 2,089 kcal/h (Cordia gharaf), !Kung Grewia 434 g of
@@ -337,38 +337,38 @@ const val FISH_HANDLING_DAYS_PER_KG = 0.3f
  * that fruit took before, 0.15, was halved from 0.3 to fit the plant share of food when every food was weighed by the kg,
  * and was not looked at again when foods came to be weighed by their energy: some 6,900 kcal/h, 3-14 times the record.)
  */
-const val BAND_FRUIT_DAYS_PER_KG = 0.45f
+internal const val BAND_FRUIT_DAYS_PER_KG = 0.45f
 /** The share of a kg of mast's days that is gathering it, the rest leaching its bitter share: how a band choosing its camp counts it ([HexGroups.rootsFound]). */
-const val MAST_GATHERED = BAND_FRUIT_DAYS_PER_KG / (BAND_FRUIT_DAYS_PER_KG + MAST_BITTER * MAST_LEACH_DAYS_PER_KG)
+internal const val MAST_GATHERED = BAND_FRUIT_DAYS_PER_KG / (BAND_FRUIT_DAYS_PER_KG + MAST_BITTER * MAST_LEACH_DAYS_PER_KG)
 /**
  * Days of a band's hands to gather a kilo of shellfish meat off the shore at low tide: Meriam reef-flat collecting gives
  * 1,492 ± 173 kcal/h (Bliege Bird, Smith & Bird 2001, Behav Ecol Sociobiol 50: 9-19), at [Nourishment.FISH] and a 6-hour
  * day about 0.12 days a kilo. Collecting needs no tool, and its returns go by the collector's size, not by experience
  * (Bliege Bird & Bird 2002, Human Nature 13: 239-267), so no skill slows it.
  */
-const val SHELLFISH_DAYS_PER_KG = 0.12f
+internal const val SHELLFISH_DAYS_PER_KG = 0.12f
 /**
  * Gatherers walk out to the food and carry it home a load at a time, so food further off takes longer a kilo: the walk
  * there and back over the load (the marginal value theorem at its simplest). Walking speed, km/h, and a gatherer's load,
  * fresh kg: 4 km/h and a !Kung mother's 12 kg of mongongo nuts, Lee's usual loads being 10-15 kg (Blurton Jones, Hawkes &
  * Draper 1994, J Anthropol Res 50: 217-248, pp. 228-232).
  */
-const val WALK_KM_PER_HOUR = 4f
-const val GATHER_LOAD_KG = 12f
+internal const val WALK_KM_PER_HOUR = 4f
+internal const val GATHER_LOAD_KG = 12f
 /**
  * Dry matter's share of a kg of each plant food as carried, by which [GATHER_LOAD_KG] holds less of the plant stocks'
  * dry kilos. Fruit: !Kung Grewia's 434 g fresh an hour at 500-740 kcal/h (Blurton Jones, Hawkes & Draper 1994) is some
  * 1.2-1.7 kcal/g fresh, against Hadza berries' 3.2 dry ([Nourishment.FRUIT]): about 0.45. Roots and seed are guesses
  * (tubers mostly water; grain about a tenth): unsourced. Small finds are reckoned as found.
  */
-const val FRUIT_DRY = 0.45f
-const val ROOTS_DRY = 0.3f
-const val SEED_DRY = 0.9f
+internal const val FRUIT_DRY = 0.45f
+internal const val ROOTS_DRY = 0.3f
+internal const val SEED_DRY = 0.9f
 fun dryShare(t: Food) = when (t) {
     Food.FRUIT -> FRUIT_DRY; Food.ROOTS -> ROOTS_DRY; Food.SEED, Food.GRAIN -> SEED_DRY; else -> 1f
 }
 /** Times a party plans its week's foraging over: if others took what it planned on, it looks again at what is left. */
-const val FORAGE_PASSES = 3
+internal const val FORAGE_PASSES = 3
 
 /** Ground a hunting party of kind [s] sweeps in a week, km² (shared over the hexes it passes): its going, by the width it senses. */
 fun GroupWorld.sweptKm2(s: Species) = s.dailyTravelKm * days * 2f * s.senseKm * SEARCHING
@@ -380,36 +380,36 @@ fun GroupWorld.sweptKm2(s: Species) = s.dailyTravelKm * days * 2f * s.senseKm * 
 fun GroupWorld.searchKm2(g: HexGroup, p: Place, weather: Weather) = sweptKm2(g.species) * (g.band?.edge(Skill.TRACK) ?: 1f) *
     sqrt(max(1, g.adults).toFloat() / g.species.groupSize) * sight(p, weather)
 /** Share of a kill's weight that is eaten. */
-const val MEAT_SHARE = 0.6f
-const val HOME_ADVANTAGE = 1.5f
-const val RIVAL_KILL = 0.02f
+internal const val MEAT_SHARE = 0.6f
+internal const val HOME_ADVANTAGE = 1.5f
+internal const val RIVAL_KILL = 0.02f
 /** Share of a beaten pack's young the winners kill when they take its ground. */
-const val INFANTICIDE = 0.25f
+internal const val INFANTICIDE = 0.25f
 /**
  * How watchful game is for coursing hunters in fully open country (times the other odds, at most 0.95 in all), and how a
  * chase goes when they come on it unseen, against [CATCH].
  */
-const val VIGILANCE = 0.86f
-const val SURPRISE = 1.03f
+internal const val VIGILANCE = 0.86f
+internal const val SURPRISE = 1.03f
 /**
  * Prey switching (a search image): a hungry hunter chases game of a kind with a chance that grows with how often
  * it has come on that kind lately, m / (m + [SEARCH_HALF]), m counting meetings that fade over [SEARCH_DAYS] (to 1/e).
  * Hunters keep to the game they meet often and pass up what has grown rare, as predators with other prey do in the
  * field (the sigmoid, type III, response that lets scarce prey recover); a new hunter starts at [SEARCH_HALF] of every kind.
  */
-const val SEARCH_HALF = 3f
-const val SEARCH_DAYS = 180.0
+internal const val SEARCH_HALF = 3f
+internal const val SEARCH_DAYS = 180.0
 /** Body mass below which an animal can hide in thick cover, kg, and how much of a hunter's chance cover takes away. */
-const val HIDING_KG = 70f
-const val HIDING = 0.8f
+internal const val HIDING_KG = 70f
+internal const val HIDING = 0.8f
 /** How much dark or moonlit nights change a stalker's chances. */
-const val MOON_DARK = 0.3f
+internal const val MOON_DARK = 0.3f
 /** Extra yearly deaths among packs without ground of their own. */
-const val DISPERSAL_DEATHS = 0.4f
+internal const val DISPERSAL_DEATHS = 0.4f
 /** Hoofed animals up to this mass, kg, lose young to eagles. */
-const val EAGLE_PREY_KG = 80f
+internal const val EAGLE_PREY_KG = 80f
 /** Strength ratio beyond which the weaker pack gives way without a fight. */
-const val FIGHT_RATIO = 1.5f
+internal const val FIGHT_RATIO = 1.5f
 
 /**
  * Carrion: the most of what lies on the ground searched that a scavenger by trade finds (the rest is
@@ -417,9 +417,9 @@ const val FIGHT_RATIO = 1.5f
  * (striped hyenas): kinds that eat less of it find less, as far as their share falls short (a wolf,
  * at 0.15, finds under a third as much).
  */
-const val CARRION_FOUND = 0.5f
-const val SCAVENGER_CARRION = 0.5f
+internal const val CARRION_FOUND = 0.5f
+internal const val SCAVENGER_CARRION = 0.5f
 
 
 /** Months over which a group's sense of how thick each kind usually is follows the change (about a year). */
-const val USUAL_MONTHS = 12f
+internal const val USUAL_MONTHS = 12f

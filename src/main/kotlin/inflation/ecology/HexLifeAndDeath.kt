@@ -579,7 +579,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     g.deathOdds = adultOdds
     val youngOdds = (youngSum * spared).coerceIn(0f, Hazards.MAX_YOUNG_ODDS)
     if (s.human && g.young > 0) for (h in hazards) if (h.young > 0f)
-        stats.childDeaths.computeIfAbsent(h.cause.label) { DoubleAdder() }.add((g.young * spared * h.young).toDouble())
+        stats.childDeaths.computeIfAbsent(h.cause) { DoubleAdder() }.add((g.young * spared * h.young).toDouble())
     val da = binomial(g.adults, adultOdds, r); val dy = binomial(g.young, youngOdds, r)
     // (For training: what the week's odds made likely, before the elders' deaths are drawn.)
     val diedExpected = g.adults * adultOdds + g.young * youngOdds +
@@ -1131,12 +1131,12 @@ data class Stalking(val rate: Float, val by: Species?) {
  * palisade does (an estimate: thorn enclosures in Kenya still lose livestock, chain-link fencing cut that by about three
  * quarters, Conservation Evidence 2017); how much more often children are taken.
  */
-const val STALKED = 0.002f
-const val STALKED_HALF = 3f
-const val STALKED_BAND = 25f
-const val FIRE_GUARD = 0.5f
-const val DOGS_GUARD = 0.5f
-const val NIGHT_STALKED = 0.6f
-const val HOUSE_GUARD = 0.8f
-const val PALISADE_GUARD = 0.5f
-const val YOUNG_STALKED = 2f
+internal const val STALKED = 0.002f
+internal const val STALKED_HALF = 3f
+internal const val STALKED_BAND = 25f
+internal const val FIRE_GUARD = 0.5f
+internal const val DOGS_GUARD = 0.5f
+internal const val NIGHT_STALKED = 0.6f
+internal const val HOUSE_GUARD = 0.8f
+internal const val PALISADE_GUARD = 0.5f
+internal const val YOUNG_STALKED = 2f
