@@ -77,7 +77,7 @@ class Band(kinds: Int) {
     /** The share of this week's need its fat met ([feedOnReserves]): not food it got, for [foresee]. */
     @Transient var fatFed = 0f
     /** forecastTrace=true: its year ahead as foreseen, and what came, while it is followed ([traceForecast]); whether it has been. */
-    @Transient var forecastTrace: ForecastTrace? = null
+    @Transient internal var forecastTrace: ForecastTrace? = null
     @Transient var forecastTraced = false
     /**
      * The share of its hands' days left in each month once its fire, shelters and food are held ([BandTime.vital]), a mean
