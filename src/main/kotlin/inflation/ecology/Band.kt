@@ -255,6 +255,16 @@ class Band(kinds: Int) {
      * [keepHerds] sizes it to [herd].)
      */
     var herdPet = FloatArray(kinds)
+    /**
+     * Of each kind, its kept young not yet grown, born in its herd or caught in the hunt: each weighs [HexFauna.YOUNG_WEIGHT]
+     * of a grown one, eats about half as much, and grows up over its kind's years to maturity, as the residents' young do
+     * ([keepHerds]). [herd] holds the grown. (Empty in a band loaded from a save made before it; [youngHerd] sizes it.)
+     */
+    var herdYoung = FloatArray(kinds)
+    /** [herdYoung], sized to [herd]. */
+    fun youngHerd(): FloatArray { if (herdYoung.size != herd.size) herdYoung = FloatArray(herd.size); return herdYoung }
+    /** Whether it keeps any animals, grown or young. */
+    fun keepsAnimals() = herd.any { it > 0f } || herdYoung.any { it > 0f }
     /** Of each kind, the heads beasts of prey took from its herd since it last kept it ([raidHerd], [keepHerds]). */
     var herdTaken = FloatArray(kinds)
     /**
@@ -625,6 +635,7 @@ class Band(kinds: Int) {
         for (i in o.kept.indices) { o.kept[i] *= share; kept[i] -= o.kept[i] }
         // (A band from a save made when there were fewer resident kinds keeps fewer: see [HexFauna.kinds].)
         for (i in 0 until min(herd.size, o.herd.size)) { o.herd[i] *= share; herd[i] -= o.herd[i] }
+        run { val y = youngHerd(); val oy = o.youngHerd(); for (i in 0 until min(y.size, oy.size)) { oy[i] = y[i] * share; y[i] -= oy[i] } }
         for (m in Material.entries) { o.goods[m] = goods[m] * share; goods[m] -= o.goods[m] }
         o.ornaments = ornaments * share; ornaments -= o.ornaments; o.exotic = exotic * share; exotic -= o.exotic
         o.elders = elders * adults / (stay + adults).coerceAtLeast(1); elders -= o.elders
@@ -670,10 +681,12 @@ class Band(kinds: Int) {
         for (i in Illness.entries) { a.sick[i] += w * (b.sick[i] - a.sick[i]); a.immune[i] += w * (b.immune[i] - a.immune[i]) }
         a.hurt += w * (b.hurt - a.hurt); a.lame += w * (b.lame - a.lame)
         a.ornaments += b.ornaments; a.exotic += b.exotic
+        val ay = a.youngHerd(); val by = b.youngHerd()
         for (i in 0 until min(a.herd.size, b.herd.size)) {
             val n = a.herd[i] + b.herd[i]
-            if (n > 0f) a.herdTame[i] = (a.herd[i] * a.herdTame[i] + b.herd[i] * b.herdTame[i]) / n
-            a.herd[i] = n
+            val heads = n + ay[i] + by[i]
+            if (heads > 0f) a.herdTame[i] = ((a.herd[i] + ay[i]) * a.herdTame[i] + (b.herd[i] + by[i]) * b.herdTame[i]) / heads
+            a.herd[i] = n; ay[i] += by[i]
             // (Pets while either band's were: the joined herd is weighed as food once the younger has grown.)
             if (i < a.herdPet.size && i < b.herdPet.size) a.herdPet[i] = max(a.herdPet[i], b.herdPet[i])
         }
