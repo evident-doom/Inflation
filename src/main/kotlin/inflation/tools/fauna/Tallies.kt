@@ -539,6 +539,9 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
         return " | kept herds by kind since last: " + parts.joinToString("; ").ifEmpty { "none" }
     }
 
+    /** The heads of kind [k] band [b] keeps, grown and young. */
+    private fun heads(b: Band, k: Int) = b.herd.getOrElse(k) { 0f } + b.herdYoung.getOrElse(k) { 0f }
+
     /** What bands hold a grown person (what a camp move must carry or leave), kept herds, ornaments and shell, grave goods. */
     private fun goods(bands: List<HexGroup>, bs: List<Band>): String {
         val hw = sim.hw; val land = sim.land; val fauna = sim.fauna
@@ -546,10 +549,10 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
         return " | held an adult: food %.1f kg, goods %.1f kg (".format(bands.sumOf { it.larder.toDouble() } / adults,
                 bs.sumOf { it.goods.sum().toDouble() } / adults) +
             Material.entries.joinToString(", ") { m -> "%s %.1f".format(m.name.lowercase(), bs.sumOf { it.goods[m].toDouble() } / adults) } + ")" +
-            " | kept herds: " + fauna.kinds.indices.filter { k -> bs.any { it.herd.size > k && it.herd[k] >= 1f } }.joinToString(", ") { k ->
-                val keepers = bs.filter { it.herd.size > k && it.herd[k] >= 1f }
-                "%s %.0f head in %d bands, %d of them mobile (tame %.2f)".format(fauna.kinds[k].name, keepers.sumOf { it.herd[k].toDouble() },
-                    keepers.size, keepers.count { sim.groups.bandLiving(it) == Tally.Living.MOBILE }, keepers.map { it.herdTame[k].toDouble() }.average()) }.ifEmpty { "none" } +
+            " | kept herds: " + fauna.kinds.indices.filter { k -> bs.any { heads(it, k) >= 1f } }.joinToString(", ") { k ->
+                val keepers = bs.filter { heads(it, k) >= 1f }
+                "%s %.0f head (%.0f of them young) in %d bands, %d of them mobile (tame %.2f)".format(fauna.kinds[k].name, keepers.sumOf { heads(it, k).toDouble() },
+                    keepers.sumOf { it.herdYoung.getOrElse(k) { 0f }.toDouble() }, keepers.size, keepers.count { sim.groups.bandLiving(it) == Tally.Living.MOBILE }, keepers.map { it.herdTame[k].toDouble() }.average()) }.ifEmpty { "none" } +
             herdFlows() +
             " | ornaments %.1f a person (%.0f%% of shell), shell beads a person inland %.2f, by the sea %.2f; graves with goods %d (richest hold %.0f%% of goods)".format(
                 bs.sumOf { it.ornaments.toDouble() } / headsOf(bands),

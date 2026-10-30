@@ -125,6 +125,7 @@ hex learning tools. (The 1 km model's `Simulation` has since been removed; the h
 | Tools made from local materials, worn out, carried | yes (spear, bow, net, sickle, grinding stone, basket, clothes) |
 | Tools hit on and shown to bands met | yes |
 | Camp kept: births closer with stores, children sicken in a fouled camp, bands leave fouled camps | yes |
+| Fouling is the ground's, not the band's: it builds with the people camped at a hex and clears while nobody camps there, so newcomers find it; a midden kept by bands that keep their camps clean spares every band at the hex, whatever its customs | yes |
 | Traditions with effects, taken up and dropped: know-how copied from bands doing better, marks (burial, leaving the dead, marrying out, sparing young game, feasts) from the many bands met | yes (ten) |
 | A totem per lineage: a resident kind its hunters leave alone unless hungry; passed on as a mark, a custom bands count each other apart by, not seen kept by a band known to have eaten of it | yes |
 | Burial ways for bands that bury: at camp, or carried to where most of their dead lie if within a day's walk; digging and carrying cost customs time; passed on as a mark | yes |
@@ -135,6 +136,7 @@ hex learning tools. (The 1 km model's `Simulation` has since been removed; the h
 | Peace at shared rites: at a rite gathering, a band is less ready to raid another that keeps the same rite there, as far as it holds to its rites (1/(1 + its hold); estimate); one that raids there anyway is held against by the other bands gathered that keep the rite (grudge against its lineage, ties lost), as far as each holds to its rites. A pattern bands keep by choice, not a ban | yes |
 | Belief strain from rites held back from is one of the quarrels that split a band: the more strained (against what the belief bears; older beliefs bear more), the smaller the band holds together, and the part that leaves at a split goes without the belief as likely as the strain is near what it bears; strain alone never splits a band | yes |
 | A band at home splits at a village's size (150, more with feasts); the halves of a split hold each other at a full tie; bands at home in one hex that find each other alike enough both ways (words, kin, tie, customs) become one band while there is room | yes |
+| Unused houses are nobody's: a band takes up free houses at its hex only as far as it needs them for its grown people, keeping those it already uses | yes |
 | Rites born of omens: a week's death toll far above the usual, plenty after long want, or a strange sign drawn at random (about one a year, a third salient) where the band is, borne out by the same month going well there again or by another band that marked the same place; no yearly take-up and no letting rites go; rites copied between bands met as far as each trusts the other, not from the better-off | yes |
 | Language as words per concept, understanding between bands | yes (naming game, drift) |
 | Marrying out, lineage mix, inbreeding | yes |

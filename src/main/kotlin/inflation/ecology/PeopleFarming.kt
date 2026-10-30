@@ -136,8 +136,8 @@ internal fun boldness(g: HexGroup) = if (g.bold < 0f) g.species.boldShare else g
  * Taming: weekly drift towards boldness of a pack that lives by people's camps (centuries, not
  * years); yearly chance a band takes a pup from such a pack, at full boldness and tameability.
  */
-const val BOLD_DRIFT = 0.0003f
-const val TAME = 0.5f
+internal const val BOLD_DRIFT = 0.0003f
+internal const val TAME = 0.5f
 /**
  * Dogs. Pups raised a dog a year when fed: half are bitches, of one litter a year of about 5 (an estimate, from memory), half
  * of the pups dying as newborns (Koster 2008, Mayangna and Miskito, Nicaragua). Yearly deaths of grown dogs: 49% (Koster
@@ -147,19 +147,19 @@ const val TAME = 0.5f
  * falling to nothing at [DOG_PREY_KG]: dogs met agouti and paca far more often but red brocket deer no more (Koster 2008),
  * and gains are limited to some prey (Lupo 2017); the size a guess. How much a full pack keeps off night attacks (no source).
  */
-const val DOG_BIRTHS = 1.25f
-const val DOG_DEATHS = 0.49f
-const val DOG_FED_SHARE = 0.13f
-const val DOG_HUNT = 1f
-const val DOG_PREY_KG = 25f
-const val DOG_GUARD = 0.5f
+internal const val DOG_BIRTHS = 1.25f
+internal const val DOG_DEATHS = 0.49f
+internal const val DOG_FED_SHARE = 0.13f
+internal const val DOG_HUNT = 1f
+internal const val DOG_PREY_KG = 25f
+internal const val DOG_GUARD = 0.5f
 /**
  * Sowing: months (0 the one after midwinter) for sowing in autumn; share of its stored grain a band
  * sows; person-days to clear, sow and weed for each kg sown.
  */
 val SOW_MONTHS = 9..10
-const val SOW_SHARE = 0.3f
-const val SOW_DAYS_PER_KG = 0.5f
+internal const val SOW_SHARE = 0.3f
+internal const val SOW_DAYS_PER_KG = 0.5f
 /**
  * A band's kept animals' week: they graze round the camp ([herdForage]), breed in their season as they are fed and as tame
  * as they have grown, give milk after it ([milkKg]), die, and run off as wild as they still are; they are herded in the field
@@ -182,32 +182,34 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
     // planned a week of every month; till then, the spare days alone.
     if (b.herdGrew.size != b.herd.size) b.herdGrew = BooleanArray(b.herd.size)
     if (b.herdPet.size != b.herd.size) b.herdPet = FloatArray(b.herd.size)
-    val herders = b.herd.indices.sumOf { k -> (b.herd[k] / headsAHerder(fauna.kinds[k])).toDouble() }.toFloat()
+    val young = b.youngHerd()
+    val herders = b.herd.indices.sumOf { k -> ((b.herd[k] + young[k]) / headsAHerder(fauna.kinds[k])).toDouble() }.toFloat()
     val capacity = b.freeShare.takeIf { f -> f.all { it >= 0f } }?.let { f -> f.min() * time.total / days * herdSkill(b) }
     var room = capacity?.let { it - herders }
     // (Above it, the band culls a month's share of the excess a week, as it eats: not all at once, to rot.)
     val over = if (capacity != null && herders > capacity) (1f - capacity / herders) * min(1f, years * Date.MONTHS_PER_YEAR) else 0f
     fun tally(k: Int, f: HerdFlow, v: Float) { bands.herdFlows[f] += v; bands.kindFlows[k][f] += v }
-    fun slaughter(k: Int, heads: Float, flow: HerdFlow) {
+    fun slaughter(k: Int, heads: Float, flow: HerdFlow, weight: Float = 1f) {
         val s = fauna.kinds[k]
         tally(k, flow, heads)
         // (Kept at what it feeds, as the week's meat: [Nourishment.MEAT]; its hides, bone and sinew as a kill's ([Band.skin]);
-        // the rest of the carcass for the scavengers.)
-        val meat = heads * s.massKg * MEAT_SHARE
+        // the rest of the carcass for the scavengers. Young weigh [weight] of a grown one.)
+        val meat = heads * weight * s.massKg * MEAT_SHARE
         addFood(g.stores, g.storeKgPer, Store.FRESH, meat * Nourishment.MEAT * g.species.needScale, meat)
-        val left = heads * s.massKg * (1f - MEAT_SHARE)
+        val left = heads * weight * s.massKg * (1f - MEAT_SHARE)
         small.deposit(DeadPool.CARRION, p, Kg(left - tallyHide(Tally.HideSource.HERDS, s, b.skin(s, heads, left))))
     }
     if (b.herdTaken.size != b.herd.size) b.herdTaken = FloatArray(b.herd.size)
     for (k in b.herd.indices) {
         // (What beasts of prey took from it while they hunted this week: [raidHerd].)
         if (b.herdTaken[k] > 0f) { tally(k, HerdFlow.TAKEN, b.herdTaken[k]); bands.takenWeek[k] += b.herdTaken[k]; b.herdTaken[k] = 0f }
-        var n = b.herd[k]
-        if (n <= 0f) continue
+        var n = b.herd[k]; var y = young[k]
+        if (n + y <= 0f) continue
+        val n0 = n
         val s = fauna.kinds[k]
         val tame = b.herdTame[k]
-        // Grazing round the camp.
-        val f = herdForage(p, s, n)
+        // Grazing round the camp. (The young eat about half what a grown one does, as the residents' do.)
+        val f = herdForage(p, s, n + 0.5f * y)
         val got = land.plants.consume(p, LifeForm.HERB, KgM2(f.grass)) + land.plants.eatBrowse(p, KgM2(f.browse))
         val fed = if (f.need > 0f) min(1f, got.v / f.need) else 1f
         val inSeason = monthsFrom(s.birthMonth, date.month) < s.birthMonths
@@ -221,23 +223,31 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
         }
         val dying = (s.backgroundMortality + 0.5f * (1f - fed) + fighting(s)) * years
         val running = straying(s, tame) * b.lapse(Skill.TENDING) * years
-        val lost = n * min(0.9f, dying + running)
+        val lost = n * min(0.9f, dying + running); val lostY = y * min(0.9f, dying + running)
         // (The dead lie by the camp; those that run off or stray go wild among their kind.)
-        val died = if (dying + running > 0f) lost * dying / (dying + running) else 0f
+        val diedShare = if (dying + running > 0f) dying / (dying + running) else 0f
+        val died = lost * diedShare; val diedY = lostY * diedShare
         val area = land.areaKm2[p]
-        small.deposit(DeadPool.CARRION, p, Kg(died * s.massKg))
-        fauna.adults[k][p] += (lost - died) / area
-        n = max(0f, n + born - lost)
-        tally(k, HerdFlow.BORN, born); tally(k, HerdFlow.DIED, died); tally(k, HerdFlow.RAN_OFF, lost - died)
-        val kg = n * s.massKg
+        small.deposit(DeadPool.CARRION, p, Kg((died + HexFauna.YOUNG_WEIGHT * diedY) * s.massKg))
+        fauna.adults[k][p] += (lost - died) / area; fauna.young[k][p] += (lostY - diedY) / area
+        n = max(0f, n - lost); y = max(0f, y + born - lostY)
+        // The young grow up as the residents' young do, over the years to maturity.
+        val up = y * min(1f, years / s.yearsToMaturity)
+        y -= up; n += up
+        // (What the grown herd gained this week: its young grown up, less the grown ones lost. That much the band can eat
+        // without eating into its mothers, for only the grown ones bear young.)
+        val nUp = n; val gained = max(0f, n - n0)
+        tally(k, HerdFlow.BORN, born); tally(k, HerdFlow.DIED, died + diedY); tally(k, HerdFlow.RAN_OFF, lost - died + lostY - diedY)
+        val kg = (n + HexFauna.YOUNG_WEIGHT * y) * s.massKg
         tally(k, HerdFlow.KG, kg); tally(k, HerdFlow.KG_TENDED, kg * tended); tally(k, HerdFlow.KG_FED, kg * fed)
         // (For the census by kind: what it adds in a year, and what a herder's day of it brings against a lean month's foraging.)
         tally(k, HerdFlow.INCREASE_KG, herdIncrease(b, k, fed) * kg)
         // What its herders cannot keep it culls for meat.
         if (tended < 1f) {
-            val cull = n * (1f - tended)
-            n -= cull
+            val cull = n * (1f - tended); val cullY = y * (1f - tended)
+            n -= cull; y -= cullY
             slaughter(k, cull, HerdFlow.CULLED)
+            slaughter(k, cullY, HerdFlow.CULLED, HexFauna.YOUNG_WEIGHT)
             stats.meeting(Met.KEPT_ANIMALS_CULLED)
         }
         // Herders live on their herds' increase: the band eats what its herd adds in a year, week by week through the year
@@ -246,14 +256,14 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
         // a day's foraging brings it eats down, a week's food at a time. Pets ([Band.herdPet]) it keeps whole, for their own
         // sake, and weighs as food only once they have grown.
         val pet = b.herdPet[k] > 0f
-        if (pet) { tally(k, HerdFlow.KG_PET, n * s.massKg); b.herdPet[k] = max(0f, b.herdPet[k] - years) }
+        if (pet) { tally(k, HerdFlow.KG_PET, kg); b.herdPet[k] = max(0f, b.herdPet[k] - years) }
         val worth = herdWorth(g, b, k)
         val pays = worth >= 1f
-        if (pays) tally(k, HerdFlow.KG_PAYS, n * s.massKg)
-        tally(k, when { worth < 0.5f -> HerdFlow.KG_WORTH_HALF; worth < 1f -> HerdFlow.KG_WORTH_UNDER; worth < 2f -> HerdFlow.KG_WORTH_OVER; else -> HerdFlow.KG_WORTH_TWICE }, n * s.massKg)
-        if (worth.isFinite()) { tally(k, HerdFlow.KG_WORTH_KNOWN, n * s.massKg); tally(k, HerdFlow.WORTH_KG, worth * n * s.massKg) }
+        if (pays) tally(k, HerdFlow.KG_PAYS, kg)
+        tally(k, when { worth < 0.5f -> HerdFlow.KG_WORTH_HALF; worth < 1f -> HerdFlow.KG_WORTH_UNDER; worth < 2f -> HerdFlow.KG_WORTH_OVER; else -> HerdFlow.KG_WORTH_TWICE }, kg)
+        if (worth.isFinite()) { tally(k, HerdFlow.KG_WORTH_KNOWN, kg); tally(k, HerdFlow.WORTH_KG, worth * kg) }
         if (over > 0f) { slaughter(k, n * over, HerdFlow.EATEN); n -= n * over }
-        val increase = n * max(0f, herdIncrease(b, k, fed)) * years
+        val increase = if (nUp > 0f) gained * n / nUp else 0f
         val grows = pet || pays && increase / headsAHerder(s) <= (room ?: spare)
         if (grows && !pet) { if (room != null) room -= increase / headsAHerder(s) else spare -= increase / headsAHerder(s) }
         b.herdGrew[k] = grows
@@ -261,8 +271,9 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
             else max(0f, n - g.dailyNeedKg * days / (s.massKg * MEAT_SHARE * Nourishment.MEAT * g.species.needScale))
         if (n > kept) slaughter(k, n - kept, if (pays) HerdFlow.EATEN else HerdFlow.EATEN_UNPAID)
         n = kept
-        if (n < 0.5f) { fauna.adults[k][p] += n / area; n = 0f; b.herdPet[k] = 0f; tally(k, if (pet) HerdFlow.ENDED_PET else if (pays) HerdFlow.ENDED else HerdFlow.ENDED_UNPAID, 1f) }
-        b.herd[k] = n
+        if (n + y < 0.5f) { fauna.adults[k][p] += n / area; fauna.young[k][p] += y / area; n = 0f; y = 0f; b.herdPet[k] = 0f
+            tally(k, if (pet) HerdFlow.ENDED_PET else if (pays) HerdFlow.ENDED else HerdFlow.ENDED_UNPAID, 1f) }
+        b.herd[k] = n; young[k] = y
         b.herdTame[k] = tame + TAMING_RATE * b.edge(Skill.TENDING) * years * (1f - tame)
         if (b.knowsSkill[Skill.TENDING]) b.practise(Skill.TENDING, 0.5f * PRACTICE)
     }
@@ -360,28 +371,36 @@ private fun lactating(s: Species, date: Date) =
     monthsFrom(s.birthMonth, date.month) * Date.DAYS_PER_MONTH < s.birthMonths * Date.DAYS_PER_MONTH + LACTATION_DAYS
 
 /**
- * The share [b]'s herd of kind [k] adds in a year as [keepHerds] has it, fed as far as [fed]: births by its tameness, less
- * its deaths and those that run off.
+ * The share [b]'s grown herd of kind [k] adds in a year as [keepHerds] has it, fed as far as [fed], once its young are of
+ * every age: births by its tameness, as many as live to grow up, less the grown ones' deaths and those that run off. The
+ * young die and run off at the grown ones' yearly rate and grow up at one over [Species.yearsToMaturity] a year, so
+ * 1 / (1 + rate * years to maturity) of them grow up.
  */
 internal fun GroupWorld.herdIncrease(b: Band, k: Int, fed: Float = 1f): Float {
     val s = fauna.kinds[k]; val tame = b.herdTame[k]
-    return herdMothers(s, tame) * s.youngPerFemale * fed - s.backgroundMortality - 0.5f * (1f - fed) - fighting(s) -
-        straying(s, tame) * b.lapse(Skill.TENDING)
+    val lost = s.backgroundMortality + 0.5f * (1f - fed) + fighting(s) + straying(s, tame) * b.lapse(Skill.TENDING)
+    return herdMothers(s, tame) * s.youngPerFemale * fed / (1f + lost * s.yearsToMaturity) - lost
 }
+
+/** Diamond's six criteria for a kind that can be kept, in the order of [Species.domestication]. */
+internal enum class Diamond { DIET, GROWTH, BREEDING, TEMPERAMENT, CALM, HIERARCHY }
+
+/** How well kind [this] meets Diamond's criterion [d], 0..1. */
+internal fun Species.diamond(d: Diamond) = domestication[d.ordinal]
 
 /**
  * The share of a kept herd of kind [s] that bear young in a year, [tame] as it is: its females, as tame as they are, and as
  * far as their kind mates and rears young in a camp without pens or incubators (Diamond's captive-breeding criterion)
  * against [HERD_BREEDS], a goat's. No more than their kind's wild rate: a herd does not out-breed its kind.
  */
-internal fun herdMothers(s: Species, tame: Float) = 0.5f * (0.3f + 0.7f * tame) * min(1f, s.domestication[2] / HERD_BREEDS)
+internal fun herdMothers(s: Species, tame: Float) = 0.5f * (0.3f + 0.7f * tame) * min(1f, s.diamond(Diamond.BREEDING) / HERD_BREEDS)
 
 /**
  * The years young of kind [s] caught in the hunt are kept as pets ([Band.herdPet]): till they have grown
  * ([Species.yearsToMaturity]), or as much sooner as their kind's temper (Diamond's disposition criterion) falls short of a
  * goat's, [HERD_TEMPER]: nobody keeps a pet that bites or wrecks the camp, and the temper shows as the young grow.
  */
-internal fun petYears(s: Species) = s.yearsToMaturity * min(1f, s.domestication[3] / HERD_TEMPER)
+internal fun petYears(s: Species) = s.yearsToMaturity * min(1f, s.diamond(Diamond.TEMPERAMENT) / HERD_TEMPER)
 
 /**
  * The yearly share of a kept herd of kind [s] that kill or maim each other or are put down as dangerous, however tame:
@@ -389,7 +408,7 @@ internal fun petYears(s: Species) = s.yearsToMaturity * min(1f, s.domestication[
  * [HERD_TEMPER]; without pens the keepers cannot part the fighters.
  */
 internal fun fighting(s: Species): Float {
-    val wild = max(0f, 1f - s.domestication[3] / HERD_TEMPER)
+    val wild = max(0f, 1f - s.diamond(Diamond.TEMPERAMENT) / HERD_TEMPER)
     return HERD_FIGHTING * wild * wild
 }
 
@@ -399,7 +418,7 @@ internal fun fighting(s: Species): Float {
  * social-structure criteria) against [HERD_EASE], a goat's.
  */
 internal fun straying(s: Species, tame: Float): Float {
-    val ease = min(s.domestication[4], s.domestication[5])
+    val ease = min(s.diamond(Diamond.CALM), s.diamond(Diamond.HIERARCHY))
     val wild = max(0f, 1f - tame * ease / HERD_EASE)
     return HERD_RUN_OFF * wild * wild
 }
@@ -410,44 +429,31 @@ internal fun straying(s: Species, tame: Float): Float {
  * mother's weight against its 40 kg (as M^0.75; the scaling an estimate). Early herds' mothers likely gave less.
  */
 internal fun milkKg(s: Species) = MILK_KG_GOAT * (s.massKg / 40f).pow(0.75f)
-const val MILK_KG_GOAT = 56f
-const val LACTATION_DAYS = 101f
+internal const val MILK_KG_GOAT = 56f
+internal const val LACTATION_DAYS = 101f
 
 /** How much of a practised herder's stock [b]'s herders keep each: half, unpractised. */
 private fun herdSkill(b: Band) = 0.5f + 0.5f * min(1f, b.skill(Skill.TENDING))
 
-/**
- * Herding: chance a young animal caught in the hunt is kept and raised instead of eaten (times its
- * kind's tameability); yearly share that run off, [HERD_RUN_OFF] times the square of their wildness ([straying]; the square an
- * estimate, so that the wilder stray far more), their wildness reckoned from their tameness times their kind's ease on foot, the
- * worse of Diamond's panic and social-structure criteria, against a goat's ([HERD_EASE] 0.6, an estimate: a kind that panics or
- * keeps no herd, as an ostrich or a deer, is not kept on foot however tame), so that a goat herd as tame as one at world
- * start (0.8) loses 2% a year to straying (an estimate: no record gives half-tame herds' straying; the wild-type stock of the first
- * herds, as at Ganj Dareh some 10,000 years ago, still bred and paid its herders, Daly et al. 2021, from the press release).
- * Tame herded flocks stray not at all, as [straying] has it: flock records of herded sheep and goats count no strays and
- * 0-1% of their outflow to predators, Assen and Aklilu 2012, mixed farms in Tigray, not nomads; so a move costs a herd only
- * its walk. Beasts of prey take their share in the hunt ([raidHerd]), not here: the goats of central Mali, 1978-83, whose
- * adults died 12.7% a year, slightly more than 17% of the deaths "lost" or taken by predators, mainly dogs (FAO x5531e,
- * ch. 13), are a check on the two together. [HERD_FIGHTING], the same scale for deaths from fighting ([fighting]);
- * yearly growth of tameness. And the head a herder keeps on foot ([headsAHerder]): 200 goats of [GOAT_KG]; Iranian nomads' flocks of
- * 200-600 head go with one to three shepherds (Encyclopaedia Iranica, "Cupan"). Bigger beasts fewer, as their weight to the
- * power [HERD_MASS_EXP], an estimate between the goats and camel herds of 50-60 head kept by young men (ODI Pastoral
- * Development Network paper 5337; the herders to a herd not given). Young caught and raised by hand come as tame as a
- * herd started at world start ([RAISED_TAME], an estimate), whatever their kind: young of wild hoofed animals reared by people take them as
- * their own and stay by them (imprinting; Price 1984, "Behavioral aspects of animal domestication", from memory), long
- * before their kind changes in body. Kinds also differ in how they breed and how they get on kept without pens or incubators,
- * by the other two of Diamond's criteria (Guns, Germs, and Steel, ch. 9, from memory): their young as their captive breeding
- * against a goat's ([HERD_BREEDS] 0.7, [herdMothers]), their deaths from fighting by their disposition against a goat's
- * ([HERD_TEMPER] 0.6, [fighting]); the scales and the square estimates, the criteria the catalogue's.
- */
-const val CAPTURE = 0.5f
-const val RAISED_TAME = 0.8f
-const val HERD_RUN_OFF = 0.5f
-const val HERD_FIGHTING = 0.5f
-const val HERD_EASE = 0.6f
-const val HERD_BREEDS = 0.7f
-const val HERD_TEMPER = 0.6f
-const val TAMING_RATE = 0.01f
-const val HERD_GOATS_A_HERDER = 200f
-const val GOAT_KG = 40f
-const val HERD_MASS_EXP = 0.5f
+/** Chance a young animal caught in the hunt is kept and raised instead of eaten, times its kind's tameability. An estimate. See docs/herding-constants.md for these constants. */
+internal const val CAPTURE = 0.5f
+/** How tame young raised by hand come, whatever their kind (imprinting; Price 1984). An estimate. */
+internal const val RAISED_TAME = 0.8f
+/** Yearly share of a kept herd that strays: this times the square of its wildness ([straying]). An estimate. */
+internal const val HERD_RUN_OFF = 0.5f
+/** Yearly share of a kept herd lost to fighting: this times the square of the kind's lack of temper ([fighting]). An estimate. */
+internal const val HERD_FIGHTING = 0.5f
+/** A goat's ease on foot (the worse of Diamond's panic and social-structure criteria), the scale for [straying]. An estimate. */
+internal const val HERD_EASE = 0.6f
+/** A goat's captive breeding (Diamond's criterion), the scale for [herdMothers]. */
+internal const val HERD_BREEDS = 0.7f
+/** A goat's temperament (Diamond's disposition criterion), the scale for [fighting] and [petYears]. */
+internal const val HERD_TEMPER = 0.6f
+/** Yearly growth of a herd's tameness. */
+internal const val TAMING_RATE = 0.01f
+/** Goats a herder keeps on foot (Iranian nomads: 200-600 head to one to three shepherds, Encyclopaedia Iranica, "Cupan"). */
+internal const val HERD_GOATS_A_HERDER = 200f
+/** A goat's weight, the base for [HERD_MASS_EXP]. */
+internal const val GOAT_KG = 40f
+/** Bigger beasts fewer to a herder, as their weight to this power. An estimate between goats and camel herds of 50-60 head (ODI Pastoral Development Network paper 5337). */
+internal const val HERD_MASS_EXP = 0.5f

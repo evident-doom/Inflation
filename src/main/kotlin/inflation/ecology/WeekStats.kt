@@ -54,6 +54,9 @@ class WeekStats {
     /** The residents' deaths this week by "kind:cause", head (fractions: the residents are densities). */
     val residentDeaths = TreeMap<TallyKey, Double>()
 
+    /** Whether the census's splits of bands (by country, clothing, way of living and so on: [BandSplit]) are booked in [hunting]: set by the census that reads them, as booking them costs a band-week some forty ledger merges. */
+    var bandSplits = false
+
     /** Counts [n] more of [what] in [meetings]. */
     fun meeting(what: Met, n: Int = 1) { meetings.merge(what.key, n, Int::plus) }
     /** Counts [n] more of [what] of [of] (a kind, a skill, a custom...) in [meetings]. */
@@ -138,6 +141,11 @@ enum class Met(val label: String) {
         NEWCOMERS("newcomers: "), SEA_CROSSINGS("sea crossings: "), HIT_ON("band hit on "), LOST("band lost "), TOOK_A_PUP("bands took a ", " pup"),
         LEARNED("band learned "), TOOK_UP("band took up "), TOOK_LEAVE_OF("band took leave of "), DROPPED("band dropped "), GIVEN("", " given"),
         TURNED_BACK_BY("bands turned back by "), DOGS_GONE_WILD("dogs gone wild as ", " packs"),
+        /** How packs of a kind come and go (report only): grown young gone alone, packs split off, lone pairs, ground taken, packs ended (and those without ground). */
+        PACK_LEFT_ALONE("pack young left alone, "), PACK_SPLIT_OFF("packs split off, "), PACK_PAIRED("lone hunters paired, "),
+        PACK_SETTLED("packs settled ground, "), PACK_ENDED("packs ended, "), PACK_ENDED_HOMELESS("packs ended without ground, "),
+        /** Kills robbed (report only): by the thief's kind and from the victim's, with the kg taken. */
+        KILLS_STOLEN_BY("kills stolen by "), KILLS_STOLEN_FROM("kills stolen from "), KG_STOLEN_BY("kg of kills stolen by "), KG_STOLEN_FROM("kg of kills stolen from "),
         RITES_HELD("rites held, band "), RITES_CUT_SHORT("rites cut short, band "),
         RITES_CUT_SHORT_PERCENT_GIVEN("percent of days given to rites cut short, band "),
         CUSTOMS_DAYS_ASKED("tenths of days customs asked: "), CUSTOMS_DAYS_GIVEN("tenths of days customs got: "),
@@ -255,7 +263,7 @@ object Tally {
     /** Bands' tallies by how they are clad. */
     fun bandsClad(clad: Clad, what: Bands) = TallyKey.raw("bands ${clad.label}:${what.label}")
     /** Bands' deaths of [cause] by how they are clad; [bandsCladDied] (clad) starts all of them. */
-    fun bandsCladDied(clad: Clad, cause: DeathReason) = TallyKey.raw(bandsCladDied(clad).text + cause.label)
+    fun bandsCladDied(clad: Clad, cause: DeathReason) = ofCause(bandsCladDied(clad), cause)
     fun bandsCladDied(clad: Clad) = TallyKey.raw("bands ${clad.label}:$DIED_OF")
     /** How well a band was fed through the week, its fat drawn on ([HexGroup.fed]): the first bin it falls [below]. */
     enum class Fed(val label: String, val below: Float) {
@@ -265,7 +273,7 @@ object Tally {
     /** Bands' tallies by how well they were fed. */
     fun bandsFed(fed: Fed, what: Bands) = TallyKey.raw("bands fed ${fed.label}:${what.label}")
     /** Bands' deaths of [cause] by how well they were fed; [bandsFedDied] (fed) starts all of them. */
-    fun bandsFedDied(fed: Fed, cause: DeathReason) = TallyKey.raw(bandsFedDied(fed).text + cause.label)
+    fun bandsFedDied(fed: Fed, cause: DeathReason) = ofCause(bandsFedDied(fed), cause)
     fun bandsFedDied(fed: Fed) = TallyKey.raw("bands fed ${fed.label}:$DIED_OF")
     /**
      * How a band lives: [SETTLED], at home in its houses or at a camp it has kept half a year or more ([HexGroups.bandLiving]);
@@ -275,12 +283,12 @@ object Tally {
     /** Bands' tallies by how they live. */
     fun bandsLiving(way: Living, what: Bands) = TallyKey.raw("bands ${way.label}:${what.label}")
     /** Bands' deaths of [cause] by how they live; [bandsLivingDied] (way) starts all of them. */
-    fun bandsLivingDied(way: Living, cause: DeathReason) = TallyKey.raw(bandsLivingDied(way).text + cause.label)
+    fun bandsLivingDied(way: Living, cause: DeathReason) = ofCause(bandsLivingDied(way), cause)
     fun bandsLivingDied(way: Living) = TallyKey.raw("bands ${way.label}:$DIED_OF")
     /** Bands' tallies by how they choose ([Mind]). */
     fun bandsMind(mind: Mind, what: Bands) = TallyKey.raw("bands of mind ${mind.label}:${what.label}")
     /** Bands' deaths of [cause] by how they choose; [bandsMindDied] (mind) starts all of them. */
-    fun bandsMindDied(mind: Mind, cause: DeathReason) = TallyKey.raw(bandsMindDied(mind).text + cause.label)
+    fun bandsMindDied(mind: Mind, cause: DeathReason) = ofCause(bandsMindDied(mind), cause)
     fun bandsMindDied(mind: Mind) = TallyKey.raw("bands of mind ${mind.label}:$DIED_OF")
     /**
      * Whether a band keeps a herd, and how much of its hands' days the herd asks ([herdDays]): under a tenth, a tenth to 0.3,
@@ -296,7 +304,7 @@ object Tally {
     fun bandsHerdingTime(h: Herding, a: Activity) = TallyKey.raw("bands ${h.label}:time ${a.label}")
     fun bandsHerdingTime(h: Herding, t: TimeTotal) = TallyKey.raw("bands ${h.label}:time ${t.label}")
     /** Bands' deaths of [cause] by whether they keep a herd, the [young] apart; [bandsHerdingDied] (h, young) starts all of them. */
-    fun bandsHerdingDied(h: Herding, young: Boolean, cause: DeathReason) = TallyKey.raw(bandsHerdingDied(h, young).text + cause.label)
+    fun bandsHerdingDied(h: Herding, young: Boolean, cause: DeathReason) = ofCause(bandsHerdingDied(h, young), cause)
     fun bandsHerdingDied(h: Herding, young: Boolean) = TallyKey.raw("bands ${h.label}:${if (young) "children " else "grown "}$DIED_OF")
     /**
      * How well two bands that met understand each other ([Language.understanding]): the first bin it falls [below]. For the
@@ -340,7 +348,7 @@ object Tally {
     }
     /** Bands' tallies by their spare days; [bandsSpareDied] (spare) starts all their deaths. */
     fun bandsSpare(spare: Spare, what: Bands) = TallyKey.raw("bands spare ${spare.label}:${what.label}")
-    fun bandsSpareDied(spare: Spare, cause: DeathReason) = TallyKey.raw(bandsSpareDied(spare).text + cause.label)
+    fun bandsSpareDied(spare: Spare, cause: DeathReason) = ofCause(bandsSpareDied(spare), cause)
     fun bandsSpareDied(spare: Spare) = TallyKey.raw("bands spare ${spare.label}:$DIED_OF")
     /**
      * How a band was kept warm at the week's end: its fire ([Band.fire]) and its shelters against those it aims at
@@ -352,7 +360,7 @@ object Tally {
     }
     /** Bands' tallies by their spare days and how they were kept warm; [bandsWarmedDied] (spare, warmed) starts all their deaths. */
     fun bandsWarmed(spare: Spare, w: Warmed, what: Bands) = TallyKey.raw("bands spare ${spare.label} warmed ${w.label}:${what.label}")
-    fun bandsWarmedDied(spare: Spare, w: Warmed, cause: DeathReason) = TallyKey.raw(bandsWarmedDied(spare, w).text + cause.label)
+    fun bandsWarmedDied(spare: Spare, w: Warmed, cause: DeathReason) = ofCause(bandsWarmedDied(spare, w), cause)
     fun bandsWarmedDied(spare: Spare, w: Warmed) = TallyKey.raw("bands spare ${spare.label} warmed ${w.label}:$DIED_OF")
     /**
      * A band's foraging against its week's plan ([countFoodTime]), tenths of people-days summed over band-weeks: the
@@ -371,7 +379,7 @@ object Tally {
     }
     /** Bands' tallies by how far their shelters stood; [bandsHutDied] (hut) starts all their deaths. */
     fun bandsHut(h: Hut, what: Bands) = TallyKey.raw("bands shelter ${h.label}:${what.label}")
-    fun bandsHutDied(h: Hut, cause: DeathReason) = TallyKey.raw(bandsHutDied(h).text + cause.label)
+    fun bandsHutDied(h: Hut, cause: DeathReason) = ofCause(bandsHutDied(h), cause)
     fun bandsHutDied(h: Hut) = TallyKey.raw("bands shelter ${h.label}:$DIED_OF")
     /**
      * What thatching on to the full would have done, by the survival pass's own reckoning, in the band-weeks it stopped short
@@ -388,7 +396,7 @@ object Tally {
     enum class HerdKept(val label: String) { HERDING("keeping a herd"), NONE("keeping none") }
     /** Bands' tallies by whether they keep a herd; [bandsHerdKeptDied] (herding) starts all their deaths. */
     fun bandsHerdKept(h: HerdKept, what: Bands) = TallyKey.raw("bands ${h.label}:${what.label}")
-    fun bandsHerdKeptDied(h: HerdKept, cause: DeathReason) = TallyKey.raw(bandsHerdKeptDied(h).text + cause.label)
+    fun bandsHerdKeptDied(h: HerdKept, cause: DeathReason) = ofCause(bandsHerdKeptDied(h), cause)
     fun bandsHerdKeptDied(h: HerdKept) = TallyKey.raw("bands ${h.label}:$DIED_OF")
     /** How a band's week of making clothes went, where it wanted any ([Band.clothesMade]). */
     enum class ClothesMade(val label: String) {
@@ -399,6 +407,8 @@ object Tally {
     /** The cause of a death in a [bandsDied] or [bandsCladDied] key (or [bandsLivingDied], [bandsHerdingDied], [bandsHerdKeptDied]). */
     fun diedOf(key: TallyKey) = key.text.substringAfter(DIED_OF)
     private const val DIED_OF = "died of "
+    /** The key counting deaths of [cause] among those [started] by a `bands...Died` key without a cause. */
+    private fun ofCause(started: TallyKey, cause: DeathReason) = TallyKey.raw(started.text + cause.label)
 
     /** How bands spent their hands' days, tenths of a day: on each [Activity], and in all or left over. */
     fun bandTime(a: Activity) = bandTime(a.label)

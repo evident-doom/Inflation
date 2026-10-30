@@ -147,7 +147,7 @@ class Tuning(
     val seasonPull = f("seasonPull", inflation.ecology.SEASON_PULL)
     /**
      * The widest hold on its rites a founding band can have, by lineage, as its traditions are: a custom it keeps
-     * and passes on (it no longer draws the band's moves: see model 4.89). Not measured: wide on purpose.
+     * and passes on (it does not draw the band's moves). Not measured: wide on purpose.
      */
     val riteFounderMax = f("riteMax", 3f)
 

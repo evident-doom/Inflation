@@ -60,20 +60,19 @@ internal fun HexGroups.countSqueeze(b: Band, time: BandTime) {
  * a new camp: whether the full weeks' exposure deaths come with a fire or shelters cut short, or with the cold of where they are.
  */
 internal fun HexGroups.bookSqueeze(g: HexGroup, b: Band, causes: List<Died>, weather: Weather) {
-    fun add(k: TallyKey, v: Int) { stats.hunting.merge(k, v, Int::plus) }
     val clo = (10f * b.clothesClo()).roundToInt()
     val spare = Tally.Spare.of(b.spareMean)
-    add(Tally.bandsSpare(spare, Tally.Bands.BAND_WEEKS), 1)
-    add(Tally.bandsSpare(spare, Tally.Bands.PEOPLE_WEEKS), g.size)
-    add(Tally.bandsSpare(spare, Tally.Bands.CLOTHES), clo)
-    for ((cause, k) in causes) if (k > 0) add(Tally.bandsSpareDied(spare, cause), k)
+    val spareSplit = BandSplit.spare(spare)
+    stats.bookWeek(spareSplit, g.size)
+    stats.book(spareSplit, Tally.Bands.CLOTHES, clo)
+    stats.bookDeaths(spareSplit, causes)
     val warmed = Tally.Warmed.of(b.fire, if (b.shelterWill > 0f) b.shelter / b.shelterWill else 1f)
-    add(Tally.bandsWarmed(spare, warmed, Tally.Bands.BAND_WEEKS), 1)
-    add(Tally.bandsWarmed(spare, warmed, Tally.Bands.PEOPLE_WEEKS), g.size)
-    add(Tally.bandsWarmed(spare, warmed, Tally.Bands.CAMP_AIR), (10f * airAt(g.place, weather).meanC).roundToInt())
-    if (b.campWeeks == 0) add(Tally.bandsWarmed(spare, warmed, Tally.Bands.MOVED), 1)
+    val warmedSplit = BandSplit.warmed(spare, warmed)
+    stats.bookWeek(warmedSplit, g.size)
+    stats.book(warmedSplit, Tally.Bands.CAMP_AIR, (10f * airAt(g.place, weather).meanC).roundToInt())
+    if (b.campWeeks == 0) stats.book(warmedSplit, Tally.Bands.MOVED, 1)
     // (What its survival pass reckoned with against what came: the fire, its lighting and the week's exposure odds.)
-    fun put(what: Tally.Bands, x: Float) = add(Tally.bandsWarmed(spare, warmed, what), x.roundToInt())
+    fun put(what: Tally.Bands, x: Float) = stats.book(warmedSplit, what, x.roundToInt())
     put(Tally.Bands.PLAN_FIRE, 100f * b.planFire); put(Tally.Bands.FIRE_GOT, 100f * b.fire)
     put(Tally.Bands.LIT, 100f * if (b.hearthWood > 0f) min(1f, b.fire / b.hearthWood) else 1f)
     put(Tally.Bands.PLAN_ODDS, 1e4f * b.planOdds)
@@ -91,25 +90,28 @@ internal fun HexGroups.bookSqueeze(g: HexGroup, b: Band, causes: List<Died>, wea
             "; shelter asked first %.2f of its ask; food held %.1f spent %.1f person-days; shelter held %.2f left it %.2f".format(
                 b.planShelterFirst, b.diagFoodHeld, b.diagFoodSpent, b.diagShelterHeld, b.diagShelterLeft))
     }
-    for ((cause, k) in causes) if (k > 0) add(Tally.bandsWarmedDied(spare, warmed, cause), k)
+    stats.bookDeaths(warmedSplit, causes)
     // (And by how far its shelters stood: whether bands thatch, and what the cold costs them in food and lives.)
     val hut = Tally.Hut.of(b.shelter)
-    add(Tally.bandsHut(hut, Tally.Bands.BAND_WEEKS), 1)
-    add(Tally.bandsHut(hut, Tally.Bands.PEOPLE_WEEKS), g.size)
-    add(Tally.bandsHut(hut, Tally.Bands.CAMP_AIR), (10f * airAt(g.place, weather).meanC).roundToInt())
-    add(Tally.bandsHut(hut, Tally.Bands.FED), (1000f * min(1f, g.fed) * g.size).roundToInt())
-    add(Tally.bandsHut(hut, Tally.Bands.WARM_EXTRA), (1000f * b.warmth(airAt(g.place, weather), b.fire, b.homeShelter(), days).extra).roundToInt())
-    add(Tally.bandsHut(hut, Tally.Bands.AIM), (100f * b.shelterAim).roundToInt())
-    if (b.campWeeks == 0) add(Tally.bandsHut(hut, Tally.Bands.MOVED), 1)
-    for ((cause, k) in causes) if (k > 0) add(Tally.bandsHutDied(hut, cause), k)
-    // (What a whole house would have done for its week, by the week's air.)
+    val hutSplit = BandSplit.hut(hut)
+    stats.bookWeek(hutSplit, g.size)
+    stats.book(hutSplit, Tally.Bands.CAMP_AIR, (10f * airAt(g.place, weather).meanC).roundToInt())
+    stats.book(hutSplit, Tally.Bands.FED, (1000f * min(1f, g.fed) * g.size).roundToInt())
+    stats.book(hutSplit, Tally.Bands.WARM_EXTRA, (1000f * b.warmth(airAt(g.place, weather), b.fire, b.homeShelter(), days).extra).roundToInt())
+    stats.book(hutSplit, Tally.Bands.AIM, (100f * b.shelterAim).roundToInt())
+    if (b.campWeeks == 0) stats.book(hutSplit, Tally.Bands.MOVED, 1)
+    stats.bookDeaths(hutSplit, causes)
+    val h = if (b.keepsAnimals()) Tally.HerdKept.HERDING else Tally.HerdKept.NONE
+    val keptSplit = BandSplit.herdKept(h)
+    stats.bookWeek(keptSplit, g.size)
+    stats.book(keptSplit, Tally.Bands.CLOTHES, clo)
+    stats.book(keptSplit, Tally.Bands.SPARE, (1000f * b.spareMean).roundToInt())
+    stats.bookDeaths(keptSplit, causes)
+}
+
+/** Books what a whole house would have done for [g]'s band [b] this week, by the week's air ([HouseWorth]), and clears the band's week of it. */
+internal fun HexGroups.bookHouseWorth(g: HexGroup, b: Band, weather: Weather) {
     val worth = bands.houseWorth[HouseAir.of(airAt(g.place, weather).meanC).ordinal]
     for (x in HouseWorth.entries) worth[x] += b.houseWeek[x]
     b.houseWeek.fill(0f)
-    val h = if (b.herd.any { it > 0f }) Tally.HerdKept.HERDING else Tally.HerdKept.NONE
-    add(Tally.bandsHerdKept(h, Tally.Bands.BAND_WEEKS), 1)
-    add(Tally.bandsHerdKept(h, Tally.Bands.PEOPLE_WEEKS), g.size)
-    add(Tally.bandsHerdKept(h, Tally.Bands.CLOTHES), clo)
-    add(Tally.bandsHerdKept(h, Tally.Bands.SPARE), (1000f * b.spareMean).roundToInt())
-    for ((cause, k) in causes) if (k > 0) add(Tally.bandsHerdKeptDied(h, cause), k)
 }

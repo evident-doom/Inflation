@@ -340,15 +340,15 @@ internal class GroupPlanner(private val gs: HexGroups) {
         // networks' layout until they are trained again.)
         // What the place offers it, as the baseline weighs it: game, and for bands plant food and a safe camp.
         f[Feature.FOOD] = prey / (prey + PREY_HALF)
-        f[Feature.CLIMATE] = t.suitsLn / 2f
+        f[Feature.CLIMATE] = t.suitsLn / InputScale.SUITS_LN
         // (What the coming months are usually like there.)
         for (k in 0 until Feature.LORE_MONTHS)
-            f[Feature.USUAL_AHEAD + k] = weather.usualTemperature((month + k + 1) % Date.MONTHS_PER_YEAR, p) / 20f
+            f[Feature.USUAL_AHEAD + k] = weather.usualTemperature((month + k + 1) % Date.MONTHS_PER_YEAR, p) / InputScale.USUAL_C
         f[Feature.CROWDING] = crowded
         f[Feature.HUNTERS] = hunters / (hunters + 3f)
         f[Feature.DISCOMFORT] = min(2f, t.discomfort + t.drain)
         // (The flies are felt now; only the weather is foreseen.)
-        f[Feature.DISCOMFORT_FORECAST] = min(2f, t.aheadC / 10f + t.drain)
+        f[Feature.DISCOMFORT_FORECAST] = min(2f, t.aheadC / InputScale.AHEAD_C + t.drain)
         // People see only what they can read: the weather coming as their lore and sky-watching
         // allow (else they expect this week's again), the beasts about as their tracking does,
         // and the food of country they do not know only dimly.
@@ -387,21 +387,21 @@ internal class GroupPlanner(private val gs: HexGroups) {
         val toBirth = 2.0 * Math.PI * monthsFrom(month, if (g.birthMonth >= 0) g.birthMonth else s.birthMonth) / 12.0
         f[Feature.TO_BIRTHS_SIN] = sin(toBirth).toFloat(); f[Feature.TO_BIRTHS_COS] = cos(toBirth).toFloat()
         // Its ancestors buried here, and how far going here brings it toward its appointment.
-        f[Feature.ANCESTORS] = min(1f, g.memory.deadAt(h) / 10f)
+        f[Feature.ANCESTORS] = min(1f, g.memory.deadAt(h) / InputScale.ANCESTOR_DEAD)
         f[Feature.APPOINTMENT] = g.band?.let { gs.appointPull(g, it, month, h) } ?: 0f
         f[Feature.HOUSES] = if (g.band != null) gs.housesAt(g, h) else 0f
-        f[Feature.OWN_SIZE] = ln(g.size.toFloat().coerceAtLeast(1f) / gs.unitSize(s)) / 2f
+        f[Feature.OWN_SIZE] = ln(g.size.toFloat().coerceAtLeast(1f) / gs.unitSize(s)) / InputScale.OWN_SIZE_LN
         f[Feature.LASTING_WATER] = min(1f, gs.land.drink.nearRiver[p] + gs.land.drink.nearLake[p] + gs.land.drink.nearSpring[p])
-        f[Feature.SICKNESS] = min(1f, gs.fauna.outbreakDeaths(s, p) * 10f)
+        f[Feature.SICKNESS] = min(1f, gs.fauna.outbreakDeaths(s, p) * InputScale.SICKNESS_PER_DEATH)
         // The signs of the land, as anyone who looks can read them.
-        f[Feature.TREES] = min(1f, gs.land.plants.tree[p] / 10f); f[Feature.SHRUBS] = min(1f, gs.land.plants.shrub[p] / 2f)
-        f[Feature.GRASS] = min(1f, gs.land.plants.herb[p] / 0.5f)
+        f[Feature.TREES] = min(1f, gs.land.plants.tree[p] / InputScale.TREES_FULL); f[Feature.SHRUBS] = min(1f, gs.land.plants.shrub[p] / InputScale.SHRUBS_FULL)
+        f[Feature.GRASS] = min(1f, gs.land.plants.herb[p] / InputScale.GRASS_FULL)
         f[Feature.MARSH] = min(1f, gs.land.waterlogged[p])
         f[Feature.WATER_AGAINST_USUAL] = (gs.land.drink.water[p] - min(1f, gs.land.drink.nearRiver[p] + gs.land.drink.nearLake[p] +
             gs.land.drink.nearSpring[p])).coerceIn(-1f, 1f)
         f[Feature.PATHS] = gs.wear.at(h)
-        f[Feature.DUNG] = min(1f, gs.fauna.small.dung[p] * 1e4f)
-        f[Feature.GRAZING_AND_KILLS] = min(1f, (gs.land.plants.grazing[p] + gs.land.plants.browsing[p]) / 1000f) +
+        f[Feature.DUNG] = min(1f, gs.fauna.small.dung[p] * InputScale.DUNG_PER)
+        f[Feature.GRAZING_AND_KILLS] = min(1f, (gs.land.plants.grazing[p] + gs.land.plants.browsing[p]) / InputScale.GRAZING_FULL) +
             min(1f, KgM2(gs.fauna.small.carrion[p] + gs.fauna.small.bones[p]).perKm2.v / 20f)
         f[Feature.KNOWN_GROUND] = g.band?.let { if (it.knows(h)) 1f else 0f } ?: 1f
         f[Feature.BEYOND_OWN_GROUND] = beyond; f[Feature.OTHERS_MARKS] = foreign
@@ -484,7 +484,7 @@ internal class GroupPlanner(private val gs: HexGroups) {
         score += gs.tuning.bearingPull * pull
         if (parts != null) { parts[MoveTerm.BEARING.ordinal] += score - last; last = score }
         // (Staying is staying in the camp's hex: its other ground is the same camp, with the same fouling.)
-        if (h == here) score += STAY - (g.band?.let { gs.stayCost(it) } ?: 0f)
+        if (h == here) score += STAY - (g.band?.let { gs.stayCost(g, it) } ?: 0f)
         if (parts != null) { parts[MoveTerm.STAY.ordinal] += score - last; last = score }
         // Bold animals of kinds that follow people are drawn to their camps: refuse, scraps, warmth.
         if (s.followsPeople && gs.peopleSlot >= 0) score += CAMP_LURE * boldness(g) * min(1f, knownHeads(gs.peopleSlot, p, h, sensed) / 25f)
@@ -518,11 +518,11 @@ internal class GroupPlanner(private val gs: HexGroups) {
             adult += venom + stalked; young += venom + YOUNG_STALKED / b.childWatch.coerceAtLeast(0.25f) * stalked
             gs.dialUse?.amount(DialSite.CHILDREN_PLAN, b.childWatch, YOUNG_STALKED / b.childWatch.coerceAtLeast(0.25f) * stalked, YOUNG_STALKED * stalked, cut = b.childWatch < 0.25f)
             // The sicknesses it would catch there (marsh fever by the mosquitoes, the flux in a long-kept camp, the cough
-            // where people crowd), and the fouling of a camp kept on: weeks camped there go on if it stays, else start afresh.
-            val campWeeks = if (h == c.here) b.campWeeks + 1 else 0
-            val crowd = gs.peopleCrowding(g, h); val t = weather.temperature[p]; val healed = healedShare(b)
-            adult += gs.illnessAhead(b, p, t, crowd, campWeeks, healed, false)
-            young += gs.illnessAhead(b, p, t, crowd, campWeeks, healed, true) + gs.campFouling(g, campWeeks) * gs.years
+            // where people crowd), and the fouling of the ground there, whoever left it: its own camping adds to it if it stays.
+            val campWeeks = gs.campWeeksAt(h) + (if (h == c.here) 1 else 0)
+            val crowd = gs.peopleCrowding(g, h); val t = weather.temperature[p]; val healed = healedShare(b); val kept = gs.hygieneAt(b, h)
+            adult += gs.illnessAhead(b, p, t, crowd, campWeeks, healed, false, kept)
+            young += gs.illnessAhead(b, p, t, crowd, campWeeks, healed, true, kept) + gs.campFouling(g, h, campWeeks) * gs.years
             // What it would catch of the bands it sees gathered there (a feast draws bands together, and the cough with them).
             if (h in c.sensed && gs.peopleSlot >= 0) {
                 // (Bands meet over the whole hex, whichever ground each stands on.)
@@ -537,7 +537,7 @@ internal class GroupPlanner(private val gs: HexGroups) {
                 }
             }
         }
-        return (g.adults * adult.coerceIn(0f, 0.9f) + g.young * young.coerceIn(0f, 0.95f)) / max(1, g.size)
+        return (g.adults * adult.coerceIn(0f, Hazards.MAX_GROWN_ODDS) + g.young * young.coerceIn(0f, Hazards.MAX_YOUNG_ODDS)) / max(1, g.size)
     }
 
     /**
@@ -824,7 +824,7 @@ internal class GroupPlanner(private val gs: HexGroups) {
     private fun herdLoss(g: HexGroup, b: Band, p: Place): Float {
         var kg = 0f
         for (k in b.herd.indices) {
-            val n = b.herd[k]
+            val n = b.herd[k] + 0.5f * b.herdYoung.getOrElse(k) { 0f }
             if (n <= 0f) continue
             val s = gs.fauna.kinds[k]
             val short = 1f - gs.herdForage(p, s, n).fed
@@ -1049,10 +1049,28 @@ enum class MoveTerm(val label: String) {
     FOOD("food"), COLD("cold and drain"), FORECAST("coming weather"), WATER("water and snow"), WALK("walk"), MOVE_DAYS("move days"),
     SEASON("season's place"), BEARING("bearing"), STAY("staying"), BAND("band pulls"), DEATHS("deaths"), BESIDE("noise and temper")
 }
-const val MOVE_TRACE_WEEKS = 0
-const val MOVE_TRACE_MOVES = 1
-const val MOVE_TRACE_SUMS = 2
-val MOVE_TRACE_LEADS = MOVE_TRACE_SUMS + MoveTerm.entries.size
+internal const val MOVE_TRACE_WEEKS = 0
+internal const val MOVE_TRACE_MOVES = 1
+internal const val MOVE_TRACE_SUMS = 2
+internal val MOVE_TRACE_LEADS = MOVE_TRACE_SUMS + MoveTerm.entries.size
 
 /** moveTrace=true: [GroupPlanner.bookMove] each band-week chosen by the hand-written score. Report-only. */
 internal val MOVE_TRACE = Config.flag(Config.Key.MOVE_TRACE, false)
+
+/**
+ * What each place input of the movement nets reads as 1 (a scale, not a limit: the input is the amount over it). Changing
+ * one changes what trained nets see, so it is a net version change ([inflation.learning.NetVersion]).
+ */
+private object InputScale {
+    const val SUITS_LN = 2f
+    const val USUAL_C = 20f
+    const val AHEAD_C = 10f
+    const val ANCESTOR_DEAD = 10f
+    const val OWN_SIZE_LN = 2f
+    const val SICKNESS_PER_DEATH = 10f
+    const val TREES_FULL = 10f
+    const val SHRUBS_FULL = 2f
+    const val GRASS_FULL = 0.5f
+    const val DUNG_PER = 1e4f
+    const val GRAZING_FULL = 1000f
+}

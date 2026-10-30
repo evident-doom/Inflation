@@ -133,7 +133,7 @@ internal fun grassUnderSnow(s: Species, snowMm: Float): Float = (1f - snowMm / s
 
 /**
  * How animals of [s] eating diet [d] feed where the forage nourishes [q], asking [need] kg per m² this week, from
- * [pantry]: grass (as far as it gets at it under the snow, [underSnow], see [grassUnderSnow]) and browse as far as the gut fills at that nourishment, fruit and roots, then
+ * [pantry]: grass and roots (as far as it gets at them under the snow, [underSnow], see [grassUnderSnow]), browse as far as the gut fills at that nourishment, fruit, then
  * switching between them for a shortfall; into [out]. The standing straw is the cured grass, eaten as grass at what it
  * nourishes ([HexPlants.nourishment]). Each food feeds by its energy ([Nourishment]): grass and browse at [q], fruit and roots
  * at theirs, all by [Species.needScale] in kg of its need ([Bites.got], [Bites.short]). The one rule for the residents' week's grazing
@@ -150,7 +150,10 @@ internal fun grassUnderSnow(s: Species, snowMm: Float): Float = (1f - snowMm / s
     val grass = pantry.grass(underSnow * want * fill * d.grass / total)
     val browse = pantry.browse(want * fill * d.browse / total)
     val fruit = pantry.fruit(want * d.fruit / total / Nourishment.FRUIT)
-    val roots = pantry.roots(want * d.roots / total / Nourishment.ROOTS)
+    // (Roots and the mast on the ground lie under the snow as the grass does, and are dug out the same way: boar root less
+    // the deeper the snow, keep to oak woods under 40 cm of it and still find acorns there, Chiyojima et al., Mammalian
+    // Science 2022; deep snow stops their rooting and starves them, Okarma et al., Acta Theriologica 1995.)
+    val roots = pantry.roots(underSnow * want * d.roots / total / Nourishment.ROOTS)
     // Diet switching: a food that fell short is made up from the others: grass and browse as far as the gut holds,
     // fruit and roots to at most (1 + SWITCH) times their usual share (an ostrich out of fruit season picks more shoots
     // and leaves).
@@ -173,7 +176,7 @@ internal fun grassUnderSnow(s: Species, snowMm: Float): Float = (1f - snowMm / s
         gap -= browse2 * qf; room -= browse2 }
     if (gap > 0f && d.grass > 0f && underSnow > 0f) { grass2 = pantry.grass(underSnow * min(gap / qf, room)); gap -= grass2 * qf; room -= grass2 }
     if (gap > 0f && d.fruit > 0f) { fruit2 = pantry.fruit(min(gap, SWITCH * want * d.fruit / total) / Nourishment.FRUIT); gap -= fruit2 * Nourishment.FRUIT }
-    if (gap > 0f && d.roots > 0f) { roots2 = pantry.roots(min(gap, SWITCH * want * d.roots / total) / Nourishment.ROOTS); gap -= roots2 * Nourishment.ROOTS }
+    if (gap > 0f && d.roots > 0f && underSnow > 0f) { roots2 = pantry.roots(underSnow * min(gap, SWITCH * want * d.roots / total) / Nourishment.ROOTS); gap -= roots2 * Nourishment.ROOTS }
     val short = max(0f, gap) * s.needScale
     // Grass and browse nourish fully only when green; fruit and roots keep their value.
     val got = ((grass + browse + grass2 + browse2) * q + (fruit + fruit2) * Nourishment.FRUIT + (roots + roots2) * Nourishment.ROOTS) * s.needScale
@@ -193,6 +196,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
     bands.followersByHex = groups.filter { it.alive && it.species.followsPeople && !it.species.human }.groupBy { hw.placeHex[it.place] }
     bands.bandHex = groups.filter { it.alive && it.band != null }.associate { it.id to hw.placeHex[it.place] }
     tendStructures(weather)
+    foulGround()
     bands.houseOf = groups.filter { g -> g.alive && g.band.let { it != null && !it.houseHex.none && it.house >= Thresholds.HOUSE_STANDING } }
         .associate { it.id to it.band!!.houseHex }
     Profile.part("people: camps, tools, culture") {
@@ -247,12 +251,14 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         o.split?.let { c ->
             val n = splitOff(g, c.adults, c.young) // a young pack has no ground yet
             born += n
+            if (s.lifeway == Lifeway.PACK && g.band == null) stats.meeting(Met.Of.PACK_SPLIT_OFF, s.name)
             if (g.band != null) stats.meeting(Met.BANDS_SPLIT)
             leaveBelief(g, n)
         }
         if (o.leavers > 0) {
             repeat(o.leavers) { born += splitOff(g, 1, 0) } // each goes alone, to find a mate and ground
             stats.meeting(Met.YOUNG_HUNTERS_LEFT_THEIR_PACK, o.leavers)
+            stats.meeting(Met.Of.PACK_LEFT_ALONE, s.name, o.leavers)
         }
     }
     groups += born
@@ -351,57 +357,60 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
     fauna.record?.let { rec -> for ((cause, k) in o.causes) if (k > 0) rec.group(s, g.place, cause, k) }
     // People's deaths by age apart, for the history: the young (children) and the grown (the elders too).
     if (s.human) for (d in o.causes) if (d.n > 0) (if (d.young) stats.youngDeaths else stats.adultDeaths).merge(Tally.of(s, d.cause), d.n, Int::plus)
-    if (s.human) {
+    if (s.human) g.band?.let { bookHouseWorth(g, it, weather) }
+    // (The census's splits of bands are booked only where a census reads them: [WeekStats.bandSplits].)
+    if (s.human && stats.bandSplits) {
         val c = Biome.entries[biomeOfPlace[g.place]]
-        for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge(Tally.bandsDied(c, cause), k, Int::plus)
-        if (o.births > 0) stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.BORN), o.births, Int::plus)
+        val country = BandSplit.country(c)
+        stats.bookDeaths(country, o.causes)
+        if (o.births > 0) stats.book(country, Tally.Bands.BORN, o.births)
         // And by how well clad the band was: what clothes are worth in lives.
         g.band?.let { b ->
             val clad = if (b.has(Tool.CLOTHES) >= 0.5f) Tally.Clad.CLAD else Tally.Clad.POORLY_CLAD
-            stats.hunting.merge(Tally.bandsClad(clad, Tally.Bands.PEOPLE_WEEKS), g.size, Int::plus)
-            for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge(Tally.bandsCladDied(clad, cause), k, Int::plus)
+            val cladSplit = BandSplit.clad(clad)
+            stats.book(cladSplit, Tally.Bands.PEOPLE_WEEKS, g.size)
+            stats.bookDeaths(cladSplit, o.causes)
             // And by how it lives, settled or on the move: what each way of life costs and gives.
             val way = bandLiving(b)
-            stats.hunting.merge(Tally.bandsLiving(way, Tally.Bands.BAND_WEEKS), 1, Int::plus)
-            stats.hunting.merge(Tally.bandsLiving(way, Tally.Bands.PEOPLE_WEEKS), g.size, Int::plus)
-            if (o.births > 0) stats.hunting.merge(Tally.bandsLiving(way, Tally.Bands.BORN), o.births, Int::plus)
-            for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge(Tally.bandsLivingDied(way, cause), k, Int::plus)
+            val living = BandSplit.living(way)
+            stats.bookWeek(living, g.size)
+            if (o.births > 0) stats.book(living, Tally.Bands.BORN, o.births)
+            stats.bookDeaths(living, o.causes)
             // And by how it chooses ([Mind]): the two kinds of band side by side.
-            stats.hunting.merge(Tally.bandsMind(b.mind, Tally.Bands.BAND_WEEKS), 1, Int::plus)
-            stats.hunting.merge(Tally.bandsMind(b.mind, Tally.Bands.PEOPLE_WEEKS), g.size, Int::plus)
-            if (o.births > 0) stats.hunting.merge(Tally.bandsMind(b.mind, Tally.Bands.BORN), o.births, Int::plus)
-            if (g.path.size > 1) stats.hunting.merge(Tally.bandsMind(b.mind, Tally.Bands.MOVES), 1, Int::plus)
-            for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge(Tally.bandsMindDied(b.mind, cause), k, Int::plus)
+            val mind = BandSplit.mind(b.mind)
+            stats.bookWeek(mind, g.size)
+            if (o.births > 0) stats.book(mind, Tally.Bands.BORN, o.births)
+            if (g.path.size > 1) stats.book(mind, Tally.Bands.MOVES, 1)
+            stats.bookDeaths(mind, o.causes)
             // And by whether it keeps a herd: what herding costs its people, its children apart.
             val herding = bandHerding(b, g.adults)
-            stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.BAND_WEEKS), 1, Int::plus)
-            stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.PEOPLE_WEEKS), g.size, Int::plus)
-            stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.CHILD_WEEKS), g.young, Int::plus)
-            stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.FED), (1000f * min(1f, g.fed) * g.size).roundToInt(), Int::plus)
-            if (clad == Tally.Clad.CLAD) stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.CLAD_WEEKS), g.size, Int::plus)
-            if (way == Tally.Living.MOBILE) stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.MOBILE_WEEKS), 1, Int::plus)
-            stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.AIR), (10f * weather.temperature[g.place] * g.size).roundToInt(), Int::plus)
-            if (o.births > 0) stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.BORN), o.births, Int::plus)
+            val herdSplit = BandSplit.herding(herding)
+            stats.bookWeek(herdSplit, g.size)
+            stats.book(herdSplit, Tally.Bands.CHILD_WEEKS, g.young)
+            stats.book(herdSplit, Tally.Bands.FED, (1000f * min(1f, g.fed) * g.size).roundToInt())
+            if (clad == Tally.Clad.CLAD) stats.book(herdSplit, Tally.Bands.CLAD_WEEKS, g.size)
+            if (way == Tally.Living.MOBILE) stats.book(herdSplit, Tally.Bands.MOBILE_WEEKS, 1)
+            stats.book(herdSplit, Tally.Bands.AIR, (10f * weather.temperature[g.place] * g.size).roundToInt())
+            if (o.births > 0) stats.book(herdSplit, Tally.Bands.BORN, o.births)
             for (d in o.causes) if (d.n > 0) stats.hunting.merge(Tally.bandsHerdingDied(herding, d.young, d.cause), d.n, Int::plus)
             // And by how well it was fed, with what it held against hunger: who starves, and with what in hand.
-            val fed = Tally.Fed.of(g.fed)
-            stats.hunting.merge(Tally.bandsFed(fed, Tally.Bands.BAND_WEEKS), 1, Int::plus)
-            stats.hunting.merge(Tally.bandsFed(fed, Tally.Bands.PEOPLE_WEEKS), g.size, Int::plus)
-            stats.hunting.merge(Tally.bandsFed(fed, Tally.Bands.LARDER), (10f * g.larderDays()).roundToInt(), Int::plus)
-            stats.hunting.merge(Tally.bandsFed(fed, Tally.Bands.FAT), (10f * g.fat).roundToInt(), Int::plus)
+            val fedSplit = BandSplit.fed(Tally.Fed.of(g.fed))
+            stats.bookWeek(fedSplit, g.size)
+            stats.book(fedSplit, Tally.Bands.LARDER, (10f * g.larderDays()).roundToInt())
+            stats.book(fedSplit, Tally.Bands.FAT, (10f * g.fat).roundToInt())
             val meatKg = Store.entries.filter { it.meat }.sumOf { g.stores[it].toDouble() }.toFloat()
-            stats.hunting.merge(Tally.bandsFed(fed, Tally.Bands.LARDER_MEAT), (10f * meatKg / max(1e-3f, g.dailyNeedKg)).roundToInt(), Int::plus)
-            stats.hunting.merge(Tally.bandsFed(fed, Tally.Bands.LEAN_LOST), (100f * b.leanLost).roundToInt(), Int::plus)
-            stats.hunting.merge(Tally.bandsFed(fed, Tally.Bands.SALT_HELD), (1000f * b.goods[Material.SALT] / max(1, g.size)).roundToInt(), Int::plus)
-            stats.hunting.merge(Tally.bandsFed(fed, Tally.Bands.SODIUM_SHORT), (100f * b.sodiumShort).roundToInt(), Int::plus)
+            stats.book(fedSplit, Tally.Bands.LARDER_MEAT, (10f * meatKg / max(1e-3f, g.dailyNeedKg)).roundToInt())
+            stats.book(fedSplit, Tally.Bands.LEAN_LOST, (100f * b.leanLost).roundToInt())
+            stats.book(fedSplit, Tally.Bands.SALT_HELD, (1000f * b.goods[Material.SALT] / max(1, g.size)).roundToInt())
+            stats.book(fedSplit, Tally.Bands.SODIUM_SHORT, (100f * b.sodiumShort).roundToInt())
             val saltHere = if (hw.coast[hw.placeHex[g.place]]) 1f else min(1f, 5f * land.salt[g.place])
-            stats.hunting.merge(Tally.bandsFed(fed, Tally.Bands.SALT_HERE), (100f * saltHere).roundToInt(), Int::plus)
+            stats.book(fedSplit, Tally.Bands.SALT_HERE, (100f * saltHere).roundToInt())
             val salt = bands.saltKnown(b, hw.placeHex[g.place])
             if (!salt.none) {
-                stats.hunting.merge(Tally.bandsFed(fed, Tally.Bands.SALT_KNOWN), 1, Int::plus)
-                stats.hunting.merge(Tally.bandsFed(fed, Tally.Bands.SALT_KM), hexKm(hw.placeHex[g.place], salt).roundToInt(), Int::plus)
+                stats.book(fedSplit, Tally.Bands.SALT_KNOWN, 1)
+                stats.book(fedSplit, Tally.Bands.SALT_KM, hexKm(hw.placeHex[g.place], salt).roundToInt())
             }
-            for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge(Tally.bandsFedDied(fed, cause), k, Int::plus)
+            stats.bookDeaths(fedSplit, o.causes)
             // And by its spare days and its herd: whether work it took on left its people short of what keeps them alive.
             bookSqueeze(g, b, o.causes, weather)
         }
@@ -566,9 +575,9 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     val spared = 1f - ELDER_CARE * help
     var adultSum = 0f; var youngSum = 0f
     for (h in hazards) { adultSum += h.adult; youngSum += h.young }
-    val adultOdds = adultSum.coerceIn(0f, 0.9f)
+    val adultOdds = adultSum.coerceIn(0f, Hazards.MAX_GROWN_ODDS)
     g.deathOdds = adultOdds
-    val youngOdds = (youngSum * spared).coerceIn(0f, 0.95f)
+    val youngOdds = (youngSum * spared).coerceIn(0f, Hazards.MAX_YOUNG_ODDS)
     if (s.human && g.young > 0) for (h in hazards) if (h.young > 0f)
         stats.childDeaths.computeIfAbsent(h.cause.label) { DoubleAdder() }.add((g.young * spared * h.young).toDouble())
     val da = binomial(g.adults, adultOdds, r); val dy = binomial(g.young, youngOdds, r)
@@ -594,7 +603,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     band?.let { b -> if (disease > 0f || da > 0) b.practise(Skill.HERBS, 0.2f * PRACTICE); if (bornNow > 0) b.practise(Skill.MIDWIFERY) }
     g.young -= dy
     // The dead lie where they fell, for the scavengers and the soil.
-    var carrion = (da + oldAge + 0.3f * dy) * s.massKg
+    var carrion = (da + oldAge + HexFauna.YOUNG_WEIGHT * dy) * s.massKg
     // The week's deaths are shared among the causes by how much each weighed, the grown and the young apart ("other": age, accidents, ordinary illness).
     val causes = shareDeaths(hazards, da, dy, r)
     if (oldAge > 0) causes += Died(DeathCause.OLD_AGE, oldAge)
@@ -603,7 +612,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     if (g.adults == 0) {
         // Young left without a grown animal of their kind die.
         val orphans = g.young
-        carrion += 0.3f * orphans * s.massKg
+        carrion += HexFauna.YOUNG_WEIGHT * orphans * s.massKg
         g.young = 0
         return Outcome(carrion, bornNow, da + oldAge + dy, causes, orphans, null, dy + orphans)
     }
@@ -937,6 +946,7 @@ internal fun HexGroups.mergeAndPair(date: Date) {
             a.adults += b.adults; a.young += b.young
             a.fed = (a.fed + b.fed) / 2f; a.fat = (a.fat + b.fat) / 2f; a.spent = (a.spent + b.spent) / 2f; a.bred = (a.bred + b.bred) / 2f
             if (a.home.none) claimGround(a, b.home)
+            stats.meeting(Met.Of.PACK_PAIRED, a.species.name)
             b.mergedSize = b.size; b.mergedInto = a.id
             b.adults = 0; b.young = 0
         }
@@ -974,14 +984,15 @@ internal fun alike(r: Regard) = 1f - r.wariness / Regard.MOST_WARY
 
 /** Band [from] joins band [into]: its people, food, goods and knowledge come with it. */
 private fun GroupWorld.joinBand(into: HexGroup, from: HexGroup, week: Int) {
+    val intoBand = into.band ?: return; val fromBand = from.band ?: return
     val w = from.adults.toFloat() / (into.adults + from.adults).coerceAtLeast(1)
-    into.band!!.absorb(from.band!!, from.adults, w, into.stores[Store.DRIED], from.stores[Store.DRIED],
+    intoBand.absorb(fromBand, from.adults, w, into.stores[Store.DRIED], from.stores[Store.DRIED],
         into.stores[Store.SEED], from.stores[Store.SEED], into.id, from.id)
     into.fed += w * (from.fed - into.fed); into.fat += w * (from.fat - into.fat); into.spent += w * (from.spent - into.spent); into.bred += w * (from.bred - into.bred)
     for (i in Store.entries) addFood(into.stores, into.storeKgPer, i, from.stores[i], from.stores[i] * from.storeKgPer[i])
     into.memory.hear(from.memory, week, stepsPerYear, 1f)
     // (Its cache is left: no one goes back for it.)
-    dropCache(from.band!!)
+    dropCache(fromBand)
     from.mergedSize = from.size; from.mergedInto = into.id
     into.adults += from.adults; into.young += from.young
     from.adults = 0; from.young = 0; from.larder = 0f
@@ -1108,7 +1119,7 @@ data class Stalking(val rate: Float, val by: Species?) {
  * where they are thick, from the unwary in thick cover with no fire, dogs or watch (an estimate, set against the record:
  * foragers lose few to beasts, the Hiwi none in their records though anacondas, caimans and jaguars attacked them, Hill,
  * Hurtado & Walker 2007; the Agta, a quarter of whose men pythons attacked, some 0.26 a thousand a year, Headland & Greene
- * 2011; at 0.02, ten times this, the bands lost 4-5 a thousand a year before model 4.62, many times either); density of beast flesh, kg/km² weighted, at which they take
+ * 2011; at 0.02, ten times this, the bands lost 4-5 a thousand a year, many times either); density of beast flesh, kg/km² weighted, at which they take
  * half that; a band size the company factor is set for; how much a fire at night and dogs each keep off; the share of the
  * loss that falls at night, at camp, against out at work by day (an estimate: in Tanzania lions took people mostly after dark at
  * or by their houses, and over a quarter in the fields, most asleep alone in makeshift huts, Packer et al. 2005, Nature 436:

@@ -17,6 +17,13 @@ import kotlin.math.sqrt
  */
 object Hazards {
     /**
+     * The most a week's hazards add up to for a grown one and for a young one: of whichever the odds of the week are held
+     * under, in the groups' and residents' deaths and in the foresight that reckons them, so that these stay one rule.
+     */
+    const val MAX_GROWN_ODDS = 0.9f
+    const val MAX_YOUNG_ODDS = 0.95f
+
+    /**
      * Hunger: the share of animals of [s] that die in a step of [days], fed a share [fed] of their wants with their fat
      * drawn on ([onFat]), having burnt [spent] days of their body's protein before it. Below [WELL_FED] they would have drawn
      * on their fat for the rest, so it is gone: what they still lack they burn of their body's protein ([spentAfter]), and

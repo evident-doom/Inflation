@@ -23,37 +23,37 @@ import kotlin.math.sin
 // country gives, and camps they stay in.
 
 /** Share of the success an untrained band still has at a hunt or a harvest. */
-const val CRAFT_FLOOR = 0.3f
+internal const val CRAFT_FLOOR = 0.3f
 /**
  * Hunting, tracking and stalking are learned over years, not weeks: Kaplan et al. 2000 have Hiwi boys at 16% of the adult
  * return at 10, 50% at 20 and the peak at 30-35, Ache boys at 25% at 20 and the peak in the mid-30s. At complexity 1.5 this is
  * about 0.0015 of the gap a week: half way in about 9 years of weekly practice, 90% in about 29. A guess between the two
  * curves (adults relearning plausibly go faster than the boys of the record); Olli's call. Forgetting slows in step.
  */
-const val HUNTING_PRACTICE = 0.0022f
+internal const val HUNTING_PRACTICE = 0.0022f
 /** Hunting success of a band without spears, against one with them; what bows add against fast quarry. */
-const val WEAPONLESS = 0.3f
-const val BOW_GAIN = 0.5f
+internal const val WEAPONLESS = 0.3f
+internal const val BOW_GAIN = 0.5f
 /**
  * What a child (any under adulthood, infants included) adds to its band's gathering, against a grown hand: children
  * of five and up gather fruit, small tubers and finds near camp, and Hadza children get some half of their own food
  * in a good season (from memory, Blurton Jones, Hawkes and O'Connell), about a sixth of an adult's take for the
  * children as a whole.
  */
-const val CHILD_GATHER = 0.15f
+internal const val CHILD_GATHER = 0.15f
 /**
  * The share of a band's hands that go out hunting while the rest gather, fish and snare, at the scaffold's effort on
  * big game: the men. In nearly every foraging people men do most of the hunting and women most of the gathering
  * (Marlowe 2007, Cross-Cultural Research 41: 170-195), and about half the grown are men. The hunters search on their
  * own, all the days they are out, so meeting game does not wait on the gatherers' handling of plant food.
  */
-const val HUNTERS_SHARE = 0.5f
+internal const val HUNTERS_SHARE = 0.5f
 /** The share of [band]'s hands that hunt this week: [HUNTERS_SHARE] at the scaffold's effort on big game, all at twice it. */
 internal fun huntersShare(band: Band) = (HUNTERS_SHARE * band.effort[Food.BIG_GAME]).coerceIn(0f, 1f)
 /** Extra small game and fish with nets and snares. */
-const val NET_GAIN = 1f
+internal const val NET_GAIN = 1f
 /** Most of each kind of plant food in a place a band can gather in a week, at full skill and without tools. */
-const val GATHER_SHARE = 0.5f
+internal const val GATHER_SHARE = 0.5f
 /**
  * The insulation of a whole kit of furs and hides sewn by a master, clo: half of a heavy modern cold-weather ensemble's
  * about 3 clo, since hides wrapped and sewn by hand leave gaps at the neck, wrists and feet and lack layered underwear,
@@ -62,9 +62,9 @@ const val GATHER_SHARE = 0.5f
  * et al. 2020, Arctic 73(1), but those are the most refined skin clothing known). Bands start with half a kit, sewn by
  * novices: about 0.5 clo.
  */
-const val CLOTHES_CLO = 1.5f
+internal const val CLOTHES_CLO = 1.5f
 /** Km of a week's camp move at which the ways' input for it ([BandInputs.MOVE_KM]) is half way to 1. */
-const val MOVE_KM_HALF = 20f
+internal const val MOVE_KM_HALF = 20f
 
 /**
  * The spacing of a mother's births, years, as pregnancy ([GESTATION_YEARS]), the wait to conceive again once she is fertile
@@ -74,35 +74,35 @@ const val MOVE_KM_HALF = 20f
  * weans it early (traditional farmers' months without ovulation, about 12 to 18, Bongaarts and Potter 1983, from memory).
  * The base rate ([HUMAN_BIRTHS]) is the first spacing's, [SPACING_MOST].
  */
-const val GESTATION_YEARS = 0.75f
-const val CONCEIVE_YEARS = 0.7f
-const val NURSING_YEARS_MOST = 2.55f
-const val NURSING_YEARS_LEAST = 1.25f
-const val SPACING_MOST = GESTATION_YEARS + CONCEIVE_YEARS + NURSING_YEARS_MOST
+internal const val GESTATION_YEARS = 0.75f
+internal const val CONCEIVE_YEARS = 0.7f
+internal const val NURSING_YEARS_MOST = 2.55f
+internal const val NURSING_YEARS_LEAST = 1.25f
+internal const val SPACING_MOST = GESTATION_YEARS + CONCEIVE_YEARS + NURSING_YEARS_MOST
 /**
  * Share of a band's food its weanlings ask, the seed that weans them all as gruel (an estimate: under-fours about a sixth of
  * a forager band, Howell 1979, from memory, at about a third of a grown share).
  */
-const val WEANING_SHARE = 0.05f
+internal const val WEANING_SHARE = 0.05f
 /**
  * A mother carries a child on the band's moves till it walks them, about four years old (Lee 1979; the backload, Blurton
  * Jones 1986, both from memory): a mother of a band that moves camp as often as the !Kung, about [CARRY_MOVES] times a year
  * (Kelly 1995, from memory), spaces her births so; one that moves less, the less (in proportion: an estimate).
  */
-const val CARRY_YEARS = 4f
-const val CARRY_MOVES = 5f
+internal const val CARRY_YEARS = 4f
+internal const val CARRY_MOVES = 5f
 /** People's deaths of thirst against an animal's at the same days without water. */
-const val HUMAN_THIRST = 0.3f
+internal const val HUMAN_THIRST = 0.3f
 /** How much more thirst troubles people on ground they do not know (they look for water where animals and birds lead them). */
-const val STRANGER_THIRST = 2f
+internal const val STRANGER_THIRST = 2f
 /**
  * In a lean week a child goes without this much less of its share of the band's shortfall than a grown one: parents feed
  * their children before themselves (a drive found in every forager society, Hawkes, O'Connell and Blurton Jones on Hadza
  * sharing, from memory: to check; the size is a guess). The food is only moved, not made: the grown go without the more.
  */
-const val CHILDREN_FIRST = 0.5f
+internal const val CHILDREN_FIRST = 0.5f
 /** People's births against the catalogue's rate: long nursing spaces births three and a half to four years apart. */
-const val HUMAN_BIRTHS = 0.8f
+internal const val HUMAN_BIRTHS = 0.8f
 
 /**
  * A band's week at camp: it keeps the camp or moves on (leaving what it cannot carry), gathers
@@ -254,10 +254,13 @@ internal fun HexGroups.leaveDead(g: HexGroup, freed: MutableList<HexGroup>) {
     for (m in ROTS) b.goods[m] = 0f
     dropCache(b)
     val area = land.areaKm2[p]
-    for (k in b.herd.indices) if (b.herd[k] > 0f) {
-        fauna.adults[k][p] += b.herd[k] / area; bands.herdFlows[HerdFlow.FREED] += b.herd[k]; bands.herdFlows[HerdFlow.ENDED_FREED] += 1f
-        bands.kindFlows[k][HerdFlow.FREED] += b.herd[k]; bands.kindFlows[k][HerdFlow.ENDED_FREED] += 1f
-        b.herd[k] = 0f; b.herdTame[k] = 0f; if (k < b.herdPet.size) b.herdPet[k] = 0f
+    val young = b.youngHerd()
+    for (k in b.herd.indices) if (b.herd[k] + young[k] > 0f) {
+        val heads = b.herd[k] + young[k]
+        fauna.adults[k][p] += b.herd[k] / area; fauna.young[k][p] += young[k] / area
+        bands.herdFlows[HerdFlow.FREED] += heads; bands.herdFlows[HerdFlow.ENDED_FREED] += 1f
+        bands.kindFlows[k][HerdFlow.FREED] += heads; bands.kindFlows[k][HerdFlow.ENDED_FREED] += 1f
+        b.herd[k] = 0f; young[k] = 0f; b.herdTame[k] = 0f; if (k < b.herdPet.size) b.herdPet[k] = 0f
     }
     for (i in b.kept.indices) {
         val n = b.kept[i].toInt()
@@ -275,28 +278,28 @@ internal fun HexGroups.leaveDead(g: HexGroup, freed: MutableList<HexGroup>) {
 }
 
 /** How much a band is put off country it does not know (beside the pull of better country it senses); hexes round its first camp it knows from the start. */
-const val UNKNOWN_COUNTRY = 0.2f
-const val KNOWN_AT_START = 3
+internal const val UNKNOWN_COUNTRY = 0.2f
+internal const val KNOWN_AT_START = 3
 
 /** How strongly people's camps draw bold animals of kinds that follow people (refuse, scraps, warmth). */
-const val CAMP_LURE = 0.3f
+internal const val CAMP_LURE = 0.3f
 
 /** People per km² around a camp (its hex and the six round it) at which crowding brings sickness; yearly deaths from it then. */
-const val PEOPLE_FULL_KM2 = 0.5f
-const val PEOPLE_SICK = 0.012f
+internal const val PEOPLE_FULL_KM2 = 0.5f
+internal const val PEOPLE_SICK = 0.012f
 /** Outbreaks start among people at this share of the rate for animals of the same crowding (small bands keep few diseases going). */
-const val PEOPLE_OUTBREAK = 0.3f
+internal const val PEOPLE_OUTBREAK = 0.3f
 /** How much a cave or rock shelter adds to a camp's worth (dry, warm, easy to defend). */
-const val CAVE_CAMP = 0.5f
+internal const val CAVE_CAMP = 0.5f
 /** Yearly deaths from vipers and scorpions among people, in the warm months. */
-const val VENOM = 0.002f
+internal const val VENOM = 0.002f
 /** Yearly deaths from marsh fever among people camped by a marsh in the warm months. */
-const val MARSH_FEVER = 0.05f
+internal const val MARSH_FEVER = 0.05f
 
 /** How [b] lives, for the reports: settled at home in its houses or at a camp kept half a year or more, else mobile. */
 /** Whether [b], [hands] strong, keeps a herd and how much of its days the herd asks, for the census ([Tally.Herding]). */
 internal fun GroupWorld.bandHerding(b: Band, hands: Int): Tally.Herding {
-    if (b.herd.none { it > 0f }) return Tally.Herding.NOT_HERDING
+    if (!b.keepsAnimals()) return Tally.Herding.NOT_HERDING
     val load = herdDays(b) / (days * hands.coerceAtLeast(1)).toFloat()
     return Tally.Herding.entries.first { it != Tally.Herding.NOT_HERDING && load < it.below }
 }
@@ -402,7 +405,7 @@ internal fun moveFood(from: HexGroup, to: HexGroup, value: Float) {
 /** Days of its own need [larder][HexGroup.larder] holds. */
 internal fun HexGroup.larderDays() = larder / max(1e-3f, dailyNeedKg)
 /** A larder of this many days counts as much as a week fully fed, in how well off a band is ([wellOff]). */
-const val WELL_STOCKED_DAYS = 30f
+internal const val WELL_STOCKED_DAYS = 30f
 /** How well off a group is: how fed this week, and how many months of need it has on hand. */
 internal fun HexGroup.wellOff() = fed + larderDays() / WELL_STOCKED_DAYS
 
@@ -414,10 +417,10 @@ internal fun eatStores(g: HexGroup, value: Float): Float {
 }
 
 /** The scaffold's store: days of food a band aims to keep against bad weeks, besides its lean months ([Band.leanDays]); share of the gap it works to close a week. */
-const val STORE_AIM_DAYS = 30f
-const val STORE_FILL = 0.25f
+internal const val STORE_AIM_DAYS = 30f
+internal const val STORE_FILL = 0.25f
 /** Person-days to dry or smoke a kilo of meat or fish (cutting it thin, tending the racks and fire), at full skill. */
-const val DRY_DAYS_PER_KG = 0.1f
+internal const val DRY_DAYS_PER_KG = 0.1f
 
 /**
  * What a band knows of itself this week, for its ways: the season, how fed it is and what it has on
@@ -583,7 +586,7 @@ internal fun HexGroups.setWays(g: HexGroup, weather: Weather, ways: BandWays, in
 }
 
 /** Chance a band with no home to hold slips away from a raid, losing only what it cannot carry. */
-const val FLEE = 0.5f
+internal const val FLEE = 0.5f
 
 /**
  * How much likelier a sickle harvest takes an ear that holds its grain than one that shatters at a
@@ -592,16 +595,16 @@ const val FLEE = 0.5f
  * colleagues: early harvests were often green, by beating or uprooting, and sown seed was mixed with
  * wild-gathered grain), not the decades a pure sickle-and-resow model would give.
  */
-const val SICKLE_SELECT = 0.06f
+internal const val SICKLE_SELECT = 0.06f
 
 /**
  * Sodium a person needs a day, kg: the 23 mg a day the Yanomami pass, the least of any people measured (INTERSALT, BMJ
  * 1988; Mancilha-Carvalho et al., J Hum Hypertens 1989: 0.9 mmol a day, healthy and with low blood pressure, on a
  * mostly plant diet and no salt). How much less good their food does them wholly without it is [inflation.Tuning.saltLack].
  */
-const val SODIUM_A_PERSON_DAY = 23e-6f
+internal const val SODIUM_A_PERSON_DAY = 23e-6f
 /** Sodium in a kg of meat or fish, kg: raw deer 51 mg/100 g (USDA SR "game meat, deer, raw"), freshwater fish about 50. */
-const val SODIUM_PER_KG_MEAT = 0.51e-3f
+internal const val SODIUM_PER_KG_MEAT = 0.51e-3f
 /**
  * The share of the food eaten that does a band's people good, [short] of the sodium they [need] (kg each, or both as shares):
  * wholly without it, [lack] less ([inflation.Tuning.saltLack]). The one rule for the week's meal and for what a band foresees
@@ -609,74 +612,74 @@ const val SODIUM_PER_KG_MEAT = 0.51e-3f
  */
 internal fun saltFeeds(short: Float, need: Float, lack: Float) = if (need > 0f) 1f - lack * (short / need).coerceIn(0f, 1f) else 1f
 /** Sodium's share of salt by weight (Na in NaCl). */
-const val SALT_SODIUM = 0.393f
+internal const val SALT_SODIUM = 0.393f
 /** Salt that holds a person's year of sodium ([SODIUM_A_PERSON_DAY]), kg: some 21 g. */
-const val SALT_BODY_YEAR = SODIUM_A_PERSON_DAY * Date.DAYS_PER_YEAR / SALT_SODIUM
+internal const val SALT_BODY_YEAR = SODIUM_A_PERSON_DAY * Date.DAYS_PER_YEAR / SALT_SODIUM
 /** Salt to cure a kilo of meat or fish, kg (how much less salted meat and fish spoil: [inflation.Tuning.saltKeep]). */
-const val SALT_PER_KG = 0.1f
+internal const val SALT_PER_KG = 0.1f
 
 /**
  * How much a gift that meets a band's whole want binds it to the giver (the giver half as much);
  * ties below which no gift is given. Not measured: as a feast.
  */
-const val TIE_USEFUL = 0.3f
-const val FEUD_GIFT = -0.2f
+internal const val TIE_USEFUL = 0.3f
+internal const val FEUD_GIFT = -0.2f
 /** How a band's name for its gifts counts against food in hand when other bands weigh whose ways to take up; share of it that fades a year. */
-const val RENOWN = 0.2f
-const val RENOWN_FADE = 0.2f
+internal const val RENOWN = 0.2f
+internal const val RENOWN_FADE = 0.2f
 
 /** Share of the way to knowing a kind of country's plants a week's gathering there goes; the least a stranger finds of what a local would. */
-const val PLANT_LEARN = 0.05f
-const val PLANT_FLOOR = 0.1f
+internal const val PLANT_LEARN = 0.05f
+internal const val PLANT_FLOOR = 0.1f
 /** The foraging skill bands start with, and how well a band knows the plants in its own country (handling times are set for these). */
-const val START_CRAFT = 0.6f
+internal const val START_CRAFT = 0.6f
 /**
  * Cooking and detoxifying: how much more of roots earth ovens make good, and of seed gruel; how much
  * of the bitter plants leaching makes food (against the palatable), and person-days to leach a kilo.
  */
-const val EARTH_OVEN_GAIN = 0.3f
+internal const val EARTH_OVEN_GAIN = 0.3f
 /**
  * Keeping: rain in a week that halves what racks in the sun dry, mm; how much less smoked meat spoils
  * at full skill than sun-dried; how much of the mice's take sealed pits and bins keep out at full skill.
  */
-const val DRY_RAIN_MM = 30f
-const val SMOKE_KEEP = 0.5f
-const val SEAL_KEEP = 0.7f
+internal const val DRY_RAIN_MM = 30f
+internal const val SMOKE_KEEP = 0.5f
+internal const val SEAL_KEEP = 0.7f
 /** How far a healer's or midwife's skill reaches into the deaths it can prevent (share of the gap to a start band's). */
-const val HEALING_REACH = 0.5f
+internal const val HEALING_REACH = 0.5f
 
 /**
  * Mudbrick walls wear in the rain: mm of wall lost a mm of rain, 28.3 mm over 3 years under 2330 mm of rain on an unprotected
  * field wall (Reddy and Jagadish, as reported in Heathcote 2002, An investigation into the erodibility of earth wall units,
  * UTS thesis); and the wall lost at which a house is gone, half a 300 mm wall (an estimate).
  */
-const val MUD_EROSION = 0.012f
-const val MUD_WALL_MM = 150f
-const val GRUEL_GAIN = 0.2f
-const val LEACH_SHARE = 0.5f
-const val LEACH_DAYS_PER_KG = 0.3f
+internal const val MUD_EROSION = 0.012f
+internal const val MUD_WALL_MM = 150f
+internal const val GRUEL_GAIN = 0.2f
+internal const val LEACH_SHARE = 0.5f
+internal const val LEACH_DAYS_PER_KG = 0.3f
 val KNOW_AT_HOME = PLANT_FLOOR + (1f - PLANT_FLOOR) * 0.9f
 
 /** How far below its teacher a newcomer's skill falls, at best. */
-const val TRANSMIT_LOSS = 0.1f
+internal const val TRANSMIT_LOSS = 0.1f
 
 /**
  * Choices against danger: share of the hands lost (or gained) for each step of watching the
  * children beyond (or short of) the usual; how far beyond the usual round a gatherer walks at twice
  * the usual range, km a day; share of a band sick before others can see it.
  */
-const val CHILD_WATCH_HANDS = 0.15f
-const val GATHER_WALK_KM = 6f
-const val SICK_SHOWS = 0.05f
+internal const val CHILD_WATCH_HANDS = 0.15f
+internal const val GATHER_WALK_KM = 6f
+internal const val SICK_SHOWS = 0.05f
 /** Share of a full kit below which a band counts its kit worn, and mends before it lays food by as far as its way goes ([Band.mendFirst]; Olli's choice). */
-const val MEND_BELOW = 0.5f
+internal const val MEND_BELOW = 0.5f
 /**
  * Skin a kilo of small game yields, kg (a hare's or rabbit's pelt is about a tenth of its weight, from memory),
  * and the person-days scraping, stretching and drying a kilo of small pelts takes (an hour or two a pelt of
  * a few hundred grams, from memory): more work for the hide than a big beast's, and more seams to sew.
  */
-const val SMALL_SKIN = 0.1f
-const val SKIN_DAYS = 0.5f
+internal const val SMALL_SKIN = 0.1f
+internal const val SKIN_DAYS = 0.5f
 /**
  * Wounds: how much less the hurt and the lamed do; yearly share of adults hurt by mishaps (falls,
  * cuts, sprains, snakebite gone bad) at the usual gathering range; wounded who live for each one
@@ -685,12 +688,12 @@ const val SKIN_DAYS = 0.5f
  * the healed lamed for life, untended (care halves it); yearly share of the lamed lost as the band's
  * people turn over.
  */
-const val HURT_HANDS = 0.8f
-const val LAME_HANDS = 0.4f
-const val MISHAPS = 0.08f
-const val WOUNDED_PER_DEAD = 2f
-const val HEAL_UNTENDED = 0.15f
-const val HEAL_TENDED = 0.35f
-const val FESTER = 0.02f
-const val LAMED = 0.2f
-const val LAME_TURNOVER = 0.04f
+internal const val HURT_HANDS = 0.8f
+internal const val LAME_HANDS = 0.4f
+internal const val MISHAPS = 0.08f
+internal const val WOUNDED_PER_DEAD = 2f
+internal const val HEAL_UNTENDED = 0.15f
+internal const val HEAL_TENDED = 0.35f
+internal const val FESTER = 0.02f
+internal const val LAMED = 0.2f
+internal const val LAME_TURNOVER = 0.04f
