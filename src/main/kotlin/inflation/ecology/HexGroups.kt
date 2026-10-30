@@ -266,6 +266,19 @@ class HexGroups(
     internal fun herdsForBeasts(): Map<Int, List<Band>> {
         val at = HashMap<Int, ArrayList<Band>>()
         for (g in groups) if (g.alive) g.band?.let { b -> if (b.herd.indices.any { k -> b.herd[k] + b.herdYoung.getOrElse(k) { 0f } >= 1f }) at.getOrPut(g.place.i) { ArrayList() } += b }
+        if (HUNT_DIAG) {
+            // (Last week's take at the camps, then what is held there as this week starts: [HuntStep.KEPT_YOUNG_HELD] and on.)
+            for ((k, s) in fauna.kinds.withIndex()) { val t = fauna.campTaken[k]
+                diag(s, HuntStep.KEPT_YOUNG_TAKEN, t[0].sumThenReset().toFloat()); diag(s, HuntStep.KEPT_GROWN_TAKEN, t[1].sumThenReset().toFloat())
+                diag(s, HuntStep.WILD_YOUNG_TAKEN_AT_CAMPS, t[2].sumThenReset().toFloat()); diag(s, HuntStep.WILD_GROWN_TAKEN_AT_CAMPS, t[3].sumThenReset().toFloat()) }
+            for ((p, bs) in at) { val area = land.areaKm2[p]
+                for ((k, s) in fauna.kinds.withIndex()) {
+                    if (bs.none { b -> b.herd.getOrElse(k) { 0f } + b.herdYoung.getOrElse(k) { 0f } >= 1f }) continue
+                    diag(s, HuntStep.KEPT_YOUNG_HELD, bs.sumOf { it.herdYoung.getOrElse(k) { 0f }.toDouble() }.toFloat())
+                    diag(s, HuntStep.KEPT_GROWN_HELD, bs.sumOf { it.herd.getOrElse(k) { 0f }.toDouble() }.toFloat())
+                    diag(s, HuntStep.WILD_YOUNG_AT_CAMPS, fauna.young[k][p] * area); diag(s, HuntStep.WILD_GROWN_AT_CAMPS, fauna.adults[k][p] * area)
+                } }
+        }
         return at
     }
 

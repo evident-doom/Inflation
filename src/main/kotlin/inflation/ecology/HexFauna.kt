@@ -292,6 +292,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * each week from the bands.
      */
     @Transient internal var keptAt: Map<Int, List<Band>>? = null
+    /**
+     * Diagnostic (huntSteps): heads the resident hunters took this week at places in [keptAt], by prey kind: the kept young,
+     * the kept grown, the wild young and the wild grown there ([HexGroups.herdsForBeasts] hands them to the hunt steps).
+     */
+    @delegate:Transient internal val campTaken by lazy { Array(kinds.size) { Array(4) { DoubleAdder() } } }
 
     /**
      * The odds that a resident of kind [k] at place [p] (one of its young if [young]) is killed by hunters in a week, all of
@@ -369,6 +374,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             adults[j][p] = max(0f, adults[j][p] - fromA / s.massKg)
             young[j][p] = max(0f, young[j][p] - fromY / (YOUNG_WEIGHT * s.massKg))
             huntedByResidents[j][p] += (fromA / s.massKg + fromY / (YOUNG_WEIGHT * s.massKg)) * land.areaKm2[p]
+            if (HUNT_DIAG && camps != null) { campTaken[j][2].add((fromY / (YOUNG_WEIGHT * s.massKg) * area).toDouble()); campTaken[j][3].add((fromA / s.massKg * area).toDouble()) }
             small.deposit(DeadPool.CARRION, p, KgKm2(kg * (1f - MEAT_SHARE)).perM2)
             ate += KgKm2(kg).perM2
             ateBook?.add(-(kg * MEAT_SHARE * area).toDouble())
@@ -381,6 +387,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             val heads = min(from[j], want.v * wK[c][i] / total * area / m)
             val kg = heads * m / area
             from[j] -= heads
+            if (HUNT_DIAG) campTaken[j][if (i >= nk) 0 else 1].add(heads.toDouble())
             if (b.herdTaken.size != b.herd.size) b.herdTaken = FloatArray(b.herd.size)
             b.herdTaken[j] += heads
             small.deposit(DeadPool.CARRION, p, KgKm2(kg * (1f - MEAT_SHARE)).perM2)
