@@ -1049,10 +1049,10 @@ enum class MoveTerm(val label: String) {
     FOOD("food"), COLD("cold and drain"), FORECAST("coming weather"), WATER("water and snow"), WALK("walk"), MOVE_DAYS("move days"),
     SEASON("season's place"), BEARING("bearing"), STAY("staying"), BAND("band pulls"), DEATHS("deaths"), BESIDE("noise and temper")
 }
-const val MOVE_TRACE_WEEKS = 0
-const val MOVE_TRACE_MOVES = 1
-const val MOVE_TRACE_SUMS = 2
-val MOVE_TRACE_LEADS = MOVE_TRACE_SUMS + MoveTerm.entries.size
+internal const val MOVE_TRACE_WEEKS = 0
+internal const val MOVE_TRACE_MOVES = 1
+internal const val MOVE_TRACE_SUMS = 2
+internal val MOVE_TRACE_LEADS = MOVE_TRACE_SUMS + MoveTerm.entries.size
 
 /** moveTrace=true: [GroupPlanner.bookMove] each band-week chosen by the hand-written score. Report-only. */
 internal val MOVE_TRACE = Config.flag(Config.Key.MOVE_TRACE, false)
