@@ -108,12 +108,20 @@ private fun GroupWorld.mendingStockKg(g: HexGroup, b: Band) = Material.entries.s
 
 /** The kg of its stores [g]'s band [b] cannot carry in its loads ([carryKg], [carryLoads]) beside its mending stock: what it caches or leaves when it moves camp. */
 internal fun GroupWorld.leftBehindKg(g: HexGroup, b: Band): Float {
-    val total = g.larder
-    val carry = max(0f, carryKg(g, b) * carryLoads(b) - mendingStockKg(g, b))
-    if (total <= carry) return 0f
-    val left = 1f - carry / total
+    val left = leftBehindShare(g, b)
+    if (left <= 0f) return 0f
     return Store.entries.sumOf { (g.stores[it] * left * g.storeKgPer[it]).toDouble() }.toFloat()
 }
+
+/** The share of its stores [g]'s band [b] cannot carry on a camp move ([leftBehindKg]): 0 where it carries them all. */
+internal fun GroupWorld.leftBehindShare(g: HexGroup, b: Band): Float {
+    val total = g.larder
+    val carry = foodCarried(g, b)
+    return if (total <= carry) 0f else 1f - carry / total
+}
+
+/** The food [g]'s band [b] can carry on a camp move, in its loads beside its mending stock: what it does not cache or leave. */
+internal fun GroupWorld.foodCarried(g: HexGroup, b: Band) = max(0f, carryKg(g, b) * carryLoads(b) - mendingStockKg(g, b))
 
 /** What [g]'s band can carry in one load, kg: its adults' loads, more with baskets and bags. */
 private fun carryKg(g: HexGroup, b: Band) = CARRY_KG * max(1, g.adults) * (1f + BASKET_GAIN * b.has(Tool.BASKET))
@@ -151,7 +159,7 @@ internal fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, weat
         // up to the mice), and the grinding stones are left behind.
         if (!b.campPlace.none) {
             // (Some goods are taken first: see [mendingKg].)
-            val carry = max(0f, carryKg(g, b) * carryLoads(b) - mendingStockKg(g, b))
+            val carry = foodCarried(g, b)
             dialUse?.amount(DialSite.CARRY_LOADS, carryLoads(b), carryKg(g, b) * carryLoads(b), carryKg(g, b))
             val total = g.larder
             if (total > carry) {
@@ -168,6 +176,9 @@ internal fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, weat
                 time.spend(Activity.CACHING, cached * leftKg * care / CACHE_KG_A_DAY)
                 if (cached > 0f) dropCache(b)
                 var abandoned = 0f
+                // (Not food it got or lost as the forecast counts it, [foresee]: what moving costs it is foreseen on its own.)
+                b.leftBehind += left * total
+                b.forecastTrace?.moved(g, LarderMove.LEFT, -left * total)
                 for (i in Store.entries) {
                     val x = g.stores[i] * left
                     g.stores[i] -= x

@@ -29,4 +29,14 @@ class ForesightTest {
         assertTrue(apart != alike, "a spread of years changes what it foresees")
         assertTrue(apart < background, "a bad year still starves: $apart")
     }
+
+    @Test
+    fun `a camp move keeps only what it carries`() {
+        val none = FloatArray(12)
+        val fed = months(0.5f)
+        val stays = YearAhead(none, fed).alive(s, 15f, 0f, 0f)
+        val moves = YearAhead(none, fed, FloatArray(12), 2f, BooleanArray(12) { it == 0 }).alive(s, 15f, 0f, 0f)
+        assertEquals(background, stays, 1e-5f)
+        assertTrue(moves < stays - 0.01f, "the larder left at the old camp is missed: $moves against $stays")
+    }
 }

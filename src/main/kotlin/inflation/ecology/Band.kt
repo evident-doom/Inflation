@@ -76,6 +76,8 @@ class Band(kinds: Int) {
     var larderSeen = Float.NaN
     /** The share of this week's need its fat met ([feedOnReserves]): not food it got, for [foresee]. */
     @Transient var fatFed = 0f
+    /** The food it cached or left at its old camp on a move this week ([campAndCache]): the forecast foresees moves on their own ([foresee]). */
+    @Transient var leftBehind = 0f
     /** forecastTrace=true: its year ahead as foreseen, and what came, while it is followed ([traceForecast]); whether it has been. */
     @Transient internal var forecastTrace: ForecastTrace? = null
     @Transient var forecastTraced = false

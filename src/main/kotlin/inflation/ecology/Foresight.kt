@@ -19,6 +19,7 @@ import kotlin.math.sqrt
  *   by and lived off then) against what keeping warm will take then ([warmthNeed]), what it lays by going to its larder,
  *   its larder and then its fat paying the shortfalls as they come, and its people burning their body's protein past that
  *   ([Hazards.hunger]); over a bad, a usual and a good year, as far apart as its years have been ([Band.supplySpread]);
+ * - what it cannot carry when it moves camp, at its usual stay ([Band.stayWeeks]), lost;
  * - and its kind's background deaths.
  * Not foreseen: disease, outbreaks, raids, beasts, fire and flood, thirst; tools and clothes wearing out over the year; the
  * larder it has now spoiling (what spoilt of what it laid by before is in its months). The food a band will get is last
@@ -69,15 +70,38 @@ internal fun HexGroups.yearAhead(g: HexGroup, b: Band, weather: Weather, shelter
             spread[k - 1] += stays * (b.supplySpread(m) / needS - spread[k - 1])
         }
     }
-    return YearAhead(odds, fed, spread)
+    // (The months it moves camp in, at its usual stay ([Band.stayWeeks]) from the weeks it has kept this one, as
+    // [survivalDays] reckons its stay: on a move it keeps only what it can carry ([foodCarried]). A band that has not
+    // moved yet, or keeps its camp a year and more, moves in none.)
+    val moves = BooleanArray(Date.MONTHS_PER_YEAR)
+    if (!b.campPlace.none) {
+        val stay = max(1f, b.stayWeeks); val perMonth = stepsPerYear / Date.MONTHS_PER_YEAR
+        var week = max(1f, stay - b.campWeeks)
+        while (week < stepsPerYear) { moves[(week / perMonth).toInt().coerceAtMost(Date.MONTHS_PER_YEAR - 1)] = true; week += stay }
+    }
+    return YearAhead(odds, fed, spread, foodCarried(g, b) / g.dailyNeedKg.coerceAtLeast(1e-3f), moves)
+}
+
+/**
+ * The share of band [b]'s (group [g]'s) people a camp move this week would cost through the year ahead by the food it cannot
+ * carry ([leftBehindShare]: cached or left at the old camp), as [yearAhead] foresees: alive with its larder, less alive with
+ * what it carries. (A cache it may come back to is counted lost: whether it will is not foreseen.)
+ */
+internal fun HexGroups.leftBehindDying(g: HexGroup, b: Band, weather: Weather): Float {
+    val share = leftBehindShare(g, b)
+    if (share <= 0f) return 0f
+    val year = yearAhead(g, b, weather)
+    val larderDays = g.larder / g.dailyNeedKg.coerceAtLeast(1e-3f)
+    return max(0f, year.alive(g.species, larderDays, g.fat, g.spent) - year.alive(g.species, larderDays * (1f - share), g.fat, g.spent))
 }
 
 /**
  * The months ahead in order from next month ([yearAhead]): the exposure odds, the share of the need the food it got then
  * meets ([fed], above 1 where it laid food by) and how far that share has gone from year to year ([spread], a standard
- * deviation; 0 for none seen).
+ * deviation; 0 for none seen); the months it [moves] camp in, keeping only the [carryDays] of its need it can carry.
  */
-internal class YearAhead(private val odds: FloatArray, internal val fed: FloatArray, internal val spread: FloatArray = FloatArray(fed.size)) {
+internal class YearAhead(private val odds: FloatArray, internal val fed: FloatArray, internal val spread: FloatArray = FloatArray(fed.size),
+    private val carryDays: Float = Float.POSITIVE_INFINITY, private val moves: BooleanArray = BooleanArray(fed.size)) {
     /** The days of food it falls short of over the months ahead, before its larder pays ([Band.leanDays]), in a usual year. */
     val leanDays: Float = run { var lean = 0f; for (f in fed) lean += max(0f, 1f - f) * Date.DAYS_PER_MONTH; lean }
     /** Whether its years have differed at all: if not, one year is reckoned, not [YEARS]. */
@@ -134,6 +158,8 @@ internal class YearAhead(private val odds: FloatArray, internal val fed: FloatAr
         var larder = larderDays; var fatLeft = fat; var burnt = spent
         var alive = 1f
         for (k in odds.indices) {
+            // (A month it moves camp in, it keeps only what it carries.)
+            if (moves[k]) larder = min(larder, carryDays)
             val got = max(0f, fed[k] + z * spread[k])
             // (What it gets beyond its need it lays by, as it did in that month before; a shortfall the larder pays.)
             val paid = if (got > 1f) -(got - 1f) * days else min((1f - got) * days, larder)
@@ -180,8 +206,10 @@ internal fun HexGroups.foresee(weather: Weather) {
             // before keeping warm, so a split, which halves both, or a colder week changes nothing.)
             val need = (g.dailyNeedKg / g.warmth.coerceAtLeast(1e-3f)).coerceAtLeast(1e-3f)
             val larder = g.larder / need
-            val laid = if (b.larderSeen.isNaN()) 0f else (larder - b.larderSeen) / days
-            b.larderSeen = larder
+            // (What it cached or left on a move is not food lost as its months count it: the forecast foresees its moves on
+            // their own, [yearAhead].)
+            val laid = if (b.larderSeen.isNaN()) 0f else (larder - b.larderSeen + b.leftBehind / need) / days
+            b.larderSeen = larder; b.leftBehind = 0f
             val got = (g.fed - b.fatFed) * g.warmth + laid
             b.addSupply(m, got, k)
             b.fatFed = 0f

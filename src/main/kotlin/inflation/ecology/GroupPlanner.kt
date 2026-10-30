@@ -207,6 +207,11 @@ internal class GroupPlanner(private val gs: HexGroups) {
                 val q = lacked[k] * mem.foundAt(i, k)
                 if (q > lackedQ) { lackedQ = q; lackedHex = mem.hex[i] }
             } }
+        // (A band leaving its camp's hex caches or leaves what it cannot carry: the lives that costs it through the year ahead
+        // count with each place it would move camp to, [leftBehindDying].)
+        val campHex = g.band?.campPlace?.takeIf { !it.none }?.let { gs.hw.placeHex[it] } ?: Hex.NONE
+        val leaving = g.band?.takeIf { !campHex.none }?.let { b -> gs.leftBehindDying(g, b, weather) } ?: 0f
+        fun leavingAt(h: Hex) = if (leaving > 0f && h != campHex) leaving else 0f
         val c = PlanContext(g, kind, here, sensed, month, goal, goalQ, fromHere, reach, thirsty, restless, season, keepOff,
             weather, date, goalHex, predatorKg, buf, lacked, lackedHex, lackedQ, if (!lackedHex.none) gs.hexKm(here, lackedHex) else 0.0)
         val at = c.at
@@ -246,7 +251,7 @@ internal class GroupPlanner(private val gs: HexGroups) {
                 if (!wantAll) { buf.later(p, d, prey, fed, score, beside); continue }
                 if (drowning < 0f) drowning = crossingDeaths(s, h, here, via)
                 val alive = score
-                val steps = gs.survivalSteps(g, deathsAt(c, p, h, fed, d) + drowning)
+                val steps = gs.survivalSteps(g, deathsAt(c, p, h, fed, d) + drowning + leavingAt(h))
                 score -= steps
                 if (tp != null) { tp[MoveTerm.DEATHS.ordinal] = -steps; tp[MoveTerm.BESIDE.ordinal] = beside
                     if (p == g.place) tp.copyInto(buf.stayParts) }
@@ -279,7 +284,7 @@ internal class GroupPlanner(private val gs: HexGroups) {
                 if (up[k] < bestScore) break
                 val p = Place(buf.laterPlace[k]); val h = gs.hw.placeHex[p]
                 val total = buf.laterScore[k] - gs.survivalSteps(g, deathsAt(c, p, h, buf.laterFed[k], buf.laterD[k]) +
-                    crossingDeaths(s, h, here, via)) + buf.laterBeside[k]
+                    crossingDeaths(s, h, here, via) + leavingAt(h)) + buf.laterBeside[k]
                 if (!total.isFinite()) {
                     at.d = buf.laterD[k]; at.prey = buf.laterPrey[k]; at.crowded = Float.NaN; at.fed = buf.laterFed[k]
                     tellNotANumber(c, null, p, h, crossingDeaths(s, h, here, via), buf.laterScore[k])

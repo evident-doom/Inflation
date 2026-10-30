@@ -96,8 +96,9 @@ internal class ForecastTrace(private val head: String, private val startMonth: I
 
 /**
  * What moved food into or out of a band's larder, for [ForecastTrace]: raided, given to visiting kin, given at a meeting, eaten
- * at a feast (between bands); eaten from it, the week's food kept in it, spoilt or got at by mice (its own).
+ * at a feast (between bands); eaten from it, the week's food kept in it, spoilt or got at by mice, cached or left at the old
+ * camp on a move (its own).
  */
 enum class LarderMove(val label: String) {
-    RAIDED("raided"), KIN("kin"), GIFT("gift"), FEAST("feast"), ATE("ate"), KEPT("kept"), SPOILT("spoilt")
+    RAIDED("raided"), KIN("kin"), GIFT("gift"), FEAST("feast"), ATE("ate"), KEPT("kept"), SPOILT("spoilt"), LEFT("left")
 }
