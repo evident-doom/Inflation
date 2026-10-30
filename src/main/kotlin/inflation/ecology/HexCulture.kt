@@ -22,6 +22,7 @@ import inflation.world.Date
 import inflation.world.Place
 import inflation.world.Weather
 import kotlin.math.max
+import kotlin.math.roundToInt
 import kotlin.math.min
 import kotlin.math.abs
 import kotlin.math.exp
@@ -828,8 +829,14 @@ internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
         land.sanctity[b.riteDue] += g.adults.toFloat()
         b.riteKept = now
         stats.meeting(Met.BANDS_HELD_A_RITE)
+        stats.meeting(Met.Of.RITES_HELD, RiteWalk.of(riteKm(g, b.riteDue), tuning).label)
         b.riteDue = -1
     } else if (b.riteDue >= 0 && b.riteHeld != now) {
+        // (For the report: how far off the site is now, and how much of the rite's days had been given.)
+        val km = riteKm(g, b.riteDue); val walk = RiteWalk.of(km, tuning)
+        val asked = riteDays(km) * g.adults
+        stats.meeting(Met.Of.RITES_CUT_SHORT, walk.label)
+        stats.meeting(Met.Of.RITES_CUT_SHORT_PERCENT_GIVEN, walk.label, if (asked > 0f) (100f * (1f - b.riteOwed / asked)).roundToInt().coerceIn(0, 100) else 0)
         b.riteOwed = 0f; b.riteDue = -1; b.strain += 1f
         stats.meeting(Met.BANDS_CUT_A_RITE_SHORT)
     }
@@ -838,10 +845,9 @@ internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
     if (g.fed >= Thresholds.HUNGRY) b.strain *= exp(-years / STRAIN_EASE_YEARS)
     val site = b.rite[weather.date.month]
     if (site >= 0 && b.riteHeld != now) {
-        val km = hex.distanceKm(hw.placeHex[g.place], hw.placeHex[site])
-        val walk = if (km <= tuning.roundArrivedKm) 0f else (2.0 * km / (WALK_KM_PER_HOUR * Activity.WORK_HOURS)).toFloat()
         b.riteHeld = now; b.riteDue = site
-        b.riteOwed = (RITE_DAYS + walk) * g.adults
+        b.riteOwed = riteDays(riteKm(g, site)) * g.adults
+        stats.meeting(Met.Of.CUSTOMS_DAYS_ASKED, CustomsPart.RITES.label, (10f * b.riteOwed).roundToInt())
     }
     // Plenty after long want is an omen too: where and when the hunger broke.
     if (g.lean > 0 && g.fed >= Thresholds.HUNGRY) omen(b, g.place, weather.date, g.lean / LEAN_USUAL_WEEKS, Met.BANDS_MARKED_PLENTY_AFTER_WANT)
@@ -855,6 +861,27 @@ internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
         if (b.omenWeight < 1f) b.omenPlace = -1
         else if (weather.date.month == b.omenMonth && weather.date.year > b.omenYear && g.fed >= Thresholds.HUNGRY &&
             hex.distanceKm(hw.placeHex[g.place], hw.placeHex[b.omenPlace]) <= tuning.roundArrivedKm) bearRite(b)
+    }
+}
+
+/** How far [g] is from rite site [site], km. */
+private fun HexGroups.riteKm(g: HexGroup, site: Int) = hex.distanceKm(hw.placeHex[g.place], hw.placeHex[site])
+
+/** The days a rite [km] off asks of each adult: [RITE_DAYS], and the walk there and back unless the band is camped at it. */
+private fun HexGroups.riteDays(km: Double) =
+    RITE_DAYS + if (km <= tuning.roundArrivedKm) 0f else (2.0 * km / (WALK_KM_PER_HOUR * Activity.WORK_HOURS)).toFloat()
+
+/** How far a band is from its rite's site, for the report ([Met.Of.RITES_HELD], [Met.Of.RITES_CUT_SHORT]). */
+enum class RiteWalk(val label: String) {
+    AT_SITE("at the site"), UNDER_100_KM("under 100 km"), UNDER_200_KM("100-200 km"), FARTHER("200 km or more");
+
+    companion object {
+        fun of(km: Double, tuning: Tuning) = when {
+            km <= tuning.roundArrivedKm -> AT_SITE
+            km < 100.0 -> UNDER_100_KM
+            km < 200.0 -> UNDER_200_KM
+            else -> FARTHER
+        }
     }
 }
 

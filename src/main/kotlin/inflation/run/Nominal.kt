@@ -154,6 +154,20 @@ object Nominal {
      * against running away.
      */
     val POOLS = Drift(rise = 5.0, fall = 5.0, run = 20.0, floor = 0.01)
+    /**
+     * The fruit and the fallen mast follow the year's mast crop ([inflation.world.Weather.mastCrop]), a lognormal drawn for each group of
+     * trees, of the coefficient of variation of the group that swings most ([inflation.world.Weather.mastCv]): the ratio of two years'
+     * crops lies within exp(z sqrt(2) sigma) 99% of the time (z = 2.33, sigma the lognormal's), some 20 times either way; a kind of year the
+     * oaks do have.
+     */
+    val MAST_JUMP = Math.exp(2.33 * Math.sqrt(2.0) * Math.sqrt(Math.log(1.0 + inflation.world.MastTrees.entries.maxOf { inflation.world.Weather.mastCv(it) }.let { it * it })))
+    val CROPS = mapOf(StockName.FRUIT to Drift(rise = MAST_JUMP, fall = MAST_JUMP, run = MAST_JUMP, floor = 0.01),
+        StockName.MAST to Drift(rise = MAST_JUMP, fall = MAST_JUMP, run = MAST_JUMP, floor = 0.01))
+    /**
+     * Stocks the bands build up from nothing (the animals they keep, the grain of the fields they sow): a few tonnes may become many as
+     * herding or sowing spreads, so they are held by what the land carries (kept animals, with the others, below), not by how fast they grow.
+     */
+    val BAND_MADE = setOf(StockName.BANDS_KEPT_ANIMALS, StockName.FIELD_GRAIN)
     val SMALL_AND_WATER_LIFE = Drift(rise = 5.0, fall = 5.0, run = 20.0, floor = 1.0)
     /** Snow lying (mm over the land): it must not pile up from year to year. */
     val SNOW = Drift(rise = 1.5, fall = 2.0, run = 2.0, floor = 1.0)
@@ -272,7 +286,8 @@ object Nominal {
                     if (KindStock.isKind(name)) continue
                     val stock = StockName.of(name)
                     // (Fast pools may empty for a year, as the locusts between plagues; the slow stocks may not.)
-                    drift(t, k, years, ::yearly, STOCKS[stock] ?: POOLS, gone = stock in STOCKS)
+                    if (stock in BAND_MADE) continue
+                    drift(t, k, years, ::yearly, STOCKS[stock] ?: CROPS[stock] ?: POOLS, gone = stock in STOCKS)
                     if (stock == StockName.PLANTS && area > 0) eachYear(PLANTS_MIN_KG_M2, PLANTS_MAX_KG_M2, "kg/m² of plants over the land", 1 / area)
                 }
                 Key.isSmallLife(k) || Key.isWaterLife(k) -> drift(t, k, years, ::yearly, SMALL_AND_WATER_LIFE, gone = true)
@@ -338,7 +353,7 @@ object Nominal {
         }
         // All big animals over the land, from the books' pools (thousand tonnes over km² is kt/km², times 1000 for t/km²).
         if (area > 0) {
-            val pools = listOf(Key.biomass(StockName.RESIDENT_ANIMALS), Key.biomass(StockName.GROUPS)).filter { it in h.series }
+            val pools = listOf(Key.biomass(StockName.RESIDENT_ANIMALS), Key.biomass(StockName.GROUPS), Key.biomass(StockName.BANDS_KEPT_ANIMALS)).filter { it in h.series }
             if (pools.isNotEmpty()) for (y in 0 until years) {
                 val tKm2 = pools.sumOf { yearly(it, y).let { v -> if (v.isNaN()) 0.0 else v } } * 1000 / area
                 val most = animalsMaxTKm2(yearly(Key.RAIN, y))
