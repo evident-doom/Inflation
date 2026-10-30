@@ -516,8 +516,8 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             val village = IntArray(hex.size)
             for ((h, bs) in groups.villages()) village[h.i] = bs.size
             for (h in hex.all) {
-                if (village[h.i] >= 2 && onScreen(h, 1)) {
-                    // A village: two or more bands living settled here, a ring of a dot for each band below the hex's centre.
+                if (village[h.i] >= 1 && onScreen(h, 1)) {
+                    // A village ([villages]): a ring of a dot for each band below the hex's centre.
                     val (cx, cy) = hex.centreKm(h)
                     val x = sx(cx.toFloat()); val y = sy(cy.toFloat()) + (9 * z).toInt(); val d = (3 * z).toInt().coerceAtLeast(2)
                     for (k in 0 until min(village[h.i], 8)) {
@@ -566,7 +566,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             "whole, outlined while only begun, larger for room for more people; a brown ring round it for a palisade, as much of the ring as stands. " +
             "A field (to the lower left) where grain was sown this year: green while it grows, gold with ripe grain standing, ringed white where most " +
             "of the sown seed is of ears that hold their grain; an outlined, crossed square for ground worn by cropping and left to rest. " +
-            "A village (below the centre) where two or more bands live settled in the hex: a ring of a dot for each band.",
+            "A village (below the centre) where two or more bands live settled in the hex, or one band at home larger than a camp: a ring of a dot for each band.",
             swatches = listOf(MapLegend.Swatch(Color(0.45f, 0.25f, 0.1f), "houses"), MapLegend.Swatch(Color(0.35f, 0.7f, 0.2f), "field growing"),
                 MapLegend.Swatch(Color(0.95f, 0.75f, 0.15f), "field ripe"), MapLegend.Swatch(Color(0.55f, 0.4f, 0.25f), "worn ground"),
                 MapLegend.Swatch(Color(0.9f, 0.2f, 0.6f), "village")))

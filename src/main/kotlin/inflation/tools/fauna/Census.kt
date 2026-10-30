@@ -384,11 +384,11 @@ class Census(private val sim: HexSim) {
                 1000 * (lastYear[Tally.bandsMind(m, Tally.Bands.BORN)] ?: 0) / years, 1000 * died.values.sum() / years,
                 died.entries.sortedByDescending { it.value }.joinToString(" ") { "%s %.1f".format(it.key, 1000 * it.value / years) }) })
         run {
-            // Villages: hexes where two or more bands live settled ([villages]).
+            // Villages: hexes where two or more bands live settled, or one band at home larger than a camp ([villages]).
             val f = groups.bands.villageFlows
             val weeks = f[VillageFlow.WEEKS].toDouble().coerceAtLeast(1.0); val vw = f[VillageFlow.VILLAGE_WEEKS].toDouble()
             val now = groups.bands.villageAge
-            println("villages since the census last read them (two or more bands living settled in one hex; nothing chooses by it): standing now %d, the oldest %d weeks; in a week %.1f villages, %.1f bands and %.0f people a village, most bands in one %.0f; people in villages %.0f%% of those settled, %.0f%% of all, %.0f%% of them at home in houses (the rest camped half a year or more); with a palisade standing %.0f%% of village-weeks; %.0f ended, after %.1f weeks on average".format(
+            println("villages since the census last read them (two or more bands living settled in one hex, or one band at home larger than a camp; nothing chooses by it): standing now %d, the oldest %d weeks; in a week %.1f villages, %.1f bands and %.0f people a village, most bands in one %.0f; people in villages %.0f%% of those settled, %.0f%% of all, %.0f%% of them at home in houses (the rest camped half a year or more); with a palisade standing %.0f%% of village-weeks; %.0f ended, after %.1f weeks on average".format(
                 now.size, now.values.maxOrNull() ?: 0, vw / weeks, f[VillageFlow.BANDS] / vw.coerceAtLeast(1.0), f[VillageFlow.PEOPLE] / vw.coerceAtLeast(1.0), f[VillageFlow.MOST_BANDS].toDouble(),
                 100 * f[VillageFlow.PEOPLE] / f[VillageFlow.SETTLED_PEOPLE].toDouble().coerceAtLeast(1.0), 100 * f[VillageFlow.PEOPLE] / f[VillageFlow.ALL_PEOPLE].toDouble().coerceAtLeast(1.0), 100 * f[VillageFlow.PEOPLE_AT_HOME] / f[VillageFlow.PEOPLE].toDouble().coerceAtLeast(1.0),
                 100 * f[VillageFlow.PALISADED] / vw.coerceAtLeast(1.0), f[VillageFlow.ENDED].toDouble(), f[VillageFlow.ENDED_WEEKS] / f[VillageFlow.ENDED].toDouble().coerceAtLeast(1.0)))
