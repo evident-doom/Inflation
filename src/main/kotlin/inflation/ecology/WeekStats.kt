@@ -134,6 +134,8 @@ enum class Met(val label: String) {
         NEWCOMERS("newcomers: "), SEA_CROSSINGS("sea crossings: "), HIT_ON("band hit on "), LOST("band lost "), TOOK_A_PUP("bands took a ", " pup"),
         LEARNED("band learned "), TOOK_UP("band took up "), TOOK_LEAVE_OF("band took leave of "), DROPPED("band dropped "), GIVEN("", " given"),
         TURNED_BACK_BY("bands turned back by "), DOGS_GONE_WILD("dogs gone wild as ", " packs"),
+        /** Kills robbed (report only): by the thief's kind and from the victim's, with the kg taken. */
+        KILLS_STOLEN_BY("kills stolen by "), KILLS_STOLEN_FROM("kills stolen from "), KG_STOLEN_BY("kg of kills stolen by "), KG_STOLEN_FROM("kg of kills stolen from "),
         RITES_HELD("rites held, band "), RITES_CUT_SHORT("rites cut short, band "),
         RITES_CUT_SHORT_PERCENT_GIVEN("percent of days given to rites cut short, band "),
         CUSTOMS_DAYS_ASKED("tenths of days customs asked: "), CUSTOMS_DAYS_GIVEN("tenths of days customs got: "),
