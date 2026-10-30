@@ -358,6 +358,8 @@ object Catalogue {
         habitat = Habitat(cover = 0.8f, rugged = 0.4f),
         stalking = 1f,
         ferocity = 0.6f,
+        // (A lynx fights back with teeth and claws: an estimate between the onager's kicks (0.4) and the boar's tusks (0.6).)
+        defence = 0.5f,
         startKm2PerAnimal = 150f,
     )
 
@@ -404,6 +406,8 @@ object Catalogue {
         habitat = Habitat(cover = 0.2f, wet = 0.2f),
         stalking = 0.4f,
         ferocity = 0.8f,
+        // (Jackals bite back and stand by each other: an estimate, as the onager's (0.4).)
+        defence = 0.4f,
         // (Golden jackals take prey up to about 15 kg but mostly up to 4: hares, rodents, fawns, not grown gazelle;
         // Hayward et al. 2017, prey preferences of jackals.)
         preyUpTo = 1.5f, preyPreferredUpTo = 0.4f,
@@ -730,15 +734,11 @@ object Catalogue {
     fun resident(s: Species) = !s.carnivore || s in residentHunters
 
     /**
-     * Residents that other beasts of prey meet as rivals, not as game: the [residentHunters] and the brown bear, which
-     * robs wolves of their kills and is driven off by lions (from memory of the record). Packs and residents deal with
-     * them as packs deal with each other ([residentRivalsMeet], [HexFauna.rivalsAt]): give way, rob, now and then kill one,
-     * its young most often. People hunt them as game.
+     * Residents that meet other beasts of prey as rivals as well as game: the [residentHunters] and the brown bear, which
+     * robs wolves of their kills (from memory of the record). A band of them much stronger than a pack drives it off its kill
+     * ([residentRivalsMeet]); the jackals and lynx keep out of the way of a much stronger party ([HexFauna.strongest]).
      */
     val residentRivals by lazy { setOf(JACKAL, LYNX, BEAR) }
-
-    /** Whether hunter [s] takes [ps] as game: people any kind; beasts of prey not the [residentRivals], which they meet as rivals. */
-    fun game(s: Species, ps: Species) = s.human || ps !in residentRivals
 
     /** Kinds that climb crags and screes others cannot cross. */
     val climbers = setOf(IBEX, MOUFLON, WILD_GOAT, LEOPARD)

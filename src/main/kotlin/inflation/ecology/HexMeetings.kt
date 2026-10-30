@@ -320,81 +320,44 @@ internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, b
 internal fun residentStrength(s: Species) = s.groupSize * s.massKg * s.ferocity
 
 /**
- * Standing orders, a pack and the bands of the [Catalogue.residentRivals] it came on unseen while it hunted this week
- * ([w]'s [met] per animal over its hunting [ground], in the [searched] share of its week), each meeting by the rule hunters of
- * different kinds meet by ([enemiesMeet]): near equals keep their distance; a pack much stronger than the band now and
- * then kills one of it, its young most often, eats half and leaves the rest; a band stronger than the pack (a bear's,
- * against wolves) drives it off its kill and takes most of it ([meat], what the pack has of kills this week, left where it
- * fell for the band to eat), and a much stronger one now and then kills one of the pack. Returns the pack's meat gained (or
- * lost, below zero), in what it credits a kill at.
+ * Standing orders, a pack and the bands of the [Catalogue.residentRivals] stronger than it that it came on unseen while it
+ * hunted this week ([met] per animal over its hunting [ground], in the [searched] share of its week), each by the rule
+ * hunters of different kinds meet by ([enemiesMeet]): a band (a bear's, against wolves) that much stronger drives it off
+ * its kill and takes most of it ([meat], what the pack has of kills this week), left where it fell for the band to eat.
+ * (The weaker rivals it hunts as game, as they come: [huntingOdds].) Returns the pack's meat lost, below zero, in what
+ * it credits a kill at.
  */
 internal fun HexGroups.residentRivalsMeet(g: HexGroup, ground: HuntGround, met: FloatArray, searched: Float, meat: Float, rnd: Random): Float {
     val s = g.species
-    if (g.band != null || searched <= 0f) return 0f
+    if (g.band != null || searched <= 0f || meat <= 0f) return 0f
     val nk = fauna.kinds.size
-    var gained = 0f
+    var have = meat
     for (j in 0 until ground.size) {
-        val pi = ground.place[j]; val p = Place(pi); val area = land.areaKm2[p]
+        val pi = ground.place[j]; val p = Place(pi)
         val sp = strength(g) * (if (g.home == hw.placeHex[p]) HOME_ADVANTAGE else 1f)
         for (k in 0 until nk) {
             val ps = fauna.kinds[k]
             // (A bear asleep in its den meets no one.)
             if (ps !in Catalogue.residentRivals || fauna.asleep(FaunaKind(k), p)) continue
-            val a = fauna.adults[k]; val y = fauna.young[k]
-            val dens = a[pi] + y[pi]
+            if (residentStrength(ps) < THEFT_RATIO * sp) continue
+            val dens = fauna.adults[k][pi] + fauna.young[k][pi]
             if (dens <= 0f) continue
             // (One try at each band it came on: a band met scatters, see [huntingOdds].)
             var times = poisson(dens * ground.km2[j] * met[j * nk + k] * searched, rnd)
-            if (times <= 0) continue
-            val sr = residentStrength(ps)
-            val ratio = max(sp, sr) / max(1f, min(sp, sr))
-            // (How far each side's shelter there keeps the other off it.)
-            val bandSafe = 1f - SHELTER_EFFECT * Niches.shelter(ps, p, land); val packSafe = 1f - SHELTER_EFFECT * Niches.shelter(s, g.place, land)
-            while (times-- > 0) {
+            // A leopard hauls its kill up a tree where there are trees; others guard it where they can.
+            val cached = if (Niches.Shelter.TREE in Niches.shelters(s)) land.plants.canopy(p) else 0f
+            while (times-- > 0 && have > 0f) {
                 stats.meeting(Met.HUNTERS_OF_OTHER_KINDS)
-                if (ratio < THEFT_RATIO) continue // near equals keep their distance
-                if (sp >= sr) {
-                    if (ratio <= 2f) continue
-                    // (A band has young as far as there are young to its grown.)
-                    val withYoung = rnd.nextFloat() < y[pi] / max(1e-9f, a[pi])
-                    val odds = bandSafe * g.will[AnimalWay.KILL]
-                    val young = withYoung && y[pi] * area >= 1f && rnd.nextFloat() < INTRAGUILD_KILL_YOUNG * tuning.intraguildYoung * odds
-                    if (!young && !(a[pi] * area >= 1f && rnd.nextFloat() < INTRAGUILD_KILL * odds)) continue
-                    val kg = if (young) HexFauna.YOUNG_WEIGHT * ps.massKg else ps.massKg
-                    if (young) y[pi] -= 1f / area else a[pi] -= 1f / area
-                    fauna.groupKilled[k][pi] += 1f / (dens * area)
-                    // (It eats half and leaves the rest.)
-                    val credit = 0.5f * kg
-                    gained += credit
-                    small.deposit(DeadPool.CARRION, p, Kg(kg - credit * meatShare(null)))
-                    stats.deaths.merge(Tally.of(ps, ByBeast.of(if (young) ByBeast.How.YOUNG_KILLED_BY else ByBeast.How.KILLED_BY, s)), 1, Int::plus)
-                } else {
-                    // A leopard hauls its kill up a tree where there are trees; others guard it where they can.
-                    val cached = if (Niches.Shelter.TREE in Niches.shelters(s)) land.plants.canopy(p) else 0f
-                    val have = meat + gained
-                    if (have > 0f && rnd.nextFloat() < THEFT * (1f - cached)) {
-                        val taken = 0.7f * have
-                        gained -= taken
-                        // (What the pack held of it is left where it fell, and the band eats it there: [HexFauna.animalFood] takes carrion first.)
-                        small.deposit(DeadPool.CARRION, p, Kg(taken * meatShare(null) / creditShare(null)))
-                        stats.meeting(Met.KILL_STOLEN)
-                    }
-                    if (ratio <= 2f) continue
-                    val odds = packSafe
-                    if (g.young > 0 && rnd.nextFloat() < INTRAGUILD_KILL_YOUNG * tuning.intraguildYoung * odds) {
-                        g.young--
-                        small.deposit(DeadPool.CARRION, g.place, Kg(HexFauna.YOUNG_WEIGHT * s.massKg))
-                        stats.deaths.merge(Tally.of(s, ByBeast.of(ByBeast.How.YOUNG_KILLED_BY, ps)), 1, Int::plus)
-                    } else if (g.adults > 0 && rnd.nextFloat() < INTRAGUILD_KILL * odds) {
-                        adultsDied(g, 1, rnd)
-                        small.deposit(DeadPool.CARRION, g.place, Kg(s.massKg))
-                        stats.deaths.merge(Tally.of(s, ByBeast.of(ByBeast.How.KILLED_BY, ps)), 1, Int::plus)
-                    }
-                }
+                if (rnd.nextFloat() >= THEFT * (1f - cached)) continue
+                val taken = 0.7f * have
+                have -= taken
+                // (What the pack held of it is left where it fell, and the band eats it there: [HexFauna.animalFood] takes carrion first.)
+                small.deposit(DeadPool.CARRION, p, Kg(taken * meatShare(null) / creditShare(null)))
+                stats.meeting(Met.KILL_STOLEN)
             }
         }
     }
-    return gained
+    return have - meat
 }
 
 /**

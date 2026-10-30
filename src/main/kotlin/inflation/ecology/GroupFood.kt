@@ -161,7 +161,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         time?.spend(Activity.FOOD, (w.busy - busy0) * w.hands)
     }
     if (w.band != null && w.time == null) planWeek(w, 0f, 0f)
-    // The residents' rivals it came on while it hunted: it robs or kills one, or is robbed (a pack; bands hunt them as game).
+    // A bear's band it came on while it hunted drives it off its kill (a pack; see [residentRivalsMeet]).
     if (w.band == null) residentRivalsMeet(g, w.ground, w.met, w.searched, w.meat, w.rnd).let { m -> w.meat += m; w.fed += m * w.feeds(Food.BIG_GAME) }
     // (What a day's foraging brought it this week, kg of its need, kept month by month as a mean over the years: what a
     // herder's day must bring to be worth it, [herdPays].)
@@ -494,8 +494,7 @@ private fun GroupWorld.huntingOdds(w: ForageWeek) {
             w.met[i] = meets[k] * (1f - seenFirst(view[0], view[1], band, ps)) / ps.groupSize
             w.odds[i] = success * w.met[i] * image[k]
             w.stalks[i] = 1f / success.coerceIn(1e-3f, 1f)
-            // (The residents' rivals it meets as rivals, not as game: [residentRivalsMeet].)
-            if (!(w.odds[i] <= 0f) && k != w.avoid && Catalogue.game(s, ps)) w.gameAt[w.games++] = i
+            if (!(w.odds[i] <= 0f) && k != w.avoid) w.gameAt[w.games++] = i
         }
     }
     w.gameFrom[w.ground.size] = w.games
@@ -562,7 +561,7 @@ private class Offers(n: Int) {
  * leave it for ones that pay less, and either way get what it truly yields ([Offers.takeUp]). (Big game's effort is
  * the hunters' share instead, see [huntersShare].)
  */
-private fun HexGroups.offer(w: ForageWeek, o: Offers, t: Food, k: Int, p: Place, r: Float, e: Float, h: Float) {
+private fun HexGroups.offer(w: ForageWeek, o: Offers, t: Food, k: Int, p: Place, r: Float, e: Float, h: Float, spared: Float = 0f) {
     val band = w.band
     val keen = if (band != null && t != Food.BIG_GAME) band.effort[t] else 1f
     if (band != null && t != Food.BIG_GAME && r > 0f) dialUse?.let { u -> val f = FoodEfforts.slot(t)
@@ -570,7 +569,7 @@ private fun HexGroups.offer(w: ForageWeek, o: Offers, t: Food, k: Int, p: Place,
     if (r <= 0f || e <= 0f || (band != null && t != Food.BIG_GAME && w.gatherers <= 0f)) return
     // (Biting insects slow people at whatever they do out there; fish are offered at the camp, whose place stands for the water they fish.)
     val hh = if (band != null) harassedDays(p, h) else h
-    o.add(t, k, p, r, e, e * w.feeds(t), e * w.weigh(t) * keen, hh, if (band != null && t != Food.BIG_GAME) 1 else 0)
+    o.add(t, k, p, r, e, e * w.feeds(t), (e + spared) * w.weigh(t) * keen, hh, if (band != null && t != Food.BIG_GAME) 1 else 0)
 }
 
 /** [h] days of a band's work at place [p], as biting insects slow it there ([HexSmallLife.HARASS_TIME]). */
@@ -583,6 +582,9 @@ private fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
     o.m = 0
     // (What a kill is worth to it: see below. Its butchers' skill grows with each kill, so once a pass.)
     val credit = creditShare(band); val most = (1f + SURPLUS_EAT) * w.wantAll
+    // (A beast weighs a kill also by the food the dead one would have taken from it: a week of its intake, as far as their
+    // diets overlap, valued as its own. A rival of its own food is the more worth killing; a plant-eater is not one.)
+    val spared = FloatArray(nk) { k -> if (band != null) 0f else { val ps = fauna.kinds[k]; w.d.overlap(ps.diet) * ps.dailyIntakeKg * days } }
     // Big game over its hunting ground. (A band's hunters fan out over less of it than the whole band would, as for a
     // smaller party: see [searchKm2] and [ForageWeek.ground].)
     for (j in 0 until w.ground.size) {
@@ -595,7 +597,8 @@ private fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
             // dry); the rest is left to others.
             val meat1 = min(fauna.kinds[k].massKg * credit, most)
             // (Each kill also costs the stalks and chases that failed before it.)
-            offer(w, o, Food.BIG_GAME, k, Place(p), dens * huntSwept * w.odds[i] / days, meat1, HANDLING_DAYS + STALK_DAYS * w.stalks[i] + meat1 * w.eats)
+            offer(w, o, Food.BIG_GAME, k, Place(p), dens * huntSwept * w.odds[i] / days, meat1, HANDLING_DAYS + STALK_DAYS * w.stalks[i] + meat1 * w.eats,
+                spared[k])
         }
     }
     // The rest along its way.

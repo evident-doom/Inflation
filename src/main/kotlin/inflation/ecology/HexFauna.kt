@@ -264,11 +264,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      */
     @delegate:Transient private val killRate by lazy { Array(kinds.size) { if (kinds[it].diet.meat > 0f) FloatArray(n) else null } }
 
-    /** The odds that an animal of kind [ps] weighing [kg] about place [p] is killed by the residents' hunters that take it as game in a week, as they hunted there this week ([killRate]). */
-    fun residentKillOdds(ps: Species, kg: Float, p: Place): Float {
+    /** The odds that an animal of [kg] about place [p] is killed by the residents' hunters in a week, as they hunted there this week ([killRate]). */
+    fun residentKillOdds(kg: Float, p: Place): Float {
         val rates = killRate
         var v = 0f
-        for (k in kindIds) { val r = rates[k] ?: continue; if (r[p] > 0f && Catalogue.game(kinds[k], ps)) v += r[p] * kinds[k].preySize(kg) }
+        for (k in kindIds) { val r = rates[k] ?: continue; if (r[p] > 0f) v += r[p] * kinds[k].preySize(kg) }
         return v
     }
 
@@ -292,7 +292,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      */
     fun huntedOdds(k: FaunaKind, p: Place, young: Boolean): Float {
         val s = kinds[k]
-        return residentKillOdds(s, if (young) YOUNG_WEIGHT * s.massKg else s.massKg, p) + groupKilled[k][p]
+        return residentKillOdds(if (young) YOUNG_WEIGHT * s.massKg else s.massKg, p) + groupKilled[k][p]
     }
     /**
      * For the books (see [Books]), this step, kg; null when they are not kept: what the residents ate and dropped as
@@ -329,7 +329,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val wA = FloatArray(kinds.size); val wY = FloatArray(kinds.size)
         // (Each kind by how catchable it is there, grown and young, as [game] counts it.)
         for ((j, s) in kinds.withKinds()) {
-            if (j == k || adults[j][p] + young[j][p] <= 0f || !Catalogue.game(hunter, s)) continue
+            if (j == k || adults[j][p] + young[j][p] <= 0f) continue
             val ym = YOUNG_WEIGHT * s.massKg
             wA[j] = adults[j][p] * s.massKg * catchable(hunter, s, s.massKg, p)
             wY[j] = young[j][p] * ym * catchable(hunter, s, ym, p)
@@ -595,7 +595,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     fun game(s: Species, p: Place): Float {
         var v = 0f
         for ((j, ps) in kinds.withKinds()) {
-            if (ps === s || !Catalogue.game(s, ps)) continue
+            if (ps === s) continue
             val a = adults[j][p]; val y = young[j][p]
             if (a + y <= 0f) continue
             val ym = YOUNG_WEIGHT * ps.massKg
@@ -647,45 +647,6 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         if (s !in Catalogue.residentRivals) return 0f
         return if (strongest[p] > 2f * residentStrength(s)) AVOID_STRONGER else 0f
     }
-
-    /**
-     * The week's meetings of the [Catalogue.residentRivals] with each other at place [p], by the rule packs of different kinds
-     * meet by ([HexGroups.enemiesMeet]): their bands run into each other as gas molecules do ([GroupWorld.encounters]: 2 r v T
-     * a km² for each pair of bands), and where one kind's band is more than twice as strong as the other's it now and then
-     * kills one of the other, its young most often, as much as shelter lets it. The kill is left where it falls, for the
-     * scavengers. (Residents keep no kill of the week apart, so no kill is robbed.)
-     */
-    private fun rivalsAt(p: Place) {
-        val area = land.areaKm2[p]
-        for (j in rivalKinds) {
-            val sj = kinds[j]
-            if (adults[j][p] <= 0f || asleep(j, p)) continue
-            val strong = residentStrength(sj)
-            for (k in rivalKinds) {
-                val sk = kinds[k]
-                if (k == j || adults[k][p] + young[k][p] <= 0f || asleep(k, p)) continue
-                if (strong <= 2f * residentStrength(sk)) continue
-                // (Bands a km², each kind's; the meetings a km² in the week, while both are about, by the keener's senses.)
-                val bj = (adults[j][p] + young[j][p]) / sj.groupSize; val bk = (adults[k][p] + young[k][p]) / sk.groupSize
-                val r = max(sj.senseKm, sk.senseKm)
-                val v = sqrt(sj.dailyTravelKm * sj.dailyTravelKm + sk.dailyTravelKm * sk.dailyTravelKm)
-                val met = 2f * r * v * days * SEARCHING * Niches.overlap(sj, sk) * bj * bk
-                val odds = 1f - SHELTER_EFFECT * Niches.shelter(sk, p, land, groundShelter[k][p])
-                // (Its young where a band has them, as many of them as there are grown to keep them.)
-                val withYoung = min(1f, young[k][p] / max(1e-9f, adults[k][p]))
-                val youngOdds = INTRAGUILD_KILL_YOUNG * tuning.intraguildYoung * odds
-                val y = min(young[k][p], met * withYoung * youngOdds)
-                val a = min(adults[k][p], met * (1f - withYoung * youngOdds) * INTRAGUILD_KILL * odds)
-                if (y + a <= 0f) continue
-                young[k][p] -= y; adults[k][p] -= a
-                huntedByResidents[k][p] += (y + a) * area
-                small.deposit(DeadPool.CARRION, p, KgKm2((y * YOUNG_WEIGHT + a) * sk.massKg).perM2)
-            }
-        }
-    }
-
-    /** The [Catalogue.residentRivals] among the residents' kinds. */
-    @delegate:Transient private val rivalKinds by lazy { kinds.withKinds().filter { it.s in Catalogue.residentRivals }.map { it.k } }
 
     /**
      * Food for [s] in place [p] from its diet, as standing plants, kg/m²: grass from herbs, and the
@@ -806,7 +767,6 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             // (Browse is the shoots the shrubs and trees put out within reach, see [HexPlants.shrubShoots].)
             eatPlants(p, weather, grass, browse, z)
             feedKinds(p, weather, z, tally.get())
-            rivalsAt(p)
             placeEffects(p, grass, browse, z)
         }
         for (t in tallies) for (k in kindIds) for (f in 0 until FED) fedFrom[k][f].add(t[k.i * FED + f])
