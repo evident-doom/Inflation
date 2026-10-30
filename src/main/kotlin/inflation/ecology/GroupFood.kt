@@ -653,7 +653,7 @@ private fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
             } else 1f
             // (Each kill also costs the stalks and chases that failed before it.)
             offer(w, o, Food.BIG_GAME, k, Place(p), dens * huntSwept * w.odds[i] / days, meat1, HANDLING_DAYS + STALK_DAYS * w.stalks[i] + meat1 * w.eats,
-                spared[k], rich)
+                spared[k], rich = rich)
         }
     }
     // And the herds kept at bands' camps on it, as their kind in the wild ([herdOdds]).
