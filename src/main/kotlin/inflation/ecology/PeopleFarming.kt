@@ -139,15 +139,17 @@ internal fun boldness(g: HexGroup) = if (g.bold < 0f) g.species.boldShare else g
 internal const val BOLD_DRIFT = 0.0003f
 internal const val TAME = 0.5f
 /**
- * Dogs. Pups raised a dog a year when fed: half are bitches, of one litter a year of about 5 (an estimate, from memory), half
- * of the pups dying as newborns (Koster 2008, Mayangna and Miskito, Nicaragua). Yearly deaths of grown dogs: 49% (Koster
+ * Dogs. Pups raised a dog a year when fed: 0.40 bitches (39% of village dogs, Czupryna et al. 2016, Serengeti) x 1.08
+ * litters a year (11.1 months between litters, Hyeroba et al. 2017, western Uganda) x 4.2 pups (4.9 Serengeti, 3.8 Uganda,
+ * 4.0 Paul et al. 2016, West Bengal) x 0.19 living to 7 months, near grown (Paul et al. 2016; the missing among them
+ * counted as dead, some of whom will have left). Yearly deaths of grown dogs: 49% (Koster
  * 2008; hunting dogs die younger than guard dogs, Pacheco-Cobos and Winterhalder 2021, Belize). The share of their need a
  * well-fed band gives the dogs of a full pack of its own food: 13% of village dogs' food by mass was given them, 87% they found, mostly
  * carrion and human waste (Butler et al. 2018, rural Zimbabwe). How much a full pack adds to the hunt of the smallest game,
  * falling to nothing at [DOG_PREY_KG]: dogs met agouti and paca far more often but red brocket deer no more (Koster 2008),
  * and gains are limited to some prey (Lupo 2017); the size a guess. How much a full pack keeps off night attacks (no source).
  */
-internal const val DOG_BIRTHS = 1.25f
+internal const val DOG_BIRTHS = 0.35f
 internal const val DOG_DEATHS = 0.49f
 internal const val DOG_FED_SHARE = 0.13f
 internal const val DOG_HUNT = 1f
