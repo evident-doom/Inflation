@@ -845,6 +845,7 @@ internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
     if (b.riteDue >= 0 && b.riteOwed <= 0f) {
         land.sanctity[b.riteDue] += g.adults.toFloat()
         b.riteKept = now
+        gatherAtRite(g, b.riteDue, b.riteHeld, weather)
         stats.meeting(Met.BANDS_HELD_A_RITE)
         stats.meeting(Met.Of.RITES_HELD, RiteWalk.of(riteKm(g, b.riteDue), tuning).label)
         b.riteDue = -1
@@ -861,6 +862,7 @@ internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
         if (given > 0f && b.riteAsked > 0f) {
             land.sanctity[b.riteDue] += g.adults * given / b.riteAsked
             stats.meeting(Met.BANDS_HELD_A_RITE_IN_A_LESSER_FORM)
+            gatherAtRite(g, b.riteDue, b.riteHeld, weather)
         }
         b.strain += if (b.riteAsked > 0f) withheld / b.riteAsked else 1f
         val byNeed = if (b.riteAsked > 0f) (b.riteOwed - withheld) / b.riteAsked else 0f
@@ -891,6 +893,22 @@ internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
         else if (weather.date.month == b.omenMonth && weather.date.year > b.omenYear && g.fed >= Thresholds.HUNGRY &&
             hex.distanceKm(hw.placeHex[g.place], hw.placeHex[b.omenPlace]) <= tuning.roundArrivedKm) bearRite(b)
     }
+}
+
+/**
+ * [g] held its rite at [site] in [month] (counted from the world's start): there it meets each band that held its own rite
+ * at the same site that month, as bands that come across each other do ([bandsMeet]: news, gifts, words and customs, and
+ * a raid if how they regard each other comes to it). Nothing keeps the peace but what the meeting makes of them; a shared
+ * date ([turnOfYear]) makes such gatherings the likelier.
+ */
+private fun HexGroups.gatherAtRite(g: HexGroup, site: Int, month: Long, weather: Weather) {
+    riteGatherings.keys.removeIf { (it shr 32) < month - 1 }
+    val here = riteGatherings.getOrPut((month shl 32) or site.toLong()) { ArrayList() }
+    for (o in here) if (g.alive && o.alive && o !== g) {
+        stats.meeting(Met.BANDS_GATHERED_AT_A_RITE)
+        bandsMeet(g, o, weather)
+    }
+    here += g
 }
 
 /**
