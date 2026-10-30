@@ -78,6 +78,7 @@ object Config {
         THATCH_TRACE("thatchTrace"),
         PLAN_TRACE("planTrace"),
         YEAR_SPREAD("yearSpread"),
+        FORECAST_TRACE("forecastTrace"),
         MOVE_TRACE("moveTrace"),
         FOLLOW("follow"),
         FOLLOW_HUNGRY("followHungry"),

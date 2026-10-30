@@ -77,7 +77,7 @@ internal fun HexGroups.yearAhead(g: HexGroup, b: Band, weather: Weather, shelter
  * meets ([fed], above 1 where it laid food by) and how far that share has gone from year to year ([spread], a standard
  * deviation; 0 for none seen).
  */
-internal class YearAhead(private val odds: FloatArray, private val fed: FloatArray, private val spread: FloatArray = FloatArray(fed.size)) {
+internal class YearAhead(private val odds: FloatArray, internal val fed: FloatArray, internal val spread: FloatArray = FloatArray(fed.size)) {
     /** The days of food it falls short of over the months ahead, before its larder pays ([Band.leanDays]), in a usual year. */
     val leanDays: Float = run { var lean = 0f; for (f in fed) lean += max(0f, 1f - f) * Date.DAYS_PER_MONTH; lean }
     /** Whether its years have differed at all: if not, one year is reckoned, not [YEARS]. */
@@ -182,8 +182,11 @@ internal fun HexGroups.foresee(weather: Weather) {
             val larder = g.larder / need
             val laid = if (b.larderSeen.isNaN()) 0f else (larder - b.larderSeen) / days
             b.larderSeen = larder
-            b.addSupply(m, (g.fed - b.fatFed) * g.warmth + laid, k)
+            val got = (g.fed - b.fatFed) * g.warmth + laid
+            b.addSupply(m, got, k)
             b.fatFed = 0f
+            b.forecastTrace?.let { t -> t.week(m, got, larder, g.fat, g.spent, g.size, g.path.size > 1)
+                if (t.over) { System.err.print(t.report("a year followed")); b.forecastTrace = null } }
             g.foreseen = foreseenSurvival(g, b, weather)
         }
     }
@@ -197,6 +200,7 @@ internal fun HexGroups.foresee(weather: Weather) {
         stats.hunting.merge(Tally.calibration(b.mind, bin, Tally.Calib.PEOPLE_WEEKS), g.size, Int::plus)
         stats.hunting.merge(Tally.calibration(b.mind, bin, Tally.Calib.FORESEEN), (1000f * (1f - g.foreseen) * g.size).roundToInt(), Int::plus)
         stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.SISU), (1000f * b.sisu * g.size).roundToInt(), Int::plus)
+        if (FORECAST_TRACE) traceForecast(g, b, weather)
     }
 }
 
@@ -226,4 +230,5 @@ internal fun HexGroups.bookCalibration(b: Band, cause: DeathReason, n: Int) {
         stats.hunting.merge(Tally.calibration(b.mind, bin, Tally.Calib.DIED), n * counts[i], Int::plus)
         if (cause == DeathCause.HUNGER) stats.hunting.merge(Tally.calibration(b.mind, bin, Tally.Calib.HUNGER), n * counts[i], Int::plus)
     }
+    b.forecastTrace?.died(n, cause == DeathCause.HUNGER)
 }
