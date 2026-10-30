@@ -130,8 +130,14 @@ const val DROP = 0.0005f
 /** Chance a band raids one it meets, at full pressure (a feud, hunger with food in the other's larder, or crowded country); share of the larder taken. */
 const val RAID = 0.015f
 const val RAID_TAKE = 0.5f
-/** Share of each side's adults a raid kills at most, against the other's strength. */
-const val RAID_DEATHS = 0.08f
+/**
+ * Share of each side's adults a raid kills at most, against the other's strength; and the wounded who live for each one it
+ * kills. Most violent wounds in prehistoric skeletons are healed ones (Nasca highlands, McCool and colleagues 2021; Jebel
+ * Sahaba, Crevecoeur and colleagues 2021: people who had lived through several attacks), but none of these gives a ratio:
+ * both numbers are estimates, set so a raid leaves as many hurt as before (once 8% killed and two wounded for each).
+ */
+const val RAID_DEATHS = 0.04f
+const val RAID_WOUNDED_PER_DEAD = 5f
 /** Grudge held for a raid suffered, and the share that fades a year (half in about seven years). */
 const val GRUDGE = 1f
 const val GRUDGE_FADE = 0.1f
@@ -497,19 +503,21 @@ internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planne
     val sg = sides.raiders; val so = sides.defenders
     raidWorth(o, ob, sg, so, sides.own)
     // Each side loses some of its people, the more so against the stronger side; neighbours who stood with the raided
-    // lose theirs as the raided do, of as many as came.
-    val lostG = binomial(g.adults, RAID_DEATHS * so / (sg + so), rnd)
-    val lostO = binomial(o.adults, RAID_DEATHS * sg / (sg + so), rnd)
-    val losses = arrayListOf(g to lostG, o to lostO)
+    // lose theirs as the raided do, of as many as came. (Each group in the fight, its fighters, and the share of them it may lose.)
+    val fought = arrayListOf(Triple(g, g.adults, RAID_DEATHS * so / (sg + so)), Triple(o, o.adults, RAID_DEATHS * sg / (sg + so)))
     for (n in sides.helpers) {
-        losses += n.group to binomial((n.share * n.group.adults).roundToInt(), RAID_DEATHS * sg / (sg + so), rnd)
+        fought += Triple(n.group, (n.share * n.group.adults).roundToInt(), RAID_DEATHS * sg / (sg + so))
         stats.meeting(Met.NEIGHBOURS_DEFENDED)
         note(n.group) { "stood with band #%d against band #%d".format(o.id, g.id) }
     }
-    for ((who, lost) in losses) if (lost > 0) {
+    val lostG = binomial(g.adults, fought[0].third, rnd)
+    for ((k, side) in fought.withIndex()) {
+        val (who, fighters, share) = side
+        // (Many more are wounded than killed, whether or not any die: some fester, some are lamed for life.)
+        who.band?.wounded(RAID_WOUNDED_PER_DEAD * share * fighters, who.adults)
+        val lost = if (k == 0) lostG else binomial(fighters, share, rnd)
+        if (lost <= 0) continue
         adultsDied(who, lost, rnd)
-        // (And as many again are wounded, some to be lamed for life.)
-        who.band?.wounded(WOUNDED_PER_DEAD * lost, who.adults)
         stats.deaths.merge(Tally.of(who.species, DeathCause.RAIDS), lost, Int::plus)
         if (who.species.human) stats.adultDeaths.merge(Tally.of(who.species, DeathCause.RAIDS), lost, Int::plus)
         who.band?.let {
