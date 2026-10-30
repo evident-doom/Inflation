@@ -227,8 +227,7 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather) {
         val meal = min(spare, FEAST_KG * guest.size * keen)
         moveFood(host, guest, meal)
         // With grain to spare and vessels to brew in, the host pours beer: the feast is remembered better. It brews only grain
-        // beyond its seed corn and beyond what it means to keep laid by: a band does not drink the seed it sows. (Before, a
-        // fifth of all its grain at every feast, so a host at a gathering could brew away its seed in a week.)
+        // beyond its seed corn and beyond what it means to keep laid by: a band does not drink the seed it sows.
         val grain = host.stores[Store.SEED] - hb.seedCornIn(host)
         val beer = if (hb.has(Tool.BASKET) > 0.5f && hb.has(Tool.GRINDER) > 0.2f)
             max(0f, minOf(0.2f * grain, spare - meal, BEER_KG * guest.size)) else 0f
