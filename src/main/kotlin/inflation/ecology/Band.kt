@@ -534,8 +534,8 @@ class Band(kinds: Int) {
     /**
      * Its belief is its rites as a whole: the years it has kept them ([beliefYears], its weight: the older, the more strain
      * it bears), and the strain of rites it held back from ([strain]: up to one a rite cut short, as far as the days it
-     * did not give went to other work than its needs; easing in weeks it eats its fill), which splits the band once it
-     * passes what the belief bears ([strainBorne]).
+     * did not give went to other work than its needs; easing in weeks it eats its fill): one of the quarrels that split a
+     * band, the more the nearer it is to what the belief bears ([strainBorne]; see [HexGroups.maxSize]).
      */
     var beliefYears = 0f
     var strain = 0f

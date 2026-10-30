@@ -734,8 +734,9 @@ const val RITE_SITES = 3
 /** Person-days each adult gives a rite held at its site: the gathering, the dances, the telling. An estimate; no figure found. */
 const val RITE_DAYS = 2f
 /**
- * Strain a young belief bears before part of the band breaks from it: rites held back from, about the year's rites; a
- * belief kept [BELIEF_AGE_YEARS] bears twice that (older beliefs are clung to). Strain eases to a third over
+ * Strain a young belief bears ([Band.strainBorne]): rites held back from, about the year's rites. Strained that far, a
+ * band holds together at half its size ([HexGroups.maxSize]), and the part that leaves at a split goes without the belief
+ * as likely as the strain is near it. A belief kept [BELIEF_AGE_YEARS] bears twice that (older beliefs are clung to). Strain eases to a third over
  * [STRAIN_EASE_YEARS] of weeks the band eats its fill. Estimates; no figure found.
  */
 const val STRAIN_SPLIT = 3f
@@ -755,7 +756,7 @@ fun riteStrengthAt(lineage: Int, tuning: Tuning) = tuning.riteFounderMax * Math.
  * A band's rites through the year (rounds on, see [inflation.Tuning.rounds]). A rite is born of an omen ([omen]): a
  * salient event at a place in a month (many deaths in a week, plenty after long want, a strange sign) that is borne out. Nothing here
  * weighs what a rite brings, and a rite is not let go: a belief ends with the bands that keep it, or with the part of a
- * band that breaks from it ([beliefSplits]).
+ * band that breaks from it ([HexGroups.maxSize]).
  *
  * A rite obliges: at the start of its month the band's adults owe [RITE_DAYS] each of their customs' time, and, unless
  * the band is camped at the site ([inflation.Tuning.roundArrivedKm]), the walk there and back. Nothing weighs the trip
@@ -763,7 +764,7 @@ fun riteStrengthAt(lineage: Int, tuning: Tuning) = tuning.riteFounderMax * Math.
  * is held and the place grows holier by the adults at it. A rite adjusts to the season: one whose month ran out before
  * its days were given is held in a lesser form, with what was given (the place grows holier as far), and the belief is
  * strained only as far as the days not given went to other work than the band's needs ([Band.riteSpare],
- * [Band.strain]; see [HexGroups.beliefSplits]): need excuses, choice does not. What need cut short moves, as often as
+ * [Band.strain]; see [HexGroups.maxSize]): need excuses, choice does not. What need cut short moves, as often as
  * not, to a month beside it the band eats better in ([riteToPlenty]): harvest feasts, not famine fasts.
  */
 internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {

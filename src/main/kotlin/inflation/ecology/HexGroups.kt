@@ -473,8 +473,10 @@ class HexGroups(
         val s = g.species
         return g.band?.let { b ->
             // Feasts keep the peace in bigger bands; a settled band without them quarrels and splits sooner.
-            if (b.holds(Tradition.FEASTS)) (s.maxGroupSize * FEAST_SIZE).toInt()
-            else if (b.atHome) (s.maxGroupSize * SETTLED_QUARRELS).toInt() else s.maxGroupSize
+            val size = if (b.holds(Tradition.FEASTS)) (s.maxGroupSize * FEAST_SIZE).toInt()
+                else if (b.atHome) (s.maxGroupSize * SETTLED_QUARRELS).toInt() else s.maxGroupSize
+            // A strained belief is one more quarrel: strained as far as it bears, a band holds together at half the size.
+            if (tuning.rounds && b.strain > 0f) (size / (1f + b.strain / b.strainBorne())).toInt() else size
         } ?: s.maxGroupSize
     }
 
