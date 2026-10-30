@@ -33,7 +33,7 @@ internal fun HexGroups.traceForecast(g: HexGroup, b: Band, weather: Weather) {
         " foreseen, a usual year:\n" + year.trace(g.species, g.larder / need, g.fat, g.spent)
     val supply = FloatArray(Date.MONTHS_PER_YEAR) { b.monthSupply[(m0 + 1 + it) % Date.MONTHS_PER_YEAR] }
     val spread = FloatArray(Date.MONTHS_PER_YEAR) { b.supplySpread((m0 + 1 + it) % Date.MONTHS_PER_YEAR) }
-    b.forecastTrace = ForecastTrace(head, m0, supply, spread, g.size)
+    b.forecastTrace = ForecastTrace(head, m0, supply, spread, g.size, b.larderSeen)
 }
 
 /**
@@ -41,12 +41,14 @@ internal fun HexGroups.traceForecast(g: HexGroup, b: Band, weather: Weather) {
  * foresaw ([supply] and its [spread], as [Band.monthSupply] counts it), and how it fared. [head]: what it foresaw.
  */
 internal class ForecastTrace(private val head: String, private val startMonth: Int, private val supply: FloatArray,
-    private val spread: FloatArray, private val startPeople: Int) {
+    private val spread: FloatArray, private val startPeople: Int, startLarder: Float) {
     private val n = Date.MONTHS_PER_YEAR
     private val got = FloatArray(n); private val weeks = IntArray(n); private val moves = IntArray(n)
     private val larder = FloatArray(n); private val fat = FloatArray(n); private val burnt = FloatArray(n)
     private val people = IntArray(n); private val died = IntArray(n); private val starved = IntArray(n)
     private val movedIn = Array(LarderMove.entries.size) { FloatArray(n) }
+    /** Its larder at each month's start (days of its people's need before keeping warm), and as last seen. */
+    private val larderStart = FloatArray(n); private var larderNow = startLarder
     private var month = startMonth
     /** The month of the year ahead it is in (0 for the first; -1 still in the month it started). */
     private var slot = -1
@@ -55,7 +57,8 @@ internal class ForecastTrace(private val head: String, private val startMonth: I
     fun week(m: Int, got: Float, larder: Float, fat: Float, burnt: Float, people: Int, moved: Boolean) {
         if (m != month) { month = m; slot++ }
         if (slot < 0 || slot >= n) return
-        if (weeks[slot] == 0) this.people[slot] = people
+        if (weeks[slot] == 0) { this.people[slot] = people; larderStart[slot] = larderNow }
+        larderNow = larder
         this.got[slot] += got; weeks[slot]++; if (moved) moves[slot]++
         this.larder[slot] = larder; this.fat[slot] = fat; this.burnt[slot] = burnt
     }
@@ -81,14 +84,20 @@ internal class ForecastTrace(private val head: String, private val startMonth: I
         sb.append(" what came (%s; got against foreseen, of the need before keeping warm; larder, fat and burnt at the month's end):\n".format(end))
         for (k in 0 until n) {
             if (weeks[k] == 0) break
-            sb.append("  +%d: got %.2f foreseen %.2f±%.2f larder %.1f fat %.1f burnt %.1f people %d died %d hunger %d moved %d of %d weeks; larder days moved: %s\n".format(
+            sb.append("  +%d: got %.2f foreseen %.2f±%.2f larder %.1f fat %.1f burnt %.1f people %d died %d hunger %d moved %d of %d weeks; larder days moved: %s other %.1f\n".format(
                 k + 1, got[k] / weeks[k], supply[k], spread[k], larder[k], fat[k], burnt[k], people[k], died[k], starved[k], moves[k], weeks[k],
-                LarderMove.entries.joinToString(" ") { "%s %.1f".format(it.label, movedIn[it.ordinal][k]) }))
+                LarderMove.entries.joinToString(" ") { "%s %.1f".format(it.label, movedIn[it.ordinal][k]) },
+                larder[k] - larderStart[k] - LarderMove.entries.sumOf { movedIn[it.ordinal][k].toDouble() }.toFloat()))
         }
         sb.append("  people at the start %d; month %d\n".format(startPeople, startMonth))
         return sb.toString()
     }
 }
 
-/** Why food moved between bands' larders, for [ForecastTrace]: raided, given to visiting kin, given at a meeting, eaten at a feast. */
-enum class LarderMove(val label: String) { RAIDED("raided"), KIN("kin"), GIFT("gift"), FEAST("feast") }
+/**
+ * What moved food into or out of a band's larder, for [ForecastTrace]: raided, given to visiting kin, given at a meeting, eaten
+ * at a feast (between bands); eaten from it, the week's food kept in it, spoilt or got at by mice (its own).
+ */
+enum class LarderMove(val label: String) {
+    RAIDED("raided"), KIN("kin"), GIFT("gift"), FEAST("feast"), ATE("ate"), KEPT("kept"), SPOILT("spoilt")
+}
