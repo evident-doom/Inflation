@@ -373,6 +373,8 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
             if (o.births > 0) stats.hunting.merge(Tally.bandsMind(b.mind, Tally.Bands.BORN), o.births, Int::plus)
             if (g.path.size > 1) stats.hunting.merge(Tally.bandsMind(b.mind, Tally.Bands.MOVES), 1, Int::plus)
             for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge(Tally.bandsMindDied(b.mind, cause), k, Int::plus)
+            // (And against what it foresaw in the year before: [bookCalibration].)
+            for ((cause, k) in o.causes) if (k > 0) bookCalibration(b, cause, k)
             // And by whether it keeps a herd: what herding costs its people, its children apart.
             val herding = bandHerding(b, g.adults)
             stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.BAND_WEEKS), 1, Int::plus)

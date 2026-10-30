@@ -258,6 +258,13 @@ object Tally {
     fun bandsLivingDied(way: Living) = TallyKey.raw("bands ${way.label}:$DIED_OF")
     /** Bands' tallies by how they choose ([Mind]). */
     fun bandsMind(mind: Mind, what: Bands) = TallyKey.raw("bands of mind ${mind.label}:${what.label}")
+    /** What the calibration of bands' forecasts books in each [ForeseenBin] ([bookCalibration]). */
+    enum class Calib(val label: String) {
+        /** People in the band when it foresaw; the deaths it foresaw among them, thousandths; deaths, and hunger's, booked against each forecast in the year before them. */
+        PEOPLE_WEEKS("people-weeks"), FORESEEN("foreseen dead, 1/1000"), DIED("died in the year after"), HUNGER("died of hunger in the year after")
+    }
+    /** Bands' forecasts of mind [mind] in [bin], [what] ([bookCalibration]). */
+    fun calibration(mind: Mind, bin: ForeseenBin, what: Calib) = TallyKey.raw("foreseen calibration ${mind.label}:${bin.label}:${what.label}")
     /** A planning band's days in each tier of its week beyond its essentials ([planDays]), tenths of a day. */
     fun planTier(t: PlanTier) = TallyKey.raw("plans:${t.label}")
     /** Bands' deaths of [cause] by how they choose; [bandsMindDied] (mind) starts all of them. */

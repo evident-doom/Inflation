@@ -534,6 +534,12 @@ class Band(kinds: Int) {
     var strain = 0f
     /** How it chooses ([Mind]): today's way, or the planning kind's. Handed down whole at a split; a band never joins one of the other mind. */
     var mind = Mind.NETS
+    /**
+     * Its foreseen deaths ([HexGroup.foreseen]) each of the last [FORESEEN_WEEKS] weeks, by [ForeseenBin] (-1 where none yet),
+     * a ring from [foreseenAt]: the census books its deaths against what it foresaw in the year before them ([bookCalibration]).
+     */
+    val foreseenRing = ByteArray(FORESEEN_WEEKS) { -1 }
+    var foreseenAt = 0
     /** The strain its belief bears before part of the band breaks from it. */
     fun strainBorne() = STRAIN_SPLIT * (1f + beliefYears / BELIEF_AGE_YEARS)
     /** Gives up its belief: its rites, its hold on them and what they asked of it (the part of a band that broke away). */
@@ -589,7 +595,7 @@ class Band(kinds: Int) {
         fine.copyInto(o.fine)
         o.salted = salted; o.dryDepth = dryDepth
         o.renown = renown
-        rite.copyInto(o.rite); o.riteStrength = riteStrength; o.riteHeld = riteHeld; o.riteKept = riteKept; o.beliefYears = beliefYears; o.strain = strain; o.mind = mind
+        rite.copyInto(o.rite); o.riteStrength = riteStrength; o.riteHeld = riteHeld; o.riteKept = riteKept; o.beliefYears = beliefYears; o.strain = strain; o.mind = mind; foreseenRing.copyInto(o.foreseenRing); o.foreseenAt = foreseenAt
         traditions.copyInto(o.traditions); heard.copyInto(o.heard); o.heardOf = heardOf
         o.totem = totem; o.marksChosen = marksChosen; o.heardTotem = heardTotem.copyOf(); o.totemBroken = totemBroken
         o.burialWay = burialWay; heardBurial.copyInto(o.heardBurial); words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)

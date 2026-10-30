@@ -148,6 +148,36 @@ internal fun HexGroups.foresee(weather: Weather) {
     for (g in groups) { val b = g.band ?: continue; if (!g.alive) continue
         val c = Biome.entries[biomeOfPlace[g.place]]
         stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.FORESEEN), (1000f * (1f - g.foreseen) * g.size).roundToInt(), Int::plus)
+        // (And by how many it foresaw dead, for the calibration against the deaths that came in the year after: [bookCalibration].)
+        val bin = ForeseenBin.of(1f - g.foreseen)
+        b.foreseenRing[b.foreseenAt] = bin.ordinal.toByte(); b.foreseenAt = (b.foreseenAt + 1) % FORESEEN_WEEKS
+        stats.hunting.merge(Tally.calibration(b.mind, bin, Tally.Calib.PEOPLE_WEEKS), g.size, Int::plus)
+        stats.hunting.merge(Tally.calibration(b.mind, bin, Tally.Calib.FORESEEN), (1000f * (1f - g.foreseen) * g.size).roundToInt(), Int::plus)
         stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.SISU), (1000f * b.sisu * g.size).roundToInt(), Int::plus)
+    }
+}
+
+/** Weeks back a band's deaths are booked against what it foresaw ([Band.foreseenRing]): the year its forecast looks ahead. */
+const val FORESEEN_WEEKS = 52
+
+/** Bands' forecasts by the share of their people they foresee dead in the year ahead ([HexGroup.foreseen]), for the calibration. */
+enum class ForeseenBin(val label: String, val below: Float) {
+    UNDER_1("under 1%", 0.01f), UNDER_5("1-5%", 0.05f), UNDER_20("5-20%", 0.2f), UNDER_50("20-50%", 0.5f), UNDER_90("50-90%", 0.9f),
+    MOST("90% and over", Float.POSITIVE_INFINITY);
+    companion object { fun of(dead: Float) = entries.first { dead < it.below } }
+}
+
+/**
+ * Books [n] deaths of [cause] in band [b] against each of the forecasts it made in the year before them ([Band.foreseenRing]):
+ * over many band-weeks, the deaths that came in the year after a forecast in each [ForeseenBin], to set against the people
+ * foreseen and how many of them were foreseen dead. For the census only.
+ */
+internal fun HexGroups.bookCalibration(b: Band, cause: DeathReason, n: Int) {
+    val counts = IntArray(ForeseenBin.entries.size)
+    for (k in b.foreseenRing) if (k >= 0) counts[k.toInt()]++
+    for (i in counts.indices) if (counts[i] > 0) {
+        val bin = ForeseenBin.entries[i]
+        stats.hunting.merge(Tally.calibration(b.mind, bin, Tally.Calib.DIED), n * counts[i], Int::plus)
+        if (cause == DeathCause.HUNGER) stats.hunting.merge(Tally.calibration(b.mind, bin, Tally.Calib.HUNGER), n * counts[i], Int::plus)
     }
 }

@@ -10,6 +10,7 @@ import inflation.ecology.Activity
 import inflation.ecology.Catalogue
 import inflation.ecology.Mind
 import inflation.ecology.PlanTier
+import inflation.ecology.ForeseenBin
 import inflation.ecology.DeathCause
 import inflation.ecology.Tally
 import inflation.ecology.VillageFlow
@@ -376,6 +377,16 @@ class Census(private val sim: HexSim) {
                 pw / bw, 100 * (lastYear[Tally.bandsMind(m, Tally.Bands.MOVES)] ?: 0) / bw,
                 1000 * (lastYear[Tally.bandsMind(m, Tally.Bands.BORN)] ?: 0) / years, 1000 * died.values.sum() / years,
                 died.entries.sortedByDescending { it.value }.joinToString(" ") { "%s %.1f".format(it.key, 1000 * it.value / years) }) })
+        // How bands' forecasts of the year ahead held: in each band of foreseen deaths, the share of people-weeks, the deaths
+        // foreseen, and those that came in the year after (all, and of hunger), per person ([bookCalibration]).
+        println("bands' forecasts against what came, last year (by mind, then by the share foreseen dead a year ahead: share of people-weeks; foreseen dead / died in the year after / of hunger, per person): " + Mind.entries.joinToString("; ") { m ->
+            fun v(b: ForeseenBin, k: Tally.Calib) = (lastYear[Tally.calibration(m, b, k)] ?: 0).toDouble()
+            val all = ForeseenBin.entries.sumOf { v(it, Tally.Calib.PEOPLE_WEEKS) }.coerceAtLeast(1.0)
+            m.label + ": " + ForeseenBin.entries.joinToString(", ") { b ->
+                val pw = v(b, Tally.Calib.PEOPLE_WEEKS).coerceAtLeast(1.0)
+                "%s %.0f%%: %.3f / %.3f / %.3f".format(b.label, 100 * v(b, Tally.Calib.PEOPLE_WEEKS) / all, v(b, Tally.Calib.FORESEEN) / 1000 / pw, v(b, Tally.Calib.DIED) / pw, v(b, Tally.Calib.HUNGER) / pw)
+            }
+        })
         run {
             // A planning band's days beyond its essentials, by tier ([planDays]).
             val pw = (lastYear[Tally.bandsMind(Mind.PLANS, Tally.Bands.PEOPLE_WEEKS)] ?: 0).toDouble()
