@@ -247,6 +247,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         o.split?.let { c ->
             val n = splitOff(g, c.adults, c.young) // a young pack has no ground yet
             born += n
+            if (g.band != null) stats.meeting(Met.BANDS_SPLIT)
             leaveBelief(g, n)
         }
         if (o.leavers > 0) {
@@ -920,6 +921,7 @@ internal fun HexGroups.mergeAndPair(date: Date) {
         joinBand(o, g, stepOf(date))
         stats.meeting(Met.SMALL_BANDS_JOINED_KIN)
     }
+    becomeOne(date)
     // A hunter left on its own looks for a mate: lone adults of a kind within a few hexes pair up, and
     // the pair holds the ground of the one that had any.
     val lone = HashMap<Int, ArrayList<HexGroup>>()
@@ -940,6 +942,35 @@ internal fun HexGroups.mergeAndPair(date: Date) {
         }
     }
 }
+
+/**
+ * Bands at home in one hex that have grown alike become one band, as people who live together and do the same things come to
+ * see themselves as one group (cooperation, shared fate and living side by side: the common ingroup identity of Gaertner and
+ * Dovidio). How alike they are is read from [Regard] both ways (words understood, kin, tie, customs apart): halves of a split
+ * still at home together are one again at once; bands that met as strangers grow alike as their ties, words and customs come
+ * together. Nothing forces it, and it needs room under the size a band at home holds ([maxSize]). The smaller joins the larger.
+ * Bands of the two kinds of choosing live side by side but stay apart.
+ */
+private fun HexGroups.becomeOne(date: Date) {
+    val atHome = HashMap<Hex, ArrayList<HexGroup>>()
+    for (g in groups) { val b = g.band ?: continue; if (g.alive && b.atHome) atHome.getOrPut(b.houseHex) { ArrayList() } += g }
+    for ((_, bands) in atHome) {
+        if (bands.size < 2) continue
+        for (i in bands.indices) for (j in i + 1 until bands.size) {
+            val a = bands[i]; val c = bands[j]
+            if (!a.alive || !c.alive) continue
+            val ab = a.band!!; val cb = c.band!!
+            if (ab.mind != cb.mind || a.size + c.size > min(maxSize(a), maxSize(c))) continue
+            if (alike(Regard(ab, c.id, cb)) < ONE_GROUP || alike(Regard(cb, a.id, ab)) < ONE_GROUP) continue
+            val (into, from) = if (a.size >= c.size) a to c else c to a
+            joinBand(into, from, stepOf(date))
+            stats.meeting(Met.BANDS_BECAME_ONE)
+        }
+    }
+}
+
+/** How alike a band finds another, 0 (strangers of wholly other customs, not understood, no kin) to 1. */
+internal fun alike(r: Regard) = 1f - r.wariness / Regard.MOST_WARY
 
 /** Band [from] joins band [into]: its people, food, goods and knowledge come with it. */
 private fun GroupWorld.joinBand(into: HexGroup, from: HexGroup, week: Int) {
