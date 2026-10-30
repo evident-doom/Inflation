@@ -154,6 +154,12 @@ object Nominal {
      */
     val POOLS = Drift(rise = 5.0, fall = 5.0, run = 20.0, floor = 0.01)
     /**
+     * Desert locusts more so: a few swarms rising where the desert greened are the whole land's stock, and a breeding
+     * generation multiplies some 20 times in three months (the FAO's figure as reported in the 2020 upsurge; the source
+     * behind it, Symmons & Cressman 2001, not read), so a year may bring that much more or less.
+     */
+    val LOCUSTS = Drift(rise = 20.0, fall = 20.0, run = 20.0, floor = 0.01)
+    /**
      * The fruit and the fallen mast follow the year's mast crop ([inflation.world.Weather.mastCrop]), a lognormal drawn for each group of
      * trees, of the coefficient of variation of the group that swings most ([inflation.world.Weather.mastCv]): the ratio of two years'
      * crops lies within exp(z sqrt(2) sigma) 99% of the time (z = 2.33, sigma the lognormal's), some 20 times either way; a kind of year the
@@ -286,7 +292,7 @@ object Nominal {
                     val stock = StockName.of(name)
                     // (Fast pools may empty for a year, as the locusts between plagues; the slow stocks may not.)
                     if (stock in BAND_MADE) continue
-                    drift(t, k, years, ::yearly, STOCKS[stock] ?: CROPS[stock] ?: POOLS, gone = stock in STOCKS)
+                    drift(t, k, years, ::yearly, STOCKS[stock] ?: CROPS[stock] ?: if (stock == StockName.LOCUSTS) LOCUSTS else POOLS, gone = stock in STOCKS)
                     if (stock == StockName.PLANTS && area > 0) eachYear(PLANTS_MIN_KG_M2, PLANTS_MAX_KG_M2, "kg/m² of plants over the land", 1 / area)
                 }
                 Key.isSmallLife(k) || Key.isWaterLife(k) -> drift(t, k, years, ::yearly, SMALL_AND_WATER_LIFE, gone = true)
