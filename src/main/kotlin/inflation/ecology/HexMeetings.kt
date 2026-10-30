@@ -298,7 +298,11 @@ internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, b
     // A much stronger party now and then kills one of the other: its young most often, an adult seldom.
     val odds = fire * (1f - SHELTER_EFFECT * Niches.shelter(weak.species, weak.place, land)) * strong.will[AnimalWay.KILL]
     // (People drive hunters off and now and then kill one, but do not seek out their young.)
-    if (ratio > 2f && weak.young > 0 && !strong.species.human && rnd.nextFloat() < INTRAGUILD_KILL_YOUNG * tuning.intraguildYoung * odds) {
+    // (The young still at the den are met only there, on the weaker's home ground; a group without ground has no den, and its young go along.)
+    val atDen = if (h == weak.home || weak.home.none) 0 else weak.pupsAtDen()
+    if (ratio > 2f && weak.young > atDen && !strong.species.human && rnd.nextFloat() < INTRAGUILD_KILL_YOUNG * tuning.intraguildYoung * odds) {
+        // (At the den, the one taken is one of the den's young as often as they are of the young.)
+        if (h == weak.home && rnd.nextFloat() * weak.young < weak.pupsAtDen()) weak.denPups--
         weak.young--
         strong.meatMet += HexFauna.YOUNG_WEIGHT * 0.5f * weak.species.massKg
         small.deposit(DeadPool.CARRION, weak.place, Kg(HexFauna.YOUNG_WEIGHT * 0.5f * weak.species.massKg)) // (what the killers leave)

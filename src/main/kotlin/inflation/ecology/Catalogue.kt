@@ -270,6 +270,9 @@ object Catalogue {
         foresight = 0.5f,
         domestication = floatArrayOf(0.7f, 0.5f, 0.6f, 0.4f, 0.6f, 0.9f), // became the dog
         packLitter = 4,
+        // (Pups stay at the den some eight weeks, then at rendezvous sites near it, and travel with the pack from some
+        // five to six months old: Mech 1970, Packard 2003, from memory.)
+        denMonths = 5,
         stalking = 0.3f,
         // (Packs take mostly red deer hinds and calves, some 100 kg, at 25-40 kg a wolf (Nowak et al. 2005), and in
         // Yellowstone elk of five or six times their weight, bison seldom: ranges inferred, not stated by the sources.)

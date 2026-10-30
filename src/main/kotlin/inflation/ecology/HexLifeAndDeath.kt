@@ -288,6 +288,8 @@ private fun HexGroups.splitOff(g: HexGroup, adults: Int, young: Int): HexGroup {
     n.dry = g.dry
     n.herdsMet = g.herdsMet?.copyOf(); n.herdsMetOn = g.herdsMetOn; n.deathOdds = g.deathOdds
     n.birthMonth = g.birthMonth; n.bred = g.bred
+    // (The den's young go with each part as the young do.)
+    n.denPups = g.pupsAtDen() * young / (g.young + young).coerceAtLeast(1); g.denPups = g.pupsAtDen() - n.denPups
     n.temper = Temperament.inherit(g.temper, n.id, seedBase)
     // A band that splits shares out its larder by heads.
     val share = (adults + young).toFloat() / (g.size + adults + young).coerceAtLeast(1)
@@ -487,6 +489,8 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     feedOnReserves(g)
     if (g.birthMonth < 0) g.birthMonth = s.birthMonth
     if (date.month == offSeason(s, g.birthMonth) && date.dayOfMonth <= days) g.bred = 0f
+    // The year's young leave the den to go with the grown once they are old enough.
+    if (g.denPups > 0 && monthsFrom(g.birthMonth, date.month) >= s.denMonths) g.denPups = 0
     val inSeason = monthsFrom(g.birthMonth, date.month) < s.birthMonths
     var bornNow = 0
     var bornExpected = 0f
@@ -521,6 +525,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         }
         g.young += births
         bornNow = births
+        if (s.denMonths > 0) g.denPups += births
         // The young are made of what their mothers ate: their weight comes off the mothers' reserves.
         if (births > 0) g.fat = max(0f, g.fat - fromReserves(s, births.toFloat() / max(1, g.adults / 2), g.fed, days))
     }
@@ -932,7 +937,7 @@ internal fun HexGroups.mergeAndPair(date: Date) {
             val b = list.firstOrNull { it.id != a.id && it.id !in used && it.tag == a.tag &&
                 hex.distanceKm(hw.placeHex[it.place], hw.placeHex[a.place]) <= MATE_SEARCH_KM * a.will[AnimalWay.MATE] } ?: continue
             used += a.id; used += b.id
-            a.adults += b.adults; a.young += b.young
+            a.adults += b.adults; a.denPups = a.pupsAtDen() + b.pupsAtDen(); a.young += b.young
             a.fed = (a.fed + b.fed) / 2f; a.fat = (a.fat + b.fat) / 2f; a.spent = (a.spent + b.spent) / 2f; a.bred = (a.bred + b.bred) / 2f
             if (a.home.none) claimGround(a, b.home)
             b.mergedSize = b.size; b.mergedInto = a.id

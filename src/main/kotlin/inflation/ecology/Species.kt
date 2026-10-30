@@ -161,6 +161,11 @@ class Species(
     val hibernates: Boolean = false,
     /** Breeds as a pack: one litter a year from the breeding pair, of this size in good condition. */
     val packLitter: Int = 0,
+    /**
+     * Months from its birth month that the year's young stay at the den and the sites near it while the grown range (see
+     * [HexGroup.denPups]): met there, on the group's home ground, and not where the grown go. 0 where they go along.
+     */
+    val denMonths: Int = 0,
     /** Diamond's criteria, 0..1 each: diet breadth, growth, captive breeding, temperament, calm, hierarchy. */
     val domestication: FloatArray,
     /** People: they hunt and gather by skill learned in practice (see [AnimalGroup.craft]), cook, and remember. */

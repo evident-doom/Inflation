@@ -63,6 +63,13 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
     fun lost(c: Int) = lost?.get(c) ?: 0f
     /** A band's foreseen survival: the share of its people alive a year ahead as it stands ([foreseenSurvival]); 1 for animals. */
     var foreseen = 1f
+    /**
+     * Of its [young], those born this year that are still at the den ([Species.denMonths]), never more than its young (see
+     * [pupsAtDen]): met only on its home ground.
+     */
+    var denPups = 0
+    /** Its young at the den now ([denPups], no more than it has young). */
+    fun pupsAtDen() = minOf(denPups, young)
     /** The month its young are born in; -1 until its first week (then its kind's). */
     var birthMonth = -1
     /** Share of this year's birth season its mothers have borne (as [HexFauna]'s residents keep it). */
