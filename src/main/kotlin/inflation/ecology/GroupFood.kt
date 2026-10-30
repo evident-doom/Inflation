@@ -1274,6 +1274,7 @@ private fun HexGroups.foundByScent(g: HexGroup, p: Place, kills: Int, haul: Haul
     small.deposit(DeadPool.CARRION, p, Kg(lost * meatShare(null) / creditShare(null)))
     diag(s, HuntStep.KILLS_MADE, kills.toFloat()); diag(s, HuntStep.KILLS_FOUND_BY_SCENT, found * kills)
     diag(s, HuntStep.KILL_KG, haul.kg + lost); diag(s, HuntStep.KILL_KG_LOST_TO_SCENT, lost)
+    diag(s, HuntStep.KILL_LIE_DAYS, lies * kills); diag(s, HuntStep.SCENT_RATE, rate * kills); diag(s, HuntStep.KILL_PARTY, g.size * kills.toFloat())
 }
 
 /**

@@ -23,7 +23,10 @@ internal enum class HuntStep(val label: String) {
     WILD_GROWN_AT_CAMPS("wild grown at camps"), WILD_GROWN_TAKEN_AT_CAMPS("wild grown taken at camps"),
     // (A beast's kills, by the beast: those made, those stronger scavengers found by scent, and their weight made and lost
     // ([foundByScent]).)
-    KILLS_MADE("kills made"), KILLS_FOUND_BY_SCENT("kills found by scent"), KILL_KG("kill kg"), KILL_KG_LOST_TO_SCENT("kill kg lost to scent");
+    KILLS_MADE("kills made"), KILLS_FOUND_BY_SCENT("kills found by scent"), KILL_KG("kill kg"), KILL_KG_LOST_TO_SCENT("kill kg lost to scent"),
+    // (And per kill, summed: the days its carcass lies, the scavengers' finds a day there, and the party's heads; their means
+    // are these over the kills found possible.)
+    KILL_LIE_DAYS("kill lie days"), SCENT_RATE("scent finds a day"), KILL_PARTY("kill party heads");
 
     companion object {
         private const val PREFIX = "diag:"
