@@ -175,6 +175,8 @@ object Tally {
         MOVES("camp moves"),
         /** Deaths foreseen a year ahead ([HexGroup.foreseen]): people-weeks times the share foreseen to die, thousandths. */
         FORESEEN("foreseen deaths, 1/1000"),
+        /** Of [FORESEEN], those foreseen of hunger and of exposure ([YearAhead.causes]). */
+        FORESEEN_HUNGER("foreseen deaths of hunger, 1/1000"), FORESEEN_EXPOSURE("foreseen deaths of exposure, 1/1000"),
         /** Perseverance ([Band.sisu]): people-weeks times the band's, thousandths. */
         SISU("perseverance, 1/1000"),
         /** The hearth fire fed by the firewood got, and the days spent fetching it, % summed over band-weeks. */

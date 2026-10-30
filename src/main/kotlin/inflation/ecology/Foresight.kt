@@ -25,7 +25,15 @@ import kotlin.math.roundToInt
 internal fun HexGroups.foreseenSurvival(g: HexGroup, b: Band, weather: Weather): Float {
     val year = yearAhead(g, b, weather)
     b.leanDays = year.leanDays
-    return year.alive(g.species, g.larder / g.dailyNeedKg.coerceAtLeast(1e-3f), g.fat, g.spent)
+    val larderDays = g.larder / g.dailyNeedKg.coerceAtLeast(1e-3f)
+    // (Of the deaths it foresees, those of hunger and of exposure, by the kind of country, for the census: whether the
+    // forecast sees the hunger that comes. Whole numbers summed, so the order the cores add them in changes nothing.)
+    val causes = FloatArray(2)
+    year.causes(g.species, larderDays, g.fat, g.spent, causes)
+    val c = Biome.entries[biomeOfPlace[g.place]]
+    stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.FORESEEN_HUNGER), (1000f * causes[0] * g.size).roundToInt(), Int::plus)
+    stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.FORESEEN_EXPOSURE), (1000f * causes[1] * g.size).roundToInt(), Int::plus)
+    return year.alive(g.species, larderDays, g.fat, g.spent)
 }
 
 /**
@@ -79,6 +87,24 @@ internal class YearAhead(private val odds: FloatArray, private val fed: FloatArr
             alive *= (1f - odds[k]) * (1f - hunger) * (1f - s.backgroundMortality / Date.MONTHS_PER_YEAR)
         }
         return alive
+    }
+
+    /**
+     * The shares of people of kind [s] foreseen to die through the months ahead of hunger and of exposure, as [alive] reckons
+     * them (each month's deaths of each among those still alive then), into [out] (hunger, exposure). For the census.
+     */
+    fun causes(s: Species, larderDays: Float, fat: Float, spent: Float, out: FloatArray) {
+        val days = Date.DAYS_PER_MONTH
+        var larder = larderDays; var fatLeft = fat; var burnt = spent
+        var alive = 1f; out[0] = 0f; out[1] = 0f
+        for (k in odds.indices) {
+            var fed = fed[k]
+            val paid = min(max(0f, 1f - fed) * days, larder); larder -= paid; fed += paid / days
+            val onFat = Hazards.onFat(fed, fatLeft, days); fatLeft = max(0f, fatLeft - (onFat - fed) * days)
+            val hunger = Hazards.hunger(s, burnt, onFat, days); burnt = Hazards.spentAfter(s, burnt, onFat, days)
+            out[1] += alive * odds[k]; out[0] += alive * (1f - odds[k]) * hunger
+            alive *= (1f - odds[k]) * (1f - hunger) * (1f - s.backgroundMortality / Date.MONTHS_PER_YEAR)
+        }
     }
 }
 
