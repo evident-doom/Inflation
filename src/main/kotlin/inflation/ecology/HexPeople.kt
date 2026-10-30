@@ -275,7 +275,9 @@ internal fun HexGroups.dogsGoWild(s: Species, p: Place, n: Int, fatShare: Float 
     pack.temper = Temperament.founder(pack.id, seedBase)
     pack.fat = fatShare * s.maxFatDays
     pack.bold = 1f
-    claimGround(pack, hw.placeHex[p])
+    // (No ground of its own: it settles by the rule every pack without ground follows ([settle]), only where no pack of its
+    // kind has fresh marks, and till then bears no young and dies as such packs do. Taking the camp's hex outright overwrote
+    // the marks of the pack already there and gave each a litter.)
     // (Counted among its kind's births: heads that came into the wild that no wild mother bore, so its heads add up.)
     stats.births.merge(s, n, Int::plus)
     return pack
