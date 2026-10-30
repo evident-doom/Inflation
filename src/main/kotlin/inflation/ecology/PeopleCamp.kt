@@ -159,6 +159,7 @@ internal fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, weat
         // up to the mice), and the grinding stones are left behind.
         if (!b.campPlace.none) {
             // (Some goods are taken first: see [mendingKg].)
+            b.movedCamp = true
             val carry = foodCarried(g, b)
             dialUse?.amount(DialSite.CARRY_LOADS, carryLoads(b), carryKg(g, b) * carryLoads(b), carryKg(g, b))
             val total = g.larder

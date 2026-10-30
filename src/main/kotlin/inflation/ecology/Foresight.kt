@@ -204,6 +204,8 @@ internal fun HexGroups.foresee(weather: Weather) {
             b.larderSeen = larder; b.leftBehind = 0f
             val got = (g.fed - b.fatFed) * g.warmth + laid
             b.addSupply(m, got, k)
+            b.recordWeek(weather.date, days, got, g.warmth, b.movedCamp)
+            b.movedCamp = false
             b.fatFed = 0f
             b.forecastTrace?.let { t -> t.week(m, got, larder, g.fat, g.spent, g.size, g.path.size > 1)
                 if (t.over) { System.err.print(t.report("a year followed")); b.forecastTrace = null } }

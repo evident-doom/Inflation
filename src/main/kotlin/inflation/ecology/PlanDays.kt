@@ -79,7 +79,8 @@ internal fun HexGroups.planDays(g: HexGroup, b: Band, weather: Weather, time: Ba
  * by the sim's own forecast ([yearAhead], [YearAhead.alive]), each reckoned over the whole of what it is for and shared
  * out over the days the whole takes:
  * - the stores ([Activity.FOOD] beyond the week's food): filling its larder to the stores it aims at ([Band.storeAimAt1]:
- *   its lean days foreseen and a margin), at [perDay] kg a day of work;
+ *   its lean days foreseen and a margin), at [perDay] kg a day of work; by how often its larder runs out over years made of
+ *   its own past weeks ([storesAlive]) once it has a year of them, by the year ahead before;
  * - houses ([Activity.HOUSES]): a whole house's lives a year ([houseLivesAYear]: exposure averted) and its food a year
  *   ([houseFoodAYear]: what keeping warm no longer takes, as larder) over the years it expects to stay ([Band.stayWeeks]),
  *   over a whole house's days ([HOUSE_DAYS] a person).
@@ -98,7 +99,12 @@ private fun HexGroups.planRates(g: HexGroup, b: Band, weather: Weather, perDay: 
     val now = alive(0f)
     val rate = FloatArray(SCORED_ITEMS)
     val gap = b.storeAimAt1 * need - g.larder
-    if (gap > 0f && perDay > 0f) rate[0] = (alive(gap) - now) / (gap / perDay)
+    if (gap > 0f && perDay > 0f) {
+        // (By its own weeks as they came where it has a year of them ([storesAlive]); else by the year ahead.)
+        val was = storesAlive(g, b, weather, g.larder)
+        val filled = if (was != null) storesAlive(g, b, weather, g.larder + gap) else null
+        rate[0] = (if (was != null && filled != null) people * (filled - was) else alive(gap) - now) / (gap / perDay)
+    }
     if (PLAN_TRACE && unitOf(mix64(g.id * HASH_A + weather.date.absoluteDay * HASH_B + PLAN_TRACE_SALT)) < 0.01f &&
         planTraced.incrementAndGet() <= PLAN_TRACE_MOST) {
         val larderDays = g.larder / need

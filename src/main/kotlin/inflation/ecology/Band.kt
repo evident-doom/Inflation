@@ -72,12 +72,22 @@ class Band(kinds: Int) {
     var supplyMonth = -1
     var supplySum = 0f
     var supplyWeeks = 0
+    /**
+     * Its weeks over the last [SUPPLY_YEARS] years, by the year (a ring) and the week of the year, as [foresee] counts them
+     * ([recordWeek]): the food it got as a share of its need before keeping warm, net of its larder (NaN for a week not seen);
+     * what keeping warm took then, times that need; whether it moved camp. For reckoning its stores ([storesAlive]).
+     */
+    val weekSupply = FloatArray(SUPPLY_YEARS * WEEKS_KEPT) { Float.NaN }
+    val weekWarmth = FloatArray(SUPPLY_YEARS * WEEKS_KEPT) { 1f }
+    val weekMoved = BooleanArray(SUPPLY_YEARS * WEEKS_KEPT)
     /** Its larder at last week's [foresee], days of its people's need before keeping warm (NaN for not yet seen). */
     var larderSeen = Float.NaN
     /** The share of this week's need its fat met ([feedOnReserves]): not food it got, for [foresee]. */
     @Transient var fatFed = 0f
     /** The food it cached or left at its old camp on a move this week ([campAndCache]): the forecast foresees moves on their own ([foresee]). */
     @Transient var leftBehind = 0f
+    /** Whether it moved camp this week ([campAndCache]), for its record of weeks ([recordWeek]). */
+    @Transient var movedCamp = false
     /**
      * The share of its people a camp move would cost through the year ahead by the food it cannot carry ([leftBehindShare]:
      * cached or left at the old camp), as [foreseenSurvival] foresaw at the end of last week: alive with its larder, less alive
@@ -653,7 +663,7 @@ class Band(kinds: Int) {
     fun splitInto(o: Band, adults: Int, stay: Int, share: Float, r: Random, copied: (Band) -> Unit) {
         o.ties.clear(); o.ties.putAll(ties); o.appointment = appointment
         o.houseHex = houseHex; o.house = house; o.drivenFrom = drivenFrom; o.drivenBy = drivenBy; o.homeEarth = homeEarth; o.homeWalls = homeWalls; o.homeGroundC = homeGroundC; o.palisade = palisade; herdTame.copyInto(o.herdTame); herd.copyInto(o.herd); herdGrew.copyInto(o.herdGrew); herdPet.copyInto(o.herdPet)
-        o.houseLives = houseLives; o.houseFood = houseFood; foodFrom.copyInto(o.foodFrom); o.fishPull = fishPull; monthSupply.copyInto(o.monthSupply); monthSupplySq.copyInto(o.monthSupplySq); o.supplyMonth = supplyMonth; o.supplySum = supplySum; o.supplyWeeks = supplyWeeks; o.larderSeen = larderSeen; freeShare.copyInto(o.freeShare); o.leanDays = leanDays
+        o.houseLives = houseLives; o.houseFood = houseFood; foodFrom.copyInto(o.foodFrom); o.fishPull = fishPull; monthSupply.copyInto(o.monthSupply); monthSupplySq.copyInto(o.monthSupplySq); o.supplyMonth = supplyMonth; o.supplySum = supplySum; o.supplyWeeks = supplyWeeks; o.larderSeen = larderSeen; weekSupply.copyInto(o.weekSupply); weekWarmth.copyInto(o.weekWarmth); weekMoved.copyInto(o.weekMoved); freeShare.copyInto(o.freeShare); o.leanDays = leanDays
         o.seedDomestic = seedDomestic; o.grainDomestic = grainDomestic; o.seedCorn = seedCorn * share; seedCorn -= o.seedCorn; o.sinceRaided = sinceRaided; o.sisu = sisu
         o.knownHomes.putAll(knownHomes); o.knownLineage.putAll(knownLineage)
         skills.copyInto(o.skills)
