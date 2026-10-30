@@ -1247,8 +1247,8 @@ private fun HexGroups.huntGame(g: HexGroup, k: Int, p: Place, expected: Float, k
 }
 
 /**
- * What stronger scavengers take of beast [g]'s [kills] at [p], out of [haul]: each carcass lies there while the beast eats
- * it, a kill's weight against what the party eats in a day, and resident kinds that kill as well as scavenge (meat and
+ * What stronger scavengers take of beast [g]'s [kills] at [p], out of [haul]: each carcass lies there while the party
+ * gorges on it, a kill's weight against what the party eats in a day at a kill ([GORGE]), and resident kinds that kill as well as scavenge (meat and
  * carrion in their diet: a boar roots up a carcass but does not drive wolves off one) and are stronger than the
  * party by [THEFT_RATIO] (a band of [Species.groupSize], by its mass and ferocity, as [strength] has a party) come on it by
  * scent as they range, awake ([HexFauna.asleep]): a strip [Species.senseKm] each side of a day's travel, their bands as
@@ -1256,6 +1256,12 @@ private fun HexGroups.huntGame(g: HexGroup, k: Int, p: Place, expected: Float, k
  * bears do wolves' kills (Tallian et al. 2017: brown bears at 27% of Yellowstone wolf kills in summer, 45% of large ones);
  * it goes to the carrion there. A carcass hauled up a tree keeps, as far as there are trees ([enemiesMeet]).
  */
+/**
+ * What a beast eats in a day at a kill, of its own weight: a wolf eats 15-19% of its weight in a feeding (Mech and Boitani
+ * 2003, p. 201), taken as one feeding a day and for every beast of prey alike (an estimate).
+ */
+const val GORGE = 0.17f
+
 private fun HexGroups.foundByScent(g: HexGroup, p: Place, kills: Int, haul: Haul) {
     if (haul.kg <= 0f || kills <= 0) return
     val s = g.species
@@ -1267,7 +1273,7 @@ private fun HexGroups.foundByScent(g: HexGroup, p: Place, kills: Int, haul: Haul
         rate += (fauna.adults[k][p] + fauna.young[k][p]) / r.groupSize * 2f * r.senseKm * r.dailyTravelKm
     }
     if (rate <= 0f) return
-    val lies = min(days.toFloat(), haul.kg / kills / (g.size.coerceAtLeast(1) * s.dailyIntakeKg))
+    val lies = min(days.toFloat(), haul.kg / kills / (g.size.coerceAtLeast(1) * max(s.dailyIntakeKg, GORGE * s.massKg)))
     val cached = if (Niches.Shelter.TREE in Niches.shelters(s)) land.plants.canopy(p) else 0f
     val found = (1f - exp(-rate * lies)) * (1f - cached)
     val lost = 0.5f * found * haul.kg
