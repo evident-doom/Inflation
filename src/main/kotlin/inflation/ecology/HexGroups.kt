@@ -123,6 +123,11 @@ class HexGroups(
     @Transient var ways: BandWays? = null
     /** Counts how the bands' ways act (dialUse=FILE, see [DialUse]); null: not counted. Not saved. */
     @Transient var dialUse: DialUse? = null
+    /**
+     * The bands that held a rite at each site this month and last ([gatherAtRite]), keyed by the rite's month (counted from
+     * the world's start) and its site. Not saved: a gathering under way when a save is taken is forgotten.
+     */
+    @Transient internal val riteGatherings = HashMap<Long, MutableList<HexGroup>>()
     /** How packs set their ways each week ([AnimalWays]); null for the hand-written ways. */
     @Transient var hunterWays: AnimalWays? = null
 
