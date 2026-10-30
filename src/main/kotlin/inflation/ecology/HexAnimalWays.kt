@@ -20,7 +20,7 @@ import kotlin.math.sin
 fun interface AnimalWays { fun choose(g: HexGroup, inputs: FloatArray, out: FloatArray) }
 
 val ANIMAL_WAYS_IN = AnimalInputs.size
-const val ANIMAL_WAYS_OUT = 6
+internal const val ANIMAL_WAYS_OUT = 6
 
 /**
  * What each output means. Each is read through `2 / (1 + e^-x)`: 1 (the hand-written way) at an output of 0, from

@@ -39,7 +39,7 @@ enum class DeathCause(override val label: String, override val shown: PlaceRecor
 enum class DeathClass { KIT, FOOD }
 
 /** The index in [HexGroup.lost] of the deaths of all causes (those of a [DeathClass] are at its ordinal). */
-const val LOST_ALL = 2
+internal const val LOST_ALL = 2
 
 /** The class of deaths this is, if it is one a band's dials act on (else null). */
 fun DeathReason.deathClass(): DeathClass? = when (this) {

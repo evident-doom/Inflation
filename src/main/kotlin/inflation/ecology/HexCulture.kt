@@ -337,19 +337,18 @@ internal class Regard(private val of: Band, private val toId: Int, private val t
  * they show each other tools, and bands that marry out exchange partners, who bring their skills.
  * Returns true if it came to a raid.
  */
-internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weather): Boolean {
+internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weather, rite: RiteGathering? = null): Boolean {
     val bandA = a.band ?: return false; val bandB = b.band ?: return false
     bandA.ensureMarks(fauna.kinds.size); bandB.ensureMarks(fauna.kinds.size)
     val u = Language.understanding(bandA.words, bandB.words)
     val ab = Regard(bandA, b.id, bandB, u); val ba = Regard(bandB, a.id, bandA, u)
-    val site = holySite
-    if (site >= 0 && site in bandA.rite && site in bandB.rite) { ab.holy = true; ba.holy = true }
+    if (rite != null && rite.site in bandA.rite && rite.site in bandB.rite) { ab.holy = true; ba.holy = true }
     val metAs = MetAs(ab, ba)
     tallyMeeting(metAs, Tally.MeetingEnd.MET)
     val raider = if (raid(a, bandA, b, bandB, ab, weather)) bandA else if (raid(b, bandB, a, bandA, ba, weather)) bandB else null
     if (raider != null) {
         tallyMeeting(metAs, Tally.MeetingEnd.RAIDED)
-        if (ab.holy) { if (raider === bandA) sacrilege(bandA, a.id, b.id) else sacrilege(bandB, b.id, a.id) }
+        if (ab.holy && rite != null) { if (raider === bandA) sacrilege(bandA, a.id, b.id, rite) else sacrilege(bandB, b.id, a.id, rite) }
         return true
     }
     // A band that sees sickness among the others may keep away: no talk, no partners, no feast.
@@ -788,26 +787,27 @@ internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
 private fun HexGroups.gatherAtRite(g: HexGroup, site: Int, month: Long, weather: Weather) {
     riteGatherings.keys.removeIf { (it shr 32) < month - 1 }
     val here = riteGatherings.getOrPut((month shl 32) or site.toLong()) { ArrayList() }
-    holySite = site; holyGathering = here
+    val rite = RiteGathering(site, here)
     for (o in here) if (g.alive && o.alive && o !== g) {
         stats.meeting(Met.BANDS_GATHERED_AT_A_RITE)
-        bandsMeet(g, o, weather)
+        bandsMeet(g, o, weather, rite)
     }
-    holySite = -1; holyGathering = null
     here += g
 }
+
+/** A rite's gathering under way ([gatherAtRite]): its [site], and the bands [there] before the one now coming. */
+internal class RiteGathering(val site: Int, val there: List<HexGroup>)
 
 /**
  * [raider] (group [raiderId]) fell on band [victim] at a rite both keep, before the others gathered there: each that keeps the rite holds it
  * against the raider's people as far as it holds to its rites ([Band.riteStrength], as for the peace itself), and thinks
  * the less of the raider. The cost of breaking the peace is what the others remember.
  */
-private fun HexGroups.sacrilege(raider: Band, raiderId: Int, victim: Int) {
-    val site = holySite
+private fun HexGroups.sacrilege(raider: Band, raiderId: Int, victim: Int, rite: RiteGathering) {
     stats.meeting(Met.RAIDS_ON_HOLY_GROUND)
-    for (w in holyGathering ?: return) {
+    for (w in rite.there) {
         val wb = w.band ?: continue
-        if (!w.alive || w.id == raiderId || w.id == victim || site !in wb.rite) continue
+        if (!w.alive || w.id == raiderId || w.id == victim || rite.site !in wb.rite) continue
         val held = wb.riteStrength / (1f + wb.riteStrength)
         wb.grudge[raider.mainLineage()] += held * GRUDGE
         wb.befriend(raiderId, -held * TIE_RAID)

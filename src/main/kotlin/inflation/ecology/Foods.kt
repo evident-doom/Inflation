@@ -73,7 +73,7 @@ enum class Store(val lostWeekly: Float, val meat: Boolean, val protein: Float) {
 val EAT_ORDER = listOf(Store.FRESH, Store.FRUIT, Store.ROOTS, Store.DRIED, Store.SEED, Store.GREASE)
 
 /** Kinds of food a band sets its effort on (see [forage]): the [Food] kinds before grain (the last), which goes by grass seed's. */
-const val FOOD_TYPES = 9
+internal const val FOOD_TYPES = 9
 
 /**
  * A band's effort on each kind of [Food] ([Band.effort]): one slot for each kind but grain, which goes by grass seed's

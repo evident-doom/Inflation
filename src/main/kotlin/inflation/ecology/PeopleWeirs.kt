@@ -50,30 +50,30 @@ internal fun HexGroups.buildWeir(g: HexGroup, b: Band, h: Hex, time: BandTime) {
  * dam spanned the Klamath (Waterman & Kroeber 1938); Mesolithic wattle weirs had leaders of 12-63 m (Syltholm and Femern Bælt,
  * Denmark), the Neolithic one at Nekselø ran 200 m. An estimate.
  */
-const val WEIR_MAX_M = 100f
+internal const val WEIR_MAX_M = 100f
 
 /**
  * Person-days to build a metre of weir. The Kepel dam took 50-70 men ten days, besides those cutting stakes, to build across
  * the Klamath (Waterman & Kroeber 1938): some 600-700 person-days over a river there taken as about 100 m wide (the width is an
  * estimate). A shallow stream's weir is lighter work: this overstates it there.
  */
-const val WEIR_DAYS_PER_M = 7f
+internal const val WEIR_DAYS_PER_M = 7f
 
 /** Timber in a metre of weir, kg: posts and stakes some 30 cm apart and the wattle or lattice between them (an estimate). */
-const val WEIR_WOOD_KG_PER_M = 40f
+internal const val WEIR_WOOD_KG_PER_M = 40f
 
 /**
  * Person-days a day that a metre of weir takes to tend: one at each trap, the traps about 10 m apart (the Kepel dam had ten
  * gates and pens across the river, each worked by its own party: Waterman & Kroeber 1938; the spacing is an estimate).
  */
-const val WEIR_TEND_DAYS_PER_M = 0.1f
+internal const val WEIR_TEND_DAYS_PER_M = 0.1f
 
 /** Person-days to land a kilo of fish from a weir's traps and gut it: some minutes a fish of a few kilos (an estimate). */
-const val WEIR_HANDLING_DAYS_PER_KG = 0.01f
+internal const val WEIR_HANDLING_DAYS_PER_KG = 0.01f
 
 /**
  * Yearly share of a weir that the current and the floods take: wattle panels and basket traps lasted several years when lifted
  * out for the winter, and the Syltholm weir stood at least 43 years through four rebuildings (Syltholm, southern Lolland, Late
  * Mesolithic; the rate is an estimate).
  */
-const val WEIR_WEAR = 0.3f
+internal const val WEIR_WEAR = 0.3f
