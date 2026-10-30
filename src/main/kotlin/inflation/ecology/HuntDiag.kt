@@ -20,7 +20,10 @@ internal enum class HuntStep(val label: String) {
     // share lost ([HexGroups.herdsForBeasts], [HexFauna.campTaken]).)
     KEPT_YOUNG_HELD("kept young held"), KEPT_YOUNG_TAKEN("kept young taken"), KEPT_GROWN_HELD("kept grown held"),
     KEPT_GROWN_TAKEN("kept grown taken"), WILD_YOUNG_AT_CAMPS("wild young at camps"), WILD_YOUNG_TAKEN_AT_CAMPS("wild young taken at camps"),
-    WILD_GROWN_AT_CAMPS("wild grown at camps"), WILD_GROWN_TAKEN_AT_CAMPS("wild grown taken at camps");
+    WILD_GROWN_AT_CAMPS("wild grown at camps"), WILD_GROWN_TAKEN_AT_CAMPS("wild grown taken at camps"),
+    // (A beast's kills, by the beast: those made, those stronger scavengers found by scent, and their weight made and lost
+    // ([foundByScent]).)
+    KILLS_MADE("kills made"), KILLS_FOUND_BY_SCENT("kills found by scent"), KILL_KG("kill kg"), KILL_KG_LOST_TO_SCENT("kill kg lost to scent");
 
     companion object {
         private const val PREFIX = "diag:"

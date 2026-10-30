@@ -799,6 +799,8 @@ private fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
                     stats.meeting(Met.BANDS_ATE_THEIR_TOTEM)
                 }
                 w.busy += kills1 * o.time[i] * w.party[0]
+                // (A beast's kills may be found by stronger scavengers before it has eaten them: [foundByScent].)
+                if (band == null) foundByScent(g, Place(p), kills1, haul)
                 // (Its fat feeds as grease, the rest as lean meat; for the census, the kills by month and by prey kind, lean and fat by weight.)
                 w.meat += haul.kg - haul.fat; w.killFat += haul.fat
                 w.fed += (haul.kg - haul.fat) * w.feeds(Food.BIG_GAME) + haul.fat * w.fatFeeds
@@ -1242,6 +1244,36 @@ private fun HexGroups.huntGame(g: HexGroup, k: Int, p: Place, expected: Float, k
     stats.hunting.merge(Tally.of(s, Tally.OfKind.KILLS_OF_RESIDENTS), kills1, Int::plus)
     diag(ps, HuntStep.RESIDENT_KILLS, kills1.toFloat())
     return kills1
+}
+
+/**
+ * What stronger scavengers take of beast [g]'s [kills] at [p], out of [haul]: each carcass lies there while the beast eats
+ * it, a kill's weight against what the party eats in a day, and resident kinds that eat carrion and are stronger than the
+ * party by [THEFT_RATIO] (a band of [Species.groupSize], by its mass and ferocity, as [strength] has a party) come on it by
+ * scent as they range, awake ([HexFauna.asleep]): a strip [Species.senseKm] each side of a day's travel, their bands as
+ * common there as they are. One that finds it drives the party off and takes half of what is left of it, on average, as
+ * bears do wolves' kills (Tallian et al. 2017: brown bears at 27% of Yellowstone wolf kills in summer, 45% of large ones);
+ * it goes to the carrion there. A carcass hauled up a tree keeps, as far as there are trees ([enemiesMeet]).
+ */
+private fun HexGroups.foundByScent(g: HexGroup, p: Place, kills: Int, haul: Haul) {
+    if (haul.kg <= 0f || kills <= 0) return
+    val s = g.species
+    val party = strength(g)
+    var rate = 0f
+    for ((k, r) in fauna.kinds.withIndex()) {
+        if (r.diet.carrion <= 0f || r.human || fauna.asleep(FaunaKind(k), p)) continue
+        if (r.groupSize * r.massKg * r.ferocity < THEFT_RATIO * party) continue
+        rate += (fauna.adults[k][p] + fauna.young[k][p]) / r.groupSize * 2f * r.senseKm * r.dailyTravelKm
+    }
+    if (rate <= 0f) return
+    val lies = min(days.toFloat(), haul.kg / kills / (g.size.coerceAtLeast(1) * s.dailyIntakeKg))
+    val cached = if (Niches.Shelter.TREE in Niches.shelters(s)) land.plants.canopy(p) else 0f
+    val found = (1f - exp(-rate * lies)) * (1f - cached)
+    val lost = 0.5f * found * haul.kg
+    haul.fat *= 1f - lost / haul.kg; haul.kg -= lost
+    small.deposit(DeadPool.CARRION, p, Kg(lost * meatShare(null) / creditShare(null)))
+    diag(s, HuntStep.KILLS_MADE, kills.toFloat()); diag(s, HuntStep.KILLS_FOUND_BY_SCENT, found * kills)
+    diag(s, HuntStep.KILL_KG, haul.kg + lost); diag(s, HuntStep.KILL_KG_LOST_TO_SCENT, lost)
 }
 
 /**
