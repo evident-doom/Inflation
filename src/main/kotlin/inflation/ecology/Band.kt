@@ -563,12 +563,17 @@ class Band(kinds: Int) {
     /**
      * The omen it remembers ([GroupWorld.omen]): the place, month and year of a salient event and how many times what it
      * is used to it was ([omenWeight], fading); -1: none. And its usual deaths a week a head ([deathsUsual], over about a year).
+     * And its spells of want: the steps on end it has lived on its reserves so far ([wantSteps]), one just ended and not yet
+     * reckoned ([wantBroke], 0: none), and how long such a spell usually is for it ([wantUsual], half the last, half before).
      */
     var omenPlace = -1
     var omenMonth = 0
     var omenYear = 0L
     var omenWeight = 0f
     var deathsUsual = 0f
+    var wantSteps = 0
+    var wantBroke = 0
+    var wantUsual = 0f
     /** How it chooses ([Mind]): today's way, or the planning kind's. Handed down whole at a split; a band never joins one of the other mind. */
     var mind = Mind.NETS
     /** The strain its belief bears before part of the band breaks from it. */
@@ -627,7 +632,7 @@ class Band(kinds: Int) {
         o.salted = salted; o.dryDepth = dryDepth
         o.renown = renown
         rite.copyInto(o.rite); o.riteStrength = riteStrength; o.riteHeld = riteHeld; o.riteKept = riteKept; o.beliefYears = beliefYears; o.strain = strain
-        o.omenPlace = omenPlace; o.omenMonth = omenMonth; o.omenYear = omenYear; o.omenWeight = omenWeight; o.deathsUsual = deathsUsual; o.mind = mind
+        o.omenPlace = omenPlace; o.omenMonth = omenMonth; o.omenYear = omenYear; o.omenWeight = omenWeight; o.deathsUsual = deathsUsual; o.wantSteps = wantSteps; o.wantBroke = wantBroke; o.wantUsual = wantUsual; o.mind = mind
         traditions.copyInto(o.traditions); heard.copyInto(o.heard); o.heardOf = heardOf
         o.totem = totem; o.marksChosen = marksChosen; o.heardTotem = heardTotem.copyOf(); o.totemBroken = totemBroken
         o.burialWay = burialWay; heardBurial.copyInto(o.heardBurial); words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
