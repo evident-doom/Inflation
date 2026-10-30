@@ -394,7 +394,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     /** Life in the sea, lakes and rivers. */
     val water = HexWater(hw, land, days, small)
     /** Fruit and roots as stocks. */
-    val food = HexFood(land, small, days)
+    val food = HexFood(land, small, days).also { f -> small.takeMast = { p, want -> f.take(f.mast, p, want) } }
     /** Carcasses left this week in each place, kg (deaths other than kills, which the hunters count). */
     val carcassKg = FloatArray(n)
     /** Deaths this week by cause, animals ([WeekStats.residentDeaths]). */
