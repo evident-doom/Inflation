@@ -3,6 +3,7 @@ package inflation.ecology
 import inflation.enumFloats
 import inflation.enumBools
 import inflation.enumInts
+import inflation.weightedMean
 import inflation.world.Hex
 import inflation.world.HexArray
 import inflation.world.toHexArray
@@ -199,6 +200,14 @@ class Band(kinds: Int) {
     var houseHex = Hex.NONE
     var house = 0f
     /**
+     * Where it was last driven from its houses by raiders, and their people (main lineage): while it holds its grudge
+     * against them a feud's worth ([keptFrom]), it does not take up houses there again and keeps off the place.
+     */
+    var drivenFrom = Hex.NONE
+    var drivenBy = -1
+    /** Whether the raiders who drove it from [h] keep it from taking up houses there: as long as its grudge against them is a feud. */
+    fun keptFrom(h: Hex) = h == drivenFrom && drivenBy >= 0 && grudge[drivenBy] > FEUD
+    /**
      * At home: how far its houses' sunken walls bring the ground's warmth in ([earthGain], over the houses that shelter it), and
      * the ground's warmth there, the year's mean air temperature, °C. They keep it warmer in the cold the deeper they are sunk.
      */
@@ -247,6 +256,18 @@ class Band(kinds: Int) {
      * [keepHerds] sizes it to [herd].)
      */
     var herdPet = FloatArray(kinds)
+    /**
+     * Of each kind, its kept young not yet grown, born in its herd or caught in the hunt: each weighs [HexFauna.YOUNG_WEIGHT]
+     * of a grown one, eats about half as much, and grows up over its kind's years to maturity, as the residents' young do
+     * ([keepHerds]). [herd] holds the grown. (Empty in a band loaded from a save made before it; [youngHerd] sizes it.)
+     */
+    var herdYoung = FloatArray(kinds)
+    /** [herdYoung], sized to [herd]. */
+    fun youngHerd(): FloatArray { if (herdYoung.size != herd.size) herdYoung = FloatArray(herd.size); return herdYoung }
+    /** Whether it keeps any animals, grown or young. */
+    fun keepsAnimals() = herd.any { it > 0f } || herdYoung.any { it > 0f }
+    /** Of each kind, the heads beasts of prey took from its herd since it last kept it ([raidHerd], [keepHerds]). */
+    var herdTaken = FloatArray(kinds)
     /**
      * Of the grain in its stores, what it reaped from sown fields and keeps to sow first, its seed corn (as its stores count
      * it; eaten last, so no more than its grain: [seedCornIn]), and the share of that from ears that hold their grain;
@@ -509,7 +530,7 @@ class Band(kinds: Int) {
      * Its rites: for each month, the place it holds sacred then (-1: none) — the graves of its dead, where
      * bands gather, far landmarks it walked to or was told of (see [riteWeek]). Handed down whole to bands
      * that split off, taken up from bands met, now and then let go: customs that mark a band's line. They
-     * do not draw its moves (model 4.89): a trip to a rite's site will be an action the band chooses.
+     * do not draw its moves: a trip to a rite's site will be an action the band chooses.
      */
     val rite = IntArray(12) { -1 }
     /** How strongly its people hold to their rites (0: not at all; see [inflation.Tuning.riteFounderMax]). */
@@ -526,19 +547,35 @@ class Band(kinds: Int) {
     /** The month, counted from the world's start, it last held a rite to the end (-1: never). */
     var riteKept = -1L
     /**
+     * What the rite under way asked of it at its month's start ([riteAsked], person-days), and the days of that month it
+     * gave to neither its needs nor its customs ([riteSpare]): what it could have given the rite and gave to other work.
+     */
+    var riteAsked = 0f
+    var riteSpare = 0f
+    /**
      * Its belief is its rites as a whole: the years it has kept them ([beliefYears], its weight: the older, the more strain
-     * it bears), and the strain of rites it could not hold ([strain]: one a rite cut short, easing in weeks it eats its
-     * fill), which splits the band once it passes what the belief bears ([strainBorne]).
+     * it bears), and the strain of rites it held back from ([strain]: up to one a rite cut short, as far as the days it
+     * did not give went to other work than its needs; easing in weeks it eats its fill): one of the quarrels that split a
+     * band, the more the nearer it is to what the belief bears ([strainBorne]; see [HexGroups.maxSize]).
      */
     var beliefYears = 0f
     var strain = 0f
+    /**
+     * The omen it remembers ([GroupWorld.omen]): the place, month and year of a salient event and how many times what it
+     * is used to it was ([omenWeight], fading); -1: none. And its usual deaths a week a head ([deathsUsual], over about a year).
+     */
+    var omenPlace = -1
+    var omenMonth = 0
+    var omenYear = 0L
+    var omenWeight = 0f
+    var deathsUsual = 0f
     /** How it chooses ([Mind]): today's way, or the planning kind's. Handed down whole at a split; a band never joins one of the other mind. */
     var mind = Mind.NETS
     /** The strain its belief bears before part of the band breaks from it. */
     fun strainBorne() = STRAIN_SPLIT * (1f + beliefYears / BELIEF_AGE_YEARS)
     /** Gives up its belief: its rites, its hold on them and what they asked of it (the part of a band that broke away). */
     fun dropBelief() {
-        rite.fill(-1); riteStrength = 0f; beliefYears = 0f; strain = 0f; riteOwed = 0f; riteDue = -1
+        rite.fill(-1); riteStrength = 0f; beliefYears = 0f; strain = 0f; riteOwed = 0f; riteAsked = 0f; riteSpare = 0f; riteDue = -1; omenPlace = -1; omenWeight = 0f
     }
 
     fun holds(t: Tradition) = traditions[t]
@@ -568,7 +605,7 @@ class Band(kinds: Int) {
 
     fun splitInto(o: Band, adults: Int, stay: Int, share: Float, r: Random, copied: (Band) -> Unit) {
         o.ties.clear(); o.ties.putAll(ties); o.appointment = appointment
-        o.houseHex = houseHex; o.house = house; o.homeEarth = homeEarth; o.homeWalls = homeWalls; o.homeGroundC = homeGroundC; o.palisade = palisade; herdTame.copyInto(o.herdTame); herd.copyInto(o.herd); herdGrew.copyInto(o.herdGrew); herdPet.copyInto(o.herdPet)
+        o.houseHex = houseHex; o.house = house; o.drivenFrom = drivenFrom; o.drivenBy = drivenBy; o.homeEarth = homeEarth; o.homeWalls = homeWalls; o.homeGroundC = homeGroundC; o.palisade = palisade; herdTame.copyInto(o.herdTame); herd.copyInto(o.herd); herdGrew.copyInto(o.herdGrew); herdPet.copyInto(o.herdPet)
         o.houseLives = houseLives; o.houseFood = houseFood; foodFrom.copyInto(o.foodFrom); o.fishPull = fishPull; monthSupply.copyInto(o.monthSupply); freeShare.copyInto(o.freeShare); o.leanDays = leanDays
         o.seedDomestic = seedDomestic; o.grainDomestic = grainDomestic; o.seedCorn = seedCorn * share; seedCorn -= o.seedCorn; o.sinceRaided = sinceRaided; o.sisu = sisu
         o.knownHomes.putAll(knownHomes); o.knownLineage.putAll(knownLineage)
@@ -589,7 +626,8 @@ class Band(kinds: Int) {
         fine.copyInto(o.fine)
         o.salted = salted; o.dryDepth = dryDepth
         o.renown = renown
-        rite.copyInto(o.rite); o.riteStrength = riteStrength; o.riteHeld = riteHeld; o.riteKept = riteKept; o.beliefYears = beliefYears; o.strain = strain; o.mind = mind
+        rite.copyInto(o.rite); o.riteStrength = riteStrength; o.riteHeld = riteHeld; o.riteKept = riteKept; o.beliefYears = beliefYears; o.strain = strain
+        o.omenPlace = omenPlace; o.omenMonth = omenMonth; o.omenYear = omenYear; o.omenWeight = omenWeight; o.deathsUsual = deathsUsual; o.mind = mind
         traditions.copyInto(o.traditions); heard.copyInto(o.heard); o.heardOf = heardOf
         o.totem = totem; o.marksChosen = marksChosen; o.heardTotem = heardTotem.copyOf(); o.totemBroken = totemBroken
         o.burialWay = burialWay; heardBurial.copyInto(o.heardBurial); words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
@@ -598,6 +636,7 @@ class Band(kinds: Int) {
         for (i in o.kept.indices) { o.kept[i] *= share; kept[i] -= o.kept[i] }
         // (A band from a save made when there were fewer resident kinds keeps fewer: see [HexFauna.kinds].)
         for (i in 0 until min(herd.size, o.herd.size)) { o.herd[i] *= share; herd[i] -= o.herd[i] }
+        run { val y = youngHerd(); val oy = o.youngHerd(); for (i in 0 until min(y.size, oy.size)) { oy[i] = y[i] * share; y[i] -= oy[i] } }
         for (m in Material.entries) { o.goods[m] = goods[m] * share; goods[m] -= o.goods[m] }
         o.ornaments = ornaments * share; ornaments -= o.ornaments; o.exotic = exotic * share; exotic -= o.exotic
         o.elders = elders * adults / (stay + adults).coerceAtLeast(1); elders -= o.elders
@@ -629,24 +668,26 @@ class Band(kinds: Int) {
         for (i in Tool.entries) {
             val ka = a.kit[i] * (1f - w)
             val kb = b.kit[i] * w
-            if (ka + kb > 0f) a.fine[i] = (ka * a.fine[i] + kb * b.fine[i]) / (ka + kb)
+            if (ka + kb > 0f) a.fine[i] = weightedMean(a.fine[i], ka, b.fine[i], kb)
             a.kit[i] += w * (b.kit[i] - a.kit[i])
         }
-        if (dried + bDried > 0f) a.salted = (dried * a.salted + bDried * b.salted) / (dried + bDried)
-        if (dried + bDried > 0f) a.dryDepth = (dried * a.dryDepth + bDried * b.dryDepth) / (dried + bDried)
+        if (dried + bDried > 0f) a.salted = weightedMean(a.salted, dried, b.salted, bDried)
+        if (dried + bDried > 0f) a.dryDepth = weightedMean(a.dryDepth, dried, b.dryDepth, bDried)
         // (Seed corn blended by the seed corn each held, the rest of the grain by the rest.)
         val corn = min(a.seedCorn, seed); val bCorn = min(b.seedCorn, bSeed)
-        if (corn + bCorn > 0f) a.seedDomestic = (corn * a.seedDomestic + bCorn * b.seedDomestic) / (corn + bCorn)
+        if (corn + bCorn > 0f) a.seedDomestic = weightedMean(a.seedDomestic, corn, b.seedDomestic, bCorn)
         val wild = seed - corn; val bWild = bSeed - bCorn
-        if (wild + bWild > 0f) a.grainDomestic = (wild * a.grainDomestic + bWild * b.grainDomestic) / (wild + bWild)
+        if (wild + bWild > 0f) a.grainDomestic = weightedMean(a.grainDomestic, wild, b.grainDomestic, bWild)
         a.seedCorn = corn + bCorn
         for (i in Illness.entries) { a.sick[i] += w * (b.sick[i] - a.sick[i]); a.immune[i] += w * (b.immune[i] - a.immune[i]) }
         a.hurt += w * (b.hurt - a.hurt); a.lame += w * (b.lame - a.lame)
         a.ornaments += b.ornaments; a.exotic += b.exotic
+        val ay = a.youngHerd(); val by = b.youngHerd()
         for (i in 0 until min(a.herd.size, b.herd.size)) {
             val n = a.herd[i] + b.herd[i]
-            if (n > 0f) a.herdTame[i] = (a.herd[i] * a.herdTame[i] + b.herd[i] * b.herdTame[i]) / n
-            a.herd[i] = n
+            val heads = n + ay[i] + by[i]
+            if (heads > 0f) a.herdTame[i] = ((a.herd[i] + ay[i]) * a.herdTame[i] + (b.herd[i] + by[i]) * b.herdTame[i]) / heads
+            a.herd[i] = n; ay[i] += by[i]
             // (Pets while either band's were: the joined herd is weighed as food once the younger has grown.)
             if (i < a.herdPet.size && i < b.herdPet.size) a.herdPet[i] = max(a.herdPet[i], b.herdPet[i])
         }
@@ -657,9 +698,9 @@ class Band(kinds: Int) {
         for (t in Tradition.entries) a.heard[t] += b.heard[t]
         a.heardOf += b.heardOf
         for (i in 0 until min(a.heardTotem.size, b.heardTotem.size)) a.heardTotem[i] += b.heardTotem[i]
-        for (w in BurialWay.entries) a.heardBurial[w] += b.heardBurial[w]
+        for (way in BurialWay.entries) a.heardBurial[way] += b.heardBurial[way]
         a.burialOwed += b.burialOwed
-        a.riteOwed += b.riteOwed
+        a.riteOwed += b.riteOwed; a.riteAsked += b.riteAsked; a.riteSpare += b.riteSpare
         for ((k, v) in b.ties) if (k != id) a.ties[k] = max(a.tie(k), v)
         a.ties.remove(bId)
         for ((k, v) in b.favours) if (k != id) a.favours.merge(k, v, Float::plus)
@@ -775,20 +816,22 @@ class Band(kinds: Int) {
     /** How much better (above 1) or worse it does at [s] than a start band. */
     fun edge(s: Skill) = 1f / lapse(s)
     /** The insulation of the clothes its people wear by day, clo: a whole kit at [CLOTHES_CLO], as well sewn as its hands sew. */
-    fun clothesClo() = CLOTHES_CLO * has(Tool.CLOTHES) * skill(Skill.SEWING)
+    fun clothesClo(clothes: Float = has(Tool.CLOTHES)) = CLOTHES_CLO * clothes * skill(Skill.SEWING)
     /** How far houses shelter it where it is: its home's, at home. */
     fun homeShelter() = if (atHome) house else 0f
     /** How much warmer than [t] °C outside its houses keep: by the wood their hearths burn ([fire], [FIRE_HOUSE_KG_C]), and the ground's warmth through sunken walls. */
     fun houseWarmC(t: Float, fire: Float = 1f) = fire * HEARTH_WOOD / FIRE_HOUSE_KG_C + homeEarth * max(0f, homeGroundC - t)
-    /** What it has against the cold at [t] °C with a fire of [fire] and houses sheltering it as far as [home] ([BodyHeat]). */
-    fun cover(t: Float, fire: Float, home: Float, shelter: Float = this.shelter) = Cover(clothesClo(), fire, shelter, home, houseWarmC(t, fire))
+    /** What it has against the cold at [t] °C with a fire of [fire] and houses sheltering it as far as [home] ([BodyHeat]), in a kit of [clothes]. */
+    fun cover(t: Float, fire: Float, home: Float, shelter: Float = this.shelter, clothes: Float = has(Tool.CLOTHES)) =
+        Cover(clothesClo(clothes), fire, shelter, home, houseWarmC(t, fire))
     /**
      * Its week of [days] in [air] with a fire of [fire] and houses sheltering it as far as [home], by its people's body heat
      * ([BodyHeat]): the food keeping warm takes, and the deaths of exposure. Fur clothes, robes at night, a fire, a shelter
      * with its bedding or a house keep people alive in deep cold; the naked die of exposure in a night a few degrees above
      * freezing, wet and windy.
      */
-    fun warmth(air: Air, fire: Float, home: Float, days: Int, shelter: Float = this.shelter) = BodyHeat.week(air, cover(air.meanC, fire, home, shelter), days, sisu)
+    fun warmth(air: Air, fire: Float, home: Float, days: Int, shelter: Float = this.shelter, clothes: Float = has(Tool.CLOTHES)) =
+        BodyHeat.week(air, cover(air.meanC, fire, home, shelter, clothes), days, sisu)
 
     companion object {
         /**

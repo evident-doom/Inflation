@@ -152,11 +152,15 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     // With the time still to spare, a band that has kept its camp a while builds stone-footed houses
     // there, as far as it has gathered the stone and timber (and starts afresh where it settles
     // anew); houses it has left weather away.
-    useStructures(g, h)
-    buildHouse(g, b, p, h, people, time)
+    // (Not where raiders drove it from while it still fears them: see [Band.keptFrom].)
+    val kept = b.keptFrom(h)
+    if (!kept) {
+        useStructures(g, h)
+        buildHouse(g, b, p, h, people, time)
+    }
     time.release(Activity.HOUSES)
     // (Its home is where it last had houses to use; what stands there still shelters it, unless another band took it up.)
-    if (housesAt(g, h) > 0.05f) b.houseHex = h
+    if (!kept && housesAt(g, h) > 0.05f) b.houseHex = h
     b.house = if (b.houseHex.none) 0f else housesAt(g, b.houseHex)
     b.atHome = b.houseHex == h && b.house > 0.05f
     b.homeEarth = if (b.atHome) earthAt(g, h) else 0f
@@ -220,7 +224,8 @@ internal fun HexGroups.choreAsks(g: HexGroup, b: Band, date: Date, asks: EnumFlo
     ask(Activity.SHELTER, shelterWork(b, people, if (moved) 0f else b.shelter, b.shelterWill) - (warm?.get(Activity.SHELTER) ?: 0f))
     ask(Activity.CUSTOMS, b.burialOwed + b.riteOwed + cleanDays(b, people) + nurseDays(b, people))
     ask(Activity.TRAINING, Skill.entries.sumOf { s -> (learners(b, s, people) * APPRENTICE_DAYS * s.complexity).toDouble() }.toFloat())
-    ask(Activity.TOOLS, makeTools(b, people, null))
+    // (What its kit asks beyond the clothes' days given first, when given: [survivalDays].)
+    ask(Activity.TOOLS, makeTools(b, people, null) - (warm?.get(Activity.TOOLS) ?: 0f))
     ask(Activity.ORNAMENTS, ornamentsWanted(b, people) * ORNAMENT_DAYS)
     // (A band that has just moved builds, sows and fortifies nothing where it has come to.)
     if (!moved) {
@@ -250,10 +255,13 @@ internal fun HexGroups.leaveDead(g: HexGroup, freed: MutableList<HexGroup>) {
     for (m in ROTS) b.goods[m] = 0f
     dropCache(b)
     val area = land.areaKm2[p]
-    for (k in b.herd.indices) if (b.herd[k] > 0f) {
-        fauna.adults[k][p] += b.herd[k] / area; bands.herdFlows[HerdFlow.FREED] += b.herd[k]; bands.herdFlows[HerdFlow.ENDED_FREED] += 1f
-        bands.kindFlows[k][HerdFlow.FREED] += b.herd[k]; bands.kindFlows[k][HerdFlow.ENDED_FREED] += 1f
-        b.herd[k] = 0f; b.herdTame[k] = 0f; if (k < b.herdPet.size) b.herdPet[k] = 0f
+    val young = b.youngHerd()
+    for (k in b.herd.indices) if (b.herd[k] + young[k] > 0f) {
+        val heads = b.herd[k] + young[k]
+        fauna.adults[k][p] += b.herd[k] / area; fauna.young[k][p] += young[k] / area
+        bands.herdFlows[HerdFlow.FREED] += heads; bands.herdFlows[HerdFlow.ENDED_FREED] += 1f
+        bands.kindFlows[k][HerdFlow.FREED] += heads; bands.kindFlows[k][HerdFlow.ENDED_FREED] += 1f
+        b.herd[k] = 0f; young[k] = 0f; b.herdTame[k] = 0f; if (k < b.herdPet.size) b.herdPet[k] = 0f
     }
     for (i in b.kept.indices) {
         val n = b.kept[i].toInt()
@@ -305,7 +313,7 @@ const val MARSH_FEVER = 0.05f
 /** How [b] lives, for the reports: settled at home in its houses or at a camp kept half a year or more, else mobile. */
 /** Whether [b], [hands] strong, keeps a herd and how much of its days the herd asks, for the census ([Tally.Herding]). */
 internal fun GroupWorld.bandHerding(b: Band, hands: Int): Tally.Herding {
-    if (b.herd.none { it > 0f }) return Tally.Herding.NOT_HERDING
+    if (!b.keepsAnimals()) return Tally.Herding.NOT_HERDING
     val load = herdDays(b) / (days * hands.coerceAtLeast(1)).toFloat()
     return Tally.Herding.entries.first { it != Tally.Herding.NOT_HERDING && load < it.below }
 }
@@ -313,8 +321,9 @@ internal fun GroupWorld.bandLiving(b: Band) =
     if (b.atHome || b.campWeeks >= stepsPerYear / 2f) Tally.Living.SETTLED else Tally.Living.MOBILE
 
 /**
- * The villages this week, for the reports: the hexes where two or more bands live settled ([bandLiving]), with those
- * bands. Nothing chooses by it.
+ * The villages this week, for the reports: the hexes where two or more bands live settled ([bandLiving]), or one band at
+ * home there larger than any camp of its kind ([Species.maxGroupSize]: bands at home together that grew alike become one,
+ * and a village of one band is still a village), with those bands. Nothing chooses by it.
  */
 internal fun HexGroups.villages(): Map<Hex, List<HexGroup>> {
     val byHex = HashMap<Hex, ArrayList<HexGroup>>()
@@ -322,7 +331,7 @@ internal fun HexGroups.villages(): Map<Hex, List<HexGroup>> {
         val b = g.band ?: continue
         if (g.alive && bandLiving(b) == Tally.Living.SETTLED) byHex.getOrPut(hw.placeHex[g.place]) { ArrayList() } += g
     }
-    return byHex.filterValues { it.size >= 2 }
+    return byHex.filterValues { it.size >= 2 || it[0].let { g -> g.band?.atHome == true && g.size > g.species.maxGroupSize } }
 }
 
 /**
@@ -688,7 +697,7 @@ const val SKIN_DAYS = 0.5f
 /**
  * Wounds: how much less the hurt and the lamed do; yearly share of adults hurt by mishaps (falls,
  * cuts, sprains, snakebite gone bad) at the usual gathering range; wounded who live for each one
- * killed in a fight, by prey or by a beast; weekly share of the wounded who heal, untended and with
+ * killed by prey or by a beast (in raids, [RAID_WOUNDED_PER_DEAD]); weekly share of the wounded who heal, untended and with
  * the best care; weekly share whose wound festers and kills, untended (care saves most); share of
  * the healed lamed for life, untended (care halves it); yearly share of the lamed lost as the band's
  * people turn over.

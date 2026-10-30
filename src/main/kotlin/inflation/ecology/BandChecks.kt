@@ -37,6 +37,7 @@ fun HexGroup.violations(): List<String> {
     check("inbred ${b.inbred}", b.inbred.isFinite() && b.inbred in 0f..1f)
     check("hold on its rites ${b.riteStrength}", b.riteStrength.isFinite() && b.riteStrength >= 0f)
     check("herd ${b.herd.toList()}", b.herd.allIn(0f, Float.MAX_VALUE))
+    check("young in the herd ${b.herdYoung.toList()}", b.herdYoung.allIn(0f, Float.MAX_VALUE))
     check("herd of ${b.herd.size} kinds, tameness of ${b.herdTame.size}", b.herd.size == b.herdTame.size)
     check("tameness ${b.herdTame.toList()}", b.herdTame.allIn(0f, 1.0001f))
     b.appointment?.let { check("appointment at ${it.hex} in month ${it.month}", !it.hex.none && it.month in 0..11) }

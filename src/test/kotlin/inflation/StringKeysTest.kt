@@ -61,7 +61,7 @@ class StringKeysTest {
 
     @Test
     fun `the model matches no keys by their text`() = check("""\.(?:startsWith|endsWith|substringAfter|substringBefore|removePrefix|removeSuffix)\(""", mapOf(
-        "ecology/HexHistory.kt" to (19 to "history series by prefix: the CSV columns are text (reports only)"),
+        "ecology/HexHistory.kt" to (20 to "history series by prefix: the CSV columns are text (reports only)"),
         "ecology/WeekStats.kt" to (8 to "the Tally builders' own parsing"),
         "ecology/HuntDiag.kt" to (2 to "the hunt steps' own prefix"),
         "ecology/HexSnapshot.kt" to (2 to "class names when saving"),
@@ -77,7 +77,7 @@ class StringKeysTest {
         "ecology/HexGeography.kt" to (1 to "the cover of a core, set while building"),
         "ecology/HexGroups.kt" to (3 to "the path and time of a group that chose to move"),
         "ecology/GroupPlanner.kt" to (1 to "the reach cache merge"),
-        "ecology/HexLifeAndDeath.kt" to (4 to "a band of a people group: the caller has chosen people"),
+        "ecology/HexLifeAndDeath.kt" to (1 to "a band of a people group: the caller has chosen people"),
         "ecology/HexPeople.kt" to (2 to "a band of a people group: the caller has chosen people"),
         "ecology/HexSmallLife.kt" to (1 to "the months a bird is present: set for the kinds that follow insects"),
         "learning/PpoTrainer.kt" to (1 to "a player is made for every world before the round"),
@@ -124,7 +124,6 @@ class StringKeysTest {
     fun `places are passed as Place, not as Int`() = check("""[(, ][pq]: Int\b""", mapOf(
         "ecology/HexFauna.kt" to (2 to "the resident flow tables are Int arrays: a neighbour's index and one way of a flow"),
         "ecology/GroupPlanner.kt" to (2 to "pathTo takes a candidate place from an Int list; where() is a debug text"),
-        "ecology/HexCulture.kt" to (1 to "a place or -1, kept in an Int list of the places held"),
         "ecology/GroupFood.kt" to (2 to "the places a group swept, kept in an Int array of the week's sweep"),
         "world/Weather.kt" to (2 to "the weather serves the fine grid and the places: one index type would be wrong"),
         "world/HexHydrology.kt" to (2 to "the glacier flow's places in a hex's Int list"),

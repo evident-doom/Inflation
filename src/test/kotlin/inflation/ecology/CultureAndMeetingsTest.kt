@@ -3,6 +3,7 @@ package inflation.ecology
 import inflation.Tuning
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
@@ -80,8 +81,15 @@ class CultureAndMeetingsTest {
         assertEquals(Language.understanding(b.words, o.words), Regard(b, 7, o).understood)
         val far = Band(0).also { f -> f.lineage[5] = 1f; f.totem = FaunaKind(2); for (t in Tradition.entries) f.traditions[t] = !b.holds(t) }
         assertTrue(Regard(b, 9, far, 0f).wariness <= Regard.MOST_WARY)
-        // (No pair differs in every custom: where they lay their dead counts only where both bury them.)
+        // (No pair differs in every custom: where they lay their dead counts only where both bury them, and rites only where
+        // both keep some.)
+        assertEquals(1f + STRANGER_HOSTILITY + CUSTOMS_HOSTILITY * (CUSTOMS - 2f) / CUSTOMS, Regard(b, 9, far, 0f).wariness, 1e-6f)
+        b.rite[0] = 5; far.rite[3] = 6
         assertEquals(1f + STRANGER_HOSTILITY + CUSTOMS_HOSTILITY * (CUSTOMS - 1f) / CUSTOMS, Regard(b, 9, far, 0f).wariness, 1e-6f)
+        // (A site in common, whatever the month, is one faith there.)
+        far.rite[7] = 5
+        assertFalse(ritesApart(b, far)); assertEquals(Regard(b, 9, far, 0f).customsApart, Tradition.entries.size + 1)
+        far.rite[7] = -1
         b.grudge[5] = FEUD + 0.1f
         assertTrue(Regard(b, 9, far).feud)
     }
@@ -135,11 +143,17 @@ class CultureAndMeetingsTest {
         assertEquals(STRAIN_SPLIT, b.strainBorne(), 1e-6f)
         b.beliefYears = BELIEF_AGE_YEARS
         assertEquals(2f * STRAIN_SPLIT, b.strainBorne(), 1e-6f, "a belief a generation old bears twice the strain")
-        b.rite[3] = 7; b.riteStrength = 2f; b.strain = 5f; b.riteOwed = 4f; b.riteDue = 7
+        b.rite[3] = 7; b.riteStrength = 2f; b.strain = 5f; b.riteOwed = 4f; b.riteAsked = 6f; b.riteSpare = 3f; b.riteDue = 7
         b.dropBelief()
         assertTrue(b.rite.all { it < 0 })
         assertEquals(0f, b.riteStrength); assertEquals(0f, b.beliefYears); assertEquals(0f, b.strain); assertEquals(0f, b.riteOwed)
+        assertEquals(0f, b.riteAsked); assertEquals(0f, b.riteSpare)
         assertEquals(-1, b.riteDue)
+    }
+
+    @Test
+    fun `the year turns at the equinoxes and solstices, every third month`() {
+        assertEquals(listOf(0, 3, 6, 9), (0 until 12).filter { turnOfYear(it) })
     }
 
     @Test

@@ -93,6 +93,8 @@ class DeathTally(private val sim: HexSim) {
 class HuntTally(private val sim: HexSim) {
     /** This year's tallies, and the hunters' fed sums and group-weeks, by kind. */
     val year = TreeMap<TallyKey, Int>()
+    /** This year's meeting and culture tallies ([inflation.ecology.Met]), summed over its weeks. */
+    val meetingsYear = TreeMap<TallyKey, Int>()
     private val fedSum = HashMap<String, Double>()
     private val groupWeeks = HashMap<String, Int>()
     /** The tallies of the last whole year, and of this one so far. */
@@ -102,13 +104,14 @@ class HuntTally(private val sim: HexSim) {
     var grainReapedLastYear = 0.0; private set
     private var grainReapedNow = 0.0
 
-    fun startYear() { year.clear(); fedSum.clear(); groupWeeks.clear() }
+    fun startYear() { year.clear(); meetingsYear.clear(); fedSum.clear(); groupWeeks.clear() }
 
     fun week() {
         val groups = sim.groups
         grainReapedNow += (groups.stats.hunting[Tally.of(Catalogue.HUMAN, Tally.OfKind.GRAIN_REAPED)] ?: 0) / 1000.0
         for ((key, v) in groups.stats.hunting) year.merge(key, v, Int::plus)
         for ((key, v) in groups.stats.hunting) now.merge(key, v, Int::plus)
+        for ((key, v) in groups.stats.meetings) meetingsYear.merge(key, v, Int::plus)
         for (g in groups.groups) if (g.alive && g.species.carnivore) {
             fedSum.merge(g.species.name, g.fed.toDouble(), Double::plus)
             groupWeeks.merge(g.species.name, 1, Int::plus)
@@ -506,8 +509,8 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
     private fun herdFlows(): String {
         val f = sim.groups.bands.herdFlows
         val kg = f[HerdFlow.KG].coerceAtLeast(1e-6f)
-        return "; since last: born %.0f, died %.0f, ran off %.0f, culled for want of herders %.0f, eaten of the increase %.0f, eaten down for not paying %.0f, gone wild with bands that died out %.0f, milk %.0f t; herded %.2f, fed %.2f, in herds that pay %.2f (a herder's day against a lean month's foraging day: under 0.5 %.2f, 0.5-1 %.2f, 1-2 %.2f, 2 or more %.2f); herds ended %.0f while paying, %.0f not paying, %.0f with their band".format(
-            f[HerdFlow.BORN], f[HerdFlow.DIED], f[HerdFlow.RAN_OFF], f[HerdFlow.CULLED], f[HerdFlow.EATEN], f[HerdFlow.EATEN_UNPAID], f[HerdFlow.FREED], f[HerdFlow.MILK_KG] / 1000f,
+        return "; since last: born %.0f, died %.0f, ran off %.0f, taken by beasts %.0f, culled for want of herders %.0f, eaten of the increase %.0f, eaten down for not paying %.0f, gone wild with bands that died out %.0f, milk %.0f t; herded %.2f, fed %.2f, in herds that pay %.2f (a herder's day against a lean month's foraging day: under 0.5 %.2f, 0.5-1 %.2f, 1-2 %.2f, 2 or more %.2f); herds ended %.0f while paying, %.0f not paying, %.0f with their band".format(
+            f[HerdFlow.BORN], f[HerdFlow.DIED], f[HerdFlow.RAN_OFF], f[HerdFlow.TAKEN], f[HerdFlow.CULLED], f[HerdFlow.EATEN], f[HerdFlow.EATEN_UNPAID], f[HerdFlow.FREED], f[HerdFlow.MILK_KG] / 1000f,
             f[HerdFlow.KG_TENDED] / kg, f[HerdFlow.KG_FED] / kg, f[HerdFlow.KG_PAYS] / kg,
             f[HerdFlow.KG_WORTH_HALF] / kg, f[HerdFlow.KG_WORTH_UNDER] / kg, f[HerdFlow.KG_WORTH_OVER] / kg, f[HerdFlow.KG_WORTH_TWICE] / kg, f[HerdFlow.ENDED], f[HerdFlow.ENDED_UNPAID], f[HerdFlow.ENDED_FREED])
             .also { f.fill(0f) } + kindFlows()
@@ -523,11 +526,11 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
         val bands = sim.groups.bands; val kinds = sim.fauna.kinds
         val parts = kinds.indices.mapNotNull { k ->
             val f = bands.kindFlows[k]; val young = bands.keptYoung.getAndSet(k, 0); val begun = bands.herdsBegun.getAndSet(k, 0)
-            val line = if (young == 0 && f[HerdFlow.KG] <= 0f && f[HerdFlow.ENDED] + f[HerdFlow.ENDED_UNPAID] + f[HerdFlow.ENDED_PET] + f[HerdFlow.ENDED_FREED] <= 0f) null
+            val line = if (young == 0 && f[HerdFlow.KG] <= 0f && f[HerdFlow.TAKEN] <= 0f && f[HerdFlow.ENDED] + f[HerdFlow.ENDED_UNPAID] + f[HerdFlow.ENDED_PET] + f[HerdFlow.ENDED_FREED] <= 0f) null
             else {
                 val kg = f[HerdFlow.KG].coerceAtLeast(1e-6f)
-                "%s: young kept %d, herds begun %d, born %.0f, culled for want of herders %.0f, eaten down for not paying %.0f, ended %.0f paying / %.0f not / %.0f as pets, as pets %.2f, in herds that pay %.2f, increase %.2f a year, a herder's day %.2f of a lean month's foraging".format(
-                    kinds[k].name, young, begun, f[HerdFlow.BORN], f[HerdFlow.CULLED], f[HerdFlow.EATEN_UNPAID], f[HerdFlow.ENDED], f[HerdFlow.ENDED_UNPAID], f[HerdFlow.ENDED_PET],
+                "%s: young kept %d, herds begun %d, born %.0f, ran off %.0f, taken by beasts %.0f, culled for want of herders %.0f, eaten down for not paying %.0f, ended %.0f paying / %.0f not / %.0f as pets, as pets %.2f, in herds that pay %.2f, increase %.2f a year, a herder's day %.2f of a lean month's foraging".format(
+                    kinds[k].name, young, begun, f[HerdFlow.BORN], f[HerdFlow.RAN_OFF], f[HerdFlow.TAKEN], f[HerdFlow.CULLED], f[HerdFlow.EATEN_UNPAID], f[HerdFlow.ENDED], f[HerdFlow.ENDED_UNPAID], f[HerdFlow.ENDED_PET],
                     f[HerdFlow.KG_PET] / kg, f[HerdFlow.KG_PAYS] / kg, f[HerdFlow.INCREASE_KG] / kg, f[HerdFlow.WORTH_KG] / f[HerdFlow.KG_WORTH_KNOWN].coerceAtLeast(1e-6f))
             }
             f.fill(0f)
@@ -536,6 +539,9 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
         return " | kept herds by kind since last: " + parts.joinToString("; ").ifEmpty { "none" }
     }
 
+    /** The heads of kind [k] band [b] keeps, grown and young. */
+    private fun heads(b: Band, k: Int) = b.herd.getOrElse(k) { 0f } + b.herdYoung.getOrElse(k) { 0f }
+
     /** What bands hold a grown person (what a camp move must carry or leave), kept herds, ornaments and shell, grave goods. */
     private fun goods(bands: List<HexGroup>, bs: List<Band>): String {
         val hw = sim.hw; val land = sim.land; val fauna = sim.fauna
@@ -543,10 +549,10 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
         return " | held an adult: food %.1f kg, goods %.1f kg (".format(bands.sumOf { it.larder.toDouble() } / adults,
                 bs.sumOf { it.goods.sum().toDouble() } / adults) +
             Material.entries.joinToString(", ") { m -> "%s %.1f".format(m.name.lowercase(), bs.sumOf { it.goods[m].toDouble() } / adults) } + ")" +
-            " | kept herds: " + fauna.kinds.indices.filter { k -> bs.any { it.herd.size > k && it.herd[k] >= 1f } }.joinToString(", ") { k ->
-                val keepers = bs.filter { it.herd.size > k && it.herd[k] >= 1f }
-                "%s %.0f head in %d bands, %d of them mobile (tame %.2f)".format(fauna.kinds[k].name, keepers.sumOf { it.herd[k].toDouble() },
-                    keepers.size, keepers.count { sim.groups.bandLiving(it) == Tally.Living.MOBILE }, keepers.map { it.herdTame[k].toDouble() }.average()) }.ifEmpty { "none" } +
+            " | kept herds: " + fauna.kinds.indices.filter { k -> bs.any { heads(it, k) >= 1f } }.joinToString(", ") { k ->
+                val keepers = bs.filter { heads(it, k) >= 1f }
+                "%s %.0f head (%.0f of them young) in %d bands, %d of them mobile (tame %.2f)".format(fauna.kinds[k].name, keepers.sumOf { heads(it, k).toDouble() },
+                    keepers.sumOf { it.herdYoung.getOrElse(k) { 0f }.toDouble() }, keepers.size, keepers.count { sim.groups.bandLiving(it) == Tally.Living.MOBILE }, keepers.map { it.herdTame[k].toDouble() }.average()) }.ifEmpty { "none" } +
             herdFlows() +
             " | ornaments %.1f a person (%.0f%% of shell), shell beads a person inland %.2f, by the sea %.2f; graves with goods %d (richest hold %.0f%% of goods)".format(
                 bs.sumOf { it.ornaments.toDouble() } / headsOf(bands),

@@ -419,14 +419,24 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     }
 
     /**
+     * Takes up to the asked kg/m² of fallen mast at a place, returning what was taken: set by [HexFauna], which holds the
+     * stock ([HexFood.mast]).
+     */
+    @Transient var takeMast: ((Place, KgM2) -> KgM2)? = null
+
+    /**
      * Rodents (a female raises some twenty young a year): they eat ~10% of their mass a day, and a mouse or vole
      * lasts only a few days without food, so the share that found none in the week dies. They breed on fresh growth
      * (young shoots and seeds carry the protein a litter needs), logistic on food; losses to cold and deep snow.
+     * Fallen acorns and nuts they eat first, as far as there are any, then the herbs: wood mice took 99% of holm, cork and
+     * kermes oak acorns laid out under Spanish oaks, half within a week (Pons and Pausas 2007, Ecol Res 22:535), and of holm
+     * oak acorns rodents handled, 1.3% were alive the next spring (Gómez, Puerta-Piñero and Schupp 2008, Oecologia 155:529).
      */
     private fun stepRodents(p: Place, t: Float, food: Float, snow: Float) {
         var r = rodents[p]
         val need = KgKm2(r * 0.1f * days).perM2
-        val eaten = land.plants.consume(p, LifeForm.HERB, need)
+        val nuts = takeMast?.invoke(p, need) ?: KgM2(0f)
+        val eaten = nuts + land.plants.consume(p, LifeForm.HERB, need - nuts)
         litter[p] += FRASS * eaten.v
         ateM2(p, eaten.v); dropped(p, FRASS * eaten.v)
         val fed = if (need.v > 0f) eaten / need else 1f

@@ -11,6 +11,7 @@ import inflation.Tuning
 import inflation.world.LifeForm
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 // Bands' goods, tools and skills: gathering materials, making and wearing tools and ornaments, customs, teaching, forgetting and wounds.
 
@@ -87,6 +88,14 @@ internal fun GroupWorld.carried(b: Band, m: Material, people: Float): Float {
     return (GOODS_PER_PERSON + stack) * people
 }
 
+/**
+ * The parts of a band's customs' time, for the report ([keepCustoms]): what each asks and is given, and the days to hand for
+ * them as the week's plan held them ([HELD]) or as nobody had asked for them ([FREE]).
+ */
+enum class CustomsPart(val label: String) {
+    BURIALS("burials"), RITES("rites"), CLEANING("cleaning"), NURSING("nursing"), HELD("held by the plan"), FREE("free")
+}
+
 /** How far [g]'s band [b] lacks [m]: 1 with none of it, 0 with all it carries ([carried]). */
 internal fun GroupWorld.lacking(g: HexGroup, b: Band, m: Material) = max(0f, 1f - b.goods[m] / carried(b, m, g.adults.toFloat()).coerceAtLeast(1e-3f))
 
@@ -97,20 +106,38 @@ internal fun GroupWorld.lacking(g: HexGroup, b: Band, m: Material) = max(0f, 1f 
  * the time goes, and helps only as far as it was done.
  */
 internal fun GroupWorld.keepCustoms(b: Band, people: Float, time: BandTime) {
+    // (For the report: what each part of the customs asked and got, and how much of the time was the plan's and how much free.)
+    val heldDays = time.heldFor(Activity.CUSTOMS) * time.pace(Activity.CUSTOMS)
+    val canDays = time.leftFor(Activity.CUSTOMS)
+    // (Burials and rites are counted as asked when they fall due: [mournDead], [riteWeek].)
+    fun tally(part: CustomsPart, asked: Float, given: Float) {
+        if (asked > 0f && (part == CustomsPart.CLEANING || part == CustomsPart.NURSING)) stats.meeting(Met.Of.CUSTOMS_DAYS_ASKED, part.label, (10f * asked).roundToInt())
+        if (given > 0f) stats.meeting(Met.Of.CUSTOMS_DAYS_GIVEN, part.label, (10f * given).roundToInt())
+    }
     if (b.burialOwed > 0f) {
         val paid = min(b.burialOwed, max(0f, time.leftFor(Activity.CUSTOMS)))
+        tally(CustomsPart.BURIALS, b.burialOwed, paid)
         time.spend(Activity.CUSTOMS, paid); b.burialOwed -= paid
     }
     if (b.riteOwed > 0f) {
         val paid = min(b.riteOwed, max(0f, time.leftFor(Activity.CUSTOMS)))
+        tally(CustomsPart.RITES, b.riteOwed, paid)
         time.spend(Activity.CUSTOMS, paid); b.riteOwed -= paid
     }
     val clean = cleanDays(b, people)
     b.cleaned = if (clean > 0f) min(1f, time.leftFor(Activity.CUSTOMS) / clean) else 1f
+    tally(CustomsPart.CLEANING, clean, b.cleaned * clean)
     time.spend(Activity.CUSTOMS, b.cleaned * clean)
     val nurse = nurseDays(b, people)
     b.nursed = if (nurse > 0f) min(1f, time.leftFor(Activity.CUSTOMS) / nurse) else 1f
+    tally(CustomsPart.NURSING, nurse, b.nursed * nurse)
     time.spend(Activity.CUSTOMS, b.nursed * nurse)
+    // (What of the week went neither to its needs nor to its customs could have gone to a rite under way.)
+    if (b.riteDue >= 0 && time.vital > 0f) b.riteSpare += max(0f, time.total - time.vital - time.spentOn(Activity.CUSTOMS))
+    if (heldDays > 0f || canDays > 0f) {
+        stats.meeting(Met.Of.CUSTOMS_DAYS_TO_HAND, CustomsPart.HELD.label, (10f * min(heldDays, canDays)).roundToInt())
+        stats.meeting(Met.Of.CUSTOMS_DAYS_TO_HAND, CustomsPart.FREE.label, (10f * max(0f, canDays - heldDays)).roundToInt())
+    }
     time.noneBelowZero()
     time.release(Activity.CUSTOMS)
 }
@@ -139,7 +166,7 @@ internal fun GroupWorld.wearAndInvent(b: Band, years: Float) {
     // So with ways of working: a band practised at a kind of work now and then hits on a new way of doing it.
     // (Salting is hit on only with salt to hand.)
     for (s in Skill.entries) if (!b.knowsSkill[s] && (!s.settled || b.atHome) && (s != Skill.SALTING || b.goods[Material.SALT] > 0f) &&
-        (s != Skill.TENDING || b.herd.any { it > 0f }) &&
+        (s != Skill.TENDING || b.keepsAnimals()) &&
         s.needs.let { it == null || (b.knowsSkill[it] && b.skills[it] >= NEEDS_LEVEL) } &&
         rnd.nextFloat() < s.invent * INVENT * b.edge(Skill.TINKER) * years * (0.5f + b.skill(s.domain))) {
         b.knowsSkill[s] = true
@@ -151,21 +178,22 @@ internal fun GroupWorld.wearAndInvent(b: Band, years: Float) {
 /**
  * Making and mending in the [time] days [b] has to spare: the tools it ranks first first (the
  * scaffold: the most worn), each as far as the time, the scarcest material and the skill allow. With no [time] it makes
- * nothing, and returns the person-days it would have liked (else 0).
+ * nothing, and returns the person-days it would have liked (else 0). With [only], that tool alone, in at most [most] of
+ * the days (the clothes the survival pass gives days first, [survivalDays]).
  */
 @IgnorableReturnValue
-internal fun HexGroups.makeTools(b: Band, people: Float, time: BandTime?): Float {
+internal fun HexGroups.makeTools(b: Band, people: Float, time: BandTime?, only: Tool? = null, most: Float = Float.MAX_VALUE): Float {
     val gd = if (time == null) b.goods.copyOf() else b.goods
     var asked = 0f
-    val order = Tool.entries.filter { b.knows[it] && b.kit[it] < 1f }.sortedByDescending { b.makeFirst[it] * (1f - b.kit[it]) }
-    if (time != null) dialUse?.let { u -> if (order.size > 1) {
+    val order = Tool.entries.filter { (only == null || it == only) && b.knows[it] && b.kit[it] < 1f }.sortedByDescending { b.makeFirst[it] * (1f - b.kit[it]) }
+    if (time != null && only == null) dialUse?.let { u -> if (order.size > 1) {
         val order1 = Tool.entries.filter { b.knows[it] && b.kit[it] < 1f }.sortedByDescending { 1f - b.kit[it] }
         // (Counted under the tool it put first: whether the order differs from the scaffold's, most worn first.)
         u.choice(DialSite.MAKE_FIRST, b.makeFirst[order[0]], order != order1, false, dial = WaysOut.MAKE_FIRST + order[0].ordinal)
     } }
-    if (time != null) b.clothesMade = if (Tool.CLOTHES in order) Tally.ClothesMade.NOT_REACHED else null
+    if (time != null && only == null) b.clothesMade = if (Tool.CLOTHES in order) Tally.ClothesMade.NOT_REACHED else null
     for (t in order) {
-        val left = time?.leftFor(Activity.TOOLS) ?: Float.MAX_VALUE
+        val left = min(most, time?.leftFor(Activity.TOOLS) ?: Float.MAX_VALUE)
         if (left <= 0f || people <= 0f) break
         val way = b.makeWay(t)
         val daysEach = t.makeDays * people / b.makeSkill(t) // for a whole band's kit
@@ -177,7 +205,7 @@ internal fun HexGroups.makeTools(b: Band, people: Float, time: BandTime?): Float
         // for it; clothes are tanned with ochre as far as it goes.)
         val made = fineMaterial(t)
         for ((m, perPerson) in t.recipe) if (m != made) can = min(can, gd[m] / max(1e-3f, perPerson * use(m) * people))
-        if (time != null && t == Tool.CLOTHES) b.clothesMade = clothesMade(1f - b.kit[t], left / daysEach, can)
+        if (time != null && only == null && t == Tool.CLOTHES) b.clothesMade = clothesMade(1f - b.kit[t], left / daysEach, can)
         if (can <= 0f) continue
         for ((m, perPerson) in t.recipe) if (m != made) gd[m] = max(0f, gd[m] - can * perPerson * use(m) * people)
         if (time == null) { asked += can * daysEach; continue }

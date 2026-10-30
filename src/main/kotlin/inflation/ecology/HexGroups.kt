@@ -123,6 +123,11 @@ class HexGroups(
     @Transient var ways: BandWays? = null
     /** Counts how the bands' ways act (dialUse=FILE, see [DialUse]); null: not counted. Not saved. */
     @Transient var dialUse: DialUse? = null
+    /**
+     * The bands that held a rite at each site this month and last ([gatherAtRite]), keyed by the rite's month (counted from
+     * the world's start) and its site. Not saved: a gathering under way when a save is taken is forgotten.
+     */
+    @Transient internal val riteGatherings = HashMap<Long, MutableList<HexGroup>>()
     /** How packs set their ways each week ([AnimalWays]); null for the hand-written ways. */
     @Transient var hunterWays: AnimalWays? = null
 
@@ -257,8 +262,29 @@ class HexGroups(
         fun bands(f: (Band) -> Double) = run { var sum = 0.0; for (g in groups) if (g.alive) g.band?.let { sum += f(it) }; sum }
         stocks.add(Books.Stuff.MATTER, StockName.BANDS_FOOD) { var sum = 0.0; for (g in groups) if (g.alive && g.band != null) sum += massOf(g.stores, g.storeKgPer); sum }
         stocks.add(Books.Stuff.MATTER, StockName.BANDS_CACHES) { bands { it.cacheMass().toDouble() } }
-        stocks.add(Books.Stuff.MATTER, StockName.BANDS_KEPT_ANIMALS) { bands { b -> var sum = 0.0; for (k in b.herd.indices) sum += b.herd[k] * fauna.kinds[k].massKg; sum } }
+        stocks.add(Books.Stuff.MATTER, StockName.BANDS_KEPT_ANIMALS) { bands { b -> var sum = 0.0; val y = b.herdYoung
+            for (k in b.herd.indices) sum += (b.herd[k] + HexFauna.YOUNG_WEIGHT * y.getOrElse(k) { 0f }) * fauna.kinds[k].massKg; sum } }
         stocks.add(Books.Stuff.MATTER, StockName.BANDS_GOODS) { bands { it.livingGoods().toDouble() } }
+    }
+
+    /** The bands with kept herds, by the place they are camped in, for the resident hunters' week ([HexFauna.keptAt]). */
+    internal fun herdsForBeasts(): Map<Int, List<Band>> {
+        val at = HashMap<Int, ArrayList<Band>>()
+        for (g in groups) if (g.alive) g.band?.let { b -> if (b.herd.indices.any { k -> b.herd[k] + b.herdYoung.getOrElse(k) { 0f } >= 1f }) at.getOrPut(g.place.i) { ArrayList() } += b }
+        if (HUNT_DIAG) {
+            // (Last week's take at the camps, then what is held there as this week starts: [HuntStep.KEPT_YOUNG_HELD] and on.)
+            for ((k, s) in fauna.kinds.withIndex()) { val t = fauna.campTaken[k]
+                diag(s, HuntStep.KEPT_YOUNG_TAKEN, t[0].sumThenReset().toFloat()); diag(s, HuntStep.KEPT_GROWN_TAKEN, t[1].sumThenReset().toFloat())
+                diag(s, HuntStep.WILD_YOUNG_TAKEN_AT_CAMPS, t[2].sumThenReset().toFloat()); diag(s, HuntStep.WILD_GROWN_TAKEN_AT_CAMPS, t[3].sumThenReset().toFloat()) }
+            for ((p, bs) in at) { val area = land.areaKm2[p]
+                // (The wild at every camp with a herd, as the take is counted there.)
+                for ((k, s) in fauna.kinds.withIndex()) {
+                    diag(s, HuntStep.KEPT_YOUNG_HELD, bs.sumOf { it.herdYoung.getOrElse(k) { 0f }.toDouble() }.toFloat())
+                    diag(s, HuntStep.KEPT_GROWN_HELD, bs.sumOf { it.herd.getOrElse(k) { 0f }.toDouble() }.toFloat())
+                    diag(s, HuntStep.WILD_YOUNG_AT_CAMPS, fauna.young[k][p] * area); diag(s, HuntStep.WILD_GROWN_AT_CAMPS, fauna.adults[k][p] * area)
+                } }
+        }
+        return at
     }
 
     /** The groups' part of the week, in order. */
@@ -472,9 +498,11 @@ class HexGroups(
     internal fun maxSize(g: HexGroup): Int {
         val s = g.species
         return g.band?.let { b ->
-            // Feasts keep the peace in bigger bands; a settled band without them quarrels and splits sooner.
-            if (b.holds(Tradition.FEASTS)) (s.maxGroupSize * FEAST_SIZE).toInt()
-            else if (b.atHome) (s.maxGroupSize * SETTLED_QUARRELS).toInt() else s.maxGroupSize
+            // A band at home in its houses holds a village's number; feasts keep the peace in bigger bands, settled or not.
+            val most = if (b.atHome) max(s.maxGroupSize, SETTLED_SIZE) else s.maxGroupSize
+            val size = if (b.holds(Tradition.FEASTS)) (most * FEAST_SIZE).toInt() else most
+            // A strained belief is one more quarrel: strained as far as it bears, a band holds together at half the size.
+            if (tuning.rounds && b.strain > 0f) (size / (1f + b.strain / b.strainBorne())).toInt() else size
         } ?: s.maxGroupSize
     }
 
@@ -501,7 +529,9 @@ class HexGroups(
 
 
     /** A hunting party's fighting strength: weight, ferocity. */
-    internal fun strength(g: HexGroup) = g.adults * g.species.massKg * ferocity(g)
+    internal fun strength(g: HexGroup) = foragers(g) * g.species.massKg * ferocity(g)
+    /** Those of [g]'s grown that go about together ([Species.foragingParty]). */
+    internal fun foragers(g: HexGroup) = g.species.foragingParty.let { if (it > 0) min(it, g.adults) else g.adults }
     internal fun ferocity(g: HexGroup) = g.band?.ferocity(g.species) ?: g.species.ferocity
 
 

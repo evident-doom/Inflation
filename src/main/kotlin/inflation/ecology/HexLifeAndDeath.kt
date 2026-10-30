@@ -143,7 +143,7 @@ internal fun grassUnderSnow(s: Species, snowMm: Float): Float = (1f - snowMm / s
     // (Worked in energy, [Nourishment]'s units: a kg of green forage feeds a unit.)
     val want = need / s.needScale
     val total = (d.grass + d.browse + d.fruit + d.roots).coerceAtLeast(1e-6f)
-    // Horses and asses make up for poor forage by eating more of it; ruminants eat less of it.
+    // Horses and asses eat as much of poor forage as of good; ruminants eat less of it ([gutFill]).
     val fill = gutFill(s, q)
     // (As the residents: what it cannot get at is a share of the place's food it cannot reach, not a share
     // of its need it goes without; where food is plenty it still eats its fill.)
@@ -202,7 +202,6 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
             riteWeek(g, weather)
         }
         groups += bands.strays; bands.strays.clear()
-        beliefSplits()
         // Holy places fade while no one comes.
         if (tuning.rounds) { val keep = exp(-years / SANCTITY_YEARS); for (p in land.sanctity.indices) land.sanctity[p] *= keep }
         fightRaids(weather)
@@ -246,7 +245,12 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         }
         bookOutcome(g, o, weather)
         mournDead(g, o, date)
-        o.split?.let { c -> born += splitOff(g, c.adults, c.young) } // a young pack has no ground yet
+        o.split?.let { c ->
+            val n = splitOff(g, c.adults, c.young) // a young pack has no ground yet
+            born += n
+            if (g.band != null) stats.meeting(Met.BANDS_SPLIT)
+            leaveBelief(g, n)
+        }
         if (o.leavers > 0) {
             repeat(o.leavers) { born += splitOff(g, 1, 0) } // each goes alone, to find a mate and ground
             stats.meeting(Met.YOUNG_HUNTERS_LEFT_THEIR_PACK, o.leavers)
@@ -258,22 +262,15 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
 }
 
 /**
- * Bands whose belief is strained past what it bears ([Band.strainBorne]) split (rounds on): half go their own way without
- * it, and the strain leaves with them. A band smaller than its kind's usual one holds together and clings on. Nothing
- * here weighs whether the belief pays.
+ * When a band [g] splits ([HexGroups.maxSize]: a strained belief is one of the quarrels that make it split smaller), the
+ * part that leaves, [n], goes without the belief as likely as the strain is near what the belief bears ([Band.strainBorne]),
+ * and the strain leaves with it (rounds on). The belief alone never splits a band; nothing here weighs whether it pays.
  */
-internal fun HexGroups.beliefSplits() {
-    if (!tuning.rounds) return
-    val strained = groups.filter { g -> g.alive && g.size >= g.species.groupSize && g.band.let { it != null && it.strain > it.strainBorne() } }
-    for (g in strained) {
-        val a = g.adults / 2; val y = g.young / 2
-        g.adults -= a; g.young -= y
-        val n = splitOff(g, a, y)
-        n.band?.dropBelief()
-        g.band?.strain = 0f
-        groups += n
-        stats.meeting(Met.BANDS_SPLIT_OVER_THEIR_BELIEF)
-    }
+private fun HexGroups.leaveBelief(g: HexGroup, n: HexGroup) {
+    val b = g.band ?: return; val nb = n.band ?: return
+    if (!tuning.rounds || b.strain <= 0f || rnd.nextFloat() >= min(1f, b.strain / b.strainBorne())) return
+    nb.dropBelief(); b.strain = 0f
+    stats.meeting(Met.BANDS_SPLIT_OVER_THEIR_BELIEF)
 }
 
 /**
@@ -299,7 +296,9 @@ private fun HexGroups.splitOff(g: HexGroup, adults: Int, young: Int): HexGroup {
     moveFood(g, n, g.larder * share)
     // Both halves keep what the band knew and share out its tools and goods.
     n.bold = g.bold
-    g.band?.let { b -> n.band = Band(fauna.kinds.size).also { nb -> b.splitInto(nb, adults, g.adults, share, rnd) { riteInherit(it) }; nb.sisu = Sisu.inherit(b.sisu, n.id, seedBase) } }
+    g.band?.let { b -> n.band = Band(fauna.kinds.size).also { nb -> b.splitInto(nb, adults, g.adults, share, rnd) { riteInherit(it) }; nb.sisu = Sisu.inherit(b.sisu, n.id, seedBase)
+        // The halves were one band: each holds the other as close as can be, until living apart fades it.
+        b.ties[n.id] = SPLIT_TIE; nb.ties[g.id] = SPLIT_TIE } }
     return n
 }
 
@@ -355,55 +354,56 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
     if (s.human) for (d in o.causes) if (d.n > 0) (if (d.young) stats.youngDeaths else stats.adultDeaths).merge(Tally.of(s, d.cause), d.n, Int::plus)
     if (s.human) {
         val c = Biome.entries[biomeOfPlace[g.place]]
-        for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge(Tally.bandsDied(c, cause), k, Int::plus)
-        if (o.births > 0) stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.BORN), o.births, Int::plus)
+        val country = BandSplit.country(c)
+        stats.bookDeaths(country, o.causes)
+        if (o.births > 0) stats.book(country, Tally.Bands.BORN, o.births)
         // And by how well clad the band was: what clothes are worth in lives.
         g.band?.let { b ->
             val clad = if (b.has(Tool.CLOTHES) >= 0.5f) Tally.Clad.CLAD else Tally.Clad.POORLY_CLAD
-            stats.hunting.merge(Tally.bandsClad(clad, Tally.Bands.PEOPLE_WEEKS), g.size, Int::plus)
-            for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge(Tally.bandsCladDied(clad, cause), k, Int::plus)
+            val cladSplit = BandSplit.clad(clad)
+            stats.book(cladSplit, Tally.Bands.PEOPLE_WEEKS, g.size)
+            stats.bookDeaths(cladSplit, o.causes)
             // And by how it lives, settled or on the move: what each way of life costs and gives.
             val way = bandLiving(b)
-            stats.hunting.merge(Tally.bandsLiving(way, Tally.Bands.BAND_WEEKS), 1, Int::plus)
-            stats.hunting.merge(Tally.bandsLiving(way, Tally.Bands.PEOPLE_WEEKS), g.size, Int::plus)
-            if (o.births > 0) stats.hunting.merge(Tally.bandsLiving(way, Tally.Bands.BORN), o.births, Int::plus)
-            for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge(Tally.bandsLivingDied(way, cause), k, Int::plus)
+            val living = BandSplit.living(way)
+            stats.bookWeek(living, g.size)
+            if (o.births > 0) stats.book(living, Tally.Bands.BORN, o.births)
+            stats.bookDeaths(living, o.causes)
             // And by how it chooses ([Mind]): the two kinds of band side by side.
-            stats.hunting.merge(Tally.bandsMind(b.mind, Tally.Bands.BAND_WEEKS), 1, Int::plus)
-            stats.hunting.merge(Tally.bandsMind(b.mind, Tally.Bands.PEOPLE_WEEKS), g.size, Int::plus)
-            if (o.births > 0) stats.hunting.merge(Tally.bandsMind(b.mind, Tally.Bands.BORN), o.births, Int::plus)
-            if (g.path.size > 1) stats.hunting.merge(Tally.bandsMind(b.mind, Tally.Bands.MOVES), 1, Int::plus)
-            for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge(Tally.bandsMindDied(b.mind, cause), k, Int::plus)
+            val mind = BandSplit.mind(b.mind)
+            stats.bookWeek(mind, g.size)
+            if (o.births > 0) stats.book(mind, Tally.Bands.BORN, o.births)
+            if (g.path.size > 1) stats.book(mind, Tally.Bands.MOVES, 1)
+            stats.bookDeaths(mind, o.causes)
             // And by whether it keeps a herd: what herding costs its people, its children apart.
             val herding = bandHerding(b, g.adults)
-            stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.BAND_WEEKS), 1, Int::plus)
-            stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.PEOPLE_WEEKS), g.size, Int::plus)
-            stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.CHILD_WEEKS), g.young, Int::plus)
-            stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.FED), (1000f * min(1f, g.fed) * g.size).roundToInt(), Int::plus)
-            if (clad == Tally.Clad.CLAD) stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.CLAD_WEEKS), g.size, Int::plus)
-            if (way == Tally.Living.MOBILE) stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.MOBILE_WEEKS), 1, Int::plus)
-            stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.AIR), (10f * weather.temperature[g.place] * g.size).roundToInt(), Int::plus)
-            if (o.births > 0) stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.BORN), o.births, Int::plus)
+            val herdSplit = BandSplit.herding(herding)
+            stats.bookWeek(herdSplit, g.size)
+            stats.book(herdSplit, Tally.Bands.CHILD_WEEKS, g.young)
+            stats.book(herdSplit, Tally.Bands.FED, (1000f * min(1f, g.fed) * g.size).roundToInt())
+            if (clad == Tally.Clad.CLAD) stats.book(herdSplit, Tally.Bands.CLAD_WEEKS, g.size)
+            if (way == Tally.Living.MOBILE) stats.book(herdSplit, Tally.Bands.MOBILE_WEEKS, 1)
+            stats.book(herdSplit, Tally.Bands.AIR, (10f * weather.temperature[g.place] * g.size).roundToInt())
+            if (o.births > 0) stats.book(herdSplit, Tally.Bands.BORN, o.births)
             for (d in o.causes) if (d.n > 0) stats.hunting.merge(Tally.bandsHerdingDied(herding, d.young, d.cause), d.n, Int::plus)
             // And by how well it was fed, with what it held against hunger: who starves, and with what in hand.
-            val fed = Tally.Fed.of(g.fed)
-            stats.hunting.merge(Tally.bandsFed(fed, Tally.Bands.BAND_WEEKS), 1, Int::plus)
-            stats.hunting.merge(Tally.bandsFed(fed, Tally.Bands.PEOPLE_WEEKS), g.size, Int::plus)
-            stats.hunting.merge(Tally.bandsFed(fed, Tally.Bands.LARDER), (10f * g.larderDays()).roundToInt(), Int::plus)
-            stats.hunting.merge(Tally.bandsFed(fed, Tally.Bands.FAT), (10f * g.fat).roundToInt(), Int::plus)
+            val fedSplit = BandSplit.fed(Tally.Fed.of(g.fed))
+            stats.bookWeek(fedSplit, g.size)
+            stats.book(fedSplit, Tally.Bands.LARDER, (10f * g.larderDays()).roundToInt())
+            stats.book(fedSplit, Tally.Bands.FAT, (10f * g.fat).roundToInt())
             val meatKg = Store.entries.filter { it.meat }.sumOf { g.stores[it].toDouble() }.toFloat()
-            stats.hunting.merge(Tally.bandsFed(fed, Tally.Bands.LARDER_MEAT), (10f * meatKg / max(1e-3f, g.dailyNeedKg)).roundToInt(), Int::plus)
-            stats.hunting.merge(Tally.bandsFed(fed, Tally.Bands.LEAN_LOST), (100f * b.leanLost).roundToInt(), Int::plus)
-            stats.hunting.merge(Tally.bandsFed(fed, Tally.Bands.SALT_HELD), (1000f * b.goods[Material.SALT] / max(1, g.size)).roundToInt(), Int::plus)
-            stats.hunting.merge(Tally.bandsFed(fed, Tally.Bands.SODIUM_SHORT), (100f * b.sodiumShort).roundToInt(), Int::plus)
+            stats.book(fedSplit, Tally.Bands.LARDER_MEAT, (10f * meatKg / max(1e-3f, g.dailyNeedKg)).roundToInt())
+            stats.book(fedSplit, Tally.Bands.LEAN_LOST, (100f * b.leanLost).roundToInt())
+            stats.book(fedSplit, Tally.Bands.SALT_HELD, (1000f * b.goods[Material.SALT] / max(1, g.size)).roundToInt())
+            stats.book(fedSplit, Tally.Bands.SODIUM_SHORT, (100f * b.sodiumShort).roundToInt())
             val saltHere = if (hw.coast[hw.placeHex[g.place]]) 1f else min(1f, 5f * land.salt[g.place])
-            stats.hunting.merge(Tally.bandsFed(fed, Tally.Bands.SALT_HERE), (100f * saltHere).roundToInt(), Int::plus)
+            stats.book(fedSplit, Tally.Bands.SALT_HERE, (100f * saltHere).roundToInt())
             val salt = bands.saltKnown(b, hw.placeHex[g.place])
             if (!salt.none) {
-                stats.hunting.merge(Tally.bandsFed(fed, Tally.Bands.SALT_KNOWN), 1, Int::plus)
-                stats.hunting.merge(Tally.bandsFed(fed, Tally.Bands.SALT_KM), hexKm(hw.placeHex[g.place], salt).roundToInt(), Int::plus)
+                stats.book(fedSplit, Tally.Bands.SALT_KNOWN, 1)
+                stats.book(fedSplit, Tally.Bands.SALT_KM, hexKm(hw.placeHex[g.place], salt).roundToInt())
             }
-            for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge(Tally.bandsFedDied(fed, cause), k, Int::plus)
+            stats.bookDeaths(fedSplit, o.causes)
             // And by its spare days and its herd: whether work it took on left its people short of what keeps them alive.
             bookSqueeze(g, b, o.causes, weather)
         }
@@ -444,6 +444,13 @@ private fun HexGroups.mournDead(g: HexGroup, o: Outcome, date: Date) {
             note(g) { "left the camp where its dead lie" }
         }
     }
+    // A week's toll far above what it is used to (one death a week at the least) is an omen where it fell ([omen]); what it
+    // is used to follows its weeks over about a year.
+    if (s.human) g.band?.let { b ->
+        val size = g.size + o.deaths
+        if (o.deaths > 0) omen(b, g.place, date, o.deaths / max(1f, b.deathsUsual * size), Met.BANDS_MARKED_A_DEATH_TOLL)
+        b.deathsUsual += min(1f, years) * (o.deaths / max(1, size).toFloat() - b.deathsUsual)
+    }
     // A band that buries its dead buries them where it is: its ancestors' place.
     // For each taken by a beast, others got away hurt.
     g.band?.let { b ->
@@ -464,7 +471,9 @@ private fun HexGroups.mournDead(g: HexGroup, o: Outcome, date: Date) {
         val at = if (!site.none && hexKm(camp, site) <= BODY_CARRY_KM) site else camp
         val p = if (at == camp) g.place else hw.placeNear(g.place, at).takeIf { !it.none } ?: g.place
         val carryKm = if (at == camp) 0.0 else hexKm(camp, at)
-        b.burialOwed += o.deaths * (BURY_DAYS + BEARERS * (2.0 * carryKm / (WALK_KM_PER_HOUR * Activity.WORK_HOURS)).toFloat())
+        val owed = o.deaths * (BURY_DAYS + BEARERS * (2.0 * carryKm / (WALK_KM_PER_HOUR * Activity.WORK_HOURS)).toFloat())
+        b.burialOwed += owed
+        stats.meeting(Met.Of.CUSTOMS_DAYS_ASKED, CustomsPart.BURIALS.label, (10f * owed).roundToInt())
         if (at != camp) { stats.meeting(Met.BANDS_CARRIED_THEIR_DEAD); note(g) { "carried its dead to its ancestors at hex %d".format(at.i) } }
         g.memory.mark(at, PlaceMemory.seasonOf(date.month), stepOf(date), stepsPerYear, g.memory.dead, o.deaths.toFloat())
         land.burials[p] += o.deaths.toFloat()
@@ -914,6 +923,7 @@ internal fun HexGroups.mergeAndPair(date: Date) {
         joinBand(o, g, stepOf(date))
         stats.meeting(Met.SMALL_BANDS_JOINED_KIN)
     }
+    becomeOne(date)
     // A hunter left on its own looks for a mate: lone adults of a kind within a few hexes pair up, and
     // the pair holds the ground of the one that had any.
     val lone = HashMap<Int, ArrayList<HexGroup>>()
@@ -935,16 +945,46 @@ internal fun HexGroups.mergeAndPair(date: Date) {
     }
 }
 
+/**
+ * Bands at home in one hex that have grown alike become one band, as people who live together and do the same things come to
+ * see themselves as one group (cooperation, shared fate and living side by side: the common ingroup identity of Gaertner and
+ * Dovidio). How alike they are is read from [Regard] both ways (words understood, kin, tie, customs apart): halves of a split
+ * still at home together are one again at once; bands that met as strangers grow alike as their ties, words and customs come
+ * together. Nothing forces it, and it needs room under the size a band at home holds ([maxSize]). The smaller joins the larger.
+ * Bands of the two kinds of choosing live side by side but stay apart.
+ */
+private fun HexGroups.becomeOne(date: Date) {
+    val atHome = HashMap<Hex, ArrayList<HexGroup>>()
+    for (g in groups) { val b = g.band ?: continue; if (g.alive && b.atHome) atHome.getOrPut(b.houseHex) { ArrayList() } += g }
+    for ((_, bands) in atHome) {
+        if (bands.size < 2) continue
+        for (i in bands.indices) for (j in i + 1 until bands.size) {
+            val a = bands[i]; val c = bands[j]
+            val ab = a.band ?: continue; val cb = c.band ?: continue
+            if (!a.alive || !c.alive) continue
+            if (ab.mind != cb.mind || a.size + c.size > min(maxSize(a), maxSize(c))) continue
+            if (alike(Regard(ab, c.id, cb)) < ONE_GROUP || alike(Regard(cb, a.id, ab)) < ONE_GROUP) continue
+            val (into, from) = if (a.size >= c.size) a to c else c to a
+            joinBand(into, from, stepOf(date))
+            stats.meeting(Met.BANDS_BECAME_ONE)
+        }
+    }
+}
+
+/** How alike a band finds another, 0 (strangers of wholly other customs, not understood, no kin) to 1. */
+internal fun alike(r: Regard) = 1f - r.wariness / Regard.MOST_WARY
+
 /** Band [from] joins band [into]: its people, food, goods and knowledge come with it. */
 private fun GroupWorld.joinBand(into: HexGroup, from: HexGroup, week: Int) {
+    val intoBand = into.band ?: return; val fromBand = from.band ?: return
     val w = from.adults.toFloat() / (into.adults + from.adults).coerceAtLeast(1)
-    into.band!!.absorb(from.band!!, from.adults, w, into.stores[Store.DRIED], from.stores[Store.DRIED],
+    intoBand.absorb(fromBand, from.adults, w, into.stores[Store.DRIED], from.stores[Store.DRIED],
         into.stores[Store.SEED], from.stores[Store.SEED], into.id, from.id)
     into.fed += w * (from.fed - into.fed); into.fat += w * (from.fat - into.fat); into.spent += w * (from.spent - into.spent); into.bred += w * (from.bred - into.bred)
     for (i in Store.entries) addFood(into.stores, into.storeKgPer, i, from.stores[i], from.stores[i] * from.storeKgPer[i])
     into.memory.hear(from.memory, week, stepsPerYear, 1f)
     // (Its cache is left: no one goes back for it.)
-    dropCache(from.band!!)
+    dropCache(fromBand)
     from.mergedSize = from.size; from.mergedInto = into.id
     into.adults += from.adults; into.young += from.young
     from.adults = 0; from.young = 0; from.larder = 0f
@@ -1071,7 +1111,7 @@ data class Stalking(val rate: Float, val by: Species?) {
  * where they are thick, from the unwary in thick cover with no fire, dogs or watch (an estimate, set against the record:
  * foragers lose few to beasts, the Hiwi none in their records though anacondas, caimans and jaguars attacked them, Hill,
  * Hurtado & Walker 2007; the Agta, a quarter of whose men pythons attacked, some 0.26 a thousand a year, Headland & Greene
- * 2011; at 0.02, ten times this, the bands lost 4-5 a thousand a year before model 4.62, many times either); density of beast flesh, kg/km² weighted, at which they take
+ * 2011; at 0.02, ten times this, the bands lost 4-5 a thousand a year, many times either); density of beast flesh, kg/km² weighted, at which they take
  * half that; a band size the company factor is set for; how much a fire at night and dogs each keep off; the share of the
  * loss that falls at night, at camp, against out at work by day (an estimate: in Tanzania lions took people mostly after dark at
  * or by their houses, and over a quarter in the fields, most asleep alone in makeshift huts, Packer et al. 2005, Nature 436:

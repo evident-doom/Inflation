@@ -69,7 +69,7 @@ class HexSim(
     @Transient val phases: List<Phase> = listOf(
         Phase("weather") { weather.step(); bookSnow() },
         Phase("ash and eruptions") { fallingAsh() },
-    ) + land.phases + fauna.phases + groups.phases
+    ) + land.phases + Phase("people: herds for the beasts") { fauna.keptAt = groups.herdsForBeasts() } + fauna.phases + groups.phases
 
     /** One week ([phases]). */
     fun step() {
