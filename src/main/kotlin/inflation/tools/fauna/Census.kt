@@ -9,6 +9,7 @@ import inflation.Stocks
 import inflation.ecology.Activity
 import inflation.ecology.Catalogue
 import inflation.ecology.Met
+import inflation.ecology.RiteWalk
 import inflation.ecology.Mind
 import inflation.ecology.DeathCause
 import inflation.ecology.Tally
@@ -588,7 +589,7 @@ class Census(private val sim: HexSim) {
      * each other at [REGION_UNDERSTOOD] or better and hold at most [REGION_CUSTOMS_APART] of their traditions differently are
      * of one region, and so are the neighbours of those (single linkage). A band bordering another region has a neighbour in
      * it. The rites' year, from [metYear] (the year's culture tallies summed over its weeks), counts every rite's month
-     * once, held or cut short. The lines are the report's: nothing in the model reads them.
+     * once, held or cut short, and again by how far the band was from the site when it was (see [RiteWalk]). The lines are the report's: nothing in the model reads them.
      */
     fun printIdentity(thisYear: Map<TallyKey, Int>, metYear: Map<TallyKey, Int>) {
         val bands = groups.groups.mapNotNull { g -> g.band?.takeIf { g.alive }?.let { g to it } }
@@ -671,6 +672,12 @@ class Census(private val sim: HexSim) {
         println("     rites' year: %d held, %d cut short (%.0f%% held); omens marked: %d death tolls, %d plenty after want, %d strange signs; %d rites born of them; %d bands split over their belief"
             .format(held, cut, 100.0 * held / (held + cut).coerceAtLeast(1), met(Met.BANDS_MARKED_A_DEATH_TOLL), met(Met.BANDS_MARKED_PLENTY_AFTER_WANT),
                 met(Met.BANDS_MARKED_A_STRANGE_SIGN), met(Met.BANDS_BORE_A_RITE), met(Met.BANDS_SPLIT_OVER_THEIR_BELIEF)))
+        fun of(m: Met.Of, w: RiteWalk) = metYear[m.tally(w.label)] ?: 0
+        println("     rites by the band's distance from the site: " + RiteWalk.entries.joinToString("; ") { w ->
+            val h = of(Met.Of.RITES_HELD, w); val c = of(Met.Of.RITES_CUT_SHORT, w)
+            "%s %d held, %d cut short (%.0f%% held, %.0f%% of their days given)".format(w.label, h, c, 100.0 * h / (h + c).coerceAtLeast(1),
+                of(Met.Of.RITES_CUT_SHORT_PERCENT_GIVEN, w).toDouble() / c.coerceAtLeast(1))
+        })
         fun line(label: String, key: (Tally.MeetingEnd) -> TallyKey): String {
             fun v(e: Tally.MeetingEnd) = thisYear[key(e)] ?: 0
             val met = v(Tally.MeetingEnd.MET)

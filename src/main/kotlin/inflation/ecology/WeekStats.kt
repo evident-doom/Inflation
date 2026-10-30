@@ -128,9 +128,13 @@ enum class Met(val label: String) {
     enum class Of(val before: String, val after: String = "") {
         NEWCOMERS("newcomers: "), SEA_CROSSINGS("sea crossings: "), HIT_ON("band hit on "), LOST("band lost "), TOOK_A_PUP("bands took a ", " pup"),
         LEARNED("band learned "), TOOK_UP("band took up "), TOOK_LEAVE_OF("band took leave of "), DROPPED("band dropped "), GIVEN("", " given"),
-        TURNED_BACK_BY("bands turned back by "), DOGS_GONE_WILD("dogs gone wild as ", " packs");
+        TURNED_BACK_BY("bands turned back by "), DOGS_GONE_WILD("dogs gone wild as ", " packs"),
+        RITES_HELD("rites held, band "), RITES_CUT_SHORT("rites cut short, band "),
+        RITES_CUT_SHORT_PERCENT_GIVEN("percent of days given to rites cut short, band ");
 
         fun key(of: String) = before + of + after
+        /** Its tally of [of] in [WeekStats.meetings], for a report to read back. */
+        fun tally(of: String) = TallyKey.raw(key(of))
     }
 }
 
