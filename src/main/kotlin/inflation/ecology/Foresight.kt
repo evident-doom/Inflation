@@ -128,7 +128,7 @@ internal class YearAhead(private val odds: FloatArray, private val fed: FloatArr
      * One year ahead [z] standard deviations of its years better than the usual ([spread]): the share alive at its end; the
      * deaths of hunger and of exposure added into [causes], and its months into [sb], where given.
      */
-    private fun year(s: Species, larderDays: Float, fat: Float, spent: Float, z: Float, causes: FloatArray?, sb: StringBuilder?): Float {
+    @IgnorableReturnValue private fun year(s: Species, larderDays: Float, fat: Float, spent: Float, z: Float, causes: FloatArray?, sb: StringBuilder?): Float {
         val days = Date.DAYS_PER_MONTH
         var larder = larderDays; var fatLeft = fat; var burnt = spent
         var alive = 1f
