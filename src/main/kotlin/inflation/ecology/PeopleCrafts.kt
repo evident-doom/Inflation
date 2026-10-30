@@ -151,21 +151,22 @@ internal fun GroupWorld.wearAndInvent(b: Band, years: Float) {
 /**
  * Making and mending in the [time] days [b] has to spare: the tools it ranks first first (the
  * scaffold: the most worn), each as far as the time, the scarcest material and the skill allow. With no [time] it makes
- * nothing, and returns the person-days it would have liked (else 0).
+ * nothing, and returns the person-days it would have liked (else 0). With [only], that tool alone, in at most [most] of
+ * the days (the clothes the survival pass gives days first, [survivalDays]).
  */
 @IgnorableReturnValue
-internal fun HexGroups.makeTools(b: Band, people: Float, time: BandTime?): Float {
+internal fun HexGroups.makeTools(b: Band, people: Float, time: BandTime?, only: Tool? = null, most: Float = Float.MAX_VALUE): Float {
     val gd = if (time == null) b.goods.copyOf() else b.goods
     var asked = 0f
-    val order = Tool.entries.filter { b.knows[it] && b.kit[it] < 1f }.sortedByDescending { b.makeFirst[it] * (1f - b.kit[it]) }
-    if (time != null) dialUse?.let { u -> if (order.size > 1) {
+    val order = Tool.entries.filter { (only == null || it == only) && b.knows[it] && b.kit[it] < 1f }.sortedByDescending { b.makeFirst[it] * (1f - b.kit[it]) }
+    if (time != null && only == null) dialUse?.let { u -> if (order.size > 1) {
         val order1 = Tool.entries.filter { b.knows[it] && b.kit[it] < 1f }.sortedByDescending { 1f - b.kit[it] }
         // (Counted under the tool it put first: whether the order differs from the scaffold's, most worn first.)
         u.choice(DialSite.MAKE_FIRST, b.makeFirst[order[0]], order != order1, false, dial = WaysOut.MAKE_FIRST + order[0].ordinal)
     } }
-    if (time != null) b.clothesMade = if (Tool.CLOTHES in order) Tally.ClothesMade.NOT_REACHED else null
+    if (time != null && only == null) b.clothesMade = if (Tool.CLOTHES in order) Tally.ClothesMade.NOT_REACHED else null
     for (t in order) {
-        val left = time?.leftFor(Activity.TOOLS) ?: Float.MAX_VALUE
+        val left = min(most, time?.leftFor(Activity.TOOLS) ?: Float.MAX_VALUE)
         if (left <= 0f || people <= 0f) break
         val way = b.makeWay(t)
         val daysEach = t.makeDays * people / b.makeSkill(t) // for a whole band's kit
@@ -177,7 +178,7 @@ internal fun HexGroups.makeTools(b: Band, people: Float, time: BandTime?): Float
         // for it; clothes are tanned with ochre as far as it goes.)
         val made = fineMaterial(t)
         for ((m, perPerson) in t.recipe) if (m != made) can = min(can, gd[m] / max(1e-3f, perPerson * use(m) * people))
-        if (time != null && t == Tool.CLOTHES) b.clothesMade = clothesMade(1f - b.kit[t], left / daysEach, can)
+        if (time != null && only == null && t == Tool.CLOTHES) b.clothesMade = clothesMade(1f - b.kit[t], left / daysEach, can)
         if (can <= 0f) continue
         for ((m, perPerson) in t.recipe) if (m != made) gd[m] = max(0f, gd[m] - can * perPerson * use(m) * people)
         if (time == null) { asked += can * daysEach; continue }

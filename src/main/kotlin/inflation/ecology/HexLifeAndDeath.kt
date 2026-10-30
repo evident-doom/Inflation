@@ -443,6 +443,13 @@ private fun HexGroups.mournDead(g: HexGroup, o: Outcome, date: Date) {
             note(g) { "left the camp where its dead lie" }
         }
     }
+    // A week's toll far above what it is used to (one death a week at the least) is an omen where it fell ([omen]); what it
+    // is used to follows its weeks over about a year.
+    if (s.human) g.band?.let { b ->
+        val size = g.size + o.deaths
+        if (o.deaths > 0) omen(b, g.place, date, o.deaths / max(1f, b.deathsUsual * size), Met.BANDS_MARKED_A_DEATH_TOLL)
+        b.deathsUsual += min(1f, years) * (o.deaths / max(1, size).toFloat() - b.deathsUsual)
+    }
     // A band that buries its dead buries them where it is: its ancestors' place.
     // For each taken by a beast, others got away hurt.
     g.band?.let { b ->

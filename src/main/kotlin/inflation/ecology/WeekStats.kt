@@ -77,14 +77,16 @@ enum class Met(val label: String) {
     BANDS_CARRIED_THEIR_DEAD("bands carried their dead to their ancestors"),
     BANDS_EXCHANGED_PARTNERS("bands exchanged partners"),
     BANDS_KEPT_AWAY_FROM_THE_SICK("bands kept away from the sick"),
-    BANDS_LET_A_RITE_GO("bands let a rite go"),
+    BANDS_MARKED_A_DEATH_TOLL("bands marked a death toll as an omen"),
+    BANDS_MARKED_PLENTY_AFTER_WANT("bands marked plenty after want as an omen"),
+    BANDS_MARKED_A_STRANGE_SIGN("bands marked a strange sign as an omen"),
     BANDS_MADE_AN_APPOINTMENT("bands made an appointment"),
     BANDS_MAULED_AT_A_CARCASS("bands mauled at a carcass"),
     BANDS_MET("bands met"),
     BANDS_SOWED("bands sowed"),
     BANDS_TOLD_OF_COUNTRY("bands told of country"),
     BANDS_TOLD_OF_ROUTES("bands told of routes"),
-    BANDS_TOOK_UP_A_RITE("bands took up a rite"),
+    BANDS_BORE_A_RITE("bands bore a rite of an omen"),
     BANDS_HELD_A_RITE("bands held a rite at its site"),
     BANDS_CUT_A_RITE_SHORT("bands cut a rite short for want of days"),
     BANDS_SPLIT_OVER_THEIR_BELIEF("bands split over their belief"),
@@ -127,7 +129,7 @@ enum class Met(val label: String) {
     enum class Of(val before: String, val after: String = "") {
         NEWCOMERS("newcomers: "), SEA_CROSSINGS("sea crossings: "), HIT_ON("band hit on "), LOST("band lost "), TOOK_A_PUP("bands took a ", " pup"),
         LEARNED("band learned "), TOOK_UP("band took up "), TOOK_LEAVE_OF("band took leave of "), DROPPED("band dropped "), GIVEN("", " given"),
-        TURNED_BACK_BY("bands turned back by ");
+        TURNED_BACK_BY("bands turned back by "), DOGS_GONE_WILD("dogs gone wild as ", " packs");
 
         fun key(of: String) = before + of + after
     }
