@@ -272,8 +272,8 @@ class HexGroups(
                 diag(s, HuntStep.KEPT_YOUNG_TAKEN, t[0].sumThenReset().toFloat()); diag(s, HuntStep.KEPT_GROWN_TAKEN, t[1].sumThenReset().toFloat())
                 diag(s, HuntStep.WILD_YOUNG_TAKEN_AT_CAMPS, t[2].sumThenReset().toFloat()); diag(s, HuntStep.WILD_GROWN_TAKEN_AT_CAMPS, t[3].sumThenReset().toFloat()) }
             for ((p, bs) in at) { val area = land.areaKm2[p]
+                // (The wild at every camp with a herd, as the take is counted there.)
                 for ((k, s) in fauna.kinds.withIndex()) {
-                    if (bs.none { b -> b.herd.getOrElse(k) { 0f } + b.herdYoung.getOrElse(k) { 0f } >= 1f }) continue
                     diag(s, HuntStep.KEPT_YOUNG_HELD, bs.sumOf { it.herdYoung.getOrElse(k) { 0f }.toDouble() }.toFloat())
                     diag(s, HuntStep.KEPT_GROWN_HELD, bs.sumOf { it.herd.getOrElse(k) { 0f }.toDouble() }.toFloat())
                     diag(s, HuntStep.WILD_YOUNG_AT_CAMPS, fauna.young[k][p] * area); diag(s, HuntStep.WILD_GROWN_AT_CAMPS, fauna.adults[k][p] * area)
