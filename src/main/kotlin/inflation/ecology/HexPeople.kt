@@ -219,7 +219,8 @@ internal fun HexGroups.choreAsks(g: HexGroup, b: Band, date: Date, asks: EnumFlo
     ask(Activity.SHELTER, shelterWork(b, people, if (moved) 0f else b.shelter, b.shelterWill) - (warm?.get(Activity.SHELTER) ?: 0f))
     ask(Activity.CUSTOMS, b.burialOwed + b.riteOwed + cleanDays(b, people) + nurseDays(b, people))
     ask(Activity.TRAINING, Skill.entries.sumOf { s -> (learners(b, s, people) * APPRENTICE_DAYS * s.complexity).toDouble() }.toFloat())
-    ask(Activity.TOOLS, makeTools(b, people, null))
+    // (What its kit asks beyond the clothes' days given first, when given: [survivalDays].)
+    ask(Activity.TOOLS, makeTools(b, people, null) - (warm?.get(Activity.TOOLS) ?: 0f))
     ask(Activity.ORNAMENTS, ornamentsWanted(b, people) * ORNAMENT_DAYS)
     // (A band that has just moved builds, sows and fortifies nothing where it has come to.)
     if (!moved) {
