@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Config
 import inflation.world.get
 import inflation.world.Biome
 import inflation.world.Date
@@ -80,7 +81,7 @@ internal class YearAhead(private val odds: FloatArray, private val fed: FloatArr
     /** The days of food it falls short of over the months ahead, before its larder pays ([Band.leanDays]), in a usual year. */
     val leanDays: Float = run { var lean = 0f; for (f in fed) lean += max(0f, 1f - f) * Date.DAYS_PER_MONTH; lean }
     /** Whether its years have differed at all: if not, one year is reckoned, not [YEARS]. */
-    private val spreads = spread.any { it > SPREAD_NONE }
+    private val spreads = YEAR_SPREAD && spread.any { it > SPREAD_NONE }
 
     /**
      * The share of people of kind [s] alive through the months ahead, starting with [larderDays] of the need in the larder,
@@ -198,6 +199,9 @@ internal fun HexGroups.foresee(weather: Weather) {
         stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.SISU), (1000f * b.sisu * g.size).roundToInt(), Int::plus)
     }
 }
+
+/** yearSpread=false: the year ahead is reckoned as one usual year ([YearAhead.alive]), for comparing. */
+internal val YEAR_SPREAD = Config.flag(Config.Key.YEAR_SPREAD, true)
 
 /** Weeks back a band's deaths are booked against what it foresaw ([Band.foreseenRing]): the year its forecast looks ahead. */
 const val FORESEEN_WEEKS = 52

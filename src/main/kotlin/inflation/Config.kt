@@ -77,6 +77,7 @@ object Config {
         WARM_DIAG("warmDiag"),
         THATCH_TRACE("thatchTrace"),
         PLAN_TRACE("planTrace"),
+        YEAR_SPREAD("yearSpread"),
         MOVE_TRACE("moveTrace"),
         FOLLOW("follow"),
         FOLLOW_HUNGRY("followHungry"),
