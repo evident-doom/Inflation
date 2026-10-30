@@ -464,7 +464,7 @@ internal fun HexGroups.bandInputs(g: HexGroup, weather: Weather, into: FloatArra
         for (o in bands.bandIndex[h] ?: continue) {
             if (o === g) continue
             val ob = o.band ?: continue
-            val r = Regard(b, o.id, ob)
+            val r = Regard(b, o.id, ob, map = hex)
             if (r.friend) friends++ else if (r.tie < 0f || r.grudge > 0.5f) foes++ else strangers++
             theirSick += ob.sick.sum(); near++
         }

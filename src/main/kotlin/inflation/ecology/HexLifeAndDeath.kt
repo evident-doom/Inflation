@@ -975,7 +975,7 @@ private fun HexGroups.becomeOne(date: Date) {
             val ab = a.band ?: continue; val cb = c.band ?: continue
             if (!a.alive || !c.alive) continue
             if (ab.mind != cb.mind || a.size + c.size > min(maxSize(a), maxSize(c))) continue
-            if (alike(Regard(ab, c.id, cb)) < ONE_GROUP || alike(Regard(cb, a.id, ab)) < ONE_GROUP) continue
+            if (alike(Regard(ab, c.id, cb, map = hex)) < ONE_GROUP || alike(Regard(cb, a.id, ab, map = hex)) < ONE_GROUP) continue
             val (into, from) = if (a.size >= c.size) a to c else c to a
             joinBand(into, from, stepOf(date))
             stats.meeting(Met.BANDS_BECAME_ONE)

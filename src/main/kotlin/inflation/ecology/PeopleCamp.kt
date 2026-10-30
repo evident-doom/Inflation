@@ -358,7 +358,7 @@ internal fun HexGroups.robCaches(weather: Weather) {
             for (o in owners) {
                 val ob = o.band ?: continue
                 if (o === g || ob.cacheKg <= 1f) continue
-                val r = Regard(b, o.id, ob)
+                val r = Regard(b, o.id, ob, map = hex)
                 if (r.friend) continue
                 if (!drawn(DialSite.SCOUTS_FIND_CACHE, b.will[BandWay.SCOUTS], rnd.nextFloat(), CACHE_FIND * sight(ob.cachePlace, weather) * (1f + b.scoutShare * 5f) / cacheCare(ob))
                     { CACHE_FIND * sight(ob.cachePlace, weather) * (1f + SCOUT_SHARE * 5f) / cacheCare(ob) }) continue
