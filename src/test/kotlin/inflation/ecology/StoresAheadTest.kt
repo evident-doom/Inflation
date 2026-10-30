@@ -19,7 +19,7 @@ class StoresAheadTest {
 
     @Test
     fun `no reckoning till it has a whole year of weeks`() {
-        val b = band(1) { 1f }
+        val b = band(1, { 1f })
         assertTrue(b.weeksAlive(s, days, 0, 0f, 0f, 0f, 100f, 1L) != null)
         b.weekSupply[5] = Float.NaN
         assertNull(b.weeksAlive(s, days, 0, 0f, 0f, 0f, 100f, 1L))
