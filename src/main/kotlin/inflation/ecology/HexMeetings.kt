@@ -300,9 +300,14 @@ internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, b
     // (People drive hunters off and now and then kill one, but do not seek out their young.)
     // (The young still at the den are met only there, on the weaker's home ground; a group without ground has no den, and its young go along.)
     val atDen = if (h == weak.home || weak.home.none) 0 else weak.pupsAtDen()
-    if (ratio > 2f && weak.young > atDen && !strong.species.human && rnd.nextFloat() < INTRAGUILD_KILL_YOUNG * tuning.intraguildYoung * odds) {
+    val killYoung = ratio > 2f && weak.young > 0 && !strong.species.human && rnd.nextFloat() < INTRAGUILD_KILL_YOUNG * tuning.intraguildYoung * odds
+    // (Report only: a kill that would have been made but for the den, where only the den's young were about.)
+    if (killYoung && weak.young <= atDen) stats.meeting(Met.Of.YOUNG_KILLS_DEN_KEPT_OFF, weak.species.name)
+    if (killYoung && weak.young > atDen) {
         // (At the den, the one taken is one of the den's young as often as they are of the young.)
-        if (h == weak.home && rnd.nextFloat() * weak.young < weak.pupsAtDen()) weak.denPups--
+        val denOne = h == weak.home && rnd.nextFloat() * weak.young < weak.pupsAtDen()
+        if (denOne) weak.denPups--
+        stats.meeting(when { denOne -> Met.Of.YOUNG_KILLED_DEN_AT_HOME; h == weak.home -> Met.Of.YOUNG_KILLED_OLDER_AT_HOME; else -> Met.Of.YOUNG_KILLED_AWAY }, weak.species.name)
         weak.young--
         strong.meatMet += HexFauna.YOUNG_WEIGHT * 0.5f * weak.species.massKg
         small.deposit(DeadPool.CARRION, weak.place, Kg(HexFauna.YOUNG_WEIGHT * 0.5f * weak.species.massKg)) // (what the killers leave)

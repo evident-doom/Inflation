@@ -213,6 +213,21 @@ class Census(private val sim: HexSim) {
         }
     }
 
+    /**
+     * Young of hunting kinds killed by hunters of other kinds over the year, from [metYear] (the year's meeting tallies summed
+     * over its weeks): the den's young at home, older young at home, older young away, and kills the den kept off; with the
+     * den's young and all young standing now. Report only.
+     */
+    fun printYoungKilled(metYear: Map<TallyKey, Int>) {
+        fun met(m: Met.Of, s: Species) = metYear[m.tally(s.name)] ?: 0
+        println("     young killed by other kinds over the year (den young at home / older young at home / older young away / kept off by the den; den young / young now): " +
+            groups.kinds.filter { it.carnivore && !it.human }.joinToString(", ") { s ->
+            val gs = groups.groups.filter { it.alive && it.species == s }
+            "%s %d / %d / %d / %d; %d / %d".format(s.name, met(Met.Of.YOUNG_KILLED_DEN_AT_HOME, s), met(Met.Of.YOUNG_KILLED_OLDER_AT_HOME, s),
+                met(Met.Of.YOUNG_KILLED_AWAY, s), met(Met.Of.YOUNG_KILLS_DEN_KEPT_OFF, s), gs.sumOf { it.pupsAtDen() }, gs.sumOf { it.young })
+        })
+    }
+
     /** The hunters' families: packs, how many hold ground and could breed, lone animals, adults and young. */
     fun printHuntersFamilies() {
         println("     hunters' families (packs / holding ground / able to breed / alone / adults / young): " +
