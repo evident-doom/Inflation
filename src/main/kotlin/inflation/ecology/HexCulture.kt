@@ -488,7 +488,7 @@ internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planne
     ob.sinceRaided = 0
     // The mobile slip away (and lose some of their stores).
     if (!ob.atHome && rnd.nextFloat() < FLEE) {
-        val t = 0.3f * RAID_TAKE * o.larder; moveFood(o, g, t)
+        val t = 0.3f * RAID_TAKE * o.larder; moveFood(o, g, t, LarderMove.RAIDED)
         stats.meeting(Met.RAIDED_BANDS_SLIPPED_AWAY)
         ob.grudge[b.mainLineage()] += 0.5f * GRUDGE; ob.befriend(g.id, -0.5f * TIE_RAID)
         return
@@ -519,7 +519,7 @@ internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planne
         small.deposit(DeadPool.CARRION, who.place, Kg(lost * who.species.massKg))
     }
     // The stronger side carries off food; the raided remember.
-    if (sg > so) { val t = RAID_TAKE * o.larder; moveFood(o, g, t); stats.meeting(Met.LARDERS_RAIDED) }
+    if (sg > so) { val t = RAID_TAKE * o.larder; moveFood(o, g, t, LarderMove.RAIDED); stats.meeting(Met.LARDERS_RAIDED) }
     // A band beaten at its home may be driven from it, the likelier the more the raiders overpower it (none when they are
     // only as strong; Wrangham and Glowacki 2012: victors drove the defeated off their land in most non-state wars).
     if (ob.atHome && sg > so && rnd.nextFloat() < 1f - so / sg) driveOff(o, ob, b)
@@ -697,7 +697,7 @@ internal fun HexGroups.visitKin(weather: Weather) {
         if (gift <= 0f) continue
         val eat = min(gift, (1f - g.fed) * week)
         g.fed += eat / week
-        moveFood(o, g, gift); val ateKg = eatStores(g, eat)
+        moveFood(o, g, gift, LarderMove.KIN); val ateKg = eatStores(g, eat)
         land.books?.flow(inflation.Books.Stuff.MATTER, "eaten", -ateKg.toDouble())
         // Who was helped remembers: grudges against the helpers' people fade, and it owes them a favour.
         g.band!!.grudge[o.band!!.mainLineage()] *= 0.5f

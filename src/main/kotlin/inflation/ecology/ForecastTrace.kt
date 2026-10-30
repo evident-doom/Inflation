@@ -8,20 +8,21 @@ import inflation.world.Date
 import inflation.world.Weather
 
 /**
- * forecastTrace=true: a sample of bands (1 in 50, the first [FORECAST_TRACE_MOST]) followed for a year from the week they are
- * first seen: what their forecast foresaw month by month ([yearAhead]), and what came, the food they got as [Band.monthSupply]
+ * forecastTrace=true: a sample of bands (1 in 20, the first [FORECAST_TRACE_MOST]) followed for a year from the first week they
+ * have a year of months behind them ([Band.monthSupply]): what their forecast foresaw month by month ([yearAhead]), and what came, the food they got as [Band.monthSupply]
  * counts it, their larder, fat and body protein burnt, their people, deaths and moves; on stderr, once the year is over or
  * the band is gone. Whether the forecast's months are what came, where [bookCalibration] shows only that its deaths are not.
  */
 internal val FORECAST_TRACE = Config.flag(Config.Key.FORECAST_TRACE, false)
 private val forecastTraced = java.util.concurrent.atomic.AtomicInteger()
-private const val FORECAST_TRACE_MOST = 300
-private const val FORECAST_TRACE_SHARE = 0.02f
+private const val FORECAST_TRACE_MOST = 600
+private const val FORECAST_TRACE_SHARE = 0.05f
 private const val FORECAST_TRACE_SALT = 0x46435452L
 
 /** Starts following band [b] (group [g]) for [ForecastTrace] where it is drawn for it, once a band. */
 internal fun HexGroups.traceForecast(g: HexGroup, b: Band, weather: Weather) {
-    if (b.forecastTraced) return
+    // (Once it has a year of months as [Band.monthSupply] now counts them: a band from an older save has none yet.)
+    if (b.forecastTraced || b.monthSupplySq.any { it.isNaN() }) return
     b.forecastTraced = true
     if (unitOf(mix64(g.id * HASH_A + FORECAST_TRACE_SALT)) >= FORECAST_TRACE_SHARE || forecastTraced.incrementAndGet() > FORECAST_TRACE_MOST) return
     val year = yearAhead(g, b, weather)
@@ -45,6 +46,7 @@ internal class ForecastTrace(private val head: String, private val startMonth: I
     private val got = FloatArray(n); private val weeks = IntArray(n); private val moves = IntArray(n)
     private val larder = FloatArray(n); private val fat = FloatArray(n); private val burnt = FloatArray(n)
     private val people = IntArray(n); private val died = IntArray(n); private val starved = IntArray(n)
+    private val movedIn = Array(LarderMove.entries.size) { FloatArray(n) }
     private var month = startMonth
     /** The month of the year ahead it is in (0 for the first; -1 still in the month it started). */
     private var slot = -1
@@ -64,6 +66,12 @@ internal class ForecastTrace(private val head: String, private val startMonth: I
         died[slot] += k; if (hunger) starved[slot] += k
     }
 
+    /** [value] of group [g]'s food moved in (below 0, out) for [why] this week: days of its people's need before keeping warm. */
+    fun moved(g: HexGroup, why: LarderMove, value: Float) {
+        if (slot < 0 || slot >= n) return
+        movedIn[why.ordinal][slot] += value / (g.dailyNeedKg / g.warmth.coerceAtLeast(1e-3f)).coerceAtLeast(1e-3f)
+    }
+
     /** Whether its year is over. */
     val over get() = slot >= n
 
@@ -73,10 +81,14 @@ internal class ForecastTrace(private val head: String, private val startMonth: I
         sb.append(" what came (%s; got against foreseen, of the need before keeping warm; larder, fat and burnt at the month's end):\n".format(end))
         for (k in 0 until n) {
             if (weeks[k] == 0) break
-            sb.append("  +%d: got %.2f foreseen %.2f±%.2f larder %.1f fat %.1f burnt %.1f people %d died %d hunger %d moved %d of %d weeks\n".format(
-                k + 1, got[k] / weeks[k], supply[k], spread[k], larder[k], fat[k], burnt[k], people[k], died[k], starved[k], moves[k], weeks[k]))
+            sb.append("  +%d: got %.2f foreseen %.2f±%.2f larder %.1f fat %.1f burnt %.1f people %d died %d hunger %d moved %d of %d weeks; larder days moved: %s\n".format(
+                k + 1, got[k] / weeks[k], supply[k], spread[k], larder[k], fat[k], burnt[k], people[k], died[k], starved[k], moves[k], weeks[k],
+                LarderMove.entries.joinToString(" ") { "%s %.1f".format(it.label, movedIn[it.ordinal][k]) }))
         }
         sb.append("  people at the start %d; month %d\n".format(startPeople, startMonth))
         return sb.toString()
     }
 }
+
+/** Why food moved between bands' larders, for [ForecastTrace]: raided, given to visiting kin, given at a meeting, eaten at a feast. */
+enum class LarderMove(val label: String) { RAIDED("raided"), KIN("kin"), GIFT("gift"), FEAST("feast") }

@@ -155,7 +155,7 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather) {
         val week = poor.dailyNeedKg * days
         val gift = given(rich, poor, chosen, (1f - poor.fed) * week + week)
         if (gift > 0f) {
-        moveFood(rich, poor, gift)
+        moveFood(rich, poor, gift, LarderMove.GIFT)
         poor.band?.befriend(rich.id, TIE_GIFT); rich.band?.befriend(poor.id, 0.5f * TIE_GIFT)
         helped(rich, poor, gift)
         stats.meeting(Met.FOOD_GIVEN)
@@ -225,7 +225,7 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather) {
         dialUse?.amount(DialSite.STORE_HOST, hb.storeShare, max(0f, spare), max(0f, host.larder - hb.storeAimAt1 * host.dailyNeedKg))
         if (spare <= 0f) continue
         val meal = min(spare, FEAST_KG * guest.size * keen)
-        moveFood(host, guest, meal)
+        moveFood(host, guest, meal, LarderMove.FEAST)
         // With grain to spare and vessels to brew in, the host pours beer: the feast is remembered better.
         val grain = host.stores[Store.SEED]
         val beer = if (hb.has(Tool.BASKET) > 0.5f && hb.has(Tool.GRINDER) > 0.2f) min(0.2f * grain, BEER_KG * guest.size) else 0f
