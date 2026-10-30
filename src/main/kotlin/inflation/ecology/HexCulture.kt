@@ -761,8 +761,11 @@ internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
         b.riteAsked = b.riteOwed; b.riteSpare = 0f
         stats.meeting(Met.Of.CUSTOMS_DAYS_ASKED, CustomsPart.RITES.label, (10f * b.riteOwed).roundToInt())
     }
-    // Plenty after long want is an omen too: where and when the hunger broke.
-    if (g.lean > 0 && g.fed >= Thresholds.HUNGRY) omen(b, g.place, weather.date, g.lean / LEAN_USUAL_WEEKS, Met.BANDS_MARKED_PLENTY_AFTER_WANT)
+    // Plenty after long want is an omen too: where and when a spell on its reserves ended, against its usual spell.
+    if (b.wantBroke > 0) {
+        omen(b, g.place, weather.date, b.wantBroke / max(LEAN_USUAL_WEEKS, b.wantUsual), Met.BANDS_MARKED_PLENTY_AFTER_WANT)
+        b.wantUsual += 0.5f * (b.wantBroke - b.wantUsual); b.wantBroke = 0
+    }
     // So is the strange thing with no cause in the world: a white bird, a shape in the trees, a lightning strike, a
     // misborn child, a fall. It befalls the band where it is, and the stranger the rarer ([STRANGE_SIGNS_A_YEAR]).
     if (rnd.nextFloat() < STRANGE_SIGNS_A_YEAR * years)
@@ -928,8 +931,8 @@ internal fun GroupWorld.riteMeet(a: Band, b: Band, ab: Regard, ba: Regard) {
 
 /**
  * Omens ([Band.omenPlace]): what a band marks is [SALIENT] times what it is used to or more (deaths in a week against its
- * usual, [Band.deathsUsual]; steps of hunger broken, against [LEAN_USUAL_WEEKS], two hungry steps on end, so that a
- * spell of six or more, about five weeks, is marked); it fades to a
+ * usual, [Band.deathsUsual]; a spell of steps on its reserves ended, against its usual spell, [Band.wantUsual], and
+ * never less than [LEAN_USUAL_WEEKS]); it fades to a
  * third over [OMEN_YEARS] and is forgotten once no more than the usual, unless borne out; one [OMEN_AT_ONCE] times the usual
  * is a rite at once. A band can't make a rite of what is usual for it.
  * Estimates; no figure found.
