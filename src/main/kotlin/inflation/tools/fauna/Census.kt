@@ -11,6 +11,7 @@ import inflation.ecology.Catalogue
 import inflation.ecology.Met
 import inflation.ecology.CustomsPart
 import inflation.ecology.RiteWalk
+import inflation.ecology.ritesApart
 import inflation.ecology.Mind
 import inflation.ecology.DeathCause
 import inflation.ecology.Tally
