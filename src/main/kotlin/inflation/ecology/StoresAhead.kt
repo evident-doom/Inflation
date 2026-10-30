@@ -10,8 +10,8 @@ import kotlin.math.min
 
 /** Years of weeks a band keeps for reckoning its stores ([Band.weekSupply], [storesAlive]). */
 const val SUPPLY_YEARS = 3
-/** The most weeks of a year a band's record holds ([Band.weekSupply]): steps of a week and longer. */
-const val WEEKS_KEPT = 52
+/** The most steps of a year a band's record holds ([Band.weekSupply]): steps of 6 days (the default) and longer. */
+const val WEEKS_KEPT = 60
 /** The years [storesAlive] draws, each a year ahead made month by month of the band's own past years' weeks. */
 private const val DRAWN_YEARS = 8
 private const val DRAW_SALT = 0x53544f52L

@@ -9,12 +9,13 @@ import kotlin.test.assertTrue
 /** A band's stores reckoned over years made of its own past weeks ([weeksAlive]). */
 class StoresAheadTest {
     private val s = Catalogue.HUMAN
-    private val days = 7
-    private val weeks = Date.stepsPerYear(days)
+    private val days = 6
+    // (Not "weeks": inside [Band.apply] that is the band's own [Band.weeks].)
+    private val perYear = Date.stepsPerYear(days)
 
     /** A band whose [years] years all had the weeks [got] gives, moving camp in the weeks [moved] says. */
     private fun band(years: Int, got: (Int) -> Float, moved: (Int) -> Boolean = { false }) = Band(1).apply {
-        for (y in 0 until years) for (w in 0 until weeks) { weekSupply[y * weeks + w] = got(w); weekMoved[y * weeks + w] = moved(w) }
+        for (y in 0 until years) for (w in 0 until perYear) { weekSupply[y * perYear + w] = got(w); weekMoved[y * perYear + w] = moved(w) }
     }
 
     @Test
