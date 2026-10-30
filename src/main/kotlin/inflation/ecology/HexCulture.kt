@@ -240,8 +240,16 @@ fun wordsAt(x: Double, y: Double): IntArray {
 fun totemAt(lineage: Int, kinds: Int) =
     if (kinds <= 0) FaunaKind.NONE else FaunaKind(((mix64(lineage.toLong() * HASH_B + HASH_A) ushr 33) % kinds).toInt())
 
-/** How many customs bands are counted apart by ([Regard.customsApart]): their traditions, their totem and their burial way. */
-val CUSTOMS = Tradition.entries.size + 2
+/** How many customs bands are counted apart by ([Regard.customsApart]): their traditions, their totem, their burial way and their rites. */
+val CUSTOMS = Tradition.entries.size + 3
+
+/**
+ * Whether two bands that both keep rites keep none at the same site: those who gather at the same holy place, whatever the
+ * month, are of one faith there; those who keep rites elsewhere only are not. A band that keeps no rite is not counted
+ * apart by it, as one that leaves its dead is not by where the other lays them.
+ */
+fun ritesApart(a: Band, b: Band): Boolean =
+    a.rite.any { it >= 0 } && b.rite.any { it >= 0 } && a.rite.none { it >= 0 && it in b.rite }
 
 /** Where the dead of lineage [lineage]'s bands are laid ([Band.burialWay]): one way drawn for each lineage. */
 fun burialWayAt(lineage: Int) = BurialWay.entries[((mix64(lineage.toLong() * HASH_C + HASH_B) ushr 33) % BurialWay.entries.size).toInt()]
@@ -287,11 +295,12 @@ internal class Regard(private val of: Band, private val toId: Int, private val t
     val feud get() = grudge > FEUD
     val kin get() = kinship(of.lineage, to.lineage)
     /**
-     * How many of its customs ([CUSTOMS]: its traditions, its totem as the other keeps it, and where it lays its dead, if both
-     * bury them) the other holds otherwise.
+     * How many of its customs ([CUSTOMS]: its traditions, its totem as the other keeps it, where it lays its dead, if both
+     * bury them, and its rites' sites, if both keep rites: [ritesApart]) the other holds otherwise.
      */
     val customsApart get() = Tradition.entries.count { of.holds(it) != to.holds(it) } + (if (of.totem != to.keptTotem) 1 else 0) +
-        (if (of.holds(Tradition.BURIAL) && to.holds(Tradition.BURIAL) && of.burialWay != to.burialWay) 1 else 0)
+        (if (of.holds(Tradition.BURIAL) && to.holds(Tradition.BURIAL) && of.burialWay != to.burialWay) 1 else 0) +
+        (if (ritesApart(of, to)) 1 else 0)
 
     /**
      * The chance [of] falls on [to], [drive] being the chance at its least (what drives it, by its readiness): the less they

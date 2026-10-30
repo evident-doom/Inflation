@@ -11,6 +11,7 @@ import inflation.ecology.Catalogue
 import inflation.ecology.Met
 import inflation.ecology.CustomsPart
 import inflation.ecology.RiteWalk
+import inflation.ecology.ritesApart
 import inflation.ecology.Mind
 import inflation.ecology.DeathCause
 import inflation.ecology.Tally
@@ -623,7 +624,7 @@ class Census(private val sim: HexSim) {
         }
         // (Every pair once: by distance class for the means, and the neighbours for the regions.)
         val pairs = LongArray(IDENTITY_KM.size + 1); val understood = DoubleArray(pairs.size); val apart = DoubleArray(pairs.size)
-        val sameLineage = LongArray(pairs.size); val sameTotem = LongArray(pairs.size)
+        val sameLineage = LongArray(pairs.size); val sameTotem = LongArray(pairs.size); val sameRite = LongArray(pairs.size)
         val nearA = ArrayList<Int>(); val nearB = ArrayList<Int>()
         for (i in 0 until n) {
             val bi = bands[i].second; val li = bi.mainLineage()
@@ -633,12 +634,14 @@ class Census(private val sim: HexSim) {
                 val u = Language.understanding(bi.words, bj.words)
                 // (Customs as the bands reckon them, the totem one of them: see [inflation.ecology.Regard.customsApart].)
                 val off = Tradition.entries.count { bi.holds(it) != bj.holds(it) } + (if (bi.totem != bj.totem) 1 else 0) +
-                    (if (bi.holds(Tradition.BURIAL) && bj.holds(Tradition.BURIAL) && bi.burialWay != bj.burialWay) 1 else 0)
+                    (if (bi.holds(Tradition.BURIAL) && bj.holds(Tradition.BURIAL) && bi.burialWay != bj.burialWay) 1 else 0) +
+                    (if (ritesApart(bi, bj)) 1 else 0)
                 var c = 0
                 while (c < IDENTITY_KM.size && km >= IDENTITY_KM[c]) c++
                 pairs[c]++; understood[c] += u.toDouble(); apart[c] += off.toDouble()
                 if (li == bj.mainLineage()) sameLineage[c]++
                 if (!bi.totem.none && bi.totem == bj.totem) sameTotem[c]++
+                if (bi.rite.any { it >= 0 && it in bj.rite }) sameRite[c]++
                 if (km <= GATHER_KM) {
                     nearA += i; nearB += j
                     if (u >= REGION_UNDERSTOOD && off <= REGION_CUSTOMS_APART) { val ri = root(i); val rj = root(j); if (ri != rj) parent[ri] = rj }
@@ -659,9 +662,9 @@ class Census(private val sim: HexSim) {
             val lo = if (c == 0) 0.0 else IDENTITY_KM[c - 1]
             if (c < IDENTITY_KM.size) "%.0f-%.0f km".format(lo, IDENTITY_KM[c]) else "%.0f km and over".format(lo)
         }
-        println("     identity by distance apart (pairs: understood / customs apart / same main lineage / same totem): " + pairs.indices.filter { pairs[it] > 0 }.joinToString(", ") { c ->
-            "%s %d: %.2f / %.1f / %.0f%% / %.0f%%".format(classes[c], pairs[c], understood[c] / pairs[c], apart[c] / pairs[c], 100.0 * sameLineage[c] / pairs[c],
-                100.0 * sameTotem[c] / pairs[c]) })
+        println("     identity by distance apart (pairs: understood / customs apart / same main lineage / same totem / a rite site in common): " + pairs.indices.filter { pairs[it] > 0 }.joinToString(", ") { c ->
+            "%s %d: %.2f / %.1f / %.0f%% / %.0f%% / %.0f%%".format(classes[c], pairs[c], understood[c] / pairs[c], apart[c] / pairs[c], 100.0 * sameLineage[c] / pairs[c],
+                100.0 * sameTotem[c] / pairs[c], 100.0 * sameRite[c] / pairs[c]) })
         val kept = bands.mapNotNull { (_, b) -> b.totem.takeIf { !it.none }?.i }
         val bury = bands.filter { it.second.holds(Tradition.BURIAL) }
         println("     totems: %.0f%% of bands keep one, %d kinds kept, %.0f%% known lately to have eaten of theirs; burial: %.0f%% of bands bury their dead, %.0f%% of those carry them to their ancestors, %.1f person-days a band still owed to burials"
