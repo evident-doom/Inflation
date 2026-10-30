@@ -316,6 +316,8 @@ object Catalogue {
         fearOfPeople = 0.7f, boldShare = 0.03f,
         diet = Diet(meat = 0.6f, smallPrey = 0.35f, carrion = 0.05f),
         groupSize = 2, maxGroupSize = 4,
+        // (Solitary: grown leopards live and hunt alone, a mother with her cubs aside; pairs only to mate. From memory.)
+        foragingParty = 1,
         dailyTravelKm = 6f, maxDailyTravelKm = 20f, senseKm = 4f,
         daysWithoutWater = 6, waterFromFood = 0.8f,
         birthMonth = 6, birthMonths = 1, youngPerFemale = 1.5f, yearsToMaturity = 2.5f,
