@@ -478,7 +478,8 @@ private fun HexGroups.raid(g: HexGroup, b: Band, o: HexGroup, ob: Band, r: Regar
 /**
  * [g] falls on [o]. A planned raid on a band at home may take it by surprise, the less so the more
  * it sees (scouts, open ground, moonlight); the defenders gain from high, broken ground, their
- * houses and a palisade. A band with no home to hold may slip away, losing what it cannot carry.
+ * houses and a palisade. A band with no home to hold may slip away, losing what it cannot carry; one beaten at its home
+ * may be driven from it ([driveOff]).
  */
 internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planned: Boolean, weather: Weather) {
     stats.meeting(if (planned) Met.RAIDS_ON_HOMES else Met.RAIDS)
@@ -518,11 +519,28 @@ internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planne
     }
     // The stronger side carries off food; the raided remember.
     if (sg > so) { val t = RAID_TAKE * o.larder; moveFood(o, g, t); stats.meeting(Met.LARDERS_RAIDED) }
+    // A band beaten at its home may be driven from it, the likelier the more the raiders overpower it (none when they are
+    // only as strong; Wrangham and Glowacki 2012: victors drove the defeated off their land in most non-state wars).
+    if (ob.atHome && sg > so && rnd.nextFloat() < 1f - so / sg) driveOff(o, ob, b)
     ob.grudge[b.mainLineage()] += GRUDGE
     ob.befriend(g.id, -TIE_RAID); b.befriend(o.id, -0.3f * TIE_RAID)
     if (lostG > 0) b.grudge[ob.mainLineage()] += 0.3f * GRUDGE
     // (Those who stood with them remember the raiders too, as far as they stood.)
     for (n in sides.helpers) { n.band.grudge[b.mainLineage()] += n.share * GRUDGE; n.band.befriend(g.id, -n.share * TIE_RAID) }
+}
+
+/**
+ * Band [o] ([ob]) is driven from its home by raiders of band [by]: it leaves its houses and palisade to whoever takes them up,
+ * and while it fears the raiders' people it neither takes up houses there again nor seeks the place ([Band.keptFrom]).
+ */
+private fun HexGroups.driveOff(o: HexGroup, ob: Band, by: Band) {
+    val h = ob.houseHex
+    leaveStructures(o, h)
+    ob.drivenFrom = h; ob.drivenBy = by.mainLineage()
+    ob.houseHex = Hex.NONE; ob.house = 0f; ob.atHome = false; ob.palisade = 0f
+    ob.homeEarth = 0f; ob.homeWalls = 0f; ob.homeGroundC = 0f
+    stats.meeting(Met.BANDS_DRIVEN_FROM_HOME)
+    note(o) { "was driven from its home at hex %d".format(h.i) }
 }
 
 /**
