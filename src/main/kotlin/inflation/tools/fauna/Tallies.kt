@@ -417,7 +417,8 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
             " | elders %.0f%% of adults, children inbred %.3f".format(100.0 * bs.sumOf { it.elders } / bands.sumOf { it.adults }.coerceAtLeast(1),
                 bs.map { it.inbred.toDouble() }.average()) +
             " | caches %d".format(bs.count { !it.cachePlace.none }) +
-            " | dogs %.0f in %d bands, wolf packs' boldness %.2f".format(bs.sumOf { it.kept.sum().toDouble() }, bs.count { it.kept.sum() >= 1f },
+            " | dogs %.0f in %d bands, fed %.2f, wolf packs' boldness %.2f".format(bs.sumOf { it.kept.sum().toDouble() }, bs.count { it.kept.sum() >= 1f },
+                bs.filter { it.kept.sum() >= 1f }.map { it.dogFed.toDouble() }.average(),
                 groups.groups.filter { it.alive && it.species.followsPeople && !it.species.human }.map { boldness(it).toDouble() }.average()) +
             " | country known %.0f km²".format(bs.map { b -> b.known.sumOf { java.lang.Long.bitCount(it) }.toDouble() }.average() * hex.areaKm2) +
             " | camp weeks %.1f, larder days %.0f".format(bs.map { it.campWeeks }.average(),

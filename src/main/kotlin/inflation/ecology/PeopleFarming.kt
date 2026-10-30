@@ -85,7 +85,8 @@ internal fun GroupWorld.canSow(g: HexGroup, b: Band, p: Place, date: Date) =
 /**
  * Packs of kinds that follow people (wolves, jackals) and live by a band's camps grow bolder over
  * generations, the shy ones keeping away; from a bold pack the band now and then takes a pup and
- * raises it. Its dogs breed when the band eats well, help it hunt and guard its camp.
+ * raises it. Its dogs eat what lies about the camp and a little of the band's food, breed as they are fed, help it hunt
+ * small game and guard its camp.
  */
 internal fun HexGroups.keepAnimals(g: HexGroup, b: Band) {
     val h = hw.placeHex[g.place]
@@ -101,14 +102,30 @@ internal fun HexGroups.keepAnimals(g: HexGroup, b: Band) {
             stats.meeting(Met.Of.TOOK_A_PUP, s.name)
         }
     }
-    var dogs = 0f
+    var dogs = 0f; var need = 0f; var got = 0f
+    val p = g.place
+    // (A band feeds no more dogs than make a full pack for its hunters ([Band.dogShare]); the rest live on what they find.)
+    val fedShare = min(1f, g.adults / 3f / max(1f, b.kept.sum()))
     for (i in b.kept.indices) {
         val k = b.kept[i]
         if (k <= 0f) continue
-        val cap = DOGS_PER_ADULT * g.adults
-        b.kept[i] = max(0f, k + k * (DOG_GROWTH * g.fed * (1f - k / max(1f, cap)) - DOG_DEATHS) * years)
+        val s = Catalogue.all[i]
+        // Its dogs live mostly on what lies about the camp (scraps, offal, carrion: [DeadPool.CARRION]), and the band gives
+        // them a little of its own food, the less the hungrier it is ([DOG_FED_SHARE]); they need what their wild kind does.
+        val want = k * s.dailyIntakeKg * days
+        var ate = small.scavengeIn(p, Kg(want), land.areaKm2[p]).v
+        val given = min(want - ate, DOG_FED_SHARE * want * fedShare * g.fed)
+        if (given > 0f) ate += eatStores(g, given * Nourishment.MEAT * g.species.needScale)
+        val fed = min(1f, ate / want)
+        need += want; got += ate
+        // They whelp as they are fed and die as their kind does by people's camps, and of hunger (as kept herds do).
+        val dying = (DOG_DEATHS + 0.5f * (1f - fed)) * years
+        val died = k * min(0.9f, dying)
+        small.deposit(DeadPool.CARRION, p, Kg(died * s.massKg))
+        b.kept[i] = max(0f, k + k * DOG_BIRTHS * fed * years - died)
         dogs += b.kept[i]
     }
+    b.dogFed = if (need > 0f) min(1f, got / need) else 1f
     b.dogShare = min(1f, dogs / max(1f, g.adults / 3f))
 }
 
@@ -122,13 +139,19 @@ internal fun boldness(g: HexGroup) = if (g.bold < 0f) g.species.boldShare else g
 const val BOLD_DRIFT = 0.0003f
 const val TAME = 0.5f
 /**
- * Dogs: yearly growth of a band's dogs when fed, their yearly deaths, most a band keeps per adult;
- * how much a full pack of dogs adds to the hunt and keeps off night attacks.
+ * Dogs. Pups raised a dog a year when fed: half are bitches, of one litter a year of about 5 (an estimate, from memory), half
+ * of the pups dying as newborns (Koster 2008, Mayangna and Miskito, Nicaragua). Yearly deaths of grown dogs: 49% (Koster
+ * 2008; hunting dogs die younger than guard dogs, Pacheco-Cobos and Winterhalder 2021, Belize). The share of their need a
+ * well-fed band gives the dogs of a full pack of its own food: 13% of village dogs' food by mass was given them, 87% they found, mostly
+ * carrion and human waste (Butler et al. 2018, rural Zimbabwe). How much a full pack adds to the hunt of the smallest game,
+ * falling to nothing at [DOG_PREY_KG]: dogs met agouti and paca far more often but red brocket deer no more (Koster 2008),
+ * and gains are limited to some prey (Lupo 2017); the size a guess. How much a full pack keeps off night attacks (no source).
  */
-const val DOG_GROWTH = 0.4f
-const val DOG_DEATHS = 0.1f
-const val DOGS_PER_ADULT = 0.3f
-const val DOG_HUNT = 0.2f
+const val DOG_BIRTHS = 1.25f
+const val DOG_DEATHS = 0.49f
+const val DOG_FED_SHARE = 0.13f
+const val DOG_HUNT = 1f
+const val DOG_PREY_KG = 25f
 const val DOG_GUARD = 0.5f
 /**
  * Sowing: months (0 the one after midwinter) for sowing in autumn; share of its stored grain a band

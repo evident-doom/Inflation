@@ -219,7 +219,8 @@ internal fun HexGroups.choreAsks(g: HexGroup, b: Band, date: Date, asks: EnumFlo
     ask(Activity.SHELTER, shelterWork(b, people, if (moved) 0f else b.shelter, b.shelterWill) - (warm?.get(Activity.SHELTER) ?: 0f))
     ask(Activity.CUSTOMS, b.burialOwed + b.riteOwed + cleanDays(b, people) + nurseDays(b, people))
     ask(Activity.TRAINING, Skill.entries.sumOf { s -> (learners(b, s, people) * APPRENTICE_DAYS * s.complexity).toDouble() }.toFloat())
-    ask(Activity.TOOLS, makeTools(b, people, null))
+    // (What its kit asks beyond the clothes' days given first, when given: [survivalDays].)
+    ask(Activity.TOOLS, makeTools(b, people, null) - (warm?.get(Activity.TOOLS) ?: 0f))
     ask(Activity.ORNAMENTS, ornamentsWanted(b, people) * ORNAMENT_DAYS)
     // (A band that has just moved builds, sows and fortifies nothing where it has come to.)
     if (!moved) {
@@ -237,9 +238,10 @@ internal fun HexGroups.choreAsks(g: HexGroup, b: Band, date: Date, asks: EnumFlo
 
 /**
  * What a band that has died out leaves where it was: its food and the materials that rot go back to the ground,
- * its cache with them, and its herd goes wild among the animals of its kind there.
+ * its cache with them, its herd goes wild among the animals of its kind there, and its dogs go off as a pack of their
+ * wild kind (wild dogs are wolves), bold of people, added to [freed].
  */
-internal fun HexGroups.leaveDead(g: HexGroup) {
+internal fun HexGroups.leaveDead(g: HexGroup, freed: MutableList<HexGroup>) {
     val b = g.band ?: return
     val p = g.place
     val rots = ROTS.sumOf { b.goods[it].toDouble() }.toFloat()
@@ -252,6 +254,19 @@ internal fun HexGroups.leaveDead(g: HexGroup) {
         fauna.adults[k][p] += b.herd[k] / area; bands.herdFlows[HerdFlow.FREED] += b.herd[k]; bands.herdFlows[HerdFlow.ENDED_FREED] += 1f
         bands.kindFlows[k][HerdFlow.FREED] += b.herd[k]; bands.kindFlows[k][HerdFlow.ENDED_FREED] += 1f
         b.herd[k] = 0f; b.herdTame[k] = 0f; if (k < b.herdPet.size) b.herdPet[k] = 0f
+    }
+    for (i in b.kept.indices) {
+        val n = b.kept[i].toInt()
+        b.kept[i] = 0f
+        val s = Catalogue.all[i]
+        if (n < 1 || s !in kinds) continue
+        val pack = HexGroup(nextId++, s, p, n, 0)
+        pack.temper = Temperament.founder(pack.id, seedBase)
+        pack.fat = 0.5f * s.maxFatDays
+        pack.bold = 1f
+        claimGround(pack, hw.placeHex[p])
+        freed += pack
+        stats.meeting(Met.Of.DOGS_GONE_WILD, s.name, n)
     }
 }
 

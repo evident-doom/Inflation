@@ -19,6 +19,7 @@ import inflation.mix64
 
 import inflation.world.Biome
 import inflation.world.Date
+import inflation.world.Place
 import inflation.world.Weather
 import kotlin.math.max
 import kotlin.math.min
@@ -369,7 +370,7 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
         if (r < toA) { bandA.burialWay = bandB.burialWay; stats.meeting(Met.BANDS_TOOK_UP_ANOTHERS_BURIAL) }
         else if (r < toA + toB) { bandB.burialWay = bandA.burialWay; stats.meeting(Met.BANDS_TOOK_UP_ANOTHERS_BURIAL) }
     }
-    riteMeet(lo, hi, u)
+    riteMeet(bandA, bandB, ab, ba)
     teach(bandA, bandB, u, (doing(a) - doing(b)).coerceIn(-1f, 1f))
     // And the sick among them pass on what is catching.
     passIllness(bandA, bandB)
@@ -750,12 +751,10 @@ const val RITE_SHIFT = 0.1f
 fun riteStrengthAt(lineage: Int, tuning: Tuning) = tuning.riteFounderMax * Math.floorMod((lineage + 7) * 2_654_435_761L.toInt() xor 0x5bd1e995, 1000) / 1000f
 
 /**
- * A band's rites through the year (rounds on, see [inflation.Tuning.rounds]): about once a year a band whose rites
- * have room for another takes up one where its story is: the graves of its dead, where bands gather
- * (both in the season they mark), or a far landmark it knows, walked to or told of (a pass, a spring,
- * a path's end: the further, the more it stands for); and now and then it lets one go, less often
- * where songs and stories keep them. Nothing here weighs what a rite brings, except that a holier place draws more
- * ([HexLand.sanctity]: how many held rites there and lie buried there, as against the band's own number).
+ * A band's rites through the year (rounds on, see [inflation.Tuning.rounds]). A rite is born of an omen ([omen]): a
+ * salient event at a place in a month (many deaths in a week, plenty after long want, a strange sign) that is borne out. Nothing here
+ * weighs what a rite brings, and a rite is not let go: a belief ends with the bands that keep it, or with the part of a
+ * band that breaks from it ([beliefSplits]).
  *
  * A rite obliges: at the start of its month the band's adults owe [RITE_DAYS] each of their customs' time, and, unless
  * the band is camped at the site ([inflation.Tuning.roundArrivedKm]), the walk there and back. Nothing weighs the trip
@@ -787,56 +786,48 @@ internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
         b.riteHeld = now; b.riteDue = site
         b.riteOwed = (RITE_DAYS + walk) * g.adults
     }
-    val keep = if (b.holds(Tradition.ORAL_TRADITION)) 0.5f else 1f
-    for (m in 0 until 12) if (b.rite[m] >= 0 && rnd.nextFloat() < RITE_FORGET * keep * years) {
-        b.rite[m] = -1
-        stats.meeting(Met.BANDS_LET_A_RITE_GO)
+    // Plenty after long want is an omen too: where and when the hunger broke.
+    if (g.lean > 0 && g.fed >= Thresholds.HUNGRY) omen(b, g.place, weather.date, g.lean / LEAN_USUAL_WEEKS, Met.BANDS_MARKED_PLENTY_AFTER_WANT)
+    // So is the strange thing with no cause in the world: a white bird, a shape in the trees, a lightning strike, a
+    // misborn child, a fall. It befalls the band where it is, and the stranger the rarer ([STRANGE_SIGNS_A_YEAR]).
+    if (rnd.nextFloat() < STRANGE_SIGNS_A_YEAR * years)
+        omen(b, g.place, weather.date, 1f / (1f - rnd.nextFloat()), Met.BANDS_MARKED_A_STRANGE_SIGN)
+    // An omen fades unless it is borne out: the same month going well again where it fell, a year or more on.
+    if (b.omenPlace >= 0) {
+        b.omenWeight *= exp(-years / OMEN_YEARS)
+        if (b.omenWeight < 1f) b.omenPlace = -1
+        else if (weather.date.month == b.omenMonth && weather.date.year > b.omenYear && g.fed >= Thresholds.HUNGRY &&
+            hex.distanceKm(hw.placeHex[g.place], hw.placeHex[b.omenPlace]) <= tuning.roundArrivedKm) bearRite(b)
     }
-    if (b.rite.count { it >= 0 } >= RITE_SITES || rnd.nextFloat() >= years) return
-    val held = b.rite.toHashSet()
-    var bestPlace = -1; var bestMonth = -1; var bestScore = 0f
-    fun consider(p: Int, month: Int, story: Float) {
-        val score = if (p >= 0) story + land.sanctity[p] / max(1, g.size) else story
-        if (p >= 0 && p !in held && b.rite[month] < 0 && score > bestScore) {
-            bestScore = score
-            bestPlace = p
-            bestMonth = month
-        }
-    }
-    val mem = g.memory
-    for (i in 0 until PlaceMemory.MEMORY_SLOTS) {
-        if (mem.hex[i].none) continue
-        val month = mem.season[i] * 3 + 1
-        if (mem.dead[i] >= APPOINT_MIN) consider((hw.firstPlaceIn(mem.hex[i])).i, month, mem.dead[i])
-        if (mem.met[i] >= APPOINT_MIN) consider((hw.firstPlaceIn(mem.hex[i])).i, month, 0.5f * mem.met[i])
-    }
-    val here = hw.placeHex[g.place]; val month = weather.date.month
-    for (h in routes.landmarks) {
-        val k = routes.kind(h)
-        if ((k != HexRoutes.Kind.PASS && k != HexRoutes.Kind.WATER && k != HexRoutes.Kind.END) || !b.knows(h)) continue
-        val km = hex.distanceKm(here, h)
-        if (km > REMEMBERED_KM) consider((hw.firstPlaceIn(h)).i, month, APPOINT_MIN * (km / REMEMBERED_KM).toFloat())
-    }
-    // (Where the good stone, salt or ochre it lacks is got, if it knows the place: the stronger its want, the likelier.)
-    for (m in TRADED) {
-        val want = 1f - b.goods[m] / (KEEP_YEARS * YEAR_NEED[m] * max(1, g.adults))
-        if (want <= 0f) continue
-        for (h in bands.materialSources.getValue(m)) if (b.knows(h)) {
-            val km = hex.distanceKm(here, h)
-            if (km > tuning.roundArrivedKm) consider((hw.firstPlaceIn(h)).i, month, APPOINT_MIN * SOURCE_RITE * want)
-        }
-    }
-    if (bestPlace >= 0) { b.rite[bestMonth] = bestPlace; stats.meeting(Met.BANDS_TOOK_UP_A_RITE) }
+}
+
+/**
+ * [b] marks what befell it at [place] on [date], [weight] times what it is used to ([SALIENT] at least, or it is not marked):
+ * an omen it remembers over the next [OMEN_YEARS] (the greater kept before the lesser), which becomes a rite in its month
+ * if borne out (see [riteWeek], [riteMeet]), or at once if it was very great ([OMEN_AT_ONCE]).
+ */
+internal fun GroupWorld.omen(b: Band, place: Place, date: Date, weight: Float, kind: Met) {
+    if (weight < SALIENT || weight <= b.omenWeight) return
+    b.omenPlace = place.i; b.omenMonth = date.month; b.omenYear = date.year; b.omenWeight = weight
+    stats.meeting(kind)
+    if (weight >= OMEN_AT_ONCE) bearRite(b)
+}
+
+/** [b]'s omen becomes a rite at its place in its month, if the band has that month free and room for another. */
+internal fun GroupWorld.bearRite(b: Band) {
+    val p = b.omenPlace; val m = b.omenMonth
+    b.omenPlace = -1; b.omenWeight = 0f
+    if (p < 0 || b.rite[m] >= 0 || p in b.rite || b.rite.count { it >= 0 } >= RITE_SITES) return
+    b.rite[m] = p
+    stats.meeting(Met.BANDS_BORE_A_RITE)
 }
 
 /**
  * Material sources (trade on): the square each is gathered from, km; the least share of a place's
- * ground for it to count; how a source counts as a rite's site against a band's graves (at full
- * want). Not measured.
+ * ground for it to count. Not measured.
  */
 const val SOURCE_KM = 50.0
 const val SOURCE_MIN = 0.1f
-const val SOURCE_RITE = 2f
 
 /** A band split off from another: its hold on the rites drifts, and now and then one shifts by a month (rounds on). */
 internal fun HexGroups.riteInherit(nb: Band) {
@@ -856,20 +847,45 @@ internal fun HexGroups.riteInherit(nb: Band) {
 }
 
 /**
- * Two bands talking (rounds on): the one doing less well may take up a rite of the other's in a
- * month it has none, and its hold moves toward theirs, as far as they understand each other.
+ * Two bands talking (rounds on): each may take up a rite of the other's in a month it has none, as far as it believes what
+ * the other tells ([Regard.trust]: understanding and closeness), never because the other does better; and each one's hold
+ * on its rites moves toward the other's as far. Two that marked the same place each hear their omen told again.
  */
-internal fun GroupWorld.riteMeet(lo: Band, hi: Band, u: Float) {
+internal fun GroupWorld.riteMeet(a: Band, b: Band, ab: Regard, ba: Regard) {
     if (!tuning.rounds) return
-    for (m in 0 until 12) if (hi.rite[m] >= 0 && lo.rite[m] < 0 && lo.rite.count { it >= 0 } < RITE_SITES && hi.rite[m] !in lo.rite &&
-        rnd.nextFloat() < COPY_TRADITION * u) {
-        lo.rite[m] = hi.rite[m]; stats.meeting(Met.BANDS_TOOK_UP_ANOTHERS_RITE)
+    // (Two bands that marked the same place each hear their omen told again: it is borne out for both.)
+    if (a.omenPlace >= 0 && a.omenPlace == b.omenPlace) { bearRite(a); bearRite(b) }
+    fun takeUp(to: Band, from: Band, belief: Float) {
+        for (m in 0 until 12) if (from.rite[m] >= 0 && to.rite[m] < 0 && to.rite.count { it >= 0 } < RITE_SITES && from.rite[m] !in to.rite &&
+            rnd.nextFloat() < COPY_TRADITION * belief) {
+            to.rite[m] = from.rite[m]; stats.meeting(Met.BANDS_TOOK_UP_ANOTHERS_RITE)
+        }
     }
-    lo.riteStrength += COPY_TRADITION * u * (hi.riteStrength - lo.riteStrength)
+    val tA = ab.trust; val tB = ba.trust
+    takeUp(a, b, tA); takeUp(b, a, tB)
+    val sa = a.riteStrength; val sb = b.riteStrength
+    a.riteStrength += COPY_TRADITION * tA * (sb - sa)
+    b.riteStrength += COPY_TRADITION * tB * (sa - sb)
 }
 
-/** Share of a band's rites let go a year (a fifth of them; half that where songs and stories keep them). Not measured. */
-const val RITE_FORGET = 0.2f
+/**
+ * Omens ([Band.omenPlace]): what a band marks is [SALIENT] times what it is used to or more (deaths in a week against its
+ * usual, [Band.deathsUsual]; weeks of hunger broken, against [LEAN_USUAL_WEEKS], a hungry month a year); it fades to a
+ * third over [OMEN_YEARS] and is forgotten once no more than the usual, unless borne out; one [OMEN_AT_ONCE] times the usual
+ * is a rite at once. A band can't make a rite of what is usual for it.
+ * Estimates; no figure found.
+ */
+const val SALIENT = 3f
+const val OMEN_AT_ONCE = 10f
+const val OMEN_YEARS = 1f
+const val LEAN_USUAL_WEEKS = 4f
+
+/**
+ * Strange things a band sees in a year, good signs and bad alike; how strange each is, against the usual, falls off as
+ * one over it (a third are [SALIENT], a tenth [OMEN_AT_ONCE]). Nothing in the world causes them and nothing follows from
+ * them but the rite they may become. Estimate; no figure found.
+ */
+const val STRANGE_SIGNS_A_YEAR = 1f
 
 /** Days of a band's food that make one favour ([Band.favours]): a week. */
 const val FAVOUR_DAYS = 7f
