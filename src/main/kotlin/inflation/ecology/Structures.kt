@@ -122,9 +122,19 @@ internal fun buildOn(s: Structure, add: Float) {
     if (s.built >= 1f - 1e-4f) { s.built = 1f; s.done = true }
 }
 
-/** [g] takes up what stands at hex [h] that nobody else is using this week. */
+/**
+ * [g] takes up what stands at hex [h] that nobody else is using this week: houses only as far as it needs them for its grown
+ * people, those it already uses first (who is there keeps what it uses); unused houses are nobody's and go to whoever needs
+ * them. A palisade or a weir it takes up whole, as before.
+ */
 internal fun HexGroups.useStructures(g: HexGroup, h: Hex) {
-    structuresAt(h) { s -> if (s.user < 0) s.user = g.id }
+    var room = 0f
+    structuresAt(h) { s -> if (s.kind == Built.HOUSES && s.user == g.id) room += s.built * s.size }
+    structuresAt(h) { s ->
+        if (s.user >= 0) return@structuresAt
+        if (s.kind != Built.HOUSES) s.user = g.id
+        else if (room < g.adults) { s.user = g.id; room += s.built * s.size }
+    }
 }
 
 /** [g] gives up what it uses at hex [h]: free to anyone from now. */
