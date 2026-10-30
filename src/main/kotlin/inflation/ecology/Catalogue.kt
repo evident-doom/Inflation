@@ -426,7 +426,8 @@ object Catalogue {
      */
     val ELK = Species(
         id = 10, name = "elk", massKg = 400f,
-        diet = Diet(grass = 0.1f, browse = 0.75f, roots = 0.15f),
+        // (Its summer water plants are browse here: it does not dig bulbs or pick up acorns, and the model's roots are those.)
+        diet = Diet(grass = 0.1f, browse = 0.9f),
         groupSize = 2, maxGroupSize = 5,
         dailyTravelKm = 4f, maxDailyTravelKm = 20f, senseKm = 1.5f,
         daysWithoutWater = 3, waterFromFood = 0.6f,
@@ -574,8 +575,9 @@ object Catalogue {
      */
     val OSTRICH = Species(
         id = 15, name = "ostrich", massKg = 110f,
-        // A picky feeder on green shoots, flowers, seeds and fruit, not a bulk grazer.
-        diet = Diet(grass = 0.2f, browse = 0.4f, roots = 0.1f, fruit = 0.3f),
+        // A picky feeder on green shoots, flowers, seeds and fruit, not a bulk grazer; it does not dig (the seeds and flowers
+        // are counted with the fruit).
+        diet = Diet(grass = 0.2f, browse = 0.4f, fruit = 0.4f),
         groupSize = 5, maxGroupSize = 30,
         dailyTravelKm = 15f, maxDailyTravelKm = 50f, senseKm = 5f,
         daysWithoutWater = 7, waterFromFood = 0.8f,
