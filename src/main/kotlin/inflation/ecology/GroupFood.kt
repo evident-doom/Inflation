@@ -1248,7 +1248,8 @@ private fun HexGroups.huntGame(g: HexGroup, k: Int, p: Place, expected: Float, k
 
 /**
  * What stronger scavengers take of beast [g]'s [kills] at [p], out of [haul]: each carcass lies there while the beast eats
- * it, a kill's weight against what the party eats in a day, and resident kinds that eat carrion and are stronger than the
+ * it, a kill's weight against what the party eats in a day, and resident kinds that kill as well as scavenge (meat and
+ * carrion in their diet: a boar roots up a carcass but does not drive wolves off one) and are stronger than the
  * party by [THEFT_RATIO] (a band of [Species.groupSize], by its mass and ferocity, as [strength] has a party) come on it by
  * scent as they range, awake ([HexFauna.asleep]): a strip [Species.senseKm] each side of a day's travel, their bands as
  * common there as they are. One that finds it drives the party off and takes half of what is left of it, on average, as
@@ -1261,7 +1262,7 @@ private fun HexGroups.foundByScent(g: HexGroup, p: Place, kills: Int, haul: Haul
     val party = strength(g)
     var rate = 0f
     for ((k, r) in fauna.kinds.withIndex()) {
-        if (r.diet.carrion <= 0f || r.human || fauna.asleep(FaunaKind(k), p)) continue
+        if (r.diet.carrion <= 0f || r.diet.meat <= 0f || r.human || fauna.asleep(FaunaKind(k), p)) continue
         if (r.groupSize * r.massKg * r.ferocity < THEFT_RATIO * party) continue
         rate += (fauna.adults[k][p] + fauna.young[k][p]) / r.groupSize * 2f * r.senseKm * r.dailyTravelKm
     }
