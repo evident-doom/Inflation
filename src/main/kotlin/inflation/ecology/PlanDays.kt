@@ -76,6 +76,8 @@ internal fun HexGroups.planDays(g: HexGroup, b: Band, weather: Weather, time: Ba
     add(PlanTier.OBLIGED, paid.sum()); add(PlanTier.SCORED, d[0] / time.pace(acts[0]) + d[1] / time.pace(acts[1]))
     add(PlanTier.UNRECKONED, shared.sum()); add(PlanTier.LEISURE, left)
     add(PlanTier.ASKED_BEYOND, max(0f, rest.sum() - shared.sum()))
+    add(PlanTier.STORES_ASKED, days(Activity.FOOD, ask[0])); add(PlanTier.STORES_HELD, days(Activity.FOOD, d[0]))
+    add(PlanTier.HOUSES_ASKED, days(Activity.HOUSES, ask[1])); add(PlanTier.HOUSES_HELD, days(Activity.HOUSES, d[1]))
     stats.hunting.merge(Tally.planTier(PlanTier.LIVES), (1e4f * (now - lives.saved(FloatArray(SCORED_ITEMS)))).roundToInt(), Int::plus)
     return given
 }
@@ -111,11 +113,13 @@ private fun interface PlanLives { fun saved(d: FloatArray): Float }
 
 /**
  * The tiers of a [Mind.PLANS] band's week beyond its essentials ([planDays]), for the census, person-days ([LIVES]: the
- * lives its scored days were reckoned to save, ten-thousandths; [ASKED_BEYOND]: the unreckoned chores' asks it could not give).
+ * lives its scored days were reckoned to save, ten-thousandths; [ASKED_BEYOND]: the unreckoned chores' asks it could not give;
+ * the stores' and the houses' asks and what of them it held by lives).
  */
 enum class PlanTier(val label: String) {
     OBLIGED("owed by custom"), SCORED("held by lives"), UNRECKONED("no reckoning yet"), LEISURE("leisure"),
-    ASKED_BEYOND("unreckoned asks not given"), LIVES("lives reckoned saved, 1/10000")
+    ASKED_BEYOND("unreckoned asks not given"), LIVES("lives reckoned saved, 1/10000"),
+    STORES_ASKED("stores asked"), STORES_HELD("stores held"), HOUSES_ASKED("houses asked"), HOUSES_HELD("houses held")
 }
 
 /** The chores with no reckoning in lives yet ([planDays]): shared out at equal weights. */
