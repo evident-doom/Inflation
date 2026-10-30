@@ -516,26 +516,21 @@ private fun GroupWorld.marryOut(a: HexGroup, bandA: Band, b: HexGroup, bandB: Ba
     val na = sa * a.adults; val nb = sb * b.adults
     val fromA = enumFloats<Skill> { i -> if (bandA.holders[i] > 0f) min(na, na * bandA.holders[i] / a.adults) else 0f }
     val fromB = enumFloats<Skill> { i -> if (bandB.holders[i] > 0f) min(nb, nb * bandB.holders[i] / b.adults) else 0f }
+    // (A band takes in the skill [got] of its partners hold, a little short of [best], the best of the band they came from.)
+    fun takeIn(to: Band, i: Skill, got: Float, best: Float) {
+        if (got <= 0f) return
+        if (!to.knowsSkill[i]) {
+            to.knowsSkill[i] = true
+            to.skills[i] = 0f
+            to.lastUsed[i] = to.weeks
+        }
+        to.skills[i] = max(to.skills[i], best - TRANSMIT_LOSS)
+        to.holders[i] = max(0f, to.holders[i]) + got
+    }
     for (i in Skill.entries) {
         val la = bandA.skills[i]; val lb = bandB.skills[i]
-        if (fromB[i] > 0f) {
-            if (!bandA.knowsSkill[i]) {
-                bandA.knowsSkill[i] = true
-                bandA.skills[i] = 0f
-                bandA.lastUsed[i] = bandA.weeks
-            }
-            bandA.skills[i] = max(bandA.skills[i], lb - TRANSMIT_LOSS)
-            bandA.holders[i] = max(0f, bandA.holders[i]) + fromB[i]
-        }
-        if (fromA[i] > 0f) {
-            if (!bandB.knowsSkill[i]) {
-                bandB.knowsSkill[i] = true
-                bandB.skills[i] = 0f
-                bandB.lastUsed[i] = bandB.weeks
-            }
-            bandB.skills[i] = max(bandB.skills[i], la - TRANSMIT_LOSS)
-            bandB.holders[i] = max(0f, bandB.holders[i]) + fromA[i]
-        }
+        takeIn(bandA, i, fromB[i], lb)
+        takeIn(bandB, i, fromA[i], la)
         if (bandA.holders[i] > 0f) bandA.holders[i] = max(0f, bandA.holders[i] - fromA[i])
         if (bandB.holders[i] > 0f) bandB.holders[i] = max(0f, bandB.holders[i] - fromB[i])
     }

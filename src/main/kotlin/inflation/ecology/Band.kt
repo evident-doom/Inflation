@@ -667,16 +667,16 @@ class Band(kinds: Int) {
         for (i in Tool.entries) {
             val ka = a.kit[i] * (1f - w)
             val kb = b.kit[i] * w
-            if (ka + kb > 0f) a.fine[i] = (ka * a.fine[i] + kb * b.fine[i]) / (ka + kb)
+            if (ka + kb > 0f) a.fine[i] = weightedMean(a.fine[i], ka, b.fine[i], kb)
             a.kit[i] += w * (b.kit[i] - a.kit[i])
         }
-        if (dried + bDried > 0f) a.salted = (dried * a.salted + bDried * b.salted) / (dried + bDried)
-        if (dried + bDried > 0f) a.dryDepth = (dried * a.dryDepth + bDried * b.dryDepth) / (dried + bDried)
+        if (dried + bDried > 0f) a.salted = weightedMean(a.salted, dried, b.salted, bDried)
+        if (dried + bDried > 0f) a.dryDepth = weightedMean(a.dryDepth, dried, b.dryDepth, bDried)
         // (Seed corn blended by the seed corn each held, the rest of the grain by the rest.)
         val corn = min(a.seedCorn, seed); val bCorn = min(b.seedCorn, bSeed)
-        if (corn + bCorn > 0f) a.seedDomestic = (corn * a.seedDomestic + bCorn * b.seedDomestic) / (corn + bCorn)
+        if (corn + bCorn > 0f) a.seedDomestic = weightedMean(a.seedDomestic, corn, b.seedDomestic, bCorn)
         val wild = seed - corn; val bWild = bSeed - bCorn
-        if (wild + bWild > 0f) a.grainDomestic = (wild * a.grainDomestic + bWild * b.grainDomestic) / (wild + bWild)
+        if (wild + bWild > 0f) a.grainDomestic = weightedMean(a.grainDomestic, wild, b.grainDomestic, bWild)
         a.seedCorn = corn + bCorn
         for (i in Illness.entries) { a.sick[i] += w * (b.sick[i] - a.sick[i]); a.immune[i] += w * (b.immune[i] - a.immune[i]) }
         a.hurt += w * (b.hurt - a.hurt); a.lame += w * (b.lame - a.lame)

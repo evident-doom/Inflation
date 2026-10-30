@@ -382,19 +382,25 @@ internal fun GroupWorld.herdIncrease(b: Band, k: Int, fed: Float = 1f): Float {
     return herdMothers(s, tame) * s.youngPerFemale * fed / (1f + lost * s.yearsToMaturity) - lost
 }
 
+/** Diamond's six criteria for a kind that can be kept, in the order of [Species.domestication]. */
+internal enum class Diamond { DIET, GROWTH, BREEDING, TEMPERAMENT, CALM, HIERARCHY }
+
+/** How well kind [this] meets Diamond's criterion [d], 0..1. */
+internal fun Species.diamond(d: Diamond) = domestication[d.ordinal]
+
 /**
  * The share of a kept herd of kind [s] that bear young in a year, [tame] as it is: its females, as tame as they are, and as
  * far as their kind mates and rears young in a camp without pens or incubators (Diamond's captive-breeding criterion)
  * against [HERD_BREEDS], a goat's. No more than their kind's wild rate: a herd does not out-breed its kind.
  */
-internal fun herdMothers(s: Species, tame: Float) = 0.5f * (0.3f + 0.7f * tame) * min(1f, s.domestication[2] / HERD_BREEDS)
+internal fun herdMothers(s: Species, tame: Float) = 0.5f * (0.3f + 0.7f * tame) * min(1f, s.diamond(Diamond.BREEDING) / HERD_BREEDS)
 
 /**
  * The years young of kind [s] caught in the hunt are kept as pets ([Band.herdPet]): till they have grown
  * ([Species.yearsToMaturity]), or as much sooner as their kind's temper (Diamond's disposition criterion) falls short of a
  * goat's, [HERD_TEMPER]: nobody keeps a pet that bites or wrecks the camp, and the temper shows as the young grow.
  */
-internal fun petYears(s: Species) = s.yearsToMaturity * min(1f, s.domestication[3] / HERD_TEMPER)
+internal fun petYears(s: Species) = s.yearsToMaturity * min(1f, s.diamond(Diamond.TEMPERAMENT) / HERD_TEMPER)
 
 /**
  * The yearly share of a kept herd of kind [s] that kill or maim each other or are put down as dangerous, however tame:
@@ -402,7 +408,7 @@ internal fun petYears(s: Species) = s.yearsToMaturity * min(1f, s.domestication[
  * [HERD_TEMPER]; without pens the keepers cannot part the fighters.
  */
 internal fun fighting(s: Species): Float {
-    val wild = max(0f, 1f - s.domestication[3] / HERD_TEMPER)
+    val wild = max(0f, 1f - s.diamond(Diamond.TEMPERAMENT) / HERD_TEMPER)
     return HERD_FIGHTING * wild * wild
 }
 
@@ -412,7 +418,7 @@ internal fun fighting(s: Species): Float {
  * social-structure criteria) against [HERD_EASE], a goat's.
  */
 internal fun straying(s: Species, tame: Float): Float {
-    val ease = min(s.domestication[4], s.domestication[5])
+    val ease = min(s.diamond(Diamond.CALM), s.diamond(Diamond.HIERARCHY))
     val wild = max(0f, 1f - tame * ease / HERD_EASE)
     return HERD_RUN_OFF * wild * wild
 }
