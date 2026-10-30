@@ -155,11 +155,12 @@ object Nominal {
      */
     val POOLS = Drift(rise = 5.0, fall = 5.0, run = 20.0, floor = 0.01)
     /**
-     * The fruit and the fallen mast follow the year's mast crop ([inflation.world.Weather.mastCrop]), a lognormal of coefficient of
-     * variation [inflation.world.Weather.MAST_CV] drawn for each group of trees: the ratio of two years' crops lies within exp(z sqrt(2)
-     * sigma) 99% of the time (z = 2.33, sigma the lognormal's), some 26 times either way; a kind of year the oaks do have.
+     * The fruit and the fallen mast follow the year's mast crop ([inflation.world.Weather.mastCrop]), a lognormal drawn for each group of
+     * trees, of the coefficient of variation of the group that swings most ([inflation.world.Weather.mastCv]): the ratio of two years'
+     * crops lies within exp(z sqrt(2) sigma) 99% of the time (z = 2.33, sigma the lognormal's), some 20 times either way; a kind of year the
+     * oaks do have.
      */
-    val MAST_JUMP = Math.exp(2.33 * Math.sqrt(2.0) * Math.sqrt(Math.log(1.0 + inflation.world.Weather.MAST_CV * inflation.world.Weather.MAST_CV)))
+    val MAST_JUMP = Math.exp(2.33 * Math.sqrt(2.0) * Math.sqrt(Math.log(1.0 + inflation.world.MastTrees.entries.maxOf { inflation.world.Weather.mastCv(it) }.let { it * it })))
     val CROPS = mapOf(StockName.FRUIT to Drift(rise = MAST_JUMP, fall = MAST_JUMP, run = MAST_JUMP, floor = 0.01),
         StockName.MAST to Drift(rise = MAST_JUMP, fall = MAST_JUMP, run = MAST_JUMP, floor = 0.01))
     /**
