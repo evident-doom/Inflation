@@ -176,6 +176,11 @@ const val SHARING_STORE = 0.5f
  * Hutterite colonies kept under about 150, splitting at 168 on average, Alberti 2014; both as summarised by Dunbar 2022);
  * Natufian settlements about 60 to 100, PPNA villages about 330 (Kuijt 2000), held by rites and shared buildings. */
 const val SETTLED_SIZE = 150
+/** How alike ([alike]) two bands at home in one hex must find each other, both ways, to become one. No source gives where people
+ * living together come to feel one group; an estimate, set so halves of a split (alike about 1) are one again at once, and bands
+ * of one tongue and the same customs need kin or a close tie (unrelated, the same customs and fully understood, alike 0.8 with
+ * no tie and 0.96 at a full tie). */
+const val ONE_GROUP = 0.9f
 /** Tie between the two halves of a band when it splits: they were one band the week before, and grow apart only as ties fade. */
 const val SPLIT_TIE = 1f
 /** Graves and meetings at a place (in a band's memory) before it makes an appointment there. */

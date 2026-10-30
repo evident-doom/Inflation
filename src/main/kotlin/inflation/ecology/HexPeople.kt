@@ -304,8 +304,9 @@ internal fun GroupWorld.bandLiving(b: Band) =
     if (b.atHome || b.campWeeks >= stepsPerYear / 2f) Tally.Living.SETTLED else Tally.Living.MOBILE
 
 /**
- * The villages this week, for the reports: the hexes where two or more bands live settled ([bandLiving]), with those
- * bands. Nothing chooses by it.
+ * The villages this week, for the reports: the hexes where two or more bands live settled ([bandLiving]), or one band at
+ * home there larger than any camp of its kind ([Species.maxGroupSize]: bands at home together that grew alike become one,
+ * and a village of one band is still a village), with those bands. Nothing chooses by it.
  */
 internal fun HexGroups.villages(): Map<Hex, List<HexGroup>> {
     val byHex = HashMap<Hex, ArrayList<HexGroup>>()
@@ -313,7 +314,7 @@ internal fun HexGroups.villages(): Map<Hex, List<HexGroup>> {
         val b = g.band ?: continue
         if (g.alive && bandLiving(b) == Tally.Living.SETTLED) byHex.getOrPut(hw.placeHex[g.place]) { ArrayList() } += g
     }
-    return byHex.filterValues { it.size >= 2 }
+    return byHex.filterValues { it.size >= 2 || it[0].let { g -> g.band?.atHome == true && g.size > g.species.maxGroupSize } }
 }
 
 /**
