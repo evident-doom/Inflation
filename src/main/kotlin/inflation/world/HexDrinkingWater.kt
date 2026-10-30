@@ -48,9 +48,9 @@ class HexDrinkingWater(land: HexLand) : HexLandPart(land) {
 
     /**
      * This week: 1 where a well people have dug at the place's hex reaches below the water table ([inflation.ecology.Built.WELL]),
-     * 0 elsewhere. Set by the bands' structures each week, after the water above; animals do not draw from it.
+     * 0 elsewhere. Worked out from the bands' structures each week, before their weeks; animals do not draw from it.
      */
-    val well = FloatArray(n)
+    @Transient val well = FloatArray(n)
 
     /** Share of place [p] within an easy walk of water an animal can drink this week: running or standing, or soft snow. */
     fun animalWater(p: Place) = max(water[p], snowWater[p])
