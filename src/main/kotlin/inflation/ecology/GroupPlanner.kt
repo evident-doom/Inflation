@@ -196,7 +196,9 @@ internal class GroupPlanner(private val gs: HexGroups) {
         val fromHere = if (goal >= 0) gs.hexKm(here, goalHex) else 0.0
         val pullKm = reach.toDouble().coerceAtLeast(gs.hex.hexKm)
         // (A band keeps off the known homes of bands it is not close to: those hexes, once for the week.)
-        val keepOff = g.band?.let { b -> b.knownHomes.entries.filter { b.tie(it.key) <= 0f }.map { it.value }.toHexArray() }
+        // (And off the place raiders drove it from, while it fears them: [Band.keptFrom].)
+        val keepOff = g.band?.let { b -> (b.knownHomes.entries.filter { b.tie(it.key) <= 0f }.map { it.value } +
+            listOfNotNull(b.drivenFrom.takeIf { b.keptFrom(it) })).toHexArray() }
         // A band: how far it lacks each of the rarer materials, and the remembered place with the most of what it lacks.
         val lacked = g.band?.let { b -> FloatArray(PlaceMemory.RARE.size) { k -> gs.lacking(g, b, PlaceMemory.RARE[k]) } }
         var lackedHex = Hex.NONE; var lackedQ = 0f

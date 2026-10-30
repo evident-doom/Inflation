@@ -590,7 +590,8 @@ class Census(private val sim: HexSim) {
      * each other at [REGION_UNDERSTOOD] or better and hold at most [REGION_CUSTOMS_APART] of their traditions differently are
      * of one region, and so are the neighbours of those (single linkage). A band bordering another region has a neighbour in
      * it. The rites' year, from [metYear] (the year's culture tallies summed over its weeks), counts every rite's month
-     * once, held or cut short, and again by how far the band was from the site when it was (see [RiteWalk]). The lines are the report's: nothing in the model reads them.
+     * once, held or cut short, and again by how far the band was from the site when it was (see [RiteWalk]); the raids' year counts
+     * every raid and what came of it. The lines are the report's: nothing in the model reads them.
      */
     fun printIdentity(thisYear: Map<TallyKey, Int>, metYear: Map<TallyKey, Int>) {
         val bands = groups.groups.mapNotNull { g -> g.band?.takeIf { g.alive }?.let { g to it } }
@@ -673,6 +674,9 @@ class Census(private val sim: HexSim) {
         println("     rites' year: %d held, %d cut short (%.0f%% held; %d of those held in a lesser form, %d moved to a month of plenty); omens marked: %d death tolls, %d plenty after want, %d strange signs; %d rites born of them; %d bands split over their belief"
             .format(held, cut, 100.0 * held / (held + cut).coerceAtLeast(1), met(Met.BANDS_HELD_A_RITE_IN_A_LESSER_FORM), met(Met.BANDS_MOVED_A_RITE_TO_A_BETTER_MONTH), met(Met.BANDS_MARKED_A_DEATH_TOLL), met(Met.BANDS_MARKED_PLENTY_AFTER_WANT),
                 met(Met.BANDS_MARKED_A_STRANGE_SIGN), met(Met.BANDS_BORE_A_RITE), met(Met.BANDS_SPLIT_OVER_THEIR_BELIEF)))
+        println("     raids' year: %d at meetings, %d on homes; %d raided bands slipped away, %d larders taken, %d bands driven from their homes; %d times neighbours stood with the raided"
+            .format(met(Met.RAIDS), met(Met.RAIDS_ON_HOMES), met(Met.RAIDED_BANDS_SLIPPED_AWAY), met(Met.LARDERS_RAIDED), met(Met.BANDS_DRIVEN_FROM_HOME),
+                met(Met.NEIGHBOURS_DEFENDED)))
         fun of(m: Met.Of, w: RiteWalk) = metYear[m.tally(w.label)] ?: 0
         println("     rites by the band's distance from the site: " + RiteWalk.entries.joinToString("; ") { w ->
             val h = of(Met.Of.RITES_HELD, w); val c = of(Met.Of.RITES_CUT_SHORT, w)

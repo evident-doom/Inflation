@@ -199,6 +199,14 @@ class Band(kinds: Int) {
     var houseHex = Hex.NONE
     var house = 0f
     /**
+     * Where it was last driven from its houses by raiders, and their people (main lineage): while it holds its grudge
+     * against them a feud's worth ([keptFrom]), it does not take up houses there again and keeps off the place.
+     */
+    var drivenFrom = Hex.NONE
+    var drivenBy = -1
+    /** Whether the raiders who drove it from [h] keep it from taking up houses there: as long as its grudge against them is a feud. */
+    fun keptFrom(h: Hex) = h == drivenFrom && drivenBy >= 0 && grudge[drivenBy] > FEUD
+    /**
      * At home: how far its houses' sunken walls bring the ground's warmth in ([earthGain], over the houses that shelter it), and
      * the ground's warmth there, the year's mean air temperature, °C. They keep it warmer in the cold the deeper they are sunk.
      */
@@ -584,7 +592,7 @@ class Band(kinds: Int) {
 
     fun splitInto(o: Band, adults: Int, stay: Int, share: Float, r: Random, copied: (Band) -> Unit) {
         o.ties.clear(); o.ties.putAll(ties); o.appointment = appointment
-        o.houseHex = houseHex; o.house = house; o.homeEarth = homeEarth; o.homeWalls = homeWalls; o.homeGroundC = homeGroundC; o.palisade = palisade; herdTame.copyInto(o.herdTame); herd.copyInto(o.herd); herdGrew.copyInto(o.herdGrew); herdPet.copyInto(o.herdPet)
+        o.houseHex = houseHex; o.house = house; o.drivenFrom = drivenFrom; o.drivenBy = drivenBy; o.homeEarth = homeEarth; o.homeWalls = homeWalls; o.homeGroundC = homeGroundC; o.palisade = palisade; herdTame.copyInto(o.herdTame); herd.copyInto(o.herd); herdGrew.copyInto(o.herdGrew); herdPet.copyInto(o.herdPet)
         o.houseLives = houseLives; o.houseFood = houseFood; foodFrom.copyInto(o.foodFrom); o.fishPull = fishPull; monthSupply.copyInto(o.monthSupply); freeShare.copyInto(o.freeShare); o.leanDays = leanDays
         o.seedDomestic = seedDomestic; o.grainDomestic = grainDomestic; o.seedCorn = seedCorn * share; seedCorn -= o.seedCorn; o.sinceRaided = sinceRaided; o.sisu = sisu
         o.knownHomes.putAll(knownHomes); o.knownLineage.putAll(knownLineage)

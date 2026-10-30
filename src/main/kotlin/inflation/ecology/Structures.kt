@@ -127,6 +127,11 @@ internal fun HexGroups.useStructures(g: HexGroup, h: Hex) {
     structuresAt(h) { s -> if (s.user < 0) s.user = g.id }
 }
 
+/** [g] gives up what it uses at hex [h]: free to anyone from now. */
+internal fun HexGroups.leaveStructures(g: HexGroup, h: Hex) {
+    structuresAt(h) { s -> if (s.user == g.id) s.user = -1 }
+}
+
 /** What [g] is building of [kind] at hex [h] and has not finished, or a new one begun there (houses for [size] grown people). */
 internal fun HexGroups.buildingAt(g: HexGroup, kind: Built, h: Hex, design: Int, size: Float): Structure =
     bands.built.firstOrNull { it.kind == kind && it.hex == h && it.user == g.id && it.built < 1f }
