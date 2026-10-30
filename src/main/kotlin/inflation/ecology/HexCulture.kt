@@ -26,6 +26,7 @@ import kotlin.math.roundToInt
 import kotlin.math.min
 import kotlin.math.abs
 import kotlin.math.exp
+import kotlin.math.roundToInt
 
 // What passes between bands: words, traditions, partners and grudges. A band's culture is data on
 // the band ([Band]); it changes when bands meet, when they split, and now and then by itself.
@@ -129,8 +130,14 @@ const val DROP = 0.0005f
 /** Chance a band raids one it meets, at full pressure (a feud, hunger with food in the other's larder, or crowded country); share of the larder taken. */
 const val RAID = 0.015f
 const val RAID_TAKE = 0.5f
-/** Share of each side's adults a raid kills at most, against the other's strength. */
-const val RAID_DEATHS = 0.08f
+/**
+ * Share of each side's adults a raid kills at most, against the other's strength; and the wounded who live for each one it
+ * kills. Most violent wounds in prehistoric skeletons are healed ones (Nasca highlands, McCool and colleagues 2021; Jebel
+ * Sahaba, Crevecoeur and colleagues 2021: people who had lived through several attacks), but none of these gives a ratio:
+ * both numbers are estimates, set so a raid leaves as many hurt as before (once 8% killed and two wounded for each).
+ */
+const val RAID_DEATHS = 0.04f
+const val RAID_WOUNDED_PER_DEAD = 5f
 /** Grudge held for a raid suffered, and the share that fades a year (half in about seven years). */
 const val GRUDGE = 1f
 const val GRUDGE_FADE = 0.1f
@@ -164,8 +171,13 @@ const val UNLUCKY = 0.6f
 const val UNLUCKY_WEEKS = 8
 /** Share of its store aim a band holding to demand sharing keeps (what it stores is asked of it). */
 const val SHARING_STORE = 0.5f
-/** A settled band without feasts to keep the peace splits at this share of its usual most (quarrels). */
-const val SETTLED_QUARRELS = 0.75f
+/** Most people a band at home in its houses holds before it splits. Villages are larger than forager camps: early villages
+ * without bigger institutions split at 127 to 170 (Taraco Peninsula, Bandy 2004: mean about 127, splits near 170;
+ * Hutterite colonies kept under about 150, splitting at 168 on average, Alberti 2014; both as summarised by Dunbar 2022);
+ * Natufian settlements about 60 to 100, PPNA villages about 330 (Kuijt 2000), held by rites and shared buildings. */
+const val SETTLED_SIZE = 150
+/** Tie between the two halves of a band when it splits: they were one band the week before, and grow apart only as ties fade. */
+const val SPLIT_TIE = 1f
 /** Graves and meetings at a place (in a band's memory) before it makes an appointment there. */
 const val APPOINT_MIN = 3f
 /** How strongly an appointment draws a band in its month, and its ancestors' places draw it at any time. */
@@ -478,7 +490,8 @@ private fun HexGroups.raid(g: HexGroup, b: Band, o: HexGroup, ob: Band, r: Regar
 /**
  * [g] falls on [o]. A planned raid on a band at home may take it by surprise, the less so the more
  * it sees (scouts, open ground, moonlight); the defenders gain from high, broken ground, their
- * houses and a palisade. A band with no home to hold may slip away, losing what it cannot carry.
+ * houses and a palisade. A band with no home to hold may slip away, losing what it cannot carry; one beaten at its home
+ * may be driven from it ([driveOff]).
  */
 internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planned: Boolean, weather: Weather) {
     stats.meeting(if (planned) Met.RAIDS_ON_HOMES else Met.RAIDS)
@@ -491,15 +504,25 @@ internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planne
         ob.grudge[b.mainLineage()] += 0.5f * GRUDGE; ob.befriend(g.id, -0.5f * TIE_RAID)
         return
     }
-    val (sg, so) = raidStrengths(g, o, ob, planned, ob.atHome, weather)
-    raidWorth(o, ob, sg, so)
-    // Each side loses some of its people, the more so against the stronger side.
-    val lostG = binomial(g.adults, RAID_DEATHS * so / (sg + so), rnd)
-    val lostO = binomial(o.adults, RAID_DEATHS * sg / (sg + so), rnd)
-    for ((who, lost) in listOf(g to lostG, o to lostO)) if (lost > 0) {
+    val sides = raidSides(g, o, ob, planned, ob.atHome, weather)
+    val sg = sides.raiders; val so = sides.defenders
+    raidWorth(o, ob, sg, so, sides.own)
+    // Each side loses some of its people, the more so against the stronger side; neighbours who stood with the raided
+    // lose theirs as the raided do, of as many as came. (Each group in the fight, its fighters, and the share of them it may lose.)
+    val fought = arrayListOf(Triple(g, g.adults, RAID_DEATHS * so / (sg + so)), Triple(o, o.adults, RAID_DEATHS * sg / (sg + so)))
+    for (n in sides.helpers) {
+        fought += Triple(n.group, (n.share * n.group.adults).roundToInt(), RAID_DEATHS * sg / (sg + so))
+        stats.meeting(Met.NEIGHBOURS_DEFENDED)
+        note(n.group) { "stood with band #%d against band #%d".format(o.id, g.id) }
+    }
+    val lostG = binomial(g.adults, fought[0].third, rnd)
+    for ((k, side) in fought.withIndex()) {
+        val (who, fighters, share) = side
+        // (Many more are wounded than killed, whether or not any die: some fester, some are lamed for life.)
+        who.band?.wounded(RAID_WOUNDED_PER_DEAD * share * fighters, who.adults)
+        val lost = if (k == 0) lostG else binomial(fighters, share, rnd)
+        if (lost <= 0) continue
         adultsDied(who, lost, rnd)
-        // (And as many again are wounded, some to be lamed for life.)
-        who.band?.wounded(WOUNDED_PER_DEAD * lost, who.adults)
         stats.deaths.merge(Tally.of(who.species, DeathCause.RAIDS), lost, Int::plus)
         if (who.species.human) stats.adultDeaths.merge(Tally.of(who.species, DeathCause.RAIDS), lost, Int::plus)
         who.band?.let {
@@ -510,32 +533,66 @@ internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planne
     }
     // The stronger side carries off food; the raided remember.
     if (sg > so) { val t = RAID_TAKE * o.larder; moveFood(o, g, t); stats.meeting(Met.LARDERS_RAIDED) }
+    // A band beaten at its home may be driven from it, the likelier the more the raiders overpower it (none when they are
+    // only as strong; Wrangham and Glowacki 2012: victors drove the defeated off their land in most non-state wars).
+    if (ob.atHome && sg > so && rnd.nextFloat() < 1f - so / sg) driveOff(o, ob, b)
     ob.grudge[b.mainLineage()] += GRUDGE
     ob.befriend(g.id, -TIE_RAID); b.befriend(o.id, -0.3f * TIE_RAID)
     if (lostG > 0) b.grudge[ob.mainLineage()] += 0.3f * GRUDGE
+    // (Those who stood with them remember the raiders too, as far as they stood.)
+    for (n in sides.helpers) { n.band.grudge[b.mainLineage()] += n.share * GRUDGE; n.band.befriend(g.id, -n.share * TIE_RAID) }
 }
 
 /**
- * What a whole house would have done for [o] (band [ob]) in a raid of strength [sg] on its [so], against the houses it has:
+ * Band [o] ([ob]) is driven from its home by raiders of band [by]: it leaves its houses and palisade to whoever takes them up,
+ * and while it fears the raiders' people it neither takes up houses there again nor seeks the place ([Band.keptFrom]).
+ */
+private fun HexGroups.driveOff(o: HexGroup, ob: Band, by: Band) {
+    val h = ob.houseHex
+    leaveStructures(o, h)
+    ob.drivenFrom = h; ob.drivenBy = by.mainLineage()
+    ob.houseHex = Hex.NONE; ob.house = 0f; ob.atHome = false; ob.palisade = 0f
+    ob.homeEarth = 0f; ob.homeWalls = 0f; ob.homeGroundC = 0f
+    stats.meeting(Met.BANDS_DRIVEN_FROM_HOME)
+    note(o) { "was driven from its home at hex %d".format(h.i) }
+}
+
+/**
+ * What a whole house would have done for [o] (band [ob]) in a raid of strength [sg] on its [so] (its [own] and its neighbours'), against the houses it has:
  * the lives it would have saved and the food it would have kept from the raiders, by [fight]'s rules; for [Band.houseLives]
  * and [Band.houseFood].
  */
-private fun raidWorth(o: HexGroup, ob: Band, sg: Float, so: Float) {
+private fun raidWorth(o: HexGroup, ob: Band, sg: Float, so: Float, own: Float) {
     val works = if (ob.atHome) 1f + HOUSE_DEFENCE * ob.house + PALISADE_DEFENCE * ob.palisade else 1f
     val whole = 1f + HOUSE_DEFENCE + (if (ob.atHome) PALISADE_DEFENCE * ob.palisade else 0f)
-    val so1 = so * whole / works
+    // (Its own part of the defence, [own], behind a whole house; the neighbours who stood with it as they were.)
+    val so1 = so + own * (whole / works - 1f)
     val lives = max(0f, o.adults * RAID_DEATHS * (sg / (sg + so) - sg / (sg + so1)))
     ob.houseLivesWeek += lives; ob.houseWeek[HouseWorth.RAIDS] += lives
     if (sg > so && sg <= so1) { ob.houseFoodWeek += RAID_TAKE * o.larder; ob.houseWeek[HouseWorth.RAID_KG] += RAID_TAKE * o.larder }
 }
 
+/** A band [group] (band [band]) at home where a neighbour is raided, standing with it with [share] of its people ([raidSides]). */
+internal class Helper(val group: HexGroup, val band: Band, val share: Float)
+
+/** The sides of a raid: the [raiders]' strength, the raided band's [own] and its [helpers], with theirs. */
+internal class RaidSides(val raiders: Float, val own: Float, val helpers: List<Helper>, private val helped: Float) {
+    /** All who hold off the raiders. */
+    val defenders get() = own + helped
+}
+
+/** The raiders' [g] and the defenders' [o] (band [ob]) strengths when [g] falls on [o] where it is ([raidSides]). */
+internal fun HexGroups.raidStrengths(g: HexGroup, o: HexGroup, ob: Band, planned: Boolean, atHome: Boolean, weather: Weather): Pair<Float, Float> =
+    raidSides(g, o, ob, planned, atHome, weather).let { it.raiders to it.defenders }
+
 /**
- * The raiders' [g] and the defenders' [o] (band [ob]) strengths when [g] falls on [o] where it is: a planned raid may
- * take it by surprise, the less so the more it sees (scouts, open ground, moonlight); defenders [atHome] gain from high,
- * broken ground, their houses and a palisade. The one rule for a raid ([fight]) and for a raiding band weighing its
- * target ([plotRaid]).
+ * The sides when [g] falls on [o] (band [ob]) where it is: a planned raid may take it by surprise, the less so the more it
+ * sees (scouts, open ground, moonlight); defenders [atHome] gain from high, broken ground, their houses and a palisade, and
+ * the other bands at home in the same hex stand with them, each with as many of its people as it is closer to the raided
+ * than to the raiders (by its [Regard] of each: a band that holds neither close, or the raiders as close, stays out), behind
+ * its own houses and palisade. The one rule for a raid ([fight]) and for a raiding band weighing its target ([plotRaid]).
  */
-internal fun HexGroups.raidStrengths(g: HexGroup, o: HexGroup, ob: Band, planned: Boolean, atHome: Boolean, weather: Weather): Pair<Float, Float> {
+internal fun HexGroups.raidSides(g: HexGroup, o: HexGroup, ob: Band, planned: Boolean, atHome: Boolean, weather: Weather): RaidSides {
     val p = o.place
     // Surprise: a planned raid at night, in cover, on a band that keeps no lookout.
     val seen = (sight(p, weather) * (0.5f + 0.5f * moon) * (1f + 5f * ob.scoutShare)).coerceIn(0f, 1f)
@@ -545,7 +602,20 @@ internal fun HexGroups.raidStrengths(g: HexGroup, o: HexGroup, ob: Band, planned
     // The defenders' ground and works.
     val ground = 1f + HIGH_GROUND * land.bestDefence[p]
     val works = if (atHome) 1f + HOUSE_DEFENCE * ob.house + PALISADE_DEFENCE * ob.palisade else 1f
-    return strength(g) * surprise to strength(o) * ground * works
+    val helpers = ArrayList<Helper>(); var helped = 0f
+    val gb = g.band
+    if (atHome && gb != null) {
+        val h = hw.placeHex[p]
+        for (n in groups) {
+            val nb = n.band ?: continue
+            if (n === o || n === g || !n.alive || !nb.atHome || hw.placeHex[n.place] != h) continue
+            val share = Regard(nb, o.id, ob).close - Regard(nb, g.id, gb).close
+            if (share <= 0f) continue
+            helpers += Helper(n, nb, share)
+            helped += share * strength(n) * ground * (1f + HOUSE_DEFENCE * nb.house + PALISADE_DEFENCE * nb.palisade)
+        }
+    }
+    return RaidSides(strength(g) * surprise, strength(o) * ground * works, helpers, helped)
 }
 
 /** One or two young adults from each band join the other; their descent and skills come with them. */

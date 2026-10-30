@@ -22,6 +22,12 @@ data class Diet(
     val plants: Float get() = grass + browse + fruit + roots
     /** All the shares (1 for a full diet). */
     val total: Float get() = grass + browse + fruit + roots + meat + smallPrey + carrion
+    /** How much of this diet [o] eats too, 0..1: the shares the two have in common (each of its whole). */
+    fun overlap(o: Diet): Float {
+        val a = total.coerceAtLeast(1e-6f); val b = o.total.coerceAtLeast(1e-6f)
+        return min(grass / a, o.grass / b) + min(browse / a, o.browse / b) + min(roots / a, o.roots / b) + min(fruit / a, o.fruit / b) +
+            min(meat / a, o.meat / b) + min(smallPrey / a, o.smallPrey / b) + min(carrion / a, o.carrion / b)
+    }
 }
 
 /**
@@ -112,8 +118,10 @@ class Species(
      */
     val fibreDigestion: Float = 1f,
     /**
-     * A hindgut fermenter (horses, asses): on poor forage it eats more and passes it fast. Ruminants
-     * and the rest eat less of poor forage, as it fills the gut before it nourishes.
+     * A hindgut fermenter (horses, asses): it passes poor forage fast and eats as much of it as of good, where ruminants
+     * and the rest eat less of it, as it fills the gut before it nourishes. Not more of it: Przewalski's horses ate least
+     * in late winter, on their most fibrous food, some 40% less than at the autumn peak, and lost 17-22% of their
+     * weight over the winter (Kuntz et al. 2006, J Exp Biol 209:4557).
      */
     val hindgut: Boolean = false,
     /**
@@ -198,6 +206,8 @@ class Species(
      * [Allometry.FIELD_OVER_BASAL] times that: a gazelle 14 days, an aurochs 68. A sleeper needs a quarter.
      */
     val maxFatDays: Float get() = 9.3f / Allometry.FIELD_OVER_BASAL * massKg.pow(0.44f) * if (hibernates) 4f else 1f
+    /** The most of its body that can be fat, the share [maxFatDays] fills: 0.075 M^1.19 kg over M (Lindstedt and Boyce 1985). */
+    val mostFatShare: Float get() = 0.075f * massKg.pow(0.19f)
     /** Dry-matter (or meat) intake per adult per day, kg. */
     val dailyIntakeKg: Float get() = if (intakeKg > 0f) intakeKg else Allometry.dailyIntakeKg(massKg, diet)
     /**
@@ -241,7 +251,7 @@ class Species(
 
 /** How much more (or less) than its need a plant-eater eats of forage of [quality] (0..1, 1 fresh and green). */
 fun gutFill(s: Species, quality: Float): Float =
-    if (s.hindgut) min(HexFauna.GUT_FILL, 1f / quality.coerceAtLeast(1e-3f)) else min(1f, 0.5f + 0.5f * quality / 0.8f * s.fibreDigestion)
+    if (s.hindgut) 1f else min(1f, 0.5f + 0.5f * quality / 0.8f * s.fibreDigestion)
 
 object Allometry {
     /**

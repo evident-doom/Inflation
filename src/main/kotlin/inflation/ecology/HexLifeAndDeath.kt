@@ -143,7 +143,7 @@ internal fun grassUnderSnow(s: Species, snowMm: Float): Float = (1f - snowMm / s
     // (Worked in energy, [Nourishment]'s units: a kg of green forage feeds a unit.)
     val want = need / s.needScale
     val total = (d.grass + d.browse + d.fruit + d.roots).coerceAtLeast(1e-6f)
-    // Horses and asses make up for poor forage by eating more of it; ruminants eat less of it.
+    // Horses and asses eat as much of poor forage as of good; ruminants eat less of it ([gutFill]).
     val fill = gutFill(s, q)
     // (As the residents: what it cannot get at is a share of the place's food it cannot reach, not a share
     // of its need it goes without; where food is plenty it still eats its fill.)
@@ -294,7 +294,9 @@ private fun HexGroups.splitOff(g: HexGroup, adults: Int, young: Int): HexGroup {
     moveFood(g, n, g.larder * share)
     // Both halves keep what the band knew and share out its tools and goods.
     n.bold = g.bold
-    g.band?.let { b -> n.band = Band(fauna.kinds.size).also { nb -> b.splitInto(nb, adults, g.adults, share, rnd) { riteInherit(it) }; nb.sisu = Sisu.inherit(b.sisu, n.id, seedBase) } }
+    g.band?.let { b -> n.band = Band(fauna.kinds.size).also { nb -> b.splitInto(nb, adults, g.adults, share, rnd) { riteInherit(it) }; nb.sisu = Sisu.inherit(b.sisu, n.id, seedBase)
+        // The halves were one band: each holds the other as close as can be, until living apart fades it.
+        b.ties[n.id] = SPLIT_TIE; nb.ties[g.id] = SPLIT_TIE } }
     return n
 }
 

@@ -318,6 +318,9 @@ internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, b
     if (weak.band != null) stats.meeting(Met.Of.TURNED_BACK_BY, strong.species.name)
 }
 
+/** The strength of a usual band of resident [s], as [HexGroups.strength] reckons a pack's: its grown, their weight, their ferocity. */
+internal fun residentStrength(s: Species) = s.groupSize * s.massKg * s.ferocity
+
 /**
  * Packs that hold ground mark the hexes they worked this week within their territory; marks fade
  * unless renewed, and a stale mark of another pack is marked over. A pack whose home has gone
