@@ -503,7 +503,9 @@ class HexGroups(
 
 
     /** A hunting party's fighting strength: weight, ferocity. */
-    internal fun strength(g: HexGroup) = g.adults * g.species.massKg * ferocity(g)
+    internal fun strength(g: HexGroup) = foragers(g) * g.species.massKg * ferocity(g)
+    /** Those of [g]'s grown that go about together ([Species.foragingParty]). */
+    internal fun foragers(g: HexGroup) = g.species.foragingParty.let { if (it > 0) min(it, g.adults) else g.adults }
     internal fun ferocity(g: HexGroup) = g.band?.ferocity(g.species) ?: g.species.ferocity
 
 
