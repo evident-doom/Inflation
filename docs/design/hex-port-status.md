@@ -126,6 +126,7 @@ hex learning tools. (The 1 km model's `Simulation` has since been removed; the h
 | Tools hit on and shown to bands met | yes |
 | Camp kept: births closer with stores, children sicken in a fouled camp, bands leave fouled camps | yes |
 | Fouling is the ground's, not the band's: it builds with the people camped at a hex and clears while nobody camps there, so newcomers find it; a midden kept by bands that keep their camps clean spares every band at the hex, whatever its customs | yes |
+| Wells: a settled skill hit on by bands at home that have had to dig for their water; a shaft sunk below the water table (up to 13 m) at days by depth, halved with picks, draws water at a fifth of a soak's time for anyone at the hex while the table stands above it; wells silt up and are mended, deepened when the water sinks, or fill in | yes |
 | Traditions with effects, taken up and dropped: know-how copied from bands doing better, marks (burial, leaving the dead, marrying out, sparing young game, feasts) from the many bands met | yes (ten) |
 | A totem per lineage: a resident kind its hunters leave alone unless hungry; passed on as a mark, a custom bands count each other apart by, not seen kept by a band known to have eaten of it | yes |
 | Burial ways for bands that bury: at camp, or carried to where most of their dead lie if within a day's walk; digging and carrying cost customs time; passed on as a mark | yes |

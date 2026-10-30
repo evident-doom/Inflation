@@ -181,6 +181,8 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     // Where fish crowd the river by its camp, it builds a weir across it with traps, or mends the one there, as far as its
     // time and timber go.
     buildWeir(g, b, h, time)
+    // Where it has had to dig for its water at home, it sinks a well there, or deepens or mends the one there, as far as its time goes.
+    buildWell(g, b, h, time)
     // What no chore took is its leisure. (Counted once every chore has had its time.)
     time.noneBelowZero()
     b.spareDays = time.left
@@ -234,6 +236,7 @@ internal fun HexGroups.choreAsks(g: HexGroup, b: Band, date: Date, asks: EnumFlo
         if (fortifies(b)) ask(Activity.PALISADE,
             minOf(1f - palisadeAt(g, h), b.goods[Material.WOOD] / (PALISADE_WOOD * people)).coerceAtLeast(0f) * PALISADE_DAYS * people)
         ask(Activity.WEIRS, weirAsk(g, b, h))
+        ask(Activity.WELLS, wellAsk(g, b, h))
     }
     // (Its own crop, ripe, it brings in wherever it has come from: the field work is sowing's time.)
     cropRipe(g, b).takeIf { it > 0f }?.let { asks[Activity.SOWING] += it * reapDaysPerKg(b, tuning) }

@@ -11,14 +11,14 @@ import kotlin.math.max
 import kotlin.math.min
 
 /** What bands build that stands in the world: houses, a palisade round the houses at a hex, and weirs across its river. */
-enum class Built { HOUSES, PALISADE, WEIR }
+enum class Built { HOUSES, PALISADE, WEIR, WELL }
 
 /**
  * A thing built that stands at hex [hex], whoever built it: no band owns it. Any band that comes on it empty may use it
  * ([user], the band using it this week, -1 for none), and it weathers away while nobody does. [builder] is the band that
  * began it, kept only as a fact of the bands' dealings. Houses ([Built.HOUSES]) shelter [size] grown people when whole,
  * built in the way [design] (a [Skill]'s ordinal); [built] is how far they stand, 0..1. A palisade's [built] is how much of
- * a ring round the houses at its hex stands. A weir's [size] is its length, m, across the river at its hex. Nothing shelters or guards till it is first [done] (whole); after that it serves
+ * a ring round the houses at its hex stands. A weir's [size] is its length, m, across the river at its hex; a well's its depth, m. Nothing shelters or guards till it is first [done] (whole); after that it serves
  * as far as it stands, as it weathers and is mended.
  * (All its fields have defaults, so that a saved one loads.)
  */
@@ -113,6 +113,13 @@ internal fun HexGroups.weirAt(g: HexGroup, h: Hex, begun: Boolean = false): Floa
     return min(1f, m / width)
 }
 
+/** The well at hex [h] that reaches deepest ([wellReachM]), whole or begun, or null: anyone may use it. */
+internal fun HexGroups.wellAt(h: Hex): Structure? {
+    var best: Structure? = null; var reach = -1f
+    structuresAt(h) { s -> if (s.kind == Built.WELL && wellReachM(s) > reach) { best = s; reach = wellReachM(s) } }
+    return best
+}
+
 /** The length of a weir a band would build across the river at hex [h], m: as wide as the river, up to [WEIR_MAX_M]. */
 internal fun HexGroups.weirLengthM(h: Hex) = min(fauna.water.riverWidthM(h), WEIR_MAX_M)
 
@@ -125,13 +132,13 @@ internal fun buildOn(s: Structure, add: Float) {
 /**
  * [g] takes up what stands at hex [h] that nobody else is using this week: houses only as far as it needs them for its grown
  * people, those it already uses first (who is there keeps what it uses); unused houses are nobody's and go to whoever needs
- * them. A palisade or a weir it takes up whole, as before.
+ * them. A palisade or a weir it takes up whole, as before. A well nobody takes up: it is anyone's at its hex.
  */
 internal fun HexGroups.useStructures(g: HexGroup, h: Hex) {
     var room = 0f
     structuresAt(h) { s -> if (s.kind == Built.HOUSES && s.user == g.id) room += s.built * s.size }
     structuresAt(h) { s ->
-        if (s.user >= 0) return@structuresAt
+        if (s.user >= 0 || s.kind == Built.WELL) return@structuresAt
         if (s.kind != Built.HOUSES) s.user = g.id
         else if (room < g.adults) { s.user = g.id; room += s.built * s.size }
     }
@@ -150,16 +157,19 @@ internal fun HexGroups.buildingAt(g: HexGroup, kind: Built, h: Hex, design: Int,
 /**
  * Once a week, before the bands' own weeks: what a band left (it is no longer at that hex, or dead) is free to anyone, and
  * what nobody uses weathers away ([HOUSE_DECAY] a year), till nothing stands. Mudbrick wears in the week's [weather]'s rain
- * besides, used or not ([MUD_EROSION]): the band using it mends it as it would build.
+ * besides, used or not ([MUD_EROSION]): the band using it mends it as it would build. Wells silt up ([WELL_WEAR]), and then
+ * the places they bring water to are found ([wellWater]).
  */
 internal fun HexGroups.tendStructures(weather: Weather) {
     if (!bands.structuresSeen) { bands.structuresSeen = true; raiseSavedHouses() }
-    if (bands.built.isEmpty()) { fauna.water.weirBlock.fill(0f); return }
+    if (bands.built.isEmpty()) { fauna.water.weirBlock.fill(0f); land.drink.well.fill(0f); return }
     val where = HashMap<Int, Hex>()
     for (g in groups) if (g.alive && g.band != null) where[g.id] = hw.placeHex[g.place]
     for (s in bands.built) {
         if (s.user >= 0 && where[s.user] != s.hex) s.user = -1
-        if (s.user < 0) s.built = max(0f, s.built - HOUSE_DECAY * years)
+        // (A well nobody holds silts up at its own rate, used or not; whoever wants it mends it.)
+        if (s.kind == Built.WELL) s.built = max(0f, s.built - WELL_WEAR * years)
+        else if (s.user < 0) s.built = max(0f, s.built - HOUSE_DECAY * years)
         // (A weir stands in the stream: the current and the floods wear it, used or not, and the band using it mends it.)
         if (s.kind == Built.WEIR) s.built = max(0f, s.built - WEIR_WEAR * years)
         if (s.kind == Built.HOUSES && s.design == Skill.MUDBRICK.ordinal) {
@@ -175,6 +185,7 @@ internal fun HexGroups.tendStructures(weather: Weather) {
     val at = HashSet<Hex>()
     for (s in bands.built) if (s.kind == Built.WEIR && s.done) { block[s.hex] += s.built * s.size; at += s.hex }
     for (h in at) block[h] = min(1f, block[h] / max(fauna.water.riverWidthM(h), 1e-3f))
+    wellWater()
 }
 
 /**

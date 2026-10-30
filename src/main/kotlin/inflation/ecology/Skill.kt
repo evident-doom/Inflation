@@ -51,6 +51,8 @@ enum class Domain {
     TINKERING,
     /** Helping at births and keeping infants alive: midwifery, care of the newborn. */
     CHILDCARE,
+    /** Reaching water under the ground: where it lies, and how to sink a shaft to it and keep it from falling in. */
+    WATER,
 }
 
 /**
@@ -129,6 +131,12 @@ enum class Skill(val domain: Domain, val floor: Float, val start: Float = 0f, va
      * that has salt; not attested among Levantine foragers (salt working is first dated about 6000 BC).
      */
     SALTING(Domain.KEEPING, 0.3f, known = false),
+    /**
+     * Wells: shafts sunk to the water table where it lies too deep for a soak ([Built.WELL]). Hit on only by a band at home
+     * that has had to dig for its water. Unknown to the Natufians as far as is known: the earliest wells are at
+     * Kissonerga-Mylouthkia, Cyprus, about 8400 BC (Peltenburg 2012). Slow to hit on and pass on, as mudbrick (estimates).
+     */
+    WELLS(Domain.WATER, CRAFT_FLOOR, known = false, invent = 0.01f, teach = 0.05f, settled = true),
     ;
 
     /**
@@ -153,7 +161,7 @@ enum class Skill(val domain: Domain, val floor: Float, val start: Float = 0f, va
      */
     val complexity: Float get() = when (this) {
         GATHER, FIRE, ROASTING, STORE, SMALL_GAME, FISH, MIDWIFERY -> 0.5f
-        BLADES, MICROLITHS, MUDBRICK, HERBS, SEALING, PIT_HOUSE -> 3f
+        BLADES, MICROLITHS, MUDBRICK, HERBS, SEALING, PIT_HOUSE, WELLS -> 3f
         else -> 1.5f
     }
     /**
