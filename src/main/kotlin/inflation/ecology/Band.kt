@@ -3,6 +3,7 @@ package inflation.ecology
 import inflation.enumFloats
 import inflation.enumBools
 import inflation.enumInts
+import inflation.weightedMean
 import inflation.world.Hex
 import inflation.world.HexArray
 import inflation.world.toHexArray
