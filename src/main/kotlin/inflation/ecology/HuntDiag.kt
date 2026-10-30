@@ -11,7 +11,10 @@ internal enum class HuntStep(val label: String) {
     // (A beast's raids on kept herds, by the beast ([herdOdds], [raidHerd]): its weeks with herds on its ground, the herds it
     // would come on in them, the kills its odds would give it if it hunted nothing else, the kills it set out for, and those made.)
     HERD_WEEKS("weeks with herds on its ground"), HERDS_MET("herds met"), HERD_KILLS_ON_OFFER("herd kills on offer"),
-    HERD_KILLS_SOUGHT("herd kills sought"), HERD_KILLS("herd kills");
+    HERD_KILLS_SOUGHT("herd kills sought"), HERD_KILLS("herd kills"),
+    // (And per herd it could hunt, summed: the herds, the band's guard, and in the week's first pass what a kill of it pays a
+    // day of handling against the least the beast took up, [Offers.takeUp]'s cut-off; their means are these over the herds.)
+    HERDS_ON_OFFER("herds on offer"), HERD_GUARD("herd guard"), HERD_PAY_OVER_CUTOFF("herd pay over cut-off");
 
     companion object {
         private const val PREFIX = "diag:"

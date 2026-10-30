@@ -137,6 +137,11 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         if (left <= 0.01f * w.wantAll) break
         offerFoods(w, o)
         o.takeUp()
+        if (HUNT_DIAG && pass == 0 && w.band == null && w.herds.isNotEmpty()) {
+            val cut = o.gain[0] / o.spent[0]
+            for (i in 0 until o.m) if (o.herd[i] >= 0) { diag(g.species, HuntStep.HERDS_ON_OFFER, 1f)
+                diag(g.species, HuntStep.HERD_PAY_OVER_CUTOFF, if (cut > 0f) o.profit[i] / cut else 0f) }
+        }
         if (pass == 0 && w.band != null) { w.fishPull = max(o.pull(Food.FISH), o.pull(Food.FISH, RUN_KIND)); w.weirPull = o.pullAt(w.weirProbe) }
         note(g) {
             "pass %d: took up %d of %d foods, best first: ".format(pass + 1, o.used, o.m) + (0 until min(o.used, 6)).joinToString(", ") { r -> val i = o.order[r]
@@ -494,7 +499,7 @@ private fun HexGroups.herdOdds(w: ForageWeek) {
                 val odds = success * (0.5f + 0.5f * Niches.overlap(s, ps)) * (1f - seenFirst(view[0], view[1], null, ps)) / n * image
                 if (odds > 0f) w.herds += HerdGame(c, k, j, odds, 1f / success.coerceIn(1e-3f, 1f))
                 if (HUNT_DIAG) { val swept = w.ground.km2[j] / land.areaKm2[p]
-                    diag(s, HuntStep.HERDS_MET, swept); diag(s, HuntStep.HERD_KILLS_ON_OFFER, n * swept * odds) }
+                    diag(s, HuntStep.HERDS_MET, swept); diag(s, HuntStep.HERD_KILLS_ON_OFFER, n * swept * odds); diag(s, HuntStep.HERD_GUARD, guard) }
             }
         }
     }
