@@ -16,10 +16,13 @@ enum class Mind(val label: String) { NETS("nets"), PLANS("plans") }
 
 /**
  * Each founding band's mind: [inflation.Tuning.planners] of them, drawn by the band's id from the world's seed (its own
- * hashed draw, so the world's stream of chance is untouched), start as [Mind.PLANS]; the rest as [Mind.NETS].
+ * hashed draw, so the world's stream of chance is untouched), start as [Mind.PLANS]; the rest as [Mind.NETS]. A saved world
+ * carried on draws its bands' minds the same way once it is loaded, unless it has planning bands already: a world settled
+ * with nets alone (every test world) takes up [inflation.Tuning.planners] as a fresh one does, and one that has planning
+ * bands keeps the minds it had, splits' heirs and all.
  */
 internal fun HexGroups.foundMinds() {
-    if (tuning.planners <= 0f) return
+    if (tuning.planners <= 0f || groups.any { it.band?.mind == Mind.PLANS }) return
     for (g in groups) g.band?.let { b ->
         // (The full finaliser: one round of it left founders' ids, which run in order, clumped, about 30% where 50% was asked.)
         if (unitOf(mix64(seedBase * HASH_A + g.id * HASH_B + MIND_SALT)) < tuning.planners) b.mind = Mind.PLANS
