@@ -231,8 +231,8 @@ internal fun HexGroups.foresee(weather: Weather) {
 /** yearSpread=false: the year ahead is reckoned as one usual year ([YearAhead.alive]), for comparing. */
 internal val YEAR_SPREAD = Config.flag(Config.Key.YEAR_SPREAD, true)
 
-/** Weeks back a band's deaths are booked against what its people foresaw ([Band.foreseenShares]): the year its forecast looks ahead. */
-const val FORESEEN_WEEKS = 52
+/** Steps back a band's deaths are booked against what its people foresaw ([Band.foreseenShares]): the year its forecast looks ahead, at the default 6-day steps. */
+const val FORESEEN_WEEKS = 60
 
 /** Bands' forecasts by the share of their people they foresee dead in the year ahead ([HexGroup.foreseen]), for the calibration. */
 enum class ForeseenBin(val label: String, val below: Float) {
