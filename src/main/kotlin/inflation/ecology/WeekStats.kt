@@ -75,18 +75,23 @@ enum class Met(val label: String) {
     BANDS_BUILT_WEIRS("bands built weirs"),
     BANDS_BURNED_OFF_GRASS("bands burned off grass"),
     BANDS_CARRIED_THEIR_DEAD("bands carried their dead to their ancestors"),
+    BANDS_DRIVEN_FROM_HOME("bands driven from their homes"),
     BANDS_EXCHANGED_PARTNERS("bands exchanged partners"),
     BANDS_KEPT_AWAY_FROM_THE_SICK("bands kept away from the sick"),
-    BANDS_LET_A_RITE_GO("bands let a rite go"),
+    BANDS_MARKED_A_DEATH_TOLL("bands marked a death toll as an omen"),
+    BANDS_MARKED_PLENTY_AFTER_WANT("bands marked plenty after want as an omen"),
+    BANDS_MARKED_A_STRANGE_SIGN("bands marked a strange sign as an omen"),
     BANDS_MADE_AN_APPOINTMENT("bands made an appointment"),
     BANDS_MAULED_AT_A_CARCASS("bands mauled at a carcass"),
     BANDS_MET("bands met"),
     BANDS_SOWED("bands sowed"),
     BANDS_TOLD_OF_COUNTRY("bands told of country"),
     BANDS_TOLD_OF_ROUTES("bands told of routes"),
-    BANDS_TOOK_UP_A_RITE("bands took up a rite"),
+    BANDS_BORE_A_RITE("bands bore a rite of an omen"),
     BANDS_HELD_A_RITE("bands held a rite at its site"),
     BANDS_CUT_A_RITE_SHORT("bands cut a rite short for want of days"),
+    BANDS_HELD_A_RITE_IN_A_LESSER_FORM("bands held a rite in a lesser form"),
+    BANDS_MOVED_A_RITE_TO_A_BETTER_MONTH("bands moved a rite to a month of plenty"),
     BANDS_SPLIT_OVER_THEIR_BELIEF("bands split over their belief"),
     BANDS_TOOK_UP_ANOTHERS_APPOINTMENT("bands took up another's appointment"),
     BANDS_TOOK_UP_ANOTHERS_BURIAL("bands took up another's burial way"),
@@ -106,6 +111,7 @@ enum class Met(val label: String) {
     KEPT_ANIMALS_CULLED("kept animals culled"),
     KILL_STOLEN("kill stolen"),
     LARDERS_RAIDED("larders raided"),
+    NEIGHBOURS_DEFENDED("neighbours stood with the raided"),
     ORNAMENTS_GIVEN("ornaments given"),
     PACK_GAVE_WAY("pack gave way"),
     PACKS_FOUGHT("packs fought"),
@@ -126,9 +132,15 @@ enum class Met(val label: String) {
     enum class Of(val before: String, val after: String = "") {
         NEWCOMERS("newcomers: "), SEA_CROSSINGS("sea crossings: "), HIT_ON("band hit on "), LOST("band lost "), TOOK_A_PUP("bands took a ", " pup"),
         LEARNED("band learned "), TOOK_UP("band took up "), TOOK_LEAVE_OF("band took leave of "), DROPPED("band dropped "), GIVEN("", " given"),
-        TURNED_BACK_BY("bands turned back by "), DOGS_GONE_WILD("dogs gone wild as ", " packs");
+        TURNED_BACK_BY("bands turned back by "), DOGS_GONE_WILD("dogs gone wild as ", " packs"),
+        RITES_HELD("rites held, band "), RITES_CUT_SHORT("rites cut short, band "),
+        RITES_CUT_SHORT_PERCENT_GIVEN("percent of days given to rites cut short, band "),
+        CUSTOMS_DAYS_ASKED("tenths of days customs asked: "), CUSTOMS_DAYS_GIVEN("tenths of days customs got: "),
+        CUSTOMS_DAYS_TO_HAND("tenths of days to hand for customs, ");
 
         fun key(of: String) = before + of + after
+        /** Its tally of [of] in [WeekStats.meetings], for a report to read back. */
+        fun tally(of: String) = TallyKey.raw(key(of))
     }
 }
 

@@ -113,7 +113,7 @@ class Bands internal constructor(private val world: GroupWorld) {
 
     /**
      * Where each material bands give each other ([TRADED]) is got (trade on): for each, the hexes where
-     * it is richest, one in a square of [SOURCE_KM] at most, for bands' rites to take them to.
+     * it is richest, one in a square of [SOURCE_KM] at most.
      */
     @delegate:Transient internal val materialSources: Map<Material, HexArray> by lazy {
         TRADED.associateWith { m ->

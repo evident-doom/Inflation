@@ -19,11 +19,14 @@ import inflation.mix64
 
 import inflation.world.Biome
 import inflation.world.Date
+import inflation.world.Place
 import inflation.world.Weather
 import kotlin.math.max
+import kotlin.math.roundToInt
 import kotlin.math.min
 import kotlin.math.abs
 import kotlin.math.exp
+import kotlin.math.roundToInt
 
 // What passes between bands: words, traditions, partners and grudges. A band's culture is data on
 // the band ([Band]); it changes when bands meet, when they split, and now and then by itself.
@@ -369,7 +372,7 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
         if (r < toA) { bandA.burialWay = bandB.burialWay; stats.meeting(Met.BANDS_TOOK_UP_ANOTHERS_BURIAL) }
         else if (r < toA + toB) { bandB.burialWay = bandA.burialWay; stats.meeting(Met.BANDS_TOOK_UP_ANOTHERS_BURIAL) }
     }
-    riteMeet(lo, hi, u)
+    riteMeet(bandA, bandB, ab, ba)
     teach(bandA, bandB, u, (doing(a) - doing(b)).coerceIn(-1f, 1f))
     // And the sick among them pass on what is catching.
     passIllness(bandA, bandB)
@@ -476,7 +479,8 @@ private fun HexGroups.raid(g: HexGroup, b: Band, o: HexGroup, ob: Band, r: Regar
 /**
  * [g] falls on [o]. A planned raid on a band at home may take it by surprise, the less so the more
  * it sees (scouts, open ground, moonlight); the defenders gain from high, broken ground, their
- * houses and a palisade. A band with no home to hold may slip away, losing what it cannot carry.
+ * houses and a palisade. A band with no home to hold may slip away, losing what it cannot carry; one beaten at its home
+ * may be driven from it ([driveOff]).
  */
 internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planned: Boolean, weather: Weather) {
     stats.meeting(if (planned) Met.RAIDS_ON_HOMES else Met.RAIDS)
@@ -489,12 +493,20 @@ internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planne
         ob.grudge[b.mainLineage()] += 0.5f * GRUDGE; ob.befriend(g.id, -0.5f * TIE_RAID)
         return
     }
-    val (sg, so) = raidStrengths(g, o, ob, planned, ob.atHome, weather)
-    raidWorth(o, ob, sg, so)
-    // Each side loses some of its people, the more so against the stronger side.
+    val sides = raidSides(g, o, ob, planned, ob.atHome, weather)
+    val sg = sides.raiders; val so = sides.defenders
+    raidWorth(o, ob, sg, so, sides.own)
+    // Each side loses some of its people, the more so against the stronger side; neighbours who stood with the raided
+    // lose theirs as the raided do, of as many as came.
     val lostG = binomial(g.adults, RAID_DEATHS * so / (sg + so), rnd)
     val lostO = binomial(o.adults, RAID_DEATHS * sg / (sg + so), rnd)
-    for ((who, lost) in listOf(g to lostG, o to lostO)) if (lost > 0) {
+    val losses = arrayListOf(g to lostG, o to lostO)
+    for (n in sides.helpers) {
+        losses += n.group to binomial((n.share * n.group.adults).roundToInt(), RAID_DEATHS * sg / (sg + so), rnd)
+        stats.meeting(Met.NEIGHBOURS_DEFENDED)
+        note(n.group) { "stood with band #%d against band #%d".format(o.id, g.id) }
+    }
+    for ((who, lost) in losses) if (lost > 0) {
         adultsDied(who, lost, rnd)
         // (And as many again are wounded, some to be lamed for life.)
         who.band?.wounded(WOUNDED_PER_DEAD * lost, who.adults)
@@ -508,32 +520,66 @@ internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planne
     }
     // The stronger side carries off food; the raided remember.
     if (sg > so) { val t = RAID_TAKE * o.larder; moveFood(o, g, t); stats.meeting(Met.LARDERS_RAIDED) }
+    // A band beaten at its home may be driven from it, the likelier the more the raiders overpower it (none when they are
+    // only as strong; Wrangham and Glowacki 2012: victors drove the defeated off their land in most non-state wars).
+    if (ob.atHome && sg > so && rnd.nextFloat() < 1f - so / sg) driveOff(o, ob, b)
     ob.grudge[b.mainLineage()] += GRUDGE
     ob.befriend(g.id, -TIE_RAID); b.befriend(o.id, -0.3f * TIE_RAID)
     if (lostG > 0) b.grudge[ob.mainLineage()] += 0.3f * GRUDGE
+    // (Those who stood with them remember the raiders too, as far as they stood.)
+    for (n in sides.helpers) { n.band.grudge[b.mainLineage()] += n.share * GRUDGE; n.band.befriend(g.id, -n.share * TIE_RAID) }
 }
 
 /**
- * What a whole house would have done for [o] (band [ob]) in a raid of strength [sg] on its [so], against the houses it has:
+ * Band [o] ([ob]) is driven from its home by raiders of band [by]: it leaves its houses and palisade to whoever takes them up,
+ * and while it fears the raiders' people it neither takes up houses there again nor seeks the place ([Band.keptFrom]).
+ */
+private fun HexGroups.driveOff(o: HexGroup, ob: Band, by: Band) {
+    val h = ob.houseHex
+    leaveStructures(o, h)
+    ob.drivenFrom = h; ob.drivenBy = by.mainLineage()
+    ob.houseHex = Hex.NONE; ob.house = 0f; ob.atHome = false; ob.palisade = 0f
+    ob.homeEarth = 0f; ob.homeWalls = 0f; ob.homeGroundC = 0f
+    stats.meeting(Met.BANDS_DRIVEN_FROM_HOME)
+    note(o) { "was driven from its home at hex %d".format(h.i) }
+}
+
+/**
+ * What a whole house would have done for [o] (band [ob]) in a raid of strength [sg] on its [so] (its [own] and its neighbours'), against the houses it has:
  * the lives it would have saved and the food it would have kept from the raiders, by [fight]'s rules; for [Band.houseLives]
  * and [Band.houseFood].
  */
-private fun raidWorth(o: HexGroup, ob: Band, sg: Float, so: Float) {
+private fun raidWorth(o: HexGroup, ob: Band, sg: Float, so: Float, own: Float) {
     val works = if (ob.atHome) 1f + HOUSE_DEFENCE * ob.house + PALISADE_DEFENCE * ob.palisade else 1f
     val whole = 1f + HOUSE_DEFENCE + (if (ob.atHome) PALISADE_DEFENCE * ob.palisade else 0f)
-    val so1 = so * whole / works
+    // (Its own part of the defence, [own], behind a whole house; the neighbours who stood with it as they were.)
+    val so1 = so + own * (whole / works - 1f)
     val lives = max(0f, o.adults * RAID_DEATHS * (sg / (sg + so) - sg / (sg + so1)))
     ob.houseLivesWeek += lives; ob.houseWeek[HouseWorth.RAIDS] += lives
     if (sg > so && sg <= so1) { ob.houseFoodWeek += RAID_TAKE * o.larder; ob.houseWeek[HouseWorth.RAID_KG] += RAID_TAKE * o.larder }
 }
 
+/** A band [group] (band [band]) at home where a neighbour is raided, standing with it with [share] of its people ([raidSides]). */
+internal class Helper(val group: HexGroup, val band: Band, val share: Float)
+
+/** The sides of a raid: the [raiders]' strength, the raided band's [own] and its [helpers], with theirs. */
+internal class RaidSides(val raiders: Float, val own: Float, val helpers: List<Helper>, private val helped: Float) {
+    /** All who hold off the raiders. */
+    val defenders get() = own + helped
+}
+
+/** The raiders' [g] and the defenders' [o] (band [ob]) strengths when [g] falls on [o] where it is ([raidSides]). */
+internal fun HexGroups.raidStrengths(g: HexGroup, o: HexGroup, ob: Band, planned: Boolean, atHome: Boolean, weather: Weather): Pair<Float, Float> =
+    raidSides(g, o, ob, planned, atHome, weather).let { it.raiders to it.defenders }
+
 /**
- * The raiders' [g] and the defenders' [o] (band [ob]) strengths when [g] falls on [o] where it is: a planned raid may
- * take it by surprise, the less so the more it sees (scouts, open ground, moonlight); defenders [atHome] gain from high,
- * broken ground, their houses and a palisade. The one rule for a raid ([fight]) and for a raiding band weighing its
- * target ([plotRaid]).
+ * The sides when [g] falls on [o] (band [ob]) where it is: a planned raid may take it by surprise, the less so the more it
+ * sees (scouts, open ground, moonlight); defenders [atHome] gain from high, broken ground, their houses and a palisade, and
+ * the other bands at home in the same hex stand with them, each with as many of its people as it is closer to the raided
+ * than to the raiders (by its [Regard] of each: a band that holds neither close, or the raiders as close, stays out), behind
+ * its own houses and palisade. The one rule for a raid ([fight]) and for a raiding band weighing its target ([plotRaid]).
  */
-internal fun HexGroups.raidStrengths(g: HexGroup, o: HexGroup, ob: Band, planned: Boolean, atHome: Boolean, weather: Weather): Pair<Float, Float> {
+internal fun HexGroups.raidSides(g: HexGroup, o: HexGroup, ob: Band, planned: Boolean, atHome: Boolean, weather: Weather): RaidSides {
     val p = o.place
     // Surprise: a planned raid at night, in cover, on a band that keeps no lookout.
     val seen = (sight(p, weather) * (0.5f + 0.5f * moon) * (1f + 5f * ob.scoutShare)).coerceIn(0f, 1f)
@@ -543,7 +589,20 @@ internal fun HexGroups.raidStrengths(g: HexGroup, o: HexGroup, ob: Band, planned
     // The defenders' ground and works.
     val ground = 1f + HIGH_GROUND * land.bestDefence[p]
     val works = if (atHome) 1f + HOUSE_DEFENCE * ob.house + PALISADE_DEFENCE * ob.palisade else 1f
-    return strength(g) * surprise to strength(o) * ground * works
+    val helpers = ArrayList<Helper>(); var helped = 0f
+    val gb = g.band
+    if (atHome && gb != null) {
+        val h = hw.placeHex[p]
+        for (n in groups) {
+            val nb = n.band ?: continue
+            if (n === o || n === g || !n.alive || !nb.atHome || hw.placeHex[n.place] != h) continue
+            val share = Regard(nb, o.id, ob).close - Regard(nb, g.id, gb).close
+            if (share <= 0f) continue
+            helpers += Helper(n, nb, share)
+            helped += share * strength(n) * ground * (1f + HOUSE_DEFENCE * nb.house + PALISADE_DEFENCE * nb.palisade)
+        }
+    }
+    return RaidSides(strength(g) * surprise, strength(o) * ground * works, helpers, helped)
 }
 
 /** One or two young adults from each band join the other; their descent and skills come with them. */
@@ -732,8 +791,9 @@ const val RITE_SITES = 3
 /** Person-days each adult gives a rite held at its site: the gathering, the dances, the telling. An estimate; no figure found. */
 const val RITE_DAYS = 2f
 /**
- * Strain a young belief bears before part of the band breaks from it: rites cut short, about the year's rites missed; a
- * belief kept [BELIEF_AGE_YEARS] bears twice that (older beliefs are clung to). Strain eases to a third over
+ * Strain a young belief bears ([Band.strainBorne]): rites held back from, about the year's rites. Strained that far, a
+ * band holds together at half its size ([HexGroups.maxSize]), and the part that leaves at a split goes without the belief
+ * as likely as the strain is near it. A belief kept [BELIEF_AGE_YEARS] bears twice that (older beliefs are clung to). Strain eases to a third over
  * [STRAIN_EASE_YEARS] of weeks the band eats its fill. Estimates; no figure found.
  */
 const val STRAIN_SPLIT = 3f
@@ -750,18 +810,19 @@ const val RITE_SHIFT = 0.1f
 fun riteStrengthAt(lineage: Int, tuning: Tuning) = tuning.riteFounderMax * Math.floorMod((lineage + 7) * 2_654_435_761L.toInt() xor 0x5bd1e995, 1000) / 1000f
 
 /**
- * A band's rites through the year (rounds on, see [inflation.Tuning.rounds]): about once a year a band whose rites
- * have room for another takes up one where its story is: the graves of its dead, where bands gather
- * (both in the season they mark), or a far landmark it knows, walked to or told of (a pass, a spring,
- * a path's end: the further, the more it stands for); and now and then it lets one go, less often
- * where songs and stories keep them. Nothing here weighs what a rite brings, except that a holier place draws more
- * ([HexLand.sanctity]: how many held rites there and lie buried there, as against the band's own number).
+ * A band's rites through the year (rounds on, see [inflation.Tuning.rounds]). A rite is born of an omen ([omen]): a
+ * salient event at a place in a month (many deaths in a week, plenty after long want, a strange sign) that is borne out. Nothing here
+ * weighs what a rite brings, and a rite is not let go: a belief ends with the bands that keep it, or with the part of a
+ * band that breaks from it ([HexGroups.maxSize]).
  *
  * A rite obliges: at the start of its month the band's adults owe [RITE_DAYS] each of their customs' time, and, unless
  * the band is camped at the site ([inflation.Tuning.roundArrivedKm]), the walk there and back. Nothing weighs the trip
  * against what it brings; the band does not move for it, its adults go and come back. Once the days are given the rite
- * is held and the place grows holier by the adults at it; what the month does not give cuts the rite short, nothing
- * is held, and the band's belief is strained ([Band.strain]; see [HexGroups.beliefSplits]).
+ * is held and the place grows holier by the adults at it. A rite adjusts to the season: one whose month ran out before
+ * its days were given is held in a lesser form, with what was given (the place grows holier as far), and the belief is
+ * strained only as far as the days not given went to other work than the band's needs ([Band.riteSpare],
+ * [Band.strain]; see [HexGroups.maxSize]): need excuses, choice does not. What need cut short moves, as often as
+ * not, to a month beside it the band eats better in ([riteToPlenty]): harvest feasts, not famine fasts.
  */
 internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
     if (!tuning.rounds) return
@@ -772,71 +833,128 @@ internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
         land.sanctity[b.riteDue] += g.adults.toFloat()
         b.riteKept = now
         stats.meeting(Met.BANDS_HELD_A_RITE)
+        stats.meeting(Met.Of.RITES_HELD, RiteWalk.of(riteKm(g, b.riteDue), tuning).label)
         b.riteDue = -1
     } else if (b.riteDue >= 0 && b.riteHeld != now) {
-        b.riteOwed = 0f; b.riteDue = -1; b.strain += 1f
+        // (For the report: how far off the site is now, and how much of the rite's days had been given.)
+        val km = riteKm(g, b.riteDue); val walk = RiteWalk.of(km, tuning)
+        val asked = riteDays(km) * g.adults
+        stats.meeting(Met.Of.RITES_CUT_SHORT, walk.label)
+        stats.meeting(Met.Of.RITES_CUT_SHORT_PERCENT_GIVEN, walk.label, if (asked > 0f) (100f * (1f - b.riteOwed / asked)).roundToInt().coerceIn(0, 100) else 0)
+        // (Held in a lesser form with what was given; the strain is what other work took of what it did not give.)
+        val month = Math.floorMod(b.riteHeld, 12L).toInt()
+        val given = (b.riteAsked - b.riteOwed).coerceAtLeast(0f)
+        val withheld = min(b.riteOwed, b.riteSpare)
+        if (given > 0f && b.riteAsked > 0f) {
+            land.sanctity[b.riteDue] += g.adults * given / b.riteAsked
+            stats.meeting(Met.BANDS_HELD_A_RITE_IN_A_LESSER_FORM)
+        }
+        b.strain += if (b.riteAsked > 0f) withheld / b.riteAsked else 1f
+        val byNeed = if (b.riteAsked > 0f) (b.riteOwed - withheld) / b.riteAsked else 0f
+        b.riteOwed = 0f; b.riteDue = -1; b.riteAsked = 0f; b.riteSpare = 0f
         stats.meeting(Met.BANDS_CUT_A_RITE_SHORT)
+        if (rnd.nextFloat() < byNeed) riteToPlenty(b, month)
     }
     // (A belief grows older while it is kept; its strain eases while the band eats its fill.)
     if (b.rite.any { it >= 0 }) b.beliefYears += years
     if (g.fed >= Thresholds.HUNGRY) b.strain *= exp(-years / STRAIN_EASE_YEARS)
     val site = b.rite[weather.date.month]
     if (site >= 0 && b.riteHeld != now) {
-        val km = hex.distanceKm(hw.placeHex[g.place], hw.placeHex[site])
-        val walk = if (km <= tuning.roundArrivedKm) 0f else (2.0 * km / (WALK_KM_PER_HOUR * Activity.WORK_HOURS)).toFloat()
         b.riteHeld = now; b.riteDue = site
-        b.riteOwed = (RITE_DAYS + walk) * g.adults
+        b.riteOwed = riteDays(riteKm(g, site)) * g.adults
+        b.riteAsked = b.riteOwed; b.riteSpare = 0f
+        stats.meeting(Met.Of.CUSTOMS_DAYS_ASKED, CustomsPart.RITES.label, (10f * b.riteOwed).roundToInt())
     }
-    val keep = if (b.holds(Tradition.ORAL_TRADITION)) 0.5f else 1f
-    for (m in 0 until 12) if (b.rite[m] >= 0 && rnd.nextFloat() < RITE_FORGET * keep * years) {
-        b.rite[m] = -1
-        stats.meeting(Met.BANDS_LET_A_RITE_GO)
+    // Plenty after long want is an omen too: where and when the hunger broke.
+    if (g.lean > 0 && g.fed >= Thresholds.HUNGRY) omen(b, g.place, weather.date, g.lean / LEAN_USUAL_WEEKS, Met.BANDS_MARKED_PLENTY_AFTER_WANT)
+    // So is the strange thing with no cause in the world: a white bird, a shape in the trees, a lightning strike, a
+    // misborn child, a fall. It befalls the band where it is, and the stranger the rarer ([STRANGE_SIGNS_A_YEAR]).
+    if (rnd.nextFloat() < STRANGE_SIGNS_A_YEAR * years)
+        omen(b, g.place, weather.date, 1f / (1f - rnd.nextFloat()), Met.BANDS_MARKED_A_STRANGE_SIGN)
+    // An omen fades unless it is borne out: the same month going well again where it fell, a year or more on.
+    if (b.omenPlace >= 0) {
+        b.omenWeight *= exp(-years / OMEN_YEARS)
+        if (b.omenWeight < 1f) b.omenPlace = -1
+        else if (weather.date.month == b.omenMonth && weather.date.year > b.omenYear && g.fed >= Thresholds.HUNGRY &&
+            hex.distanceKm(hw.placeHex[g.place], hw.placeHex[b.omenPlace]) <= tuning.roundArrivedKm) bearRite(b)
     }
-    if (b.rite.count { it >= 0 } >= RITE_SITES || rnd.nextFloat() >= years) return
-    val held = b.rite.toHashSet()
-    var bestPlace = -1; var bestMonth = -1; var bestScore = 0f
-    fun consider(p: Int, month: Int, story: Float) {
-        val score = if (p >= 0) story + land.sanctity[p] / max(1, g.size) else story
-        if (p >= 0 && p !in held && b.rite[month] < 0 && score > bestScore) {
-            bestScore = score
-            bestPlace = p
-            bestMonth = month
+}
+
+/**
+ * The months the year turns in, which most peoples mark and gather at (the sun's year, [inflation.world.Date.solarDeclination],
+ * from [inflation.world.Date.START_DAY]: the spring equinox opens month 3, midsummer month 6, the autumn equinox month 9,
+ * midwinter month 0). Rites are drawn to them as they are born ([bearRite]) and moved ([riteToPlenty]).
+ */
+fun turnOfYear(month: Int) = month % 3 == 0
+
+/** The two months beside [month]. */
+private fun besideMonths(month: Int) = listOf(Math.floorMod(month - 1, 12), Math.floorMod(month + 1, 12))
+
+/**
+ * [b]'s rite in [month], cut short by need, moves to a month beside it with no rite of its own that the band eats
+ * better in ([Band.monthSupply]), or as well if it is a turn of the year ([turnOfYear]); the turn of the year first,
+ * else the best fed.
+ */
+private fun HexGroups.riteToPlenty(b: Band, month: Int) {
+    val site = b.rite[month]
+    if (site < 0) return
+    val can = besideMonths(month).filter { b.rite[it] < 0 &&
+        (b.monthSupply[it] > b.monthSupply[month] || turnOfYear(it) && b.monthSupply[it] >= b.monthSupply[month]) }
+    val to = can.firstOrNull { turnOfYear(it) } ?: can.maxByOrNull { b.monthSupply[it] } ?: return
+    b.rite[to] = site; b.rite[month] = -1
+    stats.meeting(Met.BANDS_MOVED_A_RITE_TO_A_BETTER_MONTH)
+}
+
+/** How far [g] is from rite site [site], km. */
+private fun HexGroups.riteKm(g: HexGroup, site: Int) = hex.distanceKm(hw.placeHex[g.place], hw.placeHex[site])
+
+/** The days a rite [km] off asks of each adult: [RITE_DAYS], and the walk there and back unless the band is camped at it. */
+private fun HexGroups.riteDays(km: Double) =
+    RITE_DAYS + if (km <= tuning.roundArrivedKm) 0f else (2.0 * km / (WALK_KM_PER_HOUR * Activity.WORK_HOURS)).toFloat()
+
+/** How far a band is from its rite's site, for the report ([Met.Of.RITES_HELD], [Met.Of.RITES_CUT_SHORT]). */
+enum class RiteWalk(val label: String) {
+    AT_SITE("at the site"), UNDER_100_KM("under 100 km"), UNDER_200_KM("100-200 km"), FARTHER("200 km or more");
+
+    companion object {
+        fun of(km: Double, tuning: Tuning) = when {
+            km <= tuning.roundArrivedKm -> AT_SITE
+            km < 100.0 -> UNDER_100_KM
+            km < 200.0 -> UNDER_200_KM
+            else -> FARTHER
         }
     }
-    val mem = g.memory
-    for (i in 0 until PlaceMemory.MEMORY_SLOTS) {
-        if (mem.hex[i].none) continue
-        val month = mem.season[i] * 3 + 1
-        if (mem.dead[i] >= APPOINT_MIN) consider((hw.firstPlaceIn(mem.hex[i])).i, month, mem.dead[i])
-        if (mem.met[i] >= APPOINT_MIN) consider((hw.firstPlaceIn(mem.hex[i])).i, month, 0.5f * mem.met[i])
-    }
-    val here = hw.placeHex[g.place]; val month = weather.date.month
-    for (h in routes.landmarks) {
-        val k = routes.kind(h)
-        if ((k != HexRoutes.Kind.PASS && k != HexRoutes.Kind.WATER && k != HexRoutes.Kind.END) || !b.knows(h)) continue
-        val km = hex.distanceKm(here, h)
-        if (km > REMEMBERED_KM) consider((hw.firstPlaceIn(h)).i, month, APPOINT_MIN * (km / REMEMBERED_KM).toFloat())
-    }
-    // (Where the good stone, salt or ochre it lacks is got, if it knows the place: the stronger its want, the likelier.)
-    for (m in TRADED) {
-        val want = 1f - b.goods[m] / (KEEP_YEARS * YEAR_NEED[m] * max(1, g.adults))
-        if (want <= 0f) continue
-        for (h in bands.materialSources.getValue(m)) if (b.knows(h)) {
-            val km = hex.distanceKm(here, h)
-            if (km > tuning.roundArrivedKm) consider((hw.firstPlaceIn(h)).i, month, APPOINT_MIN * SOURCE_RITE * want)
-        }
-    }
-    if (bestPlace >= 0) { b.rite[bestMonth] = bestPlace; stats.meeting(Met.BANDS_TOOK_UP_A_RITE) }
+}
+
+/**
+ * [b] marks what befell it at [place] on [date], [weight] times what it is used to ([SALIENT] at least, or it is not marked):
+ * an omen it remembers over the next [OMEN_YEARS] (the greater kept before the lesser), which becomes a rite in its month
+ * if borne out (see [riteWeek], [riteMeet]), or at once if it was very great ([OMEN_AT_ONCE]).
+ */
+internal fun GroupWorld.omen(b: Band, place: Place, date: Date, weight: Float, kind: Met) {
+    if (weight < SALIENT || weight <= b.omenWeight) return
+    b.omenPlace = place.i; b.omenMonth = date.month; b.omenYear = date.year; b.omenWeight = weight
+    stats.meeting(kind)
+    if (weight >= OMEN_AT_ONCE) bearRite(b)
+}
+
+/** [b]'s omen becomes a rite at its place in its month, if the band has that month free and room for another. */
+internal fun GroupWorld.bearRite(b: Band) {
+    val p = b.omenPlace; val m = b.omenMonth
+    b.omenPlace = -1; b.omenWeight = 0f
+    if (p < 0 || b.rite[m] >= 0 || p in b.rite || b.rite.count { it >= 0 } >= RITE_SITES) return
+    // (Held at the turn of the year beside it, if that is free: the dates every band knows.)
+    val at = if (turnOfYear(m)) m else besideMonths(m).firstOrNull { turnOfYear(it) && b.rite[it] < 0 } ?: m
+    b.rite[at] = p
+    stats.meeting(Met.BANDS_BORE_A_RITE)
 }
 
 /**
  * Material sources (trade on): the square each is gathered from, km; the least share of a place's
- * ground for it to count; how a source counts as a rite's site against a band's graves (at full
- * want). Not measured.
+ * ground for it to count. Not measured.
  */
 const val SOURCE_KM = 50.0
 const val SOURCE_MIN = 0.1f
-const val SOURCE_RITE = 2f
 
 /** A band split off from another: its hold on the rites drifts, and now and then one shifts by a month (rounds on). */
 internal fun HexGroups.riteInherit(nb: Band) {
@@ -856,20 +974,45 @@ internal fun HexGroups.riteInherit(nb: Band) {
 }
 
 /**
- * Two bands talking (rounds on): the one doing less well may take up a rite of the other's in a
- * month it has none, and its hold moves toward theirs, as far as they understand each other.
+ * Two bands talking (rounds on): each may take up a rite of the other's in a month it has none, as far as it believes what
+ * the other tells ([Regard.trust]: understanding and closeness), never because the other does better; and each one's hold
+ * on its rites moves toward the other's as far. Two that marked the same place each hear their omen told again.
  */
-internal fun GroupWorld.riteMeet(lo: Band, hi: Band, u: Float) {
+internal fun GroupWorld.riteMeet(a: Band, b: Band, ab: Regard, ba: Regard) {
     if (!tuning.rounds) return
-    for (m in 0 until 12) if (hi.rite[m] >= 0 && lo.rite[m] < 0 && lo.rite.count { it >= 0 } < RITE_SITES && hi.rite[m] !in lo.rite &&
-        rnd.nextFloat() < COPY_TRADITION * u) {
-        lo.rite[m] = hi.rite[m]; stats.meeting(Met.BANDS_TOOK_UP_ANOTHERS_RITE)
+    // (Two bands that marked the same place each hear their omen told again: it is borne out for both.)
+    if (a.omenPlace >= 0 && a.omenPlace == b.omenPlace) { bearRite(a); bearRite(b) }
+    fun takeUp(to: Band, from: Band, belief: Float) {
+        for (m in 0 until 12) if (from.rite[m] >= 0 && to.rite[m] < 0 && to.rite.count { it >= 0 } < RITE_SITES && from.rite[m] !in to.rite &&
+            rnd.nextFloat() < COPY_TRADITION * belief) {
+            to.rite[m] = from.rite[m]; stats.meeting(Met.BANDS_TOOK_UP_ANOTHERS_RITE)
+        }
     }
-    lo.riteStrength += COPY_TRADITION * u * (hi.riteStrength - lo.riteStrength)
+    val tA = ab.trust; val tB = ba.trust
+    takeUp(a, b, tA); takeUp(b, a, tB)
+    val sa = a.riteStrength; val sb = b.riteStrength
+    a.riteStrength += COPY_TRADITION * tA * (sb - sa)
+    b.riteStrength += COPY_TRADITION * tB * (sa - sb)
 }
 
-/** Share of a band's rites let go a year (a fifth of them; half that where songs and stories keep them). Not measured. */
-const val RITE_FORGET = 0.2f
+/**
+ * Omens ([Band.omenPlace]): what a band marks is [SALIENT] times what it is used to or more (deaths in a week against its
+ * usual, [Band.deathsUsual]; weeks of hunger broken, against [LEAN_USUAL_WEEKS], a hungry month a year); it fades to a
+ * third over [OMEN_YEARS] and is forgotten once no more than the usual, unless borne out; one [OMEN_AT_ONCE] times the usual
+ * is a rite at once. A band can't make a rite of what is usual for it.
+ * Estimates; no figure found.
+ */
+const val SALIENT = 3f
+const val OMEN_AT_ONCE = 10f
+const val OMEN_YEARS = 1f
+const val LEAN_USUAL_WEEKS = 4f
+
+/**
+ * Strange things a band sees in a year, good signs and bad alike; how strange each is, against the usual, falls off as
+ * one over it (a third are [SALIENT], a tenth [OMEN_AT_ONCE]). Nothing in the world causes them and nothing follows from
+ * them but the rite they may become. Estimate; no figure found.
+ */
+const val STRANGE_SIGNS_A_YEAR = 1f
 
 /** Days of a band's food that make one favour ([Band.favours]): a week. */
 const val FAVOUR_DAYS = 7f

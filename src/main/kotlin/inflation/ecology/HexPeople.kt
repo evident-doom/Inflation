@@ -151,11 +151,15 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     // With the time still to spare, a band that has kept its camp a while builds stone-footed houses
     // there, as far as it has gathered the stone and timber (and starts afresh where it settles
     // anew); houses it has left weather away.
-    useStructures(g, h)
-    buildHouse(g, b, p, h, people, time)
+    // (Not where raiders drove it from while it still fears them: see [Band.keptFrom].)
+    val kept = b.keptFrom(h)
+    if (!kept) {
+        useStructures(g, h)
+        buildHouse(g, b, p, h, people, time)
+    }
     time.release(Activity.HOUSES)
     // (Its home is where it last had houses to use; what stands there still shelters it, unless another band took it up.)
-    if (housesAt(g, h) > 0.05f) b.houseHex = h
+    if (!kept && housesAt(g, h) > 0.05f) b.houseHex = h
     b.house = if (b.houseHex.none) 0f else housesAt(g, b.houseHex)
     b.atHome = b.houseHex == h && b.house > 0.05f
     b.homeEarth = if (b.atHome) earthAt(g, h) else 0f
