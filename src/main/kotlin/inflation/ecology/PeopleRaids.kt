@@ -122,6 +122,10 @@ internal fun shareOfWill(will: Float, atOne: Float) = 1f - (1f - atOne).pow(max(
 internal fun moreOfWill(will: Float) = (1f - exp(-max(0f, will))) / (1f - exp(-1f))
 internal const val RAID_RANGE_KM = 60.0
 internal const val RAID_PLOT = 0.3f
+/** The share of a raid's take ([RAID_TAKE]) that a mobile band slipping away loses of its larder. An estimate; no figure found. */
+internal const val SLIP_LOSS = 0.3f
+/** How much of the raided's grudge and loss of ties ([GRUDGE], [TIE_RAID]) the raiders hold against the defenders when they lost people in the raid. An estimate; no figure found. */
+internal const val RAIDER_RESENT = 0.3f
 internal const val RAID_WEEKS = 4
 internal const val PALISADE_DAYS = 6f
 internal const val PALISADE_WOOD = 80f
@@ -157,7 +161,7 @@ internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planne
     ob.sinceRaided = 0
     // The mobile slip away (and lose some of their stores).
     if (!ob.atHome && rnd.nextFloat() < FLEE) {
-        val t = 0.3f * RAID_TAKE * o.larder; moveFood(o, g, t)
+        val t = SLIP_LOSS * RAID_TAKE * o.larder; moveFood(o, g, t)
         stats.meeting(Met.RAIDED_BANDS_SLIPPED_AWAY)
         ob.grudge[b.mainLineage()] += 0.5f * GRUDGE; ob.befriend(g.id, -0.5f * TIE_RAID)
         return
@@ -195,8 +199,8 @@ internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planne
     // only as strong; Wrangham and Glowacki 2012: victors drove the defeated off their land in most non-state wars).
     if (ob.atHome && sg > so && rnd.nextFloat() < 1f - so / sg) driveOff(o, ob, b)
     ob.grudge[b.mainLineage()] += GRUDGE
-    ob.befriend(g.id, -TIE_RAID); b.befriend(o.id, -0.3f * TIE_RAID)
-    if (lostG > 0) b.grudge[ob.mainLineage()] += 0.3f * GRUDGE
+    ob.befriend(g.id, -TIE_RAID); b.befriend(o.id, -RAIDER_RESENT * TIE_RAID)
+    if (lostG > 0) b.grudge[ob.mainLineage()] += RAIDER_RESENT * GRUDGE
     // (Those who stood with them remember the raiders too, as far as they stood.)
     for (n in sides.helpers) { n.band.grudge[b.mainLineage()] += n.share * GRUDGE; n.band.befriend(g.id, -n.share * TIE_RAID) }
 }
