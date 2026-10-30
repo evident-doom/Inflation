@@ -754,10 +754,13 @@ class Band(kinds: Int) {
     /** How its weapons, hunting skill and dogs do against [prey], against an ordinary armed, practised band without dogs (1). */
     fun huntEdge(prey: Species, tuning: Tuning) =
         skill(Skill.HUNT) * edge(Skill.STALK) * (WEAPONLESS + (1f - WEAPONLESS) * has(Tool.SPEAR) * serveOfMake(Tool.SPEAR, fine[Tool.SPEAR], tuning) +
-            BOW_GAIN * has(Tool.BOW) * serveOfMake(Tool.BOW, fine[Tool.BOW], tuning) * min(1f, prey.speedKmh / 70f)) * (1f + DOG_HUNT * dogShare)
+            BOW_GAIN * has(Tool.BOW) * serveOfMake(Tool.BOW, fine[Tool.BOW], tuning) * min(1f, prey.speedKmh / 70f)) *
+            (1f + DOG_HUNT * dogShare * max(0f, 1f - prey.massKg / DOG_PREY_KG))
 
-    /** Its dogs against its hunters (one to three a full pack): they track, bay and hold game, and bark at night. */
+    /** Its dogs against its hunters (one to three a full pack): they track, bay and hold small game, and bark at night. */
     var dogShare = 0f
+    /** How far its dogs were fed this week, 0..1 (1 with none; for the census). */
+    @Transient var dogFed = 1f
 
     /** Its people's fighting weight per kg: with spears and bows lions and hyenas give way; without, they are no match. */
     fun ferocity(s: Species) = s.ferocity * (WEAPONLESS + (1f - WEAPONLESS) * has(Tool.SPEAR) + 0.5f * has(Tool.BOW))
@@ -782,20 +785,22 @@ class Band(kinds: Int) {
     /** How much better (above 1) or worse it does at [s] than a start band. */
     fun edge(s: Skill) = 1f / lapse(s)
     /** The insulation of the clothes its people wear by day, clo: a whole kit at [CLOTHES_CLO], as well sewn as its hands sew. */
-    fun clothesClo() = CLOTHES_CLO * has(Tool.CLOTHES) * skill(Skill.SEWING)
+    fun clothesClo(clothes: Float = has(Tool.CLOTHES)) = CLOTHES_CLO * clothes * skill(Skill.SEWING)
     /** How far houses shelter it where it is: its home's, at home. */
     fun homeShelter() = if (atHome) house else 0f
     /** How much warmer than [t] °C outside its houses keep: by the wood their hearths burn ([fire], [FIRE_HOUSE_KG_C]), and the ground's warmth through sunken walls. */
     fun houseWarmC(t: Float, fire: Float = 1f) = fire * HEARTH_WOOD / FIRE_HOUSE_KG_C + homeEarth * max(0f, homeGroundC - t)
-    /** What it has against the cold at [t] °C with a fire of [fire] and houses sheltering it as far as [home] ([BodyHeat]). */
-    fun cover(t: Float, fire: Float, home: Float, shelter: Float = this.shelter) = Cover(clothesClo(), fire, shelter, home, houseWarmC(t, fire))
+    /** What it has against the cold at [t] °C with a fire of [fire] and houses sheltering it as far as [home] ([BodyHeat]), in a kit of [clothes]. */
+    fun cover(t: Float, fire: Float, home: Float, shelter: Float = this.shelter, clothes: Float = has(Tool.CLOTHES)) =
+        Cover(clothesClo(clothes), fire, shelter, home, houseWarmC(t, fire))
     /**
      * Its week of [days] in [air] with a fire of [fire] and houses sheltering it as far as [home], by its people's body heat
      * ([BodyHeat]): the food keeping warm takes, and the deaths of exposure. Fur clothes, robes at night, a fire, a shelter
      * with its bedding or a house keep people alive in deep cold; the naked die of exposure in a night a few degrees above
      * freezing, wet and windy.
      */
-    fun warmth(air: Air, fire: Float, home: Float, days: Int, shelter: Float = this.shelter) = BodyHeat.week(air, cover(air.meanC, fire, home, shelter), days, sisu)
+    fun warmth(air: Air, fire: Float, home: Float, days: Int, shelter: Float = this.shelter, clothes: Float = has(Tool.CLOTHES)) =
+        BodyHeat.week(air, cover(air.meanC, fire, home, shelter, clothes), days, sisu)
 
     companion object {
         /**

@@ -128,7 +128,7 @@ enum class Met(val label: String) {
     enum class Of(val before: String, val after: String = "") {
         NEWCOMERS("newcomers: "), SEA_CROSSINGS("sea crossings: "), HIT_ON("band hit on "), LOST("band lost "), TOOK_A_PUP("bands took a ", " pup"),
         LEARNED("band learned "), TOOK_UP("band took up "), TOOK_LEAVE_OF("band took leave of "), DROPPED("band dropped "), GIVEN("", " given"),
-        TURNED_BACK_BY("bands turned back by ");
+        TURNED_BACK_BY("bands turned back by "), DOGS_GONE_WILD("dogs gone wild as ", " packs");
 
         fun key(of: String) = before + of + after
     }
