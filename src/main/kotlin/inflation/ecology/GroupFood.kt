@@ -161,6 +161,8 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         time?.spend(Activity.FOOD, (w.busy - busy0) * w.hands)
     }
     if (w.band != null && w.time == null) planWeek(w, 0f, 0f)
+    // The residents' rivals it came on while it hunted: it robs or kills one, or is robbed (a pack; bands hunt them as game).
+    if (w.band == null) residentRivalsMeet(g, w.ground, w.met, w.searched, w.meat, w.rnd).let { m -> w.meat += m; w.fed += m * w.feeds(Food.BIG_GAME) }
     // (What a day's foraging brought it this week, kg of its need, kept month by month as a mean over the years: what a
     // herder's day must bring to be worth it, [herdPays].)
     w.band?.let { b -> w.time?.spentOn(Activity.FOOD)?.takeIf { it > 0f }?.let { d ->
@@ -492,7 +494,8 @@ private fun GroupWorld.huntingOdds(w: ForageWeek) {
             w.met[i] = meets[k] * (1f - seenFirst(view[0], view[1], band, ps)) / ps.groupSize
             w.odds[i] = success * w.met[i] * image[k]
             w.stalks[i] = 1f / success.coerceIn(1e-3f, 1f)
-            if (!(w.odds[i] <= 0f) && k != w.avoid) w.gameAt[w.games++] = i
+            // (The residents' rivals it meets as rivals, not as game: [residentRivalsMeet].)
+            if (!(w.odds[i] <= 0f) && k != w.avoid && Catalogue.game(s, ps)) w.gameAt[w.games++] = i
         }
     }
     w.gameFrom[w.ground.size] = w.games

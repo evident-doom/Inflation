@@ -729,6 +729,17 @@ object Catalogue {
     /** Kinds kept as numbers per place, the residents: every plant-eater, and the [residentHunters]. */
     fun resident(s: Species) = !s.carnivore || s in residentHunters
 
+    /**
+     * Residents that other beasts of prey meet as rivals, not as game: the [residentHunters] and the brown bear, which
+     * robs wolves of their kills and is driven off by lions (from memory of the record). Packs and residents deal with
+     * them as packs deal with each other ([residentRivalsMeet], [HexFauna.rivalsAt]): give way, rob, now and then kill one,
+     * its young most often. People hunt them as game.
+     */
+    val residentRivals by lazy { setOf(JACKAL, LYNX, BEAR) }
+
+    /** Whether hunter [s] takes [ps] as game: people any kind; beasts of prey not the [residentRivals], which they meet as rivals. */
+    fun game(s: Species, ps: Species) = s.human || ps !in residentRivals
+
     /** Kinds that climb crags and screes others cannot cross. */
     val climbers = setOf(IBEX, MOUFLON, WILD_GOAT, LEOPARD)
 
