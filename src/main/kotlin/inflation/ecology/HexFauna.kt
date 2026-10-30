@@ -878,10 +878,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 // (Animal food beyond its share makes up for plants that fell short.)
                 (z.got[k] * ps + animal * (1f - ps)).coerceIn(0f, 1f)
             }
-            // Reserves carry them through lean weeks; they are laid on from what was eaten beyond need.
+            // Reserves carry them through lean weeks; they are laid on from what was eaten beyond need. (Any week short of
+            // its need is paid from the fat, however little short: the body's balance has no slack in it.)
             val r = reserve[k]
             if (!sleeping) {
-                if (f < WELL_FED) { val draw = min(r[p], (1f - f) * days); r[p] -= draw; f = min(1f, f + draw / days)
+                if (f < 1f) { val draw = min(r[p], (1f - f) * days); r[p] -= draw; f = min(1f, f + draw / days)
                     val heads = adults[k][p] + 0.5f * young[k][p]; if (heads > 0f) ff[k.i * FED + Fed.RESERVES.ordinal] += (draw / days * heads).toDouble() }
                 else { var gain = FAT_EFFICIENCY * z.surplus[k] * days
                     // (What they ate beyond their need wins back the body they burnt before it lays on fat.)
@@ -1254,7 +1255,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     @IgnorableReturnValue private fun growthOf(k: FaunaKind, grownFixed: Float, youngFixed: Float, huntedYoung: Float, protein: Float, youngPerGrown: Float,
                          carried: Float, f: Float, heads: Float, parts: EnumFloats<Growth>?): Float {
         val s = kinds[k]
-        val hunger = Hazards.hunger(s, moverSpent[k], Hazards.onFat(f, carried, days), days); val sick = Hazards.crowdDisease(Hazards.crowding(heads, usual[k]), f, years)
+        val hunger = Hazards.hunger(s, moverSpent[k], Hazards.onFat(f, carried, days, 1f), days); val sick = Hazards.crowdDisease(Hazards.crowding(heads, usual[k]), f, years)
         val due = dueYoung(k, heads, protein, days / (s.birthMonths * Date.DAYS_PER_MONTH.toFloat()))
         val born = 0.5f * due * breeding(s, due, carried, f, days)
         val grownDie = (grownFixed + hunger + sick).coerceIn(0f, 0.9f)
@@ -1275,7 +1276,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val s = kinds[k]
         if (!drinks(s, p)) return Float.NaN
         // (They come with the fat and the burnt body of their kind as it moves, [moverFat] and [moverSpent].)
-        hazards(k, p, weather, weather.date.month, Hazards.onFat(f, moverFat[k], days), 0f, adults[k][p] + young[k][p] + arrivingKm2(k), out, moverSpent[k])
+        hazards(k, p, weather, weather.date.month, Hazards.onFat(f, moverFat[k], days, 1f), 0f, adults[k][p] + young[k][p] + arrivingKm2(k), out, moverSpent[k])
         return adultShare(out)
     }
 

@@ -49,8 +49,11 @@ object Hazards {
      */
     val REBUILD = SURPLUS_EAT * FAT_EFFICIENCY
 
-    /** How well fed an animal is over a step of [days] fed [fed], with [fat] days of fat to draw on below [WELL_FED] (as the week's feeding draws on it). */
-    fun onFat(fed: Float, fat: Float, days: Int) = if (fed < WELL_FED) min(1f, fed + min(fat, (1f - fed) * days) / days) else fed
+    /**
+     * How well fed an animal is over a step of [days] fed [fed], with [fat] days of fat to draw on below [from] (as the week's
+     * feeding draws on it): [WELL_FED] for packs and people, 1 for the residents, who draw on it for any shortfall.
+     */
+    fun onFat(fed: Float, fat: Float, days: Int, from: Float = WELL_FED) = if (fed < from) min(1f, fed + min(fat, (1f - fed) * days) / days) else fed
 
     /**
      * The share of animals of [s] dead of hunger once they have burnt [spent] days of their body's protein: none until
