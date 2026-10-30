@@ -49,6 +49,7 @@ class HexHistory {
         private const val BIOME = "biome/"
         private const val PEOPLE = "people/"
         private const val HUNTERS = "hunters/"
+        private const val KEPT_TAKEN = "kept herds taken by beasts/"
         /** The land's area, km². */
         const val LAND_AREA = "land/area km²"
         const val TEMPERATURE = "weather/temperature °C"
@@ -85,6 +86,8 @@ class HexHistory {
         fun kills(kind: String) = KILLS + kind
         /** Tonnes of sea and lake fish gone one [way] in the week. */
         fun fishFlow(way: String) = "$FISH_FLOWS$way, t"
+        /** Heads of bands' kept herds of [kind] beasts of prey took in the week, packs and residents ([raidHerd], [HexFauna.huntResidents]). */
+        fun keptTaken(kind: String) = KEPT_TAKEN + kind
         /** A field of the small life ([HexSmallLife]), in tonnes or head counts. */
         fun smallLife(name: String) = SMALL_LIFE + name
         fun isSmallLife(key: String) = key.startsWith(SMALL_LIFE)
@@ -106,7 +109,7 @@ class HexHistory {
         /** What a [hunters] key measures, or null for any other key. */
         fun huntersOf(key: String) = if (key.startsWith(HUNTERS)) Hunters.entries.firstOrNull { key.endsWith("/" + it.label) } else null
         /** Whether a series counts events in each week (summed over a period) rather than a state (averaged). */
-        fun isFlow(key: String) = isDeaths(key) || key.startsWith(ADULT_DEATHS) || key.startsWith(YOUNG_DEATHS) || key.startsWith(BIRTHS) || key.startsWith(KILLS) || key.startsWith(FISH_FLOWS) || key == RAIN ||
+        fun isFlow(key: String) = isDeaths(key) || key.startsWith(ADULT_DEATHS) || key.startsWith(YOUNG_DEATHS) || key.startsWith(BIRTHS) || key.startsWith(KILLS) || key.startsWith(FISH_FLOWS) || key.startsWith(KEPT_TAKEN) || key == RAIN ||
             huntersOf(key) == Hunters.KILLS || huntersOf(key) == Hunters.KEPT_KILLS
     }
 
@@ -237,6 +240,9 @@ class HexHistory {
         for ((k, s) in fauna.kinds.withIndex()) if (fauna.bornThisWeek[k] > 0.0) births.merge(s.name, fauna.bornThisWeek[k], Double::plus)
         for ((key, v) in births) put(Key.births(key), v.toFloat())
         for ((s, v) in groups.stats.kills) put(Key.kills(s.name), v.toFloat())
+        val taken = groups.bands.takenWeek
+        for ((k, v) in taken.withIndex()) if (v > 0f) put(Key.keptTaken(fauna.kinds[k].name), v)
+        taken.fill(0f)
         recordHunters(sim)
         // Weather, means over the land.
         val total = area.sum()

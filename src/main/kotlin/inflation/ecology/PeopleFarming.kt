@@ -201,7 +201,7 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
     if (b.herdTaken.size != b.herd.size) b.herdTaken = FloatArray(b.herd.size)
     for (k in b.herd.indices) {
         // (What beasts of prey took from it while they hunted this week: [raidHerd].)
-        if (b.herdTaken[k] > 0f) { tally(k, HerdFlow.TAKEN, b.herdTaken[k]); b.herdTaken[k] = 0f }
+        if (b.herdTaken[k] > 0f) { tally(k, HerdFlow.TAKEN, b.herdTaken[k]); bands.takenWeek[k] += b.herdTaken[k]; b.herdTaken[k] = 0f }
         var n = b.herd[k]
         if (n <= 0f) continue
         val s = fauna.kinds[k]
