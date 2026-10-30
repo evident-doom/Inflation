@@ -50,6 +50,19 @@ class NominalTest {
     }
 
     @Test
+    fun `a fruit crop swinging fifteen-fold with the mast and kept animals growing from nothing pass, a plain pool swinging thirty-fold is found`() {
+        val w = WorldConfig().stepsPerYear
+        val fruit = Key.biomass(StockName.FRUIT); val kept = Key.biomass(StockName.BANDS_KEPT_ANIMALS); val carrion = Key.biomass(StockName.CARRION)
+        val extra = mapOf(fruit to 1000f, kept to 0.0001f, carrion to 1000f)
+        val r = Nominal.history(history(extra) { s ->
+            for (i in w until 2 * w) { s.getValue(fruit).data[i] = 66f; s.getValue(carrion).data[i] = 33f }
+            for (i in 2 * w until weeks) s.getValue(kept).data[i] = 1f
+        })
+        val what = r.findings.map { it.what }.toSet()
+        assertTrue(fruit !in what && kept !in what && carrion in what, r.report())
+    }
+
+    @Test
     fun `deaths that do not add up to the heads lost are found, and those that do pass`() {
         val dead = Key.deaths("roe deer", "hunger")
         val off = Nominal.history(history(mapOf(dead to 10f)))

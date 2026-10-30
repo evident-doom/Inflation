@@ -89,6 +89,8 @@ enum class Met(val label: String) {
     BANDS_BORE_A_RITE("bands bore a rite of an omen"),
     BANDS_HELD_A_RITE("bands held a rite at its site"),
     BANDS_CUT_A_RITE_SHORT("bands cut a rite short for want of days"),
+    BANDS_HELD_A_RITE_IN_A_LESSER_FORM("bands held a rite in a lesser form"),
+    BANDS_MOVED_A_RITE_TO_A_BETTER_MONTH("bands moved a rite to a month of plenty"),
     BANDS_SPLIT_OVER_THEIR_BELIEF("bands split over their belief"),
     BANDS_TOOK_UP_ANOTHERS_APPOINTMENT("bands took up another's appointment"),
     BANDS_TOOK_UP_ANOTHERS_BURIAL("bands took up another's burial way"),
@@ -130,7 +132,9 @@ enum class Met(val label: String) {
         LEARNED("band learned "), TOOK_UP("band took up "), TOOK_LEAVE_OF("band took leave of "), DROPPED("band dropped "), GIVEN("", " given"),
         TURNED_BACK_BY("bands turned back by "), DOGS_GONE_WILD("dogs gone wild as ", " packs"),
         RITES_HELD("rites held, band "), RITES_CUT_SHORT("rites cut short, band "),
-        RITES_CUT_SHORT_PERCENT_GIVEN("percent of days given to rites cut short, band ");
+        RITES_CUT_SHORT_PERCENT_GIVEN("percent of days given to rites cut short, band "),
+        CUSTOMS_DAYS_ASKED("tenths of days customs asked: "), CUSTOMS_DAYS_GIVEN("tenths of days customs got: "),
+        CUSTOMS_DAYS_TO_HAND("tenths of days to hand for customs, ");
 
         fun key(of: String) = before + of + after
         /** Its tally of [of] in [WeekStats.meetings], for a report to read back. */

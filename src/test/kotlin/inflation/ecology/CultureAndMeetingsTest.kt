@@ -135,11 +135,17 @@ class CultureAndMeetingsTest {
         assertEquals(STRAIN_SPLIT, b.strainBorne(), 1e-6f)
         b.beliefYears = BELIEF_AGE_YEARS
         assertEquals(2f * STRAIN_SPLIT, b.strainBorne(), 1e-6f, "a belief a generation old bears twice the strain")
-        b.rite[3] = 7; b.riteStrength = 2f; b.strain = 5f; b.riteOwed = 4f; b.riteDue = 7
+        b.rite[3] = 7; b.riteStrength = 2f; b.strain = 5f; b.riteOwed = 4f; b.riteAsked = 6f; b.riteSpare = 3f; b.riteDue = 7
         b.dropBelief()
         assertTrue(b.rite.all { it < 0 })
         assertEquals(0f, b.riteStrength); assertEquals(0f, b.beliefYears); assertEquals(0f, b.strain); assertEquals(0f, b.riteOwed)
+        assertEquals(0f, b.riteAsked); assertEquals(0f, b.riteSpare)
         assertEquals(-1, b.riteDue)
+    }
+
+    @Test
+    fun `the year turns at the equinoxes and solstices, every third month`() {
+        assertEquals(listOf(0, 3, 6, 9), (0 until 12).filter { turnOfYear(it) })
     }
 
     @Test

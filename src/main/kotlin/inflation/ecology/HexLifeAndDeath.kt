@@ -470,7 +470,9 @@ private fun HexGroups.mournDead(g: HexGroup, o: Outcome, date: Date) {
         val at = if (!site.none && hexKm(camp, site) <= BODY_CARRY_KM) site else camp
         val p = if (at == camp) g.place else hw.placeNear(g.place, at).takeIf { !it.none } ?: g.place
         val carryKm = if (at == camp) 0.0 else hexKm(camp, at)
-        b.burialOwed += o.deaths * (BURY_DAYS + BEARERS * (2.0 * carryKm / (WALK_KM_PER_HOUR * Activity.WORK_HOURS)).toFloat())
+        val owed = o.deaths * (BURY_DAYS + BEARERS * (2.0 * carryKm / (WALK_KM_PER_HOUR * Activity.WORK_HOURS)).toFloat())
+        b.burialOwed += owed
+        stats.meeting(Met.Of.CUSTOMS_DAYS_ASKED, CustomsPart.BURIALS.label, (10f * owed).roundToInt())
         if (at != camp) { stats.meeting(Met.BANDS_CARRIED_THEIR_DEAD); note(g) { "carried its dead to its ancestors at hex %d".format(at.i) } }
         g.memory.mark(at, PlaceMemory.seasonOf(date.month), stepOf(date), stepsPerYear, g.memory.dead, o.deaths.toFloat())
         land.burials[p] += o.deaths.toFloat()

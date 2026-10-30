@@ -9,6 +9,7 @@ import inflation.Stocks
 import inflation.ecology.Activity
 import inflation.ecology.Catalogue
 import inflation.ecology.Met
+import inflation.ecology.CustomsPart
 import inflation.ecology.RiteWalk
 import inflation.ecology.Mind
 import inflation.ecology.DeathCause
@@ -669,8 +670,8 @@ class Census(private val sim: HexSim) {
                 keeping.sumOf { it.second.strain.toDouble() } / keeping.size.coerceAtLeast(1), keeping.sumOf { it.second.strainBorne().toDouble() } / keeping.size.coerceAtLeast(1)))
         fun met(m: Met) = metYear[m.key] ?: 0
         val held = met(Met.BANDS_HELD_A_RITE); val cut = met(Met.BANDS_CUT_A_RITE_SHORT)
-        println("     rites' year: %d held, %d cut short (%.0f%% held); omens marked: %d death tolls, %d plenty after want, %d strange signs; %d rites born of them; %d bands split over their belief"
-            .format(held, cut, 100.0 * held / (held + cut).coerceAtLeast(1), met(Met.BANDS_MARKED_A_DEATH_TOLL), met(Met.BANDS_MARKED_PLENTY_AFTER_WANT),
+        println("     rites' year: %d held, %d cut short (%.0f%% held; %d of those held in a lesser form, %d moved to a month of plenty); omens marked: %d death tolls, %d plenty after want, %d strange signs; %d rites born of them; %d bands split over their belief"
+            .format(held, cut, 100.0 * held / (held + cut).coerceAtLeast(1), met(Met.BANDS_HELD_A_RITE_IN_A_LESSER_FORM), met(Met.BANDS_MOVED_A_RITE_TO_A_BETTER_MONTH), met(Met.BANDS_MARKED_A_DEATH_TOLL), met(Met.BANDS_MARKED_PLENTY_AFTER_WANT),
                 met(Met.BANDS_MARKED_A_STRANGE_SIGN), met(Met.BANDS_BORE_A_RITE), met(Met.BANDS_SPLIT_OVER_THEIR_BELIEF)))
         fun of(m: Met.Of, w: RiteWalk) = metYear[m.tally(w.label)] ?: 0
         println("     rites by the band's distance from the site: " + RiteWalk.entries.joinToString("; ") { w ->
@@ -678,6 +679,13 @@ class Census(private val sim: HexSim) {
             "%s %d held, %d cut short (%.0f%% held, %.0f%% of their days given)".format(w.label, h, c, 100.0 * h / (h + c).coerceAtLeast(1),
                 of(Met.Of.RITES_CUT_SHORT_PERCENT_GIVEN, w).toDouble() / c.coerceAtLeast(1))
         })
+        fun days(m: Met.Of, part: CustomsPart) = (metYear[m.tally(part.label)] ?: 0) / 10.0
+        val parts = listOf(CustomsPart.BURIALS, CustomsPart.RITES, CustomsPart.CLEANING, CustomsPart.NURSING)
+        val planned = days(Met.Of.CUSTOMS_DAYS_TO_HAND, CustomsPart.HELD); val free = days(Met.Of.CUSTOMS_DAYS_TO_HAND, CustomsPart.FREE)
+        println("     customs' time this year, person-days got of asked: " + parts.joinToString("; ") { part ->
+            val asked = days(Met.Of.CUSTOMS_DAYS_ASKED, part); val got = days(Met.Of.CUSTOMS_DAYS_GIVEN, part)
+            "%s %.0f of %.0f (%.0f%%)".format(part.label, got, asked, 100.0 * got / asked.coerceAtLeast(1e-9))
+        } + "; to hand for them %.0f, %.0f%% of it held by the plan, the rest free".format(planned + free, 100.0 * planned / (planned + free).coerceAtLeast(1e-9)))
         fun line(label: String, key: (Tally.MeetingEnd) -> TallyKey): String {
             fun v(e: Tally.MeetingEnd) = thisYear[key(e)] ?: 0
             val met = v(Tally.MeetingEnd.MET)
