@@ -622,7 +622,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
 /** Reserves carry [g] through lean weeks; a group that ate (nearly) its fill lays them on, most in late summer and autumn. */
 private fun GroupWorld.feedOnReserves(g: HexGroup) {
     val s = g.species
-    if (g.fed < WELL_FED) { val draw = min(g.fat, (1f - g.fed) * days); g.fat -= draw; g.fed = min(1f, g.fed + draw / days) }
+    if (g.fed < WELL_FED) { val draw = min(g.fat, (1f - g.fed) * days); g.fat -= draw; g.fed = min(1f, g.fed + draw / days); g.band?.fatFed = draw / days }
     else { val gain = FAT_EFFICIENCY * g.surplus; val back = min(g.spent, gain); g.spent -= back
         // (What it ate beyond its need wins back the body it burnt before it lays on fat.)
         g.fat = min(s.maxFatDays, g.fat + gain - back) }

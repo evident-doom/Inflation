@@ -61,13 +61,52 @@ class Band(kinds: Int) {
     /** The place it remembers doing best in each month (-1 for none), and how well (0..1). */
     val seasonPlace = IntArray(12) { -1 }
     val seasonQ = FloatArray(12)
-    /** The food it got in each month over the last years, as a share of its need before keeping warm ([foresee]). */
+    /**
+     * The food it got in each month over the last years, as a share of its need before keeping warm, net of its larder: above
+     * 1 in a month it laid food by, below in one it lived off its larder or lost it ([foresee], [addSupply]).
+     */
     val monthSupply = FloatArray(12) { 1f }
+    /** The mean square of each month's [monthSupply] over the same years (NaN till a month is seen): how its years differ ([supplySpread]). */
+    val monthSupplySq = FloatArray(12) { Float.NaN }
+    /** The month whose weeks it is adding up (-1 for none yet), their supply summed and how many ([addSupply]). */
+    var supplyMonth = -1
+    var supplySum = 0f
+    var supplyWeeks = 0
+    /** Its larder at last week's [foresee], days of its people's need before keeping warm (NaN for not yet seen). */
+    var larderSeen = Float.NaN
+    /** The share of this week's need its fat met ([feedOnReserves]): not food it got, for [foresee]. */
+    @Transient var fatFed = 0f
     /**
      * The share of its hands' days left in each month once its fire, shelters and food are held ([BandTime.vital]), a mean
      * over the years (below 0 till it has planned a week then): what its leanest month could give its herders ([keepHerds]).
      */
     val freeShare = FloatArray(12) { -1f }
+
+    /**
+     * Adds a week's food in month [m] ([got], as [monthSupply] counts it): the weeks of a month are added up, and once it
+     * is over its mean goes into its month's [monthSupply] and [monthSupplySq], a year at a time. [k] is the share a week
+     * took of its month's mean when it went in week by week, so a month's year takes as much as its weeks did then.
+     */
+    fun addSupply(m: Int, got: Float, k: Float) {
+        if (m != supplyMonth) {
+            val was = supplyMonth
+            if (was >= 0 && supplyWeeks > 0) {
+                val mean = supplySum / supplyWeeks
+                val kYear = 1f - (1f - k).pow(1f / k)
+                if (monthSupplySq[was].isNaN()) monthSupplySq[was] = monthSupply[was] * monthSupply[was]
+                monthSupply[was] += kYear * (mean - monthSupply[was])
+                monthSupplySq[was] += kYear * (mean * mean - monthSupplySq[was])
+            }
+            supplyMonth = m; supplySum = 0f; supplyWeeks = 0
+        }
+        supplySum += got; supplyWeeks++
+    }
+
+    /** How far month [m]'s food has gone from year to year ([monthSupply]): a standard deviation, 0 till seen. */
+    fun supplySpread(m: Int): Float {
+        val sq = monthSupplySq[m]
+        return if (sq.isNaN()) 0f else sqrt(max(0f, sq - monthSupply[m] * monthSupply[m]))
+    }
     /** Share of its people sick with each [Illness] now, and share spared for having had it. */
     val sick = enumFloats<Illness>()
     val immune = enumFloats<Illness> { it.endemic }
@@ -599,7 +638,7 @@ class Band(kinds: Int) {
     fun splitInto(o: Band, adults: Int, stay: Int, share: Float, r: Random, copied: (Band) -> Unit) {
         o.ties.clear(); o.ties.putAll(ties); o.appointment = appointment
         o.houseHex = houseHex; o.house = house; o.drivenFrom = drivenFrom; o.drivenBy = drivenBy; o.homeEarth = homeEarth; o.homeWalls = homeWalls; o.homeGroundC = homeGroundC; o.palisade = palisade; herdTame.copyInto(o.herdTame); herd.copyInto(o.herd); herdGrew.copyInto(o.herdGrew); herdPet.copyInto(o.herdPet)
-        o.houseLives = houseLives; o.houseFood = houseFood; foodFrom.copyInto(o.foodFrom); o.fishPull = fishPull; monthSupply.copyInto(o.monthSupply); freeShare.copyInto(o.freeShare); o.leanDays = leanDays
+        o.houseLives = houseLives; o.houseFood = houseFood; foodFrom.copyInto(o.foodFrom); o.fishPull = fishPull; monthSupply.copyInto(o.monthSupply); monthSupplySq.copyInto(o.monthSupplySq); o.supplyMonth = supplyMonth; o.supplySum = supplySum; o.supplyWeeks = supplyWeeks; o.larderSeen = larderSeen; freeShare.copyInto(o.freeShare); o.leanDays = leanDays
         o.seedDomestic = seedDomestic; o.grainDomestic = grainDomestic; o.seedCorn = seedCorn * share; seedCorn -= o.seedCorn; o.sinceRaided = sinceRaided; o.sisu = sisu
         o.knownHomes.putAll(knownHomes); o.knownLineage.putAll(knownLineage)
         skills.copyInto(o.skills)
@@ -673,6 +712,8 @@ class Band(kinds: Int) {
         a.seedCorn = corn + bCorn
         for (i in Illness.entries) { a.sick[i] += w * (b.sick[i] - a.sick[i]); a.immune[i] += w * (b.immune[i] - a.immune[i]) }
         a.hurt += w * (b.hurt - a.hurt); a.lame += w * (b.lame - a.lame)
+        // (Its larder as last seen, a person's days: the two larders are put together, so near enough the two blended.)
+        a.larderSeen += w * (b.larderSeen - a.larderSeen)
         a.ornaments += b.ornaments; a.exotic += b.exotic
         for (i in 0 until min(a.herd.size, b.herd.size)) {
             val n = a.herd[i] + b.herd[i]
