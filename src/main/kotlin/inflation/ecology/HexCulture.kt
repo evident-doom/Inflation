@@ -171,8 +171,13 @@ const val UNLUCKY = 0.6f
 const val UNLUCKY_WEEKS = 8
 /** Share of its store aim a band holding to demand sharing keeps (what it stores is asked of it). */
 const val SHARING_STORE = 0.5f
-/** A settled band without feasts to keep the peace splits at this share of its usual most (quarrels). */
-const val SETTLED_QUARRELS = 0.75f
+/** Most people a band at home in its houses holds before it splits. Villages are larger than forager camps: early villages
+ * without bigger institutions split at 127 to 170 (Taraco Peninsula, Bandy 2004: mean about 127, splits near 170;
+ * Hutterite colonies kept under about 150, splitting at 168 on average, Alberti 2014; both as summarised by Dunbar 2022);
+ * Natufian settlements about 60 to 100, PPNA villages about 330 (Kuijt 2000), held by rites and shared buildings. */
+const val SETTLED_SIZE = 150
+/** Tie between the two halves of a band when it splits: they were one band the week before, and grow apart only as ties fade. */
+const val SPLIT_TIE = 1f
 /** Graves and meetings at a place (in a band's memory) before it makes an appointment there. */
 const val APPOINT_MIN = 3f
 /** How strongly an appointment draws a band in its month, and its ancestors' places draw it at any time. */

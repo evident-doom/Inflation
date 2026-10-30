@@ -294,7 +294,9 @@ private fun HexGroups.splitOff(g: HexGroup, adults: Int, young: Int): HexGroup {
     moveFood(g, n, g.larder * share)
     // Both halves keep what the band knew and share out its tools and goods.
     n.bold = g.bold
-    g.band?.let { b -> n.band = Band(fauna.kinds.size).also { nb -> b.splitInto(nb, adults, g.adults, share, rnd) { riteInherit(it) }; nb.sisu = Sisu.inherit(b.sisu, n.id, seedBase) } }
+    g.band?.let { b -> n.band = Band(fauna.kinds.size).also { nb -> b.splitInto(nb, adults, g.adults, share, rnd) { riteInherit(it) }; nb.sisu = Sisu.inherit(b.sisu, n.id, seedBase)
+        // The halves were one band: each holds the other as close as can be, until living apart fades it.
+        b.ties[n.id] = SPLIT_TIE; nb.ties[g.id] = SPLIT_TIE } }
     return n
 }
 
