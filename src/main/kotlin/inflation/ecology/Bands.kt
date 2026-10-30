@@ -71,8 +71,20 @@ class Bands internal constructor(private val world: GroupWorld) {
     /** What bands have built that stands in the world ([Structure]): no band's own, any band's to use. */
     val built = ArrayList<Structure>()
 
+    /**
+     * Weeks of camping whose fouling the ground of each hex holds ([foulGround]): what camps leave there, whoever left it,
+     * clearing while nobody camps there.
+     */
+    val fouledWeeks = FloatArray(world.hex.size)
+
+    /** Each hex's midden, 0..1: refuse kept in one place by bands that keep their camp clean, for any band camped there to use. */
+    val midden = FloatArray(world.hex.size)
+
     /** (The [built] by hex, as the list last stood: see [structuresAt].) */
     @Volatile @Transient internal var builtByHex: StructureIndex? = null
+
+    /** (Whether [fouledWeeks] has been looked at since the world was loaded: see [foulGround].) */
+    @Transient internal var groundSeen = false
 
     /** (Whether a world saved before [built] was kept has had its bands' houses raised in it: see [tendStructures].) */
     @Transient internal var structuresSeen = false

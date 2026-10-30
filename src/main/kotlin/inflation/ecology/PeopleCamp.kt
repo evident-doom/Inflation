@@ -59,6 +59,16 @@ internal fun GroupWorld.moveDays(g: HexGroup, km: Float) = km * (g.band?.let { r
 const val CARRY_KG = 15f
 /** Extra yearly deaths among children in a camp kept for a year or more. */
 const val CAMP_FOULING = 0.02f
+/** People whose camping fouls a hex by a week of camping each week: a band of a camp's size, as fouling went by a band's weeks before it went by the place. */
+const val FOUL_PEOPLE = 50f
+/**
+ * Weeks of fouling a hex nobody camps at clears each week. Most gut sicknesses die in the soil within about 20 days and nearly all
+ * within 70 to 100 (faecal coliforms, Salmonella, enteroviruses, Entamoeba cysts; roundworm eggs keep for months: survival table
+ * at 20-30 °C, PMC7158167): an estimate from those, a year's fouling gone in about a season.
+ */
+const val FOUL_CLEAR = 4f
+/** How much of its standing a midden nobody tends loses a year (it is no longer kept apart from the camp): an estimate. */
+const val MIDDEN_WEAR = 0.3f
 /** Whether [g]'s band [b] has come to a new camp this week (or has none yet), where no shelter of its stands. */
 internal fun GroupWorld.movedCamp(g: HexGroup, b: Band) = b.campPlace.none || hw.placeHex[g.place] != hw.placeHex[b.campPlace]
 
@@ -261,20 +271,60 @@ internal fun Band.cacheMass() = massOf(cache, cacheKgPer)
 
 /** Share of a cache lost each week to damp, mice and thieves. */
 const val CACHE_SPOIL = 0.02f
-/** Extra yearly deaths among children of a camp kept long: refuse, flies and fouled water. */
-internal fun HexGroups.campFouling(g: HexGroup, campWeeks: Int = g.band?.campWeeks ?: 0): Float {
+/**
+ * Extra yearly deaths among children of a camp kept long: refuse, flies and fouled water, by the weeks of fouling [campWeeks]
+ * the ground of hex [h] holds ([campWeeksAt]) and how far the band or the hex's midden keeps it clean ([hygieneAt]).
+ */
+internal fun HexGroups.campFouling(g: HexGroup, h: Hex = hw.placeHex[g.place], campWeeks: Int = campWeeksAt(h)): Float {
     val b = g.band ?: return 0f
-    return CAMP_FOULING * tuning.campFouling * fouled(campWeeks) * b.hygiene * (1f - 0.3f * b.medicine)
+    return CAMP_FOULING * tuning.campFouling * fouled(campWeeks) * hygieneAt(b, h) * (1f - 0.3f * b.medicine)
 }
 
-/** How fouled a band's camp is, 0..1: not at all for its first two months, fully after a year more. */
-internal fun HexGroups.fouled(b: Band) = fouled(b.campWeeks)
-/** How fouled a camp kept [campWeeks] weeks is (see [fouled]). */
+/** How fouled a camp kept [campWeeks] weeks is, 0..1: not at all for its first two months, fully after a year more. */
 internal fun GroupWorld.fouled(campWeeks: Int) = min(1f, max(0f, campWeeks - stepsPerYear / 6f) / stepsPerYear)
 
-/** How much a band would rather leave its camp than stay: the camp fouled (less where it keeps it clean), against the graves of its dead. */
-internal fun HexGroups.stayCost(b: Band): Float {
-    var c = FOUL_AVOID * fouled(b) * b.hygiene
+/** The weeks of camping whose fouling the ground of hex [h] holds ([Bands.fouledWeeks]). */
+internal fun HexGroups.campWeeksAt(h: Hex) = bands.fouledWeeks[h].toInt()
+
+/**
+ * How much of what fouling spreads [b] suffers at hex [h] (1: all of it): spared as far as it keeps its own camp clean, or
+ * as far as the hex's midden keeps the refuse apart, whichever spares it more. The midden is any band's to use, whatever its
+ * customs and whoever keeps it.
+ */
+internal fun HexGroups.hygieneAt(b: Band, h: Hex) = min(b.hygiene, 1f - (1f - HYGIENE_GUARD) * bands.midden[h])
+
+/**
+ * Once a week: the people camped at each hex foul its ground ([FOUL_PEOPLE] of them a week of camping each week), and a hex
+ * nobody camps at clears ([FOUL_CLEAR]); never beyond fully fouled ([fouled]). Bands keeping their camps clean
+ * ([Tradition.HYGIENE]) keep the hex's midden as far as they did the work, people for people; untended, it wears
+ * ([MIDDEN_WEAR]). (A world saved before the ground held its fouling starts from the weeks its bands have kept their camps.)
+ */
+internal fun HexGroups.foulGround() {
+    val weeks = bands.fouledWeeks; val midden = bands.midden
+    if (!bands.groundSeen) {
+        bands.groundSeen = true
+        if (weeks.all { it == 0f }) for (g in groups) { val b = g.band ?: continue
+            if (g.alive) { val h = hw.placeHex[g.place]; weeks[h.i] = max(weeks[h.i], b.campWeeks.toFloat()) } }
+    }
+    val people = FloatArray(hex.size); val kept = FloatArray(hex.size)
+    for (g in groups) { val b = g.band ?: continue
+        if (!g.alive) continue
+        val h = hw.placeHex[g.place].i
+        people[h] += g.size.toFloat()
+        if (b.holds(Tradition.HYGIENE)) kept[h] += g.size * b.cleaned
+    }
+    val most = stepsPerYear * 7f / 6f
+    for (h in 0 until hex.size) {
+        weeks[h] = if (people[h] > 0f) min(most, weeks[h] + people[h] / FOUL_PEOPLE) else max(0f, weeks[h] - FOUL_CLEAR)
+        val tended = if (people[h] > 0f) kept[h] / people[h] else 0f
+        midden[h] = max(tended, midden[h] * (1f - MIDDEN_WEAR * years))
+    }
+}
+
+/** How much a band would rather leave its camp than stay: the camp fouled (less where it or the midden keeps it clean), against the graves of its dead. */
+internal fun HexGroups.stayCost(g: HexGroup, b: Band): Float {
+    val h = hw.placeHex[g.place]
+    var c = FOUL_AVOID * fouled(campWeeksAt(h)) * hygieneAt(b, h)
     if (b.holds(Tradition.BURIAL) && b.campWeeks > 4) c -= BURIAL_STAY
     return c
 }
