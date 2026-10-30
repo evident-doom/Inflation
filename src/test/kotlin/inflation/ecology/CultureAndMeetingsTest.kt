@@ -81,11 +81,15 @@ class CultureAndMeetingsTest {
         assertEquals(Language.understanding(b.words, o.words), Regard(b, 7, o).understood)
         val far = Band(0).also { f -> f.lineage[5] = 1f; f.totem = FaunaKind(2); for (t in Tradition.entries) f.traditions[t] = !b.holds(t) }
         assertTrue(Regard(b, 9, far, 0f).wariness <= Regard.MOST_WARY)
-        // (No pair differs in every custom: where they lay their dead counts only where both bury them, and rites only where
-        // both keep some.)
-        assertEquals(1f + STRANGER_HOSTILITY + CUSTOMS_HOSTILITY * (CUSTOMS - 2f) / CUSTOMS, Regard(b, 9, far, 0f).wariness, 1e-6f)
+        // (No pair differs in every custom: where they lay their dead counts only where both bury them, rites only where
+        // both keep some, and home ground only where both have homes and the map is at hand.)
+        assertEquals(1f + STRANGER_HOSTILITY + CUSTOMS_HOSTILITY * (CUSTOMS - 4f) / CUSTOMS, Regard(b, 9, far, 0f).wariness, 1e-6f)
         b.rite[0] = 5; far.rite[3] = 6
-        assertEquals(1f + STRANGER_HOSTILITY + CUSTOMS_HOSTILITY * (CUSTOMS - 1f) / CUSTOMS, Regard(b, 9, far, 0f).wariness, 1e-6f)
+        assertEquals(1f + STRANGER_HOSTILITY + CUSTOMS_HOSTILITY * (CUSTOMS - 3f) / CUSTOMS, Regard(b, 9, far, 0f).wariness, 1e-6f)
+        // (One that farms and one that forages live apart too.)
+        far.seedCorn = 1f; assertEquals(Livelihood.FARMING, far.livelihood()); assertEquals(Livelihood.FORAGING, b.livelihood())
+        assertEquals(1f + STRANGER_HOSTILITY + CUSTOMS_HOSTILITY * (CUSTOMS - 2f) / CUSTOMS, Regard(b, 9, far, 0f).wariness, 1e-6f)
+        far.seedCorn = 0f
         // (A site in common, whatever the month, is one faith there.)
         far.rite[7] = 5
         assertFalse(ritesApart(b, far)); assertEquals(Regard(b, 9, far, 0f).customsApart, Tradition.entries.size + 1)

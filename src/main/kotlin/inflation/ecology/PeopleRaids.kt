@@ -66,7 +66,7 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
     val them = ArrayList<Pair<HexGroup, Regard>>()
     for (id in within) {
         val o = groups.firstOrNull { it.id == id && it.alive } ?: continue
-        val r = Regard(b, id, o.band ?: continue)
+        val r = Regard(b, id, o.band ?: continue, map = hex)
         if (r.tie <= 0f) them += o to r
     }
     if (them.isEmpty()) return
@@ -98,7 +98,7 @@ internal fun HexGroups.fightRaids(weather: Weather) {
         val b = g.band ?: continue; val tb = target.band ?: continue
         if (g.alive && target.alive && hw.placeHex[target.place] == hw.placeHex[g.place]) {
             val u = Language.understanding(b.words, tb.words)
-            tallyMeeting(MetAs(Regard(b, target.id, tb, u), Regard(tb, g.id, b, u)), Tally.MeetingEnd.RAIDED_HOME)
+            tallyMeeting(MetAs(Regard(b, target.id, tb, u, hex), Regard(tb, g.id, b, u, hex)), Tally.MeetingEnd.RAIDED_HOME)
             fight(g, b, target, tb, planned = true, weather)
         }
     }
@@ -273,7 +273,7 @@ internal fun HexGroups.raidSides(g: HexGroup, o: HexGroup, ob: Band, planned: Bo
         for (n in groups) {
             val nb = n.band ?: continue
             if (n === o || n === g || !n.alive || !nb.atHome || hw.placeHex[n.place] != h) continue
-            val share = Regard(nb, o.id, ob).close - Regard(nb, g.id, gb).close
+            val share = Regard(nb, o.id, ob, map = hex).close - Regard(nb, g.id, gb, map = hex).close
             if (share <= 0f) continue
             helpers += Helper(n, nb, share)
             helped += share * strength(n) * ground * (1f + HOUSE_DEFENCE * nb.house + PALISADE_DEFENCE * nb.palisade)

@@ -4,6 +4,7 @@ import inflation.EnumBools
 import inflation.enumFloats
 import inflation.world.Hex
 import inflation.world.HexArray
+import inflation.world.HexMap
 import inflation.world.toHexArray
 import inflation.world.get
 import inflation.world.set
@@ -240,8 +241,28 @@ fun wordsAt(x: Double, y: Double): IntArray {
 fun totemAt(lineage: Int, kinds: Int) =
     if (kinds <= 0) FaunaKind.NONE else FaunaKind(((mix64(lineage.toLong() * HASH_B + HASH_A) ushr 33) % kinds).toInt())
 
-/** How many customs bands are counted apart by ([Regard.customsApart]): their traditions, their totem, their burial way and their rites. */
-val CUSTOMS = Tradition.entries.size + 3
+/**
+ * How many customs bands are counted apart by ([Regard.customsApart]): their traditions, their totem, their burial way, their
+ * rites, how they live and their home ground.
+ */
+val CUSTOMS = Tradition.entries.size + 5
+
+/** How a band lives, as others see it: by the crops it sows, the herds it keeps, or what it finds. */
+enum class Livelihood { FORAGING, HERDING, FARMING }
+
+/**
+ * How [this] band lives now: it farms while it keeps seed corn of its own crop ([Band.seedCorn]) to sow, herds while it keeps a
+ * herd, and forages otherwise. (Farming first: those who keep both are farmers who keep beasts.)
+ */
+fun Band.livelihood() = if (seedCorn > 0f) Livelihood.FARMING else if (herd.any { it > 0f }) Livelihood.HERDING else Livelihood.FORAGING
+
+/**
+ * Whether two bands that both have a home have them on other ground: farther apart than a day's walk ([BODY_CARRY_KM]), the
+ * ground a band walks over from its home and back in a day. A band with no home is not counted apart by it, as one that
+ * leaves its dead is not by where the other lays them.
+ */
+fun homesApart(a: Band, b: Band, map: HexMap) =
+    !a.houseHex.none && !b.houseHex.none && map.distanceKm(a.houseHex, b.houseHex) > BODY_CARRY_KM
 
 /**
  * Whether two bands that both keep rites keep none at the same site: those who gather at the same holy place, whatever the
@@ -282,7 +303,7 @@ fun kinship(a: FloatArray, b: FloatArray): Float { var s = 0f; for (i in a.indic
  * or robs its cache, what it gives, how far it believes what it is told, whose meeting place it takes up, and whom it counts
  * as friend or foe about it.
  */
-internal class Regard(private val of: Band, private val toId: Int, private val to: Band, private var heard: Float = -1f) {
+internal class Regard(private val of: Band, private val toId: Int, private val to: Band, private var heard: Float = -1f, private val map: HexMap? = null) {
     val understood: Float get() { if (heard < 0f) heard = Language.understanding(of.words, to.words); return heard }
     val tie get() = of.tie(toId)
     val close get() = max(0f, tie)
@@ -296,11 +317,13 @@ internal class Regard(private val of: Band, private val toId: Int, private val t
     val kin get() = kinship(of.lineage, to.lineage)
     /**
      * How many of its customs ([CUSTOMS]: its traditions, its totem as the other keeps it, where it lays its dead, if both
-     * bury them, and its rites' sites, if both keep rites: [ritesApart]) the other holds otherwise.
+     * bury them, its rites' sites, if both keep rites: [ritesApart], how it lives: [livelihood], and its home ground, if both
+     * have homes: [homesApart]; read where the map is at hand) the other holds otherwise.
      */
     val customsApart get() = Tradition.entries.count { of.holds(it) != to.holds(it) } + (if (of.totem != to.keptTotem) 1 else 0) +
         (if (of.holds(Tradition.BURIAL) && to.holds(Tradition.BURIAL) && of.burialWay != to.burialWay) 1 else 0) +
-        (if (ritesApart(of, to)) 1 else 0)
+        (if (ritesApart(of, to)) 1 else 0) + (if (of.livelihood() != to.livelihood()) 1 else 0) +
+        (if (map != null && homesApart(of, to, map)) 1 else 0)
 
     /**
      * The chance [of] falls on [to], [drive] being the chance at its least (what drives it, by its readiness): the less they
@@ -341,7 +364,7 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
     val bandA = a.band ?: return false; val bandB = b.band ?: return false
     bandA.ensureMarks(fauna.kinds.size); bandB.ensureMarks(fauna.kinds.size)
     val u = Language.understanding(bandA.words, bandB.words)
-    val ab = Regard(bandA, b.id, bandB, u); val ba = Regard(bandB, a.id, bandA, u)
+    val ab = Regard(bandA, b.id, bandB, u, hex); val ba = Regard(bandB, a.id, bandA, u, hex)
     if (rite != null && rite.site in bandA.rite && rite.site in bandB.rite) { ab.holy = true; ba.holy = true }
     val metAs = MetAs(ab, ba)
     tallyMeeting(metAs, Tally.MeetingEnd.MET)
