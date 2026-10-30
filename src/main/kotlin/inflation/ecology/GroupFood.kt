@@ -157,12 +157,15 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         if (FORAGE_DIAG == w.s.name && diagSampled(g, weather, 0.002f, 1)) System.err.println(
             "forage ${w.s.name} adults ${g.adults} want ${w.wantAll} left $left offers ${o.m} used ${o.used} gain ${o.gain.toList()} spent ${o.spent.toList()} f $f: " +
             o.order.take(min(6, o.m)).joinToString("; ") { "t${o.type[it].ordinal} k${o.kind[it]} r=${o.rate[it]} e=${o.kg[it]} h=${o.time[it]}" })
+        val meat0 = w.meat; val kills0 = w.kills; val killDays0 = w.killDays
         takeFoods(w, o, f)
         time?.spend(Activity.FOOD, (w.busy - busy0) * w.hands)
+        // A bear's band it came on at its kills drives it off one (a pack; see [residentRivalsMeet]): if still hungry, it
+        // hunts again in the next pass.
+        if (w.band == null) residentRivalsMeet(g, w.ground, w.met, f, w.meat - meat0, w.kills - kills0, w.killDays - killDays0, w.rnd)
+            .let { m -> w.meat += m; w.fed += m * w.feeds(Food.BIG_GAME) }
     }
     if (w.band != null && w.time == null) planWeek(w, 0f, 0f)
-    // A bear's band it came on while it hunted drives it off its kill (a pack; see [residentRivalsMeet]).
-    if (w.band == null) residentRivalsMeet(g, w.ground, w.met, w.searched, w.meat - g.meatMet, w.kills, w.killDays, w.rnd).let { m -> w.meat += m; w.fed += m * w.feeds(Food.BIG_GAME) }
     // (What a day's foraging brought it this week, kg of its need, kept month by month as a mean over the years: what a
     // herder's day must bring to be worth it, [herdPays].)
     w.band?.let { b -> w.time?.spentOn(Activity.FOOD)?.takeIf { it > 0f }?.let { d ->

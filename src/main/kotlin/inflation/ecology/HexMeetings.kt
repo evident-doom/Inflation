@@ -321,10 +321,10 @@ internal fun residentStrength(s: Species) = s.groupSize * s.massKg * s.ferocity
 
 /**
  * Standing orders, a pack and the bands of the [Catalogue.residentRivals] stronger than it that it came on unseen while it
- * hunted this week ([met] per animal over its hunting [ground], in the [searched] share of its week), each by the rule
+ * hunted in a pass of its week ([met] per animal over its hunting [ground], in the [searched] share of its week), each by the rule
  * hunters of different kinds meet by ([enemiesMeet]): a band (a bear's, against wolves) that much stronger, coming on it at
  * one of its [kills] (as often as the [killDays] it spent at them take of its week), drives it off that kill and takes most
- * of what is left of it, there for the band to eat. ([meat] is what it has of its kills this week. The weaker rivals it hunts
+ * of what is left of it, there for the band to eat. ([meat] is what it has of the pass's kills. The weaker rivals it hunts
  * as game, as they come: [huntingOdds].) Returns the pack's meat lost, below zero, in what it credits a kill at.
  */
 internal fun HexGroups.residentRivalsMeet(g: HexGroup, ground: HuntGround, met: FloatArray, searched: Float, meat: Float, kills: Int,
