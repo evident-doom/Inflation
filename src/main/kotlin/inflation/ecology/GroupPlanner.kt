@@ -537,7 +537,7 @@ internal class GroupPlanner(private val gs: HexGroups) {
                 }
             }
         }
-        return (g.adults * adult.coerceIn(0f, 0.9f) + g.young * young.coerceIn(0f, 0.95f)) / max(1, g.size)
+        return (g.adults * adult.coerceIn(0f, Hazards.MAX_GROWN_ODDS) + g.young * young.coerceIn(0f, Hazards.MAX_YOUNG_ODDS)) / max(1, g.size)
     }
 
     /**

@@ -571,9 +571,9 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     val spared = 1f - ELDER_CARE * help
     var adultSum = 0f; var youngSum = 0f
     for (h in hazards) { adultSum += h.adult; youngSum += h.young }
-    val adultOdds = adultSum.coerceIn(0f, 0.9f)
+    val adultOdds = adultSum.coerceIn(0f, Hazards.MAX_GROWN_ODDS)
     g.deathOdds = adultOdds
-    val youngOdds = (youngSum * spared).coerceIn(0f, 0.95f)
+    val youngOdds = (youngSum * spared).coerceIn(0f, Hazards.MAX_YOUNG_ODDS)
     if (s.human && g.young > 0) for (h in hazards) if (h.young > 0f)
         stats.childDeaths.computeIfAbsent(h.cause.label) { DoubleAdder() }.add((g.young * spared * h.young).toDouble())
     val da = binomial(g.adults, adultOdds, r); val dy = binomial(g.young, youngOdds, r)
@@ -599,7 +599,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     band?.let { b -> if (disease > 0f || da > 0) b.practise(Skill.HERBS, 0.2f * PRACTICE); if (bornNow > 0) b.practise(Skill.MIDWIFERY) }
     g.young -= dy
     // The dead lie where they fell, for the scavengers and the soil.
-    var carrion = (da + oldAge + 0.3f * dy) * s.massKg
+    var carrion = (da + oldAge + HexFauna.YOUNG_WEIGHT * dy) * s.massKg
     // The week's deaths are shared among the causes by how much each weighed, the grown and the young apart ("other": age, accidents, ordinary illness).
     val causes = shareDeaths(hazards, da, dy, r)
     if (oldAge > 0) causes += Died(DeathCause.OLD_AGE, oldAge)
@@ -608,7 +608,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     if (g.adults == 0) {
         // Young left without a grown animal of their kind die.
         val orphans = g.young
-        carrion += 0.3f * orphans * s.massKg
+        carrion += HexFauna.YOUNG_WEIGHT * orphans * s.massKg
         g.young = 0
         return Outcome(carrion, bornNow, da + oldAge + dy, causes, orphans, null, dy + orphans)
     }
