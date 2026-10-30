@@ -493,9 +493,12 @@ private fun HexGroups.herdOdds(w: ForageWeek) {
                 val image = w.g.metLately(ps.index, w.today).let { it / (it + SEARCH_HALF) }
                 val odds = success * (0.5f + 0.5f * Niches.overlap(s, ps)) * (1f - seenFirst(view[0], view[1], null, ps)) / n * image
                 if (odds > 0f) w.herds += HerdGame(c, k, j, odds, 1f / success.coerceIn(1e-3f, 1f))
+                if (HUNT_DIAG) { val swept = w.ground.km2[j] / land.areaKm2[p]
+                    diag(s, HuntStep.HERDS_MET, swept); diag(s, HuntStep.HERD_KILLS_ON_OFFER, n * swept * odds) }
             }
         }
     }
+    if (HUNT_DIAG && w.herds.isNotEmpty()) diag(s, HuntStep.HERD_WEEKS, 1f)
 }
 
 /**
@@ -765,6 +768,7 @@ private fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
         when (o.type[i]) {
             Food.BIG_GAME -> {
                 val kills1 = if (o.herd[i] >= 0) raidHerd(g, w.herds[o.herd[i]], Place(p), expected, o.kg[i], w.rnd, haul)
+                    .also { k -> diag(g.species, HuntStep.HERD_KILLS_SOUGHT, expected); diag(g.species, HuntStep.HERD_KILLS, k.toFloat()) }
                     else huntGame(g, o.kind[i], Place(p), expected, o.kg[i], w.spareYoung, w.rnd, haul)
                 val luck = (kills1 - expected) * o.time[i] * w.party[0]
                 if (luck > 0f) w.killOver += luck else w.killUnder -= luck
