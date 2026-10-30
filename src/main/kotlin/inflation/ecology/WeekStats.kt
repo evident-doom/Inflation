@@ -89,6 +89,8 @@ enum class Met(val label: String) {
     BANDS_BORE_A_RITE("bands bore a rite of an omen"),
     BANDS_HELD_A_RITE("bands held a rite at its site"),
     BANDS_CUT_A_RITE_SHORT("bands cut a rite short for want of days"),
+    BANDS_HELD_A_RITE_IN_A_LESSER_FORM("bands held a rite in a lesser form"),
+    BANDS_MOVED_A_RITE_TO_A_BETTER_MONTH("bands moved a rite to a month of plenty"),
     BANDS_SPLIT_OVER_THEIR_BELIEF("bands split over their belief"),
     BANDS_TOOK_UP_ANOTHERS_APPOINTMENT("bands took up another's appointment"),
     BANDS_TOOK_UP_ANOTHERS_BURIAL("bands took up another's burial way"),

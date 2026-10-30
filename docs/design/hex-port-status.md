@@ -129,7 +129,8 @@ hex learning tools. (The 1 km model's `Simulation` has since been removed; the h
 | A totem per lineage: a resident kind its hunters leave alone unless hungry; passed on as a mark, a custom bands count each other apart by, not seen kept by a band known to have eaten of it | yes |
 | Burial ways for bands that bury: at camp, or carried to where most of their dead lie if within a day's walk; digging and carrying cost customs time; passed on as a mark | yes |
 | Rites oblige: in the rite's month each adult owes customs days and the walk to the site and back; held once given, else cut short; sanctity per place from rites and graves (fading over a generation), holier places draw new rites | yes |
-| Beliefs strained by rites cut short split their bands: half go without the belief, older beliefs bear more | yes |
+| Rites adjust to the season: one the month could not give its days is held in a lesser form with what was given; the belief is strained only as far as the days not given went to other work than the band's needs; a rite cut short by need moves to a month beside it the band eats better in. Rites are drawn to the turns of the year (equinoxes, solstices) as they are born and moved | yes |
+| Beliefs strained by rites held back from split their bands: half go without the belief, older beliefs bear more | yes |
 | Rites born of omens: a week's death toll far above the usual, plenty after long want, or a strange sign drawn at random (about one a year, a third salient) where the band is, borne out by the same month going well there again or by another band that marked the same place; no yearly take-up and no letting rites go; rites copied between bands met as far as each trusts the other, not from the better-off | yes |
 | Language as words per concept, understanding between bands | yes (naming game, drift) |
 | Marrying out, lineage mix, inbreeding | yes |

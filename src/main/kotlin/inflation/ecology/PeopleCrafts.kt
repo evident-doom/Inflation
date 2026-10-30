@@ -132,6 +132,8 @@ internal fun GroupWorld.keepCustoms(b: Band, people: Float, time: BandTime) {
     b.nursed = if (nurse > 0f) min(1f, time.leftFor(Activity.CUSTOMS) / nurse) else 1f
     tally(CustomsPart.NURSING, nurse, b.nursed * nurse)
     time.spend(Activity.CUSTOMS, b.nursed * nurse)
+    // (What of the week went neither to its needs nor to its customs could have gone to a rite under way.)
+    if (b.riteDue >= 0 && time.vital > 0f) b.riteSpare += max(0f, time.total - time.vital - time.spentOn(Activity.CUSTOMS))
     if (heldDays > 0f || canDays > 0f) {
         stats.meeting(Met.Of.CUSTOMS_DAYS_TO_HAND, CustomsPart.HELD.label, (10f * min(heldDays, canDays)).roundToInt())
         stats.meeting(Met.Of.CUSTOMS_DAYS_TO_HAND, CustomsPart.FREE.label, (10f * max(0f, canDays - heldDays)).roundToInt())

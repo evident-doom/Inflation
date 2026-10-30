@@ -734,7 +734,7 @@ const val RITE_SITES = 3
 /** Person-days each adult gives a rite held at its site: the gathering, the dances, the telling. An estimate; no figure found. */
 const val RITE_DAYS = 2f
 /**
- * Strain a young belief bears before part of the band breaks from it: rites cut short, about the year's rites missed; a
+ * Strain a young belief bears before part of the band breaks from it: rites held back from, about the year's rites; a
  * belief kept [BELIEF_AGE_YEARS] bears twice that (older beliefs are clung to). Strain eases to a third over
  * [STRAIN_EASE_YEARS] of weeks the band eats its fill. Estimates; no figure found.
  */
@@ -760,8 +760,11 @@ fun riteStrengthAt(lineage: Int, tuning: Tuning) = tuning.riteFounderMax * Math.
  * A rite obliges: at the start of its month the band's adults owe [RITE_DAYS] each of their customs' time, and, unless
  * the band is camped at the site ([inflation.Tuning.roundArrivedKm]), the walk there and back. Nothing weighs the trip
  * against what it brings; the band does not move for it, its adults go and come back. Once the days are given the rite
- * is held and the place grows holier by the adults at it; what the month does not give cuts the rite short, nothing
- * is held, and the band's belief is strained ([Band.strain]; see [HexGroups.beliefSplits]).
+ * is held and the place grows holier by the adults at it. A rite adjusts to the season: one whose month ran out before
+ * its days were given is held in a lesser form, with what was given (the place grows holier as far), and the belief is
+ * strained only as far as the days not given went to other work than the band's needs ([Band.riteSpare],
+ * [Band.strain]; see [HexGroups.beliefSplits]): need excuses, choice does not. What need cut short moves, as often as
+ * not, to a month beside it the band eats better in ([riteToPlenty]): harvest feasts, not famine fasts.
  */
 internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
     if (!tuning.rounds) return
@@ -780,8 +783,19 @@ internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
         val asked = riteDays(km) * g.adults
         stats.meeting(Met.Of.RITES_CUT_SHORT, walk.label)
         stats.meeting(Met.Of.RITES_CUT_SHORT_PERCENT_GIVEN, walk.label, if (asked > 0f) (100f * (1f - b.riteOwed / asked)).roundToInt().coerceIn(0, 100) else 0)
-        b.riteOwed = 0f; b.riteDue = -1; b.strain += 1f
+        // (Held in a lesser form with what was given; the strain is what other work took of what it did not give.)
+        val month = Math.floorMod(b.riteHeld, 12L).toInt()
+        val given = (b.riteAsked - b.riteOwed).coerceAtLeast(0f)
+        val withheld = min(b.riteOwed, b.riteSpare)
+        if (given > 0f && b.riteAsked > 0f) {
+            land.sanctity[b.riteDue] += g.adults * given / b.riteAsked
+            stats.meeting(Met.BANDS_HELD_A_RITE_IN_A_LESSER_FORM)
+        }
+        b.strain += if (b.riteAsked > 0f) withheld / b.riteAsked else 1f
+        val byNeed = if (b.riteAsked > 0f) (b.riteOwed - withheld) / b.riteAsked else 0f
+        b.riteOwed = 0f; b.riteDue = -1; b.riteAsked = 0f; b.riteSpare = 0f
         stats.meeting(Met.BANDS_CUT_A_RITE_SHORT)
+        if (rnd.nextFloat() < byNeed) riteToPlenty(b, month)
     }
     // (A belief grows older while it is kept; its strain eases while the band eats its fill.)
     if (b.rite.any { it >= 0 }) b.beliefYears += years
@@ -790,6 +804,7 @@ internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
     if (site >= 0 && b.riteHeld != now) {
         b.riteHeld = now; b.riteDue = site
         b.riteOwed = riteDays(riteKm(g, site)) * g.adults
+        b.riteAsked = b.riteOwed; b.riteSpare = 0f
         stats.meeting(Met.Of.CUSTOMS_DAYS_ASKED, CustomsPart.RITES.label, (10f * b.riteOwed).roundToInt())
     }
     // Plenty after long want is an omen too: where and when the hunger broke.
@@ -805,6 +820,31 @@ internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
         else if (weather.date.month == b.omenMonth && weather.date.year > b.omenYear && g.fed >= Thresholds.HUNGRY &&
             hex.distanceKm(hw.placeHex[g.place], hw.placeHex[b.omenPlace]) <= tuning.roundArrivedKm) bearRite(b)
     }
+}
+
+/**
+ * The months the year turns in, which most peoples mark and gather at (the sun's year, [inflation.world.Date.solarDeclination],
+ * from [inflation.world.Date.START_DAY]: the spring equinox opens month 3, midsummer month 6, the autumn equinox month 9,
+ * midwinter month 0). Rites are drawn to them as they are born ([bearRite]) and moved ([riteToPlenty]).
+ */
+fun turnOfYear(month: Int) = month % 3 == 0
+
+/** The two months beside [month]. */
+private fun besideMonths(month: Int) = listOf(Math.floorMod(month - 1, 12), Math.floorMod(month + 1, 12))
+
+/**
+ * [b]'s rite in [month], cut short by need, moves to a month beside it with no rite of its own that the band eats
+ * better in ([Band.monthSupply]), or as well if it is a turn of the year ([turnOfYear]); the turn of the year first,
+ * else the best fed.
+ */
+private fun HexGroups.riteToPlenty(b: Band, month: Int) {
+    val site = b.rite[month]
+    if (site < 0) return
+    val can = besideMonths(month).filter { b.rite[it] < 0 &&
+        (b.monthSupply[it] > b.monthSupply[month] || turnOfYear(it) && b.monthSupply[it] >= b.monthSupply[month]) }
+    val to = can.firstOrNull { turnOfYear(it) } ?: can.maxByOrNull { b.monthSupply[it] } ?: return
+    b.rite[to] = site; b.rite[month] = -1
+    stats.meeting(Met.BANDS_MOVED_A_RITE_TO_A_BETTER_MONTH)
 }
 
 /** How far [g] is from rite site [site], km. */
@@ -845,7 +885,9 @@ internal fun GroupWorld.bearRite(b: Band) {
     val p = b.omenPlace; val m = b.omenMonth
     b.omenPlace = -1; b.omenWeight = 0f
     if (p < 0 || b.rite[m] >= 0 || p in b.rite || b.rite.count { it >= 0 } >= RITE_SITES) return
-    b.rite[m] = p
+    // (Held at the turn of the year beside it, if that is free: the dates every band knows.)
+    val at = if (turnOfYear(m)) m else besideMonths(m).firstOrNull { turnOfYear(it) && b.rite[it] < 0 } ?: m
+    b.rite[at] = p
     stats.meeting(Met.BANDS_BORE_A_RITE)
 }
 
