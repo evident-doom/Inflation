@@ -119,14 +119,13 @@ internal fun HexGroups.keepAnimals(g: HexGroup, b: Band) {
         val fed = min(1f, ate / want)
         need += want; got += ate
         // They whelp as they are fed and die as their kind does by people's camps. A camp that does not feed them they
-        // leave rather than starve by it (as fast as hunger would kill kept herds): they join a pack of their wild kind
-        // about the camp, or go off as one.
+        // leave rather than starve by it (as fast as hunger would kill kept herds): they go off hungry as a pack of their
+        // own, of their wild kind, whose ground and prey then decide whether it lasts.
         val died = k * min(0.9f, DOG_DEATHS * years)
         small.deposit(DeadPool.CARRION, p, Kg(died * s.massKg))
         val left = binomial(k.toInt(), min(0.9f, 0.5f * (1f - fed) * years), rnd)
         if (left > 0) {
-            val pack = bands.followersByHex[h].orEmpty().firstOrNull { it.alive && it.species == s }
-            if (pack != null) pack.adults += left else dogsGoWild(s, p, left)?.let { bands.strays += it }
+            dogsGoWild(s, p, left, fatShare = 0f)?.let { bands.strays += it }
             stats.meeting(Met.Of.DOGS_LEFT, s.name, left)
         }
         b.kept[i] = max(0f, k + k * DOG_BIRTHS * fed * years - died - left)
