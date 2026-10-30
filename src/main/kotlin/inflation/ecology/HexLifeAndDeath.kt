@@ -958,8 +958,8 @@ private fun HexGroups.becomeOne(date: Date) {
         if (bands.size < 2) continue
         for (i in bands.indices) for (j in i + 1 until bands.size) {
             val a = bands[i]; val c = bands[j]
+            val ab = a.band ?: continue; val cb = c.band ?: continue
             if (!a.alive || !c.alive) continue
-            val ab = a.band!!; val cb = c.band!!
             if (ab.mind != cb.mind || a.size + c.size > min(maxSize(a), maxSize(c))) continue
             if (alike(Regard(ab, c.id, cb)) < ONE_GROUP || alike(Regard(cb, a.id, ab)) < ONE_GROUP) continue
             val (into, from) = if (a.size >= c.size) a to c else c to a
