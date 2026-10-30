@@ -9,6 +9,7 @@ import inflation.Stocks
 import inflation.ecology.Activity
 import inflation.ecology.Catalogue
 import inflation.ecology.Met
+import inflation.ecology.Lifeway
 import inflation.ecology.CustomsPart
 import inflation.ecology.RiteWalk
 import inflation.ecology.ritesApart
@@ -223,13 +224,22 @@ class Census(private val sim: HexSim) {
         })
     }
 
-    /** The hunters' families: packs, how many hold ground and could breed, lone animals, adults and young. */
-    fun printHuntersFamilies() {
+    /**
+     * The hunters' families: packs, how many hold ground and could breed, lone animals, adults and young; and from [metYear]
+     * (the year's meeting tallies summed over its weeks) how their packs came and went that year. Report only.
+     */
+    fun printHuntersFamilies(metYear: Map<TallyKey, Int>) {
         println("     hunters' families (packs / holding ground / able to breed / alone / adults / young): " +
             groups.kinds.filter { it.carnivore }.joinToString(", ") { s ->
             val gs = groups.groups.filter { it.alive && it.species == s }
             "%s %d / %d / %d / %d / %d / %d".format(s.name, gs.size, gs.count { !it.home.none }, gs.count { !it.home.none && it.adults >= 2 },
                 gs.count { it.adults == 1 }, gs.sumOf { it.adults }, gs.sumOf { it.young })
+        })
+        fun met(m: Met.Of, s: Species) = metYear[m.tally(s.name)] ?: 0
+        println("     packs' year (young left alone / split off / lone pairs / settled ground / ended / of them without ground): " +
+            groups.kinds.filter { it.carnivore && it.lifeway == Lifeway.PACK }.joinToString(", ") { s ->
+            "%s %d / %d / %d / %d / %d / %d".format(s.name, met(Met.Of.PACK_LEFT_ALONE, s), met(Met.Of.PACK_SPLIT_OFF, s), met(Met.Of.PACK_PAIRED, s),
+                met(Met.Of.PACK_SETTLED, s), met(Met.Of.PACK_ENDED, s), met(Met.Of.PACK_ENDED_HOMELESS, s))
         })
     }
 
