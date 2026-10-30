@@ -366,6 +366,8 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
             // And by how it chooses ([Mind]): the two kinds of band side by side.
             stats.hunting.merge(Tally.bandsMind(b.mind, Tally.Bands.BAND_WEEKS), 1, Int::plus)
             stats.hunting.merge(Tally.bandsMind(b.mind, Tally.Bands.PEOPLE_WEEKS), g.size, Int::plus)
+            // (And those within a month of a camp move: what [Tally.starvedMoved] is set against.)
+            if (b.campWeeks * days < Date.DAYS_PER_MONTH) stats.hunting.merge(Tally.movedWeeks(b.mind), g.size, Int::plus)
             if (o.births > 0) stats.hunting.merge(Tally.bandsMind(b.mind, Tally.Bands.BORN), o.births, Int::plus)
             if (g.path.size > 1) stats.hunting.merge(Tally.bandsMind(b.mind, Tally.Bands.MOVES), 1, Int::plus)
             for ((cause, k) in o.causes) if (k > 0) stats.hunting.merge(Tally.bandsMindDied(b.mind, cause), k, Int::plus)

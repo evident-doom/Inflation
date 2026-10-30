@@ -289,6 +289,8 @@ object Tally {
     fun starvedAt(mind: Mind, at: LarderAt) = TallyKey.raw("starved at larder ${mind.label}:${at.label}")
     /** Hunger deaths in bands of mind [mind] that moved camp in the month before. */
     fun starvedMoved(mind: Mind) = TallyKey.raw("starved after a move ${mind.label}")
+    /** People-weeks of bands of mind [mind] within a month of a camp move. */
+    fun movedWeeks(mind: Mind) = TallyKey.raw("people-weeks after a move ${mind.label}")
     /** A planning band's days in each tier of its week beyond its essentials ([planDays]), tenths of a day. */
     fun planTier(t: PlanTier) = TallyKey.raw("plans:${t.label}")
     /** Bands' deaths of [cause] by how they choose; [bandsMindDied] (mind) starts all of them. */

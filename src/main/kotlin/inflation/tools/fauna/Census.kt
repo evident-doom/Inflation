@@ -394,7 +394,7 @@ class Census(private val sim: HexSim) {
         })
         // Where bands' stores went: what moved their larders, days a person a year by season, and their hunger deaths by what the
         // larder held then and whether they had moved camp in the month before ([Band.larderFlow], [Tally.starvedAt]).
-        println("bands' larders, last year (by mind: what moved food in or out, days of a person's need a person a year, the year's net and spring/summer/autumn/winter; hunger deaths per 1000 a year and their share by the larder then, and after a move in the month before): " + Mind.entries.joinToString("; ") { m ->
+        println("bands' larders, last year (by mind: what moved food in or out, days of a person's need a person a year, the year's net and spring/summer/autumn/winter; hunger deaths per 1000 a year and their share by the larder then, and after a move in the month before, against the share of people-weeks within a month of one): " + Mind.entries.joinToString("; ") { m ->
             val years = ((lastYear[Tally.bandsMind(m, Tally.Bands.PEOPLE_WEEKS)] ?: 0).toDouble() / stepsPerYear).coerceAtLeast(1e-9)
             fun f(why: LarderMove, season: Season) = (lastYear[Tally.larderFlow(m, season, why)] ?: 0).toDouble() / years
             val starved = Tally.LarderAt.entries.sumOf { (lastYear[Tally.starvedAt(m, it)] ?: 0).toDouble() }
@@ -402,7 +402,8 @@ class Census(private val sim: HexSim) {
                 "%s %.1f (%s)".format(why.label, Season.entries.sumOf { f(why, it) }, Season.entries.joinToString("/") { "%.1f".format(f(why, it)) })
             } + "; hunger %.1f: ".format(1000 * starved / years) +
                 Tally.LarderAt.entries.joinToString(", ") { "%s %.0f%%".format(it.label, 100 * (lastYear[Tally.starvedAt(m, it)] ?: 0) / starved.coerceAtLeast(1.0)) } +
-                ", after a move %.0f%%".format(100 * (lastYear[Tally.starvedMoved(m)] ?: 0) / starved.coerceAtLeast(1.0))
+                ", after a move %.0f%% (of people-weeks %.0f%%)".format(100 * (lastYear[Tally.starvedMoved(m)] ?: 0) / starved.coerceAtLeast(1.0),
+                    100 * (lastYear[Tally.movedWeeks(m)] ?: 0) / (years * stepsPerYear).coerceAtLeast(1.0))
         })
         run {
             // A planning band's days beyond its essentials, by tier ([planDays]).
