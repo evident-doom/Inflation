@@ -162,7 +162,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     }
     if (w.band != null && w.time == null) planWeek(w, 0f, 0f)
     // A bear's band it came on while it hunted drives it off its kill (a pack; see [residentRivalsMeet]).
-    if (w.band == null) residentRivalsMeet(g, w.ground, w.met, w.searched, w.meat, w.rnd).let { m -> w.meat += m; w.fed += m * w.feeds(Food.BIG_GAME) }
+    if (w.band == null) residentRivalsMeet(g, w.ground, w.met, w.searched, w.meat - g.meatMet, w.kills, w.killDays, w.rnd).let { m -> w.meat += m; w.fed += m * w.feeds(Food.BIG_GAME) }
     // (What a day's foraging brought it this week, kg of its need, kept month by month as a mean over the years: what a
     // herder's day must bring to be worth it, [herdPays].)
     w.band?.let { b -> w.time?.spentOn(Activity.FOOD)?.takeIf { it > 0f }?.let { d ->
@@ -343,6 +343,8 @@ private class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, packK
     // What it has got: meat (the meat it took in its meetings with it), small game, carrion and bones, plants, fish; and what
     // all of it feeds, in kg of its need (see [worth]).
     var meat = g.meatMet; var smallGot = 0f; var scraps = 0f; var plants = 0f; var fish = 0f
+    // (Its kills of big game this week, and the party-days it spent at them, handling and eating.)
+    var kills = 0; var killDays = 0f
     // (Of the fish, what was caught rather than gathered off the shore: that alone is practice at fishing.)
     var fished = 0f
     // (How fish paid against the gatherers' least paying food taken up, the first pass: see [Offers.pull]. And what fish from a
@@ -728,6 +730,7 @@ private fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
                 }
                 w.busy += kills1 * o.time[i] * w.party[0]
                 w.meat += haul.kg; w.fed += haul.kg * w.feeds(Food.BIG_GAME)
+                w.kills += kills1; w.killDays += kills1 * HANDLING_DAYS + haul.kg * w.eats
             }
             Food.SMALL_GAME -> small.catchSmallIn(Place(p), Kg(expected), min(land.areaKm2[p], w.smallSweep * smallSeen(Place(p))), w.weather).v.let { w.smallGot += it; w.fed += it * w.feeds(Food.SMALL_GAME) }
             Food.CARRION -> scavenge(g, Place(p), expected, w.sweep, w.rnd).let { w.scraps += it; w.fed += it * w.feeds(Food.CARRION) }

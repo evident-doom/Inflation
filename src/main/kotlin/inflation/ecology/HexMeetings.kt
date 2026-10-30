@@ -322,19 +322,24 @@ internal fun residentStrength(s: Species) = s.groupSize * s.massKg * s.ferocity
 /**
  * Standing orders, a pack and the bands of the [Catalogue.residentRivals] stronger than it that it came on unseen while it
  * hunted this week ([met] per animal over its hunting [ground], in the [searched] share of its week), each by the rule
- * hunters of different kinds meet by ([enemiesMeet]): a band (a bear's, against wolves) that much stronger drives it off
- * its kill and takes most of it ([meat], what the pack has of kills this week), left where it fell for the band to eat.
- * (The weaker rivals it hunts as game, as they come: [huntingOdds].) Returns the pack's meat lost, below zero, in what
- * it credits a kill at.
+ * hunters of different kinds meet by ([enemiesMeet]): a band (a bear's, against wolves) that much stronger, coming on it at
+ * one of its [kills] (as often as the [killDays] it spent at them take of its week), drives it off that kill and takes most
+ * of what is left of it, there for the band to eat. ([meat] is what it has of its kills this week. The weaker rivals it hunts
+ * as game, as they come: [huntingOdds].) Returns the pack's meat lost, below zero, in what it credits a kill at.
  */
-internal fun HexGroups.residentRivalsMeet(g: HexGroup, ground: HuntGround, met: FloatArray, searched: Float, meat: Float, rnd: Random): Float {
+internal fun HexGroups.residentRivalsMeet(g: HexGroup, ground: HuntGround, met: FloatArray, searched: Float, meat: Float, kills: Int,
+                                          killDays: Float, rnd: Random): Float {
     val s = g.species
-    if (g.band != null || searched <= 0f || meat <= 0f) return 0f
+    if (g.band != null || searched <= 0f || meat <= 0f || kills <= 0) return 0f
     val nk = fauna.kinds.size
-    var have = meat
+    var have = meat; var left = kills
+    val atKill = min(1f, killDays / days)
+    // A leopard hauls its kill up a tree where there are trees; others guard it where they can.
+    val treed = Niches.Shelter.TREE in Niches.shelters(s)
     for (j in 0 until ground.size) {
         val pi = ground.place[j]; val p = Place(pi)
         val sp = strength(g) * (if (g.home == hw.placeHex[p]) HOME_ADVANTAGE else 1f)
+        val cached = if (treed) land.plants.canopy(p) else 0f
         for (k in 0 until nk) {
             val ps = fauna.kinds[k]
             // (A bear asleep in its den meets no one.)
@@ -343,14 +348,12 @@ internal fun HexGroups.residentRivalsMeet(g: HexGroup, ground: HuntGround, met: 
             val dens = fauna.adults[k][pi] + fauna.young[k][pi]
             if (dens <= 0f) continue
             // (One try at each band it came on: a band met scatters, see [huntingOdds].)
-            var times = poisson(dens * ground.km2[j] * met[j * nk + k] * searched, rnd)
-            // A leopard hauls its kill up a tree where there are trees; others guard it where they can.
-            val cached = if (Niches.Shelter.TREE in Niches.shelters(s)) land.plants.canopy(p) else 0f
-            while (times-- > 0 && have > 0f) {
+            var times = poisson(dens * ground.km2[j] * met[j * nk + k] * searched * atKill, rnd)
+            while (times-- > 0 && left > 0) {
                 stats.meeting(Met.HUNTERS_OF_OTHER_KINDS)
                 if (rnd.nextFloat() >= THEFT * (1f - cached)) continue
-                val taken = 0.7f * have
-                have -= taken
+                val taken = 0.7f * have / left
+                have -= taken; left--
                 // (What the pack held of it is left where it fell, and the band eats it there: [HexFauna.animalFood] takes carrion first.)
                 small.deposit(DeadPool.CARRION, p, Kg(taken * meatShare(null) / creditShare(null)))
                 stats.meeting(Met.KILL_STOLEN)
