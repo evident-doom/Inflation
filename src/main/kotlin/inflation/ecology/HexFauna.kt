@@ -108,7 +108,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * For the check: where each kind's food came from, summed over its animals since last read (fresh
      * grass, browse, fruit and roots; small prey and carrion; its reserves), and the
      * animals counted, so that each over the last is the share of a full need met that way: indexed by
-     * [Fed.PLANTS], [Fed.ANIMAL], [Fed.RESERVES] and [Fed.HEADS].
+     * [Fed.PLANTS], [Fed.ANIMAL], [Fed.RESERVES] and [Fed.HEADS]; and of the plants, the fruit ([Fed.FRUIT]) and the roots
+     * and fallen mast dug or picked up ([Fed.UNDERGROUND]).
      */
     @Transient val fedFrom = Array(kinds.size) { Array(Fed.entries.size) { DoubleAdder() } }
     /**
@@ -776,6 +777,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val avail = FloatArray(nk)
         // (Of each kind's need: what it got of plants; what it ate beyond, laid on.)
         val got = FloatArray(nk); val surplus = FloatArray(nk)
+        // (For the check: of what it got of plants, the shares of its need from fruit and from roots and mast.)
+        val gotFruit = FloatArray(nk); val gotUnder = FloatArray(nk)
         // (What each kind ate this week, kg per m2, and the protein in it: fresh growth full, cured grass
         // little; see [proteinMet]. What it ate to fatten is left out.)
         val ateKg = FloatArray(nk); val proteinKg = FloatArray(nk)
@@ -823,6 +826,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             z.access = avail[k]
             forage(s, d, quality, want, underSnow, z, b)
             z.got[k] = b.got / want
+            z.gotFruit[k] = (b.fruit + b.fruit2) * Nourishment.FRUIT * s.needScale / want
+            z.gotUnder[k] = (b.roots + b.roots2) * Nourishment.ROOTS * s.needScale / want
             var grass3 = 0f; var browse3 = 0f
             if (b.got >= want && reserve[k][p] < s.maxFatDays) {
                 // (In energy, as [forage] works: see [Species.needScale].)
@@ -873,6 +878,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 if (heads > 0f) {
                     val i = k.i * FED
                     ff[i + Fed.PLANTS.ordinal] += (min(1f, z.got[k]) * ps * heads).toDouble()
+                    // (Fruit and roots as shares of what the plants met, so the parts add up to it.)
+                    val part = if (z.got[k] > 0f) min(1f, z.got[k]) * ps * heads / z.got[k] else 0f
+                    ff[i + Fed.FRUIT.ordinal] += (z.gotFruit[k] * part).toDouble(); ff[i + Fed.UNDERGROUND.ordinal] += (z.gotUnder[k] * part).toDouble()
                     ff[i + Fed.ANIMAL.ordinal] += (min(1f, animal) * (1f - ps) * heads).toDouble(); ff[i + Fed.HEADS.ordinal] += heads.toDouble()
                 }
                 // (Animal food beyond its share makes up for plants that fell short.)
@@ -2007,7 +2015,7 @@ enum class ResidentDeath(val cause: DeathCause) {
 enum class Stuck { HEADS, STUCK, AT_EDGE, PEAK }
 
 /** Where residents' food came from ([HexFauna.fedFrom]): fresh plants, prey and carrion, reserves; and the animals counted. */
-enum class Fed { PLANTS, ANIMAL, RESERVES, HEADS }
+enum class Fed { PLANTS, ANIMAL, RESERVES, HEADS, FRUIT, UNDERGROUND }
 private val FED = Fed.entries.size
 @Suppress("NOTHING_TO_INLINE") inline operator fun Array<DoubleAdder>.get(f: Fed) = this[f.ordinal]
 

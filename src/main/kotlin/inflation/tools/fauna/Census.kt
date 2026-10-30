@@ -129,10 +129,16 @@ class Census(private val sim: HexSim) {
                 inN[k] / inA.coerceAtLeast(1.0)) })
         println("     residents fed from (fresh plants / prey and carrion / reserves, shares of need per animal this year): " +
             fauna.kinds.indices.joinToString(", ") { k ->
-            val ff = fauna.fedFrom[k]; val h = ff[Fed.HEADS].sumThenReset().coerceAtLeast(1e-9)
-            "%s %.2f/%.2f/%.2f".format(fauna.kinds[k].name, ff[Fed.PLANTS].sumThenReset() / h,
-                ff[Fed.ANIMAL].sumThenReset() / h, ff[Fed.RESERVES].sumThenReset() / h)
+            val ff = fauna.fedFrom[k]; val h = ff[Fed.HEADS].sum().coerceAtLeast(1e-9)
+            "%s %.2f/%.2f/%.2f".format(fauna.kinds[k].name, ff[Fed.PLANTS].sum() / h, ff[Fed.ANIMAL].sum() / h, ff[Fed.RESERVES].sum() / h)
         })
+        println("     residents' plants by food (forage / fruit / roots and fallen mast, shares of need per animal this year): " +
+            fauna.kinds.indices.joinToString(", ") { k ->
+            val ff = fauna.fedFrom[k]; val h = ff[Fed.HEADS].sum().coerceAtLeast(1e-9)
+            val fruit = ff[Fed.FRUIT].sum() / h; val under = ff[Fed.UNDERGROUND].sum() / h
+            "%s %.2f/%.2f/%.2f".format(fauna.kinds[k].name, ff[Fed.PLANTS].sum() / h - fruit - under, fruit, under)
+        })
+        for (ff in fauna.fedFrom) for (a in ff) a.reset()
         println("     residents held hungry with no better place next door (share of head-weeks this year / of those at a closed border / most in one week): " +
             fauna.kinds.indices.filter { fauna.stuck[it][Stuck.HEADS.ordinal] > 0.0 }.joinToString(", ") { k ->
             val st = fauna.stuck[k]; val h = st[Stuck.HEADS.ordinal]
