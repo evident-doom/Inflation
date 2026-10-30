@@ -128,6 +128,9 @@ class HexGroups(
      * the world's start) and its site. Not saved: a gathering under way when a save is taken is forgotten.
      */
     @Transient internal val riteGatherings = HashMap<Long, MutableList<HexGroup>>()
+    /** The site of the rite whose gathering is meeting now, and the bands there before ([gatherAtRite]); -1 and null otherwise. */
+    @Transient internal var holySite = -1
+    @Transient internal var holyGathering: List<HexGroup>? = null
     /** How packs set their ways each week ([AnimalWays]); null for the hand-written ways. */
     @Transient var hunterWays: AnimalWays? = null
 
