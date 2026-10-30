@@ -255,6 +255,8 @@ class Band(kinds: Int) {
      * [keepHerds] sizes it to [herd].)
      */
     var herdPet = FloatArray(kinds)
+    /** Of each kind, the heads beasts of prey took from its herd since it last kept it ([raidHerd], [keepHerds]). */
+    var herdTaken = FloatArray(kinds)
     /**
      * Of the grain in its stores, what it reaped from sown fields and keeps to sow first, its seed corn (as its stores count
      * it; eaten last, so no more than its grain: [seedCornIn]), and the share of that from ears that hold their grain;
