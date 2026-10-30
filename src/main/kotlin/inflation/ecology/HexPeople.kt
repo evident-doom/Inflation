@@ -10,6 +10,7 @@ import inflation.KgM2
 import inflation.min
 import inflation.world.Date
 import inflation.world.Hex
+import inflation.world.Place
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
