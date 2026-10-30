@@ -213,6 +213,14 @@ class Census(private val sim: HexSim) {
         }
     }
 
+    /** Kills robbed over the year, from [metYear] (the year's meeting tallies summed over its weeks): by and from each hunting kind, kills and kg. Report only. */
+    fun printKillsStolen(metYear: Map<TallyKey, Int>) {
+        fun met(m: Met.Of, s: Species) = metYear[m.tally(s.name)] ?: 0
+        println("     kills stolen over the year (by: kills, kg / from: kills, kg): " + groups.kinds.filter { it.carnivore && !it.human }.joinToString(", ") { s ->
+            "%s %d, %d / %d, %d".format(s.name, met(Met.Of.KILLS_STOLEN_BY, s), met(Met.Of.KG_STOLEN_BY, s), met(Met.Of.KILLS_STOLEN_FROM, s), met(Met.Of.KG_STOLEN_FROM, s))
+        })
+    }
+
     /** The hunters' families: packs, how many hold ground and could breed, lone animals, adults and young. */
     fun printHuntersFamilies() {
         println("     hunters' families (packs / holding ground / able to breed / alone / adults / young): " +

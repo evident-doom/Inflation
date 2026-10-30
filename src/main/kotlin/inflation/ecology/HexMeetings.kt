@@ -10,6 +10,7 @@ import inflation.ecology.HexSmallLife.DeadPool
 import inflation.Books
 import inflation.Kg
 import inflation.world.Weather
+import kotlin.math.roundToInt
 import kotlin.math.max
 import kotlin.math.min
 import java.util.Arrays
@@ -292,6 +293,8 @@ internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, b
         weak.meatMet -= taken; strong.meatMet += taken
         bookKill(strong, taken, 0f, 0f); bookKill(weak, -taken, 0f, 0f)
         stats.meeting(Met.KILL_STOLEN)
+        stats.meeting(Met.Of.KILLS_STOLEN_BY, strong.species.name); stats.meeting(Met.Of.KILLS_STOLEN_FROM, weak.species.name)
+        stats.meeting(Met.Of.KG_STOLEN_BY, strong.species.name, taken.roundToInt()); stats.meeting(Met.Of.KG_STOLEN_FROM, weak.species.name, taken.roundToInt())
     }
     // A camp fire, and dogs that bark at night, keep lions and hyenas from taking people.
     val fire = if (weak.species.human) (1f - CAMPFIRE) * (1f - DOG_GUARD * (weak.band?.dogShare ?: 0f)) else 1f
