@@ -1,34 +1,34 @@
 package inflation.ecology
 
-import inflation.EnumFloats
-import inflation.enumFloats
-import inflation.Profile
-import inflation.world.Hex
-import inflation.world.Place
-import inflation.world.get
-import inflation.world.set
-import inflation.ecology.HexSmallLife.DeadPool
 import inflation.Books
-import inflation.Kg
-import inflation.KgM2
 import inflation.Config
+import inflation.EnumFloats
 import inflation.HASH_A
 import inflation.HASH_B
 import inflation.HASH_C
+import inflation.Kg
+import inflation.KgM2
+import inflation.Profile
+import inflation.ecology.HexSmallLife.DeadPool
+import inflation.enumFloats
 import inflation.mix64
 import inflation.unitOf
-import inflation.world.HexDrinkingWater
-import inflation.world.Weather
+import inflation.world.Biome
 import inflation.world.Date
+import inflation.world.Hex
+import inflation.world.HexDrinkingWater
+import inflation.world.Place
+import inflation.world.Weather
+import inflation.world.get
+import inflation.world.set
+import java.util.stream.IntStream
+import kotlin.math.PI
 import kotlin.math.exp
 import kotlin.math.max
-import kotlin.math.roundToInt
 import kotlin.math.min
-import kotlin.random.Random
-import inflation.world.Biome
-import java.util.stream.IntStream
+import kotlin.math.roundToInt
 import kotlin.math.sqrt
-import kotlin.math.PI
+import kotlin.random.Random
 
 // Hunting and foraging along the way: what a group gets, eats, stores and keeps of its week's food.
 
@@ -710,15 +710,18 @@ private fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
         // (Gatherers take the near ground first: the share they reach of a place as a disc about the camp, two thirds of
         // its radius out on average; a place round the camp lies half a hex further. The walk takes no skill.)
         val off = if (qi < w.gatherAt.size) 0f else hex.hexKm.toFloat() / 2f
-        val walk = 2f / 3f * sqrt(reach * land.areaKm2[q] / PI.toFloat()) + off
-        val seedWalk = 2f / 3f * sqrt(seedReach * land.areaKm2[q] / PI.toFloat()) + off
+        fun walkKm(share: Float) = 2f / 3f * sqrt(share * land.areaKm2[q] / PI.toFloat()) + off
+        val walk = walkKm(reach)
+        val seedWalk = walkKm(seedReach)
         fun walked(t: Food, km: Float) = km * w.walkDaysPerKm / dryShare(t)
         // (A band's gatherers must find fruit before they pick it, as they must roots: the thinner it grows, the longer a
         // kilo; see [PLANT_SIGHT_M2_PER_DAY].)
         val food = fauna.food
+        // (A plant food on offer at [q]: [share] of the ground reached, of [density] kg a km², for [workDays] a kg.)
+        fun plant(f: Food, kind: Int, share: Float, density: Float, workDays: Float) =
+            offer(w, o, f, kind, Place(q), land.total(Place(q), KgM2(share * density)).v / days, 1f, workDays)
         fun sought(density: Float) = if (band != null && density > 0f) 1f / (PLANT_SIGHT_M2_PER_DAY * density * w.gatherers) else 0f
-        offer(w, o, Food.FRUIT, 0, Place(q), land.total(Place(q), KgM2(reach * food.fruit[q])).v / days, 1f,
-            fruitQ + sought(food.fruit[q]) + walked(Food.FRUIT, walk))
+        plant(Food.FRUIT, 0, reach, food.fruit[q], fruitQ + sought(food.fruit[q]) + walked(Food.FRUIT, walk))
         // (Roots likewise, searched out over less ground a day, [ROOT_SEARCH_M2_PER_DAY]; none are dug in frozen ground,
         // [HexFood.diggable]. The mast lying under the trees is picked up a nut at a time, as fruit is picked ([MAST_KIND]);
         // its bitter share must be leached before it is eaten, by bands that know how and have water by them
@@ -726,24 +729,20 @@ private fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
         if (band != null) {
             val bulbs = food.diggable(Place(q))
             val rootSearch = if (bulbs > 0f) 1f / (ROOT_SEARCH_M2_PER_DAY * bulbs * w.gatherers) else 0f
-            offer(w, o, Food.ROOTS, 0, Place(q), land.total(Place(q), KgM2(reach * bulbs)).v / days, 1f,
-                ROOT_DIGGING * pickQ + rootSearch + walked(Food.ROOTS, walk))
+            plant(Food.ROOTS, 0, reach, bulbs, ROOT_DIGGING * pickQ + rootSearch + walked(Food.ROOTS, walk))
             val bitter = if (band.leachesMast(land.drink.water[q] >= Thresholds.WET || land.drink.waterKm[q] < 3f)) MAST_BITTER else 0f
             val eaten = 1f - MAST_BITTER + bitter
             val leach = bitter / eaten * MAST_LEACH_DAYS_PER_KG / w.gatherers * band.slowness(Skill.LEACHING)
-            offer(w, o, Food.ROOTS, MAST_KIND, Place(q), land.total(Place(q), KgM2(reach * eaten * food.mast[q])).v / days, 1f,
-                fruitQ + leach + sought(food.mast[q]) + walked(Food.ROOTS, walk))
-        } else offer(w, o, Food.ROOTS, 0, Place(q), land.total(Place(q), KgM2(reach * food.underground(Place(q)))).v / days, 1f,
-            ROOT_DIGGING * pickQ + walked(Food.ROOTS, walk))
-        offer(w, o, Food.FINDS, 0, Place(q), land.total(Place(q), KgM2(reach * fauna.food.finds[q])).v / days, 1f, ROOT_DIGGING * pickQ + walked(Food.FINDS, walk))
+            plant(Food.ROOTS, MAST_KIND, reach * eaten, food.mast[q], fruitQ + leach + sought(food.mast[q]) + walked(Food.ROOTS, walk))
+        } else plant(Food.ROOTS, 0, reach, food.underground(Place(q)), ROOT_DIGGING * pickQ + walked(Food.ROOTS, walk))
+        plant(Food.FINDS, 0, reach, food.finds[q], ROOT_DIGGING * pickQ + walked(Food.FINDS, walk))
         // Grass seed must be reaped, threshed and ground: worth it only with the tools and the hands.
         // (The small seeds of wild grasses take longer a kilo than wild cereal's, [SMALL_SEED_SLOWER]; both must be found, as
         // fruit is.)
-        offer(w, o, Food.SEED, 0, Place(q), land.total(Place(q), KgM2(seedReach * food.seeds[q])).v / days, 1f,
-            (seedQ - eats) * SMALL_SEED_SLOWER + eats + sought(food.seeds[q]) + walked(Food.SEED, seedWalk))
+        plant(Food.SEED, 0, seedReach, food.seeds[q], (seedQ - eats) * SMALL_SEED_SLOWER + eats + sought(food.seeds[q]) + walked(Food.SEED, seedWalk))
         // Wild and sown cereals: reaped like grass seed, but richer where they stand.
         val cereal = food.grain[q] + food.fieldGrain[q]
-        offer(w, o, Food.GRAIN, 0, Place(q), land.total(Place(q), KgM2(seedReach * cereal)).v / days, 1f, seedQ + sought(cereal) + walked(Food.GRAIN, seedWalk))
+        plant(Food.GRAIN, 0, seedReach, cereal, seedQ + sought(cereal) + walked(Food.GRAIN, seedWalk))
     }
     // Bands fish the river, the lake or the sea by their camp, as their skill and nets allow ([Band.fishing]); and gather
     // shellfish off the shore, which wants neither (kind [SHELLFISH_KIND] of the fish offered).
