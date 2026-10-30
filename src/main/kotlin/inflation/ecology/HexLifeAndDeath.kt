@@ -247,11 +247,13 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         o.split?.let { c ->
             val n = splitOff(g, c.adults, c.young) // a young pack has no ground yet
             born += n
+            if (s.lifeway == Lifeway.PACK && g.band == null) stats.meeting(Met.Of.PACK_SPLIT_OFF, s.name)
             leaveBelief(g, n)
         }
         if (o.leavers > 0) {
             repeat(o.leavers) { born += splitOff(g, 1, 0) } // each goes alone, to find a mate and ground
             stats.meeting(Met.YOUNG_HUNTERS_LEFT_THEIR_PACK, o.leavers)
+            stats.meeting(Met.Of.PACK_LEFT_ALONE, s.name, o.leavers)
         }
     }
     groups += born
@@ -933,6 +935,7 @@ internal fun HexGroups.mergeAndPair(date: Date) {
             a.adults += b.adults; a.young += b.young
             a.fed = (a.fed + b.fed) / 2f; a.fat = (a.fat + b.fat) / 2f; a.spent = (a.spent + b.spent) / 2f; a.bred = (a.bred + b.bred) / 2f
             if (a.home.none) claimGround(a, b.home)
+            stats.meeting(Met.Of.PACK_PAIRED, a.species.name)
             b.mergedSize = b.size; b.mergedInto = a.id
             b.adults = 0; b.young = 0
         }

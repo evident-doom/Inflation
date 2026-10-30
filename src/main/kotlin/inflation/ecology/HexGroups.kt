@@ -282,7 +282,13 @@ class HexGroups(
             merged.clear(); for (g in groups) if (!g.alive && g.mergedSize >= 0) merged += g
             // (A band that died out leaves what it had; one that joined another took it along.)
             val freed = ArrayList<HexGroup>()
-            for (g in groups) if (!g.alive && g.mergedSize < 0) leaveDead(g, freed)
+            for (g in groups) if (!g.alive && g.mergedSize < 0) {
+                leaveDead(g, freed)
+                if (g.species.lifeway == Lifeway.PACK && g.band == null) {
+                    stats.meeting(Met.Of.PACK_ENDED, g.species.name)
+                    if (g.home.none) stats.meeting(Met.Of.PACK_ENDED_HOMELESS, g.species.name)
+                }
+            }
             groups.removeIf { !it.alive }
             groups += freed
             newcomers(it.date)

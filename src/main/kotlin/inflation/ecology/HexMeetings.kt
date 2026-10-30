@@ -395,7 +395,10 @@ internal fun HexGroups.settle(weather: Weather) {
         // (Whether it takes it is its choice: always at the hand-written way.)
         val w = g.will[AnimalWay.SETTLE]
         if (w < 1f && rnd.nextFloat() >= w) continue
-        if (scent.foreign(g.species, h, g.id) < MARK_FRESH && claimed.add(key)) claimGround(g, h)
+        if (scent.foreign(g.species, h, g.id) < MARK_FRESH && claimed.add(key)) {
+            claimGround(g, h)
+            stats.meeting(Met.Of.PACK_SETTLED, g.species.name)
+        }
     }
 }
 
