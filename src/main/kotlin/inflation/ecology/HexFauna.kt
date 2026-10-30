@@ -280,10 +280,10 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
     /**
      * The strongest hunting party (pack or band) standing in each place at the start of the groups' last week
-     * ([GroupPlanner.takeStock], which sets it); null until the groups have had a week. The [Catalogue.residentRivals] keep
-     * out of its way, as packs keep out of a much stronger party's.
+     * ([GroupPlanner.takeStock] fills it; saved, so that a loaded world goes on as it would have). The
+     * [Catalogue.residentRivals] keep out of its way, as packs keep out of a much stronger party's.
      */
-    @Transient var strongest: FloatArray? = null
+    val strongest = FloatArray(n)
 
     /**
      * The odds that a resident of kind [k] at place [p] (one of its young if [young]) is killed by hunters in a week, all of
@@ -645,8 +645,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      */
     private fun outranked(s: Species, p: Place): Float {
         if (s !in Catalogue.residentRivals) return 0f
-        val top = strongest ?: return 0f
-        return if (top[p] > 2f * residentStrength(s)) AVOID_STRONGER else 0f
+        return if (strongest[p] > 2f * residentStrength(s)) AVOID_STRONGER else 0f
     }
 
     /**

@@ -694,7 +694,7 @@ internal class GroupPlanner(private val gs: HexGroups) {
             if (st > topStrength[g.place]) { topStrength[g.place] = st; topKind[g.place] = g.species.index }
         }
         // (The residents' rivals keep out of its way too, next week as they move: [HexFauna.strongest].)
-        gs.fauna.strongest = topStrength
+        topStrength.copyInto(gs.fauna.strongest)
     }
 
     /** Before the groups choose: each place's worth to each kind this week ([valuePlaces]); last week's searches and efforts let go. */
