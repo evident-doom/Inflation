@@ -1253,33 +1253,41 @@ private fun HexGroups.huntGame(g: HexGroup, k: Int, p: Place, expected: Float, k
 const val GORGE = 0.17f
 
 /**
- * What stronger scavengers take of beast [g]'s [kills] at [p], out of [haul]: each carcass lies there while the party
- * gorges on it, a kill's weight against what the party eats in a day at a kill ([GORGE]), and resident kinds that kill as well as scavenge (meat and
- * carrion in their diet: a boar roots up a carcass but does not drive wolves off one) and are stronger than the
- * party by [THEFT_RATIO] (a band of [Species.groupSize], by its mass and ferocity, as [strength] has a party) come on it by
- * scent as they range, awake ([HexFauna.asleep]): a strip [Species.senseKm] each side of a day's travel, their bands as
- * common there as they are. One that finds it drives the party off and takes half of what is left of it, on average, as
- * bears do wolves' kills (Tallian et al. 2017: brown bears at 27% of Yellowstone wolf kills in summer, 45% of large ones);
- * it goes to the carrion there. A carcass hauled up a tree keeps, as far as there are trees ([enemiesMeet]).
+ * What stronger scavengers take of beast [g]'s [kills] at [p], out of [haul]. Each carcass lies there while the party gorges
+ * on it, a kill's weight against what the party eats in a day at a kill ([GORGE]). Resident kinds that kill as well as
+ * scavenge (meat and carrion in their diet: a boar roots up a carcass but does not drive wolves off one), awake
+ * ([HexFauna.asleep]) and stronger than the party (a band of [Species.groupSize], by its mass and ferocity, as [strength] has
+ * a party) come on it by scent as they range: downwind of it only, so a strip [Species.senseKm] wide along a day's travel,
+ * their bands as common there as they are. The party stands its ground: the stronger wins the carcass as often as its share
+ * of their strengths. A scavenger that wins eats its band's fill there ([GORGE], a day) of what is left (half the kill, on
+ * average, found halfway through) while the party waits it out; that goes to the carrion there for the books. Bears so
+ * come to 27% of Yellowstone wolf kills in summer, 45% of large ones, and wolves wait at the carcass rather than leave
+ * (Tallian et al. 2017, 2021). A carcass hauled up a tree keeps, as far as there are trees ([enemiesMeet]).
  */
 private fun HexGroups.foundByScent(g: HexGroup, p: Place, kills: Int, haul: Haul) {
     if (haul.kg <= 0f || kills <= 0) return
     val s = g.species
     val party = strength(g)
-    var rate = 0f
+    val left = 0.5f * haul.kg / kills
+    // (The finds a day, and of them, summed by each kind's finds: the scavenger's wins and the kg each takes.)
+    var rate = 0f; var wins = 0f; var takes = 0f
     for ((k, r) in fauna.kinds.withIndex()) {
         if (r.diet.carrion <= 0f || r.diet.meat <= 0f || r.human || fauna.asleep(FaunaKind(k), p)) continue
-        if (r.groupSize * r.massKg * r.ferocity < THEFT_RATIO * party) continue
-        rate += (fauna.adults[k][p] + fauna.young[k][p]) / r.groupSize * 2f * r.senseKm * r.dailyTravelKm
+        val band = r.groupSize * r.massKg * r.ferocity
+        if (band <= party) continue
+        val finds = (fauna.adults[k][p] + fauna.young[k][p]) / r.groupSize * r.senseKm * r.dailyTravelKm
+        val win = band / (band + party)
+        rate += finds; wins += finds * win; takes += finds * win * min(left, GORGE * r.massKg * r.groupSize)
     }
     if (rate <= 0f) return
     val lies = min(days.toFloat(), haul.kg / kills / (g.size.coerceAtLeast(1) * max(s.dailyIntakeKg, GORGE * s.massKg)))
     val cached = if (Niches.Shelter.TREE in Niches.shelters(s)) land.plants.canopy(p) else 0f
     val found = (1f - exp(-rate * lies)) * (1f - cached)
-    val lost = 0.5f * found * haul.kg
+    val lost = min(haul.kg, found * kills * takes / rate)
     haul.fat *= 1f - lost / haul.kg; haul.kg -= lost
     small.deposit(DeadPool.CARRION, p, Kg(lost * meatShare(null) / creditShare(null)))
     diag(s, HuntStep.KILLS_MADE, kills.toFloat()); diag(s, HuntStep.KILLS_FOUND_BY_SCENT, found * kills)
+    diag(s, HuntStep.KILLS_LOST_TO_SCENT, found * kills * wins / rate)
     diag(s, HuntStep.KILL_KG, haul.kg + lost); diag(s, HuntStep.KILL_KG_LOST_TO_SCENT, lost)
     diag(s, HuntStep.KILL_LIE_DAYS, lies * kills); diag(s, HuntStep.SCENT_RATE, rate * kills); diag(s, HuntStep.KILL_PARTY, g.size * kills.toFloat())
 }
