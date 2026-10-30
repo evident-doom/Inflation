@@ -78,6 +78,13 @@ class Band(kinds: Int) {
     @Transient var fatFed = 0f
     /** The food it cached or left at its old camp on a move this week ([campAndCache]): the forecast foresees moves on their own ([foresee]). */
     @Transient var leftBehind = 0f
+    /**
+     * The share of its people a camp move would cost through the year ahead by the food it cannot carry ([leftBehindShare]:
+     * cached or left at the old camp), as [foreseenSurvival] foresaw at the end of last week: alive with its larder, less alive
+     * with what it carries. (A cache it may come back to is counted lost: whether it will is not foreseen.) Worked out with the
+     * week's forecast, not afresh for each choice of place: afresh, it took a third more of a step (calib461h).
+     */
+    @Transient var leavingDying = 0f
     /** forecastTrace=true: its year ahead as foreseen, and what came, while it is followed ([traceForecast]); whether it has been. */
     @Transient internal var forecastTrace: ForecastTrace? = null
     @Transient var forecastTraced = false

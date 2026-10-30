@@ -208,9 +208,9 @@ internal class GroupPlanner(private val gs: HexGroups) {
                 if (q > lackedQ) { lackedQ = q; lackedHex = mem.hex[i] }
             } }
         // (A band leaving its camp's hex caches or leaves what it cannot carry: the lives that costs it through the year ahead
-        // count with each place it would move camp to, [leftBehindDying].)
+        // count with each place it would move camp to, [Band.leavingDying].)
         val campHex = g.band?.campPlace?.takeIf { !it.none }?.let { gs.hw.placeHex[it] } ?: Hex.NONE
-        val leaving = g.band?.takeIf { !campHex.none }?.let { b -> gs.leftBehindDying(g, b, weather) } ?: 0f
+        val leaving = if (campHex.none) 0f else g.band?.leavingDying ?: 0f
         fun leavingAt(h: Hex) = if (leaving > 0f && h != campHex) leaving else 0f
         val c = PlanContext(g, kind, here, sensed, month, goal, goalQ, fromHere, reach, thirsty, restless, season, keepOff,
             weather, date, goalHex, predatorKg, buf, lacked, lackedHex, lackedQ, if (!lackedHex.none) gs.hexKm(here, lackedHex) else 0.0)

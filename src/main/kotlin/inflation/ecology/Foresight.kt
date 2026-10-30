@@ -37,7 +37,11 @@ internal fun HexGroups.foreseenSurvival(g: HexGroup, b: Band, weather: Weather):
     val c = Biome.entries[biomeOfPlace[g.place]]
     stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.FORESEEN_HUNGER), (1000f * causes[0] * g.size).roundToInt(), Int::plus)
     stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.FORESEEN_EXPOSURE), (1000f * causes[1] * g.size).roundToInt(), Int::plus)
-    return year.alive(g.species, larderDays, g.fat, g.spent)
+    val alive = year.alive(g.species, larderDays, g.fat, g.spent)
+    // (And what a camp move would cost it, for next week's choice of place: [Band.leavingDying].)
+    val share = if (b.campPlace.none) 0f else leftBehindShare(g, b)
+    b.leavingDying = if (share > 0f) max(0f, alive - year.alive(g.species, larderDays * (1f - share), g.fat, g.spent)) else 0f
+    return alive
 }
 
 /**
@@ -82,18 +86,6 @@ internal fun HexGroups.yearAhead(g: HexGroup, b: Band, weather: Weather, shelter
     return YearAhead(odds, fed, spread, foodCarried(g, b) / g.dailyNeedKg.coerceAtLeast(1e-3f), moves)
 }
 
-/**
- * The share of band [b]'s (group [g]'s) people a camp move this week would cost through the year ahead by the food it cannot
- * carry ([leftBehindShare]: cached or left at the old camp), as [yearAhead] foresees: alive with its larder, less alive with
- * what it carries. (A cache it may come back to is counted lost: whether it will is not foreseen.)
- */
-internal fun HexGroups.leftBehindDying(g: HexGroup, b: Band, weather: Weather): Float {
-    val share = leftBehindShare(g, b)
-    if (share <= 0f) return 0f
-    val year = yearAhead(g, b, weather)
-    val larderDays = g.larder / g.dailyNeedKg.coerceAtLeast(1e-3f)
-    return max(0f, year.alive(g.species, larderDays, g.fat, g.spent) - year.alive(g.species, larderDays * (1f - share), g.fat, g.spent))
-}
 
 /**
  * The months ahead in order from next month ([yearAhead]): the exposure odds, the share of the need the food it got then
