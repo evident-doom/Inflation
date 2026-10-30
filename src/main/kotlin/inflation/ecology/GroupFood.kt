@@ -474,7 +474,7 @@ internal fun GroupWorld.huntGround(g: HexGroup, km2: Float): HuntGround {
 internal class HuntGround(val place: IntArray, val km2: FloatArray) { val size get() = place.size }
 
 /** A herd of kind [k] kept by band [g] at the [j]th place of a beast's hunting ground: the odds per head it comes on it and kills, and the stalks a kill takes ([herdOdds]). */
-private class HerdGame(val g: HexGroup, val k: Int, val j: Int, val odds: Float, val stalks: Float)
+private class HerdGame(val g: HexGroup, val k: Int, val j: Int, val odds: Float, val stalks: Float, val young: Boolean)
 
 /**
  * [forage]'s odds that a beast of prey comes on and kills an animal of the herds kept at bands' camps on its hunting ground,
@@ -492,17 +492,22 @@ private fun HexGroups.herdOdds(w: ForageWeek) {
             val b = c.band ?: continue
             if (c.place != p || !c.alive) continue
             val guard = stalkGuard(b, 0f, b.fencedNow())
+            val young = b.youngHerd()
             for (k in b.herd.indices) {
-                val n = b.herd[k]; if (n < 1f) continue
+                val all = b.herd[k] + young[k]; if (all < 1f) continue
                 val ps = fauna.kinds[k]
-                val success = killChance(catchable(s, ps, p), 1f) * guard
-                if (!(success > 0f)) continue
-                if (!looked) { openness(s, p, w.weather, view); looked = true }
-                val image = w.g.metLately(ps.index, w.today).let { it / (it + SEARCH_HALF) }
-                val odds = success * (0.5f + 0.5f * Niches.overlap(s, ps)) * (1f - seenFirst(view[0], view[1], null, ps)) / n * image
-                if (odds > 0f) w.herds += HerdGame(c, k, j, odds, 1f / success.coerceIn(1e-3f, 1f))
-                if (HUNT_DIAG) { val swept = w.ground.km2[j] / land.areaKm2[p]
-                    diag(s, HuntStep.HERDS_MET, swept); diag(s, HuntStep.HERD_KILLS_ON_OFFER, n * swept * odds); diag(s, HuntStep.HERD_GUARD, guard) }
+                // (The grown and the young, each as catchable as their weight makes them ([HexFauna.catchable]).)
+                for (y in 0..1) {
+                    val n = if (y == 1) young[k] else b.herd[k]; if (n <= 0f) continue
+                    val success = killChance(fauna.catchable(s, ps, if (y == 1) HexFauna.YOUNG_WEIGHT * ps.massKg else ps.massKg, p), 1f) * guard
+                    if (!(success > 0f)) continue
+                    if (!looked) { openness(s, p, w.weather, view); looked = true }
+                    val image = w.g.metLately(ps.index, w.today).let { it / (it + SEARCH_HALF) }
+                    val odds = success * (0.5f + 0.5f * Niches.overlap(s, ps)) * (1f - seenFirst(view[0], view[1], null, ps)) / all * image
+                    if (odds > 0f) w.herds += HerdGame(c, k, j, odds, 1f / success.coerceIn(1e-3f, 1f), y == 1)
+                    if (HUNT_DIAG) { val swept = w.ground.km2[j] / land.areaKm2[p]
+                        diag(s, HuntStep.HERDS_MET, swept); diag(s, HuntStep.HERD_KILLS_ON_OFFER, n * swept * odds); diag(s, HuntStep.HERD_GUARD, guard) }
+                }
             }
         }
     }
@@ -658,10 +663,11 @@ private fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
     }
     // And the herds kept at bands' camps on it, as their kind in the wild ([herdOdds]).
     for ((x, hg) in w.herds.withIndex()) {
-        val n = hg.g.band?.herd?.getOrNull(hg.k) ?: continue
+        val b = hg.g.band ?: continue
+        val n = (if (hg.young) b.youngHerd() else b.herd).getOrNull(hg.k) ?: continue
         if (n < 1f) continue
         val p = w.ground.place[hg.j]
-        val meat1 = min(fauna.kinds[hg.k].massKg * credit, most)
+        val meat1 = min((if (hg.young) HexFauna.YOUNG_WEIGHT else 1f) * fauna.kinds[hg.k].massKg * credit, most)
         offer(w, o, Food.BIG_GAME, hg.k, Place(p), n / land.areaKm2[p] * w.ground.km2[hg.j] * hg.odds / days, meat1,
             HANDLING_DAYS + STALK_DAYS * hg.stalks + meat1 * w.eats, spared[hg.k], x)
     }
@@ -1162,18 +1168,20 @@ private class Haul { var kg = 0f; var busy = 0f; var mass = 0f; var fat = 0f }
 private fun HexGroups.raidHerd(g: HexGroup, hg: HerdGame, p: Place, expected: Float, kgEach: Float, rnd: kotlin.random.Random, out: Haul): Int {
     val b = hg.g.band ?: return 0
     val s = g.species; val ps = fauna.kinds[hg.k]
-    val kills1 = min(poisson(expected, rnd), (b.herd[hg.k] * 0.5f).toInt())
+    val heads = if (hg.young) b.youngHerd() else b.herd
+    val kills1 = min(poisson(expected, rnd), (heads[hg.k] * 0.5f).toInt())
     if (kills1 <= 0) return 0
-    b.herd[hg.k] -= kills1.toFloat()
+    heads[hg.k] -= kills1.toFloat()
     if (b.herdTaken.size != b.herd.size) b.herdTaken = FloatArray(b.herd.size)
     b.herdTaken[hg.k] += kills1.toFloat()
     // (Kept herds have no fat state yet: their meat is lean.)
     out.kg = kills1 * kgEach; out.fat = 0f
-    small.deposit(DeadPool.CARRION, p, Kg(kills1 * leftOver(ps, kgEach, null)))
+    val each = if (hg.young) HexFauna.YOUNG_WEIGHT * ps.massKg else ps.massKg
+    small.deposit(DeadPool.CARRION, p, Kg(kills1 * max(0f, each - kgEach * meatShare(null) / creditShare(null))))
     stats.meeting(Met.KEPT_ANIMALS_TAKEN, kills1)
     stats.hunting.merge(Tally.of(s, Tally.OfKind.KILLS_OF_KEPT), kills1, Int::plus)
     note(g) { "took %d kept %s".format(kills1, ps.name) }
-    fauna.killed(p, Kg(kills1 * ps.massKg))
+    fauna.killed(p, Kg(kills1 * each))
     return kills1
 }
 
@@ -1204,15 +1212,16 @@ private fun HexGroups.huntGame(g: HexGroup, k: Int, p: Place, expected: Float, k
         if (kept > 0) {
             // (Raised by hand from young, they come to the camp as tame as a herd's, [RAISED_TAME], whatever their kind: how
             // well a kind keeps on foot shows in how many stray, [straying].)
-            band.herdTame[k] = (band.herdTame[k] * band.herd[k] + RAISED_TAME * kept) / (band.herd[k] + kept)
+            val young = band.youngHerd(); val had = band.herd[k] + young[k]
+            band.herdTame[k] = (band.herdTame[k] * had + RAISED_TAME * kept) / (had + kept)
             // (A herd begun so is kept as pets till they have grown, or sooner as their temper shows: [Band.herdPet], [petYears].)
-            if (band.herd[k] < 0.5f) {
+            if (had < 0.5f) {
                 bands.herdsBegun.incrementAndGet(k)
                 if (band.herdPet.size != band.herd.size) band.herdPet = FloatArray(band.herd.size)
                 band.herdPet[k] = petYears(ps)
             }
             bands.keptYoung.addAndGet(k, kept)
-            band.herd[k] += kept; ny -= kept
+            young[k] += kept; ny -= kept
             fauna.young[k][p] = max(0f, fauna.young[k][p] - kept / area)
             stats.meeting(Met.YOUNG_ANIMALS_KEPT, kept)
         }
