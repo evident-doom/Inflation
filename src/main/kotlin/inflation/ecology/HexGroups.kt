@@ -261,6 +261,13 @@ class HexGroups(
         stocks.add(Books.Stuff.MATTER, StockName.BANDS_GOODS) { bands { it.livingGoods().toDouble() } }
     }
 
+    /** The bands with kept herds, by the place they are camped in, for the resident hunters' week ([HexFauna.keptAt]). */
+    internal fun herdsForBeasts(): Map<Int, List<Band>> {
+        val at = HashMap<Int, ArrayList<Band>>()
+        for (g in groups) if (g.alive) g.band?.let { b -> if (b.herd.any { it >= 1f }) at.getOrPut(g.place.i) { ArrayList() } += b }
+        return at
+    }
+
     /** The groups' part of the week, in order. */
     @Transient val phases = listOf(
         Phase("groups: choosing and moving") { chooseAndMove(it, it.date) },

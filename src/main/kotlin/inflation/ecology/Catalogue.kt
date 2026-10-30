@@ -222,12 +222,16 @@ object Catalogue {
 
     /**
      * Syrian brown bear: an omnivore of wooded hills, living mostly on fruit, nuts, roots and green
-     * plants, with insects, carrion and the odd fawn. Fattens in autumn and sleeps out the winter.
+     * plants, with insects, carrion and the odd fawn or calf it kills. Fattens in autumn and sleeps out the winter.
+     * (Ungulates, killed and scavenged, a fifth of its diet: in central Sweden, without sheep, 14-30% of brown bears'
+     * digestible energy, berries 44-46%, insects 14-22%, forbs and graminoids 12-18%; where free-ranging sheep were to be
+     * had, in Norway, ungulates, mostly sheep, 65-87%; Dahle et al. 1998, Wildlife Biology 4: 147, from the abstract. A
+     * northern record for a southern bear, which likely eats less meat: an estimate.)
      */
     val BEAR = Species(
         id = 9, name = "brown bear", massKg = 150f,
         fearOfPeople = 0.6f, boldShare = 0.05f,
-        diet = Diet(grass = 0.15f, browse = 0.1f, roots = 0.25f, fruit = 0.3f, smallPrey = 0.1f, carrion = 0.1f),
+        diet = Diet(grass = 0.1f, browse = 0.1f, roots = 0.2f, fruit = 0.3f, meat = 0.1f, smallPrey = 0.1f, carrion = 0.1f),
         fibreDigestion = 0.5f, // a bear digests cellulose poorly (captive grizzlies on high-fibre feed); set as the boar
         groupSize = 2, maxGroupSize = 4,
         dailyTravelKm = 8f, maxDailyTravelKm = 30f, senseKm = 4f,
