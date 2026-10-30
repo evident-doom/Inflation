@@ -308,7 +308,13 @@ internal class Regard(private val of: Band, private val toId: Int, private val t
      * likelier.
      */
     fun fightChance(drive: Float) = drive * (0.5f + 0.5f * (1f - understood)) * (1f - 0.5f * kin) * (1f - TIE_PEACE * close) *
-        (1f + (if (stranger) STRANGER_HOSTILITY else 0f) + CUSTOMS_HOSTILITY * (customsApart.toFloat() / CUSTOMS))
+        (1f + (if (stranger) STRANGER_HOSTILITY else 0f) + CUSTOMS_HOSTILITY * (customsApart.toFloat() / CUSTOMS)) *
+        (if (holy) 1f / (1f + of.riteStrength) else 1f)
+    /**
+     * They meet at a rite both keep at this site, in its month ([gatherAtRite]): [of] holds the peace there as far as it
+     * holds to its rites ([Band.riteStrength]; none at all, it fights as anywhere). Its choice: nothing stops it.
+     */
+    var holy = false
     /** How many times readier than at its least [of] is to fight [to] ([fightChance] of 1). */
     val wariness get() = fightChance(1f)
     /** How far [of] believes what [to] tells it of the places it remembers. */
@@ -336,10 +342,14 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
     bandA.ensureMarks(fauna.kinds.size); bandB.ensureMarks(fauna.kinds.size)
     val u = Language.understanding(bandA.words, bandB.words)
     val ab = Regard(bandA, b.id, bandB, u); val ba = Regard(bandB, a.id, bandA, u)
+    val site = holySite
+    if (site >= 0 && site in bandA.rite && site in bandB.rite) { ab.holy = true; ba.holy = true }
     val metAs = MetAs(ab, ba)
     tallyMeeting(metAs, Tally.MeetingEnd.MET)
-    if (raid(a, bandA, b, bandB, ab, weather) || raid(b, bandB, a, bandA, ba, weather)) {
+    val raider = if (raid(a, bandA, b, bandB, ab, weather)) bandA else if (raid(b, bandB, a, bandA, ba, weather)) bandB else null
+    if (raider != null) {
         tallyMeeting(metAs, Tally.MeetingEnd.RAIDED)
+        if (ab.holy) { if (raider === bandA) sacrilege(bandA, a.id, b.id) else sacrilege(bandB, b.id, a.id) }
         return true
     }
     // A band that sees sickness among the others may keep away: no talk, no partners, no feast.
@@ -751,8 +761,11 @@ internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
         b.riteAsked = b.riteOwed; b.riteSpare = 0f
         stats.meeting(Met.Of.CUSTOMS_DAYS_ASKED, CustomsPart.RITES.label, (10f * b.riteOwed).roundToInt())
     }
-    // Plenty after long want is an omen too: where and when the hunger broke.
-    if (g.lean > 0 && g.fed >= Thresholds.HUNGRY) omen(b, g.place, weather.date, g.lean / LEAN_USUAL_WEEKS, Met.BANDS_MARKED_PLENTY_AFTER_WANT)
+    // Plenty after long want is an omen too: where and when a spell on its reserves ended, against its usual spell.
+    if (b.wantBroke > 0) {
+        omen(b, g.place, weather.date, b.wantBroke / max(LEAN_USUAL_WEEKS, b.wantUsual), Met.BANDS_MARKED_PLENTY_AFTER_WANT)
+        b.wantUsual += 0.5f * (b.wantBroke - b.wantUsual); b.wantBroke = 0
+    }
     // So is the strange thing with no cause in the world: a white bird, a shape in the trees, a lightning strike, a
     // misborn child, a fall. It befalls the band where it is, and the stranger the rarer ([STRANGE_SIGNS_A_YEAR]).
     if (rnd.nextFloat() < STRANGE_SIGNS_A_YEAR * years)
@@ -775,11 +788,30 @@ internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
 private fun HexGroups.gatherAtRite(g: HexGroup, site: Int, month: Long, weather: Weather) {
     riteGatherings.keys.removeIf { (it shr 32) < month - 1 }
     val here = riteGatherings.getOrPut((month shl 32) or site.toLong()) { ArrayList() }
+    holySite = site; holyGathering = here
     for (o in here) if (g.alive && o.alive && o !== g) {
         stats.meeting(Met.BANDS_GATHERED_AT_A_RITE)
         bandsMeet(g, o, weather)
     }
+    holySite = -1; holyGathering = null
     here += g
+}
+
+/**
+ * [raider] (group [raiderId]) fell on band [victim] at a rite both keep, before the others gathered there: each that keeps the rite holds it
+ * against the raider's people as far as it holds to its rites ([Band.riteStrength], as for the peace itself), and thinks
+ * the less of the raider. The cost of breaking the peace is what the others remember.
+ */
+private fun HexGroups.sacrilege(raider: Band, raiderId: Int, victim: Int) {
+    val site = holySite
+    stats.meeting(Met.RAIDS_ON_HOLY_GROUND)
+    for (w in holyGathering ?: return) {
+        val wb = w.band ?: continue
+        if (!w.alive || w.id == raiderId || w.id == victim || site !in wb.rite) continue
+        val held = wb.riteStrength / (1f + wb.riteStrength)
+        wb.grudge[raider.mainLineage()] += held * GRUDGE
+        wb.befriend(raiderId, -held * TIE_RAID)
+    }
 }
 
 /**
@@ -899,7 +931,8 @@ internal fun GroupWorld.riteMeet(a: Band, b: Band, ab: Regard, ba: Regard) {
 
 /**
  * Omens ([Band.omenPlace]): what a band marks is [SALIENT] times what it is used to or more (deaths in a week against its
- * usual, [Band.deathsUsual]; weeks of hunger broken, against [LEAN_USUAL_WEEKS], a hungry month a year); it fades to a
+ * usual, [Band.deathsUsual]; a spell of steps on its reserves ended, against its usual spell, [Band.wantUsual], and
+ * never less than [LEAN_USUAL_WEEKS]); it fades to a
  * third over [OMEN_YEARS] and is forgotten once no more than the usual, unless borne out; one [OMEN_AT_ONCE] times the usual
  * is a rite at once. A band can't make a rite of what is usual for it.
  * Estimates; no figure found.
@@ -907,7 +940,7 @@ internal fun GroupWorld.riteMeet(a: Band, b: Band, ab: Regard, ba: Regard) {
 internal const val SALIENT = 3f
 internal const val OMEN_AT_ONCE = 10f
 internal const val OMEN_YEARS = 1f
-internal const val LEAN_USUAL_WEEKS = 4f
+internal const val LEAN_USUAL_WEEKS = 2f
 
 /**
  * Strange things a band sees in a year, good signs and bad alike; how strange each is, against the usual, falls off as

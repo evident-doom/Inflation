@@ -484,7 +484,7 @@ internal class GroupPlanner(private val gs: HexGroups) {
         score += gs.tuning.bearingPull * pull
         if (parts != null) { parts[MoveTerm.BEARING.ordinal] += score - last; last = score }
         // (Staying is staying in the camp's hex: its other ground is the same camp, with the same fouling.)
-        if (h == here) score += STAY - (g.band?.let { gs.stayCost(it) } ?: 0f)
+        if (h == here) score += STAY - (g.band?.let { gs.stayCost(g, it) } ?: 0f)
         if (parts != null) { parts[MoveTerm.STAY.ordinal] += score - last; last = score }
         // Bold animals of kinds that follow people are drawn to their camps: refuse, scraps, warmth.
         if (s.followsPeople && gs.peopleSlot >= 0) score += CAMP_LURE * boldness(g) * min(1f, knownHeads(gs.peopleSlot, p, h, sensed) / 25f)
@@ -518,11 +518,11 @@ internal class GroupPlanner(private val gs: HexGroups) {
             adult += venom + stalked; young += venom + YOUNG_STALKED / b.childWatch.coerceAtLeast(0.25f) * stalked
             gs.dialUse?.amount(DialSite.CHILDREN_PLAN, b.childWatch, YOUNG_STALKED / b.childWatch.coerceAtLeast(0.25f) * stalked, YOUNG_STALKED * stalked, cut = b.childWatch < 0.25f)
             // The sicknesses it would catch there (marsh fever by the mosquitoes, the flux in a long-kept camp, the cough
-            // where people crowd), and the fouling of a camp kept on: weeks camped there go on if it stays, else start afresh.
-            val campWeeks = if (h == c.here) b.campWeeks + 1 else 0
-            val crowd = gs.peopleCrowding(g, h); val t = weather.temperature[p]; val healed = healedShare(b)
-            adult += gs.illnessAhead(b, p, t, crowd, campWeeks, healed, false)
-            young += gs.illnessAhead(b, p, t, crowd, campWeeks, healed, true) + gs.campFouling(g, campWeeks) * gs.years
+            // where people crowd), and the fouling of the ground there, whoever left it: its own camping adds to it if it stays.
+            val campWeeks = gs.campWeeksAt(h) + (if (h == c.here) 1 else 0)
+            val crowd = gs.peopleCrowding(g, h); val t = weather.temperature[p]; val healed = healedShare(b); val kept = gs.hygieneAt(b, h)
+            adult += gs.illnessAhead(b, p, t, crowd, campWeeks, healed, false, kept)
+            young += gs.illnessAhead(b, p, t, crowd, campWeeks, healed, true, kept) + gs.campFouling(g, h, campWeeks) * gs.years
             // What it would catch of the bands it sees gathered there (a feast draws bands together, and the cough with them).
             if (h in c.sensed && gs.peopleSlot >= 0) {
                 // (Bands meet over the whole hex, whichever ground each stands on.)
@@ -537,7 +537,7 @@ internal class GroupPlanner(private val gs: HexGroups) {
                 }
             }
         }
-        return (g.adults * adult.coerceIn(0f, 0.9f) + g.young * young.coerceIn(0f, 0.95f)) / max(1, g.size)
+        return (g.adults * adult.coerceIn(0f, Hazards.MAX_GROWN_ODDS) + g.young * young.coerceIn(0f, Hazards.MAX_YOUNG_ODDS)) / max(1, g.size)
     }
 
     /**
@@ -1049,10 +1049,10 @@ enum class MoveTerm(val label: String) {
     FOOD("food"), COLD("cold and drain"), FORECAST("coming weather"), WATER("water and snow"), WALK("walk"), MOVE_DAYS("move days"),
     SEASON("season's place"), BEARING("bearing"), STAY("staying"), BAND("band pulls"), DEATHS("deaths"), BESIDE("noise and temper")
 }
-const val MOVE_TRACE_WEEKS = 0
-const val MOVE_TRACE_MOVES = 1
-const val MOVE_TRACE_SUMS = 2
-val MOVE_TRACE_LEADS = MOVE_TRACE_SUMS + MoveTerm.entries.size
+internal const val MOVE_TRACE_WEEKS = 0
+internal const val MOVE_TRACE_MOVES = 1
+internal const val MOVE_TRACE_SUMS = 2
+internal val MOVE_TRACE_LEADS = MOVE_TRACE_SUMS + MoveTerm.entries.size
 
 /** moveTrace=true: [GroupPlanner.bookMove] each band-week chosen by the hand-written score. Report-only. */
 internal val MOVE_TRACE = Config.flag(Config.Key.MOVE_TRACE, false)

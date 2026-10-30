@@ -100,7 +100,7 @@ class Species(
      */
     val youngMortality: Float = if (firstYearLost < 0f) backgroundMortality
         else backgroundMortality + (firstYearLost - backgroundMortality) / max(1f, yearsToMaturity),
-    /** Snow depth (mm water equivalent) it can dig through to grass no more: the grass it gets at falls evenly to none there ([grassUnderSnow]). */
+    /** Snow depth (mm water equivalent) it can dig through to grass and roots no more: what it gets at falls evenly to none there ([grassUnderSnow]). */
     val snowLimitMm: Float,
     /** Raw materials an adult yields (for people: hides, bone, sinew). */
     val products: Products,
