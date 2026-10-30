@@ -684,7 +684,7 @@ class Band(kinds: Int) {
         for (t in Tradition.entries) a.heard[t] += b.heard[t]
         a.heardOf += b.heardOf
         for (i in 0 until min(a.heardTotem.size, b.heardTotem.size)) a.heardTotem[i] += b.heardTotem[i]
-        for (w in BurialWay.entries) a.heardBurial[w] += b.heardBurial[w]
+        for (way in BurialWay.entries) a.heardBurial[way] += b.heardBurial[way]
         a.burialOwed += b.burialOwed
         a.riteOwed += b.riteOwed; a.riteAsked += b.riteAsked; a.riteSpare += b.riteSpare
         for ((k, v) in b.ties) if (k != id) a.ties[k] = max(a.tie(k), v)

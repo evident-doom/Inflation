@@ -1,14 +1,16 @@
 package inflation.ecology
 
+import inflation.Kg
+import inflation.ecology.HexSmallLife.DeadPool
 import inflation.world.Hex
 import inflation.world.get
 import inflation.world.set
-import inflation.min
 import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.min
 import inflation.world.Weather
 import kotlin.math.exp
+import kotlin.math.roundToInt
 
 // Bands' raids and their defence: palisades, plotting and fighting raids.
 
@@ -126,3 +128,150 @@ const val PALISADE_WOOD = 80f
 const val PALISADE_DEFENCE = 1f
 const val SURPRISE_RAID = 1f
 const val HIGH_GROUND = 0.5f
+
+/** [g] raids [o] (as it regards it: [r]) if it is hungry and [o] has food, or holds a feud against its people. Returns whether it did. */
+internal fun HexGroups.raid(g: HexGroup, b: Band, o: HexGroup, ob: Band, r: Regard, weather: Weather): Boolean {
+    // What drives a raid: an old feud, or competition (hunger with food in the other's larder, or too
+    // many people on the same country); kin and those who understand each other fight less.
+    val feud = r.feud
+    val hunger = if (o.larder > 10f * o.dailyNeedKg) (1f - g.fed) else 0f
+    // (On ground it holds as its own, a band drives off those it is not close to: trespass.)
+    val trespass = if (b.claims(hw.placeHex[g.place], g.memory) && r.tie <= 0f) CLAIM_PRESSURE else 0f
+    val pressure = if (feud) 1f else maxOf(hunger, min(1f, peopleCrowding(g)), trespass)
+    // (Whether it comes to blows is the band's choice: its readiness to raid; and how it regards the others.)
+    val chance = r.fightChance(RAID * b.raidWill * pressure)
+    if (!drawn(DialSite.RAIDS_MEETING, b.raidWill, rnd.nextFloat(), chance) { chance / b.raidWill.coerceAtLeast(1e-6f) }) return false
+    fight(g, b, o, ob, planned = false, weather)
+    return true
+}
+
+/**
+ * [g] falls on [o]. A planned raid on a band at home may take it by surprise, the less so the more
+ * it sees (scouts, open ground, moonlight); the defenders gain from high, broken ground, their
+ * houses and a palisade. A band with no home to hold may slip away, losing what it cannot carry; one beaten at its home
+ * may be driven from it ([driveOff]).
+ */
+internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planned: Boolean, weather: Weather) {
+    stats.meeting(if (planned) Met.RAIDS_ON_HOMES else Met.RAIDS)
+    note(g) { "raided band #%d%s".format(o.id, if (planned) " at its home" else "") }; note(o) { "was raided by band #%d".format(g.id) }
+    ob.sinceRaided = 0
+    // The mobile slip away (and lose some of their stores).
+    if (!ob.atHome && rnd.nextFloat() < FLEE) {
+        val t = 0.3f * RAID_TAKE * o.larder; moveFood(o, g, t)
+        stats.meeting(Met.RAIDED_BANDS_SLIPPED_AWAY)
+        ob.grudge[b.mainLineage()] += 0.5f * GRUDGE; ob.befriend(g.id, -0.5f * TIE_RAID)
+        return
+    }
+    val sides = raidSides(g, o, ob, planned, ob.atHome, weather)
+    val sg = sides.raiders; val so = sides.defenders
+    raidWorth(o, ob, sg, so, sides.own)
+    // Each side loses some of its people, the more so against the stronger side; neighbours who stood with the raided
+    // lose theirs as the raided do, of as many as came. (Each group in the fight, its fighters, and the share of them it may lose.)
+    val fought = arrayListOf(Triple(g, g.adults, RAID_DEATHS * so / (sg + so)), Triple(o, o.adults, RAID_DEATHS * sg / (sg + so)))
+    for (n in sides.helpers) {
+        fought += Triple(n.group, (n.share * n.group.adults).roundToInt(), RAID_DEATHS * sg / (sg + so))
+        stats.meeting(Met.NEIGHBOURS_DEFENDED)
+        note(n.group) { "stood with band #%d against band #%d".format(o.id, g.id) }
+    }
+    val lostG = binomial(g.adults, fought[0].third, rnd)
+    for ((k, side) in fought.withIndex()) {
+        val (who, fighters, share) = side
+        // (Many more are wounded than killed, whether or not any die: some fester, some are lamed for life.)
+        who.band?.wounded(RAID_WOUNDED_PER_DEAD * share * fighters, who.adults)
+        val lost = if (k == 0) lostG else binomial(fighters, share, rnd)
+        if (lost <= 0) continue
+        adultsDied(who, lost, rnd)
+        stats.deaths.merge(Tally.of(who.species, DeathCause.RAIDS), lost, Int::plus)
+        if (who.species.human) stats.adultDeaths.merge(Tally.of(who.species, DeathCause.RAIDS), lost, Int::plus)
+        who.band?.let {
+            stats.hunting.merge(Tally.bandsLivingDied(bandLiving(it), DeathCause.RAIDS), lost, Int::plus)
+            stats.hunting.merge(Tally.bandsMindDied(it.mind, DeathCause.RAIDS), lost, Int::plus)
+        }
+        small.deposit(DeadPool.CARRION, who.place, Kg(lost * who.species.massKg))
+    }
+    // The stronger side carries off food; the raided remember.
+    if (sg > so) { val t = RAID_TAKE * o.larder; moveFood(o, g, t); stats.meeting(Met.LARDERS_RAIDED) }
+    // A band beaten at its home may be driven from it, the likelier the more the raiders overpower it (none when they are
+    // only as strong; Wrangham and Glowacki 2012: victors drove the defeated off their land in most non-state wars).
+    if (ob.atHome && sg > so && rnd.nextFloat() < 1f - so / sg) driveOff(o, ob, b)
+    ob.grudge[b.mainLineage()] += GRUDGE
+    ob.befriend(g.id, -TIE_RAID); b.befriend(o.id, -0.3f * TIE_RAID)
+    if (lostG > 0) b.grudge[ob.mainLineage()] += 0.3f * GRUDGE
+    // (Those who stood with them remember the raiders too, as far as they stood.)
+    for (n in sides.helpers) { n.band.grudge[b.mainLineage()] += n.share * GRUDGE; n.band.befriend(g.id, -n.share * TIE_RAID) }
+}
+
+/**
+ * Band [o] ([ob]) is driven from its home by raiders of band [by]: it leaves its houses and palisade to whoever takes them up,
+ * and while it fears the raiders' people it neither takes up houses there again nor seeks the place ([Band.keptFrom]).
+ */
+private fun HexGroups.driveOff(o: HexGroup, ob: Band, by: Band) {
+    val h = ob.houseHex
+    leaveStructures(o, h)
+    ob.drivenFrom = h; ob.drivenBy = by.mainLineage()
+    ob.houseHex = Hex.NONE; ob.house = 0f; ob.atHome = false; ob.palisade = 0f
+    ob.homeEarth = 0f; ob.homeWalls = 0f; ob.homeGroundC = 0f
+    stats.meeting(Met.BANDS_DRIVEN_FROM_HOME)
+    note(o) { "was driven from its home at hex %d".format(h.i) }
+}
+
+/**
+ * What a whole house would have done for [o] (band [ob]) in a raid of strength [sg] on its [so] (its [own] and its neighbours'), against the houses it has:
+ * the lives it would have saved and the food it would have kept from the raiders, by [fight]'s rules; for [Band.houseLives]
+ * and [Band.houseFood].
+ */
+private fun raidWorth(o: HexGroup, ob: Band, sg: Float, so: Float, own: Float) {
+    val works = if (ob.atHome) 1f + HOUSE_DEFENCE * ob.house + PALISADE_DEFENCE * ob.palisade else 1f
+    val whole = 1f + HOUSE_DEFENCE + (if (ob.atHome) PALISADE_DEFENCE * ob.palisade else 0f)
+    // (Its own part of the defence, [own], behind a whole house; the neighbours who stood with it as they were.)
+    val so1 = so + own * (whole / works - 1f)
+    val lives = max(0f, o.adults * RAID_DEATHS * (sg / (sg + so) - sg / (sg + so1)))
+    ob.houseLivesWeek += lives; ob.houseWeek[HouseWorth.RAIDS] += lives
+    if (sg > so && sg <= so1) { ob.houseFoodWeek += RAID_TAKE * o.larder; ob.houseWeek[HouseWorth.RAID_KG] += RAID_TAKE * o.larder }
+}
+
+/** A band [group] (band [band]) at home where a neighbour is raided, standing with it with [share] of its people ([raidSides]). */
+internal class Helper(val group: HexGroup, val band: Band, val share: Float)
+
+/** The sides of a raid: the [raiders]' strength, the raided band's [own] and its [helpers], with theirs. */
+internal class RaidSides(val raiders: Float, val own: Float, val helpers: List<Helper>, private val helped: Float) {
+    /** All who hold off the raiders. */
+    val defenders get() = own + helped
+}
+
+/** The raiders' [g] and the defenders' [o] (band [ob]) strengths when [g] falls on [o] where it is ([raidSides]). */
+internal fun HexGroups.raidStrengths(g: HexGroup, o: HexGroup, ob: Band, planned: Boolean, atHome: Boolean, weather: Weather): Pair<Float, Float> =
+    raidSides(g, o, ob, planned, atHome, weather).let { it.raiders to it.defenders }
+
+/**
+ * The sides when [g] falls on [o] (band [ob]) where it is: a planned raid may take it by surprise, the less so the more it
+ * sees (scouts, open ground, moonlight); defenders [atHome] gain from high, broken ground, their houses and a palisade, and
+ * the other bands at home in the same hex stand with them, each with as many of its people as it is closer to the raided
+ * than to the raiders (by its [Regard] of each: a band that holds neither close, or the raiders as close, stays out), behind
+ * its own houses and palisade. The one rule for a raid ([fight]) and for a raiding band weighing its target ([plotRaid]).
+ */
+internal fun HexGroups.raidSides(g: HexGroup, o: HexGroup, ob: Band, planned: Boolean, atHome: Boolean, weather: Weather): RaidSides {
+    val p = o.place
+    // Surprise: a planned raid at night, in cover, on a band that keeps no lookout.
+    val seen = (sight(p, weather) * (0.5f + 0.5f * moon) * (1f + 5f * ob.scoutShare)).coerceIn(0f, 1f)
+    if (planned) dialUse?.amount(DialSite.SCOUTS_SEEN, ob.will[BandWay.SCOUTS], seen, (sight(p, weather) * (0.5f + 0.5f * moon) * (1f + 5f * SCOUT_SHARE)).coerceIn(0f, 1f),
+        cut = sight(p, weather) * (0.5f + 0.5f * moon) * (1f + 5f * ob.scoutShare) > 1f)
+    val surprise = if (planned) 1f + SURPRISE_RAID * (1f - seen) else 1f
+    // The defenders' ground and works.
+    val ground = 1f + HIGH_GROUND * land.bestDefence[p]
+    val works = if (atHome) 1f + HOUSE_DEFENCE * ob.house + PALISADE_DEFENCE * ob.palisade else 1f
+    val helpers = ArrayList<Helper>(); var helped = 0f
+    val gb = g.band
+    if (atHome && gb != null) {
+        val h = hw.placeHex[p]
+        for (n in groups) {
+            val nb = n.band ?: continue
+            if (n === o || n === g || !n.alive || !nb.atHome || hw.placeHex[n.place] != h) continue
+            val share = Regard(nb, o.id, ob).close - Regard(nb, g.id, gb).close
+            if (share <= 0f) continue
+            helpers += Helper(n, nb, share)
+            helped += share * strength(n) * ground * (1f + HOUSE_DEFENCE * nb.house + PALISADE_DEFENCE * nb.palisade)
+        }
+    }
+    return RaidSides(strength(g) * surprise, strength(o) * ground * works, helpers, helped)
+}
