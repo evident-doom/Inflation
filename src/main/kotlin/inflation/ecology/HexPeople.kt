@@ -276,6 +276,8 @@ internal fun HexGroups.dogsGoWild(s: Species, p: Place, n: Int, fatShare: Float 
     pack.fat = fatShare * s.maxFatDays
     pack.bold = 1f
     claimGround(pack, hw.placeHex[p])
+    // (Counted among its kind's births: heads that came into the wild that no wild mother bore, so its heads add up.)
+    stats.births.merge(s, n, Int::plus)
     return pack
 }
 
