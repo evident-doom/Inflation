@@ -358,6 +358,8 @@ object Catalogue {
         habitat = Habitat(cover = 0.8f, rugged = 0.4f),
         stalking = 1f,
         ferocity = 0.6f,
+        // (A lynx fights back with teeth and claws: an estimate between the onager's kicks (0.4) and the boar's tusks (0.6).)
+        defence = 0.5f,
         startKm2PerAnimal = 150f,
     )
 
@@ -404,6 +406,8 @@ object Catalogue {
         habitat = Habitat(cover = 0.2f, wet = 0.2f),
         stalking = 0.4f,
         ferocity = 0.8f,
+        // (Jackals bite back and stand by each other: an estimate, as the onager's (0.4).)
+        defence = 0.4f,
         // (Golden jackals take prey up to about 15 kg but mostly up to 4: hares, rodents, fawns, not grown gazelle;
         // Hayward et al. 2017, prey preferences of jackals.)
         preyUpTo = 1.5f, preyPreferredUpTo = 0.4f,
@@ -728,6 +732,13 @@ object Catalogue {
 
     /** Kinds kept as numbers per place, the residents: every plant-eater, and the [residentHunters]. */
     fun resident(s: Species) = !s.carnivore || s in residentHunters
+
+    /**
+     * Residents that are rivals of the other beasts of prey as well as their game: the [residentHunters] and the brown bear.
+     * The jackals and lynx keep out of the way of a much stronger party ([HexFauna.strongest]). (A bear robbing a pack's
+     * kill waits for a rule of bears finding kills by scent.)
+     */
+    val residentRivals by lazy { setOf(JACKAL, LYNX, BEAR) }
 
     /** Kinds that climb crags and screes others cannot cross. */
     val climbers = setOf(IBEX, MOUFLON, WILD_GOAT, LEOPARD)

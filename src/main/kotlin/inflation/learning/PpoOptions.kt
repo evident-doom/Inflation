@@ -9,13 +9,17 @@ import inflation.world.WorldConfig
  * How many choices are recorded: [perKindYear] a year of each kind in each world, and [peopleChoices]
  * times as many of people (one kind against fourteen), but never more than [MAX_SHARE] of an animal kind's and [maxShare] of people's.
  */
-class Sampling(val perKindYear: Int = 1500, val peopleChoices: Float = 8f,
+class Sampling(val perKindYear: Int = 1500, val peopleChoices: Float = 100f,
                /** How many times as many of people's choices the critic learns from as the moves do (1: only those drawn); the rest are taken as the best, not learnt from by the moves. */
                val criticTimes: Float = 4f,
                /** How many times more a band under the hardest cold or hunger is recorded than one at ease (0: all alike). */
                val stressBoost: Float = 0f,
-               /** The most of people's choices that are recorded (the animal kinds' is [MAX_SHARE]). */
-               val maxShare: Float = MAX_SHARE) {
+               /**
+                * The most of people's choices that are recorded (the animal kinds' is [MAX_SHARE]). With the default [peopleChoices] the target
+                * is far above it, so every band-week of people is drawn and recorded: on two seeds, nets trained so ended 1.4% and 2.7% above those
+                * trained on a tenth to a third of them, in rounds of the same length (a band's moves are then drawn as the checks draw them).
+                */
+               val maxShare: Float = 1f) {
     companion object {
         /**
          * The most of a kind's choices that are recorded, and so drawn by chance instead of the best: a kind
@@ -46,7 +50,7 @@ class Maps(val maps: List<Pair<Long, Double>> = emptyList()) {
 /**
  * HexPpo's command line (see [HexPpo] for the usage), and its learning settings from the config file:
  * `ppo.hidden` (default 48), `ppo.rate` (3e-4), `ppo.residual` (ROLE:X,...; none), `ppo.perKind` (1500),
- * `ppo.peopleChoices` (8), `ppo.criticTimes` (4), `ppo.stressBoost` (0), `ppo.maxShare` (0.1), `ppo.waysTrainMover` (true) and `ppo.foreseenShape` (1, read by [HexPpo.Player]).
+ * `ppo.peopleChoices` (100), `ppo.criticTimes` (4), `ppo.stressBoost` (0), `ppo.maxShare` (1), `ppo.waysTrainMover` (true) and `ppo.foreseenShape` (1, read by [HexPpo.Player]).
  */
 class PpoOptions(
     val out: File,

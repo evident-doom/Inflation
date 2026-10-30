@@ -151,11 +151,15 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     // With the time still to spare, a band that has kept its camp a while builds stone-footed houses
     // there, as far as it has gathered the stone and timber (and starts afresh where it settles
     // anew); houses it has left weather away.
-    useStructures(g, h)
-    buildHouse(g, b, p, h, people, time)
+    // (Not where raiders drove it from while it still fears them: see [Band.keptFrom].)
+    val kept = b.keptFrom(h)
+    if (!kept) {
+        useStructures(g, h)
+        buildHouse(g, b, p, h, people, time)
+    }
     time.release(Activity.HOUSES)
     // (Its home is where it last had houses to use; what stands there still shelters it, unless another band took it up.)
-    if (housesAt(g, h) > 0.05f) b.houseHex = h
+    if (!kept && housesAt(g, h) > 0.05f) b.houseHex = h
     b.house = if (b.houseHex.none) 0f else housesAt(g, b.houseHex)
     b.atHome = b.houseHex == h && b.house > 0.05f
     b.homeEarth = if (b.atHome) earthAt(g, h) else 0f
@@ -675,7 +679,7 @@ const val SKIN_DAYS = 0.5f
 /**
  * Wounds: how much less the hurt and the lamed do; yearly share of adults hurt by mishaps (falls,
  * cuts, sprains, snakebite gone bad) at the usual gathering range; wounded who live for each one
- * killed in a fight, by prey or by a beast; weekly share of the wounded who heal, untended and with
+ * killed by prey or by a beast (in raids, [RAID_WOUNDED_PER_DEAD]); weekly share of the wounded who heal, untended and with
  * the best care; weekly share whose wound festers and kills, untended (care saves most); share of
  * the healed lamed for life, untended (care halves it); yearly share of the lamed lost as the band's
  * people turn over.

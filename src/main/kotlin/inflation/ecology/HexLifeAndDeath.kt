@@ -201,7 +201,6 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
             cultureWeek(g)
             riteWeek(g, weather)
         }
-        beliefSplits()
         // Holy places fade while no one comes.
         if (tuning.rounds) { val keep = exp(-years / SANCTITY_YEARS); for (p in land.sanctity.indices) land.sanctity[p] *= keep }
         fightRaids(weather)
@@ -245,7 +244,11 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         }
         bookOutcome(g, o, weather)
         mournDead(g, o, date)
-        o.split?.let { c -> born += splitOff(g, c.adults, c.young) } // a young pack has no ground yet
+        o.split?.let { c ->
+            val n = splitOff(g, c.adults, c.young) // a young pack has no ground yet
+            born += n
+            leaveBelief(g, n)
+        }
         if (o.leavers > 0) {
             repeat(o.leavers) { born += splitOff(g, 1, 0) } // each goes alone, to find a mate and ground
             stats.meeting(Met.YOUNG_HUNTERS_LEFT_THEIR_PACK, o.leavers)
@@ -257,22 +260,15 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
 }
 
 /**
- * Bands whose belief is strained past what it bears ([Band.strainBorne]) split (rounds on): half go their own way without
- * it, and the strain leaves with them. A band smaller than its kind's usual one holds together and clings on. Nothing
- * here weighs whether the belief pays.
+ * When a band [g] splits ([HexGroups.maxSize]: a strained belief is one of the quarrels that make it split smaller), the
+ * part that leaves, [n], goes without the belief as likely as the strain is near what the belief bears ([Band.strainBorne]),
+ * and the strain leaves with it (rounds on). The belief alone never splits a band; nothing here weighs whether it pays.
  */
-internal fun HexGroups.beliefSplits() {
-    if (!tuning.rounds) return
-    val strained = groups.filter { g -> g.alive && g.size >= g.species.groupSize && g.band.let { it != null && it.strain > it.strainBorne() } }
-    for (g in strained) {
-        val a = g.adults / 2; val y = g.young / 2
-        g.adults -= a; g.young -= y
-        val n = splitOff(g, a, y)
-        n.band?.dropBelief()
-        g.band?.strain = 0f
-        groups += n
-        stats.meeting(Met.BANDS_SPLIT_OVER_THEIR_BELIEF)
-    }
+private fun HexGroups.leaveBelief(g: HexGroup, n: HexGroup) {
+    val b = g.band ?: return; val nb = n.band ?: return
+    if (!tuning.rounds || b.strain <= 0f || rnd.nextFloat() >= min(1f, b.strain / b.strainBorne())) return
+    nb.dropBelief(); b.strain = 0f
+    stats.meeting(Met.BANDS_SPLIT_OVER_THEIR_BELIEF)
 }
 
 /**
@@ -470,7 +466,9 @@ private fun HexGroups.mournDead(g: HexGroup, o: Outcome, date: Date) {
         val at = if (!site.none && hexKm(camp, site) <= BODY_CARRY_KM) site else camp
         val p = if (at == camp) g.place else hw.placeNear(g.place, at).takeIf { !it.none } ?: g.place
         val carryKm = if (at == camp) 0.0 else hexKm(camp, at)
-        b.burialOwed += o.deaths * (BURY_DAYS + BEARERS * (2.0 * carryKm / (WALK_KM_PER_HOUR * Activity.WORK_HOURS)).toFloat())
+        val owed = o.deaths * (BURY_DAYS + BEARERS * (2.0 * carryKm / (WALK_KM_PER_HOUR * Activity.WORK_HOURS)).toFloat())
+        b.burialOwed += owed
+        stats.meeting(Met.Of.CUSTOMS_DAYS_ASKED, CustomsPart.BURIALS.label, (10f * owed).roundToInt())
         if (at != camp) { stats.meeting(Met.BANDS_CARRIED_THEIR_DEAD); note(g) { "carried its dead to its ancestors at hex %d".format(at.i) } }
         g.memory.mark(at, PlaceMemory.seasonOf(date.month), stepOf(date), stepsPerYear, g.memory.dead, o.deaths.toFloat())
         land.burials[p] += o.deaths.toFloat()

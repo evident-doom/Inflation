@@ -22,6 +22,12 @@ data class Diet(
     val plants: Float get() = grass + browse + fruit + roots
     /** All the shares (1 for a full diet). */
     val total: Float get() = grass + browse + fruit + roots + meat + smallPrey + carrion
+    /** How much of this diet [o] eats too, 0..1: the shares the two have in common (each of its whole). */
+    fun overlap(o: Diet): Float {
+        val a = total.coerceAtLeast(1e-6f); val b = o.total.coerceAtLeast(1e-6f)
+        return min(grass / a, o.grass / b) + min(browse / a, o.browse / b) + min(roots / a, o.roots / b) + min(fruit / a, o.fruit / b) +
+            min(meat / a, o.meat / b) + min(smallPrey / a, o.smallPrey / b) + min(carrion / a, o.carrion / b)
+    }
 }
 
 /**

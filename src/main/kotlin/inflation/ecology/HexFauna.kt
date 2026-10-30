@@ -280,6 +280,13 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     val groupKilled = Array(kinds.size) { FloatArray(n) }
 
     /**
+     * The strongest hunting party (pack or band) standing in each place at the start of the groups' last week
+     * ([GroupPlanner.takeStock] fills it; saved, so that a loaded world goes on as it would have). The
+     * [Catalogue.residentRivals] keep out of its way, as packs keep out of a much stronger party's.
+     */
+    val strongest = FloatArray(n)
+
+    /**
      * The odds that a resident of kind [k] at place [p] (one of its young if [young]) is killed by hunters in a week, all of
      * them: the residents' hunters as they hunted there this week ([residentKillOdds]) and the hunting parties as they did
      * in their last week ([groupKilled]).
@@ -640,6 +647,15 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
     /** How much fear of hunters puts kind [s] off place [p], 0..1: none for the hunters themselves. */
     private fun shy(s: Species, p: Place) = if (s.carnivore) 0f else afraid(p)
+
+    /**
+     * How much a rival [s] ([Catalogue.residentRivals]) is put off place [p] by a much stronger hunting party standing there
+     * ([strongest]): by the rule packs keep ([AVOID_STRONGER] where it is more than twice its band's [residentStrength]).
+     */
+    private fun outranked(s: Species, p: Place): Float {
+        if (s !in Catalogue.residentRivals) return 0f
+        return if (strongest[p] > 2f * residentStrength(s)) AVOID_STRONGER else 0f
+    }
 
     /**
      * Food for [s] in place [p] from its diet, as standing plants, kg/m²: grass from herbs, and the
@@ -1340,7 +1356,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         // (Plant-eaters weigh their forage by how fresh it is and how well it would meet their need for
         // protein: so they go up to the green high pasture in summer and down for the winter.)
         val fresh = if (s.carnivore) 1f else land.plants.nourishment(p) * forageProtein(s, p)
-        return fareFor(s, p) * fresh * suits(s, p) * tether(s, p) * unbitten(p) * snowed * (1f - FEAR_WEIGHT * shy(s, p)) *
+        return fareFor(s, p) * fresh * suits(s, p) * tether(s, p) * unbitten(p) * snowed * (1f - FEAR_WEIGHT * shy(s, p)) * (1f - outranked(s, p)) *
             (1f - land.fire.burning[p] * FIRE_ADULT) * (1f - outbreakDeaths(s, p)) /
             (1f + Hazards.crowding(heads, usual[k])) / (1f + discomfort)
     }
