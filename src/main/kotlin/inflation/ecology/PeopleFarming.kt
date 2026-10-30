@@ -142,15 +142,17 @@ internal const val TAME = 0.5f
  * Dogs. Pups raised a dog a year when fed: 0.40 bitches (39% of village dogs, Czupryna et al. 2016, Serengeti) x 1.08
  * litters a year (11.1 months between litters, Hyeroba et al. 2017, western Uganda) x 4.2 pups (4.9 Serengeti, 3.8 Uganda,
  * 4.0 Paul et al. 2016, West Bengal) x 0.19 living to 7 months, near grown (Paul et al. 2016; the missing among them
- * counted as dead, some of whom will have left). Yearly deaths of grown dogs: 49% (Koster
- * 2008; hunting dogs die younger than guard dogs, Pacheco-Cobos and Winterhalder 2021, Belize). The share of their need a
+ * counted as dead, some of whom will have left); Iringa gives as many (0.40 x 0.6 litters x 5.5 pups x 0.28 living a year,
+ * Gsell et al. 2012). Yearly deaths of grown dogs: 36%, from 2.76 years left to a dog that lived its first year (Gsell et
+ * al. 2012, Iringa, Tanzania); hunting dogs die younger (49%, Koster 2008, Nicaragua; Pacheco-Cobos and Winterhalder 2021,
+ * Belize). Well fed, the two leave the dogs about steady, where village dogs grow 6-14% a year. The share of their need a
  * well-fed band gives the dogs of a full pack of its own food: 13% of village dogs' food by mass was given them, 87% they found, mostly
  * carrion and human waste (Butler et al. 2018, rural Zimbabwe). How much a full pack adds to the hunt of the smallest game,
  * falling to nothing at [DOG_PREY_KG]: dogs met agouti and paca far more often but red brocket deer no more (Koster 2008),
  * and gains are limited to some prey (Lupo 2017); the size a guess. How much a full pack keeps off night attacks (no source).
  */
 internal const val DOG_BIRTHS = 0.35f
-internal const val DOG_DEATHS = 0.49f
+internal const val DOG_DEATHS = 0.36f
 internal const val DOG_FED_SHARE = 0.13f
 internal const val DOG_HUNT = 1f
 internal const val DOG_PREY_KG = 25f
