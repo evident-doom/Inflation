@@ -53,7 +53,7 @@ class ClimateEvent(
  * the deciduous oaks, beech and hazel of the temperate woods; the evergreen oaks, pistachio and wild almond of the
  * Mediterranean, the steppe and the dry scrub; the stone pines and hazel among the conifers.
  */
-enum class MastTrees { TEMPERATE, DRY, CONIFER }
+enum class MastTrees(val genera: Int) { TEMPERATE(3), DRY(3), CONIFER(2) }
 
 class Weather(@Transient private val places: Places, private val cfg: WorldConfig, tuning: inflation.Tuning = inflation.Tuning.config) {
     /** The usual mean temperature at place [p] in [month] (0-based), °C: the climate's, not this year's weather. */
@@ -118,7 +118,9 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
      * size of this land (seed crops went out of step only beyond some 2,000 km, USGS, a transcontinental North American
      * tree), but not between groups: crops of different genera keep little in step (Koenig & Knops 1998 and later,
      * from memory), so one group's bust year can be another's boom. Each group draws a lognormal of mean 1 each year,
-     * from its own stream so that the weather draws as before.
+     * from its own stream so that the weather draws as before. The CV is that of one genus's stands; a group's crop is the mean
+     * of its genera's ([MastTrees.genera], the genera named above), which keep only partly in step ([MAST_GENUS_SYNC]), so
+     * a group's crop swings less ([mastCv]).
      */
     val mastCrop = enumFloats<MastTrees> { 1f }
     private var mastRnd = Random(cfg.seed * 37 + 11)
@@ -432,7 +434,7 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
         val next = 2 * r * cos(2 * PI / period) * oscillation - r * r * oscillationPrev + 0.75 * gaussian()
         oscillationPrev = oscillation; oscillation = next
         decadal = 0.9 * decadal + sqrt(1 - 0.81) * gaussian()
-        for (t in MastTrees.entries) mastCrop[t] = mastFrom(inflation.gaussian(mastRnd))
+        for (t in MastTrees.entries) mastCrop[t] = mastFrom(inflation.gaussian(mastRnd), mastCv(t))
 
         val day = date.absoluteDay
         fun place() = Pair(rnd.nextDouble() * places.widthKm / places.cellKm, rnd.nextDouble() * places.heightKm / places.cellKm)
@@ -547,9 +549,16 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
     companion object {
         /** The year-to-year swing of each group's mast crop ([mastCrop]): its coefficient of variation. */
         const val MAST_CV = 1.3
-        /** The year's mast crop ([mastCrop]) for a standard normal draw [z]: a lognormal of mean 1 and coefficient of variation [MAST_CV]. */
-        internal fun mastFrom(z: Double): Float {
-            val sigma2 = ln(1.0 + MAST_CV * MAST_CV)
+        /**
+         * How far the crops of the genera of one group keep in step (their correlation): they bear in the same weather but not the same
+         * years ("little in step", Koenig & Knops, from memory); an estimate, held on the side of the group going together.
+         */
+        const val MAST_GENUS_SYNC = 0.5
+        /** The coefficient of variation of [group]'s crop: [MAST_CV] of one genus, for the mean of its genera at [MAST_GENUS_SYNC] between them. */
+        fun mastCv(group: MastTrees) = MAST_CV * sqrt((1.0 + (group.genera - 1) * MAST_GENUS_SYNC) / group.genera)
+        /** The year's mast crop ([mastCrop]) for a standard normal draw [z]: a lognormal of mean 1 and coefficient of variation [cv]. */
+        internal fun mastFrom(z: Double, cv: Double = MAST_CV): Float {
+            val sigma2 = ln(1.0 + cv * cv)
             return exp(sqrt(sigma2) * z - sigma2 / 2).toFloat()
         }
         /** Whether what falls at a week's mean air temperature [t], °C, falls as snow: the one rule for rain and snow. */
