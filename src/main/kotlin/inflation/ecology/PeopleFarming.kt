@@ -136,8 +136,8 @@ internal fun boldness(g: HexGroup) = if (g.bold < 0f) g.species.boldShare else g
  * Taming: weekly drift towards boldness of a pack that lives by people's camps (centuries, not
  * years); yearly chance a band takes a pup from such a pack, at full boldness and tameability.
  */
-const val BOLD_DRIFT = 0.0003f
-const val TAME = 0.5f
+internal const val BOLD_DRIFT = 0.0003f
+internal const val TAME = 0.5f
 /**
  * Dogs. Pups raised a dog a year when fed: half are bitches, of one litter a year of about 5 (an estimate, from memory), half
  * of the pups dying as newborns (Koster 2008, Mayangna and Miskito, Nicaragua). Yearly deaths of grown dogs: 49% (Koster
@@ -147,19 +147,19 @@ const val TAME = 0.5f
  * falling to nothing at [DOG_PREY_KG]: dogs met agouti and paca far more often but red brocket deer no more (Koster 2008),
  * and gains are limited to some prey (Lupo 2017); the size a guess. How much a full pack keeps off night attacks (no source).
  */
-const val DOG_BIRTHS = 1.25f
-const val DOG_DEATHS = 0.49f
-const val DOG_FED_SHARE = 0.13f
-const val DOG_HUNT = 1f
-const val DOG_PREY_KG = 25f
-const val DOG_GUARD = 0.5f
+internal const val DOG_BIRTHS = 1.25f
+internal const val DOG_DEATHS = 0.49f
+internal const val DOG_FED_SHARE = 0.13f
+internal const val DOG_HUNT = 1f
+internal const val DOG_PREY_KG = 25f
+internal const val DOG_GUARD = 0.5f
 /**
  * Sowing: months (0 the one after midwinter) for sowing in autumn; share of its stored grain a band
  * sows; person-days to clear, sow and weed for each kg sown.
  */
 val SOW_MONTHS = 9..10
-const val SOW_SHARE = 0.3f
-const val SOW_DAYS_PER_KG = 0.5f
+internal const val SOW_SHARE = 0.3f
+internal const val SOW_DAYS_PER_KG = 0.5f
 /**
  * A band's kept animals' week: they graze round the camp ([herdForage]), breed in their season as they are fed and as tame
  * as they have grown, give milk after it ([milkKg]), die, and run off as wild as they still are; they are herded in the field
@@ -429,8 +429,8 @@ internal fun straying(s: Species, tame: Float): Float {
  * mother's weight against its 40 kg (as M^0.75; the scaling an estimate). Early herds' mothers likely gave less.
  */
 internal fun milkKg(s: Species) = MILK_KG_GOAT * (s.massKg / 40f).pow(0.75f)
-const val MILK_KG_GOAT = 56f
-const val LACTATION_DAYS = 101f
+internal const val MILK_KG_GOAT = 56f
+internal const val LACTATION_DAYS = 101f
 
 /** How much of a practised herder's stock [b]'s herders keep each: half, unpractised. */
 private fun herdSkill(b: Band) = 0.5f + 0.5f * min(1f, b.skill(Skill.TENDING))
@@ -459,14 +459,14 @@ private fun herdSkill(b: Band) = 0.5f + 0.5f * min(1f, b.skill(Skill.TENDING))
  * against a goat's ([HERD_BREEDS] 0.7, [herdMothers]), their deaths from fighting by their disposition against a goat's
  * ([HERD_TEMPER] 0.6, [fighting]); the scales and the square estimates, the criteria the catalogue's.
  */
-const val CAPTURE = 0.5f
-const val RAISED_TAME = 0.8f
-const val HERD_RUN_OFF = 0.5f
-const val HERD_FIGHTING = 0.5f
-const val HERD_EASE = 0.6f
-const val HERD_BREEDS = 0.7f
-const val HERD_TEMPER = 0.6f
-const val TAMING_RATE = 0.01f
-const val HERD_GOATS_A_HERDER = 200f
-const val GOAT_KG = 40f
-const val HERD_MASS_EXP = 0.5f
+internal const val CAPTURE = 0.5f
+internal const val RAISED_TAME = 0.8f
+internal const val HERD_RUN_OFF = 0.5f
+internal const val HERD_FIGHTING = 0.5f
+internal const val HERD_EASE = 0.6f
+internal const val HERD_BREEDS = 0.7f
+internal const val HERD_TEMPER = 0.6f
+internal const val TAMING_RATE = 0.01f
+internal const val HERD_GOATS_A_HERDER = 200f
+internal const val GOAT_KG = 40f
+internal const val HERD_MASS_EXP = 0.5f

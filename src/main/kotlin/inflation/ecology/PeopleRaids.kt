@@ -110,7 +110,7 @@ internal fun HexGroups.fightRaids(weather: Weather) {
  * out; weeks it keeps at it. Palisades: person-days and timber (kg) for one person's share.
  * Fighting: surprise and the lie of the land.
  */
-const val RAID_HUNGER = 0.6f
+internal const val RAID_HUNGER = 0.6f
 
 /**
  * A way's [will] as a share of a whole: [atOne] at the scaffold's 1, and each further unit of will taking the same share of
@@ -120,14 +120,14 @@ internal fun shareOfWill(will: Float, atOne: Float) = 1f - (1f - atOne).pow(max(
 
 /** A way's [will] as an effect that each further unit adds less to: 1 at the scaffold's 1, about 1.37 at 2, never above 1.58. */
 internal fun moreOfWill(will: Float) = (1f - exp(-max(0f, will))) / (1f - exp(-1f))
-const val RAID_RANGE_KM = 60.0
-const val RAID_PLOT = 0.3f
-const val RAID_WEEKS = 4
-const val PALISADE_DAYS = 6f
-const val PALISADE_WOOD = 80f
-const val PALISADE_DEFENCE = 1f
-const val SURPRISE_RAID = 1f
-const val HIGH_GROUND = 0.5f
+internal const val RAID_RANGE_KM = 60.0
+internal const val RAID_PLOT = 0.3f
+internal const val RAID_WEEKS = 4
+internal const val PALISADE_DAYS = 6f
+internal const val PALISADE_WOOD = 80f
+internal const val PALISADE_DEFENCE = 1f
+internal const val SURPRISE_RAID = 1f
+internal const val HIGH_GROUND = 0.5f
 
 /** [g] raids [o] (as it regards it: [r]) if it is hungry and [o] has food, or holds a feud against its people. Returns whether it did. */
 internal fun HexGroups.raid(g: HexGroup, b: Band, o: HexGroup, ob: Band, r: Regard, weather: Weather): Boolean {
