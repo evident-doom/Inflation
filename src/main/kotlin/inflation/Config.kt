@@ -76,6 +76,7 @@ object Config {
         FORAGE_DIAG("forageDiag"),
         WARM_DIAG("warmDiag"),
         THATCH_TRACE("thatchTrace"),
+        PLAN_TRACE("planTrace"),
         MOVE_TRACE("moveTrace"),
         FOLLOW("follow"),
         FOLLOW_HUNGRY("followHungry"),

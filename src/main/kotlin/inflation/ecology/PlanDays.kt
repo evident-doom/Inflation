@@ -1,7 +1,12 @@
 package inflation.ecology
 
+import inflation.Config
 import inflation.EnumFloats
+import inflation.HASH_A
+import inflation.HASH_B
 import inflation.enumFloats
+import inflation.mix64
+import inflation.unitOf
 import inflation.world.Weather
 import kotlin.math.max
 import kotlin.math.min
@@ -94,6 +99,15 @@ private fun HexGroups.planRates(g: HexGroup, b: Band, weather: Weather, perDay: 
     val rate = FloatArray(SCORED_ITEMS)
     val gap = b.storeAimAt1 * need - g.larder
     if (gap > 0f && perDay > 0f) rate[0] = (alive(gap) - now) / (gap / perDay)
+    if (PLAN_TRACE && unitOf(mix64(g.id * HASH_A + weather.date.absoluteDay * HASH_B + PLAN_TRACE_SALT)) < 0.01f &&
+        planTraced.incrementAndGet() <= PLAN_TRACE_MOST) {
+        val larderDays = g.larder / need
+        System.err.println(("plan trace: band %d, %s, %d people, larder %.1f days, fat %.1f, burnt %.1f, store aim %.1f days (lean %.1f), " +
+            "gap %.1f days, %.2f kg a person-day, alive %.4f now, %.4f filled, stores %.2g lives a person-day\n").format(g.id, weather.date, g.size,
+            larderDays, g.fat, g.spent, b.storeAimAt1, b.leanDays, max(0f, gap) / need, perDay, now / people, if (gap > 0f) alive(gap) / people else now / people, rate[0]) +
+            " as it stands:\n" + year.trace(g.species, larderDays, g.fat, g.spent) +
+            (if (gap > 0f) " stores filled:\n" + year.trace(g.species, larderDays + gap / need, g.fat, g.spent) else ""))
+    }
     if (houses) {
         val stayYears = max(b.stayWeeks, b.campWeeks + 1f) / stepsPerYear
         val kg = houseFoodAYear(g, b, g.place, weather) * people * stayYears
@@ -112,6 +126,12 @@ enum class PlanTier(val label: String) {
     ASKED_BEYOND("unreckoned asks not given"), LIVES("lives reckoned saved, 1/10000"),
     STORES_ASKED("stores asked"), STORES_HELD("stores held"), HOUSES_ASKED("houses asked"), HOUSES_HELD("houses held")
 }
+
+/** planTrace=true: a sample of planning bands' weeks, how the year ahead reckons their stores ([planRates]), on stderr. */
+internal val PLAN_TRACE = Config.flag(Config.Key.PLAN_TRACE, false)
+private val planTraced = java.util.concurrent.atomic.AtomicInteger()
+private const val PLAN_TRACE_MOST = 400
+private const val PLAN_TRACE_SALT = 0x50545243L
 
 /** The chores with no reckoning in lives yet ([planDays]): shared out at equal weights. */
 private val UNRECKONED_ACTS = arrayOf(Activity.TOOLS, Activity.TRAINING, Activity.MATERIALS, Activity.DRYING, Activity.SKINS, Activity.CACHING,

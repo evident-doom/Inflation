@@ -90,6 +90,25 @@ internal class YearAhead(private val odds: FloatArray, private val fed: FloatArr
     }
 
     /**
+     * The months ahead as [alive] reckons them for kind [s] from [larderDays], [fat] and [spent], one line a month: the share
+     * of the need the food meets, the larder days paid and left, how well fed on the fat, the fat days left, the body's
+     * protein burnt, and the hunger and exposure odds. For tracing ([PLAN_TRACE]).
+     */
+    fun trace(s: Species, larderDays: Float, fat: Float, spent: Float): String {
+        val days = Date.DAYS_PER_MONTH
+        var larder = larderDays; var fatLeft = fat; var burnt = spent
+        val sb = StringBuilder()
+        for (k in odds.indices) {
+            var fed = fed[k]
+            val paid = min(max(0f, 1f - fed) * days, larder); larder -= paid; val got = fed; fed += paid / days
+            val onFat = Hazards.onFat(fed, fatLeft, days); fatLeft = max(0f, fatLeft - (onFat - fed) * days)
+            val hunger = Hazards.hunger(s, burnt, onFat, days); burnt = Hazards.spentAfter(s, burnt, onFat, days)
+            sb.append("  +%d: fed %.2f paid %.1f larder %.1f onFat %.2f fat %.1f burnt %.1f hunger %.3f exposure %.3f\n".format(k + 1, got, paid, larder, onFat, fatLeft, burnt, hunger, odds[k]))
+        }
+        return sb.toString()
+    }
+
+    /**
      * The shares of people of kind [s] foreseen to die through the months ahead of hunger and of exposure, as [alive] reckons
      * them (each month's deaths of each among those still alive then), into [out] (hunger, exposure). For the census.
      */
