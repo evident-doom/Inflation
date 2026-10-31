@@ -28,6 +28,17 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
     var climbedM = 0f
     /** Meat it took this week from other hunters it met on the way, kg (see [enemiesMeet]). */
     var meatMet = 0f
+    /**
+     * A pack's carcass: what it left last week of its kills where it ended the week, kg as its need counts them ([creditShare]),
+     * lying in the carrion there at [carcassAt] (-1: none) when the place's [HexSmallLife.carrionKeptLog] stood at
+     * [carcassLog]; it eats what the place's rot and scavengers left of it as its next week starts, if it passes there
+     * ([eatCarcass]). [carcassKept]: the share of its carcasses it has found again, of late, which it weighs a kill's
+     * leftovers by ([offerFoods]).
+     */
+    var carcassKg = 0f
+    var carcassAt = -1
+    var carcassLog = 0.0
+    var carcassKept = 0f
     /** Whether [meatMet] is eaten, stored or left by now this week (for the books, which count it in hand until then; a loaded group's is spent). */
     @Transient var meatSpent = true
     /** For a hunter: the hex at the heart of the ground it holds, -1 while it holds none. */
