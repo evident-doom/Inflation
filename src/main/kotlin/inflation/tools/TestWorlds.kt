@@ -9,7 +9,7 @@ import inflation.run.gitCommit
 import java.io.File
 import java.util.Properties
 
-private const val USAGE = "testWorld list | testWorld build NAME... [--years N] [--commit HASH] | testWorld adopt NAME STATE.bin [--years N] [--commit HASH] [--config TEXT] | testWorld ab --variant FILE [--base FILE] [--worlds m455-1,m455-2,m455-3] [--years 3] [--replicates 2] [--parallel 1] [--out DIR] | testWorld ab-report DIR [--worlds a,b] [--replicates 2] | testWorld nominal HISTORY.csv... | testWorld compare --full A.csv,B.csv [--full-variant A2.csv,B2.csv] NAME=BASE.csv[,VARIANT.csv] ...\n" +
+private const val USAGE = "testWorld list | testWorld build NAME... [--years N] [--commit HASH] | testWorld adopt NAME STATE.bin [--years N] [--commit HASH] [--config TEXT] | testWorld ab --variant FILE [--base FILE] [--worlds m5-1,m5-2,m5-3] [--years 3] [--replicates 2] [--parallel 1] [--out DIR] | testWorld ab-report DIR [--worlds a,b] [--replicates 2] | testWorld nominal HISTORY.csv... | testWorld compare --full A.csv,B.csv [--full-variant A2.csv,B2.csv] NAME=BASE.csv[,VARIANT.csv] ...\n" +
     "a test on a settled world: hexFauna --world NAME --years N [--replicate R] [--history FILE]"
 
 /** The testWorld program: see [TestWorlds]. */
