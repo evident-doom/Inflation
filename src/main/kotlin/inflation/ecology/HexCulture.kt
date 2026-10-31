@@ -532,8 +532,9 @@ private fun HexGroups.tellOfCountry(a: HexGroup, bandA: Band, b: HexGroup, bandB
         hearer.knownLineage[teller.id] = bt.mainLineage()
     }
     fun tellsHomes(bt: Band, hearer: HexGroup, bh: Band) {
-        for ((id, hh) in bt.knownHomes) if (id != hearer.id && rnd.nextFloat() < u) {
-            bh.knownHomes.putIfAbsent(id, hh)
+        // (A home the hearer knows already is nothing to tell: no draw is made for it. Most are: bands that meet come to know the same homes.)
+        for ((id, hh) in bt.knownHomes) if (id != hearer.id && id !in bh.knownHomes && rnd.nextFloat() < u) {
+            bh.knownHomes[id] = hh
             bt.knownLineage[id]?.let { bh.knownLineage.putIfAbsent(id, it) }
         }
     }
