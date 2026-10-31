@@ -736,9 +736,16 @@ internal class GroupPlanner(private val gs: HexGroups) {
     }
 
     /** Before the groups choose: each place's worth to each kind this week ([valuePlaces]); last week's searches and efforts let go. */
-    internal fun beginChoosing(predatorKg: FloatArray, month: Int) {
+    internal fun beginChoosing(predatorKg: FloatArray, month: Int, weather: Weather) {
         valuePlaces(predatorKg, month)
         reachCache.clear(); stepEffort.clear()
+        // (The week's crossing efforts are worked out here, once for each way of going and height band the groups have, not by
+        // whichever group asks first: that one held the others up while it worked, and they stood waiting in the planning.)
+        val done = HashSet<Int>()
+        for (g in gs.groups) if (g.alive) {
+            val travel = Catalogue.travel(g.species).ordinal; val band = gs.hw.placeBand[g.place]
+            if (done.add(travel * 64 + band)) stepEffort(travel, band, weather)
+        }
     }
 
     private fun valuePlaces(predatorKg: FloatArray, month: Int) {

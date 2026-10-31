@@ -365,7 +365,7 @@ class HexGroups(
         // Bands take stock of themselves and of the bands about them, for the people networks.
         Profile.part("bands: taking stock") { fillBandStates(weather) }
         // Plan and move, in parallel: each group's choice depends only on last week's world.
-        Profile.part("choosing: valuing places for hunters") { planner.beginChoosing(predatorKg, date.month) }
+        Profile.part("choosing: valuing places for hunters") { planner.beginChoosing(predatorKg, date.month, weather) }
         val choice = IntArray(groups.size); val paths = arrayOfNulls<HexArray>(groups.size); val times = arrayOfNulls<FloatArray>(groups.size)
         IntStream.range(0, groups.size).parallel().forEach { k ->
             val g = groups[k]
