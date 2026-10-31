@@ -464,8 +464,9 @@ internal class GroupPlanner(private val gs: HexGroups) {
         if (gs.land.hydro.soil[p] < DRY_SOIL_MM) score += 0.3f * s.foresight * min(1f, weather.forecastRain(p.i) / RAIN_AHEAD_MM)
         if (parts != null) { parts[MoveTerm.FORECAST.ordinal] += score - last; last = score }
         // Water: a thirsty group heads for it; any group keeps within reach of it, the more so the more often it must drink.
-        // (People can dig for water in a dry bed where it lies near.)
-        score -= (0.02f + 0.3f * g.dry / s.daysWithoutWater) * t.waterKm / s.dailyTravelKm
+        // (People can dig for water in a dry bed where it lies near; the days their water takes them are in the place's food
+        // value already, [GroupWorld.campFactor].)
+        score -= ((if (s.human) 0f else 0.02f) + 0.3f * g.dry / s.daysWithoutWater) * t.waterKm / s.dailyTravelKm
         if (thirsty && !gs.canDrink(s, p)) score -= 1f
         if (weather.snowpack[p] > s.snowLimitMm) score -= 1f
         if (parts != null) { parts[MoveTerm.WATER.ordinal] += score - last; last = score }
