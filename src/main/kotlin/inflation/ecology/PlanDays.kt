@@ -12,8 +12,6 @@ import kotlin.math.ln
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
-import kotlin.math.sqrt
-import kotlin.math.pow
 
 /**
  * A [Mind.PLANS] band's week's days (doc: Discrete planning: build spec, stage 2), in place of the ways-weighted share-out
@@ -49,20 +47,13 @@ internal fun HexGroups.planDays(g: HexGroup, b: Band, weather: Weather, time: Ba
     given[Activity.CUSTOMS] = paid[0] * time.pace(Activity.CUSTOMS); given[Activity.ORNAMENTS] = paid[1] * time.pace(Activity.ORNAMENTS)
     left -= paid.sum()
     // What it holds by lives saved, tier by tier: survival now (the stores), then over generations (the houses), each as
-    // far as it asks this week ([planRates]); a tier has what the one below it left. A whole that saves fewer lives over
-    // its span than chance takes or spares of so many people in that time ([chanceStep]) is no saving it could tell from
-    // luck: its days pass up to the next tier.
+    // far as it asks this week ([planRates]); a tier has what the one below it left.
     val rate = planRates(g, b, weather, perDay, asks[Activity.HOUSES] > 0f)
     val ask = floatArrayOf(asks[Activity.FOOD], asks[Activity.HOUSES])
     val acts = arrayOf(Activity.FOOD, Activity.HOUSES)
-    // (The whole each is for, person-days, and the years it serves: the stores the year ahead, a house as long as it is kept.)
-    val whole = floatArrayOf(if (perDay > 0f) max(0f, b.storeAimAt1 * g.dailyNeedKg - g.larder) / perDay else 0f, HOUSE_DAYS * g.adults.coerceAtLeast(1))
-    val span = floatArrayOf(1f, keepYears(b, stepsPerYear))
     val d = FloatArray(SCORED_ITEMS)
-    var luck = 0f
     for (i in 0 until SCORED_ITEMS) {
         if (rate[i] <= SAVES_NONE * g.size || left <= 0f) continue
-        if (rate[i] * whole[i] < chanceStep(g, span[i])) { luck += days(acts[i], ask[i]); continue }
         d[i] = min(ask[i], left * time.pace(acts[i])); left -= d[i] / time.pace(acts[i])
     }
     for (i in 0 until SCORED_ITEMS) given[acts[i]] = d[i]
@@ -79,7 +70,7 @@ internal fun HexGroups.planDays(g: HexGroup, b: Band, weather: Weather, time: Ba
     fun add(t: PlanTier, v: Float) { stats.hunting.merge(Tally.planTier(t), (10f * v).roundToInt(), Int::plus) }
     add(PlanTier.OBLIGED, paid.sum()); add(PlanTier.SCORED, d[0] / time.pace(acts[0])); add(PlanTier.GENERATIONS, d[1] / time.pace(acts[1]))
     add(PlanTier.UNRECKONED, shared.sum()); add(PlanTier.LEISURE, left)
-    add(PlanTier.ASKED_BEYOND, max(0f, rest.sum() - shared.sum())); add(PlanTier.WITHIN_CHANCE, luck)
+    add(PlanTier.ASKED_BEYOND, max(0f, rest.sum() - shared.sum()))
     add(PlanTier.STORES_ASKED, days(Activity.FOOD, ask[0])); add(PlanTier.STORES_HELD, days(Activity.FOOD, d[0]))
     add(PlanTier.HOUSES_ASKED, days(Activity.HOUSES, ask[1])); add(PlanTier.HOUSES_HELD, days(Activity.HOUSES, d[1]))
     stats.hunting.merge(Tally.planTier(PlanTier.LIVES), (1e4f * (d[0] * rate[0] + d[1] * rate[1])).roundToInt(), Int::plus)
@@ -150,24 +141,13 @@ internal fun keepYears(b: Band, perYear: Float): Float {
 }
 
 /**
- * One step of chance in the deaths of group [g]'s people over [span] years ([Hazards.survivalSteps]' unit, in people): the
- * spread of how many die in that time at the odds it lives under now (at least its kind's background), a week's odds
- * compounded. Fewer lives saved than this are not told from luck ([planDays]).
- */
-internal fun HexGroups.chanceStep(g: HexGroup, span: Float): Float {
-    val q = max(g.deathOdds, g.species.backgroundMortality * years).coerceIn(1e-6f, 0.5f)
-    val over = 1f - (1f - q).pow(span * stepsPerYear)
-    return sqrt(g.size * over * (1f - over))
-}
-
-/**
  * The tiers of a [Mind.PLANS] band's week beyond its essentials ([planDays]), for the census, person-days ([LIVES]: the
  * lives its scored days were reckoned to save, ten-thousandths; [ASKED_BEYOND]: the unreckoned chores' asks it could not give;
  * the stores' and the houses' asks and what of them it held by lives).
  */
 enum class PlanTier(val label: String) {
     OBLIGED("owed by custom"), SCORED("held by lives this year"), GENERATIONS("held by lives over generations"), UNRECKONED("no reckoning yet"), LEISURE("leisure"),
-    ASKED_BEYOND("unreckoned asks not given"), WITHIN_CHANCE("scored asks within chance, not given"), LIVES("lives reckoned saved, 1/10000"),
+    ASKED_BEYOND("unreckoned asks not given"), LIVES("lives reckoned saved, 1/10000"),
     STORES_ASKED("stores asked"), STORES_HELD("stores held"), HOUSES_ASKED("houses asked"), HOUSES_HELD("houses held")
 }
 
