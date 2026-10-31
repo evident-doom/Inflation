@@ -43,7 +43,7 @@ internal fun HexGroups.countSqueeze(b: Band, time: BandTime) {
         val ask = min(time.asked[a], total)
         if (ask <= 0f) continue
         val missing = max(0f, ask - time.workedOn(a))
-        fun add(k: Tally.Squeeze, v: Int) { stats.hunting.merge(Tally.squeeze(a, k), v, Int::plus) }
+        fun add(k: Tally.Squeeze, v: Int) { stats.bandBooks.squeeze(a, k, v) }
         add(Tally.Squeeze.ASKED_WEEKS, 1)
         add(Tally.Squeeze.ASKED_DAYS, (10f * ask).roundToInt())
         add(Tally.Squeeze.MISSING_DAYS, (10f * missing).roundToInt())

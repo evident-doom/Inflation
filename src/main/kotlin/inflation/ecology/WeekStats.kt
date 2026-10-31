@@ -48,6 +48,8 @@ class WeekStats {
     val youngDeaths = ConcurrentSkipListMap<TallyKey, Int>()
     /** This week's hunting and feeding tallies by kind, as [Tally] keys them: kills of residents, diets, bands' food and time. */
     val hunting = ConcurrentSkipListMap<TallyKey, Int>()
+    /** The bands' weekly time and squeeze lines, kept apart and merged into [hunting] when the bands' weeks are done ([BandBooks.flush]). */
+    @Transient internal val bandBooks = BandBooks()
     /** For the check: people's children expected to die of each cause, by the week's odds, since last read (a report ledger, not saved). */
     @Transient val childDeaths = ConcurrentHashMap<DeathReason, DoubleAdder>()
     /** Young born this week by kind. */

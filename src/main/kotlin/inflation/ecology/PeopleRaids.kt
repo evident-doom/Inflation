@@ -52,8 +52,8 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
     dialUse?.choice(DialSite.RAIDS_HUNGER, b.raidWill, hungry, g.fed < RAID_HUNGER)
     val within = ArrayList<Int>()
     for ((id, h) in b.knownHomes) {
-        val feud = (b.knownLineage[id] ?: -1).let { it >= 0 && b.grudge[it] > FEUD }
-        if (!hungry && !feud) continue
+        // (A hungry band weighs every home in range; one that is not, only those it feuds with.)
+        if (!hungry && !(b.knownLineage[id] ?: -1).let { it >= 0 && b.grudge[it] > FEUD }) continue
         if (hexKm(here, h) <= RAID_RANGE_KM) within += id
     }
     if (within.isEmpty()) return

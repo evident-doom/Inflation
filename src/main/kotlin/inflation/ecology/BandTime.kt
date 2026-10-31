@@ -148,6 +148,12 @@ class BandTime(left: Float, private val pace: EnumFloats<Activity>? = null) {
         for (a in activities) census.merge(Tally.bandTime(a), (spent[a] * 10f).roundToInt(), Int::plus)
     }
 
+    /** Adds what went to every [Activity] to the week's [books] (tenths of a day). */
+    fun countEach(books: BandBooks) { for (a in Activity.entries) books.time(a, (spent[a] * 10f).roundToInt()) }
+
+    /** Adds [personDays] to the week's [books] under [what]. */
+    fun count(books: BandBooks, what: Tally.TimeTotal, personDays: Float) { books.total(what, (personDays * 10f).roundToInt()) }
+
     /** Adds what went to every [Activity] to [census] (tenths of a day), so a new activity needs no list of its own here. */
     fun countEach(census: MutableMap<TallyKey, Int>) = count(census, *Activity.entries.toTypedArray())
 
