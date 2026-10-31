@@ -142,7 +142,7 @@ hex learning tools. (The 1 km model's `Simulation` has since been removed; the h
 | Unused houses are nobody's: a band takes up free houses at its hex only as far as it needs them for its grown people, keeping those it already uses | yes |
 | Rites born of omens: a week's death toll far above the usual, plenty after long want, or a strange sign drawn at random (about one a year, a third salient) where the band is, borne out by the same month going well there again or by another band that marked the same place; no yearly take-up and no letting rites go; rites copied between bands met as far as each trusts the other, not from the better-off | yes |
 | Language as words per concept, understanding between bands | yes (naming game, drift) |
-| Marrying out, lineage mix, inbreeding | yes |
+| Marrying out, lineage mix, inbreeding; partners are exchanged the likelier the better the bands understand each other and the fewer customs they hold apart (the less willing of the two; estimate) | yes |
 | Elders and grandmothers | yes |
 | Raids for food and feuds, grudges against lineages; one regard of the other band (understanding, kin, tie, grudge, strangers, customs apart) sets raids at meetings and on homes, cache robbing, gifts at meetings and on visits in hunger (a band gives more to a band it is close to, and the hungry go where they can hope for most), the trust in what it is told, the taking up of its meeting place, whom it counts friend or foe, and whose known homes it keeps off | yes |
 | Desert kites | removed (later than the Natufian; Olli, 2026-10-15) |
