@@ -41,7 +41,7 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
     val here = hw.placeHex[g.place]
     b.raid?.let { raid ->
         if (here == raid.hex) {
-            val target = groups.firstOrNull { it.id == raid.on && it.alive && hw.placeHex[it.place] == here }
+            val target = bands.groupById[raid.on]?.takeIf { it.alive && hw.placeHex[it.place] == here }
             if (target?.band != null) bands.raidsDue += g to target
             b.raid = null
         } else b.raid = if (raid.weeks > 1) Raid(raid.hex, raid.on, raid.weeks - 1) else null
@@ -65,7 +65,7 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
     if (dialUse == null && u >= drive * Regard.MOST_WARY) return
     val them = ArrayList<Pair<HexGroup, Regard>>()
     for (id in within) {
-        val o = groups.firstOrNull { it.id == id && it.alive } ?: continue
+        val o = bands.groupById[id]?.takeIf { it.alive } ?: continue
         val r = Regard(b, id, o.band ?: continue, map = hex)
         if (r.tie <= 0f) them += o to r
     }
