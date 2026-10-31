@@ -152,7 +152,7 @@ class BandTime(left: Float, private val pace: EnumFloats<Activity>? = null) {
     fun countEach(census: MutableMap<TallyKey, Int>) = count(census, *Activity.entries.toTypedArray())
 
     /** Adds what went to every [Activity] to [t] (tenths of a day). */
-    fun countEachInto(t: BandTallies) { for (a in Activity.entries) t.time(a, (spent[a] * 10f).roundToInt()) }
+    internal fun countEachInto(t: BandTallies) { for (a in Activity.entries) t.time(a, (spent[a] * 10f).roundToInt()) }
 
     /** Adds [personDays] to the census under [what]. */
     fun count(census: MutableMap<TallyKey, Int>, what: Tally.TimeTotal, personDays: Float) {
