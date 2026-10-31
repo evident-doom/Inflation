@@ -197,8 +197,11 @@ internal class GroupPlanner(private val gs: HexGroups) {
         val pullKm = reach.toDouble().coerceAtLeast(gs.hex.hexKm)
         // (A band keeps off the known homes of bands it is not close to ([Regard.closeOf]): those hexes, once for the week.)
         // (And off the place raiders drove it from, while it fears them: [Band.keptFrom].)
-        val keepOff = g.band?.let { b -> (b.knownHomes.entries.filter { Regard.closeOf(b, it.key) <= 0f }.map { it.value } +
-            listOfNotNull(b.drivenFrom.takeIf { b.keptFrom(it) })).toHexArray() }
+        val keepOff = g.band?.let { b ->
+            val off = HexList(8)
+            for ((id, home) in b.knownHomes) if (Regard.closeOf(b, id) <= 0f) off.add(home)
+            if (b.keptFrom(b.drivenFrom)) off.add(b.drivenFrom)
+            off.toHexArray().also { it.sort() } }
         // A band: how far it lacks each of the rarer materials, and the remembered place with the most of what it lacks.
         val lacked = g.band?.let { b -> FloatArray(PlaceMemory.RARE.size) { k -> gs.lacking(g, b, PlaceMemory.RARE[k]) } }
         var lackedHex = Hex.NONE; var lackedQ = 0f
@@ -737,9 +740,16 @@ internal class GroupPlanner(private val gs: HexGroups) {
     }
 
     /** Before the groups choose: each place's worth to each kind this week ([valuePlaces]); last week's searches and efforts let go. */
-    internal fun beginChoosing(predatorKg: FloatArray, month: Int) {
+    internal fun beginChoosing(predatorKg: FloatArray, month: Int, weather: Weather) {
         valuePlaces(predatorKg, month)
         reachCache.clear(); stepEffort.clear()
+        // (The week's crossing efforts are worked out here, once for each way of going and height band the groups have, not by
+        // whichever group asks first: that one held the others up while it worked, and they stood waiting in the planning.)
+        val done = HashSet<Int>()
+        for (g in gs.groups) if (g.alive) {
+            val travel = Catalogue.travel(g.species).ordinal; val band = gs.hw.placeBand[g.place]
+            if (done.add(travel * 64 + band)) stepEffort(travel, band, weather)
+        }
     }
 
     private fun valuePlaces(predatorKg: FloatArray, month: Int) {
@@ -801,10 +811,12 @@ internal class GroupPlanner(private val gs: HexGroups) {
         // Houses it may use draw it (its own or any left empty); a camp where someone died lately is shunned by those who leave their dead.
         score += HOME_PULL * gs.housesAt(g, h)
         score += cropPull(g, b, h)
+        // A planning band at its houses would leave them to weather and to others ([Band.leavingHouse]).
+        if (b.leavingHouse > 0f && h != b.houseHex) score -= b.leavingHouse
         score -= herdLoss(g, b, p)
         if (h == b.unluckyHex) score -= UNLUCKY
         // It keeps off the known homes of bands it is not close to (unless set on raiding them).
-        if (b.raidHex != h && keepOff != null && h in keepOff) score -= TRESPASS_AVOID
+        if (b.raidHex != h && keepOff != null && keepOff.binarySearch(h) >= 0) score -= TRESPASS_AVOID
         // A band set on a raid heads for its target.
         if (!b.raidHex.none) {
             val from = gs.hexKm(here, b.raidHex)
@@ -997,7 +1009,7 @@ internal class GroupPlanner(private val gs: HexGroups) {
      */
     @Transient private val stepEffort = ConcurrentHashMap<Int, FloatArray>()
 
-    private fun stepEffort(travel: Int, band: Int, weather: Weather): FloatArray = stepEffort.computeIfAbsent(travel * 64 + band) {
+    @IgnorableReturnValue private fun stepEffort(travel: Int, band: Int, weather: Weather): FloatArray = stepEffort.computeIfAbsent(travel * 64 + band) {
         val cross = gs.hex.crossings[travel]
         val out = FloatArray(gs.hex.size * 6) { Float.POSITIVE_INFINITY }
         IntStream.range(0, gs.hex.size).parallel().forEachHex { h ->

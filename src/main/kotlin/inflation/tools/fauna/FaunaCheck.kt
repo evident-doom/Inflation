@@ -127,7 +127,7 @@ class FaunaCheck(private val sim: HexSim, private val options: FaunaCheckOptions
         val steps = options.years * stepsPerYear
         println("where a step's time goes:")
         println(Profile.report(steps))
-        if (Profile.FINE) { println("finer parts (thread time, summed over cores):"); println(Profile.fineReport(steps)) }
+        if (Profile.FINE) { println("finer parts (thread time, summed over cores):"); println(Profile.fineReport(steps)); println("slowest single jobs:"); println(Profile.slowReport()) }
         sim.books?.let { println("the books: what each part of the step left over of water and matter, beyond the flows booked across the world's edge"); print(it.report(steps)) }
         val groups = sim.groups
         println("a step of weather, water, plants and all animals: %.1f ms, of it settling meetings %.1f ms, the sense of direction %.1f ms"

@@ -337,8 +337,13 @@ object Tally {
     fun bandsHerding(h: Herding, what: Bands) = TallyKey.raw("bands ${h.label}:${what.label}")
     fun bandsHerding(h: Herding, cold: Cold) = TallyKey.raw("bands ${h.label}:cold ${cold.label}")
     /** Bands' time on [a] (or lost, [t]) by whether they keep a herd, tenths of a day. */
-    fun bandsHerdingTime(h: Herding, a: Activity) = TallyKey.raw("bands ${h.label}:time ${a.label}")
-    fun bandsHerdingTime(h: Herding, t: TimeTotal) = TallyKey.raw("bands ${h.label}:time ${t.label}")
+    // (The keys of the tallies every band books every week are made once: building their text was a large part of a band-week.)
+    private val herdingTimeKeys = Array(Herding.entries.size) { h -> Array(Activity.entries.size) { a ->
+        TallyKey.raw("bands ${Herding.entries[h].label}:time ${Activity.entries[a].label}") } }
+    fun bandsHerdingTime(h: Herding, a: Activity) = herdingTimeKeys[h.ordinal][a.ordinal]
+    private val herdingTotalKeys = Array(Herding.entries.size) { h -> Array(TimeTotal.entries.size) { t ->
+        TallyKey.raw("bands ${Herding.entries[h].label}:time ${TimeTotal.entries[t].label}") } }
+    fun bandsHerdingTime(h: Herding, t: TimeTotal) = herdingTotalKeys[h.ordinal][t.ordinal]
     /** Bands' deaths of [cause] by whether they keep a herd, the [young] apart; [bandsHerdingDied] (h, young) starts all of them. */
     fun bandsHerdingDied(h: Herding, young: Boolean, cause: DeathReason) = ofCause(bandsHerdingDied(h, young), cause)
     fun bandsHerdingDied(h: Herding, young: Boolean) = TallyKey.raw("bands ${h.label}:${if (young) "children " else "grown "}$DIED_OF")
@@ -376,7 +381,9 @@ object Tally {
      */
     enum class Squeeze(val label: String) { ASKED_WEEKS("weeks asked"), SHORT_WEEKS("weeks short"), ASKED_DAYS("days asked"), MISSING_DAYS("days missing"),
         FIRST_DAYS("days asked first") }
-    fun squeeze(a: Activity, what: Squeeze) = TallyKey.raw("band squeeze:${a.label}:${what.label}")
+    private val squeezeKeys = Array(Activity.entries.size) { a -> Array(Squeeze.entries.size) { k ->
+        TallyKey.raw("band squeeze:${Activity.entries[a].label}:${Squeeze.entries[k].label}") } }
+    fun squeeze(a: Activity, what: Squeeze) = squeezeKeys[a.ordinal][what.ordinal]
     /** A band's spare days over the last season or so ([Band.spareMean], a share of its hands' days): the first bin it falls [below]. */
     enum class Spare(val label: String, val below: Float) {
         NONE("under 5%", 0.05f), LITTLE("5 to 15%", 0.15f), SOME("15% and over", Float.POSITIVE_INFINITY);
@@ -447,8 +454,10 @@ object Tally {
     private fun ofCause(started: TallyKey, cause: DeathReason) = TallyKey.raw(started.text + cause.label)
 
     /** How bands spent their hands' days, tenths of a day: on each [Activity], and in all or left over. */
-    fun bandTime(a: Activity) = bandTime(a.label)
-    fun bandTime(t: TimeTotal) = bandTime(t.label)
+    private val activityTimeKeys = Array(Activity.entries.size) { bandTime(Activity.entries[it].label) }
+    private val totalTimeKeys = Array(TimeTotal.entries.size) { bandTime(TimeTotal.entries[it].label) }
+    fun bandTime(a: Activity) = activityTimeKeys[a.ordinal]
+    fun bandTime(t: TimeTotal) = totalTimeKeys[t.ordinal]
     private fun bandTime(what: String) = TallyKey.raw("band time:$what")
     enum class TimeTotal(val label: String) { ALL("all"), LEFT("left"), LOST("lost to cold and hunger") }
 
