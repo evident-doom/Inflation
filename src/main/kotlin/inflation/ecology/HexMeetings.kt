@@ -140,7 +140,9 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
     stats.meeting(Met.BANDS_MET)
     note(a) { "met band #%d (%d people; tie %.2f)".format(b.id, b.size, a.band?.tie(b.id) ?: 0f) }
     note(b) { "met band #%d (%d people; tie %.2f)".format(a.id, a.size, b.band?.tie(a.id) ?: 0f) }
+    var lap = Profile.mark()
     if (meetingEndsInRaid(a, b, weather, rite)) return
+    lap = Profile.lap("bandsMeet: talk (all)", lap)
     val (poor, rich) = if (a.wellOff() < b.wellOff()) a to b else b to a
     // Bands that hold to sharing give more, and sooner.
     val sharing = rich.band?.holds(Tradition.SHARING) == true
@@ -164,6 +166,7 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
         note(poor) { "was given %.0f kg of food by band #%d".format(gift, rich.id) }
         }
     }
+    lap = Profile.lap("bandsMeet: food gift", lap)
     // Gifts: bands close to each other give each other ornaments, which travel on along the ties.
     for ((giver, taker) in listOf(a to b, b to a)) {
         val gb = giver.band ?: continue; val tb = taker.band ?: continue
@@ -176,6 +179,7 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
         tb.befriend(giver.id, 0.5f * TIE_GIFT)
         stats.meeting(Met.ORNAMENTS_GIVEN)
     }
+    lap = Profile.lap("bandsMeet: ornament gift", lap)
     // Useful gifts: a band gives of the good stone, salt and ochre it has beyond its own needs to
     // a band that lacks them. The more the gift meets the other's want, the more it binds them both, and
     // the giver's name goes about among the bands.
@@ -213,6 +217,7 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
         note(giver) { "gave band #%d stone, salt or ochre it lacked".format(taker.id) }
         note(taker) { "was given stone, salt or ochre by band #%d".format(giver.id) }
     }
+    lap = Profile.lap("bandsMeet: useful gifts", lap)
     // Feasts: a band that holds to feasting and has more laid by than it means to keep sets food
     // before the other; the guests remember it.
     for ((host, guest) in listOf(a to b, b to a)) {
@@ -243,7 +248,9 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
     }
     // Word of where the other did better this month.
     val ab = a.band; val bb = b.band
+    lap = Profile.lap("bandsMeet: feasts", lap)
     if (ab != null && bb != null) ab.shareSeasons(bb)
+    Profile.lap("bandsMeet: share seasons", lap)
 }
 
 /**
