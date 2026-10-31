@@ -43,4 +43,13 @@ class StoresAheadTest {
         val moves = band(3, lean, { it == 18 }).weeksAlive(s, days, 0, 60f, 0f, 0f, 2f, 1L)!!
         assertTrue(moves < stays - 0.01f, "the larder left at the old camp is missed: $moves against $stays")
     }
+
+    @Test
+    fun `the longer a place is kept, the longer it is reckoned kept, up to a generation`() {
+        fun kept(years: Float) = keepYears(Band(1).also { it.campWeeks = (years * 60).toInt() - 1 }, 60f)
+        assertEquals(2.0f, kept(0.5f), 0.05f)
+        assertEquals(5.3f, kept(2f), 0.05f)
+        assertEquals(13.0f, kept(10f), 0.1f)
+        assertTrue(kept(100f) < 100f && kept(100f) > GENERATION_YEARS * 0.8f, "a long-kept place is reckoned about a generation: ${kept(100f)}")
+    }
 }
