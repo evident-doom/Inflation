@@ -140,7 +140,7 @@ private fun HexGroups.planRates(g: HexGroup, b: Band, weather: Weather, perDay: 
  * The years band [b] and its heirs can expect to keep the place they have kept for [Band.campWeeks] steps ([perYear] a
  * year), up to a generation ([GENERATION_YEARS]): as long as they have kept it is as likely as not, and the longer kept, the
  * longer still (Gott 1993: kept T years, still there after t more as T / (T + t)), summed over a generation:
- * T ln(1 + G / T). A band half a year at a camp reckons 2 years; 2 years, 5; 10 years, 13. (Gott's rule ignores the time
+ * T ln(1 + G / T). A band half a year at a camp reckons 2 years; 2 years, 5; 10 years, 12.5. (Gott's rule ignores the time
  * scales of what it is applied to, Caves 2000; here the generation bounds it. A split's heirs keep the weeks, so a lineage
  * counts its own.)
  */
@@ -159,12 +159,6 @@ internal fun HexGroups.chanceStep(g: HexGroup, span: Float): Float {
     val over = 1f - (1f - q).pow(span * stepsPerYear)
     return sqrt(g.size * over * (1f - over))
 }
-
-/**
- * Years of a human generation, the mean age at which parents have their children over the last 250,000 years (Wang et al.
- * 2023, Science Advances 9: eabm7047): what a house is built for, its builders and the next ([keepYears]).
- */
-internal const val GENERATION_YEARS = 26.9f
 
 /**
  * The tiers of a [Mind.PLANS] band's week beyond its essentials ([planDays]), for the census, person-days ([LIVES]: the

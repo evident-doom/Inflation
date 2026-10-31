@@ -47,9 +47,9 @@ class StoresAheadTest {
     @Test
     fun `the longer a place is kept, the longer it is reckoned kept, up to a generation`() {
         fun kept(years: Float) = keepYears(Band(1).also { it.campWeeks = (years * 60).toInt() - 1 }, 60f)
-        assertEquals(2.0f, kept(0.5f), 0.05f)
-        assertEquals(5.3f, kept(2f), 0.05f)
-        assertEquals(13.0f, kept(10f), 0.1f)
+        assertEquals(1.97f, kept(0.5f), 0.05f)
+        assertEquals(5.2f, kept(2f), 0.05f)
+        assertEquals(12.5f, kept(10f), 0.1f)
         assertTrue(kept(100f) < 100f && kept(100f) > GENERATION_YEARS * 0.8f, "a long-kept place is reckoned about a generation: ${kept(100f)}")
     }
 }
