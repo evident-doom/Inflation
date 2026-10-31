@@ -78,7 +78,7 @@ hex learning tools. (The 1 km model's `Simulation` has since been removed; the h
 
 | Feature | Hex |
 |---|---|
-| Resident kinds | yes, as densities per place (a hex, or its low and high ground): every plant-eater, the migratory kinds too, and jackal, lynx, striped hyena and leopard as resident hunters |
+| Resident kinds | yes, as densities per place (a hex, or its low and high ground): every plant-eater, the migratory kinds too, and jackal, lynx and striped hyena as resident hunters |
 | Choosing where to go each week | yes (own rule, learnable) |
 | Routes over passes, climbers and walkers | yes (graded borders) |
 | Snow making travel harder | yes |
