@@ -714,6 +714,9 @@ class Census(private val sim: HexSim) {
         // (Neighbours by how well they understand each other and how wary the warier is, as their regard stands now: whether
         // unlike bands live within reach of each other at all, against whom the year's meetings were with.)
         val nearU = LongArray(Tally.Understood.entries.size); val nearW = LongArray(Tally.Wary.entries.size)
+        // (And of those by wariness: how many have one keep off the other's home it was told of ([Regard.closeOf], as the
+        // planner does), how many are both at home, and how many never met.)
+        val nearKeptOff = LongArray(nearW.size); val nearHome = LongArray(nearW.size); val nearNeverMet = LongArray(nearW.size)
         for (i in 0 until n) {
             val bi = bands[i].second; val li = bi.mainLineage()
             for (j in i + 1 until n) {
@@ -736,7 +739,12 @@ class Census(private val sim: HexSim) {
                     nearA += i; nearB += j
                     nearU[Tally.Understood.of(u).ordinal]++
                     val w = maxOf(Regard(bi, bands[j].first.id, bj, u, hex).wariness, Regard(bj, bands[i].first.id, bi, u, hex).wariness)
-                    nearW[Tally.Wary.of(w).ordinal]++
+                    val wc = Tally.Wary.of(w).ordinal
+                    nearW[wc]++
+                    val idI = bands[i].first.id; val idJ = bands[j].first.id
+                    if ((idJ in bi.knownHomes && Regard.closeOf(bi, idJ) <= 0f) || (idI in bj.knownHomes && Regard.closeOf(bj, idI) <= 0f)) nearKeptOff[wc]++
+                    if (bi.atHome && bj.atHome) nearHome[wc]++
+                    if (idJ !in bi.ties && idI !in bj.ties) nearNeverMet[wc]++
                     if (u >= REGION_UNDERSTOOD && off <= REGION_CUSTOMS_APART) { val ri = root(i); val rj = root(j); if (ri != rj) parent[ri] = rj }
                 }
             }
@@ -772,7 +780,9 @@ class Census(private val sim: HexSim) {
         val knownSorted = knownBands.sorted()
         println("     neighbours within %.0f km (pairs, as they stand): by understanding %s; by wariness %s"
             .format(GATHER_KM, Tally.Understood.entries.joinToString(", ") { "%s %d".format(it.label, nearU[it.ordinal]) },
-                Tally.Wary.entries.joinToString(", ") { "%s %d".format(it.label, nearW[it.ordinal]) }))
+                Tally.Wary.entries.joinToString(", ") { val k = it.ordinal; val m = nearW[k].coerceAtLeast(1).toDouble()
+                    "%s %d (%.0f%% one keeps off the other's home, %.0f%% both at home, %.0f%% never met)".format(it.label, nearW[k],
+                        100 * nearKeptOff[k] / m, 100 * nearHome[k] / m, 100 * nearNeverMet[k] / m) }))
         println("     bands known a band (alive): median %d, ninetieth %d; %.0f%% of them of another region; friends %.1f a band, %.0f%% of them of another region; country known, as a circle: median %.0f km across, ninetieth %.0f km"
             .format(knownSorted[n / 2], knownSorted[(n * 9) / 10], 100.0 * knownOther.sum() / knownBands.sum().coerceAtLeast(1),
                 friends.sum().toDouble() / n, 100.0 * friendsOther.sum() / friends.sum().coerceAtLeast(1), 2 * reachKm[n / 2], 2 * reachKm[(n * 9) / 10]))
