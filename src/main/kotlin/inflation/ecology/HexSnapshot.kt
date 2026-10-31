@@ -57,7 +57,7 @@ object HexSnapshot {
      * commit (git history is the record of what changed when). The earlier 1.x-4.x minor-version changelog is in git
      * history of this file.
      */
-    const val MODEL_MAJOR = 4
+    const val MODEL_MAJOR = 5
     /**
      * Enums whose entries index saved arrays by position (a band's skills, tools, goods, stores, illnesses, customs, plant
      * lore, ways): a save is refused where the code has them in another order or without one it saved, since the

@@ -78,7 +78,7 @@ internal fun HexGroups.hunt(weather: Weather) {
                     val s = g.species
                     // The ground it searches this week, shared over the hexes it passed.
                     val sweep = searchKm2(g, g.place, weather) / g.path.size.coerceAtLeast(1)
-                    Profile.part(if (s.human) "foraging: people" else "foraging: hunters") { forage(g, sweep, max(1, g.adults) * s.massKg, weather) }
+                    Profile.part(if (s.human) "foraging: people" else Profile.byKind("foraging: hunters", s.name)) { forage(g, sweep, max(1, g.adults) * s.massKg, weather) }
                 }
             }
         }
