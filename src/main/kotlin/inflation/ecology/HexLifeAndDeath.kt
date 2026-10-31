@@ -1096,7 +1096,7 @@ private inline fun GroupWorld.eachResidentManEater(p: Place, each: (Species, Flo
  * them, which the band's choice of camp weighs: [Band.scoutShare].)
  */
 internal fun stalkGuard(b: Band, walled: Float, fenced: Float, watchHours: Float = b.watchHours, nightGuard: Float = b.nightGuard): Float {
-    val dogs = 1f - DOGS_GUARD * min(1f, b.dogShare)
+    val dogs = 1f - DOGS_GUARD * min(1f, b.dogs.dogShare)
     val night = (1f - FIRE_GUARD * nightGuard) * dogs * (1f - shareOfWill(watchHours / WATCH_HOURS, WATCH_GUARD)) *
         (1f - HOUSE_GUARD * walled) * (1f - PALISADE_GUARD * fenced)
     return NIGHT_STALKED * night + (1f - NIGHT_STALKED) * dogs

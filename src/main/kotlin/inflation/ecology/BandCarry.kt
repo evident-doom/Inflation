@@ -14,6 +14,8 @@ enum class OnSplit {
     FRESH,
     /** A choice its ways make afresh each week. */
     CHOSEN,
+    /** Kept animals, by their contract's own rules ([Herd.CARRY], [Dogs.CARRY]). */
+    CONTRACT,
 }
 
 /** What becomes of a band's field when another band joins it ([Band.absorb]). */
@@ -30,6 +32,8 @@ enum class OnJoin {
     LOST,
     /** A choice its ways make afresh each week. */
     CHOSEN,
+    /** Kept animals, by their contract's own rules ([Herd.CARRY], [Dogs.CARRY]). */
+    CONTRACT,
 }
 
 /** [Band.CARRY]: each field's rule, as [Band.splitInto] and [Band.absorb] carry it out. */
@@ -44,32 +48,32 @@ internal fun carryRules(): Map<String, Pair<OnSplit, OnJoin>> {
     rule(OnSplit.COPIED, OnJoin.LOST, "totem", "marksChosen", "totemBroken", "burialWay")
     rule(OnSplit.FRESH, OnJoin.SUM, "burialOwed", "riteOwed", "riteAsked", "riteSpare")
     rule(OnSplit.FRESH, OnJoin.LOST, "riteDue")
-    rule(OnSplit.COPIED, OnJoin.LOST, "lastUsed", "seasonPlace", "seasonQ", "monthSupply", "monthSupplySq", "supplyMonth", "supplySum", "supplyWeeks", "weekSupply", "weekWarmth", "weekMoved", "freeShare", "herdGrew", "leanDays", "weeks", "traditions", "words", "rite", "riteStrength", "riteHeld", "riteKept", "beliefYears", "strain", "omenPlace", "omenMonth", "omenYear", "omenWeight", "deathsUsual", "wantSteps", "wantBroke", "wantUsual", "mind", "foreseenAt", "knownHomes", "knownLineage")
+    rule(OnSplit.COPIED, OnJoin.LOST, "lastUsed", "seasonPlace", "seasonQ", "monthSupply", "monthSupplySq", "supplyMonth", "supplySum", "supplyWeeks", "weekSupply", "weekWarmth", "weekMoved", "freeShare", "leanDays", "weeks", "traditions", "words", "rite", "riteStrength", "riteHeld", "riteKept", "beliefYears", "strain", "omenPlace", "omenMonth", "omenYear", "omenWeight", "deathsUsual", "wantSteps", "wantBroke", "wantUsual", "mind", "foreseenAt", "knownHomes", "knownLineage")
     // (A person's days of larder: a split halves the larder and the people alike; a joining band's larder is added to its own.)
     rule(OnSplit.COPIED, OnJoin.BLENDED, "larderSeen")
     // (What its people foresaw: a joining band's people bring theirs.)
     rule(OnSplit.COPIED, OnJoin.BLENDED, "foreseenShares")
     // Health.
     rule(OnSplit.COPIED, OnJoin.BLENDED, "sick", "immune", "hurt", "lame")
-    rule(OnSplit.FRESH, OnJoin.LOST, "cleaned", "nursed", "beastLoss", "herdTaken")
+    rule(OnSplit.FRESH, OnJoin.LOST, "cleaned", "nursed", "beastLoss")
     // People.
     rule(OnSplit.SET, OnJoin.SUM, "lastAdults")
-    rule(OnSplit.SHARED, OnJoin.SUM, "elders", "ageStage", "goods", "kept")
+    rule(OnSplit.SHARED, OnJoin.SUM, "elders", "ageStage", "goods")
     rule(OnSplit.COPIED, OnJoin.BLENDED, "kit", "fine", "salted", "dryDepth", "leanLost", "sodiumShort", "lineage", "inbred", "sisu")
     // Camp, home and raids.
     rule(OnSplit.COPIED, OnJoin.LOST, "campWeeks", "stayWeeks", "campPlace", "appointment", "houseHex", "house", "drivenFrom", "drivenBy", "homeEarth", "homeWalls", "homeGroundC", "palisade", "fire",
         "houseLives", "houseFood", "foodFrom", "fishPull", "weaningFood", "waterShort")
     rule(OnSplit.FRESH, OnJoin.LOST, "cache", "cacheKgPer", "cachePlace", "raid", "unlucky",
-        "shelter", "atHome", "nightWood", "hearthWood", "spareDays", "dogShare", "dryAsk", "skinAsk", "weirPull", "houseLivesWeek", "houseFoodWeek")
+        "shelter", "atHome", "nightWood", "hearthWood", "spareDays", "dryAsk", "skinAsk", "weirPull", "houseLivesWeek", "houseFoodWeek")
     // Ties.
     rule(OnSplit.COPIED, OnJoin.MAX, "ties")
     // (Favours stay with the band that was helped or helped: the new band owes and is owed nothing.)
     rule(OnSplit.FRESH, OnJoin.SUM, "favours")
     // Wealth and animals.
-    rule(OnSplit.SHARED, OnJoin.SUM, "ornaments", "exotic", "herd", "herdYoung")
-    rule(OnSplit.COPIED, OnJoin.MAX, "herdPet")
-    rule(OnSplit.COPIED, OnJoin.BLENDED, "herdTame", "seedDomestic", "grainDomestic")
+    rule(OnSplit.SHARED, OnJoin.SUM, "ornaments", "exotic")
+    rule(OnSplit.COPIED, OnJoin.BLENDED, "seedDomestic", "grainDomestic")
     rule(OnSplit.SHARED, OnJoin.SUM, "seedCorn")
+    rule(OnSplit.CONTRACT, OnJoin.CONTRACT, "herds", "dogs")
     // (The crop stays with the band that sowed it: an offshoot sowed nothing, and a joining band's crop is left to whoever reaps it.)
     rule(OnSplit.FRESH, OnJoin.LOST, "sownPlace", "sownKg")
     rule(OnSplit.COPIED, OnJoin.LOST, "sinceRaided")

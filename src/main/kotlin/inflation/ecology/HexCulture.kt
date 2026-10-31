@@ -254,7 +254,7 @@ enum class Livelihood { FORAGING, HERDING, FARMING }
  * How [this] band lives now: it farms while it keeps seed corn of its own crop ([Band.seedCorn]) to sow, herds while it keeps a
  * herd, and forages otherwise. (Farming first: those who keep both are farmers who keep beasts.)
  */
-fun Band.livelihood() = if (seedCorn > 0f) Livelihood.FARMING else if (herd.any { it > 0f }) Livelihood.HERDING else Livelihood.FORAGING
+fun Band.livelihood() = if (seedCorn > 0f) Livelihood.FARMING else if (herds.herd.any { it > 0f }) Livelihood.HERDING else Livelihood.FORAGING
 
 /**
  * Whether two bands that both have a home have them on other ground: farther apart than a day's walk ([BODY_CARRY_KM]), the

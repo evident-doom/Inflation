@@ -1108,7 +1108,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             sb.appendLine("tools: " + Tool.entries.filter { b.knows[it] }
                 .joinToString(", ") { "%s %.0f%%".format(it.name.lowercase(), 100 * b.kit[it]) })
             sb.appendLine("elders %d; children inbred %.3f; descent mostly lineage %d".format(b.elders, b.inbred, b.mainLineage()))
-            if (b.kept.sum() >= 0.5f) sb.appendLine("keeps: " + b.kept.withIndex().filter { it.value >= 0.5f }.joinToString(", ") {
+            if (b.dogs.kept.sum() >= 0.5f) sb.appendLine("keeps: " + b.dogs.kept.withIndex().filter { it.value >= 0.5f }.joinToString(", ") {
                 "%.0f %s".format(it.value, if (Catalogue.all[it.index] == Catalogue.WOLF) "dogs" else "tame " + Catalogue.all[it.index].name) })
             sb.appendLine("customs: " + Tradition.entries.filter { b.holds(it) }.joinToString(", ") { it.name.lowercase().replace('_', ' ') }
                 .ifEmpty { "none" })

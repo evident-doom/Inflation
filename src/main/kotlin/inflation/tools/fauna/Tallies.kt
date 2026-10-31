@@ -420,8 +420,8 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
             " | elders %.0f%% of adults, children inbred %.3f".format(100.0 * bs.sumOf { it.elders } / bands.sumOf { it.adults }.coerceAtLeast(1),
                 bs.map { it.inbred.toDouble() }.average()) +
             " | caches %d".format(bs.count { !it.cachePlace.none }) +
-            " | dogs %.0f in %d bands, fed %.2f, wolf packs' boldness %.2f".format(bs.sumOf { it.kept.sum().toDouble() }, bs.count { it.kept.sum() >= 1f },
-                bs.filter { it.kept.sum() >= 1f }.map { it.dogFed.toDouble() }.average(),
+            " | dogs %.0f in %d bands, fed %.2f, wolf packs' boldness %.2f".format(bs.sumOf { it.dogs.kept.sum().toDouble() }, bs.count { it.dogs.kept.sum() >= 1f },
+                bs.filter { it.dogs.kept.sum() >= 1f }.map { it.dogs.dogFed.toDouble() }.average(),
                 groups.groups.filter { it.alive && it.species.followsPeople && !it.species.human }.map { boldness(it).toDouble() }.average()) +
             " | country known %.0f km²".format(bs.map { b -> b.known.sumOf { java.lang.Long.bitCount(it) }.toDouble() }.average() * hex.areaKm2) +
             " | camp weeks %.1f, larder days %.0f".format(bs.map { it.campWeeks }.average(),
@@ -540,7 +540,7 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
     }
 
     /** The heads of kind [k] band [b] keeps, grown and young. */
-    private fun heads(b: Band, k: Int) = b.herd.getOrElse(k) { 0f } + b.herdYoung.getOrElse(k) { 0f }
+    private fun heads(b: Band, k: Int) = b.herds.herd.getOrElse(k) { 0f } + b.herds.herdYoung.getOrElse(k) { 0f }
 
     /** What bands hold a grown person (what a camp move must carry or leave), kept herds, ornaments and shell, grave goods. */
     private fun goods(bands: List<HexGroup>, bs: List<Band>): String {
@@ -552,7 +552,7 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
             " | kept herds: " + fauna.kinds.indices.filter { k -> bs.any { heads(it, k) >= 1f } }.joinToString(", ") { k ->
                 val keepers = bs.filter { heads(it, k) >= 1f }
                 "%s %.0f head (%.0f of them young) in %d bands, %d of them mobile (tame %.2f)".format(fauna.kinds[k].name, keepers.sumOf { heads(it, k).toDouble() },
-                    keepers.sumOf { it.herdYoung.getOrElse(k) { 0f }.toDouble() }, keepers.size, keepers.count { sim.groups.bandLiving(it) == Tally.Living.MOBILE }, keepers.map { it.herdTame[k].toDouble() }.average()) }.ifEmpty { "none" } +
+                    keepers.sumOf { it.herds.herdYoung.getOrElse(k) { 0f }.toDouble() }, keepers.size, keepers.count { sim.groups.bandLiving(it) == Tally.Living.MOBILE }, keepers.map { it.herds.herdTame[k].toDouble() }.average()) }.ifEmpty { "none" } +
             herdFlows() +
             " | ornaments %.1f a person (%.0f%% of shell), shell beads a person inland %.2f, by the sea %.2f; graves with goods %d (richest hold %.0f%% of goods)".format(
                 bs.sumOf { it.ornaments.toDouble() } / headsOf(bands),

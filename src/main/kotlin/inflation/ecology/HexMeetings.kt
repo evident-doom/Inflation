@@ -299,7 +299,7 @@ internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, b
         stats.meeting(Met.Of.KG_STOLEN_BY, strong.species.name, taken.roundToInt()); stats.meeting(Met.Of.KG_STOLEN_FROM, weak.species.name, taken.roundToInt())
     }
     // A camp fire, and dogs that bark at night, keep lions and hyenas from taking people.
-    val fire = if (weak.species.human) (1f - CAMPFIRE) * (1f - DOG_GUARD * (weak.band?.dogShare ?: 0f)) else 1f
+    val fire = if (weak.species.human) (1f - CAMPFIRE) * (1f - DOG_GUARD * (weak.band?.dogs?.dogShare ?: 0f)) else 1f
     // A much stronger party now and then kills one of the other: its young most often, an adult seldom.
     val odds = fire * (1f - SHELTER_EFFECT * Niches.shelter(weak.species, weak.place, land)) * strong.will[AnimalWay.KILL]
     // (People drive hunters off and now and then kill one, but do not seek out their young.)

@@ -428,7 +428,7 @@ object Tally {
         STAY("stay weeks"), WORTH_FITS("worth, fits"), WORTH_SHORT("worth, short of days"), NOT_WORTH("not worth")
     }
     fun thatchTrace(h: Hut, what: Thatch) = TallyKey.raw("thatch trace ${h.label}:${what.label}")
-    /** Whether a band keeps a herd ([Band.herd]). */
+    /** Whether a band keeps a herd ([Herd.herd]). */
     enum class HerdKept(val label: String) { HERDING("keeping a herd"), NONE("keeping none") }
     /** Bands' tallies by whether they keep a herd; [bandsHerdKeptDied] (herding) starts all their deaths. */
     fun bandsHerdKept(h: HerdKept, what: Bands) = TallyKey.raw("bands ${h.label}:${what.label}")

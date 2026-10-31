@@ -829,13 +829,13 @@ internal class GroupPlanner(private val gs: HexGroups) {
      */
     private fun herdLoss(g: HexGroup, b: Band, p: Place): Float {
         var kg = 0f
-        for (k in b.herd.indices) {
-            val n = b.herd[k] + 0.5f * b.herdYoung.getOrElse(k) { 0f }
+        for (k in b.herds.herd.indices) {
+            val n = b.herds.herd[k] + 0.5f * b.herds.herdYoung.getOrElse(k) { 0f }
             if (n <= 0f) continue
             val s = gs.fauna.kinds[k]
             val short = 1f - gs.herdForage(p, s, n).fed
             if (short <= 0f) continue
-            kg += n * short * (0.5f + s.youngPerFemale * herdMothers(s, b.herdTame[k])) * gs.years * s.massKg
+            kg += n * short * (0.5f + s.youngPerFemale * herdMothers(s, b.herds.herdTame[k])) * gs.years * s.massKg
         }
         return kg * MEAT_SHARE * Nourishment.MEAT * g.species.needScale / (g.dailyNeedKg.coerceAtLeast(1e-3f) * gs.days)
     }
