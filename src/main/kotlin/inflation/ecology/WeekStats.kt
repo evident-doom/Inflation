@@ -310,6 +310,14 @@ object Tally {
     fun starvedAt(mind: Mind, at: LarderAt) = TallyKey.raw("starved at larder ${mind.label}:${at.label}")
     /** Hunger deaths in bands of mind [mind] that moved camp in the month before. */
     fun starvedMoved(mind: Mind) = TallyKey.raw("starved after a move ${mind.label}")
+    /** Bands of mind [mind] [offset] weeks from a camp move (below 0 before it), [what] ([moveCensus]). */
+    fun aroundMove(mind: Mind, offset: Int, what: AroundMove) = TallyKey.raw("around a move ${mind.label}:$offset:${what.label}")
+    enum class AroundMove(val label: String) {
+        /** Band-weeks; the share of the need they ate, thousandths; their larders, tenths of a day of the need before keeping warm. */
+        WEEKS("band-weeks"), FED("fed, 1/1000"), LARDER("larder days, 1/10")
+    }
+    /** Hunger deaths within a month of a camp move in bands of mind [mind] already short of food in the weeks before it ([HUNGRY_BEFORE]). */
+    fun starvedMovedHungry(mind: Mind) = TallyKey.raw("starved after a move, short before ${mind.label}")
     /** People-weeks of bands of mind [mind] within a month of a camp move. */
     fun movedWeeks(mind: Mind) = TallyKey.raw("people-weeks after a move ${mind.label}")
     /** A planning band's days in each tier of its week beyond its essentials ([planDays]), tenths of a day. */

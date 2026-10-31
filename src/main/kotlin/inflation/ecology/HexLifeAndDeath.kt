@@ -392,7 +392,10 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
             if (starved > 0) {
                 val larderDays = g.larder / (g.dailyNeedKg / g.warmth.coerceAtLeast(1e-3f)).coerceAtLeast(1e-3f)
                 stats.hunting.merge(Tally.starvedAt(b.mind, Tally.LarderAt.of(larderDays)), starved, Int::plus)
-                if (b.campWeeks * days < Date.DAYS_PER_MONTH) stats.hunting.merge(Tally.starvedMoved(b.mind), starved, Int::plus)
+                if (b.campWeeks * days < Date.DAYS_PER_MONTH) {
+                    stats.hunting.merge(Tally.starvedMoved(b.mind), starved, Int::plus)
+                    if (b.fedBeforeMove < HUNGRY_BEFORE) stats.hunting.merge(Tally.starvedMovedHungry(b.mind), starved, Int::plus)
+                }
             }
             // And by whether it keeps a herd: what herding costs its people, its children apart.
             val herding = bandHerding(b, g.adults)

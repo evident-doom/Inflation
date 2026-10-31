@@ -6,6 +6,7 @@ import inflation.mix64
 import inflation.unitOf
 import inflation.world.Date
 import inflation.world.Weather
+import kotlin.math.roundToInt
 
 /**
  * forecastTrace=true: a sample of bands (1 in 20, the first [FORECAST_TRACE_MOST]) followed for a year from the first week they
@@ -92,6 +93,38 @@ internal class ForecastTrace(private val head: String, private val startMonth: I
         sb.append("  people at the start %d; month %d\n".format(startPeople, startMonth))
         return sb.toString()
     }
+}
+
+/** Weeks before and after a camp move the census follows a band ([moveCensus]). */
+const val MOVE_WEEKS = 4
+/** Fed below this share of the need on the mean over the weeks before a move, a band was already short of food when it moved. */
+const val HUNGRY_BEFORE = 0.9f
+
+/**
+ * For the census: band [b]'s (group [g]'s) week around its camp moves, the share of the need it ate and its [larderDays], in
+ * the [MOVE_WEEKS] weeks before a move ([moved] this week) and after it: whether bands starve for moving, or move for
+ * starving. Counts only.
+ */
+internal fun HexGroups.moveCensus(g: HexGroup, b: Band, moved: Boolean, larderDays: Float) {
+    fun book(offset: Int, fed: Float, larder: Float) {
+        stats.hunting.merge(Tally.aroundMove(b.mind, offset, Tally.AroundMove.WEEKS), 1, Int::plus)
+        stats.hunting.merge(Tally.aroundMove(b.mind, offset, Tally.AroundMove.FED), (1000f * fed).roundToInt(), Int::plus)
+        stats.hunting.merge(Tally.aroundMove(b.mind, offset, Tally.AroundMove.LARDER), (10f * larder).roundToInt(), Int::plus)
+    }
+    if (moved) {
+        var sum = 0f; var n = 0
+        for (j in 1..MOVE_WEEKS) {
+            val i = Math.floorMod(b.recentAt - j, MOVE_WEEKS)
+            val fed = b.recentFed[i]
+            if (fed.isNaN()) continue
+            book(-j, fed, b.recentLarder[i]); sum += fed; n++
+        }
+        b.fedBeforeMove = if (n > 0) sum / n else Float.NaN
+        b.sinceMove = 0
+    } else if (b.sinceMove >= 0) b.sinceMove++
+    if (b.sinceMove in 0..MOVE_WEEKS) book(b.sinceMove, g.fed, larderDays)
+    b.recentFed[b.recentAt] = g.fed; b.recentLarder[b.recentAt] = larderDays
+    b.recentAt = (b.recentAt + 1) % MOVE_WEEKS
 }
 
 /** [kg] of group [g]'s food moved into its larder (below 0, out) for [why]: for the census ([Band.larderFlow]) and the trace. */

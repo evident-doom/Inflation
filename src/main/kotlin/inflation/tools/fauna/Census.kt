@@ -22,6 +22,7 @@ import inflation.ecology.Mind
 import inflation.ecology.PlanTier
 import inflation.ecology.ForeseenBin
 import inflation.ecology.LarderMove
+import inflation.ecology.MOVE_WEEKS
 import inflation.world.Season
 import inflation.ecology.DeathCause
 import inflation.ecology.Tally
@@ -439,7 +440,17 @@ class Census(private val sim: HexSim) {
             } + "; hunger %.1f: ".format(1000 * starved / years) +
                 Tally.LarderAt.entries.joinToString(", ") { "%s %.0f%%".format(it.label, 100 * (lastYear[Tally.starvedAt(m, it)] ?: 0) / starved.coerceAtLeast(1.0)) } +
                 ", after a move %.0f%% (of people-weeks %.0f%%)".format(100 * (lastYear[Tally.starvedMoved(m)] ?: 0) / starved.coerceAtLeast(1.0),
-                    100 * (lastYear[Tally.movedWeeks(m)] ?: 0) / (years * stepsPerYear).coerceAtLeast(1.0))
+                    100 * (lastYear[Tally.movedWeeks(m)] ?: 0) / (years * stepsPerYear).coerceAtLeast(1.0)) +
+                ", of those short of food before the move %.0f%%".format(100 * (lastYear[Tally.starvedMovedHungry(m)] ?: 0).toDouble() / (lastYear[Tally.starvedMoved(m)] ?: 0).coerceAtLeast(1))
+        })
+        // Whether bands starve for moving camp or move for starving: how fed they were and what their larders held in the weeks
+        // around a move ([moveCensus]).
+        println("bands around camp moves, last year (by mind, weeks from the move, -$MOVE_WEEKS to $MOVE_WEEKS: share of the need eaten / larder days; and the moves counted): " + Mind.entries.joinToString("; ") { m ->
+            fun v(o: Int, w: Tally.AroundMove) = (lastYear[Tally.aroundMove(m, o, w)] ?: 0).toDouble()
+            m.label + ": " + (-MOVE_WEEKS..MOVE_WEEKS).joinToString(", ") { o ->
+                val n = v(o, Tally.AroundMove.WEEKS).coerceAtLeast(1.0)
+                "%+d %.2f/%.1f".format(o, v(o, Tally.AroundMove.FED) / 1000 / n, v(o, Tally.AroundMove.LARDER) / 10 / n)
+            } + " (moves %.0f)".format(v(0, Tally.AroundMove.WEEKS))
         })
         run {
             // A planning band's days beyond its essentials, by tier ([planDays]).
