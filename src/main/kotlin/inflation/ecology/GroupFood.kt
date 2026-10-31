@@ -380,6 +380,8 @@ private class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, packK
     // [weirAsk].)
     var fishPull = 0f
     var weirProbe = 0f; var weirPull = 0f
+    // (A whole weir there this week: what it would take, kg of its need, and the days its traps would want: for [Band.weirFood].)
+    var weirFood = 0f; var weirTend = 0f
     // (A band's grease rendered from bones, kg, and what it feeds.)
     var grease = 0f; var greaseFed = 0f
     var fed = g.meatMet * feeds(Food.BIG_GAME)
@@ -795,6 +797,7 @@ private fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
         val wholeKg = if (whole > 0f) fauna.water.weirWouldTake(h, whole / width) else 0f
         w.weirProbe = if (wholeKg > 0f && w.gatherers > 0f)
             w.weigh(Food.FISH) * band.effort[Food.FISH] / harassedDays(g.place, weirDays(whole, wholeKg) / w.gatherHands + w.eats) else 0f
+        if (wholeKg > 0f) { w.weirFood = wholeKg * w.worth(Food.FISH); w.weirTend = weirDays(whole, wholeKg) * wholeKg }
     }
 }
 
@@ -1495,6 +1498,9 @@ private fun GroupWorld.recordFood(g: HexGroup, band: Band, w: ForageWeek) {
     band.fishPull += k * (w.fishPull - band.fishPull)
     // (Whether a weir would pay goes with the season's fish, so it is this week's, not a running worth.)
     band.weirPull = w.weirPull
+    // (And what a whole weir by its camps would have taken and wanted tended as it lived its weeks, a year: [Band.weirFood].)
+    band.weirFood += k * (w.weirFood * stepsPerYear - band.weirFood)
+    band.weirTend += k * (w.weirTend * stepsPerYear - band.weirTend)
 }
 
 /** [forage]'s scavenging of [expected] kg at place [p] by [g], over [sweep] km²: what it found, kg. */

@@ -23,10 +23,10 @@ import kotlin.math.roundToInt
  * - what it holds by lives saved this year ([PlanTier.SCORED], survival now; doc: Needs tiers for band choices): the stores
  *   ([planRates]), as far as they ask, while they save any;
  * - then what it holds by the days a work saves it and its heirs over the years it serves them ([PlanTier.GENERATIONS],
- *   security over generations): the houses, with the days the stores left, as far as they ask, while they save more days
- *   than they take;
+ *   security over generations): the houses and weirs, with the days the stores left, the one that saves the most days for
+ *   its days first, each as far as it asks, while it saves more days than it takes;
  * - what has no reckoning in lives yet ([PlanTier.UNRECKONED]: tools beyond the clothes, training, materials, drying, skins, caching,
- *   sowing, palisade, weirs), shared out at equal weights of what is left, no dials;
+ *   sowing, palisade), shared out at equal weights of what is left, no dials;
  * - and what is left is its leisure ([PlanTier.LEISURE]), held as such, so no chore takes it.
  * The shelters beyond what the survival pass gave are worth no lives by its own reckoning, and get none. Each ask is
  * today's ([choreAsks]), the ways at the scaffold's ([Band.scaffoldWays]): the ask is the most an item is offered, not
@@ -47,16 +47,17 @@ internal fun HexGroups.planDays(g: HexGroup, b: Band, weather: Weather, time: Ba
     val paid = BandTime.shareOut(owed, floatArrayOf(1f, 1f), left)
     given[Activity.CUSTOMS] = paid[0] * time.pace(Activity.CUSTOMS); given[Activity.ORNAMENTS] = paid[1] * time.pace(Activity.ORNAMENTS)
     left -= paid.sum()
-    // What it holds by lives saved, tier by tier: survival now (the stores), then over generations (the houses), each as
-    // far as it asks this week ([planRates]); a tier has what the one below it left.
-    val rate = planRates(g, b, weather, perDay, asks[Activity.HOUSES] > 0f)
-    val ask = floatArrayOf(asks[Activity.FOOD], asks[Activity.HOUSES])
-    val acts = arrayOf(Activity.FOOD, Activity.HOUSES)
+    // What it holds by lives saved, tier by tier: survival now (the stores), then over generations (the houses and weirs,
+    // the one that saves the most days for its days first), each as far as it asks this week ([planRates]); a tier has
+    // what the one below it left.
+    val rate = planRates(g, b, weather, perDay, asks[Activity.HOUSES] > 0f, asks[Activity.WEIRS] > 0f)
+    val acts = SCORED_ACTS
+    val ask = FloatArray(SCORED_ITEMS) { asks[acts[it]] }
     val d = FloatArray(SCORED_ITEMS)
-    // (The stores while they save any lives; a house when it saves more days than it takes.)
-    val least = floatArrayOf(SAVES_NONE * g.size, 1f)
-    for (i in 0 until SCORED_ITEMS) {
-        if (rate[i] <= least[i] || left <= 0f) continue
+    // (The stores while they save any lives; a house or a weir when it saves more days than it takes.)
+    val order = listOf(0) + (1 until SCORED_ITEMS).sortedByDescending { rate[it] }
+    for (i in order) {
+        if (rate[i] <= (if (i == 0) SAVES_NONE * g.size else 1f) || left <= 0f) continue
         d[i] = min(ask[i], left * time.pace(acts[i])); left -= d[i] / time.pace(acts[i])
     }
     for (i in 0 until SCORED_ITEMS) given[acts[i]] = d[i]
@@ -71,11 +72,12 @@ internal fun HexGroups.planDays(g: HexGroup, b: Band, weather: Weather, time: Ba
     given[Activity.LEISURE] = left * time.pace(Activity.LEISURE)
     // (For the census: the days of each tier, and the lives the scored days were reckoned to save.)
     fun add(t: PlanTier, v: Float) { stats.hunting.merge(Tally.planTier(t), (10f * v).roundToInt(), Int::plus) }
-    add(PlanTier.OBLIGED, paid.sum()); add(PlanTier.SCORED, d[0] / time.pace(acts[0])); add(PlanTier.GENERATIONS, d[1] / time.pace(acts[1]))
+    add(PlanTier.OBLIGED, paid.sum()); add(PlanTier.SCORED, d[0] / time.pace(acts[0])); add(PlanTier.GENERATIONS, (1 until SCORED_ITEMS).sumOf { (d[it] / time.pace(acts[it])).toDouble() }.toFloat())
     add(PlanTier.UNRECKONED, shared.sum()); add(PlanTier.LEISURE, left)
     add(PlanTier.ASKED_BEYOND, max(0f, rest.sum() - shared.sum()))
     add(PlanTier.STORES_ASKED, days(Activity.FOOD, ask[0])); add(PlanTier.STORES_HELD, days(Activity.FOOD, d[0]))
     add(PlanTier.HOUSES_ASKED, days(Activity.HOUSES, ask[1])); add(PlanTier.HOUSES_HELD, days(Activity.HOUSES, d[1]))
+    add(PlanTier.WEIRS_ASKED, days(Activity.WEIRS, ask[2])); add(PlanTier.WEIRS_HELD, days(Activity.WEIRS, d[2]))
     stats.hunting.merge(Tally.planTier(PlanTier.LIVES), (1e4f * d[0] * rate[0]).roundToInt(), Int::plus)
     return given
 }
@@ -101,7 +103,7 @@ internal fun HexGroups.planDays(g: HexGroup, b: Band, weather: Weather, time: Ba
  * Not foreseen, as in [yearAhead]: the larder spoiling or raided, and the year beyond the next. ([houses]: whether it asks
  * for days for houses; the houses are reckoned only then.)
  */
-private fun HexGroups.planRates(g: HexGroup, b: Band, weather: Weather, perDay: Float, houses: Boolean): FloatArray {
+private fun HexGroups.planRates(g: HexGroup, b: Band, weather: Weather, perDay: Float, houses: Boolean, weirs: Boolean): FloatArray {
     val year = yearAhead(g, b, weather)
     val need = g.dailyNeedKg.coerceAtLeast(1e-3f)
     val people = g.size.toFloat()
@@ -142,6 +144,21 @@ private fun HexGroups.planRates(g: HexGroup, b: Band, weather: Weather, perDay: 
                 "(given days at 1 or more)").format(g.id, weather.date, g.size, g.adults, b.campWeeks, b.atHome, b.house, years, kg / years / people, b.houseFood, houseFoodAYear(g, b, g.place, weather),
                 kg, saved, perDay, HOUSE_DAYS * g.adults.coerceAtLeast(1), rate[1]))
     }
+    if (weirs) {
+        // (A whole weir across the river by its camp: the days of foraging the food it would take a year as the band lived
+        // ([Band.weirFood]) would have taken at [perDay], less the days its traps want ([Band.weirTend]) and its mending
+        // ([WEIR_WEAR] of it a year), over the years it and its heirs expect to keep the place, against its building.)
+        val whole = weirLengthM(hw.placeHex[g.place]) * WEIR_DAYS_PER_M
+        val years = keepYears(b, stepsPerYear)
+        val aYear = (if (perDay > 0f) b.weirFood / perDay else 0f) - b.weirTend - WEIR_WEAR * whole
+        rate[2] = if (whole > 0f) aYear * years / whole else 0f
+        if (PLAN_TRACE && unitOf(mix64(g.id * HASH_A + weather.date.absoluteDay * HASH_B + PLAN_TRACE_SALT + 2)) < 0.2f &&
+            weirTraced.incrementAndGet() <= PLAN_TRACE_MOST)
+            System.err.println(("weir trace: band %d, %s, %d people, camp kept %d steps, reckoned kept %.2f y; a whole weir %.0f days to build; " +
+                "a year as lived: %.0f kg of need (%.0f days of foraging at %.2f kg a person-day), %.0f days tending, %.0f mending: %.2f " +
+                "(given days at 1 or more)").format(g.id, weather.date, g.size, b.campWeeks, years, whole, b.weirFood,
+                if (perDay > 0f) b.weirFood / perDay else 0f, perDay, b.weirTend, WEIR_WEAR * whole, rate[2]))
+    }
     return rate
 }
 
@@ -166,19 +183,23 @@ internal fun keepYears(b: Band, perYear: Float): Float {
 enum class PlanTier(val label: String) {
     OBLIGED("owed by custom"), SCORED("held by lives this year"), GENERATIONS("held by days saved over generations"), UNRECKONED("no reckoning yet"), LEISURE("leisure"),
     ASKED_BEYOND("unreckoned asks not given"), LIVES("lives reckoned saved, 1/10000"),
-    STORES_ASKED("stores asked"), STORES_HELD("stores held"), HOUSES_ASKED("houses asked"), HOUSES_HELD("houses held")
+    STORES_ASKED("stores asked"), STORES_HELD("stores held"), HOUSES_ASKED("houses asked"), HOUSES_HELD("houses held"),
+    WEIRS_ASKED("weirs asked"), WEIRS_HELD("weirs held")
 }
 
 /** planTrace=true: a sample of planning bands' weeks, how the year ahead reckons their stores ([planRates]), on stderr. */
 internal val PLAN_TRACE = Config.flag(Config.Key.PLAN_TRACE, false)
 private val planTraced = java.util.concurrent.atomic.AtomicInteger()
 private val houseTraced = java.util.concurrent.atomic.AtomicInteger()
+private val weirTraced = java.util.concurrent.atomic.AtomicInteger()
 private const val PLAN_TRACE_MOST = 400
 private const val PLAN_TRACE_SALT = 0x50545243L
 
 /** The chores with no reckoning in lives yet ([planDays]): shared out at equal weights. */
 private val UNRECKONED_ACTS = arrayOf(Activity.TOOLS, Activity.TRAINING, Activity.MATERIALS, Activity.DRYING, Activity.SKINS, Activity.CACHING,
-    Activity.SOWING, Activity.PALISADE, Activity.WEIRS)
-private const val SCORED_ITEMS = 2
+    Activity.SOWING, Activity.PALISADE)
+/** The chores [planDays] holds by what they save ([planRates]): the stores in lives, then houses and weirs in days. */
+private val SCORED_ACTS = arrayOf(Activity.FOOD, Activity.HOUSES, Activity.WEIRS)
+private val SCORED_ITEMS = SCORED_ACTS.size
 /** Fewer lives than this a person are none saved: the rounding in the reckoning, not a difference. */
 private const val SAVES_NONE = 1e-6f
