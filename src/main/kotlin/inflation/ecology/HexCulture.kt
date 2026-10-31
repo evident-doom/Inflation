@@ -591,6 +591,7 @@ internal fun HexGroups.visitKin(weather: Weather) {
     val byHex = HashMap<Hex, ArrayList<HexGroup>>()
     for (g in groups) if (g.alive && g.band != null && g.larder > 0f) byHex.getOrPut(hw.placeHex[g.place]) { ArrayList() } += g
     for (g in hungry) {
+        val gb = g.band ?: continue
         // The best-stocked band within two hexes, the nearer the better.
         var best: HexGroup? = null; var bestScore = 0f
         val h0 = hw.placeHex[g.place]
@@ -600,7 +601,8 @@ internal fun HexGroups.visitKin(weather: Weather) {
                 // (What it can hope for there: an ordinary share of the larder, the more the closer the band holds it
                 // ([Regard.close], as at a meeting), or what the band owes it.)
                 val owed = min(0.9f * o.larder, o.band!!.owesTo(g.id) * FAVOUR_DAYS * g.dailyNeedKg)
-                val score = max(BAND_GIFT * (1f + Regard(o.band!!, g.id, g.band!!, map = hex).close) * o.larder, owed) / (1f + r)
+                val ob = o.band ?: continue
+                val score = max(BAND_GIFT * (1f + Regard(ob, g.id, gb, map = hex).close) * o.larder, owed) / (1f + r)
                 if (score > bestScore) {
                     bestScore = score
                     best = o
@@ -612,7 +614,7 @@ internal fun HexGroups.visitKin(weather: Weather) {
         val o = best ?: continue
         // (How much the band visited gives is its choice, more to a band it is close to, as at a meeting; and it owes the
         // favours it owes.)
-        val close = Regard(o.band!!, g.id, g.band!!, map = hex).close
+        val close = o.band?.let { ob -> Regard(ob, g.id, gb, map = hex).close } ?: 0f
         val base = min(0.9f, BAND_GIFT * (if (o.band!!.holds(Tradition.SHARING)) 2f else 1f) * (1f + close))
         val share = 0.9f * shareOfWill(o.band!!.giveWill, base / 0.9f)
         o.band?.let { ob -> dialUse?.amount(DialSite.GIVE_VISIT, ob.giveWill, share, base) }
