@@ -8,6 +8,7 @@ import inflation.enumFloats
 import inflation.mix64
 import inflation.unitOf
 import inflation.world.Weather
+import inflation.world.get
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
