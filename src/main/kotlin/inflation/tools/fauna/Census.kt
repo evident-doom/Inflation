@@ -591,7 +591,7 @@ class Census(private val sim: HexSim) {
         fun ft(k: Tally.FoodTime) = v(Tally.foodTime(k))
         val ftWeeks = ft(Tally.FoodTime.WEEKS).coerceAtLeast(1.0)
         println(("bands' foraging against the days its week's plan left it, last year (people-days a band-week): left %.1f, spent %.1f, past what was left %.2f; " +
-            "weeks more than 5%% past %.1f%%; kills beyond those expected took %.2f, kills short of them saved %.2f, extra hauling %.2f, digging soaks %.2f").format(
+            "weeks more than 5%% past %.1f%%; kills beyond those expected took %.2f, kills short of them saved %.2f, extra hauling %.2f, water (digging soaks, drawing from wells, carrying it home) %.2f").format(
             ft(Tally.FoodTime.ROOM) / 10 / ftWeeks, ft(Tally.FoodTime.SPENT) / 10 / ftWeeks, ft(Tally.FoodTime.OVER) / 10 / ftWeeks, 100 * ft(Tally.FoodTime.OVER_WEEKS) / ftWeeks,
             ft(Tally.FoodTime.KILLS_OVER) / 10 / ftWeeks, ft(Tally.FoodTime.KILLS_UNDER) / 10 / ftWeeks, ft(Tally.FoodTime.HAUL) / 10 / ftWeeks, ft(Tally.FoodTime.DIG) / 10 / ftWeeks))
         val wanted = Tally.ClothesMade.entries.sumOf { v(Tally.clothesMade(it)) }
