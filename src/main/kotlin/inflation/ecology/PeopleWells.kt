@@ -37,7 +37,7 @@ internal fun GroupWorld.waterShare(p: Place, fetchKm: Float, litres: Float, peop
     return when {
         d.mustDig(p, fetchKm) -> HexDrinkingWater.DIG_SHARE
         d.drawsFromWell(p, fetchKm) -> WELL_DRAW_SHARE
-        else -> fetchShare(min(d.waterKm[p], fetchKm), litres, peoplePerHand)
+        else -> fetchShare(min(d.campKm[p], fetchKm), litres, peoplePerHand)
     }
 }
 
@@ -50,7 +50,7 @@ internal fun GroupWorld.waterShare(p: Place, fetchKm: Float, litres: Float, peop
 internal fun GroupWorld.wellSpares(p: Place, fetchKm: Float, tempC: Float, peoplePerHand: Float): Float {
     val d = land.drink
     val without = if (d.underground(p, fetchKm)) HexDrinkingWater.DIG_SHARE
-        else fetchShare(min(d.waterKm[p], fetchKm), waterLitres(tempC), peoplePerHand)
+        else fetchShare(min(d.campKm[p], fetchKm), waterLitres(tempC), peoplePerHand)
     return (without - WELL_DRAW_SHARE).coerceAtLeast(0f)
 }
 
