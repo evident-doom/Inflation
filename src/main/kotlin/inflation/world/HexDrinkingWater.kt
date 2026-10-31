@@ -20,8 +20,17 @@ class HexDrinkingWater(land: HexLand) : HexLandPart(land) {
      * Least distance from any of each place's ground to a river or stream, a fresh lake, a spring, km: from a camp pitched at
      * the water, as people pitch them where they can ([campKm]).
      */
-    @Transient private val riverKmLeast = FloatArray(n); @Transient private val lakeKmLeast = FloatArray(n)
+    @Transient private val lakeKmLeast = FloatArray(n)
     @Transient private val springKmLeast = FloatArray(n)
+    /**
+     * By the size of the streams that still run ([RIVER_CLASS_M3S]: those of at least so much flow in a usual year): the mean
+     * distance from each place's ground to the nearest of them, a fresh lake or a spring, km; and the least distance from any of
+     * its ground to one of those streams. As the flow falls, the smaller streams dry up first ([step]).
+     */
+    @Transient private val riverClassKmMean = Array(RIVER_CLASS_M3S.size) { FloatArray(n) }
+    @Transient private val riverClassKmLeast = Array(RIVER_CLASS_M3S.size) { FloatArray(n) }
+    /** Mean distance from each place's ground to a fresh lake or a spring, km: where no stream runs. */
+    @Transient private val stillKmMean = FloatArray(n)
     /** Share of each place's ground within an easy walk of a stream or dry bed (a valley draining [WADI_KM2] or more); area of those beds, m². */
     @Transient val nearBed = FloatArray(n)
     @Transient internal val bedM2 = FloatArray(n)
@@ -137,9 +146,17 @@ class HexDrinkingWater(land: HexLand) : HexLandPart(land) {
             nearLake[p] = mean(p) { if (dLake[it] <= DRINK_KM) 1f else 0f }
             nearSpring[p] = mean(p) { if (dSpring[it] <= DRINK_KM) 1f else 0f }
             waterKmMean[p] = mean(p) { min(min(dRiver[it], dLake[it]), min(dSpring[it], MAX_WATER_KM)) }
-            riverKmLeast[p] = hw.placeCells[p].minOf { dRiver[it] }; lakeKmLeast[p] = hw.placeCells[p].minOf { dLake[it] }
+            lakeKmLeast[p] = hw.placeCells[p].minOf { dLake[it] }
             springKmLeast[p] = hw.placeCells[p].minOf { dSpring[it] }
+            stillKmMean[p] = mean(p) { min(dLake[it], min(dSpring[it], MAX_WATER_KM)) }
             streamKm[p] = mean(p) { min(dRiver[it], HexHydrology.MAX_DRAIN_KM) }
+        }
+        for ((k, least) in RIVER_CLASS_M3S.withIndex()) {
+            val d = if (k == 0) dRiver else near { !world.isSea[it] && !world.water.isLake(it) && world.water.discharge[it] >= least }
+            for (p in 0 until n) {
+                riverClassKmMean[k][p] = mean(p) { min(min(d[it], dLake[it]), min(dSpring[it], MAX_WATER_KM)) }
+                riverClassKmLeast[k][p] = hw.placeCells[p].minOf { d[it] }
+            }
         }
     }
 
@@ -162,8 +179,10 @@ class HexDrinkingWater(land: HexLand) : HexLandPart(land) {
             val flooded = if (hydro.flood[p] > 0f) land.floodShare[p] else 0f
             val lasting = nearRiver[p] * running + nearLake[p] + (if (thawed) springs else 0f)
             water[p] = max(pools, min(1f, lasting + flooded))
-            waterKm[p] = if (pools > 0f) 0f else waterKmMean[p] / max(0.2f, running.coerceAtLeast(nearLake[p] + springs))
-            val near = min(if (running > 0f) riverKmLeast[p] else MAX_WATER_KM, min(lakeKmLeast[p], if (thawed && springs > 0f) springKmLeast[p] else MAX_WATER_KM))
+            // (The streams still running at this week's share of a usual year's flow: those whose usual flow keeps a trickle.)
+            val k = runningClass(if (hydro.meanFlow[h] > 0f) hydro.flow[h] / hydro.meanFlow[h] else 0f)
+            waterKm[p] = if (pools > 0f) 0f else if (k >= 0) riverClassKmMean[k][p] else stillKmMean[p]
+            val near = min(if (k >= 0) riverClassKmLeast[k][p] else MAX_WATER_KM, min(lakeKmLeast[p], if (thawed && springs > 0f) springKmLeast[p] else MAX_WATER_KM))
             campKm[p] = if (pools > 0f) 0f else if (near < MAX_WATER_KM) near else waterKm[p]
             // In a dry bed the water may lie a little way down, in the sand and gravel under it.
             // (Under the beds of the valleys the water in the sands sinks away after each flood; under the
@@ -183,6 +202,23 @@ class HexDrinkingWater(land: HexLand) : HexLandPart(land) {
     }
 
     companion object {
+        /**
+         * Sizes of stream by their flow in a usual year, m³/s, for the walk to water as the flow falls: from a creek
+         * ([HexHydrology.CREEK]) up by tens. A stream runs while its flow keeps a trickle ([HexHydrology.TRICKLE]).
+         */
+        val RIVER_CLASS_M3S = floatArrayOf(HexHydrology.CREEK, 1f, 10f, 100f)
+
+        /**
+         * The smallest size of stream ([RIVER_CLASS_M3S]) still running when a place's streams carry [share] of a usual year's
+         * flow: those whose usual flow times [share] is still a trickle; -1 when none is. (Rounded up to the next size.)
+         */
+        fun runningClass(share: Float): Int {
+            if (share <= 0f) return -1
+            val least = max(HexHydrology.CREEK, HexHydrology.TRICKLE / share)
+            for ((k, m3s) in RIVER_CLASS_M3S.withIndex()) if (m3s >= least) return k
+            return -1
+        }
+
         /** Drinking water: an easy walk to it, km; furthest counted, km; soil wetness at which pools stand everywhere. */
         const val DRINK_KM = 3f
         const val MAX_WATER_KM = 60f
