@@ -30,7 +30,7 @@ object Profile {
         wall.merge(name, wallNs, Long::plus); cpu.merge(name, cpuNs, Long::plus)
     }
 
-    fun reset() { wall.clear(); cpu.clear(); order.clear(); parts.clear(); partOrder.clear() }
+    fun reset() { slowest.clear(); slowCount.clear(); wall.clear(); cpu.clear(); order.clear(); parts.clear(); partOrder.clear() }
 
     /**
      * Finer parts (with profile=fine): time spent in each, summed over all the threads that ran
@@ -50,6 +50,36 @@ object Profile {
     inline fun <T> part(name: String, block: () -> T): T { val t = mark(); val r = block(); lap(name, t); return r }
     /** Part [name], split by [kind] with profile=fine (a kind of animal, say); else [name] alone, built only when fine. */
     fun byKind(name: String, kind: String) = if (FINE) "$name / $kind" else name
+
+    /**
+     * The slowest single jobs (with profile=fine): after a job begun at [since] ([mark]), keeps the [SLOW_KEEP] longest of
+     * each [what] with the text [detail] gives (built only for one that ranks). Printed with [fineReport].
+     */
+    const val SLOW_KEEP = 8
+    @PublishedApi internal val slowest = ConcurrentHashMap<String, java.util.TreeMap<Long, String>>()
+    @PublishedApi internal val slowCount = ConcurrentHashMap<String, LongAdder>()
+    /** Jobs of the run's first [WARM_UP_DAYS] days are left out: they carry the JIT's and the class loading's time, not the model's. */
+    const val WARM_UP_DAYS = 90L
+    private val firstDay = java.util.concurrent.atomic.AtomicLong(Long.MIN_VALUE)
+    inline fun slow(what: String, since: Long, day: Long, detail: () -> String) { if (FINE) { val ns = System.nanoTime() - since; if (slowRanks(what, ns, day)) slowTook(what, ns, detail()) } }
+    @PublishedApi internal fun slowRanks(what: String, ns: Long, day: Long): Boolean {
+        firstDay.compareAndSet(Long.MIN_VALUE, day)
+        if (day >= 0 && day < firstDay.get() + WARM_UP_DAYS) return false
+        slowCount.computeIfAbsent(what) { LongAdder() }.increment()
+        val m = slowest.computeIfAbsent(what) { java.util.TreeMap() }
+        return synchronized(m) { m.size < SLOW_KEEP || ns > m.firstKey() }
+    }
+    @PublishedApi internal fun slowTook(what: String, ns: Long, detail: String) {
+        val m = slowest.computeIfAbsent(what) { java.util.TreeMap() }
+        synchronized(m) {
+            m[ns] = detail
+            if (m.size > SLOW_KEEP) m.pollFirstEntry()
+        }
+    }
+    fun slowReport(): String = slowest.keys.sorted().joinToString("\n") { k ->
+        val m = slowest.getValue(k)
+        "  slowest $k (of ${slowCount.getValue(k).sum()}):\n" + synchronized(m) { m.descendingMap().entries.joinToString("\n") { "    %7.2f ms  %s".format(it.key / 1e6, it.value) } }
+    }
 
     /** The finer parts, by thread time a step (ms) and share of all of it, most first. */
     fun fineReport(steps: Int): String {
