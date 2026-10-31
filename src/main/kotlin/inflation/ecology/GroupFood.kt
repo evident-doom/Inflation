@@ -160,6 +160,8 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         val time = w.time
         var f = if (intake > 0f) min(1f, left / (w.workDays * intake)) else 0f
         if (time != null) f = min(f, time.leftFor(Activity.FOOD) / (w.hands * w.workDays).coerceAtLeast(1e-6f))
+        // (A beast's party keeps no plan of its days: each pass has only the days the passes before it left.)
+        else if (w.band == null) f = min(f, max(0f, w.workDays - w.busy) / w.workDays.coerceAtLeast(1e-6f))
         val busy0 = w.busy
         if (pass == 0) w.searched = f
         if (FORAGE_DIAG == w.s.name && diagSampled(g, weather, 0.002f, 1)) System.err.println(
@@ -179,7 +181,18 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     w.time?.let { countFoodTime(w, it) }
     w.time?.let { restedDays(w, it) }
     w.time?.release(Activity.FOOD)
+    if (HUNT_DIAG && w.band == null) packWeekDiag(w)
     eatTheWeek(w)
+}
+
+/** Diagnostic (huntSteps): how a beast pack's week of foraging went, by the hunter ([HuntStep.PACK_WEEKS] and on). */
+private fun HexGroups.packWeekDiag(w: ForageWeek) {
+    val s = w.g.species
+    diag(s, HuntStep.PACK_WEEKS, 1f); diag(s, HuntStep.PACK_WORK_DAYS, w.workDays); diag(s, HuntStep.PACK_BUSY_DAYS, w.busy)
+    diag(s, HuntStep.PACK_EATING_DAYS, (w.meat - w.g.meatMet + w.killFat + w.smallGot + w.scraps) * w.eats)
+    if (w.wantAll > 0f) diag(s, HuntStep.PACK_FED, w.fed / w.wantAll)
+    if (w.fed >= w.aim - 0.01f * w.wantAll) diag(s, HuntStep.PACK_WEEKS_FULL, 1f)
+    else if (w.busy >= 0.95f * w.workDays) diag(s, HuntStep.PACK_WEEKS_OUT_OF_TIME, 1f)
 }
 
 /**
@@ -933,6 +946,12 @@ private fun HexGroups.eatTheWeek(w: ForageWeek) {
         land.books?.let { bookEaten(it, gorge * meatShare(null), HexSmallLife.DUNG * gorge) }
     }
     g.fed = (eaten / wantAll).coerceIn(0f, 1f)
+    if (HUNT_DIAG && band == null) {
+        val killed = meat + w.killFat > g.meatMet
+        if (!killed) diag(s, HuntStep.PACK_WEEKS_NO_KILL, 1f)
+        if (g.fed < WELL_FED) diag(s, if (killed) HuntStep.PACK_WEEKS_HUNGRY_WITH_KILL else HuntStep.PACK_WEEKS_HUNGRY_NO_KILL, 1f)
+        diag(s, HuntStep.PACK_KG_EATEN, eaten); diag(s, HuntStep.PACK_KG_LEFT, spare)
+    }
     if (band != null) note(g) {
         "ate %.0f of %.0f kg wanted (fed %.2f); larder left %.0f kg (%s); fat %.1f days; sodium short %.0f%%, salt %.1f kg; lean lost %.0f%%".format(
             eaten, wantAll, g.fed, g.larder, Store.entries.joinToString(" ") { "${it.name.lowercase()} %.0f".format(g.stores[it]) },
