@@ -132,11 +132,13 @@ enum class Skill(val domain: Domain, val floor: Float, val start: Float = 0f, va
      */
     SALTING(Domain.KEEPING, 0.3f, known = false),
     /**
-     * Wells: shafts sunk to the water table where it lies too deep for a soak ([Built.WELL]). Hit on only by a band at home
-     * that has had to dig for its water. Unknown to the Natufians as far as is known: the earliest wells are at
-     * Kissonerga-Mylouthkia, Cyprus, about 8400 BC (Peltenburg 2012). Slow to hit on and pass on, as mudbrick (estimates).
+     * Wells: shafts sunk to the water table ([Built.WELL]). Hit on only by a band at home that a well would spare days of
+     * digging soaks or carrying water ([Band.waterShort]). Unknown to the Natufians as far as is known: the earliest wells are
+     * at Kissonerga-Mylouthkia, Cyprus, about 8400 BC (Peltenburg 2012). A well is a soak dug deeper, which people already
+     * dig, so it is hit on and passed on as readily as the other simple ways: what held wells back was need (people lived by
+     * clean water), and the need is what gates them here.
      */
-    WELLS(Domain.WATER, CRAFT_FLOOR, known = false, invent = 0.01f, teach = 0.05f, settled = true),
+    WELLS(Domain.WATER, CRAFT_FLOOR, known = false, settled = true),
     ;
 
     /**
