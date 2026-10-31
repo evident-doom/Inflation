@@ -944,6 +944,12 @@ private fun HexGroups.eatTheWeek(w: ForageWeek) {
         land.books?.let { bookEaten(it, gorge * meatShare(null), HexSmallLife.DUNG * gorge) }
     }
     g.fed = (eaten / wantAll).coerceIn(0f, 1f)
+    if (HUNT_DIAG && band == null) {
+        val killed = meat + w.killFat > g.meatMet
+        if (!killed) diag(s, HuntStep.PACK_WEEKS_NO_KILL, 1f)
+        if (g.fed < WELL_FED) diag(s, if (killed) HuntStep.PACK_WEEKS_HUNGRY_WITH_KILL else HuntStep.PACK_WEEKS_HUNGRY_NO_KILL, 1f)
+        diag(s, HuntStep.PACK_KG_EATEN, eaten); diag(s, HuntStep.PACK_KG_LEFT, spare)
+    }
     if (band != null) note(g) {
         "ate %.0f of %.0f kg wanted (fed %.2f); larder left %.0f kg (%s); fat %.1f days; sodium short %.0f%%, salt %.1f kg; lean lost %.0f%%".format(
             eaten, wantAll, g.fed, g.larder, Store.entries.joinToString(" ") { "${it.name.lowercase()} %.0f".format(g.stores[it]) },
