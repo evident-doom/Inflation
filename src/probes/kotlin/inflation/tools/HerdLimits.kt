@@ -10,7 +10,7 @@ import inflation.ecology.herdForage
 import inflation.ecology.herdIncrease
 import inflation.run.TestWorlds
 import inflation.world.Date
-import inflation.world.Place
+import inflation.world.get
 import inflation.world.WorldCache
 import inflation.world.WorldConfig
 import kotlin.math.PI
