@@ -98,6 +98,8 @@ class Books {
 
     /** Over the run so far, what [part] left over of [stuff], m³ or kg (for tests). */
     fun leftOver(part: String, stuff: Stuff): Double = parts[part]?.gap?.get(stuff.ordinal) ?: 0.0
+    /** Over the run so far, the flows [part] booked of [stuff], each counted whole whichever way it went, m³ or kg (for tests). */
+    fun turnover(part: String, stuff: Stuff): Double = parts[part]?.flows?.filterKeys { it.startsWith("${stuff.ordinal}:") }?.values?.sumOf { abs(it) } ?: 0.0
     /** The parts checked so far. */
     val partNames: Set<String> get() = parts.keys
 
