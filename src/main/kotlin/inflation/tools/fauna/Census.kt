@@ -15,6 +15,8 @@ import inflation.ecology.RiteWalk
 import inflation.ecology.ritesApart
 import inflation.ecology.livelihood
 import inflation.ecology.homesApart
+import inflation.ecology.Regard
+import inflation.ecology.FRIEND_TIE
 import inflation.ecology.Mind
 import inflation.ecology.PlanTier
 import inflation.ecology.ForeseenBin
@@ -52,6 +54,7 @@ import inflation.ecology.seedCornIn
 import inflation.ecology.bandLiving
 import inflation.ecology.birthSpacing
 import kotlin.math.max
+import kotlin.math.sqrt
 import inflation.ecology.GATHER_KM
 import inflation.ecology.Language
 import inflation.ecology.Tradition
@@ -684,7 +687,8 @@ class Census(private val sim: HexSim) {
      * ([thisYear], the hunting ledger's year so far: see [Tally.meetingsBy]). Bands within [GATHER_KM] of each other are neighbours; neighbours that understand
      * each other at [REGION_UNDERSTOOD] or better and hold at most [REGION_CUSTOMS_APART] of their traditions differently are
      * of one region, and so are the neighbours of those (single linkage). A band bordering another region has a neighbour in
-     * it. The rites' year, from [metYear] (the year's culture tallies summed over its weeks), counts every rite's month
+     * it. Neighbour pairs are counted again by how well they understand each other and how wary they are (against the year's
+     * meetings, below); and each band's known bands (its ties), how many of another region, and how wide the country it knows. The rites' year, from [metYear] (the year's culture tallies summed over its weeks), counts every rite's month
      * once, held or cut short, and again by how far the band was from the site when it was (see [RiteWalk]); the raids' year counts
      * every raid and what came of it; the bands' year every split and every joining. The lines are the report's: nothing in the model reads them.
      */
@@ -707,6 +711,9 @@ class Census(private val sim: HexSim) {
         val sameLiving = LongArray(pairs.size); val oneGround = LongArray(pairs.size)
         val living = bands.map { it.second.livelihood() }
         val nearA = ArrayList<Int>(); val nearB = ArrayList<Int>()
+        // (Neighbours by how well they understand each other and how wary the warier is, as their regard stands now: whether
+        // unlike bands live within reach of each other at all, against whom the year's meetings were with.)
+        val nearU = LongArray(Tally.Understood.entries.size); val nearW = LongArray(Tally.Wary.entries.size)
         for (i in 0 until n) {
             val bi = bands[i].second; val li = bi.mainLineage()
             for (j in i + 1 until n) {
@@ -727,6 +734,9 @@ class Census(private val sim: HexSim) {
                 if (!bi.houseHex.none && !bj.houseHex.none && !homesApart(bi, bj, hex)) oneGround[c]++
                 if (km <= GATHER_KM) {
                     nearA += i; nearB += j
+                    nearU[Tally.Understood.of(u).ordinal]++
+                    val w = maxOf(Regard(bi, bands[j].first.id, bj, u, hex).wariness, Regard(bj, bands[i].first.id, bi, u, hex).wariness)
+                    nearW[Tally.Wary.of(w).ordinal]++
                     if (u >= REGION_UNDERSTOOD && off <= REGION_CUSTOMS_APART) { val ri = root(i); val rj = root(j); if (ri != rj) parent[ri] = rj }
                 }
             }
@@ -749,6 +759,23 @@ class Census(private val sim: HexSim) {
             "%s %d: %.2f / %.1f / %.0f%% / %.0f%% / %.0f%% / %.0f%% / %.0f%%".format(classes[c], pairs[c], understood[c] / pairs[c], apart[c] / pairs[c], 100.0 * sameLineage[c] / pairs[c],
                 100.0 * sameTotem[c] / pairs[c], 100.0 * sameRite[c] / pairs[c],
                 100.0 * sameLiving[c] / pairs[c], 100.0 * oneGround[c] / pairs[c]) })
+        // (Whom each band knows (its ties, met and not yet forgotten) and how far it knows the country: how wide its world is.)
+        val index = HashMap<Int, Int>(n * 2); for (i in 0 until n) index[bands[i].first.id] = i
+        val knownBands = IntArray(n); val knownOther = IntArray(n); val friendsOther = IntArray(n); val friends = IntArray(n)
+        for (i in 0 until n) for ((id, t) in bands[i].second.ties) {
+            val j = index[id] ?: continue
+            knownBands[i]++; if (root(j) != root(i)) knownOther[i]++
+            if (t > FRIEND_TIE) { friends[i]++; if (root(j) != root(i)) friendsOther[i]++ }
+        }
+        val hexKm2 = sqrt(3.0) / 2 * hex.hexKm * hex.hexKm
+        val reachKm = (0 until n).map { i -> sqrt(bands[i].second.known.sumOf { java.lang.Long.bitCount(it) } * hexKm2 / Math.PI) }.sorted()
+        val knownSorted = knownBands.sorted()
+        println("     neighbours within %.0f km (pairs, as they stand): by understanding %s; by wariness %s"
+            .format(GATHER_KM, Tally.Understood.entries.joinToString(", ") { "%s %d".format(it.label, nearU[it.ordinal]) },
+                Tally.Wary.entries.joinToString(", ") { "%s %d".format(it.label, nearW[it.ordinal]) }))
+        println("     bands known a band (alive): median %d, ninetieth %d; %.0f%% of them of another region; friends %.1f a band, %.0f%% of them of another region; country known, as a circle: median %.0f km across, ninetieth %.0f km"
+            .format(knownSorted[n / 2], knownSorted[(n * 9) / 10], 100.0 * knownOther.sum() / knownBands.sum().coerceAtLeast(1),
+                friends.sum().toDouble() / n, 100.0 * friendsOther.sum() / friends.sum().coerceAtLeast(1), 2 * reachKm[n / 2], 2 * reachKm[(n * 9) / 10]))
         val kept = bands.mapNotNull { (_, b) -> b.totem.takeIf { !it.none }?.i }
         val bury = bands.filter { it.second.holds(Tradition.BURIAL) }
         println("     totems: %.0f%% of bands keep one, %d kinds kept, %.0f%% known lately to have eaten of theirs; burial: %.0f%% of bands bury their dead, %.0f%% of those carry them to their ancestors, %.1f person-days a band still owed to burials"
