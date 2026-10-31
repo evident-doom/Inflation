@@ -978,7 +978,7 @@ internal fun HexGroups.mergeAndPair(date: Date) {
  * Dovidio). How alike they are is read from [Regard] both ways (words understood, kin, tie, customs apart): halves of a split
  * still at home together are one again at once; bands that met as strangers grow alike as their ties, words and customs come
  * together. Nothing forces it, and it needs room under the size a band at home holds ([maxSize]). The smaller joins the larger.
- * Bands of the two kinds of choosing live side by side but stay apart.
+ * Bands of the two kinds of choosing ([Band.mind]) become one alike: the joined band chooses as the larger did.
  */
 private fun HexGroups.becomeOne(date: Date) {
     val atHome = HashMap<Hex, ArrayList<HexGroup>>()
@@ -989,11 +989,12 @@ private fun HexGroups.becomeOne(date: Date) {
             val a = bands[i]; val c = bands[j]
             val ab = a.band ?: continue; val cb = c.band ?: continue
             if (!a.alive || !c.alive) continue
-            if (ab.mind != cb.mind || a.size + c.size > min(maxSize(a), maxSize(c))) continue
+            if (a.size + c.size > min(maxSize(a), maxSize(c))) continue
             if (alike(Regard(ab, c.id, cb, map = hex)) < ONE_GROUP || alike(Regard(cb, a.id, ab, map = hex)) < ONE_GROUP) continue
             val (into, from) = if (a.size >= c.size) a to c else c to a
             joinBand(into, from, stepOf(date))
             stats.meeting(Met.BANDS_BECAME_ONE)
+            if (ab.mind != cb.mind) stats.meeting(Met.BANDS_OF_TWO_MINDS_BECAME_ONE)
         }
     }
 }
@@ -1095,7 +1096,7 @@ private inline fun GroupWorld.eachResidentManEater(p: Place, each: (Species, Flo
  * them, which the band's choice of camp weighs: [Band.scoutShare].)
  */
 internal fun stalkGuard(b: Band, walled: Float, fenced: Float, watchHours: Float = b.watchHours, nightGuard: Float = b.nightGuard): Float {
-    val dogs = 1f - DOGS_GUARD * min(1f, b.dogShare)
+    val dogs = 1f - DOGS_GUARD * min(1f, b.dogs.dogShare)
     val night = (1f - FIRE_GUARD * nightGuard) * dogs * (1f - shareOfWill(watchHours / WATCH_HOURS, WATCH_GUARD)) *
         (1f - HOUSE_GUARD * walled) * (1f - PALISADE_GUARD * fenced)
     return NIGHT_STALKED * night + (1f - NIGHT_STALKED) * dogs

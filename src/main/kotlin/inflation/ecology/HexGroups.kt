@@ -262,15 +262,15 @@ class HexGroups(
         fun bands(f: (Band) -> Double) = run { var sum = 0.0; for (g in groups) if (g.alive) g.band?.let { sum += f(it) }; sum }
         stocks.add(Books.Stuff.MATTER, StockName.BANDS_FOOD) { var sum = 0.0; for (g in groups) if (g.alive && g.band != null) sum += massOf(g.stores, g.storeKgPer); sum }
         stocks.add(Books.Stuff.MATTER, StockName.BANDS_CACHES) { bands { it.cacheMass().toDouble() } }
-        stocks.add(Books.Stuff.MATTER, StockName.BANDS_KEPT_ANIMALS) { bands { b -> var sum = 0.0; val y = b.herdYoung
-            for (k in b.herd.indices) sum += (b.herd[k] + HexFauna.YOUNG_WEIGHT * y.getOrElse(k) { 0f }) * fauna.kinds[k].massKg; sum } }
+        stocks.add(Books.Stuff.MATTER, StockName.BANDS_KEPT_ANIMALS) { bands { b -> var sum = 0.0; val y = b.herds.herdYoung
+            for (k in b.herds.herd.indices) sum += (b.herds.herd[k] + HexFauna.YOUNG_WEIGHT * y.getOrElse(k) { 0f }) * fauna.kinds[k].massKg; sum } }
         stocks.add(Books.Stuff.MATTER, StockName.BANDS_GOODS) { bands { it.livingGoods().toDouble() } }
     }
 
     /** The bands with kept herds, by the place they are camped in, for the resident hunters' week ([HexFauna.keptAt]). */
     internal fun herdsForBeasts(): Map<Int, List<Band>> {
         val at = HashMap<Int, ArrayList<Band>>()
-        for (g in groups) if (g.alive) g.band?.let { b -> if (b.herd.indices.any { k -> b.herd[k] + b.herdYoung.getOrElse(k) { 0f } >= 1f }) at.getOrPut(g.place.i) { ArrayList() } += b }
+        for (g in groups) if (g.alive) g.band?.let { b -> if (b.herds.herd.indices.any { k -> b.herds.herd[k] + b.herds.herdYoung.getOrElse(k) { 0f } >= 1f }) at.getOrPut(g.place.i) { ArrayList() } += b }
         if (HUNT_DIAG) {
             // (Last week's take at the camps, then what is held there as this week starts: [HuntStep.KEPT_YOUNG_HELD] and on.)
             for ((k, s) in fauna.kinds.withIndex()) { val t = fauna.campTaken[k]
@@ -279,8 +279,8 @@ class HexGroups(
             for ((p, bs) in at) { val area = land.areaKm2[p]
                 // (The wild at every camp with a herd, as the take is counted there.)
                 for ((k, s) in fauna.kinds.withIndex()) {
-                    diag(s, HuntStep.KEPT_YOUNG_HELD, bs.sumOf { it.herdYoung.getOrElse(k) { 0f }.toDouble() }.toFloat())
-                    diag(s, HuntStep.KEPT_GROWN_HELD, bs.sumOf { it.herd.getOrElse(k) { 0f }.toDouble() }.toFloat())
+                    diag(s, HuntStep.KEPT_YOUNG_HELD, bs.sumOf { it.herds.herdYoung.getOrElse(k) { 0f }.toDouble() }.toFloat())
+                    diag(s, HuntStep.KEPT_GROWN_HELD, bs.sumOf { it.herds.herd.getOrElse(k) { 0f }.toDouble() }.toFloat())
                     diag(s, HuntStep.WILD_YOUNG_AT_CAMPS, fauna.young[k][p] * area); diag(s, HuntStep.WILD_GROWN_AT_CAMPS, fauna.adults[k][p] * area)
                 } }
         }
@@ -371,7 +371,7 @@ class HexGroups(
             val g = groups[k]
             if (!g.alive) return@forEach
             // (With profile=fine, the choosing is timed by packs and bands apart.)
-            val plan = Profile.part(if (g.band != null) "choosing: bands" else "choosing: packs") { planner.plan(g, weather, date, predatorKg) }
+            val plan = Profile.part(if (g.band != null) "choosing: bands" else Profile.byKind("choosing: packs", g.species.name)) { planner.plan(g, weather, date, predatorKg) }
             choice[k] = plan.place.i; paths[k] = plan.path
             times[k] = Profile.part("choosing: timetable") { timetable(g.species, plan.path) }
         }

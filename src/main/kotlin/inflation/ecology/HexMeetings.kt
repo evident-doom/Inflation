@@ -252,13 +252,17 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
  * finds the other senses it, v how fast they close on each other, T the time both spend about
  * (searching, at the same hours) and A the place's size.
  */
-internal fun GroupWorld.encounters(a: HexGroup, b: HexGroup, p: Place, span: Float): Float {
+internal fun GroupWorld.encounters(a: HexGroup, b: HexGroup, p: Place, span: Float): Float =
+    encounters(a.species, b.species, a.band != null && b.band != null, p, span)
+
+/** [encounters] for a group of kind [a] and one of kind [b] ([bands] when both are bands), as a group foresees them. */
+internal fun GroupWorld.encounters(a: Species, b: Species, bands: Boolean, p: Place, span: Float): Float {
     // By the keener's senses.
-    val r = max(a.species.senseKm, b.species.senseKm)
-    val v = sqrt(a.species.dailyTravelKm * a.species.dailyTravelKm + b.species.dailyTravelKm * b.species.dailyTravelKm)
+    val r = max(a.senseKm, b.senseKm)
+    val v = sqrt(a.dailyTravelKm * a.dailyTravelKm + b.dailyTravelKm * b.dailyTravelKm)
     // Bands seek each other out at springs and lake shores, where people come together.
-    val gather = if (a.band != null && b.band != null) 1f + 2f * (land.drink.nearSpring[p] + land.drink.nearLake[p]).coerceAtMost(1f) else 1f
-    return 2f * r * v * span * SEARCHING * gather / land.areaKm2[p] * Niches.overlap(a.species, b.species)
+    val gather = if (bands) 1f + 2f * (land.drink.nearSpring[p] + land.drink.nearLake[p]).coerceAtMost(1f) else 1f
+    return 2f * r * v * span * SEARCHING * gather / land.areaKm2[p] * Niches.overlap(a, b)
 }
 
 /**
@@ -266,12 +270,18 @@ internal fun GroupWorld.encounters(a: HexGroup, b: HexGroup, p: Place, span: Flo
  * of another kind; the keener its senses and the better its shelter, the likelier.
  */
 internal fun HexGroups.slipsAway(g: HexGroup, other: HexGroup, p: Place): Boolean {
-    val s = g.species; val o = other.species
-    if (s == o || strength(other) <= 2f * strength(g)) return false
-    val first = s.senseKm / (s.senseKm + o.senseKm)
-    val chance = AVOID_SKILL * first * (1f - o.stalking * 0.5f) + SHELTER_EFFECT * 0.5f * Niches.shelter(s, p, land)
-    return rnd.nextFloat() < min(0.9f, chance)
+    if (g.species == other.species || strength(other) <= 2f * strength(g)) return false
+    return rnd.nextFloat() < slipChance(g.species, other.species, p)
 }
+
+/** The chance a hunter of kind [s] slips away from a much stronger party of kind [o] at place [p] ([slipsAway]). */
+internal fun HexGroups.slipChance(s: Species, o: Species, p: Place): Float {
+    val first = s.senseKm / (s.senseKm + o.senseKm)
+    return min(0.9f, AVOID_SKILL * first * (1f - o.stalking * 0.5f) + SHELTER_EFFECT * 0.5f * Niches.shelter(s, p, land))
+}
+
+/** What keeps a much stronger party ([enemiesMeet]) from killing one of kind [weak] at place [p]: its shelter there. */
+internal fun HexGroups.shelteredFromKilling(weak: Species, p: Place) = 1f - SHELTER_EFFECT * Niches.shelter(weak, p, land)
 
 
 /**
@@ -299,9 +309,9 @@ internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, b
         stats.meeting(Met.Of.KG_STOLEN_BY, strong.species.name, taken.roundToInt()); stats.meeting(Met.Of.KG_STOLEN_FROM, weak.species.name, taken.roundToInt())
     }
     // A camp fire, and dogs that bark at night, keep lions and hyenas from taking people.
-    val fire = if (weak.species.human) (1f - CAMPFIRE) * (1f - DOG_GUARD * (weak.band?.dogShare ?: 0f)) else 1f
+    val fire = if (weak.species.human) (1f - CAMPFIRE) * (1f - DOG_GUARD * (weak.band?.dogs?.dogShare ?: 0f)) else 1f
     // A much stronger party now and then kills one of the other: its young most often, an adult seldom.
-    val odds = fire * (1f - SHELTER_EFFECT * Niches.shelter(weak.species, weak.place, land)) * strong.will[AnimalWay.KILL]
+    val odds = fire * shelteredFromKilling(weak.species, weak.place) * strong.will[AnimalWay.KILL]
     // (People drive hunters off and now and then kill one, but do not seek out their young.)
     if (ratio > 2f && weak.young > 0 && !strong.species.human && rnd.nextFloat() < INTRAGUILD_KILL_YOUNG * tuning.intraguildYoung * odds) {
         weak.young--

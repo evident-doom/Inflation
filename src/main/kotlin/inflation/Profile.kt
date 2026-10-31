@@ -48,6 +48,8 @@ object Profile {
         return now
     }
     inline fun <T> part(name: String, block: () -> T): T { val t = mark(); val r = block(); lap(name, t); return r }
+    /** Part [name], split by [kind] with profile=fine (a kind of animal, say); else [name] alone, built only when fine. */
+    fun byKind(name: String, kind: String) = if (FINE) "$name / $kind" else name
 
     /** The finer parts, by thread time a step (ms) and share of all of it, most first. */
     fun fineReport(steps: Int): String {

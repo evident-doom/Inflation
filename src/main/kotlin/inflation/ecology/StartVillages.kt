@@ -64,8 +64,8 @@ private fun GroupWorld.startHerd(g: HexGroup, b: Band): Pair<Int, Float>? {
     val n = min(startHerdSize(g, k), fauna.adults[k][p] * area)
     if (n <= 0f) return null
     fauna.adults[k][p] -= n / area
-    b.herdTame[k] = (b.herdTame[k] * b.herd[k] + HERD_START_TAME * n) / (b.herd[k] + n)
-    b.herd[k] += n
+    b.herds.herdTame[k] = (b.herds.herdTame[k] * b.herds.herd[k] + HERD_START_TAME * n) / (b.herds.herd[k] + n)
+    b.herds.herd[k] += n
     b.knowsSkill[Skill.TENDING] = true; b.skills[Skill.TENDING] = max(b.skills[Skill.TENDING], HERD_SKILL); b.lastUsed[Skill.TENDING] = b.weeks
     return k to n
 }

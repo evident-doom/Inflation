@@ -835,8 +835,8 @@ class Census(private val sim: HexSim) {
         println("     raids' year: %d at meetings, %d on homes; %d raided bands slipped away, %d larders taken, %d bands driven from their homes; %d times neighbours stood with the raided"
             .format(met(Met.RAIDS), met(Met.RAIDS_ON_HOMES), met(Met.RAIDED_BANDS_SLIPPED_AWAY), met(Met.LARDERS_RAIDED), met(Met.BANDS_DRIVEN_FROM_HOME),
                 met(Met.NEIGHBOURS_DEFENDED)))
-        println("     bands' year: %d split, %d small bands joined kin, %d bands at home together became one"
-            .format(met(Met.BANDS_SPLIT), met(Met.SMALL_BANDS_JOINED_KIN), met(Met.BANDS_BECAME_ONE)))
+        println("     bands' year: %d split, %d small bands joined kin, %d bands at home together became one (%d of them of the two kinds of choosing)"
+            .format(met(Met.BANDS_SPLIT), met(Met.SMALL_BANDS_JOINED_KIN), met(Met.BANDS_BECAME_ONE), met(Met.BANDS_OF_TWO_MINDS_BECAME_ONE)))
         fun of(m: Met.Of, w: RiteWalk) = metYear[m.tally(w.label)] ?: 0
         println("     rites by the band's distance from the site: " + RiteWalk.entries.joinToString("; ") { w ->
             val h = of(Met.Of.RITES_HELD, w); val c = of(Met.Of.RITES_CUT_SHORT, w)

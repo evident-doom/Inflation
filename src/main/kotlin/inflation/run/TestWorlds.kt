@@ -87,10 +87,15 @@ object TestWorlds {
         Entry("m455-1", 1, 1000, 2000, "the full map, model 4.55"),
         Entry("m455-2", 2, 1000, 2000, "the full map, model 4.55"),
         Entry("m455-3", 3, 1000, 2000, "the full map, model 4.55"),
+        // The same seeds, settled for 30 years on model 5 (striped hyenas live as residents, #511) from t.startDay=150:
+        // the set in use, replacing m455-1..3, whose saves model 5 refuses.
+        Entry("m5-1", 1, 1000, 2000, "the full map, model 5"),
+        Entry("m5-2", 2, 1000, 2000, "the full map, model 5"),
+        Entry("m5-3", 3, 1000, 2000, "the full map, model 5"),
     )
 
     /** The worlds a change is tested on unless --worlds says otherwise: the set in use. */
-    val FULL = ALL.filter { it.name.startsWith("m455-") }
+    val FULL = ALL.filter { it.name.startsWith("m5-") }
 
     fun named(name: String): Entry = ALL.firstOrNull { it.name == name } ?: error("no test world $name; they are ${ALL.joinToString(", ") { it.name }}")
 

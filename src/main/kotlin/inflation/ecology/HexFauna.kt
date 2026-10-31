@@ -354,10 +354,10 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         // ([stalkGuard]: by night its fire, dogs, watch and palisade, by day its dogs); kg per km² as the game.)
         val camps = keptAt?.get(p.i)
         // (The grown at [j], the young at herd.size + j.)
-        val wK = if (camps != null) Array(camps.size) { c -> val b = camps[c]; val guard = stalkGuard(b, 0f, b.fencedNow()); val yh = b.youngHerd()
-            val nk = b.herd.size
-            FloatArray(2 * nk) { i -> val j = i % nk; val y = i >= nk; val heads = if (y) yh[j] else b.herd[j]
-                if (j == k.i || b.herd[j] + yh[j] < 1f || heads <= 0f) 0f else { val s = kinds[j]; val m = if (y) YOUNG_WEIGHT * s.massKg else s.massKg
+        val wK = if (camps != null) Array(camps.size) { c -> val b = camps[c]; val guard = stalkGuard(b, 0f, b.fencedNow()); val yh = b.herds.youngHerd()
+            val nk = b.herds.herd.size
+            FloatArray(2 * nk) { i -> val j = i % nk; val y = i >= nk; val heads = if (y) yh[j] else b.herds.herd[j]
+                if (j == k.i || b.herds.herd[j] + yh[j] < 1f || heads <= 0f) 0f else { val s = kinds[j]; val m = if (y) YOUNG_WEIGHT * s.massKg else s.massKg
                     (heads / area * m * catchable(hunter, s, m, p) * guard).also { total += it } } } } else null
         if (total <= 0f) return KgM2.ZERO
         // (Its need is reckoned in the weight of the prey it kills, the parts it leaves included ([Allometry.dailyIntakeKg]);
@@ -381,17 +381,17 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             ate += KgKm2(kg).perM2
             ateBook?.add(-(kg * MEAT_SHARE * area).toDouble())
         }
-        // (What it takes of the herds comes out of the bands' herds, the band to learn of it as it keeps them: [Band.herdTaken].)
+        // (What it takes of the herds comes out of the bands' herds, the band to learn of it as it keeps them: [Herd.herdTaken].)
         if (camps != null && wK != null) for ((c, b) in camps.withIndex()) for (i in wK[c].indices) {
             if (wK[c][i] <= 0f) continue
-            val nk = b.herd.size; val j = i % nk; val s = kinds[j]
-            val from = if (i >= nk) b.youngHerd() else b.herd; val m = if (i >= nk) YOUNG_WEIGHT * s.massKg else s.massKg
+            val nk = b.herds.herd.size; val j = i % nk; val s = kinds[j]
+            val from = if (i >= nk) b.herds.youngHerd() else b.herds.herd; val m = if (i >= nk) YOUNG_WEIGHT * s.massKg else s.massKg
             val heads = min(from[j], want.v * wK[c][i] / total * area / m)
             val kg = heads * m / area
             from[j] -= heads
             if (HUNT_DIAG) campTaken[j][if (i >= nk) 0 else 1].add(heads.toDouble())
-            if (b.herdTaken.size != b.herd.size) b.herdTaken = FloatArray(b.herd.size)
-            b.herdTaken[j] += heads
+            if (b.herds.herdTaken.size != b.herds.herd.size) b.herds.herdTaken = FloatArray(b.herds.herd.size)
+            b.herds.herdTaken[j] += heads
             small.deposit(DeadPool.CARRION, p, KgKm2(kg * (1f - MEAT_SHARE)).perM2)
             ate += KgKm2(kg).perM2
             ateBook?.add(-(kg * MEAT_SHARE * area).toDouble())
@@ -993,6 +993,12 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             // it eats what it finds (at most half of what lies there) before it hunts or makes up plants.
             var gotCarrion = if (d.carrion > 0f) small.scavenge(p, KgM2(min(animalNeed + plantGap, 0.5f * small.carrion[p]))).v else 0f
             var left = animalNeed + plantGap - gotCarrion
+            // (A bone-cracker eats the bones lying there too, at most half of them, at what a kilo of bone feeds it against
+            // a kilo of prey: [Food.BONES], as a pack forages them.)
+            val boneWorth = if (s.cracksBones) Food.BONES.energy / Nourishment.PREY else 0f
+            val bonesKg = if (boneWorth > 0f && left > 0f) small.crackBones(p, KgM2(min(left / boneWorth, 0.5f * small.bones[p]))).v else 0f
+            val gotBones = bonesKg * boneWorth
+            left -= gotBones
             val killedSoFar = FloatArray(1)
             var gotMeat = if (left > 0f) huntResidents(k, p, KgM2(min(left, needAll * d.meat / all) * avail[k]), killedSoFar).v else 0f
             left -= gotMeat
@@ -1022,10 +1028,10 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 if (moreSmall > 0f) { val x = smallFood(k, p, KgM2(moreSmall * avail[k]), weather).v; surplus[k] += x / needAll
                     ateBook?.add(-x * land.areaM2[p].toDouble()) }
             }
-            animal = (gotMeat + gotSmall + gotCarrion) / animalNeed
-            small.deposit(DeadPool.DUNG, p, KgM2(HexSmallLife.DUNG * (gotMeat + gotSmall + gotCarrion)))
+            animal = (gotMeat + gotSmall + gotCarrion + gotBones) / animalNeed
+            small.deposit(DeadPool.DUNG, p, KgM2(HexSmallLife.DUNG * (gotMeat + gotSmall + gotCarrion + bonesKg)))
             if (ateBook != null) { val m2 = land.areaM2[p].toDouble()
-                ateBook!!.add(-(gotSmall + gotCarrion) * m2); droppedBook!!.add(HexSmallLife.DUNG * (gotMeat + gotSmall + gotCarrion) * m2) }
+                ateBook!!.add(-(gotSmall + gotCarrion + bonesKg) * m2); droppedBook!!.add(HexSmallLife.DUNG * (gotMeat + gotSmall + gotCarrion + bonesKg) * m2) }
         }
         return animal
     }

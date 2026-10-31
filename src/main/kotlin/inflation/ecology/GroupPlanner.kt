@@ -543,7 +543,34 @@ internal class GroupPlanner(private val gs: HexGroups) {
                 }
             }
         }
-        return (g.adults * adult.coerceIn(0f, Hazards.MAX_GROWN_ODDS) + g.young * young.coerceIn(0f, Hazards.MAX_YOUNG_ODDS)) / max(1, g.size)
+        // (A beast of prey foresees, besides, the much stronger parties of other kinds it would run into there.)
+        val killed = if (b == null && !s.human) killedByStronger(c, p, h) else 0f
+        return (g.adults * adult.coerceIn(0f, Hazards.MAX_GROWN_ODDS) + g.young * young.coerceIn(0f, Hazards.MAX_YOUNG_ODDS) + killed) / max(1, g.size)
+    }
+
+    /**
+     * How many of pack [c]'s group the much stronger parties of other kinds would kill at place [p] (in hex [h]) in the
+     * week, as the meetings do ([enemiesMeet]): the groups of each kind it knows of in the hex ([knownHeads], in usual
+     * groups), how likely it runs into each ([encounters]), does not slip away ([slipChance]), and then loses one of its
+     * young, or failing that one of its grown. (A party of usual size and strength, of no particular will to kill.) So a
+     * cheetah with cubs keeps off the lions' ground, at the cost of the game there (Durant 1998).
+     */
+    private fun killedByStronger(c: PlanContext, p: Place, h: Hex): Float {
+        val g = c.g; val s = g.species
+        val mine = max(1f, gs.strength(g))
+        val sheltered = gs.shelteredFromKilling(s, p)
+        val young = if (g.young > 0) INTRAGUILD_KILL_YOUNG * gs.tuning.intraguildYoung * sheltered else 0f
+        val grown = if (g.adults > 0) (1f - young) * INTRAGUILD_KILL * sheltered else 0f
+        if (young + grown <= 0f) return 0f
+        var killed = 0f
+        for ((k, o) in gs.kinds.withIndex()) {
+            if (o == s || o.human || residentStrength(o) <= 2f * mine) continue
+            var heads = 0f; for (q in gs.hw.placesOf(h)) heads += knownHeads(k, Place(q), h, c.sensed)
+            if (heads <= 0f) continue
+            val met = 1f - exp(-gs.encounters(s, o, false, p, gs.days.toFloat()))
+            killed += heads / gs.unitSize(o) * met * (1f - gs.slipChance(s, o, p)) * (young + grown)
+        }
+        return killed
     }
 
     /**
@@ -829,13 +856,13 @@ internal class GroupPlanner(private val gs: HexGroups) {
      */
     private fun herdLoss(g: HexGroup, b: Band, p: Place): Float {
         var kg = 0f
-        for (k in b.herd.indices) {
-            val n = b.herd[k] + 0.5f * b.herdYoung.getOrElse(k) { 0f }
+        for (k in b.herds.herd.indices) {
+            val n = b.herds.herd[k] + 0.5f * b.herds.herdYoung.getOrElse(k) { 0f }
             if (n <= 0f) continue
             val s = gs.fauna.kinds[k]
             val short = 1f - gs.herdForage(p, s, n).fed
             if (short <= 0f) continue
-            kg += n * short * (0.5f + s.youngPerFemale * herdMothers(s, b.herdTame[k])) * gs.years * s.massKg
+            kg += n * short * (0.5f + s.youngPerFemale * herdMothers(s, b.herds.herdTame[k])) * gs.years * s.massKg
         }
         return kg * MEAT_SHARE * Nourishment.MEAT * g.species.needScale / (g.dailyNeedKg.coerceAtLeast(1e-3f) * gs.days)
     }

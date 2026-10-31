@@ -81,6 +81,7 @@ enum class Met(val label: String) {
     BANDS_BURNED_OFF_GRASS("bands burned off grass"),
     BANDS_CARRIED_THEIR_DEAD("bands carried their dead to their ancestors"),
     BANDS_BECAME_ONE("bands at home together became one"),
+    BANDS_OF_TWO_MINDS_BECAME_ONE("bands at home together of the two kinds of choosing became one"),
     BANDS_DRIVEN_FROM_HOME("bands driven from their homes"),
     BANDS_EXCHANGED_PARTNERS("bands exchanged partners"),
     BANDS_KEPT_AWAY_FROM_THE_SICK("bands kept away from the sick"),
@@ -427,7 +428,7 @@ object Tally {
         STAY("stay weeks"), WORTH_FITS("worth, fits"), WORTH_SHORT("worth, short of days"), NOT_WORTH("not worth")
     }
     fun thatchTrace(h: Hut, what: Thatch) = TallyKey.raw("thatch trace ${h.label}:${what.label}")
-    /** Whether a band keeps a herd ([Band.herd]). */
+    /** Whether a band keeps a herd ([Herd.herd]). */
     enum class HerdKept(val label: String) { HERDING("keeping a herd"), NONE("keeping none") }
     /** Bands' tallies by whether they keep a herd; [bandsHerdKeptDied] (herding) starts all their deaths. */
     fun bandsHerdKept(h: HerdKept, what: Bands) = TallyKey.raw("bands ${h.label}:${what.label}")
