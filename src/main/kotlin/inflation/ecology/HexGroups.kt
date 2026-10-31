@@ -360,6 +360,8 @@ class HexGroups(
         for (a in sickPeople) a.fill(0f)
         for (g in groups) if (g.alive) g.band?.let { b -> for (d in Illness.entries) if (d.contagion > 0f) sickPeople[d.ordinal][g.place] += g.size * b.sick[d] }
         planner.takeStock()
+        // (And what the much stronger hunters about them would kill of the resident hunters next week: [fillGuildOdds].)
+        fillGuildOdds()
         // Packs set their ways for the week (bands set theirs as they forage, see [hunt]).
         Profile.part("animals: setting their ways") { setAnimalWays(weather) }
         // Bands take stock of themselves and of the bands about them, for the people networks.

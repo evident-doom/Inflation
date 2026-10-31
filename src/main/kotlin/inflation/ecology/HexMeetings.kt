@@ -121,6 +121,8 @@ internal fun HexGroups.meet(weather: Weather) {
         else if (a.species == b.species) Profile.part("meetings: rival packs") { rivalsMeet(a, e.a, e.ai, b, e.b, e.bi, h, stop) }
         else Profile.part("meetings: hunters of other kinds") { enemiesMeet(a, e.a, e.ai, b, e.b, e.bi, h, stop) }
     }
+    // (And the much stronger resident hunters about where they end their week.)
+    Profile.part("meetings: resident hunters") { residentsMeetPacks() }
     // Each group ends its week where it stopped: on the ground in that hex nearest in height to where it meant to go.
     for ((k, g) in groups.withIndex()) {
         if (!g.alive || stop[k] == g.path.size - 1) continue

@@ -289,6 +289,15 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     val strongest = FloatArray(n)
 
     /**
+     * For each resident hunter kind (null for the rest) and place, the shares of its grown and young the much stronger
+     * hunters of other kinds about it kill in a week ([Danger.GUILD_A], [Danger.GUILD_Y]), and the kind ([Species.index])
+     * that kills the most of them, -1 for none: as packs meet them ([fillGuildOdds], at the groups' last week's start).
+     */
+    @Transient internal val guildAdult = Array(kinds.size) { if (kinds[it].carnivore) FloatArray(n) else null }
+    @Transient internal val guildYoung = Array(kinds.size) { if (kinds[it].carnivore) FloatArray(n) else null }
+    @Transient internal val guildBy = Array(kinds.size) { if (kinds[it].carnivore) IntArray(n) { -1 } else null }
+
+    /**
      * The bands camped in each place with kept herds, by place, as the week starts ([HexGroups.herdsForBeasts] fills it before
      * the residents' week): the resident hunters take from their herds as from game ([huntResidents]). Not saved: made afresh
      * each week from the bands.
@@ -1066,6 +1075,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
     private fun breedAndDie(weather: Weather, date: Date) {
         val dead = Array(kinds.size) { DoubleArray(ResidentDeath.entries.size) }
+        // (The resident hunters killed by hunters of other kinds, by the killer's kind: grown and young.)
+        val guild = Array(kinds.size) { DoubleArray(2 * Catalogue.all.size) }
         bornThisWeek.fill(0.0)
         // Each kind on its own core, with its own carcasses, added up after.
         val carcasses = Array(kinds.size) { FloatArray(n) }
@@ -1104,7 +1115,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 // Where they are crowded, now and then a plague breaks out among them.
                 if (crowd > 0f && hash(p, k) < OUTBREAK_START * crowd * crowd * years) startOutbreak(s, hw.placeHex[p])
                 val fireA = hz[Danger.FIRE_A]; val floodA = hz[Danger.FLOOD_A]; val snowA = hz[Danger.SNOW_A]
-                val adultSum = s.backgroundMortality * years + hunger + cold + heat + thirst + disease + fireA + floodA + snowA + hz[Danger.STRIFE]
+                val adultSum = s.backgroundMortality * years + hunger + cold + heat + thirst + disease + fireA + floodA + snowA + hz[Danger.STRIFE] +
+                    hz[Danger.GUILD_A]
                 val adultOdds = adultSum.coerceIn(0f, Hazards.MAX_GROWN_ODDS)
                 val eagle = eagleOdds(s, p); val croc = crocodileOdds(p, weather)
                 val starved = starvedOdds(protein[k][p])
@@ -1115,6 +1127,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 val ca = if (adultSum > 0f) a[p] * adultOdds / adultSum * area else 0f
                 val cy = if (youngSum > 0f) y[p] * youngOdds / youngSum * area else 0f
                 bookDeaths(k, p, ca, cy, hz, eagle, croc, starved, dead[k])
+                guildBy[k]?.get(p.i)?.takeIf { it >= 0 }?.let { by -> guild[k][2 * by] += (ca * hz[Danger.GUILD_A]).toDouble(); guild[k][2 * by + 1] += (cy * hz[Danger.GUILD_Y]).toDouble() }
                 a[p] -= da; y[p] -= dy
                 carcassKg[p] += (da + YOUNG_WEIGHT * dy) * area * s.massKg
                 // Growing up.
@@ -1139,6 +1152,10 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 sum
             }
             for (c in ResidentDeath.entries) deaths[Tally.of(s, c.cause)] = dead[k][c]
+            for (by in Catalogue.all.indices) if (guild[k][2 * by] + guild[k][2 * by + 1] > 0.0) {
+                deaths[Tally.of(s, ByBeast.of(ByBeast.How.KILLED_BY, Catalogue.all[by]))] = guild[k][2 * by]
+                deaths[Tally.of(s, ByBeast.of(ByBeast.How.YOUNG_KILLED_BY, Catalogue.all[by]))] = guild[k][2 * by + 1]
+            }
         }
     }
 
@@ -1201,6 +1218,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         out[Danger.SICK] = Hazards.crowdDisease(crowd, fed, years); out[Danger.OUTBREAK] = outbreakDeaths(s, p)
         // Hunters hold ground: past the numbers their territories hold, they fight their own kind and kill its young.
         out[Danger.STRIFE] = if (s.carnivore) strife(heads, usual[k]) else 0f
+        // And much stronger hunters of other kinds kill some, as they do packs' ([fillGuildOdds]).
+        out[Danger.GUILD_A] = guildAdult[k]?.get(p.i) ?: 0f; out[Danger.GUILD_Y] = guildYoung[k]?.get(p.i) ?: 0f
         val (fireA, floodA, snowA) = calamities(s, p, weather, false)
         val (fireY, floodY, snowY) = calamities(s, p, weather, true)
         out[Danger.FIRE_A] = fireA; out[Danger.FLOOD_A] = floodA; out[Danger.SNOW_A] = if (sleeping) 0f else snowA
@@ -1249,7 +1268,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * young short of protein ([starvedOdds]), which grow slowly and die more.
      */
     private fun youngSum(s: Species, hz: EnumFloats<Danger>, eagle: Float, croc: Float, starved: Float) =
-        youngFixed(s, hz, eagle, croc, starved) + 1.5f * hz[Danger.HUNGER] + hz[Danger.SICK] + STRIFE_YOUNG * hz[Danger.STRIFE]
+        youngFixed(s, hz, eagle, croc, starved) + 1.5f * hz[Danger.HUNGER] + hz[Danger.SICK] + STRIFE_YOUNG * hz[Danger.STRIFE] + hz[Danger.GUILD_Y]
 
     /**
      * Of [youngSum], the odds that do not change with the numbers at a place or how well they are fed: their usual
@@ -1272,7 +1291,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     /** The share of the grown among [out] ([hazards]) that die this week, besides old age. */
     private fun adultShare(out: EnumFloats<Danger>) =
         out[Danger.HUNGER] + out[Danger.COLD] + out[Danger.HEAT] + out[Danger.THIRST] + out.disease() + out[Danger.FIRE_A] + out[Danger.FLOOD_A] + out[Danger.SNOW_A] + out[Danger.HUNTED] +
-            out[Danger.STRIFE]
+            out[Danger.STRIFE] + out[Danger.GUILD_A]
 
     /**
      * The share of kind [k]'s grown residents at place [p] that would die next week if they stayed ([hazards]): fed as
