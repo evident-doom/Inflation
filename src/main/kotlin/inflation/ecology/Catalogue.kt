@@ -362,6 +362,8 @@ object Catalogue {
         speedKmh = 50f,
         domestication = floatArrayOf(0.1f, 0.3f, 0.1f, 0.0f, 0.2f, 0.0f),
         habitat = Habitat(cover = 0.8f, rugged = 0.4f),
+        // (It lies up in thickets and among rocks and climbs out of a wolf's reach.)
+        shelters = setOf(Niches.Shelter.CRAG, Niches.Shelter.THICKET, Niches.Shelter.TREE),
         stalking = 1f,
         // (A lynx holds its own against animals its size and kills foxes and the young of others; from memory, not checked.)
         ferocity = 0.9f,
