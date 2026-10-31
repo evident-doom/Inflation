@@ -1003,7 +1003,7 @@ internal class GroupPlanner(private val gs: HexGroups) {
      */
     @Transient private val stepEffort = ConcurrentHashMap<Int, FloatArray>()
 
-    private fun stepEffort(travel: Int, band: Int, weather: Weather): FloatArray = stepEffort.computeIfAbsent(travel * 64 + band) {
+    @IgnorableReturnValue private fun stepEffort(travel: Int, band: Int, weather: Weather): FloatArray = stepEffort.computeIfAbsent(travel * 64 + band) {
         val cross = gs.hex.crossings[travel]
         val out = FloatArray(gs.hex.size * 6) { Float.POSITIVE_INFINITY }
         IntStream.range(0, gs.hex.size).parallel().forEachHex { h ->
