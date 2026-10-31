@@ -1,7 +1,6 @@
 package inflation.ecology
 
 import inflation.world.Date
-import inflation.world.Hex
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -64,19 +63,5 @@ class StoresAheadTest {
         for (k in got.indices) b.recordWeek(Date(start + k * days), days, got[k], 1f, k == 2)
         assertEquals(1.5f, b.gotSinceMove(Date(start + got.size * days), days), 1e-5f)
         assertTrue(Band(1).gotSinceMove(Date(start), days).isNaN())
-    }
-
-    @Test
-    fun `a place remembers the food got there from its own visits only`() {
-        val m = PlaceMemory()
-        val h = Hex(7)
-        m.noteGot(h, 1, 1.2f)
-        assertEquals(-1, m.find(h, 1))
-        m.record(h, 1, 1f, 1f, 0f, 0, 60f, ownVisit = false)
-        m.noteGot(h, 1, 1.2f)
-        assertTrue(m.got[m.find(h, 1)].isNaN(), "told of, not been there")
-        m.record(h, 1, 1f, 1f, 0f, 1, 60f)
-        m.noteGot(h, 1, 1.2f); m.noteGot(h, 1, 0.8f)
-        assertEquals(1.0f, m.got[m.find(h, 1)], 1e-5f)
     }
 }

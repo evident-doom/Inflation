@@ -209,7 +209,7 @@ object Tally {
         MOVES("camp moves"), MOVED_KM("km moved"),
         /**
          * A planning band's food a week at the camp it chose ([Band.campForeseen]) as foreseen, and as it got it, thousandths of
-         * its need summed over the band-weeks it chose so ([CAMP_WEEKS]); by where the forecast came from ([Tally.campFrom]).
+         * its need summed over the band-weeks it chose so ([CAMP_WEEKS]).
          */
         CAMP_FORESEEN("camp food foreseen, 1/1000"), CAMP_GOT("camp food got, 1/1000"), CAMP_WEEKS("camp chosen, band-weeks"),
         /** Deaths foreseen a year ahead ([HexGroup.foreseen]): people-weeks times the share foreseen to die, thousandths. */
@@ -297,8 +297,6 @@ object Tally {
     fun bandsLivingDied(way: Living) = TallyKey.raw("bands ${way.label}:$DIED_OF")
     /** Bands' tallies by how they choose ([Mind]). */
     fun bandsMind(mind: Mind, what: Bands) = TallyKey.raw("bands of mind ${mind.label}:${what.label}")
-    /** Planning bands' camps chosen by [GroupPlanner.planCamp], by where the forecast of the chosen camp's food came from. */
-    fun campFrom(from: CampForecast, what: Bands) = TallyKey.raw("planning camps from ${from.label}:${what.label}")
     /** What the calibration of bands' forecasts books in each [ForeseenBin] ([bookCalibration]). */
     enum class Calib(val label: String) {
         /** People in the band when it foresaw; the deaths it foresaw among them, thousandths; deaths, and hunger's, booked against each forecast its people made in the year before them, thousandths. */

@@ -338,19 +338,14 @@ internal class GroupPlanner(private val gs: HexGroups) {
      * Where planning band [b] (group [c].g) camps this week ([Mind.PLANS]; doc: Planning stages 3+4: camp follows food): of
      * the places within its week's reach ([searchReach], in [c].buf), those it does not keep off, the one where it foresees
      * the fewest of its people dead over the [PLAN_CAMP_WEEKS] ahead, by the sim's own rules:
-     * - of hunger ([campAlive]), each week getting the food it expects there, by one measure, its own record's ([Band.weekSupply]:
-     *   a share of its need before keeping warm, net of its larder): at its camp what it got since it came
-     *   ([Band.gotSinceMove]); where it remembers what it got itself in this season, that ([PlaceMemory.got]); else its camp's
-     *   record and what the game, plants and fish it knows of promise there against at its camp ([estimate]). Less what its kept
-     *   animals would go short of there ([herdLoss]), and at the hex it sowed what it would reap ([cropPull]); in the first
-     *   week less the days the walk there takes beyond those it has to spare ([moveDays]); from its larder if it stays, else
-     *   from what it carries ([foodCarried]);
+     * - of hunger ([campAlive]), each week getting the food it expects there ([foodAhead]), less what its kept animals would
+     *   go short of there ([herdLoss]), and at the hex it sowed what it would reap ([cropPull]); in the first week less the
+     *   days the walk there takes beyond those it has to spare ([moveDays]); from its larder if it stays, else from what it
+     *   carries ([foodCarried]);
      * - of everything else this week's odds there ([deathsAt], hunger left out), for the weeks it expects to stay
      *   ([Band.stayWeeks], at most [PLAN_CAMP_WEEKS]), and the crossing's ([crossingDeaths]).
      * No pulls beside (season's place, bearing, temper, the flat stay, the explore draw, the network): of equals it stays.
-     * Its forecast of the food there, and where it came from, are kept for the census ([Band.campForeseen], [Band.campFrom]).
-     * (Its remembered [PlaceMemory.fed], which its larder and fat fill out, foresaw a camp's food a fifth too high, and it
-     * moved far too often: ab-camp, 2026-10-31.)
+     * Its forecast of the food there is kept for the census ([Band.campForeseen]).
      */
     private fun planCamp(c: PlanContext, b: Band): Plan {
         val g = c.g; val s = g.species; val here = c.here; val buf = c.buf
@@ -364,10 +359,7 @@ internal class GroupPlanner(private val gs: HexGroups) {
         val spare = b.spareDays / forageHands(g)
         val season = PlaceMemory.seasonOf(c.month)
         val stayFor = min(PLAN_CAMP_WEEKS.toFloat(), b.stayWeeks)
-        val mem = g.memory
-        val kinHere = kinAround(g, c.kind, here, c.sensed)
-        val estHere = estimate(c, b, g.place, here, kinHere, gs.crowdedBy(s, kinHere))
-        var best = g.place; var bestDying = Float.MAX_VALUE; var bestGot = Float.NaN; var bestFrom = CampForecast.OWN_CAMP
+        var best = g.place; var bestDying = Float.MAX_VALUE; var bestGot = Float.NaN
         for (ri in 0 until reached.size) {
             val h = reached[ri]
             if (h != here && c.keepOff != null && h in c.keepOff) continue
@@ -376,27 +368,18 @@ internal class GroupPlanner(private val gs: HexGroups) {
             val kin = kinAround(g, c.kind, h, c.sensed); val crowded = gs.crowdedBy(s, kin)
             val crossing = if (moves) crossingDeaths(s, h, here, via) else 0f
             val first = if (moves) (1f - max(0f, gs.moveDays(g, d) - spare) / days).coerceAtLeast(0f) else 1f
-            val slot = mem.find(h, season)
-            val remembered = if (slot >= 0 && mem.own[slot]) mem.got[slot] else Float.NaN
             for (pi in gs.hw.placesOf(h)) {
                 val p = Place(pi)
                 val warm = (1f + gs.drain(g, p, c.weather)).coerceAtLeast(1e-3f)
-                val from: CampForecast; val food: Float
-                if (!moves && !stayGot.isNaN()) { from = CampForecast.OWN_CAMP; food = stayGot }
-                else if (!remembered.isNaN()) { from = CampForecast.REMEMBERED; food = remembered }
-                else {
-                    from = CampForecast.ESTIMATED
-                    val est = estimate(c, b, p, h, kin, crowded)
-                    food = if (stayGot.isNaN()) est * warm else stayGot + (est - estHere) * warm
-                }
-                val got = food + (cropPull(g, b, h) - herdLoss(g, b, p)) * g.warmth
+                val got = foodAhead(c, b, p, h, kin, crowded, stayGot, season, warm) +
+                    (cropPull(g, b, h) - herdLoss(g, b, p)) * g.warmth
                 val alive = campAlive(s, days, PLAN_CAMP_WEEKS, got, warm, if (moves) carried else larder, g.fat, g.spent, first)
                 val dying = (1f - alive) + (if (moves) stayFor else PLAN_CAMP_WEEKS.toFloat()) * deathsAt(c, p, h, 1f, d) + crossing
                 if (!dying.isFinite()) continue
-                if (dying < bestDying || (dying == bestDying && p == g.place)) { bestDying = dying; best = p; bestGot = got; bestFrom = from }
+                if (dying < bestDying || (dying == bestDying && p == g.place)) { bestDying = dying; best = p; bestGot = got }
             }
         }
-        b.campForeseen = bestGot; b.campFrom = bestFrom
+        b.campForeseen = bestGot
         g.drawn = false; g.plan = null
         planCounts.incrementAndGet(s.index * 3 + (if (best == g.place) 1 else 2))
         val chain = ArrayList<Hex>(); var h = gs.hw.placeHex[best]
@@ -406,13 +389,20 @@ internal class GroupPlanner(private val gs: HexGroups) {
     }
 
     /**
-     * How fed planning band [b] (group [c].g) would be at place [p] (in hex [h], among [kinKm2] of its kind, [crowded] by
-     * them) by what the game, plants and fish it knows of there promise ([foreseenFed]), as dimly as the people network sees
-     * strange country. Read only against the same at its camp ([planCamp]).
+     * The food planning band [b] (group [c].g) expects a week at place [p] (in hex [h], among [kinKm2] of its kind,
+     * [crowded] by them), as its record counts it ([Band.weekSupply]: a share of its need before keeping warm, net of its
+     * larder), keeping warm there taking [warm] times that need: at its camp what it got there since it came ([stayGot],
+     * [Band.gotSinceMove]); where it remembers being itself in this [season], how fed it was ([PlaceMemory.fed]); else what
+     * the game, plants and fish it knows of there promise ([foreseenFed]), as dimly as the people network sees strange
+     * country.
      */
-    private fun estimate(c: PlanContext, b: Band, p: Place, h: Hex, kinKm2: Float, crowded: Float): Float {
+    private fun foodAhead(c: PlanContext, b: Band, p: Place, h: Hex, kinKm2: Float, crowded: Float, stayGot: Float, season: Int, warm: Float): Float {
+        if (h == c.here && !stayGot.isNaN()) return stayGot
+        val mem = c.g.memory
+        val slot = mem.find(h, season)
+        if (slot >= 0 && mem.own[slot]) return mem.fed[slot] * warm
         val fed = foreseenFed(c.g, knownGame(c.g, c.kind, p, h), kinKm2, crowded)
-        return if (b.knows(h)) fed else 0.5f * fed + 0.5f * SIGN_GUESS
+        return (if (b.knows(h)) fed else 0.5f * fed + 0.5f * SIGN_GUESS) * warm
     }
 
     /**
@@ -1177,10 +1167,3 @@ private object InputScale {
 
 /** The weeks ahead a planning band reckons a camp over ([GroupPlanner.planCamp]): a move's effect on its food is 90-100% in by 8 to 13 weeks (the learning-signal finding of 2026-10-15). */
 internal const val PLAN_CAMP_WEEKS = 13
-
-/**
- * Where a planning band's forecast of a camp's food came from ([GroupPlanner.planCamp]): its own camp's record since it came
- * ([OWN_CAMP]), its memory of what it got at the place in the season ([REMEMBERED]), or its camp's record and the estimate
- * there against at its camp ([ESTIMATED]).
- */
-enum class CampForecast(val label: String) { OWN_CAMP("its camp"), REMEMBERED("remembered"), ESTIMATED("estimated") }
