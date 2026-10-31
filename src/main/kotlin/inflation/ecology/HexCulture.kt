@@ -306,7 +306,7 @@ fun kinship(a: FloatArray, b: FloatArray): Float { var s = 0f; for (i in a.indic
 internal class Regard(private val of: Band, private val toId: Int, private val to: Band, private var heard: Float = -1f, private val map: HexMap? = null) {
     val understood: Float get() { if (heard < 0f) heard = Language.understanding(of.words, to.words); return heard }
     val tie get() = of.tie(toId)
-    val close get() = max(0f, tie)
+    val close get() = closeOf(of, toId)
     /** Close enough to count as friends: given ornaments, its cache left alone. */
     val friend get() = tie > FRIEND_TIE
     /** Never met before. */
@@ -346,6 +346,11 @@ internal class Regard(private val of: Band, private val toId: Int, private val t
     val takesUpPlace get() = understood * (0.3f + 0.7f * close)
 
     companion object {
+        /**
+         * How close [of] is to the band of group [toId], as [close] reads it: for a choice that turns on a band it knows of
+         * only by its group (a home it was told of), whether or not that band is still about.
+         */
+        fun closeOf(of: Band, toId: Int) = max(0f, of.tie(toId))
         /** How close two bands are to each other, between them. */
         fun close(ab: Regard, ba: Regard) = max(0f, 0.5f * (ab.tie + ba.tie))
         /** The most [wariness] can be: strangers of wholly other customs, no kin, not understood at all. */
@@ -575,7 +580,8 @@ private fun GroupWorld.marryOut(a: HexGroup, bandA: Band, b: HexGroup, bandB: Ba
  * walk that has, and is fed there: foragers rarely starve while their neighbours eat, because food
  * is shared on demand and kin are visited in lean times (and the debt is remembered). The hungry
  * band goes where it can hope for most, a band that owes it favours before one that merely has food;
- * it eats what makes up its week, and takes some home; a band that holds to sharing gives more.
+ * it eats what makes up its week, and takes some home; a band that holds to sharing gives more, and a band gives more
+ * to one it is close to ([Regard.close]), as at a meeting.
  */
 internal fun HexGroups.visitKin(weather: Weather) {
     // (The hungry come in a drawn order, not by age in the list: the first take the most from the best-stocked.)
@@ -591,9 +597,10 @@ internal fun HexGroups.visitKin(weather: Weather) {
         var ring = listOf(h0); val seen = hashSetOf(h0)
         for (r in 0..VISIT_RINGS) {
             for (h in ring) for (o in byHex[h].orEmpty()) if (o !== g) {
-                // (What it can hope for there: an ordinary share of the larder, or what the band owes it.)
+                // (What it can hope for there: an ordinary share of the larder, the more the closer the band holds it
+                // ([Regard.close], as at a meeting), or what the band owes it.)
                 val owed = min(0.9f * o.larder, o.band!!.owesTo(g.id) * FAVOUR_DAYS * g.dailyNeedKg)
-                val score = max(BAND_GIFT * o.larder, owed) / (1f + r)
+                val score = max(BAND_GIFT * (1f + Regard(o.band!!, g.id, g.band!!, map = hex).close) * o.larder, owed) / (1f + r)
                 if (score > bestScore) {
                     bestScore = score
                     best = o
@@ -603,8 +610,10 @@ internal fun HexGroups.visitKin(weather: Weather) {
             ring = hex.nextRing(ring, seen)
         }
         val o = best ?: continue
-        // (How much the band visited gives is its choice; and it owes the favours it owes.)
-        val base = min(0.9f, BAND_GIFT * (if (o.band!!.holds(Tradition.SHARING)) 2f else 1f))
+        // (How much the band visited gives is its choice, more to a band it is close to, as at a meeting; and it owes the
+        // favours it owes.)
+        val close = Regard(o.band!!, g.id, g.band!!, map = hex).close
+        val base = min(0.9f, BAND_GIFT * (if (o.band!!.holds(Tradition.SHARING)) 2f else 1f) * (1f + close))
         val share = 0.9f * shareOfWill(o.band!!.giveWill, base / 0.9f)
         o.band?.let { ob -> dialUse?.amount(DialSite.GIVE_VISIT, ob.giveWill, share, base) }
         val week = g.dailyNeedKg * days
