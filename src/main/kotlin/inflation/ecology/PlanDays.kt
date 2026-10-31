@@ -122,7 +122,15 @@ private fun HexGroups.planRates(g: HexGroup, b: Band, weather: Weather, perDay: 
     if (houses) {
         val years = keepYears(b, stepsPerYear)
         val kg = houseFoodAYear(g, b, g.place, weather) * people * years
-        rate[1] = (houseLivesAYear(b, g.place, weather) * people * years + alive(kg) - now) / (HOUSE_DAYS * g.adults.coerceAtLeast(1))
+        val lives = houseLivesAYear(b, g.place, weather)
+        rate[1] = (lives * people * years + alive(kg) - now) / (HOUSE_DAYS * g.adults.coerceAtLeast(1))
+        // (planTrace: what a house was reckoned at, and the least it must save to be given days.)
+        if (PLAN_TRACE && unitOf(mix64(g.id * HASH_A + weather.date.absoluteDay * HASH_B + PLAN_TRACE_SALT + 1)) < 0.02f &&
+            houseTraced.incrementAndGet() <= PLAN_TRACE_MOST)
+            System.err.println(("house trace: band %d, %s, %d people (%d grown), camp kept %d steps, at home %b, houses %.2f, reckoned kept %.2f y; " +
+                "a whole house a person a year: %.2g lives, %.1f kg; over the years: %.3g lives, %.3g from the food; %.2g lives a person-day " +
+                "(given days above %.2g)").format(g.id, weather.date, g.size, g.adults, b.campWeeks, b.atHome, b.house, years, lives, kg / years / people,
+                lives * people * years, alive(kg) - now, rate[1], SAVES_NONE * g.size))
     }
     return rate
 }
@@ -154,6 +162,7 @@ enum class PlanTier(val label: String) {
 /** planTrace=true: a sample of planning bands' weeks, how the year ahead reckons their stores ([planRates]), on stderr. */
 internal val PLAN_TRACE = Config.flag(Config.Key.PLAN_TRACE, false)
 private val planTraced = java.util.concurrent.atomic.AtomicInteger()
+private val houseTraced = java.util.concurrent.atomic.AtomicInteger()
 private const val PLAN_TRACE_MOST = 400
 private const val PLAN_TRACE_SALT = 0x50545243L
 
