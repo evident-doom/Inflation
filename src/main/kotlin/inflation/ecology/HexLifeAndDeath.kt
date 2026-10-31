@@ -194,17 +194,23 @@ internal fun protein(b: Bites, grass: Float, browse: Float): Float =
 internal fun HexGroups.demography(weather: Weather, date: Date) {
     // Bands keep or move camp, gather materials and make their tools.
     bands.followersByHex = groups.filter { it.alive && it.species.followsPeople && !it.species.human }.groupBy { hw.placeHex[it.place] }
+    bands.groupById = groups.associateBy { it.id }
     bands.bandHex = groups.filter { it.alive && it.band != null }.associate { it.id to hw.placeHex[it.place] }
     tendStructures(weather)
     foulGround()
     bands.houseOf = groups.filter { g -> g.alive && g.band.let { it != null && !it.houseHex.none && it.house >= Thresholds.HOUSE_STANDING } }
         .associate { it.id to it.band!!.houseHex }
     Profile.part("people: camps, tools, culture") {
-        for (g in groups) if (g.alive && g.band != null) {
-            bandWeek(g, weather, date)
-            cultureWeek(g)
-            riteWeek(g, weather)
+        // The bands' own weeks go one after another (they share the ground, the structures and the week's tallies), then their
+        // customs' year, which touches only the band, on all cores, each with a stream of its own; then the rites, which bring
+        // bands together, one after another.
+        val bandGroups = groups.filter { it.alive && it.band != null }
+        for (g in bandGroups) if (g.alive) bandWeek(g, weather, date)
+        IntStream.range(0, bandGroups.size).parallel().forEach { k ->
+            val g = bandGroups[k]
+            if (g.alive) cultureWeek(g, kotlin.random.Random(g.id * 1_000_003L + date.absoluteDay * 7_919L + 17L))
         }
+        for (g in bandGroups) if (g.alive) riteWeek(g, weather)
         groups += bands.strays; bands.strays.clear()
         // Holy places fade while no one comes.
         if (tuning.rounds) { val keep = exp(-years / SANCTITY_YEARS); for (p in land.sanctity.indices) land.sanctity[p] *= keep }

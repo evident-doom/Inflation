@@ -41,7 +41,29 @@ internal fun HexGroups.foreseenSurvival(g: HexGroup, b: Band, weather: Weather):
     // (And what a camp move would cost it, for next week's choice of place: [Band.leavingDying].)
     val share = if (b.campPlace.none) 0f else leftBehindShare(g, b)
     b.leavingDying = if (share > 0f) max(0f, alive - year.alive(g.species, larderDays * (1f - share), g.fat, g.spent)) else 0f
+    b.leavingHouse = if (b.mind == Mind.PLANS && b.atHome && b.houseHex == hw.placeHex[g.place]) houseLeft(g, b, weather) else 0f
     return alive
+}
+
+/**
+ * What band [b] (group [g], a [Mind.PLANS] band at its houses) gives up of them by moving camp, in weeks of its food, for its
+ * choice of place ([Band.leavingHouse]): a house no one uses weathers away ([HOUSE_DECAY] a year) and is anyone's to take
+ * up; while the band is away it goes without its shelter, and what has weathered by its return is lost for the years it
+ * and its heirs would have kept the place ([keepYears]). A house is worth the food keeping warm no longer takes
+ * ([houseFoodAYear]), at its houses as they stand ([Band.house]). Paid for, as a move's walk and a sown field are, over the
+ * weeks it keeps a camp ([Band.stayWeeks]). (In lives a house was worth none: a fed band foresees no deaths, and the year's
+ * usual cold kills none behind clothes and fire; house trace, 2026-10-31.)
+ * The absence is taken as one camp's stay, the least a move costs: a band that does not come back loses the whole.
+ * (Possession, not ownership: no other band keeps off a house left empty. A band that values its houses over generations
+ * should keep to them by this alone; Olli, 2026-10-31: settling down to hold possession.)
+ */
+internal fun HexGroups.houseLeft(g: HexGroup, b: Band, weather: Weather): Float {
+    val away = b.stayWeeks / stepsPerYear
+    val years = keepYears(b, stepsPerYear)
+    val kgYear = houseFoodAYear(g, b, g.place, weather) * g.size
+    val weathered = min(1f, HOUSE_DECAY * away)
+    val kg = b.house * kgYear * (away + weathered * max(0f, years - away))
+    return kg / (g.dailyNeedKg.coerceAtLeast(1e-3f) * days) / b.stayWeeks
 }
 
 /**

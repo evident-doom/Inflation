@@ -8,6 +8,7 @@ import inflation.enumFloats
 import inflation.mix64
 import inflation.unitOf
 import inflation.world.Weather
+import kotlin.math.ln
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -19,8 +20,11 @@ import kotlin.math.roundToInt
  * its week goes in tiers ([PlanTier]):
  * - what its customs owe ([PlanTier.OBLIGED]: rites and burials, keeping clean and nursing where it holds to them, its ornaments), not
  *   scored in lives: belief and custom decide them, and what cannot be paid strains them as now;
- * - what it holds by lives saved ([PlanTier.SCORED]): first to whichever of the stores and the houses saves the
- *   more lives a day ([planRates]), each as far as it asks, while it saves any;
+ * - what it holds by lives saved this year ([PlanTier.SCORED], survival now; doc: Needs tiers for band choices): the stores
+ *   ([planRates]), as far as they ask, while they save any;
+ * - then what it holds by the days a work saves it and its heirs over the years it serves them ([PlanTier.GENERATIONS],
+ *   security over generations): the houses, with the days the stores left, as far as they ask, while they save more days
+ *   than they take;
  * - what has no reckoning in lives yet ([PlanTier.UNRECKONED]: tools beyond the clothes, training, materials, drying, skins, caching,
  *   sowing, palisade, weirs), shared out at equal weights of what is left, no dials;
  * - and what is left is its leisure ([PlanTier.LEISURE]), held as such, so no chore takes it.
@@ -43,14 +47,16 @@ internal fun HexGroups.planDays(g: HexGroup, b: Band, weather: Weather, time: Ba
     val paid = BandTime.shareOut(owed, floatArrayOf(1f, 1f), left)
     given[Activity.CUSTOMS] = paid[0] * time.pace(Activity.CUSTOMS); given[Activity.ORNAMENTS] = paid[1] * time.pace(Activity.ORNAMENTS)
     left -= paid.sum()
-    // What it holds by lives saved: each item's days at the lives a day of it saves, the best first, each as far as it
-    // asks this week ([planRates]).
+    // What it holds by lives saved, tier by tier: survival now (the stores), then over generations (the houses), each as
+    // far as it asks this week ([planRates]); a tier has what the one below it left.
     val rate = planRates(g, b, weather, perDay, asks[Activity.HOUSES] > 0f)
     val ask = floatArrayOf(asks[Activity.FOOD], asks[Activity.HOUSES])
     val acts = arrayOf(Activity.FOOD, Activity.HOUSES)
     val d = FloatArray(SCORED_ITEMS)
-    for (i in (0 until SCORED_ITEMS).sortedByDescending { rate[it] }) {
-        if (rate[i] <= SAVES_NONE * g.size || left <= 0f) continue
+    // (The stores while they save any lives; a house when it saves more days than it takes.)
+    val least = floatArrayOf(SAVES_NONE * g.size, 1f)
+    for (i in 0 until SCORED_ITEMS) {
+        if (rate[i] <= least[i] || left <= 0f) continue
         d[i] = min(ask[i], left * time.pace(acts[i])); left -= d[i] / time.pace(acts[i])
     }
     for (i in 0 until SCORED_ITEMS) given[acts[i]] = d[i]
@@ -65,12 +71,12 @@ internal fun HexGroups.planDays(g: HexGroup, b: Band, weather: Weather, time: Ba
     given[Activity.LEISURE] = left * time.pace(Activity.LEISURE)
     // (For the census: the days of each tier, and the lives the scored days were reckoned to save.)
     fun add(t: PlanTier, v: Float) { stats.hunting.merge(Tally.planTier(t), (10f * v).roundToInt(), Int::plus) }
-    add(PlanTier.OBLIGED, paid.sum()); add(PlanTier.SCORED, d[0] / time.pace(acts[0]) + d[1] / time.pace(acts[1]))
+    add(PlanTier.OBLIGED, paid.sum()); add(PlanTier.SCORED, d[0] / time.pace(acts[0])); add(PlanTier.GENERATIONS, d[1] / time.pace(acts[1]))
     add(PlanTier.UNRECKONED, shared.sum()); add(PlanTier.LEISURE, left)
     add(PlanTier.ASKED_BEYOND, max(0f, rest.sum() - shared.sum()))
     add(PlanTier.STORES_ASKED, days(Activity.FOOD, ask[0])); add(PlanTier.STORES_HELD, days(Activity.FOOD, d[0]))
     add(PlanTier.HOUSES_ASKED, days(Activity.HOUSES, ask[1])); add(PlanTier.HOUSES_HELD, days(Activity.HOUSES, d[1]))
-    stats.hunting.merge(Tally.planTier(PlanTier.LIVES), (1e4f * (d[0] * rate[0] + d[1] * rate[1])).roundToInt(), Int::plus)
+    stats.hunting.merge(Tally.planTier(PlanTier.LIVES), (1e4f * d[0] * rate[0]).roundToInt(), Int::plus)
     return given
 }
 
@@ -81,9 +87,13 @@ internal fun HexGroups.planDays(g: HexGroup, b: Band, weather: Weather, time: Ba
  * - the stores ([Activity.FOOD] beyond the week's food): filling its larder to the stores it aims at ([Band.storeAimAt1]:
  *   its lean days foreseen and a margin), at [perDay] kg a day of work; by how often its larder runs out over years made of
  *   its own past weeks ([storesAlive]) once it has a year of them, by the year ahead before;
- * - houses ([Activity.HOUSES]): a whole house's lives a year ([houseLivesAYear]: exposure averted) and its food a year
- *   ([houseFoodAYear]: what keeping warm no longer takes, as larder) over the years it expects to stay ([Band.stayWeeks]),
- *   over a whole house's days ([HOUSE_DAYS] a person).
+ * - houses ([Activity.HOUSES]), in days, not lives: the food a whole house saves a year (as the band lived its weeks,
+ *   [Band.houseFood]: keeping warm, stores kept from spoiling, less to raiders and mice; or at the place's usual cold,
+ *   [houseFoodAYear], if more) over the years it and its heirs expect to keep the place ([keepYears]), as the days of foraging
+ *   it would take at [perDay], over a whole house's days ([HOUSE_DAYS] a person): given days when it saves more than it
+ *   takes. (Over its usual stay a house was reckoned over a few months to a year: built for the next season, not for the
+ *   next generation; Olli, 2026-10-31. In lives it was worth none: a fed band foresees no deaths, and the year's usual cold
+ *   kills none behind clothes and fire; house trace, 2026-10-31. What it would save of a cold snap is not weighed.)
  * (Reckoned a week's work at a time, from what it has, the first days of either did nothing: a larder a few days fuller
  * leaves a lean spell that burns past the body's protein as deadly, and a house's food came in as a week's sliver of it.
  * The forecast foresaw as much hunger as came, and more (ab461c, 2026-10-30), yet the stores were given 2 to 3% of their
@@ -115,11 +125,37 @@ private fun HexGroups.planRates(g: HexGroup, b: Band, weather: Weather, perDay: 
             (if (gap > 0f) " stores filled:\n" + year.trace(g.species, larderDays + gap / need, g.fat, g.spent) else ""))
     }
     if (houses) {
-        val stayYears = max(b.stayWeeks, b.campWeeks + 1f) / stepsPerYear
-        val kg = houseFoodAYear(g, b, g.place, weather) * people * stayYears
-        rate[1] = (houseLivesAYear(b, g.place, weather) * people * stayYears + alive(kg) - now) / (HOUSE_DAYS * g.adults.coerceAtLeast(1))
+        val years = keepYears(b, stepsPerYear)
+        // (The food a whole house would have saved it a person a year as it lived its weeks ([Band.houseFood]: keeping warm,
+        // stores kept from spoiling, less to raiders and to mice), or at the place's usual cold if more ([houseFoodAYear]:
+        // a band new to a place has lived few weeks there).)
+        val kg = max(b.houseFood, houseFoodAYear(g, b, g.place, weather)) * people * years
+        // (Tier 2 is weighed in days, not lives: a whole house's days against the days of foraging the food it saves over
+        // the years kept would take, at this week's [perDay]. In lives a house was worth none: house trace, 2026-10-31.)
+        val saved = if (perDay > 0f) kg / perDay else 0f
+        rate[1] = saved / (HOUSE_DAYS * g.adults.coerceAtLeast(1))
+        // (planTrace: what a house was reckoned at.)
+        if (PLAN_TRACE && unitOf(mix64(g.id * HASH_A + weather.date.absoluteDay * HASH_B + PLAN_TRACE_SALT + 1)) < 0.02f &&
+            houseTraced.incrementAndGet() <= PLAN_TRACE_MOST)
+            System.err.println(("house trace: band %d, %s, %d people (%d grown), camp kept %d steps, at home %b, houses %.2f, reckoned kept %.2f y; " +
+                "a whole house a person a year: %.1f kg (as lived %.1f, usual cold %.1f); over the years: %.0f kg, %.0f days of foraging at %.2f kg a person-day, against %.0f days to build: %.2f " +
+                "(given days at 1 or more)").format(g.id, weather.date, g.size, g.adults, b.campWeeks, b.atHome, b.house, years, kg / years / people, b.houseFood, houseFoodAYear(g, b, g.place, weather),
+                kg, saved, perDay, HOUSE_DAYS * g.adults.coerceAtLeast(1), rate[1]))
     }
     return rate
+}
+
+/**
+ * The years band [b] and its heirs can expect to keep the place they have kept for [Band.campWeeks] steps ([perYear] a
+ * year), up to a generation ([GENERATION_YEARS]): as long as they have kept it is as likely as not, and the longer kept, the
+ * longer still (Gott 1993: kept T years, still there after t more as T / (T + t)), summed over a generation:
+ * T ln(1 + G / T). A band half a year at a camp reckons 2 years; 2 years, 5; 10 years, 12.5. (Gott's rule ignores the time
+ * scales of what it is applied to, Caves 2000; here the generation bounds it. A split's heirs keep the weeks, so a lineage
+ * counts its own.)
+ */
+internal fun keepYears(b: Band, perYear: Float): Float {
+    val kept = (b.campWeeks + 1f) / perYear
+    return kept * ln(1f + GENERATION_YEARS / kept)
 }
 
 /**
@@ -128,7 +164,7 @@ private fun HexGroups.planRates(g: HexGroup, b: Band, weather: Weather, perDay: 
  * the stores' and the houses' asks and what of them it held by lives).
  */
 enum class PlanTier(val label: String) {
-    OBLIGED("owed by custom"), SCORED("held by lives"), UNRECKONED("no reckoning yet"), LEISURE("leisure"),
+    OBLIGED("owed by custom"), SCORED("held by lives this year"), GENERATIONS("held by days saved over generations"), UNRECKONED("no reckoning yet"), LEISURE("leisure"),
     ASKED_BEYOND("unreckoned asks not given"), LIVES("lives reckoned saved, 1/10000"),
     STORES_ASKED("stores asked"), STORES_HELD("stores held"), HOUSES_ASKED("houses asked"), HOUSES_HELD("houses held")
 }
@@ -136,6 +172,7 @@ enum class PlanTier(val label: String) {
 /** planTrace=true: a sample of planning bands' weeks, how the year ahead reckons their stores ([planRates]), on stderr. */
 internal val PLAN_TRACE = Config.flag(Config.Key.PLAN_TRACE, false)
 private val planTraced = java.util.concurrent.atomic.AtomicInteger()
+private val houseTraced = java.util.concurrent.atomic.AtomicInteger()
 private const val PLAN_TRACE_MOST = 400
 private const val PLAN_TRACE_SALT = 0x50545243L
 

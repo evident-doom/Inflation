@@ -78,7 +78,9 @@ internal fun HexGroups.hunt(weather: Weather) {
                     val s = g.species
                     // The ground it searches this week, shared over the hexes it passed.
                     val sweep = searchKm2(g, g.place, weather) / g.path.size.coerceAtLeast(1)
+                    val t0 = Profile.mark()
                     Profile.part(if (s.human) "foraging: people" else Profile.byKind("foraging: hunters", s.name)) { forage(g, sweep, max(1, g.adults) * s.massKg, weather) }
+                    Profile.slow(if (s.human) "forage: band" else "forage: " + s.name, t0, weather.date.absoluteDay) { g.probe(weather.date.absoluteDay) }
                 }
             }
         }
@@ -1526,7 +1528,7 @@ internal fun creditShare(band: Band?) = if (band == null) 1f else meatShare(band
  * [carrion] kg; a beast holds only [meatShare] of what it is credited, so the rest of a kill credited whole goes nowhere.
  */
 internal fun GroupWorld.bookKill(hunter: HexGroup, credit: Float, kg: Float, carrion: Float) {
-    land.books?.leak(Books.Stuff.MATTER, "hunters' kills credited at more or less than they weigh (young, rivals, theft)",
+    land.books?.leak(Books.Stuff.MATTER, "hunters' kills credited at more or less than they weigh (kills taken from another kind)",
         (credit * meatShare(hunter.band) / creditShare(hunter.band) + carrion - kg).toDouble())
 }
 /** What is left of a kill of [ps] as carrion when the hunter took [kgEach] of it towards its need. */

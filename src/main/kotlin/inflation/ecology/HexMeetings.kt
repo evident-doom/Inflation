@@ -117,7 +117,7 @@ internal fun HexGroups.meet(weather: Weather) {
         val met = poisson(encounters(a, b, p, e.span), rnd)
         if (met == 0) continue
         if (slipsAway(a, b, p) || slipsAway(b, a, p)) { stats.meeting(Met.SLIPPED_AWAY); continue }
-        if (a.species.human && b.species.human) Profile.part("meetings: bands (culture, gifts, feasts, raids)") { bandsMeet(a, b, weather) }
+        if (a.species.human && b.species.human) Profile.part("meetings: bands (culture, gifts, feasts, raids)") { val t0 = Profile.mark(); bandsMeet(a, b, weather); Profile.slow("meeting: bands", t0, weather.date.absoluteDay) { a.probe(weather.date.absoluteDay) + " | " + b.probe(-1L) } }
         else if (a.species == b.species) Profile.part("meetings: rival packs") { rivalsMeet(a, e.a, e.ai, b, e.b, e.bi, h, stop) }
         else Profile.part("meetings: hunters of other kinds") { enemiesMeet(a, e.a, e.ai, b, e.b, e.bi, h, stop) }
     }
@@ -252,13 +252,17 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
  * finds the other senses it, v how fast they close on each other, T the time both spend about
  * (searching, at the same hours) and A the place's size.
  */
-internal fun GroupWorld.encounters(a: HexGroup, b: HexGroup, p: Place, span: Float): Float {
+internal fun GroupWorld.encounters(a: HexGroup, b: HexGroup, p: Place, span: Float): Float =
+    encounters(a.species, b.species, a.band != null && b.band != null, p, span)
+
+/** [encounters] for a group of kind [a] and one of kind [b] ([bands] when both are bands), as a group foresees them. */
+internal fun GroupWorld.encounters(a: Species, b: Species, bands: Boolean, p: Place, span: Float): Float {
     // By the keener's senses.
-    val r = max(a.species.senseKm, b.species.senseKm)
-    val v = sqrt(a.species.dailyTravelKm * a.species.dailyTravelKm + b.species.dailyTravelKm * b.species.dailyTravelKm)
+    val r = max(a.senseKm, b.senseKm)
+    val v = sqrt(a.dailyTravelKm * a.dailyTravelKm + b.dailyTravelKm * b.dailyTravelKm)
     // Bands seek each other out at springs and lake shores, where people come together.
-    val gather = if (a.band != null && b.band != null) 1f + 2f * (land.drink.nearSpring[p] + land.drink.nearLake[p]).coerceAtMost(1f) else 1f
-    return 2f * r * v * span * SEARCHING * gather / land.areaKm2[p] * Niches.overlap(a.species, b.species)
+    val gather = if (bands) 1f + 2f * (land.drink.nearSpring[p] + land.drink.nearLake[p]).coerceAtMost(1f) else 1f
+    return 2f * r * v * span * SEARCHING * gather / land.areaKm2[p] * Niches.overlap(a, b)
 }
 
 /**
@@ -266,18 +270,26 @@ internal fun GroupWorld.encounters(a: HexGroup, b: HexGroup, p: Place, span: Flo
  * of another kind; the keener its senses and the better its shelter, the likelier.
  */
 internal fun HexGroups.slipsAway(g: HexGroup, other: HexGroup, p: Place): Boolean {
-    val s = g.species; val o = other.species
-    if (s == o || strength(other) <= 2f * strength(g)) return false
-    val first = s.senseKm / (s.senseKm + o.senseKm)
-    val chance = AVOID_SKILL * first * (1f - o.stalking * 0.5f) + SHELTER_EFFECT * 0.5f * Niches.shelter(s, p, land)
-    return rnd.nextFloat() < min(0.9f, chance)
+    if (g.species == other.species || strength(other) <= 2f * strength(g)) return false
+    return rnd.nextFloat() < slipChance(g.species, other.species, p)
 }
+
+/** The chance a hunter of kind [s] slips away from a much stronger party of kind [o] at place [p] ([slipsAway]). */
+internal fun HexGroups.slipChance(s: Species, o: Species, p: Place): Float {
+    val first = s.senseKm / (s.senseKm + o.senseKm)
+    return min(0.9f, AVOID_SKILL * first * (1f - o.stalking * 0.5f) + SHELTER_EFFECT * 0.5f * Niches.shelter(s, p, land))
+}
+
+/** What keeps a much stronger party ([enemiesMeet]) from killing one of kind [weak] at place [p]: its shelter there. */
+internal fun HexGroups.shelteredFromKilling(weak: Species, p: Place) = 1f - SHELTER_EFFECT * Niches.shelter(weak, p, land)
 
 
 /**
  * Standing orders, hunters of different kinds. The weaker gives way; if it had made a kill this week
  * the stronger drives it off and takes most of the meat (hyenas rob leopards, lions rob everyone);
- * a much stronger party now and then kills one of the other.
+ * a much stronger party now and then kills one of the other, and leaves it where it fell, as rivals of one kind do
+ * ([rivalsMeet]): killing a rival is not hunting it. (Lions leave the cheetahs they kill uneaten; wolves eat a coyote
+ * now and then: Palomares & Caro 1999. What lies there is carrion, for whoever eats carrion, the killer too.)
  */
 internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk: Int, bi: Int, h: Hex, stop: IntArray) {
     stats.meeting(Met.HUNTERS_OF_OTHER_KINDS)
@@ -301,19 +313,15 @@ internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, b
     // A camp fire, and dogs that bark at night, keep lions and hyenas from taking people.
     val fire = if (weak.species.human) (1f - CAMPFIRE) * (1f - DOG_GUARD * (weak.band?.dogs?.dogShare ?: 0f)) else 1f
     // A much stronger party now and then kills one of the other: its young most often, an adult seldom.
-    val odds = fire * (1f - SHELTER_EFFECT * Niches.shelter(weak.species, weak.place, land)) * strong.will[AnimalWay.KILL]
+    val odds = fire * shelteredFromKilling(weak.species, weak.place) * strong.will[AnimalWay.KILL]
     // (People drive hunters off and now and then kill one, but do not seek out their young.)
     if (ratio > 2f && weak.young > 0 && !strong.species.human && rnd.nextFloat() < INTRAGUILD_KILL_YOUNG * tuning.intraguildYoung * odds) {
         weak.young--
-        strong.meatMet += HexFauna.YOUNG_WEIGHT * 0.5f * weak.species.massKg
-        small.deposit(DeadPool.CARRION, weak.place, Kg(HexFauna.YOUNG_WEIGHT * 0.5f * weak.species.massKg)) // (what the killers leave)
-        bookKill(strong, HexFauna.YOUNG_WEIGHT * 0.5f * weak.species.massKg, HexFauna.YOUNG_WEIGHT * weak.species.massKg, HexFauna.YOUNG_WEIGHT * 0.5f * weak.species.massKg)
+        small.deposit(DeadPool.CARRION, weak.place, Kg(HexFauna.YOUNG_WEIGHT * weak.species.massKg))
         stats.deaths.merge(Tally.of(weak.species, ByBeast.of(ByBeast.How.YOUNG_KILLED_BY, strong.species)), 1, Int::plus)
     } else if (ratio > 2f && weak.adults > 0 && rnd.nextFloat() < INTRAGUILD_KILL * odds) {
         adultsDied(weak, 1, rnd)
-        strong.meatMet += 0.5f * weak.species.massKg
-        small.deposit(DeadPool.CARRION, weak.place, Kg(0.5f * weak.species.massKg))
-        bookKill(strong, 0.5f * weak.species.massKg, weak.species.massKg, 0.5f * weak.species.massKg)
+        small.deposit(DeadPool.CARRION, weak.place, Kg(weak.species.massKg))
         stats.deaths.merge(Tally.of(weak.species, ByBeast.of(ByBeast.How.KILLED_BY, strong.species)), 1, Int::plus)
     }
     stop[wk] = min(stop[wk], max(0, wi - 1)) // the weaker turns back

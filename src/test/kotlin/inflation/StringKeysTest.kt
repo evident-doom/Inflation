@@ -50,7 +50,7 @@ class StringKeysTest {
         "ecology/Band.kt" to (1 to "Band fields by name, checked by BandCarryTest"),
         "ecology/BandCarry.kt" to (2 to "Band fields by name, checked by BandCarryTest"),
         "ecology/Contracts.kt" to (4 to "Herd and Dogs fields by name, checked by BandCarryTest"),
-        "Profile.kt" to (3 to "phase timings by phase name"),
+        "Profile.kt" to (5 to "phase timings, and the slowest jobs and their counts, by phase name"),
         "ecology/HexHistory.kt" to (5 to "history series: the CSV columns are text"),
         "run/TestWorlds.kt" to (1 to "runs by test-world name, user input"),
         "run/Nominal.kt" to (1 to "history series grouped by kind name, as the CSV columns name them"),
