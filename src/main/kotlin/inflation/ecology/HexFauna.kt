@@ -993,6 +993,12 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             // it eats what it finds (at most half of what lies there) before it hunts or makes up plants.
             var gotCarrion = if (d.carrion > 0f) small.scavenge(p, KgM2(min(animalNeed + plantGap, 0.5f * small.carrion[p]))).v else 0f
             var left = animalNeed + plantGap - gotCarrion
+            // (A bone-cracker eats the bones lying there too, at most half of them, at what a kilo of bone feeds it against
+            // a kilo of prey: [Food.BONES], as a pack forages them.)
+            val boneWorth = if (s.cracksBones) Food.BONES.energy / Nourishment.PREY else 0f
+            val bonesKg = if (boneWorth > 0f && left > 0f) small.crackBones(p, KgM2(min(left / boneWorth, 0.5f * small.bones[p]))).v else 0f
+            val gotBones = bonesKg * boneWorth
+            left -= gotBones
             val killedSoFar = FloatArray(1)
             var gotMeat = if (left > 0f) huntResidents(k, p, KgM2(min(left, needAll * d.meat / all) * avail[k]), killedSoFar).v else 0f
             left -= gotMeat
@@ -1022,10 +1028,10 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 if (moreSmall > 0f) { val x = smallFood(k, p, KgM2(moreSmall * avail[k]), weather).v; surplus[k] += x / needAll
                     ateBook?.add(-x * land.areaM2[p].toDouble()) }
             }
-            animal = (gotMeat + gotSmall + gotCarrion) / animalNeed
-            small.deposit(DeadPool.DUNG, p, KgM2(HexSmallLife.DUNG * (gotMeat + gotSmall + gotCarrion)))
+            animal = (gotMeat + gotSmall + gotCarrion + gotBones) / animalNeed
+            small.deposit(DeadPool.DUNG, p, KgM2(HexSmallLife.DUNG * (gotMeat + gotSmall + gotCarrion + bonesKg)))
             if (ateBook != null) { val m2 = land.areaM2[p].toDouble()
-                ateBook!!.add(-(gotSmall + gotCarrion) * m2); droppedBook!!.add(HexSmallLife.DUNG * (gotMeat + gotSmall + gotCarrion) * m2) }
+                ateBook!!.add(-(gotSmall + gotCarrion + bonesKg) * m2); droppedBook!!.add(HexSmallLife.DUNG * (gotMeat + gotSmall + gotCarrion + bonesKg) * m2) }
         }
         return animal
     }

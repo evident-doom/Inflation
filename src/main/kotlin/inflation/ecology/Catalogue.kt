@@ -736,20 +736,22 @@ object Catalogue {
     /**
      * Hunters that live everywhere they can on small home ranges, kept as
      * numbers per place like the plant-eaters rather than as packs that choose where to go
-     * (cheaper, and the same rules of eating, breeding and dying): golden jackals and lynx. (They stay
-     * in [predators], so every kind keeps its index.)
+     * (cheaper, and the same rules of eating, breeding and dying): golden jackals, lynx, and the solitary
+     * foragers that did nothing as packs that residents do not (striped hyenas, leopards: Olli 2026-10-31, on
+     * packs' cost against what they add, review/2026-10-31-mobile-predators-worth.md). (They stay in [predators],
+     * so every kind keeps its index.)
      */
-    val residentHunters by lazy { setOf(JACKAL, LYNX) }
+    val residentHunters by lazy { setOf(JACKAL, LYNX, HYENA, LEOPARD) }
 
     /** Kinds kept as numbers per place, the residents: every plant-eater, and the [residentHunters]. */
     fun resident(s: Species) = !s.carnivore || s in residentHunters
 
     /**
      * Residents that are rivals of the other beasts of prey as well as their game: the [residentHunters] and the brown bear.
-     * The jackals and lynx keep out of the way of a much stronger party ([HexFauna.strongest]). (A bear robbing a pack's
+     * The resident hunters keep out of the way of a much stronger party ([HexFauna.strongest]). (A bear robbing a pack's
      * kill waits for a rule of bears finding kills by scent.)
      */
-    val residentRivals by lazy { setOf(JACKAL, LYNX, BEAR) }
+    val residentRivals by lazy { setOf(JACKAL, LYNX, HYENA, LEOPARD, BEAR) }
 
     /** Kinds that climb crags and screes others cannot cross. */
     val climbers = setOf(IBEX, MOUFLON, WILD_GOAT, LEOPARD)
