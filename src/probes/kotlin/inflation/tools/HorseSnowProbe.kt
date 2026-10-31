@@ -12,7 +12,7 @@ import inflation.world.HexWorld
 /**
  * Probe: where a resident kind (default wild horse) stands by height through the year, against the snow on its
  * places, how well it fed there, and what the bottom band of the same hex would be worth to it.
- * Usage: horseSnowProbe --world m455-1 --years 1 [--kind wild_horse] (a kind's name with _ for its spaces, as runTool splits at them)
+ * Usage: horseSnowProbe --world m5-1 --years 1 [--kind wild_horse] (a kind's name with _ for its spaces, as runTool splits at them)
  */
 fun main(args: Array<String>) {
     val at = args.indexOf("--kind")
