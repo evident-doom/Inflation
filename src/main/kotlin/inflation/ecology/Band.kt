@@ -493,6 +493,8 @@ class Band(kinds: Int) {
     @Transient val forageReturn = FloatArray(Date.MONTHS_PER_YEAR) { -1f }
     /** Person-days drying and skinning would have liked last week: what they ask of this week's plan (they follow the catch). */
     var dryAsk = 0f
+    /** The fresh food (kg of need) [dryAsk] is sized to dry: what it meant to dry of last week's, for the planner's worth of drying ([planRates]). */
+    var dryAskKg = 0f
     var skinAsk = 0f
     /**
      * Its choices: how much of its effort goes to each kind of food ([FOOD_TYPES]: big game, small

@@ -1096,6 +1096,7 @@ private fun HexGroups.keepAndSpoil(w: ForageWeek, got: EnumFloats<Store>, gotKg:
     val dried = min(g.stores[Store.FRESH] * dryShare, dryDays * dryRate / daysPerKg / freshKgPer)
     dialUse?.amount(DialSite.DRYING, band.dryWill, dried, min(g.stores[Store.FRESH], dryDays * dryRate / DRY_DAYS_PER_KG / freshKgPer))
     band.dryAsk = if (dryRate > 0f) g.stores[Store.FRESH] * dryShare * freshKgPer * daysPerKg / dryRate else 0f
+    band.dryAskKg = if (dryRate > 0f) g.stores[Store.FRESH] * dryShare else 0f
     if (dried > 0f) {
         val saltedNow = min(dried, salt / SALT_PER_KG); band.goods[Material.SALT] -= saltedNow * SALT_PER_KG
         val before = g.stores[Store.DRIED]; band.salted = (before * band.salted + saltedNow) / (before + dried)

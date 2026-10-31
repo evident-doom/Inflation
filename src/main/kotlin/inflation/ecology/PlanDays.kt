@@ -86,7 +86,7 @@ internal fun HexGroups.planDays(g: HexGroup, b: Band, weather: Weather, time: Ba
  * - houses ([Activity.HOUSES]): a whole house's lives a year ([houseLivesAYear]: exposure averted) and its food a year
  *   ([houseFoodAYear]: what keeping warm no longer takes, as larder) over the years it expects to stay ([Band.stayWeeks]),
  *   over a whole house's days ([HOUSE_DAYS] a person);
- * - drying ([Activity.DRYING]): the fresh food it means to dry kept from this week's spoiling, as larder, over the [dryDays]
+ * - drying ([Activity.DRYING]): the fresh food it means to dry ([Band.dryAskKg]) kept from a week's spoiling, as larder, over the [dryDays]
  *   its ask takes. (Only this week's spoiling: what fresh food left over would lose in the weeks after is not counted.)
  * (Reckoned a week's work at a time, from what it has, the first days of either did nothing: a larder a few days fuller
  * leaves a lean spell that burns past the body's protein as deadly, and a house's food came in as a week's sliver of it.
@@ -121,7 +121,9 @@ private fun HexGroups.planRates(g: HexGroup, b: Band, weather: Weather, perDay: 
     // Drying: the fresh food it means to dry ([Band.dryWill]), which its ask is sized to, kept from this week's spoiling
     // ([freshSpoils]) less what dried food loses ([driedKeep]); in its larder through the year, by its own weeks or the year ahead.
     if (dryDays > 0f) {
-        val dried = g.stores[Store.FRESH] * b.dryWill.coerceIn(0f, 1f)
+        // (What its ask is sized to: last week's fresh food after its meals, before it spoilt. Fresh food at planning time is
+        // what is left of it after spoiling, next to nothing: by it, drying was worth no lives and got no days (ab507).)
+        val dried = b.dryAskKg
         val saved = dried * (freshSpoils(weather.temperature[g.place]) - min(1f, Store.DRIED.lostWeekly * driedKeep(b) * days / 7f))
         if (saved > 0f) {
             val was = storesAlive(g, b, weather, g.larder)

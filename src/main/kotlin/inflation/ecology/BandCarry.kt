@@ -60,7 +60,7 @@ internal fun carryRules(): Map<String, Pair<OnSplit, OnJoin>> {
     rule(OnSplit.COPIED, OnJoin.LOST, "campWeeks", "stayWeeks", "campPlace", "appointment", "houseHex", "house", "drivenFrom", "drivenBy", "homeEarth", "homeWalls", "homeGroundC", "palisade", "fire",
         "houseLives", "houseFood", "foodFrom", "fishPull", "weaningFood", "waterShort")
     rule(OnSplit.FRESH, OnJoin.LOST, "cache", "cacheKgPer", "cachePlace", "raid", "unlucky",
-        "shelter", "atHome", "nightWood", "hearthWood", "spareDays", "dogShare", "dryAsk", "skinAsk", "weirPull", "houseLivesWeek", "houseFoodWeek")
+        "shelter", "atHome", "nightWood", "hearthWood", "spareDays", "dogShare", "dryAsk", "dryAskKg", "skinAsk", "weirPull", "houseLivesWeek", "houseFoodWeek")
     // Ties.
     rule(OnSplit.COPIED, OnJoin.MAX, "ties")
     // (Favours stay with the band that was helped or helped: the new band owes and is owed nothing.)
