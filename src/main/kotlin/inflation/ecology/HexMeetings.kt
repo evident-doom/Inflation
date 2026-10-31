@@ -287,7 +287,9 @@ internal fun HexGroups.shelteredFromKilling(weak: Species, p: Place) = 1f - SHEL
 /**
  * Standing orders, hunters of different kinds. The weaker gives way; if it had made a kill this week
  * the stronger drives it off and takes most of the meat (hyenas rob leopards, lions rob everyone);
- * a much stronger party now and then kills one of the other.
+ * a much stronger party now and then kills one of the other, and leaves it where it fell, as rivals of one kind do
+ * ([rivalsMeet]): killing a rival is not hunting it. (Lions leave the cheetahs they kill uneaten; wolves eat a coyote
+ * now and then: Palomares & Caro 1999. What lies there is carrion, for whoever eats carrion, the killer too.)
  */
 internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk: Int, bi: Int, h: Hex, stop: IntArray) {
     stats.meeting(Met.HUNTERS_OF_OTHER_KINDS)
@@ -315,15 +317,11 @@ internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, b
     // (People drive hunters off and now and then kill one, but do not seek out their young.)
     if (ratio > 2f && weak.young > 0 && !strong.species.human && rnd.nextFloat() < INTRAGUILD_KILL_YOUNG * tuning.intraguildYoung * odds) {
         weak.young--
-        strong.meatMet += HexFauna.YOUNG_WEIGHT * 0.5f * weak.species.massKg
-        small.deposit(DeadPool.CARRION, weak.place, Kg(HexFauna.YOUNG_WEIGHT * 0.5f * weak.species.massKg)) // (what the killers leave)
-        bookKill(strong, HexFauna.YOUNG_WEIGHT * 0.5f * weak.species.massKg, HexFauna.YOUNG_WEIGHT * weak.species.massKg, HexFauna.YOUNG_WEIGHT * 0.5f * weak.species.massKg)
+        small.deposit(DeadPool.CARRION, weak.place, Kg(HexFauna.YOUNG_WEIGHT * weak.species.massKg))
         stats.deaths.merge(Tally.of(weak.species, ByBeast.of(ByBeast.How.YOUNG_KILLED_BY, strong.species)), 1, Int::plus)
     } else if (ratio > 2f && weak.adults > 0 && rnd.nextFloat() < INTRAGUILD_KILL * odds) {
         adultsDied(weak, 1, rnd)
-        strong.meatMet += 0.5f * weak.species.massKg
-        small.deposit(DeadPool.CARRION, weak.place, Kg(0.5f * weak.species.massKg))
-        bookKill(strong, 0.5f * weak.species.massKg, weak.species.massKg, 0.5f * weak.species.massKg)
+        small.deposit(DeadPool.CARRION, weak.place, Kg(weak.species.massKg))
         stats.deaths.merge(Tally.of(weak.species, ByBeast.of(ByBeast.How.KILLED_BY, strong.species)), 1, Int::plus)
     }
     stop[wk] = min(stop[wk], max(0, wi - 1)) // the weaker turns back
