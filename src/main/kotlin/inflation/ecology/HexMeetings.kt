@@ -64,8 +64,11 @@ internal fun GroupWorld.timetable(s: Species, path: HexArray): FloatArray {
  */
 internal fun HexGroups.meet(weather: Weather) {
     var mt = Profile.mark()
+    // (The resident hunters meet as packs do, through bands standing in for them: [ResidentParties].)
+    val residents = ResidentParties(this)
+    val parties = groups + residents.parties
     val byHex = HashMap<Hex, ArrayList<Stay>>()
-    for ((k, g) in groups.withIndex()) {
+    for ((k, g) in parties.withIndex()) {
         if (!g.alive) continue
         val last = g.path.size - 1
         for (i in g.path.indices) {
@@ -79,6 +82,8 @@ internal fun HexGroups.meet(weather: Weather) {
         val out = ArrayList<Meeting>()
         for (i in stays.indices) { for (j in i + 1 until stays.size) {
             val sa = stays[i]; val sb = stays[j]
+            // (A kind's own residents keep their ground by their strife, [HexFauna.strife], not by meeting.)
+            if ((sa.k >= groups.size || sb.k >= groups.size) && !residentsMeet(parties[sa.k], parties[sb.k])) continue
             val from = max(sa.from, sb.from); val to = min(sa.to, sb.to)
             if (from > to) continue
             out += Meeting(from, to - from, sa.k, sa.index, sb.k, sb.index, sa.hex)
@@ -89,7 +94,7 @@ internal fun HexGroups.meet(weather: Weather) {
     // Meetings at the same hour come in an order drawn afresh each week, not by age in the list.
     val today = weather.date.absoluteDay
     // (Each meeting's draw worked out once, then sorted on all cores: the order is the same as one by one.)
-    events.parallelStream().forEach { it.tie = tieBreak(groups[it.a].id, groups[it.b].id, today) }
+    events.parallelStream().forEach { it.tie = tieBreak(parties[it.a].id, parties[it.b].id, today) }
     val sorted = events.toTypedArray()
     Arrays.parallelSort(sorted) { x, y ->
         val c = java.lang.Float.compare(x.day, y.day)
@@ -103,24 +108,33 @@ internal fun HexGroups.meet(weather: Weather) {
     }
     events.clear(); events.addAll(sorted)
     mt = Profile.lap("meetings: sorting", mt)
-    val stop = IntArray(groups.size) { groups[it].path.size - 1 }
+    val stop = IntArray(parties.size) { parties[it].path.size - 1 }
     for (e in events) {
         // Both must still be on their way at that point.
         if (e.ai > stop[e.a] || e.bi > stop[e.b]) continue
-        val a = groups[e.a]; val b = groups[e.b]
+        val a = parties[e.a]; val b = parties[e.b]
         if (!a.alive || !b.alive) continue
         val h = e.hex
         // Sharing a hex is not meeting: they must cross each other's ground, be about at the same
         // hours, and neither slip away first. (How often they run into each other while both are there,
         // for the share of the time each is in it.)
         val p = hw.placeNear(a.place, h).takeIf { !it.none } ?: a.place
-        val met = poisson(encounters(a, b, p, e.span), rnd)
+        // (A stand-in is as many resident bands as there are there: each may meet the other, each meeting settled alone.)
+        val ra = residents.of(e.a); val rb = residents.of(e.b)
+        val met = poisson(encounters(a, b, p, e.span) * (ra?.bands ?: 1f) * (rb?.bands ?: 1f), rnd)
         if (met == 0) continue
-        if (slipsAway(a, b, p) || slipsAway(b, a, p)) { stats.meeting(Met.SLIPPED_AWAY); continue }
-        if (a.species.human && b.species.human) Profile.part("meetings: bands (culture, gifts, feasts, raids)") { bandsMeet(a, b, weather) }
-        else if (a.species == b.species) Profile.part("meetings: rival packs") { rivalsMeet(a, e.a, e.ai, b, e.b, e.bi, h, stop) }
-        else Profile.part("meetings: hunters of other kinds") { enemiesMeet(a, e.a, e.ai, b, e.b, e.bi, h, stop) }
+        val times = if (ra == null && rb == null) 1 else min(met, kotlin.math.ceil(min(ra?.bands ?: Float.MAX_VALUE, rb?.bands ?: Float.MAX_VALUE)).toInt())
+        for (t in 0 until times) {
+            ra?.fresh(); rb?.fresh()
+            if (!a.alive || !b.alive) break
+            if (slipsAway(a, b, p) || slipsAway(b, a, p)) stats.meeting(Met.SLIPPED_AWAY)
+            else if (a.species.human && b.species.human) Profile.part("meetings: bands (culture, gifts, feasts, raids)") { bandsMeet(a, b, weather) }
+            else if (a.species == b.species) Profile.part("meetings: rival packs") { rivalsMeet(a, e.a, e.ai, b, e.b, e.bi, h, stop) }
+            else Profile.part("meetings: hunters of other kinds") { enemiesMeet(a, e.a, e.ai, b, e.b, e.bi, h, stop) }
+            ra?.settle(); rb?.settle()
+        }
     }
+    residents.done()
     // Each group ends its week where it stopped: on the ground in that hex nearest in height to where it meant to go.
     for ((k, g) in groups.withIndex()) {
         if (!g.alive || stop[k] == g.path.size - 1) continue
@@ -130,6 +144,17 @@ internal fun HexGroups.meet(weather: Weather) {
         g.place = hw.placeNear(g.place, h).takeIf { !it.none } ?: g.place
     }
     Profile.lap("meetings: settling them", mt)
+}
+
+/**
+ * Whether a resident hunters' stand-in ([ResidentParties]) and another party meet to any end: not its own kind (they keep
+ * their ground by strife), and only where one is the much stronger ([enemiesMeet]: else they keep their distance, and a
+ * stand-in carries no kill to rob).
+ */
+private fun HexGroups.residentsMeet(a: HexGroup, b: HexGroup): Boolean {
+    if (a.species == b.species) return false
+    val sa = strength(a); val sb = strength(b)
+    return max(sa, sb) > 2f * max(1f, min(sa, sb))
 }
 
 /**
