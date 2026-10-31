@@ -1096,7 +1096,6 @@ private fun HexGroups.keepAndSpoil(w: ForageWeek, got: EnumFloats<Store>, gotKg:
     val dried = min(g.stores[Store.FRESH] * dryShare, dryDays * dryRate / daysPerKg / freshKgPer)
     dialUse?.amount(DialSite.DRYING, band.dryWill, dried, min(g.stores[Store.FRESH], dryDays * dryRate / DRY_DAYS_PER_KG / freshKgPer))
     band.dryAsk = if (dryRate > 0f) g.stores[Store.FRESH] * dryShare * freshKgPer * daysPerKg / dryRate else 0f
-    band.dryAskKg = if (dryRate > 0f) g.stores[Store.FRESH] * dryShare else 0f
     if (dried > 0f) {
         val saltedNow = min(dried, salt / SALT_PER_KG); band.goods[Material.SALT] -= saltedNow * SALT_PER_KG
         val before = g.stores[Store.DRIED]; band.salted = (before * band.salted + saltedNow) / (before + dried)
@@ -1443,17 +1442,12 @@ internal fun GroupWorld.keepWorth(g: HexGroup, b: Band, home: Float): Float {
     return kept
 }
 
-/** The share of fresh food that spoils in a week at [t] °C ([spoil]). */
-internal fun GroupWorld.freshSpoils(t: Float): Float {
-    val warm = if (t <= 0f) 0f else min(2.8f, exp(0.069f * (t - 15f)))
-    return 1f - exp(-HexSmallLife.CARRION_ROT * warm * days)
-}
-
 /** Spoils a week of [stores] at [t] °C, each kind at its own rate; returns kg lost (weighed at [kgPer] for each kg of worth). */
 internal fun GroupWorld.spoil(stores: EnumFloats<Store>, t: Float, keep: Float = 1f, driedKeep: Float = 1f, kgPer: EnumFloats<Store>? = null): Float {
     var lost = 0f
+    val warm = if (t <= 0f) 0f else min(2.8f, exp(0.069f * (t - 15f)))
     for (st in Store.entries) {
-        val share = if (st == Store.FRESH) freshSpoils(t) else min(1f,
+        val share = if (st == Store.FRESH) 1f - exp(-HexSmallLife.CARRION_ROT * warm * days) else min(1f,
             st.lostWeekly * keep * (if (st == Store.DRIED) driedKeep else 1f) * days / 7f)
         val x = stores[st] * share
         stores[st] -= x; lost += x * (kgPer?.get(st) ?: 1f)
