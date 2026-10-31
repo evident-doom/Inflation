@@ -797,6 +797,8 @@ internal class GroupPlanner(private val gs: HexGroups) {
         // Houses it may use draw it (its own or any left empty); a camp where someone died lately is shunned by those who leave their dead.
         score += HOME_PULL * gs.housesAt(g, h)
         score += cropPull(g, b, h)
+        // A planning band at its houses would leave them to weather and to others ([Band.leavingHouse]).
+        if (b.leavingHouse > 0f && h != b.houseHex) score -= b.leavingHouse
         score -= herdLoss(g, b, p)
         if (h == b.unluckyHex) score -= UNLUCKY
         // It keeps off the known homes of bands it is not close to (unless set on raiding them).

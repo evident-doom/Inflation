@@ -106,6 +106,11 @@ class Band(kinds: Int) {
      * week's forecast, not afresh for each choice of place: afresh, it took a third more of a step (calib461h).
      */
     @Transient var leavingDying = 0f
+    /**
+     * What a camp move would cost a [Mind.PLANS] band at its houses of them, weeks of its food a week it keeps a camp
+     * ([houseLeft]), as [foreseenSurvival] reckoned it at the end of last week; 0 for any other band.
+     */
+    @Transient var leavingHouse = 0f
     /** forecastTrace=true: its year ahead as foreseen, and what came, while it is followed ([traceForecast]); whether it has been. */
     @Transient internal var forecastTrace: ForecastTrace? = null
     @Transient var forecastTraced = false
