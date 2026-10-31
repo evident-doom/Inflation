@@ -124,6 +124,15 @@ internal fun HexGroups.meet(weather: Weather) {
         val met = poisson(encounters(a, b, p, e.span) * (ra?.bands ?: 1f) * (rb?.bands ?: 1f), rnd)
         if (met == 0) continue
         val times = if (ra == null && rb == null) 1 else min(met, kotlin.math.ceil(min(ra?.bands ?: Float.MAX_VALUE, rb?.bands ?: Float.MAX_VALUE)).toInt())
+        // (Where the weaker is a stand-in, its bands meet the other alike, so their meetings are drawn together.)
+        val aStrong = strength(a) * (if (a.home == h) HOME_ADVANTAGE else 1f) >= strength(b) * (if (b.home == h) HOME_ADVANTAGE else 1f)
+        val weakStandIn = if (aStrong) rb else ra
+        if (weakStandIn != null) {
+            ra?.fresh(); rb?.fresh()
+            Profile.part("meetings: hunters of other kinds") { if (aStrong) standInsMeet(a, b, weakStandIn, h, p, times) else standInsMeet(b, a, weakStandIn, h, p, times) }
+            ra?.settle(); rb?.settle()
+            continue
+        }
         for (t in 0 until times) {
             ra?.fresh(); rb?.fresh()
             if (!a.alive || !b.alive) break
@@ -144,6 +153,36 @@ internal fun HexGroups.meet(weather: Weather) {
         g.place = hw.placeNear(g.place, h).takeIf { !it.none } ?: g.place
     }
     Profile.lap("meetings: settling them", mt)
+}
+
+/**
+ * [times] bands of resident hunter [weak] (a stand-in, [ResidentParties]) meet [strong] in hex [h] at place [p], each as
+ * one band of it would ([slipsAway], [enemiesMeet]): drawn together, those that slip away, and of the rest those that
+ * lose one of their young, else one of their grown. (A stand-in carries no kill to rob.)
+ */
+private fun HexGroups.standInsMeet(strong: HexGroup, weak: HexGroup, si: ResidentParties.StandIn, h: Hex, p: Place, times: Int) {
+    val ss = strength(strong) * (if (strong.home == h) HOME_ADVANTAGE else 1f); val sw = strength(weak) * (if (weak.home == h) HOME_ADVANTAGE else 1f)
+    val slip = if (strength(strong) > 2f * strength(weak)) slipChance(weak.species, strong.species, p) else 0f
+    val stayed = binomial(times, 1f - slip, rnd)
+    stats.meeting(Met.SLIPPED_AWAY, times - stayed)
+    stats.meeting(Met.HUNTERS_OF_OTHER_KINDS, stayed)
+    if (stayed == 0 || ss / max(1f, sw) <= 2f) return
+    val odds = shelteredFromKilling(weak.species, weak.place) * strong.will[AnimalWay.KILL]
+    val ws = weak.species; val m = ws.massKg
+    val youngKilled = if (weak.young > 0 && !strong.species.human) binomial(stayed, min(1f, INTRAGUILD_KILL_YOUNG * tuning.intraguildYoung * odds), rnd) else 0
+    val grownKilled = if (weak.adults > 0) binomial(stayed - youngKilled, min(1f, INTRAGUILD_KILL * odds), rnd) else 0
+    if (youngKilled > 0) {
+        val kg = youngKilled * HexFauna.YOUNG_WEIGHT * m
+        strong.meatMet += 0.5f * kg; small.deposit(DeadPool.CARRION, weak.place, Kg(0.5f * kg)); bookKill(strong, 0.5f * kg, kg, 0.5f * kg)
+        stats.deaths.merge(Tally.of(ws, ByBeast.of(ByBeast.How.YOUNG_KILLED_BY, strong.species)), youngKilled, Int::plus)
+        si.deadYoung += youngKilled
+    }
+    if (grownKilled > 0) {
+        val kg = grownKilled * m
+        strong.meatMet += 0.5f * kg; small.deposit(DeadPool.CARRION, weak.place, Kg(0.5f * kg)); bookKill(strong, 0.5f * kg, kg, 0.5f * kg)
+        stats.deaths.merge(Tally.of(ws, ByBeast.of(ByBeast.How.KILLED_BY, strong.species)), grownKilled, Int::plus)
+        si.deadAdults += grownKilled
+    }
 }
 
 /**
