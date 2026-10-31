@@ -173,9 +173,10 @@ internal const val SOW_DAYS_PER_KG = 0.5f
 /**
  * A band's kept animals' week: they graze round the camp ([herdForage]), breed in their season as they are fed and as tame
  * as they have grown, give milk after it ([milkKg]), die, and run off as wild as they still are; they are herded in the field
- * work's time ([herdDays], [Band.herded]), and what its herders cannot keep the band culls (meat in its stores), as it eats
- * its herd's yearly increase week by week ([herdIncrease]) unless its spare days would keep that too; and generation by
- * generation they grow tamer, since the docile stay and breed.
+ * work's time ([herdDays], [Band.herded]), and those its herders cannot go out with graze by the camp unwatched, and the
+ * wilder of them do not come back at night ([unherdedStrays]); it eats its herd's yearly increase week by week
+ * ([herdIncrease]) unless its spare days would keep that too; and generation by generation they grow tamer, since the
+ * docile stay and breed.
  */
 internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTime) {
     val p = g.place
@@ -232,7 +233,10 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
             tally(k, HerdFlow.MILK_KG, milk)
         }
         val dying = (s.backgroundMortality + 0.5f * (1f - fed) + fighting(s)) * years
-        val running = straying(s, tame) * b.lapse(Skill.TENDING) * years
+        // (The herded stray as wild as they are ([straying]); those nobody went out with this week graze by the camp, and the
+        // wilder of them do not come home ([unherdedStrays]).)
+        val unwatched = (1f - tended) * min(1f, unherdedStrays(s, tame) * b.lapse(Skill.TENDING) * days / 7f)
+        val running = straying(s, tame) * b.lapse(Skill.TENDING) * years + unwatched
         val lost = n * min(0.9f, dying + running); val lostY = y * min(0.9f, dying + running)
         // (The dead lie by the camp; those that run off or stray go wild among their kind.)
         val diedShare = if (dying + running > 0f) dying / (dying + running) else 0f
@@ -247,19 +251,12 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
         // (What the grown herd gained this week: its young grown up, less the grown ones lost. That much the band can eat
         // without eating into its mothers, for only the grown ones bear young.)
         val nUp = n; val gained = max(0f, n - n0)
-        tally(k, HerdFlow.BORN, born); tally(k, HerdFlow.DIED, died + diedY); tally(k, HerdFlow.RAN_OFF, lost - died + lostY - diedY)
+        tally(k, HerdFlow.BORN, born); tally(k, HerdFlow.DIED, died + diedY); val ran = lost - died + lostY - diedY; val strayed = if (running > 0f) ran * unwatched / running else 0f
+        tally(k, HerdFlow.RAN_OFF, ran - strayed); tally(k, HerdFlow.STRAYED, strayed)
         val kg = (n + HexFauna.YOUNG_WEIGHT * y) * s.massKg
         tally(k, HerdFlow.KG, kg); tally(k, HerdFlow.KG_TENDED, kg * tended); tally(k, HerdFlow.KG_FED, kg * fed)
         // (For the census by kind: what it adds in a year, and what a herder's day of it brings against a lean month's foraging.)
         tally(k, HerdFlow.INCREASE_KG, herdIncrease(b, k, fed) * kg)
-        // What its herders cannot keep it culls for meat.
-        if (tended < 1f) {
-            val cull = n * (1f - tended); val cullY = y * (1f - tended)
-            n -= cull; y -= cullY
-            slaughter(k, cull, HerdFlow.CULLED)
-            slaughter(k, cullY, HerdFlow.CULLED, HexFauna.YOUNG_WEIGHT)
-            stats.meeting(Met.KEPT_ANIMALS_CULLED)
-        }
         // Herders live on their herds' increase: the band eats what its herd adds in a year, week by week through the year
         // (its births come in one season, its losses all year), and keeps it, its females with it, where its leanest
         // month would still herd the herd grown ([room]; till it knows its months, where this week's spare days would). A herd whose increase brings a herder less than
@@ -290,15 +287,15 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
 }
 
 /**
- * What became of bands' kept animals, for the census ([HexGroups.herdFlows]): heads born, dead, run off or strayed, taken by beasts of prey ([raidHerd]), culled
- * for want of herders, eaten of the herd's increase, eaten down for not paying ([herdPays]), and gone wild with a band that
+ * What became of bands' kept animals, for the census ([HexGroups.herdFlows]): heads born, dead, run off while herded, taken by beasts of prey ([raidHerd]), strayed
+ * from the camp with nobody out with them ([unherdedStrays]), eaten of the herd's increase, eaten down for not paying ([herdPays]), and gone wild with a band that
  * died out ([leaveDead]); milk, kg; and kg on the hoof weighed by the share herded, by the share fed, in herds that pay their
  * herders, and in all (week by week), and by what a herder's day brings against a lean month's foraging day ([herdWorth]:
  * under half, under 1, under 2, more); and herds that came to an end, as they paid, did not, or went wild with their band. By
  * kind only ([Bands.kindFlows]): the yearly increase, and what a herder's day brings, each weighed by kg on the hoof (where
  * the band has foraged a month to weigh it against); kg kept as pets ([Herd.herdPet]), and pets' herds that came to an end.
  */
-enum class HerdFlow { BORN, DIED, RAN_OFF, TAKEN, CULLED, EATEN, EATEN_UNPAID, FREED, MILK_KG, KG_TENDED, KG_FED, KG_PAYS, KG,
+enum class HerdFlow { BORN, DIED, RAN_OFF, TAKEN, STRAYED, EATEN, EATEN_UNPAID, FREED, MILK_KG, KG_TENDED, KG_FED, KG_PAYS, KG,
     KG_WORTH_HALF, KG_WORTH_UNDER, KG_WORTH_OVER, KG_WORTH_TWICE, ENDED, ENDED_UNPAID, ENDED_FREED,
     INCREASE_KG, KG_WORTH_KNOWN, WORTH_KG, KG_PET, ENDED_PET }
 
@@ -427,10 +424,23 @@ internal fun fighting(s: Species): Float {
  * herd falls short of being kept on foot, its tameness times the kind's ease on foot (the worse of Diamond's panic and
  * social-structure criteria) against [HERD_EASE], a goat's.
  */
-internal fun straying(s: Species, tame: Float): Float {
+internal fun straying(s: Species, tame: Float): Float = HERD_RUN_OFF * wildness(s, tame).let { it * it }
+
+/**
+ * The share of a kept herd of kind [s] grazing by the camp with nobody out with it that does not come home in a week, [tame]
+ * as it is: the square of its wildness, as [straying]'s. A herd as tame as a goat's at its tamest stays by the camp unwatched
+ * (village goats in south-west Nigeria roam free in herds of 7-9, and strays are not among their main exits: ILRI, abstract
+ * only); a wild one does not come back. An estimate: no record gives how half-tame herds come home.
+ */
+internal fun unherdedStrays(s: Species, tame: Float): Float = wildness(s, tame).let { it * it }
+
+/**
+ * How far a kept herd of kind [s] falls short of being kept on foot, 0..1, [tame] as it is: its tameness times the kind's
+ * ease on foot (the worse of Diamond's panic and social-structure criteria) against [HERD_EASE], a goat's.
+ */
+private fun wildness(s: Species, tame: Float): Float {
     val ease = min(s.diamond(Diamond.CALM), s.diamond(Diamond.HIERARCHY))
-    val wild = max(0f, 1f - tame * ease / HERD_EASE)
-    return HERD_RUN_OFF * wild * wild
+    return max(0f, 1f - tame * ease / HERD_EASE)
 }
 
 /**

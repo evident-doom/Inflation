@@ -119,7 +119,6 @@ enum class Met(val label: String) {
     HUNGRY_BANDS_CHOSE_TO_STAY("hungry bands chose to stay"),
     HUNGRY_BANDS_FED_BY_KIN("hungry bands fed by kin"),
     HUNTERS_OF_OTHER_KINDS("hunters of other kinds"),
-    KEPT_ANIMALS_CULLED("kept animals culled"),
     KEPT_ANIMALS_TAKEN("kept animals taken by beasts"),
     KILL_STOLEN("kill stolen"),
     LARDERS_RAIDED("larders raided"),
