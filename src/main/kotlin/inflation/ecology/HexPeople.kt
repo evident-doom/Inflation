@@ -204,14 +204,14 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     b.spareDays = time.left
     countSqueeze(b, time)
     time.spend(Activity.LEISURE, time.left)
-    time.countEach(stats.hunting)
-    time.count(stats.hunting, Tally.TimeTotal.LEFT, time.left)
-    time.count(stats.hunting, Tally.TimeTotal.LOST, time.lost)
+    time.countEachInto(bands.tallies)
+    bands.tallies.total(Tally.TimeTotal.LEFT, (time.left * 10f).roundToInt())
+    bands.tallies.total(Tally.TimeTotal.LOST, (time.lost * 10f).roundToInt())
     lap = Profile.lap("bandWeek: tallies", lap)
     // (And by whether it keeps a herd, tenths of a day: where a herding band's days go.)
     val herding = bandHerding(b, g.adults)
-    for (a in Activity.entries) stats.hunting.merge(Tally.bandsHerdingTime(herding, a), (10f * time.spentOn(a)).roundToInt(), Int::plus)
-    stats.hunting.merge(Tally.bandsHerdingTime(herding, Tally.TimeTotal.LOST), (10f * time.lost).roundToInt(), Int::plus)
+    for (a in Activity.entries) bands.tallies.herdTime(herding, a, (10f * time.spentOn(a)).roundToInt())
+    bands.tallies.herdTotal(herding, Tally.TimeTotal.LOST, (10f * time.lost).roundToInt())
     // (The wood burnt through the night goes to the air; what went into tools, houses, palisades and ornaments
     // is not kept as matter, and they do not go back to the ground as they wear: a known leak.)
     land.books?.let { bk ->
