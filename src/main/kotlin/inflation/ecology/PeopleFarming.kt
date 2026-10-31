@@ -232,7 +232,11 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
             addFood(g.stores, g.storeKgPer, Store.FRESH, milk * Nourishment.MILK * g.species.needScale, milk)
             tally(k, HerdFlow.MILK_KG, milk)
         }
-        val dying = (s.backgroundMortality + 0.5f * (1f - fed) + fighting(s)) * years
+        // (Crowded with their kind on the ground they graze, wild ones there and all, they sicken as the residents do, and
+        // an outbreak among their kind there takes them too: [HexFauna.hazards].)
+        val crowd = Hazards.crowding((n + y) / grazedKm2(p, s) + fauna.adults[k][p] + fauna.young[k][p], HexFauna.usualDensity(s))
+        val dying = (s.backgroundMortality + 0.5f * (1f - fed) + fighting(s)) * years + Hazards.crowdDisease(crowd, fed, years) +
+            fauna.outbreakDeaths(s, p)
         // (The herded stray as wild as they are ([straying]); those nobody went out with this week graze by the camp, and the
         // wilder of them do not come home ([unherdedStrays]).)
         val unwatched = (1f - tended) * min(1f, unherdedStrays(s, tame) * b.lapse(Skill.TENDING) * days / 7f)
@@ -306,18 +310,26 @@ internal class HerdForage(val need: Float, val grass: Float, val browse: Float) 
 
 /**
  * The forage [n] kept animals of kind [s] find round a camp at [p] in a week: their week's intake ([Species.dailyIntakeKg]),
- * grass and browse in their diet's shares, as far as the ground they graze from the camp has them (grass to a tenth of the
- * palatable herbage a week). That ground is the circle half their day's going across (out and back, as [HexFauna] spreads a
- * band of its residents), no more than the place: a herd kept by a camp grazes round it, not the whole place. In kg/m² of
- * the place. The same reckoning feeds them ([keepHerds]) and weighs a camp for them ([HexGroups.herdLoss]).
+ * grass and browse in their diet's shares, as far as the ground they graze round the camp ([grazedKm2]) has them: grass
+ * as far as the residents reach it in a week ([HexFauna.REACH]), and the browse shoots. (Their fruit and roots are not
+ * counted: a herd's forage does not bind by a long way, see the HerdLimits probe.) In kg/m² of the place. The same reckoning feeds them ([keepHerds]) and weighs a camp for them ([HexGroups.herdLoss]).
  */
 internal fun GroupWorld.herdForage(p: Place, s: Species, n: Float): HerdForage {
     val need = land.spread(p, Kg(n * s.dailyIntakeKg * days)).v
     val d = s.diet; val total = (d.grass + d.browse).coerceAtLeast(1e-6f)
-    val r = 0.5f * s.dailyTravelKm
-    val grazed = min(1f, Math.PI.toFloat() * r * r / land.areaKm2[p])
-    return HerdForage(need, min(need * d.grass / total, grazed * land.palatable[p] * land.plants.herb[p] * 0.1f),
+    val grazed = grazedKm2(p, s) / land.areaKm2[p]
+    return HerdForage(need, min(need * d.grass / total, grazed * HexFauna.REACH * land.palatable[p] * land.plants.herb[p]),
         min(need * d.browse / total, grazed * land.plants.browse(p)))
+}
+
+/**
+ * The ground, km², a herd of kind [s] kept by a camp at [p] grazes: the circle half its day's going across (out and back,
+ * as [HexFauna] spreads a band of its residents), no more than the place. Its forage ([herdForage]) and its crowding
+ * ([keepHerds]) are reckoned on it.
+ */
+internal fun GroupWorld.grazedKm2(p: Place, s: Species): Float {
+    val r = 0.5f * s.dailyTravelKm
+    return min(land.areaKm2[p], Math.PI.toFloat() * r * r)
 }
 
 /** The share of the week [time] its band spent walking to a new camp. */

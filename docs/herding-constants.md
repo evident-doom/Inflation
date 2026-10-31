@@ -39,3 +39,10 @@ herd grazed: herder days buy no extra reach in this model. A kept herd grazes th
 the camp ([herdForage], as [HexFauna] spreads a band of residents), no more than the place; before, it grazed the whole
 place, about 87 km² a hex, so forage never bound a kept herd (fed 0.96-0.98 in the herd drift A/B). Design and sources:
 https://claude.ai/artifact/FHCFHVZDKNusAE6nUDBtA9
+
+Kept herds live by the residents' rules on the ground they graze ([grazedKm2]): their grass reach is the residents'
+[HexFauna.REACH] (it was ten times that), and they are crowded with the residents of their kind there, sickening by
+[Hazards.crowdDisease] and taken by outbreaks among their kind as residents are; residents count the kept herds camped in
+their place in their own crowding. No constant of their own. The HerdLimits probe (m5-1, a year) found forage does not bind
+a kept herd by a factor of hundreds, while the residents' crowding would bind at about half the heads kept. Design:
+https://claude.ai/artifact/AuBZQDBK5SomWVQvy6dLbu

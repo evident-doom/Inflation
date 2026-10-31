@@ -294,6 +294,13 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * each week from the bands.
      */
     @Transient internal var keptAt: Map<Int, List<Band>>? = null
+    /** The heads of kind [k] kept by bands camped at [p] ([keptAt]), per km² of the place: they crowd its residents of their kind ([hazards]). */
+    private fun keptKm2(k: FaunaKind, p: Place): Float {
+        val bs = keptAt?.get(p.i) ?: return 0f
+        var h = 0f
+        for (b in bs) h += b.herds.herd.getOrElse(k.i) { 0f } + b.herds.herdYoung.getOrElse(k.i) { 0f }
+        return h / land.areaKm2[p]
+    }
     /**
      * Diagnostic (huntSteps): heads the resident hunters took this week at places in [keptAt], by prey kind: the kept young,
      * the kept grown, the wild young and the wild grown there ([HexGroups.herdsForBeasts] hands them to the hunt steps).
@@ -1097,7 +1104,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 // mount week to week, and past what it can bear they kill as they do a pack.
                 if (drinks(s, p)) dk[p] = 0f
                 else dk[p] += Hazards.dryDays(s, days, f[p], land.plants.green[p])
-                hazards(k, p, weather, date.month, f[p], dk[p], a[p] + y[p], hz)
+                hazards(k, p, weather, date.month, f[p], dk[p], a[p] + y[p] + keptKm2(k, p), hz)
                 spent[k][p] = Hazards.spentAfter(s, spent[k][p], f[p], days)
                 val hunger = hz[Danger.HUNGER]; val cold = hz[Danger.COLD]; val heat = hz[Danger.HEAT]; val thirst = hz[Danger.THIRST]; val disease = hz.disease()
                 val crowd = hz[Danger.CROWD]
@@ -1265,7 +1272,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val s = kinds[k]
         val f = fed[k][p]
         val dryNext = if (drinks(s, p)) 0f else dry[k][p] + Hazards.dryDays(s, days, f, land.plants.green[p])
-        hazards(k, p, weather, weather.date.month, f, dryNext, adults[k][p] + young[k][p], out)
+        hazards(k, p, weather, weather.date.month, f, dryNext, adults[k][p] + young[k][p] + keptKm2(k, p), out)
         return adultShare(out)
     }
 
@@ -1356,7 +1363,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val s = kinds[k]
         if (!drinks(s, p)) return Float.NaN
         // (They come with the fat and the burnt body of their kind as it moves, [moverFat] and [moverSpent].)
-        hazards(k, p, weather, weather.date.month, Hazards.onFat(f, moverFat[k], days, 1f), 0f, adults[k][p] + young[k][p] + arrivingKm2(k), out, moverSpent[k])
+        hazards(k, p, weather, weather.date.month, Hazards.onFat(f, moverFat[k], days, 1f), 0f, adults[k][p] + young[k][p] + keptKm2(k, p) + arrivingKm2(k), out, moverSpent[k])
         return adultShare(out)
     }
 
