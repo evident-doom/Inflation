@@ -1104,7 +1104,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 // Where they are crowded, now and then a plague breaks out among them.
                 if (crowd > 0f && hash(p, k) < OUTBREAK_START * crowd * crowd * years) startOutbreak(s, hw.placeHex[p])
                 val fireA = hz[Danger.FIRE_A]; val floodA = hz[Danger.FLOOD_A]; val snowA = hz[Danger.SNOW_A]
-                val adultSum = s.backgroundMortality * years + hunger + cold + heat + thirst + disease + fireA + floodA + snowA
+                val adultSum = s.backgroundMortality * years + hunger + cold + heat + thirst + disease + fireA + floodA + snowA + hz[Danger.STRIFE]
                 val adultOdds = adultSum.coerceIn(0f, Hazards.MAX_GROWN_ODDS)
                 val eagle = eagleOdds(s, p); val croc = crocodileOdds(p, weather)
                 val starved = starvedOdds(protein[k][p])
@@ -1164,13 +1164,15 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         dd[ResidentDeath.CROCODILES] += cy * croc
         dd[ResidentDeath.THIRST] += (ca + 1.5f * cy) * thirst
         dd[ResidentDeath.SHORT_OF_PROTEIN] += cy * starved
+        val strife = hz[Danger.STRIFE]
+        dd[ResidentDeath.RIVALS] += ca * strife; dd[ResidentDeath.YOUNG_KILLED_BY_RIVALS] += cy * STRIFE_YOUNG * strife
         record?.let { r ->
             val ka = ca * s.massKg; val ky = cy * s.massKg
             r.resident(k.i, p, PlaceRecord.Cause.HUNGER, (ka + 1.5f * ky) * hunger)
             r.resident(k.i, p, PlaceRecord.Cause.THIRST, (ka + 1.5f * ky) * thirst)
             r.resident(k.i, p, PlaceRecord.Cause.COLD, (ka + 1.5f * ky) * cold + ka * snowA + ky * snowY)
             r.resident(k.i, p, PlaceRecord.Cause.ILLNESS, (ka + ky) * disease)
-            r.resident(k.i, p, PlaceRecord.Cause.KILLED, ky * (eagle + croc))
+            r.resident(k.i, p, PlaceRecord.Cause.KILLED, ky * (eagle + croc) + (ka + STRIFE_YOUNG * ky) * strife)
             r.resident(k.i, p, PlaceRecord.Cause.OTHER, ka * s.backgroundMortality * years + ky * (s.youngMortality * years + starved) +
                 (ka + 1.5f * ky) * heat + ka * (fireA + floodA) + ky * (fireY + floodY))
         }
@@ -1197,12 +1199,26 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val crowd = Hazards.crowding(heads, usual[k])
         out[Danger.CROWD] = crowd
         out[Danger.SICK] = Hazards.crowdDisease(crowd, fed, years); out[Danger.OUTBREAK] = outbreakDeaths(s, p)
+        // Hunters hold ground: past the numbers their territories hold, they fight their own kind and kill its young.
+        out[Danger.STRIFE] = if (s.carnivore) strife(heads, usual[k]) else 0f
         val (fireA, floodA, snowA) = calamities(s, p, weather, false)
         val (fireY, floodY, snowY) = calamities(s, p, weather, true)
         out[Danger.FIRE_A] = fireA; out[Danger.FLOOD_A] = floodA; out[Danger.SNOW_A] = if (sleeping) 0f else snowA
         out[Danger.FIRE_Y] = fireY; out[Danger.FLOOD_Y] = floodY; out[Danger.SNOW_Y] = if (sleeping) 0f else snowY
         // (And the hunters, resident and roaming, as they hunted there lately; [breedAndDie] takes their kills as they make them.)
         out[Danger.HUNTED] = huntedOdds(k, p, false)
+    }
+
+    /**
+     * The share of a resident hunter kind's grown animals among [heads] a km² killed in a week by their own kind fighting
+     * over ground ([Danger.STRIFE]; the young [STRIFE_YOUNG] times as many): none up to [STRIFE_CROWD] times its usual
+     * numbers ([usualKm2]), the territories there are, and growing with the square of the excess beyond, [STRIFE_DEATHS] a
+     * year at twice the territories' numbers. As packs, rivals, the homeless and lions killing their young hold them;
+     * as residents nothing else would but the breeding spacing (leopards rose fivefold in ten years: ab-residents, 2026-10-31).
+     */
+    private fun strife(heads: Float, usualKm2: Float): Float {
+        val over = heads / (STRIFE_CROWD * usualKm2) - 1f
+        return if (over > 0f) STRIFE_DEATHS * over * over * years else 0f
     }
 
     /** The young a mother of kind [k] is due this step, its [share] of her season, among [heads] of her kind per km², fed [protein] of her need for it ([youngDue]). */
@@ -1233,7 +1249,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * young short of protein ([starvedOdds]), which grow slowly and die more.
      */
     private fun youngSum(s: Species, hz: EnumFloats<Danger>, eagle: Float, croc: Float, starved: Float) =
-        youngFixed(s, hz, eagle, croc, starved) + 1.5f * hz[Danger.HUNGER] + hz[Danger.SICK]
+        youngFixed(s, hz, eagle, croc, starved) + 1.5f * hz[Danger.HUNGER] + hz[Danger.SICK] + STRIFE_YOUNG * hz[Danger.STRIFE]
 
     /**
      * Of [youngSum], the odds that do not change with the numbers at a place or how well they are fed: their usual
@@ -1255,7 +1271,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
     /** The share of the grown among [out] ([hazards]) that die this week, besides old age. */
     private fun adultShare(out: EnumFloats<Danger>) =
-        out[Danger.HUNGER] + out[Danger.COLD] + out[Danger.HEAT] + out[Danger.THIRST] + out.disease() + out[Danger.FIRE_A] + out[Danger.FLOOD_A] + out[Danger.SNOW_A] + out[Danger.HUNTED]
+        out[Danger.HUNGER] + out[Danger.COLD] + out[Danger.HEAT] + out[Danger.THIRST] + out.disease() + out[Danger.FIRE_A] + out[Danger.FLOOD_A] + out[Danger.SNOW_A] + out[Danger.HUNTED] +
+            out[Danger.STRIFE]
 
     /**
      * The share of kind [k]'s grown residents at place [p] that would die next week if they stayed ([hazards]): fed as
@@ -1942,6 +1959,10 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         const val HABITAT = 3f
         /** Density, as a multiple of a kind's usual, at which disease kills a [DISEASE] share a year; and at which crowding halves a place's appeal ([appeal]). */
         const val CROWDED = 4f
+        /** [strife]: the times a resident hunter kind's usual numbers its territories hold; its deaths a year at twice that; its young's odds against the grown's. */
+        const val STRIFE_CROWD = 2f
+        const val STRIFE_DEATHS = 2f
+        const val STRIFE_YOUNG = 2f
         /** For the check only ([stuck]): fed below this counts as hungry. */
         const val STUCK_FED = 0.8f
         /**
@@ -2066,7 +2087,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 enum class ResidentDeath(val cause: DeathCause) {
     AGE(DeathCause.AGE), HUNGER(DeathCause.HUNGER), COLD(DeathCause.COLD), HEAT(DeathCause.HEAT), DISEASE(DeathCause.DISEASE), EAGLES(DeathCause.EAGLES),
     FIRE(DeathCause.FIRE), FLOOD(DeathCause.FLOOD), SNOW(DeathCause.SNOW), CROCODILES(DeathCause.CROCODILES), THIRST(DeathCause.THIRST),
-    SHORT_OF_PROTEIN(DeathCause.SHORT_OF_PROTEIN)
+    SHORT_OF_PROTEIN(DeathCause.SHORT_OF_PROTEIN), RIVALS(DeathCause.RIVALS), YOUNG_KILLED_BY_RIVALS(DeathCause.YOUNG_KILLED_BY_RIVALS)
 }
 @Suppress("NOTHING_TO_INLINE") private inline operator fun DoubleArray.get(d: ResidentDeath) = this[d.ordinal]
 @Suppress("NOTHING_TO_INLINE") private inline operator fun DoubleArray.set(d: ResidentDeath, v: Double) { this[d.ordinal] = v }

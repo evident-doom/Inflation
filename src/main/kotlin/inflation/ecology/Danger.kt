@@ -8,7 +8,7 @@ import inflation.EnumFloats
  * take of the grown; and disease in its two parts, the crowd's ([SICK]) and a raging outbreak's ([OUTBREAK]), which together
  * are [disease]. Kept per hazard in an [EnumFloats], so a share cannot be read as another's.
  */
-enum class Danger { HUNGER, COLD, THIRST, FIRE_A, FLOOD_A, SNOW_A, FIRE_Y, FLOOD_Y, SNOW_Y, CROWD, HUNTED, OUTBREAK, SICK, HEAT }
+enum class Danger { HUNGER, COLD, THIRST, FIRE_A, FLOOD_A, SNOW_A, FIRE_Y, FLOOD_Y, SNOW_Y, CROWD, HUNTED, OUTBREAK, SICK, HEAT, STRIFE }
 
 /** All disease deaths: the crowd's and an outbreak's. (A sum, not a slot of its own, so adding it to its parts is impossible.) */
 fun EnumFloats<Danger>.disease() = this[Danger.SICK] + this[Danger.OUTBREAK]

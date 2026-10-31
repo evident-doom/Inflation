@@ -742,7 +742,7 @@ object Catalogue {
      * breeding spacing, and they rose some fivefold in ten years (review/2026-10-31-ab-residents.md). (They stay in
      * [predators], so every kind keeps its index.)
      */
-    val residentHunters by lazy { setOf(JACKAL, LYNX, HYENA) }
+    val residentHunters by lazy { setOf(JACKAL, LYNX, HYENA, LION) }
 
     /** Kinds kept as numbers per place, the residents: every plant-eater, and the [residentHunters]. */
     fun resident(s: Species) = !s.carnivore || s in residentHunters
@@ -752,7 +752,7 @@ object Catalogue {
      * The resident hunters keep out of the way of a much stronger party ([HexFauna.strongest]). (A bear robbing a pack's
      * kill waits for a rule of bears finding kills by scent.)
      */
-    val residentRivals by lazy { setOf(JACKAL, LYNX, HYENA, BEAR) }
+    val residentRivals by lazy { setOf(JACKAL, LYNX, HYENA, LION, BEAR) }
 
     /** Kinds that climb crags and screes others cannot cross. */
     val climbers = setOf(IBEX, MOUFLON, WILD_GOAT, LEOPARD)
