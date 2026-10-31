@@ -35,6 +35,7 @@ import java.util.concurrent.atomic.DoubleAdder
 import inflation.Books
 import inflation.Stocks
 import kotlin.math.hypot
+import kotlin.math.ln
 
 /**
  * A wild bird as a density field: when it breeds, how fast it grows and dies back, the months it is
@@ -92,6 +93,12 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     val litter = FloatArray(n) { p -> 0.5f * (land.plants.herb[p] + 0.2f * land.plants.shrub[p] + 0.04f * land.plants.tree[p]) + 0.3f }
     val organicMatter = FloatArray(n) { p -> 4f * min(1f, land.plants.biomass(Place(p)) / 5f) }
     val carrion = FloatArray(n)
+    /**
+     * What a kilo of carrion lying at each place has come to since the world began, as its log: every share of the carrion
+     * there that rots or is scavenged takes its log down, whatever is added. A carcass left at a place keeps what this has
+     * fallen by since ([keptSince]): the share of a pack's carcass the place's rot and scavengers left it ([HexGroup.carcassKg]).
+     */
+    val carrionKeptLog = DoubleArray(n)
     /** Where dead matter went, for the viewer (see [PlaceRecord]); set with [HexFauna.record]. */
     @Transient var record: PlaceRecord? = null
     /** Bones left when the meat is gone, kg/m²: slow to weather, food for bone-crackers. */
@@ -372,6 +379,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         // then the week's carcasses are added, fresh for the vultures and scavengers this week.
         if (carrion[p] > 0f) {
             val gone = carrion[p] * (1f - exp(-CARRION_ROT * max(0.1f, warm) * days))
+            carrionKeptLog[p.i] -= CARRION_ROT * max(0.1f, warm) * days
             carrion[p] -= gone; litter[p] += 0.3f * gone - BONE_SHARE * gone; bones[p] += BONE_SHARE * gone
             rotBook?.add(-0.7f * gone * m2)
             record?.let { it.carrionGone[p] += gone }
@@ -1097,7 +1105,14 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     }
 
     /** Takes up to [want] of carrion in place [p]; returns what was taken. */
-    fun scavenge(p: Place, want: KgM2): KgM2 { val t = min(carrion[p], want.v); carrion[p] -= t; record?.let { it.carrionGone[p] += t }; return KgM2(t) }
+    fun scavenge(p: Place, want: KgM2): KgM2 {
+        val had = carrion[p]; val t = min(had, want.v)
+        if (t > 0f) carrionKeptLog[p.i] += ln(max(KEPT_LEAST, 1.0 - t / had.toDouble()))
+        carrion[p] -= t; record?.let { it.carrionGone[p] += t }; return KgM2(t)
+    }
+
+    /** The share of a kilo of carrion lying at [p] when [carrionKeptLog] stood at [log] that is left now. */
+    fun keptSince(p: Place, log: Double) = exp(carrionKeptLog[p.i] - log).toFloat().coerceIn(0f, 1f)
 
 
     /** Takes up to [want] of bones in place [p] (for bone-crackers); returns what was taken. */
@@ -1325,6 +1340,8 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
          * four days.
          */
         const val CARRION_ROT = 0.2f
+        /** The least share of a place's carrion a scavenging leaves in [carrionKeptLog] (all of it taken would be a log of minus infinity). */
+        const val KEPT_LEAST = 1e-6
         /** Small prey of one kind, kg/km², at which hunters find it half as readily as a common kind. */
         const val SMALL_FIND_HALF = 2f
         /**

@@ -20,7 +20,24 @@ internal enum class HuntStep(val label: String) {
     // share lost ([HexGroups.herdsForBeasts], [HexFauna.campTaken]).)
     KEPT_YOUNG_HELD("kept young held"), KEPT_YOUNG_TAKEN("kept young taken"), KEPT_GROWN_HELD("kept grown held"),
     KEPT_GROWN_TAKEN("kept grown taken"), WILD_YOUNG_AT_CAMPS("wild young at camps"), WILD_YOUNG_TAKEN_AT_CAMPS("wild young taken at camps"),
-    WILD_GROWN_AT_CAMPS("wild grown at camps"), WILD_GROWN_TAKEN_AT_CAMPS("wild grown taken at camps");
+    WILD_GROWN_AT_CAMPS("wild grown at camps"), WILD_GROWN_TAKEN_AT_CAMPS("wild grown taken at camps"),
+    // (A beast's kills, by the beast: those made, those stronger scavengers found by scent, and their weight made and lost
+    // ([foundByScent]).)
+    KILLS_MADE("kills made"), KILLS_FOUND_BY_SCENT("kills found by scent"), KILLS_LOST_TO_SCENT("kills lost to scent"), KILL_KG("kill kg"), KILL_KG_LOST_TO_SCENT("kill kg lost to scent"),
+    // (And per kill, summed: the days its carcass lies, the scavengers' finds a day there, and the party's heads; their means
+    // are these over the kills found possible.)
+    KILL_LIE_DAYS("kill lie days"), SCENT_RATE("scent finds a day"), KILL_PARTY("kill party heads"),
+    // (A beast pack's foraging week, by the hunter ([forage]): its weeks, the days it could work, the days its foods took
+    // and of them the days spent eating, its food got over what it wanted; and its weeks it ran out of days short of
+    // what it aimed for, against those it stopped because it was fed.)
+    PACK_WEEKS("pack weeks"), PACK_WORK_DAYS("pack work days"), PACK_BUSY_DAYS("pack busy days"), PACK_EATING_DAYS("pack eating days"),
+    PACK_FED("pack fed of want"), PACK_WEEKS_OUT_OF_TIME("pack weeks out of time"), PACK_WEEKS_FULL("pack weeks full"),
+    // (And as it ate the week ([eatTheWeek]): its weeks with no kill of its own, those it ate under [WELL_FED] of its want
+    // with and without a kill, the kg it ate and the kg of its kills it left past what it could gorge.)
+    PACK_WEEKS_NO_KILL("pack weeks no kill"), PACK_WEEKS_HUNGRY_NO_KILL("pack weeks hungry no kill"),
+    PACK_WEEKS_HUNGRY_WITH_KILL("pack weeks hungry with kill"), PACK_KG_EATEN("pack kg eaten"), PACK_KG_LEFT("pack kg left"),
+    // (And its carcass ([leaveCarcass], [eatCarcass]): kg it left where it ended the week to come back to, and kg of it eaten.)
+    PACK_CARCASS_KG_LEFT("pack carcass kg left"), PACK_CARCASS_KG_EATEN("pack carcass kg eaten");
 
     companion object {
         private const val PREFIX = "diag:"
