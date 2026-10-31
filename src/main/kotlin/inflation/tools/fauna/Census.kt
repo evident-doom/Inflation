@@ -16,6 +16,10 @@ import inflation.ecology.ritesApart
 import inflation.ecology.livelihood
 import inflation.ecology.homesApart
 import inflation.ecology.Mind
+import inflation.ecology.PlanTier
+import inflation.ecology.ForeseenBin
+import inflation.ecology.LarderMove
+import inflation.world.Season
 import inflation.ecology.DeathCause
 import inflation.ecology.Tally
 import inflation.ecology.VillageFlow
@@ -371,12 +375,14 @@ class Census(private val sim: HexSim) {
             val got = v(Tally.Bands.MEAT) + v(Tally.Bands.PLANTS) + v(Tally.Bands.FISH)
             "%s %.0f%%: %.0f%%, %.0f/%.0f/%.0f%%".format(c.label, 100 * v(Tally.Bands.BAND_WEEKS) / allWeeks, 100 * got / v(Tally.Bands.ASKED).coerceAtLeast(1.0),
                 100 * v(Tally.Bands.MEAT) / got.coerceAtLeast(1.0), 100 * v(Tally.Bands.PLANTS) / got.coerceAtLeast(1.0), 100 * v(Tally.Bands.FISH) / got.coerceAtLeast(1.0)) })
-        println("bands by kind of country, last year (births / deaths per person a year, foreseen deaths a year ahead as the weeks went, mean perseverance; main causes): " + cs.joinToString(", ") { c ->
+        println("bands by kind of country, last year (births / deaths per person a year, foreseen deaths a year ahead as the weeks went (of them of hunger / of exposure), mean perseverance; main causes): " + cs.joinToString(", ") { c ->
             val years = (lastYear[Tally.bandsIn(c, Tally.Bands.PEOPLE_WEEKS)] ?: 0).toDouble() / stepsPerYear
             val died = lastYear.filterKeys { it.startsWith(Tally.bandsDied(c)) }.mapKeys { Tally.diedOf(it.key) }
             val foreseen = (lastYear[Tally.bandsIn(c, Tally.Bands.FORESEEN)] ?: 0) / 1000.0 / (lastYear[Tally.bandsIn(c, Tally.Bands.PEOPLE_WEEKS)] ?: 0).toDouble().coerceAtLeast(1.0)
             val sisu = (lastYear[Tally.bandsIn(c, Tally.Bands.SISU)] ?: 0) / 1000.0 / (lastYear[Tally.bandsIn(c, Tally.Bands.PEOPLE_WEEKS)] ?: 0).toDouble().coerceAtLeast(1.0)
-            "%s %.3f / %.3f, foreseen %.3f, perseverance %.2f (%s)".format(c.label, (lastYear[Tally.bandsIn(c, Tally.Bands.BORN)] ?: 0) / years.coerceAtLeast(1e-9), died.values.sum() / years.coerceAtLeast(1e-9), foreseen, sisu,
+            fun per(k: Tally.Bands) = (lastYear[Tally.bandsIn(c, k)] ?: 0) / 1000.0 / (lastYear[Tally.bandsIn(c, Tally.Bands.PEOPLE_WEEKS)] ?: 0).toDouble().coerceAtLeast(1.0)
+            "%s %.3f / %.3f, foreseen %.3f (%.3f / %.3f), perseverance %.2f (%s)".format(c.label, (lastYear[Tally.bandsIn(c, Tally.Bands.BORN)] ?: 0) / years.coerceAtLeast(1e-9), died.values.sum() / years.coerceAtLeast(1e-9), foreseen,
+                per(Tally.Bands.FORESEEN_HUNGER), per(Tally.Bands.FORESEEN_EXPOSURE), sisu,
                 died.entries.sortedByDescending { it.value }.take(3).joinToString(" ") { "%s %.3f".format(it.key, it.value / years.coerceAtLeast(1e-9)) }) })
         run {
             val all = (lastYear[Tally.bandTime(Tally.TimeTotal.ALL)] ?: 0).toDouble().coerceAtLeast(1.0)
@@ -408,6 +414,43 @@ class Census(private val sim: HexSim) {
                 pw / bw, 100 * (lastYear[Tally.bandsMind(m, Tally.Bands.MOVES)] ?: 0) / bw,
                 1000 * (lastYear[Tally.bandsMind(m, Tally.Bands.BORN)] ?: 0) / years, 1000 * died.values.sum() / years,
                 died.entries.sortedByDescending { it.value }.joinToString(" ") { "%s %.1f".format(it.key, 1000 * it.value / years) }) })
+        // How bands' forecasts of the year ahead held: in each band of foreseen deaths, the share of people-weeks, the deaths
+        // foreseen, and those that came in the year after (all, and of hunger), per person ([bookCalibration]).
+        println("bands' forecasts against what came, last year (by mind, then by the share foreseen dead a year ahead: share of people-weeks; foreseen dead / died in the year after / of hunger, per person): " + Mind.entries.joinToString("; ") { m ->
+            fun v(b: ForeseenBin, k: Tally.Calib) = (lastYear[Tally.calibration(m, b, k)] ?: 0).toDouble()
+            val all = ForeseenBin.entries.sumOf { v(it, Tally.Calib.PEOPLE_WEEKS) }.coerceAtLeast(1.0)
+            m.label + ": " + ForeseenBin.entries.joinToString(", ") { b ->
+                val pw = v(b, Tally.Calib.PEOPLE_WEEKS).coerceAtLeast(1.0)
+                "%s %.0f%%: %.3f / %.3f / %.3f".format(b.label, 100 * v(b, Tally.Calib.PEOPLE_WEEKS) / all, v(b, Tally.Calib.FORESEEN) / 1000 / pw, v(b, Tally.Calib.DIED) / 1000 / pw, v(b, Tally.Calib.HUNGER) / 1000 / pw)
+            }
+        })
+        // Where bands' stores went: what moved their larders, days a person a year by season, and their hunger deaths by what the
+        // larder held then and whether they had moved camp in the month before ([Band.larderFlow], [Tally.starvedAt]).
+        println("bands' larders, last year (by mind: what moved food in or out, days of a person's need a person a year, the year's net and spring/summer/autumn/winter; hunger deaths per 1000 a year and their share by the larder then, and after a move in the month before, against the share of people-weeks within a month of one): " + Mind.entries.joinToString("; ") { m ->
+            val years = ((lastYear[Tally.bandsMind(m, Tally.Bands.PEOPLE_WEEKS)] ?: 0).toDouble() / stepsPerYear).coerceAtLeast(1e-9)
+            fun f(why: LarderMove, season: Season) = (lastYear[Tally.larderFlow(m, season, why)] ?: 0).toDouble() / years
+            val starved = Tally.LarderAt.entries.sumOf { (lastYear[Tally.starvedAt(m, it)] ?: 0).toDouble() }
+            m.label + ": " + LarderMove.entries.joinToString(", ") { why ->
+                "%s %.1f (%s)".format(why.label, Season.entries.sumOf { f(why, it) }, Season.entries.joinToString("/") { "%.1f".format(f(why, it)) })
+            } + "; hunger %.1f: ".format(1000 * starved / years) +
+                Tally.LarderAt.entries.joinToString(", ") { "%s %.0f%%".format(it.label, 100 * (lastYear[Tally.starvedAt(m, it)] ?: 0) / starved.coerceAtLeast(1.0)) } +
+                ", after a move %.0f%% (of people-weeks %.0f%%)".format(100 * (lastYear[Tally.starvedMoved(m)] ?: 0) / starved.coerceAtLeast(1.0),
+                    100 * (lastYear[Tally.movedWeeks(m)] ?: 0) / (years * stepsPerYear).coerceAtLeast(1.0))
+        })
+        run {
+            // A planning band's days beyond its essentials, by tier ([planDays]).
+            val pw = (lastYear[Tally.bandsMind(Mind.PLANS, Tally.Bands.PEOPLE_WEEKS)] ?: 0).toDouble()
+            if (pw > 0.0) {
+                fun v(t: PlanTier) = (lastYear[Tally.planTier(t)] ?: 0).toDouble()
+                val all = listOf(PlanTier.OBLIGED, PlanTier.SCORED, PlanTier.UNRECKONED, PlanTier.LEISURE).sumOf { v(it) }.coerceAtLeast(1.0)
+                println("planning bands' days beyond their essentials, last year (share of those days by tier; unreckoned asks not given, as a share of those days; lives the days held by lives were reckoned to save, per 1000 people a year; the stores' and houses' days held as a share of their asks, and their asks as a share of those days): " +
+                    listOf(PlanTier.OBLIGED, PlanTier.SCORED, PlanTier.UNRECKONED, PlanTier.LEISURE).joinToString(", ") { "%s %.0f%%".format(it.label, 100 * v(it) / all) } +
+                    "; %s %.0f%%; %.1f".format(PlanTier.ASKED_BEYOND.label, 100 * v(PlanTier.ASKED_BEYOND) / all, 1000 * v(PlanTier.LIVES) / 1e4 / (pw / stepsPerYear).coerceAtLeast(1e-9)) +
+                    "; stores held %.0f%% of asked (asked %.0f%% of those days), houses %.0f%% (%.0f%%)".format(
+                        100 * v(PlanTier.STORES_HELD) / v(PlanTier.STORES_ASKED).coerceAtLeast(1.0), 100 * v(PlanTier.STORES_ASKED) / all,
+                        100 * v(PlanTier.HOUSES_HELD) / v(PlanTier.HOUSES_ASKED).coerceAtLeast(1.0), 100 * v(PlanTier.HOUSES_ASKED) / all))
+            }
+        }
         run {
             // Villages: hexes where two or more bands live settled, or one band at home larger than a camp ([villages]).
             val f = groups.bands.villageFlows

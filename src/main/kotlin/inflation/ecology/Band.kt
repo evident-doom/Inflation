@@ -62,13 +62,76 @@ class Band(kinds: Int) {
     /** The place it remembers doing best in each month (-1 for none), and how well (0..1). */
     val seasonPlace = IntArray(12) { -1 }
     val seasonQ = FloatArray(12)
-    /** The food it got in each month over the last years, as a share of its need before keeping warm ([foresee]). */
+    /**
+     * The food it got in each month over the last years, as a share of its need before keeping warm, net of its larder: above
+     * 1 in a month it laid food by, below in one it lived off its larder or lost it ([foresee], [addSupply]).
+     */
     val monthSupply = FloatArray(12) { 1f }
+    /** The mean square of each month's [monthSupply] over the same years (NaN till a month is seen): how its years differ ([supplySpread]). */
+    val monthSupplySq = FloatArray(12) { Float.NaN }
+    /** The month whose weeks it is adding up (-1 for none yet), their supply summed and how many ([addSupply]). */
+    var supplyMonth = -1
+    var supplySum = 0f
+    var supplyWeeks = 0
+    /**
+     * Its weeks over the last [SUPPLY_YEARS] years, by the year (a ring) and the week of the year, as [foresee] counts them
+     * ([recordWeek]): the food it got as a share of its need before keeping warm, net of its larder (NaN for a week not seen);
+     * what keeping warm took then, times that need; whether it moved camp. For reckoning its stores ([storesAlive]).
+     */
+    val weekSupply = FloatArray(SUPPLY_YEARS * WEEKS_KEPT) { Float.NaN }
+    val weekWarmth = FloatArray(SUPPLY_YEARS * WEEKS_KEPT) { 1f }
+    val weekMoved = BooleanArray(SUPPLY_YEARS * WEEKS_KEPT)
+    /** Its larder at last week's [foresee], days of its people's need before keeping warm (NaN for not yet seen). */
+    var larderSeen = Float.NaN
+    /** The share of this week's need its fat met ([feedOnReserves]): not food it got, for [foresee]. */
+    @Transient var fatFed = 0f
+    /** The food it cached or left at its old camp on a move this week ([campAndCache]): the forecast foresees moves on their own ([foresee]). */
+    @Transient var leftBehind = 0f
+    /** Whether it moved camp this week ([campAndCache]), for its record of weeks ([recordWeek]). */
+    @Transient var movedCamp = false
+    /**
+     * The share of its people a camp move would cost through the year ahead by the food it cannot carry ([leftBehindShare]:
+     * cached or left at the old camp), as [foreseenSurvival] foresaw at the end of last week: alive with its larder, less alive
+     * with what it carries. (A cache it may come back to is counted lost: whether it will is not foreseen.) Worked out with the
+     * week's forecast, not afresh for each choice of place: afresh, it took a third more of a step (calib461h).
+     */
+    @Transient var leavingDying = 0f
+    /** forecastTrace=true: its year ahead as foreseen, and what came, while it is followed ([traceForecast]); whether it has been. */
+    @Transient internal var forecastTrace: ForecastTrace? = null
+    @Transient var forecastTraced = false
+    /** What moved food into its larder (below 0, out) this week by [LarderMove], kg ([larderMoved]): for the census, at [foresee]. */
+    @Transient val larderFlow = FloatArray(LarderMove.entries.size)
     /**
      * The share of its hands' days left in each month once its fire, shelters and food are held ([BandTime.vital]), a mean
      * over the years (below 0 till it has planned a week then): what its leanest month could give its herders ([keepHerds]).
      */
     val freeShare = FloatArray(12) { -1f }
+
+    /**
+     * Adds a week's food in month [m] ([got], as [monthSupply] counts it): the weeks of a month are added up, and once it
+     * is over its mean goes into its month's [monthSupply] and [monthSupplySq], a year at a time. [k] is the share a week
+     * took of its month's mean when it went in week by week, so a month's year takes as much as its weeks did then.
+     */
+    fun addSupply(m: Int, got: Float, k: Float) {
+        if (m != supplyMonth) {
+            val was = supplyMonth
+            if (was >= 0 && supplyWeeks > 0) {
+                val mean = supplySum / supplyWeeks
+                val kYear = 1f - (1f - k).pow(1f / k)
+                if (monthSupplySq[was].isNaN()) monthSupplySq[was] = monthSupply[was] * monthSupply[was]
+                monthSupply[was] += kYear * (mean - monthSupply[was])
+                monthSupplySq[was] += kYear * (mean * mean - monthSupplySq[was])
+            }
+            supplyMonth = m; supplySum = 0f; supplyWeeks = 0
+        }
+        supplySum += got; supplyWeeks++
+    }
+
+    /** How far month [m]'s food has gone from year to year ([monthSupply]): a standard deviation, 0 till seen. */
+    fun supplySpread(m: Int): Float {
+        val sq = monthSupplySq[m]
+        return if (sq.isNaN()) 0f else sqrt(max(0f, sq - monthSupply[m] * monthSupply[m]))
+    }
     /** Share of its people sick with each [Illness] now, and share spared for having had it. */
     val sick = enumFloats<Illness>()
     val immune = enumFloats<Illness> { it.endemic }
@@ -578,6 +641,15 @@ class Band(kinds: Int) {
     var wantUsual = 0f
     /** How it chooses ([Mind]): today's way, or the planning kind's. Handed down whole at a split; a band never joins one of the other mind. */
     var mind = Mind.NETS
+    /**
+     * The shares of its people that foresaw each [ForeseenBin] of deaths ([HexGroup.foreseen]) in each of the last
+     * [FORESEEN_WEEKS] weeks, a ring of weeks from [foreseenAt] ([ForeseenBin.entries] a week; all 0 for a week before it
+     * foresaw): the census books its deaths against what its people foresaw in the year before them ([bookCalibration]).
+     * A band that joins it brings its own, blended by adults ([absorb]): its people die by what they foresaw, not by what
+     * the band they joined did. (Before, a joining band's were lost, and starving bands are the ones that join others.)
+     */
+    val foreseenShares = FloatArray(FORESEEN_WEEKS * ForeseenBin.entries.size)
+    var foreseenAt = 0
     /** The strain its belief bears before part of the band breaks from it. */
     fun strainBorne() = STRAIN_SPLIT * (1f + beliefYears / BELIEF_AGE_YEARS)
     /** Gives up its belief: its rites, its hold on them and what they asked of it (the part of a band that broke away). */
@@ -613,7 +685,7 @@ class Band(kinds: Int) {
     fun splitInto(o: Band, adults: Int, stay: Int, share: Float, r: Random, copied: (Band) -> Unit) {
         o.ties.clear(); o.ties.putAll(ties); o.appointment = appointment
         o.houseHex = houseHex; o.house = house; o.drivenFrom = drivenFrom; o.drivenBy = drivenBy; o.homeEarth = homeEarth; o.homeWalls = homeWalls; o.homeGroundC = homeGroundC; o.palisade = palisade; herdTame.copyInto(o.herdTame); herd.copyInto(o.herd); herdGrew.copyInto(o.herdGrew); herdPet.copyInto(o.herdPet)
-        o.houseLives = houseLives; o.houseFood = houseFood; foodFrom.copyInto(o.foodFrom); o.fishPull = fishPull; monthSupply.copyInto(o.monthSupply); freeShare.copyInto(o.freeShare); o.leanDays = leanDays
+        o.houseLives = houseLives; o.houseFood = houseFood; foodFrom.copyInto(o.foodFrom); o.fishPull = fishPull; monthSupply.copyInto(o.monthSupply); monthSupplySq.copyInto(o.monthSupplySq); o.supplyMonth = supplyMonth; o.supplySum = supplySum; o.supplyWeeks = supplyWeeks; o.larderSeen = larderSeen; weekSupply.copyInto(o.weekSupply); weekWarmth.copyInto(o.weekWarmth); weekMoved.copyInto(o.weekMoved); freeShare.copyInto(o.freeShare); o.leanDays = leanDays
         o.seedDomestic = seedDomestic; o.grainDomestic = grainDomestic; o.seedCorn = seedCorn * share; seedCorn -= o.seedCorn; o.sinceRaided = sinceRaided; o.sisu = sisu
         o.knownHomes.putAll(knownHomes); o.knownLineage.putAll(knownLineage)
         skills.copyInto(o.skills)
@@ -634,7 +706,7 @@ class Band(kinds: Int) {
         o.salted = salted; o.dryDepth = dryDepth
         o.renown = renown
         rite.copyInto(o.rite); o.riteStrength = riteStrength; o.riteHeld = riteHeld; o.riteKept = riteKept; o.beliefYears = beliefYears; o.strain = strain
-        o.omenPlace = omenPlace; o.omenMonth = omenMonth; o.omenYear = omenYear; o.omenWeight = omenWeight; o.deathsUsual = deathsUsual; o.wantSteps = wantSteps; o.wantBroke = wantBroke; o.wantUsual = wantUsual; o.mind = mind
+        o.omenPlace = omenPlace; o.omenMonth = omenMonth; o.omenYear = omenYear; o.omenWeight = omenWeight; o.deathsUsual = deathsUsual; o.wantSteps = wantSteps; o.wantBroke = wantBroke; o.wantUsual = wantUsual; o.mind = mind; foreseenShares.copyInto(o.foreseenShares); o.foreseenAt = foreseenAt
         traditions.copyInto(o.traditions); heard.copyInto(o.heard); o.heardOf = heardOf
         o.totem = totem; o.marksChosen = marksChosen; o.heardTotem = heardTotem.copyOf(); o.totemBroken = totemBroken
         o.burialWay = burialWay; heardBurial.copyInto(o.heardBurial); words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
@@ -688,6 +760,14 @@ class Band(kinds: Int) {
         a.seedCorn = corn + bCorn
         for (i in Illness.entries) { a.sick[i] += w * (b.sick[i] - a.sick[i]); a.immune[i] += w * (b.immune[i] - a.immune[i]) }
         a.hurt += w * (b.hurt - a.hurt); a.lame += w * (b.lame - a.lame)
+        // (What their people foresaw, week by week back: by adults, so the deaths to come are booked by who foresaw what.)
+        val bins = ForeseenBin.entries.size
+        for (j in 0 until FORESEEN_WEEKS) {
+            val ia = Math.floorMod(a.foreseenAt - 1 - j, FORESEEN_WEEKS) * bins; val ib = Math.floorMod(b.foreseenAt - 1 - j, FORESEEN_WEEKS) * bins
+            for (i in 0 until bins) a.foreseenShares[ia + i] += w * (b.foreseenShares[ib + i] - a.foreseenShares[ia + i])
+        }
+        // (Its larder as last seen, a person's days: the two larders are put together, so near enough the two blended.)
+        a.larderSeen += w * (b.larderSeen - a.larderSeen)
         a.ornaments += b.ornaments; a.exotic += b.exotic
         val ay = a.youngHerd(); val by = b.youngHerd()
         for (i in 0 until min(a.herd.size, b.herd.size)) {

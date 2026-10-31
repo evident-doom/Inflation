@@ -613,7 +613,7 @@ internal fun HexGroups.visitKin(weather: Weather) {
         if (gift <= 0f) continue
         val eat = min(gift, (1f - g.fed) * week)
         g.fed += eat / week
-        moveFood(o, g, gift); val ateKg = eatStores(g, eat)
+        moveFood(o, g, gift, LarderMove.KIN); val ateKg = eatStores(g, eat)
         land.books?.flow(inflation.Books.Stuff.MATTER, "eaten", -ateKg.toDouble())
         // Who was helped remembers: grudges against the helpers' people fade, and it owes them a favour.
         g.band!!.grudge[o.band!!.mainLineage()] *= 0.5f

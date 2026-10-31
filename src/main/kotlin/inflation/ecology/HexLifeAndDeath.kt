@@ -383,6 +383,17 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
             if (o.births > 0) stats.book(mind, Tally.Bands.BORN, o.births)
             if (g.path.size > 1) stats.book(mind, Tally.Bands.MOVES, 1)
             stats.bookDeaths(mind, o.causes)
+            // (And those within a month of a camp move: what [Tally.starvedMoved] is set against.)
+            if (b.campWeeks * days < Date.DAYS_PER_MONTH) stats.hunting.merge(Tally.movedWeeks(b.mind), g.size, Int::plus)
+            // (And against what it foresaw in the year before: [bookCalibration].)
+            for ((cause, k) in o.causes) if (k > 0) bookCalibration(b, cause, k)
+            // (And its hunger deaths by what its larder held then, and whether it moved camp in the month before.)
+            val starved = o.causes.sumOf { if (it.cause == DeathCause.HUNGER) it.n else 0 }
+            if (starved > 0) {
+                val larderDays = g.larder / (g.dailyNeedKg / g.warmth.coerceAtLeast(1e-3f)).coerceAtLeast(1e-3f)
+                stats.hunting.merge(Tally.starvedAt(b.mind, Tally.LarderAt.of(larderDays)), starved, Int::plus)
+                if (b.campWeeks * days < Date.DAYS_PER_MONTH) stats.hunting.merge(Tally.starvedMoved(b.mind), starved, Int::plus)
+            }
             // And by whether it keeps a herd: what herding costs its people, its children apart.
             val herding = bandHerding(b, g.adults)
             val herdSplit = BandSplit.herding(herding)
@@ -634,7 +645,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
 private fun GroupWorld.feedOnReserves(g: HexGroup) {
     val s = g.species
     val drew = g.fed < WELL_FED && g.fat > 0f
-    if (g.fed < WELL_FED) { val draw = min(g.fat, (1f - g.fed) * days); g.fat -= draw; g.fed = min(1f, g.fed + draw / days) }
+    if (g.fed < WELL_FED) { val draw = min(g.fat, (1f - g.fed) * days); g.fat -= draw; g.fed = min(1f, g.fed + draw / days); g.band?.fatFed = draw / days }
     else { val gain = FAT_EFFICIENCY * g.surplus; val back = min(g.spent, gain); g.spent -= back
         // (What it ate beyond its need wins back the body it burnt before it lays on fat.)
         g.fat = min(s.maxFatDays, g.fat + gain - back) }

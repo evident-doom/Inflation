@@ -5,6 +5,7 @@ import inflation.run.Nominal
 import inflation.run.freshSim
 import inflation.ecology.HexSim
 import inflation.ecology.HexSnapshot
+import inflation.ecology.foundMinds
 import inflation.ecology.Catalogue
 import inflation.Config
 import inflation.ecology.HexFeatures
@@ -551,6 +552,8 @@ object HexPpo {
                 census("settled world $f not taken up (${e.message?.lines()?.firstOrNull()}): settling afresh")
                 return
             }
+            // (Its bands take up the planning kind's mind as founders do, t.planners.)
+            run.groups.foundMinds()
             week = burnSteps
             startNumbers.clear(); startNumbers.putAll(numbersByKind())
             outcomes.record(week, run.groups.groups, run.groups.merged)

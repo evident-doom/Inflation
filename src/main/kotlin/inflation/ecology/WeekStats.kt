@@ -3,6 +3,7 @@
 package inflation.ecology
 
 import inflation.world.Biome
+import inflation.world.Season
 import java.util.TreeMap
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentSkipListMap
@@ -207,6 +208,8 @@ object Tally {
         MOVES("camp moves"),
         /** Deaths foreseen a year ahead ([HexGroup.foreseen]): people-weeks times the share foreseen to die, thousandths. */
         FORESEEN("foreseen deaths, 1/1000"),
+        /** Of [FORESEEN], those foreseen of hunger and of exposure ([YearAhead.causes]). */
+        FORESEEN_HUNGER("foreseen deaths of hunger, 1/1000"), FORESEEN_EXPOSURE("foreseen deaths of exposure, 1/1000"),
         /** Perseverance ([Band.sisu]): people-weeks times the band's, thousandths. */
         SISU("perseverance, 1/1000"),
         /** The hearth fire fed by the firewood got, and the days spent fetching it, % summed over band-weeks. */
@@ -288,6 +291,28 @@ object Tally {
     fun bandsLivingDied(way: Living) = TallyKey.raw("bands ${way.label}:$DIED_OF")
     /** Bands' tallies by how they choose ([Mind]). */
     fun bandsMind(mind: Mind, what: Bands) = TallyKey.raw("bands of mind ${mind.label}:${what.label}")
+    /** What the calibration of bands' forecasts books in each [ForeseenBin] ([bookCalibration]). */
+    enum class Calib(val label: String) {
+        /** People in the band when it foresaw; the deaths it foresaw among them, thousandths; deaths, and hunger's, booked against each forecast its people made in the year before them, thousandths. */
+        PEOPLE_WEEKS("people-weeks"), FORESEEN("foreseen dead, 1/1000"), DIED("died in the year after, 1/1000"), HUNGER("died of hunger in the year after, 1/1000")
+    }
+    /** Bands' forecasts of mind [mind] in [bin], [what] ([bookCalibration]). */
+    fun calibration(mind: Mind, bin: ForeseenBin, what: Calib) = TallyKey.raw("foreseen calibration ${mind.label}:${bin.label}:${what.label}")
+    /** What moved bands' larders of mind [mind] in [season], by [why], person-days of the need before keeping warm ([Band.larderFlow]). */
+    fun larderFlow(mind: Mind, season: Season, why: LarderMove) = TallyKey.raw("larder flow ${mind.label}:${season.name}:${why.label}")
+    /** What a band's larder held when its people died of hunger, days of its need before keeping warm. */
+    enum class LarderAt(val label: String, val below: Float) {
+        EMPTY("under a day", 1f), SOME("1-10 days", 10f), FULL("10 days and over", Float.POSITIVE_INFINITY);
+        companion object { fun of(days: Float) = entries.first { days < it.below } }
+    }
+    /** Hunger deaths in bands of mind [mind] by what their larder held then ([LarderAt]). */
+    fun starvedAt(mind: Mind, at: LarderAt) = TallyKey.raw("starved at larder ${mind.label}:${at.label}")
+    /** Hunger deaths in bands of mind [mind] that moved camp in the month before. */
+    fun starvedMoved(mind: Mind) = TallyKey.raw("starved after a move ${mind.label}")
+    /** People-weeks of bands of mind [mind] within a month of a camp move. */
+    fun movedWeeks(mind: Mind) = TallyKey.raw("people-weeks after a move ${mind.label}")
+    /** A planning band's days in each tier of its week beyond its essentials ([planDays]), tenths of a day. */
+    fun planTier(t: PlanTier) = TallyKey.raw("plans:${t.label}")
     /** Bands' deaths of [cause] by how they choose; [bandsMindDied] (mind) starts all of them. */
     fun bandsMindDied(mind: Mind, cause: DeathReason) = ofCause(bandsMindDied(mind), cause)
     fun bandsMindDied(mind: Mind) = TallyKey.raw("bands of mind ${mind.label}:$DIED_OF")

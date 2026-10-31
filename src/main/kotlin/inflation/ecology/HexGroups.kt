@@ -308,6 +308,9 @@ class HexGroups(
             merged.clear(); for (g in groups) if (!g.alive && g.mergedSize >= 0) merged += g
             // (A band that died out leaves what it had; one that joined another took it along.)
             val freed = ArrayList<HexGroup>()
+            // (A band followed for the forecast trace that died out or joined another: what came till then.)
+            if (FORECAST_TRACE) for (g in groups) if (!g.alive) g.band?.let { b -> b.forecastTrace?.let { t -> b.forecastTrace = null
+                System.err.print(t.report(if (g.mergedSize < 0) "died out" else "joined another band")) } }
             for (g in groups) if (!g.alive && g.mergedSize < 0) {
                 leaveDead(g, freed)
                 if (g.species.lifeway == Lifeway.PACK && g.band == null) {
