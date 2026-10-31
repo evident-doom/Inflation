@@ -452,13 +452,6 @@ class Census(private val sim: HexSim) {
                 "%+d %.2f/%.1f".format(o, v(o, Tally.AroundMove.FED) / 1000 / n, v(o, Tally.AroundMove.LARDER) / 10 / n)
             } + " (moves %.0f)".format(v(0, Tally.AroundMove.WEEKS))
         })
-        println("bands' camps, last year (by mind: camp moves and km moved a band a year; for the camps a planning band chose by the fewest deaths foreseen, the food a week it foresaw there against what it got, shares of its need before keeping warm, and the band-weeks so chosen): " + Mind.entries.joinToString("; ") { m ->
-            fun v(w: Tally.Bands) = (lastYear[Tally.bandsMind(m, w)] ?: 0).toDouble()
-            val bandYears = (v(Tally.Bands.BAND_WEEKS) / stepsPerYear).coerceAtLeast(1e-9)
-            val chosen = v(Tally.Bands.CAMP_WEEKS)
-            "%s %.1f moves, %.0f km".format(m.label, v(Tally.Bands.MOVES) / bandYears, v(Tally.Bands.MOVED_KM) / bandYears) +
-                (if (chosen > 0.0) ", foreseen %.2f got %.2f (%.0f)".format(v(Tally.Bands.CAMP_FORESEEN) / 1000 / chosen, v(Tally.Bands.CAMP_GOT) / 1000 / chosen, chosen) else "")
-        })
         run {
             // A planning band's days beyond its essentials, by tier ([planDays]).
             val pw = (lastYear[Tally.bandsMind(Mind.PLANS, Tally.Bands.PEOPLE_WEEKS)] ?: 0).toDouble()

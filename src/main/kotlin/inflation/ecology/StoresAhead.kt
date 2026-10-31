@@ -57,9 +57,8 @@ internal fun Band.weeksAlive(s: Species, days: Int, now: Int, larderDays: Float,
     val weeks = Date.stepsPerYear(days)
     if (weeks > WEEKS_KEPT) return null
     var sum = 0f
-    val run = HungerRun()
     for (n in 0 until DRAWN_YEARS) {
-        run.start(larderDays, fat, spent)
+        var larder = larderDays; var fatLeft = fat; var burnt = spent; var alive = 1f
         var drawMonth = -1; var year = -1
         for (k in 1..weeks) {
             val w = (now + k) % weeks
@@ -69,65 +68,17 @@ internal fun Band.weeksAlive(s: Species, days: Int, now: Int, larderDays: Float,
             val y = if (year >= 0 && !weekSupply[year * weeks + w].isNaN()) year else drawYear(this, weeks, w, 0L)
             if (y < 0) return null
             val i = y * weeks + w
-            if (weekMoved[i]) run.larder = min(run.larder, carryDays)
-            run.week(s, days, weekSupply[i], weekWarmth[i])
+            if (weekMoved[i]) larder = min(larder, carryDays)
+            val got = weekSupply[i]; val warm = weekWarmth[i].coerceAtLeast(1e-3f)
+            val paid = if (got > warm) -(got - warm) * days else min((warm - got) * days, larder)
+            larder -= paid
+            val ate = min(1f, (max(0f, got) + max(0f, paid) / days) / warm)
+            val onFat = Hazards.onFat(ate, fatLeft, days); fatLeft = max(0f, fatLeft - (onFat - ate) * days)
+            alive *= 1f - Hazards.hunger(s, burnt, onFat, days); burnt = Hazards.spentAfter(s, burnt, onFat, days)
         }
-        sum += run.alive
+        sum += alive
     }
     return sum / DRAWN_YEARS
-}
-
-/**
- * The share of people of kind [s] alive of hunger through [weeks] steps of [days] at a camp that gives [got] a step (as
- * [Band.weekSupply] counts it: a share of the need before keeping warm, net of the larder) where keeping warm takes [warm]
- * times that need, from a larder of [larderDays] (days of that need), [fat] days of fat and [spent] days of body protein
- * burnt; the first step gives only [firstShare] of [got] (the rest went on the walk there). By [HungerRun], the rule
- * [weeksAlive] reckons stores by. (What a camp is worth to a planning band in lives: [GroupPlanner.planCamp].)
- */
-internal fun campAlive(s: Species, days: Int, weeks: Int, got: Float, warm: Float, larderDays: Float, fat: Float, spent: Float, firstShare: Float): Float {
-    val run = HungerRun().also { it.start(larderDays, fat, spent) }
-    for (k in 0 until weeks) run.week(s, days, if (k == 0) got * firstShare else got, warm)
-    return run.alive
-}
-
-/**
- * Band's food got a step at its camp ([Band.weekSupply]) over the steps it has kept it, the last [CAMP_RECORD_WEEKS] at
- * most (the step it moved in counting as its first), before the step of [date], steps of [days]; NaN with none recorded.
- */
-internal fun Band.gotSinceMove(date: Date, days: Int): Float {
-    val weeks = Date.stepsPerYear(days)
-    if (weeks > WEEKS_KEPT) return Float.NaN
-    var y = (date.year % SUPPLY_YEARS).toInt(); var w = min(weeks - 1, date.dayOfYear / days)
-    var sum = 0f; var n = 0
-    for (k in 0 until CAMP_RECORD_WEEKS) {
-        w--; if (w < 0) { w = weeks - 1; y = (y + SUPPLY_YEARS - 1) % SUPPLY_YEARS }
-        val i = y * weeks + w
-        val got = weekSupply[i]
-        if (got.isNaN()) break
-        sum += got; n++
-        if (weekMoved[i]) break
-    }
-    return if (n == 0) Float.NaN else sum / n
-}
-
-/** The steps of a camp's own record [Band.gotSinceMove] reads at most. */
-private const val CAMP_RECORD_WEEKS = 4
-
-/**
- * Hunger step by step as the sim feeds a band ([weeksAlive], [campAlive]): a step above its need with keeping warm lays
- * by, one below draws on the larder, then fat, then the body ([Hazards.hunger]). [alive]: the share alive so far.
- */
-private class HungerRun {
-    var larder = 0f; var fatLeft = 0f; var burnt = 0f; var alive = 1f
-    fun start(larderDays: Float, fat: Float, spent: Float) { larder = larderDays; fatLeft = fat; burnt = spent; alive = 1f }
-    fun week(s: Species, days: Int, got: Float, warm0: Float) {
-        val warm = warm0.coerceAtLeast(1e-3f)
-        val paid = if (got > warm) -(got - warm) * days else min((warm - got) * days, larder)
-        larder -= paid
-        val ate = min(1f, (max(0f, got) + max(0f, paid) / days) / warm)
-        val onFat = Hazards.onFat(ate, fatLeft, days); fatLeft = max(0f, fatLeft - (onFat - ate) * days)
-        alive *= 1f - Hazards.hunger(s, burnt, onFat, days); burnt = Hazards.spentAfter(s, burnt, onFat, days)
-    }
 }
 
 /** One of the years band [b] has week [w] of, drawn by [h] (-1 for none). */

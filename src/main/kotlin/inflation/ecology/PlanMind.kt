@@ -9,9 +9,8 @@ import inflation.unitOf
  * How a band chooses ([Band.mind]): [NETS], today's way (the mover's place score or its network, and the ways' dials), or
  * [PLANS], the discrete planning kind (doc: Discrete planning: build spec): the sim offers it a menu of activities each week,
  * it holds some, and its camp and days follow from them. The two share every mechanic of the world; only the choosing
- * differs, and bands of the two never merge. A [PLANS] band reads no ways (the scaffold's, whatever the network), holds
- * its week's days by [planDays], and camps where it foresees the fewest deaths ([GroupPlanner.planCamp]), but for weeks its
- * customs, a raid or a trek for salt send it as they send [NETS] bands.
+ * differs, and bands of the two never merge. So far a [PLANS] band reads no ways (the scaffold's, whatever the network) and
+ * holds its week's days by [planDays]; it moves as [NETS] bands do.
  */
 enum class Mind(val label: String) { NETS("nets"), PLANS("plans") }
 

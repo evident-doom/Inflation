@@ -205,13 +205,6 @@ internal fun HexGroups.foresee(weather: Weather) {
             val got = (g.fed - b.fatFed) * g.warmth + laid
             b.addSupply(m, got, k)
             b.recordWeek(weather.date, days, got, g.warmth, b.movedCamp)
-            // (A planning band's camp: the food it foresaw there against what it got, [Band.campForeseen].)
-            if (!b.campForeseen.isNaN()) {
-                stats.hunting.merge(Tally.bandsMind(b.mind, Tally.Bands.CAMP_FORESEEN), (1000f * b.campForeseen).roundToInt(), Int::plus)
-                stats.hunting.merge(Tally.bandsMind(b.mind, Tally.Bands.CAMP_GOT), (1000f * got).roundToInt(), Int::plus)
-                stats.hunting.merge(Tally.bandsMind(b.mind, Tally.Bands.CAMP_WEEKS), 1, Int::plus)
-                b.campForeseen = Float.NaN
-            }
             moveCensus(g, b, b.movedCamp, larder)
             b.movedCamp = false
             b.fatFed = 0f
