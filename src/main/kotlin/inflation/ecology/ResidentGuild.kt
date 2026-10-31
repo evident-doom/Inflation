@@ -35,28 +35,35 @@ internal class ResidentParties(private val gs: HexGroups) {
     val parties = ArrayList<HexGroup>()
 
     init {
-        val f = gs.fauna
+        val f = gs.fauna; val hexes = ArrayList<inflation.world.Hex>().also { for (h in gs.hex.all) it += h }
         for (k in f.kinds.indices) {
             val s = f.kinds[k]
             if (!s.carnivore) continue
-            for (h in gs.hex.all) {
+            // (Each hex's stand-in worked out on all cores, then taken in the hexes' order.)
+            val made = arrayOfNulls<StandIn>(hexes.size)
+            java.util.stream.IntStream.range(0, hexes.size).parallel().forEach { hi ->
+                val h = hexes[hi]
                 var a = 0f; var y = 0f; var p = -1; var most = 0f
                 for (q in gs.hw.placesOf(h)) {
                     val area = gs.land.areaKm2[q]; val hq = (f.adults[k][q] + f.young[k][q]) * area
                     a += f.adults[k][q] * area; y += f.young[k][q] * area
                     if (hq > most) { most = hq; p = q }
                 }
-                if (p < 0) continue
+                if (p < 0) return@forEach
                 val bands = (a + y) / s.groupSize
-                if (bands < MIN_BANDS) continue
+                if (bands < MIN_BANDS) return@forEach
                 val grown = max(1, (s.groupSize * a / (a + y)).roundToInt()); val little = (s.groupSize * y / (a + y)).roundToInt()
                 // (Its id is out of the groups' range, fixed by kind and hex: the meetings' order draws repeat run to run.)
                 val g = HexGroup(-1 - (k * gs.hex.size + h.i), s, Place(p), grown, little)
                 g.home = h; g.path = hexArray(1) { h }; g.days = FloatArray(1)
-                standIns += StandIn(g, k, grown, little, bands); parties += g
+                made[hi] = StandIn(g, k, grown, little, bands)
             }
+            for (si in made) if (si != null) { standIns += si; parties += si.g }
         }
     }
+
+    /** The stand-ins of each hex that has any, hexes in order. */
+    fun standInsByHex(): List<List<StandIn>> = standIns.groupBy { it.g.home.i }.toSortedMap().values.toList()
 
     /** The stand-in at index [i] of the meetings' parties (the groups first), or null for a group. */
     fun of(i: Int): StandIn? = (i - gs.groups.size).let { if (it >= 0) standIns[it] else null }
