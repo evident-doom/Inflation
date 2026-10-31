@@ -810,6 +810,13 @@ internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
 private fun HexGroups.gatherAtRite(g: HexGroup, site: Int, month: Long, weather: Weather) {
     riteGatherings.keys.removeIf { (it shr 32) < month - 1 }
     val here = riteGatherings.getOrPut((month shl 32) or site.toLong()) { ArrayList() }
+    // (A band with sickness among its people that keeps away from the sick keeps its own away too: it holds the rite where
+    // it is, as far as its will to shun the sick goes, and misses the gathering.)
+    val b = g.band
+    if (b != null && b.sick.sum() > SICK_SHOWS &&
+        drawn(DialSite.SHUN_SICK, b.will[BandWay.SHUNNING_THE_SICK], rnd.nextFloat(), b.shunSick) { 0.5f }) {
+        stats.meeting(Met.SICK_BANDS_KEPT_FROM_A_RITE); return
+    }
     val rite = RiteGathering(site, here)
     for (o in here) if (g.alive && o.alive && o !== g) {
         stats.meeting(Met.BANDS_GATHERED_AT_A_RITE)
