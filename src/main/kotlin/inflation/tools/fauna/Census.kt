@@ -634,7 +634,7 @@ class Census(private val sim: HexSim) {
         fun ft(k: Tally.FoodTime) = v(Tally.foodTime(k))
         val ftWeeks = ft(Tally.FoodTime.WEEKS).coerceAtLeast(1.0)
         println(("bands' foraging against the days its week's plan left it, last year (people-days a band-week): left %.1f, spent %.1f, past what was left %.2f; " +
-            "weeks more than 5%% past %.1f%%; kills beyond those expected took %.2f, kills short of them saved %.2f, extra hauling %.2f, digging soaks %.2f").format(
+            "weeks more than 5%% past %.1f%%; kills beyond those expected took %.2f, kills short of them saved %.2f, extra hauling %.2f, water (digging soaks, drawing from wells, carrying it home) %.2f").format(
             ft(Tally.FoodTime.ROOM) / 10 / ftWeeks, ft(Tally.FoodTime.SPENT) / 10 / ftWeeks, ft(Tally.FoodTime.OVER) / 10 / ftWeeks, 100 * ft(Tally.FoodTime.OVER_WEEKS) / ftWeeks,
             ft(Tally.FoodTime.KILLS_OVER) / 10 / ftWeeks, ft(Tally.FoodTime.KILLS_UNDER) / 10 / ftWeeks, ft(Tally.FoodTime.HAUL) / 10 / ftWeeks, ft(Tally.FoodTime.DIG) / 10 / ftWeeks))
         val wanted = Tally.ClothesMade.entries.sumOf { v(Tally.clothesMade(it)) }
@@ -773,8 +773,8 @@ class Census(private val sim: HexSim) {
                 keeping.sumOf { it.second.strain.toDouble() } / keeping.size.coerceAtLeast(1), keeping.sumOf { it.second.strainBorne().toDouble() } / keeping.size.coerceAtLeast(1)))
         fun met(m: Met) = metYear[m.key] ?: 0
         val held = met(Met.BANDS_HELD_A_RITE); val cut = met(Met.BANDS_CUT_A_RITE_SHORT)
-        println("     rites' year: %d held, %d cut short (%.0f%% held; %d of those held in a lesser form, %d moved to a month of plenty; %d meetings at rites held together, %d of them broken by a raid); omens marked: %d death tolls, %d plenty after want, %d strange signs; %d rites born of them; %d bands split over their belief"
-            .format(held, cut, 100.0 * held / (held + cut).coerceAtLeast(1), met(Met.BANDS_HELD_A_RITE_IN_A_LESSER_FORM), met(Met.BANDS_MOVED_A_RITE_TO_A_BETTER_MONTH), met(Met.BANDS_GATHERED_AT_A_RITE), met(Met.RAIDS_ON_HOLY_GROUND), met(Met.BANDS_MARKED_A_DEATH_TOLL), met(Met.BANDS_MARKED_PLENTY_AFTER_WANT),
+        println("     rites' year: %d held, %d cut short (%.0f%% held; %d of those held in a lesser form, %d moved to a month of plenty; %d meetings at rites held together, %d of them broken by a raid; %d bands with sickness kept away); omens marked: %d death tolls, %d plenty after want, %d strange signs; %d rites born of them; %d bands split over their belief"
+            .format(held, cut, 100.0 * held / (held + cut).coerceAtLeast(1), met(Met.BANDS_HELD_A_RITE_IN_A_LESSER_FORM), met(Met.BANDS_MOVED_A_RITE_TO_A_BETTER_MONTH), met(Met.BANDS_GATHERED_AT_A_RITE), met(Met.RAIDS_ON_HOLY_GROUND), met(Met.SICK_BANDS_KEPT_FROM_A_RITE), met(Met.BANDS_MARKED_A_DEATH_TOLL), met(Met.BANDS_MARKED_PLENTY_AFTER_WANT),
                 met(Met.BANDS_MARKED_A_STRANGE_SIGN), met(Met.BANDS_BORE_A_RITE), met(Met.BANDS_SPLIT_OVER_THEIR_BELIEF)))
         println("     raids' year: %d at meetings, %d on homes; %d raided bands slipped away, %d larders taken, %d bands driven from their homes; %d times neighbours stood with the raided"
             .format(met(Met.RAIDS), met(Met.RAIDS_ON_HOMES), met(Met.RAIDED_BANDS_SLIPPED_AWAY), met(Met.LARDERS_RAIDED), met(Met.BANDS_DRIVEN_FROM_HOME),

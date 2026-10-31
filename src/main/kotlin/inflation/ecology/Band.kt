@@ -226,7 +226,7 @@ class Band(kinds: Int) {
     var fishPull = 0f
     /** This week, how fish from a whole weir across the river by its camp would have pulled against that least yield ([Offers.pullAt]): above 1/2 one would pay; 0 no river or no fish passing. */
     var weirPull = 0f
-    /** Over about a year of its weeks at home, the share it had water there only from under the ground, in soaks or a well ([inflation.world.HexDrinkingWater.underground]): what a well would spare it. */
+    /** Over about a year of its weeks at home, the share of its hands' days a well there would have spared it against digging soaks or carrying its water home ([wellSpares]). */
     var waterShort = 0f
     var campPlace = Place.NONE
     /** Food it left in a cache at an old camp, kg, and where (-1 for none). */

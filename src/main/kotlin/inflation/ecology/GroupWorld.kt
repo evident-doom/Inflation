@@ -84,16 +84,15 @@ abstract class GroupWorld(
     internal fun campValue(s: Species, p: Place): Float = preyHere(s, p) * campFactor(p) + campPlants(p)
 
     /**
-     * What a camp's game is worth to a band, times: the more where the camp is safe, the less the further water is,
-     * and the less the more of its days the hearth's firewood takes there ([fuelShare], for a band whose every mouth
-     * fetches: the place's worth to bands at large). Where there is too little wood, the cold and the raw meals it
-     * costs are in [drain].
+     * What a camp's game is worth to a band, times: the more where the camp is safe, and the less the more of its days its
+     * water ([waterShare]) and the hearth's firewood ([fuelShare]) take there, for a band whose every mouth fetches (the
+     * place's worth to bands at large; its water at a temperate day's need, [WATER_MILD_C]). Where there is too little wood,
+     * the cold and the raw meals it costs are in [drain].
      */
     internal fun campFactor(p: Place): Float {
-        // Water close to camp: women and children fetch it every day (from a well dug in a dry bed, where water lies near).
-        val w = land.drink.peopleWaterKm(p) / 3f
+        val water = waterShare(p, Catalogue.HUMAN.dailyTravelKm, waterLitres(WATER_MILD_C), 1f)
         val fuel = fuelShare(woodCover(p), 1f)
-        return (1f + CAMP_SAFETY * land.bestDefence[p] + CAVE_CAMP * land.caves[p]) / (1f + w * w) * (1f - fuel)
+        return (1f + CAMP_SAFETY * land.bestDefence[p] + CAVE_CAMP * land.caves[p]) * (1f - fuel - water).coerceAtLeast(0f)
     }
 
     internal fun campPlants(p: Place) = KgM2(fauna.food.fruit[p] + rootsFound(p) + fauna.food.seeds[p] + fauna.food.grain[p] + fauna.food.fieldGrain[p]).perKm2.v *

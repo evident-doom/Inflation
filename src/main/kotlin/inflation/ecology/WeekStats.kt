@@ -98,6 +98,7 @@ enum class Met(val label: String) {
     BANDS_CUT_A_RITE_SHORT("bands cut a rite short for want of days"),
     BANDS_HELD_A_RITE_IN_A_LESSER_FORM("bands held a rite in a lesser form"),
     BANDS_GATHERED_AT_A_RITE("bands met at a rite they held together"),
+    SICK_BANDS_KEPT_FROM_A_RITE("bands with sickness kept away from a rite's gathering"),
     RAIDS_ON_HOLY_GROUND("raids at a rite both keep, the peace broken"),
     BANDS_MOVED_A_RITE_TO_A_BETTER_MONTH("bands moved a rite to a month of plenty"),
     BANDS_SPLIT("bands split"),
@@ -395,7 +396,7 @@ object Tally {
      */
     enum class FoodTime(val label: String) {
         WEEKS("band-weeks"), ROOM("days left it"), SPENT("days spent"), OVER("days past"), OVER_WEEKS("weeks past"),
-        KILLS_OVER("kills beyond expected"), KILLS_UNDER("kills short of expected"), HAUL("hauling"), DIG("digging soaks")
+        KILLS_OVER("kills beyond expected"), KILLS_UNDER("kills short of expected"), HAUL("hauling"), DIG("water: digging soaks, drawing from wells, carrying")
     }
     fun foodTime(k: FoodTime) = TallyKey.raw("band foraging time:${k.label}")
     /** How far a band's shelters stood at the week's end ([Band.shelter]): the first bin it falls [below]. The report's line. */

@@ -135,6 +135,7 @@ hex learning tools. (The 1 km model's `Simulation` has since been removed; the h
 | Rite gatherings: bands that hold a rite at the same site in the same month (in full or in a lesser form) meet there as bands that come across each other do (news, gifts, words, customs, rites; a raid if their regard comes to it); no truce is imposed | yes |
 | Shared rites in regard: two bands that both keep rites and share no rite site are one custom further apart (as burial ways count only where both bury); a site in common, in any month, counts as one faith there | yes |
 | Peace at shared rites: at a rite gathering, a band is less ready to raid another that keeps the same rite there, as far as it holds to its rites (1/(1 + its hold); estimate); one that raids there anyway is held against by the other bands gathered that keep the rite (grudge against its lineage, ties lost), as far as each holds to its rites. A pattern bands keep by choice, not a ban | yes |
+| Sickness and rite gatherings: a band showing sickness keeps away from a rite's gathering as far as its will to shun the sick goes (the same draw as at meetings), and holds the rite where it is | yes |
 | Livelihood and home ground in regard: bands that live otherwise (farming while they keep seed corn of their own crop, herding while they keep a herd, foraging otherwise) are one custom further apart; so are two bands with homes more than a day's walk apart (a band without a home is not counted) | yes |
 | Belief strain from rites held back from is one of the quarrels that split a band: the more strained (against what the belief bears; older beliefs bear more), the smaller the band holds together, and the part that leaves at a split goes without the belief as likely as the strain is near what it bears; strain alone never splits a band | yes |
 | A band at home splits at a village's size (150, more with feasts); the halves of a split hold each other at a full tie; bands at home in one hex that find each other alike enough both ways (words, kin, tie, customs) become one band while there is room | yes |
@@ -143,7 +144,7 @@ hex learning tools. (The 1 km model's `Simulation` has since been removed; the h
 | Language as words per concept, understanding between bands | yes (naming game, drift) |
 | Marrying out, lineage mix, inbreeding | yes |
 | Elders and grandmothers | yes |
-| Raids for food and feuds, grudges against lineages; one regard of the other band (understanding, kin, tie, grudge, strangers, customs apart) sets raids at meetings and on homes, cache robbing, gifts, the trust in what it is told, the taking up of its meeting place and whom it counts friend or foe | yes |
+| Raids for food and feuds, grudges against lineages; one regard of the other band (understanding, kin, tie, grudge, strangers, customs apart) sets raids at meetings and on homes, cache robbing, gifts at meetings and on visits in hunger (a band gives more to a band it is close to, and the hungry go where they can hope for most), the trust in what it is told, the taking up of its meeting place, whom it counts friend or foe, and whose known homes it keeps off | yes |
 | Desert kites | removed (later than the Natufian; Olli, 2026-10-15) |
 | Crowding sickness | yes (people in the hex and the six round it) |
 | Burning off, camp fires against lions and hyenas, defensible camps | yes |
