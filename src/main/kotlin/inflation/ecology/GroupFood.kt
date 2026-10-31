@@ -179,7 +179,18 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     w.time?.let { countFoodTime(w, it) }
     w.time?.let { restedDays(w, it) }
     w.time?.release(Activity.FOOD)
+    if (HUNT_DIAG && w.band == null) packWeekDiag(w)
     eatTheWeek(w)
+}
+
+/** Diagnostic (huntSteps): how a beast pack's week of foraging went, by the hunter ([HuntStep.PACK_WEEKS] and on). */
+private fun HexGroups.packWeekDiag(w: ForageWeek) {
+    val s = w.g.species
+    diag(s, HuntStep.PACK_WEEKS, 1f); diag(s, HuntStep.PACK_WORK_DAYS, w.workDays); diag(s, HuntStep.PACK_BUSY_DAYS, w.busy)
+    diag(s, HuntStep.PACK_EATING_DAYS, (w.meat - w.g.meatMet + w.killFat + w.smallGot + w.scraps) * w.eats)
+    if (w.wantAll > 0f) diag(s, HuntStep.PACK_FED, w.fed / w.wantAll)
+    if (w.fed >= w.aim - 0.01f * w.wantAll) diag(s, HuntStep.PACK_WEEKS_FULL, 1f)
+    else if (w.busy >= 0.95f * w.workDays) diag(s, HuntStep.PACK_WEEKS_OUT_OF_TIME, 1f)
 }
 
 /**

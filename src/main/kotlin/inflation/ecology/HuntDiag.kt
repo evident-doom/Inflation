@@ -20,7 +20,12 @@ internal enum class HuntStep(val label: String) {
     // share lost ([HexGroups.herdsForBeasts], [HexFauna.campTaken]).)
     KEPT_YOUNG_HELD("kept young held"), KEPT_YOUNG_TAKEN("kept young taken"), KEPT_GROWN_HELD("kept grown held"),
     KEPT_GROWN_TAKEN("kept grown taken"), WILD_YOUNG_AT_CAMPS("wild young at camps"), WILD_YOUNG_TAKEN_AT_CAMPS("wild young taken at camps"),
-    WILD_GROWN_AT_CAMPS("wild grown at camps"), WILD_GROWN_TAKEN_AT_CAMPS("wild grown taken at camps");
+    WILD_GROWN_AT_CAMPS("wild grown at camps"), WILD_GROWN_TAKEN_AT_CAMPS("wild grown taken at camps"),
+    // (A beast pack's foraging week, by the hunter ([forage]): its weeks, the days it could work, the days its foods took
+    // and of them the days spent eating, its food got over what it wanted; and its weeks it ran out of days short of
+    // what it aimed for, against those it stopped because it was fed.)
+    PACK_WEEKS("pack weeks"), PACK_WORK_DAYS("pack work days"), PACK_BUSY_DAYS("pack busy days"), PACK_EATING_DAYS("pack eating days"),
+    PACK_FED("pack fed of want"), PACK_WEEKS_OUT_OF_TIME("pack weeks out of time"), PACK_WEEKS_FULL("pack weeks full");
 
     companion object {
         private const val PREFIX = "diag:"
