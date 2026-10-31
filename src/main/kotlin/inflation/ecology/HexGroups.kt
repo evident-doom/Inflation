@@ -373,7 +373,7 @@ class HexGroups(
             // (With profile=fine, the choosing is timed by packs and bands apart.)
             val t0 = Profile.mark()
             val plan = Profile.part(if (g.band != null) "choosing: bands" else Profile.byKind("choosing: packs", g.species.name)) { planner.plan(g, weather, date, predatorKg) }
-            if (g.band != null) Profile.slow("plan: band", t0) { g.probe() }
+            if (g.band != null) Profile.slow("plan: band", t0) { g.probe(date.absoluteDay) }
             choice[k] = plan.place.i; paths[k] = plan.path
             times[k] = Profile.part("choosing: timetable") { timetable(g.species, plan.path) }
         }

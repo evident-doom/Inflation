@@ -117,7 +117,7 @@ internal fun HexGroups.meet(weather: Weather) {
         val met = poisson(encounters(a, b, p, e.span), rnd)
         if (met == 0) continue
         if (slipsAway(a, b, p) || slipsAway(b, a, p)) { stats.meeting(Met.SLIPPED_AWAY); continue }
-        if (a.species.human && b.species.human) Profile.part("meetings: bands (culture, gifts, feasts, raids)") { val t0 = Profile.mark(); bandsMeet(a, b, weather); Profile.slow("meeting: bands", t0) { a.probe() + " | " + b.probe() } }
+        if (a.species.human && b.species.human) Profile.part("meetings: bands (culture, gifts, feasts, raids)") { val t0 = Profile.mark(); bandsMeet(a, b, weather); Profile.slow("meeting: bands", t0) { a.probe(weather.date.absoluteDay) + " | " + b.probe(-1L) } }
         else if (a.species == b.species) Profile.part("meetings: rival packs") { rivalsMeet(a, e.a, e.ai, b, e.b, e.bi, h, stop) }
         else Profile.part("meetings: hunters of other kinds") { enemiesMeet(a, e.a, e.ai, b, e.b, e.bi, h, stop) }
     }
