@@ -83,14 +83,13 @@ object Nominal {
     /**
      * A kind's heads must add up over each year: the heads it gained, against its young born less its deaths of every
      * cause, may differ by at most this share of its heads on average (heads that went extinct in a place, and the
-     * rounding of whole animals in groups; the runs: within 0.06, but for the deaths booked beyond the capped odds
-     * before model 2.17, up to 0.64).
+     * rounding of whole animals in groups; the runs: within 0.06).
      */
     const val DEATHS_BALANCE = 0.1
     /**
      * People taken by beasts of prey in a year, per head on average: foragers lose few to them, the Hiwi none in their
      * records (Hill, Hurtado & Walker 2007), the Agta, whose men pythons attacked often, some 0.26 a thousand a year
-     * (Headland & Greene 2011), the most found; at most four times that (the runs before model 4.62: 3.8-5).
+     * (Headland & Greene 2011), the most found; at most four times that.
      */
     const val BEASTS_TAKE_PEOPLE_MAX = 0.001
     /**
@@ -154,6 +153,12 @@ object Nominal {
      * against running away.
      */
     val POOLS = Drift(rise = 5.0, fall = 5.0, run = 20.0, floor = 0.01)
+    /**
+     * Desert locusts more so: a few swarms rising where the desert greened are the whole land's stock, and a breeding
+     * generation multiplies some 20 times in three months (the FAO's figure as reported in the 2020 upsurge; the source
+     * behind it, Symmons & Cressman 2001, not read), so a year may bring that much more or less.
+     */
+    val LOCUSTS = Drift(rise = 20.0, fall = 20.0, run = 20.0, floor = 0.01)
     /**
      * The fruit and the fallen mast follow the year's mast crop ([inflation.world.Weather.mastCrop]), a lognormal drawn for each group of
      * trees, of the coefficient of variation of the group that swings most ([inflation.world.Weather.mastCv]): the ratio of two years'
@@ -287,7 +292,7 @@ object Nominal {
                     val stock = StockName.of(name)
                     // (Fast pools may empty for a year, as the locusts between plagues; the slow stocks may not.)
                     if (stock in BAND_MADE) continue
-                    drift(t, k, years, ::yearly, STOCKS[stock] ?: CROPS[stock] ?: POOLS, gone = stock in STOCKS)
+                    drift(t, k, years, ::yearly, STOCKS[stock] ?: CROPS[stock] ?: if (stock == StockName.LOCUSTS) LOCUSTS else POOLS, gone = stock in STOCKS)
                     if (stock == StockName.PLANTS && area > 0) eachYear(PLANTS_MIN_KG_M2, PLANTS_MAX_KG_M2, "kg/m² of plants over the land", 1 / area)
                 }
                 Key.isSmallLife(k) || Key.isWaterLife(k) -> drift(t, k, years, ::yearly, SMALL_AND_WATER_LIFE, gone = true)

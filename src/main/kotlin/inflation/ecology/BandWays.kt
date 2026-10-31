@@ -116,7 +116,7 @@ fun timeWay(a: Activity): BandWay? = when (a) {
     Activity.PALISADE -> BandWay.TIME_PALISADE
     Activity.MATERIALS -> BandWay.TIME_MATERIALS
     Activity.CACHING -> BandWay.TIME_CACHING
-    Activity.FIREWOOD, Activity.MOVING, Activity.WEIRS, Activity.LEISURE -> null
+    Activity.FIREWOOD, Activity.MOVING, Activity.WEIRS, Activity.LEISURE, Activity.WELLS -> null
 }
 /** The way that sets how keenly a band lays food [t] by ([Band.storeWill]). */
 fun storeWay(t: Food) = when (t) {

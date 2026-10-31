@@ -338,11 +338,11 @@ class HexRoutes(private val g: HexGroups) {
  * water landmark, km; longest leg followed, hexes; how far from where bands meet they tell of
  * routes, km; share of the usual forgetting a band keeps of landmarks and of the ways between.
  */
-const val ROUTE_WORN = 0.15f
-const val ROUTE_WEEKS = 4
-const val PASS_RUGGED = 0.3f
-const val WATER_LANDMARK_KM = 1f
-const val MAX_LEG_HEXES = 60
-const val ROUTE_TOLD_KM = 150.0
-const val LANDMARK_FORGET = 0.1f
-const val ROUTE_FORGET = 0.3f
+internal const val ROUTE_WORN = 0.15f
+internal const val ROUTE_WEEKS = 4
+internal const val PASS_RUGGED = 0.3f
+internal const val WATER_LANDMARK_KM = 1f
+internal const val MAX_LEG_HEXES = 60
+internal const val ROUTE_TOLD_KM = 150.0
+internal const val LANDMARK_FORGET = 0.1f
+internal const val ROUTE_FORGET = 0.3f

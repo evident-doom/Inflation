@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import java.util.TreeMap
 import inflation.world.Place
 import inflation.world.get
 import inflation.world.set
@@ -49,6 +50,7 @@ class HexHistory {
         private const val BIOME = "biome/"
         private const val PEOPLE = "people/"
         private const val HUNTERS = "hunters/"
+        private const val KEPT_TAKEN = "kept herds taken by beasts/"
         /** The land's area, km². */
         const val LAND_AREA = "land/area km²"
         const val TEMPERATURE = "weather/temperature °C"
@@ -85,6 +87,8 @@ class HexHistory {
         fun kills(kind: String) = KILLS + kind
         /** Tonnes of sea and lake fish gone one [way] in the week. */
         fun fishFlow(way: String) = "$FISH_FLOWS$way, t"
+        /** Heads of bands' kept herds of [kind] beasts of prey took in the week, packs and residents ([raidHerd], [HexFauna.huntResidents]). */
+        fun keptTaken(kind: String) = KEPT_TAKEN + kind
         /** A field of the small life ([HexSmallLife]), in tonnes or head counts. */
         fun smallLife(name: String) = SMALL_LIFE + name
         fun isSmallLife(key: String) = key.startsWith(SMALL_LIFE)
@@ -106,8 +110,8 @@ class HexHistory {
         /** What a [hunters] key measures, or null for any other key. */
         fun huntersOf(key: String) = if (key.startsWith(HUNTERS)) Hunters.entries.firstOrNull { key.endsWith("/" + it.label) } else null
         /** Whether a series counts events in each week (summed over a period) rather than a state (averaged). */
-        fun isFlow(key: String) = isDeaths(key) || key.startsWith(ADULT_DEATHS) || key.startsWith(YOUNG_DEATHS) || key.startsWith(BIRTHS) || key.startsWith(KILLS) || key.startsWith(FISH_FLOWS) || key == RAIN ||
-            huntersOf(key) == Hunters.KILLS
+        fun isFlow(key: String) = isDeaths(key) || key.startsWith(ADULT_DEATHS) || key.startsWith(YOUNG_DEATHS) || key.startsWith(BIRTHS) || key.startsWith(KILLS) || key.startsWith(FISH_FLOWS) || key.startsWith(KEPT_TAKEN) || key == RAIN ||
+            huntersOf(key) == Hunters.KILLS || huntersOf(key) == Hunters.KEPT_KILLS
     }
 
     /** What a [Key.people] series measures, by the bands' heads. */
@@ -130,6 +134,8 @@ class HexHistory {
         FED("food got of need"),
         /** Animals it killed (from herds and residents), in the week. */
         KILLS("kills"),
+        /** Bands' kept animals it killed, in the week ([raidHerd]). */
+        KEPT_KILLS("kept animals killed"),
         /** The share of its packs that hold ground of their own (not of bands). */
         HOLDING("share of packs holding ground"),
     }
@@ -171,6 +177,7 @@ class HexHistory {
             if (asked > 0) put(Key.hunters(s.name, Hunters.FED), ((v(Tally.diet(s, Tally.DietPart.MEAT)) + v(Tally.diet(s, Tally.DietPart.SMALL_PREY)) + v(Tally.diet(s, Tally.DietPart.CARRION)) +
                 v(Tally.diet(s, Tally.DietPart.PLANTS))) / asked).toFloat())
             put(Key.hunters(s.name, Hunters.KILLS), v(Tally.of(s, Tally.OfKind.KILLS_OF_RESIDENTS)).toFloat())
+            put(Key.hunters(s.name, Hunters.KEPT_KILLS), v(Tally.of(s, Tally.OfKind.KILLS_OF_KEPT)).toFloat())
             if (!s.human) holdingGround(groups, s)?.let { put(Key.hunters(s.name, Hunters.HOLDING), it.toFloat()) }
         }
         peopleWays(groups)?.let { by -> for (w in PeopleWay.entries) if (!by[w.ordinal].isNaN()) put(Key.people(w), by[w.ordinal].toFloat()) }
@@ -193,7 +200,7 @@ class HexHistory {
         for (s in groups.kinds) animals.merge(s.name, groups.count(s).toDouble(), Double::plus)
         for ((name, v) in animals) put(Key.animals(name), v.toFloat())
         // How well fed each plant-eating kind was this week, by heads.
-        val fedSum = HashMap<String, DoubleArray>()
+        val fedSum = TreeMap<String, DoubleArray>()
         for ((k, s) in fauna.kinds.withIndex()) if (!s.carnivore) {
             val a = fedSum.getOrPut(s.name) { DoubleArray(2) }
             for (p in 0 until land.n) { val h = ((fauna.adults[k][p] + fauna.young[k][p]) * land.areaKm2[p]).toDouble(); a[0] += h * fauna.fed[k][p]; a[1] += h }
@@ -219,9 +226,10 @@ class HexHistory {
         put(Key.waterLife("fish, tonnes"), wl.fishTonnes()); put(Key.waterLife("river fish, tonnes"), wl.riverFishTonnes())
         put(Key.waterLife("shellfish, tonnes"), wl.shellfishTonnes()); put(Key.waterLife("sea birds"), wl.colonyBirds.sum())
         put(Key.waterLife("zooplankton, g per m²"), wl.zooMean())
-        for ((key, v) in wl.fishFlows) put(Key.fishFlow(key), v.toFloat())
-        // Deaths, births and kills this week.
-        val deaths = HashMap<TallyKey, Double>()
+        for ((key, v) in wl.fishFlows.toSortedMap()) put(Key.fishFlow(key), v.toFloat())
+        // Deaths, births and kills this week. (These maps are sorted, so that a series is added to the record, and so is
+        // a column of its file, in the same order in every run.)
+        val deaths = TreeMap<TallyKey, Double>()
         for ((key, v) in fauna.deaths) deaths.merge(key, v, Double::plus)
         for ((key, v) in groups.stats.deaths) deaths.merge(key, v.toDouble(), Double::plus)
         for ((key, v) in deaths) put(Key.deaths(Tally.kindOf(key), Tally.whatOf(key)), v.toFloat())
@@ -229,11 +237,14 @@ class HexHistory {
         for ((key, v) in groups.stats.youngDeaths) put(Key.youngDeaths(Tally.kindOf(key), Tally.whatOf(key)), v.toFloat())
         for ((s, v) in groups.stats.kills) put(Key.deaths(s.name, Tally.HUNTED), v.toFloat())
         for ((key, v) in groups.stats.hunting) HuntStep.series(key)?.let { put(it, v / 100f) }
-        val births = HashMap<String, Double>()
+        val births = TreeMap<String, Double>()
         for ((s, v) in groups.stats.births) births.merge(s.name, v.toDouble(), Double::plus)
         for ((k, s) in fauna.kinds.withIndex()) if (fauna.bornThisWeek[k] > 0.0) births.merge(s.name, fauna.bornThisWeek[k], Double::plus)
         for ((key, v) in births) put(Key.births(key), v.toFloat())
         for ((s, v) in groups.stats.kills) put(Key.kills(s.name), v.toFloat())
+        val taken = groups.bands.takenWeek
+        for ((k, v) in taken.withIndex()) if (v > 0f) put(Key.keptTaken(fauna.kinds[k].name), v)
+        taken.fill(0f)
         recordHunters(sim)
         // Weather, means over the land.
         val total = area.sum()
@@ -249,7 +260,7 @@ class HexHistory {
         put(Key.LAND_AREA, biomeArea.sum().toFloat())
         val plants = DoubleArray(Biome.entries.size)
         for (p in 0 until n) plants[biomeOf(sim, Place(p))] += (land.plants.biomass(Place(p)) * area[p]).toDouble()
-        val heads = HashMap<String, DoubleArray>()
+        val heads = TreeMap<String, DoubleArray>()
         for ((k, s) in fauna.kinds.withIndex()) {
             val a = heads.getOrPut(s.name) { DoubleArray(Biome.entries.size) }
             for (p in 0 until n) a[biomeOf(sim, Place(p))] += ((fauna.adults[k][p] + fauna.young[k][p]) * area[p]).toDouble()

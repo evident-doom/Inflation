@@ -45,7 +45,6 @@ class StringKeysTest {
         "ui/ViewLayers.kt" to (5 to "the viewer's layer names, shown as text"),
         "tools/fauna/Tallies.kt" to (4 to "causes and readers' sums by the text after the kind, for printing"),
         "tools/HexBandLuck.kt" to (1 to "people's deaths by cause, for printing"),
-        "ecology/WeekStats.kt" to (1 to "children's expected deaths by cause label, for printing"),
         "ecology/HexWater.kt" to (2 to "fish flows by name, printed and put in the history whole"),
         "ecology/Catalogue.kt" to (1 to "settled densities by kind name, read from a properties file"),
         "ecology/Band.kt" to (1 to "Band fields by name, checked by BandCarryTest"),
@@ -61,7 +60,7 @@ class StringKeysTest {
 
     @Test
     fun `the model matches no keys by their text`() = check("""\.(?:startsWith|endsWith|substringAfter|substringBefore|removePrefix|removeSuffix)\(""", mapOf(
-        "ecology/HexHistory.kt" to (19 to "history series by prefix: the CSV columns are text (reports only)"),
+        "ecology/HexHistory.kt" to (20 to "history series by prefix: the CSV columns are text (reports only)"),
         "ecology/WeekStats.kt" to (8 to "the Tally builders' own parsing"),
         "ecology/HuntDiag.kt" to (2 to "the hunt steps' own prefix"),
         "ecology/HexSnapshot.kt" to (2 to "class names when saving"),
@@ -77,7 +76,7 @@ class StringKeysTest {
         "ecology/HexGeography.kt" to (1 to "the cover of a core, set while building"),
         "ecology/HexGroups.kt" to (3 to "the path and time of a group that chose to move"),
         "ecology/GroupPlanner.kt" to (1 to "the reach cache merge"),
-        "ecology/HexLifeAndDeath.kt" to (4 to "a band of a people group: the caller has chosen people"),
+        "ecology/HexLifeAndDeath.kt" to (1 to "a band of a people group: the caller has chosen people"),
         "ecology/HexPeople.kt" to (2 to "a band of a people group: the caller has chosen people"),
         "ecology/HexSmallLife.kt" to (1 to "the months a bird is present: set for the kinds that follow insects"),
         "learning/PpoTrainer.kt" to (1 to "a player is made for every world before the round"),

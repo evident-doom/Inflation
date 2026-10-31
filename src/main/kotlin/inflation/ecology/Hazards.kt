@@ -17,6 +17,13 @@ import kotlin.math.sqrt
  */
 object Hazards {
     /**
+     * The most a week's hazards add up to for a grown one and for a young one: of whichever the odds of the week are held
+     * under, in the groups' and residents' deaths and in the foresight that reckons them, so that these stay one rule.
+     */
+    const val MAX_GROWN_ODDS = 0.9f
+    const val MAX_YOUNG_ODDS = 0.95f
+
+    /**
      * Hunger: the share of animals of [s] that die in a step of [days], fed a share [fed] of their wants with their fat
      * drawn on ([onFat]), having burnt [spent] days of their body's protein before it. Below [WELL_FED] they would have drawn
      * on their fat for the rest, so it is gone: what they still lack they burn of their body's protein ([spentAfter]), and
@@ -49,8 +56,11 @@ object Hazards {
      */
     val REBUILD = SURPLUS_EAT * FAT_EFFICIENCY
 
-    /** How well fed an animal is over a step of [days] fed [fed], with [fat] days of fat to draw on below [WELL_FED] (as the week's feeding draws on it). */
-    fun onFat(fed: Float, fat: Float, days: Int) = if (fed < WELL_FED) min(1f, fed + min(fat, (1f - fed) * days) / days) else fed
+    /**
+     * How well fed an animal is over a step of [days] fed [fed], with [fat] days of fat to draw on below [from] (as the week's
+     * feeding draws on it): [WELL_FED] for packs and people, 1 for the residents, who draw on it for any shortfall.
+     */
+    fun onFat(fed: Float, fat: Float, days: Int, from: Float = WELL_FED) = if (fed < from) min(1f, fed + min(fat, (1f - fed) * days) / days) else fed
 
     /**
      * The share of animals of [s] dead of hunger once they have burnt [spent] days of their body's protein: none until
@@ -85,10 +95,10 @@ object Hazards {
      * animals, soft snow too), or where water is within its going ([fetchKm]); a kind that keeps to the water's edge
      * ([Species.maxWaterKm], kept there by its range) always can. People carry water home in skins, gourds and ostrich
      * eggshells: anywhere within the day's round will do; and they dig for it in a dry bed where the water lies near
-     * ([HexDrinkingWater.dug]).
+     * ([HexDrinkingWater.dug]), or draw it from a well ([HexDrinkingWater.well]).
      */
     fun canDrink(drink: HexDrinkingWater, s: Species, p: Place): Boolean {
-        if (s.human) { val fetch = s.dailyTravelKm; return drink.water[p] >= Thresholds.WET || drink.waterKm[p] <= fetch || drink.mustDig(p, fetch) }
+        if (s.human) { val fetch = s.dailyTravelKm; return drink.water[p] >= Thresholds.WET || drink.waterKm[p] <= fetch || drink.mustDig(p, fetch) || drink.drawsFromWell(p, fetch) }
         return s.maxWaterKm.isFinite() || drink.animalWater(p) >= Thresholds.WET || drink.waterKm[p] <= fetchKm(s)
     }
 

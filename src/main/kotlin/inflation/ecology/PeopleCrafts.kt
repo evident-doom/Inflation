@@ -16,12 +16,12 @@ import kotlin.math.roundToInt
 // Bands' goods, tools and skills: gathering materials, making and wearing tools and ornaments, customs, teaching, forgetting and wounds.
 
 /** How far one week's use closes the gap to mastery. */
-const val PRACTICE = 0.02f
+internal const val PRACTICE = 0.02f
 /** Raw materials a band carries, kg per adult of each kind. */
-const val GOODS_PER_PERSON = 20f
+internal const val GOODS_PER_PERSON = 20f
 /** Yearly chance a band hits on a tool it does not know, where it has use for it; chance a band that meets one that knows a tool learns it. */
-const val INVENT = 0.002f
-const val TEACH = 0.2f
+internal const val INVENT = 0.002f
+internal const val TEACH = 0.2f
 /**
  * What [g]'s band gathers of its materials in a week, into its goods: what the country gives along the way, as far as the
  * band lacks it (up to what it carries, [carried]) and as far as the [time] it has to spare goes, each material at its
@@ -158,15 +158,16 @@ internal fun GroupWorld.wearAndInvent(b: Band, years: Float) {
             (if (t.hafted) b.lapse(Skill.GLUING) else 1f) * wearOfMake(t, b.fine[t], tuning))
         // A band that has a use for a tool now and then hits on it: bows where game is shy and
         // fast, sickles and grinding stones where it reaps seed, and so on.
-        if (!b.knows[t] && rnd.nextFloat() < INVENT * b.edge(Skill.TINKER) * years * (0.5f + b.skills[t.serves])) {
+        if (!b.knows[t] && (t != Tool.PICK || b.knowsSkill[Skill.WELLS]) && rnd.nextFloat() < INVENT * b.edge(Skill.TINKER) * years * (0.5f + b.skills[t.serves])) {
             b.knows[t] = true
             stats.meeting(Met.Of.HIT_ON, t.name.lowercase())
         }
     }
     // So with ways of working: a band practised at a kind of work now and then hits on a new way of doing it.
-    // (Salting is hit on only with salt to hand.)
+    // (Salting is hit on only with salt to hand; wells only by a band that has had to dig for its water at home.)
     for (s in Skill.entries) if (!b.knowsSkill[s] && (!s.settled || b.atHome) && (s != Skill.SALTING || b.goods[Material.SALT] > 0f) &&
-        (s != Skill.TENDING || b.herd.any { it > 0f }) &&
+        (s != Skill.WELLS || b.waterShort > 0f) &&
+        (s != Skill.TENDING || b.keepsAnimals()) &&
         s.needs.let { it == null || (b.knowsSkill[it] && b.skills[it] >= NEEDS_LEVEL) } &&
         rnd.nextFloat() < s.invent * INVENT * b.edge(Skill.TINKER) * years * (0.5f + b.skill(s.domain))) {
         b.knowsSkill[s] = true
@@ -269,8 +270,8 @@ internal fun GroupWorld.forget(b: Band) {
 }
 
 /** How much more slowly a tool wears lying idle than in use; how much of a craft a band learns making do without its tools. */
-const val IDLE_WEAR = 0.3f
-const val TOOLLESS = 0.2f
+internal const val IDLE_WEAR = 0.3f
+internal const val TOOLLESS = 0.2f
 
 /** Two bands that meet show each other tools one of them does not know, the more readily the better they understand each other ([understood]). */
 internal fun GroupWorld.teach(a: Band, b: Band, understood: Float, aDoesBetter: Float = 0f) {
@@ -300,13 +301,13 @@ internal fun GroupWorld.teach(a: Band, b: Band, understood: Float, aDoesBetter: 
  * person-days to make one; most a band keeps per person; share of its ornaments a band gives a band
  * it is close to when they meet; share of a band's ornaments buried with each of its dead (grave goods).
  */
-const val SHELL_A_WEEK = 0.05f
-const val SHELL_EACH = 0.02f
-const val BONE_EACH = 0.05f
-const val ORNAMENT_DAYS = 2f
-const val ORNAMENTS_PER_PERSON = 3f
-const val ORNAMENT_GIFT = 0.03f
-const val GRAVE_GOODS = 0.05f
+internal const val SHELL_A_WEEK = 0.05f
+internal const val SHELL_EACH = 0.02f
+internal const val BONE_EACH = 0.05f
+internal const val ORNAMENT_DAYS = 2f
+internal const val ORNAMENTS_PER_PERSON = 3f
+internal const val ORNAMENT_GIFT = 0.03f
+internal const val GRAVE_GOODS = 0.05f
 
 /*
  * Trade: good knapping stone, salt and ochre are found only in some
@@ -320,12 +321,12 @@ const val GRAVE_GOODS = 0.05f
  * from the shore; ochre where it crops out. Not measured: a day's scraping or digging gives far more,
  * these are a week's worth carried off by a band passing by.
  */
-const val SALT_A_WEEK = 1f
-const val SEA_SALT_A_WEEK = 0.05f
-const val OCHRE_A_WEEK = 0.3f
+internal const val SALT_A_WEEK = 1f
+internal const val SEA_SALT_A_WEEK = 0.05f
+internal const val OCHRE_A_WEEK = 0.3f
 /** Ochre to tan a person's share of clothes, kg; how much slower tanned clothes wear. */
-const val TAN_OCHRE = 0.2f
-const val TANNED_WEAR = 0.5f
+internal const val TAN_OCHRE = 0.2f
+internal const val TANNED_WEAR = 0.5f
 /** The material that makes tool [t] well (with trade on): good stone for stone tools, ochre for tanned clothes; null for the others. */
 fun fineMaterial(t: Tool): Material? = when { Material.STONE in t.recipe -> Material.STONE; t == Tool.CLOTHES -> Material.OCHRE; else -> null }
 /** How much faster tool [t] wears for being made well only in share [fine] */
@@ -338,7 +339,7 @@ fun wearOfMake(t: Tool, fine: Float, tuning: Tuning): Float = when (fineMaterial
 fun serveOfMake(t: Tool, fine: Float, tuning: Tuning): Float = if (fineMaterial(t) != Material.STONE) 1f else tuning.poorStoneEdge + (1f - tuning.poorStoneEdge) * fine
 
 /** Flint a tool's stone takes when knapped as blades or microliths, against plain flakes. */
-const val BLADE_STONE = 0.4f
+internal const val BLADE_STONE = 0.4f
 /**
  * Skills live in people. Each week the band's practised holders of each skill follow the work: the
  * young and the newcomers are taught the ways in use (taking time from the band's spare days, the
@@ -395,12 +396,12 @@ internal fun GroupWorld.learners(b: Band, s: Skill, adults: Float): Float {
  * person-days to bring one learner on (times the way's intricacy); how many ways a person keeps
  * up; weekly share of the gap a way held by too few loses.
  */
-const val DISUSE_YEARS = 0.5f
-const val SKILL_DROP = 0.02f
-const val SELF_TAUGHT = 0.1f
-const val TRAINED_A_WEEK = 0.05f
-const val APPRENTICE_DAYS = 10f
-const val SLOTS = 14f
+internal const val DISUSE_YEARS = 0.5f
+internal const val SKILL_DROP = 0.02f
+internal const val SELF_TAUGHT = 0.1f
+internal const val TRAINED_A_WEEK = 0.05f
+internal const val APPRENTICE_DAYS = 10f
+internal const val SLOTS = 14f
 /**
  * Forgetting (Arthur and colleagues 1998): weekly share a hand skill loses in use and unused, and
  * knowledge unused (about a third a year); years unheld and unused before a way is lost altogether;
@@ -408,33 +409,33 @@ const val SLOTS = 14f
  * customs puts bands off each other's ways (all of them differing: this share less), and how much
  * a band doing better is copied more readily.
  */
-const val FORGET_HANDS = 0.001f
-const val FORGET_KNOWLEDGE = 0.008f
-const val LOST_KNOWLEDGE_YEARS = 5f
-const val LOST_HANDS_YEARS = 25f
-const val NEEDS_LEVEL = 0.3f
-const val CONFORMITY = 0.8f
-const val PRESTIGE = 0.5f
-const val SHORTFALL = 0.02f
+internal const val FORGET_HANDS = 0.001f
+internal const val FORGET_KNOWLEDGE = 0.008f
+internal const val LOST_KNOWLEDGE_YEARS = 5f
+internal const val LOST_HANDS_YEARS = 25f
+internal const val NEEDS_LEVEL = 0.3f
+internal const val CONFORMITY = 0.8f
+internal const val PRESTIGE = 0.5f
+internal const val SHORTFALL = 0.02f
 /**
  * Materials gathered, kg a person-day where the country has them (wood comes at [FUEL_A_DAY]). Estimates, not field
  * figures: good stone picked up where it crops out, salt scraped from a pan, ochre dug, reeds and grass cut for fibre,
  * resin scraped from trees and shells picked over on the shore for beads.
  */
-const val STONE_A_DAY = 50f
+internal const val STONE_A_DAY = 50f
 /** Food cached, kg a person-day: pits dug, lined and covered (an estimate, not a field figure). */
-const val CACHE_KG_A_DAY = 100f
-const val SALT_A_DAY = 20f
-const val OCHRE_A_DAY = 5f
-const val FIBRE_A_DAY = 10f
-const val RESIN_A_DAY = 0.5f
-const val SHELL_A_DAY = 0.5f
+internal const val CACHE_KG_A_DAY = 100f
+internal const val SALT_A_DAY = 20f
+internal const val OCHRE_A_DAY = 5f
+internal const val FIBRE_A_DAY = 10f
+internal const val RESIN_A_DAY = 0.5f
+internal const val SHELL_A_DAY = 0.5f
 /**
  * Days of work a clean camp takes a person each day (about a quarter of an hour of a twelve-hour day), and days a
  * carer gives each sick or hurt person each day (half a day). Estimates: no time-use figures found.
  */
-const val HYGIENE_DAYS = 0.02f
-const val NURSE_DAYS = 0.5f
+internal const val HYGIENE_DAYS = 0.02f
+internal const val NURSE_DAYS = 0.5f
 
 /** A band takes [n] wounded among its [adults]: from a fight, a hunt gone wrong, a beast, a fall. */
 internal fun Band.wounded(n: Float, adults: Int) { if (adults > 0) hurt = min(1f, hurt + n / adults) }

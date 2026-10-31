@@ -14,12 +14,12 @@ import kotlin.math.exp
  * 1 a band chooses as its network does while learning; for the hand-written score, this, the temperature the networks imitate
  * it at (`HexPpo.IMITATE_SHARPNESS`, 10). At 0 it takes the best.
  */
-const val HAND_SCORE_UNIT = 0.1f
+internal const val HAND_SCORE_UNIT = 0.1f
 /**
  * How strongly a band's will to explore draws it away from where it is: the place it is at scores this many units lower for
  * each step of the will above the scaffold's 1 (below 1, higher by as much). (A choice of the band's: no source sets it.)
  */
-const val EXPLORE_STAY = 1f
+internal const val EXPLORE_STAY = 1f
 
 /** The salt of the draw a band explores by (see [exploreChoice]), apart from the other draws on the group and day. */
 private const val EXPLORE_SALT = 0x5EED_E4B1L

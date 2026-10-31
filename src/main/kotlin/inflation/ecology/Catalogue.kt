@@ -222,12 +222,16 @@ object Catalogue {
 
     /**
      * Syrian brown bear: an omnivore of wooded hills, living mostly on fruit, nuts, roots and green
-     * plants, with insects, carrion and the odd fawn. Fattens in autumn and sleeps out the winter.
+     * plants, with insects, carrion and the odd fawn or calf it kills. Fattens in autumn and sleeps out the winter.
+     * (Ungulates, killed and scavenged, a fifth of its diet: in central Sweden, without sheep, 14-30% of brown bears'
+     * digestible energy, berries 44-46%, insects 14-22%, forbs and graminoids 12-18%; where free-ranging sheep were to be
+     * had, in Norway, ungulates, mostly sheep, 65-87%; Dahle et al. 1998, Wildlife Biology 4: 147, from the abstract. A
+     * northern record for a southern bear, which likely eats less meat: an estimate.)
      */
     val BEAR = Species(
         id = 9, name = "brown bear", massKg = 150f,
         fearOfPeople = 0.6f, boldShare = 0.05f,
-        diet = Diet(grass = 0.15f, browse = 0.1f, roots = 0.25f, fruit = 0.3f, smallPrey = 0.1f, carrion = 0.1f),
+        diet = Diet(grass = 0.1f, browse = 0.1f, roots = 0.2f, fruit = 0.3f, meat = 0.1f, smallPrey = 0.1f, carrion = 0.1f),
         fibreDigestion = 0.5f, // a bear digests cellulose poorly (captive grizzlies on high-fibre feed); set as the boar
         groupSize = 2, maxGroupSize = 4,
         dailyTravelKm = 8f, maxDailyTravelKm = 30f, senseKm = 4f,
@@ -247,7 +251,7 @@ object Catalogue {
         activity = floatArrayOf(0.3f, 0.2f, 0.3f, 0.2f),
         shelters = setOf(Niches.Shelter.DEN, Niches.Shelter.THICKET),
         swimKm = 10f,
-        // a fifth of the lion's weight (was 0.4): bears took 358 of 100,000 person-years, lions 57; no Natufian or Hiwi bear kills known (review/2026-10-22-predators-megafauna.md)
+        // a fifth of the lion's weight: bears took 358 of 100,000 person-years, lions 57; no Natufian or Hiwi bear kills known (review/2026-10-22-predators-megafauna.md)
         takesPeople = 0.08f,
     )
 
@@ -316,6 +320,8 @@ object Catalogue {
         fearOfPeople = 0.7f, boldShare = 0.03f,
         diet = Diet(meat = 0.6f, smallPrey = 0.35f, carrion = 0.05f),
         groupSize = 2, maxGroupSize = 4,
+        // (Solitary: grown leopards live and hunt alone, a mother with her cubs aside; pairs only to mate. From memory.)
+        foragingParty = 1,
         dailyTravelKm = 6f, maxDailyTravelKm = 20f, senseKm = 4f,
         daysWithoutWater = 6, waterFromFood = 0.8f,
         birthMonth = 6, birthMonths = 1, youngPerFemale = 1.5f, yearsToMaturity = 2.5f,
@@ -358,6 +364,8 @@ object Catalogue {
         habitat = Habitat(cover = 0.8f, rugged = 0.4f),
         stalking = 1f,
         ferocity = 0.6f,
+        // (A lynx fights back with teeth and claws: an estimate between the onager's kicks (0.4) and the boar's tusks (0.6).)
+        defence = 0.5f,
         startKm2PerAnimal = 150f,
     )
 
@@ -367,6 +375,9 @@ object Catalogue {
         fearOfPeople = 0.5f, boldShare = 0.1f,
         diet = Diet(meat = 0.1f, smallPrey = 0.25f, carrion = 0.55f, fruit = 0.1f),
         groupSize = 2, maxGroupSize = 5,
+        // (They rest in pairs, now and then up to four, but forage alone; several may come to a carcass, not together:
+        // hyaenidae.org, striped hyaena social behaviour. In the Negev some go about with wolf packs: Dinets and Eligulashvili 2016.)
+        foragingParty = 1,
         dailyTravelKm = 12f, maxDailyTravelKm = 40f, senseKm = 10f,
         daysWithoutWater = 4, waterFromFood = 0.6f,
         birthMonth = 5, birthMonths = 2, youngPerFemale = 2f, yearsToMaturity = 2f,
@@ -404,6 +415,8 @@ object Catalogue {
         habitat = Habitat(cover = 0.2f, wet = 0.2f),
         stalking = 0.4f,
         ferocity = 0.8f,
+        // (Jackals bite back and stand by each other: an estimate, as the onager's (0.4).)
+        defence = 0.4f,
         // (Golden jackals take prey up to about 15 kg but mostly up to 4: hares, rodents, fawns, not grown gazelle;
         // Hayward et al. 2017, prey preferences of jackals.)
         preyUpTo = 1.5f, preyPreferredUpTo = 0.4f,
@@ -422,7 +435,8 @@ object Catalogue {
      */
     val ELK = Species(
         id = 10, name = "elk", massKg = 400f,
-        diet = Diet(grass = 0.1f, browse = 0.75f, roots = 0.15f),
+        // (Its summer water plants are browse here: it does not dig bulbs or pick up acorns, and the model's roots are those.)
+        diet = Diet(grass = 0.1f, browse = 0.9f),
         groupSize = 2, maxGroupSize = 5,
         dailyTravelKm = 4f, maxDailyTravelKm = 20f, senseKm = 1.5f,
         daysWithoutWater = 3, waterFromFood = 0.6f,
@@ -570,8 +584,9 @@ object Catalogue {
      */
     val OSTRICH = Species(
         id = 15, name = "ostrich", massKg = 110f,
-        // A picky feeder on green shoots, flowers, seeds and fruit, not a bulk grazer.
-        diet = Diet(grass = 0.2f, browse = 0.4f, roots = 0.1f, fruit = 0.3f),
+        // A picky feeder on green shoots, flowers, seeds and fruit, not a bulk grazer; it does not dig (the seeds and flowers
+        // are counted with the fruit).
+        diet = Diet(grass = 0.2f, browse = 0.4f, fruit = 0.4f),
         groupSize = 5, maxGroupSize = 30,
         dailyTravelKm = 15f, maxDailyTravelKm = 50f, senseKm = 5f,
         daysWithoutWater = 7, waterFromFood = 0.8f,
@@ -587,7 +602,7 @@ object Catalogue {
         habitat = Habitat(cover = -1f, wet = -0.5f),
         defence = 0.4f,
         // Ostriches ferment fibre in a long hindgut: volatile fatty acids from it may give up to 76% of a growing
-        // chick's metabolisable energy (Swart, Mackie and Hayes 1993). Like horses, they eat more of poor forage.
+        // chick's metabolisable energy (Swart, Mackie and Hayes 1993). Like horses, they eat as much of poor forage as of good.
         hindgut = true,
         activity = floatArrayOf(0.2f, 0.6f, 0.2f, 0f),
     )
@@ -728,6 +743,13 @@ object Catalogue {
 
     /** Kinds kept as numbers per place, the residents: every plant-eater, and the [residentHunters]. */
     fun resident(s: Species) = !s.carnivore || s in residentHunters
+
+    /**
+     * Residents that are rivals of the other beasts of prey as well as their game: the [residentHunters] and the brown bear.
+     * The jackals and lynx keep out of the way of a much stronger party ([HexFauna.strongest]). (A bear robbing a pack's
+     * kill waits for a rule of bears finding kills by scent.)
+     */
+    val residentRivals by lazy { setOf(JACKAL, LYNX, BEAR) }
 
     /** Kinds that climb crags and screes others cannot cross. */
     val climbers = setOf(IBEX, MOUFLON, WILD_GOAT, LEOPARD)

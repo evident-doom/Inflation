@@ -77,7 +77,7 @@ class StocksTest {
             // The week's food left uneaten, a reading of the plants' stocks, not one of its own.
             "HexFauna.spareGrass", "HexFauna.spareBrowse", "HexFauna.spareFruit", "HexFauna.spareRoots",
             // Shares, states and memories, 0..1 or days or degrees.
-            "HexDrinkingWater.water", "HexDrinkingWater.waterKm", "HexDrinkingWater.dug", "HexDrinkingWater.snowWater", "HexDrinkingWater.iced", "HexPlants.gdd", "HexPlants.moisture",
+            "HexDrinkingWater.water", "HexDrinkingWater.waterKm", "HexDrinkingWater.dug", "HexDrinkingWater.well", "HexDrinkingWater.snowWater", "HexDrinkingWater.iced", "HexPlants.gdd", "HexPlants.moisture",
             "HexPlants.shrubShoots", "HexPlants.treeShoots", "HexPlants.animalSeed", "HexPlants.green", "HexPlants.hayFresh", "HexPlants.grassAge",
             "HexPlants.growFrom", "HexPlants.growSpan", "HexPlants.greenOpen", "HexPlants.greenSeep", "HexPlants.greenWet",
             "HexPlants.greenShade", "HexPlants.trails", "HexPlants.treeSeed", "HexPlants.shrubSeed", "HexFires.burnt", "HexFires.burning",
@@ -86,6 +86,8 @@ class StocksTest {
             "HexSmallLife.insectFrom", "HexSmallLife.harass", "HexSmallLife.spreadWeight", "HexSmallLife.returning",
             // For the check and the viewer: heads held hungry with no better place next door, and one kind's spill last week.
             "HexFauna.stuck", "HexFauna.climbed", "HexFauna.flowEast", "HexFauna.flowSouth", "HexFauna.flowOut",
+            // The strongest hunting party in each place last week, a strength the residents' rivals keep away from.
+            "HexFauna.strongest",
             // Ash is mm of rock, not living or dead matter; the grass that fell to the litter is a memory of the stand (the
             // litter holds its mass).
             "HexPlants.ash", "HexPlants.hayFallen",

@@ -71,8 +71,20 @@ class Bands internal constructor(private val world: GroupWorld) {
     /** What bands have built that stands in the world ([Structure]): no band's own, any band's to use. */
     val built = ArrayList<Structure>()
 
+    /**
+     * Weeks of camping whose fouling the ground of each hex holds ([foulGround]): what camps leave there, whoever left it,
+     * clearing while nobody camps there.
+     */
+    val fouledWeeks = FloatArray(world.hex.size)
+
+    /** Each hex's midden, 0..1: refuse kept in one place by bands that keep their camp clean, for any band camped there to use. */
+    val midden = FloatArray(world.hex.size)
+
     /** (The [built] by hex, as the list last stood: see [structuresAt].) */
     @Volatile @Transient internal var builtByHex: StructureIndex? = null
+
+    /** (Whether [fouledWeeks] has been looked at since the world was loaded: see [foulGround].) */
+    @Transient internal var groundSeen = false
 
     /** (Whether a world saved before [built] was kept has had its bands' houses raised in it: see [tendStructures].) */
     @Transient internal var structuresSeen = false
@@ -86,6 +98,9 @@ class Bands internal constructor(private val world: GroupWorld) {
     /** The same by kind, as [HexFauna.kinds] indexes them. */
     @delegate:Transient val kindFlows by lazy { Array(world.fauna.kinds.size) { enumFloats<HerdFlow>() } }
 
+    /** Heads of kept herds beasts of prey took since the history last read them, by kind ([keepHerds], [HexHistory]). */
+    @delegate:Transient val takenWeek by lazy { FloatArray(world.fauna.kinds.size) }
+
     /** Young caught in the hunt and kept, and herds begun from none so, by kind, since the census last read them (hunts run on many cores at once). */
     @delegate:Transient val keptYoung by lazy { java.util.concurrent.atomic.AtomicIntegerArray(world.fauna.kinds.size) }
     @delegate:Transient val herdsBegun by lazy { java.util.concurrent.atomic.AtomicIntegerArray(world.fauna.kinds.size) }
@@ -98,6 +113,9 @@ class Bands internal constructor(private val world: GroupWorld) {
 
     /** Bands by the hex they are in ([indexBands]): at the start of the week for [fillBandStates], after the moves for [setWays]. */
     @Transient internal val bandIndex = HashMap<Hex, ArrayList<HexGroup>>()
+
+    /** Dogs that left their band hungry this week as a pack of their own ([keepAnimals]): added to the groups once every band has had its week. */
+    @Transient internal val strays = ArrayList<HexGroup>()
 
     /** Raiders that reached their target's home this week, with the band they came for: fought once every band has had its week. */
     @Transient internal val raidsDue = ArrayList<Pair<HexGroup, HexGroup>>()

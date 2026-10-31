@@ -62,6 +62,15 @@ class Tuning(
     // Plants.
     /** Nourishment of dry or dormant forage against fresh growth (dry grass is about 45-55% digestible against 65-75% for young growth, from memory). */
     val dryValue = f("dryValue", 0.65f)
+    /**
+     * Nourishment of cured grass leached to straw where it stands ([inflation.world.HexPlants.hayFresh] 0), against fresh
+     * growth: weathering takes its energy as well as its protein. Zebu cattle on Sahelian pasture ate a diet of about 7.8-8.6 MJ
+     * ME/kg OM early in the dry season and under 7.1 at its end, eating a fifth less of it (Schlecht, Sangaré & Becker 1999,
+     * J Agric Sci 133:69): the cured forage worth some 0.83-0.91 of itself after a dry season, by when [hayWeathering] has
+     * left about half of it fresh; so straw at about 0.44-0.54 (cattle pick the best of it, so the stand is worse than
+     * what they ate).
+     */
+    val strawValue = f("strawValue", 0.5f).also { require(it <= dryValue) { "t.strawValue is $it: no more than t.dryValue ($dryValue)" } }
     /** Experiment knobs: the warmth at which plants start to grow, °C, and the span over which they reach full growth, °C. */
     val growFromC = f("growFrom", 2f)
     val growSpanC = f("growSpan", 13f)
@@ -138,7 +147,7 @@ class Tuning(
     val seasonPull = f("seasonPull", inflation.ecology.SEASON_PULL)
     /**
      * The widest hold on its rites a founding band can have, by lineage, as its traditions are: a custom it keeps
-     * and passes on (it no longer draws the band's moves: see model 4.89). Not measured: wide on purpose.
+     * and passes on (it does not draw the band's moves). Not measured: wide on purpose.
      */
     val riteFounderMax = f("riteMax", 3f)
 
