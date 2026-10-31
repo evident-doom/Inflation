@@ -291,6 +291,10 @@ internal class Restorer {
                 v is FloatArray && cur is FloatArray && cur.size > v.size -> { v.copyInto(cur); cur }
                 v is DoubleArray && cur is DoubleArray && cur.size > v.size -> { v.copyInto(cur); cur }
                 v is IntArray && cur is IntArray && cur.size > v.size -> { v.copyInto(cur); cur }
+                v is BooleanArray && cur is BooleanArray && cur.size > v.size -> { v.copyInto(cur); cur }
+                v is ByteArray && cur is ByteArray && cur.size > v.size -> { v.copyInto(cur); cur }
+                v is LongArray && cur is LongArray && cur.size > v.size -> { v.copyInto(cur); cur }
+                v is ShortArray && cur is ShortArray && cur.size > v.size -> { v.copyInto(cur); cur }
                 else -> v
             }
         }

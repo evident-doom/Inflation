@@ -598,7 +598,8 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
             causes.keys.filter { it.text.startsWith(Tally.of(Catalogue.HUMAN).text + ByBeast.How.KILLED_BY.words) }.sumOf { yearly(Tally.whatOf(it)) }
         val bandsSeen = walked.size.coerceAtLeast(1)
         run {
-            val all = sim.groups.stats.childDeaths.mapValues { it.value.sumThenReset() }.filter { it.value > 0.0 }
+            val all = sim.groups.stats.childDeaths.entries.groupingBy { it.key.label }.fold(0.0) { s, e -> s + e.value.sumThenReset() }
+                .filter { it.value > 0.0 }.toSortedMap()
             val total = all.values.sum().coerceAtLeast(1e-9)
             println("     children's deaths by cause this year (expected from the odds, share): " + all.entries.sortedByDescending { it.value }
                 .joinToString(", ") { "%s %.0f%%".format(it.key, 100 * it.value / total) })

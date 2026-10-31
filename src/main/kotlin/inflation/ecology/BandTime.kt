@@ -20,7 +20,8 @@ enum class Activity(val label: String, val par: Float, val where: Workplace) {
     SHELTER("shelter", 4.1f, Workplace.OUT), CUSTOMS("customs", 2.3f, Workplace.CAMP), TRAINING("training", 2.3f, Workplace.CAMP), TOOLS("tools", 2.3f, Workplace.CAMP),
     HOUSES("houses", 4.1f, Workplace.OUT), ORNAMENTS("ornaments", 2.3f, Workplace.CAMP), SOWING("sowing", 4.1f, Workplace.OUT), PALISADE("palisade", 4.1f, Workplace.OUT),
     WEIRS("weirs", 4.4f, Workplace.OUT),
-    MATERIALS("materials", 4.4f, Workplace.OUT), CACHING("caching", 4.1f, Workplace.OUT), MOVING("moving", 4.1f, Workplace.OUT), LEISURE("leisure", 1.45f, Workplace.NONE);
+    MATERIALS("materials", 4.4f, Workplace.OUT), CACHING("caching", 4.1f, Workplace.OUT), MOVING("moving", 4.1f, Workplace.OUT), LEISURE("leisure", 1.45f, Workplace.NONE),
+    WELLS("wells", 4.4f, Workplace.OUT);
 
     /**
      * The share of a grown person's daily need ([Species.dailyIntakeKg], taken as a day of foraging's) a day of this saves

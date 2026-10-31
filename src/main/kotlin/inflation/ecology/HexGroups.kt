@@ -308,7 +308,16 @@ class HexGroups(
             merged.clear(); for (g in groups) if (!g.alive && g.mergedSize >= 0) merged += g
             // (A band that died out leaves what it had; one that joined another took it along.)
             val freed = ArrayList<HexGroup>()
-            for (g in groups) if (!g.alive && g.mergedSize < 0) leaveDead(g, freed)
+            // (A band followed for the forecast trace that died out or joined another: what came till then.)
+            if (FORECAST_TRACE) for (g in groups) if (!g.alive) g.band?.let { b -> b.forecastTrace?.let { t -> b.forecastTrace = null
+                System.err.print(t.report(if (g.mergedSize < 0) "died out" else "joined another band")) } }
+            for (g in groups) if (!g.alive && g.mergedSize < 0) {
+                leaveDead(g, freed)
+                if (g.species.lifeway == Lifeway.PACK && g.band == null) {
+                    stats.meeting(Met.Of.PACK_ENDED, g.species.name)
+                    if (g.home.none) stats.meeting(Met.Of.PACK_ENDED_HOMELESS, g.species.name)
+                }
+            }
             groups.removeIf { !it.alive }
             groups += freed
             newcomers(it.date)
@@ -529,7 +538,9 @@ class HexGroups(
 
 
     /** A hunting party's fighting strength: weight, ferocity. */
-    internal fun strength(g: HexGroup) = g.adults * g.species.massKg * ferocity(g)
+    internal fun strength(g: HexGroup) = foragers(g) * g.species.massKg * ferocity(g)
+    /** Those of [g]'s grown that go about together ([Species.foragingParty]). */
+    internal fun foragers(g: HexGroup) = g.species.foragingParty.let { if (it > 0) min(it, g.adults) else g.adults }
     internal fun ferocity(g: HexGroup) = g.band?.ferocity(g.species) ?: g.species.ferocity
 
 

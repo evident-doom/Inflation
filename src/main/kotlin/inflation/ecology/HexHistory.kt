@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import java.util.TreeMap
 import inflation.world.Place
 import inflation.world.get
 import inflation.world.set
@@ -199,7 +200,7 @@ class HexHistory {
         for (s in groups.kinds) animals.merge(s.name, groups.count(s).toDouble(), Double::plus)
         for ((name, v) in animals) put(Key.animals(name), v.toFloat())
         // How well fed each plant-eating kind was this week, by heads.
-        val fedSum = HashMap<String, DoubleArray>()
+        val fedSum = TreeMap<String, DoubleArray>()
         for ((k, s) in fauna.kinds.withIndex()) if (!s.carnivore) {
             val a = fedSum.getOrPut(s.name) { DoubleArray(2) }
             for (p in 0 until land.n) { val h = ((fauna.adults[k][p] + fauna.young[k][p]) * land.areaKm2[p]).toDouble(); a[0] += h * fauna.fed[k][p]; a[1] += h }
@@ -225,9 +226,10 @@ class HexHistory {
         put(Key.waterLife("fish, tonnes"), wl.fishTonnes()); put(Key.waterLife("river fish, tonnes"), wl.riverFishTonnes())
         put(Key.waterLife("shellfish, tonnes"), wl.shellfishTonnes()); put(Key.waterLife("sea birds"), wl.colonyBirds.sum())
         put(Key.waterLife("zooplankton, g per m²"), wl.zooMean())
-        for ((key, v) in wl.fishFlows) put(Key.fishFlow(key), v.toFloat())
-        // Deaths, births and kills this week.
-        val deaths = HashMap<TallyKey, Double>()
+        for ((key, v) in wl.fishFlows.toSortedMap()) put(Key.fishFlow(key), v.toFloat())
+        // Deaths, births and kills this week. (These maps are sorted, so that a series is added to the record, and so is
+        // a column of its file, in the same order in every run.)
+        val deaths = TreeMap<TallyKey, Double>()
         for ((key, v) in fauna.deaths) deaths.merge(key, v, Double::plus)
         for ((key, v) in groups.stats.deaths) deaths.merge(key, v.toDouble(), Double::plus)
         for ((key, v) in deaths) put(Key.deaths(Tally.kindOf(key), Tally.whatOf(key)), v.toFloat())
@@ -235,7 +237,7 @@ class HexHistory {
         for ((key, v) in groups.stats.youngDeaths) put(Key.youngDeaths(Tally.kindOf(key), Tally.whatOf(key)), v.toFloat())
         for ((s, v) in groups.stats.kills) put(Key.deaths(s.name, Tally.HUNTED), v.toFloat())
         for ((key, v) in groups.stats.hunting) HuntStep.series(key)?.let { put(it, v / 100f) }
-        val births = HashMap<String, Double>()
+        val births = TreeMap<String, Double>()
         for ((s, v) in groups.stats.births) births.merge(s.name, v.toDouble(), Double::plus)
         for ((k, s) in fauna.kinds.withIndex()) if (fauna.bornThisWeek[k] > 0.0) births.merge(s.name, fauna.bornThisWeek[k], Double::plus)
         for ((key, v) in births) put(Key.births(key), v.toFloat())
@@ -258,7 +260,7 @@ class HexHistory {
         put(Key.LAND_AREA, biomeArea.sum().toFloat())
         val plants = DoubleArray(Biome.entries.size)
         for (p in 0 until n) plants[biomeOf(sim, Place(p))] += (land.plants.biomass(Place(p)) * area[p]).toDouble()
-        val heads = HashMap<String, DoubleArray>()
+        val heads = TreeMap<String, DoubleArray>()
         for ((k, s) in fauna.kinds.withIndex()) {
             val a = heads.getOrPut(s.name) { DoubleArray(Biome.entries.size) }
             for (p in 0 until n) a[biomeOf(sim, Place(p))] += ((fauna.adults[k][p] + fauna.young[k][p]) * area[p]).toDouble()

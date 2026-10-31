@@ -1,34 +1,34 @@
 package inflation.ecology
 
-import inflation.EnumFloats
-import inflation.enumFloats
-import inflation.Profile
-import inflation.world.Hex
-import inflation.world.Place
-import inflation.world.get
-import inflation.world.set
-import inflation.ecology.HexSmallLife.DeadPool
 import inflation.Books
-import inflation.Kg
-import inflation.KgM2
 import inflation.Config
+import inflation.EnumFloats
 import inflation.HASH_A
 import inflation.HASH_B
 import inflation.HASH_C
+import inflation.Kg
+import inflation.KgM2
+import inflation.Profile
+import inflation.ecology.HexSmallLife.DeadPool
+import inflation.enumFloats
 import inflation.mix64
 import inflation.unitOf
-import inflation.world.HexDrinkingWater
-import inflation.world.Weather
+import inflation.world.Biome
 import inflation.world.Date
+import inflation.world.Hex
+import inflation.world.HexDrinkingWater
+import inflation.world.Place
+import inflation.world.Weather
+import inflation.world.get
+import inflation.world.set
+import java.util.stream.IntStream
+import kotlin.math.PI
 import kotlin.math.exp
 import kotlin.math.max
-import kotlin.math.roundToInt
 import kotlin.math.min
-import kotlin.random.Random
-import inflation.world.Biome
-import java.util.stream.IntStream
+import kotlin.math.roundToInt
 import kotlin.math.sqrt
-import kotlin.math.PI
+import kotlin.random.Random
 
 // Hunting and foraging along the way: what a group gets, eats, stores and keeps of its week's food.
 
@@ -52,7 +52,8 @@ internal fun HexGroups.hunt(weather: Weather) {
     // their herds, see [herdOdds].)
     indexBands()
     // (Without a ways network the bands keep the scaffold's ways, not those a saved world's bands last had from theirs.)
-    if (ways != null) { for (g in hunters) if (g.band != null) setWays(g, weather, ways, inputs, out) }
+    // (A planning band reads no ways: it keeps the scaffold's, [planDays].)
+    if (ways != null) { for (g in hunters) g.band?.let { b -> if (b.mind == Mind.PLANS) b.scaffoldWays() else setWays(g, weather, ways, inputs, out) } }
     else for (g in hunters) g.band?.scaffoldWays()
     dialUse?.let { u -> for (g in hunters) if (g.band != null) u.bandWeeks.increment() }
     // (A band followed under the player's hand sets its ways every week, so the player's pins hold.)
@@ -154,7 +155,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
             // (What its herds will feed it this week it need not forage for: their increase and milk, see [herdFoodWeek].)
             val need = max(0f, w.wantAll - w.fed - herdFoodWeek(g, w.band, weather.date))
             fun daysFor(kg: Float) = if (intake > 0f) min(days.toFloat(), kg / intake) else 0f
-            planWeek(w, daysFor(need), daysFor(left) - daysFor(need))
+            planWeek(w, daysFor(need), daysFor(left) - daysFor(need), if (intake > 0f) intake / w.hands.coerceAtLeast(1) else 0f)
         }
         val time = w.time
         var f = if (intake > 0f) min(1f, left / (w.workDays * intake)) else 0f
@@ -167,7 +168,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         takeFoods(w, o, f)
         time?.spend(Activity.FOOD, (w.busy - busy0) * w.hands)
     }
-    if (w.band != null && w.time == null) planWeek(w, 0f, 0f)
+    if (w.band != null && w.time == null) planWeek(w, 0f, 0f, 0f)
     // (What a day's foraging brought it this week, kg of its need, kept month by month as a mean over the years: what a
     // herder's day must bring to be worth it, [herdPays].)
     w.band?.let { b -> w.time?.spentOn(Activity.FOOD)?.takeIf { it > 0f }?.let { d ->
@@ -205,15 +206,21 @@ private fun restedDays(w: ForageWeek, time: BandTime) {
  * shared out when it comes to more than the days left ([BandTime.plan]). Leisure asks for nothing: it is what the week
  * leaves (and takes less food: [restedDays]). Then it fetches the hearth's firewood, puts up its shelters and herds, in the days the plan gives them.
  */
-private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float) {
+private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float, perDay: Float) {
     val g = w.g; val b = checkNotNull(w.band); val hands = w.hands
     // (Its work goes the slower, the colder and hungrier its people: see [Sisu].)
     val time = BandTime(days * hands.toFloat(), b.paces())
-    // (Digging soaks and drawing their water, see [HexDrinkingWater.mustDig]: counted with the food.)
-    if (land.drink.mustDig(g.place, w.s.dailyTravelKm)) {
+    // (Digging soaks and drawing their water, see [HexDrinkingWater.mustDig], or drawing it from a well: counted with the food.)
+    val drink = land.drink; val fetch = w.s.dailyTravelKm
+    if (drink.mustDig(g.place, fetch)) {
         w.digDays = HexDrinkingWater.DIG_SHARE * days * hands
         time.spend(Activity.FOOD, w.digDays)
+    } else if (drink.drawsFromWell(g.place, fetch)) {
+        w.digDays = WELL_DRAW_SHARE * days * hands
+        time.spend(Activity.FOOD, w.digDays)
     }
+    // (How often it has had water at home only from under the ground, for its wells: [Band.waterShort].)
+    if (b.atHome) b.waterShort += ((if (drink.underground(g.place, fetch)) 1f else 0f) - b.waterShort) * min(1f, years)
     // (Moving camp takes its days first: everyone walks, at the pace of the slowest, see [moveDays].)
     time.spend(Activity.MOVING, min(days.toFloat(), moveDays(g, max(0, g.path.size - 1) * hex.hexKm.toFloat())) * hands)
     // (Then the days that keep its people alive this week and through the year after, by its own foresight ([survivalDays]):
@@ -236,8 +243,13 @@ private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float)
     val asks = enumFloats<Activity>()
     asks[Activity.FOOD] = storeDays * hands
     choreAsks(g, b, w.weather.date, asks, warm)
-    // (The band weighs the rest of the asks against each other by its ways: see [timeWay].)
-    time.plan(needs, asks, enumFloats<Activity> { a -> timeWay(a)?.let { b.will[it] } ?: 1f }, warm, kept)
+    // (The band weighs the rest of the asks against each other by its ways: see [timeWay]. A planning band holds its days by
+    // its customs, the lives they save and what is left: [planDays].)
+    if (b.mind == Mind.PLANS) {
+        time.plan(needs, planDays(g, b, w.weather, time, needs, asks, warm, kept, perDay), null, warm, kept)
+        // (What each chore asked, not what it was given, for the census of the week's squeeze: [countSqueeze].)
+        for (a in Activity.entries) if (a != Activity.LEISURE) time.asked[a] = needs[a] + asks[a] + warm[a] + kept[a]
+    } else time.plan(needs, asks, enumFloats<Activity> { a -> timeWay(a)?.let { b.will[it] } ?: 1f }, warm, kept)
     w.room = time.leftFor(Activity.FOOD) / time.pace(Activity.FOOD)
     // (What its fire, shelters and food leave of the week, kept month by month as a mean over the years: what its
     // leanest month could give its herders, [keepHerds].)
@@ -710,15 +722,18 @@ private fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
         // (Gatherers take the near ground first: the share they reach of a place as a disc about the camp, two thirds of
         // its radius out on average; a place round the camp lies half a hex further. The walk takes no skill.)
         val off = if (qi < w.gatherAt.size) 0f else hex.hexKm.toFloat() / 2f
-        val walk = 2f / 3f * sqrt(reach * land.areaKm2[q] / PI.toFloat()) + off
-        val seedWalk = 2f / 3f * sqrt(seedReach * land.areaKm2[q] / PI.toFloat()) + off
+        fun walkKm(share: Float) = 2f / 3f * sqrt(share * land.areaKm2[q] / PI.toFloat()) + off
+        val walk = walkKm(reach)
+        val seedWalk = walkKm(seedReach)
         fun walked(t: Food, km: Float) = km * w.walkDaysPerKm / dryShare(t)
         // (A band's gatherers must find fruit before they pick it, as they must roots: the thinner it grows, the longer a
         // kilo; see [PLANT_SIGHT_M2_PER_DAY].)
         val food = fauna.food
+        // (A plant food on offer at [q]: [share] of the ground reached, of [density] kg a km², for [workDays] a kg.)
+        fun plant(f: Food, kind: Int, share: Float, density: Float, workDays: Float) =
+            offer(w, o, f, kind, Place(q), land.total(Place(q), KgM2(share * density)).v / days, 1f, workDays)
         fun sought(density: Float) = if (band != null && density > 0f) 1f / (PLANT_SIGHT_M2_PER_DAY * density * w.gatherers) else 0f
-        offer(w, o, Food.FRUIT, 0, Place(q), land.total(Place(q), KgM2(reach * food.fruit[q])).v / days, 1f,
-            fruitQ + sought(food.fruit[q]) + walked(Food.FRUIT, walk))
+        plant(Food.FRUIT, 0, reach, food.fruit[q], fruitQ + sought(food.fruit[q]) + walked(Food.FRUIT, walk))
         // (Roots likewise, searched out over less ground a day, [ROOT_SEARCH_M2_PER_DAY]; none are dug in frozen ground,
         // [HexFood.diggable]. The mast lying under the trees is picked up a nut at a time, as fruit is picked ([MAST_KIND]);
         // its bitter share must be leached before it is eaten, by bands that know how and have water by them
@@ -726,24 +741,20 @@ private fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
         if (band != null) {
             val bulbs = food.diggable(Place(q))
             val rootSearch = if (bulbs > 0f) 1f / (ROOT_SEARCH_M2_PER_DAY * bulbs * w.gatherers) else 0f
-            offer(w, o, Food.ROOTS, 0, Place(q), land.total(Place(q), KgM2(reach * bulbs)).v / days, 1f,
-                ROOT_DIGGING * pickQ + rootSearch + walked(Food.ROOTS, walk))
+            plant(Food.ROOTS, 0, reach, bulbs, ROOT_DIGGING * pickQ + rootSearch + walked(Food.ROOTS, walk))
             val bitter = if (band.leachesMast(land.drink.water[q] >= Thresholds.WET || land.drink.waterKm[q] < 3f)) MAST_BITTER else 0f
             val eaten = 1f - MAST_BITTER + bitter
             val leach = bitter / eaten * MAST_LEACH_DAYS_PER_KG / w.gatherers * band.slowness(Skill.LEACHING)
-            offer(w, o, Food.ROOTS, MAST_KIND, Place(q), land.total(Place(q), KgM2(reach * eaten * food.mast[q])).v / days, 1f,
-                fruitQ + leach + sought(food.mast[q]) + walked(Food.ROOTS, walk))
-        } else offer(w, o, Food.ROOTS, 0, Place(q), land.total(Place(q), KgM2(reach * food.underground(Place(q)))).v / days, 1f,
-            ROOT_DIGGING * pickQ + walked(Food.ROOTS, walk))
-        offer(w, o, Food.FINDS, 0, Place(q), land.total(Place(q), KgM2(reach * fauna.food.finds[q])).v / days, 1f, ROOT_DIGGING * pickQ + walked(Food.FINDS, walk))
+            plant(Food.ROOTS, MAST_KIND, reach * eaten, food.mast[q], fruitQ + leach + sought(food.mast[q]) + walked(Food.ROOTS, walk))
+        } else plant(Food.ROOTS, 0, reach, food.underground(Place(q)), ROOT_DIGGING * pickQ + walked(Food.ROOTS, walk))
+        plant(Food.FINDS, 0, reach, food.finds[q], ROOT_DIGGING * pickQ + walked(Food.FINDS, walk))
         // Grass seed must be reaped, threshed and ground: worth it only with the tools and the hands.
         // (The small seeds of wild grasses take longer a kilo than wild cereal's, [SMALL_SEED_SLOWER]; both must be found, as
         // fruit is.)
-        offer(w, o, Food.SEED, 0, Place(q), land.total(Place(q), KgM2(seedReach * food.seeds[q])).v / days, 1f,
-            (seedQ - eats) * SMALL_SEED_SLOWER + eats + sought(food.seeds[q]) + walked(Food.SEED, seedWalk))
+        plant(Food.SEED, 0, seedReach, food.seeds[q], (seedQ - eats) * SMALL_SEED_SLOWER + eats + sought(food.seeds[q]) + walked(Food.SEED, seedWalk))
         // Wild and sown cereals: reaped like grass seed, but richer where they stand.
         val cereal = food.grain[q] + food.fieldGrain[q]
-        offer(w, o, Food.GRAIN, 0, Place(q), land.total(Place(q), KgM2(seedReach * cereal)).v / days, 1f, seedQ + sought(cereal) + walked(Food.GRAIN, seedWalk))
+        plant(Food.GRAIN, 0, seedReach, cereal, seedQ + sought(cereal) + walked(Food.GRAIN, seedWalk))
     }
     // Bands fish the river, the lake or the sea by their camp, as their skill and nets allow ([Band.fishing]); and gather
     // shellfish off the shore, which wants neither (kind [SHELLFISH_KIND] of the fish offered).
@@ -890,8 +901,10 @@ private fun HexGroups.eatTheWeek(w: ForageWeek) {
         // (Salt hunger: its people eat meat for its sodium before anything else, as far as the kill and the larder have it. Salt
         // appetite is inborn: mammals short of sodium seek it out and prefer salty food unlearned, Denton 1982, The Hunger for Salt.)
         val sodiumNeed = SODIUM_A_PERSON_DAY * g.size * days
+        val stored = g.larder
         meal.eatForSodium(sodiumNeed / SODIUM_PER_KG_MEAT, got, plantKg, g)
         meal.eat(got, plantKg, g)
+        band.larderMoved(g, LarderMove.ATE, g.larder - stored)
         band.leanLost = meal.leanLost
         // (Its weanlings get gruel as far as there is seed, eaten this week or still in store: their share of the meals is
         // already in its need, so they eat seed and the rest eat the rest in its stead.)
@@ -1068,7 +1081,9 @@ private fun HexGroups.keepAndSpoil(w: ForageWeek, got: EnumFloats<Store>, gotKg:
         got[Store.GREASE] -= fed; gotKg[Store.GREASE] -= kg; got[Store.FRESH] += fed; gotKg[Store.FRESH] += kg
     }
     // What is left is kept; spare hands dry fresh meat and fish over the fire, as fast as their skill allows.
+    val unkept = g.larder
     for (st in Store.entries) addFood(g.stores, g.storeKgPer, st, got[st], gotKg[st])
+    band.larderMoved(g, LarderMove.KEPT, g.larder - unkept)
     // (Racks in the sun dry little in wet weather; smoking over a slow fire works in any.)
     val sun = band.skill(Skill.STORE) / (1f + weather.precipitation[g.place] / DRY_RAIN_MM)
     val smoke = if (band.knowsSkill[Skill.SMOKING] && band.fire > 0f) band.skill(Skill.SMOKING) * min(1f, band.fire) else 0f
@@ -1109,6 +1124,7 @@ private fun HexGroups.keepAndSpoil(w: ForageWeek, got: EnumFloats<Store>, gotKg:
     val kept = keepWorth(g, band, home)
     band.houseFoodWeek += kept; band.houseWeek[HouseWorth.KEPT_KG] += kept
     // (Pits sealed with clay and plaster keep the mice out.)
+    val unspoilt = g.larder
     var rotten = spoil(g.stores, weather.temperature[g.place], 1f - PIT_KEEP * home, driedKeep(band), g.storeKgPer)
     val sealed = if (band.knowsSkill[Skill.SEALING]) 1f - SEAL_KEEP * band.skill(Skill.SEALING) else 1f
     if (home > 0f) {
@@ -1119,6 +1135,7 @@ private fun HexGroups.keepAndSpoil(w: ForageWeek, got: EnumFloats<Store>, gotKg:
         }
         if (band.knowsSkill[Skill.SEALING] && g.larder > 0f) band.practise(Skill.SEALING, 0.2f * PRACTICE)
     }
+    band.larderMoved(g, LarderMove.SPOILT, g.larder - unspoilt)
     small.deposit(DeadPool.CARRION, g.place, Kg(rotten + unskinned))
 }
 
@@ -1422,16 +1439,16 @@ private fun GroupWorld.gather(g: HexGroup, t: Food, kind: Int, p: Place, expecte
 }
 
 /** The kind of [Food.FISH] offer that is shellfish gathered off the shore (0 is fish caught: see [offerFoods]). */
-const val SHELLFISH_KIND = 1
+internal const val SHELLFISH_KIND = 1
 /** The kind of [Food.FISH] offer that is fish taken from the traps of a weir ([Built.WEIR]). */
-const val WEIR_KIND = 2
+internal const val WEIR_KIND = 2
 /** The kind of [Food.FISH] offer that is the spring run's fish taken from the bank ([HexWater.runWithinReach]). */
-const val RUN_KIND = 3
+internal const val RUN_KIND = 3
 /**
  * The kind of a band's [Food.ROOTS] offer that is the fallen mast (0 is bulbs and roots dug: see [offerFoods]), picked up as
  * fruit is picked ([BAND_FRUIT_DAYS_PER_KG]): pine nuts in the Great Basin gave some 840-1,400 kcal/h (Simms 1987, from memory).
  */
-const val MAST_KIND = 1
+internal const val MAST_KIND = 1
 
 /**
  * The grease a band renders from a kg of bones it gathers, kg: bones smashed small and boiled with hot stones, the fat skimmed
@@ -1441,9 +1458,9 @@ const val MAST_KIND = 1
  */
 internal fun greaseOf(band: Band) = if (band.knowsSkill[Skill.STONE_BOILING])
     GREASE_YIELD * band.skill(Skill.STONE_BOILING) * max(band.has(Tool.BASKET), 0.5f) else 0f
-const val GREASE_YIELD = 0.05f
+internal const val GREASE_YIELD = 0.05f
 /** Person-days to smash and boil a kg of bones for their grease, with the fuel to heat the stones (a guess: "many hours"). */
-const val BONE_RENDER_DAYS = 0.2f
+internal const val BONE_RENDER_DAYS = 0.2f
 
 private val FORAGE_DIAG = Config.string(Config.Key.FORAGE_DIAG)
 
@@ -1529,7 +1546,7 @@ private fun HexGroups.scavenge(g: HexGroup, p: Place, expected: Float, sweep: Fl
 }
 
 /** Chance a band scavenging a carcass where hunters are thick has one of its people mauled by them. */
-const val SCAVENGE_RISK = 0.01f
+internal const val SCAVENGE_RISK = 0.01f
 
 /** Share of a carcass a hunter takes as food: a band as its butchers' skill allows (all the fat and marrow, at best). */
 internal fun meatShare(band: Band?) = if (band == null) MEAT_SHARE else min(MEAT_MOST, MEAT_SHARE * band.edge(Skill.BUTCHER))
@@ -1548,14 +1565,14 @@ internal fun GroupWorld.bookKill(hunter: HexGroup, credit: Float, kg: Float, car
 }
 /** What is left of a kill of [ps] as carrion when the hunter took [kgEach] of it towards its need. */
 internal fun leftOver(ps: Species, kgEach: Float, band: Band?) = max(0f, ps.massKg - kgEach * meatShare(band) / creditShare(band))
-const val MEAT_MOST = 0.7f
+internal const val MEAT_MOST = 0.7f
 
 /** What a kilo of reaped seed or grain feeds against a kilo of other food: raw, little; ground and baked, fully. */
 internal fun seedValue(band: Band?) = RAW_SEED + (1f - RAW_SEED) * (band?.has(Tool.GRINDER) ?: 0f)
-const val RAW_SEED = 0.6f
+internal const val RAW_SEED = 0.6f
 /** Beer: grain brewed for each guest at a feast, kg; how much more a feast with beer binds. */
-const val BEER_KG = 1f
-const val BEER_TIES = 0.5f
+internal const val BEER_KG = 1f
+internal const val BEER_TIES = 0.5f
 
 /** Share of the ground a party searches for small game at place [p] over which it finds it: less in standing cover ([SMALL_HIDE]). */
 internal fun GroupWorld.smallSeen(p: Place) = 1f - SMALL_HIDE * land.plants.groundCover(p)

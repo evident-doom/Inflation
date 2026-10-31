@@ -4,6 +4,7 @@ import inflation.Args
 import inflation.Config
 import inflation.ecology.HexSim
 import inflation.ecology.HexSnapshot
+import inflation.ecology.foundMinds
 import inflation.ecology.startHerders
 import inflation.ecology.startVillages
 import inflation.Tuning
@@ -41,6 +42,8 @@ class FaunaCheckOptions(
             // villages now, among the bands it carries on with.)
             if (sim.groups.tuning.startSettled > 0f) sim.groups.startVillages()
             if (sim.groups.tuning.startHerders > 0f) sim.groups.startHerders()
+            // (And its bands take up the planning kind's mind as founders do, t.planners: [foundMinds].)
+            sim.groups.foundMinds()
         }
         // (A fresh world's weather is drawn afresh too, so its replicates are other weathers on the same land.)
         if (replicate != 0L) { sim.weather.reseed(replicate); println("weather drawn afresh: replicate $replicate") }

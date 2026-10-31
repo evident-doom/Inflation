@@ -100,7 +100,7 @@ class Species(
      */
     val youngMortality: Float = if (firstYearLost < 0f) backgroundMortality
         else backgroundMortality + (firstYearLost - backgroundMortality) / max(1f, yearsToMaturity),
-    /** Snow depth (mm water equivalent) it can dig through to grass no more: the grass it gets at falls evenly to none there ([grassUnderSnow]). */
+    /** Snow depth (mm water equivalent) it can dig through to grass and roots no more: what it gets at falls evenly to none there ([grassUnderSnow]). */
     val snowLimitMm: Float,
     /** Raw materials an adult yields (for people: hides, bone, sinew). */
     val products: Products,
@@ -161,6 +161,11 @@ class Species(
     val hibernates: Boolean = false,
     /** Breeds as a pack: one litter a year from the breeding pair, of this size in good condition. */
     val packLitter: Int = 0,
+    /**
+     * How many of a group's grown go about together, foraging, and so meet others and stand up to them ([HexGroups.strength]);
+     * 0 where all of them do. A kind that rests in pairs but forages alone has 1.
+     */
+    val foragingParty: Int = 0,
     /** Diamond's criteria, 0..1 each: diet breadth, growth, captive breeding, temperament, calm, hierarchy. */
     val domestication: FloatArray,
     /** People: they hunt and gather by skill learned in practice (see [AnimalGroup.craft]), cook, and remember. */

@@ -10,6 +10,7 @@ import inflation.ecology.HexSmallLife.DeadPool
 import inflation.Books
 import inflation.Kg
 import inflation.world.Weather
+import kotlin.math.roundToInt
 import kotlin.math.max
 import kotlin.math.min
 import java.util.Arrays
@@ -133,18 +134,18 @@ internal fun HexGroups.meet(weather: Weather) {
 
 /**
  * Two bands meet: they share news of good ground (each learns where the other did best this month),
- * and a band that is going hungry is given a share of the other's larder.
+ * and a band that is going hungry is given a share of the other's larder. [rite]: the gathering they meet at, if any ([gatherAtRite]).
  */
-internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather) {
+internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rite: RiteGathering? = null) {
     stats.meeting(Met.BANDS_MET)
     note(a) { "met band #%d (%d people; tie %.2f)".format(b.id, b.size, a.band?.tie(b.id) ?: 0f) }
     note(b) { "met band #%d (%d people; tie %.2f)".format(a.id, a.size, b.band?.tie(a.id) ?: 0f) }
-    if (meetingEndsInRaid(a, b, weather)) return
+    if (meetingEndsInRaid(a, b, weather, rite)) return
     val (poor, rich) = if (a.wellOff() < b.wellOff()) a to b else b to a
     // Bands that hold to sharing give more, and sooner.
     val sharing = rich.band?.holds(Tradition.SHARING) == true
     // (More to a band it is close to.)
-    val close = rich.band?.let { rb -> poor.band?.let { Regard(rb, poor.id, it).close } } ?: 0f
+    val close = rich.band?.let { rb -> poor.band?.let { Regard(rb, poor.id, it, map = hex).close } } ?: 0f
     if (poor.fed < (if (sharing) 0.9f else 0.8f) && rich.larder > 0f) {
         // (As much as the giver chooses to give.)
         // (Of the nine tenths of its larder it could spare: more of the same gives ever less of what is left.)
@@ -155,7 +156,7 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather) {
         val week = poor.dailyNeedKg * days
         val gift = given(rich, poor, chosen, (1f - poor.fed) * week + week)
         if (gift > 0f) {
-        moveFood(rich, poor, gift)
+        moveFood(rich, poor, gift, LarderMove.GIFT)
         poor.band?.befriend(rich.id, TIE_GIFT); rich.band?.befriend(poor.id, 0.5f * TIE_GIFT)
         helped(rich, poor, gift)
         stats.meeting(Met.FOOD_GIVEN)
@@ -166,7 +167,7 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather) {
     // Gifts: bands close to each other give each other ornaments, which travel on along the ties.
     for ((giver, taker) in listOf(a to b, b to a)) {
         val gb = giver.band ?: continue; val tb = taker.band ?: continue
-        if (Regard(gb, taker.id, tb).tie < FRIEND_TIE || gb.ornaments < 1f) continue
+        if (Regard(gb, taker.id, tb, map = hex).tie < FRIEND_TIE || gb.ornaments < 1f) continue
         val gift = min(1f, ORNAMENT_GIFT * gb.giveWill) * gb.ornaments
         dialUse?.amount(DialSite.GIVE_ORNAMENTS, gb.giveWill, gift, min(1f, ORNAMENT_GIFT) * gb.ornaments, cut = ORNAMENT_GIFT * gb.giveWill > 1f)
         if (gift <= 0f) continue
@@ -180,7 +181,7 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather) {
     // the giver's name goes about among the bands.
     for ((giver, taker) in listOf(a to b, b to a)) {
         val gb = giver.band ?: continue; val tb = taker.band ?: continue
-        if (Regard(gb, taker.id, tb).tie < FEUD_GIFT) continue
+        if (Regard(gb, taker.id, tb, map = hex).tie < FEUD_GIFT) continue
         var useful = 0f
         for (m in TRADED) {
             val need = YEAR_NEED[m]
@@ -225,10 +226,9 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather) {
         dialUse?.amount(DialSite.STORE_HOST, hb.storeShare, max(0f, spare), max(0f, host.larder - hb.storeAimAt1 * host.dailyNeedKg))
         if (spare <= 0f) continue
         val meal = min(spare, FEAST_KG * guest.size * keen)
-        moveFood(host, guest, meal)
+        moveFood(host, guest, meal, LarderMove.FEAST)
         // With grain to spare and vessels to brew in, the host pours beer: the feast is remembered better. It brews only grain
-        // beyond its seed corn and beyond what it means to keep laid by: a band does not drink the seed it sows. (Before, a
-        // fifth of all its grain at every feast, so a host at a gathering could brew away its seed in a week.)
+        // beyond its seed corn and beyond what it means to keep laid by: a band does not drink the seed it sows.
         val grain = host.stores[Store.SEED] - hb.seedCornIn(host)
         val beer = if (hb.has(Tool.BASKET) > 0.5f && hb.has(Tool.GRINDER) > 0.2f)
             max(0f, minOf(0.2f * grain, spare - meal, BEER_KG * guest.size)) else 0f
@@ -295,6 +295,8 @@ internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, b
         weak.meatMet -= taken; strong.meatMet += taken
         bookKill(strong, taken, 0f, 0f); bookKill(weak, -taken, 0f, 0f)
         stats.meeting(Met.KILL_STOLEN)
+        stats.meeting(Met.Of.KILLS_STOLEN_BY, strong.species.name); stats.meeting(Met.Of.KILLS_STOLEN_FROM, weak.species.name)
+        stats.meeting(Met.Of.KG_STOLEN_BY, strong.species.name, taken.roundToInt()); stats.meeting(Met.Of.KG_STOLEN_FROM, weak.species.name, taken.roundToInt())
     }
     // A camp fire, and dogs that bark at night, keep lions and hyenas from taking people.
     val fire = if (weak.species.human) (1f - CAMPFIRE) * (1f - DOG_GUARD * (weak.band?.dogShare ?: 0f)) else 1f
@@ -318,8 +320,8 @@ internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, b
     if (weak.band != null) stats.meeting(Met.Of.TURNED_BACK_BY, strong.species.name)
 }
 
-/** The strength of a usual band of resident [s], as [HexGroups.strength] reckons a pack's: its grown, their weight, their ferocity. */
-internal fun residentStrength(s: Species) = s.groupSize * s.massKg * s.ferocity
+/** The strength of a usual band of resident [s], as [HexGroups.strength] reckons a pack's: its grown that go about together, their weight, their ferocity. */
+internal fun residentStrength(s: Species) = (if (s.foragingParty > 0) minOf(s.foragingParty, s.groupSize) else s.groupSize) * s.massKg * s.ferocity
 
 /**
  * Packs that hold ground mark the hexes they worked this week within their territory; marks fade
@@ -398,7 +400,10 @@ internal fun HexGroups.settle(weather: Weather) {
         // (Whether it takes it is its choice: always at the hand-written way.)
         val w = g.will[AnimalWay.SETTLE]
         if (w < 1f && rnd.nextFloat() >= w) continue
-        if (scent.foreign(g.species, h, g.id) < MARK_FRESH && claimed.add(key)) claimGround(g, h)
+        if (scent.foreign(g.species, h, g.id) < MARK_FRESH && claimed.add(key)) {
+            claimGround(g, h)
+            stats.meeting(Met.Of.PACK_SETTLED, g.species.name)
+        }
     }
 }
 
