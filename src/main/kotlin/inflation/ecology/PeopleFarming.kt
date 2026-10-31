@@ -234,8 +234,7 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
         }
         // (Crowded with their kind on the ground they graze, wild ones there and all, they sicken as the residents do, and
         // an outbreak among their kind there takes them too: [HexFauna.hazards].)
-        val crowd = Hazards.crowding((n + y) / grazedKm2(p, s) + fauna.adults[k][p] + fauna.young[k][p], HexFauna.usualDensity(s))
-        val dying = (s.backgroundMortality + 0.5f * (1f - fed) + fighting(s)) * years + Hazards.crowdDisease(crowd, fed, years) +
+        val dying = (s.backgroundMortality + 0.5f * (1f - fed) + fighting(s) + herdSickness(p, k, n + y, fed)) * years +
             fauna.outbreakDeaths(s, p)
         // (The herded stray as wild as they are ([straying]); those nobody went out with this week graze by the camp, and the
         // wilder of them do not come home ([unherdedStrays]).)
@@ -260,7 +259,7 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
         val kg = (n + HexFauna.YOUNG_WEIGHT * y) * s.massKg
         tally(k, HerdFlow.KG, kg); tally(k, HerdFlow.KG_TENDED, kg * tended); tally(k, HerdFlow.KG_FED, kg * fed)
         // (For the census by kind: what it adds in a year, and what a herder's day of it brings against a lean month's foraging.)
-        tally(k, HerdFlow.INCREASE_KG, herdIncrease(b, k, fed) * kg)
+        tally(k, HerdFlow.INCREASE_KG, herdIncrease(b, k, fed, p) * kg)
         // Herders live on their herds' increase: the band eats what its herd adds in a year, week by week through the year
         // (its births come in one season, its losses all year), and keeps it, its females with it, where its leanest
         // month would still herd the herd grown ([room]; till it knows its months, where this week's spare days would). A herd whose increase brings a herder less than
@@ -365,7 +364,7 @@ internal fun GroupWorld.herdWorth(g: HexGroup, b: Band, k: Int): Float {
     val lean = b.forageReturn.filter { it >= 0f }.minOrNull()?.takeIf { it > 0f } ?: return Float.POSITIVE_INFINITY
     val s = fauna.kinds[k]; val tame = b.herds.herdTame[k]
     val mothers = herdMothers(s, tame)
-    val increase = herdIncrease(b, k)
+    val increase = herdIncrease(b, k, at = g.place)
     val heads = headsAHerder(s) * herdSkill(b)
     val day = heads * (increase * s.massKg * MEAT_SHARE * Nourishment.MEAT + mothers * tame * milkKg(s) * Nourishment.MILK) *
         g.species.needScale / Date.DAYS_PER_YEAR
@@ -383,7 +382,7 @@ internal fun GroupWorld.herdFoodWeek(g: HexGroup, b: Band, date: Date): Float {
         val n = b.herds.herd[k]
         if (n <= 0f) continue
         val s = fauna.kinds[k]; val tame = b.herds.herdTame[k]
-        if (!b.herds.herdGrew.getOrElse(k) { false }) food += n * max(0f, herdIncrease(b, k)) * years * s.massKg * MEAT_SHARE * Nourishment.MEAT
+        if (!b.herds.herdGrew.getOrElse(k) { false }) food += n * max(0f, herdIncrease(b, k, at = g.place)) * years * s.massKg * MEAT_SHARE * Nourishment.MEAT
         if (lactating(s, date)) food += n * herdMothers(s, tame) * tame * milkKg(s) * days / LACTATION_DAYS * Nourishment.MILK
     }
     return food * g.species.needScale
@@ -395,14 +394,28 @@ private fun lactating(s: Species, date: Date) =
 
 /**
  * The share [b]'s grown herd of kind [k] adds in a year as [keepHerds] has it, fed as far as [fed], once its young are of
- * every age: births by its tameness, as many as live to grow up, less the grown ones' deaths and those that run off. The
+ * every age: births by its tameness, as many as live to grow up, less the grown ones' deaths and those that run off, and, kept by a camp
+ * at [at], those the sickness of its crowding takes at its heads now ([herdSickness]). The
  * young die and run off at the grown ones' yearly rate and grow up at one over [Species.yearsToMaturity] a year, so
  * 1 / (1 + rate * years to maturity) of them grow up.
  */
-internal fun GroupWorld.herdIncrease(b: Band, k: Int, fed: Float = 1f): Float {
+internal fun GroupWorld.herdIncrease(b: Band, k: Int, fed: Float = 1f, at: Place? = null): Float {
     val s = fauna.kinds[k]; val tame = b.herds.herdTame[k]
-    val lost = s.backgroundMortality + 0.5f * (1f - fed) + fighting(s) + straying(s, tame) * b.lapse(Skill.TENDING)
+    val heads = b.herds.herd[k] + b.herds.youngHerd().getOrElse(k) { 0f }
+    val lost = s.backgroundMortality + 0.5f * (1f - fed) + fighting(s) + straying(s, tame) * b.lapse(Skill.TENDING) +
+        (at?.let { herdSickness(it, k, heads, fed) } ?: 0f)
     return herdMothers(s, tame) * s.youngPerFemale * fed / (1f + lost * s.yearsToMaturity) - lost
+}
+
+/**
+ * The yearly share of [heads] kept animals of kind [k], fed [fed], kept by a camp at [p], that the sickness of crowding
+ * takes: crowded with the residents of their kind on the ground they graze ([grazedKm2]), by the residents' rule
+ * ([Hazards.crowdDisease], [HexFauna.hazards]).
+ */
+internal fun GroupWorld.herdSickness(p: Place, k: Int, heads: Float, fed: Float): Float {
+    val s = fauna.kinds[k]
+    val crowd = Hazards.crowding(heads / grazedKm2(p, s) + fauna.adults[k][p] + fauna.young[k][p], HexFauna.usualDensity(s))
+    return Hazards.crowdDisease(crowd, fed, 1f)
 }
 
 /** Diamond's six criteria for a kind that can be kept, in the order of [Species.domestication]. */
