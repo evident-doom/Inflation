@@ -300,8 +300,8 @@ fun kinship(a: FloatArray, b: FloatArray): Float { var s = 0f; for (i in a.indic
  * began; otherwise their words as they stand), its tie to them, whether they are strangers, its grudge against their people,
  * how near kin they are and how far apart their customs, each read as it stands when asked. Everything between two bands
  * that turns on how one sees the other reads it from here: whether it comes to blows at a meeting, sets out to raid its home
- * or robs its cache, what it gives, how far it believes what it is told, whose meeting place it takes up, and whom it counts
- * as friend or foe about it.
+ * or robs its cache, what it gives, how far it believes what it is told, whom it takes partners from, whose meeting place it
+ * takes up, and whom it counts as friend or foe about it.
  */
 internal class Regard(private val of: Band, private val toId: Int, private val to: Band, private var heard: Float = -1f, private val map: HexMap? = null) {
     val understood: Float get() { if (heard < 0f) heard = Language.understanding(of.words, to.words); return heard }
@@ -342,6 +342,12 @@ internal class Regard(private val of: Band, private val toId: Int, private val t
     val wariness get() = fightChance(1f)
     /** How far [of] believes what [to] tells it of the places it remembers. */
     val trust get() = (0.5f + 0.5f * close) * understood
+    /**
+     * How readily [of] exchanges partners with [to], 0 to 1: as far as they understand each other and keep the same customs
+     * ([customsApart]). Most marriages fall within a people that speak one tongue and keep one way; some peoples marry out
+     * of their language on purpose (the Vaupés, parts of Arnhem Land), so this is an estimate, not a rule from the record.
+     */
+    val weds get() = understood * (1f - customsApart.toFloat() / CUSTOMS)
     /** The chance [of] takes up [to]'s meeting place over its own weaker one. */
     val takesUpPlace get() = understood * (0.3f + 0.7f * close)
 
@@ -443,9 +449,11 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
     passIllness(bandA, bandB)
     // Each tells the other of the country it knows round about, as far as they understand each other.
     if (rnd.nextFloat() < u * (0.6f + 0.4f * close)) tellOfCountry(a, bandA, b, bandB, ab, ba, weather)
-    // Partners: where either holds to marrying out, young adults change bands, both ways.
+    // Partners: where either holds to marrying out, young adults change bands, both ways, between bands that understand each
+    // other and keep the same ways the likelier.
     val marry = (if (bandA.holds(Tradition.EXOGAMY)) 0.5f else 0f) + (if (bandB.holds(Tradition.EXOGAMY)) 0.5f else 0f)
-    if (a.adults >= 2 && b.adults >= 2 && rnd.nextFloat() < MARRY * marry * (0.5f + close)) {
+    // (As far as each would take partners from the other: [Regard.weds], the less willing of the two.)
+    if (a.adults >= 2 && b.adults >= 2 && rnd.nextFloat() < MARRY * marry * (0.5f + close) * min(ab.weds, ba.weds)) {
         marryOut(a, bandA, b, bandB)
         bandA.befriend(b.id, TIE_MARRY); bandB.befriend(a.id, TIE_MARRY)
         stats.meeting(Met.BANDS_EXCHANGED_PARTNERS)

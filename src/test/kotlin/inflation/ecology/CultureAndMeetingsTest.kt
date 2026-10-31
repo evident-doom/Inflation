@@ -96,6 +96,10 @@ class CultureAndMeetingsTest {
         far.rite[7] = -1
         b.grudge[5] = FEUD + 0.1f
         assertTrue(Regard(b, 9, far).feud)
+        // (Partners: readily between bands that understand each other and keep one way, never between those who share no word.)
+        assertEquals(0.4f * (1f - 2f / CUSTOMS), r.weds, 1e-6f)
+        assertEquals(0f, Regard(b, 9, far, 0f).weds)
+        assertEquals(1f, Regard(b, 1, Band(0).also { c -> for (t in Tradition.entries) c.traditions[t] = b.holds(t); c.totem = b.totem }, 1f).weds, 1e-6f)
     }
 
     @Test
