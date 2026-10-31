@@ -87,8 +87,9 @@ internal fun HexGroups.planDays(g: HexGroup, b: Band, weather: Weather, time: Ba
  * - the stores ([Activity.FOOD] beyond the week's food): filling its larder to the stores it aims at ([Band.storeAimAt1]:
  *   its lean days foreseen and a margin), at [perDay] kg a day of work; by how often its larder runs out over years made of
  *   its own past weeks ([storesAlive]) once it has a year of them, by the year ahead before;
- * - houses ([Activity.HOUSES]), in days, not lives: the food a whole house saves a year ([houseFoodAYear]: what keeping
- *   warm no longer takes) over the years it and its heirs expect to keep the place ([keepYears]), as the days of foraging
+ * - houses ([Activity.HOUSES]), in days, not lives: the food a whole house saves a year (as the band lived its weeks,
+ *   [Band.houseFood]: keeping warm, stores kept from spoiling, less to raiders and mice; or at the place's usual cold,
+ *   [houseFoodAYear], if more) over the years it and its heirs expect to keep the place ([keepYears]), as the days of foraging
  *   it would take at [perDay], over a whole house's days ([HOUSE_DAYS] a person): given days when it saves more than it
  *   takes. (Over its usual stay a house was reckoned over a few months to a year: built for the next season, not for the
  *   next generation; Olli, 2026-10-31. In lives it was worth none: a fed band foresees no deaths, and the year's usual cold
@@ -125,7 +126,10 @@ private fun HexGroups.planRates(g: HexGroup, b: Band, weather: Weather, perDay: 
     }
     if (houses) {
         val years = keepYears(b, stepsPerYear)
-        val kg = houseFoodAYear(g, b, g.place, weather) * people * years
+        // (The food a whole house would have saved it a person a year as it lived its weeks ([Band.houseFood]: keeping warm,
+        // stores kept from spoiling, less to raiders and to mice), or at the place's usual cold if more ([houseFoodAYear]:
+        // a band new to a place has lived few weeks there).)
+        val kg = max(b.houseFood, houseFoodAYear(g, b, g.place, weather)) * people * years
         // (Tier 2 is weighed in days, not lives: a whole house's days against the days of foraging the food it saves over
         // the years kept would take, at this week's [perDay]. In lives a house was worth none: house trace, 2026-10-31.)
         val saved = if (perDay > 0f) kg / perDay else 0f
@@ -134,8 +138,8 @@ private fun HexGroups.planRates(g: HexGroup, b: Band, weather: Weather, perDay: 
         if (PLAN_TRACE && unitOf(mix64(g.id * HASH_A + weather.date.absoluteDay * HASH_B + PLAN_TRACE_SALT + 1)) < 0.02f &&
             houseTraced.incrementAndGet() <= PLAN_TRACE_MOST)
             System.err.println(("house trace: band %d, %s, %d people (%d grown), camp kept %d steps, at home %b, houses %.2f, reckoned kept %.2f y; " +
-                "a whole house a person a year: %.1f kg; over the years: %.0f kg, %.0f days of foraging at %.2f kg a person-day, against %.0f days to build: %.2f " +
-                "(given days at 1 or more)").format(g.id, weather.date, g.size, g.adults, b.campWeeks, b.atHome, b.house, years, kg / years / people,
+                "a whole house a person a year: %.1f kg (as lived %.1f, usual cold %.1f); over the years: %.0f kg, %.0f days of foraging at %.2f kg a person-day, against %.0f days to build: %.2f " +
+                "(given days at 1 or more)").format(g.id, weather.date, g.size, g.adults, b.campWeeks, b.atHome, b.house, years, kg / years / people, b.houseFood, houseFoodAYear(g, b, g.place, weather),
                 kg, saved, perDay, HOUSE_DAYS * g.adults.coerceAtLeast(1), rate[1]))
     }
     return rate
