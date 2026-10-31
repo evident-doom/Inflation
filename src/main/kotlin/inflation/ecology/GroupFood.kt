@@ -160,6 +160,8 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         val time = w.time
         var f = if (intake > 0f) min(1f, left / (w.workDays * intake)) else 0f
         if (time != null) f = min(f, time.leftFor(Activity.FOOD) / (w.hands * w.workDays).coerceAtLeast(1e-6f))
+        // (A beast's party keeps no plan of its days: each pass has only the days the passes before it left.)
+        else if (w.band == null) f = min(f, max(0f, w.workDays - w.busy) / w.workDays.coerceAtLeast(1e-6f))
         val busy0 = w.busy
         if (pass == 0) w.searched = f
         if (FORAGE_DIAG == w.s.name && diagSampled(g, weather, 0.002f, 1)) System.err.println(
