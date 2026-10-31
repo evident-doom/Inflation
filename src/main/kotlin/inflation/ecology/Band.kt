@@ -90,6 +90,15 @@ class Band(kinds: Int) {
     /** Whether it moved camp this week ([campAndCache]), for its record of weeks ([recordWeek]). */
     @Transient var movedCamp = false
     /**
+     * For the census around camp moves ([moveCensus]): its last [MOVE_WEEKS] weeks' share of the need it ate and its larder
+     * (days), a ring from [recentAt]; the weeks since its last move (-1 for none seen), and how fed it was in the weeks before it.
+     */
+    @Transient val recentFed = FloatArray(MOVE_WEEKS) { Float.NaN }
+    @Transient val recentLarder = FloatArray(MOVE_WEEKS) { Float.NaN }
+    @Transient var recentAt = 0
+    @Transient var sinceMove = -1
+    @Transient var fedBeforeMove = Float.NaN
+    /**
      * The share of its people a camp move would cost through the year ahead by the food it cannot carry ([leftBehindShare]:
      * cached or left at the old camp), as [foreseenSurvival] foresaw at the end of last week: alive with its larder, less alive
      * with what it carries. (A cache it may come back to is counted lost: whether it will is not foreseen.) Worked out with the
