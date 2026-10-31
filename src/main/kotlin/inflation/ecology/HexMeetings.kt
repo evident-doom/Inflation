@@ -231,17 +231,17 @@ private fun HexGroups.standInsMeetBook(strong: HexGroup, weak: HexGroup, si: Res
     stats.meeting(Met.SLIPPED_AWAY, m.slipped)
     stats.meeting(Met.HUNTERS_OF_OTHER_KINDS, m.stayed)
     val ws = weak.species; val mass = ws.massKg
-    if (m.youngKilled > 0) {
-        val kg = m.youngKilled * HexFauna.YOUNG_WEIGHT * mass
+    // (No more die than there are in the hex.)
+    val youngKilled = si.take(m.youngKilled, true); val grownKilled = si.take(m.grownKilled, false)
+    if (youngKilled > 0) {
+        val kg = youngKilled * HexFauna.YOUNG_WEIGHT * mass
         strong.meatMet += 0.5f * kg; small.deposit(DeadPool.CARRION, weak.place, Kg(0.5f * kg)); bookKill(strong, 0.5f * kg, kg, 0.5f * kg)
-        stats.deaths.merge(Tally.of(ws, ByBeast.of(ByBeast.How.YOUNG_KILLED_BY, strong.species)), m.youngKilled, Int::plus)
-        si.deadYoung += m.youngKilled
+        stats.deaths.merge(Tally.of(ws, ByBeast.of(ByBeast.How.YOUNG_KILLED_BY, strong.species)), youngKilled, Int::plus)
     }
-    if (m.grownKilled > 0) {
-        val kg = m.grownKilled * mass
+    if (grownKilled > 0) {
+        val kg = grownKilled * mass
         strong.meatMet += 0.5f * kg; small.deposit(DeadPool.CARRION, weak.place, Kg(0.5f * kg)); bookKill(strong, 0.5f * kg, kg, 0.5f * kg)
-        stats.deaths.merge(Tally.of(ws, ByBeast.of(ByBeast.How.KILLED_BY, strong.species)), m.grownKilled, Int::plus)
-        si.deadAdults += m.grownKilled
+        stats.deaths.merge(Tally.of(ws, ByBeast.of(ByBeast.How.KILLED_BY, strong.species)), grownKilled, Int::plus)
     }
 }
 

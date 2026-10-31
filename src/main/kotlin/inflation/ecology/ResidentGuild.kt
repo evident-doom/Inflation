@@ -18,8 +18,17 @@ import kotlin.math.roundToInt
  */
 internal class ResidentParties(private val gs: HexGroups) {
     /** One kind's stand-in at a place: a band of [adults] grown and [young] young, standing in for [bands] bands. */
-    inner class StandIn(val g: HexGroup, val k: Int, val adults: Int, val young: Int, val bands: Float) {
+    inner class StandIn(val g: HexGroup, val k: Int, val adults: Int, val young: Int, val bands: Float, grownHeads: Float, youngHeads: Float) {
         var deadAdults = 0; var deadYoung = 0
+        /** The kind's grown and young heads in the hex not yet killed at the meetings: no more can be ([take]). */
+        private var leftAdults = grownHeads; private var leftYoung = youngHeads
+        /** Of [n] grown (young if [young]) the meetings would kill, those there are left to kill; taken off what is left. */
+        fun take(n: Int, young: Boolean): Int {
+            val left = if (young) leftYoung else leftAdults
+            val k = minOf(n, kotlin.math.floor(left).toInt())
+            if (young) { leftYoung -= k; deadYoung += k } else { leftAdults -= k; deadAdults += k }
+            return k
+        }
         /** Before a meeting: the band whole again (each meeting is with a band of its own). */
         fun fresh() { g.adults = adults; g.young = young; g.meatMet = 0f }
         /** After it: what it lost, and what it took (eaten). */
@@ -56,7 +65,7 @@ internal class ResidentParties(private val gs: HexGroups) {
                 // (Its id is out of the groups' range, fixed by kind and hex: the meetings' order draws repeat run to run.)
                 val g = HexGroup(-1 - (k * gs.hex.size + h.i), s, Place(p), grown, little)
                 g.home = h; g.path = hexArray(1) { h }; g.days = FloatArray(1)
-                made[hi] = StandIn(g, k, grown, little, bands)
+                made[hi] = StandIn(g, k, grown, little, bands, a, y)
             }
             for (si in made) if (si != null) { standIns += si; parties += si.g }
         }
