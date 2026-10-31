@@ -449,11 +449,6 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     private fun bound(c: Int, k: FaunaKind, v: Float) = when (Carry.entries[c]) {
         Carry.BRED -> v.coerceIn(0f, 1f); Carry.FAT -> v.coerceIn(0f, kinds[k].maxFatDays); Carry.SPENT -> max(0f, v)
     }
-    /**
-     * [v], carried number [c] mixed by heads ([mixed], in [spillHunters] and [settle]): only the share is held in its bounds.
-     * (Fat and body burnt are not, unlike in [bound]: holding them changes the results, so that waits for its own A/B.)
-     */
-    private fun boundMixed(c: Int, v: Float) = if (Carry.entries[c] == Carry.BRED) v.coerceIn(0f, 1f) else v
     /** Life in the sea, lakes and rivers. */
     val water = HexWater(hw, land, days, small)
     /** Fruit and roots as stocks. */
@@ -1635,7 +1630,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         for (p in land.places) {
             // (Those that stayed are those there less those that left: the grown that came are all in moveA.)
             if (cameA[p] > 0f) { val stayed = max(0f, a[p] * land.areaKm2[p] + moveA[p] - cameA[p])
-                for (c in carry.indices) carry[c][p] = boundMixed(c, mixed(carry[c][p], stayed, came[c][p] / cameA[p], cameA[p])) }
+                for (c in carry.indices) carry[c][p] = bound(c, k, mixed(carry[c][p], stayed, came[c][p] / cameA[p], cameA[p])) }
             a[p] = max(0f, a[p] + moveA[p] / land.areaKm2[p]); y[p] = max(0f, y[p] + moveY[p] / land.areaKm2[p])
         }
         return drownedHeads
@@ -1647,7 +1642,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      */
     private fun settle(k: FaunaKind, to: Int, grown: Float, youngHeads: Float, from: Int) {
         val a = adults[k]; val area = land.areaKm2[to]; val carry = carried(k)
-        for (c in carry.indices) carry[c][to] = boundMixed(c, mixed(carry[c][to], a[to] * area, carry[c][from], grown))
+        for (c in carry.indices) carry[c][to] = bound(c, k, mixed(carry[c][to], a[to] * area, carry[c][from], grown))
         a[to] += grown / area; young[k][to] += youngHeads / area
     }
 
