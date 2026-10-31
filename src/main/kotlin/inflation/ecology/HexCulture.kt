@@ -641,8 +641,11 @@ internal fun HexGroups.visitKin(weather: Weather) {
     }
 }
 
-/** A band's year, a week at a time: inbreeding builds in a closed band, grudges fade, words drift, traditions are now and then taken up or dropped. */
-internal fun HexGroups.cultureWeek(g: HexGroup) {
+/**
+ * A band's year, a week at a time: inbreeding builds in a closed band, grudges fade, words drift, traditions are now and then taken up or dropped.
+ * Touches only the band's own state (and the week's tallies), so the bands' run side by side, each drawing from its own stream [rnd].
+ */
+internal fun HexGroups.cultureWeek(g: HexGroup, rnd: kotlin.random.Random) {
     val b = g.band ?: return
     // A home it knows of that it passed this week and found no house standing (its people dead, or
     // moved on) is forgotten: it is no longer ground to keep off, nor a place to raid.
