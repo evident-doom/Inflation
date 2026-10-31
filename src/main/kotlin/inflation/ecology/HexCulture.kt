@@ -306,7 +306,7 @@ fun kinship(a: FloatArray, b: FloatArray): Float { var s = 0f; for (i in a.indic
 internal class Regard(private val of: Band, private val toId: Int, private val to: Band, private var heard: Float = -1f, private val map: HexMap? = null) {
     val understood: Float get() { if (heard < 0f) heard = Language.understanding(of.words, to.words); return heard }
     val tie get() = of.tie(toId)
-    val close get() = max(0f, tie)
+    val close get() = closeOf(of, toId)
     /** Close enough to count as friends: given ornaments, its cache left alone. */
     val friend get() = tie > FRIEND_TIE
     /** Never met before. */
@@ -346,6 +346,11 @@ internal class Regard(private val of: Band, private val toId: Int, private val t
     val takesUpPlace get() = understood * (0.3f + 0.7f * close)
 
     companion object {
+        /**
+         * How close [of] is to the band of group [toId], as [close] reads it: for a choice that turns on a band it knows of
+         * only by its group (a home it was told of), whether or not that band is still about.
+         */
+        fun closeOf(of: Band, toId: Int) = max(0f, of.tie(toId))
         /** How close two bands are to each other, between them. */
         fun close(ab: Regard, ba: Regard) = max(0f, 0.5f * (ab.tie + ba.tie))
         /** The most [wariness] can be: strangers of wholly other customs, no kin, not understood at all. */
@@ -575,7 +580,8 @@ private fun GroupWorld.marryOut(a: HexGroup, bandA: Band, b: HexGroup, bandB: Ba
  * walk that has, and is fed there: foragers rarely starve while their neighbours eat, because food
  * is shared on demand and kin are visited in lean times (and the debt is remembered). The hungry
  * band goes where it can hope for most, a band that owes it favours before one that merely has food;
- * it eats what makes up its week, and takes some home; a band that holds to sharing gives more.
+ * it eats what makes up its week, and takes some home; a band that holds to sharing gives more, and a band gives more
+ * to one it is close to ([Regard.close]), as at a meeting.
  */
 internal fun HexGroups.visitKin(weather: Weather) {
     // (The hungry come in a drawn order, not by age in the list: the first take the most from the best-stocked.)
@@ -585,15 +591,18 @@ internal fun HexGroups.visitKin(weather: Weather) {
     val byHex = HashMap<Hex, ArrayList<HexGroup>>()
     for (g in groups) if (g.alive && g.band != null && g.larder > 0f) byHex.getOrPut(hw.placeHex[g.place]) { ArrayList() } += g
     for (g in hungry) {
+        val gb = g.band ?: continue
         // The best-stocked band within two hexes, the nearer the better.
         var best: HexGroup? = null; var bestScore = 0f
         val h0 = hw.placeHex[g.place]
         var ring = listOf(h0); val seen = hashSetOf(h0)
         for (r in 0..VISIT_RINGS) {
             for (h in ring) for (o in byHex[h].orEmpty()) if (o !== g) {
-                // (What it can hope for there: an ordinary share of the larder, or what the band owes it.)
+                // (What it can hope for there: an ordinary share of the larder, the more the closer the band holds it
+                // ([Regard.close], as at a meeting), or what the band owes it.)
                 val owed = min(0.9f * o.larder, o.band!!.owesTo(g.id) * FAVOUR_DAYS * g.dailyNeedKg)
-                val score = max(BAND_GIFT * o.larder, owed) / (1f + r)
+                val ob = o.band ?: continue
+                val score = max(BAND_GIFT * (1f + Regard(ob, g.id, gb, map = hex).close) * o.larder, owed) / (1f + r)
                 if (score > bestScore) {
                     bestScore = score
                     best = o
@@ -603,8 +612,10 @@ internal fun HexGroups.visitKin(weather: Weather) {
             ring = hex.nextRing(ring, seen)
         }
         val o = best ?: continue
-        // (How much the band visited gives is its choice; and it owes the favours it owes.)
-        val base = min(0.9f, BAND_GIFT * (if (o.band!!.holds(Tradition.SHARING)) 2f else 1f))
+        // (How much the band visited gives is its choice, more to a band it is close to, as at a meeting; and it owes the
+        // favours it owes.)
+        val close = o.band?.let { ob -> Regard(ob, g.id, gb, map = hex).close } ?: 0f
+        val base = min(0.9f, BAND_GIFT * (if (o.band!!.holds(Tradition.SHARING)) 2f else 1f) * (1f + close))
         val share = 0.9f * shareOfWill(o.band!!.giveWill, base / 0.9f)
         o.band?.let { ob -> dialUse?.amount(DialSite.GIVE_VISIT, ob.giveWill, share, base) }
         val week = g.dailyNeedKg * days
@@ -810,6 +821,13 @@ internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
 private fun HexGroups.gatherAtRite(g: HexGroup, site: Int, month: Long, weather: Weather) {
     riteGatherings.keys.removeIf { (it shr 32) < month - 1 }
     val here = riteGatherings.getOrPut((month shl 32) or site.toLong()) { ArrayList() }
+    // (A band with sickness among its people that keeps away from the sick keeps its own away too: it holds the rite where
+    // it is, as far as its will to shun the sick goes, and misses the gathering.)
+    val b = g.band
+    if (b != null && b.sick.sum() > SICK_SHOWS &&
+        drawn(DialSite.SHUN_SICK, b.will[BandWay.SHUNNING_THE_SICK], rnd.nextFloat(), b.shunSick) { 0.5f }) {
+        stats.meeting(Met.SICK_BANDS_KEPT_FROM_A_RITE); return
+    }
     val rite = RiteGathering(site, here)
     for (o in here) if (g.alive && o.alive && o !== g) {
         stats.meeting(Met.BANDS_GATHERED_AT_A_RITE)

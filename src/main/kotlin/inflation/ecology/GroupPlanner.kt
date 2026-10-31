@@ -195,9 +195,9 @@ internal class GroupPlanner(private val gs: HexGroups) {
         val goalHex = if (goal >= 0) gs.hw.placeHex[goal] else Hex.NONE
         val fromHere = if (goal >= 0) gs.hexKm(here, goalHex) else 0.0
         val pullKm = reach.toDouble().coerceAtLeast(gs.hex.hexKm)
-        // (A band keeps off the known homes of bands it is not close to: those hexes, once for the week.)
+        // (A band keeps off the known homes of bands it is not close to ([Regard.closeOf]): those hexes, once for the week.)
         // (And off the place raiders drove it from, while it fears them: [Band.keptFrom].)
-        val keepOff = g.band?.let { b -> (b.knownHomes.entries.filter { b.tie(it.key) <= 0f }.map { it.value } +
+        val keepOff = g.band?.let { b -> (b.knownHomes.entries.filter { Regard.closeOf(b, it.key) <= 0f }.map { it.value } +
             listOfNotNull(b.drivenFrom.takeIf { b.keptFrom(it) })).toHexArray() }
         // A band: how far it lacks each of the rarer materials, and the remembered place with the most of what it lacks.
         val lacked = g.band?.let { b -> FloatArray(PlaceMemory.RARE.size) { k -> gs.lacking(g, b, PlaceMemory.RARE[k]) } }
@@ -464,8 +464,9 @@ internal class GroupPlanner(private val gs: HexGroups) {
         if (gs.land.hydro.soil[p] < DRY_SOIL_MM) score += 0.3f * s.foresight * min(1f, weather.forecastRain(p.i) / RAIN_AHEAD_MM)
         if (parts != null) { parts[MoveTerm.FORECAST.ordinal] += score - last; last = score }
         // Water: a thirsty group heads for it; any group keeps within reach of it, the more so the more often it must drink.
-        // (People can dig for water in a dry bed where it lies near.)
-        score -= (0.02f + 0.3f * g.dry / s.daysWithoutWater) * t.waterKm / s.dailyTravelKm
+        // (People can dig for water in a dry bed where it lies near; the days their water takes them are in the place's food
+        // value already, [GroupWorld.campFactor].)
+        score -= ((if (s.human) 0f else 0.02f) + 0.3f * g.dry / s.daysWithoutWater) * t.waterKm / s.dailyTravelKm
         if (thirsty && !gs.canDrink(s, p)) score -= 1f
         if (weather.snowpack[p] > s.snowLimitMm) score -= 1f
         if (parts != null) { parts[MoveTerm.WATER.ordinal] += score - last; last = score }

@@ -65,7 +65,7 @@ class StocksTest {
             "HexHydrology.meanFlow", "HexHydrology.iceCapMm", "HexHydrology.soilCap", "HexHydrology.intake", "HexHydrology.aquiferCap", "HexHydrology.aquiferM",
             "HexHydrology.drain", "HexHydrology.lakeM2", "HexHydrology.lakeFull", "HexHydrology.lakeHold", "HexHydrology.usualGround",
             "HexDrinkingWater.nearRiver", "HexDrinkingWater.nearLake", "HexDrinkingWater.nearSpring", "HexDrinkingWater.waterKmMean",
-            "HexDrinkingWater.nearBed", "HexDrinkingWater.bedM2", "HexDrinkingWater.streamKm", "HexPlants.annualGdd", "HexPlants.warmth",
+            "HexDrinkingWater.nearBed", "HexDrinkingWater.bedM2", "HexDrinkingWater.streamKm", "HexDrinkingWater.riverKmLeast", "HexDrinkingWater.lakeKmLeast", "HexDrinkingWater.springKmLeast", "HexDrinkingWater.campKm", "HexPlants.annualGdd", "HexPlants.warmth",
             "HexPlants.fertility", "HexPlants.organicFertility", "HexPlants.warmest", "HexPlants.perennialShare", "HexFood.cerealGround", "HexFood.foodTrees",
             "HexFood.cereal", "HexSmallLife.eagleCrags", "HexSmallLife.rockKopje", "HexSmallLife.rockChukar", "HexSmallLife.rockHides", "HexSmallLife.wetland",
             "HexSmallLife.waterfowl", "HexSmallLife.meanTemp", "HexSmallLife.annualRain", "HexSmallLife.soilReach",

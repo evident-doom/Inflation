@@ -179,7 +179,18 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     w.time?.let { countFoodTime(w, it) }
     w.time?.let { restedDays(w, it) }
     w.time?.release(Activity.FOOD)
+    if (HUNT_DIAG && w.band == null) packWeekDiag(w)
     eatTheWeek(w)
+}
+
+/** Diagnostic (huntSteps): how a beast pack's week of foraging went, by the hunter ([HuntStep.PACK_WEEKS] and on). */
+private fun HexGroups.packWeekDiag(w: ForageWeek) {
+    val s = w.g.species
+    diag(s, HuntStep.PACK_WEEKS, 1f); diag(s, HuntStep.PACK_WORK_DAYS, w.workDays); diag(s, HuntStep.PACK_BUSY_DAYS, w.busy)
+    diag(s, HuntStep.PACK_EATING_DAYS, (w.meat - w.g.meatMet + w.killFat + w.smallGot + w.scraps) * w.eats)
+    if (w.wantAll > 0f) diag(s, HuntStep.PACK_FED, w.fed / w.wantAll)
+    if (w.fed >= w.aim - 0.01f * w.wantAll) diag(s, HuntStep.PACK_WEEKS_FULL, 1f)
+    else if (w.busy >= 0.95f * w.workDays) diag(s, HuntStep.PACK_WEEKS_OUT_OF_TIME, 1f)
 }
 
 /**
@@ -210,17 +221,12 @@ private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float,
     val g = w.g; val b = checkNotNull(w.band); val hands = w.hands
     // (Its work goes the slower, the colder and hungrier its people: see [Sisu].)
     val time = BandTime(days * hands.toFloat(), b.paces())
-    // (Digging soaks and drawing their water, see [HexDrinkingWater.mustDig], or drawing it from a well: counted with the food.)
-    val drink = land.drink; val fetch = w.s.dailyTravelKm
-    if (drink.mustDig(g.place, fetch)) {
-        w.digDays = HexDrinkingWater.DIG_SHARE * days * hands
-        time.spend(Activity.FOOD, w.digDays)
-    } else if (drink.drawsFromWell(g.place, fetch)) {
-        w.digDays = WELL_DRAW_SHARE * days * hands
-        time.spend(Activity.FOOD, w.digDays)
-    }
-    // (How often it has had water at home only from under the ground, for its wells: [Band.waterShort].)
-    if (b.atHome) b.waterShort += ((if (drink.underground(g.place, fetch)) 1f else 0f) - b.waterShort) * min(1f, years)
+    // (Its water: carried home, dug for in a soak or drawn from a well ([waterShare]); counted with the food.)
+    val fetch = w.s.dailyTravelKm; val tempC = w.weather.temperature[g.place]; val perHand = g.size.toFloat() / hands
+    w.digDays = waterShare(g.place, fetch, waterLitres(tempC), perHand) * days * hands
+    time.spend(Activity.FOOD, w.digDays)
+    // (What of its days a well at home would have spared it, for its wells: [Band.waterShort].)
+    if (b.atHome) b.waterShort += (wellSpares(g.place, fetch, tempC, perHand) - b.waterShort) * min(1f, years)
     // (Moving camp takes its days first: everyone walks, at the pace of the slowest, see [moveDays].)
     time.spend(Activity.MOVING, min(days.toFloat(), moveDays(g, max(0, g.path.size - 1) * hex.hexKm.toFloat())) * hands)
     // (Then the days that keep its people alive this week and through the year after, by its own foresight ([survivalDays]):

@@ -26,7 +26,12 @@ internal enum class HuntStep(val label: String) {
     KILLS_MADE("kills made"), KILLS_FOUND_BY_SCENT("kills found by scent"), KILLS_LOST_TO_SCENT("kills lost to scent"), KILL_KG("kill kg"), KILL_KG_LOST_TO_SCENT("kill kg lost to scent"),
     // (And per kill, summed: the days its carcass lies, the scavengers' finds a day there, and the party's heads; their means
     // are these over the kills found possible.)
-    KILL_LIE_DAYS("kill lie days"), SCENT_RATE("scent finds a day"), KILL_PARTY("kill party heads");
+    KILL_LIE_DAYS("kill lie days"), SCENT_RATE("scent finds a day"), KILL_PARTY("kill party heads"),
+    // (A beast pack's foraging week, by the hunter ([forage]): its weeks, the days it could work, the days its foods took
+    // and of them the days spent eating, its food got over what it wanted; and its weeks it ran out of days short of
+    // what it aimed for, against those it stopped because it was fed.)
+    PACK_WEEKS("pack weeks"), PACK_WORK_DAYS("pack work days"), PACK_BUSY_DAYS("pack busy days"), PACK_EATING_DAYS("pack eating days"),
+    PACK_FED("pack fed of want"), PACK_WEEKS_OUT_OF_TIME("pack weeks out of time"), PACK_WEEKS_FULL("pack weeks full");
 
     companion object {
         private const val PREFIX = "diag:"

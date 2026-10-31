@@ -102,11 +102,13 @@ class Tuning(
      */
     val breedSpacing = f("breedSpacing", 1.5f)
     /**
-     * Residents: weeks between their moves (up and down the slopes, and spilling to the hexes about), each move taking what
-     * that many weeks' would ([inflation.ecology.HexFauna.spill]). Every week: residents follow the seasons themselves,
-     * and a fortnight's wait is too coarse for that.
+     * Residents: weeks between their moves (up and down the slopes, and spilling to the hexes about): the plant-eaters
+     * flow a step each move, the hunters shift and spill what that many weeks' would ([inflation.ecology.HexFauna.spill]).
+     * Three: moving every week (in up to nine passes) cost a quarter of the week's time. Against that, moving every three
+     * weeks in one step costs a seventh as much; the residents follow the seasons up and down the slopes about half as far
+     * (red deer 32 m against 58 m), and after three years elk, red and roe deer are 5-15% more and wild boar 2-5% fewer.
      */
-    val residentMoveWeeks = i("residentMoveWeeks", 1).also { require(it >= 1) { "t.residentMoveWeeks is $it: residents move at most every week" } }
+    val residentMoveWeeks = i("residentMoveWeeks", 3).also { require(it >= 1) { "t.residentMoveWeeks is $it: residents move at most every week" } }
     /**
      * Residents: the share of its usual numbers below which a kind's animals at a place are too thin to keep apart; they
      * gather into the neighbouring place where most of their thinly spread kind are ([inflation.ecology.HexFauna.gatherThin]).
