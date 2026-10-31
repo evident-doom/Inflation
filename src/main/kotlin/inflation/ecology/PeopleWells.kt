@@ -3,6 +3,7 @@ package inflation.ecology
 import inflation.world.Hex
 import inflation.world.HexDrinkingWater
 import inflation.world.Place
+import inflation.world.get
 import kotlin.math.min
 
 // Bands' water: carried home from the river, lake or spring, dug for in a soak, or drawn from a well.
