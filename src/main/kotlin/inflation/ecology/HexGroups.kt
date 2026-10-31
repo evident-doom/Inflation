@@ -371,7 +371,7 @@ class HexGroups(
             val g = groups[k]
             if (!g.alive) return@forEach
             // (With profile=fine, the choosing is timed by packs and bands apart.)
-            val plan = Profile.part(if (g.band != null) "choosing: bands" else "choosing: packs") { planner.plan(g, weather, date, predatorKg) }
+            val plan = Profile.part(if (g.band != null) "choosing: bands" else Profile.byKind("choosing: packs", g.species.name)) { planner.plan(g, weather, date, predatorKg) }
             choice[k] = plan.place.i; paths[k] = plan.path
             times[k] = Profile.part("choosing: timetable") { timetable(g.species, plan.path) }
         }
