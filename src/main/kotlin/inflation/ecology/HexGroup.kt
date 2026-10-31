@@ -32,6 +32,14 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
     @Transient var meatSpent = true
     /** For a hunter: the hex at the heart of the ground it holds, -1 while it holds none. */
     var home = Hex.NONE
+    /**
+     * A pack's last plan ([GroupPlanner.plan]): the day it made it (0 for none, as after loading), its month, whether it had
+     * young in the den then, and what its place was worth to it ([GroupPlanner.placeValue]).
+     */
+    @Transient var plannedOn = 0L
+    @Transient var plannedMonth = -1
+    @Transient var plannedDenning = false
+    @Transient var plannedValue = 0f
     /** Days since it last drank. */
     var dry = 0f
     /** Weeks in a row it has gone hungry (fed under half); the last hexes it hunted in, newest first. */

@@ -168,6 +168,8 @@ internal const val SEASON_PULL = 1.0f
 val PLAN_DIAG: String? = Config.string(Config.Key.PLAN_DIAG)
 /** Strength of the pull to better country beyond which a group treks rather than drifts. */
 internal const val ASTRAY = 0.5f
+/** Weeks a content pack keeps its place before it weighs the others again ([GroupPlanner.keepsGround]). */
+internal const val PACK_REPLAN_WEEKS = 3
 /** How far a band's inherited seasonal places may lie from where it starts, km. */
 internal const val SEASON_RANGE_KM = 200.0
 /**

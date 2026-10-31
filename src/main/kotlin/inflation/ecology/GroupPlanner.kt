@@ -70,15 +70,43 @@ internal class GroupPlanner(private val gs: HexGroups) {
     class Plan(val place: Place, val path: HexArray) { operator fun component1() = place; operator fun component2() = path }
 
     /**
+     * Whether pack [g] keeps its place this week without weighing others: it plans afresh when hungry, homeless,
+     * thirsty or astray (restless, see [restless]), when its young come to or leave the den, in a new month, once its
+     * last plan is [PACK_REPLAN_WEEKS] old, and when what its place is worth to it has fallen below half of what it was
+     * when it planned. (Content packs stay put more than nine weeks in ten whatever they weigh: m5-1, 2026-10-31.) A
+     * pack that plans notes it ([HexGroup.plannedOn], in [plan]).
+     */
+    private fun keepsGround(g: HexGroup, date: Date): Boolean {
+        val s = g.species
+        if (s.lifeway != Lifeway.PACK) return false
+        val here = gs.hw.placeHex[g.place]
+        val denning = denning(g, date); val value = placeValue[gs.kindSlot[s.index]][g.place]
+        return g.plannedOn > 0L && date.absoluteDay - g.plannedOn < PACK_REPLAN_WEEKS * gs.days && g.plannedMonth == date.month &&
+            g.plannedDenning == denning && value >= 0.5f * g.plannedValue &&
+            g.fed >= Thresholds.HUNGRY && !g.home.none && g.dry <= 0.5f * s.daysWithoutWater &&
+            gs.bearings.strength(gs.kindSlot[s.index], here) <= ASTRAY
+    }
+
+    /**
      * Where [g] goes this week: the reachable place it likes best, and the hexes it passes on the way.
      * Reach is a few hexes when content; a forced march when hungry, cold, or heading for its season's
      * place. Hunters keep to their ground unless starving.
      */
     internal fun plan(g: HexGroup, weather: Weather, date: Date, predatorKg: FloatArray): Plan {
+        // (A content pack holding its ground keeps it: see [keepsGround].)
+        if (keepsGround(g, date)) { g.drawn = false; val here = gs.hw.placeHex[g.place]; return Plan(g.place, hexArray(1) { here }) }
         var pt = Profile.mark()
         val r = planInner(g, weather, date, predatorKg) { name -> pt = Profile.lap(name, pt) }
         Profile.lap("choosing: route", pt)
+        if (g.species.lifeway == Lifeway.PACK) { g.plannedOn = date.absoluteDay.coerceAtLeast(1L); g.plannedMonth = date.month
+            g.plannedDenning = denning(g, date); g.plannedValue = placeValue[gs.kindSlot[g.species.index]][r.place] }
         return r
+    }
+
+    /** Whether pack [g] has young in the den ([inflation.Tuning.denMonths]), as [planInner] reckons it. */
+    private fun denning(g: HexGroup, date: Date): Boolean {
+        val month = wrapMonth(date.month + if (date.dayOfMonth > Date.DAYS_PER_MONTH / 2) 1 else 0)
+        return !g.home.none && g.young > 0 && monthsFrom(g.birthMonth, month) < gs.tuning.denMonths
     }
 
     /**
