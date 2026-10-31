@@ -345,8 +345,9 @@ internal class GroupPlanner(private val gs: HexGroups) {
      *   animals would go short of there ([herdLoss]), and at the hex it sowed what it would reap ([cropPull]); in the first
      *   week less the days the walk there takes beyond those it has to spare ([moveDays]); from its larder if it stays, else
      *   from what it carries ([foodCarried]);
-     * - of everything else this week's odds there ([deathsAt], hunger left out), for the weeks it expects to stay
-     *   ([Band.stayWeeks], at most [PLAN_CAMP_WEEKS]), and the crossing's ([crossingDeaths]).
+     * - of everything else this week's odds there ([deathsAt], hunger left out), over the same [PLAN_CAMP_WEEKS] wherever it
+     *   camps, and the crossing's ([crossingDeaths]). (Counted over its expected stay for a move and the whole span for
+     *   staying, they weighed a camp kept, whose fouling and sickness grow, against one left after a few weeks: ab-camp2.)
      * No pulls beside (season's place, bearing, temper, the flat stay, the explore draw, the network): of equals it stays.
      * Its forecast of the food there, and where it came from, are kept for the census ([Band.campForeseen], [Band.campFrom]).
      * (Its remembered [PlaceMemory.fed], which its larder and fat fill out, foresaw a camp's food a fifth too high, and it
@@ -363,7 +364,6 @@ internal class GroupPlanner(private val gs: HexGroups) {
         val stayGot = b.gotSinceMove(c.date, days)
         val spare = b.spareDays / forageHands(g)
         val season = PlaceMemory.seasonOf(c.month)
-        val stayFor = min(PLAN_CAMP_WEEKS.toFloat(), b.stayWeeks)
         val mem = g.memory
         val kinHere = kinAround(g, c.kind, here, c.sensed)
         val estHere = estimate(c, b, g.place, here, kinHere, gs.crowdedBy(s, kinHere))
@@ -391,7 +391,7 @@ internal class GroupPlanner(private val gs: HexGroups) {
                 }
                 val got = food + (cropPull(g, b, h) - herdLoss(g, b, p)) * g.warmth
                 val alive = campAlive(s, days, PLAN_CAMP_WEEKS, got, warm, if (moves) carried else larder, g.fat, g.spent, first)
-                val dying = (1f - alive) + (if (moves) stayFor else PLAN_CAMP_WEEKS.toFloat()) * deathsAt(c, p, h, 1f, d) + crossing
+                val dying = (1f - alive) + PLAN_CAMP_WEEKS * deathsAt(c, p, h, 1f, d) + crossing
                 if (!dying.isFinite()) continue
                 if (dying < bestDying || (dying == bestDying && p == g.place)) { bestDying = dying; best = p; bestGot = got; bestFrom = from }
             }
