@@ -18,6 +18,7 @@ import inflation.ecology.homesApart
 import inflation.ecology.Regard
 import inflation.ecology.PlaceMemory
 import inflation.ecology.FRIEND_TIE
+import inflation.ecology.CampForecast
 import inflation.ecology.Mind
 import inflation.ecology.PlanTier
 import inflation.ecology.ForeseenBin
@@ -452,13 +453,17 @@ class Census(private val sim: HexSim) {
                 "%+d %.2f/%.1f".format(o, v(o, Tally.AroundMove.FED) / 1000 / n, v(o, Tally.AroundMove.LARDER) / 10 / n)
             } + " (moves %.0f)".format(v(0, Tally.AroundMove.WEEKS))
         })
-        println("bands' camps, last year (by mind: camp moves and km moved a band a year; for the camps a planning band chose by the fewest deaths foreseen, the food a week it foresaw there against what it got, shares of its need before keeping warm, and the band-weeks so chosen): " + Mind.entries.joinToString("; ") { m ->
-            fun v(w: Tally.Bands) = (lastYear[Tally.bandsMind(m, w)] ?: 0).toDouble()
-            val bandYears = (v(Tally.Bands.BAND_WEEKS) / stepsPerYear).coerceAtLeast(1e-9)
-            val chosen = v(Tally.Bands.CAMP_WEEKS)
-            "%s %.1f moves, %.0f km".format(m.label, v(Tally.Bands.MOVES) / bandYears, v(Tally.Bands.MOVED_KM) / bandYears) +
-                (if (chosen > 0.0) ", foreseen %.2f got %.2f (%.0f)".format(v(Tally.Bands.CAMP_FORESEEN) / 1000 / chosen, v(Tally.Bands.CAMP_GOT) / 1000 / chosen, chosen) else "")
-        })
+        println("bands' camps, last year (by mind: camp moves and km moved a band a year; then for the camps planning bands chose by the fewest deaths foreseen, by where the forecast of the chosen camp's food came from: its own camp's record, its memory of the place, or an estimate against its camp's: the food a week foreseen there against what was got, shares of the need before keeping warm, the band-weeks so chosen and the share of them that were moves): " +
+            Mind.entries.joinToString("; ") { m ->
+                fun v(w: Tally.Bands) = (lastYear[Tally.bandsMind(m, w)] ?: 0).toDouble()
+                val bandYears = (v(Tally.Bands.BAND_WEEKS) / stepsPerYear).coerceAtLeast(1e-9)
+                "%s %.1f moves, %.0f km".format(m.label, v(Tally.Bands.MOVES) / bandYears, v(Tally.Bands.MOVED_KM) / bandYears)
+            } + "; planning camps: " + CampForecast.entries.joinToString(", ") { f ->
+                fun v(w: Tally.Bands) = (lastYear[Tally.campFrom(f, w)] ?: 0).toDouble()
+                val n = v(Tally.Bands.CAMP_WEEKS).coerceAtLeast(1.0)
+                "%s foreseen %.2f got %.2f (%.0f, moves %.0f%%)".format(f.label, v(Tally.Bands.CAMP_FORESEEN) / 1000 / n, v(Tally.Bands.CAMP_GOT) / 1000 / n,
+                    v(Tally.Bands.CAMP_WEEKS), 100 * v(Tally.Bands.MOVES) / n)
+            })
         run {
             // A planning band's days beyond its essentials, by tier ([planDays]).
             val pw = (lastYear[Tally.bandsMind(Mind.PLANS, Tally.Bands.PEOPLE_WEEKS)] ?: 0).toDouble()

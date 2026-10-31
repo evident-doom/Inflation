@@ -110,6 +110,8 @@ class Band(kinds: Int) {
      * it ([weekSupply]); NaN where it did not choose so. Set against what it got, for the census ([foresee]).
      */
     @Transient var campForeseen = Float.NaN
+    /** Where [campForeseen] came from. */
+    @Transient var campFrom = CampForecast.OWN_CAMP
     /** forecastTrace=true: its year ahead as foreseen, and what came, while it is followed ([traceForecast]); whether it has been. */
     @Transient internal var forecastTrace: ForecastTrace? = null
     @Transient var forecastTraced = false

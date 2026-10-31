@@ -16,6 +16,12 @@ class PlaceMemory {
     val hex = HexArray(MEMORY_SLOTS)
     val season = IntArray(MEMORY_SLOTS)
     val fed = FloatArray(MEMORY_SLOTS)
+    /**
+     * A band's food got a week there as its own record counts it ([Band.weekSupply]: a share of its need before keeping warm,
+     * net of its larder), from its own visits only ([noteGot]); NaN where it has none. What a planning band reckons a camp
+     * by ([GroupPlanner.planCamp]); [fed], which its larder and fat fill out, is no measure of the place's food.
+     */
+    val got = FloatArray(MEMORY_SLOTS) { Float.NaN }
     val water = FloatArray(MEMORY_SLOTS)
     val danger = FloatArray(MEMORY_SLOTS)
     val lastWeek = IntArray(MEMORY_SLOTS)
@@ -66,13 +72,23 @@ class PlaceMemory {
             val keep = fed[k] - danger[k] - (week - lastWeek[k]) / perYear + dead[k] + 0.2f * met[k]
             if (keep < worst) { worst = keep; i = k }
         }
-        hex[i] = h; season[i] = s; fed[i] = fedNow * (if (ownVisit) 1f else trust); water[i] = waterNow; danger[i] = dangerNow; dead[i] = 0f; met[i] = 0f
+        hex[i] = h; season[i] = s; fed[i] = fedNow * (if (ownVisit) 1f else trust); water[i] = waterNow; danger[i] = dangerNow; dead[i] = 0f; met[i] = 0f; got[i] = Float.NaN
         if (finds != null) finds.copyInto(found, i * RARE.size, findsAt, findsAt + RARE.size) else found.fill(0f, i * RARE.size, (i + 1) * RARE.size)
         lastWeek[i] = if (ownVisit) week else week - (perYear / 2f).toInt(); own[i] = ownVisit
     }
 
+    /**
+     * Blends [gotNow], this week's food got at hex [h] in season [s] ([got]), into its own memory of the place, as [record]
+     * blends what it ate; nothing where it keeps no memory of its own there.
+     */
+    fun noteGot(h: Hex, s: Int, gotNow: Float) {
+        val i = find(h, s)
+        if (i < 0 || !own[i] || gotNow.isNaN()) return
+        got[i] = if (got[i].isNaN()) gotNow else got[i] + 0.5f * (gotNow - got[i])
+    }
+
     fun copyInto(o: PlaceMemory) {
-        hex.copyInto(o.hex); season.copyInto(o.season); fed.copyInto(o.fed); water.copyInto(o.water)
+        hex.copyInto(o.hex); season.copyInto(o.season); fed.copyInto(o.fed); got.copyInto(o.got); water.copyInto(o.water)
         danger.copyInto(o.danger); lastWeek.copyInto(o.lastWeek); own.copyInto(o.own); dead.copyInto(o.dead); met.copyInto(o.met)
         found.copyInto(o.found)
     }
