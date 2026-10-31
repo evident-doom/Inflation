@@ -80,6 +80,9 @@ class Bands internal constructor(private val world: GroupWorld) {
     /** Each hex's midden, 0..1: refuse kept in one place by bands that keep their camp clean, for any band camped there to use. */
     val midden = FloatArray(world.hex.size)
 
+    /** The tallies every band books in its week, put in the week's ledger once the bands' weeks are done ([BandTallies]). Not saved. */
+    @Transient internal val tallies = BandTallies()
+
     /** (The [built] by hex, as the list last stood: see [structuresAt].) */
     @Volatile @Transient internal var builtByHex: StructureIndex? = null
 

@@ -50,6 +50,8 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
     // (A readier band plots on less hunger: each step of readiness closes the same share of what is left of the gap to fed.)
     val hungry = g.fed < shareOfWill(b.raidWill, RAID_HUNGER)
     dialUse?.choice(DialSite.RAIDS_HUNGER, b.raidWill, hungry, g.fed < RAID_HUNGER)
+    // (A band neither hungry nor holding a grudge to a feud looks at no home: nothing to plot.)
+    if (!hungry && b.grudge.none { it > FEUD }) return
     val within = ArrayList<Int>()
     for ((id, h) in b.knownHomes) {
         val feud = (b.knownLineage[id] ?: -1).let { it >= 0 && b.grudge[it] > FEUD }
