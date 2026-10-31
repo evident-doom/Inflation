@@ -306,14 +306,18 @@ internal class HerdForage(val need: Float, val grass: Float, val browse: Float) 
 
 /**
  * The forage [n] kept animals of kind [s] find round a camp at [p] in a week: their week's intake ([Species.dailyIntakeKg]),
- * grass and browse in their diet's shares, as far as the place has them (grass to a tenth of the palatable herbage a week).
- * The same reckoning feeds them ([keepHerds]) and weighs a camp for them ([HexGroups.herdLoss]).
+ * grass and browse in their diet's shares, as far as the ground they graze from the camp has them (grass to a tenth of the
+ * palatable herbage a week). That ground is the circle half their day's going across (out and back, as [HexFauna] spreads a
+ * band of its residents), no more than the place: a herd kept by a camp grazes round it, not the whole place. In kg/m² of
+ * the place. The same reckoning feeds them ([keepHerds]) and weighs a camp for them ([HexGroups.herdLoss]).
  */
 internal fun GroupWorld.herdForage(p: Place, s: Species, n: Float): HerdForage {
     val need = land.spread(p, Kg(n * s.dailyIntakeKg * days)).v
     val d = s.diet; val total = (d.grass + d.browse).coerceAtLeast(1e-6f)
-    return HerdForage(need, min(need * d.grass / total, land.palatable[p] * land.plants.herb[p] * 0.1f),
-        min(need * d.browse / total, land.plants.browse(p)))
+    val r = 0.5f * s.dailyTravelKm
+    val grazed = min(1f, Math.PI.toFloat() * r * r / land.areaKm2[p])
+    return HerdForage(need, min(need * d.grass / total, grazed * land.palatable[p] * land.plants.herb[p] * 0.1f),
+        min(need * d.browse / total, grazed * land.plants.browse(p)))
 }
 
 /** The share of the week [time] its band spent walking to a new camp. */

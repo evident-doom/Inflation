@@ -35,5 +35,7 @@ abstract only); such a herd as tame as one at world start (0.8) loses 4% of its 
 herded part strays as before ([straying]): a herder cannot hold a kind that panics. No record gives how half-tame herds come
 home; the weekly scale is an estimate. Field herders walk with the herd all day, 4.5-19 km (Zampaligré and Schlecht 2012,
 Burkina Faso; Coppock 1988, Kenya; Schlecht 2006, Niger), which at 10 km hexes is about the camp's own place, where the
-herd already grazes: herder days buy no extra reach in this model. Design and sources:
+herd grazed: herder days buy no extra reach in this model. A kept herd grazes the circle half its day's going across round
+the camp ([herdForage], as [HexFauna] spreads a band of residents), no more than the place; before, it grazed the whole
+place, about 87 km² a hex, so forage never bound a kept herd (fed 0.96-0.98 in the herd drift A/B). Design and sources:
 https://claude.ai/artifact/FHCFHVZDKNusAE6nUDBtA9
