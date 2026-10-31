@@ -36,10 +36,10 @@ fun HexGroup.violations(): List<String> {
     check("lineage ${b.lineage.toList()}", b.lineage.allIn(0f, Float.MAX_VALUE))
     check("inbred ${b.inbred}", b.inbred.isFinite() && b.inbred in 0f..1f)
     check("hold on its rites ${b.riteStrength}", b.riteStrength.isFinite() && b.riteStrength >= 0f)
-    check("herd ${b.herd.toList()}", b.herd.allIn(0f, Float.MAX_VALUE))
-    check("young in the herd ${b.herdYoung.toList()}", b.herdYoung.allIn(0f, Float.MAX_VALUE))
-    check("herd of ${b.herd.size} kinds, tameness of ${b.herdTame.size}", b.herd.size == b.herdTame.size)
-    check("tameness ${b.herdTame.toList()}", b.herdTame.allIn(0f, 1.0001f))
+    check("herd ${b.herds.herd.toList()}", b.herds.herd.allIn(0f, Float.MAX_VALUE))
+    check("young in the herd ${b.herds.herdYoung.toList()}", b.herds.herdYoung.allIn(0f, Float.MAX_VALUE))
+    check("herd of ${b.herds.herd.size} kinds, tameness of ${b.herds.herdTame.size}", b.herds.herd.size == b.herds.herdTame.size)
+    check("tameness ${b.herds.herdTame.toList()}", b.herds.herdTame.allIn(0f, 1.0001f))
     b.appointment?.let { check("appointment at ${it.hex} in month ${it.month}", !it.hex.none && it.month in 0..11) }
     b.raid?.let { check("raid on band ${it.on} at ${it.hex} for ${it.weeks} weeks", !it.hex.none && it.on >= 0 && it.weeks > 0) }
     b.unlucky?.let { check("unlucky ${it.hex} for ${it.weeks} weeks", !it.hex.none && it.weeks > 0) }

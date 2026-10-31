@@ -167,7 +167,7 @@ internal fun GroupWorld.wearAndInvent(b: Band, years: Float) {
     // (Salting is hit on only with salt to hand; wells only by a band that has had to dig for its water at home.)
     for (s in Skill.entries) if (!b.knowsSkill[s] && (!s.settled || b.atHome) && (s != Skill.SALTING || b.goods[Material.SALT] > 0f) &&
         (s != Skill.WELLS || b.waterShort > 0f) &&
-        (s != Skill.TENDING || b.keepsAnimals()) &&
+        (s != Skill.TENDING || b.herds.keepsAnimals()) &&
         s.needs.let { it == null || (b.knowsSkill[it] && b.skills[it] >= NEEDS_LEVEL) } &&
         rnd.nextFloat() < s.invent * INVENT * b.edge(Skill.TINKER) * years * (0.5f + b.skill(s.domain))) {
         b.knowsSkill[s] = true

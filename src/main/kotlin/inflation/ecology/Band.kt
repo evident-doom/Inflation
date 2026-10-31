@@ -24,6 +24,7 @@ import kotlin.random.Random
 import inflation.wrapMonth
 import inflation.monthsFrom
 import inflation.Config
+import inflation.store.MovedInto
 
 import inflation.world.Date
 import inflation.world.LifeForm
@@ -311,37 +312,8 @@ class Band(kinds: Int) {
         ornaments -= n; exotic -= shell
         return shell
     }
-    /**
-     * Animals it keeps by its camp, by kind of the residents ([HexFauna.kinds] index): young
-     * taken in the hunt and raised, and their offspring; and how tame each kind has grown under it
-     * (the docile breed and stay, the wild ones run off), 0..1.
-     */
-    val herd = FloatArray(kinds)
-    val herdTame = FloatArray(kinds)
-    /**
-     * Of each kind, whether its herd kept its increase to grow at its last week's keeping ([keepHerds]), and so fed the band
-     * only its milk. (Empty in a band loaded from a save made before it; [keepHerds] sizes it to [herd].)
-     */
-    var herdGrew = BooleanArray(kinds)
-    /**
-     * Of each kind, the years left of the time its herd, begun from young caught in the hunt, is kept as pets: small animals
-     * kept for their own sake, as companions, and not yet weighed as food ([keepHerds]) till the young it was begun with have
-     * grown, or sooner for a kind of bad temper ([petYears]). 0 for a herd kept for food. (Empty in a band loaded from a save made before it;
-     * [keepHerds] sizes it to [herd].)
-     */
-    var herdPet = FloatArray(kinds)
-    /**
-     * Of each kind, its kept young not yet grown, born in its herd or caught in the hunt: each weighs [HexFauna.YOUNG_WEIGHT]
-     * of a grown one, eats about half as much, and grows up over its kind's years to maturity, as the residents' young do
-     * ([keepHerds]). [herd] holds the grown. (Empty in a band loaded from a save made before it; [youngHerd] sizes it.)
-     */
-    var herdYoung = FloatArray(kinds)
-    /** [herdYoung], sized to [herd]. */
-    fun youngHerd(): FloatArray { if (herdYoung.size != herd.size) herdYoung = FloatArray(herd.size); return herdYoung }
-    /** Whether it keeps any animals, grown or young. */
-    fun keepsAnimals() = herd.any { it > 0f } || herdYoung.any { it > 0f }
-    /** Of each kind, the heads beasts of prey took from its herd since it last kept it ([raidHerd], [keepHerds]). */
-    var herdTaken = FloatArray(kinds)
+    /** The herd it keeps ([ContractKind.HERDING]; saves from before it was split out kept its fields on the band). */
+    @field:MovedInto("herd", "herdTame", "herdGrew", "herdPet", "herdYoung", "herdTaken") val herds = Herd(kinds)
     /**
      * Of the grain in its stores, what it reaped from sown fields and keeps to sow first, its seed corn (as its stores count
      * it; eaten last, so no more than its grain: [seedCornIn]), and the share of that from ears that hold their grain;
@@ -592,8 +564,8 @@ class Band(kinds: Int) {
      * comes at a fairly steady age, not at random.
      */
     val ageStage = IntArray(2)
-    /** Animals it keeps, by kind ([Species.index]): wolf pups taken from bold packs become dogs. */
-    val kept = FloatArray(Catalogue.all.size)
+    /** The dogs it keeps ([ContractKind.COMPANION]; saves from before they were split out kept their fields on the band). */
+    @field:MovedInto("kept", "dogShare") val dogs = Dogs(Catalogue.all.size)
     /** The country it knows, a bit for each hex: walked, seen from where it walked, or told of by bands it understands. */
     var known = LongArray(0)
 
@@ -693,7 +665,7 @@ class Band(kinds: Int) {
 
     fun splitInto(o: Band, adults: Int, stay: Int, share: Float, r: Random, copied: (Band) -> Unit) {
         o.ties.clear(); o.ties.putAll(ties); o.appointment = appointment
-        o.houseHex = houseHex; o.house = house; o.drivenFrom = drivenFrom; o.drivenBy = drivenBy; o.homeEarth = homeEarth; o.homeWalls = homeWalls; o.homeGroundC = homeGroundC; o.palisade = palisade; herdTame.copyInto(o.herdTame); herd.copyInto(o.herd); herdGrew.copyInto(o.herdGrew); herdPet.copyInto(o.herdPet)
+        o.houseHex = houseHex; o.house = house; o.drivenFrom = drivenFrom; o.drivenBy = drivenBy; o.homeEarth = homeEarth; o.homeWalls = homeWalls; o.homeGroundC = homeGroundC; o.palisade = palisade
         o.houseLives = houseLives; o.houseFood = houseFood; foodFrom.copyInto(o.foodFrom); o.fishPull = fishPull; monthSupply.copyInto(o.monthSupply); monthSupplySq.copyInto(o.monthSupplySq); o.supplyMonth = supplyMonth; o.supplySum = supplySum; o.supplyWeeks = supplyWeeks; o.larderSeen = larderSeen; weekSupply.copyInto(o.weekSupply); weekWarmth.copyInto(o.weekWarmth); weekMoved.copyInto(o.weekMoved); freeShare.copyInto(o.freeShare); o.leanDays = leanDays
         o.seedDomestic = seedDomestic; o.grainDomestic = grainDomestic; o.seedCorn = seedCorn * share; seedCorn -= o.seedCorn; o.sinceRaided = sinceRaided; o.sisu = sisu
         o.knownHomes.putAll(knownHomes); o.knownLineage.putAll(knownLineage)
@@ -719,12 +691,11 @@ class Band(kinds: Int) {
         traditions.copyInto(o.traditions); heard.copyInto(o.heard); o.heardOf = heardOf
         o.totem = totem; o.marksChosen = marksChosen; o.heardTotem = heardTotem.copyOf(); o.totemBroken = totemBroken
         o.burialWay = burialWay; heardBurial.copyInto(o.heardBurial); words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
-        o.inbred = inbred; o.campWeeks = campWeeks; o.campPlace = campPlace; o.known = known.copyOf(); kept.copyInto(o.kept)
+        o.inbred = inbred; o.campWeeks = campWeeks; o.campPlace = campPlace; o.known = known.copyOf()
         copied(o)
-        for (i in o.kept.indices) { o.kept[i] *= share; kept[i] -= o.kept[i] }
-        // (A band from a save made when there were fewer resident kinds keeps fewer: see [HexFauna.kinds].)
-        for (i in 0 until min(herd.size, o.herd.size)) { o.herd[i] *= share; herd[i] -= o.herd[i] }
-        run { val y = youngHerd(); val oy = o.youngHerd(); for (i in 0 until min(y.size, oy.size)) { oy[i] = y[i] * share; y[i] -= oy[i] } }
+        // (Its kept animals go by their contracts' own rules.)
+        dogs.splitInto(o.dogs, share)
+        herds.splitInto(o.herds, share)
         for (m in Material.entries) { o.goods[m] = goods[m] * share; goods[m] -= o.goods[m] }
         o.ornaments = ornaments * share; ornaments -= o.ornaments; o.exotic = exotic * share; exotic -= o.exotic
         o.elders = elders * adults / (stay + adults).coerceAtLeast(1); elders -= o.elders
@@ -778,15 +749,7 @@ class Band(kinds: Int) {
         // (Its larder as last seen, a person's days: the two larders are put together, so near enough the two blended.)
         a.larderSeen += w * (b.larderSeen - a.larderSeen)
         a.ornaments += b.ornaments; a.exotic += b.exotic
-        val ay = a.youngHerd(); val by = b.youngHerd()
-        for (i in 0 until min(a.herd.size, b.herd.size)) {
-            val n = a.herd[i] + b.herd[i]
-            val heads = n + ay[i] + by[i]
-            if (heads > 0f) a.herdTame[i] = ((a.herd[i] + ay[i]) * a.herdTame[i] + (b.herd[i] + by[i]) * b.herdTame[i]) / heads
-            a.herd[i] = n; ay[i] += by[i]
-            // (Pets while either band's were: the joined herd is weighed as food once the younger has grown.)
-            if (i < a.herdPet.size && i < b.herdPet.size) a.herdPet[i] = max(a.herdPet[i], b.herdPet[i])
-        }
+        a.herds.absorb(b.herds)
         a.renown = max(a.renown, b.renown)
         for (i in Tool.entries) a.knows[i] = a.knows[i] || b.knows[i]
         for (i in a.lineage.indices) a.lineage[i] += w * (b.lineage[i] - a.lineage[i])
@@ -804,7 +767,7 @@ class Band(kinds: Int) {
         for (i in Material.entries) a.goods[i] += b.goods[i]
         if (a.known.size < b.known.size) a.known = a.known.copyOf(b.known.size)
         for (i in b.known.indices) a.known[i] = a.known[i] or b.known[i]
-        for (i in b.kept.indices) a.kept[i] += b.kept[i]
+        a.dogs.absorb(b.dogs)
         a.inbred += w * (b.inbred - a.inbred); a.elders += b.elders
         a.sisu += w * (b.sisu - a.sisu)
         for (i in a.ageStage.indices) a.ageStage[i] += b.ageStage[i]
@@ -882,12 +845,8 @@ class Band(kinds: Int) {
     fun huntEdge(prey: Species, tuning: Tuning) =
         skill(Skill.HUNT) * edge(Skill.STALK) * (WEAPONLESS + (1f - WEAPONLESS) * has(Tool.SPEAR) * serveOfMake(Tool.SPEAR, fine[Tool.SPEAR], tuning) +
             BOW_GAIN * has(Tool.BOW) * serveOfMake(Tool.BOW, fine[Tool.BOW], tuning) * min(1f, prey.speedKmh / 70f)) *
-            (1f + DOG_HUNT * dogShare * max(0f, 1f - prey.massKg / DOG_PREY_KG))
+            (1f + DOG_HUNT * dogs.dogShare * max(0f, 1f - prey.massKg / DOG_PREY_KG))
 
-    /** Its dogs against its hunters (one to three a full pack): they track, bay and hold small game, and bark at night. */
-    var dogShare = 0f
-    /** How far its dogs were fed this week, 0..1 (1 with none; for the census). */
-    @Transient var dogFed = 1f
 
     /** Its people's fighting weight per kg: with spears and bows lions and hyenas give way; without, they are no match. */
     fun ferocity(s: Species) = s.ferocity * (WEAPONLESS + (1f - WEAPONLESS) * has(Tool.SPEAR) + 0.5f * has(Tool.BOW))

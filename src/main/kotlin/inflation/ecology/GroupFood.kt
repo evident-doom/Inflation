@@ -512,13 +512,13 @@ private fun HexGroups.herdOdds(w: ForageWeek) {
             val b = c.band ?: continue
             if (c.place != p || !c.alive) continue
             val guard = stalkGuard(b, 0f, b.fencedNow())
-            val young = b.youngHerd()
-            for (k in b.herd.indices) {
-                val all = b.herd[k] + young[k]; if (all < 1f) continue
+            val young = b.herds.youngHerd()
+            for (k in b.herds.herd.indices) {
+                val all = b.herds.herd[k] + young[k]; if (all < 1f) continue
                 val ps = fauna.kinds[k]
                 // (The grown and the young, each as catchable as their weight makes them ([HexFauna.catchable]).)
                 for (y in 0..1) {
-                    val n = if (y == 1) young[k] else b.herd[k]; if (n <= 0f) continue
+                    val n = if (y == 1) young[k] else b.herds.herd[k]; if (n <= 0f) continue
                     val success = killChance(fauna.catchable(s, ps, if (y == 1) HexFauna.YOUNG_WEIGHT * ps.massKg else ps.massKg, p), 1f) * guard
                     if (!(success > 0f)) continue
                     if (!looked) { openness(s, p, w.weather, view); looked = true }
@@ -684,7 +684,7 @@ private fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
     // And the herds kept at bands' camps on it, as their kind in the wild ([herdOdds]).
     for ((x, hg) in w.herds.withIndex()) {
         val b = hg.g.band ?: continue
-        val n = (if (hg.young) b.youngHerd() else b.herd).getOrNull(hg.k) ?: continue
+        val n = (if (hg.young) b.herds.youngHerd() else b.herds.herd).getOrNull(hg.k) ?: continue
         if (n < 1f) continue
         val p = w.ground.place[hg.j]
         val meat1 = min((if (hg.young) HexFauna.YOUNG_WEIGHT else 1f) * fauna.kinds[hg.k].massKg * credit, most)
@@ -1194,17 +1194,17 @@ private class Haul { var kg = 0f; var busy = 0f; var mass = 0f; var fat = 0f }
 /**
  * [forage]'s raid on herd [hg] at place [p]: [expected] kills on average, each worth [kgEach] to the beast, out of the band's
  * herd (no more than half of it, as of game in the wild, [huntGame]), the band to learn of them as it keeps its herds
- * ([Band.herdTaken]). Returns the kills; [out] gets the meat.
+ * ([Herd.herdTaken]). Returns the kills; [out] gets the meat.
  */
 private fun HexGroups.raidHerd(g: HexGroup, hg: HerdGame, p: Place, expected: Float, kgEach: Float, rnd: kotlin.random.Random, out: Haul): Int {
     val b = hg.g.band ?: return 0
     val s = g.species; val ps = fauna.kinds[hg.k]
-    val heads = if (hg.young) b.youngHerd() else b.herd
+    val heads = if (hg.young) b.herds.youngHerd() else b.herds.herd
     val kills1 = min(poisson(expected, rnd), (heads[hg.k] * 0.5f).toInt())
     if (kills1 <= 0) return 0
     heads[hg.k] -= kills1.toFloat()
-    if (b.herdTaken.size != b.herd.size) b.herdTaken = FloatArray(b.herd.size)
-    b.herdTaken[hg.k] += kills1.toFloat()
+    if (b.herds.herdTaken.size != b.herds.herd.size) b.herds.herdTaken = FloatArray(b.herds.herd.size)
+    b.herds.herdTaken[hg.k] += kills1.toFloat()
     // (Kept herds have no fat state yet: their meat is lean.)
     out.kg = kills1 * kgEach; out.fat = 0f
     val each = if (hg.young) HexFauna.YOUNG_WEIGHT * ps.massKg else ps.massKg
@@ -1234,7 +1234,7 @@ private fun HexGroups.huntGame(g: HexGroup, k: Int, p: Place, expected: Float, k
     kills1 = na + ny
     if (kills1 <= 0) return kills1
     // A band may keep young it catches, to raise by its camp and drive along when it moves.
-    if (band != null && ny > 0 && k < band.herd.size) {
+    if (band != null && ny > 0 && k < band.herds.herd.size) {
         // (A kind is kept by the worst of Diamond's criteria, since it fails as stock on any one, as [herdKind] chooses.)
         val keepable = ps.domestication.min()
         val kept = binomial(ny, min(1f, CAPTURE * band.keepWill * keepable), rnd)
@@ -1243,13 +1243,13 @@ private fun HexGroups.huntGame(g: HexGroup, k: Int, p: Place, expected: Float, k
         if (kept > 0) {
             // (Raised by hand from young, they come to the camp as tame as a herd's, [RAISED_TAME], whatever their kind: how
             // well a kind keeps on foot shows in how many stray, [straying].)
-            val young = band.youngHerd(); val had = band.herd[k] + young[k]
-            band.herdTame[k] = (band.herdTame[k] * had + RAISED_TAME * kept) / (had + kept)
-            // (A herd begun so is kept as pets till they have grown, or sooner as their temper shows: [Band.herdPet], [petYears].)
+            val young = band.herds.youngHerd(); val had = band.herds.herd[k] + young[k]
+            band.herds.herdTame[k] = (band.herds.herdTame[k] * had + RAISED_TAME * kept) / (had + kept)
+            // (A herd begun so is kept as pets till they have grown, or sooner as their temper shows: [Herd.herdPet], [petYears].)
             if (had < 0.5f) {
                 bands.herdsBegun.incrementAndGet(k)
-                if (band.herdPet.size != band.herd.size) band.herdPet = FloatArray(band.herd.size)
-                band.herdPet[k] = petYears(ps)
+                if (band.herds.herdPet.size != band.herds.herd.size) band.herds.herdPet = FloatArray(band.herds.herd.size)
+                band.herds.herdPet[k] = petYears(ps)
             }
             bands.keptYoung.addAndGet(k, kept)
             young[k] += kept; ny -= kept

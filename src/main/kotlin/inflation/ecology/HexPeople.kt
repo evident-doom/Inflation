@@ -258,17 +258,17 @@ internal fun HexGroups.leaveDead(g: HexGroup, freed: MutableList<HexGroup>) {
     for (m in ROTS) b.goods[m] = 0f
     dropCache(b)
     val area = land.areaKm2[p]
-    val young = b.youngHerd()
-    for (k in b.herd.indices) if (b.herd[k] + young[k] > 0f) {
-        val heads = b.herd[k] + young[k]
-        fauna.adults[k][p] += b.herd[k] / area; fauna.young[k][p] += young[k] / area
+    val young = b.herds.youngHerd()
+    for (k in b.herds.herd.indices) if (b.herds.herd[k] + young[k] > 0f) {
+        val heads = b.herds.herd[k] + young[k]
+        fauna.adults[k][p] += b.herds.herd[k] / area; fauna.young[k][p] += young[k] / area
         bands.herdFlows[HerdFlow.FREED] += heads; bands.herdFlows[HerdFlow.ENDED_FREED] += 1f
         bands.kindFlows[k][HerdFlow.FREED] += heads; bands.kindFlows[k][HerdFlow.ENDED_FREED] += 1f
-        b.herd[k] = 0f; young[k] = 0f; b.herdTame[k] = 0f; if (k < b.herdPet.size) b.herdPet[k] = 0f
+        b.herds.herd[k] = 0f; young[k] = 0f; b.herds.herdTame[k] = 0f; if (k < b.herds.herdPet.size) b.herds.herdPet[k] = 0f
     }
-    for (i in b.kept.indices) {
-        val n = b.kept[i].toInt()
-        b.kept[i] = 0f
+    for (i in b.dogs.kept.indices) {
+        val n = b.dogs.kept[i].toInt()
+        b.dogs.kept[i] = 0f
         val s = Catalogue.all[i]
         val pack = dogsGoWild(s, p, n) ?: continue
         freed += pack
@@ -316,7 +316,7 @@ internal const val MARSH_FEVER = 0.05f
 /** How [b] lives, for the reports: settled at home in its houses or at a camp kept half a year or more, else mobile. */
 /** Whether [b], [hands] strong, keeps a herd and how much of its days the herd asks, for the census ([Tally.Herding]). */
 internal fun GroupWorld.bandHerding(b: Band, hands: Int): Tally.Herding {
-    if (!b.keepsAnimals()) return Tally.Herding.NOT_HERDING
+    if (!b.herds.keepsAnimals()) return Tally.Herding.NOT_HERDING
     val load = herdDays(b) / (days * hands.coerceAtLeast(1)).toFloat()
     return Tally.Herding.entries.first { it != Tally.Herding.NOT_HERDING && load < it.below }
 }

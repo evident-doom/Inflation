@@ -101,7 +101,7 @@ internal fun HexGroups.bookSqueeze(g: HexGroup, b: Band, causes: List<Died>, wea
     stats.book(hutSplit, Tally.Bands.AIM, (100f * b.shelterAim).roundToInt())
     if (b.campWeeks == 0) stats.book(hutSplit, Tally.Bands.MOVED, 1)
     stats.bookDeaths(hutSplit, causes)
-    val h = if (b.keepsAnimals()) Tally.HerdKept.HERDING else Tally.HerdKept.NONE
+    val h = if (b.herds.keepsAnimals()) Tally.HerdKept.HERDING else Tally.HerdKept.NONE
     val keptSplit = BandSplit.herdKept(h)
     stats.bookWeek(keptSplit, g.size)
     stats.book(keptSplit, Tally.Bands.CLOTHES, clo)
