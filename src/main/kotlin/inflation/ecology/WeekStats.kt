@@ -81,6 +81,7 @@ enum class Met(val label: String) {
     BANDS_BURNED_OFF_GRASS("bands burned off grass"),
     BANDS_CARRIED_THEIR_DEAD("bands carried their dead to their ancestors"),
     BANDS_BECAME_ONE("bands at home together became one"),
+    BANDS_OF_TWO_MINDS_BECAME_ONE("bands at home together of the two kinds of choosing became one"),
     BANDS_DRIVEN_FROM_HOME("bands driven from their homes"),
     BANDS_EXCHANGED_PARTNERS("bands exchanged partners"),
     BANDS_KEPT_AWAY_FROM_THE_SICK("bands kept away from the sick"),
