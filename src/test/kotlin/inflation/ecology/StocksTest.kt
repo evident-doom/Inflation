@@ -83,7 +83,7 @@ class StocksTest {
             "HexPlants.greenShade", "HexPlants.trails", "HexPlants.treeSeed", "HexPlants.shrubSeed", "HexFires.burnt", "HexFires.burning",
             "HexFauna.waterC", "HexFauna.fed", "HexFauna.protein", "HexFauna.fear", "HexFauna.usual", "HexFauna.outbreak",
             "HexFauna.fedByMonth", "HexFauna.reserve", "HexFauna.autumnFed", "HexFauna.dry", "HexFauna.arrive", "HexFauna.worth", "HexFauna.moverYoung", "HexFauna.bred", "HexFauna.moverFat", "HexFauna.moverSpent", "HexFauna.spent", "HexFood.domestic", "HexFood.fieldDomestic", "HexFood.fieldDays", "HexFood.fieldStress", "HexFood.fieldSoil", "HexFood.fieldWorn", "HexSmallLife.pollination",
-            "HexSmallLife.insectFrom", "HexSmallLife.harass", "HexSmallLife.spreadWeight", "HexSmallLife.returning", "HexSmallLife.carrionKeptLog",
+            "HexSmallLife.insectFrom", "HexSmallLife.harass", "HexSmallLife.spreadWeight", "HexSmallLife.returning",
             // For the check and the viewer: heads held hungry with no better place next door, and one kind's spill last week.
             "HexFauna.stuck", "HexFauna.climbed", "HexFauna.flowEast", "HexFauna.flowSouth", "HexFauna.flowOut",
             // The strongest hunting party in each place last week, a strength the residents' rivals keep away from.

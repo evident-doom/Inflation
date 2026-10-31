@@ -22,8 +22,6 @@ internal const val SHIFT_DAYS = 2f
 internal const val SNOW_EFFORT_MM = 150f
 /** How much more than its needs an animal eats, at most, when food is plentiful and its reserves are short; share of that surplus laid on as reserves. */
 internal const val SURPLUS_EAT = 0.3f
-/** How far a pack's sense of how much of its carcasses it finds again moves at each one ([HexGroup.carcassKept]): about its last ten (an estimate). */
-internal const val CARCASS_LEARN = 0.1f
 internal const val FAT_EFFICIENCY = 0.6f
 /** A newborn's weight against its mother's, paid from her reserves. */
 internal const val NEWBORN_SHARE = 0.08f

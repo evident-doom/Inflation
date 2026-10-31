@@ -131,7 +131,6 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     huntingOdds(w)
     if (w.band == null) herdOdds(w)
     val o = Offers(w.games + w.herds.size + g.path.size * 4 + (w.gatherAt.size + w.roundCamp.size) * 6 + 2)
-    if (w.band == null) eatCarcass(w)
     // The party plans its week on what it finds, eats, and if others got there first and it is still
     // hungry, looks again at what is left.
     for (pass in 0 until FORAGE_PASSES) {
@@ -404,8 +403,6 @@ private class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, packK
     // (And what it weighs, which grinding, cooking and leaching do not change: see [addFood].)
     val plantKg = enumFloats<Store>()
     var busy = 0f
-    /** A pack's: what its kills at the place it ends the week left beyond what it is credited, kg as its need counts them ([Haul.left]). */
-    var leftHere = 0f
     /**
      * For the census of foraging's days against its plan ([countFoodTime]), days of a hand: what kills beyond and short of
      * those expected took and saved, and what hauling took beyond the take itself; and the people-days digging soaks took,
@@ -673,9 +670,6 @@ private fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
             // A kill is worth what the party can eat of it, gorging included (a band also what it can
             // dry); the rest is left to others.
             val meat1 = min(fauna.kinds[k].massKg * credit, most)
-            // (A pack weighs a kill where it ends the week also by what it left of it that it will find again next week, as
-            // much of its carcasses as it has found of late: [HexGroup.carcassKept].)
-            val carry = if (band == null && p == g.place.i) g.carcassKept * min(max(0f, fauna.kinds[k].massKg - meat1), w.wantAll) else 0f
             // (A band's kill of a grown one is the richer for its fat, the young lean: what it weighs is what its kills would be, as
             // many grown as there are among them.)
             val rich = if (band != null && meat1 > 0f) {
@@ -684,7 +678,7 @@ private fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
             } else 1f
             // (Each kill also costs the stalks and chases that failed before it.)
             offer(w, o, Food.BIG_GAME, k, Place(p), dens * huntSwept * w.odds[i] / days, meat1, HANDLING_DAYS + STALK_DAYS * w.stalks[i] + meat1 * w.eats,
-                spared[k] + carry, rich = rich)
+                spared[k], rich = rich)
         }
     }
     // And the herds kept at bands' camps on it, as their kind in the wild ([herdOdds]).
@@ -802,36 +796,6 @@ private fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
     }
 }
 
-/**
- * A pack's week starts on its carcass from last week ([HexGroup.carcassKg]), if its way passes the place: what the place's
- * rot and scavengers left of it ([HexSmallLife.keptSince]), as far as the week's want, taken from the carrion there and
- * eaten at the days eating takes. What it left there it finds again only this once: the rest is the scavengers'.
- */
-private fun HexGroups.eatCarcass(w: ForageWeek) {
-    val g = w.g
-    if (g.carcassAt < 0) return
-    val p = Place(g.carcassAt); val h = hw.placeHex[p]
-    val kept = small.keptSince(p, g.carcassLog)
-    var passes = false
-    for (x in g.path) if (x == h) { passes = true; break }
-    val kg = if (passes) min(g.carcassKg * kept, w.wantAll) else 0f
-    // (What lies there is the carcass's weight as eaten: a beast's need counts the parts it leaves, see [creditShare].)
-    val got = if (kg > 0f) { val m2 = land.m2(p); small.scavenge(p, Kg(kg * meatShare(null)).perM2(m2)).over(m2).v / meatShare(null) } else 0f
-    g.carcassKept += CARCASS_LEARN * ((if (passes) kept else 0f) - g.carcassKept)
-    diag(g.species, HuntStep.PACK_CARCASS_KG_EATEN, got)
-    g.carcassAt = -1; g.carcassKg = 0f
-    if (got <= 0f) return
-    w.scraps += got; w.fed += got * w.feeds(Food.BIG_GAME); w.busy += got * w.eats
-}
-
-/** Pack [g] leaves [kg] of its kills, as its need counts them, where it ends the week, to come back to ([eatCarcass]). */
-private fun HexGroups.leaveCarcass(g: HexGroup, kg: Float) {
-    g.carcassKg = kg
-    g.carcassAt = if (kg > 0f) g.place.i else -1
-    g.carcassLog = small.carrionKeptLog[g.place.i]
-    diag(g.species, HuntStep.PACK_CARCASS_KG_LEFT, kg)
-}
-
 /** [forage]'s taking of the foods [w]'s party took up in [o], at those rates for the [f] share of its working days. */
 private fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
     val g = w.g; val band = w.band; val haul = w.haul
@@ -854,9 +818,6 @@ private fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
                     stats.meeting(Met.BANDS_ATE_THEIR_TOTEM)
                 }
                 w.busy += kills1 * o.time[i] * w.party[0]
-                // (A beast's kills may be found by stronger scavengers before it has eaten them: [foundByScent].)
-                if (band == null) foundByScent(g, Place(p), kills1, haul)
-                if (band == null && p == g.place.i) w.leftHere += haul.left
                 // (Its fat feeds as grease, the rest as lean meat; for the census, the kills by month and by prey kind, lean and fat by weight.)
                 w.meat += haul.kg - haul.fat; w.killFat += haul.fat
                 w.fed += (haul.kg - haul.fat) * w.feeds(Food.BIG_GAME) + haul.fat * w.fatFeeds
@@ -996,9 +957,7 @@ private fun HexGroups.eatTheWeek(w: ForageWeek) {
             eaten, wantAll, g.fed, g.larder, Store.entries.joinToString(" ") { "${it.name.lowercase()} %.0f".format(g.stores[it]) },
             g.fat, 100f * band.sodiumShort, band.goods[Material.SALT], 100f * band.leanLost)
     }
-    // What the pack could not finish is left for the scavengers; what it ate comes back in part as dung. (What it left of
-    // its own kills where it ends the week it comes back to, as far as they leave it: [eatCarcass].)
-    if (band == null) leaveCarcass(g, min(spare, max(0f, meat - g.meatMet)) + w.leftHere)
+    // What the pack could not finish is left for the scavengers; what it ate comes back in part as dung.
     small.deposit(DeadPool.CARRION, g.place, Kg(spare))
     // (A band's meat eaten already holds the small game, scraps and fish it ate; what it stored is not yet eaten.)
     val animalEaten = if (band != null) meatEaten else meatEaten + smallGot + scraps + fish
@@ -1230,8 +1189,7 @@ private fun HexGroups.countFoodTime(w: ForageWeek, time: BandTime) {
 }
 
 /** What one of [forage]'s takes brought: kilos of food, and party-days spent on it beyond the take itself. */
-/** A take: kg, the days hauling it took, its mass, its fat, and (a pack's kill) what the kill left beyond what it was credited, kg ([HexGroup.carcassKg]). */
-private class Haul { var kg = 0f; var busy = 0f; var mass = 0f; var fat = 0f; var left = 0f }
+private class Haul { var kg = 0f; var busy = 0f; var mass = 0f; var fat = 0f }
 
 /**
  * [forage]'s raid on herd [hg] at place [p]: [expected] kills on average, each worth [kgEach] to the beast, out of the band's
@@ -1248,7 +1206,7 @@ private fun HexGroups.raidHerd(g: HexGroup, hg: HerdGame, p: Place, expected: Fl
     if (b.herdTaken.size != b.herd.size) b.herdTaken = FloatArray(b.herd.size)
     b.herdTaken[hg.k] += kills1.toFloat()
     // (Kept herds have no fat state yet: their meat is lean.)
-    out.kg = kills1 * kgEach; out.fat = 0f; out.left = 0f
+    out.kg = kills1 * kgEach; out.fat = 0f
     val each = if (hg.young) HexFauna.YOUNG_WEIGHT * ps.massKg else ps.massKg
     small.deposit(DeadPool.CARRION, p, Kg(kills1 * max(0f, each - kgEach * meatShare(null) / creditShare(null))))
     stats.meeting(Met.KEPT_ANIMALS_TAKEN, kills1)
@@ -1305,7 +1263,6 @@ private fun HexGroups.huntGame(g: HexGroup, k: Int, p: Place, expected: Float, k
     val young = min(HexFauna.YOUNG_WEIGHT * ps.massKg, kgEach)
     out.kg = na * kgEach + ny * young
     out.fat = na * fatOfKill(k, p, kgEach, band)
-    out.left = if (band == null) na * max(0f, ps.massKg - kgEach) else 0f
     // (Hides, bone and sinew come out of what the hunters leave of the carcasses.)
     val leftA = na * leftOver(ps, kgEach, band)
     small.deposit(DeadPool.CARRION, p, KgM2((leftA + ny * (HexFauna.YOUNG_WEIGHT * ps.massKg - young) - tallyHide(Tally.HideSource.RESIDENTS, ps, band?.skin(ps, na.toFloat(), leftA))) / (area * 1e6f)))
@@ -1316,54 +1273,6 @@ private fun HexGroups.huntGame(g: HexGroup, k: Int, p: Place, expected: Float, k
     stats.hunting.merge(Tally.of(s, Tally.OfKind.KILLS_OF_RESIDENTS), kills1, Int::plus)
     diag(ps, HuntStep.RESIDENT_KILLS, kills1.toFloat())
     return kills1
-}
-
-/**
- * What a beast eats in a day at a kill, of its own weight: a wolf eats 15-19% of its weight in a feeding (Mech and Boitani
- * 2003, p. 201), taken as one feeding a day and for every beast of prey alike (an estimate).
- */
-const val GORGE = 0.17f
-
-/**
- * What stronger scavengers take of beast [g]'s [kills] at [p], out of [haul]. Each carcass lies there while the party gorges
- * on it, a kill's weight against what the party eats in a day at a kill ([GORGE]). Resident kinds that kill as well as
- * scavenge (meat and carrion in their diet: a boar roots up a carcass but does not drive wolves off one), awake
- * ([HexFauna.asleep]) and stronger than the party (a band of [Species.groupSize], by its mass and ferocity, as [strength] has
- * a party) come on it by scent as they range: downwind of it only, so a strip [Species.senseKm] wide along a day's travel,
- * their bands as common there as they are. The party stands its ground: the stronger wins the carcass as often as its share
- * of their strengths. A scavenger that wins eats its band's fill there ([GORGE], a day) of what is left (half the kill, on
- * average, found halfway through) while the party waits it out; that goes to the carrion there for the books. Bears so
- * come to 27% of Yellowstone wolf kills in summer, 45% of large ones, and wolves wait at the carcass rather than leave
- * (Tallian et al. 2017, 2021). A carcass hauled up a tree keeps, as far as there are trees ([enemiesMeet]).
- */
-private fun HexGroups.foundByScent(g: HexGroup, p: Place, kills: Int, haul: Haul) {
-    if (haul.kg <= 0f || kills <= 0) return
-    val s = g.species
-    val party = strength(g)
-    val left = 0.5f * haul.kg / kills
-    // (The finds a day, and of them, summed by each kind's finds: the scavenger's wins and the kg each takes.)
-    var rate = 0f; var wins = 0f; var takes = 0f
-    for ((k, r) in fauna.kinds.withIndex()) {
-        if (r.diet.carrion <= 0f || r.diet.meat <= 0f || r.human || fauna.asleep(FaunaKind(k), p)) continue
-        val band = r.groupSize * r.massKg * r.ferocity
-        if (band <= party) continue
-        val finds = (fauna.adults[k][p] + fauna.young[k][p]) / r.groupSize * r.senseKm * r.dailyTravelKm
-        val win = band / (band + party)
-        rate += finds; wins += finds * win; takes += finds * win * min(left, GORGE * r.massKg * r.groupSize)
-    }
-    if (rate <= 0f) return
-    val lies = min(days.toFloat(), haul.kg / kills / (g.size.coerceAtLeast(1) * max(s.dailyIntakeKg, GORGE * s.massKg)))
-    val cached = if (Niches.Shelter.TREE in Niches.shelters(s)) land.plants.canopy(p) else 0f
-    val found = (1f - exp(-rate * lies)) * (1f - cached)
-    val lost = min(haul.kg, found * kills * takes / rate)
-    haul.fat *= 1f - lost / haul.kg; haul.kg -= lost
-    // (What the kills it lost left is the stronger one's: the pack does not come back to it, [eatCarcass].)
-    haul.left *= 1f - found * wins / rate
-    small.deposit(DeadPool.CARRION, p, Kg(lost * meatShare(null) / creditShare(null)))
-    diag(s, HuntStep.KILLS_MADE, kills.toFloat()); diag(s, HuntStep.KILLS_FOUND_BY_SCENT, found * kills)
-    diag(s, HuntStep.KILLS_LOST_TO_SCENT, found * kills * wins / rate)
-    diag(s, HuntStep.KILL_KG, haul.kg + lost); diag(s, HuntStep.KILL_KG_LOST_TO_SCENT, lost)
-    diag(s, HuntStep.KILL_LIE_DAYS, lies * kills); diag(s, HuntStep.SCENT_RATE, rate * kills); diag(s, HuntStep.KILL_PARTY, g.size * kills.toFloat())
 }
 
 /**
