@@ -381,7 +381,7 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
             val mind = BandSplit.mind(b.mind)
             stats.bookWeek(mind, g.size)
             if (o.births > 0) stats.book(mind, Tally.Bands.BORN, o.births)
-            if (g.path.size > 1) stats.book(mind, Tally.Bands.MOVES, 1)
+            if (g.path.size > 1) { stats.book(mind, Tally.Bands.MOVES, 1); stats.book(mind, Tally.Bands.MOVED_KM, ((g.path.size - 1) * hex.hexKm).roundToInt()) }
             stats.bookDeaths(mind, o.causes)
             // (And those within a month of a camp move: what [Tally.starvedMoved] is set against.)
             if (b.campWeeks * days < Date.DAYS_PER_MONTH) stats.hunting.merge(Tally.movedWeeks(b.mind), g.size, Int::plus)

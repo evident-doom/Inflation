@@ -205,8 +205,13 @@ object Tally {
         /** Food wanted, and got of meat (with small game and carrion), plants and fish, kg. */
         ASKED("asked"), MEAT("meat"), PLANTS("plants"), FISH("fish"),
         BAND_WEEKS("band-weeks"), PEOPLE_WEEKS("people-weeks"), BORN("born"),
-        /** Band-weeks it moved camp. */
-        MOVES("camp moves"),
+        /** Band-weeks it moved camp, and the km of the moves (hexes passed times a hex's width, summed). */
+        MOVES("camp moves"), MOVED_KM("km moved"),
+        /**
+         * A planning band's food a week at the camp it chose ([Band.campForeseen]) as foreseen, and as it got it, thousandths of
+         * its need summed over the band-weeks it chose so ([CAMP_WEEKS]).
+         */
+        CAMP_FORESEEN("camp food foreseen, 1/1000"), CAMP_GOT("camp food got, 1/1000"), CAMP_WEEKS("camp chosen, band-weeks"),
         /** Deaths foreseen a year ahead ([HexGroup.foreseen]): people-weeks times the share foreseen to die, thousandths. */
         FORESEEN("foreseen deaths, 1/1000"),
         /** Of [FORESEEN], those foreseen of hunger and of exposure ([YearAhead.causes]). */
