@@ -1662,35 +1662,33 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     }
 
     /**
-     * Plant-eating kind [k]'s residents flow over the land as a fluid finds its level: in each of [hopsFor] passes (a hex
-     * each, as far as their going takes them in the move's weeks), a share of those at each place moves to the
-     * neighbouring places worth more to them than where they are, at the numbers there and here as they now stand
-     * ([placeWorth]): the neighbouring hexes at about the same height (their band or the one above or below), the bands
-     * above and below in their own hex, and the shores across a strait they can swim (by those that reach it, the strait
-     * drowning some). The share leaving is [FLOW_STEP] of how much better the best of them is (the gap, against its
-     * worth), less over a hard border; they split among the better ones by how much better each is. As they come, a
-     * place is worth less (more crowded, less food a head), and the place they left more: so they flow until each place
-     * is worth about as much as those about it. Where those coming to a place would leave it worth less than the places
-     * they came from, only as many come as would bring it down to them (as a straight line between it as it is and with
-     * all of them would have it). The food does not move: what a place feeds is what those there ate and the food left
+     * Plant-eating kind [k]'s residents flow over the land as a fluid finds its level, a step each move: a share of those
+     * at each place moves to the neighbouring places worth more to them than where they are, at the numbers there and here
+     * as they stand ([placeWorth]): the neighbouring hexes at about the same height (their band or the one above or below),
+     * the bands above and below in their own hex, and the shores across a strait they can swim (by those that reach it, the
+     * strait drowning some). The share leaving is [FLOW_STEP] of how much better the best of them is (the gap, against its
+     * worth), less over a hard border; they split among the better ones by how much better each is. As they come, a place
+     * is worth less (more crowded, less food a head), and the place they left more: so from move to move they flow until
+     * each place is worth about as much as those about it. Where those coming to a place would leave it worth less than the
+     * places they came from, only as many come as would bring it down to them (as a straight line between it as it is and
+     * with all of them would have it). The food does not move: what a place feeds is what those there ate and the food left
      * uneaten ([spareHeads]), shared among however many there are. Asleep, they stay. Adds the heads that came to each
-     * place to [arrived], the km they walked to [walkedKm] (a hex's border crossing, and the height they climbed as level km, see [climbKm]), and
-     * the drowned to [drowned]; leaves what each place is worth at the end in [worth] (where the kind is and next to it;
-     * elsewhere nothing); gives the heads drowned.
+     * place to [arrived], the km they walked to [walkedKm] (a hex's border crossing, and the height they climbed as level km,
+     * see [climbKm]), and the drowned to [drowned]; leaves what each place is worth in [worth] (where the kind was and next
+     * to it, those come to by the same straight line; elsewhere nothing); gives the heads drowned.
      */
     private fun flow(k: FaunaKind, weather: Weather, arrived: FloatArray, walkedKm: FloatArray, drowned: FloatArray): Double {
-        val s = kinds[k]; val a = adults[k]; val y = young[k]; val area = land.areaKm2
-        val passes = hopsFor(s, tuning.residentMoveWeeks)
+        val a = adults[k]; val y = young[k]; val area = land.areaKm2
         // (Its ways fetched once: they are looked up in the innermost loops.)
-        val ways = flowWays[k]
+        val ways = flowWays[k]; val climb = climbPerM[k]
         val climbedNow = climbed[k]; val monthNow = weather.date.month
-        // Heads at each place, grown and young; and the food there, in heads it feeds fully: those there, as fed as they were, and the food left uneaten.
+        // Heads at each place, grown and young.
         val ga = FloatArray(n) { p -> a[p] * area[p] }; val gy = FloatArray(n) { p -> y[p] * area[p] }
         // (The grown times what each carries ([carried]): it goes with them.)
         val carry = carried(k); val gc = Array(carry.size) { c -> val per = carry[c]; FloatArray(n) { p -> per[p] * ga[p] } }
         val had = FloatArray(carry.size)
+        // The food at each place weighed, in heads it feeds fully: those there, as fed as they were, and the food left uneaten.
         val food = FloatArray(n)
-        IntStream.range(0, n).parallel().forEachPlace { p -> val t = scratch.get(); food[p] = fed[k][p] * (ga[p] + gy[p]) + spareHeads(k, p, weather, t.pantry, t.bites) }
         val v = worth[k]
         // (What does not change at a place within the week is worked out once, as the place is first weighed.)
         val fixed = WeekFixed(n)
@@ -1700,105 +1698,92 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             if (!fixed.done[p]) fix(k, p, weather, t.outs, fixed)
             return placeWorth(k, p, fixed, heads, food[p], t.parts)
         }
-        // (Only the places the kind is at and those next to them are weighed, as it comes to them: no other can matter yet.)
-        val weighed = BooleanArray(n); v.fill(0f)
-        // (Marked first, NaN, and then weighed all together.)
-        fun markNear(p: Place) { flowPlaces(ways, p) { q, _, _, _ -> if (!weighed[q]) { weighed[q] = true; v[q] = Float.NaN } } }
-        fun weighMarked() = IntStream.range(0, n).parallel().forEach { q -> if (v[q].isNaN()) v[q] = weigh(Place(q), ga[q] + gy[q]) }
-        IntStream.range(0, n).parallel().forEachPlace { p -> if (ga[p] + gy[p] > 0f) { weighed[p] = true; v[p] = weigh(p, ga[p] + gy[p]) } }
-        for (p in land.places) if (ga[p] + gy[p] > 0f) markNear(p)
-        weighMarked()
+        // (Only the places the kind is at and those next to them are weighed: no other can matter. Marked first, NaN.)
+        v.fill(0f)
+        for (p in land.places) if (ga[p] + gy[p] > 0f) { v[p] = Float.NaN; flowPlaces(ways, p) { q, _, _, _ -> v[q] = Float.NaN } }
+        IntStream.range(0, n).parallel().forEachPlace { p ->
+            if (!v[p].isNaN()) return@forEachPlace
+            val t = scratch.get(); food[p] = fed[k][p] * (ga[p] + gy[p]) + spareHeads(k, p, weather, t.pantry, t.bites)
+            v[p] = weigh(p, ga[p] + gy[p])
+        }
 
-        val share = FloatArray(n)      // the share of those at each place leaving it this pass
-        val gaps = FloatArray(ways.to.size)  // the gap along each way from a place leaving ([gapTo]), as the pass began
+        // Each place's leavers.
+        val share = FloatArray(n)      // the share of those at each place leaving it
+        val gaps = FloatArray(ways.to.size)  // the gap along each way from a place leaving ([gapTo])
         val gapSum = FloatArray(n)     // the sum of the gaps to the better places about it, to split them by
-        val coming = FloatArray(n)     // heads that would come to each place this pass
+        IntStream.range(0, n).parallel().forEachPlace { p ->
+            if (!(ga[p] + gy[p] > 0f) || asleep(k, p)) return@forEachPlace
+            val here = v[p]; var most = 0f; var sum = 0f
+            for (i in ways.from[p] until ways.from[p.i + 1]) {
+                val g = gapTo(here, v[ways.to[i]] * ways.keep[i], ways.ease[i])
+                gaps[i] = g
+                if (g > 0f) { sum += g; if (g > most) most = g }
+            }
+            share[p] = FLOW_STEP * most; gapSum[p] = sum
+        }
+        // Those that would come to each place, and the worth of the places they would leave.
+        val coming = FloatArray(n)     // heads that would come to each place
         val fromWorth = FloatArray(n)  // their heads times the worth of the places they would come from
-        val take = FloatArray(n)       // the share of those coming that come
-        val full = FloatArray(n)       // what each place would be worth with all of them come
-        val changed = BooleanArray(n)
-        val exact = BooleanArray(n)    // places whose worth now is [full]: all came, none left, none drowned
-        val record = flowOf == k.i
-        if (record) { flowEast.fill(0f); flowSouth.fill(0f); flowOut.fill(0f) }
-        var weekHeads = 0.0; var weekStuck = 0.0; var weekEdge = 0.0; var drownedHeads = 0.0
-        for (pass in 0 until passes) {
-            // Each place's leavers, from the places as they stand.
-            IntStream.range(0, n).parallel().forEachPlace { p ->
-                share[p] = 0f; gapSum[p] = 0f
-                if (!(ga[p] + gy[p] > 0f) || asleep(k, p)) return@forEachPlace
-                val here = v[p]; var most = 0f; var sum = 0f
-                for (i in ways.from[p] until ways.from[p.i + 1]) {
-                    val q = ways.to[i]
-                    val g = gapTo(here, v[q] * ways.keep[i], ways.ease[i])
-                    gaps[i] = g
-                    if (g > 0f) { sum += g; if (g > most) most = g }
-                }
-                share[p] = FLOW_STEP * most; gapSum[p] = sum
-            }
-            if (pass == 0) for (p in land.places) {
-                val heads = ga[p] + gy[p]; if (!(heads > 0f)) continue
-                weekHeads += heads
-                if (fed[k][p] < STUCK_FED && share[p] <= 0f) { weekStuck += heads; if (atClosedBorder(k, p)) weekEdge += heads }
-            }
-            // Those that would come to each place, and the worth of the places they would leave.
-            coming.fill(0f); fromWorth.fill(0f)
-            var any = false
-            for (p in land.places) {
-                if (!(share[p] > 0f)) continue
-                any = true
-                val go = share[p] * (ga[p] + gy[p]); val here = v[p]; val sum = gapSum[p]
-                for (i in ways.from[p] until ways.from[p.i + 1]) {
-                    val g = gaps[i]; if (g > 0f) {
-                        val q = ways.to[i]; val m = go * g / sum; coming[q] += m; fromWorth[q] += m * here
-                    }
+        var weekHeads = 0.0; var weekStuck = 0.0; var weekEdge = 0.0; var any = false
+        for (p in land.places) {
+            val heads = ga[p] + gy[p]; if (!(heads > 0f)) continue
+            weekHeads += heads
+            if (!(share[p] > 0f)) { if (fed[k][p] < STUCK_FED) { weekStuck += heads; if (atClosedBorder(k, p)) weekEdge += heads }; continue }
+            any = true
+            val go = share[p] * heads; val here = v[p]; val sum = gapSum[p]
+            for (i in ways.from[p] until ways.from[p.i + 1]) {
+                val g = gaps[i]; if (g > 0f) {
+                    val q = ways.to[i]; val m = go * g / sum; coming[q] += m; fromWorth[q] += m * here
                 }
             }
-            if (!any) break
-            // As many come as keep a place worth no less than where they came from.
-            IntStream.range(0, n).parallel().forEach { q ->
-                take[q] = 1f
-                val c = coming[q]; if (!(c > 0f)) return@forEach
-                val now = v[q]
-                val all = weigh(Place(q), ga[q] + gy[q] + c); full[q] = all
-                fun upTo(from: Float, now: Float, all: Float) = if (all < from && now > all) ((now - from) / (now - all)).coerceIn(0f, 1f) else 1f
-                take[q] = upTo(fromWorth[q] / c, now, all)
-            }
-            // They go: from the places as they stood at the pass's start (those come this pass walk on next pass).
-            changed.fill(false)
-            for (q in 0 until n) exact[q] = take[q] >= 1f && coming[q] > 0f && !(share[q] > 0f)
-            val startA = ga.copyOf(); val startY = gy.copyOf(); val startC = Array(gc.size) { gc[it].copyOf() }
-            for (p in land.places) {
-                if (!(share[p] > 0f)) continue
-                val heads = startA[p] + startY[p]; val sum = gapSum[p]
-                val youngShare = startY[p] / heads; val goAll = share[p] * heads
-                for (c in had.indices) had[c] = if (startA[p] > 0f) startC[c][p] / startA[p] else 0f
-                val h = hw.placeHex[p]
-                var left = 0f
-                for (i in ways.from[p] until ways.from[p.i + 1]) {
-                    val g = gaps[i]; if (!(g > 0f)) continue
-                    val q = ways.to[i]; val km = ways.km[i]; val keep = ways.keep[i]
-                    val m = goAll * g / sum * take[q]; if (!(m > 0f)) continue
-                    left += m
-                    val mY = m * youngShare; val mA = m - mY
-                    // (A strait drowns some: the young the more, as in [spillHunters]; they wash up on the far shore.)
-                    val risk = 1f - keep
-                    val lostA = mA * risk; val lostY = mY * min(1f, 2f * risk)
-                    if (lostA + lostY > 0f) { drowned[q] += lostA + lostY * YOUNG_WEIGHT; drownedHeads += (lostA + lostY).toDouble(); exact[q] = false }
-                    ga[q] += mA - lostA; gy[q] += mY - lostY; for (c in had.indices) gc[c][q] += (mA - lostA) * had[c]
-                    arrived[q] += m - lostA - lostY; walkedKm[q] += (m - lostA - lostY) * (km + climbKm(k, p, Place(q)))
-                    changed[q] = true
-                    if (record && hw.placeHex[q] != h) recordFlow(h, hw.placeHex[q], m)
-                    climbedNow[monthNow] += (m - lostA - lostY).toDouble() * (hw.placeElevationM[q] - hw.placeElevationM[p])
-                }
-                ga[p] = max(0f, ga[p] - left * (1f - youngShare)); gy[p] = max(0f, gy[p] - left * youngShare); changed[p] = true
-                for (c in had.indices) gc[c][p] = max(0f, gc[c][p] - left * (1f - youngShare) * had[c])
-            }
-            IntStream.range(0, n).parallel().forEachPlace { p -> if (changed[p]) v[p] = if (exact[p]) full[p] else weigh(p, ga[p] + gy[p]) }
-            // (And the places next to those newly come to, as yet unweighed.)
-            for (p in land.places) if (changed[p] && ga[p] + gy[p] > 0f) markNear(p)
-            weighMarked()
         }
         countStuck(k, weekHeads, weekStuck, weekEdge)
+        if (!any) return 0.0
+        // As many come as keep a place worth no less than where they came from; it is then worth what the straight line
+        // between it as it is and with all of them gives for those that come.
+        val take = FloatArray(n)       // the share of those coming that come
+        val after = FloatArray(n)      // what each place is worth with them come
+        IntStream.range(0, n).parallel().forEach { q ->
+            take[q] = 1f
+            val c = coming[q]; if (!(c > 0f)) return@forEach
+            val now = v[q]; val from = fromWorth[q] / c
+            val all = weigh(Place(q), ga[q] + gy[q] + c)
+            val t = if (all < from && now > all) ((now - from) / (now - all)).coerceIn(0f, 1f) else 1f
+            take[q] = t; after[q] = now + t * (all - now)
+        }
+        // They go, from the places as they stood before any moved.
+        val record = flowOf == k.i
+        if (record) { flowEast.fill(0f); flowSouth.fill(0f); flowOut.fill(0f) }
+        val startA = ga.copyOf(); val startY = gy.copyOf(); val startC = Array(gc.size) { gc[it].copyOf() }
+        var drownedHeads = 0.0
+        for (p in land.places) {
+            if (!(share[p] > 0f)) continue
+            val heads = startA[p] + startY[p]; val sum = gapSum[p]
+            val youngShare = startY[p] / heads; val goAll = share[p] * heads
+            for (c in had.indices) had[c] = if (startA[p] > 0f) startC[c][p] / startA[p] else 0f
+            val h = hw.placeHex[p]; val zp = hw.placeElevationM[p]
+            var left = 0f
+            for (i in ways.from[p] until ways.from[p.i + 1]) {
+                val g = gaps[i]; if (!(g > 0f)) continue
+                val q = ways.to[i]
+                val m = goAll * g / sum * take[q]; if (!(m > 0f)) continue
+                left += m
+                val mY = m * youngShare; val mA = m - mY
+                // (A strait drowns some: the young the more, as in [spillHunters]; they wash up on the far shore.)
+                val risk = 1f - ways.keep[i]
+                val lostA = mA * risk; val lostY = mY * min(1f, 2f * risk)
+                if (lostA + lostY > 0f) { drowned[q] += lostA + lostY * YOUNG_WEIGHT; drownedHeads += (lostA + lostY).toDouble() }
+                val came = m - lostA - lostY; val rise = hw.placeElevationM[q] - zp
+                ga[q] += mA - lostA; gy[q] += mY - lostY; for (c in had.indices) gc[c][q] += (mA - lostA) * had[c]
+                arrived[q] += came; walkedKm[q] += came * (ways.km[i] + climb * max(0f, rise))
+                if (record && hw.placeHex[q] != h) recordFlow(h, hw.placeHex[q], m)
+                climbedNow[monthNow] += came.toDouble() * rise
+            }
+            ga[p] = max(0f, ga[p] - left * (1f - youngShare)); gy[p] = max(0f, gy[p] - left * youngShare)
+            for (c in had.indices) gc[c][p] = max(0f, gc[c][p] - left * (1f - youngShare) * had[c])
+        }
+        // (Those left are worth what they were, a little less than they now are, till the next move weighs them again.)
+        for (q in 0 until n) if (coming[q] > 0f) v[q] = after[q]
         for (p in land.places) { a[p] = max(0f, ga[p] / area[p]); y[p] = max(0f, gy[p] / area[p])
             if (ga[p] > 0f) for (c in carry.indices) carry[c][p] = bound(c, k, gc[c][p] / ga[p]) }
         return drownedHeads
@@ -1898,13 +1883,6 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val crowd = SPARE_CROWD * land.areaKm2[p]
         return roomFor(k, p, crowd, weather, dry, b) * crowd
     }
-
-    /**
-     * How many hexes kind [s] can walk in a step, the first included: its usual day's going over the step's days.
-     * (Its usual going is how far it ranges in a day; a resident that sets off for better country can make at least
-     * that much headway, so this is the lower bound of what it could cover.)
-     */
-    internal fun hopsFor(s: Species, weeks: Int = 1) = max(1, (s.dailyTravelKm * days * weeks / hex.hexKm).toInt())
 
     /**
      * Kind [k]'s animals too thinly spread to keep apart (under [inflation.Tuning.residentFloor] of its usual numbers at a
