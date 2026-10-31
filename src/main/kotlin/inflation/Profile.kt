@@ -58,8 +58,13 @@ object Profile {
     const val SLOW_KEEP = 8
     @PublishedApi internal val slowest = ConcurrentHashMap<String, java.util.TreeMap<Long, String>>()
     @PublishedApi internal val slowCount = ConcurrentHashMap<String, LongAdder>()
-    inline fun slow(what: String, since: Long, detail: () -> String) { if (FINE) { val ns = System.nanoTime() - since; if (slowRanks(what, ns)) slowTook(what, ns, detail()) } }
-    @PublishedApi internal fun slowRanks(what: String, ns: Long): Boolean {
+    /** Jobs of the run's first [WARM_UP_DAYS] days are left out: they carry the JIT's and the class loading's time, not the model's. */
+    const val WARM_UP_DAYS = 90L
+    private val firstDay = java.util.concurrent.atomic.AtomicLong(Long.MIN_VALUE)
+    inline fun slow(what: String, since: Long, day: Long, detail: () -> String) { if (FINE) { val ns = System.nanoTime() - since; if (slowRanks(what, ns, day)) slowTook(what, ns, detail()) } }
+    @PublishedApi internal fun slowRanks(what: String, ns: Long, day: Long): Boolean {
+        firstDay.compareAndSet(Long.MIN_VALUE, day)
+        if (day >= 0 && day < firstDay.get() + WARM_UP_DAYS) return false
         slowCount.computeIfAbsent(what) { LongAdder() }.increment()
         val m = slowest.computeIfAbsent(what) { java.util.TreeMap() }
         return synchronized(m) { m.size < SLOW_KEEP || ns > m.firstKey() }
