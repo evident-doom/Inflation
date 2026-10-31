@@ -126,6 +126,9 @@ class Bands internal constructor(private val world: GroupWorld) {
     /** Each living band's hex by its id, as of this week's camps (for visiting, see [cultureWeek]). */
     internal var bandHex: Map<Int, Hex> = emptyMap()
 
+    /** Each group by its id, as the bands' weeks begin (the groups they look for by id: raid targets, homes they know of). Not saved. */
+    @Transient internal var groupById: Map<Int, HexGroup> = emptyMap()
+
     /** Where each living band with a standing house has it, by the band's id (set each week before the bands' own weeks). */
     internal var houseOf: Map<Int, Hex> = emptyMap()
 

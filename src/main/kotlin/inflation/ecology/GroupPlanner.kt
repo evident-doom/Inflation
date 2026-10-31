@@ -197,8 +197,11 @@ internal class GroupPlanner(private val gs: HexGroups) {
         val pullKm = reach.toDouble().coerceAtLeast(gs.hex.hexKm)
         // (A band keeps off the known homes of bands it is not close to ([Regard.closeOf]): those hexes, once for the week.)
         // (And off the place raiders drove it from, while it fears them: [Band.keptFrom].)
-        val keepOff = g.band?.let { b -> (b.knownHomes.entries.filter { Regard.closeOf(b, it.key) <= 0f }.map { it.value } +
-            listOfNotNull(b.drivenFrom.takeIf { b.keptFrom(it) })).toHexArray() }
+        val keepOff = g.band?.let { b ->
+            val off = HexList(8)
+            for ((id, home) in b.knownHomes) if (Regard.closeOf(b, id) <= 0f) off.add(home)
+            if (b.keptFrom(b.drivenFrom)) off.add(b.drivenFrom)
+            off.toHexArray().also { it.sort() } }
         // A band: how far it lacks each of the rarer materials, and the remembered place with the most of what it lacks.
         val lacked = g.band?.let { b -> FloatArray(PlaceMemory.RARE.size) { k -> gs.lacking(g, b, PlaceMemory.RARE[k]) } }
         var lackedHex = Hex.NONE; var lackedQ = 0f
@@ -800,7 +803,7 @@ internal class GroupPlanner(private val gs: HexGroups) {
         score -= herdLoss(g, b, p)
         if (h == b.unluckyHex) score -= UNLUCKY
         // It keeps off the known homes of bands it is not close to (unless set on raiding them).
-        if (b.raidHex != h && keepOff != null && h in keepOff) score -= TRESPASS_AVOID
+        if (b.raidHex != h && keepOff != null && keepOff.binarySearch(h) >= 0) score -= TRESPASS_AVOID
         // A band set on a raid heads for its target.
         if (!b.raidHex.none) {
             val from = gs.hexKm(here, b.raidHex)
