@@ -16,6 +16,7 @@ import inflation.ecology.ritesApart
 import inflation.ecology.livelihood
 import inflation.ecology.homesApart
 import inflation.ecology.Regard
+import inflation.ecology.PlaceMemory
 import inflation.ecology.FRIEND_TIE
 import inflation.ecology.Mind
 import inflation.ecology.PlanTier
@@ -717,6 +718,8 @@ class Census(private val sim: HexSim) {
         // (And of those by wariness: how many have one keep off the other's home it was told of ([Regard.closeOf], as the
         // planner does), how many are both at home, and how many never met.)
         val nearKeptOff = LongArray(nearW.size); val nearHome = LongArray(nearW.size); val nearNeverMet = LongArray(nearW.size)
+        // (How far apart they are, and whether any place either remembers going to is one the other remembers too.)
+        val nearKm = DoubleArray(nearW.size); val nearSharedPlace = LongArray(nearW.size)
         for (i in 0 until n) {
             val bi = bands[i].second; val li = bi.mainLineage()
             for (j in i + 1 until n) {
@@ -745,6 +748,11 @@ class Census(private val sim: HexSim) {
                     if ((idJ in bi.knownHomes && Regard.closeOf(bi, idJ) <= 0f) || (idI in bj.knownHomes && Regard.closeOf(bj, idI) <= 0f)) nearKeptOff[wc]++
                     if (bi.atHome && bj.atHome) nearHome[wc]++
                     if (idJ !in bi.ties && idI !in bj.ties) nearNeverMet[wc]++
+                    nearKm[wc] += km
+                    val mi = bands[i].first.memory.hex; val mj = bands[j].first.memory.hex
+                    var shared = false
+                    for (x in 0 until PlaceMemory.MEMORY_SLOTS) if (!mi[x].none) for (y in 0 until PlaceMemory.MEMORY_SLOTS) if (mi[x] == mj[y]) shared = true
+                    if (shared) nearSharedPlace[wc]++
                     if (u >= REGION_UNDERSTOOD && off <= REGION_CUSTOMS_APART) { val ri = root(i); val rj = root(j); if (ri != rj) parent[ri] = rj }
                 }
             }
@@ -781,8 +789,8 @@ class Census(private val sim: HexSim) {
         println("     neighbours within %.0f km (pairs, as they stand): by understanding %s; by wariness %s"
             .format(GATHER_KM, Tally.Understood.entries.joinToString(", ") { "%s %d".format(it.label, nearU[it.ordinal]) },
                 Tally.Wary.entries.joinToString(", ") { val k = it.ordinal; val m = nearW[k].coerceAtLeast(1).toDouble()
-                    "%s %d (%.0f%% one keeps off the other's home, %.0f%% both at home, %.0f%% never met)".format(it.label, nearW[k],
-                        100 * nearKeptOff[k] / m, 100 * nearHome[k] / m, 100 * nearNeverMet[k] / m) }))
+                    "%s %d (%.0f km apart on average, %.0f%% with a remembered place in common, %.0f%% one keeps off the other's home, %.0f%% both at home, %.0f%% never met)".format(it.label, nearW[k],
+                        nearKm[k] / m, 100 * nearSharedPlace[k] / m, 100 * nearKeptOff[k] / m, 100 * nearHome[k] / m, 100 * nearNeverMet[k] / m) }))
         println("     bands known a band (alive): median %d, ninetieth %d; %.0f%% of them of another region; friends %.1f a band, %.0f%% of them of another region; country known, as a circle: median %.0f km across, ninetieth %.0f km"
             .format(knownSorted[n / 2], knownSorted[(n * 9) / 10], 100.0 * knownOther.sum() / knownBands.sum().coerceAtLeast(1),
                 friends.sum().toDouble() / n, 100.0 * friendsOther.sum() / friends.sum().coerceAtLeast(1), 2 * reachKm[n / 2], 2 * reachKm[(n * 9) / 10]))
