@@ -322,8 +322,11 @@ private class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, packK
     // (Walking costs food, see [walkCost]; a band's days at rest take less, see [restedDays].)
     var wantAll = g.dailyNeedKg * gs.days * (1f + gs.walkCost(g))
     val eats = 1f / (packKg * EATING_RATE) // days to eat a kilo
-    /** The most a beast's party can eat in the week, kg: its grown eating at [EATING_RATE] every day of it (gorging at a kill, see [eatTheWeek]). */
-    val gutKg = packKg * EATING_RATE * gs.days
+    /**
+     * The most a beast's party can eat in the week, kg: each of it eating at [EATING_RATE] of its weight every day of it,
+     * its young at half a grown one as they need half ([HexGroup.dailyNeedKg]); gorging at a kill, see [eatTheWeek].
+     */
+    val gutKg = s.massKg * (g.adults + 0.5f * g.young) * EATING_RATE * gs.days
     // Small game is found within a few paces of the way, not as far as the party can see; snare
     // lines and nets search it while no one is there.
     val smallSweep = s.dailyTravelKm * gs.days * 2f * SMALL_SENSE_KM * sqrt(gatherHands / s.groupSize) / g.path.size.coerceAtLeast(1) * (band?.snares() ?: 1f)
