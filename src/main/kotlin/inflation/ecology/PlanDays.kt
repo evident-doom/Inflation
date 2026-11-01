@@ -23,9 +23,9 @@ import kotlin.math.roundToInt
  * - what it holds by lives saved this year ([PlanTier.SCORED], survival now; doc: Needs tiers for band choices): the stores
  *   ([planRates]), as far as they ask, while they save any;
  * - then what it holds by the days a work saves it and its heirs over the years it serves them ([PlanTier.GENERATIONS],
- *   security over generations): the houses and weirs, with the days the stores left, the one that saves the most days for
- *   its days first, each as far as it asks, while it saves more days than it takes;
- * - what has no reckoning in lives yet ([PlanTier.UNRECKONED]: tools beyond the clothes, training, materials, drying, skins, caching,
+ *   security over generations): the houses, weirs and tools ([toolRates]), with the days the stores left, the one that
+ *   saves the most days for its days first, each as far as it asks, while it saves more days than it takes;
+ * - what has no reckoning in lives yet ([PlanTier.UNRECKONED]: training, materials, drying, skins, caching,
  *   sowing, palisade), shared out at equal weights of what is left, no dials;
  * - and what is left is its leisure ([PlanTier.LEISURE]), held as such, so no chore takes it.
  * The shelters beyond what the survival pass gave are worth no lives by its own reckoning, and get none. Each ask is
@@ -53,8 +53,10 @@ internal fun HexGroups.planDays(g: HexGroup, b: Band, weather: Weather, time: Ba
     val rate = planRates(g, b, weather, perDay, asks[Activity.HOUSES] > 0f, asks[Activity.WEIRS] > 0f)
     val acts = SCORED_ACTS
     val ask = FloatArray(SCORED_ITEMS) { asks[acts[it]] }
+    // (Its tools: each it reckons worth making ([toolRates]) asks its days, the rest none, beside the clothes the survival pass gave.)
+    toolRates(g, b, perDay).let { (r, a) -> rate[3] = r; ask[3] = a }
     val d = FloatArray(SCORED_ITEMS)
-    // (The stores while they save any lives; a house or a weir when it saves more days than it takes.)
+    // (The stores while they save any lives; a house, a weir or its tools when they save more days than they take.)
     val order = listOf(0) + (1 until SCORED_ITEMS).sortedByDescending { rate[it] }
     for (i in order) {
         if (rate[i] <= (if (i == 0) SAVES_NONE * g.size else 1f) || left <= 0f) continue
@@ -78,6 +80,7 @@ internal fun HexGroups.planDays(g: HexGroup, b: Band, weather: Weather, time: Ba
     add(PlanTier.STORES_ASKED, days(Activity.FOOD, ask[0])); add(PlanTier.STORES_HELD, days(Activity.FOOD, d[0]))
     add(PlanTier.HOUSES_ASKED, days(Activity.HOUSES, ask[1])); add(PlanTier.HOUSES_HELD, days(Activity.HOUSES, d[1]))
     add(PlanTier.WEIRS_ASKED, days(Activity.WEIRS, ask[2])); add(PlanTier.WEIRS_HELD, days(Activity.WEIRS, d[2]))
+    add(PlanTier.TOOLS_ASKED, days(Activity.TOOLS, ask[3])); add(PlanTier.TOOLS_HELD, days(Activity.TOOLS, d[3]))
     stats.hunting.merge(Tally.planTier(PlanTier.LIVES), (1e4f * d[0] * rate[0]).roundToInt(), Int::plus)
     return given
 }
@@ -184,7 +187,8 @@ enum class PlanTier(val label: String) {
     OBLIGED("owed by custom"), SCORED("held by lives this year"), GENERATIONS("held by days saved over generations"), UNRECKONED("no reckoning yet"), LEISURE("leisure"),
     ASKED_BEYOND("unreckoned asks not given"), LIVES("lives reckoned saved, 1/10000"),
     STORES_ASKED("stores asked"), STORES_HELD("stores held"), HOUSES_ASKED("houses asked"), HOUSES_HELD("houses held"),
-    WEIRS_ASKED("weirs asked"), WEIRS_HELD("weirs held")
+    WEIRS_ASKED("weirs asked"), WEIRS_HELD("weirs held"),
+    TOOLS_ASKED("tools asked"), TOOLS_HELD("tools held")
 }
 
 /** planTrace=true: a sample of planning bands' weeks, how the year ahead reckons their stores ([planRates]), on stderr. */
@@ -192,14 +196,71 @@ internal val PLAN_TRACE = Config.flag(Config.Key.PLAN_TRACE, false)
 private val planTraced = java.util.concurrent.atomic.AtomicInteger()
 private val houseTraced = java.util.concurrent.atomic.AtomicInteger()
 private val weirTraced = java.util.concurrent.atomic.AtomicInteger()
+private val toolTraced = java.util.concurrent.atomic.AtomicInteger()
 private const val PLAN_TRACE_MOST = 400
 private const val PLAN_TRACE_SALT = 0x50545243L
 
 /** The chores with no reckoning in lives yet ([planDays]): shared out at equal weights. */
-private val UNRECKONED_ACTS = arrayOf(Activity.TOOLS, Activity.TRAINING, Activity.MATERIALS, Activity.DRYING, Activity.SKINS, Activity.CACHING,
+private val UNRECKONED_ACTS = arrayOf(Activity.TRAINING, Activity.MATERIALS, Activity.DRYING, Activity.SKINS, Activity.CACHING,
     Activity.SOWING, Activity.PALISADE)
-/** The chores [planDays] holds by what they save ([planRates]): the stores in lives, then houses and weirs in days. */
-private val SCORED_ACTS = arrayOf(Activity.FOOD, Activity.HOUSES, Activity.WEIRS)
+/** The chores [planDays] holds by what they save ([planRates], [toolRates]): the stores in lives, then houses, weirs and tools in days. */
+private val SCORED_ACTS = arrayOf(Activity.FOOD, Activity.HOUSES, Activity.WEIRS, Activity.TOOLS)
 private val SCORED_ITEMS = SCORED_ACTS.size
 /** Fewer lives than this a person are none saved: the rounding in the reckoning, not a difference. */
 private const val SAVES_NONE = 1e-6f
+
+/** What a [Mind.PLANS] band's tools served a year as it lived its weeks ([Band.toolWork]). */
+enum class ToolWork { PLANT_DAYS, SEED_DAYS, MEAT_KG, NET_KG }
+
+/**
+ * Band [b]'s (group [g]'s) tools in days (tier 2, as houses and weirs, [planDays]): for each tool it knows and lacks of a
+ * whole kit, the days of work a whole kit would save it a year as it lived its weeks ([Band.toolWork]) over the years a
+ * kit lasts ([Tool.wearPerYear]; a tool too heavy to carry, as long as it keeps the place, [keepYears], if less), against
+ * the days a whole kit takes to make ([Tool.makeDays] a person, by its craft's skill). Each saves what the sim has it do:
+ * - a basket speeds all plant work (more carried a trip), a sickle and grinding stones the seed and grain
+ *   ([reapDaysPerKg]): the days at that work less those it would take with a whole kit;
+ * - spears and bows make more stalks end in a kill ([Band.huntEdge]), nets sweep more ground for small game and take
+ *   more fish ([Band.snares], [Band.fishing]): the more food it would have got, as days of foraging at [perDay].
+ * (Not weighed: what grinding adds to seed's food, [seedValue]; spears and bows against beasts; the pick, for wells, which
+ * no band yet builds. The clothes are the survival pass's ([survivalDays]). A bow's gain is taken at half its most, for
+ * game of middling speed.)
+ * Marks the tools that save more days than they take in [Band.toolPays] (it makes and mends those alone), and returns
+ * their days saved over their days ([planDays]' rate) and the days they ask.
+ */
+private fun HexGroups.toolRates(g: HexGroup, b: Band, perDay: Float): Pair<Float, Float> {
+    val people = g.adults.toFloat()
+    val wk = b.toolWork
+    var saved = 0f; var cost = 0f; var asked = 0f
+    for (t in Tool.entries) {
+        b.toolPays[t] = false
+        if (!b.knows[t] || t == Tool.CLOTHES || t == Tool.PICK || people <= 0f) continue
+        val k = b.has(t)
+        if (k >= 1f) continue
+        // (A year's days saved by a whole kit against the kit it has.)
+        fun speeds(days: Float, gain: Float) = days * (1f - (1f + gain * k) / (1f + gain))
+        fun more(kg: Float, now: Float, whole: Float) = if (perDay > 0f && now > 0f) kg * (whole / now - 1f) / perDay else 0f
+        val aYear = when (t) {
+            Tool.BASKET -> speeds(wk[ToolWork.PLANT_DAYS], BASKET_GAIN)
+            Tool.SICKLE -> speeds(wk[ToolWork.SEED_DAYS], SICKLE_GAIN)
+            Tool.GRINDER -> speeds(wk[ToolWork.SEED_DAYS], GRINDER_GAIN)
+            Tool.SPEAR -> more(wk[ToolWork.MEAT_KG], WEAPONLESS + (1f - WEAPONLESS) * k, 1f)
+            Tool.BOW -> more(wk[ToolWork.MEAT_KG], 1f + 0.5f * BOW_GAIN * k, 1f + 0.5f * BOW_GAIN)
+            Tool.NET -> more(wk[ToolWork.NET_KG], 1f + NET_GAIN * k, 1f + NET_GAIN)
+            else -> 0f
+        }
+        val lasts = (1f / t.wearPerYear).let { if (t.heavy) min(it, keepYears(b, stepsPerYear)) else it }
+        val whole = t.makeDays * people / b.makeSkill(t).coerceAtLeast(1e-3f)
+        val over = aYear / (1f - k) * lasts / whole
+        if (PLAN_TRACE && unitOf(mix64(g.id * HASH_A + b.campWeeks * HASH_B + t.ordinal + PLAN_TRACE_SALT + 3)) < 0.02f &&
+            toolTraced.incrementAndGet() <= PLAN_TRACE_MOST)
+            System.err.println(("tool trace: band %d, %s, %d grown, kit %.2f; a year as lived: %.0f plant days, %.0f seed days, %.0f kg meat, " +
+                "%.0f kg small game and fish; a whole kit saves %.1f days a year, lasts %.1f y, takes %.0f days to make: %.2f (made at 1 or more)").format(
+                g.id, t.name, g.adults, k, wk[ToolWork.PLANT_DAYS], wk[ToolWork.SEED_DAYS], wk[ToolWork.MEAT_KG], wk[ToolWork.NET_KG],
+                aYear / (1f - k), lasts, whole, over))
+        if (over < 1f) continue
+        b.toolPays[t] = true
+        saved += aYear * lasts; cost += (1f - k) * whole
+        asked += makeTools(b, people, null, only = t)
+    }
+    return (if (cost > 0f) saved / cost else 0f) to asked
+}

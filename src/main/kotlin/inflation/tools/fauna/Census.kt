@@ -458,13 +458,14 @@ class Census(private val sim: HexSim) {
             if (pw > 0.0) {
                 fun v(t: PlanTier) = (lastYear[Tally.planTier(t)] ?: 0).toDouble()
                 val all = listOf(PlanTier.OBLIGED, PlanTier.SCORED, PlanTier.GENERATIONS, PlanTier.UNRECKONED, PlanTier.LEISURE).sumOf { v(it) }.coerceAtLeast(1.0)
-                println("planning bands' days beyond their essentials, last year (share of those days by tier; unreckoned asks not given, as a share of those days; lives the days held by lives were reckoned to save, per 1000 people a year; the stores', houses' and weirs' days held as a share of their asks, and their asks as a share of those days): " +
+                println("planning bands' days beyond their essentials, last year (share of those days by tier; unreckoned asks not given, as a share of those days; lives the days held by lives were reckoned to save, per 1000 people a year; the stores', houses', weirs' and tools' days held as a share of their asks, and their asks as a share of those days): " +
                     listOf(PlanTier.OBLIGED, PlanTier.SCORED, PlanTier.GENERATIONS, PlanTier.UNRECKONED, PlanTier.LEISURE).joinToString(", ") { "%s %.0f%%".format(it.label, 100 * v(it) / all) } +
                     "; %s %.0f%%; %.1f".format(PlanTier.ASKED_BEYOND.label, 100 * v(PlanTier.ASKED_BEYOND) / all, 1000 * v(PlanTier.LIVES) / 1e4 / (pw / stepsPerYear).coerceAtLeast(1e-9)) +
-                    "; stores held %.0f%% of asked (asked %.0f%% of those days), houses %.0f%% (%.0f%%), weirs %.0f%% (%.0f%%)".format(
+                    "; stores held %.0f%% of asked (asked %.0f%% of those days), houses %.0f%% (%.0f%%), weirs %.0f%% (%.0f%%), tools %.0f%% (%.0f%%)".format(
                         100 * v(PlanTier.STORES_HELD) / v(PlanTier.STORES_ASKED).coerceAtLeast(1.0), 100 * v(PlanTier.STORES_ASKED) / all,
                         100 * v(PlanTier.HOUSES_HELD) / v(PlanTier.HOUSES_ASKED).coerceAtLeast(1.0), 100 * v(PlanTier.HOUSES_ASKED) / all,
-                        100 * v(PlanTier.WEIRS_HELD) / v(PlanTier.WEIRS_ASKED).coerceAtLeast(1.0), 100 * v(PlanTier.WEIRS_ASKED) / all))
+                        100 * v(PlanTier.WEIRS_HELD) / v(PlanTier.WEIRS_ASKED).coerceAtLeast(1.0), 100 * v(PlanTier.WEIRS_ASKED) / all,
+                        100 * v(PlanTier.TOOLS_HELD) / v(PlanTier.TOOLS_ASKED).coerceAtLeast(1.0), 100 * v(PlanTier.TOOLS_ASKED) / all))
             }
         }
         run {

@@ -248,6 +248,14 @@ class Band(kinds: Int) {
      */
     @Transient var weirFood = 0f
     @Transient var weirTend = 0f
+    /**
+     * What its tools served a year as it lived its weeks ([ToolWork]): its days at gathering plant food and of them at seed,
+     * the meat and fat of its kills, kg, and its small game and fish caught, kg; running means over about a year, for
+     * [Mind.PLANS] bands' reckoning of their tools ([toolRates]). (Not kept in a save: they build up again over a year.)
+     */
+    @Transient val toolWork = enumFloats<ToolWork>()
+    /** This week, the tools a [Mind.PLANS] band reckons worth making ([toolRates]): it makes and mends those alone, beside the clothes the survival pass gives days. */
+    @Transient val toolPays = enumBools<Tool> { false }
     /** Over about a year of its weeks at home, the share of its hands' days a well there would have spared it against digging soaks or carrying its water home ([wellSpares]). */
     var waterShort = 0f
     var campPlace = Place.NONE
@@ -678,7 +686,7 @@ class Band(kinds: Int) {
     fun splitInto(o: Band, adults: Int, stay: Int, share: Float, r: Random, copied: (Band) -> Unit) {
         o.ties.clear(); o.ties.putAll(ties); o.appointment = appointment
         o.houseHex = houseHex; o.house = house; o.drivenFrom = drivenFrom; o.drivenBy = drivenBy; o.homeEarth = homeEarth; o.homeWalls = homeWalls; o.homeGroundC = homeGroundC; o.palisade = palisade
-        o.houseLives = houseLives; o.houseFood = houseFood; foodFrom.copyInto(o.foodFrom); o.fishPull = fishPull; o.weirFood = weirFood; o.weirTend = weirTend; monthSupply.copyInto(o.monthSupply); monthSupplySq.copyInto(o.monthSupplySq); o.supplyMonth = supplyMonth; o.supplySum = supplySum; o.supplyWeeks = supplyWeeks; o.larderSeen = larderSeen; weekSupply.copyInto(o.weekSupply); weekWarmth.copyInto(o.weekWarmth); weekMoved.copyInto(o.weekMoved); freeShare.copyInto(o.freeShare); o.leanDays = leanDays
+        o.houseLives = houseLives; o.houseFood = houseFood; foodFrom.copyInto(o.foodFrom); o.fishPull = fishPull; o.weirFood = weirFood; o.weirTend = weirTend; toolWork.copyInto(o.toolWork); monthSupply.copyInto(o.monthSupply); monthSupplySq.copyInto(o.monthSupplySq); o.supplyMonth = supplyMonth; o.supplySum = supplySum; o.supplyWeeks = supplyWeeks; o.larderSeen = larderSeen; weekSupply.copyInto(o.weekSupply); weekWarmth.copyInto(o.weekWarmth); weekMoved.copyInto(o.weekMoved); freeShare.copyInto(o.freeShare); o.leanDays = leanDays
         o.seedDomestic = seedDomestic; o.grainDomestic = grainDomestic; o.seedCorn = seedCorn * share; seedCorn -= o.seedCorn; o.sinceRaided = sinceRaided; o.sisu = sisu
         o.knownHomes.putAll(knownHomes); o.knownLineage.putAll(knownLineage)
         skills.copyInto(o.skills)

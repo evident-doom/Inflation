@@ -382,6 +382,8 @@ private class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, packK
     var weirProbe = 0f; var weirPull = 0f
     // (A whole weir there this week: what it would take, kg of its need, and the days its traps would want: for [Band.weirFood].)
     var weirFood = 0f; var weirTend = 0f
+    // (The band's days at gathering plant food this week, and of them at seed and grain: what its tools speed, for [Band.toolWork].)
+    var plantDays = 0f; var seedDays = 0f
     // (A band's grease rendered from bones, kg, and what it feeds.)
     var grease = 0f; var greaseFed = 0f
     var fed = g.meatMet * feeds(Food.BIG_GAME)
@@ -810,6 +812,11 @@ private fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
         val p = o.place[i]
         // (Days of work counted for the whole band: each party's days in its share of the hands.)
         if (o.type[i] != Food.BIG_GAME) w.busy += expected * o.time[i] * w.party[o.who[i]]
+        when (o.type[i]) {
+            Food.FRUIT, Food.ROOTS, Food.FINDS -> w.plantDays += expected * o.time[i] * w.party[o.who[i]]
+            Food.SEED, Food.GRAIN -> { val d = expected * o.time[i] * w.party[o.who[i]]; w.plantDays += d; w.seedDays += d }
+            else -> {}
+        }
         when (o.type[i]) {
             Food.BIG_GAME -> {
                 val kills1 = if (o.herd[i] >= 0) raidHerd(g, w.herds[o.herd[i]], Place(p), expected, o.kg[i], w.rnd, haul)
@@ -1501,6 +1508,10 @@ private fun GroupWorld.recordFood(g: HexGroup, band: Band, w: ForageWeek) {
     // (And what a whole weir by its camps would have taken and wanted tended as it lived its weeks, a year: [Band.weirFood].)
     band.weirFood += k * (w.weirFood * stepsPerYear - band.weirFood)
     band.weirTend += k * (w.weirTend * stepsPerYear - band.weirTend)
+    // (And what its tools served, a year as it lived its weeks: [Band.toolWork].)
+    fun work(t: ToolWork, v: Float) { band.toolWork[t] += k * (v * stepsPerYear - band.toolWork[t]) }
+    work(ToolWork.PLANT_DAYS, w.plantDays); work(ToolWork.SEED_DAYS, w.seedDays)
+    work(ToolWork.MEAT_KG, w.meat + w.killFat); work(ToolWork.NET_KG, w.smallGot + w.fished)
 }
 
 /** [forage]'s scavenging of [expected] kg at place [p] by [g], over [sweep] km²: what it found, kg. */
