@@ -381,6 +381,10 @@ private class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, packK
     // [weirAsk].)
     var fishPull = 0f
     var weirProbe = 0f; var weirPull = 0f
+    // (A whole weir there this week: what it would take, kg of its need, and the days its traps would want: for [Band.weirFood].)
+    var weirFood = 0f; var weirTend = 0f
+    // (The band's days at gathering plant food this week, and of them at seed and grain: what its tools speed, for [Band.toolWork].)
+    var plantWorkDays = 0f; var seedWorkDays = 0f
     // (A band's grease rendered from bones, kg, and what it feeds.)
     var grease = 0f; var greaseFed = 0f
     var fed = g.meatMet * feeds(Food.BIG_GAME)
@@ -725,15 +729,15 @@ private fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
         // (On strange ground people find little of it.)
         val knowHere = band?.let { plantKnow(it, hw.placeHex[q]) } ?: 1f
         // (Gatherers who go further from camp cover more of the ground.)
-        val reach = band?.let { b -> (min(0.9f, b.gatherShare(false, tuning) * knowHere * b.gatherRange) * part).also { v -> dialUse?.amount(DialSite.GATHER_REACH,
-            b.gatherRange, v, min(0.9f, b.gatherShare(false, tuning) * knowHere) * part, cut = b.gatherShare(false, tuning) * knowHere * b.gatherRange > 0.9f) } }
+        val reach = band?.let { b -> (min(0.9f, b.gatherShare() * knowHere * b.gatherRange) * part).also { v -> dialUse?.amount(DialSite.GATHER_REACH,
+            b.gatherRange, v, min(0.9f, b.gatherShare() * knowHere) * part, cut = b.gatherShare() * knowHere * b.gatherRange > 0.9f) } }
             ?: min(1f, w.smallSweep * g.path.size / land.areaKm2[q])
         // (The unskilled, and strangers to its plants, are slow at it.)
         val slow = band?.slowness(Skill.GATHER, knowHere) ?: 1f
         val eats = w.eats
         val pickQ = (w.pickDays - eats) * slow + eats; val seedQ = (w.seedDays - eats) * slow + eats
         val fruitQ = (w.fruitDays - eats) * slow + eats
-        val seedReach = band?.let { it.gatherShare(true, tuning) * knowHere * part } ?: reach
+        val seedReach = band?.let { it.gatherShare() * knowHere * part } ?: reach
         // (Gatherers take the near ground first: the share they reach of a place as a disc about the camp, two thirds of
         // its radius out on average; a place round the camp lies half a hex further. The walk takes no skill.)
         val off = if (qi < w.gatherAt.size) 0f else hex.hexKm.toFloat() / 2f
@@ -800,6 +804,7 @@ private fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
         val wholeKg = if (whole > 0f) fauna.water.weirWouldTake(h, whole / width) else 0f
         w.weirProbe = if (wholeKg > 0f && w.gatherers > 0f)
             w.weigh(Food.FISH) * band.effort[Food.FISH] / harassedDays(g.place, weirDays(whole, wholeKg) / w.gatherHands + w.eats) else 0f
+        if (wholeKg > 0f) { w.weirFood = wholeKg * w.worth(Food.FISH); w.weirTend = weirDays(whole, wholeKg) * wholeKg }
     }
 }
 
@@ -812,6 +817,11 @@ private fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
         val p = o.place[i]
         // (Days of work counted for the whole band: each party's days in its share of the hands.)
         if (o.type[i] != Food.BIG_GAME) w.busy += expected * o.time[i] * w.party[o.who[i]]
+        when (o.type[i]) {
+            Food.FRUIT, Food.ROOTS, Food.FINDS -> w.plantWorkDays += expected * o.time[i] * w.party[o.who[i]]
+            Food.SEED, Food.GRAIN -> { val d = expected * o.time[i] * w.party[o.who[i]]; w.plantWorkDays += d; w.seedWorkDays += d }
+            else -> {}
+        }
         when (o.type[i]) {
             Food.BIG_GAME -> {
                 if (HUNT_DIAG && band == null) w.killsExpected += expected
@@ -1505,6 +1515,13 @@ private fun GroupWorld.recordFood(g: HexGroup, band: Band, w: ForageWeek) {
     band.fishPull += k * (w.fishPull - band.fishPull)
     // (Whether a weir would pay goes with the season's fish, so it is this week's, not a running worth.)
     band.weirPull = w.weirPull
+    // (And what a whole weir by its camps would have taken and wanted tended as it lived its weeks, a year: [Band.weirFood].)
+    band.weirFood += k * (w.weirFood * stepsPerYear - band.weirFood)
+    band.weirTend += k * (w.weirTend * stepsPerYear - band.weirTend)
+    // (And what its tools served, a year as it lived its weeks: [Band.toolWork].)
+    fun work(t: ToolWork, v: Float) { band.toolWork[t] += k * (v * stepsPerYear - band.toolWork[t]) }
+    // (Days a hand, as the week's busy days are: the band's are its hands'.)
+    work(ToolWork.PLANT_DAYS, w.plantWorkDays * w.hands); work(ToolWork.SEED_DAYS, w.seedWorkDays * w.hands)
 }
 
 /** [forage]'s scavenging of [expected] kg at place [p] by [g], over [sweep] km²: what it found, kg. */
