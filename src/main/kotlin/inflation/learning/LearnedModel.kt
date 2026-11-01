@@ -36,7 +36,7 @@ object LearnedModel {
             val by = Role.entries.associateWith { r -> r.file(dir).takeIf { it.exists() }?.let { MoverPolicy(SharedMover.load(it), null, { 0f }, { 0 }) } }
             for (s in groups.kinds) by[Role.of(s)]?.let { groups.policies[s] = it }
             val missing = by.filterValues { it == null }.keys
-            log("moving by the learned networks in $dir" + if (missing.isEmpty()) "" else " (none there for ${missing.joinToString { it.label }}: hand-written)")
+            log("moving by the learned networks in $dir" + if (missing.isEmpty()) "" else " (WARNING: no network there for ${missing.joinToString { it.label }}: those groups keep the hand-written choices; train and keep a baseline with all roles)")
         }
         fun file(given: String?, name: String) = given?.let { File(it) } ?: dir?.let { File(it, name) }?.takeIf { it.exists() }
         for ((k, given) in listOf(WaysKind.BANDS to ways, WaysKind.HUNTERS to hunterWays))
