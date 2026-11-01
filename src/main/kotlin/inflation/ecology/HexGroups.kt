@@ -635,6 +635,8 @@ class HexGroups(
 
     /** Time spent settling meetings, ns, over the run (for measuring the cost). */
     @Transient var meetNs = 0L
+    /** The month of the week the groups meet in ([meet]): for the young in hiding ([youngHidden]). */
+    @Transient internal var meetMonth = 0
 
 
 
