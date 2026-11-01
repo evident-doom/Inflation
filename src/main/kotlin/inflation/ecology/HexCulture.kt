@@ -145,7 +145,7 @@ internal const val GRUDGE = 1f
 internal const val GRUDGE_FADE = 0.1f
 /** A band's grudge against another's lineage above which it raids it unprovoked. */
 internal const val FEUD = 0.9f
-/** Rings of hexes round a meeting whose country bands tell each other of; country further than this from a band's camp is half forgotten each year. */
+/** Rings of hexes round a meeting whose country bands tell each other of; country further than this from a band's camp is half forgotten each year, as are the homes of bands that far off (unless tied). */
 internal const val TOLD_RINGS = 4
 internal const val REMEMBERED_KM = 100.0
 /** A band fed under this share of its fill with nothing laid by goes to a better-stocked band within this many rings of hexes. */
@@ -532,8 +532,8 @@ private fun HexGroups.tellOfCountry(a: HexGroup, bandA: Band, b: HexGroup, bandB
         hearer.knownLineage[teller.id] = bt.mainLineage()
     }
     fun tellsHomes(bt: Band, hearer: HexGroup, bh: Band) {
-        // (A home the hearer knows already is nothing to tell: no draw is made for it. Most are: bands that meet come to know the same homes.)
-        for ((id, hh) in bt.knownHomes) if (id != hearer.id && id !in bh.knownHomes && rnd.nextFloat() < u) {
+        // (A home the hearer knows already is nothing to tell: no draw is made for it. Homes far from where they meet are not talked of, as the country is not: see [REMEMBERED_KM].)
+        for ((id, hh) in bt.knownHomes) if (id != hearer.id && id !in bh.knownHomes && hex.distanceKm(hh, h0) <= REMEMBERED_KM && rnd.nextFloat() < u) {
             bh.knownHomes[id] = hh
             bt.knownLineage[id]?.let { bh.knownLineage.putIfAbsent(id, it) }
         }
@@ -700,9 +700,15 @@ internal fun HexGroups.cultureWeek(g: HexGroup, rnd: kotlin.random.Random) {
         val it = b.ties.entries.iterator()
         while (it.hasNext()) { val e = it.next(); e.setValue(e.value * (1f - fade * (if (e.key in near) 1f - visited else 1f))); if (abs(e.value) < 0.01f) it.remove() }
     }
-    // Country far from where it now lives fades from memory, a share of it a year.
+    // Country far from where it now lives fades from memory, a share of it a year; so do the homes of bands far off,
+    // unless a tie (friendship or feud) keeps them in mind.
     if (rnd.nextFloat() < years) {
         val here = hw.placeHex[g.place]
+        if (b.knownHomes.isNotEmpty()) {
+            val it = b.knownHomes.entries.iterator()
+            while (it.hasNext()) { val (id, hh) = it.next()
+                if (hex.distanceKm(hh, here) > REMEMBERED_KM && id !in b.ties && rnd.nextFloat() < 0.5f) { it.remove(); b.knownLineage.remove(id) } }
+        }
         for (w in b.known.indices) { var bits = b.known[w]; while (bits != 0L) { val i = java.lang.Long.numberOfTrailingZeros(bits); bits = bits and (bits - 1)
             val h = Hex(w * 64 + i)
             if (hex.distanceKm(h, here) > REMEMBERED_KM && rnd.nextFloat() < 0.5f * routes.forgetShare(h)) b.known[w] = b.known[w] and (1L shl i).inv() } }
