@@ -966,9 +966,16 @@ private fun HexGroups.eatTheWeek(w: ForageWeek) {
     }
     // Gorging: what is left of a kill is eaten beyond need, as far as the gut holds ([EATING_RATE] every day of the week,
     // [ForageWeek.gutKg]) and reserves are short (the fat it would lay on, [FAT_EFFICIENCY], up to [Species.maxFatDays]).
+    if (HUNT_DIAG && band == null) {
+        diag(s, HuntStep.PACK_FAT_SHARE, g.fat / s.maxFatDays.coerceAtLeast(1e-3f)); diag(s, HuntStep.PACK_WANT_OVER_GUT, wantAll / w.gutKg.coerceAtLeast(1e-3f))
+        if (spare > 0f) { diag(s, HuntStep.GORGE_WEEKS, 1f); diag(s, HuntStep.GORGE_SPARE_KG, spare); diag(s, HuntStep.GORGE_GUT_ROOM_KG, max(0f, w.gutKg - wantAll))
+            if (g.fat >= s.maxFatDays) diag(s, HuntStep.GORGE_WEEKS_FAT_FULL, 1f)
+            else diag(s, HuntStep.GORGE_FAT_ROOM_KG, (s.maxFatDays - g.fat) / FAT_EFFICIENCY * g.dailyNeedKg / meatWorth) }
+    }
     if (spare > 0f && g.fat < s.maxFatDays && band == null) {
         val fatRoom = (s.maxFatDays - g.fat) / FAT_EFFICIENCY * g.dailyNeedKg / meatWorth
         val gorge = min(spare, min(max(0f, w.gutKg - wantAll), fatRoom))
+        if (HUNT_DIAG) diag(s, HuntStep.GORGE_KG, gorge)
         g.surplus = gorge * meatWorth / g.dailyNeedKg.coerceAtLeast(1e-3f)
         spare -= gorge
         small.deposit(DeadPool.DUNG, g.place, Kg(HexSmallLife.DUNG * gorge))
@@ -981,6 +988,7 @@ private fun HexGroups.eatTheWeek(w: ForageWeek) {
         if (g.fed < WELL_FED) diag(s, if (killed) HuntStep.PACK_WEEKS_HUNGRY_WITH_KILL else HuntStep.PACK_WEEKS_HUNGRY_NO_KILL, 1f)
         diag(s, HuntStep.PACK_PASSES, w.passes.toFloat()); diag(s, HuntStep.PACK_SEARCH_DAYS, w.searchDays); diag(s, HuntStep.PACK_KILLS_EXPECTED, w.killsExpected)
         if (g.fed < WELL_FED && !killed) { diag(s, HuntStep.HUNGRY_NO_KILL_PASSES, w.passes.toFloat()); diag(s, HuntStep.HUNGRY_NO_KILL_SEARCH_DAYS, w.searchDays)
+            diag(s, HuntStep.HUNGRY_NO_KILL_FAT_SHARE, g.fat / s.maxFatDays.coerceAtLeast(1e-3f))
             diag(s, HuntStep.HUNGRY_NO_KILL_KILLS_EXPECTED, w.killsExpected); diag(s, HuntStep.HUNGRY_NO_KILL_WORK_DAYS, w.workDays) }
         diag(s, HuntStep.PACK_KG_EATEN, eaten); diag(s, HuntStep.PACK_KG_LEFT, spare)
     }
