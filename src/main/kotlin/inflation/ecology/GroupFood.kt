@@ -60,20 +60,22 @@ internal fun HexGroups.hunt(weather: Weather) {
     dialUse?.let { u -> for (g in hunters) if (g.band != null) u.bandWeeks.increment() }
     // (A band followed under the player's hand sets its ways every week, so the player's pins hold.)
     if (ways == null) controlledWays()?.let { w -> hunters.firstOrNull { it.id == watched && it.band != null }?.let { setWays(it, weather, w, inputs, out) } }
-    // Then region by region on all cores: the map is cut into squares coloured like a chessboard of four
-    // colours, so that squares of one colour lie a square apart; the squares of one colour are worked at
-    // once. Parties whose week kept within half a square of where they ended it are worked first in squares
+    // Then region by region on all cores: the map is cut into squares coloured in a 3 by 3 pattern of nine
+    // colours, so that squares of one colour lie two squares apart; the squares of one colour are worked at
+    // once. Parties whose week kept within a square of where they ended it are worked first in squares
     // of [HUNT_FINE_KM] (two such parties in squares of one colour cannot have passed the same ground); the
-    // few that ranged further after them, in squares of [HUNT_BLOCK_KM], wider than twice any party's week.
+    // few that ranged further after them, in squares of [HUNT_BLOCK_KM], wider than any party's week.
+    // (Nine small squares rather than four of twice the width: a crowded place is shared out over more of them,
+    // so one square's parties do not keep the other cores waiting.)
     fun work(parties: List<HexGroup>, squareKm: Float) {
         val blocks = HashMap<Int, ArrayList<HexGroup>>()
         for (g in parties) {
             val (x, y) = hex.centreKm(hw.placeHex[g.place])
             blocks.getOrPut((x / squareKm).toInt() + 1000 * (y / squareKm).toInt()) { ArrayList() } += g
         }
-        for (colour in 0 until 4) {
+        for (colour in 0 until 9) {
             // (The squares with the most parties first, so the slowest is not left to last on one core.)
-            val squares = blocks.entries.filter { (b, _) -> (b % 1000) % 2 + 2 * ((b / 1000) % 2) == colour }
+            val squares = blocks.entries.filter { (b, _) -> (b % 1000) % 3 + 3 * ((b / 1000) % 3) == colour }
                 .sortedByDescending { e -> e.value.sumOf { g -> if (g.band != null) 4 * g.path.size else g.path.size } }
             Par.forEach("foraging: squares", squares.size) { i ->
                 for (g in squares[i].value) {
@@ -90,7 +92,7 @@ internal fun HexGroups.hunt(weather: Weather) {
     val (near, far) = hunters.partition { g ->
         val end = hw.placeHex[g.place]
         // (Its hunting ground reaches a hex beyond its way, see [huntGround].)
-        g.path.all { h -> hex.distanceKm(end, h) + 2 * hex.hexKm < HUNT_FINE_KM / 2 }
+        g.path.all { h -> hex.distanceKm(end, h) + 2 * hex.hexKm < HUNT_FINE_KM }
     }
     stats.summedByThread { work(near, HUNT_FINE_KM); work(far, HUNT_BLOCK_KM) }
 }
