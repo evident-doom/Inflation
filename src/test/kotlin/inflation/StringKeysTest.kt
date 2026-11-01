@@ -73,6 +73,7 @@ class StringKeysTest {
     @Test
     fun `no new non-null assertions`() = check("""!!""", mapOf(
         "ecology/HexCulture.kt" to (5 to "a band of a people group: the caller has chosen people"),
+        "Profile.kt" to (1 to "the jar's own profile.jfc resource, which ships with the code"),
         "ecology/HexFauna.kt" to (4 to "audit books set when the audit is on and tested just before"),
         "ecology/HexGeography.kt" to (1 to "the cover of a core, set while building"),
         "ecology/HexGroups.kt" to (3 to "the path and time of a group that chose to move"),
@@ -115,6 +116,7 @@ class StringKeysTest {
         "ecology/Catalogue.kt" to (1 to "the kinds' list, read from the file's own object"),
         "ecology/HexSnapshot.kt" to (21 to "saves are by field name: the order and roster checks"),
         "run/Nominal.kt" to (4 to "lists a part's tables for the check"),
+        "Profile.kt" to (4 to "profile=jfr registers the model's own event classes and reads the jar's profile.jfc"),
         "store/ObjectStore.kt" to (52 to "saves are by field name and runtime type; boxed value classes are boxed again by the declared type; a hash map's keys sorted by their runtime class"),
         "world/FreeAir.kt" to (1 to "a resource that ships in the jar"),
         "world/WorldCaches.kt" to (2 to "the jar's resources and the cache reader"),
