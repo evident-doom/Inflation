@@ -849,9 +849,12 @@ private fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
                     stats.meeting(Met.BANDS_ATE_THEIR_TOTEM)
                 }
                 w.busy += kills1 * o.time[i] * w.party[0]
-                if (HUNT_DIAG && band == null) { scentShadow(g, Place(p), kills1, haul)
+                if (HUNT_DIAG && band == null) {
                     diag(g.species, HuntStep.PACK_KILLS, fauna.kinds[o.kind[i]], kills1.toFloat())
                     diag(g.species, HuntStep.PACK_KILL_KG, fauna.kinds[o.kind[i]], haul.kg) }
+                // (Stronger scavengers may come on a beast's kills and take of them; the days it would have spent eating
+                // what they took are its own again, to hunt in.)
+                if (band == null) w.busy -= scavengedAtKill(g, Place(p), kills1, haul, w.rnd) * w.eats * w.party[0]
                 // (Its fat feeds as grease, the rest as lean meat; for the census, the kills by month and by prey kind, lean and fat by weight.)
                 w.meat += haul.kg - haul.fat; w.killFat += haul.fat
                 w.fed += (haul.kg - haul.fat) * w.feeds(Food.BIG_GAME) + haul.fat * w.fatFeeds
@@ -1267,52 +1270,73 @@ private fun HexGroups.raidHerd(g: HexGroup, hg: HerdGame, p: Place, expected: Fl
 }
 
 /**
- * Diagnostic (huntSteps), changing nothing: what stronger scavengers would take of beast [g]'s [kills] at [p] (worth
- * [haul] to it) if they came on them by scent, as the bears-at-kills v2 design has it
- * (review/2026-11-01-bears-at-kills-v2-design.md). Each carcass lies while the party eats it at its gut's rate
- * ([EATING_RATE], grown and half the young, as [ForageWeek.gutKg]). Resident kinds that kill as well as scavenge, awake and
- * stronger than the party ([strength]), come on it from downwind as they range for carrion: a strip [Species.senseKm] wide
- * along the share of a day's travel their diet gives carrion ([Diet.carrion]), their bands as common there as they are. A
- * kill found is won by the scavenger as often as its share of their strengths, and it eats its band's day's fill of half
- * the kill (found halfway through, on average). A carcass a kind hauls up a tree keeps, as far as there are trees. Counted
- * by kill size: small under 100 kg live, large over (a beast's kill counts its whole weight, [creditShare]).
+ * Stronger scavengers coming on beast [g]'s [kills] at [p] (worth [haul] to it) by scent, and taking of them
+ * (review/2026-11-01-bears-at-kills-v2-design.md): takes their share off [haul] and leaves it at [p] as carrion, which they
+ * eat as they eat any. Each carcass lies while the party eats it at its gut's rate ([EATING_RATE], grown and half the
+ * young, as [ForageWeek.gutKg]). Resident kinds that kill as well as scavenge, awake and stronger than the party
+ * ([strength]), come on it from downwind as they range for carrion: a strip [Species.senseKm] wide along the share of a
+ * day's travel their diet gives carrion ([Diet.carrion]), their bands as common there as they are. A kill found is won by
+ * the scavenger as often as its share of their strengths, and it eats its band's day's fill of half the kill (found
+ * halfway through, on average). A carcass a kind hauls up a tree keeps, as far as there are trees. Returns the kg taken.
+ * (Counted for huntSteps by kill size, small under 100 kg live and large over, a beast's kill counting its whole weight,
+ * [creditShare].)
  */
-private fun HexGroups.scentShadow(g: HexGroup, p: Place, kills: Int, haul: Haul) {
-    if (haul.kg <= 0f || kills <= 0) return
+private fun HexGroups.scavengedAtKill(g: HexGroup, p: Place, kills: Int, haul: Haul, rnd: kotlin.random.Random): Float {
+    if (haul.kg <= 0f || kills <= 0) return 0f
     val s = g.species
     val party = strength(g)
     val each = haul.kg / kills
     val kinds = fauna.kinds
-    val findsOf = FloatArray(kinds.size); val winOf = FloatArray(kinds.size); val takeOf = FloatArray(kinds.size)
     var rate = 0f; var wins = 0f; var takes = 0f
     for ((k, r) in kinds.withIndex()) {
-        if (r.diet.carrion <= 0f || r.diet.meat <= 0f || r.human || fauna.asleep(FaunaKind(k), p)) continue
-        val band = r.groupSize * r.massKg * r.ferocity
-        if (band <= party) continue
-        // (It ranges for carcasses only the share of its days its diet gives carrion.)
-        val finds = (fauna.adults[k][p] + fauna.young[k][p]) / r.groupSize * r.senseKm * r.dailyTravelKm * r.diet.carrion
-        val win = band / (band + party)
-        findsOf[k] = finds; winOf[k] = win; takeOf[k] = win * min(0.5f * each, EATING_RATE * r.massKg * r.groupSize)
-        rate += finds; wins += finds * win; takes += finds * takeOf[k]
+        val finds = scavengerFinds(r, k, p, party); if (finds <= 0f) continue
+        val win = scavengerWins(r, party)
+        rate += finds; wins += finds * win; takes += finds * win * scavengerTakes(r, each)
     }
+    if (rate <= 0f) { if (HUNT_DIAG) { diag(s, if (each >= 100f) HuntStep.SCENT_KILLS_LARGE else HuntStep.SCENT_KILLS_SMALL, kills.toFloat()); diag(s, HuntStep.SCENT_KG, haul.kg) }; return 0f }
     val eatsADay = EATING_RATE * s.massKg * (g.adults + 0.5f * g.young).coerceAtLeast(1f)
     val lies = min(days.toFloat(), each / eatsADay)
     val cached = if (Niches.Shelter.TREE in Niches.shelters(s)) land.plants.canopy(p) else 0f
-    val found = if (rate > 0f) (1f - exp(-rate * lies)) * (1f - cached) else 0f
-    val lost = if (rate > 0f) min(haul.kg, found * kills * takes / rate) else 0f
-    // (By the scavenger's kind: its share of the finds, of the kills won and of the kg lost.)
-    if (rate > 0f) for (k in kinds.indices) if (findsOf[k] > 0f) {
-        diag(s, HuntStep.SHADOW_FINDS_A_DAY, kinds[k], findsOf[k] * kills)
-        diag(s, HuntStep.SHADOW_WON, kinds[k], found * kills * findsOf[k] * winOf[k] / rate)
-        if (takes > 0f) diag(s, HuntStep.SHADOW_KG_LOST, kinds[k], lost * findsOf[k] * takeOf[k] / takes)
+    val found = (1f - exp(-rate * lies)) * (1f - cached)
+    val won = binomial(binomial(kills, found, rnd), wins / rate, rnd)
+    val kg = haul.kg
+    val lost = if (won > 0 && wins > 0f) min(kg, won * takes / wins) else 0f
+    if (lost > 0f) {
+        haul.fat *= 1f - lost / kg; haul.kg = kg - lost
+        // (What they eat of it is as much meat as the party would have held of it.)
+        small.deposit(DeadPool.CARRION, p, Kg(lost * meatShare(null) / creditShare(null)))
+    }
+    if (!HUNT_DIAG) return lost
+    // (By the scavenger's kind: its finds a day, and its share of the kills won and of the kg lost.)
+    for ((k, r) in kinds.withIndex()) {
+        val finds = scavengerFinds(r, k, p, party); if (finds <= 0f) continue
+        val win = scavengerWins(r, party)
+        diag(s, HuntStep.SCENT_FINDS_A_DAY, r, finds * kills)
+        diag(s, HuntStep.SCENT_WON, r, won * finds * win / wins)
+        if (takes > 0f) diag(s, HuntStep.SCENT_KG_LOST, r, lost * finds * win * scavengerTakes(r, each) / takes)
     }
     val large = each >= 100f
-    diag(s, if (large) HuntStep.SHADOW_KILLS_LARGE else HuntStep.SHADOW_KILLS_SMALL, kills.toFloat())
-    diag(s, if (large) HuntStep.SHADOW_FOUND_LARGE else HuntStep.SHADOW_FOUND_SMALL, found * kills)
-    if (rate > 0f) diag(s, HuntStep.SHADOW_WON, found * kills * wins / rate)
-    diag(s, HuntStep.SHADOW_KG, haul.kg); diag(s, HuntStep.SHADOW_KG_LOST, lost)
-    diag(s, HuntStep.SHADOW_LIE_DAYS, lies * kills); diag(s, HuntStep.SHADOW_FINDS_A_DAY, rate * kills)
+    diag(s, if (large) HuntStep.SCENT_KILLS_LARGE else HuntStep.SCENT_KILLS_SMALL, kills.toFloat())
+    diag(s, if (large) HuntStep.SCENT_FOUND_LARGE else HuntStep.SCENT_FOUND_SMALL, found * kills)
+    diag(s, HuntStep.SCENT_WON, won.toFloat())
+    diag(s, HuntStep.SCENT_KG, kg); diag(s, HuntStep.SCENT_KG_LOST, lost)
+    diag(s, HuntStep.SCENT_LIE_DAYS, lies * kills); diag(s, HuntStep.SCENT_FINDS_A_DAY, rate * kills)
+    return lost
 }
+
+/** [scavengedAtKill]'s bands of kind [r] (index [k]) coming on a kill at [p] a day, if awake and stronger than the [party]; else 0. */
+private fun HexGroups.scavengerFinds(r: Species, k: Int, p: Place, party: Float): Float {
+    if (r.diet.carrion <= 0f || r.diet.meat <= 0f || r.human || fauna.asleep(FaunaKind(k), p)) return 0f
+    if (r.groupSize * r.massKg * r.ferocity <= party) return 0f
+    // (It ranges for carcasses only the share of its days its diet gives carrion.)
+    return (fauna.adults[k][p] + fauna.young[k][p]) / r.groupSize * r.senseKm * r.dailyTravelKm * r.diet.carrion
+}
+
+/** [scavengedAtKill]'s odds a band of kind [r] wins a kill from the [party]: its share of their strengths. */
+private fun scavengerWins(r: Species, party: Float): Float { val band = r.groupSize * r.massKg * r.ferocity; return band / (band + party) }
+
+/** What a band of kind [r] eats of a kill worth [each] that it wins: its day's fill, of half the kill at most. */
+private fun scavengerTakes(r: Species, each: Float) = min(0.5f * each, EATING_RATE * r.massKg * r.groupSize)
 
 /**
  * [forage]'s hunt of kind [k] at place [p]: [expected] kills on average, each worth [kgEach] to the party.
