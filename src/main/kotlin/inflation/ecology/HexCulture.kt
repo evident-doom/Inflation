@@ -365,6 +365,22 @@ internal class Regard(private val of: Band, private val toId: Int, private val t
     }
 }
 
+/** Years between two meetings of the same bands after which a meeting is wholly new: news is told, a feast given, once a season. An estimate. */
+internal const val MEETING_AGAIN_YEARS = 0.25f
+
+/**
+ * How new this meeting of [a] and [b] is, 0..1: 1 if they have not met within [MEETING_AGAIN_YEARS], less the more lately
+ * they last met. Bands that meet every week share words, ways and company every time (their cultures come closer
+ * gradually) but tell news and feast each other in proportion to it: over a season, once between them. Records the meeting.
+ */
+internal fun HexGroups.meetingFresh(a: HexGroup, b: HexGroup, weather: Weather): Float {
+    val ba = a.band ?: return 1f; val bb = b.band ?: return 1f
+    val now = stepOf(weather.date)
+    val last = ba.lastMet[b.id]
+    ba.lastMet[b.id] = now; bb.lastMet[a.id] = now
+    return if (last == null) 1f else ((now - last) / (MEETING_AGAIN_YEARS * stepsPerYear)).coerceIn(0f, 1f)
+}
+
 /**
  * Two bands meet. If one is hungry and the other well stocked, or one holds a feud against the
  * other's people, it may raid: the less they understand each other, the likelier. Otherwise they
@@ -372,7 +388,7 @@ internal class Regard(private val of: Band, private val toId: Int, private val t
  * they show each other tools, and bands that marry out exchange partners, who bring their skills.
  * Returns true if it came to a raid.
  */
-internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weather, rite: RiteGathering? = null): Boolean {
+internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weather, rite: RiteGathering? = null, fresh: Float = 1f): Boolean {
     val bandA = a.band ?: return false; val bandB = b.band ?: return false
     var lap = Profile.mark()
     bandA.ensureMarks(fauna.kinds.size); bandB.ensureMarks(fauna.kinds.size)
@@ -457,7 +473,8 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
     passIllness(bandA, bandB)
     lap = Profile.lap("bandsMeet: illness", lap)
     // Each tells the other of the country it knows round about, as far as they understand each other.
-    if (rnd.nextFloat() < u * (0.6f + 0.4f * close)) tellOfCountry(a, bandA, b, bandB, ab, ba, weather)
+    // (News told is old: bands that meet again and again have little new to tell, [meetingFresh].)
+    if (rnd.nextFloat() < u * (0.6f + 0.4f * close) * fresh) tellOfCountry(a, bandA, b, bandB, ab, ba, weather)
     lap = Profile.lap("bandsMeet: tell of country", lap)
     // Partners: where either holds to marrying out, young adults change bands, both ways, between bands that understand each
     // other and keep the same ways the likelier.
