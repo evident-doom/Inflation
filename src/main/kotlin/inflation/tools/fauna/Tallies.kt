@@ -509,8 +509,8 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
     private fun herdFlows(): String {
         val f = sim.groups.bands.herdFlows
         val kg = f[HerdFlow.KG].coerceAtLeast(1e-6f)
-        return "; since last: born %.0f, died %.0f, ran off %.0f, taken by beasts %.0f, strayed unwatched %.0f, eaten of the increase %.0f, eaten down for not paying %.0f, gone wild with bands that died out %.0f, milk %.0f t; herded %.2f, fed %.2f, in herds that pay %.2f (a herder's day against a lean month's foraging day: under 0.5 %.2f, 0.5-1 %.2f, 1-2 %.2f, 2 or more %.2f); herds ended %.0f while paying, %.0f not paying, %.0f with their band".format(
-            f[HerdFlow.BORN], f[HerdFlow.DIED], f[HerdFlow.RAN_OFF], f[HerdFlow.TAKEN], f[HerdFlow.STRAYED], f[HerdFlow.EATEN], f[HerdFlow.EATEN_UNPAID], f[HerdFlow.FREED], f[HerdFlow.MILK_KG] / 1000f,
+        return "; since last: born %.0f, died %.0f (eaten by their keepers %.0f), ran off %.0f, taken by beasts %.0f, strayed unwatched %.0f, eaten of the increase %.0f, eaten down for not paying %.0f, gone wild with bands that died out %.0f, milk %.0f t; herded %.2f, fed %.2f, in herds that pay %.2f (a herder's day against a lean month's foraging day: under 0.5 %.2f, 0.5-1 %.2f, 1-2 %.2f, 2 or more %.2f); herds ended %.0f while paying, %.0f not paying, %.0f with their band".format(
+            f[HerdFlow.BORN], f[HerdFlow.DIED], f[HerdFlow.FALLEN_EATEN], f[HerdFlow.RAN_OFF], f[HerdFlow.TAKEN], f[HerdFlow.STRAYED], f[HerdFlow.EATEN], f[HerdFlow.EATEN_UNPAID], f[HerdFlow.FREED], f[HerdFlow.MILK_KG] / 1000f,
             f[HerdFlow.KG_TENDED] / kg, f[HerdFlow.KG_FED] / kg, f[HerdFlow.KG_PAYS] / kg,
             f[HerdFlow.KG_WORTH_HALF] / kg, f[HerdFlow.KG_WORTH_UNDER] / kg, f[HerdFlow.KG_WORTH_OVER] / kg, f[HerdFlow.KG_WORTH_TWICE] / kg, f[HerdFlow.ENDED], f[HerdFlow.ENDED_UNPAID], f[HerdFlow.ENDED_FREED])
             .also { f.fill(0f) } + kindFlows()
@@ -518,7 +518,7 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
 
     /**
      * The same by kind ([Bands.kindFlows]), for kinds caught, kept or let go since the last census: young caught and kept, herds
-     * begun from none so, head born, strayed unwatched, eaten down for not paying, herds ended paying and not; and
+     * begun from none so, head born, dead and eaten of the increase, strayed unwatched, eaten down for not paying, herds ended paying and not; and
      * on the hoof, the share in herds that pay, the yearly increase and what a herder's day brings against a lean month's
      * foraging, each a mean by kg.
      */
@@ -529,8 +529,8 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
             val line = if (young == 0 && f[HerdFlow.KG] <= 0f && f[HerdFlow.TAKEN] <= 0f && f[HerdFlow.ENDED] + f[HerdFlow.ENDED_UNPAID] + f[HerdFlow.ENDED_PET] + f[HerdFlow.ENDED_FREED] <= 0f) null
             else {
                 val kg = f[HerdFlow.KG].coerceAtLeast(1e-6f)
-                "%s: young kept %d, herds begun %d, born %.0f, ran off %.0f, taken by beasts %.0f, strayed unwatched %.0f, eaten down for not paying %.0f, ended %.0f paying / %.0f not / %.0f as pets, as pets %.2f, in herds that pay %.2f, increase %.2f a year, a herder's day %.2f of a lean month's foraging".format(
-                    kinds[k].name, young, begun, f[HerdFlow.BORN], f[HerdFlow.RAN_OFF], f[HerdFlow.TAKEN], f[HerdFlow.STRAYED], f[HerdFlow.EATEN_UNPAID], f[HerdFlow.ENDED], f[HerdFlow.ENDED_UNPAID], f[HerdFlow.ENDED_PET],
+                "%s: young kept %d, herds begun %d, born %.0f, died %.0f, eaten of the increase %.0f, ran off %.0f, taken by beasts %.0f, strayed unwatched %.0f, eaten down for not paying %.0f, ended %.0f paying / %.0f not / %.0f as pets, as pets %.2f, in herds that pay %.2f, increase %.2f a year, a herder's day %.2f of a lean month's foraging".format(
+                    kinds[k].name, young, begun, f[HerdFlow.BORN], f[HerdFlow.DIED], f[HerdFlow.EATEN], f[HerdFlow.RAN_OFF], f[HerdFlow.TAKEN], f[HerdFlow.STRAYED], f[HerdFlow.EATEN_UNPAID], f[HerdFlow.ENDED], f[HerdFlow.ENDED_UNPAID], f[HerdFlow.ENDED_PET],
                     f[HerdFlow.KG_PET] / kg, f[HerdFlow.KG_PAYS] / kg, f[HerdFlow.INCREASE_KG] / kg, f[HerdFlow.WORTH_KG] / f[HerdFlow.KG_WORTH_KNOWN].coerceAtLeast(1e-6f))
             }
             f.fill(0f)

@@ -53,3 +53,9 @@ half female, and the keepers eat the males first, keeping one to [SOWS_A_MALE] (
 one to three boars in herds of 20-40 and slaughter castrated males in their second year (Albarella, Manconi and Trentacoste
 2011, pp. 150-154). Losses to death, straying and beasts take both alike. The mothers ([herdMothers]) are that share of the
 grown, not half. Comparison with the record: https://claude.ai/artifact/XtL4p33AZj8LmxyeSvdj9K
+
+Fallen stock (2026-11-01): kept animals that die by the camp (of old age and the like, hunger, fighting, crowding sickness
+and outbreaks: [herdDying]) are eaten by their keepers as one they killed ([slaughter]); before, they were left as carrion.
+Herders in East Africa eat livestock that died, which is how anthrax outbreaks among them start (e.g. Uganda 2018, from
+eating meat of a cow that died: Emerging Infectious Diseases 26(12), 2020). A band weighs its herd by the fallen it eats
+besides the increase ([herdWorth], [herdFoodWeek]). The sickness people could take from such meat is not modelled.

@@ -59,6 +59,8 @@ class Herd(kinds: Int) {
     fun sows(): FloatArray { if (herdSows.size != herd.size) herdSows = FloatArray(herd.size) { 0.5f }; return herdSows }
     /** [herdYoung], sized to [herd]. */
     fun youngHerd(): FloatArray { if (herdYoung.size != herd.size) herdYoung = FloatArray(herd.size); return herdYoung }
+    /** The heads of kind [k] kept, grown and young. */
+    fun heads(k: Int) = herd[k] + youngHerd().getOrElse(k) { 0f }
     /** Whether it keeps any animals, grown or young. */
     fun keepsAnimals() = herd.any { it > 0f } || herdYoung.any { it > 0f }
     /** Of each kind, the heads beasts of prey took from its herd since it last kept it ([raidHerd], [keepHerds]). */
