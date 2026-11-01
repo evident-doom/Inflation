@@ -289,7 +289,7 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
         // bigger than the herd that adds most down towards it, a month's share of the excess a week, as above.)
         val youngShare = if (n > 0f) y / n else 0f
         fun adds(m: Float) = m * max(0f, herdIncrease(b, k, fed, p, m * (1f + youngShare)))
-        val best = if (pet || n <= 0f || adds(n) <= 0f) n else (1..BEST_HERD_STEPS).maxByOrNull { adds(n * it / BEST_HERD_STEPS) }!!.let { n * it / BEST_HERD_STEPS }
+        val best = if (pet || n <= 0f || adds(n) <= 0f) n else n * (1..BEST_HERD_STEPS).maxBy { adds(n * it / BEST_HERD_STEPS) } / BEST_HERD_STEPS
         val grows = pet || pays && increase / headsAHerder(s) <= (room ?: spare) && adds(n + increase) > adds(n)
         if (grows && !pet) { if (room != null) room -= increase / headsAHerder(s) else spare -= increase / headsAHerder(s) }
         b.herds.herdGrew[k] = grows
