@@ -175,6 +175,12 @@ class Species(
      * nor birds. Kept herds of other kinds give meat only ([milkKg]).
      */
     val milked: Boolean = false,
+    /**
+     * The head of it a practised herder keeps on foot, where a record gives it for the kind; 0 for the rule by weight
+     * ([headsAHerder]). Pigs do not flock: in Sardinia two or three herders drove 100-150 pigs, about one to 50
+     * (Albarella, Manconi and Trentacoste 2011, p. 155).
+     */
+    val herdedHeads: Float = 0f,
     /** People: they hunt and gather by skill learned in practice (see [AnimalGroup.craft]), cook, and remember. */
     val human: Boolean = false,
     /** Daily food, kg of prey or plant food, where the allometric rule does not fit (people, who cook). */

@@ -53,3 +53,8 @@ half female, and the keepers eat the males first, keeping one to [SOWS_A_MALE] (
 one to three boars in herds of 20-40 and slaughter castrated males in their second year (Albarella, Manconi and Trentacoste
 2011, pp. 150-154). Losses to death, straying and beasts take both alike. The mothers ([herdMothers]) are that share of the
 grown, not half. Comparison with the record: https://claude.ai/artifact/XtL4p33AZj8LmxyeSvdj9K
+
+Pigs a herder (2026-11-01): pigs do not flock, so the head a herder keeps is the record's, not the rule by weight
+([Species.herdedHeads]): in Sardinia two or three herders drove 100-150 pigs, about one to 50 (Albarella, Manconi and
+Trentacoste 2011, p. 155), against 133 boar by the weight rule. A drive is the most watchful herding; at home in winter a
+herder may not see his pigs for a month, so 50 is the close-herding end.

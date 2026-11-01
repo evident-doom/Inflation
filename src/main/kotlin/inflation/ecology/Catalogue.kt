@@ -144,6 +144,7 @@ object Catalogue {
         speedKmh = 45f,
         foresight = 0.5f,
         domestication = floatArrayOf(0.9f, 0.9f, 0.8f, 0.4f, 0.6f, 0.6f), // became the pig
+        herdedHeads = 50f, // pigs driven in Sardinia, one herder to about 50 (Albarella et al. 2011)
         habitat = Habitat(cover = 0.8f, wet = 0.6f),
         defence = 0.6f,
         fibreDigestion = 0.5f,

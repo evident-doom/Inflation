@@ -355,10 +355,12 @@ internal fun GroupWorld.herdDays(b: Band): Float {
 }
 
 /**
- * The head of kind [s] a practised herder keeps on foot: [HERD_GOATS_A_HERDER] goats, fewer of bigger beasts, as their
- * weight to the power [HERD_MASS_EXP] (more weight on the hoof a herder in big beasts than in small).
+ * The head of kind [s] a practised herder keeps on foot: as its record has it ([Species.herdedHeads]), or else
+ * [HERD_GOATS_A_HERDER] goats, fewer of bigger beasts, as their weight to the power [HERD_MASS_EXP] (more weight on the
+ * hoof a herder in big beasts than in small).
  */
-internal fun headsAHerder(s: Species) = HERD_GOATS_A_HERDER * (s.massKg / GOAT_KG).pow(-HERD_MASS_EXP)
+internal fun headsAHerder(s: Species) =
+    if (s.herdedHeads > 0f) s.herdedHeads else HERD_GOATS_A_HERDER * (s.massKg / GOAT_KG).pow(-HERD_MASS_EXP)
 
 /** Whether a herder's day with [g]'s band [b]'s herd of kind [k] brings it at least what a day's foraging does in its leanest month ([herdWorth]). */
 internal fun GroupWorld.herdPays(g: HexGroup, b: Band, k: Int) = herdWorth(g, b, k) >= 1f
