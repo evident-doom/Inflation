@@ -128,10 +128,10 @@ internal const val COVER_GOING = 0.5f
 internal const val RING_REACH = 0.15f
 /** How much the old, the sick and the lamed slow a band's going (all of it so: this share slower). */
 internal const val WEAK_SLOW = 0.6f
-/** Hunting is worked region by region in squares this wide, km (wider than twice any party's week). */
-internal const val HUNT_BLOCK_KM = 300f
+/** Hunting is worked region by region in squares this wide, km (wider than any party's week, see [hunt]). */
+internal const val HUNT_BLOCK_KM = 150f
 /** Parties that kept near home this week are worked in squares this wide, km (see [hunt]). */
-internal const val HUNT_FINE_KM = 100f
+internal const val HUNT_FINE_KM = 50f
 /** How far a lone hunter goes looking for a mate in a week, km. */
 internal const val MATE_SEARCH_KM = 50.0
 /** How much the best shelter takes off a hunter's chance; how likely a group that senses danger first slips away. */
