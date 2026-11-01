@@ -362,8 +362,11 @@ object Catalogue {
         speedKmh = 50f,
         domestication = floatArrayOf(0.1f, 0.3f, 0.1f, 0.0f, 0.2f, 0.0f),
         habitat = Habitat(cover = 0.8f, rugged = 0.4f),
+        // (It lies up in thickets and among rocks and climbs out of a wolf's reach.)
+        shelters = setOf(Niches.Shelter.CRAG, Niches.Shelter.THICKET, Niches.Shelter.TREE),
         stalking = 1f,
-        ferocity = 0.6f,
+        // (A lynx holds its own against animals its size and kills foxes and the young of others; from memory, not checked.)
+        ferocity = 0.9f,
         // (A lynx fights back with teeth and claws: an estimate between the onager's kicks (0.4) and the boar's tusks (0.6).)
         defence = 0.5f,
         startKm2PerAnimal = 150f,
@@ -389,7 +392,8 @@ object Catalogue {
         domestication = floatArrayOf(0.8f, 0.3f, 0.2f, 0.3f, 0.3f, 0.2f),
         habitat = Habitat(rugged = 0.3f),
         stalking = 0.2f,
-        ferocity = 1.4f,
+        // (The striped hyena is shy and gives way to wolves, leopards and dogs, unlike the spotted hyena; from memory, not checked.)
+        ferocity = 0.8f,
         startKm2PerAnimal = 50f,
         activity = floatArrayOf(0.1f, 0f, 0.2f, 0.7f),
         shelters = setOf(Niches.Shelter.DEN),
