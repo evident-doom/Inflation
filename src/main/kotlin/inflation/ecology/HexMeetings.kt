@@ -269,7 +269,8 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
     note(a) { "met band #%d (%d people; tie %.2f)".format(b.id, b.size, a.band?.tie(b.id) ?: 0f) }
     note(b) { "met band #%d (%d people; tie %.2f)".format(a.id, a.size, b.band?.tie(a.id) ?: 0f) }
     var lap = Profile.mark()
-    if (meetingEndsInRaid(a, b, weather, rite)) return
+    val fresh = meetingFresh(a, b, weather)
+    if (meetingEndsInRaid(a, b, weather, rite, fresh)) return
     lap = Profile.lap("bandsMeet: talk (all)", lap)
     val (poor, rich) = if (a.wellOff() < b.wellOff()) a to b else b to a
     // Bands that hold to sharing give more, and sooner.
@@ -301,9 +302,11 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
         if (Regard(gb, taker.id, tb, map = hex).tie < FRIEND_TIE || gb.ornaments < 1f) continue
         val gift = min(1f, ORNAMENT_GIFT * gb.giveWill) * gb.ornaments
         dialUse?.amount(DialSite.GIVE_ORNAMENTS, gb.giveWill, gift, min(1f, ORNAMENT_GIFT) * gb.ornaments, cut = ORNAMENT_GIFT * gb.giveWill > 1f)
-        if (gift <= 0f) continue
-        val shell = gb.takeOrnaments(gift)
-        tb.ornaments += gift; tb.exotic += shell
+        // (Less at a meeting soon after the last: gifts mark meetings after time apart, [meetingFresh].)
+        val given = gift * fresh
+        if (given <= 0f) continue
+        val shell = gb.takeOrnaments(given)
+        tb.ornaments += given; tb.exotic += shell
         tb.befriend(giver.id, 0.5f * TIE_GIFT)
         stats.meeting(Met.ORNAMENTS_GIVEN)
     }
@@ -354,7 +357,8 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
         val keen = hb.byCustom(hb.holds(Tradition.FEASTS), hb.feastWill)
         dialUse?.amount(DialSite.FEASTING, hb.feastWill, keen, hb.byCustom(hb.holds(Tradition.FEASTS), 1f),
             cut = keen == 0f && hb.feastWill > 0f)
-        if (keen <= 0f) continue
+        // (Not at every meeting: a feast is an occasion, [meetingFresh].)
+        if (keen <= 0f || rnd.nextFloat() >= fresh) continue
         val spare = host.larder - hb.storeAim * host.dailyNeedKg
         dialUse?.amount(DialSite.STORE_HOST, hb.storeShare, max(0f, spare), max(0f, host.larder - hb.storeAimAt1 * host.dailyNeedKg))
         if (spare <= 0f) continue

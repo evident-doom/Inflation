@@ -420,6 +420,8 @@ class Band(kinds: Int) {
      * gifts, feasts and marriages, lowered by raids; fading unless renewed.
      */
     val ties = HashMap<Int, Float>()
+    /** The step this band last met each other band (by group id), for how fresh a meeting is ([meetingFresh]). Not saved: after a load every meeting is fresh. */
+    @Transient val lastMet = HashMap<Int, Int>()
     fun tie(other: Int) = ties[other] ?: 0f
     fun befriend(other: Int, by: Float) { ties[other] = (tie(other) + by * (if (by > 0f) 1f - tie(other) else 1f + tie(other))).coerceIn(-1f, 1f) }
     /**
