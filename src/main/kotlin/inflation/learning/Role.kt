@@ -18,7 +18,7 @@ enum class Role {
     /**
      * The version of its networks (the mover and the ways network that goes with it): raise the major by hand when
      * either changes structure (see [NetVersion]). History: 1 = hunters' and people's networks as of model 4.17; people 2 = the bands' ways network with the carry and time outputs (model 4.23); people 3 = one network for the
-     * week's plan: the ways read the mover's last hidden layer at the place chosen, and train it (model 4.26); people 4 = the ways' keenness on each way of building (model 4.29); people 5 = the night watch (model 4.62); people 6 = efforts on food without a ceiling, e^x for 2/(1+e^-x) (model 4.66); people 7 = efforts weigh foods in the ranking instead of their rate (model 4.67).
+     * week's plan: the ways read the mover's last hidden layer at the place chosen, and train it (model 4.26); people 4 = the ways' keenness on each way of building (model 4.29); people 5 = the night watch (model 4.62); people 6 = efforts on food without a ceiling, e^x for 2/(1+e^-x) (model 4.66); people 7 = efforts weigh foods in the ranking instead of their rate (model 4.67); people 8 = the band's last week's plan ([inflation.ecology.BandInputs.HELD]) and each place's plant food by kind ([inflation.ecology.HexFeatures.PLANT_FOOD]), for the mover to follow the plan (model 5).
      */
     val net get() = if (this == PEOPLE) NetVersion(PEOPLE_MAJOR, 0) else NetVersion(HUNTERS_MAJOR, 0)
 
@@ -38,7 +38,7 @@ enum class Role {
 
     companion object {
         private const val HUNTERS_MAJOR = 1
-        private const val PEOPLE_MAJOR = 7
+        private const val PEOPLE_MAJOR = 8
 
         /** The role of group kind [s] (every group is a hunter or people). */
         fun of(s: Species) = when (s.lifeway) { Lifeway.BAND -> PEOPLE; Lifeway.PACK -> HUNTERS }
