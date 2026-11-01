@@ -203,6 +203,8 @@ class Species(
     val cracksBones: Boolean = false,
     /** How readily it takes people (leopards 1.2, lions 1, bears 0.4, wolves and hyenas 0.3; 0: never), see [STALKED]. */
     val takesPeople: Float = 0f,
+    /** Its mothers hide their young and move them from lair to lair in their first months, as the cats do ([youngHidden]). */
+    val hidesYoung: Boolean = false,
 ) {
     /** Position in [Catalogue.all] (its [id], which the catalogue checks run without gaps), for array lookups. */
     val index get() = id

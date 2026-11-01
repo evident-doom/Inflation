@@ -163,7 +163,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         var f = if (intake > 0f) min(1f, left / (w.workDays * intake)) else 0f
         if (time != null) f = min(f, time.leftFor(Activity.FOOD) / (w.hands * w.workDays).coerceAtLeast(1e-6f))
         // (A beast's party keeps no plan of its days: each pass has only the days the passes before it left.)
-        else if (w.band == null) f = min(f, max(0f, w.workDays - w.busy) / w.workDays.coerceAtLeast(1e-6f))
+        else if (w.band == null) f = min(f, max(0f, w.workDays - w.busy - w.searchUsed) / w.workDays.coerceAtLeast(1e-6f))
         val busy0 = w.busy
         if (pass == 0) w.searched = f
         if (HUNT_DIAG && w.band == null) { w.passes++; w.searchDays += f * w.workDays }
@@ -171,6 +171,8 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
             "forage ${w.s.name} adults ${g.adults} want ${w.wantAll} left $left offers ${o.m} used ${o.used} gain ${o.gain.toList()} spent ${o.spent.toList()} f $f: " +
             o.order.take(min(6, o.m)).joinToString("; ") { "t${o.type[it].ordinal} k${o.kind[it]} r=${o.rate[it]} e=${o.kg[it]} h=${o.time[it]}" })
         takeFoods(w, o, f)
+        // (A beast's search took the days of the pass not spent handling: [Offers.spent] is days a day of searching asks.)
+        if (w.band == null) w.searchUsed += f * w.workDays / o.spent[0]
         time?.spend(Activity.FOOD, (w.busy - busy0) * w.hands)
     }
     if (w.band != null && w.time == null) planWeek(w, 0f, 0f, 0f)
@@ -321,6 +323,11 @@ private class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, packK
     // (Walking costs food, see [walkCost]; a band's days at rest take less, see [restedDays].)
     var wantAll = g.dailyNeedKg * gs.days * (1f + gs.walkCost(g))
     val eats = 1f / (packKg * EATING_RATE) // days to eat a kilo
+    /**
+     * The most a beast's party can eat in the week, kg: each of it eating at [EATING_RATE] of its weight every day of it,
+     * its young at half a grown one as they need half ([HexGroup.dailyNeedKg]); gorging at a kill, see [eatTheWeek].
+     */
+    val gutKg = s.massKg * (g.adults + 0.5f * g.young) * EATING_RATE * gs.days
     // Small game is found within a few paces of the way, not as far as the party can see; snare
     // lines and nets search it while no one is there.
     val smallSweep = s.dailyTravelKm * gs.days * 2f * SMALL_SENSE_KM * sqrt(gatherHands / s.groupSize) / g.path.size.coerceAtLeast(1) * (band?.snares() ?: 1f)
@@ -418,6 +425,8 @@ private class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, packK
      */
     var killOver = 0f
     var killUnder = 0f
+    /** A beast's days spent searching in the passes so far (as [busy] holds those spent handling): the passes share its work days. */
+    var searchUsed = 0f
     /** Diagnostic (huntSteps), a beast's week: the passes it planned, the days they gave it to search, and the kills of big game it could expect in them. */
     var passes = 0
     var searchDays = 0f
@@ -667,7 +676,7 @@ private fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
     val adults = fauna.adults; val young = fauna.young
     o.m = 0
     // (What a kill is worth to it: see below. Its butchers' skill grows with each kill, so once a pass.)
-    val credit = creditShare(band); val most = (1f + SURPLUS_EAT) * w.wantAll
+    val credit = creditShare(band); val most = if (band == null) max(w.wantAll, w.gutKg) else (1f + SURPLUS_EAT) * w.wantAll
     // (A beast weighs a kill also by the food the dead one would have taken from it: a week of its intake, as far as their
     // diets overlap, valued as its own. A rival of its own food is the more worth killing; a plant-eater is not one.)
     val spared = FloatArray(nk) { k -> if (band != null) 0f else { val ps = fauna.kinds[k]; w.d.overlap(ps.diet) * ps.dailyIntakeKg * days } }
@@ -837,6 +846,7 @@ private fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
                     stats.meeting(Met.BANDS_ATE_THEIR_TOTEM)
                 }
                 w.busy += kills1 * o.time[i] * w.party[0]
+                if (HUNT_DIAG && band == null) scentShadow(g, Place(p), kills1, haul)
                 // (Its fat feeds as grease, the rest as lean meat; for the census, the kills by month and by prey kind, lean and fat by weight.)
                 w.meat += haul.kg - haul.fat; w.killFat += haul.fat
                 w.fed += (haul.kg - haul.fat) * w.feeds(Food.BIG_GAME) + haul.fat * w.fatFeeds
@@ -956,9 +966,18 @@ private fun HexGroups.eatTheWeek(w: ForageWeek) {
         band.seedCorn = band.seedCornIn(g)
         spare = 0f; meatEaten = ateMeatKg
     }
-    // Gorging: what is left of a kill is eaten beyond need, as far as the gut holds and reserves are short.
+    // Gorging: what is left of a kill is eaten beyond need, as far as the gut holds ([EATING_RATE] every day of the week,
+    // [ForageWeek.gutKg]) and reserves are short (the fat it would lay on, [FAT_EFFICIENCY], up to [Species.maxFatDays]).
+    if (HUNT_DIAG && band == null) {
+        diag(s, HuntStep.PACK_FAT_SHARE, g.fat / s.maxFatDays.coerceAtLeast(1e-3f)); diag(s, HuntStep.PACK_WANT_OVER_GUT, wantAll / w.gutKg.coerceAtLeast(1e-3f))
+        if (spare > 0f) { diag(s, HuntStep.GORGE_WEEKS, 1f); diag(s, HuntStep.GORGE_SPARE_KG, spare); diag(s, HuntStep.GORGE_GUT_ROOM_KG, max(0f, w.gutKg - wantAll))
+            if (g.fat >= s.maxFatDays) diag(s, HuntStep.GORGE_WEEKS_FAT_FULL, 1f)
+            else diag(s, HuntStep.GORGE_FAT_ROOM_KG, (s.maxFatDays - g.fat) / FAT_EFFICIENCY * g.dailyNeedKg / meatWorth) }
+    }
     if (spare > 0f && g.fat < s.maxFatDays && band == null) {
-        val gorge = min(spare, SURPLUS_EAT * wantAll)
+        val fatRoom = (s.maxFatDays - g.fat) / FAT_EFFICIENCY * g.dailyNeedKg / meatWorth
+        val gorge = min(spare, min(max(0f, w.gutKg - wantAll), fatRoom))
+        if (HUNT_DIAG) diag(s, HuntStep.GORGE_KG, gorge)
         g.surplus = gorge * meatWorth / g.dailyNeedKg.coerceAtLeast(1e-3f)
         spare -= gorge
         small.deposit(DeadPool.DUNG, g.place, Kg(HexSmallLife.DUNG * gorge))
@@ -971,6 +990,7 @@ private fun HexGroups.eatTheWeek(w: ForageWeek) {
         if (g.fed < WELL_FED) diag(s, if (killed) HuntStep.PACK_WEEKS_HUNGRY_WITH_KILL else HuntStep.PACK_WEEKS_HUNGRY_NO_KILL, 1f)
         diag(s, HuntStep.PACK_PASSES, w.passes.toFloat()); diag(s, HuntStep.PACK_SEARCH_DAYS, w.searchDays); diag(s, HuntStep.PACK_KILLS_EXPECTED, w.killsExpected)
         if (g.fed < WELL_FED && !killed) { diag(s, HuntStep.HUNGRY_NO_KILL_PASSES, w.passes.toFloat()); diag(s, HuntStep.HUNGRY_NO_KILL_SEARCH_DAYS, w.searchDays)
+            diag(s, HuntStep.HUNGRY_NO_KILL_FAT_SHARE, g.fat / s.maxFatDays.coerceAtLeast(1e-3f))
             diag(s, HuntStep.HUNGRY_NO_KILL_KILLS_EXPECTED, w.killsExpected); diag(s, HuntStep.HUNGRY_NO_KILL_WORK_DAYS, w.workDays) }
         diag(s, HuntStep.PACK_KG_EATEN, eaten); diag(s, HuntStep.PACK_KG_LEFT, spare)
     }
@@ -1237,6 +1257,43 @@ private fun HexGroups.raidHerd(g: HexGroup, hg: HerdGame, p: Place, expected: Fl
     note(g) { "took %d kept %s".format(kills1, ps.name) }
     fauna.killed(p, Kg(kills1 * each))
     return kills1
+}
+
+/**
+ * Diagnostic (huntSteps), changing nothing: what stronger scavengers would take of beast [g]'s [kills] at [p] (worth
+ * [haul] to it) if they came on them by scent, as the bears-at-kills v2 design has it
+ * (review/2026-11-01-bears-at-kills-v2-design.md). Each carcass lies while the party eats it at its gut's rate
+ * ([EATING_RATE], grown and half the young, as [ForageWeek.gutKg]). Resident kinds that kill as well as scavenge, awake and
+ * stronger than the party ([strength]), come on it from downwind as they range: a strip [Species.senseKm] wide along a
+ * day's travel, their bands as common there as they are. A kill found is won by the scavenger as often as its share of
+ * their strengths, and it eats its band's day's fill of half the kill (found halfway through, on average). A carcass a
+ * kind hauls up a tree keeps, as far as there are trees. Counted by kill size: small under 100 kg live, large over.
+ */
+private fun HexGroups.scentShadow(g: HexGroup, p: Place, kills: Int, haul: Haul) {
+    if (haul.kg <= 0f || kills <= 0) return
+    val s = g.species
+    val party = strength(g)
+    val each = haul.kg / kills
+    var rate = 0f; var wins = 0f; var takes = 0f
+    for ((k, r) in fauna.kinds.withIndex()) {
+        if (r.diet.carrion <= 0f || r.diet.meat <= 0f || r.human || fauna.asleep(FaunaKind(k), p)) continue
+        val band = r.groupSize * r.massKg * r.ferocity
+        if (band <= party) continue
+        val finds = (fauna.adults[k][p] + fauna.young[k][p]) / r.groupSize * r.senseKm * r.dailyTravelKm
+        val win = band / (band + party)
+        rate += finds; wins += finds * win; takes += finds * win * min(0.5f * each, EATING_RATE * r.massKg * r.groupSize)
+    }
+    val eatsADay = EATING_RATE * s.massKg * (g.adults + 0.5f * g.young).coerceAtLeast(1f)
+    val lies = min(days.toFloat(), each / eatsADay)
+    val cached = if (Niches.Shelter.TREE in Niches.shelters(s)) land.plants.canopy(p) else 0f
+    val found = if (rate > 0f) (1f - exp(-rate * lies)) * (1f - cached) else 0f
+    val lost = if (rate > 0f) min(haul.kg, found * kills * takes / rate) else 0f
+    val large = each / MEAT_SHARE >= 100f
+    diag(s, if (large) HuntStep.SHADOW_KILLS_LARGE else HuntStep.SHADOW_KILLS_SMALL, kills.toFloat())
+    diag(s, if (large) HuntStep.SHADOW_FOUND_LARGE else HuntStep.SHADOW_FOUND_SMALL, found * kills)
+    if (rate > 0f) diag(s, HuntStep.SHADOW_WON, found * kills * wins / rate)
+    diag(s, HuntStep.SHADOW_KG, haul.kg); diag(s, HuntStep.SHADOW_KG_LOST, lost)
+    diag(s, HuntStep.SHADOW_LIE_DAYS, lies * kills); diag(s, HuntStep.SHADOW_FINDS_A_DAY, rate * kills)
 }
 
 /**
