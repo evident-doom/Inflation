@@ -1267,10 +1267,11 @@ private fun HexGroups.raidHerd(g: HexGroup, hg: HerdGame, p: Place, expected: Fl
  * [haul] to it) if they came on them by scent, as the bears-at-kills v2 design has it
  * (review/2026-11-01-bears-at-kills-v2-design.md). Each carcass lies while the party eats it at its gut's rate
  * ([EATING_RATE], grown and half the young, as [ForageWeek.gutKg]). Resident kinds that kill as well as scavenge, awake and
- * stronger than the party ([strength]), come on it from downwind as they range: a strip [Species.senseKm] wide along a
- * day's travel, their bands as common there as they are. A kill found is won by the scavenger as often as its share of
- * their strengths, and it eats its band's day's fill of half the kill (found halfway through, on average). A carcass a
- * kind hauls up a tree keeps, as far as there are trees. Counted by kill size: small under 100 kg live, large over.
+ * stronger than the party ([strength]), come on it from downwind as they range for carrion: a strip [Species.senseKm] wide
+ * along the share of a day's travel their diet gives carrion ([Diet.carrion]), their bands as common there as they are. A
+ * kill found is won by the scavenger as often as its share of their strengths, and it eats its band's day's fill of half
+ * the kill (found halfway through, on average). A carcass a kind hauls up a tree keeps, as far as there are trees. Counted
+ * by kill size: small under 100 kg live, large over (a beast's kill counts its whole weight, [creditShare]).
  */
 private fun HexGroups.scentShadow(g: HexGroup, p: Place, kills: Int, haul: Haul) {
     if (haul.kg <= 0f || kills <= 0) return
@@ -1284,7 +1285,8 @@ private fun HexGroups.scentShadow(g: HexGroup, p: Place, kills: Int, haul: Haul)
         if (r.diet.carrion <= 0f || r.diet.meat <= 0f || r.human || fauna.asleep(FaunaKind(k), p)) continue
         val band = r.groupSize * r.massKg * r.ferocity
         if (band <= party) continue
-        val finds = (fauna.adults[k][p] + fauna.young[k][p]) / r.groupSize * r.senseKm * r.dailyTravelKm
+        // (It ranges for carcasses only the share of its days its diet gives carrion.)
+        val finds = (fauna.adults[k][p] + fauna.young[k][p]) / r.groupSize * r.senseKm * r.dailyTravelKm * r.diet.carrion
         val win = band / (band + party)
         findsOf[k] = finds; winOf[k] = win; takeOf[k] = win * min(0.5f * each, EATING_RATE * r.massKg * r.groupSize)
         rate += finds; wins += finds * win; takes += finds * takeOf[k]
@@ -1300,7 +1302,7 @@ private fun HexGroups.scentShadow(g: HexGroup, p: Place, kills: Int, haul: Haul)
         diag(s, HuntStep.SHADOW_WON, kinds[k], found * kills * findsOf[k] * winOf[k] / rate)
         if (takes > 0f) diag(s, HuntStep.SHADOW_KG_LOST, kinds[k], lost * findsOf[k] * takeOf[k] / takes)
     }
-    val large = each / MEAT_SHARE >= 100f
+    val large = each >= 100f
     diag(s, if (large) HuntStep.SHADOW_KILLS_LARGE else HuntStep.SHADOW_KILLS_SMALL, kills.toFloat())
     diag(s, if (large) HuntStep.SHADOW_FOUND_LARGE else HuntStep.SHADOW_FOUND_SMALL, found * kills)
     if (rate > 0f) diag(s, HuntStep.SHADOW_WON, found * kills * wins / rate)
