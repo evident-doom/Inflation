@@ -10,7 +10,8 @@ import inflation.unitOf
  * [PLANS], the discrete planning kind (doc: Discrete planning: build spec): the sim offers it a menu of activities each week,
  * it holds some, and its camp and days follow from them. The two share every mechanic of the world; only the choosing
  * differs, and bands of the two never merge. So far a [PLANS] band reads no ways (the scaffold's, whatever the network) and
- * holds its week's days by [planDays]; it moves as [NETS] bands do.
+ * holds its week's days by [planDays]; it weighs places as [NETS] bands do, but moves camp only when its customs send it or
+ * staying is an emergency ([plannedMove]), with no draw by a will to explore.
  */
 enum class Mind(val label: String) { NETS("nets"), PLANS("plans") }
 

@@ -37,6 +37,24 @@ internal fun HexGroups.exploreChoice(g: HexGroup, will: Float, n: Int, scores: F
     return taken
 }
 
+/**
+ * Where a [Mind.PLANS] band of group [g] goes this week, of the [n] places weighed (as [exploreChoice]: [scores], [deaths] in
+ * survival steps, [stays] the one where it is): it draws nothing, and its temperament draws it nowhere. Moving camp is a choice
+ * (doc: Moving and settling under the planner, step 1): it goes where its customs send it ([owed]: an appointment due, a raid
+ * set, a camp left after a death), or where staying is at least a survival step deadlier than the safest place, the emergency
+ * a band flees by reflex (a cold snap without shelter, water dried up, beasts or raiders, fire, flood); then to the best place
+ * of those not deadlier than the safest by a step. Else it stays. Returns -1 if no place can be weighed.
+ */
+internal fun plannedMove(n: Int, scores: FloatArray, deaths: FloatArray, stays: Int, owed: Boolean): Int {
+    var safest = Float.POSITIVE_INFINITY
+    for (k in 0 until n) if (scores[k].isFinite() && deaths[k].isFinite() && deaths[k] < safest) safest = deaths[k]
+    if (!safest.isFinite()) return -1
+    if (!owed && stays >= 0 && deaths[stays].isFinite() && deaths[stays] - safest < 1f) return stays
+    var best = -1
+    for (k in 0 until n) if (scores[k].isFinite() && deaths[k].isFinite() && deaths[k] - safest <= 1f && (best < 0 || scores[k] > scores[best])) best = k
+    return best
+}
+
 /** [exploreChoice]'s draw at [will] for the draw [u]. */
 private fun exploreDraw(will: Float, n: Int, scores: FloatArray, deaths: FloatArray, stays: Int, unit: Float, u: Float): Int {
     var safest = Float.POSITIVE_INFINITY

@@ -306,7 +306,7 @@ internal class GroupPlanner(private val gs: HexGroups) {
         // (A choice the policy drew by chance to learn from stands; every other band draws by its will to explore, in training worlds as outside them.)
         val chosen = best
         if (traced) bookMove(chosen != g.place, buf)
-        if (explores && !g.drawn) best = explored(g, policy, buf, best, date)
+        if (explores && !g.drawn) best = if (g.band?.mind == Mind.PLANS) planned(g, policy, buf, best, dueSoon) else explored(g, policy, buf, best, date)
         // (For the census: whether the band would have moved by its best choice, and whether it moved by its draw.)
         if (g.band != null) {
             val k = s.index * 4
@@ -611,6 +611,19 @@ internal class GroupPlanner(private val gs: HexGroups) {
         val scores = if (policy == null) buf.explScores else policy.scores(g, Array(n) { buf.candFeats[it] }, buf.candScores.copyOf(n)) ?: return best
         val stays = (0 until n).firstOrNull { buf.explPlaces[it] == g.place.i } ?: -1
         val k = gs.exploreChoice(g, b.explore, n, scores, buf.explDeaths, stays, if (policy == null) HAND_SCORE_UNIT else 1f, date.absoluteDay)
+        return if (k < 0) best else Place(buf.explPlaces[k])
+    }
+
+    /**
+     * Where planning band [g] goes ([plannedMove]), of the places weighed in [buf], scored as in [explored]; [owed]: its
+     * customs send it this week (an appointment due, a raid set, a camp left after a death); [best] if none can be weighed.
+     */
+    private fun planned(g: HexGroup, policy: HexPolicy?, buf: Scratch, best: Place, owed: Boolean): Place {
+        val n = buf.explPlaces.size
+        if (n == 0) return best
+        val scores = if (policy == null) buf.explScores else policy.scores(g, Array(n) { buf.candFeats[it] }, buf.candScores.copyOf(n)) ?: return best
+        val stays = (0 until n).firstOrNull { buf.explPlaces[it] == g.place.i } ?: -1
+        val k = plannedMove(n, scores, buf.explDeaths, stays, owed)
         return if (k < 0) best else Place(buf.explPlaces[k])
     }
 
