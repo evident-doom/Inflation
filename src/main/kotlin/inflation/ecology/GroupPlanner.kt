@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Part
 import inflation.Profile
 import inflation.world.Phase
 import inflation.world.Hex
@@ -74,6 +75,7 @@ internal class GroupPlanner(private val gs: HexGroups) {
      * Reach is a few hexes when content; a forced march when hungry, cold, or heading for its season's
      * place. Hunters keep to their ground unless starving.
      */
+    @Part("choosing: plan one group")
     internal fun plan(g: HexGroup, weather: Weather, date: Date, predatorKg: FloatArray): Plan {
         var pt = Profile.mark()
         val r = planInner(g, weather, date, predatorKg) { name -> pt = Profile.lap(name, pt) }

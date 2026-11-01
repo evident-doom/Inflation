@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Par
 import inflation.Profile
 import inflation.world.Phase
 import inflation.world.Hex
@@ -367,7 +368,7 @@ class HexGroups(
         // Plan and move, in parallel: each group's choice depends only on last week's world.
         Profile.part("choosing: valuing places for hunters") { planner.beginChoosing(predatorKg, date.month, weather) }
         val choice = IntArray(groups.size); val paths = arrayOfNulls<HexArray>(groups.size); val times = arrayOfNulls<FloatArray>(groups.size)
-        IntStream.range(0, groups.size).parallel().forEach { k ->
+        Par.forEach("choosing: groups", groups.size) { k ->
             val g = groups[k]
             if (!g.alive) return@forEach
             // (With profile=fine, the choosing is timed by packs and bands apart.)

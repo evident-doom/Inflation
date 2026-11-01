@@ -1,5 +1,7 @@
 package inflation.ecology
 
+import inflation.Part
+import inflation.Par
 import inflation.Profile
 import inflation.monthsFrom
 import inflation.world.Hex
@@ -64,6 +66,7 @@ internal fun GroupWorld.timetable(s: Species, path: HexArray): FloatArray {
  * aside, driven off, stopping to eat a kill) ends it where that happened, and its later
  * meetings do not take place. Hunters and bands of every kind meet each other.
  */
+@Part("meetings: settle")
 internal fun HexGroups.meet(weather: Weather) {
     meetMonth = weather.date.month
     var mt = Profile.mark()
@@ -100,7 +103,7 @@ internal fun HexGroups.meet(weather: Weather) {
     val withStandIns = ArrayList<Meeting>()
     run {
         val apart = BooleanArray(events.size)
-        IntStream.range(0, events.size).parallel().forEach { i ->
+        Par.forEach("meetings: stand-ins apart", events.size) { i ->
             val e = events[i]; val sa = e.a >= groups.size; val sb = e.b >= groups.size
             apart[i] = (sa && !sb && strongerThan(parties[e.b], parties[e.a], e.hex)) || (sb && !sa && strongerThan(parties[e.a], parties[e.b], e.hex))
         }
@@ -155,7 +158,7 @@ internal fun HexGroups.meet(weather: Weather) {
     }
     Profile.part("meetings: packs and bands with resident hunters") {
         val drawn = arrayOfNulls<StandInsMet>(withStandIns.size)
-        IntStream.range(0, withStandIns.size).parallel().forEach { i ->
+        Par.forEach("meetings: stand-ins drawn", withStandIns.size) { i ->
             val e = withStandIns[i]; val a = parties[e.a]; val b = parties[e.b]
             if (e.ai > stop[e.a] || e.bi > stop[e.b] || !a.alive || !b.alive) return@forEach
             val (strong, weak) = if (residents.of(e.a) == null) a to b else b to a
@@ -175,7 +178,7 @@ internal fun HexGroups.meet(weather: Weather) {
     Profile.part("meetings: resident hunters among themselves") {
         val byStandIns = residents.standInsByHex()
         val outcomes = arrayOfNulls<List<StandInsMet>>(byStandIns.size)
-        IntStream.range(0, byStandIns.size).parallel().forEach { j ->
+        Par.forEach("meetings: residents by hex", byStandIns.size) { j ->
             val list = byStandIns[j]; if (list.size < 2) return@forEach
             val r = kotlin.random.Random(tieBreak(list[0].g.home.i, -7, today))
             val out = ArrayList<StandInsMet>()
@@ -268,6 +271,7 @@ private fun HexGroups.residentsMeet(a: HexGroup, b: HexGroup): Boolean {
  * Two bands meet: they share news of good ground (each learns where the other did best this month),
  * and a band that is going hungry is given a share of the other's larder. [rite]: the gathering they meet at, if any ([gatherAtRite]).
  */
+@Part("meetings: band meets band")
 internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rite: RiteGathering? = null) {
     stats.meeting(Met.BANDS_MET)
     note(a) { "met band #%d (%d people; tie %.2f)".format(b.id, b.size, a.band?.tie(b.id) ?: 0f) }

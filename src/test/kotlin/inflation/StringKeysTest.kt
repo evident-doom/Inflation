@@ -51,6 +51,7 @@ class StringKeysTest {
         "ecology/BandCarry.kt" to (2 to "Band fields by name, checked by BandCarryTest"),
         "ecology/Contracts.kt" to (4 to "Herd and Dogs fields by name, checked by BandCarryTest"),
         "Profile.kt" to (5 to "phase timings, and the slowest jobs and their counts, by phase name"),
+        "tools/ProfileReport.kt" to (11 to "a recording's phases, loops, labels, frames and waits by name, for printing; labels by class and method name, read from the @Part annotations"),
         "ecology/HexHistory.kt" to (5 to "history series: the CSV columns are text"),
         "run/TestWorlds.kt" to (1 to "runs by test-world name, user input"),
         "run/Nominal.kt" to (1 to "history series grouped by kind name, as the CSV columns name them"),
@@ -73,6 +74,7 @@ class StringKeysTest {
     @Test
     fun `no new non-null assertions`() = check("""!!""", mapOf(
         "ecology/HexCulture.kt" to (5 to "a band of a people group: the caller has chosen people"),
+        "Profile.kt" to (1 to "the jar's own profile.jfc resource, which ships with the code"),
         "ecology/HexFauna.kt" to (4 to "audit books set when the audit is on and tested just before"),
         "ecology/HexGeography.kt" to (1 to "the cover of a core, set while building"),
         "ecology/HexGroups.kt" to (3 to "the path and time of a group that chose to move"),
@@ -115,6 +117,8 @@ class StringKeysTest {
         "ecology/Catalogue.kt" to (1 to "the kinds' list, read from the file's own object"),
         "ecology/HexSnapshot.kt" to (21 to "saves are by field name: the order and roster checks"),
         "run/Nominal.kt" to (4 to "lists a part's tables for the check"),
+        "Profile.kt" to (4 to "profile=jfr registers the model's own event classes and reads the jar's profile.jfc"),
+        "tools/ProfileReport.kt" to (4 to "finds the @Part labels by reflection over the program's own classes"),
         "store/ObjectStore.kt" to (52 to "saves are by field name and runtime type; boxed value classes are boxed again by the declared type; a hash map's keys sorted by their runtime class"),
         "world/FreeAir.kt" to (1 to "a resource that ships in the jar"),
         "world/WorldCaches.kt" to (2 to "the jar's resources and the cache reader"),

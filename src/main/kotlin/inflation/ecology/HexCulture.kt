@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Part
 import inflation.Profile
 import inflation.EnumBools
 import inflation.enumFloats
@@ -522,6 +523,7 @@ internal fun GroupWorld.tallyMeeting(metAs: MetAs, what: Tally.MeetingEnd) {
  * the routes they know, where they met, where their homes and those of others they know are, the
  * appointments they keep, and the places they remember (as far as they trust each other).
  */
+@Part("meetings: tell of country")
 private fun HexGroups.tellOfCountry(a: HexGroup, bandA: Band, b: HexGroup, bandB: Band, ab: Regard, ba: Regard, weather: Weather) {
     val u = ab.understood
     var lap = Profile.mark()
@@ -679,6 +681,7 @@ internal fun HexGroups.visitKin(weather: Weather) {
  * A band's year, a week at a time: inbreeding builds in a closed band, grudges fade, words drift, traditions are now and then taken up or dropped.
  * Touches only the band's own state (and the week's tallies), so the bands' run side by side, each drawing from its own stream [rnd].
  */
+@Part("people: cultureWeek")
 internal fun HexGroups.cultureWeek(g: HexGroup, rnd: kotlin.random.Random) {
     val b = g.band ?: return
     // A home it knows of that it passed this week and found no house standing (its people dead, or
@@ -796,6 +799,7 @@ fun riteStrengthAt(lineage: Int, tuning: Tuning) = tuning.riteFounderMax * Math.
  * [Band.strain]; see [HexGroups.maxSize]): need excuses, choice does not. What need cut short moves, as often as
  * not, to a month beside it the band eats better in ([riteToPlenty]): harvest feasts, not famine fasts.
  */
+@Part("people: riteWeek")
 internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
     if (!tuning.rounds) return
     val b = g.band ?: return

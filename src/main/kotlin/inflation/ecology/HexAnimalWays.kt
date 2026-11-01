@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Par
 import inflation.world.get
 import inflation.world.Weather
 import kotlin.math.ln
@@ -89,7 +90,7 @@ internal fun HexGroups.setAnimalWays(g: HexGroup, weather: Weather, ways: Animal
 internal fun HexGroups.setAnimalWays(weather: Weather) {
     val hunters = hunterWays ?: return
     val inputs = ThreadLocal.withInitial { FloatArray(ANIMAL_WAYS_IN) }; val out = ThreadLocal.withInitial { FloatArray(ANIMAL_WAYS_OUT) }
-    IntStream.range(0, groups.size).parallel().forEach { k ->
+    Par.forEach("animals: ways", groups.size) { k ->
         val g = groups[k]
         if (!g.alive || g.species.human) return@forEach
         setAnimalWays(g, weather, hunters, inputs.get(), out.get())

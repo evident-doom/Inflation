@@ -18,9 +18,27 @@ object Profile {
 
     inline fun <T> time(name: String, block: () -> T): T {
         val w0 = System.nanoTime(); val c0 = cpuNow()
+        val event = if (JFR) PhaseEvent().also { it.begin() } else null
         val r = block()
         add(name, System.nanoTime() - w0, cpuNow() - c0)
+        event?.end()
+        if (event != null && event.shouldCommit()) { event.name = name; event.commit() }
         return r
+    }
+
+    /**
+     * profile=jfr: a Java Flight Recording of the run ([profile.jfc]: samples, waits, GC, JIT, load, and the model's own
+     * [PhaseEvent], [ParEvent] and [JobEvent]) is written to `rec.jfr` in the run directory when the process exits.
+     * Costs about 1-2% of the step and changes no code the JIT compiles; `ProfileReport` reads it.
+     */
+    val JFR = Config.string(Config.Key.PROFILE) == "jfr"
+    init { if (JFR) startRecording() }
+    private fun startRecording() {
+        for (c in listOf(PhaseEvent::class.java, ParEvent::class.java, JobEvent::class.java)) jdk.jfr.FlightRecorder.register(c)
+        val text = Profile::class.java.getResourceAsStream("/profile.jfc")!!.bufferedReader().use { it.readText() }
+        val r = jdk.jfr.Recording(jdk.jfr.Configuration.create(java.io.StringReader(text)))
+        r.setToDisk(true); r.setDumpOnExit(true); r.destination = java.nio.file.Path.of("rec.jfr")
+        r.start()
     }
 
     fun cpuNow(): Long = os.processCpuTime

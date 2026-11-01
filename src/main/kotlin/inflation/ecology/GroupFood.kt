@@ -1,5 +1,7 @@
 package inflation.ecology
 
+import inflation.Part
+import inflation.Par
 import inflation.Books
 import inflation.Config
 import inflation.EnumFloats
@@ -73,7 +75,7 @@ internal fun HexGroups.hunt(weather: Weather) {
             // (The squares with the most parties first, so the slowest is not left to last on one core.)
             val squares = blocks.entries.filter { (b, _) -> (b % 1000) % 2 + 2 * ((b / 1000) % 2) == colour }
                 .sortedByDescending { e -> e.value.sumOf { g -> if (g.band != null) 4 * g.path.size else g.path.size } }
-            IntStream.range(0, squares.size).parallel().forEach { i ->
+            Par.forEach("foraging: squares", squares.size) { i ->
                 for (g in squares[i].value) {
                     val s = g.species
                     // The ground it searches this week, shared over the hexes it passed.
@@ -128,6 +130,7 @@ private fun countHands(u: DialUse, g: HexGroup, b: Band, hands: Int) {
  * spear or bow the odds of a kill, snares and nets the ground searched, sickles and grinding stones
  * the time seed takes, baskets the time to carry a harvest home.
  */
+@Part("foraging: one group")
 internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather: Weather) {
     val w = ForageWeek(this, g, sweep, packKg, weather)
     huntingOdds(w)
