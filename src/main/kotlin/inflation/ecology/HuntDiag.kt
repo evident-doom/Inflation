@@ -29,7 +29,13 @@ internal enum class HuntStep(val label: String) {
     // (And as it ate the week ([eatTheWeek]): its weeks with no kill of its own, those it ate under [WELL_FED] of its want
     // with and without a kill, the kg it ate and the kg of its kills it left past what it could gorge.)
     PACK_WEEKS_NO_KILL("pack weeks no kill"), PACK_WEEKS_HUNGRY_NO_KILL("pack weeks hungry no kill"),
-    PACK_WEEKS_HUNGRY_WITH_KILL("pack weeks hungry with kill"), PACK_KG_EATEN("pack kg eaten"), PACK_KG_LEFT("pack kg left");
+    PACK_WEEKS_HUNGRY_WITH_KILL("pack weeks hungry with kill"), PACK_KG_EATEN("pack kg eaten"), PACK_KG_LEFT("pack kg left"),
+    // (And how it planned the week: the passes, the days they gave it to search ([forage]'s share f of its work days, summed
+    // over the passes), and the kills of big game it could expect in them; the same over its weeks hungry with no kill,
+    // with the work days it had in them.)
+    PACK_PASSES("pack passes"), PACK_SEARCH_DAYS("pack search days"), PACK_KILLS_EXPECTED("pack kills expected"),
+    HUNGRY_NO_KILL_PASSES("hungry no kill passes"), HUNGRY_NO_KILL_SEARCH_DAYS("hungry no kill search days"),
+    HUNGRY_NO_KILL_KILLS_EXPECTED("hungry no kill kills expected"), HUNGRY_NO_KILL_WORK_DAYS("hungry no kill work days");
 
     companion object {
         private const val PREFIX = "diag:"

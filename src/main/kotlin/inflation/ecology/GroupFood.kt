@@ -166,6 +166,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         else if (w.band == null) f = min(f, max(0f, w.workDays - w.busy) / w.workDays.coerceAtLeast(1e-6f))
         val busy0 = w.busy
         if (pass == 0) w.searched = f
+        if (HUNT_DIAG && w.band == null) { w.passes++; w.searchDays += f * w.workDays }
         if (FORAGE_DIAG == w.s.name && diagSampled(g, weather, 0.002f, 1)) System.err.println(
             "forage ${w.s.name} adults ${g.adults} want ${w.wantAll} left $left offers ${o.m} used ${o.used} gain ${o.gain.toList()} spent ${o.spent.toList()} f $f: " +
             o.order.take(min(6, o.m)).joinToString("; ") { "t${o.type[it].ordinal} k${o.kind[it]} r=${o.rate[it]} e=${o.kg[it]} h=${o.time[it]}" })
@@ -412,6 +413,10 @@ private class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, packK
      */
     var killOver = 0f
     var killUnder = 0f
+    /** Diagnostic (huntSteps), a beast's week: the passes it planned, the days they gave it to search, and the kills of big game it could expect in them. */
+    var passes = 0
+    var searchDays = 0f
+    var killsExpected = 0f
     var haulOver = 0f
     var digDays = 0f
     var room = 0f
@@ -809,6 +814,7 @@ private fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
         if (o.type[i] != Food.BIG_GAME) w.busy += expected * o.time[i] * w.party[o.who[i]]
         when (o.type[i]) {
             Food.BIG_GAME -> {
+                if (HUNT_DIAG && band == null) w.killsExpected += expected
                 val kills1 = if (o.herd[i] >= 0) raidHerd(g, w.herds[o.herd[i]], Place(p), expected, o.kg[i], w.rnd, haul)
                     .also { k -> diag(g.species, HuntStep.HERD_KILLS_SOUGHT, expected); diag(g.species, HuntStep.HERD_KILLS, k.toFloat()) }
                     else huntGame(g, o.kind[i], Place(p), expected, o.kg[i], w.spareYoung, w.rnd, haul)
@@ -952,6 +958,9 @@ private fun HexGroups.eatTheWeek(w: ForageWeek) {
         val killed = meat + w.killFat > g.meatMet
         if (!killed) diag(s, HuntStep.PACK_WEEKS_NO_KILL, 1f)
         if (g.fed < WELL_FED) diag(s, if (killed) HuntStep.PACK_WEEKS_HUNGRY_WITH_KILL else HuntStep.PACK_WEEKS_HUNGRY_NO_KILL, 1f)
+        diag(s, HuntStep.PACK_PASSES, w.passes.toFloat()); diag(s, HuntStep.PACK_SEARCH_DAYS, w.searchDays); diag(s, HuntStep.PACK_KILLS_EXPECTED, w.killsExpected)
+        if (g.fed < WELL_FED && !killed) { diag(s, HuntStep.HUNGRY_NO_KILL_PASSES, w.passes.toFloat()); diag(s, HuntStep.HUNGRY_NO_KILL_SEARCH_DAYS, w.searchDays)
+            diag(s, HuntStep.HUNGRY_NO_KILL_KILLS_EXPECTED, w.killsExpected); diag(s, HuntStep.HUNGRY_NO_KILL_WORK_DAYS, w.workDays) }
         diag(s, HuntStep.PACK_KG_EATEN, eaten); diag(s, HuntStep.PACK_KG_LEFT, spare)
     }
     if (band != null) note(g) {
