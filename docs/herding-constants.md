@@ -53,3 +53,7 @@ half female, and the keepers eat the males first, keeping one to [SOWS_A_MALE] (
 one to three boars in herds of 20-40 and slaughter castrated males in their second year (Albarella, Manconi and Trentacoste
 2011, pp. 150-154). Losses to death, straying and beasts take both alike. The mothers ([herdMothers]) are that share of the
 grown, not half. Comparison with the record: https://claude.ai/artifact/XtL4p33AZj8LmxyeSvdj9K
+
+Herd size that adds most (2026-11-01): a keeper grows a herd only while a bigger one adds more heads a year ([herdIncrease] at
+its crowding, times its heads), and eats a herd bigger than the one that adds most down towards it, a month's share of the
+excess a week. [BEST_HERD_STEPS] is only the resolution of that search (tenths of the herd now).

@@ -42,7 +42,13 @@ internal enum class HuntStep(val label: String) {
     // those weeks it was already as fat as it gets, and the kg it gorged.)
     PACK_FAT_SHARE("pack fat share"), PACK_WANT_OVER_GUT("pack want over gut"), HUNGRY_NO_KILL_FAT_SHARE("hungry no kill fat share"),
     GORGE_WEEKS("gorge weeks"), GORGE_SPARE_KG("gorge spare kg"), GORGE_GUT_ROOM_KG("gorge gut room kg"), GORGE_FAT_ROOM_KG("gorge fat room kg"),
-    GORGE_WEEKS_FAT_FULL("gorge weeks fat full"), GORGE_KG("gorge kg");
+    GORGE_WEEKS_FAT_FULL("gorge weeks fat full"), GORGE_KG("gorge kg"),
+    // (And what stronger scavengers would take of its kills by scent, reckoned but not taken ([scentShadow]): kills small
+    // and large, those found of each, those the scavenger would win, the kills' kg and the kg it would lose, the days the
+    // kills lie and the finds a day, summed over kills.)
+    SHADOW_KILLS_SMALL("shadow kills small"), SHADOW_KILLS_LARGE("shadow kills large"), SHADOW_FOUND_SMALL("shadow found small"),
+    SHADOW_FOUND_LARGE("shadow found large"), SHADOW_WON("shadow won"), SHADOW_KG("shadow kg"), SHADOW_KG_LOST("shadow kg lost"),
+    SHADOW_LIE_DAYS("shadow lie days"), SHADOW_FINDS_A_DAY("shadow finds a day");
 
     companion object {
         private const val PREFIX = "diag:"

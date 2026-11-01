@@ -284,10 +284,16 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
         }
         if (over > 0f) eatGrown(n * over, HerdFlow.EATEN)
         val increase = if (nUp > 0f) gained * n / nUp else 0f
-        val grows = pet || pays && increase / headsAHerder(s) <= (room ?: spare)
+        // (The heads a year a herd of [m] grown, its young in the same share, adds at this week's feeding: its yearly
+        // increase ([herdIncrease]) at its crowding. A keeper grows a herd only while a bigger one adds more, and eats one
+        // bigger than the herd that adds most down towards it, a month's share of the excess a week, as above.)
+        val youngShare = if (n > 0f) y / n else 0f
+        fun adds(m: Float) = m * max(0f, herdIncrease(b, k, fed, p, m * (1f + youngShare)))
+        val best = if (pet || n <= 0f || adds(n) <= 0f) n else n * (1..BEST_HERD_STEPS).maxBy { adds(n * it / BEST_HERD_STEPS) } / BEST_HERD_STEPS
+        val grows = pet || pays && increase / headsAHerder(s) <= (room ?: spare) && adds(n + increase) > adds(n)
         if (grows && !pet) { if (room != null) room -= increase / headsAHerder(s) else spare -= increase / headsAHerder(s) }
         b.herds.herdGrew[k] = grows
-        val kept = if (grows) n else if (pays) max(0f, n - increase)
+        val kept = if (grows) n else if (pays) max(0f, min(n - increase, n - (n - best) * min(1f, years * Date.MONTHS_PER_YEAR)))
             else max(0f, n - g.dailyNeedKg * days / (s.massKg * MEAT_SHARE * Nourishment.MEAT * g.species.needScale))
         if (n > kept) eatGrown(n - kept, if (pays) HerdFlow.EATEN else HerdFlow.EATEN_UNPAID)
         n = kept
@@ -409,9 +415,9 @@ private fun lactating(s: Species, date: Date) =
  * young die and run off at the grown ones' yearly rate and grow up at one over [Species.yearsToMaturity] a year, so
  * 1 / (1 + rate * years to maturity) of them grow up.
  */
-internal fun GroupWorld.herdIncrease(b: Band, k: Int, fed: Float = 1f, at: Place? = null): Float {
+internal fun GroupWorld.herdIncrease(b: Band, k: Int, fed: Float = 1f, at: Place? = null,
+    heads: Float = b.herds.herd[k] + b.herds.youngHerd().getOrElse(k) { 0f }): Float {
     val s = fauna.kinds[k]; val tame = b.herds.herdTame[k]
-    val heads = b.herds.herd[k] + b.herds.youngHerd().getOrElse(k) { 0f }
     val lost = s.backgroundMortality + 0.5f * (1f - fed) + fighting(s) + straying(s, tame) * b.lapse(Skill.TENDING) +
         (at?.let { herdSickness(it, k, heads, fed) } ?: 0f)
     return herdMothers(s, tame, b.herds.sows()[k]) * s.youngPerFemale * fed / (1f + lost * s.yearsToMaturity) - lost
@@ -510,6 +516,8 @@ internal const val HERD_EASE = 0.6f
  * Oxbow, p. 150): about one to fifteen. The same for every kind, an estimate beyond pigs.
  */
 internal const val SOWS_A_MALE = 15f
+/** The herd sizes, as shares of the herd now in equal steps, a keeper weighs for the herd that adds most a year ([keepHerds]). */
+internal const val BEST_HERD_STEPS = 10
 /** A goat's captive breeding (Diamond's criterion), the scale for [herdMothers]. */
 internal const val HERD_BREEDS = 0.7f
 /** A goat's temperament (Diamond's disposition criterion), the scale for [fighting] and [petYears]. */
