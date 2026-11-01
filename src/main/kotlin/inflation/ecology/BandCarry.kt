@@ -48,7 +48,7 @@ internal fun carryRules(): Map<String, Pair<OnSplit, OnJoin>> {
     rule(OnSplit.COPIED, OnJoin.LOST, "totem", "marksChosen", "totemBroken", "burialWay")
     rule(OnSplit.FRESH, OnJoin.SUM, "burialOwed", "riteOwed", "riteAsked", "riteSpare")
     rule(OnSplit.FRESH, OnJoin.LOST, "riteDue")
-    rule(OnSplit.COPIED, OnJoin.LOST, "lastUsed", "seasonPlace", "seasonQ", "monthSupply", "monthSupplySq", "supplyMonth", "supplySum", "supplyWeeks", "weekSupply", "weekWarmth", "weekMoved", "freeShare", "leanDays", "weeks", "traditions", "words", "rite", "riteStrength", "riteHeld", "riteKept", "beliefYears", "strain", "omenPlace", "omenMonth", "omenYear", "omenWeight", "deathsUsual", "wantSteps", "wantBroke", "wantUsual", "mind", "foreseenAt", "knownHomes", "knownLineage")
+    rule(OnSplit.COPIED, OnJoin.LOST, "lastUsed", "seasonPlace", "seasonQ", "monthSupply", "monthSupplySq", "supplyMonth", "supplySum", "supplyWeeks", "weekSupply", "weekWarmth", "weekMoved", "freeShare", "leanDays", "weeks", "traditions", "words", "rite", "riteStrength", "riteHeld", "riteKept", "beliefYears", "strain", "omenPlace", "omenMonth", "omenYear", "omenWeight", "deathsUsual", "wantSteps", "wantBroke", "wantUsual", "mind", "foreseenAt", "knownHomes", "knownLineage", "lastMet")
     // (A person's days of larder: a split halves the larder and the people alike; a joining band's larder is added to its own.)
     rule(OnSplit.COPIED, OnJoin.BLENDED, "larderSeen")
     // (What its people foresaw: a joining band's people bring theirs.)
