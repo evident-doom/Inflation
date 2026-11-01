@@ -383,7 +383,7 @@ private class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, packK
     // (A whole weir there this week: what it would take, kg of its need, and the days its traps would want: for [Band.weirFood].)
     var weirFood = 0f; var weirTend = 0f
     // (The band's days at gathering plant food this week, and of them at seed and grain: what its tools speed, for [Band.toolWork].)
-    var plantDays = 0f; var seedDays = 0f
+    var plantWorkDays = 0f; var seedWorkDays = 0f
     // (A band's grease rendered from bones, kg, and what it feeds.)
     var grease = 0f; var greaseFed = 0f
     var fed = g.meatMet * feeds(Food.BIG_GAME)
@@ -813,8 +813,8 @@ private fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
         // (Days of work counted for the whole band: each party's days in its share of the hands.)
         if (o.type[i] != Food.BIG_GAME) w.busy += expected * o.time[i] * w.party[o.who[i]]
         when (o.type[i]) {
-            Food.FRUIT, Food.ROOTS, Food.FINDS -> w.plantDays += expected * o.time[i] * w.party[o.who[i]]
-            Food.SEED, Food.GRAIN -> { val d = expected * o.time[i] * w.party[o.who[i]]; w.plantDays += d; w.seedDays += d }
+            Food.FRUIT, Food.ROOTS, Food.FINDS -> w.plantWorkDays += expected * o.time[i] * w.party[o.who[i]]
+            Food.SEED, Food.GRAIN -> { val d = expected * o.time[i] * w.party[o.who[i]]; w.plantWorkDays += d; w.seedWorkDays += d }
             else -> {}
         }
         when (o.type[i]) {
@@ -1510,7 +1510,7 @@ private fun GroupWorld.recordFood(g: HexGroup, band: Band, w: ForageWeek) {
     band.weirTend += k * (w.weirTend * stepsPerYear - band.weirTend)
     // (And what its tools served, a year as it lived its weeks: [Band.toolWork].)
     fun work(t: ToolWork, v: Float) { band.toolWork[t] += k * (v * stepsPerYear - band.toolWork[t]) }
-    work(ToolWork.PLANT_DAYS, w.plantDays); work(ToolWork.SEED_DAYS, w.seedDays)
+    work(ToolWork.PLANT_DAYS, w.plantWorkDays); work(ToolWork.SEED_DAYS, w.seedWorkDays)
     work(ToolWork.MEAT_KG, w.meat + w.killFat); work(ToolWork.NET_KG, w.smallGot + w.fished)
 }
 
