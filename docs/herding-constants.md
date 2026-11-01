@@ -47,3 +47,9 @@ their place in their own crowding. A band weighs its herd by the increase left a
 [herdWorth]). No constant of their own. The HerdLimits probe (m5-1, a year) found forage does not bind
 a kept herd by a factor of hundreds, while the residents' crowding would bind at about half the heads kept. Design:
 https://claude.ai/artifact/AuBZQDBK5SomWVQvy6dLbu
+
+Kept males first (2026-11-01): a herd keeps the share of its grown that are females ([Herd.herdSows]); the young grow up
+half female, and the keepers eat the males first, keeping one to [SOWS_A_MALE] (15) females, as Sardinian pig herders keep
+one to three boars in herds of 20-40 and slaughter castrated males in their second year (Albarella, Manconi and Trentacoste
+2011, pp. 150-154). Losses to death, straying and beasts take both alike. The mothers ([herdMothers]) are that share of the
+grown, not half. Comparison with the record: https://claude.ai/artifact/XtL4p33AZj8LmxyeSvdj9K

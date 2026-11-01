@@ -49,6 +49,14 @@ class Herd(kinds: Int) {
      * ([keepHerds]). [herd] holds the grown. (Empty in a band loaded from a save made before it; [youngHerd] sizes it.)
      */
     var herdYoung = FloatArray(kinds)
+    /**
+     * Of each kind, the share of its grown that are females: half among the young as they grow up, more as the keepers eat
+     * the males first ([keepHerds]); the mothers are among them ([herdMothers]). (Empty in a band loaded from a save made
+     * before it; [sows] sizes it, at half.)
+     */
+    var herdSows = FloatArray(kinds) { 0.5f }
+    /** [herdSows], sized to [herd]. */
+    fun sows(): FloatArray { if (herdSows.size != herd.size) herdSows = FloatArray(herd.size) { 0.5f }; return herdSows }
     /** [herdYoung], sized to [herd]. */
     fun youngHerd(): FloatArray { if (herdYoung.size != herd.size) herdYoung = FloatArray(herd.size); return herdYoung }
     /** Whether it keeps any animals, grown or young. */
@@ -64,6 +72,7 @@ class Herd(kinds: Int) {
 
     /** A new band [o] splitting off its keeper takes [share] of the herd, grown and young, and the herd's tameness, pets and last week's keeping. */
     fun splitInto(o: Herd, share: Float) {
+        sows().copyInto(o.sows())
         herdTame.copyInto(o.herdTame); herd.copyInto(o.herd); herdGrew.copyInto(o.herdGrew); herdPet.copyInto(o.herdPet)
         // (A band from a save made when there were fewer resident kinds keeps fewer: see [HexFauna.kinds].)
         for (i in 0 until min(herd.size, o.herd.size)) { o.herd[i] *= share; herd[i] -= o.herd[i] }
@@ -78,6 +87,7 @@ class Herd(kinds: Int) {
             val n = a.herd[i] + b.herd[i]
             val heads = n + ay[i] + by[i]
             if (heads > 0f) a.herdTame[i] = ((a.herd[i] + ay[i]) * a.herdTame[i] + (b.herd[i] + by[i]) * b.herdTame[i]) / heads
+            if (n > 0f) { val sa = a.sows(); val sb = b.sows(); sa[i] = (a.herd[i] * sa[i] + b.herd[i] * sb[i]) / n }
             a.herd[i] = n; ay[i] += by[i]
             // (Pets while either band's were: the joined herd is weighed as food once the younger has grown.)
             if (i < a.herdPet.size && i < b.herdPet.size) a.herdPet[i] = max(a.herdPet[i], b.herdPet[i])
@@ -90,7 +100,7 @@ class Herd(kinds: Int) {
             LinkedHashMap<String, Pair<OnSplit, OnJoin>>().apply {
                 put("herd", OnSplit.SHARED to OnJoin.SUM); put("herdYoung", OnSplit.SHARED to OnJoin.SUM)
                 put("herdPet", OnSplit.COPIED to OnJoin.MAX)
-                put("herdTame", OnSplit.COPIED to OnJoin.BLENDED)
+                put("herdTame", OnSplit.COPIED to OnJoin.BLENDED); put("herdSows", OnSplit.COPIED to OnJoin.BLENDED)
                 put("herdGrew", OnSplit.COPIED to OnJoin.LOST)
                 put("herdTaken", OnSplit.FRESH to OnJoin.LOST)
             }
