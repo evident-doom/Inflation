@@ -1,5 +1,7 @@
 package inflation.ecology
 
+import inflation.Part
+import inflation.Par
 import inflation.Profile
 import inflation.EnumFloats
 import inflation.world.get
@@ -111,6 +113,7 @@ internal const val HUMAN_BIRTHS = 0.8f
  * materials from the country, makes and mends its tools, now and then hits on a new one, and its
  * skills fade a little where unused.
  */
+@Part("people: bandWeek")
 internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     val b = g.band ?: return
     var lap = Profile.mark()
@@ -594,7 +597,7 @@ val BAND_INPUT_NAMES: List<String> get() = BandInputs.names
 internal fun HexGroups.fillBandStates(weather: Weather) {
     indexBands()
     val list = groups.filter { it.alive && it.band != null }
-    IntStream.range(0, list.size).parallel().forEach { k ->
+    Par.forEach("people: ways of the bands", list.size) { k ->
         val g = list[k]; val b = g.band!!
         if (b.state.size != WAYS_IN) b.state = FloatArray(WAYS_IN)
         bandInputs(g, weather, b.state)

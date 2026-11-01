@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Part
 import inflation.Kg
 import inflation.ecology.HexSmallLife.DeadPool
 import inflation.world.Hex
@@ -37,6 +38,7 @@ internal fun GroupWorld.fortifies(b: Band) = b.atHome && b.sinceRaided < stepsPe
  * home, it attacks (see [fight], fought in [fightRaids] once every band has had its week); otherwise
  * it gives up.
  */
+@Part("people: plotRaid")
 internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
     val here = hw.placeHex[g.place]
     b.raid?.let { raid ->

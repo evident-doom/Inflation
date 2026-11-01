@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Par
 import inflation.Profile
 import inflation.world.Hex
 import inflation.world.HexArray
@@ -207,7 +208,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         val bandGroups = groups.filter { it.alive && it.band != null }
         for (g in bandGroups) if (g.alive) bandWeek(g, weather, date)
         bands.tallies.flush(stats.hunting)
-        IntStream.range(0, bandGroups.size).parallel().forEach { k ->
+        Par.forEach("people: customs year", bandGroups.size) { k ->
             val g = bandGroups[k]
             if (g.alive) cultureWeek(g, kotlin.random.Random(g.id * 1_000_003L + date.absoluteDay * 7_919L + 17L))
         }
@@ -234,7 +235,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
     // the counts, a split-off pack or band) is gathered and handed on after, in the groups' order.
     val list = groups.toList()
     val outcome = arrayOfNulls<Outcome>(list.size)
-    IntStream.range(0, list.size).parallel().forEach { k ->
+    Par.forEach("groups: life and death", list.size) { k ->
         val g = list[k]
         if (g.alive) outcome[k] = Profile.part("groups: life and death of each") { liveWeek(g, weather, date, kinNow, groupRandom(g.id, date.absoluteDay)) }
     }
