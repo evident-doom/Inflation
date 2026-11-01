@@ -298,25 +298,37 @@ class Band(kinds: Int) {
     /** Where it knows other bands have their houses (band id to hex), and their descent (main lineage). */
     val knownHomes = HashMap<Int, Hex>()
     val knownLineage = HashMap<Int, Int>()
-    /** One bit per band id in [knownHomes] (kept in step by [learnHome], [forgetHome], [copyHomesTo]; nothing else may change [knownHomes]'s keys). */
-    private var homeBits = LongArray(0)
+    /**
+     * One bit per band id in [knownHomes], kept in step by [learnHome], [forgetHome], [copyHomesTo] (nothing else may change
+     * [knownHomes]'s keys). Not saved: built from [knownHomes] on first use ([homesIndexed]), as after a load.
+     */
+    @Transient private var homeBits = LongArray(0)
+    @Transient private var homesIndexed = false
+    private fun indexHomes() {
+        if (homesIndexed) return
+        homeBits = LongArray(0)
+        for (id in knownHomes.keys) setHomeBit(id)
+        homesIndexed = true
+    }
     private fun setHomeBit(id: Int) {
         val w = id ushr 6
         if (w >= homeBits.size) homeBits = homeBits.copyOf(maxOf(w + 1, homeBits.size * 2))
         homeBits[w] = homeBits[w] or (1L shl (id and 63))
     }
     /** It learns where band [id] has its home. */
-    fun learnHome(id: Int, at: Hex) { knownHomes[id] = at; setHomeBit(id) }
+    fun learnHome(id: Int, at: Hex) { indexHomes(); knownHomes[id] = at; setHomeBit(id) }
     /** It forgets band [id]'s home. */
     fun forgetHome(id: Int) {
+        indexHomes()
         knownHomes.remove(id); knownLineage.remove(id)
         val w = id ushr 6
         if (w < homeBits.size) homeBits[w] = homeBits[w] and (1L shl (id and 63)).inv()
     }
     /** Hands its known homes to [o] (as [HashMap.putAll] does, so [o]'s iteration order is the same as before bits were kept). */
-    fun copyHomesTo(o: Band) { o.knownHomes.putAll(knownHomes); for (id in knownHomes.keys) o.setHomeBit(id) }
+    fun copyHomesTo(o: Band) { o.indexHomes(); o.knownHomes.putAll(knownHomes); for (id in knownHomes.keys) o.setHomeBit(id) }
     /** Whether [o] knows every home it knows (so there is nothing of homes to tell it). */
     fun homesAllKnownTo(o: Band): Boolean {
+        indexHomes(); o.indexHomes()
         val a = homeBits; val b = o.homeBits
         for (i in a.indices) { val x = a[i]; if (x != 0L && (i >= b.size || (x and b[i].inv()) != 0L)) return false }
         return true
