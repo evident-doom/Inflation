@@ -29,6 +29,22 @@ class NamedSlotsTest {
     }
 
     @Test
+    fun `a band reads its last week's plan, and a place's plant food as it reads its camp's`() {
+        val sim = HexSim(World.generate(cfg))
+        repeat(3) { sim.step() }
+        val g = sim.groups.groups.first { it.alive && it.band != null }
+        val b = g.band!!
+        val x = BandInputs
+        val into = FloatArray(WAYS_IN)
+        sim.groups.bandInputs(g, sim.weather, into)
+        val held = Activity.entries.sumOf { into[x.HELD + it.ordinal].toDouble() }
+        assertTrue(held > 0.0 && held <= 1.0001, "held shares sum to $held")
+        val f = FloatArray(HexFeatures.size)
+        sim.groups.plantFood(g, b, g.place, f, HexFeatures.PLANT_FOOD)
+        for (k in 0 until 3) assertEquals(into[x.FRUIT + k], f[HexFeatures.PLANT_FOOD + k], "plant food ${BAND_INPUT_NAMES[x.FRUIT + k]}")
+    }
+
+    @Test
     fun `a band's ways at zero are the scaffold's`() {
         val sim = HexSim(World.generate(cfg))
         sim.step()

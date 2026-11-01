@@ -528,12 +528,29 @@ internal fun HexGroups.bandInputs(g: HexGroup, weather: Weather, into: FloatArra
     // Its salt: the share of its people's sodium it lacked last week, and the salt to be had where it stands (a pan, the shore).
     into[x.SODIUM_SHORT] = b.sodiumShort
     into[x.SALT_HERE] = if (hw.coast[hw.placeHex[g.place]]) 1f else min(1f, 5f * land.salt[g.place])
+    for (a in Activity.entries) into[x.HELD + a.ordinal] = b.heldShare[a]
 }
 
 /** The beasts of prey a band tells apart: those that take people ([Species.takesPeople], from the catalogue) and those that do not. */
 enum class BeastClass(val label: String) {
     OTHERS("that leave people"), TAKERS("that take people");
     companion object { fun of(s: Species) = if (s.takesPeople > 0f) TAKERS else OTHERS }
+}
+
+/**
+ * The plant food band [b]'s gatherers (group [g]) would strip from place [p] in a week (as in [forage]), fruit, roots and seed,
+ * into [into] from [at] on, each as weeks of the band's need, x / (1 + x): for its view of its camp ([BandInputs.FRUIT]) and
+ * of each place it might go ([HexFeatures.PLANT_FOOD]).
+ */
+internal fun HexGroups.plantFood(g: HexGroup, b: Band, p: Place, into: FloatArray, at: Int) {
+    val need = (g.dailyNeedKg * days).coerceAtLeast(1f)
+    fun weeks(kg: Float) = (kg / need).let { it / (1f + it) }
+    val food = fauna.food
+    val pick = min(0.9f, b.gatherShare() * b.gatherRange)
+    val reap = min(0.9f, b.gatherShare() * b.gatherRange)
+    into[at] = weeks(land.total(p, KgM2(pick * food.fruit[p])).v)
+    into[at + 1] = weeks(land.total(p, KgM2(pick * food.underground(p))).v)
+    into[at + 2] = weeks(land.total(p, KgM2(reap * food.seeds[p])).v)
 }
 
 /**
@@ -554,12 +571,7 @@ private fun HexGroups.ecosystemInputs(g: HexGroup, b: Band, into: FloatArray) {
     fun weeks(kg: Float) = (kg / need).let { it / (1f + it) }
     into[x.FISH] = weeks(fauna.water.bandCatchWithin(h, b.fishing()) + fauna.water.weirWithin(h, weirAt(g, h)))
     // Plants: what its gatherers would strip from the camp's own ground in a week (as in [forage]).
-    val food = fauna.food
-    val pick = min(0.9f, b.gatherShare() * b.gatherRange)
-    val reap = min(0.9f, b.gatherShare() * b.gatherRange)
-    into[x.FRUIT] = weeks(land.total(p, KgM2(pick * food.fruit[p])).v)
-    into[x.ROOTS] = weeks(land.total(p, KgM2(pick * food.underground(p))).v)
-    into[x.SEED] = weeks(land.total(p, KgM2(reap * food.seeds[p])).v)
+    plantFood(g, b, p, into, x.FRUIT)
     // Game: what it could catch in a week of searching its swept ground, as its move scores it.
     val swept = sweptKm2(s) * CATCH
     into[x.GAME] = weeks(preyHere(s, p) * swept)
