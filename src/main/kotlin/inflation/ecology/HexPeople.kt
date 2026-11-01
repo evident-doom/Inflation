@@ -588,6 +588,7 @@ val BAND_INPUT_NAMES: List<String> get() = BandInputs.names
  * Every band's view of itself and of the bands about it, as the week starts ([Band.state]), for the
  * people networks to choose by: worked out once, before any band moves.
  */
+@Part("bands: taking stock")
 internal fun HexGroups.fillBandStates(weather: Weather) {
     indexBands()
     val list = groups.filter { it.alive && it.band != null }

@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Part
 import inflation.enumTables
 import inflation.Profile
 import inflation.world.Place
@@ -291,28 +292,20 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             }
         }
         IntStream.range(0, n).parallel().forEachPlace { p ->
-            var pt = Profile.mark()
             val t = weather.temperature[p]
             val soilWater = land.hydro.soil[p]
             stepSoil(p, t, soilWater, carcassKg)
             val food = land.plants.herb[p] + 0.3f * land.plants.shrub[p]
             val snow = weather.snowpack[p]
-            pt = Profile.lap("small life: soil and decay", pt)
             val active = stepInsects(p, t)
-            pt = Profile.lap("small life: insects", pt)
             stepBiting(p, active, soilWater, weather)
-            pt = Profile.lap("small life: biting insects", pt)
             stepRodents(p, t, food, snow)
-            pt = Profile.lap("small life: rodents", pt)
             stepHerps(p, t, soilWater)
-            pt = Profile.lap("small life: reptiles and amphibians", pt)
             val b = land.fire.burning[p]
             burnSmallLife(p, b)
             rodentRoom[p] *= 1f - RODENTS_BURNT * b
-            pt = Profile.lap("small life: fire", pt)
             stepPollinators(p, month, active)
-            pt = Profile.lap("small life: pollinators", pt)
-            stepGame(p, t, month, b); Profile.lap("small life: hares, hyrax, birds, tortoises, foxes, owls, eagles", pt)
+            stepGame(p, t, month, b)
         }
         // What the runoff washed off goes down the rivers; floods lay part of it on the floodplains with their silt.
         land.hydro.carrySilt(washedKg, laidKgM2)
@@ -321,14 +314,14 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             var off = 0.0; for (p in land.places) off += washedKg[p] - laidKgM2[p] * land.areaM2[p].toDouble()
             books.flow(Books.Stuff.MATTER, "litter washed to the sea and closed lakes", -off)
         }
-        Profile.part("small life: locusts") { stepLocusts(weather) }
+        stepLocusts(weather)
         for (k in BIRDS.indices) {
             val l = leaving[k]; var sum = 0.0; for (p in l.indices) if (l[p] != 0f) { sum += l[p]; l[p] = 0f }
             // (Insect-eaters leaving a place where the insects failed, within their months, look for another.)
             if (BIRDS[k].followsInsects && month in BIRDS[k].present!!) waiting[k] += sum else away[k] += sum
         }
         lastMonth = month
-        Profile.part("small life: vultures") { stepVultures(weather) }
+        stepVultures(weather)
         // A little every week, not all at once each month: a monthly lump would show as a pulse at the
         // start of each month where the spreaders arrived and then died back over the weeks.
         Profile.part("small life: spreading to neighbours") {
@@ -343,6 +336,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
      * Litter, dung and the small dead rot; carrion rots and the week's carcasses ([carcassKg]) are added; bones
      * weather away.
      */
+    @Part("small life: soil and decay")
     private fun stepSoil(p: Place, t: Float, soilWater: Float, carcassKg: FloatArray) {
         // (Full rate once the soil is half full of what it holds there.)
         val wet = (soilWater / (0.5f * land.hydro.soilCap[p])).coerceIn(0f, 1f)
@@ -387,6 +381,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
      * Plant-eating insects (see [insectSeason]): on the young leaves of herbs and shrubs, as green as the place is.
      * Returns how far insects are out (0..1) at the warmth [t].
      */
+    @Part("small life: insects")
     private fun stepInsects(p: Place, t: Float): Float {
         val active = ((t - insectFrom[p]) / INSECT_SPAN_C).coerceIn(0f, 1f)
         val greenFood = (land.plants.herb[p] + 0.3f * land.plants.shrub[p]) * land.plants.green[p]
@@ -412,6 +407,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
      * Biting insects (see [insectSeason]): their larvae live in standing water; when it dries or the cold comes, the
      * eggs wait in the mud.
      */
+    @Part("small life: biting insects")
     private fun stepBiting(p: Place, active: Float, soilWater: Float, weather: Weather) {
         val standing = land.hydro.flood[p] > 0f || wetland[p] > 0.1f || soilWater / land.hydro.soilCap[p] > 0.9f
         smallDead[p] += insectSeason(p, biting, dormantBiting, active, if (standing) 500f else 0f, least = 0f)
@@ -432,6 +428,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
      * kermes oak acorns laid out under Spanish oaks, half within a week (Pons and Pausas 2007, Ecol Res 22:535), and of holm
      * oak acorns rodents handled, 1.3% were alive the next spring (Gómez, Puerta-Piñero and Schupp 2008, Oecologia 155:529).
      */
+    @Part("small life: rodents")
     private fun stepRodents(p: Place, t: Float, food: Float, snow: Float) {
         var r = rodents[p]
         val need = KgKm2(r * 0.1f * days).perM2
@@ -463,6 +460,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
      * and in hot drought they lie up, losing few. (Toads and lizards take the dry country where frogs and newts
      * cannot.)
      */
+    @Part("small life: reptiles and amphibians")
     private fun stepHerps(p: Place, t: Float, soilWater: Float) {
         var h = herps[p]; var herpBorn = 0f
         if (herpsActive(t, soilWater)) {
@@ -487,6 +485,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     /**
      * Fire at place [p] kills what cannot flee, on the share [b] that burned.
      */
+    @Part("small life: fire")
     private fun burnSmallLife(p: Place, b: Float) {
         if (b > 0f) {
             smallDead[p] += insects[p] * 0.8f * b + herps[p] * 0.7f * b + rodents[p] * RODENTS_BURNT * b + pollinators[p] * 0.8f * b
@@ -498,6 +497,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
      * Pollinators (see [insectSeason]): on the flowers of spring and early summer; grazing leaves fewer flowers, and
      * as the flowers fade they lay their eggs and wait for the next spring.
      */
+    @Part("small life: pollinators")
     private fun stepPollinators(p: Place, month: Int, active: Float) {
         val flowering = month in 3..7
         val flowers = (land.plants.herb[p] + 0.5f * land.plants.shrub[p]) * (if (flowering) 1f else 0.2f) *
@@ -512,6 +512,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
      * it strips the green plants where it is, moves on to the greenest country about and dies out by late
      * summer. Birds, foxes, jackals and people eat them (see [catchSmall]).
      */
+    @Part("small life: locusts")
     private fun stepLocusts(weather: Weather) {
         val month = weather.date.month
         val season = month in 2..7
@@ -561,6 +562,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     }
 
     /** Small game at place [p] this week: [t] its temperature, [burnt] the share that burned. */
+    @Part("small life: game birds and small game")
     private fun stepGame(p: Place, t: Float, month: Int, burnt: Float) {
         if (land.plants.biomass(p) <= 0f) { smallDead[p] += hares[p] + hyrax[p] + birdSum(p) + tortoises[p] + foxes[p]; hares[p] = 0f; hyrax[p] = 0f; birds[p] = 0f; for (b in bird) b[p] = 0f; tortoises[p] = 0f; foxes[p] = 0f; hareRoom[p] = 0f; return }
         val mild = t > 5f
@@ -771,6 +773,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
      * Vultures soar out from their colony each day and find the carcasses within reach, nearest
      * first, before most other scavengers; a colony grows when they eat well and shrinks when not.
      */
+    @Part("small life: vultures")
     private fun stepVultures(weather: Weather) {
         val month = weather.date.month
         for (k in vulturePlace.indices) {

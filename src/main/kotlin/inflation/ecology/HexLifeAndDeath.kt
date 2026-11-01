@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Part
 import inflation.Par
 import inflation.Profile
 import inflation.world.Hex
@@ -237,7 +238,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
     val outcome = arrayOfNulls<Outcome>(list.size)
     Par.forEach("groups: life and death", list.size) { k ->
         val g = list[k]
-        if (g.alive) outcome[k] = Profile.part("groups: life and death of each") { liveWeek(g, weather, date, kinNow, groupRandom(g.id, date.absoluteDay)) }
+        if (g.alive) outcome[k] = liveWeek(g, weather, date, kinNow, groupRandom(g.id, date.absoluteDay))
     }
     // Outbreaks that broke out this week rage from next week: started after every group has lived its
     // week, so no group's plague depends on which core another group's ran on.
@@ -272,7 +273,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
     }
     groups += born
     tallyVillages()
-    Profile.part("groups: merging and pairing") { mergeAndPair(date) }
+    mergeAndPair(date)
 }
 
 /**
@@ -515,6 +516,7 @@ private fun HexGroups.mournDead(g: HexGroup, o: Outcome, date: Date) {
 }
 
 /** One group's week of feeding on its reserves, births, deaths and growing up; with its own random stream [r]. */
+@Part("groups: live week of one")
 internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNow: HashMap<Long, Int>, r: kotlin.random.Random): Outcome {
     val s = g.species
     feedOnReserves(g)
@@ -932,6 +934,7 @@ internal fun HexGroups.peopleCrowding(g: HexGroup, h: Hex = hw.placeHex[g.place]
 internal fun healedShare(band: Band?) = (1f - 0.15f * (band?.medicine ?: 0f)) * (band?.lapse(Skill.HERBS)?.let { 1f + HEALING_REACH * (it - 1f) } ?: 1f)
 
 /** Small bands join kin, and lone hunters find mates (see [demography]). */
+@Part("groups: merging and pairing")
 internal fun HexGroups.mergeAndPair(date: Date) {
     // A band grown too small to hunt, gather and defend itself joins the nearest kin band that has room.
     val bandsByHex = HashMap<Hex, ArrayList<HexGroup>>()

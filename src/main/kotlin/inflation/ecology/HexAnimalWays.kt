@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Part
 import inflation.Par
 import inflation.world.get
 import inflation.world.Weather
@@ -87,6 +88,7 @@ internal fun HexGroups.setAnimalWays(g: HexGroup, weather: Weather, ways: Animal
 }
 
 /** Each pack sets its ways for the week, on all cores (each only from its own state). */
+@Part("animals: setting their ways")
 internal fun HexGroups.setAnimalWays(weather: Weather) {
     val hunters = hunterWays ?: return
     val inputs = ThreadLocal.withInitial { FloatArray(ANIMAL_WAYS_IN) }; val out = ThreadLocal.withInitial { FloatArray(ANIMAL_WAYS_OUT) }

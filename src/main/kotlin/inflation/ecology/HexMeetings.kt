@@ -486,6 +486,7 @@ internal fun residentStrength(s: Species) = (if (s.foragingParty > 0) minOf(s.fo
  * unmarked until the mark is stale (it ranged elsewhere for weeks), or that another has marked over,
  * has lost its ground.
  */
+@Part("hunters: marking ground")
 internal fun HexGroups.mark() {
     for (m in scent.marks.values) for (i in m.indices) m[i] *= MARK_KEEP
     for (g in groups) {
@@ -547,6 +548,7 @@ internal fun HexGroups.claimGround(g: HexGroup, h: Hex) {
 }
 
 /** A pack without ground settles where no other pack of its kind has fresh marks. */
+@Part("hunters: settling ground")
 internal fun HexGroups.settle(weather: Weather) {
     val claimed = HashSet<Long>()
     // (Packs come in a drawn order: the first to come on empty ground takes it.)

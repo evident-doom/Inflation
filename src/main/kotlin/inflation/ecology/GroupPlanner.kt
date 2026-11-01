@@ -747,6 +747,7 @@ internal class GroupPlanner(private val gs: HexGroups) {
     }
 
     /** Before the groups choose: each place's worth to each kind this week ([valuePlaces]); last week's searches and efforts let go. */
+    @Part("choosing: valuing places for hunters")
     internal fun beginChoosing(predatorKg: FloatArray, month: Int, weather: Weather) {
         valuePlaces(predatorKg, month)
         reachCache.clear(); stepEffort.clear()

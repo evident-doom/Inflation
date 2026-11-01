@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Part
 import inflation.EnumFloats
 import inflation.enumFloats
 import inflation.Profile
@@ -159,6 +160,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     }
 
     /** Outbreaks pass to neighbouring hexes where the kind lives, and burn out. */
+    @Part("outbreaks")
     private fun stepOutbreaks() {
         for ((si, s) in Catalogue.all.withIndex()) {
             val o = outbreak[si]
@@ -776,11 +778,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             // They move every [Tuning.residentMoveWeeks] weeks, a step each move: from week to week they shift by a few percent.
             val moving = (it.date.absoluteDay / days) % tuning.residentMoveWeeks == 0L
             if (moving) {
-                Profile.part("residents: weighing places") { fillArrive(it) }
+                fillArrive(it)
                 // (The game the hunters weigh, taken once before any kind moves: the kinds move on all cores at once.)
                 preyNow = Array(kinds.size) { k -> if (kinds[k].carnivore) FloatArray(n).also { v -> IntStream.range(0, n).parallel().forEachPlace { p -> v[p] = game(kinds[k], p) } } else null }
-                Profile.part("residents: moving up and down the slopes") { shiftBands(it) }
-                Profile.part("residents: spreading to neighbouring hexes") { spill(it) }
+                shiftBands(it)
+                spill(it)
                 preyNow = null
             }
         },
@@ -792,7 +794,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val books = land.books
         ateBook = books?.adder(Books.Stuff.MATTER, "eaten"); droppedBook = books?.adder(Books.Stuff.MATTER, "dung and frass")
         for (p in land.places) fear[p] *= FEAR_KEEP
-        Profile.part("outbreaks") { stepOutbreaks() }; outbreakSalt++
+        stepOutbreaks(); outbreakSalt++
         carcassKg.fill(0f)
         if (bearings.month != date.month) {
             if (date.month == 0) newcomers(date)
@@ -1304,6 +1306,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * where they shift between low and high ground ([shiftBands]), [arrive]; for the plant-eaters (who weigh places as they
      * flow, [flow]), their young to a grown one and fat ([moverYoung], [moverFat]).
      */
+    @Part("residents: weighing places")
     private fun fillArrive(weather: Weather) {
         for (k in kindIds) {
             val s = kinds[k]
@@ -1468,6 +1471,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * ([arrive], [clearlyWorse]), a share moves to the safer one, by how much safer it is; else towards the one of the
      * better hunting and ground ([appeal]), if it is no deadlier.
      */
+    @Part("residents: moving up and down the slopes")
     private fun shiftBands(weather: Weather) {
         // (Moving every few weeks, a move takes the share those weeks' would have.)
         val weeks = tuning.residentMoveWeeks
@@ -1540,6 +1544,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * spill towards better hunting ([spillHunters]); then the thinly spread gather ([gatherThin]), a place left with too
      * few to count has none, and those that came pay for their walk out of their fat.
      */
+    @Part("residents: spreading to neighbouring hexes")
     private fun spill(weather: Weather) {
         // (The swimmers drowned this week, kind by kind: their weight as grown animals by place, and their heads.)
         val drowned = Array(kinds.size) { FloatArray(n) }; val drownedHeads = DoubleArray(kinds.size)
