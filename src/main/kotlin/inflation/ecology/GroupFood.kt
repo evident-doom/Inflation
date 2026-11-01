@@ -722,15 +722,15 @@ private fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
         // (On strange ground people find little of it.)
         val knowHere = band?.let { plantKnow(it, hw.placeHex[q]) } ?: 1f
         // (Gatherers who go further from camp cover more of the ground.)
-        val reach = band?.let { b -> (min(0.9f, b.gatherShare(false, tuning) * knowHere * b.gatherRange) * part).also { v -> dialUse?.amount(DialSite.GATHER_REACH,
-            b.gatherRange, v, min(0.9f, b.gatherShare(false, tuning) * knowHere) * part, cut = b.gatherShare(false, tuning) * knowHere * b.gatherRange > 0.9f) } }
+        val reach = band?.let { b -> (min(0.9f, b.gatherShare() * knowHere * b.gatherRange) * part).also { v -> dialUse?.amount(DialSite.GATHER_REACH,
+            b.gatherRange, v, min(0.9f, b.gatherShare() * knowHere) * part, cut = b.gatherShare() * knowHere * b.gatherRange > 0.9f) } }
             ?: min(1f, w.smallSweep * g.path.size / land.areaKm2[q])
         // (The unskilled, and strangers to its plants, are slow at it.)
         val slow = band?.slowness(Skill.GATHER, knowHere) ?: 1f
         val eats = w.eats
         val pickQ = (w.pickDays - eats) * slow + eats; val seedQ = (w.seedDays - eats) * slow + eats
         val fruitQ = (w.fruitDays - eats) * slow + eats
-        val seedReach = band?.let { it.gatherShare(true, tuning) * knowHere * part } ?: reach
+        val seedReach = band?.let { it.gatherShare() * knowHere * part } ?: reach
         // (Gatherers take the near ground first: the share they reach of a place as a disc about the camp, two thirds of
         // its radius out on average; a place round the camp lies half a hex further. The walk takes no skill.)
         val off = if (qi < w.gatherAt.size) 0f else hex.hexKm.toFloat() / 2f

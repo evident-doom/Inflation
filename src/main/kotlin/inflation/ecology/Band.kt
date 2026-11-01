@@ -866,13 +866,13 @@ class Band(kinds: Int) {
     /** How much more seed its sickles reap, as well as their stone cuts. */
     fun sickleGain(tuning: Tuning) = SICKLE_GAIN * has(Tool.SICKLE) * serveOfMake(Tool.SICKLE, fine[Tool.SICKLE], tuning)
 
-    /** Gathering: the most of a plant food's stock in a place it can take in a week; [seed] for grass seed. */
-    fun gatherShare(seed: Boolean, tuning: Tuning): Float {
-        val kit = 1f + BASKET_GAIN * has(Tool.BASKET) +
-            if (seed) sickleGain(tuning) +
-                GRINDER_GAIN * has(Tool.GRINDER) else GRINDER_GAIN * 0.5f * has(Tool.GRINDER)
-        return min(0.9f, GATHER_SHARE * skill(Skill.GATHER) * kit)
-    }
+    /**
+     * Gathering: the most of a plant food's stock in a place it can take in a week, by its skill. (Its tools do not raise it:
+     * a basket carries more a trip, a sickle reaps faster and grinding stones make meal of seed and nuts faster, all in the
+     * days a kilo takes ([PLANT_HANDLING_DAYS_PER_KG], [reapDaysPerKg]); counted here as well, they were counted twice.
+     * Harlan reaped wild einkorn at about 2 kg an hour by hand and 2.5 with a stone sickle: a speedup.)
+     */
+    fun gatherShare(): Float = min(0.9f, GATHER_SHARE * skill(Skill.GATHER))
 
     /** Small game and fish: snare lines and nets, in practised hands. */
     fun snares() = (1f + NET_GAIN * has(Tool.NET)) * skill(Skill.SMALL_GAME)
