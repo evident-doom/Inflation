@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Part
 import inflation.world.Hex
 import inflation.world.HexDrinkingWater
 import inflation.world.Place
@@ -80,6 +81,7 @@ internal fun HexGroups.wellAsk(g: HexGroup, b: Band, h: Hex): Float {
 }
 
 /** A well at [g]'s band [b]'s home, hex [h], where one would pay ([wellAsk]): sunk, deepened or mended as far as the [time] days go. */
+@Part("people: build well")
 internal fun HexGroups.buildWell(g: HexGroup, b: Band, h: Hex, time: BandTime) {
     val left = time.leftFor(Activity.WELLS)
     if (left <= 0f || wellAsk(g, b, h) <= 0f) return

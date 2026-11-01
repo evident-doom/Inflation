@@ -2,7 +2,6 @@ package inflation.ecology
 
 import inflation.Part
 import inflation.Par
-import inflation.Profile
 import inflation.EnumFloats
 import inflation.world.get
 import inflation.world.set
@@ -116,10 +115,8 @@ internal const val HUMAN_BIRTHS = 0.8f
 @Part("people: bandWeek")
 internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     val b = g.band ?: return
-    var lap = Profile.mark()
     b.weeks++
     learnCountry(g, b, weather)
-    lap = Profile.lap("bandWeek: learn country", lap)
     val p = g.place
     val h = hw.placeHex[p]
     val area = land.m2(p)
@@ -129,40 +126,31 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     b.week = null
     campAndCache(g, b, p, h, weather, date, time)
     time.release(Activity.CACHING)
-    lap = Profile.lap("bandWeek: camp and cache", lap)
     keepAnimals(g, b)
     keepHerds(g, b, date, time)
-    lap = Profile.lap("bandWeek: animals and herds", lap)
     val people = g.adults.toFloat()
     gatherMaterials(g, b, p, h, people, area, time)
     time.release(Activity.MATERIALS)
-    lap = Profile.lap("bandWeek: gather materials", lap)
     val living0 = b.livingGoods()
     wearAndInvent(b, years)
     // Making and mending takes the time still to spare, the tools it ranks first first (the
     // scaffold: the most worn); each as far as the time, the scarcest material and the skill allow.
     dialUse?.amount(DialSite.SHELTERS, b.shelterWill, b.shelterWill, 1f)
     if (WARM_DIAG) { b.diagShelterHeld = time.heldFor(Activity.SHELTER); b.diagShelterLeft = time.leftFor(Activity.SHELTER) }
-    lap = Profile.lap("bandWeek: wear and invent", lap)
     putUpShelter(b, people, time)
-    lap = Profile.lap("bandWeek: shelter", lap)
     keepCustoms(b, people, time)
     trainHolders(g, b, time)
     time.release(Activity.TRAINING)
-    lap = Profile.lap("bandWeek: customs and training", lap)
     makeTools(b, people, time)
     time.release(Activity.TOOLS)
-    lap = Profile.lap("bandWeek: make tools", lap)
     b.renown *= 1f - RENOWN_FADE * years
     b.unlucky?.let { u -> b.unlucky = if (u.weeks > 1) Unlucky(u.hex, u.weeks - 1) else null }
     b.sinceRaided++
     plotRaid(g, b, weather)
-    lap = Profile.lap("bandWeek: plot raid", lap)
     keepFire(g, b)
     b.fire *= b.hearthWood
     val woodBefore = b.goods[Material.WOOD]
     val nightBurnt = burnNightFire(b, people)
-    lap = Profile.lap("bandWeek: fire", lap)
     dialUse?.amount(DialSite.NIGHT_FIRE_WOOD, b.nightFire, nightBurnt, min(NIGHT_WOOD * people, woodBefore))
     // With the time still to spare, a band that has kept its camp a while builds stone-footed houses
     // there, as far as it has gathered the stone and timber (and starts afresh where it settles
@@ -174,7 +162,6 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
         buildHouse(g, b, p, h, people, time)
     }
     time.release(Activity.HOUSES)
-    lap = Profile.lap("bandWeek: structures and houses", lap)
     // (Its home is where it last had houses to use; what stands there still shelters it, unless another band took it up.)
     if (!kept && housesAt(g, h) > 0.05f) b.houseHex = h
     b.house = if (b.houseHex.none) 0f else housesAt(g, b.houseHex)
@@ -185,7 +172,6 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     // With time still to spare, it makes ornaments of shell and bone: they are given, worn and buried.
     makeOrnaments(b, people, time)
     time.release(Activity.ORNAMENTS)
-    lap = Profile.lap("bandWeek: ornaments", lap)
     // In autumn a band at home, or long at its camp, sows a share of its stored grain there: a plot that ripens
     // next summer to several times as much, of the kind of ears it sowed.
     harvestCrop(g, b, time)
@@ -193,7 +179,6 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     time.release(Activity.SOWING)
     // A band at home that has been raided in the last year rings its houses with a palisade, as far
     // as its time and timber go.
-    lap = Profile.lap("bandWeek: crops", lap)
     buildPalisade(g, b, h, people, time)
     b.palisade = if (b.houseHex.none) 0f else palisadeAt(g, b.houseHex)
     // Where fish crowd the river by its camp, it builds a weir across it with traps, or mends the one there, as far as its
@@ -201,7 +186,6 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     buildWeir(g, b, h, time)
     // Where it has had to dig for its water at home, it sinks a well there, or deepens or mends the one there, as far as its time goes.
     buildWell(g, b, h, time)
-    lap = Profile.lap("bandWeek: palisade, weir, well", lap)
     // What no chore took is its leisure. (Counted once every chore has had its time.)
     time.noneBelowZero()
     b.spareDays = time.left
@@ -210,7 +194,6 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     time.countEachInto(bands.tallies)
     bands.tallies.total(Tally.TimeTotal.LEFT, (time.left * 10f).roundToInt())
     bands.tallies.total(Tally.TimeTotal.LOST, (time.lost * 10f).roundToInt())
-    lap = Profile.lap("bandWeek: tallies", lap)
     // (And by whether it keeps a herd, tenths of a day: where a herding band's days go.)
     val herding = bandHerding(b, g.adults)
     for (a in Activity.entries) bands.tallies.herdTime(herding, a, (10f * time.spentOn(a)).roundToInt())
@@ -229,7 +212,6 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     // Teaching the young keeps the teachers practised; the songs and stories are kept up where the band holds to them.
     if (g.young > 0) b.practise(Skill.SHOWING, 0.08f * PRACTICE)
     b.practise(Skill.LORE, (if (b.holds(Tradition.ORAL_TRADITION)) 0.08f else 0.03f) * PRACTICE)
-    Profile.lap("bandWeek: leave excess and forget", lap)
 }
 
 /**

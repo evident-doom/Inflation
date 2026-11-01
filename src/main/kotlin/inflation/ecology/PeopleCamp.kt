@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Part
 import inflation.EnumFloats
 import inflation.enumFloats
 import inflation.world.Hex
@@ -74,6 +75,7 @@ internal const val MIDDEN_WEAR = 0.3f
 internal fun GroupWorld.movedCamp(g: HexGroup, b: Band) = b.campPlace.none || hw.placeHex[g.place] != hw.placeHex[b.campPlace]
 
 /** The country [g]'s band comes to know this week: what it walks, and what it sees round about from the high points on its way, its scouts further still. */
+@Part("people: learn country")
 internal fun HexGroups.learnCountry(g: HexGroup, b: Band, weather: Weather) {
     // It comes to know the country it walks, and what it sees round about.
     // From the high points on its way it sees as far as the line of sight and the weather allow;
@@ -194,6 +196,7 @@ internal fun loadedKmh(massKg: Float, loadKg: Float): Float {
  * the grinding stones; a cache keeps, but not perfectly, and back at it the band takes up what it
  * has room for.
  */
+@Part("people: camp and cache")
 internal fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, weather: Weather, date: Date, time: BandTime) {
     if (b.campPlace.none || h != hw.placeHex[b.campPlace]) {
         // Moving camp: it packs what keeps longest first ([storesCarried]); food that cannot be carried is cached at the old camp (an older cache is given
@@ -282,6 +285,7 @@ internal fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, weat
 }
 
 /** What [b] cannot carry is left behind at place [p] (and goes back to the ground); at a camp it keeps, it stacks building stone and timber beyond that. */
+@Part("people: leave excess")
 internal fun GroupWorld.leaveExcess(b: Band, p: Place, people: Float, area: Float) {
     val gd = b.goods
     for (m in Material.entries) {

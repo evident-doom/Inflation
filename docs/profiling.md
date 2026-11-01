@@ -1,6 +1,6 @@
 # Profiling
 
-Design: `/mnt/project-files/plans/profiling-framework-design-2026-11-01.md` (project files). Steps 2 (recording) and 3 (`ProfileReport`) of its plan are built; migrating the old `Profile.lap` calls to labels (step 4) is not.
+Design: `/mnt/project-files/plans/profiling-framework-design-2026-11-01.md` (project files). Steps 2 (recording) and 3 (`ProfileReport`) of its plan are built; step 4, migrating the old `Profile.lap` calls to labels, is done for the bands' week (`bandWeek`) and band meetings; the remaining `Profile.part/lap` sites (HexMeetings `meet`, HexSmallLife, HexWater, HexGroups, HexFauna, GroupPlanner, GroupFood) still work with `profile=fine`.
 
 ## Run with a recording
 Set `profile=jfr` in `inflation.properties` (a config key, no switch). The run writes `rec.jfr` in the run directory when it exits. The settings are `src/main/resources/profile.jfc`: execution samples (2 ms), monitor and park waits over 1 ms, GC, JIT compilations (all) and failures, CPU load, allocation samples, and the model's own events:

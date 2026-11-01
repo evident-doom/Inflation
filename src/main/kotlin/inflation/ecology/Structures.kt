@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Part
 import inflation.world.Hex
 import inflation.world.Place
 import inflation.world.get
@@ -134,6 +135,7 @@ internal fun buildOn(s: Structure, add: Float) {
  * people, those it already uses first (who is there keeps what it uses); unused houses are nobody's and go to whoever needs
  * them. A palisade or a weir it takes up whole, as before. A well nobody takes up: it is anyone's at its hex.
  */
+@Part("people: use structures")
 internal fun HexGroups.useStructures(g: HexGroup, h: Hex) {
     var room = 0f
     structuresAt(h) { s -> if (s.kind == Built.HOUSES && s.user == g.id) room += s.built * s.size }
