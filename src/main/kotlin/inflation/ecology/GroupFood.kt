@@ -1078,8 +1078,8 @@ private class Meal(val wantAll: Float) {
 
 /** [forage]'s tallies of [w]'s week: its diet, [meatEaten] of its meat eaten, and for bands how they fared by the kind of country. */
 private fun HexGroups.tallyForage(w: ForageWeek, meatEaten: Float) {
-    val g = w.g; val s = w.s; val band = w.band; val wantAll = w.wantAll
-    val meat = w.meat; val smallGot = w.smallGot; val scraps = w.scraps; val fish = w.fish
+    val s = w.s; val band = w.band; val wantAll = w.wantAll
+    val smallGot = w.smallGot; val scraps = w.scraps; val fish = w.fish
     // (Each at what it feeds, in kg of its need as asked: see [ForageWeek.worth].)
     val meatFed = meatEaten * w.worth(Food.BIG_GAME) + w.killFat * w.fatFeeds + fish * w.worth(Food.FISH)
     val smallFed = smallGot * w.worth(Food.SMALL_GAME); val scrapsFed = scraps * w.worth(Food.CARRION)
