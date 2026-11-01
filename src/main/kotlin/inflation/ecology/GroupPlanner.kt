@@ -417,6 +417,11 @@ internal class GroupPlanner(private val gs: HexGroups) {
         // against its need (the shore and the river are plain to see; how rich they are, less so where it is a stranger).
         f[Feature.FISH] = g.band?.let { b -> min(2f, catchWithin(g, b, h) * Nourishment.FISH * s.needScale / (g.size * s.dailyIntakeKg * gs.days).coerceAtLeast(1f)) *
             (if (b.knows(h)) 1f else 0.5f) } ?: 0f
+        // The plant food its gatherers could take there, as dimly where it is a stranger.
+        g.band?.let { b ->
+            gs.plantFood(g, b, p, f, Feature.PLANT_FOOD)
+            if (!b.knows(h)) for (k in 0 until 3) f[Feature.PLANT_FOOD + k] *= 0.5f
+        }
         // What it remembers of this hex: in this season, or failing that in any.
         val mem = g.memory
         var slot = mem.find(h, PlaceMemory.seasonOf(month)); val sameSeason = slot >= 0

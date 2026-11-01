@@ -268,5 +268,11 @@ object HexFeatures : NamedSlots() {
      * from the seasons past (lore, not a forecast), for a network to learn what the cold to come means ([LORE_MONTHS]).
      */
     val USUAL_AHEAD = block(List(LORE_MONTHS) { k -> "usual temperature, month ${k + 1} ahead" })
+    /**
+     * For a band, the plant food its gatherers could strip there in a week, fruit, roots and seed, as weeks of its need
+     * x / (1 + x), dimmed where it is a stranger ([plantFood]; 0 for animals): with its plan ([BandInputs.HELD]), where its
+     * gathering would go.
+     */
+    val PLANT_FOOD = block(listOf("plant food:fruit", "plant food:roots", "plant food:seed"))
     const val LORE_MONTHS = 3
 }

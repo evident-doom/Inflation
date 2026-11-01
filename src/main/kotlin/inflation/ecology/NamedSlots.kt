@@ -42,6 +42,7 @@ object BandInputs : NamedSlots() {
     val NEAR_RIVER = one("near river"); val NEAR_LAKE = one("near lake"); val NEAR_SPRING = one("near spring"); val ON_COAST = one("on the coast")
     val FISH = one("fish and shellfish within reach"); val WATERLOGGED = one("waterlogged")
     val TREES = one("trees"); val SHRUBS = one("shrubs"); val GRASS = one("grass")
+    // (Fruit, roots and seed side by side, as [plantFood] writes them.)
     val FRUIT = one("plant food:fruit"); val ROOTS = one("plant food:roots"); val SEED = one("plant food:seed")
     val GAME = one("game within reach"); val SMALL_GAME = one("small game"); val CARRION = one("carrion"); val GAME_TREND = one("game trend")
     val PREDATORS = block(BeastClass.entries.map { "beasts of prey:${it.label}" })
@@ -65,6 +66,8 @@ object BandInputs : NamedSlots() {
     val FIRE_SHARE = one("fire share"); val HOME_SHELTER = one("home shelter")
     // Its salt: the share of its people's sodium it lacked last week ([Band.sodiumShort]), and the salt to be had where it stands.
     val SODIUM_SHORT = one("sodium short"); val SALT_HERE = one("salt here")
+    // Its last week's plan: the share of its days it held for each activity ([Band.heldShare]), what it set out to do.
+    val HELD = block(Activity.entries.map { "held:${it.label}" })
 }
 
 /** The slots of a pack's view of itself ([animalInputs]). */
