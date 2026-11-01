@@ -168,6 +168,13 @@ class Species(
     val foragingParty: Int = 0,
     /** Diamond's criteria, 0..1 each: diet breadth, growth, captive breeding, temperament, calm, hierarchy. */
     val domestication: FloatArray,
+    /**
+     * Its mothers can be milked once kept: the kinds whose kept descendants were milked (cattle, sheep and goats from the
+     * 7th millennium BC in the Near East, Evershed et al. 2008, Nature 455; horses at Botai about 3500 BC, Outram et al.
+     * 2009, Science 323; camels). Not pigs (a sow lets down her milk for seconds at a time, to a litter on many teats), deer
+     * nor birds. Kept herds of other kinds give meat only ([milkKg]).
+     */
+    val milked: Boolean = false,
     /** People: they hunt and gather by skill learned in practice (see [AnimalGroup.craft]), cook, and remember. */
     val human: Boolean = false,
     /** Daily food, kg of prey or plant food, where the allometric rule does not fit (people, who cook). */

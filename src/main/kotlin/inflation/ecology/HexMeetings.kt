@@ -15,6 +15,7 @@ import kotlin.math.max
 import kotlin.math.min
 import java.util.Arrays
 import java.util.stream.Collectors
+import java.util.stream.IntStream
 import kotlin.math.sqrt
 
 // The meetings of a week, settled one by one in the order they happen.
@@ -64,8 +65,11 @@ internal fun GroupWorld.timetable(s: Species, path: HexArray): FloatArray {
  */
 internal fun HexGroups.meet(weather: Weather) {
     var mt = Profile.mark()
+    // (The resident hunters meet as packs do, through bands standing in for them: [ResidentParties].)
+    val residents = ResidentParties(this)
+    val parties = groups + residents.parties
     val byHex = HashMap<Hex, ArrayList<Stay>>()
-    for ((k, g) in groups.withIndex()) {
+    for ((k, g) in parties.withIndex()) {
         if (!g.alive) continue
         val last = g.path.size - 1
         for (i in g.path.indices) {
@@ -79,17 +83,35 @@ internal fun HexGroups.meet(weather: Weather) {
         val out = ArrayList<Meeting>()
         for (i in stays.indices) { for (j in i + 1 until stays.size) {
             val sa = stays[i]; val sb = stays[j]
+            // (A kind's own residents keep their ground by their strife, [HexFauna.strife], not by meeting.)
+            if ((sa.k >= groups.size || sb.k >= groups.size) && !residentsMeet(parties[sa.k], parties[sb.k])) continue
+            // (Residents meeting residents are settled apart, below: no group is among them.)
+            if (sa.k >= groups.size && sb.k >= groups.size) continue
             val from = max(sa.from, sb.from); val to = min(sa.to, sb.to)
             if (from > to) continue
             out += Meeting(from, to - from, sa.k, sa.index, sb.k, sb.index, sa.hex)
         } }
         out.stream()
     }.collect(Collectors.toCollection { ArrayList<Meeting>() })
+    // (Meetings where the weaker is a stand-in change nothing for the stronger but what it eats: they are drawn after the
+    // others, on all cores, each by its own draws, and booked in their order, for those still on their way there.)
+    val withStandIns = ArrayList<Meeting>()
+    run {
+        val apart = BooleanArray(events.size)
+        IntStream.range(0, events.size).parallel().forEach { i ->
+            val e = events[i]; val sa = e.a >= groups.size; val sb = e.b >= groups.size
+            apart[i] = (sa && !sb && strongerThan(parties[e.b], parties[e.a], e.hex)) || (sb && !sa && strongerThan(parties[e.a], parties[e.b], e.hex))
+        }
+        val kept = ArrayList<Meeting>(events.size)
+        for (i in events.indices) if (apart[i]) withStandIns += events[i] else kept += events[i]
+        events.clear(); events.addAll(kept)
+    }
     mt = Profile.lap("meetings: pairs", mt)
     // Meetings at the same hour come in an order drawn afresh each week, not by age in the list.
     val today = weather.date.absoluteDay
     // (Each meeting's draw worked out once, then sorted on all cores: the order is the same as one by one.)
-    events.parallelStream().forEach { it.tie = tieBreak(groups[it.a].id, groups[it.b].id, today) }
+    events.parallelStream().forEach { it.tie = tieBreak(parties[it.a].id, parties[it.b].id, today) }
+    withStandIns.parallelStream().forEach { it.tie = tieBreak(parties[it.a].id, parties[it.b].id, today) }
     val sorted = events.toTypedArray()
     Arrays.parallelSort(sorted) { x, y ->
         val c = java.lang.Float.compare(x.day, y.day)
@@ -103,24 +125,72 @@ internal fun HexGroups.meet(weather: Weather) {
     }
     events.clear(); events.addAll(sorted)
     mt = Profile.lap("meetings: sorting", mt)
-    val stop = IntArray(groups.size) { groups[it].path.size - 1 }
+    val stop = IntArray(parties.size) { parties[it].path.size - 1 }
     for (e in events) {
         // Both must still be on their way at that point.
         if (e.ai > stop[e.a] || e.bi > stop[e.b]) continue
-        val a = groups[e.a]; val b = groups[e.b]
+        val a = parties[e.a]; val b = parties[e.b]
         if (!a.alive || !b.alive) continue
         val h = e.hex
         // Sharing a hex is not meeting: they must cross each other's ground, be about at the same
         // hours, and neither slip away first. (How often they run into each other while both are there,
         // for the share of the time each is in it.)
         val p = hw.placeNear(a.place, h).takeIf { !it.none } ?: a.place
-        val met = poisson(encounters(a, b, p, e.span), rnd)
+        // (A stand-in is as many resident bands as there are there: each may meet the other, each meeting settled alone.)
+        val ra = residents.of(e.a); val rb = residents.of(e.b)
+        val met = poisson(encounters(a, b, p, e.span) * (ra?.bands ?: 1f) * (rb?.bands ?: 1f), rnd)
         if (met == 0) continue
-        if (slipsAway(a, b, p) || slipsAway(b, a, p)) { stats.meeting(Met.SLIPPED_AWAY); continue }
-        if (a.species.human && b.species.human) Profile.part("meetings: bands (culture, gifts, feasts, raids)") { val t0 = Profile.mark(); bandsMeet(a, b, weather); Profile.slow("meeting: bands", t0, weather.date.absoluteDay) { a.probe(weather.date.absoluteDay) + " | " + b.probe(-1L) } }
-        else if (a.species == b.species) Profile.part("meetings: rival packs") { rivalsMeet(a, e.a, e.ai, b, e.b, e.bi, h, stop) }
-        else Profile.part("meetings: hunters of other kinds") { enemiesMeet(a, e.a, e.ai, b, e.b, e.bi, h, stop) }
+        val times = if (ra == null && rb == null) 1 else min(met, kotlin.math.ceil(min(ra?.bands ?: Float.MAX_VALUE, rb?.bands ?: Float.MAX_VALUE)).toInt())
+        for (t in 0 until times) {
+            ra?.fresh(); rb?.fresh()
+            if (!a.alive || !b.alive) break
+            if (slipsAway(a, b, p) || slipsAway(b, a, p)) stats.meeting(Met.SLIPPED_AWAY)
+            else if (a.species.human && b.species.human) Profile.part("meetings: bands (culture, gifts, feasts, raids)") { val t0 = Profile.mark(); bandsMeet(a, b, weather); Profile.slow("meeting: bands", t0, weather.date.absoluteDay) { a.probe(weather.date.absoluteDay) + " | " + b.probe(-1L) } }
+            else if (a.species == b.species) Profile.part("meetings: rival packs") { rivalsMeet(a, e.a, e.ai, b, e.b, e.bi, h, stop) }
+            else Profile.part("meetings: hunters of other kinds") { enemiesMeet(a, e.a, e.ai, b, e.b, e.bi, h, stop) }
+            ra?.settle(); rb?.settle()
+        }
     }
+    Profile.part("meetings: packs and bands with resident hunters") {
+        val drawn = arrayOfNulls<StandInsMet>(withStandIns.size)
+        IntStream.range(0, withStandIns.size).parallel().forEach { i ->
+            val e = withStandIns[i]; val a = parties[e.a]; val b = parties[e.b]
+            if (e.ai > stop[e.a] || e.bi > stop[e.b] || !a.alive || !b.alive) return@forEach
+            val (strong, weak) = if (residents.of(e.a) == null) a to b else b to a
+            val si = residents.of(if (weak === a) e.a else e.b) ?: return@forEach
+            val r = kotlin.random.Random(e.tie)
+            val p = weak.place
+            val met = poisson(encounters(a, b, p, e.span) * si.bands, r)
+            if (met > 0) drawn[i] = standInsMeetDraw(strong, weak, p, min(met, kotlin.math.ceil(si.bands).toInt()), r).also { it.weak = si }
+        }
+        for ((i, m) in drawn.withIndex()) if (m != null) {
+            val e = withStandIns[i]; val strong = if (residents.of(e.a) == null) parties[e.a] else parties[e.b]
+            standInsMeetBook(strong, m.weak.g, m.weak, m)
+        }
+    }
+    // Resident hunters of different kinds meet each other where they live, hex by hex on all cores (each hex with its own
+    // draws, so the same on any number of cores); what came of it is booked after, in the hexes' order.
+    Profile.part("meetings: resident hunters among themselves") {
+        val byStandIns = residents.standInsByHex()
+        val outcomes = arrayOfNulls<List<StandInsMet>>(byStandIns.size)
+        IntStream.range(0, byStandIns.size).parallel().forEach { j ->
+            val list = byStandIns[j]; if (list.size < 2) return@forEach
+            val r = kotlin.random.Random(tieBreak(list[0].g.home.i, -7, today))
+            val out = ArrayList<StandInsMet>()
+            for (x in list.indices) for (y in x + 1 until list.size) {
+                val sx = list[x]; val sy = list[y]
+                if (!residentsMeet(sx.g, sy.g)) continue
+                val (strong, weak) = if (strength(sx.g) >= strength(sy.g)) sx to sy else sy to sx
+                val p = weak.g.place
+                val met = poisson(encounters(sx.g, sy.g, p, days.toFloat()) * sx.bands * sy.bands, r)
+                if (met == 0) continue
+                out += standInsMeetDraw(strong.g, weak.g, p, min(met, kotlin.math.ceil(min(sx.bands, sy.bands)).toInt()), r).also { it.strong = strong; it.weak = weak }
+            }
+            outcomes[j] = out
+        }
+        for (o in outcomes) if (o != null) for (m in o) { val st = m.strong ?: continue; standInsMeetBook(st.g, m.weak.g, m.weak, m); st.settle() }
+    }
+    residents.done()
     // Each group ends its week where it stopped: on the ground in that hex nearest in height to where it meant to go.
     for ((k, g) in groups.withIndex()) {
         if (!g.alive || stop[k] == g.path.size - 1) continue
@@ -132,6 +202,64 @@ internal fun HexGroups.meet(weather: Weather) {
     Profile.lap("meetings: settling them", mt)
 }
 
+/** What came of [times] bands of a resident hunter kind meeting a stronger party ([standInsMeetDraw]). */
+private class StandInsMet(val slipped: Int, val stayed: Int, val youngKilled: Int, val grownKilled: Int) {
+    lateinit var weak: ResidentParties.StandIn
+    /** The stronger, where it too is a stand-in (residents meeting residents); null for a group. */
+    var strong: ResidentParties.StandIn? = null
+}
+
+/**
+ * [times] bands of resident hunter [weak] (a stand-in, [ResidentParties]) meet [strong] at place [p], each as one band of it
+ * would ([slipsAway], [enemiesMeet]): drawn together by [r], those that slip away, and of the rest those that lose one of
+ * their young, else one of their grown. (A stand-in carries no kill to rob.)
+ */
+private fun HexGroups.standInsMeetDraw(strong: HexGroup, weak: HexGroup, p: Place, times: Int, r: kotlin.random.Random): StandInsMet {
+    val h = hw.placeHex[p]
+    val ss = strength(strong) * (if (strong.home == h) HOME_ADVANTAGE else 1f); val sw = strength(weak) * (if (weak.home == h) HOME_ADVANTAGE else 1f)
+    val slip = if (strength(strong) > 2f * strength(weak)) slipChance(weak.species, strong.species, p) else 0f
+    val stayed = binomial(times, 1f - slip, r)
+    if (stayed == 0 || ss / max(1f, sw) <= 2f) return StandInsMet(times - stayed, stayed, 0, 0)
+    val odds = shelteredFromKilling(weak.species, weak.place) * strong.will[AnimalWay.KILL]
+    val youngKilled = if (weak.young > 0 && !strong.species.human) binomial(stayed, min(1f, INTRAGUILD_KILL_YOUNG * tuning.intraguildYoung * odds), r) else 0
+    val grownKilled = if (weak.adults > 0) binomial(stayed - youngKilled, min(1f, INTRAGUILD_KILL * odds), r) else 0
+    return StandInsMet(times - stayed, stayed, youngKilled, grownKilled)
+}
+
+/** Books what came of [m] ([standInsMeetDraw]): the meetings, and the kills, eaten by [strong] and left as carrion, and lost to [si]. */
+private fun HexGroups.standInsMeetBook(strong: HexGroup, weak: HexGroup, si: ResidentParties.StandIn, m: StandInsMet) {
+    stats.meeting(Met.SLIPPED_AWAY, m.slipped)
+    stats.meeting(Met.HUNTERS_OF_OTHER_KINDS, m.stayed)
+    val ws = weak.species; val mass = ws.massKg
+    // (No more die than there are in the hex.)
+    val youngKilled = si.take(m.youngKilled, true); val grownKilled = si.take(m.grownKilled, false)
+    if (youngKilled > 0) {
+        val kg = youngKilled * HexFauna.YOUNG_WEIGHT * mass
+        strong.meatMet += 0.5f * kg; small.deposit(DeadPool.CARRION, weak.place, Kg(0.5f * kg)); bookKill(strong, 0.5f * kg, kg, 0.5f * kg)
+        stats.deaths.merge(Tally.of(ws, ByBeast.of(ByBeast.How.YOUNG_KILLED_BY, strong.species)), youngKilled, Int::plus)
+    }
+    if (grownKilled > 0) {
+        val kg = grownKilled * mass
+        strong.meatMet += 0.5f * kg; small.deposit(DeadPool.CARRION, weak.place, Kg(0.5f * kg)); bookKill(strong, 0.5f * kg, kg, 0.5f * kg)
+        stats.deaths.merge(Tally.of(ws, ByBeast.of(ByBeast.How.KILLED_BY, strong.species)), grownKilled, Int::plus)
+    }
+}
+
+/** Whether [a] is the stronger at meeting [b] in hex [h], each at home the stronger ([enemiesMeet]). */
+private fun HexGroups.strongerThan(a: HexGroup, b: HexGroup, h: Hex) =
+    strength(a) * (if (a.home == h) HOME_ADVANTAGE else 1f) >= strength(b) * (if (b.home == h) HOME_ADVANTAGE else 1f)
+
+/**
+ * Whether a resident hunters' stand-in ([ResidentParties]) and another party meet to any end: not its own kind (they keep
+ * their ground by strife), and only where one is the much stronger ([enemiesMeet]: else they keep their distance, and a
+ * stand-in carries no kill to rob).
+ */
+private fun HexGroups.residentsMeet(a: HexGroup, b: HexGroup): Boolean {
+    if (a.species == b.species) return false
+    val sa = strength(a); val sb = strength(b)
+    return max(sa, sb) > 2f * max(1f, min(sa, sb))
+}
+
 /**
  * Two bands meet: they share news of good ground (each learns where the other did best this month),
  * and a band that is going hungry is given a share of the other's larder. [rite]: the gathering they meet at, if any ([gatherAtRite]).
@@ -140,7 +268,10 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
     stats.meeting(Met.BANDS_MET)
     note(a) { "met band #%d (%d people; tie %.2f)".format(b.id, b.size, a.band?.tie(b.id) ?: 0f) }
     note(b) { "met band #%d (%d people; tie %.2f)".format(a.id, a.size, b.band?.tie(a.id) ?: 0f) }
-    if (meetingEndsInRaid(a, b, weather, rite)) return
+    var lap = Profile.mark()
+    val fresh = meetingFresh(a, b, weather)
+    if (meetingEndsInRaid(a, b, weather, rite, fresh)) return
+    lap = Profile.lap("bandsMeet: talk (all)", lap)
     val (poor, rich) = if (a.wellOff() < b.wellOff()) a to b else b to a
     // Bands that hold to sharing give more, and sooner.
     val sharing = rich.band?.holds(Tradition.SHARING) == true
@@ -164,18 +295,22 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
         note(poor) { "was given %.0f kg of food by band #%d".format(gift, rich.id) }
         }
     }
+    lap = Profile.lap("bandsMeet: food gift", lap)
     // Gifts: bands close to each other give each other ornaments, which travel on along the ties.
     for ((giver, taker) in listOf(a to b, b to a)) {
         val gb = giver.band ?: continue; val tb = taker.band ?: continue
         if (Regard(gb, taker.id, tb, map = hex).tie < FRIEND_TIE || gb.ornaments < 1f) continue
         val gift = min(1f, ORNAMENT_GIFT * gb.giveWill) * gb.ornaments
         dialUse?.amount(DialSite.GIVE_ORNAMENTS, gb.giveWill, gift, min(1f, ORNAMENT_GIFT) * gb.ornaments, cut = ORNAMENT_GIFT * gb.giveWill > 1f)
-        if (gift <= 0f) continue
-        val shell = gb.takeOrnaments(gift)
-        tb.ornaments += gift; tb.exotic += shell
+        // (Less at a meeting soon after the last: gifts mark meetings after time apart, [meetingFresh].)
+        val given = gift * fresh
+        if (given <= 0f) continue
+        val shell = gb.takeOrnaments(given)
+        tb.ornaments += given; tb.exotic += shell
         tb.befriend(giver.id, 0.5f * TIE_GIFT)
         stats.meeting(Met.ORNAMENTS_GIVEN)
     }
+    lap = Profile.lap("bandsMeet: ornament gift", lap)
     // Useful gifts: a band gives of the good stone, salt and ochre it has beyond its own needs to
     // a band that lacks them. The more the gift meets the other's want, the more it binds them both, and
     // the giver's name goes about among the bands.
@@ -213,6 +348,7 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
         note(giver) { "gave band #%d stone, salt or ochre it lacked".format(taker.id) }
         note(taker) { "was given stone, salt or ochre by band #%d".format(giver.id) }
     }
+    lap = Profile.lap("bandsMeet: useful gifts", lap)
     // Feasts: a band that holds to feasting and has more laid by than it means to keep sets food
     // before the other; the guests remember it.
     for ((host, guest) in listOf(a to b, b to a)) {
@@ -221,7 +357,8 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
         val keen = hb.byCustom(hb.holds(Tradition.FEASTS), hb.feastWill)
         dialUse?.amount(DialSite.FEASTING, hb.feastWill, keen, hb.byCustom(hb.holds(Tradition.FEASTS), 1f),
             cut = keen == 0f && hb.feastWill > 0f)
-        if (keen <= 0f) continue
+        // (Not at every meeting: a feast is an occasion, [meetingFresh].)
+        if (keen <= 0f || rnd.nextFloat() >= fresh) continue
         val spare = host.larder - hb.storeAim * host.dailyNeedKg
         dialUse?.amount(DialSite.STORE_HOST, hb.storeShare, max(0f, spare), max(0f, host.larder - hb.storeAimAt1 * host.dailyNeedKg))
         if (spare <= 0f) continue
@@ -243,7 +380,9 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
     }
     // Word of where the other did better this month.
     val ab = a.band; val bb = b.band
+    lap = Profile.lap("bandsMeet: feasts", lap)
     if (ab != null && bb != null) ab.shareSeasons(bb)
+    Profile.lap("bandsMeet: share seasons", lap)
 }
 
 /**
@@ -287,7 +426,9 @@ internal fun HexGroups.shelteredFromKilling(weak: Species, p: Place) = 1f - SHEL
 /**
  * Standing orders, hunters of different kinds. The weaker gives way; if it had made a kill this week
  * the stronger drives it off and takes most of the meat (hyenas rob leopards, lions rob everyone);
- * a much stronger party now and then kills one of the other.
+ * a much stronger party now and then kills one of the other, and leaves it where it fell, as rivals of one kind do
+ * ([rivalsMeet]): killing a rival is not hunting it. (Lions leave the cheetahs they kill uneaten; wolves eat a coyote
+ * now and then: Palomares & Caro 1999. What lies there is carrion, for whoever eats carrion, the killer too.)
  */
 internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk: Int, bi: Int, h: Hex, stop: IntArray) {
     stats.meeting(Met.HUNTERS_OF_OTHER_KINDS)
@@ -315,15 +456,11 @@ internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, b
     // (People drive hunters off and now and then kill one, but do not seek out their young.)
     if (ratio > 2f && weak.young > 0 && !strong.species.human && rnd.nextFloat() < INTRAGUILD_KILL_YOUNG * tuning.intraguildYoung * odds) {
         weak.young--
-        strong.meatMet += HexFauna.YOUNG_WEIGHT * 0.5f * weak.species.massKg
-        small.deposit(DeadPool.CARRION, weak.place, Kg(HexFauna.YOUNG_WEIGHT * 0.5f * weak.species.massKg)) // (what the killers leave)
-        bookKill(strong, HexFauna.YOUNG_WEIGHT * 0.5f * weak.species.massKg, HexFauna.YOUNG_WEIGHT * weak.species.massKg, HexFauna.YOUNG_WEIGHT * 0.5f * weak.species.massKg)
+        small.deposit(DeadPool.CARRION, weak.place, Kg(HexFauna.YOUNG_WEIGHT * weak.species.massKg))
         stats.deaths.merge(Tally.of(weak.species, ByBeast.of(ByBeast.How.YOUNG_KILLED_BY, strong.species)), 1, Int::plus)
     } else if (ratio > 2f && weak.adults > 0 && rnd.nextFloat() < INTRAGUILD_KILL * odds) {
         adultsDied(weak, 1, rnd)
-        strong.meatMet += 0.5f * weak.species.massKg
-        small.deposit(DeadPool.CARRION, weak.place, Kg(0.5f * weak.species.massKg))
-        bookKill(strong, 0.5f * weak.species.massKg, weak.species.massKg, 0.5f * weak.species.massKg)
+        small.deposit(DeadPool.CARRION, weak.place, Kg(weak.species.massKg))
         stats.deaths.merge(Tally.of(weak.species, ByBeast.of(ByBeast.How.KILLED_BY, strong.species)), 1, Int::plus)
     }
     stop[wk] = min(stop[wk], max(0, wi - 1)) // the weaker turns back

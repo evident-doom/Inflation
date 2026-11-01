@@ -80,6 +80,9 @@ class Bands internal constructor(private val world: GroupWorld) {
     /** Each hex's midden, 0..1: refuse kept in one place by bands that keep their camp clean, for any band camped there to use. */
     val midden = FloatArray(world.hex.size)
 
+    /** The tallies every band books in its week, put in the week's ledger once the bands' weeks are done ([BandTallies]). Not saved. */
+    @Transient internal val tallies = BandTallies()
+
     /** (The [built] by hex, as the list last stood: see [structuresAt].) */
     @Volatile @Transient internal var builtByHex: StructureIndex? = null
 
@@ -89,7 +92,7 @@ class Bands internal constructor(private val world: GroupWorld) {
     /** (Whether a world saved before [built] was kept has had its bands' houses raised in it: see [tendStructures].) */
     @Transient internal var structuresSeen = false
 
-    /** Bands' kept animals since the census last read them ([HerdFlow]): heads born, dead, run off and culled, and kg herded and fed. */
+    /** Bands' kept animals since the census last read them ([HerdFlow]): heads born, dead, run off, strayed unwatched, and kg herded and fed. */
     @Transient val herdFlows = enumFloats<HerdFlow>()
 
     /** What a whole house would have done for bands' weeks since the census last read it, by the week's air ([HouseAir], [HouseWorth]). */

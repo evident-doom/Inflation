@@ -166,7 +166,8 @@ object Catalogue {
         comfortC = -12f..33f, winterCoat = true,
         speedKmh = 50f,
         foresight = 0.6f,
-        domestication = floatArrayOf(0.8f, 0.5f, 0.7f, 0.2f, 0.4f, 0.9f), // became cattle
+        domestication = floatArrayOf(0.8f, 0.5f, 0.7f, 0.2f, 0.4f, 0.9f),
+        milked = true, // became cattle
         habitat = Habitat(cover = 0.1f, rugged = -0.5f, wet = 0.8f),
         defence = 0.9f,
         activity = floatArrayOf(0.25f, 0.35f, 0.2f, 0.2f),
@@ -362,8 +363,11 @@ object Catalogue {
         speedKmh = 50f,
         domestication = floatArrayOf(0.1f, 0.3f, 0.1f, 0.0f, 0.2f, 0.0f),
         habitat = Habitat(cover = 0.8f, rugged = 0.4f),
+        // (It lies up in thickets and among rocks and climbs out of a wolf's reach.)
+        shelters = setOf(Niches.Shelter.CRAG, Niches.Shelter.THICKET, Niches.Shelter.TREE),
         stalking = 1f,
-        ferocity = 0.6f,
+        // (A lynx holds its own against animals its size and kills foxes and the young of others; from memory, not checked.)
+        ferocity = 0.9f,
         // (A lynx fights back with teeth and claws: an estimate between the onager's kicks (0.4) and the boar's tusks (0.6).)
         defence = 0.5f,
         startKm2PerAnimal = 150f,
@@ -389,7 +393,8 @@ object Catalogue {
         domestication = floatArrayOf(0.8f, 0.3f, 0.2f, 0.3f, 0.3f, 0.2f),
         habitat = Habitat(rugged = 0.3f),
         stalking = 0.2f,
-        ferocity = 1.4f,
+        // (The striped hyena is shy and gives way to wolves, leopards and dogs, unlike the spotted hyena; from memory, not checked.)
+        ferocity = 0.8f,
         startKm2PerAnimal = 50f,
         activity = floatArrayOf(0.1f, 0f, 0.2f, 0.7f),
         shelters = setOf(Niches.Shelter.DEN),
@@ -472,7 +477,8 @@ object Catalogue {
         comfortC = -15f..35f, winterCoat = true,
         speedKmh = 50f,
         foresight = 0.6f,
-        domestication = floatArrayOf(0.8f, 0.6f, 0.7f, 0.6f, 0.6f, 0.8f), // became the goat
+        domestication = floatArrayOf(0.8f, 0.6f, 0.7f, 0.6f, 0.6f, 0.8f),
+        milked = true, // became the goat
         habitat = Habitat(cover = -0.2f, rugged = 0.8f),
         defence = 0.1f,
         activity = floatArrayOf(0.3f, 0.4f, 0.2f, 0.1f),
@@ -498,7 +504,8 @@ object Catalogue {
         comfortC = -25f..30f, winterCoat = true,
         speedKmh = 70f,
         foresight = 0.6f,
-        domestication = floatArrayOf(0.8f, 0.5f, 0.6f, 0.5f, 0.6f, 0.8f), // became the horse
+        domestication = floatArrayOf(0.8f, 0.5f, 0.6f, 0.5f, 0.6f, 0.8f),
+        milked = true, // became the horse
         habitat = Habitat(cover = -0.8f, rugged = -0.2f),
         defence = 0.4f,
         hindgut = true,
@@ -522,7 +529,8 @@ object Catalogue {
         comfortC = -15f..32f, winterCoat = true,
         speedKmh = 55f,
         foresight = 0.5f,
-        domestication = floatArrayOf(0.8f, 0.6f, 0.7f, 0.6f, 0.6f, 0.8f), // became the sheep
+        domestication = floatArrayOf(0.8f, 0.6f, 0.7f, 0.6f, 0.6f, 0.8f),
+        milked = true, // became the sheep
         habitat = Habitat(cover = -0.6f, rugged = 0.6f),
         defence = 0.1f,
         activity = floatArrayOf(0.3f, 0.4f, 0.2f, 0.1f),
@@ -641,7 +649,8 @@ object Catalogue {
         comfortC = 5f..48f,
         speedKmh = 60f,
         foresight = 0.7f,
-        domestication = floatArrayOf(0.7f, 0.3f, 0.5f, 0.6f, 0.6f, 0.7f), // became the camel
+        domestication = floatArrayOf(0.7f, 0.3f, 0.5f, 0.6f, 0.6f, 0.7f),
+        milked = true, // became the camel
         habitat = Habitat(cover = -0.8f, rugged = -0.3f, wet = -0.5f),
         defence = 0.6f,
         fibreDigestion = 1.5f, // a camel keeps coarse food long in its foregut and gets more from it than cattle do,
