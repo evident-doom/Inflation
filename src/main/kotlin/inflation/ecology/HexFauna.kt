@@ -306,6 +306,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * the kept grown, the wild young and the wild grown there ([HexGroups.herdsForBeasts] hands them to the hunt steps).
      */
     @delegate:Transient internal val campTaken by lazy { Array(kinds.size) { Array(4) { DoubleAdder() } } }
+    /**
+     * Heads of bands' kept herds taken since the last census, by the beast that took them: resident hunters ([huntResidents])
+     * and packs ([HexGroups.raidHerd]) alike. For the census only; it changes nothing in the world.
+     */
+    @delegate:Transient internal val keptTakenBy by lazy { ConcurrentHashMap<Species, DoubleAdder>() }
 
     /**
      * The odds that a resident of kind [k] at place [p] (one of its young if [young]) is killed by hunters in a week, all of
@@ -399,6 +404,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             if (HUNT_DIAG) campTaken[j][if (i >= nk) 0 else 1].add(heads.toDouble())
             if (b.herds.herdTaken.size != b.herds.herd.size) b.herds.herdTaken = FloatArray(b.herds.herd.size)
             b.herds.herdTaken[j] += heads
+            keptTakenBy.computeIfAbsent(hunter) { DoubleAdder() }.add(heads.toDouble())
             small.deposit(DeadPool.CARRION, p, KgKm2(kg * (1f - MEAT_SHARE)).perM2)
             ate += KgKm2(kg).perM2
             ateBook?.add(-(kg * MEAT_SHARE * area).toDouble())
