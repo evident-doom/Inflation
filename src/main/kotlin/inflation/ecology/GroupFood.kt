@@ -163,7 +163,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         var f = if (intake > 0f) min(1f, left / (w.workDays * intake)) else 0f
         if (time != null) f = min(f, time.leftFor(Activity.FOOD) / (w.hands * w.workDays).coerceAtLeast(1e-6f))
         // (A beast's party keeps no plan of its days: each pass has only the days the passes before it left.)
-        else if (w.band == null) f = min(f, max(0f, w.workDays - w.busy) / w.workDays.coerceAtLeast(1e-6f))
+        else if (w.band == null) f = min(f, max(0f, w.workDays - w.busy - w.searchUsed) / w.workDays.coerceAtLeast(1e-6f))
         val busy0 = w.busy
         if (pass == 0) w.searched = f
         if (HUNT_DIAG && w.band == null) { w.passes++; w.searchDays += f * w.workDays }
@@ -171,6 +171,8 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
             "forage ${w.s.name} adults ${g.adults} want ${w.wantAll} left $left offers ${o.m} used ${o.used} gain ${o.gain.toList()} spent ${o.spent.toList()} f $f: " +
             o.order.take(min(6, o.m)).joinToString("; ") { "t${o.type[it].ordinal} k${o.kind[it]} r=${o.rate[it]} e=${o.kg[it]} h=${o.time[it]}" })
         takeFoods(w, o, f)
+        // (A beast's search took the days of the pass not spent handling: [Offers.spent] is days a day of searching asks.)
+        if (w.band == null) w.searchUsed += f * w.workDays / o.spent[0]
         time?.spend(Activity.FOOD, (w.busy - busy0) * w.hands)
     }
     if (w.band != null && w.time == null) planWeek(w, 0f, 0f, 0f)
@@ -320,6 +322,8 @@ private class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, packK
     // (Walking costs food, see [walkCost]; a band's days at rest take less, see [restedDays].)
     var wantAll = g.dailyNeedKg * gs.days * (1f + gs.walkCost(g))
     val eats = 1f / (packKg * EATING_RATE) // days to eat a kilo
+    /** The most a beast's party can eat in the week, kg: its grown eating at [EATING_RATE] every day of it (gorging at a kill, see [eatTheWeek]). */
+    val gutKg = packKg * EATING_RATE * gs.days
     // Small game is found within a few paces of the way, not as far as the party can see; snare
     // lines and nets search it while no one is there.
     val smallSweep = s.dailyTravelKm * gs.days * 2f * SMALL_SENSE_KM * sqrt(gatherHands / s.groupSize) / g.path.size.coerceAtLeast(1) * (band?.snares() ?: 1f)
@@ -413,6 +417,8 @@ private class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, packK
      */
     var killOver = 0f
     var killUnder = 0f
+    /** A beast's days spent searching in the passes so far (as [busy] holds those spent handling): the passes share its work days. */
+    var searchUsed = 0f
     /** Diagnostic (huntSteps), a beast's week: the passes it planned, the days they gave it to search, and the kills of big game it could expect in them. */
     var passes = 0
     var searchDays = 0f
@@ -662,7 +668,7 @@ private fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
     val adults = fauna.adults; val young = fauna.young
     o.m = 0
     // (What a kill is worth to it: see below. Its butchers' skill grows with each kill, so once a pass.)
-    val credit = creditShare(band); val most = (1f + SURPLUS_EAT) * w.wantAll
+    val credit = creditShare(band); val most = if (band == null) max(w.wantAll, w.gutKg) else (1f + SURPLUS_EAT) * w.wantAll
     // (A beast weighs a kill also by the food the dead one would have taken from it: a week of its intake, as far as their
     // diets overlap, valued as its own. A rival of its own food is the more worth killing; a plant-eater is not one.)
     val spared = FloatArray(nk) { k -> if (band != null) 0f else { val ps = fauna.kinds[k]; w.d.overlap(ps.diet) * ps.dailyIntakeKg * days } }
@@ -945,9 +951,11 @@ private fun HexGroups.eatTheWeek(w: ForageWeek) {
         band.seedCorn = band.seedCornIn(g)
         spare = 0f; meatEaten = ateMeatKg
     }
-    // Gorging: what is left of a kill is eaten beyond need, as far as the gut holds and reserves are short.
+    // Gorging: what is left of a kill is eaten beyond need, as far as the gut holds ([EATING_RATE] every day of the week,
+    // [ForageWeek.gutKg]) and reserves are short (the fat it would lay on, [FAT_EFFICIENCY], up to [Species.maxFatDays]).
     if (spare > 0f && g.fat < s.maxFatDays && band == null) {
-        val gorge = min(spare, SURPLUS_EAT * wantAll)
+        val fatRoom = (s.maxFatDays - g.fat) / FAT_EFFICIENCY * g.dailyNeedKg / meatWorth
+        val gorge = min(spare, min(max(0f, w.gutKg - wantAll), fatRoom))
         g.surplus = gorge * meatWorth / g.dailyNeedKg.coerceAtLeast(1e-3f)
         spare -= gorge
         small.deposit(DeadPool.DUNG, g.place, Kg(HexSmallLife.DUNG * gorge))
