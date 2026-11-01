@@ -849,8 +849,9 @@ private fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
                 if (HUNT_DIAG && band == null) {
                     diag(g.species, HuntStep.PACK_KILLS, fauna.kinds[o.kind[i]], kills1.toFloat())
                     diag(g.species, HuntStep.PACK_KILL_KG, fauna.kinds[o.kind[i]], haul.kg) }
-                // (Stronger scavengers may come on a beast's kills and take of them.)
-                if (band == null) scavengedAtKill(g, Place(p), kills1, haul, w.rnd)
+                // (Stronger scavengers may come on a beast's kills and take of them; the days it would have spent eating
+                // what they took are its own again, to hunt in.)
+                if (band == null) w.busy -= scavengedAtKill(g, Place(p), kills1, haul, w.rnd) * w.eats * w.party[0]
                 // (Its fat feeds as grease, the rest as lean meat; for the census, the kills by month and by prey kind, lean and fat by weight.)
                 w.meat += haul.kg - haul.fat; w.killFat += haul.fat
                 w.fed += (haul.kg - haul.fat) * w.feeds(Food.BIG_GAME) + haul.fat * w.fatFeeds
@@ -1273,11 +1274,12 @@ private fun HexGroups.raidHerd(g: HexGroup, hg: HerdGame, p: Place, expected: Fl
  * ([strength]), come on it from downwind as they range for carrion: a strip [Species.senseKm] wide along the share of a
  * day's travel their diet gives carrion ([Diet.carrion]), their bands as common there as they are. A kill found is won by
  * the scavenger as often as its share of their strengths, and it eats its band's day's fill of half the kill (found
- * halfway through, on average). A carcass a kind hauls up a tree keeps, as far as there are trees. (Counted for huntSteps
- * by kill size, small under 100 kg live and large over, a beast's kill counting its whole weight, [creditShare].)
+ * halfway through, on average). A carcass a kind hauls up a tree keeps, as far as there are trees. Returns the kg taken.
+ * (Counted for huntSteps by kill size, small under 100 kg live and large over, a beast's kill counting its whole weight,
+ * [creditShare].)
  */
-private fun HexGroups.scavengedAtKill(g: HexGroup, p: Place, kills: Int, haul: Haul, rnd: kotlin.random.Random) {
-    if (haul.kg <= 0f || kills <= 0) return
+private fun HexGroups.scavengedAtKill(g: HexGroup, p: Place, kills: Int, haul: Haul, rnd: kotlin.random.Random): Float {
+    if (haul.kg <= 0f || kills <= 0) return 0f
     val s = g.species
     val party = strength(g)
     val each = haul.kg / kills
@@ -1288,7 +1290,7 @@ private fun HexGroups.scavengedAtKill(g: HexGroup, p: Place, kills: Int, haul: H
         val win = scavengerWins(r, party)
         rate += finds; wins += finds * win; takes += finds * win * scavengerTakes(r, each)
     }
-    if (rate <= 0f) { if (HUNT_DIAG) { diag(s, if (each >= 100f) HuntStep.SCENT_KILLS_LARGE else HuntStep.SCENT_KILLS_SMALL, kills.toFloat()); diag(s, HuntStep.SCENT_KG, haul.kg) }; return }
+    if (rate <= 0f) { if (HUNT_DIAG) { diag(s, if (each >= 100f) HuntStep.SCENT_KILLS_LARGE else HuntStep.SCENT_KILLS_SMALL, kills.toFloat()); diag(s, HuntStep.SCENT_KG, haul.kg) }; return 0f }
     val eatsADay = EATING_RATE * s.massKg * (g.adults + 0.5f * g.young).coerceAtLeast(1f)
     val lies = min(days.toFloat(), each / eatsADay)
     val cached = if (Niches.Shelter.TREE in Niches.shelters(s)) land.plants.canopy(p) else 0f
@@ -1301,7 +1303,7 @@ private fun HexGroups.scavengedAtKill(g: HexGroup, p: Place, kills: Int, haul: H
         // (What they eat of it is as much meat as the party would have held of it.)
         small.deposit(DeadPool.CARRION, p, Kg(lost * meatShare(null) / creditShare(null)))
     }
-    if (!HUNT_DIAG) return
+    if (!HUNT_DIAG) return lost
     // (By the scavenger's kind: its finds a day, and its share of the kills won and of the kg lost.)
     for ((k, r) in kinds.withIndex()) {
         val finds = scavengerFinds(r, k, p, party); if (finds <= 0f) continue
@@ -1316,6 +1318,7 @@ private fun HexGroups.scavengedAtKill(g: HexGroup, p: Place, kills: Int, haul: H
     diag(s, HuntStep.SCENT_WON, won.toFloat())
     diag(s, HuntStep.SCENT_KG, kg); diag(s, HuntStep.SCENT_KG_LOST, lost)
     diag(s, HuntStep.SCENT_LIE_DAYS, lies * kills); diag(s, HuntStep.SCENT_FINDS_A_DAY, rate * kills)
+    return lost
 }
 
 /** [scavengedAtKill]'s bands of kind [r] (index [k]) coming on a kill at [p] a day, if awake and stronger than the [party]; else 0. */
