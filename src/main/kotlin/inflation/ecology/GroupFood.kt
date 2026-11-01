@@ -1273,20 +1273,29 @@ private fun HexGroups.scentShadow(g: HexGroup, p: Place, kills: Int, haul: Haul)
     val s = g.species
     val party = strength(g)
     val each = haul.kg / kills
+    val kinds = fauna.kinds
+    val findsOf = FloatArray(kinds.size); val winOf = FloatArray(kinds.size); val takeOf = FloatArray(kinds.size)
     var rate = 0f; var wins = 0f; var takes = 0f
-    for ((k, r) in fauna.kinds.withIndex()) {
+    for ((k, r) in kinds.withIndex()) {
         if (r.diet.carrion <= 0f || r.diet.meat <= 0f || r.human || fauna.asleep(FaunaKind(k), p)) continue
         val band = r.groupSize * r.massKg * r.ferocity
         if (band <= party) continue
         val finds = (fauna.adults[k][p] + fauna.young[k][p]) / r.groupSize * r.senseKm * r.dailyTravelKm
         val win = band / (band + party)
-        rate += finds; wins += finds * win; takes += finds * win * min(0.5f * each, EATING_RATE * r.massKg * r.groupSize)
+        findsOf[k] = finds; winOf[k] = win; takeOf[k] = win * min(0.5f * each, EATING_RATE * r.massKg * r.groupSize)
+        rate += finds; wins += finds * win; takes += finds * takeOf[k]
     }
     val eatsADay = EATING_RATE * s.massKg * (g.adults + 0.5f * g.young).coerceAtLeast(1f)
     val lies = min(days.toFloat(), each / eatsADay)
     val cached = if (Niches.Shelter.TREE in Niches.shelters(s)) land.plants.canopy(p) else 0f
     val found = if (rate > 0f) (1f - exp(-rate * lies)) * (1f - cached) else 0f
     val lost = if (rate > 0f) min(haul.kg, found * kills * takes / rate) else 0f
+    // (By the scavenger's kind: its share of the finds, of the kills won and of the kg lost.)
+    if (rate > 0f) for (k in kinds.indices) if (findsOf[k] > 0f) {
+        diag(s, HuntStep.SHADOW_FINDS_A_DAY, kinds[k], findsOf[k] * kills)
+        diag(s, HuntStep.SHADOW_WON, kinds[k], found * kills * findsOf[k] * winOf[k] / rate)
+        if (takes > 0f) diag(s, HuntStep.SHADOW_KG_LOST, kinds[k], lost * findsOf[k] * takeOf[k] / takes)
+    }
     val large = each / MEAT_SHARE >= 100f
     diag(s, if (large) HuntStep.SHADOW_KILLS_LARGE else HuntStep.SHADOW_KILLS_SMALL, kills.toFloat())
     diag(s, if (large) HuntStep.SHADOW_FOUND_LARGE else HuntStep.SHADOW_FOUND_SMALL, found * kills)
