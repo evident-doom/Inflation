@@ -4,7 +4,7 @@ Every program with a `main`, what it answers, and how to run it: the tools in `i
 Programs without a task of their own run through `runTool`.
 Run settings come from the config file, not the command line (see `config.example.properties`).
 This list is written from each program's own KDoc and usage line.
-The probes, programs that answered one question about the model, live apart in `src/probes` (same package, same `runTool`, compiled by `build`): BiomeAridity, FloodplainCheck, FloodplainSoil, HabitatReport, HerpCheck, HexAnomalyCheck, HexCoastRings, HexForageCheck, HexHuntersPerPrey, HexPlentyCheck, HexPullCheck, HexReport, HexRiteCheck, HexSeasonsByHeight, HexSkillsFloor, HexThirstCheck, HexTradeCheck, HexVariance, HexWeatherCheck, InsectSeasons, PollinationProbe, ResidentHungerCheck, TerrainReport and WindReport. The rest are the maintained tools in `src/main`.
+The probes, programs that answered one question about the model, live apart in `src/probes` (same package, same `runTool`, compiled by `build`): BiomeAridity, FloodplainCheck, FloodplainSoil, HabitatReport, HerdLimits, HerpCheck, HexAnomalyCheck, HexCoastRings, HexForageCheck, HexHuntersPerPrey, HexPlentyCheck, HexPullCheck, HexReport, HexRiteCheck, HexSeasonsByHeight, HexSkillsFloor, HexThirstCheck, HexTradeCheck, HexVariance, HexWeatherCheck, InsectSeasons, PollinationProbe, ResidentHungerCheck, TerrainReport and WindReport. The rest are the maintained tools in `src/main`.
 
 | Program | What it answers | Run it |
 |---|---|---|
