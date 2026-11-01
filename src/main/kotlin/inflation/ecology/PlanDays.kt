@@ -66,11 +66,15 @@ internal fun HexGroups.planDays(g: HexGroup, b: Band, weather: Weather, time: Ba
     for (i in 0 until SCORED_ITEMS) given[acts[i]] = d[i]
     left = max(0f, left)
     // What has no reckoning in lives yet, at equal weights.
-    val rest = FloatArray(UNRECKONED_ACTS.size) { days(UNRECKONED_ACTS[it], asks[UNRECKONED_ACTS[it]]) }
+    // (And its clothes beyond the days the survival pass gave them, as they were before tools were reckoned: kept up, not
+    // weighed, the last entry. They are made first of its tools' days, [makeTools].)
+    val clothes = days(Activity.TOOLS, max(0f, makeTools(b, g.adults.toFloat(), null, only = Tool.CLOTHES) - warm[Activity.TOOLS]))
+    val rest = FloatArray(UNRECKONED_ACTS.size + 1) { if (it < UNRECKONED_ACTS.size) days(UNRECKONED_ACTS[it], asks[UNRECKONED_ACTS[it]]) else clothes }
     // (Each as far as the days left at most: an ask far beyond them, as materials' year of need can be, would leave the
     // share-out's weighing too fine for a float, and the others nothing.)
     val shared = BandTime.shareOut(FloatArray(rest.size) { min(rest[it], left) }, FloatArray(rest.size) { 1f }, left)
     for (i in UNRECKONED_ACTS.indices) given[UNRECKONED_ACTS[i]] = shared[i] * time.pace(UNRECKONED_ACTS[i])
+    given[Activity.TOOLS] += shared[UNRECKONED_ACTS.size] * time.pace(Activity.TOOLS)
     left = max(0f, left - shared.sum())
     given[Activity.LEISURE] = left * time.pace(Activity.LEISURE)
     // (For the census: the days of each tier, and the lives the scored days were reckoned to save.)
