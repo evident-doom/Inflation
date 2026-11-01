@@ -474,11 +474,11 @@ private fun wildness(s: Species, tame: Float): Float {
 }
 
 /**
- * The milk a mother of kind [s] gives its keepers in a lactation, kg: an indigenous goat milked once a day in the open,
+ * The milk a mother of kind [s] gives its keepers in a lactation, kg, where its kind is milked ([Species.milked]; none else): an indigenous goat milked once a day in the open,
  * 56 kg in 101 days (Hagos, Gizaw and Urge 2017, Begait goats, western Tigray; the kids suckle besides), taken by the
  * mother's weight against its 40 kg (as M^0.75; the scaling an estimate). Early herds' mothers likely gave less.
  */
-internal fun milkKg(s: Species) = MILK_KG_GOAT * (s.massKg / 40f).pow(0.75f)
+internal fun milkKg(s: Species) = if (s.milked) MILK_KG_GOAT * (s.massKg / 40f).pow(0.75f) else 0f
 internal const val MILK_KG_GOAT = 56f
 internal const val LACTATION_DAYS = 101f
 
