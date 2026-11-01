@@ -88,6 +88,8 @@ internal const val THEFT_RATIO = 1.3f
 internal const val THEFT = 0.5f
 internal const val INTRAGUILD_KILL = 0.01f
 internal const val INTRAGUILD_KILL_YOUNG = 0.1f
+/** The share of a much stronger party's chances at young in hiding that come to nothing ([youngHidden]); an estimate, not checked. */
+internal const val YOUNG_HIDDEN = 0.5f
 /** How much a hunting party is put off a place held by a much stronger party of another kind. */
 internal const val AVOID_STRONGER = 0.3f
 /** How much of a courser's success thick cover takes away (a cheetah in a wood runs into trees). */
