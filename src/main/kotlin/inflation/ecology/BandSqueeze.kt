@@ -52,7 +52,7 @@ internal fun HexGroups.countSqueeze(b: Band, time: BandTime) {
         add(Tally.Squeeze.FIRST_DAYS, (10f * min(time.askedFirst[a], ask)).roundToInt())
         if (full && missing > (1f - SQUEEZED) * ask) add(Tally.Squeeze.SHORT_WEEKS, 1)
     }
-    b.clothesMade?.let { stats.hunting.merge(Tally.clothesMade(it), 1, Int::plus) }
+    b.clothesMade?.let { stats.tally(Tally.clothesMade(it), 1) }
 }
 
 /**

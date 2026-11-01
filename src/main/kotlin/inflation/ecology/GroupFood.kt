@@ -92,8 +92,7 @@ internal fun HexGroups.hunt(weather: Weather) {
         // (Its hunting ground reaches a hex beyond its way, see [huntGround].)
         g.path.all { h -> hex.distanceKm(end, h) + 2 * hex.hexKm < HUNT_FINE_KM / 2 }
     }
-    work(near, HUNT_FINE_KM)
-    work(far, HUNT_BLOCK_KM)
+    stats.summedByThread { work(near, HUNT_FINE_KM); work(far, HUNT_BLOCK_KM) }
 }
 
 /**
@@ -859,13 +858,13 @@ private fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
                 w.meat += haul.kg - haul.fat; w.killFat += haul.fat
                 w.fed += (haul.kg - haul.fat) * w.feeds(Food.BIG_GAME) + haul.fat * w.fatFeeds
                 if (band != null) { val m = w.weather.date.month
-                    stats.hunting.merge(Tally.bandKills(m, Tally.KillPart.KILLS), kills1, Int::plus)
-                    stats.hunting.merge(Tally.bandKills(m, Tally.KillPart.LEAN_KG), (haul.kg - haul.fat).roundToInt(), Int::plus)
-                    stats.hunting.merge(Tally.bandKills(m, Tally.KillPart.FAT_KG), haul.fat.roundToInt(), Int::plus)
+                    stats.tally(Tally.bandKills(m, Tally.KillPart.KILLS), kills1)
+                    stats.tally(Tally.bandKills(m, Tally.KillPart.LEAN_KG), (haul.kg - haul.fat).roundToInt())
+                    stats.tally(Tally.bandKills(m, Tally.KillPart.FAT_KG), haul.fat.roundToInt())
                     val prey = fauna.kinds[o.kind[i]].name
-                    stats.hunting.merge(Tally.bandKillsOf(prey, Tally.KillPart.KILLS), kills1, Int::plus)
-                    stats.hunting.merge(Tally.bandKillsOf(prey, Tally.KillPart.LEAN_KG), (haul.kg - haul.fat).roundToInt(), Int::plus)
-                    stats.hunting.merge(Tally.bandKillsOf(prey, Tally.KillPart.FAT_KG), haul.fat.roundToInt(), Int::plus) }
+                    stats.tally(Tally.bandKillsOf(prey, Tally.KillPart.KILLS), kills1)
+                    stats.tally(Tally.bandKillsOf(prey, Tally.KillPart.LEAN_KG), (haul.kg - haul.fat).roundToInt())
+                    stats.tally(Tally.bandKillsOf(prey, Tally.KillPart.FAT_KG), haul.fat.roundToInt()) }
             }
             Food.SMALL_GAME -> small.catchSmallIn(Place(p), Kg(expected), min(land.areaKm2[p], w.smallSweep * smallSeen(Place(p))), w.weather).v.let { w.smallGot += it; w.fed += it * w.feeds(Food.SMALL_GAME)
                 if (band == null) diag(g.species, HuntStep.PACK_SMALL_GAME_KG, it) }
@@ -970,8 +969,8 @@ private fun HexGroups.eatTheWeek(w: ForageWeek) {
             band.sodiumShort = if (sodiumNeed > 0f) short / sodiumNeed else 0f
             eaten *= saltFeeds(short, sodiumNeed, tuning.saltLack)
         }
-        stats.hunting.merge(Tally.of(s, Tally.OfKind.MEAT_EATEN), ateMeat.toInt(), Int::plus)
-        stats.hunting.merge(Tally.of(s, Tally.OfKind.PLANTS_EATEN), (eaten - ateMeat).toInt(), Int::plus)
+        stats.tally(Tally.of(s, Tally.OfKind.MEAT_EATEN), ateMeat.toInt())
+        stats.tally(Tally.of(s, Tally.OfKind.PLANTS_EATEN), (eaten - ateMeat).toInt())
         keepAndSpoil(w, got, plantKg, pelts)
         band.seedCorn = band.seedCornIn(g)
         spare = 0f; meatEaten = ateMeatKg
@@ -1084,11 +1083,11 @@ private fun HexGroups.tallyForage(w: ForageWeek, meatEaten: Float) {
     val meatFed = meatEaten * w.worth(Food.BIG_GAME) + w.killFat * w.fatFeeds + fish * w.worth(Food.FISH)
     val smallFed = smallGot * w.worth(Food.SMALL_GAME); val scrapsFed = scraps * w.worth(Food.CARRION)
     val plantsFed = w.plantKind.sum()
-    stats.hunting.merge(Tally.diet(s, Tally.DietPart.ASKED), wantAll.toInt(), Int::plus)
-    stats.hunting.merge(Tally.diet(s, Tally.DietPart.MEAT), meatFed.toInt(), Int::plus)
-    stats.hunting.merge(Tally.diet(s, Tally.DietPart.SMALL_PREY), smallFed.toInt(), Int::plus)
-    stats.hunting.merge(Tally.diet(s, Tally.DietPart.CARRION), scrapsFed.toInt(), Int::plus)
-    stats.hunting.merge(Tally.diet(s, Tally.DietPart.PLANTS), plantsFed.toInt(), Int::plus)
+    stats.tally(Tally.diet(s, Tally.DietPart.ASKED), wantAll.toInt())
+    stats.tally(Tally.diet(s, Tally.DietPart.MEAT), meatFed.toInt())
+    stats.tally(Tally.diet(s, Tally.DietPart.SMALL_PREY), smallFed.toInt())
+    stats.tally(Tally.diet(s, Tally.DietPart.CARRION), scrapsFed.toInt())
+    stats.tally(Tally.diet(s, Tally.DietPart.PLANTS), plantsFed.toInt())
     // For bands, the same by the kind of country they are in, and how they fared.
     if (band != null) tallyBandForage(w, band, smallFed, scrapsFed, plantsFed)
 }
@@ -1097,21 +1096,21 @@ private fun HexGroups.tallyForage(w: ForageWeek, meatEaten: Float) {
 private fun HexGroups.tallyBandForage(w: ForageWeek, band: Band, smallFed: Float, scrapsFed: Float, plantsFed: Float) {
     val g = w.g; val wantAll = w.wantAll; val meat = w.meat; val fish = w.fish
     val c = Biome.entries[biomeOfPlace[g.place]]
-    stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.ASKED), wantAll.toInt(), Int::plus)
-    stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.MEAT), (meat * w.worth(Food.BIG_GAME) + w.killFat * w.fatFeeds + smallFed + scrapsFed).toInt(), Int::plus)
-    stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.PLANTS), plantsFed.toInt(), Int::plus)
-    for (f in PlantFrom.entries) stats.hunting.merge(Tally.plantsFrom(f), w.plantFrom[f].toInt(), Int::plus)
-    stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.FISH), (fish * w.worth(Food.FISH)).toInt(), Int::plus)
-    stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.BAND_WEEKS), 1, Int::plus); stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.PEOPLE_WEEKS), g.size, Int::plus)
-    stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.HEARTH), (100f * band.hearthWood).toInt(), Int::plus)
-    stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.FUEL_DAYS), (100f * w.fuelDays / days).toInt(), Int::plus)
+    stats.tally(Tally.bandsIn(c, Tally.Bands.ASKED), wantAll.toInt())
+    stats.tally(Tally.bandsIn(c, Tally.Bands.MEAT), (meat * w.worth(Food.BIG_GAME) + w.killFat * w.fatFeeds + smallFed + scrapsFed).toInt())
+    stats.tally(Tally.bandsIn(c, Tally.Bands.PLANTS), plantsFed.toInt())
+    for (f in PlantFrom.entries) stats.tally(Tally.plantsFrom(f), w.plantFrom[f].toInt())
+    stats.tally(Tally.bandsIn(c, Tally.Bands.FISH), (fish * w.worth(Food.FISH)).toInt())
+    stats.tally(Tally.bandsIn(c, Tally.Bands.BAND_WEEKS), 1); stats.tally(Tally.bandsIn(c, Tally.Bands.PEOPLE_WEEKS), g.size)
+    stats.tally(Tally.bandsIn(c, Tally.Bands.HEARTH), (100f * band.hearthWood).toInt())
+    stats.tally(Tally.bandsIn(c, Tally.Bands.FUEL_DAYS), (100f * w.fuelDays / days).toInt())
     // (And by whether it keeps a herd: what it foraged against what it wanted, and its hearth.)
     val herding = bandHerding(band, g.adults)
-    stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.ASKED), wantAll.toInt(), Int::plus)
-    stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.MEAT), (meat * w.worth(Food.BIG_GAME) + w.killFat * w.fatFeeds + smallFed + scrapsFed + fish * w.worth(Food.FISH)).toInt(), Int::plus)
-    stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.PLANTS), plantsFed.toInt(), Int::plus)
-    stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.HEARTH), (100f * band.hearthWood).toInt(), Int::plus)
-    stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.FUEL_DAYS), (100f * w.fuelDays / days).toInt(), Int::plus)
+    stats.tally(Tally.bandsHerding(herding, Tally.Bands.ASKED), wantAll.toInt())
+    stats.tally(Tally.bandsHerding(herding, Tally.Bands.MEAT), (meat * w.worth(Food.BIG_GAME) + w.killFat * w.fatFeeds + smallFed + scrapsFed + fish * w.worth(Food.FISH)).toInt())
+    stats.tally(Tally.bandsHerding(herding, Tally.Bands.PLANTS), plantsFed.toInt())
+    stats.tally(Tally.bandsHerding(herding, Tally.Bands.HEARTH), (100f * band.hearthWood).toInt())
+    stats.tally(Tally.bandsHerding(herding, Tally.Bands.FUEL_DAYS), (100f * w.fuelDays / days).toInt())
 }
 
 /** Books [kg] eaten by a beast and the [dung] it dropped of it (see [Books]). */
@@ -1216,7 +1215,7 @@ private fun GroupWorld.skinSmallGame(b: Band, time: BandTime, pelts: Float): Flo
     val skinDays = min(time.leftFor(Activity.SKINS), SKIN_DAYS * pelts)
     b.goods[Material.HIDE] += skinDays / SKIN_DAYS
     time.spend(Activity.SKINS, skinDays)
-    stats.hunting.merge(Tally.hide(Tally.HideSource.SMALL_PELTS), (1000f * skinDays / SKIN_DAYS).roundToInt(), Int::plus)
+    stats.tally(Tally.hide(Tally.HideSource.SMALL_PELTS), (1000f * skinDays / SKIN_DAYS).roundToInt())
     return max(0f, pelts - skinDays / SKIN_DAYS)
 }
 
@@ -1224,7 +1223,7 @@ private fun GroupWorld.skinSmallGame(b: Band, time: BandTime, pelts: Float): Flo
 internal fun GroupWorld.tallyHide(source: Tally.HideSource, ps: Species, took: Float?): Float {
     if (took == null || took <= 0f) return 0f
     val p = ps.products
-    stats.hunting.merge(Tally.hide(source), (1000f * took * p.hide / (p.hide + p.bone + p.sinew)).roundToInt(), Int::plus)
+    stats.tally(Tally.hide(source), (1000f * took * p.hide / (p.hide + p.bone + p.sinew)).roundToInt())
     return took
 }
 
@@ -1237,7 +1236,7 @@ private fun HexGroups.countFoodTime(w: ForageWeek, time: BandTime) {
     val pace = time.pace(Activity.FOOD); val hands = w.hands / pace
     val spent = time.spentOn(Activity.FOOD) - w.digDays / pace
     val over = max(0f, spent - w.room)
-    fun add(k: Tally.FoodTime, x: Float) { stats.hunting.merge(Tally.foodTime(k), (10f * x).roundToInt(), Int::plus) }
+    fun add(k: Tally.FoodTime, x: Float) { stats.tally(Tally.foodTime(k), (10f * x).roundToInt()) }
     add(Tally.FoodTime.WEEKS, 0.1f); add(Tally.FoodTime.ROOM, w.room); add(Tally.FoodTime.SPENT, spent); add(Tally.FoodTime.OVER, over)
     if (over > 0.05f * w.room) add(Tally.FoodTime.OVER_WEEKS, 0.1f)
     add(Tally.FoodTime.KILLS_OVER, w.killOver * hands); add(Tally.FoodTime.KILLS_UNDER, w.killUnder * hands)
@@ -1267,7 +1266,7 @@ private fun HexGroups.raidHerd(g: HexGroup, hg: HerdGame, p: Place, expected: Fl
     val each = if (hg.young) HexFauna.YOUNG_WEIGHT * ps.massKg else ps.massKg
     small.deposit(DeadPool.CARRION, p, Kg(kills1 * max(0f, each - kgEach * meatShare(null) / creditShare(null))))
     stats.meeting(Met.KEPT_ANIMALS_TAKEN, kills1)
-    stats.hunting.merge(Tally.of(s, Tally.OfKind.KILLS_OF_KEPT), kills1, Int::plus)
+    stats.tally(Tally.of(s, Tally.OfKind.KILLS_OF_KEPT), kills1)
     note(g) { "took %d kept %s".format(kills1, ps.name) }
     fauna.killed(p, Kg(kills1 * each))
     return kills1
@@ -1393,10 +1392,10 @@ private fun HexGroups.huntGame(g: HexGroup, k: Int, p: Place, expected: Float, k
     val leftA = na * leftOver(ps, kgEach, band)
     small.deposit(DeadPool.CARRION, p, KgM2((leftA + ny * (HexFauna.YOUNG_WEIGHT * ps.massKg - young) - tallyHide(Tally.HideSource.RESIDENTS, ps, band?.skin(ps, na.toFloat(), leftA))) / (area * 1e6f)))
     band?.let { it.practise(Skill.HUNT); it.practise(Skill.TRACK); it.practise(Skill.STALK); it.practise(Skill.BUTCHER) }
-    stats.kills.merge(ps, kills1, Int::plus)
+    stats.killed(ps, kills1)
     note(g) { "killed %d %s".format(kills1, ps.name) }
     fauna.killed(p, Kg(kills1 * ps.massKg))
-    stats.hunting.merge(Tally.of(s, Tally.OfKind.KILLS_OF_RESIDENTS), kills1, Int::plus)
+    stats.tally(Tally.of(s, Tally.OfKind.KILLS_OF_RESIDENTS), kills1)
     diag(ps, HuntStep.RESIDENT_KILLS, kills1.toFloat())
     return kills1
 }
@@ -1467,7 +1466,7 @@ private fun GroupWorld.reap(g: HexGroup, p: Place, expected: Float, out: Haul) {
         if (tookField > 0f) band.seedDomestic = (band.seedDomestic * corn + harvested(food.fieldDomestic[p]) * tookField) / (corn + tookField)
         if (tookWild > 0f) band.grainDomestic = (band.grainDomestic * wild + harvested(food.domestic[p]) * tookWild) / (wild + tookWild)
         band.seedCorn = corn + tookField
-        stats.hunting.merge(Tally.of(g.species, Tally.OfKind.GRAIN_REAPED), took.toInt(), Int::plus)
+        stats.tally(Tally.of(g.species, Tally.OfKind.GRAIN_REAPED), took.toInt())
     }
 }
 
@@ -1523,7 +1522,7 @@ private fun GroupWorld.gather(g: HexGroup, t: Food, kind: Int, p: Place, expecte
                 took += extra
                 out.busy = extra * LEACH_DAYS_PER_KG / hands
                 band.practise(Skill.LEACHING)
-                stats.hunting.merge(Tally.of(s, Tally.OfKind.PLANTS_LEACHED), extra.toInt(), Int::plus)
+                stats.tally(Tally.of(s, Tally.OfKind.PLANTS_LEACHED), extra.toInt())
             }
         }
     }
@@ -1607,7 +1606,7 @@ private fun GroupWorld.practise(g: HexGroup, band: Band, hunted: Boolean, smallG
     if (plants > 0f) { band.practise(Skill.GATHER); learnPlants(band, hw.placeHex[g.place]) }
     if (fish > 0f) band.practise(Skill.FISH)
     if (band.fire > 0f) band.practise(Skill.ROASTING)
-    stats.hunting.merge(Tally.of(g.species, Tally.OfKind.FISH), fish.toInt(), Int::plus)
+    stats.tally(Tally.of(g.species, Tally.OfKind.FISH), fish.toInt())
 }
 
 /** [g]'s band [band]'s food this week by where it came from, and how its fishing paid, into its running means over about a year. */

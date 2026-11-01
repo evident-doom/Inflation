@@ -150,7 +150,7 @@ internal fun HexGroups.survivalDays(g: HexGroup, b: Band, weather: Weather, time
 private fun HexGroups.bookThatchTrace(shelter: Float, people: Float, had: FloatArray, full: FloatArray, averted: Float, extra: Float, left: Float,
     stayWeeks: Float) {
     val hut = Tally.Hut.of(shelter)
-    fun add(k: Tally.Thatch, v: Float) { stats.hunting.merge(Tally.thatchTrace(hut, k), v.roundToInt(), Int::plus) }
+    fun add(k: Tally.Thatch, v: Float) { stats.tally(Tally.thatchTrace(hut, k), v.roundToInt()) }
     add(Tally.Thatch.WEEKS, 1f)
     add(Tally.Thatch.EXPOSURE, 1e4f * people * (had[0] - full[0]))
     add(Tally.Thatch.HUNGER, 1e4f * people * (had[1] - full[1]))

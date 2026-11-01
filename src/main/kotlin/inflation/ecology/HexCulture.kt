@@ -503,9 +503,9 @@ internal class MetAs(ab: Regard, ba: Regard) {
  * Nothing in the model reads it back, and it draws no chance.
  */
 internal fun GroupWorld.tallyMeeting(metAs: MetAs, what: Tally.MeetingEnd) {
-    stats.hunting.merge(Tally.meetingsBy(metAs.understood, what), 1, Int::plus)
-    stats.hunting.merge(Tally.meetingsBy(metAs.customs, what), 1, Int::plus)
-    stats.hunting.merge(Tally.meetingsBy(metAs.wary, what), 1, Int::plus)
+    stats.tally(Tally.meetingsBy(metAs.understood, what), 1)
+    stats.tally(Tally.meetingsBy(metAs.customs, what), 1)
+    stats.tally(Tally.meetingsBy(metAs.wary, what), 1)
 }
 
 /**

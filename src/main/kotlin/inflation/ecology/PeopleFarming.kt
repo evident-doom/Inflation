@@ -74,7 +74,7 @@ internal fun HexGroups.harvestCrop(g: HexGroup, b: Band, time: BandTime) {
     b.seedDomestic = (b.seedDomestic * corn + b.reapedDomestic(food.fieldDomestic[f]) * worth) / (corn + worth)
     b.seedCorn = corn + worth
     addFood(g.stores, g.storeKgPer, Store.SEED, worth, kg)
-    stats.hunting.merge(Tally.of(g.species, Tally.OfKind.GRAIN_REAPED), worth.toInt(), Int::plus)
+    stats.tally(Tally.of(g.species, Tally.OfKind.GRAIN_REAPED), worth.toInt())
     note(g) { "brought in %.0f kg of its crop".format(kg) }
 }
 

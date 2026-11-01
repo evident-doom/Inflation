@@ -393,17 +393,17 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
             if (g.path.size > 1) stats.book(mind, Tally.Bands.MOVES, 1)
             stats.bookDeaths(mind, o.causes)
             // (And those within a month of a camp move: what [Tally.starvedMoved] is set against.)
-            if (b.campWeeks * days < Date.DAYS_PER_MONTH) stats.hunting.merge(Tally.movedWeeks(b.mind), g.size, Int::plus)
+            if (b.campWeeks * days < Date.DAYS_PER_MONTH) stats.tally(Tally.movedWeeks(b.mind), g.size)
             // (And against what it foresaw in the year before: [bookCalibration].)
             for ((cause, k) in o.causes) if (k > 0) bookCalibration(b, cause, k)
             // (And its hunger deaths by what its larder held then, and whether it moved camp in the month before.)
             val starved = o.causes.sumOf { if (it.cause == DeathCause.HUNGER) it.n else 0 }
             if (starved > 0) {
                 val larderDays = g.larder / (g.dailyNeedKg / g.warmth.coerceAtLeast(1e-3f)).coerceAtLeast(1e-3f)
-                stats.hunting.merge(Tally.starvedAt(b.mind, Tally.LarderAt.of(larderDays)), starved, Int::plus)
+                stats.tally(Tally.starvedAt(b.mind, Tally.LarderAt.of(larderDays)), starved)
                 if (b.campWeeks * days < Date.DAYS_PER_MONTH) {
-                    stats.hunting.merge(Tally.starvedMoved(b.mind), starved, Int::plus)
-                    if (b.fedBeforeMove < HUNGRY_BEFORE) stats.hunting.merge(Tally.starvedMovedHungry(b.mind), starved, Int::plus)
+                    stats.tally(Tally.starvedMoved(b.mind), starved)
+                    if (b.fedBeforeMove < HUNGRY_BEFORE) stats.tally(Tally.starvedMovedHungry(b.mind), starved)
                 }
             }
             // And by whether it keeps a herd: what herding costs its people, its children apart.
@@ -416,7 +416,7 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
             if (way == Tally.Living.MOBILE) stats.book(herdSplit, Tally.Bands.MOBILE_WEEKS, 1)
             stats.book(herdSplit, Tally.Bands.AIR, (10f * weather.temperature[g.place] * g.size).roundToInt())
             if (o.births > 0) stats.book(herdSplit, Tally.Bands.BORN, o.births)
-            for (d in o.causes) if (d.n > 0) stats.hunting.merge(Tally.bandsHerdingDied(herding, d.young, d.cause), d.n, Int::plus)
+            for (d in o.causes) if (d.n > 0) stats.tally(Tally.bandsHerdingDied(herding, d.young, d.cause), d.n)
             // And by how well it was fed, with what it held against hunger: who starves, and with what in hand.
             val fedSplit = BandSplit.fed(Tally.Fed.of(g.fed))
             stats.bookWeek(fedSplit, g.size)
@@ -446,8 +446,8 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
             if (w.debt > 0f) {
                 val herding = bandHerding(b, g.adults)
                 fun add(k: Tally.Cold, v: Float) {
-                    stats.hunting.merge(Tally.bandsIn(c, k), (10f * v).roundToInt(), Int::plus)
-                    stats.hunting.merge(Tally.bandsHerding(herding, k), (10f * v).roundToInt(), Int::plus)
+                    stats.tally(Tally.bandsIn(c, k), (10f * v).roundToInt())
+                    stats.tally(Tally.bandsHerding(herding, k), (10f * v).roundToInt())
                 }
                 add(Tally.Cold.WEEKS, 1f); add(Tally.Cold.SHORT, w.debt); add(Tally.Cold.AIR, air.nightC)
                 add(Tally.Cold.CLOTHES, b.clothesClo()); add(Tally.Cold.FIRE, b.fire); add(Tally.Cold.SHELTER, max(b.shelter, b.homeShelter()))
@@ -459,7 +459,7 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
     if (o.orphans > 0) stats.deaths.merge(Tally.of(s, DeathCause.ORPHANED), o.orphans, Int::plus)
     if (s.human && o.orphans > 0) stats.youngDeaths.merge(Tally.of(s, DeathCause.ORPHANED), o.orphans, Int::plus)
     // Children's deaths apart, for the life tables.
-    if (s.human && o.youngDied > 0) stats.hunting.merge(Tally.of(s, Tally.OfKind.CHILDREN_DIED), o.youngDied, Int::plus)
+    if (s.human && o.youngDied > 0) stats.tally(Tally.of(s, Tally.OfKind.CHILDREN_DIED), o.youngDied)
 }
 
 /**

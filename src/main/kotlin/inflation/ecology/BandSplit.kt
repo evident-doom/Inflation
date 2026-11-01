@@ -24,12 +24,12 @@ internal class BandSplit(private val counts: (Tally.Bands) -> TallyKey, private 
 }
 
 /** Counts [n] more of [what] for bands in [split]. */
-internal fun WeekStats.book(split: BandSplit, what: Tally.Bands, n: Int) { hunting.merge(split.key(what), n, Int::plus) }
+internal fun WeekStats.book(split: BandSplit, what: Tally.Bands, n: Int) { tally(split.key(what), n) }
 
 /** Counts one band-week of [people] people for bands in [split]. */
 internal fun WeekStats.bookWeek(split: BandSplit, people: Int) { book(split, Tally.Bands.BAND_WEEKS, 1); book(split, Tally.Bands.PEOPLE_WEEKS, people) }
 
 /** Counts the week's deaths [causes] for bands in [split]. */
 internal fun WeekStats.bookDeaths(split: BandSplit, causes: List<Died>) {
-    for ((cause, k) in causes) if (k > 0) hunting.merge(split.diedOf(cause), k, Int::plus)
+    for ((cause, k) in causes) if (k > 0) tally(split.diedOf(cause), k)
 }

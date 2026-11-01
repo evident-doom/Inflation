@@ -6,6 +6,7 @@ import inflation.world.Biome
 import inflation.world.Season
 import java.util.TreeMap
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.ConcurrentSkipListMap
 import java.util.concurrent.atomic.DoubleAdder
 
@@ -58,6 +59,23 @@ class WeekStats {
     /** Whether the census's splits of bands (by country, clothing, way of living and so on: [BandSplit]) are booked in [hunting]: set by the census that reads them, as booking them costs a band-week some forty ledger merges. */
     var bandSplits = false
 
+    /** Counts [n] more of [key] in [hunting] (while [summedByThread] runs, in the thread's own sums first). */
+    fun tally(key: TallyKey, n: Int) = huntingSums.add(key, n)
+    /** Counts [n] more kills of [s] in [kills] (as [tally] does). */
+    fun killed(s: Species, n: Int) = killSums.add(s, n)
+    private val huntingSums = ThreadSums(hunting)
+    private val killSums = ThreadSums(kills)
+
+    /**
+     * Runs [work] (loops on all cores) with [tally] and [killed] summing in each thread's own sums, put in the ledgers at
+     * its end: a party's week made some thirty merges into one sorted map that all cores wrote to. The sums are whole
+     * numbers, so the ledgers come out the same whatever the order.
+     */
+    fun <T> summedByThread(work: () -> T): T {
+        huntingSums.on = true; killSums.on = true
+        try { return work() } finally { huntingSums.flush(); killSums.flush() }
+    }
+
     /** Counts [n] more of [what] in [meetings]. */
     fun meeting(what: Met, n: Int = 1) { meetings.merge(what.key, n, Int::plus) }
     /** Counts [n] more of [what] of [of] (a kind, a skill, a custom...) in [meetings]. */
@@ -68,6 +86,25 @@ class WeekStats {
 
     private companion object { val BY_NAME = compareBy<Species> { it.name } }
 
+}
+
+/**
+ * Sums for [ledger] kept by each thread while [on] (see [WeekStats.summedByThread]), put in it by [flush]; while off,
+ * [add] merges into it at once. A key added to has it in the ledger after the flush, with a sum of nought if need be,
+ * as if each had been merged on its own.
+ */
+private class ThreadSums<K>(private val ledger: ConcurrentSkipListMap<K, Int>) {
+    @Volatile var on = false
+    private val all = ConcurrentLinkedQueue<HashMap<K, IntArray>>()
+    private val mine = ThreadLocal.withInitial { HashMap<K, IntArray>().also { all += it } }
+
+    fun add(key: K, n: Int) { if (on) mine.get().getOrPut(key) { IntArray(1) }[0] += n else ledger.merge(key, n, Int::plus) }
+
+    /** Puts every thread's sums in the ledger and turns them off (once the loops have joined). */
+    fun flush() {
+        on = false
+        for (m in all) { for ((k, v) in m) ledger.merge(k, v[0], Int::plus); m.clear() }
+    }
 }
 
 /** What the week's [meetings][WeekStats.meetings] count, each under its [label]. */
