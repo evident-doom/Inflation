@@ -313,6 +313,7 @@ object Catalogue {
         startKm2PerAnimal = 50f,
         activity = floatArrayOf(0.25f, 0.05f, 0.3f, 0.4f),
         takesPeople = 1f,
+        hidesYoung = true,
     )
 
     /** Leopard: a solitary stalker of broken and wooded ground; caches kills away from bigger rivals. */
@@ -341,6 +342,7 @@ object Catalogue {
         activity = floatArrayOf(0.2f, 0.05f, 0.25f, 0.5f),
         shelters = setOf(Niches.Shelter.CRAG, Niches.Shelter.DEN, Niches.Shelter.THICKET, Niches.Shelter.TREE),
         takesPeople = 1.2f,
+        hidesYoung = true,
     )
 
     /**
@@ -371,6 +373,7 @@ object Catalogue {
         // (A lynx fights back with teeth and claws: an estimate between the onager's kicks (0.4) and the boar's tusks (0.6).)
         defence = 0.5f,
         startKm2PerAnimal = 150f,
+        hidesYoung = true,
     )
 
     /** Striped hyena: mostly a scavenger, cracking the bones others leave; also takes small prey and young. */
@@ -677,6 +680,8 @@ object Catalogue {
         habitat = Habitat(cover = -0.8f, rugged = -0.5f),
         stalking = 0.3f,
         ferocity = 0.6f,
+        // (It lies up in thickets and among rocks; its cubs are hidden in tall grass and cover and moved every few days.)
+        shelters = setOf(Niches.Shelter.THICKET, Niches.Shelter.CRAG), hidesYoung = true,
         // (Cheetahs prefer prey of 23-56 kg (Hayward et al. 2006) and take up to some 135 (Clements et al. 2014).)
         preyPreferredUpTo = 1.25f, preyUpTo = 3f,
         startKm2PerAnimal = 100f,

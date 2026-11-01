@@ -3,6 +3,7 @@ package inflation.ecology
 import inflation.Part
 import inflation.Par
 import inflation.Profile
+import inflation.monthsFrom
 import inflation.world.Hex
 import inflation.world.HexArray
 import inflation.world.Place
@@ -67,6 +68,7 @@ internal fun GroupWorld.timetable(s: Species, path: HexArray): FloatArray {
  */
 @Part("meetings: settle")
 internal fun HexGroups.meet(weather: Weather) {
+    meetMonth = weather.date.month
     var mt = Profile.mark()
     // (The resident hunters meet as packs do, through bands standing in for them: [ResidentParties].)
     val residents = ResidentParties(this)
@@ -224,7 +226,9 @@ private fun HexGroups.standInsMeetDraw(strong: HexGroup, weak: HexGroup, p: Plac
     val stayed = binomial(times, 1f - slip, r)
     if (stayed == 0 || ss / max(1f, sw) <= 2f) return StandInsMet(times - stayed, stayed, 0, 0)
     val odds = shelteredFromKilling(weak.species, weak.place) * strong.will[AnimalWay.KILL]
-    val youngKilled = if (weak.young > 0 && !strong.species.human) binomial(stayed, min(1f, INTRAGUILD_KILL_YOUNG * tuning.intraguildYoung * odds), r) else 0
+    // (A resident kind's young are born in its season: [Species.birthMonth].)
+    val youngKilled = if (weak.young > 0 && !strong.species.human)
+        binomial(stayed, min(1f, INTRAGUILD_KILL_YOUNG * tuning.intraguildYoung * odds * youngHidden(weak.species, weak.species.birthMonth)), r) else 0
     val grownKilled = if (weak.adults > 0) binomial(stayed - youngKilled, min(1f, INTRAGUILD_KILL * odds), r) else 0
     return StandInsMet(times - stayed, stayed, youngKilled, grownKilled)
 }
@@ -423,6 +427,14 @@ internal fun HexGroups.slipChance(s: Species, o: Species, p: Place): Float {
     return min(0.9f, AVOID_SKILL * first * (1f - o.stalking * 0.5f) + SHELTER_EFFECT * 0.5f * Niches.shelter(s, p, land))
 }
 
+/**
+ * The share of a much stronger party's chances at the young of [s], born in month [birthMonth], that it still has: where
+ * the mothers hide their young and move them from lair to lair ([Species.hidesYoung]), for their first months in the
+ * lair ([inflation.Tuning.denMonths]), most of those chances come to nothing ([YOUNG_HIDDEN]).
+ */
+internal fun HexGroups.youngHidden(s: Species, birthMonth: Int): Float =
+    if (s.hidesYoung && monthsFrom(birthMonth, meetMonth) < tuning.denMonths) 1f - YOUNG_HIDDEN else 1f
+
 /** What keeps a much stronger party ([enemiesMeet]) from killing one of kind [weak] at place [p]: its shelter there. */
 internal fun HexGroups.shelteredFromKilling(weak: Species, p: Place) = 1f - SHELTER_EFFECT * Niches.shelter(weak, p, land)
 
@@ -458,7 +470,8 @@ internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, b
     // A much stronger party now and then kills one of the other: its young most often, an adult seldom.
     val odds = fire * shelteredFromKilling(weak.species, weak.place) * strong.will[AnimalWay.KILL]
     // (People drive hunters off and now and then kill one, but do not seek out their young.)
-    if (ratio > 2f && weak.young > 0 && !strong.species.human && rnd.nextFloat() < INTRAGUILD_KILL_YOUNG * tuning.intraguildYoung * odds) {
+    if (ratio > 2f && weak.young > 0 && !strong.species.human &&
+        rnd.nextFloat() < INTRAGUILD_KILL_YOUNG * tuning.intraguildYoung * odds * youngHidden(weak.species, weak.birthMonth)) {
         weak.young--
         small.deposit(DeadPool.CARRION, weak.place, Kg(HexFauna.YOUNG_WEIGHT * weak.species.massKg))
         stats.deaths.merge(Tally.of(weak.species, ByBeast.of(ByBeast.How.YOUNG_KILLED_BY, strong.species)), 1, Int::plus)
