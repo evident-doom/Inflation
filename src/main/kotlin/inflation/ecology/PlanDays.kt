@@ -214,8 +214,11 @@ private val SCORED_ITEMS = SCORED_ACTS.size
 /** Fewer lives than this a person are none saved: the rounding in the reckoning, not a difference. */
 private const val SAVES_NONE = 1e-6f
 
-/** What a [Mind.PLANS] band's tools served a year as it lived its weeks ([Band.toolWork]). */
-enum class ToolWork { PLANT_DAYS, SEED_DAYS }
+/**
+ * What a [Mind.PLANS] band's tools served a year as it lived its weeks ([Band.toolWork]): days at plant work and of them at
+ * seed and grain; and the seed and grain it got, kg of its need as its kit made them ([seedValue]).
+ */
+enum class ToolWork { PLANT_DAYS, SEED_DAYS, SEED_FOOD }
 
 /**
  * Band [b]'s (group [g]'s) tools in days (tier 2, as houses and weirs, [planDays]): for each tool it knows and lacks of a
@@ -225,9 +228,10 @@ enum class ToolWork { PLANT_DAYS, SEED_DAYS }
  * - a basket speeds all plant work (more carried a trip), a sickle and grinding stones the seed and grain
  *   ([reapDaysPerKg]): the days at that work less those it would take with a whole kit;
  * - spears and bows make more stalks end in a kill ([Band.huntEdge]), nets sweep more ground for small game and take
- *   more fish ([Band.snares], [Band.fishing]): the more food it would have got, as days of foraging at [perDay].
- * (Not weighed: what grinding adds to seed's food, [seedValue]; spears and bows against beasts; the pick, for wells, which
- * no band yet builds. The clothes are the survival pass's ([survivalDays]). A bow's gain is taken at half its most, for
+ *   more fish ([Band.snares], [Band.fishing]), grinding stones make more of the seed and grain it got ([seedValue]): the
+ *   more food it would have got, as days of foraging at [perDay].
+ * (Not weighed: the gruel ground seed weans children on ([Band.gruel]); spears and bows against beasts; the pick, for
+ * wells, which no band yet builds. The clothes are the survival pass's ([survivalDays]). A bow's gain is taken at half its most, for
  * game of middling speed.)
  * Marks the tools that save more days than they take in [Band.toolPays] (it makes and mends those alone), and returns
  * their days saved over their days ([planDays]' rate) and the days they ask.
@@ -251,7 +255,7 @@ private fun HexGroups.toolRates(g: HexGroup, b: Band, perDay: Float): Pair<Float
         val aYear = when (t) {
             Tool.BASKET -> speeds(wk[ToolWork.PLANT_DAYS], BASKET_GAIN)
             Tool.SICKLE -> speeds(wk[ToolWork.SEED_DAYS], SICKLE_GAIN)
-            Tool.GRINDER -> speeds(wk[ToolWork.SEED_DAYS], GRINDER_GAIN)
+            Tool.GRINDER -> speeds(wk[ToolWork.SEED_DAYS], GRINDER_GAIN) + more(wk[ToolWork.SEED_FOOD], seedValue(b), 1f)
             Tool.SPEAR -> more(meatKg, WEAPONLESS + (1f - WEAPONLESS) * k, 1f)
             Tool.BOW -> more(meatKg, 1f + 0.5f * BOW_GAIN * k, 1f + 0.5f * BOW_GAIN)
             Tool.NET -> more(netKg, 1f + NET_GAIN * k, 1f + NET_GAIN)
@@ -261,9 +265,9 @@ private fun HexGroups.toolRates(g: HexGroup, b: Band, perDay: Float): Pair<Float
         val over = aYear / (1f - k) * lasts / whole
         if (PLAN_TRACE && unitOf(mix64(g.id * HASH_A + b.campWeeks * HASH_B + t.ordinal + PLAN_TRACE_SALT + 3)) < 0.02f &&
             toolTraced.incrementAndGet() <= PLAN_TRACE_MOST)
-            System.err.println(("tool trace: band %d, %s, %d grown, kit %.2f; a year as lived: %.0f plant days, %.0f seed days, %.0f kg meat, " +
+            System.err.println(("tool trace: band %d, %s, %d grown, kit %.2f; a year as lived: %.0f plant days, %.0f seed days, %.0f kg of need from seed, %.0f kg meat, " +
                 "%.0f kg small game and fish; a whole kit saves %.1f days a year, lasts %.1f y, takes %.0f days to make: %.2f (made at 1 or more)").format(
-                g.id, t.name, g.adults, k, wk[ToolWork.PLANT_DAYS], wk[ToolWork.SEED_DAYS], meatKg, netKg,
+                g.id, t.name, g.adults, k, wk[ToolWork.PLANT_DAYS], wk[ToolWork.SEED_DAYS], wk[ToolWork.SEED_FOOD], meatKg, netKg,
                 aYear / (1f - k), lasts, whole, over))
         if (over < 1f) continue
         b.toolPays[t] = true
