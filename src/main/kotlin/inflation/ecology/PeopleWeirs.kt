@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Part
 import inflation.world.Hex
 import kotlin.math.max
 import kotlin.math.min
@@ -31,6 +32,7 @@ internal fun HexGroups.weirAsk(g: HexGroup, b: Band, h: Hex): Float {
 }
 
 /** A weir across the river at [g]'s band [b]'s camp at hex [h], where one would pay ([weirAsk]), built or mended as far as the [time] days and its timber go. */
+@Part("people: build weir")
 internal fun HexGroups.buildWeir(g: HexGroup, b: Band, h: Hex, time: BandTime) {
     val left = time.leftFor(Activity.WEIRS)
     val gd = b.goods

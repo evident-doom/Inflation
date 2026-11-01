@@ -16,6 +16,7 @@ import kotlin.math.roundToInt
 // Bands' raids and their defence: palisades, plotting and fighting raids.
 
 /** A palisade round the houses at [g]'s band [b]'s camp at hex [h], at home and raided in the last year, as far as the [time] days and its timber go. */
+@Part("people: build palisade")
 internal fun HexGroups.buildPalisade(g: HexGroup, b: Band, h: Hex, people: Float, time: BandTime) {
     val gd = b.goods
     val left = time.leftFor(Activity.PALISADE)

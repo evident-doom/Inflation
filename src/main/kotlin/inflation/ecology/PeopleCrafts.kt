@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Part
 import inflation.world.Hex
 import inflation.world.Place
 import inflation.world.get
@@ -28,6 +29,7 @@ internal const val TEACH = 0.2f
  * own rate of gathering. With no [time] it gathers nothing, and returns the person-days it would have liked (else 0).
  */
 @IgnorableReturnValue
+@Part("people: gather materials")
 internal fun GroupWorld.gatherMaterials(g: HexGroup, b: Band, p: Place, h: Hex, people: Float, m2: Float, time: BandTime?): Float {
     val gd = b.goods
     var asked = 0f
@@ -105,6 +107,7 @@ internal fun GroupWorld.lacking(g: HexGroup, b: Band, m: Material) = max(0f, 1f 
  * camp clean (middens carried off, water fetched apart from them) and nursing its sick and hurt. Each is done as far as
  * the time goes, and helps only as far as it was done.
  */
+@Part("people: keep customs")
 internal fun GroupWorld.keepCustoms(b: Band, people: Float, time: BandTime) {
     // (For the report: what each part of the customs asked and got, and how much of the time was the plan's and how much free.)
     val heldDays = time.heldFor(Activity.CUSTOMS) * time.pace(Activity.CUSTOMS)
@@ -150,6 +153,7 @@ internal fun GroupWorld.nurseDays(b: Band, people: Float) =
     if (b.holds(Tradition.MEDICINE)) NURSE_DAYS * people * (b.hurt + b.sick.sum()).coerceAtMost(1f) * days else 0f
 
 /** [b]'s tools wear out in use (slowly lying idle); a band with a use for a tool or practised at a kind of work now and then hits on a new one. */
+@Part("people: wear and invent")
 internal fun GroupWorld.wearAndInvent(b: Band, years: Float) {
     for (t in Tool.entries) {
         // Tools wear out in use; lying idle, slowly (cords rot, hafts dry and crack).
@@ -183,6 +187,7 @@ internal fun GroupWorld.wearAndInvent(b: Band, years: Float) {
  * the days (the clothes the survival pass gives days first, [survivalDays]).
  */
 @IgnorableReturnValue
+@Part("people: make tools")
 internal fun HexGroups.makeTools(b: Band, people: Float, time: BandTime?, only: Tool? = null, most: Float = Float.MAX_VALUE): Float {
     val gd = if (time == null) b.goods.copyOf() else b.goods
     var asked = 0f
@@ -238,6 +243,7 @@ private fun clothesMade(want: Float, byTime: Float, can: Float) = when {
 }
 
 /** Ornaments of shell and bone, made with the [time] days [b] has still to spare. */
+@Part("people: make ornaments")
 internal fun GroupWorld.makeOrnaments(b: Band, people: Float, time: BandTime) {
     val gd = b.goods
     val left = time.leftFor(Activity.ORNAMENTS)
@@ -257,6 +263,7 @@ internal fun ornamentsWanted(b: Band, people: Float) =
     min(b.goods[Material.SHELL] / SHELL_EACH + b.goods[Material.BONE] / BONE_EACH, ORNAMENTS_PER_PERSON * people - b.ornaments).coerceAtLeast(0f)
 
 /** Knowledge fades fast unused, unless songs and stories keep [b]'s; hand skills last for years; a way no one holds is lost. */
+@Part("people: forget")
 internal fun GroupWorld.forget(b: Band) {
     val forgetKnowledge = (if (b.holds(Tradition.ORAL_TRADITION)) FORGET_KNOWLEDGE * 0.4f else FORGET_KNOWLEDGE) * b.lapse(Skill.LORE)
     for (s in Skill.entries) {
@@ -351,6 +358,7 @@ internal const val BLADE_STONE = 0.4f
  * half a year, the dead take theirs with them, and a person can keep up only so many. A way held by
  * too few falls back toward what they can pass on (see [Skill.cap]).
  */
+@Part("people: train holders")
 internal fun GroupWorld.trainHolders(g: HexGroup, b: Band, time: BandTime) {
     val adults = g.adults.toFloat()
     if (b.holders.a[0] < 0f) for (s in Skill.entries) {

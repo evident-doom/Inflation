@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Part
 import inflation.world.Hex
 import inflation.world.Place
 import inflation.world.get
@@ -22,6 +23,7 @@ import kotlin.math.exp
  * few held days would be the first a week's overrun took, and bands would sleep in the open at a new camp.) It builds as far as it aims ([aim]: its
  * ways', or more where its week's survival pass would thatch them, [survivalDays]): a light hut first, then its thatching.
  */
+@Part("people: put up shelter")
 internal fun putUpShelter(b: Band, people: Float, time: BandTime, moved: Boolean = false, aim: Float = b.shelterWill) {
     if (moved) b.shelter = 0f
     val to = min(SHELTER_MOST, aim)
@@ -61,6 +63,7 @@ internal fun shelterReach(b: Band, people: Float, from: Float, to: Float, days: 
 }
 
 /** A fire through the night burns wood: where there is little, the night goes dark. Returns the wood burnt, kg. */
+@Part("people: night fire")
 internal fun burnNightFire(b: Band, people: Float): Float {
     val wood = b.goods
     val want = NIGHT_WOOD * people * b.nightFire
@@ -144,6 +147,7 @@ internal fun GroupWorld.warmthNeed(w: Warmth, fire: Float) = (1f + tuning.coldCo
  * returns the person-days it would have liked (else 0).
  */
 @IgnorableReturnValue
+@Part("people: build house")
 internal fun HexGroups.buildHouse(g: HexGroup, b: Band, p: Place, h: Hex, people: Float, time: BandTime?): Float {
     val gd = b.goods
     val left = time?.leftFor(Activity.HOUSES) ?: Float.MAX_VALUE
@@ -234,6 +238,7 @@ internal const val HOME_PULL = 0.15f
  * A band's fire: practised bands carry embers when they move and light it again at once; the
  * unpractised may fail at the hand drill for days, and learn as they go.
  */
+@Part("people: keep fire")
 internal fun GroupWorld.keepFire(g: HexGroup, b: Band) {
     val skill = b.skills[Skill.FIRE]
     // (Last week's fire, as far as it was lit: a bigger one is still one fire.)

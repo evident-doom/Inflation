@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Part
 import inflation.world.Place
 import inflation.world.get
 import inflation.world.set
@@ -20,6 +21,7 @@ import kotlin.math.min
  * In autumn [g]'s band, at home or at a camp it has kept long enough to build at ([houseAfterWeeks]), sows a share of its stored
  * grain there, in the [time] days to spare. (A band that then moves on leaves the plot to whoever comes by.)
  */
+@Part("people: sow grain")
 internal fun HexGroups.sowGrain(g: HexGroup, b: Band, p: Place, date: Date, time: BandTime) {
     val left = time.leftFor(Activity.SOWING)
     if (canSow(g, b, p, date) && left > 0f) {
@@ -58,6 +60,7 @@ internal fun GroupWorld.cropRipe(g: HexGroup, b: Band): Float {
  * [g]'s band [b] brings in its ripe crop ([cropRipe]) in the [time] days to spare, as seed corn: a crop is reaped whole
  * when it is ripe, not a week's meals at a time.
  */
+@Part("people: harvest crop")
 internal fun HexGroups.harvestCrop(g: HexGroup, b: Band, time: BandTime) {
     val ripe = cropRipe(g, b); val left = time.leftFor(Activity.SOWING)
     if (ripe <= 0f || left <= 0f) return
@@ -88,6 +91,7 @@ internal fun GroupWorld.canSow(g: HexGroup, b: Band, p: Place, date: Date) =
  * raises it. Its dogs eat what lies about the camp and a little of the band's food, breed as they are fed, help it hunt
  * small game and guard its camp.
  */
+@Part("people: keep dogs and animals")
 internal fun HexGroups.keepAnimals(g: HexGroup, b: Band) {
     val h = hw.placeHex[g.place]
     for (o in bands.followersByHex[h].orEmpty()) {
@@ -178,6 +182,7 @@ internal const val SOW_DAYS_PER_KG = 0.5f
  * ([herdIncrease]) unless its spare days would keep that too; and generation by generation they grow tamer, since the
  * docile stay and breed.
  */
+@Part("people: keep herds")
 internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTime) {
     val p = g.place
     // (Herding is field work: its days came out of sowing's time when the band planned its week ([Band.herded]), as the

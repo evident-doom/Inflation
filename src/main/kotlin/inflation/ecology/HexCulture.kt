@@ -1,7 +1,6 @@
 package inflation.ecology
 
 import inflation.Part
-import inflation.Profile
 import inflation.EnumBools
 import inflation.enumFloats
 import inflation.world.Hex
@@ -389,18 +388,16 @@ internal fun HexGroups.meetingFresh(a: HexGroup, b: HexGroup, weather: Weather):
  * they show each other tools, and bands that marry out exchange partners, who bring their skills.
  * Returns true if it came to a raid.
  */
+@Part("meetings: talk or raid")
 internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weather, rite: RiteGathering? = null, fresh: Float = 1f): Boolean {
     val bandA = a.band ?: return false; val bandB = b.band ?: return false
-    var lap = Profile.mark()
     bandA.ensureMarks(fauna.kinds.size); bandB.ensureMarks(fauna.kinds.size)
     val u = Language.understanding(bandA.words, bandB.words)
     val ab = Regard(bandA, b.id, bandB, u, hex); val ba = Regard(bandB, a.id, bandA, u, hex)
     if (rite != null && rite.site in bandA.rite && rite.site in bandB.rite) { ab.holy = true; ba.holy = true }
     val metAs = MetAs(ab, ba)
     tallyMeeting(metAs, Tally.MeetingEnd.MET)
-    lap = Profile.lap("bandsMeet: regard and tally", lap)
     val raider = if (raid(a, bandA, b, bandB, ab, weather)) bandA else if (raid(b, bandB, a, bandA, ba, weather)) bandB else null
-    lap = Profile.lap("bandsMeet: raid chance", lap)
     if (raider != null) {
         tallyMeeting(metAs, Tally.MeetingEnd.RAIDED)
         if (ab.holy && rite != null) { if (raider === bandA) sacrilege(bandA, a.id, b.id, rite) else sacrilege(bandB, b.id, a.id, rite) }
@@ -423,7 +420,6 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
             if (rnd.nextFloat() < a.size.toFloat() / (a.size + b.size)) bandB.words[k] = bandA.words[k] else bandA.words[k] = bandB.words[k]
         }
     }
-    lap = Profile.lap("bandsMeet: words", lap)
     // Ways are copied from the band that does better: more food in hand, more children.
     fun doing(g: HexGroup) = g.wellOff() + g.young.toFloat() / max(1, g.adults) +
         STANDING * (g.band?.ornaments ?: 0f) / max(1, g.size) + RENOWN * (g.band?.renown ?: 0f)
@@ -465,18 +461,13 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
             TakeUp.NEITHER -> {}
         }
     }
-    lap = Profile.lap("bandsMeet: traditions, totem, burial", lap)
     riteMeet(bandA, bandB, ab, ba)
-    lap = Profile.lap("bandsMeet: rite meet", lap)
     teach(bandA, bandB, u, (doing(a) - doing(b)).coerceIn(-1f, 1f))
-    lap = Profile.lap("bandsMeet: teach", lap)
     // And the sick among them pass on what is catching.
     passIllness(bandA, bandB)
-    lap = Profile.lap("bandsMeet: illness", lap)
     // Each tells the other of the country it knows round about, as far as they understand each other.
     // (News told is old: bands that meet again and again have little new to tell, [meetingFresh].)
     if (rnd.nextFloat() < u * (0.6f + 0.4f * close) * fresh) tellOfCountry(a, bandA, b, bandB, ab, ba, weather)
-    lap = Profile.lap("bandsMeet: tell of country", lap)
     // Partners: where either holds to marrying out, young adults change bands, both ways, between bands that understand each
     // other and keep the same ways the likelier.
     val marry = (if (bandA.holds(Tradition.EXOGAMY)) 0.5f else 0f) + (if (bandB.holds(Tradition.EXOGAMY)) 0.5f else 0f)
@@ -487,7 +478,6 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
         stats.meeting(Met.BANDS_EXCHANGED_PARTNERS)
         tallyMeeting(metAs, Tally.MeetingEnd.PARTNERS)
     }
-    Profile.lap("bandsMeet: partners", lap)
     return false
 }
 
@@ -526,7 +516,6 @@ internal fun GroupWorld.tallyMeeting(metAs: MetAs, what: Tally.MeetingEnd) {
 @Part("meetings: tell of country")
 private fun HexGroups.tellOfCountry(a: HexGroup, bandA: Band, b: HexGroup, bandB: Band, ab: Regard, ba: Regard, weather: Weather) {
     val u = ab.understood
-    var lap = Profile.mark()
     val h0 = hw.placeHex[a.place]
     var ring = listOf(h0); val seen = hashSetOf(h0)
     for (r in 0..TOLD_RINGS) {
@@ -535,11 +524,9 @@ private fun HexGroups.tellOfCountry(a: HexGroup, bandA: Band, b: HexGroup, bandB
         ring = hex.nextRing(ring, seen)
     }
     stats.meeting(Met.BANDS_TOLD_OF_COUNTRY)
-    lap = Profile.lap("tellOfCountry: hexes", lap)
     // And of the ways they know further off: landmarks, and the legs between those they know.
     val toldWays = routes.tell(bandA, bandB, h0) + routes.tell(bandB, bandA, h0)
     if (toldWays > 0) stats.meeting(Met.BANDS_TOLD_OF_ROUTES)
-    lap = Profile.lap("tellOfCountry: routes", lap)
     // Where they met is a meeting place; and a band without an appointment, or with a weaker one,
     // takes up the other's (the more they are close, the likelier).
     val wk = stepOf(weather.date); val sMeet = PlaceMemory.seasonOf(weather.date.month)
@@ -569,10 +556,8 @@ private fun HexGroups.tellOfCountry(a: HexGroup, bandA: Band, b: HexGroup, bandB
         }
     }
     adopt(a, bandA, b, bandB, ab); adopt(b, bandB, a, bandA, ba)
-    lap = Profile.lap("tellOfCountry: homes and appointments", lap)
     // And of the places they remember, each as far as it trusts the other.
     a.memory.hear(b.memory, wk, stepsPerYear, ab.trust); b.memory.hear(a.memory, wk, stepsPerYear, ba.trust)
-    Profile.lap("tellOfCountry: places remembered", lap)
 }
 
 /** One or two young adults from each band join the other; their descent and skills come with them. */

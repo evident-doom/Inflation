@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Part
 import inflation.Config
 import inflation.world.Weather
 import kotlin.math.max
@@ -30,6 +31,7 @@ private fun describe(air: Air?, c: Cover?, sisu: Float, odds: Float) = if (air =
  * (Food's ask includes the stores it aims at; drying's and skins' are last week's; herding's is sowing's. An ask is counted
  * up to the week's days.)
  */
+@Part("people: count squeeze")
 internal fun HexGroups.countSqueeze(b: Band, time: BandTime) {
     val total = time.total
     val spare = if (total > 0f) max(0f, time.left) / total else 0f
