@@ -845,7 +845,9 @@ private fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
                     stats.meeting(Met.BANDS_ATE_THEIR_TOTEM)
                 }
                 w.busy += kills1 * o.time[i] * w.party[0]
-                if (HUNT_DIAG && band == null) scentShadow(g, Place(p), kills1, haul)
+                if (HUNT_DIAG && band == null) { scentShadow(g, Place(p), kills1, haul)
+                    diag(g.species, HuntStep.PACK_KILLS, fauna.kinds[o.kind[i]], kills1.toFloat())
+                    diag(g.species, HuntStep.PACK_KILL_KG, fauna.kinds[o.kind[i]], haul.kg) }
                 // (Its fat feeds as grease, the rest as lean meat; for the census, the kills by month and by prey kind, lean and fat by weight.)
                 w.meat += haul.kg - haul.fat; w.killFat += haul.fat
                 w.fed += (haul.kg - haul.fat) * w.feeds(Food.BIG_GAME) + haul.fat * w.fatFeeds
@@ -858,8 +860,10 @@ private fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
                     stats.hunting.merge(Tally.bandKillsOf(prey, Tally.KillPart.LEAN_KG), (haul.kg - haul.fat).roundToInt(), Int::plus)
                     stats.hunting.merge(Tally.bandKillsOf(prey, Tally.KillPart.FAT_KG), haul.fat.roundToInt(), Int::plus) }
             }
-            Food.SMALL_GAME -> small.catchSmallIn(Place(p), Kg(expected), min(land.areaKm2[p], w.smallSweep * smallSeen(Place(p))), w.weather).v.let { w.smallGot += it; w.fed += it * w.feeds(Food.SMALL_GAME) }
-            Food.CARRION -> scavenge(g, Place(p), expected, w.sweep, w.rnd).let { w.scraps += it; w.fed += it * w.feeds(Food.CARRION) }
+            Food.SMALL_GAME -> small.catchSmallIn(Place(p), Kg(expected), min(land.areaKm2[p], w.smallSweep * smallSeen(Place(p))), w.weather).v.let { w.smallGot += it; w.fed += it * w.feeds(Food.SMALL_GAME)
+                if (band == null) diag(g.species, HuntStep.PACK_SMALL_GAME_KG, it) }
+            Food.CARRION -> scavenge(g, Place(p), expected, w.sweep, w.rnd).let { w.scraps += it; w.fed += it * w.feeds(Food.CARRION)
+                if (band == null) diag(g.species, HuntStep.PACK_CARRION_KG, it) }
             Food.BONES -> small.crackBonesIn(Place(p), Kg(expected), min(land.areaKm2[p], w.sweep)).v.let { kg ->
                 if (band == null) { w.scraps += kg; w.fed += kg * w.worth(Food.BONES) }
                 else if (kg > 0f) {
