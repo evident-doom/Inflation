@@ -37,9 +37,11 @@ class BandCarryTest {
         val a = Band(1); val b = Band(1)
         a.herds.herd[0] = 2f; a.herds.herdTame[0] = 0.5f
         b.herds.herd[0] = 2f; b.herds.herdTame[0] = 0.1f
+        a.herds.sows()[0] = 0.8f; b.herds.sows()[0] = 0.2f
         b.ornaments = 3f; b.exotic = 1f; b.sick[Illness.entries[0]] = 0.4f; b.hurt = 0.2f
         a.absorb(b, 5, 0.5f, 0f, 0f, 0f, 0f, 1, 2)
         assertEquals(4f, a.herds.herd[0]); assertEquals(0.3f, a.herds.herdTame[0], 1e-6f)
+        assertEquals(0.5f, a.herds.sows()[0], 1e-6f)
         assertEquals(3f, a.ornaments); assertEquals(1f, a.exotic)
         assertEquals(0.2f, a.sick[Illness.entries[0]], 1e-6f); assertEquals(0.1f, a.hurt, 1e-6f)
     }

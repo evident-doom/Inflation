@@ -193,7 +193,7 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
     // planned a week of every month; till then, the spare days alone.
     if (b.herds.herdGrew.size != b.herds.herd.size) b.herds.herdGrew = BooleanArray(b.herds.herd.size)
     if (b.herds.herdPet.size != b.herds.herd.size) b.herds.herdPet = FloatArray(b.herds.herd.size)
-    val young = b.herds.youngHerd()
+    val young = b.herds.youngHerd(); val sows = b.herds.sows()
     val herders = b.herds.herd.indices.sumOf { k -> ((b.herds.herd[k] + young[k]) / headsAHerder(fauna.kinds[k])).toDouble() }.toFloat()
     val capacity = b.freeShare.takeIf { f -> f.all { it >= 0f } }?.let { f -> f.min() * time.total / days * herdSkill(b) }
     var room = capacity?.let { it - herders }
@@ -225,11 +225,11 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
         val got = land.plants.consume(p, LifeForm.HERB, KgM2(f.grass)) + land.plants.eatBrowse(p, KgM2(f.browse))
         val fed = if (f.need > 0f) min(1f, got.v / f.need) else 1f
         val inSeason = monthsFrom(s.birthMonth, date.month) < s.birthMonths
-        val born = if (inSeason) n * herdMothers(s, tame) * s.youngPerFemale * fed /
+        val born = if (inSeason) n * herdMothers(s, tame, sows[k]) * s.youngPerFemale * fed /
             (s.birthMonths * Date.DAYS_PER_MONTH.toFloat() / days) else 0f
         // Its mothers give milk through the lactation after the birth season, as they are fed and as tame as they are.
         if (lactating(s, date)) {
-            val milk = n * herdMothers(s, tame) * tame * fed * milkKg(s) * days / LACTATION_DAYS
+            val milk = n * herdMothers(s, tame, sows[k]) * tame * fed * milkKg(s) * days / LACTATION_DAYS
             addFood(g.stores, g.storeKgPer, Store.FRESH, milk * Nourishment.MILK * g.species.needScale, milk)
             tally(k, HerdFlow.MILK_KG, milk)
         }
@@ -251,7 +251,7 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
         n = max(0f, n - lost); y = max(0f, y + born - lostY)
         // The young grow up as the residents' young do, over the years to maturity.
         val up = y * min(1f, years / s.yearsToMaturity)
-        y -= up; n += up
+        y -= up; if (n + up > 0f) sows[k] = (n * sows[k] + 0.5f * up) / (n + up); n += up
         // (What the grown herd gained this week: its young grown up, less the grown ones lost. That much the band can eat
         // without eating into its mothers, for only the grown ones bear young.)
         val nUp = n; val gained = max(0f, n - n0)
@@ -273,17 +273,26 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
         if (pays) tally(k, HerdFlow.KG_PAYS, kg)
         tally(k, when { worth < 0.5f -> HerdFlow.KG_WORTH_HALF; worth < 1f -> HerdFlow.KG_WORTH_UNDER; worth < 2f -> HerdFlow.KG_WORTH_OVER; else -> HerdFlow.KG_WORTH_TWICE }, kg)
         if (worth.isFinite()) { tally(k, HerdFlow.KG_WORTH_KNOWN, kg); tally(k, HerdFlow.WORTH_KG, worth * kg) }
-        if (over > 0f) { slaughter(k, n * over, HerdFlow.EATEN); n -= n * over }
+        // (The keepers kill the males first, keeping a boar to [SOWS_A_MALE] sows, and the sows only once those are gone.)
+        fun eatGrown(heads: Float, flow: HerdFlow) {
+            if (heads <= 0f) return
+            val males = max(0f, n * (1f - sows[k]) - n * sows[k] / SOWS_A_MALE)
+            val fromSows = max(0f, heads - males)
+            slaughter(k, heads, flow)
+            sows[k] = if (n - heads > 0f) min(1f, max(0f, (n * sows[k] - fromSows) / (n - heads))) else 0.5f
+            n -= heads
+        }
+        if (over > 0f) eatGrown(n * over, HerdFlow.EATEN)
         val increase = if (nUp > 0f) gained * n / nUp else 0f
         val grows = pet || pays && increase / headsAHerder(s) <= (room ?: spare)
         if (grows && !pet) { if (room != null) room -= increase / headsAHerder(s) else spare -= increase / headsAHerder(s) }
         b.herds.herdGrew[k] = grows
         val kept = if (grows) n else if (pays) max(0f, n - increase)
             else max(0f, n - g.dailyNeedKg * days / (s.massKg * MEAT_SHARE * Nourishment.MEAT * g.species.needScale))
-        if (n > kept) slaughter(k, n - kept, if (pays) HerdFlow.EATEN else HerdFlow.EATEN_UNPAID)
+        if (n > kept) eatGrown(n - kept, if (pays) HerdFlow.EATEN else HerdFlow.EATEN_UNPAID)
         n = kept
         if (n + y < 0.5f) { fauna.adults[k][p] += n / area; fauna.young[k][p] += y / area; n = 0f; y = 0f; b.herds.herdPet[k] = 0f
-            tally(k, if (pet) HerdFlow.ENDED_PET else if (pays) HerdFlow.ENDED else HerdFlow.ENDED_UNPAID, 1f) }
+            sows[k] = 0.5f; tally(k, if (pet) HerdFlow.ENDED_PET else if (pays) HerdFlow.ENDED else HerdFlow.ENDED_UNPAID, 1f) }
         b.herds.herd[k] = n; young[k] = y
         b.herds.herdTame[k] = tame + TAMING_RATE * b.edge(Skill.TENDING) * years * (1f - tame)
         if (b.knowsSkill[Skill.TENDING]) b.practise(Skill.TENDING, 0.5f * PRACTICE)
@@ -364,7 +373,7 @@ internal fun GroupWorld.herdPays(g: HexGroup, b: Band, k: Int) = herdWorth(g, b,
 internal fun GroupWorld.herdWorth(g: HexGroup, b: Band, k: Int): Float {
     val lean = b.forageReturn.filter { it >= 0f }.minOrNull()?.takeIf { it > 0f } ?: return Float.POSITIVE_INFINITY
     val s = fauna.kinds[k]; val tame = b.herds.herdTame[k]
-    val mothers = herdMothers(s, tame)
+    val mothers = herdMothers(s, tame, b.herds.sows()[k])
     val increase = herdIncrease(b, k, at = g.place)
     val heads = headsAHerder(s) * herdSkill(b)
     val day = heads * (increase * s.massKg * MEAT_SHARE * Nourishment.MEAT + mothers * tame * milkKg(s) * Nourishment.MILK) *
@@ -384,7 +393,7 @@ internal fun GroupWorld.herdFoodWeek(g: HexGroup, b: Band, date: Date): Float {
         if (n <= 0f) continue
         val s = fauna.kinds[k]; val tame = b.herds.herdTame[k]
         if (!b.herds.herdGrew.getOrElse(k) { false }) food += n * max(0f, herdIncrease(b, k, at = g.place)) * years * s.massKg * MEAT_SHARE * Nourishment.MEAT
-        if (lactating(s, date)) food += n * herdMothers(s, tame) * tame * milkKg(s) * days / LACTATION_DAYS * Nourishment.MILK
+        if (lactating(s, date)) food += n * herdMothers(s, tame, b.herds.sows()[k]) * tame * milkKg(s) * days / LACTATION_DAYS * Nourishment.MILK
     }
     return food * g.species.needScale
 }
@@ -405,7 +414,7 @@ internal fun GroupWorld.herdIncrease(b: Band, k: Int, fed: Float = 1f, at: Place
     val heads = b.herds.herd[k] + b.herds.youngHerd().getOrElse(k) { 0f }
     val lost = s.backgroundMortality + 0.5f * (1f - fed) + fighting(s) + straying(s, tame) * b.lapse(Skill.TENDING) +
         (at?.let { herdSickness(it, k, heads, fed) } ?: 0f)
-    return herdMothers(s, tame) * s.youngPerFemale * fed / (1f + lost * s.yearsToMaturity) - lost
+    return herdMothers(s, tame, b.herds.sows()[k]) * s.youngPerFemale * fed / (1f + lost * s.yearsToMaturity) - lost
 }
 
 /**
@@ -426,11 +435,11 @@ internal enum class Diamond { DIET, GROWTH, BREEDING, TEMPERAMENT, CALM, HIERARC
 internal fun Species.diamond(d: Diamond) = domestication[d.ordinal]
 
 /**
- * The share of a kept herd of kind [s] that bear young in a year, [tame] as it is: its females, as tame as they are, and as
+ * The share of a kept herd of kind [s] that bear young in a year, [tame] as it is: its females ([sows] of the grown), as tame as they are, and as
  * far as their kind mates and rears young in a camp without pens or incubators (Diamond's captive-breeding criterion)
  * against [HERD_BREEDS], a goat's. No more than their kind's wild rate: a herd does not out-breed its kind.
  */
-internal fun herdMothers(s: Species, tame: Float) = 0.5f * (0.3f + 0.7f * tame) * min(1f, s.diamond(Diamond.BREEDING) / HERD_BREEDS)
+internal fun herdMothers(s: Species, tame: Float, sows: Float = 0.5f) = sows * (0.3f + 0.7f * tame) * min(1f, s.diamond(Diamond.BREEDING) / HERD_BREEDS)
 
 /**
  * The years young of kind [s] caught in the hunt are kept as pets ([Herd.herdPet]): till they have grown
@@ -495,6 +504,12 @@ internal const val HERD_RUN_OFF = 0.5f
 internal const val HERD_FIGHTING = 0.5f
 /** A goat's ease on foot (the worse of Diamond's panic and social-structure criteria), the scale for [straying]. An estimate. */
 internal const val HERD_EASE = 0.6f
+/**
+ * Sows (or ewes, does, cows) a kept male serves: the keepers kill the other males first ([keepHerds]). Sardinian pig herds
+ * of 20-40 keep one to three boars (Albarella, Manconi and Trentacoste 2011, "A week on the plateau", in Ethnozooarchaeology,
+ * Oxbow, p. 150): about one to fifteen. The same for every kind, an estimate beyond pigs.
+ */
+internal const val SOWS_A_MALE = 15f
 /** A goat's captive breeding (Diamond's criterion), the scale for [herdMothers]. */
 internal const val HERD_BREEDS = 0.7f
 /** A goat's temperament (Diamond's disposition criterion), the scale for [fighting] and [petYears]. */

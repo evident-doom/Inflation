@@ -241,6 +241,21 @@ class Band(kinds: Int) {
     var fishPull = 0f
     /** This week, how fish from a whole weir across the river by its camp would have pulled against that least yield ([Offers.pullAt]): above 1/2 one would pay; 0 no river or no fish passing. */
     var weirPull = 0f
+    /**
+     * What a whole weir across the river by its camps would have taken a year as it lived its weeks, kg of its need, and the
+     * person-days a year its traps would have wanted ([weirDays]): running means over about a year, for [Mind.PLANS] bands'
+     * reckoning of a weir ([planRates]). (Not kept in a save: they build up again over a year.)
+     */
+    @Transient var weirFood = 0f
+    @Transient var weirTend = 0f
+    /**
+     * What its tools served a year as it lived its weeks ([ToolWork]): its person-days at gathering plant food and of them
+     * at seed and grain; running means over about a year, for
+     * [Mind.PLANS] bands' reckoning of their tools ([toolRates]). (Not kept in a save: they build up again over a year.)
+     */
+    @Transient val toolWork = enumFloats<ToolWork>()
+    /** This week, the tools a [Mind.PLANS] band reckons worth making ([toolRates]): it makes and mends those alone, beside the clothes the survival pass gives days. */
+    @Transient val toolPays = enumBools<Tool> { false }
     /** Over about a year of its weeks at home, the share of its hands' days a well there would have spared it against digging soaks or carrying its water home ([wellSpares]). */
     var waterShort = 0f
     var campPlace = Place.NONE
@@ -673,7 +688,7 @@ class Band(kinds: Int) {
     fun splitInto(o: Band, adults: Int, stay: Int, share: Float, r: Random, copied: (Band) -> Unit) {
         o.ties.clear(); o.ties.putAll(ties); o.appointment = appointment
         o.houseHex = houseHex; o.house = house; o.drivenFrom = drivenFrom; o.drivenBy = drivenBy; o.homeEarth = homeEarth; o.homeWalls = homeWalls; o.homeGroundC = homeGroundC; o.palisade = palisade
-        o.houseLives = houseLives; o.houseFood = houseFood; foodFrom.copyInto(o.foodFrom); o.fishPull = fishPull; monthSupply.copyInto(o.monthSupply); monthSupplySq.copyInto(o.monthSupplySq); o.supplyMonth = supplyMonth; o.supplySum = supplySum; o.supplyWeeks = supplyWeeks; o.larderSeen = larderSeen; weekSupply.copyInto(o.weekSupply); weekWarmth.copyInto(o.weekWarmth); weekMoved.copyInto(o.weekMoved); freeShare.copyInto(o.freeShare); o.leanDays = leanDays
+        o.houseLives = houseLives; o.houseFood = houseFood; foodFrom.copyInto(o.foodFrom); o.fishPull = fishPull; o.weirFood = weirFood; o.weirTend = weirTend; toolWork.copyInto(o.toolWork); monthSupply.copyInto(o.monthSupply); monthSupplySq.copyInto(o.monthSupplySq); o.supplyMonth = supplyMonth; o.supplySum = supplySum; o.supplyWeeks = supplyWeeks; o.larderSeen = larderSeen; weekSupply.copyInto(o.weekSupply); weekWarmth.copyInto(o.weekWarmth); weekMoved.copyInto(o.weekMoved); freeShare.copyInto(o.freeShare); o.leanDays = leanDays
         o.seedDomestic = seedDomestic; o.grainDomestic = grainDomestic; o.seedCorn = seedCorn * share; seedCorn -= o.seedCorn; o.sinceRaided = sinceRaided; o.sisu = sisu
         o.knownHomes.putAll(knownHomes); o.knownLineage.putAll(knownLineage); o.lastMet.putAll(lastMet)
         skills.copyInto(o.skills)
@@ -861,13 +876,13 @@ class Band(kinds: Int) {
     /** How much more seed its sickles reap, as well as their stone cuts. */
     fun sickleGain(tuning: Tuning) = SICKLE_GAIN * has(Tool.SICKLE) * serveOfMake(Tool.SICKLE, fine[Tool.SICKLE], tuning)
 
-    /** Gathering: the most of a plant food's stock in a place it can take in a week; [seed] for grass seed. */
-    fun gatherShare(seed: Boolean, tuning: Tuning): Float {
-        val kit = 1f + BASKET_GAIN * has(Tool.BASKET) +
-            if (seed) sickleGain(tuning) +
-                GRINDER_GAIN * has(Tool.GRINDER) else GRINDER_GAIN * 0.5f * has(Tool.GRINDER)
-        return min(0.9f, GATHER_SHARE * skill(Skill.GATHER) * kit)
-    }
+    /**
+     * Gathering: the most of a plant food's stock in a place it can take in a week, by its skill. (Its tools do not raise it:
+     * a basket carries more a trip, a sickle reaps faster and grinding stones make meal of seed and nuts faster, all in the
+     * days a kilo takes ([PLANT_HANDLING_DAYS_PER_KG], [reapDaysPerKg]); counted here as well, they were counted twice.
+     * Harlan reaped wild einkorn at about 2 kg an hour by hand and 2.5 with a stone sickle: a speedup.)
+     */
+    fun gatherShare(): Float = min(0.9f, GATHER_SHARE * skill(Skill.GATHER))
 
     /** Small game and fish: snare lines and nets, in practised hands. */
     fun snares() = (1f + NET_GAIN * has(Tool.NET)) * skill(Skill.SMALL_GAME)
