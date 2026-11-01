@@ -528,13 +528,15 @@ private fun HexGroups.tellOfCountry(a: HexGroup, bandA: Band, b: HexGroup, bandB
     // And where each has its houses, and the homes of others they know of: settled bands can be found.
     fun showsHome(teller: HexGroup, bt: Band, hearer: Band) {
         if (bt.houseHex.none || bt.house < Thresholds.HOUSE_STANDING) return
-        hearer.knownHomes[teller.id] = bt.houseHex
+        hearer.learnHome(teller.id, bt.houseHex)
         hearer.knownLineage[teller.id] = bt.mainLineage()
     }
     fun tellsHomes(bt: Band, hearer: HexGroup, bh: Band) {
         // (A home the hearer knows already is nothing to tell: no draw is made for it. Most are: bands that meet come to know the same homes.)
+        // (Nor any look at them when the hearer knows every one: the common case.)
+        if (bt.homesAllKnownTo(bh)) return
         for ((id, hh) in bt.knownHomes) if (id != hearer.id && id !in bh.knownHomes && rnd.nextFloat() < u) {
-            bh.knownHomes[id] = hh
+            bh.learnHome(id, hh)
             bt.knownLineage[id]?.let { bh.knownLineage.putIfAbsent(id, it) }
         }
     }
@@ -667,8 +669,9 @@ internal fun HexGroups.cultureWeek(g: HexGroup, rnd: kotlin.random.Random) {
     // A home it knows of that it passed this week and found no house standing (its people dead, or
     // moved on) is forgotten: it is no longer ground to keep off, nor a place to raid.
     if (b.knownHomes.isNotEmpty()) {
-        val it = b.knownHomes.entries.iterator()
-        while (it.hasNext()) { val (id, hh) = it.next(); if (hh in g.path && bands.houseOf[id] != hh) { it.remove(); b.knownLineage.remove(id) } }
+        var gone: ArrayList<Int>? = null
+        for ((id, hh) in b.knownHomes) if (hh in g.path && bands.houseOf[id] != hh) (gone ?: ArrayList<Int>().also { gone = it }).add(id)
+        gone?.forEach { b.forgetHome(it) }
     }
     // Once a year, a band without an appointment makes one, where its dead lie or where it has met
     // most bands, in the season it fared best there.

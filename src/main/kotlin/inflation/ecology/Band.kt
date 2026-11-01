@@ -298,6 +298,29 @@ class Band(kinds: Int) {
     /** Where it knows other bands have their houses (band id to hex), and their descent (main lineage). */
     val knownHomes = HashMap<Int, Hex>()
     val knownLineage = HashMap<Int, Int>()
+    /** One bit per band id in [knownHomes] (kept in step by [learnHome], [forgetHome], [copyHomesTo]; nothing else may change [knownHomes]'s keys). */
+    private var homeBits = LongArray(0)
+    private fun setHomeBit(id: Int) {
+        val w = id ushr 6
+        if (w >= homeBits.size) homeBits = homeBits.copyOf(maxOf(w + 1, homeBits.size * 2))
+        homeBits[w] = homeBits[w] or (1L shl (id and 63))
+    }
+    /** It learns where band [id] has its home. */
+    fun learnHome(id: Int, at: Hex) { knownHomes[id] = at; setHomeBit(id) }
+    /** It forgets band [id]'s home. */
+    fun forgetHome(id: Int) {
+        knownHomes.remove(id); knownLineage.remove(id)
+        val w = id ushr 6
+        if (w < homeBits.size) homeBits[w] = homeBits[w] and (1L shl (id and 63)).inv()
+    }
+    /** Hands its known homes to [o] (as [HashMap.putAll] does, so [o]'s iteration order is the same as before bits were kept). */
+    fun copyHomesTo(o: Band) { o.knownHomes.putAll(knownHomes); for (id in knownHomes.keys) o.setHomeBit(id) }
+    /** Whether [o] knows every home it knows (so there is nothing of homes to tell it). */
+    fun homesAllKnownTo(o: Band): Boolean {
+        val a = homeBits; val b = o.homeBits
+        for (i in a.indices) { val x = a[i]; if (x != 0L && (i >= b.size || (x and b[i].inv()) != 0L)) return false }
+        return true
+    }
     /** A raid it is set on, if any. */
     var raid: Raid? = null
     val raidHex get() = raid?.hex ?: Hex.NONE
@@ -673,7 +696,7 @@ class Band(kinds: Int) {
         o.houseHex = houseHex; o.house = house; o.drivenFrom = drivenFrom; o.drivenBy = drivenBy; o.homeEarth = homeEarth; o.homeWalls = homeWalls; o.homeGroundC = homeGroundC; o.palisade = palisade
         o.houseLives = houseLives; o.houseFood = houseFood; foodFrom.copyInto(o.foodFrom); o.fishPull = fishPull; monthSupply.copyInto(o.monthSupply); monthSupplySq.copyInto(o.monthSupplySq); o.supplyMonth = supplyMonth; o.supplySum = supplySum; o.supplyWeeks = supplyWeeks; o.larderSeen = larderSeen; weekSupply.copyInto(o.weekSupply); weekWarmth.copyInto(o.weekWarmth); weekMoved.copyInto(o.weekMoved); freeShare.copyInto(o.freeShare); o.leanDays = leanDays
         o.seedDomestic = seedDomestic; o.grainDomestic = grainDomestic; o.seedCorn = seedCorn * share; seedCorn -= o.seedCorn; o.sinceRaided = sinceRaided; o.sisu = sisu
-        o.knownHomes.putAll(knownHomes); o.knownLineage.putAll(knownLineage)
+        copyHomesTo(o); o.knownLineage.putAll(knownLineage)
         skills.copyInto(o.skills)
         knowsSkill.copyInto(o.knowsSkill)
         sick.copyInto(o.sick)
