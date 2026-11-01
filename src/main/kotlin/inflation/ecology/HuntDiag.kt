@@ -43,12 +43,12 @@ internal enum class HuntStep(val label: String) {
     PACK_FAT_SHARE("pack fat share"), PACK_WANT_OVER_GUT("pack want over gut"), HUNGRY_NO_KILL_FAT_SHARE("hungry no kill fat share"),
     GORGE_WEEKS("gorge weeks"), GORGE_SPARE_KG("gorge spare kg"), GORGE_GUT_ROOM_KG("gorge gut room kg"), GORGE_FAT_ROOM_KG("gorge fat room kg"),
     GORGE_WEEKS_FAT_FULL("gorge weeks fat full"), GORGE_KG("gorge kg"),
-    // (And what stronger scavengers would take of its kills by scent, reckoned but not taken ([scentShadow]): kills small
-    // and large, those found of each, those the scavenger would win, the kills' kg and the kg it would lose, the days the
+    // (And what stronger scavengers took of its kills by scent ([scavengedAtKill]): kills small
+    // and large, those found of each (expected), those the scavengers won, the kills' kg and the kg it lost, the days the
     // kills lie and the finds a day, summed over kills; the finds a day, kills won and kg lost also by the scavenger's kind.)
-    SHADOW_KILLS_SMALL("shadow kills small"), SHADOW_KILLS_LARGE("shadow kills large"), SHADOW_FOUND_SMALL("shadow found small"),
-    SHADOW_FOUND_LARGE("shadow found large"), SHADOW_WON("shadow won"), SHADOW_KG("shadow kg"), SHADOW_KG_LOST("shadow kg lost"),
-    SHADOW_LIE_DAYS("shadow lie days"), SHADOW_FINDS_A_DAY("shadow finds a day"),
+    SCENT_KILLS_SMALL("scent kills small"), SCENT_KILLS_LARGE("scent kills large"), SCENT_FOUND_SMALL("scent found small"),
+    SCENT_FOUND_LARGE("scent found large"), SCENT_WON("scent won"), SCENT_KG("scent kg"), SCENT_KG_LOST("scent kg lost"),
+    SCENT_LIE_DAYS("scent lie days"), SCENT_FINDS_A_DAY("scent finds a day"),
     // (And what it ate, by what it was ([forage]): its kills of big game and their kg by the prey's kind, and the kg of small
     // game and carrion it got.)
     PACK_KILLS("pack kills"), PACK_KILL_KG("pack kill kg"), PACK_SMALL_GAME_KG("pack small game kg"), PACK_CARRION_KG("pack carrion kg");

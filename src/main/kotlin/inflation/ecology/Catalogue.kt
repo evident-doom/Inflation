@@ -763,8 +763,8 @@ object Catalogue {
 
     /**
      * Residents that are rivals of the other beasts of prey as well as their game: the [residentHunters] and the brown bear.
-     * The resident hunters keep out of the way of a much stronger party ([HexFauna.strongest]). (A bear robbing a pack's
-     * kill waits for a rule of bears finding kills by scent.)
+     * The resident hunters keep out of the way of a much stronger party ([HexFauna.strongest]). (Bears and hyenas rob a
+     * pack's kills they come on by scent: [scavengedAtKill].)
      */
     val residentRivals by lazy { setOf(JACKAL, LYNX, HYENA, BEAR) }
 
