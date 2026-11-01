@@ -44,7 +44,9 @@ object Profile {
     @IgnorableReturnValue fun lap(name: String, since: Long): Long {
         if (!FINE) return 0L
         val now = System.nanoTime()
-        parts.computeIfAbsent(name) { partOrder += it; LongAdder() }.add(now - since)
+        // (get first: computeIfAbsent takes the table's bin lock even for a part already there, and with a hundred threads timing
+        // the same few parts the wait for it was booked to the part timed next.)
+        (parts[name] ?: parts.computeIfAbsent(name) { partOrder += it; LongAdder() }).add(now - since)
         return now
     }
     inline fun <T> part(name: String, block: () -> T): T { val t = mark(); val r = block(); lap(name, t); return r }
@@ -65,8 +67,8 @@ object Profile {
     @PublishedApi internal fun slowRanks(what: String, ns: Long, day: Long): Boolean {
         firstDay.compareAndSet(Long.MIN_VALUE, day)
         if (day >= 0 && day < firstDay.get() + WARM_UP_DAYS) return false
-        slowCount.computeIfAbsent(what) { LongAdder() }.increment()
-        val m = slowest.computeIfAbsent(what) { java.util.TreeMap() }
+        (slowCount[what] ?: slowCount.computeIfAbsent(what) { LongAdder() }).increment()
+        val m = slowest[what] ?: slowest.computeIfAbsent(what) { java.util.TreeMap() }
         return synchronized(m) { m.size < SLOW_KEEP || ns > m.firstKey() }
     }
     @PublishedApi internal fun slowTook(what: String, ns: Long, detail: String) {
