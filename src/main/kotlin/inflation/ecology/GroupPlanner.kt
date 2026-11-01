@@ -184,6 +184,9 @@ internal class GroupPlanner(private val gs: HexGroups) {
         // (A band draws its place by its will to explore, from every place it weighs, see [exploreChoice].)
         val explores = g.band != null
         val wantAll = seen != null || policy != null || capture || explores
+        // (A network that reads no hand-written score, for a group that does not explore and is not followed: the score and
+        // the deaths it weighs are not worked out at all, only what the network reads.)
+        val handless = policy != null && seen == null && !capture && !explores && !traced && !policy.readsBaseline(g)
         buf.laterPlace.clear(); buf.explPlaces.clear()
         val season = 2 * Math.PI * (date.dayOfYear - Date.START_DAY) / Date.DAYS_PER_YEAR
         // Its ground is as big as the game on it needs it to be (smaller where game is thick), and a
@@ -248,6 +251,14 @@ internal class GroupPlanner(private val gs: HexGroups) {
                 val hunters = huntersKm2(c, p, h)
                 at.prey = prey; at.fed = fed; at.hunters = hunters
                 val t = buf.terms.also { fillTerms(it, g, p, weather, date) }
+                if (handless) {
+                    val nc = candPlaces.size
+                    if (nc == candFeats.size) candFeats += FloatArray(Feature.size)
+                    fillFeatures(candFeats[nc].also { it.fill(0f) }, c, t, p, h)
+                    if (nc == buf.candScores.size) buf.candScores = buf.candScores.copyOf(2 * nc)
+                    candPlaces += p.i; buf.candScores[nc] = 0f
+                    continue
+                }
                 val tp = if (traced) buf.moveParts.also { it.fill(0f) } else null
                 var score = scorePlace(c, t, p, h, tp)
                 // (Above all, it keeps alive: see below.)

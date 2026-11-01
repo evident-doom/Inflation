@@ -197,6 +197,9 @@ class MoverPolicy(private val mover: SharedMover, private val record: Concurrent
                   /** How many times more a band at its hardest (cold exposure or hunger) is recorded than one at ease: the nets learn from the weeks that decide (see [Sampling.stressBoost]). */
                   private val stressBoost: Float = 0f) : HexPolicy {
     private val scratch = ThreadLocal.withInitial { mover.Scratch() }
+    /** The scores this thread's last [choose] worked out for a band, and which band: one that then explores asks for them again ([scores]). */
+    private class Last { var id = -1; var scores: FloatArray? = null }
+    private val last = ThreadLocal.withInitial { Last() }
 
     /** The chance [g]'s choice is drawn and recorded: its kind's, raised for a band under stress by [stressBoost] (never past [Sampling.MAX_STRESSED_SHARE]). */
     private fun recordRate(g: HexGroup, state: FloatArray?): Float {
@@ -224,6 +227,7 @@ class MoverPolicy(private val mover: SharedMover, private val record: Concurrent
         } }
         val net = mover.netScores(g.species, features, state, temper, scratch.get())
         val scores = FloatArray(n) { k -> net[k] + mover.residual * baseline[k] + mover.pull(temper, features[k]) }
+        if (g.band != null) last.get().let { it.id = g.id; it.scores = scores.copyOf() }
         // A place whose score or features are not numbers is never taken, as with the hand-written score; and if no place
         // can be weighed the group stays where it is. One such number learnt from makes the whole network not a number.
         var weighed = 0
@@ -268,7 +272,13 @@ class MoverPolicy(private val mover: SharedMover, private val record: Concurrent
         standing?.get(g.id)?.let { if (it.week == week()) it.plan = input }
         return trunk
     }
+    /** (The hand-written score counts only through [SharedMover.residual], and in the choices recorded to learn from.) */
+    override fun readsBaseline(g: HexGroup) = mover.residual != 0f || record != null
     override fun scores(g: HexGroup, features: Array<FloatArray>, baseline: FloatArray): FloatArray {
+        // (Asked straight after [choose] for the same places, as a band that explores does: the same scores, not worked out twice.)
+        val l = last.get(); val was = l.id; val kept = l.scores
+        l.id = -1; l.scores = null
+        if (was == g.id && kept != null && kept.size == features.size) return kept
         val state = g.band?.state; val temper = g.temper
         val net = mover.netScores(g.species, features, state, temper, scratch.get())
         return FloatArray(features.size) { k -> net[k] + mover.residual * baseline[k] + mover.pull(temper, features[k]) }
