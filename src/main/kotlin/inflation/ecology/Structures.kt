@@ -2,6 +2,7 @@ package inflation.ecology
 
 import inflation.Part
 import inflation.world.Hex
+import inflation.world.hexArray
 import inflation.world.Place
 import inflation.world.get
 import inflation.world.set
@@ -35,25 +36,58 @@ private fun usable(s: Structure, g: HexGroup) = s.user < 0 || s.user == g.id
 /**
  * [HexGroups.built] by hex, in the list's order (so sums over a hex come out as over the list), for [structuresAt]. The list
  * only gains new structures at its end and loses some ([tendStructures]), so its size and last one tell whether it has changed.
+ * The structures added at its end since the whole list was sorted ([baseSize] on) are kept apart, sorted by hex, and come
+ * after the others at their hex as in the list: a band's week that builds re-sorts only those, not every structure there is,
+ * till there are [TAIL_MAX] of them.
  */
-internal class StructureIndex(built: List<Structure>, hexes: Int) {
+internal class StructureIndex private constructor(
+    built: List<Structure>, hexes: Int, private val base: StructureIndex?,
+) {
     val size = built.size
     val last = built.lastOrNull()
-    val start = IntArray(hexes + 1)
-    /** The structures that stand somewhere, by hex (a stable sort, so in the list's order within a hex). */
-    val items: List<Structure> = built.filter { !it.hex.none }.sortedBy { it.hex }
-    init {
-        for (s in items) start[s.hex.i + 1]++
-        for (h in 0 until hexes) start[h + 1] += start[h]
+    private val baseSize = base?.size ?: size
+    /** The first [baseSize] structures that stand somewhere, by hex (a stable sort, so in the list's order within a hex). */
+    val items: Array<Structure> = base?.items ?: built.filter { !it.hex.none }.sortedBy { it.hex }.toTypedArray()
+    val start: IntArray = base?.start ?: IntArray(hexes + 1).also { st ->
+        for (s in items) st[s.hex.i + 1]++
+        for (h in 0 until hexes) st[h + 1] += st[h]
     }
+    /** Those after them that stand somewhere, by hex, and the hex of each. */
+    val tail: Array<Structure> = built.subList(baseSize, size).filter { !it.hex.none }.sortedBy { it.hex }.toTypedArray()
+    val tailHex = hexArray(tail.size) { tail[it].hex }
+
+    constructor(built: List<Structure>, hexes: Int) : this(built, hexes, null)
+
     fun current(built: List<Structure>) = size == built.size && last === built.lastOrNull()
+
+    /** The index of [built] as it is now: this one, or with the structures added at its end since, or all of it afresh. */
+    fun now(built: List<Structure>, hexes: Int): StructureIndex = when {
+        current(built) -> this
+        // (Only added to: what was its last is where it was, which no removal could leave it.)
+        built.size > size && built.size - baseSize <= TAIL_MAX && (size == 0 || built[size - 1] === last) ->
+            StructureIndex(built, hexes, base ?: this)
+        else -> StructureIndex(built, hexes)
+    }
+
+    /** The first of [tail] at hex [h] (or where one would be). */
+    fun tailFrom(h: Hex): Int {
+        var lo = 0; var hi = tailHex.size
+        while (lo < hi) { val mid = (lo + hi) ushr 1; if (tailHex[mid] < h) lo = mid + 1 else hi = mid }
+        return lo
+    }
+
+    private companion object { const val TAIL_MAX = 256 }
 }
 
 /** [f] for each structure at hex [h], in [HexGroups.built]'s order. */
 private inline fun HexGroups.structuresAt(h: Hex, f: (Structure) -> Unit) {
     if (h.none) return
-    val x = bands.builtByHex?.takeIf { it.current(bands.built) } ?: StructureIndex(bands.built, hex.size).also { bands.builtByHex = it }
+    val was = bands.builtByHex
+    val x = was?.now(bands.built, hex.size) ?: StructureIndex(bands.built, hex.size)
+    if (x !== was) bands.builtByHex = x
     for (i in x.start[h.i] until x.start[h.i + 1]) f(x.items[i])
+    var j = x.tailFrom(h)
+    while (j < x.tailHex.size && x.tailHex[j] == h) { f(x.tail[j]); j++ }
 }
 
 /** How far the houses at hex [h] that [g] may use shelter its grown people, 0..1. */
