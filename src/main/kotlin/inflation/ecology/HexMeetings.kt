@@ -145,7 +145,7 @@ internal fun HexGroups.meet(weather: Weather) {
             ra?.fresh(); rb?.fresh()
             if (!a.alive || !b.alive) break
             if (slipsAway(a, b, p) || slipsAway(b, a, p)) stats.meeting(Met.SLIPPED_AWAY)
-            else if (a.species.human && b.species.human) Profile.part("meetings: bands (culture, gifts, feasts, raids)") { bandsMeet(a, b, weather) }
+            else if (a.species.human && b.species.human) Profile.part("meetings: bands (culture, gifts, feasts, raids)") { val t0 = Profile.mark(); bandsMeet(a, b, weather); Profile.slow("meeting: bands", t0, weather.date.absoluteDay) { a.probe(weather.date.absoluteDay) + " | " + b.probe(-1L) } }
             else if (a.species == b.species) Profile.part("meetings: rival packs") { rivalsMeet(a, e.a, e.ai, b, e.b, e.bi, h, stop) }
             else Profile.part("meetings: hunters of other kinds") { enemiesMeet(a, e.a, e.ai, b, e.b, e.bi, h, stop) }
             ra?.settle(); rb?.settle()
@@ -268,7 +268,9 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
     stats.meeting(Met.BANDS_MET)
     note(a) { "met band #%d (%d people; tie %.2f)".format(b.id, b.size, a.band?.tie(b.id) ?: 0f) }
     note(b) { "met band #%d (%d people; tie %.2f)".format(a.id, a.size, b.band?.tie(a.id) ?: 0f) }
+    var lap = Profile.mark()
     if (meetingEndsInRaid(a, b, weather, rite)) return
+    lap = Profile.lap("bandsMeet: talk (all)", lap)
     val (poor, rich) = if (a.wellOff() < b.wellOff()) a to b else b to a
     // Bands that hold to sharing give more, and sooner.
     val sharing = rich.band?.holds(Tradition.SHARING) == true
@@ -292,6 +294,7 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
         note(poor) { "was given %.0f kg of food by band #%d".format(gift, rich.id) }
         }
     }
+    lap = Profile.lap("bandsMeet: food gift", lap)
     // Gifts: bands close to each other give each other ornaments, which travel on along the ties.
     for ((giver, taker) in listOf(a to b, b to a)) {
         val gb = giver.band ?: continue; val tb = taker.band ?: continue
@@ -304,6 +307,7 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
         tb.befriend(giver.id, 0.5f * TIE_GIFT)
         stats.meeting(Met.ORNAMENTS_GIVEN)
     }
+    lap = Profile.lap("bandsMeet: ornament gift", lap)
     // Useful gifts: a band gives of the good stone, salt and ochre it has beyond its own needs to
     // a band that lacks them. The more the gift meets the other's want, the more it binds them both, and
     // the giver's name goes about among the bands.
@@ -341,6 +345,7 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
         note(giver) { "gave band #%d stone, salt or ochre it lacked".format(taker.id) }
         note(taker) { "was given stone, salt or ochre by band #%d".format(giver.id) }
     }
+    lap = Profile.lap("bandsMeet: useful gifts", lap)
     // Feasts: a band that holds to feasting and has more laid by than it means to keep sets food
     // before the other; the guests remember it.
     for ((host, guest) in listOf(a to b, b to a)) {
@@ -371,7 +376,9 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
     }
     // Word of where the other did better this month.
     val ab = a.band; val bb = b.band
+    lap = Profile.lap("bandsMeet: feasts", lap)
     if (ab != null && bb != null) ab.shareSeasons(bb)
+    Profile.lap("bandsMeet: share seasons", lap)
 }
 
 /**
@@ -415,7 +422,9 @@ internal fun HexGroups.shelteredFromKilling(weak: Species, p: Place) = 1f - SHEL
 /**
  * Standing orders, hunters of different kinds. The weaker gives way; if it had made a kill this week
  * the stronger drives it off and takes most of the meat (hyenas rob leopards, lions rob everyone);
- * a much stronger party now and then kills one of the other.
+ * a much stronger party now and then kills one of the other, and leaves it where it fell, as rivals of one kind do
+ * ([rivalsMeet]): killing a rival is not hunting it. (Lions leave the cheetahs they kill uneaten; wolves eat a coyote
+ * now and then: Palomares & Caro 1999. What lies there is carrion, for whoever eats carrion, the killer too.)
  */
 internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk: Int, bi: Int, h: Hex, stop: IntArray) {
     stats.meeting(Met.HUNTERS_OF_OTHER_KINDS)
@@ -443,15 +452,11 @@ internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, b
     // (People drive hunters off and now and then kill one, but do not seek out their young.)
     if (ratio > 2f && weak.young > 0 && !strong.species.human && rnd.nextFloat() < INTRAGUILD_KILL_YOUNG * tuning.intraguildYoung * odds) {
         weak.young--
-        strong.meatMet += HexFauna.YOUNG_WEIGHT * 0.5f * weak.species.massKg
-        small.deposit(DeadPool.CARRION, weak.place, Kg(HexFauna.YOUNG_WEIGHT * 0.5f * weak.species.massKg)) // (what the killers leave)
-        bookKill(strong, HexFauna.YOUNG_WEIGHT * 0.5f * weak.species.massKg, HexFauna.YOUNG_WEIGHT * weak.species.massKg, HexFauna.YOUNG_WEIGHT * 0.5f * weak.species.massKg)
+        small.deposit(DeadPool.CARRION, weak.place, Kg(HexFauna.YOUNG_WEIGHT * weak.species.massKg))
         stats.deaths.merge(Tally.of(weak.species, ByBeast.of(ByBeast.How.YOUNG_KILLED_BY, strong.species)), 1, Int::plus)
     } else if (ratio > 2f && weak.adults > 0 && rnd.nextFloat() < INTRAGUILD_KILL * odds) {
         adultsDied(weak, 1, rnd)
-        strong.meatMet += 0.5f * weak.species.massKg
-        small.deposit(DeadPool.CARRION, weak.place, Kg(0.5f * weak.species.massKg))
-        bookKill(strong, 0.5f * weak.species.massKg, weak.species.massKg, 0.5f * weak.species.massKg)
+        small.deposit(DeadPool.CARRION, weak.place, Kg(weak.species.massKg))
         stats.deaths.merge(Tally.of(weak.species, ByBeast.of(ByBeast.How.KILLED_BY, strong.species)), 1, Int::plus)
     }
     stop[wk] = min(stop[wk], max(0, wi - 1)) // the weaker turns back

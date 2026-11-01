@@ -41,7 +41,7 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
     val here = hw.placeHex[g.place]
     b.raid?.let { raid ->
         if (here == raid.hex) {
-            val target = groups.firstOrNull { it.id == raid.on && it.alive && hw.placeHex[it.place] == here }
+            val target = bands.groupById[raid.on]?.takeIf { it.alive && hw.placeHex[it.place] == here }
             if (target?.band != null) bands.raidsDue += g to target
             b.raid = null
         } else b.raid = if (raid.weeks > 1) Raid(raid.hex, raid.on, raid.weeks - 1) else null
@@ -50,6 +50,8 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
     // (A readier band plots on less hunger: each step of readiness closes the same share of what is left of the gap to fed.)
     val hungry = g.fed < shareOfWill(b.raidWill, RAID_HUNGER)
     dialUse?.choice(DialSite.RAIDS_HUNGER, b.raidWill, hungry, g.fed < RAID_HUNGER)
+    // (A band neither hungry nor holding a grudge to a feud looks at no home: nothing to plot.)
+    if (!hungry && b.grudge.none { it > FEUD }) return
     val within = ArrayList<Int>()
     for ((id, h) in b.knownHomes) {
         val feud = (b.knownLineage[id] ?: -1).let { it >= 0 && b.grudge[it] > FEUD }
@@ -65,7 +67,7 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
     if (dialUse == null && u >= drive * Regard.MOST_WARY) return
     val them = ArrayList<Pair<HexGroup, Regard>>()
     for (id in within) {
-        val o = groups.firstOrNull { it.id == id && it.alive } ?: continue
+        val o = bands.groupById[id]?.takeIf { it.alive } ?: continue
         val r = Regard(b, id, o.band ?: continue, map = hex)
         if (r.tie <= 0f) them += o to r
     }
