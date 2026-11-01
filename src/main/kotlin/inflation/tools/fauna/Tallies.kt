@@ -539,6 +539,27 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
         return " | kept herds by kind since last: " + parts.joinToString("; ").ifEmpty { "none" }
     }
 
+    /**
+     * Kept herds lost to beasts of prey since the last census ([HexFauna.keptTakenBy], [Herd.takenSince]): heads taken by
+     * each beast; and by band, of the living bands that kept a herd, how many lost any, and the heads lost a year per 100
+     * head kept (median, 90th and 99th centile, most), with the share of all heads lost borne by the tenth of keepers that
+     * lost the most. Bands that died out since are not in it.
+     */
+    private fun herdLosses(bs: List<Band>): String {
+        val by = sim.fauna.keptTakenBy.entries.map { it.key to it.value.sumThenReset() }.filter { it.second > 0.0 }
+            .sortedByDescending { it.second }.joinToString(", ") { (s, v) -> "%s %.0f".format(s.name, v) }.ifEmpty { "none" }
+        val keepers = bs.filter { it.herds.heldSince > 0f }
+        val rates = keepers.map { 100.0 * it.herds.takenSince / it.herds.heldSince }.sorted()
+        val lost = keepers.map { it.herds.takenSince.toDouble() }.sortedDescending()
+        val all = lost.sum()
+        fun at(q: Double) = if (rates.isEmpty()) 0.0 else rates[((rates.size - 1) * q).toInt()]
+        val top = if (all > 0.0) lost.take(maxOf(1, lost.size / 10)).sum() / all else 0.0
+        val losing = keepers.count { it.herds.takenSince > 0f }
+        for (b in bs) { b.herds.takenSince = 0f; b.herds.heldSince = 0f }
+        return " | kept herds taken by beasts since last, by the beast: %s; by band: %d keeping, %d lost any, heads lost a year per 100 kept: median %.2f, 90%% %.2f, 99%% %.2f, most %.1f; the tenth losing most bore %.0f%% of the heads lost".format(
+            by, keepers.size, losing, at(0.5), at(0.9), at(0.99), rates.lastOrNull() ?: 0.0, 100.0 * top)
+    }
+
     /** The heads of kind [k] band [b] keeps, grown and young. */
     private fun heads(b: Band, k: Int) = b.herds.herd.getOrElse(k) { 0f } + b.herds.herdYoung.getOrElse(k) { 0f }
 
@@ -553,7 +574,7 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
                 val keepers = bs.filter { heads(it, k) >= 1f }
                 "%s %.0f head (%.0f of them young) in %d bands, %d of them mobile (tame %.2f)".format(fauna.kinds[k].name, keepers.sumOf { heads(it, k).toDouble() },
                     keepers.sumOf { it.herds.herdYoung.getOrElse(k) { 0f }.toDouble() }, keepers.size, keepers.count { sim.groups.bandLiving(it) == Tally.Living.MOBILE }, keepers.map { it.herds.herdTame[k].toDouble() }.average()) }.ifEmpty { "none" } +
-            herdFlows() +
+            herdFlows() + herdLosses(bs) +
             " | ornaments %.1f a person (%.0f%% of shell), shell beads a person inland %.2f, by the sea %.2f; graves with goods %d (richest hold %.0f%% of goods)".format(
                 bs.sumOf { it.ornaments.toDouble() } / headsOf(bands),
                 100.0 * bs.sumOf { it.exotic.toDouble() } / bs.sumOf { it.ornaments.toDouble() }.coerceAtLeast(1e-9),

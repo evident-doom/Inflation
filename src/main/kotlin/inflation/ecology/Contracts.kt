@@ -55,6 +55,12 @@ class Herd(kinds: Int) {
     fun keepsAnimals() = herd.any { it > 0f } || herdYoung.any { it > 0f }
     /** Of each kind, the heads beasts of prey took from its herd since it last kept it ([raidHerd], [keepHerds]). */
     var herdTaken = FloatArray(kinds)
+    /**
+     * For the census only: heads beasts of prey took from its herds since the last census, all kinds together, and the
+     * herd it kept over that time, in head-years (heads times the step's share of a year, summed over the steps).
+     */
+    @Transient var takenSince = 0f
+    @Transient var heldSince = 0f
 
     /** A new band [o] splitting off its keeper takes [share] of the herd, grown and young, and the herd's tameness, pets and last week's keeping. */
     fun splitInto(o: Herd, share: Float) {

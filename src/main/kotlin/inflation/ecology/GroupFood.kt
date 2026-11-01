@@ -1207,6 +1207,7 @@ private fun HexGroups.raidHerd(g: HexGroup, hg: HerdGame, p: Place, expected: Fl
     heads[hg.k] -= kills1.toFloat()
     if (b.herds.herdTaken.size != b.herds.herd.size) b.herds.herdTaken = FloatArray(b.herds.herd.size)
     b.herds.herdTaken[hg.k] += kills1.toFloat()
+    fauna.keptTakenBy.computeIfAbsent(s) { java.util.concurrent.atomic.DoubleAdder() }.add(kills1.toDouble())
     // (Kept herds have no fat state yet: their meat is lean.)
     out.kg = kills1 * kgEach; out.fat = 0f
     val each = if (hg.young) HexFauna.YOUNG_WEIGHT * ps.massKg else ps.massKg
