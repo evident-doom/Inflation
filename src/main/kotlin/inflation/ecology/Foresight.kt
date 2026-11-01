@@ -35,8 +35,8 @@ internal fun HexGroups.foreseenSurvival(g: HexGroup, b: Band, weather: Weather):
     val causes = FloatArray(2)
     year.causes(g.species, larderDays, g.fat, g.spent, causes)
     val c = Biome.entries[biomeOfPlace[g.place]]
-    stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.FORESEEN_HUNGER), (1000f * causes[0] * g.size).roundToInt(), Int::plus)
-    stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.FORESEEN_EXPOSURE), (1000f * causes[1] * g.size).roundToInt(), Int::plus)
+    stats.tally(Tally.bandsIn(c, Tally.Bands.FORESEEN_HUNGER), (1000f * causes[0] * g.size).roundToInt())
+    stats.tally(Tally.bandsIn(c, Tally.Bands.FORESEEN_EXPOSURE), (1000f * causes[1] * g.size).roundToInt())
     val alive = year.alive(g.species, larderDays, g.fat, g.spent)
     // (And what a camp move would cost it, for next week's choice of place: [Band.leavingDying].)
     val share = if (b.campPlace.none) 0f else leftBehindShare(g, b)
@@ -238,21 +238,21 @@ internal fun HexGroups.foresee(weather: Weather) {
     // (Tallied by the kind of country, against the deaths that come: in order, off the cores.)
     for (g in groups) { val b = g.band ?: continue; if (!g.alive) continue
         val c = Biome.entries[biomeOfPlace[g.place]]
-        stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.FORESEEN), (1000f * (1f - g.foreseen) * g.size).roundToInt(), Int::plus)
+        stats.tally(Tally.bandsIn(c, Tally.Bands.FORESEEN), (1000f * (1f - g.foreseen) * g.size).roundToInt())
         // (What moved its larder this week, person-days of the need before keeping warm, by the season: where stores go.)
         val perDay = (g.dailyNeedKg / g.warmth.coerceAtLeast(1e-3f)).coerceAtLeast(1e-3f) / g.size.coerceAtLeast(1)
         for (why in LarderMove.entries) {
             val kg = b.larderFlow[why.ordinal]; b.larderFlow[why.ordinal] = 0f
-            if (kg != 0f) stats.hunting.merge(Tally.larderFlow(b.mind, weather.date.season, why), (kg / perDay).roundToInt(), Int::plus)
+            if (kg != 0f) stats.tally(Tally.larderFlow(b.mind, weather.date.season, why), (kg / perDay).roundToInt())
         }
         // (And by how many it foresaw dead, for the calibration against the deaths that came in the year after: [bookCalibration].)
         val bin = ForeseenBin.of(1f - g.foreseen)
         val row = b.foreseenAt * ForeseenBin.entries.size
         for (i in ForeseenBin.entries.indices) b.foreseenShares[row + i] = if (i == bin.ordinal) 1f else 0f
         b.foreseenAt = (b.foreseenAt + 1) % FORESEEN_WEEKS
-        stats.hunting.merge(Tally.calibration(b.mind, bin, Tally.Calib.PEOPLE_WEEKS), g.size, Int::plus)
-        stats.hunting.merge(Tally.calibration(b.mind, bin, Tally.Calib.FORESEEN), (1000f * (1f - g.foreseen) * g.size).roundToInt(), Int::plus)
-        stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.SISU), (1000f * b.sisu * g.size).roundToInt(), Int::plus)
+        stats.tally(Tally.calibration(b.mind, bin, Tally.Calib.PEOPLE_WEEKS), g.size)
+        stats.tally(Tally.calibration(b.mind, bin, Tally.Calib.FORESEEN), (1000f * (1f - g.foreseen) * g.size).roundToInt())
+        stats.tally(Tally.bandsIn(c, Tally.Bands.SISU), (1000f * b.sisu * g.size).roundToInt())
         if (FORECAST_TRACE) traceForecast(g, b, weather)
     }
 }
@@ -282,8 +282,8 @@ internal fun HexGroups.bookCalibration(b: Band, cause: DeathReason, n: Int) {
     for (i in 0 until bins) if (shares[i] > 0f) {
         val bin = ForeseenBin.entries[i]
         val k = (1000f * n * shares[i]).roundToInt()
-        stats.hunting.merge(Tally.calibration(b.mind, bin, Tally.Calib.DIED), k, Int::plus)
-        if (cause == DeathCause.HUNGER) stats.hunting.merge(Tally.calibration(b.mind, bin, Tally.Calib.HUNGER), k, Int::plus)
+        stats.tally(Tally.calibration(b.mind, bin, Tally.Calib.DIED), k)
+        if (cause == DeathCause.HUNGER) stats.tally(Tally.calibration(b.mind, bin, Tally.Calib.HUNGER), k)
     }
     b.forecastTrace?.died(n, cause == DeathCause.HUNGER)
 }

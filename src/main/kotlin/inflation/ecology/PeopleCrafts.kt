@@ -339,7 +339,9 @@ internal const val OCHRE_A_WEEK = 0.3f
 internal const val TAN_OCHRE = 0.2f
 internal const val TANNED_WEAR = 0.5f
 /** The material that makes tool [t] well (with trade on): good stone for stone tools, ochre for tanned clothes; null for the others. */
-fun fineMaterial(t: Tool): Material? = when { Material.STONE in t.recipe -> Material.STONE; t == Tool.CLOTHES -> Material.OCHRE; else -> null }
+fun fineMaterial(t: Tool): Material? = FINE_MATERIAL[t.ordinal]
+/** [fineMaterial] of each tool, worked out once (it is asked for in every hunt's odds: [Band.huntEdge]). */
+private val FINE_MATERIAL: Array<Material?> = Tool.entries.map { t -> when { Material.STONE in t.recipe -> Material.STONE; t == Tool.CLOTHES -> Material.OCHRE; else -> null } }.toTypedArray()
 /** How much faster tool [t] wears for being made well only in share [fine] */
 fun wearOfMake(t: Tool, fine: Float, tuning: Tuning): Float = when (fineMaterial(t)) {
     Material.STONE -> 1f + tuning.poorStoneWear * (1f - fine)

@@ -107,9 +107,9 @@ const val HUNGRY_BEFORE = 0.9f
  */
 internal fun HexGroups.moveCensus(g: HexGroup, b: Band, moved: Boolean, larderDays: Float) {
     fun book(offset: Int, fed: Float, larder: Float) {
-        stats.hunting.merge(Tally.aroundMove(b.mind, offset, Tally.AroundMove.WEEKS), 1, Int::plus)
-        stats.hunting.merge(Tally.aroundMove(b.mind, offset, Tally.AroundMove.FED), (1000f * fed).roundToInt(), Int::plus)
-        stats.hunting.merge(Tally.aroundMove(b.mind, offset, Tally.AroundMove.LARDER), (10f * larder).roundToInt(), Int::plus)
+        stats.tally(Tally.aroundMove(b.mind, offset, Tally.AroundMove.WEEKS), 1)
+        stats.tally(Tally.aroundMove(b.mind, offset, Tally.AroundMove.FED), (1000f * fed).roundToInt())
+        stats.tally(Tally.aroundMove(b.mind, offset, Tally.AroundMove.LARDER), (10f * larder).roundToInt())
     }
     if (moved) {
         var sum = 0f; var n = 0

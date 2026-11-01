@@ -66,10 +66,10 @@ internal enum class HuntStep(val label: String) {
 
 /** Adds [n] to the hunt-step count [what] for prey [s] (kept in hundredths, see [HexHistory]). */
 internal fun GroupWorld.diag(s: Species, what: HuntStep, n: Float) {
-    if (HUNT_DIAG && n > 0f) stats.hunting.merge(HuntStep.key(s, what), (n * 100f).roundToInt(), Int::plus)
+    if (HUNT_DIAG && n > 0f) stats.tally(HuntStep.key(s, what), (n * 100f).roundToInt())
 }
 
 /** Adds [n] to the hunt-step count [what] for [s] that kind [by] made. */
 internal fun GroupWorld.diag(s: Species, what: HuntStep, by: Species, n: Float) {
-    if (HUNT_DIAG && n > 0f) stats.hunting.merge(HuntStep.key(s, what, by), (n * 100f).roundToInt(), Int::plus)
+    if (HUNT_DIAG && n > 0f) stats.tally(HuntStep.key(s, what, by), (n * 100f).roundToInt())
 }
