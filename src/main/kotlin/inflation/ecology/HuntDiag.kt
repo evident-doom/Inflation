@@ -35,7 +35,14 @@ internal enum class HuntStep(val label: String) {
     // with the work days it had in them.)
     PACK_PASSES("pack passes"), PACK_SEARCH_DAYS("pack search days"), PACK_KILLS_EXPECTED("pack kills expected"),
     HUNGRY_NO_KILL_PASSES("hungry no kill passes"), HUNGRY_NO_KILL_SEARCH_DAYS("hungry no kill search days"),
-    HUNGRY_NO_KILL_KILLS_EXPECTED("hungry no kill kills expected"), HUNGRY_NO_KILL_WORK_DAYS("hungry no kill work days");
+    HUNGRY_NO_KILL_KILLS_EXPECTED("hungry no kill kills expected"), HUNGRY_NO_KILL_WORK_DAYS("hungry no kill work days"),
+    // (And its gorging ([eatTheWeek]): its fat as a share of the most it holds, and its week's want over what its gut holds,
+    // every week; in its weeks hungry with no kill, its fat share then; and in its weeks with a kill's meat left past its
+    // want, that meat, the room its gut had beyond its want, the room its reserves had (kg it would eat to fill them),
+    // those weeks it was already as fat as it gets, and the kg it gorged.)
+    PACK_FAT_SHARE("pack fat share"), PACK_WANT_OVER_GUT("pack want over gut"), HUNGRY_NO_KILL_FAT_SHARE("hungry no kill fat share"),
+    GORGE_WEEKS("gorge weeks"), GORGE_SPARE_KG("gorge spare kg"), GORGE_GUT_ROOM_KG("gorge gut room kg"), GORGE_FAT_ROOM_KG("gorge fat room kg"),
+    GORGE_WEEKS_FAT_FULL("gorge weeks fat full"), GORGE_KG("gorge kg");
 
     companion object {
         private const val PREFIX = "diag:"
