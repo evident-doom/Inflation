@@ -45,7 +45,7 @@ internal enum class HuntStep(val label: String) {
     GORGE_WEEKS_FAT_FULL("gorge weeks fat full"), GORGE_KG("gorge kg"),
     // (And what stronger scavengers would take of its kills by scent, reckoned but not taken ([scentShadow]): kills small
     // and large, those found of each, those the scavenger would win, the kills' kg and the kg it would lose, the days the
-    // kills lie and the finds a day, summed over kills.)
+    // kills lie and the finds a day, summed over kills; the finds a day, kills won and kg lost also by the scavenger's kind.)
     SHADOW_KILLS_SMALL("shadow kills small"), SHADOW_KILLS_LARGE("shadow kills large"), SHADOW_FOUND_SMALL("shadow found small"),
     SHADOW_FOUND_LARGE("shadow found large"), SHADOW_WON("shadow won"), SHADOW_KG("shadow kg"), SHADOW_KG_LOST("shadow kg lost"),
     SHADOW_LIE_DAYS("shadow lie days"), SHADOW_FINDS_A_DAY("shadow finds a day");
@@ -54,6 +54,8 @@ internal enum class HuntStep(val label: String) {
         private const val PREFIX = "diag:"
         /** The hunting-ledger key of step [what] for prey [s]. */
         @OptIn(RawKey::class) fun key(s: Species, what: HuntStep) = TallyKey.raw("$PREFIX${s.name}:${what.label}")
+        /** The same for step [what] of prey [s] that kind [by] made: "STEP by BY". */
+        @OptIn(RawKey::class) fun key(s: Species, what: HuntStep, by: Species) = TallyKey.raw("$PREFIX${s.name}:${what.label} by ${by.name}")
         /** The history series of a hunting-ledger [key], or null if it is no hunt step's. */
         fun series(key: TallyKey) = key.text.let { k -> if (k.startsWith(PREFIX)) "hunt diag/" + k.removePrefix(PREFIX).replace(':', '/') else null }
     }
@@ -62,4 +64,9 @@ internal enum class HuntStep(val label: String) {
 /** Adds [n] to the hunt-step count [what] for prey [s] (kept in hundredths, see [HexHistory]). */
 internal fun GroupWorld.diag(s: Species, what: HuntStep, n: Float) {
     if (HUNT_DIAG && n > 0f) stats.hunting.merge(HuntStep.key(s, what), (n * 100f).roundToInt(), Int::plus)
+}
+
+/** Adds [n] to the hunt-step count [what] for [s] that kind [by] made. */
+internal fun GroupWorld.diag(s: Species, what: HuntStep, by: Species, n: Float) {
+    if (HUNT_DIAG && n > 0f) stats.hunting.merge(HuntStep.key(s, what, by), (n * 100f).roundToInt(), Int::plus)
 }
