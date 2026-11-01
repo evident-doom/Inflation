@@ -131,6 +131,8 @@ fun interface HexPolicy {
     fun choose(g: HexGroup, features: Array<FloatArray>, baseline: FloatArray, rnd: kotlin.random.Random): Int
     /** How it scores each candidate, higher the likelier it goes there; null if it does not tell (only asked for a followed group, see [GroupControl]). */
     fun scores(g: HexGroup, features: Array<FloatArray>, baseline: FloatArray): FloatArray? = null
+    /** Whether [choose] reads [g]'s hand-written scores (its baseline): if not, the planner need not work them out (it passes zeros). */
+    fun readsBaseline(g: HexGroup): Boolean = true
     /** How it sees the place [g] goes to this week, described by [chosen] (as in [choose]), for the band's ways to read ([HexGroup.plan]); null if it does not tell. */
     fun planned(g: HexGroup, chosen: FloatArray): FloatArray? = null
 }
