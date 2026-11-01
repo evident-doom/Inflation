@@ -246,7 +246,6 @@ private fun HexGroups.toolRates(g: HexGroup, b: Band, perDay: Float): Pair<Float
             Tool.SPEAR -> more(wk[ToolWork.MEAT_KG], WEAPONLESS + (1f - WEAPONLESS) * k, 1f)
             Tool.BOW -> more(wk[ToolWork.MEAT_KG], 1f + 0.5f * BOW_GAIN * k, 1f + 0.5f * BOW_GAIN)
             Tool.NET -> more(wk[ToolWork.NET_KG], 1f + NET_GAIN * k, 1f + NET_GAIN)
-            else -> 0f
         }
         val lasts = (1f / t.wearPerYear).let { if (t.heavy) min(it, keepYears(b, stepsPerYear)) else it }
         val whole = t.makeDays * people / b.makeSkill(t).coerceAtLeast(1e-3f)
