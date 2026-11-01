@@ -300,8 +300,8 @@ class HexGroups(
         Phase("people: robbing caches") { robCaches(it) },
         Phase("people: visiting kin") { visitKin(it) },
         Phase("groups: births, deaths") {
-            Profile.part("hunters: marking ground") { mark() }
-            Profile.part("hunters: settling ground") { settle(it) }
+            mark()
+            settle(it)
             demography(it, it.date)
         },
         Phase("groups: the dead and newcomers") {
@@ -362,11 +362,11 @@ class HexGroups(
         for (g in groups) if (g.alive) g.band?.let { b -> for (d in Illness.entries) if (d.contagion > 0f) sickPeople[d.ordinal][g.place] += g.size * b.sick[d] }
         planner.takeStock()
         // Packs set their ways for the week (bands set theirs as they forage, see [hunt]).
-        Profile.part("animals: setting their ways") { setAnimalWays(weather) }
+        setAnimalWays(weather)
         // Bands take stock of themselves and of the bands about them, for the people networks.
-        Profile.part("bands: taking stock") { fillBandStates(weather) }
+        fillBandStates(weather)
         // Plan and move, in parallel: each group's choice depends only on last week's world.
-        Profile.part("choosing: valuing places for hunters") { planner.beginChoosing(predatorKg, date.month, weather) }
+        planner.beginChoosing(predatorKg, date.month, weather)
         val choice = IntArray(groups.size); val paths = arrayOfNulls<HexArray>(groups.size); val times = arrayOfNulls<FloatArray>(groups.size)
         Par.forEach("choosing: groups", groups.size) { k ->
             val g = groups[k]

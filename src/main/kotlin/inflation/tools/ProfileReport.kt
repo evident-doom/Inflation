@@ -212,7 +212,8 @@ internal object ProfileText {
             warnings += "other processes used the machine: ${f1(100 * r.otherAvg)}% on average, up to ${f1(100 * r.otherMax)}% (the JVM used ${f1(100 * r.jvmAvg)}%): compare only runs made under the same load"
         if (r.skipped == 0) warnings += "the run is too short to skip a warm-up: the first steps carry the JIT's time"
         if (r.steps < 20) warnings += "only ${r.steps} steps: parts under a few percent are noise"
-        if (r.jitFailures.isNotEmpty()) warnings += "${r.jitFailures.size} JIT compilation failures (below)"
+        val realJit = r.jitFailures.count { !it.contains("retry without subsuming loads") && !it.contains("Jvmti state change") }
+        if (realJit > 0) warnings += "$realJit JIT compilations failed and left a method uncompiled (below)"
         if (warnings.isEmpty()) appendLine("No warnings.") else warnings.forEach { appendLine("- $it") }
         appendLine()
         appendLine("## The week's phases (wall time; they run one after another)")
@@ -260,9 +261,14 @@ internal object ProfileText {
         appendLine()
         appendLine("## GC and JIT")
         appendLine("${r.gcCount} collections, pauses ${f1(r.gcPauseNs / 1e6)} ms in all, longest ${f1(r.gcMaxNs / 1e6)} ms.")
+        // ("retry without subsuming loads" is C2 compiling the method again with other settings, which then goes through;
+        // "Jvmti state change" is the recording itself changing classes; the others leave the method without that compile.)
+        val benign = r.jitFailures.filter { it.contains("retry without subsuming loads") || it.contains("Jvmti state change") }
+        val real = r.jitFailures - benign.toSet()
         if (r.jitFailures.isEmpty()) appendLine("No JIT compilation failures.") else {
-            appendLine("JIT compilation failures (a method that fails in the C1 tier-3 compile may never get a normal C2 compile):")
-            r.jitFailures.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.forEach { appendLine("- ${it.value} x ${it.key}") }
+            appendLine("${benign.size} JIT failures are harmless retries or the recording's own doing; ${real.size} leave a method without a compile:")
+            real.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.forEach { appendLine("- ${it.value} x ${it.key}") }
+            appendLine("(A method that fails in the C1 tier-3 compile with \"out of virtual registers\" may never get a normal C2 compile: split it, see docs on HugeMethodTest.)")
         }
     }
 
