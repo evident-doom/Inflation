@@ -1090,24 +1090,28 @@ private fun HexGroups.tallyForage(w: ForageWeek, meatEaten: Float) {
     stats.hunting.merge(Tally.diet(s, Tally.DietPart.CARRION), scrapsFed.toInt(), Int::plus)
     stats.hunting.merge(Tally.diet(s, Tally.DietPart.PLANTS), plantsFed.toInt(), Int::plus)
     // For bands, the same by the kind of country they are in, and how they fared.
-    if (band != null) {
-        val c = Biome.entries[biomeOfPlace[g.place]]
-        stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.ASKED), wantAll.toInt(), Int::plus)
-        stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.MEAT), (meat * w.worth(Food.BIG_GAME) + w.killFat * w.fatFeeds + smallFed + scrapsFed).toInt(), Int::plus)
-        stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.PLANTS), plantsFed.toInt(), Int::plus)
-        for (f in PlantFrom.entries) stats.hunting.merge(Tally.plantsFrom(f), w.plantFrom[f].toInt(), Int::plus)
-        stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.FISH), (fish * w.worth(Food.FISH)).toInt(), Int::plus)
-        stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.BAND_WEEKS), 1, Int::plus); stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.PEOPLE_WEEKS), g.size, Int::plus)
-        stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.HEARTH), (100f * band.hearthWood).toInt(), Int::plus)
-        stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.FUEL_DAYS), (100f * w.fuelDays / days).toInt(), Int::plus)
-        // (And by whether it keeps a herd: what it foraged against what it wanted, and its hearth.)
-        val herding = bandHerding(band, g.adults)
-        stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.ASKED), wantAll.toInt(), Int::plus)
-        stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.MEAT), (meat * w.worth(Food.BIG_GAME) + w.killFat * w.fatFeeds + smallFed + scrapsFed + fish * w.worth(Food.FISH)).toInt(), Int::plus)
-        stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.PLANTS), plantsFed.toInt(), Int::plus)
-        stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.HEARTH), (100f * band.hearthWood).toInt(), Int::plus)
-        stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.FUEL_DAYS), (100f * w.fuelDays / days).toInt(), Int::plus)
-    }
+    if (band != null) tallyBandForage(w, band, smallFed, scrapsFed, plantsFed)
+}
+
+/** [tallyForage]'s part for a band (split off: one method with all of these tallies failed its C1 compile, "out of virtual registers"). */
+private fun HexGroups.tallyBandForage(w: ForageWeek, band: Band, smallFed: Float, scrapsFed: Float, plantsFed: Float) {
+    val g = w.g; val wantAll = w.wantAll; val meat = w.meat; val fish = w.fish
+    val c = Biome.entries[biomeOfPlace[g.place]]
+    stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.ASKED), wantAll.toInt(), Int::plus)
+    stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.MEAT), (meat * w.worth(Food.BIG_GAME) + w.killFat * w.fatFeeds + smallFed + scrapsFed).toInt(), Int::plus)
+    stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.PLANTS), plantsFed.toInt(), Int::plus)
+    for (f in PlantFrom.entries) stats.hunting.merge(Tally.plantsFrom(f), w.plantFrom[f].toInt(), Int::plus)
+    stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.FISH), (fish * w.worth(Food.FISH)).toInt(), Int::plus)
+    stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.BAND_WEEKS), 1, Int::plus); stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.PEOPLE_WEEKS), g.size, Int::plus)
+    stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.HEARTH), (100f * band.hearthWood).toInt(), Int::plus)
+    stats.hunting.merge(Tally.bandsIn(c, Tally.Bands.FUEL_DAYS), (100f * w.fuelDays / days).toInt(), Int::plus)
+    // (And by whether it keeps a herd: what it foraged against what it wanted, and its hearth.)
+    val herding = bandHerding(band, g.adults)
+    stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.ASKED), wantAll.toInt(), Int::plus)
+    stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.MEAT), (meat * w.worth(Food.BIG_GAME) + w.killFat * w.fatFeeds + smallFed + scrapsFed + fish * w.worth(Food.FISH)).toInt(), Int::plus)
+    stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.PLANTS), plantsFed.toInt(), Int::plus)
+    stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.HEARTH), (100f * band.hearthWood).toInt(), Int::plus)
+    stats.hunting.merge(Tally.bandsHerding(herding, Tally.Bands.FUEL_DAYS), (100f * w.fuelDays / days).toInt(), Int::plus)
 }
 
 /** Books [kg] eaten by a beast and the [dung] it dropped of it (see [Books]). */
