@@ -7,6 +7,7 @@ import inflation.HASH_B
 import inflation.enumFloats
 import inflation.mix64
 import inflation.unitOf
+import inflation.world.Date
 import inflation.world.Weather
 import kotlin.math.ln
 import kotlin.math.max
@@ -210,7 +211,7 @@ private val SCORED_ITEMS = SCORED_ACTS.size
 private const val SAVES_NONE = 1e-6f
 
 /** What a [Mind.PLANS] band's tools served a year as it lived its weeks ([Band.toolWork]). */
-enum class ToolWork { PLANT_DAYS, SEED_DAYS, MEAT_KG, NET_KG }
+enum class ToolWork { PLANT_DAYS, SEED_DAYS }
 
 /**
  * Band [b]'s (group [g]'s) tools in days (tier 2, as houses and weirs, [planDays]): for each tool it knows and lacks of a
@@ -230,6 +231,10 @@ enum class ToolWork { PLANT_DAYS, SEED_DAYS, MEAT_KG, NET_KG }
 private fun HexGroups.toolRates(g: HexGroup, b: Band, perDay: Float): Pair<Float, Float> {
     val people = g.adults.toFloat()
     val wk = b.toolWork
+    // (Its kills' meat and fat, and its small game and fish, kg a year, as it lived ([Band.foodFrom], kept in a save).)
+    val perYear = g.size * Date.DAYS_PER_YEAR.toFloat()
+    val meatKg = b.foodFrom[FoodFrom.BIG_GAME] * perYear
+    val netKg = (b.foodFrom[FoodFrom.SMALL_GAME] + b.foodFrom[FoodFrom.FISH]) * perYear
     var saved = 0f; var cost = 0f; var asked = 0f
     for (t in Tool.entries) {
         b.toolPays[t] = false
@@ -243,9 +248,9 @@ private fun HexGroups.toolRates(g: HexGroup, b: Band, perDay: Float): Pair<Float
             Tool.BASKET -> speeds(wk[ToolWork.PLANT_DAYS], BASKET_GAIN)
             Tool.SICKLE -> speeds(wk[ToolWork.SEED_DAYS], SICKLE_GAIN)
             Tool.GRINDER -> speeds(wk[ToolWork.SEED_DAYS], GRINDER_GAIN)
-            Tool.SPEAR -> more(wk[ToolWork.MEAT_KG], WEAPONLESS + (1f - WEAPONLESS) * k, 1f)
-            Tool.BOW -> more(wk[ToolWork.MEAT_KG], 1f + 0.5f * BOW_GAIN * k, 1f + 0.5f * BOW_GAIN)
-            Tool.NET -> more(wk[ToolWork.NET_KG], 1f + NET_GAIN * k, 1f + NET_GAIN)
+            Tool.SPEAR -> more(meatKg, WEAPONLESS + (1f - WEAPONLESS) * k, 1f)
+            Tool.BOW -> more(meatKg, 1f + 0.5f * BOW_GAIN * k, 1f + 0.5f * BOW_GAIN)
+            Tool.NET -> more(netKg, 1f + NET_GAIN * k, 1f + NET_GAIN)
         }
         val lasts = (1f / t.wearPerYear).let { if (t.heavy) min(it, keepYears(b, stepsPerYear)) else it }
         val whole = t.makeDays * people / b.makeSkill(t).coerceAtLeast(1e-3f)
@@ -254,7 +259,7 @@ private fun HexGroups.toolRates(g: HexGroup, b: Band, perDay: Float): Pair<Float
             toolTraced.incrementAndGet() <= PLAN_TRACE_MOST)
             System.err.println(("tool trace: band %d, %s, %d grown, kit %.2f; a year as lived: %.0f plant days, %.0f seed days, %.0f kg meat, " +
                 "%.0f kg small game and fish; a whole kit saves %.1f days a year, lasts %.1f y, takes %.0f days to make: %.2f (made at 1 or more)").format(
-                g.id, t.name, g.adults, k, wk[ToolWork.PLANT_DAYS], wk[ToolWork.SEED_DAYS], wk[ToolWork.MEAT_KG], wk[ToolWork.NET_KG],
+                g.id, t.name, g.adults, k, wk[ToolWork.PLANT_DAYS], wk[ToolWork.SEED_DAYS], meatKg, netKg,
                 aYear / (1f - k), lasts, whole, over))
         if (over < 1f) continue
         b.toolPays[t] = true

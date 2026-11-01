@@ -1510,8 +1510,8 @@ private fun GroupWorld.recordFood(g: HexGroup, band: Band, w: ForageWeek) {
     band.weirTend += k * (w.weirTend * stepsPerYear - band.weirTend)
     // (And what its tools served, a year as it lived its weeks: [Band.toolWork].)
     fun work(t: ToolWork, v: Float) { band.toolWork[t] += k * (v * stepsPerYear - band.toolWork[t]) }
-    work(ToolWork.PLANT_DAYS, w.plantWorkDays); work(ToolWork.SEED_DAYS, w.seedWorkDays)
-    work(ToolWork.MEAT_KG, w.meat + w.killFat); work(ToolWork.NET_KG, w.smallGot + w.fished)
+    // (Days a hand, as the week's busy days are: the band's are its hands'.)
+    work(ToolWork.PLANT_DAYS, w.plantWorkDays * w.hands); work(ToolWork.SEED_DAYS, w.seedWorkDays * w.hands)
 }
 
 /** [forage]'s scavenging of [expected] kg at place [p] by [g], over [sweep] km²: what it found, kg. */

@@ -249,8 +249,8 @@ class Band(kinds: Int) {
     @Transient var weirFood = 0f
     @Transient var weirTend = 0f
     /**
-     * What its tools served a year as it lived its weeks ([ToolWork]): its days at gathering plant food and of them at seed,
-     * the meat and fat of its kills, kg, and its small game and fish caught, kg; running means over about a year, for
+     * What its tools served a year as it lived its weeks ([ToolWork]): its person-days at gathering plant food and of them
+     * at seed and grain; running means over about a year, for
      * [Mind.PLANS] bands' reckoning of their tools ([toolRates]). (Not kept in a save: they build up again over a year.)
      */
     @Transient val toolWork = enumFloats<ToolWork>()
