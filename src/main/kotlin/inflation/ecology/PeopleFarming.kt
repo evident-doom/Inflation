@@ -287,7 +287,10 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
         val grows = pet || pays && increase / headsAHerder(s) <= (room ?: spare)
         if (grows && !pet) { if (room != null) room -= increase / headsAHerder(s) else spare -= increase / headsAHerder(s) }
         b.herds.herdGrew[k] = grows
-        val kept = if (grows) n else if (pays) max(0f, n - increase)
+        // (A growing herd still feeds a hungry band: it eats as much of the increase as last week left it short of its
+        // food ([HexGroup.fed]) before it keeps the rest to grow.)
+        val short = (1f - g.fed) * g.dailyNeedKg * days / (s.massKg * MEAT_SHARE * Nourishment.MEAT * g.species.needScale)
+        val kept = if (grows) n - (if (pet) 0f else min(increase, max(0f, short))) else if (pays) max(0f, n - increase)
             else max(0f, n - g.dailyNeedKg * days / (s.massKg * MEAT_SHARE * Nourishment.MEAT * g.species.needScale))
         if (n > kept) eatGrown(n - kept, if (pays) HerdFlow.EATEN else HerdFlow.EATEN_UNPAID)
         n = kept

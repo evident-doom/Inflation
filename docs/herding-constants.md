@@ -53,3 +53,6 @@ half female, and the keepers eat the males first, keeping one to [SOWS_A_MALE] (
 one to three boars in herds of 20-40 and slaughter castrated males in their second year (Albarella, Manconi and Trentacoste
 2011, pp. 150-154). Losses to death, straying and beasts take both alike. The mothers ([herdMothers]) are that share of the
 grown, not half. Comparison with the record: https://claude.ai/artifact/XtL4p33AZj8LmxyeSvdj9K
+
+Hungry keepers eat (2026-11-01): a growing herd ([Band.herdGrew]) still feeds a hungry band: each week the keepers eat as
+much of its increase as last week left them short of food ([HexGroup.fed]), and keep only the rest to grow.
