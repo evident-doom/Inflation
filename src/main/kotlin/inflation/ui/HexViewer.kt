@@ -92,8 +92,8 @@ import inflation.world.set
  *
  * Usage: hex-viewer [--seed N] [--width KM] [--height KM] [--load FILE]
  * (--load carries on a saved world: the seed and size must be the ones it was saved with.) The
- * config keys choose the learned networks as for hex-fauna (see [LearnedModel]). Without them the
- * hand-written choices are the model.
+ * config keys choose the learned networks as for hex-fauna (see [LearnedModel]). Without nets= the latest
+ * baseline is the model.
  */
 fun main(args: Array<String>) {
     val a = Args(args, "hex-viewer [--seed N] [--width KM] [--height KM] [--load FILE]")
@@ -101,7 +101,7 @@ fun main(args: Array<String>) {
     val cfg = base.copy(seed = a.long("--seed", base.seed), widthKm = a.int("--width", base.widthKm), heightKm = a.int("--height", base.heightKm))
     val load = a.file("--load")
     a.done()
-    val nets = Config.string(Config.Key.NETS); val ways = Config.string(Config.Key.WAYS)
+    val nets = LearnedModel.configuredNets(); val ways = Config.string(Config.Key.WAYS)
     val frame = JFrame("Hex world, seed ${cfg.seed}")
     val status = JLabel("Generating the world…")
     frame.contentPane.add(status)
@@ -367,7 +367,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         control.weekDone()
     }
 
-    /** The model: learned networks where given ([nets], [waysFile], see [LearnedModel]), else the hand-written choices. */
+    /** The model: learned networks ([nets], [waysFile], see [LearnedModel]). */
     private fun useNetworks() {
         LearnedModel.apply(groups, nets, waysFile, Config.string(Config.Key.HUNTER_WAYS)) { println(it) }
     }
