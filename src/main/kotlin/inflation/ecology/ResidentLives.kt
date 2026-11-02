@@ -39,7 +39,7 @@ internal fun HexFauna.breedAndDie(weather: Weather, date: Date) {
         val s = kinds[k]
         val carcassKg = carcasses[k]
         val grow = years / s.yearsToMaturity
-        val a = adults[k]; val y = young[k]; val f = fed[k]; val dk = dry[k]
+        val a = adults[k]; val y = young[k]; val f = fed[k]; val dk = dry[k]; val leavingK = leaving[k]
         val hz = enumFloats<Danger>()
         for (p in land.places) {
             if (a[p] + y[p] <= 0f) { dk[p] = 0f; continue }
@@ -85,6 +85,8 @@ internal fun HexFauna.breedAndDie(weather: Weather, date: Date) {
             // Growing up.
             val up = y[p] * grow
             y[p] -= up; a[p] += up
+            // (Of a kind that also roams, grown young on crowded ground are due to leave it as roamers: [leaving].)
+            leavingK?.let { it[hw.placeHex[p]] += up * area * leaveShare(a[p] + y[p], usual[k]) }
             bornBook?.add((up * area * (1f - YOUNG_WEIGHT) * s.massKg).toDouble())
             if (a[p] + y[p] < EXTINCT) { carcassKg[p] += (a[p] + 0.3f * y[p]) * area * s.massKg; a[p] = 0f; y[p] = 0f }
         }
@@ -165,7 +167,7 @@ internal fun HexFauna.hazards(k: FaunaKind, p: Place, weather: Weather, month: I
     out[Danger.CROWD] = crowd
     out[Danger.SICK] = Hazards.crowdDisease(crowd, fed, years); out[Danger.OUTBREAK] = outbreakDeaths(s, p)
     // Hunters hold ground: past the numbers their territories hold, they fight their own kind and kill its young.
-    out[Danger.STRIFE] = if (s.carnivore) strife(heads, usual[k]) else 0f
+    out[Danger.STRIFE] = if (s.carnivore) strife(heads, usual[k], if (s in Catalogue.roamingResidents) tuning.roamerStrifeCrowd else STRIFE_CROWD) else 0f
     val (fireA, floodA, snowA) = calamities(s, p, weather, false)
     val (fireY, floodY, snowY) = calamities(s, p, weather, true)
     out[Danger.FIRE_A] = fireA; out[Danger.FLOOD_A] = floodA; out[Danger.SNOW_A] = if (sleeping) 0f else snowA
@@ -176,13 +178,14 @@ internal fun HexFauna.hazards(k: FaunaKind, p: Place, weather: Weather, month: I
 
 /**
  * The share of a resident hunter kind's grown animals among [heads] a km² killed in a week by their own kind fighting
- * over ground ([Danger.STRIFE]; the young [STRIFE_YOUNG] times as many): none up to [STRIFE_CROWD] times its usual
+ * over ground ([Danger.STRIFE]; the young [STRIFE_YOUNG] times as many): none up to [crowd] times its usual ([STRIFE_CROWD],
+ * for wolves and lions settled with roaming packs [Tuning.roamerStrifeCrowd])
  * numbers ([usualKm2]), the territories there are, and growing with the square of the excess beyond, [STRIFE_DEATHS] a
  * year at twice the territories' numbers. As packs, rivals, the homeless and lions killing their young hold them;
  * as residents nothing else would but the breeding spacing (leopards rose fivefold in ten years: ab-residents, 2026-10-31).
  */
-internal fun HexFauna.strife(heads: Float, usualKm2: Float): Float {
-    val over = heads / (STRIFE_CROWD * usualKm2) - 1f
+internal fun HexFauna.strife(heads: Float, usualKm2: Float, crowd: Float): Float {
+    val over = heads / (crowd * usualKm2) - 1f
     return if (over > 0f) STRIFE_DEATHS * over * over * years else 0f
 }
 

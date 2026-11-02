@@ -148,11 +148,18 @@ internal object ProfileRead {
         val loopSpans = outermost(loopEvents.map { Span(it.s(), it.e(), it.getString("name")) })
         val loopStarts = LongArray(loopSpans.size) { loopSpans[it].start }
 
+        val gcSpans = events.filter { it.eventType.name == "jdk.GarbageCollection" }.map { Span(it.s(), it.e(), "gc") }
+
         // Time by kind, and the slowest jobs (those that ranked as they ran, the [inflation.Profile.SLOW_KEEP] longest of each kept).
         for (ev in inRange) when (ev.eventType.name) {
             "inflation.Kind" -> run.kinds.getOrPut(ev.getString("part")) { HashMap() }.getOrPut(ev.getString("kind")) { Agg() }
                 .let { it.jobs += ev.getLong("jobs"); it.sumNs += ev.getLong("sumNs") }
-            "inflation.Slow" -> run.slowest.getOrPut(ev.getString("what")) { ArrayList() } += ev.getLong("ns") to ev.getString("detail")
+            "inflation.Slow" -> {
+                // The event is committed as the job ends, so the job ran from (end - ns) to the event's time.
+                val ns = ev.getLong("ns"); val end = ev.s(); val begin = end - ns
+                val paused = gcSpans.any { it.start < end && it.end > begin }
+                run.slowest.getOrPut(ev.getString("what")) { ArrayList() } += ns to (if (paused) "(a GC pause fell in it) " else "") + ev.getString("detail")
+            }
         }
         for ((k, v) in run.slowest) run.slowest[k] = v.sortedByDescending { it.first }.take(inflation.Profile.SLOW_KEEP).toMutableList()
 
@@ -271,6 +278,7 @@ internal object ProfileText {
         }
         if (r.slowest.isNotEmpty()) {
             appendLine("## Slowest single jobs (`Profile.slow`, after the run's first ${inflation.Profile.WARM_UP_DAYS} days)")
+            appendLine("A job marked \"a GC pause fell in it\" was held up by the collector, not slow by itself; when many unrelated jobs share one time, that is the cause.")
             for ((what, jobs) in r.slowest.entries.sortedBy { it.key }) {
                 appendLine("- $what:")
                 for ((ns, detail) in jobs) appendLine("  - ${"%.2f".format(ns / 1e6)} ms: $detail")

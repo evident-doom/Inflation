@@ -350,6 +350,7 @@ internal fun HexGroups.hygieneAt(b: Band, h: Hex) = min(b.hygiene, 1f - (1f - HY
  * ([Tradition.HYGIENE]) keep the hex's midden as far as they did the work, people for people; untended, it wears
  * ([MIDDEN_WEAR]). (A world saved before the ground held its fouling starts from the weeks its bands have kept their camps.)
  */
+@Part("people: foul ground")
 internal fun HexGroups.foulGround() {
     val weeks = bands.fouledWeeks; val midden = bands.midden
     if (!bands.groundSeen) {
@@ -394,6 +395,7 @@ internal const val CACHE_TAKE = 0.6f
  * are close to its owners: the more it lies in the open and the more they see, the likelier. The
  * owners hold it against the takers when they learn of it.
  */
+@Part("people: rob caches")
 internal fun HexGroups.robCaches(weather: Weather) {
     val caches = HashMap<Hex, ArrayList<HexGroup>>()
     for (g in groups) {

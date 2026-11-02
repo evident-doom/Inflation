@@ -342,7 +342,10 @@ private fun HexFauna.spillHunters(k: FaunaKind, weather: Weather, arrived: Float
         val need = maxOf((1f - f[p]).coerceIn(0f, 1f), thirst, max(uneasy, snowedIn))
         val h = hw.placeHex[p]
         // Hungry, thirsty, cold or snowed-in ones leave, and so do those whose country does not suit them, towards better.
-        val leave = SPILL_BASE + SPILL_HUNGER * need + SPILL_MISFIT * bearings.strength(k.i, h)
+        // (The settled of a kind that also roams hold their ground: only want drives them off it; roaming to better country
+        // is the roamers' part, [Catalogue.roamingResidents].)
+        val settled = s in Catalogue.roamingResidents
+        val leave = if (settled) SPILL_HUNGER * need else SPILL_BASE + SPILL_HUNGER * need + SPILL_MISFIT * bearings.strength(k.i, h)
         // Where they could go: in each neighbouring hex, the ground nearest in height to theirs (see [neighbourPlaces]),
         // weighed by how good it is and how easy the border is.
         var total = 0f; var best = 0f; var closed = false
@@ -380,7 +383,7 @@ private fun HexFauna.spillHunters(k: FaunaKind, weather: Weather, arrived: Float
         if (total <= 0f) continue
         // (And the more so the better the country next door is than here.)
         val better = if (best > 0f) ((best - here) / best).coerceIn(0f, 1f) else 0f
-        val go = min(0.5f, leave + SPILL_BETTER * better).let { if (weeks == 1) it else 1f - (1f - it).pow(weeks) }
+        val go = min(0.5f, leave + (if (settled) 0f else SPILL_BETTER * better)).let { if (weeks == 1) it else 1f - (1f - it).pow(weeks) }
         val goA = a[p] * go * land.areaKm2[p]; val goY = y[p] * go * land.areaKm2[p]
         if (seaTo >= 0) {
             val share = seaW / (total + seaW)
@@ -443,6 +446,43 @@ fun HexFauna.takeYoung(k: FaunaKind, h: Hex, heads: Float) {
     if (there <= 0f) return
     val keep = max(0f, 1f - heads / there)
     for (q in places) y[q] *= keep
+}
+
+/** Takes [heads] grown of kind [k] off the places of hex [h], each place its share by its grown there. Returns the place that held the most. */
+fun HexFauna.takeGrown(k: FaunaKind, h: Hex, heads: Float): Place {
+    val a = adults[k]; val places = hw.placesOf(h)
+    var there = 0f; var most = places[0]; var mostHeads = -1f
+    for (q in places) { val hq = a[q] * land.areaKm2[q]; there += hq; if (hq > mostHeads) { mostHeads = hq; most = q } }
+    if (there > 0f) { val keep = max(0f, 1f - heads / there); for (q in places) a[q] *= keep }
+    return Place(most)
+}
+
+/** The grown heads of kind [k] on the places of hex [h]. */
+fun HexFauna.grownIn(k: FaunaKind, h: Hex): Float { var v = 0f; for (q in hw.placesOf(h)) v += adults[k][q] * land.areaKm2[q]; return v }
+
+/**
+ * Whether a roamer of [s] finds room to settle in hex [h]: its kind's settled there are fewer than its territories hold
+ * ([usual] over the hex's land).
+ */
+fun HexFauna.roomFor(s: Species, h: Hex): Boolean {
+    val k = slot(s); if (k.none) return false
+    var heads = 0f; var area = 0f
+    for (q in hw.placesOf(h)) { heads += (adults[k][q] + young[k][q]) * land.areaKm2[q]; area += land.areaKm2[q] }
+    return heads < usual[k] * area
+}
+
+/**
+ * Group [g] of a kind that also roams settles: it joins its kind's settled at its place, carrying its fat, body burnt,
+ * season of births had and boldness of people in with them as any that move do ([carried]).
+ */
+fun HexFauna.joinSettled(g: HexGroup) {
+    val k = slot(g.species); if (k.none) return
+    val p = g.place; val a = adults[k]; val area = land.areaKm2[p]; val carry = carried(k)
+    for (c in carry.indices) {
+        val had = when (Carry.entries[c]) { Carry.BRED -> g.bred; Carry.FAT -> g.fat; Carry.SPENT -> g.spent; Carry.BOLD -> boldness(g) }
+        carry[c][p] = bound(c, k, mixed(carry[c][p], a[p] * area, had, g.adults.toFloat()))
+    }
+    a[p] += g.adults / area; young[k][p] += g.young / area
 }
 
 /** A per-head number of [there] grown that had [was] and [came] that had [had], together. */

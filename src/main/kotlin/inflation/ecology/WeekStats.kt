@@ -184,6 +184,11 @@ enum class Met(val label: String) {
         /** How packs of a kind come and go (report only): grown young gone alone, packs split off, lone pairs, ground taken, packs ended (and those without ground). */
         PACK_LEFT_ALONE("pack young left alone, "), PACK_SPLIT_OFF("packs split off, "), PACK_PAIRED("lone hunters paired, "),
         PACK_SETTLED("packs settled ground, "), PACK_ENDED("packs ended, "), PACK_ENDED_HOMELESS("packs ended without ground, "),
+        /**
+         * Of kinds that also live settled (report only): grown young that left settled ground as roamers, roamers that settled in
+         * where there was room, and those that took a settled band's ground.
+         */
+        ROAMERS_LEFT("roamers left settled ground, "), ROAMERS_SETTLED("roamers settled in, "), ROAMERS_TOOK_OVER("roamers took over ground, "),
         /** Kills robbed (report only): by the thief's kind and from the victim's, with the kg taken. */
         KILLS_STOLEN_BY("kills stolen by "), KILLS_STOLEN_FROM("kills stolen from "), KG_STOLEN_BY("kg of kills stolen by "), KG_STOLEN_FROM("kg of kills stolen from "),
         RITES_HELD("rites held, band "), RITES_CUT_SHORT("rites cut short, band "),

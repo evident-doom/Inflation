@@ -127,7 +127,7 @@ internal fun HexGroups.meet(weather: Weather) {
         val apart = BooleanArray(events.size)
         Par.forEach("meetings: stand-ins apart", events.size) { i ->
             val e = events[i]; val sa = e.a >= groups.size; val sb = e.b >= groups.size
-            apart[i] = (sa && !sb && strongerThan(parties[e.b], parties[e.a], e.hex)) || (sb && !sa && strongerThan(parties[e.a], parties[e.b], e.hex))
+            apart[i] = parties[e.a].species != parties[e.b].species && ((sa && !sb && strongerThan(parties[e.b], parties[e.a], e.hex)) || (sb && !sa && strongerThan(parties[e.a], parties[e.b], e.hex)))
         }
         val kept = ArrayList<Meeting>(events.size)
         for (i in events.indices) if (apart[i]) withStandIns += events[i] else kept += events[i]
@@ -196,7 +196,9 @@ internal fun HexGroups.meet(weather: Weather) {
                 if (!residentsMeet(sx.g, sy.g)) continue
                 val (strong, weak) = if (strength(sx.g) >= strength(sy.g)) sx to sy else sy to sx
                 val p = weak.g.place
-                val met = poisson(encounters(sx.g, sy.g, p, days.toFloat()) * sx.bands * sy.bands, r)
+                // (A settled band is in this hex only the share of the week its territory lies in it, as a pack's timetable would put it:
+                // both must be there at once, so the two shares multiply, [weekInHex].)
+                val met = poisson(encounters(sx.g, sy.g, p, days.toFloat() * weekInHex(sx.g.species) * weekInHex(sy.g.species)) * sx.bands * sy.bands, r)
                 if (met == 0) continue
                 out += standInsMeetDraw(strong.g, weak.g, p, min(met, kotlin.math.ceil(min(sx.bands, sy.bands)).toInt()), r).also { it.strong = strong; it.weak = weak }
             }
@@ -270,7 +272,8 @@ private fun HexGroups.strongerThan(a: HexGroup, b: HexGroup, h: Hex) =
  * stand-in carries no kill to rob).
  */
 private fun HexGroups.residentsMeet(a: HexGroup, b: HexGroup): Boolean {
-    if (a.species == b.species) return false
+    // (But roamers of a kind that also lives settled meet its settled as rival packs: [rivalsMeet].)
+    if (a.species == b.species) return a.species in Catalogue.roamingResidents && (a.id < 0) != (b.id < 0)
     val sa = strength(a); val sb = strength(b)
     return max(sa, sb) > 2f * max(1f, min(sa, sb))
 }
@@ -395,6 +398,14 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
     val ab = a.band; val bb = b.band
     if (ab != null && bb != null) ab.shareSeasons(bb)
 }
+
+/**
+ * The share of a week a settled band of kind [s] is in any one hex: its kind's territory (its usual group size over its usual
+ * density, [HexFauna.usualDensity]) against the hex's area, at most all of it. Kinds whose territory is larger than a hex
+ * (lions, bears, wolves at their catalogue density) are in a hex only part of the week, as their packs' timetables put them.
+ */
+internal fun GroupWorld.weekInHex(s: Species): Float =
+    min(1f, hex.areaKm2.toFloat() * HexFauna.usualDensity(s) / s.groupSize)
 
 /**
  * How many times two groups that are in the same place for [span] days run into each other, on
@@ -538,7 +549,8 @@ internal fun GroupWorld.rivalsMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, b
         stats.deaths.merge(Tally.of(loser.species, DeathCause.RIVALS), 1, Int::plus)
     }
     if (loser.home == h) {
-        loser.home = Hex.NONE
+        // (A settled band's stand-in keeps its ground: its ground is its kind's settled there, [ResidentParties].)
+        if (loser.id >= 0) loser.home = Hex.NONE
         // The winners take over the ground and kill the young they find there (as lions and wolves do).
         // (Prides and packs that take over ground do this; solitary hunters seldom.)
         if (loser.young > 0 && loser.species.groupSize >= 3) {
@@ -548,6 +560,10 @@ internal fun GroupWorld.rivalsMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, b
             if (killed > 0) stats.deaths.merge(Tally.of(loser.species, DeathCause.YOUNG_KILLED_BY_RIVALS), killed, Int::plus)
         }
     }
+    // A roamer that beats a settled band on its ground takes it, and settles in there ([settle]): a pair or more, as it settles
+    // only with a mate (a lion coalition, a wolf pair); a lone one only wins its way past.
+    val winner = if (loser === a) b else a
+    if (loser.id < 0 && loser.home == h && winner.id >= 0 && winner.home.none && winner.adults >= 2) { winner.home = h; stats.meeting(Met.Of.ROAMERS_TOOK_OVER, winner.species.name) }
     if (loser === a) stop[ak] = min(stop[ak], max(0, ai - 1)) else stop[bk] = min(stop[bk], max(0, bi - 1))
 }
 
@@ -559,9 +575,16 @@ internal fun HexGroups.claimGround(g: HexGroup, h: Hex) {
     scent.markers.getOrPut(g.species.index) { IntArray(hex.size) { -1 } }[h] = g.id
 }
 
-/** A pack without ground settles where no other pack of its kind has fresh marks. */
+/**
+ * A pack without ground settles where no other pack of its kind has fresh marks. A roamer of a kind that also lives settled
+ * ([Catalogue.roamingResidents]) settles in among them instead: where it took a settled band's ground at a meeting
+ * ([rivalsMeet]), or, without ground, where it comes on room for it ([HexFauna.roomFor]) and no roamer's fresh marks, but
+ * not back where it left ([HexGroup.natal]: young leave the ground they were born on), and only once it has a mate (a pair,
+ * as wolves found their territories: lone ones pair up as lone hunters do, [mergeAndPair]).
+ */
 @Part("hunters: settling ground")
 internal fun HexGroups.settle(weather: Weather) {
+    for (g in groups) if (g.alive && g.band == null && g.species in Catalogue.roamingResidents && !g.home.none) settleIn(g)
     val claimed = HashSet<Long>()
     // (Packs come in a drawn order: the first to come on empty ground takes it.)
     val today = weather.date.absoluteDay
@@ -571,9 +594,48 @@ internal fun HexGroups.settle(weather: Weather) {
         // (Whether it takes it is its choice: always at the hand-written way.)
         val w = g.will[AnimalWay.SETTLE]
         if (w < 1f && rnd.nextFloat() >= w) continue
+        if (g.species in Catalogue.roamingResidents) {
+            if (g.adults >= 2 && h != g.natal && fauna.roomFor(g.species, h) && scent.foreign(g.species, h, g.id) < MARK_FRESH) settleIn(g)
+            continue
+        }
         if (scent.foreign(g.species, h, g.id) < MARK_FRESH && claimed.add(key)) {
             claimGround(g, h)
             stats.meeting(Met.Of.PACK_SETTLED, g.species.name)
+        }
+    }
+}
+
+/** Roamer [g] settles in among its kind's settled at its place ([HexFauna.joinSettled]): as a group it is gone, as one merged. */
+internal fun HexGroups.settleIn(g: HexGroup) {
+    fauna.joinSettled(g)
+    stats.meeting(Met.Of.ROAMERS_SETTLED, g.species.name)
+    g.mergedSize = g.size; g.adults = 0; g.young = 0
+}
+
+/**
+ * The grown young due to leave their kind's settled ground ([HexFauna.leaving]) go as roamers, each alone, to find room and
+ * a mate away from where they were born as young leaving a pack do ([liveWeek]): packs without ground, of the settled's condition where they left. Hex by
+ * hex in order, whole heads (the fraction waits for next week), at most as many as the hex holds grown.
+ */
+internal fun HexGroups.roamersLeave() {
+    for ((k, s) in fauna.kinds.withKinds()) {
+        val due = fauna.leaving[k] ?: continue
+        if (s !in kinds) continue
+        for (h in hex.all) {
+            if (due[h] < 1f) continue
+            val grown = fauna.grownIn(k, h)
+            val n = min(due[h], grown).toInt()
+            due[h] = min(due[h] - n, max(0f, grown - n))
+            if (n < 1) continue
+            val p = fauna.takeGrown(k, h, n.toFloat())
+            repeat(n) {
+                val g = HexGroup(nextId++, s, p, 1, 0)
+                g.temper = Temperament.founder(g.id, seedBase)
+                g.fed = fauna.fed[k][p]; g.fat = fauna.reserve[k][p]; g.spent = fauna.spent[k][p]; g.dry = fauna.dry[k][p]
+                g.bred = fauna.bred[k][p]; g.bold = fauna.bold[k][p]; g.birthMonth = fauna.birthStart[k][p.i].toInt(); g.natal = h
+                groups += g
+            }
+            stats.meeting(Met.Of.ROAMERS_LEFT, s.name, n)
         }
     }
 }
