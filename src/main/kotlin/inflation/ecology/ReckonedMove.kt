@@ -57,10 +57,48 @@ private fun workFor(yield: Float) = if (yield > 1f) 1f / yield else 1f
 /** Where week [at] (counted from the first week of year 0) lies in a band's ring of weeks ([Band.weekSupply]). */
 private fun ringIndex(at: Long, weeks: Int) = ((at / weeks) % SUPPLY_YEARS).toInt() * weeks + (at % weeks).toInt()
 
+/** The most loads a [Mind.PLANS] band's adults take on a move ([relayLoads]): as far as any band's ways go ([BandWay.CARRY_LOADS]). */
+private const val LOADS_MOST = 2f
+
 /**
- * What the walk of [km] to a fresh camp costs band [b] (group [g]), in shares of a week's need, as the mover's hand-written
- * score weighs it: the food the going burns, and the days it takes from the week's work beyond those it had to spare, paid
- * back over the weeks it will keep the new camp ([Band.stayWeeks]).
+ * The days a move of [km] with [loads] loads a walker costs band [b] (group [g]): its stores it leaves (what keeps longest
+ * goes first, [storesCarried]), in days of its people's need, and the days its people walk, there and back again for each
+ * load past the first ([relayWalks]), not at work.
  */
-internal fun GroupWorld.reckonedWalk(g: HexGroup, b: Band, km: Float): Float =
-    WALK_COST * km / days + max(0f, moveDays(g, km) - b.spareDays / forageHands(g)) / (days * b.stayWeeks.coerceAtLeast(1f))
+private fun GroupWorld.moveCostDays(g: HexGroup, b: Band, km: Float, loads: Float): Float {
+    var room = max(0f, carryKg(g, b) * loads - mendingStockKg(g, b))
+    var left = 0f
+    for (st in CARRY_ORDER) {
+        val kgPer = g.storeKgPer[st].coerceAtLeast(1e-6f)
+        val x = min(g.stores[st], room / kgPer)
+        left += g.stores[st] - x; room = max(0f, room - x * kgPer)
+    }
+    return left / g.dailyNeedKg.coerceAtLeast(1e-3f) + km * (1f + 2f * max(0f, loads - 1f)) / campKmADay(g)
+}
+
+/**
+ * The loads band [b] (group [g]) has its adults take on a camp move of [km] ([Band.planLoads]): one, or as many as carry all
+ * its stores ([LOADS_MOST] at most), whichever costs it fewer days ([moveCostDays]): a relay's days walked against the
+ * stores it would leave, a day of work weighed as a day of need. A short move takes its larder along; a long one leaves what
+ * it cannot carry. (Bands that leave a camp after a death left their stores with it, m5-1 hunger trace 2026-11-02.)
+ */
+internal fun GroupWorld.relayLoads(g: HexGroup, b: Band, km: Float): Float {
+    val room = carryKg(g, b).coerceAtLeast(1e-3f)
+    val weight = Store.entries.sumOf { (g.stores[it] * g.storeKgPer[it]).toDouble() }.toFloat() + mendingStockKg(g, b)
+    val all = (weight / room).coerceIn(1f, LOADS_MOST)
+    return if (moveCostDays(g, b, km, all) < moveCostDays(g, b, km, 1f)) all else 1f
+}
+
+/**
+ * What a move of [km] to a fresh camp costs band [b] (group [g]), in shares of a week's need, with the loads it would take
+ * ([relayLoads]): the food the going burns, the days its walks take from the week's work beyond those it had to spare, and
+ * the stores it would leave, the last two paid back over the weeks it will keep the new camp ([Band.stayWeeks]).
+ */
+internal fun GroupWorld.reckonedWalk(g: HexGroup, b: Band, km: Float): Float {
+    val loads = relayLoads(g, b, km)
+    val walks = 1f + 2f * max(0f, loads - 1f)
+    val walked = km * walks / campKmADay(g)
+    val stay = days * b.stayWeeks.coerceAtLeast(1f)
+    val left = moveCostDays(g, b, km, loads) - walked
+    return WALK_COST * km * walks / days + max(0f, walked - b.spareDays / forageHands(g)) / stay + left / stay
+}

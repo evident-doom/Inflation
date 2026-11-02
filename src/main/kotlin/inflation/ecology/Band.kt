@@ -450,6 +450,8 @@ class Band(kinds: Int, totems: Int = kinds) {
     val ties = HashMap<Int, Float>()
     /** The step this band last met each other band (by group id), for how fresh a meeting is ([meetingFresh]). */
     val lastMet = HashMap<Int, Int>()
+    /** The loads a [Mind.PLANS] band's adults take on this week's camp move, as it chose them ([relayLoads]; NaN: as its ways have it, [carryLoads]). */
+    @Transient var planLoads = Float.NaN
     fun tie(other: Int) = ties[other] ?: 0f
     fun befriend(other: Int, by: Float) { ties[other] = (tie(other) + by * (if (by > 0f) 1f - tie(other) else 1f + tie(other))).coerceIn(-1f, 1f) }
     /**
