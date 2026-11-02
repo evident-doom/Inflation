@@ -356,6 +356,7 @@ internal fun HexGroups.villages(): Map<Hex, List<HexGroup>> {
 enum class VillageFlow { WEEKS, VILLAGE_WEEKS, BANDS, PEOPLE, SETTLED_PEOPLE, ALL_PEOPLE, PALISADED, ENDED, ENDED_WEEKS, MOST_BANDS, PEOPLE_AT_HOME }
 
 /** Books this week's villages for the census ([Bands.villageFlows]): once a week, after the bands' weeks. */
+@Part("people: tally villages")
 internal fun HexGroups.tallyVillages() {
     val f = bands.villageFlows; val age = bands.villageAge
     val now = villages()
@@ -609,11 +610,13 @@ internal fun HexGroups.fillBandStates(weather: Weather) {
 
 /** Sets a band's ways from [ways]' outputs: 0 is the scaffold (effort 1, stores [Band.storeAimAt1], every tool alike). */
 /** Files every living band under the hex it is in now ([HexGroups.bandIndex]), for [bandInputs]' bands about. */
+@Part("people: index bands")
 internal fun HexGroups.indexBands() {
     bands.bandIndex.clear()
     for (g in groups) if (g.alive && g.band != null) bands.bandIndex.getOrPut(hw.placeHex[g.place]) { ArrayList() } += g
 }
 
+@Part("people: set ways")
 internal fun HexGroups.setWays(g: HexGroup, weather: Weather, ways: BandWays, inputs: FloatArray, out: FloatArray) {
     val b = g.band ?: return
     bandInputs(g, weather, inputs)
