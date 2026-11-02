@@ -631,9 +631,10 @@ internal class GroupPlanner(private val gs: HexGroups) {
 
     /**
      * The case for planning band [b] (group [g]) to leave its camp in [here] this week, before the walk ([reckonedWalk]),
-     * in shares of a week's need (doc: Moving and settling under the planner, step 2): what it usually gets at this time of
-     * year ([usualReturn]) beyond what this camp has lately brought it ([campReturn]), less what leaving would give up, each
-     * paid for over the weeks it keeps a camp ([Band.stayWeeks]) as the walk is:
+     * in shares of a week (doc: Moving and settling under the planner, step 2): the share of its hands' week this camp has
+     * lately taken to feed it ([campWork]) beyond what a fresh camp usually takes at this time of year ([usualWork]), a day of
+     * work weighed as a day of need, as the walk's days are; less what leaving would give up, each paid for over the weeks it
+     * keeps a camp ([Band.stayWeeks]) as the walk is:
      * - its houses, left to weather and to others ([Band.leavingHouse]);
      * - what it has sown and not yet reaped ([cropPull]);
      * - its heavy tools, left behind (grinding stones, [Tool.heavy]), the days of making them again;
@@ -642,7 +643,7 @@ internal class GroupPlanner(private val gs: HexGroups) {
      * NaN if it cannot judge: no whole week at this camp yet, or no such weeks in the years before.
      */
     private fun reckonedGain(g: HexGroup, b: Band, here: Hex, date: Date): Float {
-        val case = b.usualReturn(date, gs.days) - b.campReturn(date, gs.days)
+        val case = b.campWork(date, gs.days) - b.usualWork(date, gs.days)
         if (case.isNaN()) return Float.NaN
         val need = g.dailyNeedKg.coerceAtLeast(1e-3f) * gs.days
         val stay = b.stayWeeks.coerceAtLeast(1f)

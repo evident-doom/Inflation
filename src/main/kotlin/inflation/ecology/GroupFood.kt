@@ -215,6 +215,8 @@ private fun restedDays(w: ForageWeek, time: BandTime) {
  */
 internal fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float, perDay: Float) {
     val g = w.g; val b = checkNotNull(w.band); val hands = w.hands
+    // (What a day of all its hands' foraging brings, in days of its people's need: for the reckoned move, [Band.weekYield].)
+    b.yieldNow = perDay * hands / g.dailyNeedKg.coerceAtLeast(1e-3f)
     // (Its work goes the slower, the colder and hungrier its people: see [Sisu].)
     val time = BandTime(days * hands.toFloat(), b.paces())
     // (Its water: carried home, dug for in a soak or drawn from a well ([waterShare]); counted with the food.)

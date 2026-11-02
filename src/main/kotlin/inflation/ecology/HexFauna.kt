@@ -82,9 +82,16 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, internal v
 
     /**
      * The resident kinds ([Catalogue.resident]), and for each, adults and young per km² of each place: those that keep to
-     * small home ranges first, then the [Catalogue.migratory] plant-eaters (the order saved worlds keep their tables in).
+     * small home ranges first, then the [Catalogue.migratory] plant-eaters, then the [Catalogue.roamingResidents] (the order
+     * saved worlds keep their tables in: kinds added at the end load into older saves, starting as a fresh model has them).
      */
-    @Transient val kinds = Catalogue.all.filter { Catalogue.resident(it) && it !in Catalogue.migratory } + Catalogue.all.filter { it in Catalogue.migratory }
+    @Transient val kinds = Catalogue.all.filter { Catalogue.resident(it) && it !in Catalogue.migratory && it !in Catalogue.roamingResidents } +
+        Catalogue.all.filter { it in Catalogue.migratory } + Catalogue.all.filter { it in Catalogue.roamingResidents }
+    /**
+     * How many of [kinds], the first, a band may keep as its totem ([Band.totem]): all but the [Catalogue.roamingResidents],
+     * which as packs never could be one. (Whether they may once they live settled too is for when they do.)
+     */
+    @Transient val totemKinds = kinds.count { it !in Catalogue.roamingResidents }
     /** Each kind's place in [kinds] (and in every table here kept by kind), by its [Species.index]; -1 for a kind kept in groups. */
     @Transient internal val slots = IntArray(Catalogue.all.size) { -1 }.also { for ((k, s) in kinds.withKinds()) it[s.index] = k.i }
     /** [s]'s place in [kinds], or -1 if it is not a resident. */
@@ -306,6 +313,8 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, internal v
         // crashing out of it: half its usual density where its food grows, no denser where the ground
         // suits it best, and thinner where it is far from water or the climate is wrong for it.
         for ((k, s) in kinds.withKinds()) {
+            // (The settled of kinds that also roam start at none, until they can leave and settle: [Catalogue.roamingResidents].)
+            if (s in Catalogue.roamingResidents) continue
             val dens = if (s.startKm2PerAnimal > 0f) 1f / s.startKm2PerAnimal else 0.5f
             for (p in land.places) {
                 // (Hunters among the residents live on prey found wherever there is life: food is no bar to them here.)
@@ -356,6 +365,7 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, internal v
         for (k in kindIds) {
             if (count(k) >= NEWCOMER_ANIMALS) continue
             val s = kinds[k]
+            if (s in Catalogue.roamingResidents) continue
             val w = FloatArray(n) { p -> startWeight(s, Place(p)) }
             val total = w.sum(); if (total <= 0f) continue
             repeat(NEWCOMER_PLACES) {
