@@ -12,6 +12,7 @@ import inflation.ecology.HexFeatures
 import inflation.ecology.HexGroup
 import inflation.ecology.HexSim
 import inflation.ecology.MoveDecision
+import inflation.ecology.Mind
 import inflation.ecology.Store
 import inflation.ecology.Tool
 import inflation.ecology.WAYS_OUT
@@ -128,6 +129,8 @@ class GroupControlWindow(
     private val tableModel = Choices()
     private val waysPanel = JPanel(GridBagLayout())
     private var wayRows = emptyList<WayRow>()
+    /** A planning band's week, as a game's turn: its choice of camp and its days, with the numbers behind them ([PlanPanel]). */
+    private val plan = PlanPanel(where = { where(it) }, pickPlace = { p -> decision?.let { d -> d.places.indexOf(p).takeIf { it >= 0 }?.let { choose(it) } } })
     /** Candidate indices in the table's order (best by the model first). */
     private var order = IntArray(0)
     private var updating = false
@@ -156,6 +159,7 @@ class GroupControlWindow(
         val choices = JSplitPane(JSplitPane.VERTICAL_SPLIT, JScrollPane(table), JScrollPane(place)).apply { resizeWeight = 0.6 }
         val tabs = JTabbedPane()
         tabs.addTab("Status", JScrollPane(status))
+        tabs.addTab("Plan", plan.component)
         tabs.addTab("Where to go", choices)
         tabs.addTab("Ways", JScrollPane(waysPanel))
         tabs.addTab("What it knows", JScrollPane(knows))
@@ -220,7 +224,7 @@ class GroupControlWindow(
         release()
         decision = null; pins = FloatArray(0); pinsFor = -1
         synchronized(trail) { trail.clear() }; seenBefore = emptySet()
-        SwingUtilities.invokeLater { refresh(); startIfIdle() }
+        SwingUtilities.invokeLater { plan.clear(); refresh(); startIfIdle() }
     }
 
     /** A week has run (on the simulation's thread). */
@@ -229,7 +233,8 @@ class GroupControlWindow(
             synchronized(trail) { trail.addLast(g.path.copyOf()); while (trail.size > TRAIL_WEEKS) trail.removeFirst() }
         }
         val log = groups.watchLog.joinToString("\n")
-        SwingUtilities.invokeLater { lastWeek.text = log; refresh() }
+        val looks = planLooks()
+        SwingUtilities.invokeLater { lastWeek.text = log; looks(); refresh() }
         playerWeek = false
         if (startNext && isOpen && !running() && groups.watched >= 0 && !handsOff.isSelected) { startNext = false; stepHere() }
         else startNext = false
@@ -269,6 +274,8 @@ class GroupControlWindow(
         // (The groups it saw last time it chose, so that those that left can be shown going.)
         decision?.let { old -> if (old.group.id == d.group.id) seenBefore = nearIds(hw.placeHex[old.group.place]) }
         decision = d
+        val looks = planLooks()
+        SwingUtilities.invokeLater(looks)
         val f = if (handsOff.isSelected || !isOpen || !playerWeek || running()) null else CompletableFuture<Int>()
         waiting = f
         SwingUtilities.invokeLater { refresh() }
@@ -286,6 +293,15 @@ class GroupControlWindow(
     private fun toWay(out: Float) = 2f / (1f + exp(-out))
 
     // ---- What the window shows ----
+
+    /** The followed band's latest plan as the sim kept it (read now, on the simulation's thread), to show on Swing's. */
+    private fun planLooks(): () -> Unit {
+        val id = groups.watched
+        val g = groups.groups.firstOrNull { it.id == id && it.alive }
+        val planner = g?.band?.mind == Mind.PLANS
+        val m = groups.moveLook; val d = groups.daysLook
+        return { plan.update(id, planner, m, d) }
+    }
 
     private fun refresh() = world.whileStill { refreshNow() }
 

@@ -40,22 +40,29 @@ internal fun HexGroups.planDays(g: HexGroup, b: Band, weather: Weather, time: Ba
     var left = time.left
     for (a in Activity.entries) left -= days(a, needs[a] + warm[a] + kept[a])
     left = max(0f, left)
+    // (The viewer's Plan tab, for the followed band: the week's reckoning as it goes, [DaysLook].)
+    val look = if (looked(g)) DaysLook(g.id, weather.date, g.size, time.total).also { l ->
+        l.walkAndWater = time.total - time.left
+        for (a in Activity.entries) l.essentials[a.ordinal] = days(a, needs[a] + warm[a] + kept[a])
+        l.afterEssentials = left
+    } else null
     // What its customs owe.
     val owed = floatArrayOf(days(Activity.CUSTOMS, asks[Activity.CUSTOMS]), days(Activity.ORNAMENTS, asks[Activity.ORNAMENTS]))
     val paid = BandTime.shareOut(owed, floatArrayOf(1f, 1f), left)
     given[Activity.CUSTOMS] = paid[0] * time.pace(Activity.CUSTOMS); given[Activity.ORNAMENTS] = paid[1] * time.pace(Activity.ORNAMENTS)
     left -= paid.sum()
+    look?.let { it.customsAsked = owed[0]; it.customsPaid = paid[0]; it.ornamentsAsked = owed[1]; it.ornamentsPaid = paid[1] }
     // What it holds by lives saved, tier by tier: survival now (the stores), then over generations (the houses and weirs,
     // the one that saves the most days for its days first), each as far as it asks this week ([planRates]); a tier has
     // what the one below it left.
-    val rate = planRates(g, b, weather, perDay, asks[Activity.HOUSES] > 0f, asks[Activity.WEIRS] > 0f)
+    val rate = planRates(g, b, weather, perDay, asks[Activity.HOUSES] > 0f, asks[Activity.WEIRS] > 0f, look)
     val acts = SCORED_ACTS
     val ask = FloatArray(SCORED_ITEMS) { asks[acts[it]] }
     // (Its tools: each it reckons worth making ([toolRates]) asks its days, the rest none, beside the clothes the survival pass gave.)
     // (Its grinding stones first by the births their gruel adds, in lives ([gruelRate]); if they add none, by their days
     // with its other tools.)
-    gruelRate(g, b).let { (r, a) -> rate[GRUEL] = r; ask[GRUEL] = a }
-    toolRates(g, b, perDay, skip = if (rate[GRUEL] > 0f) Tool.GRINDER else null).let { (r, a) -> rate[TOOLS] = r; ask[TOOLS] = a }
+    gruelRate(g, b, look).let { (r, a) -> rate[GRUEL] = r; ask[GRUEL] = a }
+    toolRates(g, b, perDay, skip = if (rate[GRUEL] > 0f) Tool.GRINDER else null, look = look).let { (r, a) -> rate[TOOLS] = r; ask[TOOLS] = a }
     val d = FloatArray(SCORED_ITEMS)
     // (The stores and the gruel while they save any lives; a house, a weir or its tools when they save more days than they take.)
     val order = (0 until LIVES_ITEMS).toList() + (LIVES_ITEMS until SCORED_ITEMS).sortedByDescending { rate[it] }
@@ -64,6 +71,10 @@ internal fun HexGroups.planDays(g: HexGroup, b: Band, weather: Weather, time: Ba
         d[i] = min(ask[i], left * time.pace(acts[i])); left -= d[i] / time.pace(acts[i])
     }
     for (i in 0 until SCORED_ITEMS) given[acts[i]] = d[i]
+    look?.let { l ->
+        for (i in 0 until SCORED_ITEMS) l.items += ItemLook(SCORED_NAMES[i], if (i < LIVES_ITEMS) "lives" else "days", ask[i] / time.pace(acts[i]), rate[i],
+            if (i < LIVES_ITEMS) SAVES_NONE * g.size else 1f, d[i] / time.pace(acts[i]), order.indexOf(i), l.pending[i])
+    }
     left = max(0f, left)
     // What has no reckoning in lives yet, at equal weights.
     // (And its clothes beyond the days the survival pass gave them, as they were before tools were reckoned: kept up, not
@@ -77,6 +88,11 @@ internal fun HexGroups.planDays(g: HexGroup, b: Band, weather: Weather, time: Ba
     given[Activity.TOOLS] += shared[UNRECKONED_ACTS.size] * time.pace(Activity.TOOLS)
     left = max(0f, left - shared.sum())
     given[Activity.LEISURE] = left * time.pace(Activity.LEISURE)
+    look?.let { l ->
+        for (i in rest.indices) l.unreckoned += Triple(if (i < UNRECKONED_ACTS.size) UNRECKONED_ACTS[i].label else "clothes beyond the survival pass", rest[i], shared[i])
+        l.leisure = left
+        daysLook = l
+    }
     // (For the census: the days of each tier, and the lives the scored days were reckoned to save.)
     fun add(t: PlanTier, v: Float) { stats.tally(Tally.planTier(t), (10f * v).roundToInt()) }
     add(PlanTier.OBLIGED, paid.sum()); add(PlanTier.SCORED, (0 until LIVES_ITEMS).sumOf { (d[it] / time.pace(acts[it])).toDouble() }.toFloat())
@@ -113,7 +129,7 @@ internal fun HexGroups.planDays(g: HexGroup, b: Band, weather: Weather, time: Ba
  * Not foreseen, as in [yearAhead]: the larder spoiling or raided, and the year beyond the next. ([houses]: whether it asks
  * for days for houses; the houses are reckoned only then.)
  */
-private fun HexGroups.planRates(g: HexGroup, b: Band, weather: Weather, perDay: Float, houses: Boolean, weirs: Boolean): FloatArray {
+private fun HexGroups.planRates(g: HexGroup, b: Band, weather: Weather, perDay: Float, houses: Boolean, weirs: Boolean, look: DaysLook? = null): FloatArray {
     val year = yearAhead(g, b, weather)
     val need = g.dailyNeedKg.coerceAtLeast(1e-3f)
     val people = g.size.toFloat()
@@ -126,6 +142,21 @@ private fun HexGroups.planRates(g: HexGroup, b: Band, weather: Weather, perDay: 
         val was = storesAlive(g, b, weather, g.larder)
         val filled = if (was != null) storesAlive(g, b, weather, g.larder + gap) else null
         rate[0] = (if (was != null && filled != null) people * (filled - was) else alive(gap) - now) / (gap / perDay)
+        look?.let { l ->
+            val s = 0
+            l.note(s, "reckoned by", if (was != null && filled != null) "its own past weeks (how often its larder ran out)" else "the year-ahead forecast")
+            l.note(s, "people alive through the year, as it stands", "%.3f".format(if (was != null) people * was else now))
+            l.note(s, "... with the stores filled", "%.3f".format(if (was != null && filled != null) people * filled else alive(gap)))
+            l.note(s, "days of work to fill them", "%.1f".format(gap / perDay))
+        }
+    }
+    look?.let { l ->
+        val s = 0
+        l.note(s, "larder", "%.1f days of need".format(g.larder / need))
+        l.note(s, "store aim", "%.1f days (lean %.1f)".format(b.storeAimAt1, b.leanDays))
+        l.note(s, "gap to fill", "%.1f days of need".format(max(0f, gap) / need))
+        l.note(s, "kg of need a person-day of foraging brings", "%.2f".format(perDay))
+        l.note(s, "fat, burnt", "%.1f, %.1f".format(g.fat, g.spent))
     }
     if (PLAN_TRACE.wants(g.id.toLong(), weather.date.absoluteDay)) {
         val larderDays = g.larder / need
@@ -145,6 +176,14 @@ private fun HexGroups.planRates(g: HexGroup, b: Band, weather: Weather, perDay: 
         // the years kept would take, at this week's [perDay]. In lives a house was worth none: house trace, 2026-10-31.)
         val saved = if (perDay > 0f) kg / perDay else 0f
         rate[HOUSES] = saved / (HOUSE_DAYS * g.adults.coerceAtLeast(1))
+        look?.let { l ->
+            val s = HOUSES
+            l.note(s, "camp kept", "%d steps; at home %b; houses %.0f%% built".format(b.campWeeks, b.atHome, 100 * b.house))
+            l.note(s, "years it expects to keep the place", "%.2f".format(years))
+            l.note(s, "food a whole house saves a person a year", "%.1f kg (as lived %.1f, usual cold %.1f)".format(kg / years.coerceAtLeast(1e-6f) / people.coerceAtLeast(1f), b.houseFood, houseFoodAYear(g, b, g.place, weather)))
+            l.note(s, "over the years", "%.0f kg = %.0f days of foraging at %.2f kg a person-day".format(kg, saved, perDay))
+            l.note(s, "days to build a whole house", "%.0f".format(HOUSE_DAYS * g.adults.coerceAtLeast(1)))
+        }
         // (planTrace: what a house was reckoned at.)
         if (HOUSE_TRACE.wants(g.id.toLong(), weather.date.absoluteDay))
             System.err.println(("house trace: band %d, %s, %d people (%d grown), camp kept %d steps, at home %b, houses %.2f, reckoned kept %.2f y; " +
@@ -160,6 +199,14 @@ private fun HexGroups.planRates(g: HexGroup, b: Band, weather: Weather, perDay: 
         val years = keepYears(b, stepsPerYear)
         val aYear = (if (perDay > 0f) b.weirFood / perDay else 0f) - b.weirTend - WEIR_WEAR * whole
         rate[WEIRS] = if (whole > 0f) aYear * years / whole else 0f
+        look?.let { l ->
+            val s = WEIRS
+            l.note(s, "days to build a whole weir", "%.0f".format(whole))
+            l.note(s, "years it expects to keep the place", "%.2f".format(years))
+            l.note(s, "a year as lived", "%.0f kg of need = %.0f days of foraging".format(b.weirFood, if (perDay > 0f) b.weirFood / perDay else 0f))
+            l.note(s, "less tending, mending a year", "%.0f, %.0f days".format(b.weirTend, WEIR_WEAR * whole))
+            l.note(s, "days saved a year", "%.1f".format(aYear))
+        }
         if (WEIR_TRACE.wants(g.id.toLong(), weather.date.absoluteDay))
             System.err.println(("weir trace: band %d, %s, %d people, camp kept %d steps, reckoned kept %.2f y; a whole weir %.0f days to build; " +
                 "a year as lived: %.0f kg of need (%.0f days of foraging at %.2f kg a person-day), %.0f days tending, %.0f mending: %.2f " +
@@ -218,6 +265,8 @@ private const val GRUEL = 1
 private const val HOUSES = 2
 private const val WEIRS = 3
 private const val TOOLS = 4
+/** [SCORED_ACTS]' items by name, for the viewer ([ItemLook]). */
+private val SCORED_NAMES = arrayOf("stores", "grinding stones for gruel", "houses", "weirs", "tools")
 /** Fewer lives than this a person are none saved: the rounding in the reckoning, not a difference. */
 private const val SAVES_NONE = 1e-6f
 
@@ -243,7 +292,7 @@ enum class ToolWork { PLANT_DAYS, SEED_DAYS, SEED_FOOD }
  * Marks the tools that save more days than they take in [Band.toolPays] (it makes and mends those alone), and returns
  * their days saved over their days ([planDays]' rate) and the days they ask.
  */
-private fun HexGroups.toolRates(g: HexGroup, b: Band, perDay: Float, skip: Tool? = null): Pair<Float, Float> {
+private fun HexGroups.toolRates(g: HexGroup, b: Band, perDay: Float, skip: Tool? = null, look: DaysLook? = null): Pair<Float, Float> {
     val people = g.adults.toFloat()
     val wk = b.toolWork
     // (Its kills' meat and fat, and its small game and fish, kg a year, as it lived ([Band.foodFrom], kept in a save).)
@@ -276,10 +325,17 @@ private fun HexGroups.toolRates(g: HexGroup, b: Band, perDay: Float, skip: Tool?
                 "%.0f kg small game and fish; a whole kit saves %.1f days a year, lasts %.1f y, takes %.0f days to make: %.2f (made at 1 or more)").format(
                 g.id, t.name, g.adults, k, wk[ToolWork.PLANT_DAYS], wk[ToolWork.SEED_DAYS], wk[ToolWork.SEED_FOOD], meatKg, netKg,
                 aYear / (1f - k), lasts, whole, over))
+        look?.let { it.tools += ToolLook(t, k, aYear / (1f - k), lasts, whole, over, over >= 1f) }
         if (over < 1f) continue
         b.toolPays[t] = true
         saved += aYear * lasts; cost += (1f - k) * whole
         asked += makeTools(b, people, null, only = t)
+    }
+    look?.let { l ->
+        val s = TOOLS
+        l.note(s, "a year as lived", "%.0f plant days, %.0f seed days, %.0f kg of need from seed".format(wk[ToolWork.PLANT_DAYS], wk[ToolWork.SEED_DAYS], wk[ToolWork.SEED_FOOD]))
+        l.note(s, "meat; small game and fish, kg a year", "%.0f; %.0f".format(meatKg, netKg))
+        l.note(s, "the tools that pay, together", "%.0f days saved over their life for %.0f days of making".format(saved, cost))
     }
     return (if (cost > 0f) saved / cost else 0f) to asked
 }
@@ -294,7 +350,7 @@ private fun HexGroups.toolRates(g: HexGroup, b: Band, perDay: Float, skip: Tool?
  * returns lives a day of work and the days they ask. (A band that leaves its grinding stones on a move so reckons making
  * them again at its new camp; doc: Moving and settling under the planner.)
  */
-private fun HexGroups.gruelRate(g: HexGroup, b: Band): Pair<Float, Float> {
+private fun HexGroups.gruelRate(g: HexGroup, b: Band, look: DaysLook? = null): Pair<Float, Float> {
     val t = Tool.GRINDER
     val people = g.adults.toFloat()
     val k = b.has(t)
@@ -305,6 +361,13 @@ private fun HexGroups.gruelRate(g: HexGroup, b: Band): Pair<Float, Float> {
     val lasts = min(1f / t.wearPerYear, keepYears(b, stepsPerYear))
     val whole = (1f - k) * t.makeDays * people / b.makeSkill(t).coerceAtLeast(1e-3f)
     val rate = births * lasts / whole
+    look?.let { l ->
+        val s = GRUEL
+        l.note(s, "kit", "%.0f%% of a whole kit".format(100 * k))
+        l.note(s, "seed for gruel", "%.0f%% of what weaning wants".format(100 * seed))
+        l.note(s, "births a year a whole kit adds", "%.3f".format(births))
+        l.note(s, "lasts, days to make the rest", "%.1f y, %.0f days".format(lasts, whole))
+    }
     if (rate <= SAVES_NONE * g.size) return 0f to 0f
     b.toolPays[t] = true
     return rate to makeTools(b, people, null, only = t)

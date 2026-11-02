@@ -118,7 +118,12 @@ season's place), how it stands and who shares its hex, what it knows of itself a
 can reach, the places coloured by how the model scores them with the model's pick in yellow, and its
 ways for the week. Click another place or pin a way to override the model; Next step runs the week,
 and the next week then waits at the group's choice (unless "Model decides" is ticked). The
-overview's Run and Step take over: their weeks run on the model's choices. `nets=DIR`, with `ways=FILE`,
+overview's Run and Step take over: their weeks run on the model's choices. A planning band
+(`t.planners`) shows its week in the Plan tab as a turn: whether it stays or moves and why (its case
+for leaving part by part against the walk, and each place it weighed with the rule that let it in
+or kept it out, with "go here"), its week's days as one bar by tier, each scored item's ask, rate,
+bar and days held with the reckoning behind it, each tool's days saved against its making, and a
+list of the weeks it planned. `nets=DIR`, with `ways=FILE`,
 in the config file picks the learned networks, as in `hexFauna`;
 without it the latest baseline is used.
 
