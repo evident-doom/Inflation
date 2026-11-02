@@ -140,7 +140,10 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * body mass (8/km² for roe deer, 0.4 for hippos), so that crowding is reckoned against what is
      * crowded for its size, not one density for every kind.
      */
-    @Transient private val usual = FloatArray(kinds.size) { k -> usualDensity(kinds[k]) }
+    // (Of a kind that also roams, the territories its packs hold: one of its usual size a hex, as their marks keep them
+    // ([HexGroups.mark]), so its settled are held where its packs were.)
+    @Transient private val usual = FloatArray(kinds.size) { k -> val s = kinds[k]
+        if (s in Catalogue.roamingResidents) s.groupSize / hex.areaKm2.toFloat() else usualDensity(s) }
     /**
      * Outbreaks (rinderpest-like plagues among grazers, distemper and rabies among hunters, fevers
      * among people), by kind ([Species.index]) and hex: how strongly one is raging, 0..1. One starts
@@ -457,6 +460,21 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * until they live by people's camps, where they grow bolder ([HexGroups.keepAnimals]); it goes with them as they move.
      */
     val bold = Array(kinds.size) { k -> FloatArray(n) { kinds[k].boldShare } }
+    /**
+     * Of each kind that also roams ([Catalogue.roamingResidents]), the grown young due to leave each hex as roamers, heads (null
+     * for the others): grown up this week on crowded ground ([leaveShare]), still counted among the hex's grown until they go
+     * ([HexGroups.roamersLeave] takes them off, whole ones, the fraction left for next week).
+     */
+    val leaving = Array(kinds.size) { k -> if (kinds[k] in Catalogue.roamingResidents) FloatArray(hex.size) else null }
+
+    /**
+     * The share of a kind's young growing up at a place where its kind stands at [heads] per km² that leave it as roamers:
+     * [LEAVE_BASE] of them wherever they are born (most young wolves leave the pack they were born in, and young male lions
+     * their pride), and more as the ground is crowded beyond its usual numbers ([usual], the territories there are), up to
+     * [LEAVE_BASE] + [LEAVE_CROWD] at twice them, as young grown up leave a pack already as big as its kind's usual one ([liveWeek]).
+     */
+    private fun leaveShare(heads: Float, usual: Float) = LEAVE_BASE + LEAVE_CROWD * (heads / usual - 1f).coerceIn(0f, 1f)
+
     /** What a grown animal carries with it as it moves ([carried]). */
     private enum class Carry { BRED, FAT, SPENT, BOLD }
     /**
@@ -495,8 +513,6 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         // crashing out of it: half its usual density where its food grows, no denser where the ground
         // suits it best, and thinner where it is far from water or the climate is wrong for it.
         for ((k, s) in kinds.withKinds()) {
-            // (The settled of kinds that also roam start at none, until they can leave and settle: [Catalogue.roamingResidents].)
-            if (s in Catalogue.roamingResidents) continue
             val dens = if (s.startKm2PerAnimal > 0f) 1f / s.startKm2PerAnimal else 0.5f
             for (p in land.places) {
                 // (Hunters among the residents live on prey found wherever there is life: food is no bar to them here.)
@@ -509,7 +525,9 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             if (settled != null) {
                 val want = settled * land.areaKm2.sum() / 1000f
                 val now = count(k).toFloat()
-                if (now > 0f) { val f = want / now; for (p in land.places) { adults[k][p] *= f; young[k][p] *= f } }
+                // (Of a kind that also roams, the settled are all but the roamers it starts with: [HexGroups], [ROAMERS_AT_START].)
+                val settledShare = if (s in Catalogue.roamingResidents) 1f - ROAMERS_AT_START else 1f
+                if (now > 0f) { val f = settledShare * want / now; for (p in land.places) { adults[k][p] *= f; young[k][p] *= f } }
             }
         }
     }
@@ -767,7 +785,6 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         for (k in kindIds) {
             if (count(k) >= NEWCOMER_ANIMALS) continue
             val s = kinds[k]
-            if (s in Catalogue.roamingResidents) continue
             val w = FloatArray(n) { p -> startWeight(s, Place(p)) }
             val total = w.sum(); if (total <= 0f) continue
             repeat(NEWCOMER_PLACES) {
@@ -1103,7 +1120,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             val s = kinds[k]
             val carcassKg = carcasses[k]
             val grow = years / s.yearsToMaturity
-            val a = adults[k]; val y = young[k]; val f = fed[k]; val dk = dry[k]
+            val a = adults[k]; val y = young[k]; val f = fed[k]; val dk = dry[k]; val leavingK = leaving[k]
             val hz = enumFloats<Danger>()
             for (p in land.places) {
                 if (a[p] + y[p] <= 0f) { dk[p] = 0f; continue }
@@ -1149,6 +1166,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 // Growing up.
                 val up = y[p] * grow
                 y[p] -= up; a[p] += up
+                // (Of a kind that also roams, grown young on crowded ground are due to leave it as roamers: [leaving].)
+                leavingK?.let { it[hw.placeHex[p]] += up * area * leaveShare(a[p] + y[p], usual[k]) }
                 bornBook?.add((up * area * (1f - YOUNG_WEIGHT) * s.massKg).toDouble())
                 if (a[p] + y[p] < EXTINCT) { carcassKg[p] += (a[p] + 0.3f * y[p]) * area * s.massKg; a[p] = 0f; y[p] = 0f }
             }
@@ -1621,7 +1640,10 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             val need = maxOf((1f - f[p]).coerceIn(0f, 1f), thirst, max(uneasy, snowedIn))
             val h = hw.placeHex[p]
             // Hungry, thirsty, cold or snowed-in ones leave, and so do those whose country does not suit them, towards better.
-            val leave = SPILL_BASE + SPILL_HUNGER * need + SPILL_MISFIT * bearings.strength(k.i, h)
+            // (The settled of a kind that also roams hold their ground: only want drives them off it; roaming to better country
+            // is the roamers' part, [Catalogue.roamingResidents].)
+            val settled = s in Catalogue.roamingResidents
+            val leave = if (settled) SPILL_HUNGER * need else SPILL_BASE + SPILL_HUNGER * need + SPILL_MISFIT * bearings.strength(k.i, h)
             // Where they could go: in each neighbouring hex, the ground nearest in height to theirs (see [neighbourPlaces]),
             // weighed by how good it is and how easy the border is.
             var total = 0f; var best = 0f; var closed = false
@@ -1659,7 +1681,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             if (total <= 0f) continue
             // (And the more so the better the country next door is than here.)
             val better = if (best > 0f) ((best - here) / best).coerceIn(0f, 1f) else 0f
-            val go = min(0.5f, leave + SPILL_BETTER * better).let { if (weeks == 1) it else 1f - (1f - it).pow(weeks) }
+            val go = min(0.5f, leave + (if (settled) 0f else SPILL_BETTER * better)).let { if (weeks == 1) it else 1f - (1f - it).pow(weeks) }
             val goA = a[p] * go * land.areaKm2[p]; val goY = y[p] * go * land.areaKm2[p]
             if (seaTo >= 0) {
                 val share = seaW / (total + seaW)
@@ -1722,6 +1744,43 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         if (there <= 0f) return
         val keep = max(0f, 1f - heads / there)
         for (q in places) y[q] *= keep
+    }
+
+    /** Takes [heads] grown of kind [k] off the places of hex [h], each place its share by its grown there. Returns the place that held the most. */
+    fun takeGrown(k: FaunaKind, h: Hex, heads: Float): Place {
+        val a = adults[k]; val places = hw.placesOf(h)
+        var there = 0f; var most = places[0]; var mostHeads = -1f
+        for (q in places) { val hq = a[q] * land.areaKm2[q]; there += hq; if (hq > mostHeads) { mostHeads = hq; most = q } }
+        if (there > 0f) { val keep = max(0f, 1f - heads / there); for (q in places) a[q] *= keep }
+        return Place(most)
+    }
+
+    /** The grown heads of kind [k] on the places of hex [h]. */
+    fun grownIn(k: FaunaKind, h: Hex): Float { var v = 0f; for (q in hw.placesOf(h)) v += adults[k][q] * land.areaKm2[q]; return v }
+
+    /**
+     * Whether a roamer of [s] finds room to settle in hex [h]: its kind's settled there are fewer than its territories hold
+     * ([usual] over the hex's land).
+     */
+    fun roomFor(s: Species, h: Hex): Boolean {
+        val k = slot(s); if (k.none) return false
+        var heads = 0f; var area = 0f
+        for (q in hw.placesOf(h)) { heads += (adults[k][q] + young[k][q]) * land.areaKm2[q]; area += land.areaKm2[q] }
+        return heads < usual[k] * area
+    }
+
+    /**
+     * Group [g] of a kind that also roams settles: it joins its kind's settled at its place, carrying its fat, body burnt,
+     * season of births had and boldness of people in with them as any that move do ([carried]).
+     */
+    fun joinSettled(g: HexGroup) {
+        val k = slot(g.species); if (k.none) return
+        val p = g.place; val a = adults[k]; val area = land.areaKm2[p]; val carry = carried(k)
+        for (c in carry.indices) {
+            val had = when (Carry.entries[c]) { Carry.BRED -> g.bred; Carry.FAT -> g.fat; Carry.SPENT -> g.spent; Carry.BOLD -> boldness(g) }
+            carry[c][p] = bound(c, k, mixed(carry[c][p], a[p] * area, had, g.adults.toFloat()))
+        }
+        a[p] += g.adults / area; young[k][p] += g.young / area
     }
 
     /** A per-head number of [there] grown that had [was] and [came] that had [had], together. */
@@ -2019,6 +2078,14 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         const val STRIFE_CROWD = 2f
         const val STRIFE_DEATHS = 2f
         const val STRIFE_YOUNG = 2f
+        /**
+         * [leaveShare]: of a kind that also roams, the share of its young growing up that leave wherever they are born, and the
+         * more that leave on ground crowded to twice its usual numbers.
+         */
+        const val LEAVE_BASE = 0.5f
+        const val LEAVE_CROWD = 0.5f
+        /** Of a kind that also roams, the share of its numbers that start out roaming, the rest settled ([Catalogue.roamingResidents]). */
+        const val ROAMERS_AT_START = 0.15f
         /** For the check only ([stuck]): fed below this counts as hungry. */
         const val STUCK_FED = 0.8f
         /**

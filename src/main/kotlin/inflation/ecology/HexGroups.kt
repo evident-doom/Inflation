@@ -139,7 +139,9 @@ class HexGroups(
             val unit = if (s.human) max(1, (unitSize(s) * tuning.peopleBand).toInt()) else unitSize(s)
             val usual = if (settled != null) max(if (settled > 0f) 1 else 0, (settled * area / 1000f / unit).toInt()) else (area / per / unit).toInt()
             // (People's start can be a multiple of the usual, to find what the land would carry: t.peopleStart.)
-            val count = if (s.human) (usual * tuning.peopleStart).toInt() else usual
+            // (Of a kind that also lives settled, only the roamers start as packs: [Catalogue.roamingResidents].)
+            val count = if (s.human) (usual * tuning.peopleStart).toInt()
+                else if (s in Catalogue.roamingResidents) (usual * HexFauna.ROAMERS_AT_START).roundToInt() else usual
             val weights = if (uniformStart) FloatArray(n) { p -> land.areaKm2[p] } else startWeights(s)
             val total = weights.sum()
             // (Groups start of all sizes about the usual, the same heads in all: [startSizes].)
@@ -163,7 +165,7 @@ class HexGroups(
                         for (h in seen) for (k in Biome.entries) if (hw.biome[k.ordinal][h] > 0.1f) b.plants[k] = 0.9f
                     }
                 }
-                if (s.lifeway == Lifeway.PACK) claimGround(g, hw.placeHex[p]) else inheritSeasons(g)
+                if (s.lifeway == Lifeway.PACK && s !in Catalogue.roamingResidents) claimGround(g, hw.placeHex[p]) else inheritSeasons(g)
                 groups += g
             }
         }
@@ -297,6 +299,7 @@ class HexGroups(
             mark()
             settle(it)
             demography(it, it.date)
+            roamersLeave()
         },
         Phase("groups: the dead and newcomers") {
             // (Groups that merged into another this week, kept for following what became of their choices.)
