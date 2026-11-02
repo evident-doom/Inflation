@@ -39,7 +39,7 @@ internal fun HexFauna.breedAndDie(weather: Weather, date: Date) {
         val s = kinds[k]
         val carcassKg = carcasses[k]
         val grow = years / s.yearsToMaturity
-        val a = adults[k]; val y = young[k]; val f = fed[k]; val dk = dry[k]
+        val a = adults[k]; val y = young[k]; val f = fed[k]; val dk = dry[k]; val leavingK = leaving[k]
         val hz = enumFloats<Danger>()
         for (p in land.places) {
             if (a[p] + y[p] <= 0f) { dk[p] = 0f; continue }
@@ -85,6 +85,8 @@ internal fun HexFauna.breedAndDie(weather: Weather, date: Date) {
             // Growing up.
             val up = y[p] * grow
             y[p] -= up; a[p] += up
+            // (Of a kind that also roams, grown young on crowded ground are due to leave it as roamers: [leaving].)
+            leavingK?.let { it[hw.placeHex[p]] += up * area * leaveShare(a[p] + y[p], usual[k]) }
             bornBook?.add((up * area * (1f - YOUNG_WEIGHT) * s.massKg).toDouble())
             if (a[p] + y[p] < EXTINCT) { carcassKg[p] += (a[p] + 0.3f * y[p]) * area * s.massKg; a[p] = 0f; y[p] = 0f }
         }
