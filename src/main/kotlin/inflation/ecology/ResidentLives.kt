@@ -167,7 +167,7 @@ internal fun HexFauna.hazards(k: FaunaKind, p: Place, weather: Weather, month: I
     out[Danger.CROWD] = crowd
     out[Danger.SICK] = Hazards.crowdDisease(crowd, fed, years); out[Danger.OUTBREAK] = outbreakDeaths(s, p)
     // Hunters hold ground: past the numbers their territories hold, they fight their own kind and kill its young.
-    out[Danger.STRIFE] = if (s.carnivore) strife(heads, usual[k]) else 0f
+    out[Danger.STRIFE] = if (s.carnivore) strife(heads, usual[k], if (s in Catalogue.roamingResidents) tuning.roamerStrifeCrowd else STRIFE_CROWD) else 0f
     val (fireA, floodA, snowA) = calamities(s, p, weather, false)
     val (fireY, floodY, snowY) = calamities(s, p, weather, true)
     out[Danger.FIRE_A] = fireA; out[Danger.FLOOD_A] = floodA; out[Danger.SNOW_A] = if (sleeping) 0f else snowA
@@ -178,13 +178,14 @@ internal fun HexFauna.hazards(k: FaunaKind, p: Place, weather: Weather, month: I
 
 /**
  * The share of a resident hunter kind's grown animals among [heads] a km² killed in a week by their own kind fighting
- * over ground ([Danger.STRIFE]; the young [STRIFE_YOUNG] times as many): none up to [STRIFE_CROWD] times its usual
+ * over ground ([Danger.STRIFE]; the young [STRIFE_YOUNG] times as many): none up to [crowd] times its usual ([STRIFE_CROWD],
+ * for wolves and lions settled with roaming packs [Tuning.roamerStrifeCrowd])
  * numbers ([usualKm2]), the territories there are, and growing with the square of the excess beyond, [STRIFE_DEATHS] a
  * year at twice the territories' numbers. As packs, rivals, the homeless and lions killing their young hold them;
  * as residents nothing else would but the breeding spacing (leopards rose fivefold in ten years: ab-residents, 2026-10-31).
  */
-internal fun HexFauna.strife(heads: Float, usualKm2: Float): Float {
-    val over = heads / (STRIFE_CROWD * usualKm2) - 1f
+internal fun HexFauna.strife(heads: Float, usualKm2: Float, crowd: Float): Float {
+    val over = heads / (crowd * usualKm2) - 1f
     return if (over > 0f) STRIFE_DEATHS * over * over * years else 0f
 }
 
