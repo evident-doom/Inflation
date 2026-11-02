@@ -196,7 +196,9 @@ internal fun HexGroups.meet(weather: Weather) {
                 if (!residentsMeet(sx.g, sy.g)) continue
                 val (strong, weak) = if (strength(sx.g) >= strength(sy.g)) sx to sy else sy to sx
                 val p = weak.g.place
-                val met = poisson(encounters(sx.g, sy.g, p, days.toFloat()) * sx.bands * sy.bands, r)
+                // (A settled band is in this hex only the share of the week its territory lies in it, as a pack's timetable would put it:
+                // both must be there at once, so the two shares multiply, [weekInHex].)
+                val met = poisson(encounters(sx.g, sy.g, p, days.toFloat() * weekInHex(sx.g.species) * weekInHex(sy.g.species)) * sx.bands * sy.bands, r)
                 if (met == 0) continue
                 out += standInsMeetDraw(strong.g, weak.g, p, min(met, kotlin.math.ceil(min(sx.bands, sy.bands)).toInt()), r).also { it.strong = strong; it.weak = weak }
             }
@@ -394,6 +396,14 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
     val ab = a.band; val bb = b.band
     if (ab != null && bb != null) ab.shareSeasons(bb)
 }
+
+/**
+ * The share of a week a settled band of kind [s] is in any one hex: its kind's territory (its usual group size over its usual
+ * density, [HexFauna.usualDensity]) against the hex's area, at most all of it. Kinds whose territory is larger than a hex
+ * (lions, bears, wolves at their catalogue density) are in a hex only part of the week, as their packs' timetables put them.
+ */
+internal fun GroupWorld.weekInHex(s: Species): Float =
+    min(1f, hex.areaKm2.toFloat() * HexFauna.usualDensity(s) / s.groupSize)
 
 /**
  * How many times two groups that are in the same place for [span] days run into each other, on
