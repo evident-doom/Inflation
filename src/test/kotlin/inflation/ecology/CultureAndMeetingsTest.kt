@@ -45,6 +45,20 @@ class CultureAndMeetingsTest {
     }
 
     @Test
+    fun `a band forgets the ways of a way of life it does not hold faster, the firmer it holds its own`() {
+        val b = Band(1); b.heldLivelihood = Livelihood.FORAGING
+        b.livelihoodHold = 1f
+        assertEquals(2f, b.dropPace(Skill.TENDING)); assertEquals(2f, b.dropPace(Skill.SEALING)); assertEquals(1f, b.dropPace(Skill.HUNT))
+        b.livelihoodHold = 0f
+        assertEquals(1f, b.dropPace(Skill.TENDING))
+        b.heldLivelihood = Livelihood.HERDING; b.livelihoodHold = 1f
+        assertEquals(1f, b.dropPace(Skill.TENDING)); assertEquals(2f, b.dropPace(Skill.MUDBRICK))
+        val kids = (0 until 200).map { livelihoodHoldInherit(0.5f, it, 1L) }
+        assertTrue(kids.all { it in 0f..1f }); assertEquals(0.5f, kids.average().toFloat(), 0.05f)
+        assertEquals(livelihoodHoldInherit(0.5f, 7, 1L), livelihoodHoldInherit(0.5f, 7, 1L))
+    }
+
+    @Test
     fun `every lineage holds the universal traditions, and leaves its dead exactly when it does not bury them`() {
         for (l in 0 until LINEAGES) {
             val t = traditionsAt(l)

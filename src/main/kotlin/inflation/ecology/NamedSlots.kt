@@ -68,6 +68,9 @@ object BandInputs : NamedSlots() {
     val SODIUM_SHORT = one("sodium short"); val SALT_HERE = one("salt here")
     // Its last week's plan: the share of its days it held for each activity ([Band.heldShare]), what it set out to do.
     val HELD = block(Activity.entries.map { "held:${it.label}" })
+    // The way of life it holds itself to ([Band.heldLivelihood]), and how firmly ([Band.livelihoodHold]): living otherwise
+    // costs it regard among its own kind ([Regard.customsApart]).
+    val HOLDS = block(Livelihood.entries.map { "holds:${it.name.lowercase()}" }); val HOLD = one("holds firmly")
 }
 
 /** The slots of a pack's view of itself ([animalInputs]). */

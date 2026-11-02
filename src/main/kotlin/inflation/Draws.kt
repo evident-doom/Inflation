@@ -74,6 +74,8 @@ enum class Stream(val salt: Long) {
     PLANNERS(0x504c414eL),
     TEMPERAMENT(0x54454d50L),
     SISU(0x53495355L),
+    /** How firmly an offshoot holds its way of life, drifting from its parent's. */
+    LIVELIHOOD(0x4c49564cL),
     /** The years a band reckons its stores against. */
     STORES_AHEAD(0x53544f52L),
     /** The lineage of each block of country, and the words spoken there. */

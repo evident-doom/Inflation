@@ -109,6 +109,16 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
             TakeUp.NEITHER -> {}
         }
     }
+    // A way of life goes as a mark does, as far as a band holds its own loosely ([Band.livelihoodHold]): either may come to
+    // hold the one the other shows (none shown by a band living against its own).
+    val showA = bandA.shownLivelihood; val showB = bandB.shownLivelihood
+    val toA = if (showB != null && showB != bandA.heldLivelihood) COPY_TRADITION * u * conformist(bandA.heardLivelihoodShare(showB)) * (1f - bandA.livelihoodHold) else 0f
+    val toB = if (showA != null && showA != bandB.heldLivelihood) COPY_TRADITION * u * conformist(bandB.heardLivelihoodShare(showA)) * (1f - bandB.livelihoodHold) else 0f
+    if (toA + toB > 0f) when (takeUpSide(rnd.nextFloat(), toA, toB)) {
+        TakeUp.A -> { bandA.heldLivelihood = showB!!; bandA.livedOther = 0f; stats.meeting(Met.BANDS_TOOK_UP_ANOTHERS_WAY_OF_LIFE) }
+        TakeUp.B -> { bandB.heldLivelihood = showA!!; bandB.livedOther = 0f; stats.meeting(Met.BANDS_TOOK_UP_ANOTHERS_WAY_OF_LIFE) }
+        TakeUp.NEITHER -> {}
+    }
     riteMeet(bandA, bandB, ab, ba)
     teach(bandA, bandB, u, (doing(a) - doing(b)).coerceIn(-1f, 1f))
     // And the sick among them pass on what is catching.

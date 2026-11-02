@@ -146,6 +146,7 @@ enum class Met(val label: String) {
     BANDS_TOOK_UP_ANOTHERS_BURIAL("bands took up another's burial way"),
     BANDS_TOOK_UP_ANOTHERS_RITE("bands took up another's rite"),
     BANDS_TOOK_UP_ANOTHERS_TOTEM("bands took up another's totem"),
+    BANDS_TOOK_UP_ANOTHERS_WAY_OF_LIFE("bands came to hold another's way of life"),
     BANDS_VISITED_FRIENDS("bands visited friends"),
     CACHES_ROBBED("caches robbed"),
     FAVOURS_HELD_BACK("favours held back"),

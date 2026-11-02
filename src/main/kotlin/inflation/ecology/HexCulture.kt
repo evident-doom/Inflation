@@ -1,6 +1,7 @@
 package inflation.ecology
 
 import inflation.drawKey
+import inflation.drawUnit
 import inflation.Part
 import inflation.EnumBools
 import inflation.Stream
@@ -321,6 +322,36 @@ fun livelihoodHoldAt(lineage: Int) = Math.floorMod((lineage + 11) * 2_654_435_76
 internal const val LIVELIHOOD_YEARS = GENERATION_YEARS
 
 /**
+ * An offshoot's hold on its way of life ([Band.livelihoodHold]): its parent's ([parent]), drifting with a spread (SD) of a fifth
+ * of the founders' range (as rites and temperament drift), drawn from its id [id] and the world's [seed].
+ */
+fun livelihoodHoldInherit(parent: Float, id: Int, seed: Long): Float {
+    fun u(salt: Long) = drawUnit(seed, Stream.LIVELIHOOD, id.toLong(), salt)
+    return (parent + LIVELIHOOD_DRIFT * (u(1) + u(2) + u(3) - 1.5f) * 2f).coerceIn(0f, 1f)
+}
+
+/**
+ * The way of life a way of working belongs to, if any: tending kept animals to herding; sealing storage bins and building
+ * of mudbrick to farming. The rest (gathering, the hunt, crafts, houses of stone or dug in) belong to every way of life.
+ * A judgement, not a measure.
+ */
+val Skill.ofLivelihood: Livelihood? get() = when (this) {
+    Skill.TENDING -> Livelihood.HERDING
+    Skill.SEALING, Skill.MUDBRICK -> Livelihood.FARMING
+    else -> null
+}
+
+/**
+ * How many times faster than [SKILL_DROP] band [this] loses the holders of way [s] while unused: as fast as any way if [s]
+ * belongs to the way of life it holds or to none, else the faster the firmer it holds its own (twice at the firmest: "that is
+ * not what we do"). An estimate.
+ */
+fun Band.dropPace(s: Skill): Float { val l = s.ofLivelihood; return if (l == null || l == heldLivelihood) 1f else 1f + livelihoodHold }
+
+/** The spread (SD) of an offshoot's hold on its way of life about its parent's: a fifth of the founders' range. Not measured. */
+internal const val LIVELIHOOD_DRIFT = 0.2f
+
+/**
  * Whether two bands that both have a home have them on other ground: farther apart than a day's walk ([BODY_CARRY_KM]), the
  * ground a band walks over from its home and back in a day. A band with no home is not counted apart by it, as one that
  * leaves its dead is not by where the other lays them.
@@ -381,12 +412,13 @@ internal class Regard(private val of: Band, private val toId: Int, private val t
     val kin get() = kinship(of.lineage, to.lineage)
     /**
      * How many of its customs ([CUSTOMS]: its traditions, its totem as the other keeps it, where it lays its dead, if both
-     * bury them, its rites' sites, if both keep rites: [ritesApart], how it lives: [livelihood], and its home ground, if both
+     * bury them, its rites' sites, if both keep rites: [ritesApart], the way of life it holds against the one the other shows
+     * ([Band.shownLivelihood]: none while it lives against its own), and its home ground, if both
      * have homes: [homesApart]; read where the map is at hand) the other holds otherwise.
      */
     val customsApart get() = Tradition.entries.count { of.holds(it) != to.holds(it) } + (if (of.totem != to.keptTotem) 1 else 0) +
         (if (of.holds(Tradition.BURIAL) && to.holds(Tradition.BURIAL) && of.burialWay != to.burialWay) 1 else 0) +
-        (if (ritesApart(of, to)) 1 else 0) + (if (of.livelihood() != to.livelihood()) 1 else 0) +
+        (if (ritesApart(of, to)) 1 else 0) + (if (of.heldLivelihood != to.shownLivelihood) 1 else 0) +
         (if (map != null && homesApart(of, to, map)) 1 else 0)
 
     /**
@@ -492,6 +524,7 @@ internal fun HexGroups.cultureWeek(g: HexGroup, rnd: kotlin.random.Random) {
     }
     for (i in b.heardTotem.indices) b.heardTotem[i] *= keep
     for (w in BurialWay.entries) b.heardBurial[w] *= keep
+    for (l in Livelihood.entries) b.heardLivelihood[l] *= keep
     b.totemBroken = max(0f, b.totemBroken - years)
     // (Now and then a band gives up its totem, or one without takes up a kind as its own, as with its traditions.)
     if (fauna.totemKinds > 0 && rnd.nextFloat() < (if (b.totem.none) TAKE_UP else DROP) * years) {

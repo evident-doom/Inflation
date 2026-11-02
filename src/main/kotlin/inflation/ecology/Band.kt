@@ -550,6 +550,7 @@ class Band(kinds: Int, totems: Int = kinds) {
         val i = totemSlot(o.keptTotem)
         if (i < heardTotem.size) heardTotem[i] += u
         if (o.holds(Tradition.BURIAL)) heardBurial[o.burialWay] += u
+        o.shownLivelihood?.let { heardLivelihood[it] += u }
     }
     /**
      * The share of the bands it met lately, itself counted as one, that hold [t] as [held] (for its marks: [conformist]).
@@ -611,6 +612,15 @@ class Band(kinds: Int, totems: Int = kinds) {
     var livelihoodHold = 0f
     var livedOther = 0f
     var livelihoodChosen = false
+    /**
+     * Its way of life as the bands it meets see it: the one it holds while it lives so, none while it lives otherwise (as a
+     * band that ate of its totem is seen to keep none: [keptTotem]). Of the bands it met lately, how many showed each
+     * ([heardLivelihood], fading as [heard]).
+     */
+    val shownLivelihood: Livelihood? get() = heldLivelihood.takeIf { livelihood() == it }
+    val heardLivelihood = enumFloats<Livelihood>()
+    /** The share of the bands it met lately, itself counted as one, that showed [l] as their way of life (for [conformist]). */
+    fun heardLivelihoodShare(l: Livelihood) = (heardLivelihood[l] + (if (heldLivelihood == l) 1f else 0f)) / (heardOf + 1f)
     val words = IntArray(Language.CONCEPTS)
     val lineage = FloatArray(LINEAGES)
     var inbred = 0.02f
@@ -749,7 +759,7 @@ class Band(kinds: Int, totems: Int = kinds) {
         o.omenPlace = omenPlace; o.omenMonth = omenMonth; o.omenYear = omenYear; o.omenWeight = omenWeight; o.deathsUsual = deathsUsual; o.wantSteps = wantSteps; o.wantBroke = wantBroke; o.wantUsual = wantUsual; o.mind = mind; foreseenShares.copyInto(o.foreseenShares); o.foreseenAt = foreseenAt
         traditions.copyInto(o.traditions); heard.copyInto(o.heard); o.heardOf = heardOf
         o.totem = totem; o.marksChosen = marksChosen; o.heardTotem = heardTotem.copyOf(); o.totemBroken = totemBroken
-        o.heldLivelihood = heldLivelihood; o.livelihoodHold = livelihoodHold; o.livedOther = livedOther; o.livelihoodChosen = livelihoodChosen
+        o.heldLivelihood = heldLivelihood; o.livelihoodHold = livelihoodHold; o.livedOther = livedOther; o.livelihoodChosen = livelihoodChosen; heardLivelihood.copyInto(o.heardLivelihood)
         o.burialWay = burialWay; heardBurial.copyInto(o.heardBurial); words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
         o.inbred = inbred; o.campWeeks = campWeeks; o.campPlace = campPlace; o.known = known.copyOf()
         copied(o)

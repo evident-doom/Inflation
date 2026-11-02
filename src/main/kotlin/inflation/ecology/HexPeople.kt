@@ -522,6 +522,8 @@ internal fun HexGroups.bandInputs(g: HexGroup, weather: Weather, into: FloatArra
     into[x.SODIUM_SHORT] = b.sodiumShort
     into[x.SALT_HERE] = if (hw.coast[hw.placeHex[g.place]]) 1f else min(1f, 5f * land.salt[g.place])
     for (a in Activity.entries) into[x.HELD + a.ordinal] = b.heldShare[a]
+    for (l in Livelihood.entries) into[x.HOLDS + l.ordinal] = if (b.heldLivelihood == l) 1f else 0f
+    into[x.HOLD] = b.livelihoodHold
 }
 
 /** The beasts of prey a band tells apart: those that take people ([Species.takesPeople], from the catalogue) and those that do not. */
