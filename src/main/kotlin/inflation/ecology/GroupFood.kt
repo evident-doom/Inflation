@@ -26,6 +26,7 @@ import kotlin.math.sqrt
  * Hunters (and bands) feed along their way: the resident game of every place they passed, small game,
  * carrion, and for those that eat them plants, and for bands fish (see [forage]).
  */
+@Part("hunting: set-up")
 internal fun HexGroups.hunt(weather: Weather) {
     val ways = this.ways
     val inputs = FloatArray(WAYS_IN); val out = FloatArray(WAYS_OUT)

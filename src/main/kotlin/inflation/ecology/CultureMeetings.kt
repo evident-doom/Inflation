@@ -260,6 +260,7 @@ private fun GroupWorld.marryOut(a: HexGroup, bandA: Band, b: HexGroup, bandB: Ba
  * it eats what makes up its week, and takes some home; a band that holds to sharing gives more, and a band gives more
  * to one it is close to ([Regard.close]), as at a meeting.
  */
+@Part("people: visit kin")
 internal fun HexGroups.visitKin(weather: Weather) {
     // (The hungry come in a drawn order, not by age in the list: the first take the most from the best-stocked.)
     val today = weather.date.absoluteDay

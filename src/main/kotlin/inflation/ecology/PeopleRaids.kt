@@ -98,6 +98,7 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
 }
 
 /** The raids set for this week ([plotRaid]), in the bands' order, each if both bands are still alive and the target still there. */
+@Part("people: fight raids")
 internal fun HexGroups.fightRaids(weather: Weather) {
     for ((g, target) in bands.raidsDue) {
         val b = g.band ?: continue; val tb = target.band ?: continue
