@@ -19,9 +19,18 @@ CMDS=(
   "pick-world|inflation.learning.HexPickWorld|--seeds 1-2 --size 300 --lats 36"
 )
 
+# (The worktrees this run makes are removed as it ends, however it ends; the results stay in WORKDIR. KEEP_TREES=1 keeps
+# them for another run on the same refs. core.longpaths: their deepest paths are past Windows' 260 characters.)
+made=()
+cleanup() {
+  [ "${KEEP_TREES:-}" = 1 ] && return
+  for d in "${made[@]}"; do git -C "$REPO" -c core.longpaths=true worktree remove --force "$d" 2>/dev/null || rm -rf "$d"; done
+  git -C "$REPO" worktree prune
+}
+trap cleanup EXIT
 for ref in "$BASE" "$NEW"; do
   d="$W/tree-$(git -C "$REPO" rev-parse --short "$ref")"
-  [ -d "$d" ] || git -C "$REPO" worktree add -q --detach "$d" "$ref" || exit 1
+  [ -d "$d" ] || { git -C "$REPO" worktree add -q --detach "$d" "$ref" || exit 1; made+=("$d"); }
   (cd "$d" && ./gradlew -q compileKotlin processResources) || { echo "build failed at $ref"; exit 1; }
 done
 

@@ -17,9 +17,18 @@ follow=wolf"
 WORLD="--width 300 --height 400"; ARGS="$WORLD --years 1"
 
 tree() { echo "$W/tree-$(git -C "$REPO" rev-parse --short "$1")"; }
+# (The worktrees this run makes are removed as it ends, however it ends; the results stay in WORKDIR. KEEP_TREES=1 keeps
+# them for another run on the same refs. core.longpaths: their deepest paths are past Windows' 260 characters.)
+made=()
+cleanup() {
+  [ "${KEEP_TREES:-}" = 1 ] && return
+  for d in "${made[@]}"; do git -C "$REPO" -c core.longpaths=true worktree remove --force "$d" 2>/dev/null || rm -rf "$d"; done
+  git -C "$REPO" worktree prune
+}
+trap cleanup EXIT
 for ref in "$BASE" "$NEW"; do
   d=$(tree "$ref")
-  [ -d "$d" ] || git -C "$REPO" worktree add -q --detach "$d" "$ref" || exit 1
+  [ -d "$d" ] || { git -C "$REPO" worktree add -q --detach "$d" "$ref" || exit 1; made+=("$d"); }
   echo "$CFG" > "$d/inflation.properties"
 done
 run() { # ref name extra-args [args instead of ARGS]
