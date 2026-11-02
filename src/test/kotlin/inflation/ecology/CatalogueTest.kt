@@ -10,6 +10,8 @@ class CatalogueTest {
         assertTrue(Catalogue.predators.filter { it !in Catalogue.residentHunters }.all { it in Catalogue.learned })
         assertTrue(Catalogue.residentHunters.none { it in Catalogue.learned })
         assertTrue(Catalogue.migratory.all { Catalogue.resident(it) && it !in Catalogue.learned })
+        // (Those that live both ways: settled as residents, roaming as packs a learned mover moves.)
+        assertTrue(Catalogue.roamingResidents.all { Catalogue.resident(it) && it in Catalogue.learned && it !in Catalogue.residentHunters })
     }
 
     @Test

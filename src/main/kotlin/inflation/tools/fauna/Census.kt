@@ -203,6 +203,11 @@ class Census(private val sim: HexSim) {
             "%s %d / %.0f / %.1f%%".format(s.name, gs.size, if (gs.isEmpty()) 0.0 else gs.sumOf { it.size }.toDouble() / gs.size,
                 100.0 * gs.map { hw.placeHex[it.place] }.distinct().size / landHexes)
         })
+        val roaming = groups.kinds.filter { it in Catalogue.roamingResidents }
+        if (roaming.isNotEmpty()) println("     settled / roaming (heads, share roaming): " + roaming.joinToString(", ") { s ->
+            val settled = fauna.count(fauna.slot(s)); val packs = live.filter { it.species == s }.sumOf { it.size }.toDouble()
+            "%s %.0f / %.0f (%.0f%%)".format(s.name, settled, packs, 100.0 * packs / (settled + packs).coerceAtLeast(1.0))
+        })
     }
 
     /** How often each kind's groups weighed their choices, and how often that came to moving (clears the counts). */

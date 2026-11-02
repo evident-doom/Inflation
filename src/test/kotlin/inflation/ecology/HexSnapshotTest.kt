@@ -61,6 +61,9 @@ class HexSnapshotTest {
         assertEquals(null, HexSnapshot.rosterProblem("residents", kinds, kinds))
         // (A kind added at the end too: its tables would start from nothing in a settled world.)
         assertNotNull(HexSnapshot.rosterProblem("residents", kinds, kinds + "onager"))
+        // (But the settled of a kind that also roams load: they start at none, as a fresh model has them.)
+        assertEquals(null, HexSnapshot.rosterProblem("residents", kinds, kinds + Catalogue.roamingResidents.map { it.name }))
+        assertNotNull(HexSnapshot.rosterProblem("groups", kinds, kinds + Catalogue.roamingResidents.map { it.name }))
         assertNotNull(HexSnapshot.rosterProblem("residents", kinds, kinds.reversed()))
     }
 
