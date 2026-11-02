@@ -116,6 +116,15 @@ class Tuning(
      */
     val residentFloor = f("residentFloor", 0.01f)
     /**
+     * Wolves and lions settled with roaming packs (docs/design/roaming-packs.md, [inflation.ecology.Catalogue.roamingResidents]):
+     * their settled's usual numbers, in packs of their usual size a hex; the times those numbers past which they fight their own
+     * kind ([inflation.ecology.HexFauna.STRIFE_CROWD] for other resident hunters); and the share of their young growing up that
+     * leave wherever they are born ([inflation.ecology.HexFauna.leaveShare]). For calibrating them against packs.
+     */
+    val roamerUsual = f("roamerUsual", 1f)
+    val roamerStrifeCrowd = f("roamerStrifeCrowd", 2f)
+    val roamerLeaveBase = f("roamerLeaveBase", 0.5f)
+    /**
      * Protein in cured grass and in straw, against fresh growth (see [inflation.ecology.HexFauna.PROTEIN_NEED]): cured grass
      * and straw keep some of their energy but lose most of their protein (about 4% crude protein against 16% green, though grazers
      * pick the best of it and get about 6%; 3% of straw); and the young's deaths a year from want of protein, at none.

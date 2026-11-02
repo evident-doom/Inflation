@@ -102,7 +102,8 @@ object Nominal {
     /**
      * Hunting kinds in groups, over a year: fed at least as the plant-eaters ([FED_YEAR_MIN]); at least half their
      * packs holding ground of their own (wolves: floaters are some 10–15% of a population, Mech & Boitani 2003, from
-     * memory; the runs: 88–100%); and a kind of at least [HUNTERS_FLOOR] heads kills something every year.
+     * memory; the runs: 88–100%), but for the [Catalogue.roamingResidents], whose packs are the roamers and hold none;
+     * and a kind of at least [HUNTERS_FLOOR] heads kills something every year.
      */
     const val HUNTERS_FED_YEAR_MIN = FED_YEAR_MIN
     const val HOLDING_MIN = 0.5
@@ -298,7 +299,7 @@ object Nominal {
                 Key.isSmallLife(k) || Key.isWaterLife(k) -> drift(t, k, years, ::yearly, SMALL_AND_WATER_LIFE, gone = true)
                 Key.peopleWay(k) != null -> { weekly(0.0, 1.0, ""); eachYear(PEOPLE_MIN.getValue(Key.peopleWay(k)!!), 1.0, "of the bands over the year") }
                 Key.huntersOf(k) == HexHistory.Hunters.FED -> eachYear(HUNTERS_FED_YEAR_MIN, Double.POSITIVE_INFINITY, "of its need got over the year")
-                Key.huntersOf(k) == HexHistory.Hunters.HOLDING -> { weekly(0.0, 1.0, ""); eachYear(HOLDING_MIN, 1.0, "of packs holding ground over the year") }
+                Key.huntersOf(k) == HexHistory.Hunters.HOLDING && Catalogue.roamingResidents.none { it.name == Key.huntersKind(k) } -> { weekly(0.0, 1.0, ""); eachYear(HOLDING_MIN, 1.0, "of packs holding ground over the year") }
                 Key.huntersOf(k) == HexHistory.Hunters.KILLS -> {
                     val kind = Key.huntersKind(k)!!
                     for (y in 0 until years) if (yearly(Key.animals(kind), y) >= HUNTERS_FLOOR) t.check(yearly(k, y) > 0, k) { "killed nothing in year ${y + 1}" }
@@ -469,7 +470,7 @@ object Nominal {
                 if (!v.isNaN()) t.check(v >= least, "people, ${way.label}") { "%s of the bands' heads, under %s".format(fmt(v), fmt(least)) }
             }
         }
-        for (s in sim.groups.kinds) if (s.lifeway == Lifeway.PACK) HexHistory.holdingGround(sim.groups, s)?.let { v ->
+        for (s in sim.groups.kinds) if (s.lifeway == Lifeway.PACK && s !in Catalogue.roamingResidents) HexHistory.holdingGround(sim.groups, s)?.let { v ->
             t.check(v >= HOLDING_MIN, "${s.name}, packs holding ground") { "%s of its packs, under %s".format(fmt(v), fmt(HOLDING_MIN)) }
         }
         // The books (audit=true): what no process explains, against the stock.

@@ -32,6 +32,8 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
     @Transient var meatSpent = true
     /** For a hunter: the hex at the heart of the ground it holds, -1 while it holds none. */
     var home = Hex.NONE
+    /** For a roamer of a kind that also lives settled: the hex it left its kind's settled in, which it does not settle back in ([HexGroups.settle]). */
+    var natal = Hex.NONE
     /** Days since it last drank. */
     var dry = 0f
     /** Weeks in a row it has gone hungry (fed under half); the last hexes it hunted in, newest first. */
