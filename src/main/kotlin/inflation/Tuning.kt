@@ -37,10 +37,10 @@ class Tuning(
     /** The size of the bands people start in, against the usual, the same people in fewer, larger bands (2: half as many bands, twice the size). */
     val peopleBand = f("peopleBand", 1f).also { require(it > 0f) { "t.peopleBand is $it: a band's size is a positive multiple" } }
     /**
-     * The day of the year a world started afresh begins on, against the spring equinox ([inflation.world.Date.START_DAY], 90, when snow still
+     * The day of the year a world started afresh begins on, against the spring equinox ([START_DAY], 90, when snow still
      * lies in the mountains); 0 is the winter solstice, 30 days to a month. A save carries its own date.
      */
-    val startDay = i("startDay", inflation.world.Date.START_DAY).also { require(it in 0 until inflation.world.Date.DAYS_PER_YEAR) { "t.startDay is $it: a day of the year, 0-359" } }
+    val startDay = i("startDay", START_DAY).also { require(it in 0 until DAYS_PER_YEAR) { "t.startDay is $it: a day of the year, 0-359" } }
     /**
      * A world begun once farming is known: the share of people's bands that start as villages on the best farm ground
      * (houses standing, grain stored and sown, the ways of living in houses known: [inflation.ecology.startVillages]); 0, none.
@@ -144,9 +144,9 @@ class Tuning(
     val roundArrivedKm = d("roundArrived", 50.0)
     /**
      * How strongly the place a band remembers doing best at this time of year draws it: per unit of
-     * progress toward it ([inflation.ecology.SEASON_PULL] by default).
+     * progress toward it (1 by default).
      */
-    val seasonPull = f("seasonPull", inflation.ecology.SEASON_PULL)
+    val seasonPull = f("seasonPull", 1f)
     /**
      * The widest hold on its rites a founding band can have, by lineage, as its traditions are: a custom it keeps
      * and passes on (it does not draw the band's moves). Not measured: wide on purpose.

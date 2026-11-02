@@ -165,8 +165,6 @@ internal const val DRY_SOIL_MM = 40f
 internal const val RAIN_AHEAD_MM = 20f
 /** Prey, kg per km² weighed by catchability, at which a place is half as good as it gets for a hunter. */
 internal const val PREY_HALF = 200f
-/** Pull of the season's remembered place, and of staying where one is. */
-internal const val SEASON_PULL = 1.0f
 /** planDiag=kind: once a month, the reasons of one in 97 of that kind's groups for the place it chose, on stderr. */
 internal val PLAN_REASONS = Trace(Config.Key.PLAN_DIAG, "plan reasons", share = 1f / 97, byKind = true)
 /** Strength of the pull to better country beyond which a group treks rather than drifts. */
