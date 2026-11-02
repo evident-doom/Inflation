@@ -714,7 +714,7 @@ internal fun GroupWorld.thirstOdds(g: HexGroup, p: Place, dry: Float): Float {
  * their twenties and early thirties, few in their teens, fewer after thirty-five, none past the
  * childbearing years (the elders).
  */
-private fun mothersIn(g: HexGroup): Float {
+internal fun mothersIn(g: HexGroup): Float {
     val band = g.band
     return if (band != null) {
         val first = max(0, g.adults - band.elders - band.ageStage[0] - band.ageStage[1])
