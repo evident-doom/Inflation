@@ -2,6 +2,7 @@ package inflation.ecology
 
 import inflation.Part
 import inflation.world.Place
+import inflation.world.Hex
 import inflation.world.get
 import inflation.world.set
 import inflation.ecology.HexSmallLife.DeadPool
@@ -88,7 +89,7 @@ internal fun GroupWorld.canSow(g: HexGroup, b: Band, p: Place, date: Date) =
 /**
  * Packs of kinds that follow people (wolves, jackals) and live by a band's camps grow bolder over
  * generations, the shy ones keeping away; from a bold pack the band now and then takes a pup and
- * raises it. Its dogs eat what lies about the camp and a little of the band's food, breed as they are fed, help it hunt
+ * raises it. Resident kinds that follow people live by it the same way ([followingResidents]). Its dogs eat what lies about the camp and a little of the band's food, breed as they are fed, help it hunt
  * small game and guard its camp.
  */
 @Part("people: keep dogs and animals")
@@ -106,6 +107,7 @@ internal fun HexGroups.keepAnimals(g: HexGroup, b: Band) {
             stats.meeting(Met.Of.TOOK_A_PUP, s.name)
         }
     }
+    followingResidents(h, b)
     var dogs = 0f; var need = 0f; var got = 0f
     val p = g.place
     // (A band feeds no more dogs than make a full pack for its hunters ([Dogs.dogShare]); the rest live on what they find.)
@@ -137,6 +139,37 @@ internal fun HexGroups.keepAnimals(g: HexGroup, b: Band) {
     }
     b.dogs.dogFed = if (need > 0f) min(1f, got / need) else 1f
     b.dogs.dogShare = min(1f, dogs / max(1f, g.adults / 3f))
+}
+
+/**
+ * [keepAnimals] for the resident kinds that follow people, as for packs (Olli 2026-11-02: residents and packs alike): each
+ * band of them in the camp's hex [h] (heads over [Species.groupSize], as many as the meetings' stand-ins stand in for,
+ * [ResidentParties]) lives by the camp as a pack would. They grow bolder as a pack does ([HexFauna.bold]), and from each
+ * band the band [b] may take a pup with a pack's odds, off the kind's young there.
+ */
+private fun HexGroups.followingResidents(h: Hex, b: Band) {
+    for ((k, s) in fauna.kinds.withKinds()) {
+        if (!s.followsPeople) continue
+        val places = hw.placesOf(h); val a = fauna.adults[k]; val y = fauna.young[k]; val bold = fauna.bold[k]
+        var grown = 0f; var little = 0f; var boldHeads = 0f
+        for (q in places) { val area = land.areaKm2[q]; grown += a[q] * area; little += y[q] * area; boldHeads += bold[q] * a[q] * area }
+        val bands = (grown + little) / s.groupSize
+        if (bands < ResidentParties.MIN_BANDS) continue
+        val boldNow = if (grown > 0f) boldHeads / grown else s.boldShare
+        for (q in places) bold[q] += BOLD_DRIFT * (1f - bold[q])
+        val tameable = s.domestication.average().toFloat()
+        // (Each whole band a draw, and the part band one as often as its share.)
+        val draws = bands.toInt() + if (rnd.nextFloat() < bands - bands.toInt()) 1 else 0
+        var youngLeft = little
+        repeat(draws) {
+            if (youngLeft >= 1f && drawn(DialSite.KEEP_TAME, b.keepWill, rnd.nextFloat(), TAME * b.keepWill * boldNow * tameable * years) { TAME * boldNow * tameable * years }) {
+                youngLeft -= 1f
+                fauna.takeYoung(k, h, 1f)
+                b.dogs.kept[s.index] += 1f
+                stats.meeting(Met.Of.TOOK_A_PUP, s.name)
+            }
+        }
+    }
 }
 
 /** A group's boldness towards people: its kind's share until it has lived by them. */

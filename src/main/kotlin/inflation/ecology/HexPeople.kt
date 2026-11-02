@@ -272,18 +272,26 @@ internal fun HexGroups.leaveDead(g: HexGroup, freed: MutableList<HexGroup>) {
         val n = b.dogs.kept[i].toInt()
         b.dogs.kept[i] = 0f
         val s = Catalogue.all[i]
-        val pack = dogsGoWild(s, p, n) ?: continue
-        freed += pack
-        stats.meeting(Met.Of.DOGS_GONE_WILD, s.name, n)
+        val pack = dogsGoWild(s, p, n)
+        if (pack != null || (n > 0 && !fauna.slot(s).none)) stats.meeting(Met.Of.DOGS_GONE_WILD, s.name, n)
+        if (pack != null) freed += pack
     }
 }
 
 /**
  * [n] dogs of kind [s] gone wild at [p]: a new pack of their wild kind, bold of people, without ground, with [fatShare]
  * of their kind's most fat; null if not one whole dog went, or the kind lives in no groups here. (The caller adds it to the groups.)
+ * Of a resident kind they join its residents at [p] instead, bold of people ([HexFauna.cameWild]), and it is null.
  */
 internal fun HexGroups.dogsGoWild(s: Species, p: Place, n: Int, fatShare: Float = 0.5f): HexGroup? {
-    if (n < 1 || s !in kinds) return null
+    if (n < 1) return null
+    // (Of a resident kind they join its residents there: heads come into the wild as a pack's would.)
+    if (s !in kinds) {
+        if (fauna.slot(s).none) return null
+        fauna.cameWild(s, p, n)
+        stats.births.merge(s, n, Int::plus)
+        return null
+    }
     val pack = HexGroup(nextId++, s, p, n, 0)
     pack.temper = Temperament.founder(pack.id, seedBase)
     pack.fat = fatShare * s.maxFatDays
