@@ -83,6 +83,7 @@ internal fun HexGroups.inheritSeasons(g: HexGroup) {
     if (top > 0f) for (m in 0 until 12) b.seasonQ[m] = 1f
 }
 
+@Part("groups: demography")
 internal fun HexGroups.demography(weather: Weather, date: Date) {
     // Bands keep or move camp, gather materials and make their tools.
     bands.followersByHex = groups.filter { it.alive && it.species.followsPeople && !it.species.human }.groupBy { hw.placeHex[it.place] }
@@ -184,6 +185,7 @@ private fun HexGroups.leaveBelief(g: HexGroup, n: HexGroup) {
  * and temper, a share of its larder by heads, and, for a band, a copy of what it knew and its share of its
  * tools, goods, elders, practised people and ages; and the places it remembers for each month.
  */
+@Part("groups: split off")
 private fun HexGroups.splitOff(g: HexGroup, adults: Int, young: Int): HexGroup {
     val s = g.species
     val n = HexGroup(nextId++, s, g.place, adults, young)
@@ -249,6 +251,7 @@ internal class Split(val adults: Int, val young: Int)
  * Books what group [g]'s week brought ([o]) in the week's tallies and records: its carrion, births and deaths by cause,
  * and for a band the deaths and births by country, by how well clad it was and in the cold weeks by what each cover gave.
  */
+@Part("groups: book an outcome")
 private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
     val s = g.species
     if (o.carrionKg > 0f) small.deposit(DeadPool.CARRION, g.place, KgM2(o.carrionKg / (land.areaKm2[g.place] * 1e6f)))
@@ -357,6 +360,7 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
  * What a band's dead do to it ([o] is its week): a camp left where someone died, the wounded of a beast's attack, the place
  * remembered as dangerous or as its dead's, burials and the ornaments that go with them.
  */
+@Part("groups: mourn the dead")
 private fun HexGroups.mournDead(g: HexGroup, o: Outcome, date: Date) {
     val s = g.species
     // A band that keeps the old way leaves a camp where someone died.

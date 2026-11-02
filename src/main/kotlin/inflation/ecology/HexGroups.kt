@@ -1,6 +1,7 @@
 package inflation.ecology
 
 import inflation.Par
+import inflation.Part
 import inflation.Profile
 import inflation.Stream
 import inflation.stream
@@ -488,6 +489,7 @@ class HexGroups(
      * Bands burn off the dry grass around their camps in the dry season: the burn greens up and draws
      * game (and the fire may spread with the wind).
      */
+    @Part("people: burn off")
     private fun burnOff(weather: Weather) {
         for (g in groups) {
             if (!g.alive || !g.species.human) continue

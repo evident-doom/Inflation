@@ -196,6 +196,7 @@ internal fun HexGroups.buildingAt(g: HexGroup, kind: Built, h: Hex, design: Int,
  * besides, used or not ([MUD_EROSION]): the band using it mends it as it would build. Wells silt up ([WELL_WEAR]), and then
  * the places they bring water to are found ([wellWater]).
  */
+@Part("people: tend structures")
 internal fun HexGroups.tendStructures(weather: Weather) {
     if (!bands.structuresSeen) { bands.structuresSeen = true; raiseSavedHouses() }
     if (bands.built.isEmpty()) { fauna.water.weirBlock.fill(0f); land.drink.well.fill(0f); return }
