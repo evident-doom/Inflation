@@ -318,8 +318,8 @@ private class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, packK
     val hands = forageHands(g).also { h -> gs.dialUse?.let { u -> band?.let { b -> countHands(u, g, b, h) } } }
     // A band splits: its hunters go after big game, searching all the days they are out, while the rest
     // gather, fish and snare (see [HUNTERS_SHARE]); an animal's party forages as one.
-    val hunt = band?.let { b -> huntersShare(b).also { v -> gs.dialUse?.amount(DialSite.HUNTERS_SHARE, b.effort[Food.BIG_GAME], v,
-        HUNTERS_SHARE.coerceIn(0f, 1f), cut = HUNTERS_SHARE * b.effort[Food.BIG_GAME] > 1f) } } ?: 1f
+    val hunt = band?.let { b -> gs.dialed(DialSite.HUNTERS_SHARE, b.effort[Food.BIG_GAME], huntersShare(b),
+        cut = HUNTERS_SHARE * b.effort[Food.BIG_GAME] > 1f) { HUNTERS_SHARE.coerceIn(0f, 1f) } } ?: 1f
     val gatherHands = if (band != null) hands * (1f - hunt) else hands.toFloat()
     // (Walking costs food, see [walkCost]; a band's days at rest take less, see [restedDays].)
     var wantAll = g.dailyNeedKg * gs.days * (1f + gs.walkCost(g))
@@ -358,7 +358,7 @@ private class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, packK
         (0 until 6).mapNotNull { d ->
             gs.hex.neighbour(h0, d).takeIf { !it.none }?.let { gs.hw.placeNear(g.place, it) }?.takeIf { !it.none && it.i !in gatherAt }?.i
         } } else emptyList()
-    val roundShare = (band?.let { b -> (RING_REACH * b.gatherRange).also { v -> gs.dialUse?.amount(DialSite.GATHER_RING, b.gatherRange, v, RING_REACH) } } ?: 0f)
+    val roundShare = band?.let { b -> gs.dialed(DialSite.GATHER_RING, b.gatherRange, RING_REACH * b.gatherRange) { RING_REACH } } ?: 0f
     // (Which of the band's parties takes each food, [Offers.who]: its share of the hands.)
     val party = floatArrayOf(hunt, 1f - hunt)
     // What a kg of each food holds for it, in kg of its need: its energy ([Food.energy]) by the kind's [Species.needScale]
@@ -740,8 +740,8 @@ private fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
         // (On strange ground people find little of it.)
         val knowHere = band?.let { plantKnow(it, hw.placeHex[q]) } ?: 1f
         // (Gatherers who go further from camp cover more of the ground.)
-        val reach = band?.let { b -> (min(0.9f, b.gatherShare() * knowHere * b.gatherRange) * part).also { v -> dialUse?.amount(DialSite.GATHER_REACH,
-            b.gatherRange, v, min(0.9f, b.gatherShare() * knowHere) * part, cut = b.gatherShare() * knowHere * b.gatherRange > 0.9f) } }
+        val reach = band?.let { b -> dialed(DialSite.GATHER_REACH, b.gatherRange, min(0.9f, b.gatherShare() * knowHere * b.gatherRange) * part,
+            cut = b.gatherShare() * knowHere * b.gatherRange > 0.9f) { min(0.9f, b.gatherShare() * knowHere) * part } }
             ?: min(1f, w.smallSweep * g.path.size / land.areaKm2[q])
         // (The unskilled, and strangers to its plants, are slow at it.)
         val slow = band?.slowness(Skill.GATHER, knowHere) ?: 1f
