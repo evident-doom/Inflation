@@ -7,6 +7,8 @@ import inflation.ecology.Species
 import inflation.ecology.WAYS_IN
 import inflation.learning.HexPpo.CLIP
 import inflation.learning.HexPpo.ENTROPY
+import inflation.stream
+import inflation.Stream
 import inflation.world.WorldConfig
 import java.io.File
 import java.util.concurrent.CompletableFuture
@@ -206,7 +208,7 @@ class PpoTrainer(private val o: PpoOptions) {
         var clipped = 0L; var seen = 0L
         val inputRates = if (smallInputBoost > 1f) model.net.smallInputRates(smallInputBoost) else null
         repeat(4) { epoch ->
-            for (batch in mine.shuffled(Random(round * 31L + epoch)).chunked(512)) {
+            for (batch in mine.shuffled(stream(0L, Stream.BATCHES, round.toLong(), epoch.toLong())).chunked(512)) {
                 val parts = inParts(batch) { part -> gradient(model, part, weight) }
                 val gradW = FloatArray(model.net.w.size); val gradId = FloatArray(model.identity.size)
                 for ((w, id, c) in parts) { gradW.add(w); gradId.add(id); if (epoch == 3) clipped += c }
@@ -234,7 +236,7 @@ class PpoTrainer(private val o: PpoOptions) {
         val perKind = cs.groupingBy { it.kind }.eachCount()
         val weight = cs.associateWith { c -> 1f / (perKind.size * perKind.getValue(c.kind)) }
         repeat(4) { epoch ->
-            for (batch in cs.shuffled(Random(round * 37L + epoch)).chunked(512)) {
+            for (batch in cs.shuffled(stream(1L, Stream.BATCHES, round.toLong(), epoch.toLong())).chunked(512)) {
                 val parts = inParts(batch) { part ->
                     val grad = FloatArray(gate.w.size); val b = gate.buffers()
                     for (c in part) {

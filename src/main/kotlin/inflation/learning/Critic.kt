@@ -1,5 +1,7 @@
 package inflation.learning
 
+import inflation.Stream
+import inflation.stream
 import inflation.ecology.HexFeatures
 import inflation.ecology.HexGroup
 import inflation.ecology.Species
@@ -62,7 +64,7 @@ class Critic(val net: Mlp, private val scale: HashMap<String, Scale> = HashMap()
             scale[k.name] = Scale(m, sd)
         }
         repeat(EPOCHS) { epoch ->
-            for (batch in all.shuffled(kotlin.random.Random(round * 17L + epoch)).chunked(1024)) {
+            for (batch in all.shuffled(stream(0L, Stream.BATCHES, round.toLong(), epoch.toLong())).chunked(1024)) {
                 val parts = inParts(batch) { part ->
                     val g = FloatArray(net.w.size); val b = net.buffers()
                     for (s in part) {

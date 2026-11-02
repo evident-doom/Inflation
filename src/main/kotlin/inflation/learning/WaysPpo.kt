@@ -9,6 +9,8 @@ import inflation.ecology.HexGroup
 import inflation.ecology.Species
 import inflation.ecology.WAYS_IN
 import inflation.ecology.WAYS_OUT
+import inflation.Stream
+import inflation.stream
 import inflation.world.WorldConfig
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
@@ -102,7 +104,7 @@ class WaysSampler(private val ways: LearnedWays, private val record: ConcurrentL
         val w = week()
         val t = w + g.id % WaysPpo.SEASON
         val season = t / WaysPpo.SEASON
-        val rnd = Random(seed * 1_000_003L + g.id * 7_919L + season * 104_729L)
+        val rnd = stream(seed, Stream.WAYS_SEASON, g.id.toLong(), season.toLong())
         // (What binds is counted from the season's first week, for the recorded seasons only.)
         if (t % WaysPpo.SEASON == 0) g.band?.binding = null
         // Only the bands whose season is recorded to learn from draw their ways by chance; the rest keep to the middle.
@@ -171,7 +173,7 @@ object WaysPpo {
         val ways = st.ways
         var clippedShare = 0.0; var seen = 0
         repeat(4) { epoch ->
-            for (batch in cs.shuffled(Random(round * 31L + epoch + 7)).chunked(512)) {
+            for (batch in cs.shuffled(stream(2L, Stream.BATCHES, round.toLong(), epoch.toLong())).chunked(512)) {
                 val trunk = mover?.takeIf { st.adamMover != null && it.trunk == ways.plan }
                 val parts = inParts(batch) { part -> gradient(ways, trunk, part, 1f / batch.size) }
                 val gradW = FloatArray(ways.net.w.size); val gradStd = FloatArray(WAYS_OUT); var clipped = 0

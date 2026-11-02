@@ -1,5 +1,7 @@
 package inflation.world
 
+import inflation.stream
+import inflation.Stream
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
@@ -68,7 +70,7 @@ object Erosion {
         val outlet = BooleanArray(n) { isOutlet(it) }
         val ring = Ring(grid)
         val fullTo = IntArray(n); val fullDelta = BooleanArray(n)
-        val rnd = Random(seed)
+        val rnd = stream(seed, Stream.EROSION)
         val sedimentErodibility = Rock.ALLUVIUM.erodibility
         repeat(steps) { step ->
             // Closed basins fill with sediment.

@@ -927,10 +927,10 @@ class Band(kinds: Int) {
          * A band starting out in country it knows, founded at ([x], [y]) km: practised at what the
          * country offers, with a basic kit, and the descent, words and customs of its country.
          */
-        fun start(kinds: Int, nearWater: Boolean, x: Double, y: Double, tuning: Tuning) = Band(kinds).apply {
-            val l = lineageAt(x, y)
+        fun start(kinds: Int, nearWater: Boolean, x: Double, y: Double, tuning: Tuning, seed: Long) = Band(kinds).apply {
+            val l = lineageAt(seed, x, y)
             lineage[l] = 1f
-            wordsAt(x, y).copyInto(words)
+            wordsAt(seed, x, y).copyInto(words)
             traditionsAt(l).copyInto(traditions)
             totem = totemAt(l, kinds); burialWay = burialWayAt(l); marksChosen = true
             riteStrength = riteStrengthAt(l, tuning)

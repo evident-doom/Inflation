@@ -1,5 +1,7 @@
 package inflation.world
 
+import inflation.stream
+import inflation.Stream
 import kotlin.math.cos
 import kotlin.math.exp
 import kotlin.math.hypot
@@ -64,7 +66,7 @@ class Tectonics(
         /** Height of the old plains and basins where plateaus later rose, m: low, but above the sea. */
         const val PLATEAU_FLOOR_M = 100f
         fun generate(grid: Grid, cfg: WorldConfig, noise: Noise): Tectonics {
-            val rnd = Random(cfg.seed * 7919 + 13)
+            val rnd = stream(cfg.seed, Stream.TECTONICS)
             val w = grid.width.toDouble(); val h = grid.height.toDouble()
             val seeds = List(cfg.plateCount) {
                 val px = rnd.nextDouble() * w

@@ -62,6 +62,8 @@ class SavedStateTest {
         // (Soil fertility moves only with ash from a fire or the wash off bare slopes: grazed at their settled numbers from
         // the start, this world's plants may give neither in its first year.)
         "land.plants.fertility",
+        // (Tree seed is capped at what 5 kg/m² of trees give: where every wooded place is wooded past that, a year leaves it as it was.)
+        "land.plants.treeSeed",
     )
 
     @Test

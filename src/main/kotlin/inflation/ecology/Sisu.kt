@@ -1,9 +1,7 @@
 package inflation.ecology
 
-import inflation.HASH_A
-import inflation.HASH_B
-import inflation.HASH_C
-import inflation.mix64Once
+import inflation.drawKey
+import inflation.Stream
 import kotlin.math.max
 import kotlin.math.min
 
@@ -48,7 +46,7 @@ object Sisu {
 
     /** An even draw from 0 to 1 from [id], [salt] and the world's [seed]. */
     private fun uniform(id: Int, salt: Int, seed: Long): Float {
-        val h = mix64Once(id.toLong() * HASH_A + (977L + salt) * HASH_B + seed * HASH_C)
+        val h = drawKey(seed, Stream.SISU, id.toLong(), salt.toLong())
         return ((h ushr 40).toFloat() + 0.5f) / (1L shl 24).toFloat()
     }
 }

@@ -1,11 +1,9 @@
 package inflation.world
 
+import inflation.drawUnit
+import inflation.stream
+import inflation.Stream
 import inflation.Tuning
-import inflation.HASH_A
-import inflation.HASH_B
-import inflation.HASH_C
-import inflation.mix64
-import inflation.unitOf
 import inflation.Config
 import inflation.world.HexFires.Companion.GRAZE_SCALE
 import inflation.world.HexFires.Companion.SPREAD_KM_PER_DAY
@@ -63,7 +61,7 @@ enum class LifeForm(
 class Vegetation(private val world: World, private val seed: Long, private val tuning: Tuning = Tuning.config) {
     private val grid = world.grid
     private val n = grid.size
-    private val rnd = Random(seed * 13 + 1)
+    private val rnd = stream(seed, Stream.FINE_PLANTS)
 
     /** Standing biomass per life form, kg/m². */
     val herb = FloatArray(n)
@@ -245,7 +243,7 @@ class Vegetation(private val world: World, private val seed: Long, private val t
 
     /** A uniform 0..1 draw for cell [i] this step: a hash, so that cells can be stepped in any order. */
     private fun cellRandom(i: Int): Float {
-        return unitOf(mix64(seed * HASH_A + stepCount * HASH_A + i * HASH_B))
+        return drawUnit(seed, Stream.FINE_PLANTS, i.toLong(), stepCount.toLong())
     }
 
     /** Fuel in cell [i] that can carry a fire, kg/m²: grass and shrubs, less what grazing has removed. */
@@ -322,7 +320,7 @@ class Vegetation(private val world: World, private val seed: Long, private val t
     }
 
     private fun hash(i: Int, salt: Int): Float {
-        return unitOf(mix64(seed * HASH_A + stepCount * HASH_A + i * HASH_B + salt * HASH_C))
+        return drawUnit(seed, Stream.FINE_PLANTS, i.toLong(), stepCount.toLong(), salt + 1L)
     }
 
 

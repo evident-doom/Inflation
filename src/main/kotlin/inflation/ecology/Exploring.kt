@@ -1,10 +1,7 @@
 package inflation.ecology
 
-import inflation.HASH_A
-import inflation.HASH_B
-import inflation.HASH_C
-import inflation.mix64
-import inflation.unitOf
+import inflation.drawUnit
+import inflation.Stream
 import kotlin.math.exp
 
 /**
@@ -21,9 +18,6 @@ internal const val HAND_SCORE_UNIT = 0.1f
  */
 internal const val EXPLORE_STAY = 1f
 
-/** The salt of the draw a band explores by (see [exploreChoice]), apart from the other draws on the group and day. */
-private const val EXPLORE_SALT = 0x5EED_E4B1L
-
 /**
  * The candidate a band of group [g] goes to, of the [n] places weighed this week, by its will to explore [will] (see
  * [HAND_SCORE_UNIT]): [scores] how it scores each (the network's or the hand-written), in [unit]s, [deaths] the survival steps
@@ -31,7 +25,7 @@ private const val EXPLORE_SALT = 0x5EED_E4B1L
  * more than one survival step deadlier than the safest is never drawn, however keen it is. Returns -1 if no place can be weighed.
  */
 internal fun HexGroups.exploreChoice(g: HexGroup, will: Float, n: Int, scores: FloatArray, deaths: FloatArray, stays: Int, unit: Float, day: Long): Int {
-    val u = unitOf(mix64(g.id * HASH_A + day * HASH_B + EXPLORE_SALT * HASH_C))
+    val u = drawUnit(seedBase, Stream.EXPLORE, g.id.toLong(), day)
     val taken = exploreDraw(will, n, scores, deaths, stays, unit, u)
     dialUse?.choice(DialSite.EXPLORE_MOVE, will, taken != exploreDraw(1f, n, scores, deaths, stays, unit, u), false)
     return taken

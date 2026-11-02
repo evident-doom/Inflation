@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.drawUnit
 import inflation.gaussianF
 import inflation.run.freshSim
 import inflation.Args
@@ -9,6 +10,8 @@ import inflation.ecology.Catalogue
 import inflation.ecology.HexPolicy
 import inflation.ecology.WAYS_OUT
 import inflation.learning.HexPpo
+import inflation.stream
+import inflation.Stream
 import inflation.world.WorldConfig
 import kotlin.math.max
 import kotlin.math.sqrt
@@ -48,8 +51,8 @@ fun main(args: Array<String>) {
     a.done()
     val horizon = 52; val discount = HexPpo.PEOPLE_DISCOUNT
     val kinds = Catalogue.learned
-    fun perturbed(id: Int) = Random(id * 31L + 7).nextFloat() < 0.5f
-    fun waysDraw(id: Int, salt: Long) = Random(id * 1_000_003L + salt).let { r -> FloatArray(WAYS_OUT) { gaussianF(r) * 0.3f } }
+    fun perturbed(id: Int) = drawUnit(seed, Stream.EXPERIMENT, id.toLong(), 0L) < 0.5f
+    fun waysDraw(id: Int, salt: Long) = stream(seed, Stream.EXPERIMENT, id.toLong(), salt).let { r -> FloatArray(WAYS_OUT) { gaussianF(r) * 0.3f } }
 
     class Out(val ret: Map<Int, Double>, val retH: Map<Int, DoubleArray>, val draws: Map<Int, FloatArray>,
         val moveAlt: Map<Int, Pair<Float, Float>>, val stepMs: Double)
@@ -60,7 +63,7 @@ fun main(args: Array<String>) {
         val alt = ConcurrentHashMap<Int, Pair<Float, Float>>()
         for (s in kinds) if (s.human) run.groups.policies[s] = HexPolicy { g, f, b, _ ->
             val best = b.indices.maxBy { b[it] }
-            val r = Random(seed * 7_919L + g.id * 104_729L + week)
+            val r = stream(seed, Stream.EXPERIMENT, g.id.toLong(), 1_000_000L + week)
             if (week == warm && variant == "move-1wk" && perturbed(g.id) && f.size > 1) {
                 var a = r.nextInt(f.size - 1); if (a >= best) a++
                 alt[g.id] = b[best] to b[a]
