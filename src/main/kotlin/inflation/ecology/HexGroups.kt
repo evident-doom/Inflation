@@ -2,6 +2,8 @@ package inflation.ecology
 
 import inflation.Par
 import inflation.Profile
+import inflation.Stream
+import inflation.stream
 import inflation.world.Phase
 import inflation.world.Hex
 import inflation.world.HexArray
@@ -26,11 +28,6 @@ import inflation.store.MovedInto
 import inflation.wrapMonth
 import inflation.saturate
 import inflation.monthsFrom
-import inflation.HASH_A
-import inflation.HASH_B
-import inflation.HASH_C
-import inflation.mix64Once
-import inflation.unitOf
 import inflation.Config
 
 import inflation.world.Date
@@ -156,7 +153,7 @@ class HexGroups(
                 if (s.human) {
                     g.larder = START_LARDER_DAYS * g.dailyNeedKg
                     val (x, y) = hex.centreKm(hw.placeHex[p])
-                    g.band = Band.start(fauna.kinds.size, land.drink.waterKm[p] < 3f, x, y, tuning).also { b ->
+                    g.band = Band.start(fauna.kinds.size, land.drink.waterKm[p] < 3f, x, y, tuning, seedBase).also { b ->
                         b.sisu = Sisu.founder(g.id, seedBase)
                         b.elders = g.adults / 6
                         // The rest of the adults spread over the three spans of adult life.
@@ -188,7 +185,7 @@ class HexGroups(
      * ([Species.maxGroupSize]). Its own stream of chance for each kind, from the world's seed.
      */
     private fun startSizes(s: Species, unit: Int, count: Int): IntArray {
-        val r = Random(seedBase * 41 + 7 + 1009L * s.name.hashCode())
+        val r = stream(seedBase, Stream.START_SIZES, s.name.hashCode().toLong(), 0L)
         val spread = if (s.human) START_BAND_SPREAD else START_PACK_SPREAD
         val least = min(2, unit)
         var left = count * unit

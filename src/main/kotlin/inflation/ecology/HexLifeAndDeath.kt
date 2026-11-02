@@ -3,6 +3,8 @@ package inflation.ecology
 import inflation.Part
 import inflation.Par
 import inflation.Profile
+import inflation.Stream
+import inflation.stream
 import inflation.world.Hex
 import inflation.world.HexArray
 import inflation.world.toHexArray
@@ -211,7 +213,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         bands.tallies.flush(stats.hunting)
         Par.forEach("people: customs year", bandGroups.size) { k ->
             val g = bandGroups[k]
-            if (g.alive) cultureWeek(g, kotlin.random.Random(g.id * 1_000_003L + date.absoluteDay * 7_919L + 17L))
+            if (g.alive) cultureWeek(g, stream(seedBase, Stream.CUSTOMS, g.id.toLong(), date.absoluteDay))
         }
         for (g in bandGroups) if (g.alive) riteWeek(g, weather)
         groups += bands.strays; bands.strays.clear()

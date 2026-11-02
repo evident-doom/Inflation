@@ -2,6 +2,8 @@ package inflation.world
 
 import inflation.Config
 import inflation.enumFloats
+import inflation.stream
+import inflation.Stream
 
 import kotlin.math.PI
 import kotlin.math.cos
@@ -103,12 +105,12 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
     private val coarseKm = 50.0
     private val cw = (places.widthKm / coarseKm).toInt() + 2
     private val ch = (places.heightKm / coarseKm).toInt() + 2
-    private var rnd = Random(cfg.seed * 31 + 7)
+    private var rnd = stream(cfg.seed, Stream.WEATHER)
 
     /** Draws the weather's turns (regimes, droughts) afresh from [replicate]: a run carried on from a saved world then meets other years' weather. */
     fun reseed(replicate: Long) {
-        rnd = Random(cfg.seed * 31 + 7 + replicate * 0x9E3779B97F4A7C15uL.toLong())
-        mastRnd = Random(cfg.seed * 37 + 11 + replicate * 0x9E3779B97F4A7C15uL.toLong())
+        rnd = stream(cfg.seed, Stream.WEATHER, replicate)
+        mastRnd = stream(cfg.seed, Stream.MAST, replicate)
     }
 
     /**
@@ -123,7 +125,7 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
      * a group's crop swings less ([mastCv]).
      */
     val mastCrop = enumFloats<MastTrees> { 1f }
-    private var mastRnd = Random(cfg.seed * 37 + 11)
+    private var mastRnd = stream(cfg.seed, Stream.MAST)
 
     /** How much a place's rain swings from year to year against the average: most in the desert (bust years), least where it is wet. */
     @Transient private val yearSwing = FloatArray(n) { i ->

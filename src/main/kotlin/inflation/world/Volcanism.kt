@@ -1,5 +1,7 @@
 package inflation.world
 
+import inflation.stream
+import inflation.Stream
 import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.math.hypot
@@ -44,7 +46,7 @@ class Eruption(val date: Date, val volcano: Volcano, val vei: Int)
 
 object Volcanism {
     fun generate(grid: Grid, cfg: WorldConfig, tect: Tectonics): List<Volcano> {
-        val rnd = Random(cfg.seed * 104_729 + 3)
+        val rnd = stream(cfg.seed, Stream.VOLCANOES)
         val out = ArrayList<Volcano>()
         fun farFromOthers(x: Int, y: Int, km: Double) = out.none { hypot((it.x - x).toDouble(), (it.y - y).toDouble()) * grid.cellKm < km }
 
@@ -158,7 +160,7 @@ object Volcanism {
  * lies, and how it weathers, is kept by whoever takes it (see [step]).
  */
 class Eruptions(private val grid: Grid, private val volcanoes: List<Volcano>, seed: Long) {
-    private val rnd = Random(seed * 7 + 5)
+    private val rnd = stream(seed, Stream.ERUPTIONS)
     val history = ArrayList<Eruption>()
 
     private var pending: List<Eruption>? = null

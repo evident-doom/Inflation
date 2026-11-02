@@ -1,8 +1,10 @@
 package inflation.ecology
 
+import inflation.drawUnit
 import inflation.Part
 import inflation.enumTables
 import inflation.Profile
+import inflation.Stream
 import inflation.world.Place
 import inflation.world.forEachPlace
 import inflation.world.get
@@ -16,11 +18,6 @@ import inflation.min
 import inflation.world.Biome
 import inflation.world.HexPlants
 import inflation.wrapMonth
-import inflation.HASH_A
-import inflation.HASH_B
-import inflation.HASH_C
-import inflation.mix64Once
-import inflation.unitOf
 import inflation.world.Date
 import inflation.world.HexLand
 import inflation.world.HexWorld
@@ -521,7 +518,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             var l = old[p]
             // (A swarm is the hoppers that grew up on the green plants there: its weight comes off them.)
             if (season && l <= 0f && annualRain[p] < LOCUST_RAIN_MM && land.plants.green[p] > 0.6f &&
-                locustHash(p) < LOCUST_START * years) {
+                locustHash(p, weather.date.absoluteDay) < LOCUST_START * years) {
                 val taken = land.plants.consume(p, LifeForm.HERB, KgKm2(LOCUST_SWARM / SMALL_EFFICIENCY).perM2)
                 l = (taken * SMALL_EFFICIENCY).perKm2.v
                 ateM2(p, taken.v); grew(p, l)
@@ -556,10 +553,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     /** Green herb in place [p], over all its area: what draws a swarm in. */
     private fun greenHerbKm2(q: Place) = land.plants.green[q] * land.plants.herb[q] * land.areaKm2[q]
 
-    private var locustSalt = 0L
-    private fun locustHash(p: Place): Float {
-        return unitOf(mix64Once((p.i.toLong() * HASH_A) xor (++locustSalt * HASH_B) xor land.seed * HASH_C))
-    }
+    private fun locustHash(p: Place, day: Long): Float = drawUnit(land.seed, Stream.LOCUSTS, p.i.toLong(), day)
 
     /** Small game at place [p] this week: [t] its temperature, [burnt] the share that burned. */
     @Part("small life: game birds and small game")

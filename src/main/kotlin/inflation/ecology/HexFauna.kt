@@ -1,9 +1,12 @@
 package inflation.ecology
 
+import inflation.drawUnit
 import inflation.Part
 import inflation.EnumFloats
 import inflation.enumFloats
 import inflation.Profile
+import inflation.Stream
+import inflation.stream
 import inflation.world.Phase
 import inflation.world.Hex
 import inflation.world.HexArray
@@ -20,11 +23,6 @@ import inflation.Tuning
 import inflation.wrapMonth
 import inflation.saturate
 import inflation.monthsFrom
-import inflation.HASH_A
-import inflation.HASH_B
-import inflation.HASH_C
-import inflation.mix64Once
-import inflation.unitOf
 import inflation.Books
 import inflation.Stocks
 import inflation.Config
@@ -152,12 +150,8 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     fun outbreakDeaths(s: Species, p: Place) = OUTBREAK_KILL * outbreak[s.index][hw.placeHex[p]]
 
     private var outbreakSalt = 0L
-    /** The world's own draws: outbreaks and newcomers differ from seed to seed. */
-    @Transient private val seedSalt = mix64Once(land.seed)
     /** A number in 0..1 that changes from week to week, for place [p] and kind [k]. */
-    private fun hash(p: Place, k: FaunaKind): Float {
-        return unitOf(mix64Once((p.i.toLong() * HASH_A) xor (k.i.toLong() * HASH_B) xor (outbreakSalt * HASH_C) xor seedSalt))
-    }
+    private fun hash(p: Place, k: FaunaKind): Float = drawUnit(land.seed, Stream.OUTBREAKS, p.i.toLong(), outbreakSalt, k.i.toLong())
 
     /** Outbreaks pass to neighbouring hexes where the kind lives, and burn out. */
     @Part("outbreaks")
@@ -752,7 +746,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     var newcomersOn = false
     private fun newcomers(date: Date) {
         if (!newcomersOn) return
-        val r = kotlin.random.Random((date.absoluteDay * 7919L + 13) xor seedSalt)
+        val r = stream(land.seed, Stream.NEWCOMERS, 0L, date.absoluteDay)
         for (k in kindIds) {
             if (count(k) >= NEWCOMER_ANIMALS) continue
             val s = kinds[k]

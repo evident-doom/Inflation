@@ -11,20 +11,20 @@ import kotlin.test.assertTrue
 class CultureAndMeetingsTest {
     @Test
     fun `neighbours in one region share half their words, bands of one country all of them`() {
-        val here = wordsAt(10.0, 10.0)
-        assertEquals(1f, Language.understanding(here, wordsAt(140.0, 140.0)), "same 150 km country")
-        assertEquals(0.5f, Language.understanding(here, wordsAt(160.0, 10.0)), 0.04f, "next country, same region")
-        assertTrue(Language.understanding(here, wordsAt(1000.0, 1000.0)) < 0.1f, "a far region")
+        val here = wordsAt(1L, 10.0, 10.0)
+        assertEquals(1f, Language.understanding(here, wordsAt(1L, 140.0, 140.0)), "same 150 km country")
+        assertEquals(0.5f, Language.understanding(here, wordsAt(1L, 160.0, 10.0)), 0.04f, "next country, same region")
+        assertTrue(Language.understanding(here, wordsAt(1L, 1000.0, 1000.0)) < 0.1f, "a far region")
         assertTrue(here.all { it in 0 until Language.FORMS })
     }
 
     @Test
     fun `lineages are drawn per block without a repeating pattern, and kinship is the chance of a shared founder`() {
         val seen = HashSet<Int>()
-        for (x in 0 until 8) for (y in 0 until 8) seen += lineageAt(x * LINEAGE_KM + 1, y * LINEAGE_KM + 1)
+        for (x in 0 until 8) for (y in 0 until 8) seen += lineageAt(1L, x * LINEAGE_KM + 1, y * LINEAGE_KM + 1)
         assertEquals((0 until LINEAGES).toSet(), seen)
-        assertEquals(lineageAt(1.0, 1.0), lineageAt(LINEAGE_KM - 1, LINEAGE_KM - 1), "one block, one lineage")
-        assertNotEquals(lineageAt(1.0, 1.0), lineageAt(4 * LINEAGE_KM + 1, 1.0), "four blocks on, no repeat")
+        assertEquals(lineageAt(1L, 1.0, 1.0), lineageAt(1L, LINEAGE_KM - 1, LINEAGE_KM - 1), "one block, one lineage")
+        assertNotEquals(lineageAt(1L, 1.0, 1.0), lineageAt(1L, 4 * LINEAGE_KM + 1, 1.0), "four blocks on, no repeat")
         val a = FloatArray(LINEAGES).also { it[3] = 1f }; val b = FloatArray(LINEAGES).also { it[4] = 1f }
         val half = FloatArray(LINEAGES).also { it[3] = 0.5f; it[4] = 0.5f }
         assertEquals(1f, kinship(a, a)); assertEquals(0f, kinship(a, b)); assertEquals(0.5f, kinship(a, half))
@@ -177,9 +177,9 @@ class CultureAndMeetingsTest {
 
     @Test
     fun `tie-breaks repeat for the same day and favour neither group week after week`() {
-        assertEquals(tieBreak(1, 2, 40), tieBreak(1, 2, 40))
-        assertNotEquals(tieBreak(1, 2, 40), tieBreak(1, 2, 47))
-        val firsts = (0L until 520L step 7).count { tieBreak(1, 2, it) < tieBreak(2, 1, it) }
+        assertEquals(tieBreak(5, 1, 2, 40), tieBreak(5, 1, 2, 40))
+        assertNotEquals(tieBreak(5, 1, 2, 40), tieBreak(5, 1, 2, 47))
+        val firsts = (0L until 520L step 7).count { tieBreak(5, 1, 2, it) < tieBreak(5, 2, 1, it) }
         assertTrue(firsts in 20..55, "group 1 came first $firsts weeks of 75")
     }
 

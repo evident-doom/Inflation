@@ -10,6 +10,8 @@ import inflation.ecology.AnimalWays
 import inflation.ecology.BandWays
 import inflation.ecology.Catalogue
 import inflation.ecology.HexGroup
+import inflation.stream
+import inflation.Stream
 import inflation.world.WorldConfig
 import java.io.File
 import kotlin.random.Random
@@ -96,7 +98,7 @@ class WaysEvolution(private val role: WaysKind, private val movers: List<SharedM
         val firstGen = log.done()
         for (gen in firstGen until firstGen + gens) {
             val t0 = System.nanoTime()
-            val rnd = Random(gen * 7919L + 17)
+            val rnd = stream(0L, Stream.EVOLUTION, gen.toLong())
             val eps = es.noise(rnd, centre.w.size)
             val variants = es.variants(centre, eps)
             val results = seeds.parallelStream().map { seed -> evaluate(WorldConfig(seed = seed + 1000L * gen, widthKm = size, heightKm = size), years, variants) }.toList()

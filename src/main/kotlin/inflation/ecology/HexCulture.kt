@@ -1,8 +1,10 @@
 package inflation.ecology
 
+import inflation.drawKey
 import inflation.Part
 import inflation.EnumBools
 import inflation.enumFloats
+import inflation.Stream
 import inflation.world.Hex
 import inflation.world.HexArray
 import inflation.world.HexMap
@@ -220,18 +222,18 @@ internal const val GATHER_HEADS = 150f
  * The lineage a band founded at hex centre ([x], [y]) km descends from: one of [LINEAGES], drawn for each block of country
  * [LINEAGE_KM] across, so that blocks far apart share one only by chance (not in a pattern repeating across the map).
  */
-fun lineageAt(x: Double, y: Double): Int {
+fun lineageAt(seed: Long, x: Double, y: Double): Int {
     val bx = Math.floorDiv(x.toLong(), LINEAGE_KM.toLong()); val by = Math.floorDiv(y.toLong(), LINEAGE_KM.toLong())
-    return ((mix64(bx * HASH_A + by * HASH_B) ushr 33) % LINEAGES).toInt()
+    return ((drawKey(seed, Stream.LINEAGE, bx, by) ushr 33) % LINEAGES).toInt()
 }
 
 /** Words of a band founded at ([x], [y]) km: half named as in its own country, half as in the wider region, so neighbours understand each other in part. */
-fun wordsAt(x: Double, y: Double): IntArray {
+fun wordsAt(seed: Long, x: Double, y: Double): IntArray {
     val fx = (x / LINEAGE_KM).toInt(); val fy = (y / LINEAGE_KM).toInt()
     val cx = (x / (3 * LINEAGE_KM)).toInt(); val cy = (y / (3 * LINEAGE_KM)).toInt()
     return IntArray(Language.CONCEPTS) { k ->
         val (bx, by) = if (k % 2 == 0) fx to fy else (cx + 1000) to (cy + 1000)
-        Math.floorMod((bx * 73_856_093) xor (by * 19_349_663) xor (k * 83_492_791), Language.FORMS)
+        ((drawKey(seed, Stream.WORDS, bx.toLong(), by.toLong(), k.toLong()) ushr 1) % Language.FORMS).toInt()
     }
 }
 
@@ -615,7 +617,7 @@ private fun GroupWorld.marryOut(a: HexGroup, bandA: Band, b: HexGroup, bandB: Ba
 internal fun HexGroups.visitKin(weather: Weather) {
     // (The hungry come in a drawn order, not by age in the list: the first take the most from the best-stocked.)
     val today = weather.date.absoluteDay
-    val hungry = groups.filter { it.alive && it.band != null && it.fed < VISIT_FED && it.larder < it.dailyNeedKg * days }.sortedBy { tieBreak(it.id, 0, today) }
+    val hungry = groups.filter { it.alive && it.band != null && it.fed < VISIT_FED && it.larder < it.dailyNeedKg * days }.sortedBy { tieBreak(seedBase, it.id, 0, today) }
     if (hungry.isEmpty()) return
     val byHex = HashMap<Hex, ArrayList<HexGroup>>()
     for (g in groups) if (g.alive && g.band != null && g.larder > 0f) byHex.getOrPut(hw.placeHex[g.place]) { ArrayList() } += g

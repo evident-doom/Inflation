@@ -1,8 +1,9 @@
 package inflation.ecology
 
+import inflation.drawKey
 import inflation.HASH_A
 import inflation.HASH_B
-import inflation.mix64
+import inflation.Stream
 import inflation.world.Date
 import inflation.world.Weather
 import kotlin.math.max
@@ -63,7 +64,7 @@ internal fun Band.weeksAlive(s: Species, days: Int, now: Int, larderDays: Float,
         for (k in 1..weeks) {
             val w = (now + k) % weeks
             val month = w * Date.MONTHS_PER_YEAR / weeks
-            if (month != drawMonth) { drawMonth = month; year = drawYear(this, weeks, w, mix64(seed + n * 31L + month) ushr 1) }
+            if (month != drawMonth) { drawMonth = month; year = drawYear(this, weeks, w, drawKey(seed, Stream.STORES_AHEAD, n.toLong(), month.toLong()) ushr 1) }
             // (A week the drawn year has not, another year's; a week no year has, no reckoning.)
             val y = if (year >= 0 && !weekSupply[year * weeks + w].isNaN()) year else drawYear(this, weeks, w, 0L)
             if (y < 0) return null

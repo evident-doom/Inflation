@@ -1,14 +1,12 @@
 package inflation.ecology
 
+import inflation.drawKey
+import inflation.Stream
 import inflation.world.Hex
 import inflation.world.Place
 import inflation.world.get
 import inflation.world.set
 
-import inflation.HASH_A
-import inflation.HASH_B
-import inflation.HASH_C
-import inflation.mix64Once
 import kotlin.math.cos
 import kotlin.math.ln
 import kotlin.math.sqrt
@@ -55,7 +53,7 @@ object Temperament {
     /** A standard normal number from [id], [axis], [salt] and the world's [seed]. */
     private fun normal(id: Int, axis: Int, salt: Int, seed: Long): Float {
         fun u(k: Int): Double {
-            val h = mix64Once(id.toLong() * HASH_A + (axis * 31 + salt * 1009 + k).toLong() * HASH_B + seed * HASH_C)
+            val h = drawKey(seed, Stream.TEMPERAMENT, id.toLong(), axis.toLong(), salt * 1_000_003L + k)
             return ((h ushr 11).toDouble() + 0.5) / (1L shl 53).toDouble()
         }
         return (sqrt(-2.0 * ln(u(0))) * cos(2.0 * Math.PI * u(1))).toFloat()

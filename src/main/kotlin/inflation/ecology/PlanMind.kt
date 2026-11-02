@@ -1,9 +1,7 @@
 package inflation.ecology
 
-import inflation.HASH_A
-import inflation.HASH_B
-import inflation.mix64
-import inflation.unitOf
+import inflation.drawUnit
+import inflation.Stream
 
 /**
  * How a band chooses ([Band.mind]): [NETS], today's way (the mover's place score or its network, and the ways' dials), or
@@ -26,10 +24,6 @@ enum class Mind(val label: String) { NETS("nets"), PLANS("plans") }
 internal fun HexGroups.foundMinds() {
     if (tuning.planners <= 0f) return
     for (g in groups) g.band?.let { b ->
-        // (The full finaliser: one round of it left founders' ids, which run in order, clumped, about 30% where 50% was asked.)
-        b.mind = if (unitOf(mix64(seedBase * HASH_A + g.id * HASH_B + MIND_SALT)) < tuning.planners) Mind.PLANS else Mind.NETS
+        b.mind = if (drawUnit(seedBase, Stream.PLANNERS, g.id.toLong(), 0L) < tuning.planners) Mind.PLANS else Mind.NETS
     }
 }
-
-/** Salts the founders' draw of their mind apart from the world's other hashed draws. */
-private const val MIND_SALT = 0x504C414EL

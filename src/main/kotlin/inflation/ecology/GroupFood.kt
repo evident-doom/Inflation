@@ -14,6 +14,8 @@ import inflation.Profile
 import inflation.ecology.HexSmallLife.DeadPool
 import inflation.enumFloats
 import inflation.mix64
+import inflation.Stream
+import inflation.stream
 import inflation.unitOf
 import inflation.world.Biome
 import inflation.world.Date
@@ -317,7 +319,7 @@ private class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, packK
     val d = s.diet
     val band = g.band
     // (Its own stream of chance, so that regions can be worked at once.)
-    val rnd = kotlin.random.Random(g.id * 1_000_003L + weather.date.absoluteDay)
+    val rnd = stream(gs.seedBase, Stream.FORAGE, g.id.toLong(), weather.date.absoluteDay)
     val hands = forageHands(g).also { h -> gs.dialUse?.let { u -> band?.let { b -> countHands(u, g, b, h) } } }
     // A band splits: its hunters go after big game, searching all the days they are out, while the rest
     // gather, fish and snare (see [HUNTERS_SHARE]); an animal's party forages as one.

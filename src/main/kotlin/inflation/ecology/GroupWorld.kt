@@ -1,6 +1,9 @@
 package inflation.ecology
 
+import inflation.drawUnit
 import inflation.Profile
+import inflation.Stream
+import inflation.stream
 import inflation.world.Phase
 import inflation.world.Hex
 import inflation.world.HexArray
@@ -25,11 +28,6 @@ import inflation.store.MovedInto
 import inflation.wrapMonth
 import inflation.saturate
 import inflation.monthsFrom
-import inflation.HASH_A
-import inflation.HASH_B
-import inflation.HASH_C
-import inflation.mix64Once
-import inflation.unitOf
 import inflation.Config
 
 import inflation.world.Date
@@ -67,7 +65,7 @@ abstract class GroupWorld(
     internal val hex = hw.hex
     internal val n = land.n
     internal val tuning get() = land.tuning
-    internal val rnd = Random(seed * 41 + 3)
+    internal val rnd = stream(seed, Stream.GROUPS)
     internal val seedBase = seed
     /** This week's tallies ([HexSim.stats]). */
     val stats get() = fauna.stats
@@ -182,12 +180,12 @@ abstract class GroupWorld(
     internal fun binomial(n: Int, p: Float, r: Random): Int = inflation.binomial(n, p, r)
 
     /** A random stream of group [id]'s own for the week starting on [day]: the same whatever the cores do. */
-    internal fun groupRandom(id: Int, day: Long) = Random(seedBase * 1_000_003L + id * 7_919L + day)
+    internal fun groupRandom(id: Int, day: Long) = stream(seedBase, Stream.GROUP_WEEK, id.toLong(), day)
 
     /** A group's own stream for its choice of ground this week (apart from [groupRandom]'s, which its week's life draws on). */
-    internal fun policyRandom(id: Int, day: Long) = Random((seedBase * 1_000_003L + id * 7_919L + day) * 0x9E3779B97F4A7C15uL.toLong() + 0x2545F4914F6CDD1DL)
+    internal fun policyRandom(id: Int, day: Long) = stream(seedBase, Stream.POLICY, id.toLong(), day)
 
     internal fun hashNoise(id: Int, p: Place): Float {
-        return unitOf(mix64Once(id * HASH_A + p.i * HASH_B + seedBase * HASH_C))
+        return drawUnit(seedBase, Stream.PLACE_JITTER, id.toLong(), p.i.toLong())
     }
 }

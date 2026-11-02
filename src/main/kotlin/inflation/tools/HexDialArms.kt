@@ -7,6 +7,8 @@ import inflation.ecology.WAYS_OUT
 import inflation.learning.HexPpo
 import inflation.learning.Outcomes
 import inflation.learning.Schema
+import inflation.stream
+import inflation.Stream
 import inflation.tools.fauna.FaunaCheckOptions
 import kotlin.math.abs
 import kotlin.math.max
@@ -44,7 +46,7 @@ fun main(args: Array<String>) {
     /** An arm's ways, each held at one of [outputs] (the network outputs for the values tried): the same one for all its bands, or, if [scramble], one drawn for each band and way. */
     class Arm(val name: String, val ways: List<Int>, val outputs: List<Float>, val scramble: Boolean = false) {
         val bands = ArrayList<Int>()
-        fun output(band: Int, way: Int) = if (scramble) outputs[Random(band * 104_729L + way).nextInt(outputs.size)] else outputs[0]
+        fun output(band: Int, way: Int) = if (scramble) outputs[stream(opts.cfg.seed, Stream.EXPERIMENT, band.toLong(), way.toLong()).nextInt(outputs.size)] else outputs[0]
     }
     val byGroup = Config.flag(Config.Key.DIAL_ARM_GROUPS, false)
     val arms = if (byGroup) {
@@ -71,7 +73,7 @@ fun main(args: Array<String>) {
     val per = minOf(armSize, humans.size / arms.size)
     require(per >= 2) { "${humans.size} bands for ${arms.size} arms: name fewer ways (dialArmWays) or values (dialArmValues)" }
     if (per < armSize) println("only ${humans.size} bands for ${arms.size} arms: $per in each, not $armSize")
-    val order = humans.map { it.id }.shuffled(Random(opts.cfg.seed * 31L + 7L))
+    val order = humans.map { it.id }.shuffled(stream(opts.cfg.seed, Stream.EXPERIMENT, -1L))
     for ((i, id) in order.take(per * arms.size).withIndex()) arms[i % arms.size].bands += id
     val armOf = HashMap<Int, Arm>().also { m -> for (a in arms) for (id in a.bands) m[id] = a }
     // (The ways are the learned networks' if the config names them (nets=, ways=): each arm then holds its one way at its value in place of the network's.)

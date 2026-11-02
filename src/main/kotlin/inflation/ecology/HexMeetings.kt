@@ -1,9 +1,13 @@
 package inflation.ecology
 
+import inflation.drawKey
+import inflation.mix64
 import inflation.Part
 import inflation.Par
 import inflation.Profile
 import inflation.monthsFrom
+import inflation.Stream
+import inflation.stream
 import inflation.world.Hex
 import inflation.world.HexArray
 import inflation.world.Place
@@ -29,16 +33,11 @@ private class Stay(val k: Int, val index: Int, val hex: Hex, val from: Float, va
 private class Meeting(val day: Float, val span: Float, val a: Int, val ai: Int, val b: Int, val bi: Int, val hex: Hex) { var tie = 0L }
 
 /**
- * A draw of order for groups [id] and [other] on day [day]: who comes first when two things happen at
- * once. Fixed by the ids and the day, so a run repeats on any number of cores, but no group is first
- * week after week for being older (lower in the list).
+ * A draw of order for groups [id] and [other] on day [day] in the world of [seed]: who comes first when two things
+ * happen at once. Fixed by the seed, the ids and the day, so a run repeats on any number of cores, but no group is
+ * first week after week for being older (lower in the list).
  */
-internal fun tieBreak(id: Int, other: Int, day: Long): Long {
-    var z = day * -0x61c8864680b583ebL + id * 0x2545f4914f6cdd1dL + other * 0x632be59bd9b4e019L
-    z = (z xor (z ushr 30)) * -0x40a7b892e31b1a47L
-    z = (z xor (z ushr 27)) * -0x6b2fb644ecceee15L
-    return z xor (z ushr 31)
-}
+internal fun tieBreak(seed: Long, id: Int, other: Int, day: Long): Long = mix64(drawKey(seed, Stream.TIE, id.toLong(), day) + other)
 
 /** The day [g] enters each hex of its path: effort so far over its pace, the first hex on day 0. */
 internal fun GroupWorld.timetable(s: Species, path: HexArray): FloatArray {
@@ -115,8 +114,8 @@ internal fun HexGroups.meet(weather: Weather) {
     // Meetings at the same hour come in an order drawn afresh each week, not by age in the list.
     val today = weather.date.absoluteDay
     // (Each meeting's draw worked out once, then sorted on all cores: the order is the same as one by one.)
-    events.parallelStream().forEach { it.tie = tieBreak(parties[it.a].id, parties[it.b].id, today) }
-    withStandIns.parallelStream().forEach { it.tie = tieBreak(parties[it.a].id, parties[it.b].id, today) }
+    events.parallelStream().forEach { it.tie = tieBreak(seedBase, parties[it.a].id, parties[it.b].id, today) }
+    withStandIns.parallelStream().forEach { it.tie = tieBreak(seedBase, parties[it.a].id, parties[it.b].id, today) }
     val sorted = events.toTypedArray()
     Arrays.parallelSort(sorted) { x, y ->
         val c = java.lang.Float.compare(x.day, y.day)
@@ -180,7 +179,7 @@ internal fun HexGroups.meet(weather: Weather) {
         val outcomes = arrayOfNulls<List<StandInsMet>>(byStandIns.size)
         Par.forEach("meetings: residents by hex", byStandIns.size) { j ->
             val list = byStandIns[j]; if (list.size < 2) return@forEach
-            val r = kotlin.random.Random(tieBreak(list[0].g.home.i, -7, today))
+            val r = stream(seedBase, Stream.RESIDENT_MEETINGS, list[0].g.home.i.toLong(), today)
             val out = ArrayList<StandInsMet>()
             for (x in list.indices) for (y in x + 1 until list.size) {
                 val sx = list[x]; val sy = list[y]
@@ -553,7 +552,7 @@ internal fun HexGroups.settle(weather: Weather) {
     val claimed = HashSet<Long>()
     // (Packs come in a drawn order: the first to come on empty ground takes it.)
     val today = weather.date.absoluteDay
-    for (g in groups.filter { it.alive && it.species.lifeway == Lifeway.PACK && it.home.none }.sortedBy { tieBreak(it.id, 0, today) }) {
+    for (g in groups.filter { it.alive && it.species.lifeway == Lifeway.PACK && it.home.none }.sortedBy { tieBreak(seedBase, it.id, 0, today) }) {
         val h = hw.placeHex[g.place]
         val key = g.species.index.toLong() * hex.size + h.i
         // (Whether it takes it is its choice: always at the hand-written way.)

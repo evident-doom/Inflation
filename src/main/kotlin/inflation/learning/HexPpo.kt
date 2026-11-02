@@ -14,6 +14,8 @@ import inflation.ecology.HexGroup
 import inflation.ecology.HexPolicy
 import inflation.ecology.Mind
 import inflation.ecology.Species
+import inflation.stream
+import inflation.Stream
 import inflation.world.WorldCache
 import inflation.world.WorldConfig
 import java.io.File
@@ -497,7 +499,7 @@ object HexPpo {
             val adam = Adam(model.net.w.size, 1e-3f); val adamId = Adam(model.identity.size, 1e-3f)
             repeat(15) { epoch ->
                 var loss = 0.0
-                for (batch in mine.shuffled(Random(epoch.toLong())).chunked(256)) {
+                for (batch in mine.shuffled(stream(3L, Stream.BATCHES, 0L, epoch.toLong())).chunked(256)) {
                     val parts = inParts(batch) { part ->
                         val gradW = FloatArray(model.net.w.size); val gradId = FloatArray(model.identity.size); val dIn = FloatArray(model.inputs)
                         val bufs = ArrayList<Mlp.Buffers>(); var l = 0.0

@@ -1,10 +1,7 @@
 package inflation.world
 
-import inflation.HASH_A
-import inflation.HASH_B
-import inflation.HASH_C
-import inflation.mix64
-import inflation.unitOf
+import inflation.drawUnit
+import inflation.Stream
 import inflation.Config
 
 import kotlin.math.exp
@@ -97,7 +94,7 @@ class HexFires(land: HexLand) : HexLandPart(land) {
             .also { setYear = 0; tookYear = 0; peopleKm2Year = 0.0; wildKm2Year = 0.0 }
 
     private fun hash(p: Place, salt: Int): Float {
-        return unitOf(mix64(land.seed * HASH_A + plants.stepCount * HASH_A + p.i * HASH_B + salt * HASH_C))
+        return drawUnit(land.seed, Stream.FIRES, p.i.toLong(), plants.stepCount.toLong(), salt.toLong())
     }
 
     companion object {

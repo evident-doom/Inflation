@@ -4,6 +4,7 @@ import kotlin.math.abs
 import kotlin.math.sqrt
 import kotlin.random.Random
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class DrawsTest {
@@ -29,5 +30,15 @@ class DrawsTest {
             repeat(draws) { sum += poisson(m, r) }
             assertTrue(abs(sum / draws - m) < 4 * sqrt(m / draws.toDouble()) + 1e-3, "poisson($m): mean ${sum / draws}")
         }
+    }
+
+    /** A stream is fixed by its key, differs with the world's seed, and no group replays another's at any lag (as id * 7919 + day once did). */
+    @Test
+    fun streamsAreKeptApart() {
+        assertEquals(stream(3, Stream.FORAGE, 5, 600).nextLong(), stream(3, Stream.FORAGE, 5, 600).nextLong())
+        val keys = HashSet<Long>()
+        for (seed in 1L..3L) for (s in Stream.entries) for (id in 0L until 40L) for (day in 0L until 60_000L step 600L)
+            assertTrue(keys.add(drawKey(seed, s, id, day)), "key repeated: seed $seed, $s, id $id, day $day")
+        assertEquals(Stream.entries.size, Stream.entries.map { it.salt }.toSet().size, "two streams share a salt")
     }
 }
