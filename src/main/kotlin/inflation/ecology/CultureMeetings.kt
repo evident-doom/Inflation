@@ -115,8 +115,8 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
     val toA = if (showB != null && showB != bandA.heldLivelihood) COPY_TRADITION * u * conformist(bandA.heardLivelihoodShare(showB)) * (1f - bandA.livelihoodHold) else 0f
     val toB = if (showA != null && showA != bandB.heldLivelihood) COPY_TRADITION * u * conformist(bandB.heardLivelihoodShare(showA)) * (1f - bandB.livelihoodHold) else 0f
     if (toA + toB > 0f) when (takeUpSide(rnd.nextFloat(), toA, toB)) {
-        TakeUp.A -> { bandA.heldLivelihood = showB!!; bandA.livedOther = 0f; stats.meeting(Met.BANDS_TOOK_UP_ANOTHERS_WAY_OF_LIFE) }
-        TakeUp.B -> { bandB.heldLivelihood = showA!!; bandB.livedOther = 0f; stats.meeting(Met.BANDS_TOOK_UP_ANOTHERS_WAY_OF_LIFE) }
+        TakeUp.A -> if (showB != null) { bandA.heldLivelihood = showB; bandA.livedOther = 0f; stats.meeting(Met.BANDS_TOOK_UP_ANOTHERS_WAY_OF_LIFE) }
+        TakeUp.B -> if (showA != null) { bandB.heldLivelihood = showA; bandB.livedOther = 0f; stats.meeting(Met.BANDS_TOOK_UP_ANOTHERS_WAY_OF_LIFE) }
         TakeUp.NEITHER -> {}
     }
     riteMeet(bandA, bandB, ab, ba)
