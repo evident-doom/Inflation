@@ -1,7 +1,5 @@
 package inflation.world
 
-import inflation.stream
-import inflation.Stream
 import kotlin.math.max
 import kotlin.math.min
 
@@ -100,7 +98,8 @@ class HexDrinkingWater(land: HexLand) : HexLandPart(land) {
         val c = world.climate
         val dr = world.water.drainage
         val cellArea = grid.cellAreaM2.toFloat()
-        val rnd = stream(land.seed, Stream.SPRINGS)
+        // (World generation keeps its own seeds, not [inflation.stream]: a save is laid over the world made again from its seed, so the world must come out as it did.)
+        val rnd = kotlin.random.Random(land.seed * 131 + 11)
         val recharge = dr.accumulate(FloatArray(grid.size) {
             if (world.isSea[it]) 0f else Aquifer.of(world.geology.rock[it]).intake * c.runoff[it] / 1000f * cellArea
         })

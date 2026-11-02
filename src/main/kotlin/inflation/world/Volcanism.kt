@@ -46,7 +46,8 @@ class Eruption(val date: Date, val volcano: Volcano, val vei: Int)
 
 object Volcanism {
     fun generate(grid: Grid, cfg: WorldConfig, tect: Tectonics): List<Volcano> {
-        val rnd = stream(cfg.seed, Stream.VOLCANOES)
+        // (World generation keeps its own seeds, not [inflation.stream]: a save is laid over the world made again from its seed, so the world must come out as it did.)
+        val rnd = Random(cfg.seed * 104_729 + 3)
         val out = ArrayList<Volcano>()
         fun farFromOthers(x: Int, y: Int, km: Double) = out.none { hypot((it.x - x).toDouble(), (it.y - y).toDouble()) * grid.cellKm < km }
 

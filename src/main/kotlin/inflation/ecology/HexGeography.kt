@@ -1,7 +1,5 @@
 package inflation.ecology
 
-import inflation.stream
-import inflation.Stream
 import inflation.world.Biome
 import inflation.world.Hex
 import inflation.world.HexArray
@@ -320,7 +318,8 @@ class HexGeography(private val hw: HexWorld) {
         for (f in all.sortedByDescending { it.hexes.size }) {
             if (f.kind == Kind.VALLEY || f.kind == Kind.FLOODPLAIN) continue
             val at = if (f.kind == Kind.RIVER) f.hexes.last() else f.label
-            val rnd = stream(world.config.seed, Stream.FEATURE_NAMES, at.i.toLong(), f.kind.ordinal.toLong())
+            // (World generation keeps its own seeds, not [inflation.stream]: a save is laid over the world made again from its seed, so the world must come out as it did.)
+            val rnd = Random(world.config.seed * 1_000_003 + at.i.toLong() * 31 + f.kind.ordinal)
             var w: String
             do { w = word(rnd) } while (!used.add(w))
             f.name = when (f.kind) {

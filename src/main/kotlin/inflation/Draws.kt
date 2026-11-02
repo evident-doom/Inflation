@@ -32,19 +32,9 @@ fun mix64Once(h0: Long): Long {
 /**
  * The model's own streams of chance, each kept apart from the others by its [salt] (fixed, so that adding one moves
  * no other). A stream is drawn by [stream] from the world's seed, the stream, who draws ([id]) and when ([at]).
+ * (Making the world keeps its own seeds: a save is laid over the world made again from its seed, which must come out as it did.)
  */
 enum class Stream(val salt: Long) {
-    // Making the world.
-    /** The terrain's noise field ([inflation.world.Noise]). */
-    NOISE(0x4e4f4953L),
-    TECTONICS(0x54454354L),
-    EROSION(0x45524f44L),
-    VOLCANOES(0x564f4c43L),
-    /** Names of rivers, lakes and the rest. */
-    FEATURE_NAMES(0x4e414d45L),
-    /** Where springs rise ([inflation.world.HexDrinkingWater]). */
-    SPRINGS(0x53505249L),
-
     // The world over time.
     /** The weather's turns (regimes, droughts), for each weather replicate. */
     WEATHER(0x57454154L),

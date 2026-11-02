@@ -1,7 +1,5 @@
 package inflation.world
 
-import inflation.stream
-import inflation.Stream
 import kotlin.math.abs
 import kotlin.math.floor
 import kotlin.random.Random
@@ -12,7 +10,8 @@ class Noise(seed: Long) {
 
     init {
         val p = IntArray(256) { it }
-        val rnd = stream(seed, Stream.NOISE)
+        // (World generation keeps its own seeds, not [inflation.stream]: a save is laid over the world made again from its seed, so the world must come out as it did.)
+        val rnd = Random(seed)
         for (i in 255 downTo 1) {
             val j = rnd.nextInt(i + 1)
             val t = p[i]; p[i] = p[j]; p[j] = t

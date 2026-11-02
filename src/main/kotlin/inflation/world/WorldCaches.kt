@@ -26,12 +26,9 @@ private fun makesNoWorld(simpleClassName: String) = listOf(
     "LifeForm", "Phase", "Place", "IndicesKt",
 ).any { simpleClassName.startsWith(it) }
 
-/** The compiled classes of [inflation.drawKey] and its [inflation.Stream]s, which the world is made with. */
-private val DRAWS_CLASSES = listOf("inflation/DrawsKt.class", "inflation/Stream.class")
-
 /**
- * A key for [cfg], the compiled world-package classes [counts] picks (by simple name) and [DRAWS_CLASSES]: any change to
- * any of them gives a new key.
+ * A key for [cfg] and the compiled world-package classes [counts] picks (by simple name): any change to
+ * either gives a new key.
  */
 private fun codeKey(cfg: WorldConfig, counts: (String) -> Boolean): Long {
     val crc = java.util.zip.CRC32()
@@ -50,8 +47,6 @@ private fun codeKey(cfg: WorldConfig, counts: (String) -> Boolean): Long {
         if (!counts(n.substringAfterLast('/'))) continue
         crc.update(n.toByteArray()); crc.update(bytes())
     }
-    // (The world's streams of chance are drawn outside the package: a change to how they are keyed makes every world anew too.)
-    for (n in DRAWS_CLASSES) loader.getResourceAsStream(n)?.use { crc.update(n.toByteArray()); crc.update(it.readBytes()) }
     return crc.value xor (cfg.seed shl 32)
 }
 
