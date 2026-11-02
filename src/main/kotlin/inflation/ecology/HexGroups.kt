@@ -142,6 +142,7 @@ class HexGroups(
             // (People's start can be a multiple of the usual, to find what the land would carry: t.peopleStart.)
             // (Of a kind that also lives settled, only the roamers start as packs: [Catalogue.roamingResidents].)
             val count = if (s.human) (usual * tuning.peopleStart).toInt()
+                else if (s == Catalogue.CHEETAH) max(1, (usual * tuning.cheetahStart).toInt())
                 else if (s in Catalogue.roamingResidents) (usual * HexFauna.ROAMERS_AT_START).roundToInt() else usual
             val weights = if (uniformStart) FloatArray(n) { p -> land.areaKm2[p] } else startWeights(s).also { w -> if (s == Catalogue.CHEETAH) keepOutOfLionCountry(w) }
             val total = weights.sum()
