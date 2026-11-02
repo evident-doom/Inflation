@@ -1,6 +1,7 @@
 package inflation.ecology
 
 import inflation.Par
+import inflation.Part
 import inflation.Profile
 import inflation.Stream
 import inflation.stream
