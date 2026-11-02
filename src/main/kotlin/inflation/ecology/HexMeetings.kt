@@ -37,6 +37,38 @@ private class Meeting(val day: Float, val span: Float, val a: Int, val ai: Int, 
  */
 internal fun tieBreak(seed: Long, id: Int, other: Int, day: Long): Long = mix64(drawKey(seed, Stream.TIE, id.toLong(), day) + other)
 
+/** Each party's stays on its way ([Stay]), by the hex they are in. */
+@Part("meetings: who is in each hex")
+private fun HexGroups.staysByHex(parties: List<HexGroup>): HashMap<Hex, ArrayList<Stay>> {
+    val byHex = HashMap<Hex, ArrayList<Stay>>()
+    for ((k, g) in parties.withIndex()) {
+        if (!g.alive) continue
+        val last = g.path.size - 1
+        for (i in g.path.indices) {
+            val to = if (i < last) g.days[i + 1] else days.toFloat()
+            byHex.getOrPut(g.path[i]) { ArrayList() } += Stay(k, i, g.path[i], g.days[i], to)
+        }
+    }
+    return byHex
+}
+
+/** [events] put in the order they happen: by day, then by their drawn tie-break, then by the parties (a total order, so the same on any cores). */
+@Part("meetings: sorting")
+private fun inTimeOrder(events: ArrayList<Meeting>) {
+    val sorted = events.toTypedArray()
+    Arrays.parallelSort(sorted) { x, y ->
+        val c = java.lang.Float.compare(x.day, y.day)
+        if (c != 0) c else {
+            val t = java.lang.Long.compare(x.tie, y.tie)
+            if (t != 0) t else {
+                val ca = Integer.compare(x.a, y.a)
+                if (ca != 0) ca else Integer.compare(x.b, y.b)
+            }
+        }
+    }
+    events.clear(); events.addAll(sorted)
+}
+
 /** The day [g] enters each hex of its path: effort so far over its pace, the first hex on day 0. */
 internal fun GroupWorld.timetable(s: Species, path: HexArray): FloatArray {
     val out = FloatArray(path.size)
@@ -66,20 +98,10 @@ internal fun GroupWorld.timetable(s: Species, path: HexArray): FloatArray {
 @Part("meetings: settle")
 internal fun HexGroups.meet(weather: Weather) {
     meetMonth = weather.date.month
-    var mt = Profile.mark()
     // (The resident hunters meet as packs do, through bands standing in for them: [ResidentParties].)
     val residents = ResidentParties(this)
     val parties = groups + residents.parties
-    val byHex = HashMap<Hex, ArrayList<Stay>>()
-    for ((k, g) in parties.withIndex()) {
-        if (!g.alive) continue
-        val last = g.path.size - 1
-        for (i in g.path.indices) {
-            val to = if (i < last) g.days[i + 1] else days.toFloat()
-            byHex.getOrPut(g.path[i]) { ArrayList() } += Stay(k, i, g.path[i], g.days[i], to)
-        }
-    }
-    mt = Profile.lap("meetings: who is in each hex", mt)
+    val byHex = staysByHex(parties)
     // Each pair once, hex by hex on all cores.
     val shared = byHex.values.filter { it.size >= 2 }
     val found = Array<List<Meeting>>(shared.size) { emptyList() }
@@ -111,25 +133,12 @@ internal fun HexGroups.meet(weather: Weather) {
         for (i in events.indices) if (apart[i]) withStandIns += events[i] else kept += events[i]
         events.clear(); events.addAll(kept)
     }
-    mt = Profile.lap("meetings: pairs", mt)
     // Meetings at the same hour come in an order drawn afresh each week, not by age in the list.
     val today = weather.date.absoluteDay
     // (Each meeting's draw worked out once, then sorted on all cores: the order is the same as one by one.)
     Par.forEach("meetings: tie-breaks", events) { it.tie = tieBreak(seedBase, parties[it.a].id, parties[it.b].id, today) }
     Par.forEach("meetings: tie-breaks with stand-ins", withStandIns) { it.tie = tieBreak(seedBase, parties[it.a].id, parties[it.b].id, today) }
-    val sorted = events.toTypedArray()
-    Arrays.parallelSort(sorted) { x, y ->
-        val c = java.lang.Float.compare(x.day, y.day)
-        if (c != 0) c else {
-            val t = java.lang.Long.compare(x.tie, y.tie)
-            if (t != 0) t else {
-                val ca = Integer.compare(x.a, y.a)
-                if (ca != 0) ca else Integer.compare(x.b, y.b)
-            }
-        }
-    }
-    events.clear(); events.addAll(sorted)
-    mt = Profile.lap("meetings: sorting", mt)
+    inTimeOrder(events)
     val stop = IntArray(parties.size) { parties[it].path.size - 1 }
     for (e in events) {
         // Both must still be on their way at that point.
@@ -150,13 +159,13 @@ internal fun HexGroups.meet(weather: Weather) {
             ra?.fresh(); rb?.fresh()
             if (!a.alive || !b.alive) break
             if (slipsAway(a, b, p) || slipsAway(b, a, p)) stats.meeting(Met.SLIPPED_AWAY)
-            else if (a.species.human && b.species.human) Profile.part("meetings: bands (culture, gifts, feasts, raids)") { val t0 = Profile.mark(); bandsMeet(a, b, weather); Profile.slow("meeting: bands", t0, weather.date.absoluteDay) { a.probe(weather.date.absoluteDay) + " | " + b.probe(-1L) } }
-            else if (a.species == b.species) Profile.part("meetings: rival packs") { rivalsMeet(a, e.a, e.ai, b, e.b, e.bi, h, stop) }
-            else Profile.part("meetings: hunters of other kinds") { enemiesMeet(a, e.a, e.ai, b, e.b, e.bi, h, stop) }
+            else if (a.species.human && b.species.human) run { val t0 = Profile.mark(); bandsMeet(a, b, weather); Profile.slow("meeting: bands", t0, weather.date.absoluteDay) { a.probe(weather.date.absoluteDay) + " | " + b.probe(-1L) } }
+            else if (a.species == b.species) rivalsMeet(a, e.a, e.ai, b, e.b, e.bi, h, stop)
+            else enemiesMeet(a, e.a, e.ai, b, e.b, e.bi, h, stop)
             ra?.settle(); rb?.settle()
         }
     }
-    Profile.part("meetings: packs and bands with resident hunters") {
+    run {
         val drawn = arrayOfNulls<StandInsMet>(withStandIns.size)
         Par.forEach("meetings: stand-ins drawn", withStandIns.size) { i ->
             val e = withStandIns[i]; val a = parties[e.a]; val b = parties[e.b]
@@ -175,7 +184,7 @@ internal fun HexGroups.meet(weather: Weather) {
     }
     // Resident hunters of different kinds meet each other where they live, hex by hex on all cores (each hex with its own
     // draws, so the same on any number of cores); what came of it is booked after, in the hexes' order.
-    Profile.part("meetings: resident hunters among themselves") {
+    run {
         val byStandIns = residents.standInsByHex()
         val outcomes = arrayOfNulls<List<StandInsMet>>(byStandIns.size)
         Par.forEach("meetings: residents by hex", byStandIns.size) { j ->
@@ -204,7 +213,6 @@ internal fun HexGroups.meet(weather: Weather) {
         g.path = g.path.copyOf(i + 1); g.days = g.days.copyOf(i + 1)
         g.place = hw.placeNear(g.place, h).takeIf { !it.none } ?: g.place
     }
-    Profile.lap("meetings: settling them", mt)
 }
 
 /** What came of [times] bands of a resident hunter kind meeting a stronger party ([standInsMeetDraw]). */
@@ -439,6 +447,7 @@ internal fun HexGroups.shelteredFromKilling(weak: Species, p: Place) = 1f - SHEL
  * ([rivalsMeet]): killing a rival is not hunting it. (Lions leave the cheetahs they kill uneaten; wolves eat a coyote
  * now and then: Palomares & Caro 1999. What lies there is carrion, for whoever eats carrion, the killer too.)
  */
+@Part("meetings: hunters of other kinds")
 internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk: Int, bi: Int, h: Hex, stop: IntArray) {
     stats.meeting(Met.HUNTERS_OF_OTHER_KINDS)
     val sa = strength(a) * (if (a.home == h) HOME_ADVANTAGE else 1f)
@@ -507,6 +516,7 @@ internal fun HexGroups.mark() {
  * strangers, gives way and turns back. Packs of near equal strength fight: now and then one dies,
  * and the loser gives up the ground.
  */
+@Part("meetings: rival packs")
 internal fun GroupWorld.rivalsMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk: Int, bi: Int, h: Hex, stop: IntArray) {
     stats.meeting(Met.RIVAL_PACKS)
     val sa = a.adults * (if (a.home == h) HOME_ADVANTAGE else 1f); val sb = b.adults * (if (b.home == h) HOME_ADVANTAGE else 1f)

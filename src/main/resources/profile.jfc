@@ -13,5 +13,7 @@
   <event name="jdk.ObjectAllocationSample"><setting name="enabled">true</setting><setting name="throttle">150/s</setting></event>
   <event name="inflation.Phase"><setting name="enabled">true</setting><setting name="threshold">0 ms</setting></event>
   <event name="inflation.Par"><setting name="enabled">true</setting><setting name="threshold">0 ms</setting></event>
+  <event name="inflation.Kind"><setting name="enabled">true</setting><setting name="threshold">0 ms</setting></event>
+  <event name="inflation.Slow"><setting name="enabled">true</setting><setting name="threshold">0 ms</setting></event>
   <event name="inflation.Job"><setting name="enabled">true</setting><setting name="threshold">1 ms</setting></event>
 </configuration>

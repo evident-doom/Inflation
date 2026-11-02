@@ -365,12 +365,12 @@ class HexGroups(
         Par.forEach("choosing: groups", groups.size) { k ->
             val g = groups[k]
             if (!g.alive) return@forEach
-            // (With profile=fine, the choosing is timed by packs and bands apart.)
+            // (With profile=jfr, the choosing is timed by kind, bands apart.)
             val t0 = Profile.mark()
-            val plan = Profile.part(if (g.band != null) "choosing: bands" else Profile.byKind("choosing: packs", g.species.name)) { planner.plan(g, weather, date, predatorKg) }
+            val plan = Profile.kind("choosing", if (g.band != null) "bands" else g.species.name) { planner.plan(g, weather, date, predatorKg) }
             if (g.band != null) Profile.slow("plan: band", t0, date.absoluteDay) { g.probe(date.absoluteDay) }
             choice[k] = plan.place.i; paths[k] = plan.path
-            times[k] = Profile.part("choosing: timetable") { timetable(g.species, plan.path) }
+            times[k] = timetable(g.species, plan.path)
         }
         for ((k, g) in groups.withIndex()) if (g.alive) {
             if (g.band != null && g.fed < Thresholds.HUNGRY)

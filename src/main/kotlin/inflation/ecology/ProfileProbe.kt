@@ -2,7 +2,7 @@ package inflation.ecology
 
 import inflation.Profile
 
-/** What a slow job ([Profile.slow], with profile=fine) was about: the size of the group and of what its band knows. For reading the report only. */
+/** What a slow job ([Profile.slow], with profile=jfr) was about: the size of the group and of what its band knows. For reading the report only. */
 internal fun HexGroup.probe(day: Long): String {
     val b = band
     val base = "day=$day thread=${Thread.currentThread().name} g#$id ${species.name} size=$size path=${path.size}"

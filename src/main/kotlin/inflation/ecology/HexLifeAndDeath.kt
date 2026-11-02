@@ -203,7 +203,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
     foulGround()
     bands.houseOf = groups.filter { g -> g.alive && g.band.let { it != null && !it.houseHex.none && it.house >= Thresholds.HOUSE_STANDING } }
         .associate { it.id to it.band!!.houseHex }
-    Profile.part("people: camps, tools, culture") {
+    run {
         // The bands' own weeks go one after another (they share the ground, the structures and the week's tallies), then their
         // customs' year, which touches only the band, on all cores, each with a stream of its own; then the rites, which bring
         // bands together, one after another.
@@ -239,7 +239,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
     val outcome = arrayOfNulls<Outcome>(list.size)
     Par.forEach("groups: life and death", list.size) { k ->
         val g = list[k]
-        if (g.alive) outcome[k] = Profile.part(if (g.band != null) "groups: life and death / bands" else Profile.byKind("groups: life and death", g.species.name)) {
+        if (g.alive) outcome[k] = Profile.kind("groups: life and death", if (g.band != null) "bands" else g.species.name) {
             liveWeek(g, weather, date, kinNow, groupRandom(g.id, date.absoluteDay)) }
     }
     // Outbreaks that broke out this week rage from next week: started after every group has lived its

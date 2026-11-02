@@ -2,7 +2,6 @@ package inflation.ecology
 
 import inflation.Par
 import inflation.Part
-import inflation.Profile
 import inflation.world.Phase
 import inflation.world.Hex
 import inflation.world.HexArray
@@ -71,10 +70,7 @@ internal class GroupPlanner(private val gs: HexGroups) {
      */
     @Part("choosing: plan one group")
     internal fun plan(g: HexGroup, weather: Weather, date: Date, predatorKg: FloatArray): Plan {
-        var pt = Profile.mark()
-        val r = planInner(g, weather, date, predatorKg) { name -> pt = Profile.lap(name, pt) }
-        Profile.lap("choosing: route", pt)
-        return r
+        return planInner(g, weather, date, predatorKg)
     }
 
     /**
@@ -82,6 +78,7 @@ internal class GroupPlanner(private val gs: HexGroups) {
      * reached): from a search shared with groups of its kind starting from the same place that reach as
      * far or further, else from a new one (then shared).
      */
+    @Part("choosing: reach (least-effort search)")
     private fun searchReach(g: HexGroup, here: Hex, reach: Float, restless: Boolean, weather: Weather, buf: Scratch) {
         val s = g.species
         val dist = buf.dist; val via = buf.via; val reached = buf.reached
@@ -132,7 +129,7 @@ internal class GroupPlanner(private val gs: HexGroups) {
         }
     }
 
-    private fun planInner(g: HexGroup, weather: Weather, date: Date, predatorKg: FloatArray, lap: (String) -> Unit): Plan {
+    private fun planInner(g: HexGroup, weather: Weather, date: Date, predatorKg: FloatArray): Plan {
         val s = g.species
         val here = gs.hw.placeHex[g.place]
         // What it sees of the others: in its own hex and the six around, which its week's ranging covers.
@@ -163,7 +160,6 @@ internal class GroupPlanner(private val gs: HexGroups) {
         val buf = scratch.get()
         val dist = buf.dist; val via = buf.via; val reached = buf.reached
         searchReach(g, here, reach, restless, weather, buf)
-        lap("choosing: reach (least-effort search)")
         var best = g.place; var bestScore = Float.NEGATIVE_INFINITY
         val policy = gs.policies[s]
         // (moveTrace: a band choosing by the hand-written score books what moved it, [bookMove].)
@@ -302,7 +298,6 @@ internal class GroupPlanner(private val gs: HexGroups) {
                 if (total > bestScore || (total == bestScore && k < bestK)) { bestScore = total; best = p; bestK = k }
             }
         }
-        lap("choosing: weighing places (hand-written score)")
         g.drawn = false; g.weighed = true
         if (policy != null && candPlaces.size > 0) {
             val nc = candPlaces.size
@@ -320,7 +315,6 @@ internal class GroupPlanner(private val gs: HexGroups) {
             if (best != g.place) exploreCounts.incrementAndGet(k + 2)
             if (best != g.place && chosen == g.place) exploreCounts.incrementAndGet(k + 3)
         }
-        lap("choosing: network")
         // The hexes passed on the way to [p], by the cheapest chain.
         fun pathTo(p: Int): HexArray {
             val chain = ArrayList<Hex>(); var h = gs.hw.placeHex[p]
