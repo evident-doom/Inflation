@@ -19,9 +19,18 @@ CMDS=(
   "pick-world|inflation.learning.HexPickWorld|--seeds 1-2 --size 300 --lats 36"
 )
 
+# (The worktrees this run makes are removed as it ends, however it ends; the results stay in WORKDIR. KEEP_TREES=1 keeps
+# them for another run on the same refs. core.longpaths: their deepest paths are past Windows' 260 characters.)
+made=()
+cleanup() {
+  [ "${KEEP_TREES:-}" = 1 ] && return
+  for d in "${made[@]}"; do git -C "$REPO" -c core.longpaths=true worktree remove --force "$d" 2>/dev/null || rm -rf "$d"; done
+  git -C "$REPO" worktree prune
+}
+trap cleanup EXIT
 for ref in "$BASE" "$NEW"; do
   d="$W/tree-$(git -C "$REPO" rev-parse --short "$ref")"
-  [ -d "$d" ] || git -C "$REPO" worktree add -q --detach "$d" "$ref" || exit 1
+  [ -d "$d" ] || { git -C "$REPO" worktree add -q --detach "$d" "$ref" || exit 1; made+=("$d"); }
   (cd "$d" && ./gradlew -q compileKotlin processResources) || { echo "build failed at $ref"; exit 1; }
 done
 
@@ -36,6 +45,9 @@ for c in "${CMDS[@]}"; do
     (cd "$d" && java -Xmx12g -Dhex.config="$cfg" -cp "build/classes/kotlin/main${SEP}build/resources/main${SEP}$LIB" "$main" $(a=${args//\{OUT\}/$out/files}; echo ${a//\{W\}/$W}) > "$out/printed.txt" 2>&1)
     echo "exit $?" >> "$out/printed.txt"
   done
+  # (A run that failed proves nothing: two identical error messages would compare as the same.)
+  failed=""; for side in base new; do tail -1 "$W/$name/$side/printed.txt" | grep -qx "exit 0" || failed="$failed $side"; done
+  if [ -n "$failed" ]; then echo "$name: RUN FAILED:$failed (see $name/<side>/printed.txt)"; status=1; continue; fi
   f(){ grep -vE '[0-9]+(\.[0-9]+)? s\b|[0-9]+ ms\b' "$1"; }
   if diff <(f "$W/$name/base/printed.txt") <(f "$W/$name/new/printed.txt") > "$W/$name/printed.diff"; then p="printed lines identical"; else p="PRINTED LINES DIFFER (see $name/printed.diff)"; status=1; fi
   fd=$(diff -r -x log.txt "$W/$name/base/files" "$W/$name/new/files" 2>&1 | head -5)

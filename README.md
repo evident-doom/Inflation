@@ -87,8 +87,8 @@ role share it and are told apart by their traits and a learned identity. Bands' 
 
 A network is saved with a `.names` file listing its inputs and outputs, so it keeps working as
 features are added (`Schema`, `docs/design/model-compatibility.md`). `nets=DIR` in the config file
-makes the networks in DIR the model for any run (`LearnedModel`); without it the hand-written rules
-are the model.
+makes the networks in DIR the model for any run (`LearnedModel`); without it the latest baseline
+is the model (hand-written rules only seed a new world's start).
 
 ## Running
 
@@ -119,8 +119,8 @@ can reach, the places coloured by how the model scores them with the model's pic
 ways for the week. Click another place or pin a way to override the model; Next step runs the week,
 and the next week then waits at the group's choice (unless "Model decides" is ticked). The
 overview's Run and Step take over: their weeks run on the model's choices. `nets=DIR`, with `ways=FILE`,
-in the config file makes the learned networks the model, as in `hexFauna`;
-without them it is the hand-written choices.
+in the config file picks the learned networks, as in `hexFauna`;
+without it the latest baseline is used.
 
 `hexFauna` runs the hex world for some years and prints each kind's numbers, the small life, the
 causes of death and the cost of a step, and for people a line against the ethnographic record (band
