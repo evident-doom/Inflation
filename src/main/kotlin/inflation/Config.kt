@@ -57,6 +57,7 @@ object Config {
         PPO_CRITIC_TIMES("ppo.criticTimes"),
         PPO_ADVANTAGE_CLIP("ppo.advantageClip"),
         PPO_WEIGH_COST("ppo.weighCost"),
+        PPO_GATE_RATE("ppo.gateRate"),
         PPO_FORESEEN_SHAPE("ppo.foreseenShape"),
         PPO_STRESS_BOOST("ppo.stressBoost"),
         PPO_MAX_SHARE("ppo.maxShare"),

@@ -34,7 +34,11 @@ class PpoTrainer(private val o: PpoOptions) {
     /** A model's two optimisers: for its network's weights and for its kinds' identity vectors. */
     private class Adams(val net: Adam, val identity: Adam)
     private val adams = models.map { Adams(Adam(it.net.w.size, o.rate), Adam(it.identity.size, o.rate)) }
-    private val gateAdams = models.map { Adam(it.gate?.w?.size ?: 0, o.rate) }
+    /**
+     * The gates' own step, apart from [o]'s rate: a gate is a small net with one yes-or-no output and gets a few dozen steps a
+     * round, so at the movers' rate it moved about 0.1 logit a round from its start (day-d7de0448: 96% to 94% weighing in 8 rounds).
+     */
+    private val gateAdams = models.map { Adam(it.gate?.w?.size ?: 0, Config.float(Config.Key.PPO_GATE_RATE, 3e-3f)) }
     /** What weighing a group's places costs its gate's judgement, in spreads of its kind's advantages: the gate keeps a group where it stands unless weighing gains it more. */
     private val weighCost = Config.float(Config.Key.PPO_WEIGH_COST, 0.1f)
     /** One critic for each role: what a group's return can be expected to be where it stands. */
