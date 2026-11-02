@@ -307,6 +307,20 @@ enum class Livelihood { FORAGING, HERDING, FARMING }
 fun Band.livelihood() = if (seedCorn > 0f) Livelihood.FARMING else if (herds.herd.any { it > 0f }) Livelihood.HERDING else Livelihood.FORAGING
 
 /**
+ * How firmly the founders of lineage [lineage] hold their way of life ([Band.livelihoodHold]), 0 to 1: one drawn for each lineage,
+ * spread evenly, so that some peoples take to a new way at once and others keep theirs for a generation of living otherwise.
+ * Not measured; kept wide so that runs try both.
+ */
+fun livelihoodHoldAt(lineage: Int) = Math.floorMod((lineage + 11) * 2_654_435_761L.toInt() xor 0x27d4eb2f, 1000) / 1000f
+
+/**
+ * Years a band that holds its way of life at its firmest ([Band.livelihoodHold] 1) lives otherwise before it comes to hold how
+ * it lives: a generation ([GENERATION_YEARS]), as the young who grew up in the new way take over. An estimate (Olli,
+ * 2026-11-02); no figure found.
+ */
+internal const val LIVELIHOOD_YEARS = GENERATION_YEARS
+
+/**
  * Whether two bands that both have a home have them on other ground: farther apart than a day's walk ([BODY_CARRY_KM]), the
  * ground a band walks over from its home and back in a day. A band with no home is not counted apart by it, as one that
  * leaves its dead is not by where the other lays them.
@@ -469,6 +483,13 @@ internal fun HexGroups.cultureWeek(g: HexGroup, rnd: kotlin.random.Random) {
     for (t in Tradition.entries) b.heard[t] *= keep
     b.heardOf *= keep
     b.ensureMarks(fauna.totemKinds)
+    // (It comes to hold the way it lives once it has lived so for long enough, the longer the firmer it held its own.)
+    val lives = b.livelihood()
+    if (lives == b.heldLivelihood) b.livedOther = 0f
+    else {
+        b.livedOther += years
+        if (b.livedOther >= b.livelihoodHold * LIVELIHOOD_YEARS) { b.heldLivelihood = lives; b.livedOther = 0f; stats.meeting(Met.BANDS_CAME_TO_HOLD_THEIR_WAY_OF_LIFE) }
+    }
     for (i in b.heardTotem.indices) b.heardTotem[i] *= keep
     for (w in BurialWay.entries) b.heardBurial[w] *= keep
     b.totemBroken = max(0f, b.totemBroken - years)

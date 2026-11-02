@@ -594,9 +594,23 @@ class Band(kinds: Int, totems: Int = kinds) {
      */
     fun ensureMarks(totems: Int) {
         if (heardTotem.size != totems + 1) heardTotem = FloatArray(totems + 1)
+        if (!livelihoodChosen) { heldLivelihood = livelihood(); livelihoodHold = livelihoodHoldAt(mainLineage()); livelihoodChosen = true }
         if (marksChosen) return
         totem = totemAt(mainLineage(), totems); burialWay = burialWayAt(mainLineage()); marksChosen = true
     }
+    /**
+     * The way of life it holds itself to: what its people say they are ("we are foragers"), which need not be how it lives
+     * now ([livelihood]). Founders hold foraging, villages and herders started with the world farming and herding; a band
+     * from a save made before it holds how it lives at its first week ([ensureMarks], [livelihoodChosen]). [livelihoodHold]: how
+     * firmly, 0 to 1, the same for a lineage's founders ([livelihoodHoldAt]). [livedOther]: years it has lived otherwise since
+     * it last lived as it holds; once they pass [livelihoodHold] times [LIVELIHOOD_YEARS] it comes to hold how it lives
+     * ([HexGroups.cultureWeek]): a band that holds loosely takes to a new way at once, one that holds firmly only after a
+     * generation of living it.
+     */
+    var heldLivelihood = Livelihood.FORAGING
+    var livelihoodHold = 0f
+    var livedOther = 0f
+    var livelihoodChosen = false
     val words = IntArray(Language.CONCEPTS)
     val lineage = FloatArray(LINEAGES)
     var inbred = 0.02f
@@ -735,6 +749,7 @@ class Band(kinds: Int, totems: Int = kinds) {
         o.omenPlace = omenPlace; o.omenMonth = omenMonth; o.omenYear = omenYear; o.omenWeight = omenWeight; o.deathsUsual = deathsUsual; o.wantSteps = wantSteps; o.wantBroke = wantBroke; o.wantUsual = wantUsual; o.mind = mind; foreseenShares.copyInto(o.foreseenShares); o.foreseenAt = foreseenAt
         traditions.copyInto(o.traditions); heard.copyInto(o.heard); o.heardOf = heardOf
         o.totem = totem; o.marksChosen = marksChosen; o.heardTotem = heardTotem.copyOf(); o.totemBroken = totemBroken
+        o.heldLivelihood = heldLivelihood; o.livelihoodHold = livelihoodHold; o.livedOther = livedOther; o.livelihoodChosen = livelihoodChosen
         o.burialWay = burialWay; heardBurial.copyInto(o.heardBurial); words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
         o.inbred = inbred; o.campWeeks = campWeeks; o.campPlace = campPlace; o.known = known.copyOf()
         copied(o)
@@ -952,6 +967,7 @@ class Band(kinds: Int, totems: Int = kinds) {
             traditionsAt(l).copyInto(traditions)
             totem = totemAt(l, totems); burialWay = burialWayAt(l); marksChosen = true
             riteStrength = riteStrengthAt(l, tuning)
+            heldLivelihood = Livelihood.FORAGING; livelihoodHold = livelihoodHoldAt(l); livelihoodChosen = true
             skills[Skill.GATHER] = START_CRAFT; skills[Skill.SMALL_GAME] = START_CRAFT; skills[Skill.HUNT] = START_CRAFT
             skills[Skill.FISH] = if (nearWater) 0.5f else 0.1f; skills[Skill.STORE] = 0.4f
             kit[Tool.SPEAR] = 1f; kit[Tool.NET] = 0.5f; kit[Tool.BASKET] = 0.5f; kit[Tool.CLOTHES] = 0.5f

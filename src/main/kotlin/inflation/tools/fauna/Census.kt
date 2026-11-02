@@ -16,6 +16,7 @@ import inflation.ecology.CustomsPart
 import inflation.ecology.RiteWalk
 import inflation.ecology.ritesApart
 import inflation.ecology.livelihood
+import inflation.ecology.Livelihood
 import inflation.ecology.homesApart
 import inflation.ecology.Regard
 import inflation.ecology.PlaceMemory
@@ -835,6 +836,14 @@ class Census(private val sim: HexSim) {
             .format(100.0 * kept.size / n, kept.toSet().size, 100.0 * bands.count { it.second.totemBroken > 0f } / n, 100.0 * bury.size / n,
                 if (bury.isEmpty()) 0.0 else 100.0 * bury.count { it.second.burialWay == BurialWay.AT_ANCESTORS } / bury.size,
                 if (bury.isEmpty()) 0.0 else bury.sumOf { it.second.burialOwed.toDouble() } / bury.size))
+        // (Ways of life: held ([Band.heldLivelihood]) and lived ([livelihood]), and the bands that live other than they hold.)
+        val other = bands.filter { (_, b) -> b.livelihood() != b.heldLivelihood }
+        println("     ways of life: held by bands %s; lived %s; %.0f%% of bands live other than they hold (%s), %.1f years so far a band of those; held firmly (0 to 1) %.2f a band; %d bands came to hold the way they live in the past year"
+            .format(Livelihood.entries.joinToString(" / ") { l -> "%s %.0f%%".format(l.name.lowercase(), 100.0 * bands.count { it.second.heldLivelihood == l } / n) },
+                Livelihood.entries.joinToString(" / ") { l -> "%s %.0f%%".format(l.name.lowercase(), 100.0 * living.count { it == l } / n) },
+                100.0 * other.size / n, Livelihood.entries.joinToString(", ") { l -> "holding %s %d".format(l.name.lowercase(), other.count { it.second.heldLivelihood == l }) },
+                other.sumOf { it.second.livedOther.toDouble() } / other.size.coerceAtLeast(1), bands.sumOf { it.second.livelihoodHold.toDouble() } / n,
+                metYear[Met.BANDS_CAME_TO_HOLD_THEIR_WAY_OF_LIFE.key] ?: 0))
         val now = weather.date.year * 12 + weather.date.month
         val keeping = bands.filter { (_, b) -> b.rite.any { it >= 0 } }
         val bySite = HashMap<Int, Int>()
