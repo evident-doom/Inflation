@@ -21,13 +21,15 @@ private const val DRAW_SALT = 0x53544f52L
  * Its week's food into band's record of weeks ([Band.weekSupply]) for the week of the year [date] is in, of [days] days:
  * [got], what it got as a share of its need before keeping warm, net of its larder, as [foresee] counts it (above
  * [warmth] laid by, below it lived off its larder or lost from it); [warmth], what keeping warm took, times that need;
- * [moved], whether it moved camp. A year's weeks go over those of [SUPPLY_YEARS] years before.
+ * [moved], whether it moved camp; and its foraging's yield ([Band.yieldNow], [Band.weekYield]). A year's weeks go over
+ * those of [SUPPLY_YEARS] years before.
  */
 internal fun Band.recordWeek(date: Date, days: Int, got: Float, warmth: Float, moved: Boolean) {
     val weeks = Date.stepsPerYear(days)
     if (weeks > WEEKS_KEPT) return
     val i = (date.year % SUPPLY_YEARS).toInt() * weeks + min(weeks - 1, date.dayOfYear / days)
-    weekSupply[i] = got; weekWarmth[i] = warmth; weekMoved[i] = moved
+    weekSupply[i] = got; weekWarmth[i] = warmth; weekMoved[i] = moved; weekYield[i] = yieldNow
+    yieldNow = Float.NaN
 }
 
 /**
