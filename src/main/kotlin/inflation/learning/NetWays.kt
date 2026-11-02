@@ -9,6 +9,7 @@ import inflation.ecology.WAYS_IN
 class NetWays(private val net: Mlp) : BandWays {
     // Not saved (a world saved with these ways comes back with none), so made again on first use.
     @Transient private var buffers: ThreadLocal<Mlp.Buffers>? = null
+    override val parallel get() = true
     override fun choose(g: HexGroup, inputs: FloatArray, out: FloatArray) {
         val b = (buffers ?: ThreadLocal.withInitial { net.buffers() }.also { buffers = it }).get()
         waysInput(inputs, g.plan, b.a[0])

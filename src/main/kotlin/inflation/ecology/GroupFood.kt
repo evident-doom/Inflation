@@ -41,7 +41,7 @@ internal fun HexGroups.hunt(weather: Weather) {
     indexBands()
     // (Without a ways network the bands keep the scaffold's ways, not those a saved world's bands last had from theirs.)
     // (A planning band reads no ways: it keeps the scaffold's, [planDays].)
-    if (ways != null) { for (g in hunters) g.band?.let { b -> if (b.mind == Mind.PLANS) b.scaffoldWays() else setWays(g, weather, ways, inputs, out) } }
+    if (ways != null) setBandWays(hunters, weather, ways, inputs, out)
     else for (g in hunters) g.band?.scaffoldWays()
     dialUse?.let { u -> for (g in hunters) if (g.band != null) u.bandWeeks.increment() }
     // (A band followed under the player's hand sets its ways every week, so the player's pins hold.)
@@ -81,6 +81,24 @@ internal fun HexGroups.hunt(weather: Weather) {
         g.path.all { h -> hex.distanceKm(end, h) + 2 * hex.hexKm < HUNT_FINE_KM }
     }
     stats.summedByThread { work(near, HUNT_FINE_KM); work(far, HUNT_BLOCK_KM) }
+}
+
+/**
+ * Every band among [hunters] sets its ways for the week: a planning band keeps the scaffold's, the others have [ways] choose
+ * (setWays), each from its own state alone, so on all cores when [BandWays.parallel] says they may, each with arrays of its
+ * own. The band followed under the player's hand ([watched]) is set after, on this thread: its ways go through the player's pins.
+ */
+private fun HexGroups.setBandWays(hunters: List<HexGroup>, weather: Weather, ways: BandWays, inputs: FloatArray, out: FloatArray) {
+    if (!ways.parallel) {
+        for (g in hunters) g.band?.let { b -> if (b.mind == Mind.PLANS) b.scaffoldWays() else setWays(g, weather, ways, inputs, out) }
+        return
+    }
+    val bands = hunters.filter { it.band != null }
+    Par.forEach("people: set ways", bands.size) { k ->
+        val g = bands[k]; val b = g.band ?: return@forEach
+        if (b.mind == Mind.PLANS) b.scaffoldWays() else if (g.id != watched) setWays(g, weather, ways, FloatArray(WAYS_IN), FloatArray(WAYS_OUT))
+    }
+    for (g in bands) if (g.id == watched && g.band?.mind != Mind.PLANS) setWays(g, weather, ways, inputs, out)
 }
 
 /**
