@@ -445,19 +445,25 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     val dry = Array(kinds.size) { FloatArray(n) }
     /** Days of their body's protein each kind's grown at each place have burnt, their fat spent ([Hazards.hunger]); won back before fat. */
     val spent = Array(kinds.size) { FloatArray(n) }
+    /**
+     * How bold of people each kind's grown at each place are, as a pack's [HexGroup.bold]: the kind's [Species.boldShare]
+     * until they live by people's camps, where they grow bolder ([HexGroups.keepAnimals]); it goes with them as they move.
+     */
+    val bold = Array(kinds.size) { k -> FloatArray(n) { kinds[k].boldShare } }
     /** What a grown animal carries with it as it moves ([carried]). */
-    private enum class Carry { BRED, FAT, SPENT }
+    private enum class Carry { BRED, FAT, SPENT, BOLD }
     /**
      * What the grown of kind [k] carry with them wherever they move ([flow], [spillHunters], [settle]), a grown head's at
-     * each place, by [Carry]: their season of births had ([bred]), their fat ([reserve]) and their body burnt ([spent]).
+     * each place, by [Carry]: their season of births had ([bred]), their fat ([reserve]), their body burnt ([spent]) and
+     * their boldness of people ([bold]).
      * A number that should go with them is added here and in [bound], and moves with them by every way they move.
      */
     private fun carried(k: FaunaKind) = Array(Carry.entries.size) { c ->
-        when (Carry.entries[c]) { Carry.BRED -> bred[k]; Carry.FAT -> reserve[k]; Carry.SPENT -> spent[k] }
+        when (Carry.entries[c]) { Carry.BRED -> bred[k]; Carry.FAT -> reserve[k]; Carry.SPENT -> spent[k]; Carry.BOLD -> bold[k] }
     }
     /** [v], a grown head's carried number [c] of kind [k] ([carried]), in its bounds: a share, fat up to the most the kind carries, body burnt from none. */
     private fun bound(c: Int, k: FaunaKind, v: Float) = when (Carry.entries[c]) {
-        Carry.BRED -> v.coerceIn(0f, 1f); Carry.FAT -> v.coerceIn(0f, kinds[k].maxFatDays); Carry.SPENT -> max(0f, v)
+        Carry.BRED -> v.coerceIn(0f, 1f); Carry.FAT -> v.coerceIn(0f, kinds[k].maxFatDays); Carry.SPENT -> max(0f, v); Carry.BOLD -> v.coerceIn(0f, 1f)
     }
     /** Life in the sea, lakes and rivers. */
     val water = HexWater(hw, land, days, small)
@@ -1686,6 +1692,26 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val a = adults[k]; val area = land.areaKm2[to]; val carry = carried(k)
         for (c in carry.indices) carry[c][to] = bound(c, k, mixed(carry[c][to], a[to] * area, carry[c][from], grown))
         a[to] += grown / area; young[k][to] += youngHeads / area
+    }
+
+    /**
+     * [n] grown of resident kind [s] come into the wild at [p] from people's camps (dogs gone wild, [HexGroups.dogsGoWild]):
+     * bold of people, without fat or body burnt, their season of births not begun. Nothing if [s] is not a resident.
+     */
+    fun cameWild(s: Species, p: Place, n: Int) {
+        val k = slot(s); if (k.none || n < 1) return
+        val a = adults[k]; val area = land.areaKm2[p]; val carry = carried(k)
+        for (c in carry.indices) carry[c][p] = bound(c, k, mixed(carry[c][p], a[p] * area, if (Carry.entries[c] == Carry.BOLD) 1f else 0f, n.toFloat()))
+        a[p] += n / area
+    }
+
+    /** Takes [heads] young of kind [k] off the places of hex [h], each place its share by its young there. */
+    fun takeYoung(k: FaunaKind, h: Hex, heads: Float) {
+        val y = young[k]; val places = hw.placesOf(h)
+        var there = 0f; for (q in places) there += y[q] * land.areaKm2[q]
+        if (there <= 0f) return
+        val keep = max(0f, 1f - heads / there)
+        for (q in places) y[q] *= keep
     }
 
     /** A per-head number of [there] grown that had [was] and [came] that had [had], together. */

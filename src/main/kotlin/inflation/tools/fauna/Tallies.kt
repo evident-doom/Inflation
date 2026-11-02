@@ -411,6 +411,16 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
             begun.size, begun.sumOf { (it.built * it.size).toDouble() }, bands.count { sim.hw.placeHex[it.place] in at })
     }
 
+    /** The resident kinds that follow people: their boldness of people, by heads, and the boldest place's. */
+    private fun residentBoldness(): String {
+        val f = sim.fauna; val land = sim.land
+        return f.kinds.withIndex().filter { it.value.followsPeople }.joinToString("") { (k, s) ->
+            var heads = 0.0; var bold = 0.0; var most = 0f
+            for (p in 0 until land.n) { val h = f.adults[k][p] * land.areaKm2[p]; heads += h; bold += h * f.bold[k][p]; if (h > 0f) most = maxOf(most, f.bold[k][p]) }
+            ", %s' boldness %.2f (most %.2f)".format(s.name, if (heads > 0.0) bold / heads else 0.0, most)
+        }
+    }
+
     private fun skillsAndKit(bands: List<HexGroup>, bs: List<Band>): String {
         val groups = sim.groups; val hex = sim.hex
         return "skills " + Skill.entries.joinToString(", ") { f -> "%s %.2f".format(f.name.lowercase(), bs.map { it.skills[f] }.average()) } +
@@ -420,9 +430,12 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
             " | elders %.0f%% of adults, children inbred %.3f".format(100.0 * bs.sumOf { it.elders } / bands.sumOf { it.adults }.coerceAtLeast(1),
                 bs.map { it.inbred.toDouble() }.average()) +
             " | caches %d".format(bs.count { !it.cachePlace.none }) +
-            " | dogs %.0f in %d bands, fed %.2f, wolf packs' boldness %.2f".format(bs.sumOf { it.dogs.kept.sum().toDouble() }, bs.count { it.dogs.kept.sum() >= 1f },
+            " | dogs %.0f (%s) in %d bands, fed %.2f, wolf packs' boldness %.2f".format(bs.sumOf { it.dogs.kept.sum().toDouble() },
+                Catalogue.all.filter { s -> bs.sumOf { it.dogs.kept[s.index].toDouble() } >= 0.5 }.joinToString(", ") { s -> "%s %.0f".format(s.name, bs.sumOf { it.dogs.kept[s.index].toDouble() }) },
+                bs.count { it.dogs.kept.sum() >= 1f },
                 bs.filter { it.dogs.kept.sum() >= 1f }.map { it.dogs.dogFed.toDouble() }.average(),
                 groups.groups.filter { it.alive && it.species.followsPeople && !it.species.human }.map { boldness(it).toDouble() }.average()) +
+            residentBoldness() +
             " | country known %.0f km²".format(bs.map { b -> b.known.sumOf { java.lang.Long.bitCount(it) }.toDouble() }.average() * hex.areaKm2) +
             " | camp weeks %.1f, larder days %.0f".format(bs.map { it.campWeeks }.average(),
                 bands.map { it.larder / it.dailyNeedKg.coerceAtLeast(1e-3f) }.average())
