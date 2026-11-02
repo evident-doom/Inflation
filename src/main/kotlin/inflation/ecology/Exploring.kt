@@ -45,8 +45,9 @@ internal fun HexGroups.exploreChoice(g: HexGroup, will: Float, n: Int, scores: F
  *   least a survival step deadlier than the safest place, the emergency a band flees by reflex (a cold snap without
  *   shelter, water dried up, beasts or raiders, fire, flood), it goes to the best by [scores] of those not deadlier than
  *   the safest by a step (step 1);
- * - else it reckons the move (step 2): it goes to the best of those but where it is, if the case for leaving [gain] (in
- *   shares of a week's need, NaN for none) is more than the walk there costs ([walk] of the place's index).
+ * - else it reckons the move (step 2): it goes to the best of the places no deadlier than staying, but where it is, if the
+ *   case for leaving [gain] (in shares of a week's need, NaN for none) is more than the walk there costs ([walk] of the
+ *   place's index). A move by choice never risks more lives than staying: survival keeps first claim.
  * Else it stays. [scores] are asked only once it may leave (null: it stays). Returns -1 if no place can be weighed.
  */
 internal fun plannedMove(n: Int, weighable: FloatArray, deaths: FloatArray, stays: Int, owed: Boolean, gain: Float, walk: (Int) -> Float,
@@ -59,7 +60,7 @@ internal fun plannedMove(n: Int, weighable: FloatArray, deaths: FloatArray, stay
     if (settled && !(gain > 0f)) return stays
     val sc = scores() ?: return stays
     var best = -1
-    for (k in 0 until n) if (open(k) && sc[k].isFinite() && (!settled || k != stays) && (best < 0 || sc[k] > sc[best])) best = k
+    for (k in 0 until n) if (open(k) && sc[k].isFinite() && (!settled || (k != stays && deaths[k] <= deaths[stays])) && (best < 0 || sc[k] > sc[best])) best = k
     if (settled) return if (best >= 0 && gain > walk(best)) best else stays
     return best
 }
