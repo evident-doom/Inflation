@@ -238,7 +238,8 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
     val outcome = arrayOfNulls<Outcome>(list.size)
     Par.forEach("groups: life and death", list.size) { k ->
         val g = list[k]
-        if (g.alive) outcome[k] = liveWeek(g, weather, date, kinNow, groupRandom(g.id, date.absoluteDay))
+        if (g.alive) outcome[k] = Profile.part(if (g.band != null) "groups: life and death / bands" else Profile.byKind("groups: life and death", g.species.name)) {
+            liveWeek(g, weather, date, kinNow, groupRandom(g.id, date.absoluteDay)) }
     }
     // Outbreaks that broke out this week rage from next week: started after every group has lived its
     // week, so no group's plague depends on which core another group's ran on.
