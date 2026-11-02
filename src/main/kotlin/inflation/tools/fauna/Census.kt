@@ -197,7 +197,7 @@ class Census(private val sim: HexSim) {
     fun printGroupSpread() {
         val live = groups.groups.filter { it.alive }
         val landHexes = hex.all.count { hw.land[it] > 0.5f }
-        println("     packs and bands (groups, mean size, hexes held of land hexes): " +
+        println("     packs and bands (groups, mean size, hexes held of $landHexes land hexes): " +
             groups.kinds.joinToString(", ") { s ->
             val gs = live.filter { it.species == s }
             "%s %d / %.0f / %.1f%%".format(s.name, gs.size, if (gs.isEmpty()) 0.0 else gs.sumOf { it.size }.toDouble() / gs.size,
