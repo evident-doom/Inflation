@@ -1,8 +1,6 @@
 package inflation.world
 
 import inflation.Par
-import inflation.stream
-import inflation.Stream
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
@@ -71,7 +69,8 @@ object Erosion {
         val outlet = BooleanArray(n) { isOutlet(it) }
         val ring = Ring(grid)
         val fullTo = IntArray(n); val fullDelta = BooleanArray(n)
-        val rnd = stream(seed, Stream.EROSION)
+        // (World generation keeps its own seeds, not [inflation.stream]: a save is laid over the world made again from its seed, so the world must come out as it did.)
+        val rnd = Random(seed)
         val sedimentErodibility = Rock.ALLUVIUM.erodibility
         repeat(steps) { step ->
             // Closed basins fill with sediment.
