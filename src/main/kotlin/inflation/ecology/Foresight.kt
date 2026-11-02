@@ -254,7 +254,7 @@ internal fun HexGroups.foresee(weather: Weather) {
         stats.tally(Tally.calibration(b.mind, bin, Tally.Calib.PEOPLE_WEEKS), g.size)
         stats.tally(Tally.calibration(b.mind, bin, Tally.Calib.FORESEEN), (1000f * (1f - g.foreseen) * g.size).roundToInt())
         stats.tally(Tally.bandsIn(c, Tally.Bands.SISU), (1000f * b.sisu * g.size).roundToInt())
-        if (FORECAST_TRACE) traceForecast(g, b, weather)
+        if (FORECAST_TRACE.on) traceForecast(g, b, weather)
     }
 }
 

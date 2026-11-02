@@ -1,9 +1,7 @@
 package inflation.ecology
 
 import inflation.Config
-import inflation.HASH_A
-import inflation.mix64
-import inflation.unitOf
+import inflation.Trace
 import inflation.world.Date
 import inflation.world.Weather
 import kotlin.math.roundToInt
@@ -14,18 +12,15 @@ import kotlin.math.roundToInt
  * counts it, their larder, fat and body protein burnt, their people, deaths and moves; on stderr, once the year is over or
  * the band is gone. Whether the forecast's months are what came, where [bookCalibration] shows only that its deaths are not.
  */
-internal val FORECAST_TRACE = Config.flag(Config.Key.FORECAST_TRACE, false)
-private val forecastTraced = java.util.concurrent.atomic.AtomicInteger()
+internal val FORECAST_TRACE = Trace(Config.Key.FORECAST_TRACE, "forecast", share = 0.05f, most = FORECAST_TRACE_MOST)
 private const val FORECAST_TRACE_MOST = 600
-private const val FORECAST_TRACE_SHARE = 0.05f
-private const val FORECAST_TRACE_SALT = 0x46435452L
 
 /** Starts following band [b] (group [g]) for [ForecastTrace] where it is drawn for it, once a band. */
 internal fun HexGroups.traceForecast(g: HexGroup, b: Band, weather: Weather) {
     // (Once it has a year of months as [Band.monthSupply] now counts them: a band from an older save has none yet.)
     if (b.forecastTraced || b.monthSupplySq.any { it.isNaN() }) return
     b.forecastTraced = true
-    if (unitOf(mix64(g.id * HASH_A + FORECAST_TRACE_SALT)) >= FORECAST_TRACE_SHARE || forecastTraced.incrementAndGet() > FORECAST_TRACE_MOST) return
+    if (!FORECAST_TRACE.wants(g.id.toLong())) return
     val year = yearAhead(g, b, weather)
     val need = g.dailyNeedKg.coerceAtLeast(1e-3f)
     val m0 = weather.date.month

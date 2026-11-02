@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Trace
 import inflation.world.Place
 import inflation.world.get
 import inflation.world.set
@@ -166,8 +167,8 @@ internal const val RAIN_AHEAD_MM = 20f
 internal const val PREY_HALF = 200f
 /** Pull of the season's remembered place, and of staying where one is. */
 internal const val SEASON_PULL = 1.0f
-/** For tracing: the kind whose groups' reasons the plan prints (planDiag=kind). */
-val PLAN_DIAG: String? = Config.string(Config.Key.PLAN_DIAG)
+/** planDiag=kind: once a month, the reasons of one in 97 of that kind's groups for the place it chose, on stderr. */
+internal val PLAN_REASONS = Trace(Config.Key.PLAN_DIAG, "plan reasons", share = 1f / 97, byKind = true)
 /** Strength of the pull to better country beyond which a group treks rather than drifts. */
 internal const val ASTRAY = 0.5f
 /** How far a band's inherited seasonal places may lie from where it starts, km. */

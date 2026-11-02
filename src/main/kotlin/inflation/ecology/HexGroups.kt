@@ -27,7 +27,6 @@ import inflation.store.MovedInto
 import inflation.wrapMonth
 import inflation.saturate
 import inflation.monthsFrom
-import inflation.Config
 
 import inflation.world.Date
 import inflation.world.HexLand
@@ -305,7 +304,7 @@ class HexGroups(
             // (A band that died out leaves what it had; one that joined another took it along.)
             val freed = ArrayList<HexGroup>()
             // (A band followed for the forecast trace that died out or joined another: what came till then.)
-            if (FORECAST_TRACE) for (g in groups) if (!g.alive) g.band?.let { b -> b.forecastTrace?.let { t -> b.forecastTrace = null
+            if (FORECAST_TRACE.on) for (g in groups) if (!g.alive) g.band?.let { b -> b.forecastTrace?.let { t -> b.forecastTrace = null
                 System.err.print(t.report(if (g.mergedSize < 0) "died out" else "joined another band")) } }
             for (g in groups) if (!g.alive && g.mergedSize < 0) {
                 leaveDead(g, freed)

@@ -5,18 +5,14 @@ import inflation.Par
 import inflation.Books
 import inflation.Config
 import inflation.EnumFloats
-import inflation.HASH_A
-import inflation.HASH_B
-import inflation.HASH_C
 import inflation.Kg
 import inflation.KgM2
 import inflation.Profile
 import inflation.ecology.HexSmallLife.DeadPool
 import inflation.enumFloats
-import inflation.mix64
 import inflation.Stream
 import inflation.stream
-import inflation.unitOf
+import inflation.Trace
 import inflation.world.Biome
 import inflation.world.Date
 import inflation.world.Hex
@@ -172,7 +168,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         val busy0 = w.busy
         if (pass == 0) w.searched = f
         if (HUNT_DIAG && w.band == null) { w.passes++; w.searchDays += f * w.workDays }
-        if (FORAGE_DIAG == w.s.name && diagSampled(g, weather, 0.002f, 1)) System.err.println(
+        if (FORAGE_PASS_TRACE.wants(g.id.toLong(), weather.date.absoluteDay, w.s.name)) System.err.println(
             "forage ${w.s.name} adults ${g.adults} want ${w.wantAll} left $left offers ${o.m} used ${o.used} gain ${o.gain.toList()} spent ${o.spent.toList()} f $f: " +
             o.order.take(min(6, o.m)).joinToString("; ") { "t${o.type[it].ordinal} k${o.kind[it]} r=${o.rate[it]} e=${o.kg[it]} h=${o.time[it]}" })
         takeFoods(w, o, f)
@@ -187,7 +183,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         val got = w.fed / d; val m = weather.date.month; val was = b.forageReturn[m]
         b.forageReturn[m] = if (was < 0f) got else was + min(1f, years * Date.MONTHS_PER_YEAR) * (got - was)
     } }
-    if (WARM_DIAG) w.band?.let { b -> w.time?.let { b.diagFoodSpent = it.spentOn(Activity.FOOD) } }
+    if (WARM_DIAG.on) w.band?.let { b -> w.time?.let { b.diagFoodSpent = it.spentOn(Activity.FOOD) } }
     w.time?.let { countFoodTime(w, it) }
     w.time?.let { restedDays(w, it) }
     w.time?.release(Activity.FOOD)
@@ -277,7 +273,7 @@ private fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float,
         val m = w.weather.date.month; val was = b.freeShare[m]
         b.freeShare[m] = if (was < 0f) free else was + min(1f, years * Date.MONTHS_PER_YEAR) * (free - was)
     }
-    if (WARM_DIAG) b.diagFoodHeld = time.heldFor(Activity.FOOD)
+    if (WARM_DIAG.on) b.diagFoodHeld = time.heldFor(Activity.FOOD)
     b.binding?.let { bind ->
         if (time.short) for (a in Activity.entries) if (asks[a] > 0f) bind[a.ordinal] += 1f
         if (g.path.size > 1) bind[Binding.MOVES] += 1f
@@ -929,7 +925,7 @@ private fun HexGroups.eatTheWeek(w: ForageWeek) {
             wantAll, meat, g.meatMet, smallGot, scraps, plants, fish, w.busy, days, sight(g.place, weather),
             if (band != null) "; %.0f%% of adults scouting".format(100 * band.scoutShare) else "")
     }
-    if (FORAGE_DIAG == s.name && diagSampled(g, weather, 0.003f, 2)) System.err.println(
+    if (FORAGE_MEAL_TRACE.wants(g.id.toLong(), weather.date.absoluteDay, s.name)) System.err.println(
         "ate ${s.name} want $wantAll meat $meat small $smallGot scraps $scraps plants $plants fish $fish path ${g.path.size}")
     var eaten = meatEaten * meatWorth + rest
     tallyForage(w, meatEaten)
@@ -1556,14 +1552,9 @@ internal const val GREASE_YIELD = 0.05f
 /** Person-days to smash and boil a kg of bones for their grease, with the fuel to heat the stones (a guess: "many hours"). */
 internal const val BONE_RENDER_DAYS = 0.2f
 
-private val FORAGE_DIAG = Config.string(Config.Key.FORAGE_DIAG)
-
-/**
- * Whether group [g]'s week is one of the [share] sampled for the forage diagnostic: drawn from a hash of the group
- * and the day, not from the group's random stream, so that turning the diagnostic on does not change the run.
- */
-private fun diagSampled(g: HexGroup, weather: Weather, share: Float, salt: Int) =
-    unitOf(mix64(g.id * HASH_A + weather.date.absoluteDay * HASH_B + salt * HASH_C)) < share
+/** forageDiag=kind: a sample of that kind's groups' weeks, each pass of their forage and what they ate, on stderr. */
+private val FORAGE_PASS_TRACE = Trace(Config.Key.FORAGE_DIAG, "forage passes", share = 0.002f, byKind = true)
+private val FORAGE_MEAL_TRACE = Trace(Config.Key.FORAGE_DIAG, "forage meals", share = 0.003f, byKind = true)
 
 /**
  * How much of the usual loss band [band]'s dried meat and fish suffer: smoked keeps longer than sun-dried, salted longer still,

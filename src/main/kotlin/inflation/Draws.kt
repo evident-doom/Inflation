@@ -97,6 +97,8 @@ enum class Stream(val salt: Long) {
     BATCHES(0x42415443L),
     /** The noise of each generation of evolved ways. */
     EVOLUTION(0x45564f4cL),
+    /** Which cases a diagnostic prints ([Trace]): apart from the model's own draws, so that tracing changes nothing. */
+    TRACE(0x54524143L),
     /** Which bands an experiment perturbs, and what it draws for them. */
     EXPERIMENT(0x45585045L),
 }

@@ -2,11 +2,8 @@ package inflation.ecology
 
 import inflation.Config
 import inflation.EnumFloats
-import inflation.HASH_A
-import inflation.HASH_B
 import inflation.enumFloats
-import inflation.mix64
-import inflation.unitOf
+import inflation.Trace
 import inflation.world.Date
 import inflation.world.Weather
 import kotlin.math.ln
@@ -130,8 +127,7 @@ private fun HexGroups.planRates(g: HexGroup, b: Band, weather: Weather, perDay: 
         val filled = if (was != null) storesAlive(g, b, weather, g.larder + gap) else null
         rate[0] = (if (was != null && filled != null) people * (filled - was) else alive(gap) - now) / (gap / perDay)
     }
-    if (PLAN_TRACE && unitOf(mix64(g.id * HASH_A + weather.date.absoluteDay * HASH_B + PLAN_TRACE_SALT)) < 0.01f &&
-        planTraced.incrementAndGet() <= PLAN_TRACE_MOST) {
+    if (PLAN_TRACE.wants(g.id.toLong(), weather.date.absoluteDay)) {
         val larderDays = g.larder / need
         System.err.println(("plan trace: band %d, %s, %d people, larder %.1f days, fat %.1f, burnt %.1f, store aim %.1f days (lean %.1f), " +
             "gap %.1f days, %.2f kg a person-day, alive %.4f now, %.4f filled, stores %.2g lives a person-day\n").format(g.id, weather.date, g.size,
@@ -150,8 +146,7 @@ private fun HexGroups.planRates(g: HexGroup, b: Band, weather: Weather, perDay: 
         val saved = if (perDay > 0f) kg / perDay else 0f
         rate[HOUSES] = saved / (HOUSE_DAYS * g.adults.coerceAtLeast(1))
         // (planTrace: what a house was reckoned at.)
-        if (PLAN_TRACE && unitOf(mix64(g.id * HASH_A + weather.date.absoluteDay * HASH_B + PLAN_TRACE_SALT + 1)) < 0.02f &&
-            houseTraced.incrementAndGet() <= PLAN_TRACE_MOST)
+        if (HOUSE_TRACE.wants(g.id.toLong(), weather.date.absoluteDay))
             System.err.println(("house trace: band %d, %s, %d people (%d grown), camp kept %d steps, at home %b, houses %.2f, reckoned kept %.2f y; " +
                 "a whole house a person a year: %.1f kg (as lived %.1f, usual cold %.1f); over the years: %.0f kg, %.0f days of foraging at %.2f kg a person-day, against %.0f days to build: %.2f " +
                 "(given days at 1 or more)").format(g.id, weather.date, g.size, g.adults, b.campWeeks, b.atHome, b.house, years, kg / years / people, b.houseFood, houseFoodAYear(g, b, g.place, weather),
@@ -165,8 +160,7 @@ private fun HexGroups.planRates(g: HexGroup, b: Band, weather: Weather, perDay: 
         val years = keepYears(b, stepsPerYear)
         val aYear = (if (perDay > 0f) b.weirFood / perDay else 0f) - b.weirTend - WEIR_WEAR * whole
         rate[WEIRS] = if (whole > 0f) aYear * years / whole else 0f
-        if (PLAN_TRACE && unitOf(mix64(g.id * HASH_A + weather.date.absoluteDay * HASH_B + PLAN_TRACE_SALT + 2)) < 0.2f &&
-            weirTraced.incrementAndGet() <= PLAN_TRACE_MOST)
+        if (WEIR_TRACE.wants(g.id.toLong(), weather.date.absoluteDay))
             System.err.println(("weir trace: band %d, %s, %d people, camp kept %d steps, reckoned kept %.2f y; a whole weir %.0f days to build; " +
                 "a year as lived: %.0f kg of need (%.0f days of foraging at %.2f kg a person-day), %.0f days tending, %.0f mending: %.2f " +
                 "(given days at 1 or more)").format(g.id, weather.date, g.size, b.campWeeks, years, whole, b.weirFood,
@@ -202,13 +196,11 @@ enum class PlanTier(val label: String) {
 }
 
 /** planTrace=true: a sample of planning bands' weeks, how the year ahead reckons their stores ([planRates]), on stderr. */
-internal val PLAN_TRACE = Config.flag(Config.Key.PLAN_TRACE, false)
-private val planTraced = java.util.concurrent.atomic.AtomicInteger()
-private val houseTraced = java.util.concurrent.atomic.AtomicInteger()
-private val weirTraced = java.util.concurrent.atomic.AtomicInteger()
-private val toolTraced = java.util.concurrent.atomic.AtomicInteger()
-private const val PLAN_TRACE_MOST = 400
-private const val PLAN_TRACE_SALT = 0x50545243L
+internal val PLAN_TRACE = Trace(Config.Key.PLAN_TRACE, "plan", share = 0.01f, most = 400)
+/** planTrace=true as well: what a house, a weir and a tool were reckoned at. */
+private val HOUSE_TRACE = Trace(Config.Key.PLAN_TRACE, "house", share = 0.02f, most = 400)
+private val WEIR_TRACE = Trace(Config.Key.PLAN_TRACE, "weir", share = 0.2f, most = 400)
+private val TOOL_TRACE = Trace(Config.Key.PLAN_TRACE, "tool", share = 0.02f, most = 400)
 
 /** The chores with no reckoning in lives yet ([planDays]): shared out at equal weights. */
 private val UNRECKONED_ACTS = arrayOf(Activity.TRAINING, Activity.MATERIALS, Activity.DRYING, Activity.SKINS, Activity.CACHING,
@@ -279,8 +271,7 @@ private fun HexGroups.toolRates(g: HexGroup, b: Band, perDay: Float, skip: Tool?
         val lasts = (1f / t.wearPerYear).let { if (t.heavy) min(it, keepYears(b, stepsPerYear)) else it }
         val whole = t.makeDays * people / b.makeSkill(t).coerceAtLeast(1e-3f)
         val over = aYear / (1f - k) * lasts / whole
-        if (PLAN_TRACE && unitOf(mix64(g.id * HASH_A + b.campWeeks * HASH_B + t.ordinal + PLAN_TRACE_SALT + 3)) < 0.02f &&
-            toolTraced.incrementAndGet() <= PLAN_TRACE_MOST)
+        if (TOOL_TRACE.wants(g.id.toLong(), b.campWeeks.toLong(), part = t.ordinal.toLong()))
             System.err.println(("tool trace: band %d, %s, %d grown, kit %.2f; a year as lived: %.0f plant days, %.0f seed days, %.0f kg of need from seed, %.0f kg meat, " +
                 "%.0f kg small game and fish; a whole kit saves %.1f days a year, lasts %.1f y, takes %.0f days to make: %.2f (made at 1 or more)").format(
                 g.id, t.name, g.adults, k, wk[ToolWork.PLANT_DAYS], wk[ToolWork.SEED_DAYS], wk[ToolWork.SEED_FOOD], meatKg, netKg,
