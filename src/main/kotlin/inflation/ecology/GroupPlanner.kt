@@ -309,7 +309,7 @@ internal class GroupPlanner(private val gs: HexGroups) {
             }
         }
         lap("choosing: weighing places (hand-written score)")
-        g.drawn = false
+        g.drawn = false; g.weighed = true
         if (policy != null && candPlaces.size > 0) {
             val nc = candPlaces.size
             best = Place(candPlaces[policy.choose(g, Array(nc) { candFeats[it] }, buf.candScores.copyOf(nc), gs.policyRandom(g.id, date.absoluteDay))])
@@ -317,7 +317,7 @@ internal class GroupPlanner(private val gs: HexGroups) {
         // (A choice the policy drew by chance to learn from stands; every other band draws by its will to explore, in training worlds as outside them.)
         val chosen = best
         if (traced) bookMove(chosen != g.place, buf)
-        if (explores && !g.drawn) best = explored(g, policy, buf, best, date)
+        if (explores && !g.drawn && g.weighed) best = explored(g, policy, buf, best, date)
         // (For the census: whether the band would have moved by its best choice, and whether it moved by its draw.)
         if (g.band != null) {
             val k = s.index * 4
@@ -343,7 +343,7 @@ internal class GroupPlanner(private val gs: HexGroups) {
         }
         if (seen != null && g.id == gs.watched) logWatched(c, seen, best, policy != null)
         if (diag && seen != null) printPlanDiag(c, seen, best)
-        planCounts.incrementAndGet(s.index * 3 + (if (best == g.place) 1 else 2))
+        planCounts.incrementAndGet(s.index * 3 + (if (!g.weighed) 0 else if (best == g.place) 1 else 2))
         return Plan(best, pathTo(best.i))
     }
 
@@ -1076,7 +1076,7 @@ internal class GroupPlanner(private val gs: HexGroups) {
 
     internal val topKind = IntArray(gs.n) { -1 }
 
-    /** Choices made in planning, by kind: (slot 0 unused: every group weighs every week), weighed and stayed, weighed and moved. */
+    /** Choices made in planning, by kind: stayed without weighing (its policy's gate, [HexGroup.weighed]), weighed and stayed, weighed and moved. */
     val planCounts = AtomicIntegerArray(64 * 3)
     /**
      * Bands' weeks by kind, for the census: weeks weighed, those its best choice (the hand-written score's or its network's)
