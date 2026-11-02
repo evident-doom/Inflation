@@ -39,7 +39,11 @@ import kotlin.math.sin
  * numbers), it writes [WAYS_OUT] numbers to `out`, each 0 for the scaffold's choice: its effort on
  * each kind of food, the days of food it aims to keep, how it ranks making each tool, and its [BandWay]s.
  */
-fun interface BandWays { fun choose(g: HexGroup, inputs: FloatArray, out: FloatArray) }
+fun interface BandWays {
+    fun choose(g: HexGroup, inputs: FloatArray, out: FloatArray)
+    /** Whether [choose] may run for many bands at once, on all cores (it touches only its own arguments and buffers of its own per thread). */
+    val parallel: Boolean get() = false
+}
 val WAYS_IN = BandInputs.size
 /**
  * A band's ways after its effort on each food, its store aim and its ranking of the tools, in the order of
