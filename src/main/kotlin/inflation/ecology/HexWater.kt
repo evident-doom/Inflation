@@ -1,8 +1,8 @@
 package inflation.ecology
 
+import inflation.Par
 import inflation.Profile
 import inflation.world.Hex
-import inflation.world.forEachHex
 import inflation.world.placeList
 import inflation.world.HexArray
 import inflation.world.toHexArray
@@ -27,7 +27,6 @@ import kotlin.math.max
 import kotlin.math.min
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.DoubleAdder
-import java.util.stream.IntStream
 
 /**
  * Life in the water of each hex, as in the 1 km model's plankton, fish and sea, on the hexes:
@@ -307,7 +306,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         val date = weather.date
         val month = date.month
         val light = (Date(date.absoluteDay).dayLengthHours(38.0) / 12.0).toFloat()
-        IntStream.range(0, size).parallel().forEachHex { h ->
+        Par.forEachHex("water life: step", size) { h ->
             val pt = Profile.mark()
             if (waterKm2[h] > 0f) {
                 // Upwelling: the wind's drift is bent to the right; where it carries water off the coast, deep water wells up.
@@ -455,7 +454,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         // Exchange between neighbouring water of the same kind (sea with sea, lake with lake), as much
         // leaving one as reaches the other: what moves is the density difference over the narrower water.
         val old = f.copyOf()
-        IntStream.range(0, size).parallel().forEachHex { h ->
+        Par.forEachHex("water life: drift", size) { h ->
             if (waterKm2[h] <= 0f) return@forEachHex
             var delta = 0f
             for (d in 0 until 6) {
@@ -922,3 +921,4 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         const val CROC_RATE = 0.1f
     }
 }
+

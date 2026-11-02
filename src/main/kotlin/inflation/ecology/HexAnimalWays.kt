@@ -8,7 +8,6 @@ import kotlin.math.ln
 import kotlin.math.max
 import kotlin.math.min
 import inflation.world.Date
-import java.util.stream.IntStream
 import kotlin.math.cos
 import kotlin.math.exp
 import kotlin.math.sin
@@ -98,3 +97,4 @@ internal fun HexGroups.setAnimalWays(weather: Weather) {
         setAnimalWays(g, weather, hunters, inputs.get(), out.get())
     }
 }
+

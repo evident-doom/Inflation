@@ -6,7 +6,6 @@ import inflation.world.Phase
 import inflation.world.Hex
 import inflation.world.HexArray
 import inflation.world.HexList
-import inflation.world.forEachHex
 import inflation.world.hexArray
 import inflation.world.toHexArray
 import inflation.world.Place
@@ -49,7 +48,6 @@ import inflation.world.Biome
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicIntegerArray
-import java.util.stream.IntStream
 import kotlin.math.cos
 import kotlin.math.ln
 import kotlin.math.sin
@@ -173,3 +171,4 @@ class Bands internal constructor(private val world: GroupWorld) {
         return best
     }
 }
+

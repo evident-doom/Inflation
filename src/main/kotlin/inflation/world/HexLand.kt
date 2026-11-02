@@ -1,6 +1,7 @@
 package inflation.world
 
 import inflation.Books
+import inflation.Par
 import inflation.Tuning
 import inflation.Config
 import inflation.Kg
@@ -92,7 +93,7 @@ class HexLand(internal val hw: HexWorld, internal val seed: Long, /** The run's 
      * ground, from its smoothest to its roughest (a rough hex still has its valley floors and meadows).
      */
     @Transient val ruggedSpread: Array<FloatArray> = Array(RUGGED_SHARES) { FloatArray(n) }.also { q ->
-        java.util.stream.IntStream.range(0, n).parallel().forEach { p ->
+        Par.forEach("land: ruggedness spread", n) { p ->
             val r = FloatArray(hw.placeCells[p].size) { world.terrain.ruggedness[hw.placeCells[p][it]] }.also { it.sort() }
             for (k in 0 until RUGGED_SHARES) q[k][p] = if (r.isEmpty()) 0f else r[((k + 0.5f) / RUGGED_SHARES * r.size).toInt().coerceIn(0, r.size - 1)]
         }
@@ -103,7 +104,7 @@ class HexLand(internal val hw: HexWorld, internal val seed: Long, /** The run's 
      * (worked out once from the fine cells).
      */
     fun overGround(f: (Float) -> Float): FloatArray = FloatArray(n).also { out ->
-        java.util.stream.IntStream.range(0, n).parallel().forEach { p -> out[p] = mean(p) { f(world.terrain.ruggedness[it]) } }
+        Par.forEach("land: over ground", n) { p -> out[p] = mean(p) { f(world.terrain.ruggedness[it]) } }
     }
     /** How well each place's crags and its burrows in broken ground shelter a kind, 0..1 (see [inflation.ecology.Niches.shelter]). */
     @Transient val cragShelter = overGround { ((it - 0.3f) / 0.4f).coerceIn(0f, 1f) }
@@ -188,3 +189,4 @@ abstract class HexLandPart(@Transient protected val land: HexLand) {
     protected val fire get() = land.fire
     protected fun mean(p: Int, f: (Int) -> Float) = land.mean(p, f)
 }
+

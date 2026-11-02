@@ -25,7 +25,6 @@ import inflation.world.Place
 import inflation.world.Weather
 import inflation.world.get
 import inflation.world.set
-import java.util.stream.IntStream
 import kotlin.math.PI
 import kotlin.math.exp
 import kotlin.math.max
@@ -1729,3 +1728,4 @@ private fun GroupWorld.openness(s: Species, p: Place, weather: Weather, out: Flo
  * is there, and by a band's [edge] over it ([Band.huntEdge]; 1 for a beast of prey).
  */
 internal fun killChance(catchable: Float, edge: Float): Float = CATCH * SURPRISE * catchable * edge
+

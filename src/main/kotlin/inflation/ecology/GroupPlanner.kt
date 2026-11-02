@@ -1,12 +1,12 @@
 package inflation.ecology
 
+import inflation.Par
 import inflation.Part
 import inflation.Profile
 import inflation.world.Phase
 import inflation.world.Hex
 import inflation.world.HexArray
 import inflation.world.HexList
-import inflation.world.forEachHex
 import inflation.world.hexArray
 import inflation.world.toHexArray
 import inflation.world.Place
@@ -51,7 +51,6 @@ import inflation.world.Biome
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicIntegerArray
-import java.util.stream.IntStream
 import kotlin.math.cos
 import kotlin.math.ln
 import kotlin.math.sin
@@ -818,7 +817,7 @@ internal class GroupPlanner(private val gs: HexGroups) {
         for (g in gs.groups) if (g.alive) gs.headsHere[gs.kindSlot[g.species.index]][g.place] += g.size
         // (What may be expected changes slowly: it is reckoned once a month.)
         if (month != expectMonth) { expect(predatorKg); expectMonth = month }
-        IntStream.range(0, gs.n).parallel().forEach { p -> for ((k, s) in gs.kinds.withIndex()) placeValue[k][p] = gs.lifewayValue(s, Place(p)) }
+        Par.forEach("choosing: value places", gs.n) { p -> for ((k, s) in gs.kinds.withIndex()) placeValue[k][p] = gs.lifewayValue(s, Place(p)) }
     }
 
     /**
@@ -832,12 +831,13 @@ internal class GroupPlanner(private val gs: HexGroups) {
         usualHuntersKm2 = if (usualHuntersKm2 <= 0f) huntersNow else usualHuntersKm2 + (huntersNow - usualHuntersKm2) / USUAL_MONTHS
         for ((k, s) in gs.kinds.withIndex()) {
             val e = expectHeads[k]
-            val suitArea = IntStream.range(0, gs.n).parallel().mapToDouble { p -> val v = gs.fauna.suits(s, Place(p)) * gs.land.areaKm2[p]; e[p] = v; v.toDouble() }.sum()
+            Par.forEach("choosing: suited area", gs.n) { p -> e[p] = gs.fauna.suits(s, Place(p)) * gs.land.areaKm2[p] }
+            val suitArea = e.sumOf { it.toDouble() }
             var heads = 0L; for (p in 0 until gs.n) heads += gs.headsHere[k][p]
             val now = (heads / suitArea.coerceAtLeast(1.0)).toFloat()
             usualDensity[k] = if (usualDensity[k] <= 0f) now else usualDensity[k] + (now - usualDensity[k]) / USUAL_MONTHS
             val d = usualDensity[k]
-            IntStream.range(0, gs.n).parallel().forEach { p -> e[p] *= d }
+            Par.forEach("choosing: expected shares", gs.n) { p -> e[p] *= d }
         }
     }
 
@@ -1073,7 +1073,7 @@ internal class GroupPlanner(private val gs: HexGroups) {
     @IgnorableReturnValue private fun stepEffort(travel: Int, band: Int, weather: Weather): FloatArray = stepEffort.computeIfAbsent(travel * 64 + band) {
         val cross = gs.hex.crossings[travel]
         val out = FloatArray(gs.hex.size * 6) { Float.POSITIVE_INFINITY }
-        IntStream.range(0, gs.hex.size).parallel().forEachHex { h ->
+        Par.forEachHex("choosing: step effort", gs.hex.size) { h ->
             for (k in 0 until 6) {
                 val nh = gs.hex.neighbour(h, k)
                 if (nh.none || gs.hex.heart[nh] < 0) continue
@@ -1184,3 +1184,4 @@ private object InputScale {
     const val DUNG_PER = 1e4f
     const val GRAZING_FULL = 1000f
 }
+

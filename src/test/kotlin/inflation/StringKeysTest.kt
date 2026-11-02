@@ -141,7 +141,8 @@ class StringKeysTest {
 
     @Test
     fun `hexes are made from Ints only where an index is turned into one`() = check("""\bHex\(""", mapOf(
-        "world/Indices.kt" to (20 to "the index types themselves: iterators and arrays turn their ints into hexes"),
+        "world/Indices.kt" to (19 to "the index types themselves: iterators and arrays turn their ints into hexes"),
+        "Par.kt" to (1 to "a parallel loop over the hexes turns each index into its hex"),
         "world/HexMap.kt" to (7 to "the map's own layout: a column and row, a point, and the per-hex builders"),
         "ecology/HexCulture.kt" to (1 to "the hexes a band knows are kept as bits"),
         "ecology/GroupPlanner.kt" to (1 to "the reach search's heap packs effort and hex into one long"),

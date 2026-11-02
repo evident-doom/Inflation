@@ -1,5 +1,6 @@
 package inflation.world
 
+import inflation.Par
 import kotlin.math.PI
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -196,7 +197,7 @@ class Winds(
             return Array(8) { k ->
                 val dx = cos(k * PI / 4); val dy = sin(k * PI / 4)
                 val out = FloatArray(grid.size)
-                java.util.stream.IntStream.range(0, grid.size).parallel().forEach { i ->
+                Par.forEach("wind: sectors", grid.size) { i ->
                     val x = grid.x(i); val y = grid.y(i)
                     fun at(back: Double): Float {
                         val xx = (x - dx * back).toInt().coerceIn(0, grid.width - 1)
@@ -216,3 +217,4 @@ class Winds(
         }
     }
 }
+

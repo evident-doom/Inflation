@@ -34,7 +34,6 @@ import kotlin.math.roundToInt
 import kotlin.math.min
 import inflation.world.Biome
 import inflation.world.Weather
-import java.util.stream.IntStream
 import kotlin.math.cos
 import kotlin.math.exp
 import kotlin.math.sqrt
@@ -944,3 +943,4 @@ class Band(kinds: Int) {
     }
 
 }
+

@@ -1,5 +1,6 @@
 package inflation.world
 
+import inflation.Par
 import inflation.stream
 import inflation.Stream
 import kotlin.math.max
@@ -160,7 +161,7 @@ object Erosion {
         for (s in 0 until grid.size) if (toSea[s] > 0f) byTile[(grid.y(s) / tileCells) * tilesX + grid.x(s) / tileCells] += s
         for (colour in 0 until 4) {
             val tiles = (0 until tilesX * tilesY).filter { ((it / tilesX) % 2) * 2 + (it % tilesX) % 2 == colour && byTile[it].isNotEmpty() }
-            tiles.parallelStream().forEach { tile ->
+            Par.forEach("erosion: deposit offshore", tiles) { tile ->
                 for (s in byTile[tile]) {
                     var volume = toSea[s]
                     val delta = volume > DELTA_VOLUME
@@ -223,3 +224,4 @@ object Erosion {
         for (i in 0 until grid.size) if (!isOutlet(i) && !grid.isEdge(i)) h[i] += c * lap[i]
     }
 }
+

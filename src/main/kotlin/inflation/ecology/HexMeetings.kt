@@ -2,8 +2,8 @@ package inflation.ecology
 
 import inflation.drawKey
 import inflation.mix64
-import inflation.Part
 import inflation.Par
+import inflation.Part
 import inflation.Profile
 import inflation.monthsFrom
 import inflation.Stream
@@ -21,8 +21,6 @@ import kotlin.math.roundToInt
 import kotlin.math.max
 import kotlin.math.min
 import java.util.Arrays
-import java.util.stream.Collectors
-import java.util.stream.IntStream
 import kotlin.math.sqrt
 
 // The meetings of a week, settled one by one in the order they happen.
@@ -83,7 +81,9 @@ internal fun HexGroups.meet(weather: Weather) {
     }
     mt = Profile.lap("meetings: who is in each hex", mt)
     // Each pair once, hex by hex on all cores.
-    val events = byHex.values.parallelStream().filter { it.size >= 2 }.flatMap { stays ->
+    val shared = byHex.values.filter { it.size >= 2 }
+    val found = Array<List<Meeting>>(shared.size) { emptyList() }
+    Par.forEach("meetings: pairs in each hex", shared.size) { at -> val stays = shared[at]
         val out = ArrayList<Meeting>()
         for (i in stays.indices) { for (j in i + 1 until stays.size) {
             val sa = stays[i]; val sb = stays[j]
@@ -95,8 +95,9 @@ internal fun HexGroups.meet(weather: Weather) {
             if (from > to) continue
             out += Meeting(from, to - from, sa.k, sa.index, sb.k, sb.index, sa.hex)
         } }
-        out.stream()
-    }.collect(Collectors.toCollection { ArrayList<Meeting>() })
+        found[at] = out
+    }
+    val events = ArrayList<Meeting>().also { all -> for (l in found) all += l }
     // (Meetings where the weaker is a stand-in change nothing for the stronger but what it eats: they are drawn after the
     // others, on all cores, each by its own draws, and booked in their order, for those still on their way there.)
     val withStandIns = ArrayList<Meeting>()
@@ -114,8 +115,8 @@ internal fun HexGroups.meet(weather: Weather) {
     // Meetings at the same hour come in an order drawn afresh each week, not by age in the list.
     val today = weather.date.absoluteDay
     // (Each meeting's draw worked out once, then sorted on all cores: the order is the same as one by one.)
-    events.parallelStream().forEach { it.tie = tieBreak(seedBase, parties[it.a].id, parties[it.b].id, today) }
-    withStandIns.parallelStream().forEach { it.tie = tieBreak(seedBase, parties[it.a].id, parties[it.b].id, today) }
+    Par.forEach("meetings: tie-breaks", events) { it.tie = tieBreak(seedBase, parties[it.a].id, parties[it.b].id, today) }
+    Par.forEach("meetings: tie-breaks with stand-ins", withStandIns) { it.tie = tieBreak(seedBase, parties[it.a].id, parties[it.b].id, today) }
     val sorted = events.toTypedArray()
     Arrays.parallelSort(sorted) { x, y ->
         val c = java.lang.Float.compare(x.day, y.day)
@@ -566,3 +567,4 @@ internal fun HexGroups.settle(weather: Weather) {
 }
 
 /** The least time two groups passing through the same hex count as spending there together, days */
+

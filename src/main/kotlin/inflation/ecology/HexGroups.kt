@@ -8,7 +8,6 @@ import inflation.world.Phase
 import inflation.world.Hex
 import inflation.world.HexArray
 import inflation.world.HexList
-import inflation.world.forEachHex
 import inflation.world.hexArray
 import inflation.world.toHexArray
 import inflation.world.Place
@@ -47,7 +46,6 @@ import inflation.world.Biome
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicIntegerArray
-import java.util.stream.IntStream
 import kotlin.math.cos
 import kotlin.math.ln
 import kotlin.math.sin
@@ -349,7 +347,7 @@ class HexGroups(
             beastClassKg(monthBeastClassKg)
             val people = kindSlot[Catalogue.HUMAN.index]
             if (people >= 0) { huntable[people].copyInto(peopleGameBefore); gameBeforeKnown = huntableFilled }
-            IntStream.range(0, n).parallel().forEach { p -> for ((k, s) in kinds.withIndex()) huntable[k][p] = dietValue(s, Place(p), preyHere(s, Place(p))) }
+            Par.forEach("groups: game each kind can take", n) { p -> for ((k, s) in kinds.withIndex()) huntable[k][p] = dietValue(s, Place(p), preyHere(s, Place(p))) }
             huntableFilled = true
             Profile.time("sense of direction") { bearings.update(date.month) }
         }
@@ -655,3 +653,4 @@ internal fun GroupWorld.learnPlants(b: Band, h: Hex) {
     if (w <= 0f) return
     for (k in Biome.entries) { val share = hw.biome[k.ordinal][h] / w; if (share > 0f) b.plants[k] += PLANT_LEARN * share * (1f - b.plants[k]) }
 }
+

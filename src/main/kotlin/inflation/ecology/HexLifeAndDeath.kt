@@ -33,7 +33,6 @@ import kotlin.math.min
 import kotlin.random.Random
 import inflation.world.Biome
 import java.util.concurrent.atomic.DoubleAdder
-import java.util.stream.IntStream
 import kotlin.math.abs
 
 // Foraging's rule, births and deaths, splitting, and what groups remember of the seasons.
@@ -1170,3 +1169,4 @@ internal const val NIGHT_STALKED = 0.6f
 internal const val HOUSE_GUARD = 0.8f
 internal const val PALISADE_GUARD = 0.5f
 internal const val YOUNG_STALKED = 2f
+

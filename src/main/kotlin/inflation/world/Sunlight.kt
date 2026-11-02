@@ -1,5 +1,6 @@
 package inflation.world
 
+import inflation.Par
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.max
@@ -38,7 +39,7 @@ class Sunlight(
             val shade = FloatArray(n)
             val ratio = Array(2) { Array(12) { FloatArray(n) } }
             val declination = DoubleArray(12) { Date(it * 30L + 15).solarDeclination }
-            java.util.stream.IntStream.range(0, n).parallel().forEach { p ->
+            Par.forEach("sunlight: of", n) { p ->
                 val sum = Array(2) { DoubleArray(12) }; val count = IntArray(2)
                 for (i in placeCells[p]) {
                     val x = grid.x(i); val y = grid.y(i)
@@ -73,3 +74,4 @@ class Sunlight(
         }
     }
 }
+

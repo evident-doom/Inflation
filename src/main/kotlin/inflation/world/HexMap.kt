@@ -1,5 +1,6 @@
 package inflation.world
 
+import inflation.Par
 import java.util.PriorityQueue
 import kotlin.math.abs
 import kotlin.math.exp
@@ -93,7 +94,7 @@ class HexMap(private val world: World, val hexKm: Double = 10.0) {
         summarise()
         for (h in all) if (water[h]) heart[h] = -1
         riversOnEdges()
-        java.util.stream.IntStream.range(0, size).parallel().forEachHex { a ->
+        Par.forEachHex("hex map: borders", size) { a ->
             if (heart[a] < 0) return@forEachHex
             for (d in 0 until 3) {
                 val b = neighbour(a, d)
@@ -362,3 +363,4 @@ class HexMap(private val world: World, val hexKm: Double = 10.0) {
         private val DY8 = intArrayOf(0, 0, 1, -1, 1, -1, 1, -1)
     }
 }
+

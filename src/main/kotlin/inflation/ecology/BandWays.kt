@@ -29,7 +29,6 @@ import kotlin.math.roundToInt
 import kotlin.math.min
 import inflation.world.Biome
 import inflation.world.Weather
-import java.util.stream.IntStream
 import kotlin.math.cos
 import kotlin.math.exp
 import kotlin.math.sqrt
@@ -128,3 +127,4 @@ fun storeWay(t: Food) = when (t) {
 /** How many ways a band sets ([WaysOut]), and their names as a learned network's `.names` file records them. */
 val WAYS_OUT get() = WaysOut.size
 val WAYS_OUT_NAMES: List<String> get() = WaysOut.names
+

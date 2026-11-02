@@ -1,8 +1,8 @@
 package inflation.ecology
 
+import inflation.Par
 import inflation.world.Place
 import inflation.world.perPlace
-import inflation.world.forEachPlace
 import inflation.world.get
 import inflation.world.set
 
@@ -22,7 +22,6 @@ import inflation.world.Weather
 import kotlin.math.max
 import kotlin.math.min
 import inflation.world.Date
-import java.util.stream.IntStream
 
 /**
  * The plant food that is not simply the standing green: stocks that build up and are eaten down, in
@@ -151,9 +150,9 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
             if (!first) grainRipenedLastYear = (0 until n).sumOf { (ripenedNow[it] * land.areaKm2[it] * 1e6f).toDouble() } / 1000
             ripenedNow.fill(0f)
             if (!first) { val (dT, rain) = weather.shock()
-                IntStream.range(0, n).parallel().forEachPlace { p -> cereal[p] += STAND_SHIFT * (cerealShare(p, dT, rain) - cereal[p]) } }
+                Par.forEachPlace("food: cereal stands", n) { p -> cereal[p] += STAND_SHIFT * (cerealShare(p, dT, rain) - cereal[p]) } }
         }
-        IntStream.range(0, n).parallel().forEachPlace { p ->
+        Par.forEachPlace("food: week", n) { p ->
             // The season as the plants feel it: the share of a normal year's warmth they have had since
             // midwinter. Seed ripens early, fruit from midsummer to autumn, roots and bulbs fill as the
             // plants die back; a warm year brings all of it on earlier, high ground later.
@@ -401,3 +400,4 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
         }
     }
 }
+
