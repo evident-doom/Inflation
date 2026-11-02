@@ -450,6 +450,14 @@ class Band(kinds: Int, totems: Int = kinds) {
     val ties = HashMap<Int, Float>()
     /** The step this band last met each other band (by group id), for how fresh a meeting is ([meetingFresh]). */
     val lastMet = HashMap<Int, Int>()
+    /**
+     * What the bands it met lately told it their camps yielded ([tellYield]): each one's recent foraging yield ([recentYield])
+     * and the week it was told ([newsAt], counted from the first week of year 0), the last [NEWS_KEPT]. A [Mind.PLANS] band
+     * judges a fresh camp by them ([usualWork]).
+     */
+    val newsYield = FloatArray(NEWS_KEPT) { Float.NaN }
+    val newsAt = LongArray(NEWS_KEPT)
+    var newsNext = 0
     /** The loads a [Mind.PLANS] band's adults take on this week's camp move, as it chose them ([relayLoads]; NaN: as its ways have it, [carryLoads]). */
     @Transient var planLoads = Float.NaN
     fun tie(other: Int) = ties[other] ?: 0f
@@ -705,7 +713,7 @@ class Band(kinds: Int, totems: Int = kinds) {
         o.houseHex = houseHex; o.house = house; o.drivenFrom = drivenFrom; o.drivenBy = drivenBy; o.homeEarth = homeEarth; o.homeWalls = homeWalls; o.homeGroundC = homeGroundC; o.palisade = palisade
         o.houseLives = houseLives; o.houseFood = houseFood; foodFrom.copyInto(o.foodFrom); o.fishPull = fishPull; o.weirFood = weirFood; o.weirTend = weirTend; toolWork.copyInto(o.toolWork); heldShare.copyInto(o.heldShare); monthSupply.copyInto(o.monthSupply); monthSupplySq.copyInto(o.monthSupplySq); o.supplyMonth = supplyMonth; o.supplySum = supplySum; o.supplyWeeks = supplyWeeks; o.larderSeen = larderSeen; weekSupply.copyInto(o.weekSupply); weekYield.copyInto(o.weekYield); weekWarmth.copyInto(o.weekWarmth); weekMoved.copyInto(o.weekMoved); freeShare.copyInto(o.freeShare); o.leanDays = leanDays
         o.seedDomestic = seedDomestic; o.grainDomestic = grainDomestic; o.seedCorn = seedCorn * share; seedCorn -= o.seedCorn; o.sinceRaided = sinceRaided; o.sisu = sisu
-        o.knownHomes.putAll(knownHomes); o.knownLineage.putAll(knownLineage); o.lastMet.putAll(lastMet)
+        o.knownHomes.putAll(knownHomes); o.knownLineage.putAll(knownLineage); o.lastMet.putAll(lastMet); newsYield.copyInto(o.newsYield); newsAt.copyInto(o.newsAt); o.newsNext = newsNext
         skills.copyInto(o.skills)
         knowsSkill.copyInto(o.knowsSkill)
         sick.copyInto(o.sick)
