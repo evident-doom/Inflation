@@ -356,6 +356,8 @@ class Band(kinds: Int, totems: Int = kinds) {
     /** Where it sowed this year's crop ([Place.NONE] for nowhere) and the kg it sowed there: what it would lose by leaving (HexGroups.cropPull). */
     var sownPlace = Place.NONE
     var sownKg = 0f
+    /** Years since it last sowed ([HexGroups.sowGrain]), counted at its customs' week: a band with a crop sown within the year farms. */
+    var sinceSowed = 0f
     var seedDomestic = 0f
     var grainDomestic = 0f
     /** Its ways ([BandWay]), as [setWays] sets them each week from its ways' outputs: 1 each for the scaffold's way. Read through the names below. */

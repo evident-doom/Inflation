@@ -302,10 +302,11 @@ val CUSTOMS = Tradition.entries.size + 5
 enum class Livelihood { FORAGING, HERDING, FARMING }
 
 /**
- * How [this] band lives now: it farms while it keeps seed corn of its own crop ([Band.seedCorn]) to sow, herds while it keeps a
- * herd, and forages otherwise. (Farming first: those who keep both are farmers who keep beasts.)
+ * How [this] band lives now: it farms while it keeps seed corn of its own crop ([Band.seedCorn]) to sow or has a crop in the
+ * ground sown within the year ([Band.sownKg], [Band.sinceSowed]: all its seed sown, it is a farmer still until the harvest),
+ * herds while it keeps a herd, and forages otherwise. (Farming first: those who keep both are farmers who keep beasts.)
  */
-fun Band.livelihood() = if (seedCorn > 0f) Livelihood.FARMING else if (herds.herd.any { it > 0f }) Livelihood.HERDING else Livelihood.FORAGING
+fun Band.livelihood() = if (seedCorn > 0f || (sownKg > 0f && sinceSowed < 1f)) Livelihood.FARMING else if (herds.herd.any { it > 0f }) Livelihood.HERDING else Livelihood.FORAGING
 
 /**
  * How firmly the founders of lineage [lineage] hold their way of life ([Band.livelihoodHold]), 0 to 1: one drawn for each lineage,
@@ -515,6 +516,7 @@ internal fun HexGroups.cultureWeek(g: HexGroup, rnd: kotlin.random.Random) {
     for (t in Tradition.entries) b.heard[t] *= keep
     b.heardOf *= keep
     b.ensureMarks(fauna.totemKinds)
+    b.sinceSowed += years
     // (It comes to hold the way it lives once it has lived so for long enough, the longer the firmer it held its own.)
     val lives = b.livelihood()
     if (lives == b.heldLivelihood) b.livedOther = 0f
