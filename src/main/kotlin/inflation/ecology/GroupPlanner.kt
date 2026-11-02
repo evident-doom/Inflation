@@ -311,7 +311,7 @@ internal class GroupPlanner(private val gs: HexGroups) {
         // (A choice the policy drew by chance to learn from stands; every other band draws by its will to explore, in training worlds as outside them.)
         val chosen = best
         if (traced) bookMove(chosen != g.place, buf)
-        if (explores && !g.drawn) best = if (g.band?.mind == Mind.PLANS) planned(g, policy, buf, best, dueSoon) else if (g.weighed) explored(g, policy, buf, best, date) else best
+        if (explores && !g.drawn) best = if (g.band?.mind == Mind.PLANS) planned(g, policy, buf, best, dueSoon, here, date) else if (g.weighed) explored(g, policy, buf, best, date) else best
         // (For the census: whether the band would have moved by its best choice, and whether it moved by its draw.)
         if (g.band != null) {
             val k = s.index * 4
@@ -621,16 +621,44 @@ internal class GroupPlanner(private val gs: HexGroups) {
 
     /**
      * Where planning band [g] goes ([plannedMove]), of the places weighed in [buf], scored as in [explored] (asked only once it is
-     * leaving); [owed]: its
-     * customs send it this week (an appointment due, a raid set, a camp left after a death); [best] if none can be weighed.
+     * leaving); [owed]: its customs send it this week (an appointment due, a raid set, a camp left after a death); else the
+     * reckoned move ([reckonedGain], [reckonedWalk]) from its camp in [here]; [best] if none can be weighed.
      */
-    private fun planned(g: HexGroup, policy: HexPolicy?, buf: Scratch, best: Place, owed: Boolean): Place {
+    private fun planned(g: HexGroup, policy: HexPolicy?, buf: Scratch, best: Place, owed: Boolean, here: Hex, date: Date): Place {
         val n = buf.explPlaces.size
         if (n == 0) return best
+        val b = g.band ?: return best
         val stays = (0 until n).firstOrNull { buf.explPlaces[it] == g.place.i } ?: -1
-        val k = plannedMove(n, buf.explScores, buf.explDeaths, stays, owed) {
+        val k = plannedMove(n, buf.explScores, buf.explDeaths, stays, owed, if (owed) Float.NaN else reckonedGain(g, b, here, date),
+            { gs.reckonedWalk(g, b, buf.dist[gs.hw.placeHex[buf.explPlaces[it]]]) }) {
             if (policy == null) buf.explScores else policy.scores(g, Array(n) { buf.candFeats[it] }, buf.candScores.copyOf(n)) }
         return if (k < 0) best else Place(buf.explPlaces[k])
+    }
+
+    /**
+     * The case for planning band [b] (group [g]) to leave its camp in [here] this week, before the walk ([reckonedWalk]),
+     * in shares of a week's need (doc: Moving and settling under the planner, step 2): what it usually gets at this time of
+     * year ([usualReturn]) beyond what this camp has lately brought it ([campReturn]), less what leaving would give up, each
+     * paid for over the weeks it keeps a camp ([Band.stayWeeks]) as the walk is:
+     * - its houses, left to weather and to others ([Band.leavingHouse]);
+     * - what it has sown and not yet reaped ([cropPull]);
+     * - its heavy tools, left behind (grinding stones, [Tool.heavy]), the days of making them again;
+     * - its stores beyond what it carries ([leftBehindKg]);
+     * - and, every week it is away, what its weir there takes ([Band.weirFood], for the share of a whole weir built).
+     * NaN if it cannot judge: no whole week at this camp yet, or no such weeks in the years before.
+     */
+    private fun reckonedGain(g: HexGroup, b: Band, here: Hex, date: Date): Float {
+        val case = b.usualReturn(date, gs.days) - b.campReturn(date, gs.days)
+        if (case.isNaN()) return Float.NaN
+        val need = g.dailyNeedKg.coerceAtLeast(1e-3f) * gs.days
+        val stay = b.stayWeeks.coerceAtLeast(1f)
+        var tools = 0f
+        for (t in Tool.entries) if (t.heavy && b.kit[t] > 0f) tools += b.kit[t] * t.makeDays / b.makeSkill(t).coerceAtLeast(1e-3f)
+        val width = gs.fauna.water.riverWidthM(here)
+        val whole = gs.weirLengthM(here)
+        val weir = if (whole > 0f) min(1f, gs.weirAt(g, here) * width / whole) * b.weirFood / gs.stepsPerYear / need else 0f
+        return case - (if (b.houseHex == here) b.leavingHouse else 0f) - cropPull(g, b, here) - tools / (gs.days * stay) -
+            gs.leftBehindKg(g, b) / need / stay - weir
     }
 
     /**
