@@ -68,7 +68,7 @@ class StocksTest {
             "HexDrinkingWater.nearBed", "HexDrinkingWater.bedM2", "HexDrinkingWater.streamKm", "HexDrinkingWater.stillKmMean", "HexDrinkingWater.riverClassKmMean", "HexDrinkingWater.riverClassKmLeast", "HexDrinkingWater.lakeKmLeast", "HexDrinkingWater.springKmLeast", "HexDrinkingWater.campKm", "HexPlants.annualGdd", "HexPlants.warmth",
             "HexPlants.fertility", "HexPlants.organicFertility", "HexPlants.warmest", "HexPlants.perennialShare", "HexFood.cerealGround", "HexFood.foodTrees",
             "HexFood.cereal", "HexSmallLife.eagleCrags", "HexSmallLife.rockKopje", "HexSmallLife.rockChukar", "HexSmallLife.rockHides", "HexSmallLife.wetland",
-            "HexSmallLife.waterfowl", "HexSmallLife.meanTemp", "HexSmallLife.annualRain", "HexSmallLife.soilReach",
+            "HexSmallLife.waterfowl", "HexSmallLife.meanTemp", "HexSmallLife.annualRain", "HexSmallLife.soilReach", "HexFauna.groundShelter",
             // Rates and the week's passing water: flows over a step, not water held.
             "HexHydrology.lakeRain", "HexHydrology.lakeEvap", "HexHydrology.flow", "HexHydrology.flood", "HexHydrology.soak",
             "HexHydrology.soakTarget", "HexHydrology.runoffMm", "HexPlants.litterfall", "HexPlants.browsing", "HexPlants.grazing",
