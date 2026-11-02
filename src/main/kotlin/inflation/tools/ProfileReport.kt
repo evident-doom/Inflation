@@ -48,6 +48,8 @@ internal class ProfileRun(val file: String) {
     val inner = LinkedHashMap<String, Agg>()           // phases timed inside another
     val loops = HashMap<String, Agg>()                 // Par.forEach calls by name
     val labels = HashMap<String, Agg>()                // sample labels
+    val kinds = HashMap<String, HashMap<String, Agg>>() // part -> kind -> jobs and their summed time ([inflation.Profile.kind])
+    val slowest = HashMap<String, MutableList<Pair<Long, String>>>() // what -> the slowest jobs (ns, detail) ([inflation.Profile.slow])
     val phaseSamples = HashMap<String, Agg>()          // every sample, by the top-level phase it fell in
     val frames = HashMap<String, Long>()               // top self frame -> samples
     var samples = 0L; var mainSamples = 0L
@@ -145,6 +147,14 @@ internal object ProfileRead {
         for (ev in inRange) if (ev.eventType.name == "inflation.Job") run.loops.getOrPut(ev.getString("name")) { Agg() }.slowJobs++
         val loopSpans = outermost(loopEvents.map { Span(it.s(), it.e(), it.getString("name")) })
         val loopStarts = LongArray(loopSpans.size) { loopSpans[it].start }
+
+        // Time by kind, and the slowest jobs (those that ranked as they ran, the [inflation.Profile.SLOW_KEEP] longest of each kept).
+        for (ev in inRange) when (ev.eventType.name) {
+            "inflation.Kind" -> run.kinds.getOrPut(ev.getString("part")) { HashMap() }.getOrPut(ev.getString("kind")) { Agg() }
+                .let { it.jobs += ev.getLong("jobs"); it.sumNs += ev.getLong("sumNs") }
+            "inflation.Slow" -> run.slowest.getOrPut(ev.getString("what")) { ArrayList() } += ev.getLong("ns") to ev.getString("detail")
+        }
+        for ((k, v) in run.slowest) run.slowest[k] = v.sortedByDescending { it.first }.take(inflation.Profile.SLOW_KEEP).toMutableList()
 
         // Samples: the innermost labelled method on the stack, else the loop it fell in, else the phase.
         for (ev in inRange) when (ev.eventType.name) {
@@ -247,6 +257,26 @@ internal object ProfileText {
         appendLine()
         appendLine("Hottest frames (self): " + r.frames.entries.sortedByDescending { it.value }.take(12).joinToString("; ") { "${it.key} ${f1(pct(it.value, r.samples))}%" })
         appendLine()
+        if (r.kinds.isNotEmpty()) {
+            appendLine("## Time by kind (`Profile.kind`: thread time summed over every core that ran it)")
+            for ((part, byKind) in r.kinds.entries.sortedByDescending { e -> e.value.values.sumOf { it.sumNs } }) {
+                val total = byKind.values.sumOf { it.sumNs }.coerceAtLeast(1L)
+                appendLine("### $part: ${f1(total / 1e6 / r.steps.coerceAtLeast(1))} thread-ms/step")
+                appendLine("| kind | thread-ms/step | % | jobs/step | mean job µs |")
+                appendLine("|---|---:|---:|---:|---:|")
+                for ((k, g) in byKind.entries.sortedByDescending { it.value.sumNs }.take(20))
+                    appendLine("| $k | ${f1(g.sumNs / 1e6 / r.steps.coerceAtLeast(1))} | ${f1(pct(g.sumNs, total))} | ${f1(g.jobs.toDouble() / r.steps.coerceAtLeast(1))} | ${f1(g.sumNs / 1e3 / g.jobs.coerceAtLeast(1))} |")
+                appendLine()
+            }
+        }
+        if (r.slowest.isNotEmpty()) {
+            appendLine("## Slowest single jobs (`Profile.slow`, after the run's first ${inflation.Profile.WARM_UP_DAYS} days)")
+            for ((what, jobs) in r.slowest.entries.sortedBy { it.key }) {
+                appendLine("- $what:")
+                for ((ns, detail) in jobs) appendLine("  - ${"%.2f".format(ns / 1e6)} ms: $detail")
+            }
+            appendLine()
+        }
         appendLine("## Waits")
         appendLine("Main thread waiting for the workers (joins): ${f1(r.mainParkNs / 1e6 / r.steps.coerceAtLeast(1))} ms/step.")
         if (r.monitors.isEmpty()) appendLine("No monitor waits over 1 ms.") else {
@@ -302,5 +332,6 @@ internal object ProfileText {
         }
         table("The step and its phases") { r -> r.phases.mapValues { r.perStepMs(it.value) } + ("whole step" to r.stepMs()) }
         table("Parallel loops") { r -> r.loops.filter { it.value.calls > 0 }.mapValues { r.perStepMs(it.value) } }
+        table("Time by kind (thread-ms per step)") { r -> r.kinds.flatMap { (part, byKind) -> byKind.map { (k, g) -> "$part / $k" to g.sumNs / 1e6 / r.steps.coerceAtLeast(1) } }.toMap() }
     }
 }

@@ -1,7 +1,7 @@
 package inflation.ecology
 
 import inflation.Par
-import inflation.Profile
+import inflation.Part
 import inflation.world.Hex
 import inflation.world.placeList
 import inflation.world.HexArray
@@ -307,7 +307,6 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         val month = date.month
         val light = (Date(date.absoluteDay).dayLengthHours(38.0) / 12.0).toFloat()
         Par.forEachHex("water life: step", size) { h ->
-            val pt = Profile.mark()
             if (waterKm2[h] > 0f) {
                 // Upwelling: the wind's drift is bent to the right; where it carries water off the coast, deep water wells up.
                 val wp = windPlace[h]
@@ -372,8 +371,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
                     shellfish[h] = max(0f, s + grew - died)
                     dead[h] += ate * 1000f * (1f - FISH_EFFICIENCY) + died * perWater
                 }
-                Profile.lap("water: plankton, fish, shellfish", pt)
-                Profile.part("water: sea animals") { stepSea(h, month) }
+                stepSea(h, month)
             }
             // River fish: by the river's size and warmth; a nearly dry bed keeps only what survives in pools.
             // They live on what the land washes in (leaves, insects, the dead), taken from the litter of the
@@ -403,7 +401,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         }
         // Currents mix the water of neighbouring hexes: plankton and fish drift and spread.
         val before = fishTonnes()
-        Profile.part("water: currents") { for (f in listOf(phyto, zoo, fish, deep)) drift(f) }
+        for (f in listOf(phyto, zoo, fish, deep)) drift(f)
         // Shoals come inshore to spawn and feed in spring and early summer, and go back out in autumn.
         if (month in 3..6) shoal(true) else if (month in 8..10) shoal(false)
         nesting = month in NESTING
@@ -426,9 +424,9 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
                 if (river) riverFish[d] -= kg / belowKm2 else fish[d] -= kg / belowKm2
             }
         }
-        Profile.part("water: spawning runs") { spawningRun(date) }
-        Profile.part("water: sea birds") { seaBirds() }
-        if (date.dayOfMonth <= days) Profile.part("water: sea animals spreading") { spreadSea() }
+        spawningRun(date)
+        seaBirds()
+        if (date.dayOfMonth <= days) spreadSea()
     }
 
     /** For each sea hex the sea hexes next to it nearer the shore; and how many lie seaward of each. */
@@ -450,6 +448,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     }
 
     /** A share of what is in each hex's water mixes with its neighbours' each week. */
+    @Part("water: currents")
     private fun drift(f: FloatArray) {
         // Exchange between neighbouring water of the same kind (sea with sea, lake with lake), as much
         // leaving one as reaches the other: what moves is the density difference over the narrower water.
@@ -468,6 +467,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
 
 
     /** Sea animals in hex [h]: each eats its food, breeds in its season as it ate, and dies back. */
+    @Part("water: sea animals")
     private fun stepSea(h: Hex, month: Int) {
         if (seaKm2[h] <= 0f) return
         for ((k, a) in SEA.withIndex()) {
@@ -503,6 +503,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     }
 
     /** Sea animals spread to the sea around, each as far as it ranges (whales across the sea, seals along the coast). */
+    @Part("water: sea animals spreading")
     private fun spreadSea() {
         for ((k, a) in SEA.withIndex()) {
             val f = sea[k]
@@ -536,6 +537,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
      * bears take what they can; at its end the survivors go back to the sea, and the spent fish die
      * in the river.
      */
+    @Part("water: spawning runs")
     private fun spawningRun(date: Date) {
         val day = date.dayOfYear - RUN_START_DAY
         val on = day in 0 until RUN_DAYS
@@ -601,6 +603,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     }
 
     /** Sea-bird colonies fish the sea within reach; a colony grows when they eat well and shrinks when not. */
+    @Part("water: sea birds")
     private fun seaBirds() {
         for (c in colonyHex.indices) {
             val need = colonyBirds[c] * BIRD_KG_DAY * days

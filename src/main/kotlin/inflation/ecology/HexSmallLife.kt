@@ -4,7 +4,6 @@ import inflation.drawUnit
 import inflation.Par
 import inflation.Part
 import inflation.enumTables
-import inflation.Profile
 import inflation.Stream
 import inflation.world.Place
 import inflation.world.get
@@ -320,11 +319,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
         stepVultures(weather)
         // A little every week, not all at once each month: a monthly lump would show as a pulse at the
         // start of each month where the spreaders arrived and then died back over the weeks.
-        Profile.part("small life: spreading to neighbours") {
-            spread(spreaders)
-            spread(eagles) { eagleCrags[it] > 0f }
-            spreadToward(rodents, rodentRoom); spreadToward(hares, hareRoom)
-        }
+        spreadToNeighbours()
     }
 
     /**
@@ -1116,6 +1111,14 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
             for (i in nb.indices) { val q = nb[i]; if (where(q)) delta += w[i] * (old[q] - old[p]) }
             f[p] = max(0f, old[p] + delta)
         }
+    }
+
+    /** The week's wandering of small animals to neighbouring places: the spreaders anywhere, eagles between crags, rodents and hares toward room. */
+    @Part("small life: spreading to neighbours")
+    private fun spreadToNeighbours() {
+        spread(spreaders)
+        spread(eagles) { eagleCrags[it] > 0f }
+        spreadToward(rodents, rodentRoom); spreadToward(hares, hareRoom)
     }
 
     /** [spread] for kinds that can wander anywhere, all in one pass over the places. */

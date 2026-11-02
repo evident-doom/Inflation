@@ -1,6 +1,7 @@
 package inflation.learning
 
 import inflation.inflationHome
+import inflation.Part
 import inflation.run.Nominal
 import inflation.run.freshSim
 import inflation.ecology.HexSim
@@ -253,6 +254,7 @@ class MoverPolicy(private val mover: SharedMover, private val record: Concurrent
         return min(Sampling.MAX_STRESSED_SHARE, r * (1f + stressBoost * stress))
     }
 
+    @Part("choosing: network")
     override fun choose(g: HexGroup, features: Array<FloatArray>, baseline: FloatArray, rnd: kotlin.random.Random): Int {
         val n = features.size
         val state = g.band?.state; val temper = g.temper

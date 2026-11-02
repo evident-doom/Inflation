@@ -34,6 +34,23 @@ class JobEvent : Event() {
     @JvmField @field:Label("Index") var index: Int = 0
 }
 
+/** A part's time for one kind over a phase ([Profile.kind]): the jobs and the sum of their time, on every thread that ran them. */
+@Name("inflation.Kind") @Label("Time by kind") @Category("Inflation") @StackTrace(false)
+class KindEvent : Event() {
+    @JvmField @field:Label("Part") var part: String = ""
+    @JvmField @field:Label("Kind") var kind: String = ""
+    @JvmField @field:Label("Jobs") var jobs: Long = 0
+    @JvmField @field:Label("Job time sum (ns)") var sumNs: Long = 0
+}
+
+/** A job among the slowest of its kind so far ([Profile.slow]): what it was, what it was about, and how long it took. */
+@Name("inflation.Slow") @Label("Slowest job") @Category("Inflation") @StackTrace(false)
+class SlowEvent : Event() {
+    @JvmField @field:Label("What") var what: String = ""
+    @JvmField @field:Label("Detail") var detail: String = ""
+    @JvmField @field:Label("Time (ns)") var ns: Long = 0
+}
+
 /**
  * The model's parallel loops over `0 until n`, in one place so that the profiler can measure them without the model's
  * code carrying any timing. With profile off it is exactly `IntStream.range(0, n).parallel().forEach(body)`, inlined at

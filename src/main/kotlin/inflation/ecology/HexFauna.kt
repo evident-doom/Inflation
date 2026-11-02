@@ -824,7 +824,6 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         // (Where the food came from, tallied on each core apart and added into [fedFrom] after.)
         val tallies = java.util.concurrent.ConcurrentLinkedQueue<DoubleArray>()
         val tally = ThreadLocal.withInitial { DoubleArray(kinds.size * FED).also { tallies.add(it) } }
-        val feeding = if (Profile.FINE) Array(kinds.size) { Profile.byKind("residents: feeding", kinds[it].name) } else null
         Par.forEachPlace("residents: graze", n) { p ->
             val z = Grazing(kinds.size)
             // What can be eaten this week without eating the place bare, kg per m2: green or cured, standing grass is
@@ -836,7 +835,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             val grass = reach * land.palatable[p] * land.plants.herb[p]; val browse = land.plants.browse(p)
             // (Browse is the shoots the shrubs and trees put out within reach, see [HexPlants.shrubShoots].)
             eatPlants(p, weather, grass, browse, z)
-            feedKinds(p, weather, z, tally.get(), feeding)
+            feedKinds(p, weather, z, tally.get())
             placeEffects(p, grass, browse, z)
         }
         for (t in tallies) for (k in kindIds) for (f in 0 until FED) fedFrom[k][f].add(t[k.i * FED + f])
@@ -933,7 +932,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
      * on its fat, reserves drawn on or laid on, and how well fed it was ([fed], [fedByMonth], [autumnFed]); where the food came
      * from into [ff].
      */
-    private fun feedKinds(p: Place, weather: Weather, z: Grazing, ff: DoubleArray, feeding: Array<String>?) {
+    private fun feedKinds(p: Place, weather: Weather, z: Grazing, ff: DoubleArray) {
         var t = Profile.mark()
         for ((k, s) in kinds.withKinds()) {
             // (And how rich in protein all it ate was; animal food is rich in it.)
@@ -981,7 +980,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             fm[i] += (fed[k][p] * protein[k][p] - fm[i]) * FED_MEMORY
             // Laying on fat for the winter: how well fed through late summer and autumn.
             if (s.hibernates && weather.date.month in 7..11 && !asleep(k, p)) autumnFed[k][p] += (fed[k][p] - autumnFed[k][p]) * 0.2f
-            if (feeding != null) t = Profile.lap(feeding[k.i], t)
+            t = Profile.kindLap("residents: feeding", s.name, t)
         }
     }
 
@@ -1081,7 +1080,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         // Each kind on its own core, with its own carcasses, added up after.
         val carcasses = Array(kinds.size) { FloatArray(n) }
         val bornBook = land.books?.adder(Books.Stuff.MATTER, "residents born and grew up")
-        Par.forEach("residents: births, deaths", kindIds.toList()) { k -> Profile.part(Profile.byKind("residents: births, deaths", kinds[k].name)) {
+        Par.forEach("residents: births, deaths", kindIds.toList()) { k -> Profile.kind("residents: births, deaths", kinds[k].name) {
             val s = kinds[k]
             val carcassKg = carcasses[k]
             val grow = years / s.yearsToMaturity
@@ -1509,7 +1508,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
                 val heads = (a[to] + y[to]) * land.areaKm2[to]
                 if (heads > 0f) reserve[k][to] = max(0f, reserve[k][to] - WALK_COST * climbKm(k, Place(from), Place(to)) * (ma + my) / heads)
             }
-            Profile.lap(Profile.byKind("residents: moving (shift)", kinds[k].name), t)
+            Profile.kindLap("residents: moving (shift)", kinds[k].name, t)
         }
     }
 
@@ -1552,7 +1551,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             val arrived = FloatArray(n); val walkedKm = FloatArray(n)
             val t = Profile.mark()
             drownedHeads[k] = if (room[k] != null) flow(k, weather, arrived, walkedKm, drowned[k]) else spillHunters(k, weather, arrived, walkedKm, drowned[k])
-            Profile.lap(Profile.byKind("residents: moving (spill)", kinds[k].name), t)
+            Profile.kindLap("residents: moving (spill)", kinds[k].name, t)
             gatherThin(k, arrived, walkedKm)
             // (A place left with too few to count, by those leaving or the few that came, has none: as after births and deaths,
             // they go to the soil with the drowned. Else they would feed and die there as fractions too small to reckon with.)
