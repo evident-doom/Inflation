@@ -43,6 +43,11 @@ f() { grep -v -E "saved the world|[0-9] ms|cores busy|loaded in|\(0\.[0-9] s|set
 same() { cmp -s <(gzip -dc "$1") <(gzip -dc "$2"); }
 resaved() { [ -f "$W/$1.re.gz" ] || run "$NEW" "$1.re" "--load $WJ/$1.gz --save $WJ/$1.re.gz" "$WORLD --years 0"; echo "$W/$1.re.gz"; }
 status=0
+# (A run that failed proves nothing: two missing saves or two identical error messages would compare as the same.)
+for r in base new base-on new-on; do
+  if ! tail -1 "$W/$r.out" | grep -qx "exit 0" || [ ! -s "$W/$r.gz" ]; then echo "RUN FAILED: $r (see $r.out)"; status=1; fi
+done
+[ $status = 0 ] || exit $status
 for pair in "base new" "base-on new-on"; do
   set -- $pair
   if diff <(f "$W/$1.out") <(f "$W/$2.out") > "$W/$2.diff"; then p="printed lines identical ($(wc -l < "$W/$2.out") lines)"; else p="PRINTED LINES DIFFER (see $2.diff)"; status=1; fi

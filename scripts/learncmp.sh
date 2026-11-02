@@ -45,6 +45,9 @@ for c in "${CMDS[@]}"; do
     (cd "$d" && java -Xmx12g -Dhex.config="$cfg" -cp "build/classes/kotlin/main${SEP}build/resources/main${SEP}$LIB" "$main" $(a=${args//\{OUT\}/$out/files}; echo ${a//\{W\}/$W}) > "$out/printed.txt" 2>&1)
     echo "exit $?" >> "$out/printed.txt"
   done
+  # (A run that failed proves nothing: two identical error messages would compare as the same.)
+  failed=""; for side in base new; do tail -1 "$W/$name/$side/printed.txt" | grep -qx "exit 0" || failed="$failed $side"; done
+  if [ -n "$failed" ]; then echo "$name: RUN FAILED:$failed (see $name/<side>/printed.txt)"; status=1; continue; fi
   f(){ grep -vE '[0-9]+(\.[0-9]+)? s\b|[0-9]+ ms\b' "$1"; }
   if diff <(f "$W/$name/base/printed.txt") <(f "$W/$name/new/printed.txt") > "$W/$name/printed.diff"; then p="printed lines identical"; else p="PRINTED LINES DIFFER (see $name/printed.diff)"; status=1; fi
   fd=$(diff -r -x log.txt "$W/$name/base/files" "$W/$name/new/files" 2>&1 | head -5)
