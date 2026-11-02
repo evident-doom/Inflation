@@ -1,5 +1,11 @@
 package inflation.tools
 
+import inflation.ecology.appeal
+import inflation.ecology.fareFor
+import inflation.ecology.feltC
+import inflation.ecology.forageProtein
+import inflation.ecology.suits
+import inflation.ecology.tether
 import inflation.world.get
 import inflation.world.set
 

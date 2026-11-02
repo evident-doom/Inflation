@@ -1,5 +1,6 @@
 package inflation.ui
 
+import inflation.ecology.tether
 import inflation.world.toHexArray
 import inflation.world.HexArray
 import inflation.world.Hex

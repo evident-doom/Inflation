@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.ecology.calamities
 import inflation.ecology.set
 import inflation.ecology.get
 import inflation.run.freshSim
