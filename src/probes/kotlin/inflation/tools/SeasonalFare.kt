@@ -1,5 +1,6 @@
 package inflation.tools
 
+import inflation.ecology.stayOdds
 import inflation.world.get
 import inflation.world.set
 

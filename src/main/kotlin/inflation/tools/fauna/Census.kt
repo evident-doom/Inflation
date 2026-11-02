@@ -1,5 +1,7 @@
 package inflation.tools.fauna
 
+import inflation.ecology.climateSuits
+import inflation.ecology.monthFit
 import inflation.ecology.set
 import inflation.ecology.get
 import inflation.ecology.PlantFrom

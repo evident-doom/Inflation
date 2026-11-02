@@ -2,6 +2,7 @@ package inflation.tools.fauna
 
 import inflation.ecology.set
 import inflation.ecology.get
+import inflation.ecology.tether
 import inflation.ecology.Thresholds
 import inflation.ecology.DialUse
 import inflation.ecology.WAYS_OUT_NAMES

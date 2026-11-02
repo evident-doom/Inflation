@@ -1,5 +1,7 @@
 package inflation.tools
 
+import inflation.ecology.arriveOdds
+import inflation.ecology.growthParts
 import inflation.world.get
 import inflation.world.set
 

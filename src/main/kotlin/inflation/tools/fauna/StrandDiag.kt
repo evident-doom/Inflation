@@ -1,5 +1,7 @@
 package inflation.tools.fauna
 
+import inflation.ecology.feltC
+import inflation.ecology.hazards
 import inflation.world.get
 import inflation.world.set
 

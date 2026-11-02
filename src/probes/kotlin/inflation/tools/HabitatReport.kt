@@ -1,5 +1,9 @@
 package inflation.tools
 
+import inflation.ecology.climateSuits
+import inflation.ecology.foodFor
+import inflation.ecology.suits
+import inflation.ecology.usualTether
 import inflation.world.get
 import inflation.world.set
 

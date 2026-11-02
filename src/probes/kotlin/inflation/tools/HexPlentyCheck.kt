@@ -1,5 +1,7 @@
 package inflation.tools
 
+import inflation.ecology.feltC
+import inflation.ecology.tether
 import inflation.world.toHexArray
 import inflation.world.HexArray
 import inflation.world.get
