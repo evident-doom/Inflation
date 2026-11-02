@@ -143,7 +143,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     // (Of a kind that also roams, the territories its packs hold: one of its usual size a hex, as their marks keep them
     // ([HexGroups.mark]), so its settled are held where its packs were.)
     @Transient private val usual = FloatArray(kinds.size) { k -> val s = kinds[k]
-        if (s in Catalogue.roamingResidents) s.groupSize / hex.areaKm2.toFloat() else usualDensity(s) }
+        if (s in Catalogue.roamingResidents) tuning.roamerUsual * s.groupSize / hex.areaKm2.toFloat() else usualDensity(s) }
     /**
      * Outbreaks (rinderpest-like plagues among grazers, distemper and rabies among hunters, fevers
      * among people), by kind ([Species.index]) and hex: how strongly one is raging, 0..1. One starts
@@ -469,11 +469,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
     /**
      * The share of a kind's young growing up at a place where its kind stands at [heads] per km² that leave it as roamers:
-     * [LEAVE_BASE] of them wherever they are born (most young wolves leave the pack they were born in, and young male lions
+     * [Tuning.roamerLeaveBase] of them wherever they are born (most young wolves leave the pack they were born in, and young male lions
      * their pride), and more as the ground is crowded beyond its usual numbers ([usual], the territories there are), up to
-     * [LEAVE_BASE] + [LEAVE_CROWD] at twice them, as young grown up leave a pack already as big as its kind's usual one ([liveWeek]).
+     * that and [LEAVE_CROWD] more at twice them, as young grown up leave a pack already as big as its kind's usual one ([liveWeek]).
      */
-    private fun leaveShare(heads: Float, usual: Float) = LEAVE_BASE + LEAVE_CROWD * (heads / usual - 1f).coerceIn(0f, 1f)
+    private fun leaveShare(heads: Float, usual: Float) = tuning.roamerLeaveBase + LEAVE_CROWD * (heads / usual - 1f).coerceIn(0f, 1f)
 
     /** What a grown animal carries with it as it moves ([carried]). */
     private enum class Carry { BRED, FAT, SPENT, BOLD }
@@ -1248,7 +1248,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         out[Danger.CROWD] = crowd
         out[Danger.SICK] = Hazards.crowdDisease(crowd, fed, years); out[Danger.OUTBREAK] = outbreakDeaths(s, p)
         // Hunters hold ground: past the numbers their territories hold, they fight their own kind and kill its young.
-        out[Danger.STRIFE] = if (s.carnivore) strife(heads, usual[k]) else 0f
+        out[Danger.STRIFE] = if (s.carnivore) strife(heads, usual[k], if (s in Catalogue.roamingResidents) tuning.roamerStrifeCrowd else STRIFE_CROWD) else 0f
         val (fireA, floodA, snowA) = calamities(s, p, weather, false)
         val (fireY, floodY, snowY) = calamities(s, p, weather, true)
         out[Danger.FIRE_A] = fireA; out[Danger.FLOOD_A] = floodA; out[Danger.SNOW_A] = if (sleeping) 0f else snowA
@@ -1259,13 +1259,14 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
 
     /**
      * The share of a resident hunter kind's grown animals among [heads] a km² killed in a week by their own kind fighting
-     * over ground ([Danger.STRIFE]; the young [STRIFE_YOUNG] times as many): none up to [STRIFE_CROWD] times its usual
+     * over ground ([Danger.STRIFE]; the young [STRIFE_YOUNG] times as many): none up to [crowd] times its usual ([STRIFE_CROWD],
+     * for wolves and lions settled with roaming packs [Tuning.roamerStrifeCrowd])
      * numbers ([usualKm2]), the territories there are, and growing with the square of the excess beyond, [STRIFE_DEATHS] a
      * year at twice the territories' numbers. As packs, rivals, the homeless and lions killing their young hold them;
      * as residents nothing else would but the breeding spacing (leopards rose fivefold in ten years: ab-residents, 2026-10-31).
      */
-    private fun strife(heads: Float, usualKm2: Float): Float {
-        val over = heads / (STRIFE_CROWD * usualKm2) - 1f
+    private fun strife(heads: Float, usualKm2: Float, crowd: Float): Float {
+        val over = heads / (crowd * usualKm2) - 1f
         return if (over > 0f) STRIFE_DEATHS * over * over * years else 0f
     }
 
@@ -2078,11 +2079,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         const val STRIFE_CROWD = 2f
         const val STRIFE_DEATHS = 2f
         const val STRIFE_YOUNG = 2f
-        /**
-         * [leaveShare]: of a kind that also roams, the share of its young growing up that leave wherever they are born, and the
-         * more that leave on ground crowded to twice its usual numbers.
-         */
-        const val LEAVE_BASE = 0.5f
+        /** [leaveShare]: of a kind that also roams, the more of its young growing up that leave on ground crowded to twice its usual numbers. */
         const val LEAVE_CROWD = 0.5f
         /** Of a kind that also roams, the share of its numbers that start out roaming, the rest settled ([Catalogue.roamingResidents]). */
         const val ROAMERS_AT_START = 0.15f
