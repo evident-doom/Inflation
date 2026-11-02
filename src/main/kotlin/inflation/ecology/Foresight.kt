@@ -1,6 +1,7 @@
 package inflation.ecology
 
 import inflation.Config
+import inflation.Par
 import inflation.world.get
 import inflation.world.Biome
 import inflation.world.Date
@@ -211,7 +212,7 @@ internal fun HexGroups.foresee(weather: Weather) {
     val m = weather.date.month
     val k = 1f / (stepsPerYear / Date.MONTHS_PER_YEAR)
     // (Each band on its own: on all cores.)
-    groups.parallelStream().forEach { g ->
+    Par.forEach("foresight: foresee", groups) { g ->
         val b = g.band
         if (b != null && g.alive) {
             // (What it got as a share of its need before keeping warm, net of its larder: what it ate ([HexGroup.fed], of
@@ -287,3 +288,4 @@ internal fun HexGroups.bookCalibration(b: Band, cause: DeathReason, n: Int) {
     }
     b.forecastTrace?.died(n, cause == DeathCause.HUNGER)
 }
+

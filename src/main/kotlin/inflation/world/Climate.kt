@@ -1,5 +1,6 @@
 package inflation.world
 
+import inflation.Par
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.exp
@@ -77,7 +78,7 @@ class Climate(
             repeat(RECYCLING_PASSES) { pass ->
                 carry(grid, cfg, elevation, isSea, lat, temp, monthlyPet, evap, precip)
                 if (pass == RECYCLING_PASSES - 1) return@repeat
-                java.util.stream.IntStream.range(0, n).parallel().forEach { i ->
+                Par.forEach("climate: recycled rain", n) { i ->
                     val p = (0 until 12).sumOf { precip[it][i].toDouble() }
                     val aet = if (isSea[i] || p <= 0 || pet[i] <= 0) 0.0 else p * fu(pet[i] / p)
                     // Evaporation follows the month's demand: water stored from the wet season goes in the warm one.
@@ -291,7 +292,7 @@ class Climate(
                     for (c in 0 until cw * ch) total[c] += (share[c / cw] * rain[c]).toFloat()
                 }
                 // Back to the fine cells.
-                java.util.stream.IntStream.range(0, grid.size).parallel().forEach { i ->
+                Par.forEach("climate: month at each cell", grid.size) { i ->
                     precip[m][i] = at(total, (grid.x(i) + 0.5) / f - 0.5, (grid.y(i) + 0.5) / f - 0.5, 0f)
                 }
             }
@@ -422,3 +423,4 @@ class Climate(
         }
     }
 }
+

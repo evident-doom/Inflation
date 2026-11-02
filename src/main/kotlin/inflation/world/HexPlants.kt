@@ -1,6 +1,7 @@
 package inflation.world
 
 import inflation.Books
+import inflation.Par
 import inflation.StockName
 import inflation.Stocks
 import inflation.KgM2
@@ -237,7 +238,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
         val books = land.books
         val grewBook = books?.adder(Books.Stuff.MATTER, "plants grew"); val burntBook = books?.adder(Books.Stuff.MATTER, "burnt")
         val fellBook = books?.adder(Books.Stuff.MATTER, "litterfall (to the litter)")
-        java.util.stream.IntStream.range(0, n).parallel().forEach { i ->
+        Par.forEach("plants: step", n) { i ->
             val p = Place(i)
             val before = biomass(p)
             var grew = 0f
@@ -483,3 +484,4 @@ enum class ShrubPart(val label: String) {
     GREW("grew"), DIED_BACK("died back over its ceiling"), BROWSED("browsed"), FROST("frost"), FLOOD("flood"), ASH("ash"), FIRE("fire"),
     TAKEN_OTHERWISE("taken otherwise (small life, fruit, curing, people)")
 }
+

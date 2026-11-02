@@ -17,7 +17,6 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 import inflation.world.Weather
-import java.util.stream.IntStream
 import kotlin.math.cos
 import kotlin.math.exp
 import kotlin.math.sin
@@ -733,3 +732,4 @@ internal const val HEAL_TENDED = 0.35f
 internal const val FESTER = 0.02f
 internal const val LAMED = 0.2f
 internal const val LAME_TURNOVER = 0.04f
+

@@ -29,7 +29,6 @@ import kotlin.math.roundToInt
 import kotlin.math.min
 import inflation.world.Biome
 import inflation.world.Weather
-import java.util.stream.IntStream
 import kotlin.math.cos
 import kotlin.math.exp
 import kotlin.math.sqrt
@@ -85,3 +84,4 @@ enum class Tool(val recipe: Map<Material, Float>, val skill: Skill, val wearPerY
      */
     PICK(mapOf(Material.BONE to 1f, Material.WOOD to 0.5f, Material.SINEW to 0.05f), Skill.BONE_TOOLS, 0.5f, 1f, listOf(Skill.WELLS), Skill.WELLS, hafted = true),
 }
+

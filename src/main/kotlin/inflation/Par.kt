@@ -1,5 +1,7 @@
 package inflation
 
+import inflation.world.Hex
+import inflation.world.Place
 import jdk.jfr.Category
 import jdk.jfr.Event
 import jdk.jfr.Label
@@ -44,6 +46,15 @@ object Par {
         if (!Profile.JFR) IntStream.range(0, n).parallel().forEach(job) else measured(name, n, job)
     }
 
+    /** [forEach] over the places `0 until n`, each as a [Place]. */
+    inline fun forEachPlace(name: String, n: Int, crossinline body: (Place) -> Unit) = forEach(name, n) { body(Place(it)) }
+
+    /** [forEach] over the hexes `0 until n`, each as a [Hex]. */
+    inline fun forEachHex(name: String, n: Int, crossinline body: (Hex) -> Unit) = forEach(name, n) { body(Hex(it)) }
+
+    /** [forEach] over the [items] of a list. */
+    inline fun <T> forEach(name: String, items: List<T>, crossinline body: (T) -> Unit) = forEach(name, items.size) { body(items[it]) }
+
     @PublishedApi internal fun measured(name: String, n: Int, body: IntConsumer) {
         val sum = LongAdder(); val longest = LongAccumulator(java.util.function.LongBinaryOperator { a, b -> maxOf(a, b) }, 0L)
         val loop = ParEvent().also { it.begin() }
@@ -60,3 +71,4 @@ object Par {
         if (loop.shouldCommit()) { loop.name = name; loop.jobs = n.toLong(); loop.sumNs = sum.sum(); loop.maxNs = longest.get(); loop.commit() }
     }
 }
+

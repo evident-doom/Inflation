@@ -1,6 +1,7 @@
 package inflation.ecology
 
 import inflation.drawUnit
+import inflation.Par
 import inflation.Part
 import inflation.EnumFloats
 import inflation.enumFloats
@@ -12,7 +13,6 @@ import inflation.world.Hex
 import inflation.world.HexArray
 import inflation.world.toHexArray
 import inflation.world.Place
-import inflation.world.forEachPlace
 import inflation.world.get
 import inflation.world.set
 
@@ -46,7 +46,6 @@ import kotlin.math.sqrt
 import java.util.TreeMap
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.DoubleAdder
-import java.util.stream.IntStream
 
 /**
  * The resident plant-eaters on the hexes, as densities: adults and young per km² of each place
@@ -774,7 +773,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             if (moving) {
                 fillArrive(it)
                 // (The game the hunters weigh, taken once before any kind moves: the kinds move on all cores at once.)
-                preyNow = Array(kinds.size) { k -> if (kinds[k].carnivore) FloatArray(n).also { v -> IntStream.range(0, n).parallel().forEachPlace { p -> v[p] = game(kinds[k], p) } } else null }
+                preyNow = Array(kinds.size) { k -> if (kinds[k].carnivore) FloatArray(n).also { v -> Par.forEachPlace("residents: game the hunters weigh", n) { p -> v[p] = game(kinds[k], p) } } else null }
                 shiftBands(it)
                 spill(it)
                 preyNow = null
@@ -826,7 +825,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val tallies = java.util.concurrent.ConcurrentLinkedQueue<DoubleArray>()
         val tally = ThreadLocal.withInitial { DoubleArray(kinds.size * FED).also { tallies.add(it) } }
         val feeding = if (Profile.FINE) Array(kinds.size) { Profile.byKind("residents: feeding", kinds[it].name) } else null
-        IntStream.range(0, n).parallel().forEachPlace { p ->
+        Par.forEachPlace("residents: graze", n) { p ->
             val z = Grazing(kinds.size)
             // What can be eaten this week without eating the place bare, kg per m2: green or cured, standing grass is
             // grazed alike (the steppe's herds live through the dry season on its standing hay). What makes the dry
@@ -1082,7 +1081,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         // Each kind on its own core, with its own carcasses, added up after.
         val carcasses = Array(kinds.size) { FloatArray(n) }
         val bornBook = land.books?.adder(Books.Stuff.MATTER, "residents born and grew up")
-        kindIds.toList().parallelStream().forEach { k -> Profile.part(Profile.byKind("residents: births, deaths", kinds[k].name)) {
+        Par.forEach("residents: births, deaths", kindIds.toList()) { k -> Profile.part(Profile.byKind("residents: births, deaths", kinds[k].name)) {
             val s = kinds[k]
             val carcassKg = carcasses[k]
             val grow = years / s.yearsToMaturity
@@ -1309,7 +1308,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             val s = kinds[k]
             if (room[k] == null) {
                 val odds = arrive[k]
-                IntStream.range(0, n).parallel().forEachPlace { p ->
+                Par.forEachPlace("residents: fill arrive", n) { p ->
                     if (splitPlace[p]) odds[p] = arriveOdds(k, p, weather, scratch.get().outs); worth[k][p] = worthOrNothing(appeal(k, p, weather)) }
                 continue
             }
@@ -1473,7 +1472,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         // (Moving every few weeks, a move takes the share those weeks' would have.)
         val weeks = tuning.residentMoveWeeks
         // Each kind on its own core: the kinds' numbers are kept apart.
-        kindIds.toList().parallelStream().forEach { k ->
+        Par.forEach("residents: shift bands", kindIds.toList()) { k ->
             if (room[k] != null) return@forEach
             val t = Profile.mark()
             val a = adults[k]; val y = young[k]
@@ -1547,7 +1546,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
     private fun spill(weather: Weather) {
         // (The swimmers drowned this week, kind by kind: their weight as grown animals by place, and their heads.)
         val drowned = Array(kinds.size) { FloatArray(n) }; val drownedHeads = DoubleArray(kinds.size)
-        kindIds.toList().parallelStream().forEach { k ->
+        Par.forEach("residents: spill", kindIds.toList()) { k ->
             val a = adults[k]; val y = young[k]
             // (The heads that came, and the km they walked to come: what the walk costs their fat.)
             val arrived = FloatArray(n); val walkedKm = FloatArray(n)
@@ -1735,7 +1734,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
             return placeWorth(k, p, fixed, heads, food[p], t.parts)
         }
         // (Only the places the kind is at and those next to them are weighed: no other can matter.)
-        IntStream.range(0, n).parallel().forEachPlace { p ->
+        Par.forEachPlace("residents: weigh", n) { p ->
             v[p] = 0f
             var near = ga[p] + gy[p] > 0f
             if (!near) for (j in inFrom[p] until inFrom[p.i + 1]) { val o = src[inWay[j]]; if (ga[o] + gy[o] > 0f) { near = true; break } }
@@ -1750,7 +1749,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val share = FloatArray(n)      // the share of those at each place leaving it
         val gaps = FloatArray(ways.to.size)  // the gap along each way from a place leaving ([gapTo])
         val gapSum = FloatArray(n)     // the sum of the gaps to the better places about it, to split them by
-        IntStream.range(0, n).parallel().forEachPlace { p ->
+        Par.forEachPlace("residents: weigh, spread", n) { p ->
             if (!(ga[p] + gy[p] > 0f) || asleep(k, p)) return@forEachPlace
             val here = v[p]; var most = 0f; var sum = 0f
             for (i in ways.from[p] until ways.from[p.i + 1]) {
@@ -1777,7 +1776,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         val coming = FloatArray(n)     // heads that would come to each place
         val take = FloatArray(n)       // the share of those coming that come
         val after = FloatArray(n)      // what each place is worth with them come
-        IntStream.range(0, n).parallel().forEach { q ->
+        Par.forEach("residents: going", n) { q ->
             take[q] = 1f
             var c = 0f; var fromWorth = 0f
             for (j in inFrom[q] until inFrom[q + 1]) { val i = inWay[j]; val m = going(i); if (m > 0f) { c += m; fromWorth += m * v[src[i]] } }
@@ -1790,7 +1789,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         }
         // They go: the heads along each way, and of each place, those that left it.
         val moved = FloatArray(ways.to.size); val left = FloatArray(n)
-        IntStream.range(0, n).parallel().forEachPlace { p ->
+        Par.forEachPlace("residents: going, gathered", n) { p ->
             if (!(share[p] > 0f)) return@forEachPlace
             var l = 0f
             for (i in ways.from[p] until ways.from[p.i + 1]) { val m = going(i) * take[ways.to[i]]; if (m > 0f) { moved[i] = m; l += m } }
@@ -1800,7 +1799,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         // [spillHunters]: they wash up on the far shore), with what they carry.
         val na = FloatArray(n); val ny = FloatArray(n); val nc = Array(gc.size) { FloatArray(n) }
         val drownedAt = DoubleArray(n); val climbedAt = DoubleArray(n)
-        IntStream.range(0, n).parallel().forEach { q ->
+        Par.forEach("residents: going, out", n) { q ->
             val l = left[q]
             if (!(l > 0f)) { na[q] = ga[q]; ny[q] = gy[q]; for (c in gc.indices) nc[c][q] = gc[c][q] }
             else {
@@ -1829,7 +1828,7 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         }
         climbed[k][weather.date.month] += climbedAt.sum()
         // (Those left are worth what they were, a little less than they now are, till the next move weighs them again.)
-        IntStream.range(0, n).parallel().forEach { p ->
+        Par.forEach("residents: going, in", n) { p ->
             if (coming[p] > 0f) v[p] = after[p]
             a[p] = na[p] / area[p]; y[p] = ny[p] / area[p]
             if (na[p] > 0f) for (c in carry.indices) carry[c][p] = bound(c, k, nc[c][p] / na[p])
@@ -2134,3 +2133,4 @@ internal fun clearlyWorse(here: Float, there: Float, band: Float, background: Fl
     if (!(there < here)) return false
     return Hazards.survivalSteps(here - there, here, background, band) > 1f
 }
+

@@ -33,8 +33,6 @@ class PlaceIter(private val n: Int) {
 }
 /** A float per place, from [init]: `perPlace(n) { p -> ... }`. */
 inline fun perPlace(n: Int, init: (Place) -> Float) = FloatArray(n) { init(Place(it)) }
-/** [body] for each place index of the stream, as a [Place]. */
-inline fun java.util.stream.IntStream.forEachPlace(crossinline body: (Place) -> Unit) = forEach { body(Place(it)) }
 
 /** All [n] hexes in order, for `for (h in hex.all)`; see [PlaceRange]. */
 class HexRange(private val n: Int) {
@@ -47,8 +45,6 @@ class HexIter(private val n: Int) {
     operator fun hasNext() = i < n
     operator fun next() = Hex(i++)
 }
-/** [body] for each hex index of the stream, as a [Hex]. */
-inline fun java.util.stream.IntStream.forEachHex(crossinline body: (Hex) -> Unit) = forEach { body(Hex(it)) }
 
 /**
  * Hexes in a row, over a plain int array ([a]): a group's path, a band's remembered hexes, the hex of each place. As a
@@ -154,3 +150,4 @@ class PlaceListIter(private val a: IntArray) {
 @Suppress("NOTHING_TO_INLINE") inline operator fun <T> Array<T>.get(h: Hex) = this[h.i]
 @Suppress("NOTHING_TO_INLINE") inline operator fun <T> Array<T>.set(h: Hex, v: T) { this[h.i] = v }
 @Suppress("NOTHING_TO_INLINE") inline operator fun <T> List<T>.get(h: Hex) = this[h.i]
+

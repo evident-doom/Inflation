@@ -29,7 +29,6 @@ import kotlin.math.roundToInt
 import kotlin.math.min
 import inflation.world.Biome
 import inflation.world.Weather
-import java.util.stream.IntStream
 import kotlin.math.cos
 import kotlin.math.exp
 import kotlin.math.sqrt
@@ -93,3 +92,4 @@ internal const val FOOD_TYPES = 9
 
 /** Where a band's food came from, as [Band.foodFrom] counts it. */
 enum class FoodFrom(val label: String) { PLANTS("plants"), SMALL_GAME("small game"), FISH("fish"), BIG_GAME("big game"), CARRION("carrion") }
+

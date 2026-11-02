@@ -2,6 +2,7 @@ package inflation.world
 
 import inflation.Config
 import inflation.enumFloats
+import inflation.Par
 import inflation.stream
 import inflation.Stream
 
@@ -263,7 +264,7 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
         val stepShare = days.toFloat() / Date.DAYS_PER_MONTH
         val s = season(date)
         val regimes = winds.at(s)
-        java.util.stream.IntStream.range(0, n).parallel().forEach { i ->
+        Par.forEach("weather: prepare", n) { i ->
             val x = cx(i); val y = cy(i)
             val lat = places.latitude[i]
             val here = if (lat < upcomingHighEdge) Regime.SUMMER_HIGH else upcomingRegime
@@ -352,7 +353,7 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
         normMonth = date.month
         val s = Climate.seasonCos(date.month * Date.DAYS_PER_MONTH + 15.0)
         val tmp = ThreadLocal.withInitial { FloatArray(2) }
-        java.util.stream.IntStream.range(0, n).parallel().forEach { i ->
+        Par.forEach("weather: normalise", n) { i ->
             norm[i] = winds.normalFactor(i, places.latitude[i], s, tmp.get())
         }
     }
@@ -378,7 +379,7 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
         highEdge = upcomingHighEdge
         nextU.copyInto(windU); nextV.copyInto(windV)
         val (shockT, shockRain) = shock()
-        java.util.stream.IntStream.range(0, n).parallel().forEach { i ->
+        Par.forEach("weather: step", n) { i ->
             val t = nextTemp[i] + shockT
             val p = nextPrecip[i] * shockRain
             temperature[i] = t
@@ -584,3 +585,4 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
         const val EDDY_SIGMA = 2.5f
     }
 }
+

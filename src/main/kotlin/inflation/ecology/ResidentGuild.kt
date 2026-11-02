@@ -1,6 +1,7 @@
 package inflation.ecology
 
 import inflation.Books
+import inflation.Par
 import inflation.world.Place
 import inflation.world.hexArray
 import kotlin.math.max
@@ -50,7 +51,7 @@ internal class ResidentParties(private val gs: HexGroups) {
             if (!s.carnivore) continue
             // (Each hex's stand-in worked out on all cores, then taken in the hexes' order.)
             val made = arrayOfNulls<StandIn>(hexes.size)
-            java.util.stream.IntStream.range(0, hexes.size).parallel().forEach { hi ->
+            Par.forEach("residents: settle", hexes.size) { hi ->
                 val h = hexes[hi]
                 var a = 0f; var y = 0f; var p = -1; var most = 0f
                 for (q in gs.hw.placesOf(h)) {
@@ -96,3 +97,4 @@ internal class ResidentParties(private val gs: HexGroups) {
         const val MIN_BANDS = 0.05f
     }
 }
+

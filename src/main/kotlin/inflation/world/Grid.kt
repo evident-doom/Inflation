@@ -1,5 +1,6 @@
 package inflation.world
 
+import inflation.Par
 import kotlin.math.min
 import kotlin.math.sqrt
 
@@ -44,7 +45,7 @@ fun blur(grid: Grid, src: FloatArray, radius: Int): FloatArray {
     val tmp = FloatArray(src.size)
     val out = FloatArray(src.size)
     val norm = 1f / (2 * radius + 1)
-    java.util.stream.IntStream.range(0, h).parallel().forEach { y ->
+    Par.forEach("grid: blur rows", h) { y ->
         var acc = 0f
         for (k in -radius..radius) acc += src[y * w + k.coerceIn(0, w - 1)]
         for (x in 0 until w) {
@@ -54,7 +55,7 @@ fun blur(grid: Grid, src: FloatArray, radius: Int): FloatArray {
     }
     // Columns a strip at a time, so each pass down the rows reads whole cache lines.
     val strip = 16
-    java.util.stream.IntStream.range(0, (w + strip - 1) / strip).parallel().forEach { b ->
+    Par.forEach("grid: blur columns", (w + strip - 1) / strip) { b ->
         val x0 = b * strip; val x1 = min(w, x0 + strip)
         val acc = FloatArray(x1 - x0)
         for (x in x0 until x1) for (k in -radius..radius) acc[x - x0] += tmp[k.coerceIn(0, h - 1) * w + x]
@@ -78,13 +79,13 @@ fun distanceKm(grid: Grid, out: FloatArray, far: Float, source: (Int) -> Boolean
     val w = grid.width; val h = grid.height
     val inf = 1e18
     val rows = DoubleArray(grid.size)
-    java.util.stream.IntStream.range(0, h).parallel().forEach { y ->
+    Par.forEach("grid: distance rows", h) { y ->
         val f = DoubleArray(w) { if (source(y * w + it)) 0.0 else inf }
         val d = DoubleArray(w)
         squaredDistance1d(f, w, d, IntArray(w), DoubleArray(w + 1))
         System.arraycopy(d, 0, rows, y * w, w)
     }
-    java.util.stream.IntStream.range(0, w).parallel().forEach { x ->
+    Par.forEach("grid: distance columns", w) { x ->
         val f = DoubleArray(h) { rows[it * w + x] }
         val d = DoubleArray(h)
         squaredDistance1d(f, h, d, IntArray(h), DoubleArray(h + 1))
@@ -115,3 +116,4 @@ private fun squaredDistance1d(f: DoubleArray, n: Int, d: DoubleArray, v: IntArra
         d[q] = dq * dq + f[v[k]]
     }
 }
+

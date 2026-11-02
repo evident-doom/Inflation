@@ -1,12 +1,12 @@
 package inflation.ecology
 
 import inflation.drawUnit
+import inflation.Par
 import inflation.Part
 import inflation.enumTables
 import inflation.Profile
 import inflation.Stream
 import inflation.world.Place
-import inflation.world.forEachPlace
 import inflation.world.get
 import inflation.world.set
 
@@ -28,7 +28,6 @@ import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
-import java.util.stream.IntStream
 import java.util.concurrent.atomic.DoubleAdder
 import inflation.Books
 import inflation.Stocks
@@ -288,7 +287,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
                 }
             }
         }
-        IntStream.range(0, n).parallel().forEachPlace { p ->
+        Par.forEachPlace("small life: step", n) { p ->
             val t = weather.temperature[p]
             val soilWater = land.hydro.soil[p]
             stepSoil(p, t, soilWater, carcassKg)
@@ -1122,7 +1121,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
     /** [spread] for kinds that can wander anywhere, all in one pass over the places. */
     private fun spread(fs: Array<FloatArray>) {
         val olds = Array(fs.size) { fs[it].copyOf() }
-        IntStream.range(0, n).parallel().forEachPlace { p ->
+        Par.forEachPlace("small life: spread", n) { p ->
             val nb = land.neighbours[p.i]
             val w = spreadWeight[p.i]
             for (k in fs.indices) {
@@ -1153,7 +1152,7 @@ class HexSmallLife(private val hw: HexWorld, private val land: HexLand, private 
      */
     private fun spreadToward(f: FloatArray, room: FloatArray) {
         val old = f.copyOf()
-        IntStream.range(0, n).parallel().forEachPlace { p ->
+        Par.forEachPlace("small life: spread toward", n) { p ->
             val nb = land.neighbours[p.i]
             val w = spreadWeight[p.i]
             var delta = 0f
@@ -1397,3 +1396,4 @@ enum class Nest(val days: Float) { RODENTS(21f), HARES(28f), HYRAX(30f), BIRDS(3
 
 /** Nest kind [n]'s row of a table kept per [Nest]. */
 @Suppress("NOTHING_TO_INLINE") inline operator fun Array<FloatArray>.get(n: Nest) = this[n.ordinal]
+

@@ -1,6 +1,7 @@
 package inflation.world
 
 import inflation.drawUnit
+import inflation.Par
 import inflation.stream
 import inflation.Stream
 import inflation.Tuning
@@ -160,7 +161,7 @@ class Vegetation(private val world: World, private val seed: Long, private val t
         spreadFires(weather, water, years)
         val slope = world.terrain.slope
         // Cells are independent of each other, so they are stepped in parallel.
-        java.util.stream.IntStream.range(0, n).parallel().forEach { i ->
+        Par.forEach("fine plants: step", n) { i ->
             if (!isVegetated(i) || water.submerged[i]) {
                 litterfall[i] = biomass(i)
                 herb[i] = 0f; shrub[i] = 0f; tree[i] = 0f
@@ -338,3 +339,4 @@ class Vegetation(private val world: World, private val seed: Long, private val t
         private val DY = intArrayOf(0, 1, 1, 1, 0, -1, -1, -1)
     }
 }
+

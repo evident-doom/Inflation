@@ -1,11 +1,11 @@
 package inflation.ecology
 
+import inflation.Par
 import inflation.world.set
 import inflation.world.get
 import inflation.world.Hex
 import inflation.world.HexArray
 import inflation.world.HexList
-import inflation.world.forEachHex
 import inflation.world.toHexArray
 import inflation.Tuning
 import inflation.Config
@@ -15,7 +15,6 @@ import inflation.world.HexWorld
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sqrt
-import java.util.stream.IntStream
 
 /**
  * Each kind's sense of where better country lies, as a bearing per hex: a direction and how much
@@ -78,9 +77,9 @@ class HexBearings(
         }
         val land = hex.all.filter { hex.heart[it] >= 0 }
         near = Array(size) { HexArray.EMPTY }
-        land.parallelStream().forEach { h -> near[h] = within(h, tuning.nearKm).filter { it != h }.toHexArray() }
+        Par.forEach("bearings: country near", land) { h -> near[h] = within(h, tuning.nearKm).filter { it != h }.toHexArray() }
         nearE = Array(size) { FloatArray(near[it].size) }; nearS = Array(size) { FloatArray(near[it].size) }; nearW = Array(size) { FloatArray(near[it].size) }
-        land.parallelStream().forEach { h ->
+        Par.forEach("bearings: weights of the country near", land) { h ->
             for (i in near[h].indices) { val q = near[h][i]
                 val dx = cx[q] - cx[h]; val dy = cy[q] - cy[h]; val d = len(dx, dy)
                 val wt = 1.0 / (1.0 + d / tuning.fadeKm)
@@ -94,7 +93,7 @@ class HexBearings(
         massif = Array(size) { HexArray.EMPTY }
         for (pk in peaks) massif[pk] = within(pk, MASSIF_KM)
         inSight = Array(size) { HexArray.EMPTY }
-        land.parallelStream().forEach { h ->
+        Par.forEach("bearings: peaks in sight", land) { h ->
             val eye = hw.elevationM[h]
             inSight[h] = peaks.filter { pk ->
                 val d = len(cx[pk] - cx[h], cy[pk] - cy[h])
@@ -103,7 +102,7 @@ class HexBearings(
         }
         // The lie of the climate: a plane fitted to the year's mean temperature over [CLIMATE_KM] around.
         val meanT = FloatArray(size) { h -> (0 until 12).sumOf { hw.temp[it][h].toDouble() }.toFloat() / 12f }
-        land.parallelStream().forEach { h ->
+        Par.forEach("bearings: lie of the climate", land) { h ->
             var sxx = 0.0; var sxy = 0.0; var syy = 0.0; var sxt = 0.0; var syt = 0.0
             val step = 3
             val r = (CLIMATE_KM / (hex.hexKm * 0.86)).toInt()
@@ -143,11 +142,11 @@ class HexBearings(
             if (!present(s)) { east[k].fill(0f); south[k].fill(0f); continue }
             // Best of each hex this month, over its places.
             val pq = FloatArray(places)
-            IntStream.range(0, places).parallel().forEach { p -> pq[p] = quality(s, p, m) }
+            Par.forEach("bearings: quality of places", places) { p -> pq[p] = quality(s, p, m) }
             val hq = FloatArray(size)
             for (p in 0 until places) { val h = hw.placeHex[p]; if (pq[p] > hq[h]) hq[h] = pq[p] }
             val be = east[k]; val bs = south[k]
-            IntStream.range(0, size).parallel().forEachHex { h ->
+            Par.forEachHex("bearings: draw of the country", size) { h ->
                 if (hex.heart[h] < 0) return@forEachHex
                 val here = hq[h]
                 var ve = 0f; var vs = 0f; var w = 0f; var best = here
@@ -212,3 +211,4 @@ class HexBearings(
 /** Length of a vector: as hypot, without its care for overflow, which costs here. */
 private fun len(a: Double, b: Double) = sqrt(a * a + b * b)
 private fun len(a: Float, b: Float) = sqrt(a * a + b * b)
+
