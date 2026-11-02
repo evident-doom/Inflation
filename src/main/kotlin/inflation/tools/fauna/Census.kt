@@ -35,6 +35,10 @@ import inflation.ecology.HexFauna
 import inflation.ecology.TallyKey
 import inflation.ecology.MoveTerm
 import inflation.ecology.MOVE_TRACE_WEEKS
+import inflation.ecology.RECKON_JUDGED
+import inflation.ecology.RECKON_SUMS
+import inflation.ecology.Reckoned
+import inflation.ecology.ReckonTerm
 import inflation.ecology.MOVE_TRACE_MOVES
 import inflation.ecology.MOVE_TRACE_SUMS
 import inflation.ecology.MOVE_TRACE_LEADS
@@ -226,6 +230,17 @@ class Census(private val sim: HexSim) {
                 val all = c[0].coerceAtLeast(1)
                 "%s %.1f/%.1f/%.1f%%".format(s.name, 100.0 * c[1] / all, 100.0 * c[2] / all, 100.0 * c[3] / all)
             })
+        // (planTrace=true only: [bookReckoned].)
+        val rc = groups.planner.reckonCounts
+        if ((0 until Reckoned.entries.size).any { rc[it] > 0 }) {
+            val r = LongArray(rc.length()) { rc.getAndSet(it, 0) }
+            val weeks = Reckoned.entries.sumOf { r[it.ordinal] }.coerceAtLeast(1).toDouble()
+            val judged = r[RECKON_JUDGED].coerceAtLeast(1).toDouble()
+            println("     planning bands' camp moves, since the last census (share of their weighed weeks by why they went or stayed; " +
+                "where they judged a case for leaving, %.0f%% of weeks, its parts' mean in shares of a week): ".format(100.0 * r[RECKON_JUDGED] / weeks) +
+                Reckoned.entries.joinToString(", ") { "%s %.1f%%".format(it.label, 100.0 * r[it.ordinal] / weeks) } + "; " +
+                ReckonTerm.entries.joinToString(", ") { "%s %+.3f".format(it.label, r[RECKON_SUMS + it.ordinal] / 1e4 / judged) })
+        }
         // (moveTrace=true only: [GroupPlanner.bookMove].)
         val mc = groups.planner.moveCounts
         if (mc[MOVE_TRACE_WEEKS] > 0) {
