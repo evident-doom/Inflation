@@ -60,11 +60,12 @@ data class Date(val absoluteDay: Long) {
     override fun toString() = "Year $year, month ${month + 1}, day $dayOfMonth"
 
     companion object {
-        const val DAYS_PER_MONTH = 30
-        const val MONTHS_PER_YEAR = 12
-        const val DAYS_PER_YEAR = DAYS_PER_MONTH * MONTHS_PER_YEAR
+        // (The calendar itself is [inflation.DAYS_PER_MONTH] and its kin, which the run's settings check against too.)
+        const val DAYS_PER_MONTH = inflation.DAYS_PER_MONTH
+        const val MONTHS_PER_YEAR = inflation.MONTHS_PER_YEAR
+        const val DAYS_PER_YEAR = inflation.DAYS_PER_YEAR
         /** The spring equinox, day of the year a run starts on. */
-        const val START_DAY = 90
+        const val START_DAY = inflation.START_DAY
         /** Days from one new moon to the next. */
         const val SYNODIC_MONTH = 29.530589
 

@@ -186,7 +186,8 @@ enum class StockName(val label: String) {
 enum class KindStock(val prefix: String) {
     RESIDENT("resident "), GROUP("group ");
 
-    fun of(s: inflation.ecology.Species) = prefix + s.name
+    /** The stock's name for kind [kind] (the kind's name): "resident roe deer". */
+    fun of(kind: String) = prefix + kind
     companion object {
         /** Whether a stock or pool [name] is one kind's own. */
         fun isKind(name: String) = entries.any { name.startsWith(it.prefix) }
@@ -199,8 +200,8 @@ class Stocks {
     private var group: String? = null
     /** A stock of [stuff], [name]d, summed by [sum] from the tables [arrays]. */
     fun add(stuff: Books.Stuff, name: StockName, vararg arrays: Any, sum: () -> Double) = add(stuff, name.label, *arrays, sum = sum)
-    /** Kind [s]'s own animals, living as [how] says. */
-    fun ofKind(how: KindStock, s: inflation.ecology.Species, vararg arrays: Any, sum: () -> Double) = add(Books.Stuff.MATTER, how.of(s), *arrays, sum = sum)
+    /** The own animals of the kind named [kind], living as [how] says. */
+    fun ofKind(how: KindStock, kind: String, vararg arrays: Any, sum: () -> Double) = add(Books.Stuff.MATTER, how.of(kind), *arrays, sum = sum)
     private fun add(stuff: Books.Stuff, name: String, vararg arrays: Any, sum: () -> Double) { list += Stock(stuff, name, arrays.toList(), group, sum) }
     /** Matter in kg/m² by place, [name]d, over places of [m2] square metres. */
     fun perM2(name: StockName, a: FloatArray, m2: FloatArray) = add(Books.Stuff.MATTER, name, a) { var s = 0.0; for (p in a.indices) s += a[p] * m2[p].toDouble(); s }
