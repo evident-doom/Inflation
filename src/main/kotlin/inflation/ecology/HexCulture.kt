@@ -393,7 +393,7 @@ internal fun HexGroups.meetingFresh(a: HexGroup, b: HexGroup, weather: Weather):
 @Part("meetings: talk or raid")
 internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weather, rite: RiteGathering? = null, fresh: Float = 1f): Boolean {
     val bandA = a.band ?: return false; val bandB = b.band ?: return false
-    bandA.ensureMarks(fauna.kinds.size); bandB.ensureMarks(fauna.kinds.size)
+    bandA.ensureMarks(fauna.totemKinds); bandB.ensureMarks(fauna.totemKinds)
     val u = Language.understanding(bandA.words, bandB.words)
     val ab = Regard(bandA, b.id, bandB, u, hex); val ba = Regard(bandB, a.id, bandA, u, hex)
     if (rite != null && rite.site in bandA.rite && rite.site in bandB.rite) { ab.holy = true; ba.holy = true }
@@ -718,13 +718,13 @@ internal fun HexGroups.cultureWeek(g: HexGroup, rnd: kotlin.random.Random) {
     val keep = exp(-years / HEARD_YEARS)
     for (t in Tradition.entries) b.heard[t] *= keep
     b.heardOf *= keep
-    b.ensureMarks(fauna.kinds.size)
+    b.ensureMarks(fauna.totemKinds)
     for (i in b.heardTotem.indices) b.heardTotem[i] *= keep
     for (w in BurialWay.entries) b.heardBurial[w] *= keep
     b.totemBroken = max(0f, b.totemBroken - years)
     // (Now and then a band gives up its totem, or one without takes up a kind as its own, as with its traditions.)
-    if (fauna.kinds.isNotEmpty() && rnd.nextFloat() < (if (b.totem.none) TAKE_UP else DROP) * years) {
-        b.totem = if (b.totem.none) FaunaKind(rnd.nextInt(fauna.kinds.size)) else FaunaKind.NONE; b.totemBroken = 0f
+    if (fauna.totemKinds > 0 && rnd.nextFloat() < (if (b.totem.none) TAKE_UP else DROP) * years) {
+        b.totem = if (b.totem.none) FaunaKind(rnd.nextInt(fauna.totemKinds)) else FaunaKind.NONE; b.totemBroken = 0f
     }
     for (i in b.grudge.indices) b.grudge[i] *= 1f - GRUDGE_FADE * years
     if (rnd.nextFloat() < WORD_DRIFT * Language.CONCEPTS * years) b.words[rnd.nextInt(Language.CONCEPTS)] = rnd.nextInt(Language.FORMS)

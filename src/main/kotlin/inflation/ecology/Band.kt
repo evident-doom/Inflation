@@ -48,9 +48,10 @@ class Unlucky(val hex: Hex, val weeks: Int)
 
 /**
  * What a band is: its skills, making skills, tools (0..1 of a full kit each), the tools it knows, its goods, and how long it has kept its camp.
- * [kinds] is the number of resident kinds ([HexFauna.kinds]), for the animals it keeps.
+ * [kinds] is the number of resident kinds ([HexFauna.kinds]), for the animals it keeps; [totems] of them, the first, the
+ * kinds it may keep as its totem ([HexFauna.totemKinds]).
  */
-class Band(kinds: Int) {
+class Band(kinds: Int, totems: Int = kinds) {
     /** For loading a saved band (its saved arrays replace these), so that its unsaved fields start as a new band's do. */
     @Suppress("unused") private constructor() : this(0)
     /** Its know-how, 0..1 for each [Skill] (untaught 0), and which variants it knows of. */
@@ -548,7 +549,7 @@ class Band(kinds: Int) {
     var totem = FaunaKind.NONE
     /** Whether it has its totem and burial way yet ([ensureMarks]). */
     var marksChosen = false
-    var heardTotem = FloatArray(kinds + 1)
+    var heardTotem = FloatArray(totems + 1)
     var totemBroken = 0f
     /** Its totem as the bands it meets see it: none while it is known to have eaten of it. */
     val keptTotem get() = if (totemBroken > 0f) FaunaKind.NONE else totem
@@ -570,13 +571,13 @@ class Band(kinds: Int) {
     /** The share of the burying bands it met lately, itself counted as one, that lay their dead as [w] (for [conformist]). */
     fun heardBurialShare(w: BurialWay) = (heardBurial[w] + (if (burialWay == w) 1f else 0f)) / (heardBurial.sum() + 1f)
     /**
-     * Gives a band without its marks yet ([marksChosen]) its lineage's totem (among [kinds] resident kinds) and burial way,
-     * and room to hear of every kind.
+     * Gives a band without its marks yet ([marksChosen]) its lineage's totem (among the first [totems] resident kinds,
+     * [HexFauna.totemKinds]) and burial way, and room to hear of every one.
      */
-    fun ensureMarks(kinds: Int) {
-        if (heardTotem.size != kinds + 1) heardTotem = FloatArray(kinds + 1)
+    fun ensureMarks(totems: Int) {
+        if (heardTotem.size != totems + 1) heardTotem = FloatArray(totems + 1)
         if (marksChosen) return
-        totem = totemAt(mainLineage(), kinds); burialWay = burialWayAt(mainLineage()); marksChosen = true
+        totem = totemAt(mainLineage(), totems); burialWay = burialWayAt(mainLineage()); marksChosen = true
     }
     val words = IntArray(Language.CONCEPTS)
     val lineage = FloatArray(LINEAGES)
@@ -926,12 +927,12 @@ class Band(kinds: Int) {
          * A band starting out in country it knows, founded at ([x], [y]) km: practised at what the
          * country offers, with a basic kit, and the descent, words and customs of its country.
          */
-        fun start(kinds: Int, nearWater: Boolean, x: Double, y: Double, tuning: Tuning, seed: Long) = Band(kinds).apply {
+        fun start(kinds: Int, totems: Int, nearWater: Boolean, x: Double, y: Double, tuning: Tuning, seed: Long) = Band(kinds, totems).apply {
             val l = lineageAt(seed, x, y)
             lineage[l] = 1f
             wordsAt(seed, x, y).copyInto(words)
             traditionsAt(l).copyInto(traditions)
-            totem = totemAt(l, kinds); burialWay = burialWayAt(l); marksChosen = true
+            totem = totemAt(l, totems); burialWay = burialWayAt(l); marksChosen = true
             riteStrength = riteStrengthAt(l, tuning)
             skills[Skill.GATHER] = START_CRAFT; skills[Skill.SMALL_GAME] = START_CRAFT; skills[Skill.HUNT] = START_CRAFT
             skills[Skill.FISH] = if (nearWater) 0.5f else 0.1f; skills[Skill.STORE] = 0.4f

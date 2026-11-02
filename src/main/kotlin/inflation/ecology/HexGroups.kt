@@ -150,7 +150,7 @@ class HexGroups(
                 if (s.human) {
                     g.larder = START_LARDER_DAYS * g.dailyNeedKg
                     val (x, y) = hex.centreKm(hw.placeHex[p])
-                    g.band = Band.start(fauna.kinds.size, land.drink.waterKm[p] < 3f, x, y, tuning, seedBase).also { b ->
+                    g.band = Band.start(fauna.kinds.size, fauna.totemKinds, land.drink.waterKm[p] < 3f, x, y, tuning, seedBase).also { b ->
                         b.sisu = Sisu.founder(g.id, seedBase)
                         b.elders = g.adults / 6
                         // The rest of the adults spread over the three spans of adult life.

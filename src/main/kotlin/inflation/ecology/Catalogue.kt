@@ -758,8 +758,16 @@ object Catalogue {
      */
     val residentHunters by lazy { setOf(JACKAL, LYNX, HYENA) }
 
-    /** Kinds kept as numbers per place, the residents: every plant-eater, and the [residentHunters]. */
-    fun resident(s: Species) = !s.carnivore || s in residentHunters
+    /**
+     * Hunters that live both ways (docs/design/roaming-packs.md, Olli 2026-11-02): most settled on their ground as residents,
+     * kept as numbers per place, and the rest roaming as packs without ground, which the learned mover moves. Settled ones'
+     * grown young leave as roamers and roamers settle where there is room, so the share roaming comes out of the two flows.
+     * (Until they can leave and settle, their residents start at none and stay so: [HexFauna] seeds none and brings none in.)
+     */
+    val roamingResidents by lazy { setOf(WOLF, LION) }
+
+    /** Kinds kept as numbers per place, the residents: every plant-eater, the [residentHunters] and the [roamingResidents]. */
+    fun resident(s: Species) = !s.carnivore || s in residentHunters || s in roamingResidents
 
     /**
      * Residents that are rivals of the other beasts of prey as well as their game: the [residentHunters] and the brown bear.

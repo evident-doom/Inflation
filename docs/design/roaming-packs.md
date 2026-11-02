@@ -147,7 +147,7 @@ If those pass, a 2 h daytime training (Olli's call) retrains the hunters on the 
 ## Steps
 
 1. Following people through the stand-ins (mechanism 6), for jackals now. It stands alone and is small. Done in the PR that brings this doc.
-2. Plumbing: kinds both resident and in groups, census and tallies counting both ways. Neutral, because nobody leaves or settles yet: fields start empty and stay so, packs are as before.
+2. Plumbing: kinds both resident and in groups, census and tallies counting both ways. Neutral, because nobody leaves or settles yet: fields start empty and stay so, packs are as before. Done: their settled fields come after every other resident kind (old saves load with them empty), new worlds seed none and no newcomers come for them, and bands don't take them as totems yet (`HexFauna.totemKinds`; open for step 3: may a band keep the wolf or the lion as its totem once they live settled?).
 3. Leaving, settling and takeovers (mechanisms 2–4), new worlds' seeding, and the one-shot migration tool. Tune `LEAVE_BASE` and `LEAVE_CROWD` against the roamer share, then migrate the test worlds.
 4. A/B, then training.
 

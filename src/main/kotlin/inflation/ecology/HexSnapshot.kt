@@ -143,7 +143,11 @@ object HexSnapshot {
      * are not its own.
      */
     internal fun rosterProblem(name: String, saved: List<String>, code: List<String>): String? =
-        if (saved == code) null else "it keeps other kinds as $name than the code does, so their numbers would land on the wrong kinds or start from none: saved $saved, code $code"
+        // (Except the settled of the kinds that also roam, added after those saved: their tables have grown at the end, and they
+        // start at none as a fresh model has them ([Catalogue.roamingResidents]). Goes with the one-shot move of old worlds'
+        // packs onto their ground, docs/design/roaming-packs.md.)
+        if (saved == code || (name == "residents" && code.size > saved.size && code.subList(0, saved.size) == saved &&
+                code.drop(saved.size).all { n -> Catalogue.roamingResidents.any { it.name == n } })) null else "it keeps other kinds as $name than the code does, so their numbers would land on the wrong kinds or start from none: saved $saved, code $code"
 
     /**
      * The kinds each part keeps its tables by, in order: the residents and those living as groups. Left out are the kinds the

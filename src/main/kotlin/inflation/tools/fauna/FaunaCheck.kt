@@ -1,5 +1,6 @@
 package inflation.tools.fauna
 
+import inflation.ecology.Catalogue
 import inflation.ecology.FaunaKind
 import inflation.ecology.HexHistory
 import inflation.ecology.HexSim
@@ -39,7 +40,8 @@ class FaunaCheck(private val sim: HexSim, private val options: FaunaCheckOptions
 
     private fun printStart() {
         val fauna = sim.fauna
-        println("year " + fauna.kinds.joinToString("") { "%11s".format(it.name.take(10)) })
+        // (Kinds that also roam as packs: their settled ones here, the packs in the groups' lines.)
+        println("year " + fauna.kinds.joinToString("") { "%11s".format(if (it in Catalogue.roamingResidents) it.name.take(4) + " sett." else it.name.take(10)) })
         println("   0 " + fauna.kinds.indices.joinToString("") { "%11.0f".format(fauna.count(FaunaKind(it))) })
         println("     climate fit: " + census.fit())
         val groups = sim.groups
