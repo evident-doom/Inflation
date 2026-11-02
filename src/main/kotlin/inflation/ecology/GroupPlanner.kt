@@ -250,6 +250,7 @@ internal class GroupPlanner(internal val gs: HexGroups) {
         // (A choice the policy drew by chance to learn from stands; every other band draws by its will to explore, in training worlds as outside them.)
         val chosen = best
         if (traced) bookMove(chosen != g.place, buf)
+        g.band?.planLoads = Float.NaN
         if (explores && !g.drawn) best = if (g.band?.mind == Mind.PLANS) planned(g, policy, buf, best, dueSoon, here, date) else if (g.weighed) explored(g, policy, buf, best, date) else best
         // (For the census: whether the band would have moved by its best choice, and whether it moved by its draw.)
         if (g.band != null) {

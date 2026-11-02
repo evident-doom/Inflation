@@ -39,6 +39,8 @@ internal fun GroupPlanner.planned(g: HexGroup, policy: HexPolicy?, buf: Scratch,
     val k = plannedMove(n, buf.explScores, buf.explDeaths, stays, owed, if (owed) Float.NaN else reckonedGain(g, b, here, date),
         { gs.reckonedWalk(g, b, buf.dist[gs.hw.placeHex[buf.explPlaces[it]]]) }) {
         if (policy == null) buf.explScores else policy.scores(g, Array(n) { buf.candFeats[it] }, buf.candScores.copyOf(n)) }
+    // (Moving, it reckons how many loads to take, the days of relays against the stores it would leave: [relayLoads].)
+    if (k >= 0 && k != stays) b.planLoads = gs.relayLoads(g, b, buf.dist[gs.hw.placeHex[buf.explPlaces[k]]])
     return if (k < 0) best else Place(buf.explPlaces[k])
 }
 
@@ -51,7 +53,7 @@ internal fun GroupPlanner.planned(g: HexGroup, policy: HexPolicy?, buf: Scratch,
  * - its houses, left to weather and to others ([Band.leavingHouse]);
  * - what it has sown and not yet reaped ([cropPull]);
  * - its heavy tools, left behind (grinding stones, [Tool.heavy]), the days of making them again;
- * - its stores beyond what it carries ([leftBehindKg]);
+ * - its stores beyond what it carries, with the relays it would choose, are weighed with the walk ([reckonedWalk]);
  * - and, every week it is away, what its weir there takes ([Band.weirFood], for the share of a whole weir built).
  * NaN if it cannot judge: no whole week at this camp yet, or no such weeks in the years before.
  */
@@ -65,8 +67,7 @@ private fun GroupPlanner.reckonedGain(g: HexGroup, b: Band, here: Hex, date: Dat
     val width = gs.fauna.water.riverWidthM(here)
     val whole = gs.weirLengthM(here)
     val weir = if (whole > 0f) min(1f, gs.weirAt(g, here) * width / whole) * b.weirFood / gs.stepsPerYear / need else 0f
-    return case - (if (b.houseHex == here) b.leavingHouse else 0f) - cropPull(g, b, here) - tools / (gs.days * stay) -
-        gs.leftBehindKg(g, b) / need / stay - weir
+    return case - (if (b.houseHex == here) b.leavingHouse else 0f) - cropPull(g, b, here) - tools / (gs.days * stay) - weir
 }
 
 /**

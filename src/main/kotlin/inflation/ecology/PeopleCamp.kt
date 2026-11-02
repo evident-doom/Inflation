@@ -117,7 +117,7 @@ private fun GroupWorld.mendingKg(b: Band, m: Material, people: Float) =
         KEEP_YEARS * YEAR_NEED[m])
 
 /** The kg of goods [g]'s band [b] takes along on a camp move before its food: what it has of what it takes first ([mendingKg]). */
-private fun GroupWorld.mendingStockKg(g: HexGroup, b: Band) = Material.entries.sumOf { m -> min(b.goods[m], mendingKg(b, m, g.adults.toFloat())).toDouble() }.toFloat()
+internal fun GroupWorld.mendingStockKg(g: HexGroup, b: Band) = Material.entries.sumOf { m -> min(b.goods[m], mendingKg(b, m, g.adults.toFloat())).toDouble() }.toFloat()
 
 /** The kg of its stores [g]'s band [b] cannot carry in its loads ([carryKg], [carryLoads]) beside its mending stock: what it caches or leaves when it moves camp. */
 internal fun GroupWorld.leftBehindKg(g: HexGroup, b: Band): Float {
@@ -164,16 +164,17 @@ internal fun GroupWorld.foodCarried(g: HexGroup, b: Band): Float {
 }
 
 /** The order a band packs its stores in on a camp move ([storesCarried]): what keeps longest first, the reverse of [EAT_ORDER]. */
-private val CARRY_ORDER = EAT_ORDER.reversed()
+internal val CARRY_ORDER = EAT_ORDER.reversed()
 
 /** What [g]'s band can carry in one load, kg: its adults' loads, more with baskets and bags. */
-private fun carryKg(g: HexGroup, b: Band) = CARRY_KG * max(1, g.adults) * (1f + BASKET_GAIN * b.has(Tool.BASKET))
+internal fun carryKg(g: HexGroup, b: Band) = CARRY_KG * max(1, g.adults) * (1f + BASKET_GAIN * b.has(Tool.BASKET))
 
 /**
- * Loads of [carryKg] each of [b]'s adults takes on a camp move, its choice ([BandWay.CARRY_LOADS]): under one, a lighter
- * load and a faster walk; above one, they carry a load ahead, go back for the next and so on (relays).
+ * Loads of [carryKg] each of [b]'s adults takes on a camp move, its choice ([BandWay.CARRY_LOADS]; a [Mind.PLANS] band's as
+ * it reckoned them for this move, [relayLoads]): under one, a lighter load and a faster walk; above one, they carry a load
+ * ahead, go back for the next and so on (relays).
  */
-internal fun carryLoads(b: Band) = b.will[BandWay.CARRY_LOADS]
+internal fun carryLoads(b: Band) = if (b.mind == Mind.PLANS && !b.planLoads.isNaN()) b.planLoads else b.will[BandWay.CARRY_LOADS]
 
 /** Times [b]'s adults walk the way of a camp move: once, and there and back again for each load past the first. */
 internal fun relayWalks(b: Band) = 1f + 2f * max(0f, carryLoads(b) - 1f)
