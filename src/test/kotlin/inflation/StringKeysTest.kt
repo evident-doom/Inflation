@@ -73,7 +73,7 @@ class StringKeysTest {
 
     @Test
     fun `no new non-null assertions`() = check("""!!""", mapOf(
-        "ecology/HexCulture.kt" to (5 to "a band of a people group: the caller has chosen people"),
+        "ecology/CultureMeetings.kt" to (5 to "a band of a people group: the caller has chosen people"),
         "Profile.kt" to (1 to "the jar's own profile.jfc resource, which ships with the code"),
         "ecology/ResidentFeeding.kt" to (4 to "audit books set when the audit is on and tested just before"),
         "ecology/HexGeography.kt" to (1 to "the cover of a core, set while building"),
