@@ -102,6 +102,11 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
      * will to explore leaves the draw be. (Made anew each week before it is read.)
      */
     @Transient var drawn = false
+    /**
+     * Whether it weighed the places it could go to this week: false when its policy's gate kept it where it stood without weighing
+     * them ([inflation.learning.SharedMover.gate]); then a band does not draw by its will to explore either. (Made anew each week before it is read.)
+     */
+    @Transient var weighed = true
     /** For hunters: meetings with game of each kind ([Species.index]), as of [herdsMetOn], fading over [SEARCH_DAYS] (null: none yet; see [SEARCH_HALF]). */
     var herdsMet: FloatArray? = null
     var herdsMetOn = 0.0
@@ -131,6 +136,8 @@ fun interface HexPolicy {
     fun choose(g: HexGroup, features: Array<FloatArray>, baseline: FloatArray, rnd: kotlin.random.Random): Int
     /** How it scores each candidate, higher the likelier it goes there; null if it does not tell (only asked for a followed group, see [GroupControl]). */
     fun scores(g: HexGroup, features: Array<FloatArray>, baseline: FloatArray): FloatArray? = null
+    /** Whether [choose] reads [g]'s hand-written scores (its baseline): if not, the planner need not work them out (it passes zeros). */
+    fun readsBaseline(g: HexGroup): Boolean = true
     /** How it sees the place [g] goes to this week, described by [chosen] (as in [choose]), for the band's ways to read ([HexGroup.plan]); null if it does not tell. */
     fun planned(g: HexGroup, chosen: FloatArray): FloatArray? = null
 }

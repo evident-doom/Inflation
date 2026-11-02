@@ -184,6 +184,9 @@ internal class GroupPlanner(private val gs: HexGroups) {
         // (A band draws its place by its will to explore, from every place it weighs, see [exploreChoice].)
         val explores = g.band != null
         val wantAll = seen != null || policy != null || capture || explores
+        // (A network that reads no hand-written score, for a group that does not explore and is not followed: the score and
+        // the deaths it weighs are not worked out at all, only what the network reads.)
+        val handless = policy != null && seen == null && !capture && !explores && !traced && !policy.readsBaseline(g)
         buf.laterPlace.clear(); buf.explPlaces.clear()
         val season = 2 * Math.PI * (date.dayOfYear - Date.START_DAY) / Date.DAYS_PER_YEAR
         // Its ground is as big as the game on it needs it to be (smaller where game is thick), and a
@@ -248,6 +251,14 @@ internal class GroupPlanner(private val gs: HexGroups) {
                 val hunters = huntersKm2(c, p, h)
                 at.prey = prey; at.fed = fed; at.hunters = hunters
                 val t = buf.terms.also { fillTerms(it, g, p, weather, date) }
+                if (handless) {
+                    val nc = candPlaces.size
+                    if (nc == candFeats.size) candFeats += FloatArray(Feature.size)
+                    fillFeatures(candFeats[nc].also { it.fill(0f) }, c, t, p, h)
+                    if (nc == buf.candScores.size) buf.candScores = buf.candScores.copyOf(2 * nc)
+                    candPlaces += p.i; buf.candScores[nc] = 0f
+                    continue
+                }
                 val tp = if (traced) buf.moveParts.also { it.fill(0f) } else null
                 var score = scorePlace(c, t, p, h, tp)
                 // (Above all, it keeps alive: see below.)
@@ -298,7 +309,7 @@ internal class GroupPlanner(private val gs: HexGroups) {
             }
         }
         lap("choosing: weighing places (hand-written score)")
-        g.drawn = false
+        g.drawn = false; g.weighed = true
         if (policy != null && candPlaces.size > 0) {
             val nc = candPlaces.size
             best = Place(candPlaces[policy.choose(g, Array(nc) { candFeats[it] }, buf.candScores.copyOf(nc), gs.policyRandom(g.id, date.absoluteDay))])
@@ -306,7 +317,9 @@ internal class GroupPlanner(private val gs: HexGroups) {
         // (A choice the policy drew by chance to learn from stands; every other band draws by its will to explore, in training worlds as outside them.)
         val chosen = best
         if (traced) bookMove(chosen != g.place, buf)
-        if (explores && !g.drawn) best = if (g.band?.mind == Mind.PLANS) planned(g, policy, buf, best, dueSoon) else explored(g, policy, buf, best, date)
+        // (A planning band reckons its move whether or not the gate weighed its places: its customs and its reflex to flee
+        // stand above the gate, and it needs the network's scores only on the weeks it moves, [planned].)
+        if (explores && !g.drawn) best = if (g.band?.mind == Mind.PLANS) planned(g, policy, buf, best, dueSoon) else if (g.weighed) explored(g, policy, buf, best, date) else best
         // (For the census: whether the band would have moved by its best choice, and whether it moved by its draw.)
         if (g.band != null) {
             val k = s.index * 4
@@ -332,7 +345,7 @@ internal class GroupPlanner(private val gs: HexGroups) {
         }
         if (seen != null && g.id == gs.watched) logWatched(c, seen, best, policy != null)
         if (diag && seen != null) printPlanDiag(c, seen, best)
-        planCounts.incrementAndGet(s.index * 3 + (if (best == g.place) 1 else 2))
+        planCounts.incrementAndGet(s.index * 3 + (if (best != g.place) 2 else if (!g.weighed) 0 else 1))
         return Plan(best, pathTo(best.i))
     }
 
@@ -615,15 +628,16 @@ internal class GroupPlanner(private val gs: HexGroups) {
     }
 
     /**
-     * Where planning band [g] goes ([plannedMove]), of the places weighed in [buf], scored as in [explored]; [owed]: its
+     * Where planning band [g] goes ([plannedMove]), of the places weighed in [buf], scored as in [explored] (only once it is
+     * leaving, so a band its policy's gate kept from weighing, [HexGroup.weighed], costs the network nothing); [owed]: its
      * customs send it this week (an appointment due, a raid set, a camp left after a death); [best] if none can be weighed.
      */
     private fun planned(g: HexGroup, policy: HexPolicy?, buf: Scratch, best: Place, owed: Boolean): Place {
         val n = buf.explPlaces.size
         if (n == 0) return best
-        val scores = if (policy == null) buf.explScores else policy.scores(g, Array(n) { buf.candFeats[it] }, buf.candScores.copyOf(n)) ?: return best
         val stays = (0 until n).firstOrNull { buf.explPlaces[it] == g.place.i } ?: -1
-        val k = plannedMove(n, scores, buf.explDeaths, stays, owed)
+        val k = plannedMove(n, buf.explScores, buf.explDeaths, stays, owed) {
+            if (policy == null) buf.explScores else policy.scores(g, Array(n) { buf.candFeats[it] }, buf.candScores.copyOf(n)) }
         return if (k < 0) best else Place(buf.explPlaces[k])
     }
 
@@ -1078,7 +1092,7 @@ internal class GroupPlanner(private val gs: HexGroups) {
 
     internal val topKind = IntArray(gs.n) { -1 }
 
-    /** Choices made in planning, by kind: (slot 0 unused: every group weighs every week), weighed and stayed, weighed and moved. */
+    /** Choices made in planning, by kind: stayed without weighing (its policy's gate, [HexGroup.weighed]), weighed and stayed, weighed and moved. */
     val planCounts = AtomicIntegerArray(64 * 3)
     /**
      * Bands' weeks by kind, for the census: weeks weighed, those its best choice (the hand-written score's or its network's)

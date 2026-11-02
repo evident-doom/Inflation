@@ -43,6 +43,19 @@ class SharedMover(val net: Mlp, val identity: FloatArray) {
      * it. Saved beside the network (`.residual`).
      */
     var residual = 0f
+    /**
+     * Whether a group weighs its places at all this week, as a logit (see [MoverPolicy.choose]): read from what the network reads
+     * of the place it stands on and the group's own state ([gateInput]). Below even odds it stays where it is without weighing the
+     * places it could go to. Null: it always weighs them. Saved beside the network (`.gate`).
+     */
+    var gate: Mlp? = null
+
+    /** The gate's input for a group of kind [s] standing where [features] describe, its view of itself [state], temperament [temper], [g]: into [into]. */
+    fun gateInput(s: Species, features: FloatArray, state: FloatArray?, temper: FloatArray?, g: HexGroup, into: FloatArray) {
+        fill(s, features, state, into, temper)
+        into[inputs] = ln(max(1, g.size).toFloat()) / 5f; into[inputs + 1] = g.young.toFloat() / max(1, g.size)
+        into[inputs + 2] = g.fed; into[inputs + 3] = g.fat
+    }
 
     /** The kind's part of the input: its traits on log or 0..1 scales, then its learned identity. */
     fun kindInputs(s: Species, into: FloatArray, at: Int) {
@@ -116,18 +129,32 @@ class SharedMover(val net: Mlp, val identity: FloatArray) {
         return sc.out
     }
 
-    fun copy() = SharedMover(net.copy(), identity.copyOf())
+    fun copy() = SharedMover(net.copy(), identity.copyOf()).also { it.residual = residual; it.gate = gate?.copy() }
 
     fun save(file: File) {
         Schema.save(net, file, if (band > 0) Schema.PEOPLE_IN else Schema.MOVER_IN, Schema.MOVER_OUT, (if (band > 0) Role.PEOPLE else Role.HUNTERS).net)
         File(file.path + ".residual").let { if (residual != 0f) it.writeText(residual.toString()) else it.delete() }
         File(file.path + ".identity").writeText(identity.joinToString(" ") + "\n")
+        gate?.let { Schema.save(it, gateFile(file), gateNames(), listOf("weigh")) } ?: gateFile(file).let { it.delete(); Schema.namesFile(it).delete() }
     }
+
+    /** The names of the gate's inputs: what the network reads, then the group's own state. */
+    fun gateNames() = (if (band > 0) Schema.PEOPLE_IN else Schema.MOVER_IN) + GATE_GROUP
 
     companion object {
         const val KIND = 14
         const val IDENTITY = 6
         val INPUTS = HexFeatures.size + KIND + IDENTITY + Temperament.AXES
+        /** The group's own state the gate reads ([gateInput]). */
+        val GATE_GROUP = listOf("group:size", "group:young", "group:fed", "group:fat")
+        const val GATE_HIDDEN = 16
+        /** A new gate's logit everywhere: odds of 95% for weighing, so a new gate begins as groups have always chosen. */
+        const val GATE_START = 3f
+        fun gateFile(f: File) = File(f.path + ".gate")
+
+        /** A new gate for [m]: it weighs everywhere at first ([GATE_START]), and learns where weighing is not worth it. */
+        fun newGate(m: SharedMover, rnd: Random) = Mlp.random(intArrayOf(m.inputs + GATE_GROUP.size, GATE_HIDDEN, 1), rnd).zeroOutputLayer()
+            .also { it.w[it.biasAt(2, 0)] = GATE_START }
 
         fun random(hidden: Int, rnd: Random, band: Int = 0) = SharedMover(Mlp.random(intArrayOf(INPUTS + band, hidden, hidden, 1), rnd), FloatArray(Catalogue.all.size * IDENTITY) { 0.1f * (rnd.nextFloat() - 0.5f) })
 
@@ -143,7 +170,8 @@ class SharedMover(val net: Mlp, val identity: FloatArray) {
             val idFile = File(file.path + ".identity")
             // (Kinds added since it was saved start with no identity of their own: zeros.)
             val id = (if (idFile.exists()) idFile.readText().trim().split(" ").map { it.toFloat() }.toFloatArray() else FloatArray(0)).copyOf(Catalogue.all.size * IDENTITY)
-            return SharedMover(net, id).also { m -> File(file.path + ".residual").takeIf { it.exists() }?.let { m.residual = it.readText().trim().toFloat() } }
+            return SharedMover(net, id).also { m -> File(file.path + ".residual").takeIf { it.exists() }?.let { m.residual = it.readText().trim().toFloat() }
+                gateFile(file).takeIf { it.exists() }?.let { m.gate = Schema.load(it, m.gateNames(), listOf("weigh")) } }
         }
     }
 }
@@ -178,6 +206,14 @@ open class Choice(val kind: Species, val groupId: Int, val size: Int, val week: 
 }
 
 /**
+ * A group's draw of whether to weigh its places at all ([SharedMover.gate]), recorded to learn from: it [weighs] or not, with
+ * log-probability [gateLogp], from the gate's input [gateIn]; [inputs] is the place it stood on alone. If it weighed, it took its
+ * best place, not a draw: the mover learns nothing from it.
+ */
+class GateChoice(kind: Species, groupId: Int, size: Int, week: Int, inputs: Array<FloatArray>, val gateIn: FloatArray, val weighs: Boolean, val gateLogp: Float) :
+    Choice(kind, groupId, size, week, inputs, 0, 0f)
+
+/**
  * Where a band stood in week [week] before it moved, as the critic reads it ([at]): the state its week's plan, the move and the
  * ways set after it, is judged from (see [WaysChoice]).
  */
@@ -197,6 +233,14 @@ class MoverPolicy(private val mover: SharedMover, private val record: Concurrent
                   /** How many times more a band at its hardest (cold exposure or hunger) is recorded than one at ease: the nets learn from the weeks that decide (see [Sampling.stressBoost]). */
                   private val stressBoost: Float = 0f) : HexPolicy {
     private val scratch = ThreadLocal.withInitial { mover.Scratch() }
+    /** The scores this thread's last [choose] worked out for a band, and which band: one that then explores asks for them again ([scores]). */
+    private class Last { var id = -1; var scores: FloatArray? = null }
+    private val last = ThreadLocal.withInitial { Last() }
+    private val gateBuffers = ThreadLocal<Mlp.Buffers>()
+    private companion object {
+        /** The share of the groups drawn to learn from that draw whether to weigh their places rather than where to go ([GateChoice]). */
+        const val GATE_SHARE = 0.3f
+    }
 
     /** The chance [g]'s choice is drawn and recorded: its kind's, raised for a band under stress by [stressBoost] (never past [Sampling.MAX_STRESSED_SHARE]). */
     private fun recordRate(g: HexGroup, state: FloatArray?): Float {
@@ -222,8 +266,35 @@ class MoverPolicy(private val mover: SharedMover, private val record: Concurrent
                 waiting.removeAll(due)
             }
         } }
+        // First, whether it weighs its places at all: where all is well where it stands, it stays without weighing them ([SharedMover.gate]).
+        // (A share of the groups recorded draw this instead of their move, then take their best if they weigh: the gate learns
+        // what weighing gained them, less what weighing costs, [GateChoice].)
+        g.weighed = true
+        var gateDrawn = false
+        val gate = mover.gate
+        if (gate != null && n > 0) {
+            val hk = Critic.here(features)
+            val b = gateBuffers.get() ?: gate.buffers().also { gateBuffers.set(it) }
+            mover.gateInput(g.species, features[hk], state, temper, g, b.a[0])
+            if (b.a[0].allFinite()) {
+                val pWeigh = 1f / (1f + exp(-gate.forward(b)))
+                gateDrawn = record != null && rnd.nextFloat() < GATE_SHARE * recordRate(g, state)
+                val weighs = if (gateDrawn) rnd.nextFloat() < pWeigh else pWeigh >= 0.5f
+                if (gateDrawn) {
+                    val group = Critic.groupState(g, season())
+                    val c = GateChoice(g.species, g.id, g.size, week(), arrayOf(features[hk].copyOf(HexFeatures.size)), b.a[0].copyOf(), weighs, ln(max(if (weighs) pWeigh else 1f - pWeigh, 1e-8f)))
+                        .also { it.temper = temper.copyOf(); if (mover.band > 0) it.band = state?.copyOf(); it.group = group }
+                    if (temper.allFinite() && state.allFinite() && group.allFinite()) {
+                        record?.add(c)
+                        probes?.computeIfAbsent(g.id) { ArrayList() }?.let { waiting -> synchronized(waiting) { waiting += c } }
+                    }
+                }
+                if (!weighs) { g.weighed = false; return hk }
+            }
+        }
         val net = mover.netScores(g.species, features, state, temper, scratch.get())
         val scores = FloatArray(n) { k -> net[k] + mover.residual * baseline[k] + mover.pull(temper, features[k]) }
+        if (g.band != null) last.get().let { it.id = g.id; it.scores = scores.copyOf() }
         // A place whose score or features are not numbers is never taken, as with the hand-written score; and if no place
         // can be weighed the group stays where it is. One such number learnt from makes the whole network not a number.
         var weighed = 0
@@ -232,7 +303,7 @@ class MoverPolicy(private val mover: SharedMover, private val record: Concurrent
         if (weighed == 0) return Critic.here(features)
         // Only the choices recorded to learn from are drawn by chance here; every other group takes its best (a band then draws
         // by its will to explore, see [HexGroup.drawn]), so the training worlds live as they would with the networks choosing.
-        if (record == null || rnd.nextFloat() >= recordRate(g, state)) {
+        if (gateDrawn || record == null || rnd.nextFloat() >= recordRate(g, state)) {
             var best = 0; for (k in 1 until n) if (scores[k] > scores[best]) best = k
             // (The groups that take their best still show what a group in their place can expect: the critic learns from a share of them too.)
             if (record != null && valueRate(g.species) > 0f && rnd.nextFloat() < valueRate(g.species)) {
@@ -268,7 +339,13 @@ class MoverPolicy(private val mover: SharedMover, private val record: Concurrent
         standing?.get(g.id)?.let { if (it.week == week()) it.plan = input }
         return trunk
     }
+    /** (The hand-written score counts only through [SharedMover.residual], and in the choices recorded to learn from.) */
+    override fun readsBaseline(g: HexGroup) = mover.residual != 0f || record != null
     override fun scores(g: HexGroup, features: Array<FloatArray>, baseline: FloatArray): FloatArray {
+        // (Asked straight after [choose] for the same places, as a band that explores does: the same scores, not worked out twice.)
+        val l = last.get(); val was = l.id; val kept = l.scores
+        l.id = -1; l.scores = null
+        if (was == g.id && kept != null && kept.size == features.size) return kept
         val state = g.band?.state; val temper = g.temper
         val net = mover.netScores(g.species, features, state, temper, scratch.get())
         return FloatArray(features.size) { k -> net[k] + mover.residual * baseline[k] + mover.pull(temper, features[k]) }
