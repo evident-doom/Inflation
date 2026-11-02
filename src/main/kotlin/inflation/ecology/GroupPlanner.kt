@@ -317,8 +317,6 @@ internal class GroupPlanner(private val gs: HexGroups) {
         // (A choice the policy drew by chance to learn from stands; every other band draws by its will to explore, in training worlds as outside them.)
         val chosen = best
         if (traced) bookMove(chosen != g.place, buf)
-        // (A planning band reckons its move whether or not the gate weighed its places: its customs and its reflex to flee
-        // stand above the gate, and it needs the network's scores only on the weeks it moves, [planned].)
         if (explores && !g.drawn) best = if (g.band?.mind == Mind.PLANS) planned(g, policy, buf, best, dueSoon) else if (g.weighed) explored(g, policy, buf, best, date) else best
         // (For the census: whether the band would have moved by its best choice, and whether it moved by its draw.)
         if (g.band != null) {
@@ -345,7 +343,7 @@ internal class GroupPlanner(private val gs: HexGroups) {
         }
         if (seen != null && g.id == gs.watched) logWatched(c, seen, best, policy != null)
         if (diag && seen != null) printPlanDiag(c, seen, best)
-        planCounts.incrementAndGet(s.index * 3 + (if (best != g.place) 2 else if (!g.weighed) 0 else 1))
+        planCounts.incrementAndGet(s.index * 3 + (if (!g.weighed) 0 else if (best == g.place) 1 else 2))
         return Plan(best, pathTo(best.i))
     }
 
@@ -628,8 +626,8 @@ internal class GroupPlanner(private val gs: HexGroups) {
     }
 
     /**
-     * Where planning band [g] goes ([plannedMove]), of the places weighed in [buf], scored as in [explored] (only once it is
-     * leaving, so a band its policy's gate kept from weighing, [HexGroup.weighed], costs the network nothing); [owed]: its
+     * Where planning band [g] goes ([plannedMove]), of the places weighed in [buf], scored as in [explored] (asked only once it is
+     * leaving); [owed]: its
      * customs send it this week (an appointment due, a raid set, a camp left after a death); [best] if none can be weighed.
      */
     private fun planned(g: HexGroup, policy: HexPolicy?, buf: Scratch, best: Place, owed: Boolean): Place {
