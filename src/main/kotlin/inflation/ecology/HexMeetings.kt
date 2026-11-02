@@ -285,6 +285,8 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
     note(a) { "met band #%d (%d people; tie %.2f)".format(b.id, b.size, a.band?.tie(b.id) ?: 0f) }
     note(b) { "met band #%d (%d people; tie %.2f)".format(a.id, a.size, b.band?.tie(a.id) ?: 0f) }
     val fresh = meetingFresh(a, b, weather)
+    // (Each tells the other how its camp has lately yielded: how a planning band judges a fresh camp, [tellYield].)
+    tellYield(a, b, weather.date); tellYield(b, a, weather.date)
     if (meetingEndsInRaid(a, b, weather, rite, fresh)) return
     val (poor, rich) = if (a.wellOff() < b.wellOff()) a to b else b to a
     // Bands that hold to sharing give more, and sooner.
