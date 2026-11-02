@@ -332,6 +332,20 @@ internal class GroupPlanner(internal val gs: HexGroups) {
             val st = gs.strength(g)
             if (st > topStrength[g.place]) { topStrength[g.place] = st; topKind[g.place] = g.species.index }
         }
+        // (The settled of kinds that also roam hold the ground too, as a stand-in band of them does at the meetings
+        // ([ResidentParties]): a hex with a band's worth of them is held by one, so that weaker packs keep out of its way
+        // whether its kind's packs or its settled hold it.)
+        val f = gs.fauna
+        for (s in Catalogue.roamingResidents) {
+            val k = f.slot(s); if (k.none) continue
+            val st = residentStrength(s)
+            for (h in gs.hex.all) {
+                var heads = 0f
+                for (q in gs.hw.placesOf(h)) heads += (f.adults[k][q] + f.young[k][q]) * gs.land.areaKm2[q]
+                if (heads < ResidentParties.MIN_BANDS * s.groupSize) continue
+                for (q in gs.hw.placesOf(h)) if (st > topStrength[q]) { topStrength[q] = st; topKind[q] = s.index }
+            }
+        }
         // (The residents' rivals keep out of its way too, next week as they move: [HexFauna.strongest].)
         topStrength.copyInto(gs.fauna.strongest)
     }
