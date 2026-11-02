@@ -127,7 +127,7 @@ internal fun HexGroups.survivalDays(g: HexGroup, b: Band, weather: Weather, time
     val planShelter = shelterReach(b, people, shelter0, SHELTER_MOST, d[SHELTER])
     b.shelterAim = planShelter
     b.planOdds = warmth(b.planFire, planShelter).odds
-    if (WARM_DIAG) { b.planAir = air; b.planCover = b.cover(air.meanC, b.planFire, home, planShelter); b.planSisu = b.sisu }
+    if (WARM_DIAG.on) { b.planAir = air; b.planCover = b.cover(air.meanC, b.planFire, home, planShelter); b.planSisu = b.sisu }
     b.planLeft = if (time.total > 0f) time.left / time.total else 0f
     b.planShelterFirst = if (asks[SHELTER] > 0f) min(1f, d[SHELTER] / asks[SHELTER]) else -1f
     if (THATCH_TRACE && asks[SHELTER] - d[SHELTER] > 1e-3f) {

@@ -26,11 +26,6 @@ import inflation.store.MovedInto
 import inflation.wrapMonth
 import inflation.saturate
 import inflation.monthsFrom
-import inflation.HASH_A
-import inflation.HASH_B
-import inflation.HASH_C
-import inflation.mix64Once
-import inflation.unitOf
 import inflation.Config
 import kotlin.math.roundToLong
 
@@ -176,7 +171,7 @@ internal class GroupPlanner(private val gs: HexGroups) {
         if (traced) buf.stayParts.fill(0f)
         // (For a followed group: every place it weighed, and how it scored.)
         // planDiag=kind: once a month, one group's reasons, for the place it chose and the best-placed step toward its season's place.
-        val diag = PLAN_DIAG == s.name && goal >= 0 && date.dayOfMonth <= gs.days && g.id % 97 == 0
+        val diag = goal >= 0 && date.dayOfMonth <= gs.days && PLAN_REASONS.wants(g.id.toLong(), of = s.name)
         val seen = if (g.id == gs.watched || diag) ArrayList<Pair<Int, Float>>() else null
         val candPlaces = buf.candPlaces; candPlaces.clear(); val candFeats = buf.candFeats
         // (Every place's whole score is wanted for a network, for capture and for a watched group; else only the best.)
