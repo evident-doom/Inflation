@@ -79,7 +79,6 @@ object Config {
         WARM_DIAG("warmDiag"),
         THATCH_TRACE("thatchTrace"),
         PLAN_TRACE("planTrace"),
-        YEAR_SPREAD("yearSpread"),
         FORECAST_TRACE("forecastTrace"),
         MOVE_TRACE("moveTrace"),
         FOLLOW("follow"),
@@ -105,7 +104,7 @@ object Config {
         "newcomers", "catalogueStart", "t.roundCue", "t.roundSpread", "t.roundFollowGreen", "t.supersense", "t.superTop", "t.superKm",
         "t.superLure", "t.scoutKm", "t.scoutChance", "t.scoutMargin", "t.plateauKm", "t.plateauM", "t.plantEaterHerds", "t.formSwap",
         "t.contentWeeks", "t.huntersHalf", "t.headingKeep", "t.headingMoved", "t.headingPull", "t.roundStrength", "t.roundTrekDays",
-        "t.roundDrift", "t.roundSwitch", "t.roundStart", "t.roundKmCost", "t.roundPull", "t.roundNetPull", "herdWays", "migDiag", "crowdDiag", "ppo.migrationWeight")
+        "t.roundDrift", "t.roundSwitch", "t.roundStart", "t.roundKmCost", "t.roundPull", "t.roundNetPull", "herdWays", "migDiag", "crowdDiag", "ppo.migrationWeight", "yearSpread")
 
     /** Config file keys that were renamed, and their name now. */
     private val MOVED = mapOf("t.huntDiag" to "huntSteps")

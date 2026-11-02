@@ -154,3 +154,12 @@ internal inline fun HexGroups.drawn(site: DialSite, will: Float, u: Float, p: Fl
     dialUse?.chance(site, will, u, p, p1(), cut)
     return u < p
 }
+
+/**
+ * [value], an amount at [site] of a way at [will], counted in [HexGroups.dialUse] against [at1] at the scaffold's 1 (worked out
+ * only when counting); [cut] if a cap or floor took some of the way off.
+ */
+internal inline fun HexGroups.dialed(site: DialSite, will: Float, value: Float, cut: Boolean = false, at1: () -> Float): Float {
+    dialUse?.amount(site, will, value, at1(), cut)
+    return value
+}

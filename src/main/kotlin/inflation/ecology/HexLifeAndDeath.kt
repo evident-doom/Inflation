@@ -593,9 +593,8 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     hazards.addAll(listOfNotNull(
         Hazard(DeathCause.HOMELESS, homeless, homeless),
         Hazard(DeathCause.CAMP_FOULING, 0f, fouled), Hazard(DeathCause.SNAKES, venom, venom), Hazard(DeathCause.INBREEDING, 0f, inbred),
-        stalker?.let { Hazard(ByBeast.of(ByBeast.How.TAKEN_BY, it), stalked, YOUNG_STALKED / (band?.childWatch ?: 1f).coerceAtLeast(0.25f) * stalked)
-            .also { band?.let { b -> dialUse?.amount(DialSite.CHILDREN_TAKEN, b.childWatch, YOUNG_STALKED / b.childWatch.coerceAtLeast(0.25f) * stalked, YOUNG_STALKED * stalked,
-                cut = b.childWatch < 0.25f) } } },
+        stalker?.let { Hazard(ByBeast.of(ByBeast.How.TAKEN_BY, it), stalked, band?.let { b -> dialed(DialSite.CHILDREN_TAKEN, b.childWatch,
+            YOUNG_STALKED / b.childWatch.coerceAtLeast(0.25f) * stalked, cut = b.childWatch < 0.25f) { YOUNG_STALKED * stalked } } ?: YOUNG_STALKED * stalked) },
         Hazard(DeathCause.WOUNDS, festered, 0f)))
     ill?.let { a -> for (it in Illness.entries) hazards += Hazard(it, a[it], a[it] * it.young) }
     // The elders' care spares some of the young.
