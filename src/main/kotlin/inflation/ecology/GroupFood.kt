@@ -95,10 +95,10 @@ private fun HexGroups.setBandWays(hunters: List<HexGroup>, weather: Weather, way
     }
     val bands = hunters.filter { it.band != null }
     Par.forEach("people: set ways", bands.size) { k ->
-        val g = bands[k]; val b = g.band!!
+        val g = bands[k]; val b = g.band ?: return@forEach
         if (b.mind == Mind.PLANS) b.scaffoldWays() else if (g.id != watched) setWays(g, weather, ways, FloatArray(WAYS_IN), FloatArray(WAYS_OUT))
     }
-    for (g in bands) if (g.id == watched && g.band!!.mind != Mind.PLANS) setWays(g, weather, ways, inputs, out)
+    for (g in bands) if (g.id == watched && g.band?.mind != Mind.PLANS) setWays(g, weather, ways, inputs, out)
 }
 
 /**
