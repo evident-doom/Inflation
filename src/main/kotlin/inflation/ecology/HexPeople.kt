@@ -377,10 +377,10 @@ internal fun HexGroups.tallyVillages() {
 
 /**
  * [b]'s births against those of a band without weaning food ([SPACING_MOST] over its spacing): gruel weans children early
- * ([Band.weaningFood]), but a mother carries each child on the band's moves till it walks them ([CARRY_YEARS]).
+ * ([Band.weaningFood], or [weaningFood] as weighed), but a mother carries each child on the band's moves till it walks them ([CARRY_YEARS]).
  */
-internal fun GroupWorld.birthSpacing(b: Band): Float {
-    val nursing = NURSING_YEARS_MOST - (NURSING_YEARS_MOST - NURSING_YEARS_LEAST) * b.weaningFood
+internal fun GroupWorld.birthSpacing(b: Band, weaningFood: Float = b.weaningFood): Float {
+    val nursing = NURSING_YEARS_MOST - (NURSING_YEARS_MOST - NURSING_YEARS_LEAST) * weaningFood
     // (A band at home or long at one camp moves the less: the weeks it has kept this camp count as well as its usual stay.)
     val moves = stepsPerYear / max(b.stayWeeks, b.campWeeks + 1f)
     val carried = CARRY_YEARS * min(1f, moves / CARRY_MOVES)
@@ -390,10 +390,10 @@ internal fun GroupWorld.birthSpacing(b: Band): Float {
 /**
  * How far [b] can make its seed into gruel, soft food to wean a child on: ground to meal ([Tool.GRINDER], too heavy to take
  * along, so a band that moves camp leaves its querns behind) and boiled with hot stones, in baskets. (Whole seed boiled is
- * no weanling's food, as raw seed is poor food for anyone: [seedValue].)
+ * no weanling's food, as raw seed is poor food for anyone: [seedValue].) [grinder]: its kit of them, as it has it or as weighed.
  */
-internal fun Band.gruel(): Float =
-    if (knowsSkill[Skill.STONE_BOILING]) fire * skill(Skill.STONE_BOILING) * max(has(Tool.BASKET), 0.5f) * has(Tool.GRINDER) else 0f
+internal fun Band.gruel(grinder: Float = has(Tool.GRINDER)): Float =
+    if (knowsSkill[Skill.STONE_BOILING]) fire * skill(Skill.STONE_BOILING) * max(has(Tool.BASKET), 0.5f) * grinder else 0f
 
 /**
  * Adds [value] (its worth as food) of kind [st], weighing [kg], to [stores], whose kg for each unit of worth are [kgPer].
