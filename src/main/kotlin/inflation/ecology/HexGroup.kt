@@ -104,7 +104,7 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
     @Transient var drawn = false
     /**
      * Whether it weighed the places it could go to this week: false when its policy's gate kept it where it stood without weighing
-     * them ([inflation.learning.SharedMover.gate]); then a band does not draw by its will to explore either. (Made anew each week before it is read.)
+     * them ([inflation.learning.SharedMover.gate], never for a [Mind.PLANS] band); then a band does not draw by its will to explore either. (Made anew each week before it is read.)
      */
     @Transient var weighed = true
     /** For hunters: meetings with game of each kind ([Species.index]), as of [herdsMetOn], fading over [SEARCH_DAYS] (null: none yet; see [SEARCH_HALF]). */

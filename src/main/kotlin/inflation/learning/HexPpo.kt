@@ -12,6 +12,7 @@ import inflation.ecology.HexFeatures
 import inflation.ecology.Temperament
 import inflation.ecology.HexGroup
 import inflation.ecology.HexPolicy
+import inflation.ecology.Mind
 import inflation.ecology.Species
 import inflation.world.WorldCache
 import inflation.world.WorldConfig
@@ -267,12 +268,13 @@ class MoverPolicy(private val mover: SharedMover, private val record: Concurrent
             }
         } }
         // First, whether it weighs its places at all: where all is well where it stands, it stays without weighing them ([SharedMover.gate]).
+        // (Not a planning band: whether it moves is its plan's to decide, [inflation.ecology.plannedMove], never the gate's.)
         // (A share of the groups recorded draw this instead of their move, then take their best if they weigh: the gate learns
         // what weighing gained them, less what weighing costs, [GateChoice].)
         g.weighed = true
         var gateDrawn = false
         val gate = mover.gate
-        if (gate != null && n > 0) {
+        if (gate != null && n > 0 && g.band?.mind != Mind.PLANS) {
             val hk = Critic.here(features)
             val b = gateBuffers.get() ?: gate.buffers().also { gateBuffers.set(it) }
             mover.gateInput(g.species, features[hk], state, temper, g, b.a[0])
