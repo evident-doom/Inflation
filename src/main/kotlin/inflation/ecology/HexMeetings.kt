@@ -578,3 +578,7 @@ internal fun HexGroups.settle(weather: Weather) {
 
 /** The least time two groups passing through the same hex count as spending there together, days */
 
+/** Beer: grain brewed for each guest at a feast, kg; how much more a feast with beer binds. */
+internal const val BEER_KG = 1f
+
+internal const val BEER_TIES = 0.5f
