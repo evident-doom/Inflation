@@ -1,5 +1,7 @@
 package inflation.tools
 
+import inflation.ecology.fruitSet
+import inflation.ecology.harassment
 import inflation.world.Place
 import inflation.world.get
 import inflation.world.set
