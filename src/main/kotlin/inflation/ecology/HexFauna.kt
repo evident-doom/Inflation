@@ -700,8 +700,11 @@ class HexFauna(private val hw: HexWorld, private val land: HexLand, private val 
         return refuge * hide * dark * speed * room
     }
 
-    /** Each kind's [Niches.groundShelter] at each place: fixed for the run, so worked out once. */
-    @delegate:Transient private val groundShelter by lazy { Array(kinds.size) { k -> FloatArray(n) { p -> Niches.groundShelter(kinds[k], Place(p), land) } } }
+    /**
+     * Each kind's [Niches.groundShelter] at each place: fixed for the run, so worked out once. (A plain field, not `by lazy`:
+     * every [catchable] reads it, and the lazy's read alone was 4% of a step's samples.)
+     */
+    @Transient private val groundShelter = Array(kinds.size) { k -> FloatArray(n) { p -> Niches.groundShelter(kinds[k], Place(p), land) } }
 
     /** The game each resident hunter takes at each place ([game]) while the residents move; null otherwise. */
     @Transient private var preyNow: Array<FloatArray?>? = null
