@@ -17,9 +17,18 @@ follow=wolf"
 WORLD="--width 300 --height 400"; ARGS="$WORLD --years 1"
 
 tree() { echo "$W/tree-$(git -C "$REPO" rev-parse --short "$1")"; }
+# (The worktrees this run makes are removed as it ends, however it ends; the results stay in WORKDIR. KEEP_TREES=1 keeps
+# them for another run on the same refs. core.longpaths: their deepest paths are past Windows' 260 characters.)
+made=()
+cleanup() {
+  [ "${KEEP_TREES:-}" = 1 ] && return
+  for d in "${made[@]}"; do git -C "$REPO" -c core.longpaths=true worktree remove --force "$d" 2>/dev/null || rm -rf "$d"; done
+  git -C "$REPO" worktree prune
+}
+trap cleanup EXIT
 for ref in "$BASE" "$NEW"; do
   d=$(tree "$ref")
-  [ -d "$d" ] || git -C "$REPO" worktree add -q --detach "$d" "$ref" || exit 1
+  [ -d "$d" ] || { git -C "$REPO" worktree add -q --detach "$d" "$ref" || exit 1; made+=("$d"); }
   echo "$CFG" > "$d/inflation.properties"
 done
 run() { # ref name extra-args [args instead of ARGS]
@@ -34,6 +43,11 @@ f() { grep -v -E "saved the world|[0-9] ms|cores busy|loaded in|\(0\.[0-9] s|set
 same() { cmp -s <(gzip -dc "$1") <(gzip -dc "$2"); }
 resaved() { [ -f "$W/$1.re.gz" ] || run "$NEW" "$1.re" "--load $WJ/$1.gz --save $WJ/$1.re.gz" "$WORLD --years 0"; echo "$W/$1.re.gz"; }
 status=0
+# (A run that failed proves nothing: two missing saves or two identical error messages would compare as the same.)
+for r in base new base-on new-on; do
+  if ! tail -1 "$W/$r.out" | grep -qx "exit 0" || [ ! -s "$W/$r.gz" ]; then echo "RUN FAILED: $r (see $r.out)"; status=1; fi
+done
+[ $status = 0 ] || exit $status
 for pair in "base new" "base-on new-on"; do
   set -- $pair
   if diff <(f "$W/$1.out") <(f "$W/$2.out") > "$W/$2.diff"; then p="printed lines identical ($(wc -l < "$W/$2.out") lines)"; else p="PRINTED LINES DIFFER (see $2.diff)"; status=1; fi
