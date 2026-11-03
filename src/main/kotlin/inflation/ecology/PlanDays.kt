@@ -246,12 +246,14 @@ private fun HexGroups.sowRate(g: HexGroup, b: Band, perDay: Float, ask: Float, w
     val food = raw * HexFood.FIELD_YIELD * seedValue(b) * b.cookValue(Food.GRAIN) - sown
     val reap = raw * HexFood.FIELD_YIELD * reapDaysPerKg(b, tuning)
     val against = if (b.heldLivelihood != Livelihood.FARMING) livingAgainstDays(g, b) else 0f
-    val rate = (food / perDay - reap - against) / ask
+    // (Grain is a store, eaten when foraging is poor: its food as days of foraging in its leaner weeks, [leanYieldShare].)
+    val lean = b.leanYieldShare()
+    val rate = (food / (perDay * lean) - reap - against) / ask
     if (SOW_TRACE.wants(g.id.toLong(), weather.date.absoluteDay))
         System.err.println(("sow trace: band %d, %s, %d people, holds %s (firmly %.2f), lives %s; sows %.0f kg in %.0f days; crop beyond the seed %.0f kg of need " +
-            "(%.0f days of foraging at %.2f kg a person-day), %.0f days to reap, living against its way %.0f days (raid deaths %.3f a person a year): %.2f (given days at 1 or more)")
+            "(%.0f days of foraging at %.2f kg a person-day in its leaner weeks), %.0f days to reap, living against its way %.0f days (raid deaths %.3f a person a year): %.2f (given days at 1 or more)")
             .format(g.id, weather.date, g.size, b.heldLivelihood.name.lowercase(), b.livelihoodHold, b.livelihood().name.lowercase(), raw, ask, food,
-                food / perDay, perDay, reap, against, b.raidDeathRate, rate))
+                food / (perDay * lean), perDay * lean, reap, against, b.raidDeathRate, rate))
     return rate
 }
 
@@ -264,6 +266,19 @@ private fun HexGroups.sowRate(g: HexGroup, b: Band, perDay: Float, ask: Float, w
  */
 private fun HexGroups.livingAgainstDays(g: HexGroup, b: Band) =
     b.raidDeathRate * g.size * CUSTOMS_HOSTILITY / CUSTOMS * DEATH_DAYS * keepYears(b, stepsPerYear)
+
+/**
+ * Its foraging's yield in its leaner weeks against this week's ([Band.weekYield], [Band.yieldNow]): the mean of the
+ * leanest quarter of the weeks it has on record, at most this week's; 1 with no record. What a day's foraging brings when
+ * stored grain is eaten.
+ */
+internal fun Band.leanYieldShare(): Float {
+    if (!(yieldNow > 0f)) return 1f
+    val seen = weekYield.filter { it.isFinite() }.sorted()
+    if (seen.isEmpty()) return 1f
+    val n = max(1, seen.size / 4)
+    return min(1f, seen.take(n).average().toFloat() / yieldNow).coerceAtLeast(1e-3f)
+}
 
 /** Person-days a death costs a band: a person's working generation ([GENERATION_YEARS] of days). An estimate. */
 private const val DEATH_DAYS = GENERATION_YEARS * 365f
