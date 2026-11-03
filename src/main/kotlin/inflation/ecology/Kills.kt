@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Part
 import inflation.Books
 import inflation.ecology.HexSmallLife.DeadPool
 import inflation.Kg
@@ -120,6 +121,7 @@ internal fun HexGroups.herdOdds(w: ForageWeek) {
  * it does not look for (prey switching, see [SEARCH_HALF]). (What depends on the kind alone is reckoned once a kind,
  * what depends on the place alone once a place.)
  */
+@Part("foraging: hunting odds")
 internal fun GroupWorld.huntingOdds(w: ForageWeek) {
     val g = w.g; val s = g.species; val band = g.band; val nk = w.nk
     val adults = fauna.adults; val young = fauna.young
@@ -274,6 +276,7 @@ private fun scavengerTakes(r: Species, each: Float) = min(0.5f * each, EATING_RA
  * [forage]'s hunt of kind [k] at place [p]: [expected] kills on average, each worth [kgEach] to the party.
  * Returns the kills (0: none, and nothing done); [out] gets the meat. A band at home may keep young it catches.
  */
+@Part("foraging: hunt a game")
 internal fun HexGroups.huntGame(g: HexGroup, k: Int, p: Place, expected: Float, kgEach: Float, spareYoung: Boolean, rnd: kotlin.random.Random, out: Haul): Int {
     val s = g.species; val band = g.band
     val ps = fauna.kinds[k]

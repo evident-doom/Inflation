@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Part
 import inflation.ecology.HexSmallLife.DeadPool
 import inflation.heapify
 import inflation.Kg
@@ -103,6 +104,7 @@ private fun HexGroups.offer(w: ForageWeek, o: Offers, t: Food, k: Int, p: Place,
 private fun HexGroups.harassedDays(p: Place, h: Float) = h * (1f + HexSmallLife.HARASS_TIME * small.harassment(p))
 
 /** [forage]'s foods on offer to [w]'s party in a pass, into [o]: along its way, round its camp and, for a band, in the water by it. */
+@Part("foraging: offer foods")
 internal fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
     val g = w.g; val band = w.band; val nk = w.nk; val sweep = w.sweep; val days = this.days
     val adults = fauna.adults; val young = fauna.young
@@ -258,6 +260,7 @@ internal fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
 }
 
 /** [forage]'s taking of the foods [w]'s party took up in [o], at those rates for the [f] share of its working days. */
+@Part("foraging: take foods")
 internal fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
     val g = w.g; val band = w.band; val haul = w.haul
     for (r in 0 until o.used) {
