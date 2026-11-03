@@ -517,6 +517,7 @@ internal fun HexGroups.cultureWeek(g: HexGroup, rnd: kotlin.random.Random) {
     b.heardOf *= keep
     b.ensureMarks(fauna.totemKinds)
     b.sinceSowed += years
+    b.raidDeathRate *= exp(-years)
     // (It comes to hold the way it lives once it has lived so for long enough, the longer the firmer it held its own.)
     val lives = b.livelihood()
     if (lives == b.heldLivelihood) b.livedOther = 0f
