@@ -2,6 +2,7 @@ package inflation.ecology
 
 import inflation.Stream
 import inflation.stream
+import inflation.world.get
 import kotlin.math.floor
 
 // Packs of a kind that also lives settled are game as their settled kind is: to bands, to other packs and to the resident hunters.
