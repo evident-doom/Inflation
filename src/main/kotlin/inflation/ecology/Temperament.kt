@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Part
 import inflation.drawKey
 import inflation.Stream
 import inflation.world.Hex
@@ -61,6 +62,7 @@ object Temperament {
 }
 
 /** What temperament pulls group [g] toward place [p] (in hex [h]) with: the hand-written path's share. */
+@Part("choosing: temper pull")
 internal fun GroupWorld.temperPull(g: HexGroup, p: Place, h: Hex, hunters: Float, crowded: Float): Float {
     var remembered = 0f
     for (i in g.memory.hex.indices) if (g.memory.hex[i] == h) { remembered = 1f; break }

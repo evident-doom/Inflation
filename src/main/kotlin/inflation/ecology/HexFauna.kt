@@ -243,7 +243,7 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, internal v
      * as their settled kind is, to every hunter ([HexGroups.fillPackGame] fills it before the residents' week and again as
      * the groups hunt); null for the other kinds. Not saved.
      */
-    @delegate:Transient internal val packGrown by lazy { Array(kinds.size) { k -> if (kinds[k] in Catalogue.roamingResidents) FloatArray(n) else null } }
+    @Transient internal val packGrown: Array<FloatArray?> = Array(kinds.size) { k -> if (kinds[k] in Catalogue.roamingResidents) FloatArray(n) else null }
     /** [packGrown] of kind [k] at place [p], per km². */
     internal fun packAt(k: Int, p: Place): Float = packGrown[k]?.get(p.i) ?: 0f
     /** Pack members killed as game, heads, to be taken off the packs that stood there ([HexGroups.takePackKills]). Not saved. */

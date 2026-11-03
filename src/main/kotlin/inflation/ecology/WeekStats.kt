@@ -8,6 +8,7 @@ import java.util.TreeMap
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.ConcurrentSkipListMap
+import java.util.concurrent.atomic.AtomicIntegerArray
 import java.util.concurrent.atomic.DoubleAdder
 
 /** Marks a function that makes a [TallyKey] from free text: outside the [Tally] builders, a use must opt in, and so shows in review. */
@@ -40,8 +41,18 @@ value class TallyKey private constructor(val text: String) : Comparable<TallyKey
 class WeekStats {
     /** Kills this week by prey kind (in order of name, as the reports list them). */
     val kills = ConcurrentSkipListMap<Species, Int>(BY_NAME)
-    /** Meetings this week by kind of meeting. */
-    val meetings = ConcurrentSkipListMap<TallyKey, Int>()
+    /** Meetings this week by kind of meeting (the counts of the [Met]s are kept in [metSums] and put in when this is read). */
+    val meetings: ConcurrentSkipListMap<TallyKey, Int> get() { drainMet(); return meetingLedger }
+    private val meetingLedger = ConcurrentSkipListMap<TallyKey, Int>()
+    /** The week's counts of each [Met] by ordinal, and whether it was counted at all (a count of nought still lists it): a sorted-map merge on a long label cost more than the count. */
+    private val metSums = AtomicIntegerArray(Met.entries.size)
+    private val metSeen = java.util.concurrent.atomic.AtomicIntegerArray(Met.entries.size)
+    private fun drainMet() {
+        for (m in Met.entries) if (metSeen.get(m.ordinal) != 0) {
+            val n = metSums.getAndSet(m.ordinal, 0); metSeen.set(m.ordinal, 0)
+            meetingLedger.merge(m.key, n, Int::plus)
+        }
+    }
     /** Deaths this week by "kind:cause". */
     val deaths = ConcurrentSkipListMap<TallyKey, Int>()
     /** People's deaths this week by "kind:cause", the grown (elders too) and the young apart (the two add up to the part of [deaths] that is people's, bar the orphans). */
@@ -77,12 +88,12 @@ class WeekStats {
     }
 
     /** Counts [n] more of [what] in [meetings]. */
-    fun meeting(what: Met, n: Int = 1) { meetings.merge(what.key, n, Int::plus) }
+    fun meeting(what: Met, n: Int = 1) { metSums.addAndGet(what.ordinal, n); metSeen.set(what.ordinal, 1) }
     /** Counts [n] more of [what] of [of] (a kind, a skill, a custom...) in [meetings]. */
-    fun meeting(what: Met.Of, of: String, n: Int = 1) { meetings.merge(TallyKey.raw(what.key(of)), n, Int::plus) }
+    fun meeting(what: Met.Of, of: String, n: Int = 1) { meetingLedger.merge(TallyKey.raw(what.key(of)), n, Int::plus) }
 
     /** Starts a new week (the children's ledger runs on until read). */
-    fun clear() { kills.clear(); meetings.clear(); deaths.clear(); adultDeaths.clear(); youngDeaths.clear(); births.clear(); hunting.clear(); residentDeaths.clear() }
+    fun clear() { kills.clear(); meetingLedger.clear(); for (i in 0 until Met.entries.size) { metSums.set(i, 0); metSeen.set(i, 0) }; deaths.clear(); adultDeaths.clear(); youngDeaths.clear(); births.clear(); hunting.clear(); residentDeaths.clear() }
 
     private companion object { val BY_NAME = compareBy<Species> { it.name } }
 
