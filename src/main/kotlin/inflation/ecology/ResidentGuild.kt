@@ -58,9 +58,9 @@ internal class ResidentParties(private val gs: HexGroups) {
                     a += f.adults[k][q] * area; y += f.young[k][q] * area
                     if (hq > most) { most = hq; p = q }
                 }
-                if (p < 0) return@forEach
+                if (p < 0) return@forEachHex
                 val bands = (a + y) / s.groupSize
-                if (bands < MIN_BANDS) return@forEach
+                if (bands < MIN_BANDS) return@forEachHex
                 val grown = max(1, (s.groupSize * a / (a + y)).roundToInt()); val little = (s.groupSize * y / (a + y)).roundToInt()
                 // (Its id is out of the groups' range, fixed by kind and hex: the meetings' order draws repeat run to run.)
                 val g = HexGroup(-1 - (k * gs.hex.size + h.i), s, Place(p), grown, little)
