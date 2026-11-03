@@ -472,7 +472,7 @@ internal fun HexGroups.cultureWeek(g: HexGroup, rnd: kotlin.random.Random) {
     // moved on) is forgotten: it is no longer ground to keep off, nor a place to raid.
     if (b.knownHomes.isNotEmpty()) {
         val it = b.knownHomes.entries.iterator()
-        while (it.hasNext()) { val (id, hh) = it.next(); if (hh in g.path && bands.houseOf[id] != hh) { it.remove(); b.knownLineage.remove(id) } }
+        while (it.hasNext()) { val (id, hh) = it.next(); if (hh in g.path && bands.houseOf[id] != hh) { it.remove(); b.knownLineage.remove(id); b.homesVersion++ } }
     }
     // Once a year, a band without an appointment makes one, where its dead lie or where it has met
     // most bands, in the season it fared best there.

@@ -327,6 +327,12 @@ class Band(kinds: Int, totems: Int = kinds) {
     var homeWalls = 0f
     /** Where it knows other bands have their houses (band id to hex), and their descent (main lineage). */
     val knownHomes = HashMap<Int, Hex>()
+    /** Bumped wherever [knownHomes] changes, so that what is worked out from it ([keepOffHomes]) is worked out again only then. */
+    @Transient var homesVersion = 0
+    /** The hexes of the known homes of bands this band is not close to, sorted, as of [keepOffVersion] and the close bands [keepOffClose] ([GroupPlanner.planInner]). */
+    @Transient var keepOffHomes: HexArray? = null
+    @Transient var keepOffVersion = -1
+    @Transient var keepOffClose = IntArray(0)
     val knownLineage = HashMap<Int, Int>()
     /** A raid it is set on, if any. */
     var raid: Raid? = null
@@ -743,7 +749,7 @@ class Band(kinds: Int, totems: Int = kinds) {
         o.houseHex = houseHex; o.house = house; o.drivenFrom = drivenFrom; o.drivenBy = drivenBy; o.homeEarth = homeEarth; o.homeWalls = homeWalls; o.homeGroundC = homeGroundC; o.palisade = palisade
         o.houseLives = houseLives; o.houseFood = houseFood; foodFrom.copyInto(o.foodFrom); o.fishPull = fishPull; o.weirFood = weirFood; o.weirTend = weirTend; toolWork.copyInto(o.toolWork); heldShare.copyInto(o.heldShare); monthSupply.copyInto(o.monthSupply); monthSupplySq.copyInto(o.monthSupplySq); o.supplyMonth = supplyMonth; o.supplySum = supplySum; o.supplyWeeks = supplyWeeks; o.larderSeen = larderSeen; weekSupply.copyInto(o.weekSupply); weekYield.copyInto(o.weekYield); weekWarmth.copyInto(o.weekWarmth); weekMoved.copyInto(o.weekMoved); freeShare.copyInto(o.freeShare); o.leanDays = leanDays
         o.seedDomestic = seedDomestic; o.grainDomestic = grainDomestic; o.seedCorn = seedCorn * share; seedCorn -= o.seedCorn; o.sinceRaided = sinceRaided; o.sisu = sisu
-        o.knownHomes.putAll(knownHomes); o.knownLineage.putAll(knownLineage); o.lastMet.putAll(lastMet); newsYield.copyInto(o.newsYield); newsAt.copyInto(o.newsAt); o.newsNext = newsNext
+        o.knownHomes.putAll(knownHomes); o.homesVersion++; o.knownLineage.putAll(knownLineage); o.lastMet.putAll(lastMet); newsYield.copyInto(o.newsYield); newsAt.copyInto(o.newsAt); o.newsNext = newsNext
         skills.copyInto(o.skills)
         knowsSkill.copyInto(o.knowsSkill)
         sick.copyInto(o.sick)
