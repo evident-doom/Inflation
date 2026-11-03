@@ -51,19 +51,20 @@ internal fun HexGroups.foreseenSurvival(g: HexGroup, b: Band, weather: Weather):
  * up; while the band is away it goes without its shelter, and what has weathered by its return is lost for the years it
  * and its heirs would have kept the place ([keepYears]). A house is worth the food keeping warm no longer takes
  * ([houseFoodAYear]), at its houses as they stand ([Band.house]). Paid for, as a move's walk and a sown field are, over the
- * weeks it keeps a camp ([Band.stayWeeks]). (In lives a house was worth none: a fed band foresees no deaths, and the year's
+ * weeks it keeps a camp ([Band.plannedStay]). (In lives a house was worth none: a fed band foresees no deaths, and the year's
  * usual cold kills none behind clothes and fire; house trace, 2026-10-31.)
  * The absence is taken as one camp's stay, the least a move costs: a band that does not come back loses the whole.
  * (Possession, not ownership: no other band keeps off a house left empty. A band that values its houses over generations
  * should keep to them by this alone; Olli, 2026-10-31: settling down to hold possession.)
  */
 internal fun HexGroups.houseLeft(g: HexGroup, b: Band, weather: Weather): Float {
-    val away = b.stayWeeks / stepsPerYear
+    val stay = b.plannedStay()
+    val away = stay / stepsPerYear
     val years = keepYears(b, stepsPerYear)
     val kgYear = houseFoodAYear(g, b, g.place, weather) * g.size
     val weathered = min(1f, HOUSE_DECAY * away)
     val kg = b.house * kgYear * (away + weathered * max(0f, years - away))
-    return kg / (g.dailyNeedKg.coerceAtLeast(1e-3f) * days) / b.stayWeeks
+    return kg / (g.dailyNeedKg.coerceAtLeast(1e-3f) * days) / stay
 }
 
 /**

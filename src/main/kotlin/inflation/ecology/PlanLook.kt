@@ -34,7 +34,7 @@ class MoveLook(
     val terms: FloatArray,
     /** The case less what leaving gives up ([reckonedGain]); NaN when it had none to judge. */
     val gain: Float,
-    /** The weeks it expects to keep a camp ([Band.stayWeeks]), over which leaving's losses are paid. */
+    /** The weeks it expects to keep a camp ([Band.plannedStay]), over which leaving's losses are paid. */
     val stayWeeks: Float,
     /** Why it went or stayed, and where it went (an index into [places], -1 none). */
     val why: Reckoned?,

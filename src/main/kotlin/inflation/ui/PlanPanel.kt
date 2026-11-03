@@ -160,7 +160,7 @@ internal class PlanPanel(
         val t = m.terms
         fun term(r: ReckonTerm) = t.getOrElse(r.ordinal) { Float.NaN }
         if (!m.owed && !term(ReckonTerm.CASE).isNaN()) {
-            sb.append("<p><b>Its case for leaving</b>, in shares of a week of its hands' work (0.10 = a tenth of a week), each loss paid over the %.1f weeks it expects to keep a camp (its running mean of past stays, learnt only when it moves):</p>".format(m.stayWeeks))
+            sb.append("<p><b>Its case for leaving</b>, in shares of a week of its hands' work (0.10 = a tenth of a week), each loss paid over the %.1f weeks it expects to keep a camp (its running mean of past stays, or the weeks it has kept this camp if more):</p>".format(m.stayWeeks))
             sb.append("<table cellpadding=2 cellspacing=0 border=0>")
             fun row(label: String, v: Float, sign: String, note: String, bold: Boolean = false) {
                 val b0 = if (bold) "<b>" else ""; val b1 = if (bold) "</b>" else ""

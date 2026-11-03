@@ -52,7 +52,7 @@ internal fun GroupPlanner.planned(g: HexGroup, policy: HexPolicy?, buf: Scratch,
         FloatArray(n) { buf.explDeaths[it] }, asked?.copyOf(n),
         FloatArray(n) { gs.reckonedWalk(g, b, buf.dist[gs.hw.placeHex[buf.explPlaces[it]]]) },
         FloatArray(n) { buf.dist[gs.hw.placeHex[buf.explPlaces[it]]] }, stays,
-        terms ?: FloatArray(ReckonTerm.entries.size) { Float.NaN }, gain, b.stayWeeks, why?.get(0), k)
+        terms ?: FloatArray(ReckonTerm.entries.size) { Float.NaN }, gain, b.plannedStay(), why?.get(0), k)
     // (Moving, it reckons how many loads to take, the days of relays against the stores it would leave: [relayLoads].)
     if (k >= 0 && k != stays) b.planLoads = gs.relayLoads(g, b, buf.dist[gs.hw.placeHex[buf.explPlaces[k]]])
     return if (k < 0) best else Place(buf.explPlaces[k])
@@ -75,7 +75,7 @@ private fun GroupPlanner.reckonedGain(g: HexGroup, b: Band, here: Hex, date: Dat
     val case = b.campWork(date, gs.days) - b.usualWork(date, gs.days)
     if (case.isNaN()) return Float.NaN
     val need = g.dailyNeedKg.coerceAtLeast(1e-3f) * gs.days
-    val stay = b.stayWeeks.coerceAtLeast(1f)
+    val stay = b.plannedStay()
     var tools = 0f
     for (t in Tool.entries) if (t.heavy && b.kit[t] > 0f) tools += b.kit[t] * t.makeDays / b.makeSkill(t).coerceAtLeast(1e-3f)
     val width = gs.fauna.water.riverWidthM(here)
@@ -178,7 +178,8 @@ internal fun GroupPlanner.bandPull(g: HexGroup, b: Band, month: Int, h: Hex, her
 
 /**
  * What the crop band [b] (group [g]) has sown and not yet reaped draws it to the hex it stands in: leaving it, the band
- * would lose its harvest (others reap a field no one keeps), a loss paid for over the weeks it keeps a camp ([Band.stayWeeks]),
+ * would lose its harvest (others reap a field no one keeps), a loss paid for over the weeks it keeps a camp ([Band.stayWeeks];
+ * a planning band, [Band.plannedStay]),
  * as a move's lost days are. The harvest is its share of the field as the sim would ripen it now ([HexFood.fieldExpect]),
  * in weeks of its food.
  */
@@ -188,7 +189,8 @@ private fun GroupPlanner.cropPull(g: HexGroup, b: Band, h: Hex): Float {
     val food = gs.fauna.food
     val kg = min(b.sownKg, food.field[f] * gs.land.m2(f))
     if (kg <= 0f) return 0f
-    return kg * food.fieldExpect(f) * seedValue(b) / (g.dailyNeedKg.coerceAtLeast(1e-3f) * gs.days) / b.stayWeeks
+    return kg * food.fieldExpect(f) * seedValue(b) / (g.dailyNeedKg.coerceAtLeast(1e-3f) * gs.days) /
+        (if (b.mind == Mind.PLANS) b.plannedStay() else b.stayWeeks)
 }
 
 /**

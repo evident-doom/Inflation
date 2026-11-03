@@ -231,6 +231,12 @@ class Band(kinds: Int, totems: Int = kinds) {
     /** Weeks it has lately kept a camp before moving on, a running mean ([STAY_LEARN]): over how long a move pays back its walk. */
     var stayWeeks = STAY_WEEKS_START
     /**
+     * The weeks a planning band reckons it keeps a camp, over which it pays for what leaving gives up ([reckonedWalk],
+     * [houseLeft], its case for leaving): [stayWeeks], or the weeks it has kept this one if more. ([stayWeeks] learns only on
+     * a move, so a band long at one camp would still reckon its first short stays and weigh every loss many times over.)
+     */
+    fun plannedStay() = max(stayWeeks, campWeeks + 1f)
+    /**
      * What a whole house would have been worth to it where it was, a person a year, as it lived its weeks (a running mean over
      * about a year, [houseWorthWeek]): the lives it would have saved (cold, exposure, raids) and the food, kg of need (keeping
      * warm, stores kept from spoiling, less to raiders, less to mice taken off). (Nothing weighs a house by it yet: the census reports it.)
