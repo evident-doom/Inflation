@@ -175,7 +175,14 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
                 (0 until min(o.used, 8)).joinToString(", ") { r -> val i = o.order[r]
                     val party = if (o.who[i] == 0) hunters else w.gatherHands
                     "%s %s %.2f (%.1f kg each, %.3f party-days each)".format(if (o.type[i] == Food.BIG_GAME) fauna.kinds[o.kind[i]].name else o.type[i].label,
-                        if (o.who[i] == 0) "hunters" else "gatherers", o.value[i] / o.time[i] / party.coerceAtLeast(1e-3f), o.kg[i], o.time[i]) }))
+                        if (o.who[i] == 0) "hunters" else "gatherers", o.value[i] / o.time[i] / party.coerceAtLeast(1e-3f), o.kg[i], o.time[i]) }) +
+                // (What each party's food is made of, by kind of food, as its share of what the party's day brings.)
+                (0..1).joinToString("") { p ->
+                    val by = enumFloats<Food>()
+                    for (r in 0 until o.used) { val i = o.order[r]; if (o.who[i] == p) by[o.type[i]] += o.rate[i] * o.value[i] }
+                    "; %s' food by kind: %s".format(if (p == 0) "hunters" else "gatherers", Food.entries.filter { by[it] > 0f }.sortedByDescending { by[it] }
+                        .joinToString(", ") { t -> "%s %.0f%%".format(t.label, 100f * by[t] / o.fed[p].coerceAtLeast(1e-9f)) })
+                })
         }
         // (planTrace: the hunters' day as the disc equation has it, against hunt follows in the field: the share of their days
         // searching, the bands of game come on and the kills a hunter-day, and each kind they took up.)
