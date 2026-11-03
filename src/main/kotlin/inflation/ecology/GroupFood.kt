@@ -34,7 +34,7 @@ internal fun HexGroups.hunt(weather: Weather) {
     // counted in the whole weight of its kills, see [creditShare].)
     for (g in groups) if (!g.alive && g.meatMet > 0f) { small.deposit(DeadPool.CARRION, g.place, Kg(g.meatMet * meatShare(g.band) / creditShare(g.band))); g.meatMet = 0f }
     // (The pack members the resident hunters killed this week come off their packs; the packs are game where they now stand.)
-    val day = weather.date.absoluteDay.toLong()
+    val day = weather.date.absoluteDay
     takePackKills(2 * day); fillPackGame()
     val hunters = groups.filter { it.alive }.shuffled(rnd)
     for (a in fauna.groupKilled) a.fill(0f)
