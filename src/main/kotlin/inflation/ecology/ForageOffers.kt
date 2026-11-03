@@ -26,6 +26,8 @@ internal class Offers(n: Int) {
     val rate = FloatArray(n); val kg = FloatArray(n); val value = FloatArray(n); val weight = FloatArray(n); val time = FloatArray(n)
     // (Of each food's days, those finding it and walking to it and home: plant food's, for the census.)
     val seek = FloatArray(n); val walk = FloatArray(n)
+    // (Of big game in the wild, the bands of it come on a day of searching unseen, whether or not stalked: for the hunt trace.)
+    val met = FloatArray(n)
     // (Which of the band's parties takes each food: 0 the hunters, 1 the gatherers; an animal's is all 0.)
     val who = IntArray(n)
     // (For a beast, the herd in [ForageWeek.herds] each big game is of; -1 for game in the wild.)
@@ -38,7 +40,7 @@ internal class Offers(n: Int) {
 
     fun add(t: Food, k: Int, p: Place, r: Float, e: Float, v: Float, wt: Float, h: Float, w: Int, hd: Int = -1, sk: Float = 0f, wk: Float = 0f) {
         type[m] = t; kind[m] = k; place[m] = p.i; rate[m] = r; kg[m] = e; value[m] = v; weight[m] = wt; time[m] = h; who[m] = w; herd[m] = hd
-        seek[m] = sk; walk[m] = wk; m++
+        seek[m] = sk; walk[m] = wk; met[m] = 0f; m++
     }
 
     /**
@@ -138,8 +140,11 @@ internal fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
             val danger = (grown * dangerDays(g.species, ps, ps.massKg, w.huntHeads) +
                 young[k][p] * dangerDays(g.species, ps, HexFauna.YOUNG_WEIGHT * ps.massKg, w.huntHeads)) / dens
             // (Each kill also costs the stalks and chases that failed before it.)
-            offer(w, o, Food.BIG_GAME, k, Place(p), dens * huntSwept * w.odds[i] / days, meat1, HANDLING_DAYS + STALK_DAYS * w.stalks[i] + meat1 * w.eats,
+            val before = o.m
+            // (A band carries its kill home; a beast eats it where it lies: [ForageWeek.carryDaysPerKg].)
+            offer(w, o, Food.BIG_GAME, k, Place(p), dens * huntSwept * w.odds[i] / days, meat1, HANDLING_DAYS + STALK_DAYS * w.stalks[i] + meat1 * w.carryDaysPerKg,
                 spared[k], rich = rich, danger = danger)
+            if (o.m > before) o.met[before] = dens * huntSwept * w.met[i] / days
         }
     }
     // And the herds kept at bands' camps on it, as their kind in the wild ([herdOdds]).

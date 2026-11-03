@@ -35,6 +35,15 @@ internal const val CRAFT_FLOOR = 0.3f
 internal const val HUNTING_PRACTICE = 0.0022f
 /** Hunting success of a band without spears, against one with them; what bows add against fast quarry. */
 internal const val WEAPONLESS = 0.3f
+/**
+ * The share of people's stalks of big game that end in a kill, against a beast of prey's at the same odds ([killChance]),
+ * fitted to hunt follows: Hadza men pursued 69 of the 397 large animals they came on in 570 hours of follows and killed
+ * 4, some 6% of their pursuits (Hawkes, O'Connell & Blurton Jones, Hadza men's follows 1985-86, PaleoAnthropology), against
+ * the 18% a stalk of a start band with spears ended in at 1 (hunt trace, m5-1, 2026-11-03): a third. Four kills are few,
+ * and Ache hunters of peccary herds do better; an approximation. (Before, people killed as surely as a lion and searched
+ * a fifth of their hunting days, where the Hadza and Ache search most of theirs.)
+ */
+internal const val PURSUIT_KILLS = 0.33f
 internal const val BOW_GAIN = 0.5f
 /**
  * What a child (any under adulthood, infants included) adds to its band's gathering, against a grown hand: children
