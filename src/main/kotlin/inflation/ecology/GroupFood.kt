@@ -195,6 +195,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     w.time?.let { restedDays(w, it) }
     w.time?.release(Activity.FOOD)
     if (HUNT_DIAG && w.band == null) packWeekDiag(w)
+    preyFoughtBack(g, w.foughtBack, w.rnd)
     eatTheWeek(w)
 }
 
@@ -370,6 +371,10 @@ internal class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, pack
     val roundShare = band?.let { b -> gs.dialed(DialSite.GATHER_RING, b.gatherRange, RING_REACH * b.gatherRange) { RING_REACH } } ?: 0f
     // (Which of the band's parties takes each food, [Offers.who]: its share of the hands.)
     val party = floatArrayOf(hunt, 1f - hunt)
+    /** The heads of its hunting party, over whom a life lost to game is shared in the days a kill costs ([dangerDays]). */
+    val huntHeads = hands * hunt
+    /** The hunters its kills this week are expected to cost ([foughtBack]): they die once the week's foraging is done ([preyFoughtBack]). */
+    var foughtBack = 0f
     // What a kg of each food holds for it, in kg of its need: its energy ([Food.energy]) by the kind's [Species.needScale]
     // (a band's bones, the grease it renders of them).
     private val worths = enumFloats<Food> { t ->
