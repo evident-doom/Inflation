@@ -142,10 +142,16 @@ internal class GroupPlanner(internal val gs: HexGroups) {
             val close = IntArray(b.ties.size); var nClose = 0
             for ((id, t) in b.ties) if (!(max(0f, t) <= 0f)) close[nClose++] = id
             close.sort(0, nClose)
-            val off = HexList(8)
-            for ((id, home) in b.knownHomes) if (java.util.Arrays.binarySearch(close, 0, nClose, id) < 0) off.add(home)
-            if (b.keptFrom(b.drivenFrom)) off.add(b.drivenFrom)
-            off.toHexArray().also { it.sort() } }
+            // (The homes' hexes are worked out again only when its homes or the bands it is close to have changed.)
+            val cached = b.keepOffHomes
+            val homes = if (cached != null && b.keepOffVersion == b.homesVersion && b.keepOffClose.size == nClose &&
+                java.util.Arrays.equals(b.keepOffClose, 0, nClose, close, 0, nClose)) cached else {
+                val off = HexList(8)
+                for ((id, home) in b.knownHomes) if (java.util.Arrays.binarySearch(close, 0, nClose, id) < 0) off.add(home)
+                off.toHexArray().also { it.sort(); b.keepOffHomes = it; b.keepOffVersion = b.homesVersion; b.keepOffClose = close.copyOf(nClose) }
+            }
+            if (b.keptFrom(b.drivenFrom)) { val off = HexList(homes.size + 1); for (h in homes) off.add(h); off.add(b.drivenFrom); off.toHexArray().also { it.sort() } }
+            else homes }
         // A band: how far it lacks each of the rarer materials, and the remembered place with the most of what it lacks.
         val lacked = g.band?.let { b -> FloatArray(PlaceMemory.RARE.size) { k -> gs.lacking(g, b, PlaceMemory.RARE[k]) } }
         var lackedHex = Hex.NONE; var lackedQ = 0f

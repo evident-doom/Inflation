@@ -192,13 +192,13 @@ private fun HexGroups.tellOfCountry(a: HexGroup, bandA: Band, b: HexGroup, bandB
     // And where each has its houses, and the homes of others they know of: settled bands can be found.
     fun showsHome(teller: HexGroup, bt: Band, hearer: Band) {
         if (bt.houseHex.none || bt.house < Thresholds.HOUSE_STANDING) return
-        hearer.knownHomes[teller.id] = bt.houseHex
+        hearer.knownHomes[teller.id] = bt.houseHex; hearer.homesVersion++
         hearer.knownLineage[teller.id] = bt.mainLineage()
     }
     fun tellsHomes(bt: Band, hearer: HexGroup, bh: Band) {
         // (A home the hearer knows already is nothing to tell: no draw is made for it. Most are: bands that meet come to know the same homes.)
         for ((id, hh) in bt.knownHomes) if (id != hearer.id && id !in bh.knownHomes && rnd.nextFloat() < u) {
-            bh.knownHomes[id] = hh
+            bh.knownHomes[id] = hh; bh.homesVersion++
             bt.knownLineage[id]?.let { bh.knownLineage.putIfAbsent(id, it) }
         }
     }
