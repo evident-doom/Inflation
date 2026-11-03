@@ -46,7 +46,7 @@ fun main(args: Array<String>) {
     named?.let { TestWorlds.check(it, sim); HexSnapshot.load(sim, it.state); println("carrying on ${it.state} at ${sim.weather.date}") }
     LearnedModel.fromConfig(sim.groups) { println(it) }
     val fauna = sim.fauna; val land = sim.land; val hw = sim.hw; val hex = sim.hex
-    val kinds = names.mapNotNull { name -> fauna.kinds.indexOfFirst { it.name == name }.takeIf { it >= 0 && fauna.room[it] != null } }
+    val kinds = names.mapNotNull { name -> fauna.kinds.indexOfFirst { it.name == name }.takeIf { it >= 0 && !fauna.kinds[it].carnivore } }
 
     // What is weighed, higher band against lower: growth, its parts, then the grown's hazards.
     val hz = listOf<Pair<String, (EnumFloats<Danger>) -> Float>>("hunger" to { it[Danger.HUNGER] }, "cold" to { it[Danger.COLD] }, "thirst" to { it[Danger.THIRST] },

@@ -54,9 +54,17 @@ internal fun HexFauna.fedOnSpare(s: Species, p: Place, heads: Float, each: Float
     return (forage(s, s.diet, land.plants.nourishment(p), want, grassUnderSnow(s, snowMm), dry, b).got / want).coerceIn(0f, 1f)
 }
 
-/** [fedOnSpare] for [heads] of plant-eating kind [k] coming to place [p] this week; [room] is this for a band. */
+/** [fedOnSpare] for [heads] of plant-eating kind [k] coming to place [p] this week. */
 internal fun HexFauna.roomFor(k: FaunaKind, p: Place, heads: Float, weather: Weather, dry: DryPantry, b: Bites): Float =
     fedOnSpare(kinds[k], p, heads, plantWant(k, p, weather), reachOf(kinds[k], p), weather.snowpack[p], dry, b)
+
+/**
+ * How well a band of plant-eating kind [k] ([Species.maxGroupSize]) coming to place [p] would be fed there this week, 0..1 of
+ * its need, from the food left uneaten after every kind has eaten ([roomFor]); how well those of a kind that eats meat were fed
+ * ([fed]). What [arriveOdds] and [growthParts] weigh a place by unless told how well fed.
+ */
+internal fun HexFauna.fedAt(k: FaunaKind, p: Place, weather: Weather): Float =
+    if (kinds[k].carnivore) fed[k][p] else roomFor(k, p, kinds[k].maxGroupSize.toFloat(), weather, DryPantry(), Bites())
 
 /**
  * Per km², the heads a band of each kind ([Species.maxGroupSize]) coming to a place adds to those there: spread over
@@ -91,7 +99,7 @@ internal fun HexFauna.bound(c: Int, k: FaunaKind, v: Float) = when (Carry.entrie
 internal fun HexFauna.fillArrive(weather: Weather) {
     for (k in kindIds) {
         val s = kinds[k]
-        if (room[k] == null) {
+        if (kinds[k].carnivore) {
             val odds = arrive[k]
             Par.forEachPlace("residents: fill arrive", n) { p ->
                 if (splitPlace[p]) odds[p] = arriveOdds(k, p, weather, scratch.get().outs); worth[k][p] = worthOrNothing(appeal(k, p, weather)) }
@@ -134,7 +142,7 @@ private fun HexFauna.growthFor(k: FaunaKind, parts: EnumFloats<Growth>, youngPer
  * default, those there and a band come).
  */
 @IgnorableReturnValue internal fun HexFauna.growthParts(k: FaunaKind, p: Place, weather: Weather, out: EnumFloats<Danger>, youngPerGrown: Float, carried: Float, parts: EnumFloats<Growth>?,
-                         f: Float = room[k]?.get(p) ?: fed[k][p], heads: Float = adults[k][p] + young[k][p] + arrivingKm2(k)): Float {
+                         f: Float = fedAt(k, p, weather), heads: Float = adults[k][p] + young[k][p] + arrivingKm2(k)): Float {
     val s = kinds[k]
     val protein = forageProtein(s, p)
     return growthOf(k, grownFixed(s, out), youngFixed(s, out, eagleOdds(s, p), crocodileOdds(p, weather), starvedOdds(protein)),
@@ -160,13 +168,13 @@ private fun HexFauna.growthFor(k: FaunaKind, parts: EnumFloats<Growth>, youngPer
 
 /**
  * The share of grown animals of kind [k] coming to place [p] that would die there in a week ([hazards]): fed as far
- * as the food left uneaten there ([room]) feeds them (a hunter, as well as the residents there were fed), with water
+ * as the food left uneaten there ([fedAt]) feeds them (a hunter, as well as the residents there were fed), with water
  * to drink; NaN where there is none, a place no one can stay at. Crowded by those there and a band of the kind come
  * to them ([arrivingKm2]): over the ground a band ranges in a day, the same wherever it goes. (Counted on the place's
  * own ground, a band crowded the smaller places, the high ground's above all, past any that live there; not counted
  * at all, all that move see a place as it is and crowd into the same ones together.)
  */
-internal fun HexFauna.arriveOdds(k: FaunaKind, p: Place, weather: Weather, out: EnumFloats<Danger>, f: Float = room[k]?.get(p) ?: fed[k][p]): Float {
+internal fun HexFauna.arriveOdds(k: FaunaKind, p: Place, weather: Weather, out: EnumFloats<Danger>, f: Float = fedAt(k, p, weather)): Float {
     val s = kinds[k]
     if (!drinks(s, p)) return Float.NaN
     // (They come with the fat and the burnt body of their kind as it moves, [moverFat] and [moverSpent].)
@@ -227,7 +235,7 @@ internal fun HexFauna.shiftBands(weather: Weather) {
     val weeks = tuning.residentMoveWeeks
     // Each kind on its own core: the kinds' numbers are kept apart.
     Par.forEach("residents: shift bands", kindIds.toList()) { k ->
-        if (room[k] != null) return@forEach
+        if (!kinds[k].carnivore) return@forEach
         val t = Profile.mark()
         val a = adults[k]; val y = young[k]
         for (h in hex.all) {
@@ -290,7 +298,7 @@ internal fun HexFauna.spill(weather: Weather) {
         // (The heads that came, and the km they walked to come: what the walk costs their fat.)
         val arrived = FloatArray(n); val walkedKm = FloatArray(n)
         val t = Profile.mark()
-        drownedHeads[k] = if (room[k] != null) flow(k, weather, arrived, walkedKm, drowned[k]) else spillHunters(k, weather, arrived, walkedKm, drowned[k])
+        drownedHeads[k] = if (!kinds[k].carnivore) flow(k, weather, arrived, walkedKm, drowned[k]) else spillHunters(k, weather, arrived, walkedKm, drowned[k])
         Profile.kindLap("residents: moving (spill)", kinds[k].name, t)
         gatherThin(k, arrived, walkedKm)
         // (A place left with too few to count, by those leaving or the few that came, has none: as after births and deaths,

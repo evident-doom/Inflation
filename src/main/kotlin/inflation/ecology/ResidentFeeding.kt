@@ -139,15 +139,9 @@ private fun HexFauna.eatPlants(p: Place, weather: Weather, grass: Float, browse:
         z.eatF += b.fruit + b.fruit2; z.eatR += b.roots + b.roots2
         z.ateKg[k] = b.eaten; z.proteinKg[k] = protein(b, gp, bp)
     }
-    // How well a band of each plant-eater coming here would be fed on what is left, eating by the same rule ([forage]):
-    // its diet and switching as far as its gut holds them, so poor food feeds it no better than it feeds
-    // those already here.
+    // What is left, for [roomFor] (how well a band coming here would be fed on it) to reckon on when they move.
     spareGrass[p] = max(0f, z.spareG); spareBrowse[p] = max(0f, z.spareB); spareFruit[p] = max(0f, z.spareF)
     spareRoots[p] = max(0f, z.spareR)
-    for ((k, s) in kinds.withKinds()) {
-        val r = room[k] ?: continue
-        r[p] = fedOnSpare(s, p, s.maxGroupSize.toFloat(), each[k], avail[k], weather.snowpack[p], z.dry, b)
-    }
 }
 
 /**
@@ -232,8 +226,8 @@ private fun HexFauna.animalFood(k: FaunaKind, p: Place, weather: Weather, z: Gra
         val bonesKg = if (boneWorth > 0f && left > 0f) small.crackBones(p, KgM2(min(left / boneWorth, 0.5f * small.bones[p]))).v else 0f
         val gotBones = bonesKg * boneWorth
         left -= gotBones
-        val killedSoFar = FloatArray(1)
-        var gotMeat = if (left > 0f) huntResidents(k, p, KgM2(min(left, needAll * d.meat / all) * avail[k]), killedSoFar).v else 0f
+        val huntDays = FloatArray(1)
+        var gotMeat = if (left > 0f) huntResidents(k, p, KgM2(min(left, needAll * d.meat / all) * avail[k]), weather, huntDays).v else 0f
         left -= gotMeat
         var gotSmall = if (left > 0f) smallFood(k, p, KgM2(min(left, needAll * d.smallPrey / all) * avail[k]), weather).v else 0f
         var gap = left - gotSmall
@@ -245,7 +239,7 @@ private fun HexFauna.animalFood(k: FaunaKind, p: Place, weather: Weather, z: Gra
         for (food in order) {
             if (gap <= 0f) break
             val x = when (food) {
-                AnimalFood.MEAT -> min(gap, most * d.meat - gotMeat).let { if (it > 0f) huntResidents(k, p, KgM2(it * avail[k]), killedSoFar).v else 0f }
+                AnimalFood.MEAT -> min(gap, most * d.meat - gotMeat).let { if (it > 0f) huntResidents(k, p, KgM2(it * avail[k]), weather, huntDays).v else 0f }
                 AnimalFood.SMALL_PREY -> min(gap, most * d.smallPrey - gotSmall).let { if (it > 0f) smallFood(k, p, KgM2(it * avail[k]), weather).v else 0f }
                 AnimalFood.CARRION -> min(gap, most * d.carrion - gotCarrion).let { if (it > 0f) small.scavenge(p, KgM2(min(it, 0.5f * small.carrion[p]))).v else 0f }
             }
@@ -256,7 +250,7 @@ private fun HexFauna.animalFood(k: FaunaKind, p: Place, weather: Weather, z: Gra
         if (gap <= 0f && reserve[k][p] < s.maxFatDays) {
             var more = SURPLUS_EAT * animalNeed
             val moreMeat = min(more, most * d.meat - gotMeat)
-            if (moreMeat > 0f) { val x = huntResidents(k, p, KgM2(moreMeat * avail[k]), killedSoFar).v; surplus[k] += x / needAll; more -= x }
+            if (moreMeat > 0f) { val x = huntResidents(k, p, KgM2(moreMeat * avail[k]), weather, huntDays).v; surplus[k] += x / needAll; more -= x }
             val moreSmall = min(more, most * d.smallPrey - gotSmall)
             if (moreSmall > 0f) { val x = smallFood(k, p, KgM2(moreSmall * avail[k]), weather).v; surplus[k] += x / needAll
                 ateBook?.add(-x * land.areaM2[p].toDouble()) }

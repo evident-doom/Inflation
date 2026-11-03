@@ -378,7 +378,7 @@ internal fun GroupWorld.trainHolders(g: HexGroup, b: Band, time: BandTime) {
         if (learners > 0f && left > 0f) {
             val add = min(learners, left / (APPRENTICE_DAYS * s.complexity))
             b.holders[s] += add; time.spend(Activity.TRAINING, add * APPRENTICE_DAYS * s.complexity)
-        } else if (!used) b.holders[s] = max(0f, b.holders[s] - SKILL_DROP * b.holders[s])
+        } else if (!used) b.holders[s] = max(0f, b.holders[s] - SKILL_DROP * b.dropPace(s) * b.holders[s])
         b.holders[s] = min(b.holders[s], adults)
         // A way held by too few falls back toward what they can pass on.
         val cap = s.cap(b.holders[s])

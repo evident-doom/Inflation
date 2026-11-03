@@ -37,7 +37,7 @@ internal fun HexGroups.sowGrain(g: HexGroup, b: Band, p: Place, date: Date, time
             val kg = sow * g.storeKgPer[Store.SEED]
             // (A field sown afresh, or sown where last year's crop is spent, is this year's crop.)
             if (b.sownPlace != p || fauna.food.field[p] <= 0f) b.sownKg = 0f
-            b.sownPlace = p; b.sownKg += kg
+            b.sownPlace = p; b.sownKg += kg; b.sinceSowed = 0f
             fauna.food.sow(p, land.spread(p, Kg(kg)), domestic)
             stats.meeting(Met.BANDS_SOWED)
             note(g) { "sowed %.0f kg of grain at home".format(sow) }

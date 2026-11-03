@@ -132,6 +132,7 @@ enum class Met(val label: String) {
     BANDS_DUG_WELLS("bands dug wells"),
     BANDS_BURNED_OFF_GRASS("bands burned off grass"),
     BANDS_CARRIED_THEIR_DEAD("bands carried their dead to their ancestors"),
+    BANDS_CAME_TO_HOLD_THEIR_WAY_OF_LIFE("bands came to hold the way of life they live"),
     BANDS_BECAME_ONE("bands at home together became one"),
     BANDS_OF_TWO_MINDS_BECAME_ONE("bands at home together of the two kinds of choosing became one"),
     BANDS_DRIVEN_FROM_HOME("bands driven from their homes"),
@@ -160,6 +161,7 @@ enum class Met(val label: String) {
     BANDS_TOOK_UP_ANOTHERS_BURIAL("bands took up another's burial way"),
     BANDS_TOOK_UP_ANOTHERS_RITE("bands took up another's rite"),
     BANDS_TOOK_UP_ANOTHERS_TOTEM("bands took up another's totem"),
+    BANDS_TOOK_UP_ANOTHERS_WAY_OF_LIFE("bands came to hold another's way of life"),
     BANDS_VISITED_FRIENDS("bands visited friends"),
     CACHES_ROBBED("caches robbed"),
     FAVOURS_HELD_BACK("favours held back"),
@@ -468,7 +470,9 @@ object Tally {
      */
     enum class FoodTime(val label: String) {
         WEEKS("band-weeks"), ROOM("days left it"), SPENT("days spent"), OVER("days past"), OVER_WEEKS("weeks past"),
-        KILLS_OVER("kills beyond expected"), KILLS_UNDER("kills short of expected"), HAUL("hauling"), DIG("water: digging soaks, drawing from wells, carrying")
+        KILLS_OVER("kills beyond expected"), KILLS_UNDER("kills short of expected"), HAUL("hauling"), DIG("water: digging soaks, drawing from wells, carrying"),
+        HUNT_SEARCH("hunters searching"), HUNT_HANDLE("hunters handling"), GATHER_SEARCH("gatherers searching"), GATHER_HANDLE("gatherers handling"),
+        PLANT_SEEK("of it finding plant food"), PLANT_WALK("of it walking to plant food"), FED("food got, kg of need")
     }
     fun foodTime(k: FoodTime) = TallyKey.raw("band foraging time:${k.label}")
     /** How far a band's shelters stood at the week's end ([Band.shelter]): the first bin it falls [below]. The report's line. */

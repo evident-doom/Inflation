@@ -16,6 +16,7 @@ import inflation.ecology.CustomsPart
 import inflation.ecology.RiteWalk
 import inflation.ecology.ritesApart
 import inflation.ecology.livelihood
+import inflation.ecology.Livelihood
 import inflation.ecology.homesApart
 import inflation.ecology.Regard
 import inflation.ecology.PlaceMemory
@@ -676,6 +677,12 @@ class Census(private val sim: HexSim) {
             "weeks more than 5%% past %.1f%%; kills beyond those expected took %.2f, kills short of them saved %.2f, extra hauling %.2f, water (digging soaks, drawing from wells, carrying it home) %.2f").format(
             ft(Tally.FoodTime.ROOM) / 10 / ftWeeks, ft(Tally.FoodTime.SPENT) / 10 / ftWeeks, ft(Tally.FoodTime.OVER) / 10 / ftWeeks, 100 * ft(Tally.FoodTime.OVER_WEEKS) / ftWeeks,
             ft(Tally.FoodTime.KILLS_OVER) / 10 / ftWeeks, ft(Tally.FoodTime.KILLS_UNDER) / 10 / ftWeeks, ft(Tally.FoodTime.HAUL) / 10 / ftWeeks, ft(Tally.FoodTime.DIG) / 10 / ftWeeks))
+        val foodDays = (ft(Tally.FoodTime.HUNT_SEARCH) + ft(Tally.FoodTime.HUNT_HANDLE) + ft(Tally.FoodTime.GATHER_SEARCH) + ft(Tally.FoodTime.GATHER_HANDLE)) / 10
+        fun share(k: Tally.FoodTime) = 100 * ft(k) / 10 / foodDays.coerceAtLeast(1e-9)
+        println(("bands' foraging days by what they went on, last year (share of foraging's people-days; food got a people-day of it, kg of need): " +
+            "hunters searching %.0f%%, handling %.0f%%; gatherers searching %.0f%%, handling %.0f%% (of it finding plant food %.0f%%, walking to it %.0f%%); %.2f kg").format(
+            share(Tally.FoodTime.HUNT_SEARCH), share(Tally.FoodTime.HUNT_HANDLE), share(Tally.FoodTime.GATHER_SEARCH), share(Tally.FoodTime.GATHER_HANDLE),
+            share(Tally.FoodTime.PLANT_SEEK), share(Tally.FoodTime.PLANT_WALK), ft(Tally.FoodTime.FED) / 10 / foodDays.coerceAtLeast(1e-9)))
         val wanted = Tally.ClothesMade.entries.sumOf { v(Tally.clothesMade(it)) }
         println("bands' clothes making, last year (band-weeks clothes were wanted: %.0f%% of band-weeks; by what stopped them): ".format(100 * wanted / weeks) +
             Tally.ClothesMade.entries.joinToString(", ") { c -> "%s %.0f%%".format(c.label, 100 * v(Tally.clothesMade(c)) / wanted.coerceAtLeast(1.0)) })
@@ -764,7 +771,7 @@ class Census(private val sim: HexSim) {
                 // (Customs as the bands reckon them, the totem one of them: see [inflation.ecology.Regard.customsApart].)
                 val off = Tradition.entries.count { bi.holds(it) != bj.holds(it) } + (if (bi.totem != bj.totem) 1 else 0) +
                     (if (bi.holds(Tradition.BURIAL) && bj.holds(Tradition.BURIAL) && bi.burialWay != bj.burialWay) 1 else 0) +
-                    (if (ritesApart(bi, bj)) 1 else 0) + (if (living[i] != living[j]) 1 else 0) + (if (homesApart(bi, bj, hex)) 1 else 0)
+                    (if (ritesApart(bi, bj)) 1 else 0) + (if (bi.heldLivelihood != bj.shownLivelihood) 1 else 0) + (if (homesApart(bi, bj, hex)) 1 else 0)
                 var c = 0
                 while (c < IDENTITY_KM.size && km >= IDENTITY_KM[c]) c++
                 pairs[c]++; understood[c] += u.toDouble(); apart[c] += off.toDouble()
@@ -835,6 +842,14 @@ class Census(private val sim: HexSim) {
             .format(100.0 * kept.size / n, kept.toSet().size, 100.0 * bands.count { it.second.totemBroken > 0f } / n, 100.0 * bury.size / n,
                 if (bury.isEmpty()) 0.0 else 100.0 * bury.count { it.second.burialWay == BurialWay.AT_ANCESTORS } / bury.size,
                 if (bury.isEmpty()) 0.0 else bury.sumOf { it.second.burialOwed.toDouble() } / bury.size))
+        // (Ways of life: held ([Band.heldLivelihood]) and lived ([livelihood]), and the bands that live other than they hold.)
+        val other = bands.filter { (_, b) -> b.livelihood() != b.heldLivelihood }
+        println("     ways of life: held by bands %s; lived %s; %.0f%% of bands live other than they hold (%s), %.1f years so far a band of those; held firmly (0 to 1) %.2f a band; %d bands came to hold the way they live in the past year, %d took up another's"
+            .format(Livelihood.entries.joinToString(" / ") { l -> "%s %.0f%%".format(l.name.lowercase(), 100.0 * bands.count { it.second.heldLivelihood == l } / n) },
+                Livelihood.entries.joinToString(" / ") { l -> "%s %.0f%%".format(l.name.lowercase(), 100.0 * living.count { it == l } / n) },
+                100.0 * other.size / n, Livelihood.entries.joinToString(", ") { l -> "holding %s %d".format(l.name.lowercase(), other.count { it.second.heldLivelihood == l }) },
+                other.sumOf { it.second.livedOther.toDouble() } / other.size.coerceAtLeast(1), bands.sumOf { it.second.livelihoodHold.toDouble() } / n,
+                metYear[Met.BANDS_CAME_TO_HOLD_THEIR_WAY_OF_LIFE.key] ?: 0, metYear[Met.BANDS_TOOK_UP_ANOTHERS_WAY_OF_LIFE.key] ?: 0))
         val now = weather.date.year * 12 + weather.date.month
         val keeping = bands.filter { (_, b) -> b.rite.any { it >= 0 } }
         val bySite = HashMap<Int, Int>()
