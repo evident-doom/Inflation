@@ -137,6 +137,29 @@ internal fun HexGroups.warmthNeed(s: Species, b: Band?, p: Place, weather: Weath
     if (b == null) coldNeed(s, t, weather.date.month, tuning)
     else warmthNeed(b.warmth(airAt(p, weather, t), fire, home, days), fire)
 
+/**
+ * For the viewer's Plan tab: [buildHouse]'s gates for band [b] (group [g]) at its camp, each as label and value, whether it
+ * passes, and the houses standing in its hex, how far built and who uses them ([Structure.user]).
+ */
+internal fun HexGroups.houseGates(g: HexGroup, b: Band): List<Pair<String, String>> {
+    val h = hw.placeHex[g.place]
+    fun mark(ok: Boolean) = if (ok) "passes" else "FAILS"
+    val need = g.dailyNeedKg.coerceAtLeast(1e-3f)
+    val sheltered = housesAt(g, h)
+    val out = arrayListOf(
+        "gate: camp kept long enough" to "%d of %.0f steps needed (half a year / its readiness to build, %.2f): %s".format(
+            b.campWeeks, houseAfterWeeks(b), b.houseWill, mark(b.campWeeks >= houseAfterWeeks(b))),
+        "gate: fed" to "%.0f%% of 90%%: %s".format(100 * g.fed, mark(g.fed >= 0.9f)),
+        "gate: stores" to "larder %.0f of %.0f days (half its store aim, %.2f of %.0f days): %s".format(
+            g.larder / need, 0.5f * b.storeAim, b.storeShare, b.storeAimAt1, mark(g.larder >= 0.5f * b.storeAim * need)),
+        "gate: not yet housed" to "houses here shelter %.0f%% of its grown people: %s".format(100 * sheltered, mark(sheltered < 1f)))
+    val here = bands.built.filter { it.kind == Built.HOUSES && it.hex == h }
+    if (here.isEmpty()) out += "houses standing here" to "none"
+    for (s in here) out += "a house here" to "%s, %.0f%% standing, room for %.0f; %s".format(if (s.done) "whole once" else "begun", 100 * s.built, s.size,
+        when (s.user) { -1 -> "nobody uses it"; g.id -> "this band uses it"; else -> "band #${s.user} uses it" })
+    return out
+}
+
 /** A band's need for its week's [w] (its body heat) with a fire of [fire]: see [warmthNeed]. */
 internal fun GroupWorld.warmthNeed(w: Warmth, fire: Float) = (1f + tuning.coldCost * w.extra) * (1f + RAW_COST * (1f - min(1f, fire)))
 
