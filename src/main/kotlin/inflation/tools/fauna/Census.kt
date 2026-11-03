@@ -677,6 +677,12 @@ class Census(private val sim: HexSim) {
             "weeks more than 5%% past %.1f%%; kills beyond those expected took %.2f, kills short of them saved %.2f, extra hauling %.2f, water (digging soaks, drawing from wells, carrying it home) %.2f").format(
             ft(Tally.FoodTime.ROOM) / 10 / ftWeeks, ft(Tally.FoodTime.SPENT) / 10 / ftWeeks, ft(Tally.FoodTime.OVER) / 10 / ftWeeks, 100 * ft(Tally.FoodTime.OVER_WEEKS) / ftWeeks,
             ft(Tally.FoodTime.KILLS_OVER) / 10 / ftWeeks, ft(Tally.FoodTime.KILLS_UNDER) / 10 / ftWeeks, ft(Tally.FoodTime.HAUL) / 10 / ftWeeks, ft(Tally.FoodTime.DIG) / 10 / ftWeeks))
+        val foodDays = (ft(Tally.FoodTime.HUNT_SEARCH) + ft(Tally.FoodTime.HUNT_HANDLE) + ft(Tally.FoodTime.GATHER_SEARCH) + ft(Tally.FoodTime.GATHER_HANDLE)) / 10
+        fun share(k: Tally.FoodTime) = 100 * ft(k) / 10 / foodDays.coerceAtLeast(1e-9)
+        println(("bands' foraging days by what they went on, last year (share of foraging's people-days; food got a people-day of it, kg of need): " +
+            "hunters searching %.0f%%, handling %.0f%%; gatherers searching %.0f%%, handling %.0f%% (of it finding plant food %.0f%%, walking to it %.0f%%); %.2f kg").format(
+            share(Tally.FoodTime.HUNT_SEARCH), share(Tally.FoodTime.HUNT_HANDLE), share(Tally.FoodTime.GATHER_SEARCH), share(Tally.FoodTime.GATHER_HANDLE),
+            share(Tally.FoodTime.PLANT_SEEK), share(Tally.FoodTime.PLANT_WALK), ft(Tally.FoodTime.FED) / 10 / foodDays.coerceAtLeast(1e-9)))
         val wanted = Tally.ClothesMade.entries.sumOf { v(Tally.clothesMade(it)) }
         println("bands' clothes making, last year (band-weeks clothes were wanted: %.0f%% of band-weeks; by what stopped them): ".format(100 * wanted / weeks) +
             Tally.ClothesMade.entries.joinToString(", ") { c -> "%s %.0f%%".format(c.label, 100 * v(Tally.clothesMade(c)) / wanted.coerceAtLeast(1.0)) })
