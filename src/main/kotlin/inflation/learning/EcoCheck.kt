@@ -62,9 +62,10 @@ class EcoCheck(private val out: File) {
             val cfg = File(armDir, "check.properties")
             // (The checks meet the usual weather even when the training's worlds are given extra hard years, so that arms trained either way are judged alike.)
             val keys = configWith(mapOf(Config.Key.WEATHER_STRESS_YEARS to "0", Config.Key.PPO_STRESS_BOOST to "0",
-                Config.Key.NETS to armDir.absoluteFile.invariantSeparatorsPath, WaysKind.BANDS.configKey to File(armDir, WaysKind.BANDS.file).absoluteFile.invariantSeparatorsPath) +
-                // (A hunters' ways network, if the training has one, is the arm's too, not the training config's.)
-                if (File(armDir, WaysKind.HUNTERS.file).exists()) mapOf(WaysKind.HUNTERS.configKey to File(armDir, WaysKind.HUNTERS.file).absoluteFile.invariantSeparatorsPath) else emptyMap())
+                Config.Key.NETS to armDir.absoluteFile.invariantSeparatorsPath) +
+                // (A ways network, bands' or hunters', is the arm's where it has one, not the training config's. A run started from
+                // scratch has none kept for the bands until a check keeps one: that arm sets them by the scaffold.)
+                listOf(WaysKind.BANDS, WaysKind.HUNTERS).mapNotNull { k -> File(armDir, k.file).takeIf { it.exists() }?.let { k.configKey to it.absoluteFile.invariantSeparatorsPath } })
             cfg.writer().use { keys.store(it, "check arm $name, written by the training's ecosystem check") }
             // (Each check meets other weathers, the same in all its arms: the kept network is run again each time, so a series of checks does not climb two weathers' luck.)
             (0 until replicates).map { r -> pool.submit<File> { runOne(cfg, armDir, r, round * replicates + r) } }
