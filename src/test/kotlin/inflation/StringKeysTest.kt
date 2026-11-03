@@ -108,6 +108,7 @@ class StringKeysTest {
         "run/Nominal.kt" to (1 to "walks a part's tables by reflection"),
         "store/ObjectStore.kt" to (18 to "saves are by field name and runtime type; boxed value classes go as the value they wrap; hash map keys ordered as they come"),
         "ui/GroupControlWindow.kt" to (1 to "Swing's table model"),
+        "ui/PlanPanel.kt" to (1 to "Swing's table model"),
         "ui/HexHistoryPanel.kt" to (1 to "Swing's tree nodes"),
         "world/WorldCaches.kt" to (1 to "the cache reader"),
     ), "`Any`", "Give it a type", ".")

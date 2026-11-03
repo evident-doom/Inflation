@@ -155,9 +155,12 @@ internal class GroupPlanner(internal val gs: HexGroups) {
                 if (q > lackedQ) { lackedQ = q; lackedHex = mem.hex[i] }
             } }
         // (A band leaving its camp's hex caches or leaves what it cannot carry: the lives that costs it through the year ahead
-        // count with each place it would move camp to, [Band.leavingDying].)
+        // count with each place it would move camp to, [Band.leavingDying]. A [Mind.PLANS] band pays for them once, in its
+        // walk, as days of its need over the weeks it keeps the new camp ([reckonedWalk]), with the loads that move would
+        // take ([relayLoads]): counted again here, a year's deaths against a week's chance spread, they kept it from every
+        // other place it could reach (followed band 10244, 2026-11-03: 25-39 survival steps, every other hazard 0.01-0.03).)
         val campHex = g.band?.campPlace?.takeIf { !it.none }?.let { gs.hw.placeHex[it] } ?: Hex.NONE
-        val leaving = if (campHex.none) 0f else g.band?.leavingDying ?: 0f
+        val leaving = if (campHex.none || g.band?.mind == Mind.PLANS) 0f else g.band?.leavingDying ?: 0f
         fun leavingAt(h: Hex) = if (leaving > 0f && h != campHex) leaving else 0f
         val c = PlanContext(g, kind, here, sensed, month, goal, goalQ, fromHere, reach, thirsty, restless, season, keepOff,
             weather, date, goalHex, predatorKg, buf, lacked, lackedHex, lackedQ, if (!lackedHex.none) gs.hexKm(here, lackedHex) else 0.0)
@@ -206,7 +209,9 @@ internal class GroupPlanner(internal val gs: HexGroups) {
                 if (!wantAll) { buf.later(p, d, prey, fed, score, beside); continue }
                 if (drowning < 0f) drowning = crossingDeaths(s, h, here, via)
                 val alive = score
-                val steps = gs.survivalSteps(g, deathsAt(c, p, h, fed, d) + drowning + leavingAt(h))
+                val why = if (g.id == gs.watched) deathsWhy(c, p) else null
+                val steps = gs.survivalSteps(g, deathsAt(c, p, h, fed, d, why?.sink) + drowning + leavingAt(h))
+                why?.log(fed, drowning, leavingAt(h), steps)
                 score -= steps
                 if (tp != null) { tp[MoveTerm.DEATHS.ordinal] = -steps; tp[MoveTerm.BESIDE.ordinal] = beside
                     if (p == g.place) tp.copyInto(buf.stayParts) }

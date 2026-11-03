@@ -236,7 +236,7 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, internal v
      * the residents' week): the resident hunters take from their herds as from game ([huntResidents]). Not saved: made afresh
      * each week from the bands.
      */
-    @Transient internal var keptAt: Map<Int, List<Band>>? = null
+    @Transient internal var keptAt: Array<out List<Band>?>? = null
 
     /**
      * The grown of each kind that also roams ([Catalogue.roamingResidents]) in packs standing at each place, per km²: game
@@ -476,11 +476,19 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, internal v
         var access = 0f
         var eatG = 0f; var eatB = 0f; var eatF = 0f; var eatR = 0f
         val b = Bites()
+        /** Zeroes what a place's week fills in, for the next place (the spare food, [access] and the eaten totals are set before they are read, [b] by each [forage]). */
+        fun clear() {
+            need.fill(0f); each.fill(0f); avail.fill(0f); got.fill(0f); surplus.fill(0f); gotFruit.fill(0f); gotUnder.fill(0f); ateKg.fill(0f); proteinKg.fill(0f)
+            eatG = 0f; eatB = 0f; eatF = 0f; eatR = 0f
+        }
         override fun grass(kg: Float): Float { val t = min(kg, access * spareG); spareG -= t; return t }
         override fun browse(kg: Float): Float { val t = min(kg, access * spareB); spareB -= t; return t }
         override fun fruit(kg: Float): Float { val t = min(kg, access * spareF); spareF -= t; return t }
         override fun roots(kg: Float): Float { val t = min(kg, access * spareR); spareR -= t; return t }
     }
+
+    /** One thread's [Grazing], cleared for each place it grazes ([graze]): made once, not afresh for every place every week. */
+    @Transient internal val grazings = ThreadLocal.withInitial { Grazing(kinds.size) }
 
     /** The places a step leads to from each place, for [neighbourPlaces]: those of place `p` are `to[from[p] until from[p.i + 1]]`. */
     internal class StepPlaces(val from: IntArray, val to: IntArray)

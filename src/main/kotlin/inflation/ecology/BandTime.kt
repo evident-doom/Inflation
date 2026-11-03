@@ -63,6 +63,8 @@ class BandTime(left: Float, private val pace: EnumFloats<Activity>? = null) {
     private val worked = enumFloats<Activity>()
     private val held = enumFloats<Activity>()
     private val heldAtOne = enumFloats<Activity>()
+    /** Of [held], what the [plan] held first: to keep its people warm, the week's needs and its herders. */
+    private val heldFirst = enumFloats<Activity>()
     /** What each activity asked for this week, person-days (none before a [plan]). */
     val asked = enumFloats<Activity>()
     /** Of [asked], what it asked first, to keep its people warm (none before a [plan]). */
@@ -136,12 +138,14 @@ class BandTime(left: Float, private val pace: EnumFloats<Activity>? = null) {
         short = asks.sum() > max(0f, left - first.sum())
         val then = shareOut(asks, weights?.a ?: ones, max(0f, left - first.sum()))
         if (weights != null) shareOut(asks, ones, max(0f, left - first.sum())).forEachIndexed { i, d -> heldAtOne.a[i] = first[i] + d }
-        for (i in held.a.indices) { held.a[i] = first[i] + then[i]; if (weights == null) heldAtOne.a[i] = held.a[i] }
+        for (i in held.a.indices) { held.a[i] = first[i] + then[i]; heldFirst.a[i] = first[i]; if (weights == null) heldAtOne.a[i] = held.a[i] }
     }
 
     /** People's days the [plan] held for [a], and would have held were every weight 1 (for counting the weights' use, [DialUse]). */
     fun heldFor(a: Activity) = held[a]
     fun heldAtOneFor(a: Activity) = heldAtOne[a]
+    /** People's days the [plan] held first for [a] (warmth, the week's needs, herders), before the rest of what it asked. */
+    fun heldFirstFor(a: Activity) = heldFirst[a]
 
     /** Adds what went to each of [activities] to [census] (tenths of a day). */
     fun count(census: MutableMap<TallyKey, Int>, vararg activities: Activity) {

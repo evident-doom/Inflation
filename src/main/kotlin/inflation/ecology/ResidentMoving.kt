@@ -339,6 +339,10 @@ private fun HexFauna.spillHunters(k: FaunaKind, weather: Weather, arrived: Float
     var weekHeads = 0.0; var weekStuck = 0.0; var weekEdge = 0.0; var drownedHeads = 0.0
     val flow = flowOf == k.i
     val linksTo = seaLinks?.value; val gapsTo = seaGaps?.value
+    // (What does not change from place to place: whether the kind holds its ground as settled, how far it swims, and the weights of the ways from a place.)
+    val settled = s in Catalogue.roamingResidents
+    val swim = Catalogue.swimKm(s)
+    val ws = FloatArray(6); val wq = IntArray(6)
     if (flow) { flowEast.fill(0f); flowSouth.fill(0f); flowOut.fill(0f) }
     for (p in land.places) {
         if (a[p] + y[p] <= 0f) continue
@@ -352,12 +356,11 @@ private fun HexFauna.spillHunters(k: FaunaKind, weather: Weather, arrived: Float
         // Hungry, thirsty, cold or snowed-in ones leave, and so do those whose country does not suit them, towards better.
         // (The settled of a kind that also roams hold their ground: only want drives them off it; roaming to better country
         // is the roamers' part, [Catalogue.roamingResidents].)
-        val settled = s in Catalogue.roamingResidents
         val leave = if (settled) SPILL_HUNGER * need else SPILL_BASE + SPILL_HUNGER * need + SPILL_MISFIT * bearings.strength(k.i, h)
         // Where they could go: in each neighbouring hex, the ground nearest in height to theirs (see [neighbourPlaces]),
         // weighed by how good it is and how easy the border is.
         var total = 0f; var best = 0f; var closed = false
-        val ws = FloatArray(6); val wq = IntArray(6) { -1 }
+        ws.fill(0f); wq.fill(-1)
         for (d in 0 until 6) {
             val nh = hex.neighbour(h, d)
             if (nh.none) { closed = true; continue }
@@ -374,7 +377,6 @@ private fun HexFauna.spillHunters(k: FaunaKind, weather: Weather, arrived: Float
             total += ws[d]
         }
         // A few swim the strait to the coast across, as far as they can swim it.
-        val swim = Catalogue.swimKm(s)
         var seaW = 0f; var seaTo = -1; var seaGapKm = 0f
         if (swim > 0f && linksTo != null && gapsTo != null) {
             val to = linksTo[h]; val gaps = gapsTo[h]
