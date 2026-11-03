@@ -39,7 +39,7 @@ fun main(args: Array<String>) {
     named?.let { TestWorlds.check(it, sim); HexSnapshot.load(sim, it.state); println("carrying on ${it.state} at ${sim.weather.date}") }
     LearnedModel.fromConfig(sim.groups) { println(it) }
     val fauna = sim.fauna; val land = sim.land; val hw = sim.hw; val n = land.n
-    val kinds = fauna.kinds.indices.filter { k -> fauna.room[k] != null && (names == null || fauna.kinds[k].name in names) }
+    val kinds = fauna.kinds.indices.filter { k -> !fauna.kinds[k].carnivore && (names == null || fauna.kinds[k].name in names) }
     val bands = hw.placeBand.max() + 1
 
     val inSeason = DoubleArray(kinds.size); val weeksRun = IntArray(kinds.size); val bornPerMother = DoubleArray(kinds.size)
