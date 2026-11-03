@@ -3,6 +3,7 @@ package inflation.ui
 import inflation.ecology.set
 import inflation.ecology.get
 import inflation.world.Hex
+import inflation.ecology.foundMinds
 import inflation.ecology.Mind
 import inflation.ecology.FaunaKind
 import inflation.world.Place
