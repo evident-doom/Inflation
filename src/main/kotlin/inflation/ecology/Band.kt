@@ -477,6 +477,8 @@ class Band(kinds: Int, totems: Int = kinds) {
     val repayWill get() = will[BandWay.REPAYING]
     /** Person-days its people had to spare this week, after getting and keeping food. */
     var spareDays = 0f
+    /** The food its days at rest saved it last week, kg of its need ([restedDays]): what it reckons it need not forage for this week. */
+    var restSaved = 0f
     /** Its week's time, as planned when it foraged ([BandTime]; null till then, and once the week's chores are done). */
     @Transient var week: BandTime? = null
     /** The share of its hands' days left spare, as a running mean over about a season ([SPARE_WEEKS]), once [spareSeen]: for the census only. */
