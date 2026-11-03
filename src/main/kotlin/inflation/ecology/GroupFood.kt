@@ -180,7 +180,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         // (planTrace: the hunters' day as the disc equation has it, against hunt follows in the field: the share of their days
         // searching, the bands of game come on and the kills a hunter-day, and each kind they took up.)
         if (pass == 0 && w.band != null && HUNT_TRACE.wants(g.id.toLong(), weather.date.absoluteDay)) {
-            val hunters = (w.hands - w.gatherHands).toFloat()
+            val hunters = w.hands - w.gatherHands
             var met = 0f; var kills = 0f; var kg = 0f
             val game = (0 until o.used).map { o.order[it] }.filter { o.type[it] == Food.BIG_GAME && o.who[it] == 0 }
             for (i in game) { met += o.met[i]; kills += o.rate[i]; kg += o.rate[i] * o.kg[i] }
