@@ -67,7 +67,7 @@ internal fun HexFauna.huntResidents(k: FaunaKind, p: Place, meat: KgM2, killedSo
     val partyHeads = (if (hunter.foragingParty > 0) minOf(hunter.foragingParty, hunter.groupSize) else hunter.groupSize).toFloat()
     var game = 0f
     for ((j, s) in kinds.withKinds()) {
-        val pk = packAt(j.i, p.i)
+        val pk = packAt(j.i, p)
         if (j == k || s === hunter || adults[j][p] + young[j][p] + pk <= 0f) continue
         val ym = YOUNG_WEIGHT * s.massKg
         val grownCatch = s.massKg * catchable(hunter, s, s.massKg, p)

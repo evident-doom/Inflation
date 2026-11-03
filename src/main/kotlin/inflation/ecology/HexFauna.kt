@@ -251,7 +251,7 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, internal v
      */
     @delegate:Transient internal val packGrown by lazy { Array(kinds.size) { k -> if (kinds[k] in Catalogue.roamingResidents) FloatArray(n) else null } }
     /** [packGrown] of kind [k] at place [p], per km². */
-    internal fun packAt(k: Int, p: Int): Float = packGrown[k]?.get(p) ?: 0f
+    internal fun packAt(k: Int, p: Place): Float = packGrown[k]?.get(p.i) ?: 0f
     /** Pack members killed as game, heads, to be taken off the packs that stood there ([HexGroups.takePackKills]). Not saved. */
     @delegate:Transient internal val packKills by lazy { java.util.concurrent.ConcurrentLinkedQueue<PackKill>() }
     /**
@@ -751,5 +751,5 @@ internal fun clearlyWorse(here: Float, there: Float, band: Float, background: Fl
     return Hazards.survivalSteps(here - there, here, background, band) > 1f
 }
 
-/** [heads] grown of kind [k] killed as game at place [p] out of the packs standing there, by hunter [by] (a group's id, or -1 - a resident kind). */
-internal class PackKill(val p: Int, val k: Int, val heads: Float, val by: Long)
+/** [heads] grown of kind [k] killed as game at place [at] (its index) out of the packs standing there, by hunter [by] (a group's id, or -1 - a resident kind). */
+internal class PackKill(val at: Int, val k: Int, val heads: Float, val by: Long)

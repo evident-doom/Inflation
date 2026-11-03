@@ -135,7 +135,7 @@ internal fun GroupWorld.huntingOdds(w: ForageWeek) {
         val p = w.ground.place[j]
         openness(s, Place(p), w.weather, view)
         for (k in 0 until nk) {
-            if (adults[k][p] + young[k][p] + fauna.packAt(k, p) <= 0f) continue
+            if (adults[k][p] + young[k][p] + fauna.packAt(k, Place(p)) <= 0f) continue
             val ps = fauna.kinds[k]; val i = j * nk + k
             // (No hunter hunts its own kind as game: a settled lion is a rival to a lion pack, not its prey, as to a settled one.)
             if (ps === s) continue
@@ -279,7 +279,7 @@ internal fun HexGroups.huntGame(g: HexGroup, k: Int, p: Place, expected: Float, 
     val ps = fauna.kinds[k]
     val area = land.areaKm2[p]
     // (Of a kind that also roams, the grown of its packs standing here are come on as its settled are: [HexFauna.packGrown].)
-    val pack = fauna.packAt(k, p.i)
+    val pack = fauna.packAt(k, p)
     val settled = fauna.adults[k][p] + fauna.young[k][p]
     val dens = settled + pack
     out.fought = 0f

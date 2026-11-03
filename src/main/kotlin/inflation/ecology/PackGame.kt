@@ -37,13 +37,13 @@ internal fun HexGroups.takePackKills(day: Long) {
     val all = ArrayList<PackKill>(q.size)
     while (true) all += q.poll() ?: break
     // (In a fixed order, whatever order the threads made them in.)
-    all.sortWith(compareBy<PackKill>({ it.p }, { it.k }, { it.by }))
+    all.sortWith(compareBy<PackKill>({ it.at }, { it.k }, { it.by }))
     val at = packsAt ?: return
     var i = 0
     while (i < all.size) {
-        val p = all[i].p; val k = all[i].k
+        val p = all[i].at; val k = all[i].k
         var heads = 0f; var byResidents = 0f
-        while (i < all.size && all[i].p == p && all[i].k == k) { heads += all[i].heads; if (all[i].by < 0) byResidents += all[i].heads; i++ }
+        while (i < all.size && all[i].at == p && all[i].k == k) { heads += all[i].heads; if (all[i].by < 0) byResidents += all[i].heads; i++ }
         val packs = at[p.toLong() * 64 + k] ?: continue
         val rnd = stream(seedBase, Stream.PACK_KILLS, p.toLong() * 64 + k, day)
         var n = floor(heads).toInt() + if (rnd.nextFloat() < heads - floor(heads)) 1 else 0

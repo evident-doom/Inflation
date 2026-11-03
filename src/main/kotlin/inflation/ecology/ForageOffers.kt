@@ -115,7 +115,7 @@ internal fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
         for (c in w.gameFrom[j] until w.gameFrom[j + 1]) {
             val i = w.gameAt[c]; val k = i - j * nk
             // (The grown of its packs standing here are game as its settled grown are: [HexFauna.packGrown].)
-            val grown = adults[k][p] + fauna.packAt(k, p)
+            val grown = adults[k][p] + fauna.packAt(k, Place(p))
             val dens = grown + young[k][p]
             if (dens <= 0f) continue
             // A kill is worth what the party can eat of it, gorging included (a band also what it can
