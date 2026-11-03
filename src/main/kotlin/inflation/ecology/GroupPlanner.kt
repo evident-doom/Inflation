@@ -137,8 +137,13 @@ internal class GroupPlanner(internal val gs: HexGroups) {
         // (A band keeps off the known homes of bands it is not close to ([Regard.closeOf]): those hexes, once for the week.)
         // (And off the place raiders drove it from, while it fears them: [Band.keptFrom].)
         val keepOff = g.band?.let { b ->
+            // (A band knows of a thousand homes and is close to a few dozen bands: the close ones' ids are sorted once and
+            // searched, not looked up in its ties a home at a time. Close as [Regard.closeOf] has it: not max(0, tie) <= 0.)
+            val close = IntArray(b.ties.size); var nClose = 0
+            for ((id, t) in b.ties) if (!(max(0f, t) <= 0f)) close[nClose++] = id
+            close.sort(0, nClose)
             val off = HexList(8)
-            for ((id, home) in b.knownHomes) if (Regard.closeOf(b, id) <= 0f) off.add(home)
+            for ((id, home) in b.knownHomes) if (java.util.Arrays.binarySearch(close, 0, nClose, id) < 0) off.add(home)
             if (b.keptFrom(b.drivenFrom)) off.add(b.drivenFrom)
             off.toHexArray().also { it.sort() } }
         // A band: how far it lacks each of the rarer materials, and the remembered place with the most of what it lacks.

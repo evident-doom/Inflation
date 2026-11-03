@@ -81,7 +81,8 @@ internal class Offers(n: Int) {
  * leave it for ones that pay less, and either way get what it truly yields ([Offers.takeUp]). (Big game's effort is
  * the hunters' share instead, see [huntersShare].)
  */
-private fun HexGroups.offer(w: ForageWeek, o: Offers, t: Food, k: Int, p: Place, r: Float, e: Float, h: Float, spared: Float = 0f, herd: Int = -1, rich: Float = 1f) {
+private fun HexGroups.offer(w: ForageWeek, o: Offers, t: Food, k: Int, p: Place, r: Float, e: Float, h: Float, spared: Float = 0f, herd: Int = -1, rich: Float = 1f,
+    danger: Float = 0f) {
     val band = w.band
     val keen = if (band != null && t != Food.BIG_GAME) band.effort[t] else 1f
     if (band != null && t != Food.BIG_GAME && r > 0f) dialUse?.let { u -> val f = FoodEfforts.slot(t)
@@ -89,7 +90,9 @@ private fun HexGroups.offer(w: ForageWeek, o: Offers, t: Food, k: Int, p: Place,
     if (r <= 0f || e <= 0f || (band != null && t != Food.BIG_GAME && w.gatherers <= 0f)) return
     // (Biting insects slow people at whatever they do out there; fish are offered at the camp, whose place stands for the water they fish.)
     val hh = if (band != null) harassedDays(p, h) else h
-    o.add(t, k, p, r, e, e * w.feeds(t) * rich, (e * rich + spared) * w.weigh(t) * keen, hh, if (band != null && t != Food.BIG_GAME) 1 else 0, herd)
+    // (What it weighs a food at is over the days it takes and the days its [danger] costs: game that may kill a hunter is
+    // weighed down as if it took that much longer, though it yields as it does.)
+    o.add(t, k, p, r, e, e * w.feeds(t) * rich, (e * rich + spared) * w.weigh(t) * keen * (if (danger > 0f) hh / (hh + danger) else 1f), hh, if (band != null && t != Food.BIG_GAME) 1 else 0, herd)
 }
 
 /** [h] days of a band's work at place [p], as biting insects slow it there ([HexSmallLife.HARASS_TIME]). */
@@ -111,7 +114,9 @@ internal fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
         val p = w.ground.place[j]; val huntSwept = w.ground.km2[j]
         for (c in w.gameFrom[j] until w.gameFrom[j + 1]) {
             val i = w.gameAt[c]; val k = i - j * nk
-            val dens = adults[k][p] + young[k][p]
+            // (The grown of its packs standing here are game as its settled grown are: [HexFauna.packGrown].)
+            val grown = adults[k][p] + fauna.packAt(k, Place(p))
+            val dens = grown + young[k][p]
             if (dens <= 0f) continue
             // A kill is worth what the party can eat of it, gorging included (a band also what it can
             // dry); the rest is left to others.
@@ -119,12 +124,16 @@ internal fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
             // (A band's kill of a grown one is the richer for its fat, the young lean: what it weighs is what its kills would be, as
             // many grown as there are among them.)
             val rich = if (band != null && meat1 > 0f) {
-                val fat1 = fatOfKill(k, Place(p), meat1, band) * adults[k][p] / dens
+                val fat1 = fatOfKill(k, Place(p), meat1, band) * grown / dens
                 1f + fat1 / meat1 * (w.fatFeeds / w.feeds(Food.BIG_GAME).coerceAtLeast(1e-6f) - 1f)
             } else 1f
+            // (And the hunters it may cost, the grown and the young as many as there are: [dangerDays].)
+            val ps = fauna.kinds[k]
+            val danger = (grown * dangerDays(g.species, ps, ps.massKg, w.huntHeads) +
+                young[k][p] * dangerDays(g.species, ps, HexFauna.YOUNG_WEIGHT * ps.massKg, w.huntHeads)) / dens
             // (Each kill also costs the stalks and chases that failed before it.)
             offer(w, o, Food.BIG_GAME, k, Place(p), dens * huntSwept * w.odds[i] / days, meat1, HANDLING_DAYS + STALK_DAYS * w.stalks[i] + meat1 * w.eats,
-                spared[k], rich = rich)
+                spared[k], rich = rich, danger = danger)
         }
     }
     // And the herds kept at bands' camps on it, as their kind in the wild ([herdOdds]).
@@ -262,7 +271,7 @@ internal fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
                 if (HUNT_DIAG && band == null) w.killsExpected += expected
                 val kills1 = if (o.herd[i] >= 0) raidHerd(g, w.herds[o.herd[i]], Place(p), expected, o.kg[i], w.rnd, haul)
                     .also { k -> diag(g.species, HuntStep.HERD_KILLS_SOUGHT, expected); diag(g.species, HuntStep.HERD_KILLS, k.toFloat()) }
-                    else huntGame(g, o.kind[i], Place(p), expected, o.kg[i], w.spareYoung, w.rnd, haul)
+                    else huntGame(g, o.kind[i], Place(p), expected, o.kg[i], w.spareYoung, w.rnd, haul).also { if (it > 0) w.foughtBack += haul.fought }
                 val luck = (kills1 - expected) * o.time[i] * w.party[0]
                 if (luck > 0f) w.killOver += luck else w.killUnder -= luck
                 if (kills1 <= 0) continue

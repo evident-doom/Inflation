@@ -126,6 +126,8 @@ class HexGroups(
     @Transient internal val riteGatherings = HashMap<Long, MutableList<HexGroup>>()
     /** How packs set their ways each week ([AnimalWays]); null for the hand-written ways. */
     @Transient var hunterWays: AnimalWays? = null
+    /** The packs of each kind that also lives settled standing at each place, as [fillPackGame] last found them (place × 64 + kind slot). Not saved. */
+    @Transient internal var packsAt: Map<Long, List<HexGroup>>? = null
 
     init {
         // The residents swim the same straits.

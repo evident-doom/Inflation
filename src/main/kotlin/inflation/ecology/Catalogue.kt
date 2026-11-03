@@ -272,6 +272,7 @@ object Catalogue {
         products = Products(meat = 9f, fat = 0.4f, hide = 1.5f, bone = 2.2f, sinew = 0.2f, fur = true),
         comfortC = -20f..30f, winterCoat = true,
         speedKmh = 60f,
+        defence = 0.5f, // (a wolf at bay bites; an estimate)
         foresight = 0.5f,
         domestication = floatArrayOf(0.7f, 0.5f, 0.6f, 0.4f, 0.6f, 0.9f), // became the dog
         packLitter = 4,
@@ -303,6 +304,7 @@ object Catalogue {
         products = Products(meat = 60f, fat = 5f, hide = 8f, bone = 18f, sinew = 1f, fur = true),
         comfortC = 0f..38f, 
         speedKmh = 60f,
+        defence = 0.8f, // (a lion turns on its hunters, as a bear does: Maasai lion hunts wound men often (from memory); an estimate)
         domestication = floatArrayOf(0.1f, 0.4f, 0.2f, 0.0f, 0.3f, 0.5f),
         habitat = Habitat(cover = -0.2f, rugged = -0.3f),
         stalking = 0.7f,
@@ -332,6 +334,7 @@ object Catalogue {
         comfortC = -8f..35f, winterCoat = true,
         // (Its winter fur grows to some 70 mm on the back, against 20-25 in summer: Heptner and Sludskij 1972.)
         speedKmh = 58f,
+        defence = 0.7f, // (a cornered leopard is among the most dangerous of beasts to hunters; an estimate)
         domestication = floatArrayOf(0.1f, 0.4f, 0.1f, 0.0f, 0.2f, 0.0f),
         habitat = Habitat(cover = 0.7f, rugged = 0.6f),
         stalking = 1f,
@@ -393,6 +396,7 @@ object Catalogue {
         comfortC = 0f..38f, winterCoat = true,
         // (A dense, soft winter coat with underfur, shed for a coarse summer one: Heptner and Sludskii 1992.)
         speedKmh = 50f,
+        defence = 0.6f, // (a hyena bites back hard; an estimate)
         domestication = floatArrayOf(0.8f, 0.3f, 0.2f, 0.3f, 0.3f, 0.2f),
         habitat = Habitat(rugged = 0.3f),
         stalking = 0.2f,
@@ -676,6 +680,7 @@ object Catalogue {
         products = Products(meat = 20f, fat = 1f, hide = 3f, bone = 5f, sinew = 0.3f, fur = true),
         comfortC = 3f..42f,
         speedKmh = 105f,
+        defence = 0.3f, // (a cheetah is built to run, not to fight; it gives up its kill to any rival; an estimate)
         domestication = floatArrayOf(0.2f, 0.4f, 0.0f, 0.5f, 0.3f, 0.2f), // tamed for the hunt, never bred
         habitat = Habitat(cover = -0.8f, rugged = -0.5f),
         stalking = 0.3f,
