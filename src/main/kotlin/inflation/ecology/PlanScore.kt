@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Part
 import inflation.ecology.HexFeatures as Feature
 import inflation.ecology.GroupPlanner.PlaceTerms
 import inflation.ecology.GroupPlanner.PlanContext
@@ -26,6 +27,7 @@ import kotlin.math.sin
  * policy sees of it ([Feature]). What it knows of the place ([PlanContext.at]) is worked out in [planInner] as the
  * hand-written score weighs it.
  */
+@Part("choosing: features of a place")
 internal fun GroupPlanner.fillFeatures(f: FloatArray, c: PlanContext, t: PlaceTerms, p: Place, h: Hex) {
     val d = c.at.d; val toGoal = c.at.toGoal; val pull = c.at.pull; val beyond = c.at.beyond; val foreign = c.at.foreign
     val prey = c.at.prey; val crowded = c.at.crowded; val hunters = c.at.hunters
@@ -133,6 +135,7 @@ internal fun GroupPlanner.fillFeatures(f: FloatArray, c: PlanContext, t: PlaceTe
  * its food or game, crowding and hunters, the cold, heat and flies, its own kind of country, what it senses coming,
  * water, the going, the season's place or round, its bearing, staying, and a band's own pulls.
  */
+@Part("choosing: score a place")
 internal fun GroupPlanner.scorePlace(c: PlanContext, t: PlaceTerms, p: Place, h: Hex, parts: FloatArray? = null): Float {
     val d = c.at.d; val toGoal = c.at.toGoal; val offGround = c.at.offGround; val pull = c.at.pull
     val prey = c.at.prey; val crowded = c.at.crowded
@@ -203,11 +206,13 @@ internal fun GroupPlanner.scorePlace(c: PlanContext, t: PlaceTerms, p: Place, h:
  * where it senses them). The young's odds count for the young. (What it shares wherever it goes, age, the background and its own band's ills, is
  * left out: it cannot tell places apart.)
  */
-internal fun GroupPlanner.deathsAt(c: PlanContext, p: Place, h: Hex, fed: Float, km: Float): Float {
+@Part("choosing: deaths at a place")
+internal fun GroupPlanner.deathsAt(c: PlanContext, p: Place, h: Hex, fed: Float, km: Float, why: ((String, Float, Float) -> Unit)? = null): Float {
     val g = c.g; val s = g.species; val weather = c.weather; val b = g.band
     val thirst = gs.thirstOdds(g, p, gs.dryAfter(g, p, fed))
     val odds = c.odds.also { it.adult = 0f; it.young = 0f }
-    gs.foreseenHazards(g, p, weather, fed, thirst, km, odds)
+    gs.foreseenHazards(g, p, weather, fed, thirst, km,
+        if (why == null) odds else HazardSink { cause, a, y -> odds.add(cause, a, y); if (a != 0f || y != 0f) why(cause.toString().lowercase(), a, y) })
     var adult = odds.adult; var young = odds.young
     if (b != null) {
         val venom = gs.venomOdds(s, p, weather)
@@ -217,13 +222,16 @@ internal fun GroupPlanner.deathsAt(c: PlanContext, p: Place, h: Hex, fed: Float,
         val stalked = gs.stalkRate(g, b, p, gs.residentManEaters(p) + (if (h in c.sensed) manEaterKm2[h] else 0f), walled,
             if (home) gs.palisadeAt(g, h) else 0f)
         adult += venom + stalked; young += venom + YOUNG_STALKED / b.childWatch.coerceAtLeast(0.25f) * stalked
+        why?.let { it("venom", venom, venom); it("stalked", stalked, YOUNG_STALKED / b.childWatch.coerceAtLeast(0.25f) * stalked) }
         gs.dialUse?.amount(DialSite.CHILDREN_PLAN, b.childWatch, YOUNG_STALKED / b.childWatch.coerceAtLeast(0.25f) * stalked, YOUNG_STALKED * stalked, cut = b.childWatch < 0.25f)
         // The sicknesses it would catch there (marsh fever by the mosquitoes, the flux in a long-kept camp, the cough
         // where people crowd), and the fouling of the ground there, whoever left it: its own camping adds to it if it stays.
         val campWeeks = gs.campWeeksAt(h) + (if (h == c.here) 1 else 0)
         val crowd = gs.peopleCrowding(g, h); val t = weather.temperature[p]; val healed = healedShare(b); val kept = gs.hygieneAt(b, h)
-        adult += gs.illnessAhead(b, p, t, crowd, campWeeks, healed, false, kept)
-        young += gs.illnessAhead(b, p, t, crowd, campWeeks, healed, true, kept) + gs.campFouling(g, h, campWeeks) * gs.years
+        val illA = gs.illnessAhead(b, p, t, crowd, campWeeks, healed, false, kept)
+        val illY = gs.illnessAhead(b, p, t, crowd, campWeeks, healed, true, kept); val fouled = gs.campFouling(g, h, campWeeks) * gs.years
+        adult += illA; young += illY + fouled
+        why?.let { it("illness ahead (camp %d weeks, crowd %.2f, %.0f °C)".format(campWeeks, crowd, t), illA, illY); it("fouling", 0f, fouled) }
         // What it would catch of the bands it sees gathered there (a feast draws bands together, and the cough with them).
         if (h in c.sensed && gs.peopleSlot >= 0) {
             // (Bands meet over the whole hex, whichever ground each stands on.)
@@ -235,6 +243,7 @@ internal fun GroupPlanner.deathsAt(c: PlanContext, p: Place, h: Hex, fed: Float,
                 val theirSick = (sick - (if (stays) g.size * b.sick[ill] else 0f)).coerceAtLeast(0f) / others
                 val dying = caughtFrom(ill, theirSick, b) * ill.deadly * healed
                 adult += dying; young += dying * ill.young
+                why?.invoke("caught from others: ${ill.name.lowercase()}", dying, dying * ill.young)
             }
         }
     }
@@ -278,6 +287,7 @@ private fun GroupPlanner.killedByStronger(c: PlanContext, p: Place, h: Hex): Flo
  * takes at most [HexFauna.RESIDENT_KILL_MOST] of the game in a week, shared by heads against their need. A band (whose
  * food is mostly gathered) still by how much there is against [PREY_HALF], less for crowding.
  */
+@Part("choosing: foreseen fed")
 internal fun GroupPlanner.foreseenFed(g: HexGroup, prey: Float, kinKm2: Float, crowded: Float): Float {
     val s = g.species
     if (s.human) return (prey / (prey + PREY_HALF) - 0.5f * crowded).coerceIn(0f, 1f)
@@ -290,6 +300,7 @@ internal fun GroupPlanner.foreseenFed(g: HexGroup, prey: Float, kinKm2: Float, c
  * other people: those it weighs as bands. Where it has not looked it expects hunters as thick as they usually are,
  * people among them.
  */
+@Part("choosing: hunters about")
 internal fun GroupPlanner.huntersKm2(c: PlanContext, p: Place, h: Hex) =
     if (h in c.sensed) (if (c.g.species.human) gs.beastKg else c.predatorKg)[p] / gs.land.areaKm2[p] else usualHuntersKm2
 
@@ -297,6 +308,7 @@ internal fun GroupPlanner.huntersKm2(c: PlanContext, p: Place, h: Hex) =
  * The share of a group of [s] that drowns on the way from hex [here] to hex [to] along the cheapest chain ([via]):
  * each strait crossed, as [move] drowns it (the young twice as many, counted here as grown).
  */
+@Part("choosing: crossing deaths")
 internal fun GroupPlanner.crossingDeaths(s: Species, to: Hex, here: Hex, via: HexArray): Float {
     var risk = 0f; var h = to
     while (h != here) {
@@ -309,6 +321,7 @@ internal fun GroupPlanner.crossingDeaths(s: Species, to: Hex, here: Hex, via: He
 }
 
 /** What place [p] is worth to hunter [g] as it knows it: [placeValue], and for a band the fish it could take there ([fishWorth]). */
+@Part("choosing: known game")
 internal fun GroupPlanner.knownGame(g: HexGroup, kind: Int, p: Place, h: Hex): Float = placeValue[kind][p] + (g.band?.let { fishWorth(g, it, h) } ?: 0f)
 
 /** Heads of kind slot [k] in place [p] as a group knows them: seen in its own hex and the six around, else expected. */
@@ -319,6 +332,7 @@ internal fun GroupPlanner.knownHeads(k: Int, p: Place, h: Hex, sensed: HexArray)
  * it knows it ([knownHeads]) and itself, over the ground it would range from there (the hex, and the six round it
  * where its kind's home range reaches beyond one: [rangesWide]), as [liveWeek] counts its kin where it is.
  */
+@Part("choosing: kin about")
 internal fun GroupPlanner.kinAround(g: HexGroup, kind: Int, h: Hex, sensed: HexArray): Float {
     val s = g.species; val own = gs.hw.placeHex[g.place]
     var heads = 0f; var area = 0f
@@ -331,6 +345,7 @@ internal fun GroupPlanner.kinAround(g: HexGroup, kind: Int, h: Hex, sensed: HexA
     return if (area > 0f) (max(0f, heads) + g.size) / area else 0f
 }
 
+@Part("choosing: terms of a place")
 internal fun GroupPlanner.fillTerms(t: PlaceTerms, g: HexGroup, p: Place, weather: Weather, date: Date) {
     val s = g.species
     t.discomfort = gs.discomfort(s, p, weather)

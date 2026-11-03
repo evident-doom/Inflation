@@ -16,7 +16,7 @@ internal interface Pantry {
 }
 
 /**
- * A place's food as it is only reckoned on (the residents' [HexFauna.room]): what an animal would get of each, taken
+ * A place's food as it is only reckoned on (the residents' [HexFauna.roomFor]): what an animal would get of each, taken
  * off what is there, without eating it.
  */
 internal class DryPantry : Pantry {
@@ -55,7 +55,7 @@ internal fun grassUnderSnow(s: Species, snowMm: Float): Float = (1f - snowMm / s
  * switching between them for a shortfall; into [out]. The standing straw is the cured grass, eaten as grass at what it
  * nourishes ([HexPlants.nourishment]). Each food feeds by its energy ([Nourishment]): grass and browse at [q], fruit and roots
  * at theirs, all by [Species.needScale] in kg of its need ([Bites.got], [Bites.short]). The one rule for the residents' week's grazing
- * ([HexFauna.graze]) and for the room they reckon a place has for more of them ([HexFauna.room]).
+ * ([HexFauna.graze]) and for the room they reckon a place has for more of them ([HexFauna.roomFor]).
  */
 @IgnorableReturnValue internal fun forage(s: Species, d: Diet, q: Float, need: Float, underSnow: Float, pantry: Pantry, out: Bites): Bites {
     // (Worked in energy, [Nourishment]'s units: a kg of green forage feeds a unit.)

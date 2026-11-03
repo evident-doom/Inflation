@@ -262,6 +262,9 @@ class HexGroups(
     internal inline fun note(g: HexGroup, msg: () -> String) { if (g.id == watched) watchLog += msg() }
     /** The player's hand on the followed group (the viewer's group controls), null for none: see [GroupControl]. */
     @Transient @Volatile var control: GroupControl? = null
+    /** The followed planning band's latest reckonings, for the viewer's Plan tab ([looked]): where to camp, and its week's days. */
+    @Transient @Volatile var moveLook: MoveLook? = null
+    @Transient @Volatile var daysLook: DaysLook? = null
 
     /**
      * Names the groups' stocks in [books]: the animals of each kind in packs and bands (the young at a
@@ -281,16 +284,17 @@ class HexGroups(
         stocks.add(Books.Stuff.MATTER, StockName.BANDS_GOODS) { bands { it.livingGoods().toDouble() } }
     }
 
-    /** The bands with kept herds, by the place they are camped in, for the resident hunters' week ([HexFauna.keptAt]). */
-    internal fun herdsForBeasts(): Map<Int, List<Band>> {
-        val at = HashMap<Int, ArrayList<Band>>()
-        for (g in groups) if (g.alive) g.band?.let { b -> if (b.herds.herd.indices.any { k -> b.herds.herd[k] + b.herds.herdYoung.getOrElse(k) { 0f } >= 1f }) at.getOrPut(g.place.i) { ArrayList() } += b }
+    /** The bands with kept herds, by the place they are camped in (null where none), for the resident hunters' week ([HexFauna.keptAt]). */
+    internal fun herdsForBeasts(): Array<out List<Band>?> {
+        // (An array by place, not a map: it is asked for at every place of every kind the residents weigh, many times a week.)
+        val at = arrayOfNulls<ArrayList<Band>>(land.n)
+        for (g in groups) if (g.alive) g.band?.let { b -> if (b.herds.herd.indices.any { k -> b.herds.herd[k] + b.herds.herdYoung.getOrElse(k) { 0f } >= 1f }) (at[g.place.i] ?: ArrayList<Band>().also { at[g.place.i] = it }) += b }
         if (HUNT_DIAG) {
             // (Last week's take at the camps, then what is held there as this week starts: [HuntStep.KEPT_YOUNG_HELD] and on.)
             for ((k, s) in fauna.kinds.withIndex()) { val t = fauna.campTaken[k]
                 diag(s, HuntStep.KEPT_YOUNG_TAKEN, t[0].sumThenReset().toFloat()); diag(s, HuntStep.KEPT_GROWN_TAKEN, t[1].sumThenReset().toFloat())
                 diag(s, HuntStep.WILD_YOUNG_TAKEN_AT_CAMPS, t[2].sumThenReset().toFloat()); diag(s, HuntStep.WILD_GROWN_TAKEN_AT_CAMPS, t[3].sumThenReset().toFloat()) }
-            for ((p, bs) in at) { val area = land.areaKm2[p]
+            for ((p, bs) in at.withIndex()) { if (bs == null) continue; val area = land.areaKm2[p]
                 // (The wild at every camp with a herd, as the take is counted there.)
                 for ((k, s) in fauna.kinds.withIndex()) {
                     diag(s, HuntStep.KEPT_YOUNG_HELD, bs.sumOf { it.herds.herdYoung.getOrElse(k) { 0f }.toDouble() }.toFloat())

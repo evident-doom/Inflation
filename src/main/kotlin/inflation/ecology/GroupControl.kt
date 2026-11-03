@@ -16,6 +16,8 @@ interface GroupControl {
     fun move(d: MoveDecision): Int
     /** The group's ways as the model set them in [out] (0 the hand-written way, see [setWays] and [AnimalWay]): the player's pinned ones replace them. */
     fun ways(g: HexGroup, out: FloatArray)
+    /** A planning band's ([Mind.PLANS]) week: the player's pick for [item] ([planDays]), [PlanPick.MODEL] to leave it to the band. */
+    fun planPick(g: HexGroup, item: PlanItem): PlanPick = PlanPick.MODEL
 }
 
 /** One week's choice of where to go, for the followed group: all copies, safe to keep. */
