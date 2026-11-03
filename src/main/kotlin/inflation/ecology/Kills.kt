@@ -370,8 +370,12 @@ internal fun foughtBack(s: Species, ps: Species, massKg: Float): Float {
     return FOUGHT_BACK * ps.defence * r / (1f + r)
 }
 
-/** The hunters a kill of [ps] can cost, most per kill of a prey of full [Species.defence] far heavier than the hunter (an estimate). */
-internal const val FOUGHT_BACK = 0.005f
+/**
+ * The hunters a kill of [ps] can cost, most per kill of a prey of full [Species.defence] far heavier than the hunter (an
+ * estimate). At 0.005 bands lost 4 a thousand a year to their game (danger589), more than the Hiwi lose to all accidents
+ * together; a quarter of it, to about 1 a thousand.
+ */
+internal const val FOUGHT_BACK = 0.00125f
 
 /**
  * What the risk of [foughtBack] costs a party of [heads] of [s] a kill, in days of the party's work: the life lost, as the
