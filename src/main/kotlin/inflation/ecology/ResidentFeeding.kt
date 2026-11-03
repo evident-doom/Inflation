@@ -76,7 +76,7 @@ internal fun HexFauna.graze(weather: Weather) {
     val tallies = java.util.concurrent.ConcurrentLinkedQueue<DoubleArray>()
     val tally = ThreadLocal.withInitial { DoubleArray(kinds.size * FED).also { tallies.add(it) } }
     Par.forEachPlace("residents: graze", n) { p ->
-        val z = Grazing(kinds.size)
+        val z = grazings.get().also { it.clear() }
         // What can be eaten this week without eating the place bare, kg per m2: green or cured, standing grass is
         // grazed alike (the steppe's herds live through the dry season on its standing hay). What makes the dry
         // season lean is the hay itself: poor in nourishment and protein, weathering away and not growing back
@@ -105,6 +105,8 @@ private fun HexFauna.eatPlants(p: Place, weather: Weather, grass: Float, browse:
     for ((k, s) in kinds.withKinds()) {
         killRate[k]?.set(p, 0f)
         val heads = adults[k][p] + 0.5f * young[k][p]
+        // (A kind not there wants nothing and eats nothing: its want and reach are read only where it is.)
+        if (!(heads > 0f)) { need[k] = 0f; continue }
         // Bears asleep through the cold eat nothing.
         // (Only the plant part of the diet here; omnivores' small prey and carrion below.)
         // (More in the cold, see [coldNeed].)
@@ -167,8 +169,9 @@ private fun HexFauna.feedKinds(p: Place, weather: Weather, z: Grazing, ff: Doubl
             draw / want
         } else {
             val ps = plantShare(s)
-            val animal = animalFood(k, p, weather, z, ps)
             val heads = adults[k][p] + 0.5f * young[k][p]
+            // (With none there, nothing is sought and nothing is eaten: animalFood would find no need.)
+            val animal = if (heads > 0f) animalFood(k, p, weather, z, ps) else 0f
             if (heads > 0f) {
                 val i = k.i * FED
                 ff[i + Fed.PLANTS.ordinal] += (min(1f, z.got[k]) * ps * heads).toDouble()
