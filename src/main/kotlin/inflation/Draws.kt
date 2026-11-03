@@ -76,6 +76,8 @@ enum class Stream(val salt: Long) {
     SISU(0x53495355L),
     /** The years a band reckons its stores against. */
     STORES_AHEAD(0x53544f52L),
+    /** Which pack's members the game killed of it at a place were ([inflation.ecology.takePackKills]). */
+    PACK_KILLS(0x50414b4bL),
     /** The lineage of each block of country, and the words spoken there. */
     LINEAGE(0x4c494e45L),
     WORDS(0x574f5244L),

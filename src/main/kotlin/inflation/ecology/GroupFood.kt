@@ -33,6 +33,9 @@ internal fun HexGroups.hunt(weather: Weather) {
     // (What a party killed this week before the last of it died lies where it fell: the meat of it, a beast's need being
     // counted in the whole weight of its kills, see [creditShare].)
     for (g in groups) if (!g.alive && g.meatMet > 0f) { small.deposit(DeadPool.CARRION, g.place, Kg(g.meatMet * meatShare(g.band) / creditShare(g.band))); g.meatMet = 0f }
+    // (The pack members the resident hunters killed this week come off their packs; the packs are game where they now stand.)
+    val day = weather.date.absoluteDay.toLong()
+    takePackKills(2 * day); fillPackGame()
     val hunters = groups.filter { it.alive }.shuffled(rnd)
     for (a in fauna.groupKilled) a.fill(0f)
     // Bands first set their ways for the week.
@@ -81,6 +84,7 @@ internal fun HexGroups.hunt(weather: Weather) {
         g.path.all { h -> hex.distanceKm(end, h) + 2 * hex.hexKm < HUNT_FINE_KM }
     }
     stats.summedByThread { work(near, HUNT_FINE_KM); work(far, HUNT_BLOCK_KM) }
+    takePackKills(2 * day + 1)
 }
 
 /**

@@ -114,7 +114,9 @@ internal fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
         val p = w.ground.place[j]; val huntSwept = w.ground.km2[j]
         for (c in w.gameFrom[j] until w.gameFrom[j + 1]) {
             val i = w.gameAt[c]; val k = i - j * nk
-            val dens = adults[k][p] + young[k][p]
+            // (The grown of its packs standing here are game as its settled grown are: [HexFauna.packGrown].)
+            val grown = adults[k][p] + fauna.packAt(k, p)
+            val dens = grown + young[k][p]
             if (dens <= 0f) continue
             // A kill is worth what the party can eat of it, gorging included (a band also what it can
             // dry); the rest is left to others.
@@ -122,12 +124,12 @@ internal fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
             // (A band's kill of a grown one is the richer for its fat, the young lean: what it weighs is what its kills would be, as
             // many grown as there are among them.)
             val rich = if (band != null && meat1 > 0f) {
-                val fat1 = fatOfKill(k, Place(p), meat1, band) * adults[k][p] / dens
+                val fat1 = fatOfKill(k, Place(p), meat1, band) * grown / dens
                 1f + fat1 / meat1 * (w.fatFeeds / w.feeds(Food.BIG_GAME).coerceAtLeast(1e-6f) - 1f)
             } else 1f
             // (And the hunters it may cost, the grown and the young as many as there are: [dangerDays].)
             val ps = fauna.kinds[k]
-            val danger = (adults[k][p] * dangerDays(g.species, ps, ps.massKg, w.huntHeads) +
+            val danger = (grown * dangerDays(g.species, ps, ps.massKg, w.huntHeads) +
                 young[k][p] * dangerDays(g.species, ps, HexFauna.YOUNG_WEIGHT * ps.massKg, w.huntHeads)) / dens
             // (Each kill also costs the stalks and chases that failed before it.)
             offer(w, o, Food.BIG_GAME, k, Place(p), dens * huntSwept * w.odds[i] / days, meat1, HANDLING_DAYS + STALK_DAYS * w.stalks[i] + meat1 * w.eats,
