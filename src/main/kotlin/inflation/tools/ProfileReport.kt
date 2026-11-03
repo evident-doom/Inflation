@@ -52,6 +52,7 @@ internal class ProfileRun(val file: String) {
     val slowest = HashMap<String, MutableList<Pair<Long, String>>>() // what -> the slowest jobs (ns, detail) ([inflation.Profile.slow])
     val phaseSamples = HashMap<String, Agg>()          // every sample, by the top-level phase it fell in
     val frames = HashMap<String, Long>()               // top self frame -> samples
+    val labelFrames = HashMap<String, HashMap<String, Long>>() // label -> top self frame and line -> samples
     var samples = 0L; var mainSamples = 0L
     val monitors = HashMap<String, Pair<Long, Long>>() // where threads waited for a monitor -> (count, ns)
     var mainParkNs = 0L
@@ -180,7 +181,10 @@ internal object ProfileRead {
                     pg.samples++
                     if (main) pg.mainSamples++
                 }
-                fr.firstOrNull()?.let { f -> run.frames.merge(name(f.method), 1L, Long::plus) }
+                fr.firstOrNull()?.let { f ->
+                    run.frames.merge(name(f.method), 1L, Long::plus)
+                    run.labelFrames.getOrPut(label) { HashMap() }.merge(name(f.method) + ":" + f.lineNumber, 1L, Long::plus)
+                }
             }
             "jdk.JavaMonitorEnter" -> {
                 val fr = ev.stackTrace?.frames.orEmpty()
@@ -262,6 +266,16 @@ internal object ProfileText {
         for ((k, g) in r.labels.entries.sortedByDescending { it.value.samples }.take(25))
             appendLine("| $k | ${f1(pct(g.samples, r.samples))} | ${f1(pct(g.mainSamples, g.samples))} |")
         appendLine()
+        // Inside the mostly serial parts: which methods and lines the samples fell on, so that the next step is chosen by what is there.
+        val serial = r.labels.entries.sortedByDescending { it.value.samples }.take(25).filter { (_, g) -> g.mainSamples * 2 >= g.samples && pct(g.samples, r.samples) >= 0.8 }
+        if (serial.isNotEmpty()) {
+            appendLine("Inside the parts that run mostly on the main thread (top self frames, method:line, share of the part's samples):")
+            for ((k, g) in serial) {
+                val top = r.labelFrames[k].orEmpty().entries.sortedByDescending { it.value }.take(6)
+                appendLine("- $k: " + top.joinToString("; ") { "${it.key} ${f1(pct(it.value, g.samples))}%" })
+            }
+            appendLine()
+        }
         appendLine("Hottest frames (self): " + r.frames.entries.sortedByDescending { it.value }.take(12).joinToString("; ") { "${it.key} ${f1(pct(it.value, r.samples))}%" })
         appendLine()
         if (r.kinds.isNotEmpty()) {
