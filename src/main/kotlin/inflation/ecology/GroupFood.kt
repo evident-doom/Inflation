@@ -160,6 +160,19 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         }
         // What the week brings at those rates, the parties working side by side, as far as the band wants: it stops when fed.
         val intake = o.fed[0] / o.spent[0] + o.fed[1] / o.spent[1]
+        // (planTrace: what a band's day of foraging brings, party by party, and the foods it took up.)
+        if (pass == 0 && w.band != null && FORAGE_TRACE.wants(g.id.toLong(), weather.date.absoluteDay)) {
+            val hunters = w.hands - w.gatherHands
+            System.err.println(("forage trace: band %d, %s, %d people, %d hands (hunters %.1f, gatherers %.1f); kg of need a person-day: hunters %.2f, gatherers %.2f, " +
+                "the band %.2f; want %.0f kg of need this step; foods taken up, best first (kg of need a person-day of handling once found, of the party): %s").format(
+                g.id, weather.date, g.size, w.hands, hunters, w.gatherHands,
+                if (hunters > 0f) o.fed[0] / o.spent[0] / hunters else 0f, if (w.gatherHands > 0f) o.fed[1] / o.spent[1] / w.gatherHands else 0f,
+                if (w.hands > 0) intake / w.hands else 0f, w.wantAll,
+                (0 until min(o.used, 8)).joinToString(", ") { r -> val i = o.order[r]
+                    val party = if (o.who[i] == 0) hunters else w.gatherHands
+                    "%s %s %.2f (%.1f kg each, %.3f party-days each)".format(if (o.type[i] == Food.BIG_GAME) fauna.kinds[o.kind[i]].name else o.type[i].label,
+                        if (o.who[i] == 0) "hunters" else "gatherers", o.value[i] / o.time[i] / party.coerceAtLeast(1e-3f), o.kg[i], o.time[i]) }))
+        }
         // (A band plans its week once it sees what food asks of it: see [planWeek]. It forages no longer than the plan gives it.)
         if (w.band != null && w.time == null) {
             // (What its herds will feed it this week it need not forage for: their increase and milk, see [herdFoodWeek].)
@@ -318,6 +331,9 @@ internal fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float
  * A party's week of [forage]: what it brings to it, worked out once (its hands, its want, how fast it handles each
  * kind of food, where it gathers), the odds of a kill of each kind on its way, and what it has got so far.
  */
+/** planTrace=true: a sample of bands' foraging weeks, what a day of each party's work brings ([forage]). */
+private val FORAGE_TRACE = Trace(Config.Key.PLAN_TRACE, "forage", share = 0.01f, most = 300)
+
 internal class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, packKg: Float, val weather: Weather) {
     val s = g.species
     val d = s.diet
