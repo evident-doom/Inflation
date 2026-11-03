@@ -77,3 +77,28 @@ internal fun GroupPlanner.bookMove(moved: Boolean, buf: Scratch) {
     }
     moveCounts.incrementAndGet(MOVE_TRACE_LEADS + lead)
 }
+
+/**
+ * For the watched group ([HexGroups.watched]): the deaths it foresees at place [p] as [deathsAt] reckons them, cause by
+ * cause, each in survival steps as it adds to the whole ([survivalSteps] is linear in the deaths; the caps on the odds,
+ * [Hazards.MAX_GROWN_ODDS], are left out), into [watchLog]. Report only: [deathsAt] calls [sink] as it adds each part.
+ */
+internal fun GroupPlanner.deathsWhy(c: PlanContext, p: Place) = DeathsWhy(this, c, p)
+
+internal class DeathsWhy(private val planner: GroupPlanner, private val c: PlanContext, private val p: Place) {
+    private val parts = ArrayList<Triple<String, Float, Float>>()
+    val sink: (String, Float, Float) -> Unit = { cause, a, y -> parts += Triple(cause, a, y) }
+
+    fun log(fed: Float, drowning: Float, leaving: Float, steps: Float) {
+        val gs = planner.gs; val g = c.g
+        fun stepsOf(share: Float) = gs.survivalSteps(g, share)
+        fun share(a: Float, y: Float) = (g.adults * a + g.young * y) / maxOf(1, g.size)
+        val sb = StringBuilder("deaths at hex %d at %.0f m%s: %.2f survival steps, foreseen fed %.2f".format(gs.hw.placeHex[p].i,
+            gs.hw.placeElevationM[p], if (p == g.place) " (stay)" else "", steps, fed))
+        for ((cause, a, y) in parts.sortedByDescending { share(it.second, it.third) }) if (share(a, y) > 0f)
+            sb.append("; %s %.3g steps (grown %.2e, young %.2e a week)".format(cause, stepsOf(share(a, y)), a, y))
+        if (drowning > 0f) sb.append("; crossing %.3g steps".format(stepsOf(drowning)))
+        if (leaving > 0f) sb.append("; leaving its houses %.3g steps".format(stepsOf(leaving)))
+        gs.watchLog += sb.toString()
+    }
+}

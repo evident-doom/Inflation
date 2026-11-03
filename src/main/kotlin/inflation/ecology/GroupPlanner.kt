@@ -206,7 +206,9 @@ internal class GroupPlanner(internal val gs: HexGroups) {
                 if (!wantAll) { buf.later(p, d, prey, fed, score, beside); continue }
                 if (drowning < 0f) drowning = crossingDeaths(s, h, here, via)
                 val alive = score
-                val steps = gs.survivalSteps(g, deathsAt(c, p, h, fed, d) + drowning + leavingAt(h))
+                val why = if (g.id == gs.watched) deathsWhy(c, p) else null
+                val steps = gs.survivalSteps(g, deathsAt(c, p, h, fed, d, why?.sink) + drowning + leavingAt(h))
+                why?.log(fed, drowning, leavingAt(h), steps)
                 score -= steps
                 if (tp != null) { tp[MoveTerm.DEATHS.ordinal] = -steps; tp[MoveTerm.BESIDE.ordinal] = beside
                     if (p == g.place) tp.copyInto(buf.stayParts) }

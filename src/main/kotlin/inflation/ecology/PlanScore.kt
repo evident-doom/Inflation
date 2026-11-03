@@ -203,11 +203,12 @@ internal fun GroupPlanner.scorePlace(c: PlanContext, t: PlaceTerms, p: Place, h:
  * where it senses them). The young's odds count for the young. (What it shares wherever it goes, age, the background and its own band's ills, is
  * left out: it cannot tell places apart.)
  */
-internal fun GroupPlanner.deathsAt(c: PlanContext, p: Place, h: Hex, fed: Float, km: Float): Float {
+internal fun GroupPlanner.deathsAt(c: PlanContext, p: Place, h: Hex, fed: Float, km: Float, why: ((String, Float, Float) -> Unit)? = null): Float {
     val g = c.g; val s = g.species; val weather = c.weather; val b = g.band
     val thirst = gs.thirstOdds(g, p, gs.dryAfter(g, p, fed))
     val odds = c.odds.also { it.adult = 0f; it.young = 0f }
-    gs.foreseenHazards(g, p, weather, fed, thirst, km, odds)
+    gs.foreseenHazards(g, p, weather, fed, thirst, km,
+        if (why == null) odds else HazardSink { cause, a, y -> odds.add(cause, a, y); if (a != 0f || y != 0f) why(cause.toString().lowercase(), a, y) })
     var adult = odds.adult; var young = odds.young
     if (b != null) {
         val venom = gs.venomOdds(s, p, weather)
@@ -217,13 +218,16 @@ internal fun GroupPlanner.deathsAt(c: PlanContext, p: Place, h: Hex, fed: Float,
         val stalked = gs.stalkRate(g, b, p, gs.residentManEaters(p) + (if (h in c.sensed) manEaterKm2[h] else 0f), walled,
             if (home) gs.palisadeAt(g, h) else 0f)
         adult += venom + stalked; young += venom + YOUNG_STALKED / b.childWatch.coerceAtLeast(0.25f) * stalked
+        why?.let { it("venom", venom, venom); it("stalked", stalked, YOUNG_STALKED / b.childWatch.coerceAtLeast(0.25f) * stalked) }
         gs.dialUse?.amount(DialSite.CHILDREN_PLAN, b.childWatch, YOUNG_STALKED / b.childWatch.coerceAtLeast(0.25f) * stalked, YOUNG_STALKED * stalked, cut = b.childWatch < 0.25f)
         // The sicknesses it would catch there (marsh fever by the mosquitoes, the flux in a long-kept camp, the cough
         // where people crowd), and the fouling of the ground there, whoever left it: its own camping adds to it if it stays.
         val campWeeks = gs.campWeeksAt(h) + (if (h == c.here) 1 else 0)
         val crowd = gs.peopleCrowding(g, h); val t = weather.temperature[p]; val healed = healedShare(b); val kept = gs.hygieneAt(b, h)
-        adult += gs.illnessAhead(b, p, t, crowd, campWeeks, healed, false, kept)
-        young += gs.illnessAhead(b, p, t, crowd, campWeeks, healed, true, kept) + gs.campFouling(g, h, campWeeks) * gs.years
+        val illA = gs.illnessAhead(b, p, t, crowd, campWeeks, healed, false, kept)
+        val illY = gs.illnessAhead(b, p, t, crowd, campWeeks, healed, true, kept); val fouled = gs.campFouling(g, h, campWeeks) * gs.years
+        adult += illA; young += illY + fouled
+        why?.let { it("illness ahead (camp %d weeks, crowd %.2f, %.0f °C)".format(campWeeks, crowd, t), illA, illY); it("fouling", 0f, fouled) }
         // What it would catch of the bands it sees gathered there (a feast draws bands together, and the cough with them).
         if (h in c.sensed && gs.peopleSlot >= 0) {
             // (Bands meet over the whole hex, whichever ground each stands on.)
@@ -235,6 +239,7 @@ internal fun GroupPlanner.deathsAt(c: PlanContext, p: Place, h: Hex, fed: Float,
                 val theirSick = (sick - (if (stays) g.size * b.sick[ill] else 0f)).coerceAtLeast(0f) / others
                 val dying = caughtFrom(ill, theirSick, b) * ill.deadly * healed
                 adult += dying; young += dying * ill.young
+                why?.invoke("caught from others: ${ill.name.lowercase()}", dying, dying * ill.young)
             }
         }
     }
