@@ -540,6 +540,12 @@ internal class GroupPlanner(internal val gs: HexGroups) {
      */
     @Transient val moveCounts = java.util.concurrent.atomic.AtomicLongArray(2 + 2 * MoveTerm.entries.size)
 
+    /**
+     * planTrace: planning bands' weeks by why they went or stayed ([Reckoned]), the weeks they judged a case for leaving
+     * ([RECKON_JUDGED]), and its parts summed, 1/10000 of a week ([RECKON_SUMS], [ReckonTerm]). Not saved: the census's, cleared as it prints.
+     */
+    @Transient val reckonCounts = java.util.concurrent.atomic.AtomicLongArray(Reckoned.entries.size + 1 + ReckonTerm.entries.size)
+
 }
 
 /**

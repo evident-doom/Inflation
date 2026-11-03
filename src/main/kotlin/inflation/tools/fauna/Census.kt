@@ -16,6 +16,7 @@ import inflation.ecology.CustomsPart
 import inflation.ecology.RiteWalk
 import inflation.ecology.ritesApart
 import inflation.ecology.livelihood
+import inflation.ecology.Livelihood
 import inflation.ecology.homesApart
 import inflation.ecology.Regard
 import inflation.ecology.PlaceMemory
@@ -35,6 +36,10 @@ import inflation.ecology.HexFauna
 import inflation.ecology.TallyKey
 import inflation.ecology.MoveTerm
 import inflation.ecology.MOVE_TRACE_WEEKS
+import inflation.ecology.RECKON_JUDGED
+import inflation.ecology.RECKON_SUMS
+import inflation.ecology.Reckoned
+import inflation.ecology.ReckonTerm
 import inflation.ecology.MOVE_TRACE_MOVES
 import inflation.ecology.MOVE_TRACE_SUMS
 import inflation.ecology.MOVE_TRACE_LEADS
@@ -226,6 +231,17 @@ class Census(private val sim: HexSim) {
                 val all = c[0].coerceAtLeast(1)
                 "%s %.1f/%.1f/%.1f%%".format(s.name, 100.0 * c[1] / all, 100.0 * c[2] / all, 100.0 * c[3] / all)
             })
+        // (planTrace=true only: [bookReckoned].)
+        val rc = groups.planner.reckonCounts
+        if ((0 until Reckoned.entries.size).any { rc[it] > 0 }) {
+            val r = LongArray(rc.length()) { rc.getAndSet(it, 0) }
+            val weeks = Reckoned.entries.sumOf { r[it.ordinal] }.coerceAtLeast(1).toDouble()
+            val judged = r[RECKON_JUDGED].coerceAtLeast(1).toDouble()
+            println("     planning bands' camp moves, since the last census (share of their weighed weeks by why they went or stayed; " +
+                "where they judged a case for leaving, %.0f%% of weeks, its parts' mean in shares of a week): ".format(100.0 * r[RECKON_JUDGED] / weeks) +
+                Reckoned.entries.joinToString(", ") { "%s %.1f%%".format(it.label, 100.0 * r[it.ordinal] / weeks) } + "; " +
+                ReckonTerm.entries.joinToString(", ") { "%s %+.3f".format(it.label, r[RECKON_SUMS + it.ordinal] / 1e4 / judged) })
+        }
         // (moveTrace=true only: [GroupPlanner.bookMove].)
         val mc = groups.planner.moveCounts
         if (mc[MOVE_TRACE_WEEKS] > 0) {
@@ -749,7 +765,7 @@ class Census(private val sim: HexSim) {
                 // (Customs as the bands reckon them, the totem one of them: see [inflation.ecology.Regard.customsApart].)
                 val off = Tradition.entries.count { bi.holds(it) != bj.holds(it) } + (if (bi.totem != bj.totem) 1 else 0) +
                     (if (bi.holds(Tradition.BURIAL) && bj.holds(Tradition.BURIAL) && bi.burialWay != bj.burialWay) 1 else 0) +
-                    (if (ritesApart(bi, bj)) 1 else 0) + (if (living[i] != living[j]) 1 else 0) + (if (homesApart(bi, bj, hex)) 1 else 0)
+                    (if (ritesApart(bi, bj)) 1 else 0) + (if (bi.heldLivelihood != bj.shownLivelihood) 1 else 0) + (if (homesApart(bi, bj, hex)) 1 else 0)
                 var c = 0
                 while (c < IDENTITY_KM.size && km >= IDENTITY_KM[c]) c++
                 pairs[c]++; understood[c] += u.toDouble(); apart[c] += off.toDouble()
@@ -820,6 +836,14 @@ class Census(private val sim: HexSim) {
             .format(100.0 * kept.size / n, kept.toSet().size, 100.0 * bands.count { it.second.totemBroken > 0f } / n, 100.0 * bury.size / n,
                 if (bury.isEmpty()) 0.0 else 100.0 * bury.count { it.second.burialWay == BurialWay.AT_ANCESTORS } / bury.size,
                 if (bury.isEmpty()) 0.0 else bury.sumOf { it.second.burialOwed.toDouble() } / bury.size))
+        // (Ways of life: held ([Band.heldLivelihood]) and lived ([livelihood]), and the bands that live other than they hold.)
+        val other = bands.filter { (_, b) -> b.livelihood() != b.heldLivelihood }
+        println("     ways of life: held by bands %s; lived %s; %.0f%% of bands live other than they hold (%s), %.1f years so far a band of those; held firmly (0 to 1) %.2f a band; %d bands came to hold the way they live in the past year, %d took up another's"
+            .format(Livelihood.entries.joinToString(" / ") { l -> "%s %.0f%%".format(l.name.lowercase(), 100.0 * bands.count { it.second.heldLivelihood == l } / n) },
+                Livelihood.entries.joinToString(" / ") { l -> "%s %.0f%%".format(l.name.lowercase(), 100.0 * living.count { it == l } / n) },
+                100.0 * other.size / n, Livelihood.entries.joinToString(", ") { l -> "holding %s %d".format(l.name.lowercase(), other.count { it.second.heldLivelihood == l }) },
+                other.sumOf { it.second.livedOther.toDouble() } / other.size.coerceAtLeast(1), bands.sumOf { it.second.livelihoodHold.toDouble() } / n,
+                metYear[Met.BANDS_CAME_TO_HOLD_THEIR_WAY_OF_LIFE.key] ?: 0, metYear[Met.BANDS_TOOK_UP_ANOTHERS_WAY_OF_LIFE.key] ?: 0))
         val now = weather.date.year * 12 + weather.date.month
         val keeping = bands.filter { (_, b) -> b.rite.any { it >= 0 } }
         val bySite = HashMap<Int, Int>()
