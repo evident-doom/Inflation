@@ -3,6 +3,7 @@ package inflation.ui
 import inflation.ecology.set
 import inflation.ecology.get
 import inflation.world.Hex
+import inflation.ecology.Mind
 import inflation.ecology.FaunaKind
 import inflation.world.Place
 import inflation.learning.LearnedModel
@@ -347,6 +348,8 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
     private fun loadWorld(f: File) {
         try {
             HexSnapshot.load(sim, f)
+            // (Its bands take up the planning kind's mind as founders do, t.planners, as hexFauna's carried-on worlds do.)
+            groups.foundMinds()
             layers.reset()
             useNetworks()
             lastDrawn.clear()
@@ -1080,7 +1083,8 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         val picked = groupView.selectedIndex.let { if (it in groupIds.indices) groupIds[it] else -1 }
         groupIds = here.map { it.id }.toIntArray()
         val rows = here.map { g ->
-            "%s #%d: %d adults, %d young, fed %.0f%%, reserves %.0f d".format(g.species.name, g.id, g.adults, g.young, 100 * g.fed, g.fat) }
+            "%s #%d%s: %d adults, %d young, fed %.0f%%, reserves %.0f d".format(g.species.name, g.id,
+                if (g.band?.mind == Mind.PLANS) " (plans)" else "", g.adults, g.young, 100 * g.fed, g.fat) }
         for ((i, r) in rows.withIndex()) if (i < groupList.size()) { if (groupList[i] != r) groupList[i] = r } else groupList.addElement(r)
         while (groupList.size() > rows.size) groupList.removeElementAt(groupList.size() - 1)
         val again = groupIds.indexOf(picked)
