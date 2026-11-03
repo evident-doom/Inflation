@@ -277,6 +277,11 @@ internal fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float
     // its customs, the lives they save and what is left: [planDays].)
     if (b.mind == Mind.PLANS) {
         time.plan(needs, planDays(g, b, w.weather, time, needs, asks, warm, kept, perDay), null, warm, kept)
+        // (The viewer's Plan tab: what the plan held of the essentials, not what they asked, [DaysLook.essentialsHeld].)
+        if (looked(g)) daysLook?.takeIf { it.group == g.id && it.date == w.weather.date }?.let { l ->
+            for (a in Activity.entries) l.essentialsHeld[a.ordinal] = time.heldFirstFor(a)
+            l.planned = true
+        }
         // (What each chore asked, not what it was given, for the census of the week's squeeze: [countSqueeze].)
         for (a in Activity.entries) if (a != Activity.LEISURE) time.asked[a] = needs[a] + asks[a] + warm[a] + kept[a]
     } else time.plan(needs, asks, enumFloats<Activity> { a -> timeWay(a)?.let { b.will[it] } ?: 1f }, warm, kept)

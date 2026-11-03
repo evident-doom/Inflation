@@ -233,7 +233,7 @@ internal class PlanPanel(
         val sb = StringBuilder()
         sb.append(card("Its days this week"))
         if (d == null) return sb.append("<p>Shown once the week has run (a band sets its days as it forages, after it moves).</p>").append(END).toString()
-        val ess = d.essentials.sum()
+        val ess = if (d.planned) d.essentialsHeld.sum() else d.essentials.sum()
         val owed = d.customsPaid + d.ornamentsPaid
         val lives = d.items.filter { it.unit == "lives" }.sumOf { it.heldDays.toDouble() }.toFloat()
         val gens = d.items.filter { it.unit == "days" }.sumOf { it.heldDays.toDouble() }.toFloat()
@@ -249,8 +249,16 @@ internal class PlanPanel(
         // Tier 0: the essentials.
         sb.append(tier("Essentials, held first", "the week's food, firewood, shelter and clothes as the survival pass gave them, and its herders: by deaths averted, never weighed against the rest"))
         sb.append("<p>")
-        sb.append(Activity.entries.filter { d.essentials[it.ordinal] > 0.05f }.joinToString(" &middot; ") { "%s <b>%.1f</b>".format(it.label, d.essentials[it.ordinal]) }.ifEmpty { "none" })
-        sb.append(" days; %.1f days left for the rest.</p>".format(d.afterEssentials))
+        sb.append(Activity.entries.filter { d.essentials[it.ordinal] > 0.05f || d.essentialsHeld[it.ordinal] > 0.05f }.joinToString(" &middot; ") { a ->
+            val asked = d.essentials[a.ordinal]; val held = d.essentialsHeld[a.ordinal]
+            if (!d.planned) "%s <b>%.1f</b> asked".format(a.label, asked)
+            else if (held + 0.05f < asked) "%s <b>%.1f</b> of %.1f asked <font color=#b00000>(short)</font>".format(a.label, held, asked)
+            else "%s <b>%.1f</b>".format(a.label, held)
+        }.ifEmpty { "none" })
+        sb.append(" days held; %.1f days left for the rest.</p>".format(d.afterEssentials))
+        if (d.planned && d.essentials.sum() > d.essentialsHeld.sum() + 0.05f)
+            sb.append("<p><font color=#b00000>The essentials asked %.1f days, more than the %.1f the week had after the walk and water: warmth was held first, then the week's needs, then herders, and nothing was left for the tiers below.</font></p>".format(
+                d.essentials.sum(), d.total - d.walkAndWater))
         // Tier 1: owed.
         sb.append(tier("Owed by custom", "rites, burials, keeping clean and nursing where it holds to them, its ornaments: belief decides them, not lives"))
         sb.append("<p>customs %s of %s asked%s &middot; %s<br>ornaments %s of %s asked%s &middot; %s</p>".format(num(d.customsPaid), num(d.customsAsked),

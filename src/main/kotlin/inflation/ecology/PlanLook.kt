@@ -68,8 +68,12 @@ class ToolLook(val tool: Tool, val kit: Float, val savedAYear: Float, val lastsY
  * tier by tier what each item asked and got. Days are people-days; asks and holds in days at each activity's pace.
  */
 class DaysLook(val group: Int, val date: Date, val people: Int, val total: Float) {
-    /** The days the essentials held first, by activity (the week's food, fire, shelter and clothes, herders, the walk). */
+    /** The days the essentials asked, by activity (the week's food, fire, shelter and clothes, herders). */
     val essentials = FloatArray(Activity.entries.size)
+    /** Of [essentials], the days the week's plan held for them ([BandTime.heldFirstFor]): warmth first, then the week's needs, then herders, as far as days went. */
+    val essentialsHeld = FloatArray(Activity.entries.size)
+    /** Whether [essentialsHeld] was filled (the plan ran). */
+    var planned = false
     /** The days the walk to a new camp and the water took before anything else. */
     var walkAndWater = 0f
     /** What was left for the tiers once the essentials were held. */
