@@ -358,6 +358,12 @@ internal const val SHELLFISH_DAYS_PER_KG = 0.12f
  * Draper 1994, J Anthropol Res 50: 217-248, pp. 228-232).
  */
 internal const val WALK_KM_PER_HOUR = 4f
+/**
+ * A hunter's load of a kill carried to camp, kg as carried: Hadza carcasses of zebra, wildebeest and hartebeest size
+ * (some 115-340 kg alive) take 7-10 carriers, smaller ones one to three (Bunn, in Breathing Life into Fossils, ch. 15):
+ * some 20-35 kg each. An approximation.
+ */
+internal const val MEAT_LOAD_KG = 25f
 internal const val GATHER_LOAD_KG = 12f
 /**
  * Dry matter's share of a kg of each plant food as carried, by which [GATHER_LOAD_KG] holds less of the plant stocks'
