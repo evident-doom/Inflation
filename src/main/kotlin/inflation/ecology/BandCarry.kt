@@ -26,7 +26,7 @@ enum class OnJoin {
     ANY,
     /** Added together. */
     SUM,
-    /** Blended by the two bands' adults (kit's make by its amount, salting by the dried food, grain's by the seed, tameness by the animals). */
+    /** Blended by the two bands' adults (kit's make by its amount, salting by the dried food, insects by the dried food and seed, grain's by the seed, tameness by the animals). */
     BLENDED,
     /** The joining band's is lost; the band keeps its own. */
     LOST,
@@ -59,12 +59,12 @@ internal fun carryRules(): Map<String, Pair<OnSplit, OnJoin>> {
     // People.
     rule(OnSplit.SET, OnJoin.SUM, "lastAdults")
     rule(OnSplit.SHARED, OnJoin.SUM, "elders", "ageStage", "goods")
-    rule(OnSplit.COPIED, OnJoin.BLENDED, "kit", "fine", "salted", "dryDepth", "leanLost", "sodiumShort", "lineage", "inbred", "sisu")
+    rule(OnSplit.COPIED, OnJoin.BLENDED, "kit", "fine", "salted", "dryDepth", "pests", "leanLost", "sodiumShort", "lineage", "inbred", "sisu")
     // Camp, home and raids.
     rule(OnSplit.COPIED, OnJoin.LOST, "campWeeks", "stayWeeks", "campPlace", "appointment", "houseHex", "house", "drivenFrom", "drivenBy", "homeEarth", "homeWalls", "homeGroundC", "palisade", "fire",
         "houseLives", "houseFood", "foodFrom", "fishPull", "weaningFood", "waterShort")
     rule(OnSplit.FRESH, OnJoin.LOST, "cache", "cacheKgPer", "cachePlace", "raid", "unlucky",
-        "shelter", "atHome", "nightWood", "hearthWood", "spareDays", "dryAsk", "skinAsk", "weirPull", "houseLivesWeek", "houseFoodWeek")
+        "shelter", "atHome", "nightWood", "hearthWood", "spareDays", "restSaved", "dryAsk", "skinAsk", "weirPull", "houseLivesWeek", "houseFoodWeek")
     // Ties.
     rule(OnSplit.COPIED, OnJoin.MAX, "ties")
     // (Favours stay with the band that was helped or helped: the new band owes and is owed nothing.)

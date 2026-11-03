@@ -126,6 +126,8 @@ class HexGroups(
     @Transient internal val riteGatherings = HashMap<Long, MutableList<HexGroup>>()
     /** How packs set their ways each week ([AnimalWays]); null for the hand-written ways. */
     @Transient var hunterWays: AnimalWays? = null
+    /** The packs of each kind that also lives settled standing at each place, as [fillPackGame] last found them (place × 64 + kind slot). Not saved. */
+    @Transient internal var packsAt: Map<Long, List<HexGroup>>? = null
 
     init {
         // The residents swim the same straits.
@@ -142,8 +144,9 @@ class HexGroups(
             // (People's start can be a multiple of the usual, to find what the land would carry: t.peopleStart.)
             // (Of a kind that also lives settled, only the roamers start as packs: [Catalogue.roamingResidents].)
             val count = if (s.human) (usual * tuning.peopleStart).toInt()
+                else if (s == Catalogue.CHEETAH) max(1, (usual * tuning.cheetahStart).toInt())
                 else if (s in Catalogue.roamingResidents) (usual * HexFauna.ROAMERS_AT_START).roundToInt() else usual
-            val weights = if (uniformStart) FloatArray(n) { p -> land.areaKm2[p] } else startWeights(s)
+            val weights = if (uniformStart) FloatArray(n) { p -> land.areaKm2[p] } else startWeights(s).also { w -> if (s == Catalogue.CHEETAH) keepOutOfLionCountry(w) }
             val total = weights.sum()
             // (Groups start of all sizes about the usual, the same heads in all: [startSizes].)
             val sizes = startSizes(s, unit, count)
@@ -225,6 +228,19 @@ class HexGroups(
         }
     }
 
+
+    /**
+     * Cheetahs begin away from the lions' country (they lose their kills and their young to lions; Durant 1998 has them keeping off
+     * lion ground): their start [weights] fall where the lions' own start weights, per km² and against their mean, are high. Only
+     * the start's placement; the number of cheetahs and everything after the start are as before.
+     */
+    private fun keepOutOfLionCountry(weights: FloatArray) {
+        val lion = kinds.firstOrNull { it == Catalogue.LION } ?: return
+        val per = FloatArray(n) { p -> startWeight(lion, Place(p)) / land.areaKm2[p].coerceAtLeast(1e-6f) }
+        val mean = per.average().toFloat()
+        if (mean <= 0f) return
+        for (p in 0 until n) weights[p] /= 1f + per[p] / mean
+    }
 
     /** Where groups of [s] start or wander in: by area, how the ground and climate suit it, and water within its reach in a usual year. */
     private fun startWeights(s: Species) = FloatArray(n) { p -> startWeight(s, Place(p)) }

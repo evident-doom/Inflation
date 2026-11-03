@@ -34,6 +34,11 @@ class Tuning(
     val humanBirths = f("humanBirths", 1f)
     /** The number of bands people start with, against the usual (a world started afresh; 4, 16, 64: how much more the land could carry than its people start at). */
     val peopleStart = f("peopleStart", 1f)
+    /**
+     * The number of cheetahs a world started afresh begins with, against the usual (the density the long runs settled at,
+     * which was far below the field's: a start of few is limited by chance alone). A start-time setting only.
+     */
+    val cheetahStart = f("cheetahStart", 1f).also { require(it > 0f) { "t.cheetahStart is $it: a positive multiple" } }
     /** The size of the bands people start in, against the usual, the same people in fewer, larger bands (2: half as many bands, twice the size). */
     val peopleBand = f("peopleBand", 1f).also { require(it > 0f) { "t.peopleBand is $it: a band's size is a positive multiple" } }
     /**

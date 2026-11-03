@@ -62,11 +62,15 @@ enum class PlantFrom(val label: String) { FRUIT("fruit"), MAST("mast"), BULBS("b
  * and fish keep for months, fruit for a week or two, roots for some weeks, seed and nuts for a year, rendered grease
  * sealed in guts or bladders for months (its rate a guess).
  * [lostWeekly] is the share lost a week (fresh meat: see [spoil]); [meat] whether it counts as meat (for its salt);
- * [protein] the share of its energy that is protein (fresh and dried meat and fish at meat's; small finds kept with fruit).
+ * [protein] the share of its energy that is protein (fresh and dried meat and fish at meat's; small finds kept with fruit);
+ * [pestWeekly] the share insects eat a week where the stores are wholly infested, at 15 °C ([infest]): hide and larder beetles
+ * and fly and moth larvae in dried meat and fish, weevils and moths in seed and nuts. (From memory: insects take 10-50% of dried
+ * fish over a few months' storage in the warm tropics, and 5-15% a year of grain in traditional stores; what rots fast is lost
+ * to rot before insects matter.)
  */
-enum class Store(val lostWeekly: Float, val meat: Boolean, val protein: Float) {
-    FRESH(0f, true, Nourishment.PROTEIN_MEAT), DRIED(0.01f, true, Nourishment.PROTEIN_MEAT), FRUIT(0.1f, false, Nourishment.PROTEIN_FRUIT),
-    ROOTS(0.03f, false, Nourishment.PROTEIN_ROOTS), SEED(0.005f, false, Nourishment.PROTEIN_GRAIN), GREASE(0.01f, false, 0f)
+enum class Store(val lostWeekly: Float, val meat: Boolean, val protein: Float, val pestWeekly: Float = 0f) {
+    FRESH(0f, true, Nourishment.PROTEIN_MEAT), DRIED(0.01f, true, Nourishment.PROTEIN_MEAT, 0.01f), FRUIT(0.1f, false, Nourishment.PROTEIN_FRUIT),
+    ROOTS(0.03f, false, Nourishment.PROTEIN_ROOTS), SEED(0.005f, false, Nourishment.PROTEIN_GRAIN, 0.002f), GREASE(0.01f, false, 0f)
 }
 /** The order a band eats its food in: what spoils first, first. */
 val EAT_ORDER = listOf(Store.FRESH, Store.FRUIT, Store.ROOTS, Store.DRIED, Store.SEED, Store.GREASE)

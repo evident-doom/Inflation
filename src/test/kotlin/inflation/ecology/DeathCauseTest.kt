@@ -28,4 +28,19 @@ class DeathCauseTest {
         assertEquals(PlaceRecord.Cause.COLD, DeathCause.EXPOSURE.shown)
         for (i in Illness.entries) assertEquals(PlaceRecord.Cause.ILLNESS, i.shown)
     }
+
+    @Test
+    fun `game fights back by its defence and its weight, the same for every hunter`() {
+        // (Gazelles do not fight back; a boar more than a red deer; an aurochs more than a boar; and the lighter the hunter the more.)
+        assertEquals(0f, foughtBack(Catalogue.HUMAN, Catalogue.GAZELLE, Catalogue.GAZELLE.massKg))
+        val deer = foughtBack(Catalogue.HUMAN, Catalogue.RED_DEER, Catalogue.RED_DEER.massKg)
+        val boar = foughtBack(Catalogue.HUMAN, Catalogue.BOAR, Catalogue.BOAR.massKg)
+        val aurochs = foughtBack(Catalogue.HUMAN, Catalogue.AUROCHS, Catalogue.AUROCHS.massKg)
+        kotlin.test.assertTrue(deer > 0f && boar > deer && aurochs > boar, "deer $deer boar $boar aurochs $aurochs")
+        kotlin.test.assertTrue(foughtBack(Catalogue.WOLF, Catalogue.ELK, Catalogue.ELK.massKg) > foughtBack(Catalogue.HUMAN, Catalogue.ELK, Catalogue.ELK.massKg))
+        // (Beasts of prey defend themselves too: a lion is no easy kill.)
+        kotlin.test.assertTrue(foughtBack(Catalogue.HUMAN, Catalogue.LION, Catalogue.LION.massKg) > boar)
+        // (Its danger weighs on a party the less, the more of them share it.)
+        kotlin.test.assertTrue(dangerDays(Catalogue.HUMAN, Catalogue.BOAR, Catalogue.BOAR.massKg, 2f) > dangerDays(Catalogue.HUMAN, Catalogue.BOAR, Catalogue.BOAR.massKg, 6f))
+    }
 }

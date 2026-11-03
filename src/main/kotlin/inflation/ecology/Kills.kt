@@ -135,8 +135,10 @@ internal fun GroupWorld.huntingOdds(w: ForageWeek) {
         val p = w.ground.place[j]
         openness(s, Place(p), w.weather, view)
         for (k in 0 until nk) {
-            if (adults[k][p] + young[k][p] <= 0f) continue
+            if (adults[k][p] + young[k][p] + fauna.packAt(k, Place(p)) <= 0f) continue
             val ps = fauna.kinds[k]; val i = j * nk + k
+            // (No hunter hunts its own kind as game: a settled lion is a rival to a lion pack, not its prey, as to a settled one.)
+            if (ps === s) continue
             val success = killChance(catchable(s, ps, Place(p)), edge[k])
             w.met[i] = meets[k] * (1f - seenFirst(view[0], view[1], band, ps)) / ps.groupSize
             w.odds[i] = success * w.met[i] * image[k]
@@ -169,7 +171,9 @@ internal fun GroupWorld.tallyHide(source: Tally.HideSource, ps: Species, took: F
 }
 
 /** What one of [forage]'s takes brought: kilos of food, and party-days spent on it beyond the take itself. */
-internal class Haul { var kg = 0f; var busy = 0f; var mass = 0f; var fat = 0f }
+internal class Haul { var kg = 0f; var busy = 0f; var mass = 0f; var fat = 0f
+    /** Of a hunt of game in the wild, the hunters the kills are expected to cost ([foughtBack]). */
+    var fought = 0f }
 
 /**
  * [forage]'s raid on herd [hg] at place [p]: [expected] kills on average, each worth [kgEach] to the beast, out of the band's
@@ -274,14 +278,22 @@ internal fun HexGroups.huntGame(g: HexGroup, k: Int, p: Place, expected: Float, 
     val s = g.species; val band = g.band
     val ps = fauna.kinds[k]
     val area = land.areaKm2[p]
-    val dens = fauna.adults[k][p] + fauna.young[k][p]
+    // (Of a kind that also roams, the grown of its packs standing here are come on as its settled are: [HexFauna.packGrown].)
+    val pack = fauna.packAt(k, p)
+    val settled = fauna.adults[k][p] + fauna.young[k][p]
+    val dens = settled + pack
+    out.fought = 0f
     var kills1 = poisson(expected, rnd)
     kills1 = min(kills1, (dens * area * 0.5f).toInt())
     if (kills1 <= 0) return kills1
-    // (No more of either are killed than are there.)
-    var ny = min(if (spareYoung) 0 else (kills1 * fauna.young[k][p] / dens).toInt(), (fauna.young[k][p] * area).toInt())
-    val na = min(kills1 - ny, (fauna.adults[k][p] * area).toInt())
-    kills1 = na + ny
+    // (No more of any are killed than are there: the packs' as many as they are of the game here, taken off them once the
+    // week's hunting is done, [takePackKills].)
+    val np = if (pack > 0f) min(binomial(kills1, pack / dens, rnd), (pack * area).toInt()) else 0
+    val nr = kills1 - np
+    var ny = if (settled > 0f) min(if (spareYoung) 0 else (nr * fauna.young[k][p] / settled).toInt(), (fauna.young[k][p] * area).toInt()) else 0
+    val na = min(nr - ny, (fauna.adults[k][p] * area).toInt())
+    kills1 = na + ny + np
+    if (np > 0) { fauna.packKills += PackKill(p.i, k, np.toFloat(), g.id.toLong()); fauna.packGrown[k]?.let { it[p.i] = max(0f, it[p.i] - np / area) } }
     if (kills1 <= 0) return kills1
     // A band may keep young it catches, to raise by its camp and drive along when it moves.
     if (band != null && ny > 0 && k < band.herds.herd.size) {
@@ -308,14 +320,18 @@ internal fun HexGroups.huntGame(g: HexGroup, k: Int, p: Place, expected: Float, 
         }
     }
     fauna.young[k][p] = max(0f, fauna.young[k][p] - ny / area); fauna.adults[k][p] = max(0f, fauna.adults[k][p] - na / area)
-    // (The share of them it killed, kept for the residents' odds of being hunted, see [HexFauna.huntedOdds].)
-    fauna.groupKilled[k][p] += kills1 / (dens * area)
+    // (The share of the settled it killed, kept for the residents' odds of being hunted, see [HexFauna.huntedOdds].)
+    if (settled > 0f) fauna.groupKilled[k][p] += (na + ny) / (settled * area)
     val young = min(HexFauna.YOUNG_WEIGHT * ps.massKg, kgEach)
-    out.kg = na * kgEach + ny * young
-    out.fat = na * fatOfKill(k, p, kgEach, band)
+    // (The grown killed, settled and of packs alike.)
+    val grown = na + np
+    // (Each kill may cost a hunter, grown prey the more: those kept alive were taken too.)
+    out.fought = grown * foughtBack(s, ps, ps.massKg) + (kills1 - grown) * foughtBack(s, ps, HexFauna.YOUNG_WEIGHT * ps.massKg)
+    out.kg = grown * kgEach + ny * young
+    out.fat = grown * fatOfKill(k, p, kgEach, band)
     // (Hides, bone and sinew come out of what the hunters leave of the carcasses.)
-    val leftA = na * leftOver(ps, kgEach, band)
-    small.deposit(DeadPool.CARRION, p, KgM2((leftA + ny * (HexFauna.YOUNG_WEIGHT * ps.massKg - young) - tallyHide(Tally.HideSource.RESIDENTS, ps, band?.skin(ps, na.toFloat(), leftA))) / (area * 1e6f)))
+    val leftA = grown * leftOver(ps, kgEach, band)
+    small.deposit(DeadPool.CARRION, p, KgM2((leftA + ny * (HexFauna.YOUNG_WEIGHT * ps.massKg - young) - tallyHide(Tally.HideSource.RESIDENTS, ps, band?.skin(ps, grown.toFloat(), leftA))) / (area * 1e6f)))
     band?.let { it.practise(Skill.HUNT); it.practise(Skill.TRACK); it.practise(Skill.STALK); it.practise(Skill.BUTCHER) }
     stats.killed(ps, kills1)
     note(g) { "killed %d %s".format(kills1, ps.name) }
@@ -351,6 +367,53 @@ internal fun HexGroups.scavenge(g: HexGroup, p: Place, expected: Float, sweep: F
         }
     }
     return got
+}
+
+/**
+ * The odds that a kill of [ps] weighing [massKg] costs hunter [s] one of its own: cornered or wounded, the prey turns on
+ * the hunters closing in (a boar's tusks, an aurochs' horns, an elk's hooves, a bear's or a lion's claws), the more the
+ * better it defends itself ([Species.defence]) and the heavier it is against the hunter. The same for every hunter, beast
+ * or band, settled or roaming. ([FOUGHT_BACK] is an estimate: no field figure per kill was found. The Hiwi lose about 3 a
+ * thousand a year to all accidents together, hunting among them (Hill et al. 2007).)
+ */
+internal fun foughtBack(s: Species, ps: Species, massKg: Float): Float {
+    val r = massKg / s.massKg
+    return FOUGHT_BACK * ps.defence * r / (1f + r)
+}
+
+/**
+ * The hunters a kill of [ps] can cost, most per kill of a prey of full [Species.defence] far heavier than the hunter (an
+ * estimate). At 0.005 bands lost 4 a thousand a year to their game (danger589), more than the Hiwi lose to all accidents
+ * together; a quarter of it, to about 1 a thousand.
+ */
+internal const val FOUGHT_BACK = 0.00125f
+
+/**
+ * What the risk of [foughtBack] costs a party of [heads] of [s] a kill, in days of the party's work: the life lost, as the
+ * days the dead had left to work (a generation at most, [GENERATION_YEARS]; a beast, as long as its kind usually lives on),
+ * shared over the party. Hunters weigh their game by it, as by the days a kill takes.
+ */
+internal fun dangerDays(s: Species, ps: Species, massKg: Float, heads: Float): Float =
+    foughtBack(s, ps, massKg) * 365f * min(GENERATION_YEARS, 1f / s.backgroundMortality.coerceAtLeast(1e-3f)) / heads.coerceAtLeast(1f)
+
+/**
+ * [g]'s hunters that its game killed this week: [expected] on average, and some more wounded ([WOUNDED_PER_DEAD]); the
+ * dead are left where they fell.
+ */
+internal fun HexGroups.preyFoughtBack(g: HexGroup, expected: Float, rnd: Random) {
+    if (!(expected > 0f)) return
+    g.band?.wounded(WOUNDED_PER_DEAD * expected, g.adults)
+    val lost = min(poisson(expected, rnd), g.adults)
+    if (lost <= 0) return
+    adultsDied(g, lost, rnd)
+    stats.deaths.merge(Tally.of(g.species, DeathCause.PREY_FOUGHT_BACK), lost, Int::plus)
+    if (g.species.human) stats.adultDeaths.merge(Tally.of(g.species, DeathCause.PREY_FOUGHT_BACK), lost, Int::plus)
+    g.band?.let {
+        stats.tally(Tally.bandsLivingDied(bandLiving(it), DeathCause.PREY_FOUGHT_BACK), lost)
+        stats.tally(Tally.bandsMindDied(it.mind, DeathCause.PREY_FOUGHT_BACK), lost)
+    }
+    small.deposit(DeadPool.CARRION, g.place, Kg(lost * g.species.massKg))
+    note(g) { "lost %d to game that fought back".format(lost) }
 }
 
 /** Chance a band scavenging a carcass where hunters are thick has one of its people mauled by them. */

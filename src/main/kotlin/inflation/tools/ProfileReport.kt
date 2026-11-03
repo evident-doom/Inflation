@@ -183,7 +183,11 @@ internal object ProfileRead {
                 }
                 fr.firstOrNull()?.let { f ->
                     run.frames.merge(name(f.method), 1L, Long::plus)
-                    run.labelFrames.getOrPut(label) { HashMap() }.merge(name(f.method) + ":" + f.lineNumber, 1L, Long::plus)
+                    // (A frame of the libraries says little alone: with the model's frame that called into it.)
+                    val own = name(f.method) + ":" + f.lineNumber
+                    val key = if (own.startsWith("inflation.")) own
+                        else fr.firstOrNull { name(it.method).startsWith("inflation.") }?.let { c -> own + " <- " + name(c.method) + ":" + c.lineNumber } ?: own
+                    run.labelFrames.getOrPut(label) { HashMap() }.merge(key, 1L, Long::plus)
                 }
             }
             "jdk.JavaMonitorEnter" -> {
@@ -269,7 +273,7 @@ internal object ProfileText {
         // Inside the mostly serial parts: which methods and lines the samples fell on, so that the next step is chosen by what is there.
         val serial = r.labels.entries.sortedByDescending { it.value.samples }.take(25).filter { (_, g) -> g.mainSamples * 2 >= g.samples && pct(g.samples, r.samples) >= 0.8 }
         if (serial.isNotEmpty()) {
-            appendLine("Inside the parts that run mostly on the main thread (top self frames, method:line, share of the part's samples):")
+            appendLine("Inside the parts that run mostly on the main thread (top self frames, method:line, a library frame with the model's line that called it, share of the part's samples):")
             for ((k, g) in serial) {
                 val top = r.labelFrames[k].orEmpty().entries.sortedByDescending { it.value }.take(6)
                 appendLine("- $k: " + top.joinToString("; ") { "${it.key} ${f1(pct(it.value, g.samples))}%" })

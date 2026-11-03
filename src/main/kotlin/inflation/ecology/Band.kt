@@ -194,6 +194,8 @@ class Band(kinds: Int, totems: Int = kinds) {
     var salted = 0f
     /** Of its dried meat and fish, how long on the whole it was dried for, against drying at the scaffold's 1 (the longer, the better it keeps: [driedKeep]). */
     var dryDepth = 1f
+    /** How far insects have got into its dried meat and fish and its seed, 0 to 1 ([infest]): the longer kept through warm weather, the worse. */
+    var pests = 0f
     /** Of the protein it ate last week, the share beyond what could feed it ([Nourishment.PROTEIN_MOST]): what it knows lean food is worth. */
     var leanLost = 0f
     /** Of its people's sodium need last week, the share that neither meat, salted meat nor its salt met ([saltFeeds]): what it knows it lacks. */
@@ -477,6 +479,8 @@ class Band(kinds: Int, totems: Int = kinds) {
     val repayWill get() = will[BandWay.REPAYING]
     /** Person-days its people had to spare this week, after getting and keeping food. */
     var spareDays = 0f
+    /** The food its days at rest saved it last week, kg of its need ([restedDays]): what it reckons it need not forage for this week. */
+    var restSaved = 0f
     /** Its week's time, as planned when it foraged ([BandTime]; null till then, and once the week's chores are done). */
     @Transient var week: BandTime? = null
     /** The share of its hands' days left spare, as a running mean over about a season ([SPARE_WEEKS]), once [spareSeen]: for the census only. */
@@ -755,7 +759,7 @@ class Band(kinds: Int, totems: Int = kinds) {
         kit.copyInto(o.kit)
         knows.copyInto(o.knows)
         fine.copyInto(o.fine)
-        o.salted = salted; o.dryDepth = dryDepth
+        o.salted = salted; o.dryDepth = dryDepth; o.pests = pests
         o.renown = renown
         rite.copyInto(o.rite); o.riteStrength = riteStrength; o.riteHeld = riteHeld; o.riteKept = riteKept; o.beliefYears = beliefYears; o.strain = strain
         o.omenPlace = omenPlace; o.omenMonth = omenMonth; o.omenYear = omenYear; o.omenWeight = omenWeight; o.deathsUsual = deathsUsual; o.wantSteps = wantSteps; o.wantBroke = wantBroke; o.wantUsual = wantUsual; o.mind = mind; foreseenShares.copyInto(o.foreseenShares); o.foreseenAt = foreseenAt
@@ -804,6 +808,7 @@ class Band(kinds: Int, totems: Int = kinds) {
         }
         if (dried + bDried > 0f) a.salted = weightedMean(a.salted, dried, b.salted, bDried)
         if (dried + bDried > 0f) a.dryDepth = weightedMean(a.dryDepth, dried, b.dryDepth, bDried)
+        if (dried + seed + bDried + bSeed > 0f) a.pests = weightedMean(a.pests, dried + seed, b.pests, bDried + bSeed)
         // (Seed corn blended by the seed corn each held, the rest of the grain by the rest.)
         val corn = min(a.seedCorn, seed); val bCorn = min(b.seedCorn, bSeed)
         if (corn + bCorn > 0f) a.seedDomestic = weightedMean(a.seedDomestic, corn, b.seedDomestic, bCorn)

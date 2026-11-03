@@ -81,6 +81,7 @@ internal fun HexGroups.keepAndSpoil(w: ForageWeek, got: EnumFloats<Store>, gotKg
         }
         if (band.knowsSkill[Skill.SEALING] && g.larder > 0f) band.practise(Skill.SEALING, 0.2f * PRACTICE)
     }
+    rotten += infest(g, band, weather.temperature[g.place], 1f - home * (1f - sealed))
     band.larderMoved(g, LarderMove.SPOILT, g.larder - unspoilt)
     small.deposit(DeadPool.CARRION, g.place, Kg(rotten + unskinned))
 }
@@ -89,10 +90,52 @@ internal fun HexGroups.keepAndSpoil(w: ForageWeek, got: EnumFloats<Store>, gotKg
  * How much of the usual loss band [band]'s dried meat and fish suffer: smoked keeps longer than sun-dried, salted longer still,
  * and dried for longer ([Band.dryDepth]) longer in proportion (drier meat keeps longer; the proportion is an estimate).
  */
-internal fun GroupWorld.driedKeep(band: Band): Float {
+internal fun GroupWorld.driedKeep(band: Band) = curedKeep(band) / max(1f, band.dryDepth)
+
+/**
+ * How much of what spoils band [band]'s dried meat and fish, and what insects eat of it, its curing lets through: smoke
+ * and salt keep both off. (Drying longer keeps it from going off ([driedKeep]) but not from the beetles, which eat it dry.)
+ */
+internal fun GroupWorld.curedKeep(band: Band): Float {
     val smoked = if (band.knowsSkill[Skill.SMOKING]) 1f - SMOKE_KEEP * band.skill(Skill.SMOKING) else 1f
-    return smoked * (1f - tuning.saltKeep * band.salted) / max(1f, band.dryDepth)
+    return smoked * (1f - tuning.saltKeep * band.salted)
 }
+
+/**
+ * A week of insects in band [band]'s stores at [t] °C ([Band.pests]: how far they are infested, 0 to 1); returns the kg they
+ * ate. They come in from around ([PEST_ARRIVE]) and breed in what they find ([PEST_GROWTH]), both the faster the warmer, and
+ * not at all at [PEST_MIN_T] or below; frost kills them off ([PEST_FROST]); a store gone empty starves them out. The longer
+ * a store is kept through warm weather, the worse it is infested. Of each kind they eat [Store.pestWeekly] as far as the store
+ * is infested, the warmer the more: of dried meat and fish what its curing lets through ([curedKeep]), of seed what its pits
+ * let through ([seedKeep], sealed pits at home keeping them out).
+ */
+internal fun GroupWorld.infest(g: HexGroup, band: Band, t: Float, seedKeep: Float): Float {
+    if (g.stores[Store.DRIED] + g.stores[Store.SEED] <= 0f) { band.pests = 0f; return 0f }
+    val week = days / 7f
+    if (t <= 0f) { band.pests *= exp(-PEST_FROST * week); return 0f }
+    if (t <= PEST_MIN_T) return 0f
+    val warm = min(2.8f, exp(0.069f * (t - 15f)))
+    val p = band.pests
+    band.pests = min(1f, p + (PEST_GROWTH * p * (1f - p) + PEST_ARRIVE * (1f - p)) * warm * week)
+    var eaten = 0f
+    for (st in Store.entries) if (st.pestWeekly > 0f) {
+        val keep = when (st) { Store.DRIED -> curedKeep(band); Store.SEED -> seedKeep; else -> 1f }
+        val x = g.stores[st] * min(1f, st.pestWeekly * keep * band.pests * warm * week)
+        g.stores[st] -= x; eaten += x * g.storeKgPer[st]
+    }
+    return eaten
+}
+
+/**
+ * Insects in stores ([infest]): the share of a clean store a week's warmth at 15 °C brings in from around; how fast they
+ * breed there, a week at 15 °C (doubling in about a month at 25 °C); below this °C they neither breed nor eat; the share a
+ * week of frost kills. (Rates from memory: most stored-food beetles and moths develop only above 10-15 °C, and freezing
+ * kills them.)
+ */
+internal const val PEST_ARRIVE = 0.005f
+internal const val PEST_GROWTH = 0.1f
+internal const val PEST_MIN_T = 12f
+internal const val PEST_FROST = 0.1f
 
 /**
  * The food a whole house would have kept from spoiling in [g]'s stores this week against the houses it has ([home]), less what
