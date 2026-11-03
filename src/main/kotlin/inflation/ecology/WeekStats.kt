@@ -95,15 +95,30 @@ class WeekStats {
  */
 private class ThreadSums<K>(private val ledger: ConcurrentSkipListMap<K, Int>) {
     @Volatile var on = false
-    private val all = ConcurrentLinkedQueue<HashMap<K, IntArray>>()
-    private val mine = ThreadLocal.withInitial { HashMap<K, IntArray>().also { all += it } }
+    /** One thread's sums, by key, and the keys it added to in the order it first did (walked at the flush instead of the map). */
+    private class Mine<T> { val at = HashMap<T, IntArray>(); val keys = ArrayList<T>(); val sums = ArrayList<IntArray>() }
+    private val all = ConcurrentLinkedQueue<Mine<K>>()
+    private val mine = ThreadLocal.withInitial { Mine<K>().also { all += it } }
 
-    fun add(key: K, n: Int) { if (on) mine.get().getOrPut(key) { IntArray(1) }[0] += n else ledger.merge(key, n, Int::plus) }
+    fun add(key: K, n: Int) {
+        if (!on) { ledger.merge(key, n, Int::plus); return }
+        val m = mine.get()
+        m.at.getOrPut(key) { IntArray(1).also { m.keys += key; m.sums += it } }[0] += n
+    }
 
-    /** Puts every thread's sums in the ledger and turns them off (once the loops have joined). */
+    /**
+     * Puts every thread's sums in the ledger and turns them off (once the loops have joined): summed over the threads first,
+     * then each key merged once (the sums are whole numbers, so the ledger is the same as merging thread by thread). A
+     * thread's keys are walked from its list, not its map, whose table stays as wide as its busiest week.
+     */
     fun flush() {
         on = false
-        for (m in all) { for ((k, v) in m) ledger.merge(k, v[0], Int::plus); m.clear() }
+        val total = HashMap<K, IntArray>()
+        for (m in all) {
+            for (i in m.keys.indices) total.getOrPut(m.keys[i]) { IntArray(1) }[0] += m.sums[i][0]
+            m.at.clear(); m.keys.clear(); m.sums.clear()
+        }
+        for ((k, v) in total) ledger.merge(k, v[0], Int::plus)
     }
 }
 
