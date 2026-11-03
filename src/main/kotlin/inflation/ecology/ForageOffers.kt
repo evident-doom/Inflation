@@ -92,7 +92,7 @@ private fun HexGroups.offer(w: ForageWeek, o: Offers, t: Food, k: Int, p: Place,
     val hh = if (band != null) harassedDays(p, h) else h
     // (What it weighs a food at is over the days it takes and the days its [danger] costs: game that may kill a hunter is
     // weighed down as if it took that much longer, though it yields as it does.)
-    o.add(t, k, p, r, e, e * w.feeds(t) * rich, (e * rich + spared) * w.weigh(t) * keen * hh / (hh + danger), hh, if (band != null && t != Food.BIG_GAME) 1 else 0, herd)
+    o.add(t, k, p, r, e, e * w.feeds(t) * rich, (e * rich + spared) * w.weigh(t) * keen * (if (danger > 0f) hh / (hh + danger) else 1f), hh, if (band != null && t != Food.BIG_GAME) 1 else 0, herd)
 }
 
 /** [h] days of a band's work at place [p], as biting insects slow it there ([HexSmallLife.HARASS_TIME]). */
