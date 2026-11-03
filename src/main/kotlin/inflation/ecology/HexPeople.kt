@@ -567,7 +567,7 @@ private fun HexGroups.ecosystemInputs(g: HexGroup, b: Band, into: FloatArray) {
     plantFood(g, b, p, into, x.FRUIT)
     // Game: what it could catch in a week of searching its swept ground, as its move scores it.
     val swept = sweptKm2(s) * CATCH
-    into[x.GAME] = weeks(preyHere(s, p) * gameSweptKm2(s) * CATCH)
+    into[x.GAME] = weeks(preyHere(s, p) * swept)
     into[x.SMALL_GAME] = weeks(small.smallPreyKg(p) * swept)
     into[x.CARRION] = weeks(KgM2(small.carrion[p]).perKm2.v * swept)
     into[x.GAME_TREND] = gameTrend(p)

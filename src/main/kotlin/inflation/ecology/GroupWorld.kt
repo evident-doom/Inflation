@@ -163,7 +163,7 @@ abstract class GroupWorld(
      */
     internal fun dietValue(s: Species, p: Place, game: Float): Float {
         // Small game is searched for over a narrower strip than big game, and carrion only by those that eat it.
-        val smallWorth = smallCatch(s) * SMALL_SENSE_KM / (s.gameSightKm * SEARCHING * CATCH)
+        val smallWorth = smallCatch(s) * SMALL_SENSE_KM / (s.senseKm * SEARCHING * CATCH)
         return game + smallWorth * small.smallPreyKg(p) + (if (s.diet.carrion > 0f) KgM2(small.carrion[p]).perKm2.v else 0f)
     }
 

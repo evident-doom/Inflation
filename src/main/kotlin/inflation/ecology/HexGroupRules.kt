@@ -372,8 +372,6 @@ internal const val FORAGE_PASSES = 3
 
 /** Ground a hunting party of kind [s] sweeps in a week, km² (shared over the hexes it passes): its going, by the width it senses. */
 fun GroupWorld.sweptKm2(s: Species) = s.dailyTravelKm * days * 2f * s.senseKm * SEARCHING
-/** Ground a hunting party of kind [s] sweeps for big game in a week, km²: as [sweptKm2], by the width it sees game at ([Species.gameSightKm]). */
-fun GroupWorld.gameSweptKm2(s: Species) = s.dailyTravelKm * days * 2f * s.gameSightKm * SEARCHING
 /**
  * Ground hunting party [g] searches in a week about place [p], km² (shared over the hexes it passes): [sweptKm2], a
  * bigger party fanning out over more of it (as the square root of its numbers against its kind's usual party), a band's
