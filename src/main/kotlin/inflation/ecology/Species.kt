@@ -71,6 +71,13 @@ class Species(
     val maxDailyTravelKm: Float,
     /** How far the group perceives forage, water and others, km. */
     val senseKm: Float,
+    /**
+     * How far to either side a hunting party of it comes on big game as it searches, km ([gameSweptKm2]): as far as it senses
+     * ([senseKm]) unless set. People see game: about as far as most sightings of game on foot in open country fall (in the
+     * Kalahari 95% within 311 m, Kgalagadi ground transects), less in cover and weather ([sight]); their band's sense of its
+     * country reaches much further.
+     */
+    val gameSightKm: Float = senseKm,
     /** Days it can go without drinking. */
     val daysWithoutWater: Int,
     /**

@@ -482,7 +482,8 @@ internal class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, pack
     // bands of its totem who meet it come to know it ([Band.totemBroken]). (Its resident kind's index; -1 for none.)
     val avoid = if (band != null && g.fed >= Thresholds.HUNGRY) band.totem.i else -1
     // The ground its hunters search for game this week, and how much of each place (see [huntGround]).
-    val ground = gs.huntGround(g, sweep * g.path.size.coerceAtLeast(1) * sqrt(hunt))
+    // (Big game by the width it sees game at, [Species.gameSightKm]; small game and carrion over [sweep].)
+    val ground = gs.huntGround(g, sweep * g.path.size.coerceAtLeast(1) * sqrt(hunt) * g.species.gameSightKm / g.species.senseKm)
     // The odds a meeting with each kind ends in a kill, in each place of that ground (they do not change within the week).
     val nk = gs.fauna.kinds.size
     val odds = FloatArray(ground.size * nk)

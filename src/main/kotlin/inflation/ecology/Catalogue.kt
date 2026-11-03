@@ -711,7 +711,7 @@ object Catalogue {
         // made up as much of the diet as game; hunting is a little over a third.
         diet = Diet(meat = 0.35f, smallPrey = 0.12f, carrion = 0.04f, roots = 0.19f, fruit = 0.30f),
         groupSize = 25, maxGroupSize = 50,
-        dailyTravelKm = 10f, maxDailyTravelKm = 40f, senseKm = 10f,
+        dailyTravelKm = 10f, maxDailyTravelKm = 40f, senseKm = 10f, gameSightKm = 0.3f,
         daysWithoutWater = 3, waterFromFood = 0.2f,
         birthMonth = 3, birthMonths = 12, youngPerFemale = 0.22f, yearsToMaturity = 15f, // a birth every 4–5 years
         // Children's ordinary deaths (fevers, gut infections, accidents): about 60% would reach fifteen

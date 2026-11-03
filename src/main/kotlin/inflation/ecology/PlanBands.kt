@@ -73,10 +73,10 @@ private fun GroupPlanner.reckonedGain(g: HexGroup, b: Band, here: Hex, date: Dat
 /**
  * The fish and shellfish band [b] could take from hex [h] in a week, with its skill and its weirs ([catchWithin]; less
  * plain where it is a stranger), as the game standing on the ground that would yield as much to its hunters: game
- * is met over the ground its party sweeps in a week ([sweptKm2]) and caught at [CATCH].
+ * is met over the ground its party sweeps for it in a week ([gameSweptKm2]) and caught at [CATCH].
  */
 internal fun GroupPlanner.fishWorth(g: HexGroup, b: Band, h: Hex): Float =
-    catchWithin(g, b, h) * (if (b.knows(h)) 1f else 0.5f) / (gs.sweptKm2(g.species) * CATCH)
+    catchWithin(g, b, h) * (if (b.knows(h)) 1f else 0.5f) / (gs.gameSweptKm2(g.species) * CATCH)
 
 /** The fish and shellfish band [b] (group [g]) could take from hex [h] in a week ([HexWater.bandCatchWithin]), and from a weir standing there that it may use ([HexWater.weirWithin]). */
 internal fun GroupPlanner.catchWithin(g: HexGroup, b: Band, h: Hex): Float =
