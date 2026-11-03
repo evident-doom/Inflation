@@ -45,28 +45,27 @@ internal class ResidentParties(private val gs: HexGroups) {
     val parties = ArrayList<HexGroup>()
 
     init {
-        val f = gs.fauna; val hexes = ArrayList<inflation.world.Hex>().also { for (h in gs.hex.all) it += h }
+        val f = gs.fauna; val nHexes = gs.hex.size
         for (k in f.kinds.indices) {
             val s = f.kinds[k]
             if (!s.carnivore) continue
             // (Each hex's stand-in worked out on all cores, then taken in the hexes' order.)
-            val made = arrayOfNulls<StandIn>(hexes.size)
-            Par.forEach("residents: settle", hexes.size) { hi ->
-                val h = hexes[hi]
+            val made = arrayOfNulls<StandIn>(nHexes)
+            Par.forEachHex("residents: settle", nHexes) { h ->
                 var a = 0f; var y = 0f; var p = -1; var most = 0f
                 for (q in gs.hw.placesOf(h)) {
                     val area = gs.land.areaKm2[q]; val hq = (f.adults[k][q] + f.young[k][q]) * area
                     a += f.adults[k][q] * area; y += f.young[k][q] * area
                     if (hq > most) { most = hq; p = q }
                 }
-                if (p < 0) return@forEach
+                if (p < 0) return@forEachHex
                 val bands = (a + y) / s.groupSize
-                if (bands < MIN_BANDS) return@forEach
+                if (bands < MIN_BANDS) return@forEachHex
                 val grown = max(1, (s.groupSize * a / (a + y)).roundToInt()); val little = (s.groupSize * y / (a + y)).roundToInt()
                 // (Its id is out of the groups' range, fixed by kind and hex: the meetings' order draws repeat run to run.)
                 val g = HexGroup(-1 - (k * gs.hex.size + h.i), s, Place(p), grown, little)
                 g.home = h; g.path = hexArray(1) { h }; g.days = FloatArray(1)
-                made[hi] = StandIn(g, k, grown, little, bands, a, y)
+                made[h.i] = StandIn(g, k, grown, little, bands, a, y)
             }
             val more = made.count { it != null }
             standIns.ensureCapacity(standIns.size + more); parties.ensureCapacity(parties.size + more)

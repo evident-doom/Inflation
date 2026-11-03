@@ -65,6 +65,6 @@ class ByBeast private constructor(val how: How, val by: Species) : DeathReason {
 
     companion object {
         private val made = ConcurrentHashMap<Int, ByBeast>()
-        fun of(how: How, by: Species): ByBeast = made.computeIfAbsent(how.ordinal * 65536 + by.index) { ByBeast(how, by) }
+        fun of(how: How, by: Species): ByBeast { val key = how.ordinal * 65536 + by.index; return made[key] ?: made.computeIfAbsent(key) { ByBeast(how, by) } }
     }
 }
