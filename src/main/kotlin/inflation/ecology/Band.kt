@@ -358,6 +358,8 @@ class Band(kinds: Int, totems: Int = kinds) {
     var sownKg = 0f
     /** Years since it last sowed ([HexGroups.sowGrain]), counted at its customs' week: a band with a crop sown within the year farms. */
     var sinceSowed = 0f
+    /** Its people killed in raids a person a year, as it has lived them: a running sum fading over a year ([HexGroups.cultureWeek]). */
+    var raidDeathRate = 0f
     var seedDomestic = 0f
     var grainDomestic = 0f
     /** Its ways ([BandWay]), as [setWays] sets them each week from its ways' outputs: 1 each for the scaffold's way. Read through the names below. */
@@ -761,7 +763,7 @@ class Band(kinds: Int, totems: Int = kinds) {
         o.omenPlace = omenPlace; o.omenMonth = omenMonth; o.omenYear = omenYear; o.omenWeight = omenWeight; o.deathsUsual = deathsUsual; o.wantSteps = wantSteps; o.wantBroke = wantBroke; o.wantUsual = wantUsual; o.mind = mind; foreseenShares.copyInto(o.foreseenShares); o.foreseenAt = foreseenAt
         traditions.copyInto(o.traditions); heard.copyInto(o.heard); o.heardOf = heardOf
         o.totem = totem; o.marksChosen = marksChosen; o.heardTotem = heardTotem.copyOf(); o.totemBroken = totemBroken
-        o.heldLivelihood = heldLivelihood; o.livelihoodHold = livelihoodHold; o.livedOther = livedOther; o.livelihoodChosen = livelihoodChosen; heardLivelihood.copyInto(o.heardLivelihood)
+        o.raidDeathRate = raidDeathRate; o.heldLivelihood = heldLivelihood; o.livelihoodHold = livelihoodHold; o.livedOther = livedOther; o.livelihoodChosen = livelihoodChosen; heardLivelihood.copyInto(o.heardLivelihood)
         o.burialWay = burialWay; heardBurial.copyInto(o.heardBurial); words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
         o.inbred = inbred; o.campWeeks = campWeeks; o.campPlace = campPlace; o.known = known.copyOf()
         copied(o)
@@ -823,6 +825,7 @@ class Band(kinds: Int, totems: Int = kinds) {
         a.ornaments += b.ornaments; a.exotic += b.exotic
         a.herds.absorb(b.herds)
         a.renown = max(a.renown, b.renown)
+        a.raidDeathRate += w * (b.raidDeathRate - a.raidDeathRate)
         for (i in Tool.entries) a.knows[i] = a.knows[i] || b.knows[i]
         for (i in a.lineage.indices) a.lineage[i] += w * (b.lineage[i] - a.lineage[i])
         for (i in a.grudge.indices) a.grudge[i] = max(a.grudge[i], b.grudge[i])
