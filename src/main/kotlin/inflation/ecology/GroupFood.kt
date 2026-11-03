@@ -437,7 +437,7 @@ internal class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, pack
      * where it kills ([eats]).
      */
     val carryDaysPerKg = if (band != null) 2f * (s.dailyTravelKm / 2f) /
-        (WALK_KM_PER_HOUR * BandTime.WORK_HOURS * MEAT_LOAD_KG * huntHeads.coerceAtLeast(1f)) else eats
+        (WALK_KM_PER_HOUR * Activity.WORK_HOURS * MEAT_LOAD_KG * huntHeads.coerceAtLeast(1f)) else eats
     /** The hunters its kills this week are expected to cost ([foughtBack]): they die once the week's foraging is done ([preyFoughtBack]). */
     var foughtBack = 0f
     // What a kg of each food holds for it, in kg of its need: its energy ([Food.energy]) by the kind's [Species.needScale]
