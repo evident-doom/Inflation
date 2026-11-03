@@ -46,6 +46,7 @@ class MoveLook(
  * tools in days saved): what it asked, what a day of it was reckoned to save, the bar it had to clear, the days held.
  */
 class ItemLook(
+    val item: PlanItem,
     val name: String,
     /** "lives" (lives a day of work saves) or "days" (days saved a day of work). */
     val unit: String,
@@ -79,7 +80,9 @@ class DaysLook(val group: Int, val date: Date, val people: Int, val total: Float
     val items = ArrayList<ItemLook>()
     val tools = ArrayList<ToolLook>()
     /** The chores with no reckoning yet: asked and shared, days, by activity; the clothes beyond the survival pass last. */
-    val unreckoned = ArrayList<Triple<String, Float, Float>>()
+    val unreckoned = ArrayList<ChoreLook>()
+    /** The player's picks this week held to ([GroupControl.planPick]), by [PlanItem]; all [PlanPick.MODEL] when none. */
+    val picks = Array(PlanItem.entries.size) { PlanPick.MODEL }
     var leisure = 0f
     /** Inputs gathered while the rates were reckoned, by item (in [planDays]' table order), for [items]. */
     internal val pending = Array(SCORED_ITEMS_SHOWN) { ArrayList<Pair<String, String>>() }
@@ -88,3 +91,24 @@ class DaysLook(val group: Int, val date: Date, val people: Int, val total: Float
 
 /** The scored items [planDays] reckons ([DaysLook.pending]). */
 internal const val SCORED_ITEMS_SHOWN = 5
+
+/** A chore with no reckoning yet ([planDays]): what it asked and what it was given, days. */
+class ChoreLook(val item: PlanItem, val name: String, val asked: Float, val given: Float)
+
+/**
+ * What the player may hold or drop of a planning band's week beyond its essentials, from the viewer's Plan tab
+ * ([GroupControl.planPick]): what its customs owe, its scored items ([planDays]' table order) and its unreckoned chores.
+ * The essentials (food, fire, shelter, clothes the survival pass gives, herders) are never the player's.
+ */
+enum class PlanItem(val label: String) {
+    CUSTOMS("customs"), ORNAMENTS("ornaments"),
+    STORES("stores"), GRUEL("grinding stones for gruel"), HOUSES("houses"), WEIRS("weirs"), TOOLS("tools"),
+    TRAINING("training"), MATERIALS("materials"), DRYING("drying"), SKINS("skins"), CACHING("caching"), SOWING("sowing"), PALISADE("palisade"),
+    CLOTHES("clothes beyond the survival pass")
+}
+
+/**
+ * The player's pick for a [PlanItem]: [MODEL], as the band reckons it; [HOLD], given as far as it asks and days are left,
+ * whatever its reckoning (before the rest of its tier); [DROP], given none.
+ */
+enum class PlanPick(val label: String) { MODEL("model"), HOLD("hold"), DROP("drop") }

@@ -3,6 +3,8 @@ package inflation.ui
 import inflation.ecology.Activity
 import inflation.ecology.DaysLook
 import inflation.ecology.ItemLook
+import inflation.ecology.PlanItem
+import inflation.ecology.PlanPick
 import inflation.ecology.MoveLook
 import inflation.ecology.ReckonTerm
 import inflation.ecology.Reckoned
@@ -37,6 +39,10 @@ internal class PlanPanel(
     private val where: (Int) -> String,
     /** The player picks a place (by its place index), as a click on the map. */
     private val pickPlace: (Int) -> Unit,
+    /** The player's picks for the band's next weeks, by [PlanItem] ([GroupControlWindow.planPick]). */
+    private val picks: () -> Array<PlanPick>,
+    /** The player picks [PlanItem] to be held, dropped or left to the band, from the next week it plans on. */
+    private val setPick: (PlanItem, PlanPick) -> Unit,
 ) {
     /** One planned week: its move (null if it weighed none) and its days (null until the week has run). */
     private class Week(val date: Date, var move: MoveLook?, var days: DaysLook?)
@@ -68,6 +74,12 @@ internal class PlanPanel(
             when {
                 d.startsWith("open:") -> { val k = d.removePrefix("open:"); if (!open.remove(k)) open += k; render() }
                 d.startsWith("go:") -> d.removePrefix("go:").toIntOrNull()?.let(pickPlace)
+                d.startsWith("pick:") -> {
+                    val parts = d.removePrefix("pick:").split(":")
+                    val item = PlanItem.entries.firstOrNull { it.name == parts.getOrNull(0) }
+                    val p = PlanPick.entries.firstOrNull { it.name == parts.getOrNull(1) }
+                    if (item != null && p != null) { setPick(item, p); render() }
+                }
             }
         }
         val top = JPanel(BorderLayout())
@@ -225,7 +237,10 @@ internal class PlanPanel(
         val owed = d.customsPaid + d.ornamentsPaid
         val lives = d.items.filter { it.unit == "lives" }.sumOf { it.heldDays.toDouble() }.toFloat()
         val gens = d.items.filter { it.unit == "days" }.sumOf { it.heldDays.toDouble() }.toFloat()
-        val unr = d.unreckoned.sumOf { it.third.toDouble() }.toFloat()
+        val unr = d.unreckoned.sumOf { it.given.toDouble() }.toFloat()
+        sb.append("<p><b>Playing it:</b> each item beyond the essentials has <i>model &middot; hold &middot; drop</i>. Hold gives it days as far as it asks " +
+            "(first of its tier) whatever its reckoning; drop gives it none. Your picks take hold from the next week it plans and stay until you change them " +
+            "or press <i>Undo my changes</i>. Where it goes is picked on the map, the place list, or <i>go here</i> above.</p>")
         sb.append("<p>%d people; %.0f person-days of work this week. One bar, in the order they were held:</p>".format(d.people, d.total))
         sb.append(bar(d.total, listOf(
             Triple("walk and water", d.walkAndWater, "#9e9e9e"), Triple("essentials", ess, "#e57373"), Triple("owed by custom", owed, "#ba68c8"),
@@ -238,12 +253,13 @@ internal class PlanPanel(
         sb.append(" days; %.1f days left for the rest.</p>".format(d.afterEssentials))
         // Tier 1: owed.
         sb.append(tier("Owed by custom", "rites, burials, keeping clean and nursing where it holds to them, its ornaments: belief decides them, not lives"))
-        sb.append("<p>customs %s of %s asked &middot; ornaments %s of %s asked</p>".format(num(d.customsPaid), num(d.customsAsked), num(d.ornamentsPaid), num(d.ornamentsAsked)))
+        sb.append("<p>customs %s of %s asked%s &middot; %s<br>ornaments %s of %s asked%s &middot; %s</p>".format(num(d.customsPaid), num(d.customsAsked),
+            heldTo(d, PlanItem.CUSTOMS), pickLinks(PlanItem.CUSTOMS), num(d.ornamentsPaid), num(d.ornamentsAsked), heldTo(d, PlanItem.ORNAMENTS), pickLinks(PlanItem.ORNAMENTS)))
         // Tiers 2 and 3: the scored items.
         sb.append(tier("Held by lives saved this year", "a day of work goes where it saves the most lives, while it saves any"))
-        for (it in d.items.filter { it.unit == "lives" }) sb.append(itemCard(it))
+        for (it in d.items.filter { it.unit == "lives" }) sb.append(itemCard(d, it))
         sb.append(tier("Held by days saved over generations", "houses, weirs and tools, the one that saves most days for its days first, while it saves more days than it takes (bar 1)"))
-        for (it in d.items.filter { it.unit == "days" }.sortedBy { it.rank }) sb.append(itemCard(it))
+        for (it in d.items.filter { it.unit == "days" }.sortedBy { it.rank }) sb.append(itemCard(d, it))
         if (d.tools.isNotEmpty()) {
             sb.append("<p><b>Each tool</b> it knows and lacks of a whole kit:</p><table cellpadding=2 cellspacing=0 border=1><tr bgcolor=$HEAD><th>tool</th><th>kit</th>" +
                 "<th>days saved a year (whole kit)</th><th>lasts, y</th><th>days to make</th><th>saved / made</th><th>verdict</th></tr>")
@@ -254,17 +270,28 @@ internal class PlanPanel(
         }
         // Tier 4: unreckoned, then leisure.
         sb.append(tier("No reckoning yet", "shared out at equal weights of what is left"))
-        sb.append("<table cellpadding=2 cellspacing=0 border=1><tr bgcolor=$HEAD><th>chore</th><th>asked</th><th>given</th></tr>")
-        for ((name, asked, given) in d.unreckoned) if (asked > 0.05f || given > 0.05f)
-            sb.append("<tr><td>$name</td><td align=right>${num(asked)}</td><td align=right>${num(given)}</td></tr>")
+        sb.append("<table cellpadding=2 cellspacing=0 border=1><tr bgcolor=$HEAD><th>chore</th><th>asked</th><th>given</th><th>your pick</th></tr>")
+        for (c in d.unreckoned) if (c.asked > 0.05f || c.given > 0.05f || picks()[c.item.ordinal] != PlanPick.MODEL || d.picks[c.item.ordinal] != PlanPick.MODEL)
+            sb.append("<tr><td>${c.name}${heldTo(d, c.item)}</td><td align=right>${num(c.asked)}</td><td align=right>${num(c.given)}</td><td>${pickLinks(c.item)}</td></tr>")
         sb.append("</table>")
         sb.append(tier("Leisure", "what is left: no chore takes it"))
         sb.append("<p><b>%.1f</b> days</p>".format(d.leisure))
         return sb.append(END).toString()
     }
 
-    private fun itemCard(it: ItemLook): String {
+    /** This week's own pick for [item], where the player's held it ([DaysLook.picks]). */
+    private fun heldTo(d: DaysLook, item: PlanItem) = d.picks[item.ordinal].let { if (it == PlanPick.MODEL) "" else " <font color=#b35c00><b>(your %s)</b></font>".format(it.label) }
+
+    /** The player's pick for [item] from the next week: model, hold, drop, the current one in bold. */
+    private fun pickLinks(item: PlanItem): String {
+        val now = picks()[item.ordinal]
+        return "next weeks: " + PlanPick.entries.joinToString(" &middot; ") { p ->
+            if (p == now) "<b>[${p.label}]</b>" else "<a href=\"pick:${item.name}:${p.name}\">${p.label}</a>" }
+    }
+
+    private fun itemCard(d: DaysLook, it: ItemLook): String {
         val (verdict, colour) = when {
+            d.picks[it.item.ordinal] == PlanPick.DROP -> "DROPPED by you" to ORANGE
             it.heldDays > 0.005f -> "HELD %.1f of %.1f days asked".format(it.heldDays, it.askDays) to GREEN
             it.askDays <= 0.005f -> "nothing asked" to LIGHT
             it.rate <= it.bar -> "NOT HELD: saves %s, not above the bar %s".format(num(it.rate), num(it.bar)) to GREY
@@ -273,7 +300,7 @@ internal class PlanPanel(
         val unit = if (it.unit == "lives") "lives a day of work saves" else "days saved a day of work"
         val key = "item:" + it.name.replace(' ', '_')
         val sb = StringBuilder()
-        sb.append("<table width=100% cellpadding=4 cellspacing=0 border=1><tr bgcolor=$colour><td><b>${it.name}</b> &middot; $verdict<br>")
+        sb.append("<table width=100% cellpadding=4 cellspacing=0 border=1><tr bgcolor=$colour><td><b>${it.name}</b>${heldTo(d, it.item)} &middot; $verdict &middot; ${pickLinks(it.item)}<br>")
         sb.append("asked <b>%s</b> days &middot; %s: <b>%s</b> (bar %s) &middot; weighed %s &middot; <a href=\"open:%s\">%s</a>".format(
             num(it.askDays), unit, num(it.rate), num(it.bar), ordinal(it.rank), key, if (key in open) "hide the reckoning" else "show the reckoning"))
         if (key in open) {

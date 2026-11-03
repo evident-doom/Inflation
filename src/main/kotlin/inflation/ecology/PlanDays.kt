@@ -46,8 +46,12 @@ internal fun HexGroups.planDays(g: HexGroup, b: Band, weather: Weather, time: Ba
         for (a in Activity.entries) l.essentials[a.ordinal] = days(a, needs[a] + warm[a] + kept[a])
         l.afterEssentials = left
     } else null
+    // (The player's picks, for the followed band with the controls open: hold or drop an item whatever its reckoning, [PlanPick].)
+    val ctl = if (look != null) control else null
+    fun pick(i: PlanItem) = (ctl?.planPick(g, i) ?: PlanPick.MODEL).also { p -> look?.let { it.picks[i.ordinal] = p } }
     // What its customs owe.
-    val owed = floatArrayOf(days(Activity.CUSTOMS, asks[Activity.CUSTOMS]), days(Activity.ORNAMENTS, asks[Activity.ORNAMENTS]))
+    val owed = floatArrayOf(if (pick(PlanItem.CUSTOMS) == PlanPick.DROP) 0f else days(Activity.CUSTOMS, asks[Activity.CUSTOMS]),
+        if (pick(PlanItem.ORNAMENTS) == PlanPick.DROP) 0f else days(Activity.ORNAMENTS, asks[Activity.ORNAMENTS]))
     val paid = BandTime.shareOut(owed, floatArrayOf(1f, 1f), left)
     given[Activity.CUSTOMS] = paid[0] * time.pace(Activity.CUSTOMS); given[Activity.ORNAMENTS] = paid[1] * time.pace(Activity.ORNAMENTS)
     left -= paid.sum()
@@ -66,13 +70,17 @@ internal fun HexGroups.planDays(g: HexGroup, b: Band, weather: Weather, time: Ba
     val d = FloatArray(SCORED_ITEMS)
     // (The stores and the gruel while they save any lives; a house, a weir or its tools when they save more days than they take.)
     val order = (0 until LIVES_ITEMS).toList() + (LIVES_ITEMS until SCORED_ITEMS).sortedByDescending { rate[it] }
-    for (i in order) {
-        if (rate[i] <= (if (i < LIVES_ITEMS) SAVES_NONE * g.size else 1f) || left <= 0f) continue
+    // (A pick of the player's: held whatever its rate, or dropped; held items first of their tier.)
+    val picked = Array(SCORED_ITEMS) { if (ctl != null) pick(SCORED_PICKS[it]) else PlanPick.MODEL }
+    val weighed = if (ctl == null) order else order.sortedBy { if (picked[it] == PlanPick.HOLD) (if (it < LIVES_ITEMS) 0 else 1) else (if (it < LIVES_ITEMS) 0 else 2) }
+    for (i in weighed) {
+        if (picked[i] == PlanPick.DROP) continue
+        if ((picked[i] != PlanPick.HOLD && rate[i] <= (if (i < LIVES_ITEMS) SAVES_NONE * g.size else 1f)) || left <= 0f) continue
         d[i] = min(ask[i], left * time.pace(acts[i])); left -= d[i] / time.pace(acts[i])
     }
     for (i in 0 until SCORED_ITEMS) given[acts[i]] = d[i]
     look?.let { l ->
-        for (i in 0 until SCORED_ITEMS) l.items += ItemLook(SCORED_NAMES[i], if (i < LIVES_ITEMS) "lives" else "days", ask[i] / time.pace(acts[i]), rate[i],
+        for (i in 0 until SCORED_ITEMS) l.items += ItemLook(SCORED_PICKS[i], SCORED_NAMES[i], if (i < LIVES_ITEMS) "lives" else "days", ask[i] / time.pace(acts[i]), rate[i],
             if (i < LIVES_ITEMS) SAVES_NONE * g.size else 1f, d[i] / time.pace(acts[i]), order.indexOf(i), l.pending[i])
     }
     left = max(0f, left)
@@ -81,15 +89,23 @@ internal fun HexGroups.planDays(g: HexGroup, b: Band, weather: Weather, time: Ba
     // weighed, the last entry. They are made first of its tools' days, [makeTools].)
     val clothes = days(Activity.TOOLS, max(0f, makeTools(b, g.adults.toFloat(), null, only = Tool.CLOTHES) - warm[Activity.TOOLS]))
     val rest = FloatArray(UNRECKONED_ACTS.size + 1) { if (it < UNRECKONED_ACTS.size) days(UNRECKONED_ACTS[it], asks[UNRECKONED_ACTS[it]]) else clothes }
+    // (The player's picks: a dropped chore asks none; a held one is given first, as far as it asks, the rest shared after.)
+    val held = FloatArray(rest.size)
+    if (ctl != null) for (i in rest.indices) when (pick(UNRECKONED_PICKS[i])) {
+        PlanPick.DROP -> rest[i] = 0f
+        PlanPick.HOLD -> { held[i] = min(rest[i], left); left -= held[i]; rest[i] -= held[i] }
+        PlanPick.MODEL -> {}
+    }
     // (Each as far as the days left at most: an ask far beyond them, as materials' year of need can be, would leave the
     // share-out's weighing too fine for a float, and the others nothing.)
     val shared = BandTime.shareOut(FloatArray(rest.size) { min(rest[it], left) }, FloatArray(rest.size) { 1f }, left)
+    for (i in rest.indices) { shared[i] += held[i]; rest[i] += held[i]; left += held[i] }
     for (i in UNRECKONED_ACTS.indices) given[UNRECKONED_ACTS[i]] = shared[i] * time.pace(UNRECKONED_ACTS[i])
     given[Activity.TOOLS] += shared[UNRECKONED_ACTS.size] * time.pace(Activity.TOOLS)
     left = max(0f, left - shared.sum())
     given[Activity.LEISURE] = left * time.pace(Activity.LEISURE)
     look?.let { l ->
-        for (i in rest.indices) l.unreckoned += Triple(if (i < UNRECKONED_ACTS.size) UNRECKONED_ACTS[i].label else "clothes beyond the survival pass", rest[i], shared[i])
+        for (i in rest.indices) l.unreckoned += ChoreLook(UNRECKONED_PICKS[i], if (i < UNRECKONED_ACTS.size) UNRECKONED_ACTS[i].label else PlanItem.CLOTHES.label, rest[i], shared[i])
         l.leisure = left
         daysLook = l
     }
@@ -267,6 +283,10 @@ private const val WEIRS = 3
 private const val TOOLS = 4
 /** [SCORED_ACTS]' items by name, for the viewer ([ItemLook]). */
 private val SCORED_NAMES = arrayOf("stores", "grinding stones for gruel", "houses", "weirs", "tools")
+/** [SCORED_ACTS]' and [UNRECKONED_ACTS]' items (the clothes last) as the player may pick them ([PlanItem]). */
+private val SCORED_PICKS = arrayOf(PlanItem.STORES, PlanItem.GRUEL, PlanItem.HOUSES, PlanItem.WEIRS, PlanItem.TOOLS)
+private val UNRECKONED_PICKS = arrayOf(PlanItem.TRAINING, PlanItem.MATERIALS, PlanItem.DRYING, PlanItem.SKINS, PlanItem.CACHING, PlanItem.SOWING,
+    PlanItem.PALISADE, PlanItem.CLOTHES)
 /** Fewer lives than this a person are none saved: the rounding in the reckoning, not a difference. */
 private const val SAVES_NONE = 1e-6f
 

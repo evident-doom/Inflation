@@ -13,6 +13,8 @@ import inflation.ecology.HexGroup
 import inflation.ecology.HexSim
 import inflation.ecology.MoveDecision
 import inflation.ecology.Mind
+import inflation.ecology.PlanItem
+import inflation.ecology.PlanPick
 import inflation.ecology.Store
 import inflation.ecology.Tool
 import inflation.ecology.WAYS_OUT
@@ -130,7 +132,10 @@ class GroupControlWindow(
     private val waysPanel = JPanel(GridBagLayout())
     private var wayRows = emptyList<WayRow>()
     /** A planning band's week, as a game's turn: its choice of camp and its days, with the numbers behind them ([PlanPanel]). */
-    private val plan = PlanPanel(where = { where(it) }, pickPlace = { p -> decision?.let { d -> d.places.indexOf(p).takeIf { it >= 0 }?.let { choose(it) } } })
+    private val plan = PlanPanel(where = { where(it) }, pickPlace = { p -> decision?.let { d -> d.places.indexOf(p).takeIf { it >= 0 }?.let { choose(it) } } },
+        picks = { planPicks }, setPick = { item, p -> planPicks = planPicks.copyOf().also { it[item.ordinal] = p }; refresh() })
+    /** The player's picks for a planning band's week ([PlanPanel]), by [PlanItem]: held to from the next week it plans, until changed. */
+    @Volatile private var planPicks = Array(PlanItem.entries.size) { PlanPick.MODEL }
     /** Candidate indices in the table's order (best by the model first). */
     private var order = IntArray(0)
     private var updating = false
@@ -145,7 +150,8 @@ class GroupControlWindow(
         next.addActionListener { nextStep() }
         handsOff.addActionListener { if (handsOff.isSelected) release() else startIfIdle(); refresh() }
         reset.toolTipText = "Drop your changes this week: back to the model's place and ways"
-        reset.addActionListener { decision?.let { pick = it.model }; pins = FloatArray(pins.size) { Float.NaN }; refresh() }
+        reset.addActionListener { decision?.let { pick = it.model }; pins = FloatArray(pins.size) { Float.NaN }
+            planPicks = Array(PlanItem.entries.size) { PlanPick.MODEL }; refresh() }
 
         table.model = tableModel
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
@@ -222,7 +228,7 @@ class GroupControlWindow(
     fun followChanged() {
         startNext = false
         release()
-        decision = null; pins = FloatArray(0); pinsFor = -1
+        decision = null; pins = FloatArray(0); pinsFor = -1; planPicks = Array(PlanItem.entries.size) { PlanPick.MODEL }
         synchronized(trail) { trail.clear() }; seenBefore = emptySet()
         SwingUtilities.invokeLater { plan.clear(); refresh(); startIfIdle() }
     }
@@ -288,6 +294,8 @@ class GroupControlWindow(
         for (k in 0 until min(p.size, out.size)) if (!p[k].isNaN()) out[k] = toOutput(p[k])
     }
 
+    override fun planPick(g: HexGroup, item: PlanItem): PlanPick = planPicks[item.ordinal]
+
     /** A way's strength (0..2, 1 the hand-written way) as a network output, and back. */
     private fun toOutput(v: Float): Float { val x = (v / 2f).coerceIn(0.005f, 0.995f); return -ln(1f / x - 1f) }
     private fun toWay(out: Float) = 2f / (1f + exp(-out))
@@ -310,7 +318,7 @@ class GroupControlWindow(
         val g = groups.groups.firstOrNull { it.id == groups.watched && it.alive }
         val w = waiting != null
         next.text = if (w) "Next step" else if (handsOff.isSelected) "Next step" else "Start the week"
-        reset.isEnabled = d != null && (pick != d.model || pins.any { !it.isNaN() })
+        reset.isEnabled = (d != null && (pick != d.model || pins.any { !it.isNaN() })) || planPicks.any { it != PlanPick.MODEL }
         note.text = when {
             groups.watched < 0 -> "  Follow a group in the overview (tick Follow, or pick a band in the list) to take its controls."
             g == null -> "  The group followed is gone (died out or joined another). Pick another in the overview and press Follow…."

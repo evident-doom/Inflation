@@ -123,7 +123,10 @@ overview's Run and Step take over: their weeks run on the model's choices. A pla
 for leaving part by part against the walk, and each place it weighed with the rule that let it in
 or kept it out, with "go here"), its week's days as one bar by tier, each scored item's ask, rate,
 bar and days held with the reckoning behind it, each tool's days saved against its making, and a
-list of the weeks it planned. `nets=DIR`, with `ways=FILE`,
+list of the weeks it planned. The player plays it there: each item beyond the essentials (what its customs
+owe, stores, gruel, houses, weirs, tools, the unreckoned chores) can be left to the band, held (given
+days as far as it asks, whatever its reckoning) or dropped, from the next week on; where it camps is
+picked on the map as for any group. `nets=DIR`, with `ways=FILE`,
 in the config file picks the learned networks, as in `hexFauna`;
 without it the latest baseline is used.
 
