@@ -1,6 +1,7 @@
 package inflation.tools
 
 import inflation.ecology.arriveOdds
+import inflation.ecology.fedAt
 import inflation.ecology.growthParts
 import inflation.ecology.stayOdds
 import inflation.world.get
@@ -44,7 +45,7 @@ fun main(args: Array<String>) {
     named?.let { TestWorlds.check(it, sim); HexSnapshot.load(sim, it.state); println("carrying on ${it.state} at ${sim.weather.date}") }
     LearnedModel.fromConfig(sim.groups) { println(it) }
     val fauna = sim.fauna; val land = sim.land; val hw = sim.hw; val n = land.n
-    val kinds = names.mapNotNull { name -> fauna.kinds.indexOfFirst { it.name == name }.takeIf { it >= 0 && fauna.room[it] != null } }
+    val kinds = names.mapNotNull { name -> fauna.kinds.indexOfFirst { it.name == name }.takeIf { it >= 0 && !fauna.kinds[it].carnivore } }
 
     val cols = listOf("heads", "came x", "km2", "band", "fed", "room", "protein", "worth", "born", "grown die", "disease", "outbreak")
     // [kind][month][0 piles / 1 all][column]: heads-weighted sums ("heads" holds the heads); [kind][month]: pile-weeks.
@@ -79,7 +80,7 @@ fun main(args: Array<String>) {
                 val pile = out[Danger.CROWD] >= 2f
                 if (pile) piles[i][m]++
                 val v = doubleArrayOf(h, h / before[i][p].coerceAtLeast(1e-3f), land.areaKm2[p].toDouble(), hw.placeBand[p].toDouble(),
-                    fauna.fed[k][p].toDouble(), fauna.room[k]!![p].toDouble(), fauna.protein[k][p].toDouble(), fauna.worth[k][p].toDouble(),
+                    fauna.fed[k][p].toDouble(), fauna.fedAt(FaunaKind(k), Place(p), sim.weather).toDouble(), fauna.protein[k][p].toDouble(), fauna.worth[k][p].toDouble(),
                     born[i][p].toDouble(), die[i][p].toDouble(), out.disease().toDouble(), fauna.outbreakDeaths(s, Place(p)).toDouble())
                 for (g in if (pile) intArrayOf(0, 1) else intArrayOf(1)) {
                     val row = sums[i][m][g]

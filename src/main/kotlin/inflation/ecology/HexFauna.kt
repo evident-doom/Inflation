@@ -182,13 +182,7 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, internal v
             for (h in hex.all) o[h] *= OUTBREAK_KEEP
         }
     }
-    /**
-     * For the plant-eaters: how well a band of the kind ([Species.maxGroupSize]) coming to each place would be fed there
-     * this week, 0..1 of its need, eating by the same rule as those there ([forage]) from the food left uneaten after
-     * every kind has eaten, as far as the kind can get at it (cliffs, the walk to water, biting insects); see [arriveOdds].
-     */
-    @Transient internal val room: Array<FloatArray?> = Array(kinds.size) { if (!kinds[it].carnivore) FloatArray(n) else null }
-    /** The food left uneaten at each place after every kind has eaten this week, kg per m², as far as the eaters could reach it: grass, browse, fruit and roots ([room], [roomFor]). */
+    /** The food left uneaten at each place after every kind has eaten this week, kg per m², as far as the eaters could reach it: grass, browse, fruit and roots ([roomFor]). */
     @Transient internal val spareGrass = FloatArray(n)
     @Transient internal val spareBrowse = FloatArray(n)
     @Transient internal val spareFruit = FloatArray(n)
@@ -481,7 +475,7 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, internal v
         // (The share of the food the kind eating now can get at.)
         var access = 0f
         var eatG = 0f; var eatB = 0f; var eatF = 0f; var eatR = 0f
-        val b = Bites(); val dry = DryPantry()
+        val b = Bites()
         override fun grass(kg: Float): Float { val t = min(kg, access * spareG); spareG -= t; return t }
         override fun browse(kg: Float): Float { val t = min(kg, access * spareB); spareB -= t; return t }
         override fun fruit(kg: Float): Float { val t = min(kg, access * spareF); spareF -= t; return t }

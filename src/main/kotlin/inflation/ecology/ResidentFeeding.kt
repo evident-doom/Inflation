@@ -139,15 +139,9 @@ private fun HexFauna.eatPlants(p: Place, weather: Weather, grass: Float, browse:
         z.eatF += b.fruit + b.fruit2; z.eatR += b.roots + b.roots2
         z.ateKg[k] = b.eaten; z.proteinKg[k] = protein(b, gp, bp)
     }
-    // How well a band of each plant-eater coming here would be fed on what is left, eating by the same rule ([forage]):
-    // its diet and switching as far as its gut holds them, so poor food feeds it no better than it feeds
-    // those already here.
+    // What is left, for [roomFor] (how well a band coming here would be fed on it) to reckon on when they move.
     spareGrass[p] = max(0f, z.spareG); spareBrowse[p] = max(0f, z.spareB); spareFruit[p] = max(0f, z.spareF)
     spareRoots[p] = max(0f, z.spareR)
-    for ((k, s) in kinds.withKinds()) {
-        val r = room[k] ?: continue
-        r[p] = fedOnSpare(s, p, s.maxGroupSize.toFloat(), each[k], avail[k], weather.snowpack[p], z.dry, b)
-    }
 }
 
 /**
