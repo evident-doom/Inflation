@@ -172,7 +172,6 @@ internal class PlanPanel(
             row("its houses here", term(ReckonTerm.HOUSE), "&minus;", "left to weather and to others")
             row("its crop not yet reaped", term(ReckonTerm.CROP), "&minus;", "lost harvest")
             row("its heavy tools", term(ReckonTerm.TOOLS), "&minus;", "days of making them again")
-            row("its weir", term(ReckonTerm.WEIR), "&minus;", "food the weir takes each week away")
             row("gain from leaving", m.gain, "=", "moves only if above the walk to the best place", bold = true)
             sb.append("</table>")
         } else if (m.owed) sb.append("<p>Owed by custom: it weighs no case for leaving; it goes where its scores rank first among the places it may go" +

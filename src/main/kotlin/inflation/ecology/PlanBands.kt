@@ -63,38 +63,36 @@ internal fun GroupPlanner.planned(g: HexGroup, policy: HexPolicy?, buf: Scratch,
  * in shares of a week (doc: Moving and settling under the planner, step 2): the share of its hands' week this camp has
  * lately taken to feed it ([campWork]) beyond what a fresh camp usually takes at this time of year ([usualWork]), a day of
  * work weighed as a day of need, as the walk's days are; less what leaving would give up, each paid for over the weeks it
- * keeps a camp ([Band.stayWeeks]) as the walk is:
+ * keeps a camp ([Band.plannedStay]) as the walk is:
  * - its houses, left to weather and to others ([Band.leavingHouse]);
  * - what it has sown and not yet reaped ([cropPull]);
  * - its heavy tools, left behind (grinding stones, [Tool.heavy]), the days of making them again;
- * - its stores beyond what it carries, with the relays it would choose, are weighed with the walk ([reckonedWalk]);
- * - and, every week it is away, what its weir there takes ([Band.weirFood], for the share of a whole weir built).
+ * - its stores beyond what it carries, with the relays it would choose, are weighed with the walk ([reckonedWalk]).
+ * (A weir it may use here is not taken off again: its fish are in this camp's yield already, so in [campWork]. Weighing
+ * a whole weir's week of food against the case as well counted it twice, and in food against work; band 108139 trace,
+ * 2026-11-03.)
  * NaN if it cannot judge: no whole week at this camp yet, or no such weeks in the years before.
  */
 private fun GroupPlanner.reckonedGain(g: HexGroup, b: Band, here: Hex, date: Date, terms: FloatArray? = null): Float {
     val case = b.campWork(date, gs.days) - b.usualWork(date, gs.days)
     if (case.isNaN()) return Float.NaN
-    val need = g.dailyNeedKg.coerceAtLeast(1e-3f) * gs.days
     val stay = b.plannedStay()
     var tools = 0f
     for (t in Tool.entries) if (t.heavy && b.kit[t] > 0f) tools += b.kit[t] * t.makeDays / b.makeSkill(t).coerceAtLeast(1e-3f)
-    val width = gs.fauna.water.riverWidthM(here)
-    val whole = gs.weirLengthM(here)
-    val weir = if (whole > 0f) min(1f, gs.weirAt(g, here) * width / whole) * b.weirFood / gs.stepsPerYear / need else 0f
     val house = if (b.houseHex == here) b.leavingHouse else 0f
     val crop = cropPull(g, b, here)
     val heavy = tools / (gs.days * stay)
     if (terms != null) {
         terms[ReckonTerm.CASE.ordinal] = case; terms[ReckonTerm.HOUSE.ordinal] = house; terms[ReckonTerm.CROP.ordinal] = crop
-        terms[ReckonTerm.TOOLS.ordinal] = heavy; terms[ReckonTerm.WEIR.ordinal] = weir
+        terms[ReckonTerm.TOOLS.ordinal] = heavy
         terms[ReckonTerm.CAMP.ordinal] = b.campWork(date, gs.days); terms[ReckonTerm.USUAL.ordinal] = b.usualWork(date, gs.days)
     }
-    return case - house - crop - heavy - weir
+    return case - house - crop - heavy
 }
 
 /** The parts of a planning band's reckoned case for leaving ([reckonedGain]), as planTrace sums them, in shares of a week. */
 enum class ReckonTerm(val label: String) {
-    CASE("case"), CAMP("camp's work"), USUAL("usual work"), HOUSE("houses"), CROP("crop"), TOOLS("heavy tools"), WEIR("weir")
+    CASE("case"), CAMP("camp's work"), USUAL("usual work"), HOUSE("houses"), CROP("crop"), TOOLS("heavy tools")
 }
 
 /** planTrace: books why a planning band went or stayed this week ([Reckoned]) and, where it judged a case, its parts ([GroupPlanner.reckonCounts]). */
