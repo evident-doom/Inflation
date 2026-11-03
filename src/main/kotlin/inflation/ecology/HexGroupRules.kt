@@ -10,6 +10,7 @@ import inflation.Tuning
 import inflation.monthsFrom
 import inflation.Config
 import inflation.world.Weather
+import inflation.world.HexLand
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
@@ -241,7 +242,10 @@ internal const val CLIMB_J_PER_KG_M = 33f
  * view (half in [SIGHT_RAIN_MM] of rain or snow a week), so does the haze over hot ground, and thick
  * cover hides game from all but those close by.
  */
-fun GroupWorld.sight(p: Place, weather: Weather): Float {
+fun GroupWorld.sight(p: Place, weather: Weather): Float = sightAt(land, p, weather)
+
+/** [GroupWorld.sight] at place [p] of [land], for any hunter there (a pack's party or a resident's). */
+fun sightAt(land: HexLand, p: Place, weather: Weather): Float {
     val wet = 1f / (1f + weather.precipitation[p] / SIGHT_RAIN_MM)
     val haze = if (weather.temperature[p] > SIGHT_HAZE_C) 0.8f else 1f
     return wet * haze * (1f - SIGHT_COVER * land.plants.cover(p))
