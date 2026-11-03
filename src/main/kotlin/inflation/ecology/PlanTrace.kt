@@ -98,7 +98,7 @@ internal class DeathsWhy(private val planner: GroupPlanner, private val c: PlanC
         for ((cause, a, y) in parts.sortedByDescending { share(it.second, it.third) }) if (share(a, y) > 0f)
             sb.append("; %s %.3g steps (grown %.2e, young %.2e a week)".format(cause, stepsOf(share(a, y)), a, y))
         if (drowning > 0f) sb.append("; crossing %.3g steps".format(stepsOf(drowning)))
-        if (leaving > 0f) sb.append("; leaving its houses %.3g steps".format(stepsOf(leaving)))
+        if (leaving > 0f) sb.append("; leaving what it cannot carry (year ahead) %.3g steps".format(stepsOf(leaving)))
         gs.watchLog += sb.toString()
     }
 }
