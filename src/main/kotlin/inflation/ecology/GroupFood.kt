@@ -177,6 +177,21 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
                     "%s %s %.2f (%.1f kg each, %.3f party-days each)".format(if (o.type[i] == Food.BIG_GAME) fauna.kinds[o.kind[i]].name else o.type[i].label,
                         if (o.who[i] == 0) "hunters" else "gatherers", o.value[i] / o.time[i] / party.coerceAtLeast(1e-3f), o.kg[i], o.time[i]) }))
         }
+        // (planTrace: the hunters' day as the disc equation has it, against hunt follows in the field: the share of their days
+        // searching, the bands of game come on and the kills a hunter-day, and each kind they took up.)
+        if (pass == 0 && w.band != null && HUNT_TRACE.wants(g.id.toLong(), weather.date.absoluteDay)) {
+            val hunters = (w.hands - w.gatherHands).toFloat()
+            var met = 0f; var kills = 0f; var kg = 0f
+            val game = (0 until o.used).map { o.order[it] }.filter { o.type[it] == Food.BIG_GAME && o.who[it] == 0 }
+            for (i in game) { met += o.met[i]; kills += o.rate[i]; kg += o.rate[i] * o.kg[i] }
+            val h = hunters.coerceAtLeast(1e-3f); val sp = o.spent[0]
+            System.err.println(("hunt trace: band %d, %s, %d people, hunters %.1f, km2 swept a day %.1f; of a hunting day searching %.0f%%; a hunter-day: " +
+                "bands of game come on %.3f, kills %.4f, meat %.2f kg, food %.2f kg of need; game taken up (bands come on a day of searching, kills a day of it, " +
+                "kills a band come on, days a kill, kg each, kg of need a party-day of handling): %s").format(
+                g.id, weather.date, g.size, hunters, w.ground.km2.sum() / days, 100f / sp, met / sp / h, kills / sp / h, kg / sp / h, o.fed[0] / sp / h,
+                game.take(6).joinToString(", ") { i -> "%s %.3f %.4f %.3f %.3f %.0f %.1f".format(fauna.kinds[o.kind[i]].name, o.met[i], o.rate[i],
+                    if (o.met[i] > 0f) o.rate[i] / o.met[i] else 0f, o.time[i], o.kg[i], o.value[i] / o.time[i]) }))
+        }
         // (A band plans its week once it sees what food asks of it: see [planWeek]. It forages no longer than the plan gives it.)
         if (w.band != null && w.time == null) {
             // (What its herds will feed it this week it need not forage for: their increase and milk, see [herdFoodWeek].)
@@ -347,6 +362,8 @@ internal fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float
  */
 /** planTrace=true: a sample of bands' foraging weeks, what a day of each party's work brings ([forage]). */
 private val FORAGE_TRACE = Trace(Config.Key.PLAN_TRACE, "forage", share = 0.01f, most = 300)
+/** planTrace=true: a sample of bands' hunting days, [forage]. */
+private val HUNT_TRACE = Trace(Config.Key.PLAN_TRACE, "hunt", share = 0.005f, most = 400)
 
 internal class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, packKg: Float, val weather: Weather) {
     val s = g.species
