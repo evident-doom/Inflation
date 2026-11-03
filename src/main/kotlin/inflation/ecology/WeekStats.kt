@@ -10,7 +10,6 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.ConcurrentSkipListMap
 import java.util.concurrent.atomic.AtomicIntegerArray
 import java.util.concurrent.atomic.DoubleAdder
-import inflation.Par
 
 /** Marks a function that makes a [TallyKey] from free text: outside the [Tally] builders, a use must opt in, and so shows in review. */
 @RequiresOptIn("Builds a tally key from free text; use a typed builder of Tally instead", RequiresOptIn.Level.ERROR)
@@ -125,17 +124,13 @@ private class ThreadSums<K>(private val ledger: ConcurrentSkipListMap<K, Int>) {
      */
     fun flush() {
         on = false
-        // (Summed on all cores, each core taking the keys of one share of the hash space from every thread's list; then each key merged once. The sums are whole numbers, so the ledger comes out the same whatever the order.)
-        val mines = all.toList()
-        val parts = List(SHARES) { HashMap<K, IntArray>() }
-        Par.forEach("tallies: flush", SHARES) { j ->
-            val t = parts[j]
-            for (m in mines) for (i in m.keys.indices) { val k = m.keys[i]; if (Math.floorMod(k.hashCode(), SHARES) == j) t.getOrPut(k) { IntArray(1) }[0] += m.sums[i][0] }
+        val total = HashMap<K, IntArray>()
+        for (m in all) {
+            for (i in m.keys.indices) total.getOrPut(m.keys[i]) { IntArray(1) }[0] += m.sums[i][0]
+            m.at.clear(); m.keys.clear(); m.sums.clear()
         }
-        Par.forEach("tallies: flush, clear", mines.size) { j -> val m = mines[j]; m.at.clear(); m.keys.clear(); m.sums.clear() }
-        for (t in parts) for ((k, v) in t) ledger.merge(k, v[0], Int::plus)
+        for ((k, v) in total) ledger.merge(k, v[0], Int::plus)
     }
-    private companion object { const val SHARES = 16 }
 }
 
 /** What the week's [meetings][WeekStats.meetings] count, each under its [label]. */
