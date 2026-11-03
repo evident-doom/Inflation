@@ -68,12 +68,19 @@ internal class ResidentParties(private val gs: HexGroups) {
                 g.home = h; g.path = hexArray(1) { h }; g.days = FloatArray(1)
                 made[hi] = StandIn(g, k, grown, little, bands, a, y)
             }
+            val more = made.count { it != null }
+            standIns.ensureCapacity(standIns.size + more); parties.ensureCapacity(parties.size + more)
             for (si in made) if (si != null) { standIns += si; parties += si.g }
         }
     }
 
     /** The stand-ins of each hex that has any, hexes in order. */
-    fun standInsByHex(): List<List<StandIn>> = standIns.groupBy { it.g.home.i }.toSortedMap().values.toList()
+    fun standInsByHex(): List<List<StandIn>> {
+        // (Filed by hex index straight into an array, each hex's in the order they were made, kind by kind.)
+        val byHex = arrayOfNulls<ArrayList<StandIn>>(gs.hex.size)
+        for (si in standIns) { val h = si.g.home.i; (byHex[h] ?: ArrayList<StandIn>(4).also { byHex[h] = it }) += si }
+        return byHex.filterNotNull()
+    }
 
     /** The stand-in at index [i] of the meetings' parties (the groups first), or null for a group. */
     fun of(i: Int): StandIn? = (i - gs.groups.size).let { if (it >= 0) standIns[it] else null }
