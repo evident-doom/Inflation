@@ -139,7 +139,8 @@ internal fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
                 young[k][p] * dangerDays(g.species, ps, HexFauna.YOUNG_WEIGHT * ps.massKg, w.huntHeads)) / dens
             // (Each kill also costs the stalks and chases that failed before it.)
             val before = o.m
-            offer(w, o, Food.BIG_GAME, k, Place(p), dens * huntSwept * w.odds[i] / days, meat1, HANDLING_DAYS + STALK_DAYS * w.stalks[i] + meat1 * w.eats,
+            // (A band carries its kill home; a beast eats it where it lies: [ForageWeek.carryDaysPerKg].)
+            offer(w, o, Food.BIG_GAME, k, Place(p), dens * huntSwept * w.odds[i] / days, meat1, HANDLING_DAYS + STALK_DAYS * w.stalks[i] + meat1 * w.carryDaysPerKg,
                 spared[k], rich = rich, danger = danger)
             if (o.m > before) o.met[before] = dens * huntSwept * w.met[i] / days
         }

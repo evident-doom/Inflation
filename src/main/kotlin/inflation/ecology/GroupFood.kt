@@ -431,6 +431,13 @@ internal class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, pack
     val party = floatArrayOf(hunt, 1f - hunt)
     /** The heads of its hunting party, over whom a life lost to game is shared in the days a kill costs ([dangerDays]). */
     val huntHeads = hands * hunt
+    /**
+     * A band's hunters' party-days to carry a kg of a kill home: people do not lie up at a kill eating it as a beast does,
+     * they cut it up and carry it to camp, there and back from about half a day's going out ([MEAT_LOAD_KG]). A beast eats
+     * where it kills ([eats]).
+     */
+    val carryDaysPerKg = if (band != null) 2f * (s.dailyTravelKm / 2f) /
+        (WALK_KM_PER_HOUR * BandTime.WORK_HOURS * MEAT_LOAD_KG * huntHeads.coerceAtLeast(1f)) else eats
     /** The hunters its kills this week are expected to cost ([foughtBack]): they die once the week's foraging is done ([preyFoughtBack]). */
     var foughtBack = 0f
     // What a kg of each food holds for it, in kg of its need: its energy ([Food.energy]) by the kind's [Species.needScale]
