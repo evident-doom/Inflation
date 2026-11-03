@@ -178,8 +178,18 @@ internal fun GroupWorld.storeWork(g: HexGroup, band: Band) = if (band.worn()) st
 internal fun storeWant(g: HexGroup, band: Band) = storeWant(g, band, band.storeAim)
 
 /** [storeWant] were its store aim [aimDays]. */
-private fun storeWant(g: HexGroup, band: Band, aimDays: Float) =
-    max(0f, aimDays * (if (band.holds(Tradition.SHARING)) SHARING_STORE else 1f) * g.dailyNeedKg - g.larder) * STORE_FILL
+private fun storeWant(g: HexGroup, band: Band, aimDays: Float) = max(0f, storeAimKg(g, band, aimDays) - g.larder) * STORE_FILL
+
+/** The stores band [g] aims to keep, kg of its need: its store aim's days ([Band.storeAim]; less, holding to demand sharing). */
+private fun storeAimKg(g: HexGroup, band: Band, aimDays: Float = band.storeAim) =
+    aimDays * (if (band.holds(Tradition.SHARING)) SHARING_STORE else 1f) * g.dailyNeedKg
+
+/**
+ * What band [g] eats this week of the stores it holds beyond its aim, kg of its need, rather than forage for it: the same
+ * share of the excess a week as it lays by of a shortfall ([STORE_FILL]). Food kept is food to eat: a band with more than it
+ * means to keep lives on it and spends the days on other work.
+ */
+internal fun storeSpare(g: HexGroup, band: Band) = max(0f, g.larder - storeAimKg(g, band)) * STORE_FILL
 
 /** Counts in [u] how band [b]'s store aim and its mending first set the food [work] it works to lay by ([storeWork]). */
 internal fun countStoreWork(u: DialUse, g: HexGroup, b: Band, work: Float) {
