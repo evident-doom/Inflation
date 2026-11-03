@@ -425,8 +425,9 @@ internal class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, pack
     var grease = 0f; var greaseFed = 0f
     var fed = g.meatMet * feeds(Food.BIG_GAME)
     // (A band forages for what it will eat: its want less what its days at rest saved last week, as it reckons its week
-    // will go ([Band.restSaved]; see [restedDays]). What it saved by resting is not foraged for and laid by again.)
-    val forageWant = max(0f, wantAll - (band?.restSaved ?: 0f))
+    // will go ([Band.restSaved]; see [restedDays]). What it saved by resting is not foraged for and laid by again. And it
+    // eats down what it holds beyond the stores it aims to keep ([storeSpare]) rather than forage for that.)
+    val forageWant = max(0f, wantAll - (band?.let { it.restSaved + storeSpare(g, it) } ?: 0f))
     // A band also works to fill its stores towards what it aims to keep (its choice); party-days spent this week.
     // (A band holding to demand sharing stores less: what it lays by is asked of it.)
     val aim = forageWant + (band?.let { b -> gs.storeWork(g, b).also { v -> gs.dialUse?.let { u -> countStoreWork(u, g, b, v) } } } ?: 0f)
