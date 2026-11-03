@@ -51,8 +51,7 @@ internal class ResidentParties(private val gs: HexGroups) {
             if (!s.carnivore) continue
             // (Each hex's stand-in worked out on all cores, then taken in the hexes' order.)
             val made = arrayOfNulls<StandIn>(nHexes)
-            Par.forEach("residents: settle", nHexes) { hi ->
-                val h = inflation.world.Hex(hi)
+            Par.forEachHex("residents: settle", nHexes) { h ->
                 var a = 0f; var y = 0f; var p = -1; var most = 0f
                 for (q in gs.hw.placesOf(h)) {
                     val area = gs.land.areaKm2[q]; val hq = (f.adults[k][q] + f.young[k][q]) * area
@@ -66,7 +65,7 @@ internal class ResidentParties(private val gs: HexGroups) {
                 // (Its id is out of the groups' range, fixed by kind and hex: the meetings' order draws repeat run to run.)
                 val g = HexGroup(-1 - (k * gs.hex.size + h.i), s, Place(p), grown, little)
                 g.home = h; g.path = hexArray(1) { h }; g.days = FloatArray(1)
-                made[hi] = StandIn(g, k, grown, little, bands, a, y)
+                made[h.i] = StandIn(g, k, grown, little, bands, a, y)
             }
             val more = made.count { it != null }
             standIns.ensureCapacity(standIns.size + more); parties.ensureCapacity(parties.size + more)

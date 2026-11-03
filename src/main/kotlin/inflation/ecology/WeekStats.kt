@@ -10,7 +10,6 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.ConcurrentSkipListMap
 import java.util.concurrent.atomic.AtomicIntegerArray
 import java.util.concurrent.atomic.DoubleAdder
-import java.util.concurrent.atomic.LongAdder
 import inflation.Par
 
 /** Marks a function that makes a [TallyKey] from free text: outside the [Tally] builders, a use must opt in, and so shows in review. */
@@ -106,7 +105,7 @@ class WeekStats {
  * [add] merges into it at once. A key added to has it in the ledger after the flush, with a sum of nought if need be,
  * as if each had been merged on its own.
  */
-private class ThreadSums<K : Any>(private val ledger: ConcurrentSkipListMap<K, Int>) {
+private class ThreadSums<K>(private val ledger: ConcurrentSkipListMap<K, Int>) {
     @Volatile var on = false
     /** One thread's sums, by key, and the keys it added to in the order it first did (walked at the flush instead of the map). */
     private class Mine<T> { val at = HashMap<T, IntArray>(); val keys = ArrayList<T>(); val sums = ArrayList<IntArray>() }
@@ -126,16 +125,17 @@ private class ThreadSums<K : Any>(private val ledger: ConcurrentSkipListMap<K, I
      */
     fun flush() {
         on = false
-        // (Each thread's keys are summed into one concurrent map on all cores, then each key merged once: the sums are whole numbers, so the ledger comes out the same whatever the order.)
+        // (Summed on all cores, each core taking the keys of one share of the hash space from every thread's list; then each key merged once. The sums are whole numbers, so the ledger comes out the same whatever the order.)
         val mines = all.toList()
-        val total = ConcurrentHashMap<K, LongAdder>()
-        Par.forEach("tallies: flush", mines.size) { j ->
-            val m = mines[j]
-            for (i in m.keys.indices) { val k = m.keys[i]; (total[k] ?: total.computeIfAbsent(k) { LongAdder() }).add(m.sums[i][0].toLong()) }
-            m.at.clear(); m.keys.clear(); m.sums.clear()
+        val parts = List(SHARES) { HashMap<K, IntArray>() }
+        Par.forEach("tallies: flush", SHARES) { j ->
+            val t = parts[j]
+            for (m in mines) for (i in m.keys.indices) { val k = m.keys[i]; if (Math.floorMod(k.hashCode(), SHARES) == j) t.getOrPut(k) { IntArray(1) }[0] += m.sums[i][0] }
         }
-        for ((k, v) in total) ledger.merge(k, v.toInt(), Int::plus)
+        Par.forEach("tallies: flush, clear", mines.size) { j -> val m = mines[j]; m.at.clear(); m.keys.clear(); m.sums.clear() }
+        for (t in parts) for ((k, v) in t) ledger.merge(k, v[0], Int::plus)
     }
+    private companion object { const val SHARES = 16 }
 }
 
 /** What the week's [meetings][WeekStats.meetings] count, each under its [label]. */
