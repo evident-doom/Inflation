@@ -38,13 +38,21 @@ internal fun GroupPlanner.planned(g: HexGroup, policy: HexPolicy?, buf: Scratch,
     val b = g.band ?: return best
     val stays = (0 until n).firstOrNull { buf.explPlaces[it] == g.place.i } ?: -1
     // (planTrace: why it went or stayed, and the parts of its case, [bookReckoned].)
-    val terms = if (PLAN_TRACE.on && !owed) FloatArray(ReckonTerm.entries.size) { Float.NaN } else null
-    val why = if (PLAN_TRACE.on) arrayOfNulls<Reckoned>(1) else null
+    // (The viewer's Plan tab, for the followed band: the same, and every place's scores and walk, [MoveLook].)
+    val looked = gs.looked(g)
+    val terms = if ((PLAN_TRACE.on || looked) && !owed) FloatArray(ReckonTerm.entries.size) { Float.NaN } else null
+    val why = if (PLAN_TRACE.on || looked) arrayOfNulls<Reckoned>(1) else null
     val gain = if (owed) Float.NaN else reckonedGain(g, b, here, date, terms)
+    var asked: FloatArray? = null
     val k = plannedMove(n, buf.explScores, buf.explDeaths, stays, owed, gain,
         { gs.reckonedWalk(g, b, buf.dist[gs.hw.placeHex[buf.explPlaces[it]]]) }, {
-        if (policy == null) buf.explScores else policy.scores(g, Array(n) { buf.candFeats[it] }, buf.candScores.copyOf(n)) }, why)
-    why?.get(0)?.let { bookReckoned(it, terms) }
+        (if (policy == null) buf.explScores else policy.scores(g, Array(n) { buf.candFeats[it] }, buf.candScores.copyOf(n))).also { asked = it } }, why)
+    if (PLAN_TRACE.on) why?.get(0)?.let { bookReckoned(it, terms) }
+    if (looked) gs.moveLook = MoveLook(g.id, date, owed, IntArray(n) { buf.explPlaces[it] }, FloatArray(n) { buf.explScores[it] },
+        FloatArray(n) { buf.explDeaths[it] }, asked?.copyOf(n),
+        FloatArray(n) { gs.reckonedWalk(g, b, buf.dist[gs.hw.placeHex[buf.explPlaces[it]]]) },
+        FloatArray(n) { buf.dist[gs.hw.placeHex[buf.explPlaces[it]]] }, stays,
+        terms ?: FloatArray(ReckonTerm.entries.size) { Float.NaN }, gain, b.stayWeeks, why?.get(0), k)
     // (Moving, it reckons how many loads to take, the days of relays against the stores it would leave: [relayLoads].)
     if (k >= 0 && k != stays) b.planLoads = gs.relayLoads(g, b, buf.dist[gs.hw.placeHex[buf.explPlaces[k]]])
     return if (k < 0) best else Place(buf.explPlaces[k])

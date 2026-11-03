@@ -262,6 +262,9 @@ class HexGroups(
     internal inline fun note(g: HexGroup, msg: () -> String) { if (g.id == watched) watchLog += msg() }
     /** The player's hand on the followed group (the viewer's group controls), null for none: see [GroupControl]. */
     @Transient @Volatile var control: GroupControl? = null
+    /** The followed planning band's latest reckonings, for the viewer's Plan tab ([looked]): where to camp, and its week's days. */
+    @Transient @Volatile var moveLook: MoveLook? = null
+    @Transient @Volatile var daysLook: DaysLook? = null
 
     /**
      * Names the groups' stocks in [books]: the animals of each kind in packs and bands (the young at a
