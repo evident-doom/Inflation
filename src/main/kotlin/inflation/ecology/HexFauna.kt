@@ -236,7 +236,7 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, internal v
      * the residents' week): the resident hunters take from their herds as from game ([huntResidents]). Not saved: made afresh
      * each week from the bands.
      */
-    @Transient internal var keptAt: Map<Int, List<Band>>? = null
+    @Transient internal var keptAt: Array<out List<Band>?>? = null
 
     /**
      * The grown of each kind that also roams ([Catalogue.roamingResidents]) in packs standing at each place, per km²: game
