@@ -59,19 +59,24 @@ internal fun HexFauna.huntResidents(k: FaunaKind, p: Place, meat: KgM2, killedSo
     var total = 0f
     // (Weights in kg per km2, as the numbers are kept.)
     val wA = FloatArray(kinds.size); val wY = FloatArray(kinds.size)
+    // (And the grown of the packs of a kind that also roams standing here, as its settled grown: [packGrown].)
+    val wP = FloatArray(kinds.size)
     // (Each kind by how catchable it is there, grown and young, as [game] counts it, and as a hunting party weighs game that
     // may kill one of it: by the days a kill takes over those and the days its danger costs ([dangerDays]).)
     // (The cap on its week's kills is of the game as catchable, whatever its danger: [game].)
     val partyHeads = (if (hunter.foragingParty > 0) minOf(hunter.foragingParty, hunter.groupSize) else hunter.groupSize).toFloat()
     var game = 0f
     for ((j, s) in kinds.withKinds()) {
-        if (j == k || adults[j][p] + young[j][p] <= 0f) continue
+        val pk = packAt(j.i, p)
+        if (j == k || s === hunter || adults[j][p] + young[j][p] + pk <= 0f) continue
         val ym = YOUNG_WEIGHT * s.massKg
-        val a = adults[j][p] * s.massKg * catchable(hunter, s, s.massKg, p); val y = young[j][p] * ym * catchable(hunter, s, ym, p)
-        game += a + y
-        wA[j] = a * HANDLING_DAYS / (HANDLING_DAYS + dangerDays(hunter, s, s.massKg, partyHeads))
+        val grownCatch = s.massKg * catchable(hunter, s, s.massKg, p)
+        val a = adults[j][p] * grownCatch; val y = young[j][p] * ym * catchable(hunter, s, ym, p); val pw = pk * grownCatch
+        game += a + y + pw
+        val grownWeigh = HANDLING_DAYS / (HANDLING_DAYS + dangerDays(hunter, s, s.massKg, partyHeads))
+        wA[j] = a * grownWeigh; wP[j] = pw * grownWeigh
         wY[j] = y * HANDLING_DAYS / (HANDLING_DAYS + dangerDays(hunter, s, ym, partyHeads))
-        total += wA[j] + wY[j]
+        total += wA[j] + wY[j] + wP[j]
     }
     // (And the herds kept at bands' camps there, as their kind in the wild, through each band's guard against beasts
     // ([stalkGuard]: by night its fire, dogs, watch and palisade, by day its dogs); kg per km² as the game.)
@@ -95,6 +100,18 @@ internal fun HexFauna.huntResidents(k: FaunaKind, p: Place, meat: KgM2, killedSo
     // (The hunters its kills cost, heads per km²: [foughtBack].)
     var fought = 0f
     for ((j, s) in kinds.withKinds()) {
+        // (Of the packs' grown it kills, as many heads as it takes of their weight, taken off the packs once the groups have
+        // hunted, [HexGroups.takePackKills]; each kill also the risk of [foughtBack].)
+        if (wP[j] > 0f) {
+            val kgP = want.v * wP[j] / total
+            val heads = kgP / s.massKg
+            packKills += PackKill(p.i, j.i, heads * area, -1L - k.i)
+            packGrown[j.i]?.let { it[p.i] = max(0f, it[p.i] - heads) }
+            fought += heads * foughtBack(hunter, s, s.massKg)
+            small.deposit(DeadPool.CARRION, p, KgKm2(kgP * (1f - MEAT_SHARE)).perM2)
+            ate += KgKm2(kgP).perM2
+            ateBook?.add(-(kgP * MEAT_SHARE * area).toDouble())
+        }
         if (wA[j] + wY[j] <= 0f) continue
         val kg = want.v * (wA[j] + wY[j]) / total
         val fromA = kg * wA[j] / (wA[j] + wY[j]); val fromY = kg - fromA

@@ -243,6 +243,17 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, internal v
      * each week from the bands.
      */
     @Transient internal var keptAt: Map<Int, List<Band>>? = null
+
+    /**
+     * The grown of each kind that also roams ([Catalogue.roamingResidents]) in packs standing at each place, per km²: game
+     * as their settled kind is, to every hunter ([HexGroups.fillPackGame] fills it before the residents' week and again as
+     * the groups hunt); null for the other kinds. Not saved.
+     */
+    @delegate:Transient internal val packGrown by lazy { Array(kinds.size) { k -> if (kinds[k] in Catalogue.roamingResidents) FloatArray(n) else null } }
+    /** [packGrown] of kind [k] at place [p], per km². */
+    internal fun packAt(k: Int, p: Place): Float = packGrown[k]?.get(p.i) ?: 0f
+    /** Pack members killed as game, heads, to be taken off the packs that stood there ([HexGroups.takePackKills]). Not saved. */
+    @delegate:Transient internal val packKills by lazy { java.util.concurrent.ConcurrentLinkedQueue<PackKill>() }
     /**
      * Diagnostic (huntSteps): heads the resident hunters took this week at places in [keptAt], by prey kind: the kept young,
      * the kept grown, the wild young and the wild grown there ([HexGroups.herdsForBeasts] hands them to the hunt steps).
@@ -739,3 +750,6 @@ internal fun clearlyWorse(here: Float, there: Float, band: Float, background: Fl
     if (!(there < here)) return false
     return Hazards.survivalSteps(here - there, here, background, band) > 1f
 }
+
+/** [heads] grown of kind [k] killed as game at place [at] (its index) out of the packs standing there, by hunter [by] (a group's id, or -1 - a resident kind). */
+internal class PackKill(val at: Int, val k: Int, val heads: Float, val by: Long)
