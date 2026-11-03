@@ -8,7 +8,10 @@ import java.util.TreeMap
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.ConcurrentSkipListMap
+import java.util.concurrent.atomic.AtomicIntegerArray
 import java.util.concurrent.atomic.DoubleAdder
+import java.util.concurrent.atomic.LongAdder
+import inflation.Par
 
 /** Marks a function that makes a [TallyKey] from free text: outside the [Tally] builders, a use must opt in, and so shows in review. */
 @RequiresOptIn("Builds a tally key from free text; use a typed builder of Tally instead", RequiresOptIn.Level.ERROR)
@@ -40,8 +43,18 @@ value class TallyKey private constructor(val text: String) : Comparable<TallyKey
 class WeekStats {
     /** Kills this week by prey kind (in order of name, as the reports list them). */
     val kills = ConcurrentSkipListMap<Species, Int>(BY_NAME)
-    /** Meetings this week by kind of meeting. */
-    val meetings = ConcurrentSkipListMap<TallyKey, Int>()
+    /** Meetings this week by kind of meeting (the counts of the [Met]s are kept in [metSums] and put in when this is read). */
+    val meetings: ConcurrentSkipListMap<TallyKey, Int> get() { drainMet(); return meetingLedger }
+    private val meetingLedger = ConcurrentSkipListMap<TallyKey, Int>()
+    /** The week's counts of each [Met] by ordinal, and whether it was counted at all (a count of nought still lists it): a sorted-map merge on a long label cost more than the count. */
+    private val metSums = AtomicIntegerArray(Met.entries.size)
+    private val metSeen = java.util.concurrent.atomic.AtomicIntegerArray(Met.entries.size)
+    private fun drainMet() {
+        for (m in Met.entries) if (metSeen.get(m.ordinal) != 0) {
+            val n = metSums.getAndSet(m.ordinal, 0); metSeen.set(m.ordinal, 0)
+            meetingLedger.merge(m.key, n, Int::plus)
+        }
+    }
     /** Deaths this week by "kind:cause". */
     val deaths = ConcurrentSkipListMap<TallyKey, Int>()
     /** People's deaths this week by "kind:cause", the grown (elders too) and the young apart (the two add up to the part of [deaths] that is people's, bar the orphans). */
@@ -77,12 +90,12 @@ class WeekStats {
     }
 
     /** Counts [n] more of [what] in [meetings]. */
-    fun meeting(what: Met, n: Int = 1) { meetings.merge(what.key, n, Int::plus) }
+    fun meeting(what: Met, n: Int = 1) { metSums.addAndGet(what.ordinal, n); metSeen.set(what.ordinal, 1) }
     /** Counts [n] more of [what] of [of] (a kind, a skill, a custom...) in [meetings]. */
-    fun meeting(what: Met.Of, of: String, n: Int = 1) { meetings.merge(TallyKey.raw(what.key(of)), n, Int::plus) }
+    fun meeting(what: Met.Of, of: String, n: Int = 1) { meetingLedger.merge(TallyKey.raw(what.key(of)), n, Int::plus) }
 
     /** Starts a new week (the children's ledger runs on until read). */
-    fun clear() { kills.clear(); meetings.clear(); deaths.clear(); adultDeaths.clear(); youngDeaths.clear(); births.clear(); hunting.clear(); residentDeaths.clear() }
+    fun clear() { kills.clear(); meetingLedger.clear(); for (i in 0 until Met.entries.size) { metSums.set(i, 0); metSeen.set(i, 0) }; deaths.clear(); adultDeaths.clear(); youngDeaths.clear(); births.clear(); hunting.clear(); residentDeaths.clear() }
 
     private companion object { val BY_NAME = compareBy<Species> { it.name } }
 
@@ -93,7 +106,7 @@ class WeekStats {
  * [add] merges into it at once. A key added to has it in the ledger after the flush, with a sum of nought if need be,
  * as if each had been merged on its own.
  */
-private class ThreadSums<K>(private val ledger: ConcurrentSkipListMap<K, Int>) {
+private class ThreadSums<K : Any>(private val ledger: ConcurrentSkipListMap<K, Int>) {
     @Volatile var on = false
     /** One thread's sums, by key, and the keys it added to in the order it first did (walked at the flush instead of the map). */
     private class Mine<T> { val at = HashMap<T, IntArray>(); val keys = ArrayList<T>(); val sums = ArrayList<IntArray>() }
@@ -113,12 +126,15 @@ private class ThreadSums<K>(private val ledger: ConcurrentSkipListMap<K, Int>) {
      */
     fun flush() {
         on = false
-        val total = HashMap<K, IntArray>()
-        for (m in all) {
-            for (i in m.keys.indices) total.getOrPut(m.keys[i]) { IntArray(1) }[0] += m.sums[i][0]
+        // (Each thread's keys are summed into one concurrent map on all cores, then each key merged once: the sums are whole numbers, so the ledger comes out the same whatever the order.)
+        val mines = all.toList()
+        val total = ConcurrentHashMap<K, LongAdder>()
+        Par.forEach("tallies: flush", mines.size) { j ->
+            val m = mines[j]
+            for (i in m.keys.indices) { val k = m.keys[i]; (total[k] ?: total.computeIfAbsent(k) { LongAdder() }).add(m.sums[i][0].toLong()) }
             m.at.clear(); m.keys.clear(); m.sums.clear()
         }
-        for ((k, v) in total) ledger.merge(k, v[0], Int::plus)
+        for ((k, v) in total) ledger.merge(k, v.toInt(), Int::plus)
     }
 }
 

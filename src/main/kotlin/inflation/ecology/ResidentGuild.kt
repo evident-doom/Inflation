@@ -45,14 +45,14 @@ internal class ResidentParties(private val gs: HexGroups) {
     val parties = ArrayList<HexGroup>()
 
     init {
-        val f = gs.fauna; val hexes = ArrayList<inflation.world.Hex>().also { for (h in gs.hex.all) it += h }
+        val f = gs.fauna; val nHexes = gs.hex.size
         for (k in f.kinds.indices) {
             val s = f.kinds[k]
             if (!s.carnivore) continue
             // (Each hex's stand-in worked out on all cores, then taken in the hexes' order.)
-            val made = arrayOfNulls<StandIn>(hexes.size)
-            Par.forEach("residents: settle", hexes.size) { hi ->
-                val h = hexes[hi]
+            val made = arrayOfNulls<StandIn>(nHexes)
+            Par.forEach("residents: settle", nHexes) { hi ->
+                val h = inflation.world.Hex(hi)
                 var a = 0f; var y = 0f; var p = -1; var most = 0f
                 for (q in gs.hw.placesOf(h)) {
                     val area = gs.land.areaKm2[q]; val hq = (f.adults[k][q] + f.young[k][q]) * area
