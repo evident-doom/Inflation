@@ -106,6 +106,11 @@ internal fun HexFauna.breedAndDie(weather: Weather, date: Date) {
             sum
         }
         for (c in ResidentDeath.entries) deaths[Tally.of(s, c.cause)] = dead[k][c]
+        deaths[Tally.of(s, DeathCause.PREY_FOUGHT_BACK)] = foughtBackDead[k].let { h ->
+            var sum = 0.0
+            for (p in h.indices) { sum += h[p]; record?.let { it.animalKg[PlaceRecord.Cause.KILLED.ordinal][p] += h[p] * s.massKg }; h[p] = 0f }
+            sum
+        }
     }
 }
 

@@ -215,6 +215,8 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, internal v
     @Transient internal val moverSpent = FloatArray(kinds.size)
     /** Animals of each kind killed this week by hunters among the residents (lynx, jackals), for the deaths by cause. */
     internal val huntedByResidents = Array(kinds.size) { FloatArray(n) }
+    /** Resident hunters of each kind killed this week by the game they hunted ([huntResidents], [foughtBack]), heads; not saved. */
+    @delegate:Transient internal val foughtBackDead by lazy { Array(kinds.size) { FloatArray(n) } }
     /**
      * What each resident hunter took this week at each place of the game about it ([huntResidents]): the kg it killed per kg
      * of game there, each kind's weighed by how readily it takes game of its size. An animal there
