@@ -3,6 +3,9 @@ package inflation.ecology
 import inflation.ecology.HexSmallLife.DeadPool
 import inflation.EnumFloats
 import inflation.Kg
+import inflation.Part
+import inflation.world.Hex
+import inflation.world.Weather
 import inflation.world.get
 import inflation.world.set
 import kotlin.math.exp
@@ -73,6 +76,11 @@ internal fun HexGroups.keepAndSpoil(w: ForageWeek, got: EnumFloats<Store>, gotKg
     val home = if (band.atHome) band.house else 0f
     val kept = keepWorth(g, band, home)
     band.houseFoodWeek += kept; band.houseWeek[HouseWorth.KEPT_KG] += kept
+    // (Fresh meat beyond what it can eat before it rots it sets before its neighbours, by its custom of feasting: it rots, what
+    // the feast leaves, once they have eaten ([feastOnKills]).)
+    band.feastMeat = if (band.byCustom(band.holds(Tradition.FEASTS), band.feastWill) > 0f)
+        max(0f, g.stores[Store.FRESH] - killKeeps(band, g.dailyNeedKg * days, weather.temperature[g.place]) + band.driedLast) else 0f
+    g.stores[Store.FRESH] -= band.feastMeat
     // (Pits sealed with clay and plaster keep the mice out.)
     val unspoilt = g.larder; val unspoiltStores = storesNow(g)
     var rotten = spoil(g.stores, weather.temperature[g.place], 1f - PIT_KEEP * home, driedKeep(band), g.storeKgPer)
@@ -88,7 +96,48 @@ internal fun HexGroups.keepAndSpoil(w: ForageWeek, got: EnumFloats<Store>, gotKg
     rotten += infest(g, band, weather.temperature[g.place], 1f - home * (1f - sealed))
     band.larderMoved(g, LarderMove.SPOILT, g.larder - unspoilt)
     band.storeMoved(g, StoreFlow.SPOILT, unspoiltStores)
+    g.stores[Store.FRESH] += band.feastMeat
     small.deposit(DeadPool.CARRION, g.place, Kg(rotten + unskinned))
+}
+
+/**
+ * Feasts on kills: a band holding more fresh meat than it can eat before it rots ([Band.feastMeat]) sets it before the bands
+ * within a day or two's walk ([VISIT_RINGS]), the nearest first, as much as [FEAST_KG] a guest by its will to feast; the guests
+ * take it home to eat first ([PERISHABLE]) and remember it, as at a feast at a meeting. What is left rots as fresh meat does
+ * ([spoil]). (A big kill is shared out across camps: Hadza meat goes to every household in camp and beyond.)
+ */
+@Part("people: feasting on kills")
+internal fun HexGroups.feastOnKills(weather: Weather) {
+    val hosts = groups.filter { g -> g.alive && (g.band?.feastMeat ?: 0f) > 0f }
+    if (hosts.isEmpty()) return
+    val byHex = HashMap<Hex, ArrayList<HexGroup>>()
+    for (g in groups) if (g.alive && g.band != null) byHex.getOrPut(hw.placeHex[g.place]) { ArrayList() } += g
+    for (host in hosts) {
+        val hb = host.band ?: continue
+        val keen = hb.byCustom(hb.holds(Tradition.FEASTS), hb.feastWill)
+        var left = min(hb.feastMeat, host.stores[Store.FRESH])
+        val h0 = hw.placeHex[host.place]
+        var ring = listOf(h0); val seen = hashSetOf(h0)
+        for (r in 0..VISIT_RINGS) {
+            for (h in ring) for (guest in byHex[h].orEmpty()) if (guest !== host && left > 0f) {
+                val meal = min(left, FEAST_KG * guest.size * keen)
+                if (meal <= 0f) continue
+                host.stores[Store.FRESH] -= meal; addFood(guest.stores, guest.storeKgPer, Store.FRESH, meal, meal * host.storeKgPer[Store.FRESH])
+                hb.larderMoved(host, LarderMove.FEAST, -meal); guest.band?.larderMoved(guest, LarderMove.FEAST, meal)
+                left -= meal
+                guest.band?.befriend(host.id, TIE_FEAST); hb.befriend(guest.id, 0.5f * TIE_FEAST)
+                stats.meeting(Met.KILL_FEASTS)
+            }
+            if (r == VISIT_RINGS || left <= 0f) break
+            ring = hex.nextRing(ring, seen)
+        }
+        // (What none ate rots, as it would have in its stores.)
+        val rot = min(left, host.stores[Store.FRESH]) * (1f - exp(-HexSmallLife.CARRION_ROT * spoilWarmth(weather.temperature[host.place]) * days))
+        host.stores[Store.FRESH] -= rot
+        hb.larderMoved(host, LarderMove.SPOILT, -rot); hb.storeFlow[Store.FRESH.ordinal * StoreFlow.entries.size + StoreFlow.SPOILT.ordinal] -= rot
+        small.deposit(DeadPool.CARRION, host.place, Kg(rot * host.storeKgPer[Store.FRESH]))
+        hb.feastMeat = 0f
+    }
 }
 
 /**
