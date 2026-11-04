@@ -152,6 +152,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         if (left <= 0.01f * w.wantAll) break
         offerFoods(w, o)
         o.takeUp()
+        if (pass == 0 && w.band != null) noteUnused(w, o)
         if (HUNT_DIAG && pass == 0 && w.band == null && w.herds.isNotEmpty()) {
             val cut = o.gain[0] / o.spent[0]
             for (i in 0 until o.m) if (o.herd[i] >= 0) { diag(g.species, HuntStep.HERDS_ON_OFFER, 1f)
@@ -243,6 +244,14 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     if (HUNT_DIAG && w.band == null) packWeekDiag(w)
     preyFoughtBack(g, w.foughtBack, w.rnd)
     eatTheWeek(w)
+}
+
+/** Notes in [w], from the first pass's take-up [o], the hunters' hands that took up no food and the gatherers' foods ranked out (for [countHungryWeek]). */
+private fun noteUnused(w: ForageWeek, o: Offers) {
+    var hunterUsed = false; val taken = BooleanArray(o.m)
+    for (r in 0 until o.used) { val i = o.order[r]; taken[i] = true; if (o.who[i] == 0) hunterUsed = true }
+    w.idleHunters = if (hunterUsed) 0f else w.hands * w.party[0]
+    for (i in 0 until o.m) if (!taken[i] && o.who[i] == 1) { w.rankedOut++; w.rankedOutValue += o.rate[i] * o.value[i] }
 }
 
 /** Diagnostic (huntSteps): how a beast pack's week of foraging went, by the hunter ([HuntStep.PACK_WEEKS] and on). */
@@ -524,6 +533,8 @@ internal class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, pack
     var huntSearch = 0f; var huntHandle = 0f; var gatherSearch = 0f; var gatherHandle = 0f; var plantSeek = 0f; var plantWalk = 0f
     var digDays = 0f
     var room = 0f
+    /** Census of hungry weeks ([noteUnused]): hunters' hands whose party took up no food, and the gatherers' foods ranked out (their number, what a day of searching of them brings). */
+    var idleHunters = 0f; var rankedOut = 0; var rankedOutValue = 0f
     // A band fetches the hearth's firewood first and forages in the days left, as far as its week's plan gives them
     // (see [planWeek]); an animal forages all week.
     var fuelDays = 0f

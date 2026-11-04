@@ -61,6 +61,7 @@ import java.util.Random
 import inflation.world.set
 import inflation.world.Place
 import inflation.ecology.seedCornIn
+import inflation.ecology.Thresholds
 import inflation.ecology.bandLiving
 import inflation.ecology.birthSpacing
 import kotlin.math.max
@@ -696,6 +697,14 @@ class Census(private val sim: HexSim) {
             "hunters searching %.0f%%, handling %.0f%%; gatherers searching %.0f%%, handling %.0f%% (of it finding plant food %.0f%%, walking to it %.0f%%); %.2f kg").format(
             share(Tally.FoodTime.HUNT_SEARCH), share(Tally.FoodTime.HUNT_HANDLE), share(Tally.FoodTime.GATHER_SEARCH), share(Tally.FoodTime.GATHER_HANDLE),
             share(Tally.FoodTime.PLANT_SEEK), share(Tally.FoodTime.PLANT_WALK), ft(Tally.FoodTime.FED) / 10 / foodDays.coerceAtLeast(1e-9)))
+        fun hg(k: Tally.Hungry) = v(Tally.hungry(k))
+        val hungryWeeks = hg(Tally.Hungry.WEEKS).coerceAtLeast(1.0)
+        println(("bands' hungry weeks (fed under %.0f%% after eating), last year: %.0f of %.0f band-weeks (%.1f%%); in them: hunters took up no food %.0f%% (idle hands %.1f a week), " +
+            "gatherers ranked foods out %.0f%% (a day of them would bring %.1f kg of need), a herd held %.0f%% (%.1f heads), something in the larder %.0f%%").format(
+            100 * Thresholds.HUNGRY, hg(Tally.Hungry.WEEKS), ftWeeks, 100 * hg(Tally.Hungry.WEEKS) / ftWeeks,
+            100 * hg(Tally.Hungry.HUNTERS_IDLE_WEEKS) / hungryWeeks, hg(Tally.Hungry.HUNTERS_IDLE_HANDS) / 10 / hungryWeeks,
+            100 * hg(Tally.Hungry.RANKED_OUT_WEEKS) / hungryWeeks, hg(Tally.Hungry.RANKED_OUT_KG) / 10 / hungryWeeks.coerceAtLeast(1.0),
+            100 * hg(Tally.Hungry.HERD_WEEKS) / hungryWeeks, hg(Tally.Hungry.HERD_HEADS) / hungryWeeks, 100 * hg(Tally.Hungry.LARDER_WEEKS) / hungryWeeks))
         val wanted = Tally.ClothesMade.entries.sumOf { v(Tally.clothesMade(it)) }
         println("bands' clothes making, last year (band-weeks clothes were wanted: %.0f%% of band-weeks; by what stopped them): ".format(100 * wanted / weeks) +
             Tally.ClothesMade.entries.joinToString(", ") { c -> "%s %.0f%%".format(c.label, 100 * v(Tally.clothesMade(c)) / wanted.coerceAtLeast(1.0)) })
