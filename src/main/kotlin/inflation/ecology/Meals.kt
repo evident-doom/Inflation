@@ -202,7 +202,8 @@ private fun HexGroups.countHungryWeek(w: ForageWeek, band: Band) {
     fun add(k: Tally.Hungry, x: Int) { stats.tally(Tally.hungry(k), x) }
     add(Tally.Hungry.WEEKS, 1); add(Tally.Hungry.PEOPLE, g.size)
     if (w.idleHunters > 0f) { add(Tally.Hungry.HUNTERS_IDLE_WEEKS, 1); add(Tally.Hungry.HUNTERS_IDLE_HANDS, (10f * w.idleHunters).toInt()) }
-    if (w.rankedOut > 0) { add(Tally.Hungry.RANKED_OUT_WEEKS, 1); add(Tally.Hungry.RANKED_OUT_KG, (10f * w.rankedOutValue).toInt()) }
+    if (w.rankedOut > 0) { add(Tally.Hungry.RANKED_OUT_WEEKS, 1); add(Tally.Hungry.RANKED_OUT_RATIO, (100f * w.bestOutPay).toInt())
+        w.bestOutFood?.let { f -> stats.tally(Tally.hungryBest(f), 1) } }
     val heads = band.herds.herd.sum() + band.herds.youngHerd().sum()
     if (heads >= 1f) { add(Tally.Hungry.HERD_WEEKS, 1); add(Tally.Hungry.HERD_HEADS, heads.toInt()) }
     if (g.larder > 0.01f * g.dailyNeedKg) add(Tally.Hungry.LARDER_WEEKS, 1)

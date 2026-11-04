@@ -251,7 +251,11 @@ private fun noteUnused(w: ForageWeek, o: Offers) {
     var hunterUsed = false; val taken = BooleanArray(o.m)
     for (r in 0 until o.used) { val i = o.order[r]; taken[i] = true; if (o.who[i] == 0) hunterUsed = true }
     w.idleHunters = if (hunterUsed) 0f else w.hands * w.party[0]
-    for (i in 0 until o.m) if (!taken[i] && o.who[i] == 1) { w.rankedOut++; w.rankedOutValue += o.rate[i] * o.value[i] }
+    // (The best food the gatherers left out, by the pay they ranked it at against the rate they stopped at: below 1 it ranked out fairly.)
+    val cut = if (o.spent[1] > 0f) o.gain[1] / o.spent[1] else 0f
+    for (i in 0 until o.m) if (!taken[i] && o.who[i] == 1) { w.rankedOut++
+        if (o.profit[i] > w.bestOutPay) { w.bestOutPay = o.profit[i]; w.bestOutFood = o.type[i] } }
+    w.bestOutPay = if (cut > 0f) w.bestOutPay / cut else 0f
 }
 
 /** Diagnostic (huntSteps): how a beast pack's week of foraging went, by the hunter ([HuntStep.PACK_WEEKS] and on). */
@@ -533,8 +537,8 @@ internal class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, pack
     var huntSearch = 0f; var huntHandle = 0f; var gatherSearch = 0f; var gatherHandle = 0f; var plantSeek = 0f; var plantWalk = 0f
     var digDays = 0f
     var room = 0f
-    /** Census of hungry weeks ([noteUnused]): hunters' hands whose party took up no food, and the gatherers' foods ranked out (their number, what a day of searching of them brings). */
-    var idleHunters = 0f; var rankedOut = 0; var rankedOutValue = 0f
+    /** Census of hungry weeks ([noteUnused]): hunters' hands whose party took up no food, and the gatherers' foods ranked out (their number, the best one's pay a day of handling and its kind). */
+    var idleHunters = 0f; var rankedOut = 0; var bestOutPay = 0f; var bestOutFood: Food? = null
     // A band fetches the hearth's firewood first and forages in the days left, as far as its week's plan gives them
     // (see [planWeek]); an animal forages all week.
     var fuelDays = 0f

@@ -62,6 +62,7 @@ import inflation.world.set
 import inflation.world.Place
 import inflation.ecology.seedCornIn
 import inflation.ecology.Thresholds
+import inflation.ecology.Food
 import inflation.ecology.bandLiving
 import inflation.ecology.birthSpacing
 import kotlin.math.max
@@ -700,10 +701,11 @@ class Census(private val sim: HexSim) {
         fun hg(k: Tally.Hungry) = v(Tally.hungry(k))
         val hungryWeeks = hg(Tally.Hungry.WEEKS).coerceAtLeast(1.0)
         println(("bands' hungry weeks (fed under %.0f%% after eating), last year: %.0f of %.0f band-weeks (%.1f%%); in them: hunters took up no food %.0f%% (idle hands %.1f a week), " +
-            "gatherers ranked foods out %.0f%% (a day of them would bring %.1f kg of need), a herd held %.0f%% (%.1f heads), something in the larder %.0f%%").format(
+            "gatherers ranked foods out %.0f%% (the best one paid %.0f%% of the cut-off; best by kind: %s), a herd held %.0f%% (%.1f heads), something in the larder %.0f%%").format(
             100 * Thresholds.HUNGRY, hg(Tally.Hungry.WEEKS), ftWeeks, 100 * hg(Tally.Hungry.WEEKS) / ftWeeks,
             100 * hg(Tally.Hungry.HUNTERS_IDLE_WEEKS) / hungryWeeks, hg(Tally.Hungry.HUNTERS_IDLE_HANDS) / 10 / hungryWeeks,
-            100 * hg(Tally.Hungry.RANKED_OUT_WEEKS) / hungryWeeks, hg(Tally.Hungry.RANKED_OUT_KG) / 10 / hungryWeeks.coerceAtLeast(1.0),
+            100 * hg(Tally.Hungry.RANKED_OUT_WEEKS) / hungryWeeks, hg(Tally.Hungry.RANKED_OUT_RATIO) / hg(Tally.Hungry.RANKED_OUT_WEEKS).coerceAtLeast(1.0),
+            Food.entries.filter { v(Tally.hungryBest(it)) > 0 }.joinToString(", ") { "%s %.0f%%".format(it.label, 100 * v(Tally.hungryBest(it)) / hg(Tally.Hungry.RANKED_OUT_WEEKS).coerceAtLeast(1.0)) },
             100 * hg(Tally.Hungry.HERD_WEEKS) / hungryWeeks, hg(Tally.Hungry.HERD_HEADS) / hungryWeeks, 100 * hg(Tally.Hungry.LARDER_WEEKS) / hungryWeeks))
         val wanted = Tally.ClothesMade.entries.sumOf { v(Tally.clothesMade(it)) }
         println("bands' clothes making, last year (band-weeks clothes were wanted: %.0f%% of band-weeks; by what stopped them): ".format(100 * wanted / weeks) +

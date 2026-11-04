@@ -491,15 +491,17 @@ object Tally {
     /**
      * Bands' hungry weeks (fed under [Thresholds.HUNGRY] after eating), counted at the week's end ([countHungryWeek]) with what
      * was unused: band-weeks, those whose hunters' party took up no food (their hands, tenths of people, idle), those with
-     * foods the gatherers ranked out (and what a day of searching would have brought of them, tenths of kg of need), those
+     * foods the gatherers ranked out (the best of them: its kind, and what it paid a day of handling against the cut-off the gatherers stopped at), those
      * holding a herd, those with something in the larder, and the hunger deaths of the week's people (tenths of a person).
      */
     enum class Hungry(val label: String) {
         WEEKS("hungry band-weeks"), HUNTERS_IDLE_WEEKS("hunters took up nothing"), HUNTERS_IDLE_HANDS("their idle hands"),
-        RANKED_OUT_WEEKS("gatherers ranked foods out"), RANKED_OUT_KG("what a day of them brings, kg of need"),
+        RANKED_OUT_WEEKS("gatherers ranked foods out"), RANKED_OUT_RATIO("best one's pay as a percent of the cut-off, summed"),
         HERD_WEEKS("holding a herd"), HERD_HEADS("herd heads"), LARDER_WEEKS("larder not empty"), PEOPLE("people")
     }
     fun hungry(k: Hungry) = TallyKey.raw("hungry band-weeks:${k.label}")
+    /** Hungry band-weeks by the kind of food the gatherers' best ranked-out food was ([Hungry]). */
+    fun hungryBest(f: Food) = TallyKey.raw("hungry band-weeks:best ranked-out food ${f.label}")
     /** How far a band's shelters stood at the week's end ([Band.shelter]): the first bin it falls [below]. The report's line. */
     enum class Hut(val label: String, val below: Float) {
         NONE("no hut", 0.5f), LIGHT("light hut", 1.05f), PART("part thatched", 1.5f), THATCHED("thatched", Float.POSITIVE_INFINITY);
