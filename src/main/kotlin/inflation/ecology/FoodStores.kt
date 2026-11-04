@@ -84,15 +84,19 @@ internal fun HexGroups.keepAndSpoil(w: ForageWeek, got: EnumFloats<Store>, gotKg
     // (Pits sealed with clay and plaster keep the mice out.)
     val unspoilt = g.larder; val unspoiltStores = storesNow(g)
     var rotten = spoil(g.stores, weather.temperature[g.place], 1f - PIT_KEEP * home, driedKeep(band), g.storeKgPer)
-    val sealed = if (band.knowsSkill[Skill.SEALING]) 1f - SEAL_KEEP * band.skill(Skill.SEALING) else 1f
+    val sealed = band.sealedLetsThrough()
     if (home > 0f) {
-        for (st in listOf(Store.SEED, Store.FRUIT, Store.ROOTS)) {
+        for (st in listOf(Store.FRUIT, Store.ROOTS)) {
             val x = g.stores[st] * MICE * sealed * home * days / 7f
             g.stores[st] -= x
             rotten += x * g.storeKgPer[st]
         }
         if (band.knowsSkill[Skill.SEALING] && g.larder > 0f) band.practise(Skill.SEALING, 0.2f * PRACTICE)
     }
+    // (Mice and rats get into the grain and nuts wherever they are kept: storage pits at home keep them out the better, sealed
+    // the better still, [seedRodents].)
+    val gnawed = g.stores[Store.SEED] * SEED_RODENTS * seedRodents(home, sealed) * days / 7f
+    g.stores[Store.SEED] -= gnawed; rotten += gnawed * g.storeKgPer[Store.SEED]
     rotten += infest(g, band, weather.temperature[g.place], 1f - home * (1f - sealed))
     band.larderMoved(g, LarderMove.SPOILT, g.larder - unspoilt)
     band.storeMoved(g, StoreFlow.SPOILT, unspoiltStores)
@@ -201,8 +205,10 @@ internal fun GroupWorld.keepWorth(g: HexGroup, b: Band, home: Float): Float {
     var kept = 0f
     for (st in Store.entries) if (st != Store.FRESH)
         kept += g.stores[st] * min(1f, st.lostWeekly * (if (st == Store.DRIED) driedKeep(b) else 1f) * days / 7f) * PIT_KEEP * more
-    val sealed = if (b.knowsSkill[Skill.SEALING]) 1f - SEAL_KEEP * b.skill(Skill.SEALING) else 1f
-    for (st in listOf(Store.SEED, Store.FRUIT, Store.ROOTS)) kept -= g.stores[st] * MICE * sealed * more * days / 7f
+    val sealed = b.sealedLetsThrough()
+    for (st in listOf(Store.FRUIT, Store.ROOTS)) kept -= g.stores[st] * MICE * sealed * more * days / 7f
+    // (And the grain and nuts the mice would not get at in its pits: [seedRodents] at a whole house against the houses it has.)
+    kept += g.stores[Store.SEED] * SEED_RODENTS * (seedRodents(home, sealed) - seedRodents(1f, sealed)) * days / 7f
     return kept
 }
 
@@ -220,6 +226,22 @@ internal fun GroupWorld.killKeeps(band: Band, wantAll: Float, t: Float): Float {
     val keeps = if (rot <= 0f) 1f else min(1f, 1f / (rot * days))
     return (1f + SURPLUS_EAT) * wantAll * keeps + band.driedLast
 }
+
+/** The share of the mice its pits let through that [this] band's sealing of them with clay and plaster still lets in ([SEAL_KEEP]). */
+internal fun Band.sealedLetsThrough() = if (knowsSkill[Skill.SEALING]) 1f - SEAL_KEEP * skill(Skill.SEALING) else 1f
+
+/**
+ * The share of [SEED_RODENTS] that gets into a band's grain and nuts kept in [home] of its houses' storage pits (the rest
+ * kept in bags and baskets about the camp), the pits [sealed] as its sealing lets through: pits keep out [PIT_KEEP] of them.
+ */
+internal fun seedRodents(home: Float, sealed: Float) = (1f - home) + home * (1f - PIT_KEEP) * sealed
+
+/**
+ * Share of a band's grain and nuts that mice and rats take a week where nothing keeps them out ([seedRodents]): some 10% a
+ * year. An estimate, from memory: losses in traditional grain stores run some 5-15% a year all told, rodents and insects
+ * together ([Store.pestWeekly], [infest]), and sealed pits and bins keep most of both out.
+ */
+internal const val SEED_RODENTS = 0.002f
 
 /** Spoils a week of [stores] at [t] °C, each kind at its own rate; returns kg lost (weighed at [kgPer] for each kg of worth). */
 internal fun GroupWorld.spoil(stores: EnumFloats<Store>, t: Float, keep: Float = 1f, driedKeep: Float = 1f, kgPer: EnumFloats<Store>? = null): Float {

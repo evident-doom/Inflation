@@ -65,7 +65,7 @@ internal fun GroupWorld.cropRipe(g: HexGroup, b: Band): Float {
 internal fun HexGroups.harvestCrop(g: HexGroup, b: Band, time: BandTime) {
     val ripe = cropRipe(g, b); val left = time.leftFor(Activity.SOWING)
     if (ripe <= 0f || left <= 0f) return
-    val perKg = reapDaysPerKg(b, tuning)
+    val perKg = cropReapDays(b)
     val f = b.sownPlace; val food = fauna.food
     val kg = land.total(f, food.take(food.fieldGrain, f, land.spread(f, Kg(min(ripe, left / perKg))))).v
     if (kg <= 0f) return
@@ -78,6 +78,13 @@ internal fun HexGroups.harvestCrop(g: HexGroup, b: Band, time: BandTime) {
     stats.tally(Tally.of(g.species, Tally.OfKind.GRAIN_REAPED), worth.toInt())
     note(g) { "brought in %.0f kg of its crop".format(kg) }
 }
+
+/**
+ * Person-days band [b] takes to reap, thresh and clean a kilo of its own crop ([reapDaysPerKg]), as thick as it stands in
+ * its plot ([HexFood.fieldStand]); before it has sown, as a field would stand ripened in full.
+ */
+internal fun GroupWorld.cropReapDays(b: Band) =
+    reapDaysPerKg(b, tuning, if (b.sownPlace.none) HexFood.FIELD_YIELD * HexFood.SEED_RATE else fauna.food.fieldStand(b.sownPlace))
 
 /** [Band.seedCorn] as [g]'s stores hold it: grain is eaten, spoils, is given and taken from the wild grain first. */
 internal fun Band.seedCornIn(g: HexGroup) = min(seedCorn, g.stores[Store.SEED])

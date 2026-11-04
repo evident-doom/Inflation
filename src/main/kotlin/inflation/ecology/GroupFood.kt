@@ -144,7 +144,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     val w = ForageWeek(this, g, sweep, packKg, weather)
     huntingOdds(w)
     if (w.band == null) herdOdds(w)
-    val o = Offers(w.games + w.herds.size + g.path.size * 4 + (w.gatherAt.size + w.roundCamp.size) * 6 + 2)
+    val o = Offers(w.games + w.herds.size + g.path.size * 4 + (w.gatherAt.size + w.roundCamp.size) * 7 + 2)
     // The party plans its week on what it finds, eats, and if others got there first and it is still
     // hungry, looks again at what is left.
     for (pass in 0 until FORAGE_PASSES) {
