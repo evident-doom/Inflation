@@ -34,8 +34,8 @@ internal class BandTallies {
     fun herdTotal(h: Tally.Herding, t: Tally.TimeTotal, v: Int) = add(herdTotalAt + h.ordinal * totals + t.ordinal, v)
     fun squeeze(a: Activity, k: Tally.Squeeze, v: Int) = add(squeezeAt + a.ordinal * squeezes + k.ordinal, v)
 
-    /** Puts the sums in [ledger] and starts again. */
-    fun flush(ledger: MutableMap<TallyKey, Int>) {
-        for (i in 0 until n) if (seen[i]) { ledger.merge(keys[i], sum[i], Int::plus); sum[i] = 0; seen[i] = false }
+    /** Puts the sums in [ledger] (none: the census is off, they are dropped) and starts again. */
+    fun flush(ledger: MutableMap<TallyKey, Int>?) {
+        for (i in 0 until n) if (seen[i]) { ledger?.merge(keys[i], sum[i], Int::plus); sum[i] = 0; seen[i] = false }
     }
 }

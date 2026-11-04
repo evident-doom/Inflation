@@ -81,7 +81,7 @@ internal fun HexGroups.keepAndSpoil(w: ForageWeek, got: EnumFloats<Store>, gotKg
     // What time is left is for making and mending (see [bandWeek]).
     band.spareDays = max(0f, time.left)
     band.week = time
-    time.count(stats.hunting, Tally.TimeTotal.ALL, days * w.hands.toFloat())
+    if (stats.census) time.count(stats.hunting, Tally.TimeTotal.ALL, days * w.hands.toFloat())
     // And it spoils, each kind at its own rate, fresh meat the faster the warmer.
     // (In storage pits at home stores keep better, though mice get into the grain, nuts and roots.)
     val home = if (band.atHome) band.house else 0f

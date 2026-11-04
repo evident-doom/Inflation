@@ -99,7 +99,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         // bands together, one after another.
         val bandGroups = groups.filter { it.alive && it.band != null }
         for (g in bandGroups) if (g.alive) bandWeek(g, weather, date)
-        bands.tallies.flush(stats.hunting)
+        bands.tallies.flush(if (stats.census) stats.hunting else null)
         Par.forEach("people: customs year", bandGroups.size) { k ->
             val g = bandGroups[k]
             if (g.alive) cultureWeek(g, stream(seedBase, Stream.CUSTOMS, g.id.toLong(), date.absoluteDay))
