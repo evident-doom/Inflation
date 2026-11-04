@@ -44,4 +44,16 @@ class HexHurricaneTest {
         repeat(12) { again.step() }
         assertEquals(s.groups.hurricanes!!.now(), again.groups.hurricanes!!.now(), "the same seed gave another path")
     }
+
+    @Test
+    fun `recruiters set down stay where they are at speed 0, and the nearest of them is one of them`() {
+        val s = sim(mapOf("t.recruiters" to "3", "t.recruiterSpeed" to "0"))
+        s.step()
+        val first = s.groups.recruiters!!.now()
+        repeat(10) { s.step() }
+        val sites = s.groups.recruiters!!
+        assertEquals(first, sites.now(), "a static recruiter moved")
+        assertTrue(sites.nearest(first[0]) == first[0], "the nearest recruiter to a recruiter's own hex is that hex")
+        assertTrue(s.groups.hurricanes == null, "no storms were asked for")
+    }
 }

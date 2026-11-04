@@ -120,6 +120,13 @@ class HexHurricane(
     /** How soon hex [h] is struck, as a group would be told: 1 for this week, falling by a [width]th for each week ahead, 0 if not within the weeks worked out. */
     fun urgency(h: Hex): Float = first[h.i].let { if (it == NEVER) 0f else (width - it).toFloat() / width }
 
+    /** The hex where a storm (or recruiter) stands this week that is nearest [from]; [Hex.NONE] if none was set down. */
+    fun nearest(from: Hex): Hex {
+        var best = Hex.NONE; var bestKm = Double.POSITIVE_INFINITY
+        for (k in 0 until count) { val h = queue[k * width]; if (h.none) continue; val d = hex.distanceKm(from, h); if (d < bestKm) { bestKm = d; best = h } }
+        return best
+    }
+
     /** The hexes storms stand on this week (for logs and tests). */
     fun now(): List<Hex> = (0 until count).map { queue[it * width] }
 

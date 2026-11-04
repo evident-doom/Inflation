@@ -155,6 +155,8 @@ enum class Met(val label: String) {
     BANDS_MADE_AN_APPOINTMENT("bands made an appointment"),
     BANDS_MAULED_AT_A_CARCASS("bands mauled at a carcass"),
     BANDS_MET("bands met"),
+    BANDS_RECRUITED("bands took recruits (the hurricane test's recruiters)"),
+    PEOPLE_RECRUITED("people recruited (the hurricane test's recruiters)"),
     BANDS_SOWED("bands sowed"),
     BANDS_TOLD_OF_COUNTRY("bands told of country"),
     BANDS_TOLD_OF_ROUTES("bands told of routes"),
