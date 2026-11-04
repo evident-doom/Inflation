@@ -10,6 +10,7 @@ import inflation.Tuning
 import inflation.monthsFrom
 import inflation.Config
 import inflation.world.Weather
+import inflation.world.HexLand
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
@@ -241,7 +242,10 @@ internal const val CLIMB_J_PER_KG_M = 33f
  * view (half in [SIGHT_RAIN_MM] of rain or snow a week), so does the haze over hot ground, and thick
  * cover hides game from all but those close by.
  */
-fun GroupWorld.sight(p: Place, weather: Weather): Float {
+fun GroupWorld.sight(p: Place, weather: Weather): Float = sightAt(land, p, weather)
+
+/** [GroupWorld.sight] at place [p] of [land], for any hunter there (a pack's party or a resident's). */
+fun sightAt(land: HexLand, p: Place, weather: Weather): Float {
     val wet = 1f / (1f + weather.precipitation[p] / SIGHT_RAIN_MM)
     val haze = if (weather.temperature[p] > SIGHT_HAZE_C) 0.8f else 1f
     return wet * haze * (1f - SIGHT_COVER * land.plants.cover(p))
@@ -321,6 +325,21 @@ internal const val MAST_BITTER = 0.7f
 internal const val MAST_LEACH_DAYS_PER_KG = 1.2f
 internal const val SEED_HANDLING_DAYS_PER_KG = 0.5f
 /**
+ * The grain a wild cereal stand holds, kg/m² of the stand, at which [SEED_HANDLING_DAYS_PER_KG] holds, and the share of
+ * those days that is cutting or stripping the ears, the rest threshing, parching, winnowing and cleaning, which take as long
+ * a kilo however thick the stand ([reapDaysPerKg]). Cutting goes by the ground a reaper covers, so a kilo from a stand half
+ * as thick takes twice as long to cut. Harlan (1967, Archaeology 20: 197-201, from memory, unchecked) took some 2 kg of
+ * grain an hour from dense wild einkorn with a flint sickle or bare hands, some 0.08 days of 6 hours a kilo, a sixth of
+ * the whole. The rate is taken to hold where bands here reap their wild grain, the median stand of a traced year (stand
+ * trace, main 93d43621, m5-1 and m5-3: kg-weighted medians 0.0019 and 0.0028 kg/m², 2026-11-04), so that wild grain
+ * reaps as before and only thicker and thinner stands, and sown plots, differ. (Those stands, some 20-30 kg/ha, are thin
+ * beside the dense stands of the record, hundreds of kg/ha: a matter for the stands, not for the reaping.) Grass seed
+ * likewise at its own median, 0.00012-0.00020 kg/m² over the place.
+ */
+internal const val REF_STAND_KG_M2 = 0.0023f
+internal const val REF_SEED_STAND_KG_M2 = 0.00016f
+internal const val REAP_CUT_SHARE = 0.17f
+/**
  * How many times as long a kilo the small seeds of wild grasses take as wild cereal grain ([SEED_HANDLING_DAYS_PER_KG],
  * fitted to wild wheat and barley): beaten into baskets, parched, winnowed and ground, small seeds return some 300-1,000
  * kcal/h, about 600 after they are found (Gremillion 2004, and Simms 1987 as consistent with it, both as cited in a review
@@ -354,6 +373,12 @@ internal const val SHELLFISH_DAYS_PER_KG = 0.12f
  * Draper 1994, J Anthropol Res 50: 217-248, pp. 228-232).
  */
 internal const val WALK_KM_PER_HOUR = 4f
+/**
+ * A hunter's load of a kill carried to camp, kg as carried: Hadza carcasses of zebra, wildebeest and hartebeest size
+ * (some 115-340 kg alive) take 7-10 carriers, smaller ones one to three (Bunn, in Breathing Life into Fossils, ch. 15):
+ * some 20-35 kg each. An approximation.
+ */
+internal const val MEAT_LOAD_KG = 25f
 internal const val GATHER_LOAD_KG = 12f
 /**
  * Dry matter's share of a kg of each plant food as carried, by which [GATHER_LOAD_KG] holds less of the plant stocks'

@@ -63,6 +63,8 @@ class BandTime(left: Float, private val pace: EnumFloats<Activity>? = null) {
     private val worked = enumFloats<Activity>()
     private val held = enumFloats<Activity>()
     private val heldAtOne = enumFloats<Activity>()
+    /** Of [held], what the [plan] held first: to keep its people warm, the week's needs and its herders. */
+    private val heldFirst = enumFloats<Activity>()
     /** What each activity asked for this week, person-days (none before a [plan]). */
     val asked = enumFloats<Activity>()
     /** Of [asked], what it asked first, to keep its people warm (none before a [plan]). */
@@ -89,6 +91,29 @@ class BandTime(left: Float, private val pace: EnumFloats<Activity>? = null) {
      * activity asks, plans and spends is days of work; what the week holds and has left is its people's days.)
      */
     fun leftFor(a: Activity) = max(0f, left - held.sum() + held[a]) * pace(a)
+
+    /**
+     * Person-days of work [a] may do now when it cannot wait (fresh meat rots within days): [leftFor], and the days held for
+     * the chores after it beyond what the [plan] held first for them (warmth, the week's needs, herders), which can wait a week.
+     */
+    fun leftBeforeLater(a: Activity) = max(0f, left - firstStillHeld(a)) * pace(a)
+
+    /** Of what is still held for the activities other than [a], what the [plan] held first for them (spent or released, no longer). */
+    private fun firstStillHeld(a: Activity) = Activity.entries.sumOf { b -> if (b == a) 0.0 else min(held[b], heldFirst[b]).toDouble() }.toFloat()
+
+    /**
+     * Takes [personDays] of work for [a], never more than [leftBeforeLater]: from what is held for it, then what is held for no
+     * one, then from what is held for the chores after it beyond what was held first for them, each in proportion.
+     */
+    fun spendBeforeLater(a: Activity, personDays: Float) {
+        val days = min(personDays, leftBeforeLater(a)) / pace(a)
+        val over = days - max(0f, left - held.sum() + held[a])
+        if (over > 0f) {
+            val spare = held.sum() - held[a] - firstStillHeld(a)
+            if (spare > 0f) { val f = min(1f, over / spare); for (b in Activity.entries) if (b != a) held[b] -= max(0f, held[b] - heldFirst[b]) * f }
+        }
+        spend(a, days * pace(a))
+    }
 
     /** Takes [personDays] of work for [a]: from what is held for it first. */
     fun spend(a: Activity, personDays: Float) {
@@ -136,12 +161,14 @@ class BandTime(left: Float, private val pace: EnumFloats<Activity>? = null) {
         short = asks.sum() > max(0f, left - first.sum())
         val then = shareOut(asks, weights?.a ?: ones, max(0f, left - first.sum()))
         if (weights != null) shareOut(asks, ones, max(0f, left - first.sum())).forEachIndexed { i, d -> heldAtOne.a[i] = first[i] + d }
-        for (i in held.a.indices) { held.a[i] = first[i] + then[i]; if (weights == null) heldAtOne.a[i] = held.a[i] }
+        for (i in held.a.indices) { held.a[i] = first[i] + then[i]; heldFirst.a[i] = first[i]; if (weights == null) heldAtOne.a[i] = held.a[i] }
     }
 
     /** People's days the [plan] held for [a], and would have held were every weight 1 (for counting the weights' use, [DialUse]). */
     fun heldFor(a: Activity) = held[a]
     fun heldAtOneFor(a: Activity) = heldAtOne[a]
+    /** People's days the [plan] held first for [a] (warmth, the week's needs, herders), before the rest of what it asked. */
+    fun heldFirstFor(a: Activity) = heldFirst[a]
 
     /** Adds what went to each of [activities] to [census] (tenths of a day). */
     fun count(census: MutableMap<TallyKey, Int>, vararg activities: Activity) {

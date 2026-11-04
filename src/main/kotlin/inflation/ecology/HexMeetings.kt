@@ -37,19 +37,33 @@ private class Meeting(val day: Float, val span: Float, val a: Int, val ai: Int, 
  */
 internal fun tieBreak(seed: Long, id: Int, other: Int, day: Long): Long = mix64(drawKey(seed, Stream.TIE, id.toLong(), day) + other)
 
-/** Each party's stays on its way ([Stay]), by the hex they are in. */
+/**
+ * Each party's stays on its way ([Stay]), by the hex they are in: the groups', and the resident stand-ins' ([residents]) in
+ * the hexes a group comes to. (Stand-ins meet each other apart, [meet]: a hex none of the groups comes to holds no meeting here.)
+ */
 @Part("meetings: who is in each hex")
-private fun HexGroups.staysByHex(parties: List<HexGroup>): HashMap<Hex, ArrayList<Stay>> {
-    val byHex = HashMap<Hex, ArrayList<Stay>>()
-    for ((k, g) in parties.withIndex()) {
+private fun HexGroups.staysByHex(parties: List<HexGroup>, residents: ResidentParties): Collection<ArrayList<Stay>> {
+    // (Filed by hex number straight into an array; the lists in the order their hex was first reached, as a map would give them.)
+    val byHex = arrayOfNulls<ArrayList<Stay>>(hex.size)
+    val made = ArrayList<ArrayList<Stay>>()
+    val nGroups = groups.size
+    for (k in 0 until nGroups) {
+        val g = parties[k]
         if (!g.alive) continue
         val last = g.path.size - 1
         for (i in g.path.indices) {
             val to = if (i < last) g.days[i + 1] else days.toFloat()
-            byHex.getOrPut(g.path[i]) { ArrayList() } += Stay(k, i, g.path[i], g.days[i], to)
+            val h = g.path[i]
+            (byHex[h.i] ?: ArrayList<Stay>().also { byHex[h.i] = it; made += it }) += Stay(k, i, h, g.days[i], to)
         }
     }
-    return byHex
+    // (A stand-in stays the whole week in its hex, its path that one hex: filed after the groups, in the parties' order.)
+    for (l in made) {
+        val h = l[0].hex
+        residents.forEachIn(h.i) { x -> val k = nGroups + x; val g = parties[k]
+            if (g.alive) l += Stay(k, 0, h, g.days[0], days.toFloat()) }
+    }
+    return made
 }
 
 /** [events] put in the order they happen: by day, then by their drawn tie-break, then by the parties (a total order, so the same on any cores). */
@@ -101,9 +115,9 @@ internal fun HexGroups.meet(weather: Weather) {
     // (The resident hunters meet as packs do, through bands standing in for them: [ResidentParties].)
     val residents = ResidentParties(this)
     val parties = groups + residents.parties
-    val byHex = staysByHex(parties)
+    val byHex = staysByHex(parties, residents)
     // Each pair once, hex by hex on all cores.
-    val shared = byHex.values.filter { it.size >= 2 }
+    val shared = byHex.filter { it.size >= 2 }
     val found = Array<List<Meeting>>(shared.size) { emptyList() }
     Par.forEach("meetings: pairs in each hex", shared.size) { at -> val stays = shared[at]
         val out = ArrayList<Meeting>()

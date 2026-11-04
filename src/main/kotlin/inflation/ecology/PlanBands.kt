@@ -9,6 +9,7 @@ import inflation.world.set
 import inflation.world.Date
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToLong
 
 // Choosing: what draws a band beyond what any group weighs, its will to explore, the planning mind's reckoned move, its crop, herds and fish.
 
@@ -36,9 +37,22 @@ internal fun GroupPlanner.planned(g: HexGroup, policy: HexPolicy?, buf: Scratch,
     if (n == 0) return best
     val b = g.band ?: return best
     val stays = (0 until n).firstOrNull { buf.explPlaces[it] == g.place.i } ?: -1
-    val k = plannedMove(n, buf.explScores, buf.explDeaths, stays, owed, if (owed) Float.NaN else reckonedGain(g, b, here, date),
-        { gs.reckonedWalk(g, b, buf.dist[gs.hw.placeHex[buf.explPlaces[it]]]) }) {
-        if (policy == null) buf.explScores else policy.scores(g, Array(n) { buf.candFeats[it] }, buf.candScores.copyOf(n)) }
+    // (planTrace: why it went or stayed, and the parts of its case, [bookReckoned].)
+    // (The viewer's Plan tab, for the followed band: the same, and every place's scores and walk, [MoveLook].)
+    val looked = gs.looked(g)
+    val terms = if ((PLAN_TRACE.on || looked) && !owed) FloatArray(ReckonTerm.entries.size) { Float.NaN } else null
+    val why = if (PLAN_TRACE.on || looked) arrayOfNulls<Reckoned>(1) else null
+    val gain = if (owed) Float.NaN else reckonedGain(g, b, here, date, terms)
+    var asked: FloatArray? = null
+    val k = plannedMove(n, buf.explScores, buf.explDeaths, stays, owed, gain,
+        { gs.reckonedWalk(g, b, buf.dist[gs.hw.placeHex[buf.explPlaces[it]]]) }, {
+        (if (policy == null) buf.explScores else policy.scores(g, Array(n) { buf.candFeats[it] }, buf.candScores.copyOf(n))).also { asked = it } }, why)
+    if (PLAN_TRACE.on) why?.get(0)?.let { bookReckoned(it, terms) }
+    if (looked) gs.moveLook = MoveLook(g.id, date, owed, IntArray(n) { buf.explPlaces[it] }, FloatArray(n) { buf.explScores[it] },
+        FloatArray(n) { buf.explDeaths[it] }, asked?.copyOf(n),
+        FloatArray(n) { gs.reckonedWalk(g, b, buf.dist[gs.hw.placeHex[buf.explPlaces[it]]]) },
+        FloatArray(n) { buf.dist[gs.hw.placeHex[buf.explPlaces[it]]] }, stays,
+        terms ?: FloatArray(ReckonTerm.entries.size) { Float.NaN }, gain, b.plannedStay(), why?.get(0), k)
     // (Moving, it reckons how many loads to take, the days of relays against the stores it would leave: [relayLoads].)
     if (k >= 0 && k != stays) b.planLoads = gs.relayLoads(g, b, buf.dist[gs.hw.placeHex[buf.explPlaces[k]]])
     return if (k < 0) best else Place(buf.explPlaces[k])
@@ -49,26 +63,49 @@ internal fun GroupPlanner.planned(g: HexGroup, policy: HexPolicy?, buf: Scratch,
  * in shares of a week (doc: Moving and settling under the planner, step 2): the share of its hands' week this camp has
  * lately taken to feed it ([campWork]) beyond what a fresh camp usually takes at this time of year ([usualWork]), a day of
  * work weighed as a day of need, as the walk's days are; less what leaving would give up, each paid for over the weeks it
- * keeps a camp ([Band.stayWeeks]) as the walk is:
+ * keeps a camp ([Band.plannedStay]) as the walk is:
  * - its houses, left to weather and to others ([Band.leavingHouse]);
  * - what it has sown and not yet reaped ([cropPull]);
  * - its heavy tools, left behind (grinding stones, [Tool.heavy]), the days of making them again;
- * - its stores beyond what it carries, with the relays it would choose, are weighed with the walk ([reckonedWalk]);
- * - and, every week it is away, what its weir there takes ([Band.weirFood], for the share of a whole weir built).
+ * - its stores beyond what it carries, with the relays it would choose, are weighed with the walk ([reckonedWalk]).
+ * (A weir it may use here is not taken off again: its fish are in this camp's yield already, so in [campWork]. Weighing
+ * a whole weir's week of food against the case as well counted it twice, and in food against work; band 108139 trace,
+ * 2026-11-03.)
  * NaN if it cannot judge: no whole week at this camp yet, or no such weeks in the years before.
  */
-private fun GroupPlanner.reckonedGain(g: HexGroup, b: Band, here: Hex, date: Date): Float {
+private fun GroupPlanner.reckonedGain(g: HexGroup, b: Band, here: Hex, date: Date, terms: FloatArray? = null): Float {
     val case = b.campWork(date, gs.days) - b.usualWork(date, gs.days)
     if (case.isNaN()) return Float.NaN
-    val need = g.dailyNeedKg.coerceAtLeast(1e-3f) * gs.days
-    val stay = b.stayWeeks.coerceAtLeast(1f)
+    val stay = b.plannedStay()
     var tools = 0f
     for (t in Tool.entries) if (t.heavy && b.kit[t] > 0f) tools += b.kit[t] * t.makeDays / b.makeSkill(t).coerceAtLeast(1e-3f)
-    val width = gs.fauna.water.riverWidthM(here)
-    val whole = gs.weirLengthM(here)
-    val weir = if (whole > 0f) min(1f, gs.weirAt(g, here) * width / whole) * b.weirFood / gs.stepsPerYear / need else 0f
-    return case - (if (b.houseHex == here) b.leavingHouse else 0f) - cropPull(g, b, here) - tools / (gs.days * stay) - weir
+    val house = if (b.houseHex == here) b.leavingHouse else 0f
+    val crop = cropPull(g, b, here)
+    val heavy = tools / (gs.days * stay)
+    if (terms != null) {
+        terms[ReckonTerm.CASE.ordinal] = case; terms[ReckonTerm.HOUSE.ordinal] = house; terms[ReckonTerm.CROP.ordinal] = crop
+        terms[ReckonTerm.TOOLS.ordinal] = heavy
+        terms[ReckonTerm.CAMP.ordinal] = b.campWork(date, gs.days); terms[ReckonTerm.USUAL.ordinal] = b.usualWork(date, gs.days)
+    }
+    return case - house - crop - heavy
 }
+
+/** The parts of a planning band's reckoned case for leaving ([reckonedGain]), as planTrace sums them, in shares of a week. */
+enum class ReckonTerm(val label: String) {
+    CASE("case"), CAMP("camp's work"), USUAL("usual work"), HOUSE("houses"), CROP("crop"), TOOLS("heavy tools")
+}
+
+/** planTrace: books why a planning band went or stayed this week ([Reckoned]) and, where it judged a case, its parts ([GroupPlanner.reckonCounts]). */
+private fun GroupPlanner.bookReckoned(why: Reckoned, terms: FloatArray?) {
+    reckonCounts.incrementAndGet(why.ordinal)
+    if (terms == null || terms[ReckonTerm.CASE.ordinal].isNaN()) return
+    reckonCounts.incrementAndGet(RECKON_JUDGED)
+    for (t in ReckonTerm.entries) reckonCounts.addAndGet(RECKON_SUMS + t.ordinal, (1e4f * terms[t.ordinal]).roundToLong())
+}
+
+/** Where [GroupPlanner.reckonCounts] keeps the weeks a case was judged, and the parts' sums (1/10000 of a week). */
+internal val RECKON_JUDGED = Reckoned.entries.size
+internal val RECKON_SUMS = RECKON_JUDGED + 1
 
 /**
  * The fish and shellfish band [b] could take from hex [h] in a week, with its skill and its weirs ([catchWithin]; less
@@ -126,11 +163,12 @@ internal fun GroupPlanner.bandPull(g: HexGroup, b: Band, month: Int, h: Hex, her
 
 /**
  * What the crop band [b] (group [g]) has sown and not yet reaped draws it to the hex it stands in: leaving it, the band
- * would lose its harvest (others reap a field no one keeps), a loss paid for over the weeks it keeps a camp ([Band.stayWeeks]),
+ * would lose its harvest (others reap a field no one keeps), a loss paid for over the weeks it keeps a camp ([Band.stayWeeks];
+ * a planning band, [Band.plannedStay]),
  * as a move's lost days are. The harvest is its share of the field as the sim would ripen it now ([HexFood.fieldExpect]),
  * in weeks of its food.
  */
-private fun GroupPlanner.cropPull(g: HexGroup, b: Band, h: Hex): Float = cropHarvestWeeks(g, b, h) / b.stayWeeks
+private fun GroupPlanner.cropPull(g: HexGroup, b: Band, h: Hex): Float = cropHarvestWeeks(g, b, h) / (if (b.mind == Mind.PLANS) b.plannedStay() else b.stayWeeks)
 
 /** The harvest band [b] (group [g]) has sown and not yet reaped in hex [h], in weeks of its food (0 elsewhere): [cropPull] before it is spread over the weeks it keeps a camp. */
 internal fun GroupPlanner.cropHarvestWeeks(g: HexGroup, b: Band, h: Hex): Float {

@@ -182,13 +182,7 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, internal v
             for (h in hex.all) o[h] *= OUTBREAK_KEEP
         }
     }
-    /**
-     * For the plant-eaters: how well a band of the kind ([Species.maxGroupSize]) coming to each place would be fed there
-     * this week, 0..1 of its need, eating by the same rule as those there ([forage]) from the food left uneaten after
-     * every kind has eaten, as far as the kind can get at it (cliffs, the walk to water, biting insects); see [arriveOdds].
-     */
-    @Transient internal val room: Array<FloatArray?> = Array(kinds.size) { if (!kinds[it].carnivore) FloatArray(n) else null }
-    /** The food left uneaten at each place after every kind has eaten this week, kg per m², as far as the eaters could reach it: grass, browse, fruit and roots ([room], [roomFor]). */
+    /** The food left uneaten at each place after every kind has eaten this week, kg per m², as far as the eaters could reach it: grass, browse, fruit and roots ([roomFor]). */
     @Transient internal val spareGrass = FloatArray(n)
     @Transient internal val spareBrowse = FloatArray(n)
     @Transient internal val spareFruit = FloatArray(n)
@@ -215,6 +209,8 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, internal v
     @Transient internal val moverSpent = FloatArray(kinds.size)
     /** Animals of each kind killed this week by hunters among the residents (lynx, jackals), for the deaths by cause. */
     internal val huntedByResidents = Array(kinds.size) { FloatArray(n) }
+    /** Resident hunters of each kind killed this week by the game they hunted ([huntResidents], [foughtBack]), heads; not saved. */
+    @delegate:Transient internal val foughtBackDead by lazy { Array(kinds.size) { FloatArray(n) } }
     /**
      * What each resident hunter took this week at each place of the game about it ([huntResidents]): the kg it killed per kg
      * of game there, each kind's weighed by how readily it takes game of its size. An animal there
@@ -240,7 +236,18 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, internal v
      * the residents' week): the resident hunters take from their herds as from game ([huntResidents]). Not saved: made afresh
      * each week from the bands.
      */
-    @Transient internal var keptAt: Map<Int, List<Band>>? = null
+    @Transient internal var keptAt: Array<out List<Band>?>? = null
+
+    /**
+     * The grown of each kind that also roams ([Catalogue.roamingResidents]) in packs standing at each place, per km²: game
+     * as their settled kind is, to every hunter ([HexGroups.fillPackGame] fills it before the residents' week and again as
+     * the groups hunt); null for the other kinds. Not saved.
+     */
+    @Transient internal val packGrown: Array<FloatArray?> = Array(kinds.size) { k -> if (kinds[k] in Catalogue.roamingResidents) FloatArray(n) else null }
+    /** [packGrown] of kind [k] at place [p], per km². */
+    internal fun packAt(k: Int, p: Place): Float = packGrown[k]?.get(p.i) ?: 0f
+    /** Pack members killed as game, heads, to be taken off the packs that stood there ([HexGroups.takePackKills]). Not saved. */
+    @delegate:Transient internal val packKills by lazy { java.util.concurrent.ConcurrentLinkedQueue<PackKill>() }
     /**
      * Diagnostic (huntSteps): heads the resident hunters took this week at places in [keptAt], by prey kind: the kept young,
      * the kept grown, the wild young and the wild grown there ([HexGroups.herdsForBeasts] hands them to the hunt steps).
@@ -468,12 +475,20 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, internal v
         // (The share of the food the kind eating now can get at.)
         var access = 0f
         var eatG = 0f; var eatB = 0f; var eatF = 0f; var eatR = 0f
-        val b = Bites(); val dry = DryPantry()
+        val b = Bites()
+        /** Zeroes what a place's week fills in, for the next place (the spare food, [access] and the eaten totals are set before they are read, [b] by each [forage]). */
+        fun clear() {
+            need.fill(0f); each.fill(0f); avail.fill(0f); got.fill(0f); surplus.fill(0f); gotFruit.fill(0f); gotUnder.fill(0f); ateKg.fill(0f); proteinKg.fill(0f)
+            eatG = 0f; eatB = 0f; eatF = 0f; eatR = 0f
+        }
         override fun grass(kg: Float): Float { val t = min(kg, access * spareG); spareG -= t; return t }
         override fun browse(kg: Float): Float { val t = min(kg, access * spareB); spareB -= t; return t }
         override fun fruit(kg: Float): Float { val t = min(kg, access * spareF); spareF -= t; return t }
         override fun roots(kg: Float): Float { val t = min(kg, access * spareR); spareR -= t; return t }
     }
+
+    /** One thread's [Grazing], cleared for each place it grazes ([graze]): made once, not afresh for every place every week. */
+    @Transient internal val grazings = ThreadLocal.withInitial { Grazing(kinds.size) }
 
     /** The places a step leads to from each place, for [neighbourPlaces]: those of place `p` are `to[from[p] until from[p.i + 1]]`. */
     internal class StepPlaces(val from: IntArray, val to: IntArray)
@@ -737,3 +752,6 @@ internal fun clearlyWorse(here: Float, there: Float, band: Float, background: Fl
     if (!(there < here)) return false
     return Hazards.survivalSteps(here - there, here, background, band) > 1f
 }
+
+/** [heads] grown of kind [k] killed as game at place [at] (its index) out of the packs standing there, by hunter [by] (a group's id, or -1 - a resident kind). */
+internal class PackKill(val at: Int, val k: Int, val heads: Float, val by: Long)

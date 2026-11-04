@@ -26,7 +26,7 @@ enum class OnJoin {
     ANY,
     /** Added together. */
     SUM,
-    /** Blended by the two bands' adults (kit's make by its amount, salting by the dried food, grain's by the seed, tameness by the animals). */
+    /** Blended by the two bands' adults (kit's make by its amount, salting by the dried food, insects by the dried food and seed, grain's by the seed, tameness by the animals). */
     BLENDED,
     /** The joining band's is lost; the band keeps its own. */
     LOST,
@@ -44,8 +44,8 @@ internal fun carryRules(): Map<String, Pair<OnSplit, OnJoin>> {
     rule(OnSplit.COPIED, OnJoin.MAX, "skills", "plants", "renown", "grudge")
     rule(OnSplit.COPIED, OnJoin.ANY, "knowsSkill", "knows", "known")
     rule(OnSplit.DRAWN, OnJoin.SUM, "holders")
-    rule(OnSplit.COPIED, OnJoin.SUM, "heard", "heardOf", "heardTotem", "heardBurial")
-    rule(OnSplit.COPIED, OnJoin.LOST, "totem", "marksChosen", "totemBroken", "burialWay")
+    rule(OnSplit.COPIED, OnJoin.SUM, "heard", "heardOf", "heardTotem", "heardBurial", "heardLivelihood")
+    rule(OnSplit.COPIED, OnJoin.LOST, "totem", "marksChosen", "totemBroken", "burialWay", "heldLivelihood", "livelihoodHold", "livedOther", "livelihoodChosen")
     rule(OnSplit.FRESH, OnJoin.SUM, "burialOwed", "riteOwed", "riteAsked", "riteSpare")
     rule(OnSplit.FRESH, OnJoin.LOST, "riteDue")
     rule(OnSplit.COPIED, OnJoin.LOST, "lastUsed", "seasonPlace", "seasonQ", "monthSupply", "monthSupplySq", "supplyMonth", "supplySum", "supplyWeeks", "weekSupply", "weekYield", "weekWarmth", "weekMoved", "freeShare", "leanDays", "weeks", "traditions", "words", "rite", "riteStrength", "riteHeld", "riteKept", "beliefYears", "strain", "omenPlace", "omenMonth", "omenYear", "omenWeight", "deathsUsual", "wantSteps", "wantBroke", "wantUsual", "mind", "foreseenAt", "knownHomes", "knownLineage", "lastMet", "newsYield", "newsAt", "newsNext")
@@ -59,12 +59,12 @@ internal fun carryRules(): Map<String, Pair<OnSplit, OnJoin>> {
     // People.
     rule(OnSplit.SET, OnJoin.SUM, "lastAdults")
     rule(OnSplit.SHARED, OnJoin.SUM, "elders", "ageStage", "goods")
-    rule(OnSplit.COPIED, OnJoin.BLENDED, "kit", "fine", "salted", "dryDepth", "leanLost", "sodiumShort", "lineage", "inbred", "sisu")
+    rule(OnSplit.COPIED, OnJoin.BLENDED, "raidDeathRate", "kit", "fine", "salted", "dryDepth", "pests", "leanLost", "sodiumShort", "lineage", "inbred", "sisu")
     // Camp, home and raids.
     rule(OnSplit.COPIED, OnJoin.LOST, "campWeeks", "stayWeeks", "campPlace", "appointment", "houseHex", "house", "drivenFrom", "drivenBy", "homeEarth", "homeWalls", "homeGroundC", "palisade", "fire",
         "houseLives", "houseFood", "foodFrom", "fishPull", "weaningFood", "waterShort")
     rule(OnSplit.FRESH, OnJoin.LOST, "cache", "cacheKgPer", "cachePlace", "raid", "unlucky",
-        "shelter", "atHome", "nightWood", "hearthWood", "spareDays", "dryAsk", "skinAsk", "weirPull", "houseLivesWeek", "houseFoodWeek")
+        "shelter", "atHome", "nightWood", "hearthWood", "spareDays", "restSaved", "dryAsk", "driedLast", "skinAsk", "weirPull", "houseLivesWeek", "houseFoodWeek")
     // Ties.
     rule(OnSplit.COPIED, OnJoin.MAX, "ties")
     // (Favours stay with the band that was helped or helped: the new band owes and is owed nothing.)
@@ -75,7 +75,7 @@ internal fun carryRules(): Map<String, Pair<OnSplit, OnJoin>> {
     rule(OnSplit.SHARED, OnJoin.SUM, "seedCorn")
     rule(OnSplit.CONTRACT, OnJoin.CONTRACT, "herds", "dogs")
     // (The crop stays with the band that sowed it: an offshoot sowed nothing, and a joining band's crop is left to whoever reaps it.)
-    rule(OnSplit.FRESH, OnJoin.LOST, "sownPlace", "sownKg")
+    rule(OnSplit.FRESH, OnJoin.LOST, "sownPlace", "sownKg", "sinceSowed")
     rule(OnSplit.COPIED, OnJoin.LOST, "sinceRaided")
     // Its ways' choices.
     rule(OnSplit.CHOSEN, OnJoin.CHOSEN, "storeShare", "will", "makeFirst", "effort")

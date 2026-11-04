@@ -51,10 +51,11 @@ internal fun HexGroups.eatTheWeek(w: ForageWeek) {
         // (Salt hunger: its people eat meat for its sodium before anything else, as far as the kill and the larder have it. Salt
         // appetite is inborn: mammals short of sodium seek it out and prefer salty food unlearned, Denton 1982, The Hunger for Salt.)
         val sodiumNeed = SODIUM_A_PERSON_DAY * g.size * days
-        val stored = g.larder
+        val stored = g.larder; val storedKinds = storesNow(g)
         meal.eatForSodium(sodiumNeed / SODIUM_PER_KG_MEAT, got, plantKg, g)
         meal.eat(got, plantKg, g)
         band.larderMoved(g, LarderMove.ATE, g.larder - stored)
+        band.storeMoved(g, StoreFlow.ATE, storedKinds)
         band.leanLost = meal.leanLost
         // (Its weanlings get gruel as far as there is seed, eaten this week or still in store: their share of the meals is
         // already in its need, so they eat seed and the rest eat the rest in its stead.)
@@ -63,6 +64,19 @@ internal fun HexGroups.eatTheWeek(w: ForageWeek) {
         val ateMeat = meal.ateMeat; val ateKg = meal.ateKg; val ateMeatKg = meal.ateMeatKg
         eaten = wantAll - meal.need
         land.books?.flow(Books.Stuff.MATTER, "eaten", -ateKg.toDouble())
+        // (Fed in full, its people eat on of the week's food left over, as far as their reserves are short and the gut takes
+        // it ([SURPLUS_EAT]), and lay it on as fat ([feedOnReserves]): fat in a good season, for the lean one. Not of the
+        // stores: those are kept against need.)
+        if (meal.need <= 0.01f * wantAll && g.fat < s.maxFatDays) {
+            val room = (s.maxFatDays - g.fat) / FAT_EFFICIENCY * g.dailyNeedKg
+            val more = Meal(min(SURPLUS_EAT * wantAll, room))
+            more.eat(got, plantKg, null)
+            val ate = more.wantAll - more.need
+            if (ate > 0f) {
+                g.surplus = ate / g.dailyNeedKg.coerceAtLeast(1e-3f)
+                land.books?.flow(Books.Stuff.MATTER, "eaten", -more.ateKg.toDouble())
+            }
+        }
         // (People need sodium, which meat and fish carry and plant food hardly does; what the week's meat falls short of
         // they make up with salt, and short of that they are listless and weak, and the food does them the less good.)
         // (Salted meat and fish carry their salt: [SALT_PER_KG] a kg, the share of the dried that was salted.)
@@ -75,8 +89,8 @@ internal fun HexGroups.eatTheWeek(w: ForageWeek) {
             band.sodiumShort = if (sodiumNeed > 0f) short / sodiumNeed else 0f
             eaten *= saltFeeds(short, sodiumNeed, tuning.saltLack)
         }
-        stats.tally(Tally.of(s, Tally.OfKind.MEAT_EATEN), ateMeat.toInt())
-        stats.tally(Tally.of(s, Tally.OfKind.PLANTS_EATEN), (eaten - ateMeat).toInt())
+        stats.keep(Tally.of(s, Tally.OfKind.MEAT_EATEN), ateMeat.toInt())
+        stats.keep(Tally.of(s, Tally.OfKind.PLANTS_EATEN), (eaten - ateMeat).toInt())
         keepAndSpoil(w, got, plantKg, pelts)
         band.seedCorn = band.seedCornIn(g)
         spare = 0f; meatEaten = ateMeatKg
@@ -136,15 +150,19 @@ internal class Meal(val wantAll: Float) {
     private var room = Nourishment.PROTEIN_MOST * wantAll; private var protein = 0f; private var lost = 0f
     val leanLost get() = if (protein > 0f) lost / protein else 0f
 
-    /** Eats [got] (by [Store], kg of need, each weighing [gotKg]) and then [g]'s stores. */
-    fun eat(got: EnumFloats<Store>, gotKg: EnumFloats<Store>, g: HexGroup) {
+    /**
+     * Eats [got] (by [Store], kg of need, each weighing [gotKg]) and then [g]'s stores; with no [g], [got] alone. What in the
+     * stores would spoil within days ([PERISHABLE]: fresh meat and fish, fruit) is eaten before the week's food, the oldest first.
+     */
+    fun eat(got: EnumFloats<Store>, gotKg: EnumFloats<Store>, g: HexGroup?) {
         for (beyond in 0..1) {
+            if (g != null) for (st in PERISHABLE) g.stores[st] -= take(st, g.stores[st], g.storeKgPer[st], beyond == 1)
             for (st in EAT_ORDER) {
                 if (got[st] <= 0f) continue
                 val kgPer = gotKg[st] / got[st]; val e = take(st, got[st], kgPer, beyond == 1)
                 got[st] -= e; gotKg[st] -= e * kgPer
             }
-            for (st in EAT_ORDER) g.stores[st] -= take(st, g.stores[st], g.storeKgPer[st], beyond == 1)
+            if (g != null) for (st in EAT_ORDER) g.stores[st] -= take(st, g.stores[st], g.storeKgPer[st], beyond == 1)
         }
     }
 
@@ -189,11 +207,11 @@ private fun HexGroups.tallyForage(w: ForageWeek, meatEaten: Float) {
     val meatFed = meatEaten * w.worth(Food.BIG_GAME) + w.killFat * w.fatFeeds + fish * w.worth(Food.FISH)
     val smallFed = smallGot * w.worth(Food.SMALL_GAME); val scrapsFed = scraps * w.worth(Food.CARRION)
     val plantsFed = w.plantKind.sum()
-    stats.tally(Tally.diet(s, Tally.DietPart.ASKED), wantAll.toInt())
-    stats.tally(Tally.diet(s, Tally.DietPart.MEAT), meatFed.toInt())
-    stats.tally(Tally.diet(s, Tally.DietPart.SMALL_PREY), smallFed.toInt())
-    stats.tally(Tally.diet(s, Tally.DietPart.CARRION), scrapsFed.toInt())
-    stats.tally(Tally.diet(s, Tally.DietPart.PLANTS), plantsFed.toInt())
+    stats.keep(Tally.diet(s, Tally.DietPart.ASKED), wantAll.toInt())
+    stats.keep(Tally.diet(s, Tally.DietPart.MEAT), meatFed.toInt())
+    stats.keep(Tally.diet(s, Tally.DietPart.SMALL_PREY), smallFed.toInt())
+    stats.keep(Tally.diet(s, Tally.DietPart.CARRION), scrapsFed.toInt())
+    stats.keep(Tally.diet(s, Tally.DietPart.PLANTS), plantsFed.toInt())
     // For bands, the same by the kind of country they are in, and how they fared.
     if (band != null) tallyBandForage(w, band, smallFed, scrapsFed, plantsFed)
 }

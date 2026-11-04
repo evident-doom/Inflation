@@ -42,21 +42,42 @@ internal fun HexGroups.exploreChoice(g: HexGroup, will: Float, n: Int, scores: F
  * - else it reckons the move (step 2): it goes to the best of the places no deadlier than staying, but where it is, if the
  *   case for leaving [gain] (in shares of a week's need, NaN for none) is more than the walk there costs ([walk] of the
  *   place's index). A move by choice never risks more lives than staying: survival keeps first claim.
- * Else it stays. [scores] are asked only once it may leave (null: it stays). Returns -1 if no place can be weighed.
+ * Else it stays. [scores] are asked only once it may leave (null: it stays). Returns -1 if no place can be weighed. With [why],
+ * writes there why it went or stayed ([Reckoned], for planTrace).
  */
 internal fun plannedMove(n: Int, weighable: FloatArray, deaths: FloatArray, stays: Int, owed: Boolean, gain: Float, walk: (Int) -> Float,
-    scores: () -> FloatArray?): Int {
+    scores: () -> FloatArray?, why: Array<Reckoned?>? = null): Int {
     var safest = Float.POSITIVE_INFINITY
     for (k in 0 until n) if (weighable[k].isFinite() && deaths[k].isFinite() && deaths[k] < safest) safest = deaths[k]
     if (!safest.isFinite()) return -1
     fun open(k: Int) = weighable[k].isFinite() && deaths[k].isFinite() && deaths[k] - safest <= 1f
     val settled = !owed && stays >= 0 && deaths[stays].isFinite() && deaths[stays] - safest < 1f
-    if (settled && !(gain > 0f)) return stays
-    val sc = scores() ?: return stays
+    if (settled && !(gain > 0f)) { why?.set(0, if (gain.isNaN()) Reckoned.NO_CASE else Reckoned.COSTS_MORE); return stays }
+    val sc = scores() ?: run { why?.set(0, Reckoned.UNSCORED); return stays }
     var best = -1
     for (k in 0 until n) if (open(k) && sc[k].isFinite() && (!settled || (k != stays && deaths[k] <= deaths[stays])) && (best < 0 || sc[k] > sc[best])) best = k
-    if (settled) return if (best >= 0 && gain > walk(best)) best else stays
+    if (settled) {
+        val goes = best >= 0 && gain > walk(best)
+        if (why != null) why[0] = when {
+            best >= 0 -> if (goes) Reckoned.MOVED else Reckoned.WALK_COSTS_MORE
+            (0 until n).any { open(it) && sc[it].isFinite() && it != stays } -> Reckoned.ONLY_DEADLIER
+            else -> Reckoned.NOWHERE
+        }
+        return if (goes) best else stays
+    }
+    why?.set(0, if (owed) Reckoned.OWED else Reckoned.EMERGENCY)
     return best
+}
+
+/**
+ * Why a planning band went or stayed this week ([plannedMove]), as planTrace counts it: its customs sent it, or staying
+ * was an emergency; else, settled where it is, it had no case to judge (a camp too new, no record), the case was less than
+ * what leaving gives up, it could weigh no place, every other place was deadlier than staying, there was no other place,
+ * the walk cost more than the case, or it moved.
+ */
+enum class Reckoned(val label: String) {
+    OWED("owed"), EMERGENCY("emergency"), NO_CASE("no case to judge"), COSTS_MORE("leaving gives up more"), UNSCORED("no scores"),
+    ONLY_DEADLIER("only deadlier places"), NOWHERE("no other place"), WALK_COSTS_MORE("walk costs more"), MOVED("moved")
 }
 
 /** [exploreChoice]'s draw at [will] for the draw [u]. */

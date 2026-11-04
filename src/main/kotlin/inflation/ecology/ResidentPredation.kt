@@ -1,9 +1,9 @@
 package inflation.ecology
 
 import inflation.ecology.HexFauna.Companion.FEAR_HALF
-import inflation.ecology.HexFauna.Companion.RESIDENT_KILL_MOST
 import inflation.ecology.HexFauna.Companion.YOUNG_WEIGHT
 import inflation.world.Place
+import inflation.world.Weather
 import inflation.world.get
 import inflation.world.set
 import inflation.ecology.HexSmallLife.DeadPool
@@ -47,76 +47,135 @@ fun HexFauna.huntedOdds(k: FaunaKind, p: Place, young: Boolean): Float {
 }
 
 /**
- * Resident hunter [k] at place [p] kills game among the residents there, for up to [meat] of meat: each other kind,
- * grown and young, as it is common there, by its weight and how catchable it is ([catchable], as [game] counts it),
- * at most [RESIDENT_KILL_MOST] of that game in a week; what it cannot
- * eat of a kill is left as carrion. Returns what it ate.
+ * Resident hunter [k] at place [p] hunts for up to [meat] of meat, as a pack of its kind would on the same ground (one
+ * model for both): its grown go about in parties of its kind's usual size, each searching the place as a pack's party
+ * searches its ground ([sweptKm2]'s going and senses, as far as the weather lets it see); each kind of game there, grown
+ * and young, and the grown of packs of a kind that also roams ([packGrown]) and the herds kept at bands' camps, is come
+ * on and killed at a pack's odds ([killChance], [seenFirst]), takes a pack's days to stalk, kill and eat, and is weighed
+ * also by the days its danger costs ([dangerDays]); the party takes the best first while they raise its rate (Charnov's
+ * rule, as [Offers.takeUp]) for as many of the week's days as it needs ([spent]: the party-days its hunting took this
+ * week so far). A party new to every kind of game, as a resident hunter keeps no memory of what it met ([SEARCH_HALF]).
+ * Of each kill it eats what a party can (a beast's whole prey, gorging included: [Nourishment.PREY]); what it cannot,
+ * and the parts it leaves ([MEAT_SHARE]), are left as carrion. Returns what it ate.
  */
-internal fun HexFauna.huntResidents(k: FaunaKind, p: Place, meat: KgM2, killedSoFar: FloatArray): KgM2 {
+internal fun HexFauna.huntResidents(k: FaunaKind, p: Place, meat: KgM2, weather: Weather, spent: FloatArray): KgM2 {
     if (meat.v <= 0f) return KgM2.ZERO
     val hunter = kinds[k]
     val area = land.areaKm2[p]
-    var total = 0f
-    // (Weights in kg per km2, as the numbers are kept.)
-    val wA = FloatArray(kinds.size); val wY = FloatArray(kinds.size)
-    // (Each kind by how catchable it is there, grown and young, as [game] counts it.)
-    for ((j, s) in kinds.withKinds()) {
-        if (j == k || adults[j][p] + young[j][p] <= 0f) continue
-        val ym = YOUNG_WEIGHT * s.massKg
-        wA[j] = adults[j][p] * s.massKg * catchable(hunter, s, s.massKg, p)
-        wY[j] = young[j][p] * ym * catchable(hunter, s, ym, p)
-        total += wA[j] + wY[j]
-    }
-    // (And the herds kept at bands' camps there, as their kind in the wild, through each band's guard against beasts
-    // ([stalkGuard]: by night its fire, dogs, watch and palisade, by day its dogs); kg per km² as the game.)
+    val partyHeads = (if (hunter.foragingParty > 0) minOf(hunter.foragingParty, hunter.groupSize) else hunter.groupSize).toFloat()
+    val parties = adults[k][p] * area / partyHeads
+    val daysLeft = days - spent[0]
+    if (parties <= 0f || daysLeft <= 0f) return KgM2.ZERO
+    // (What a party searches of the place in the week, and how open the ground and clear the view: as for a pack, [openness].)
+    val seen = sightAt(land, p, weather)
+    val swept = min(area, hunter.dailyTravelKm * days * 2f * hunter.senseKm * SEARCHING * seen)
+    val cover = land.plants.cover(p)
+    val open = VIGILANCE * (1f - cover) * (1f - hunter.stalking)
+    val clear = 0.5f + 0.5f * seen / (1f - SIGHT_COVER * cover).coerceAtLeast(0.1f)
+    val partyKg = partyHeads * hunter.massKg
+    val eats = 1f / (partyKg * EATING_RATE)
+    val most = max(partyHeads * hunter.dailyIntakeKg * days, partyKg * EATING_RATE * days)
+    val image = 1f / 2f // (m / (m + SEARCH_HALF) at m = SEARCH_HALF: a party new to every kind)
+    // The game on offer: each kind's grown (part 0), young (1) and packs' grown (2), and each camp's kept herds, grown
+    // (3) and young (4); heads per km², each one's weight, its kills a party-day of searching, and the days each takes.
     val camps = keptAt?.get(p.i)
-    // (The grown at [j], the young at herd.size + j.)
-    val wK = if (camps != null) Array(camps.size) { c -> val b = camps[c]; val guard = stalkGuard(b, 0f, b.fencedNow()); val yh = b.herds.youngHerd()
-        val nk = b.herds.herd.size
-        FloatArray(2 * nk) { i -> val j = i % nk; val y = i >= nk; val heads = if (y) yh[j] else b.herds.herd[j]
-            if (j == k.i || b.herds.herd[j] + yh[j] < 1f || heads <= 0f) 0f else { val s = kinds[j]; val m = if (y) YOUNG_WEIGHT * s.massKg else s.massKg
-                (heads / area * m * catchable(hunter, s, m, p) * guard).also { total += it } } } } else null
-    if (total <= 0f) return KgM2.ZERO
-    // (Its need is reckoned in the weight of the prey it kills, the parts it leaves included ([Allometry.dailyIntakeKg]);
-    // of each kill it eats [MEAT_SHARE] and leaves the rest as carrion. At most [RESIDENT_KILL_MOST] of the game in the
-    // week, all its hunting that week together ([killedSoFar]: what it took before, kg per km²). The game, [total] and
-    // the kills are kept per km²; the carrion per m².)
-    val want = min(meat.perKm2, KgKm2(RESIDENT_KILL_MOST * (total + killedSoFar[0]) - killedSoFar[0]))
-    if (want.v <= 0f) return KgM2.ZERO
-    killedSoFar[0] += want.v
-    killRate[k]?.let { it[p] += want.v / total }
-    var ate = KgM2.ZERO
-    for ((j, s) in kinds.withKinds()) {
-        if (wA[j] + wY[j] <= 0f) continue
-        val kg = want.v * (wA[j] + wY[j]) / total
-        val fromA = kg * wA[j] / (wA[j] + wY[j]); val fromY = kg - fromA
-        adults[j][p] = max(0f, adults[j][p] - fromA / s.massKg)
-        young[j][p] = max(0f, young[j][p] - fromY / (YOUNG_WEIGHT * s.massKg))
-        huntedByResidents[j][p] += (fromA / s.massKg + fromY / (YOUNG_WEIGHT * s.massKg)) * land.areaKm2[p]
-        if (HUNT_DIAG && camps != null) { campTaken[j][2].add((fromY / (YOUNG_WEIGHT * s.massKg) * area).toDouble()); campTaken[j][3].add((fromA / s.massKg * area).toDouble()) }
-        small.deposit(DeadPool.CARRION, p, KgKm2(kg * (1f - MEAT_SHARE)).perM2)
-        ate += KgKm2(kg).perM2
-        ateBook?.add(-(kg * MEAT_SHARE * area).toDouble())
+    val cap = 3 * kinds.size + (camps?.sumOf { 2 * it.herds.herd.size } ?: 0)
+    val kindOf = IntArray(cap); val part = IntArray(cap); val campOf = IntArray(cap)
+    val dens = FloatArray(cap); val mass = FloatArray(cap); val rate = FloatArray(cap); val time = FloatArray(cap); val eat = FloatArray(cap)
+    var m = 0
+    var game = 0f
+    fun offer(j: Int, pt: Int, c: Int, d: Float, kg: Float, ps: Species, guard: Float, groupHeads: Float) {
+        if (d <= 0f) return
+        val catchKg = catchable(hunter, ps, kg, p)
+        game += d * kg * catchKg
+        val success = killChance(catchKg, 1f) * guard
+        if (!(success > 0f)) return
+        val met = (0.5f + 0.5f * Niches.overlap(hunter, ps)) * (1f - seenFirst(open, clear, null, ps)) / groupHeads.coerceAtLeast(1f)
+        val r = d * swept * success * met * image / days
+        if (!(r > 0f)) return
+        val meat1 = min(kg, most)
+        kindOf[m] = j; part[m] = pt; campOf[m] = c; dens[m] = d; mass[m] = kg; rate[m] = r; eat[m] = meat1
+        time[m] = HANDLING_DAYS + STALK_DAYS / success.coerceIn(1e-3f, 1f) + meat1 * eats + dangerDays(hunter, ps, kg, partyHeads)
+        m++
     }
-    // (What it takes of the herds comes out of the bands' herds, the band to learn of it as it keeps them: [Herd.herdTaken].)
-    if (camps != null && wK != null) for ((c, b) in camps.withIndex()) for (i in wK[c].indices) {
-        if (wK[c][i] <= 0f) continue
-        val nk = b.herds.herd.size; val j = i % nk; val s = kinds[j]
-        val from = if (i >= nk) b.herds.youngHerd() else b.herds.herd; val m = if (i >= nk) YOUNG_WEIGHT * s.massKg else s.massKg
-        val heads = min(from[j], want.v * wK[c][i] / total * area / m)
-        val kg = heads * m / area
-        from[j] -= heads
-        if (HUNT_DIAG) campTaken[j][if (i >= nk) 0 else 1].add(heads.toDouble())
-        if (b.herds.herdTaken.size != b.herds.herd.size) b.herds.herdTaken = FloatArray(b.herds.herd.size)
-        b.herds.herdTaken[j] += heads
-        keptTakenBy.computeIfAbsent(hunter) { DoubleAdder() }.add(heads.toDouble())
-        small.deposit(DeadPool.CARRION, p, KgKm2(kg * (1f - MEAT_SHARE)).perM2)
-        ate += KgKm2(kg).perM2
-        ateBook?.add(-(kg * MEAT_SHARE * area).toDouble())
+    for ((j, s) in kinds.withKinds()) {
+        if (j == k || s === hunter) continue
+        val ym = YOUNG_WEIGHT * s.massKg
+        offer(j.i, 0, -1, adults[j][p], s.massKg, s, 1f, s.groupSize.toFloat())
+        offer(j.i, 1, -1, young[j][p], ym, s, 1f, s.groupSize.toFloat())
+        offer(j.i, 2, -1, packAt(j.i, p), s.massKg, s, 1f, s.groupSize.toFloat())
+    }
+    // (The herds kept at bands' camps there, as their kind in the wild, come on as one band of all their heads, through
+    // each band's guard against beasts: [stalkGuard], by night its fire, dogs, watch and palisade, by day its dogs.)
+    if (camps != null) for ((c, b) in camps.withIndex()) {
+        val guard = stalkGuard(b, 0f, b.fencedNow()); val yh = b.herds.youngHerd()
+        for (j in b.herds.herd.indices) {
+            val all = b.herds.herd[j] + yh[j]
+            if (j == k.i || all < 1f) continue
+            val s = kinds[j]
+            offer(j, 3, c, b.herds.herd[j] / area, s.massKg, s, guard, all)
+            offer(j, 4, c, yh[j] / area, YOUNG_WEIGHT * s.massKg, s, guard, all)
+        }
+    }
+    if (m == 0) return KgM2.ZERO
+    // (Best first by kg a day of handling; taken while each raises the party's rate.)
+    val order = (0 until m).sortedByDescending { eat[it] / time[it] }
+    var gain = 0f; var spentRate = 1f; var used = 0
+    for (i in order) {
+        if (eat[i] / time[i] <= gain / spentRate) break
+        gain += rate[i] * eat[i]; spentRate += rate[i] * time[i]; used++
+    }
+    // (The days it hunts: as many as the meat asked for takes at that rate, as far as the week goes.)
+    val intake = gain / spentRate
+    if (!(intake > 0f)) return KgM2.ZERO
+    val d = min(daysLeft, meat.perKm2.v * area / parties / intake)
+    spent[0] += d
+    var ate = 0f; var killedKg = 0f
+    // (The hunters its kills cost, heads per km²: [foughtBack].)
+    var fought = 0f
+    for (r in 0 until used) {
+        val i = order[r]
+        // (No more than half of what is there, as for a pack: [huntGame].)
+        val kills = min(parties * d * rate[i] / spentRate, 0.5f * dens[i] * area)
+        if (!(kills > 0f)) continue
+        val j = kindOf[i]; val s = kinds[j]; val kg = mass[i]
+        val perKm2 = kills / area
+        when (part[i]) {
+            0 -> { adults[j][p] = max(0f, adults[j][p] - perKm2); huntedByResidents[j][p] += kills }
+            1 -> { young[j][p] = max(0f, young[j][p] - perKm2); huntedByResidents[j][p] += kills }
+            2 -> { packKills += PackKill(p.i, j, kills, -1L - k.i); packGrown[j]?.let { it[p.i] = max(0f, it[p.i] - perKm2) } }
+            else -> { val b = camps?.get(campOf[i]) ?: continue
+                // (What it takes of the herds comes out of the bands' herds, the band to learn of it as it keeps them: [Herd.herdTaken].)
+                val from = if (part[i] == 4) b.herds.youngHerd() else b.herds.herd
+                val heads = min(from[j], kills)
+                from[j] -= heads
+                if (HUNT_DIAG) campTaken[j][if (part[i] == 4) 0 else 1].add(heads.toDouble())
+                if (b.herds.herdTaken.size != b.herds.herd.size) b.herds.herdTaken = FloatArray(b.herds.herd.size)
+                b.herds.herdTaken[j] += heads
+                keptTakenBy.computeIfAbsent(hunter) { DoubleAdder() }.add(heads.toDouble())
+            }
+        }
+        if (HUNT_DIAG && camps != null && part[i] <= 1) campTaken[j][if (part[i] == 1) 2 else 3].add(kills.toDouble())
+        fought += perKm2 * foughtBack(hunter, s, kg)
+        killedKg += kills * kg
+        val eaten = kills * eat[i]
+        ate += eaten
+        // (What it could not eat of each kill, and the parts it leaves of what it did, lie as carrion.)
+        small.deposit(DeadPool.CARRION, p, KgKm2((kills * (kg - eat[i]) + eaten * (1f - MEAT_SHARE)) / area).perM2)
+        ateBook?.add(-(eaten * MEAT_SHARE).toDouble())
+    }
+    // (The kg it killed of the game as catchable, for the odds of being hunted: [residentKillOdds].)
+    if (game > 0f) killRate[k]?.let { it[p] += killedKg / area / game }
+    // (Those its game killed die, left where they fell; their meat is no longer to be found.)
+    if (fought > 0f) {
+        val dead = min(fought, adults[k][p])
+        adults[k][p] -= dead
+        foughtBackDead[k][p] += dead * area
+        small.deposit(DeadPool.CARRION, p, KgKm2(dead * hunter.massKg).perM2)
     }
     // (Game takes fright at the kills, by their weight.)
-    killed(p, Kg(want.v * area))
-    return ate
+    killed(p, Kg(killedKg))
+    return KgKm2(ate / area).perM2
 }
 
 /** How much fear puts game off a place, 0..1. */

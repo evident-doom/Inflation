@@ -131,13 +131,13 @@ internal fun GroupWorld.relayLoads(g: HexGroup, b: Band, km: Float): Float {
 /**
  * What a move of [km] to a fresh camp costs band [b] (group [g]), in shares of a week's need, with the loads it would take
  * ([relayLoads]): the food the going burns, the days its walks take from the week's work beyond those it had to spare, and
- * the stores it would leave, the last two paid back over the weeks it will keep the new camp ([Band.stayWeeks]).
+ * the stores it would leave, the last two paid back over the weeks it will keep the new camp ([Band.plannedStay]).
  */
 internal fun GroupWorld.reckonedWalk(g: HexGroup, b: Band, km: Float): Float {
     val loads = relayLoads(g, b, km)
     val walks = 1f + 2f * max(0f, loads - 1f)
     val walked = km * walks / campKmADay(g)
-    val stay = days * b.stayWeeks.coerceAtLeast(1f)
+    val stay = days * b.plannedStay()
     val left = moveCostDays(g, b, km, loads) - walked
     return WALK_COST * km * walks / days + max(0f, walked - b.spareDays / forageHands(g)) / stay + left / stay
 }

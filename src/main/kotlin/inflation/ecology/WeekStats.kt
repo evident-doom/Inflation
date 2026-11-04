@@ -2,12 +2,14 @@
 
 package inflation.ecology
 
+import inflation.Config
 import inflation.world.Biome
 import inflation.world.Season
 import java.util.TreeMap
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.ConcurrentSkipListMap
+import java.util.concurrent.atomic.AtomicIntegerArray
 import java.util.concurrent.atomic.DoubleAdder
 
 /** Marks a function that makes a [TallyKey] from free text: outside the [Tally] builders, a use must opt in, and so shows in review. */
@@ -40,8 +42,18 @@ value class TallyKey private constructor(val text: String) : Comparable<TallyKey
 class WeekStats {
     /** Kills this week by prey kind (in order of name, as the reports list them). */
     val kills = ConcurrentSkipListMap<Species, Int>(BY_NAME)
-    /** Meetings this week by kind of meeting. */
-    val meetings = ConcurrentSkipListMap<TallyKey, Int>()
+    /** Meetings this week by kind of meeting (the counts of the [Met]s are kept in [metSums] and put in when this is read). */
+    val meetings: ConcurrentSkipListMap<TallyKey, Int> get() { drainMet(); return meetingLedger }
+    private val meetingLedger = ConcurrentSkipListMap<TallyKey, Int>()
+    /** The week's counts of each [Met] by ordinal, and whether it was counted at all (a count of nought still lists it): a sorted-map merge on a long label cost more than the count. */
+    private val metSums = AtomicIntegerArray(Met.entries.size)
+    private val metSeen = java.util.concurrent.atomic.AtomicIntegerArray(Met.entries.size)
+    private fun drainMet() {
+        for (m in Met.entries) if (metSeen.get(m.ordinal) != 0) {
+            val n = metSums.getAndSet(m.ordinal, 0); metSeen.set(m.ordinal, 0)
+            meetingLedger.merge(m.key, n, Int::plus)
+        }
+    }
     /** Deaths this week by "kind:cause". */
     val deaths = ConcurrentSkipListMap<TallyKey, Int>()
     /** People's deaths this week by "kind:cause", the grown (elders too) and the young apart (the two add up to the part of [deaths] that is people's, bar the orphans). */
@@ -59,8 +71,17 @@ class WeekStats {
     /** Whether the census's splits of bands (by country, clothing, way of living and so on: [BandSplit]) are booked in [hunting]: set by the census that reads them, as booking them costs a band-week some forty ledger merges. */
     var bandSplits = false
 
-    /** Counts [n] more of [key] in [hunting] (while [summedByThread] runs, in the thread's own sums first). */
-    fun tally(key: TallyKey, n: Int) = huntingSums.add(key, n)
+    /**
+     * Whether the census is kept: the report-only tallies ([tally], [meeting], the bands' time and splits). The model never
+     * reads them, and neither does the history; what the history and the nominal limits read is booked by [keep] and the
+     * ledgers of kills, deaths and births, which do not depend on this. Off in trainings (see [inflation.learning.HexPpo]).
+     */
+    @Volatile var census = Config.flag(Config.Key.CENSUS, true)
+
+    /** Counts [n] more of [key] in [hunting] when the census is kept (while [summedByThread] runs, in the thread's own sums first). */
+    fun tally(key: TallyKey, n: Int) { if (census) huntingSums.add(key, n) }
+    /** Counts [n] more of [key] in [hunting] whether the census is kept or not: only for what the history reads back ([Tally.diet], the meat and plants eaten, the kills, the hunt steps). */
+    fun keep(key: TallyKey, n: Int) = huntingSums.add(key, n)
     /** Counts [n] more kills of [s] in [kills] (as [tally] does). */
     fun killed(s: Species, n: Int) = killSums.add(s, n)
     private val huntingSums = ThreadSums(hunting)
@@ -77,12 +98,12 @@ class WeekStats {
     }
 
     /** Counts [n] more of [what] in [meetings]. */
-    fun meeting(what: Met, n: Int = 1) { meetings.merge(what.key, n, Int::plus) }
+    fun meeting(what: Met, n: Int = 1) { if (!census) return; metSums.addAndGet(what.ordinal, n); metSeen.set(what.ordinal, 1) }
     /** Counts [n] more of [what] of [of] (a kind, a skill, a custom...) in [meetings]. */
-    fun meeting(what: Met.Of, of: String, n: Int = 1) { meetings.merge(TallyKey.raw(what.key(of)), n, Int::plus) }
+    fun meeting(what: Met.Of, of: String, n: Int = 1) { if (!census) return; meetingLedger.merge(TallyKey.raw(what.key(of)), n, Int::plus) }
 
     /** Starts a new week (the children's ledger runs on until read). */
-    fun clear() { kills.clear(); meetings.clear(); deaths.clear(); adultDeaths.clear(); youngDeaths.clear(); births.clear(); hunting.clear(); residentDeaths.clear() }
+    fun clear() { kills.clear(); meetingLedger.clear(); for (i in 0 until Met.entries.size) { metSums.set(i, 0); metSeen.set(i, 0) }; deaths.clear(); adultDeaths.clear(); youngDeaths.clear(); births.clear(); hunting.clear(); residentDeaths.clear() }
 
     private companion object { val BY_NAME = compareBy<Species> { it.name } }
 
@@ -132,6 +153,7 @@ enum class Met(val label: String) {
     BANDS_DUG_WELLS("bands dug wells"),
     BANDS_BURNED_OFF_GRASS("bands burned off grass"),
     BANDS_CARRIED_THEIR_DEAD("bands carried their dead to their ancestors"),
+    BANDS_CAME_TO_HOLD_THEIR_WAY_OF_LIFE("bands came to hold the way of life they live"),
     BANDS_BECAME_ONE("bands at home together became one"),
     BANDS_OF_TWO_MINDS_BECAME_ONE("bands at home together of the two kinds of choosing became one"),
     BANDS_DRIVEN_FROM_HOME("bands driven from their homes"),
@@ -160,11 +182,13 @@ enum class Met(val label: String) {
     BANDS_TOOK_UP_ANOTHERS_BURIAL("bands took up another's burial way"),
     BANDS_TOOK_UP_ANOTHERS_RITE("bands took up another's rite"),
     BANDS_TOOK_UP_ANOTHERS_TOTEM("bands took up another's totem"),
+    BANDS_TOOK_UP_ANOTHERS_WAY_OF_LIFE("bands came to hold another's way of life"),
     BANDS_VISITED_FRIENDS("bands visited friends"),
     CACHES_ROBBED("caches robbed"),
     FAVOURS_HELD_BACK("favours held back"),
     FAVOURS_RETURNED("favours returned"),
     FEASTS("feasts"),
+    KILL_FEASTS("feasts on kills too big to eat before they rot"),
     FEASTS_WITH_BEER("feasts with beer"),
     FOOD_GIVEN("food given"),
     HUNGRY_BANDS_CHOSE_TO_MOVE("hungry bands chose to move"),
@@ -358,6 +382,17 @@ object Tally {
     fun calibration(mind: Mind, bin: ForeseenBin, what: Calib) = TallyKey.raw("foreseen calibration ${mind.label}:${bin.label}:${what.label}")
     /** What moved bands' larders of mind [mind] in [season], by [why], person-days of the need before keeping warm ([Band.larderFlow]). */
     fun larderFlow(mind: Mind, season: Season, why: LarderMove) = TallyKey.raw("larder flow ${mind.label}:${season.name}:${why.label}")
+    /** What moved bands' stores of kind [store] in [season], by [why], person-days of the need before keeping warm ([Band.storeFlow]). */
+    fun storeFlow(store: Store, season: Season, why: StoreFlow) = TallyKey.raw("store flow ${store.name}:${season.name}:${why.label}")
+    /**
+     * Bands' drying of fresh meat and fish in their weeks with some left ([keepAndSpoil]): the fresh left, what their way of drying
+     * would have dried of it, what the days and the drying rate let them dry, what they dried, all person-days of the need;
+     * the way and the rate (tenths, weighed by the fresh left); and the weeks counted, those where the days held them back.
+     */
+    enum class Drying(val label: String) {
+        FRESH("fresh left"), BY_WAY("by its way"), BY_DAYS("by its days"), DRIED("dried"), WAY("way"), RATE("rate"), WEEKS("weeks"), DAYS_BOUND("held back by days")
+    }
+    fun drying(what: Drying) = TallyKey.raw("bands drying:${what.label}")
     /** What a band's larder held when its people died of hunger, days of its need before keeping warm. */
     enum class LarderAt(val label: String, val below: Float) {
         EMPTY("under a day", 1f), SOME("1-10 days", 10f), FULL("10 days and over", Float.POSITIVE_INFINITY);
@@ -468,9 +503,21 @@ object Tally {
      */
     enum class FoodTime(val label: String) {
         WEEKS("band-weeks"), ROOM("days left it"), SPENT("days spent"), OVER("days past"), OVER_WEEKS("weeks past"),
-        KILLS_OVER("kills beyond expected"), KILLS_UNDER("kills short of expected"), HAUL("hauling"), DIG("water: digging soaks, drawing from wells, carrying")
+        KILLS_OVER("kills beyond expected"), KILLS_UNDER("kills short of expected"), HAUL("hauling"), DIG("water: digging soaks, drawing from wells, carrying"),
+        HUNT_SEARCH("hunters searching"), HUNT_HANDLE("hunters handling"), GATHER_SEARCH("gatherers searching"), GATHER_HANDLE("gatherers handling"),
+        PLANT_SEEK("of it finding plant food"), PLANT_WALK("of it walking to plant food"), FED("food got, kg of need")
     }
     fun foodTime(k: FoodTime) = TallyKey.raw("band foraging time:${k.label}")
+    /**
+     * Bands' grain, summed over the year: kilos as weighed, reaped from wild stands and from sown fields while foraging, and
+     * of the crop brought in whole ([HexGroups.harvestCrop]); and tenths of people-days at each (foraging's include finding it
+     * and walking to it), and of all of them grinding, at the quern's rate.
+     */
+    enum class Grain(val label: String) {
+        WILD_KG("wild, kg"), FIELD_KG("sown, foraged, kg"), CROP_KG("crop brought in, kg"),
+        WILD_DAYS("wild, days"), FIELD_DAYS("sown, foraged, days"), CROP_DAYS("crop brought in, days"), GRIND_DAYS("grinding, days")
+    }
+    fun grain(k: Grain) = TallyKey.raw("bands' grain:${k.label}")
     /** How far a band's shelters stood at the week's end ([Band.shelter]): the first bin it falls [below]. The report's line. */
     enum class Hut(val label: String, val below: Float) {
         NONE("no hut", 0.5f), LIGHT("light hut", 1.05f), PART("part thatched", 1.5f), THATCHED("thatched", Float.POSITIVE_INFINITY);

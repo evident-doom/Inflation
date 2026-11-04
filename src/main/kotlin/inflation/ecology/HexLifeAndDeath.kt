@@ -99,7 +99,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         // bands together, one after another.
         val bandGroups = groups.filter { it.alive && it.band != null }
         for (g in bandGroups) if (g.alive) bandWeek(g, weather, date)
-        bands.tallies.flush(stats.hunting)
+        bands.tallies.flush(if (stats.census) stats.hunting else null)
         Par.forEach("people: customs year", bandGroups.size) { k ->
             val g = bandGroups[k]
             if (g.alive) cultureWeek(g, stream(seedBase, Stream.CUSTOMS, g.id.toLong(), date.absoluteDay))
@@ -204,7 +204,7 @@ private fun HexGroups.splitOff(g: HexGroup, adults: Int, young: Int): HexGroup {
     moveFood(g, n, g.larder * share)
     // Both halves keep what the band knew and share out its tools and goods.
     n.bold = g.bold
-    g.band?.let { b -> n.band = Band(fauna.kinds.size, fauna.totemKinds).also { nb -> b.splitInto(nb, adults, g.adults, share, rnd) { riteInherit(it) }; nb.sisu = Sisu.inherit(b.sisu, n.id, seedBase)
+    g.band?.let { b -> n.band = Band(fauna.kinds.size, fauna.totemKinds).also { nb -> b.splitInto(nb, adults, g.adults, share, rnd) { riteInherit(it) }; nb.livelihoodHold = livelihoodHoldInherit(b.livelihoodHold, n.id, seedBase); nb.sisu = Sisu.inherit(b.sisu, n.id, seedBase)
         // The halves were one band: each holds the other as close as can be, until living apart fades it.
         b.ties[n.id] = SPLIT_TIE; nb.ties[g.id] = SPLIT_TIE } }
     return n

@@ -48,6 +48,8 @@ class Diagnostics(private val sim: HexSim) {
         if (Config.flag(Config.Key.FED_DIAG, false) && y == 1 && w % 13 == 6) fed(w)
         // (With followHungry, the group followed is the hungriest of its kind fed under [FOLLOW_FED], whenever the one followed is gone or fed again.)
         Config.string(Config.Key.FOLLOW)?.let { kind ->
+            // (follow=#id follows that group, whatever its kind.)
+            if (kind.startsWith("#")) { groups.watched = kind.drop(1).toInt(); return@let }
             if (Config.flag(Config.Key.FOLLOW_HUNGRY, false)) {
                 if (groups.groups.none { it.id == groups.watched && it.alive && it.fed < FOLLOW_FED })
                     groups.watched = groups.groups.filter { it.alive && it.species.name == kind && it.fed < FOLLOW_FED }.minByOrNull { it.fed }?.id ?: -1

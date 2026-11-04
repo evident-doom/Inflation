@@ -109,6 +109,16 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
             TakeUp.NEITHER -> {}
         }
     }
+    // A way of life goes as a mark does, as far as a band holds its own loosely ([Band.livelihoodHold]): either may come to
+    // hold the one the other shows (none shown by a band living against its own).
+    val showA = bandA.shownLivelihood; val showB = bandB.shownLivelihood
+    val toA = if (showB != null && showB != bandA.heldLivelihood) COPY_TRADITION * u * conformist(bandA.heardLivelihoodShare(showB)) * (1f - bandA.livelihoodHold) else 0f
+    val toB = if (showA != null && showA != bandB.heldLivelihood) COPY_TRADITION * u * conformist(bandB.heardLivelihoodShare(showA)) * (1f - bandB.livelihoodHold) else 0f
+    if (toA + toB > 0f) when (takeUpSide(rnd.nextFloat(), toA, toB)) {
+        TakeUp.A -> if (showB != null) { bandA.heldLivelihood = showB; bandA.livedOther = 0f; stats.meeting(Met.BANDS_TOOK_UP_ANOTHERS_WAY_OF_LIFE) }
+        TakeUp.B -> if (showA != null) { bandB.heldLivelihood = showA; bandB.livedOther = 0f; stats.meeting(Met.BANDS_TOOK_UP_ANOTHERS_WAY_OF_LIFE) }
+        TakeUp.NEITHER -> {}
+    }
     riteMeet(bandA, bandB, ab, ba)
     teach(bandA, bandB, u, (doing(a) - doing(b)).coerceIn(-1f, 1f))
     // And the sick among them pass on what is catching.
@@ -182,13 +192,13 @@ private fun HexGroups.tellOfCountry(a: HexGroup, bandA: Band, b: HexGroup, bandB
     // And where each has its houses, and the homes of others they know of: settled bands can be found.
     fun showsHome(teller: HexGroup, bt: Band, hearer: Band) {
         if (bt.houseHex.none || bt.house < Thresholds.HOUSE_STANDING) return
-        hearer.knownHomes[teller.id] = bt.houseHex
+        hearer.knownHomes[teller.id] = bt.houseHex; hearer.homesVersion++
         hearer.knownLineage[teller.id] = bt.mainLineage()
     }
     fun tellsHomes(bt: Band, hearer: HexGroup, bh: Band) {
         // (A home the hearer knows already is nothing to tell: no draw is made for it. Most are: bands that meet come to know the same homes.)
         for ((id, hh) in bt.knownHomes) if (id != hearer.id && id !in bh.knownHomes && rnd.nextFloat() < u) {
-            bh.knownHomes[id] = hh
+            bh.knownHomes[id] = hh; bh.homesVersion++
             bt.knownLineage[id]?.let { bh.knownLineage.putIfAbsent(id, it) }
         }
     }

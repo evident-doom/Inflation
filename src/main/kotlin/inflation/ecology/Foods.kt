@@ -59,17 +59,28 @@ enum class PlantFrom(val label: String) { FRUIT("fruit"), MAST("mast"), BULBS("b
 
 /**
  * Food on hand, by how it keeps: fresh meat and fish rot in days (faster in the heat), dried meat
- * and fish keep for months, fruit for a week or two, roots for some weeks, seed and nuts for a year, rendered grease
- * sealed in guts or bladders for months (its rate a guess).
+ * and fish keep for months, fruit for a week or two, roots for some weeks, seed and nuts for a year or more (dry grain does
+ * not rot: its own loss is damp and mould, some 5% a year, an estimate; mice and rats take theirs apart, [SEED_RODENTS],
+ * as insects do, [infest]), rendered grease sealed in guts or bladders for months (its rate a guess).
  * [lostWeekly] is the share lost a week (fresh meat: see [spoil]); [meat] whether it counts as meat (for its salt);
- * [protein] the share of its energy that is protein (fresh and dried meat and fish at meat's; small finds kept with fruit).
+ * [protein] the share of its energy that is protein (fresh and dried meat and fish at meat's; small finds kept with fruit);
+ * [pestWeekly] the share insects eat a week where the stores are wholly infested, at 15 °C ([infest]): hide and larder beetles
+ * and fly and moth larvae in dried meat and fish, weevils and moths in seed and nuts. (From memory: insects take 10-50% of dried
+ * fish over a few months' storage in the warm tropics, and 5-15% a year of grain in traditional stores; what rots fast is lost
+ * to rot before insects matter.)
  */
-enum class Store(val lostWeekly: Float, val meat: Boolean, val protein: Float) {
-    FRESH(0f, true, Nourishment.PROTEIN_MEAT), DRIED(0.01f, true, Nourishment.PROTEIN_MEAT), FRUIT(0.1f, false, Nourishment.PROTEIN_FRUIT),
-    ROOTS(0.03f, false, Nourishment.PROTEIN_ROOTS), SEED(0.005f, false, Nourishment.PROTEIN_GRAIN), GREASE(0.01f, false, 0f)
+enum class Store(val lostWeekly: Float, val meat: Boolean, val protein: Float, val pestWeekly: Float = 0f) {
+    FRESH(0f, true, Nourishment.PROTEIN_MEAT), DRIED(0.01f, true, Nourishment.PROTEIN_MEAT, 0.01f), FRUIT(0.1f, false, Nourishment.PROTEIN_FRUIT),
+    ROOTS(0.03f, false, Nourishment.PROTEIN_ROOTS), SEED(0.001f, false, Nourishment.PROTEIN_GRAIN, 0.002f), GREASE(0.01f, false, 0f)
 }
 /** The order a band eats its food in: what spoils first, first. */
 val EAT_ORDER = listOf(Store.FRESH, Store.FRUIT, Store.ROOTS, Store.DRIED, Store.SEED, Store.GREASE)
+/**
+ * Stores that spoil within days ([Store.FRESH] rots by half in three or four days at 15 °C, [Store.FRUIT] a tenth a week): a band
+ * eats what it holds of them before the week's food and forages that much less ([perishablesHeld]), as no one lets meat rot in
+ * camp while hunting more.
+ */
+val PERISHABLE = listOf(Store.FRESH, Store.FRUIT)
 
 /** Kinds of food a band sets its effort on (see [forage]): the [Food] kinds before grain (the last), which goes by grass seed's. */
 internal const val FOOD_TYPES = 9

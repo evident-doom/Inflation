@@ -98,6 +98,21 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
      */
     val fieldWorn = FloatArray(n)
     val fieldSoil = FloatArray(n) { 1f }
+    /**
+     * The share of each place's land under its sown field, as last sown ([sow]): kept after the year's sowing is struck off,
+     * so that the ripe crop still standing is reaped as a plot of its own, as thick as it stands there ([fieldStand]).
+     */
+    val fieldCover = FloatArray(n)
+    /**
+     * The ripe grain as it stands in the wild cereal at [p], kg/m² of the stand: the place's grain over the share of its grass
+     * that is wild cereal ([cereal]). A reaper cuts the stand, not the place ([reapDaysPerKg]).
+     */
+    fun wildStand(p: Place): Float = if (cereal[p] > 0f) grain[p] / cereal[p] else grain[p]
+    /**
+     * The ripe grain as it stands in the sown field at [p], kg/m² of the field: the place's field grain over the share of its
+     * land sown ([fieldCover]); where that is not known (a save from before it was kept), a field as it would ripen in full.
+     */
+    fun fieldStand(p: Place): Float = if (fieldCover[p] > 0f) fieldGrain[p] / fieldCover[p] else FIELD_YIELD * SEED_RATE
     /** The share wild cereals would make of a place's grass in its climate, colder by [dT] and with [rainShare] of its rain. */
     private fun cerealShare(p: Place, dT: Float = 0f, rainShare: Float = 1f): Float {
         val h = land.hw.placeHex[p]
@@ -234,6 +249,7 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
         if (add <= 0f) return
         fieldDomestic[p] = (fieldDomestic[p] * field[p] + domestic * add) / (field[p] + add)
         field[p] += add
+        fieldCover[p] = sownShare(p)
     }
 
     /**
@@ -312,12 +328,18 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
         const val ROOTS_FROM = 0.8f
         /** Ripe grass seed at its peak, per kg/m² of herbs (a rich wild-cereal stand gives far more); days it stays on the stalk. */
         const val SEED_SHARE = 0.01f
-        /** Wild cereals: most of a place's grass they make up; grain per kg of their stand; days ears that hold their grain keep it;
+        /** Wild cereals: most of a place's grass they make up; days ears that hold their grain keep it;
          * yearly drift back to wild where a stand seeds itself; a sown field's yield per kg sown. */
         const val CEREAL_MAX = 0.2f
         /** Yearly share of the way wild cereal stands move toward what the climate suits. */
         const val STAND_SHIFT = 0.1f
-        const val GRAIN_SHARE = 0.1f
+        /**
+         * Ripe grain per kg of the wild-cereal grass standing at ripening: 0.25, a harvest index (grain over grain and straw)
+         * of 0.2. Wild einkorn, emmer and barley grown as dense stands had harvest indices of 0.17-0.22 (Preece et al. 2018,
+         * Journal of Ecology 106(3), progenitor means from raw data and by species), against 0.33 as lone plants; other wild
+         * grasses 0.11-0.12. Those were fertilised pot stands, so wild field stands may sit lower. It was 0.1 (index 0.09).
+         */
+        const val GRAIN_SHARE = 0.25f
         const val GRAIN_HOLD_DAYS = 120f
         const val WILD_DRIFT = 0.3f
         const val FIELD_YIELD = 6f

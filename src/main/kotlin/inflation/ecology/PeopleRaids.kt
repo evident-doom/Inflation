@@ -194,6 +194,7 @@ internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planne
         stats.deaths.merge(Tally.of(who.species, DeathCause.RAIDS), lost, Int::plus)
         if (who.species.human) stats.adultDeaths.merge(Tally.of(who.species, DeathCause.RAIDS), lost, Int::plus)
         who.band?.let {
+            it.raidDeathRate += lost.toFloat() / max(1, who.size)
             stats.tally(Tally.bandsLivingDied(bandLiving(it), DeathCause.RAIDS), lost)
             stats.tally(Tally.bandsMindDied(it.mind, DeathCause.RAIDS), lost)
         }

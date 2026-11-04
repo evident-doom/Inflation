@@ -33,6 +33,9 @@ internal fun HexGroups.hunt(weather: Weather) {
     // (What a party killed this week before the last of it died lies where it fell: the meat of it, a beast's need being
     // counted in the whole weight of its kills, see [creditShare].)
     for (g in groups) if (!g.alive && g.meatMet > 0f) { small.deposit(DeadPool.CARRION, g.place, Kg(g.meatMet * meatShare(g.band) / creditShare(g.band))); g.meatMet = 0f }
+    // (The pack members the resident hunters killed this week come off their packs; the packs are game where they now stand.)
+    val day = weather.date.absoluteDay
+    takePackKills(2 * day); fillPackGame()
     val hunters = groups.filter { it.alive }.shuffled(rnd)
     for (a in fauna.groupKilled) a.fill(0f)
     // Bands first set their ways for the week.
@@ -81,6 +84,7 @@ internal fun HexGroups.hunt(weather: Weather) {
         g.path.all { h -> hex.distanceKm(end, h) + 2 * hex.hexKm < HUNT_FINE_KM }
     }
     stats.summedByThread { work(near, HUNT_FINE_KM); work(far, HUNT_BLOCK_KM) }
+    takePackKills(2 * day + 1)
 }
 
 /**
@@ -140,7 +144,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     val w = ForageWeek(this, g, sweep, packKg, weather)
     huntingOdds(w)
     if (w.band == null) herdOdds(w)
-    val o = Offers(w.games + w.herds.size + g.path.size * 4 + (w.gatherAt.size + w.roundCamp.size) * 6 + 2)
+    val o = Offers(w.games + w.herds.size + g.path.size * 4 + (w.gatherAt.size + w.roundCamp.size) * 7 + 2)
     // The party plans its week on what it finds, eats, and if others got there first and it is still
     // hungry, looks again at what is left.
     for (pass in 0 until FORAGE_PASSES) {
@@ -160,10 +164,45 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         }
         // What the week brings at those rates, the parties working side by side, as far as the band wants: it stops when fed.
         val intake = o.fed[0] / o.spent[0] + o.fed[1] / o.spent[1]
+        // (planTrace: what a band's day of foraging brings, party by party, and the foods it took up.)
+        if (pass == 0 && w.band != null && FORAGE_TRACE.wants(g.id.toLong(), weather.date.absoluteDay)) {
+            val hunters = w.hands - w.gatherHands
+            System.err.println(("forage trace: band %d, %s, %d people, %d hands (hunters %.1f, gatherers %.1f); kg of need a person-day: hunters %.2f, gatherers %.2f, " +
+                "the band %.2f; want %.0f kg of need this step; foods taken up, best first (kg of need a person-day of handling once found, of the party): %s").format(
+                g.id, weather.date, g.size, w.hands, hunters, w.gatherHands,
+                if (hunters > 0f) o.fed[0] / o.spent[0] / hunters else 0f, if (w.gatherHands > 0f) o.fed[1] / o.spent[1] / w.gatherHands else 0f,
+                if (w.hands > 0) intake / w.hands else 0f, w.wantAll,
+                (0 until min(o.used, 8)).joinToString(", ") { r -> val i = o.order[r]
+                    val party = if (o.who[i] == 0) hunters else w.gatherHands
+                    "%s %s %.2f (%.1f kg each, %.3f party-days each)".format(if (o.type[i] == Food.BIG_GAME) fauna.kinds[o.kind[i]].name else o.type[i].label,
+                        if (o.who[i] == 0) "hunters" else "gatherers", o.value[i] / o.time[i] / party.coerceAtLeast(1e-3f), o.kg[i], o.time[i]) }) +
+                // (What each party's food is made of, by kind of food, as its share of what the party's day brings.)
+                (0..1).joinToString("") { p ->
+                    val by = enumFloats<Food>()
+                    for (r in 0 until o.used) { val i = o.order[r]; if (o.who[i] == p) by[o.type[i]] += o.rate[i] * o.value[i] }
+                    "; %s' food by kind: %s".format(if (p == 0) "hunters" else "gatherers", Food.entries.filter { by[it] > 0f }.sortedByDescending { by[it] }
+                        .joinToString(", ") { t -> "%s %.0f%%".format(t.label, 100f * by[t] / o.fed[p].coerceAtLeast(1e-9f)) })
+                })
+        }
+        // (planTrace: the hunters' day as the disc equation has it, against hunt follows in the field: the share of their days
+        // searching, the bands of game come on and the kills a hunter-day, and each kind they took up.)
+        if (pass == 0 && w.band != null && HUNT_TRACE.wants(g.id.toLong(), weather.date.absoluteDay)) {
+            val hunters = w.hands - w.gatherHands
+            var met = 0f; var kills = 0f; var kg = 0f
+            val game = (0 until o.used).map { o.order[it] }.filter { o.type[it] == Food.BIG_GAME && o.who[it] == 0 }
+            for (i in game) { met += o.met[i]; kills += o.rate[i]; kg += o.rate[i] * o.kg[i] }
+            val h = hunters.coerceAtLeast(1e-3f); val sp = o.spent[0]
+            System.err.println(("hunt trace: band %d, %s, %d people, hunters %.1f, km2 swept a day %.1f; of a hunting day searching %.0f%%; a hunter-day: " +
+                "bands of game come on %.3f, kills %.4f, meat %.2f kg, food %.2f kg of need; game taken up (bands come on a day of searching, kills a day of it, " +
+                "kills a band come on, days a kill, kg each, kg of need a party-day of handling): %s").format(
+                g.id, weather.date, g.size, hunters, w.ground.km2.sum() / days, 100f / sp, met / sp / h, kills / sp / h, kg / sp / h, o.fed[0] / sp / h,
+                game.take(6).joinToString(", ") { i -> "%s %.3f %.4f %.3f %.3f %.0f %.1f".format(fauna.kinds[o.kind[i]].name, o.met[i], o.rate[i],
+                    if (o.met[i] > 0f) o.rate[i] / o.met[i] else 0f, o.time[i], o.kg[i], o.value[i] / o.time[i]) }))
+        }
         // (A band plans its week once it sees what food asks of it: see [planWeek]. It forages no longer than the plan gives it.)
         if (w.band != null && w.time == null) {
             // (What its herds will feed it this week it need not forage for: their increase and milk, see [herdFoodWeek].)
-            val need = max(0f, w.wantAll - w.fed - herdFoodWeek(g, w.band, weather.date))
+            val need = max(0f, w.forageWant - w.fed - herdFoodWeek(g, w.band, weather.date))
             fun daysFor(kg: Float) = if (intake > 0f) min(days.toFloat(), kg / intake) else 0f
             planWeek(w, daysFor(need), daysFor(left) - daysFor(need), if (intake > 0f) intake / w.hands.coerceAtLeast(1) else 0f)
         }
@@ -179,6 +218,13 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
             "forage ${w.s.name} adults ${g.adults} want ${w.wantAll} left $left offers ${o.m} used ${o.used} gain ${o.gain.toList()} spent ${o.spent.toList()} f $f: " +
             o.order.take(min(6, o.m)).joinToString("; ") { "t${o.type[it].ordinal} k${o.kind[it]} r=${o.rate[it]} e=${o.kg[it]} h=${o.time[it]}" })
         takeFoods(w, o, f)
+        // (A band's parties each work [f] of the week: what they handled, and the rest searching, in which they came on
+        // the game, small game and carrion they took ([Offers.spent]: days a day of searching asks). Plant food's finding and
+        // the walk to it are in its days a kilo.)
+        if (time != null) {
+            val hunting = f * w.workDays * w.party[0] / o.spent[0]; val gathering = f * w.workDays * w.party[1] / o.spent[1]
+            w.busy += hunting + gathering; w.huntSearch += hunting; w.gatherSearch += gathering
+        }
         // (A beast's search took the days of the pass not spent handling: [Offers.spent] is days a day of searching asks.)
         if (w.band == null) w.searchUsed += f * w.workDays / o.spent[0]
         time?.spend(Activity.FOOD, (w.busy - busy0) * w.hands)
@@ -195,6 +241,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     w.time?.let { restedDays(w, it) }
     w.time?.release(Activity.FOOD)
     if (HUNT_DIAG && w.band == null) packWeekDiag(w)
+    preyFoughtBack(g, w.foughtBack, w.rnd)
     eatTheWeek(w)
 }
 
@@ -212,7 +259,8 @@ private fun HexGroups.packWeekDiag(w: ForageWeek) {
  * What [w]'s band need not eat this week for the days it does not forage: once foraging has taken the days it took (from
  * its own and from those nobody asked for), the days the plan keeps for lighter work, and the days left to no one, spent
  * at rest, take less food than days foraging; fetching wood and materials, more ([Activity.restSaves]). Its want falls by
- * that; what it forages for does not (it learns how hard its week was only as it goes).
+ * that; what it forages for does not (it learns how hard its week was only as it goes): it forages next week for that much
+ * less ([Band.restSaved]).
  */
 private fun restedDays(w: ForageWeek, time: BandTime) {
     // (The working time lost to the cold and hunger, in what was spent and in what is held, is spent idle, as rest: see [Sisu].)
@@ -222,6 +270,7 @@ private fun restedDays(w: ForageWeek, time: BandTime) {
         savedDays += (time.heldFor(a) - idle) * a.restSaves + idle * Activity.LEISURE.restSaves
     }
     w.wantAll -= savedDays * w.s.dailyIntakeKg
+    w.band?.restSaved = savedDays * w.s.dailyIntakeKg
 }
 
 /**
@@ -270,6 +319,11 @@ internal fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float
     // its customs, the lives they save and what is left: [planDays].)
     if (b.mind == Mind.PLANS) {
         time.plan(needs, planDays(g, b, w.weather, time, needs, asks, warm, kept, perDay), null, warm, kept)
+        // (The viewer's Plan tab: what the plan held of the essentials, not what they asked, [DaysLook.essentialsHeld].)
+        if (looked(g)) daysLook?.takeIf { it.group == g.id && it.date == w.weather.date }?.let { l ->
+            for (a in Activity.entries) l.essentialsHeld[a.ordinal] = time.heldFirstFor(a)
+            l.planned = true
+        }
         // (What each chore asked, not what it was given, for the census of the week's squeeze: [countSqueeze].)
         for (a in Activity.entries) if (a != Activity.LEISURE) time.asked[a] = needs[a] + asks[a] + warm[a] + kept[a]
     } else time.plan(needs, asks, enumFloats<Activity> { a -> timeWay(a)?.let { b.will[it] } ?: 1f }, warm, kept)
@@ -318,6 +372,11 @@ internal fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float
  * A party's week of [forage]: what it brings to it, worked out once (its hands, its want, how fast it handles each
  * kind of food, where it gathers), the odds of a kill of each kind on its way, and what it has got so far.
  */
+/** planTrace=true: a sample of bands' foraging weeks, what a day of each party's work brings ([forage]); thin enough to span a year. */
+private val FORAGE_TRACE = Trace(Config.Key.PLAN_TRACE, "forage", share = 0.005f, most = 400)
+/** planTrace=true: a sample of bands' hunting days, [forage]. */
+private val HUNT_TRACE = Trace(Config.Key.PLAN_TRACE, "hunt", share = 0.005f, most = 400)
+
 internal class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, packKg: Float, val weather: Weather) {
     val s = g.species
     val d = s.diet
@@ -340,14 +399,15 @@ internal class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, pack
     val gutKg = s.massKg * (g.adults + 0.5f * g.young) * EATING_RATE * gs.days
     // Small game is found within a few paces of the way, not as far as the party can see; snare
     // lines and nets search it while no one is there.
-    val smallSweep = s.dailyTravelKm * gs.days * 2f * SMALL_SENSE_KM * sqrt(gatherHands / s.groupSize) / g.path.size.coerceAtLeast(1) * (band?.snares() ?: 1f)
+    // (A band's children snare and gather small game with the gatherers, as they gather plants: [CHILD_GATHER] of a grown hand.)
+    val gatherers = gatherHands + (if (band != null) CHILD_GATHER * g.young else 0f)
+    val smallSweep = s.dailyTravelKm * gs.days * 2f * SMALL_SENSE_KM * sqrt(gatherers / s.groupSize) / g.path.size.coerceAtLeast(1) * (band?.snares() ?: 1f)
     val smallCatch = smallCatch(s)
-    val smallDays = SMALL_HANDLING_DAYS_PER_KG / gatherHands * (band?.slowness(Skill.SMALL_GAME) ?: 1f) + eats
+    val smallDays = SMALL_HANDLING_DAYS_PER_KG / gatherers * (band?.slowness(Skill.SMALL_GAME) ?: 1f) + eats
     // Plant food: picked, dug or reaped by all hands, and carried home (baskets carry more at a time).
     val eatsPlants = d.fruit + d.roots > 0f
     val carry = 1f + BASKET_GAIN * (band?.has(Tool.BASKET) ?: 0f)
-    // (A band's children gather too, near camp and slower than grown hands: fruit, roots, small finds and seed.)
-    val gatherers = gatherHands + (if (band != null) CHILD_GATHER * g.young else 0f)
+    // (A band's children gather too, near camp and slower than grown hands: fruit, roots, small finds and seed: see [gatherers].)
     // (A band renders bones' grease where it gathers them: see [greaseOf].)
     val renderDays = if (band != null) BONE_RENDER_DAYS / gatherers.coerceAtLeast(1e-3f) else 0f
     val pickDays = PLANT_HANDLING_DAYS_PER_KG * gs.tuning.plantHandling / gatherers / carry + eats
@@ -370,6 +430,17 @@ internal class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, pack
     val roundShare = band?.let { b -> gs.dialed(DialSite.GATHER_RING, b.gatherRange, RING_REACH * b.gatherRange) { RING_REACH } } ?: 0f
     // (Which of the band's parties takes each food, [Offers.who]: its share of the hands.)
     val party = floatArrayOf(hunt, 1f - hunt)
+    /** The heads of its hunting party, over whom a life lost to game is shared in the days a kill costs ([dangerDays]). */
+    val huntHeads = hands * hunt
+    /**
+     * A band's hunters' party-days to carry a kg of a kill home: people do not lie up at a kill eating it as a beast does,
+     * they cut it up and carry it to camp, there and back from about half a day's going out ([MEAT_LOAD_KG]). A beast eats
+     * where it kills ([eats]).
+     */
+    val carryDaysPerKg = if (band != null) 2f * (s.dailyTravelKm / 2f) /
+        (WALK_KM_PER_HOUR * Activity.WORK_HOURS * MEAT_LOAD_KG * huntHeads.coerceAtLeast(1f)) else eats
+    /** The hunters its kills this week are expected to cost ([foughtBack]): they die once the week's foraging is done ([preyFoughtBack]). */
+    var foughtBack = 0f
     // What a kg of each food holds for it, in kg of its need: its energy ([Food.energy]) by the kind's [Species.needScale]
     // (a band's bones, the grease it renders of them).
     private val worths = enumFloats<Food> { t ->
@@ -406,20 +477,25 @@ internal class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, pack
     // (A band's grease rendered from bones, kg, and what it feeds.)
     var grease = 0f; var greaseFed = 0f
     var fed = g.meatMet * feeds(Food.BIG_GAME)
+    // (A band forages for what it will eat: its want less what its days at rest saved last week, as it reckons its week
+    // will go ([Band.restSaved]; see [restedDays]). What it saved by resting is not foraged for and laid by again. And it
+    // eats down what it holds beyond the stores it aims to keep ([storeSpare]) rather than forage for that, and first the fresh
+    // meat and fruit it holds, which would spoil before the stores' aim did them any good ([perishablesHeld]).)
+    val forageWant = max(0f, wantAll - (band?.let { b -> val p = perishablesHeld(g); b.restSaved + p + storeSpare(g, b, g.larder - p) } ?: 0f))
     // A band also works to fill its stores towards what it aims to keep (its choice); party-days spent this week.
     // (A band holding to demand sharing stores less: what it lays by is asked of it.)
-    val aim = wantAll + (band?.let { b -> gs.storeWork(g, b).also { v -> gs.dialUse?.let { u -> countStoreWork(u, g, b, v) } } } ?: 0f)
+    val aim = forageWant + (band?.let { b -> gs.storeWork(g, b).also { v -> gs.dialUse?.let { u -> countStoreWork(u, g, b, v) } } } ?: 0f)
     // What it weighs a kg of each food at in its choice: what it feeds, the part of the week's work that is for the stores
     // weighed by its will to lay that food by (its choice, [Band.storeWill]: what keeps, how long, and against what
     // lean season is for it to learn).
     private val weights = enumFloats<Food> { t ->
-        val toStore = if (band != null && aim > wantAll) (aim - wantAll) / aim else 0f
+        val toStore = if (band != null && aim > forageWant) (aim - forageWant) / aim else 0f
         feedsBy[t] * (1f - toStore + toStore * (band?.storeWill(t) ?: 1f)) }
     /** What it weighs a kg of [t] at in choosing its foods ([Offers.takeUp]). */
     fun weigh(t: Food) = weights[t]
     init {
         val u = gs.dialUse
-        if (u != null && band != null && aim > wantAll) for (t in Food.entries)
+        if (u != null && band != null && aim > forageWant) for (t in Food.entries)
             u.amount(DialSite.STORING, band.storeWill(t), weights[t], worths[t], dial = storeWay(t).slot)
     }
     val plantKind = enumFloats<Store>()
@@ -442,6 +518,14 @@ internal class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, pack
     var searchDays = 0f
     var killsExpected = 0f
     var haulOver = 0f
+    /**
+     * For the census of foraging's days ([countFoodTime]), days of a hand: the hunters' searching and handling of game, the
+     * gatherers' searching (for small game and carrion) and handling, and of the gatherers' plant food, the days finding it
+     * and walking to it and home.
+     */
+    var huntSearch = 0f; var huntHandle = 0f; var gatherSearch = 0f; var gatherHandle = 0f; var plantSeek = 0f; var plantWalk = 0f
+    /** For the census of grain ([Tally.Grain]): days of a hand reaping wild and sown grain, kilos of each, people-days grinding. */
+    var wildDays = 0f; var fieldDays = 0f; var wildKg = 0f; var fieldKg = 0f; var grindDays = 0f
     var digDays = 0f
     var room = 0f
     // A band fetches the hearth's firewood first and forages in the days left, as far as its week's plan gives them
@@ -488,6 +572,14 @@ private fun HexGroups.countFoodTime(w: ForageWeek, time: BandTime) {
     if (over > 0.05f * w.room) add(Tally.FoodTime.OVER_WEEKS, 0.1f)
     add(Tally.FoodTime.KILLS_OVER, w.killOver * hands); add(Tally.FoodTime.KILLS_UNDER, w.killUnder * hands)
     add(Tally.FoodTime.HAUL, w.haulOver * hands); add(Tally.FoodTime.DIG, w.digDays / pace)
+    add(Tally.FoodTime.HUNT_SEARCH, w.huntSearch * hands); add(Tally.FoodTime.HUNT_HANDLE, w.huntHandle * hands)
+    add(Tally.FoodTime.GATHER_SEARCH, w.gatherSearch * hands); add(Tally.FoodTime.GATHER_HANDLE, w.gatherHandle * hands)
+    add(Tally.FoodTime.PLANT_SEEK, w.plantSeek * hands); add(Tally.FoodTime.PLANT_WALK, w.plantWalk * hands)
+    add(Tally.FoodTime.FED, w.fed)
+    fun grain(k: Tally.Grain, x: Float) { if (x > 0f) stats.tally(Tally.grain(k), x.roundToInt()) }
+    grain(Tally.Grain.WILD_KG, w.wildKg); grain(Tally.Grain.FIELD_KG, w.fieldKg)
+    grain(Tally.Grain.WILD_DAYS, 10f * w.wildDays * hands); grain(Tally.Grain.FIELD_DAYS, 10f * w.fieldDays * hands)
+    grain(Tally.Grain.GRIND_DAYS, 10f * w.grindDays)
 }
 
 /** forageDiag=kind: a sample of that kind's groups' weeks, each pass of their forage and what they ate, on stderr. */

@@ -29,6 +29,23 @@ class BandTimeTest {
     }
 
     @Test
+    fun `work that cannot wait takes the later chores' days but not those held first`() {
+        val time = BandTime(10f)
+        val needs = enumFloats<Activity>(); needs[Activity.FOOD] = 4f
+        val asks = enumFloats<Activity>(); asks[Activity.DRYING] = 1f; asks[Activity.TOOLS] = 5f
+        time.plan(needs, asks)
+        assertEquals(1f, time.leftFor(Activity.DRYING), 1e-3f)
+        assertEquals(6f, time.leftBeforeLater(Activity.DRYING), 1e-3f)
+        time.spendBeforeLater(Activity.DRYING, 3f)
+        // (One day its own, two from the tools'; the food's held days kept.)
+        assertEquals(3f, time.leftFor(Activity.TOOLS), 1e-3f)
+        assertEquals(4f, time.leftFor(Activity.FOOD), 1e-3f)
+        time.spendBeforeLater(Activity.DRYING, 9f)
+        assertEquals(0f, time.leftFor(Activity.TOOLS), 1e-3f)
+        assertEquals(4f, time.leftFor(Activity.FOOD), 1e-3f)
+    }
+
+    @Test
     fun `what is held for one is kept from the others till it is released`() {
         val time = BandTime(10f)
         val asks = enumFloats<Activity>()

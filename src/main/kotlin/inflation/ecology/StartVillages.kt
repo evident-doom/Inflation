@@ -67,6 +67,8 @@ private fun GroupWorld.startHerd(g: HexGroup, b: Band): Pair<Int, Float>? {
     b.herds.herdTame[k] = (b.herds.herdTame[k] * b.herds.herd[k] + HERD_START_TAME * n) / (b.herds.herd[k] + n)
     b.herds.herd[k] += n
     b.knowsSkill[Skill.TENDING] = true; b.skills[Skill.TENDING] = max(b.skills[Skill.TENDING], HERD_SKILL); b.lastUsed[Skill.TENDING] = b.weeks
+    // (Herders hold herding as their way of life; a village keeps farming.)
+    if (b.heldLivelihood == Livelihood.FORAGING) { b.heldLivelihood = Livelihood.HERDING; b.livedOther = 0f }
     return k to n
 }
 
@@ -87,6 +89,7 @@ private fun HexGroups.startVillage(g: HexGroup, b: Band): Pair<Int, Float>? {
     bands.built += Structure(Built.HOUSES, h, Skill.PIT_HOUSE.ordinal, g.id, g.adults.toFloat()).also { buildOn(it, 1f); it.user = g.id }
     b.houseHex = h; b.house = housesAt(g, h); b.atHome = true
     b.campPlace = p; b.campWeeks = stepsPerYear.roundToInt()
+    b.heldLivelihood = Livelihood.FARMING; b.livedOther = 0f
     b.seedDomestic = 1f
     // Its field ripens with the grass this summer; where the grain has ripened already this year, the harvest is in store.
     val food = fauna.food

@@ -124,6 +124,8 @@ class Band(kinds: Int, totems: Int = kinds) {
     @Transient var forecastTraced = false
     /** What moved food into its larder (below 0, out) this week by [LarderMove], kg ([larderMoved]): for the census, at [foresee]. */
     @Transient val larderFlow = FloatArray(LarderMove.entries.size)
+    /** The same by kind of store ([Store], [StoreFlow]), its own worth: for the census, at [foresee] ([storeMoved]). */
+    @Transient val storeFlow = FloatArray(Store.entries.size * StoreFlow.entries.size)
     /**
      * The share of its hands' days left in each month once its fire, shelters and food are held ([BandTime.vital]), a mean
      * over the years (below 0 till it has planned a week then): what its leanest month could give its herders ([keepHerds]).
@@ -194,6 +196,8 @@ class Band(kinds: Int, totems: Int = kinds) {
     var salted = 0f
     /** Of its dried meat and fish, how long on the whole it was dried for, against drying at the scaffold's 1 (the longer, the better it keeps: [driedKeep]). */
     var dryDepth = 1f
+    /** How far insects have got into its dried meat and fish and its seed, 0 to 1 ([infest]): the longer kept through warm weather, the worse. */
+    var pests = 0f
     /** Of the protein it ate last week, the share beyond what could feed it ([Nourishment.PROTEIN_MOST]): what it knows lean food is worth. */
     var leanLost = 0f
     /** Of its people's sodium need last week, the share that neither meat, salted meat nor its salt met ([saltFeeds]): what it knows it lacks. */
@@ -228,6 +232,12 @@ class Band(kinds: Int, totems: Int = kinds) {
     var campWeeks = 0
     /** Weeks it has lately kept a camp before moving on, a running mean ([STAY_LEARN]): over how long a move pays back its walk. */
     var stayWeeks = STAY_WEEKS_START
+    /**
+     * The weeks a planning band reckons it keeps a camp, over which it pays for what leaving gives up ([reckonedWalk],
+     * [houseLeft], its case for leaving): [stayWeeks], or the weeks it has kept this one if more. ([stayWeeks] learns only on
+     * a move, so a band long at one camp would still reckon its first short stays and weigh every loss many times over.)
+     */
+    fun plannedStay() = max(stayWeeks, campWeeks + 1f)
     /**
      * What a whole house would have been worth to it where it was, a person a year, as it lived its weeks (a running mean over
      * about a year, [houseWorthWeek]): the lives it would have saved (cold, exposure, raids) and the food, kg of need (keeping
@@ -325,6 +335,12 @@ class Band(kinds: Int, totems: Int = kinds) {
     var homeWalls = 0f
     /** Where it knows other bands have their houses (band id to hex), and their descent (main lineage). */
     val knownHomes = HashMap<Int, Hex>()
+    /** Bumped wherever [knownHomes] changes, so that what is worked out from it ([keepOffHomes]) is worked out again only then. */
+    @Transient var homesVersion = 0
+    /** The hexes of the known homes of bands this band is not close to, sorted, as of [keepOffVersion] and the close bands [keepOffClose] ([GroupPlanner.planInner]). */
+    @Transient var keepOffHomes: HexArray? = null
+    @Transient var keepOffVersion = -1
+    @Transient var keepOffClose = IntArray(0)
     val knownLineage = HashMap<Int, Int>()
     /** A raid it is set on, if any. */
     var raid: Raid? = null
@@ -356,6 +372,10 @@ class Band(kinds: Int, totems: Int = kinds) {
     /** Where it sowed this year's crop ([Place.NONE] for nowhere) and the kg it sowed there: what it would lose by leaving (HexGroups.cropPull). */
     var sownPlace = Place.NONE
     var sownKg = 0f
+    /** Years since it last sowed ([HexGroups.sowGrain]), counted at its customs' week: a band with a crop sown within the year farms. */
+    var sinceSowed = 0f
+    /** Its people killed in raids a person a year, as it has lived them: a running sum fading over a year ([HexGroups.cultureWeek]). */
+    var raidDeathRate = 0f
     var seedDomestic = 0f
     var grainDomestic = 0f
     /** Its ways ([BandWay]), as [setWays] sets them each week from its ways' outputs: 1 each for the scaffold's way. Read through the names below. */
@@ -475,6 +495,8 @@ class Band(kinds: Int, totems: Int = kinds) {
     val repayWill get() = will[BandWay.REPAYING]
     /** Person-days its people had to spare this week, after getting and keeping food. */
     var spareDays = 0f
+    /** The food its days at rest saved it last week, kg of its need ([restedDays]): what it reckons it need not forage for this week. */
+    var restSaved = 0f
     /** Its week's time, as planned when it foraged ([BandTime]; null till then, and once the week's chores are done). */
     @Transient var week: BandTime? = null
     /** The share of its hands' days left spare, as a running mean over about a season ([SPARE_WEEKS]), once [spareSeen]: for the census only. */
@@ -511,6 +533,10 @@ class Band(kinds: Int, totems: Int = kinds) {
     /** Person-days drying and skinning would have liked last week: what they ask of this week's plan (they follow the catch). */
     var dryAsk = 0f
     var skinAsk = 0f
+    /** Fresh meat and fish it dried last week, kg of its need: what its hunters reckon a kill's surplus can be kept by ([killKeeps]). */
+    var driedLast = 0f
+    /** Fresh meat in its stores this week beyond what it can eat before it rots, kg of its need: set before a feast on the kill ([feastOnKills]). */
+    @Transient var feastMeat = 0f
     /**
      * Its choices: how much of its effort goes to each kind of food ([FOOD_TYPES]: big game, small
      * game, carrion, bones, fruit, roots, grass seed, small finds, fish), 1 the scaffold's, with no most. Big game's
@@ -550,6 +576,7 @@ class Band(kinds: Int, totems: Int = kinds) {
         val i = totemSlot(o.keptTotem)
         if (i < heardTotem.size) heardTotem[i] += u
         if (o.holds(Tradition.BURIAL)) heardBurial[o.burialWay] += u
+        o.shownLivelihood?.let { heardLivelihood[it] += u }
     }
     /**
      * The share of the bands it met lately, itself counted as one, that hold [t] as [held] (for its marks: [conformist]).
@@ -594,9 +621,32 @@ class Band(kinds: Int, totems: Int = kinds) {
      */
     fun ensureMarks(totems: Int) {
         if (heardTotem.size != totems + 1) heardTotem = FloatArray(totems + 1)
+        if (!livelihoodChosen) { heldLivelihood = livelihood(); livelihoodHold = livelihoodHoldAt(mainLineage()); livelihoodChosen = true }
         if (marksChosen) return
         totem = totemAt(mainLineage(), totems); burialWay = burialWayAt(mainLineage()); marksChosen = true
     }
+    /**
+     * The way of life it holds itself to: what its people say they are ("we are foragers"), which need not be how it lives
+     * now ([livelihood]). Founders hold foraging, villages and herders started with the world farming and herding; a band
+     * from a save made before it holds how it lives at its first week ([ensureMarks], [livelihoodChosen]). [livelihoodHold]: how
+     * firmly, 0 to 1, the same for a lineage's founders ([livelihoodHoldAt]). [livedOther]: years it has lived otherwise since
+     * it last lived as it holds; once they pass [livelihoodHold] times [LIVELIHOOD_YEARS] it comes to hold how it lives
+     * ([HexGroups.cultureWeek]): a band that holds loosely takes to a new way at once, one that holds firmly only after a
+     * generation of living it.
+     */
+    var heldLivelihood = Livelihood.FORAGING
+    var livelihoodHold = 0f
+    var livedOther = 0f
+    var livelihoodChosen = false
+    /**
+     * Its way of life as the bands it meets see it: the one it holds while it lives so, none while it lives otherwise (as a
+     * band that ate of its totem is seen to keep none: [keptTotem]). Of the bands it met lately, how many showed each
+     * ([heardLivelihood], fading as [heard]).
+     */
+    val shownLivelihood: Livelihood? get() = heldLivelihood.takeIf { livelihood() == it }
+    val heardLivelihood = enumFloats<Livelihood>()
+    /** The share of the bands it met lately, itself counted as one, that showed [l] as their way of life (for [conformist]). */
+    fun heardLivelihoodShare(l: Livelihood) = (heardLivelihood[l] + (if (heldLivelihood == l) 1f else 0f)) / (heardOf + 1f)
     val words = IntArray(Language.CONCEPTS)
     val lineage = FloatArray(LINEAGES)
     var inbred = 0.02f
@@ -713,7 +763,7 @@ class Band(kinds: Int, totems: Int = kinds) {
         o.houseHex = houseHex; o.house = house; o.drivenFrom = drivenFrom; o.drivenBy = drivenBy; o.homeEarth = homeEarth; o.homeWalls = homeWalls; o.homeGroundC = homeGroundC; o.palisade = palisade
         o.houseLives = houseLives; o.houseFood = houseFood; foodFrom.copyInto(o.foodFrom); o.fishPull = fishPull; o.weirFood = weirFood; o.weirTend = weirTend; toolWork.copyInto(o.toolWork); heldShare.copyInto(o.heldShare); monthSupply.copyInto(o.monthSupply); monthSupplySq.copyInto(o.monthSupplySq); o.supplyMonth = supplyMonth; o.supplySum = supplySum; o.supplyWeeks = supplyWeeks; o.larderSeen = larderSeen; weekSupply.copyInto(o.weekSupply); weekYield.copyInto(o.weekYield); weekWarmth.copyInto(o.weekWarmth); weekMoved.copyInto(o.weekMoved); freeShare.copyInto(o.freeShare); o.leanDays = leanDays
         o.seedDomestic = seedDomestic; o.grainDomestic = grainDomestic; o.seedCorn = seedCorn * share; seedCorn -= o.seedCorn; o.sinceRaided = sinceRaided; o.sisu = sisu
-        o.knownHomes.putAll(knownHomes); o.knownLineage.putAll(knownLineage); o.lastMet.putAll(lastMet); newsYield.copyInto(o.newsYield); newsAt.copyInto(o.newsAt); o.newsNext = newsNext
+        o.knownHomes.putAll(knownHomes); o.homesVersion++; o.knownLineage.putAll(knownLineage); o.lastMet.putAll(lastMet); newsYield.copyInto(o.newsYield); newsAt.copyInto(o.newsAt); o.newsNext = newsNext
         skills.copyInto(o.skills)
         knowsSkill.copyInto(o.knowsSkill)
         sick.copyInto(o.sick)
@@ -729,12 +779,13 @@ class Band(kinds: Int, totems: Int = kinds) {
         kit.copyInto(o.kit)
         knows.copyInto(o.knows)
         fine.copyInto(o.fine)
-        o.salted = salted; o.dryDepth = dryDepth
+        o.salted = salted; o.dryDepth = dryDepth; o.pests = pests
         o.renown = renown
         rite.copyInto(o.rite); o.riteStrength = riteStrength; o.riteHeld = riteHeld; o.riteKept = riteKept; o.beliefYears = beliefYears; o.strain = strain
         o.omenPlace = omenPlace; o.omenMonth = omenMonth; o.omenYear = omenYear; o.omenWeight = omenWeight; o.deathsUsual = deathsUsual; o.wantSteps = wantSteps; o.wantBroke = wantBroke; o.wantUsual = wantUsual; o.mind = mind; foreseenShares.copyInto(o.foreseenShares); o.foreseenAt = foreseenAt
         traditions.copyInto(o.traditions); heard.copyInto(o.heard); o.heardOf = heardOf
         o.totem = totem; o.marksChosen = marksChosen; o.heardTotem = heardTotem.copyOf(); o.totemBroken = totemBroken
+        o.raidDeathRate = raidDeathRate; o.heldLivelihood = heldLivelihood; o.livelihoodHold = livelihoodHold; o.livedOther = livedOther; o.livelihoodChosen = livelihoodChosen; heardLivelihood.copyInto(o.heardLivelihood)
         o.burialWay = burialWay; heardBurial.copyInto(o.heardBurial); words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
         o.inbred = inbred; o.campWeeks = campWeeks; o.campPlace = campPlace; o.known = known.copyOf()
         copied(o)
@@ -777,6 +828,7 @@ class Band(kinds: Int, totems: Int = kinds) {
         }
         if (dried + bDried > 0f) a.salted = weightedMean(a.salted, dried, b.salted, bDried)
         if (dried + bDried > 0f) a.dryDepth = weightedMean(a.dryDepth, dried, b.dryDepth, bDried)
+        if (dried + seed + bDried + bSeed > 0f) a.pests = weightedMean(a.pests, dried + seed, b.pests, bDried + bSeed)
         // (Seed corn blended by the seed corn each held, the rest of the grain by the rest.)
         val corn = min(a.seedCorn, seed); val bCorn = min(b.seedCorn, bSeed)
         if (corn + bCorn > 0f) a.seedDomestic = weightedMean(a.seedDomestic, corn, b.seedDomestic, bCorn)
@@ -796,6 +848,7 @@ class Band(kinds: Int, totems: Int = kinds) {
         a.ornaments += b.ornaments; a.exotic += b.exotic
         a.herds.absorb(b.herds)
         a.renown = max(a.renown, b.renown)
+        a.raidDeathRate += w * (b.raidDeathRate - a.raidDeathRate)
         for (i in Tool.entries) a.knows[i] = a.knows[i] || b.knows[i]
         for (i in a.lineage.indices) a.lineage[i] += w * (b.lineage[i] - a.lineage[i])
         for (i in a.grudge.indices) a.grudge[i] = max(a.grudge[i], b.grudge[i])
@@ -888,7 +941,7 @@ class Band(kinds: Int, totems: Int = kinds) {
 
     /** How its weapons, hunting skill and dogs do against [prey], against an ordinary armed, practised band without dogs (1). */
     fun huntEdge(prey: Species, tuning: Tuning) =
-        skill(Skill.HUNT) * edge(Skill.STALK) * (WEAPONLESS + (1f - WEAPONLESS) * has(Tool.SPEAR) * serveOfMake(Tool.SPEAR, fine[Tool.SPEAR], tuning) +
+        PURSUIT_KILLS * skill(Skill.HUNT) * edge(Skill.STALK) * (WEAPONLESS + (1f - WEAPONLESS) * has(Tool.SPEAR) * serveOfMake(Tool.SPEAR, fine[Tool.SPEAR], tuning) +
             BOW_GAIN * has(Tool.BOW) * serveOfMake(Tool.BOW, fine[Tool.BOW], tuning) * min(1f, prey.speedKmh / 70f)) *
             (1f + DOG_HUNT * dogs.dogShare * max(0f, 1f - prey.massKg / DOG_PREY_KG))
 
@@ -901,7 +954,7 @@ class Band(kinds: Int, totems: Int = kinds) {
 
     /**
      * Gathering: the most of a plant food's stock in a place it can take in a week, by its skill. (Its tools do not raise it:
-     * a basket carries more a trip, a sickle reaps faster and grinding stones make meal of seed and nuts faster, all in the
+     * a basket carries more a trip and a sickle reaps faster, in the
      * days a kilo takes ([PLANT_HANDLING_DAYS_PER_KG], [reapDaysPerKg]); counted here as well, they were counted twice.
      * Harlan reaped wild einkorn at about 2 kg an hour by hand and 2.5 with a stone sickle: a speedup.)
      */
@@ -952,6 +1005,7 @@ class Band(kinds: Int, totems: Int = kinds) {
             traditionsAt(l).copyInto(traditions)
             totem = totemAt(l, totems); burialWay = burialWayAt(l); marksChosen = true
             riteStrength = riteStrengthAt(l, tuning)
+            heldLivelihood = Livelihood.FORAGING; livelihoodHold = livelihoodHoldAt(l); livelihoodChosen = true
             skills[Skill.GATHER] = START_CRAFT; skills[Skill.SMALL_GAME] = START_CRAFT; skills[Skill.HUNT] = START_CRAFT
             skills[Skill.FISH] = if (nearWater) 0.5f else 0.1f; skills[Skill.STORE] = 0.4f
             kit[Tool.SPEAR] = 1f; kit[Tool.NET] = 0.5f; kit[Tool.BASKET] = 0.5f; kit[Tool.CLOTHES] = 0.5f
