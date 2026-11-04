@@ -406,12 +406,13 @@ private fun GroupWorld.reap(g: HexGroup, p: Place, sown: Boolean, expected: Floa
 
 /**
  * Person-days to reap, thresh and clean a kilo of grain or grass seed standing [stand] kg/m² where it grows:
- * [SEED_HANDLING_DAYS_PER_KG] by hand in a stand of [REF_STAND_KG_M2], less with a sickle and grinding stones; the cutting
- * share of it ([REAP_CUT_SHARE]) the longer the thinner the stand ([standHandling]).
+ * [SEED_HANDLING_DAYS_PER_KG] by hand in a stand of [REF_STAND_KG_M2], less with a sickle; the cutting share of it
+ * ([REAP_CUT_SHARE]) the longer the thinner the stand ([standHandling]). And, with grinding stones, the days to grind it to
+ * meal ([GRIND_DAYS_PER_KG]), which make more of it ([seedValue]) but take longer, not less.
  */
 internal fun reapDaysPerKg(band: Band?, tuning: inflation.Tuning, stand: Float = REF_STAND_KG_M2) =
-    SEED_HANDLING_DAYS_PER_KG * tuning.plantHandling * standHandling(stand) /
-        (1f + (band?.sickleGain(tuning) ?: 0f) + GRINDER_GAIN * (band?.has(Tool.GRINDER) ?: 0f))
+    SEED_HANDLING_DAYS_PER_KG * tuning.plantHandling * standHandling(stand) / (1f + (band?.sickleGain(tuning) ?: 0f)) +
+        GRIND_DAYS_PER_KG * (band?.has(Tool.GRINDER) ?: 0f)
 
 /**
  * How long a kilo of grain or seed standing [stand] kg/m² takes against one in a stand of [ref] (where the record's rate was
