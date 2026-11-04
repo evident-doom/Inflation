@@ -3,6 +3,7 @@ package inflation.ecology
 import inflation.Stream
 import inflation.drawUnit
 import inflation.world.Hex
+import inflation.world.HexArray
 import inflation.world.HexMap
 import inflation.world.HexWorld
 import inflation.world.Place
@@ -33,7 +34,7 @@ class HexHurricane(
     private val warn = warnWeeks.coerceAtLeast(1)
     private val width = warn + 1
     /** Storm k's hexes now (index 0) and in each of the next [warn] weeks. */
-    private val queue = IntArray(count * width) { -1 }
+    private val queue = HexArray(count * width)
     private val previous = IntArray(count) { -1 }
     /** A storm's smoothed wind (east, south, m/s), the turn it holds from the heading the wind gives, and the part of a hex it has gone. */
     private val windEast = FloatArray(count); private val windSouth = FloatArray(count)
@@ -53,13 +54,13 @@ class HexHurricane(
             if (land.isEmpty()) return
             for (k in 0 until count) {
                 val at = land[(drawUnit(seed, Stream.HURRICANE, k.toLong(), -1L) * land.size).toInt().coerceAtMost(land.size - 1)]
-                queue[k * width] = at.i
-                for (w in 1..warn) queue[k * width + w] = next(k, queue[k * width + w - 1], weather).i
+                queue[k * width] = at
+                for (w in 1..warn) queue[k * width + w] = next(k, queue[k * width + w - 1], weather)
             }
         } else {
             for (k in 0 until count) {
-                System.arraycopy(queue, k * width + 1, queue, k * width, warn)
-                queue[k * width + warn] = next(k, queue[k * width + warn - 1], weather).i
+                System.arraycopy(queue.a, k * width + 1, queue.a, k * width, warn)
+                queue[k * width + warn] = next(k, queue[k * width + warn - 1], weather)
             }
         }
         steps++
@@ -67,11 +68,10 @@ class HexHurricane(
     }
 
     /** Where storm [k] goes after [from], by the wind at [from] (as it has smoothed) and the turn it holds, over land only. */
-    private fun next(k: Int, from: Int, weather: Weather): Hex {
-        val here = Hex(from)
+    private fun next(k: Int, here: Hex, weather: Weather): Hex {
         val p = Place(hw.placesOf(here)[0])
         windEast[k] += SMOOTH * (weather.windEast(p.i) - windEast[k]); windSouth[k] += SMOOTH * (weather.windSouth(p.i) - windSouth[k])
-        wobble[k] = WOBBLE_KEEP * wobble[k] + WOBBLE_TURN * (drawUnit(seed, Stream.HURRICANE, k.toLong(), steps + 1, (queue.size + from).toLong()) - 0.5f)
+        wobble[k] = WOBBLE_KEEP * wobble[k] + WOBBLE_TURN * (drawUnit(seed, Stream.HURRICANE, k.toLong(), steps + 1, (queue.a.size + here.i).toLong()) - 0.5f)
         carry[k] += speed
         var at = here
         while (carry[k] >= 1f) {
@@ -103,7 +103,7 @@ class HexHurricane(
     private fun mark() {
         first.fill(NEVER)
         for (k in 0 until count) for (w in 0..warn) {
-            val h = Hex(queue[k * width + w]); if (h.none) continue
+            val h = queue[k * width + w]; if (h.none) continue
             val seen = HashSet<Hex>(); seen += h
             if (w < first[h.i]) first[h.i] = w
             var ring = listOf(h)
@@ -121,10 +121,10 @@ class HexHurricane(
     fun urgency(h: Hex): Float = first[h.i].let { if (it == NEVER) 0f else (width - it).toFloat() / width }
 
     /** The hexes storms stand on this week (for logs and tests). */
-    fun now(): List<Hex> = (0 until count).map { Hex(queue[it * width]) }
+    fun now(): List<Hex> = (0 until count).map { queue[it * width] }
 
     /** One line for the run log: where each storm is. */
-    fun describe(): String = (0 until count).joinToString(", ") { k -> val (x, y) = hex.centreKm(Hex(queue[k * width])); "storm %d at (%.0f, %.0f) km".format(k, x, y) }
+    fun describe(): String = (0 until count).joinToString(", ") { k -> val (x, y) = hex.centreKm(queue[k * width]); "storm %d at (%.0f, %.0f) km".format(k, x, y) }
 
     companion object {
         const val NEVER = Int.MAX_VALUE
