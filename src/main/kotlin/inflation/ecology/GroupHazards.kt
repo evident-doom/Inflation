@@ -22,7 +22,8 @@ internal fun HexGroups.woundsWeek(band: Band): Float {
     val heal = min(1f, (HEAL_UNTENDED + (HEAL_TENDED - HEAL_UNTENDED) * care) * days / 7f)
     val fester = FESTER * (1f - 0.8f * care) * band.hurt * days / 7f
     val mended = band.hurt * heal
-    band.lame = min(1f, band.lame * (1f - LAME_TURNOVER * years) + mended * LAMED * (1f - 0.5f * care))
+    // (The lamed leave the share only as adults die or age out, see [adultsDied] and [growUp]; no flat turnover.)
+    band.lame = min(1f, band.lame + mended * LAMED * (1f - 0.5f * care))
     band.hurt = max(0f, band.hurt - mended - fester)
     return fester
 }
