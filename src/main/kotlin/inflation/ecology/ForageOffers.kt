@@ -1,6 +1,8 @@
 package inflation.ecology
 
+import inflation.Config
 import inflation.Part
+import inflation.Trace
 import inflation.ecology.HexSmallLife.DeadPool
 import inflation.heapify
 import inflation.Kg
@@ -332,7 +334,9 @@ internal fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
                 }
             }
             Food.FRUIT, Food.ROOTS, Food.SEED, Food.FINDS -> {
+                val seedStand = if (o.type[i] == Food.SEED) fauna.food.seeds[p] else 0f
                 gather(g, o.type[i], o.kind[i], Place(p), expected, w.hands, haul)
+                if (o.type[i] == Food.SEED) traceStand(w, "grass seed", seedStand, seedStand, haul.mass)
                 if (haul.busy > 0f) { w.busy += haul.busy; w.haulOver += haul.busy }
                 val fed = haul.kg * w.worth(o.type[i])
                 w.plants += haul.kg; w.fed += haul.kg * w.feeds(o.type[i])
@@ -349,7 +353,11 @@ internal fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
                 else if (o.kind[i] == WEIR_KIND) fauna.water.weirFor(hw.placeHex[p], expected, weirAt(g, hw.placeHex[p])).let { w.fish += it; w.fished += it; w.fed += it * w.feeds(Food.FISH) }
                 else fauna.water.fishFor(hw.placeHex[p], expected, band?.fishing() ?: 1f, HexWater.Catch.FISH).let { w.fish += it; w.fished += it; w.fed += it * w.feeds(Food.FISH) }
             Food.GRAIN -> {
-                reap(g, Place(p), o.kind[i] == FIELD_KIND, expected, haul)
+                val sown = o.kind[i] == FIELD_KIND
+                val stand = if (sown) fauna.food.fieldStand(Place(p)) else fauna.food.wildStand(Place(p))
+                val mean = if (sown) fauna.food.fieldGrain[p] else fauna.food.grain[p]
+                reap(g, Place(p), sown, expected, haul)
+                traceStand(w, if (sown) "sown field" else "wild cereal", stand, mean, haul.mass)
                 val fed = haul.kg * w.worth(Food.GRAIN)
                 w.plants += haul.kg; w.fed += haul.kg * w.feeds(Food.GRAIN); w.plantKind[Store.SEED] += fed; w.plantKg[Store.SEED] += haul.mass
                 w.plantFrom[PlantFrom.GRAIN] += fed
@@ -357,6 +365,18 @@ internal fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
         }
     }
 }
+
+/**
+ * Prints a sample of bands' reaping (with the plan trace on): the grain or seed as thick as it stood where they took it, kg/m²
+ * of the stand ([HexFood.wildStand], [HexFood.fieldStand]; grass seed over the place) and of the place, and the kg taken.
+ * Report only: for setting [REF_STAND_KG_M2] where the record's reaping rates were measured.
+ */
+private fun traceStand(w: ForageWeek, kind: String, stand: Float, placeMean: Float, kg: Float) {
+    val g = w.g
+    if (g.band == null || kg <= 0f || !STAND_TRACE.wants(g.id.toLong(), w.weather.date.absoluteDay, part = kind.hashCode().toLong())) return
+    System.err.println("stand trace: band %d, %s, %s, stand %.5f kg/m2, place %.6f kg/m2, took %.1f kg".format(g.id, w.weather.date, kind, stand, placeMean, kg))
+}
+private val STAND_TRACE = Trace(Config.Key.PLAN_TRACE, "stand", share = 0.02f, most = 3000)
 
 /** [forage]'s reaping of the wild or ([sown]) the sown grain at place [p], [expected] kg a party could take: [out] gets the kilos it is worth, and weighs. */
 private fun GroupWorld.reap(g: HexGroup, p: Place, sown: Boolean, expected: Float, out: Haul) {
