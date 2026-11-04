@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Ablation
 import inflation.Part
 import inflation.Books
 import inflation.ecology.HexSmallLife.DeadPool
@@ -123,6 +124,13 @@ internal fun HexGroups.herdOdds(w: ForageWeek) {
  */
 @Part("foraging: hunting odds")
 internal fun GroupWorld.huntingOdds(w: ForageWeek) {
+    // (t.ablate huntingOdds:frozenN: odds worked out once are reused for up to N weeks while the ground is the same, [Ablation.HUNTING_ODDS].)
+    val ablate = tuning.ablate
+    if (ablate.frozen(Ablation.HUNTING_ODDS) > 0) frozenHuntingOdds(w, ablate) else huntingOddsFresh(w)
+}
+
+/** [huntingOdds] worked out afresh. */
+private fun GroupWorld.huntingOddsFresh(w: ForageWeek) {
     val g = w.g; val s = g.species; val band = g.band; val nk = w.nk
     val adults = fauna.adults; val young = fauna.young
     val edge = FloatArray(nk); val image = FloatArray(nk); val meets = FloatArray(nk); val view = FloatArray(2)
@@ -149,6 +157,34 @@ internal fun GroupWorld.huntingOdds(w: ForageWeek) {
         }
     }
     w.gameFrom[w.ground.size] = w.games
+}
+
+/**
+ * [huntingOdds] with [Ablation.HUNTING_ODDS] frozen: the odds the party worked out on its ground last are used again while
+ * they are young enough and the ground is the same. Which kinds are there now, and the kind it will not hunt, are read
+ * fresh; a kind that was not there when the odds were worked out has none until they are worked out again.
+ */
+private fun GroupWorld.frozenHuntingOdds(w: ForageWeek, ablate: inflation.Ablate) {
+    val g = w.g; val nk = w.nk; val n = w.ground.size
+    val week = w.weather.date.absoluteDay / days
+    val kept = ablate.oddsFor(g.id, week, w.ground.place, n)
+    if (kept == null) {
+        huntingOddsFresh(w)
+        ablate.keepOdds(g.id, inflation.Ablate.FrozenOdds(week, w.ground.place.copyOf(n), w.met.copyOf(n * nk), w.odds.copyOf(n * nk), w.stalks.copyOf(n * nk)))
+        return
+    }
+    val adults = fauna.adults; val young = fauna.young
+    for (j in 0 until n) {
+        w.gameFrom[j] = w.games
+        val p = w.ground.place[j]
+        for (k in 0 until nk) {
+            if (adults[k][p] + young[k][p] + fauna.packAt(k, Place(p)) <= 0f) continue
+            val i = j * nk + k
+            w.met[i] = kept.met[i]; w.odds[i] = kept.odds[i]; w.stalks[i] = kept.stalks[i]
+            if (!(w.odds[i] <= 0f) && k != w.avoid) w.gameAt[w.games++] = i
+        }
+    }
+    w.gameFrom[n] = w.games
 }
 
 /**

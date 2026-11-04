@@ -9,7 +9,7 @@ import inflation.run.gitCommit
 import java.io.File
 import java.util.Properties
 
-private const val USAGE = "testWorld list | testWorld build NAME... [--years N] [--commit HASH] | testWorld adopt NAME STATE.bin [--years N] [--commit HASH] [--config TEXT] | testWorld ab --variant FILE [--base FILE] [--worlds m5-1,m5-2,m5-3] [--years 3] [--replicates 2] [--parallel 1] [--out DIR] | testWorld ab-report DIR [--worlds a,b] [--replicates 2] | testWorld nominal HISTORY.csv... | testWorld compare --full A.csv,B.csv [--full-variant A2.csv,B2.csv] NAME=BASE.csv[,VARIANT.csv] ...\n" +
+private const val USAGE = "testWorld list | testWorld build NAME... [--years N] [--commit HASH] | testWorld adopt NAME STATE.bin [--years N] [--commit HASH] [--config TEXT] | testWorld ab --variant FILE [--base FILE] [--worlds m5-1,m5-2,m5-3] [--years 3] [--replicates 2] [--parallel 1] [--out DIR] | testWorld ab-report DIR [--worlds a,b] [--replicates 2] | testWorld ab-arms --arms A.properties,B.properties --null NULL.properties [--base FILE] [--worlds m5-1,m5-2,m5-3] [--years 10] [--replicates 2] [--parallel 1] [--out DIR] | testWorld arms-report DIR --arms A,B --null NULL [--worlds a,b] [--replicates 2] | testWorld nominal HISTORY.csv... | testWorld compare --full A.csv,B.csv [--full-variant A2.csv,B2.csv] NAME=BASE.csv[,VARIANT.csv] ...\n" +
     "a test on a settled world: hexFauna --world NAME --years N [--replicate R] [--history FILE]"
 
 /** The testWorld program: see [TestWorlds]. */
@@ -47,6 +47,27 @@ fun main(args: Array<String>) {
             val replicates = a.int("--replicates", 2)
             val out = File(a.rest().singleOrNull() ?: error("ab-report DIR: which runs?")); a.done()
             TestWorlds.abReport(out, worlds, replicates, "the variant")
+        }
+        "ab-arms" -> {
+            // Several changes (each a file of config keys, e.g. t.ablate=...) against one base and a null change.
+            val arms = requireNotNull(a.string("--arms")) { "ab-arms needs --arms A.properties,B.properties" }.split(',').filter { it.isNotBlank() }.map { File(it.trim()) }
+            val nullArm = requireNotNull(a.file("--null")) { "ab-arms needs --null FILE (a change known to matter next to nothing, e.g. t.humanOther=1.001)" }
+            val base = a.file("--base")
+            val worlds = a.string("--worlds")?.let { named(it) } ?: TestWorlds.FULL
+            val years = a.int("--years", 10); val replicates = a.int("--replicates", 2); val parallel = a.int("--parallel", 1)
+            val out = a.file("--out") ?: File("runs/arms-" + java.time.LocalDateTime.now().withNano(0).toString().replace(":", ""))
+            a.done()
+            for (f in arms + nullArm) require(f.isFile) { "no arm file $f" }
+            TestWorlds.abArms(arms, nullArm, base, worlds, years, replicates, parallel, out)
+        }
+        "arms-report" -> {
+            // The arms' report again from runs already made.
+            val arms = requireNotNull(a.string("--arms")) { "arms-report needs --arms A,B (the arms' names)" }.split(',').map { it.trim() }.filter { it.isNotEmpty() }
+            val nullArm = requireNotNull(a.string("--null")) { "arms-report needs --null NAME" }
+            val worlds = a.string("--worlds")?.split(',') ?: TestWorlds.FULL.map { it.name }
+            val replicates = a.int("--replicates", 2)
+            val out = File(a.rest().singleOrNull() ?: error("arms-report DIR: which runs?")); a.done()
+            TestWorlds.armsReport(out, worlds, replicates, arms, nullArm)
         }
         "nominal" -> {
             // nominal HISTORY.csv...: whether runs already made stayed within nominal limits (their series; see Nominal).

@@ -99,6 +99,7 @@ class FaunaCheck(private val sim: HexSim, private val options: FaunaCheckOptions
         deaths.printResidentDeathsThisYear()
         println("     droughts under way: " + sim.weather.droughts())
         println("     fires this year: " + sim.land.fire.yearReport())
+        if (sim.land.tuning.ablate.any) println("     ablated (t.ablate, a diagnostic run): " + sim.land.tuning.ablate.report())
         hunting.endYear()
         print("     "); census.printSkillsAndCereals(hunting.grainReapedLastYear)
         System.out.flush()

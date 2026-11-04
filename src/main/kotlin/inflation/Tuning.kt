@@ -69,6 +69,8 @@ class Tuning(
     val planners = f("planners", 0f).also { require(it in 0f..1f) { "t.planners is $it: a share of the bands, 0-1" } }
     /** The food cost of keeping warm, against [inflation.ecology.COLD_COST]. */
     val coldCost = f("coldCost", 1f)
+    /** Mechanisms switched to a simpler form for a diagnostic run ([Ablate], [Ablation]); none by default. */
+    val ablate = Ablate.parse(read("t.ablate"))
 
     // Plants.
     /** Nourishment of dry or dormant forage against fresh growth (dry grass is about 45-55% digestible against 65-75% for young growth, from memory). */

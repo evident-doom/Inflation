@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.Ablation
 import inflation.Part
 import inflation.Par
 import inflation.Profile
@@ -100,9 +101,12 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         val bandGroups = groups.filter { it.alive && it.band != null }
         for (g in bandGroups) if (g.alive) bandWeek(g, weather, date)
         bands.tallies.flush(stats.hunting)
+        // (t.ablate cultureWeek:coarseN: each band keeps its customs week once in N weeks, on a week of its own, over N weeks' time.)
+        val customsEvery = tuning.ablate.every(Ablation.CULTURE_WEEK); val customsWeek = date.absoluteDay / days
         Par.forEach("people: customs year", bandGroups.size) { k ->
             val g = bandGroups[k]
-            if (g.alive) cultureWeek(g, stream(seedBase, Stream.CUSTOMS, g.id.toLong(), date.absoluteDay))
+            if (g.alive && (customsEvery == 1 || Math.floorMod(customsWeek + g.id, customsEvery.toLong()) == 0L))
+                cultureWeek(g, stream(seedBase, Stream.CUSTOMS, g.id.toLong(), date.absoluteDay), customsEvery)
         }
         for (g in bandGroups) if (g.alive) riteWeek(g, weather)
         groups += bands.strays; bands.strays.clear()

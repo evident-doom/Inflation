@@ -141,12 +141,22 @@ object TestWorlds {
         val baseFile = File(out, "base.properties"); val varFile = File(out, "variant.properties")
         baseFile.writer().use { baseProps.store(it, "base, written by testWorld ab") }
         varFile.writer().use { varProps.store(it, "variant (${variant.path} over the base), written by testWorld ab") }
+        runSides(listOf("base" to baseFile, "variant" to varFile), worlds, years, replicates, parallel, out, "testWorld ab")
+        abReport(out, worlds.map { it.name }, replicates, variant.name)
+    }
+
+    /**
+     * Runs each of [sides] (a label and its config file) on each of [worlds] from its settled state, [replicates] times
+     * with the weather drawn a different way each time (the same way for every side), each in a JVM of its own, [parallel]
+     * at a time, into [out] as WORLD-SIDE-rR.csv (the history) and .txt (its output).
+     */
+    private fun runSides(sides: List<Pair<String, File>>, worlds: List<Entry>, years: Int, replicates: Int, parallel: Int, out: File, what: String) {
         val heap = "-Xmx${Runtime.getRuntime().maxMemory() / (1 shl 20)}m"
         data class Job(val label: String, val cfg: File, val args: List<String>)
-        val jobs = worlds.flatMap { w -> (0 until replicates).flatMap { r -> listOf("base" to baseFile, "variant" to varFile).map { (side, cfg) ->
+        val jobs = worlds.flatMap { w -> (0 until replicates).flatMap { r -> sides.map { (side, cfg) ->
             Job("${w.name}-$side-r$r", cfg, listOf("--world", w.name, "--years", "$years", "--replicate", "$r", "--history", File(out, "${w.name}-$side-r$r.csv").path))
         } } }
-        println("testWorld ab: ${jobs.size} runs of $years years into $out, $parallel at a time")
+        println("$what: ${jobs.size} runs of $years years into $out, $parallel at a time")
         val pool = Executors.newFixedThreadPool(parallel)
         val failed = ConcurrentLinkedQueue<String>()
         for (j in jobs) pool.submit {
@@ -158,7 +168,6 @@ object TestWorlds {
         }
         pool.shutdown(); pool.awaitTermination(Long.MAX_VALUE, TimeUnit.DAYS)
         require(failed.isEmpty()) { "runs failed: ${failed.joinToString(", ")}" }
-        abReport(out, worlds.map { it.name }, replicates, variant.name)
     }
 
     /**
@@ -212,6 +221,116 @@ object TestWorlds {
             lines += "  $w r$r: base ${base.brief()} | variant ${variant.brief()}" + if (new.isEmpty()) "" else "\n    the variant's alone: " + new.joinToString("; ")
         }
         return lines
+    }
+
+    // ---- several changes against one base, read against a null change (effect per cost: review/2026-11-04-effect-per-cost-design.md)
+
+    /**
+     * Runs the base, a null arm [nullArm] (a change known to matter next to nothing: how far runs drift apart on their own)
+     * and each of [arms] (config keys over the base, e.g. a `t.ablate` line) on [worlds], [replicates] weathers each; then
+     * [armsReport]. Each arm is named by its file's name without the extension.
+     */
+    fun abArms(arms: List<File>, nullArm: File, base: File?, worlds: List<Entry>, years: Int, replicates: Int, parallel: Int, out: File) {
+        out.mkdirs()
+        for (w in worlds) require(w.state.isFile) { "test world ${w.name} is not built yet (testWorld build ${w.name})" }
+        val names = (arms + nullArm).map { it.nameWithoutExtension }
+        require(names.toSet().size == names.size && "base" !in names) { "arms need names of their own, none 'base': $names" }
+        val baseProps = configWith(emptyMap(), base ?: Config.source)
+        val baseFile = File(out, "base.properties")
+        baseFile.writer().use { baseProps.store(it, "base, written by testWorld ab-arms") }
+        val sides = arrayListOf("base" to baseFile)
+        for (f in arms + nullArm) {
+            val props = Properties().also { it.putAll(baseProps) }
+            f.reader().use { props.load(it) }
+            val cfg = File(out, "${f.nameWithoutExtension}.properties")
+            cfg.writer().use { props.store(it, "arm (${f.path} over the base), written by testWorld ab-arms") }
+            sides += f.nameWithoutExtension to cfg
+        }
+        runSides(sides, worlds, years, replicates, parallel, out, "testWorld ab-arms")
+        armsReport(out, worlds.map { it.name }, replicates, arms.map { it.nameWithoutExtension }, nullArm.nameWithoutExtension)
+    }
+
+    /** A number read from a run's last whole year, and how two runs' values are set against each other. */
+    private class Measure(val label: String, val relative: Boolean, val of: (Run) -> Double) {
+        /** [arm] against [base]: % (100 ln) when [relative], else the plain difference; NaN where it cannot be told. */
+        fun effect(base: Run, arm: Run): Double {
+            val a = of(base); val b = of(arm)
+            return if (relative) (if (a > 0 && b > 0) 100 * ln(b / a) else Double.NaN) else if (a.isNaN() || b.isNaN()) Double.NaN else b - a
+        }
+    }
+
+    /** People's deaths in the last whole year, per 1000 people: of [cause], or of all causes if null. */
+    private fun peopleDeaths(r: Run, cause: String?): Double {
+        val year = r.years.last()
+        val people = r.yearly(HexHistory.Key.animals("people"), year)
+        if (!(people > 0)) return Double.NaN
+        val keys = r.allKeys.filter { k -> HexHistory.Key.deathsKind(k) == "people" && (cause == null || k == HexHistory.Key.deaths("people", cause)) }
+        if (keys.isEmpty()) return if (cause == null) Double.NaN else 0.0
+        return 1000 * keys.sumOf { k -> r.yearly(k, year).takeIf { !it.isNaN() } ?: 0.0 } / people
+    }
+
+    /**
+     * For each arm and each headline number (heads of every kind, people's hunger and all deaths per 1000, how people
+     * live): its effect against the base in the last whole year, paired by weather, mean and range over the pairs; the
+     * null arm's largest effect over the same pairs (the floor: what runs do apart on their own, and about the smallest
+     * effect these pairs can show); and whether the arm is beyond the floor (its mean outside it, every pair the same
+     * way). Then the other series beyond the floor, and nominal-limit findings the arm's runs have and the base's do not.
+     */
+    fun armsReport(out: File, worlds: List<String>, replicates: Int, arms: List<String>, nullArm: String) {
+        fun runs(side: String) = worlds.flatMap { w -> (0 until replicates).map { r -> Run(File(out, "$w-base-r$r.csv")) to Run(File(out, "$w-$side-r$r.csv")) } }
+        val nulls = runs(nullArm)
+        val first = nulls.first().first
+        val headline = ArrayList<Measure>()
+        headline += Measure("people: hunger deaths /1000", false) { peopleDeaths(it, "hunger") }
+        headline += Measure("people: all deaths /1000", false) { peopleDeaths(it, null) }
+        for (k in first.allKeys.filter { HexHistory.Key.peopleWay(it) != null }.sorted()) headline += Measure(k, true) { it.yearly(k, it.years.last()) }
+        for (k in first.allKeys.filter { HexHistory.Key.animalKind(it) != null }.sorted()) headline += Measure(k, true) { it.yearly(k, it.years.last()) }
+        val headlineKeys = headline.map { it.label }.toSet()
+        val others = first.allKeys.filter { it !in headlineKeys && !HexHistory.Key.isWeather(it) }.sorted().map { k -> Measure(k, true) { it.yearly(k, it.years.last()) } }
+        fun floor(m: Measure) = nulls.map { (b, v) -> abs(m.effect(b, v)) }.filter { !it.isNaN() }.maxOrNull() ?: Double.NaN
+        val n = nulls.size
+        val lines = ArrayList<String>()
+        lines += "arms against the base, last whole year (${first.years.size} years), $n pairs (${worlds.joinToString(",")} x $replicates weathers); null arm: $nullArm"
+        lines += "cells: mean [min, max] over the pairs (% for heads and ways of living, plain difference for deaths per 1000); floor: the null arm's largest |effect|; * beyond the floor, every pair the same way"
+        lines += ""
+        lines += "%-36s %10s ".format("headline", "floor") + arms.joinToString(" ") { "%-28s".format(it.take(28)) }
+        val armRuns = arms.associateWith { runs(it) }
+        val beyond = arms.associateWith { ArrayList<String>() }
+        for (m in headline) {
+            val f = floor(m)
+            val cells = arms.map { a ->
+                val e = armRuns.getValue(a).map { (b, v) -> m.effect(b, v) }.filter { !it.isNaN() }
+                if (e.isEmpty()) "%-28s".format("-") else {
+                    val mean = e.average()
+                    val star = !f.isNaN() && abs(mean) > f && (e.all { it > 0 } || e.all { it < 0 })
+                    if (star) beyond.getValue(a) += m.label
+                    "%-28s".format("%s [%s, %s]%s".format(fmt(mean), fmt(e.min()), fmt(e.max()), if (star) " *" else ""))
+                }
+            }
+            lines += "%-36s %10s ".format(m.label.take(36), fmt(f)) + cells.joinToString(" ")
+        }
+        lines += ""
+        for (a in arms) {
+            val pairs = armRuns.getValue(a)
+            val other = others.mapNotNull { m ->
+                val f = floor(m); val e = pairs.map { (b, v) -> m.effect(b, v) }.filter { !it.isNaN() }
+                if (e.isEmpty() || f.isNaN()) null else e.average().takeIf { abs(it) > f && (e.all { x -> x > 0 } || e.all { x -> x < 0 }) }?.let { m.label to it }
+            }.sortedByDescending { abs(it.second) }
+            val nominal = pairs.withIndex().flatMap { (i, p) ->
+                val (b, v) = p
+                v.nominal.findings.filter { f -> b.nominal.findings.none { it.what == f.what } }.map { "pair ${i + 1}: $it" }
+            }
+            lines += "== $a: ${beyond.getValue(a).size} of ${headline.size} headline numbers beyond the floor" +
+                (if (beyond.getValue(a).isEmpty()) "" else " (${beyond.getValue(a).joinToString(", ")})")
+            lines += "   other series beyond the floor: ${other.size} of ${others.size}" + if (other.isEmpty()) "" else
+                ", largest: " + other.take(10).joinToString(", ") { "${it.first} ${fmt(it.second)}%" }
+            lines += "   nominal-limit findings the base's runs do not have: " + if (nominal.isEmpty()) "none" else nominal.joinToString("; ")
+        }
+        lines += ""
+        lines += "-> within the floor is not 'no effect': it is no larger than the null arm's own drift over $n pairs. The CPU each arm saves is read from a profile of the base (ProfileReport), not from these runs."
+        File(out, "arms-report.txt").writeText(lines.joinToString("\n", postfix = "\n"))
+        println(lines.joinToString("\n"))
+        println("(written to ${File(out, "arms-report.txt")})")
     }
 
     // ---- how well a smaller world tracks the full map

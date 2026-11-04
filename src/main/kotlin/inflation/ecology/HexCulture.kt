@@ -466,8 +466,11 @@ internal class Regard(private val of: Band, private val toId: Int, private val t
  * Touches only the band's own state (and the week's tallies), so the bands' run side by side, each drawing from its own stream [rnd].
  */
 @Part("people: cultureWeek")
-internal fun HexGroups.cultureWeek(g: HexGroup, rnd: kotlin.random.Random) {
+internal fun HexGroups.cultureWeek(g: HexGroup, rnd: kotlin.random.Random, weeks: Int = 1) {
     val b = g.band ?: return
+    // (Over [weeks] weeks' time at once where the customs week is kept less often, [inflation.Ablation.CULTURE_WEEK]; 1 as a rule.)
+    val years = if (weeks == 1) this.years else this.years * weeks
+    val days = if (weeks == 1) this.days else this.days * weeks
     // A home it knows of that it passed this week and found no house standing (its people dead, or
     // moved on) is forgotten: it is no longer ground to keep off, nor a place to raid.
     if (b.knownHomes.isNotEmpty()) {
