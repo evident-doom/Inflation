@@ -51,7 +51,7 @@ internal class ResidentParties(private val gs: HexGroups) {
     init {
         val f = gs.fauna
         // (Each stand-in's hex, as [standIns]: filed by hex below.)
-        var hexOf = IntArray(256); var n = 0
+        var homeOf = IntArray(256); var n = 0
         for (k in f.kinds.indices) {
             val s = f.kinds[k]
             if (!s.carnivore) continue
@@ -76,19 +76,19 @@ internal class ResidentParties(private val gs: HexGroups) {
             val more = made.count { it != null }
             standIns.ensureCapacity(standIns.size + more); parties.ensureCapacity(parties.size + more)
             for (h in made.indices) { val si = made[h] ?: continue
-                if (n == hexOf.size) hexOf = hexOf.copyOf(2 * n)
-                hexOf[n++] = h; standIns += si; parties += si.g }
+                if (n == homeOf.size) homeOf = homeOf.copyOf(2 * n)
+                homeOf[n++] = h; standIns += si; parties += si.g }
         }
         // (A count per hex, then each stand-in into its hex's run, in the order made: a stable sort by hex.)
         hexStart = IntArray(nHexes + 1)
-        for (x in 0 until n) hexStart[hexOf[x] + 1]++
+        for (x in 0 until n) hexStart[homeOf[x] + 1]++
         for (h in 0 until nHexes) hexStart[h + 1] += hexStart[h]
         inHex = IntArray(n); val fill = hexStart.copyOf(nHexes)
-        for (x in 0 until n) inHex[fill[hexOf[x]]++] = x
+        for (x in 0 until n) inHex[fill[homeOf[x]]++] = x
     }
 
-    /** Calls [action] with the index among the stand-ins ([of] counts them after the groups) of each in the hex of index [h], in the order made. */
-    inline fun forEachIn(h: Int, action: (Int) -> Unit) { for (c in hexStart[h] until hexStart[h + 1]) action(inHex[c]) }
+    /** Calls [action] with the index among the stand-ins ([of] counts them after the groups) of each in the hex of index [at], in the order made. */
+    inline fun forEachIn(at: Int, action: (Int) -> Unit) { for (c in hexStart[at] until hexStart[at + 1]) action(inHex[c]) }
 
     /** The stand-ins of each hex that has two or more (only those can meet each other), hexes in order, each hex's in the order made. */
     fun standInsByHex(): List<List<StandIn>> {
