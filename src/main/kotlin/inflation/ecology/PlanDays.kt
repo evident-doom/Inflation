@@ -182,6 +182,8 @@ private fun HexGroups.planRates(g: HexGroup, b: Band, weather: Weather, perDay: 
             " as it stands:\n" + year.trace(g.species, larderDays, g.fat, g.spent) +
             (if (gap > 0f) " stores filled:\n" + year.trace(g.species, larderDays + gap / need, g.fat, g.spent) else ""))
     }
+    // (The viewer: whether its houses may ask days at all ([buildHouse]'s gates), and the houses that stand here and who uses them.)
+    look?.let { l -> houseGates(g, b).forEach { (k, v) -> l.note(HOUSES, k, v) } }
     if (houses) {
         val years = keepYears(b, stepsPerYear)
         // (The food a whole house would have saved it a person a year as it lived its weeks ([Band.houseFood]: keeping warm,
@@ -206,6 +208,11 @@ private fun HexGroups.planRates(g: HexGroup, b: Band, weather: Weather, perDay: 
                 "a whole house a person a year: %.1f kg (as lived %.1f, usual cold %.1f); over the years: %.0f kg, %.0f days of foraging at %.2f kg a person-day, against %.0f days to build: %.2f " +
                 "(given days at 1 or more)").format(g.id, weather.date, g.size, g.adults, b.campWeeks, b.atHome, b.house, years, kg / years / people, b.houseFood, houseFoodAYear(g, b, g.place, weather),
                 kg, saved, perDay, HOUSE_DAYS * g.adults.coerceAtLeast(1), rate[HOUSES]))
+    }
+    look?.let { l ->
+        val h = hw.placeHex[g.place]
+        l.note(WEIRS, "weir standing here", "%.0f%% of the river's width whole, %.0f%% with what is begun (%.0f m wide); that it may use".format(
+            100 * weirAt(g, h), 100 * weirAt(g, h, begun = true), fauna.water.riverWidthM(h)))
     }
     if (weirs) {
         // (A whole weir across the river by its camp: the days of foraging the food it would take a year as the band lived

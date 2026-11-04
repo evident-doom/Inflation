@@ -134,7 +134,8 @@ internal class PlanPanel(
         val moved = m.chosen >= 0 && m.chosen != m.stays
         val title = if (moved) "MOVES to " + where(m.places[m.chosen]) else if (m.chosen < 0) "NO PLACE COULD BE WEIGHED" else "STAYS"
         val why = when (m.why) {
-            Reckoned.OWED -> "its customs send it (an appointment due, a raid set, or a camp left after a death): it goes to the best place no more than a survival step deadlier than the safest"
+            Reckoned.OWED -> "its customs send it (an appointment due within the month, a raid set, or a camp left after a death): it weighs no case and takes the best-scored place no more than a survival step deadlier than the safest" +
+                (if (m.chosen >= 0 && m.chosen == m.stays) ", and that was its own camp: the pull of where it is owed was weaker than what holds it here" else "")
             Reckoned.EMERGENCY -> "staying is at least a survival step deadlier than the safest place: it flees to the best place no more than a step deadlier than the safest"
             Reckoned.NO_CASE -> "it has no case to judge: no whole week at this camp yet, or no record of such weeks"
             Reckoned.COSTS_MORE -> "its case for leaving is not above zero once what leaving gives up is taken off"
@@ -159,7 +160,7 @@ internal class PlanPanel(
         val t = m.terms
         fun term(r: ReckonTerm) = t.getOrElse(r.ordinal) { Float.NaN }
         if (!m.owed && !term(ReckonTerm.CASE).isNaN()) {
-            sb.append("<p><b>Its case for leaving</b>, in shares of a week of its hands' work (0.10 = a tenth of a week), each loss paid over the %.1f weeks it expects to keep a camp:</p>".format(m.stayWeeks))
+            sb.append("<p><b>Its case for leaving</b>, in shares of a week of its hands' work (0.10 = a tenth of a week), each loss paid over the %.1f weeks it expects to keep a camp (its running mean of past stays, or the weeks it has kept this camp if more):</p>".format(m.stayWeeks))
             sb.append("<table cellpadding=2 cellspacing=0 border=0>")
             fun row(label: String, v: Float, sign: String, note: String, bold: Boolean = false) {
                 val b0 = if (bold) "<b>" else ""; val b1 = if (bold) "</b>" else ""
@@ -171,10 +172,10 @@ internal class PlanPanel(
             row("its houses here", term(ReckonTerm.HOUSE), "&minus;", "left to weather and to others")
             row("its crop not yet reaped", term(ReckonTerm.CROP), "&minus;", "lost harvest")
             row("its heavy tools", term(ReckonTerm.TOOLS), "&minus;", "days of making them again")
-            row("its weir", term(ReckonTerm.WEIR), "&minus;", "food the weir takes each week away")
             row("gain from leaving", m.gain, "=", "moves only if above the walk to the best place", bold = true)
             sb.append("</table>")
-        } else if (m.owed) sb.append("<p>Owed by custom: it does not weigh a case, it goes.</p>")
+        } else if (m.owed) sb.append("<p>Owed by custom: it weighs no case for leaving; it goes where its scores rank first among the places it may go" +
+            (if (m.chosen >= 0 && m.chosen == m.stays) ", which this week was where it stands, so it stays." else ".") + "</p>")
         else sb.append("<p>No case judged: too new to this camp, or no record of such weeks to compare with.</p>")
         // The places.
         sb.append(placesTable(m))
