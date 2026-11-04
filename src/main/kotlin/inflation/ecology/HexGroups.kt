@@ -67,6 +67,8 @@ class HexGroups(
     uniformStart: Boolean = false,
 ) : GroupWorld(hw, land, fauna, days, seed) {
     val groups = ArrayList<HexGroup>()
+    /** The storms of the hurricane test, made at the first week when `t.hurricane` asks for any (not saved: a run from a save sets them down afresh). */
+    @Transient internal var hurricanes: HexHurricane? = null
     internal var nextId = 0
     /**
      * The kinds that live as groups: the hunters other than the residents' ([Catalogue.residentHunters]), and people (plant-eaters
@@ -380,6 +382,7 @@ class HexGroups(
         for (a in sickPeople) a.fill(0f)
         for (g in groups) if (g.alive) g.band?.let { b -> for (d in Illness.entries) if (d.contagion > 0f) sickPeople[d.ordinal][g.place] += g.size * b.sick[d] }
         planner.takeStock()
+        if (tuning.hurricanes > 0) moveHurricanes(weather)
         // Packs set their ways for the week (bands set theirs as they forage, see [hunt]).
         setAnimalWays(weather)
         // Bands take stock of themselves and of the bands about them, for the people networks.
@@ -404,6 +407,33 @@ class HexGroups(
             g.place = Place(choice[k]); g.path = paths[k]!!; g.days = times[k]!!; g.meatMet = 0f; g.meatSpent = false
             crossWater(g, g.path)
         }
+        hurricanes?.let { storms -> if (storms.kills) for (g in groups) if (g.alive) hurricaneKill(g, storms, date) }
+    }
+
+    /** Sets the storms of the hurricane test down in the first week, and moves them on in every week after. */
+    private fun moveHurricanes(weather: Weather) {
+        val storms = hurricanes ?: HexHurricane(hex, hw, seedBase, tuning.hurricanes, tuning.hurricaneSpeed, tuning.hurricaneRadius, tuning.hurricaneWarn,
+            tuning.hurricaneSeen != 0, tuning.hurricaneKills != 0).also { hurricanes = it }
+        storms.advance(weather)
+    }
+
+    /** A group that ended its move where a storm strikes this week, or passed through its reach, dies whole (its herds and goods are left in the hex, as at any band's end). */
+    private fun hurricaneKill(g: HexGroup, storms: HexHurricane, date: Date) {
+        val arrived = storms.struck(hw.placeHex[g.place])
+        var crossed = false
+        if (!arrived) for (i in 0 until g.path.size - 1) if (storms.struck(g.path[i])) { crossed = true; break }
+        if (!arrived && !crossed) return
+        val adults = g.adults; val young = g.young
+        adultsDied(g, adults, stream(seedBase, Stream.HURRICANE, g.id.toLong(), date.absoluteDay))
+        g.young = 0
+        val cause = if (arrived) DeathCause.HURRICANE else DeathCause.HURRICANE_CROSSING
+        small.deposit(DeadPool.CARRION, g.place, Kg((adults + HexFauna.YOUNG_WEIGHT * young) * g.species.massKg))
+        stats.deaths.merge(Tally.of(g.species, cause), adults + young, Int::plus)
+        if (g.species.human) {
+            stats.adultDeaths.merge(Tally.of(g.species, cause), adults, Int::plus)
+            if (young > 0) stats.youngDeaths.merge(Tally.of(g.species, cause), young, Int::plus)
+        }
+        fauna.record?.group(g.species, g.place, cause, adults + young)
     }
 
     /** A crossing of open water on [path] drowns some of [g], the more the nearer the strait is to all they can swim. */

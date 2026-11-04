@@ -84,6 +84,9 @@ enum class Stream(val salt: Long) {
     LINEAGE(0x4c494e45L),
     WORDS(0x574f5244L),
 
+    /** The storms of the hurricane test ([inflation.ecology.HexHurricane]): where they start and how they turn. */
+    HURRICANE(0x48555252L),
+
     // Training and its tools.
     /** A band's learned ways drawn for a season, in training. */
     WAYS_SEASON(0x57415953L),

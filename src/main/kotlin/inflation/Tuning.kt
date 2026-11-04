@@ -159,6 +159,20 @@ class Tuning(
     val denMonths = i("denMonths", 3)
     val denKm = f("denKm", 15f)
 
+    // The hurricane test (see [inflation.ecology.HexHurricane]); off by default.
+    /** How many storms roam the land (0 = none). */
+    val hurricanes = i("hurricane", 0)
+    /** How far a storm goes a week, hexes (a part of a hex is carried over). */
+    val hurricaneSpeed = f("hurricaneSpeed", 1f)
+    /** How many hexes around a storm's own it strikes. */
+    val hurricaneRadius = i("hurricaneRadius", 0)
+    /** 1: a group struck dies; 0: the storm kills no one (to see where groups stand without them dying). */
+    val hurricaneKills = i("hurricaneKills", 1)
+    /** 1: groups are told which hexes the storms will strike; 0: they are not (the storms kill as before). */
+    val hurricaneSeen = i("hurricaneSeen", 1)
+    /** How many weeks ahead the storms' paths are worked out and told. */
+    val hurricaneWarn = i("hurricaneWarn", 6)
+
     // Bands' rites (see [rounds]).
     /** A band takes up no rite at a site within this of where it is, km (half a range across): a rite is somewhere it goes. */
     val roundArrivedKm = d("roundArrived", 50.0)
