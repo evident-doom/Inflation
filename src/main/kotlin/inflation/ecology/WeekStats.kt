@@ -374,6 +374,15 @@ object Tally {
     fun larderFlow(mind: Mind, season: Season, why: LarderMove) = TallyKey.raw("larder flow ${mind.label}:${season.name}:${why.label}")
     /** What moved bands' stores of kind [store] in [season], by [why], person-days of the need before keeping warm ([Band.storeFlow]). */
     fun storeFlow(store: Store, season: Season, why: StoreFlow) = TallyKey.raw("store flow ${store.name}:${season.name}:${why.label}")
+    /**
+     * Bands' drying of fresh meat and fish in their weeks with some left ([keepAndSpoil]): the fresh left, what their way of drying
+     * would have dried of it, what the days and the drying rate let them dry, what they dried, all person-days of the need;
+     * the way and the rate (tenths, weighed by the fresh left); and the weeks counted, those where the days held them back.
+     */
+    enum class Drying(val label: String) {
+        FRESH("fresh left"), BY_WAY("by its way"), BY_DAYS("by its days"), DRIED("dried"), WAY("way"), RATE("rate"), WEEKS("weeks"), DAYS_BOUND("held back by days")
+    }
+    fun drying(what: Drying) = TallyKey.raw("bands drying:${what.label}")
     /** What a band's larder held when its people died of hunger, days of its need before keeping warm. */
     enum class LarderAt(val label: String, val below: Float) {
         EMPTY("under a day", 1f), SOME("1-10 days", 10f), FULL("10 days and over", Float.POSITIVE_INFINITY);

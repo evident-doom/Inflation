@@ -9,6 +9,7 @@ import inflation.world.Weather
 import inflation.world.get
 import inflation.world.set
 import kotlin.math.exp
+import kotlin.math.roundToInt
 import kotlin.math.max
 import kotlin.math.min
 
@@ -54,6 +55,15 @@ internal fun HexGroups.keepAndSpoil(w: ForageWeek, got: EnumFloats<Store>, gotKg
     band.driedLast = dried
     dialUse?.amount(DialSite.DRYING, band.dryWill, dried, min(g.stores[Store.FRESH], dryDays * dryRate / DRY_DAYS_PER_KG / freshKgPer))
     band.dryAsk = if (dryRate > 0f) g.stores[Store.FRESH] * dryShare * freshKgPer * daysPerKg / dryRate else 0f
+    // (Report only: what held its drying back, the way or the days ([Tally.Drying]).)
+    if (g.stores[Store.FRESH] > 0f) {
+        val perDay = (g.dailyNeedKg / g.warmth.coerceAtLeast(1e-3f)).coerceAtLeast(1e-3f) / g.size.coerceAtLeast(1)
+        val fresh = g.stores[Store.FRESH]; val byDays = dryDays * dryRate / daysPerKg / freshKgPer
+        fun t(k: Tally.Drying, v: Float) = stats.tally(Tally.drying(k), v.roundToInt())
+        t(Tally.Drying.FRESH, fresh / perDay); t(Tally.Drying.BY_WAY, fresh * dryShare / perDay); t(Tally.Drying.BY_DAYS, min(fresh, byDays) / perDay)
+        t(Tally.Drying.DRIED, dried / perDay); t(Tally.Drying.WAY, 10f * band.dryWill * fresh / perDay); t(Tally.Drying.RATE, 10f * dryRate * fresh / perDay)
+        t(Tally.Drying.WEEKS, 1f); if (byDays < fresh * dryShare) t(Tally.Drying.DAYS_BOUND, 1f)
+    }
     if (dried > 0f) {
         val undried = storesNow(g)
         val saltedNow = min(dried, salt / SALT_PER_KG); band.goods[Material.SALT] -= saltedNow * SALT_PER_KG
