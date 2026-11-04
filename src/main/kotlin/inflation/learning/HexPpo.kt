@@ -278,7 +278,8 @@ class MoverPolicy(private val mover: SharedMover, private val record: Concurrent
         g.weighed = true
         var gateDrawn = false
         val gate = mover.gate
-        if (gate != null && n > 0 && g.band?.mind != Mind.PLANS) {
+        // (Screen arm: bands always weigh their places.)
+        if (gate != null && n > 0 && g.band == null) {
             val hk = Critic.here(features)
             val b = gateBuffers.get() ?: gate.buffers().also { gateBuffers.set(it) }
             mover.gateInput(g.species, features[hk], state, temper, g, b.a[0])
