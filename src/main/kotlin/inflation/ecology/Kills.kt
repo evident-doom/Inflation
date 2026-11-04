@@ -197,7 +197,7 @@ internal fun HexGroups.raidHerd(g: HexGroup, hg: HerdGame, p: Place, expected: F
     val each = if (hg.young) HexFauna.YOUNG_WEIGHT * ps.massKg else ps.massKg
     small.deposit(DeadPool.CARRION, p, Kg(kills1 * max(0f, each - kgEach * meatShare(null) / creditShare(null))))
     stats.meeting(Met.KEPT_ANIMALS_TAKEN, kills1)
-    stats.tally(Tally.of(s, Tally.OfKind.KILLS_OF_KEPT), kills1)
+    stats.keep(Tally.of(s, Tally.OfKind.KILLS_OF_KEPT), kills1)
     note(g) { "took %d kept %s".format(kills1, ps.name) }
     fauna.killed(p, Kg(kills1 * each))
     return kills1
@@ -339,7 +339,7 @@ internal fun HexGroups.huntGame(g: HexGroup, k: Int, p: Place, expected: Float, 
     stats.killed(ps, kills1)
     note(g) { "killed %d %s".format(kills1, ps.name) }
     fauna.killed(p, Kg(kills1 * ps.massKg))
-    stats.tally(Tally.of(s, Tally.OfKind.KILLS_OF_RESIDENTS), kills1)
+    stats.keep(Tally.of(s, Tally.OfKind.KILLS_OF_RESIDENTS), kills1)
     diag(ps, HuntStep.RESIDENT_KILLS, kills1.toFloat())
     return kills1
 }

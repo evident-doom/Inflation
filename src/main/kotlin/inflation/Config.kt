@@ -90,7 +90,8 @@ object Config {
         FED_DIAG("fedDiag"),
         SHRUB_DIAG("shrubDiag"),
         HUNT_STEPS("huntSteps"),
-        AUDIT("audit");
+        AUDIT("audit"),
+        CENSUS("census");
 
         override fun toString() = key
     }
