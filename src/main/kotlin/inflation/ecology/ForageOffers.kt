@@ -284,7 +284,8 @@ internal fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
         val p = o.place[i]
         // (Days of work counted for the whole band: each party's days in its share of the hands.)
         if (o.type[i] != Food.BIG_GAME) { val d = expected * w.party[o.who[i]]; w.busy += d * o.time[i]
-            if (band != null) { w.gatherHandle += d * o.time[i]; w.plantSeek += d * o.seek[i]; w.plantWalk += d * o.walk[i] } }
+            if (band != null) { w.gatherHandle += d * o.time[i]; w.plantSeek += d * o.seek[i]; w.plantWalk += d * o.walk[i]
+                if (o.type[i] == Food.GRAIN) { if (o.kind[i] == FIELD_KIND) w.fieldDays += d * o.time[i] else w.wildDays += d * o.time[i] } } }
         when (o.type[i]) {
             Food.FRUIT, Food.ROOTS, Food.FINDS -> w.plantWorkDays += expected * o.time[i] * w.party[o.who[i]]
             Food.SEED, Food.GRAIN -> { val d = expected * o.time[i] * w.party[o.who[i]]; w.plantWorkDays += d; w.seedWorkDays += d }
@@ -361,6 +362,8 @@ internal fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
                 val mean = if (sown) fauna.food.fieldGrain[p] else fauna.food.grain[p]
                 reap(g, Place(p), sown, expected, haul)
                 traceStand(w, if (sown) "sown field" else "wild cereal", stand, mean, haul.mass)
+                if (band != null) { if (sown) w.fieldKg += haul.mass else w.wildKg += haul.mass
+                    w.grindDays += haul.mass * GRIND_DAYS_PER_KG * band.has(Tool.GRINDER) }
                 val fed = haul.kg * w.worth(Food.GRAIN)
                 w.plants += haul.kg; w.fed += haul.kg * w.feeds(Food.GRAIN); w.plantKind[Store.SEED] += fed; w.plantKg[Store.SEED] += haul.mass
                 w.plantFrom[PlantFrom.GRAIN] += fed
