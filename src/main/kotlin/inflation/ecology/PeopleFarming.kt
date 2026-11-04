@@ -14,6 +14,7 @@ import inflation.world.Date
 import inflation.world.LifeForm
 import kotlin.math.max
 import kotlin.math.pow
+import kotlin.math.roundToInt
 import kotlin.math.min
 
 // Bands' fields and animals: sowing and reaping, kept animals, dogs and herds.
@@ -76,6 +77,8 @@ internal fun HexGroups.harvestCrop(g: HexGroup, b: Band, time: BandTime) {
     b.seedCorn = corn + worth
     addFood(g.stores, g.storeKgPer, Store.SEED, worth, kg)
     stats.tally(Tally.of(g.species, Tally.OfKind.GRAIN_REAPED), worth.toInt())
+    stats.tally(Tally.grain(Tally.Grain.CROP_KG), kg.roundToInt()); stats.tally(Tally.grain(Tally.Grain.CROP_DAYS), (10f * kg * perKg).roundToInt())
+    stats.tally(Tally.grain(Tally.Grain.GRIND_DAYS), (10f * kg * GRIND_DAYS_PER_KG * b.has(Tool.GRINDER)).roundToInt())
     note(g) { "brought in %.0f kg of its crop".format(kg) }
 }
 

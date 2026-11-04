@@ -448,8 +448,12 @@ internal const val MEAT_MOST = 0.7f
 /** Share of the ground a party searches for small game at place [p] over which it finds it: less in standing cover ([SMALL_HIDE]). */
 internal fun GroupWorld.smallSeen(p: Place) = 1f - SMALL_HIDE * land.plants.groundCover(p)
 
-/** How readily [s] catches small game it comes on, 0..1: the smaller and nimbler the hunter, the better; cover hides the prey from all but stalkers. */
-internal fun smallCatch(s: Species) = SMALL_CATCH * min(1f, SMALL_HUNTER_KG / s.massKg)
+/**
+ * How readily [s] catches small game it comes on, 0..1: the smaller and nimbler the hunter, the better; cover hides the prey from all but stalkers.
+ * (People do not run it down: they snare, net, trap and dig it out, which their skill and kit count in ([Band.snares]), so their weight does not
+ * count against them.)
+ */
+internal fun smallCatch(s: Species) = SMALL_CATCH * (if (s.lifeway == Lifeway.BAND) 1f else min(1f, SMALL_HUNTER_KG / s.massKg))
 
 /**
  * The odds that game of kind [ps] sees the hunters first and keeps out of their way: likelier in the [open] (the less

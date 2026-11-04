@@ -43,9 +43,15 @@ internal class ResidentParties(private val gs: HexGroups) {
     private val standIns = ArrayList<StandIn>()
     /** The stand-ins as groups, in the order they follow the groups at the meetings. */
     val parties = ArrayList<HexGroup>()
+    private val nHexes = gs.hex.size
+    /** The stand-ins of the hex of index h are [inHex] from [hexStart] of h until that of h + 1 (indices into [standIns], in the order made). */
+    @PublishedApi internal val hexStart: IntArray
+    @PublishedApi internal val inHex: IntArray
 
     init {
-        val f = gs.fauna; val nHexes = gs.hex.size
+        val f = gs.fauna
+        // (Each stand-in's hex, as [standIns]: filed by hex below.)
+        var homeOf = IntArray(256); var n = 0
         for (k in f.kinds.indices) {
             val s = f.kinds[k]
             if (!s.carnivore) continue
@@ -69,16 +75,29 @@ internal class ResidentParties(private val gs: HexGroups) {
             }
             val more = made.count { it != null }
             standIns.ensureCapacity(standIns.size + more); parties.ensureCapacity(parties.size + more)
-            for (si in made) if (si != null) { standIns += si; parties += si.g }
+            for (h in made.indices) { val si = made[h] ?: continue
+                if (n == homeOf.size) homeOf = homeOf.copyOf(2 * n)
+                homeOf[n++] = h; standIns += si; parties += si.g }
         }
+        // (A count per hex, then each stand-in into its hex's run, in the order made: a stable sort by hex.)
+        hexStart = IntArray(nHexes + 1)
+        for (x in 0 until n) hexStart[homeOf[x] + 1]++
+        for (h in 0 until nHexes) hexStart[h + 1] += hexStart[h]
+        inHex = IntArray(n); val fill = hexStart.copyOf(nHexes)
+        for (x in 0 until n) inHex[fill[homeOf[x]]++] = x
     }
 
-    /** The stand-ins of each hex that has any, hexes in order. */
+    /** Calls [action] with the index among the stand-ins ([of] counts them after the groups) of each in the hex of index [at], in the order made. */
+    inline fun forEachIn(at: Int, action: (Int) -> Unit) { for (c in hexStart[at] until hexStart[at + 1]) action(inHex[c]) }
+
+    /** The stand-ins of each hex that has two or more (only those can meet each other), hexes in order, each hex's in the order made. */
     fun standInsByHex(): List<List<StandIn>> {
-        // (Filed by hex index straight into an array, each hex's in the order they were made, kind by kind.)
-        val byHex = arrayOfNulls<ArrayList<StandIn>>(gs.hex.size)
-        for (si in standIns) { val h = si.g.home.i; (byHex[h] ?: ArrayList<StandIn>(4).also { byHex[h] = it }) += si }
-        return byHex.filterNotNull()
+        val out = ArrayList<List<StandIn>>()
+        for (h in 0 until nHexes) {
+            val a = hexStart[h]; val b = hexStart[h + 1]
+            if (b - a >= 2) out += List(b - a) { standIns[inHex[a + it]] }
+        }
+        return out
     }
 
     /** The stand-in at index [i] of the meetings' parties (the groups first), or null for a group. */

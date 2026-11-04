@@ -247,7 +247,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
 }
 
 /** Notes in [w], from the first pass's take-up [o], the hunters' hands that took up no food and the gatherers' foods ranked out (for [countHungryWeek]). */
-private fun noteUnused(w: ForageWeek, o: Offers) {
+private fun HexGroups.noteUnused(w: ForageWeek, o: Offers) {
     var hunterUsed = false; val taken = BooleanArray(o.m)
     for (r in 0 until o.used) { val i = o.order[r]; taken[i] = true; if (o.who[i] == 0) hunterUsed = true }
     w.idleHunters = if (hunterUsed) 0f else w.hands * w.party[0]
@@ -256,6 +256,17 @@ private fun noteUnused(w: ForageWeek, o: Offers) {
     for (i in 0 until o.m) if (!taken[i] && o.who[i] == 1) { w.rankedOut++
         if (o.profit[i] > w.bestOutPay) { w.bestOutPay = o.profit[i]; w.bestOutFood = o.type[i] } }
     w.bestOutPay = if (cut > 0f) w.bestOutPay / cut else 0f
+    // (And for the census of what each kind of food pays them, by month: the best offer of each kind, and whether any was taken up.)
+    if (cut > 0f) {
+        val m = w.weather.date.month
+        for (f in Food.entries) {
+            var best = 0f; var any = false; var took = false
+            for (i in 0 until o.m) if (o.who[i] == 1 && o.type[i] == f) { any = true; if (o.profit[i] > best) best = o.profit[i]; if (taken[i]) took = true }
+            if (!any) continue
+            stats.tally(Tally.pay(f, m, Tally.Pay.OFFERED), 1); if (took) stats.tally(Tally.pay(f, m, Tally.Pay.TAKEN), 1)
+            stats.tally(Tally.pay(f, m, Tally.Pay.PERCENT), (100f * best / cut).coerceAtMost(1e6f).toInt())
+        }
+    }
 }
 
 /** Diagnostic (huntSteps): how a beast pack's week of foraging went, by the hunter ([HuntStep.PACK_WEEKS] and on). */
@@ -412,14 +423,15 @@ internal class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, pack
     val gutKg = s.massKg * (g.adults + 0.5f * g.young) * EATING_RATE * gs.days
     // Small game is found within a few paces of the way, not as far as the party can see; snare
     // lines and nets search it while no one is there.
-    val smallSweep = s.dailyTravelKm * gs.days * 2f * SMALL_SENSE_KM * sqrt(gatherHands / s.groupSize) / g.path.size.coerceAtLeast(1) * (band?.snares() ?: 1f)
+    // (A band's children snare and gather small game with the gatherers, as they gather plants: [CHILD_GATHER] of a grown hand.)
+    val gatherers = gatherHands + (if (band != null) CHILD_GATHER * g.young else 0f)
+    val smallSweep = s.dailyTravelKm * gs.days * 2f * SMALL_SENSE_KM * sqrt(gatherers / s.groupSize) / g.path.size.coerceAtLeast(1) * (band?.snares() ?: 1f)
     val smallCatch = smallCatch(s)
-    val smallDays = SMALL_HANDLING_DAYS_PER_KG / gatherHands * (band?.slowness(Skill.SMALL_GAME) ?: 1f) + eats
+    val smallDays = SMALL_HANDLING_DAYS_PER_KG / gatherers * (band?.slowness(Skill.SMALL_GAME) ?: 1f) + eats
     // Plant food: picked, dug or reaped by all hands, and carried home (baskets carry more at a time).
     val eatsPlants = d.fruit + d.roots > 0f
     val carry = 1f + BASKET_GAIN * (band?.has(Tool.BASKET) ?: 0f)
-    // (A band's children gather too, near camp and slower than grown hands: fruit, roots, small finds and seed.)
-    val gatherers = gatherHands + (if (band != null) CHILD_GATHER * g.young else 0f)
+    // (A band's children gather too, near camp and slower than grown hands: fruit, roots, small finds and seed: see [gatherers].)
     // (A band renders bones' grease where it gathers them: see [greaseOf].)
     val renderDays = if (band != null) BONE_RENDER_DAYS / gatherers.coerceAtLeast(1e-3f) else 0f
     val pickDays = PLANT_HANDLING_DAYS_PER_KG * gs.tuning.plantHandling / gatherers / carry + eats
@@ -536,6 +548,8 @@ internal class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, pack
      * and walking to it and home.
      */
     var huntSearch = 0f; var huntHandle = 0f; var gatherSearch = 0f; var gatherHandle = 0f; var plantSeek = 0f; var plantWalk = 0f
+    /** For the census of grain ([Tally.Grain]): days of a hand reaping wild and sown grain, kilos of each, people-days grinding. */
+    var wildDays = 0f; var fieldDays = 0f; var wildKg = 0f; var fieldKg = 0f; var grindDays = 0f
     var digDays = 0f
     var room = 0f
     /** Census of hungry weeks ([noteUnused]): hunters' hands whose party took up no food, and the gatherers' foods ranked out (their number, the best one's pay a day of handling and its kind). */
@@ -588,6 +602,10 @@ private fun HexGroups.countFoodTime(w: ForageWeek, time: BandTime) {
     add(Tally.FoodTime.GATHER_SEARCH, w.gatherSearch * hands); add(Tally.FoodTime.GATHER_HANDLE, w.gatherHandle * hands)
     add(Tally.FoodTime.PLANT_SEEK, w.plantSeek * hands); add(Tally.FoodTime.PLANT_WALK, w.plantWalk * hands)
     add(Tally.FoodTime.FED, w.fed)
+    fun grain(k: Tally.Grain, x: Float) { if (x > 0f) stats.tally(Tally.grain(k), x.roundToInt()) }
+    grain(Tally.Grain.WILD_KG, w.wildKg); grain(Tally.Grain.FIELD_KG, w.fieldKg)
+    grain(Tally.Grain.WILD_DAYS, 10f * w.wildDays * hands); grain(Tally.Grain.FIELD_DAYS, 10f * w.fieldDays * hands)
+    grain(Tally.Grain.GRIND_DAYS, 10f * w.grindDays)
 }
 
 /** forageDiag=kind: a sample of that kind's groups' weeks, each pass of their forage and what they ate, on stderr. */

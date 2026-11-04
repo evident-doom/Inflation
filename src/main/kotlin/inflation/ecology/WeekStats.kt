@@ -374,6 +374,15 @@ object Tally {
     fun larderFlow(mind: Mind, season: Season, why: LarderMove) = TallyKey.raw("larder flow ${mind.label}:${season.name}:${why.label}")
     /** What moved bands' stores of kind [store] in [season], by [why], person-days of the need before keeping warm ([Band.storeFlow]). */
     fun storeFlow(store: Store, season: Season, why: StoreFlow) = TallyKey.raw("store flow ${store.name}:${season.name}:${why.label}")
+    /**
+     * Bands' drying of fresh meat and fish in their weeks with some left ([keepAndSpoil]): the fresh left, what their way of drying
+     * would have dried of it, what the days and the drying rate let them dry, what they dried, all person-days of the need;
+     * the way and the rate (tenths, weighed by the fresh left); and the weeks counted, those where the days held them back.
+     */
+    enum class Drying(val label: String) {
+        FRESH("fresh left"), BY_WAY("by its way"), BY_DAYS("by its days"), DRIED("dried"), WAY("way"), RATE("rate"), WEEKS("weeks"), DAYS_BOUND("held back by days")
+    }
+    fun drying(what: Drying) = TallyKey.raw("bands drying:${what.label}")
     /** What a band's larder held when its people died of hunger, days of its need before keeping warm. */
     enum class LarderAt(val label: String, val below: Float) {
         EMPTY("under a day", 1f), SOME("1-10 days", 10f), FULL("10 days and over", Float.POSITIVE_INFINITY);
@@ -503,6 +512,22 @@ object Tally {
     fun hungry(k: Hungry) = TallyKey.raw("hungry band-weeks:${k.label}")
     /** Hungry band-weeks by the kind of food the gatherers' best ranked-out food was ([Hungry]). */
     fun hungryBest(f: Food) = TallyKey.raw("hungry band-weeks:best ranked-out food ${f.label}")
+    /**
+     * What each kind of food paid the gatherers against the rate they stopped at, by month (first pass of the week, [noteUnused]):
+     * band-weeks it was on offer, those it was taken up in, and its best offer's pay a day of handling as a percent of the cut-off, summed.
+     */
+    enum class Pay(val label: String) { OFFERED("weeks offered"), TAKEN("weeks taken up"), PERCENT("pay percent of the cut-off, summed") }
+    fun pay(f: Food, month: Int, k: Pay) = TallyKey.raw("gatherers' food pay:${f.label}:month $month:${k.label}")
+    /**
+     * Bands' grain, summed over the year: kilos as weighed, reaped from wild stands and from sown fields while foraging, and
+     * of the crop brought in whole ([HexGroups.harvestCrop]); and tenths of people-days at each (foraging's include finding it
+     * and walking to it), and of all of them grinding, at the quern's rate.
+     */
+    enum class Grain(val label: String) {
+        WILD_KG("wild, kg"), FIELD_KG("sown, foraged, kg"), CROP_KG("crop brought in, kg"),
+        WILD_DAYS("wild, days"), FIELD_DAYS("sown, foraged, days"), CROP_DAYS("crop brought in, days"), GRIND_DAYS("grinding, days")
+    }
+    fun grain(k: Grain) = TallyKey.raw("bands' grain:${k.label}")
     /** How far a band's shelters stood at the week's end ([Band.shelter]): the first bin it falls [below]. The report's line. */
     enum class Hut(val label: String, val below: Float) {
         NONE("no hut", 0.5f), LIGHT("light hut", 1.05f), PART("part thatched", 1.5f), THATCHED("thatched", Float.POSITIVE_INFINITY);

@@ -480,6 +480,16 @@ class Census(private val sim: HexSim) {
                     }
                 })
         }
+        // And what held bands' drying back: their way of drying or the days and drying rate ([Tally.Drying]).
+        run {
+            val years = (Mind.entries.sumOf { (lastYear[Tally.bandsMind(it, Tally.Bands.PEOPLE_WEEKS)] ?: 0).toDouble() } / stepsPerYear).coerceAtLeast(1e-9)
+            fun v(k: Tally.Drying) = (lastYear[Tally.drying(k)] ?: 0).toDouble()
+            val fresh = v(Tally.Drying.FRESH).coerceAtLeast(1.0); val weeks = v(Tally.Drying.WEEKS).coerceAtLeast(1.0)
+            println("bands' drying, last year (weeks with fresh meat or fish left; days of a person's need a person a year: fresh left, what their way would dry, what their days and rate let them, dried; way and rate weighed by the fresh left; share of the weeks held back by days): " +
+                "fresh left %.1f, by its way %.1f, by its days %.1f, dried %.1f; way %.2f, rate %.2f; held back by days %.0f%% of %.0f weeks".format(
+                    v(Tally.Drying.FRESH) / years, v(Tally.Drying.BY_WAY) / years, v(Tally.Drying.BY_DAYS) / years, v(Tally.Drying.DRIED) / years,
+                    v(Tally.Drying.WAY) / 10 / fresh, v(Tally.Drying.RATE) / 10 / fresh, 100 * v(Tally.Drying.DAYS_BOUND) / weeks, weeks))
+        }
         // Whether bands starve for moving camp or move for starving: how fed they were and what their larders held in the weeks
         // around a move ([moveCensus]).
         println("bands around camp moves, last year (by mind, weeks from the move, -$MOVE_WEEKS to $MOVE_WEEKS: share of the need eaten / larder days; and the moves counted): " + Mind.entries.joinToString("; ") { m ->
@@ -578,6 +588,17 @@ class Census(private val sim: HexSim) {
                 100 * brought / asked, 100 * eaten / brought.coerceAtLeast(1.0), 100 * cs.sumOf { v(Tally.bandsIn(it, Tally.Bands.PLANTS)) } / asked))
             println("bands' plant food, last year (of food wanted, by what it feeds): " + PlantFrom.entries.joinToString(", ") { f ->
                 "%s %.1f%%".format(f.label, 100 * v(Tally.plantsFrom(f)) / asked) })
+            // (Grain by where it was reaped, by weight, and the people-days it took: foraging's include finding and walking to it;
+            // grinding, at the quern's rate, is within them.)
+            fun gr(k: Tally.Grain) = v(Tally.grain(k))
+            val personYears = cs.sumOf { v(Tally.bandsIn(it, Tally.Bands.PEOPLE_WEEKS)) } / stepsPerYear
+            val grainKg = gr(Tally.Grain.WILD_KG) + gr(Tally.Grain.FIELD_KG) + gr(Tally.Grain.CROP_KG)
+            val grainDays = (gr(Tally.Grain.WILD_DAYS) + gr(Tally.Grain.FIELD_DAYS) + gr(Tally.Grain.CROP_DAYS)) / 10
+            println(("bands' grain, last year (by weight; people-days): wild stands %.0f t, %.0f d; sown fields while foraging %.0f t, %.0f d; " +
+                "crop brought in %.0f t, %.0f d; of all the days grinding %.0f d; a person-year %.1f kg, %.2f d; a kg %.2f d").format(
+                gr(Tally.Grain.WILD_KG) / 1000, gr(Tally.Grain.WILD_DAYS) / 10, gr(Tally.Grain.FIELD_KG) / 1000, gr(Tally.Grain.FIELD_DAYS) / 10,
+                gr(Tally.Grain.CROP_KG) / 1000, gr(Tally.Grain.CROP_DAYS) / 10, gr(Tally.Grain.GRIND_DAYS) / 10,
+                grainKg / personYears.coerceAtLeast(1e-9), grainDays / personYears.coerceAtLeast(1e-9), grainDays / grainKg.coerceAtLeast(1e-9)))
             // (A fat kill is worth more than a lean one: when in the year bands kill, and how fat what they bring in is.)
             println("bands' kills of big game by month, last year (kills; fat in the meat brought in, by weight): " + (0 until Date.MONTHS_PER_YEAR).joinToString(", ") { m ->
                 val lean = v(Tally.bandKills(m, Tally.KillPart.LEAN_KG)); val fat = v(Tally.bandKills(m, Tally.KillPart.FAT_KG))
@@ -707,6 +728,17 @@ class Census(private val sim: HexSim) {
             100 * hg(Tally.Hungry.RANKED_OUT_WEEKS) / hungryWeeks, hg(Tally.Hungry.RANKED_OUT_RATIO) / hg(Tally.Hungry.RANKED_OUT_WEEKS).coerceAtLeast(1.0),
             Food.entries.filter { v(Tally.hungryBest(it)) > 0 }.joinToString(", ") { "%s %.0f%%".format(it.label, 100 * v(Tally.hungryBest(it)) / hg(Tally.Hungry.RANKED_OUT_WEEKS).coerceAtLeast(1.0)) },
             100 * hg(Tally.Hungry.HERD_WEEKS) / hungryWeeks, hg(Tally.Hungry.HERD_HEADS) / hungryWeeks, 100 * hg(Tally.Hungry.LARDER_WEEKS) / hungryWeeks))
+        // (What each kind of food paid the gatherers against the rate they stopped at, and how often it was taken up: whole run, then by month for each.)
+        fun pay(f: Food, m: Int, k: Tally.Pay) = v(Tally.pay(f, m, k))
+        println("what each food paid the gatherers (best offer a week, percent of the rate they stopped at: 100 = level with it), and the share of weeks on offer it was taken up in, whole run, then by month (Jan..Dec) as taken%/pay%:")
+        for (f in Food.entries) {
+            val offered = (0 until 12).sumOf { pay(f, it, Tally.Pay.OFFERED) }
+            if (offered <= 0.0) continue
+            println("     %-12s on offer %.0f band-weeks; taken up %.0f%%; mean pay %.0f%%; by month %s".format(f.label, offered,
+                100 * (0 until 12).sumOf { pay(f, it, Tally.Pay.TAKEN) } / offered, (0 until 12).sumOf { pay(f, it, Tally.Pay.PERCENT) } / offered,
+                (0 until 12).joinToString(" ") { m -> val n = pay(f, m, Tally.Pay.OFFERED).coerceAtLeast(1.0)
+                    "%.0f/%.0f".format(100 * pay(f, m, Tally.Pay.TAKEN) / n, pay(f, m, Tally.Pay.PERCENT) / n) }))
+        }
         val wanted = Tally.ClothesMade.entries.sumOf { v(Tally.clothesMade(it)) }
         println("bands' clothes making, last year (band-weeks clothes were wanted: %.0f%% of band-weeks; by what stopped them): ".format(100 * wanted / weeks) +
             Tally.ClothesMade.entries.joinToString(", ") { c -> "%s %.0f%%".format(c.label, 100 * v(Tally.clothesMade(c)) / wanted.coerceAtLeast(1.0)) })
