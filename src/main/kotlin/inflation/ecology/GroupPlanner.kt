@@ -166,7 +166,8 @@ internal class GroupPlanner(internal val gs: HexGroups) {
         // take ([relayLoads]): counted again here, a year's deaths against a week's chance spread, they kept it from every
         // other place it could reach (followed band 10244, 2026-11-03: 25-39 survival steps, every other hazard 0.01-0.03).)
         val campHex = g.band?.campPlace?.takeIf { !it.none }?.let { gs.hw.placeHex[it] } ?: Hex.NONE
-        val leaving = if (campHex.none || g.band?.mind == Mind.PLANS) 0f else g.band?.leavingDying ?: 0f
+        // (Screen arm: no band charged for what leaving loses here.)
+        val leaving = 0f
         fun leavingAt(h: Hex) = if (leaving > 0f && h != campHex) leaving else 0f
         val c = PlanContext(g, kind, here, sensed, month, goal, goalQ, fromHere, reach, thirsty, restless, season, keepOff,
             weather, date, goalHex, predatorKg, buf, lacked, lackedHex, lackedQ, if (!lackedHex.none) gs.hexKm(here, lackedHex) else 0.0)
