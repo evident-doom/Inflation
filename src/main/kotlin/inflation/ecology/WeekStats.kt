@@ -2,6 +2,7 @@
 
 package inflation.ecology
 
+import inflation.Config
 import inflation.world.Biome
 import inflation.world.Season
 import java.util.TreeMap
@@ -70,8 +71,17 @@ class WeekStats {
     /** Whether the census's splits of bands (by country, clothing, way of living and so on: [BandSplit]) are booked in [hunting]: set by the census that reads them, as booking them costs a band-week some forty ledger merges. */
     var bandSplits = false
 
-    /** Counts [n] more of [key] in [hunting] (while [summedByThread] runs, in the thread's own sums first). */
-    fun tally(key: TallyKey, n: Int) = huntingSums.add(key, n)
+    /**
+     * Whether the census is kept: the report-only tallies ([tally], [meeting], the bands' time and splits). The model never
+     * reads them, and neither does the history; what the history and the nominal limits read is booked by [keep] and the
+     * ledgers of kills, deaths and births, which do not depend on this. Off in trainings (see [inflation.learning.HexPpo]).
+     */
+    @Volatile var census = Config.flag(Config.Key.CENSUS, true)
+
+    /** Counts [n] more of [key] in [hunting] when the census is kept (while [summedByThread] runs, in the thread's own sums first). */
+    fun tally(key: TallyKey, n: Int) { if (census) huntingSums.add(key, n) }
+    /** Counts [n] more of [key] in [hunting] whether the census is kept or not: only for what the history reads back ([Tally.diet], the meat and plants eaten, the kills, the hunt steps). */
+    fun keep(key: TallyKey, n: Int) = huntingSums.add(key, n)
     /** Counts [n] more kills of [s] in [kills] (as [tally] does). */
     fun killed(s: Species, n: Int) = killSums.add(s, n)
     private val huntingSums = ThreadSums(hunting)
@@ -88,9 +98,9 @@ class WeekStats {
     }
 
     /** Counts [n] more of [what] in [meetings]. */
-    fun meeting(what: Met, n: Int = 1) { metSums.addAndGet(what.ordinal, n); metSeen.set(what.ordinal, 1) }
+    fun meeting(what: Met, n: Int = 1) { if (!census) return; metSums.addAndGet(what.ordinal, n); metSeen.set(what.ordinal, 1) }
     /** Counts [n] more of [what] of [of] (a kind, a skill, a custom...) in [meetings]. */
-    fun meeting(what: Met.Of, of: String, n: Int = 1) { meetingLedger.merge(TallyKey.raw(what.key(of)), n, Int::plus) }
+    fun meeting(what: Met.Of, of: String, n: Int = 1) { if (!census) return; meetingLedger.merge(TallyKey.raw(what.key(of)), n, Int::plus) }
 
     /** Starts a new week (the children's ledger runs on until read). */
     fun clear() { kills.clear(); meetingLedger.clear(); for (i in 0 until Met.entries.size) { metSums.set(i, 0); metSeen.set(i, 0) }; deaths.clear(); adultDeaths.clear(); youngDeaths.clear(); births.clear(); hunting.clear(); residentDeaths.clear() }

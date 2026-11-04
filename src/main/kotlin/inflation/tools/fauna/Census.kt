@@ -76,7 +76,7 @@ import inflation.ecology.BurialWay
  * food sources, [printChoices] the groups' plan counts), so each is called once a year.
  */
 class Census(private val sim: HexSim) {
-    init { sim.stats.bandSplits = true }
+    init { sim.stats.census = true; sim.stats.bandSplits = true }
 
     private val hw = sim.hw
     private val hex = sim.hex

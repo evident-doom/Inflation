@@ -124,7 +124,7 @@ class WaysEvolution(private val role: WaysKind, private val movers: List<SharedM
     class Result(val fitness: DoubleArray, val note: String)
 
     fun evaluate(cfg: WorldConfig, years: Int, variants: Array<Mlp>): Result {
-        val run = freshSim(cfg, Catalogue.learned.distinct())
+        val run = freshSim(cfg, Catalogue.learned.distinct()).also { it.stats.census = inflation.Config.flag(inflation.Config.Key.CENSUS, false) }
         movers?.let { ms -> val ps = ms.map { MoverPolicy(it, null, { 0f }, { 0 }) }; for (s in Catalogue.learned) run.groups.policies[s] = ps[Role.of(s).ordinal] }
         val steps = years * cfg.stepsPerYear
         if (role == WaysKind.BANDS) {

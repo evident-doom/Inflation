@@ -89,8 +89,8 @@ internal fun HexGroups.eatTheWeek(w: ForageWeek) {
             band.sodiumShort = if (sodiumNeed > 0f) short / sodiumNeed else 0f
             eaten *= saltFeeds(short, sodiumNeed, tuning.saltLack)
         }
-        stats.tally(Tally.of(s, Tally.OfKind.MEAT_EATEN), ateMeat.toInt())
-        stats.tally(Tally.of(s, Tally.OfKind.PLANTS_EATEN), (eaten - ateMeat).toInt())
+        stats.keep(Tally.of(s, Tally.OfKind.MEAT_EATEN), ateMeat.toInt())
+        stats.keep(Tally.of(s, Tally.OfKind.PLANTS_EATEN), (eaten - ateMeat).toInt())
         keepAndSpoil(w, got, plantKg, pelts)
         band.seedCorn = band.seedCornIn(g)
         spare = 0f; meatEaten = ateMeatKg
@@ -207,11 +207,11 @@ private fun HexGroups.tallyForage(w: ForageWeek, meatEaten: Float) {
     val meatFed = meatEaten * w.worth(Food.BIG_GAME) + w.killFat * w.fatFeeds + fish * w.worth(Food.FISH)
     val smallFed = smallGot * w.worth(Food.SMALL_GAME); val scrapsFed = scraps * w.worth(Food.CARRION)
     val plantsFed = w.plantKind.sum()
-    stats.tally(Tally.diet(s, Tally.DietPart.ASKED), wantAll.toInt())
-    stats.tally(Tally.diet(s, Tally.DietPart.MEAT), meatFed.toInt())
-    stats.tally(Tally.diet(s, Tally.DietPart.SMALL_PREY), smallFed.toInt())
-    stats.tally(Tally.diet(s, Tally.DietPart.CARRION), scrapsFed.toInt())
-    stats.tally(Tally.diet(s, Tally.DietPart.PLANTS), plantsFed.toInt())
+    stats.keep(Tally.diet(s, Tally.DietPart.ASKED), wantAll.toInt())
+    stats.keep(Tally.diet(s, Tally.DietPart.MEAT), meatFed.toInt())
+    stats.keep(Tally.diet(s, Tally.DietPart.SMALL_PREY), smallFed.toInt())
+    stats.keep(Tally.diet(s, Tally.DietPart.CARRION), scrapsFed.toInt())
+    stats.keep(Tally.diet(s, Tally.DietPart.PLANTS), plantsFed.toInt())
     // For bands, the same by the kind of country they are in, and how they fared.
     if (band != null) tallyBandForage(w, band, smallFed, scrapsFed, plantsFed)
 }

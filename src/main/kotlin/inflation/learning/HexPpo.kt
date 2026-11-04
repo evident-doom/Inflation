@@ -473,7 +473,7 @@ object HexPpo {
      */
     fun imitate(kinds: List<Species>, models: List<SharedMover>, worlds: Int, size: Int, sampling: Sampling, maps: Maps) {
         val shown = (0 until worlds).toList().parallelStream().map { w ->
-            val run = freshSim(maps.world(40_000L + w, size, w), kinds)
+            val run = freshSim(maps.world(40_000L + w, size, w), kinds).also { it.stats.census = Config.flag(Config.Key.CENSUS, false) }
             val kept = ConcurrentLinkedQueue<Shown>()
             val stepsPerYear = WorldConfig().stepsPerYear
             val rates = kinds.associateWith { s -> val n = run.groups.groups.count { it.alive && it.species == s }; if (n == 0) 0f else min(1f, sampling.perKindYear.toFloat() / (n * stepsPerYear)) }
@@ -553,6 +553,8 @@ object HexPpo {
         private val run = freshSim(cfg, kinds).also {
             // (Kinds that dwindle get newcomers, so every kind stays in the data; checks run without them.)
             it.groups.newcomersOn = true; it.fauna.newcomersOn = true
+            // (Trainings keep no census, the report-only tallies: set `census=true` to have it.)
+            it.stats.census = Config.flag(Config.Key.CENSUS, false)
         }
         private var week = 0
         private val record = ConcurrentLinkedQueue<Choice>()
