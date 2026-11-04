@@ -48,6 +48,7 @@ internal fun HexGroups.keepAndSpoil(w: ForageWeek, got: EnumFloats<Store>, gotKg
     val depth = max(1f, band.dryWill)
     val daysPerKg = DRY_DAYS_PER_KG * depth
     val dried = min(g.stores[Store.FRESH] * dryShare, dryDays * dryRate / daysPerKg / freshKgPer)
+    band.driedLast = dried
     dialUse?.amount(DialSite.DRYING, band.dryWill, dried, min(g.stores[Store.FRESH], dryDays * dryRate / DRY_DAYS_PER_KG / freshKgPer))
     band.dryAsk = if (dryRate > 0f) g.stores[Store.FRESH] * dryShare * freshKgPer * daysPerKg / dryRate else 0f
     if (dried > 0f) {
@@ -156,10 +157,25 @@ internal fun GroupWorld.keepWorth(g: HexGroup, b: Band, home: Float): Float {
     return kept
 }
 
+/** How much faster than at 15 °C stores spoil at [t] °C: not at all at or below freezing ([spoil]). */
+internal fun spoilWarmth(t: Float) = if (t <= 0f) 0f else min(2.8f, exp(0.069f * (t - 15f)))
+
+/**
+ * What of a kill band [band]'s hunters reckon it can use, kg of its need, against [wantAll], its week's want, at [t] °C: what
+ * it eats before the fresh meat rots, its want as far as the meat keeps through the week (it keeps on average 1 / its rate a day
+ * of rotting, [HexSmallLife.CARRION_ROT], against the week's [days]), gorging included ([SURPLUS_EAT]), and what it dries, as
+ * much as it dried last week ([Band.driedLast]). The rest would rot: a band does not count on it.
+ */
+internal fun GroupWorld.killKeeps(band: Band, wantAll: Float, t: Float): Float {
+    val rot = HexSmallLife.CARRION_ROT * spoilWarmth(t)
+    val keeps = if (rot <= 0f) 1f else min(1f, 1f / (rot * days))
+    return (1f + SURPLUS_EAT) * wantAll * keeps + band.driedLast
+}
+
 /** Spoils a week of [stores] at [t] °C, each kind at its own rate; returns kg lost (weighed at [kgPer] for each kg of worth). */
 internal fun GroupWorld.spoil(stores: EnumFloats<Store>, t: Float, keep: Float = 1f, driedKeep: Float = 1f, kgPer: EnumFloats<Store>? = null): Float {
     var lost = 0f
-    val warm = if (t <= 0f) 0f else min(2.8f, exp(0.069f * (t - 15f)))
+    val warm = spoilWarmth(t)
     for (st in Store.entries) {
         val share = if (st == Store.FRESH) 1f - exp(-HexSmallLife.CARRION_ROT * warm * days) else min(1f,
             st.lostWeekly * keep * (if (st == Store.DRIED) driedKeep else 1f) * days / 7f)

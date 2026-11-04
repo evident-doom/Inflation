@@ -533,6 +533,8 @@ class Band(kinds: Int, totems: Int = kinds) {
     /** Person-days drying and skinning would have liked last week: what they ask of this week's plan (they follow the catch). */
     var dryAsk = 0f
     var skinAsk = 0f
+    /** Fresh meat and fish it dried last week, kg of its need: what its hunters reckon a kill's surplus can be kept by ([killKeeps]). */
+    @Transient var driedLast = 0f
     /**
      * Its choices: how much of its effort goes to each kind of food ([FOOD_TYPES]: big game, small
      * game, carrion, bones, fruit, roots, grass seed, small finds, fish), 1 the scaffold's, with no most. Big game's
