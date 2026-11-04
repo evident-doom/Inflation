@@ -114,7 +114,8 @@ internal fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
     val adults = fauna.adults; val young = fauna.young
     o.m = 0
     // (What a kill is worth to it: see below. Its butchers' skill grows with each kill, so once a pass.)
-    val credit = creditShare(band); val most = if (band == null) max(w.wantAll, w.gutKg) else (1f + SURPLUS_EAT) * w.wantAll
+    val credit = creditShare(band)
+    val most = if (band == null) max(w.wantAll, w.gutKg) else killKeeps(band, w.wantAll, w.weather.temperature[g.place])
     // (A beast weighs a kill also by the food the dead one would have taken from it: a week of its intake, as far as their
     // diets overlap, valued as its own. A rival of its own food is the more worth killing; a plant-eater is not one.)
     val spared = FloatArray(nk) { k -> if (band != null) 0f else { val ps = fauna.kinds[k]; w.d.overlap(ps.diet) * ps.dailyIntakeKg * days } }

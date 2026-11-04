@@ -313,6 +313,7 @@ class HexGroups(
         Phase("groups: meetings") { val t0 = System.nanoTime(); meet(it); meetNs += System.nanoTime() - t0 },
         Phase("groups: wearing paths") { wear.week(groups, hw, land, days); routes.week() },
         Phase("groups: hunting and foraging") { hunt(it) },
+        Phase("people: feasting on kills") { feastOnKills(it) },
         Phase("people: burning off") { burnOff(it) },
         Phase("people: robbing caches") { robCaches(it) },
         Phase("people: visiting kin") { visitKin(it) },
