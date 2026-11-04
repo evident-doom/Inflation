@@ -328,12 +328,18 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
         const val ROOTS_FROM = 0.8f
         /** Ripe grass seed at its peak, per kg/m² of herbs (a rich wild-cereal stand gives far more); days it stays on the stalk. */
         const val SEED_SHARE = 0.01f
-        /** Wild cereals: most of a place's grass they make up; grain per kg of their stand; days ears that hold their grain keep it;
+        /** Wild cereals: most of a place's grass they make up; days ears that hold their grain keep it;
          * yearly drift back to wild where a stand seeds itself; a sown field's yield per kg sown. */
         const val CEREAL_MAX = 0.2f
         /** Yearly share of the way wild cereal stands move toward what the climate suits. */
         const val STAND_SHIFT = 0.1f
-        const val GRAIN_SHARE = 0.1f
+        /**
+         * Ripe grain per kg of the wild-cereal grass standing at ripening: 0.25, a harvest index (grain over grain and straw)
+         * of 0.2. Wild einkorn, emmer and barley grown as dense stands had harvest indices of 0.17-0.22 (Preece et al. 2018,
+         * Journal of Ecology 106(3), progenitor means from raw data and by species), against 0.33 as lone plants; other wild
+         * grasses 0.11-0.12. Those were fertilised pot stands, so wild field stands may sit lower. It was 0.1 (index 0.09).
+         */
+        const val GRAIN_SHARE = 0.25f
         const val GRAIN_HOLD_DAYS = 120f
         const val WILD_DRIFT = 0.3f
         const val FIELD_YIELD = 6f
