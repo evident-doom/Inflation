@@ -534,7 +534,7 @@ class Band(kinds: Int, totems: Int = kinds) {
     var dryAsk = 0f
     var skinAsk = 0f
     /** Fresh meat and fish it dried last week, kg of its need: what its hunters reckon a kill's surplus can be kept by ([killKeeps]). */
-    @Transient var driedLast = 0f
+    var driedLast = 0f
     /** Fresh meat in its stores this week beyond what it can eat before it rots, kg of its need: set before a feast on the kill ([feastOnKills]). */
     @Transient var feastMeat = 0f
     /**
