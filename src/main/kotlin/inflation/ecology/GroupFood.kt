@@ -372,8 +372,8 @@ internal fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float
  * A party's week of [forage]: what it brings to it, worked out once (its hands, its want, how fast it handles each
  * kind of food, where it gathers), the odds of a kill of each kind on its way, and what it has got so far.
  */
-/** planTrace=true: a sample of bands' foraging weeks, what a day of each party's work brings ([forage]). */
-private val FORAGE_TRACE = Trace(Config.Key.PLAN_TRACE, "forage", share = 0.01f, most = 300)
+/** planTrace=true: a sample of bands' foraging weeks, what a day of each party's work brings ([forage]); thin enough to span a year. */
+private val FORAGE_TRACE = Trace(Config.Key.PLAN_TRACE, "forage", share = 0.005f, most = 400)
 /** planTrace=true: a sample of bands' hunting days, [forage]. */
 private val HUNT_TRACE = Trace(Config.Key.PLAN_TRACE, "hunt", share = 0.005f, most = 400)
 
