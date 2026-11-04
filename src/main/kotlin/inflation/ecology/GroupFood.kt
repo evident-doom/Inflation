@@ -413,7 +413,9 @@ internal class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, pack
     val pickDays = PLANT_HANDLING_DAYS_PER_KG * gs.tuning.plantHandling / gatherers / carry + eats
     // (People pick fruit a berry at a time, at the record's rate: see [BAND_FRUIT_DAYS_PER_KG].)
     val fruitDays = if (band != null) BAND_FRUIT_DAYS_PER_KG * gs.tuning.plantHandling / gatherers / carry + eats else pickDays
-    val seedDays = reapDaysPerKg(band, gs.tuning) / gatherers / carry + eats
+    // (Baskets carry more at a time, and the walk home is shorter a kilo for them, [walkDaysPerKm]; they do not reap, thresh
+    // or grind any faster: seed and grain are handled as fast with them as without.)
+    val seedDays = reapDaysPerKg(band, gs.tuning) / gatherers + eats
     // (A band's gatherers walk to the food and carry it home: party-days a km of the way out costs a fresh kg brought
     // home, there and back; see [GATHER_LOAD_KG]. An animal eats where it finds.)
     val walkDaysPerKm = if (band != null) 2f / (WALK_KM_PER_HOUR * Activity.WORK_HOURS * GATHER_LOAD_KG * carry * gatherers) else 0f

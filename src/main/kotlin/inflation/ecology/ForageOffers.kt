@@ -363,7 +363,7 @@ internal fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
                 reap(g, Place(p), sown, expected, haul)
                 traceStand(w, if (sown) "sown field" else "wild cereal", stand, mean, haul.mass)
                 if (band != null) { if (sown) w.fieldKg += haul.mass else w.wildKg += haul.mass
-                    w.grindDays += haul.mass * GRIND_DAYS_PER_KG * band.has(Tool.GRINDER) }
+                    w.grindDays += haul.mass * grindDaysPerKg(band) }
                 val fed = haul.kg * w.worth(Food.GRAIN)
                 w.plants += haul.kg; w.fed += haul.kg * w.feeds(Food.GRAIN); w.plantKind[Store.SEED] += fed; w.plantKg[Store.SEED] += haul.mass
                 w.plantFrom[PlantFrom.GRAIN] += fed
@@ -415,8 +415,10 @@ private fun GroupWorld.reap(g: HexGroup, p: Place, sown: Boolean, expected: Floa
  * meal ([GRIND_DAYS_PER_KG]), which make more of it ([seedValue]) but take longer, not less.
  */
 internal fun reapDaysPerKg(band: Band?, tuning: inflation.Tuning, stand: Float = REF_STAND_KG_M2) =
-    SEED_HANDLING_DAYS_PER_KG * tuning.plantHandling * standHandling(stand) / (1f + (band?.sickleGain(tuning) ?: 0f)) +
-        GRIND_DAYS_PER_KG * (band?.has(Tool.GRINDER) ?: 0f)
+    SEED_HANDLING_DAYS_PER_KG * tuning.plantHandling * standHandling(stand) / (1f + (band?.sickleGain(tuning) ?: 0f)) + grindDaysPerKg(band)
+
+/** Person-days band [band] takes to grind a kilo of seed or grain to meal: [GRIND_DAYS_PER_KG] with grinding stones, none without. */
+internal fun grindDaysPerKg(band: Band?) = GRIND_DAYS_PER_KG * (band?.has(Tool.GRINDER) ?: 0f)
 
 /**
  * How long a kilo of grain or seed standing [stand] kg/m² takes against one in a stand of [ref] (where the record's rate was
