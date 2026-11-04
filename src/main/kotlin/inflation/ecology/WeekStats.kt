@@ -509,6 +509,26 @@ object Tally {
     }
     fun foodTime(k: FoodTime) = TallyKey.raw("band foraging time:${k.label}")
     /**
+     * Bands' hungry weeks (fed under [Thresholds.HUNGRY] after eating), counted at the week's end ([countHungryWeek]) with what
+     * was unused: band-weeks, those whose hunters' party took up no food (their hands, tenths of people, idle), those with
+     * foods the gatherers ranked out (the best of them: its kind, and what it paid a day of handling against the cut-off the gatherers stopped at), those
+     * holding a herd, those with something in the larder, and the hunger deaths of the week's people (tenths of a person).
+     */
+    enum class Hungry(val label: String) {
+        WEEKS("hungry band-weeks"), HUNTERS_IDLE_WEEKS("hunters took up nothing"), HUNTERS_IDLE_HANDS("their idle hands"),
+        RANKED_OUT_WEEKS("gatherers ranked foods out"), RANKED_OUT_RATIO("best one's pay as a percent of the cut-off, summed"),
+        HERD_WEEKS("holding a herd"), HERD_HEADS("herd heads"), LARDER_WEEKS("larder not empty"), PEOPLE("people")
+    }
+    fun hungry(k: Hungry) = TallyKey.raw("hungry band-weeks:${k.label}")
+    /** Hungry band-weeks by the kind of food the gatherers' best ranked-out food was ([Hungry]). */
+    fun hungryBest(f: Food) = TallyKey.raw("hungry band-weeks:best ranked-out food ${f.label}")
+    /**
+     * What each kind of food paid the gatherers against the rate they stopped at, by month (first pass of the week, [noteUnused]):
+     * band-weeks it was on offer, those it was taken up in, and its best offer's pay a day of handling as a percent of the cut-off, summed.
+     */
+    enum class Pay(val label: String) { OFFERED("weeks offered"), TAKEN("weeks taken up"), PERCENT("pay percent of the cut-off, summed") }
+    fun pay(f: Food, month: Int, k: Pay) = TallyKey.raw("gatherers' food pay:${f.label}:month $month:${k.label}")
+    /**
      * Bands' grain, summed over the year: kilos as weighed, reaped from wild stands and from sown fields while foraging, and
      * of the crop brought in whole ([HexGroups.harvestCrop]); and tenths of people-days at each (foraging's include finding it
      * and walking to it), and of all of them grinding, at the quern's rate.

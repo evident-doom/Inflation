@@ -113,6 +113,7 @@ internal fun HexGroups.eatTheWeek(w: ForageWeek) {
         land.books?.let { bookEaten(it, gorge * meatShare(null), HexSmallLife.DUNG * gorge) }
     }
     g.fed = (eaten / wantAll).coerceIn(0f, 1f)
+    if (band != null && g.fed < Thresholds.HUNGRY) countHungryWeek(w, band)
     if (HUNT_DIAG && band == null) {
         val killed = meat + w.killFat > g.meatMet
         if (!killed) diag(s, HuntStep.PACK_WEEKS_NO_KILL, 1f)
@@ -197,6 +198,19 @@ internal class Meal(val wantAll: Float) {
         if (st == Store.SEED) ateSeed += fed
         return e
     }
+}
+
+/** Counts a hungry week of band [band] ([Tally.Hungry]): what it left unused while its people went short. Counts only. */
+private fun HexGroups.countHungryWeek(w: ForageWeek, band: Band) {
+    val g = w.g
+    fun add(k: Tally.Hungry, x: Int) { stats.tally(Tally.hungry(k), x) }
+    add(Tally.Hungry.WEEKS, 1); add(Tally.Hungry.PEOPLE, g.size)
+    if (w.idleHunters > 0f) { add(Tally.Hungry.HUNTERS_IDLE_WEEKS, 1); add(Tally.Hungry.HUNTERS_IDLE_HANDS, (10f * w.idleHunters).toInt()) }
+    if (w.rankedOut > 0) { add(Tally.Hungry.RANKED_OUT_WEEKS, 1); add(Tally.Hungry.RANKED_OUT_RATIO, (100f * w.bestOutPay).toInt())
+        w.bestOutFood?.let { f -> stats.tally(Tally.hungryBest(f), 1) } }
+    val heads = band.herds.herd.sum() + band.herds.youngHerd().sum()
+    if (heads >= 1f) { add(Tally.Hungry.HERD_WEEKS, 1); add(Tally.Hungry.HERD_HEADS, heads.toInt()) }
+    if (g.larder > 0.01f * g.dailyNeedKg) add(Tally.Hungry.LARDER_WEEKS, 1)
 }
 
 /** [forage]'s tallies of [w]'s week: its diet, [meatEaten] of its meat eaten, and for bands how they fared by the kind of country. */

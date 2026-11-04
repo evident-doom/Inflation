@@ -152,6 +152,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         if (left <= 0.01f * w.wantAll) break
         offerFoods(w, o)
         o.takeUp()
+        if (pass == 0 && w.band != null) noteUnused(w, o)
         if (HUNT_DIAG && pass == 0 && w.band == null && w.herds.isNotEmpty()) {
             val cut = o.gain[0] / o.spent[0]
             for (i in 0 until o.m) if (o.herd[i] >= 0) { diag(g.species, HuntStep.HERDS_ON_OFFER, 1f)
@@ -243,6 +244,29 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     if (HUNT_DIAG && w.band == null) packWeekDiag(w)
     preyFoughtBack(g, w.foughtBack, w.rnd)
     eatTheWeek(w)
+}
+
+/** Notes in [w], from the first pass's take-up [o], the hunters' hands that took up no food and the gatherers' foods ranked out (for [countHungryWeek]). */
+private fun HexGroups.noteUnused(w: ForageWeek, o: Offers) {
+    var hunterUsed = false; val taken = BooleanArray(o.m)
+    for (r in 0 until o.used) { val i = o.order[r]; taken[i] = true; if (o.who[i] == 0) hunterUsed = true }
+    w.idleHunters = if (hunterUsed) 0f else w.hands * w.party[0]
+    // (The best food the gatherers left out, by the pay they ranked it at against the rate they stopped at: below 1 it ranked out fairly.)
+    val cut = if (o.spent[1] > 0f) o.gain[1] / o.spent[1] else 0f
+    for (i in 0 until o.m) if (!taken[i] && o.who[i] == 1) { w.rankedOut++
+        if (o.profit[i] > w.bestOutPay) { w.bestOutPay = o.profit[i]; w.bestOutFood = o.type[i] } }
+    w.bestOutPay = if (cut > 0f) w.bestOutPay / cut else 0f
+    // (And for the census of what each kind of food pays them, by month: the best offer of each kind, and whether any was taken up.)
+    if (cut > 0f) {
+        val m = w.weather.date.month
+        for (f in Food.entries) {
+            var best = 0f; var any = false; var took = false
+            for (i in 0 until o.m) if (o.who[i] == 1 && o.type[i] == f) { any = true; if (o.profit[i] > best) best = o.profit[i]; if (taken[i]) took = true }
+            if (!any) continue
+            stats.tally(Tally.pay(f, m, Tally.Pay.OFFERED), 1); if (took) stats.tally(Tally.pay(f, m, Tally.Pay.TAKEN), 1)
+            stats.tally(Tally.pay(f, m, Tally.Pay.PERCENT), (100f * best / cut).coerceAtMost(1e6f).toInt())
+        }
+    }
 }
 
 /** Diagnostic (huntSteps): how a beast pack's week of foraging went, by the hunter ([HuntStep.PACK_WEEKS] and on). */
@@ -528,6 +552,8 @@ internal class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, pack
     var wildDays = 0f; var fieldDays = 0f; var wildKg = 0f; var fieldKg = 0f; var grindDays = 0f
     var digDays = 0f
     var room = 0f
+    /** Census of hungry weeks ([noteUnused]): hunters' hands whose party took up no food, and the gatherers' foods ranked out (their number, the best one's pay a day of handling and its kind). */
+    var idleHunters = 0f; var rankedOut = 0; var bestOutPay = 0f; var bestOutFood: Food? = null
     // A band fetches the hearth's firewood first and forages in the days left, as far as its week's plan gives them
     // (see [planWeek]); an animal forages all week.
     var fuelDays = 0f
