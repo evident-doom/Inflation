@@ -56,6 +56,10 @@ internal fun HexGroups.planDays(g: HexGroup, b: Band, weather: Weather, time: Ba
     given[Activity.CUSTOMS] = paid[0] * time.pace(Activity.CUSTOMS); given[Activity.ORNAMENTS] = paid[1] * time.pace(Activity.ORNAMENTS)
     left -= paid.sum()
     look?.let { it.customsAsked = owed[0]; it.customsPaid = paid[0]; it.ornamentsAsked = owed[1]; it.ornamentsPaid = paid[1] }
+    // Its ripe crop, reaped as it ripens: food in hand, before anything reckoned. (Not asked among the chores: [harvestCrop]
+    // takes what days are free, and a planning band holds its leisure, so none were.)
+    val reap = min(cropRipe(g, b) * reapDaysPerKg(b, tuning), left * time.pace(Activity.SOWING))
+    left -= reap / time.pace(Activity.SOWING)
     // What it holds by lives saved, tier by tier: survival now (the stores), then over generations (the houses and weirs,
     // the one that saves the most days for its days first), each as far as it asks this week ([planRates]); a tier has
     // what the one below it left.
@@ -67,6 +71,10 @@ internal fun HexGroups.planDays(g: HexGroup, b: Band, weather: Weather, time: Ba
     // with its other tools.)
     gruelRate(g, b, look).let { (r, a) -> rate[GRUEL] = r; ask[GRUEL] = a }
     toolRates(g, b, perDay, skip = if (rate[GRUEL] > 0f) Tool.GRINDER else null, look = look).let { (r, a) -> rate[TOOLS] = r; ask[TOOLS] = a }
+    // (Its sowing by the days its crop saves, less what living against its way of life would cost it: [sowRate]. Its ask
+    // for the sowing activity holds the reaping of its ripe crop too ([choreAsks]), given above: the sowing is the rest.)
+    ask[SOW] = max(0f, ask[SOW] - cropRipe(g, b) * reapDaysPerKg(b, tuning))
+    rate[SOW] = sowRate(g, b, perDay, ask[SOW], weather)
     val d = FloatArray(SCORED_ITEMS)
     // (The stores and the gruel while they save any lives; a house, a weir or its tools when they save more days than they take.)
     val order = (0 until LIVES_ITEMS).toList() + (LIVES_ITEMS until SCORED_ITEMS).sortedByDescending { rate[it] }
@@ -78,7 +86,9 @@ internal fun HexGroups.planDays(g: HexGroup, b: Band, weather: Weather, time: Ba
         if ((picked[i] != PlanPick.HOLD && rate[i] <= (if (i < LIVES_ITEMS) SAVES_NONE * g.size else 1f)) || left <= 0f) continue
         d[i] = min(ask[i], left * time.pace(acts[i])); left -= d[i] / time.pace(acts[i])
     }
-    for (i in 0 until SCORED_ITEMS) given[acts[i]] = d[i]
+    // (Added: the grinding stones and the other tools are both tools' days.)
+    for (i in 0 until SCORED_ITEMS) given[acts[i]] += d[i]
+    given[Activity.SOWING] += reap
     look?.let { l ->
         for (i in 0 until SCORED_ITEMS) l.items += ItemLook(SCORED_PICKS[i], SCORED_NAMES[i], if (i < LIVES_ITEMS) "lives" else "days", ask[i] / time.pace(acts[i]), rate[i],
             if (i < LIVES_ITEMS) SAVES_NONE * g.size else 1f, d[i] / time.pace(acts[i]), order.indexOf(i), l.pending[i])
@@ -120,6 +130,8 @@ internal fun HexGroups.planDays(g: HexGroup, b: Band, weather: Weather, time: Ba
     add(PlanTier.WEIRS_ASKED, days(Activity.WEIRS, ask[WEIRS])); add(PlanTier.WEIRS_HELD, days(Activity.WEIRS, d[WEIRS]))
     add(PlanTier.TOOLS_ASKED, days(Activity.TOOLS, ask[GRUEL] + ask[TOOLS])); add(PlanTier.TOOLS_HELD, days(Activity.TOOLS, d[GRUEL] + d[TOOLS]))
     add(PlanTier.GRUEL_ASKED, days(Activity.TOOLS, ask[GRUEL])); add(PlanTier.GRUEL_HELD, days(Activity.TOOLS, d[GRUEL]))
+    add(PlanTier.SOWING_ASKED, days(Activity.SOWING, ask[SOW])); add(PlanTier.SOWING_HELD, days(Activity.SOWING, d[SOW]))
+    add(PlanTier.REAPING_HELD, days(Activity.SOWING, reap))
     stats.tally(Tally.planTier(PlanTier.LIVES), (1e4f * (d[0] * rate[0] + d[GRUEL] * rate[GRUEL])).roundToInt())
     return given
 }
@@ -262,7 +274,8 @@ enum class PlanTier(val label: String) {
     ASKED_BEYOND("unreckoned asks not given"), LIVES("lives reckoned saved, 1/10000"),
     STORES_ASKED("stores asked"), STORES_HELD("stores held"), HOUSES_ASKED("houses asked"), HOUSES_HELD("houses held"),
     WEIRS_ASKED("weirs asked"), WEIRS_HELD("weirs held"),
-    TOOLS_ASKED("tools asked"), TOOLS_HELD("tools held"), GRUEL_ASKED("grinders for gruel asked"), GRUEL_HELD("grinders for gruel held")
+    TOOLS_ASKED("tools asked"), TOOLS_HELD("tools held"), GRUEL_ASKED("grinders for gruel asked"), GRUEL_HELD("grinders for gruel held"),
+    SOWING_ASKED("sowing asked"), SOWING_HELD("sowing held"), REAPING_HELD("reaping held")
 }
 
 /** planTrace=true: a sample of planning bands' weeks, how the year ahead reckons their stores ([planRates]), on stderr. */
@@ -271,15 +284,16 @@ internal val PLAN_TRACE = Trace(Config.Key.PLAN_TRACE, "plan", share = 0.01f, mo
 private val HOUSE_TRACE = Trace(Config.Key.PLAN_TRACE, "house", share = 0.02f, most = 400)
 private val WEIR_TRACE = Trace(Config.Key.PLAN_TRACE, "weir", share = 0.2f, most = 400)
 private val TOOL_TRACE = Trace(Config.Key.PLAN_TRACE, "tool", share = 0.02f, most = 400)
+private val SOW_TRACE = Trace(Config.Key.PLAN_TRACE, "sow", share = 0.005f, most = 400)
 
 /** The chores with no reckoning in lives yet ([planDays]): shared out at equal weights. */
 private val UNRECKONED_ACTS = arrayOf(Activity.TRAINING, Activity.MATERIALS, Activity.DRYING, Activity.SKINS, Activity.CACHING,
-    Activity.SOWING, Activity.PALISADE)
+    Activity.PALISADE)
 /**
- * The chores [planDays] holds by what they save ([planRates], [gruelRate], [toolRates]): the stores and the grinding stones
- * for gruel in lives (the first [LIVES_ITEMS]), then houses, weirs and tools in days.
+ * The chores [planDays] holds by what they save ([planRates], [gruelRate], [toolRates], [sowRate]): the stores and the
+ * grinding stones for gruel in lives (the first [LIVES_ITEMS]), then houses, weirs, tools and sowing in days.
  */
-private val SCORED_ACTS = arrayOf(Activity.FOOD, Activity.TOOLS, Activity.HOUSES, Activity.WEIRS, Activity.TOOLS)
+private val SCORED_ACTS = arrayOf(Activity.FOOD, Activity.TOOLS, Activity.HOUSES, Activity.WEIRS, Activity.TOOLS, Activity.SOWING)
 private val SCORED_ITEMS = SCORED_ACTS.size
 /** The scored items held by lives: the stores, then the grinding stones by their gruel. */
 private const val LIVES_ITEMS = 2
@@ -288,11 +302,51 @@ private const val GRUEL = 1
 private const val HOUSES = 2
 private const val WEIRS = 3
 private const val TOOLS = 4
+private const val SOW = 5
+
+/**
+ * Band [b]'s (group [g]'s) sowing in days (tier 2, as houses, weirs and tools, [planDays]): the [ask] days sow its seed
+ * ([SOW_DAYS_PER_KG]), and the crop grows [HexFood.FIELD_YIELD] times the seed, as food by its kit ([seedValue], cooked):
+ * the days of foraging at [perDay] the food beyond the seed would take, less the days to reap it ([reapDaysPerKg]), and less
+ * what living against its way of life would cost it ([livingAgainstDays]) where it holds another than farming; against the
+ * days of sowing. (Not weighed: a crop that fails or that others reap, the field yield as it went before.)
+ */
+private fun HexGroups.sowRate(g: HexGroup, b: Band, perDay: Float, ask: Float, weather: Weather): Float {
+    if (ask <= 0f || perDay <= 0f) return 0f
+    val sown = ask / SOW_DAYS_PER_KG
+    val raw = sown * g.storeKgPer[Store.SEED]
+    val food = raw * HexFood.FIELD_YIELD * seedValue(b) * b.cookValue(Food.GRAIN) - sown
+    val reap = raw * HexFood.FIELD_YIELD * reapDaysPerKg(b, tuning)
+    val against = if (b.heldLivelihood != Livelihood.FARMING) livingAgainstDays(g, b) else 0f
+    // (Grain is a store, eaten when foraging is poor: its food as days of foraging in the month a day's foraging brought it
+    // least, as a herd's is ([herdPays], [Band.forageReturn]); this week's with no month on record yet.)
+    val leanDay = min(perDay, b.forageReturn.filter { it >= 0f }.minOrNull()?.takeIf { it > 0f } ?: perDay)
+    val rate = (food / leanDay - reap - against) / ask
+    if (SOW_TRACE.wants(g.id.toLong(), weather.date.absoluteDay))
+        System.err.println(("sow trace: band %d, %s, %d people, holds %s (firmly %.2f), lives %s; sows %.0f kg in %.0f days; crop beyond the seed %.0f kg of need " +
+            "(%.0f days of foraging at %.2f kg a person-day in its leanest month), %.0f days to reap, living against its way %.0f days (raid deaths %.3f a person a year): %.2f (given days at 1 or more)")
+            .format(g.id, weather.date, g.size, b.heldLivelihood.name.lowercase(), b.livelihoodHold, b.livelihood().name.lowercase(), raw, ask, food,
+                food / leanDay, leanDay, reap, against, b.raidDeathRate, rate))
+    return rate
+}
+
+/**
+ * What band [b] (group [g]) reckons living against the way of life it holds would cost it, in days of work: seen to keep
+ * none ([Band.shownLivelihood]), it is one custom further apart ([CUSTOMS]) from the bands of its own way, who fall on it the
+ * readier ([Regard.fightChance]: [CUSTOMS_HOSTILITY] of a custom's share more at most); its raid deaths, as it has lived
+ * them ([Band.raidDeathRate]), that much more, each a person's working generation of days ([DEATH_DAYS]), over the years it
+ * expects to keep the place ([keepYears]). (Not weighed: partners less readily exchanged, [Regard.weds], and trust.)
+ */
+private fun HexGroups.livingAgainstDays(g: HexGroup, b: Band) =
+    b.raidDeathRate * g.size * CUSTOMS_HOSTILITY / CUSTOMS * DEATH_DAYS * keepYears(b, stepsPerYear)
+
+/** Person-days a death costs a band: a person's working generation ([GENERATION_YEARS] of days). An estimate. */
+private const val DEATH_DAYS = GENERATION_YEARS * 365f
 /** [SCORED_ACTS]' items by name, for the viewer ([ItemLook]). */
-private val SCORED_NAMES = arrayOf("stores", "grinding stones for gruel", "houses", "weirs", "tools")
+private val SCORED_NAMES = arrayOf("stores", "grinding stones for gruel", "houses", "weirs", "tools", "sowing")
 /** [SCORED_ACTS]' and [UNRECKONED_ACTS]' items (the clothes last) as the player may pick them ([PlanItem]). */
-private val SCORED_PICKS = arrayOf(PlanItem.STORES, PlanItem.GRUEL, PlanItem.HOUSES, PlanItem.WEIRS, PlanItem.TOOLS)
-private val UNRECKONED_PICKS = arrayOf(PlanItem.TRAINING, PlanItem.MATERIALS, PlanItem.DRYING, PlanItem.SKINS, PlanItem.CACHING, PlanItem.SOWING,
+private val SCORED_PICKS = arrayOf(PlanItem.STORES, PlanItem.GRUEL, PlanItem.HOUSES, PlanItem.WEIRS, PlanItem.TOOLS, PlanItem.SOWING)
+private val UNRECKONED_PICKS = arrayOf(PlanItem.TRAINING, PlanItem.MATERIALS, PlanItem.DRYING, PlanItem.SKINS, PlanItem.CACHING,
     PlanItem.PALISADE, PlanItem.CLOTHES)
 /** Fewer lives than this a person are none saved: the rounding in the reckoning, not a difference. */
 private const val SAVES_NONE = 1e-6f

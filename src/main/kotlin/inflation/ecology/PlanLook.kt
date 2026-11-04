@@ -94,7 +94,7 @@ class DaysLook(val group: Int, val date: Date, val people: Int, val total: Float
 }
 
 /** The scored items [planDays] reckons ([DaysLook.pending]). */
-internal const val SCORED_ITEMS_SHOWN = 5
+internal const val SCORED_ITEMS_SHOWN = 6
 
 /** A chore with no reckoning yet ([planDays]): what it asked and what it was given, days. */
 class ChoreLook(val item: PlanItem, val name: String, val asked: Float, val given: Float)
