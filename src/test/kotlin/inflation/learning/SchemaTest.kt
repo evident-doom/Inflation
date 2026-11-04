@@ -101,7 +101,15 @@ class SchemaTest {
             HexFeatures.USUAL_AHEAD + 2 to "usual temperature, month 3 ahead",
             HexFeatures.PLANT_FOOD to "plant food:fruit",
             HexFeatures.PLANT_FOOD + 1 to "plant food:roots",
-            HexFeatures.PLANT_FOOD + 2 to "plant food:seed"
+            HexFeatures.PLANT_FOOD + 2 to "plant food:seed",
+            HexFeatures.KEEPS_OFF to "keeps off others' homes",
+            HexFeatures.TOWARD_RAID to "toward raid target",
+            HexFeatures.TOWARD_SALT to "toward salt",
+            HexFeatures.SOWN_HERE to "sown crop here",
+            HexFeatures.HERD_LOSS to "herd loss",
+            HexFeatures.UNLUCKY_CAMP to "unlucky camp",
+            HexFeatures.HOUSE_LEFT to "leaving house",
+            HexFeatures.FEAST_DRAW to "feast draw"
         )
         assertEquals(HexFeatures.size, named.size)
         for ((slot, name) in named) assertEquals(name, Schema.PLACE[slot], "feature slot $slot")

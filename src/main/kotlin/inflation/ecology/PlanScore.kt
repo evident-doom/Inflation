@@ -110,6 +110,17 @@ internal fun GroupPlanner.fillFeatures(f: FloatArray, c: PlanContext, t: PlaceTe
     g.band?.let { b ->
         gs.plantFood(g, b, p, f, Feature.PLANT_FOOD)
         if (!b.knows(h)) for (k in 0 until 3) f[Feature.PLANT_FOOD + k] *= 0.5f
+        // The pulls the hand-written score adds for a band ([bandPull]), which a network weighs as it learns.
+        val keepOff = c.keepOff
+        if (b.raidHex != h && keepOff != null && keepOff.binarySearch(h) >= 0) f[Feature.KEEPS_OFF] = 1f
+        f[Feature.TOWARD_RAID] = raidProgress(b, here, h)
+        val saltWeeks = saltWeeks(g, b, here, reach)
+        if (saltWeeks > 0f) f[Feature.TOWARD_SALT] = (1f - saltFeeds(b.sodiumShort, 1f, gs.tuning.saltLack)) * saltProgress(b, here, h, reach)
+        val sown = cropHarvestWeeks(g, b, h); f[Feature.SOWN_HERE] = sown / (1f + sown)
+        val lost = herdLoss(g, b, p); f[Feature.HERD_LOSS] = lost / (1f + lost)
+        if (h == b.unluckyHex) f[Feature.UNLUCKY_CAMP] = 1f
+        if (b.leavingHouse > 0f && h != b.houseHex) f[Feature.HOUSE_LEFT] = b.leavingHouse / (1f + b.leavingHouse)
+        f[Feature.FEAST_DRAW] = feastDraw(g, b, p, h, c.sensed)
     }
     // What it remembers of this hex: in this season, or failing that in any.
     val mem = g.memory
