@@ -227,7 +227,9 @@ internal fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
         // Grass seed must be reaped, threshed and ground: worth it only with the tools and the hands.
         // (The small seeds of wild grasses take longer a kilo than wild cereal's, [SMALL_SEED_SLOWER]; both must be found, as
         // fruit is.)
-        plant(Food.SEED, 0, seedReach, food.seeds[q], (seedQ - eats) * SMALL_SEED_SLOWER + eats + sought(food.seeds[q]) + walked(Food.SEED, seedWalk),
+        // (And as cereal is, a band reaps it the sooner the thicker it stands, [standHandling]: over the place, as the grass grows.)
+        val seedStand = if (band != null) standHandling(food.seeds[q], REF_SEED_STAND_KG_M2) else 1f
+        plant(Food.SEED, 0, seedReach, food.seeds[q], (seedQ - eats) * SMALL_SEED_SLOWER * seedStand + eats + sought(food.seeds[q]) + walked(Food.SEED, seedWalk),
             sought(food.seeds[q]), walked(Food.SEED, seedWalk))
         // Wild and sown cereals: reaped like grass seed, but richer where they stand. A band's reapers cut a kilo the
         // sooner the thicker it stands ([standHandling]): the wild stand as thick as its grain stands in it, a sown field
@@ -412,8 +414,11 @@ internal fun reapDaysPerKg(band: Band?, tuning: inflation.Tuning, stand: Float =
     SEED_HANDLING_DAYS_PER_KG * tuning.plantHandling * standHandling(stand) / (1f + (band?.sickleGain(tuning) ?: 0f)) +
         GRIND_DAYS_PER_KG * (band?.has(Tool.GRINDER) ?: 0f)
 
-/** How long a kilo of grain standing [stand] kg/m² takes against one in a stand of [REF_STAND_KG_M2]: its cutting by the ground covered. */
-internal fun standHandling(stand: Float) = 1f - REAP_CUT_SHARE + REAP_CUT_SHARE * REF_STAND_KG_M2 / stand.coerceAtLeast(1e-6f)
+/**
+ * How long a kilo of grain or seed standing [stand] kg/m² takes against one in a stand of [ref] (where the record's rate was
+ * taken: [REF_STAND_KG_M2] for wild cereal, [REF_SEED_STAND_KG_M2] for grass seed): its cutting by the ground covered.
+ */
+internal fun standHandling(stand: Float, ref: Float = REF_STAND_KG_M2) = 1f - REAP_CUT_SHARE + REAP_CUT_SHARE * ref / stand.coerceAtLeast(1e-6f)
 
 /** Of grain whose ears hold their grain at share [d], the share in what band [b] reaps: a sickle takes them more than those that shatter at a touch. */
 internal fun Band.reapedDomestic(d: Float): Float { val sel = SICKLE_SELECT * has(Tool.SICKLE); return d * (1f + sel) / (1f + sel * d).coerceAtLeast(1e-6f) }
