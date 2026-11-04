@@ -150,9 +150,13 @@ internal class Meal(val wantAll: Float) {
     private var room = Nourishment.PROTEIN_MOST * wantAll; private var protein = 0f; private var lost = 0f
     val leanLost get() = if (protein > 0f) lost / protein else 0f
 
-    /** Eats [got] (by [Store], kg of need, each weighing [gotKg]) and then [g]'s stores; with no [g], [got] alone. */
+    /**
+     * Eats [got] (by [Store], kg of need, each weighing [gotKg]) and then [g]'s stores; with no [g], [got] alone. What in the
+     * stores would spoil within days ([PERISHABLE]: fresh meat and fish, fruit) is eaten before the week's food, the oldest first.
+     */
     fun eat(got: EnumFloats<Store>, gotKg: EnumFloats<Store>, g: HexGroup?) {
         for (beyond in 0..1) {
+            if (g != null) for (st in PERISHABLE) g.stores[st] -= take(st, g.stores[st], g.storeKgPer[st], beyond == 1)
             for (st in EAT_ORDER) {
                 if (got[st] <= 0f) continue
                 val kgPer = gotKg[st] / got[st]; val e = take(st, got[st], kgPer, beyond == 1)
