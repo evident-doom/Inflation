@@ -124,6 +124,8 @@ class Band(kinds: Int, totems: Int = kinds) {
     @Transient var forecastTraced = false
     /** What moved food into its larder (below 0, out) this week by [LarderMove], kg ([larderMoved]): for the census, at [foresee]. */
     @Transient val larderFlow = FloatArray(LarderMove.entries.size)
+    /** The same by kind of store ([Store], [StoreFlow]), its own worth: for the census, at [foresee] ([storeMoved]). */
+    @Transient val storeFlow = FloatArray(Store.entries.size * StoreFlow.entries.size)
     /**
      * The share of its hands' days left in each month once its fire, shelters and food are held ([BandTime.vital]), a mean
      * over the years (below 0 till it has planned a week then): what its leanest month could give its herders ([keepHerds]).

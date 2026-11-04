@@ -371,6 +371,8 @@ object Tally {
     fun calibration(mind: Mind, bin: ForeseenBin, what: Calib) = TallyKey.raw("foreseen calibration ${mind.label}:${bin.label}:${what.label}")
     /** What moved bands' larders of mind [mind] in [season], by [why], person-days of the need before keeping warm ([Band.larderFlow]). */
     fun larderFlow(mind: Mind, season: Season, why: LarderMove) = TallyKey.raw("larder flow ${mind.label}:${season.name}:${why.label}")
+    /** What moved bands' stores of kind [store] in [season], by [why], person-days of the need before keeping warm ([Band.storeFlow]). */
+    fun storeFlow(store: Store, season: Season, why: StoreFlow) = TallyKey.raw("store flow ${store.name}:${season.name}:${why.label}")
     /** What a band's larder held when its people died of hunger, days of its need before keeping warm. */
     enum class LarderAt(val label: String, val below: Float) {
         EMPTY("under a day", 1f), SOME("1-10 days", 10f), FULL("10 days and over", Float.POSITIVE_INFINITY);

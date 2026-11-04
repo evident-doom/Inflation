@@ -25,6 +25,7 @@ import inflation.ecology.Mind
 import inflation.ecology.PlanTier
 import inflation.ecology.ForeseenBin
 import inflation.ecology.LarderMove
+import inflation.ecology.StoreFlow
 import inflation.ecology.MOVE_WEEKS
 import inflation.world.Season
 import inflation.ecology.DeathCause
@@ -466,6 +467,17 @@ class Census(private val sim: HexSim) {
                     100 * (lastYear[Tally.movedWeeks(m)] ?: 0) / (years * stepsPerYear).coerceAtLeast(1.0)) +
                 ", of those short of food before the move %.0f%%".format(100 * (lastYear[Tally.starvedMovedHungry(m)] ?: 0).toDouble() / (lastYear[Tally.starvedMoved(m)] ?: 0).coerceAtLeast(1))
         })
+        // And by the kind of store: what each kept, dried, ate and lost to spoiling, over all bands ([Band.storeFlow]).
+        run {
+            val years = (Mind.entries.sumOf { (lastYear[Tally.bandsMind(it, Tally.Bands.PEOPLE_WEEKS)] ?: 0).toDouble() } / stepsPerYear).coerceAtLeast(1e-9)
+            fun f(st: Store, why: StoreFlow, season: Season) = (lastYear[Tally.storeFlow(st, season, why)] ?: 0).toDouble() / years
+            println("bands' stores by kind, last year (days of a person's need a person a year, the year's and spring/summer/autumn/winter: " +
+                StoreFlow.entries.joinToString(", ") { it.label } + "): " + Store.entries.joinToString("; ") { st ->
+                    st.name.lowercase() + ": " + StoreFlow.entries.joinToString(", ") { why ->
+                        "%s %.1f (%s)".format(why.label, Season.entries.sumOf { f(st, why, it) }, Season.entries.joinToString("/") { "%.1f".format(f(st, why, it)) })
+                    }
+                })
+        }
         // Whether bands starve for moving camp or move for starving: how fed they were and what their larders held in the weeks
         // around a move ([moveCensus]).
         println("bands around camp moves, last year (by mind, weeks from the move, -$MOVE_WEEKS to $MOVE_WEEKS: share of the need eaten / larder days; and the moves counted): " + Mind.entries.joinToString("; ") { m ->

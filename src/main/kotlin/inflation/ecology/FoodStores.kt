@@ -27,9 +27,10 @@ internal fun HexGroups.keepAndSpoil(w: ForageWeek, got: EnumFloats<Store>, gotKg
         got[Store.GREASE] -= fed; gotKg[Store.GREASE] -= kg; got[Store.FRESH] += fed; gotKg[Store.FRESH] += kg
     }
     // What is left is kept; spare hands dry fresh meat and fish over the fire, as fast as their skill allows.
-    val unkept = g.larder
+    val unkept = g.larder; val unkeptStores = storesNow(g)
     for (st in Store.entries) addFood(g.stores, g.storeKgPer, st, got[st], gotKg[st])
     band.larderMoved(g, LarderMove.KEPT, g.larder - unkept)
+    band.storeMoved(g, StoreFlow.KEPT, unkeptStores)
     // (Racks in the sun dry little in wet weather; smoking over a slow fire works in any.)
     val sun = band.skill(Skill.STORE) / (1f + weather.precipitation[g.place] / DRY_RAIN_MM)
     val smoke = if (band.knowsSkill[Skill.SMOKING] && band.fire > 0f) band.skill(Skill.SMOKING) * min(1f, band.fire) else 0f
@@ -50,10 +51,12 @@ internal fun HexGroups.keepAndSpoil(w: ForageWeek, got: EnumFloats<Store>, gotKg
     dialUse?.amount(DialSite.DRYING, band.dryWill, dried, min(g.stores[Store.FRESH], dryDays * dryRate / DRY_DAYS_PER_KG / freshKgPer))
     band.dryAsk = if (dryRate > 0f) g.stores[Store.FRESH] * dryShare * freshKgPer * daysPerKg / dryRate else 0f
     if (dried > 0f) {
+        val undried = storesNow(g)
         val saltedNow = min(dried, salt / SALT_PER_KG); band.goods[Material.SALT] -= saltedNow * SALT_PER_KG
         val before = g.stores[Store.DRIED]; band.salted = (before * band.salted + saltedNow) / (before + dried)
         band.dryDepth = (before * band.dryDepth + dried * depth) / (before + dried)
         g.stores[Store.FRESH] -= dried; addFood(g.stores, g.storeKgPer, Store.DRIED, dried, dried * g.storeKgPer[Store.FRESH]); band.practise(if (salting >= max(sun, smoke)) Skill.SALTING else if (smoke > sun) Skill.SMOKING else Skill.STORE)
+        band.storeMoved(g, StoreFlow.DRIED, undried)
     }
     time.spendAtMost(Activity.DRYING, if (dried > 0f) dried * freshKgPer * daysPerKg / dryRate else 0f)
     time.release(Activity.DRYING)
@@ -70,7 +73,7 @@ internal fun HexGroups.keepAndSpoil(w: ForageWeek, got: EnumFloats<Store>, gotKg
     val kept = keepWorth(g, band, home)
     band.houseFoodWeek += kept; band.houseWeek[HouseWorth.KEPT_KG] += kept
     // (Pits sealed with clay and plaster keep the mice out.)
-    val unspoilt = g.larder
+    val unspoilt = g.larder; val unspoiltStores = storesNow(g)
     var rotten = spoil(g.stores, weather.temperature[g.place], 1f - PIT_KEEP * home, driedKeep(band), g.storeKgPer)
     val sealed = if (band.knowsSkill[Skill.SEALING]) 1f - SEAL_KEEP * band.skill(Skill.SEALING) else 1f
     if (home > 0f) {
@@ -83,6 +86,7 @@ internal fun HexGroups.keepAndSpoil(w: ForageWeek, got: EnumFloats<Store>, gotKg
     }
     rotten += infest(g, band, weather.temperature[g.place], 1f - home * (1f - sealed))
     band.larderMoved(g, LarderMove.SPOILT, g.larder - unspoilt)
+    band.storeMoved(g, StoreFlow.SPOILT, unspoiltStores)
     small.deposit(DeadPool.CARRION, g.place, Kg(rotten + unskinned))
 }
 

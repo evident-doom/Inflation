@@ -136,3 +136,14 @@ internal fun Band.larderMoved(g: HexGroup, why: LarderMove, kg: Float) {
 enum class LarderMove(val label: String) {
     RAIDED("raided"), KIN("kin"), GIFT("gift"), FEAST("feast"), ATE("ate"), KEPT("kept"), SPOILT("spoilt"), LEFT("left")
 }
+
+/** What moved a store of each kind ([Band.storeFlow]): the week's food kept, fresh meat and fish dried (out of fresh, into dried), eaten, spoilt. */
+enum class StoreFlow(val label: String) { KEPT("kept"), DRIED("dried"), ATE("ate"), SPOILT("spoilt") }
+
+/** Books in [Band.storeFlow] how group [g]'s stores moved for [why] since [before] (a copy of them then). */
+internal fun Band.storeMoved(g: HexGroup, why: StoreFlow, before: FloatArray) {
+    for (st in Store.entries) storeFlow[st.ordinal * StoreFlow.entries.size + why.ordinal] += g.stores[st] - before[st.ordinal]
+}
+
+/** A copy of group [g]'s stores, for [storeMoved]. */
+internal fun storesNow(g: HexGroup) = FloatArray(Store.entries.size) { g.stores[Store.entries[it]] }

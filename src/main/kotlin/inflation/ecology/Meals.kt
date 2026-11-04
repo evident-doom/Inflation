@@ -51,10 +51,11 @@ internal fun HexGroups.eatTheWeek(w: ForageWeek) {
         // (Salt hunger: its people eat meat for its sodium before anything else, as far as the kill and the larder have it. Salt
         // appetite is inborn: mammals short of sodium seek it out and prefer salty food unlearned, Denton 1982, The Hunger for Salt.)
         val sodiumNeed = SODIUM_A_PERSON_DAY * g.size * days
-        val stored = g.larder
+        val stored = g.larder; val storedKinds = storesNow(g)
         meal.eatForSodium(sodiumNeed / SODIUM_PER_KG_MEAT, got, plantKg, g)
         meal.eat(got, plantKg, g)
         band.larderMoved(g, LarderMove.ATE, g.larder - stored)
+        band.storeMoved(g, StoreFlow.ATE, storedKinds)
         band.leanLost = meal.leanLost
         // (Its weanlings get gruel as far as there is seed, eaten this week or still in store: their share of the meals is
         // already in its need, so they eat seed and the rest eat the rest in its stead.)
