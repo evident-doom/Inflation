@@ -227,9 +227,14 @@ internal fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
         // fruit is.)
         plant(Food.SEED, 0, seedReach, food.seeds[q], (seedQ - eats) * SMALL_SEED_SLOWER + eats + sought(food.seeds[q]) + walked(Food.SEED, seedWalk),
             sought(food.seeds[q]), walked(Food.SEED, seedWalk))
-        // Wild and sown cereals: reaped like grass seed, but richer where they stand.
-        val cereal = food.grain[q] + food.fieldGrain[q]
-        plant(Food.GRAIN, 0, seedReach, cereal, seedQ + sought(cereal) + walked(Food.GRAIN, seedWalk), sought(cereal), walked(Food.GRAIN, seedWalk))
+        // Wild and sown cereals: reaped like grass seed, but richer where they stand. A band's reapers cut a kilo the
+        // sooner the thicker it stands ([standHandling]): the wild stand as thick as its grain stands in it, a sown field
+        // (kind [FIELD_KIND]) as thick as it stands in the plot. (An animal eats the grain where it finds it.)
+        fun grainQ(stand: Float) = if (band != null) (seedQ - eats) * standHandling(stand) + eats else seedQ
+        val wild = food.grain[q]; val sown = food.fieldGrain[q]
+        plant(Food.GRAIN, 0, seedReach, wild, grainQ(food.wildStand(Place(q))) + sought(wild) + walked(Food.GRAIN, seedWalk), sought(wild), walked(Food.GRAIN, seedWalk))
+        if (sown > 0f) plant(Food.GRAIN, FIELD_KIND, seedReach, sown, grainQ(food.fieldStand(Place(q))) + sought(sown) + walked(Food.GRAIN, seedWalk),
+            sought(sown), walked(Food.GRAIN, seedWalk))
     }
     // Bands fish the river, the lake or the sea by their camp, as their skill and nets allow ([Band.fishing]); and gather
     // shellfish off the shore, which wants neither (kind [SHELLFISH_KIND] of the fish offered).
@@ -344,7 +349,7 @@ internal fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
                 else if (o.kind[i] == WEIR_KIND) fauna.water.weirFor(hw.placeHex[p], expected, weirAt(g, hw.placeHex[p])).let { w.fish += it; w.fished += it; w.fed += it * w.feeds(Food.FISH) }
                 else fauna.water.fishFor(hw.placeHex[p], expected, band?.fishing() ?: 1f, HexWater.Catch.FISH).let { w.fish += it; w.fished += it; w.fed += it * w.feeds(Food.FISH) }
             Food.GRAIN -> {
-                reap(g, Place(p), expected, haul)
+                reap(g, Place(p), o.kind[i] == FIELD_KIND, expected, haul)
                 val fed = haul.kg * w.worth(Food.GRAIN)
                 w.plants += haul.kg; w.fed += haul.kg * w.feeds(Food.GRAIN); w.plantKind[Store.SEED] += fed; w.plantKg[Store.SEED] += haul.mass
                 w.plantFrom[PlantFrom.GRAIN] += fed
@@ -353,14 +358,13 @@ internal fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
     }
 }
 
-/** [forage]'s reaping of wild or sown grain at place [p], [expected] kg a party could take: [out] gets the kilos it is worth, and weighs. */
-private fun GroupWorld.reap(g: HexGroup, p: Place, expected: Float, out: Haul) {
+/** [forage]'s reaping of the wild or ([sown]) the sown grain at place [p], [expected] kg a party could take: [out] gets the kilos it is worth, and weighs. */
+private fun GroupWorld.reap(g: HexGroup, p: Place, sown: Boolean, expected: Float, out: Haul) {
     val band = g.band
-    // (Sown fields are reaped first: their grain stands thick in one plot; then the wild stand.)
     val food = fauna.food
     val want = land.spread(p, Kg(expected)).v
-    val fromField = food.take(food.fieldGrain, p, KgM2(want)).v
-    val fromWild = food.take(food.grain, p, KgM2(want - fromField)).v
+    val fromField = if (sown) food.take(food.fieldGrain, p, KgM2(want)).v else 0f
+    val fromWild = if (sown) 0f else food.take(food.grain, p, KgM2(want)).v
     val taken = land.total(p, KgM2(fromField + fromWild)).v
     val took = taken * seedValue(band) * (band?.cookValue(Food.GRAIN) ?: 1f)
     out.kg = took; out.mass = taken
@@ -378,9 +382,17 @@ private fun GroupWorld.reap(g: HexGroup, p: Place, expected: Float, out: Haul) {
     }
 }
 
-/** Person-days to reap, thresh and clean a kilo of grain or grass seed: [SEED_HANDLING_DAYS_PER_KG] by hand, less with a sickle and grinding stones. */
-internal fun reapDaysPerKg(band: Band?, tuning: inflation.Tuning) =
-    SEED_HANDLING_DAYS_PER_KG * tuning.plantHandling / (1f + (band?.sickleGain(tuning) ?: 0f) + GRINDER_GAIN * (band?.has(Tool.GRINDER) ?: 0f))
+/**
+ * Person-days to reap, thresh and clean a kilo of grain or grass seed standing [stand] kg/m² where it grows:
+ * [SEED_HANDLING_DAYS_PER_KG] by hand in a stand of [REF_STAND_KG_M2], less with a sickle and grinding stones; the cutting
+ * share of it ([REAP_CUT_SHARE]) the longer the thinner the stand ([standHandling]).
+ */
+internal fun reapDaysPerKg(band: Band?, tuning: inflation.Tuning, stand: Float = REF_STAND_KG_M2) =
+    SEED_HANDLING_DAYS_PER_KG * tuning.plantHandling * standHandling(stand) /
+        (1f + (band?.sickleGain(tuning) ?: 0f) + GRINDER_GAIN * (band?.has(Tool.GRINDER) ?: 0f))
+
+/** How long a kilo of grain standing [stand] kg/m² takes against one in a stand of [REF_STAND_KG_M2]: its cutting by the ground covered. */
+internal fun standHandling(stand: Float) = 1f - REAP_CUT_SHARE + REAP_CUT_SHARE * REF_STAND_KG_M2 / stand.coerceAtLeast(1e-6f)
 
 /** Of grain whose ears hold their grain at share [d], the share in what band [b] reaps: a sickle takes them more than those that shatter at a touch. */
 internal fun Band.reapedDomestic(d: Float): Float { val sel = SICKLE_SELECT * has(Tool.SICKLE); return d * (1f + sel) / (1f + sel * d).coerceAtLeast(1e-6f) }
@@ -436,6 +448,8 @@ internal const val RUN_KIND = 3
  * fruit is picked ([BAND_FRUIT_DAYS_PER_KG]): pine nuts in the Great Basin gave some 840-1,400 kcal/h (Simms 1987, from memory).
  */
 internal const val MAST_KIND = 1
+/** The kind of [Food.GRAIN] offered for a sown field's grain (0 the wild stand's). */
+internal const val FIELD_KIND = 1
 
 /** What a kilo of reaped seed or grain feeds against a kilo of other food: raw, little; ground and baked, fully. */
 internal fun seedValue(band: Band?) = RAW_SEED + (1f - RAW_SEED) * (band?.has(Tool.GRINDER) ?: 0f)

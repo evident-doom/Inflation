@@ -58,7 +58,7 @@ internal fun HexGroups.planDays(g: HexGroup, b: Band, weather: Weather, time: Ba
     look?.let { it.customsAsked = owed[0]; it.customsPaid = paid[0]; it.ornamentsAsked = owed[1]; it.ornamentsPaid = paid[1] }
     // Its ripe crop, reaped as it ripens: food in hand, before anything reckoned. (Not asked among the chores: [harvestCrop]
     // takes what days are free, and a planning band holds its leisure, so none were.)
-    val reap = min(cropRipe(g, b) * reapDaysPerKg(b, tuning), left * time.pace(Activity.SOWING))
+    val reap = min(cropRipe(g, b) * cropReapDays(b), left * time.pace(Activity.SOWING))
     left -= reap / time.pace(Activity.SOWING)
     // What it holds by lives saved, tier by tier: survival now (the stores), then over generations (the houses and weirs,
     // the one that saves the most days for its days first), each as far as it asks this week ([planRates]); a tier has
@@ -73,7 +73,7 @@ internal fun HexGroups.planDays(g: HexGroup, b: Band, weather: Weather, time: Ba
     toolRates(g, b, perDay, skip = if (rate[GRUEL] > 0f) Tool.GRINDER else null, look = look).let { (r, a) -> rate[TOOLS] = r; ask[TOOLS] = a }
     // (Its sowing by the days its crop saves, less what living against its way of life would cost it: [sowRate]. Its ask
     // for the sowing activity holds the reaping of its ripe crop too ([choreAsks]), given above: the sowing is the rest.)
-    ask[SOW] = max(0f, ask[SOW] - cropRipe(g, b) * reapDaysPerKg(b, tuning))
+    ask[SOW] = max(0f, ask[SOW] - cropRipe(g, b) * cropReapDays(b))
     rate[SOW] = sowRate(g, b, perDay, ask[SOW], weather)
     val d = FloatArray(SCORED_ITEMS)
     // (The stores and the gruel while they save any lives; a house, a weir or its tools when they save more days than they take.)
@@ -307,7 +307,8 @@ private const val SOW = 5
 /**
  * Band [b]'s (group [g]'s) sowing in days (tier 2, as houses, weirs and tools, [planDays]): the [ask] days sow its seed
  * ([SOW_DAYS_PER_KG]), and the crop grows [HexFood.FIELD_YIELD] times the seed, as food by its kit ([seedValue], cooked):
- * the days of foraging at [perDay] the food beyond the seed would take, less the days to reap it ([reapDaysPerKg]), and less
+ * the days of foraging at [perDay] the food beyond the seed would take, less the days to reap it ([reapDaysPerKg], as thick as
+ * a field ripened in full stands), and less
  * what living against its way of life would cost it ([livingAgainstDays]) where it holds another than farming; against the
  * days of sowing. (Not weighed: a crop that fails or that others reap, the field yield as it went before.)
  */
@@ -316,7 +317,7 @@ private fun HexGroups.sowRate(g: HexGroup, b: Band, perDay: Float, ask: Float, w
     val sown = ask / SOW_DAYS_PER_KG
     val raw = sown * g.storeKgPer[Store.SEED]
     val food = raw * HexFood.FIELD_YIELD * seedValue(b) * b.cookValue(Food.GRAIN) - sown
-    val reap = raw * HexFood.FIELD_YIELD * reapDaysPerKg(b, tuning)
+    val reap = raw * HexFood.FIELD_YIELD * reapDaysPerKg(b, tuning, HexFood.FIELD_YIELD * HexFood.SEED_RATE)
     val against = if (b.heldLivelihood != Livelihood.FARMING) livingAgainstDays(g, b) else 0f
     // (Grain is a store, eaten when foraging is poor: its food as days of foraging in the month a day's foraging brought it
     // least, as a herd's is ([herdPays], [Band.forageReturn]); this week's with no month on record yet.)

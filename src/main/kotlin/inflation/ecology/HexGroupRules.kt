@@ -325,6 +325,18 @@ internal const val MAST_BITTER = 0.7f
 internal const val MAST_LEACH_DAYS_PER_KG = 1.2f
 internal const val SEED_HANDLING_DAYS_PER_KG = 0.5f
 /**
+ * The grain a cereal stand holds, kg/m² of the stand, at which [SEED_HANDLING_DAYS_PER_KG] holds, and the share of those
+ * days that is cutting or stripping the ears, the rest threshing, parching, winnowing and cleaning, which take as long a
+ * kilo however thick the stand ([reapDaysPerKg]). Cutting goes by the ground a reaper covers, so a kilo from a stand half
+ * as thick takes twice as long to cut. Harlan (1967, Archaeology 20: 197-201, from memory, unchecked) took some 2 kg of
+ * grain an hour from dense wild einkorn with a flint sickle or bare hands, some 0.08 days of 6 hours a kilo, a sixth of
+ * the whole; a stand of some 300 kg/ha, a dense one, is taken for his (the stand's thickness not recalled). A wild stand
+ * here holds about a tenth of its grass in grain ([HexFood.GRAIN_SHARE]), 0.02-0.06 kg/m² at its peak; a sown field
+ * [HexFood.FIELD_YIELD] times its seed, some 0.07.
+ */
+internal const val REF_STAND_KG_M2 = 0.03f
+internal const val REAP_CUT_SHARE = 0.17f
+/**
  * How many times as long a kilo the small seeds of wild grasses take as wild cereal grain ([SEED_HANDLING_DAYS_PER_KG],
  * fitted to wild wheat and barley): beaten into baskets, parched, winnowed and ground, small seeds return some 300-1,000
  * kcal/h, about 600 after they are found (Gremillion 2004, and Simms 1987 as consistent with it, both as cited in a review
