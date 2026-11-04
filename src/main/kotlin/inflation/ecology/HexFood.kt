@@ -98,6 +98,21 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
      */
     val fieldWorn = FloatArray(n)
     val fieldSoil = FloatArray(n) { 1f }
+    /**
+     * The share of each place's land under its sown field, as last sown ([sow]): kept after the year's sowing is struck off,
+     * so that the ripe crop still standing is reaped as a plot of its own, as thick as it stands there ([fieldStand]).
+     */
+    val fieldCover = FloatArray(n)
+    /**
+     * The ripe grain as it stands in the wild cereal at [p], kg/m² of the stand: the place's grain over the share of its grass
+     * that is wild cereal ([cereal]). A reaper cuts the stand, not the place ([reapDaysPerKg]).
+     */
+    fun wildStand(p: Place): Float = if (cereal[p] > 0f) grain[p] / cereal[p] else grain[p]
+    /**
+     * The ripe grain as it stands in the sown field at [p], kg/m² of the field: the place's field grain over the share of its
+     * land sown ([fieldCover]); where that is not known (a save from before it was kept), a field as it would ripen in full.
+     */
+    fun fieldStand(p: Place): Float = if (fieldCover[p] > 0f) fieldGrain[p] / fieldCover[p] else FIELD_YIELD * SEED_RATE
     /** The share wild cereals would make of a place's grass in its climate, colder by [dT] and with [rainShare] of its rain. */
     private fun cerealShare(p: Place, dT: Float = 0f, rainShare: Float = 1f): Float {
         val h = land.hw.placeHex[p]
@@ -234,6 +249,7 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
         if (add <= 0f) return
         fieldDomestic[p] = (fieldDomestic[p] * field[p] + domestic * add) / (field[p] + add)
         field[p] += add
+        fieldCover[p] = sownShare(p)
     }
 
     /**
