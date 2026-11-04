@@ -45,7 +45,8 @@ internal fun HexGroups.keepAndSpoil(w: ForageWeek, got: EnumFloats<Store>, gotKg
     // (As much of it as the band chooses to, in the days its week gives drying. Fresh food is kept at what it feeds;
     // drying takes its time by what it weighs. What it would have liked to dry is what drying asks of next week's plan.)
     val freshKgPer = g.storeKgPer[Store.FRESH].coerceAtLeast(1e-6f)
-    val dryDays = time.leftFor(Activity.DRYING)
+    // (Fresh meat will not wait: drying takes days the chores after it would have had, but not those held first for warmth and food.)
+    val dryDays = time.leftBeforeLater(Activity.DRYING)
     // (All of it from the scaffold's 1 up; above 1 more of the same: dried for longer, a kilo taking that much more of its
     // days and keeping that much better ([driedKeep]).)
     val dryShare = band.dryWill.coerceIn(0f, 1f)
@@ -72,7 +73,7 @@ internal fun HexGroups.keepAndSpoil(w: ForageWeek, got: EnumFloats<Store>, gotKg
         g.stores[Store.FRESH] -= dried; addFood(g.stores, g.storeKgPer, Store.DRIED, dried, dried * g.storeKgPer[Store.FRESH]); band.practise(if (salting >= max(sun, smoke)) Skill.SALTING else if (smoke > sun) Skill.SMOKING else Skill.STORE)
         band.storeMoved(g, StoreFlow.DRIED, undried)
     }
-    time.spendAtMost(Activity.DRYING, if (dried > 0f) dried * freshKgPer * daysPerKg / dryRate else 0f)
+    time.spendBeforeLater(Activity.DRYING, if (dried > 0f) dried * freshKgPer * daysPerKg / dryRate else 0f)
     time.release(Activity.DRYING)
     band.skinAsk = SKIN_DAYS * pelts
     val unskinned = skinSmallGame(band, time, pelts)
