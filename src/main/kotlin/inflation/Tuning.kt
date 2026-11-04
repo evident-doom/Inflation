@@ -159,6 +159,34 @@ class Tuning(
     val denMonths = i("denMonths", 3)
     val denKm = f("denKm", 15f)
 
+    // The hurricane test (see [inflation.ecology.HexHurricane]); off by default.
+    /** How many storms roam the land (0 = none). */
+    val hurricanes = i("hurricane", 0)
+    /** How far a storm goes a week, hexes (a part of a hex is carried over). */
+    val hurricaneSpeed = f("hurricaneSpeed", 1f)
+    /** How many hexes around a storm's own it strikes. */
+    val hurricaneRadius = i("hurricaneRadius", 0)
+    /** 1: a group struck dies; 0: the storm kills no one (to see where groups stand without them dying). */
+    val hurricaneKills = i("hurricaneKills", 1)
+    /** 1: groups are told which hexes the storms will strike; 0: they are not (the storms kill as before). */
+    val hurricaneSeen = i("hurricaneSeen", 1)
+    /** How many weeks ahead the storms' paths are worked out and told. */
+    val hurricaneWarn = i("hurricaneWarn", 6)
+
+    // The recruiter test (see [inflation.ecology.HexGroups.recruit]); off by default; meant to be used with the hurricanes.
+    /** How many recruiters roam the land (0 = none). */
+    val recruiters = i("recruiters", 0)
+    /** How far a recruiter goes a week, hexes (0: it stays where it was set down). */
+    val recruiterSpeed = f("recruiterSpeed", 0f)
+    /** The share of its grown people a band gains at a recruiter, at least two, once a year. */
+    val recruiterShare = f("recruiterShare", 0.15f)
+    /** Days of its need the band's food stores are filled up to at a recruiter (0: not filled). */
+    val recruiterFood = f("recruiterFood", 0f)
+    /** How strongly a recruiter draws a band that may take recruits, in the appointment's pull (1 = as full as an appointment's). */
+    val recruiterPull = f("recruiterPull", 2f)
+    /** 1: bands feel the draw of the recruiters; 0: they do not (the recruiters give as before). */
+    val recruiterSeen = i("recruiterSeen", 1)
+
     // Bands' rites (see [rounds]).
     /** A band takes up no rite at a site within this of where it is, km (half a range across): a rite is somewhere it goes. */
     val roundArrivedKm = d("roundArrived", 50.0)

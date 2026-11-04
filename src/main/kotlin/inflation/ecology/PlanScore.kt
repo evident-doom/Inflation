@@ -64,6 +64,8 @@ internal fun GroupPlanner.fillFeatures(f: FloatArray, c: PlanContext, t: PlaceTe
     f[Feature.KILL_FEAR] = gs.fauna.afraid(p)
     if (gs.hex.distanceKm(h, here) <= gs.hex.hexKm * 1.01 && topKind[p] >= 0 && topKind[p] != s.index)
         f[Feature.STRONGER_HUNTER] = min(1f, topStrength[p] / (4f * gs.strength(g)).coerceAtLeast(1e-3f))
+    // (The hurricane test: how soon the storms strike the place, told to everyone alike; see [HexHurricane].)
+    gs.hurricanes?.let { if (it.told) f[Feature.STRONGER_HUNTER] = max(f[Feature.STRONGER_HUNTER], it.urgency(h)) }
     f[Feature.CLIMB] = ((gs.hw.placeElevationM[p] - gs.hw.placeElevationM[g.place]) / 1000f).coerceIn(-3f, 3f)
     f[Feature.EFFORT] = (d / reach.coerceAtLeast(1f)).coerceIn(0f, 1f)
     f[Feature.STAYS] = if (p == g.place) 1f else 0f
