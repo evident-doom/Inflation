@@ -19,14 +19,9 @@ import kotlin.math.sqrt
 
 // Bands' camps: moving camp at the pace of the slowest, what they carry and cache, and the fouling of a camp kept long.
 
-/** Extra plant food with sickles (seed) and baskets (all of it, and stores). (Grinding stones make more of seed, at a cost in days: [GRIND_DAYS_PER_KG].) */
+/** Extra plant food with sickles (seed), grinding stones (seed and roots) and baskets (all of it, and stores). */
 internal const val SICKLE_GAIN = 0.3f
-/**
- * Person-days to grind a kilo of grain or seed to meal on grinding stones (a saddle quern), days of 6 hours: some 0.5-1 kg of
- * meal an hour in grinding trials (from memory, unchecked), 1-2 hours a kilo; 1.5 taken. Grinding was among the longest of
- * the daily chores where grain was the staple, and the stones save no other work.
- */
-internal const val GRIND_DAYS_PER_KG = 0.25f
+internal const val GRINDER_GAIN = 0.4f
 internal const val BASKET_GAIN = 0.3f
 /**
  * Moving camp: an unloaded adult's walking pace over rough ground, km/h (on roads people walk about 5); a walking child's

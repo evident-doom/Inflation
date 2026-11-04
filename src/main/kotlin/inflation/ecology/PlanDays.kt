@@ -381,12 +381,11 @@ enum class ToolWork { PLANT_DAYS, SEED_DAYS, SEED_FOOD }
  * whole kit, the days of work a whole kit would save it a year as it lived its weeks ([Band.toolWork]) over the years a
  * kit lasts ([Tool.wearPerYear]; a tool too heavy to carry, as long as it keeps the place, [keepYears], if less), against
  * the days a whole kit takes to make ([Tool.makeDays] a person, by its craft's skill). Each saves what the sim has it do:
- * - a basket speeds all plant work (more carried a trip), a sickle the seed and grain ([reapDaysPerKg]): the days at
- *   that work less those it would take with a whole kit;
+ * - a basket speeds all plant work (more carried a trip), a sickle and grinding stones the seed and grain
+ *   ([reapDaysPerKg]): the days at that work less those it would take with a whole kit;
  * - spears and bows make more stalks end in a kill ([Band.huntEdge]), nets sweep more ground for small game and take
  *   more fish ([Band.snares], [Band.fishing]), grinding stones make more of the seed and grain it got ([seedValue]): the
- *   more food it would have got, as days of foraging at [perDay] (grinding stones less the days grinding it all would
- *   take, [GRIND_DAYS_PER_KG]).
+ *   more food it would have got, as days of foraging at [perDay].
  * (Grinding stones that their gruel holds in lives are weighed there, not here ([gruelRate], [skip]). Not weighed: spears and bows against beasts; the pick, for
  * wells, which no band yet builds. The clothes are the survival pass's ([survivalDays]). A bow's gain is taken at half its most, for
  * game of middling speed.)
@@ -413,9 +412,7 @@ private fun HexGroups.toolRates(g: HexGroup, b: Band, perDay: Float, skip: Tool?
         val aYear = when (t) {
             Tool.BASKET -> speeds(wk[ToolWork.PLANT_DAYS], BASKET_GAIN)
             Tool.SICKLE -> speeds(wk[ToolWork.SEED_DAYS], SICKLE_GAIN)
-            // (Grinding stones make more of the seed and grain, but grinding it all takes its days: [GRIND_DAYS_PER_KG] a kilo,
-            // the kilos as its food from them over what its kit made of a kilo.)
-            Tool.GRINDER -> more(wk[ToolWork.SEED_FOOD], seedValue(b), 1f) - wk[ToolWork.SEED_FOOD] / seedValue(b) * GRIND_DAYS_PER_KG * (1f - k)
+            Tool.GRINDER -> speeds(wk[ToolWork.SEED_DAYS], GRINDER_GAIN) + more(wk[ToolWork.SEED_FOOD], seedValue(b), 1f)
             Tool.SPEAR -> more(meatKg, WEAPONLESS + (1f - WEAPONLESS) * k, 1f)
             Tool.BOW -> more(meatKg, 1f + 0.5f * BOW_GAIN * k, 1f + 0.5f * BOW_GAIN)
             Tool.NET -> more(netKg, 1f + NET_GAIN * k, 1f + NET_GAIN)
