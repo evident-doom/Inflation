@@ -105,31 +105,18 @@ internal fun GroupPlanner.bandPull(g: HexGroup, b: Band, month: Int, h: Hex, her
     // It keeps off the known homes of bands it is not close to (unless set on raiding them).
     if (b.raidHex != h && keepOff != null && keepOff.binarySearch(h) >= 0) score -= TRESPASS_AVOID
     // A band set on a raid heads for its target.
-    if (!b.raidHex.none) {
-        val from = gs.hexKm(here, b.raidHex)
-        if (from > 0.0) score += RAID_PULL * ((from - gs.hexKm(h, b.raidHex)) / from).toFloat().coerceIn(-1f, 1f)
-    }
+    score += RAID_PULL * raidProgress(b, here, h)
     // A band short of sodium heads for the nearest salt it knows of, as a hungry animal seeks a lick. What it gets there
     // lasts it years (it keeps [KEEP_YEARS] of [YEAR_NEED]): a year of weeks without the share of its food that salt lack
     // spoils ([saltFeeds]), a year being as far ahead as a band foresees ([foreseenSurvival]), paid for by the weeks the
     // walk there takes, at its reach a week.
     // (Not where it can get salt already: on the shore or a salt pan, as [saltFeedsAt] has it.)
-    if (b.sodiumShort > 0f && !gs.hw.coast[here] && gs.land.salt[g.place] <= 0f) {
-        val salt = gs.bands.saltKnown(b, here)
-        val from = if (!salt.none) gs.hexKm(here, salt) else 0.0
-        if (from > gs.hex.hexKm) {
-            val weeks = max(1.0, from / reach).toFloat()
-            score += (1f - saltFeeds(b.sodiumShort, 1f, gs.tuning.saltLack)) * gs.stepsPerYear / weeks *
-                ((from - gs.hexKm(h, salt)) / min(from, reach.toDouble())).toFloat().coerceIn(-1f, 1f)
-        }
-    }
+    val saltWeeks = saltWeeks(g, b, here, reach)
+    if (saltWeeks > 0f) score += (1f - saltFeeds(b.sodiumShort, 1f, gs.tuning.saltLack)) * gs.stepsPerYear / saltWeeks * saltProgress(b, here, h, reach)
     // A band with food enough to feast others is drawn to where other bands are (gatherings).
     if (gs.peopleSlot >= 0 && b.holds(Tradition.FEASTS))
         gs.dialUse?.choice(DialSite.STORE_FEAST, b.storeShare, g.larder > b.storeAim * g.dailyNeedKg, g.larder > b.storeAimAt1 * g.dailyNeedKg)
-    if (gs.peopleSlot >= 0 && b.holds(Tradition.FEASTS) && g.larder > b.storeAim * g.dailyNeedKg) {
-        val others = knownHeads(gs.peopleSlot, p, h, sensed) - (if (p == g.place) g.size else 0)
-        if (others > 0f) score += GATHER_PULL * min(1f, others / GATHER_HEADS)
-    }
+    score += GATHER_PULL * feastDraw(g, b, p, h, sensed)
     // Bands keep to country they know; what lies beyond they know only as a sense of better land.
     // Strange country puts a band off, unless it is out to explore (then it draws it on).
     if (!b.knows(h)) score -= UNKNOWN_COUNTRY * (2f - b.explore)
@@ -143,13 +130,46 @@ internal fun GroupPlanner.bandPull(g: HexGroup, b: Band, month: Int, h: Hex, her
  * as a move's lost days are. The harvest is its share of the field as the sim would ripen it now ([HexFood.fieldExpect]),
  * in weeks of its food.
  */
-private fun GroupPlanner.cropPull(g: HexGroup, b: Band, h: Hex): Float {
+private fun GroupPlanner.cropPull(g: HexGroup, b: Band, h: Hex): Float = cropHarvestWeeks(g, b, h) / b.stayWeeks
+
+/** The harvest band [b] (group [g]) has sown and not yet reaped in hex [h], in weeks of its food (0 elsewhere): [cropPull] before it is spread over the weeks it keeps a camp. */
+internal fun GroupPlanner.cropHarvestWeeks(g: HexGroup, b: Band, h: Hex): Float {
     val f = b.sownPlace
     if (f.none || gs.hw.placeHex[f.i] != h) return 0f
     val food = gs.fauna.food
     val kg = min(b.sownKg, food.field[f] * gs.land.m2(f))
     if (kg <= 0f) return 0f
-    return kg * food.fieldExpect(f) * seedValue(b) / (g.dailyNeedKg.coerceAtLeast(1e-3f) * gs.days) / b.stayWeeks
+    return kg * food.fieldExpect(f) * seedValue(b) / (g.dailyNeedKg.coerceAtLeast(1e-3f) * gs.days)
+}
+
+/** How far going to hex [h] brings band [b] toward the hex it is set on raiding, from [here], -1 to 1 (0 if it is set on none). */
+internal fun GroupPlanner.raidProgress(b: Band, here: Hex, h: Hex): Float {
+    if (b.raidHex.none) return 0f
+    val from = gs.hexKm(here, b.raidHex)
+    return if (from > 0.0) ((from - gs.hexKm(h, b.raidHex)) / from).toFloat().coerceIn(-1f, 1f) else 0f
+}
+
+/** The weeks band [b] (group [g]) would walk from [here] to the salt it knows of, at its [reach] a week, if it is short of sodium and cannot get salt where it is and the salt is a hex off or more; else 0. */
+internal fun GroupPlanner.saltWeeks(g: HexGroup, b: Band, here: Hex, reach: Float): Float {
+    if (b.sodiumShort <= 0f || gs.hw.coast[here] || gs.land.salt[g.place] > 0f) return 0f
+    val salt = gs.bands.saltKnown(b, here)
+    val from = if (!salt.none) gs.hexKm(here, salt) else 0.0
+    return if (from > gs.hex.hexKm) max(1.0, from / reach).toFloat() else 0f
+}
+
+/** How far going to hex [h] brings band [b] toward the salt it knows of ([saltWeeks] is above 0), from [here], -1 to 1. */
+internal fun GroupPlanner.saltProgress(b: Band, here: Hex, h: Hex, reach: Float): Float {
+    val salt = gs.bands.saltKnown(b, here)
+    val from = gs.hexKm(here, salt)
+    return ((from - gs.hexKm(h, salt)) / min(from, reach.toDouble())).toFloat().coerceIn(-1f, 1f)
+}
+
+/** How many of the bands about a feasting band [b] (group [g]) would draw it to place [p] (in hex [h]), against [GATHER_HEADS], 0 to 1; 0 for a band that does not feast or has not the food to. */
+internal fun GroupPlanner.feastDraw(g: HexGroup, b: Band, p: Place, h: Hex, sensed: HexArray): Float {
+    if (gs.peopleSlot < 0 || !b.holds(Tradition.FEASTS)) return 0f
+    if (g.larder <= b.storeAim * g.dailyNeedKg) return 0f
+    val others = knownHeads(gs.peopleSlot, p, h, sensed) - (if (p == g.place) g.size else 0)
+    return if (others > 0f) min(1f, others / GATHER_HEADS) else 0f
 }
 
 /**
@@ -157,7 +177,7 @@ private fun GroupPlanner.cropPull(g: HexGroup, b: Band, h: Hex): Float {
  * short of forage there ([herdForage], the reckoning that feeds them), those that would die of it and the young that
  * would not be born ([keepHerds]' rule, its birth season taken over the year), at their meat.
  */
-private fun GroupPlanner.herdLoss(g: HexGroup, b: Band, p: Place): Float {
+internal fun GroupPlanner.herdLoss(g: HexGroup, b: Band, p: Place): Float {
     var kg = 0f
     for (k in b.herds.herd.indices) {
         val n = b.herds.herd[k] + 0.5f * b.herds.herdYoung.getOrElse(k) { 0f }

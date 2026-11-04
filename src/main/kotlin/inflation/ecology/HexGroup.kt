@@ -283,5 +283,21 @@ object HexFeatures : NamedSlots() {
      * gathering would go.
      */
     val PLANT_FOOD = block(listOf("plant food:fruit", "plant food:roots", "plant food:seed"))
+    /** For a band, 1 at a hex holding the known home of a band it is not close to (not the hex it is set on raiding): it keeps off ([TRESPASS_AVOID]). */
+    val KEEPS_OFF = one("keeps off others' homes")
+    /** For a band set on a raid, how far going there brings it toward its target, -1 to 1 (0 with none). */
+    val TOWARD_RAID = one("toward raid target")
+    /** For a band short of sodium, how far going there brings it toward the salt it knows of, -1 to 1, times how badly salt is lacked (0 when not short, or salt is to be had where it is). */
+    val TOWARD_SALT = one("toward salt")
+    /** For a band, the harvest it has sown and not reaped in the hex, in weeks of its food, x / (1 + x). */
+    val SOWN_HERE = one("sown crop here")
+    /** For a band with kept animals, what a camp there would cost them in weeks of the band's food, x / (1 + x). */
+    val HERD_LOSS = one("herd loss")
+    /** 1 at a hex where a death lately made the camp unlucky, among bands that leave their dead. */
+    val UNLUCKY_CAMP = one("unlucky camp")
+    /** For a planning band at its houses, what leaving them costs in weeks of its food a week, x / (1 + x), at every hex but the houses' (else 0). */
+    val HOUSE_LEFT = one("leaving house")
+    /** For a band that feasts and has the food to, the people about the place against a gathering's size, 0 to 1. */
+    val FEAST_DRAW = one("feast draw")
     const val LORE_MONTHS = 3
 }
