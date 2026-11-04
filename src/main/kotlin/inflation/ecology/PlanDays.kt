@@ -9,6 +9,7 @@ import inflation.world.Weather
 import kotlin.math.ln
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.pow
 import kotlin.math.roundToInt
 
 /**
@@ -310,13 +311,16 @@ private const val SOW = 5
  * the days of foraging at [perDay] the food beyond the seed would take, less the days to reap it ([reapDaysPerKg], as thick as
  * a field ripened in full stands), and less
  * what living against its way of life would cost it ([livingAgainstDays]) where it holds another than farming; against the
- * days of sowing. (Not weighed: a crop that fails or that others reap, the field yield as it went before.)
+ * days of sowing; the crop as its stores would keep it ([cropKept]). (Not weighed: a crop that fails or that others reap, the
+ * field yield as it went before.)
  */
 private fun HexGroups.sowRate(g: HexGroup, b: Band, perDay: Float, ask: Float, weather: Weather): Float {
     if (ask <= 0f || perDay <= 0f) return 0f
     val sown = ask / SOW_DAYS_PER_KG
     val raw = sown * g.storeKgPer[Store.SEED]
-    val food = raw * HexFood.FIELD_YIELD * seedValue(b) * b.cookValue(Food.GRAIN) - sown
+    // (The crop is eaten through the year till the next harvest, so kept half a year on the mean: less what its stores would
+    // lose of it in that time, where it keeps them now, [cropKept].)
+    val food = raw * HexFood.FIELD_YIELD * seedValue(b) * b.cookValue(Food.GRAIN) * cropKept(b) - sown
     val reap = raw * HexFood.FIELD_YIELD * reapDaysPerKg(b, tuning, HexFood.FIELD_YIELD * HexFood.SEED_RATE)
     val against = if (b.heldLivelihood != Livelihood.FARMING) livingAgainstDays(g, b) else 0f
     // (Grain is a store, eaten when foraging is poor: its food as days of foraging in the month a day's foraging brought it
@@ -330,6 +334,20 @@ private fun HexGroups.sowRate(g: HexGroup, b: Band, perDay: Float, ask: Float, w
                 food / leanDay, leanDay, reap, against, b.raidDeathRate, rate))
     return rate
 }
+
+/**
+ * The share of a harvest band [b] would still have to eat after keeping it half a year ([CROP_KEPT_WEEKS]), as its grain
+ * keeps where it keeps it now: its damp and mould ([Store.SEED]) and the mice ([SEED_RODENTS]), less in the storage pits of
+ * a house at home ([PIT_KEEP], [seedRodents]), and the insects in its stores as infested as they are now (at 15 °C, [infest]).
+ */
+internal fun cropKept(b: Band): Float {
+    val home = if (b.atHome) b.house else 0f
+    val weekly = Store.SEED.lostWeekly * (1f - PIT_KEEP * home) + SEED_RODENTS * seedRodents(home, b.sealedLetsThrough()) +
+        Store.SEED.pestWeekly * b.pests * (1f - home * (1f - b.sealedLetsThrough()))
+    return (1f - weekly.coerceIn(0f, 1f)).pow(CROP_KEPT_WEEKS)
+}
+/** Weeks a harvest is kept on the mean, eaten evenly through the year till the next one. */
+private const val CROP_KEPT_WEEKS = 26f
 
 /**
  * What band [b] (group [g]) reckons living against the way of life it holds would cost it, in days of work: seen to keep
