@@ -478,6 +478,16 @@ class Census(private val sim: HexSim) {
                     }
                 })
         }
+        // And what held bands' drying back: their way of drying or the days and drying rate ([Tally.Drying]).
+        run {
+            val years = (Mind.entries.sumOf { (lastYear[Tally.bandsMind(it, Tally.Bands.PEOPLE_WEEKS)] ?: 0).toDouble() } / stepsPerYear).coerceAtLeast(1e-9)
+            fun v(k: Tally.Drying) = (lastYear[Tally.drying(k)] ?: 0).toDouble()
+            val fresh = v(Tally.Drying.FRESH).coerceAtLeast(1.0); val weeks = v(Tally.Drying.WEEKS).coerceAtLeast(1.0)
+            println("bands' drying, last year (weeks with fresh meat or fish left; days of a person's need a person a year: fresh left, what their way would dry, what their days and rate let them, dried; way and rate weighed by the fresh left; share of the weeks held back by days): " +
+                "fresh left %.1f, by its way %.1f, by its days %.1f, dried %.1f; way %.2f, rate %.2f; held back by days %.0f%% of %.0f weeks".format(
+                    v(Tally.Drying.FRESH) / years, v(Tally.Drying.BY_WAY) / years, v(Tally.Drying.BY_DAYS) / years, v(Tally.Drying.DRIED) / years,
+                    v(Tally.Drying.WAY) / 10 / fresh, v(Tally.Drying.RATE) / 10 / fresh, 100 * v(Tally.Drying.DAYS_BOUND) / weeks, weeks))
+        }
         // Whether bands starve for moving camp or move for starving: how fed they were and what their larders held in the weeks
         // around a move ([moveCensus]).
         println("bands around camp moves, last year (by mind, weeks from the move, -$MOVE_WEEKS to $MOVE_WEEKS: share of the need eaten / larder days; and the moves counted): " + Mind.entries.joinToString("; ") { m ->
