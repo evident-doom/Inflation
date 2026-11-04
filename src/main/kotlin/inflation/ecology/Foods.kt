@@ -74,6 +74,12 @@ enum class Store(val lostWeekly: Float, val meat: Boolean, val protein: Float, v
 }
 /** The order a band eats its food in: what spoils first, first. */
 val EAT_ORDER = listOf(Store.FRESH, Store.FRUIT, Store.ROOTS, Store.DRIED, Store.SEED, Store.GREASE)
+/**
+ * Stores that spoil within days ([Store.FRESH] rots by half in three or four days at 15 °C, [Store.FRUIT] a tenth a week): a band
+ * eats what it holds of them before the week's food and forages that much less ([perishablesHeld]), as no one lets meat rot in
+ * camp while hunting more.
+ */
+val PERISHABLE = listOf(Store.FRESH, Store.FRUIT)
 
 /** Kinds of food a band sets its effort on (see [forage]): the [Food] kinds before grain (the last), which goes by grass seed's. */
 internal const val FOOD_TYPES = 9

@@ -191,9 +191,12 @@ private fun storeAimKg(g: HexGroup, band: Band, aimDays: Float = band.storeAim) 
 /**
  * What band [g] eats this week of the stores it holds beyond its aim, kg of its need, rather than forage for it: the same
  * share of the excess a week as it lays by of a shortfall ([STORE_FILL]). Food kept is food to eat: a band with more than it
- * means to keep lives on it and spends the days on other work.
+ * means to keep lives on it and spends the days on other work. ([held]: what of its larder counts, all of it unless said.)
  */
-internal fun storeSpare(g: HexGroup, band: Band) = max(0f, g.larder - storeAimKg(g, band)) * STORE_FILL
+internal fun storeSpare(g: HexGroup, band: Band, held: Float = g.larder) = max(0f, held - storeAimKg(g, band)) * STORE_FILL
+
+/** What group [g] holds of the stores that spoil within days ([PERISHABLE]), kg of its need: eaten first, foraged for that much less. */
+internal fun perishablesHeld(g: HexGroup) = PERISHABLE.sumOf { g.stores[it].toDouble() }.toFloat()
 
 /** Counts in [u] how band [b]'s store aim and its mending first set the food [work] it works to lay by ([storeWork]). */
 internal fun countStoreWork(u: DialUse, g: HexGroup, b: Band, work: Float) {
