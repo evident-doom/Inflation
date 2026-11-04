@@ -250,7 +250,7 @@ internal fun HexGroups.choreAsks(g: HexGroup, b: Band, date: Date, asks: EnumFlo
         ask(Activity.WELLS, wellAsk(g, b, h))
     }
     // (Its own crop, ripe, it brings in wherever it has come from: the field work is sowing's time.)
-    cropRipe(g, b).takeIf { it > 0f }?.let { asks[Activity.SOWING] += it * reapDaysPerKg(b, tuning) }
+    cropRipe(g, b).takeIf { it > 0f }?.let { asks[Activity.SOWING] += it * cropReapDays(b) }
     ask(Activity.DRYING, b.dryAsk)
     ask(Activity.SKINS, b.skinAsk)
 }

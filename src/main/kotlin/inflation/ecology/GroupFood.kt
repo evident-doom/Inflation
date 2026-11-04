@@ -144,7 +144,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     val w = ForageWeek(this, g, sweep, packKg, weather)
     huntingOdds(w)
     if (w.band == null) herdOdds(w)
-    val o = Offers(w.games + w.herds.size + g.path.size * 4 + (w.gatherAt.size + w.roundCamp.size) * 6 + 2)
+    val o = Offers(w.games + w.herds.size + g.path.size * 4 + (w.gatherAt.size + w.roundCamp.size) * 7 + 2)
     // The party plans its week on what it finds, eats, and if others got there first and it is still
     // hungry, looks again at what is left.
     for (pass in 0 until FORAGE_PASSES) {
@@ -491,8 +491,9 @@ internal class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, pack
     var fed = g.meatMet * feeds(Food.BIG_GAME)
     // (A band forages for what it will eat: its want less what its days at rest saved last week, as it reckons its week
     // will go ([Band.restSaved]; see [restedDays]). What it saved by resting is not foraged for and laid by again. And it
-    // eats down what it holds beyond the stores it aims to keep ([storeSpare]) rather than forage for that.)
-    val forageWant = max(0f, wantAll - (band?.let { it.restSaved + storeSpare(g, it) } ?: 0f))
+    // eats down what it holds beyond the stores it aims to keep ([storeSpare]) rather than forage for that, and first the fresh
+    // meat and fruit it holds, which would spoil before the stores' aim did them any good ([perishablesHeld]).)
+    val forageWant = max(0f, wantAll - (band?.let { b -> val p = perishablesHeld(g); b.restSaved + p + storeSpare(g, b, g.larder - p) } ?: 0f))
     // A band also works to fill its stores towards what it aims to keep (its choice); party-days spent this week.
     // (A band holding to demand sharing stores less: what it lays by is asked of it.)
     val aim = forageWant + (band?.let { b -> gs.storeWork(g, b).also { v -> gs.dialUse?.let { u -> countStoreWork(u, g, b, v) } } } ?: 0f)

@@ -3,6 +3,9 @@ package inflation.ecology
 import inflation.ecology.HexSmallLife.DeadPool
 import inflation.EnumFloats
 import inflation.Kg
+import inflation.Part
+import inflation.world.Hex
+import inflation.world.Weather
 import inflation.world.get
 import inflation.world.set
 import kotlin.math.exp
@@ -48,6 +51,7 @@ internal fun HexGroups.keepAndSpoil(w: ForageWeek, got: EnumFloats<Store>, gotKg
     val depth = max(1f, band.dryWill)
     val daysPerKg = DRY_DAYS_PER_KG * depth
     val dried = min(g.stores[Store.FRESH] * dryShare, dryDays * dryRate / daysPerKg / freshKgPer)
+    band.driedLast = dried
     dialUse?.amount(DialSite.DRYING, band.dryWill, dried, min(g.stores[Store.FRESH], dryDays * dryRate / DRY_DAYS_PER_KG / freshKgPer))
     band.dryAsk = if (dryRate > 0f) g.stores[Store.FRESH] * dryShare * freshKgPer * daysPerKg / dryRate else 0f
     if (dried > 0f) {
@@ -72,22 +76,72 @@ internal fun HexGroups.keepAndSpoil(w: ForageWeek, got: EnumFloats<Store>, gotKg
     val home = if (band.atHome) band.house else 0f
     val kept = keepWorth(g, band, home)
     band.houseFoodWeek += kept; band.houseWeek[HouseWorth.KEPT_KG] += kept
+    // (Fresh meat beyond what it can eat before it rots it sets before its neighbours, by its custom of feasting: it rots, what
+    // the feast leaves, once they have eaten ([feastOnKills]).)
+    band.feastMeat = if (band.byCustom(band.holds(Tradition.FEASTS), band.feastWill) > 0f)
+        max(0f, g.stores[Store.FRESH] - killKeeps(band, g.dailyNeedKg * days, weather.temperature[g.place]) + band.driedLast) else 0f
+    g.stores[Store.FRESH] -= band.feastMeat
     // (Pits sealed with clay and plaster keep the mice out.)
     val unspoilt = g.larder; val unspoiltStores = storesNow(g)
     var rotten = spoil(g.stores, weather.temperature[g.place], 1f - PIT_KEEP * home, driedKeep(band), g.storeKgPer)
-    val sealed = if (band.knowsSkill[Skill.SEALING]) 1f - SEAL_KEEP * band.skill(Skill.SEALING) else 1f
+    val sealed = band.sealedLetsThrough()
     if (home > 0f) {
-        for (st in listOf(Store.SEED, Store.FRUIT, Store.ROOTS)) {
+        for (st in listOf(Store.FRUIT, Store.ROOTS)) {
             val x = g.stores[st] * MICE * sealed * home * days / 7f
             g.stores[st] -= x
             rotten += x * g.storeKgPer[st]
         }
         if (band.knowsSkill[Skill.SEALING] && g.larder > 0f) band.practise(Skill.SEALING, 0.2f * PRACTICE)
     }
+    // (Mice and rats get into the grain and nuts wherever they are kept: storage pits at home keep them out the better, sealed
+    // the better still, [seedRodents].)
+    val gnawed = g.stores[Store.SEED] * SEED_RODENTS * seedRodents(home, sealed) * days / 7f
+    g.stores[Store.SEED] -= gnawed; rotten += gnawed * g.storeKgPer[Store.SEED]
     rotten += infest(g, band, weather.temperature[g.place], 1f - home * (1f - sealed))
     band.larderMoved(g, LarderMove.SPOILT, g.larder - unspoilt)
     band.storeMoved(g, StoreFlow.SPOILT, unspoiltStores)
+    g.stores[Store.FRESH] += band.feastMeat
     small.deposit(DeadPool.CARRION, g.place, Kg(rotten + unskinned))
+}
+
+/**
+ * Feasts on kills: a band holding more fresh meat than it can eat before it rots ([Band.feastMeat]) sets it before the bands
+ * within a day or two's walk ([VISIT_RINGS]), the nearest first, as much as [FEAST_KG] a guest by its will to feast; the guests
+ * take it home to eat first ([PERISHABLE]) and remember it, as at a feast at a meeting. What is left rots as fresh meat does
+ * ([spoil]). (A big kill is shared out across camps: Hadza meat goes to every household in camp and beyond.)
+ */
+@Part("people: feasting on kills")
+internal fun HexGroups.feastOnKills(weather: Weather) {
+    val hosts = groups.filter { g -> g.alive && (g.band?.feastMeat ?: 0f) > 0f }
+    if (hosts.isEmpty()) return
+    val byHex = HashMap<Hex, ArrayList<HexGroup>>()
+    for (g in groups) if (g.alive && g.band != null) byHex.getOrPut(hw.placeHex[g.place]) { ArrayList() } += g
+    for (host in hosts) {
+        val hb = host.band ?: continue
+        val keen = hb.byCustom(hb.holds(Tradition.FEASTS), hb.feastWill)
+        var left = min(hb.feastMeat, host.stores[Store.FRESH])
+        val h0 = hw.placeHex[host.place]
+        var ring = listOf(h0); val seen = hashSetOf(h0)
+        for (r in 0..VISIT_RINGS) {
+            for (h in ring) for (guest in byHex[h].orEmpty()) if (guest !== host && left > 0f) {
+                val meal = min(left, FEAST_KG * guest.size * keen)
+                if (meal <= 0f) continue
+                host.stores[Store.FRESH] -= meal; addFood(guest.stores, guest.storeKgPer, Store.FRESH, meal, meal * host.storeKgPer[Store.FRESH])
+                hb.larderMoved(host, LarderMove.FEAST, -meal); guest.band?.larderMoved(guest, LarderMove.FEAST, meal)
+                left -= meal
+                guest.band?.befriend(host.id, TIE_FEAST); hb.befriend(guest.id, 0.5f * TIE_FEAST)
+                stats.meeting(Met.KILL_FEASTS)
+            }
+            if (r == VISIT_RINGS || left <= 0f) break
+            ring = hex.nextRing(ring, seen)
+        }
+        // (What none ate rots, as it would have in its stores.)
+        val rot = min(left, host.stores[Store.FRESH]) * (1f - exp(-HexSmallLife.CARRION_ROT * spoilWarmth(weather.temperature[host.place]) * days))
+        host.stores[Store.FRESH] -= rot
+        hb.larderMoved(host, LarderMove.SPOILT, -rot); hb.storeFlow[Store.FRESH.ordinal * StoreFlow.entries.size + StoreFlow.SPOILT.ordinal] -= rot
+        small.deposit(DeadPool.CARRION, host.place, Kg(rot * host.storeKgPer[Store.FRESH]))
+        hb.feastMeat = 0f
+    }
 }
 
 /**
@@ -151,15 +205,48 @@ internal fun GroupWorld.keepWorth(g: HexGroup, b: Band, home: Float): Float {
     var kept = 0f
     for (st in Store.entries) if (st != Store.FRESH)
         kept += g.stores[st] * min(1f, st.lostWeekly * (if (st == Store.DRIED) driedKeep(b) else 1f) * days / 7f) * PIT_KEEP * more
-    val sealed = if (b.knowsSkill[Skill.SEALING]) 1f - SEAL_KEEP * b.skill(Skill.SEALING) else 1f
-    for (st in listOf(Store.SEED, Store.FRUIT, Store.ROOTS)) kept -= g.stores[st] * MICE * sealed * more * days / 7f
+    val sealed = b.sealedLetsThrough()
+    for (st in listOf(Store.FRUIT, Store.ROOTS)) kept -= g.stores[st] * MICE * sealed * more * days / 7f
+    // (And the grain and nuts the mice would not get at in its pits: [seedRodents] at a whole house against the houses it has.)
+    kept += g.stores[Store.SEED] * SEED_RODENTS * (seedRodents(home, sealed) - seedRodents(1f, sealed)) * days / 7f
     return kept
 }
+
+/** How much faster than at 15 °C stores spoil at [t] °C: not at all at or below freezing ([spoil]). */
+internal fun spoilWarmth(t: Float) = if (t <= 0f) 0f else min(2.8f, exp(0.069f * (t - 15f)))
+
+/**
+ * What of a kill band [band]'s hunters reckon it can use, kg of its need, against [wantAll], its week's want, at [t] °C: what
+ * it eats before the fresh meat rots, its want as far as the meat keeps through the week (it keeps on average 1 / its rate a day
+ * of rotting, [HexSmallLife.CARRION_ROT], against the week's [days]), gorging included ([SURPLUS_EAT]), and what it dries, as
+ * much as it dried last week ([Band.driedLast]). The rest would rot: a band does not count on it.
+ */
+internal fun GroupWorld.killKeeps(band: Band, wantAll: Float, t: Float): Float {
+    val rot = HexSmallLife.CARRION_ROT * spoilWarmth(t)
+    val keeps = if (rot <= 0f) 1f else min(1f, 1f / (rot * days))
+    return (1f + SURPLUS_EAT) * wantAll * keeps + band.driedLast
+}
+
+/** The share of the mice its pits let through that [this] band's sealing of them with clay and plaster still lets in ([SEAL_KEEP]). */
+internal fun Band.sealedLetsThrough() = if (knowsSkill[Skill.SEALING]) 1f - SEAL_KEEP * skill(Skill.SEALING) else 1f
+
+/**
+ * The share of [SEED_RODENTS] that gets into a band's grain and nuts kept in [home] of its houses' storage pits (the rest
+ * kept in bags and baskets about the camp), the pits [sealed] as its sealing lets through: pits keep out [PIT_KEEP] of them.
+ */
+internal fun seedRodents(home: Float, sealed: Float) = (1f - home) + home * (1f - PIT_KEEP) * sealed
+
+/**
+ * Share of a band's grain and nuts that mice and rats take a week where nothing keeps them out ([seedRodents]): some 10% a
+ * year. An estimate, from memory: losses in traditional grain stores run some 5-15% a year all told, rodents and insects
+ * together ([Store.pestWeekly], [infest]), and sealed pits and bins keep most of both out.
+ */
+internal const val SEED_RODENTS = 0.002f
 
 /** Spoils a week of [stores] at [t] °C, each kind at its own rate; returns kg lost (weighed at [kgPer] for each kg of worth). */
 internal fun GroupWorld.spoil(stores: EnumFloats<Store>, t: Float, keep: Float = 1f, driedKeep: Float = 1f, kgPer: EnumFloats<Store>? = null): Float {
     var lost = 0f
-    val warm = if (t <= 0f) 0f else min(2.8f, exp(0.069f * (t - 15f)))
+    val warm = spoilWarmth(t)
     for (st in Store.entries) {
         val share = if (st == Store.FRESH) 1f - exp(-HexSmallLife.CARRION_ROT * warm * days) else min(1f,
             st.lostWeekly * keep * (if (st == Store.DRIED) driedKeep else 1f) * days / 7f)
@@ -191,9 +278,12 @@ private fun storeAimKg(g: HexGroup, band: Band, aimDays: Float = band.storeAim) 
 /**
  * What band [g] eats this week of the stores it holds beyond its aim, kg of its need, rather than forage for it: the same
  * share of the excess a week as it lays by of a shortfall ([STORE_FILL]). Food kept is food to eat: a band with more than it
- * means to keep lives on it and spends the days on other work.
+ * means to keep lives on it and spends the days on other work. ([held]: what of its larder counts, all of it unless said.)
  */
-internal fun storeSpare(g: HexGroup, band: Band) = max(0f, g.larder - storeAimKg(g, band)) * STORE_FILL
+internal fun storeSpare(g: HexGroup, band: Band, held: Float = g.larder) = max(0f, held - storeAimKg(g, band)) * STORE_FILL
+
+/** What group [g] holds of the stores that spoil within days ([PERISHABLE]), kg of its need: eaten first, foraged for that much less. */
+internal fun perishablesHeld(g: HexGroup) = PERISHABLE.sumOf { g.stores[it].toDouble() }.toFloat()
 
 /** Counts in [u] how band [b]'s store aim and its mending first set the food [work] it works to lay by ([storeWork]). */
 internal fun countStoreWork(u: DialUse, g: HexGroup, b: Band, work: Float) {

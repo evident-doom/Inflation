@@ -533,6 +533,10 @@ class Band(kinds: Int, totems: Int = kinds) {
     /** Person-days drying and skinning would have liked last week: what they ask of this week's plan (they follow the catch). */
     var dryAsk = 0f
     var skinAsk = 0f
+    /** Fresh meat and fish it dried last week, kg of its need: what its hunters reckon a kill's surplus can be kept by ([killKeeps]). */
+    var driedLast = 0f
+    /** Fresh meat in its stores this week beyond what it can eat before it rots, kg of its need: set before a feast on the kill ([feastOnKills]). */
+    @Transient var feastMeat = 0f
     /**
      * Its choices: how much of its effort goes to each kind of food ([FOOD_TYPES]: big game, small
      * game, carrion, bones, fruit, roots, grass seed, small finds, fish), 1 the scaffold's, with no most. Big game's
@@ -950,7 +954,7 @@ class Band(kinds: Int, totems: Int = kinds) {
 
     /**
      * Gathering: the most of a plant food's stock in a place it can take in a week, by its skill. (Its tools do not raise it:
-     * a basket carries more a trip, a sickle reaps faster and grinding stones make meal of seed and nuts faster, all in the
+     * a basket carries more a trip and a sickle reaps faster, in the
      * days a kilo takes ([PLANT_HANDLING_DAYS_PER_KG], [reapDaysPerKg]); counted here as well, they were counted twice.
      * Harlan reaped wild einkorn at about 2 kg an hour by hand and 2.5 with a stone sickle: a speedup.)
      */

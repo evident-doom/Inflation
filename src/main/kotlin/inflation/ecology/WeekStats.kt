@@ -178,6 +178,7 @@ enum class Met(val label: String) {
     FAVOURS_HELD_BACK("favours held back"),
     FAVOURS_RETURNED("favours returned"),
     FEASTS("feasts"),
+    KILL_FEASTS("feasts on kills too big to eat before they rot"),
     FEASTS_WITH_BEER("feasts with beer"),
     FOOD_GIVEN("food given"),
     HUNGRY_BANDS_CHOSE_TO_MOVE("hungry bands chose to move"),
