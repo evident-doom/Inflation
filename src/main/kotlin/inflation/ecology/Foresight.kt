@@ -246,6 +246,12 @@ internal fun HexGroups.foresee(weather: Weather) {
             val kg = b.larderFlow[why.ordinal]; b.larderFlow[why.ordinal] = 0f
             if (kg != 0f) stats.tally(Tally.larderFlow(b.mind, weather.date.season, why), (kg / perDay).roundToInt())
         }
+        // (And by the kind of store: what spoils.)
+        for (st in Store.entries) for (why in StoreFlow.entries) {
+            val i = st.ordinal * StoreFlow.entries.size + why.ordinal
+            val kg = b.storeFlow[i]; b.storeFlow[i] = 0f
+            if (kg != 0f) stats.tally(Tally.storeFlow(st, weather.date.season, why), (kg / perDay).roundToInt())
+        }
         // (And by how many it foresaw dead, for the calibration against the deaths that came in the year after: [bookCalibration].)
         val bin = ForeseenBin.of(1f - g.foreseen)
         val row = b.foreseenAt * ForeseenBin.entries.size
