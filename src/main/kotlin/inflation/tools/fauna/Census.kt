@@ -586,6 +586,17 @@ class Census(private val sim: HexSim) {
                 100 * brought / asked, 100 * eaten / brought.coerceAtLeast(1.0), 100 * cs.sumOf { v(Tally.bandsIn(it, Tally.Bands.PLANTS)) } / asked))
             println("bands' plant food, last year (of food wanted, by what it feeds): " + PlantFrom.entries.joinToString(", ") { f ->
                 "%s %.1f%%".format(f.label, 100 * v(Tally.plantsFrom(f)) / asked) })
+            // (Grain by where it was reaped, by weight, and the people-days it took: foraging's include finding and walking to it;
+            // grinding, at the quern's rate, is within them.)
+            fun gr(k: Tally.Grain) = v(Tally.grain(k))
+            val personYears = cs.sumOf { v(Tally.bandsIn(it, Tally.Bands.PEOPLE_WEEKS)) } / stepsPerYear
+            val grainKg = gr(Tally.Grain.WILD_KG) + gr(Tally.Grain.FIELD_KG) + gr(Tally.Grain.CROP_KG)
+            val grainDays = (gr(Tally.Grain.WILD_DAYS) + gr(Tally.Grain.FIELD_DAYS) + gr(Tally.Grain.CROP_DAYS)) / 10
+            println(("bands' grain, last year (by weight; people-days): wild stands %.0f t, %.0f d; sown fields while foraging %.0f t, %.0f d; " +
+                "crop brought in %.0f t, %.0f d; of all the days grinding %.0f d; a person-year %.1f kg, %.2f d; a kg %.2f d").format(
+                gr(Tally.Grain.WILD_KG) / 1000, gr(Tally.Grain.WILD_DAYS) / 10, gr(Tally.Grain.FIELD_KG) / 1000, gr(Tally.Grain.FIELD_DAYS) / 10,
+                gr(Tally.Grain.CROP_KG) / 1000, gr(Tally.Grain.CROP_DAYS) / 10, gr(Tally.Grain.GRIND_DAYS) / 10,
+                grainKg / personYears.coerceAtLeast(1e-9), grainDays / personYears.coerceAtLeast(1e-9), grainDays / grainKg.coerceAtLeast(1e-9)))
             // (A fat kill is worth more than a lean one: when in the year bands kill, and how fat what they bring in is.)
             println("bands' kills of big game by month, last year (kills; fat in the meat brought in, by weight): " + (0 until Date.MONTHS_PER_YEAR).joinToString(", ") { m ->
                 val lean = v(Tally.bandKills(m, Tally.KillPart.LEAN_KG)); val fat = v(Tally.bandKills(m, Tally.KillPart.FAT_KG))

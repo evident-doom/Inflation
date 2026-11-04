@@ -498,6 +498,16 @@ object Tally {
         PLANT_SEEK("of it finding plant food"), PLANT_WALK("of it walking to plant food"), FED("food got, kg of need")
     }
     fun foodTime(k: FoodTime) = TallyKey.raw("band foraging time:${k.label}")
+    /**
+     * Bands' grain, summed over the year: kilos as weighed, reaped from wild stands and from sown fields while foraging, and
+     * of the crop brought in whole ([HexGroups.harvestCrop]); and tenths of people-days at each (foraging's include finding it
+     * and walking to it), and of all of them grinding, at the quern's rate.
+     */
+    enum class Grain(val label: String) {
+        WILD_KG("wild, kg"), FIELD_KG("sown, foraged, kg"), CROP_KG("crop brought in, kg"),
+        WILD_DAYS("wild, days"), FIELD_DAYS("sown, foraged, days"), CROP_DAYS("crop brought in, days"), GRIND_DAYS("grinding, days")
+    }
+    fun grain(k: Grain) = TallyKey.raw("bands' grain:${k.label}")
     /** How far a band's shelters stood at the week's end ([Band.shelter]): the first bin it falls [below]. The report's line. */
     enum class Hut(val label: String, val below: Float) {
         NONE("no hut", 0.5f), LIGHT("light hut", 1.05f), PART("part thatched", 1.5f), THATCHED("thatched", Float.POSITIVE_INFINITY);
