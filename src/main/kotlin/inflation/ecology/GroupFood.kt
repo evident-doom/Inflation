@@ -399,14 +399,15 @@ internal class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, pack
     val gutKg = s.massKg * (g.adults + 0.5f * g.young) * EATING_RATE * gs.days
     // Small game is found within a few paces of the way, not as far as the party can see; snare
     // lines and nets search it while no one is there.
-    val smallSweep = s.dailyTravelKm * gs.days * 2f * SMALL_SENSE_KM * sqrt(gatherHands / s.groupSize) / g.path.size.coerceAtLeast(1) * (band?.snares() ?: 1f)
+    // (A band's children snare and gather small game with the gatherers, as they gather plants: [CHILD_GATHER] of a grown hand.)
+    val gatherers = gatherHands + (if (band != null) CHILD_GATHER * g.young else 0f)
+    val smallSweep = s.dailyTravelKm * gs.days * 2f * SMALL_SENSE_KM * sqrt(gatherers / s.groupSize) / g.path.size.coerceAtLeast(1) * (band?.snares() ?: 1f)
     val smallCatch = smallCatch(s)
-    val smallDays = SMALL_HANDLING_DAYS_PER_KG / gatherHands * (band?.slowness(Skill.SMALL_GAME) ?: 1f) + eats
+    val smallDays = SMALL_HANDLING_DAYS_PER_KG / gatherers * (band?.slowness(Skill.SMALL_GAME) ?: 1f) + eats
     // Plant food: picked, dug or reaped by all hands, and carried home (baskets carry more at a time).
     val eatsPlants = d.fruit + d.roots > 0f
     val carry = 1f + BASKET_GAIN * (band?.has(Tool.BASKET) ?: 0f)
-    // (A band's children gather too, near camp and slower than grown hands: fruit, roots, small finds and seed.)
-    val gatherers = gatherHands + (if (band != null) CHILD_GATHER * g.young else 0f)
+    // (A band's children gather too, near camp and slower than grown hands: fruit, roots, small finds and seed: see [gatherers].)
     // (A band renders bones' grease where it gathers them: see [greaseOf].)
     val renderDays = if (band != null) BONE_RENDER_DAYS / gatherers.coerceAtLeast(1e-3f) else 0f
     val pickDays = PLANT_HANDLING_DAYS_PER_KG * gs.tuning.plantHandling / gatherers / carry + eats
