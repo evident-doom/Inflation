@@ -70,15 +70,18 @@ internal fun HexGroups.harvestCrop(g: HexGroup, b: Band, time: BandTime) {
     val f = b.sownPlace; val food = fauna.food
     val kg = land.total(f, food.take(food.fieldGrain, f, land.spread(f, Kg(min(ripe, left / perKg))))).v
     if (kg <= 0f) return
-    time.spend(Activity.SOWING, kg * perKg)
+    // (What it keeps back to sow again, as much as it sowed, is not ground: it is charged the grinding of the rest only.)
+    val grind = grindDaysPerKg(b); val ground = max(0f, kg - b.sownKg)
+    time.spend(Activity.SOWING, kg * (perKg - grind) + ground * grind)
     val worth = kg * seedValue(b) * b.cookValue(Food.GRAIN)
     val corn = b.seedCorn
     b.seedDomestic = (b.seedDomestic * corn + b.reapedDomestic(food.fieldDomestic[f]) * worth) / (corn + worth)
     b.seedCorn = corn + worth
     addFood(g.stores, g.storeKgPer, Store.SEED, worth, kg)
     stats.tally(Tally.of(g.species, Tally.OfKind.GRAIN_REAPED), worth.toInt())
-    stats.tally(Tally.grain(Tally.Grain.CROP_KG), kg.roundToInt()); stats.tally(Tally.grain(Tally.Grain.CROP_DAYS), (10f * kg * perKg).roundToInt())
-    stats.tally(Tally.grain(Tally.Grain.GRIND_DAYS), (10f * kg * GRIND_DAYS_PER_KG * b.has(Tool.GRINDER)).roundToInt())
+    stats.tally(Tally.grain(Tally.Grain.CROP_KG), kg.roundToInt())
+    stats.tally(Tally.grain(Tally.Grain.CROP_DAYS), (10f * (kg * (perKg - grind) + ground * grind)).roundToInt())
+    stats.tally(Tally.grain(Tally.Grain.GRIND_DAYS), (10f * ground * grind).roundToInt())
     note(g) { "brought in %.0f kg of its crop".format(kg) }
 }
 

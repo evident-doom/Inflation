@@ -64,6 +64,8 @@ class SavedStateTest {
         "land.plants.fertility",
         // (Tree seed is capped at what 5 kg/m² of trees give: where every wooded place is wooded past that, a year leaves it as it was.)
         "land.plants.treeSeed",
+        // (Fires people have set wait here only from the end of one step to the plants phase of the next: at the year's edges nothing may be waiting.)
+        "land.fire.lit",
     )
 
     @Test

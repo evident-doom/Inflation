@@ -64,6 +64,8 @@ internal fun GroupPlanner.fillFeatures(f: FloatArray, c: PlanContext, t: PlaceTe
     f[Feature.KILL_FEAR] = gs.fauna.afraid(p)
     if (gs.hex.distanceKm(h, here) <= gs.hex.hexKm * 1.01 && topKind[p] >= 0 && topKind[p] != s.index)
         f[Feature.STRONGER_HUNTER] = min(1f, topStrength[p] / (4f * gs.strength(g)).coerceAtLeast(1e-3f))
+    // (The hurricane test: how soon the storms strike the place, told to everyone alike; see [HexHurricane].)
+    gs.hurricanes?.let { if (it.told) f[Feature.STRONGER_HUNTER] = max(f[Feature.STRONGER_HUNTER], it.urgency(h)) }
     f[Feature.CLIMB] = ((gs.hw.placeElevationM[p] - gs.hw.placeElevationM[g.place]) / 1000f).coerceIn(-3f, 3f)
     f[Feature.EFFORT] = (d / reach.coerceAtLeast(1f)).coerceIn(0f, 1f)
     f[Feature.STAYS] = if (p == g.place) 1f else 0f
@@ -110,6 +112,17 @@ internal fun GroupPlanner.fillFeatures(f: FloatArray, c: PlanContext, t: PlaceTe
     g.band?.let { b ->
         gs.plantFood(g, b, p, f, Feature.PLANT_FOOD)
         if (!b.knows(h)) for (k in 0 until 3) f[Feature.PLANT_FOOD + k] *= 0.5f
+        // The pulls the hand-written score adds for a band ([bandPull]), which a network weighs as it learns.
+        val keepOff = c.keepOff
+        if (b.raidHex != h && keepOff != null && keepOff.binarySearch(h) >= 0) f[Feature.KEEPS_OFF] = 1f
+        f[Feature.TOWARD_RAID] = raidProgress(b, here, h)
+        val saltWeeks = saltWeeks(g, b, here, reach)
+        if (saltWeeks > 0f) f[Feature.TOWARD_SALT] = (1f - saltFeeds(b.sodiumShort, 1f, gs.tuning.saltLack)) * saltProgress(b, here, h, reach)
+        val sown = cropHarvestWeeks(g, b, h); f[Feature.SOWN_HERE] = sown / (1f + sown)
+        val lost = herdLoss(g, b, p); f[Feature.HERD_LOSS] = lost / (1f + lost)
+        if (h == b.unluckyHex) f[Feature.UNLUCKY_CAMP] = 1f
+        if (b.leavingHouse > 0f && h != b.houseHex) f[Feature.HOUSE_LEFT] = b.leavingHouse / (1f + b.leavingHouse)
+        f[Feature.FEAST_DRAW] = feastDraw(g, b, p, h, c.sensed)
     }
     // What it remembers of this hex: in this season, or failing that in any.
     val mem = g.memory

@@ -26,7 +26,9 @@ enum class DeathCause(override val label: String, override val shown: PlaceRecor
     ORPHANED("orphaned", PlaceRecord.Cause.HUNGER), DROWNED_CROSSING("drowned crossing", PlaceRecord.Cause.OTHER),
     RAIDS("raids", PlaceRecord.Cause.KILLED), PREY_FOUGHT_BACK("prey fought back", PlaceRecord.Cause.KILLED), RIVALS("rivals", PlaceRecord.Cause.KILLED),
     YOUNG_KILLED_BY_RIVALS("young killed by rivals", PlaceRecord.Cause.KILLED),
-    RESIDENT_HUNTERS("resident hunters", PlaceRecord.Cause.KILLED);
+    RESIDENT_HUNTERS("resident hunters", PlaceRecord.Cause.KILLED),
+    /** The hurricane test ([HexHurricane]): a group that ended its move where a storm stood, or crossed its reach on the way. */
+    HURRICANE("hurricane", PlaceRecord.Cause.KILLED), HURRICANE_CROSSING("hurricane crossing", PlaceRecord.Cause.KILLED);
 
     override fun toString() = label
 }

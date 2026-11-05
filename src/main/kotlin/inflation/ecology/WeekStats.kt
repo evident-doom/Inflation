@@ -2,6 +2,7 @@
 
 package inflation.ecology
 
+import inflation.Config
 import inflation.world.Biome
 import inflation.world.Season
 import java.util.TreeMap
@@ -70,8 +71,17 @@ class WeekStats {
     /** Whether the census's splits of bands (by country, clothing, way of living and so on: [BandSplit]) are booked in [hunting]: set by the census that reads them, as booking them costs a band-week some forty ledger merges. */
     var bandSplits = false
 
-    /** Counts [n] more of [key] in [hunting] (while [summedByThread] runs, in the thread's own sums first). */
-    fun tally(key: TallyKey, n: Int) = huntingSums.add(key, n)
+    /**
+     * Whether the census is kept: the report-only tallies ([tally], [meeting], the bands' time and splits). The model never
+     * reads them, and neither does the history; what the history and the nominal limits read is booked by [keep] and the
+     * ledgers of kills, deaths and births, which do not depend on this. Off in trainings (see [inflation.learning.HexPpo]).
+     */
+    @Volatile var census = Config.flag(Config.Key.CENSUS, true)
+
+    /** Counts [n] more of [key] in [hunting] when the census is kept (while [summedByThread] runs, in the thread's own sums first). */
+    fun tally(key: TallyKey, n: Int) { if (census) huntingSums.add(key, n) }
+    /** Counts [n] more of [key] in [hunting] whether the census is kept or not: only for what the history reads back ([Tally.diet], the meat and plants eaten, the kills, the hunt steps). */
+    fun keep(key: TallyKey, n: Int) = huntingSums.add(key, n)
     /** Counts [n] more kills of [s] in [kills] (as [tally] does). */
     fun killed(s: Species, n: Int) = killSums.add(s, n)
     private val huntingSums = ThreadSums(hunting)
@@ -88,9 +98,9 @@ class WeekStats {
     }
 
     /** Counts [n] more of [what] in [meetings]. */
-    fun meeting(what: Met, n: Int = 1) { metSums.addAndGet(what.ordinal, n); metSeen.set(what.ordinal, 1) }
+    fun meeting(what: Met, n: Int = 1) { if (!census) return; metSums.addAndGet(what.ordinal, n); metSeen.set(what.ordinal, 1) }
     /** Counts [n] more of [what] of [of] (a kind, a skill, a custom...) in [meetings]. */
-    fun meeting(what: Met.Of, of: String, n: Int = 1) { meetingLedger.merge(TallyKey.raw(what.key(of)), n, Int::plus) }
+    fun meeting(what: Met.Of, of: String, n: Int = 1) { if (!census) return; meetingLedger.merge(TallyKey.raw(what.key(of)), n, Int::plus) }
 
     /** Starts a new week (the children's ledger runs on until read). */
     fun clear() { kills.clear(); meetingLedger.clear(); for (i in 0 until Met.entries.size) { metSums.set(i, 0); metSeen.set(i, 0) }; deaths.clear(); adultDeaths.clear(); youngDeaths.clear(); births.clear(); hunting.clear(); residentDeaths.clear() }
@@ -155,6 +165,8 @@ enum class Met(val label: String) {
     BANDS_MADE_AN_APPOINTMENT("bands made an appointment"),
     BANDS_MAULED_AT_A_CARCASS("bands mauled at a carcass"),
     BANDS_MET("bands met"),
+    BANDS_RECRUITED("bands took recruits (the hurricane test's recruiters)"),
+    PEOPLE_RECRUITED("people recruited (the hurricane test's recruiters)"),
     BANDS_SOWED("bands sowed"),
     BANDS_TOLD_OF_COUNTRY("bands told of country"),
     BANDS_TOLD_OF_ROUTES("bands told of routes"),
@@ -498,6 +510,26 @@ object Tally {
         PLANT_SEEK("of it finding plant food"), PLANT_WALK("of it walking to plant food"), FED("food got, kg of need")
     }
     fun foodTime(k: FoodTime) = TallyKey.raw("band foraging time:${k.label}")
+    /**
+     * Bands' hungry weeks (fed under [Thresholds.HUNGRY] after eating), counted at the week's end ([countHungryWeek]) with what
+     * was unused: band-weeks, those whose hunters' party took up no food (their hands, tenths of people, idle), those with
+     * foods the gatherers ranked out (the best of them: its kind, and what it paid a day of handling against the cut-off the gatherers stopped at), those
+     * holding a herd, those with something in the larder, and the hunger deaths of the week's people (tenths of a person).
+     */
+    enum class Hungry(val label: String) {
+        WEEKS("hungry band-weeks"), HUNTERS_IDLE_WEEKS("hunters took up nothing"), HUNTERS_IDLE_HANDS("their idle hands"),
+        RANKED_OUT_WEEKS("gatherers ranked foods out"), RANKED_OUT_RATIO("best one's pay as a percent of the cut-off, summed"),
+        HERD_WEEKS("holding a herd"), HERD_HEADS("herd heads"), LARDER_WEEKS("larder not empty"), PEOPLE("people")
+    }
+    fun hungry(k: Hungry) = TallyKey.raw("hungry band-weeks:${k.label}")
+    /** Hungry band-weeks by the kind of food the gatherers' best ranked-out food was ([Hungry]). */
+    fun hungryBest(f: Food) = TallyKey.raw("hungry band-weeks:best ranked-out food ${f.label}")
+    /**
+     * What each kind of food paid the gatherers against the rate they stopped at, by month (first pass of the week, [noteUnused]):
+     * band-weeks it was on offer, those it was taken up in, and its best offer's pay a day of handling as a percent of the cut-off, summed.
+     */
+    enum class Pay(val label: String) { OFFERED("weeks offered"), TAKEN("weeks taken up"), PERCENT("pay percent of the cut-off, summed") }
+    fun pay(f: Food, month: Int, k: Pay) = TallyKey.raw("gatherers' food pay:${f.label}:month $month:${k.label}")
     /**
      * Bands' grain, summed over the year: kilos as weighed, reaped from wild stands and from sown fields while foraging, and
      * of the crop brought in whole ([HexGroups.harvestCrop]); and tenths of people-days at each (foraging's include finding it

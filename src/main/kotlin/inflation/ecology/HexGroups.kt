@@ -67,6 +67,14 @@ class HexGroups(
     uniformStart: Boolean = false,
 ) : GroupWorld(hw, land, fauna, days, seed) {
     val groups = ArrayList<HexGroup>()
+    /** The storms of the hurricane test, made at the first week when `t.hurricane` asks for any (not saved: a run from a save sets them down afresh). */
+    @Transient internal var hurricanes: HexHurricane? = null
+    /** The recruiters of the same test, which roam as the storms do but give: made at the first week when `t.recruiters` asks for any. */
+    @Transient internal var recruiters: HexHurricane? = null
+    /** The step each band last took recruits (not saved: a band that splits, or a run from a save, may take them again sooner). */
+    @Transient internal val recruitedAt = HashMap<Int, Int>()
+    /** The step now, for the recruiters' pull. */
+    @Transient internal var stepNow = 0
     internal var nextId = 0
     /**
      * The kinds that live as groups: the hunters other than the residents' ([Catalogue.residentHunters]), and people (plant-eaters
@@ -380,6 +388,8 @@ class HexGroups(
         for (a in sickPeople) a.fill(0f)
         for (g in groups) if (g.alive) g.band?.let { b -> for (d in Illness.entries) if (d.contagion > 0f) sickPeople[d.ordinal][g.place] += g.size * b.sick[d] }
         planner.takeStock()
+        stepNow = stepOf(date)
+        if (tuning.hurricanes > 0 || tuning.recruiters > 0) moveHurricanes(weather)
         // Packs set their ways for the week (bands set theirs as they forage, see [hunt]).
         setAnimalWays(weather)
         // Bands take stock of themselves and of the bands about them, for the people networks.
@@ -404,6 +414,63 @@ class HexGroups(
             g.place = Place(choice[k]); g.path = paths[k]!!; g.days = times[k]!!; g.meatMet = 0f; g.meatSpent = false
             crossWater(g, g.path)
         }
+        hurricanes?.let { storms -> if (storms.kills) for (g in groups) if (g.alive) hurricaneKill(g, storms, date) }
+        recruiters?.let { sites -> for (g in groups) if (g.alive && g.band != null && sites.struck(hw.placeHex[g.place]) && mayRecruit(g)) recruit(g) }
+    }
+
+    /** Sets the storms of the hurricane test down in the first week, and moves them on in every week after. */
+    private fun moveHurricanes(weather: Weather) {
+        if (tuning.hurricanes > 0) {
+            val storms = hurricanes ?: HexHurricane(hex, hw, seedBase, tuning.hurricanes, tuning.hurricaneSpeed, tuning.hurricaneRadius, tuning.hurricaneWarn,
+                tuning.hurricaneSeen != 0, tuning.hurricaneKills != 0).also { hurricanes = it }
+            storms.advance(weather)
+        }
+        if (tuning.recruiters > 0) {
+            // (Its own draws: the seed shifted, so that its start hexes and turns are not the storms'.)
+            val sites = recruiters ?: HexHurricane(hex, hw, seedBase + 1L, tuning.recruiters, tuning.recruiterSpeed, 0, 1, told = false, kills = false).also { recruiters = it }
+            sites.advance(weather)
+        }
+    }
+
+    /** Whether band group [g] may take recruits now: it has not for a year. */
+    internal fun mayRecruit(g: HexGroup): Boolean = recruitedAt[g.id]?.let { stepNow - it >= stepsPerYear } ?: true
+
+    /**
+     * Band [g] ends its move where a recruiter stands: it gains a share of its grown people (at least two) as first-span adults, and
+     * its food stores are filled up to [Tuning.recruiterFood] days of its need. Both come from nowhere, which is booked as such
+     * (a test artifact, like the storms).
+     */
+    private fun recruit(g: HexGroup) {
+        if (g.band == null) return
+        val n = max(2, (g.adults * tuning.recruiterShare).roundToInt())
+        g.adults += n
+        recruitedAt[g.id] = stepNow
+        land.books?.flow(Books.Stuff.MATTER, "recruits from beyond the map", (n * g.species.massKg).toDouble())
+        val fill = tuning.recruiterFood * g.dailyNeedKg - g.larder
+        if (fill > 0f) {
+            addFood(g.stores, g.storeKgPer, Store.DRIED, fill, fill)
+            land.books?.flow(Books.Stuff.MATTER, "recruiters' food from beyond the map", fill.toDouble())
+        }
+        stats.meeting(Met.BANDS_RECRUITED); stats.meeting(Met.PEOPLE_RECRUITED, n)
+    }
+
+    /** A group that ended its move where a storm strikes this week, or passed through its reach, dies whole (its herds and goods are left in the hex, as at any band's end). */
+    private fun hurricaneKill(g: HexGroup, storms: HexHurricane, date: Date) {
+        val arrived = storms.struck(hw.placeHex[g.place])
+        var crossed = false
+        if (!arrived) for (i in 0 until g.path.size - 1) if (storms.struck(g.path[i])) { crossed = true; break }
+        if (!arrived && !crossed) return
+        val adults = g.adults; val young = g.young
+        adultsDied(g, adults, stream(seedBase, Stream.HURRICANE, g.id.toLong(), date.absoluteDay))
+        g.young = 0
+        val cause = if (arrived) DeathCause.HURRICANE else DeathCause.HURRICANE_CROSSING
+        small.deposit(DeadPool.CARRION, g.place, Kg((adults + HexFauna.YOUNG_WEIGHT * young) * g.species.massKg))
+        stats.deaths.merge(Tally.of(g.species, cause), adults + young, Int::plus)
+        if (g.species.human) {
+            stats.adultDeaths.merge(Tally.of(g.species, cause), adults, Int::plus)
+            if (young > 0) stats.youngDeaths.merge(Tally.of(g.species, cause), young, Int::plus)
+        }
+        fauna.record?.group(g.species, g.place, cause, adults + young)
     }
 
     /** A crossing of open water on [path] drowns some of [g], the more the nearer the strait is to all they can swim. */
@@ -540,6 +607,18 @@ class HexGroups(
 
     /** How far going to hex [h] brings band [g] toward its appointment, -1..1, in its month (0 otherwise). */
     internal fun appointPull(g: HexGroup, b: Band, month: Int, h: Hex): Float {
+        val own = ownAppointPull(g, b, month, h)
+        val sites = recruiters ?: return own
+        if (tuning.recruiterSeen == 0 || !mayRecruit(g)) return own
+        // The recruiters draw as an appointment does, all year, as strongly as [Tuning.recruiterPull] has it: the nearest site, how far going to [h] brings it there.
+        val here = hw.placeHex[g.place]
+        val site = sites.nearest(here); if (site.none || site == here) return own
+        val fromHere = hexKm(here, site)
+        val pull = tuning.recruiterPull * ((fromHere - hexKm(h, site)) / fromHere).toFloat().coerceIn(-1f, 1f)
+        return if (kotlin.math.abs(pull) > kotlin.math.abs(own)) pull else own
+    }
+
+    private fun ownAppointPull(g: HexGroup, b: Band, month: Int, h: Hex): Float {
         val ap = b.appointment ?: return 0f
         val off = minOf(monthsFrom(ap.month, month), monthsFrom(month, ap.month))
         // The month before, it is on its way; without sky lore it also lingers a month after, the count being loose.
