@@ -24,8 +24,8 @@ class Outcomes {
         private fun grow(i: Int) {
             if (i >= size.size) { val m = max(2 * size.size, i + 1); size = size.copyOf(m); heads = heads.copyOf(m); gain = gain.copyOf(m); lost = lost.copyOf(3 * m); val old = luck.size; luck = luck.copyOf(m); fore = fore.copyOf(m); for (k in old until m) { luck[k] = Float.NaN; fore[k] = 1f } }
         }
-        fun set(w: Int, s: Float, h: Int, l: Float, f: Float, week: FloatArray?) {
-            val i = w - base; if (i < 0) return; grow(i); size[i] = s; heads[i] = h; luck[i] = l; fore[i] = f; n = max(n, i + 1)
+        fun set(w: Int, s: Float, headCount: Int, l: Float, f: Float, week: FloatArray?) {
+            val i = w - base; if (i < 0) return; grow(i); size[i] = s; heads[i] = headCount; luck[i] = l; fore[i] = f; n = max(n, i + 1)
             for (c in 0 until 3) lost[3 * i + c] = week?.get(c) ?: 0f
         }
         fun lost(w: Int, c: Int) = (w - base).let { if (it in 0 until n) lost[3 * it + c] else 0f }
