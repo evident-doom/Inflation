@@ -417,7 +417,7 @@ private fun GroupWorld.reap(g: HexGroup, p: Place, sown: Boolean, expected: Floa
  * days to grind it to meal ([GRIND_DAYS_PER_KG]), which make more of it ([seedValue]) but take longer, not less.
  */
 internal fun reapDaysPerKg(band: Band?, tuning: inflation.Tuning, stand: Float = REF_STAND_KG_M2) =
-    1f / (CUT_M2_PER_HOUR * (1f + (band?.sickleGain(tuning) ?: 0f)) * BandTime.WORK_HOURS * stand.coerceAtLeast(1e-6f)) +
+    1f / (CUT_M2_PER_HOUR * (1f + (band?.sickleGain(tuning) ?: 0f)) * Activity.WORK_HOURS * stand.coerceAtLeast(1e-6f)) +
         THRESH_DAYS_PER_KG + grindDaysPerKg(band)
 
 /** Person-days band [band] takes to grind a kilo of seed or grain to meal: [GRIND_DAYS_PER_KG] with grinding stones, none without. */
