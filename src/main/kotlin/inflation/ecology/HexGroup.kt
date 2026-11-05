@@ -299,5 +299,12 @@ object HexFeatures : NamedSlots() {
     val HOUSE_LEFT = one("leaving house")
     /** For a band that feasts and has the food to, the people about the place against a gathering's size, 0 to 1. */
     val FEAST_DRAW = one("feast draw")
+    /**
+     * The deaths it foresees there this week, going there and staying the week, by the rules that would kill it ([deathsAt]: hunger,
+     * thirst, cold, fire, flood, snow, plague, beasts, venom, illness and fouling; the crossings; the storms of the hurricane test),
+     * as ln(1 + survival steps) ([HexGroups.survivalSteps]) against [InputScale.DEATH_STEPS_LN]: what the hand-written score
+     * puts above all else, for a network to weigh as it learns. Not the cost of leaving a camp.
+     */
+    val DEATHS_FORESEEN = one("deaths foreseen")
     const val LORE_MONTHS = 3
 }
