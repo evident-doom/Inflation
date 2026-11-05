@@ -721,6 +721,13 @@ class Census(private val sim: HexSim) {
             share(Tally.FoodTime.PLANT_SEEK), share(Tally.FoodTime.PLANT_WALK), ft(Tally.FoodTime.FED) / 10 / foodDays.coerceAtLeast(1e-9)))
         fun hg(k: Tally.Hungry) = v(Tally.hungry(k))
         val hungryWeeks = hg(Tally.Hungry.WEEKS).coerceAtLeast(1.0)
+        fun sg(k: Tally.SmallGame) = v(Tally.smallGame(k))
+        val personDays = sg(Tally.SmallGame.PEOPLE_DAYS).coerceAtLeast(1.0)
+        // (The food asked is counted in kg of small game that would feed it, so the share is by what it feeds.)
+        println(("bands' small game, last year: children caught %.3f kg a person-day (in %.0f%% of band-weeks), the grown gatherers %.3f; " +
+            "together %.2f%% of the food asked, by what it feeds").format(sg(Tally.SmallGame.KIDS_KG) / 10 / personDays,
+            100 * sg(Tally.SmallGame.KIDS_WEEKS) / sg(Tally.SmallGame.WEEKS).coerceAtLeast(1.0), sg(Tally.SmallGame.GROWN_KG) / 10 / personDays,
+            100 * (sg(Tally.SmallGame.KIDS_KG) + sg(Tally.SmallGame.GROWN_KG)) / sg(Tally.SmallGame.ASKED).coerceAtLeast(1.0)))
         println(("bands' hungry weeks (fed under %.0f%% after eating), last year: %.0f of %.0f band-weeks (%.1f%%); in them: hunters took up no food %.0f%% (idle hands %.1f a week), " +
             "gatherers ranked foods out %.0f%% (the best one paid %.0f%% of the cut-off; best by kind: %s), a herd held %.0f%% (%.1f heads), something in the larder %.0f%%").format(
             100 * Thresholds.HUNGRY, hg(Tally.Hungry.WEEKS), ftWeeks, 100 * hg(Tally.Hungry.WEEKS) / ftWeeks,

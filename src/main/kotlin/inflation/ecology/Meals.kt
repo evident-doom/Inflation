@@ -114,6 +114,7 @@ internal fun HexGroups.eatTheWeek(w: ForageWeek) {
     }
     g.fed = (eaten / wantAll).coerceIn(0f, 1f)
     if (band != null && g.fed < Thresholds.HUNGRY) countHungryWeek(w, band)
+    if (band != null) countSmallGame(w)
     if (HUNT_DIAG && band == null) {
         val killed = meat + w.killFat > g.meatMet
         if (!killed) diag(s, HuntStep.PACK_WEEKS_NO_KILL, 1f)
@@ -198,6 +199,15 @@ internal class Meal(val wantAll: Float) {
         if (st == Store.SEED) ateSeed += fed
         return e
     }
+}
+
+/** Counts [w]'s band's small game this week, the children's catch apart ([Tally.SmallGame]). Counts only. */
+private fun HexGroups.countSmallGame(w: ForageWeek) {
+    fun add(k: Tally.SmallGame, x: Float) { stats.tally(Tally.smallGame(k), (10f * x).toInt()) }
+    stats.tally(Tally.smallGame(Tally.SmallGame.WEEKS), 1); stats.tally(Tally.smallGame(Tally.SmallGame.PEOPLE_DAYS), w.g.size * days)
+    if (w.kidsSmall > 0f) stats.tally(Tally.smallGame(Tally.SmallGame.KIDS_WEEKS), 1)
+    add(Tally.SmallGame.KIDS_KG, w.kidsSmall); add(Tally.SmallGame.GROWN_KG, w.smallGot - w.kidsSmall)
+    add(Tally.SmallGame.ASKED, w.wantAll / w.worth(Food.SMALL_GAME).coerceAtLeast(1e-6f))
 }
 
 /** Counts a hungry week of band [band] ([Tally.Hungry]): what it left unused while its people went short. Counts only. */

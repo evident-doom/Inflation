@@ -522,6 +522,15 @@ object Tally {
         HERD_WEEKS("holding a herd"), HERD_HEADS("herd heads"), LARDER_WEEKS("larder not empty"), PEOPLE("people")
     }
     fun hungry(k: Hungry) = TallyKey.raw("hungry band-weeks:${k.label}")
+    /**
+     * Bands' small game over the year ([countSmallGame]): band-weeks, people-days, the weeks the children's party caught any,
+     * tenths of kg caught by the children and by the grown gatherers, and tenths of kg of need the bands asked for.
+     */
+    enum class SmallGame(val label: String) {
+        WEEKS("band-weeks"), PEOPLE_DAYS("people-days"), KIDS_WEEKS("weeks the children caught any"),
+        KIDS_KG("children's catch, kg"), GROWN_KG("grown gatherers' catch, kg"), ASKED("asked, kg of need")
+    }
+    fun smallGame(k: SmallGame) = TallyKey.raw("bands' small game:${k.label}")
     /** Hungry band-weeks by the kind of food the gatherers' best ranked-out food was ([Hungry]). */
     fun hungryBest(f: Food) = TallyKey.raw("hungry band-weeks:best ranked-out food ${f.label}")
     /**
