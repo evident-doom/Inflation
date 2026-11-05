@@ -104,6 +104,22 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
      */
     val fieldCover = FloatArray(n)
     /**
+     * The share of each place's land cleared of its trees and scrub for fields ([sow] keeps it at least what is sown), and of it
+     * the share cropped this year ([croppedNow]): cleared ground not cropped in a year grows back by [REGROW_YEARS] (and must
+     * be cleared again, [clearDaysPerHa]).
+     */
+    val cleared = FloatArray(n)
+    private val croppedNow = FloatArray(n)
+    /** The share of [p]'s land still to clear to sow [kg] more there, kg/m² of the place: beyond what is cleared already. */
+    fun toClear(p: Place, kg: KgM2): Float = max(0f, min(1f, (field[p] + max(0f, kg.v)) / SEED_RATE) - cleared[p])
+    /** The kg/m² of the place that can be sown at [p] on ground cleared already. */
+    fun sowableCleared(p: Place): Float = max(0f, cleared[p] * SEED_RATE - field[p])
+    /**
+     * Person-days to clear a hectare at [p] of what stands there: felling and burning off its trees and scrub, [FELL_DAYS_PER_HA]
+     * for each kg/m² of them (the place's own stand: the land a field is cleared on is the place's land, not its mean).
+     */
+    fun clearDaysPerHa(p: Place): Float = FELL_DAYS_PER_HA * (land.plants.tree[p] + land.plants.shrub[p])
+    /**
      * The ripe grain as it stands in the wild cereal at [p], kg/m² of the stand: the place's grain over the share of its grass
      * that is wild cereal ([cereal]). A reaper cuts the stand, not the place ([reapDaysPerKg]).
      */
@@ -172,6 +188,9 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
             val first = standYear < 0; standYear = year
             if (!first) grainRipenedLastYear = (0 until n).sumOf { (ripenedNow[it] * land.areaKm2[it] * 1e6f).toDouble() } / 1000
             ripenedNow.fill(0f)
+            // (Cleared ground not cropped in the year grows back toward the place's woods and scrub.)
+            if (!first) for (p in 0 until n) cleared[p] = croppedNow[p] + max(0f, cleared[p] - croppedNow[p]) * (1f - 1f / REGROW_YEARS)
+            croppedNow.fill(0f)
             for (k in FieldFate.entries.indices) {
                 if (!first) fieldFateLastYear[k] = (0 until n).sumOf { (fieldFateNow[k][it] * land.areaKm2[it] * 1e6f).toDouble() } / 1000
                 fieldFateNow[k].fill(0f)
@@ -268,6 +287,7 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
         fieldDomestic[p] = (fieldDomestic[p] * field[p] + domestic * add) / (field[p] + add)
         field[p] += add
         fieldCover[p] = sownShare(p)
+        cleared[p] = max(cleared[p], fieldCover[p]); croppedNow[p] = max(croppedNow[p], fieldCover[p])
     }
 
     /**
@@ -396,6 +416,19 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
          * and medieval English seed rates of about 2 bushels an acre (both from memory, unchecked).
          */
         const val SEED_RATE = 0.012f
+        /**
+         * Clearing: person-days (of 6 hours) to fell and burn off a hectare, for each kg/m² of trees and scrub standing on it.
+         * Felling a 15-year stand at Forchtenberg took 4.9 eight-hour days per 0.1 ha and a 50-year stand 14.6 (Rösch et al.
+         * 2017, Land 6(1):11: time went with the trunks' cross-section, little with the axe or the worker); such stands hold
+         * some 4-6 and 15-20 kg/m² (from memory, not checked: that paper gives no biomass), about 8-10 eight-hour days, or
+         * 11-13 of six hours, a hectare per kg/m² either way. 12.
+         */
+        const val FELL_DAYS_PER_HA = 12f
+        /**
+         * Years cleared ground left uncropped takes to grow back (the share left cleared falls by 1/[REGROW_YEARS] a year):
+         * at Forchtenberg the fallow had grown wood enough to burn again after about 12 years (Rösch et al. 2017).
+         */
+        const val REGROW_YEARS = 12f
         /** The month (0 from midwinter) by whose start a sown crop that has not ripened has failed: the last before the autumn sowing. */
         const val FIELD_FAILS_MONTH = 8
         /** Share of a wild stand whose ears hold their grain (rare mutants, kept down by their failing to sow themselves). */

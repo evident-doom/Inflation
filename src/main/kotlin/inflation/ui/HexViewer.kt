@@ -499,7 +499,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         /**
          * People's works by hex ([worksBox]): houses (room for how many, standing or begun) and palisades from the structures
          * that stand ([inflation.ecology.HexGroups.built]); this year's sown fields, their ripe grain and the share of ears that
-         * hold their grain; and ground worn by cropping ([inflation.ecology.HexFood.fieldWorn]).
+         * hold their grain; ground worn by cropping ([inflation.ecology.HexFood.fieldWorn]); and ground cleared ([inflation.ecology.HexFood.cleared]).
          */
         private fun paintWorks(g: Graphics2D, sx: (Float) -> Int, sy: (Float) -> Int, onScreen: (Hex, Int) -> Boolean) {
             val room = FloatArray(hex.size); val begun = FloatArray(hex.size); val fence = FloatArray(hex.size)
@@ -509,12 +509,12 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                 Built.WEIR, Built.WELL -> {} // (weirs and wells are not drawn)
             }
             val food = fauna.food
-            val sownKg = FloatArray(hex.size); val ripeKg = FloatArray(hex.size); val tame = FloatArray(hex.size); val wornKm2 = FloatArray(hex.size)
+            val sownKg = FloatArray(hex.size); val ripeKg = FloatArray(hex.size); val tame = FloatArray(hex.size); val wornKm2 = FloatArray(hex.size); val clearedKm2 = FloatArray(hex.size)
             for (p in 0 until land.n) {
                 val h = hw.placeHex[p]; val m2 = land.areaKm2[p] * 1e6f
                 val kg = food.field[p] * m2
                 sownKg[h] += kg; tame[h] += food.fieldDomestic[p] * kg; ripeKg[h] += food.fieldGrain[p] * m2
-                wornKm2[h] += food.fieldWorn[p] * land.areaKm2[p]
+                wornKm2[h] += food.fieldWorn[p] * land.areaKm2[p]; clearedKm2[h] += food.cleared[p] * land.areaKm2[p]
             }
             val z = max(0.6, scale).toFloat()
             val village = IntArray(hex.size)
@@ -531,7 +531,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                         g.color = Color(1f, 1f, 1f, 0.9f); g.drawOval(px - d / 2, py - d / 2, d, d)
                     }
                 }
-                if (room[h] + begun[h] + fence[h] + sownKg[h] + ripeKg[h] + wornKm2[h] <= 0f || !onScreen(h, 1)) continue
+                if (room[h] + begun[h] + fence[h] + sownKg[h] + ripeKg[h] + wornKm2[h] + clearedKm2[h] <= 0f || !onScreen(h, 1)) continue
                 val (cx, cy) = hex.centreKm(h)
                 val x = sx(cx.toFloat()); val y = sy(cy.toFloat())
                 if (room[h] + begun[h] > 0f) {
@@ -550,7 +550,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                         g.stroke = stroke
                     }
                 }
-                if (sownKg[h] + ripeKg[h] + wornKm2[h] > 0f) {
+                if (sownKg[h] + ripeKg[h] + wornKm2[h] + clearedKm2[h] > 0f) {
                     val fx = x - (9 * z).toInt(); val fy = y + (3 * z).toInt(); val w = (6 * z).toInt().coerceAtLeast(3)
                     if (sownKg[h] + ripeKg[h] > 0f) {
                         // A field: green while it grows, gold when there is ripe grain; ringed white where most ears hold their grain.
@@ -559,9 +559,12 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                         g.color = Color(0.25f, 0.15f, 0.05f, 0.9f)
                         g.drawLine(fx, fy + w / 3, fx + w, fy + w / 3); g.drawLine(fx, fy + 2 * w / 3, fx + w, fy + 2 * w / 3)
                         if (sownKg[h] > 0f && tame[h] / sownKg[h] > 0.5f) { g.color = Color.WHITE; g.drawRect(fx - 1, fy - 1, w + 1, w + 1) }
-                    } else {
+                    } else if (wornKm2[h] > 0f) {
                         // Ground worn by cropping and left to rest.
                         g.color = Color(0.55f, 0.4f, 0.25f, 0.8f); g.drawRect(fx, fy, w, w); g.drawLine(fx, fy + w, fx + w, fy)
+                    } else {
+                        // Ground cleared for fields and not cropped, growing back.
+                        g.color = Color(0.8f, 0.7f, 0.5f, 0.8f); g.drawRect(fx, fy, w, w)
                     }
                 }
             }
@@ -569,7 +572,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         private val worksLegend = MapLegend("Works", "People's works: a house (to the upper right of a hex's centre) where houses stand, filled when " +
             "whole, outlined while only begun, larger for room for more people; a brown ring round it for a palisade, as much of the ring as stands. " +
             "A field (to the lower left) where grain was sown this year: green while it grows, gold with ripe grain standing, ringed white where most " +
-            "of the sown seed is of ears that hold their grain; an outlined, crossed square for ground worn by cropping and left to rest. " +
+            "of the sown seed is of ears that hold their grain; an outlined, crossed square for ground worn by cropping and left to rest; a pale outlined square for ground cleared for fields, not cropped and growing back. " +
             "A village (below the centre) where two or more bands live settled in the hex, or one band at home larger than a camp: a ring of a dot for each band.",
             swatches = listOf(MapLegend.Swatch(Color(0.45f, 0.25f, 0.1f), "houses"), MapLegend.Swatch(Color(0.35f, 0.7f, 0.2f), "field growing"),
                 MapLegend.Swatch(Color(0.95f, 0.75f, 0.15f), "field ripe"), MapLegend.Swatch(Color(0.55f, 0.4f, 0.25f), "worn ground"),
