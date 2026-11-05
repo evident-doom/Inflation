@@ -413,6 +413,18 @@ object Tally {
     }
     /** Hunger deaths within a month of a camp move in bands of mind [mind] already short of food in the weeks before it ([HUNGRY_BEFORE]). */
     fun starvedMovedHungry(mind: Mind) = TallyKey.raw("starved after a move, short before ${mind.label}")
+    /**
+     * Hungry bands followed for [MOVE_WEEKS] weeks ([moveCensus]): fed below [HUNGRY_BEFORE] over the weeks before, they
+     * moved camp that week or stayed, with a larder then of under a day, 1-5 days or more ([LarderAt] at its own bounds).
+     */
+    enum class HungryCohort(val label: String, val moved: Boolean, val below: Float) {
+        MOVED_EMPTY("moved, larder under a day", true, 1f), MOVED_SOME("moved, 1-5 days", true, 5f), MOVED_MORE("moved, 5 days and over", true, Float.POSITIVE_INFINITY),
+        STAYED_EMPTY("stayed, larder under a day", false, 1f), STAYED_SOME("stayed, 1-5 days", false, 5f), STAYED_MORE("stayed, 5 days and over", false, Float.POSITIVE_INFINITY);
+        companion object { fun of(moved: Boolean, larder: Float) = entries.first { it.moved == moved && !(larder >= it.below) } }
+    }
+    /** Bands entering a cohort; people-weeks after; the share of the need eaten, thousandths, people-weighted; hunger and all deaths. */
+    enum class HungryFollowed(val label: String) { ENTERED("entered"), PEOPLE_WEEKS("people-weeks"), FED("fed, 1/1000"), STARVED("hunger deaths"), DIED("deaths") }
+    fun hungryCohort(c: HungryCohort, what: HungryFollowed) = TallyKey.raw("hungry bands ${c.label}:${what.label}")
     /** People-weeks of bands of mind [mind] within a month of a camp move. */
     fun movedWeeks(mind: Mind) = TallyKey.raw("people-weeks after a move ${mind.label}")
     /** A planning band's days in each tier of its week beyond its essentials ([planDays]), tenths of a day. */

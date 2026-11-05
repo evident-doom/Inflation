@@ -108,6 +108,12 @@ class Band(kinds: Int, totems: Int = kinds) {
     @Transient var sinceMove = -1
     @Transient var fedBeforeMove = Float.NaN
     /**
+     * For the census of hungry bands that moved against those that stayed ([moveCensus]): the cohort it is followed in
+     * ([Tally.HungryCohort] ordinal, -1 for none) and the weeks since it entered it.
+     */
+    @Transient var hungryCohort = -1
+    @Transient var hungryWeek = 0
+    /**
      * The share of its people a camp move would cost through the year ahead by the food it cannot carry ([leftBehindShare]:
      * cached or left at the old camp), as [foreseenSurvival] foresaw at the end of last week: alive with its larder, less alive
      * with what it carries. (A cache it may come back to is counted lost: whether it will is not foreseen.) Worked out with the

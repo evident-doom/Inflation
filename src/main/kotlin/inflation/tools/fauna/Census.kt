@@ -28,6 +28,7 @@ import inflation.ecology.ForeseenBin
 import inflation.ecology.LarderMove
 import inflation.ecology.StoreFlow
 import inflation.ecology.MOVE_WEEKS
+import inflation.ecology.HUNGRY_BEFORE
 import inflation.world.Season
 import inflation.ecology.DeathCause
 import inflation.ecology.Tally
@@ -67,6 +68,7 @@ import inflation.ecology.Food
 import inflation.ecology.bandLiving
 import inflation.ecology.birthSpacing
 import kotlin.math.max
+import kotlin.math.roundToInt
 import kotlin.math.sqrt
 import inflation.ecology.GATHER_KM
 import inflation.ecology.Language
@@ -531,6 +533,14 @@ class Census(private val sim: HexSim) {
                 "%+d %.2f/%.1f".format(o, v(o, Tally.AroundMove.FED) / 1000 / n, v(o, Tally.AroundMove.LARDER) / 10 / n)
             } + " (moves %.0f)".format(v(0, Tally.AroundMove.WEEKS))
         })
+        // Hungry bands that moved camp against hungry bands that stayed, by what their larders held then ([moveCensus]).
+        println("hungry bands that moved camp against those that stayed, last year (fed under ${(100 * HUNGRY_BEFORE).roundToInt()}% of the need over the $MOVE_WEEKS weeks before, by the larder then; followed $MOVE_WEEKS weeks: bands entering; share of the need eaten; hunger and all deaths per 1000 a year): " +
+            Tally.HungryCohort.entries.joinToString(", ") { c ->
+                fun v(w: Tally.HungryFollowed) = (lastYear[Tally.hungryCohort(c, w)] ?: 0).toDouble()
+                val pw = v(Tally.HungryFollowed.PEOPLE_WEEKS); val years = (pw / stepsPerYear).coerceAtLeast(1e-9)
+                "%s %.0f: %.2f; %.1f, %.1f".format(c.label, v(Tally.HungryFollowed.ENTERED), v(Tally.HungryFollowed.FED) / 1000 / pw.coerceAtLeast(1.0),
+                    1000 * v(Tally.HungryFollowed.STARVED) / years, 1000 * v(Tally.HungryFollowed.DIED) / years)
+            })
         run {
             // A planning band's days beyond its essentials, by tier ([planDays]).
             val pw = (lastYear[Tally.bandsMind(Mind.PLANS, Tally.Bands.PEOPLE_WEEKS)] ?: 0).toDouble()
