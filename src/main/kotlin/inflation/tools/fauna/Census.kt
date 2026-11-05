@@ -550,6 +550,16 @@ class Census(private val sim: HexSim) {
                     }
                 })
         }
+        // What moved the larders of bands by how often they moved camp lately, and the store aim they held ([moveCensus]).
+        run {
+            fun pw(m: Tally.MovedLately) = inflation.world.Season.entries.sumOf { (lastYear[Tally.movedLately(m, it, Tally.Lately.PEOPLE_WEEKS)] ?: 0).toDouble() }
+            println("larders of bands by their camp moves lately, last year (store aim, days; then what moved the larder, days of the need per person-week): " +
+                Tally.MovedLately.entries.joinToString("; ") { m ->
+                    val n = pw(m)
+                    if (n <= 0.0) "${m.label}: -" else m.label + ": aim %.1f; ".format(inflation.world.Season.entries.sumOf { (lastYear[Tally.movedLately(m, it, Tally.Lately.STORE_AIM)] ?: 0).toDouble() } / 10 / n) +
+                        LarderMove.entries.joinToString(", ") { w -> "%s %.2f".format(w.label, (lastYear[Tally.movedLatelyFlow(m, w)] ?: 0).toDouble() / n) }
+                })
+        }
         // Hungry bands that moved camp against hungry bands that stayed, by what their larders held then ([moveCensus]).
         println("hungry bands that moved camp against those that stayed, last year (fed under ${(100 * HUNGRY_BEFORE).roundToInt()}% of the need over the $MOVE_WEEKS weeks before, by the larder then; followed $MOVE_WEEKS weeks: bands entering; share of the need eaten; hunger and all deaths per 1000 a year): " +
             Tally.HungryCohort.entries.joinToString(", ") { c ->
