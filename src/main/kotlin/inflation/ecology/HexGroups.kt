@@ -476,6 +476,8 @@ class HexGroups(
             if (young > 0) stats.youngDeaths.merge(Tally.of(g.species, cause), young, Int::plus)
         }
         fauna.record?.group(g.species, g.place, cause, adults + young)
+        if (g.band != null) { stats.meeting(if (arrived) Met.BANDS_STRUCK_ARRIVING else Met.BANDS_STRUCK_CROSSING); stats.meeting(Met.PEOPLE_KILLED_BY_STORMS, adults + young) }
+        else stats.meeting(Met.PACKS_STRUCK_BY_STORMS)
     }
 
     /** A crossing of open water on [path] drowns some of [g], the more the nearer the strait is to all they can swim. */

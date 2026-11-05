@@ -247,6 +247,8 @@ class Census(private val sim: HexSim) {
         val all = groups.groups.filter { it.alive }
         println("     hurricane test's year: bands at a recruiter %d, bands that took recruits %d, people recruited %d".format(
             met(Met.BANDS_AT_A_RECRUITER), met(Met.BANDS_RECRUITED), met(Met.PEOPLE_RECRUITED)) +
+            (storms?.let { "; storms killed bands %d arriving and %d on their way, %d people, packs %d".format(
+                met(Met.BANDS_STRUCK_ARRIVING), met(Met.BANDS_STRUCK_CROSSING), met(Met.PEOPLE_KILLED_BY_STORMS), met(Met.PACKS_STRUCK_BY_STORMS)) } ?: "") +
             (sites?.let { "; bands now by hexes to the nearest recruiter (same / 1 / 2-3 / 4-10 / farther): " + spread(bands, it) } ?: "") +
             (storms?.let { "; groups now by hexes to the nearest storm (same / 1 / 2-3 / 4-10 / farther): " + spread(all, it) } ?: ""))
     }
