@@ -67,6 +67,8 @@ class Tuning(
      * choose from the week's menu of activities, and their camp and days follow from what they hold; 0, none.
      */
     val planners = f("planners", 0f).also { require(it in 0f..1f) { "t.planners is $it: a share of the bands, 0-1" } }
+    /** Diagnostic: the planning kind's slots over its own, for the slot-by-slot A/B (as text; [inflation.ecology.Mind] reads and checks it). */
+    val plannerSlots: String? = read("t.plannerSlots")
     /** The food cost of keeping warm, against [inflation.ecology.COLD_COST]. */
     val coldCost = f("coldCost", 1f)
 
