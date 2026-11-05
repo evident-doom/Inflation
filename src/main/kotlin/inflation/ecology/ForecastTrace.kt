@@ -106,6 +106,26 @@ internal fun HexGroups.moveCensus(g: HexGroup, b: Band, moved: Boolean, larderDa
         stats.tally(Tally.aroundMove(b.mind, offset, Tally.AroundMove.FED), (1000f * fed).roundToInt())
         stats.tally(Tally.aroundMove(b.mind, offset, Tally.AroundMove.LARDER), (10f * larder).roundToInt())
     }
+    // (Hungry bands, moving or not: a band fed below [HUNGRY_BEFORE] on the mean over the weeks before this one enters the
+    // cohort of those that moved camp this week or of those that stayed, by its larder then, and is followed for [MOVE_WEEKS]
+    // weeks after, whatever it does then: whether a move feeds a hungry band or starves it, against hungry bands that stayed.)
+    if (b.hungryCohort < 0) {
+        var sum = 0f; var n = 0
+        for (fed in b.recentFed) if (!fed.isNaN()) { sum += fed; n++ }
+        if (n == MOVE_WEEKS && sum / n < HUNGRY_BEFORE) {
+            val c = Tally.HungryCohort.of(moved, b.recentLarder[Math.floorMod(b.recentAt - 1, MOVE_WEEKS)])
+            b.hungryCohort = c.ordinal; b.hungryWeek = 0
+            stats.tally(Tally.hungryCohort(c, Tally.Hungry.ENTERED), 1)
+        }
+    }
+    if (b.hungryCohort >= 0) {
+        val c = Tally.HungryCohort.entries[b.hungryCohort]
+        if (b.hungryWeek > 0) {
+            stats.tally(Tally.hungryCohort(c, Tally.Hungry.PEOPLE_WEEKS), g.size)
+            stats.tally(Tally.hungryCohort(c, Tally.Hungry.FED), (1000f * g.fed * g.size).roundToInt())
+        }
+        if (++b.hungryWeek > MOVE_WEEKS) b.hungryCohort = -1
+    }
     if (moved) {
         var sum = 0f; var n = 0
         for (j in 1..MOVE_WEEKS) {
