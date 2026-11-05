@@ -535,7 +535,7 @@ internal class GroupPlanner(internal val gs: HexGroups) {
 
     internal val topKind = IntArray(gs.n) { -1 }
 
-    /** Choices made in planning, by kind: stayed without weighing (its policy's gate, [HexGroup.weighed]), weighed and stayed, weighed and moved. */
+    /** Choices made in planning, by kind: stayed without weighing ([HexGroup.weighed]), weighed and stayed, weighed and moved. */
     val planCounts = AtomicIntegerArray(64 * 3)
     /**
      * Bands' weeks by kind, for the census: weeks weighed, those its best choice (the hand-written score's or its network's)

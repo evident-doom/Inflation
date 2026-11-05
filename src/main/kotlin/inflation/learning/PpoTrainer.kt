@@ -29,18 +29,9 @@ class PpoTrainer(private val o: PpoOptions) {
     private val files = Role.entries.map { it.file(out) }
     private val models = files.mapIndexed { i, f -> if (f.exists()) SharedMover.load(f) else SharedMover.random(o.hidden, Random(FIRST_SEED + Role.entries[i].ordinal), if (Role.entries[i] == Role.PEOPLE) WAYS_IN else 0) }
         .also { ms -> for ((i, r) in Role.entries.withIndex()) o.residual[r]?.let { ms[i].residual = it } }
-        // (Each role's gate, whether its groups weigh their places at all: a new one weighs everywhere, see [SharedMover.newGate].)
-        .also { ms -> for ((i, m) in ms.withIndex()) if (m.gate == null) m.gate = SharedMover.newGate(m, Random(GATE_SEED + i)) }
     /** A model's two optimisers: for its network's weights and for its kinds' identity vectors. */
     private class Adams(val net: Adam, val identity: Adam)
     private val adams = models.map { Adams(Adam(it.net.w.size, o.rate), Adam(it.identity.size, o.rate)) }
-    /**
-     * The gates' own step, apart from [o]'s rate: a gate is a small net with one yes-or-no output and gets a few dozen steps a
-     * round, so at the movers' rate it moved about 0.1 logit a round from its start (day-d7de0448: 96% to 94% weighing in 8 rounds).
-     */
-    private val gateAdams = models.map { Adam(it.gate?.w?.size ?: 0, Config.float(Config.Key.PPO_GATE_RATE, 3e-3f)) }
-    /** What weighing a group's places costs its gate's judgement, in spreads of its kind's advantages: the gate keeps a group where it stands unless weighing gains it more. */
-    private val weighCost = Config.float(Config.Key.PPO_WEIGH_COST, 0.1f)
     /** One critic for each role: what a group's return can be expected to be where it stands. */
     private val critics = Role.entries.mapIndexed { i, r -> Critic.loadOrNew(r.criticFile(out), models[i]) }
     /** Bands' ways, learned beside their moves (see [WaysPpo]): a head on the people's mover, reading its last hidden layer and training it. */
@@ -200,9 +191,7 @@ class PpoTrainer(private val o: PpoOptions) {
         if (both.isEmpty()) return
         // (A role held fixed plays with its network as it is and does not learn, while the others catch up.)
         if (Role.entries[mi] in o.fixed && sinceStart < o.fixedRounds) { stats.append(Role.entries[mi]).append(" held; "); return }
-        learnGate(mi, both.filterIsInstance<GateChoice>(), round, stats)
-        // (The gate's draws took their best place if they weighed: the mover learns from its own draws alone.)
-        val mine = both.filter { it !is GateChoice }
+        val mine = both
         if (mine.isEmpty()) { model.save(files[mi]); return }
         val t0 = System.nanoTime()
         val kindsHere = mine.map { it.kind }.distinct()
@@ -228,43 +217,6 @@ class PpoTrainer(private val o: PpoOptions) {
         model.save(files[mi]); critics[mi].save(Role.entries[mi].criticFile(out), model)
         stats.append(Role.entries[mi]).append(' ').append(mine.size).append(" choices (%.0f s, clipped %.2f%s); ".format((System.nanoTime() - t0) / 1e9, clipped.toDouble() / seen.coerceAtLeast(1),
             if (skipped > 0) ", $skipped steps left out: not numbers" else ""))
-    }
-
-    /**
-     * A few passes of clipped policy gradient for role [mi]'s gate on its draws [cs], every kind weighing the same: each draw is
-     * judged as the group's choice was ([judge]), less [weighCost] if it weighed. Reports how many draws weighed.
-     */
-    private fun learnGate(mi: Int, cs: List<GateChoice>, round: Int, stats: StringBuilder) {
-        if (cs.isEmpty()) return
-        val gate = models[mi].gate ?: return
-        val perKind = cs.groupingBy { it.kind }.eachCount()
-        val weight = cs.associateWith { c -> 1f / (perKind.size * perKind.getValue(c.kind)) }
-        repeat(4) { epoch ->
-            for (batch in cs.shuffled(stream(1L, Stream.BATCHES, round.toLong(), epoch.toLong())).chunked(512)) {
-                val parts = inParts(batch) { part ->
-                    val grad = FloatArray(gate.w.size); val b = gate.buffers()
-                    for (c in part) {
-                        c.gateIn.copyInto(b.a[0])
-                        val p = 1f / (1f + exp(-gate.forward(b)))
-                        val logp = ln(max(if (c.weighs) p else 1f - p, 1e-8f))
-                        val ratio = exp(logp - c.gateLogp)
-                        val a = c.advantage - if (c.weighs) weighCost else 0f
-                        val clipped = (a > 0f && ratio > 1f + CLIP) || (a < 0f && ratio < 1f - CLIP)
-                        // d(objective)/d(logit): the policy term (d log p / d logit is 1 - p for weighing, -p for staying), and the entropy bonus.
-                        val dPolicy = if (clipped) 0f else a * ratio * (if (c.weighs) 1f - p else -p)
-                        val dEntropy = -p * (1f - p) * ln(max(p, 1e-8f) / max(1f - p, 1e-8f))
-                        gate.backward(b, -weight.getValue(c) * (dPolicy + ENTROPY * dEntropy), grad, null)
-                    }
-                    grad
-                }
-                val grad = FloatArray(gate.w.size); for (g in parts) grad.add(g)
-                if (!grad.allFinite()) continue
-                val scale = cs.size.toFloat() / batch.size
-                for (i in grad.indices) grad[i] *= scale
-                gateAdams[mi].step(gate.w, grad)
-            }
-        }
-        stats.append(Role.entries[mi]).append(" gate %d draws, %.0f%% weighed; ".format(cs.size, 100.0 * cs.count { it.weighs } / cs.size))
     }
 
     /**
@@ -328,7 +280,5 @@ class PpoTrainer(private val o: PpoOptions) {
     companion object {
         /** Fresh networks' first seed, by role ordinal (as when the herds' role came first). */
         const val FIRST_SEED = 8L
-        /** New gates' seed, by role ordinal. */
-        const val GATE_SEED = 70L
     }
 }
