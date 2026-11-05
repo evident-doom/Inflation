@@ -494,6 +494,8 @@ internal class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, pack
     fun feeds(t: Food) = feedsBy[t]
     // What it has got: meat (the meat it took in its meetings with it), small game, carrion and bones, plants, fish; and what
     // all of it feeds, in kg of its need (see [worth]).
+    /** Of [smallGot], what the children's party caught ([Offers.who] 2), kg: for the census. */
+    var kidsSmall = 0f
     var meat = g.meatMet; var smallGot = 0f; var scraps = 0f; var plants = 0f; var fish = 0f
     // (The fat of its kills, kg, apart from the lean [meat]; and what a kg of it feeds, as grease: see [fatOfKill].)
     var killFat = 0f

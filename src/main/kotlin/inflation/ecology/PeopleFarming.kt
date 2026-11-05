@@ -283,6 +283,10 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
     // (Above it, the band culls a month's share of the excess a week, as it eats: not all at once, to rot.)
     val over = if (capacity != null && herders > capacity) (1f - capacity / herders) * min(1f, years * Date.MONTHS_PER_YEAR) else 0f
     fun tally(k: Int, f: HerdFlow, v: Float) { bands.herdFlows[f] += v; bands.kindFlows[k][f] += v }
+    // Hunger before the herd: a band that went short this week, with too little in its larder to make the rest up, kills of
+    // its grown beasts what its shortfall was, for next week's meals (kg of its need). Its herd's increase to come is the
+    // cost. (Pets it keeps.)
+    var hungry = if (g.fed < WELL_FED) max(0f, (1f - g.fed) * g.dailyNeedKg * days - g.larder) else 0f
     fun slaughter(k: Int, heads: Float, flow: HerdFlow, weight: Float = 1f) {
         val s = fauna.kinds[k]
         tally(k, flow, heads)
@@ -380,6 +384,11 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
             else max(0f, n - g.dailyNeedKg * days / (s.massKg * MEAT_SHARE * Nourishment.MEAT * g.species.needScale))
         if (n > kept) eatGrown(n - kept, if (pays) HerdFlow.EATEN else HerdFlow.EATEN_UNPAID)
         n = kept
+        if (hungry > 0f && !pet && n > 0f) {
+            val each = s.massKg * MEAT_SHARE * Nourishment.MEAT * g.species.needScale
+            val heads = min(n, hungry / each)
+            eatGrown(heads, HerdFlow.EATEN_HUNGRY); hungry -= heads * each
+        }
         if (n + y < 0.5f) { fauna.adults[k][p] += n / area; fauna.young[k][p] += y / area; n = 0f; y = 0f; b.herds.herdPet[k] = 0f
             sows[k] = 0.5f; tally(k, if (pet) HerdFlow.ENDED_PET else if (pays) HerdFlow.ENDED else HerdFlow.ENDED_UNPAID, 1f) }
         b.herds.herd[k] = n; young[k] = y
@@ -390,14 +399,14 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
 
 /**
  * What became of bands' kept animals, for the census ([HexGroups.herdFlows]): heads born, dead, run off while herded, taken by beasts of prey ([raidHerd]), strayed
- * from the camp with nobody out with them ([unherdedStrays]), eaten of the herd's increase, eaten down for not paying ([herdPays]), and gone wild with a band that
+ * from the camp with nobody out with them ([unherdedStrays]), eaten of the herd's increase, eaten down for not paying ([herdPays]), eaten for the band's hunger, and gone wild with a band that
  * died out ([leaveDead]); milk, kg; and kg on the hoof weighed by the share herded, by the share fed, in herds that pay their
  * herders, and in all (week by week), and by what a herder's day brings against a lean month's foraging day ([herdWorth]:
  * under half, under 1, under 2, more); and herds that came to an end, as they paid, did not, or went wild with their band. By
  * kind only ([Bands.kindFlows]): the yearly increase, and what a herder's day brings, each weighed by kg on the hoof (where
  * the band has foraged a month to weigh it against); kg kept as pets ([Herd.herdPet]), and pets' herds that came to an end.
  */
-enum class HerdFlow { BORN, DIED, RAN_OFF, TAKEN, STRAYED, EATEN, EATEN_UNPAID, FREED, MILK_KG, KG_TENDED, KG_FED, KG_PAYS, KG,
+enum class HerdFlow { BORN, DIED, RAN_OFF, TAKEN, STRAYED, EATEN, EATEN_UNPAID, EATEN_HUNGRY, FREED, MILK_KG, KG_TENDED, KG_FED, KG_PAYS, KG,
     KG_WORTH_HALF, KG_WORTH_UNDER, KG_WORTH_OVER, KG_WORTH_TWICE, ENDED, ENDED_UNPAID, ENDED_FREED,
     INCREASE_KG, KG_WORTH_KNOWN, WORTH_KG, KG_PET, ENDED_PET }
 
