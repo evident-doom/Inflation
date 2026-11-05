@@ -38,7 +38,7 @@ internal fun HexGroups.sowGrain(g: HexGroup, b: Band, p: Place, date: Date, time
             val kg = sow * g.storeKgPer[Store.SEED]
             // (A field sown afresh, or sown where last year's crop is spent, is this year's crop.)
             if (b.sownPlace != p || fauna.food.field[p] <= 0f) b.sownKg = 0f
-            b.sownPlace = p; b.sownKg += kg; b.sinceSowed = 0f
+            b.sownPlace = p; b.sownKg += kg; b.seedKept = b.sownKg; b.sinceSowed = 0f
             fauna.food.sow(p, land.spread(p, Kg(kg)), domestic)
             stats.meeting(Met.BANDS_SOWED)
             note(g) { "sowed %.0f kg of grain at home".format(sow) }
@@ -70,8 +70,9 @@ internal fun HexGroups.harvestCrop(g: HexGroup, b: Band, time: BandTime) {
     val f = b.sownPlace; val food = fauna.food
     val kg = land.total(f, food.take(food.fieldGrain, f, land.spread(f, Kg(min(ripe, left / perKg))))).v
     if (kg <= 0f) return
-    // (What it keeps back to sow again, as much as it sowed, is not ground: it is charged the grinding of the rest only.)
-    val grind = grindDaysPerKg(b); val ground = max(0f, kg - b.sownKg)
+    // (What it keeps back to sow again, as much as it sowed, is not ground: it is charged the grinding of the rest only.
+    // The crop comes in over weeks, so what is kept is counted off over the whole harvest, not each week's.)
+    val grind = grindDaysPerKg(b); val kept = min(kg, b.seedKept); b.seedKept -= kept; val ground = kg - kept
     time.spend(Activity.SOWING, kg * (perKg - grind) + ground * grind)
     val worth = kg * seedValue(b) * b.cookValue(Food.GRAIN)
     val corn = b.seedCorn
