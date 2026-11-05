@@ -138,6 +138,8 @@ class Band(kinds: Int, totems: Int = kinds) {
     @Transient val larderFlow = FloatArray(LarderMove.entries.size)
     /** Its hands' days this week by [Activity] as [bandWeek] left them, and last its hands' days in all: for the census, at [foresee]. */
     @Transient val daysSpent = FloatArray(Activity.entries.size + 1)
+    /** Its week's work as [bandWeek] left it, by [Tally.WorkRate]: for the census, at [foresee] (NaN for not seen). */
+    @Transient val workRate = FloatArray(Tally.WorkRate.entries.size) { Float.NaN }
     /** The same by kind of store ([Store], [StoreFlow]), its own worth: for the census, at [foresee] ([storeMoved]). */
     @Transient val storeFlow = FloatArray(Store.entries.size * StoreFlow.entries.size)
     /**
