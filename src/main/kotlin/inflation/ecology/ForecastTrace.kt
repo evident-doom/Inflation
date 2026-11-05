@@ -112,10 +112,16 @@ internal fun HexGroups.moveCensus(g: HexGroup, b: Band, moved: Boolean, larderDa
     stats.tally(Tally.movedLately(lately, season, Tally.Lately.FAT), (10f * g.fat * g.size).roundToInt())
     stats.tally(Tally.movedLately(lately, season, Tally.Lately.STORE_AIM), (10f * b.storeAim * g.size).roundToInt())
     b.leanKey = lately.ordinal * inflation.world.Season.entries.size + season.ordinal
-    fun book(offset: Int, fed: Float, larder: Float) {
+    // (Its forage yield this week, as [bandWeek] left it: whether moves take bands to better ground or worse.)
+    val yieldNow = b.workRate[Tally.WorkRate.YIELD.ordinal]
+    fun book(offset: Int, fed: Float, larder: Float, yld: Float) {
         stats.tally(Tally.aroundMove(b.mind, offset, Tally.AroundMove.WEEKS), 1)
         stats.tally(Tally.aroundMove(b.mind, offset, Tally.AroundMove.FED), (1000f * fed).roundToInt())
         stats.tally(Tally.aroundMove(b.mind, offset, Tally.AroundMove.LARDER), (10f * larder).roundToInt())
+        if (!yld.isNaN()) {
+            stats.tally(Tally.aroundMove(b.mind, offset, Tally.AroundMove.YIELD_WEEKS), 1)
+            stats.tally(Tally.aroundMove(b.mind, offset, Tally.AroundMove.YIELD), (1000f * yld).roundToInt())
+        }
     }
     // (Hungry bands, moving or not: a band fed below [HUNGRY_BEFORE] on the mean over the weeks before this one enters the
     // cohort of those that moved camp this week or of those that stayed, by its larder then, and is followed for [MOVE_WEEKS]
@@ -143,13 +149,13 @@ internal fun HexGroups.moveCensus(g: HexGroup, b: Band, moved: Boolean, larderDa
             val i = Math.floorMod(b.recentAt - j, MOVE_WEEKS)
             val fed = b.recentFed[i]
             if (fed.isNaN()) continue
-            book(-j, fed, b.recentLarder[i]); sum += fed; n++
+            book(-j, fed, b.recentLarder[i], b.recentYield[i]); sum += fed; n++
         }
         b.fedBeforeMove = if (n > 0) sum / n else Float.NaN
         b.sinceMove = 0
     } else if (b.sinceMove >= 0) b.sinceMove++
-    if (b.sinceMove in 0..MOVE_WEEKS) book(b.sinceMove, g.fed, larderDays)
-    b.recentFed[b.recentAt] = g.fed; b.recentLarder[b.recentAt] = larderDays
+    if (b.sinceMove in 0..MOVE_WEEKS) book(b.sinceMove, g.fed, larderDays, yieldNow)
+    b.recentFed[b.recentAt] = g.fed; b.recentLarder[b.recentAt] = larderDays; b.recentYield[b.recentAt] = yieldNow
     b.recentAt = (b.recentAt + 1) % MOVE_WEEKS
 }
 
