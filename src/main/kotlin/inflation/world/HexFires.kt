@@ -27,9 +27,10 @@ class HexFires(land: HexLand) : HexLandPart(land) {
     internal fun canBurn(p: Place, weather: Weather) =
         hydro.flood[p] <= 0f && fuel(p) >= 0.2f && hydro.soil[p] / hydro.soilCap[p] < 0.3f && weather.temperature[p] > 15f && weather.precipitation[p] < 5f
 
-    /** Fires people have set, to be lit next step. */
-    private val lit = java.util.concurrent.ConcurrentLinkedQueue<Place>()
-    fun ignite(p: Place) { lit += p }
+    /** Fires people have set, to be lit next step: the places' indices (saved: a queue of them would be left out of a save, and the fires lost with it). */
+    private var lit = IntArray(0)
+    @Synchronized fun ignite(p: Place) { lit += p.i }
+    @Synchronized private fun takeLit(): IntArray { val taken = lit; lit = IntArray(0); return taken }
 
     /**
      * Fires: started by lightning and sparks in hot, dry, fuel-rich places (more often the bigger the
@@ -40,7 +41,7 @@ class HexFires(land: HexLand) : HexLandPart(land) {
         burning.fill(0f)
         fires.clear()
         val set = HashSet<Place>()
-        while (true) set += lit.poll() ?: break
+        for (i in takeLit()) set += Place(i)
         setYear += set.size
         for (i in 0 until n) {
             val p = Place(i)
