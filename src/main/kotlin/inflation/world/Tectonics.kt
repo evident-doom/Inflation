@@ -85,8 +85,9 @@ class Tectonics(
                 seeds.indices.sortedBy { k -> centrality(k) + CONTINENT_SCATTER * rnd.nextDouble() }
             } catch (e: IllegalArgumentException) {
                 val again = Random(cfg.seed * 7919 + 13)
-                for (skip in 0 until 4 * cfg.plateCount) again.nextDouble() // the seed draws above
-                val key = DoubleArray(seeds.size) { k -> centrality(k) + CONTINENT_SCATTER * again.nextDouble() }
+                val skip = 4 * cfg.plateCount // the plate-seed draws above
+                val draws = DoubleArray(skip + seeds.size) { again.nextDouble() }
+                val key = DoubleArray(seeds.size) { k -> centrality(k) + CONTINENT_SCATTER * draws[skip + k] }
                 seeds.indices.sortedBy { k -> key[k] }
             }.take(continentalCount).toSet()
             val plates = seeds.mapIndexed { k, (px, py, motion) ->
