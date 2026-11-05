@@ -122,7 +122,7 @@ class Band(kinds: Int, totems: Int = kinds) {
     /**
      * The share of its people a camp move would cost through the year ahead by the food it cannot carry ([leftBehindShare]:
      * cached or left at the old camp), as [foreseenSurvival] foresaw at the end of last week: alive with its larder, less alive
-     * with what it carries. (A cache it may come back to is counted lost: whether it will is not foreseen.) Worked out with the
+     * with what it carries, less what it would not lay by in the days a move's walk takes. (A cache it may come back to is counted lost: whether it will is not foreseen.) Worked out with the
      * week's forecast, not afresh for each choice of place: afresh, it took a third more of a step (calib461h).
      */
     @Transient var leavingDying = 0f
