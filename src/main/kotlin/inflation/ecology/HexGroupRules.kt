@@ -323,29 +323,34 @@ internal const val MAST_BITTER = 0.7f
  * takes much more labour for its food than most plant foods (Basgall 1987, as cited by Glassow; no figure).
  */
 internal const val MAST_LEACH_DAYS_PER_KG = 1.2f
-internal const val SEED_HANDLING_DAYS_PER_KG = 0.5f
 /**
- * The grain a wild cereal stand holds, kg/m² of the stand, at which [SEED_HANDLING_DAYS_PER_KG] holds, and the share of
- * those days that is cutting or stripping the ears, the rest threshing, parching, winnowing and cleaning, which take as long
- * a kilo however thick the stand ([reapDaysPerKg]). Cutting goes by the ground a reaper covers, so a kilo from a stand half
- * as thick takes twice as long to cut. Harlan (1967, Archaeology 20: 197-201, from memory, unchecked) took some 2 kg of
- * grain an hour from dense wild einkorn with a flint sickle or bare hands, some 0.08 days of 6 hours a kilo, a sixth of
- * the whole. The rate is taken to hold where bands here reap their wild grain, the median stand of a traced year (stand
- * trace, main 93d43621, m5-1 and m5-3: kg-weighted medians 0.0019 and 0.0028 kg/m², 2026-11-04), so that wild grain
- * reaps as before and only thicker and thinner stands, and sown plots, differ. (Those stands, some 20-30 kg/ha, are thin
- * beside the dense stands of the record, hundreds of kg/ha: a matter for the stands, not for the reaping.) Grass seed
- * likewise at its own median, 0.00012-0.00020 kg/m² over the place.
+ * Reaping grain ([reapDaysPerKg]):
+ * - [CUT_M2_PER_HOUR]: ground a reaper covers an hour by hand, uprooting or snapping off the ears: uprooting einkorn 10 m² an
+ *   hour and bread wheat 5, a deer's jaw 9 (Häg 2024, "An experimental investigation of alternative Neolithic harvesting
+ *   tools", EXARC 2024/4). 8. With a sickle ([SICKLE_GAIN]) some 25.
+ * - [THRESH_DAYS_PER_KG]: threshing, winnowing and cleaning a kilo. A flail threshes some 8 bushels of wheat a day, 20-27 kg an
+ *   hour (McConnell 1911 and Atack & Passell 1994, as cited in Wikipedia's "Threshing"), 0.007 days of 6 hours a kilo; hand
+ *   threshing of sorghum and millet some 75 hours a hectare (van Heemst, WUR). Winnowing and cleaning, and parching and
+ *   pounding the hulled wheats out of their husks, were not found: 0.05, some seven times the flail's rate, an allowance for
+ *   them (unsourced).
+ * - [REF_STAND_KG_M2]: the stand at which bands reaped wild cereal in a traced year (stand trace, main 93d43621, m5-1 and
+ *   m5-3: kg-weighted medians 0.0019 and 0.0028 kg/m², 2026-11-04). At it cutting takes some 3 days a kilo even with a
+ *   sickle: the stands of the record were hundreds of kg/ha (Harlan took some 2 kg an hour in dense wild einkorn, from
+ *   memory), the model's are some 20-30, a matter for the stands, not the reaping.
+ * - Grass seed ([smallSeedDaysPerKg]): beaten into baskets, parched and winnowed, small seeds return some 300-1,000 kcal/h,
+ *   about 600 after they are found (Gremillion 2004, and Simms 1987 as consistent with it, both as cited in a review of the
+ *   Eastern Agricultural Complex; secondary): some 0.17 kg an hour, about 1 day a kilo, of it grinding [GRIND_DAYS_PER_KG],
+ *   so [SMALL_SEED_DAYS_PER_KG] 0.75, where it stands at its traced median over the place, [REF_SEED_STAND_KG_M2]
+ *   (0.00012-0.00020 kg/m²); the beating share of it [REAP_CUT_SHARE] goes by the ground covered.
+ * (Before, a kilo of grain took 0.5 days × t.plantHandling, a sixth of it cutting priced against [REF_STAND_KG_M2]: threshing
+ * some 15 times the rate above and cutting a thick field some 25 times too fast.)
  */
+internal const val CUT_M2_PER_HOUR = 8f
+internal const val THRESH_DAYS_PER_KG = 0.05f
 internal const val REF_STAND_KG_M2 = 0.0023f
 internal const val REF_SEED_STAND_KG_M2 = 0.00016f
 internal const val REAP_CUT_SHARE = 0.17f
-/**
- * How many times as long a kilo the small seeds of wild grasses take as wild cereal grain ([SEED_HANDLING_DAYS_PER_KG],
- * fitted to wild wheat and barley): beaten into baskets, parched, winnowed and ground, small seeds return some 300-1,000
- * kcal/h, about 600 after they are found (Gremillion 2004, and Simms 1987 as consistent with it, both as cited in a review
- * of the Eastern Agricultural Complex; secondary), against some 1,100 kcal/h for wild cereal at the bare-handed rate here.
- */
-internal const val SMALL_SEED_SLOWER = 2f
+internal const val SMALL_SEED_DAYS_PER_KG = 0.75f
 internal const val FISH_HANDLING_DAYS_PER_KG = 0.3f
 /**
  * Days of a band's hands to pick a kilo of wild fruit (dry matter), at a start band's skill: berries one by one off the
