@@ -216,12 +216,22 @@ private fun HexGroups.splitOff(g: HexGroup, adults: Int, young: Int): HexGroup {
  * (rounded at random, so single deaths fall on the old as often as their share says), so the age
  * structure stays whole and births are not reckoned on the dead. Never more than there are.
  */
-internal fun adultsDied(g: HexGroup, n: Int, r: Random) {
+internal fun adultsDied(g: HexGroup, n: Int, r: Random, elderRisk: Float = 1f) {
     val dead = min(n, g.adults)
     if (dead <= 0) return
     g.band?.let { b ->
-        b.elders -= min(b.elders, (dead * b.elders + r.nextInt(g.adults)) / g.adults)
-        for (i in b.ageStage.indices) b.ageStage[i] -= min(b.ageStage[i], (dead * b.ageStage[i] + r.nextInt(g.adults)) / g.adults)
+        // (The elders' share of the dead is the heavier by [elderRisk] when they are likelier to die: of hunger, see [ELDERS_YIELD].)
+        if (elderRisk == 1f || b.elders <= 0 || b.elders >= g.adults) {
+            b.elders -= min(b.elders, (dead * b.elders + r.nextInt(g.adults)) / g.adults)
+            for (i in b.ageStage.indices) b.ageStage[i] -= min(b.ageStage[i], (dead * b.ageStage[i] + r.nextInt(g.adults)) / g.adults)
+        } else {
+            val others = g.adults - b.elders
+            val elderDead = min(b.elders, min(dead, (dead * b.elders * elderRisk / (b.elders * elderRisk + others) + r.nextFloat()).toInt()))
+            // (The rest of the dead fall on the childbearing stages, each by its share of them.)
+            val rest = dead - elderDead
+            b.elders -= elderDead
+            for (i in b.ageStage.indices) b.ageStage[i] -= min(b.ageStage[i], (rest * b.ageStage[i] + r.nextInt(others)) / others)
+        }
     }
     // The lamed die more than the rest: their share of the dead is [LAME_RISK] heavier than their share of the living.
     g.band?.let { b ->
@@ -501,13 +511,18 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
             healed * cared * s.youngMortality * (if (s.human) tuning.humanYoung else 1f) * years))
     placeHazards(g, g.place, weather, g.fed, thirst, sick, band?.fire ?: 0f, band?.homeShelter() ?: 0f) { c, a, y -> hazards += Hazard(c, a, y) }
     band?.let { houseWorthWeek(g, it, weather, stalked) }
+    val spentBefore = g.spent
     g.spent = Hazards.spentAfter(s, g.spent, g.fed, days)
     // (No beast to blame, none taken: a hazard of none weighs nothing in sharing the deaths, and is left out.)
     hazards.addAll(listOfNotNull(
         Hazard(DeathCause.HOMELESS, homeless, homeless),
         Hazard(DeathCause.CAMP_FOULING, 0f, fouled), Hazard(DeathCause.SNAKES, venom, venom), Hazard(DeathCause.INBREEDING, 0f, inbred),
-        stalker?.let { Hazard(ByBeast.of(ByBeast.How.TAKEN_BY, it), stalked, band?.let { b -> dialed(DialSite.CHILDREN_TAKEN, b.childWatch,
-            YOUNG_STALKED / b.childWatch.coerceAtLeast(0.25f) * stalked, cut = b.childWatch < 0.25f) { YOUNG_STALKED * stalked } } ?: YOUNG_STALKED * stalked) },
+        stalker?.let {
+            val young = band?.let { b -> dialed(DialSite.CHILDREN_TAKEN, b.childWatch,
+                YOUNG_STALKED / b.childWatch.coerceAtLeast(0.25f) * stalked, cut = b.childWatch < 0.25f) { YOUNG_STALKED * stalked } } ?: YOUNG_STALKED * stalked
+            // (Those who watch the children step between them and the beast: [CARETAKERS_SHIELD].)
+            val k = band?.let { b -> caretakersTake(b) } ?: 0f
+            Hazard(ByBeast.of(ByBeast.How.TAKEN_BY, it), stalked + k * young * g.young / g.adults.coerceAtLeast(1), (1f - k) * young) },
         Hazard(DeathCause.WOUNDS, festered, 0f)))
     ill?.let { a -> for (it in Illness.entries) hazards += Hazard(it, a[it], a[it] * it.young) }
     // The elders' care spares some of the young.
@@ -522,7 +537,10 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         stats.childDeaths.computeIfAbsent(h.cause) { DoubleAdder() }.add((g.young * spared * h.young).toDouble())
     val da = binomial(g.adults, adultOdds, r); val dy = binomial(g.young, youngOdds, r)
     // (For training: the years a grown one who dies has ahead, on average over the elders and the rest; see [FutureYears].)
-    val grownYears = if (s.human && g.adults > 0) FutureYears.of(g.adults, band?.elders ?: 0, 0) / g.adults else 1f
+    // (Elders die the more of hunger, as they yield their food: [elderRisk].)
+    val elderRisk = if (band != null) elderRisk(g, g.fed, spentBefore, adultSum) else 1f
+    val grownYears = if (s.human && g.adults > 0) (band?.elders ?: 0).coerceAtMost(g.adults).let { e ->
+        val others = g.adults - e; (others + FutureYears.ELDER * elderRisk * e) / (others + elderRisk * e) } else 1f
     // (For training: what the week's odds made likely, before the elders' deaths are drawn.)
     val oldAgeExpected = band?.let { b -> (b.elders - (da * b.elders.toFloat() / g.adults.coerceAtLeast(1))).coerceAtLeast(0f) * min(1f, ELDER_DEATHS * years) } ?: 0f
     val grownExpected = g.adults * adultOdds; val youngExpected = g.young * youngOdds
@@ -535,7 +553,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         g.addLost(LOST_ALL, diedExpected)
     }
     // Elders die as the others do (their share of the adults who died), and of old age besides.
-    adultsDied(g, da, r)
+    adultsDied(g, da, r, elderRisk)
     var oldAge = 0
     if (band != null) {
         oldAge = binomial(band.elders, ELDER_DEATHS * years, r)

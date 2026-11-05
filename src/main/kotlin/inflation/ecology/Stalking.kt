@@ -123,3 +123,13 @@ internal const val HOUSE_GUARD = 0.8f
 internal const val PALISADE_GUARD = 0.5f
 
 internal const val YOUNG_STALKED = 2f
+
+/**
+ * Of the children a beast would take, the share their watchers save by putting themselves in its way, and are taken
+ * instead, at full watch ([Band.childWatch] 1 or more; less as fewer watch): the deaths are moved from the young to the
+ * grown, not made fewer (Olli 2026-11-05: caretakers may sacrifice themselves for the young; the size is a guess).
+ */
+internal const val CARETAKERS_SHIELD = 0.5f
+
+/** The share of the children a beast would take that [b]'s watchers take on themselves instead ([CARETAKERS_SHIELD]). */
+internal fun caretakersTake(b: Band) = CARETAKERS_SHIELD * b.childWatch.coerceIn(0f, 1f)

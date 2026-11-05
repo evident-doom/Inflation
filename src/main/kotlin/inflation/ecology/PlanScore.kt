@@ -236,8 +236,11 @@ internal fun GroupPlanner.deathsAt(c: PlanContext, p: Place, h: Hex, fed: Float,
         val walled = if (home) b.house * gs.wallsAt(g, h) else 0f
         val stalked = gs.stalkRate(g, b, p, gs.residentManEaters(p) + (if (h in c.sensed) manEaterKm2[h] else 0f), walled,
             if (home) gs.palisadeAt(g, h) else 0f)
-        adult += venom + stalked; young += venom + YOUNG_STALKED / b.childWatch.coerceAtLeast(0.25f) * stalked
-        why?.let { it("venom", venom, venom); it("stalked", stalked, YOUNG_STALKED / b.childWatch.coerceAtLeast(0.25f) * stalked) }
+        // (Those who watch the children step between them and the beast: [CARETAKERS_SHIELD].)
+        val youngStalked = YOUNG_STALKED / b.childWatch.coerceAtLeast(0.25f) * stalked; val k = caretakersTake(b)
+        val stalkedGrown = stalked + k * youngStalked * g.young / g.adults.coerceAtLeast(1)
+        adult += venom + stalkedGrown; young += venom + (1f - k) * youngStalked
+        why?.let { it("venom", venom, venom); it("stalked", stalkedGrown, (1f - k) * youngStalked) }
         gs.dialUse?.amount(DialSite.CHILDREN_PLAN, b.childWatch, YOUNG_STALKED / b.childWatch.coerceAtLeast(0.25f) * stalked, YOUNG_STALKED * stalked, cut = b.childWatch < 0.25f)
         // The sicknesses it would catch there (marsh fever by the mosquitoes, the flux in a long-kept camp, the cough
         // where people crowd), and the fouling of the ground there, whoever left it: its own camping adds to it if it stays.
