@@ -28,6 +28,7 @@ import inflation.ecology.ForeseenBin
 import inflation.ecology.LarderMove
 import inflation.ecology.StoreFlow
 import inflation.ecology.MOVE_WEEKS
+import inflation.ecology.MOVES_LATELY_WEEKS
 import inflation.ecology.HUNGRY_BEFORE
 import inflation.world.Season
 import inflation.ecology.DeathCause
@@ -533,12 +534,28 @@ class Census(private val sim: HexSim) {
                 "%+d %.2f/%.1f".format(o, v(o, Tally.AroundMove.FED) / 1000 / n, v(o, Tally.AroundMove.LARDER) / 10 / n)
             } + " (moves %.0f)".format(v(0, Tally.AroundMove.WEEKS))
         })
+        // Bands by how often they moved camp lately, season by season: what their larders and fat held, and their deaths ([moveCensus]).
+        run {
+            fun v(m: Tally.MovedLately, s: inflation.world.Season, w: Tally.Lately) = (lastYear[Tally.movedLately(m, s, w)] ?: 0).toDouble()
+            val all = Tally.MovedLately.entries.sumOf { m -> inflation.world.Season.entries.sumOf { v(m, it, Tally.Lately.PEOPLE_WEEKS) } }.coerceAtLeast(1.0)
+            println("bands by their camp moves lately (over about ${MOVES_LATELY_WEEKS.roundToInt()} weeks), last year (by season, spring/summer/autumn/winter: share of people-weeks %; larder days; fat days; hunger and all deaths per 1000 a year): " +
+                Tally.MovedLately.entries.joinToString("; ") { m ->
+                    m.label + ": " + inflation.world.Season.entries.joinToString(" / ") { s ->
+                        val pw = v(m, s, Tally.Lately.PEOPLE_WEEKS)
+                        if (pw <= 0.0) "-" else {
+                            val years = pw / stepsPerYear
+                            "%.0f%%, %.1f, %.1f, %.1f, %.1f".format(100 * pw / all, v(m, s, Tally.Lately.LARDER) / 10 / pw, v(m, s, Tally.Lately.FAT) / 10 / pw,
+                                1000 * v(m, s, Tally.Lately.STARVED) / years, 1000 * v(m, s, Tally.Lately.DIED) / years)
+                        }
+                    }
+                })
+        }
         // Hungry bands that moved camp against hungry bands that stayed, by what their larders held then ([moveCensus]).
         println("hungry bands that moved camp against those that stayed, last year (fed under ${(100 * HUNGRY_BEFORE).roundToInt()}% of the need over the $MOVE_WEEKS weeks before, by the larder then; followed $MOVE_WEEKS weeks: bands entering; share of the need eaten; hunger and all deaths per 1000 a year): " +
             Tally.HungryCohort.entries.joinToString(", ") { c ->
                 fun v(w: Tally.HungryFollowed) = (lastYear[Tally.hungryCohort(c, w)] ?: 0).toDouble()
                 val pw = v(Tally.HungryFollowed.PEOPLE_WEEKS); val years = (pw / stepsPerYear).coerceAtLeast(1e-9)
-                "%s %.0f: %.2f; %.1f, %.1f".format(c.label, v(Tally.HungryFollowed.ENTERED), v(Tally.HungryFollowed.FED) / 1000 / pw.coerceAtLeast(1.0),
+                if (pw <= 0.0) "%s %.0f: -".format(c.label, v(Tally.HungryFollowed.ENTERED)) else "%s %.0f: %.2f; %.1f, %.1f".format(c.label, v(Tally.HungryFollowed.ENTERED), v(Tally.HungryFollowed.FED) / 1000 / pw.coerceAtLeast(1.0),
                     1000 * v(Tally.HungryFollowed.STARVED) / years, 1000 * v(Tally.HungryFollowed.DIED) / years)
             })
         run {

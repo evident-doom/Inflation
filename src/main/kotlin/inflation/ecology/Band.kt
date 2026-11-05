@@ -112,6 +112,12 @@ class Band(kinds: Int, totems: Int = kinds) {
      * ([Tally.HungryCohort] ordinal, -1 for none) and the weeks since it entered it.
      */
     @Transient var hungryCohort = -1
+    /**
+     * For the census by how often bands move ([moveCensus]): its camp moves lately, a running count over about
+     * [MOVES_LATELY_WEEKS] weeks; and this week's split of it and the season ([Tally.MovedLately] ordinal × seasons + season), -1 before any.
+     */
+    @Transient var movesLately = 0f
+    @Transient var leanKey = -1
     @Transient var hungryWeek = 0
     /**
      * The share of its people a camp move would cost through the year ahead by the food it cannot carry ([leftBehindShare]:

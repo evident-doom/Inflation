@@ -228,7 +228,7 @@ internal fun HexGroups.foresee(weather: Weather) {
             val got = (g.fed - b.fatFed) * g.warmth + laid
             b.addSupply(m, got, k)
             b.recordWeek(weather.date, days, got, g.warmth, b.movedCamp)
-            moveCensus(g, b, b.movedCamp, larder)
+            moveCensus(g, b, b.movedCamp, larder, weather.date.season)
             b.movedCamp = false
             b.fatFed = 0f
             b.forecastTrace?.let { t -> t.week(m, got, larder, g.fat, g.spent, g.size, g.path.size > 1)

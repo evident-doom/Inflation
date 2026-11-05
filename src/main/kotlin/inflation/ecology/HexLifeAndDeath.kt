@@ -297,6 +297,14 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
             for ((cause, k) in o.causes) if (k > 0) bookCalibration(b, cause, k)
             // (And its hunger deaths by what its larder held then, and whether it moved camp in the month before.)
             val starved = o.causes.sumOf { if (it.cause == DeathCause.HUNGER) it.n else 0 }
+            // (And by how often it has moved camp lately, in the season: [moveCensus].)
+            if (b.leanKey >= 0) {
+                val n = inflation.world.Season.entries.size
+                val ml = Tally.MovedLately.entries[b.leanKey / n]; val se = inflation.world.Season.entries[b.leanKey % n]
+                if (starved > 0) stats.tally(Tally.movedLately(ml, se, Tally.Lately.STARVED), starved)
+                val all = o.causes.sumOf { it.n }
+                if (all > 0) stats.tally(Tally.movedLately(ml, se, Tally.Lately.DIED), all)
+            }
             // (And in the weeks it is followed as a hungry band that moved or stayed: [moveCensus].)
             if (b.hungryCohort >= 0 && b.hungryWeek > 0) {
                 val hc = Tally.HungryCohort.entries[b.hungryCohort]

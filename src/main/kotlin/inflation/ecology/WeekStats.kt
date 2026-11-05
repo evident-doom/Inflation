@@ -424,6 +424,14 @@ object Tally {
     }
     /** Bands entering a cohort; people-weeks after; the share of the need eaten, thousandths, people-weighted; hunger and all deaths. */
     enum class HungryFollowed(val label: String) { ENTERED("entered"), PEOPLE_WEEKS("people-weeks"), FED("fed, 1/1000"), STARVED("hunger deaths"), DIED("deaths") }
+    /** Bands by their camp moves lately ([Band.movesLately], over about a season): none, 1-2, 3-6, 7 and more. */
+    enum class MovedLately(val label: String, val below: Float) {
+        NONE("none", 0.5f), FEW("1-2", 2.5f), SOME("3-6", 6.5f), MANY("7 and more", Float.POSITIVE_INFINITY);
+        companion object { fun of(n: Float) = entries.first { n < it.below } }
+    }
+    /** People-weeks; larder and fat, tenths of a day, people-weighted; hunger and all deaths. */
+    enum class Lately(val label: String) { PEOPLE_WEEKS("people-weeks"), LARDER("larder, 1/10 day"), FAT("fat, 1/10 day"), STARVED("hunger deaths"), DIED("deaths") }
+    fun movedLately(m: MovedLately, season: Season, what: Lately) = TallyKey.raw("bands moved lately ${m.label}:${season.name}:${what.label}")
     fun hungryCohort(c: HungryCohort, what: HungryFollowed) = TallyKey.raw("hungry bands ${c.label}:${what.label}")
     /** People-weeks of bands of mind [mind] within a month of a camp move. */
     fun movedWeeks(mind: Mind) = TallyKey.raw("people-weeks after a move ${mind.label}")
