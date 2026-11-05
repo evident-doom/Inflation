@@ -227,6 +227,14 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     // Teaching the young keeps the teachers practised; the songs and stories are kept up where the band holds to them.
     if (g.young > 0) b.practise(Skill.SHOWING, 0.08f * PRACTICE)
     b.practise(Skill.LORE, (if (b.holds(Tradition.ORAL_TRADITION)) 0.08f else 0.03f) * PRACTICE)
+    // (Where its days went this week, for the census by how often it moved camp lately: [foresee].)
+    for (a in Activity.entries) b.daysSpent[a.ordinal] += time.spentOn(a)
+    b.daysSpent[Activity.entries.size] += time.total
+    // (And what a day's work brought it, and why: the country, its knowing the plants there, the cold and hunger.)
+    b.workRate[Tally.WorkRate.YIELD.ordinal] = b.yieldNow
+    b.workRate[Tally.WorkRate.HUNGER_PACE.ordinal] = b.hungerPace
+    b.workRate[Tally.WorkRate.COLD_PACE.ordinal] = b.coldPace
+    b.workRate[Tally.WorkRate.PLANT_KNOW.ordinal] = plantKnow(b, h)
 }
 
 /**
