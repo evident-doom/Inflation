@@ -420,7 +420,7 @@ class HexGroups(
             crossWater(g, g.path)
         }
         hurricanes?.let { storms -> if (storms.kills) for (g in groups) if (g.alive) hurricaneKill(g, storms, date) }
-        recruiters?.let { sites -> for (g in groups) if (g.alive && g.band != null && sites.struck(hw.placeHex[g.place]) && mayRecruit(g)) recruit(g) }
+        recruiters?.let { sites -> for (g in groups) if (g.alive && g.band != null && sites.struck(hw.placeHex[g.place])) { stats.meeting(Met.BANDS_AT_A_RECRUITER); if (mayRecruit(g)) recruit(g) } }
     }
 
     /** Sets the storms of the hurricane test down in the first week, and moves them on in every week after. */

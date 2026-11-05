@@ -221,6 +221,32 @@ class Census(private val sim: HexSim) {
     }
 
     /** How often each kind's groups weighed their choices, and how often that came to moving (clears the counts). */
+    /**
+     * The hurricane test's year (when storms or recruiters are set: see [inflation.ecology.HexHurricane]): bands that ended a move
+     * at a recruiter, those that took recruits and the people they took, from [metYear]; and how far the bands are now from the
+     * nearest recruiter and the groups from the nearest storm, in hexes.
+     */
+    fun printHurricaneTest(metYear: Map<TallyKey, Int>) {
+        val storms = groups.hurricanes; val sites = groups.recruiters
+        if (storms == null && sites == null) return
+        fun met(m: Met) = metYear[m.key] ?: 0
+        fun spread(list: List<inflation.ecology.HexGroup>, of: inflation.ecology.HexHurricane): String {
+            val n = IntArray(5)
+            for (g in list) {
+                val h = hw.placeHex[g.place]; val at = of.nearest(h)
+                val d = if (at.none) Double.POSITIVE_INFINITY else hex.distanceKm(h, at) / hex.hexKm
+                n[when { d < 0.5 -> 0; d < 1.5 -> 1; d < 3.5 -> 2; d < 10.5 -> 3; else -> 4 }]++
+            }
+            return n.joinToString(" / ")
+        }
+        val bands = groups.groups.filter { it.alive && it.band != null }
+        val all = groups.groups.filter { it.alive }
+        println("     hurricane test's year: bands at a recruiter %d, bands that took recruits %d, people recruited %d".format(
+            met(Met.BANDS_AT_A_RECRUITER), met(Met.BANDS_RECRUITED), met(Met.PEOPLE_RECRUITED)) +
+            (sites?.let { "; bands now by hexes to the nearest recruiter (same / 1 / 2-3 / 4-10 / farther): " + spread(bands, it) } ?: "") +
+            (storms?.let { "; groups now by hexes to the nearest storm (same / 1 / 2-3 / 4-10 / farther): " + spread(all, it) } ?: ""))
+    }
+
     fun printChoices() {
         println("     choices a week per group (stayed without weighing / weighed and stayed / moved): " + groups.kinds.joinToString(", ") { s ->
             val c = IntArray(3) { groups.planner.planCounts.getAndSet(s.index * 3 + it, 0) }
