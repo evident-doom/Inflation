@@ -509,8 +509,12 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     hazards.addAll(listOfNotNull(
         Hazard(DeathCause.HOMELESS, homeless, homeless),
         Hazard(DeathCause.CAMP_FOULING, 0f, fouled), Hazard(DeathCause.SNAKES, venom, venom), Hazard(DeathCause.INBREEDING, 0f, inbred),
-        stalker?.let { Hazard(ByBeast.of(ByBeast.How.TAKEN_BY, it), stalked, band?.let { b -> dialed(DialSite.CHILDREN_TAKEN, b.childWatch,
-            YOUNG_STALKED / b.childWatch.coerceAtLeast(0.25f) * stalked, cut = b.childWatch < 0.25f) { YOUNG_STALKED * stalked } } ?: YOUNG_STALKED * stalked) },
+        stalker?.let {
+            val young = band?.let { b -> dialed(DialSite.CHILDREN_TAKEN, b.childWatch,
+                YOUNG_STALKED / b.childWatch.coerceAtLeast(0.25f) * stalked, cut = b.childWatch < 0.25f) { YOUNG_STALKED * stalked } } ?: YOUNG_STALKED * stalked
+            // (Those who watch the children step between them and the beast: [CARETAKERS_SHIELD].)
+            val k = band?.let { b -> caretakersTake(b) } ?: 0f
+            Hazard(ByBeast.of(ByBeast.How.TAKEN_BY, it), stalked + k * young * g.young / g.adults.coerceAtLeast(1), (1f - k) * young) },
         Hazard(DeathCause.WOUNDS, festered, 0f)))
     ill?.let { a -> for (it in Illness.entries) hazards += Hazard(it, a[it], a[it] * it.young) }
     // The elders' care spares some of the young.
