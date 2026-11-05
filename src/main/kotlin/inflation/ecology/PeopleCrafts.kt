@@ -192,7 +192,7 @@ internal fun HexGroups.makeTools(b: Band, people: Float, time: BandTime?, only: 
     val gd = if (time == null) b.goods.copyOf() else b.goods
     var asked = 0f
     // (A planning band makes with its tools' days its clothes first, then only the tools it reckons worth them ([toolRates]).)
-    val plans = only == null && b.mind == Mind.PLANS
+    val plans = only == null && b.mind.days == DaySplit.TIERED
     val order = Tool.entries.filter { (only == null || it == only) && b.knows[it] && b.kit[it] < 1f &&
         (!plans || it == Tool.CLOTHES || b.toolPays[it]) }
         .sortedByDescending { if (plans && it == Tool.CLOTHES) Float.MAX_VALUE else b.makeFirst[it] * (1f - b.kit[it]) }

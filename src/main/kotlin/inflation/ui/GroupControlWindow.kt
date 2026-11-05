@@ -12,7 +12,7 @@ import inflation.ecology.HexFeatures
 import inflation.ecology.HexGroup
 import inflation.ecology.HexSim
 import inflation.ecology.MoveDecision
-import inflation.ecology.Mind
+import inflation.ecology.DaySplit
 import inflation.ecology.PlanItem
 import inflation.ecology.PlanPick
 import inflation.ecology.Store
@@ -306,7 +306,7 @@ class GroupControlWindow(
     private fun planLooks(): () -> Unit {
         val id = groups.watched
         val g = groups.groups.firstOrNull { it.id == id && it.alive }
-        val planner = g?.band?.mind == Mind.PLANS
+        val planner = g?.band?.mind?.days == DaySplit.TIERED
         val m = groups.moveLook; val d = groups.daysLook
         return { plan.update(id, planner, m, d) }
     }

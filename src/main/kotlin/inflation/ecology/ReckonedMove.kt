@@ -81,7 +81,7 @@ internal fun Band.recentYield(date: Date, days: Int): Float {
  */
 internal fun GroupWorld.tellYield(teller: HexGroup, hearer: HexGroup, date: Date) {
     val bh = hearer.band ?: return
-    if (bh.mind != Mind.PLANS) return
+    if (bh.mind.gate != MoveGate.RECKONED) return
     val y = teller.band?.recentYield(date, days) ?: return
     if (y.isNaN()) return
     val weeks = Date.stepsPerYear(days)

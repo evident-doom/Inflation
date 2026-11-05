@@ -4,14 +4,58 @@ import inflation.drawUnit
 import inflation.Stream
 
 /**
- * How a band chooses ([Band.mind]): [NETS], today's way (the mover's place score or its network, and the ways' dials), or
- * [PLANS], the discrete planning kind (doc: Discrete planning: build spec): the sim offers it a menu of activities each week,
- * it holds some, and its camp and days follow from them. The two share every mechanic of the world; only the choosing
- * differs, and bands of the two never merge. So far a [PLANS] band reads no ways (the scaffold's, whatever the network) and
- * holds its week's days by [planDays]; it weighs places as [NETS] bands do, but moves camp only when its customs send it or
- * staying is an emergency ([plannedMove]), with no draw by a will to explore.
+ * How a band chooses ([Band.mind]), slot by slot (review/2026-11-05-people-models-harmonize.md). A band's week has four
+ * choices beyond the rules every band lives by alike (the deaths a place would cost and the filter that never takes a place
+ * a survival step deadlier than the safest, the survival pass's essentials, the chore asks, what its customs owe, the
+ * raids' gate):
+ * - where it would go: the place it scores best ([HexGroups.policyFor], a learned network, else the hand-written
+ *   [GroupPlanner.scorePlace]); not a field here, since which network it is (or none) is set by the config, not the band;
+ * - whether it leaves where it is ([gate]);
+ * - how it splits its week's days beyond the essentials ([days]);
+ * - where its ways' dials come from ([dials]).
+ * Each mind is one filling of the last three:
+ * - [NETS], the forager (today's way): it goes where its place scores draw it by its will to explore, splits its days by
+ *   its ways' weights, and takes its ways from the ways network (the scaffold's without one). With no network at all it is
+ *   the hand-written behaviour, which only teaches a fresh network and stands in for a missing one.
+ * - [PLANS], the planning kind (doc: Discrete planning: build spec), under development: it weighs places by the same
+ *   network but moves camp only when its customs send it, staying is an emergency, or its reckoning says leaving pays
+ *   ([plannedMove]); holds its days by [planDays]; keeps the scaffold's ways (all 1) beyond what it reckons itself
+ *   (its loads on a move, [relayLoads], and the tools worth making, [toolRates]).
+ * Bands of two minds do not merge at a meeting; at home they may become one, choosing as the larger did.
+ * (The entries' names are what a save keeps: they must not change.)
  */
-enum class Mind(val label: String) { NETS("nets"), PLANS("plans") }
+enum class Mind(val label: String, val gate: MoveGate, val days: DaySplit, val dials: DialSource) {
+    NETS("nets", MoveGate.EXPLORE_DRAW, DaySplit.WEIGHTED, DialSource.WAYS),
+    PLANS("plans", MoveGate.RECKONED, DaySplit.TIERED, DialSource.SCAFFOLD)
+}
+
+/** How a band decides whether to leave where it is ([Mind.gate]). */
+enum class MoveGate {
+    /** It goes where a draw by its will to explore over its places' scores sends it ([exploreChoice]); leaving's lives count in each place's deaths ([Band.leavingDying]). */
+    EXPLORE_DRAW,
+    /**
+     * It stays unless owed, in an emergency, or its reckoned case beats the walk ([plannedMove]); what leaving gives up
+     * (stores, houses, crop, heavy tools) is reckoned once in that case and walk, not in each place's deaths; it keeps other
+     * bands' news of their camps' yields ([tellYield]) to judge a fresh camp by, and chooses its loads ([relayLoads]).
+     */
+    RECKONED
+}
+
+/** How a band splits its week's days after the walk and the essentials ([Mind.days]). */
+enum class DaySplit {
+    /** Today's chore asks shared out by its ways' weights ([BandTime.plan]). */
+    WEIGHTED,
+    /** In tiers, each item held as far as its reckoning says it pays ([planDays]); its tools only those it reckons worth making ([toolRates]). */
+    TIERED
+}
+
+/** Where a band's ways' dials come from each week ([Mind.dials]). */
+enum class DialSource {
+    /** The ways network ([HexGroups.ways]), the scaffold's without one. */
+    WAYS,
+    /** The scaffold's (all at 1, [Band.scaffoldWays]), whatever the network. */
+    SCAFFOLD
+}
 
 /**
  * Each founding band's mind: [inflation.Tuning.planners] of them, drawn by the band's id from the world's seed (its own
@@ -26,4 +70,14 @@ internal fun HexGroups.foundMinds() {
     for (g in groups) g.band?.let { b ->
         b.mind = if (drawUnit(seedBase, Stream.PLANNERS, g.id.toLong(), 0L) < tuning.planners) Mind.PLANS else Mind.NETS
     }
+}
+
+/**
+ * The learned chooser group [g] weighs its places by: for a band whose mind has its own network ([HexGroups.mindPolicies]),
+ * that one; else its kind's ([HexGroups.policies]); null for none (the hand-written score).
+ */
+internal fun HexGroups.policyFor(g: HexGroup): HexPolicy? {
+    val m = g.band?.mind
+    if (m != null) mindPolicies[m]?.get(g.species)?.let { return it }
+    return policies[g.species]
 }

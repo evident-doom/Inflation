@@ -2,6 +2,9 @@ package inflation.learning
 
 import inflation.Config
 import inflation.ecology.HexGroups
+import inflation.ecology.HexPolicy
+import inflation.ecology.Mind
+import inflation.ecology.Species
 import inflation.run.baselineDir
 import inflation.run.baselinesRoot
 import java.io.File
@@ -30,6 +33,9 @@ object LearnedModel {
         ?.maxByOrNull { d -> File(d, "info.txt").takeIf { it.exists() }?.readLines()?.firstOrNull()?.removePrefix("kept ")
             ?.let { runCatching { java.time.LocalDateTime.parse(it) }.getOrNull() } ?: java.time.LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(d.lastModified()), java.time.ZoneId.systemDefault()) }
 
+    /** The people mover of the bands of mind [m] in [dir], where it has one of its own ([HexGroups.mindPolicies]). */
+    fun mindFile(dir: File, m: Mind) = File(dir, "${Role.PEOPLE.label}-${m.label}.mlp")
+
     fun apply(groups: HexGroups, nets: String?, ways: String?, hunterWays: String?, log: (String) -> Unit) {
         val dir = nets?.let { baselineDir(it) }
         if (dir != null) {
@@ -37,6 +43,14 @@ object LearnedModel {
             for (s in groups.kinds) by[Role.of(s)]?.let { groups.policies[s] = it }
             val missing = by.filterValues { it == null }.keys
             log("moving by the learned networks in $dir" + if (missing.isEmpty()) "" else " (WARNING: no network there for ${missing.joinToString { it.label }}: those groups keep the hand-written choices; train and keep a baseline with all roles)")
+            // (A mind with a mover of its own, people-MIND.mlp beside people.mlp, moves its bands by it; any other mind's bands by
+            // people.mlp. None is trained yet: review/2026-11-05-people-models-harmonize.md, step 5.)
+            groups.mindPolicies.clear()
+            for (m in Mind.entries) if (m != Mind.NETS) mindFile(dir, m).takeIf { it.exists() }?.let { f ->
+                val p = MoverPolicy(SharedMover.load(f), null, { 0f }, { 0 })
+                groups.mindPolicies[m] = HashMap<Species, HexPolicy>().also { by -> for (s in groups.kinds) if (Role.of(s) == Role.PEOPLE) by[s] = p }
+                log("${m.label} bands move by $f")
+            }
         }
         fun file(given: String?, name: String) = given?.let { File(it) } ?: dir?.let { File(it, name) }?.takeIf { it.exists() }
         for ((k, given) in listOf(WaysKind.BANDS to ways, WaysKind.HUNTERS to hunterWays))

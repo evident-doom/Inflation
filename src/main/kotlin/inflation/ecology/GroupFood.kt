@@ -94,15 +94,15 @@ internal fun HexGroups.hunt(weather: Weather) {
  */
 private fun HexGroups.setBandWays(hunters: List<HexGroup>, weather: Weather, ways: BandWays, inputs: FloatArray, out: FloatArray) {
     if (!ways.parallel) {
-        for (g in hunters) g.band?.let { b -> if (b.mind == Mind.PLANS) b.scaffoldWays() else setWays(g, weather, ways, inputs, out) }
+        for (g in hunters) g.band?.let { b -> if (b.mind.dials == DialSource.SCAFFOLD) b.scaffoldWays() else setWays(g, weather, ways, inputs, out) }
         return
     }
     val bands = hunters.filter { it.band != null }
     Par.forEach("people: set ways", bands.size) { k ->
         val g = bands[k]; val b = g.band ?: return@forEach
-        if (b.mind == Mind.PLANS) b.scaffoldWays() else if (g.id != watched) setWays(g, weather, ways, FloatArray(WAYS_IN), FloatArray(WAYS_OUT))
+        if (b.mind.dials == DialSource.SCAFFOLD) b.scaffoldWays() else if (g.id != watched) setWays(g, weather, ways, FloatArray(WAYS_IN), FloatArray(WAYS_OUT))
     }
-    for (g in bands) if (g.id == watched && g.band?.mind != Mind.PLANS) setWays(g, weather, ways, inputs, out)
+    for (g in bands) if (g.id == watched && g.band?.mind?.dials != DialSource.SCAFFOLD) setWays(g, weather, ways, inputs, out)
 }
 
 /**
@@ -341,7 +341,7 @@ internal fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float
     choreAsks(g, b, w.weather.date, asks, warm)
     // (The band weighs the rest of the asks against each other by its ways: see [timeWay]. A planning band holds its days by
     // its customs, the lives they save and what is left: [planDays].)
-    if (b.mind == Mind.PLANS) {
+    if (b.mind.days == DaySplit.TIERED) {
         time.plan(needs, planDays(g, b, w.weather, time, needs, asks, warm, kept, perDay), null, warm, kept)
         // (The viewer's Plan tab: what the plan held of the essentials, not what they asked, [DaysLook.essentialsHeld].)
         if (looked(g)) daysLook?.takeIf { it.group == g.id && it.date == w.weather.date }?.let { l ->
