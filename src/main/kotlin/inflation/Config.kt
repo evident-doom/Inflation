@@ -79,6 +79,8 @@ object Config {
         PLAN_TRACE("planTrace"),
         FORECAST_TRACE("forecastTrace"),
         MOVE_TRACE("moveTrace"),
+        DOOM_LIST("doomList"),
+        DOOM_TRACE("doomTrace"),
         FOLLOW("follow"),
         FOLLOW_HUNGRY("followHungry"),
         STRAND_DIAG("strandDiag"),
