@@ -4,7 +4,7 @@ import inflation.Config
 import inflation.ecology.GroupPlanner.PlanContext
 import inflation.world.Hex
 import inflation.world.Place
-import kotlin.math.roundToInt
+import inflation.world.get
 
 // The doom trace: which bands run into hunger (doomList), and, run again from the same save, whether those bands had a
 // better place within reach, or beyond it, week by week as they chose (doomTrace).
