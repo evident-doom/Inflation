@@ -112,6 +112,22 @@ private fun HexGroups.offer(w: ForageWeek, o: Offers, t: Food, k: Int, p: Place,
 /** [h] days of a band's work at place [p], as biting insects slow it there ([HexSmallLife.HARASS_TIME]). */
 private fun HexGroups.harassedDays(p: Place, h: Float) = h * (1f + HexSmallLife.HARASS_TIME * small.harassment(p))
 
+/**
+ * The most foods [offerFoods] can offer [w]'s party in a pass: what its [Offers] must hold. Each place offers at most so many,
+ * whether or not each is there this week: big game of each kind it may hunt on its ground ([ForageWeek.games]) and each herd
+ * ([ForageWeek.herds]); along its way, [PATH_OFFERS] a hex; [PLANT_OFFERS] a place it gathers on; and for a band, [CAMP_OFFERS] at its camp.
+ * (Sized from the offers themselves: a camp's own foods are not covered by its way's, which a band that stayed has little of.)
+ */
+internal fun mostOffers(w: ForageWeek): Int =
+    w.games + w.herds.size + w.g.path.size * PATH_OFFERS + (w.gatherAt.size + w.roundCamp.size) * PLANT_OFFERS + (if (w.band != null) CAMP_OFFERS else 0)
+
+/** Foods offered a hex along a party's way: small game, carrion, and bones (cracked, or for a band rendered; one or the other). */
+private const val PATH_OFFERS = 3
+/** Plant foods offered a place a party gathers on: fruit, roots, mast (a beast's roots and mast are one), finds, grass seed, wild grain and sown grain. */
+private const val PLANT_OFFERS = 7
+/** Foods offered at a band's camp: its children's small game, fish, shellfish, the spring run and the weir's catch. */
+private const val CAMP_OFFERS = 5
+
 /** [forage]'s foods on offer to [w]'s party in a pass, into [o]: along its way, round its camp and, for a band, in the water by it. */
 @Part("foraging: offer foods")
 internal fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
