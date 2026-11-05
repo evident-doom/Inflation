@@ -542,7 +542,8 @@ enum class BeastClass(val label: String) {
 }
 
 /**
- * The plant food band [b]'s gatherers (group [g]) would strip from place [p] in a week (as in [forage]), fruit, roots and seed,
+ * The plant food band [b]'s gatherers (group [g]) would strip from place [p] in a week (as in [forage]), fruit, roots and seed
+ * (grass seed and wild grain),
  * into [into] from [at] on, each as weeks of the band's need, x / (1 + x): for its view of its camp ([BandInputs.FRUIT]) and
  * of each place it might go ([HexFeatures.PLANT_FOOD]).
  */
@@ -554,7 +555,8 @@ internal fun HexGroups.plantFood(g: HexGroup, b: Band, p: Place, into: FloatArra
     val reap = min(0.9f, b.gatherShare() * b.gatherRange)
     into[at] = weeks(land.total(p, KgM2(pick * food.fruit[p])).v)
     into[at + 1] = weeks(land.total(p, KgM2(pick * food.underground(p))).v)
-    into[at + 2] = weeks(land.total(p, KgM2(reap * food.seeds[p])).v)
+    // (Seed: the wild grasses' and the wild cereals' grain, reaped alike. A sown field is its sower's: [HexFeatures.SOWN_HERE].)
+    into[at + 2] = weeks(land.total(p, KgM2(reap * (food.seeds[p] + food.grain[p]))).v)
 }
 
 /**

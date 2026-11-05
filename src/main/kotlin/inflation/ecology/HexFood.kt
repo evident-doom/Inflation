@@ -110,6 +110,13 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
      */
     val cleared = FloatArray(n)
     private val croppedNow = FloatArray(n)
+    /**
+     * The share of each place's land under this year's wild cereal patches: wild cereals grow as dense stands, not spread
+     * thin through the grass, so the grain that ripens at a place stands on [WILD_STAND_GRAIN] kg/m² of patch (up to the
+     * place's whole [cereal] share). Grown as the grain ripens, struck off at the year's turn. Shedding and reaping thin the
+     * patch's grain, not its ground, as a reaped field's ([fieldCover]) is.
+     */
+    val wildCover = FloatArray(n)
     /** The share of [p]'s land still to clear to sow [kg] more there, kg/m² of the place: beyond what is cleared already. */
     fun toClear(p: Place, kg: KgM2): Float = max(0f, min(1f, (field[p] + max(0f, kg.v)) / SEED_RATE) - cleared[p])
     /** The kg/m² of the place that can be sown at [p] on ground cleared already. */
@@ -120,10 +127,11 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
      */
     fun clearDaysPerHa(p: Place): Float = FELL_DAYS_PER_HA * (land.plants.tree[p] + land.plants.shrub[p])
     /**
-     * The ripe grain as it stands in the wild cereal at [p], kg/m² of the stand: the place's grain over the share of its grass
-     * that is wild cereal ([cereal]). A reaper cuts the stand, not the place ([reapDaysPerKg]).
+     * The ripe grain as it stands in the wild cereal at [p], kg/m² of the stand: the place's grain over the ground of its
+     * patches this year ([wildCover]); before any ripens this year, over the share of its grass that is wild cereal ([cereal]),
+     * as thin as last year's leavings stand. A reaper cuts the stand, not the place ([reapDaysPerKg]).
      */
-    fun wildStand(p: Place): Float = if (cereal[p] > 0f) grain[p] / cereal[p] else grain[p]
+    fun wildStand(p: Place): Float = if (wildCover[p] > 0f) grain[p] / wildCover[p] else if (cereal[p] > 0f) grain[p] / cereal[p] else grain[p]
     /**
      * The ripe grain as it stands in the sown field at [p], kg/m² of the field: the place's field grain over the share of its
      * land sown ([fieldCover]); where that is not known (a save from before it was kept), a field as it would ripen in full.
@@ -188,6 +196,7 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
             val first = standYear < 0; standYear = year
             if (!first) grainRipenedLastYear = (0 until n).sumOf { (ripenedNow[it] * land.areaKm2[it] * 1e6f).toDouble() } / 1000
             ripenedNow.fill(0f)
+            wildCover.fill(0f)
             // (Cleared ground not cropped in the year grows back toward the place's woods and scrub.)
             if (!first) for (p in 0 until n) cleared[p] = croppedNow[p] + max(0f, cleared[p] - croppedNow[p]) * (1f - 1f / REGROW_YEARS)
             croppedNow.fill(0f)
@@ -244,6 +253,7 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
                     val expected = fieldExpect(p) * field[p] * share
                     val sownRipe = land.plants.consume(p, LifeForm.HERB, KgM2(expected)).v
                     grain[p] += ripe; fieldGrain[p] += sownRipe
+                    wildCover[p] = min(cereal[p], wildCover[p] + ripe / WILD_STAND_GRAIN)
                     ripenedNow[p] += ripe + sownRipe
                     fieldFateNow[FieldFate.FULL.ordinal][p] += yieldPerKg(fieldDomestic[p]) * field[p] * share
                     fieldFateNow[FieldFate.EXPECTED.ordinal][p] += expected
@@ -378,6 +388,19 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
          * grasses 0.11-0.12. Those were fertilised pot stands, so wild field stands may sit lower. It was 0.1 (index 0.09).
          */
         const val GRAIN_SHARE = 0.25f
+        /**
+         * Grain a dense wild cereal patch ripens, kg/m² of the patch ([wildCover]): 0.1, 1 t/ha.
+         * - Harlan reaped wild einkorn at Karacadağ at some 2 kg an hour stripping by hand and some 2.5 with a flint sickle
+         *   (Harlan 1967, Archaeology 20:197, as told in JSTOR Daily, "Einkorn, the new it wheat"); at the sickle's some 25 m²
+         *   an hour ([CUT_M2_PER_HOUR] with [SICKLE_GAIN]) that is about 0.1 kg/m² standing.
+         * - Grain yields of wild emmer and wild barley of 1-1.5 t/ha "were feasible" 10,000 years ago (Araus et al. 2007, as
+         *   cited by Jaradat 2011, AJCS 5(9):1072): an estimate, not a measured stand.
+         * - Natural stands of 500-800 kg/ha (Zohary 1969, from memory, unchecked).
+         * Harlan's rate is the grain standing when he reaped, after some shedding, so the ripened patch may be thicker than this.
+         * The place's grain is as before ([GRAIN_SHARE] of its cereal grass); only the ground it stands on is less. It stood spread
+         * through the place's whole [cereal] share before, some 20-30 kg/ha where bands reaped ([REF_STAND_KG_M2]).
+         */
+        const val WILD_STAND_GRAIN = 0.1f
         const val GRAIN_HOLD_DAYS = 120f
         const val WILD_DRIFT = 0.3f
         /**

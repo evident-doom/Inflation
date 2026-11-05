@@ -337,7 +337,8 @@ internal const val MAST_LEACH_DAYS_PER_KG = 1.2f
  * - [REF_STAND_KG_M2]: the stand at which bands reaped wild cereal in a traced year (stand trace, main 93d43621, m5-1 and
  *   m5-3: kg-weighted medians 0.0019 and 0.0028 kg/m², 2026-11-04). At it cutting takes some 3 days a kilo even with a
  *   sickle: the stands of the record were hundreds of kg/ha (Harlan took some 2 kg an hour in dense wild einkorn, from
- *   memory), the model's are some 20-30, a matter for the stands, not the reaping.
+ *   memory), the model's were some 20-30: wild cereals now stand as dense patches ([HexFood.WILD_STAND_GRAIN]), and this is
+ *   only the stand against which a band's seed days are priced.
  * - Grass seed ([smallSeedDaysPerKg]): beaten into baskets, parched and winnowed, small seeds return some 300-1,000 kcal/h,
  *   about 600 after they are found (Gremillion 2004, and Simms 1987 as consistent with it, both as cited in a review of the
  *   Eastern Agricultural Complex; secondary): some 0.17 kg an hour, about 1 day a kilo, of it grinding [GRIND_DAYS_PER_KG],
