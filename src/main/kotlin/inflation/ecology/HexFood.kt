@@ -74,7 +74,7 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
      * grain, kg/m², is shed within weeks by ears that shatter; [domestic] is the share of the stand
      * whose ears hold their grain (0 wild: rare mutants, [MUTANT]), which drifts back there where the
      * stand seeds itself. [field] is grain sown here this year, kg/m², which ripens to
-     * [FIELD_YIELD] times as much into [fieldGrain], a crop of its own: the share of its ears that hold their grain is
+     * [yieldPerKg] times as much into [fieldGrain], a crop of its own: the share of its ears that hold their grain is
      * [fieldDomestic], what was sown, not the wild stand's about it (a sown plot is reaped as a plot, not as a share of the
      * hillside's stand).
      */
@@ -112,7 +112,7 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
      * The ripe grain as it stands in the sown field at [p], kg/m² of the field: the place's field grain over the share of its
      * land sown ([fieldCover]); where that is not known (a save from before it was kept), a field as it would ripen in full.
      */
-    fun fieldStand(p: Place): Float = if (fieldCover[p] > 0f) fieldGrain[p] / fieldCover[p] else FIELD_YIELD * SEED_RATE
+    fun fieldStand(p: Place): Float = if (fieldCover[p] > 0f) fieldGrain[p] / fieldCover[p] else yieldPerKg(0f) * SEED_RATE
     /** The share wild cereals would make of a place's grass in its climate, colder by [dT] and with [rainShare] of its rain. */
     private fun cerealShare(p: Place, dT: Float = 0f, rainShare: Float = 1f): Float {
         val h = land.hw.placeHex[p]
@@ -226,7 +226,7 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
                     val sownRipe = land.plants.consume(p, LifeForm.HERB, KgM2(expected)).v
                     grain[p] += ripe; fieldGrain[p] += sownRipe
                     ripenedNow[p] += ripe + sownRipe
-                    fieldFateNow[FieldFate.FULL.ordinal][p] += FIELD_YIELD * field[p] * share
+                    fieldFateNow[FieldFate.FULL.ordinal][p] += yieldPerKg(fieldDomestic[p]) * field[p] * share
                     fieldFateNow[FieldFate.EXPECTED.ordinal][p] += expected
                     fieldFateNow[FieldFate.RIPENED.ordinal][p] += sownRipe
                 }
@@ -271,10 +271,10 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
     }
 
     /**
-     * What a kilo sown at [p] ripens to as its field stands now: [FIELD_YIELD], less as the field has gone short of water since
+     * What a kilo sown at [p] ripens to as its field stands now: [yieldPerKg] of the strain sown, less as the field has gone short of water since
      * midwinter ([waterStress]) and on the ground it is sown on ([cropSoil]).
      */
-    fun fieldExpect(p: Place): Float = FIELD_YIELD * (if (fieldDays[p] > 0f) fieldStress[p] / fieldDays[p] else 1f) * cropSoil(p)
+    fun fieldExpect(p: Place): Float = yieldPerKg(fieldDomestic[p]) * (if (fieldDays[p] > 0f) fieldStress[p] / fieldDays[p] else 1f) * cropSoil(p)
 
     /** The share of [p]'s land under this year's field: grain sown at [SEED_RATE] (thicker sowing covers no more than the place). */
     private fun sownShare(p: Place) = min(1f, field[p] / SEED_RATE)
@@ -360,7 +360,22 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
         const val GRAIN_SHARE = 0.25f
         const val GRAIN_HOLD_DAYS = 120f
         const val WILD_DRIFT = 0.3f
-        const val FIELD_YIELD = 6f
+        /**
+         * What a kilo sown ripens to on rested ground: [FIELD_YIELD] for a domestic strain (ears that hold their grain), wild
+         * grain sown [WILD_SOWN_SHARE] of that, the strains between by their share ([yieldPerKg]).
+         * - Domestic: Broadbalk's unmanured wheat after a two-year break gave about 2.6 t/ha (the record behind
+         *   [CROPPED_FLOOR]), about 22 times [SEED_RATE]'s 120 kg/ha. Hulled wheats sown at 120 kg/ha gave 1.8-5 t/ha on burned
+         *   plots at Forchtenberg, winter emmer about 80% and einkorn 60% of an old bread wheat (Rösch et al. 2017, Land 6(1):11);
+         *   autumn-sown emmer at Butser gave 1:52 on its seed unmanured (Reynolds, "Mediaeval cereal yields: an empirical
+         *   challenge"). 20, a hulled wheat a little under Broadbalk. It was 6 (unsourced), under every plot above.
+         * - Wild grain sown: spring-sown wild emmer at Forchtenberg gave about 30% of the old bread wheat, the domestic hulled
+         *   wheats sown in spring 30-40% (same source): about 0.75-1 of a domestic strain sown alike. 0.8. What wild grain
+         *   loses beyond that is its shedding ([SEED_DAYS] against [GRAIN_HOLD_DAYS]).
+         */
+        const val FIELD_YIELD = 20f
+        const val WILD_SOWN_SHARE = 0.8f
+        /** What a kilo sown ripens to on rested ground, of a strain whose ears hold their grain as [domestic] of them (0 wild). */
+        fun yieldPerKg(domestic: Float) = FIELD_YIELD * (WILD_SOWN_SHARE + (1f - WILD_SOWN_SHARE) * domestic)
         /**
          * Share of the water a soil can give plants that a grain crop draws down before it goes short: 0.55 for wheat (Allen,
          * Pereira, Raes & Smith 1998, FAO Irrigation and Drainage Paper 56, table 22); yield falls about one for one with the

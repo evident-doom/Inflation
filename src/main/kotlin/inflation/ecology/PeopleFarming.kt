@@ -91,7 +91,7 @@ internal fun HexGroups.harvestCrop(g: HexGroup, b: Band, time: BandTime) {
  * its plot ([HexFood.fieldStand]); before it has sown, as a field would stand ripened in full.
  */
 internal fun GroupWorld.cropReapDays(b: Band) =
-    reapDaysPerKg(b, tuning, if (b.sownPlace.none) HexFood.FIELD_YIELD * HexFood.SEED_RATE else fauna.food.fieldStand(b.sownPlace))
+    reapDaysPerKg(b, tuning, if (b.sownPlace.none) HexFood.yieldPerKg(b.seedDomestic) * HexFood.SEED_RATE else fauna.food.fieldStand(b.sownPlace))
 
 /** [Band.seedCorn] as [g]'s stores hold it: grain is eaten, spoils, is given and taken from the wild grain first. */
 internal fun Band.seedCornIn(g: HexGroup) = min(seedCorn, g.stores[Store.SEED])
