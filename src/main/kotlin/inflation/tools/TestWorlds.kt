@@ -49,7 +49,7 @@ fun main(args: Array<String>) {
             TestWorlds.abReport(out, worlds, replicates, "the variant")
         }
         "ab-arms" -> {
-            // Several changes (each a file of config keys, e.g. t.ablate=...) against one base and a null change.
+            // Several changes (each a file of config keys) against one base and a null change.
             val arms = requireNotNull(a.string("--arms")) { "ab-arms needs --arms A.properties,B.properties" }.split(',').filter { it.isNotBlank() }.map { File(it.trim()) }
             val nullArm = requireNotNull(a.file("--null")) { "ab-arms needs --null FILE (a change known to matter next to nothing, e.g. t.humanOther=1.001)" }
             val base = a.file("--base")

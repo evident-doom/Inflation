@@ -227,7 +227,7 @@ object TestWorlds {
 
     /**
      * Runs the base, a null arm [nullArm] (a change known to matter next to nothing: how far runs drift apart on their own)
-     * and each of [arms] (config keys over the base, e.g. a `t.ablate` line) on [worlds], [replicates] weathers each; then
+     * and each of [arms] (config keys over the base) on [worlds], [replicates] weathers each; then
      * [armsReport]. Each arm is named by its file's name without the extension.
      */
     fun abArms(arms: List<File>, nullArm: File, base: File?, worlds: List<Entry>, years: Int, replicates: Int, parallel: Int, out: File) {

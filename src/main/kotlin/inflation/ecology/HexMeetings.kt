@@ -3,7 +3,6 @@ package inflation.ecology
 import inflation.drawKey
 import inflation.mix64
 import inflation.Par
-import inflation.Ablation
 import inflation.Part
 import inflation.Profile
 import inflation.monthsFrom
@@ -199,8 +198,7 @@ internal fun HexGroups.meet(weather: Weather) {
     }
     // Resident hunters of different kinds meet each other where they live, hex by hex on all cores (each hex with its own
     // draws, so the same on any number of cores); what came of it is booked after, in the hexes' order.
-    // (t.ablate residentsMeetResidents:off leaves this out, [Ablation.RESIDENTS_MEET_RESIDENTS].)
-    if (!tuning.ablate.off(Ablation.RESIDENTS_MEET_RESIDENTS)) run {
+    run {
         val byStandIns = residents.standInsByHex()
         val outcomes = arrayOfNulls<List<StandInsMet>>(byStandIns.size)
         Par.forEach("meetings: residents by hex", byStandIns.size) { j ->

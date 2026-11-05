@@ -1,6 +1,5 @@
 package inflation.ecology
 
-import inflation.Ablation
 import inflation.Part
 import inflation.enumFloats
 import inflation.world.Hex
@@ -126,7 +125,7 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
     passIllness(bandA, bandB)
     // Each tells the other of the country it knows round about, as far as they understand each other.
     // (News told is old: bands that meet again and again have little new to tell, [meetingFresh].)
-    if (rnd.nextFloat() < u * (0.6f + 0.4f * close) * fresh && !tuning.ablate.off(Ablation.TELL_OF_COUNTRY)) tellOfCountry(a, bandA, b, bandB, ab, ba, weather)
+    if (rnd.nextFloat() < u * (0.6f + 0.4f * close) * fresh) tellOfCountry(a, bandA, b, bandB, ab, ba, weather)
     // Partners: where either holds to marrying out, young adults change bands, both ways, between bands that understand each
     // other and keep the same ways the likelier.
     val marry = (if (bandA.holds(Tradition.EXOGAMY)) 0.5f else 0f) + (if (bandB.holds(Tradition.EXOGAMY)) 0.5f else 0f)
