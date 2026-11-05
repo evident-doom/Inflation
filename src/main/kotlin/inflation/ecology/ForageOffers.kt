@@ -30,7 +30,7 @@ internal class Offers(n: Int) {
     val seek = FloatArray(n); val walk = FloatArray(n)
     // (Of big game in the wild, the bands of it come on a day of searching unseen, whether or not stalked: for the hunt trace.)
     val met = FloatArray(n)
-    // (Which of the band's parties takes each food: 0 the hunters, 1 the gatherers; an animal's is all 0.)
+    // (Which of the band's parties takes each food: 0 the hunters, 1 the gatherers, 2 its children, who snare small game by the camp; an animal's is all 0.)
     val who = IntArray(n)
     // (For a beast, the herd in [ForageWeek.herds] each big game is of; -1 for game in the wild.)
     val herd = IntArray(n)
@@ -38,7 +38,7 @@ internal class Offers(n: Int) {
     val order = IntArray(n); val profit = FloatArray(n); val sortKeys = LongArray(n)
     // What each party gains (as it weighs it, and what it feeds) and the time it spends on the foods it takes up, and
     // whether it wants no more; the foods taken up are the first [used] of [order].
-    val gain = FloatArray(2); val fed = FloatArray(2); val spent = FloatArray(2); val full = BooleanArray(2); var used = 0
+    val gain = FloatArray(3); val fed = FloatArray(3); val spent = FloatArray(3); val full = BooleanArray(3); var used = 0
 
     fun add(t: Food, k: Int, p: Place, r: Float, e: Float, v: Float, wt: Float, h: Float, w: Int, hd: Int = -1, sk: Float = 0f, wk: Float = 0f) {
         type[m] = t; kind[m] = k; place[m] = p.i; rate[m] = r; kg[m] = e; value[m] = v; weight[m] = wt; time[m] = h; who[m] = w; herd[m] = hd
@@ -57,11 +57,12 @@ internal class Offers(n: Int) {
         heapify(sortKeys, m)
         gain.fill(0f); fed.fill(0f); spent.fill(1f); full.fill(false); used = 0
         // (A party with no food on offer is as good as done.)
-        var hunters = 0; for (i in 0 until m) if (who[i] == 0) hunters++
+        var hunters = 0; var kids = 0; for (i in 0 until m) if (who[i] == 0) hunters++ else if (who[i] == 2) kids++
         if (hunters == 0) full[0] = true
-        if (hunters == m) full[1] = true
+        if (hunters + kids == m) full[1] = true
+        if (kids == 0) full[2] = true
         var left = m
-        while (left > 0 && !(full[0] && full[1])) {
+        while (left > 0 && !(full[0] && full[1] && full[2])) {
             val i = (popMin(sortKeys, left--) and 0xffffffffL).toInt(); val w = who[i]
             if (full[w]) continue
             if (profit[i] <= gain[w] / spent[w]) { full[w] = true; continue }
@@ -90,17 +91,17 @@ internal class Offers(n: Int) {
  * the hunters' share instead, see [huntersShare].)
  */
 private fun HexGroups.offer(w: ForageWeek, o: Offers, t: Food, k: Int, p: Place, r: Float, e: Float, h: Float, spared: Float = 0f, herd: Int = -1, rich: Float = 1f,
-    danger: Float = 0f, seek: Float = 0f, walk: Float = 0f) {
+    danger: Float = 0f, seek: Float = 0f, walk: Float = 0f, child: Boolean = false) {
     val band = w.band
     val keen = if (band != null && t != Food.BIG_GAME) band.effort[t] else 1f
-    if (band != null && t != Food.BIG_GAME && r > 0f) dialUse?.let { u -> val f = FoodEfforts.slot(t)
+    if (band != null && t != Food.BIG_GAME && r > 0f && !child) dialUse?.let { u -> val f = FoodEfforts.slot(t)
         u.amount(DialSite.EFFORT_RANK, keen, keen, 1f, dial = f) }
-    if (r <= 0f || e <= 0f || (band != null && t != Food.BIG_GAME && w.gatherers <= 0f)) return
+    if (r <= 0f || e <= 0f || (band != null && t != Food.BIG_GAME && (if (child) w.childHands else w.gatherers) <= 0f)) return
     // (Biting insects slow people at whatever they do out there; fish are offered at the camp, whose place stands for the water they fish.)
     val hh = if (band != null) harassedDays(p, h) else h
     // (What it weighs a food at is over the days it takes and the days its [danger] costs: game that may kill a hunter is
     // weighed down as if it took that much longer, though it yields as it does.)
-    o.add(t, k, p, r, e, e * w.feeds(t) * rich, (e * rich + spared) * w.weigh(t) * keen * (if (danger > 0f) hh / (hh + danger) else 1f), hh, if (band != null && t != Food.BIG_GAME) 1 else 0, herd,
+    o.add(t, k, p, r, e, e * w.feeds(t) * rich, (e * rich + spared) * w.weigh(t) * keen * (if (danger > 0f) hh / (hh + danger) else 1f), hh, if (child) 2 else if (band != null && t != Food.BIG_GAME) 1 else 0, herd,
         seek * hh / h.coerceAtLeast(1e-9f), walk * hh / h.coerceAtLeast(1e-9f))
 }
 
@@ -173,12 +174,16 @@ internal fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
             // and only the scavengers by trade, which watch the vultures and quarter the ground for it, find
             // that much: a wolf or a band comes on a carcass now and then, not every week.)
             val found = CARRION_FOUND * min(1f, w.d.carrion / SCAVENGER_CARRION)
-            offer(w, o, Food.CARRION, 0, p, KgM2(found * small.carrion[p]).perKm2.over(swept).v / days, 1f, w.eats)
+            offer(w, o, Food.CARRION, 0, p, KgM2(found * small.carrion[p]).perKm2.over(swept).v / days, 1f, w.carrionDays)
             if (Niches.cracksBones(w.s)) offer(w, o, Food.BONES, 0, p, KgM2(found * small.bones[p]).perKm2.over(swept).v / days, 1f, w.eats * BONE_DAYS)
             else if (band != null && w.worth(Food.BONES) > 0f)
                 offer(w, o, Food.BONES, 0, p, KgM2(found * small.bones[p]).perKm2.over(swept).v / days, 1f, w.renderDays + w.eats * GREASE_YIELD)
         }
     }
+    // A band's children snare small game on the ground by the camp, a party of their own: they stay near it, and what they
+    // can take there is their own pay, not weighed against the grown gatherers' (whose time is worth more), nor out of their days.
+    if (band != null && w.childHands > 0f) { val p = g.place
+        offer(w, o, Food.SMALL_GAME, 0, p, small.smallPreyKg(p) * min(land.areaKm2[p], w.childSmallSweep * smallSeen(p)) * w.smallCatch / days, 1f, w.childSmallDays, child = true) }
     // (The ground it walked, then the country round its camp, which holds none of it.)
     if (w.eatsPlants) for (qi in 0 until w.gatherAt.size + w.roundCamp.size) {
         val q = if (qi < w.gatherAt.size) w.gatherAt[qi] else w.roundCamp[qi - w.gatherAt.size]
@@ -324,7 +329,7 @@ internal fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
                     stats.tally(Tally.bandKillsOf(prey, Tally.KillPart.LEAN_KG), (haul.kg - haul.fat).roundToInt())
                     stats.tally(Tally.bandKillsOf(prey, Tally.KillPart.FAT_KG), haul.fat.roundToInt()) }
             }
-            Food.SMALL_GAME -> small.catchSmallIn(Place(p), Kg(expected), min(land.areaKm2[p], w.smallSweep * smallSeen(Place(p))), w.weather).v.let { w.smallGot += it; w.fed += it * w.feeds(Food.SMALL_GAME)
+            Food.SMALL_GAME -> small.catchSmallIn(Place(p), Kg(expected), min(land.areaKm2[p], (if (o.who[i] == 2) w.childSmallSweep else w.smallSweep) * smallSeen(Place(p))), w.weather).v.let { w.smallGot += it; w.fed += it * w.feeds(Food.SMALL_GAME)
                 if (band == null) diag(g.species, HuntStep.PACK_SMALL_GAME_KG, it) }
             Food.CARRION -> scavenge(g, Place(p), expected, w.sweep, w.rnd).let { w.scraps += it; w.fed += it * w.feeds(Food.CARRION)
                 if (band == null) diag(g.species, HuntStep.PACK_CARRION_KG, it) }

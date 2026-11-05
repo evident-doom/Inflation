@@ -164,7 +164,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
                 (if (o.type[i] == Food.BIG_GAME) fauna.kinds[o.kind[i]].name else o.type[i].label) + " %.1f kg/day of work".format(o.profit[i]) }
         }
         // What the week brings at those rates, the parties working side by side, as far as the band wants: it stops when fed.
-        val intake = o.fed[0] / o.spent[0] + o.fed[1] / o.spent[1]
+        val intake = o.fed[0] / o.spent[0] + o.fed[1] / o.spent[1] + o.fed[2] / o.spent[2]
         // (planTrace: what a band's day of foraging brings, party by party, and the foods it took up.)
         if (pass == 0 && w.band != null && FORAGE_TRACE.wants(g.id.toLong(), weather.date.absoluteDay)) {
             val hunters = w.hands - w.gatherHands
@@ -423,15 +423,19 @@ internal class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, pack
     val gutKg = s.massKg * (g.adults + 0.5f * g.young) * EATING_RATE * gs.days
     // Small game is found within a few paces of the way, not as far as the party can see; snare
     // lines and nets search it while no one is there.
-    // (A band's children snare and gather small game with the gatherers, as they gather plants: [CHILD_GATHER] of a grown hand.)
-    val gatherers = gatherHands + (if (band != null) CHILD_GATHER * g.young else 0f)
-    val smallSweep = s.dailyTravelKm * gs.days * 2f * SMALL_SENSE_KM * sqrt(gatherers / s.groupSize) / g.path.size.coerceAtLeast(1) * (band?.snares() ?: 1f)
+    val smallSweep = s.dailyTravelKm * gs.days * 2f * SMALL_SENSE_KM * sqrt(gatherHands / s.groupSize) / g.path.size.coerceAtLeast(1) * (band?.snares() ?: 1f)
     val smallCatch = smallCatch(s)
-    val smallDays = SMALL_HANDLING_DAYS_PER_KG / gatherers * (band?.slowness(Skill.SMALL_GAME) ?: 1f) + eats
+    val smallDays = SMALL_HANDLING_DAYS_PER_KG / gatherHands * (band?.slowness(Skill.SMALL_GAME) ?: 1f) + eats
     // Plant food: picked, dug or reaped by all hands, and carried home (baskets carry more at a time).
     val eatsPlants = d.fruit + d.roots > 0f
     val carry = 1f + BASKET_GAIN * (band?.has(Tool.BASKET) ?: 0f)
-    // (A band's children gather too, near camp and slower than grown hands: fruit, roots, small finds and seed: see [gatherers].)
+    // (A band's children gather too, near camp and slower than grown hands: fruit, roots, small finds and seed.)
+    val gatherers = gatherHands + (if (band != null) CHILD_GATHER * g.young else 0f)
+    // (And they snare small game by the camp as a party of their own, [Offers.who] 2: the hands they make, [CHILD_GATHER] of a grown
+    // hand each, the ground they sweep (the camp's place, with no walk) and the days a kilo takes them.)
+    val childHands = if (band != null) CHILD_GATHER * g.young else 0f
+    val childSmallSweep = s.dailyTravelKm * gs.days * 2f * SMALL_SENSE_KM * sqrt(childHands / s.groupSize) * (band?.snares() ?: 1f)
+    val childSmallDays = SMALL_HANDLING_DAYS_PER_KG / childHands.coerceAtLeast(1e-3f) * (band?.slowness(Skill.SMALL_GAME) ?: 1f) + eats
     // (A band renders bones' grease where it gathers them: see [greaseOf].)
     val renderDays = if (band != null) BONE_RENDER_DAYS / gatherers.coerceAtLeast(1e-3f) else 0f
     val pickDays = PLANT_HANDLING_DAYS_PER_KG * gs.tuning.plantHandling / gatherers / carry + eats
@@ -455,7 +459,7 @@ internal class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, pack
         } } else emptyList()
     val roundShare = band?.let { b -> gs.dialed(DialSite.GATHER_RING, b.gatherRange, RING_REACH * b.gatherRange) { RING_REACH } } ?: 0f
     // (Which of the band's parties takes each food, [Offers.who]: its share of the hands.)
-    val party = floatArrayOf(hunt, 1f - hunt)
+    val party = floatArrayOf(hunt, 1f - hunt, 0f)
     /** The heads of its hunting party, over whom a life lost to game is shared in the days a kill costs ([dangerDays]). */
     val huntHeads = hands * hunt
     /**
@@ -465,6 +469,11 @@ internal class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, pack
      */
     val carryDaysPerKg = if (band != null) 2f * (s.dailyTravelKm / 2f) /
         (WALK_KM_PER_HOUR * Activity.WORK_HOURS * MEAT_LOAD_KG * huntHeads.coerceAtLeast(1f)) else eats
+    /**
+     * The gatherers' party-days to bring a kg of carrion home: a band cuts it from the carcass it comes on and carries it to camp as it
+     * does a kill (a load each, there and back from about half a day's going out), and then eats it; a beast eats it where it lies ([eats]).
+     */
+    val carrionDays = if (band != null) 2f * (s.dailyTravelKm / 2f) / (WALK_KM_PER_HOUR * Activity.WORK_HOURS * MEAT_LOAD_KG * gatherHands.coerceAtLeast(1f)) + eats else eats
     /** The hunters its kills this week are expected to cost ([foughtBack]): they die once the week's foraging is done ([preyFoughtBack]). */
     var foughtBack = 0f
     // What a kg of each food holds for it, in kg of its need: its energy ([Food.energy]) by the kind's [Species.needScale]
