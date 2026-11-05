@@ -136,6 +136,8 @@ class Band(kinds: Int, totems: Int = kinds) {
     @Transient var forecastTraced = false
     /** What moved food into its larder (below 0, out) this week by [LarderMove], kg ([larderMoved]): for the census, at [foresee]. */
     @Transient val larderFlow = FloatArray(LarderMove.entries.size)
+    /** Its hands' days this week by [Activity] as [bandWeek] left them, and last its hands' days in all: for the census, at [foresee]. */
+    @Transient val daysSpent = FloatArray(Activity.entries.size + 1)
     /** The same by kind of store ([Store], [StoreFlow]), its own worth: for the census, at [foresee] ([storeMoved]). */
     @Transient val storeFlow = FloatArray(Store.entries.size * StoreFlow.entries.size)
     /**
