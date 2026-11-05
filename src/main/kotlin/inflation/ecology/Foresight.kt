@@ -255,7 +255,7 @@ internal fun HexGroups.foresee(weather: Weather) {
             stats.tally(Tally.movedLatelyDays(ml, null), (100f * b.daysSpent[Activity.entries.size]).roundToInt())
             if (!b.workRate[Tally.WorkRate.YIELD.ordinal].isNaN()) {
                 stats.tally(Tally.movedLatelyRate(ml, null), g.size)
-                for (r in Tally.WorkRate.entries) stats.tally(Tally.movedLatelyRate(ml, r), (1000f * b.workRate[r.ordinal] * g.size).roundToInt())
+                for (r in Tally.WorkRate.entries) stats.tally(Tally.movedLatelyRate(ml, r), (100f * b.workRate[r.ordinal] * g.size).roundToInt())
             }
         }
         b.daysSpent.fill(0f)

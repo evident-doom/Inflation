@@ -104,6 +104,8 @@ class Band(kinds: Int, totems: Int = kinds) {
      */
     @Transient val recentFed = FloatArray(MOVE_WEEKS) { Float.NaN }
     @Transient val recentLarder = FloatArray(MOVE_WEEKS) { Float.NaN }
+    /** The same for what a day of all its hands' foraging brought ([Tally.WorkRate.YIELD]), NaN for a week without. */
+    @Transient val recentYield = FloatArray(MOVE_WEEKS) { Float.NaN }
     @Transient var recentAt = 0
     @Transient var sinceMove = -1
     @Transient var fedBeforeMove = Float.NaN

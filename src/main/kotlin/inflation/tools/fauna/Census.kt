@@ -529,11 +529,12 @@ class Census(private val sim: HexSim) {
         }
         // Whether bands starve for moving camp or move for starving: how fed they were and what their larders held in the weeks
         // around a move ([moveCensus]).
-        println("bands around camp moves, last year (by mind, weeks from the move, -$MOVE_WEEKS to $MOVE_WEEKS: share of the need eaten / larder days; and the moves counted): " + Mind.entries.joinToString("; ") { m ->
+        println("bands around camp moves, last year (by mind, weeks from the move, -$MOVE_WEEKS to $MOVE_WEEKS: share of the need eaten / larder days / forage yield, days of the need a day of all hands' foraging brings; and the moves counted): " + Mind.entries.joinToString("; ") { m ->
             fun v(o: Int, w: Tally.AroundMove) = (lastYear[Tally.aroundMove(m, o, w)] ?: 0).toDouble()
             m.label + ": " + (-MOVE_WEEKS..MOVE_WEEKS).joinToString(", ") { o ->
-                val n = v(o, Tally.AroundMove.WEEKS).coerceAtLeast(1.0)
-                "%+d %.2f/%.1f".format(o, v(o, Tally.AroundMove.FED) / 1000 / n, v(o, Tally.AroundMove.LARDER) / 10 / n)
+                val n = v(o, Tally.AroundMove.WEEKS).coerceAtLeast(1.0); val ny = v(o, Tally.AroundMove.YIELD_WEEKS)
+                "%+d %.2f/%.1f/%s".format(o, v(o, Tally.AroundMove.FED) / 1000 / n, v(o, Tally.AroundMove.LARDER) / 10 / n,
+                    if (ny > 0.0) "%.2f".format(v(o, Tally.AroundMove.YIELD) / 1000 / ny) else "-")
             } + " (moves %.0f)".format(v(0, Tally.AroundMove.WEEKS))
         })
         // Bands by how often they moved camp lately, season by season: what their larders and fat held, and their deaths ([moveCensus]).
@@ -576,7 +577,7 @@ class Census(private val sim: HexSim) {
         println("work of bands by their camp moves lately, last year (people-weighted: forage yield, days of need a day of all hands' foraging brings; hunger pace; cold pace; plants known at camp, 0.x to 1): " +
             Tally.MovedLately.entries.joinToString("; ") { m ->
                 val n = (lastYear[Tally.movedLatelyRate(m, null)] ?: 0).toDouble()
-                if (n <= 0.0) "${m.label}: -" else m.label + ": " + Tally.WorkRate.entries.joinToString(", ") { r -> "%s %.3f".format(r.label, (lastYear[Tally.movedLatelyRate(m, r)] ?: 0).toDouble() / 1000 / n) }
+                if (n <= 0.0) "${m.label}: -" else m.label + ": " + Tally.WorkRate.entries.joinToString(", ") { r -> "%s %.3f".format(r.label, (lastYear[Tally.movedLatelyRate(m, r)] ?: 0).toDouble() / 100 / n) }
             })
         // Hungry bands that moved camp against hungry bands that stayed, by what their larders held then ([moveCensus]).
         println("hungry bands that moved camp against those that stayed, last year (fed under ${(100 * HUNGRY_BEFORE).roundToInt()}% of the need over the $MOVE_WEEKS weeks before, by the larder then; followed $MOVE_WEEKS weeks: bands entering; share of the need eaten; hunger and all deaths per 1000 a year): " +

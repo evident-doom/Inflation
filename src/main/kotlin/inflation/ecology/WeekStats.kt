@@ -412,8 +412,11 @@ object Tally {
     /** Bands of mind [mind] [offset] weeks from a camp move (below 0 before it), [what] ([moveCensus]). */
     fun aroundMove(mind: Mind, offset: Int, what: AroundMove) = TallyKey.raw("around a move ${mind.label}:$offset:${what.label}")
     enum class AroundMove(val label: String) {
-        /** Band-weeks; the share of the need they ate, thousandths; their larders, tenths of a day of the need before keeping warm. */
-        WEEKS("band-weeks"), FED("fed, 1/1000"), LARDER("larder days, 1/10")
+        /**
+         * Band-weeks; the share of the need they ate, thousandths; their larders, tenths of a day of the need before keeping warm;
+         * the band-weeks with a forage yield seen, and the yield ([Band.yieldNow]: days of the need a day of all hands' foraging brings), thousandths.
+         */
+        WEEKS("band-weeks"), FED("fed, 1/1000"), LARDER("larder days, 1/10"), YIELD_WEEKS("yield weeks"), YIELD("yield, 1/1000")
     }
     /** Hunger deaths within a month of a camp move in bands of mind [mind] already short of food in the weeks before it ([HUNGRY_BEFORE]). */
     fun starvedMovedHungry(mind: Mind) = TallyKey.raw("starved after a move, short before ${mind.label}")
@@ -445,7 +448,7 @@ object Tally {
      * [Band.coldPace]); how well they know the plants of their camp's country ([plantKnow]).
      */
     enum class WorkRate(val label: String) { YIELD("forage yield"), HUNGER_PACE("hunger pace"), COLD_PACE("cold pace"), PLANT_KNOW("plants known") }
-    /** [WorkRate] of bands by [MovedLately], thousandths, people-weighted; with [what] null, the people-weeks seen. */
+    /** [WorkRate] of bands by [MovedLately], hundredths (thousandths overflow), people-weighted; with [what] null, the people-weeks seen. */
     fun movedLatelyRate(m: MovedLately, what: WorkRate?) = TallyKey.raw("bands moved lately ${m.label}:rate ${what?.label ?: "people-weeks"}")
     fun movedLately(m: MovedLately, season: Season, what: Lately) = TallyKey.raw("bands moved lately ${m.label}:${season.name}:${what.label}")
     fun hungryCohort(c: HungryCohort, what: HungryFollowed) = TallyKey.raw("hungry bands ${c.label}:${what.label}")
