@@ -120,11 +120,8 @@ internal fun GroupWorld.placeHazards(g: HexGroup, p: Place, weather: Weather, fe
     // (In a band the shortfall is not shared evenly: parents feed their children first, see [CHILDREN_FIRST].)
     // (And the elders yield theirs to the rest, see [ELDERS_YIELD]: the grown's odds are the mean of the elders' and the others'.)
     val short = shortfallOfAdults(g, fed)
-    val hungerPrime = Hazards.hunger(s, g.spent, Hazards.onFat(1f - short, g.fat, days), days)
-    val elders = b?.elders?.coerceAtMost(g.adults) ?: 0
-    val hunger = if (elders == 0) hungerPrime else
-        ((g.adults - elders) * hungerPrime + elders * eldersHunger(g, short)) / g.adults
-    val hungerYoung = if (b == null) hunger else Hazards.hunger(s, g.spent, Hazards.onFat(1f - short * (1f - CHILDREN_FIRST), g.fat, days), days)
+    val hunger = grownHunger(g, short)
+    val hungerYoung = youngHunger(g, short, hunger)
     // People keep warm as their body heat allows, through their clothes, fire, shelter and houses: past what they can
     // shiver up, they die of exposure. Animals feel the cold through their coats.
     val exposure = b?.warmth(airAt(p, weather), fire, home, days, shelter)?.odds ?: 0f
@@ -150,13 +147,28 @@ internal fun GroupWorld.placeHazards(g: HexGroup, p: Place, weather: Weather, fe
  * so the band's food is shared out whole (each one's shortfall times their number, summed, is the band's), as far as no one
  * goes without more than all of it.
  */
-private fun shortfallOfAdults(g: HexGroup, fed: Float): Float {
+internal fun shortfallOfAdults(g: HexGroup, fed: Float): Float {
     val shortfall = 1f - fed
     val b = g.band
     if (b == null || shortfall <= 0f || (g.young == 0 && b.elders == 0)) return shortfall
     val elders = b.elders.coerceAtMost(g.adults)
     return min(1f, shortfall * g.size / (g.adults - elders + ELDERS_YIELD * elders + g.young * (1f - CHILDREN_FIRST)))
 }
+
+/**
+ * The week's hunger odds of [g]'s grown when one in the childbearing years goes without [short] of its need
+ * ([shortfallOfAdults]): the mean of the elders' ([eldersHunger]) and the others'. [placeHazards]'s hunger.
+ */
+internal fun GroupWorld.grownHunger(g: HexGroup, short: Float): Float {
+    val s = g.species
+    val hungerPrime = Hazards.hunger(s, g.spent, Hazards.onFat(1f - short, g.fat, days), days)
+    val elders = g.band?.elders?.coerceAtMost(g.adults) ?: 0
+    return if (elders == 0) hungerPrime else ((g.adults - elders) * hungerPrime + elders * eldersHunger(g, short)) / g.adults
+}
+
+/** The same for [g]'s young, fed first in a band ([CHILDREN_FIRST]); [grown]'s odds ([grownHunger]) where it is no band. */
+internal fun GroupWorld.youngHunger(g: HexGroup, short: Float, grown: Float) =
+    if (g.band == null) grown else Hazards.hunger(g.species, g.spent, Hazards.onFat(1f - short * (1f - CHILDREN_FIRST), g.fat, days), days)
 
 /** The week's hunger odds of an elder of [g]'s band when a grown one in the childbearing years goes without [short] of its need ([shortfallOfAdults]). */
 private fun GroupWorld.eldersHunger(g: HexGroup, short: Float, spent: Float = g.spent) =

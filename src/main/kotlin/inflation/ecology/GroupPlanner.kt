@@ -223,14 +223,15 @@ internal class GroupPlanner(internal val gs: HexGroups) {
                 if (drowning < 0f) drowning = crossingDeaths(s, h, here, via) + stormDeaths(h, here, via)
                 val alive = score
                 val why = if (g.id == gs.watched) deathsWhy(c, p) else null
-                at.dying = deathsAt(c, p, h, fedThere(h, fed, d), d, why?.sink) + drowning
+                val fedT = fedThere(h, fed, d)
+                at.dying = deathsAt(c, p, h, fedT, d, why?.sink) + drowning
                 val steps = gs.survivalSteps(g, at.dying + leavingAt(h))
                 why?.log(fed, drowning, leavingAt(h), steps)
                 score -= steps
                 if (tp != null) { tp[MoveTerm.DEATHS.ordinal] = -steps; tp[MoveTerm.BESIDE.ordinal] = beside
                     if (p == g.place) tp.copyInto(buf.stayParts) }
                 if (!score.isFinite()) tellNotANumber(c, t, p, h, drowning, alive)
-                if (explores) buf.explore(p, score + beside, alive - score)
+                if (explores) buf.explore(p, score + beside, alive - score, at.dying, fedT)
                 seen?.add(p.i to score)
                 if (policy != null || capture) {
                     val nc = candPlaces.size
@@ -292,6 +293,8 @@ internal class GroupPlanner(internal val gs: HexGroups) {
         }
         if (capture) best = Place(gs.askControl(g, weather, date, policy, buf.candPlaces, buf.candFeats, buf.candScores, best.i,
             restless, reach, goal) { pathTo(it) })
+        // (For the census: what it foresaw of the week's deaths where it goes and where it might have gone, [recordWarning].)
+        if (explores && gs.stats.bandSplits) g.band?.let { gs.recordWarning(g, it, buf, best) }
         // (A band's ways read how its mover saw the place it goes to: see [HexGroup.plan].)
         if (g.band != null) {
             var k = -1
@@ -428,12 +431,15 @@ internal class GroupPlanner(internal val gs: HexGroups) {
         val candPlaces = IntList(); val candFeats = ArrayList<FloatArray>(); var candScores = FloatArray(64)
         /** For a band, every place weighed ([exploreChoice]): the place, its whole hand-written score, and the survival steps it would cost. */
         val explPlaces = IntList(); var explScores = FloatArray(64); var explDeaths = FloatArray(64)
+        /** And for the census ([recordWarning]): the share of it it foresaw dead there this week ([deathsAt]), and how fed. */
+        var explDying = FloatArray(64); var explFed = FloatArray(64)
         /** moveTrace: the parts of the place being weighed, of the best so far and of staying ([MoveTerm]). */
         val moveParts = FloatArray(MoveTerm.entries.size); val bestParts = FloatArray(MoveTerm.entries.size); val stayParts = FloatArray(MoveTerm.entries.size)
-        fun explore(p: Place, score: Float, deaths: Float) {
+        fun explore(p: Place, score: Float, deaths: Float, dying: Float, fed: Float) {
             val k = explPlaces.size
-            if (k == explScores.size) { explScores = explScores.copyOf(2 * k); explDeaths = explDeaths.copyOf(2 * k) }
-            explPlaces += p.i; explScores[k] = score; explDeaths[k] = deaths
+            if (k == explScores.size) { explScores = explScores.copyOf(2 * k); explDeaths = explDeaths.copyOf(2 * k)
+                explDying = explDying.copyOf(2 * k); explFed = explFed.copyOf(2 * k) }
+            explPlaces += p.i; explScores[k] = score; explDeaths[k] = deaths; explDying[k] = dying; explFed[k] = fed
         }
         /** The place being weighed: what the hand-written score and the features both read of it. */
         val terms = PlaceTerms()

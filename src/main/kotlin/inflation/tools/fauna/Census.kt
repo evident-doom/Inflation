@@ -25,6 +25,11 @@ import inflation.ecology.FRIEND_TIE
 import inflation.ecology.Mind
 import inflation.ecology.PlanTier
 import inflation.ecology.ForeseenBin
+import inflation.ecology.Warn
+import inflation.ecology.WarnBin
+import inflation.ecology.WarnDeaths
+import inflation.ecology.WARN_LAGS
+import inflation.ecology.warnShare
 import inflation.ecology.LarderMove
 import inflation.ecology.StoreFlow
 import inflation.ecology.MOVE_WEEKS
@@ -579,6 +584,32 @@ class Census(private val sim: HexSim) {
                 val n = (lastYear[Tally.movedLatelyRate(m, null)] ?: 0).toDouble()
                 if (n <= 0.0) "${m.label}: -" else m.label + ": " + Tally.WorkRate.entries.joinToString(", ") { r -> "%s %.3f".format(r.label, (lastYear[Tally.movedLatelyRate(m, r)] ?: 0).toDouble() / 100 / n) }
             })
+        // Whether bands saw their hunger and thirst deaths coming: what they foresaw for the week as they chose their place,
+        // the week they died and the weeks before ([bookWarning]), and the people-weeks by what they foresaw ([weekWarning]).
+        for (d in WarnDeaths.entries) {
+            val all = (lastYear[Tally.warnDied(d, 0, Warn.CHOSEN, WarnBin.NOT_WEIGHED)] ?: 0) +
+                WarnBin.entries.filter { it != WarnBin.NOT_WEIGHED }.sumOf { lastYear[Tally.warnDied(d, 0, Warn.CHOSEN, it)] ?: 0 }
+            println("${d.label} deaths of bands against what they foresaw for the week as they chose their place, last year ($all deaths; lag 0 the week they died, " +
+                "1, 2, 4 weeks before; shares of the deaths by the share of the band foreseen dead in that week: of hunger and thirst at the place chosen, " +
+                "the least of hunger and thirst at any place weighed, all causes at the place chosen as the networks read it; then the band's fat, protein burnt, days dry and larder, days, mean): " +
+                WARN_LAGS.joinToString(" | ") { lag ->
+                    fun bins(what: Warn) = WarnBin.entries.joinToString(", ") { b -> "${b.label} " + warnShare(lastYear[Tally.warnDied(d, lag, what, b)] ?: 0, all) }
+                    val n = (lastYear[Tally.warnReserves(d, lag, null)] ?: 0).toDouble()
+                    val kept = if (n <= 0.0) "-" else arrayOf(Warn.FAT, Warn.SPENT, Warn.DRY, Warn.LARDER).joinToString(", ") { w ->
+                        "%s %.1f".format(w.name.lowercase(), (lastYear[Tally.warnReserves(d, lag, w)] ?: 0) / 100.0 / n) }
+                    "lag $lag: chosen [${bins(Warn.CHOSEN)}]; least [${bins(Warn.LEAST)}]; seen [${bins(Warn.SEEN)}]; $kept"
+                })
+        }
+        for (what in arrayOf(Warn.CHOSEN, Warn.SEEN)) {
+            val weeks = WarnBin.entries.sumOf { lastYear[Tally.warnPeopleWeeks(what, it)] ?: 0 }
+            println("people-weeks of bands by what they foresaw for the week at the place they chose (${if (what == Warn.CHOSEN) "hunger and thirst" else "all causes, as the networks read it"}), last year " +
+                "(share of people-weeks; that week's deaths of hunger, of thirst and of all else per 1000 people-weeks): " +
+                WarnBin.entries.joinToString("; ") { b ->
+                    val pw = (lastYear[Tally.warnPeopleWeeks(what, b)] ?: 0).toDouble()
+                    "${b.label}: " + (if (pw <= 0.0) "-" else "%.1f%%, ".format(100 * pw / weeks.coerceAtLeast(1)) +
+                        WarnDeaths.entries.joinToString(", ") { dd -> "%.2f".format(1000 * (lastYear[Tally.warnDied(dd, 0, what, b)] ?: 0) / pw) })
+                })
+        }
         // Hungry bands that moved camp against hungry bands that stayed, by what their larders held then ([moveCensus]).
         println("hungry bands that moved camp against those that stayed, last year (fed under ${(100 * HUNGRY_BEFORE).roundToInt()}% of the need over the $MOVE_WEEKS weeks before, by the larder then; followed $MOVE_WEEKS weeks: bands entering; share of the need eaten; hunger and all deaths per 1000 a year): " +
             Tally.HungryCohort.entries.joinToString(", ") { c ->

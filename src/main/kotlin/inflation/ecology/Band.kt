@@ -144,6 +144,9 @@ class Band(kinds: Int, totems: Int = kinds) {
     @Transient val daysSpent = FloatArray(Activity.entries.size + 1)
     /** Its week's work as [bandWeek] left it, by [Tally.WorkRate]: for the census, at [foresee] (NaN for not seen). */
     @Transient val workRate = FloatArray(Tally.WorkRate.entries.size) { Float.NaN }
+    /** What it foresaw of the week's deaths as it chose its place, and its reserves, in each of the last [WARN_WEEKS] weeks, a ring from [warnAt] ([Warn]): for the census ([bookWarning]; NaN for not seen). */
+    @Transient val warn = FloatArray(WARN_WEEKS * Warn.entries.size) { Float.NaN }
+    @Transient var warnAt = 0
     /** The same by kind of store ([Store], [StoreFlow]), its own worth: for the census, at [foresee] ([storeMoved]). */
     @Transient val storeFlow = FloatArray(Store.entries.size * StoreFlow.entries.size)
     /**
@@ -805,6 +808,7 @@ class Band(kinds: Int, totems: Int = kinds) {
         o.renown = renown
         rite.copyInto(o.rite); o.riteStrength = riteStrength; o.riteHeld = riteHeld; o.riteKept = riteKept; o.beliefYears = beliefYears; o.strain = strain
         o.omenPlace = omenPlace; o.omenMonth = omenMonth; o.omenYear = omenYear; o.omenWeight = omenWeight; o.deathsUsual = deathsUsual; o.wantSteps = wantSteps; o.wantBroke = wantBroke; o.wantUsual = wantUsual; o.mind = mind; foreseenShares.copyInto(o.foreseenShares); o.foreseenAt = foreseenAt
+        warn.copyInto(o.warn); o.warnAt = warnAt
         traditions.copyInto(o.traditions); heard.copyInto(o.heard); o.heardOf = heardOf
         o.totem = totem; o.marksChosen = marksChosen; o.heardTotem = heardTotem.copyOf(); o.totemBroken = totemBroken
         o.raidDeathRate = raidDeathRate; o.heldLivelihood = heldLivelihood; o.livelihoodHold = livelihoodHold; o.livedOther = livedOther; o.livelihoodChosen = livelihoodChosen; heardLivelihood.copyInto(o.heardLivelihood)
@@ -865,6 +869,8 @@ class Band(kinds: Int, totems: Int = kinds) {
             val ia = Math.floorMod(a.foreseenAt - 1 - j, FORESEEN_WEEKS) * bins; val ib = Math.floorMod(b.foreseenAt - 1 - j, FORESEEN_WEEKS) * bins
             for (i in 0 until bins) a.foreseenShares[ia + i] += w * (b.foreseenShares[ib + i] - a.foreseenShares[ia + i])
         }
+        // (And what they foresaw of the week's deaths, for the census: [blendWarning].)
+        blendWarning(a, b, w)
         // (Its larder as last seen, a person's days: the two larders are put together, so near enough the two blended.)
         a.larderSeen += w * (b.larderSeen - a.larderSeen)
         a.ornaments += b.ornaments; a.exotic += b.exotic
