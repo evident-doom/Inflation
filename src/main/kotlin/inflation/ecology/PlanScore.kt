@@ -66,6 +66,8 @@ internal fun GroupPlanner.fillFeatures(f: FloatArray, c: PlanContext, t: PlaceTe
         f[Feature.STRONGER_HUNTER] = min(1f, topStrength[p] / (4f * gs.strength(g)).coerceAtLeast(1e-3f))
     // (The hurricane test: how soon the storms strike the place, told to everyone alike; see [HexHurricane].)
     gs.hurricanes?.let { if (it.told) f[Feature.STRONGER_HUNTER] = max(f[Feature.STRONGER_HUNTER], it.urgency(h)) }
+    // (The deaths it foresees there, by the rules that would kill it: as the hand-written score's survival steps weigh them.)
+    f[Feature.DEATHS_FORESEEN] = min(2f, ln(1f + gs.survivalSteps(g, c.at.dying)) / InputScale.DEATH_STEPS_LN)
     f[Feature.CLIMB] = ((gs.hw.placeElevationM[p] - gs.hw.placeElevationM[g.place]) / 1000f).coerceIn(-3f, 3f)
     f[Feature.EFFORT] = (d / reach.coerceAtLeast(1f)).coerceIn(0f, 1f)
     f[Feature.STAYS] = if (p == g.place) 1f else 0f
@@ -331,6 +333,22 @@ internal fun GroupPlanner.crossingDeaths(s: Species, to: Hex, here: Hex, via: He
         h = from
     }
     return min(0.9f, risk)
+}
+
+/**
+ * The share of a group that the hurricane test's storms ([HexHurricane]) would kill going from hex [here] to hex [to] along
+ * the cheapest chain ([via]): all of it if any hex on the way, its camp's and the end's included, is struck this week, as
+ * [HexGroups.hurricaneKill] has it (on arrival or crossing); else none. None when the storms do not kill.
+ */
+@Part("choosing: crossing deaths")
+internal fun GroupPlanner.stormDeaths(to: Hex, here: Hex, via: HexArray): Float {
+    val storms = gs.hurricanes?.takeIf { it.kills } ?: return 0f
+    var h = to
+    while (true) {
+        if (storms.struck(h)) return 1f
+        if (h == here) return 0f
+        h = via[h].takeIf { !it.none } ?: return 0f
+    }
 }
 
 /** What place [p] is worth to hunter [g] as it knows it: [placeValue], and for a band the fish it could take there ([fishWorth]). */
