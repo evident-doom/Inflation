@@ -406,9 +406,10 @@ object HexPpo {
     /**
      * Fits the networks to the hand-written behaviour: worlds run on it, a share of its choices of
      * every kind is kept, and the networks learn to give the same candidates the same preference
-     * (the softmax of their scores matching that of the hand-written scores, sharpened).
+     * (the softmax of their scores matching that of the hand-written scores, sharpened). Only the networks of [roles] learn;
+     * the others are left as they are.
      */
-    fun imitate(kinds: List<Species>, models: List<SharedMover>, worlds: Int, size: Int, sampling: Sampling, maps: Maps) {
+    fun imitate(kinds: List<Species>, models: List<SharedMover>, worlds: Int, size: Int, sampling: Sampling, maps: Maps, roles: Set<Role> = Role.entries.toSet()) {
         val shown = (0 until worlds).toList().parallelStream().map { w ->
             val run = freshSim(maps.world(40_000L + w, size, w), kinds).also { it.stats.census = Config.flag(Config.Key.CENSUS, false) }
             val kept = ConcurrentLinkedQueue<Shown>()
@@ -416,7 +417,7 @@ object HexPpo {
             val rates = kinds.associateWith { s -> val n = run.groups.groups.count { it.alive && it.species == s }; if (n == 0) 0f else min(1f, sampling.perKindYear.toFloat() / (n * stepsPerYear)) }
             for (s in kinds) run.groups.policies[s] = HexPolicy { g, f, b, rnd ->
                 var best = 0; for (k in b.indices) if (b[k] > b[best]) best = k
-                if (rnd.nextFloat() < (rates[g.species] ?: 0f)) {
+                if (rnd.nextFloat() < (rates[g.species] ?: 0f) && Role.of(g.species) in roles) {
                     kept += Shown(g.species, Array(f.size) { k -> f[k].copyOf(HexFeatures.size) }, b.copyOf(), run.weather.date.absoluteDay, g.id, g.band?.state?.copyOf(), g.temper.copyOf())
                 }
                 best
@@ -425,12 +426,13 @@ object HexPpo {
             // (In the order of the days and the groups, not of the cores that recorded them.)
             kept.sortedWith(compareBy<Shown>({ it.day }, { it.groupId }))
         }.toList().flatten()
-        imitateShown(shown, models)
+        imitateShown(shown, models, roles)
     }
 
-    /** Fits each role's network to the hand-written choices in [shown] (see [imitate]). */
-    fun imitateShown(shown: List<Shown>, models: List<SharedMover>) {
+    /** Fits each role's network in [roles] to the hand-written choices in [shown] (see [imitate]). */
+    fun imitateShown(shown: List<Shown>, models: List<SharedMover>, roles: Set<Role> = Role.entries.toSet()) {
         for ((mi, model) in models.withIndex()) {
+            if (Role.entries[mi] !in roles) continue
             val mine = shown.filter { role(it.kind) == mi }
             if (mine.isEmpty()) continue
             val kindsHere = mine.map { it.kind }.distinct()
