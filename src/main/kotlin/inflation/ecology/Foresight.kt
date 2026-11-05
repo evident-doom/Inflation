@@ -248,6 +248,13 @@ internal fun HexGroups.foresee(weather: Weather) {
             // (And by how often it moved camp lately, this week's [Band.leanKey]: what keeps the larders of bands that move low.)
             if (kg != 0f && b.leanKey >= 0) stats.tally(Tally.movedLatelyFlow(Tally.MovedLately.entries[b.leanKey / inflation.world.Season.entries.size], why), (kg / perDay).roundToInt())
         }
+        // (And its hands' days, by the same: whether moving takes the days that would lay food by.)
+        if (b.leanKey >= 0) {
+            val ml = Tally.MovedLately.entries[b.leanKey / inflation.world.Season.entries.size]
+            for (a in Activity.entries) if (b.daysSpent[a.ordinal] != 0f) stats.tally(Tally.movedLatelyDays(ml, a), (100f * b.daysSpent[a.ordinal]).roundToInt())
+            stats.tally(Tally.movedLatelyDays(ml, null), (100f * b.daysSpent[Activity.entries.size]).roundToInt())
+        }
+        b.daysSpent.fill(0f)
         // (And by the kind of store: what spoils.)
         for (st in Store.entries) for (why in StoreFlow.entries) {
             val i = st.ordinal * StoreFlow.entries.size + why.ordinal
