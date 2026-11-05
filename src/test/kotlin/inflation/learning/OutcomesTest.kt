@@ -57,7 +57,7 @@ class OutcomesTest {
         val band = HexGroup(1, Catalogue.HUMAN, inflation.world.Place(0), 20, 0)
         o.record(0, listOf(band), emptyList())
         // Week 1: two more by luck alone.
-        band.adults += 2; band.luck += 2f
+        band.adults += 2; band.yearsLuck += 2f
         o.record(1, listOf(band), emptyList())
         assertEquals(20f, o.own(1, 0, 1)[0], 1e-4f)
     }
@@ -99,5 +99,31 @@ class OutcomesTest {
         // (In week 2 the band's 20 members, all there at week 1, own the whole band's expected deaths of the week.)
         assertEquals(5f, lost[3 + DeathClass.KIT.ordinal], 1e-4f)
         assertEquals(0f, lost[3 + DeathClass.FOOD.ordinal], 1e-4f)
+    }
+
+    @Test
+    fun `a band's members count by the years they have ahead, and a child's death costs more than a grown one's`() {
+        val o = Outcomes()
+        val band = HexGroup(1, Catalogue.HUMAN, inflation.world.Place(0), 10, 10)
+        o.record(0, listOf(band), emptyList())
+        val start = o.members(1, 0)
+        assertEquals(10f + 10f * inflation.ecology.FutureYears.YOUNG, start, 1e-4f)
+        // Week 1: two young die.
+        band.young -= 2
+        o.record(1, listOf(band), emptyList())
+        assertEquals(start - 2f * inflation.ecology.FutureYears.YOUNG, o.own(1, 0, 1)[0], 1e-4f)
+    }
+
+    @Test
+    fun `growing up counted as luck takes nothing from a band's members`() {
+        val o = Outcomes()
+        val band = HexGroup(1, Catalogue.HUMAN, inflation.world.Place(0), 10, 10)
+        o.record(0, listOf(band), emptyList())
+        // Week 1: three young grow up, which loses years ahead by no one's choice, booked as luck.
+        val before = inflation.ecology.FutureYears.of(band)
+        band.young -= 3; band.adults += 3
+        band.yearsLuck -= before - inflation.ecology.FutureYears.of(band)
+        o.record(1, listOf(band), emptyList())
+        assertEquals(o.members(1, 0), o.own(1, 0, 1)[0], 1e-4f)
     }
 }

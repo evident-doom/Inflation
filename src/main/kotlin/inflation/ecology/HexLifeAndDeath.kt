@@ -513,9 +513,12 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     if (s.human && g.young > 0) for (h in hazards) if (h.young > 0f)
         stats.childDeaths.computeIfAbsent(h.cause) { DoubleAdder() }.add((g.young * spared * h.young).toDouble())
     val da = binomial(g.adults, adultOdds, r); val dy = binomial(g.young, youngOdds, r)
+    // (For training: the years a grown one who dies has ahead, on average over the elders and the rest; see [FutureYears].)
+    val grownYears = if (s.human && g.adults > 0) FutureYears.of(g.adults, band?.elders ?: 0, 0) / g.adults else 1f
     // (For training: what the week's odds made likely, before the elders' deaths are drawn.)
-    val diedExpected = g.adults * adultOdds + g.young * youngOdds +
-        (band?.let { b -> (b.elders - (da * b.elders.toFloat() / g.adults.coerceAtLeast(1))).coerceAtLeast(0f) * min(1f, ELDER_DEATHS * years) } ?: 0f)
+    val oldAgeExpected = band?.let { b -> (b.elders - (da * b.elders.toFloat() / g.adults.coerceAtLeast(1))).coerceAtLeast(0f) * min(1f, ELDER_DEATHS * years) } ?: 0f
+    val grownExpected = g.adults * adultOdds; val youngExpected = g.young * youngOdds
+    val diedExpected = grownExpected + youngExpected + oldAgeExpected
     if (s.human) {
         // (And by cause class: each hazard's share of the odds, which are held under a ceiling, of the heads they were drawn from.)
         val adultScale = if (adultSum > 0f) adultOdds / adultSum else 0f
@@ -530,7 +533,12 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         oldAge = binomial(band.elders, ELDER_DEATHS * years, r)
         band.elders -= oldAge; g.adults -= oldAge
     }
-    if (s.human) g.luck += (bornNow - bornExpected) - (da + dy + oldAge - diedExpected)
+    if (s.human) {
+        g.luck += (bornNow - bornExpected) - (da + dy + oldAge - diedExpected)
+        // (The same luck in years ahead: the young count [FutureYears.YOUNG], the elders [FutureYears.ELDER].)
+        g.yearsLuck += FutureYears.YOUNG * (bornNow - bornExpected) - (grownYears * (da - grownExpected) +
+            FutureYears.YOUNG * (dy - youngExpected) + FutureYears.ELDER * (oldAge - oldAgeExpected))
+    }
     // The sick and the newborn teach their carers.
     band?.let { b -> if (disease > 0f || da > 0) b.practise(Skill.HERBS, 0.2f * PRACTICE); if (bornNow > 0) b.practise(Skill.MIDWIFERY) }
     g.young -= dy
@@ -539,7 +547,10 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     // The week's deaths are shared among the causes by how much each weighed, the grown and the young apart ("other": age, accidents, ordinary illness).
     val causes = shareDeaths(hazards, da, dy, r)
     if (oldAge > 0) causes += Died(DeathCause.OLD_AGE, oldAge)
+    // (Growing up and growing old take years ahead from a band by no one's choice: for training, they count as its luck.)
+    val yearsBefore = if (s.human) FutureYears.of(g) else 0f
     val grown = growUp(g, r)
+    if (s.human) g.yearsLuck -= yearsBefore - FutureYears.of(g)
     land.books?.adder(Books.Stuff.MATTER, "groups born and grew up")?.add(((HexFauna.YOUNG_WEIGHT * bornNow + (1f - HexFauna.YOUNG_WEIGHT) * grown) * s.massKg).toDouble())
     if (g.adults == 0) {
         // Young left without a grown animal of their kind die.

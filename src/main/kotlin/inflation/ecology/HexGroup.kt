@@ -55,6 +55,11 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
      */
     var luck = 0f
     /**
+     * [luck] counted in years ahead ([FutureYears]), and with what growing up and growing old took from the band's years ahead
+     * (training only: not saved, so it starts at 0 on a load; only its weekly changes are read).
+     */
+    @Transient var yearsLuck = 0f
+    /**
      * A band's deaths as the week's odds made them likely, summed since it began (training, with [luck]; not saved, and so not made until first added to): of the causes in
      * [DeathClass.KIT], in [DeathClass.FOOD], and of all of them, at those indices ([LOST_ALL] for all).
      */
