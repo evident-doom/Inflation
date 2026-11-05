@@ -77,8 +77,18 @@ class Tectonics(
             // Plates seeded nearer the centre are likelier to be continental; the edges are ocean.
             // Distance is measured against the map's own proportions, so a tall map has land along its length.
             val continentalCount = (cfg.plateCount * cfg.continentalShare).toInt().coerceAtLeast(2)
-            val continental = seeds.indices.sortedBy { k ->
-                hypot((seeds[k].first - w / 2) / (0.5 * w), (seeds[k].second - h / 2) / (0.5 * h)) + CONTINENT_SCATTER * rnd.nextDouble()
+            fun centrality(k: Int) = hypot((seeds[k].first - w / 2) / (0.5 * w), (seeds[k].second - h / 2) / (0.5 * h))
+            // The scatter is drawn inside the sort key, so the draws follow the sort's comparisons; every world made so far
+            // came from that sequence and keeps it. For a few seeds (404:36) the inconsistent keys make the sort throw
+            // "Comparison method violates its general contract"; those redo it with one fixed draw per plate.
+            val continental = try {
+                seeds.indices.sortedBy { k -> centrality(k) + CONTINENT_SCATTER * rnd.nextDouble() }
+            } catch (e: IllegalArgumentException) {
+                val again = Random(cfg.seed * 7919 + 13)
+                val skip = 4 * cfg.plateCount // the plate-seed draws above
+                val draws = DoubleArray(skip + seeds.size) { again.nextDouble() }
+                val key = DoubleArray(seeds.size) { k -> centrality(k) + CONTINENT_SCATTER * draws[skip + k] }
+                seeds.indices.sortedBy { k -> key[k] }
             }.take(continentalCount).toSet()
             val plates = seeds.mapIndexed { k, (px, py, motion) ->
                 val (angle, speed) = motion
