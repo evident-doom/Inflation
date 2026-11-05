@@ -413,6 +413,8 @@ class HexGroups(
             times[k] = timetable(g.species, plan.path)
         }
         for ((k, g) in groups.withIndex()) if (g.alive) {
+            // (For the census: what it had to live on as it chose, [noteReserves].)
+            if (stats.bandSplits) g.band?.let { noteReserves(g, it) }
             if (g.band != null && g.fed < Thresholds.HUNGRY)
                 stats.meeting(if (paths[k]!!.size <= 1) Met.HUNGRY_BANDS_CHOSE_TO_STAY else Met.HUNGRY_BANDS_CHOSE_TO_MOVE)
             g.climbedM = max(0f, hw.placeElevationM[choice[k]] - hw.placeElevationM[g.place.i])

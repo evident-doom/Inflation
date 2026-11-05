@@ -450,6 +450,12 @@ object Tally {
     enum class WorkRate(val label: String) { YIELD("forage yield"), HUNGER_PACE("hunger pace"), COLD_PACE("cold pace"), PLANT_KNOW("plants known") }
     /** [WorkRate] of bands by [MovedLately], hundredths (thousandths overflow), people-weighted; with [what] null, the people-weeks seen. */
     fun movedLatelyRate(m: MovedLately, what: WorkRate?) = TallyKey.raw("bands moved lately ${m.label}:rate ${what?.label ?: "people-weeks"}")
+    /** Deaths of [d], [lag] weeks after the band foresaw [what] ([Warn]) in [bin], for whether bands saw them coming ([bookWarning]). */
+    fun warnDied(d: WarnDeaths, lag: Int, what: Warn, bin: WarnBin) = TallyKey.raw("warning:${d.label}:lag $lag:${what.name.lowercase()}:${bin.label}")
+    /** The same deaths' band's [what] ([Warn.FAT] and on), hundredths, summed over the deaths where it was seen; with [what] null, those deaths. */
+    fun warnReserves(d: WarnDeaths, lag: Int, what: Warn?) = TallyKey.raw("warning:${d.label}:lag $lag:reserves:${what?.name?.lowercase() ?: "deaths"}")
+    /** People-weeks of bands that foresaw [what] in [bin] when they chose this week's place ([weekWarning]); their deaths that week are [warnDied] at lag 0. */
+    fun warnPeopleWeeks(what: Warn, bin: WarnBin) = TallyKey.raw("warning:people-weeks:${what.name.lowercase()}:${bin.label}")
     fun movedLately(m: MovedLately, season: Season, what: Lately) = TallyKey.raw("bands moved lately ${m.label}:${season.name}:${what.label}")
     fun hungryCohort(c: HungryCohort, what: HungryFollowed) = TallyKey.raw("hungry bands ${c.label}:${what.label}")
     /** People-weeks of bands of mind [mind] within a month of a camp move. */
