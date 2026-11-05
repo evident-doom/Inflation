@@ -223,6 +223,11 @@ internal fun adultsDied(g: HexGroup, n: Int, r: Random) {
         b.elders -= min(b.elders, (dead * b.elders + r.nextInt(g.adults)) / g.adults)
         for (i in b.ageStage.indices) b.ageStage[i] -= min(b.ageStage[i], (dead * b.ageStage[i] + r.nextInt(g.adults)) / g.adults)
     }
+    // The lamed die more than the rest: their share of the dead is [LAME_RISK] heavier than their share of the living.
+    g.band?.let { b ->
+        val left = g.adults - dead
+        b.lame = if (left <= 0) 0f else max(0f, (b.lame * g.adults - dead * b.lame * (1f + LAME_RISK) / (1f + LAME_RISK * b.lame)) / left)
+    }
     g.adults -= dead
     g.band?.let { b ->
         // (Rounding can leave more counted old than are left alive; the rest are of the first stage.)
@@ -494,7 +499,8 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     val spared = 1f - ELDER_CARE * help
     var adultSum = 0f; var youngSum = 0f
     for (h in hazards) { adultSum += h.adult; youngSum += h.young }
-    val adultOdds = adultSum.coerceIn(0f, Hazards.MAX_GROWN_ODDS)
+    // (The lamed die more: the grown's odds are heavier by their share times [LAME_RISK].)
+    val adultOdds = (adultSum * (1f + LAME_RISK * (band?.lame ?: 0f))).coerceIn(0f, Hazards.MAX_GROWN_ODDS)
     g.deathOdds = adultOdds
     val youngOdds = (youngSum * spared).coerceIn(0f, Hazards.MAX_YOUNG_ODDS)
     if (s.human && g.young > 0) for (h in hazards) if (h.young > 0f)
@@ -571,6 +577,8 @@ private fun GroupWorld.growUp(g: HexGroup, r: Random): Int {
     val band = g.band
     val up = binomial(g.young, years / s.yearsToMaturity, r)
     g.young -= up; g.adults += up
+    // Those who grow up are not lamed: the lamed share thins as they join.
+    if (up > 0) band?.let { b -> b.lame *= (g.adults - up).toFloat() / g.adults }
     // Adults age through three spans of adult life, then become elders.
     band?.let { b ->
         val rate = 3f * years / ADULT_YEARS

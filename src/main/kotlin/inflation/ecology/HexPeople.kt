@@ -742,8 +742,7 @@ internal const val SKIN_DAYS = 0.5f
  * cuts, sprains, snakebite gone bad) at the usual gathering range; wounded who live for each one
  * killed by prey or by a beast (in raids, [RAID_WOUNDED_PER_DEAD]); weekly share of the wounded who heal, untended and with
  * the best care; weekly share whose wound festers and kills, untended (care saves most); share of
- * the healed lamed for life, untended (care halves it); yearly share of the lamed lost as the band's
- * people turn over.
+ * the healed lamed for life, untended (care halves it); the lamed's extra odds of dying ([LAME_RISK]).
  */
 internal const val HURT_HANDS = 0.8f
 internal const val LAME_HANDS = 0.4f
@@ -753,5 +752,6 @@ internal const val HEAL_UNTENDED = 0.15f
 internal const val HEAL_TENDED = 0.35f
 internal const val FESTER = 0.02f
 internal const val LAMED = 0.2f
-internal const val LAME_TURNOVER = 0.04f
+/** Extra odds of dying (of any cause but old age) for a lamed adult, over an unlamed one: 1 is twice as likely. */
+internal const val LAME_RISK = 1f
 
