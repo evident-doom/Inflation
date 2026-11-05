@@ -40,6 +40,10 @@ internal class Offers(n: Int) {
     // whether it wants no more; the foods taken up are the first [used] of [order].
     val gain = FloatArray(3); val fed = FloatArray(3); val spent = FloatArray(3); val full = BooleanArray(3); var used = 0
 
+    // (Of each party, its foods not yet drawn in [takeUp].)
+    private val rest = IntArray(3)
+    private fun take(i: Int, w: Int) { gain[w] += rate[i] * weight[i]; fed[w] += rate[i] * value[i]; spent[w] += rate[i] * time[i]; order[used++] = i }
+
     fun add(t: Food, k: Int, p: Place, r: Float, e: Float, v: Float, wt: Float, h: Float, w: Int, hd: Int = -1, sk: Float = 0f, wk: Float = 0f) {
         type[m] = t; kind[m] = k; place[m] = p.i; rate[m] = r; kg[m] = e; value[m] = v; weight[m] = wt; time[m] = h; who[m] = w; herd[m] = hd
         seek[m] = sk; walk[m] = wk; met[m] = 0f; m++
@@ -56,17 +60,17 @@ internal class Offers(n: Int) {
         rankKeys(profit, m, sortKeys)
         heapify(sortKeys, m)
         gain.fill(0f); fed.fill(0f); spent.fill(1f); full.fill(false); used = 0
-        // (A party with no food on offer is as good as done.)
-        var hunters = 0; var kids = 0; for (i in 0 until m) if (who[i] == 0) hunters++ else if (who[i] == 2) kids++
-        if (hunters == 0) full[0] = true
-        if (hunters + kids == m) full[1] = true
-        if (kids == 0) full[2] = true
+        // (A party with no food on offer, or none left, is as good as done: so the heap is not drained for a party
+        // that took up all it had, as the children with their one offer do.)
+        rest.fill(0); for (i in 0 until m) rest[who[i]]++
+        for (w in 0 until 3) if (rest[w] == 0) full[w] = true
         var left = m
         while (left > 0 && !(full[0] && full[1] && full[2])) {
             val i = (popMin(sortKeys, left--) and 0xffffffffL).toInt(); val w = who[i]
+            if (--rest[w] == 0 && !full[w]) { if (profit[i] > gain[w] / spent[w]) take(i, w); full[w] = true; continue }
             if (full[w]) continue
             if (profit[i] <= gain[w] / spent[w]) { full[w] = true; continue }
-            gain[w] += rate[i] * weight[i]; fed[w] += rate[i] * value[i]; spent[w] += rate[i] * time[i]; order[used++] = i
+            take(i, w)
         }
     }
 
