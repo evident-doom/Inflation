@@ -168,7 +168,7 @@ internal fun GroupPlanner.bandPull(g: HexGroup, b: Band, month: Int, h: Hex, her
  * as a move's lost days are. The harvest is its share of the field as the sim would ripen it now ([HexFood.fieldExpect]),
  * in weeks of its food.
  */
-private fun GroupPlanner.cropPull(g: HexGroup, b: Band, h: Hex): Float = cropHarvestWeeks(g, b, h) / (if (b.mind == Mind.PLANS) b.plannedStay() else b.stayWeeks)
+private fun GroupPlanner.cropPull(g: HexGroup, b: Band, h: Hex): Float = cropHarvestWeeks(g, b, h) / (if (b.mind.gate == MoveGate.RECKONED) b.plannedStay() else b.stayWeeks)
 
 /** The harvest band [b] (group [g]) has sown and not yet reaped in hex [h], in weeks of its food (0 elsewhere): [cropPull] before it is spread over the weeks it keeps a camp. */
 internal fun GroupPlanner.cropHarvestWeeks(g: HexGroup, b: Band, h: Hex): Float {

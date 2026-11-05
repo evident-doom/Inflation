@@ -715,7 +715,7 @@ class Band(kinds: Int, totems: Int = kinds) {
     var wantSteps = 0
     var wantBroke = 0
     var wantUsual = 0f
-    /** How it chooses ([Mind]): today's way, or the planning kind's. Handed down whole at a split; a band never joins one of the other mind. */
+    /** How it chooses ([Mind]: the forager's way or the planning kind's, slot by slot). Handed down whole at a split; a band never joins one of the other mind at a meeting. */
     var mind = Mind.NETS
     /**
      * The shares of its people that foresaw each [ForeseenBin] of deaths ([HexGroup.foreseen]) in each of the last

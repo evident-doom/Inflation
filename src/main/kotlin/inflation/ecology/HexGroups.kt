@@ -123,6 +123,11 @@ class HexGroups(
     @field:MovedInto("marks", "markers") internal val scent = Scent()
     /** Learned choosers by kind; kinds without one use the hand-written score. */
     val policies = HashMap<Species, HexPolicy>()
+    /**
+     * Learned choosers for the bands of one mind ([Band.mind]) where it has its own network, by kind; bands of a mind
+     * without one choose by their kind's ([policies]). See [policyFor]. Not saved: the config sets what drives a run.
+     */
+    @Transient val mindPolicies = HashMap<Mind, HashMap<Species, HexPolicy>>()
     /** How bands set their ways each week; null for the scaffold's. Not saved: what drives a run is set by the config (ways=), not carried in a save. */
     @Transient var ways: BandWays? = null
     /** Counts how the bands' ways act (dialUse=FILE, see [DialUse]); null: not counted. Not saved. */

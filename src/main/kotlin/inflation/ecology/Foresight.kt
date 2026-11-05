@@ -41,7 +41,7 @@ internal fun HexGroups.foreseenSurvival(g: HexGroup, b: Band, weather: Weather):
     // (And what a camp move would cost it, for next week's choice of place: [Band.leavingDying].)
     val share = if (b.campPlace.none) 0f else leftBehindShare(g, b)
     b.leavingDying = if (share > 0f) max(0f, alive - year.alive(g.species, larderDays * (1f - share), g.fat, g.spent)) else 0f
-    b.leavingHouse = if (b.mind == Mind.PLANS && b.atHome && b.houseHex == hw.placeHex[g.place]) houseLeft(g, b, weather) else 0f
+    b.leavingHouse = if (b.mind.gate == MoveGate.RECKONED && b.atHome && b.houseHex == hw.placeHex[g.place]) houseLeft(g, b, weather) else 0f
     return alive
 }
 

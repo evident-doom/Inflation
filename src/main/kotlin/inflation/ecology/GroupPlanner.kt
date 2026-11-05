@@ -105,7 +105,7 @@ internal class GroupPlanner(internal val gs: HexGroups) {
         val dist = buf.dist; val via = buf.via; val reached = buf.reached
         searchReach(g, here, reach, restless, weather, buf)
         var best = g.place; var bestScore = Float.NEGATIVE_INFINITY
-        val policy = gs.policies[s]
+        val policy = gs.policyFor(g)
         // (moveTrace: a band choosing by the hand-written score books what moved it, [bookMove].)
         val traced = MOVE_TRACE && g.band != null && policy == null
         if (traced) buf.stayParts.fill(0f)
@@ -166,7 +166,7 @@ internal class GroupPlanner(internal val gs: HexGroups) {
         // take ([relayLoads]): counted again here, a year's deaths against a week's chance spread, they kept it from every
         // other place it could reach (followed band 10244, 2026-11-03: 25-39 survival steps, every other hazard 0.01-0.03).)
         val campHex = g.band?.campPlace?.takeIf { !it.none }?.let { gs.hw.placeHex[it] } ?: Hex.NONE
-        val leaving = if (campHex.none || g.band?.mind == Mind.PLANS) 0f else g.band?.leavingDying ?: 0f
+        val leaving = if (campHex.none || g.band?.mind?.gate == MoveGate.RECKONED) 0f else g.band?.leavingDying ?: 0f
         fun leavingAt(h: Hex) = if (leaving > 0f && h != campHex) leaving else 0f
         val c = PlanContext(g, kind, here, sensed, month, goal, goalQ, fromHere, reach, thirsty, restless, season, keepOff,
             weather, date, goalHex, predatorKg, buf, lacked, lackedHex, lackedQ, if (!lackedHex.none) gs.hexKm(here, lackedHex) else 0.0)
@@ -267,7 +267,7 @@ internal class GroupPlanner(internal val gs: HexGroups) {
         val chosen = best
         if (traced) bookMove(chosen != g.place, buf)
         g.band?.planLoads = Float.NaN
-        if (explores && !g.drawn) best = if (g.band?.mind == Mind.PLANS) planned(g, policy, buf, best, dueSoon, here, date) else if (g.weighed) explored(g, policy, buf, best, date) else best
+        if (explores && !g.drawn) best = if (g.band?.mind?.gate == MoveGate.RECKONED) planned(g, policy, buf, best, dueSoon, here, date) else if (g.weighed) explored(g, policy, buf, best, date) else best
         // (For the census: whether the band would have moved by its best choice, and whether it moved by its draw.)
         if (g.band != null) {
             val k = s.index * 4

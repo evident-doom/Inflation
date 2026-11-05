@@ -181,7 +181,7 @@ internal fun carryKg(g: HexGroup, b: Band) = CARRY_KG * max(1, g.adults) * (1f +
  * it reckoned them for this move, [relayLoads]): under one, a lighter load and a faster walk; above one, they carry a load
  * ahead, go back for the next and so on (relays).
  */
-internal fun carryLoads(b: Band) = if (b.mind == Mind.PLANS && !b.planLoads.isNaN()) b.planLoads else b.will[BandWay.CARRY_LOADS]
+internal fun carryLoads(b: Band) = if (b.mind.gate == MoveGate.RECKONED && !b.planLoads.isNaN()) b.planLoads else b.will[BandWay.CARRY_LOADS]
 
 /** Times [b]'s adults walk the way of a camp move: once, and there and back again for each load past the first. */
 internal fun relayWalks(b: Band) = 1f + 2f * max(0f, carryLoads(b) - 1f)
