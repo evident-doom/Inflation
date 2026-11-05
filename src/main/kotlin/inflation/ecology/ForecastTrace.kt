@@ -115,14 +115,14 @@ internal fun HexGroups.moveCensus(g: HexGroup, b: Band, moved: Boolean, larderDa
         if (n == MOVE_WEEKS && sum / n < HUNGRY_BEFORE) {
             val c = Tally.HungryCohort.of(moved, b.recentLarder[Math.floorMod(b.recentAt - 1, MOVE_WEEKS)])
             b.hungryCohort = c.ordinal; b.hungryWeek = 0
-            stats.tally(Tally.hungryCohort(c, Tally.Hungry.ENTERED), 1)
+            stats.tally(Tally.hungryCohort(c, Tally.HungryFollowed.ENTERED), 1)
         }
     }
     if (b.hungryCohort >= 0) {
         val c = Tally.HungryCohort.entries[b.hungryCohort]
         if (b.hungryWeek > 0) {
-            stats.tally(Tally.hungryCohort(c, Tally.Hungry.PEOPLE_WEEKS), g.size)
-            stats.tally(Tally.hungryCohort(c, Tally.Hungry.FED), (1000f * g.fed * g.size).roundToInt())
+            stats.tally(Tally.hungryCohort(c, Tally.HungryFollowed.PEOPLE_WEEKS), g.size)
+            stats.tally(Tally.hungryCohort(c, Tally.HungryFollowed.FED), (1000f * g.fed * g.size).roundToInt())
         }
         if (++b.hungryWeek > MOVE_WEEKS) b.hungryCohort = -1
     }

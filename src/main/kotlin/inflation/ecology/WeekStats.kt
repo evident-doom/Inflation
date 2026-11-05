@@ -422,8 +422,8 @@ object Tally {
         companion object { fun of(moved: Boolean, larder: Float) = entries.first { it.moved == moved && !(larder >= it.below) } }
     }
     /** Bands entering a cohort; people-weeks after; the share of the need eaten, thousandths, people-weighted; hunger and all deaths. */
-    enum class Hungry(val label: String) { ENTERED("entered"), PEOPLE_WEEKS("people-weeks"), FED("fed, 1/1000"), STARVED("hunger deaths"), DIED("deaths") }
-    fun hungryCohort(c: HungryCohort, what: Hungry) = TallyKey.raw("hungry bands ${c.label}:${what.label}")
+    enum class HungryFollowed(val label: String) { ENTERED("entered"), PEOPLE_WEEKS("people-weeks"), FED("fed, 1/1000"), STARVED("hunger deaths"), DIED("deaths") }
+    fun hungryCohort(c: HungryCohort, what: HungryFollowed) = TallyKey.raw("hungry bands ${c.label}:${what.label}")
     /** People-weeks of bands of mind [mind] within a month of a camp move. */
     fun movedWeeks(mind: Mind) = TallyKey.raw("people-weeks after a move ${mind.label}")
     /** A planning band's days in each tier of its week beyond its essentials ([planDays]), tenths of a day. */

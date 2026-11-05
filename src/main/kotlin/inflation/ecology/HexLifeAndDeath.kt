@@ -300,9 +300,9 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
             // (And in the weeks it is followed as a hungry band that moved or stayed: [moveCensus].)
             if (b.hungryCohort >= 0 && b.hungryWeek > 0) {
                 val hc = Tally.HungryCohort.entries[b.hungryCohort]
-                if (starved > 0) stats.tally(Tally.hungryCohort(hc, Tally.Hungry.STARVED), starved)
+                if (starved > 0) stats.tally(Tally.hungryCohort(hc, Tally.HungryFollowed.STARVED), starved)
                 val all = o.causes.sumOf { it.n }
-                if (all > 0) stats.tally(Tally.hungryCohort(hc, Tally.Hungry.DIED), all)
+                if (all > 0) stats.tally(Tally.hungryCohort(hc, Tally.HungryFollowed.DIED), all)
             }
             if (starved > 0) {
                 val larderDays = g.larder / (g.dailyNeedKg / g.warmth.coerceAtLeast(1e-3f)).coerceAtLeast(1e-3f)

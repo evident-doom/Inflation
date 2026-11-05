@@ -504,10 +504,10 @@ class Census(private val sim: HexSim) {
         // Hungry bands that moved camp against hungry bands that stayed, by what their larders held then ([moveCensus]).
         println("hungry bands that moved camp against those that stayed, last year (fed under ${(100 * HUNGRY_BEFORE).roundToInt()}% of the need over the $MOVE_WEEKS weeks before, by the larder then; followed $MOVE_WEEKS weeks: bands entering; share of the need eaten; hunger and all deaths per 1000 a year): " +
             Tally.HungryCohort.entries.joinToString(", ") { c ->
-                fun v(w: Tally.Hungry) = (lastYear[Tally.hungryCohort(c, w)] ?: 0).toDouble()
-                val pw = v(Tally.Hungry.PEOPLE_WEEKS); val years = (pw / stepsPerYear).coerceAtLeast(1e-9)
-                "%s %.0f: %.2f; %.1f, %.1f".format(c.label, v(Tally.Hungry.ENTERED), v(Tally.Hungry.FED) / 1000 / pw.coerceAtLeast(1.0),
-                    1000 * v(Tally.Hungry.STARVED) / years, 1000 * v(Tally.Hungry.DIED) / years)
+                fun v(w: Tally.HungryFollowed) = (lastYear[Tally.hungryCohort(c, w)] ?: 0).toDouble()
+                val pw = v(Tally.HungryFollowed.PEOPLE_WEEKS); val years = (pw / stepsPerYear).coerceAtLeast(1e-9)
+                "%s %.0f: %.2f; %.1f, %.1f".format(c.label, v(Tally.HungryFollowed.ENTERED), v(Tally.HungryFollowed.FED) / 1000 / pw.coerceAtLeast(1.0),
+                    1000 * v(Tally.HungryFollowed.STARVED) / years, 1000 * v(Tally.HungryFollowed.DIED) / years)
             })
         run {
             // A planning band's days beyond its essentials, by tier ([planDays]).
