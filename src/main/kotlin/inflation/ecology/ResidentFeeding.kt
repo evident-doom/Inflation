@@ -234,17 +234,18 @@ private fun HexFauna.animalFood(k: FaunaKind, p: Place, weather: Weather, z: Gra
         left -= gotMeat
         var gotSmall = if (left > 0f) smallFood(k, p, KgM2(min(left, needAll * d.smallPrey / all) * avail[k]), weather).v else 0f
         var gap = left - gotSmall
-        // (The shortfall is made up first from the food it mostly lives on, then from the others,
-        // each to at most (1 + SWITCH) times its usual share, as with the plants.)
+        // (The shortfall is made up first from the food it mostly lives on, then from the others, as far as the place
+        // has them: a hungry hunter takes what of its foods it finds. Only the surplus it lays on as fat keeps to at
+        // most (1 + SWITCH) times each food's usual share.)
         val most = (1f + SWITCH) * needAll / all
         fun share(food: AnimalFood) = when (food) { AnimalFood.MEAT -> d.meat; AnimalFood.SMALL_PREY -> d.smallPrey; AnimalFood.CARRION -> d.carrion }
         val order = AnimalFood.entries.filter { share(it) > 0f }.sortedByDescending { share(it) }
         for (food in order) {
             if (gap <= 0f) break
             val x = when (food) {
-                AnimalFood.MEAT -> min(gap, most * d.meat - gotMeat).let { if (it > 0f) huntResidents(k, p, KgM2(it * avail[k]), weather, huntDays).v else 0f }
-                AnimalFood.SMALL_PREY -> min(gap, most * d.smallPrey - gotSmall).let { if (it > 0f) smallFood(k, p, KgM2(it * avail[k]), weather).v else 0f }
-                AnimalFood.CARRION -> min(gap, most * d.carrion - gotCarrion).let { if (it > 0f) small.scavenge(p, KgM2(min(it, 0.5f * small.carrion[p]))).v else 0f }
+                AnimalFood.MEAT -> gap.let { if (it > 0f) huntResidents(k, p, KgM2(it * avail[k]), weather, huntDays).v else 0f }
+                AnimalFood.SMALL_PREY -> gap.let { if (it > 0f) smallFood(k, p, KgM2(it * avail[k]), weather).v else 0f }
+                AnimalFood.CARRION -> gap.let { if (it > 0f) small.scavenge(p, KgM2(min(it, 0.5f * small.carrion[p]))).v else 0f }
             }
             when (food) { AnimalFood.MEAT -> gotMeat += x; AnimalFood.SMALL_PREY -> gotSmall += x; AnimalFood.CARRION -> gotCarrion += x }
             gap -= x

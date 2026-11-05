@@ -75,8 +75,9 @@ fun fromReserves(s: Species, young: Float, fed: Float, days: Int) = max(0f, youn
 /** Share of its fill above which a group lays on reserves rather than drawing on them (a week's food is never exactly what it needs). */
 internal const val WELL_FED = 0.9f
 /**
- * How far fruit, roots or prey stretch to make up for a food that fell short: to (1 + this) times their usual
- * share; and browse for grass under snow (grass and browse otherwise go as far as the gut holds).
+ * How far browse stretches to make up for grass under snow: to (1 + this) times its usual share; and how far a fed
+ * hunter lays on fat from each of its foods. A shortfall is otherwise made up as far as the gut holds (grass, browse)
+ * or the place has the food (fruit, roots, prey, carrion).
  */
 internal const val SWITCH = 1f
 /** Scent marks: share of freshness kept from week to week; below what freshness a mark no longer keeps others off. */
