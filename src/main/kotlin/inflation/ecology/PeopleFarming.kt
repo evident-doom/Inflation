@@ -27,7 +27,10 @@ import kotlin.math.min
 internal fun HexGroups.sowGrain(g: HexGroup, b: Band, p: Place, date: Date, time: BandTime) {
     val left = time.leftFor(Activity.SOWING)
     if (canSow(g, b, p, date) && left > 0f) {
-        val stock = g.stores[Store.SEED]
+        // (A band whose seed corn is of a better strain than its wild grain sows that alone: a farmer keeps the seed of the
+        // crop apart, as mixing in wild grain would leave next year's seed worse.)
+        val apart = b.seedDomestic > b.grainDomestic
+        val stock = if (apart) b.seedCornIn(g) else g.stores[Store.SEED]
         val sow = minOf(stock * SOW_SHARE * b.sowWill, left / SOW_DAYS_PER_KG)
         dialUse?.amount(DialSite.SOWING, b.sowWill, sow, minOf(stock * SOW_SHARE, left / SOW_DAYS_PER_KG))
         if (sow > 0.1f) {
