@@ -570,6 +570,12 @@ class Census(private val sim: HexSim) {
                         ", unspent %.1f".format(100 * (all - used.sumOf { it.second }) / all)
                 }
             })
+        // What a day's work brought bands, and why, by how often they moved camp lately ([bandWeek], [foresee]).
+        println("work of bands by their camp moves lately, last year (people-weighted: forage yield, days of need a day of all hands' foraging brings; hunger pace; cold pace; plants known at camp, 0.x to 1): " +
+            Tally.MovedLately.entries.joinToString("; ") { m ->
+                val n = (lastYear[Tally.movedLatelyRate(m, null)] ?: 0).toDouble()
+                if (n <= 0.0) "${m.label}: -" else m.label + ": " + Tally.WorkRate.entries.joinToString(", ") { r -> "%s %.3f".format(r.label, (lastYear[Tally.movedLatelyRate(m, r)] ?: 0).toDouble() / 1000 / n) }
+            })
         // Hungry bands that moved camp against hungry bands that stayed, by what their larders held then ([moveCensus]).
         println("hungry bands that moved camp against those that stayed, last year (fed under ${(100 * HUNGRY_BEFORE).roundToInt()}% of the need over the $MOVE_WEEKS weeks before, by the larder then; followed $MOVE_WEEKS weeks: bands entering; share of the need eaten; hunger and all deaths per 1000 a year): " +
             Tally.HungryCohort.entries.joinToString(", ") { c ->
