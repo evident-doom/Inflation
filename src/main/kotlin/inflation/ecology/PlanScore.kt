@@ -297,6 +297,22 @@ private fun GroupPlanner.killedByStronger(c: PlanContext, p: Place, h: Hex): Flo
 }
 
 /**
+ * The share of a week's need band [g] would go without by moving camp to hex [h], [km] off, from its camp in [campHex]: the
+ * days the move takes from its work beyond those it had to spare (as [scorePlace] charges them), less the days of need its
+ * larder holds to eat through them. (A day not worked taken as a day's food not got.) 0 for staying in its camp's hex, for a
+ * band with no camp and for animals. Hungry bands with an empty larder that moved camp ate less and starved at about twice
+ * the rate of those that stayed over the next four weeks (hungry640, 2026-11-05); the week's deaths it weighs did not see it.
+ */
+internal fun GroupPlanner.moveShort(g: HexGroup, h: Hex, campHex: Hex, km: Float): Float {
+    val b = g.band ?: return 0f
+    if (campHex.none || h == campHex) return 0f
+    val lost = max(0f, gs.moveDays(g, km) - b.spareDays / forageHands(g))
+    if (lost <= 0f) return 0f
+    val larderDays = g.larder / (g.dailyNeedKg / g.warmth.coerceAtLeast(1e-3f)).coerceAtLeast(1e-3f)
+    return max(0f, lost - larderDays) / gs.days
+}
+
+/**
  * How fed group [g] foresees it would be where it knows of [prey] (see [knownGame]) among [kinKm2] of its kind per km²
  * (itself counted; [crowded] by the one measure). A beast of prey by the residents' hunters' feeding rule: its kind
  * takes at most [HexFauna.RESIDENT_KILL_MOST] of the game in a week, shared by heads against their need. A band (whose
