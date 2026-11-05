@@ -4,6 +4,7 @@ import inflation.inflationHome
 import inflation.Part
 import inflation.run.Nominal
 import inflation.run.freshSim
+import inflation.ecology.MoveGate
 import inflation.ecology.HexSim
 import inflation.ecology.HexSnapshot
 import inflation.ecology.foundMinds
@@ -240,10 +241,15 @@ class MoverPolicy(private val mover: SharedMover, private val record: Concurrent
         if (weighed == 0) return Critic.here(features)
         // Only the choices recorded to learn from are drawn by chance here; every other group takes its best (a band then draws
         // by its will to explore, see [HexGroup.drawn]), so the training worlds live as they would with the networks choosing.
-        if (record == null || rnd.nextFloat() >= recordRate(g, state)) {
+        // (A band whose mind decides by itself whether it leaves ([MoveGate.RECKONED], the planning kind) asks this network only
+        // where to go once it leaves: its weeks are not the network's choices, so none is recorded or learnt from, not even for the
+        // critic, whose returns would mix two ways of choosing it cannot tell apart. Drawn, it went where the draw sent it and
+        // not where its own reckoning would; review/2026-11-05-people-models-harmonize.md, step 3.)
+        val learns = g.band?.mind?.gate != MoveGate.RECKONED
+        if (record == null || !learns || rnd.nextFloat() >= recordRate(g, state)) {
             var best = 0; for (k in 1 until n) if (scores[k] > scores[best]) best = k
             // (The groups that take their best still show what a group in their place can expect: the critic learns from a share of them too.)
-            if (record != null && valueRate(g.species) > 0f && rnd.nextFloat() < valueRate(g.species)) {
+            if (record != null && learns && valueRate(g.species) > 0f && rnd.nextFloat() < valueRate(g.species)) {
                 val group = Critic.groupState(g, season())
                 if (temper.allFinite() && state.allFinite() && group.allFinite()) {
                     val c = Choice(g.species, g.id, g.size, week(), arrayOf(features[Critic.here(features)].copyOf(HexFeatures.size)), 0, 0f)
