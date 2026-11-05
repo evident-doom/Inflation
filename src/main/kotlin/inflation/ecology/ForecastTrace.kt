@@ -92,6 +92,8 @@ internal class ForecastTrace(private val head: String, private val startMonth: I
 
 /** Weeks before and after a camp move the census follows a band ([moveCensus]). */
 const val MOVE_WEEKS = 4
+/** The weeks over which the census counts a band's camp moves as lately ([Band.movesLately]): about a season. */
+const val MOVES_LATELY_WEEKS = 13f
 /** Fed below this share of the need on the mean over the weeks before a move, a band was already short of food when it moved. */
 const val HUNGRY_BEFORE = 0.9f
 
@@ -100,7 +102,15 @@ const val HUNGRY_BEFORE = 0.9f
  * the [MOVE_WEEKS] weeks before a move ([moved] this week) and after it: whether bands starve for moving, or move for
  * starving. Counts only.
  */
-internal fun HexGroups.moveCensus(g: HexGroup, b: Band, moved: Boolean, larderDays: Float) {
+internal fun HexGroups.moveCensus(g: HexGroup, b: Band, moved: Boolean, larderDays: Float, season: inflation.world.Season) {
+    // (And by how often it has moved camp lately, season by season: its larder and fat going into the lean months, and the
+    // deaths after, [Band.leanKey].)
+    b.movesLately += (if (moved) 1f else 0f) - b.movesLately / MOVES_LATELY_WEEKS
+    val lately = Tally.MovedLately.of(b.movesLately)
+    stats.tally(Tally.movedLately(lately, season, Tally.Lately.PEOPLE_WEEKS), g.size)
+    stats.tally(Tally.movedLately(lately, season, Tally.Lately.LARDER), (10f * larderDays * g.size).roundToInt())
+    stats.tally(Tally.movedLately(lately, season, Tally.Lately.FAT), (10f * g.fat * g.size).roundToInt())
+    b.leanKey = lately.ordinal * inflation.world.Season.entries.size + season.ordinal
     fun book(offset: Int, fed: Float, larder: Float) {
         stats.tally(Tally.aroundMove(b.mind, offset, Tally.AroundMove.WEEKS), 1)
         stats.tally(Tally.aroundMove(b.mind, offset, Tally.AroundMove.FED), (1000f * fed).roundToInt())
