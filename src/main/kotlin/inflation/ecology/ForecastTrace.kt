@@ -110,6 +110,7 @@ internal fun HexGroups.moveCensus(g: HexGroup, b: Band, moved: Boolean, larderDa
     stats.tally(Tally.movedLately(lately, season, Tally.Lately.PEOPLE_WEEKS), g.size)
     stats.tally(Tally.movedLately(lately, season, Tally.Lately.LARDER), (10f * larderDays * g.size).roundToInt())
     stats.tally(Tally.movedLately(lately, season, Tally.Lately.FAT), (10f * g.fat * g.size).roundToInt())
+    stats.tally(Tally.movedLately(lately, season, Tally.Lately.STORE_AIM), (10f * b.storeAim * g.size).roundToInt())
     b.leanKey = lately.ordinal * inflation.world.Season.entries.size + season.ordinal
     fun book(offset: Int, fed: Float, larder: Float) {
         stats.tally(Tally.aroundMove(b.mind, offset, Tally.AroundMove.WEEKS), 1)

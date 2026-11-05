@@ -430,7 +430,9 @@ object Tally {
         companion object { fun of(n: Float) = entries.first { n < it.below } }
     }
     /** People-weeks; larder and fat, tenths of a day, people-weighted; hunger and all deaths. */
-    enum class Lately(val label: String) { PEOPLE_WEEKS("people-weeks"), LARDER("larder, 1/10 day"), FAT("fat, 1/10 day"), STARVED("hunger deaths"), DIED("deaths") }
+    enum class Lately(val label: String) { PEOPLE_WEEKS("people-weeks"), LARDER("larder, 1/10 day"), FAT("fat, 1/10 day"), STARVED("hunger deaths"), DIED("deaths"), STORE_AIM("store aim, 1/10 day") }
+    /** What moved the larders of bands by their camp moves lately ([MovedLately]), person-days of the need: [LarderMove]. */
+    fun movedLatelyFlow(m: MovedLately, why: LarderMove) = TallyKey.raw("bands moved lately ${m.label}:larder flow ${why.label}")
     fun movedLately(m: MovedLately, season: Season, what: Lately) = TallyKey.raw("bands moved lately ${m.label}:${season.name}:${what.label}")
     fun hungryCohort(c: HungryCohort, what: HungryFollowed) = TallyKey.raw("hungry bands ${c.label}:${what.label}")
     /** People-weeks of bands of mind [mind] within a month of a camp move. */
