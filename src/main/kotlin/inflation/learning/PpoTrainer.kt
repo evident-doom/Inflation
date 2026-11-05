@@ -49,10 +49,12 @@ class PpoTrainer(private val o: PpoOptions) {
     private val advantageClip = Config.float(Config.Key.PPO_ADVANTAGE_CLIP, 3f).let { if (it <= 0f) Float.MAX_VALUE else it }
 
     fun run() {
-        // A fresh network first learns to choose as the hand-written behaviour does, so learning starts from it.
-        if (!files[0].exists()) {
-            HexPpo.imitate(kinds, models, o.worlds, o.size, o.sampling, o.maps)
-            for (i in models.indices) models[i].save(files[i])
+        // A fresh network first learns to choose as the hand-written behaviour does, so learning starts from it: each role
+        // whose network is not in the out directory, whatever the others' (one role may be warm-started from a kept net).
+        val fresh = Role.entries.filter { !files[it.ordinal].exists() }.toSet()
+        if (fresh.isNotEmpty()) {
+            HexPpo.imitate(kinds, models, o.worlds, o.size, o.sampling, o.maps, fresh)
+            for (r in fresh) models[r.ordinal].save(files[r.ordinal])
         }
         eco.init()
         var ahead: CompletableFuture<List<List<Choice>>>? = null
