@@ -156,6 +156,14 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
     /** Grain ripened at each place so far this year, kg/m², and over all the land in the last whole year, t. */
     private val ripenedNow = FloatArray(n)
     var grainRipenedLastYear = 0.0; private set
+    /**
+     * Where the sown fields' grain went, kg/m² so far this year at each place ([FieldFate]), and over all the land in the last
+     * whole year, t: for the census only.
+     */
+    private val fieldFateNow = Array(FieldFate.entries.size) { FloatArray(n) }
+    val fieldFateLastYear = DoubleArray(FieldFate.entries.size)
+    /** What becomes of a sown field's grain in a year: the seed whose crop is spent, what it would ripen to in full, what its water and ground let it ripen to, what ripened, what was shed. */
+    enum class FieldFate { SEED, FULL, EXPECTED, RIPENED, SHED }
     fun step(weather: Weather) {
         // Once a year the wild cereal stands follow the climate: they spread where it suits them and
         // die back where it no longer does, over decades (a long cold, dry spell shrinks them).
@@ -164,6 +172,10 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
             val first = standYear < 0; standYear = year
             if (!first) grainRipenedLastYear = (0 until n).sumOf { (ripenedNow[it] * land.areaKm2[it] * 1e6f).toDouble() } / 1000
             ripenedNow.fill(0f)
+            for (k in FieldFate.entries.indices) {
+                if (!first) fieldFateLastYear[k] = (0 until n).sumOf { (fieldFateNow[k][it] * land.areaKm2[it] * 1e6f).toDouble() } / 1000
+                fieldFateNow[k].fill(0f)
+            }
             if (!first) { val (dT, rain) = weather.shock()
                 Par.forEachPlace("food: cereal stands", n) { p -> cereal[p] += STAND_SHIFT * (cerealShare(p, dT, rain) - cereal[p]) } }
         }
@@ -210,20 +222,26 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
                 if (inWindow > 0f) {
                     val share = inWindow / (SEED_TO - SEED_FROM)
                     val ripe = land.plants.consume(p, LifeForm.HERB, KgM2(GRAIN_SHARE * cereal[p] * land.plants.herb[p] * share)).v
-                    val sownRipe = land.plants.consume(p, LifeForm.HERB, KgM2(fieldExpect(p) * field[p] * share)).v
+                    val expected = fieldExpect(p) * field[p] * share
+                    val sownRipe = land.plants.consume(p, LifeForm.HERB, KgM2(expected)).v
                     grain[p] += ripe; fieldGrain[p] += sownRipe
                     ripenedNow[p] += ripe + sownRipe
+                    fieldFateNow[FieldFate.FULL.ordinal][p] += FIELD_YIELD * field[p] * share
+                    fieldFateNow[FieldFate.EXPECTED.ordinal][p] += expected
+                    fieldFateNow[FieldFate.RIPENED.ordinal][p] += sownRipe
                 }
                 val lost = grain[p] * shedShare(domestic[p])
                 grain[p] = max(0f, grain[p] - lost); small.deposit(DeadPool.LITTER, p, KgM2(lost))
                 val fieldLost = fieldGrain[p] * shedShare(fieldDomestic[p])
                 fieldGrain[p] = max(0f, fieldGrain[p] - fieldLost); small.deposit(DeadPool.LITTER, p, KgM2(fieldLost))
+                fieldFateNow[FieldFate.SHED.ordinal][p] += fieldLost
                 // After the year's ripening, the sown crop is spent, and a stand that seeded itself
                 // drifts back toward the wild (ears that hold their grain cannot sow themselves). A crop that has not
                 // ripened by the end of summer has failed. (Not at midwinter: what was sown in autumn stands through the
                 // winter and ripens the next summer.)
                 if ((season > SEED_TO && season - advance <= SEED_TO) || (weather.date.month == FIELD_FAILS_MONTH && weather.date.dayOfMonth <= days && field[p] > 0f)) {
                     wearGround(p)
+                    fieldFateNow[FieldFate.SEED.ordinal][p] += field[p]
                     field[p] = 0f; fieldDays[p] = 0f; fieldStress[p] = 0f
                     domestic[p] = MUTANT + (domestic[p] - MUTANT) * (1f - WILD_DRIFT)
                 }
