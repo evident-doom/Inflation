@@ -168,6 +168,10 @@ internal class GroupPlanner(internal val gs: HexGroups) {
         val campHex = g.band?.campPlace?.takeIf { !it.none }?.let { gs.hw.placeHex[it] } ?: Hex.NONE
         val leaving = if (campHex.none || g.band?.mind?.gate == MoveGate.RECKONED) 0f else g.band?.leavingDying ?: 0f
         fun leavingAt(h: Hex) = if (leaving > 0f && h != campHex) leaving else 0f
+        // (And the week's food it would go without for the days a camp move takes from its work, where its larder cannot
+        // cover them: hunger it foresees at each place it would move camp to, [moveShort]. A [Mind.PLANS] band pays for the
+        // walk in its reckoning instead, as for what it leaves.)
+        fun fedThere(h: Hex, fed: Float, km: Float) = if (g.band?.mind == Mind.PLANS) fed else max(0f, fed - moveShort(g, h, campHex, km))
         val c = PlanContext(g, kind, here, sensed, month, goal, goalQ, fromHere, reach, thirsty, restless, season, keepOff,
             weather, date, goalHex, predatorKg, buf, lacked, lackedHex, lackedQ, if (!lackedHex.none) gs.hexKm(here, lackedHex) else 0.0)
         val at = c.at
@@ -202,7 +206,7 @@ internal class GroupPlanner(internal val gs: HexGroups) {
                 if (handless) {
                     // (A network sees the deaths it foresees there, as the hand-written score weighs them: see [Feature.DEATHS_FORESEEN].)
                     if (drowning < 0f) drowning = crossingDeaths(s, h, here, via) + stormDeaths(h, here, via)
-                    at.dying = deathsAt(c, p, h, fed, d) + drowning
+                    at.dying = deathsAt(c, p, h, fedThere(h, fed, d), d) + drowning
                     val nc = candPlaces.size
                     if (nc == candFeats.size) candFeats += FloatArray(Feature.size)
                     fillFeatures(candFeats[nc].also { it.fill(0f) }, c, t, p, h)
@@ -219,7 +223,7 @@ internal class GroupPlanner(internal val gs: HexGroups) {
                 if (drowning < 0f) drowning = crossingDeaths(s, h, here, via) + stormDeaths(h, here, via)
                 val alive = score
                 val why = if (g.id == gs.watched) deathsWhy(c, p) else null
-                at.dying = deathsAt(c, p, h, fed, d, why?.sink) + drowning
+                at.dying = deathsAt(c, p, h, fedThere(h, fed, d), d, why?.sink) + drowning
                 val steps = gs.survivalSteps(g, at.dying + leavingAt(h))
                 why?.log(fed, drowning, leavingAt(h), steps)
                 score -= steps
@@ -253,7 +257,7 @@ internal class GroupPlanner(internal val gs: HexGroups) {
             for (k in order) {
                 if (up[k] < bestScore) break
                 val p = Place(buf.laterPlace[k]); val h = gs.hw.placeHex[p]
-                val total = buf.laterScore[k] - gs.survivalSteps(g, deathsAt(c, p, h, buf.laterFed[k], buf.laterD[k]) +
+                val total = buf.laterScore[k] - gs.survivalSteps(g, deathsAt(c, p, h, fedThere(h, buf.laterFed[k], buf.laterD[k]), buf.laterD[k]) +
                     crossingDeaths(s, h, here, via) + stormDeaths(h, here, via) + leavingAt(h)) + buf.laterBeside[k]
                 if (!total.isFinite()) {
                     at.d = buf.laterD[k]; at.prey = buf.laterPrey[k]; at.crowded = Float.NaN; at.fed = buf.laterFed[k]
