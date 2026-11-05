@@ -1,5 +1,6 @@
 package inflation.tools.fauna
 
+import inflation.ecology.HexFood.FieldFate
 import inflation.ecology.climateSuits
 import inflation.ecology.monthFit
 import inflation.ecology.set
@@ -363,6 +364,11 @@ class Census(private val sim: HexSim) {
             sown.size, sownKg / 1000, if (sownKg > 0) sown.sumOf { f.fieldDomestic[it] * f.field[it] * land.areaKm2[it] * 1e6 } / sownKg else 0.0,
             bands.count { it.second > 0f }, bands.size, cornSum / 1000, if (cornSum > 0) bands.sumOf { it.first.seedDomestic * it.second.toDouble() } / cornSum else 0.0,
             wild / 1000, if (wild > 0) bands.sumOf { it.first.grainDomestic * it.third.toDouble() } / wild else 0.0))
+        // (Where the sown fields' grain went in the last whole year; what bands reaped of it is in the bands' grain line.)
+        fun t(k: FieldFate) = f.fieldFateLastYear[k.ordinal]
+        println("cereals fields, last year (t): seed whose crop is spent %.1f; in full it ripens to %.1f, its water and ground let %.1f, ripened %.1f (short of grass %.1f); shed from the ear %.1f; ground cleared for fields %.1f km²".format(
+            t(FieldFate.SEED), t(FieldFate.FULL), t(FieldFate.EXPECTED), t(FieldFate.RIPENED), t(FieldFate.EXPECTED) - t(FieldFate.RIPENED), t(FieldFate.SHED),
+            (0 until land.n).sumOf { f.cleared[it] * land.areaKm2[it].toDouble() }))
         // (What spaces births: gruel to wean on, and children carried on the band's moves; people-weighted.)
         println("births by how bands live (people; share of weanlings weaned on gruel; camp moves a year; births against a band without weaning food): " + Tally.Living.entries.joinToString(", ") { way ->
             val ofWay = groups.groups.filter { g -> g.alive && g.band?.let { groups.bandLiving(it) == way } == true }

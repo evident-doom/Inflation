@@ -307,7 +307,7 @@ private const val SOW = 5
 
 /**
  * Band [b]'s (group [g]'s) sowing in days (tier 2, as houses, weirs and tools, [planDays]): the [ask] days sow its seed
- * ([SOW_DAYS_PER_KG]), and the crop grows [HexFood.FIELD_YIELD] times the seed, as food by its kit ([seedValue], cooked):
+ * ([sowDays], clearing included), and the crop grows [HexFood.yieldPerKg] times the seed (of the strain of its seed corn), as food by its kit ([seedValue], cooked):
  * the days of foraging at [perDay] the food beyond the seed would take, less the days to reap it ([reapDaysPerKg], as thick as
  * a field ripened in full stands), and less
  * what living against its way of life would cost it ([livingAgainstDays]) where it holds another than farming; against the
@@ -316,12 +316,14 @@ private const val SOW = 5
  */
 private fun HexGroups.sowRate(g: HexGroup, b: Band, perDay: Float, ask: Float, weather: Weather): Float {
     if (ask <= 0f || perDay <= 0f) return 0f
-    val sown = ask / SOW_DAYS_PER_KG
-    val raw = sown * g.storeKgPer[Store.SEED]
+    // (What the days sow where it is now, clearing first what is not cleared: [sowableKg].)
+    val raw = sowableKg(g.place, ask)
+    val sown = raw / g.storeKgPer[Store.SEED]
     // (The crop is eaten through the year till the next harvest, so kept half a year on the mean: less what its stores would
     // lose of it in that time, where it keeps them now, [cropKept].)
-    val food = raw * HexFood.FIELD_YIELD * seedValue(b) * b.cookValue(Food.GRAIN) * cropKept(b) - sown
-    val reap = raw * HexFood.FIELD_YIELD * reapDaysPerKg(b, tuning, HexFood.FIELD_YIELD * HexFood.SEED_RATE)
+    val yieldPerKg = HexFood.yieldPerKg(b.seedDomestic)
+    val food = raw * yieldPerKg * seedValue(b) * b.cookValue(Food.GRAIN) * cropKept(b) - sown
+    val reap = raw * yieldPerKg * reapDaysPerKg(b, tuning, yieldPerKg * HexFood.SEED_RATE)
     val against = if (b.heldLivelihood != Livelihood.FARMING) livingAgainstDays(g, b) else 0f
     // (Grain is a store, eaten when foraging is poor: its food as days of foraging in the month a day's foraging brought it
     // least, as a herd's is ([herdPays], [Band.forageReturn]); this week's with no month on record yet.)

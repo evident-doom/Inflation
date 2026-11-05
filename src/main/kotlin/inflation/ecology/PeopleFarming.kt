@@ -28,17 +28,19 @@ internal fun HexGroups.sowGrain(g: HexGroup, b: Band, p: Place, date: Date, time
     val left = time.leftFor(Activity.SOWING)
     if (canSow(g, b, p, date) && left > 0f) {
         val stock = g.stores[Store.SEED]
-        val sow = minOf(stock * SOW_SHARE * b.sowWill, left / SOW_DAYS_PER_KG)
-        dialUse?.amount(DialSite.SOWING, b.sowWill, sow, minOf(stock * SOW_SHARE, left / SOW_DAYS_PER_KG))
+        val per = g.storeKgPer[Store.SEED]; val canIn = sowableKg(p, left) / per
+        val sow = minOf(stock * SOW_SHARE * b.sowWill, canIn)
+        dialUse?.amount(DialSite.SOWING, b.sowWill, sow, minOf(stock * SOW_SHARE, canIn))
         if (sow > 0.1f) {
             // (Its seed corn first, then grain gathered from the wild stands.)
             val corn = b.seedCornIn(g); val fromCorn = min(sow, corn)
             val domestic = (fromCorn * b.seedDomestic + (sow - fromCorn) * b.grainDomestic) / sow
-            g.stores[Store.SEED] -= sow; b.seedCorn = corn - fromCorn; time.spend(Activity.SOWING, sow * SOW_DAYS_PER_KG)
-            val kg = sow * g.storeKgPer[Store.SEED]
+            val kg = sow * per
+            g.stores[Store.SEED] -= sow; b.seedCorn = corn - fromCorn; time.spend(Activity.SOWING, sowDays(p, kg))
+            // (Ground it sows beyond what is cleared there it clears first: [HexFood.cleared], kept by [HexFood.sow].)
             // (A field sown afresh, or sown where last year's crop is spent, is this year's crop.)
             if (b.sownPlace != p || fauna.food.field[p] <= 0f) b.sownKg = 0f
-            b.sownPlace = p; b.sownKg += kg; b.sinceSowed = 0f
+            b.sownPlace = p; b.sownKg += kg; b.seedKept = b.sownKg; b.sinceSowed = 0f
             fauna.food.sow(p, land.spread(p, Kg(kg)), domestic)
             stats.meeting(Met.BANDS_SOWED)
             note(g) { "sowed %.0f kg of grain at home".format(sow) }
@@ -70,8 +72,9 @@ internal fun HexGroups.harvestCrop(g: HexGroup, b: Band, time: BandTime) {
     val f = b.sownPlace; val food = fauna.food
     val kg = land.total(f, food.take(food.fieldGrain, f, land.spread(f, Kg(min(ripe, left / perKg))))).v
     if (kg <= 0f) return
-    // (What it keeps back to sow again, as much as it sowed, is not ground: it is charged the grinding of the rest only.)
-    val grind = grindDaysPerKg(b); val ground = max(0f, kg - b.sownKg)
+    // (What it keeps back to sow again, as much as it sowed, is not ground: it is charged the grinding of the rest only.
+    // The crop comes in over weeks, so what is kept is counted off over the whole harvest, not each week's.)
+    val grind = grindDaysPerKg(b); val kept = min(kg, b.seedKept); b.seedKept -= kept; val ground = kg - kept
     time.spend(Activity.SOWING, kg * (perKg - grind) + ground * grind)
     val worth = kg * seedValue(b) * b.cookValue(Food.GRAIN)
     val corn = b.seedCorn
@@ -90,7 +93,27 @@ internal fun HexGroups.harvestCrop(g: HexGroup, b: Band, time: BandTime) {
  * its plot ([HexFood.fieldStand]); before it has sown, as a field would stand ripened in full.
  */
 internal fun GroupWorld.cropReapDays(b: Band) =
-    reapDaysPerKg(b, tuning, if (b.sownPlace.none) HexFood.FIELD_YIELD * HexFood.SEED_RATE else fauna.food.fieldStand(b.sownPlace))
+    reapDaysPerKg(b, tuning, if (b.sownPlace.none) HexFood.yieldPerKg(b.seedDomestic) * HexFood.SEED_RATE else fauna.food.fieldStand(b.sownPlace))
+
+/**
+ * Person-days to sow [kg] at [p]: hoeing and sowing the ground ([SOW_DAYS_PER_KG]), and first clearing what of it is not cleared
+ * yet of its trees and scrub ([HexFood.toClear], [HexFood.clearDaysPerHa]).
+ */
+internal fun GroupWorld.sowDays(p: Place, kg: Float): Float {
+    val food = fauna.food
+    return kg * SOW_DAYS_PER_KG + food.toClear(p, land.spread(p, Kg(kg))) * land.m2(p) / 1e4f * food.clearDaysPerHa(p)
+}
+
+/** The kg that [days] person-days sow at [p] ([sowDays]): on cleared ground first, then clearing as it goes. */
+internal fun GroupWorld.sowableKg(p: Place, days: Float): Float {
+    if (days <= 0f) return 0f
+    val food = fauna.food
+    val free = food.sowableCleared(p) * land.m2(p)
+    if (days <= free * SOW_DAYS_PER_KG) return days / SOW_DAYS_PER_KG
+    // (Beyond it each kg sown needs 1/[HexFood.SEED_RATE] m² cleared.)
+    val clearPerKg = food.clearDaysPerHa(p) / (HexFood.SEED_RATE * 1e4f)
+    return free + (days - free * SOW_DAYS_PER_KG) / (SOW_DAYS_PER_KG + clearPerKg)
+}
 
 /** [Band.seedCorn] as [g]'s stores hold it: grain is eaten, spoils, is given and taken from the wild grain first. */
 internal fun Band.seedCornIn(g: HexGroup) = min(seedCorn, g.stores[Store.SEED])
@@ -214,12 +237,21 @@ internal const val DOG_HUNT = 1f
 internal const val DOG_PREY_KG = 25f
 internal const val DOG_GUARD = 0.5f
 /**
- * Sowing: months (0 the one after midwinter) for sowing in autumn; share of its stored grain a band
- * sows; person-days to clear, sow and weed for each kg sown.
+ * Sowing: months (0 the one after midwinter) for sowing in autumn; share of its stored grain a band sows; person-days (of 6
+ * hours) to hoe and sow a hectare of cleared ground, and so for each kg sown at [HexFood.SEED_RATE] (clearing comes on top:
+ * [sowDays]).
+ * - Hoeing: digging by hand about 15 m² an hour, some 670 hours a hectare, 110 days (a model table of Cucuteni-Tripolye
+ *   farming, arXiv 1505.05121, that gives no source for it: unsourced).
+ * - Sowing: 80 hours a hectare for sorghum and millet by hand, 13 days (van Heemst, "Crop calendar, workability and labour
+ *   requirements", WUR, broad averages).
+ * - Not counted: weeding, 145 and 120 hours for a first and second hoeing (same source), till a field going unweeded bears less.
+ * It was 0.5 days a kg sown, 60 a hectare, unsourced.
  */
 val SOW_MONTHS = 9..10
 internal const val SOW_SHARE = 0.3f
-internal const val SOW_DAYS_PER_KG = 0.5f
+internal const val TILL_DAYS_PER_HA = 110f
+internal const val SOW_DAYS_PER_HA = 13f
+internal const val SOW_DAYS_PER_KG = (TILL_DAYS_PER_HA + SOW_DAYS_PER_HA) / (HexFood.SEED_RATE * 1e4f)
 /**
  * A band's kept animals' week: they graze round the camp ([herdForage]), breed in their season as they are fed and as tame
  * as they have grown, give milk after it ([milkKg]), die, and run off as wild as they still are; they are herded in the field

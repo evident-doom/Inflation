@@ -231,16 +231,18 @@ internal fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
         } else plant(Food.ROOTS, 0, reach, food.underground(Place(q)), ROOT_DIGGING * pickQ + walked(Food.ROOTS, walk))
         plant(Food.FINDS, 0, reach, food.finds[q], ROOT_DIGGING * pickQ + walked(Food.FINDS, walk), walked = walked(Food.FINDS, walk))
         // Grass seed must be reaped, threshed and ground: worth it only with the tools and the hands.
-        // (The small seeds of wild grasses take longer a kilo than wild cereal's, [SMALL_SEED_SLOWER]; both must be found, as
-        // fruit is.)
-        // (And as cereal is, a band reaps it the sooner the thicker it stands, [standHandling]: over the place, as the grass grows.)
-        val seedStand = if (band != null) standHandling(food.seeds[q], REF_SEED_STAND_KG_M2) else 1f
-        plant(Food.SEED, 0, seedReach, food.seeds[q], (seedQ - eats) * SMALL_SEED_SLOWER * seedStand + eats + sought(food.seeds[q]) + walked(Food.SEED, seedWalk),
+        // (The small seeds of wild grasses are beaten out, parched and winnowed at their own rate, [smallSeedDaysPerKg]; both
+        // must be found, as fruit is. A band beats them out the sooner the thicker they stand, [standHandling]: over the place,
+        // as the grass grows.)
+        // (Its days a kilo against wild cereal's in a stand of [REF_STAND_KG_M2], whose days [seedQ] holds.)
+        val refReap = reapDaysPerKg(band, tuning)
+        val seedStand = if (band != null) smallSeedDaysPerKg(band, food.seeds[q]) / refReap else 1f
+        plant(Food.SEED, 0, seedReach, food.seeds[q], (seedQ - eats) * seedStand + eats + sought(food.seeds[q]) + walked(Food.SEED, seedWalk),
             sought(food.seeds[q]), walked(Food.SEED, seedWalk))
         // Wild and sown cereals: reaped like grass seed, but richer where they stand. A band's reapers cut a kilo the
-        // sooner the thicker it stands ([standHandling]): the wild stand as thick as its grain stands in it, a sown field
+        // sooner the thicker it stands ([reapDaysPerKg]): the wild stand as thick as its grain stands in it, a sown field
         // (kind [FIELD_KIND]) as thick as it stands in the plot. (An animal eats the grain where it finds it.)
-        fun grainQ(stand: Float) = if (band != null) (seedQ - eats) * standHandling(stand) + eats else seedQ
+        fun grainQ(stand: Float) = if (band != null) (seedQ - eats) * reapDaysPerKg(band, tuning, stand) / refReap + eats else seedQ
         val wild = food.grain[q]; val sown = food.fieldGrain[q]
         plant(Food.GRAIN, 0, seedReach, wild, grainQ(food.wildStand(Place(q))) + sought(wild) + walked(Food.GRAIN, seedWalk), sought(wild), walked(Food.GRAIN, seedWalk))
         if (sown > 0f) plant(Food.GRAIN, FIELD_KIND, seedReach, sown, grainQ(food.fieldStand(Place(q))) + sought(sown) + walked(Food.GRAIN, seedWalk),
@@ -414,22 +416,30 @@ private fun GroupWorld.reap(g: HexGroup, p: Place, sown: Boolean, expected: Floa
 }
 
 /**
- * Person-days to reap, thresh and clean a kilo of grain or grass seed standing [stand] kg/m² where it grows:
- * [SEED_HANDLING_DAYS_PER_KG] by hand in a stand of [REF_STAND_KG_M2], less with a sickle; the cutting share of it
- * ([REAP_CUT_SHARE]) the longer the thinner the stand ([standHandling]). And, with grinding stones, the days to grind it to
- * meal ([GRIND_DAYS_PER_KG]), which make more of it ([seedValue]) but take longer, not less.
+ * Person-days to reap, thresh and clean a kilo of grain standing [stand] kg/m² where it grows: cutting it, by the ground the
+ * reapers cover ([CUT_M2_PER_HOUR], more with a sickle), so a kilo from a stand half as thick takes twice as long to cut; and
+ * threshing, winnowing and cleaning it ([THRESH_DAYS_PER_KG]), as long a kilo however it stood. And, with grinding stones, the
+ * days to grind it to meal ([GRIND_DAYS_PER_KG]), which make more of it ([seedValue]) but take longer, not less.
  */
 internal fun reapDaysPerKg(band: Band?, tuning: inflation.Tuning, stand: Float = REF_STAND_KG_M2) =
-    SEED_HANDLING_DAYS_PER_KG * tuning.plantHandling * standHandling(stand) / (1f + (band?.sickleGain(tuning) ?: 0f)) + grindDaysPerKg(band)
+    1f / (CUT_M2_PER_HOUR * (1f + (band?.sickleGain(tuning) ?: 0f)) * Activity.WORK_HOURS * stand.coerceAtLeast(1e-6f)) +
+        THRESH_DAYS_PER_KG + grindDaysPerKg(band)
 
 /** Person-days band [band] takes to grind a kilo of seed or grain to meal: [GRIND_DAYS_PER_KG] with grinding stones, none without. */
 internal fun grindDaysPerKg(band: Band?) = GRIND_DAYS_PER_KG * (band?.has(Tool.GRINDER) ?: 0f)
 
 /**
- * How long a kilo of grain or seed standing [stand] kg/m² takes against one in a stand of [ref] (where the record's rate was
- * taken: [REF_STAND_KG_M2] for wild cereal, [REF_SEED_STAND_KG_M2] for grass seed): its cutting by the ground covered.
+ * Person-days band [band] takes to gather a kilo of wild grass seed standing [stand] kg/m² over the place: beaten into baskets,
+ * parched and winnowed ([SMALL_SEED_DAYS_PER_KG] where it stands as thick as [REF_SEED_STAND_KG_M2], the longer the thinner it
+ * stands: [standHandling]), and ground where it has grinding stones.
  */
-internal fun standHandling(stand: Float, ref: Float = REF_STAND_KG_M2) = 1f - REAP_CUT_SHARE + REAP_CUT_SHARE * ref / stand.coerceAtLeast(1e-6f)
+internal fun smallSeedDaysPerKg(band: Band?, stand: Float) = SMALL_SEED_DAYS_PER_KG * standHandling(stand, REF_SEED_STAND_KG_M2) + grindDaysPerKg(band)
+
+/**
+ * How long a kilo of grass seed standing [stand] kg/m² takes to beat out against one in a stand of [ref]: the beating share of
+ * its days ([REAP_CUT_SHARE]) goes by the ground covered.
+ */
+internal fun standHandling(stand: Float, ref: Float = REF_SEED_STAND_KG_M2) = 1f - REAP_CUT_SHARE + REAP_CUT_SHARE * ref / stand.coerceAtLeast(1e-6f)
 
 /** Of grain whose ears hold their grain at share [d], the share in what band [b] reaps: a sickle takes them more than those that shatter at a touch. */
 internal fun Band.reapedDomestic(d: Float): Float { val sel = SICKLE_SELECT * has(Tool.SICKLE); return d * (1f + sel) / (1f + sel * d).coerceAtLeast(1e-6f) }

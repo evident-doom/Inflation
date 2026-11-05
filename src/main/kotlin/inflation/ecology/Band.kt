@@ -372,6 +372,8 @@ class Band(kinds: Int, totems: Int = kinds) {
     /** Where it sowed this year's crop ([Place.NONE] for nowhere) and the kg it sowed there: what it would lose by leaving (HexGroups.cropPull). */
     var sownPlace = Place.NONE
     var sownKg = 0f
+    /** Of this year's crop, the kg it has still to bring in to have back as much as it sowed: kept to sow again, not ground ([HexGroups.harvestCrop]). */
+    var seedKept = 0f
     /** Years since it last sowed ([HexGroups.sowGrain]), counted at its customs' week: a band with a crop sown within the year farms. */
     var sinceSowed = 0f
     /** Its people killed in raids a person a year, as it has lived them: a running sum fading over a year ([HexGroups.cultureWeek]). */

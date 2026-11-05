@@ -19,8 +19,13 @@ import kotlin.math.sqrt
 
 // Bands' camps: moving camp at the pace of the slowest, what they carry and cache, and the fouling of a camp kept long.
 
-/** Extra plant food with sickles (seed) and baskets (all of it, and stores). (Grinding stones make more of seed, at a cost in days: [GRIND_DAYS_PER_KG].) */
-internal const val SICKLE_GAIN = 0.3f
+/**
+ * How much more ground a reaper covers with a sickle than by hand ([CUT_M2_PER_HOUR]): hafted sickles of shell or wood cut
+ * 0.32-0.63 m² a minute with carrying the stems, some 20-38 m² an hour, and 400 m² of wheat took 15 hours (Häg 2024, EXARC
+ * 2024/4; Mazzucco et al. 2022 as cited there), some 25 against 8 by hand: 2. (It was 0.3 on all the days of seed, unsourced.)
+ * Baskets: [BASKET_GAIN]. (Grinding stones make more of seed, at a cost in days: [GRIND_DAYS_PER_KG].)
+ */
+internal const val SICKLE_GAIN = 2f
 /**
  * Person-days to grind a kilo of grain or seed to meal on grinding stones (a saddle quern), days of 6 hours: Delwen Samuel
  * ground 1.2 kg of emmer on a replica Egyptian saddle quern in just under two hours, some 0.6 kg an hour, 1.6 hours a kilo
