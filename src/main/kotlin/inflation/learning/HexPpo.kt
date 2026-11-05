@@ -640,10 +640,12 @@ object HexPpo {
                 val fore = if (c.kind.human && shape != 0f) FloatArray(horizon) else null
                 val lost = if (c.kind.human) FloatArray(3 * horizon) else null
                 val own = outcomes.own(c.groupId, c.week, horizon, fore, lost)
+                // (Its members then, as [own] counts them: for a band, in years ahead, see [inflation.ecology.FutureYears].)
+                val start = outcomes.members(c.groupId, c.week).takeIf { it > 0f } ?: c.size.coerceAtLeast(1).toFloat()
                 val boot = Critic.boot(c.kind)
                 var part = 0f; var tail = 0f
                 for (k in 1..horizon) {
-                    val m = own[k - 1] / c.size.coerceAtLeast(1).toFloat()
+                    val m = own[k - 1] / start
                     sum += d * m; norm += d
                     if (k <= boot) part += d * m else tail += d
                     d *= discount
@@ -664,12 +666,12 @@ object HexPpo {
                 }
                 c.ret = sum / norm
                 c.part = part / norm
-                c.boot = own[boot - 1] / c.size.coerceAtLeast(1).toFloat() * tail / norm
+                c.boot = own[boot - 1] / start * tail / norm
                 if (fore != null) {
                     // (And by what its members were then foreseen to have a year ahead against what they were when it chose: see [shape].)
-                    val from = outcomes.foreseen(c.groupId, c.week); val n = c.size.coerceAtLeast(1).toFloat()
-                    c.ret += shape * (fore[horizon - 1] / n - from)
-                    c.part += shape * (fore[boot - 1] / n - from)
+                    val from = outcomes.foreseen(c.groupId, c.week)
+                    c.ret += shape * (fore[horizon - 1] / start - from)
+                    c.part += shape * (fore[boot - 1] / start - from)
                 }
                 if (!c.ret.isFinite() || !c.part.isFinite() || !c.boot.isFinite()) { NonFinite.note(c.kind, "return"); continue }
                 out += c

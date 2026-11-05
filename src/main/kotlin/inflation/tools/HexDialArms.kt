@@ -95,7 +95,8 @@ fun main(args: Array<String>) {
     fun ret(id: Int, horizon: Int): Double {
         val own = outcomes.own(id, 0, horizon)
         var sum = 0.0; var norm = 0.0; var d = 1.0
-        for (k in 1..horizon) { sum += d * own[k - 1] / max(1, start.getValue(id)); norm += d; d *= HexPpo.PEOPLE_DISCOUNT }
+        val members = outcomes.members(id, 0).takeIf { it > 0f } ?: max(1, start.getValue(id)).toFloat()
+        for (k in 1..horizon) { sum += d * own[k - 1] / members; norm += d; d *= HexPpo.PEOPLE_DISCOUNT }
         return sum / norm
     }
     fun mean(x: List<Double>) = x.average()
