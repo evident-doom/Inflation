@@ -303,7 +303,7 @@ internal class GroupPlanner(internal val gs: HexGroups) {
         }
         if (seen != null && g.id == gs.watched) logWatched(c, seen, best, policy != null)
         if (diag && seen != null) printPlanDiag(c, seen, best)
-        if (DOOM_TRACE.isNotEmpty() && g.id in DOOM_TRACE) traceDoomed(c, best)
+        groupWatch?.chose(this, c, best, policy != null)
         planCounts.incrementAndGet(s.index * 3 + (if (!g.weighed) 0 else if (best == g.place) 1 else 2))
         return Plan(best, pathTo(best.i))
     }

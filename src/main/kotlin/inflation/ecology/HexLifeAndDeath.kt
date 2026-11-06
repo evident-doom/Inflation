@@ -269,6 +269,7 @@ internal class Split(val adults: Int, val young: Int)
 @Part("groups: book an outcome")
 private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
     val s = g.species
+    groupWatch?.outcome(g, o)
     if (o.carrionKg > 0f) small.deposit(DeadPool.CARRION, g.place, KgM2(o.carrionKg / (land.areaKm2[g.place] * 1e6f)))
     if (o.births > 0) stats.births.merge(s, o.births, Int::plus)
     note(g) { "born %d; died: %s".format(o.births, o.causes.filter { it.n > 0 }.joinToString(", ") { "${it.n} ${it.cause.label}" }.ifEmpty { "none" }) }
@@ -309,7 +310,6 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
             bookWarning(b, o.causes)
             // (And its hunger deaths by what its larder held then, and whether it moved camp in the month before.)
             val starved = o.causes.sumOf { if (it.cause == DeathCause.HUNGER) it.n else 0 }
-            b.hungerDied += starved
             // (And by how often it has moved camp lately, in the season: [moveCensus].)
             if (b.leanKey >= 0) {
                 val n = inflation.world.Season.entries.size
