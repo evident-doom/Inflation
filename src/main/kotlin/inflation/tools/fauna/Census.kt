@@ -340,15 +340,15 @@ class Census(private val sim: HexSim) {
         // places bands live at, and the people at a place it would take for the share to reach the fresh ground's end,
         // [WORN_FRESH], if the share grew with the people.)
         val atPlace = HashMap<Int, Int>()
-        for (g in groups.groups) if (g.alive && g.band != null) atPlace.merge(g.place.i, g.size) { a, c -> a + c }
-        val kinds = listOf("fruit" to WORN_FRUIT, "roots" to WORN_ROOTS, "mast" to WORN_MAST, "seed" to WORN_SEED, "finds" to WORN_FINDS)
+        for (g in groups.groups) if (g.alive && g.band != null) atPlace[g.place.i] = (atPlace[g.place.i] ?: 0) + g.size
+        val wornKinds = listOf("fruit" to WORN_FRUIT, "roots" to WORN_ROOTS, "mast" to WORN_MAST, "seed" to WORN_SEED, "finds" to WORN_FINDS)
         val stand = listOf(food.fruit, food.roots, food.mast, food.seeds, food.finds)
         println("     worn ground, share taken at the places bands live at (median over places, per 100 people there; people at a place for the share to reach %.0f%%): ".format(100 * WORN_FRESH) +
-            kinds.indices.joinToString(", ") { i ->
-                val (name, k) = kinds[i]
-                val per = atPlace.entries.filter { it.value > 0 }.map { (q, n) ->
+            wornKinds.indices.joinToString(", ") { i ->
+                val (name, k) = wornKinds[i]
+                val per = atPlace.entries.filter { it.value > 0 }.map { (q, here) ->
                     val pl = inflation.world.Place(q)
-                    10000.0 * worn.takenShare(k, pl, land.total(pl, inflation.KgM2(stand[i][q])).v) / n
+                    10000.0 * worn.takenShare(k, pl, land.total(pl, inflation.KgM2(stand[i][q])).v) / here
                 }.sorted()
                 val med = if (per.isEmpty()) 0.0 else per[per.size / 2]
                 "%s %.4f%% (%s)".format(name, med, if (med > 0.0) "%.0f".format(100 * WORN_FRESH * 100 / med) else "never")
