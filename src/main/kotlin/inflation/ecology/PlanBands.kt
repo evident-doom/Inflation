@@ -23,7 +23,8 @@ internal fun GroupPlanner.explored(g: HexGroup, policy: HexPolicy?, buf: Scratch
     if (n == 0) return best
     val scores = if (policy == null) buf.explScores else policy.scores(g, Array(n) { buf.candFeats[it] }, buf.candScores.copyOf(n)) ?: return best
     val stays = (0 until n).firstOrNull { buf.explPlaces[it] == g.place.i } ?: -1
-    val k = gs.exploreChoice(g, b.explore, n, scores, buf.explDeaths, stays, if (policy == null) HAND_SCORE_UNIT else 1f, date.absoluteDay)
+    val k = if (b.mind.gate == MoveGate.BEST) exploreBest(n, scores, buf.explDeaths)
+        else gs.exploreChoice(g, b.explore, n, scores, buf.explDeaths, stays, if (policy == null) HAND_SCORE_UNIT else 1f, date.absoluteDay)
     return if (k < 0) best else Place(buf.explPlaces[k])
 }
 

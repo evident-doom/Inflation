@@ -32,6 +32,19 @@ internal fun HexGroups.exploreChoice(g: HexGroup, will: Float, n: Int, scores: F
 }
 
 /**
+ * The best by [scores] of the [n] places weighed, of those no deadlier than the safest by a survival step (as [exploreChoice],
+ * but with no draw and nothing for staying): where a band of [MoveGate.BEST] goes. Returns -1 if no place can be weighed.
+ */
+internal fun exploreBest(n: Int, scores: FloatArray, deaths: FloatArray): Int {
+    var safest = Float.POSITIVE_INFINITY
+    for (k in 0 until n) if (scores[k].isFinite() && deaths[k].isFinite() && deaths[k] < safest) safest = deaths[k]
+    if (!safest.isFinite()) return -1
+    var best = -1
+    for (k in 0 until n) if (scores[k].isFinite() && deaths[k].isFinite() && deaths[k] - safest <= 1f && (best < 0 || scores[k] > scores[best])) best = k
+    return best
+}
+
+/**
  * Where a [Mind.PLANS] band goes this week, of the [n] places weighed (as [exploreChoice]: [deaths] in survival steps,
  * [stays] the one where it is; [weighable] the hand-written scores, a place weighable where its is a number): it draws
  * nothing, and its temperament draws it nowhere. Moving camp is a choice (doc: Moving and settling under the planner):

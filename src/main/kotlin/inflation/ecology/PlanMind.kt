@@ -31,7 +31,7 @@ enum class Mind(val label: String, private val gateAsBuilt: MoveGate, private va
 
     /**
      * Its slots as this run has them: as built, but for the planning kind's under t.plannerSlots, a diagnostic key for
-     * the slot-by-slot A/B (review/2026-11-05-people-models-harmonize.md, step 7): `gate:draw|reckoned`, `days:weighted|tiered`,
+     * the slot-by-slot A/B (review/2026-11-05-people-models-harmonize.md, step 7): `gate:draw|best|reckoned`, `days:weighted|tiered`,
      * `dials:ways|scaffold`, comma-separated, any left out as built. With `t.planners=1`, `t.plannerSlots=days:weighted,dials:ways`
      * runs foragers that move by the planner's reckoning alone. (Read once a run, from the config.)
      */
@@ -57,7 +57,7 @@ internal data class Slots(val gate: MoveGate, val days: DaySplit, val dials: Dia
                 val (slot, value) = part.split(":").map { it.trim() }.takeIf { it.size == 2 }
                     ?: error("$PLANNER_SLOTS: \"$part\" is not slot:value (gate:draw|reckoned, days:weighted|tiered, dials:ways|scaffold)")
                 out = when (slot) {
-                    "gate" -> out.copy(gate = when (value) { "draw" -> MoveGate.EXPLORE_DRAW; "reckoned" -> MoveGate.RECKONED; else -> error("$PLANNER_SLOTS: gate is draw or reckoned, not $value") })
+                    "gate" -> out.copy(gate = when (value) { "draw" -> MoveGate.EXPLORE_DRAW; "best" -> MoveGate.BEST; "reckoned" -> MoveGate.RECKONED; else -> error("$PLANNER_SLOTS: gate is draw, best or reckoned, not $value") })
                     "days" -> out.copy(days = when (value) { "weighted" -> DaySplit.WEIGHTED; "tiered" -> DaySplit.TIERED; else -> error("$PLANNER_SLOTS: days is weighted or tiered, not $value") })
                     "dials" -> out.copy(dials = when (value) { "ways" -> DialSource.WAYS; "scaffold" -> DialSource.SCAFFOLD; else -> error("$PLANNER_SLOTS: dials is ways or scaffold, not $value") })
                     else -> error("$PLANNER_SLOTS: no slot \"$slot\" (gate, days, dials)")
@@ -72,6 +72,12 @@ internal data class Slots(val gate: MoveGate, val days: DaySplit, val dials: Dia
 enum class MoveGate {
     /** It goes where a draw by its will to explore over its places' scores sends it ([exploreChoice]); leaving's lives count in each place's deaths ([Band.leavingDying]). */
     EXPLORE_DRAW,
+    /**
+     * As [EXPLORE_DRAW], but it draws nothing: it goes to the best by its scores of the places no deadlier than the safest by
+     * a step ([exploreBest]), its will to explore aside. (Diagnostic only, through t.plannerSlots: whether the draw costs the
+     * foragers what the reckoned gate gains, review/2026-11-05-people-models-harmonize.md section 10.)
+     */
+    BEST,
     /**
      * It stays unless owed, in an emergency, or its reckoned case beats the walk ([plannedMove]); what leaving gives up
      * (stores, houses, crop, heavy tools) is reckoned once in that case and walk, not in each place's deaths; it keeps other
