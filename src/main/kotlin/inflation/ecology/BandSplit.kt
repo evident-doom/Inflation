@@ -14,6 +14,7 @@ internal class BandSplit(private val counts: (Tally.Bands) -> TallyKey, private 
         fun clad(c: Tally.Clad) = BandSplit({ Tally.bandsClad(c, it) }, { Tally.bandsCladDied(c, it) })
         fun living(w: Tally.Living) = BandSplit({ Tally.bandsLiving(w, it) }, { Tally.bandsLivingDied(w, it) })
         fun mind(m: Mind) = BandSplit({ Tally.bandsMind(m, it) }, { Tally.bandsMindDied(m, it) })
+        fun livelihood(l: Livelihood) = BandSplit({ Tally.bandsLivelihood(l, it) })
         fun herding(h: Tally.Herding) = BandSplit({ Tally.bandsHerding(h, it) })
         fun fed(f: Tally.Fed) = BandSplit({ Tally.bandsFed(f, it) }, { Tally.bandsFedDied(f, it) })
         fun spare(s: Tally.Spare) = BandSplit({ Tally.bandsSpare(s, it) }, { Tally.bandsSpareDied(s, it) })

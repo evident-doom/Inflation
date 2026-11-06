@@ -17,6 +17,7 @@ import inflation.ecology.CustomsPart
 import inflation.ecology.RiteWalk
 import inflation.ecology.ritesApart
 import inflation.ecology.livelihood
+import inflation.ecology.woodCover
 import inflation.ecology.Livelihood
 import inflation.ecology.homesApart
 import inflation.ecology.Regard
@@ -262,7 +263,43 @@ class Census(private val sim: HexSim) {
             (storms?.let { "; groups now by hexes to the nearest storm (same / 1 / 2-3 / 4-10 / farther): " + spread(all, it) } ?: ""))
     }
 
+    /**
+     * Whether bands wear down the ground about their camps: for each band, its camp place's plant food ([campPlants]'s kinds),
+     * game ([preyHere]) and wood cover ([woodCover]) against the mean of the land places of its kind of country this
+     * week, by how long it has kept that camp. Report only: whether the ground a band lives on tells it to move.
+     */
+    private fun printCampGround() {
+        val n = land.n
+        val kinds = Biome.entries.size
+        val people = Catalogue.HUMAN
+        val plantSum = DoubleArray(kinds); val gameSum = DoubleArray(kinds); val woodSum = DoubleArray(kinds); val places = IntArray(kinds)
+        fun plants(p: Int) = (groups.fauna.food.fruit[p] + groups.rootsFound(Place(p)) + groups.fauna.food.seeds[p] + groups.fauna.food.grain[p]).toDouble()
+        for (p in 0 until n) if (hw.land[hw.placeHex[p]] >= 0.5f) {
+            val c = groups.biomeOfPlace[p]
+            plantSum[c] += plants(p); gameSum[c] += groups.preyHere(people, Place(p)).toDouble(); woodSum[c] += groups.woodCover(Place(p)).toDouble(); places[c]++
+        }
+        val bins = intArrayOf(13, 52, 156, Int.MAX_VALUE); val labels = listOf("under 13 weeks", "13-52", "52-156", "156 or more")
+        val count = IntArray(bins.size); val plant = DoubleArray(bins.size); val game = DoubleArray(bins.size); val wood = DoubleArray(bins.size)
+        fun ratio(v: Double, sum: Double, k: Int) = if (k == 0 || sum <= 0.0) 1.0 else v / (sum / k)
+        for (g in groups.groups) {
+            val b = g.band ?: continue
+            if (!g.alive) continue
+            val p = g.place.i; val c = groups.biomeOfPlace[p]
+            val k = bins.indexOfFirst { b.campWeeks < it }
+            count[k]++
+            plant[k] += ratio(plants(p), plantSum[c], places[c])
+            game[k] += ratio(groups.preyHere(people, g.place).toDouble(), gameSum[c], places[c])
+            wood[k] += ratio(groups.woodCover(g.place).toDouble(), woodSum[c], places[c])
+        }
+        println("     camps' ground by weeks at the camp (bands; plant food / game / wood cover at the camp's place against its country's mean this week): " +
+            labels.indices.joinToString(", ") { k ->
+                val m = count[k].coerceAtLeast(1)
+                "%s %d: %.2f / %.2f / %.2f".format(labels[k], count[k], plant[k] / m, game[k] / m, wood[k] / m)
+            })
+    }
+
     fun printChoices() {
+        printCampGround()
         println("     choices a week per group (stayed without weighing / weighed and stayed / moved): " + groups.kinds.joinToString(", ") { s ->
             val c = IntArray(3) { groups.planner.planCounts.getAndSet(s.index * 3 + it, 0) }
             val all = c.sum().coerceAtLeast(1)
@@ -444,6 +481,13 @@ class Census(private val sim: HexSim) {
 
     /** Bands by kind of country over the last year ([lastYear]'s tallies): how many, how they fed and on what, how they lived and died. */
     fun printBandsByCountry(lastYear: Map<TallyKey, Int>, stepsPerYear: Int) {
+        // (Camp moves by the way of life lived ([livelihood]), to set against the record: mobile foragers some 5-15 a year, farmers
+        // seldom (Kelly, The Foraging Spectrum, from memory; review/2026-11-06-why-people-moved.md).)
+        println("camp moves by the way of life lived, last year (share of band-weeks; camp moves a band a year): " + Livelihood.entries.joinToString(", ") { l ->
+            val bw = (lastYear[Tally.bandsLivelihood(l, Tally.Bands.BAND_WEEKS)] ?: 0).toDouble()
+            val all = Livelihood.entries.sumOf { (lastYear[Tally.bandsLivelihood(it, Tally.Bands.BAND_WEEKS)] ?: 0).toDouble() }.coerceAtLeast(1.0)
+            "%s %.0f%%: %.2f".format(l.name.lowercase(), 100 * bw / all, stepsPerYear * (lastYear[Tally.bandsLivelihood(l, Tally.Bands.MOVES)] ?: 0) / bw.coerceAtLeast(1.0))
+        })
         fun weeks(c: Biome) = lastYear[Tally.bandsIn(c, Tally.Bands.BAND_WEEKS)] ?: 0
         val cs = lastYear.keys.mapNotNull { Tally.bandsCountry(it, Tally.Bands.BAND_WEEKS) }.sortedByDescending { weeks(it) }
         val allWeeks = cs.sumOf { weeks(it).toDouble() }.coerceAtLeast(1.0)
