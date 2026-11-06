@@ -424,6 +424,8 @@ class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, interna
     fun deposit(pool: DeadPool, p: Place, kgM2: KgM2) {
         when (pool) { DeadPool.CARRION -> carrion[p] += kgM2.v; DeadPool.LITTER -> litter[p] += kgM2.v; DeadPool.DUNG -> dung[p] += kgM2.v }
     }
+    /** Lays [kg] of the buried dead into the ground at place [p]: they rot into the soil's organic matter, out of the scavengers' reach. */
+    fun bury(p: Place, kg: Kg) { organicMatter[p] += land.spread(p, kg).v }
     /** Lays [kg] of dead matter into [pool] at place [p], spread over the place. */
     fun deposit(pool: DeadPool, p: Place, kg: Kg) = deposit(pool, p, land.spread(p, kg))
 
