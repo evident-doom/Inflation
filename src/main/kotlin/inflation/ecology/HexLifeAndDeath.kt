@@ -270,7 +270,10 @@ internal class Split(val adults: Int, val young: Int)
 private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
     val s = g.species
     groupWatch?.outcome(g, o)
-    if (o.carrionKg > 0f) small.deposit(DeadPool.CARRION, g.place, KgM2(o.carrionKg / (land.areaKm2[g.place] * 1e6f)))
+    // (A band that buries its dead puts them in the ground, out of the scavengers' reach ([mournDead]); the others' dead
+    // lie where they died, carrion that draws the beasts that eat it.)
+    val buried = s.human && g.band?.holds(Tradition.BURIAL) == true
+    if (o.carrionKg > 0f && !buried) small.deposit(DeadPool.CARRION, g.place, KgM2(o.carrionKg / (land.areaKm2[g.place] * 1e6f)))
     if (o.births > 0) stats.births.merge(s, o.births, Int::plus)
     note(g) { "born %d; died: %s".format(o.births, o.causes.filter { it.n > 0 }.joinToString(", ") { "${it.n} ${it.cause.label}" }.ifEmpty { "none" }) }
     for ((cause, k) in o.causes) if (k > 0) stats.deaths.merge(Tally.of(s, cause), k, Int::plus)
