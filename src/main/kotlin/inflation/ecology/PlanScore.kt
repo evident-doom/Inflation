@@ -41,6 +41,8 @@ internal fun GroupPlanner.fillFeatures(f: FloatArray, c: PlanContext, t: PlaceTe
     // (What the coming months are usually like there.)
     for (k in 0 until Feature.LORE_MONTHS)
         f[Feature.USUAL_AHEAD + k] = weather.usualTemperature((month + k + 1) % Date.MONTHS_PER_YEAR, p) / InputScale.USUAL_C
+    // (For a band, what its people remember of the months coming there: the lore of the land's months.)
+    if (g.band != null) gs.yieldLoreInto(p, month, f, Feature.USUAL_YIELD_AHEAD, Feature.YIELD_LORE_KNOWN)
     f[Feature.CROWDING] = crowded
     f[Feature.HUNTERS] = hunters / (hunters + 3f)
     f[Feature.DISCOMFORT] = min(2f, t.discomfort + t.drain)

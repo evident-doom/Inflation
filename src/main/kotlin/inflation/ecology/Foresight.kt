@@ -238,6 +238,8 @@ internal fun HexGroups.foresee(weather: Weather) {
     }
     // (Tallied by the kind of country, against the deaths that come: in order, off the cores.)
     for (g in groups) { val b = g.band ?: continue; if (!g.alive) continue
+        // (What its camp yielded this week, into the lore of the land's months: in order, as bands may share a place.)
+        learnYield(g.place, m, b.yieldOfWeek(weather.date, days))
         val c = Biome.entries[biomeOfPlace[g.place]]
         stats.tally(Tally.bandsIn(c, Tally.Bands.FORESEEN), (1000f * (1f - g.foreseen) * g.size).roundToInt())
         // (What moved its larder this week, person-days of the need before keeping warm, by the season: where stores go.)

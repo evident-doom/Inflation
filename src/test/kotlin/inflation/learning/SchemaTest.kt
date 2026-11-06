@@ -110,7 +110,11 @@ class SchemaTest {
             HexFeatures.UNLUCKY_CAMP to "unlucky camp",
             HexFeatures.HOUSE_LEFT to "leaving house",
             HexFeatures.FEAST_DRAW to "feast draw",
-            HexFeatures.DEATHS_FORESEEN to "deaths foreseen"
+            HexFeatures.DEATHS_FORESEEN to "deaths foreseen",
+            HexFeatures.USUAL_YIELD_AHEAD to "usual yield, month 1 ahead",
+            HexFeatures.USUAL_YIELD_AHEAD + 1 to "usual yield, month 2 ahead",
+            HexFeatures.USUAL_YIELD_AHEAD + 2 to "usual yield, month 3 ahead",
+            HexFeatures.YIELD_LORE_KNOWN to "usual yield known"
         )
         assertEquals(HexFeatures.size, named.size)
         for ((slot, name) in named) assertEquals(name, Schema.PLACE[slot], "feature slot $slot")

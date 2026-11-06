@@ -548,6 +548,8 @@ internal fun HexGroups.bandInputs(g: HexGroup, weather: Weather, into: FloatArra
     for (a in Activity.entries) into[x.HELD + a.ordinal] = b.heldShare[a]
     for (l in Livelihood.entries) into[x.HOLDS + l.ordinal] = if (b.heldLivelihood == l) 1f else 0f
     into[x.HOLD] = b.livelihoodHold
+    // What its people remember of the months coming at its camp: the lore of the land's months ([yieldLoreInto]).
+    yieldLoreInto(g.place, weather.date.month, into, x.USUAL_YIELD_AHEAD, x.YIELD_LORE_KNOWN)
 }
 
 /** The beasts of prey a band tells apart: those that take people ([Species.takesPeople], from the catalogue) and those that do not. */

@@ -71,6 +71,10 @@ object BandInputs : NamedSlots() {
     // The way of life it holds itself to ([Band.heldLivelihood]), and how firmly ([Band.livelihoodHold]): living otherwise
     // costs it regard among its own kind ([Regard.customsApart]).
     val HOLDS = block(Livelihood.entries.map { "holds:${it.name.lowercase()}" }); val HOLD = one("holds firmly")
+    // What its people remember of its camp's country in the months ahead ([HexGroups.usualYield]): as the place features'
+    // [HexFeatures.USUAL_YIELD_AHEAD], so that what it lays by can follow the lean months.
+    val USUAL_YIELD_AHEAD = block(List(HexFeatures.LORE_MONTHS) { k -> "usual camp yield, month ${k + 1} ahead" })
+    val YIELD_LORE_KNOWN = one("usual camp yield known")
 }
 
 /** The slots of a pack's view of itself ([animalInputs]). */
