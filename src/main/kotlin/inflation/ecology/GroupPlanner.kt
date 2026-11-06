@@ -207,7 +207,7 @@ internal class GroupPlanner(internal val gs: HexGroups) {
                 val t = buf.terms.also { fillTerms(it, g, p, weather, date) }
                 if (handless) {
                     // (A network sees the deaths it foresees there, as the hand-written score weighs them: see [Feature.DEATHS_FORESEEN].)
-                    if (drowning < 0f) drowning = crossingDeaths(s, h, here, via) + stormDeaths(h, here, via)
+                    if (drowning < 0f) drowning = crossingDeaths(s, h, here, via) + perilDeaths(h, here, via)
                     at.dying = deathsAt(c, p, h, fedThere(h, fed, d), d) + drowning
                     val nc = candPlaces.size
                     if (nc == candFeats.size) candFeats += FloatArray(Feature.size)
@@ -222,7 +222,7 @@ internal class GroupPlanner(internal val gs: HexGroups) {
                 val beside = 0.02f * (gs.hashNoise(g.id, p) - 0.5f) + gs.temperPull(g, p, h, hunters, crowded)
                 // (Where only the best place is wanted, its deaths are worked out after, best first, see below.)
                 if (!wantAll) { buf.later(p, d, prey, fed, score, beside); continue }
-                if (drowning < 0f) drowning = crossingDeaths(s, h, here, via) + stormDeaths(h, here, via)
+                if (drowning < 0f) drowning = crossingDeaths(s, h, here, via) + perilDeaths(h, here, via)
                 val alive = score
                 val why = if (g.id == gs.watched) deathsWhy(c, p) else null
                 val fedT = fedThere(h, fed, d)
@@ -261,7 +261,7 @@ internal class GroupPlanner(internal val gs: HexGroups) {
                 if (up[k] < bestScore) break
                 val p = Place(buf.laterPlace[k]); val h = gs.hw.placeHex[p]
                 val total = buf.laterScore[k] - gs.survivalSteps(g, deathsAt(c, p, h, fedThere(h, buf.laterFed[k], buf.laterD[k]), buf.laterD[k]) +
-                    crossingDeaths(s, h, here, via) + stormDeaths(h, here, via) + leavingAt(h)) + buf.laterBeside[k]
+                    crossingDeaths(s, h, here, via) + perilDeaths(h, here, via) + leavingAt(h)) + buf.laterBeside[k]
                 if (!total.isFinite()) {
                     at.d = buf.laterD[k]; at.prey = buf.laterPrey[k]; at.crowded = Float.NaN; at.fed = buf.laterFed[k]
                     tellNotANumber(c, null, p, h, crossingDeaths(s, h, here, via), buf.laterScore[k])
@@ -344,7 +344,7 @@ internal class GroupPlanner(internal val gs: HexGroups) {
     internal class PlaceLook {
         var d = 0f; var toGoal = 0.0; var beyond = 0f; var foreign = 0f; var offGround = 0f; var pull = 0f
         var prey = 0f; var crowded = 0f; var hunters = 0f; var fed = 0f
-        /** The share of it that would die going there and in the week there: [deathsAt], the crossings and the storms ([stormDeaths]), not the leaving. */
+        /** The share of it that would die going there and in the week there: [deathsAt], the crossings and the perils foreseen ([perilDeaths]), not the leaving. */
         var dying = 0f
     }
 
