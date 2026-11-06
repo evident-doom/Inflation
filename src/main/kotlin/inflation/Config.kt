@@ -54,6 +54,8 @@ object Config {
         PPO_CHECK_HEAP_GB("ppo.checkHeapGb"),
         PPO_HUNTER_PEOPLE_VETO("ppo.hunterPeopleVeto"),
         PPO_KEEP_SIGMA("ppo.keepSigma"),
+        PPO_CHECK_REFERENCE("ppo.checkReference"),
+        PPO_CHECK_REFERENCE_EVERY("ppo.checkReferenceEvery"),
         PPO_CRITIC_TIMES("ppo.criticTimes"),
         PPO_ADVANTAGE_CLIP("ppo.advantageClip"),
         PPO_FORESEEN_SHAPE("ppo.foreseenShape"),
