@@ -58,4 +58,13 @@ class UnpreparedDeadlinesTest {
         assertTrue(frost >= 0.5f, "a week at -5 °C unclad: $frost")
         assertEquals(0f, BodyHeat.week(Air(30f, 8f, 2f, 0f, false), naked, days).odds, "a week at 30 °C unclad")
     }
+
+    @Test
+    fun `the unclad without fire or shelter live through a dry week at 15 degrees and die within a week at 10`() {
+        // (Record, recalled: no one dies of a dry night at 15 °C unclad; near 10 °C the unclad without fire die within days.)
+        val naked = Cover(0f, 0f, 0f, 0f, 0f)
+        assertEquals(0f, BodyHeat.week(Air(15f, 8f, 1f, 0f, false), naked, days).odds, "a dry week at a mean of 15 °C unclad")
+        val ten = BodyHeat.week(Air(10f, 8f, 1f, 0f, false), naked, days).odds
+        assertTrue(ten >= 0.5f, "a dry week at a mean of 10 °C unclad: $ten")
+    }
 }
