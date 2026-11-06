@@ -84,7 +84,7 @@ class EcoCheck(private val out: File) {
         val arms = linkedMapOf("new" to Role.entries.associateWith { candidate }, "kept" to Role.entries.associateWith { kept })
         for (r in Role.entries) arms["kept-$r"] = Role.entries.associateWith { if (it == r) kept else candidate }
         // (The reference arm's roles that play by the hand-written choices get no file copied: a role without a network keeps them.)
-        if (withReference) arms[REFERENCE] = referenceRoles.filterValues { it.startsWith(USES) }.mapValues { reference!! }
+        if (withReference) arms[REFERENCE] = referenceRoles.filterValues { it.startsWith(USES) }.keys.mapNotNull { r -> reference?.let { r to it } }.toMap()
         val runs = arms.mapValues { (name, from) ->
             val armDir = File(dir, name).also { it.mkdirs() }
             for ((r, src) in from) copyRoles(src, armDir, listOf(r))
