@@ -67,6 +67,13 @@ class HexGroups(
     uniformStart: Boolean = false,
 ) : GroupWorld(hw, land, fauna, days, seed) {
     val groups = ArrayList<HexGroup>()
+    /**
+     * The lore of the land's months: for each place and month of the year, the forage yield bands camped there found in that
+     * month over the years ([Band.yieldNow]: days of need a day of all hands' foraging brings), a running mean ([YIELD_LORE_RATE]
+     * a band-week); NaN where no band has camped in that month. What the people of a country know of its lean months, open
+     * to any band there as hearsay ([usualYield]).
+     */
+    val yieldLore = FloatArray(land.n * Date.MONTHS_PER_YEAR) { Float.NaN }
     /** The storms of the hurricane test, made at the first week when `t.hurricane` asks for any (not saved: a run from a save sets them down afresh). */
     @Transient internal var hurricanes: HexHurricane? = null
     /** The recruiters of the same test, which roam as the storms do but give: made at the first week when `t.recruiters` asks for any. */

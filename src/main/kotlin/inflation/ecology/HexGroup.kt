@@ -311,5 +311,14 @@ object HexFeatures : NamedSlots() {
      * puts above all else, for a network to weigh as it learns. Not the cost of leaving a camp.
      */
     val DEATHS_FORESEEN = one("deaths foreseen")
+    /**
+     * For a band, the forage yield its people usually find there in each of the next three months (lore, not a forecast:
+     * [HexGroups.usualYield], what bands camped there got in that month in years past, days of need a day of all hands'
+     * foraging brings), x / (1 + x), 0 where no one remembers; for a network to learn which country goes lean when, and to
+     * store for it or leave before it (0 for animals).
+     */
+    val USUAL_YIELD_AHEAD = block(List(LORE_MONTHS) { k -> "usual yield, month ${k + 1} ahead" })
+    /** For a band, 1 where its people remember the yield of any of the next three months there ([USUAL_YIELD_AHEAD]). */
+    val YIELD_LORE_KNOWN = one("usual yield known")
     const val LORE_MONTHS = 3
 }
