@@ -20,6 +20,10 @@ import inflation.ecology.livelihood
 import inflation.ecology.woodCover
 import inflation.ecology.WORN_ROOTS
 import inflation.ecology.WORN_FRUIT
+import inflation.ecology.WORN_MAST
+import inflation.ecology.WORN_SEED
+import inflation.ecology.WORN_FINDS
+import inflation.ecology.WORN_FRESH
 import inflation.ecology.wornWoodCover
 import inflation.ecology.wornWalkAt
 import inflation.ecology.wornPaceAt
@@ -332,6 +336,23 @@ class Census(private val sim: HexSim) {
                 "%s light %d: %.2f / %.2f, settled %d: %.2f / %.2f, wood %.2f".format(labels[k], light[k], paceFruit[k] / l, paceRoots[k] / l,
                     fixed[k], walkFruit[k] / f, walkRoots[k] / f, woodLeft[k] / f)
             })
+        // (How much of each food the bands at a place have taken of it, for each 100 people living there: the median over the
+        // places bands live at, and the people at a place it would take for the share to reach the fresh ground's end,
+        // [WORN_FRESH], if the share grew with the people.)
+        val atPlace = HashMap<Int, Int>()
+        for (g in groups.groups) if (g.alive && g.band != null) atPlace.merge(g.place.i, g.size) { a, c -> a + c }
+        val kinds = listOf("fruit" to WORN_FRUIT, "roots" to WORN_ROOTS, "mast" to WORN_MAST, "seed" to WORN_SEED, "finds" to WORN_FINDS)
+        val stand = listOf(food.fruit, food.roots, food.mast, food.seeds, food.finds)
+        println("     worn ground, share taken at the places bands live at (median over places, per 100 people there; people at a place for the share to reach %.0f%%): ".format(100 * WORN_FRESH) +
+            kinds.indices.joinToString(", ") { i ->
+                val (name, k) = kinds[i]
+                val per = atPlace.entries.filter { it.value > 0 }.map { (q, n) ->
+                    val pl = inflation.world.Place(q)
+                    10000.0 * worn.takenShare(k, pl, land.total(pl, inflation.KgM2(stand[i][q])).v) / n
+                }.sorted()
+                val med = if (per.isEmpty()) 0.0 else per[per.size / 2]
+                "%s %.4f%% (%s)".format(name, med, if (med > 0.0) "%.0f".format(100 * WORN_FRESH * 100 / med) else "never")
+            } + "; median people at a place %d".format(atPlace.values.sorted().let { if (it.isEmpty()) 0 else it[it.size / 2] }))
     }
 
     fun printChoices() {
