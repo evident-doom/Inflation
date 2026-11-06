@@ -73,6 +73,8 @@ class Tuning(
     val foragerSlots: String? = read("t.foragerSlots")
     /** Scouting parties ([inflation.ecology.tendParties]): bands with food to spare send some of their people out to scout and come back; off unless set (under test). */
     val parties = read("t.parties")?.toBooleanStrict() ?: false
+    /** Worn ground ([inflation.ecology.WornGround]): what bands take near where they live makes the next kilo and load of wood dearer; off unless set (under test). */
+    val wornGround = read("t.wornGround")?.toBooleanStrict() ?: false
     /** The food cost of keeping warm, against [inflation.ecology.COLD_COST]. */
     val coldCost = f("coldCost", 1f)
 

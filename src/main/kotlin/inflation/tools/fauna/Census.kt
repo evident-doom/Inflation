@@ -18,6 +18,11 @@ import inflation.ecology.RiteWalk
 import inflation.ecology.ritesApart
 import inflation.ecology.livelihood
 import inflation.ecology.woodCover
+import inflation.ecology.WORN_ROOTS
+import inflation.ecology.WORN_FRUIT
+import inflation.ecology.wornWoodCover
+import inflation.ecology.wornWalk
+import inflation.ecology.wornPace
 import inflation.ecology.Livelihood
 import inflation.ecology.homesApart
 import inflation.ecology.Regard
@@ -295,6 +300,34 @@ class Census(private val sim: HexSim) {
             labels.indices.joinToString(", ") { k ->
                 val m = count[k].coerceAtLeast(1)
                 "%s %d: %.2f / %.2f / %.2f".format(labels[k], count[k], plant[k] / m, game[k] / m, wood[k] / m)
+            })
+        // (Worn ground, t.wornGround: light bands' pace at the next kilo of fruit and roots at their camp's place, against fresh
+        // ground; settled bands' walk for them, against fresh ground, and their hearth's wood cover against the place's.)
+        val worn = groups.wornGround ?: return
+        val light = IntArray(bins.size); val paceFruit = DoubleArray(bins.size); val paceRoots = DoubleArray(bins.size)
+        val fixed = IntArray(bins.size); val walkFruit = DoubleArray(bins.size); val walkRoots = DoubleArray(bins.size); val woodLeft = DoubleArray(bins.size)
+        val food = groups.fauna.food
+        for (g in groups.groups) {
+            val b = g.band ?: continue
+            if (!g.alive) continue
+            val p = g.place.i; val k = bins.indexOfFirst { b.campWeeks < it }
+            val fruitKg = land.total(g.place, inflation.KgM2(food.fruit[p])).v; val rootsKg = land.total(g.place, inflation.KgM2(food.roots[p])).v
+            val spot = worn.spots[g.id]
+            if (spot == null || spot.place != p) {
+                light[k]++
+                paceFruit[k] += wornPace(worn.taken[WORN_FRUIT][p], fruitKg); paceRoots[k] += wornPace(worn.taken[WORN_ROOTS][p], rootsKg)
+            } else {
+                fixed[k]++
+                walkFruit[k] += wornWalk(spot.taken[WORN_FRUIT], fruitKg); walkRoots[k] += wornWalk(spot.taken[WORN_ROOTS], rootsKg)
+                val cover = groups.woodCover(g.place)
+                woodLeft[k] += if (cover > 0f) (groups.wornWoodCover(spot, cover) / cover).toDouble() else 1.0
+            }
+        }
+        println("     worn ground by weeks at the camp (light bands: pace at the next kilo of fruit / roots against fresh ground; settled bands: walk for fruit / roots against fresh ground, and the wood cover they fetch at against their place's): " +
+            labels.indices.joinToString(", ") { k ->
+                val l = light[k].coerceAtLeast(1); val f = fixed[k].coerceAtLeast(1)
+                "%s light %d: %.2f / %.2f, settled %d: %.2f / %.2f, wood %.2f".format(labels[k], light[k], paceFruit[k] / l, paceRoots[k] / l,
+                    fixed[k], walkFruit[k] / f, walkRoots[k] / f, woodLeft[k] / f)
             })
     }
 

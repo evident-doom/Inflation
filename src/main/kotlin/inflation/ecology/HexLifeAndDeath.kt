@@ -167,6 +167,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
     }
     groups += born
     tallyVillages()
+    wornGround?.let { w -> w.fade(days); if (w.spots.isNotEmpty()) { val alive = groups.filter { it.alive }.mapTo(HashSet()) { it.id }; w.spots.keys.retainAll(alive) } }
     tendParties(date)
     mergeAndPair(date)
 }
