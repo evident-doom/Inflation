@@ -93,12 +93,16 @@ def summary(args):
                 for k in CASES + ['not restless', 'own hex only in reach']))
 
 LEAN = re.compile(r'doomLean year to [^:]*: (?P<country>[^,]+), month (?P<m>\d+): (?P<counts>.*)')
+PREY = re.compile(r'doomPrey year to [^:]*: (?P<country>[^:]+): fat reserves % of full by month: (?P<ms>.*)')
 
 def lean(args):
     """The lean table (doomLean lines) summed over the files given, by kind of country, then by country and month."""
     rows = collections.defaultdict(collections.Counter)
+    prey = collections.defaultdict(list)
     for path in args:
         for _, l in runs(path):
+            q = PREY.search(l)
+            if q: prey[q['country']].append([None if v == '-' else float(v) for v in q['ms'].split()])
             m = LEAN.search(l)
             if not m: continue
             for part in m['counts'].split(', '):
@@ -123,6 +127,11 @@ def lean(args):
         ms = [rows.get((c, m), collections.Counter()) for m in range(1, 13)]
         print(f"  {c:24} " + ' '.join(f"{per(r):4.0f}" for r in ms) + ' | ' + ' '.join(f"{100*r['fat drawn']/max(1, r['band-weeks']):3.0f}" for r in ms)
               + ' | ' + ' '.join(f"{mean(r, 'larder d/10', 10):4.0f}" for r in ms) + ' | ' + ' '.join(f"{mean(r, 'yield/100', 100, 'yield weeks'):4.2f}" for r in ms))
+    if prey:
+        print('game fat reserves by country and month (months 1-12), % of full, biomass-weighted, mean of the year-lines given:')
+        for c in sorted(prey, key=lambda c: -by[c]['band-weeks'] if c in by else 0):
+            cols = list(zip(*prey[c]))
+            print(f"  {c:24} " + ' '.join(f"{sum(x for x in col if x is not None) / max(1, sum(1 for x in col if x is not None)):4.0f}" for col in cols))
 
 if __name__ == '__main__':
     if len(sys.argv) < 3 or sys.argv[1] not in ('pick', 'summary', 'lean'): sys.exit(__doc__)
