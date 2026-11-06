@@ -317,11 +317,11 @@ class Census(private val sim: HexSim) {
             val spot = worn.spots[g.id]
             if (spot == null || spot.place != p) {
                 light[k]++
-                paceFruit[k] += wornPaceAt(worn.takenShare(WORN_FRUIT, p, fruitKg)); paceRoots[k] += wornPaceAt(worn.takenShare(WORN_ROOTS, p, rootsKg))
+                paceFruit[k] += wornPaceAt(worn.takenShare(WORN_FRUIT, g.place, fruitKg)); paceRoots[k] += wornPaceAt(worn.takenShare(WORN_ROOTS, g.place, rootsKg))
             } else {
                 fixed[k]++
                 val reach = b.gatherShare().coerceIn(0.01f, 0.9f)
-                walkFruit[k] += wornWalkAt(worn.spotTakenShare(spot, WORN_FRUIT, p, reach, fruitKg)); walkRoots[k] += wornWalkAt(worn.spotTakenShare(spot, WORN_ROOTS, p, reach, rootsKg))
+                walkFruit[k] += wornWalkAt(worn.spotTakenShare(spot, WORN_FRUIT, g.place, reach, fruitKg)); walkRoots[k] += wornWalkAt(worn.spotTakenShare(spot, WORN_ROOTS, g.place, reach, rootsKg))
                 val cover = groups.woodCover(g.place)
                 woodLeft[k] += if (cover > 0f) (groups.wornWoodCover(spot, cover) / cover).toDouble() else 1.0
             }

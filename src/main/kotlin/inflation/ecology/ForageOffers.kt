@@ -243,11 +243,11 @@ internal fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
                 val left = land.total(Place(q), KgM2(density)).v
                 if (spot == null) {
                     // (A light band: the best of the place went first.)
-                    val pace = wornPaceAt(wornLand.takenShare(k, q, left))
+                    val pace = wornPaceAt(wornLand.takenShare(k, Place(q), left))
                     h = wk + (h - wk) / pace; sk /= pace
                 } else if (spot.place == q) {
                     // (A settled band: the ground near its spot is gone over.)
-                    val farther = wornWalkAt(wornLand.spotTakenShare(spot, k, q, share, left))
+                    val farther = wornWalkAt(wornLand.spotTakenShare(spot, k, Place(q), share, left))
                     h += wk * (farther - 1f); wk *= farther
                 }
             }

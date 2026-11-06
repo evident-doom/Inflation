@@ -32,12 +32,12 @@ class WornGroundTest {
         val w = WornGround(1)
         // (A season's fruit: 1000 kg borne, 100 taken, and little ripe this week: a tenth taken, not nearly all.)
         w.crop[WORN_FRUIT][0] = 1000f; w.taken[WORN_FRUIT][0] = 100f
-        assertEquals(0.1f, w.takenShare(WORN_FRUIT, 0, 5f), 1e-4f)
+        assertEquals(0.1f, w.takenShare(WORN_FRUIT, inflation.world.Place(0), 5f), 1e-4f)
         // (Roots stand: what was taken against what was taken and what is left.)
         w.taken[WORN_ROOTS][0] = 100f
-        assertEquals(0.5f, w.takenShare(WORN_ROOTS, 0, 100f), 1e-4f)
+        assertEquals(0.5f, w.takenShare(WORN_ROOTS, inflation.world.Place(0), 100f), 1e-4f)
         // (Nothing borne on record: as much as was taken was borne.)
         w.taken[WORN_SEED][0] = 10f
-        assertEquals(WORN_MOST, w.takenShare(WORN_SEED, 0, 0f), 1e-4f)
+        assertEquals(WORN_MOST, w.takenShare(WORN_SEED, inflation.world.Place(0), 0f), 1e-4f)
     }
 }
