@@ -28,8 +28,9 @@ class StoresAheadTest {
 
     @Test
     fun `a larder carries it through a lean spell`() {
-        // (Eight weeks at a third of the need, the rest at a fifth over it.)
-        val b = band(3, { if (it in 20 until 28) 0.33f else 1.2f })
+        // (Eight weeks at a third of the need, the rest at a fifth over it; the lean weeks first, before an empty larder
+        // has filled from the good ones.)
+        val b = band(3, { if (it in 1 until 9) 0.33f else 1.2f })
         val empty = b.weeksAlive(s, days, 0, 0f, 0f, 0f, 1000f, 1L)!!
         val full = b.weeksAlive(s, days, 0, 60f, 0f, 0f, 1000f, 1L)!!
         assertEquals(1f, full, 1e-4f)

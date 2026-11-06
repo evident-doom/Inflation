@@ -161,18 +161,18 @@ internal fun shortfallOfAdults(g: HexGroup, fed: Float): Float {
  */
 internal fun GroupWorld.grownHunger(g: HexGroup, short: Float): Float {
     val s = g.species
-    val hungerPrime = Hazards.hunger(s, g.spent, Hazards.onFat(1f - short, g.fat, days), days)
+    val hungerPrime = Hazards.hunger(s, g.spent, Hazards.onFatOf(s, 1f - short, g.fat, days), days)
     val elders = g.band?.elders?.coerceAtMost(g.adults) ?: 0
     return if (elders == 0) hungerPrime else ((g.adults - elders) * hungerPrime + elders * eldersHunger(g, short)) / g.adults
 }
 
 /** The same for [g]'s young, fed first in a band ([CHILDREN_FIRST]); [grown]'s odds ([grownHunger]) where it is no band. */
 internal fun GroupWorld.youngHunger(g: HexGroup, short: Float, grown: Float) =
-    if (g.band == null) grown else Hazards.hunger(g.species, g.spent, Hazards.onFat(1f - short * (1f - CHILDREN_FIRST), g.fat, days), days)
+    if (g.band == null) grown else Hazards.hunger(g.species, g.spent, Hazards.onFatOf(g.species, 1f - short * (1f - CHILDREN_FIRST), g.fat, days), days)
 
 /** The week's hunger odds of an elder of [g]'s band when a grown one in the childbearing years goes without [short] of its need ([shortfallOfAdults]). */
 private fun GroupWorld.eldersHunger(g: HexGroup, short: Float, spent: Float = g.spent) =
-    Hazards.hunger(g.species, spent, Hazards.onFat(1f - min(1f, ELDERS_YIELD * short), g.fat, days), days)
+    Hazards.hunger(g.species, spent, Hazards.onFatOf(g.species, 1f - min(1f, ELDERS_YIELD * short), g.fat, days), days)
 
 /**
  * How many times as likely an elder of [g]'s band is to die this week as another grown one, of the grown's odds [adultOdds]
@@ -183,7 +183,7 @@ internal fun GroupWorld.elderRisk(g: HexGroup, fed: Float, spent: Float, adultSu
     val b = g.band ?: return 1f
     val elders = b.elders.coerceAtMost(g.adults); if (elders == 0 || elders == g.adults) return 1f
     val short = shortfallOfAdults(g, fed); if (short <= 0f) return 1f
-    val prime = Hazards.hunger(g.species, spent, Hazards.onFat(1f - short, g.fat, days), days)
+    val prime = Hazards.hunger(g.species, spent, Hazards.onFatOf(g.species, 1f - short, g.fat, days), days)
     val old = eldersHunger(g, short, spent)
     val mean = ((g.adults - elders) * prime + elders * old) / g.adults
     val others = adultSum - mean
@@ -258,7 +258,7 @@ internal fun HexGroups.houseWorthWeek(g: HexGroup, b: Band, weather: Weather, st
     if (more > 0f) {
         fun starve(fed: Float, young: Boolean): Float {
             val short = shortfallOfAdults(g, fed) * (if (young) 1f - CHILDREN_FIRST else 1f)
-            return Hazards.hunger(s, g.spent, Hazards.onFat(1f - short, g.fat, days), days)
+            return Hazards.hunger(s, g.spent, Hazards.onFatOf(s, 1f - short, g.fat, days), days)
         }
         w[HouseWorth.HUNGER] += g.adults * max(0f, starve(g.fed, false) - starve(g.fed + more, false)) +
             g.young * max(0f, min(1f, 1.5f * starve(g.fed, true)) - min(1f, 1.5f * starve(g.fed + more, true)))

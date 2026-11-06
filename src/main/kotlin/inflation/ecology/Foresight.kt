@@ -198,7 +198,7 @@ internal class YearAhead(private val odds: FloatArray, internal val fed: FloatAr
             val paid = if (got > 1f) -(got - 1f) * days else min((1f - got) * days, larder)
             larder -= paid
             val ate = min(1f, got + max(0f, paid) / days)
-            val onFat = Hazards.onFat(ate, fatLeft, days); fatLeft = max(0f, fatLeft - (onFat - ate) * days)
+            val onFat = Hazards.onFatOf(s, ate, fatLeft, days); fatLeft = max(0f, fatLeft - Hazards.fatDrawnOf(s, ate, fatLeft, days))
             val hunger = Hazards.hunger(s, burnt, onFat, days); burnt = Hazards.spentAfter(s, burnt, onFat, days)
             if (causes != null) { causes[1] += alive * odds[k]; causes[0] += alive * (1f - odds[k]) * hunger }
             sb?.append("  +%d: fed %.2f paid %.1f larder %.1f onFat %.2f fat %.1f burnt %.1f hunger %.3f exposure %.3f\n".format(k + 1, got, paid, larder, onFat, fatLeft, burnt, hunger, odds[k]))

@@ -24,10 +24,11 @@ class UnpreparedDeadlinesTest {
         val alive = DoubleArray(weeks + 1).also { it[0] = 1.0 }
         var f = fat; var spent = 0f
         for (w in 1..weeks) {
-            val fed = Hazards.onFat(0f, f, days)
+            val e = Hazards.economy(people)
+            val fed = Hazards.onFat(0f, f, days, economy = e)
             alive[w] = alive[w - 1] * (1f - Hazards.hunger(people, spent, fed, days))
             spent = Hazards.spentAfter(people, spent, fed, days)
-            f = max(0f, f - min(f, days.toFloat()))
+            f = max(0f, f - Hazards.fatDrawn(0f, f, days, economy = e))
         }
         return alive
     }
