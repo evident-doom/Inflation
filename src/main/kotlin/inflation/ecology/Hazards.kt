@@ -86,7 +86,14 @@ object Hazards {
      * birds and mammals", Acta XX Congressus Internationalis Ornithologici, Durban). Scaled with body mass as the protein
      * carried (as M) over its burning (as M^0.75): a roe deer 12 days, a red deer 18, a horse 22, an aurochs 28.
      */
-    fun starveDays(s: Species) = STARVE_DAYS * (s.massKg / STARVE_KG).pow(0.25f)
+    fun starveDays(s: Species) = if (s.human) HUMAN_STARVE_DAYS else STARVE_DAYS * (s.massKg / STARVE_KG).pow(0.25f)
+    /**
+     * People's last phase of a fast, days ([starveDays]): the scaling above gives 15, so that with their fat (about 22 days)
+     * the first would die of a total fast at about 4 weeks. Fasting people die at 46 to 73 days (the ten hunger strikers of
+     * 1981; others lived through 28 to 40, Peel, BMJ 1997, as Scientific American reports them). With [HUMAN_ECONOMY], 40
+     * puts the first deaths of a total fast at about 7 weeks.
+     */
+    const val HUMAN_STARVE_DAYS = 40f
     /** A rat's last phase of a fast, days, and its weight, kg: "a few days" (see [starveDays]). */
     const val STARVE_DAYS = 4f
     const val STARVE_KG = 0.3f
