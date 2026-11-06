@@ -20,7 +20,9 @@ import kotlin.math.sqrt
  * [--years N] [--replicate R]; default 1 year) every band choice among two places or more is weighed again by the same
  * network with one input set to 0 in every candidate, and for each input it says: the share of candidates where it is not 0,
  * how much setting it to 0 moves those candidates' scores (mean |change|) against how far the candidates' scores lie apart
- * within a choice (their spread), and the share of choices whose best place changes. The run itself goes on as it would:
+ * within a choice (their spread), and the share of choices whose best place changes; and which way it pulls: its signed
+ * contribution (the score with it less the score without it), per unit of the input, averaged over those candidates, and the share
+ * of them where it raises the score (for a 0-or-1 input such as [HexFeatures.UNLUCKY_CAMP], > 0 draws bands to the place, < 0 keeps them off). The run itself goes on as it would:
  * the bands still choose by the network, and nothing is drawn from their streams. Report only.
  */
 fun main(args: Array<String>) {
@@ -37,7 +39,7 @@ fun main(args: Array<String>) {
         // (For scale: inputs it surely reads.)
         HexFeatures.FOOD, HexFeatures.STAYS, HexFeatures.HOUSES, HexFeatures.APPOINTMENT, HexFeatures.FISH, HexFeatures.WATER_DISTANCE,
     )
-    class Acc { val nonzero = LongAdder(); val moved = DoubleAdder(); val choicesWith = LongAdder(); val flipped = LongAdder() }
+    class Acc { val nonzero = LongAdder(); val moved = DoubleAdder(); val signed = DoubleAdder(); val raised = LongAdder(); val choicesWith = LongAdder(); val flipped = LongAdder() }
     val acc = probed.associateWith { Acc() }
     val choices = LongAdder(); val candidates = LongAdder(); val spread = DoubleAdder()
     val scratch = ThreadLocal.withInitial { mover.Scratch() }
@@ -62,9 +64,12 @@ fun main(args: Array<String>) {
                     val a = acc.getValue(slot)
                     val zeroed = Array(n) { k -> features[k].copyOf().also { it[slot] = 0f } }
                     val off = mover.netScores(g.species, zeroed, state, temper, sc)
-                    var nz = 0L; var moved = 0.0
-                    for (k in 0 until n) if (features[k][slot] != 0f) { nz++; moved += abs(base[k] - off[k]) }
-                    a.nonzero.add(nz); a.moved.add(moved); a.choicesWith.increment()
+                    var nz = 0L; var moved = 0.0; var signed = 0.0; var raised = 0L
+                    for (k in 0 until n) if (features[k][slot] != 0f) {
+                        val d = base[k] - off[k]
+                        nz++; moved += abs(d); signed += d / features[k][slot]; if (d > 0f) raised++
+                    }
+                    a.nonzero.add(nz); a.moved.add(moved); a.signed.add(signed); a.raised.add(raised); a.choicesWith.increment()
                     if (best(off, n) != top) a.flipped.increment()
                 }
                 return chosen
@@ -79,11 +84,12 @@ fun main(args: Array<String>) {
     val c = choices.sum().coerceAtLeast(1); val cand = candidates.sum().coerceAtLeast(1)
     println("net-input-use: people's mover $file, ${options.years} y, ${choices.sum()} band choices among 2+ places, ${cand / c} places a choice on average")
     println("mean spread of the candidates' scores within a choice (sd): %.4f".format(spread.sum() / c))
-    println("%-26s %12s %12s %14s %10s %12s".format("input", "not 0 (cand)", "choices with", "mean |change|", "/ spread", "best flips"))
+    println("%-26s %12s %12s %14s %10s %12s %14s %10s".format("input", "not 0 (cand)", "choices with", "mean |change|", "/ spread", "best flips", "pull per unit", "raises"))
     for (slot in probed) {
         val a = acc.getValue(slot); val nz = a.nonzero.sum(); val with = a.choicesWith.sum()
         val m = if (nz > 0) a.moved.sum() / nz else 0.0
-        println("%-26s %11.3f%% %11.3f%% %14.4f %10.3f %11.3f%%".format(HexFeatures.names[slot], 100.0 * nz / cand, 100.0 * with / c, m,
-            m / (spread.sum() / c).coerceAtLeast(1e-9), if (with > 0) 100.0 * a.flipped.sum() / with else 0.0))
+        println("%-26s %11.3f%% %11.3f%% %14.4f %10.3f %11.3f%% %+14.4f %9.1f%%".format(HexFeatures.names[slot], 100.0 * nz / cand, 100.0 * with / c, m,
+            m / (spread.sum() / c).coerceAtLeast(1e-9), if (with > 0) 100.0 * a.flipped.sum() / with else 0.0,
+            if (nz > 0) a.signed.sum() / nz else 0.0, if (nz > 0) 100.0 * a.raised.sum() / nz else 0.0))
     }
 }
