@@ -247,10 +247,10 @@ class Band(kinds: Int, totems: Int = kinds) {
     /**
      * Of its people's sodium need last week, the share its food alone left short, before its salt made it up; and the salt
      * that would make that up a step, kg ([saltPace]): what its salt held must cover, for its foresight ([foreseenSaltPace]).
-     * Set as it eats.
+     * Set as it eats, and saved like [sodiumShort]: foresight reads them before the next meal.
      */
-    @Transient var sodiumWant = 0f
-    @Transient var saltWantStep = 0f
+    var sodiumWant = 0f
+    var saltWantStep = 0f
     /** The share of its people's time at work [where] that is work this week ([Sisu], [watchPace]). */
     fun paceAt(where: Workplace) = when (where) {
         Workplace.OUT -> coldPace * hungerPace * sleepPace * saltPace
