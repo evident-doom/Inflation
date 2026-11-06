@@ -255,6 +255,9 @@ class Census(private val sim: HexSim) {
             met(Met.BANDS_AT_A_RECRUITER), met(Met.BANDS_RECRUITED), met(Met.PEOPLE_RECRUITED)) +
             (storms?.let { "; storms killed bands %d arriving and %d on their way, %d people, packs %d".format(
                 met(Met.BANDS_STRUCK_ARRIVING), met(Met.BANDS_STRUCK_CROSSING), met(Met.PEOPLE_KILLED_BY_STORMS), met(Met.PACKS_STRUCK_BY_STORMS)) } ?: "") +
+            (storms?.let { "; band-weeks warned of a storm at camp %d, of them reached safety %d, no safe place in reach %d; bands killed with their camp struck %d (warned the week before %d, a safe place in reach then %d), walked into it %d".format(
+                met(Met.BANDS_WARNED_OF_PERIL), met(Met.BANDS_WARNED_REACHED_SAFETY), met(Met.BANDS_WARNED_NO_SAFE_PLACE),
+                met(Met.STORM_DEAD_CAMP_STRUCK), met(Met.STORM_DEAD_WARNED_BEFORE), met(Met.STORM_DEAD_SAFE_BEFORE), met(Met.STORM_DEAD_WALKED_IN)) } ?: "") +
             (sites?.let { "; bands now by hexes to the nearest recruiter (same / 1 / 2-3 / 4-10 / farther): " + spread(bands, it) } ?: "") +
             (storms?.let { "; groups now by hexes to the nearest storm (same / 1 / 2-3 / 4-10 / farther): " + spread(all, it) } ?: ""))
     }

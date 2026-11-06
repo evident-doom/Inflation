@@ -433,6 +433,7 @@ class HexGroups(
         for ((k, g) in groups.withIndex()) if (g.alive) {
             if (g.band != null && g.fed < Thresholds.HUNGRY)
                 stats.meeting(if (paths[k]!!.size <= 1) Met.HUNGRY_BANDS_CHOSE_TO_STAY else Met.HUNGRY_BANDS_CHOSE_TO_MOVE)
+            if (hurricanes != null && g.band != null) notePeril(g, Place(choice[k]))
             g.climbedM = max(0f, hw.placeElevationM[choice[k]] - hw.placeElevationM[g.place.i])
             g.place = Place(choice[k]); g.path = paths[k]!!; g.days = times[k]!!; g.meatMet = 0f; g.meatSpent = false
             // (For the census: what it had to live on as it chose, and whether it moves camp, [noteReserves].)
@@ -441,6 +442,17 @@ class HexGroups(
         }
         hurricanes?.let { storms -> if (storms.kills) for (g in groups) if (g.alive) hurricaneKill(g, storms, date) }
         recruiters?.let { sites -> for (g in groups) if (g.alive && g.band != null && sites.struck(hw.placeHex[g.place])) { stats.meeting(Met.BANDS_AT_A_RECRUITER); if (mayRecruit(g)) recruit(g) } }
+    }
+
+    /** For the census: the peril band [g] foresaw at its camp, at the place [to] it chose and at the safest place it weighed. */
+    private fun notePeril(g: HexGroup, to: Place) {
+        g.campPerilBefore = g.campPeril; g.safestPerilBefore = g.safestPeril
+        g.campPeril = perilAhead(hw.placeHex[g.place]); g.chosenPeril = perilAhead(hw.placeHex[to])
+        if (g.campPeril > 0f && g.campPeril < 1f) {
+            stats.meeting(Met.BANDS_WARNED_OF_PERIL)
+            if (g.chosenPeril == 0f) stats.meeting(Met.BANDS_WARNED_REACHED_SAFETY)
+            if (g.safestPeril > 0f) stats.meeting(Met.BANDS_WARNED_NO_SAFE_PLACE)
+        }
     }
 
     /** Sets the storms of the hurricane test down in the first week, and moves them on in every week after. */
@@ -497,6 +509,13 @@ class HexGroups(
         }
         fauna.record?.group(g.species, g.place, cause, adults + young)
         if (g.band != null) { stats.meeting(if (arrived) Met.BANDS_STRUCK_ARRIVING else Met.BANDS_STRUCK_CROSSING); stats.meeting(Met.PEOPLE_KILLED_BY_STORMS, adults + young) }
+        if (g.band != null) {
+            if (g.campPeril >= 1f) {
+                stats.meeting(Met.STORM_DEAD_CAMP_STRUCK)
+                if (g.campPerilBefore > 0f) stats.meeting(Met.STORM_DEAD_WARNED_BEFORE)
+                if (g.safestPerilBefore == 0f) stats.meeting(Met.STORM_DEAD_SAFE_BEFORE)
+            } else if (g.chosenPeril >= 1f) stats.meeting(Met.STORM_DEAD_WALKED_IN)
+        }
         else stats.meeting(Met.PACKS_STRUCK_BY_STORMS)
     }
 
