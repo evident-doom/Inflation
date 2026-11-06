@@ -114,7 +114,7 @@ internal fun WornGround.takenShare(k: Int, p: Int, leftKg: Float): Float {
  * The share of worn kind [k] that settled band's spot [s] has taken of what lies within its [reach] (share of place [p]'s
  * ground), with [leftKg] lying on the whole place now: of a flowing crop, against the reached share of what it bore.
  */
-internal fun WornGround.spotTakenShare(s: Spot, k: Int, p: Int, reach: Float, leftKg: Float): Float {
+internal fun WornGround.spotTakenShare(s: WornGround.Spot, k: Int, p: Int, reach: Float, leftKg: Float): Float {
     val t = s.taken[k]
     if (t <= 0f) return 0f
     return min(WORN_MOST, if (wornFlows(k)) t / (reach * crop[k][p]).coerceAtLeast(t) else t / (t + reach * leftKg).coerceAtLeast(1e-9f))
