@@ -5,6 +5,8 @@ import inflation.Config
 import inflation.ecology.Catalogue
 import inflation.run.Nominal
 import inflation.run.TestWorlds
+import inflation.run.baselineDir
+import inflation.run.baselinesRoot
 import inflation.run.configWith
 import inflation.run.startFaunaCheck
 import java.io.File
@@ -31,6 +33,14 @@ import kotlin.math.sqrt
  *
  * Except that a role whose networks changed net major version ([NetVersion]) since the kept ones were saved has its new
  * network kept without the comparison (unless a kind is gone in every weather): it is the baseline the later rounds are judged against.
+ *
+ * Every `ppo.checkReferenceEvery`-th check this run starts (default 2; 0: never) adds an arm "reference": the networks of a baseline from outside
+ * this run (`ppo.checkReference`: a baseline's name or a directory; unset, the default baseline [LearnedModel.latestBaseline] as it
+ * stood when the run began; "hand": none). The check says how the new and the kept networks fare against it, for the run not to
+ * be judged by its own kept networks alone. Reported only: it does not decide what is kept. A role whose reference network is
+ * missing, or was saved with other outputs than today's (an output's meaning may have changed), plays by the hand-written
+ * choices in that arm, and the line says so; one saved under another net major with the same outputs plays by it (new inputs
+ * weigh nothing, [Schema.fit]), and the line gives its major.
  */
 class EcoCheck(private val out: File) {
     private val world = TestWorlds.named(Config.string(Config.Key.PPO_CHECK_WORLD) ?: "lake-1")
@@ -44,6 +54,19 @@ class EcoCheck(private val out: File) {
     private val pool = Executors.newFixedThreadPool(Config.int(Config.Key.PPO_CHECK_PARALLEL, 10)) { r -> Thread(r, "eco-check").also { it.isDaemon = true } }
     /** The networks each role plays with outside training, and that the new ones are judged against. */
     val kept = File(out, "kept")
+    /** How often (in checks) the reference arm runs; 0: never. */
+    private val referenceEvery = Config.int(Config.Key.PPO_CHECK_REFERENCE_EVERY, 2)
+    /** The reference networks' directory (resolved once, so that a baseline kept during the run does not change it), or null for the hand-written choices. */
+    private val referenceGiven = Config.string(Config.Key.PPO_CHECK_REFERENCE)
+    private val reference: File? = when (referenceGiven) {
+        "hand" -> null
+        null -> LearnedModel.latestBaseline()
+        else -> baselineDir(referenceGiven).also { require(it.isDirectory) { "ppo.checkReference: no directory $it" } }
+    }
+    /** The checks started in this run, for [referenceEvery]. */
+    private var checksStarted = 0
+    /** The roles whose reference network plays in the reference arm (the rest play by the hand-written choices), and what the line says of each. */
+    private val referenceRoles: Map<Role, String> = Role.entries.associateWith { r -> referenceUse(r) }
 
     class Verdict(val round: Int, val roles: Map<Role, Boolean>, val lines: List<String>)
 
@@ -51,10 +74,17 @@ class EcoCheck(private val out: File) {
     fun init() { if (!File(kept, Role.HUNTERS.file(kept).name).exists()) copyRoles(out, kept, Role.entries) }
 
     /** Checks the networks in [candidate] (a copy of round [round]'s, counted from 0) against the kept ones, beside the training. */
-    fun start(round: Int, candidate: File): CompletableFuture<Verdict> = CompletableFuture.supplyAsync {
+    fun start(round: Int, candidate: File): CompletableFuture<Verdict> {
+        val withReference = referenceEvery > 0 && ++checksStarted % referenceEvery == 0
+        return CompletableFuture.supplyAsync { check(round, candidate, withReference) }
+    }
+
+    private fun check(round: Int, candidate: File, withReference: Boolean): Verdict {
         val dir = File(out, "checks/round-${round + 1}").also { it.mkdirs() }
         val arms = linkedMapOf("new" to Role.entries.associateWith { candidate }, "kept" to Role.entries.associateWith { kept })
         for (r in Role.entries) arms["kept-$r"] = Role.entries.associateWith { if (it == r) kept else candidate }
+        // (The reference arm's roles that play by the hand-written choices get no file copied: a role without a network keeps them.)
+        if (withReference) arms[REFERENCE] = referenceRoles.filterValues { it.startsWith(USES) }.keys.mapNotNull { r -> reference?.let { r to it } }.toMap()
         val runs = arms.mapValues { (name, from) ->
             val armDir = File(dir, name).also { it.mkdirs() }
             for ((r, src) in from) copyRoles(src, armDir, listOf(r))
@@ -70,7 +100,21 @@ class EcoCheck(private val out: File) {
             // (Each check meets other weathers, the same in all its arms: the kept network is run again each time, so a series of checks does not climb two weathers' luck.)
             (0 until replicates).map { r -> pool.submit<File> { runOne(cfg, armDir, r, round * replicates + r) } }
         }.mapValues { (_, fs) -> fs.map { TestWorlds.Run(it.get()) } }
-        judge(round, runs)
+        return judge(round, runs)
+    }
+
+    /** What the reference arm plays [r] by: its network in [reference] ("uses ...") or the hand-written choices, and why. */
+    private fun referenceUse(r: Role): String {
+        val ref = reference ?: return if (referenceGiven == "hand") "hand-written (ppo.checkReference=hand)" else "hand-written (no baseline in ${baselinesRoot()})"
+        val f = r.file(ref)
+        if (!f.exists()) return "hand-written (no ${f.name} in $ref)"
+        // (The mover's and the ways network's outputs as saved, against today's: a network saved without names is taken to fit.)
+        fun outputsFit(file: File, today: List<String>) = Schema.namesFile(file).takeIf { it.exists() }?.readLines()?.getOrNull(1)?.split("|")?.let { it == today } ?: true
+        val waysFile = File(ref, r.ways.file)
+        if (!outputsFit(f, Schema.MOVER_OUT)) return "hand-written (${f.name} in $ref has other outputs than today's)"
+        if (waysFile.exists() && !outputsFit(waysFile, r.ways.outNames)) return "hand-written (${waysFile.name} in $ref has other outputs than today's)"
+        val v = Schema.versionOf(f)
+        return "$USES $ref (net major ${if (v == NetVersion.NONE) "none" else "${v.major}"}, today's ${r.net.major})"
     }
 
     private fun runOne(cfg: File, armDir: File, r: Int, weather: Int): File {
@@ -161,7 +205,27 @@ class EcoCheck(private val out: File) {
                 if (collapsed.isEmpty()) "none is" else collapsed.joinToString(", "))
             keep
         }
+        runs[REFERENCE]?.let { ref -> lines += referenceLines(round, new, kept, ref, kinds) }
         return Verdict(round, roles, lines)
+    }
+
+    /** The reference arm's lines: each role's own kinds with every role new, and with every role kept, against the reference arm; reported only. */
+    private fun referenceLines(round: Int, new: List<TestWorlds.Run>, keptRuns: List<TestWorlds.Run>, ref: List<TestWorlds.Run>, kinds: List<String>): List<String> {
+        val lines = ArrayList<String>()
+        lines += "check round %d reference (reported only, decides nothing): %s".format(round + 1,
+            Role.entries.joinToString("; ") { "$it ${referenceRoles.getValue(it)}" })
+        for (r in Role.entries) {
+            val own = Catalogue.learned.filter { Role.of(it) == r }.map { it.name }
+            fun cell(arm: List<TestWorlds.Run>) = changeBy(own, arm, ref).let { c -> "%+.1f%% +- %.1f%%".format(100 * c.average(), 100 * standardError(c)) }
+            lines += "check round %d %s against the reference: own kinds with every role new %s, with every role kept %s (mean of its kinds' change over %d weathers)".format(
+                round + 1, r, cell(new), cell(keptRuns), ref.size)
+        }
+        val failsNew = fails(new, ref, kinds); val failsKept = fails(keptRuns, ref, kinds)
+        val people = HexHistory.Key.animals(Catalogue.HUMAN.name)
+        lines += "check round %d ecosystem against the reference: every role new %s, every role kept %s; people last year: new %.0f, kept %.0f, reference %.0f".format(round + 1,
+            if (failsNew.isEmpty()) "holds" else "fails: " + failsNew.joinToString(", "), if (failsKept.isEmpty()) "holds" else "fails: " + failsKept.joinToString(", "),
+            lastYear(new, people), lastYear(keptRuns, people), lastYear(ref, people))
+        return lines
     }
 
     /** Applies [v]: copies each role's new network that passed from [candidate] into the kept ones. */
@@ -172,6 +236,9 @@ class EcoCheck(private val out: File) {
         const val FALL = 0.10
         /** Kinds fewer than this on average with the old networks are reported but do not fail the ecosystem (Olli's choice: rare kinds need tuning of their own). */
         const val RARE = 200.0
+        /** The reference arm's name. */
+        const val REFERENCE = "reference"
+        private const val USES = "uses"
 
         /** Copies [roles]' networks, with their side files and their ways networks (bands' for people, packs' for hunters), from [from] to [to]. */
         fun copyRoles(from: File, to: File, roles: Collection<Role>) {
