@@ -81,6 +81,12 @@ internal const val FOUL_PEOPLE = 50f
  * at 20-30 °C, PMC7158167): an estimate from those, a year's fouling gone in about a season.
  */
 internal const val FOUL_CLEAR = 4f
+/**
+ * Weeks of camping (by [FOUL_PEOPLE] people) whose fouling one unburied body adds to the ground where it lies, a child's in
+ * proportion to its weight: flies, the smell and the water fouled while it rots, and the scavengers that drag it about. In the
+ * warmth a body left in the open is mostly bone within two to four weeks; an estimate from that, no figure found.
+ */
+internal const val CORPSE_FOUL_WEEKS = 4f
 /** How much of its standing a midden nobody tends loses a year (it is no longer kept apart from the camp): an estimate. */
 internal const val MIDDEN_WEAR = 0.3f
 /** Whether [g]'s band [b] has come to a new camp this week (or has none yet), where no shelter of its stands. */
