@@ -17,9 +17,10 @@ import kotlin.math.min
 /**
  * The sodium in plant forage at each place, as a share of its dry matter, or [LICK] where its hex has a
  * salt lick ([HexLand.salt]: a salt pan or salt lake shore, a desert shore) or lies on the coast ([LICK]: as much as any need): [FORAGE_SODIUM_INLAND]
- * far inland, rising toward [FORAGE_SODIUM_COAST] at the sea over [marineKm] ([inflation.Tuning.marineKm]) (the sea's spray falls off inland).
+ * far inland, rising toward [FORAGE_SODIUM_COAST] at the sea over [marineKm] ([inflation.Tuning.marineKm]), and less where rain
+ * leaches it ([leached], [inflation.Tuning.leachMm]) (the sea's spray falls off inland).
  */
-internal fun forageSodium(hw: HexWorld, land: HexLand, marineKm: Float = land.tuning.marineKm): FloatArray {
+internal fun forageSodium(hw: HexWorld, land: HexLand, marineKm: Float = land.tuning.marineKm, leachMm: Float = land.tuning.leachMm): FloatArray {
     val hex = hw.hex
     val steps = IntArray(hex.size) { -1 }
     val queue = ArrayDeque<Hex>()
@@ -33,11 +34,19 @@ internal fun forageSodium(hw: HexWorld, land: HexLand, marineKm: Float = land.tu
     return FloatArray(land.n) { i ->
         val h = hw.placeHex[Place(i)]
         if (lick[h] || hw.coast[h]) LICK else {
-            if (steps[h] < 0) FORAGE_SODIUM_INLAND
-            else FORAGE_SODIUM_INLAND + (FORAGE_SODIUM_COAST - FORAGE_SODIUM_INLAND) * exp(-(steps[h] * hex.hexKm).toFloat() / marineKm)
+            val sea = if (steps[h] < 0) FORAGE_SODIUM_INLAND
+                else FORAGE_SODIUM_INLAND + (FORAGE_SODIUM_COAST - FORAGE_SODIUM_INLAND) * exp(-(steps[h] * hex.hexKm).toFloat() / marineKm)
+            sea * leached(land.mean(i) { hw.world.climate.annualPrecip[it] }, leachMm)
         }
     }
 }
+
+/**
+ * The share of its sodium a place's soil and forage keep under [rainMm] of rain a year: all up to [leachMm], beyond it the
+ * more the rain washes through, the less ([leachMm] / rain); 0 [leachMm] keeps it all. Rain leaches the salts from soils,
+ * the more the wetter (Dudley et al. 2012 put the Amazon's salt hunger down to it): a guess at its size.
+ */
+internal fun leached(rainMm: Float, leachMm: Float) = if (leachMm <= 0f || rainMm <= leachMm) 1f else leachMm / rainMm
 
 /**
  * How well kind [s]'s food meets its need for sodium where the forage holds [forage] of its dry matter ([forageSodium]),

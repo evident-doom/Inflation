@@ -232,6 +232,12 @@ class Tuning(
      * (Maro and Dudley 2022). No place on a 1000 x 2000 km test world is then short; about 9% on an 8000 x 2000 one.
      */
     val marineKm = f("marineKm", 300f)
+    /**
+     * Rain a year beyond which it leaches sodium from soil and forage, mm: at twice it half is left
+     * ([inflation.ecology.leached]). A guess: dry and Mediterranean country keeps its salts, wet uplands and rainforest lose
+     * them. 0 leaches none (the old rule).
+     */
+    val leachMm = f("leachMm", 1000f)
     /** How much less salted meat and fish spoil. */
     val saltKeep = f("saltKeep", 0.7f)
 
