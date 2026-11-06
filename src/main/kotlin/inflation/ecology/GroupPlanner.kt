@@ -199,7 +199,7 @@ internal class GroupPlanner(internal val gs: HexGroups) {
             for (pi in gs.hw.placesOf(h)) {
                 val p = Place(pi)
                 val prey = knownGame(g, kind, p, h)
-                val fed = foreseenFed(g, prey, kin, crowded) * gs.saltFeedsAt(g, p, h)
+                val fed = foreseenFed(g, prey, kin, crowded)
                 val hunters = huntersKm2(c, p, h)
                 at.prey = prey; at.fed = fed; at.hunters = hunters
                 val t = buf.terms.also { fillTerms(it, g, p, weather, date) }

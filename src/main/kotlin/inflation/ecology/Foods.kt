@@ -64,14 +64,19 @@ enum class PlantFrom(val label: String) { FRUIT("fruit"), MAST("mast"), BULBS("b
  * as insects do, [infest]), rendered grease sealed in guts or bladders for months (its rate a guess).
  * [lostWeekly] is the share lost a week (fresh meat: see [spoil]); [meat] whether it counts as meat (for its salt);
  * [protein] the share of its energy that is protein (fresh and dried meat and fish at meat's; small finds kept with fruit);
+ * [sodium] the sodium in a kg of it as it weighs, kg ([SODIUM_A_PERSON_DAY]): meat and fish [SODIUM_PER_KG_MEAT]; wild grain
+ * and seed some 5 mg in 100 g (USDA SR: barley 12, wheat 2-3, oats 2, lentils 6; Natufian stands were barley and wheat, so
+ * between), roots some 7 (USDA SR: yam 9, potato 6, sweet potato 55, taken low: wild tubers are not sweet potatoes), fruit some
+ * 2 (USDA SR: figs 1, blackberries 1, dates 2), grease none (rendered fat: USDA SR lard 0). All from memory, to check.
  * [pestWeekly] the share insects eat a week where the stores are wholly infested, at 15 °C ([infest]): hide and larder beetles
  * and fly and moth larvae in dried meat and fish, weevils and moths in seed and nuts. (From memory: insects take 10-50% of dried
  * fish over a few months' storage in the warm tropics, and 5-15% a year of grain in traditional stores; what rots fast is lost
  * to rot before insects matter.)
  */
-enum class Store(val lostWeekly: Float, val meat: Boolean, val protein: Float, val pestWeekly: Float = 0f) {
-    FRESH(0f, true, Nourishment.PROTEIN_MEAT), DRIED(0.01f, true, Nourishment.PROTEIN_MEAT, 0.01f), FRUIT(0.1f, false, Nourishment.PROTEIN_FRUIT),
-    ROOTS(0.03f, false, Nourishment.PROTEIN_ROOTS), SEED(0.001f, false, Nourishment.PROTEIN_GRAIN, 0.002f), GREASE(0.01f, false, 0f)
+enum class Store(val lostWeekly: Float, val meat: Boolean, val protein: Float, val sodium: Float, val pestWeekly: Float = 0f) {
+    FRESH(0f, true, Nourishment.PROTEIN_MEAT, SODIUM_PER_KG_MEAT), DRIED(0.01f, true, Nourishment.PROTEIN_MEAT, SODIUM_PER_KG_MEAT, 0.01f),
+    FRUIT(0.1f, false, Nourishment.PROTEIN_FRUIT, 0.02e-3f), ROOTS(0.03f, false, Nourishment.PROTEIN_ROOTS, 0.07e-3f),
+    SEED(0.001f, false, Nourishment.PROTEIN_GRAIN, 0.05e-3f, 0.002f), GREASE(0.01f, false, 0f, 0f)
 }
 /** The order a band eats its food in: what spoils first, first. */
 val EAT_ORDER = listOf(Store.FRESH, Store.FRUIT, Store.ROOTS, Store.DRIED, Store.SEED, Store.GREASE)

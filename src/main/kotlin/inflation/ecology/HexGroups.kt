@@ -379,6 +379,7 @@ class HexGroups(
             b.coldPace = w.pace; b.campPace = w.campPace
             b.hungerPace = Sisu.hungerPace(g.species, g.spent, b.sisu)
             b.sleepPace = watchPace(b.watchHours, g.adults)
+            b.saltPace = saltPace(b.sodiumShort, 1f, tuning.saltLack)
         }
         if (bearings.month != date.month) {
             beastsKg(monthBeastKg, people = false)
@@ -671,15 +672,6 @@ class HexGroups(
 
 
 
-    /**
-     * What band [g]'s food would do for it at place [p] (in hex [h]) for its sodium ([saltFeeds], as its meal has it): as short
-     * as it was last week, unless salt is to be had there (a salt pan or dry lake bed, the shore), which makes up the lack.
-     */
-    internal fun saltFeedsAt(g: HexGroup, p: Place, h: Hex): Float {
-        val b = g.band ?: return 1f
-        if (b.sodiumShort <= 0f || land.salt[p] > 0f || hw.coast[h]) return 1f
-        return saltFeeds(b.sodiumShort, 1f, tuning.saltLack)
-    }
 
 
 

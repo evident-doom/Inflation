@@ -221,7 +221,7 @@ class Band(kinds: Int, totems: Int = kinds) {
     var pests = 0f
     /** Of the protein it ate last week, the share beyond what could feed it ([Nourishment.PROTEIN_MOST]): what it knows lean food is worth. */
     var leanLost = 0f
-    /** Of its people's sodium need last week, the share that neither meat, salted meat nor its salt met ([saltFeeds]): what it knows it lacks. */
+    /** Of its people's sodium need last week, the share that neither its food, salted meat nor its salt met ([saltPace]): what it knows it lacks. */
     var sodiumShort = 0f
     /** The nearest salt it knows of ([HexGroups.saltKnown]), or [Hex.NONE], as reckoned from hex [saltFrom] ([Hex.NONE]: not yet). */
     @Transient var saltAt = Hex.NONE
@@ -240,10 +240,12 @@ class Band(kinds: Int, totems: Int = kinds) {
     @Transient var hungerPace = 1f
     /** The share of its working time its people work for the sleep its night watch takes ([watchPace]); set as the week starts. */
     @Transient var sleepPace = 1f
+    /** The share of its working time its people work for the sodium they lacked last week ([saltPace]); set as the week starts. */
+    @Transient var saltPace = 1f
     /** The share of its people's time at work [where] that is work this week ([Sisu], [watchPace]). */
     fun paceAt(where: Workplace) = when (where) {
-        Workplace.OUT -> coldPace * hungerPace * sleepPace
-        Workplace.CAMP -> campPace * hungerPace * sleepPace
+        Workplace.OUT -> coldPace * hungerPace * sleepPace * saltPace
+        Workplace.CAMP -> campPace * hungerPace * sleepPace * saltPace
         Workplace.NONE -> 1f
     }
     /** [paceAt] each [Activity]'s workplace, by its ordinal (for [BandTime]). */

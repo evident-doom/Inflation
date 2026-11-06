@@ -77,17 +77,16 @@ internal fun HexGroups.eatTheWeek(w: ForageWeek) {
                 land.books?.flow(Books.Stuff.MATTER, "eaten", -more.ateKg.toDouble())
             }
         }
-        // (People need sodium, which meat and fish carry and plant food hardly does; what the week's meat falls short of
-        // they make up with salt, and short of that they are listless and weak, and the food does them the less good.)
+        // (People need sodium, which meat and fish carry and plant food carries little of ([Store.sodium]); what the week's food
+        // falls short of they make up with salt, and short of that they are listless and weak next week ([Band.saltPace]).)
         // (Salted meat and fish carry their salt: [SALT_PER_KG] a kg, the share of the dried that was salted.)
         if (eaten > 0f) {
-            var short = max(0f, sodiumNeed - SODIUM_PER_KG_MEAT * ateMeatKg - meal.ateDriedKg * band.salted * SALT_PER_KG * SALT_SODIUM)
+            var short = max(0f, sodiumNeed - meal.ateSodium - meal.ateDriedKg * band.salted * SALT_PER_KG * SALT_SODIUM)
             if (short > 0f) {
                 val had = min(short / SALT_SODIUM, band.goods[Material.SALT]); band.goods[Material.SALT] -= had
                 short = max(0f, short - had * SALT_SODIUM)
             }
             band.sodiumShort = if (sodiumNeed > 0f) short / sodiumNeed else 0f
-            eaten *= saltFeeds(short, sodiumNeed, tuning.saltLack)
         }
         stats.keep(Tally.of(s, Tally.OfKind.MEAT_EATEN), ateMeat.toInt())
         stats.keep(Tally.of(s, Tally.OfKind.PLANTS_EATEN), (eaten - ateMeat).toInt())
@@ -149,6 +148,8 @@ internal fun HexGroups.eatTheWeek(w: ForageWeek) {
  */
 internal class Meal(val wantAll: Float) {
     var need = wantAll; var ateMeat = 0f; var ateKg = 0f; var ateMeatKg = 0f; var ateDriedKg = 0f; var ateSeed = 0f
+    /** The sodium in what it ate, kg ([Store.sodium]). */
+    var ateSodium = 0f
     private var room = Nourishment.PROTEIN_MOST * wantAll; private var protein = 0f; private var lost = 0f
     val leanLost get() = if (protein > 0f) lost / protein else 0f
 
@@ -195,7 +196,7 @@ internal class Meal(val wantAll: Float) {
         if (e <= 0f) return 0f
         val fed = if (beyond) e * (1f - p) else e
         need -= fed; protein += e * p; if (beyond) lost += e * p else room -= e * p
-        ateKg += e * kgPer; if (st.meat) { ateMeat += fed; ateMeatKg += e * kgPer }; if (st == Store.DRIED) ateDriedKg += e * kgPer
+        ateKg += e * kgPer; ateSodium += e * kgPer * st.sodium; if (st.meat) { ateMeat += fed; ateMeatKg += e * kgPer }; if (st == Store.DRIED) ateDriedKg += e * kgPer
         if (st == Store.SEED) ateSeed += fed
         return e
     }
