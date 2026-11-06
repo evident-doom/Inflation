@@ -117,8 +117,12 @@ internal fun HexGroups.yearAhead(g: HexGroup, b: Band, weather: Weather, shelter
  */
 internal class YearAhead(private val odds: FloatArray, internal val fed: FloatArray, internal val spread: FloatArray = FloatArray(fed.size),
     private val carryDays: Float = Float.POSITIVE_INFINITY, private val moves: BooleanArray = BooleanArray(fed.size)) {
-    /** The days of food it falls short of over the months ahead, before its larder pays ([Band.leanDays]), in a usual year. */
-    val leanDays: Float = run { var lean = 0f; for (f in fed) lean += max(0f, 1f - f) * Date.DAYS_PER_MONTH; lean }
+    /**
+     * The days of food it falls short of over the months ahead, before its larder pays ([Band.leanDays]), in a bad year: its
+     * months as much worse as [LEAN_YEAR] of its years' spread ([spread]). (A usual year's shortfall left half its bad years
+     * unprovided for.)
+     */
+    val leanDays: Float = run { var lean = 0f; for (k in fed.indices) lean += max(0f, 1f - (fed[k] + LEAN_YEAR * spread[k])) * Date.DAYS_PER_MONTH; lean }
     /** Whether its years have differed at all: if not, one year is reckoned, not [YEARS]. */
     private val spreads = spread.any { it > SPREAD_NONE }
 
@@ -198,6 +202,8 @@ internal class YearAhead(private val odds: FloatArray, internal val fed: FloatAr
         private val YEAR_WEIGHTS = floatArrayOf(1f / 6f, 2f / 3f, 1f / 6f)
         /** A spread smaller than this, of a month's share of the need, is none: its years have been alike. */
         private const val SPREAD_NONE = 1e-4f
+        /** The year its store aim provides for ([leanDays]), standard deviations from the usual: about one year in six as bad. */
+        private const val LEAN_YEAR = -1f
     }
 }
 
