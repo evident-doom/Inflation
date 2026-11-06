@@ -391,6 +391,8 @@ object Tally {
     fun bandsLivingDied(way: Living) = TallyKey.raw("bands ${way.label}:$DIED_OF")
     /** Bands' tallies by how they choose ([Mind]). */
     fun bandsMind(mind: Mind, what: Bands) = TallyKey.raw("bands of mind ${mind.label}:${what.label}")
+    /** Bands' tallies by the way of life they live ([Band.livelihood]): what camp moves each way makes, against the record. */
+    fun bandsLivelihood(way: Livelihood, what: Bands) = TallyKey.raw("bands living by ${way.name.lowercase()}:${what.label}")
     /** What the calibration of bands' forecasts books in each [ForeseenBin] ([bookCalibration]). */
     enum class Calib(val label: String) {
         /** People in the band when it foresaw; the deaths it foresaw among them, thousandths; deaths, and hunger's, booked against each forecast its people made in the year before them, thousandths. */
