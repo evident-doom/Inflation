@@ -167,6 +167,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
     }
     groups += born
     tallyVillages()
+    wornWeek(days)
     tendParties(date)
     mergeAndPair(date)
 }

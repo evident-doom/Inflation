@@ -85,7 +85,7 @@ internal fun GroupWorld.houseAfterWeeks(b: Band) = HOUSE_AFTER_YEARS * stepsPerY
 internal fun GroupWorld.fetchFuel(g: HexGroup, b: Band, hands: Int, given: Float): Float {
     val p = g.place
     val tree = land.plants.tree[p]; val shrub = land.plants.shrub[p]
-    val cover = woodCover(p)
+    val cover = bandWoodCover(g)
     if (g.size <= 0 || hands <= 0 || cover <= 0f) { b.hearthWood = if (g.size <= 0) 1f else 0f; return 0f }
     val spent = min(given, fuelMost(g, hands))
     b.hearthWood = fireOf(g, spent)
@@ -94,22 +94,23 @@ internal fun GroupWorld.fetchFuel(g: HexGroup, b: Band, hands: Int, given: Float
     val burnt = land.plants.consume(p, LifeForm.TREE, Kg(got * tree / (tree + shrub)).perM2(m2)).v +
         land.plants.consume(p, LifeForm.SHRUB, Kg(got * shrub / (tree + shrub)).perM2(m2)).v
     land.books?.flow(Books.Stuff.MATTER, "burnt", -burnt * m2.toDouble())
+    wornTook(g, WORN_WOOD, p, got)
     return spent / hands
 }
 
 /** The most person-days [g]'s [hands] give the hearth's firewood in a week: [FUEL_MOST] of their days, where there is wood. */
-internal fun GroupWorld.fuelMost(g: HexGroup, hands: Int) = if (g.size <= 0 || woodCover(g.place) <= 0f) 0f else FUEL_MOST * days * hands
+internal fun GroupWorld.fuelMost(g: HexGroup, hands: Int) = if (g.size <= 0 || bandWoodCover(g) <= 0f) 0f else FUEL_MOST * days * hands
 
 /**
  * The fire [personDays] of firewood keep for [g]'s people this week ([Band.fire]): the wood a person a day, in whole cooking
  * fires ([HEARTH_WOOD]); a bigger fire warms them more ([BodyHeat.fireC], [Band.houseWarmC]).
  */
 internal fun GroupWorld.fireOf(g: HexGroup, personDays: Float) =
-    if (g.size <= 0) 0f else personDays * FUEL_A_DAY * woodCover(g.place) / (HEARTH_WOOD * days * g.size)
+    if (g.size <= 0) 0f else personDays * FUEL_A_DAY * bandWoodCover(g) / (HEARTH_WOOD * days * g.size)
 
 /** The person-days [g]'s [hands] would give the hearth's firewood for a whole cooking fire this week ([HEARTH_WOOD], [fetchFuel]). */
 internal fun GroupWorld.fuelAsk(g: HexGroup, hands: Int): Float {
-    val cover = woodCover(g.place)
+    val cover = bandWoodCover(g)
     return if (HEARTH_WOOD * g.size <= 0f || cover <= 0f) 0f else fuelShare(cover, g.size.toFloat() / hands) * days * hands
 }
 

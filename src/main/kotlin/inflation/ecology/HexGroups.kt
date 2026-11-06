@@ -742,7 +742,7 @@ class HexGroups(
     internal fun fireAt(g: HexGroup, b: Band, p: Place): Float {
         if (p == g.place) return b.fire
         val lit = if (b.hearthWood > 0f) min(1f, b.fire / b.hearthWood) else 1f
-        val here = woodCover(g.place); val there = woodCover(p)
+        val here = bandWoodCover(g); val there = woodCover(p)
         val same = if (here > 0f) b.hearthWood * there / here else 0f
         return lit * max(same, hearthShare(there, g.size.toFloat() / forageHands(g)))
     }

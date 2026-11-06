@@ -69,6 +69,8 @@ abstract class GroupWorld(
     val stats get() = fauna.stats
     internal val years = Date.years(days)
     internal val small get() = fauna.small
+    /** What bands have taken near where they live ([worn], t.wornGround); not saved. */
+    @Volatile @Transient internal var wornGround: WornGround? = null
 
     internal fun foodFor(s: Species, p: Place) = fauna.foodFor(s, p)
 

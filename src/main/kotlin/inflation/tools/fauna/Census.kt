@@ -18,6 +18,17 @@ import inflation.ecology.RiteWalk
 import inflation.ecology.ritesApart
 import inflation.ecology.livelihood
 import inflation.ecology.woodCover
+import inflation.ecology.WORN_ROOTS
+import inflation.ecology.WORN_FRUIT
+import inflation.ecology.WORN_MAST
+import inflation.ecology.WORN_SEED
+import inflation.ecology.WORN_FINDS
+import inflation.ecology.WORN_FRESH
+import inflation.ecology.wornWoodCover
+import inflation.ecology.wornWalkAt
+import inflation.ecology.wornPaceAt
+import inflation.ecology.takenShare
+import inflation.ecology.spotTakenShare
 import inflation.ecology.Livelihood
 import inflation.ecology.homesApart
 import inflation.ecology.Regard
@@ -296,6 +307,52 @@ class Census(private val sim: HexSim) {
                 val m = count[k].coerceAtLeast(1)
                 "%s %d: %.2f / %.2f / %.2f".format(labels[k], count[k], plant[k] / m, game[k] / m, wood[k] / m)
             })
+        // (Worn ground, t.wornGround: light bands' pace at the next kilo of fruit and roots at their camp's place, against fresh
+        // ground; settled bands' walk for them, against fresh ground, and their hearth's wood cover against the place's.)
+        val worn = groups.wornGround ?: return
+        val light = IntArray(bins.size); val paceFruit = DoubleArray(bins.size); val paceRoots = DoubleArray(bins.size)
+        val fixed = IntArray(bins.size); val walkFruit = DoubleArray(bins.size); val walkRoots = DoubleArray(bins.size); val woodLeft = DoubleArray(bins.size)
+        val food = groups.fauna.food
+        for (g in groups.groups) {
+            val b = g.band ?: continue
+            if (!g.alive) continue
+            val p = g.place.i; val k = bins.indexOfFirst { b.campWeeks < it }
+            val fruitKg = land.total(g.place, inflation.KgM2(food.fruit[p])).v; val rootsKg = land.total(g.place, inflation.KgM2(food.roots[p])).v
+            val spot = worn.spots[g.id]
+            if (spot == null || spot.place != p) {
+                light[k]++
+                paceFruit[k] += wornPaceAt(worn.takenShare(WORN_FRUIT, g.place, fruitKg)); paceRoots[k] += wornPaceAt(worn.takenShare(WORN_ROOTS, g.place, rootsKg))
+            } else {
+                fixed[k]++
+                val reach = b.gatherShare().coerceIn(0.01f, 0.9f)
+                walkFruit[k] += wornWalkAt(worn.spotTakenShare(spot, WORN_FRUIT, g.place, reach, fruitKg)); walkRoots[k] += wornWalkAt(worn.spotTakenShare(spot, WORN_ROOTS, g.place, reach, rootsKg))
+                val cover = groups.woodCover(g.place)
+                woodLeft[k] += if (cover > 0f) (groups.wornWoodCover(spot, cover) / cover).toDouble() else 1.0
+            }
+        }
+        println("     worn ground by weeks at the camp (light bands: pace at the next kilo of fruit / roots against fresh ground; settled bands: walk for fruit / roots against fresh ground, and the wood cover they fetch at against their place's): " +
+            labels.indices.joinToString(", ") { k ->
+                val l = light[k].coerceAtLeast(1); val f = fixed[k].coerceAtLeast(1)
+                "%s light %d: %.2f / %.2f, settled %d: %.2f / %.2f, wood %.2f".format(labels[k], light[k], paceFruit[k] / l, paceRoots[k] / l,
+                    fixed[k], walkFruit[k] / f, walkRoots[k] / f, woodLeft[k] / f)
+            })
+        // (How much of each food the bands at a place have taken of it, for each 100 people living there: the median over the
+        // places bands live at, and the people at a place it would take for the share to reach the fresh ground's end,
+        // [WORN_FRESH], if the share grew with the people.)
+        val atPlace = HashMap<Int, Int>()
+        for (g in groups.groups) if (g.alive && g.band != null) atPlace[g.place.i] = (atPlace[g.place.i] ?: 0) + g.size
+        val wornKinds = listOf("fruit" to WORN_FRUIT, "roots" to WORN_ROOTS, "mast" to WORN_MAST, "seed" to WORN_SEED, "finds" to WORN_FINDS)
+        val stand = listOf(food.fruit, food.roots, food.mast, food.seeds, food.finds)
+        println("     worn ground, share taken at the places bands live at (median over places, per 100 people there; people at a place for the share to reach %.0f%%): ".format(100 * WORN_FRESH) +
+            wornKinds.indices.joinToString(", ") { i ->
+                val (name, k) = wornKinds[i]
+                val per = atPlace.entries.filter { it.value > 0 }.map { (q, here) ->
+                    val pl = inflation.world.Place(q)
+                    10000.0 * worn.takenShare(k, pl, land.total(pl, inflation.KgM2(stand[i][q])).v) / here
+                }.sorted()
+                val med = if (per.isEmpty()) 0.0 else per[per.size / 2]
+                "%s %.4f%% (%s)".format(name, med, if (med > 0.0) "%.0f".format(100 * WORN_FRESH * 100 / med) else "never")
+            } + "; median people at a place %d".format(atPlace.values.sorted().let { if (it.isEmpty()) 0 else it[it.size / 2] }))
     }
 
     fun printChoices() {

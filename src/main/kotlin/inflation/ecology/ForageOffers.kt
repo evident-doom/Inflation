@@ -204,6 +204,10 @@ internal fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
     // can take there is their own pay, not weighed against the grown gatherers' (whose time is worth more), nor out of their days.
     if (band != null && w.childHands > 0f) { val p = g.place
         offer(w, o, Food.SMALL_GAME, 0, p, small.smallPreyKg(p) * min(land.areaKm2[p], w.childSmallSweep * smallSeen(p)) * w.smallCatch / days, 1f, w.childSmallDays, child = true) }
+    // (What a band has taken near where it lives, t.wornGround: a light band finds each next kilo of a place the slower, a
+    // settled one walks the farther from its fixed spot for it, [WornGround].)
+    val wornLand = if (band != null && w.eatsPlants) worn() else null
+    val spot = if (wornLand != null) settledSpot(g) else null
     // (The ground it walked, then the country round its camp, which holds none of it.)
     if (w.eatsPlants) for (qi in 0 until w.gatherAt.size + w.roundCamp.size) {
         val q = if (qi < w.gatherAt.size) w.gatherAt[qi] else w.roundCamp[qi - w.gatherAt.size]
@@ -232,8 +236,23 @@ internal fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
         // kilo; see [PLANT_SIGHT_M2_PER_DAY].)
         val food = fauna.food
         // (A plant food on offer at [q]: [share] of the ground reached, of [density] kg a km², for [workDays] a kg.)
-        fun plant(f: Food, kind: Int, share: Float, density: Float, workDays: Float, seek: Float = 0f, walked: Float = 0f) =
-            offer(w, o, f, kind, Place(q), land.total(Place(q), KgM2(share * density)).v / days, 1f, workDays, seek = seek, walk = walked)
+        fun plant(f: Food, kind: Int, share: Float, density: Float, workDays: Float, seek: Float = 0f, walked: Float = 0f) {
+            var h = workDays; var sk = seek; var wk = walked
+            val k = wornKind(f, kind)
+            if (wornLand != null && k >= 0 && density > 0f) {
+                val left = land.total(Place(q), KgM2(density)).v
+                if (spot == null) {
+                    // (A light band: the best of the place went first.)
+                    val pace = wornPaceAt(wornLand.takenShare(k, Place(q), left))
+                    h = wk + (h - wk) / pace; sk /= pace
+                } else if (spot.place == q) {
+                    // (A settled band: the ground near its spot is gone over.)
+                    val farther = wornWalkAt(wornLand.spotTakenShare(spot, k, Place(q), share, left))
+                    h += wk * (farther - 1f); wk *= farther
+                }
+            }
+            offer(w, o, f, kind, Place(q), land.total(Place(q), KgM2(share * density)).v / days, 1f, h, seek = sk, walk = wk)
+        }
         fun sought(density: Float) = if (band != null && density > 0f) 1f / (PLANT_SIGHT_M2_PER_DAY * density * w.gatherers) else 0f
         plant(Food.FRUIT, 0, reach, food.fruit[q], fruitQ + sought(food.fruit[q]) + walked(Food.FRUIT, walk), sought(food.fruit[q]), walked(Food.FRUIT, walk))
         // (Roots likewise, searched out over less ground a day, [ROOT_SEARCH_M2_PER_DAY]; none are dug in frozen ground,
@@ -498,6 +517,7 @@ internal fun GroupWorld.gather(g: HexGroup, t: Food, kind: Int, p: Place, expect
             }
         }
     }
+    if (band != null) wornTook(g, wornKind(t, kind), p, mass)
     out.kg = took; out.mass = mass
 }
 

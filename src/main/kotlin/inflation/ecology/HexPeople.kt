@@ -498,7 +498,7 @@ internal fun HexGroups.bandInputs(g: HexGroup, weather: Weather, into: FloatArra
     into[x.SPARE_DAYS] = b.spareDays / max(1f, g.adults * days.toFloat())
     // Its camp's ground: how long it has gone short of water, the wood for its fire, the cover about it, the snow.
     into[x.DAYS_DRY] = min(1f, g.dry / g.species.daysWithoutWater)
-    into[x.FIREWOOD] = woodCover(g.place)
+    into[x.FIREWOOD] = bandWoodCover(g)
     into[x.COVER] = land.plants.cover(g.place)
     into[x.SNOW] = min(1f, weather.snowpack[g.place] / g.species.snowLimitMm)
     // Its health: the sick with each illness, the wounded and lamed, its old; and those beasts took lately.
