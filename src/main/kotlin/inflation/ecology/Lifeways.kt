@@ -18,17 +18,32 @@ import inflation.world.Weather
 /**
  * Whether [g] is restless this week: it ranges as far as it can, and weighs its places whether content or not.
  * A pack when hungry, without ground of its own, thirsty or astray; a band when hungry, thirsty, astray, due
- * somewhere soon, or ill at ease where it is (in the cold: [coldRestless]; or the heat).
+ * somewhere soon, ill at ease where it is (in the cold: [coldRestless]; or the heat), or when its camp no longer feeds it
+ * ([campShort]).
  */
 internal fun GroupWorld.restless(g: HexGroup, weather: Weather, thirsty: Boolean, astray: Boolean, dueSoon: Boolean): Boolean {
     val s = g.species
     return when (s.lifeway) {
-        Lifeway.BAND -> g.fed < Thresholds.HUNGRY || thirsty || astray || dueSoon ||
+        Lifeway.BAND -> g.fed < Thresholds.HUNGRY || thirsty || astray || dueSoon || g.band?.campShort(weather, days) == true ||
             (g.band?.let { coldRestless(it.warmth(airAt(g.place, weather), it.fire, it.homeShelter(), days)) } ?: false) ||
             s.hotC(weather.temperature[g.place]) / 10f > 0.5f
         Lifeway.PACK -> g.fed < Thresholds.HUNGRY || g.home.none || thirsty || astray
     }
 }
+
+/**
+ * Whether band [b]'s camp has stopped feeding it: its foraging's yield over its last weeks ([Band.recentYield]), what a day
+ * of all its hands' foraging brings in days of its people's need, under [CAMP_SHORT_YIELD]. Its fat and larder keep it fed
+ * ([HexGroup.fed]) for weeks after, so hunger alone sets it looking only once they are spent, with no fat left for a long
+ * walk; the falling yield is the warning foragers act on, 10 weeks and more ahead (doom trace, doom5, 2026-11-06: the
+ * camp's yield under 1 in 28% of the weeks of bands that starved, 5% of those that did not).
+ */
+internal fun Band.campShort(weather: Weather, days: Int): Boolean {
+    val y = recentYield(weather.date, days)
+    return !y.isNaN() && y < CAMP_SHORT_YIELD
+}
+/** The camp's yield, days of need a day of all hands' foraging brings, under which a band looks further ([campShort]): 1, all hands' every day for the need alone. */
+internal const val CAMP_SHORT_YIELD = 1f
 
 /**
  * Whether a band's week in the cold, as its clothes, fire, shelter and house leave it ([Band.warmth]), sets it looking for
