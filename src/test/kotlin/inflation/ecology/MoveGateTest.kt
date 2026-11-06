@@ -14,6 +14,11 @@ class MoveGateTest {
         assertFailsWith<IllegalStateException> { Slots.parse("gate:greedy", asBuilt) }
     }
 
+    @Test fun theNetsBandsTakeTheBestPlaceAndCanHaveTheDrawBack() {
+        assertEquals(MoveGate.BEST, Mind.NETS.gate)
+        assertEquals(MoveGate.EXPLORE_DRAW, Slots.parse("gate:draw", Slots(MoveGate.BEST, DaySplit.WEIGHTED, DialSource.WAYS), FORAGER_SLOTS).gate)
+    }
+
     @Test fun bestTakesTheTopScoreWithinOneSurvivalStepOfTheSafest() {
         val nan = Float.NaN
         // The top score (place 2) is 1.5 steps deadlier than the safest: out; of the rest place 1 scores best.

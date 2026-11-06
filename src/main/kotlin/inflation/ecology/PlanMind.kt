@@ -26,18 +26,20 @@ import inflation.Stream
  * (The entries' names are what a save keeps: they must not change.)
  */
 enum class Mind(val label: String, private val gateAsBuilt: MoveGate, private val daysAsBuilt: DaySplit, private val dialsAsBuilt: DialSource) {
-    NETS("nets", MoveGate.EXPLORE_DRAW, DaySplit.WEIGHTED, DialSource.WAYS),
+    NETS("nets", MoveGate.BEST, DaySplit.WEIGHTED, DialSource.WAYS),
     PLANS("plans", MoveGate.RECKONED, DaySplit.TIERED, DialSource.SCAFFOLD);
 
     /**
-     * Its slots as this run has them: as built, but for the planning kind's under t.plannerSlots, a diagnostic key for
-     * the slot-by-slot A/B (review/2026-11-05-people-models-harmonize.md, step 7): `gate:draw|best|surplus|reckoned`, `days:weighted|tiered`,
-     * `dials:ways|scaffold`, comma-separated, any left out as built. With `t.planners=1`, `t.plannerSlots=days:weighted,dials:ways`
-     * runs foragers that move by the planner's reckoning alone. (Read once a run, from the config.)
+     * Its slots as this run has them: as built, but under t.plannerSlots for the planning kind and t.foragerSlots for the
+     * nets', diagnostic keys for the slot-by-slot A/B (review/2026-11-05-people-models-harmonize.md, step 7):
+     * `gate:draw|best|surplus|reckoned`, `days:weighted|tiered`, `dials:ways|scaffold`, comma-separated, any left out as built.
+     * With `t.planners=1`, `t.plannerSlots=days:weighted,dials:ways` runs foragers that move by the planner's reckoning alone;
+     * `t.foragerSlots=gate:draw` gives the nets' bands back the explore draw they had before gate:best was made theirs
+     * (Olli 2026-11-06). (Read once a run, from the config.)
      */
     private val slots by lazy(LazyThreadSafetyMode.PUBLICATION) {
-        val given = if (this == PLANS) Config.tuning(PLANNER_SLOTS) else null
-        Slots.parse(given, Slots(gateAsBuilt, daysAsBuilt, dialsAsBuilt))
+        val key = if (this == PLANS) PLANNER_SLOTS else FORAGER_SLOTS
+        Slots.parse(Config.tuning(key), Slots(gateAsBuilt, daysAsBuilt, dialsAsBuilt), key)
     }
     val gate: MoveGate get() = slots.gate
     val days: DaySplit get() = slots.days
@@ -46,21 +48,23 @@ enum class Mind(val label: String, private val gateAsBuilt: MoveGate, private va
 
 /** The config key that sets the planning kind's slots for the slot-by-slot A/B ([Mind]). */
 internal const val PLANNER_SLOTS = "t.plannerSlots"
+/** The config key that sets the nets' bands' slots ([Mind.NETS]), as [PLANNER_SLOTS] the planning kind's. */
+internal const val FORAGER_SLOTS = "t.foragerSlots"
 
 /** A mind's three slots ([Mind]). */
 internal data class Slots(val gate: MoveGate, val days: DaySplit, val dials: DialSource) {
     companion object {
-        /** [given] (as [PLANNER_SLOTS] has it; null or blank: none) over [base]. Stops on a slot or a value it does not know. */
-        fun parse(given: String?, base: Slots): Slots {
+        /** [given] (as the config [key] has it; null or blank: none) over [base]. Stops on a slot or a value it does not know. */
+        fun parse(given: String?, base: Slots, key: String = PLANNER_SLOTS): Slots {
             var out = base
             for (part in given.orEmpty().split(",").map { it.trim() }.filter { it.isNotEmpty() }) {
                 val (slot, value) = part.split(":").map { it.trim() }.takeIf { it.size == 2 }
-                    ?: error("$PLANNER_SLOTS: \"$part\" is not slot:value (gate:draw|reckoned, days:weighted|tiered, dials:ways|scaffold)")
+                    ?: error("$key: \"$part\" is not slot:value (gate:draw|reckoned, days:weighted|tiered, dials:ways|scaffold)")
                 out = when (slot) {
-                    "gate" -> out.copy(gate = when (value) { "draw" -> MoveGate.EXPLORE_DRAW; "best" -> MoveGate.BEST; "surplus" -> MoveGate.SURPLUS; "reckoned" -> MoveGate.RECKONED; else -> error("$PLANNER_SLOTS: gate is draw, best, surplus or reckoned, not $value") })
-                    "days" -> out.copy(days = when (value) { "weighted" -> DaySplit.WEIGHTED; "tiered" -> DaySplit.TIERED; else -> error("$PLANNER_SLOTS: days is weighted or tiered, not $value") })
-                    "dials" -> out.copy(dials = when (value) { "ways" -> DialSource.WAYS; "scaffold" -> DialSource.SCAFFOLD; else -> error("$PLANNER_SLOTS: dials is ways or scaffold, not $value") })
-                    else -> error("$PLANNER_SLOTS: no slot \"$slot\" (gate, days, dials)")
+                    "gate" -> out.copy(gate = when (value) { "draw" -> MoveGate.EXPLORE_DRAW; "best" -> MoveGate.BEST; "surplus" -> MoveGate.SURPLUS; "reckoned" -> MoveGate.RECKONED; else -> error("$key: gate is draw, best, surplus or reckoned, not $value") })
+                    "days" -> out.copy(days = when (value) { "weighted" -> DaySplit.WEIGHTED; "tiered" -> DaySplit.TIERED; else -> error("$key: days is weighted or tiered, not $value") })
+                    "dials" -> out.copy(dials = when (value) { "ways" -> DialSource.WAYS; "scaffold" -> DialSource.SCAFFOLD; else -> error("$key: dials is ways or scaffold, not $value") })
+                    else -> error("$key: no slot \"$slot\" (gate, days, dials)")
                 }
             }
             return out
@@ -74,13 +78,14 @@ enum class MoveGate {
     EXPLORE_DRAW,
     /**
      * As [EXPLORE_DRAW], but it draws nothing: it goes to the best by its scores of the places no deadlier than the safest by
-     * a step ([exploreBest]), its will to explore aside. (Diagnostic only, through t.plannerSlots: whether the draw costs the
-     * foragers what the reckoned gate gains, review/2026-11-05-people-models-harmonize.md section 10.)
+     * a step ([exploreBest]), its will to explore aside. The nets' bands' gate ([Mind.NETS]) since Olli 2026-11-06: without
+     * the draw they had 5-6% more people at 10 years (gatebest, gatesurplus; review/2026-11-05-people-models-harmonize.md
+     * section 11), though they then seldom move.
      */
     BEST,
     /**
      * As [BEST], but in a week its stores are above its aim and it is well fed ([hasSurplus]) it draws as [EXPLORE_DRAW]: it
-     * explores for exploring's sake only with food to spare. (Diagnostic only, through t.plannerSlots; Olli 2026-11-06.)
+     * explores for exploring's sake only with food to spare. (Diagnostic only, through t.plannerSlots or t.foragerSlots; Olli 2026-11-06.)
      */
     SURPLUS,
     /**
