@@ -388,7 +388,9 @@ class HexGroups(
         for (g in groups) if (g.alive) {
             val b = g.band
             if (b == null) { g.warmth = warmthNeed(g.species, null, g.place, weather, 0f, 0f); continue }
-            val w = b.warmth(airAt(g.place, weather), b.fire, b.homeShelter(), days)
+            val air = airAt(g.place, weather)
+            val w = b.warmth(air, b.fire, b.homeShelter(), days)
+            b.sweatLitres = BodyHeat.sweatLitres(air)
             g.warmth = warmthNeed(w, b.fire)
             b.coldPace = w.pace; b.campPace = w.campPace
             b.hungerPace = Sisu.hungerPace(g.species, g.spent, b.sisu)

@@ -505,8 +505,8 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
                 // (By the residents' rule: a week's share of the season, no more than the mother has left of it, spaced by how crowded her kind is.)
                 val share = seasonShare(s, g.birthMonth, max(0f, 1f - g.bred), date, days)
                 g.bred += share
-                // (Meat is rich in protein: their young are short of none.)
-                val due = youngDue(s, kinKm2(g, kinNow), HexFauna.usualDensity(s), tuning.breedSpacing, 1f, share)
+                // (Meat is rich in protein: their young are short of none. Plant-eaters' are short of sodium where their forage is: [saltBreeding].)
+                val due = youngDue(s, kinKm2(g, kinNow), HexFauna.usualDensity(s), tuning.breedSpacing, fauna.saltBreeding(s, g.place), share)
                 due * breeding(s, due, g.fat, g.fed, days) * (1f + GRANDMOTHERS * help)
             }
             bornExpected = mothersExact * rate

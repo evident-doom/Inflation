@@ -167,6 +167,34 @@ object BodyHeat {
     }
 
     /**
+     * The sweat a grown person sheds a day in [air], litres: the heat a day of three parts makes ([SLEEP_H] asleep, [WORK_H]
+     * at work out in the day's warmth, the rest about camp) that the body cannot lose the dry way, through light clothes
+     * ([LIGHT_CLO]) at a warm skin ([WARM_SKIN_C]), nor by breath and the skin's own seep, it sweats off, at [SWEAT_WH_L] a
+     * litre over [SKIN_M2] of skin. Only that sweat carries salt out ([inflation.Tuning.sweatSodium]); the seep through dry
+     * skin does not. (The required evaporation of a heat balance, as ISO 7933 reckons it, without the sun's heat on those
+     * out in it, which would add to it, and with the hours fixed as for the cold.) Checked against Bates and Miller 2008
+     * (J Occup Med Toxicol 3:4): moderate work at 35 °C sweats 0.4-0.5 L an hour; here a forager at work at 35 °C sweats about 0.4, and a whole day at a mean of 20, 25, 28 and 32 °C (a 10 °C swing) 0.6, 1.4, 1.9 and 3.2 L, none at 15.
+     */
+    fun sweatLitres(air: Air): Float {
+        val rest = REST_WM2
+        val wh = sweatWm2(Activity.FOOD.par * rest, air.dayC, air.windMs, WALK_MS) * WORK_H +
+            sweatWm2(CAMP_PAR * rest, air.meanC, air.windMs, 0f) * (24f - SLEEP_H - WORK_H) +
+            sweatWm2(rest, air.nightC, air.windMs, 0f) * SLEEP_H
+        return wh * SKIN_M2 / SWEAT_WH_L
+    }
+
+    /** Heat a m² of skin at [m] W/m² in air at [airC] blowing [windMs] at a person walking [walkMs] must sweat off, W/m² ([sweatLitres]). */
+    private fun sweatWm2(m: Float, airC: Float, windMs: Float, walkMs: Float): Float {
+        val i = LIGHT_CLO * CLO
+        val fcl = 1f + 1.197f * i
+        val corr = 0.54f * exp(-0.15f * windMs - 0.22f * walkMs) * PERMEABILITY.pow(0.075f) - 0.06f * ln(PERMEABILITY) + 0.5f
+        val r = (i + 0.085f / fcl) * corr
+        val dry = (WARM_SKIN_C - airC) / r
+        val seep = 0.06f * (vapour(WARM_SKIN_C) - HUMIDITY * vapour(airC)) / (0.06f / 0.38f * r)
+        return max(0f, m - dry - seep - breath(m, airC))
+    }
+
+    /**
      * The share of people a heat debt of [debt] Wh/m² beyond [QLIM] kills: half at [LETHAL_WH_M2], fewer the shallower, as
      * people differ in size, fat and age ([LETHAL_SPREAD]).
      */
@@ -204,6 +232,14 @@ object BodyHeat {
     /** Thermal resistance of a half-space of ground warmed from above for half a night: sqrt(π κ t) / k, m²K/W. */
     private fun groundR(k: Float, kappa: Float) = sqrt(PI.toFloat() * kappa * SLEEP_H * 3600f / 2f) / k
 
+    /** The skin of a body that sweats to hold its heat, °C (warm skin, 34-35 °C, as in ISO 7933). */
+    const val WARM_SKIN_C = 35f
+    /** What people wear in the warm, clo: a loincloth or a light wrap (ISO 9920 has shorts alone at 0.1, light summer clothes at 0.3-0.5). */
+    const val LIGHT_CLO = 0.3f
+    /** A grown person's skin, m² (DuBois area of a 55-60 kg, 1.6-1.65 m adult). */
+    const val SKIN_M2 = 1.6f
+    /** Heat a litre of sweat carries off as it dries, Wh (latent heat 2.43 MJ/kg at skin temperature). */
+    const val SWEAT_WH_L = 675f
     /**
      * The resting rate, W per m² of skin: between sleeping's 0.7 met and quiet sitting's 1.0 (1 met = 58.2 W/m²; ASHRAE
      * Handbook, Fundamentals, ch. 9); the day's hours asleep and at work, as [Activity] counts them; about camp 1.45 times

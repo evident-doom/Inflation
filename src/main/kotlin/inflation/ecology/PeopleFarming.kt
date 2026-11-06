@@ -312,7 +312,9 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
         val got = land.plants.consume(p, LifeForm.HERB, KgM2(f.grass)) + land.plants.eatBrowse(p, KgM2(f.browse))
         val fed = if (f.need > 0f) min(1f, got.v / f.need) else 1f
         val inSeason = monthsFrom(s.birthMonth, date.month) < s.birthMonths
-        val born = if (inSeason) n * herdMothers(s, tame, sows[k]) * s.youngPerFemale * fed /
+        // (Short of sodium where their forage is, its beasts bear fewer young, as far as its salt does not make it up: [feedHerdSalt].)
+        val salted = if (tuning.grazerSaltLack > 0f) saltBreeding(feedHerdSalt(b, s, n + 0.5f * y, fauna.forageSodiumAt[p], days), tuning.grazerSaltLack) else 1f
+        val born = if (inSeason) n * herdMothers(s, tame, sows[k]) * s.youngPerFemale * fed * salted /
             (s.birthMonths * Date.DAYS_PER_MONTH.toFloat() / days) else 0f
         // Its mothers give milk through the lactation after the birth season, as they are fed and as tame as they are.
         if (lactating(s, date)) {
@@ -512,7 +514,9 @@ internal fun GroupWorld.herdIncrease(b: Band, k: Int, fed: Float = 1f, at: Place
     val s = fauna.kinds[k]; val tame = b.herds.herdTame[k]
     val lost = s.backgroundMortality + 0.5f * (1f - fed) + fighting(s) + straying(s, tame) * b.lapse(Skill.TENDING) +
         (at?.let { herdSickness(it, k, heads, fed) } ?: 0f)
-    return herdMothers(s, tame, b.herds.sows()[k]) * s.youngPerFemale * fed / (1f + lost * s.yearsToMaturity) - lost
+    // (Where its forage is short of sodium, as far as its keepers' salt would not make it up: [feedHerdSalt].)
+    val salted = if (at == null || b.goods[Material.SALT] > 0f) 1f else fauna.saltBreeding(s, at)
+    return herdMothers(s, tame, b.herds.sows()[k]) * s.youngPerFemale * fed * salted / (1f + lost * s.yearsToMaturity) - lost
 }
 
 /**
