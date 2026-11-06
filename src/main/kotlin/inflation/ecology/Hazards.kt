@@ -46,10 +46,19 @@ object Hazards {
      * their metabolism in the lean season, wild northern ruminants in winter to somewhat more than half the summer's (heart
      * rate; deeper when food is short: Arnold, "Review: Seasonal differences in the physiology of wild northern ruminants",
      * Animal 2020), Arabian oryx in the dry summer to half the spring's (field metabolic rate by doubly labelled water,
-     * Williams, Ostrowski, Bedin and Ismail, J Exp Biol 2001). Hunters and people: not in the record here, none.
+     * Williams, Ostrowski, Bedin and Ismail, J Exp Biol 2001). People too ([HUMAN_ECONOMY]). Beasts of prey: not in the
+     * record here, none.
      */
-    fun economy(s: Species) = if (s.carnivore || s.human) 0f else LEAN_ECONOMY
+    fun economy(s: Species) = if (s.human) HUMAN_ECONOMY else if (s.carnivore) 0f else LEAN_ECONOMY
     const val LEAN_ECONOMY = 0.4f
+    /**
+     * The share of their need half-starved people save: the 32 men of the Minnesota experiment (Keys et al., The Biology of
+     * Human Starvation, 1950) lived 24 weeks on about 1,570 kcal a day against 3,200 before, lost about a quarter of their
+     * weight, their body heat, breathing and pulse fell, and none died. Their weight lost (about 17 kg, as fat and lean
+     * tissue, roughly 100,000 kcal) paid only about 600 kcal a day of the 1,630 lacking: they spent about a third less.
+     * (Reckoned here from those figures, not a figure of the study's own.)
+     */
+    const val HUMAN_ECONOMY = 0.35f
     /**
      * Days of burnt body a fully fed animal wins back a day: what it eats beyond its need when it can ([SURPLUS_EAT]),
      * laid on as fat is ([FAT_EFFICIENCY]); less as it is fed less, none at [WELL_FED].
