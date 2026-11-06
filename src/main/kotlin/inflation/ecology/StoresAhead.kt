@@ -76,7 +76,7 @@ internal fun Band.weeksAlive(s: Species, days: Int, now: Int, larderDays: Float,
             val paid = if (got > warm) -(got - warm) * days else min((warm - got) * days, larder)
             larder -= paid
             val ate = min(1f, (max(0f, got) + max(0f, paid) / days) / warm)
-            val onFat = Hazards.onFat(ate, fatLeft, days); fatLeft = max(0f, fatLeft - (onFat - ate) * days)
+            val onFat = Hazards.onFatOf(s, ate, fatLeft, days); fatLeft = max(0f, fatLeft - Hazards.fatDrawnOf(s, ate, fatLeft, days))
             alive *= 1f - Hazards.hunger(s, burnt, onFat, days); burnt = Hazards.spentAfter(s, burnt, onFat, days)
         }
         sum += alive

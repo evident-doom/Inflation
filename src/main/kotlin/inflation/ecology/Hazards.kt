@@ -76,6 +76,12 @@ object Hazards {
         return if (fat >= short) 1f else fed + fat / days
     }
 
+    /** [onFat] for a group of kind [s] (people's [economy] with it): the one way groups' hunger reads their fat. */
+    fun onFatOf(s: Species, fed: Float, fat: Float, days: Int) = onFat(fed, fat, days, economy = economy(s))
+
+    /** [fatDrawn] for a group of kind [s], as [onFatOf] draws it. */
+    fun fatDrawnOf(s: Species, fed: Float, fat: Float, days: Int) = fatDrawn(fed, fat, days, economy = economy(s))
+
     /** The days of fat drawn over a step of [days] fed [fed], with [fat] to draw on, as [onFat] draws it: what it lacks beyond what it saves ([economy]). */
     fun fatDrawn(fed: Float, fat: Float, days: Int, from: Float = WELL_FED, economy: Float = 0f) =
         if (fed < from) min(fat, max(0f, 1f - economy - fed) * days) else 0f

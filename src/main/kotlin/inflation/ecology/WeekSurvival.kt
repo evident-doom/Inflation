@@ -89,8 +89,8 @@ internal fun HexGroups.survivalDays(g: HexGroup, b: Band, weather: Weather, time
         val needs = warmthNeed(w, fire) / g.warmth.coerceAtLeast(1e-3f)
         var fed = (gotShare + (1f - gotShare) * (if (asks[FOOD] > 0f) min(1f, foodWork(d) / asks[FOOD]) else 1f)) / needs
         val paid = min(max(0f, 1f - fed) * days, larderDays); fed += paid / days
-        val onFat = Hazards.onFat(fed, g.fat, days)
-        val fat = max(0f, g.fat - (onFat - fed) * days)
+        val onFat = Hazards.onFatOf(s, fed, g.fat, days)
+        val fat = max(0f, g.fat - Hazards.fatDrawnOf(s, fed, g.fat, days))
         val hunger = Hazards.hunger(s, g.spent, onFat, days)
         // (This week's deaths and the year after's, each counted in full: a year that looks bleak whatever is done now, as
         // it does before a band has a year's food behind it to foresee by, takes nothing from what this week's days do.)
