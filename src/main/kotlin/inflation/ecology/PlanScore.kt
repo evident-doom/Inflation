@@ -121,7 +121,7 @@ internal fun GroupPlanner.fillFeatures(f: FloatArray, c: PlanContext, t: PlaceTe
         if (b.raidHex != h && keepOff != null && keepOff.binarySearch(h) >= 0) f[Feature.KEEPS_OFF] = 1f
         f[Feature.TOWARD_RAID] = raidProgress(b, here, h)
         val saltWeeks = saltWeeks(g, b, here, reach)
-        if (saltWeeks > 0f) f[Feature.TOWARD_SALT] = (1f - saltFeeds(b.sodiumShort, 1f, gs.tuning.saltLack)) * saltProgress(b, here, h, reach)
+        if (saltWeeks > 0f) f[Feature.TOWARD_SALT] = (1f - saltPace(b.sodiumShort, 1f, gs.tuning.saltLack)) * saltProgress(b, here, h, reach)
         val sown = cropHarvestWeeks(g, b, h); f[Feature.SOWN_HERE] = sown / (1f + sown)
         val lost = herdLoss(g, b, p); f[Feature.HERD_LOSS] = lost / (1f + lost)
         if (h == b.unluckyHex) f[Feature.UNLUCKY_CAMP] = 1f

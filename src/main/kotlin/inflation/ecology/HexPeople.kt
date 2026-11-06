@@ -676,17 +676,19 @@ internal const val SICKLE_SELECT = 0.06f
 /**
  * Sodium a person needs a day, kg: the 23 mg a day the Yanomami pass, the least of any people measured (INTERSALT, BMJ
  * 1988; Mancilha-Carvalho et al., J Hum Hypertens 1989: 0.9 mmol a day, healthy and with low blood pressure, on a
- * mostly plant diet and no salt). How much less good their food does them wholly without it is [inflation.Tuning.saltLack].
+ * mostly plant diet and no salt). How much slower they work wholly without it is [inflation.Tuning.saltLack] ([saltPace]).
  */
 internal const val SODIUM_A_PERSON_DAY = 23e-6f
 /** Sodium in a kg of meat or fish, kg: raw deer 51 mg/100 g (USDA SR "game meat, deer, raw"), freshwater fish about 50. */
 internal const val SODIUM_PER_KG_MEAT = 0.51e-3f
 /**
- * The share of the food eaten that does a band's people good, [short] of the sodium they [need] (kg each, or both as shares):
- * wholly without it, [lack] less ([inflation.Tuning.saltLack]). The one rule for the week's meal and for what a band foresees
- * of a place ([HexGroups.saltFeedsAt]).
+ * The share of their working pace a band's people keep, [short] of the sodium they [need] (kg each, or both as shares):
+ * wholly without it, [lack] less ([inflation.Tuning.saltLack]): listless, weak and cramped, they work the slower, but what
+ * they eat feeds them as ever. (Before, salt lack spoilt the food itself, so a band eating its fill of grain and nothing
+ * else burnt its body down and died of "hunger" beside tonnes of it: seedstarve trace, 2026-11-06.) The one rule for the
+ * week's pace ([Band.saltPace]) and for what a band weighs of going to salt.
  */
-internal fun saltFeeds(short: Float, need: Float, lack: Float) = if (need > 0f) 1f - lack * (short / need).coerceIn(0f, 1f) else 1f
+internal fun saltPace(short: Float, need: Float, lack: Float) = if (need > 0f) 1f - lack * (short / need).coerceIn(0f, 1f) else 1f
 /** Sodium's share of salt by weight (Na in NaCl). */
 internal const val SALT_SODIUM = 0.393f
 /** Salt that holds a person's year of sodium ([SODIUM_A_PERSON_DAY]), kg: some 21 g. */

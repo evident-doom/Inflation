@@ -145,12 +145,12 @@ internal fun GroupPlanner.bandPull(g: HexGroup, b: Band, month: Int, h: Hex, her
     // A band set on a raid heads for its target.
     score += RAID_PULL * raidProgress(b, here, h)
     // A band short of sodium heads for the nearest salt it knows of, as a hungry animal seeks a lick. What it gets there
-    // lasts it years (it keeps [KEEP_YEARS] of [YEAR_NEED]): a year of weeks without the share of its food that salt lack
-    // spoils ([saltFeeds]), a year being as far ahead as a band foresees ([foreseenSurvival]), paid for by the weeks the
+    // lasts it years (it keeps [KEEP_YEARS] of [YEAR_NEED]): a year of weeks without the share of its work that salt lack
+    // takes ([saltPace]), a year being as far ahead as a band foresees ([foreseenSurvival]), paid for by the weeks the
     // walk there takes, at its reach a week.
-    // (Not where it can get salt already: on the shore or a salt pan, as [saltFeedsAt] has it.)
+    // (Not where it can get salt already: on the shore or a salt pan, as [saltWeeks] has it.)
     val saltWeeks = saltWeeks(g, b, here, reach)
-    if (saltWeeks > 0f) score += (1f - saltFeeds(b.sodiumShort, 1f, gs.tuning.saltLack)) * gs.stepsPerYear / saltWeeks * saltProgress(b, here, h, reach)
+    if (saltWeeks > 0f) score += (1f - saltPace(b.sodiumShort, 1f, gs.tuning.saltLack)) * gs.stepsPerYear / saltWeeks * saltProgress(b, here, h, reach)
     // A band with food enough to feast others is drawn to where other bands are (gatherings).
     if (gs.peopleSlot >= 0 && b.holds(Tradition.FEASTS))
         gs.dialUse?.choice(DialSite.STORE_FEAST, b.storeShare, g.larder > b.storeAim * g.dailyNeedKg, g.larder > b.storeAimAt1 * g.dailyNeedKg)
