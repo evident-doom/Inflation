@@ -17,9 +17,9 @@ import kotlin.math.min
 /**
  * The sodium in plant forage at each place, as a share of its dry matter, or [LICK] where its hex has a
  * salt lick ([HexLand.salt]: a salt pan or salt lake shore, a desert shore) or lies on the coast ([LICK]: as much as any need): [FORAGE_SODIUM_INLAND]
- * far inland, rising toward [FORAGE_SODIUM_COAST] at the sea over [MARINE_KM] (the sea's spray falls off inland).
+ * far inland, rising toward [FORAGE_SODIUM_COAST] at the sea over [marineKm] ([inflation.Tuning.marineKm]) (the sea's spray falls off inland).
  */
-internal fun forageSodium(hw: HexWorld, land: HexLand): FloatArray {
+internal fun forageSodium(hw: HexWorld, land: HexLand, marineKm: Float = land.tuning.marineKm): FloatArray {
     val hex = hw.hex
     val steps = IntArray(hex.size) { -1 }
     val queue = ArrayDeque<Hex>()
@@ -34,7 +34,7 @@ internal fun forageSodium(hw: HexWorld, land: HexLand): FloatArray {
         val h = hw.placeHex[Place(i)]
         if (lick[h] || hw.coast[h]) LICK else {
             if (steps[h] < 0) FORAGE_SODIUM_INLAND
-            else FORAGE_SODIUM_INLAND + (FORAGE_SODIUM_COAST - FORAGE_SODIUM_INLAND) * exp(-(steps[h] * hex.hexKm).toFloat() / MARINE_KM)
+            else FORAGE_SODIUM_INLAND + (FORAGE_SODIUM_COAST - FORAGE_SODIUM_INLAND) * exp(-(steps[h] * hex.hexKm).toFloat() / marineKm)
         }
     }
 }
@@ -78,13 +78,12 @@ internal fun feedHerdSalt(b: Band, s: Species, heads: Float, forage: Float, days
  */
 internal const val GRAZER_SODIUM_NEED = 0.0007f
 /**
- * Sodium in forage far inland and at the sea, shares of dry matter, and how fast the sea's spray falls off inland, km.
+ * Sodium in forage far inland and at the sea, shares of dry matter (how fast the sea's spray falls off inland: [inflation.Tuning.marineKm]).
  * Guesses: plants carry orders of magnitude less sodium than animals (Dudley et al. 2012, Biotropica 44:6), and
  * North American ungulates use salt licks more than chance beyond some 500 km of the coast (Maro and Dudley 2022,
  * J Biogeogr 49:254), so forage is taken to fall short of the need some 300-400 km inland.
  */
 internal const val FORAGE_SODIUM_INLAND = 0.0003f
 internal const val FORAGE_SODIUM_COAST = 0.002f
-internal const val MARINE_KM = 300f
 /** The forage sodium [forageSodium] takes for a hex with a salt lick or on the coast: all the need, and more. */
 internal const val LICK = 1f

@@ -226,6 +226,12 @@ class Tuning(
      * measured: sodium-short livestock grow and breed worse and chew bones and soil; its toll here a guess. 0 is the old rule.
      */
     val grazerSaltLack = f("grazerSaltLack", 0.3f)
+    /**
+     * How far inland the sea's spray keeps plant forage in sodium, km: it falls off as e^(-km / this)
+     * ([inflation.ecology.forageSodium]). A guess fitted to ungulates' salt licks lying mostly beyond 500 km of the coast
+     * (Maro and Dudley 2022). No place on a 1000 x 2000 km test world is then short; about 9% on an 8000 x 2000 one.
+     */
+    val marineKm = f("marineKm", 300f)
     /** How much less salted meat and fish spoil. */
     val saltKeep = f("saltKeep", 0.7f)
 
