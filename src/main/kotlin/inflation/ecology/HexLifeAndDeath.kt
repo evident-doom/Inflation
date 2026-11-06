@@ -12,6 +12,7 @@ import inflation.world.get
 import inflation.world.set
 import inflation.ecology.HexSmallLife.DeadPool
 import inflation.Books
+import inflation.Kg
 import inflation.KgM2
 import inflation.monthsFrom
 import inflation.world.Date
@@ -276,6 +277,7 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
     // lie where they died, carrion that draws the beasts that eat it.)
     val buried = s.human && g.band?.holds(Tradition.BURIAL) == true
     if (o.carrionKg > 0f && !buried) small.deposit(DeadPool.CARRION, g.place, KgM2(o.carrionKg / (land.areaKm2[g.place] * 1e6f)))
+    if (o.carrionKg > 0f && buried) small.bury(g.place, Kg(o.carrionKg))
     // (And the unburied dead foul the ground of the camp they lie at, as weeks of camping do ([CORPSE_FOUL_WEEKS]): a band
     // that stays on beside them, or comes there before the ground clears, bears it as the camp's fouling.)
     if (s.human && o.carrionKg > 0f && !buried) {
