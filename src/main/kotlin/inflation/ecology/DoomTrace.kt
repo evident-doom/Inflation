@@ -5,6 +5,8 @@ import inflation.ecology.GroupPlanner.PlanContext
 import inflation.world.Hex
 import inflation.world.Place
 import inflation.world.get
+import kotlin.math.min
+import kotlin.math.roundToInt
 
 // The doom trace, a [GroupWatch]: which bands run into hunger (doomList), and, run again from the same save, whether
 // those bands had a better place within reach, or beyond it, week by week as they chose (doomTrace). See
@@ -45,6 +47,14 @@ internal object DoomWatch : GroupWatch {
             if (g.fed < 0.9f) row[Lean.HUNGRY.ordinal]++
             if (b.movedCamp) row[Lean.MOVED.ordinal]++
             row[Lean.HUNGER_DEATHS.ordinal] += died
+            // (What it held and aimed at, days of its people's need, tenths; its foraging's yield and spare days, hundredths.)
+            val need = g.dailyNeedKg.coerceAtLeast(1e-3f)
+            row[Lean.FAT_TENTHS.ordinal] += (10f * g.fat).roundToInt()
+            row[Lean.LARDER_TENTHS.ordinal] += (10f * min(LEAN_LARDER_CAP, g.larder / need)).roundToInt()
+            row[Lean.AIM_TENTHS.ordinal] += (10f * b.storeAim).roundToInt()
+            val y = b.recentYield(date, gs.days)
+            if (!y.isNaN()) { row[Lean.YIELD_HUNDREDTHS.ordinal] += (100f * y).roundToInt(); row[Lean.YIELD_WEEKS.ordinal]++ }
+            row[Lean.SPARE_HUNDREDTHS.ordinal] += (100f * b.spareMean).roundToInt()
             if (g.alive) fatBefore[g.id] = g.fat else fatBefore.remove(g.id)
         }
         hungerWeek.clear()
@@ -58,8 +68,17 @@ internal object DoomWatch : GroupWatch {
 /** What the lean table counts: band-weeks, people-weeks; band-weeks drawing on fat, fed under 0.9, moving camp; hunger deaths. */
 private enum class Lean(val label: String) {
     BAND_WEEKS("band-weeks"), PEOPLE_WEEKS("people-weeks"), FAT_DRAWN("fat drawn"), HUNGRY("fed<0.9"), MOVED("moved"),
-    HUNGER_DEATHS("hunger deaths")
+    HUNGER_DEATHS("hunger deaths"),
+    /** Fat, larder (at most [LEAN_LARDER_CAP]) and store aim ([Band.storeAim]), days of need, tenths summed over band-weeks. */
+    FAT_TENTHS("fat d/10"), LARDER_TENTHS("larder d/10"), AIM_TENTHS("store aim d/10"),
+    /** Its foraging's yield over the last 4 weeks ([Band.recentYield]), hundredths summed, and the band-weeks it was seen. */
+    YIELD_HUNDREDTHS("yield/100"), YIELD_WEEKS("yield weeks"),
+    /** Its share of hands' days spare over about a season ([Band.spareMean]), hundredths summed. */
+    SPARE_HUNDREDTHS("spare/100")
 }
+
+/** The larder the lean table counts at most, days: a seed store of years would swamp a kind of country's mean. */
+private const val LEAN_LARDER_CAP = 120f
 
 /** doomList: at a year's end, the lean table, a line for each kind of country and month with bands in it. */
 private fun printLean(date: inflation.world.Date, lean: Map<Int, IntArray>) {

@@ -109,15 +109,20 @@ def lean(args):
     allw = sum(r['band-weeks'] for r in by.values()) or 1
     # (Hunger deaths a year per 1000 people: people-weeks to years by the weeks a year the run steps, 60 at steps of 6 days of a 360-day year.)
     def per(r): return 1000 * r['hunger deaths'] / max(1, r['people-weeks']) * 60
-    print('by kind of country: share of band-weeks; fat drawn, fed<0.9, moved, % of its band-weeks; hunger deaths a year per 1000')
+    def mean(r, k, scale, n='band-weeks'): return r[k] / scale / max(1, r[n]) if k in r else float('nan')
+    print('by kind of country: share of band-weeks; fat drawn, fed<0.9, moved, % of its band-weeks; hunger deaths a year per 1000;'
+          ' means: fat, larder (at most 120), store aim, days of need; 4-week yield; share of days spare')
     for c, r in sorted(by.items(), key=lambda x: -x[1]['band-weeks']):
         w = max(1, r['band-weeks'])
-        print(f"  {c:24} {100*r['band-weeks']/allw:5.1f}%  fat {100*r['fat drawn']/w:5.1f}%  fed<0.9 {100*r['fed<0.9']/w:5.1f}%  moved {100*r['moved']/w:5.1f}%  hunger {per(r):6.1f}")
-    print('by country and month (months 1-12): hunger deaths a year per 1000 | fat drawn %')
+        print(f"  {c:24} {100*r['band-weeks']/allw:5.1f}%  fat {100*r['fat drawn']/w:5.1f}%  fed<0.9 {100*r['fed<0.9']/w:5.1f}%  moved {100*r['moved']/w:5.1f}%  hunger {per(r):6.1f}"
+              f"  | fat {mean(r, 'fat d/10', 10):5.1f}  larder {mean(r, 'larder d/10', 10):5.1f}  aim {mean(r, 'store aim d/10', 10):5.1f}"
+              f"  yield {mean(r, 'yield/100', 100, 'yield weeks'):4.2f}  spare {mean(r, 'spare/100', 100):4.2f}")
+    print('by country and month (months 1-12): hunger deaths a year per 1000 | fat drawn % | larder d | yield')
     for c in sorted(by, key=lambda c: -by[c]['band-weeks']):
         if by[c]['band-weeks'] < 0.01 * allw: continue
         ms = [rows.get((c, m), collections.Counter()) for m in range(1, 13)]
-        print(f"  {c:24} " + ' '.join(f"{per(r):5.0f}" for r in ms) + ' | ' + ' '.join(f"{100*r['fat drawn']/max(1, r['band-weeks']):3.0f}" for r in ms))
+        print(f"  {c:24} " + ' '.join(f"{per(r):4.0f}" for r in ms) + ' | ' + ' '.join(f"{100*r['fat drawn']/max(1, r['band-weeks']):3.0f}" for r in ms)
+              + ' | ' + ' '.join(f"{mean(r, 'larder d/10', 10):4.0f}" for r in ms) + ' | ' + ' '.join(f"{mean(r, 'yield/100', 100, 'yield weeks'):4.2f}" for r in ms))
 
 if __name__ == '__main__':
     if len(sys.argv) < 3 or sys.argv[1] not in ('pick', 'summary', 'lean'): sys.exit(__doc__)
