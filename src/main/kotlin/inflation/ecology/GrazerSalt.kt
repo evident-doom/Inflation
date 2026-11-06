@@ -15,8 +15,8 @@ import kotlin.math.min
 // residents, the roaming herds and a band's kept animals, whose keepers make the want up with their own salt.
 
 /**
- * The sodium in plant forage at each place, as a share of its dry matter, or [Float.POSITIVE_INFINITY] where its hex has a
- * salt lick ([HexLand.salt]: a salt pan or salt lake shore, a desert shore) or lies on the coast: [FORAGE_SODIUM_INLAND]
+ * The sodium in plant forage at each place, as a share of its dry matter, or [LICK] where its hex has a
+ * salt lick ([HexLand.salt]: a salt pan or salt lake shore, a desert shore) or lies on the coast ([LICK]: as much as any need): [FORAGE_SODIUM_INLAND]
  * far inland, rising toward [FORAGE_SODIUM_COAST] at the sea over [MARINE_KM] (the sea's spray falls off inland).
  */
 internal fun forageSodium(hw: HexWorld, land: HexLand): FloatArray {
@@ -32,9 +32,9 @@ internal fun forageSodium(hw: HexWorld, land: HexLand): FloatArray {
     for (p in land.places) if (land.salt[p] > 0f) lick[hw.placeHex[p]] = true
     return FloatArray(land.n) { i ->
         val h = hw.placeHex[Place(i)]
-        if (lick[h] || hw.coast[h]) Float.POSITIVE_INFINITY else {
-            val km = if (steps[h] < 0) Float.POSITIVE_INFINITY else (steps[h] * hex.hexKm).toFloat()
-            FORAGE_SODIUM_INLAND + (FORAGE_SODIUM_COAST - FORAGE_SODIUM_INLAND) * exp(-km / MARINE_KM)
+        if (lick[h] || hw.coast[h]) LICK else {
+            if (steps[h] < 0) FORAGE_SODIUM_INLAND
+            else FORAGE_SODIUM_INLAND + (FORAGE_SODIUM_COAST - FORAGE_SODIUM_INLAND) * exp(-(steps[h] * hex.hexKm).toFloat() / MARINE_KM)
         }
     }
 }
@@ -86,3 +86,5 @@ internal const val GRAZER_SODIUM_NEED = 0.0007f
 internal const val FORAGE_SODIUM_INLAND = 0.0003f
 internal const val FORAGE_SODIUM_COAST = 0.002f
 internal const val MARINE_KM = 300f
+/** The forage sodium [forageSodium] takes for a hex with a salt lick or on the coast: all the need, and more. */
+internal const val LICK = 1f

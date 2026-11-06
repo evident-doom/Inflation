@@ -144,7 +144,7 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, internal v
     // ([HexGroups.mark]), so its settled are held where its packs were.)
     @Transient internal val usual = FloatArray(kinds.size) { k -> val s = kinds[k]
         if (s in Catalogue.roamingResidents) tuning.roamerUsual * s.groupSize / hex.areaKm2.toFloat() else usualDensity(s) }
-    /** The sodium in each place's forage, a share of its dry matter, or infinite by a salt lick ([forageSodium], [saltBreeding]). */
+    /** The sodium in each place's forage, a share of its dry matter, or [LICK] by a salt lick ([forageSodium], [saltBreeding]). */
     @Transient internal val forageSodiumAt = forageSodium(hw, land)
     /**
      * Outbreaks (rinderpest-like plagues among grazers, distemper and rabies among hunters, fevers
