@@ -21,8 +21,10 @@ import inflation.ecology.woodCover
 import inflation.ecology.WORN_ROOTS
 import inflation.ecology.WORN_FRUIT
 import inflation.ecology.wornWoodCover
-import inflation.ecology.wornWalk
-import inflation.ecology.wornPace
+import inflation.ecology.wornWalkAt
+import inflation.ecology.wornPaceAt
+import inflation.ecology.takenShare
+import inflation.ecology.spotTakenShare
 import inflation.ecology.Livelihood
 import inflation.ecology.homesApart
 import inflation.ecology.Regard
@@ -315,10 +317,11 @@ class Census(private val sim: HexSim) {
             val spot = worn.spots[g.id]
             if (spot == null || spot.place != p) {
                 light[k]++
-                paceFruit[k] += wornPace(worn.taken[WORN_FRUIT][p], fruitKg); paceRoots[k] += wornPace(worn.taken[WORN_ROOTS][p], rootsKg)
+                paceFruit[k] += wornPaceAt(worn.takenShare(WORN_FRUIT, p, fruitKg)); paceRoots[k] += wornPaceAt(worn.takenShare(WORN_ROOTS, p, rootsKg))
             } else {
                 fixed[k]++
-                walkFruit[k] += wornWalk(spot.taken[WORN_FRUIT], fruitKg); walkRoots[k] += wornWalk(spot.taken[WORN_ROOTS], rootsKg)
+                val reach = b.gatherShare().coerceIn(0.01f, 0.9f)
+                walkFruit[k] += wornWalkAt(worn.spotTakenShare(spot, WORN_FRUIT, p, reach, fruitKg)); walkRoots[k] += wornWalkAt(worn.spotTakenShare(spot, WORN_ROOTS, p, reach, rootsKg))
                 val cover = groups.woodCover(g.place)
                 woodLeft[k] += if (cover > 0f) (groups.wornWoodCover(spot, cover) / cover).toDouble() else 1.0
             }

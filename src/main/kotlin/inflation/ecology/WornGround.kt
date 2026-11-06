@@ -15,7 +15,9 @@ import kotlin.math.sqrt
  *   ([wornPace]): the yields of a place's patches spread lognormally ([WORN_SPREAD]), the richest first and a long tail behind.
  * - A settled band takes from about its fixed spot outward: the ground near it is gone over, so its gatherers walk out the
  *   farther ([wornWalk]), and its hearth's dead wood is fetched from ever farther off ([wornWoodCover]).
- * What was taken comes back over each food's [WORN_YEARS]. Not saved (rebuilt within a year of a load).
+ * What was taken comes back over each food's [WORN_YEARS]. Fruit and grass seed are a season's flow, not a standing stock: what
+ * was taken of them is set against what the place bore over the same span ([WornGround.crop]), not against the little ripe
+ * on the plants this week. Not saved (rebuilt within a year of a load).
  */
 
 /** The kinds a band's take is kept by: fruit, roots and bulbs, mast, grass seed, small finds, and the hearth's dead wood. */
@@ -58,6 +60,11 @@ internal const val WOOD_LOAD_KG = 25f
 internal class WornGround(n: Int) {
     /** Kg of each kind taken at each place by any band, coming back over [WORN_YEARS]. */
     val taken = Array(WORN_KINDS) { FloatArray(n) }
+    /**
+     * Kg of fruit and of grass seed each place bore, faded as [taken] is (the week's ripe fruit or seed that falls or is shed,
+     * and what was taken of it): what a share taken of a flowing crop is reckoned against. Zero for the standing kinds.
+     */
+    val crop = Array(WORN_KINDS) { FloatArray(n) }
     /** A settled band's fixed spot: its [place] and the kg of each kind it has taken from about it. */
     class Spot(val place: Int) { val taken = FloatArray(WORN_KINDS) }
     /** The settled bands' spots, by group id (concurrent: bands forage in parallel, each its own). */
@@ -67,11 +74,50 @@ internal class WornGround(n: Int) {
     fun fade(days: Int) {
         for (k in 0 until WORN_KINDS) {
             val keep = exp(-days / (365f * WORN_YEARS[k]))
-            val a = taken[k]
-            for (p in a.indices) a[p] *= keep
+            val a = taken[k]; val c = crop[k]
+            for (p in a.indices) { a[p] *= keep; c[p] *= keep }
             for (s in spots.values) s.taken[k] *= keep
         }
     }
+}
+
+/** Whether worn kind [k] is a season's flow (fruit, grass seed), reckoned against the crop borne ([WornGround.crop]). */
+internal fun wornFlows(k: Int) = k == WORN_FRUIT || k == WORN_SEED
+
+/**
+ * A week of [days] days on the worn ground: what was taken comes back, and each place's crop of fruit and seed grows by what
+ * fell or was shed of it this week ([HexFood.FRUIT_DAYS], [HexFood.SEED_DAYS]); what was taken of it is added as it is taken.
+ */
+internal fun HexGroups.wornWeek(days: Int) {
+    val w = wornGround ?: return
+    w.fade(days)
+    val food = fauna.food
+    val fruit = w.crop[WORN_FRUIT]; val seed = w.crop[WORN_SEED]
+    for (p in 0 until n) {
+        fruit[p] += land.total(Place(p), inflation.KgM2(food.fruit[p] * min(1f, days / HexFood.FRUIT_DAYS))).v
+        seed[p] += land.total(Place(p), inflation.KgM2(food.seeds[p] * min(1f, days / HexFood.SEED_DAYS))).v
+    }
+    if (w.spots.isNotEmpty()) { val alive = groups.filter { it.alive }.mapTo(HashSet()) { it.id }; w.spots.keys.retainAll(alive) }
+}
+
+/**
+ * The share of worn kind [k] taken at place [p] by all bands, with [leftKg] lying there now: of a flowing crop, against what
+ * the place bore ([wornFlows]); of a standing one, against what was taken and what is left.
+ */
+internal fun WornGround.takenShare(k: Int, p: Int, leftKg: Float): Float {
+    val t = taken[k][p]
+    if (t <= 0f) return 0f
+    return min(WORN_MOST, if (wornFlows(k)) t / crop[k][p].coerceAtLeast(t) else t / (t + leftKg).coerceAtLeast(1e-9f))
+}
+
+/**
+ * The share of worn kind [k] that settled band's spot [s] has taken of what lies within its [reach] (share of place [p]'s
+ * ground), with [leftKg] lying on the whole place now: of a flowing crop, against the reached share of what it bore.
+ */
+internal fun WornGround.spotTakenShare(s: Spot, k: Int, p: Int, reach: Float, leftKg: Float): Float {
+    val t = s.taken[k]
+    if (t <= 0f) return 0f
+    return min(WORN_MOST, if (wornFlows(k)) t / (reach * crop[k][p]).coerceAtLeast(t) else t / (t + reach * leftKg).coerceAtLeast(1e-9f))
 }
 
 /** This run's worn ground, made the first time it is asked for; null unless t.wornGround. */
@@ -112,9 +158,11 @@ internal fun wornKind(t: Food, kind: Int) = when (t) {
  * lognormal spread of patch yields ([WORN_SPREAD]) from the share taken past [WORN_FRESH]. 1 on fresh ground, falling
  * toward a long tail.
  */
-internal fun wornPace(taken: Float, left: Float): Float {
-    if (taken <= 0f) return 1f
-    val f = min(WORN_MOST, taken / (taken + left).coerceAtLeast(1e-9f))
+internal fun wornPace(taken: Float, left: Float): Float =
+    if (taken <= 0f) 1f else wornPaceAt(min(WORN_MOST, taken / (taken + left).coerceAtLeast(1e-9f)))
+
+/** [wornPace] at a share [f] of the place's food taken. */
+internal fun wornPaceAt(f: Float): Float {
     if (f <= WORN_FRESH) return 1f
     return exp(WORN_SPREAD * (normalQuantile(1f - f) - normalQuantile(1f - WORN_FRESH)))
 }
@@ -124,11 +172,11 @@ internal fun wornPace(taken: Float, left: Float): Float {
  * about its spot and [reachKg] lie within its usual reach: the near ground is gone over, so they reach out over as much
  * more ground as holds what was taken, and the walk goes by the square root of the ground.
  */
-internal fun wornWalk(taken: Float, reachKg: Float): Float {
-    if (taken <= 0f) return 1f
-    val f = min(WORN_MOST, taken / (taken + reachKg).coerceAtLeast(1e-9f))
-    return sqrt(1f / (1f - f))
-}
+internal fun wornWalk(taken: Float, reachKg: Float): Float =
+    if (taken <= 0f) 1f else wornWalkAt(min(WORN_MOST, taken / (taken + reachKg).coerceAtLeast(1e-9f)))
+
+/** [wornWalk] at a share [f] of the food within reach taken. */
+internal fun wornWalkAt(f: Float) = sqrt(1f / (1f - min(WORN_MOST, f)))
 
 /**
  * The wood cover a settled band at its spot [s] fetches its hearth's wood at ([woodCover] [cover] about it): the dead wood
@@ -154,6 +202,7 @@ internal fun GroupWorld.wornTook(g: HexGroup, k: Int, p: Place, kg: Float) {
     if (k < 0 || kg <= 0f) return
     val w = worn() ?: return
     w.taken[k][p.i] += kg
+    if (wornFlows(k)) w.crop[k][p.i] += kg
     settledSpot(g)?.let { s -> if (s.place == p.i) s.taken[k] += kg }
 }
 
