@@ -33,5 +33,5 @@ fun main(args: Array<String>) {
     }
     fun pc(k: Int) = "%.1f%%".format(100.0 * k / n)
     println("seed ${cfg.seed}, ${cfg.widthKm} x ${cfg.heightKm} km, $n places: lick or coast ${pc(lick)}; forage meets the need: in full ${pc(bins[0])}, " +
-        "0.9-1 ${pc(bins[1])}, 0.7-0.9 ${pc(bins[2])}, 0.5-0.7 ${pc(bins[3])}, under 0.5 ${pc(bins[4])}; least forage sodium %.3f%% of dry matter".format(100f * least))
+        "0.9-1 ${pc(bins[1])}, 0.7-0.9 ${pc(bins[2])}, 0.5-0.7 ${pc(bins[3])}, under 0.5 ${pc(bins[4])}; least forage sodium ${"%.3f".format(100f * least)}% of dry matter")
 }
