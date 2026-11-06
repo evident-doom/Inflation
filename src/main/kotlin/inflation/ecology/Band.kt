@@ -136,8 +136,6 @@ class Band(kinds: Int, totems: Int = kinds) {
     /** forecastTrace=true: its year ahead as foreseen, and what came, while it is followed ([traceForecast]); whether it has been. */
     @Transient internal var forecastTrace: ForecastTrace? = null
     @Transient var forecastTraced = false
-    /** doomList: its hunger deaths this year (counted with the census): [listDoomedYear]. */
-    @Transient var hungerDied = 0
     /** What moved food into its larder (below 0, out) this week by [LarderMove], kg ([larderMoved]): for the census, at [foresee]. */
     @Transient val larderFlow = FloatArray(LarderMove.entries.size)
     /** Its hands' days this week by [Activity] as [bandWeek] left them, and last its hands' days in all: for the census, at [foresee]. */

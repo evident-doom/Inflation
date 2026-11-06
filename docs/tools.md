@@ -48,6 +48,10 @@ The probes, programs that answered one question about the model, live apart in `
 | WaterCheck | Runs weather, water and plants on the hexes' height bands (no animals) and reports, year by year, how much of dry country has water within reach in its driest week, how the springs hold up, how the ground water stands, and whether rivers run dry. | `./gradlew hexWaterCheck -PwaterArgs="[--seed N] [--width KM] [--height KM] [--years N]"` |
 | WindReport | Runs the weather alone and reports how the winds behave: how often each regime comes in each season, whether rain still averages to the climate normals, how much a cell's rain varies from week to week, and maps of rain in a westerly and a northerly week with the wind drawn on. | `./gradlew runTool -Pmain=inflation.tools.WindReportKt -PtoolArgs="[--seed N] [--size KM] [--height KM] [--years N] [--out DIR]"` |
 
+## Following groups
+
+To follow individual groups through their choices (which bands starve, and whether they had a better place within or beyond reach), see docs/tracing-groups.md: the `doomList` and `doomTrace` config keys and `scripts/doomtrace.py`.
+
 ## The viewer and pictures (`inflation.ui`)
 
 | Program | What it does | Run it |
