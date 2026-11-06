@@ -456,6 +456,21 @@ object Tally {
     fun warnReserves(d: WarnDeaths, lag: Int, what: Warn, count: Boolean) = TallyKey.raw("warning:${d.label}:lag $lag:reserves:${what.name.lowercase()}${if (count) ":deaths" else ""}")
     /** People-weeks of bands that foresaw [what] in [bin] when they chose this week's place ([weekWarning]); their deaths that week are [warnDied] at lag 0. */
     fun warnPeopleWeeks(what: Warn, bin: WarnBin) = TallyKey.raw("warning:people-weeks:${what.name.lowercase()}:${bin.label}")
+    /** How a band holds its dead: leaves the camp where they die ([Tradition.LEAVE_DEAD] without [Tradition.BURIAL]), leaves them but buries them too (burial wins), or neither. */
+    enum class DeadWay(val label: String) {
+        LEAVES("leaves its dead"), BURIES_TOO("leaves its dead, buries too"), NEITHER("does not leave its dead");
+        companion object { fun of(leaves: Boolean, buries: Boolean) = if (!leaves) NEITHER else if (buries) BURIES_TOO else LEAVES }
+    }
+    /**
+     * Unlucky camps, for whether bands leave camps they have built up after a death ([bookUnlucky]): band-weeks; those with a
+     * death; camps marked unlucky, and of them those at the band's own houses; band-weeks while a mark lasts, on the marked
+     * camp or away from it, and the same for marks at the band's houses.
+     */
+    enum class Unluck(val label: String) {
+        BAND_WEEKS("band-weeks"), DEATH_WEEKS("with a death"), MARKED("marked"), MARKED_HOUSES("marked at its houses"),
+        ON("weeks on the marked camp"), AWAY("weeks away"), ON_HOUSES("weeks on the marked houses"), AWAY_HOUSES("weeks away from them")
+    }
+    fun unlucky(living: Living, way: DeadWay, what: Unluck) = TallyKey.raw("unlucky camps:${living.label}:${way.label}:${what.label}")
     fun movedLately(m: MovedLately, season: Season, what: Lately) = TallyKey.raw("bands moved lately ${m.label}:${season.name}:${what.label}")
     fun hungryCohort(c: HungryCohort, what: HungryFollowed) = TallyKey.raw("hungry bands ${c.label}:${what.label}")
     /** People-weeks of bands of mind [mind] within a month of a camp move. */
