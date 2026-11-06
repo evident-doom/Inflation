@@ -320,5 +320,11 @@ object HexFeatures : NamedSlots() {
     val USUAL_YIELD_AHEAD = block(List(LORE_MONTHS) { k -> "usual yield, month ${k + 1} ahead" })
     /** For a band, 1 where its people remember the yield of any of the next three months there ([USUAL_YIELD_AHEAD]). */
     val YIELD_LORE_KNOWN = one("usual yield known")
+    /**
+     * The hurricane test ([HexHurricane]): how soon the storms strike the hex, as every group is told ([HexHurricane.urgency]:
+     * 1 this week, less by a step for each week ahead, 0 if not within the weeks told; 0 when not told). Its own input, apart
+     * from [STRONGER_HUNTER], so that a network can learn to leave a camp a storm will reach before it does.
+     */
+    val STORM_AHEAD = one("storm ahead")
     const val LORE_MONTHS = 3
 }
