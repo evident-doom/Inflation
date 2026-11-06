@@ -278,7 +278,7 @@ internal class GroupPlanner(internal val gs: HexGroups) {
         val chosen = best
         if (traced) bookMove(chosen != g.place, buf)
         g.band?.planLoads = Float.NaN
-        if (party != null && g.weighed) best = partyPlace(g.band!!, party, buf, best, gs.stepOf(date))
+        if (party != null && g.weighed) best = partyPlace(party, here, buf, best, gs.stepOf(date))
         else if (explores && !g.drawn) best = if (g.band?.mind?.gate == MoveGate.RECKONED) planned(g, policy, buf, best, dueSoon, here, date) else if (g.weighed) explored(g, policy, buf, best, date) else best
         // (For the census: whether the band would have moved by its best choice, and whether it moved by its draw.)
         if (g.band != null) {

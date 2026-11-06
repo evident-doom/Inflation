@@ -4,16 +4,19 @@ import inflation.Part
 import inflation.world.Date
 import inflation.world.Hex
 import inflation.world.Place
+import inflation.world.get
 import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.roundToInt
 
 /*
  * Scouting parties (t.parties; review/2026-11-06-scouting-party-design.md). A band with food to spare may send some of its
  * grown people out for some weeks to see country beyond its reach, while the rest keep the camp and its stores: the safe haven
  * the party comes back to. The party splits off as any band does ([splitOff]) and is a band of its own; what binds the two is a
- * contract between bands ([ContractKind.PARTY]), a pattern the engine writes down, never forced: the party walks out, turns
- * back halfway, and rejoins its band where it finds it ([joinBand], its place memory the report); one that is not back well
- * after it was due, or whose band is gone, stays a band of its own. The risk of the walk is the party's, not the camp's.
+ * contract between bands ([ContractKind.PARTY]), a pattern the engine writes down, never forced: the party walks out toward the
+ * country most unlike home within its reach ([destination]), turns back there or halfway, and rejoins its band where it finds
+ * it ([joinBand], its place memory the report); one that is not back well after it was due, or whose band is gone, stays a band
+ * of its own. The risk of the walk is the party's, not the camp's.
  */
 
 /** Share of a band's grown people, not elders, that goes on a party at the scaffold's will to explore (an estimate). */
@@ -28,12 +31,21 @@ internal const val PARTY_FOOD_DAYS = 5f
 internal const val PARTY_GRACE = 8
 /** Weeks a band keeps its whole number at camp after a party has come back (or was lost) before it sends another. */
 internal const val PARTY_REST = 13
-/** How much more a party, going out, makes of a place it does not know than of one it does, in km further from home. */
-internal const val PARTY_NEW_KM = 20f
+/** Metres of height that make country as different as another kind of country altogether ([difference]); an estimate. */
+internal const val PARTY_HEIGHT_M = 500f
+/** Water's share of a hex (lake) at which it counts as a lake to go and see. */
+internal const val PARTY_LAKE = 0.1f
+/** Share of its outward range that a party's destination is lifted by for distance: of two places as different, the farther. */
+internal const val PARTY_FAR = 0.1f
 
-/** The contract of a party ([ContractKind.PARTY], [contract]): its band [home], the hex [homeHex] it left from, the week [sent], halfway [turn], [due] back. */
-class Party(val home: Int, val homeHex: Hex, val sent: Int, val turn: Int, val due: Int) {
+/**
+ * The contract of a party ([ContractKind.PARTY], [contract]): its band's id [band], the hex [homeHex] it left from, the country it
+ * set out to see ([target], [destination]), the week [sent], the week it turns back at the latest [turn], [due] back.
+ */
+class Party(val band: Int, val homeHex: Hex, val target: Hex, val sent: Int, val turn: Int, val due: Int) {
     val contract get() = ContractKind.PARTY
+    /** Whether it has been to the country it set out to see: then it turns back. */
+    var reached = false
 }
 
 /** Whether [g] is out on a party for its band, or is a band with a party out: neither joins nor takes in another band meanwhile. */
@@ -53,16 +65,16 @@ internal fun HexGroups.tendParties(date: Date) {
     while (iter.hasNext()) {
         val (id, p) = iter.next()
         val party = byId[id]
-        val home = byId[p.home]?.takeIf { it.alive }
+        val home = byId[p.band]?.takeIf { it.alive }
         when {
-            party == null || !party.alive -> { stats.meeting(Met.PARTIES_LOST); rested[p.home] = week }
+            party == null || !party.alive -> { stats.meeting(Met.PARTIES_LOST); rested[p.band] = week }
             home == null || week >= p.due + PARTY_GRACE -> stats.meeting(Met.PARTIES_STAYED_AWAY)
-            week >= p.turn && hw.placeHex[party.place] == hw.placeHex[home.place] -> {
-                joinBand(home, party, week); stats.meeting(Met.PARTIES_BACK); rested[p.home] = week
+            (p.reached || week >= p.turn) && hw.placeHex[party.place] == hw.placeHex[home.place] -> {
+                joinBand(home, party, week); stats.meeting(Met.PARTIES_BACK); rested[p.band] = week
             }
             else -> continue
         }
-        partyOut.remove(p.home); iter.remove()
+        partyOut.remove(p.band); iter.remove()
     }
     val sent = ArrayList<HexGroup>()
     for (g in groups) {
@@ -77,7 +89,9 @@ internal fun HexGroups.tendParties(date: Date) {
         val n = splitOff(g, k, 0)
         // (It carries a few days' food; the rest of its share stays in the camp's larder.)
         if (n.larder > carry) moveFood(n, g, n.larder - carry)
-        parties[n.id] = Party(g.id, hw.placeHex[g.place], week, week + weeks / 2, week + weeks)
+        val home = hw.placeHex[g.place]
+        val rangeKm = weeks / 2 * g.species.maxDailyTravelKm * SHIFT_DAYS
+        parties[n.id] = Party(g.id, home, destination(home, rangeKm), week, week + weeks / 2, week + weeks)
         partyOut[g.id] = n.id
         sent += n
         stats.meeting(Met.PARTIES_SENT)
@@ -86,25 +100,54 @@ internal fun HexGroups.tendParties(date: Date) {
 }
 
 /**
+ * How different country [h] is from [home], 0 alike: the share of its land of other kinds ([inflation.world.Biome]), its height
+ * against [PARTY_HEIGHT_M], and the sea or a lake where home has none, each up to 1. What a party sets out to see: the mountains,
+ * the sea, a lake, another kind of country (Olli 2026-11-06), the places that might feed the band if its own ground gives out.
+ */
+internal fun HexGroups.difference(h: Hex, home: Hex): Float {
+    var kinds = 0f
+    for (b in hw.biome) kinds += kotlin.math.abs(b[h] - b[home])
+    val height = min(1f, kotlin.math.abs(hw.elevationM[h] - hw.elevationM[home]) / PARTY_HEIGHT_M)
+    val sea = if (hw.coast[h] && !hw.coast[home]) 1f else 0f
+    val lake = if (hw.lake[h] >= PARTY_LAKE && hw.lake[home] < PARTY_LAKE) 1f else 0f
+    return 0.5f * kinds + height + max(sea, lake)
+}
+
+/** The land hex within [rangeKm] of [home] most different from it ([difference]), the farther of two alike; [home] if none is. */
+internal fun HexGroups.destination(home: Hex, rangeKm: Float): Hex {
+    var best = home; var top = 0f
+    var ring = listOf(home); val seen = hashSetOf(home)
+    val rings = (rangeKm / hex.hexKm).toInt()
+    for (r in 1..rings) {
+        ring = hex.nextRing(ring, seen)
+        for (h in ring) {
+            if (hw.land[h] < 0.5f) continue
+            val d = difference(h, home) * (1f + PARTY_FAR * r / rings.coerceAtLeast(1))
+            if (d > top) { top = d; best = h }
+        }
+    }
+    return best
+}
+
+/**
  * Where a party goes this week ([Party]), of the places weighed in [buf] no deadlier than the safest by a survival step:
- * going out, the farthest from home, a place it does not know before one it does ([PARTY_NEW_KM]); once it has turned, the
+ * going out, the nearest to the country it set out to see ([Party.target]), until it is there or it is time to turn; then the
  * nearest to its band's camp (where it is now, or where it left it). [best] if it can weigh none.
  */
-internal fun GroupPlanner.partyPlace(b: Band, p: Party, buf: GroupPlanner.Scratch, best: Place, week: Int): Place {
+internal fun GroupPlanner.partyPlace(p: Party, here: Hex, buf: GroupPlanner.Scratch, best: Place, week: Int): Place {
     val n = buf.explPlaces.size
     var safest = Float.POSITIVE_INFINITY
     for (k in 0 until n) if (buf.explDeaths[k].isFinite() && buf.explDeaths[k] < safest) safest = buf.explDeaths[k]
     if (!safest.isFinite()) return best
     val hw = gs.hw
-    val homeHex = gs.bands.groupById[p.home]?.takeIf { it.alive }?.let { hw.placeHex[it.place] } ?: p.homeHex
-    val back = week >= p.turn
-    var pick = -1; var top = Float.NEGATIVE_INFINITY
+    if (here == p.target) p.reached = true
+    val back = p.reached || week >= p.turn
+    val to = if (back) gs.bands.groupById[p.band]?.takeIf { it.alive }?.let { hw.placeHex[it.place] } ?: p.homeHex else p.target
+    var pick = -1; var near = Double.POSITIVE_INFINITY
     for (k in 0 until n) {
         if (!buf.explDeaths[k].isFinite() || buf.explDeaths[k] - safest > 1f) continue
-        val h = hw.placeHex[buf.explPlaces[k]]
-        val d = gs.hex.distanceKm(h, homeHex).toFloat()
-        val s = if (back) -d else d + (if (b.knows(h)) 0f else PARTY_NEW_KM)
-        if (s > top) { top = s; pick = k }
+        val d = gs.hex.distanceKm(hw.placeHex[buf.explPlaces[k]], to)
+        if (d < near) { near = d; pick = k }
     }
     return if (pick < 0) best else Place(buf.explPlaces[pick])
 }
