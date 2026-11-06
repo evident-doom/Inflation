@@ -279,8 +279,13 @@ internal fun GroupWorld.storeWork(g: HexGroup, band: Band) = if (band.worn()) st
  */
 internal fun storeWant(g: HexGroup, band: Band) = storeWant(g, band, band.storeAim)
 
-/** [storeWant] were its store aim [aimDays]. */
-private fun storeWant(g: HexGroup, band: Band, aimDays: Float) = max(0f, storeAimKg(g, band, aimDays) - g.larder) * STORE_FILL
+/**
+ * [storeWant] were its store aim [aimDays]. Only what keeps counts towards the aim: the fresh meat and fruit it holds
+ * ([perishablesHeld]) are next week's food, foraged for that much less ([GroupFood]), and would spoil before a lean month.
+ * (Counted as stores as well, they both cut its foraging and stood in for its stores. Larders stood at about 40% of their
+ * aim, lean663, 2026-11-06; how much of that this was is unmeasured.)
+ */
+private fun storeWant(g: HexGroup, band: Band, aimDays: Float) = max(0f, storeAimKg(g, band, aimDays) - (g.larder - perishablesHeld(g))) * STORE_FILL
 
 /** The stores band [g] aims to keep, kg of its need: its store aim's days ([Band.storeAim]; less, holding to demand sharing). */
 private fun storeAimKg(g: HexGroup, band: Band, aimDays: Float = band.storeAim) =

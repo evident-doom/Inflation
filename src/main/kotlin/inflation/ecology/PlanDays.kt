@@ -165,7 +165,8 @@ private fun HexGroups.planRates(g: HexGroup, b: Band, weather: Weather, perDay: 
     fun alive(kg: Float) = people * year.alive(g.species, (g.larder + kg) / need, g.fat, g.spent)
     val now = alive(0f)
     val rate = FloatArray(SCORED_ITEMS)
-    val gap = b.storeAimAt1 * need - g.larder
+    // (Only what keeps fills the stores: the fresh meat and fruit it holds are next week's food, see [storeWant].)
+    val gap = b.storeAimAt1 * need - (g.larder - perishablesHeld(g))
     if (gap > 0f && perDay > 0f) {
         // (By its own weeks as they came where it has a year of them ([storesAlive]); else by the year ahead.)
         val was = storesAlive(g, b, weather, g.larder)
