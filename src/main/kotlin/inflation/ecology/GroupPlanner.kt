@@ -70,6 +70,8 @@ internal class GroupPlanner(internal val gs: HexGroups) {
      */
     @Part("choosing: plan one group")
     internal fun plan(g: HexGroup, weather: Weather, date: Date, predatorKg: FloatArray): Plan {
+        // (For the census: the least peril among the places it weighs, [HexGroup.safestPeril]; unknown until it weighs any.)
+        g.safestPeril = Float.NaN
         return planInner(g, weather, date, predatorKg)
     }
 
@@ -177,6 +179,9 @@ internal class GroupPlanner(internal val gs: HexGroups) {
         val c = PlanContext(g, kind, here, sensed, month, goal, goalQ, fromHere, reach, thirsty, restless, season, keepOff,
             weather, date, goalHex, predatorKg, buf, lacked, lackedHex, lackedQ, if (!lackedHex.none) gs.hexKm(here, lackedHex) else 0.0)
         val at = c.at
+        if (gs.hurricanes != null) { var least = Float.POSITIVE_INFINITY
+            for (ri in 0 until reached.size) least = min(least, gs.perilAhead(reached[ri]))
+            if (least.isFinite()) g.safestPeril = least }
         for (ri in 0 until reached.size) {
             val h = reached[ri]
             val d = dist[h]
