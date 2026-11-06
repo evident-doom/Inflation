@@ -13,6 +13,9 @@ import kotlin.math.roundToLong
 
 // Choosing: what draws a band beyond what any group weighs, its will to explore, the planning mind's reckoned move, its crop, herds and fish.
 
+/** Whether band [g] has food to spare this week: its stores above its aim ([storeSpare]) and it well fed ([WELL_FED]). */
+internal fun hasSurplus(g: HexGroup, b: Band) = g.fed >= WELL_FED && storeSpare(g, b) > 0f
+
 /**
  * Where band [g] goes by its will to explore ([exploreChoice]), of the places weighed in [buf]: scored by its [policy]'s
  * scores (the network's), or without one by the hand-written; [best] where the scores alone would send it.
@@ -23,7 +26,8 @@ internal fun GroupPlanner.explored(g: HexGroup, policy: HexPolicy?, buf: Scratch
     if (n == 0) return best
     val scores = if (policy == null) buf.explScores else policy.scores(g, Array(n) { buf.candFeats[it] }, buf.candScores.copyOf(n)) ?: return best
     val stays = (0 until n).firstOrNull { buf.explPlaces[it] == g.place.i } ?: -1
-    val k = if (b.mind.gate == MoveGate.BEST) exploreBest(n, scores, buf.explDeaths)
+    val gate = b.mind.gate
+    val k = if (gate == MoveGate.BEST || (gate == MoveGate.SURPLUS && !hasSurplus(g, b))) exploreBest(n, scores, buf.explDeaths)
         else gs.exploreChoice(g, b.explore, n, scores, buf.explDeaths, stays, if (policy == null) HAND_SCORE_UNIT else 1f, date.absoluteDay)
     return if (k < 0) best else Place(buf.explPlaces[k])
 }
