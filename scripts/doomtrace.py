@@ -127,7 +127,7 @@ def lean(args):
 PERIL = re.compile(r'peril #(?P<id>\d+) (?P<date>[^:]+): (?P<people>\d+) people, mind (?P<mind>\w+), by (?P<by>\w+)(?P<restless>, restless)?(?P<party>, party out)?; '
     r'camp peril (?P<camp>[\d.]+) \((?P<stay>[^)]*)\); reach (?P<reach>\d+) km \((?P<hexes>\d+) hexes, (?P<free>\d+) free, nearest free at (?P<near>\S+)\); '
     r'chose peril (?P<chose>[\d.]+)(?P<where> \(stays\)| at \d+), (?P<cho>[^;]*); weighed (?P<n>\d+), safest steps (?P<safest>[^;]+); '
-    r'free weighed (?P<fw>\d+) \(not open (?P<shut>\d+), no score (?P<unsc>\d+)\), best open free: (?P<bf>.*)')
+    r'free weighed (?P<fw>\d+) \(not open (?P<shut>\d+), no score (?P<unsc>\d+)\), best open free: (?P<bf>.*?)(?:; way out (?P<out>.*))?$')
 PERIL_END = re.compile(r'perilEnd #(?P<id>\d+) (?P<date>[^:]+): (?P<end>.*)')
 DAY = re.compile(r'Year (\d+), month (\d+), day (\d+)')
 PERIL_CASES = ['no free place in reach', 'went to a free place', 'free in reach, none weighed', 'free weighed, none open', 'open free place, chose a perilous one']
@@ -145,10 +145,10 @@ def day(date):
 
 def peril(args):
     show = '--bands' in args
-    warned = collections.Counter(); why = collections.Counter(); killed = collections.Counter(); struck = 0
+    warned = collections.Counter(); why = collections.Counter(); killed = collections.Counter(); stretched = collections.Counter(); struck = 0
     shown = []
     for path in (a for a in args if not a.startswith('--')):
-        last = {}; now = {}
+        last = {}; now = {}; stretch = collections.defaultdict(list)
         for run, l in runs(path):
             m = PERIL.match(l)
             if m:
@@ -160,6 +160,9 @@ def peril(args):
                     if show and c in PERIL_CASES[2:]: shown.append(l.rstrip())
                 else: struck += 1
                 now[key] = (w, last.get(key)); last[key] = w
+                st = stretch[key]; d = day(w['date'])
+                if st and (d is None or st[-1][0] is None or d - st[-1][0] > 8): st.clear()
+                st.append((d, w))
                 continue
             m = PERIL_END.match(l)
             if m and m['end'] == 'died out':
@@ -167,6 +170,13 @@ def peril(args):
                 w, before = now.get(key, (None, None))
                 if w is None or float(w['camp']) < 1: continue
                 d0, d1 = day(before['date']) if before else None, day(w['date'])
+                ws = [x for _, x in stretch[key][:-1]]
+                if not ws: c = 'not warned'
+                elif any(float(x['chose']) == 0 for x in ws): c = 'reached a free place, then the peril came onto it'
+                elif any(peril_case(x) == PERIL_CASES[3] for x in ws): c = 'a free place in reach some week, none open'
+                elif any(peril_case(x) == PERIL_CASES[4] for x in ws): c = 'an open free place some week, chose a perilous one'
+                else: c = 'never a free place in reach'
+                stretched[c] += 1
                 if before is None or d0 is None or d1 is None or d1 - d0 > 8: killed['not warned the week before'] += 1
                 else:
                     c = peril_case(before); killed[c] += 1
@@ -178,6 +188,8 @@ def peril(args):
     print(f'bands that died with their camp struck: {sum(killed.values())}, by the case of their week before:')
     for c in ['not warned the week before'] + PERIL_CASES:
         if killed[c]: print(f'  {c:40} {killed[c]:6d}')
+    print('the same bands by their whole warned stretch (consecutive warned weeks before the strike):')
+    for c, v in stretched.most_common(): print(f'  {c:52} {v:6d}')
     for l in shown: print(l)
 
 if __name__ == '__main__':

@@ -361,10 +361,12 @@ internal fun GroupPlanner.crossingDeaths(s: Species, to: Hex, here: Hex, via: He
  * week ([stormDeaths]), or the deadliest peril foreseen where it would camp ([HexGroups.perilAhead]: the share it would kill
  * times how soon), whichever is more. So a peril weeks ahead weighs in the deaths foreseen ([HexFeatures.DEATHS_FORESEEN]),
  * which the trained movers already flee (stormwhy670b: pull -4.8 to -6.4 a unit), while [HexFeatures.DEADLY_AHEAD], rarely
- * met, had learned next to nothing.
+ * met, had learned next to nothing. Where the group's camp is in peril, the peril at each place is weighed by how far that
+ * place still is from ground free of it ([wayOutPeril]).
  */
 @Part("choosing: peril deaths")
-internal fun GroupPlanner.perilDeaths(to: Hex, here: Hex, via: HexArray): Float = max(stormDeaths(to, here, via), gs.perilAhead(to))
+internal fun GroupPlanner.perilDeaths(to: Hex, here: Hex, via: HexArray, buf: GroupPlanner.Scratch): Float =
+    max(stormDeaths(to, here, via), wayOutPeril(to, buf))
 
 /**
  * The share of a group that the hurricane test's storms ([HexHurricane]) would kill going from hex [here] to hex [to] along

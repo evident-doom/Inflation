@@ -29,7 +29,8 @@ the tracing only reads, so the second pass follows the same course as the first 
   week, and a band whose camp is struck dies whatever it chooses); its reach, the hexes in it free of the peril and the
   effort to the nearest; the place it chose, its peril, survival steps and hand-written score; and of the places it weighed,
   the safest's survival steps, how many free places it weighed, how many of those were not open (deadlier than the safest
-  by more than a step, which the draw and the planner never take) or had no score, and the best open free place. At the
+  by more than a step, which the draw and the planner never take) or had no score, and the best open free place; and the
+  effort from its camp to the nearest free ground within 6 weeks' reach (`way out`, [searchWayOut]). At the
   week's end a `perilEnd #` line says whether it lived. One pass is enough: the trace prints every warned band.
 - `scripts/doomtrace.py`:
   - `pick OUT`: from a pass-1 output, the `doomTrace=` key for pass 2 (bands that died out, the hungriest living,
@@ -41,7 +42,8 @@ the tracing only reads, so the second pass follows the same course as the first 
   - `lean OUT [OUT ...]`: the lean table summed over years and runs, by kind of country and by country and month.
   - `peril OUT [OUT ...] [--bands]`: the warned band-weeks in cases (no free place in reach; went to a free place; free in
     reach but none weighed; free weighed but none open; an open free place, but it chose a perilous one, by mind, net or
-    hand, staying or moving), and the bands killed with their camp struck by the case of their week before.
+    hand, staying or moving), and the bands killed with their camp struck by the case of their week before and by their
+    whole warned stretch.
 
 ## The method
 

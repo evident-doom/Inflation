@@ -37,7 +37,8 @@ internal val PERIL_TRACE = Config.flag(Config.Key.PERIL_TRACE, false)
  * - chose: its peril, the effort there (or stays), survival steps and hand-written score;
  * - weighed: the places weighed, the least survival steps among them; the places free of the peril weighed, and of them
  *   the best by hand-written score that is open (no deadlier than the safest by a step, as the draw and the planner
- *   allow, [exploreDraw], [plannedMove]): its steps and score; how many free places were not open, or had no score.
+ *   allow, [exploreDraw], [plannedMove]): its steps and score; how many free places were not open, or had no score;
+ * - way out: the effort from its camp to the nearest free ground within [WAY_OUT_WEEKS] weeks' reach ([searchWayOut]).
  */
 internal fun GroupPlanner.tracePeril(c: PlanContext, best: Place, byNet: Boolean): Boolean {
     val g = c.g; val b = g.band ?: return false
@@ -64,10 +65,11 @@ internal fun GroupPlanner.tracePeril(c: PlanContext, best: Place, byNet: Boolean
     fun place(k: Int) = if (k < 0) "not weighed" else "steps %.1f, score %.2f".format(buf.explDeaths[k], buf.explScores[k])
     val bestHex = gs.hw.placeHex[best]
     System.err.println(("peril #%d %s: %d people, mind %s, by %s%s%s; camp peril %.2f (%s); reach %.0f km (%d hexes, %d free, nearest free at %s); " +
-        "chose peril %.2f%s, %s; weighed %d, safest steps %.1f; free weighed %d (not open %d, no score %d), best open free: %s").format(
+        "chose peril %.2f%s, %s; weighed %d, safest steps %.1f; free weighed %d (not open %d, no score %d), best open free: %s; way out %s").format(
         g.id, c.date, g.size, b.mind.label, if (byNet) "net" else "hand", if (c.restless) ", restless" else "", if (gs.parties[g.id] != null) ", party out" else "",
         camp, place(kStay), c.reach, reached.size, freeHexes, if (nearestFree.isNaN()) "none" else "%.0f".format(nearestFree),
         gs.perilAhead(bestHex), if (best == g.place) " (stays)" else " at %.0f".format(dist[bestHex]), place(kChose),
-        n, safest, freeWeighed, freeShut, freeUnscored, if (kFree < 0) "none" else place(kFree)))
+        n, safest, freeWeighed, freeShut, freeUnscored, if (kFree < 0) "none" else place(kFree),
+        buf.wayOut?.get(c.here.i)?.let { "%.0f km".format(it) } ?: "none"))
     return true
 }
