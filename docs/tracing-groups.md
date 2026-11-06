@@ -13,12 +13,17 @@ the tracing only reads, so the second pass follows the same course as the first 
   new watch in its own file, with its own config keys and a case in `groupWatch`; the model code is not touched.
 - The doom trace (`ecology/DoomTrace.kt`), the watch so far, with two config keys:
   - `doomList=true`: on stderr, each year the bands with 2 or more hunger deaths, a control sample (1 in 40 by id
-    of the bands with none), and each band that dies out after hunger deaths.
+    of the bands with none), and each band that dies out after hunger deaths. Also each year the lean table
+    (`doomLean` lines): for every band, by the kind of country it is in and the month, the band-weeks and
+    people-weeks, the weeks it drew on its fat, was fed under 0.9 and moved camp, and its hunger deaths.
   - `doomTrace=ID,ID,...`: on stderr, for each of these bands, each week as it chooses: its people, fed, fat,
     larder, last forage yield, whether restless; its reach and the hexes in it; the food its mover sees
     (`knownGame`) at home, at the place chosen (with crowding, whether a network chose, its mind), and at the best
     place in reach (and how many are 1.25x as rich as home); and by a least-effort search out to 4x its reach, the
-    best place there and the effort to the nearest place 1.25x as rich as home.
+    best place there and the effort to the nearest place 1.25x as rich as home. Then its kind of country and hex,
+    its camp's mean forage yield over the last 4 weeks, its own record of the food it got this month and the 3
+    months ahead (`Band.monthSupply`, share of need), its foreseen lean days and survival, and how fed it remembers
+    being at this hex in this season (`PlaceMemory`).
 - `scripts/doomtrace.py`:
   - `pick OUT`: from a pass-1 output, the `doomTrace=` key for pass 2 (bands that died out, the hungriest living,
     and controls; `--died N --hungry N --control N`).
@@ -26,6 +31,7 @@ the tracing only reads, so the second pass follows the same course as the first 
     reach and stayed / moved, better only beyond reach, nothing better; not restless; reach holding only its own
     hex), all weeks and hungry weeks (fed < 0.9) apart, doomed against control, by arm (the run name before its
     first `-`).
+  - `lean OUT [OUT ...]`: the lean table summed over years and runs, by kind of country and by country and month.
 
 ## The method
 

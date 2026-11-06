@@ -16,7 +16,7 @@ import inflation.world.Place
 internal interface GroupWatch {
     fun chose(planner: GroupPlanner, c: PlanContext, best: Place, byNet: Boolean) {}
     fun outcome(g: HexGroup, o: Outcome) {}
-    fun weekEnd(groups: List<HexGroup>, date: inflation.world.Date) {}
+    fun weekEnd(gs: HexGroups, date: inflation.world.Date) {}
 }
 
 /** The watch the run keeps, from its config: null (the model calls nothing) unless a trace is asked for. */

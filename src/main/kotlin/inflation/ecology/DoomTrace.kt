@@ -14,6 +14,12 @@ import inflation.world.get
 internal object DoomWatch : GroupWatch {
     /** Each band's hunger deaths this year (by id), for doomList. */
     private val hungerDied = java.util.concurrent.ConcurrentHashMap<Int, Int>()
+    /** Each band's hunger deaths this week (by id), for the lean table ([lean]). */
+    private val hungerWeek = java.util.concurrent.ConcurrentHashMap<Int, Int>()
+    /** Each band's fat at last week's end, for the lean table. */
+    private val fatBefore = HashMap<Int, Float>()
+    /** The lean table over the year: by kind of country and month (biome * 12 + month), the counts in [Lean]. */
+    private val lean = HashMap<Int, IntArray>()
     /** The year whose hunger deaths are being counted. */
     private var year = Long.MIN_VALUE
     override fun chose(planner: GroupPlanner, c: PlanContext, best: Place, byNet: Boolean) {
@@ -22,12 +28,44 @@ internal object DoomWatch : GroupWatch {
     override fun outcome(g: HexGroup, o: Outcome) {
         if (!DOOM_LIST || g.band == null) return
         val n = o.causes.sumOf { if (it.cause == DeathCause.HUNGER) it.n else 0 }
-        if (n > 0) hungerDied.merge(g.id, n, Int::plus)
+        if (n > 0) { hungerDied.merge(g.id, n, Int::plus); hungerWeek.merge(g.id, n, Int::plus) }
     }
-    override fun weekEnd(groups: List<HexGroup>, date: inflation.world.Date) {
+    override fun weekEnd(gs: HexGroups, date: inflation.world.Date) {
         if (!DOOM_LIST) return
+        val groups = gs.groups
         for (g in groups) if (!g.alive && g.mergedSize < 0) listDoomedEnd(g, date, hungerDied[g.id] ?: 0)
-        if (date.year != year) { if (year != Long.MIN_VALUE) listDoomedYear(groups, date, hungerDied); year = date.year }
+        // (The lean table: every band this week, by the kind of country it is in and the month.)
+        for (g in groups) { val b = g.band ?: continue
+            val died = hungerWeek[g.id] ?: 0
+            if (!g.alive && died == 0) continue
+            val row = lean.getOrPut(gs.biomeOfPlace[g.place] * 12 + date.month) { IntArray(Lean.entries.size) }
+            row[Lean.BAND_WEEKS.ordinal]++; row[Lean.PEOPLE_WEEKS.ordinal] += g.size
+            val was = fatBefore[g.id]
+            if (was != null && g.fat < was - 0.05f) row[Lean.FAT_DRAWN.ordinal]++
+            if (g.fed < 0.9f) row[Lean.HUNGRY.ordinal]++
+            if (b.movedCamp) row[Lean.MOVED.ordinal]++
+            row[Lean.HUNGER_DEATHS.ordinal] += died
+            if (g.alive) fatBefore[g.id] = g.fat else fatBefore.remove(g.id)
+        }
+        hungerWeek.clear()
+        if (date.year != year) {
+            if (year != Long.MIN_VALUE) { listDoomedYear(groups, date, hungerDied); printLean(date, lean); lean.clear() }
+            year = date.year
+        }
+    }
+}
+
+/** What the lean table counts: band-weeks, people-weeks; band-weeks drawing on fat, fed under 0.9, moving camp; hunger deaths. */
+private enum class Lean(val label: String) {
+    BAND_WEEKS("band-weeks"), PEOPLE_WEEKS("people-weeks"), FAT_DRAWN("fat drawn"), HUNGRY("fed<0.9"), MOVED("moved"),
+    HUNGER_DEATHS("hunger deaths")
+}
+
+/** doomList: at a year's end, the lean table, a line for each kind of country and month with bands in it. */
+private fun printLean(date: inflation.world.Date, lean: Map<Int, IntArray>) {
+    for (k in lean.keys.sorted()) { val row = lean.getValue(k)
+        System.err.println("doomLean year to %s: %s, month %d: %s".format(date, inflation.world.Biome.entries[k / 12].label, k % 12 + 1,
+            Lean.entries.joinToString(", ") { "${it.label} ${row[it.ordinal]}" }))
     }
 }
 
@@ -91,7 +129,18 @@ internal fun GroupPlanner.traceDoomed(c: PlanContext, best: Place, byNet: Boolea
         "here %.0f, chose %.0f%s (crowd %.2f, by %s, mind %s); best in reach %.0f at %.0f (%d places %.2fx); within %.0f: best %.0f at %.0f (crowd %.2f), first %.2fx at %s").format(
         g.id, c.date, g.size, g.fed, g.fat, larder, b.yieldNow, if (c.restless) ", restless" else "", c.reach, reached.size,
         here, chose, if (best == g.place) " (stays)" else " at %.0f".format(dist[bestHex]), crowdChose, if (byNet) "net" else "hand", b.mind.label, inBest, inBestKm, inBetter, DOOM_BETTER,
-        wide, wBest, wBestKm, crowdBest, DOOM_BETTER, if (firstBetterKm.isNaN()) "none" else "%.0f".format(firstBetterKm)))
+        wide, wBest, wBestKm, crowdBest, DOOM_BETTER, if (firstBetterKm.isNaN()) "none" else "%.0f".format(firstBetterKm)) +
+        // (Where it is, what its camp has yielded lately, and what it knows of the months ahead: its own record of the food
+        // it got in each month over the years ([Band.monthSupply], share of its need), the lean days it foresees, its
+        // foreseen survival, and what it remembers of how fed it was here in this season ([PlaceMemory]).)
+        run {
+            val m = c.date.month
+            val mi = g.memory.find(c.here, PlaceMemory.seasonOf(m))
+            "; country %s, hex %d; yield 4 wk %.2f; record now %.2f, ahead %s; lean days %.0f; foreseen %.3f; remembered fed here %.2f".format(
+                inflation.world.Biome.entries[gs.biomeOfPlace[g.place]].label, c.here.i, b.recentYield(c.date, gs.days), b.monthSupply[m],
+                (1..3).joinToString("/") { "%.2f".format(b.monthSupply[(m + it) % 12]) }, b.leanDays, g.foreseen,
+                if (mi >= 0) g.memory.fed[mi] else Float.NaN)
+        })
 }
 
 /** doomList: band [g], dying out, printed if it lost [died] to hunger this year. */

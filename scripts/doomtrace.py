@@ -8,6 +8,10 @@
       From pass-2 outputs (with doomTrace=...), each followed band's weeks put into cases, doomed against control:
       better ground within reach (stayed / moved), better only beyond reach, nothing better; reach holding only the
       band's own hex; hungry weeks (fed < 0.9) apart. A file may hold several runs, each headed by a line '=== NAME ...'.
+  doomtrace.py lean OUT [OUT ...]
+      From outputs with doomList=true, the lean table summed over all years and runs: by kind of country, its share of
+      band-weeks, the share of them drawing on fat and fed under 0.9, moving camp, and hunger deaths per 1000 people a
+      year; then by country and month, hunger deaths per 1000 people a year and the share drawing on fat.
 """
 import collections, re, sys
 
@@ -88,6 +92,33 @@ def summary(args):
             print(f"{arm} {group}, {part} weeks ({n}): " + ", ".join(f"{k} {100 * c[(part, k)] / n:.0f}%"
                 for k in CASES + ['not restless', 'own hex only in reach']))
 
+LEAN = re.compile(r'doomLean year to [^:]*: (?P<country>[^,]+), month (?P<m>\d+): (?P<counts>.*)')
+
+def lean(args):
+    """The lean table (doomLean lines) summed over the files given, by kind of country, then by country and month."""
+    rows = collections.defaultdict(collections.Counter)
+    for path in args:
+        for _, l in runs(path):
+            m = LEAN.search(l)
+            if not m: continue
+            for part in m['counts'].split(', '):
+                k, v = part.rsplit(' ', 1)
+                rows[(m['country'], int(m['m']))][k] += int(v)
+    by = collections.defaultdict(collections.Counter)
+    for (c, _), r in rows.items(): by[c].update(r)
+    allw = sum(r['band-weeks'] for r in by.values()) or 1
+    # (Hunger deaths a year per 1000 people: people-weeks to years by the weeks a year the run steps, 60 at steps of 6 days of a 360-day year.)
+    def per(r): return 1000 * r['hunger deaths'] / max(1, r['people-weeks']) * 60
+    print('by kind of country: share of band-weeks; fat drawn, fed<0.9, moved, % of its band-weeks; hunger deaths a year per 1000')
+    for c, r in sorted(by.items(), key=lambda x: -x[1]['band-weeks']):
+        w = max(1, r['band-weeks'])
+        print(f"  {c:24} {100*r['band-weeks']/allw:5.1f}%  fat {100*r['fat drawn']/w:5.1f}%  fed<0.9 {100*r['fed<0.9']/w:5.1f}%  moved {100*r['moved']/w:5.1f}%  hunger {per(r):6.1f}")
+    print('by country and month (months 1-12): hunger deaths a year per 1000 | fat drawn %')
+    for c in sorted(by, key=lambda c: -by[c]['band-weeks']):
+        if by[c]['band-weeks'] < 0.01 * allw: continue
+        ms = [rows.get((c, m), collections.Counter()) for m in range(1, 13)]
+        print(f"  {c:24} " + ' '.join(f"{per(r):5.0f}" for r in ms) + ' | ' + ' '.join(f"{100*r['fat drawn']/max(1, r['band-weeks']):3.0f}" for r in ms))
+
 if __name__ == '__main__':
-    if len(sys.argv) < 3 or sys.argv[1] not in ('pick', 'summary'): sys.exit(__doc__)
-    (pick if sys.argv[1] == 'pick' else summary)(sys.argv[2:])
+    if len(sys.argv) < 3 or sys.argv[1] not in ('pick', 'summary', 'lean'): sys.exit(__doc__)
+    {'pick': pick, 'summary': summary, 'lean': lean}[sys.argv[1]](sys.argv[2:])
