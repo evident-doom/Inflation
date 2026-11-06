@@ -22,6 +22,8 @@ internal object DoomWatch : GroupWatch {
     private val fatBefore = HashMap<Int, Float>()
     /** The lean table over the year: by kind of country and month (biome * 12 + month), the counts in [Lean]. */
     private val lean = HashMap<Int, IntArray>()
+    /** The prey table: by kind of country and month, the residents' grown biomass (kg, summed over weeks) and of it the fat share times that. */
+    private val prey = HashMap<Int, DoubleArray>()
     /** The year whose hunger deaths are being counted. */
     private var year = Long.MIN_VALUE
     override fun chose(planner: GroupPlanner, c: PlanContext, best: Place, byNet: Boolean) {
@@ -59,8 +61,17 @@ internal object DoomWatch : GroupWatch {
             if (g.alive) fatBefore[g.id] = g.fat else fatBefore.remove(g.id)
         }
         hungerWeek.clear()
+        // (The prey table: how fat the grown residents are, by kind of country and month, weighed by their biomass: the fat a
+        // hunter's kill carries, [fatOfKill], as the country's game stands.)
+        val fauna = gs.fauna
+        for (p in 0 until fauna.n) { val place = Place(p)
+            val row = prey.getOrPut(gs.biomeOfPlace[p] * 12 + date.month) { DoubleArray(2) }
+            for (k in fauna.kinds.indices) { val kg = fauna.adults[k][p] * fauna.kinds[k].massKg
+                if (!(kg > 0f)) continue
+                row[0] += kg.toDouble(); row[1] += (kg * fauna.fatShare(k, place) / fauna.kinds[k].mostFatShare.coerceAtLeast(1e-6f)).toDouble() }
+        }
         if (date.year != year) {
-            if (year != Long.MIN_VALUE) { listDoomedYear(groups, date, hungerDied); printLean(date, lean); lean.clear() }
+            if (year != Long.MIN_VALUE) { listDoomedYear(groups, date, hungerDied); printLean(date, lean); printPrey(date, prey); lean.clear(); prey.clear() }
             year = date.year
         }
     }
@@ -88,6 +99,14 @@ private fun printLean(date: inflation.world.Date, lean: Map<Int, IntArray>) {
     for (k in lean.keys.sorted()) { val row = lean.getValue(k)
         System.err.println("doomLean year to %s: %s, month %d: %s".format(date, inflation.world.Biome.entries[k / 12].label, k % 12 + 1,
             Lean.entries.joinToString(", ") { "${it.label} ${row[it.ordinal]}" }))
+    }
+}
+
+/** doomList: at a year's end, the prey table, a line for each kind of country: its grown residents' fat reserves month by month, biomass-weighted, % of full. */
+private fun printPrey(date: inflation.world.Date, prey: Map<Int, DoubleArray>) {
+    for (b in prey.keys.map { it / 12 }.distinct().sorted()) {
+        System.err.println("doomPrey year to %s: %s: fat reserves %% of full by month: %s".format(date, inflation.world.Biome.entries[b].label,
+            (0 until 12).joinToString(" ") { m -> val r = prey[b * 12 + m]; if (r == null || r[0] <= 0.0) "-" else "%.0f".format(100.0 * r[1] / r[0]) }))
     }
 }
 
