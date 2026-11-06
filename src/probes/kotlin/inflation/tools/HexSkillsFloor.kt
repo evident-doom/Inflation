@@ -17,7 +17,7 @@ import java.io.File
  * the bands are stripped of their skills, tools, materials, stores, caches, herds, fields and memory of the land, as
  * unprepared people dropped into the wild, and followed week by week. Three arms, each from the same save, weather
  * and start, one after another (one world in memory at a time):
- *  - all: every band stripped at once (the floor the limits are for: [Nominal.floor]);
+ *  - all: every band stripped at once (the floor the limits are for: [Nominal.floor], by the half of the year it falls in);
  *  - drop: one band in [--drop] stripped among neighbours as they are (report only: neighbours share with them);
  *  - usual: no band stripped (the control: the world itself must not be what kills).
  * Only the bands stripped (in the usual arm, the bands that would have been) are counted, with the bands that split
@@ -77,7 +77,8 @@ fun main(args: Array<String>) {
         val usual = results["usual"]
         println()
         println(Nominal.floor(DoubleArray(weeks + 1) { all.share(it) }, usual?.let { u -> DoubleArray(weeks + 1) { u.share(it) } },
-            "skills floor, $world r$replicate start week $startWeek").report())
+            "skills floor, $world r$replicate start week $startWeek" + if (Nominal.coldHalf(all.month)) ", cold half" else ", warm half",
+            Nominal.coldHalf(all.month)).report())
     }
 
     out?.let { p ->
@@ -97,7 +98,7 @@ fun main(args: Array<String>) {
 private val ARMS = setOf("all", "drop", "usual")
 
 /** One arm's people week by week: alive by kind of country (index 0 the start), how well fed, bands left, the world's deaths by cause. */
-private class Arm(val date: String, val start: DoubleArray, weeks: Int, val bands0: Int) {
+private class Arm(val date: String, val month: Int, val start: DoubleArray, weeks: Int, val bands0: Int) {
     val alive = Array(weeks + 1) { DoubleArray(start.size) }.also { start.copyInto(it[0]) }
     val fed = DoubleArray(weeks + 1)
     val bands = IntArray(weeks + 1).also { it[0] = bands0 }
@@ -120,7 +121,7 @@ private fun follow(run: HexSim, arm: String, drop: Int, weeks: Int): Arm {
         g.tag = biomeOf[g.place.i]; start[g.tag] += g.size.toDouble(); counted++
         if (arm != "usual") strip(g)
     }
-    val r = Arm(run.weather.date.toString(), start, weeks, counted)
+    val r = Arm(run.weather.date.toString(), run.weather.date.month, start, weeks, counted)
     r.fed[0] = run.groups.groups.filter { it.alive && it.tag >= 0 && it.species == people }.let { c ->
         c.sumOf { it.fed.toDouble() * it.size } / c.sumOf { it.size }.coerceAtLeast(1) }
     for (w in 1..weeks) {

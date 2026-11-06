@@ -119,4 +119,13 @@ class NominalTest {
         val world = Nominal.floor(curve(0.95, 0.17, 0.01), DoubleArray(53) { 1.0 - 0.3 * it / 52 }, "world")
         assertTrue(world.findings.map { it.what } == listOf("as they are, week 52"), world.report())
     }
+
+    @Test
+    fun `stripped in the cold half, most die of the cold in week 1 and no half-dead window applies`() {
+        val ok = Nominal.floor(curve(0.3, 0.3, 0.001), null, "cold", cold = true)
+        assertTrue(ok.ok, ok.report())
+        val mild = Nominal.floor(curve(0.95, 0.17, 0.01), null, "cold but nobody froze", cold = true)
+        assertTrue(mild.findings.map { it.what } == listOf("stripped in the cold, week 1"), mild.report())
+        assertTrue(Nominal.coldHalf(0) && Nominal.coldHalf(2) && Nominal.coldHalf(10) && !Nominal.coldHalf(5) && !Nominal.coldHalf(8))
+    }
 }

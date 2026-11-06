@@ -129,12 +129,22 @@ object Nominal {
      * half dead no sooner than week [FLOOR_HALF_MIN] and no later than week [FLOOR_HALF_MAX]; at most [FLOOR_WEEK13_MAX]
      * left after a season and [FLOOR_WEEK52_MAX] after a year (a few relearn and live). The bands as they are, the
      * same world and weather unstripped, keep at least [FLOOR_USUAL_WEEK52_MIN] of their people through the year, so
-     * that the stripping, not the world, is what kills. PROPOSED (2026-11-06), not yet agreed by Olli.
+     * that the stripping, not the world, is what kills.
+     *
+     * Those limits are for a strip in the warm half of the year (May to October). Stripped in the cold half (November to
+     * April), the unclad without fire die of exposure first, within days (the record's "hours to a night" where it is
+     * cold): between [FLOOR_COLD_WEEK1_MIN] and [FLOOR_COLD_WEEK1_MAX] alive after a week (the warmest country keeps
+     * some), and the same limits for week 13 and week 52; no half-dead window. Measured on m5-1..3 with the Run C nets
+     * (floor661b, 2026-11-06): warm strips half dead in weeks 4-6, 2-7% at week 13; cold strips 12-62% after week 1, at
+     * most 2.4% at week 13; none above 0.5% at week 52. PROPOSED (2026-11-06), not yet agreed by Olli.
      */
     const val FLOOR_WEEK1_MIN = 0.85
     const val FLOOR_HALF_MIN = 3; const val FLOOR_HALF_MAX = 9
     const val FLOOR_WEEK13_MAX = 0.25; const val FLOOR_WEEK52_MAX = 0.10
     const val FLOOR_USUAL_WEEK52_MIN = 0.90
+    const val FLOOR_COLD_WEEK1_MIN = 0.05; const val FLOOR_COLD_WEEK1_MAX = 0.75
+    /** Whether a strip in [month] (0 January) falls in the cold half of the year (November to April), for [floor]. */
+    fun coldHalf(month: Int) = month >= 10 || month <= 3
 
     /**
      * How a state may change from year to year (rise to at most [rise] times, fall to no less than 1/[fall]) and from
@@ -239,17 +249,23 @@ object Nominal {
      * The skills floor against its limits ([FLOOR_WEEK1_MIN] and on): [stripped] and [usual] are the shares of the
      * stripped bands' people, and of the same bands left as they are, alive after each week (index 0 the start, 1),
      * from one world, weather and start; [what] names them. A limit past the weeks run is not tried, but for the half
-     * dead, which fails when the run outlasts [FLOOR_HALF_MAX] without it.
+     * dead, which fails when the run outlasts [FLOOR_HALF_MAX] without it. [cold]: stripped in the cold half of the year
+     * ([coldHalf]), with its own week-1 limits and no half-dead window.
      */
-    fun floor(stripped: DoubleArray, usual: DoubleArray?, what: String): Result {
+    fun floor(stripped: DoubleArray, usual: DoubleArray?, what: String, cold: Boolean = false): Result {
         val t = Tally()
         val weeks = stripped.size - 1
         fun pct(v: Double) = "%.0f%%".format(100 * v)
-        if (weeks >= 1) t.check(stripped[1] >= FLOOR_WEEK1_MIN, "stripped, week 1") { "${pct(stripped[1])} alive, below ${pct(FLOOR_WEEK1_MIN)}" }
-        val half = (1..weeks).firstOrNull { stripped[it] < 0.5 }
-        if (half != null) t.check(half in FLOOR_HALF_MIN..FLOOR_HALF_MAX, "stripped, half dead") {
-            "in week $half, outside weeks $FLOOR_HALF_MIN-$FLOOR_HALF_MAX" }
-        else if (weeks >= FLOOR_HALF_MAX) t.check(false, "stripped, half dead") { "not by week $weeks (${pct(stripped[weeks])} alive)" }
+        if (cold) {
+            if (weeks >= 1) t.check(stripped[1] in FLOOR_COLD_WEEK1_MIN..FLOOR_COLD_WEEK1_MAX, "stripped in the cold, week 1") {
+                "${pct(stripped[1])} alive, outside ${pct(FLOOR_COLD_WEEK1_MIN)}-${pct(FLOOR_COLD_WEEK1_MAX)}" }
+        } else if (weeks >= 1) t.check(stripped[1] >= FLOOR_WEEK1_MIN, "stripped, week 1") { "${pct(stripped[1])} alive, below ${pct(FLOOR_WEEK1_MIN)}" }
+        if (!cold) {
+            val half = (1..weeks).firstOrNull { stripped[it] < 0.5 }
+            if (half != null) t.check(half in FLOOR_HALF_MIN..FLOOR_HALF_MAX, "stripped, half dead") {
+                "in week $half, outside weeks $FLOOR_HALF_MIN-$FLOOR_HALF_MAX" }
+            else if (weeks >= FLOOR_HALF_MAX) t.check(false, "stripped, half dead") { "not by week $weeks (${pct(stripped[weeks])} alive)" }
+        }
         if (weeks >= 13) t.check(stripped[13] <= FLOOR_WEEK13_MAX, "stripped, week 13") { "${pct(stripped[13])} alive, above ${pct(FLOOR_WEEK13_MAX)}" }
         if (weeks >= 52) t.check(stripped[52] <= FLOOR_WEEK52_MAX, "stripped, week 52") { "${pct(stripped[52])} alive, above ${pct(FLOOR_WEEK52_MAX)}" }
         if (usual != null && usual.size > 52) t.check(usual[52] >= FLOOR_USUAL_WEEK52_MIN, "as they are, week 52") {
