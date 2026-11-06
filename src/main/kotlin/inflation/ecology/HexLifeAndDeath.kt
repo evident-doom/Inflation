@@ -308,6 +308,8 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
             for ((cause, k) in o.causes) if (k > 0) bookCalibration(b, cause, k)
             // (And against what it foresaw of the week's deaths as it chose its places, the weeks before: [bookWarning].)
             bookWarning(g, b, o.causes)
+            // (And whether it leaves camps after a death, by how it lives and holds its dead: [bookUnlucky].)
+            bookUnlucky(g, b, way, o.deaths > 0)
             // (And its hunger deaths by what its larder held then, and whether it moved camp in the month before.)
             val starved = o.causes.sumOf { if (it.cause == DeathCause.HUNGER) it.n else 0 }
             // (And by how often it has moved camp lately, in the season: [moveCensus].)
@@ -390,6 +392,21 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
 }
 
 /**
+ * The census of unlucky camps ([Tally.Unluck]), report only: this band-week of [b] (living [way]), whether it had a death,
+ * and, while a camp of its is marked unlucky, whether it is still on it, apart for marks at its own houses.
+ */
+private fun HexGroups.bookUnlucky(g: HexGroup, b: Band, way: Tally.Living, died: Boolean) {
+    val dead = Tally.DeadWay.of(b.holds(Tradition.LEAVE_DEAD), b.holds(Tradition.BURIAL))
+    val k = { what: Tally.Unluck -> Tally.unlucky(way, dead, what) }
+    stats.tally(k(Tally.Unluck.BAND_WEEKS), 1)
+    if (died) stats.tally(k(Tally.Unluck.DEATH_WEEKS), 1)
+    val u = b.unlucky ?: return
+    val on = hw.placeHex[g.place] == u.hex
+    stats.tally(k(if (on) Tally.Unluck.ON else Tally.Unluck.AWAY), 1)
+    if (b.house > 0f && b.houseHex == u.hex) stats.tally(k(if (on) Tally.Unluck.ON_HOUSES else Tally.Unluck.AWAY_HOUSES), 1)
+}
+
+/**
  * What a band's dead do to it ([o] is its week): a camp left where someone died, the wounded of a beast's attack, the place
  * remembered as dangerous or as its dead's, burials and the ornaments that go with them.
  */
@@ -401,6 +418,11 @@ private fun HexGroups.mournDead(g: HexGroup, o: Outcome, date: Date) {
         if (b.holds(Tradition.LEAVE_DEAD) && !b.holds(Tradition.BURIAL)) {
             b.unlucky = Unlucky(hw.placeHex[g.place], UNLUCKY_WEEKS)
             note(g) { "left the camp where its dead lie" }
+            if (stats.bandSplits) {
+                val k = { what: Tally.Unluck -> Tally.unlucky(bandLiving(b), Tally.DeadWay.LEAVES, what) }
+                stats.tally(k(Tally.Unluck.MARKED), 1)
+                if (b.house > 0f && b.houseHex == hw.placeHex[g.place]) stats.tally(k(Tally.Unluck.MARKED_HOUSES), 1)
+            }
         }
     }
     // A week's toll far above what it is used to (one death a week at the least) is an omen where it fell ([omen]); what it

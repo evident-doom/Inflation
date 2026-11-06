@@ -585,6 +585,11 @@ class Census(private val sim: HexSim) {
                 val n = (lastYear[Tally.movedLatelyRate(m, null)] ?: 0).toDouble()
                 if (n <= 0.0) "${m.label}: -" else m.label + ": " + Tally.WorkRate.entries.joinToString(", ") { r -> "%s %.3f".format(r.label, (lastYear[Tally.movedLatelyRate(m, r)] ?: 0).toDouble() / 100 / n) }
             })
+        // Whether bands leave camps they have built up after a death: by how they live and hold their dead ([bookUnlucky]).
+        println("unlucky camps, last year (by how bands live and hold their dead: " + Tally.Unluck.entries.joinToString(", ") { it.label } + "): " +
+            Tally.Living.entries.flatMap { l -> Tally.DeadWay.entries.map { d -> l to d } }.joinToString("; ") { (l, d) ->
+                "${l.label}, ${d.label}: " + Tally.Unluck.entries.joinToString(" ") { u -> "${lastYear[Tally.unlucky(l, d, u)] ?: 0}" }
+            })
         // Whether bands saw their hunger and thirst deaths coming: what they foresaw for the week as they chose their place,
         // the week they died and the weeks before ([bookWarning]), and the people-weeks by what they foresaw ([weekWarning]).
         for (d in WarnDeaths.entries) {
