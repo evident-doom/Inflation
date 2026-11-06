@@ -59,7 +59,7 @@ internal fun carryRules(): Map<String, Pair<OnSplit, OnJoin>> {
     // People.
     rule(OnSplit.SET, OnJoin.SUM, "lastAdults")
     rule(OnSplit.SHARED, OnJoin.SUM, "elders", "ageStage", "goods")
-    rule(OnSplit.COPIED, OnJoin.BLENDED, "raidDeathRate", "kit", "fine", "salted", "dryDepth", "pests", "leanLost", "sodiumShort", "lineage", "inbred", "sisu")
+    rule(OnSplit.COPIED, OnJoin.BLENDED, "raidDeathRate", "kit", "fine", "salted", "dryDepth", "pests", "leanLost", "sodiumShort", "sodiumWant", "lineage", "inbred", "sisu")
     // Camp, home and raids.
     rule(OnSplit.COPIED, OnJoin.LOST, "campWeeks", "stayWeeks", "campPlace", "appointment", "houseHex", "house", "drivenFrom", "drivenBy", "homeEarth", "homeWalls", "homeGroundC", "palisade", "fire",
         "houseLives", "houseFood", "foodFrom", "fishPull", "weaningFood", "waterShort")
@@ -73,6 +73,8 @@ internal fun carryRules(): Map<String, Pair<OnSplit, OnJoin>> {
     rule(OnSplit.SHARED, OnJoin.SUM, "ornaments", "exotic")
     rule(OnSplit.COPIED, OnJoin.BLENDED, "seedDomestic", "grainDomestic")
     rule(OnSplit.SHARED, OnJoin.SUM, "seedCorn")
+    // (The salt a step its people's want takes: split with the people, added on joining.)
+    rule(OnSplit.SHARED, OnJoin.SUM, "saltWantStep")
     rule(OnSplit.CONTRACT, OnJoin.CONTRACT, "herds", "dogs")
     // (The crop stays with the band that sowed it: an offshoot sowed nothing, and a joining band's crop is left to whoever reaps it.)
     rule(OnSplit.FRESH, OnJoin.LOST, "sownPlace", "sownKg", "seedKept", "sinceSowed")

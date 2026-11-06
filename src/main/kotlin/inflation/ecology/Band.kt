@@ -244,6 +244,13 @@ class Band(kinds: Int, totems: Int = kinds) {
     @Transient var saltPace = 1f
     /** The sweat each of its grown people sheds a day where it is this week, litres ([BodyHeat.sweatLitres]): the sodium it carries out is in its need ([inflation.Tuning.sweatSodium]); set as the week starts. */
     @Transient var sweatLitres = 0f
+    /**
+     * Of its people's sodium need last week, the share its food alone left short, before its salt made it up; and the salt
+     * that would make that up a step, kg ([saltPace]): what its salt held must cover, for its foresight ([foreseenSaltPace]).
+     * Set as it eats, and saved like [sodiumShort]: foresight reads them before the next meal.
+     */
+    var sodiumWant = 0f
+    var saltWantStep = 0f
     /** The share of its people's time at work [where] that is work this week ([Sisu], [watchPace]). */
     fun paceAt(where: Workplace) = when (where) {
         Workplace.OUT -> coldPace * hungerPace * sleepPace * saltPace
@@ -807,6 +814,7 @@ class Band(kinds: Int, totems: Int = kinds) {
         knows.copyInto(o.knows)
         fine.copyInto(o.fine)
         o.salted = salted; o.dryDepth = dryDepth; o.pests = pests
+        o.sodiumWant = sodiumWant; o.saltWantStep = saltWantStep * share; saltWantStep -= o.saltWantStep
         o.renown = renown
         rite.copyInto(o.rite); o.riteStrength = riteStrength; o.riteHeld = riteHeld; o.riteKept = riteKept; o.beliefYears = beliefYears; o.strain = strain
         o.omenPlace = omenPlace; o.omenMonth = omenMonth; o.omenYear = omenYear; o.omenWeight = omenWeight; o.deathsUsual = deathsUsual; o.wantSteps = wantSteps; o.wantBroke = wantBroke; o.wantUsual = wantUsual; o.mind = mind; foreseenShares.copyInto(o.foreseenShares); o.foreseenAt = foreseenAt
@@ -854,6 +862,7 @@ class Band(kinds: Int, totems: Int = kinds) {
             if (ka + kb > 0f) a.fine[i] = weightedMean(a.fine[i], ka, b.fine[i], kb)
             a.kit[i] += w * (b.kit[i] - a.kit[i])
         }
+        a.sodiumWant += w * (b.sodiumWant - a.sodiumWant); a.saltWantStep += b.saltWantStep
         if (dried + bDried > 0f) a.salted = weightedMean(a.salted, dried, b.salted, bDried)
         if (dried + bDried > 0f) a.dryDepth = weightedMean(a.dryDepth, dried, b.dryDepth, bDried)
         if (dried + seed + bDried + bSeed > 0f) a.pests = weightedMean(a.pests, dried + seed, b.pests, bDried + bSeed)

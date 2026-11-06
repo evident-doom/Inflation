@@ -86,15 +86,17 @@ internal fun HexGroups.yearAhead(g: HexGroup, b: Band, weather: Weather, shelter
         // (The food it got then, against what keeping warm will take, as [warmthNeed] has it: more food to keep warm is less
         // of the need met.)
         val need = warmthNeed(w, b.fire)
-        odds[k - 1] = w.odds; fed[k - 1] = b.monthSupply[m] / need; spread[k - 1] = b.supplySpread(m) / need
+        // (And as fast as its people will work for the salt it will lack then: [foreseenSaltPace].)
+        val salt = foreseenSaltPace(b, k)
+        odds[k - 1] = w.odds; fed[k - 1] = salt * b.monthSupply[m] / need; spread[k - 1] = salt * b.supplySpread(m) / need
         // (The share of the month it is still at its camp, under the shelters it weighs.)
         val stays = ((stayDays - (k - 1) * Date.DAYS_PER_MONTH) / Date.DAYS_PER_MONTH).coerceIn(0f, 1f)
         if (stays > 0f && shelter != b.shelter) {
             val ws = b.warmth(air, b.fire, home, Date.DAYS_PER_MONTH, shelter, clothes)
             val needS = warmthNeed(ws, b.fire)
             odds[k - 1] += stays * (ws.odds - w.odds)
-            fed[k - 1] += stays * (b.monthSupply[m] / needS - fed[k - 1])
-            spread[k - 1] += stays * (b.supplySpread(m) / needS - spread[k - 1])
+            fed[k - 1] += stays * (salt * b.monthSupply[m] / needS - fed[k - 1])
+            spread[k - 1] += stays * (salt * b.supplySpread(m) / needS - spread[k - 1])
         }
     }
     // (The months it moves camp in, at its usual stay ([Band.stayWeeks]) from the weeks it has kept this one, as
@@ -109,6 +111,22 @@ internal fun HexGroups.yearAhead(g: HexGroup, b: Band, weather: Weather, shelter
     return YearAhead(odds, fed, spread, foodCarried(g, b) / g.dailyNeedKg.coerceAtLeast(1e-3f), moves)
 }
 
+
+/**
+ * The share of its working pace band [b] foresees its people keeping in the [k]th month ahead for the salt they will lack
+ * ([saltPace]): its food leaves them short of sodium as last week ([Band.sodiumWant]), and the salt it holds covers that
+ * for so many steps ([Band.saltWantStep]); beyond them they work the slower. So salt held, laid by or traded for, shows in
+ * what it foresees, and what training judges a band by ([HexGroup.foreseen], `ppo.foreseenShape`): lost strength costs
+ * food, and food lives, by the sim's own rules. Weighed by [inflation.Tuning.saltForeseen] (0: not foreseen).
+ */
+internal fun GroupWorld.foreseenSaltPace(b: Band, k: Int): Float {
+    val weigh = tuning.saltForeseen
+    if (weigh <= 0f || b.sodiumWant <= 0f) return 1f
+    val perMonth = stepsPerYear / Date.MONTHS_PER_YEAR
+    val covered = if (b.saltWantStep > 0f) b.goods[Material.SALT] / b.saltWantStep else Float.POSITIVE_INFINITY
+    val uncovered = ((k * perMonth - covered) / perMonth).coerceIn(0f, 1f)
+    return 1f - weigh * uncovered * (1f - saltPace(b.sodiumWant, 1f, tuning.saltLack))
+}
 
 /**
  * The months ahead in order from next month ([yearAhead]): the exposure odds, the share of the need the food it got then
@@ -226,7 +244,9 @@ internal fun HexGroups.foresee(weather: Weather) {
             val laid = if (b.larderSeen.isNaN()) 0f else (larder - b.larderSeen + b.leftBehind / need) / days
             b.larderSeen = larder; b.leftBehind = 0f
             val got = (g.fed - b.fatFed) * g.warmth + laid
-            b.addSupply(m, got, k)
+            // (Into its months as it would have got it at full strength, for the salt it lacked this week: its forecast foresees
+            // the salt it will lack on its own, [foreseenSaltPace].)
+            b.addSupply(m, if (tuning.saltForeseen > 0f && got > 0f) got / b.saltPace.coerceAtLeast(0.1f) else got, k)
             b.recordWeek(weather.date, days, got, g.warmth, b.movedCamp)
             moveCensus(g, b, b.movedCamp, larder, weather.date.season)
             b.movedCamp = false
