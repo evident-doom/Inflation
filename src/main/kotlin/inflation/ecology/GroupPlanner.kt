@@ -111,6 +111,9 @@ internal class GroupPlanner(internal val gs: HexGroups) {
         val buf = scratch.get()
         val dist = buf.dist; val via = buf.via; val reached = buf.reached
         searchReach(g, here, reach, restless, weather, buf)
+        // (Warned of a peril at its camp: which way is out, beyond its week's reach too, [searchWayOut].)
+        buf.wayOut = null
+        if (gs.perilAhead(here) > 0f) searchWayOut(g, here, reach, weather, buf)
         var best = g.place; var bestScore = Float.NEGATIVE_INFINITY
         val policy = gs.policyFor(g)
         // (moveTrace: a band choosing by the hand-written score books what moved it, [bookMove].)
@@ -215,7 +218,7 @@ internal class GroupPlanner(internal val gs: HexGroups) {
                 val t = buf.terms.also { fillTerms(it, g, p, weather, date) }
                 if (handless) {
                     // (A network sees the deaths it foresees there, as the hand-written score weighs them: see [Feature.DEATHS_FORESEEN].)
-                    if (drowning < 0f) drowning = crossingDeaths(s, h, here, via) + perilDeaths(h, here, via)
+                    if (drowning < 0f) drowning = crossingDeaths(s, h, here, via) + perilDeaths(h, here, via, buf)
                     at.dying = deathsAt(c, p, h, fedThere(h, fed, d), d) + drowning
                     val nc = candPlaces.size
                     if (nc == candFeats.size) candFeats += FloatArray(Feature.size)
@@ -230,7 +233,7 @@ internal class GroupPlanner(internal val gs: HexGroups) {
                 val beside = 0.02f * (gs.hashNoise(g.id, p) - 0.5f) + gs.temperPull(g, p, h, hunters, crowded)
                 // (Where only the best place is wanted, its deaths are worked out after, best first, see below.)
                 if (!wantAll) { buf.later(p, d, prey, fed, score, beside); continue }
-                if (drowning < 0f) drowning = crossingDeaths(s, h, here, via) + perilDeaths(h, here, via)
+                if (drowning < 0f) drowning = crossingDeaths(s, h, here, via) + perilDeaths(h, here, via, buf)
                 val alive = score
                 val why = if (g.id == gs.watched) deathsWhy(c, p) else null
                 val fedT = fedThere(h, fed, d)
@@ -269,7 +272,7 @@ internal class GroupPlanner(internal val gs: HexGroups) {
                 if (up[k] < bestScore) break
                 val p = Place(buf.laterPlace[k]); val h = gs.hw.placeHex[p]
                 val total = buf.laterScore[k] - gs.survivalSteps(g, deathsAt(c, p, h, fedThere(h, buf.laterFed[k], buf.laterD[k]), buf.laterD[k]) +
-                    crossingDeaths(s, h, here, via) + perilDeaths(h, here, via) + leavingAt(h)) + buf.laterBeside[k]
+                    crossingDeaths(s, h, here, via) + perilDeaths(h, here, via, buf) + leavingAt(h)) + buf.laterBeside[k]
                 if (!total.isFinite()) {
                     at.d = buf.laterD[k]; at.prey = buf.laterPrey[k]; at.crowded = Float.NaN; at.fed = buf.laterFed[k]
                     tellNotANumber(c, null, p, h, crossingDeaths(s, h, here, via), buf.laterScore[k])
@@ -441,6 +444,12 @@ internal class GroupPlanner(internal val gs: HexGroups) {
         /** The candidates weighed for a policy: places, their features (arrays reused from week to week), hand-written scores. */
         val candPlaces = IntList(); val candFeats = ArrayList<FloatArray>(); var candScores = FloatArray(64)
         /** For a band, every place weighed ([exploreChoice]): the place, its whole hand-written score, and the survival steps it would cost. */
+        /**
+         * For a group warned of a peril at its camp: the least effort (km of going) from each hex it can reach this week to
+         * the nearest ground free of every peril, found out to [WAY_OUT_WEEKS] weeks of its reach ([searchWayOut]); null
+         * when its camp is in no peril, or no free ground lies that near. [wayOutReach]: its reach this week.
+         */
+        var wayOut: HashMap<Int, Float>? = null; var wayOutReach = 0f
         val explPlaces = IntList(); var explScores = FloatArray(64); var explDeaths = FloatArray(64)
         /** And for the census ([recordWarning]): the share of it it foresaw dead there this week ([deathsAt]), and how fed. */
         var explDying = FloatArray(64); var explFed = FloatArray(64)

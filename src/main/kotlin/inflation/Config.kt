@@ -83,6 +83,7 @@ object Config {
         MOVE_TRACE("moveTrace"),
         DOOM_LIST("doomList"),
         DOOM_TRACE("doomTrace"),
+        PERIL_TRACE("perilTrace"),
         FOLLOW("follow"),
         FOLLOW_HUNGRY("followHungry"),
         STRAND_DIAG("strandDiag"),
