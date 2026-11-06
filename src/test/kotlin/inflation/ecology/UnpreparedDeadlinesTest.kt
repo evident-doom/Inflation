@@ -9,7 +9,7 @@ import kotlin.test.assertTrue
 /**
  * How soon the hazard rules kill unprepared people, against the record's deadlines (the skills floor's, from the
  * rules alone; the HexSkillsFloor probe and [inflation.run.Nominal.floor] check a whole world). Weeks are the model's
- * 6-day steps. PROPOSED bands (2026-11-06), not yet agreed by Olli.
+ * 6-day steps. Bands agreed by Olli, 2026-11-06.
  */
 class UnpreparedDeadlinesTest {
     private val people = Catalogue.HUMAN

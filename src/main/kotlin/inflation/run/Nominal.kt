@@ -136,7 +136,8 @@ object Nominal {
      * cold): between [FLOOR_COLD_WEEK1_MIN] and [FLOOR_COLD_WEEK1_MAX] alive after a week (the warmest country keeps
      * some), and the same limits for week 13 and week 52; no half-dead window. Measured on m5-1..3 with the Run C nets
      * (floor661b, 2026-11-06): warm strips half dead in weeks 4-6, 2-7% at week 13; cold strips 12-62% after week 1, at
-     * most 2.4% at week 13; none above 0.5% at week 52. PROPOSED (2026-11-06), not yet agreed by Olli.
+     * most 2.4% at week 13; none above 0.5% at week 52. Agreed by Olli, 2026-11-06; checked after trainings and big model changes with the
+     * nominal limits (June and January strips on m5-1..3).
      */
     const val FLOOR_WEEK1_MIN = 0.85
     const val FLOOR_HALF_MIN = 3; const val FLOOR_HALF_MAX = 9
