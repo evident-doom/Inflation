@@ -38,6 +38,8 @@ fun main(args: Array<String>) {
         HexFeatures.UNLUCKY_CAMP, HexFeatures.HOUSE_LEFT, HexFeatures.FEAST_DRAW, HexFeatures.DEATHS_FORESEEN,
         // (The lore of the land's months, #665.)
         HexFeatures.USUAL_YIELD_AHEAD, HexFeatures.USUAL_YIELD_AHEAD + 1, HexFeatures.USUAL_YIELD_AHEAD + 2, HexFeatures.YIELD_LORE_KNOWN,
+        // (Fleeing deadly perils, #670, and the stronger hunter the storms used to share.)
+        HexFeatures.DEADLY_AHEAD, HexFeatures.STRONGER_HUNTER,
         // (For scale: inputs it surely reads.)
         HexFeatures.FOOD, HexFeatures.STAYS, HexFeatures.HOUSES, HexFeatures.APPOINTMENT, HexFeatures.FISH, HexFeatures.WATER_DISTANCE,
     )

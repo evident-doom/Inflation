@@ -133,6 +133,15 @@ internal const val WORD_DRIFT = 0.0003f
 /** Chance at a meeting that a band takes up a tradition the more successful one holds, at full understanding. */
 internal const val COPY_TRADITION = 0.1f
 
+/**
+ * Chance, each death, that a settled band that does not bury its dead takes up burial ([Tradition.BURIAL]): it cannot leave
+ * its dead, as a band on the move does. Settling and burial came together (the Natufian: Bar-Yosef 1998); the rate is an
+ * estimate, no figure found: at about a death a year in a band, about half its settled bands bury within ten years or so.
+ */
+internal const val SETTLED_BURY = 0.05f
+/** (The part of the customs' stream [SETTLED_BURY] draws from.) */
+internal const val SETTLED_BURY_DRAW = 0x42555259L
+
 /** Yearly chance a band takes up a tradition by itself, or drops one. */
 internal const val TAKE_UP = 0.0005f
 
