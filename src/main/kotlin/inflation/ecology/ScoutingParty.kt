@@ -1,0 +1,117 @@
+package inflation.ecology
+
+import inflation.Part
+import inflation.world.Date
+import inflation.world.Hex
+import inflation.world.Place
+import kotlin.math.max
+import kotlin.math.roundToInt
+
+/*
+ * Scouting parties (t.parties; review/2026-11-06-scouting-party-design.md). A band with food to spare may send some of its
+ * grown people out for some weeks to see country beyond its reach, while the rest keep the camp and its stores: the safe haven
+ * the party comes back to. The party splits off as any band does ([splitOff]) and is a band of its own; what binds the two is a
+ * contract between bands ([ContractKind.PARTY]), a pattern the engine writes down, never forced: the party walks out, turns
+ * back halfway, and rejoins its band where it finds it ([joinBand], its place memory the report); one that is not back well
+ * after it was due, or whose band is gone, stays a band of its own. The risk of the walk is the party's, not the camp's.
+ */
+
+/** Share of a band's grown people, not elders, that goes on a party at the scaffold's will to explore (an estimate). */
+internal const val PARTY_SHARE = 0.15f
+/** Fewest grown people a party is made of. */
+internal const val PARTY_MIN = 2
+/** Weeks a party is out at the scaffold's will to explore (an estimate: "a month or two"). */
+internal const val PARTY_WEEKS = 6f
+/** Days of food each of a party's people carries from the band's larder; the rest stays at the camp. */
+internal const val PARTY_FOOD_DAYS = 5f
+/** Weeks after a party is due back that its contract lapses, and it is a band of its own. */
+internal const val PARTY_GRACE = 8
+/** Weeks a band keeps its whole number at camp after a party has come back (or was lost) before it sends another. */
+internal const val PARTY_REST = 13
+/** How much more a party, going out, makes of a place it does not know than of one it does, in km further from home. */
+internal const val PARTY_NEW_KM = 20f
+
+/** The contract of a party ([ContractKind.PARTY], [contract]): its band [home], the hex [homeHex] it left from, the week [sent], halfway [turn], [due] back. */
+class Party(val home: Int, val homeHex: Hex, val sent: Int, val turn: Int, val due: Int) {
+    val contract get() = ContractKind.PARTY
+}
+
+/** Whether [g] is out on a party for its band, or is a band with a party out: neither joins nor takes in another band meanwhile. */
+internal fun HexGroups.inParty(g: HexGroup) = parties.containsKey(g.id) || partyOut.containsKey(g.id)
+
+/**
+ * The week's parties ([PARTY_SHARE]): each one out comes back to its band where it finds it once it has turned, is lost, or
+ * stays a band of its own; then each band with food to spare ([hasSurplus]), settled in its camp and with no party out, sends
+ * one, as many and for as long as its will to explore says ([BandWay.EXPLORING]). Serial, in the groups' order.
+ */
+@Part("people: scouting parties")
+internal fun HexGroups.tendParties(date: Date) {
+    if (!tuning.parties) return
+    val week = stepOf(date)
+    val byId = groups.associateBy { it.id }
+    val iter = parties.entries.iterator()
+    while (iter.hasNext()) {
+        val (id, p) = iter.next()
+        val party = byId[id]
+        val home = byId[p.home]?.takeIf { it.alive }
+        when {
+            party == null || !party.alive -> { stats.meeting(Met.PARTIES_LOST); rested[p.home] = week }
+            home == null || week >= p.due + PARTY_GRACE -> stats.meeting(Met.PARTIES_STAYED_AWAY)
+            week >= p.turn && hw.placeHex[party.place] == hw.placeHex[home.place] -> {
+                joinBand(home, party, week); stats.meeting(Met.PARTIES_BACK); rested[p.home] = week
+            }
+            else -> continue
+        }
+        partyOut.remove(p.home); iter.remove()
+    }
+    val sent = ArrayList<HexGroup>()
+    for (g in groups) {
+        val b = g.band ?: continue
+        if (!g.alive || inParty(g) || !hasSurplus(g, b) || b.campWeeks < PARTY_REST) continue
+        if (rested[g.id]?.let { week - it < PARTY_REST } == true) continue
+        val will = b.explore
+        val k = partySize(g.adults, b.elders, will)
+        if (k == 0) continue
+        val weeks = max(2, (PARTY_WEEKS * will).roundToInt())
+        val carry = g.dailyNeedKg * k / g.size.coerceAtLeast(1) * PARTY_FOOD_DAYS
+        val n = splitOff(g, k, 0)
+        // (It carries a few days' food; the rest of its share stays in the camp's larder.)
+        if (n.larder > carry) moveFood(n, g, n.larder - carry)
+        parties[n.id] = Party(g.id, hw.placeHex[g.place], week, week + weeks / 2, week + weeks)
+        partyOut[g.id] = n.id
+        sent += n
+        stats.meeting(Met.PARTIES_SENT)
+    }
+    groups += sent
+}
+
+/**
+ * Where a party goes this week ([Party]), of the places weighed in [buf] no deadlier than the safest by a survival step:
+ * going out, the farthest from home, a place it does not know before one it does ([PARTY_NEW_KM]); once it has turned, the
+ * nearest to its band's camp (where it is now, or where it left it). [best] if it can weigh none.
+ */
+internal fun GroupPlanner.partyPlace(b: Band, p: Party, buf: GroupPlanner.Scratch, best: Place, week: Int): Place {
+    val n = buf.explPlaces.size
+    var safest = Float.POSITIVE_INFINITY
+    for (k in 0 until n) if (buf.explDeaths[k].isFinite() && buf.explDeaths[k] < safest) safest = buf.explDeaths[k]
+    if (!safest.isFinite()) return best
+    val hw = gs.hw
+    val homeHex = gs.bands.groupById[p.home]?.takeIf { it.alive }?.let { hw.placeHex[it.place] } ?: p.homeHex
+    val back = week >= p.turn
+    var pick = -1; var top = Float.NEGATIVE_INFINITY
+    for (k in 0 until n) {
+        if (!buf.explDeaths[k].isFinite() || buf.explDeaths[k] - safest > 1f) continue
+        val h = hw.placeHex[buf.explPlaces[k]]
+        val d = gs.hex.distanceKm(h, homeHex).toFloat()
+        val s = if (back) -d else d + (if (b.knows(h)) 0f else PARTY_NEW_KM)
+        if (s > top) { top = s; pick = k }
+    }
+    return if (pick < 0) best else Place(buf.explPlaces[pick])
+}
+
+/** How many grown people a band of [adults] (of them [elders]) would send at will to explore [will], or 0 if it would send none. */
+internal fun partySize(adults: Int, elders: Int, will: Float): Int {
+    val able = adults - elders
+    val k = max(PARTY_MIN, (PARTY_SHARE * will * able).roundToInt())
+    return if (k > able || adults - k < SMALL_BAND) 0 else k
+}

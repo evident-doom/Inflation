@@ -4,7 +4,7 @@ import kotlin.math.max
 import kotlin.math.min
 
 /*
- * What binds animals to the band that keeps them. A contract is a pattern of behaviour the engine writes down, never one it
+ * What binds animals to the band that keeps them, and a band to a party it sent out ([ContractKind.PARTY]). A contract is a pattern of behaviour the engine writes down, never one it
  * forces: each side is a group of its own, and stays while staying serves it. A band's kept animals are held in one part
  * per contract ([Herd], [Dogs]), which carries its own rules for when the band splits or another joins it. They stand where
  * their keeper camps: no place of their own until there are excursions.
@@ -19,6 +19,11 @@ enum class ContractKind(val label: String) {
     HERDING("herding"),
     /** Dogs. They live on the camp's scraps and a little of its food, and hunt, guard and bark with it; either side may leave. */
     COMPANION("companions"),
+    /**
+     * A scouting party and the band it went out from ([Party], [tendParties]): the party walks out for some weeks and comes back to
+     * the camp, the band keeps the camp and its stores for it. Between two bands, each its own; either may break it.
+     */
+    PARTY("scouting party"),
 }
 
 /**

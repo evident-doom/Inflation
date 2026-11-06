@@ -69,6 +69,8 @@ class Tuning(
     val planners = f("planners", 0f).also { require(it in 0f..1f) { "t.planners is $it: a share of the bands, 0-1" } }
     /** Diagnostic: the planning kind's slots over its own, for the slot-by-slot A/B (as text; [inflation.ecology.Mind] reads and checks it). */
     val plannerSlots: String? = read("t.plannerSlots")
+    /** Scouting parties ([inflation.ecology.tendParties]): bands with food to spare send some of their people out to scout and come back; off unless set (under test). */
+    val parties = read("t.parties")?.toBooleanStrict() ?: false
     /** The food cost of keeping warm, against [inflation.ecology.COLD_COST]. */
     val coldCost = f("coldCost", 1f)
 

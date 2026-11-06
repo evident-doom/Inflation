@@ -165,6 +165,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
     }
     groups += born
     tallyVillages()
+    tendParties(date)
     mergeAndPair(date)
 }
 
@@ -186,7 +187,7 @@ private fun HexGroups.leaveBelief(g: HexGroup, n: HexGroup) {
  * tools, goods, elders, practised people and ages; and the places it remembers for each month.
  */
 @Part("groups: split off")
-private fun HexGroups.splitOff(g: HexGroup, adults: Int, young: Int): HexGroup {
+internal fun HexGroups.splitOff(g: HexGroup, adults: Int, young: Int): HexGroup {
     val s = g.species
     val n = HexGroup(nextId++, s, g.place, adults, young)
     g.memory.copyInto(n.memory)
@@ -670,7 +671,7 @@ internal fun HexGroups.mergeAndPair(date: Date) {
     for (g in groups) if (g.alive && g.band != null) bandsByHex.getOrPut(hw.placeHex[g.place]) { ArrayList() } += g
     for (g in groups) {
         val b = g.band ?: continue
-        if (!g.alive || g.adults >= SMALL_BAND) continue
+        if (!g.alive || g.adults >= SMALL_BAND || inParty(g)) continue
         var best: HexGroup? = null; var bestKin = -1f
         val h0 = hw.placeHex[g.place]
         var ring = listOf(h0); val seen = hashSetOf(h0)
@@ -678,7 +679,7 @@ internal fun HexGroups.mergeAndPair(date: Date) {
             for (h in ring) for (o in bandsByHex[h].orEmpty()) {
                 // (A band joins only one of its own mind: the two kinds of choosing stay apart.)
                 val ob = o.band ?: continue
-                if (o === g || !o.alive || o.size + g.size > maxSize(o) || ob.mind != b.mind) continue
+                if (o === g || !o.alive || o.size + g.size > maxSize(o) || ob.mind != b.mind || inParty(o)) continue
                 val k = kinship(b.lineage, ob.lineage) / (1f + r)
                 if (k > bestKin) { bestKin = k; best = o }
             }
@@ -728,7 +729,7 @@ private fun HexGroups.becomeOne(date: Date) {
         for (i in bands.indices) for (j in i + 1 until bands.size) {
             val a = bands[i]; val c = bands[j]
             val ab = a.band ?: continue; val cb = c.band ?: continue
-            if (!a.alive || !c.alive) continue
+            if (!a.alive || !c.alive || inParty(a) || inParty(c)) continue
             if (a.size + c.size > min(maxSize(a), maxSize(c))) continue
             if (alike(Regard(ab, c.id, cb, map = hex)) < ONE_GROUP || alike(Regard(cb, a.id, ab, map = hex)) < ONE_GROUP) continue
             val (into, from) = if (a.size >= c.size) a to c else c to a
@@ -743,7 +744,7 @@ private fun HexGroups.becomeOne(date: Date) {
 internal fun alike(r: Regard) = 1f - r.wariness / Regard.MOST_WARY
 
 /** Band [from] joins band [into]: its people, food, goods and knowledge come with it. */
-private fun GroupWorld.joinBand(into: HexGroup, from: HexGroup, week: Int) {
+internal fun GroupWorld.joinBand(into: HexGroup, from: HexGroup, week: Int) {
     val intoBand = into.band ?: return; val fromBand = from.band ?: return
     val w = from.adults.toFloat() / (into.adults + from.adults).coerceAtLeast(1)
     intoBand.absorb(fromBand, from.adults, w, into.stores[Store.DRIED], from.stores[Store.DRIED],

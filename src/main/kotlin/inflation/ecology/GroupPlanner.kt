@@ -92,7 +92,9 @@ internal class GroupPlanner(internal val gs: HexGroups) {
         // (A band whose appointment falls this month or next, and is not there, sets off: it is restless.)
         val dueSoon = g.band?.let { b -> b.appointment.let { ap -> ap != null && ap.hex != here && monthsFrom(month, ap.month) <= 1 } ||
             b.unluckyHex == here || b.raid != null } ?: false
-        val restless = gs.restless(g, weather, thirsty, astray, dueSoon)
+        val party = if (g.band != null) gs.parties[g.id] else null
+        // (A party out to scout is on a trek.)
+        val restless = party != null || gs.restless(g, weather, thirsty, astray, dueSoon)
         // (Every group weighs its places every week.)
         val capture = gs.control != null && g.id == gs.watched
         // (A band goes at the pace of its slowest: the old, the sick and the lamed hold it back.)
@@ -276,7 +278,8 @@ internal class GroupPlanner(internal val gs: HexGroups) {
         val chosen = best
         if (traced) bookMove(chosen != g.place, buf)
         g.band?.planLoads = Float.NaN
-        if (explores && !g.drawn) best = if (g.band?.mind?.gate == MoveGate.RECKONED) planned(g, policy, buf, best, dueSoon, here, date) else if (g.weighed) explored(g, policy, buf, best, date) else best
+        if (party != null && g.weighed) best = partyPlace(g.band!!, party, buf, best, gs.stepOf(date))
+        else if (explores && !g.drawn) best = if (g.band?.mind?.gate == MoveGate.RECKONED) planned(g, policy, buf, best, dueSoon, here, date) else if (g.weighed) explored(g, policy, buf, best, date) else best
         // (For the census: whether the band would have moved by its best choice, and whether it moved by its draw.)
         if (g.band != null) {
             val k = s.index * 4
