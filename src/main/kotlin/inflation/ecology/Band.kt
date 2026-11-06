@@ -814,6 +814,7 @@ class Band(kinds: Int, totems: Int = kinds) {
         knows.copyInto(o.knows)
         fine.copyInto(o.fine)
         o.salted = salted; o.dryDepth = dryDepth; o.pests = pests
+        o.sodiumWant = sodiumWant; o.saltWantStep = saltWantStep * share; saltWantStep -= o.saltWantStep
         o.renown = renown
         rite.copyInto(o.rite); o.riteStrength = riteStrength; o.riteHeld = riteHeld; o.riteKept = riteKept; o.beliefYears = beliefYears; o.strain = strain
         o.omenPlace = omenPlace; o.omenMonth = omenMonth; o.omenYear = omenYear; o.omenWeight = omenWeight; o.deathsUsual = deathsUsual; o.wantSteps = wantSteps; o.wantBroke = wantBroke; o.wantUsual = wantUsual; o.mind = mind; foreseenShares.copyInto(o.foreseenShares); o.foreseenAt = foreseenAt
@@ -861,6 +862,7 @@ class Band(kinds: Int, totems: Int = kinds) {
             if (ka + kb > 0f) a.fine[i] = weightedMean(a.fine[i], ka, b.fine[i], kb)
             a.kit[i] += w * (b.kit[i] - a.kit[i])
         }
+        a.sodiumWant += w * (b.sodiumWant - a.sodiumWant); a.saltWantStep += b.saltWantStep
         if (dried + bDried > 0f) a.salted = weightedMean(a.salted, dried, b.salted, bDried)
         if (dried + bDried > 0f) a.dryDepth = weightedMean(a.dryDepth, dried, b.dryDepth, bDried)
         if (dried + seed + bDried + bSeed > 0f) a.pests = weightedMean(a.pests, dried + seed, b.pests, bDried + bSeed)
