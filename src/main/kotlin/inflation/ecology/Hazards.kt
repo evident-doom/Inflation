@@ -67,9 +67,18 @@ object Hazards {
 
     /**
      * How well fed an animal is over a step of [days] fed [fed], with [fat] days of fat to draw on below [from] (as the week's
-     * feeding draws on it): [WELL_FED] for packs and people, 1 for the residents, who draw on it for any shortfall.
+     * feeding draws on it): [WELL_FED] for packs and people, 1 for the residents, who draw on it for any shortfall. What it
+     * saves by spending less ([economy], people's when passed) it need not draw: fed in full once the fat pays the rest.
      */
-    fun onFat(fed: Float, fat: Float, days: Int, from: Float = WELL_FED) = if (fed < from) min(1f, fed + min(fat, (1f - fed) * days) / days) else fed
+    fun onFat(fed: Float, fat: Float, days: Int, from: Float = WELL_FED, economy: Float = 0f): Float {
+        if (fed >= from) return fed
+        val short = max(0f, 1f - economy - fed) * days
+        return if (fat >= short) 1f else fed + fat / days
+    }
+
+    /** The days of fat drawn over a step of [days] fed [fed], with [fat] to draw on, as [onFat] draws it: what it lacks beyond what it saves ([economy]). */
+    fun fatDrawn(fed: Float, fat: Float, days: Int, from: Float = WELL_FED, economy: Float = 0f) =
+        if (fed < from) min(fat, max(0f, 1f - economy - fed) * days) else 0f
 
     /**
      * The share of animals of [s] dead of hunger once they have burnt [spent] days of their body's protein: none until
@@ -90,10 +99,11 @@ object Hazards {
     /**
      * People's last phase of a fast, days ([starveDays]): the scaling above gives 15, so that with their fat (about 22 days)
      * the first would die of a total fast at about 4 weeks. Fasting people die at 46 to 73 days (the ten hunger strikers of
-     * 1981; others lived through 28 to 40, Peel, BMJ 1997, as Scientific American reports them). With [HUMAN_ECONOMY], 40
-     * puts the first deaths of a total fast at about 7 weeks.
+     * 1981; others lived through 28 to 40, Peel, BMJ 1997, as Scientific American reports them). With [HUMAN_ECONOMY] on
+     * the fat as on the body, 22 puts the first deaths of a total fast from full fat at about 7 weeks and half dead at about
+     * 10, and kills none on half rations in 24 weeks (the Minnesota men).
      */
-    const val HUMAN_STARVE_DAYS = 40f
+    const val HUMAN_STARVE_DAYS = 22f
     /** A rat's last phase of a fast, days, and its weight, kg: "a few days" (see [starveDays]). */
     const val STARVE_DAYS = 4f
     const val STARVE_KG = 0.3f

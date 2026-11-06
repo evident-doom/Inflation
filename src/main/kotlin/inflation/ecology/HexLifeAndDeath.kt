@@ -651,7 +651,9 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
 private fun GroupWorld.feedOnReserves(g: HexGroup) {
     val s = g.species
     val drew = g.fed < WELL_FED && g.fat > 0f
-    if (g.fed < WELL_FED) { val draw = min(g.fat, (1f - g.fed) * days); g.fat -= draw; g.fed = min(1f, g.fed + draw / days); g.band?.fatFed = draw / days }
+    // (What its people save by spending less when short, [Hazards.economy], the fat need not pay.)
+    if (g.fed < WELL_FED) { val e = Hazards.economy(s); val draw = Hazards.fatDrawn(g.fed, g.fat, days, economy = e)
+        val fed = Hazards.onFat(g.fed, g.fat, days, economy = e); g.fat -= draw; g.band?.fatFed = draw / days; g.fed = fed }
     else { val gain = FAT_EFFICIENCY * g.surplus; val back = min(g.spent, gain); g.spent -= back
         // (What it ate beyond its need wins back the body it burnt before it lays on fat.)
         g.fat = min(s.maxFatDays, g.fat + gain - back) }
