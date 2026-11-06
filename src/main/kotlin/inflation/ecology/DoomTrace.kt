@@ -52,6 +52,7 @@ internal object DoomWatch : GroupWatch {
             row[Lean.FAT_TENTHS.ordinal] += (10f * g.fat).roundToInt()
             row[Lean.LARDER_TENTHS.ordinal] += (10f * min(LEAN_LARDER_CAP, g.larder / need)).roundToInt()
             row[Lean.AIM_TENTHS.ordinal] += (10f * b.storeAim).roundToInt()
+            row[Lean.DURABLE_TENTHS.ordinal] += (10f * min(LEAN_LARDER_CAP, (g.larder - perishablesHeld(g)) / need)).roundToInt()
             val y = b.recentYield(date, gs.days)
             if (!y.isNaN()) { row[Lean.YIELD_HUNDREDTHS.ordinal] += (100f * y).roundToInt(); row[Lean.YIELD_WEEKS.ordinal]++ }
             row[Lean.SPARE_HUNDREDTHS.ordinal] += (100f * b.spareMean).roundToInt()
@@ -74,7 +75,9 @@ private enum class Lean(val label: String) {
     /** Its foraging's yield over the last 4 weeks ([Band.recentYield]), hundredths summed, and the band-weeks it was seen. */
     YIELD_HUNDREDTHS("yield/100"), YIELD_WEEKS("yield weeks"),
     /** Its share of hands' days spare over about a season ([Band.spareMean]), hundredths summed. */
-    SPARE_HUNDREDTHS("spare/100")
+    SPARE_HUNDREDTHS("spare/100"),
+    /** Of the larder, what keeps beyond days ([PERISHABLE]: fresh meat and fruit left out), at most [LEAN_LARDER_CAP], days of need, tenths. */
+    DURABLE_TENTHS("durable d/10")
 }
 
 /** The larder the lean table counts at most, days: a seed store of years would swamp a kind of country's mean. */
