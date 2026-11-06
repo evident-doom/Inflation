@@ -212,6 +212,15 @@ class Tuning(
      * Not measured: salt hunger among farmers and plant gatherers is well known, its toll here a guess.
      */
     val saltLack = f("saltLack", 0.15f)
+    /**
+     * Sodium in a litre of sweat, kg ([inflation.ecology.BodyHeat.sweatLitres]): 0.46 g, 20 mmol/L. Outdoor workers used to
+     * the heat on a Western diet sweat 45 mmol/L, 64 before the summer (Bates and Miller 2008, J Occup Med Toxicol 3:4);
+     * acclimatisation and a low-salt diet lower it further, how far for people who never had salt is not measured: 20 is a
+     * guess between. Peoples of hot countries ate some 2-6 g of salt a day (Ladell 1957; Orr and Gilks 1931, as cited in
+     * Institute of Medicine 1993, Nutritional Needs in Hot Environments, ch. 17), 0.8-2.4 g of sodium; at 20 mmol/L a day's
+     * work and rest at a mean of 28 °C sheds about 0.9 g. 0 is the old rule (the bare 23 mg a day).
+     */
+    val sweatSodium = f("sweatSodium", 0.46e-3f)
     /** How much less salted meat and fish spoil. */
     val saltKeep = f("saltKeep", 0.7f)
 

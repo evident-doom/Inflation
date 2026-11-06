@@ -242,6 +242,8 @@ class Band(kinds: Int, totems: Int = kinds) {
     @Transient var sleepPace = 1f
     /** The share of its working time its people work for the sodium they lacked last week ([saltPace]); set as the week starts. */
     @Transient var saltPace = 1f
+    /** The sweat each of its grown people sheds a day where it is this week, litres ([BodyHeat.sweatLitres]): the sodium it carries out is in its need ([inflation.Tuning.sweatSodium]); set as the week starts. */
+    @Transient var sweatLitres = 0f
     /** The share of its people's time at work [where] that is work this week ([Sisu], [watchPace]). */
     fun paceAt(where: Workplace) = when (where) {
         Workplace.OUT -> coldPace * hungerPace * sleepPace * saltPace
