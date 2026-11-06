@@ -30,7 +30,8 @@ the tracing only reads, so the second pass follows the same course as the first 
   effort to the nearest; the place it chose, its peril, survival steps and hand-written score; and of the places it weighed,
   the safest's survival steps, how many free places it weighed, how many of those were not open (deadlier than the safest
   by more than a step, which the draw and the planner never take) or had no score, and the best open free place; and the
-  effort from its camp to the nearest free ground within 6 weeks' reach (`way out`, [searchWayOut]). At the
+  effort from its camp to the nearest free ground within 6 weeks' reach (`way out`, [searchWayOut]), the least of it
+  from any hex in this week's reach (or "no progress"), and the effort of the first step on the way out. At the
   week's end a `perilEnd #` line says whether it lived. One pass is enough: the trace prints every warned band.
 - `scripts/doomtrace.py`:
   - `pick OUT`: from a pass-1 output, the `doomTrace=` key for pass 2 (bands that died out, the hungriest living,

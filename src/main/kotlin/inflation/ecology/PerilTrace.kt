@@ -70,6 +70,27 @@ internal fun GroupPlanner.tracePeril(c: PlanContext, best: Place, byNet: Boolean
         camp, place(kStay), c.reach, reached.size, freeHexes, if (nearestFree.isNaN()) "none" else "%.0f".format(nearestFree),
         gs.perilAhead(bestHex), if (best == g.place) " (stays)" else " at %.0f".format(dist[bestHex]), place(kChose),
         n, safest, freeWeighed, freeShut, freeUnscored, if (kFree < 0) "none" else place(kFree),
-        buf.wayOut?.get(c.here.i)?.let { "%.0f km".format(it) } ?: "none"))
+        wayOutLook(c)))
     return true
+}
+
+/**
+ * perilTrace: the way out as band [c].g sees it this week ([searchWayOut]): the effort from its camp to the nearest free ground;
+ * the least of it from any hex it can reach this week, and how far that hex is (no progress if it is the camp's); and the first
+ * step on the way out from camp, its effort against the week's reach. "none" if no way out was found.
+ */
+private fun GroupPlanner.wayOutLook(c: PlanContext): String {
+    val out = c.buf.wayOut ?: return "none"
+    val fromCamp = out[c.here.i] ?: return "none"
+    val reached = c.buf.reached; val dist = c.buf.dist
+    var least = fromCamp; var leastKm = 0f
+    for (i in 0 until reached.size) { val h = reached[i]; val r = out[h.i] ?: continue
+        if (r < least) { least = r; leastKm = dist[h] } }
+    val effort = stepEffort(Catalogue.travel(c.g.species).ordinal, gs.hw.placeBand[c.g.place], c.weather)
+    var step = Float.NaN; var best = Float.POSITIVE_INFINITY
+    for (k in 0 until 6) { val nh = gs.hex.neighbour(c.here, k); if (nh.none) continue
+        val r = out[nh.i] ?: continue; val e = effort[gs.hex.edge(c.here, k)]
+        if (e + r < best) { best = e + r; step = e } }
+    return "%.0f km; least in reach %.0f km%s; first step %s km".format(fromCamp, least,
+        if (least < fromCamp) " at %.0f".format(leastKm) else " (no progress)", if (step.isNaN()) "none" else "%.0f".format(step))
 }

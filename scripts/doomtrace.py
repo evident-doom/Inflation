@@ -154,7 +154,7 @@ def day(date):
 
 def peril(args):
     show = '--bands' in args
-    warned = collections.Counter(); why = collections.Counter(); killed = collections.Counter(); stretched = collections.Counter(); struck = 0
+    warned = collections.Counter(); why = collections.Counter(); killed = collections.Counter(); stretched = collections.Counter(); progress = collections.Counter(); struck = 0
     shown = []
     for path in (a for a in args if not a.startswith('--')):
         last = {}; now = {}; stretch = collections.defaultdict(list)
@@ -186,6 +186,10 @@ def peril(args):
                 elif any(peril_case(x) == PERIL_CASES[4] for x in ws): c = 'an open free place some week, chose a perilous one'
                 else: c = 'never a free place in reach'
                 stretched[c] += 1
+                outs = [x.get('out') or '' for x in ws]
+                if ws and all('no progress' in o for o in outs): progress['a way out every week, never closer in reach'] += 1
+                elif ws and any('no progress' in o for o in outs): progress['a way out, some weeks no closer in reach'] += 1
+                elif ws and all(o.startswith('none') for o in outs if o): progress['no way out found'] += 1
                 if before is None or d0 is None or d1 is None or d1 - d0 > 8: killed['not warned the week before'] += 1
                 else:
                     c = peril_case(before); killed[c] += 1
@@ -199,6 +203,9 @@ def peril(args):
         if killed[c]: print(f'  {c:40} {killed[c]:6d}')
     print('the same bands by their whole warned stretch (consecutive warned weeks before the strike):')
     for c, v in stretched.most_common(): print(f'  {c:52} {v:6d}')
+    if progress:
+        print('and by the way out ([searchWayOut]; traces from #684 on):')
+        for c, v in progress.most_common(): print(f'  {c:52} {v:6d}')
     for l in shown: print(l)
 
 if __name__ == '__main__':
