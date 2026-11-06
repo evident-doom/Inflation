@@ -86,6 +86,8 @@ internal fun HexGroups.tendParties(date: Date) {
         if (k == 0) continue
         val weeks = max(2, (PARTY_WEEKS * will).roundToInt())
         val carry = g.dailyNeedKg * k / g.size.coerceAtLeast(1) * PARTY_FOOD_DAYS
+        // (Those who go leave the band first, as at any split ([liveWeek]): [splitOff] makes the new band, it takes no one from the old.)
+        g.adults -= k
         val n = splitOff(g, k, 0)
         // (It carries a few days' food; the rest of its share stays in the camp's larder.)
         if (n.larder > carry) moveFood(n, g, n.larder - carry)

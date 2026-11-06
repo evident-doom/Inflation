@@ -186,7 +186,8 @@ private fun HexGroups.leaveBelief(g: HexGroup, n: HexGroup) {
 /**
  * The group that splits off [g] with [adults] and [young] of its number: it takes its memory, condition, taste
  * and temper, a share of its larder by heads, and, for a band, a copy of what it knew and its share of its
- * tools, goods, elders, practised people and ages; and the places it remembers for each month.
+ * tools, goods, elders, practised people and ages; and the places it remembers for each month. The caller has already taken
+ * [adults] and [young] from [g]: this makes the new group, it takes no one from the old.
  */
 @Part("groups: split off")
 internal fun HexGroups.splitOff(g: HexGroup, adults: Int, young: Int): HexGroup {
