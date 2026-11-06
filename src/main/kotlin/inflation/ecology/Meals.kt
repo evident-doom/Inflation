@@ -83,6 +83,8 @@ internal fun HexGroups.eatTheWeek(w: ForageWeek) {
         // (Salted meat and fish carry their salt: [SALT_PER_KG] a kg, the share of the dried that was salted.)
         if (eaten > 0f) {
             var short = max(0f, sodiumNeed - meal.ateSodium - meal.ateDriedKg * band.salted * SALT_PER_KG * SALT_SODIUM)
+            band.sodiumWant = if (sodiumNeed > 0f) short / sodiumNeed else 0f
+            band.saltWantStep = short / SALT_SODIUM
             if (short > 0f) {
                 val had = min(short / SALT_SODIUM, band.goods[Material.SALT]); band.goods[Material.SALT] -= had
                 short = max(0f, short - had * SALT_SODIUM)

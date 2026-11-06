@@ -240,6 +240,12 @@ class Tuning(
      * them. 0 leaches none (the old rule).
      */
     val leachMm = f("leachMm", 1000f)
+    /**
+     * How far bands foresee the work they will lose for the salt they will lack, once the salt they hold runs out
+     * ([inflation.ecology.foreseenSaltPace]): in their year ahead, and so in what training judges them by. 1 in full, 0 not
+     * at all (the old rule).
+     */
+    val saltForeseen = f("saltForeseen", 1f)
     /** How much less salted meat and fish spoil. */
     val saltKeep = f("saltKeep", 0.7f)
 
