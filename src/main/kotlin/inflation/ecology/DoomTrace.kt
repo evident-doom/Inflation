@@ -17,6 +17,8 @@ internal val DOOM_TRACE: Set<Int> = Config.string(Config.Key.DOOM_TRACE)?.split(
 internal var doomYear = Long.MIN_VALUE
 /** Hunger deaths over a year at which a band is listed. */
 internal const val DOOM_LEAST = 2
+/** doomList: of the bands with no hunger deaths in a year, those whose id this divides are listed as a control. */
+internal const val DOOM_CONTROL_EVERY = 40
 /** How far the trace looks for better country: this many times the band's reach this week. */
 internal const val DOOM_WIDE = 4f
 /** A place this many times as rich as the band's own, as its mover sees food ([knownGame]), counts as better. */
@@ -81,5 +83,7 @@ internal fun listDoomedEnd(g: HexGroup, date: inflation.world.Date) {
 internal fun listDoomedYear(groups: List<HexGroup>, date: inflation.world.Date) {
     for (g in groups) { val b = g.band ?: continue; if (!g.alive) continue
         if (b.hungerDied >= DOOM_LEAST) System.err.println("doomList #%d year to %s: %d hunger deaths, now %d people".format(g.id, date, b.hungerDied, g.size))
+        // (And a control: one band in [DOOM_CONTROL_EVERY] by its id, of those that lost no one to hunger, to trace against the doomed.)
+        else if (b.hungerDied == 0 && g.id % DOOM_CONTROL_EVERY == 0) System.err.println("doomList control #%d year to %s: no hunger deaths, now %d people".format(g.id, date, g.size))
         b.hungerDied = 0 }
 }
