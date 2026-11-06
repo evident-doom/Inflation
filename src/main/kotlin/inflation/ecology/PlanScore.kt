@@ -66,8 +66,8 @@ internal fun GroupPlanner.fillFeatures(f: FloatArray, c: PlanContext, t: PlaceTe
     f[Feature.KILL_FEAR] = gs.fauna.afraid(p)
     if (gs.hex.distanceKm(h, here) <= gs.hex.hexKm * 1.01 && topKind[p] >= 0 && topKind[p] != s.index)
         f[Feature.STRONGER_HUNTER] = min(1f, topStrength[p] / (4f * gs.strength(g)).coerceAtLeast(1e-3f))
-    // (The hurricane test: how soon the storms strike the place, told to everyone alike; see [HexHurricane].)
-    gs.hurricanes?.let { if (it.told) f[Feature.STORM_AHEAD] = it.urgency(h) }
+    // (Deadly perils foreseen there, the hurricane test's storms first: told to everyone alike; see [Peril].)
+    f[Feature.DEADLY_AHEAD] = gs.perilAhead(h)
     // (The deaths it foresees there, by the rules that would kill it: as the hand-written score's survival steps weigh them.)
     f[Feature.DEATHS_FORESEEN] = min(2f, ln(1f + gs.survivalSteps(g, c.at.dying)) / InputScale.DEATH_STEPS_LN)
     f[Feature.CLIMB] = ((gs.hw.placeElevationM[p] - gs.hw.placeElevationM[g.place]) / 1000f).coerceIn(-3f, 3f)

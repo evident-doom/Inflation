@@ -321,10 +321,11 @@ object HexFeatures : NamedSlots() {
     /** For a band, 1 where its people remember the yield of any of the next three months there ([USUAL_YIELD_AHEAD]). */
     val YIELD_LORE_KNOWN = one("usual yield known")
     /**
-     * The hurricane test ([HexHurricane]): how soon the storms strike the hex, as every group is told ([HexHurricane.urgency]:
-     * 1 this week, less by a step for each week ahead, 0 if not within the weeks told; 0 when not told). Its own input, apart
-     * from [STRONGER_HUNTER], so that a network can learn to leave a camp a storm will reach before it does.
+     * The deadliest peril foreseen there, one that only flight escapes ([Peril], [HexGroups.perilAhead]): the share it would kill
+     * times how soon, 1 for this week and a step less for each week ahead; 0 where none is foreseen. The storms of the hurricane
+     * test first; volcanoes, floods, wildfire, armies and plague later, all through this one input, so that a network learns
+     * to flee them alike. Apart from [STRONGER_HUNTER], which a beast holding a place is.
      */
-    val STORM_AHEAD = one("storm ahead")
+    val DEADLY_AHEAD = one("deadly danger ahead")
     const val LORE_MONTHS = 3
 }
