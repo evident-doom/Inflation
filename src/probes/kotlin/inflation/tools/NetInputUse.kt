@@ -35,7 +35,7 @@ fun main(args: Array<String>) {
     val mover = SharedMover.load(file)
     val probed = listOf(
         HexFeatures.KEEPS_OFF, HexFeatures.TOWARD_RAID, HexFeatures.TOWARD_SALT, HexFeatures.SOWN_HERE, HexFeatures.HERD_LOSS,
-        HexFeatures.UNLUCKY_CAMP, HexFeatures.HOUSE_LEFT, HexFeatures.FEAST_DRAW,
+        HexFeatures.UNLUCKY_CAMP, HexFeatures.HOUSE_LEFT, HexFeatures.FEAST_DRAW, HexFeatures.DEATHS_FORESEEN,
         // (For scale: inputs it surely reads.)
         HexFeatures.FOOD, HexFeatures.STAYS, HexFeatures.HOUSES, HexFeatures.APPOINTMENT, HexFeatures.FISH, HexFeatures.WATER_DISTANCE,
     )

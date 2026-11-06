@@ -168,6 +168,9 @@ class HexGroups(
                 else if (s in Catalogue.roamingResidents) (usual * HexFauna.ROAMERS_AT_START).roundToInt() else usual
             val weights = if (uniformStart) FloatArray(n) { p -> land.areaKm2[p] } else startWeights(s).also { w -> if (s == Catalogue.CHEETAH) keepOutOfLionCountry(w) }
             val total = weights.sum()
+            // (A kind with no ground that suits it starts with none, even where its settled density would give it one group:
+            // that group had nowhere to go but place 0, and a world without places has none at all.)
+            if (total <= 0f) continue
             // (Groups start of all sizes about the usual, the same heads in all: [startSizes].)
             val sizes = startSizes(s, unit, count)
             for (size in sizes) {
