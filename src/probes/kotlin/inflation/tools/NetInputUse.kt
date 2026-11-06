@@ -36,6 +36,8 @@ fun main(args: Array<String>) {
     val probed = listOf(
         HexFeatures.KEEPS_OFF, HexFeatures.TOWARD_RAID, HexFeatures.TOWARD_SALT, HexFeatures.SOWN_HERE, HexFeatures.HERD_LOSS,
         HexFeatures.UNLUCKY_CAMP, HexFeatures.HOUSE_LEFT, HexFeatures.FEAST_DRAW, HexFeatures.DEATHS_FORESEEN,
+        // (The lore of the land's months, #665.)
+        HexFeatures.USUAL_YIELD_AHEAD, HexFeatures.USUAL_YIELD_AHEAD + 1, HexFeatures.USUAL_YIELD_AHEAD + 2, HexFeatures.YIELD_LORE_KNOWN,
         // (For scale: inputs it surely reads.)
         HexFeatures.FOOD, HexFeatures.STAYS, HexFeatures.HOUSES, HexFeatures.APPOINTMENT, HexFeatures.FISH, HexFeatures.WATER_DISTANCE,
     )
