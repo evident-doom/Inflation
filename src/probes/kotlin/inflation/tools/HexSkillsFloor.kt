@@ -117,7 +117,7 @@ private fun follow(run: HexSim, arm: String, drop: Int, weeks: Int): Arm {
         if (!g.alive || g.species != people || g.band == null) continue
         val take = arm != "drop" || seen++ % drop == 0
         if (!take) continue
-        g.tag = biomeOf[g.place]; start[g.tag] += g.size.toDouble(); counted++
+        g.tag = biomeOf[g.place.i]; start[g.tag] += g.size.toDouble(); counted++
         if (arm != "usual") strip(g)
     }
     val r = Arm(run.weather.date.toString(), start, weeks, counted)
