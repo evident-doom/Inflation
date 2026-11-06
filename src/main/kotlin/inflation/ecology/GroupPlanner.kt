@@ -96,7 +96,10 @@ internal class GroupPlanner(internal val gs: HexGroups) {
             b.unluckyHex == here || b.raid != null } ?: false
         val party = if (g.band != null) gs.parties[g.id] else null
         // (A party out to scout is on a trek.)
-        val restless = party != null || gs.restless(g, weather, thirsty, astray, dueSoon)
+        // (And any group that foresees a deadly peril where it is flees as far as it can: [Peril]. Facing sure death, anything
+        // living grasps the slightest chance (Olli 2026-11-05); stormwhy679: 85% of the band-weeks warned of a storm at camp had
+        // no place free of it within a content week's reach.)
+        val restless = party != null || gs.restless(g, weather, thirsty, astray, dueSoon) || gs.perilAhead(here) > 0f
         // (Every group weighs its places every week.)
         val capture = gs.control != null && g.id == gs.watched
         // (A band goes at the pace of its slowest: the old, the sick and the lamed hold it back.)
