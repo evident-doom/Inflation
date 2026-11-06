@@ -221,6 +221,11 @@ class Tuning(
      * work and rest at a mean of 28 °C sheds about 0.9 g. 0 is the old rule (the bare 23 mg a day).
      */
     val sweatSodium = f("sweatSodium", 0.46e-3f)
+    /**
+     * How many fewer young plant-eaters, wild and kept, bear wholly without sodium ([inflation.ecology.saltBreeding]). Not
+     * measured: sodium-short livestock grow and breed worse and chew bones and soil; its toll here a guess. 0 is the old rule.
+     */
+    val grazerSaltLack = f("grazerSaltLack", 0.3f)
     /** How much less salted meat and fish spoil. */
     val saltKeep = f("saltKeep", 0.7f)
 

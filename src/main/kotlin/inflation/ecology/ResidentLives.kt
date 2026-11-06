@@ -48,7 +48,7 @@ internal fun HexFauna.breedAndDie(weather: Weather, date: Date) {
             val share = seasonShare(k, p, date)
             if (share > 0f) {
                 bred[k][p] += share
-                val due = dueYoung(k, a[p] + y[p], protein[k][p], share)
+                val due = dueYoung(k, p, a[p] + y[p], protein[k][p], share)
                 val born = 0.5f * a[p] * due * breeding(s, due, reserve[k][p], f[p], days)
                 y[p] += born
                 bornThisWeek[k] += (born * area).toDouble()
@@ -194,8 +194,9 @@ internal fun HexFauna.strife(heads: Float, usualKm2: Float, crowd: Float): Float
     return if (over > 0f) STRIFE_DEATHS * over * over * years else 0f
 }
 
-/** The young a mother of kind [k] is due this step, its [share] of her season, among [heads] of her kind per km², fed [protein] of her need for it ([youngDue]). */
-internal fun HexFauna.dueYoung(k: FaunaKind, heads: Float, protein: Float, share: Float) = youngDue(kinds[k], heads, usual[k], tuning.breedSpacing, protein, share)
+/** The young a mother of kind [k] at place [p] is due this step, its [share] of her season, among [heads] of her kind per km², fed [protein] of her need for it ([youngDue]), and as far as her sodium there allows ([saltBreeding]). */
+internal fun HexFauna.dueYoung(k: FaunaKind, p: Place, heads: Float, protein: Float, share: Float) =
+    youngDue(kinds[k], heads, usual[k], tuning.breedSpacing, protein * saltBreeding(kinds[k], p), share)
 
 /**
  * The month kind [s]'s mothers start their year again ([bred]): the middle of the months outside its season as it

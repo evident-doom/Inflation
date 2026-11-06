@@ -145,7 +145,7 @@ private fun HexFauna.growthFor(k: FaunaKind, parts: EnumFloats<Growth>, youngPer
                          f: Float = fedAt(k, p, weather), heads: Float = adults[k][p] + young[k][p] + arrivingKm2(k)): Float {
     val s = kinds[k]
     val protein = forageProtein(s, p)
-    return growthOf(k, grownFixed(s, out), youngFixed(s, out, eagleOdds(s, p), crocodileOdds(p, weather), starvedOdds(protein)),
+    return growthOf(k, p, grownFixed(s, out), youngFixed(s, out, eagleOdds(s, p), crocodileOdds(p, weather), starvedOdds(protein)),
         huntedOdds(k, p, true), protein, youngPerGrown, carried, f, heads, parts)
 }
 
@@ -154,11 +154,11 @@ private fun HexFauna.growthFor(k: FaunaKind, parts: EnumFloats<Growth>, youngPer
  * the young [huntedYoung], and the forage's [protein]) and what does as animals come and go: fed [f], among [heads]
  * of its kind per km², hunger and the sickness of crowding, and the young its mothers would bear.
  */
-@IgnorableReturnValue private fun HexFauna.growthOf(k: FaunaKind, grownFixed: Float, youngFixed: Float, huntedYoung: Float, protein: Float, youngPerGrown: Float,
+@IgnorableReturnValue private fun HexFauna.growthOf(k: FaunaKind, p: Place, grownFixed: Float, youngFixed: Float, huntedYoung: Float, protein: Float, youngPerGrown: Float,
                      carried: Float, f: Float, heads: Float, parts: EnumFloats<Growth>?): Float {
     val s = kinds[k]
     val hunger = Hazards.hunger(s, moverSpent[k], Hazards.onFat(f, carried, days, 1f), days); val sick = Hazards.crowdDisease(Hazards.crowding(heads, usual[k]), f, years)
-    val due = dueYoung(k, heads, protein, days / (s.birthMonths * Date.DAYS_PER_MONTH.toFloat()))
+    val due = dueYoung(k, p, heads, protein, days / (s.birthMonths * Date.DAYS_PER_MONTH.toFloat()))
     val born = 0.5f * due * breeding(s, due, carried, f, days)
     val grownDie = (grownFixed + hunger + sick).coerceIn(0f, Hazards.MAX_GROWN_ODDS)
     val youngDie = min(Hazards.MAX_YOUNG_ODDS, (youngFixed + 1.5f * hunger + sick).coerceIn(0f, Hazards.MAX_YOUNG_ODDS) + huntedYoung)
@@ -671,7 +671,7 @@ private fun HexFauna.atClosedBorder(k: FaunaKind, p: Place): Boolean {
 internal fun HexFauna.placeWorth(k: FaunaKind, p: Place, fixed: WeekFixed, heads: Float, food: Float, parts: EnumFloats<Growth>): Float {
     if (!fixed.drinks[p]) return 0f
     val f = if (heads > 0f) min(1f, food / heads) else if (food > 0f) 1f else 0f
-    growthOf(k, fixed.grown[p], fixed.young[p], fixed.huntedYoung[p], fixed.protein[p], moverYoung[k], moverFat[k], f, heads / land.areaKm2[p], parts)
+    growthOf(k, p, fixed.grown[p], fixed.young[p], fixed.huntedYoung[p], fixed.protein[p], moverYoung[k], moverFat[k], f, heads / land.areaKm2[p], parts)
     return worthOrNothing(growthFor(k, parts, moverYoung[k]))
 }
 
