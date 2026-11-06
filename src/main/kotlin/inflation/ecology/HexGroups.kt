@@ -414,12 +414,12 @@ class HexGroups(
             times[k] = timetable(g.species, plan.path)
         }
         for ((k, g) in groups.withIndex()) if (g.alive) {
-            // (For the census: what it had to live on as it chose, [noteReserves].)
-            if (stats.bandSplits) g.band?.let { noteReserves(g, it) }
             if (g.band != null && g.fed < Thresholds.HUNGRY)
                 stats.meeting(if (paths[k]!!.size <= 1) Met.HUNGRY_BANDS_CHOSE_TO_STAY else Met.HUNGRY_BANDS_CHOSE_TO_MOVE)
             g.climbedM = max(0f, hw.placeElevationM[choice[k]] - hw.placeElevationM[g.place.i])
             g.place = Place(choice[k]); g.path = paths[k]!!; g.days = times[k]!!; g.meatMet = 0f; g.meatSpent = false
+            // (For the census: what it had to live on as it chose, and whether it moves camp, [noteReserves].)
+            if (stats.bandSplits) g.band?.let { noteReserves(g, it) }
             crossWater(g, g.path)
         }
         hurricanes?.let { storms -> if (storms.kills) for (g in groups) if (g.alive) hurricaneKill(g, storms, date) }

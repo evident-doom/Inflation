@@ -29,6 +29,7 @@ import inflation.ecology.Warn
 import inflation.ecology.WarnBin
 import inflation.ecology.WarnDeaths
 import inflation.ecology.WARN_LAGS
+import inflation.ecology.WARN_STATE
 import inflation.ecology.warnShare
 import inflation.ecology.LarderMove
 import inflation.ecology.StoreFlow
@@ -591,12 +592,14 @@ class Census(private val sim: HexSim) {
                 WarnBin.entries.filter { it != WarnBin.NOT_WEIGHED }.sumOf { lastYear[Tally.warnDied(d, 0, Warn.CHOSEN, it)] ?: 0 }
             println("${d.label} deaths of bands against what they foresaw for the week as they chose their place, last year ($all deaths; lag 0 the week they died, " +
                 "1, 2, 4 weeks before; shares of the deaths by the share of the band foreseen dead in that week: of hunger and thirst at the place chosen, " +
-                "the least of hunger and thirst at any place weighed, all causes at the place chosen as the networks read it; then the band's fat, protein burnt, days dry and larder, days, mean): " +
+                "the least of hunger and thirst at any place weighed, all causes at the place chosen as the networks read it; then means over the deaths: the band's fat, protein burnt, days dry, " +
+                "larder (all, dried, seed, roots, the rest) as the week began and larder as it ended, days of need; moved camp that week (share); fed last week, sodium short last week, lean protein wasted; " +
+                "fed foreseen at the place chosen and at the best fed place weighed): " +
                 WARN_LAGS.joinToString(" | ") { lag ->
                     fun bins(what: Warn) = WarnBin.entries.joinToString(", ") { b -> "${b.label} " + warnShare(lastYear[Tally.warnDied(d, lag, what, b)] ?: 0, all) }
-                    val n = (lastYear[Tally.warnReserves(d, lag, null)] ?: 0).toDouble()
-                    val kept = if (n <= 0.0) "-" else arrayOf(Warn.FAT, Warn.SPENT, Warn.DRY, Warn.LARDER).joinToString(", ") { w ->
-                        "%s %.1f".format(w.name.lowercase(), (lastYear[Tally.warnReserves(d, lag, w)] ?: 0) / 100.0 / n) }
+                    val kept = WARN_STATE.joinToString(", ") { w ->
+                        val n = (lastYear[Tally.warnReserves(d, lag, w, true)] ?: 0).toDouble()
+                        if (n <= 0.0) "${w.name.lowercase()} -" else "%s %.2f".format(w.name.lowercase(), (lastYear[Tally.warnReserves(d, lag, w, false)] ?: 0) / 100.0 / n) }
                     "lag $lag: chosen [${bins(Warn.CHOSEN)}]; least [${bins(Warn.LEAST)}]; seen [${bins(Warn.SEEN)}]; $kept"
                 })
         }

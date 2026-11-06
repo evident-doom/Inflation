@@ -307,7 +307,7 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
             // (And against what it foresaw in the year before: [bookCalibration].)
             for ((cause, k) in o.causes) if (k > 0) bookCalibration(b, cause, k)
             // (And against what it foresaw of the week's deaths as it chose its places, the weeks before: [bookWarning].)
-            bookWarning(b, o.causes)
+            bookWarning(g, b, o.causes)
             // (And its hunger deaths by what its larder held then, and whether it moved camp in the month before.)
             val starved = o.causes.sumOf { if (it.cause == DeathCause.HUNGER) it.n else 0 }
             // (And by how often it has moved camp lately, in the season: [moveCensus].)

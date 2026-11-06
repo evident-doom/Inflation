@@ -26,7 +26,20 @@ enum class Warn {
     DRY,
     /** Its larder, days of its need. */
     LARDER,
+    /** Of it, dried meat and fish; seed and nuts; roots; and the rest (fresh meat and fish, fruit, grease), days of its need. */
+    LARDER_DRIED, LARDER_SEED, LARDER_ROOTS, LARDER_OTHER,
+    /** Its larder as the week ended ([weekWarning]), or for the week its people die, as they die ([bookWarning]), days of its need. */
+    LARDER_END,
+    /** Whether it moved camp this week (1) or stayed (0). */
+    MOVED,
+    /** How fed it was last week ([HexGroup.fed]), its people's sodium short last week ([Band.sodiumShort]), and the share of the protein it ate that went to waste ([Band.leanLost]). */
+    FED_LAST, SODIUM_SHORT, LEAN_LOST,
+    /** How fed it foresaw it would be at the place it chose, and at the best fed of all it weighed ([GroupPlanner.deathsAt]'s fed). */
+    FED_CHOSEN, FED_BEST,
 }
+
+/** The [Warn]s the census averages over the deaths (the rest it bins, [WarnBin]). */
+val WARN_STATE = Warn.entries.filter { it.ordinal >= Warn.FAT.ordinal }
 
 /** Weeks of what bands foresaw kept for the census ([Band.warn]): the week they die and the four before. */
 const val WARN_WEEKS = 5
@@ -68,33 +81,46 @@ private fun warnSlot(b: Band, lag: Int, what: Warn) = Math.floorMod(b.warnAt - l
  * week's hunger and thirst there and the least anywhere, and all it foresaw there. Report-only, for the census.
  */
 internal fun HexGroups.recordWarning(g: HexGroup, b: Band, buf: GroupPlanner.Scratch, chosen: Place) {
-    var least = Float.NaN; var there = Float.NaN; var seen = Float.NaN
+    var least = Float.NaN; var there = Float.NaN; var seen = Float.NaN; var fedThere = Float.NaN; var fedBest = Float.NaN
     for (k in 0 until buf.explPlaces.size) {
         val p = Place(buf.explPlaces[k])
         val ht = foreseenHungerThirst(g, p, buf.explFed[k])
         if (least.isNaN() || ht < least) least = ht
-        if (p == chosen) { there = ht; seen = buf.explDying[k] }
+        if (fedBest.isNaN() || buf.explFed[k] > fedBest) fedBest = buf.explFed[k]
+        if (p == chosen) { there = ht; seen = buf.explDying[k]; fedThere = buf.explFed[k] }
     }
     b.warn[warnSlot(b, 0, Warn.CHOSEN)] = there; b.warn[warnSlot(b, 0, Warn.SEEN)] = seen; b.warn[warnSlot(b, 0, Warn.LEAST)] = least
+    b.warn[warnSlot(b, 0, Warn.FED_CHOSEN)] = fedThere; b.warn[warnSlot(b, 0, Warn.FED_BEST)] = fedBest
 }
 
-/** Band [g]'s fat, burnt protein, days dry and larder as the week starts, into [Band.warn]. Report-only, for the census. */
+/** Band [g]'s fat, burnt protein, days dry, larder by kind, last week's feeding and whether it moves camp, as the week starts, into [Band.warn]. Report-only, for the census. */
 internal fun noteReserves(g: HexGroup, b: Band) {
-    b.warn[warnSlot(b, 0, Warn.FAT)] = g.fat; b.warn[warnSlot(b, 0, Warn.SPENT)] = g.spent
-    b.warn[warnSlot(b, 0, Warn.DRY)] = g.dry; b.warn[warnSlot(b, 0, Warn.LARDER)] = g.larderDays()
+    fun set(what: Warn, x: Float) { b.warn[warnSlot(b, 0, what)] = x }
+    set(Warn.FAT, g.fat); set(Warn.SPENT, g.spent); set(Warn.DRY, g.dry); set(Warn.LARDER, g.larderDays())
+    val need = max(1e-3f, g.dailyNeedKg)
+    set(Warn.LARDER_DRIED, g.stores[Store.DRIED] / need); set(Warn.LARDER_SEED, g.stores[Store.SEED] / need)
+    set(Warn.LARDER_ROOTS, g.stores[Store.ROOTS] / need)
+    set(Warn.LARDER_OTHER, (g.stores[Store.FRESH] + g.stores[Store.FRUIT] + g.stores[Store.GREASE]) / need)
+    set(Warn.MOVED, if (g.path.size > 1) 1f else 0f)
+    set(Warn.FED_LAST, g.fed); set(Warn.SODIUM_SHORT, b.sodiumShort); set(Warn.LEAN_LOST, b.leanLost)
 }
 
-/** Books band [b]'s deaths this week, [causes], against what it foresaw [WARN_LAGS] weeks before ([Band.warn]). For the census. */
-internal fun HexGroups.bookWarning(b: Band, causes: List<Died>) {
+/**
+ * Books band [b]'s (group [g]'s) deaths this week, [causes], against what it foresaw [WARN_LAGS] weeks before ([Band.warn]),
+ * with its larder as they die ([Warn.LARDER_END]). For the census.
+ */
+internal fun HexGroups.bookWarning(g: HexGroup, b: Band, causes: List<Died>) {
+    b.warn[warnSlot(b, 0, Warn.LARDER_END)] = g.larderDays()
     for (d in causes) {
         if (d.n <= 0) continue
         val of = WarnDeaths.of(d.cause)
         for (lag in WARN_LAGS) {
             for (what in arrayOf(Warn.CHOSEN, Warn.SEEN, Warn.LEAST)) stats.tally(Tally.warnDied(of, lag, what, WarnBin.of(b.warn[warnSlot(b, lag, what)])), d.n)
-            if (b.warn[warnSlot(b, lag, Warn.FAT)].isNaN()) continue
-            stats.tally(Tally.warnReserves(of, lag, null), d.n)
-            for (what in arrayOf(Warn.FAT, Warn.SPENT, Warn.DRY, Warn.LARDER))
-                stats.tally(Tally.warnReserves(of, lag, what), (100f * d.n * b.warn[warnSlot(b, lag, what)]).roundToInt())
+            for (what in WARN_STATE) {
+                val x = b.warn[warnSlot(b, lag, what)]; if (x.isNaN()) continue
+                stats.tally(Tally.warnReserves(of, lag, what, true), d.n)
+                stats.tally(Tally.warnReserves(of, lag, what, false), (100f * d.n * x).roundToInt())
+            }
         }
     }
 }
@@ -102,6 +128,7 @@ internal fun HexGroups.bookWarning(b: Band, causes: List<Died>) {
 /** At the week's end: band [g]'s people-weeks by what it foresaw for the week; then on to the next week's slot. For the census. */
 internal fun HexGroups.weekWarning(g: HexGroup, b: Band) {
     for (what in arrayOf(Warn.CHOSEN, Warn.SEEN)) stats.tally(Tally.warnPeopleWeeks(what, WarnBin.of(b.warn[warnSlot(b, 0, what)])), g.size)
+    b.warn[warnSlot(b, 0, Warn.LARDER_END)] = g.larderDays()
     b.warnAt = (b.warnAt + 1) % WARN_WEEKS
     for (what in Warn.entries) b.warn[warnSlot(b, 0, what)] = Float.NaN
 }
