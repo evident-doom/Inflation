@@ -4,6 +4,7 @@ import inflation.Part
 import inflation.Par
 import inflation.Profile
 import inflation.Stream
+import inflation.drawUnit
 import inflation.stream
 import inflation.world.Hex
 import inflation.world.Place
@@ -11,6 +12,7 @@ import inflation.world.get
 import inflation.world.set
 import inflation.ecology.HexSmallLife.DeadPool
 import inflation.Books
+import inflation.Kg
 import inflation.KgM2
 import inflation.monthsFrom
 import inflation.world.Date
@@ -275,6 +277,7 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
     // lie where they died, carrion that draws the beasts that eat it.)
     val buried = s.human && g.band?.holds(Tradition.BURIAL) == true
     if (o.carrionKg > 0f && !buried) small.deposit(DeadPool.CARRION, g.place, KgM2(o.carrionKg / (land.areaKm2[g.place] * 1e6f)))
+    if (o.carrionKg > 0f && buried) small.bury(g.place, Kg(o.carrionKg))
     // (And the unburied dead foul the ground of the camp they lie at, as weeks of camping do ([CORPSE_FOUL_WEEKS]): a band
     // that stays on beside them, or comes there before the ground clears, bears it as the camp's fouling.)
     if (s.human && o.carrionKg > 0f && !buried) {
@@ -423,6 +426,16 @@ private fun HexGroups.bookUnlucky(g: HexGroup, b: Band, way: Tally.Living, died:
 @Part("groups: mourn the dead")
 private fun HexGroups.mournDead(g: HexGroup, o: Outcome, date: Date) {
     val s = g.species
+    // A settled band that does not bury its dead, with a death where it means to stay, may take up burial then: it cannot
+    // leave its dead, so it puts them in the ground ([SETTLED_BURY], each death).
+    if (s.human && o.deaths > 0) g.band?.let { b ->
+        if (!b.holds(Tradition.BURIAL) && bandLiving(b) == Tally.Living.SETTLED &&
+            drawUnit(seedBase, Stream.CUSTOMS, g.id.toLong(), stepOf(date).toLong(), SETTLED_BURY_DRAW) < 1f - (1f - SETTLED_BURY).pow(o.deaths)) {
+            b.traditions[Tradition.BURIAL] = true
+            stats.meeting(Met.Of.TOOK_UP, Tradition.BURIAL.name.lowercase())
+            note(g) { "settled, it came to bury its dead" }
+        }
+    }
     // A band that keeps the old way leaves a camp where someone died.
     if (s.human && o.deaths > 0) g.band?.let { b ->
         if (b.holds(Tradition.LEAVE_DEAD) && !b.holds(Tradition.BURIAL)) {
