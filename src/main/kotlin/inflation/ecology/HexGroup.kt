@@ -62,13 +62,15 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
     /**
      * For the census of the hurricane test: the deadliest peril foreseen ([HexGroups.perilAhead]) at its camp as it chose this
      * week and as it chose the week before, at the place it chose, and the least among the places it weighed (NaN when it
-     * weighed none).
+     * weighed none). [safestPerilNoted] keeps the last week's [safestPeril] for [safestPerilBefore]: the planner overwrites
+     * [safestPeril] before the census reads it (until 2026-11-06 the "safe place in reach then" count read this week's).
      */
     @Transient var campPeril = 0f
     @Transient var campPerilBefore = 0f
     @Transient var chosenPeril = 0f
     @Transient var safestPeril = Float.NaN
     @Transient var safestPerilBefore = Float.NaN
+    @Transient var safestPerilNoted = Float.NaN
     /**
      * A band's deaths as the week's odds made them likely, summed since it began (training, with [luck]; not saved, and so not made until first added to): of the causes in
      * [DeathClass.KIT], in [DeathClass.FOOD], and of all of them, at those indices ([LOST_ALL] for all).

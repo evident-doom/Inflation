@@ -446,7 +446,8 @@ class HexGroups(
 
     /** For the census: the peril band [g] foresaw at its camp, at the place [to] it chose and at the safest place it weighed. */
     private fun notePeril(g: HexGroup, to: Place) {
-        g.campPerilBefore = g.campPeril; g.safestPerilBefore = g.safestPeril
+        // (The week before's: [HexGroup.safestPeril] is already this week's, as the planner left it.)
+        g.campPerilBefore = g.campPeril; g.safestPerilBefore = g.safestPerilNoted; g.safestPerilNoted = g.safestPeril
         g.campPeril = perilAhead(hw.placeHex[g.place]); g.chosenPeril = perilAhead(hw.placeHex[to])
         if (g.campPeril > 0f && g.campPeril < 1f) {
             stats.meeting(Met.BANDS_WARNED_OF_PERIL)

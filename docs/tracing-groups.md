@@ -24,6 +24,14 @@ the tracing only reads, so the second pass follows the same course as the first 
     its camp's mean forage yield over the last 4 weeks, its own record of the food it got this month and the 3
     months ahead (`Band.monthSupply`, share of need), its foreseen lean days and survival, and how fed it remembers
     being at this hex in this season (`PlaceMemory`).
+- The peril trace (`ecology/PerilTrace.kt`), `perilTrace=true`: on stderr, every band that foresees a deadly peril at its
+  camp (`peril #` lines, the hurricane test so far), each week as it chooses: the peril at its camp (1 = it strikes this
+  week, and a band whose camp is struck dies whatever it chooses); its reach, the hexes in it free of the peril and the
+  effort to the nearest; the place it chose, its peril, survival steps and hand-written score; and of the places it weighed,
+  the safest's survival steps, how many free places it weighed, how many of those were not open (deadlier than the safest
+  by more than a step, which the draw and the planner never take) or had no score, and the best open free place; and the
+  effort from its camp to the nearest free ground within 6 weeks' reach (`way out`, [searchWayOut]). At the
+  week's end a `perilEnd #` line says whether it lived. One pass is enough: the trace prints every warned band.
 - `scripts/doomtrace.py`:
   - `pick OUT`: from a pass-1 output, the `doomTrace=` key for pass 2 (bands that died out, the hungriest living,
     and controls; `--died N --hungry N --control N`).
@@ -32,6 +40,10 @@ the tracing only reads, so the second pass follows the same course as the first 
     hex), all weeks and hungry weeks (fed < 0.9) apart, doomed against control, by arm (the run name before its
     first `-`).
   - `lean OUT [OUT ...]`: the lean table summed over years and runs, by kind of country and by country and month.
+  - `peril OUT [OUT ...] [--bands]`: the warned band-weeks in cases (no free place in reach; went to a free place; free in
+    reach but none weighed; free weighed but none open; an open free place, but it chose a perilous one, by mind, net or
+    hand, staying or moving), and the bands killed with their camp struck by the case of their week before and by their
+    whole warned stretch.
 
 ## The method
 
