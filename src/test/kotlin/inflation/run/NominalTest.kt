@@ -98,4 +98,25 @@ class NominalTest {
         // are short of the clothes a settled world's have.)
         assertTrue(r.findings.all { it.what == "people, " + HexHistory.PeopleWay.CLAD.label }, r.report())
     }
+
+    /** Shares alive after each of 52 weeks: [first] after week 1, then falling by [rate] a week to no less than [floor]. */
+    private fun curve(first: Double, rate: Double, floor: Double) =
+        DoubleArray(53) { w -> if (w == 0) 1.0 else maxOf(floor, first * Math.pow(1 - rate, (w - 1).toDouble())) }
+
+    @Test
+    fun `unprepared people dying in the weeks the record gives are within the floor limits`() {
+        // (Half dead in week 5, 10% left by week 13, 1% after a year; the bands as they are keep 97%.)
+        val r = Nominal.floor(curve(0.95, 0.17, 0.01), DoubleArray(53) { 1.0 - 0.03 * it / 52 }, "test")
+        assertTrue(r.ok, r.report())
+    }
+
+    @Test
+    fun `unprepared people dying too fast, too slowly, or a world killing those as they are, are found`() {
+        val fast = Nominal.floor(curve(0.6, 0.5, 0.0), null, "fast")
+        assertTrue(fast.findings.map { it.what }.toSet() == setOf("stripped, week 1", "stripped, half dead"), fast.report())
+        val slow = Nominal.floor(curve(0.99, 0.01, 0.0), null, "slow")
+        assertTrue(slow.findings.map { it.what }.toSet() == setOf("stripped, half dead", "stripped, week 13", "stripped, week 52"), slow.report())
+        val world = Nominal.floor(curve(0.95, 0.17, 0.01), DoubleArray(53) { 1.0 - 0.3 * it / 52 }, "world")
+        assertTrue(world.findings.map { it.what } == listOf("as they are, week 52"), world.report())
+    }
 }

@@ -121,6 +121,22 @@ object Nominal {
         HexHistory.PeopleWay.HUNTING to 0.3, HexHistory.PeopleWay.GAME to 0.2)
 
     /**
+     * The skills floor (the HexSkillsFloor probe): how soon unprepared people die when every band of a settled world is
+     * stripped of its skills, kit, stores, herds and knowledge of the land at once, as shares of the stripped people
+     * alive after so many 6-day weeks. Against the record as the docs recall it (neolithic-path.md, "Skills floor test";
+     * unsourced): hunger kills the unprepared in 3 to 8 weeks, cold kills the unclad within days where it is cold, and
+     * warm country lasts longest. So: at least [FLOOR_WEEK1_MIN] alive after a week (only the cold kills that fast);
+     * half dead no sooner than week [FLOOR_HALF_MIN] and no later than week [FLOOR_HALF_MAX]; at most [FLOOR_WEEK13_MAX]
+     * left after a season and [FLOOR_WEEK52_MAX] after a year (a few relearn and live). The bands as they are, the
+     * same world and weather unstripped, keep at least [FLOOR_USUAL_WEEK52_MIN] of their people through the year, so
+     * that the stripping, not the world, is what kills. PROPOSED (2026-11-06), not yet agreed by Olli.
+     */
+    const val FLOOR_WEEK1_MIN = 0.85
+    const val FLOOR_HALF_MIN = 3; const val FLOOR_HALF_MAX = 9
+    const val FLOOR_WEEK13_MAX = 0.25; const val FLOOR_WEEK52_MAX = 0.10
+    const val FLOOR_USUAL_WEEK52_MIN = 0.90
+
+    /**
      * How a state may change from year to year (rise to at most [rise] times, fall to no less than 1/[fall]) and from
      * the first whole year to the last ([run] times either way), once it is at least [floor] in either year (a few
      * animals or tonnes rise and fall too much by chance to judge by).
@@ -217,6 +233,28 @@ object Nominal {
 
     private class Tally { val findings = ArrayList<Finding>(); var tried = 0
         fun check(ok: Boolean, what: String, how: () -> String) { tried++; if (!ok) findings += Finding(what, how()) }
+    }
+
+    /**
+     * The skills floor against its limits ([FLOOR_WEEK1_MIN] and on): [stripped] and [usual] are the shares of the
+     * stripped bands' people, and of the same bands left as they are, alive after each week (index 0 the start, 1),
+     * from one world, weather and start; [what] names them. A limit past the weeks run is not tried, but for the half
+     * dead, which fails when the run outlasts [FLOOR_HALF_MAX] without it.
+     */
+    fun floor(stripped: DoubleArray, usual: DoubleArray?, what: String): Result {
+        val t = Tally()
+        val weeks = stripped.size - 1
+        fun pct(v: Double) = "%.0f%%".format(100 * v)
+        if (weeks >= 1) t.check(stripped[1] >= FLOOR_WEEK1_MIN, "stripped, week 1") { "${pct(stripped[1])} alive, below ${pct(FLOOR_WEEK1_MIN)}" }
+        val half = (1..weeks).firstOrNull { stripped[it] < 0.5 }
+        if (half != null) t.check(half in FLOOR_HALF_MIN..FLOOR_HALF_MAX, "stripped, half dead") {
+            "in week $half, outside weeks $FLOOR_HALF_MIN-$FLOOR_HALF_MAX" }
+        else if (weeks >= FLOOR_HALF_MAX) t.check(false, "stripped, half dead") { "not by week $weeks (${pct(stripped[weeks])} alive)" }
+        if (weeks >= 13) t.check(stripped[13] <= FLOOR_WEEK13_MAX, "stripped, week 13") { "${pct(stripped[13])} alive, above ${pct(FLOOR_WEEK13_MAX)}" }
+        if (weeks >= 52) t.check(stripped[52] <= FLOOR_WEEK52_MAX, "stripped, week 52") { "${pct(stripped[52])} alive, above ${pct(FLOOR_WEEK52_MAX)}" }
+        if (usual != null && usual.size > 52) t.check(usual[52] >= FLOOR_USUAL_WEEK52_MIN, "as they are, week 52") {
+            "${pct(usual[52])} alive, below ${pct(FLOOR_USUAL_WEEK52_MIN)}" }
+        return Result(t.findings, t.tried, what)
     }
 
     /** Every series of [h] against its limits. */
