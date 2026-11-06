@@ -30,7 +30,7 @@ class HexHurricane(
     count: Int, private val speed: Float, private val radius: Int, warnWeeks: Int,
     /** Whether groups are told where the storms strike, and whether a struck group dies. */
     val told: Boolean, val kills: Boolean,
-) {
+) : Peril {
     private val warn = warnWeeks.coerceAtLeast(1)
     private val width = warn + 1
     /** Storm k's hexes now (index 0) and in each of the next [warn] weeks. */
@@ -119,6 +119,9 @@ class HexHurricane(
 
     /** How soon hex [h] is struck, as a group would be told: 1 for this week, falling by a [width]th for each week ahead, 0 if not within the weeks worked out. */
     fun urgency(h: Hex): Float = first[h.i].let { if (it == NEVER) 0f else (width - it).toFloat() / width }
+
+    /** A storm kills all it strikes: as deadly as it is soon, when groups are told of it and it kills ([Peril]). */
+    override fun ahead(h: Hex): Float = if (told && kills) urgency(h) else 0f
 
     /** The hex where a storm (or recruiter) stands this week that is nearest [from]; [Hex.NONE] if none was set down. */
     fun nearest(from: Hex): Hex {

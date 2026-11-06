@@ -114,7 +114,8 @@ class SchemaTest {
             HexFeatures.USUAL_YIELD_AHEAD to "usual yield, month 1 ahead",
             HexFeatures.USUAL_YIELD_AHEAD + 1 to "usual yield, month 2 ahead",
             HexFeatures.USUAL_YIELD_AHEAD + 2 to "usual yield, month 3 ahead",
-            HexFeatures.YIELD_LORE_KNOWN to "usual yield known"
+            HexFeatures.YIELD_LORE_KNOWN to "usual yield known",
+            HexFeatures.DEADLY_AHEAD to "deadly danger ahead"
         )
         assertEquals(HexFeatures.size, named.size)
         for ((slot, name) in named) assertEquals(name, Schema.PLACE[slot], "feature slot $slot")
