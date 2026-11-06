@@ -137,6 +137,7 @@ PERIL = re.compile(r'peril #(?P<id>\d+) (?P<date>[^:]+): (?P<people>\d+) people,
     r'camp peril (?P<camp>[\d.]+) \((?P<stay>[^)]*)\); reach (?P<reach>\d+) km \((?P<hexes>\d+) hexes, (?P<free>\d+) free, nearest free at (?P<near>\S+)\); '
     r'chose peril (?P<chose>[\d.]+)(?P<where> \(stays\)| at \d+), (?P<cho>[^;]*); weighed (?P<n>\d+), safest steps (?P<safest>[^;]+); '
     r'free weighed (?P<fw>\d+) \(not open (?P<shut>\d+), no score (?P<unsc>\d+)\), best open free: (?P<bf>.*?)(?:; way out (?P<out>.*))?$')
+DECIMAL_COMMA = re.compile(r'(\d),(\d)')
 PERIL_END = re.compile(r'perilEnd #(?P<id>\d+) (?P<date>[^:]+): (?P<end>.*)')
 DAY = re.compile(r'Year (\d+), month (\d+), day (\d+)')
 PERIL_CASES = ['no free place in reach', 'went to a free place', 'free in reach, none weighed', 'free weighed, none open', 'open free place, chose a perilous one']
@@ -159,6 +160,8 @@ def peril(args):
     for path in (a for a in args if not a.startswith('--')):
         last = {}; now = {}; stretch = collections.defaultdict(list)
         for run, l in runs(path):
+            # (A machine whose locale writes decimal commas prints "camp peril 0,71": read them as points.)
+            l = DECIMAL_COMMA.sub(r'\1.\2', l)
             m = PERIL.match(l)
             if m:
                 w = m.groupdict(); w['run'] = run
