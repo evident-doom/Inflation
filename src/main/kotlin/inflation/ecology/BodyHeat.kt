@@ -124,15 +124,18 @@ object BodyHeat {
         val inWind = if (house) HOUSE_AIR_MS else air.windMs * (1f - WINDBREAK).pow(hut)
         val inWet = if (house) 0f else air.wet * (1f - ROOF).pow(hut)
         val warmer = if (house) c.houseWarmC else SHELTER_C * thatch
-        val bed = if (house) BED_R else BED_R * hut
+        // (With no shelter, sleepers still rake leaves, grass or boughs under them: [LITTER_R].)
+        val bed = if (house) BED_R else max(LITTER_R, BED_R * hut)
         val nightClo = c.clothesClo * (1f + NIGHT_COVER)
         val ground = if (air.snow) min(0f, air.meanC) else air.meanC
         // (A house's hearth warms its air, [Cover.houseWarmC]; at a camp the fire warms those about it by the wood it burns.)
         val fireC = if (house) 0f else fireC(c.fire, c.shelter)
         val campC = air.meanC + warmer + fireC
         val sleepC = air.nightC + warmer + FIRE_SLEEP_SHARE * fireC
-        val lCamp = loss(camp, campC, inWind, 0f, c.clothesClo, inWet)
-        val lSleep = loss(rest, sleepC, inWind, 0f, nightClo, inWet) * (1f - LYING_CONTACT) + breath(rest, sleepC) * LYING_CONTACT +
+        // (The unclad huddle at rest: [HUDDLED], in full with no clothes, none from [HUDDLE_CLO] on.)
+        val huddled = 1f - (1f - HUDDLED) * (1f - c.clothesClo / HUDDLE_CLO).coerceIn(0f, 1f)
+        val lCamp = loss(camp, campC, inWind, 0f, c.clothesClo, inWet, huddled)
+        val lSleep = loss(rest, sleepC, inWind, 0f, nightClo, inWet, huddled) * (1f - LYING_CONTACT) + breath(rest, sleepC) * LYING_CONTACT +
             LYING_CONTACT * (skinC(rest) - ground) / (CONTACT_R + bed + if (air.snow) SNOW_R else SOIL_R)
         val lWork = loss(work, air.dayC, air.windMs, WALK_MS, c.clothesClo, air.wet)
         // (Breaks to warm up: the share of the working hours spent by the fire so that the hours together lose no more than
@@ -175,9 +178,10 @@ object BodyHeat {
     /**
      * Heat lost a m² of skin at [m] W/m² in air at [airC] blowing [windMs] at a person walking [walkMs], in clothes of [clo]
      * wet for a share [wet] of the time: the dry way, through the clothes' resultant insulation (ISO 11079 A: worn down by
-     * wind and walking at the clothes' air permeability [PERMEABILITY]), sweat at the least skin wetness, and breath.
+     * wind and walking at the clothes' air permeability [PERMEABILITY]), sweat at the least skin wetness, and breath; the
+     * first two from the share [exposed] of the skin open to the air (all of it at work; less for the unclad huddled at camp and asleep: [HUDDLED]).
      */
-    private fun loss(m: Float, airC: Float, windMs: Float, walkMs: Float, clo: Float, wet: Float): Float {
+    private fun loss(m: Float, airC: Float, windMs: Float, walkMs: Float, clo: Float, wet: Float, exposed: Float = 1f): Float {
         val skin = skinC(m)
         val i = clo * CLO * (1f - WET_INSULATION * wet)
         val fcl = 1f + 1.197f * i
@@ -185,7 +189,7 @@ object BodyHeat {
         val r = (i + 0.085f / fcl) * corr
         val dry = (skin - airC) / r
         val sweat = 0.06f * (vapour(skin) - HUMIDITY * vapour(airC)) / (0.06f / 0.38f * r)
-        return dry + sweat + breath(m, airC)
+        return exposed * (dry + sweat) + breath(m, airC)
     }
 
     /** Heat lost a m² of skin in breath at [m] W/m² in air at [airC] (ISO 11079 A). */
@@ -295,6 +299,23 @@ object BodyHeat {
      * W/m K (Buildings 7(1): 11, 2017).
      */
     const val BED_R = 0.5f
+    /**
+     * Leaf litter, grass or boughs raked together to sleep on where there is no shelter, m²K/W: a few cm pressed loose under the
+     * body (an estimate, at under a third of a shelter's [BED_R]). Even unprepared people do this the first night.
+     */
+    const val LITTER_R = 0.15f
+    /**
+     * The share of the body's loss through clothes and skin that people at rest in the cold still lose, against ISO 11079's
+     * balance for one standing at a fixed skin temperature: sitting hunched and lying curled, close together, hide much of the
+     * skin, and the cold skin itself cools below ISO's figure, which cuts the loss further (both estimates, lumped into one
+     * share). Calibrated to the record as the docs recall it (unsourced): unclad people without fire or shelter do not die
+     * in a dry week at a mean of 15 °C (ISO's balance taken whole killed them all in a night), but do within days near a
+     * mean of 10 °C, and in a night that is cold, wet and windy. At camp and asleep, not at work, and not breath. Only for
+     * the unclad: in full with no clothes, less as they wear more, none from [HUDDLE_CLO] (the clad's balance, which the cold
+     * model's calibration rests on, stays ISO's).
+     */
+    const val HUDDLED = 0.5f
+    const val HUDDLE_CLO = 1f
     /**
      * The ground's resistance under a sleeper ([groundR]): moist soil at 1 W/m K and 5e-7 m²/s (Hillel 1998, Environmental
      * Soil Physics; estimates for a moist loam); snow at 0.2 W/m K and 3e-7 m²/s (a settled snow: estimates).
