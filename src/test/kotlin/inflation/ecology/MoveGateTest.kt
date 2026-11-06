@@ -9,6 +9,7 @@ class MoveGateTest {
 
     @Test fun parsesTheBestGate() {
         assertEquals(Slots(MoveGate.BEST, DaySplit.WEIGHTED, DialSource.WAYS), Slots.parse("gate:best,days:weighted,dials:ways", asBuilt))
+        assertEquals(MoveGate.SURPLUS, Slots.parse("gate:surplus", asBuilt).gate)
         assertEquals(asBuilt, Slots.parse(null, asBuilt))
         assertFailsWith<IllegalStateException> { Slots.parse("gate:greedy", asBuilt) }
     }
