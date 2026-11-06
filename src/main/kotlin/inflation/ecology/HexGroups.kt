@@ -135,6 +135,10 @@ class HexGroups(
      * without one choose by their kind's ([policies]). See [policyFor]. Not saved: the config sets what drives a run.
      */
     @Transient val mindPolicies = HashMap<Mind, HashMap<Species, HexPolicy>>()
+    /** Scouting parties out ([tendParties]): each party's contract by its id; each band with a party out, its party's id; the week each band's last party came back or was lost. (Not saved: a party in a saved world is a band of its own.) */
+    @Transient val parties = HashMap<Int, Party>()
+    @Transient val partyOut = HashMap<Int, Int>()
+    @Transient val rested = HashMap<Int, Int>()
     /** How bands set their ways each week; null for the scaffold's. Not saved: what drives a run is set by the config (ways=), not carried in a save. */
     @Transient var ways: BandWays? = null
     /** Counts how the bands' ways act (dialUse=FILE, see [DialUse]); null: not counted. Not saved. */
