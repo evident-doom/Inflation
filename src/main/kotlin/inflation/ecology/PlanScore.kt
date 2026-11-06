@@ -359,11 +359,12 @@ internal fun GroupPlanner.crossingDeaths(s: Species, to: Hex, here: Hex, via: He
 /**
  * The share of a group that the hurricane test's storms ([HexHurricane]) would kill going from hex [here] to hex [to] along
  * the cheapest chain ([via]): all of it if any hex on the way, its camp's and the end's included, is struck this week, as
- * [HexGroups.hurricaneKill] has it (on arrival or crossing); else none. None when the storms do not kill.
+ * [HexGroups.hurricaneKill] has it (on arrival or crossing); else none. None when the storms do not kill, or when groups are
+ * not told where they strike ([HexHurricane.told]: the blind arm of the test).
  */
 @Part("choosing: storm deaths")
 internal fun GroupPlanner.stormDeaths(to: Hex, here: Hex, via: HexArray): Float {
-    val storms = gs.hurricanes?.takeIf { it.kills } ?: return 0f
+    val storms = gs.hurricanes?.takeIf { it.kills && it.told } ?: return 0f
     var h = to
     while (true) {
         if (storms.struck(h)) return 1f
