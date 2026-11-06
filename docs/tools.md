@@ -50,7 +50,7 @@ The probes, programs that answered one question about the model, live apart in `
 
 ## Following groups
 
-To follow individual groups through their choices (which bands starve, and whether they had a better place within or beyond reach), see docs/tracing-groups.md: the `doomList` and `doomTrace` config keys and `scripts/doomtrace.py`.
+To follow individual groups through their choices (which bands starve, and whether they had a better place within or beyond reach), see docs/tracing-groups.md: the `doomList`, `doomTrace` and `perilTrace` config keys and `scripts/doomtrace.py`.
 
 ## The viewer and pictures (`inflation.ui`)
 

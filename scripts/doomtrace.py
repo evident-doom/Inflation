@@ -124,6 +124,62 @@ def lean(args):
         print(f"  {c:24} " + ' '.join(f"{per(r):4.0f}" for r in ms) + ' | ' + ' '.join(f"{100*r['fat drawn']/max(1, r['band-weeks']):3.0f}" for r in ms)
               + ' | ' + ' '.join(f"{mean(r, 'larder d/10', 10):4.0f}" for r in ms) + ' | ' + ' '.join(f"{mean(r, 'yield/100', 100, 'yield weeks'):4.2f}" for r in ms))
 
+PERIL = re.compile(r'peril #(?P<id>\d+) (?P<date>[^:]+): (?P<people>\d+) people, mind (?P<mind>\w+), by (?P<by>\w+)(?P<restless>, restless)?(?P<party>, party out)?; '
+    r'camp peril (?P<camp>[\d.]+) \((?P<stay>[^)]*)\); reach (?P<reach>\d+) km \((?P<hexes>\d+) hexes, (?P<free>\d+) free, nearest free at (?P<near>\S+)\); '
+    r'chose peril (?P<chose>[\d.]+)(?P<where> \(stays\)| at \d+), (?P<cho>[^;]*); weighed (?P<n>\d+), safest steps (?P<safest>[^;]+); '
+    r'free weighed (?P<fw>\d+) \(not open (?P<shut>\d+), no score (?P<unsc>\d+)\), best open free: (?P<bf>.*)')
+PERIL_END = re.compile(r'perilEnd #(?P<id>\d+) (?P<date>[^:]+): (?P<end>.*)')
+DAY = re.compile(r'Year (\d+), month (\d+), day (\d+)')
+PERIL_CASES = ['no free place in reach', 'went to a free place', 'free in reach, none weighed', 'free weighed, none open', 'open free place, chose a perilous one']
+
+def peril_case(w):
+    if float(w['chose']) == 0: return PERIL_CASES[1]
+    if int(w['free']) == 0: return PERIL_CASES[0]
+    if int(w['fw']) == 0: return PERIL_CASES[2]
+    if w['bf'].strip() == 'none': return PERIL_CASES[3]
+    return PERIL_CASES[4]
+
+def day(date):
+    m = DAY.search(date)
+    return (int(m[1]) * 12 + int(m[2])) * 30 + int(m[3]) if m else None
+
+def peril(args):
+    show = '--bands' in args
+    warned = collections.Counter(); why = collections.Counter(); killed = collections.Counter(); struck = 0
+    shown = []
+    for path in (a for a in args if not a.startswith('--')):
+        last = {}; now = {}
+        for run, l in runs(path):
+            m = PERIL.match(l)
+            if m:
+                w = m.groupdict(); w['run'] = run
+                key = (run, w['id'])
+                if float(w['camp']) < 1:
+                    c = peril_case(w); warned[c] += 1
+                    if c == PERIL_CASES[4]: why[(w['mind'], w['by'], 'stays' if 'stays' in w['where'] else 'moves')] += 1
+                    if show and c in PERIL_CASES[2:]: shown.append(l.rstrip())
+                else: struck += 1
+                now[key] = (w, last.get(key)); last[key] = w
+                continue
+            m = PERIL_END.match(l)
+            if m and m['end'] == 'died out':
+                key = (run, m['id'])
+                w, before = now.get(key, (None, None))
+                if w is None or float(w['camp']) < 1: continue
+                d0, d1 = day(before['date']) if before else None, day(w['date'])
+                if before is None or d0 is None or d1 is None or d1 - d0 > 8: killed['not warned the week before'] += 1
+                else:
+                    c = peril_case(before); killed[c] += 1
+                    if show: shown.append('killed; the week before: ' + ' '.join(f'{k}={before[k]}' for k in ('run', 'id', 'date', 'camp', 'free', 'near', 'chose', 'where', 'cho', 'safest', 'fw', 'shut', 'unsc', 'bf')))
+    total = sum(warned.values()) or 1
+    print(f'band-weeks warned of a peril at camp: {sum(warned.values())}; with the camp struck: {struck}')
+    for c in PERIL_CASES: print(f'  {c:40} {warned[c]:6d}  {100*warned[c]/total:5.1f}%')
+    if why: print('  of "chose a perilous one", by mind, net or hand, stays or moves: ' + ', '.join(f'{k[0]}/{k[1]}/{k[2]} {v}' for k, v in why.most_common()))
+    print(f'bands that died with their camp struck: {sum(killed.values())}, by the case of their week before:')
+    for c in ['not warned the week before'] + PERIL_CASES:
+        if killed[c]: print(f'  {c:40} {killed[c]:6d}')
+    for l in shown: print(l)
+
 if __name__ == '__main__':
-    if len(sys.argv) < 3 or sys.argv[1] not in ('pick', 'summary', 'lean'): sys.exit(__doc__)
-    {'pick': pick, 'summary': summary, 'lean': lean}[sys.argv[1]](sys.argv[2:])
+    if len(sys.argv) < 3 or sys.argv[1] not in ('pick', 'summary', 'lean', 'peril'): sys.exit(__doc__)
+    {'pick': pick, 'summary': summary, 'lean': lean, 'peril': peril}[sys.argv[1]](sys.argv[2:])
