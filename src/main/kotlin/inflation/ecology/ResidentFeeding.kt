@@ -22,7 +22,6 @@ import inflation.min
 import inflation.world.HexLand
 import inflation.world.LifeForm
 import inflation.world.Weather
-import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
@@ -211,16 +210,15 @@ private fun HexFauna.feedKinds(p: Place, weather: Weather, z: Grazing, ff: Doubl
 }
 
 /**
- * The share of its need beyond the need a fed resident of kind [k] at place [p] eats to lay on fat: [SURPLUS_EAT]; over a
- * step of several ticks, as many ticks' worth as it would have eaten tick by tick: a tick's surplus each tick its reserves
- * were short of [Species.maxFatDays] (the body it burnt won back first, as [graze] lays it on), so a whole tick's even when a
- * little filled them, as week by week, but not a whole step's on reserves a few days short of full.
+ * The share of its need beyond the need a fed resident of kind [k] at place [p] eats over the step to lay on fat: it
+ * eats [SURPLUS_EAT] more a day for as many of the step's days as it takes to fill the room its reserves have below
+ * [Species.maxFatDays] (the body it burnt won back first, as [graze] lays it on), and no more: a rate over days, the
+ * same at any step length (plan section 52.B.1). A fuller body eats less of the step's days' surplus, not a whole
+ * week's for a reserve a day short of full (the weekly fault: fat thrown away at the cap).
  */
 private fun HexFauna.surplusShare(k: FaunaKind, p: Place): Float {
-    if (clock.ticks == 1) return SURPLUS_EAT
     val room = max(0f, kinds[k].maxFatDays - reserve[k][p] + spent[k][p])
-    val ticksShort = ceil(room / (FAT_EFFICIENCY * SURPLUS_EAT * clock.tickDays)).coerceIn(1f, clock.ticks.toFloat())
-    return SURPLUS_EAT * ticksShort / clock.ticks
+    return SURPLUS_EAT * min(1f, room / (FAT_EFFICIENCY * SURPLUS_EAT * days))
 }
 
 /**
@@ -271,8 +269,8 @@ private fun HexFauna.animalFood(k: FaunaKind, p: Place, weather: Weather, z: Gra
         }
         // With its need met and reserves short, it eats more and lays the surplus on (as from plants).
         if (gap <= 0f && reserve[k][p] < s.maxFatDays) {
-            // (Over a step of several ticks, no more than lays on what the reserves still have room for: [surplusShare].)
-            var more = if (clock.ticks == 1) SURPLUS_EAT * animalNeed else min(SURPLUS_EAT * animalNeed, max(0f, surplusShare(k, p) - surplus[k]) * needAll)
+            // (No more than lays on what the reserves still have room for over the step's days: [surplusShare].)
+            var more = min(SURPLUS_EAT * animalNeed, max(0f, surplusShare(k, p) - surplus[k]) * needAll)
             val moreMeat = min(more, most * d.meat - gotMeat)
             if (moreMeat > 0f) { val x = huntResidents(k, p, KgM2(moreMeat * avail[k]), weather, huntDays).v; surplus[k] += x / needAll; more -= x }
             val moreSmall = min(more, most * d.smallPrey - gotSmall)
