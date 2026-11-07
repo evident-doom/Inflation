@@ -135,7 +135,7 @@ private fun HexFauna.eatPlants(p: Place, weather: Weather, grass: Float, browse:
         var grass3 = 0f; var browse3 = 0f
         if (b.got >= want && reserve[k][p] < s.maxFatDays) {
             // (In energy, as [forage] works: see [Species.needScale].)
-            val extra = surplusShare(k, p) * want / s.needScale
+            val extra = surplusShare(FaunaKind(k), p) * want / s.needScale
             if (d.grass > 0f) grass3 = z.grass(underSnow * extra / quality * d.grass / (d.grass + d.browse).coerceAtLeast(1e-6f))
             if (d.browse > 0f) browse3 = z.browse(extra / quality * d.browse / (d.grass + d.browse).coerceAtLeast(1e-6f))
             z.surplus[k] = (grass3 + browse3) * quality * s.needScale / want
