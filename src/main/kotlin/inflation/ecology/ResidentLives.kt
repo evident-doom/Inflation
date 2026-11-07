@@ -189,7 +189,10 @@ internal fun HexFauna.hazards(k: FaunaKind, p: Place, weather: Weather, month: I
     // lean season binds, and then hunger and sickness together hold them.
     val crowd = Hazards.crowding(heads, usual[k])
     out[Danger.CROWD] = crowd
-    out[Danger.SICK] = Hazards.crowdDisease(crowd, fed, years); out[Danger.OUTBREAK] = outbreakDeaths(s, p)
+    // (Over a step of several ticks the crowd thins as they sicken: [Hazards.fallingOver].)
+    out[Danger.SICK] = if (clock.ticks == 1) Hazards.crowdDisease(crowd, fed, years)
+        else Hazards.fallingOver(heads, clock.ticks, years / clock.ticks) { n -> Hazards.crowdDisease(Hazards.crowding(n, usual[k]), fed, 1f) }
+    out[Danger.OUTBREAK] = outbreakDeaths(s, p)
     // Hunters hold ground: past the numbers their territories hold, they fight their own kind and kill its young.
     out[Danger.STRIFE] = if (s.carnivore) strife(heads, usual[k], if (s in Catalogue.roamingResidents) tuning.roamerStrifeCrowd else STRIFE_CROWD) else 0f
     val (fireA, floodA, snowA) = calamities(s, p, weather, false)
@@ -209,8 +212,12 @@ internal fun HexFauna.hazards(k: FaunaKind, p: Place, weather: Weather, month: I
  * as residents nothing else would but the breeding spacing (leopards rose fivefold in ten years: ab-residents, 2026-10-31).
  */
 internal fun HexFauna.strife(heads: Float, usualKm2: Float, crowd: Float): Float {
-    val over = heads / (crowd * usualKm2) - 1f
-    return if (over > 0f) STRIFE_DEATHS * over * over * years else 0f
+    if (clock.ticks == 1) {
+        val over = heads / (crowd * usualKm2) - 1f
+        return if (over > 0f) STRIFE_DEATHS * over * over * years else 0f
+    }
+    // (Over a step of several ticks they fight down to the territories there are, the heads falling tick by tick: [Hazards.fallingOver].)
+    return Hazards.fallingOver(heads, clock.ticks, years / clock.ticks) { n -> val over = n / (crowd * usualKm2) - 1f; if (over > 0f) STRIFE_DEATHS * over * over else 0f }
 }
 
 /** The young a mother of kind [k] at place [p] is due this step, its [share] of her season, among [heads] of her kind per km², fed [protein] of her need for it ([youngDue]), and as far as her sodium there allows ([saltBreeding]). */
