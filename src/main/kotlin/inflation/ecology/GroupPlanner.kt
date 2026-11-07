@@ -176,7 +176,9 @@ internal class GroupPlanner(internal val gs: HexGroups) {
         // take ([relayLoads]): counted again here, a year's deaths against a week's chance spread, they kept it from every
         // other place it could reach (followed band 10244, 2026-11-03: 25-39 survival steps, every other hazard 0.01-0.03).)
         val campHex = g.band?.campPlace?.takeIf { !it.none }?.let { gs.hw.placeHex[it] } ?: Hex.NONE
-        val leaving = if (campHex.none || g.band?.mind?.gate == MoveGate.RECKONED) 0f else g.band?.leavingDying ?: 0f
+        // (Nor does a band warned of a deadly peril at its camp weigh what leaving costs: facing sure death it drops everything
+        // (Olli 2026-11-07, stacked minds); parts689: 5 of the 33 bands killed with free ground in reach stayed for it.)
+        val leaving = if (campHex.none || g.band?.mind?.gate == MoveGate.RECKONED || gs.perilAhead(here) > 0f) 0f else g.band?.leavingDying ?: 0f
         fun leavingAt(h: Hex) = if (leaving > 0f && h != campHex) leaving else 0f
         // (And the week's food it would go without for the days a camp move takes from its work, where its larder cannot
         // cover them: hunger it foresees at each place it would move camp to, [moveShort]. A [Mind.PLANS] band pays for the
@@ -447,9 +449,10 @@ internal class GroupPlanner(internal val gs: HexGroups) {
         /**
          * For a group warned of a peril at its camp: the least effort (km of going) from each hex it can reach this week to
          * the nearest ground free of every peril, found out to [WAY_OUT_WEEKS] weeks of its reach ([searchWayOut]); null
-         * when its camp is in no peril, or no free ground lies that near. [wayOutReach]: its reach this week.
+         * when its camp is in no peril, or no free ground lies that near. [wayOutReach]: its reach this week; [wayOutAhead]: the
+         * peril at its camp ([HexGroups.perilAhead]).
          */
-        var wayOut: HashMap<Int, Float>? = null; var wayOutReach = 0f
+        var wayOut: HashMap<Int, Float>? = null; var wayOutReach = 0f; var wayOutAhead = 0f
         val explPlaces = IntList(); var explScores = FloatArray(64); var explDeaths = FloatArray(64)
         /** And for the census ([recordWarning]): the share of it it foresaw dead there this week ([deathsAt]), and how fed. */
         var explDying = FloatArray(64); var explFed = FloatArray(64)

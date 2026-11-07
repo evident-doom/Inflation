@@ -80,12 +80,12 @@ internal fun GroupPlanner.tracePeril(c: PlanContext, best: Place, byNet: Boolean
  * perilTrace: what the deaths a band weighed are made of (`perilParts #id` line), as shares of it this week, at its camp, at the
  * place it chose, at the weighed place nearest the way out ([searchWayOut]) and at the safest weighed place free of the peril:
  * the peril ([perilDeaths]), the crossings ([crossingDeaths]), the place's own ([deathsAt]: hunger, cold, sickness, beasts...),
- * and what leaving its camp costs ([Band.leavingDying]); with the survival steps and score of each.
+ * and what leaving its camp costs ([Band.leavingDying]: none now when its camp is in peril, as in the choice); with the survival steps and score of each.
  */
 private fun GroupPlanner.perilParts(c: PlanContext, kStay: Int, kChose: Int) {
     val g = c.g; val b = g.band ?: return; val buf = c.buf; val n = buf.explPlaces.size
     val campHex = b.campPlace.takeIf { !it.none }?.let { gs.hw.placeHex[it] } ?: Hex.NONE
-    val leaving = if (campHex.none || b.mind.gate == MoveGate.RECKONED) 0f else b.leavingDying
+    val leaving = if (campHex.none || b.mind.gate == MoveGate.RECKONED || gs.perilAhead(c.here) > 0f) 0f else b.leavingDying
     val out = buf.wayOut
     fun rOf(k: Int) = out?.get(gs.hw.placeHex[buf.explPlaces[k]].i) ?: Float.POSITIVE_INFINITY
     var kOut = -1; var kFree = -1
