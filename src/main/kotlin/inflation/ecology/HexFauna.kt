@@ -240,6 +240,9 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
      */
     @delegate:Transient internal val killRate by lazy { Array(kinds.size) { if (kinds[it].diet.meat > 0f) FloatArray(n) else null } }
 
+    /** Heads of each kind's residents (grown and young) each resident hunter kind killed since last read, hunter by prey ([huntResidents]): for the fauna check's report. */
+    @delegate:Transient internal val killsByHunter by lazy { Array(kinds.size * kinds.size) { java.util.concurrent.atomic.DoubleAdder() } }
+
     /**
      * The share of each kind's residents at each place the hunting parties (packs and bands) killed in their last week's
      * foraging ([HexGroups.hunt]; young and grown alike, as they take them as they come on them), set as they kill.

@@ -100,6 +100,11 @@ class FaunaCheck(private val sim: HexSim, private val options: FaunaCheckOptions
         census.printIdentity(hunting.year, hunting.meetingsYear)
         people.printAgainstTheRecord(deaths, hunting)
         deaths.printResidentDeathsThisYear()
+        // (Which resident hunters killed which residents this year, heads, the largest pairs first.)
+        val nk = fauna.kinds.size
+        val pairs = (0 until nk * nk).map { it to fauna.killsByHunter[it].sumThenReset() }.filter { it.second >= 1.0 }.sortedByDescending { it.second }
+        println("     residents killed by resident hunters this year, hunter > prey heads: " + pairs.take(30).joinToString(", ") { (i, h) ->
+            "${fauna.kinds[i / nk].name} > ${fauna.kinds[i % nk].name} %.0f".format(h) })
         println("     droughts under way: " + sim.weather.droughts())
         println("     fires this year: " + sim.land.fire.yearReport())
         hunting.endYear()
