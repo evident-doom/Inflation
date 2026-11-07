@@ -64,7 +64,18 @@ fun main(args: Array<String>) {
     fun pct(p: Double) = least[((least.size - 1) * p).toInt()]
     println("  land hexes %d; cheapest border: median %.1f, 90%% %.1f, 99%% %.1f, 99.9%% %.1f, max %.1f; none at all (no way out) %d".format(
         least.size, pct(0.5), pct(0.9), pct(0.99), pct(0.999), least.last(), least.count { !it.isFinite() }))
-    for (r in reaches) println("  reach %3.0f km: land hexes whose every border costs more: %d (%.2f%%)".format(r, least.count { it > r }, 100.0 * least.count { it > r } / least.size))
+    // (Why: the ground alone, rivers left aside ([HexMap.ground]), against the whole crossing with the rivers.)
+    val groundCost = hex.ground[travel.ordinal]
+    val leastGround = land.associateWith { cheapest(it, groundCost) }
+    val leastCross = land.associateWith { cheapest(it, cross) }
+    for (r in reaches) {
+        val shut = land.filter { leastCross.getValue(it) > r }
+        val byRiver = shut.count { leastGround.getValue(it) <= r }
+        val byLand = shut.size - byRiver
+        val coast = shut.count { h -> (0 until 6).any { k -> val n = hex.neighbour(h, k); n.none || hex.heart[n] < 0 } }
+        println("  reach %3.0f km: land hexes whose every border costs more: %d (%.2f%%); shut by rivers (the ground alone would let it out) %d, by the ground %d; on a coast or lake shore %d".format(
+            r, shut.size, 100.0 * shut.size / least.size, byRiver, byLand, coast))
+    }
 
     // 2. The areas closed at each reach.
     fun areas(r: Float, effort: FloatArray): IntArray {
@@ -93,13 +104,13 @@ fun main(args: Array<String>) {
     // 3. The bands, with the going as they weigh it, week by week.
     println("\n3. Bands with this week's going (snow, worn paths) and each band's own reach fleeing")
     println("  date | bands | reach km median (min..max) | camp hex only: bands (people) | area it could ever reach, hexes: " +
-        bins.indices.joinToString(" ") { binName(it) })
+        bins.indices.joinToString(" ") { binName(it) } + " | camp in a water hex")
     for (w in 0..weeks) {
         if (w > 0) sim.step()
         if (w % every != 0) continue
         gs.planner.stepEffort.clear()
         val bands = gs.groups.filter { it.alive && it.band != null }
-        val reachOf = FloatArray(bands.size); var shut = 0; var shutPeople = 0
+        val reachOf = FloatArray(bands.size); var shut = 0; var shutPeople = 0; var onWater = 0
         val nB = IntArray(bins.size)
         // (One closed-area map per elevation band and reach, rounded to the km, shared by the bands that weigh it.)
         val areaCache = HashMap<Long, Pair<IntArray, IntArray>>()
@@ -112,12 +123,14 @@ fun main(args: Array<String>) {
             if (cheapest(here, effort) > reach) { shut++; shutPeople += g.size }
             val key = band.toLong() * 100_000 + reach.toInt()
             val (comp, size) = areaCache.getOrPut(key) { val c = areas(reach.toInt().toFloat(), effort); val s = IntArray(c.max() + 1); for (h in land) s[c[h.i]]++; c to s }
-            val s = size[comp[here.i]]
-            nB[bins.indexOfFirst { s <= it }]++
+            // (A camp in a hex the map counts as water, mostly lake or sea, belongs to no area: counted apart.)
+            val c = comp[here.i]
+            if (c < 0) { onWater++; continue }
+            nB[bins.indexOfFirst { size[c] <= it }]++
         }
         val sorted = reachOf.sorted()
         println("  %s | %d | %.0f (%.0f..%.0f) | %d (%d) | %s".format(sim.weather.date, bands.size,
             if (sorted.isEmpty()) 0f else sorted[sorted.size / 2], sorted.firstOrNull() ?: 0f, sorted.lastOrNull() ?: 0f, shut, shutPeople,
-            nB.joinToString(" ")))
+            nB.joinToString(" ")) + " | $onWater")
     }
 }
