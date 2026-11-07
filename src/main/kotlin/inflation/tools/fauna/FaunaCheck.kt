@@ -21,6 +21,7 @@ class FaunaCheck(private val sim: HexSim, private val options: FaunaCheckOptions
     private val movement = MovementTally(sim)
     private val people = PeopleTally(sim, stepsPerYear)
     private val swings = LocalSwings(sim, stepsPerYear)
+    private val stepLength = StepLengthTally(sim)
     private val diagnostics = Diagnostics(sim)
     private val history = HexHistory()
     /** Time spent in the steps themselves, ns. */
@@ -31,7 +32,7 @@ class FaunaCheck(private val sim: HexSim, private val options: FaunaCheckOptions
         if (options.years == 0) { options.saveFile?.let { HexSnapshot.save(sim, it) }; return }
         printStart()
         for (y in 1..options.years) {
-            deaths.startYear(); hunting.startYear(); movement.startYear(); people.startYear()
+            deaths.startYear(); hunting.startYear(); movement.startYear(); people.startYear(); stepLength.startYear()
             repeat(stepsPerYear) { w -> week(y, w) }
             yearEnd(y)
         }
@@ -62,7 +63,7 @@ class FaunaCheck(private val sim: HexSim, private val options: FaunaCheckOptions
         val t0 = System.nanoTime()
         sim.step()
         stepNs += System.nanoTime() - t0
-        hunting.week(); movement.week(w); people.week(); swings.week(); deaths.week()
+        hunting.week(); movement.week(w); people.week(); swings.week(); deaths.week(); stepLength.week()
         diagnostics.afterStep()
         if (options.historyFile != null) history.record(sim)
     }
@@ -90,6 +91,7 @@ class FaunaCheck(private val sim: HexSim, private val options: FaunaCheckOptions
         hunting.printPeoplesHides()
         movement.printSeasons()
         census.printChoices()
+        stepLength.printYear()
         census.printHurricaneTest(hunting.meetingsYear)
         census.printHuntersFamilies(hunting.meetingsYear)
         census.printKillsStolen(hunting.meetingsYear)
