@@ -22,6 +22,7 @@ import inflation.min
 import inflation.world.HexLand
 import inflation.world.LifeForm
 import inflation.world.Weather
+import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
@@ -211,13 +212,16 @@ private fun HexFauna.feedKinds(p: Place, weather: Weather, z: Grazing, ff: Doubl
 
 /**
  * The share of its need beyond the need a fed resident of kind [k] at place [p] eats to lay on fat: [SURPLUS_EAT]; over a
- * step of several ticks, no more than fills its reserves to [Species.maxFatDays] (the body it burnt won back first, as
- * [graze] lays it on). (Week by week it stops eating more the week its reserves are full; a step's surplus all at once would
- * eat a month's worth on reserves a few days short of full, and a hunter would kill for it.)
+ * step of several ticks, as many ticks' worth as it would have eaten tick by tick: a tick's surplus each tick its reserves
+ * were short of [Species.maxFatDays] (the body it burnt won back first, as [graze] lays it on), so a whole tick's even when a
+ * little filled them, as week by week, but not a whole step's on reserves a few days short of full.
  */
-private fun HexFauna.surplusShare(k: FaunaKind, p: Place): Float =
-    if (clock.ticks == 1) SURPLUS_EAT
-    else min(SURPLUS_EAT, max(0f, kinds[k].maxFatDays - reserve[k][p] + spent[k][p]) / (FAT_EFFICIENCY * days))
+private fun HexFauna.surplusShare(k: FaunaKind, p: Place): Float {
+    if (clock.ticks == 1) return SURPLUS_EAT
+    val room = max(0f, kinds[k].maxFatDays - reserve[k][p] + spent[k][p])
+    val ticksShort = ceil(room / (FAT_EFFICIENCY * SURPLUS_EAT * clock.tickDays)).coerceIn(1f, clock.ticks.toFloat())
+    return SURPLUS_EAT * ticksShort / clock.ticks
+}
 
 /**
  * [graze]'s animal food for omnivore or hunter kind [k] at place [p], [ps] of its diet plants: the rest is game it
