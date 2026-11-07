@@ -414,7 +414,8 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         Phase("residents: moving") {
             // (The places are weighed once, before the bands shift: the shift and the spill both go by them.)
             // They move every [Tuning.residentMoveWeeks] weeks, a step each move: from week to week they shift by a few percent.
-            val moving = (it.date.absoluteDay / days) % tuning.residentMoveWeeks == 0L
+            // (Over steps of several ticks they move every step, the step's ticks' worth at once: [moveWeeks].)
+            val moving = clock.ticks > 1 || (it.date.absoluteDay / days) % tuning.residentMoveWeeks == 0L
             if (moving) {
                 fillArrive(it)
                 // (The game the hunters weigh, taken once before any kind moves: the kinds move on all cores at once.)

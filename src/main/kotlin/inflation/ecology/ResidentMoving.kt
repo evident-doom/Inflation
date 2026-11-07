@@ -232,7 +232,7 @@ internal fun HexFauna.worthOrNothing(w: Float) = if (w > 0f && w.isFinite()) w e
 @Part("residents: moving up and down the slopes")
 internal fun HexFauna.shiftBands(weather: Weather) {
     // (Moving every few weeks, a move takes the share those weeks' would have.)
-    val weeks = tuning.residentMoveWeeks
+    val weeks = moveWeeks()
     // Each kind on its own core: the kinds' numbers are kept apart.
     Par.forEach("residents: shift bands", kindIds.toList()) { k ->
         if (!kinds[k].carnivore) return@forEach
@@ -332,7 +332,7 @@ private fun HexFauna.spillHunters(k: FaunaKind, weather: Weather, arrived: Float
     // (The grown that came, and they times what each carries ([carried]): it goes with them.)
     val carry = carried(k); val cameA = FloatArray(n); val came = Array(carry.size) { FloatArray(n) }
     // (Moving every few weeks, a move takes the share those weeks' would have.)
-    val weeks = tuning.residentMoveWeeks
+    val weeks = moveWeeks()
     // What each place is worth to the kind this week, as it is worth to those moving up and down the slopes.
     val worthOf = worth[k]
     val dk = dry[k]
@@ -721,3 +721,9 @@ private fun HexFauna.gatherThin(k: FaunaKind, arrived: FloatArray, walkedKm: Flo
 
 /** Share of [s] that drown swimming [gapKm] of open water: by the groups' rule, the nearer the strait to all it can swim, the more. */
 internal fun HexFauna.drownRisk(s: Species, gapKm: Float) = min(1f, Hazards.drowning(s, gapKm))
+
+/**
+ * The weeks (ticks) a resident move stands for: [Tuning.residentMoveWeeks] at one tick a step, where they move every so
+ * many steps; else the step's ticks, as they move every step ([HexFauna.phases]).
+ */
+internal fun HexFauna.moveWeeks() = if (clock.ticks > 1) clock.ticks else tuning.residentMoveWeeks
