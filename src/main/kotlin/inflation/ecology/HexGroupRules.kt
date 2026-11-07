@@ -427,6 +427,8 @@ fun dryShare(t: Food) = when (t) {
 }
 /** Times a party plans its week's foraging over: if others took what it planned on, it looks again at what is left. */
 internal const val FORAGE_PASSES = 3
+/** [FORAGE_PASSES], or as t.foragePasses sets it (a diagnostic of long steps, review in the variable-step plan). */
+internal val GroupWorld.foragePasses get() = tuning.foragePasses
 
 /** Ground a hunting party of kind [s] sweeps in a week, km² (shared over the hexes it passes): its going, by the width it senses. */
 fun GroupWorld.sweptKm2(s: Species) = s.dailyTravelKm * days * 2f * s.senseKm * SEARCHING

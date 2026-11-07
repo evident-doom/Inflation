@@ -147,7 +147,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     val o = Offers(mostOffers(w))
     // The party plans its week on what it finds, eats, and if others got there first and it is still
     // hungry, looks again at what is left.
-    for (pass in 0 until FORAGE_PASSES) {
+    for (pass in 0 until foragePasses) {
         val left = w.aim - w.fed
         if (left <= 0.01f * w.wantAll) break
         offerFoods(w, o)
@@ -277,6 +277,8 @@ private fun HexGroups.packWeekDiag(w: ForageWeek) {
     if (w.wantAll > 0f) diag(s, HuntStep.PACK_FED, w.fed / w.wantAll)
     if (w.fed >= w.aim - 0.01f * w.wantAll) diag(s, HuntStep.PACK_WEEKS_FULL, 1f)
     else if (w.busy >= 0.95f * w.workDays) diag(s, HuntStep.PACK_WEEKS_OUT_OF_TIME, 1f)
+    else if (w.busy + w.searchUsed >= 0.95f * w.workDays) diag(s, HuntStep.PACK_WEEKS_SEARCH_SPENT, 1f)
+    else if (w.passes >= foragePasses) diag(s, HuntStep.PACK_WEEKS_PASSES_SPENT, 1f)
 }
 
 /**

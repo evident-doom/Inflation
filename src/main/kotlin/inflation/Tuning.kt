@@ -69,6 +69,8 @@ class Tuning(
      * How far a beast's party hunts past its want to lay fat on, as its gut and fat room allow (1), or not at all (0: the fat
      * it laid on came only of its last kill's overshoot, which a longer step all but loses). [inflation.ecology.ForageWeek].
      */
+    /** How many times a group's party may look again at what is left in a step, still hungry ([inflation.ecology.FORAGE_PASSES], 3). */
+    val foragePasses = i("foragePasses", 3).also { require(it >= 1) { "t.foragePasses is $it: 1 or more" } }
     val packFatAim = f("packFatAim", 0f).also { require(it in 0f..1f) { "t.packFatAim is $it: 0-1" } }
     val stepReach = f("stepReach", 0.5f).also { require(it in 0f..1f) { "t.stepReach is $it: 0-1" } }
     /**
