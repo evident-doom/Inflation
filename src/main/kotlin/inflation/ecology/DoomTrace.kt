@@ -5,6 +5,7 @@ import inflation.ecology.GroupPlanner.PlanContext
 import inflation.world.Hex
 import inflation.world.Place
 import inflation.world.get
+import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
@@ -180,7 +181,10 @@ internal fun GroupPlanner.traceDoomed(c: PlanContext, best: Place, byNet: Boolea
             "; country %s, hex %d; yield 4 wk %.2f; record now %.2f, ahead %s; lean days %.0f; foreseen %.3f; remembered fed here %.2f".format(
                 inflation.world.Biome.entries[gs.biomeOfPlace[g.place]].label, c.here.i, b.recentYield(c.date, gs.days), b.monthSupply[m],
                 (1..3).joinToString("/") { "%.2f".format(b.monthSupply[(m + it) % 12]) }, b.leanDays, g.foreseen,
-                if (mi >= 0) g.memory.fed[mi] else Float.NaN)
+                if (mi >= 0) g.memory.fed[mi] else Float.NaN) +
+                // (And what it ate last step from each source, kg a person a day, against its need: [Band.stepFood].)
+                (b.stepFood?.let { sf -> "; ate last step kg/person/day %s of need %.2f".format(
+                    FoodFrom.entries.joinToString(" ") { "%s %.2f".format(it.label, sf[it.ordinal]) }, g.dailyNeedKg / max(1, g.size)) } ?: "")
         })
 }
 

@@ -92,6 +92,8 @@ class Band(kinds: Int, totems: Int = kinds) {
     @Transient var yieldNow = Float.NaN
     /** The ticks of the step it is living through ([inflation.world.StepClock.ticks]), set as its week begins ([bandWeek]): for [practise]. */
     @Transient var stepTicks = 1
+    /** What it ate last step from each source ([FoodFrom] order), kg a person a day, for the doom trace ([traceDoomed]); null until it has eaten. */
+    @Transient var stepFood: FloatArray? = null
     /** Its larder at last week's [foresee], days of its people's need before keeping warm (NaN for not yet seen). */
     var larderSeen = Float.NaN
     /** The share of this week's need its fat met ([feedOnReserves]): not food it got, for [foresee]. */
