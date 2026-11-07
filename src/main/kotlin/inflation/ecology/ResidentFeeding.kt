@@ -82,7 +82,8 @@ internal fun HexFauna.graze(weather: Weather) {
         // grazed alike (the steppe's herds live through the dry season on its standing hay). What makes the dry
         // season lean is the hay itself: poor in nourishment and protein, weathering away and not growing back
         // until the rains. Supply against demand:
-        val reach = REACH
+        // (A week's reach a tick: over a step of several ticks, what they can take of it compounds, 1 - (1 - REACH)^ticks.)
+        val reach = overTicks(REACH)
         // (Only the edible share of the plants, see [HexLand.palatable].)
         val grass = reach * land.palatable[p] * land.plants.herb[p]; val browse = land.plants.browse(p)
         // (Browse is the shoots the shrubs and trees put out within reach, see [HexPlants.shrubShoots].)

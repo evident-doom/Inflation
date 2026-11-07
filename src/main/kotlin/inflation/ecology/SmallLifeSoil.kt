@@ -167,7 +167,7 @@ internal fun HexSmallLife.stepLocusts(weather: Weather) {
             land.plants.consume(p, LifeForm.SHRUB, KgM2(min(0.3f * land.plants.shrub[p], 0.2f * l * days / m2)))
         dung[p] += DUNG * ate.v
         ateM2(p, ate.v); dropped(p, DUNG * ate.v)
-        val dying = l * (if (season) LOCUST_DEATHS else 0.6f)
+        val dying = l * overTicks(if (season) LOCUST_DEATHS else 0.6f)
         smallDead[p] += dying * 1f
         l -= dying
         // Most of a swarm moves on to the neighbours each week, settling the more where the green plants stand thicker.

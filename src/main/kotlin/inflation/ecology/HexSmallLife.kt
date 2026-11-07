@@ -85,6 +85,8 @@ class BirdKind(
 class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, @Transient private val clock: StepClock) {
     /** Days the step covers ([StepClock]). */
     internal val days get() = clock.days
+    /** A share [perTick] taken or lost each tick (a week's), over the step's ticks: 1 - (1 - p)^ticks; itself at one tick a step. */
+    internal fun overTicks(perTick: Float) = if (clock.ticks == 1) perTick else 1f - (1f - perTick.coerceIn(0f, 1f)).pow(clock.ticks)
     internal val tuning get() = land.tuning
     val n = land.n
     /** Soil: litter and organic matter, kg/m²; carrion, kg/m²; soil animals, g/m². */
@@ -283,7 +285,8 @@ class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, @Transi
                     // insects there are booming; the rest pass on and look again.
                     var draw = 0.0
                     for (p in land.places) draw += (birdCapacity(k, p) * boom(p) * land.areaKm2[p]).toDouble()
-                    if (draw > 0.0) { returning[k] = SETTLE * waiting[k] / draw; waiting[k] *= 1.0 - SETTLE }
+                    if (draw > 0.0) { val settle = if (clock.ticks == 1) SETTLE else 1.0 - (1.0 - SETTLE).pow(clock.ticks)
+                        returning[k] = settle * waiting[k] / draw; waiting[k] *= 1.0 - settle }
                     books?.flow(Books.Stuff.MATTER, "migrant birds beyond the map", -waiting[k] * b.deaths * years)
                     waiting[k] *= 1.0 - b.deaths * years
                 }

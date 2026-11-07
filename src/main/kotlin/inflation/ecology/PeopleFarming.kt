@@ -428,7 +428,7 @@ internal fun GroupWorld.herdForage(p: Place, s: Species, n: Float): HerdForage {
     val need = land.spread(p, Kg(n * s.dailyIntakeKg * days)).v
     val d = s.diet; val total = (d.grass + d.browse).coerceAtLeast(1e-6f)
     val grazed = grazedKm2(p, s) / land.areaKm2[p]
-    return HerdForage(need, min(need * d.grass / total, grazed * HexFauna.REACH * land.palatable[p] * land.plants.herb[p]),
+    return HerdForage(need, min(need * d.grass / total, grazed * overTicks(HexFauna.REACH) * land.palatable[p] * land.plants.herb[p]),
         min(need * d.browse / total, grazed * land.plants.browse(p)))
 }
 
