@@ -86,7 +86,8 @@ internal fun HexFauna.graze(weather: Weather) {
         // (A week's reach a tick: over a step of several ticks, what they can take of it compounds, 1 - (1 - REACH)^ticks.)
         val reach = overTicks(REACH)
         // (Only the edible share of the plants, see [HexLand.palatable].)
-        val grass = reach * land.palatable[p] * land.plants.herb[p]; val browse = land.plants.browse(p)
+        // (Over a step of several ticks, the herbs, browse and snow as they were on average through it: [HexPlants.herbOverStep].)
+        val grass = reach * land.palatable[p] * land.plants.herbOverStep(p); val browse = land.plants.browseOverStep(p)
         // (Browse is the shoots the shrubs and trees put out within reach, see [HexPlants.shrubShoots].)
         eatPlants(p, weather, grass, browse, z)
         feedKinds(p, weather, z, tally.get())
@@ -126,7 +127,7 @@ private fun HexFauna.eatPlants(p: Place, weather: Weather, grass: Float, browse:
         val want = need[k]
         if (want <= 0f) continue
         val d = s.diet
-        val underSnow = grassUnderSnow(s, weather.snowpack[p])
+        val underSnow = grassUnderSnow(s, weather.snowOverStep(p.i))
         z.access = avail[k]
         forage(s, d, quality, want, underSnow, z, b)
         z.got[k] = b.got / want

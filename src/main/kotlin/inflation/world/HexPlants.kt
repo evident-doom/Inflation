@@ -382,7 +382,33 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             // (The residents' week of trampling, set once a step, beats down each tick of it: [HexLand.lastTick].)
             if (land.lastTick) trampling[p] = 0f
         } else if (trails[p] > 0f) trails[p] = max(0f, trails[p] - TRAIL_FADE * years)
+        sumOverStep()
     }
+
+    // The herbs and browse as each tick of the step left them, summed, for what a step's grazing reaches ([herbOverStep],
+    // [browseOverStep]). Not saved: a step begins and ends within one [inflation.ecology.HexSim.step].
+    @Transient private var ticksSummed = 0
+    @Transient private val herbSum = FloatArray(n)
+    @Transient private val browseSum = FloatArray(n)
+
+    private fun sumOverStep() {
+        if (land.firstTick) ticksSummed = 0
+        val first = ticksSummed++ == 0
+        for (p in land.places) {
+            if (first) { herbSum[p] = herb[p]; browseSum[p] = browse(p) } else { herbSum[p] += herb[p]; browseSum[p] += browse(p) }
+        }
+    }
+
+    /**
+     * The herbs at [p] on average over the step's ticks, as each left them: what the step's grazing reaches. A step of
+     * many ticks grazed once on the herbs at its end would see the autumn's dying back whole for the step and the spring's
+     * growth whole (at 60 days roe and red deer were fed less in early winter and more in spring than weekly). At one
+     * tick a step, [herb].
+     */
+    fun herbOverStep(p: Place): Float = if (ticksSummed <= 1) herb[p] else herbSum[p] / ticksSummed
+
+    /** [browse] at [p] on average over the step's ticks, as [herbOverStep]; at one tick a step, [browse]. */
+    fun browseOverStep(p: Place): Float = if (ticksSummed <= 1) browse(p) else browseSum[p] / ticksSummed
 
     /**
      * (With [crowns], kg/m², of the stand lost lately that its roots will grow back: it grows as from the whole stand.)
