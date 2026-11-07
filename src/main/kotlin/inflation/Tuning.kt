@@ -55,11 +55,10 @@ class Tuning(
     /**
      * Days a step of the slow parts covers (the residents, small life, water life and the groups), while the weather, the
      * water and the plants keep their tick ([inflation.world.WorldConfig.daysPerStep], 6) through it: a whole number of
-     * ticks, dividing a 30-day month or a whole number of months; 0 for one tick, the model as it was. Under construction
-     * (the variable-step plan, design/2026-11-07-variable-step-plan.md in the project files): above one tick the slow parts
-     * do not yet cover their step whole.
+     * ticks that divide the 360-day year (a step may cross a month's end: month-keyed parts take the month it starts in);
+     * 0 for one tick. The variable-step plan, design/2026-11-07-variable-step-plan.md in the project files.
      */
-    val stepDays = i("stepDays", 0).also { require(it == 0 || (it > 0 && (DAYS_PER_MONTH % it == 0 || it % DAYS_PER_MONTH == 0))) { "t.stepDays is $it: 0, or days that divide a 30-day month or are whole months" } }
+    val stepDays = i("stepDays", 0).also { require(it == 0 || (it > 0 && DAYS_PER_YEAR % it == 0)) { "t.stepDays is $it: 0, or days that divide a 360-day year" } }
     /**
      * How far a group's net shift over a step of several ticks reaches, as the ticks raised to this power: the reach of one
      * tick's shift ([inflation.ecology.SHIFT_DAYS]) times ticks^stepReach. 1, as far as that many ticks' shifts end to end (a
