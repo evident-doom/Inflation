@@ -24,6 +24,7 @@ import inflation.world.Weather
 import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.pow
 import java.util.concurrent.ConcurrentHashMap
 
 // The residents and their country: how the climate, the ground and the water suit each kind, its winter sleep and breeding season, and the calamities of fire, flood and snow.
@@ -37,6 +38,12 @@ fun HexFauna.climateSuits(s: Species, p: Place): Float {
     for (m in 0 until 12) worst = max(worst, s.discomfortC(feltNormalC(s, p, m), m))
     return exp(-worst / 5f)
 }
+
+/**
+ * A share [perTick] that befalls or is taken up each tick (a week's), over the step's ticks: 1 - (1 - p)^ticks; itself at
+ * one tick a step.
+ */
+internal fun HexFauna.overTicks(perTick: Float) = if (clock.ticks == 1) perTick else 1f - (1f - perTick.coerceIn(0f, 1f)).pow(clock.ticks)
 
 /** How well the normal temperatures of month [m] and the next at place [p] suit [s]'s coat, 0..1. */
 fun HexFauna.monthFit(s: Species, p: Place, m: Int): Float {
@@ -121,7 +128,8 @@ fun HexFauna.calamities(s: Species, p: Place, weather: Weather, young: Boolean):
     val snow = if (over <= 2f) 0f else min(0.1f, SNOW_DEATHS * (over - 2f)) * (if (young) 3f else 1f)
     // Grazing in fresh ash wears teeth and poisons with fluorine: counted with the snow, as a smothered winter.
     val ash = if (land.plants.ash[p] < ASH_HARM_MM) 0f else min(0.1f, ASH_DEATHS * land.plants.ash[p] / 50f) * (if (young) 2f else 1f)
-    return Calamities(fire, flood, snow + ash)
+    // (Snow and ash smother week by week: over a step of several ticks their shares compound; fire is the step's burning already.)
+    return Calamities(fire, flood, overTicks(snow + ash))
 }
 
 /**

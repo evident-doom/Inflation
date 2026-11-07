@@ -378,7 +378,8 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             // (What is beaten down falls into the litter.)
             litterfall[p] += beaten; fellBook?.add(-beaten * land.areaM2[p].toDouble())
             trails[p] = min(1f, trails[p] + TRAIL_WEAR * tr * (1f - trails[p]))
-            trampling[p] = 0f
+            // (The residents' week of trampling, set once a step, beats down each tick of it: [HexLand.lastTick].)
+            if (land.lastTick) trampling[p] = 0f
         } else if (trails[p] > 0f) trails[p] = max(0f, trails[p] - TRAIL_FADE * years)
     }
 

@@ -795,6 +795,6 @@ internal fun GroupWorld.learnPlants(b: Band, h: Hex) {
     var w = 0f
     for (k in Biome.entries) w += hw.biome[k.ordinal][h]
     if (w <= 0f) return
-    for (k in Biome.entries) { val share = hw.biome[k.ordinal][h] / w; if (share > 0f) b.plants[k] += PLANT_LEARN * share * (1f - b.plants[k]) }
+    for (k in Biome.entries) { val share = hw.biome[k.ordinal][h] / w; if (share > 0f) b.plants[k] += overTicks(PLANT_LEARN * share) * (1f - b.plants[k]) }
 }
 

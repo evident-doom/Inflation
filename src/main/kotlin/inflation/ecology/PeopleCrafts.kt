@@ -271,7 +271,7 @@ internal fun GroupWorld.forget(b: Band) {
         val unused = b.weeks - b.lastUsed[s] > 4
         // A skill learned slowly is also lost slowly, or its level would settle far lower (r / (r + forgetting)).
         val hands = FORGET_HANDS * minOf(1f, s.practice / PRACTICE)
-        b.skills[s] *= 1f - (if (!unused) hands else if (s.knowledge) forgetKnowledge else hands * 2f)
+        b.skills[s] *= 1f - overTicks(if (!unused) hands else if (s.knowledge) forgetKnowledge else hands * 2f)
         // A way no one holds and no one has used for years is lost altogether; so is one whose groundwork is lost.
         if (b.knowsSkill[s] && s.losable && b.holders[s] < 0.5f && b.weeks - b.lastUsed[s] > (if (s.knowledge) LOST_KNOWLEDGE_YEARS else LOST_HANDS_YEARS) * ticksPerYear) {
             b.knowsSkill[s] = false; b.skills[s] = 0f; b.holders[s] = 0f

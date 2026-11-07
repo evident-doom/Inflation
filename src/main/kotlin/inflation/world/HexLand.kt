@@ -36,6 +36,11 @@ class HexLand(internal val hw: HexWorld, internal val seed: Long, /** The run's 
      * tick a step.
      */
     @Transient var firstTick = true
+    /**
+     * Whether this tick is the last of the step: what the slow parts hand the ticks once a step (the residents' trampling)
+     * holds for each of them and is cleared in this one. Always true at one tick a step.
+     */
+    @Transient var lastTick = true
     @Transient val areaKm2 = FloatArray(n) { (hw.placeCells[it].size * grid.cellKm * grid.cellKm).toFloat() }
     /** Place [p]'s area, m². */
     fun m2(p: Place) = areaKm2[p] * 1e6f

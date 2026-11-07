@@ -66,7 +66,7 @@ internal fun shelterReach(b: Band, people: Float, from: Float, to: Float, days: 
 @Part("people: night fire")
 internal fun burnNightFire(b: Band, people: Float): Float {
     val wood = b.goods
-    val want = NIGHT_WOOD * people * b.nightFire
+    val want = NIGHT_WOOD * people * b.nightFire * b.stepTicks
     val got = min(want, wood[Material.WOOD])
     wood[Material.WOOD] -= got
     b.nightWood = if (want > 0f) got / want else 1f
@@ -338,7 +338,7 @@ internal const val WATCH_GUARD = 0.4f
  */
 internal const val SOIL_DAMPING_M = 2.2f
 
-/** Firewood a fire through the night burns in a week, kg a person. */
+/** Firewood a fire through the night burns in a week (a tick), kg a person. */
 internal const val NIGHT_WOOD = 3f
 /**
  * Firewood a whole cooking fire burns, kg a person a day (1.4 in summer in houses at Lahaul, 3200 m, where little goes to

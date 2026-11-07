@@ -131,6 +131,7 @@ internal const val HUMAN_BIRTHS = 0.8f
 internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     val b = g.band ?: return
     b.weeks += ticks
+    b.stepTicks = ticks
     learnCountry(g, b, weather)
     val p = g.place
     val h = hw.placeHex[p]
@@ -166,7 +167,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     b.fire *= b.hearthWood
     val woodBefore = b.goods[Material.WOOD]
     val nightBurnt = burnNightFire(b, people)
-    dialUse?.amount(DialSite.NIGHT_FIRE_WOOD, b.nightFire, nightBurnt, min(NIGHT_WOOD * people, woodBefore))
+    dialUse?.amount(DialSite.NIGHT_FIRE_WOOD, b.nightFire, nightBurnt, min(NIGHT_WOOD * people * ticks, woodBefore))
     // With the time still to spare, a band that has kept its camp a while builds stone-footed houses
     // there, as far as it has gathered the stone and timber (and starts afresh where it settles
     // anew); houses it has left weather away.

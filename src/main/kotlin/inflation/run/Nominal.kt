@@ -316,7 +316,7 @@ object Nominal {
             when {
                 Key.isFed(k) -> { weekly(0.0, FED_MAX, ""); eachYear(FED_YEAR_MIN, FED_MAX, "fed over the year") }
                 k == Key.TEMPERATURE -> { weekly(TEMPERATURE_WEEK_MIN, TEMPERATURE_WEEK_MAX, "°C"); eachYear(TEMPERATURE_YEAR_MIN, TEMPERATURE_YEAR_MAX, "°C") }
-                k == Key.RAIN -> { weekly(0.0, RAIN_WEEK_MAX, "mm a week"); eachYear(RAIN_YEAR_MIN, RAIN_YEAR_MAX, "mm a year") }
+                k == Key.RAIN -> { weekly(0.0, RAIN_WEEK_MAX * WorldConfig().stepsPerYear / w, "mm a row"); eachYear(RAIN_YEAR_MIN, RAIN_YEAR_MAX, "mm a year") }
                 k == Key.SNOW -> { weekly(0.0, SNOW_MAX_MM, "mm"); drift(t, k, years, ::yearly, SNOW, gone = false) }
                 k == Key.SOIL_WATER -> weekly(0.0, SOIL_WATER_MAX_MM, "mm")
                 k == Key.LAND_AREA || Key.biomeWhat(k) == Key.AREA -> {

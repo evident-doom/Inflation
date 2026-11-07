@@ -817,9 +817,9 @@ internal fun HexGroups.remember(date: Date) {
         // and a clearly better place takes its place.
         val fared = g.fed * (1f - g.deathOdds).pow(weeksAMonth)
         if (b.seasonPlace[m] < 0) { b.seasonPlace[m] = g.place.i; b.seasonQ[m] = fared }
-        else if (b.seasonPlace[m] == g.place.i) b.seasonQ[m] += 0.3f * (fared - b.seasonQ[m])
+        else if (b.seasonPlace[m] == g.place.i) b.seasonQ[m] += overTicks(0.3f) * (fared - b.seasonQ[m])
         else {
-            b.seasonQ[m] *= MEMORY_FADE
+            b.seasonQ[m] *= if (ticks == 1) MEMORY_FADE else MEMORY_FADE.pow(ticks)
             if (fared > b.seasonQ[m] + 0.1f) { b.seasonPlace[m] = g.place.i; b.seasonQ[m] = fared }
         }
     }

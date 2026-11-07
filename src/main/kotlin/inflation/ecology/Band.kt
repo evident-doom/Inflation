@@ -90,6 +90,8 @@ class Band(kinds: Int, totems: Int = kinds) {
     val weekYield = FloatArray(SUPPLY_YEARS * WEEKS_KEPT) { Float.NaN }
     /** This week's yield as [weekYield] counts it, set when it plans its week ([planWeek]). */
     @Transient var yieldNow = Float.NaN
+    /** The ticks of the step it is living through ([inflation.world.StepClock.ticks]), set as its week begins ([bandWeek]): for [practise]. */
+    @Transient var stepTicks = 1
     /** Its larder at last week's [foresee], days of its people's need before keeping warm (NaN for not yet seen). */
     var larderSeen = Float.NaN
     /** The share of this week's need its fat met ([feedOnReserves]): not food it got, for [foresee]. */
@@ -952,7 +954,9 @@ class Band(kinds: Int, totems: Int = kinds) {
         if (!knowsSkill[Skill.LEACHING] || !water) 0f
         else min(1f, LEACH_SHARE * skill(Skill.LEACHING) * has(Tool.BASKET) * (1f - palatable) / palatable.coerceAtLeast(0.1f))
     fun practise(s: Skill, rate: Float = s.practice) {
-        skills[s] += rate * learning / s.complexity * toolsFor(s) * (1f - skills[s])
+        // (A step of several ticks is that many weeks of practice: the gains compound, see [stepTicks].)
+        val a = rate * learning / s.complexity * toolsFor(s)
+        skills[s] += (if (stepTicks == 1) a else 1f - (1f - a.coerceIn(0f, 1f)).pow(stepTicks)) * (1f - skills[s])
         lastUsed[s] = weeks
     }
     /**

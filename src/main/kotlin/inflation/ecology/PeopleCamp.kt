@@ -290,8 +290,9 @@ internal fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, weat
                 small.deposit(DeadPool.CARRION, cp, Kg(lost))
             }
         }
-        val spoilt = spoil(b.cache, weather.temperature[b.cachePlace], driedKeep = driedKeep(b), kgPer = b.cacheKgPer) + CACHE_SPOIL * b.cacheMass()
-        for (i in Store.entries) b.cache[i] *= 1f - CACHE_SPOIL
+        val gnawed = overTicks(CACHE_SPOIL)
+        val spoilt = spoil(b.cache, weather.temperature[b.cachePlace], driedKeep = driedKeep(b), kgPer = b.cacheKgPer) + gnawed * b.cacheMass()
+        for (i in Store.entries) b.cache[i] *= 1f - gnawed
         small.deposit(DeadPool.LITTER, b.cachePlace, Kg(spoilt))
         if (hw.placeHex[b.cachePlace] == h) {
             val room = max(0f, carryKg(g, b) - g.larder)

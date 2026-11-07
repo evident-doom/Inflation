@@ -24,6 +24,7 @@ import inflation.world.LifeForm
 import inflation.world.Weather
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.pow
 
 // The residents' feeding: every kind's share of each place's plants, its animal food, the protein in what it ate, and what the eaters do to the place.
 
@@ -158,7 +159,7 @@ private fun HexFauna.feedKinds(p: Place, weather: Weather, z: Grazing, ff: Doubl
         val eaten = z.ateKg[k]
         if (eaten > 0f) {
             val ps = plantShare(s)
-            protein[k][p] += (proteinMet(ps * z.proteinKg[k] / eaten + (1f - ps)) - protein[k][p]) * PROTEIN_MEMORY
+            protein[k][p] += (proteinMet(ps * z.proteinKg[k] / eaten + (1f - ps)) - protein[k][p]) * overTicks(PROTEIN_MEMORY)
         }
         val sleeping = asleep(k, p)
         var f = if (sleeping) {
@@ -197,9 +198,9 @@ private fun HexFauna.feedKinds(p: Place, weather: Weather, z: Grazing, ff: Doubl
         fed[k][p] = f
         val fm = fedByMonth[k]; val i = p.i * 12 + weather.date.month
         // (What the young would be born to: food, and the protein their mothers' milk and their growth need.)
-        fm[i] += (fed[k][p] * protein[k][p] - fm[i]) * FED_MEMORY
+        fm[i] += (fed[k][p] * protein[k][p] - fm[i]) * overTicks(FED_MEMORY)
         // Laying on fat for the winter: how well fed through late summer and autumn.
-        if (s.hibernates && weather.date.month in 7..11 && !asleep(k, p)) autumnFed[k][p] += (fed[k][p] - autumnFed[k][p]) * 0.2f
+        if (s.hibernates && weather.date.month in 7..11 && !asleep(k, p)) autumnFed[k][p] += (fed[k][p] - autumnFed[k][p]) * overTicks(0.2f)
         t = Profile.kindLap("residents: feeding", s.name, t)
     }
 }
@@ -281,7 +282,9 @@ private fun HexFauna.placeEffects(p: Place, grass: Float, browse: Float, z: Graz
         land.plants.eatBrowse(p, KgM2(eatB)).v +
         ate + dug
     // Fruit-eaters drop the seed where they go: shrubs and trees come up away from any parent.
-    land.plants.animalSeed[p] = min(1f, land.plants.animalSeed[p] * SEED_KEEP + ate * 1e6f / SEED_KG)
+    // (Over a step of several ticks the seed is dropped tick by tick and fades as it would each tick: S k^n + I (1 - k^n) / (1 - k), I a tick's.)
+    land.plants.animalSeed[p] = min(1f, if (clock.ticks == 1) land.plants.animalSeed[p] * SEED_KEEP + ate * 1e6f / SEED_KG
+        else SEED_KEEP.pow(clock.ticks).let { kn -> land.plants.animalSeed[p] * kn + ate * 1e6f / SEED_KG / clock.ticks * (1f - kn) / (1f - SEED_KEEP) })
     // Their feet beat down the plants and wear paths: tonnes of animal going about the place.
     var tonnes = 0f
     for ((k, s) in kinds.withKinds()) tonnes += (adults[k][p] + young[k][p]) * s.massKg / 1000f

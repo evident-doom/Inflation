@@ -628,6 +628,7 @@ internal val FORAGE_MEAL_TRACE = Trace(Config.Key.FORAGE_DIAG, "forage meals", s
 
 /** [forage]'s practice for band [band] of [g] at what it did this week (and its tally of fish). */
 internal fun GroupWorld.practise(g: HexGroup, band: Band, hunted: Boolean, smallGot: Float, plants: Float, fish: Float) {
+    band.stepTicks = ticks
     if (hunted) band.practise(Skill.HUNT)
     if (smallGot > 0f) band.practise(Skill.SMALL_GAME)
     if (plants > 0f) { band.practise(Skill.GATHER); learnPlants(band, hw.placeHex[g.place]) }
