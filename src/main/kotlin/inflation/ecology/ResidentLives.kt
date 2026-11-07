@@ -17,6 +17,7 @@ import inflation.Books
 import inflation.world.Date
 import inflation.world.Weather
 import kotlin.math.max
+import kotlin.math.min
 
 // The residents' births and deaths: the young born in season, what kills grown and young, and the books of their deaths.
 
@@ -168,10 +169,11 @@ internal fun HexFauna.hazards(k: FaunaKind, p: Place, weather: Weather, month: I
     // (Hunger, cold and heat, and thirst kill residents by the same rules as packs and bands.)
     val sleeping = asleep(k, p)
     out[Danger.HUNGER] = Hazards.hunger(s, spentBefore, fed, days)
-    val felt = feltC(s, p, weather.temperature[p])
-    out[Danger.COLD] = if (sleeping) 0f else Hazards.cold(s, felt, month)
-    out[Danger.HEAT] = if (sleeping) 0f else Hazards.heat(s, felt)
-    out[Danger.THIRST] = Hazards.thirst(s, dry)
+    // (Over a step of several ticks, each tick's cold or heat kills as it would have, and thirst as the dry days mounted through the step.)
+    out[Danger.COLD] = if (sleeping) 0f else weather.overTicks(p) { Hazards.cold(s, feltC(s, p, it), month) }
+    out[Danger.HEAT] = if (sleeping) 0f else weather.overTicks(p) { Hazards.heat(s, feltC(s, p, it)) }
+    out[Danger.THIRST] = if (clock.ticks == 1 || dry <= 0f) Hazards.thirst(s, dry)
+        else Hazards.thirstOver(s, dry, min(dry, Hazards.dryDays(s, days, fed, land.plants.green[p])), clock.ticks)
     // Crowding breeds disease and parasites, far more among the underfed: numbers grow until the
     // lean season binds, and then hunger and sickness together hold them.
     val crowd = Hazards.crowding(heads, usual[k])

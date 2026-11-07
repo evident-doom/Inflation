@@ -123,7 +123,7 @@ internal class Hazard(val cause: DeathReason, val adult: Float, val young: Float
  */
 internal fun GroupWorld.placeHazards(g: HexGroup, p: Place, weather: Weather, fed: Float, thirst: Float, sick: Float,
     fire: Float, home: Float, shelter: Float = g.band?.shelter ?: 0f, into: HazardSink) {
-    val s = g.species; val b = g.band; val t = weather.temperature[p]
+    val s = g.species; val b = g.band
     // (Fed as it would be with its fat drawn on, as its week's feeding draws on it: a group foresees its fat too.)
     // (In a band the shortfall is not shared evenly: parents feed their children first, see [CHILDREN_FIRST].)
     // (And the elders yield theirs to the rest, see [ELDERS_YIELD]: the grown's odds are the mean of the elders' and the others'.)
@@ -133,7 +133,8 @@ internal fun GroupWorld.placeHazards(g: HexGroup, p: Place, weather: Weather, fe
     // People keep warm as their body heat allows, through their clothes, fire, shelter and houses: past what they can
     // shiver up, they die of exposure. Animals feel the cold through their coats.
     val exposure = b?.warmth(airAt(p, weather), fire, home, days, shelter)?.odds ?: 0f
-    val cold = if (b != null) 0f else Hazards.cold(s, t, weather.date.month); val heat = Hazards.heat(s, t)
+    // (Each tick's cold or heat over a step of several, as it would have killed: [Weather.overTicks].)
+    val cold = if (b != null) 0f else weather.overTicks(p) { Hazards.cold(s, it, weather.date.month) }; val heat = weather.overTicks(p) { Hazards.heat(s, it) }
     // An outbreak raging where it is kills its share.
     val plague = fauna.outbreakDeaths(s, p)
     // Eagles take the young of the smaller hoofed animals in the open.

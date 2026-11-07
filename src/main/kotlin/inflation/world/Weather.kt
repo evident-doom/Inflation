@@ -198,6 +198,19 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
         return k.toFloat() / ticksSummed
     }
 
+    /**
+     * Odds a tick's air brings at place [p] ([odds] of its °C), over the last step's ticks: 1 - the product of 1 - each
+     * tick's, so a cold or hot week kills as it would have, not blurred into the step's mean. Before the step is settled,
+     * or at one tick a step, the odds of the air now.
+     */
+    fun overTicks(p: Place, odds: (Float) -> Float): Float {
+        val i = p.i
+        if (!settled || ticksSummed <= 1) return odds(temperature[i])
+        var live = 1f
+        for (j in 0 until ticksSummed) live *= 1f - odds(tickTemps[j][i]).coerceIn(0f, 1f)
+        return 1f - live
+    }
+
     /** Begins a step of the slow parts: nothing summed yet. */
     fun beginStep() {
         ticksSummed = 0
