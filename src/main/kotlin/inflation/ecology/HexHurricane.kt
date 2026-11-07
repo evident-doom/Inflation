@@ -123,6 +123,9 @@ class HexHurricane(
     /** A storm kills all it strikes: as deadly as it is soon, when groups are told of it and it kills ([Peril]). */
     override fun ahead(h: Hex): Float = if (told && kills) urgency(h) else 0f
 
+    /** The first of the coming weeks a storm strikes hex [h], when groups are told of it and it kills ([Peril]); [NEVER] if none. */
+    override fun strikesIn(h: Hex): Int = if (told && kills) first[h.i] else NEVER
+
     /** The hex where a storm (or recruiter) stands this week that is nearest [from]; [Hex.NONE] if none was set down. */
     fun nearest(from: Hex): Hex {
         var best = Hex.NONE; var bestKm = Double.POSITIVE_INFINITY

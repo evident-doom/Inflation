@@ -14,7 +14,16 @@ interface Peril {
      * week, less by a step for each week ahead; 0 where none is foreseen.
      */
     fun ahead(h: Hex): Float
+
+    /**
+     * In how many weeks it first strikes hex [h], as the group is told: 0 for this week; [Int.MAX_VALUE] where none is
+     * foreseen. So a group fleeing it knows which ground it must be past before the peril gets there ([searchWayOut]).
+     */
+    fun strikesIn(h: Hex): Int = Int.MAX_VALUE
 }
 
 /** The deadliest peril foreseen at hex [h] ([Peril.ahead]); 0 where none is. Every peril the world holds is weighed here. */
 internal fun HexGroups.perilAhead(h: Hex): Float = hurricanes?.ahead(h) ?: 0f
+
+/** The soonest any peril the world holds first strikes hex [h], in weeks ([Peril.strikesIn]); [Int.MAX_VALUE] where none is foreseen. */
+internal fun HexGroups.perilStrikesIn(h: Hex): Int = hurricanes?.strikesIn(h) ?: Int.MAX_VALUE

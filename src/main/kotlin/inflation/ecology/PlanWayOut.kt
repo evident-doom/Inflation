@@ -20,6 +20,12 @@ internal const val WAY_OUT_WEEKS = 6f
  * the hexes free of every peril ([HexGroups.perilAhead] 0); then from them, the least effort back to each hex it can reach
  * this week, into [Scratch.wayOut] (none if no free hex lies that near). The going is this week's ([stepEffort]), taken the
  * same both ways; straits are not swum on the way out.
+ *
+ * Only ground it would get to before the peril does counts: a hex is passed through only if, at its reach a week, the group
+ * gets there in an earlier week than the peril first strikes it ([HexGroups.perilStrikesIn]). Without this, the way out ran
+ * along the storm's own coming path (stuck689 and parts689, 2026-11-07: 21 of the 33 bands killed with free ground in reach
+ * the week before had fled toward a way out the storm reached first). The weeks are those of the least effort out from the
+ * camp; the way back from the free ground keeps to the hexes so passed.
  */
 internal fun GroupPlanner.searchWayOut(g: HexGroup, here: Hex, reach: Float, weather: Weather, buf: Scratch) {
     val effort = stepEffort(Catalogue.travel(g.species).ordinal, gs.hw.placeBand[g.place], weather)
@@ -36,6 +42,8 @@ internal fun GroupPlanner.searchWayOut(g: HexGroup, here: Hex, reach: Float, wea
             val nh = gs.hex.neighbour(h, k); if (nh.none) continue
             val nd = d + effort[gs.hex.edge(h, k)]
             if (!nd.isFinite() || nd > wide) continue
+            // (Not where the peril gets first: the week it would get there, against the week the peril first strikes.)
+            if ((nd / reach.coerceAtLeast(1f)).toInt() >= gs.perilStrikesIn(nh)) continue
             if (nd < (seen[nh.i] ?: Float.MAX_VALUE)) { seen[nh.i] = nd; q += nd to nh }
         }
     }
