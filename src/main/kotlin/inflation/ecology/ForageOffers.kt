@@ -185,10 +185,12 @@ internal fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
     for (h in g.path) {
         val p = hw.placeNear(g.place, h).takeIf { !it.none } ?: continue
         val area = land.areaKm2[p]
+        // (Carrion lies once a step, so the ground holds only its area of it; small game is searched again each tick of a
+        // step of several, as the hunting ground is: see [huntGround].)
         val swept = min(area, sweep)
         val small = this.small
         // (Small game in cover is found the less, on burnt or grazed bare ground the more: [smallSeen].)
-        offer(w, o, Food.SMALL_GAME, 0, p, small.smallPreyKg(p) * min(area, w.smallSweep * smallSeen(p)) * w.smallCatch / days, 1f, w.smallDays)
+        offer(w, o, Food.SMALL_GAME, 0, p, small.smallPreyKg(p) * min(area * ticks, w.smallSweep * smallSeen(p)) * w.smallCatch / days, 1f, w.smallDays)
         if (w.d.carrion > 0f) {
             // (At most half of what lies on the ground searched: the rest is not found in time, or others get it;
             // and only the scavengers by trade, which watch the vultures and quarter the ground for it, find

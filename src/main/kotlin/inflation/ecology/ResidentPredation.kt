@@ -68,7 +68,8 @@ internal fun HexFauna.huntResidents(k: FaunaKind, p: Place, meat: KgM2, weather:
     if (parties <= 0f || daysLeft <= 0f) return KgM2.ZERO
     // (What a party searches of the place in the week, and how open the ground and clear the view: as for a pack, [openness].)
     val seen = sightAt(land, p, weather)
-    val swept = min(area, hunter.dailyTravelKm * days * 2f * hunter.senseKm * SEARCHING * seen)
+    // (Over a step of several ticks the place is searched afresh each tick: as much as its area each.)
+    val swept = min(area * clock.ticks, hunter.dailyTravelKm * days * 2f * hunter.senseKm * SEARCHING * seen)
     val cover = land.plants.cover(p)
     val open = VIGILANCE * (1f - cover) * (1f - hunter.stalking)
     val clear = 0.5f + 0.5f * seen / (1f - SIGHT_COVER * cover).coerceAtLeast(0.1f)
