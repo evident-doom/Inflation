@@ -168,7 +168,9 @@ internal fun HexGroups.meet(weather: Weather) {
         val ra = residents.of(e.a); val rb = residents.of(e.b)
         val met = poisson(encounters(a, b, p, e.span) * (ra?.bands ?: 1f) * (rb?.bands ?: 1f), rnd)
         if (met == 0) continue
-        val times = if (ra == null && rb == null) 1 else min(met, kotlin.math.ceil(min(ra?.bands ?: Float.MAX_VALUE, rb?.bands ?: Float.MAX_VALUE)).toInt())
+        // (Two groups meet at most once a tick of the step, each stand-in band once a tick: a step of several ticks holds the
+        // meetings its ticks would have, [StepClock.ticks].)
+        val times = if (ra == null && rb == null) min(met, ticks) else min(met, kotlin.math.ceil(min(ra?.bands ?: Float.MAX_VALUE, rb?.bands ?: Float.MAX_VALUE)).toInt() * ticks)
         for (t in 0 until times) {
             ra?.fresh(); rb?.fresh()
             if (!a.alive || !b.alive) break
@@ -189,7 +191,7 @@ internal fun HexGroups.meet(weather: Weather) {
             val r = kotlin.random.Random(e.tie)
             val p = weak.place
             val met = poisson(encounters(a, b, p, e.span) * si.bands, r)
-            if (met > 0) drawn[i] = standInsMeetDraw(strong, weak, p, min(met, kotlin.math.ceil(si.bands).toInt()), r).also { it.weak = si }
+            if (met > 0) drawn[i] = standInsMeetDraw(strong, weak, p, min(met, kotlin.math.ceil(si.bands).toInt() * ticks), r).also { it.weak = si }
         }
         for ((i, m) in drawn.withIndex()) if (m != null) {
             val e = withStandIns[i]; val strong = if (residents.of(e.a) == null) parties[e.a] else parties[e.b]
@@ -214,7 +216,7 @@ internal fun HexGroups.meet(weather: Weather) {
                 // both must be there at once, so the two shares multiply, [weekInHex].)
                 val met = poisson(encounters(sx.g, sy.g, p, days.toFloat() * weekInHex(sx.g.species) * weekInHex(sy.g.species)) * sx.bands * sy.bands, r)
                 if (met == 0) continue
-                out += standInsMeetDraw(strong.g, weak.g, p, min(met, kotlin.math.ceil(min(sx.bands, sy.bands)).toInt()), r).also { it.strong = strong; it.weak = weak }
+                out += standInsMeetDraw(strong.g, weak.g, p, min(met, kotlin.math.ceil(min(sx.bands, sy.bands)).toInt() * ticks), r).also { it.strong = strong; it.weak = weak }
             }
             outcomes[j] = out
         }
