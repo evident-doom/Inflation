@@ -773,6 +773,12 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
 }
 
 /** The residents' deaths in a week, by [cause] as the deaths ledger names it. */
+/**
+ * Residents of a place left too thin to count ([HexFauna.EXTINCT] a km²), set to none after births and deaths and after
+ * moving: counted as deaths of [DeathCause.OTHER] (residents have no other "other"), a report of what was a silent loss.
+ */
+internal val FADED_OUT = DeathCause.OTHER
+
 enum class ResidentDeath(val cause: DeathCause) {
     AGE(DeathCause.AGE), HUNGER(DeathCause.HUNGER), COLD(DeathCause.COLD), HEAT(DeathCause.HEAT), DISEASE(DeathCause.DISEASE), EAGLES(DeathCause.EAGLES),
     FIRE(DeathCause.FIRE), FLOOD(DeathCause.FLOOD), SNOW(DeathCause.SNOW), CROCODILES(DeathCause.CROCODILES), THIRST(DeathCause.THIRST),

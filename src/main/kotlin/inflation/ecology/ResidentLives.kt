@@ -32,6 +32,7 @@ fun HexFauna.fatShare(k: Int, p: Place): Float {
 
 internal fun HexFauna.breedAndDie(weather: Weather, date: Date) {
     val dead = Array(kinds.size) { DoubleArray(ResidentDeath.entries.size) }
+    val faded = DoubleArray(kinds.size)
     bornThisWeek.fill(0.0)
     // Each kind on its own core, with its own carcasses, added up after.
     val carcasses = Array(kinds.size) { FloatArray(n) }
@@ -98,7 +99,7 @@ internal fun HexFauna.breedAndDie(weather: Weather, date: Date) {
             // (Of a kind that also roams, grown young on crowded ground are due to leave it as roamers: [leaving].)
             leavingK?.let { it[hw.placeHex[p]] += up * area * leaveShare(a[p] + y[p], usual[k]) }
             bornBook?.add((up * area * (1f - YOUNG_WEIGHT) * s.massKg).toDouble())
-            if (a[p] + y[p] < EXTINCT) { carcassKg[p] += (a[p] + 0.3f * y[p]) * area * s.massKg; a[p] = 0f; y[p] = 0f }
+            if (a[p] + y[p] < EXTINCT) { faded[k] += ((a[p] + y[p]) * area).toDouble(); carcassKg[p] += (a[p] + 0.3f * y[p]) * area * s.massKg; a[p] = 0f; y[p] = 0f }
         }
     } }
     for (c in carcasses) for (p in land.places) carcassKg[p] += c[p]
@@ -116,6 +117,7 @@ internal fun HexFauna.breedAndDie(weather: Weather, date: Date) {
             sum
         }
         for (c in ResidentDeath.entries) deaths[Tally.of(s, c.cause)] = dead[k][c]
+        if (faded[k] > 0.0) deaths.merge(Tally.of(s, FADED_OUT), faded[k], Double::plus)
         deaths[Tally.of(s, DeathCause.PREY_FOUGHT_BACK)] = foughtBackDead[k].let { h ->
             var sum = 0.0
             for (p in h.indices) { sum += h[p]; record?.let { it.animalKg[PlaceRecord.Cause.KILLED.ordinal][p] += h[p] * s.massKg }; h[p] = 0f }

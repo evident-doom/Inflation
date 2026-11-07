@@ -293,6 +293,8 @@ private fun HexFauna.recordFlow(h: Hex, to: Hex, heads: Float) {
 internal fun HexFauna.spill(weather: Weather) {
     // (The swimmers drowned this week, kind by kind: their weight as grown animals by place, and their heads.)
     val drowned = Array(kinds.size) { FloatArray(n) }; val drownedHeads = DoubleArray(kinds.size)
+    // (And the heads of places left too thin to count, which go with the drowned: [fadedOut].)
+    val faded = DoubleArray(kinds.size)
     Par.forEach("residents: spill", kindIds.toList()) { k ->
         val a = adults[k]; val y = young[k]
         // (The heads that came, and the km they walked to come: what the walk costs their fat.)
@@ -303,7 +305,8 @@ internal fun HexFauna.spill(weather: Weather) {
         gatherThin(k, arrived, walkedKm)
         // (A place left with too few to count, by those leaving or the few that came, has none: as after births and deaths,
         // they go to the soil with the drowned. Else they would feed and die there as fractions too small to reckon with.)
-        for (p in land.places) if (a[p] + y[p] > 0f && a[p] + y[p] < EXTINCT) { drowned[k][p] += a[p] + y[p] * YOUNG_WEIGHT; a[p] = 0f; y[p] = 0f }
+        for (p in land.places) if (a[p] + y[p] > 0f && a[p] + y[p] < EXTINCT) { faded[k] += ((a[p] + y[p]) * land.areaKm2[p]).toDouble()
+            drowned[k][p] += a[p] + y[p] * YOUNG_WEIGHT; a[p] = 0f; y[p] = 0f }
         // (Those that came walked here, at a group's cost a km out of their fat, see [walkCost].)
         for (p in land.places) if (arrived[p] > 0f) {
             val heads = (a[p] + y[p]) * land.areaKm2[p]
@@ -315,6 +318,7 @@ internal fun HexFauna.spill(weather: Weather) {
     for ((k, s) in kinds.withKinds()) {
         for (p in land.places) { val d = drowned[k][p]; if (d <= 0f) continue; carcassKg[p] += d * s.massKg; drownedKg += d * s.massKg }
         if (drownedHeads[k] > 0.0) deaths.merge(Tally.of(s, DeathCause.DROWNED_CROSSING), drownedHeads[k], Double::plus)
+        if (faded[k] > 0.0) deaths.merge(Tally.of(s, FADED_OUT), faded[k], Double::plus)
     }
     land.books?.flow(Books.Stuff.MATTER, "carcasses (to the soil)", -drownedKg)
 }
