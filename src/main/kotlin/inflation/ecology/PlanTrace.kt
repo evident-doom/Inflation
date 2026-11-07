@@ -53,7 +53,7 @@ internal fun GroupPlanner.tellNotANumber(c: PlanContext, t: PlaceTerms?, p: Plac
     val g = c.g; val s = g.species
     val d = c.at.d; val prey = c.at.prey; val crowded = c.at.crowded; val fed = c.at.fed
     val deaths = deathsAt(c, p, h, fed, d)
-    val thirst = gs.thirstOdds(g, p, gs.dryAfter(g, p, fed))
+    val thirst = gs.thirstOdds(g, p, g.dry, gs.dryAfter(g, p, fed))
     val causes = StringBuilder()
     gs.foreseenHazards(g, p, c.weather, fed, thirst, d) { cause, a, y ->
         if (a != 0f || y != 0f) causes.append(" ").append(cause).append(" ").append(a).append("/").append(y) }

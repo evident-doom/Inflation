@@ -25,6 +25,7 @@ import inflation.world.Weather
 import kotlin.math.pow
 import kotlin.math.exp
 import kotlin.math.hypot
+import kotlin.math.ln
 import kotlin.math.max
 import kotlin.math.min
 import java.util.concurrent.ConcurrentHashMap
@@ -665,6 +666,33 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, @Transient p
      * source gives at most a share a week, so a band cannot empty a river. What people take of each is booked with the
      * week's fish flows ([PEOPLE_FLOWS], tonnes).
      */
+    /**
+     * Kg a party wanting [want] kg over the step's days takes of a stock of [stock] kg, the stock falling as it takes: a
+     * day's take is the day's want times stock / (stock + a tick's want times [search]) (Holling, the type II curve), and
+     * at most half of what is there a tick, so the take slows as the stock falls. In closed form over the days (the random
+     * predator equation, solved by Newton's method), the same at any step length (plan section 52.A.3).
+     */
+    private fun takenOver(stock: Float, want: Float, search: Float): Float {
+        if (stock <= 0f || want <= 0f) return 0f
+        val d = days.toDouble(); val wd = want / d
+        val half = wd * clock.tickDays * search
+        val most = LN2 / clock.tickDays
+        // (Below [star] kg the half-a-tick limit binds: the take is then [most] of what is left a day.)
+        val star = wd / most - half
+        var s1 = stock.toDouble(); var t = d
+        if (s1 > star) {
+            val toStar = if (star > 0.0) ((s1 - star) + half * ln(s1 / star)) / wd else Double.MAX_VALUE
+            if (toStar >= t) {
+                // (Holling over all of it: (s0 - s1) + half ln(s0 / s1) = wd t.)
+                val s0 = s1; var x = s0 * exp(-wd * t / (s0 + half))
+                repeat(8) { val f = (s0 - x) + half * ln(s0 / x) - wd * t; x = (x + f / (1.0 + half / x)).coerceIn(1e-9 * s0, s0) }
+                s1 = x; t = 0.0
+            } else { s1 = star; t -= toStar }
+        }
+        if (t > 0.0) s1 *= exp(-most * t)
+        return (stock - s1).toFloat().coerceIn(0f, stock)
+    }
+
     fun fishFor(h: Hex, kg: Float, skill: Float = 1f, what: Catch = Catch.ALL): Float {
         var left = kg
         val landKm2 = max(1f, hw.land[h] * hexKm2)
@@ -674,17 +702,8 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, @Transient p
             if (left <= 0f || areaKm2 <= 0f) return
             val s = stock[q] * areaKm2
             if (s <= 0f) return
-            // (Over a step of several ticks, tick by tick: each tick's want of what is still wanted, from what is left, as
-            // [fishWithin] reckons the most; one tick's take of the step's whole want would level off at a week's.)
-            val t = if (clock.ticks == 1) min(0.5f * s, left * s / (s + left * search / skill)) else {
-                var got = 0f
-                for (j in 0 until clock.ticks) {
-                    val want = (left - got) / (clock.ticks - j); val ss = s - got
-                    if (want <= 0f || ss <= 0f) break
-                    got += min(0.5f * ss, want * ss / (ss + want * search / skill))
-                }
-                got
-            }
+            // (Over the step's days in closed form, the same at any step length: [takenOver].)
+            val t = min(left, takenOver(s, left, search / skill))
             stock[q] -= t / areaKm2; left -= t
             fishFlows.merge(flow, t / 1000.0, Double::plus)
         }
@@ -707,9 +726,9 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, @Transient p
         val landKm2 = max(1f, hw.land[h] * hexKm2)
         fun most(stock: FloatArray, q: Hex, areaKm2: Float, search: Float): Float {
             val s = stock[q] * areaKm2
-            // (A tick's catch is a share of what swims there; over a step of several ticks, that share of what is left each tick.)
-            return if (s <= 0f) 0f else if (clock.ticks == 1) min(0.5f * s, s * skill / search)
-                else s * (1f - (1f - min(0.5f, skill / search)).pow(clock.ticks))
+            // (Wanting without end, [takenOver]'s rate is what swims there over a tick of [search] (less for skilled hands), at
+            // most half of it a tick: that share of what is left, a day at a time, over the step's days.)
+            return if (s <= 0f) 0f else s * (1.0 - exp(-min(LN2 / clock.tickDays, skill.toDouble() / (search * clock.tickDays)) * days)).toFloat()
         }
         val fish0 = what == Catch.FISH || what == Catch.ALL; val shell = what == Catch.SHELLFISH || what == Catch.ALL
         var kg = 0f
@@ -945,3 +964,5 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, @Transient p
     }
 }
 
+/** ln 2: a stock halved over a tick loses this much of itself a tick, continuously. */
+private const val LN2 = 0.6931471805599453

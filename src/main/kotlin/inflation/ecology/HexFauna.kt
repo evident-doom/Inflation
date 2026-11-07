@@ -160,48 +160,63 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
     val groupHeads = Array(Catalogue.all.size) { IntArray(hex.size) }
     /** Starts an outbreak of [s] in hex [h] (a shared array: concurrent starts all set the same value). */
     fun startOutbreak(s: Species, h: Hex) { outbreak[s.index][h] = 1f }
-    /** This week's share of [s] that an outbreak kills at place [p]. */
+    /** The share of [s] that an outbreak kills at place [p] over the step: [OUTBREAK_KILL] a tick of the outbreak there, over the step's outbreak ([outbreakSum]). */
     fun outbreakDeaths(s: Species, p: Place): Float {
-        // (Over a step of several ticks, each tick's deaths at that tick's outbreak, compounded: [outbreakMean].)
-        val m = outbreakMean ?: return OUTBREAK_KILL * outbreak[s.index][hw.placeHex[p]]
-        return 1f - (1f - (OUTBREAK_KILL * m[s.index][hw.placeHex[p]]).coerceIn(0f, 1f)).pow(clock.ticks)
+        val h = hw.placeHex[p]
+        val sum = outbreakSum ?: return OUTBREAK_KILL * outbreak[s.index][h]
+        return 1f - exp(-OUTBREAK_KILL * sum[s.index][h])
     }
-    /** Over a step of several ticks, each kind's outbreak at each hex as the step's ticks left it, on the mean ([stepOutbreaks]); null at one tick a step. */
-    @Transient private var outbreakMean: Array<FloatArray>? = null
+    /** Each kind's outbreak at each hex summed over the step's days, in ticks of it ([stepOutbreaks]); null before the first step. */
+    @Transient private var outbreakSum: Array<FloatArray>? = null
 
     private var outbreakSalt = 0L
     /** A number in 0..1 that changes from week to week, for place [p] and kind [k]. */
     internal fun hash(p: Place, k: FaunaKind): Float = drawUnit(land.seed, Stream.OUTBREAKS, p.i.toLong(), outbreakSalt, k.i.toLong())
 
-    /** Outbreaks pass to neighbouring hexes where the kind lives, and burn out. */
+    /**
+     * Outbreaks pass to neighbouring hexes where the kind lives, and burn out, over the step's days (plan section 52.A.2).
+     * An outbreak fades to [OUTBREAK_KEEP] of itself a tick, continuously; its front passes one hex a tick into hexes where
+     * the kind is, at [OUTBREAK_SPREAD] of the strength it set out with, while what it passes from is still at
+     * [OUTBREAK_PASSES] or more. So each hex's outbreak is its strongest arrival, fading from the tick it came: worked out
+     * front by front (it dies out within a few hexes whatever the step's length), not tick by tick, and summed over the
+     * step for the deaths ([outbreakDeaths]).
+     */
     @Part("outbreaks")
     private fun stepOutbreaks() {
-        // (Over a step of several ticks they spread and burn out tick by tick, as they would week by week, and kill at
-        // the mean of the ticks' outbreaks: [outbreakDeaths].)
-        val ticks = clock.ticks
-        val mean = if (ticks == 1) null else (outbreakMean ?: Array(Catalogue.all.size) { FloatArray(hex.size) }.also { outbreakMean = it })
-        if (mean == null) { outbreakTick(); return }
-        for (m in mean) m.fill(0f)
-        repeat(ticks) { outbreakTick(); for ((si, o) in outbreak.withIndex()) { val m = mean[si]; for (h in hex.all) m[h] += o[h] / ticks } }
-    }
-
-    /** One tick (a week) of the outbreaks: they pass to neighbouring hexes where the kind lives, and burn out. */
-    private fun outbreakTick() {
+        val span = days.toFloat() / clock.tickDays
+        val sums = outbreakSum ?: Array(Catalogue.all.size) { FloatArray(hex.size) }.also { outbreakSum = it }
+        val lnKeep = ln(OUTBREAK_KEEP)
+        // (The integral of KEEP^t from t0 to t1, in ticks.)
+        fun faded(t0: Float, t1: Float) = (OUTBREAK_KEEP.pow(t1) - OUTBREAK_KEEP.pow(t0)) / lnKeep
         for ((si, s) in Catalogue.all.withIndex()) {
-            val o = outbreak[si]
-            if (o.all { it < 0.01f }) continue
+            val o = outbreak[si]; val sum = sums[si]
+            if (o.all { it < 0.01f }) { for (h in hex.all) sum[h] = o[h] * span; continue }
             val k = slot(s)
-            val old = o.copyOf()
-            for (h in hex.all) {
-                if (old[h] < 0.05f) continue
-                for (d in 0 until 6) {
-                    val q = hex.neighbour(h, d); if (q.none) continue
-                    val here = groupHeads[si][q] > 0 ||
-                        (!k.none && hw.placesOf(q).any { p -> adults[k][p] + young[k][p] > 0.01f })
-                    if (here) o[q] = min(1f, max(o[q], OUTBREAK_SPREAD * old[h]))
+            // (Each hex's strength as of the step's start, faded from there: KEEP^t of it at t ticks in; and the tick it came.)
+            val base = o.copyOf(); val came = IntArray(hex.size)
+            var front = hex.all.filter { o[it] >= OUTBREAK_PASSES }.map { it.i }
+            var tick = 0
+            while (front.isNotEmpty() && tick + 1 <= span) {
+                val next = ArrayList<Int>()
+                for (hi in front) {
+                    val h = Hex(hi)
+                    if (base[h] * OUTBREAK_KEEP.pow(tick) < OUTBREAK_PASSES) continue
+                    for (d in 0 until 6) {
+                        val q = hex.neighbour(h, d); if (q.none) continue
+                        val here = groupHeads[si][q] > 0 ||
+                            (!k.none && hw.placesOf(q).any { p -> adults[k][p] + young[k][p] > 0.01f })
+                        // (Set out at SPREAD of what it passes from then, it fades with the rest from that tick: as a strength at the step's start, SPREAD of its source's.)
+                        val arrives = min(OUTBREAK_KEEP.pow(-tick.toFloat()), OUTBREAK_SPREAD * base[h])
+                        if (here && arrives > base[q]) { base[q] = arrives; came[q.i] = tick + 1; next += q.i }
+                    }
                 }
+                front = next; tick++
             }
-            for (h in hex.all) o[h] *= OUTBREAK_KEEP
+            for (h in hex.all) {
+                val c = came[h.i].toFloat()
+                sum[h] = if (c <= 0f) base[h] * faded(0f, span) else o[h] * faded(0f, c) + base[h] * faded(c, span)
+                o[h] = min(1f, base[h] * OUTBREAK_KEEP.pow(span))
+            }
         }
     }
     /** The food left uneaten at each place after every kind has eaten this week, kg per m², as far as the eaters could reach it: grass, browse, fruit and roots ([roomFor]). */
@@ -711,6 +726,8 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         const val OUTBREAK_KILL = 0.04f
         const val OUTBREAK_SPREAD = 0.6f
         const val OUTBREAK_KEEP = 0.85f
+        /** The least strength an outbreak passes on from. */
+        const val OUTBREAK_PASSES = 0.05f
         /** Fear: kg of game killed lately per km² at which a place is half as frightening as it gets; how much it puts game off at most; share kept a week. */
         const val FEAR_HALF = 5f
         const val FEAR_WEIGHT = 0.5f

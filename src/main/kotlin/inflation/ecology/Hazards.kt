@@ -5,6 +5,8 @@ import inflation.world.get
 import inflation.world.set
 
 import inflation.world.HexDrinkingWater
+import kotlin.math.exp
+import kotlin.math.ln
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
@@ -162,15 +164,34 @@ object Hazards {
     fun drowning(s: Species, gapKm: Float) = DROWN * gapKm / Catalogue.swimKm(s).coerceAtLeast(1f)
 
     /**
-     * Thirst over a step of [ticks] ticks that ends [dry] days without water, [added] of them gone this step: each tick's
-     * odds as its dry days stood then, compounded.
+     * Thirst over a step of [days] days in which the days without water went evenly from [before] to [after]: [thirst]
+     * is a tick's odds at so many dry days, so -ln(1 - [thirst]) / [tickDays] is the hazard a day, and the step's odds are
+     * 1 - exp of that hazard summed over the step's days, in closed form ([thirstHazard]). The same at any step length
+     * (plan section 52.A.6): a step whose dry days stand still gives a tick's odds compounded over its days. None once it
+     * drinks ([after] 0).
      */
-    fun thirstOver(s: Species, dry: Float, added: Float, ticks: Int): Float {
-        var live = 1f
-        for (j in 0 until ticks) live *= 1f - thirst(s, dry - added * (ticks - 1 - j) / ticks)
-        return 1f - live
+    fun thirstOver(s: Species, before: Float, after: Float, days: Int, tickDays: Int): Float {
+        if (after <= s.daysWithoutWater) return 0f
+        val w = s.daysWithoutWater
+        val start = min(before, after); val a = max(0f, start - w); val b = after - w
+        // (The mean hazard over the whole ramp: the days of it still within what it bears count, at none.)
+        val meanHazard = if (after - start < 1e-3f) -ln(1f - min(0.5f, THIRST_RISE * b)) else (thirstHazard(b) - thirstHazard(a)) / (after - start)
+        return 1f - exp(-meanHazard * days / tickDays)
     }
 
+    /**
+     * The integral of -ln(1 - [thirst]) over dry days from [daysWithoutWater][Species.daysWithoutWater] to [u] days past
+     * it: (z ln z - z + 1) / [THIRST_RISE] with z = 1 - [THIRST_RISE] u, up to where [thirst] reaches its cap of 0.5, and
+     * ln 2 a day beyond.
+     */
+    private fun thirstHazard(u: Float): Float {
+        val top = 0.5f / THIRST_RISE
+        val v = min(u, top); val z = 1f - THIRST_RISE * v
+        val under = (z * ln(z) - z + 1f) / THIRST_RISE
+        return under + if (u > top) ln(2f) * (u - top) else 0f
+    }
+    private const val THIRST_RISE = 0.05f
+
     /** Thirst, after [dry] days without water. */
-    fun thirst(s: Species, dry: Float) = if (dry > s.daysWithoutWater) min(0.5f, 0.05f * (dry - s.daysWithoutWater)) else 0f
+    fun thirst(s: Species, dry: Float) = if (dry > s.daysWithoutWater) min(0.5f, THIRST_RISE * (dry - s.daysWithoutWater)) else 0f
 }

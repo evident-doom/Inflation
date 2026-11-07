@@ -226,7 +226,7 @@ internal fun GroupPlanner.scorePlace(c: PlanContext, t: PlaceTerms, p: Place, h:
 @Part("choosing: deaths at a place")
 internal fun GroupPlanner.deathsAt(c: PlanContext, p: Place, h: Hex, fed: Float, km: Float, why: ((String, Float, Float) -> Unit)? = null): Float {
     val g = c.g; val s = g.species; val weather = c.weather; val b = g.band
-    val thirst = gs.thirstOdds(g, p, gs.dryAfter(g, p, fed))
+    val thirst = gs.thirstOdds(g, p, g.dry, gs.dryAfter(g, p, fed))
     val odds = c.odds.also { it.adult = 0f; it.young = 0f }
     gs.foreseenHazards(g, p, weather, fed, thirst, km,
         if (why == null) odds else HazardSink { cause, a, y -> odds.add(cause, a, y); if (a != 0f || y != 0f) why(cause.toString().lowercase(), a, y) })

@@ -5,6 +5,7 @@ import inflation.world.Place
 import inflation.world.get
 import inflation.world.set
 import inflation.world.Weather
+import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.random.Random
@@ -13,26 +14,25 @@ import kotlin.random.Random
 
 /**
  * [band]'s wounds this week: mishaps of the work and last week's hurts heal, the tended faster; some lame, some fester.
- * Returns the deaths from festering, a year's rate. A step of several ticks is worked tick by tick (the hurts of its hunts and
- * raids, already booked, from its first): worked whole, a month would heal every hurt at once and fester all of them for the
- * month besides.
+ * Returns the deaths from festering, a year's rate. Worked as rates a day in closed form over the step's days, so a month
+ * neither heals every hurt at once nor festers all of them for the month.
  */
 internal fun HexGroups.woundsWeek(band: Band): Float {
     val care = 0.5f * band.medicine + 0.5f * band.skill(Skill.HERBS)
     dialUse?.amount(DialSite.GATHER_MISHAPS, band.gatherRange, min(1f, band.hurt + MISHAPS * band.gatherRange * years), min(1f, band.hurt + MISHAPS * years))
-    val tick = days / ticks
-    val tickYears = years / ticks
-    var festered = 0f
-    repeat(ticks) {
-        band.hurt = min(1f, band.hurt + MISHAPS * band.gatherRange * tickYears)
-        val heal = min(1f, (HEAL_UNTENDED + (HEAL_TENDED - HEAL_UNTENDED) * care) * tick / 7f)
-        val fester = FESTER * (1f - 0.8f * care) * band.hurt * tick / 7f
-        val mended = band.hurt * heal
-        // (The lamed leave the share only as adults die or age out, see [adultsDied] and [growUp]; no flat turnover.)
-        band.lame = min(1f, band.lame + mended * LAMED * (1f - 0.5f * care))
-        band.hurt = max(0f, band.hurt - mended - fester)
-        festered += fester
-    }
+    // (Rates a day, in closed form over the step's days, the same at any step length (plan section 52.A.5): hurt comes at
+    // [MISHAPS] a year of ranging and goes as it heals (a week's share of it, [HEAL_UNTENDED] to [HEAL_TENDED]) or festers,
+    // hurt' = in - (heal + fester) hurt; the mended and the festered are those rates over the hurt the step carried.)
+    val inflow = MISHAPS * band.gatherRange * years / days
+    val heal = (HEAL_UNTENDED + (HEAL_TENDED - HEAL_UNTENDED) * care) / 7f
+    val fester = FESTER * (1f - 0.8f * care) / 7f
+    val k = heal + fester
+    val settle = inflow / k; val fade = exp(-k * days)
+    val carried = settle * days + (band.hurt - settle) * (1f - fade) / k
+    val festered = fester * carried
+    // (The lamed leave the share only as adults die or age out, see [adultsDied] and [growUp]; no flat turnover.)
+    band.lame = min(1f, band.lame + heal * carried * LAMED * (1f - 0.5f * care))
+    band.hurt = (settle + (band.hurt - settle) * fade).coerceIn(0f, 1f)
     return festered
 }
 
@@ -41,8 +41,9 @@ internal fun GroupWorld.canDrink(s: Species, p: Place) = Hazards.canDrink(land.d
 
 /** [g] drinks where there is water; otherwise days without water mount, eased by the water in green food. Returns the deaths from thirst, a year's rate. */
 internal fun GroupWorld.thirstWeek(g: HexGroup): Float {
+    val before = g.dry
     g.dry = dryAfter(g, g.place, g.fed)
-    return thirstOdds(g, g.place, g.dry)
+    return thirstOdds(g, g.place, before, g.dry)
 }
 
 /** Days [g] would have gone without water by the end of the week at place [p], fed [fed]: none where it can drink. */
@@ -51,13 +52,16 @@ internal fun GroupWorld.dryAfter(g: HexGroup, p: Place, fed: Float): Float =
     // Plant-eaters get water from green food; hunters from the body water of what they eat, in any season.
     else g.dry + Hazards.dryDays(g.species, days, fed, land.plants.green[p])
 
-/** The share of [g] that dies of thirst at place [p], [dry] days without water. */
-internal fun GroupWorld.thirstOdds(g: HexGroup, p: Place, dry: Float): Float {
+/**
+ * The share of [g] that dies of thirst at place [p] over the step, its days without water going from [before] to [dry]
+ * ([Hazards.thirstOver]: the same at any step length).
+ */
+internal fun GroupWorld.thirstOdds(g: HexGroup, p: Place, before: Float, dry: Float): Float {
     val s = g.species
     // (People carry water in skins and know every spring: they suffer far less from it than animals.)
     // (Strangers to the country do not know its springs.)
     val knowsWater = g.band?.knows(hw.placeHex[p]) ?: true
-    return Hazards.thirst(s, dry) *
+    return Hazards.thirstOver(s, before, dry, days, fauna.clock.tickDays) *
         (if (s.human) HUMAN_THIRST * tuning.humanThirst * (if (knowsWater) 1f else STRANGER_THIRST) else 1f)
 }
 

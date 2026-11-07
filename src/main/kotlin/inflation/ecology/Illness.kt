@@ -33,34 +33,72 @@ enum class Illness(override val label: String, val weeks: Float, val deadly: Flo
  * A band's sicknesses this week: new bouts from where it is and how it lives (fouled camps, marsh in
  * the warm months, now and then a cough breaking out where people crowd), bouts ending in recovery
  * and a spell of immunity; returns, for each sickness, the weekly share of adults it kills (children
- * by [Illness.young] times that). A step of several ticks is worked tick by tick, at the step's mean weather: bouts are
- * weeks long, so a month worked whole would end every bout within it and leave none sick to pass on at a meeting.
+ * by [Illness.young] times that), over the step. Worked as rates a day in closed form over the step's days ([sickOver]):
+ * bouts are weeks long, and a month leaves as many sick to pass on at a meeting as its days would.
  */
 internal fun HexGroups.illnessWeek(g: HexGroup, b: Band, weather: Weather, r: kotlin.random.Random): EnumFloats<Illness> {
     val p = g.place
     val t = weather.temperature[p]
     val crowd = peopleCrowding(g)
     val deaths = enumFloats<Illness>()
-    val tick = days / ticks
     for (d in Illness.entries) {
         val i = d
         val h = hw.placeHex[p]
-        // (The cough's chance of breaking out is reckoned over the step: [catching] scales it by the step's days.)
-        val catching = catching(d, b, p, t, crowd, campWeeksAt(h), hygieneAt(b, h), weather).let { if (d == Illness.COUGH && ticks > 1) it / ticks else it }
-        repeat(ticks) {
-            val open = (1f - b.sick[i] - b.immune[i]).coerceAtLeast(0f)
-            val rate = if (d == Illness.COUGH) (if (r.nextFloat() < catching) COUGH_FIRST else 0f) else catching
-            b.sick[i] = min(1f, b.sick[i] + rate * open * tick / 7f)
-            // Bouts end: the share that dies is reckoned week by week; the rest recover, spared for a while.
-            val ending = min(1f, tick / 7f / d.weeks)
-            deaths[i] += b.sick[i] * d.deadly * ending
-            val recovered = b.sick[i] * ending
-            b.sick[i] -= recovered
-            b.immune[i] = min(1f, b.immune[i] + recovered * (1f - d.deadly)) * (1f - Date.years(tick) / d.immuneYears.coerceAtLeast(0.1f))
-            if (b.sick[i] < 1e-4f) b.sick[i] = 0f
-        }
+        val catching = catching(d, b, p, t, crowd, campWeeksAt(h), hygieneAt(b, h), weather)
+        // (Rates a day over the step's days in closed form, the same at any step length (plan section 52.A.4): the well
+        // fall ill at a week's [catching] spread over its days, bouts end at 1 / [Illness.weeks] a week, the dead [Illness.deadly]
+        // of those, and the spared lose it over [Illness.immuneYears]. The cough breaks out at most once a step, at a moment
+        // drawn within it, striking [COUGH_FIRST] of the well, and is otherwise caught only at meetings.)
+        val fallIll = if (d == Illness.COUGH) 0f else catching / 7f
+        val end = 1f / (7f * d.weeks)
+        val forget = Date.years(days) / days / d.immuneYears.coerceAtLeast(0.1f)
+        var ill = 0.0
+        // (The cough's [catching] is its chance over the step, as a hazard: 1 - exp(-catching) of breaking out.)
+        val breaks = d == Illness.COUGH && r.nextFloat() < 1f - kotlin.math.exp(-catching)
+        if (breaks) {
+            val at = r.nextFloat() * days
+            ill += sickOver(b, i, fallIll, end, d.deadly, forget, at)
+            b.sick[i] = min(1f, b.sick[i] + COUGH_FIRST * (1f - b.sick[i] - b.immune[i]).coerceAtLeast(0f))
+            ill += sickOver(b, i, fallIll, end, d.deadly, forget, days - at)
+        } else ill += sickOver(b, i, fallIll, end, d.deadly, forget, days.toFloat())
+        deaths[i] += (d.deadly * end * ill).toFloat()
+        if (b.sick[i] < 1e-4f) b.sick[i] = 0f
     }
     return deaths
+}
+
+/**
+ * Band [b]'s sick and spared of sickness [i] carried [t] days on, the well falling ill at [fallIll] a day, bouts ending at
+ * [end] a day, [deadly] of the ended dying, the spared forgetting at [forget] a day: the linear system
+ * sick' = fallIll (1 - sick - spared) - end sick, spared' = end (1 - deadly) sick - forget spared, solved exactly
+ * (its 2x2 exponential). Returns the sick carried over the [t] days (sick-days, as a share of the band).
+ */
+private fun sickOver(b: Band, i: Illness, fallIll: Float, end: Float, deadly: Float, forget: Float, t: Float): Double {
+    if (t <= 0f) return 0.0
+    val c = fallIll.toDouble(); val e = end.toDouble(); val l = forget.toDouble()
+    // A = [[-(c + e), -c], [e (1 - deadly), -l]], input [c, 0].
+    val a11 = -(c + e); val a12 = -c; val a21 = e * (1.0 - deadly); val a22 = -l
+    val det = a11 * a22 - a12 * a21
+    // (The settled state x* = -A^-1 [c, 0].)
+    val s0 = if (det != 0.0) -(a22 * c) / det else 0.0; val m0 = if (det != 0.0) (a21 * c) / det else 0.0
+    val ds = b.sick[i] - s0; val dm = b.immune[i] - m0
+    val m = (a11 + a22) / 2.0; val disc = ((a11 - a22) / 2.0).let { it * it } + a12 * a21
+    // exp(A t) = e^{m t} (f0 I + f1 (A - m I)), and its integral over [0, t] likewise with g0, g1.
+    val q = kotlin.math.sqrt(kotlin.math.abs(disc))
+    val f0: Double; val f1: Double
+    if (q * t < 1e-6) { f0 = 1.0; f1 = t.toDouble() }
+    else if (disc > 0) { f0 = kotlin.math.cosh(q * t); f1 = kotlin.math.sinh(q * t) / q }
+    else { f0 = kotlin.math.cos(q * t); f1 = kotlin.math.sin(q * t) / q }
+    val em = kotlin.math.exp(m * t)
+    val e11 = em * (f0 + f1 * (a11 - m)); val e12 = em * f1 * a12; val e21 = em * f1 * a21; val e22 = em * (f0 + f1 * (a22 - m))
+    val sick = s0 + e11 * ds + e12 * dm; val spared = m0 + e21 * ds + e22 * dm
+    // (The integral of the deviation: A^-1 (exp(A t) - I) applied to it; with A singular (no catching, no forgetting), by its parts.)
+    val carried = if (det != 0.0) {
+        val x1 = (e11 - 1.0) * ds + e12 * dm; val x2 = e21 * ds + (e22 - 1.0) * dm
+        s0 * t + (a22 * x1 - a12 * x2) / det
+    } else if (e > 0.0) ds * (1.0 - kotlin.math.exp(-e * t)) / e else ds * t
+    b.sick[i] = sick.toFloat().coerceIn(0f, 1f); b.immune[i] = spared.toFloat().coerceIn(0f, 1f - b.sick[i])
+    return max(0.0, carried)
 }
 
 /**
@@ -73,7 +111,7 @@ internal fun HexGroups.illnessWeek(g: HexGroup, b: Band, weather: Weather, r: ko
 internal fun GroupWorld.catching(d: Illness, b: Band, p: Place, t: Float, crowd: Float, campWeeks: Int, hygiene: Float = b.hygiene, weather: Weather? = null): Float {
     // (Over a step of several ticks, given its [weather], each warm or cold gate counts the share of the ticks on its side, not the step's mean.)
     fun gate(c: Float, above: Float, below: Float, now: Float): Float {
-        if (weather == null || ticks == 1) return now
+        if (weather == null) return now
         val s = weather.shareAbove(p, c)
         return below + (above - below) * s
     }
