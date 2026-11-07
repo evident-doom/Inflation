@@ -356,6 +356,8 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             // The young growth matures as it grows, over [FLUSH_WEEKS] of full growth; the black scar itself fades over years.
             if (fire.burnt[p] > 0f) fire.burnt[p] = max(0f, fire.burnt[p] * exp(-sprout * days / (7f * FLUSH_WEEKS)) - 0.4f * years)
         }
+        // (Once a tick, after every place has grown: the step's sums for its grazing.)
+        sumOverStep()
     }
 
     /** Frost kills back what its form cannot stand at [t] °C, and floods drown what grows on the floodplain share of place [p]. */
@@ -382,7 +384,6 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             // (The residents' week of trampling, set once a step, beats down each tick of it: [HexLand.lastTick].)
             if (land.lastTick) trampling[p] = 0f
         } else if (trails[p] > 0f) trails[p] = max(0f, trails[p] - TRAIL_FADE * years)
-        sumOverStep()
     }
 
     // The herbs and browse as each tick of the step left them, summed, for what a step's grazing reaches ([herbOverStep],
