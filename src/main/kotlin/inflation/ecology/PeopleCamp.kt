@@ -363,7 +363,7 @@ internal fun HexGroups.campWeeksAt(h: Hex) = bands.fouledWeeks[h].toInt()
 internal fun HexGroups.hygieneAt(b: Band, h: Hex) = min(b.hygiene, 1f - (1f - HYGIENE_GUARD) * bands.midden[h])
 
 /**
- * Once a week: the people camped at each hex foul its ground ([FOUL_PEOPLE] of them a week of camping each week), and a hex
+ * Once a step: the people camped at each hex foul its ground ([FOUL_PEOPLE] of them a week of camping each week, a tick), and a hex
  * nobody camps at clears ([FOUL_CLEAR]); never beyond fully fouled ([fouled]). Bands keeping their camps clean
  * ([Tradition.HYGIENE]) keep the hex's midden as far as they did the work, people for people; untended, it wears
  * ([MIDDEN_WEAR]). (A world saved before the ground held its fouling starts from the weeks its bands have kept their camps.)
@@ -385,7 +385,8 @@ internal fun HexGroups.foulGround() {
     }
     val most = fullyFouledWeeks()
     for (h in 0 until hex.size) {
-        weeks[h] = if (people[h] > 0f) min(most, weeks[h] + people[h] / FOUL_PEOPLE) else max(0f, weeks[h] - FOUL_CLEAR)
+        // (A step of several ticks fouls and clears as many weeks' worth.)
+        weeks[h] = if (people[h] > 0f) min(most, weeks[h] + people[h] / FOUL_PEOPLE * ticks) else max(0f, weeks[h] - FOUL_CLEAR * ticks)
         val tended = if (people[h] > 0f) kept[h] / people[h] else 0f
         midden[h] = max(tended, midden[h] * (1f - MIDDEN_WEAR * years))
     }
