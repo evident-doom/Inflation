@@ -46,7 +46,7 @@ internal fun HexGroups.illnessWeek(g: HexGroup, b: Band, weather: Weather, r: ko
         val i = d
         val h = hw.placeHex[p]
         // (The cough's chance of breaking out is reckoned over the step: [catching] scales it by the step's days.)
-        val catching = catching(d, b, p, t, crowd, campWeeksAt(h), hygieneAt(b, h)).let { if (d == Illness.COUGH && ticks > 1) it / ticks else it }
+        val catching = catching(d, b, p, t, crowd, campWeeksAt(h), hygieneAt(b, h), weather).let { if (d == Illness.COUGH && ticks > 1) it / ticks else it }
         repeat(ticks) {
             val open = (1f - b.sick[i] - b.immune[i]).coerceAtLeast(0f)
             val rate = if (d == Illness.COUGH) (if (r.nextFloat() < catching) COUGH_FIRST else 0f) else catching
@@ -70,12 +70,20 @@ internal fun HexGroups.illnessWeek(g: HexGroup, b: Band, weather: Weather, r: ko
  * [COUGH_FIRST] of them). The one rule for the week's sickness ([illnessWeek]) and for the sickness a band foresees at a
  * place ([HexGroups.deathsAt]).
  */
-internal fun GroupWorld.catching(d: Illness, b: Band, p: Place, t: Float, crowd: Float, campWeeks: Int, hygiene: Float = b.hygiene): Float = when (d) {
-    Illness.FLUX -> FLUX_RATE * (min(1f, campWeeks / (ticksPerYear / 2f)) + 0.3f * crowd) * (if (t > 15f) 1f else 0.3f) * hygiene
-    // (As many mosquitoes as breed in the standing water about the camp: marsh, floods, sodden
-    // ground after rain; the parasite ripens in them only in warm weeks.)
-    Illness.MARSH_FEVER -> FEVER_RATE * tuning.marshFever * small.biting[p] / (small.biting[p] + HexSmallLife.HARASS_HALF) * (if (t > 20f) 1f else 0f)
-    Illness.COUGH -> COUGH_BREAKS * crowd * crowd * (if (t < 10f) 2f else 1f) * days / 7f
+internal fun GroupWorld.catching(d: Illness, b: Band, p: Place, t: Float, crowd: Float, campWeeks: Int, hygiene: Float = b.hygiene, weather: Weather? = null): Float {
+    // (Over a step of several ticks, given its [weather], each warm or cold gate counts the share of the ticks on its side, not the step's mean.)
+    fun gate(c: Float, above: Float, below: Float, now: Float): Float {
+        if (weather == null || ticks == 1) return now
+        val s = weather.shareAbove(p.i, c)
+        return below + (above - below) * s
+    }
+    return when (d) {
+        Illness.FLUX -> FLUX_RATE * (min(1f, campWeeks / (ticksPerYear / 2f)) + 0.3f * crowd) * gate(15f, 1f, 0.3f, if (t > 15f) 1f else 0.3f) * hygiene
+        // (As many mosquitoes as breed in the standing water about the camp: marsh, floods, sodden
+        // ground after rain; the parasite ripens in them only in warm weeks.)
+        Illness.MARSH_FEVER -> FEVER_RATE * tuning.marshFever * small.biting[p] / (small.biting[p] + HexSmallLife.HARASS_HALF) * gate(20f, 1f, 0f, if (t > 20f) 1f else 0f)
+        Illness.COUGH -> COUGH_BREAKS * crowd * crowd * gate(10f, 1f, 2f, if (t < 10f) 2f else 1f) * days / 7f
+    }
 }
 
 /**

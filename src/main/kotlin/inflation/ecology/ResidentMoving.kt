@@ -213,7 +213,7 @@ internal fun HexFauna.appeal(k: FaunaKind, p: Place, weather: Weather): Float {
     // protein: so they go up to the green high pasture in summer and down for the winter.)
     val fresh = if (s.carnivore) 1f else land.plants.nourishment(p) * forageProtein(s, p)
     return fareFor(s, p) * fresh * suits(s, p) * tether(s, p) * unbitten(p) * snowed * (1f - FEAR_WEIGHT * shy(s, p)) * (1f - outranked(s, p)) *
-        (1f - land.fire.burning[p] * FIRE_ADULT) * (1f - outbreakDeaths(s, p)) /
+        (1f - land.fire.stepBurning[p] * FIRE_ADULT) * (1f - outbreakDeaths(s, p)) /
         (1f + Hazards.crowding(heads, usual[k])) / (1f + discomfort)
 }
 

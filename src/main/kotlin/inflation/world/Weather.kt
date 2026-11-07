@@ -183,6 +183,20 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
     /** The coldest tick's air at each place over the last step, °C: the cold snap a step's mean ([temperature]) hides. */
     @Transient val coldest = FloatArray(n)
 
+    /** Each tick's air over the last step, °C, in order: for what a step's mean would blur across a threshold ([shareAbove]). */
+    @Transient private val tickTemps = ArrayList<FloatArray>()
+
+    /**
+     * The share of the last step's ticks whose air at [p] was above [c] °C: a step's mean of 19 °C may hold warm weeks
+     * above 20. Before the step is settled, or at one tick a step, 1 or 0 by the air now.
+     */
+    fun shareAbove(p: Int, c: Float): Float {
+        if (!settled || ticksSummed <= 1) return if (temperature[p] > c) 1f else 0f
+        var k = 0
+        for (j in 0 until ticksSummed) if (tickTemps[j][p] > c) k++
+        return k.toFloat() / ticksSummed
+    }
+
     /** Begins a step of the slow parts: nothing summed yet. */
     fun beginStep() {
         ticksSummed = 0
@@ -192,6 +206,8 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
     private fun sumTick() {
         // (The first tick's own values, not added to nothing, so that a step of one tick hands over exactly what it drew.)
         val first = ticksSummed++ == 0
+        if (tickTemps.size < ticksSummed) tickTemps += FloatArray(n)
+        temperature.copyInto(tickTemps[ticksSummed - 1])
         for (i in 0 until n) {
             val t = temperature[i]; val p = precipitation[i]
             if (first) { sumTemp[i] = t; sumPrecip[i] = p; sumMelt[i] = meltwater[i]; stepSnow[i] = if (snows(t)) p else 0f; stepRain[i] = if (snows(t)) 0f else p; coldest[i] = t; continue }

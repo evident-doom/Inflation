@@ -299,7 +299,7 @@ class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, @Transi
             stepBiting(p, active, soilWater, weather)
             stepRodents(p, t, food, snow)
             stepHerps(p, t, soilWater)
-            val b = land.fire.burning[p]
+            val b = land.fire.stepBurning[p]
             burnSmallLife(p, b)
             rodentRoom[p] *= 1f - RODENTS_BURNT * b
             stepPollinators(p, month, active)

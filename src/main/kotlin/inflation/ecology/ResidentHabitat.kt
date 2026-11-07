@@ -114,7 +114,7 @@ internal fun HexFauna.shiftBreeding() {
  * than a kind can dig through starves and exhausts it.
  */
 fun HexFauna.calamities(s: Species, p: Place, weather: Weather, young: Boolean): Calamities {
-    val fire = land.fire.burning[p] * (if (young) FIRE_YOUNG else FIRE_ADULT)
+    val fire = land.fire.stepBurning[p] * (if (young) FIRE_YOUNG else FIRE_ADULT)
     val flood = if (s.maxWaterKm.isFinite() || land.hydro.flood[p] <= FLOOD_DROWN_M) 0f
         else land.floodShare[p] * (if (young) FLOOD_YOUNG else FLOOD_ADULT)
     val over = weather.snowpack[p] / s.snowLimitMm
