@@ -310,7 +310,8 @@ private fun HexFauna.placeEffects(p: Place, grass: Float, browse: Float, z: Graz
     for ((k, s) in kinds.withKinds()) tonnes += (adults[k][p] + young[k][p]) * s.massKg / 1000f
     land.plants.trample(p, RESIDENT_TRAMPLE * tonnes * land.areaKm2[p])
     // (And their going about it each day steps on the ground: see [HexPlants.tread]. Heads are per km².)
-    for ((k, s) in kinds.withKinds()) land.plants.tread(p, (adults[k][p] + young[k][p]) * land.areaKm2[p], s.massKg, s.dailyTravelKm * days)
+    // (A tick's walking: the seedlings take it each tick of the step, [HexPlants.step].)
+    for ((k, s) in kinds.withKinds()) land.plants.tread(p, (adults[k][p] + young[k][p]) * land.areaKm2[p], s.massKg, s.dailyTravelKm * clock.tickDays)
     small.deposit(DeadPool.DUNG, p, KgM2(HexSmallLife.DUNG * eaten))
     if (ateBook != null) { val m2 = land.areaM2[p].toDouble(); ateBook!!.add(-eaten * m2); droppedBook!!.add(HexSmallLife.DUNG * eaten * m2) }
     land.plants.grazing[p] = eatG * 1e6f / days; land.plants.browsing[p] = eatB * 1e6f / days

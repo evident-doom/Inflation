@@ -299,7 +299,8 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             // Hooves kill the seedlings they come down on: a seedling lives if no hoof falls on its spot in the years it
             // takes to grow up out of their way, the share of the ground stepped on in a year being last week's at its rate.
             val trod = exp(-trodden[p] / land.areaM2[p] / years * SEEDLING_YEARS).let { if (it.isNaN()) 1f else it }
-            trodden[p] = 0f
+            // (The residents' treading is a tick's walking, set once a step: it falls again each tick of the step, [HexLand.lastTick].)
+            if (land.lastTick) trodden[p] = 0f
             grew += grow(LifeForm.TREE, tree, p, season * woodyWater * years * (1 - 0.8f * browsed * young), treeSeedHere * (1 - 0.9f * browsed) * trod)
             val sGrow = shrub[p]
             grew += grow(LifeForm.SHRUB, shrub, p, season * woodyWater * years * (1 - 0.6f * shade) * (1 - 0.5f * browsed), shrubSeedHere * (1 - 0.8f * browsed) * trod)
