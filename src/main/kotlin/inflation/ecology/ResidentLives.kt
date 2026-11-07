@@ -48,13 +48,19 @@ internal fun HexFauna.breedAndDie(weather: Weather, date: Date) {
             val share = seasonShare(k, p, date)
             if (share > 0f) {
                 bred[k][p] += share
-                val due = dueYoung(k, p, a[p] + y[p], protein[k][p], share)
-                val born = 0.5f * a[p] * due * breeding(s, due, reserve[k][p], f[p], days)
-                y[p] += born
-                bornThisWeek[k] += (born * area).toDouble()
-                bornBook?.add((born * area * YOUNG_WEIGHT * s.massKg).toDouble())
-                // The young are made of what their mothers ate: what the week's food did not build comes off the mothers' reserves (as in groups).
-                if (born > 0f && a[p] > 0f) reserve[k][p] = max(0f, reserve[k][p] - fromReserves(s, born / (0.5f * a[p]), f[p], days))
+                // (Over a step of several ticks the young come tick by tick, each tick's crowding the young before it count in:
+                // borne all at once on the step's first crowding, a fast breeder would find ranges its own young had taken.)
+                val part = if (clock.ticks == 1) share else share / clock.ticks
+                val partDays = days / clock.ticks
+                repeat(clock.ticks) {
+                    val due = dueYoung(k, p, a[p] + y[p], protein[k][p], part)
+                    val born = 0.5f * a[p] * due * breeding(s, due, reserve[k][p], f[p], partDays)
+                    y[p] += born
+                    bornThisWeek[k] += (born * area).toDouble()
+                    bornBook?.add((born * area * YOUNG_WEIGHT * s.massKg).toDouble())
+                    // The young are made of what their mothers ate: what the week's food did not build comes off the mothers' reserves (as in groups).
+                    if (born > 0f && a[p] > 0f) reserve[k][p] = max(0f, reserve[k][p] - fromReserves(s, born / (0.5f * a[p]), f[p], partDays))
+                }
             }
             // Deaths.
             // Thirst by the groups' rule: an animal drinks where water is within half its days without
