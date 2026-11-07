@@ -194,12 +194,11 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
             val k = slot(s)
             // (Each hex's strength as of the step's start, faded from there: KEEP^t of it at t ticks in; and the tick it came.)
             val base = o.copyOf(); val came = IntArray(hex.size)
-            var front = hex.all.filter { o[it] >= OUTBREAK_PASSES }.map { it.i }
+            var front: List<Hex> = hex.all.filter { o[it] >= OUTBREAK_PASSES }
             var tick = 0
             while (front.isNotEmpty() && tick + 1 <= span) {
-                val next = ArrayList<Int>()
-                for (hi in front) {
-                    val h = Hex(hi)
+                val next = ArrayList<Hex>()
+                for (h in front) {
                     if (base[h] * OUTBREAK_KEEP.pow(tick) < OUTBREAK_PASSES) continue
                     for (d in 0 until 6) {
                         val q = hex.neighbour(h, d); if (q.none) continue
@@ -207,7 +206,7 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
                             (!k.none && hw.placesOf(q).any { p -> adults[k][p] + young[k][p] > 0.01f })
                         // (Set out at SPREAD of what it passes from then, it fades with the rest from that tick: as a strength at the step's start, SPREAD of its source's.)
                         val arrives = min(OUTBREAK_KEEP.pow(-tick.toFloat()), OUTBREAK_SPREAD * base[h])
-                        if (here && arrives > base[q]) { base[q] = arrives; came[q.i] = tick + 1; next += q.i }
+                        if (here && arrives > base[q]) { base[q] = arrives; came[q.i] = tick + 1; next += q }
                     }
                 }
                 front = next; tick++
