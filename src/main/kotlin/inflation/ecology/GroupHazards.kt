@@ -13,19 +13,27 @@ import kotlin.random.Random
 
 /**
  * [band]'s wounds this week: mishaps of the work and last week's hurts heal, the tended faster; some lame, some fester.
- * Returns the deaths from festering, a year's rate.
+ * Returns the deaths from festering, a year's rate. A step of several ticks is worked tick by tick (the hurts of its hunts and
+ * raids, already booked, from its first): worked whole, a month would heal every hurt at once and fester all of them for the
+ * month besides.
  */
 internal fun HexGroups.woundsWeek(band: Band): Float {
     val care = 0.5f * band.medicine + 0.5f * band.skill(Skill.HERBS)
     dialUse?.amount(DialSite.GATHER_MISHAPS, band.gatherRange, min(1f, band.hurt + MISHAPS * band.gatherRange * years), min(1f, band.hurt + MISHAPS * years))
-    band.hurt = min(1f, band.hurt + MISHAPS * band.gatherRange * years)
-    val heal = min(1f, (HEAL_UNTENDED + (HEAL_TENDED - HEAL_UNTENDED) * care) * days / 7f)
-    val fester = FESTER * (1f - 0.8f * care) * band.hurt * days / 7f
-    val mended = band.hurt * heal
-    // (The lamed leave the share only as adults die or age out, see [adultsDied] and [growUp]; no flat turnover.)
-    band.lame = min(1f, band.lame + mended * LAMED * (1f - 0.5f * care))
-    band.hurt = max(0f, band.hurt - mended - fester)
-    return fester
+    val tick = days / ticks
+    val tickYears = years / ticks
+    var festered = 0f
+    repeat(ticks) {
+        band.hurt = min(1f, band.hurt + MISHAPS * band.gatherRange * tickYears)
+        val heal = min(1f, (HEAL_UNTENDED + (HEAL_TENDED - HEAL_UNTENDED) * care) * tick / 7f)
+        val fester = FESTER * (1f - 0.8f * care) * band.hurt * tick / 7f
+        val mended = band.hurt * heal
+        // (The lamed leave the share only as adults die or age out, see [adultsDied] and [growUp]; no flat turnover.)
+        band.lame = min(1f, band.lame + mended * LAMED * (1f - 0.5f * care))
+        band.hurt = max(0f, band.hurt - mended - fester)
+        festered += fester
+    }
+    return festered
 }
 
 /** Whether a group of [s] can drink at place [p] ([Hazards.canDrink]). */

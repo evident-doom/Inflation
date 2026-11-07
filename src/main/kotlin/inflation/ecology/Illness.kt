@@ -33,27 +33,32 @@ enum class Illness(override val label: String, val weeks: Float, val deadly: Flo
  * A band's sicknesses this week: new bouts from where it is and how it lives (fouled camps, marsh in
  * the warm months, now and then a cough breaking out where people crowd), bouts ending in recovery
  * and a spell of immunity; returns, for each sickness, the weekly share of adults it kills (children
- * by [Illness.young] times that).
+ * by [Illness.young] times that). A step of several ticks is worked tick by tick, at the step's mean weather: bouts are
+ * weeks long, so a month worked whole would end every bout within it and leave none sick to pass on at a meeting.
  */
 internal fun HexGroups.illnessWeek(g: HexGroup, b: Band, weather: Weather, r: kotlin.random.Random): EnumFloats<Illness> {
     val p = g.place
     val t = weather.temperature[p]
     val crowd = peopleCrowding(g)
     val deaths = enumFloats<Illness>()
+    val tick = days / ticks
     for (d in Illness.entries) {
         val i = d
-        val open = (1f - b.sick[i] - b.immune[i]).coerceAtLeast(0f)
         val h = hw.placeHex[p]
-        val catching = catching(d, b, p, t, crowd, campWeeksAt(h), hygieneAt(b, h))
-        val rate = if (d == Illness.COUGH) (if (r.nextFloat() < overStep(catching)) COUGH_FIRST else 0f) else catching
-        b.sick[i] = min(1f, b.sick[i] + rate * open * days / 7f)
-        // Bouts end: the share that dies is reckoned week by week; the rest recover, spared for a while.
-        val ending = min(1f, days / 7f / d.weeks)
-        deaths[i] = b.sick[i] * d.deadly * ending
-        val recovered = b.sick[i] * ending
-        b.sick[i] -= recovered
-        b.immune[i] = min(1f, b.immune[i] + recovered * (1f - d.deadly)) * (1f - Date.years(days) / d.immuneYears.coerceAtLeast(0.1f))
-        if (b.sick[i] < 1e-4f) b.sick[i] = 0f
+        // (The cough's chance of breaking out is reckoned over the step: [catching] scales it by the step's days.)
+        val catching = catching(d, b, p, t, crowd, campWeeksAt(h), hygieneAt(b, h)).let { if (d == Illness.COUGH && ticks > 1) it / ticks else it }
+        repeat(ticks) {
+            val open = (1f - b.sick[i] - b.immune[i]).coerceAtLeast(0f)
+            val rate = if (d == Illness.COUGH) (if (r.nextFloat() < catching) COUGH_FIRST else 0f) else catching
+            b.sick[i] = min(1f, b.sick[i] + rate * open * tick / 7f)
+            // Bouts end: the share that dies is reckoned week by week; the rest recover, spared for a while.
+            val ending = min(1f, tick / 7f / d.weeks)
+            deaths[i] += b.sick[i] * d.deadly * ending
+            val recovered = b.sick[i] * ending
+            b.sick[i] -= recovered
+            b.immune[i] = min(1f, b.immune[i] + recovered * (1f - d.deadly)) * (1f - Date.years(tick) / d.immuneYears.coerceAtLeast(0.1f))
+            if (b.sick[i] < 1e-4f) b.sick[i] = 0f
+        }
     }
     return deaths
 }
