@@ -30,6 +30,12 @@ class HexLand(internal val hw: HexWorld, internal val seed: Long, /** The run's 
     // ---------------------------------------------------------------- what each place is
 
     /** Area of each place, km², and m². */
+    /**
+     * Whether this tick is the first of the step: what the ticks hand the slow parts as a flow (the plants' litterfall, the
+     * runoff) is set afresh in it and added to in the others, so the slow parts take in the whole step's. Always true at one
+     * tick a step.
+     */
+    @Transient var firstTick = true
     @Transient val areaKm2 = FloatArray(n) { (hw.placeCells[it].size * grid.cellKm * grid.cellKm).toFloat() }
     /** Place [p]'s area, m². */
     fun m2(p: Place) = areaKm2[p] * 1e6f

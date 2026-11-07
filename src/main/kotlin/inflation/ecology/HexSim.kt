@@ -94,7 +94,8 @@ class HexSim(
         stats.clear()
         clock.days = stepDays
         weather.beginStep()
-        repeat(clock.ticks) { runPhases(tickPhases, weather, books) }
+        repeat(clock.ticks) { i -> land.firstTick = i == 0; runPhases(tickPhases, weather, books) }
+        land.firstTick = true
         // (The slow parts read the step's weather whole: its mean air, all that fell and melted, and the coldest tick.)
         weather.settleStep()
         runPhases(slowPhases, weather, books)
