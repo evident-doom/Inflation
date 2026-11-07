@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.world.StepClock
 import inflation.drawUnit
 import inflation.Par
 import inflation.Part
@@ -64,7 +65,9 @@ import java.util.concurrent.atomic.DoubleAdder
  * They stay in their country: nothing here wanders far, but over the years a kind spreads into
  * empty ground that suits it, and withdraws from ground that fails it.
  */
-class HexFauna(internal val hw: HexWorld, internal val land: HexLand, internal val days: Int, @Transient internal val stats: WeekStats) {
+class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient internal val clock: StepClock, @Transient internal val stats: WeekStats) {
+    /** Days the step covers ([StepClock]). */
+    internal val days get() = clock.days
     internal val tuning get() = land.tuning
     internal val hex = hw.hex
     val n = land.n
@@ -269,7 +272,7 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, internal v
     @Transient internal var droppedBook: DoubleAdder? = null
 
     /** The soil life and small animals the residents live among. */
-    val small = HexSmallLife(hw, land, days)
+    val small = HexSmallLife(hw, land, clock)
     /** Each kind's sense of where better country lies. */
     val bearings = HexBearings(hw, kinds, { s, p, m ->
         val food = fareFor(s, Place(p)) * min(1.5f, suits(s, Place(p))) / 1.5f
@@ -317,9 +320,9 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, internal v
     /** What a grown animal carries with it as it moves ([carried]). */
     internal enum class Carry { BRED, FAT, SPENT, BOLD }
     /** Life in the sea, lakes and rivers. */
-    val water = HexWater(hw, land, days, small)
+    val water = HexWater(hw, land, clock, small)
     /** Fruit and roots as stocks. */
-    val food = HexFood(land, small, days).also { f -> small.takeMast = { p, want -> f.take(f.mast, p, want) } }
+    val food = HexFood(land, small, clock).also { f -> small.takeMast = { p, want -> f.take(f.mast, p, want) } }
     /** Carcasses left this week in each place, kg (deaths other than kills, which the hunters count). */
     val carcassKg = FloatArray(n)
     /** Deaths this week by cause, animals ([WeekStats.residentDeaths]). */
@@ -328,7 +331,7 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, internal v
     @Transient var record: PlaceRecord? = null
         set(v) { field = v; small.record = v }
 
-    internal val years = Date.years(days)
+    internal val years get() = clock.years
     /** How each kind travels between places. */
     @Transient internal val travel = kinds.map { Catalogue.travel(it) }
     /** Young born this week, by kind (for the history). */

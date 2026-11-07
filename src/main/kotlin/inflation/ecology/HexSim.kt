@@ -10,10 +10,12 @@ import inflation.Books
 import inflation.StockName
 import inflation.Stocks
 import inflation.Tuning
+import inflation.world.Date
 import inflation.world.Eruptions
 import inflation.world.HexLand
 import inflation.world.HexMap
 import inflation.world.HexWorld
+import inflation.world.StepClock
 import inflation.world.Weather
 import inflation.world.World
 import kotlin.math.exp
@@ -39,8 +41,15 @@ class HexSim(
     val land = HexLand(hw, cfg.seed, tuning)
     /** The week's tallies for the reports ([WeekStats]), shared by the residents and the groups like the books; not saved. */
     @Transient val stats = WeekStats()
-    val fauna = HexFauna(hw, land, cfg.daysPerStep, stats)
-    val groups = HexGroups(hw, land, fauna, cfg.daysPerStep, cfg.seed, kinds, uniformStart)
+    /** The length of the step the slow parts take, in ticks of [WorldConfig.daysPerStep] ([inflation.Tuning.stepDays]); not saved. */
+    @Transient val clock = StepClock(cfg.daysPerStep)
+    /** Days each step covers ([inflation.Tuning.stepDays]; one tick when unset). */
+    @Transient private val stepDays = if (tuning.stepDays == 0) cfg.daysPerStep else tuning.stepDays.also {
+        require(it % cfg.daysPerStep == 0) { "t.stepDays is $it: a whole number of ${cfg.daysPerStep}-day ticks" } }
+    /** Steps in a year at [stepDays]: what a run of so many years takes. */
+    val stepsPerYear: Int get() = Date.stepsPerYear(stepDays)
+    val fauna = HexFauna(hw, land, clock, stats)
+    val groups = HexGroups(hw, land, fauna, cfg.seed, kinds, uniformStart)
     /** Volcanoes erupting at their own rates; the ash falls downwind on the places. */
     val eruptions = Eruptions(world.grid, world.volcanoes, cfg.seed)
     /** The place each fine cell lies in (-1 for none), for where ash falls: made at the first eruption. */
@@ -62,21 +71,30 @@ class HexSim(
         groups.listStocks(s)
     }
 
-    /**
-     * The week, in order: the weather and what falls from the sky, the water and plants ([HexLand.phases]), the residents and
-     * small life ([HexFauna.phases]), and the groups ([HexGroups.phases]).
-     */
-    @Transient val phases: List<Phase> = listOf(
+    /** The tick, in order: the weather and what falls from the sky, the water and plants ([HexLand.phases]). */
+    @Transient val tickPhases: List<Phase> = listOf(
         Phase("weather") { weather.step(); bookSnow() },
         Phase("ash and eruptions") { fallingAsh() },
-    ) + land.phases + Phase("people: herds for the beasts") { fauna.keptAt = groups.herdsForBeasts(); groups.fillPackGame() } + fauna.phases + groups.phases
+    ) + land.phases
 
-    /** One week ([phases]). */
+    /** The slow parts of a step, in order, once a step whatever its length: the residents and small life ([HexFauna.phases]), and the groups ([HexGroups.phases]). */
+    @Transient val slowPhases: List<Phase> = listOf(Phase("people: herds for the beasts") { fauna.keptAt = groups.herdsForBeasts(); groups.fillPackGame() }) +
+        fauna.phases + groups.phases
+
+    /** The whole step, in order ([tickPhases], then [slowPhases]): at one tick a step, the week. */
+    @Transient val phases: List<Phase> = tickPhases + slowPhases
+
+    /**
+     * One step: the ticks it covers ([tickPhases] each tick), then the slow parts once ([slowPhases]) over the step's
+     * [StepClock.days]. At one tick a step ([inflation.Tuning.stepDays] unset), the week as it always was.
+     */
     fun step() {
         // (What changed between steps, as a save loaded into the world or the viewer's hand, is charged to that.)
         books?.check("between steps")
         stats.clear()
-        runPhases(phases, weather, books)
+        clock.days = stepDays
+        repeat(clock.ticks) { runPhases(tickPhases, weather, books) }
+        runPhases(slowPhases, weather, books)
     }
 
     /** Snow falls in the cold; the melt goes to the soil, booked again there as it comes in. */

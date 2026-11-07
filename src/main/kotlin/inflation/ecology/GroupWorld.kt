@@ -58,8 +58,10 @@ import kotlin.math.sqrt
  * hexes lie apart. The groups ([HexGroups]) are such a world with the groups in it.
  */
 abstract class GroupWorld(
-    internal val hw: HexWorld, internal val land: HexLand, internal val fauna: HexFauna, internal val days: Int, seed: Long,
+    internal val hw: HexWorld, internal val land: HexLand, internal val fauna: HexFauna, seed: Long,
 ) {
+    /** Days the step covers, as the residents' ([StepClock]). */
+    internal val days get() = fauna.days
     internal val hex = hw.hex
     internal val n = land.n
     internal val tuning get() = land.tuning
@@ -67,7 +69,7 @@ abstract class GroupWorld(
     internal val seedBase = seed
     /** This week's tallies ([HexSim.stats]). */
     val stats get() = fauna.stats
-    internal val years = Date.years(days)
+    internal val years get() = fauna.years
     internal val small get() = fauna.small
     /** What bands have taken near where they live ([worn], t.wornGround); not saved. */
     @Volatile @Transient internal var wornGround: WornGround? = null

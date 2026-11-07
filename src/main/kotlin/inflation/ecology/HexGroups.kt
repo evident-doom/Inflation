@@ -60,12 +60,12 @@ import kotlin.math.sqrt
  * rivals. Young are born in season, the hungry and the old die, and groups too big for their food split.
  */
 class HexGroups(
-    hw: HexWorld, land: HexLand, fauna: HexFauna, days: Int, seed: Long,
+    hw: HexWorld, land: HexLand, fauna: HexFauna, seed: Long,
     /** The kinds that live as groups here (default: the hunting packs and people). */
     kindsHere: List<Species>? = null,
     /** Start every kind spread evenly over the land, wherever it suits it or not (to see them find their country). */
     uniformStart: Boolean = false,
-) : GroupWorld(hw, land, fauna, days, seed) {
+) : GroupWorld(hw, land, fauna, seed) {
     val groups = ArrayList<HexGroup>()
     /**
      * The lore of the land's months: for each place and month of the year, the forage yield bands camped there found in that

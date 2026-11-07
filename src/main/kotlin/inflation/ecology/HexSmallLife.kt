@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.world.StepClock
 import inflation.drawUnit
 import inflation.Par
 import inflation.Part
@@ -81,7 +82,9 @@ class BirdKind(
  *   animals in the open; they thrive where the crags and the game are, and dwindle where food fails.
  * - Fire kills what cannot flee. Every month each kind spreads a little to the places around.
  */
-class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, internal val days: Int) {
+class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, @Transient private val clock: StepClock) {
+    /** Days the step covers ([StepClock]). */
+    internal val days get() = clock.days
     internal val tuning get() = land.tuning
     val n = land.n
     /** Soil: litter and organic matter, kg/m²; carrion, kg/m²; soil animals, g/m². */
@@ -156,7 +159,7 @@ class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, interna
     /** Migrant birds leaving this week from each place, kg (summed in place order after the parallel loop, so the sum is the same on any number of cores). */
     internal val leaving = Array(BIRDS.size) { FloatArray(n) }
     private var lastMonth = -1
-    internal val years = Date.years(days)
+    internal val years get() = clock.years
     /**
      * For the books (see [Books]), this step, kg; null when they are not kept: what the small animals grew (born and
      * grown, from what they ate or from their rates), ate, and dropped as dung and frass.

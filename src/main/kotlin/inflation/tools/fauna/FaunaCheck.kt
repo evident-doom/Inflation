@@ -14,7 +14,7 @@ import inflation.run.Nominal
  * week by week through the tallies; [Diagnostics] adds the lines the config asks for.
  */
 class FaunaCheck(private val sim: HexSim, private val options: FaunaCheckOptions) {
-    private val stepsPerYear = options.cfg.stepsPerYear
+    private val stepsPerYear = sim.stepsPerYear
     private val census = Census(sim)
     private val deaths = DeathTally(sim)
     private val hunting = HuntTally(sim)
