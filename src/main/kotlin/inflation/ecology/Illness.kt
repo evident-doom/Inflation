@@ -45,7 +45,7 @@ internal fun HexGroups.illnessWeek(g: HexGroup, b: Band, weather: Weather, r: ko
         val open = (1f - b.sick[i] - b.immune[i]).coerceAtLeast(0f)
         val h = hw.placeHex[p]
         val catching = catching(d, b, p, t, crowd, campWeeksAt(h), hygieneAt(b, h))
-        val rate = if (d == Illness.COUGH) (if (r.nextFloat() < catching) COUGH_FIRST else 0f) else catching
+        val rate = if (d == Illness.COUGH) (if (r.nextFloat() < overStep(catching)) COUGH_FIRST else 0f) else catching
         b.sick[i] = min(1f, b.sick[i] + rate * open * days / 7f)
         // Bouts end: the share that dies is reckoned week by week; the rest recover, spared for a while.
         val ending = min(1f, days / 7f / d.weeks)
