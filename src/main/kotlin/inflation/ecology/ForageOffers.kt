@@ -251,7 +251,9 @@ internal fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
                     h += wk * (farther - 1f); wk *= farther
                 }
             }
-            offer(w, o, f, kind, Place(q), land.total(Place(q), KgM2(share * density)).v / days, 1f, h, seek = sk, walk = wk)
+            // (A band strips its share of what is left each tick: over a step of several, the more of it, [overTicks].)
+            val got = if (band != null) overTicks(share) else share
+            offer(w, o, f, kind, Place(q), land.total(Place(q), KgM2(got * density)).v / days, 1f, h, seek = sk, walk = wk)
         }
         fun sought(density: Float) = if (band != null && density > 0f) 1f / (PLANT_SIGHT_M2_PER_DAY * density * w.gatherers) else 0f
         plant(Food.FRUIT, 0, reach, food.fruit[q], fruitQ + sought(food.fruit[q]) + walked(Food.FRUIT, walk), sought(food.fruit[q]), walked(Food.FRUIT, walk))

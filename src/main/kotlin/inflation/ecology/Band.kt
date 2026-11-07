@@ -992,7 +992,8 @@ class Band(kinds: Int, totems: Int = kinds) {
     fun sickleGain(tuning: Tuning) = SICKLE_GAIN * has(Tool.SICKLE) * serveOfMake(Tool.SICKLE, fine[Tool.SICKLE], tuning)
 
     /**
-     * Gathering: the most of a plant food's stock in a place it can take in a week, by its skill. (Its tools do not raise it:
+     * Gathering: the most of a plant food's stock in a place it can take in a week (a tick; over a step of several, that share
+     * of what is left each tick, [GroupWorld.overTicks]), by its skill. (Its tools do not raise it:
      * a basket carries more a trip and a sickle reaps faster, in the
      * days a kilo takes ([PLANT_HANDLING_DAYS_PER_KG], [reapDaysPerKg]); counted here as well, they were counted twice.
      * Harlan reaped wild einkorn at about 2 kg an hour by hand and 2.5 with a stone sickle: a speedup.)

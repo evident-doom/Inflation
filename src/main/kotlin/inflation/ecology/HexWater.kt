@@ -22,6 +22,7 @@ import inflation.world.HexLand
 import inflation.world.HexWorld
 import inflation.world.RiverClass
 import inflation.world.Weather
+import kotlin.math.pow
 import kotlin.math.exp
 import kotlin.math.hypot
 import kotlin.math.max
@@ -695,7 +696,9 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, @Transient p
         val landKm2 = max(1f, hw.land[h] * hexKm2)
         fun most(stock: FloatArray, q: Hex, areaKm2: Float, search: Float): Float {
             val s = stock[q] * areaKm2
-            return if (s > 0f) min(0.5f * s, s * skill / search) else 0f
+            // (A tick's catch is a share of what swims there; over a step of several ticks, that share of what is left each tick.)
+            return if (s <= 0f) 0f else if (clock.ticks == 1) min(0.5f * s, s * skill / search)
+                else s * (1f - (1f - min(0.5f, skill / search)).pow(clock.ticks))
         }
         val fish0 = what == Catch.FISH || what == Catch.ALL; val shell = what == Catch.SHELLFISH || what == Catch.ALL
         var kg = 0f

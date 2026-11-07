@@ -124,6 +124,8 @@ abstract class GroupWorld(
     internal val ticks get() = fauna.clock.ticks
     /** Ticks in a year: what counts of weeks are reckoned in years by, whatever the step's length. */
     internal val ticksPerYear get() = Date.stepsPerYear(fauna.clock.tickDays).toFloat()
+    /** The share of a stock taken over the step by one who takes [p] of what is left each tick: [p] itself at one tick a step. */
+    internal fun overTicks(p: Float) = if (ticks == 1) p else 1f - (1f - p.coerceIn(0f, 1f)).pow(ticks)
     /** How much further than one tick's a step's net shift reaches ([inflation.Tuning.stepReach]): 1 at one tick a step. */
     internal val stepShift get() = if (ticks == 1) 1f else ticks.toFloat().pow(tuning.stepReach)
 

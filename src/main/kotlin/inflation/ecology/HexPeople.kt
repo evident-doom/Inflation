@@ -568,8 +568,8 @@ internal fun HexGroups.plantFood(g: HexGroup, b: Band, p: Place, into: FloatArra
     val need = (g.dailyNeedKg * days).coerceAtLeast(1f)
     fun weeks(kg: Float) = (kg / need).let { it / (1f + it) }
     val food = fauna.food
-    val pick = min(0.9f, b.gatherShare() * b.gatherRange)
-    val reap = min(0.9f, b.gatherShare() * b.gatherRange)
+    val pick = overTicks(min(0.9f, b.gatherShare() * b.gatherRange))
+    val reap = overTicks(min(0.9f, b.gatherShare() * b.gatherRange))
     into[at] = weeks(land.total(p, KgM2(pick * food.fruit[p])).v)
     into[at + 1] = weeks(land.total(p, KgM2(pick * food.underground(p))).v)
     // (Seed: the wild grasses' and the wild cereals' grain, reaped alike. A sown field is its sower's: [HexFeatures.SOWN_HERE].)
