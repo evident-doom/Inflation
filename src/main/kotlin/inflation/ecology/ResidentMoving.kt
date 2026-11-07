@@ -4,6 +4,7 @@ import inflation.ecology.HexFauna.Carry
 import inflation.ecology.HexFauna.Companion.BAND_SHIFT
 import inflation.ecology.HexFauna.Companion.BEARING_SPILL
 import inflation.ecology.HexFauna.Companion.EXTINCT
+import inflation.ecology.HexFauna.Companion.EXTINCT_FLOOR
 import inflation.ecology.HexFauna.Companion.FEAR_WEIGHT
 import inflation.ecology.HexFauna.Companion.FIRE_ADULT
 import inflation.ecology.HexFauna.Companion.FLOW_STEP
@@ -305,8 +306,12 @@ internal fun HexFauna.spill(weather: Weather) {
         gatherThin(k, arrived, walkedKm)
         // (A place left with too few to count, by those leaving or the few that came, has none: as after births and deaths,
         // they go to the soil with the drowned. Else they would feed and die there as fractions too small to reckon with.)
-        for (p in land.places) if (a[p] + y[p] > 0f && a[p] + y[p] < EXTINCT) { faded[k] += ((a[p] + y[p]) * land.areaKm2[p]).toDouble()
-            drowned[k][p] += a[p] + y[p] * YOUNG_WEIGHT; a[p] = 0f; y[p] = 0f }
+        // (Too thin to hold on, they fade at a rate a day, the same at any step length: [EXTINCT].)
+        val thinKeep = if (tuning.thinFadeDays > 0f) exp(-days / tuning.thinFadeDays) else 0f
+        for (p in land.places) if (a[p] + y[p] > 0f && a[p] + y[p] < EXTINCT) {
+            val keep = if (a[p] + y[p] < EXTINCT_FLOOR) 0f else thinKeep
+            faded[k] += ((a[p] + y[p]) * (1f - keep) * land.areaKm2[p]).toDouble()
+            drowned[k][p] += (a[p] + y[p] * YOUNG_WEIGHT) * (1f - keep); a[p] *= keep; y[p] *= keep }
         // (Those that came walked here, at a group's cost a km out of their fat, see [walkCost].)
         for (p in land.places) if (arrived[p] > 0f) {
             val heads = (a[p] + y[p]) * land.areaKm2[p]

@@ -716,8 +716,15 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
             repeat(3) { for (m in 0 until 12) { w += (max(0f, t(m)) - w) * k; out[m] = w } }
             return out
         }
-        /** Below this density, per km², a kind is gone from a place. */
+        /**
+         * Below this density, per km², a kind is too thin at a place to hold on: it fades there at a rate a day of one in
+         * [Tuning.thinFadeDays] ([spill]), and is gone below [EXTINCT_FLOOR]. (It was set to none once a step, which took ten
+         * times as many at the weekly step as at 60 days: weekly wolves lost about 50 per 1000 a year so, 60-day ones 1-4;
+         * fade692.) With t.thinFadeDays=0, set to none once a step as before.
+         */
         const val EXTINCT = 1e-4f
+        /** Below this density, per km², a kind is gone from a place at once (a hundredth of [EXTINCT]). */
+        const val EXTINCT_FLOOR = 1e-6f
         /**
          * Outbreaks: yearly chance one starts in a place at its kind's crowded density; share of the kind it kills a
          * week at full strength; share of its strength it passes to a neighbouring hex; share kept a week.

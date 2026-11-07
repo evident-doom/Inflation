@@ -71,6 +71,11 @@ class Tuning(
      */
     /** How many times a group's party may look again at what is left in a step, still hungry ([inflation.ecology.FORAGE_PASSES], 3). */
     val foragePasses = i("foragePasses", 3).also { require(it >= 1) { "t.foragePasses is $it: 1 or more" } }
+    /**
+     * Days over which residents too thin to hold on at a place (under [inflation.ecology.HexFauna.EXTINCT] a km²) fade there, to
+     * 1/e; 0: set to none once a step, as before (which takes more the shorter the step).
+     */
+    val thinFadeDays = f("thinFadeDays", 30f).also { require(it >= 0f) { "t.thinFadeDays is $it: 0 or more" } }
     val packFatAim = f("packFatAim", 0f).also { require(it in 0f..1f) { "t.packFatAim is $it: 0-1" } }
     val stepReach = f("stepReach", 0.5f).also { require(it in 0f..1f) { "t.stepReach is $it: 0-1" } }
     /**

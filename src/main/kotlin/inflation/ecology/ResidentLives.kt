@@ -41,6 +41,7 @@ internal fun HexFauna.breedAndDie(weather: Weather, date: Date) {
         val s = kinds[k]
         val carcassKg = carcasses[k]
         val grow = years / s.yearsToMaturity
+        val thinGone = if (tuning.thinFadeDays > 0f) HexFauna.EXTINCT_FLOOR else EXTINCT
         val a = adults[k]; val y = young[k]; val f = fed[k]; val dk = dry[k]; val leavingK = leaving[k]
         val hz = enumFloats<Danger>()
         for (p in land.places) {
@@ -99,7 +100,8 @@ internal fun HexFauna.breedAndDie(weather: Weather, date: Date) {
             // (Of a kind that also roams, grown young on crowded ground are due to leave it as roamers: [leaving].)
             leavingK?.let { it[hw.placeHex[p]] += up * area * leaveShare(a[p] + y[p], usual[k]) }
             bornBook?.add((up * area * (1f - YOUNG_WEIGHT) * s.massKg).toDouble())
-            if (a[p] + y[p] < EXTINCT) { faded[k] += ((a[p] + y[p]) * area).toDouble(); carcassKg[p] += (a[p] + 0.3f * y[p]) * area * s.massKg; a[p] = 0f; y[p] = 0f }
+            // (Too thin to hold on: gone below the floor here, fading when they spill, [EXTINCT]; with t.thinFadeDays=0 gone below EXTINCT.)
+            if (a[p] + y[p] < thinGone) { faded[k] += ((a[p] + y[p]) * area).toDouble(); carcassKg[p] += (a[p] + 0.3f * y[p]) * area * s.massKg; a[p] = 0f; y[p] = 0f }
         }
     } }
     for (c in carcasses) for (p in land.places) carcassKg[p] += c[p]
