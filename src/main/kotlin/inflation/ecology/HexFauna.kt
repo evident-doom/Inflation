@@ -161,7 +161,13 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
     /** Starts an outbreak of [s] in hex [h] (a shared array: concurrent starts all set the same value). */
     fun startOutbreak(s: Species, h: Hex) { outbreak[s.index][h] = 1f }
     /** This week's share of [s] that an outbreak kills at place [p]. */
-    fun outbreakDeaths(s: Species, p: Place) = OUTBREAK_KILL * outbreak[s.index][hw.placeHex[p]]
+    fun outbreakDeaths(s: Species, p: Place): Float {
+        // (Over a step of several ticks, each tick's deaths at that tick's outbreak, compounded: [outbreakMean].)
+        val m = outbreakMean ?: return OUTBREAK_KILL * outbreak[s.index][hw.placeHex[p]]
+        return 1f - (1f - (OUTBREAK_KILL * m[s.index][hw.placeHex[p]]).coerceIn(0f, 1f)).pow(clock.ticks)
+    }
+    /** Over a step of several ticks, each kind's outbreak at each hex as the step's ticks left it, on the mean ([stepOutbreaks]); null at one tick a step. */
+    @Transient private var outbreakMean: Array<FloatArray>? = null
 
     private var outbreakSalt = 0L
     /** A number in 0..1 that changes from week to week, for place [p] and kind [k]. */
@@ -170,6 +176,17 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
     /** Outbreaks pass to neighbouring hexes where the kind lives, and burn out. */
     @Part("outbreaks")
     private fun stepOutbreaks() {
+        // (Over a step of several ticks they spread and burn out tick by tick, as they would week by week, and kill at
+        // the mean of the ticks' outbreaks: [outbreakDeaths].)
+        val ticks = clock.ticks
+        val mean = if (ticks == 1) null else (outbreakMean ?: Array(Catalogue.all.size) { FloatArray(hex.size) }.also { outbreakMean = it })
+        if (mean == null) { outbreakTick(); return }
+        for (m in mean) m.fill(0f)
+        repeat(ticks) { outbreakTick(); for ((si, o) in outbreak.withIndex()) { val m = mean[si]; for (h in hex.all) m[h] += o[h] / ticks } }
+    }
+
+    /** One tick (a week) of the outbreaks: they pass to neighbouring hexes where the kind lives, and burn out. */
+    private fun outbreakTick() {
         for ((si, s) in Catalogue.all.withIndex()) {
             val o = outbreak[si]
             if (o.all { it < 0.01f }) continue
@@ -432,7 +449,9 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
     private fun newWeek(weather: Weather, date: Date) {
         val books = land.books
         ateBook = books?.adder(Books.Stuff.MATTER, "eaten"); droppedBook = books?.adder(Books.Stuff.MATTER, "dung and frass")
-        for (p in land.places) fear[p] *= FEAR_KEEP
+        // (A tick's fading a tick: over a step of several, compounded, as the step's kills add theirs.)
+        val fearKeep = if (clock.ticks == 1) FEAR_KEEP else FEAR_KEEP.pow(clock.ticks)
+        for (p in land.places) fear[p] *= fearKeep
         stepOutbreaks(); outbreakSalt++
         carcassKg.fill(0f)
         if (bearings.month != date.month) {
