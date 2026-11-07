@@ -53,7 +53,10 @@ internal fun GroupWorld.gatherMaterials(g: HexGroup, b: Band, p: Place, h: Hex, 
     // and has the time for, slower where little crops out.)
     if (stone > 0f) gather(Material.STONE, Float.MAX_VALUE, STONE_A_DAY * min(1f, 5f * stone))
     // Salt scraped from a dry lake bed or pan along the way, and a little from the shore; ochre dug where it crops out.
-    gather(Material.SALT, people * (SALT_A_WEEK * min(1f, 5f * alongTheWay(land.salt)) + if (hw.coast[h]) SEA_SALT_A_WEEK else 0f), SALT_A_DAY)
+    val pan = SALT_A_WEEK * min(1f, 5f * alongTheWay(land.salt)); val shore = if (hw.coast[h]) SEA_SALT_A_WEEK else 0f
+    val salt = gather(Material.SALT, people * (pan + shore), SALT_A_DAY)
+    // (For the salt census: what came from where, by each's share of what was to be had, and the days it took.)
+    if (salt > 0f) { b.noteSalt(SaltFlow.PAN, salt * pan / (pan + shore)); b.noteSalt(SaltFlow.SHORE, salt * shore / (pan + shore)); b.saltDays += salt / SALT_A_DAY }
     gather(Material.OCHRE, people * OCHRE_A_WEEK * min(1f, 5f * alongTheWay(land.ochre)), OCHRE_A_DAY)
     // (Wood and fibre are what the plants give up: from the trees and the scrub, and the grass and scrub, each by its share.
     // Wood comes as slowly as firewood does, by how thick the trees and scrub stand, as much as it wants and has the time for.)
