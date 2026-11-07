@@ -521,7 +521,12 @@ internal class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, pack
     val forageWant = max(0f, wantAll - (band?.let { b -> val p = perishablesHeld(g); b.restSaved + p + storeSpare(g, b, g.larder - p) } ?: 0f))
     // A band also works to fill its stores towards what it aims to keep (its choice); party-days spent this week.
     // (A band holding to demand sharing stores less: what it lays by is asked of it.)
-    val aim = forageWant + (band?.let { b -> gs.storeWork(g, b).also { v -> gs.dialUse?.let { u -> countStoreWork(u, g, b, v) } } } ?: 0f)
+    // A beast short of fat hunts on past its want, as far as its gut holds, to lay fat on ([eatTheWeek]'s gorging; t.packFatAim):
+    // the fat a lean season draws on. (It was left to the last kill's overshoot of the want, the step's lumpiness: beasts laid
+    // fat on at the weekly step and almost none at 60 days, leopards' hunger deaths 6% against 37%; leo692c, plan 52.B.5.)
+    private val fatAim = if (band != null) 0f else gs.tuning.packFatAim * min(max(0f, gutKg - wantAll) * feeds(Food.BIG_GAME),
+        max(0f, s.maxFatDays - g.fat) / FAT_EFFICIENCY * g.dailyNeedKg)
+    val aim = forageWant + fatAim + (band?.let { b -> gs.storeWork(g, b).also { v -> gs.dialUse?.let { u -> countStoreWork(u, g, b, v) } } } ?: 0f)
     // What it weighs a kg of each food at in its choice: what it feeds, the part of the week's work that is for the stores
     // weighed by its will to lay that food by (its choice, [Band.storeWill]: what keeps, how long, and against what
     // lean season is for it to learn).
