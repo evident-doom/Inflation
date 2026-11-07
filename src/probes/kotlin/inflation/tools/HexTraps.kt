@@ -58,6 +58,24 @@ fun main(args: Array<String>) {
         for (k in 0 until 6) { val n = hex.neighbour(h, k); if (n.none || hex.heart[n] < 0) continue; m = minOf(m, effort[hex.edge(h, k)]) }
         return m }
 
+    // 0. The fine cells' going, what the borders are made of.
+    run {
+        val world = sim.world; val terrain = world.terrain; val walk = hex.costs[travel.ordinal]
+        val cells = (0 until world.grid.size).filter { !world.isSea[it] && terrain.baseCost[it].isFinite() }
+        val edges = floatArrayOf(0.2f, 0.35f, 0.5f, 0.7f, 1.0f, Float.POSITIVE_INFINITY)
+        val n = IntArray(edges.size)
+        for (i in cells) n[edges.indexOfFirst { terrain.slope[i] < it }]++
+        println("\n0. Land cells (${world.grid.cellKm} km) by slope (steepest drop to a neighbour, rise over run), and the going per cell for $travel (times flat open ground)")
+        var lo = 0f
+        for ((k, e) in edges.withIndex()) { println("  slope %.2f-%s: %.2f%% of land cells".format(lo, if (e.isFinite()) "%.2f".format(e) else "", 100.0 * n[k] / cells.size)); lo = e }
+        val cost = cells.map { walk[it] }.filter { it.isFinite() }.sorted()
+        fun q(p: Double) = cost[((cost.size - 1) * p).toInt()]
+        println("  going per cell: median %.1f, 90%% %.1f, 99%% %.1f, 99.9%% %.0f, max %.0f; closed (infinite) %d; cliff cells %.2f%% of land".format(
+            q(0.5), q(0.9), q(0.99), q(0.999), cost.last(), cells.size - cost.size, 100.0 * cells.count { terrain.cliff[it] } / cells.size))
+        val borders = land.flatMap { h -> (0 until 3).mapNotNull { d -> val nb = hex.neighbour(h, d); if (nb.none || hex.heart[nb] < 0) null else cross[hex.edge(h, d)] } }
+        for (r in listOf(45f, 80f, 200f)) println("  land borders costing more than %.0f km: %.2f%% of %d".format(r, 100.0 * borders.count { it > r } / borders.size, borders.size))
+    }
+
     // 1. Each land hex's cheapest border.
     println("\n1. The map's going (no snow, no worn paths): each land hex's cheapest border, km of effort")
     val least = land.map { cheapest(it, cross) }.sorted()
