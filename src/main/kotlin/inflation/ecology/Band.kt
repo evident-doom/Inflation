@@ -158,19 +158,18 @@ class Band(kinds: Int, totems: Int = kinds) {
     val freeShare = FloatArray(12) { -1f }
 
     /**
-     * Adds a week's food in month [m] ([got], as [monthSupply] counts it): the weeks of a month are added up, and once it
-     * is over its mean goes into its month's [monthSupply] and [monthSupplySq], a year at a time. [k] is the share a week
-     * took of its month's mean when it went in week by week, so a month's year takes as much as its weeks did then.
+     * Adds a step's food in month [m] ([got], as [monthSupply] counts it): the steps of a month are added up, and once it
+     * is over its mean goes into its month's [monthSupply] and [monthSupplySq], a year at a time, taking [SUPPLY_YEAR] of
+     * the way to it whatever the step's length (a step of several months adds to each, [HexGroups.foresee]).
      */
-    fun addSupply(m: Int, got: Float, k: Float) {
+    fun addSupply(m: Int, got: Float) {
         if (m != supplyMonth) {
             val was = supplyMonth
             if (was >= 0 && supplyWeeks > 0) {
                 val mean = supplySum / supplyWeeks
-                val kYear = 1f - (1f - k).pow(1f / k)
                 if (monthSupplySq[was].isNaN()) monthSupplySq[was] = monthSupply[was] * monthSupply[was]
-                monthSupply[was] += kYear * (mean - monthSupply[was])
-                monthSupplySq[was] += kYear * (mean * mean - monthSupplySq[was])
+                monthSupply[was] += SUPPLY_YEAR * (mean - monthSupply[was])
+                monthSupplySq[was] += SUPPLY_YEAR * (mean * mean - monthSupplySq[was])
             }
             supplyMonth = m; supplySum = 0f; supplyWeeks = 0
         }
@@ -1063,3 +1062,9 @@ class Band(kinds: Int, totems: Int = kinds) {
 
 }
 
+/**
+ * The share of the way a month's remembered food ([Band.monthSupply]) goes to a new year's mean of it: 1 - 1/e, what a
+ * mean kept step by step through the month comes to as the steps shorten, so the same at any step length (it was
+ * 1 - (1 - k)^(1/k) for a step taking k of the month, 0.67 at weekly steps, and not a number past a month).
+ */
+internal const val SUPPLY_YEAR = 0.63212056f

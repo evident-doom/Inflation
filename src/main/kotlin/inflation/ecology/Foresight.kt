@@ -228,7 +228,8 @@ internal class YearAhead(private val odds: FloatArray, internal val fed: FloatAr
  */
 internal fun HexGroups.foresee(weather: Weather) {
     val m = weather.date.month
-    val k = 1f / (stepsPerYear / Date.MONTHS_PER_YEAR)
+    // (A step of several months adds its food to each month it covers.)
+    val months = max(1, days / Date.DAYS_PER_MONTH)
     // (Each band on its own: on all cores.)
     Par.forEach("foresight: foresee", groups) { g ->
         val b = g.band
@@ -246,7 +247,8 @@ internal fun HexGroups.foresee(weather: Weather) {
             val got = (g.fed - b.fatFed) * g.warmth + laid
             // (Into its months as it would have got it at full strength, for the salt it lacked this week: its forecast foresees
             // the salt it will lack on its own, [foreseenSaltPace].)
-            b.addSupply(m, if (tuning.saltForeseen > 0f && got > 0f) got / b.saltPace.coerceAtLeast(0.1f) else got, k)
+            val supply = if (tuning.saltForeseen > 0f && got > 0f) got / b.saltPace.coerceAtLeast(0.1f) else got
+            for (j in 0 until months) b.addSupply((m + j) % Date.MONTHS_PER_YEAR, supply)
             b.recordWeek(weather.date, days, got, g.warmth, b.movedCamp)
             moveCensus(g, b, b.movedCamp, larder, weather.date.season)
             b.movedCamp = false
