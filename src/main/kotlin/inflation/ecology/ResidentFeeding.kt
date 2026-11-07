@@ -135,7 +135,7 @@ private fun HexFauna.eatPlants(p: Place, weather: Weather, grass: Float, browse:
         var grass3 = 0f; var browse3 = 0f
         if (b.got >= want && reserve[k][p] < s.maxFatDays) {
             // (In energy, as [forage] works: see [Species.needScale].)
-            val extra = SURPLUS_EAT * want / s.needScale
+            val extra = surplusShare(k, p) * want / s.needScale
             if (d.grass > 0f) grass3 = z.grass(underSnow * extra / quality * d.grass / (d.grass + d.browse).coerceAtLeast(1e-6f))
             if (d.browse > 0f) browse3 = z.browse(extra / quality * d.browse / (d.grass + d.browse).coerceAtLeast(1e-6f))
             z.surplus[k] = (grass3 + browse3) * quality * s.needScale / want
@@ -210,6 +210,16 @@ private fun HexFauna.feedKinds(p: Place, weather: Weather, z: Grazing, ff: Doubl
 }
 
 /**
+ * The share of its need beyond the need a fed resident of kind [k] at place [p] eats to lay on fat: [SURPLUS_EAT]; over a
+ * step of several ticks, no more than fills its reserves to [Species.maxFatDays] (the body it burnt won back first, as
+ * [graze] lays it on). (Week by week it stops eating more the week its reserves are full; a step's surplus all at once would
+ * eat a month's worth on reserves a few days short of full, and a hunter would kill for it.)
+ */
+private fun HexFauna.surplusShare(k: FaunaKind, p: Place): Float =
+    if (clock.ticks == 1) SURPLUS_EAT
+    else min(SURPLUS_EAT, max(0f, kinds[k].maxFatDays - reserve[k][p] + spent[k][p]) / (FAT_EFFICIENCY * days))
+
+/**
  * [graze]'s animal food for omnivore or hunter kind [k] at place [p], [ps] of its diet plants: the rest is game it
  * kills, small animals it catches and carrion it finds. Each food is sought for its share first; what falls short, of
  * these or of the plants ([z]), is made up from whichever of them is to be had (as a pack does). Returns the share of
@@ -257,7 +267,8 @@ private fun HexFauna.animalFood(k: FaunaKind, p: Place, weather: Weather, z: Gra
         }
         // With its need met and reserves short, it eats more and lays the surplus on (as from plants).
         if (gap <= 0f && reserve[k][p] < s.maxFatDays) {
-            var more = SURPLUS_EAT * animalNeed
+            // (Over a step of several ticks, no more than lays on what the reserves still have room for: [surplusShare].)
+            var more = if (clock.ticks == 1) SURPLUS_EAT * animalNeed else min(SURPLUS_EAT * animalNeed, max(0f, surplusShare(k, p) - surplus[k]) * needAll)
             val moreMeat = min(more, most * d.meat - gotMeat)
             if (moreMeat > 0f) { val x = huntResidents(k, p, KgM2(moreMeat * avail[k]), weather, huntDays).v; surplus[k] += x / needAll; more -= x }
             val moreSmall = min(more, most * d.smallPrey - gotSmall)
