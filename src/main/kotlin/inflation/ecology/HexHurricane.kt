@@ -31,7 +31,7 @@ class HexHurricane(
     /** Whether groups are told where the storms strike, and whether a struck group dies. */
     val told: Boolean, val kills: Boolean,
 ) : Peril {
-    private val warn = warnWeeks.coerceAtLeast(1)
+    private val warn = warnWeeks.coerceIn(1, Peril.MAX_STRIKE_WEEKS - 1)
     private val width = warn + 1
     /** Storm k's hexes now (index 0) and in each of the next [warn] weeks. */
     private val queue = HexArray(count * width)
@@ -43,6 +43,8 @@ class HexHurricane(
     private var started = false
     /** For each hex, the first of the coming weeks (0 = this one) it lies in a storm's reach; [NEVER] if none does. */
     private val first = IntArray(hex.size) { NEVER }
+    /** For each hex, the coming weeks it lies in a storm's reach: bit w for w weeks ahead ([Peril.strikeWeeks]). */
+    private val weeks = IntArray(hex.size)
 
     val count get() = windEast.size
 
@@ -101,15 +103,16 @@ class HexHurricane(
 
     /** Works out [first] from the storms' queues. */
     private fun mark() {
-        first.fill(NEVER)
+        first.fill(NEVER); weeks.fill(0)
         for (k in 0 until count) for (w in 0..warn) {
             val h = queue[k * width + w]; if (h.none) continue
             val seen = HashSet<Hex>(); seen += h
             if (w < first[h.i]) first[h.i] = w
+            weeks[h.i] = weeks[h.i] or (1 shl w)
             var ring = listOf(h)
             repeat(radius) {
                 ring = hex.nextRing(ring, seen)
-                for (r in ring) if (w < first[r.i]) first[r.i] = w
+                for (r in ring) { if (w < first[r.i]) first[r.i] = w; weeks[r.i] = weeks[r.i] or (1 shl w) }
             }
         }
     }
@@ -123,8 +126,8 @@ class HexHurricane(
     /** A storm kills all it strikes: as deadly as it is soon, when groups are told of it and it kills ([Peril]). */
     override fun ahead(h: Hex): Float = if (told && kills) urgency(h) else 0f
 
-    /** The first of the coming weeks a storm strikes hex [h], when groups are told of it and it kills ([Peril]); [NEVER] if none. */
-    override fun strikesIn(h: Hex): Int = if (told && kills) first[h.i] else NEVER
+    /** The coming weeks a storm strikes hex [h], when groups are told of it and it kills ([Peril.strikeWeeks]); 0 if none. */
+    override fun strikeWeeks(h: Hex): Int = if (told && kills) weeks[h.i] else 0
 
     /** The hex where a storm (or recruiter) stands this week that is nearest [from]; [Hex.NONE] if none was set down. */
     fun nearest(from: Hex): Hex {
