@@ -18,6 +18,7 @@ import inflation.world.Date
 import inflation.world.Weather
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.sqrt
 
 // The residents' births and deaths: the young born in season, what kills grown and young, and the books of their deaths.
 
@@ -47,6 +48,10 @@ internal fun HexFauna.breedAndDie(weather: Weather, date: Date) {
             val area = land.areaKm2[p]
             // Births: half the adults are mothers; a mother bears what her food and reserves can build.
             val share = seasonShare(k, p, date)
+            // (Over a step of several ticks, the crowding the step's deaths go by is each tick's as its young came, its square
+            // averaged over the ticks: crowd disease and rivals' strife grow with the square of the numbers, and the numbers at
+            // the step's end, all its young born, would charge the whole step with the last tick's crowd.)
+            var crowdSq = 0f
             if (share > 0f) {
                 bred[k][p] += share
                 // (Over a step of several ticks the young come tick by tick, each tick's crowding the young before it count in:
@@ -61,6 +66,7 @@ internal fun HexFauna.breedAndDie(weather: Weather, date: Date) {
                     bornBook?.add((born * area * YOUNG_WEIGHT * s.massKg).toDouble())
                     // The young are made of what their mothers ate: what the week's food did not build comes off the mothers' reserves (as in groups).
                     if (born > 0f && a[p] > 0f) reserve[k][p] = max(0f, reserve[k][p] - fromReserves(s, born / (0.5f * a[p]), f[p], partDays))
+                    crowdSq += (a[p] + y[p]) * (a[p] + y[p]) / clock.ticks
                 }
             }
             // Deaths.
@@ -69,7 +75,8 @@ internal fun HexFauna.breedAndDie(weather: Weather, date: Date) {
             // mount week to week, and past what it can bear they kill as they do a pack.
             if (drinks(s, p)) dk[p] = 0f
             else dk[p] += Hazards.dryDays(s, days, f[p], land.plants.green[p])
-            hazards(k, p, weather, date.month, f[p], dk[p], a[p] + y[p] + keptKm2(k, p), hz)
+            val crowdHeads = if (clock.ticks == 1 || share <= 0f) a[p] + y[p] else sqrt(crowdSq)
+            hazards(k, p, weather, date.month, f[p], dk[p], crowdHeads + keptKm2(k, p), hz)
             spent[k][p] = Hazards.spentAfter(s, spent[k][p], f[p], days)
             val hunger = hz[Danger.HUNGER]; val cold = hz[Danger.COLD]; val heat = hz[Danger.HEAT]; val thirst = hz[Danger.THIRST]; val disease = hz.disease()
             val crowd = hz[Danger.CROWD]
