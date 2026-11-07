@@ -142,8 +142,8 @@ internal fun HexFauna.huntResidents(k: FaunaKind, p: Place, meat: KgM2, weather:
         val j = kindOf[i]; val s = kinds[j]; val kg = mass[i]
         val perKm2 = kills / area
         when (part[i]) {
-            0 -> { adults[j][p] = max(0f, adults[j][p] - perKm2); huntedByResidents[j][p] += kills; killsByHunter[k.i * kinds.size + j].add(kills.toDouble()) }
-            1 -> { young[j][p] = max(0f, young[j][p] - perKm2); huntedByResidents[j][p] += kills; killsByHunter[k.i * kinds.size + j].add(kills.toDouble()) }
+            0 -> { adults[j][p] = max(0f, adults[j][p] - perKm2); huntedByResidents[j][p] += kills; killsByHunter[2 * (k.i * kinds.size + j)].add(kills.toDouble()) }
+            1 -> { young[j][p] = max(0f, young[j][p] - perKm2); huntedByResidents[j][p] += kills; killsByHunter[2 * (k.i * kinds.size + j) + 1].add(kills.toDouble()) }
             2 -> { packKills += PackKill(p.i, j, kills, -1L - k.i); packGrown[j]?.let { it[p.i] = max(0f, it[p.i] - perKm2) } }
             else -> { val b = camps?.get(campOf[i]) ?: continue
                 // (What it takes of the herds comes out of the bands' herds, the band to learn of it as it keeps them: [Herd.herdTaken].)

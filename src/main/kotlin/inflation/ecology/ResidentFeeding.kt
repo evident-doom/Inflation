@@ -182,6 +182,8 @@ private fun HexFauna.feedKinds(p: Place, weather: Weather, z: Grazing, ff: Doubl
                 val part = if (z.got[k] > 0f) min(1f, z.got[k]) * ps * heads / z.got[k] else 0f
                 ff[i + Fed.FRUIT.ordinal] += (z.gotFruit[k] * part).toDouble(); ff[i + Fed.UNDERGROUND.ordinal] += (z.gotUnder[k] * part).toDouble()
                 ff[i + Fed.ANIMAL.ordinal] += (min(1f, animal) * (1f - ps) * heads).toDouble(); ff[i + Fed.HEADS.ordinal] += heads.toDouble()
+                ff[i + Fed.MEAT.ordinal] += (z.gotMeat[k.i] * heads).toDouble(); ff[i + Fed.SMALL_PREY.ordinal] += (z.gotSmall[k.i] * heads).toDouble()
+                ff[i + Fed.CARRION.ordinal] += (z.gotCarrion[k.i] * heads).toDouble()
             }
             // (Animal food beyond its share makes up for plants that fell short.)
             (z.got[k] * ps + animal * (1f - ps)).coerceIn(0f, 1f)
@@ -263,6 +265,7 @@ private fun HexFauna.animalFood(k: FaunaKind, p: Place, weather: Weather, z: Gra
                 ateBook?.add(-x * land.areaM2[p].toDouble()) }
         }
         animal = (gotMeat + gotSmall + gotCarrion + gotBones) / animalNeed
+        z.gotMeat[k.i] = gotMeat / needAll; z.gotSmall[k.i] = gotSmall / needAll; z.gotCarrion[k.i] = (gotCarrion + gotBones) / needAll
         small.deposit(DeadPool.DUNG, p, KgM2(HexSmallLife.DUNG * (gotMeat + gotSmall + gotCarrion + bonesKg)))
         if (ateBook != null) { val m2 = land.areaM2[p].toDouble()
             ateBook!!.add(-(gotSmall + gotCarrion + bonesKg) * m2); droppedBook!!.add(HexSmallLife.DUNG * (gotMeat + gotSmall + gotCarrion + bonesKg) * m2) }

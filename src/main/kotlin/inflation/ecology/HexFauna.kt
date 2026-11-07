@@ -240,8 +240,8 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
      */
     @delegate:Transient internal val killRate by lazy { Array(kinds.size) { if (kinds[it].diet.meat > 0f) FloatArray(n) else null } }
 
-    /** Heads of each kind's residents (grown and young) each resident hunter kind killed since last read, hunter by prey ([huntResidents]): for the fauna check's report. */
-    @delegate:Transient internal val killsByHunter by lazy { Array(kinds.size * kinds.size) { java.util.concurrent.atomic.DoubleAdder() } }
+    /** Heads of each kind's residents each resident hunter kind killed since last read, hunter by prey, grown (even) and young (odd) ([huntResidents]): for the fauna check's report. */
+    @delegate:Transient internal val killsByHunter by lazy { Array(2 * kinds.size * kinds.size) { java.util.concurrent.atomic.DoubleAdder() } }
 
     /**
      * The share of each kind's residents at each place the hunting parties (packs and bands) killed in their last week's
@@ -496,6 +496,8 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         val got = FloatArray(nk); val surplus = FloatArray(nk)
         // (For the check: of what it got of plants, the shares of its need from fruit and from roots and mast.)
         val gotFruit = FloatArray(nk); val gotUnder = FloatArray(nk)
+        // (For the check: of its need, the shares from game it killed, small prey, and carrion and bones.)
+        val gotMeat = FloatArray(nk); val gotSmall = FloatArray(nk); val gotCarrion = FloatArray(nk)
         // (What each kind ate this week, kg per m2, and the protein in it: fresh growth full, cured grass
         // little; see [proteinMet]. What it ate to fatten is left out.)
         val ateKg = FloatArray(nk); val proteinKg = FloatArray(nk)
@@ -506,7 +508,7 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         val b = Bites()
         /** Zeroes what a place's week fills in, for the next place (the spare food, [access] and the eaten totals are set before they are read, [b] by each [forage]). */
         fun clear() {
-            need.fill(0f); each.fill(0f); avail.fill(0f); got.fill(0f); surplus.fill(0f); gotFruit.fill(0f); gotUnder.fill(0f); ateKg.fill(0f); proteinKg.fill(0f)
+            need.fill(0f); each.fill(0f); avail.fill(0f); got.fill(0f); surplus.fill(0f); gotFruit.fill(0f); gotUnder.fill(0f); gotMeat.fill(0f); gotSmall.fill(0f); gotCarrion.fill(0f); ateKg.fill(0f); proteinKg.fill(0f)
             eatG = 0f; eatB = 0f; eatF = 0f; eatR = 0f
         }
         override fun grass(kg: Float): Float { val t = min(kg, access * spareG); spareG -= t; return t }
@@ -761,7 +763,7 @@ enum class ResidentDeath(val cause: DeathCause) {
 enum class Stuck { HEADS, STUCK, AT_EDGE, PEAK }
 
 /** Where residents' food came from ([HexFauna.fedFrom]): fresh plants, prey and carrion, reserves; and the animals counted. */
-enum class Fed { PLANTS, ANIMAL, RESERVES, HEADS, FRUIT, UNDERGROUND }
+enum class Fed { PLANTS, ANIMAL, RESERVES, HEADS, FRUIT, UNDERGROUND, MEAT, SMALL_PREY, CARRION }
 internal val FED = Fed.entries.size
 @Suppress("NOTHING_TO_INLINE") inline operator fun Array<DoubleAdder>.get(f: Fed) = this[f.ordinal]
 

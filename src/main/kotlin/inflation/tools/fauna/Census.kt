@@ -191,6 +191,11 @@ class Census(private val sim: HexSim) {
             val fruit = ff[Fed.FRUIT].sum() / h; val under = ff[Fed.UNDERGROUND].sum() / h
             "%s %.2f/%.2f/%.2f".format(fauna.kinds[k].name, ff[Fed.PLANTS].sum() / h - fruit - under, fruit, under)
         })
+        println("     residents' animal food (game killed / small prey / carrion and bones, shares of need per animal this year, before any surplus laid on): " +
+            fauna.kinds.indices.filter { fauna.kinds[it].diet.let { d -> d.meat + d.smallPrey + d.carrion > 0f } }.joinToString(", ") { k ->
+            val ff = fauna.fedFrom[k]; val h = ff[Fed.HEADS].sum().coerceAtLeast(1e-9)
+            "%s %.2f/%.2f/%.2f".format(fauna.kinds[k].name, ff[Fed.MEAT].sum() / h, ff[Fed.SMALL_PREY].sum() / h, ff[Fed.CARRION].sum() / h)
+        })
         for (ff in fauna.fedFrom) for (a in ff) a.reset()
         println("     residents held hungry with no better place next door (share of head-weeks this year / of those at a closed border / most in one week): " +
             fauna.kinds.indices.filter { fauna.stuck[it][Stuck.HEADS.ordinal] > 0.0 }.joinToString(", ") { k ->
