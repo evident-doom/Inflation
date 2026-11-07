@@ -606,6 +606,13 @@ private fun HexGroups.countFoodTime(w: ForageWeek, time: BandTime) {
     val pace = time.pace(Activity.FOOD); val hands = w.hands / pace
     val spent = time.spentOn(Activity.FOOD) - w.digDays / pace
     val over = max(0f, spent - w.room)
+    // (A diagnostic for a NaN seen at 60-day steps (inv692a): what made the census's sums not numbers, before it fails on them.)
+    if (floatArrayOf(spent, w.room, hands, w.fed, w.killOver, w.killUnder, w.haulOver, w.digDays, w.huntSearch, w.huntHandle, w.gatherSearch, w.gatherHandle,
+            w.plantSeek, w.plantWalk).any { !it.isFinite() }) error(("band %d at %s: food time not a number: room %s spent %s pace %s hands %s digDays %s " +
+        "fed %s killOver %s killUnder %s haulOver %s; hunt search %s handle %s, gather search %s handle %s, plant seek %s walk %s; time total %s left %s vital %s; held %s; asked %s; spent %s; paces %s").format(w.g.id, w.weather.date, w.room, spent, pace, w.hands,
+        w.digDays, w.fed, w.killOver, w.killUnder, w.haulOver, w.huntSearch, w.huntHandle, w.gatherSearch, w.gatherHandle, w.plantSeek, w.plantWalk, time.total, time.left, time.vital,
+        Activity.entries.joinToString { "${it.name} ${time.heldFor(it)}" }, Activity.entries.joinToString { "${it.name} ${time.asked[it]}" },
+        Activity.entries.joinToString { "${it.name} ${time.spentOn(it)}" }, Activity.entries.joinToString { "${it.name} ${time.pace(it)}" }))
     fun add(k: Tally.FoodTime, x: Float) { stats.tally(Tally.foodTime(k), (10f * x).roundToInt()) }
     add(Tally.FoodTime.WEEKS, 0.1f); add(Tally.FoodTime.ROOM, w.room); add(Tally.FoodTime.SPENT, spent); add(Tally.FoodTime.OVER, over)
     if (over > 0.05f * w.room) add(Tally.FoodTime.OVER_WEEKS, 0.1f)
