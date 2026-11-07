@@ -136,8 +136,8 @@ internal fun HexFauna.huntResidents(k: FaunaKind, p: Place, meat: KgM2, weather:
     var fought = 0f
     for (r in 0 until used) {
         val i = order[r]
-        // (No more than half of what is there, as for a pack: [huntGame].)
-        val kills = min(parties * d * rate[i] / spentRate, 0.5f * dens[i] * area)
+        // (Taken from what is there as it falls, at most half of it a tick, as for a pack: [takenOfGame].)
+        val kills = takenOfGame(parties * d * rate[i] / spentRate, dens[i] * area, days, clock.tickDays)
         if (!(kills > 0f)) continue
         val j = kindOf[i]; val s = kinds[j]; val kg = mass[i]
         val perKm2 = kills / area

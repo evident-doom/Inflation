@@ -73,6 +73,17 @@ internal fun GroupWorld.huntGround(g: HexGroup, km2: Float): HuntGround {
 /** The places of a hunting party's week's ground ([huntGround]), and the km² of each it searches. */
 internal class HuntGround(val place: IntArray, val km2: FloatArray) { val size get() = place.size }
 
+/**
+ * The kills, of [heads] there, that [unchecked] kills over the step would come to with the game falling as it is taken:
+ * each day takes its share of what is left, at most half of it a tick, so heads (1 - exp(-min(unchecked / heads,
+ * ln 2 days / [tickDays]))). The same at any step length (plan section 52.B.2); it was the unchecked kills up to half of
+ * what was there a step, whatever the step's length.
+ */
+internal fun takenOfGame(unchecked: Float, heads: Float, days: Int, tickDays: Int): Float {
+    if (heads <= 0f || unchecked <= 0f) return 0f
+    return heads * (1f - kotlin.math.exp(-min(unchecked / heads, 0.6931472f * days / tickDays)))
+}
+
 /** A herd of kind [k] kept by band [g] at the [j]th place of a beast's hunting ground: the odds per head it comes on it and kills, and the stalks a kill takes ([herdOdds]). */
 internal class HerdGame(val g: HexGroup, val k: Int, val j: Int, val odds: Float, val stalks: Float, val young: Boolean)
 
@@ -289,8 +300,9 @@ internal fun HexGroups.huntGame(g: HexGroup, k: Int, p: Place, expected: Float, 
     val settled = fauna.adults[k][p] + fauna.young[k][p]
     val dens = settled + pack
     out.fought = 0f
-    var kills1 = poisson(expected, rnd)
-    kills1 = min(kills1, (dens * area * 0.5f).toInt())
+    // (Of what is there as it falls, at most half of it a tick: [takenOfGame].)
+    var kills1 = poisson(takenOfGame(expected, dens * area, days, fauna.clock.tickDays), rnd)
+    kills1 = min(kills1, (dens * area).toInt())
     if (kills1 <= 0) return kills1
     // (No more of any are killed than are there: the packs' as many as they are of the game here, taken off them once the
     // week's hunting is done, [takePackKills].)
