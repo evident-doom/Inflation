@@ -264,6 +264,11 @@ class Tuning(
      * at all (the old rule).
      */
     val saltForeseen = f("saltForeseen", 1f)
+    /**
+     * Salt by its season and its making (1; 0 the old rule): a pan's crust is scraped only in a month that dries more than it
+     * rains, and sea salt is made in such a month at [inflation.ecology.SEA_SALT_A_DAY], not picked up all year at the pan's rate.
+     */
+    val saltSeasons = f("saltSeasons", 1f)
     /** How much less salted meat and fish spoil. */
     val saltKeep = f("saltKeep", 0.7f)
 

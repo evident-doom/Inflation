@@ -97,6 +97,10 @@ class HexLand(internal val hw: HexWorld, internal val seed: Long, /** The run's 
     /** Share of floodplain, which a river in spate covers. */
     @Transient val floodShare = FloatArray(n) { p -> mean(p) { if (world.floodplain.isFloodplain[it]) 1f else 0f } }
     @Transient internal val pet = Array(12) { m -> FloatArray(n) { p -> mean(p) { world.climate.monthlyPet[m][it] } } }
+    /** The mean month's rain of each place, mm, by month: against [pet], whether a month dries more than it rains ([dryMonth]). */
+    @Transient internal val rainNormal = Array(12) { m -> FloatArray(n) { p -> mean(p) { world.climate.monthlyPrecip[m][it] } } }
+    /** Whether month [m] at place [p] dries more than it rains in the mean year: a salt pan's crust lies bare to scrape. */
+    fun dryMonth(p: Place, m: Int) = rainNormal[m][p] < pet[m][p]
     /** Mean ruggedness, cover from broken ground and the best refuge and lookout of each place. */
     @Transient val ruggedness = FloatArray(n) { p -> mean(p) { world.terrain.ruggedness[it] } }
     /**

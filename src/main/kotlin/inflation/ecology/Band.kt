@@ -254,6 +254,13 @@ class Band(kinds: Int, totems: Int = kinds) {
      */
     var sodiumWant = 0f
     var saltWantStep = 0f
+    /**
+     * For the salt census only ([bookSalt]): the salt that went each way since the week's booking ([SaltFlow]), kg; the
+     * person-days spent gathering it; and what it held at the last booking (NaN: none yet).
+     */
+    @Transient val saltFlow = FloatArray(SaltFlow.entries.size)
+    @Transient var saltDays = 0f
+    @Transient var saltSeen = Float.NaN
     /** The share of its people's time at work [where] that is work this week ([Sisu], [watchPace]). */
     fun paceAt(where: Workplace) = when (where) {
         Workplace.OUT -> coldPace * hungerPace * sleepPace * saltPace

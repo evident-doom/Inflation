@@ -145,7 +145,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     keepAnimals(g, b)
     keepHerds(g, b, date, time)
     val people = g.adults.toFloat()
-    gatherMaterials(g, b, p, h, people, area, time)
+    gatherMaterials(g, b, p, h, people, area, time, date.month)
     time.release(Activity.MATERIALS)
     val living0 = b.livingGoods()
     wearAndInvent(b, years)
@@ -248,7 +248,7 @@ internal fun HexGroups.choreAsks(g: HexGroup, b: Band, date: Date, asks: EnumFlo
     val moved = movedCamp(g, b)
     fun ask(a: Activity, days: Float) { asks[a] = if (days.isFinite()) max(0f, days) else 0f }
     if (moved && !b.campPlace.none) ask(Activity.CACHING, min(1f, b.cacheWill) * leftBehindKg(g, b) * cacheCare(b) / CACHE_KG_A_DAY)
-    ask(Activity.MATERIALS, gatherMaterials(g, b, p, h, people, land.m2(p), null))
+    ask(Activity.MATERIALS, gatherMaterials(g, b, p, h, people, land.m2(p), null, date.month))
     // (What the shelters it aims at take beyond the days already given them first, when given: [survivalDays].)
     ask(Activity.SHELTER, shelterWork(b, people, if (moved) 0f else b.shelter, b.shelterWill) - (warm?.get(Activity.SHELTER) ?: 0f))
     ask(Activity.CUSTOMS, b.burialOwed + b.riteOwed + cleanDays(b, people) + nurseDays(b, people))

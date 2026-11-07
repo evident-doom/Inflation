@@ -361,6 +361,7 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
             val gift = min(spare, lack * gb.giveWill)
             dialUse?.amount(DialSite.GIVE_SPARE, gb.giveWill, gift, min(spare, lack))
             gb.goods[m] -= gift; tb.goods[m] += gift
+            if (m == Material.SALT) { gb.noteSalt(SaltFlow.GIVEN_OUT, gift); tb.noteSalt(SaltFlow.GIVEN_IN, gift) }
             useful += gift / (KEEP_YEARS * need * max(1, taker.adults))
             stats.meeting(Met.Of.GIVEN, m.name.lowercase())
         }
@@ -372,6 +373,7 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
             if (spare > 0f && lack > 0f) {
                 val gift = min(spare, lack) * min(1f, gb.giveWill)
                 gb.goods[Material.SALT] -= gift; tb.goods[Material.SALT] += gift
+                gb.noteSalt(SaltFlow.GIVEN_OUT, gift); tb.noteSalt(SaltFlow.GIVEN_IN, gift)
                 useful += gift / (SALT_BODY_YEAR * max(1, taker.size))
                 stats.meeting(Met.Of.GIVEN, "salt to eat")
             }

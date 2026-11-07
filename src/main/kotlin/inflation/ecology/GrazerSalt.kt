@@ -77,7 +77,7 @@ internal fun feedHerdSalt(b: Band, s: Species, heads: Float, forage: Float, days
     if (met >= 1f || heads <= 0f) return 1f
     val want = heads * s.dailyIntakeKg * days * GRAZER_SODIUM_NEED * (1f - met) / SALT_SODIUM
     val given = min(want, max(0f, b.goods[Material.SALT]))
-    b.goods[Material.SALT] -= given
+    b.goods[Material.SALT] -= given; b.noteSalt(SaltFlow.HERDS, given)
     return met + (1f - met) * (given / want)
 }
 

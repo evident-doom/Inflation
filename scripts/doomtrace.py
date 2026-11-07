@@ -137,6 +137,7 @@ PERIL = re.compile(r'peril #(?P<id>\d+) (?P<date>[^:]+): (?P<people>\d+) people,
     r'camp peril (?P<camp>[\d.]+) \((?P<stay>[^)]*)\); reach (?P<reach>\d+) km \((?P<hexes>\d+) hexes, (?P<free>\d+) free, nearest free at (?P<near>\S+)\); '
     r'chose peril (?P<chose>[\d.]+)(?P<where> \(stays\)| at \d+), (?P<cho>[^;]*); weighed (?P<n>\d+), safest steps (?P<safest>[^;]+); '
     r'free weighed (?P<fw>\d+) \(not open (?P<shut>\d+), no score (?P<unsc>\d+)\), best open free: (?P<bf>.*?)(?:; way out (?P<out>.*))?$')
+DECIMAL_COMMA = re.compile(r'(\d),(\d)')
 PERIL_END = re.compile(r'perilEnd #(?P<id>\d+) (?P<date>[^:]+): (?P<end>.*)')
 DAY = re.compile(r'Year (\d+), month (\d+), day (\d+)')
 PERIL_CASES = ['no free place in reach', 'went to a free place', 'free in reach, none weighed', 'free weighed, none open', 'open free place, chose a perilous one']
@@ -154,11 +155,13 @@ def day(date):
 
 def peril(args):
     show = '--bands' in args
-    warned = collections.Counter(); why = collections.Counter(); killed = collections.Counter(); stretched = collections.Counter(); struck = 0
+    warned = collections.Counter(); why = collections.Counter(); killed = collections.Counter(); stretched = collections.Counter(); progress = collections.Counter(); struck = 0
     shown = []
     for path in (a for a in args if not a.startswith('--')):
         last = {}; now = {}; stretch = collections.defaultdict(list)
         for run, l in runs(path):
+            # (A machine whose locale writes decimal commas prints "camp peril 0,71": read them as points.)
+            l = DECIMAL_COMMA.sub(r'\1.\2', l)
             m = PERIL.match(l)
             if m:
                 w = m.groupdict(); w['run'] = run
@@ -186,6 +189,10 @@ def peril(args):
                 elif any(peril_case(x) == PERIL_CASES[4] for x in ws): c = 'an open free place some week, chose a perilous one'
                 else: c = 'never a free place in reach'
                 stretched[c] += 1
+                outs = [x.get('out') or '' for x in ws]
+                if ws and all('no progress' in o for o in outs): progress['a way out every week, never closer in reach'] += 1
+                elif ws and any('no progress' in o for o in outs): progress['a way out, some weeks no closer in reach'] += 1
+                elif ws and all(o.startswith('none') for o in outs if o): progress['no way out found'] += 1
                 if before is None or d0 is None or d1 is None or d1 - d0 > 8: killed['not warned the week before'] += 1
                 else:
                     c = peril_case(before); killed[c] += 1
@@ -199,6 +206,9 @@ def peril(args):
         if killed[c]: print(f'  {c:40} {killed[c]:6d}')
     print('the same bands by their whole warned stretch (consecutive warned weeks before the strike):')
     for c, v in stretched.most_common(): print(f'  {c:52} {v:6d}')
+    if progress:
+        print('and by the way out ([searchWayOut]; traces from #684 on):')
+        for c, v in progress.most_common(): print(f'  {c:52} {v:6d}')
     for l in shown: print(l)
 
 if __name__ == '__main__':

@@ -2,6 +2,7 @@ package inflation.ecology
 
 import inflation.Config
 import inflation.ecology.GroupPlanner.PlanContext
+import inflation.world.Hex
 import inflation.world.Place
 import inflation.world.get
 
@@ -49,8 +50,7 @@ internal fun GroupPlanner.tracePeril(c: PlanContext, best: Place, byNet: Boolean
     for (i in 0 until reached.size) { val h = reached[i]
         if (gs.perilAhead(h) == 0f) { freeHexes++; if (nearestFree.isNaN() || dist[h] < nearestFree) nearestFree = dist[h] } }
     val n = buf.explPlaces.size
-    var safest = Float.POSITIVE_INFINITY
-    for (k in 0 until n) if (buf.explScores[k].isFinite() && buf.explDeaths[k].isFinite() && buf.explDeaths[k] < safest) safest = buf.explDeaths[k]
+    val safest = safestSteps(n, buf.explScores, buf.explDeaths)
     var kChose = -1; var kStay = -1; var kFree = -1; var freeWeighed = 0; var freeShut = 0; var freeUnscored = 0
     for (k in 0 until n) {
         val p = buf.explPlaces[k]
@@ -59,7 +59,7 @@ internal fun GroupPlanner.tracePeril(c: PlanContext, best: Place, byNet: Boolean
         if (gs.perilAhead(gs.hw.placeHex[p]) != 0f) continue
         freeWeighed++
         if (!buf.explScores[k].isFinite() || !buf.explDeaths[k].isFinite()) { freeUnscored++; continue }
-        if (buf.explDeaths[k] - safest > 1f) { freeShut++; continue }
+        if (!inSafeSet(k, buf.explScores, buf.explDeaths, safest)) { freeShut++; continue }
         if (kFree < 0 || buf.explScores[k] > buf.explScores[kFree]) kFree = k
     }
     fun place(k: Int) = if (k < 0) "not weighed" else "steps %.1f, score %.2f".format(buf.explDeaths[k], buf.explScores[k])
@@ -70,6 +70,58 @@ internal fun GroupPlanner.tracePeril(c: PlanContext, best: Place, byNet: Boolean
         camp, place(kStay), c.reach, reached.size, freeHexes, if (nearestFree.isNaN()) "none" else "%.0f".format(nearestFree),
         gs.perilAhead(bestHex), if (best == g.place) " (stays)" else " at %.0f".format(dist[bestHex]), place(kChose),
         n, safest, freeWeighed, freeShut, freeUnscored, if (kFree < 0) "none" else place(kFree),
-        buf.wayOut?.get(c.here.i)?.let { "%.0f km".format(it) } ?: "none"))
+        wayOutLook(c)))
+    perilParts(c, kStay, kChose)
     return true
+}
+
+/**
+ * perilTrace: what the deaths a band weighed are made of (`perilParts #id` line), as shares of it this week, at its camp, at the
+ * place it chose, at the weighed place nearest the way out ([searchWayOut]) and at the safest weighed place free of the peril:
+ * the peril ([perilDeaths]), the crossings ([crossingDeaths]), the place's own ([deathsAt]: hunger, cold, sickness, beasts...),
+ * and what leaving its camp costs ([Band.leavingDying]: none now when its camp is in peril, as in the choice); with the survival steps and score of each.
+ */
+private fun GroupPlanner.perilParts(c: PlanContext, kStay: Int, kChose: Int) {
+    val g = c.g; val b = g.band ?: return; val buf = c.buf; val n = buf.explPlaces.size
+    val campHex = b.campPlace.takeIf { !it.none }?.let { gs.hw.placeHex[it] } ?: Hex.NONE
+    val leaving = leavingCost(b, campHex, c.here)
+    val out = buf.wayOut
+    fun rOf(k: Int) = out?.get(gs.hw.placeHex[buf.explPlaces[k]].i) ?: Float.POSITIVE_INFINITY
+    var kOut = -1; var kFree = -1
+    for (k in 0 until n) { val h = gs.hw.placeHex[buf.explPlaces[k]]
+        if (!buf.explDeaths[k].isFinite()) continue
+        val r = rOf(k)
+        if (r.isFinite() && (kOut < 0 || r < rOf(kOut) || (r == rOf(kOut) && buf.explDeaths[k] < buf.explDeaths[kOut]))) kOut = k
+        if (gs.perilAhead(h) == 0f && (kFree < 0 || buf.explDeaths[k] < buf.explDeaths[kFree])) kFree = k }
+    fun parts(k: Int): String {
+        if (k < 0) return "none"
+        val h = gs.hw.placeHex[buf.explPlaces[k]]
+        val peril = perilDeaths(h, c.here, buf.via, buf); val cross = crossingDeaths(g.species, h, c.here, buf.via)
+        val place = buf.explDying[k] - peril - cross; val leave = if (leaving > 0f && h != campHex) leaving else 0f
+        return "at %.0f km: peril %.3f, crossing %.3f, place %.3f, leaving %.3f; steps %.1f, score %.2f".format(
+            buf.dist[h], peril, cross, place, leave, buf.explDeaths[k], buf.explScores[k])
+    }
+    System.err.println("perilParts #%d %s: camp %s | chose %s | nearest the way out %s | safest free %s".format(
+        g.id, c.date, parts(kStay), parts(kChose), parts(kOut), parts(kFree)))
+}
+
+/**
+ * perilTrace: the way out as band [c].g sees it this week ([searchWayOut]): the effort from its camp to the nearest free ground;
+ * the least of it from any hex it can reach this week, and how far that hex is (no progress if it is the camp's); and the first
+ * step on the way out from camp, its effort against the week's reach. "none" if no way out was found.
+ */
+private fun GroupPlanner.wayOutLook(c: PlanContext): String {
+    val out = c.buf.wayOut ?: return "none"
+    val fromCamp = out[c.here.i] ?: return "none"
+    val reached = c.buf.reached; val dist = c.buf.dist
+    var least = fromCamp; var leastKm = 0f
+    for (i in 0 until reached.size) { val h = reached[i]; val r = out[h.i] ?: continue
+        if (r < least) { least = r; leastKm = dist[h] } }
+    val effort = stepEffort(Catalogue.travel(c.g.species).ordinal, gs.hw.placeBand[c.g.place], c.weather)
+    var step = Float.NaN; var best = Float.POSITIVE_INFINITY
+    for (k in 0 until 6) { val nh = gs.hex.neighbour(c.here, k); if (nh.none) continue
+        val r = out[nh.i] ?: continue; val e = effort[gs.hex.edge(c.here, k)]
+        if (e + r < best) { best = e + r; step = e } }
+    return "%.0f km; least in reach %.0f km%s; first step %s km".format(fromCamp, least,
+        if (least < fromCamp) " at %.0f".format(leastKm) else " (no progress)", if (step.isNaN()) "none" else "%.0f".format(step))
 }

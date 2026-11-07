@@ -67,7 +67,7 @@ internal fun HexGroups.keepAndSpoil(w: ForageWeek, got: EnumFloats<Store>, gotKg
     }
     if (dried > 0f) {
         val undried = storesNow(g)
-        val saltedNow = min(dried, salt / SALT_PER_KG); band.goods[Material.SALT] -= saltedNow * SALT_PER_KG
+        val saltedNow = min(dried, salt / SALT_PER_KG); band.goods[Material.SALT] -= saltedNow * SALT_PER_KG; band.noteSalt(SaltFlow.CURED, saltedNow * SALT_PER_KG)
         val before = g.stores[Store.DRIED]; band.salted = (before * band.salted + saltedNow) / (before + dried)
         band.dryDepth = (before * band.dryDepth + dried * depth) / (before + dried)
         g.stores[Store.FRESH] -= dried; addFood(g.stores, g.storeKgPer, Store.DRIED, dried, dried * g.storeKgPer[Store.FRESH]); band.practise(if (salting >= max(sun, smoke)) Skill.SALTING else if (smoke > sun) Skill.SMOKING else Skill.STORE)

@@ -27,10 +27,11 @@ internal const val TEACH = 0.2f
  * What [g]'s band gathers of its materials in a week, into its goods: what the country gives along the way, as far as the
  * band lacks it (up to what it carries, [carried]) and as far as the [time] it has to spare goes, each material at its
  * own rate of gathering. With no [time] it gathers nothing, and returns the person-days it would have liked (else 0).
+ * Salt by its season ([inflation.Tuning.saltSeasons]) goes by the [month].
  */
 @IgnorableReturnValue
 @Part("people: gather materials")
-internal fun GroupWorld.gatherMaterials(g: HexGroup, b: Band, p: Place, h: Hex, people: Float, m2: Float, time: BandTime?): Float {
+internal fun GroupWorld.gatherMaterials(g: HexGroup, b: Band, p: Place, h: Hex, people: Float, m2: Float, time: BandTime?, month: Int): Float {
     val gd = b.goods
     var asked = 0f
     /** Takes up to [give] kg of [m], as far as the band lacks it and has the time at [perDay] kg a person-day; returns what it took. */
@@ -54,7 +55,21 @@ internal fun GroupWorld.gatherMaterials(g: HexGroup, b: Band, p: Place, h: Hex, 
     // and has the time for, slower where little crops out.)
     if (stone > 0f) gather(Material.STONE, Float.MAX_VALUE, STONE_A_DAY * min(1f, 5f * stone))
     // Salt scraped from a dry lake bed or pan along the way, and a little from the shore; ochre dug where it crops out.
-    gather(Material.SALT, people * (SALT_A_WEEK * min(1f, 5f * alongTheWay(land.salt)) + if (hw.coast[h]) SEA_SALT_A_WEEK else 0f), SALT_A_DAY)
+    // (By its season, [inflation.Tuning.saltSeasons]: a pan's crust lies bare to scrape only in a month that dries more than
+    // it rains, and sea salt is made, not picked up: sea water or brine leached from salty shore earth dried in the sun, in
+    // a dry month, at [SEA_SALT_A_DAY]. Without, both are to be had all year and the shore's at the pan's rate.)
+    val dry = land.dryMonth(p, month)
+    if (tuning.saltSeasons > 0f) {
+        val pan = if (dry) gather(Material.SALT, people * SALT_A_WEEK * min(1f, 5f * alongTheWay(land.salt)), SALT_A_DAY) else 0f
+        val shore = if (dry && hw.coast[h]) gather(Material.SALT, people * SEA_SALT_A_WEEK, SEA_SALT_A_DAY) else 0f
+        // (For the salt census: what came from where, and the days it took.)
+        b.noteSalt(SaltFlow.PAN, pan); b.noteSalt(SaltFlow.SHORE, shore); b.saltDays += pan / SALT_A_DAY + shore / SEA_SALT_A_DAY
+    } else {
+        val pan = SALT_A_WEEK * min(1f, 5f * alongTheWay(land.salt)); val shore = if (hw.coast[h]) SEA_SALT_A_WEEK else 0f
+        val salt = gather(Material.SALT, people * (pan + shore), SALT_A_DAY)
+        // (For the salt census: what came from where, by each's share of what was to be had, and the days it took.)
+        if (salt > 0f) { b.noteSalt(SaltFlow.PAN, salt * pan / (pan + shore)); b.noteSalt(SaltFlow.SHORE, salt * shore / (pan + shore)); b.saltDays += salt / SALT_A_DAY }
+    }
     gather(Material.OCHRE, people * OCHRE_A_WEEK * min(1f, 5f * alongTheWay(land.ochre)), OCHRE_A_DAY)
     // (Wood and fibre are what the plants give up: from the trees and the scrub, and the grass and scrub, each by its share.
     // Wood comes as slowly as firewood does, by how thick the trees and scrub stand, as much as it wants and has the time for.)
@@ -441,6 +456,12 @@ internal const val STONE_A_DAY = 50f
 /** Food cached, kg a person-day: pits dug, lined and covered (an estimate, not a field figure). */
 internal const val CACHE_KG_A_DAY = 100f
 internal const val SALT_A_DAY = 20f
+/**
+ * Sea salt made, kg a person-day, in a dry month ([inflation.Tuning.saltSeasons]): salty shore earth dug, leached with sea
+ * water and the brine dried in the sun. After Williams (2006, Araró and Simirao, Michoacán): a canoe of brine gives a 65 kg
+ * bag every 15 days, about 4 kg a day, taken here as one worker's (the source gives no workers per canoe).
+ */
+internal const val SEA_SALT_A_DAY = 4f
 internal const val OCHRE_A_DAY = 5f
 internal const val FIBRE_A_DAY = 10f
 internal const val RESIN_A_DAY = 0.5f

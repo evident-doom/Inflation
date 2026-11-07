@@ -11,6 +11,11 @@ import inflation.world.Hex
 import inflation.StockName
 import inflation.Stocks
 import inflation.ecology.Activity
+import inflation.ecology.SaltCount
+import inflation.ecology.SaltFlow
+import inflation.ecology.SaltWhere
+import inflation.ecology.saltCountKey
+import inflation.ecology.saltFlowKey
 import inflation.ecology.Catalogue
 import inflation.ecology.Met
 import inflation.ecology.Lifeway
@@ -818,6 +823,16 @@ class Census(private val sim: HexSim) {
                 (lastYear[Tally.bandsFed(f, Tally.Bands.SALT_HERE)] ?: 0).toDouble() / bw,
                 100.0 * (lastYear[Tally.bandsFed(f, Tally.Bands.SALT_KNOWN)] ?: 0) / bw,
                 (lastYear[Tally.bandsFed(f, Tally.Bands.SALT_KM)] ?: 0).toDouble() / (lastYear[Tally.bandsFed(f, Tally.Bands.SALT_KNOWN)] ?: 0).coerceAtLeast(1)) })
+        // Where bands' salt came from and went, by where they stood: what makes salt cheap or dear ([bookSalt]).
+        println("salt by where bands stood, last year (share of people-weeks; held, g a person; then kg a person a year: " +
+            SaltFlow.entries.joinToString(", ") { it.label } + "; days a person a year gathering it): " + SaltWhere.entries.joinToString(" | ") { w ->
+            fun c(k: SaltCount) = (lastYear[saltCountKey(w, k)] ?: 0).toDouble()
+            val all = SaltWhere.entries.sumOf { (lastYear[saltCountKey(it, SaltCount.PEOPLE_WEEKS)] ?: 0).toDouble() }.coerceAtLeast(1.0)
+            val personYears = (c(SaltCount.PEOPLE_WEEKS) / stepsPerYear).coerceAtLeast(1e-9)
+            "%s %.1f%%: held %.0f; %s; days %.2f".format(w.label, 100 * c(SaltCount.PEOPLE_WEEKS) / all,
+                c(SaltCount.HELD) / c(SaltCount.BAND_WEEKS).coerceAtLeast(1.0),
+                SaltFlow.entries.joinToString(", ") { f -> "%.3f".format((lastYear[saltFlowKey(w, f)] ?: 0) / 1000.0 / personYears) },
+                c(SaltCount.DAYS) / 10.0 / personYears) })
         run {
             // Meat brought in against meat eaten (each at what it feeds): what a kill beyond the band's hunger leaves to spoil.
             val h = Catalogue.HUMAN
