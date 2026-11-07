@@ -69,7 +69,7 @@ class Tuning(
      * How far a beast's party hunts past its want to lay fat on, as its gut and fat room allow (1), or not at all (0: the fat
      * it laid on came only of its last kill's overshoot, which a longer step all but loses). [inflation.ecology.ForageWeek].
      */
-    val packFatAim = f("packFatAim", 1f).also { require(it in 0f..1f) { "t.packFatAim is $it: 0-1" } }
+    val packFatAim = f("packFatAim", 0f).also { require(it in 0f..1f) { "t.packFatAim is $it: 0-1" } }
     val stepReach = f("stepReach", 0.5f).also { require(it in 0f..1f) { "t.stepReach is $it: 0-1" } }
     /**
      * A world begun once farming is known: the share of people's bands that start as villages on the best farm ground
