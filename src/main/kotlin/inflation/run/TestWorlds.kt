@@ -341,11 +341,11 @@ object TestWorlds {
 
     // ---- how well a smaller world tracks the full map
 
-    /** One run's history, reduced to whole years from its start (a year being 60 weeks from wherever the run began): each key number's yearly mean, or sum for flows. */
+    /** One run's history, reduced to whole years from its start (a year being as many rows as it records in 360 days, from wherever the run began): each key number's yearly mean, or sum for flows. */
     class Run(file: File) {
         val name = file.name
         private val h = HexHistory.readCsv(file)
-        private val weeksPerYear = WorldConfig().stepsPerYear
+        private val weeksPerYear = h.rowsPerYear(WorldConfig().stepsPerYear)
         /** Whether its series stayed within nominal limits ([Nominal]). */
         val nominal by lazy { Nominal.history(h) }
         /** The whole years recorded, 1 for the first; a year cut short at the end is left out. */

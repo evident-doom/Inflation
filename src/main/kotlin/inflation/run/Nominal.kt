@@ -277,7 +277,7 @@ object Nominal {
     /** Every series of [h] against its limits. */
     fun history(h: HexHistory): Result {
         val t = Tally()
-        val w = WorldConfig().stepsPerYear
+        val w = h.rowsPerYear(WorldConfig().stepsPerYear)
         val years = h.weeks / w
         fun week(k: String, i: Int) = h.series.getValue(k)[i].toDouble()
         fun yearly(k: String, y: Int): Double {

@@ -145,6 +145,24 @@ class HexHistory {
     /** Year and month of each recorded week. */
     val year = FloatList(); val month = FloatList()
     val weeks get() = year.size
+    /**
+     * Rows recorded in a year, read from the dates of the rows (each dated by its year and month): rows shorter than a
+     * month fill each month alike, so twelve times the rows of a whole month; rows of a month or more step over the months,
+     * so twelve over the months between two rows. [fallback] for a history too short to tell. A record kept at a 6-day
+     * step has 60, at a 30-day step ([inflation.Tuning.stepDays]) 12.
+     */
+    fun rowsPerYear(fallback: Int): Int {
+        if (weeks < 2) return fallback
+        fun monthOf(i: Int) = Math.round(year[i] * 12f + month[i])
+        val gap = monthOf(1) - monthOf(0)
+        if (gap > 0) return kotlin.math.max(1, Math.round(12f / gap))
+        // (The first month may be cut short: count the rows of the next, if the record holds it whole.)
+        var i = 0
+        while (i < weeks && monthOf(i) == monthOf(0)) i++
+        val start = i
+        while (i < weeks && monthOf(i) == monthOf(start)) i++
+        return if (start < weeks && i < weeks) 12 * (i - start) else fallback
+    }
 
     /** A growable list of floats. */
     class FloatList {
