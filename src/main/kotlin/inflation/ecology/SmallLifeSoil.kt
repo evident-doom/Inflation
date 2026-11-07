@@ -225,7 +225,8 @@ private fun HexSmallLife.insectSeason(p: Place, active: FloatArray, dormant: Flo
 fun HexSmallLife.digGrubs(p: Place, want: KgKm2): KgKm2 {
     val there = dormantInsects[p] + dormantPollinators[p] + soilAnimals[p]
     if (want.v <= 0f || there <= 0f) return KgKm2.ZERO
-    val took = min(want.v, 0.5f * there); val f = 1f - took / there
+    // (At most half of them a tick: over a step of several ticks, compounded.)
+    val took = min(want.v, overTicks(0.5f) * there); val f = 1f - took / there
     dormantInsects[p] *= f; dormantPollinators[p] *= f; soilAnimals[p] *= f
     grubsDug[p] += took
     return KgKm2(took)

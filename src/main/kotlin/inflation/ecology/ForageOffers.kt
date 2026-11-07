@@ -374,7 +374,7 @@ internal fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
                     stats.tally(Tally.bandKillsOf(prey, Tally.KillPart.LEAN_KG), (haul.kg - haul.fat).roundToInt())
                     stats.tally(Tally.bandKillsOf(prey, Tally.KillPart.FAT_KG), haul.fat.roundToInt()) }
             }
-            Food.SMALL_GAME -> small.catchSmallIn(Place(p), Kg(expected), min(land.areaKm2[p], (if (o.who[i] == 2) w.childSmallSweep else w.smallSweep) * smallSeen(Place(p))), w.weather).v.let { w.smallGot += it; if (o.who[i] == 2) w.kidsSmall += it; w.fed += it * w.feeds(Food.SMALL_GAME)
+            Food.SMALL_GAME -> small.catchSmallIn(Place(p), Kg(expected), min(land.areaKm2[p] * ticks, (if (o.who[i] == 2) w.childSmallSweep else w.smallSweep) * smallSeen(Place(p))), w.weather).v.let { w.smallGot += it; if (o.who[i] == 2) w.kidsSmall += it; w.fed += it * w.feeds(Food.SMALL_GAME)
                 if (band == null) diag(g.species, HuntStep.PACK_SMALL_GAME_KG, it) }
             Food.CARRION -> scavenge(g, Place(p), expected, w.sweep, w.rnd).let { w.scraps += it; w.fed += it * w.feeds(Food.CARRION)
                 if (band == null) diag(g.species, HuntStep.PACK_CARRION_KG, it) }

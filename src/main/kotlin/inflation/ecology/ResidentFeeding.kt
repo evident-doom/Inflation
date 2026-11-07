@@ -63,7 +63,8 @@ private fun HexFauna.smallFood(k: FaunaKind, p: Place, want: KgM2, weather: Weat
     if (want.v <= 0f) return KgM2.ZERO
     val roots = kinds[k].diet.roots > 0f
     val dug = if (roots) small.digGrubs(p, want.perKm2).perM2 else KgM2.ZERO
-    return dug + small.catchSmall(p, (want - dug).perKm2, weather, who = Taker.kind(k.i), style = if (roots) SmallHunt.ROOT else SmallHunt.STALK).perM2
+    // (At most half of the small game there a tick ([catchSmall]): over a step of several ticks, compounded.)
+    return dug + small.catchSmall(p, (want - dug).perKm2, weather, most = small.overTicks(0.5f), who = Taker.kind(k.i), style = if (roots) SmallHunt.ROOT else SmallHunt.STALK).perM2
 }
 
 /**

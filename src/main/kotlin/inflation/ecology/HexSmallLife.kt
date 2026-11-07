@@ -85,6 +85,8 @@ class BirdKind(
 class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, @Transient private val clock: StepClock) {
     /** Days the step covers ([StepClock]). */
     internal val days get() = clock.days
+    /** The step's ticks ([StepClock.ticks]). */
+    internal val ticks get() = clock.ticks
     /** A share [perTick] taken or lost each tick (a week's), over the step's ticks: 1 - (1 - p)^ticks; itself at one tick a step. */
     internal fun overTicks(perTick: Float) = if (clock.ticks == 1) perTick else 1f - (1f - perTick.coerceIn(0f, 1f)).pow(clock.ticks)
     internal val tuning get() = land.tuning
