@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.world.StepClock
 import inflation.Par
 import inflation.Part
 import inflation.world.Hex
@@ -49,12 +50,14 @@ import java.util.concurrent.atomic.DoubleAdder
  *
  * Units: plankton and nutrients g/m², fish and animals kg/km² of water.
  */
-class HexWater(private val hw: HexWorld, private val land: HexLand, private val days: Int, private val small: HexSmallLife) {
+class HexWater(private val hw: HexWorld, private val land: HexLand, @Transient private val clock: StepClock, private val small: HexSmallLife) {
+    /** Days the step covers ([StepClock]). */
+    private val days get() = clock.days
     private val hex = hw.hex
     private val world = hw.world
     private val size = hex.size
     private val hexKm2 = hex.areaKm2.toFloat()
-    private val years = Date.years(days)
+    private val years get() = clock.years
 
     /** Open water in each hex, km²: sea, and lake (fresh or closed). */
     @Transient val seaKm2 = FloatArray(size) { hw.sea[it] * hexKm2 }

@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.world.StepClock
 import inflation.Par
 import inflation.world.Place
 import inflation.world.perPlace
@@ -37,7 +38,9 @@ import inflation.world.Date
  *
  * Each stock comes off the plants that bear it as it grows, and what is not eaten falls into the litter.
  */
-class HexFood(private val land: HexLand, private val small: HexSmallLife, private val days: Int) {
+class HexFood(private val land: HexLand, private val small: HexSmallLife, @Transient private val clock: StepClock) {
+    /** Days the step covers ([StepClock]). */
+    private val days get() = clock.days
     val n = land.n
     /** Wild cereals do best on broken hill country: the mean over each place's ground (see [HexLand.overGround]). */
     @Transient private val cerealGround = land.overGround { (0.5f + it).coerceAtMost(1f) }
