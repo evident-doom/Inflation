@@ -76,6 +76,8 @@ class HexGroups(
     val yieldLore = FloatArray(land.n * Date.MONTHS_PER_YEAR) { Float.NaN }
     /** The storms of the hurricane test, made at the first week when `t.hurricane` asks for any (not saved: a run from a save sets them down afresh). */
     @Transient internal var hurricanes: HexHurricane? = null
+    /** For the census: the first [HUNGER_CASES] band-steps of the year with a death of hunger, each as a line of its state ([bookOutcome]); the census empties it. */
+    @Transient internal val hungerCases = ArrayList<String>()
     /** The recruiters of the same test, which roam as the storms do but give: made at the first week when `t.recruiters` asks for any. */
     @Transient internal var recruiters: HexHurricane? = null
     /** The step each band last took recruits (not saved: a band that splits, or a run from a save, may take them again sooner). */

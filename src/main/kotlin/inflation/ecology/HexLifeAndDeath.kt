@@ -322,7 +322,7 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
             stats.bookWeek(lived, g.size)
             if (g.path.size > 1) stats.book(lived, Tally.Bands.MOVES, 1)
             // (And those within a month of a camp move: what [Tally.starvedMoved] is set against.)
-            if (b.campWeeks * days < Date.DAYS_PER_MONTH) stats.tally(Tally.movedWeeks(b.mind), g.size)
+            if (b.campWeeks * (days / ticks) < Date.DAYS_PER_MONTH) stats.tally(Tally.movedWeeks(b.mind), g.size)
             // (And against what it foresaw in the year before: [bookCalibration].)
             for ((cause, k) in o.causes) if (k > 0) bookCalibration(b, cause, k)
             // (And against what it foresaw of the week's deaths as it chose its places, the weeks before: [bookWarning].)
@@ -331,6 +331,12 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
             bookUnlucky(g, b, way, o.deaths > 0)
             // (And its hunger deaths by what its larder held then, and whether it moved camp in the month before.)
             val starved = o.causes.sumOf { if (it.cause == DeathCause.HUNGER) it.n else 0 }
+            // (And the first of the year's, case by case, for the census: what the band had as it starved.)
+            if (starved > 0 && hungerCases.size < HUNGER_CASES) hungerCases += "band %d %s: %d starved of %d (%d grown) of %d dead; fed %.2f, fat %.1f d, protein burnt %.1f d; larder kg fresh %.0f dried %.0f seed %.0f roots %.0f fruit %.0f grease %.0f, need %.1f kg/d; path %d hexes, camp %d ticks, %.0f °C, %s".format(
+                g.id, weather.date, starved, g.size + o.deaths, g.adults, o.deaths, g.fed, g.fat, g.spent,
+                g.stores[Store.FRESH] * g.storeKgPer[Store.FRESH], g.stores[Store.DRIED] * g.storeKgPer[Store.DRIED], g.stores[Store.SEED] * g.storeKgPer[Store.SEED],
+                g.stores[Store.ROOTS] * g.storeKgPer[Store.ROOTS], g.stores[Store.FRUIT] * g.storeKgPer[Store.FRUIT], g.stores[Store.GREASE] * g.storeKgPer[Store.GREASE],
+                g.dailyNeedKg, g.path.size, b.campWeeks, weather.temperature[g.place], Biome.entries[biomeOfPlace[g.place]].label)
             // (And by how often it has moved camp lately, in the season: [moveCensus].)
             if (b.leanKey >= 0) {
                 val n = inflation.world.Season.entries.size
@@ -349,7 +355,7 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
             if (starved > 0) {
                 val larderDays = g.larder / (g.dailyNeedKg / g.warmth.coerceAtLeast(1e-3f)).coerceAtLeast(1e-3f)
                 stats.tally(Tally.starvedAt(b.mind, Tally.LarderAt.of(larderDays)), starved)
-                if (b.campWeeks * days < Date.DAYS_PER_MONTH) {
+                if (b.campWeeks * (days / ticks) < Date.DAYS_PER_MONTH) {
                     stats.tally(Tally.starvedMoved(b.mind), starved)
                     if (b.fedBeforeMove < HUNGRY_BEFORE) stats.tally(Tally.starvedMovedHungry(b.mind), starved)
                 }
@@ -818,3 +824,6 @@ internal fun HexGroups.remember(date: Date) {
         }
     }
 }
+
+/** The hunger cases a year the census lists ([HexGroups.hungerCases]). */
+internal const val HUNGER_CASES = 30

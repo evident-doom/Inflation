@@ -1,5 +1,6 @@
 package inflation.tools.fauna
 
+import inflation.ecology.HUNGER_CASES
 import inflation.ecology.HexFood.FieldFate
 import inflation.ecology.climateSuits
 import inflation.ecology.monthFit
@@ -722,6 +723,10 @@ class Census(private val sim: HexSim) {
                         WarnDeaths.entries.joinToString(", ") { dd -> "%.2f".format(1000 * (lastYear[Tally.warnDied(dd, 0, what, b)] ?: 0) / pw) })
                 })
         }
+        // The year's first deaths of hunger, case by case ([HexGroups.hungerCases]).
+        println("hunger deaths of bands, the year's first $HUNGER_CASES band-steps with one (the band as it starved, after the step's deaths): " +
+            groups.hungerCases.joinToString(" | ").ifEmpty { "none" })
+        groups.hungerCases.clear()
         // Hungry bands that moved camp against hungry bands that stayed, by what their larders held then ([moveCensus]).
         println("hungry bands that moved camp against those that stayed, last year (fed under ${(100 * HUNGRY_BEFORE).roundToInt()}% of the need over the $MOVE_WEEKS weeks before, by the larder then; followed $MOVE_WEEKS weeks: bands entering; share of the need eaten; hunger and all deaths per 1000 a year): " +
             Tally.HungryCohort.entries.joinToString(", ") { c ->
