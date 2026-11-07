@@ -242,6 +242,11 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
 
     /** Heads of each kind's residents each resident hunter kind killed since last read, hunter by prey, grown (even) and young (odd) ([huntResidents]): for the fauna check's report. */
     @delegate:Transient internal val killsByHunter by lazy { Array(2 * kinds.size * kinds.size) { java.util.concurrent.atomic.DoubleAdder() } }
+    /**
+     * For the fauna check, each kind's since last read: heads that died of a raging outbreak (of those booked as disease)
+     * (0); heads alive at the step's deaths (1); and those heads times their crowding squared (2), as [breedAndDie] went by it.
+     */
+    @delegate:Transient internal val sickBook by lazy { Array(3 * kinds.size) { java.util.concurrent.atomic.DoubleAdder() } }
 
     /**
      * The share of each kind's residents at each place the hunting parties (packs and bands) killed in their last week's

@@ -100,6 +100,10 @@ class FaunaCheck(private val sim: HexSim, private val options: FaunaCheckOptions
         census.printIdentity(hunting.year, hunting.meetingsYear)
         people.printAgainstTheRecord(deaths, hunting)
         deaths.printResidentDeathsThisYear()
+        // (Of the disease deaths, the outbreaks'; and how crowded each kind lived, head-weighted, as its deaths went by.)
+        println("     residents' outbreak deaths this year (heads) / crowding squared, head-weighted mean at the deaths: " + fauna.kinds.indices.joinToString(", ") { k ->
+            val b = fauna.sickBook; val ob = b[3 * k].sumThenReset(); val h = b[3 * k + 1].sumThenReset(); val c2 = b[3 * k + 2].sumThenReset()
+            "%s %.0f / %.3f".format(fauna.kinds[k].name, ob, c2 / h.coerceAtLeast(1e-9)) })
         // (Which resident hunters killed which residents this year, heads, the largest pairs first.)
         val nk = fauna.kinds.size
         val pairs = (0 until nk * nk).map { Triple(it, fauna.killsByHunter[2 * it].sumThenReset(), fauna.killsByHunter[2 * it + 1].sumThenReset()) }

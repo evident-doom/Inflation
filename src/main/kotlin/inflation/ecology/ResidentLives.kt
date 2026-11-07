@@ -94,6 +94,8 @@ internal fun HexFauna.breedAndDie(weather: Weather, date: Date) {
             val ca = if (adultSum > 0f) a[p] * adultOdds / adultSum * area else 0f
             val cy = if (youngSum > 0f) y[p] * youngOdds / youngSum * area else 0f
             bookDeaths(k, p, ca, cy, hz, eagle, croc, starved, dead[k])
+            sickBook[3 * k.i].add(((ca + cy) * hz[Danger.OUTBREAK]).toDouble())
+            sickBook[3 * k.i + 1].add(((a[p] + y[p]) * area).toDouble()); sickBook[3 * k.i + 2].add(((a[p] + y[p]) * area * crowd * crowd).toDouble())
             a[p] -= da; y[p] -= dy
             carcassKg[p] += (da + YOUNG_WEIGHT * dy) * area * s.massKg
             // Growing up.
