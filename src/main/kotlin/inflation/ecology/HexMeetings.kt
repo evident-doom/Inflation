@@ -20,6 +20,7 @@ import inflation.world.Weather
 import kotlin.math.roundToInt
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.pow
 import java.util.Arrays
 import kotlin.math.sqrt
 
@@ -526,7 +527,9 @@ internal fun residentStrength(s: Species) = (if (s.foragingParty > 0) minOf(s.fo
  */
 @Part("hunters: marking ground")
 internal fun HexGroups.mark() {
-    for (m in scent.marks.values) for (i in m.indices) m[i] *= MARK_KEEP
+    // (A tick's fading a tick: over a step of several, compounded, so a mark goes stale in the same days whatever the step.)
+    val keep = if (ticks == 1) MARK_KEEP else MARK_KEEP.pow(ticks)
+    for (m in scent.marks.values) for (i in m.indices) m[i] *= keep
     for (g in groups) {
         val s = g.species
         if (!g.alive || s.human || g.home.none) continue
