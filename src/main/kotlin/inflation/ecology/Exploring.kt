@@ -2,6 +2,7 @@ package inflation.ecology
 
 import inflation.drawUnit
 import inflation.Stream
+import inflation.world.Hex
 import kotlin.math.exp
 
 /**
@@ -17,6 +18,27 @@ internal const val HAND_SCORE_UNIT = 0.1f
  * each step of the will above the scaffold's 1 (below 1, higher by as much). (A choice of the band's: no source sets it.)
  */
 internal const val EXPLORE_STAY = 1f
+
+/**
+ * How much deadlier than the safest place weighed, in survival steps ([survivalSteps]), a place may be and still be chosen:
+ * the one survival filter every way of choosing keeps, the draw ([exploreChoice]), the best ([exploreBest]), the reckoned move
+ * ([plannedMove]) and a party's way ([partyPlace]). Above all a band keeps alive.
+ */
+internal const val SAFE_STEPS = 1f
+
+/** The fewest survival steps of the [n] places weighed whose [scores] (unless null) and [deaths] are numbers; +∞ if none. */
+internal fun safestSteps(n: Int, scores: FloatArray?, deaths: FloatArray): Float {
+    var safest = Float.POSITIVE_INFINITY
+    for (k in 0 until n) if ((scores == null || scores[k].isFinite()) && deaths[k].isFinite() && deaths[k] < safest) safest = deaths[k]
+    return safest
+}
+
+/** Whether place [k] may be chosen: weighable ([scores] unless null, and [deaths], numbers) and no deadlier than [safest] by more than [SAFE_STEPS]. */
+internal fun inSafeSet(k: Int, scores: FloatArray?, deaths: FloatArray, safest: Float) =
+    (scores == null || scores[k].isFinite()) && deaths[k].isFinite() && deaths[k] - safest <= SAFE_STEPS
+
+/** Whether staying, at candidate [stays] (-1 if none), is deadlier than [safest] by less than [SAFE_STEPS]: no emergency. */
+internal fun staysSafe(stays: Int, deaths: FloatArray, safest: Float) = stays >= 0 && deaths[stays].isFinite() && deaths[stays] - safest < SAFE_STEPS
 
 /**
  * The candidate a band of group [g] goes to, of the [n] places weighed this week, by its will to explore [will] (see
@@ -36,11 +58,10 @@ internal fun HexGroups.exploreChoice(g: HexGroup, will: Float, n: Int, scores: F
  * but with no draw and nothing for staying): where a band of [MoveGate.BEST] goes. Returns -1 if no place can be weighed.
  */
 internal fun exploreBest(n: Int, scores: FloatArray, deaths: FloatArray): Int {
-    var safest = Float.POSITIVE_INFINITY
-    for (k in 0 until n) if (scores[k].isFinite() && deaths[k].isFinite() && deaths[k] < safest) safest = deaths[k]
+    val safest = safestSteps(n, scores, deaths)
     if (!safest.isFinite()) return -1
     var best = -1
-    for (k in 0 until n) if (scores[k].isFinite() && deaths[k].isFinite() && deaths[k] - safest <= 1f && (best < 0 || scores[k] > scores[best])) best = k
+    for (k in 0 until n) if (inSafeSet(k, scores, deaths, safest) && (best < 0 || scores[k] > scores[best])) best = k
     return best
 }
 
@@ -60,11 +81,10 @@ internal fun exploreBest(n: Int, scores: FloatArray, deaths: FloatArray): Int {
  */
 internal fun plannedMove(n: Int, weighable: FloatArray, deaths: FloatArray, stays: Int, owed: Boolean, gain: Float, walk: (Int) -> Float,
     scores: () -> FloatArray?, why: Array<Reckoned?>? = null): Int {
-    var safest = Float.POSITIVE_INFINITY
-    for (k in 0 until n) if (weighable[k].isFinite() && deaths[k].isFinite() && deaths[k] < safest) safest = deaths[k]
+    val safest = safestSteps(n, weighable, deaths)
     if (!safest.isFinite()) return -1
-    fun open(k: Int) = weighable[k].isFinite() && deaths[k].isFinite() && deaths[k] - safest <= 1f
-    val settled = !owed && stays >= 0 && deaths[stays].isFinite() && deaths[stays] - safest < 1f
+    fun open(k: Int) = inSafeSet(k, weighable, deaths, safest)
+    val settled = !owed && staysSafe(stays, deaths, safest)
     if (settled && !(gain > 0f)) { why?.set(0, if (gain.isNaN()) Reckoned.NO_CASE else Reckoned.COSTS_MORE); return stays }
     val sc = scores() ?: run { why?.set(0, Reckoned.UNSCORED); return stays }
     var best = -1
@@ -95,10 +115,9 @@ enum class Reckoned(val label: String) {
 
 /** [exploreChoice]'s draw at [will] for the draw [u]. */
 private fun exploreDraw(will: Float, n: Int, scores: FloatArray, deaths: FloatArray, stays: Int, unit: Float, u: Float): Int {
-    var safest = Float.POSITIVE_INFINITY
-    for (k in 0 until n) if (scores[k].isFinite() && deaths[k].isFinite() && deaths[k] < safest) safest = deaths[k]
+    val safest = safestSteps(n, scores, deaths)
     if (!safest.isFinite()) return -1
-    fun open(k: Int) = scores[k].isFinite() && deaths[k].isFinite() && deaths[k] - safest <= 1f
+    fun open(k: Int) = inSafeSet(k, scores, deaths, safest)
     fun score(k: Int) = scores[k] - (if (k == stays) EXPLORE_STAY * (will - 1f) * unit else 0f)
     var best = -1
     for (k in 0 until n) if (open(k) && (best < 0 || score(k) > score(best))) best = k
@@ -110,3 +129,12 @@ private fun exploreDraw(will: Float, n: Int, scores: FloatArray, deaths: FloatAr
     for (k in 0 until n) if (open(k)) { left -= exp(((score(k) - score(best)) / t).toDouble()); if (left <= 0.0) return k }
     return best
 }
+
+/**
+ * What leaving its camp in [campHex] costs band [b] with each place it would move camp to, as the share of it dying through the
+ * year ahead ([Band.leavingDying]): none for a band whose gate reckons its moves ([MoveGate.RECKONED]: it pays in its walk,
+ * [reckonedWalk]), and none for one warned of a deadly peril where it is, in [here]: facing sure death it drops everything
+ * (Olli 2026-11-07, stacked minds). The one rule the choice ([GroupPlanner.plan]) and perilTrace both read.
+ */
+internal fun GroupPlanner.leavingCost(b: Band?, campHex: Hex, here: Hex): Float =
+    if (b == null || campHex.none || b.mind.gate == MoveGate.RECKONED || gs.perilAhead(here) > 0f) 0f else b.leavingDying

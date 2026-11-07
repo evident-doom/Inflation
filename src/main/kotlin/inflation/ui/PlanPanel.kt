@@ -185,10 +185,9 @@ internal class PlanPanel(
     /** The places it weighed, each with the rule that let it in or kept it out ([inflation.ecology.plannedMove], as it reads). */
     private fun placesTable(m: MoveLook): String {
         val n = m.places.size
-        var safest = Float.POSITIVE_INFINITY
-        for (k in 0 until n) if (m.handScores[k].isFinite() && m.deaths[k].isFinite() && m.deaths[k] < safest) safest = m.deaths[k]
-        fun admitted(k: Int) = m.handScores[k].isFinite() && m.deaths[k].isFinite() && m.deaths[k] - safest <= 1f
-        val settled = !m.owed && m.stays >= 0 && m.deaths[m.stays].isFinite() && m.deaths[m.stays] - safest < 1f
+        val safest = inflation.ecology.safestSteps(n, m.handScores, m.deaths)
+        fun admitted(k: Int) = inflation.ecology.inSafeSet(k, m.handScores, m.deaths, safest)
+        val settled = !m.owed && inflation.ecology.staysSafe(m.stays, m.deaths, safest)
         val sc = m.scores
         fun status(k: Int): Pair<String, String> = when {
             k == m.chosen && k == m.stays -> "stays here" to GREEN

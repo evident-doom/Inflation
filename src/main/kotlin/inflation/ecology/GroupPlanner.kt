@@ -178,12 +178,13 @@ internal class GroupPlanner(internal val gs: HexGroups) {
         val campHex = g.band?.campPlace?.takeIf { !it.none }?.let { gs.hw.placeHex[it] } ?: Hex.NONE
         // (Nor does a band warned of a deadly peril at its camp weigh what leaving costs: facing sure death it drops everything
         // (Olli 2026-11-07, stacked minds); parts689: 5 of the 33 bands killed with free ground in reach stayed for it.)
-        val leaving = if (campHex.none || g.band?.mind?.gate == MoveGate.RECKONED || gs.perilAhead(here) > 0f) 0f else g.band?.leavingDying ?: 0f
+        val leaving = leavingCost(g.band, campHex, here)
         fun leavingAt(h: Hex) = if (leaving > 0f && h != campHex) leaving else 0f
         // (And the week's food it would go without for the days a camp move takes from its work, where its larder cannot
-        // cover them: hunger it foresees at each place it would move camp to, [moveShort]. A [Mind.PLANS] band pays for the
-        // walk in its reckoning instead, as for what it leaves.)
-        fun fedThere(h: Hex, fed: Float, km: Float) = if (g.band?.mind == Mind.PLANS) fed else max(0f, fed - moveShort(g, h, campHex, km))
+        // cover them: hunger it foresees at each place it would move camp to, [moveShort]. A band whose gate reckons its moves
+        // ([MoveGate.RECKONED]) pays for the walk in its reckoning instead, as for what it leaves: keyed on the gate, as the
+        // leaving is, so that a slot setting ([Slots]) never counts the walk twice or not at all.)
+        fun fedThere(h: Hex, fed: Float, km: Float) = if (g.band?.mind?.gate == MoveGate.RECKONED) fed else max(0f, fed - moveShort(g, h, campHex, km))
         val c = PlanContext(g, kind, here, sensed, month, goal, goalQ, fromHere, reach, thirsty, restless, season, keepOff,
             weather, date, goalHex, predatorKg, buf, lacked, lackedHex, lackedQ, if (!lackedHex.none) gs.hexKm(here, lackedHex) else 0.0)
         val at = c.at

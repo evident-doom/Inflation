@@ -50,8 +50,7 @@ internal fun GroupPlanner.tracePeril(c: PlanContext, best: Place, byNet: Boolean
     for (i in 0 until reached.size) { val h = reached[i]
         if (gs.perilAhead(h) == 0f) { freeHexes++; if (nearestFree.isNaN() || dist[h] < nearestFree) nearestFree = dist[h] } }
     val n = buf.explPlaces.size
-    var safest = Float.POSITIVE_INFINITY
-    for (k in 0 until n) if (buf.explScores[k].isFinite() && buf.explDeaths[k].isFinite() && buf.explDeaths[k] < safest) safest = buf.explDeaths[k]
+    val safest = safestSteps(n, buf.explScores, buf.explDeaths)
     var kChose = -1; var kStay = -1; var kFree = -1; var freeWeighed = 0; var freeShut = 0; var freeUnscored = 0
     for (k in 0 until n) {
         val p = buf.explPlaces[k]
@@ -60,7 +59,7 @@ internal fun GroupPlanner.tracePeril(c: PlanContext, best: Place, byNet: Boolean
         if (gs.perilAhead(gs.hw.placeHex[p]) != 0f) continue
         freeWeighed++
         if (!buf.explScores[k].isFinite() || !buf.explDeaths[k].isFinite()) { freeUnscored++; continue }
-        if (buf.explDeaths[k] - safest > 1f) { freeShut++; continue }
+        if (!inSafeSet(k, buf.explScores, buf.explDeaths, safest)) { freeShut++; continue }
         if (kFree < 0 || buf.explScores[k] > buf.explScores[kFree]) kFree = k
     }
     fun place(k: Int) = if (k < 0) "not weighed" else "steps %.1f, score %.2f".format(buf.explDeaths[k], buf.explScores[k])
@@ -85,7 +84,7 @@ internal fun GroupPlanner.tracePeril(c: PlanContext, best: Place, byNet: Boolean
 private fun GroupPlanner.perilParts(c: PlanContext, kStay: Int, kChose: Int) {
     val g = c.g; val b = g.band ?: return; val buf = c.buf; val n = buf.explPlaces.size
     val campHex = b.campPlace.takeIf { !it.none }?.let { gs.hw.placeHex[it] } ?: Hex.NONE
-    val leaving = if (campHex.none || b.mind.gate == MoveGate.RECKONED || gs.perilAhead(c.here) > 0f) 0f else b.leavingDying
+    val leaving = leavingCost(b, campHex, c.here)
     val out = buf.wayOut
     fun rOf(k: Int) = out?.get(gs.hw.placeHex[buf.explPlaces[k]].i) ?: Float.POSITIVE_INFINITY
     var kOut = -1; var kFree = -1
