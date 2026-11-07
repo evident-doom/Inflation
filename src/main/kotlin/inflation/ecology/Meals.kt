@@ -87,6 +87,7 @@ internal fun HexGroups.eatTheWeek(w: ForageWeek) {
             band.saltWantStep = short / SALT_SODIUM
             if (short > 0f) {
                 val had = min(short / SALT_SODIUM, band.goods[Material.SALT]); band.goods[Material.SALT] -= had
+                band.noteSalt(SaltFlow.EATEN, had)
                 short = max(0f, short - had * SALT_SODIUM)
             }
             band.sodiumShort = if (sodiumNeed > 0f) short / sodiumNeed else 0f

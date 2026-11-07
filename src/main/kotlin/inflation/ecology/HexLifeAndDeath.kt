@@ -461,6 +461,8 @@ private fun HexGroups.mournDead(g: HexGroup, o: Outcome, date: Date) {
         if (o.deaths > 0) omen(b, g.place, date, o.deaths / max(1f, b.deathsUsual * size), Met.BANDS_MARKED_A_DEATH_TOLL)
         b.deathsUsual += min(1f, years) * (o.deaths / max(1, size).toFloat() - b.deathsUsual)
     }
+    // (Where its salt came from and went this week, for the census: [bookSalt].)
+    if (s.human) g.band?.let { b -> bookSalt(b, g.place, g.size) }
     // A band that buries its dead buries them where it is: its ancestors' place.
     // For each taken by a beast, others got away hurt.
     g.band?.let { b ->
