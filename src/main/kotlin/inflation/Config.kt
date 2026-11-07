@@ -65,6 +65,7 @@ object Config {
         PPO_WAYS_PLACE_WEIGHT("ppo.waysPlaceWeight"),
         PPO_SMALL_INPUT_BOOST("ppo.smallInputBoost"),
         PPO_SETTLED_WORLDS("ppo.settledWorlds"),
+        PPO_STEP_CHOICES("ppo.stepChoices"),
         WEATHER_STRESS_YEARS("weather.stressYears"),
         PPO_WAYS_TRAIN_MOVER("ppo.waysTrainMover"),
         EVOLVE_WAYS_SIGMA("evolveWays.sigma"),

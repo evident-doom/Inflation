@@ -50,7 +50,8 @@ class Maps(val maps: List<Pair<Long, Double>> = emptyList()) {
 /**
  * HexPpo's command line (see [HexPpo] for the usage), and its learning settings from the config file:
  * `ppo.hidden` (default 48), `ppo.rate` (3e-4), `ppo.residual` (ROLE:X,...; none), `ppo.perKind` (1500),
- * `ppo.peopleChoices` (100), `ppo.criticTimes` (4), `ppo.stressBoost` (0), `ppo.maxShare` (1), `ppo.waysTrainMover` (true) and `ppo.foreseenShape` (1, read by [HexPpo.Player]).
+ * `ppo.peopleChoices` (100), `ppo.criticTimes` (4), `ppo.stressBoost` (0), `ppo.maxShare` (1), `ppo.waysTrainMover` (true), `ppo.foreseenShape` (1, read by [HexPpo.Player]) and `ppo.stepChoices` (none: `t.stepDays`; the training worlds' step
+ * lengths to draw from, say `6,12,30,60`, read by [HexPpo.Player]; the checks keep `t.stepDays`).
  */
 class PpoOptions(
     val out: File,

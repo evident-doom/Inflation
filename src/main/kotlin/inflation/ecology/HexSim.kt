@@ -43,9 +43,13 @@ class HexSim(
     @Transient val stats = WeekStats()
     /** The length of the step the slow parts take, in ticks of [WorldConfig.daysPerStep] ([inflation.Tuning.stepDays]); not saved. */
     @Transient val clock = StepClock(cfg.daysPerStep)
-    /** Days each step covers ([inflation.Tuning.stepDays]; one tick when unset). */
-    @Transient private val stepDays = if (tuning.stepDays == 0) cfg.daysPerStep else tuning.stepDays.also {
+    /**
+     * Days each step covers ([inflation.Tuning.stepDays]; one tick when unset). A training world may set it before each step to
+     * draw its steps' lengths ([inflation.learning.HexPpo.Player], `ppo.stepChoices`): a whole number of ticks that divides the year.
+     */
+    @Transient var stepDays = if (tuning.stepDays == 0) cfg.daysPerStep else tuning.stepDays.also {
         require(it % cfg.daysPerStep == 0) { "t.stepDays is $it: a whole number of ${cfg.daysPerStep}-day ticks" } }
+        set(v) { require(v >= cfg.daysPerStep && v % cfg.daysPerStep == 0 && Date.DAYS_PER_YEAR % v == 0) { "a step of $v days: a whole number of ${cfg.daysPerStep}-day ticks that divides the year" }; field = v }
     /** Steps in a year at [stepDays]: what a run of so many years takes. */
     val stepsPerYear: Int get() = Date.stepsPerYear(stepDays)
     val fauna = HexFauna(hw, land, clock, stats)

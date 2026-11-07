@@ -108,6 +108,8 @@ class Critic(val net: Mlp, private val scale: HashMap<String, Scale> = HashMap()
         val GROUP = GROUP_IN.size
 
         fun boot(s: Species) = if (s.human) PEOPLE_BOOT else BOOT
+        /** [boot] in days: the steps that cover at least as many days are judged as seen, whatever their length ([StepLog]). */
+        fun bootDays(s: Species) = boot(s) * StepLog.WEEK
 
         /** Where [c]'s group stood: the candidate that is staying put (else the first). */
         fun here(c: Choice) = here(c.inputs)

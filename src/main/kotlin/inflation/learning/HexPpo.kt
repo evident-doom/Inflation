@@ -1,6 +1,8 @@
 package inflation.learning
 
 import inflation.inflationHome
+import inflation.DAYS_PER_YEAR
+import inflation.Tuning
 import inflation.Part
 import inflation.run.Nominal
 import inflation.run.freshSim
@@ -25,6 +27,7 @@ import kotlin.math.exp
 import kotlin.math.ln
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.pow
 import kotlin.math.sqrt
 import kotlin.random.Random
 import inflation.ecology.Band
@@ -198,7 +201,12 @@ class MoverPolicy(private val mover: SharedMover, private val record: Concurrent
                   /** The share of the choices not drawn that are still recorded for the critic to learn from ([Choice.valueOnly]). */
                   private val valueRate: (Species) -> Float = { 0f },
                   /** How many times more a band at its hardest (cold exposure or hunger) is recorded than one at ease: the nets learn from the weeks that decide (see [Sampling.stressBoost]). */
-                  private val stressBoost: Float = 0f) : HexPolicy {
+                  private val stressBoost: Float = 0f,
+                  /** The days the world's steps covered, to see a group again [Critic.bootDays] on whatever the steps' lengths; null: [Critic.boot] steps on. */
+                  private val steps: StepLog? = null) : HexPolicy {
+    /** Whether [c] is due to see its group again in step [w]: the first step at least [Critic.bootDays] after it chose. */
+    private fun isDue(c: Choice, w: Int) = if (steps == null) c.week + Critic.boot(c.kind) == w else steps.reach(c.week, Critic.bootDays(c.kind)) == w - c.week
+
     private val scratch = ThreadLocal.withInitial { mover.Scratch() }
     /** The scores this thread's last [choose] worked out for a band, and which band: one that then explores asks for them again ([scores]). */
     private class Last { var id = -1; var scores: FloatArray? = null }
@@ -220,7 +228,7 @@ class MoverPolicy(private val mover: SharedMover, private val record: Concurrent
             standing[g.id] = Standing(week(), Probe(features[Critic.here(features)].copyOf(HexFeatures.size), state?.copyOf(), temper.copyOf(), Critic.groupState(g, season())))
         if (probes != null) probes[g.id]?.let { waiting -> synchronized(waiting) {
             val w = week()
-            val due = waiting.filter { it.week + Critic.boot(it.kind) == w }
+            val due = waiting.filter { isDue(it, w) }
             if (due.isNotEmpty()) {
                 val p = Probe(features[Critic.here(features)].copyOf(HexFeatures.size), state?.copyOf(), temper.copyOf(), Critic.groupState(g, season()))
                 // (Where it then stood is unknown to the critic if any of it is not a number: its whole horizon counts as seen.)
@@ -413,7 +421,7 @@ object HexPpo {
         val shown = (0 until worlds).toList().parallelStream().map { w ->
             val run = freshSim(maps.world(40_000L + w, size, w), kinds).also { it.stats.census = Config.flag(Config.Key.CENSUS, false) }
             val kept = ConcurrentLinkedQueue<Shown>()
-            val stepsPerYear = WorldConfig().stepsPerYear
+            val stepsPerYear = run.stepsPerYear
             val rates = kinds.associateWith { s -> val n = run.groups.groups.count { it.alive && it.species == s }; if (n == 0) 0f else min(1f, sampling.perKindYear.toFloat() / (n * stepsPerYear)) }
             for (s in kinds) run.groups.policies[s] = HexPolicy { g, f, b, rnd ->
                 var best = 0; for (k in b.indices) if (b[k] > b[best]) best = k
@@ -476,17 +484,24 @@ object HexPpo {
 
     /** One world for [years] with the networks choosing by chance; the recorded choices with their returns. */
     fun play(cfg: WorldConfig, years: Int, kinds: List<Species>, models: List<SharedMover>): List<Choice> {
-        val steps = years * cfg.stepsPerYear
-        return Player(cfg, kinds, steps).play(steps, models, null)
+        val days = years * DAYS_PER_YEAR
+        return Player(cfg, kinds, days).play(days, models, null)
     }
 
     /**
-     * A training world that lives on from round to round (for up to [lifeSteps] weeks), so that no
+     * A training world that lives on from round to round (for up to [lifeDays] days), so that no
      * round's play is spent setting up a world, and the choices whose outcome runs past a round's end
      * are judged in the next round instead of being dropped. Choices keep the probability they were
      * made with, so being a round old does not mislead the clipped update.
+     *
+     * Its steps are `t.stepDays` long, or, with the config key `ppo.stepChoices` (days, comma-separated, say `6,12,30,60`; each
+     * a whole number of ticks, all dividing a block that divides the year), drawn: each block of the year (the least
+     * length all the choices divide, 60 days for those four) is stepped through in steps of one length drawn for it, so
+     * that the networks learn from worlds stepped at every length, and every step stands where a step of its length would
+     * in a world stepped at that length alone. The horizons, boots, discounts and seasons are set in days, so that a choice
+     * is judged over the same days whatever its steps' lengths ([StepLog]); at one tick a step, as over weeks before.
      */
-    class Player(val cfg: WorldConfig, private val kinds: List<Species>, private val lifeSteps: Int, private val burnSteps: Int = 0, private val sampling: Sampling = Sampling(),
+    class Player(val cfg: WorldConfig, private val kinds: List<Species>, private val lifeDays: Int, private val burnDays: Int = 0, private val sampling: Sampling = Sampling(),
                  /** Where each year's census of the world goes (its kinds' numbers), settling years included. */
                  private val census: (String) -> Unit = {}) {
         private val run = freshSim(cfg, kinds).also {
@@ -496,10 +511,33 @@ object HexPpo {
             it.stats.census = Config.flag(Config.Key.CENSUS, false)
         }
         private var week = 0
+        /** Days played since the world's start (the settling days included). */
+        private var day = 0
+        /** The day each step began on ([StepLog]). */
+        private val steps = StepLog()
+        /** The step lengths drawn from (`ppo.stepChoices`), and the block of days each draw holds for; none: `t.stepDays`. */
+        private val choices = (Config.string(Config.Key.PPO_STEP_CHOICES) ?: "").split(",").map { it.trim() }.filter { it.isNotEmpty() }.map { it.toInt() }
+        private val block = choices.fold(1) { a, b -> a / gcd(a, b) * b }.also { b ->
+            require(choices.isEmpty() || (choices.all { it >= cfg.daysPerStep && it % cfg.daysPerStep == 0 } && DAYS_PER_YEAR % b == 0)) { "ppo.stepChoices $choices: whole ticks, all dividing a block that divides the year" } }
+        /** The length drawn for the block under way (a tick until the first block starts). */
+        private var drawn = cfg.daysPerStep
+        /** Sets the coming step's length: drawn at each block's start. */
+        private fun setStep() {
+            if (choices.isEmpty()) return
+            val date = run.weather.date
+            // (Blocks count from the start day, as a world stepped at one length alone steps from it.)
+            val at = Math.floorMod(date.dayOfYear - Tuning.config.startDay, block)
+            if (at == 0) drawn = choices[stream(cfg.seed, Stream.STEP_LENGTH, 0L, date.absoluteDay).nextInt(choices.size)]
+            // (A step that would not stand where a step of its length would is cut to ticks: only before the first block starts.)
+            run.stepDays = if (at % drawn == 0 && at + drawn <= block) drawn else cfg.daysPerStep
+        }
+        /** Share of the choices of the kinds' rates (set a week, [StepLog.WEEK] days) a step of the coming length takes. */
+        private fun perStep() = run.stepDays.toFloat() / StepLog.WEEK
         private val record = ConcurrentLinkedQueue<Choice>()
         /** Choices whose outcome is not yet all seen. */
         private val pending = ArrayList<Choice>()
-        private val stepsPerYear = cfg.stepsPerYear
+        /** Weeks ([StepLog.WEEK] days) in a year: what the rates are set by. */
+        private val stepsPerYear = DAYS_PER_YEAR / StepLog.WEEK
         // The same number of choices a year of each kind, however many groups it has.
         private val rates = HashMap<Species, Float>()
         private val valueRates = HashMap<Species, Float>()
@@ -532,7 +570,7 @@ object HexPpo {
         /** Where each band stood this week before it moved: what its ways draw is judged from. */
         private val standing = ConcurrentHashMap<Int, Standing>()
         /** Whether it has lived its time (if it has one), or gone badly off the rails: then a fresh world takes its place. */
-        val done get() = (lifeSteps > 0 && week >= lifeSteps) || derailed != null
+        val done get() = (lifeDays > 0 && day >= lifeDays) || derailed != null
         /**
          * Why it has gone off the rails, if it has (else null): no bands left, a kind grown tenfold since the world settled
          * (from at least [GROWTH_FLOOR] animals, so that a kind starting from a few groups may grow into its range), or half the kinds gone. Short of that it lives on, whatever befalls it, swings
@@ -558,14 +596,15 @@ object HexPpo {
         }
 
         /**
-         * The world that has settled for [burnSteps] weeks is kept (in `~/.inflation/settled-worlds`, or the directory the config key
+         * The world that has settled for [burnDays] days is kept (in `~/.inflation/settled-worlds`, or the directory the config key
          * `ppo.settledWorlds` names; empty or `off`: not kept), and a later start of the same world (its settings and world-making
          * code, kinds, settling and model version) takes it up instead of settling again. It is the world as the networks of the start
          * that made it settled it. A file that today's code will not load is settled again.
          */
         private val settledFile = (Config.string(Config.Key.PPO_SETTLED_WORLDS) ?: inflationHome("settled-worlds").path)
             .takeIf { it.isNotBlank() && it != "off" }?.let { dir ->
-                File(dir, "settled-%016x-burn%d-k%08x-m%d.bin".format(WorldCache.key(cfg), burnSteps, kinds.map { it.name }.hashCode(), HexSnapshot.MODEL_MAJOR))
+                File(dir, "settled-%016x-burn%d-k%08x-m%d%s.bin".format(WorldCache.key(cfg), burnDays / StepLog.WEEK, kinds.map { it.name }.hashCode(), HexSnapshot.MODEL_MAJOR,
+                    if (choices.isNotEmpty()) "-s" + choices.joinToString("_") else if (run.stepDays != cfg.daysPerStep) "-s${run.stepDays}" else ""))
             }
 
         private fun loadSettled() {
@@ -578,7 +617,7 @@ object HexPpo {
             }
             // (Its bands take up the planning kind's mind as founders do, t.planners.)
             run.groups.foundMinds()
-            week = burnSteps
+            week = burnDays / StepLog.WEEK; day = burnDays; steps.reset(week, day)
             startNumbers.clear(); startNumbers.putAll(numbersByKind())
             outcomes.record(week, run.groups.groups, run.groups.merged)
             census("settled world taken up from $f")
@@ -599,30 +638,34 @@ object HexPpo {
         // (People, the one kind of their role, get [Sampling.peopleChoices] times as many as each animal kind.)
         private fun setRates() {
             // (Nothing is recorded while a fresh world settles.)
-            if (week < burnSteps) { for (s in kinds) { rates[s] = 0f; valueRates[s] = 0f }; waysRate = 0f; return }
+            if (day < burnDays) { for (s in kinds) { rates[s] = 0f; valueRates[s] = 0f }; waysRate = 0f; return }
             for (s in kinds) { val n = run.groups.groups.count { it.alive && it.species == s }; rates[s] = if (n == 0) 0f else min(if (s.human) sampling.maxShare else Sampling.MAX_SHARE, sampling.perKindYear * (if (s.human) sampling.peopleChoices else 1f) / (n * stepsPerYear))
                 valueRates[s] = if (s.human) min(Sampling.MAX_VALUE_SHARE, rates.getValue(s) * (sampling.criticTimes - 1f)) else 0f }
             waysRate = WaysPpo.rate(run.groups.groups.count { it.alive && it.band != null }, stepsPerYear)
         }
 
-        /** [steps] more weeks with [models] choosing (and the bands' ways drawn from [ways], else the scaffold's); the choices whose outcome is now all seen, with their returns. */
-        fun play(steps: Int, models: List<SharedMover>, ways: LearnedWays?): List<Choice> {
-            if (week == 0 && burnSteps > 0) loadSettled()
+        /** [days] more days with [models] choosing (and the bands' ways drawn from [ways], else the scaffold's); the choices whose outcome is now all seen, with their returns. */
+        fun play(days: Int, models: List<SharedMover>, ways: LearnedWays?): List<Choice> {
+            if (week == 0 && burnDays > 0) loadSettled()
             if (week == 0) { setRates(); checkRails() }
-            // A fresh world first settles for [burnSteps] weeks, its choices unrecorded (they come on top of this round's).
-            val total = steps + if (week == 0) burnSteps else 0
-            val season = { (week % stepsPerYear).toFloat() / stepsPerYear }
-            val policies = models.mapIndexed { i, m -> MoverPolicy(m, record, { s -> rates[s] ?: 0f }, { week }, probes, season, if (ways != null && i == Role.PEOPLE.ordinal) standing else null, { s -> valueRates[s] ?: 0f }, sampling.stressBoost) }
+            // A fresh world first settles for [burnDays] days, its choices unrecorded (they come on top of this round's).
+            val total = days + if (week == 0) burnDays else 0
+            val end = if (lifeDays > 0) min(day + total, lifeDays) else day + total
+            val season = { (day % DAYS_PER_YEAR).toFloat() / DAYS_PER_YEAR }
+            val policies = models.mapIndexed { i, m -> MoverPolicy(m, record, { s -> min(1f, (rates[s] ?: 0f) * perStep()) }, { week }, probes, season, if (ways != null && i == Role.PEOPLE.ordinal) standing else null,
+                { s -> min(Sampling.MAX_VALUE_SHARE, (valueRates[s] ?: 0f) * perStep()) }, sampling.stressBoost, steps) }
             for (s in kinds) run.groups.policies[s] = policies[role(s)]
-            ways?.let { w -> run.groups.ways = WaysSampler(w, record, { waysRate }, { week }, cfg.seed, standing, probes) }
-            repeat(if (lifeSteps > 0) min(total, lifeSteps - week) else total) {
+            ways?.let { w -> run.groups.ways = WaysSampler(w, record, { waysRate }, { week }, cfg.seed, standing, probes, { day }, { run.stepDays }) }
+            while (day < end) {
+                setStep()
                 run.step()
-                week++
+                val before = day
+                week++; day += run.stepDays; steps.stepped(run.stepDays)
                 // (Growth is judged from the settled world, not from the seeded one: the settling years bring the kinds to their own level.)
-                if (week == burnSteps) { startNumbers.clear(); startNumbers.putAll(numbersByKind()); saveSettled() }
-                if (week % stepsPerYear == 0) {
+                if (before < burnDays && day >= burnDays) { startNumbers.clear(); startNumbers.putAll(numbersByKind()); saveSettled() }
+                if (before / DAYS_PER_YEAR != day / DAYS_PER_YEAR) {
                     setRates()
-                    census("year %d%s: %s".format(week / stepsPerYear, if (week <= burnSteps) " (settling)" else "", kinds.joinToString(", ") { s -> "${s.name} ${run.groups.count(s)}" }))
+                    census("year %d%s: %s".format(day / DAYS_PER_YEAR, if (day <= burnDays) " (settling)" else "", kinds.joinToString(", ") { s -> "${s.name} ${run.groups.count(s)}" }))
                 }
                 outcomes.record(week, run.groups.groups, run.groups.merged)
             }
@@ -632,23 +675,28 @@ object HexPpo {
             val now = record.sortedWith(compareBy<Choice>({ it.week }, { it.groupId })); record.clear()
             for (c in pending + now) {
                 // (People change in numbers slowly: their moves are judged over a year, the animals' over half.)
-                val horizon = if (c.kind.human) PEOPLE_HORIZON else HORIZON
-                if (c.week + horizon > week) { if (!done) waiting += c; continue }
+                // (Over at least the horizon's days, in the steps that cover them: at one tick a step, the weeks of the horizon.)
+                val horizon = steps.reach(c.week, (if (c.kind.human) PEOPLE_HORIZON else HORIZON) * StepLog.WEEK)
+                if (horizon < 0) { if (!done) waiting += c; continue }
                 var sum = 0f; var norm = 0f; var d = 1f
                 val discount = if (c.kind.human) PEOPLE_DISCOUNT else DISCOUNT
+                // (Each step weighs as the weeks it covers, discounted from its first day: [discount] a week.)
+                val length = { k: Int -> (steps.dayOf(c.week + k) - steps.dayOf(c.week + k - 1)).toFloat() / StepLog.WEEK }
+                val fall = { k: Int -> length(k).let { if (it == 1f) discount else discount.pow(it) } }
                 // (Judged by the fate of the group's own members, so that taking others in is no gain.)
                 val fore = if (c.kind.human && shape != 0f) FloatArray(horizon) else null
                 val lost = if (c.kind.human) FloatArray(3 * horizon) else null
                 val own = outcomes.own(c.groupId, c.week, horizon, fore, lost)
                 // (Its members then, as [own] counts them: for a band, in years ahead, see [inflation.ecology.FutureYears].)
                 val start = outcomes.members(c.groupId, c.week).takeIf { it > 0f } ?: c.size.coerceAtLeast(1).toFloat()
-                val boot = Critic.boot(c.kind)
+                val boot = steps.reach(c.week, Critic.bootDays(c.kind))
                 var part = 0f; var tail = 0f
                 for (k in 1..horizon) {
                     val m = own[k - 1] / start
-                    sum += d * m; norm += d
-                    if (k <= boot) part += d * m else tail += d
-                    d *= discount
+                    val wk = d * length(k)
+                    sum += wk * m; norm += wk
+                    if (k <= boot) part += wk * m else tail += wk
+                    d *= fall(k)
                 }
                 if (lost != null) {
                     // (A death in week j costs the weeks from j on: its weight in the return is theirs, the discounted weeks from there on over all.)
@@ -659,7 +707,7 @@ object HexPpo {
                         c.lostKit += lost[3 * (k - 1) + DeathClass.KIT.ordinal] / n * worth
                         c.lostFood += lost[3 * (k - 1) + DeathClass.FOOD.ordinal] / n * worth
                         c.lostAll += lost[3 * (k - 1) + LOST_ALL] / n * worth
-                        before += dk; dk *= discount
+                        before += dk * length(k); dk *= fall(k)
                     }
                     val placeLost = max(0f, c.lostAll - c.lostKit - c.lostFood)
                     c.credit = if (c is WaysChoice) (1f - waysPlaceWeight) * placeLost else (1f - moverKitWeight) * c.lostKit
@@ -682,7 +730,7 @@ object HexPpo {
             val oldest = pending.minOfOrNull { it.week } ?: week
             outcomes.cut(oldest, run.groups.groups.mapTo(HashSet()) { it.id })
             // (A choice whose group was not seen choosing when it was due keeps the whole horizon as seen.)
-            for (waiting in probes.values) synchronized(waiting) { waiting.removeIf { it.week + Critic.boot(it.kind) < week } }
+            for (waiting in probes.values) synchronized(waiting) { waiting.removeIf { val b = steps.reach(it.week, Critic.bootDays(it.kind)); b >= 0 && it.week + b < week } }
             probes.values.removeIf { it.isEmpty() }
             return out
         }
@@ -722,7 +770,7 @@ object HexPpo {
         val run = freshSim(cfg, kinds)
         setUp(run)
         val score = RunScore(run, kinds)
-        repeat(years * cfg.stepsPerYear) { run.step(); score.afterStep(run) }
+        repeat(years * run.stepsPerYear) { run.step(); score.afterStep(run) }
         return score.value()
     }
 }
@@ -751,3 +799,6 @@ class RunScore(run: HexSim, private val kinds: List<Species>) {
 
     fun value(): Map<Species, Double> = kinds.associateWith { s -> val st = start.getValue(s); if (st <= 0.0 || steps == 0) 0.0 else (weeks[s] ?: 0.0) / st / steps }
 }
+
+/** The greatest common divisor of [a] and [b]. */
+private tailrec fun gcd(a: Int, b: Int): Int = if (b == 0) a else gcd(b, a % b)

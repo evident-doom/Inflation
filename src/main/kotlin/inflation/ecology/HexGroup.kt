@@ -339,5 +339,12 @@ object HexFeatures : NamedSlots() {
      * to flee them alike. Apart from [STRONGER_HUNTER], which a beast holding a place is.
      */
     val DEADLY_AHEAD = one("deadly danger ahead")
+    /**
+     * The length of the step the choice is for ([inflation.Tuning.stepDays], or drawn in training: `ppo.stepChoices`), as
+     * log10(days / 6): 0 for a week, 1 for 60 days. The same at every candidate: a network may weigh the rest by it (going
+     * further, or fearing a danger more, when the camp is held longer). 0 at the weekly step, so a net trained weekly
+     * chooses there as it did.
+     */
+    val STEP_LENGTH = one("step length")
     const val LORE_MONTHS = 3
 }

@@ -90,6 +90,8 @@ enum class Stream(val salt: Long) {
     // Training and its tools.
     /** A band's learned ways drawn for a season, in training. */
     WAYS_SEASON(0x57415953L),
+    /** The length of each block of steps a training world takes when its steps are drawn ([inflation.learning.HexPpo.Player], `ppo.stepChoices`). */
+    STEP_LENGTH(0x5354504cL),
     /** The order a round's choices are learned from in, by round and pass. */
     BATCHES(0x42415443L),
     /** The noise of each generation of evolved ways. */

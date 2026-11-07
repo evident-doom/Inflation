@@ -91,7 +91,9 @@ class WaysSampler(private val ways: LearnedWays, private val record: ConcurrentL
                   /** Where each band stood this week before it moved ([MoverPolicy]): a draw is recorded only with it. */
                   private val standing: ConcurrentHashMap<Int, Standing>? = null,
                   /** Recorded choices waiting to see their group again ([Choice.probe]), by group. */
-                  private val probes: ConcurrentHashMap<Int, MutableList<Choice>>? = null) : BandWays {
+                  private val probes: ConcurrentHashMap<Int, MutableList<Choice>>? = null,
+                  /** The day the step under way began on, counted from the world's start, and the days it covers ([StepLog]): a season is [WaysPpo.SEASON_DAYS] long whatever the steps' lengths. */
+                  private val day: () -> Int = { week() * StepLog.WEEK }, private val stepDays: () -> Int = { StepLog.WEEK }) : BandWays {
     private val buffers = ThreadLocal.withInitial { ways.net.buffers() }
     override fun choose(g: HexGroup, inputs: FloatArray, out: FloatArray) {
         val b = buffers.get()
@@ -102,11 +104,13 @@ class WaysSampler(private val ways: LearnedWays, private val record: ConcurrentL
         // staggered by its id), and the draw is judged once, by that season: a week's ways alone make no
         // difference a return can show (see tools/HexChoiceEffect).
         val w = week()
-        val t = w + g.id % WaysPpo.SEASON
-        val season = t / WaysPpo.SEASON
+        val t = day() + g.id % WaysPpo.SEASON * StepLog.WEEK
+        val season = t / WaysPpo.SEASON_DAYS
+        // (The step that holds the season's first day starts it.)
+        val starts = t % WaysPpo.SEASON_DAYS < stepDays()
         val rnd = stream(seed, Stream.WAYS_SEASON, g.id.toLong(), season.toLong())
         // (What binds is counted from the season's first week, for the recorded seasons only.)
-        if (t % WaysPpo.SEASON == 0) g.band?.binding = null
+        if (starts) g.band?.binding = null
         // Only the bands whose season is recorded to learn from draw their ways by chance; the rest keep to the middle.
         if (rnd.nextFloat() >= rate()) { mean.copyInto(out); return }
         var logp = 0f
@@ -117,7 +121,7 @@ class WaysSampler(private val ways: LearnedWays, private val record: ConcurrentL
             terms[i] = -0.5f * z * z - ways.logStd[i]
             logp += terms[i]
         }
-        if (t % WaysPpo.SEASON != 0) return
+        if (!starts) return
         // (A draw is learnt from only where the band was seen choosing its place this week.)
         val st = standing?.get(g.id)?.takeIf { it.week == w } ?: return
         val c = WaysChoice(g.species, g.id, g.size, w, st.at, b.a[0].copyOf(), out.copyOf(WAYS_OUT), logp, st.plan)
@@ -158,6 +162,8 @@ object WaysPpo {
 
     /** Weeks a band keeps one draw of its ways, and over which the draw is judged (as people's moves are, [HexPpo.PEOPLE_HORIZON]). */
     const val SEASON = HexPpo.PEOPLE_HORIZON
+    /** [SEASON] in days ([StepLog.WEEK]-day weeks). */
+    val SEASON_DAYS = SEASON * StepLog.WEEK
 
     /** The share of bands' seasonal draws of their ways to record in a world with [bands] bands. */
     fun rate(bands: Int, stepsPerYear: Int) = if (bands == 0) 0f else min(1f, PER_YEAR.toFloat() * SEASON / (bands * stepsPerYear))

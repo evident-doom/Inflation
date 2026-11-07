@@ -9,7 +9,6 @@ import inflation.learning.HexPpo.CLIP
 import inflation.learning.HexPpo.ENTROPY
 import inflation.stream
 import inflation.Stream
-import inflation.world.WorldConfig
 import java.io.File
 import java.util.concurrent.CompletableFuture
 import kotlin.math.exp
@@ -41,7 +40,8 @@ class PpoTrainer(private val o: PpoOptions) {
     private var checking: Pair<CompletableFuture<EcoCheck.Verdict>, File>? = null
     /** The training worlds, living on from round to round (for [PpoOptions.worldRounds] rounds, if set, then a fresh one takes its place). */
     private val players = arrayOfNulls<HexPpo.Player>(o.worlds)
-    private val steps = o.years * WorldConfig().stepsPerYear
+    /** Days each round plays in each world (its steps' lengths as `t.stepDays` sets them, or as `ppo.stepChoices` draws them: [HexPpo.Player]). */
+    private val days = o.years * inflation.DAYS_PER_YEAR
     private val log = RunLog(out, "round")
     /** Advantages (in spreads of the kind's) are held within this much of none: a few collapses would otherwise decide a round, the spread being set by them. */
     /** How many times the step an input that has hardly been trained gets (see [Mlp.smallInputRates]); 1: none. */
@@ -127,9 +127,9 @@ class PpoTrainer(private val o: PpoOptions) {
             log.write("world $w at its end, within nominal limits (state): ${p.nominal().brief()}")
         }
         // (New worlds are made side by side.)
-        fresh.parallelStream().map { w -> w to HexPpo.Player(o.maps.world(50_000L + r * 100L + w, o.width, o.height, w), kinds, steps * o.worldRounds, o.burnYears * WorldConfig().stepsPerYear, o.sampling) { line -> log.write("world $w $line") } }
+        fresh.parallelStream().map { w -> w to HexPpo.Player(o.maps.world(50_000L + r * 100L + w, o.width, o.height, w), kinds, days * o.worldRounds, o.burnYears * inflation.DAYS_PER_YEAR, o.sampling) { line -> log.write("world $w $line") } }
             .toList().forEach { (w, p) -> players[w] = p }
-        return (0 until o.worlds).toList().parallelStream().map { w -> players[w]!!.play(steps, ms, ways) }.toList()
+        return (0 until o.worlds).toList().parallelStream().map { w -> players[w]!!.play(days, ms, ways) }.toList()
     }
 
     /**

@@ -18,6 +18,7 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.cos
 import kotlin.math.ln
+import kotlin.math.log10
 import kotlin.math.sin
 
 // Choosing: weighing a place, the features a network reads and the hand-written score, what would kill a group there, and what it knows of the game, hunters and its own kind about.
@@ -68,6 +69,7 @@ internal fun GroupPlanner.fillFeatures(f: FloatArray, c: PlanContext, t: PlaceTe
         f[Feature.STRONGER_HUNTER] = min(1f, topStrength[p] / (4f * gs.strength(g)).coerceAtLeast(1e-3f))
     // (Deadly perils foreseen there, the hurricane test's storms first: told to everyone alike; see [Peril].)
     f[Feature.DEADLY_AHEAD] = gs.perilAhead(h)
+    f[Feature.STEP_LENGTH] = log10(gs.days / 6f)
     // (The deaths it foresees there, by the rules that would kill it: as the hand-written score's survival steps weigh them.)
     f[Feature.DEATHS_FORESEEN] = min(2f, ln(1f + gs.survivalSteps(g, c.at.dying)) / InputScale.DEATH_STEPS_LN)
     f[Feature.CLIMB] = ((gs.hw.placeElevationM[p] - gs.hw.placeElevationM[g.place]) / 1000f).coerceIn(-3f, 3f)
