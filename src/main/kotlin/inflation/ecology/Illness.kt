@@ -74,7 +74,7 @@ internal fun GroupWorld.catching(d: Illness, b: Band, p: Place, t: Float, crowd:
     // (Over a step of several ticks, given its [weather], each warm or cold gate counts the share of the ticks on its side, not the step's mean.)
     fun gate(c: Float, above: Float, below: Float, now: Float): Float {
         if (weather == null || ticks == 1) return now
-        val s = weather.shareAbove(p.i, c)
+        val s = weather.shareAbove(p, c)
         return below + (above - below) * s
     }
     return when (d) {

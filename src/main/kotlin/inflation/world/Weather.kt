@@ -190,10 +190,11 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
      * The share of the last step's ticks whose air at [p] was above [c] °C: a step's mean of 19 °C may hold warm weeks
      * above 20. Before the step is settled, or at one tick a step, 1 or 0 by the air now.
      */
-    fun shareAbove(p: Int, c: Float): Float {
-        if (!settled || ticksSummed <= 1) return if (temperature[p] > c) 1f else 0f
+    fun shareAbove(p: Place, c: Float): Float {
+        val i = p.i
+        if (!settled || ticksSummed <= 1) return if (temperature[i] > c) 1f else 0f
         var k = 0
-        for (j in 0 until ticksSummed) if (tickTemps[j][p] > c) k++
+        for (j in 0 until ticksSummed) if (tickTemps[j][i] > c) k++
         return k.toFloat() / ticksSummed
     }
 
