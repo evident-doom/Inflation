@@ -128,7 +128,7 @@ internal fun HexFauna.fillArrive(weather: Weather) {
  */
 private fun HexFauna.growthFor(k: FaunaKind, parts: EnumFloats<Growth>, youngPerGrown: Float): Float {
     val head = 1f + youngPerGrown
-    val stepsInSeason = kinds[k].birthMonths * Date.DAYS_PER_MONTH / days.toFloat()
+    val stepsInSeason = max(1f, kinds[k].birthMonths * Date.DAYS_PER_MONTH / days.toFloat())
     val dying = ((parts[Growth.GROWN_DIE] + youngPerGrown * parts[Growth.YOUNG_DIE]) / head).coerceIn(0f, 1f)
     // (Survival over the year as the week's, compounded: ln(1 - dying) in double, near enough to log1p for these odds and far cheaper.)
     return (1f + stepsInSeason * parts[Growth.BORN] / head) * exp(Date.DAYS_PER_YEAR / days.toFloat() * ln(1.0 - dying)).toFloat()
@@ -158,7 +158,7 @@ private fun HexFauna.growthFor(k: FaunaKind, parts: EnumFloats<Growth>, youngPer
                      carried: Float, f: Float, heads: Float, parts: EnumFloats<Growth>?): Float {
     val s = kinds[k]
     val hunger = Hazards.hunger(s, moverSpent[k], Hazards.onFat(f, carried, days, 1f), days); val sick = Hazards.crowdDisease(Hazards.crowding(heads, usual[k]), f, years)
-    val due = dueYoung(k, p, heads, protein, days / (s.birthMonths * Date.DAYS_PER_MONTH.toFloat()))
+    val due = dueYoung(k, p, heads, protein, min(1f, days / (s.birthMonths * Date.DAYS_PER_MONTH.toFloat())))
     val born = 0.5f * due * breeding(s, due, carried, f, days)
     val grownDie = (grownFixed + hunger + sick).coerceIn(0f, Hazards.MAX_GROWN_ODDS)
     val youngDie = min(Hazards.MAX_YOUNG_ODDS, (youngFixed + 1.5f * hunger + sick).coerceIn(0f, Hazards.MAX_YOUNG_ODDS) + huntedYoung)

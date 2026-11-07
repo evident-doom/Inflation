@@ -289,7 +289,7 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
                 // drifts back toward the wild (ears that hold their grain cannot sow themselves). A crop that has not
                 // ripened by the end of summer has failed. (Not at midwinter: what was sown in autumn stands through the
                 // winter and ripens the next summer.)
-                if ((season > SEED_TO && season - advance <= SEED_TO) || (weather.date.month == FIELD_FAILS_MONTH && weather.date.dayOfMonth <= days && field[p] > 0f)) {
+                if ((season > SEED_TO && season - advance <= SEED_TO) || (weather.date.holdsMonthStart(days, FIELD_FAILS_MONTH) && field[p] > 0f)) {
                     wearGround(p)
                     fieldFateNow[FieldFate.SEED.ordinal][p] += field[p]
                     field[p] = 0f; fieldDays[p] = 0f; fieldStress[p] = 0f

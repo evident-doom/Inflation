@@ -56,6 +56,16 @@ data class Date(val absoluteDay: Long) {
     }
 
     fun plusDays(days: Int) = Date(absoluteDay + days)
+    /**
+     * Whether the step of [days] days from this date holds the first day of month [m]: the one test for a thing done once
+     * a month or once a year at a month's start, true in exactly one step whatever the step's length (a step taken to
+     * hold the months it starts in would skip months at steps longer than one).
+     */
+    fun holdsMonthStart(days: Int, m: Int): Boolean {
+        var d = absoluteDay + (DAYS_PER_MONTH - (dayOfMonth - 1)) % DAYS_PER_MONTH
+        while (d < absoluteDay + days) { if (Date(d).month == m) return true; d += DAYS_PER_MONTH }
+        return false
+    }
 
     override fun toString() = "Year $year, month ${month + 1}, day $dayOfMonth"
 

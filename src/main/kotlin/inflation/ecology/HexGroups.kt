@@ -238,7 +238,7 @@ class HexGroups(
      */
     var newcomersOn = false
     internal fun newcomers(date: Date) {
-        if (!newcomersOn || date.month != 0 || date.dayOfMonth > days) return
+        if (!newcomersOn || !date.holdsMonthStart(days, 0)) return
         for (s in kinds) {
             if (s.human) continue
             val now = groups.count { it.alive && it.species == s }

@@ -506,8 +506,8 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     val s = g.species
     feedOnReserves(g)
     if (g.birthMonth < 0) g.birthMonth = s.birthMonth
-    if (date.month == offSeason(s, g.birthMonth) && date.dayOfMonth <= days) g.bred = 0f
-    val inSeason = monthsFrom(g.birthMonth, date.month) < s.birthMonths
+    if (date.holdsMonthStart(days, offSeason(s, g.birthMonth))) g.bred = 0f
+    val inSeason = seasonDays(s, g.birthMonth, date, days) > 0
     var bornNow = 0
     var bornExpected = 0f
     // In a band, the elders are past bearing children; they help their daughters raise theirs.
@@ -521,7 +521,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     // breeds ([Species.packLitter]: wolves) is there one litter a pack. A pack bears only on ground of its own.)
     if (inSeason && g.adults >= 2 && !(s.lifeway == Lifeway.PACK && g.home.none)) {
         val births = if (s.packLitter > 0) {
-            if (date.dayOfMonth <= days && date.month == g.birthMonth && !g.home.none) (s.packLitter * breeding(s, s.packLitter.toFloat(), g.fat, g.fed, days) + r.nextFloat()).toInt() else 0
+            if (date.holdsMonthStart(days, g.birthMonth) && !g.home.none) (s.packLitter * breeding(s, s.packLitter.toFloat(), g.fat, g.fed, days) + r.nextFloat()).toInt() else 0
         } else {
             val rate = if (s.human) {
                 val stepsInSeason = s.birthMonths * Date.DAYS_PER_MONTH / days.toFloat()

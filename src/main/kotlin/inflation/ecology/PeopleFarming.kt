@@ -312,11 +312,11 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
         val f = herdForage(p, s, n + 0.5f * y)
         val got = land.plants.consume(p, LifeForm.HERB, KgM2(f.grass)) + land.plants.eatBrowse(p, KgM2(f.browse))
         val fed = if (f.need > 0f) min(1f, got.v / f.need) else 1f
-        val inSeason = monthsFrom(s.birthMonth, date.month) < s.birthMonths
+        // (The days of its birth season the step holds, at any step length: [seasonDays].)
+        val seasonPart = seasonDays(s, s.birthMonth, date, days) / (s.birthMonths * Date.DAYS_PER_MONTH.toFloat())
         // (Short of sodium where their forage is, its beasts bear fewer young, as far as its salt does not make it up: [feedHerdSalt].)
         val salted = if (tuning.grazerSaltLack > 0f) saltBreeding(feedHerdSalt(b, s, n + 0.5f * y, fauna.forageSodiumAt[p], days), tuning.grazerSaltLack) else 1f
-        val born = if (inSeason) n * herdMothers(s, tame, sows[k]) * s.youngPerFemale * fed * salted /
-            (s.birthMonths * Date.DAYS_PER_MONTH.toFloat() / days) else 0f
+        val born = if (seasonPart > 0f) n * herdMothers(s, tame, sows[k]) * s.youngPerFemale * fed * salted * seasonPart else 0f
         // Its mothers give milk through the lactation after the birth season, as they are fed and as tame as they are.
         if (lactating(s, date)) {
             val milk = n * herdMothers(s, tame, sows[k]) * tame * fed * milkKg(s) * days / LACTATION_DAYS

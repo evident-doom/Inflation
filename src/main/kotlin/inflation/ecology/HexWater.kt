@@ -377,7 +377,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, @Transient p
                     shellfish[h] = max(0f, s + grew - died)
                     dead[h] += ate * 1000f * (1f - FISH_EFFICIENCY) + died * perWater
                 }
-                stepSea(h, month)
+                stepSea(h, month, date)
             }
             // River fish: by the river's size and warmth; a nearly dry bed keeps only what survives in pools.
             // They live on what the land washes in (leaves, insects, the dead), taken from the litter of the
@@ -474,7 +474,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, @Transient p
 
     /** Sea animals in hex [h]: each eats its food, breeds in its season as it ate, and dies back. */
     @Part("water: sea animals")
-    private fun stepSea(h: Hex, month: Int) {
+    private fun stepSea(h: Hex, month: Int, date: Date) {
         if (seaKm2[h] <= 0f) return
         for ((k, a) in SEA.withIndex()) {
             val m = sea[k][h]
@@ -499,8 +499,9 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, @Transient p
             val fed = if (need > 0f) got / need else 1f
             // Turtles lay on warm beaches only.
             val beach = !a.nestsAshore || (shoreKm[h] <= 0f && waterTemp[month][h] >= NEST_TEMP)
-            val born = if (beach && monthsFrom(a.birthMonth, month) < a.birthMonths) m * a.youngPerFemale * 0.5f * fed /
-                (a.birthMonths * Date.DAYS_PER_MONTH.toFloat() / days) else 0f
+            // (The days of its season the step holds, at any step length: [seasonDays].)
+            val inSeason = seasonDays(a.birthMonth, a.birthMonths, date, days) / (a.birthMonths * Date.DAYS_PER_MONTH.toFloat())
+            val born = if (beach && inSeason > 0f) m * a.youngPerFemale * 0.5f * fed * inSeason else 0f
             val crowd = m / (SEA_FULL * a.massKg / a.startKm2)
             val died = m * min(0.9f, a.backgroundMortality * years + 0.6f * years * (1f - fed) + SEA_DISEASE * years * crowd * crowd)
             sea[k][h] = max(0f, m + born - died)

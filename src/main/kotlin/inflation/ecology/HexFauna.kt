@@ -476,12 +476,11 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         for (p in land.places) fear[p] *= fearKeep
         stepOutbreaks(); outbreakSalt++
         carcassKg.fill(0f)
-        if (bearings.month != date.month) {
-            if (date.month == 0) newcomers(date)
-            for ((k, s) in kinds.withKinds()) if (offSeason(s) == date.month) bred[k].fill(0f)
-            Profile.time("sense of direction") { bearings.update(date.month) }
-            if (date.month == 3) shiftBreeding()
-        }
+        // (Once a year at a month's start, in the step that holds it, whatever the step's length: [Date.holdsMonthStart].)
+        if (date.holdsMonthStart(days, 0)) newcomers(date)
+        for ((k, s) in kinds.withKinds()) if (date.holdsMonthStart(days, offSeason(s))) bred[k].fill(0f)
+        if (bearings.month != date.month) Profile.time("sense of direction") { bearings.update(date.month) }
+        if (date.holdsMonthStart(days, 3)) shiftBreeding()
         moon = date.meanMoonlight(days).toFloat()
         stepWater(weather)
     }

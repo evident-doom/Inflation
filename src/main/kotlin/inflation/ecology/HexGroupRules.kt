@@ -62,9 +62,29 @@ fun youngDue(s: Species, headsKm2: Float, usualKm2: Float, spacing: Float, prote
  * all she has left. The one rule for residents and groups.
  */
 fun seasonShare(s: Species, start: Int, left: Float, date: Date, days: Int): Float {
-    if (monthsFrom(start, date.month) >= s.birthMonths) return 0f
+    val within = seasonDays(s, start, date, days)
+    if (within <= 0) return 0f
+    // (A step that reaches past the season's end bears all she has left; else the season's days it holds.)
     val last = monthsFrom(start, date.plusDays(days).month) >= s.birthMonths
-    return if (last) left else min(left, days / (s.birthMonths * Date.DAYS_PER_MONTH.toFloat()))
+    return if (last) left else min(left, within / (s.birthMonths * Date.DAYS_PER_MONTH.toFloat()))
+}
+
+/**
+ * The days of the step of [days] from [date] that fall in [s]'s birth season beginning in month [start]: counted day by
+ * day of the step, not by the month it starts in, so a step longer than a month neither skips a season nor bears through
+ * months outside it.
+ */
+fun seasonDays(s: Species, start: Int, date: Date, days: Int): Int = seasonDays(start, s.birthMonths, date, days)
+
+/** The days of the step of [days] from [date] in a season of [months] months beginning in month [start] ([seasonDays]). */
+fun seasonDays(start: Int, months: Int, date: Date, days: Int): Int {
+    var n = 0; var d = 0
+    while (d < days) {
+        val at = date.plusDays(d); val run = min(days - d, Date.DAYS_PER_MONTH - (at.dayOfMonth - 1))
+        if (monthsFrom(start, at.month) < months) n += run
+        d += run
+    }
+    return n
 }
 
 /** The month a mother of [s] whose season starts in month [start] starts her year again: the middle of the months outside it. */
