@@ -489,6 +489,7 @@ fun HexFauna.disperse(k: FaunaKind) {
     val s = kinds[k]
     val lengthKm = dispersalKm(s); val reach = (DISPERSAL_REACH * lengthKm / hex.hexKm).toInt().coerceAtLeast(1)
     val settleRate = 1f / dispersalDays(s); val a = adults[k]
+    var lost = 0f; var settledAll = 0f
     // (Room on each hex, heads, as the step found it, taken down as they settle.)
     val room = FloatArray(hex.size)
     for (h in hex.all) { var heads = 0f; var area = 0f; for (q in hw.placesOf(h)) { heads += (a[q] + young[k][q]) * land.areaKm2[q]; area += land.areaKm2[q] }
@@ -522,7 +523,11 @@ fun HexFauna.disperse(k: FaunaKind) {
         }
         pool[h] = n - placed - died
         if (died > 0f) carcassKg[hw.placesOf(h)[0]] += died * s.massKg
+        lost += died; settledAll += placed
     }
+    // (The dead on the way count as homeless, as a pack without ground dies; and those that settled, for the report.)
+    if (lost > 0f) deaths.merge(Tally.of(s, DeathCause.HOMELESS), lost.toDouble(), Double::plus)
+    if (settledAll >= 1f) stats.meeting(Met.Of.ROAMERS_SETTLED, s.name, settledAll.toInt())
 }
 
 /** How far a disperser of [s] goes, km, the scale of nearness its settling weighs ([disperse]); an estimate. */
