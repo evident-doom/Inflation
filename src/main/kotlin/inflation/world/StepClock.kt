@@ -18,4 +18,11 @@ class StepClock(val tickDays: Int) {
     val stepsPerYear: Int get() = Date.stepsPerYear(days)
     /** Ticks the step covers. */
     val ticks: Int get() = days / tickDays
+    /**
+     * The share of the step's deaths the young born in it face: they are born through the step, and those born in a tick
+     * face that tick whole, as at one tick a step (1 there); over a longer step, half the step and a half tick, not all of
+     * it ((days + tick) / 2 days: 0.55 at 60 days). Born at its start and charged the whole step, the young of a 60-day
+     * step died of 30 days more than the weekly model's.
+     */
+    val newbornExposure: Float get() = (days + tickDays) / (2f * days)
 }

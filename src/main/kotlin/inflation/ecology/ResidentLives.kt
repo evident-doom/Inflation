@@ -54,6 +54,7 @@ internal fun HexFauna.breedAndDie(weather: Weather, date: Date) {
             // at any step length (plan section 52.A.1): born all on the step's first crowding, a fast breeder would find
             // ranges its own young had taken; on its last, the whole step would be charged with its end's crowd.)
             var crowdHeads = a[p] + y[p]
+            var bornHere = 0f
             if (share > 0f) {
                 bred[k][p] += share
                 fun bornAt(heads: Float): Float { val due = dueYoung(k, p, heads, protein[k][p], share); return 0.5f * a[p] * due * breeding(s, due, reserve[k][p], f[p], days) }
@@ -61,6 +62,7 @@ internal fun HexFauna.breedAndDie(weather: Weather, date: Date) {
                 val due = dueYoung(k, p, crowdHeads, protein[k][p], share)
                 val born = 0.5f * a[p] * due * breeding(s, due, reserve[k][p], f[p], days)
                 y[p] += born
+                bornHere = born
                 bornThisWeek[k] += (born * area).toDouble()
                 bornBook?.add((born * area * YOUNG_WEIGHT * s.massKg).toDouble())
                 // The young are made of what their mothers ate: what the week's food did not build comes off the mothers' reserves (as in groups).
@@ -85,10 +87,12 @@ internal fun HexFauna.breedAndDie(weather: Weather, date: Date) {
             val starved = starvedOdds(protein[k][p])
             val youngSum = youngSum(s, hz, eagle, croc, starved)
             val youngOdds = youngSum.coerceIn(0f, Hazards.MAX_YOUNG_ODDS)
-            val da = a[p] * adultOdds; val dy = y[p] * youngOdds
+            // (The young born this step face its deaths only from their birth on: [StepClock.newbornExposure], 1 at one tick a step.)
+            val yExposed = y[p] - bornHere * (1f - clock.newbornExposure)
+            val da = a[p] * adultOdds; val dy = yExposed * youngOdds
             // (The causes are booked as shares of the deaths that happen: where the odds are capped, each cause is cut alike.)
             val ca = if (adultSum > 0f) a[p] * adultOdds / adultSum * area else 0f
-            val cy = if (youngSum > 0f) y[p] * youngOdds / youngSum * area else 0f
+            val cy = if (youngSum > 0f) yExposed * youngOdds / youngSum * area else 0f
             bookDeaths(k, p, ca, cy, hz, eagle, croc, starved, dead[k])
             sickBook[3 * k.i].add(((ca + cy) * hz[Danger.OUTBREAK]).toDouble())
             sickBook[3 * k.i + 1].add(((a[p] + y[p]) * area).toDouble()); sickBook[3 * k.i + 2].add(((a[p] + y[p]) * area * crowd * crowd).toDouble())

@@ -595,9 +595,14 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     val adultOdds = (adultSum * (1f + LAME_RISK * (band?.lame ?: 0f))).coerceIn(0f, Hazards.MAX_GROWN_ODDS)
     g.deathOdds = adultOdds
     val youngOdds = (youngSum * spared).coerceIn(0f, Hazards.MAX_YOUNG_ODDS)
+    // (The young born this step face its deaths only from their birth on: [inflation.world.StepClock.newbornExposure], 1 at one tick a step.)
+    val exposure = fauna.clock.newbornExposure
+    val newbornsApart = exposure < 1f && bornNow > 0
+    val youngExposed = if (newbornsApart) g.young - bornNow * (1f - exposure) else g.young.toFloat()
     if (s.human && g.young > 0) for (h in hazards) if (h.young > 0f)
-        stats.childDeaths.computeIfAbsent(h.cause) { DoubleAdder() }.add((g.young * spared * h.young).toDouble())
-    val da = binomial(g.adults, adultOdds, r); val dy = binomial(g.young, youngOdds, r)
+        stats.childDeaths.computeIfAbsent(h.cause) { DoubleAdder() }.add((youngExposed * spared * h.young).toDouble())
+    val da = binomial(g.adults, adultOdds, r)
+    val dy = if (newbornsApart) binomial(g.young - bornNow, youngOdds, r) + binomial(bornNow, youngOdds * exposure, r) else binomial(g.young, youngOdds, r)
     // (For training: the years a grown one who dies has ahead, on average over the elders and the rest; see [FutureYears].)
     // (Elders die the more of hunger, as they yield their food: [elderRisk].)
     val elderRisk = if (band != null) elderRisk(g, g.fed, spentBefore, adultSum) else 1f
@@ -605,13 +610,13 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         val others = g.adults - e; (others + FutureYears.ELDER * elderRisk * e) / (others + elderRisk * e) } else 1f
     // (For training: what the week's odds made likely, before the elders' deaths are drawn.)
     val oldAgeExpected = band?.let { b -> (b.elders - (da * b.elders.toFloat() / g.adults.coerceAtLeast(1))).coerceAtLeast(0f) * min(1f, ELDER_DEATHS * years) } ?: 0f
-    val grownExpected = g.adults * adultOdds; val youngExpected = g.young * youngOdds
+    val grownExpected = g.adults * adultOdds; val youngExpected = youngExposed * youngOdds
     val diedExpected = grownExpected + youngExpected + oldAgeExpected
     if (s.human) {
         // (And by cause class: each hazard's share of the odds, which are held under a ceiling, of the heads they were drawn from.)
         val adultScale = if (adultSum > 0f) adultOdds / adultSum else 0f
         val youngScale = if (youngSum * spared > 0f) youngOdds / (youngSum * spared) else 0f
-        for (h in hazards) h.cause.deathClass()?.let { c -> g.addLost(c.ordinal, g.adults * h.adult * adultScale + g.young * spared * h.young * youngScale) }
+        for (h in hazards) h.cause.deathClass()?.let { c -> g.addLost(c.ordinal, g.adults * h.adult * adultScale + youngExposed * spared * h.young * youngScale) }
         g.addLost(LOST_ALL, diedExpected)
     }
     // Elders die as the others do (their share of the adults who died), and of old age besides.
