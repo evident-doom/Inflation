@@ -138,8 +138,7 @@ internal fun HexGroups.destination(home: Hex, rangeKm: Float): Hex {
  */
 internal fun GroupPlanner.partyPlace(p: Party, here: Hex, buf: GroupPlanner.Scratch, best: Place, week: Int): Place {
     val n = buf.explPlaces.size
-    var safest = Float.POSITIVE_INFINITY
-    for (k in 0 until n) if (buf.explDeaths[k].isFinite() && buf.explDeaths[k] < safest) safest = buf.explDeaths[k]
+    val safest = safestSteps(n, null, buf.explDeaths)
     if (!safest.isFinite()) return best
     val hw = gs.hw
     if (here == p.target) p.reached = true
@@ -147,7 +146,7 @@ internal fun GroupPlanner.partyPlace(p: Party, here: Hex, buf: GroupPlanner.Scra
     val to = if (back) gs.bands.groupById[p.band]?.takeIf { it.alive }?.let { hw.placeHex[it.place] } ?: p.homeHex else p.target
     var pick = -1; var near = Double.POSITIVE_INFINITY
     for (k in 0 until n) {
-        if (!buf.explDeaths[k].isFinite() || buf.explDeaths[k] - safest > 1f) continue
+        if (!inSafeSet(k, null, buf.explDeaths, safest)) continue
         val d = gs.hex.distanceKm(hw.placeHex[buf.explPlaces[k]], to)
         if (d < near) { near = d; pick = k }
     }
