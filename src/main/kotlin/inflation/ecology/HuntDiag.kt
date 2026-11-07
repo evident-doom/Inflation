@@ -7,7 +7,10 @@ internal val HUNT_DIAG = inflation.Config.flag(inflation.Config.Key.HUNT_STEPS, 
 
 /** A step of the hunt that [diag] counts. */
 internal enum class HuntStep(val label: String) {
-    RESIDENT_KILLS("resident kills"), RESIDENT_BANDS_MET("resident bands met"), RESIDENT_BANDS_MET_UNSEEN("resident bands met unseen"),
+    RESIDENT_KILLS("resident kills"),
+    // (A group's hunts of game in the wild, by the hunter ([huntGame]): the kills its rates gave unchecked, those left as the game
+    // falls ([takenOfGame]), and the hunts that took a tenth or more of what was there.)
+    HUNT_UNCHECKED("hunt kills unchecked"), HUNT_TAKEN("hunt kills as game falls"), HUNT_DEPLETING("hunts taking a tenth"), HUNT_CALLS("hunts"), RESIDENT_BANDS_MET("resident bands met"), RESIDENT_BANDS_MET_UNSEEN("resident bands met unseen"),
     // (A beast's raids on kept herds, by the beast ([herdOdds], [raidHerd]): its weeks with herds on its ground, the herds it
     // would come on in them, the kills its odds would give it if it hunted nothing else, the kills it set out for, and those made.)
     HERD_WEEKS("weeks with herds on its ground"), HERDS_MET("herds met"), HERD_KILLS_ON_OFFER("herd kills on offer"),

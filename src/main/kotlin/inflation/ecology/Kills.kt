@@ -301,7 +301,10 @@ internal fun HexGroups.huntGame(g: HexGroup, k: Int, p: Place, expected: Float, 
     val dens = settled + pack
     out.fought = 0f
     // (Of what is there as it falls, at most half of it a tick: [takenOfGame].)
-    var kills1 = poisson(takenOfGame(expected, dens * area, days, fauna.clock.tickDays), rnd)
+    val taken = takenOfGame(expected, dens * area, days, fauna.clock.tickDays)
+    if (HUNT_DIAG && band == null) { diag(s, HuntStep.HUNT_CALLS, 1f); diag(s, HuntStep.HUNT_UNCHECKED, expected); diag(s, HuntStep.HUNT_TAKEN, taken)
+        if (taken >= 0.1f * dens * area) diag(s, HuntStep.HUNT_DEPLETING, 1f) }
+    var kills1 = poisson(taken, rnd)
     kills1 = min(kills1, (dens * area).toInt())
     if (kills1 <= 0) return kills1
     // (No more of any are killed than are there: the packs' as many as they are of the game here, taken off them once the
