@@ -211,9 +211,28 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
         return 1f - live
     }
 
+    /** The date the step now being taken began on ([beginStep]); not saved, as a step begins and ends within one call. */
+    @Transient private var stepBegan: Date? = null
+
     /** Begins a step of the slow parts: nothing summed yet. */
     fun beginStep() {
         ticksSummed = 0
+        stepBegan = date
+    }
+
+    /**
+     * Runs [block], the step's slow parts, with [date] where a week's slow parts have always seen it: one tick past the
+     * step's start, the day the week's one tick ends. At one tick a step that is the date now, as it always was. Over a
+     * longer step the ticks have carried [date] to the step's end, and the slow parts, reckoning their seasons and month
+     * starts from it forward, would bear, rut and move a whole step early (a season due in the step bred in the step
+     * before it; at 60 days the births followed the weekly run's next step, not its own); so they see the step's start and
+     * a tick, whatever its length, and [date] is the step's end again after.
+     */
+    fun <T> slowParts(block: () -> T): T {
+        val began = stepBegan ?: return block()
+        val end = date
+        date = began.plusDays(cfg.daysPerStep)
+        try { return block() } finally { date = end }
     }
 
     /** Adds the tick just drawn to the step's sums. */

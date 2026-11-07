@@ -102,7 +102,8 @@ class HexSim(
         land.firstTick = true; land.lastTick = true
         // (The slow parts read the step's weather whole: its mean air, all that fell and melted, and the coldest tick.)
         weather.settleStep()
-        runPhases(slowPhases, weather, books)
+        // (Their date is the step's start and a tick, as at one tick a step, not its end: [Weather.slowParts].)
+        weather.slowParts { runPhases(slowPhases, weather, books) }
     }
 
     /** Snow falls in the cold; the melt goes to the soil, booked again there as it comes in. */
