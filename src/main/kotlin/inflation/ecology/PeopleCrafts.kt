@@ -272,7 +272,7 @@ internal fun GroupWorld.forget(b: Band) {
         val hands = FORGET_HANDS * minOf(1f, s.practice / PRACTICE)
         b.skills[s] *= 1f - (if (!unused) hands else if (s.knowledge) forgetKnowledge else hands * 2f)
         // A way no one holds and no one has used for years is lost altogether; so is one whose groundwork is lost.
-        if (b.knowsSkill[s] && s.losable && b.holders[s] < 0.5f && b.weeks - b.lastUsed[s] > (if (s.knowledge) LOST_KNOWLEDGE_YEARS else LOST_HANDS_YEARS) * stepsPerYear) {
+        if (b.knowsSkill[s] && s.losable && b.holders[s] < 0.5f && b.weeks - b.lastUsed[s] > (if (s.knowledge) LOST_KNOWLEDGE_YEARS else LOST_HANDS_YEARS) * ticksPerYear) {
             b.knowsSkill[s] = false; b.skills[s] = 0f; b.holders[s] = 0f
             stats.meeting(Met.Of.LOST, s.name.lowercase().replace('_', ' '))
         }
@@ -372,7 +372,7 @@ internal fun GroupWorld.trainHolders(g: HexGroup, b: Band, time: BandTime) {
     b.lastAdults = g.adults
     for (s in Skill.entries) {
         if (!b.knowsSkill[s]) { b.holders[s] = 0f; continue }
-        val used = b.weeks - b.lastUsed[s] <= DISUSE_YEARS * stepsPerYear
+        val used = b.weeks - b.lastUsed[s] <= DISUSE_YEARS * ticksPerYear
         val learners = learners(b, s, adults)
         val left = time.leftFor(Activity.TRAINING)
         if (learners > 0f && left > 0f) {
@@ -399,7 +399,7 @@ internal fun GroupWorld.trainHolders(g: HexGroup, b: Band, time: BandTime) {
  * way in use, as fast as they learn. (Learning from a holder is quick; working it out alone is slow.)
  */
 internal fun GroupWorld.learners(b: Band, s: Skill, adults: Float): Float {
-    if (!b.knowsSkill[s] || b.weeks - b.lastUsed[s] > DISUSE_YEARS * stepsPerYear) return 0f
+    if (!b.knowsSkill[s] || b.weeks - b.lastUsed[s] > DISUSE_YEARS * ticksPerYear) return 0f
     val pace = (if (b.holders[s] >= 1f) 1f else SELF_TAUGHT) * b.learning
     return minOf(adults * s.share - b.holders[s], adults * TRAINED_A_WEEK * pace).coerceAtLeast(0f)
 }

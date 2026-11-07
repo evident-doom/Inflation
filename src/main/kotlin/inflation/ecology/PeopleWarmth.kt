@@ -74,7 +74,7 @@ internal fun burnNightFire(b: Band, people: Float): Float {
 }
 
 /** Weeks [b] keeps a camp before it builds houses there: sooner the keener it is ([BandWay.HOUSES]). */
-internal fun GroupWorld.houseAfterWeeks(b: Band) = HOUSE_AFTER_YEARS * stepsPerYear / b.houseWill.coerceAtLeast(0.1f)
+internal fun GroupWorld.houseAfterWeeks(b: Band) = HOUSE_AFTER_YEARS * ticksPerYear / b.houseWill.coerceAtLeast(0.1f)
 
 /**
  * The hearth's firewood for the week, fetched by [hands] before they forage: dead wood from the trees and scrub
@@ -179,7 +179,7 @@ internal fun HexGroups.buildHouse(g: HexGroup, b: Band, p: Place, h: Hex, people
     if (time != null) dialUse?.let { u -> if (left > 0f && people > 0f && g.fed >= 0.9f) {
         val longEnough = b.campWeeks >= houseAfterWeeks(b)
         val stocked = g.larder >= 0.5f * b.storeAim * g.dailyNeedKg
-        u.choice(DialSite.HOUSES, b.houseWill, longEnough && stocked, b.campWeeks >= HOUSE_AFTER_YEARS * stepsPerYear && stocked, cut = b.houseWill < 0.1f)
+        u.choice(DialSite.HOUSES, b.houseWill, longEnough && stocked, b.campWeeks >= HOUSE_AFTER_YEARS * ticksPerYear && stocked, cut = b.houseWill < 0.1f)
         u.choice(DialSite.STORE_HOUSES, b.storeShare, longEnough && stocked, longEnough && g.larder >= 0.5f * b.storeAimAt1 * g.dailyNeedKg)
     } }
     if (b.campWeeks < houseAfterWeeks(b) || left <= 0f || people <= 0f || g.fed < 0.9f || g.larder < 0.5f * b.storeAim * g.dailyNeedKg) return 0f

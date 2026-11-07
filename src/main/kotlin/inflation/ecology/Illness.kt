@@ -66,7 +66,7 @@ internal fun HexGroups.illnessWeek(g: HexGroup, b: Band, weather: Weather, r: ko
  * place ([HexGroups.deathsAt]).
  */
 internal fun GroupWorld.catching(d: Illness, b: Band, p: Place, t: Float, crowd: Float, campWeeks: Int, hygiene: Float = b.hygiene): Float = when (d) {
-    Illness.FLUX -> FLUX_RATE * (min(1f, campWeeks / (stepsPerYear / 2f)) + 0.3f * crowd) * (if (t > 15f) 1f else 0.3f) * hygiene
+    Illness.FLUX -> FLUX_RATE * (min(1f, campWeeks / (ticksPerYear / 2f)) + 0.3f * crowd) * (if (t > 15f) 1f else 0.3f) * hygiene
     // (As many mosquitoes as breed in the standing water about the camp: marsh, floods, sodden
     // ground after rain; the parasite ripens in them only in warm weeks.)
     Illness.MARSH_FEVER -> FEVER_RATE * tuning.marshFever * small.biting[p] / (small.biting[p] + HexSmallLife.HARASS_HALF) * (if (t > 20f) 1f else 0f)

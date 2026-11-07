@@ -131,7 +131,7 @@ internal fun cacheCare(b: Band) = max(1f, b.cacheWill)
  * behind is not to be had again on the way.
  */
 private fun GroupWorld.mendingKg(b: Band, m: Material, people: Float) =
-    people * (b.stayWeeks / stepsPerYear * Tool.entries.sumOf { t -> if (b.knows[t] && !t.heavy) ((t.recipe[m] ?: 0f) * t.wearPerYear).toDouble() else 0.0 }.toFloat() +
+    people * (b.stayWeeks / ticksPerYear * Tool.entries.sumOf { t -> if (b.knows[t] && !t.heavy) ((t.recipe[m] ?: 0f) * t.wearPerYear).toDouble() else 0.0 }.toFloat() +
         KEEP_YEARS * YEAR_NEED[m])
 
 /** The kg of goods [g]'s band [b] takes along on a camp move before its food: what it has of what it takes first ([mendingKg]). */
@@ -253,7 +253,7 @@ internal fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, weat
                 if (abandoned > 0f) small.deposit(DeadPool.LITTER, b.campPlace, Kg(abandoned))
             }
             for (t in Tool.entries) if (t.heavy) b.kit[t] = 0f
-            b.stayWeeks += STAY_LEARN * (b.campWeeks + 1 - b.stayWeeks)
+            b.stayWeeks += STAY_LEARN * (b.campWeeks + ticks - b.stayWeeks)
             // Its goods: what it takes first ([mendingKg]), then the rest in what room its loads have left after the food, each
             // kind alike; what does not fit is left at the old camp (and goes back to the ground).
             val people = g.adults.toFloat()
@@ -267,7 +267,7 @@ internal fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, weat
             }
         }
         b.campWeeks = 0
-    } else b.campWeeks++
+    } else b.campWeeks += ticks
     b.campPlace = p
     // A cache keeps, but not perfectly; back at it, the band takes up what it has room for.
     if (!b.cachePlace.none) {
@@ -347,10 +347,10 @@ internal fun HexGroups.campFouling(g: HexGroup, h: Hex = hw.placeHex[g.place], c
 }
 
 /** How fouled a camp kept [campWeeks] weeks is, 0..1: not at all for its first two months, fully after a year more ([fullyFouledWeeks]). */
-internal fun GroupWorld.fouled(campWeeks: Int) = min(1f, max(0f, campWeeks - stepsPerYear / 6f) / stepsPerYear)
+internal fun GroupWorld.fouled(campWeeks: Int) = min(1f, max(0f, campWeeks - ticksPerYear / 6f) / ticksPerYear)
 
 /** The camp weeks at which [fouled] reaches 1 (two months and a year): the most fouling the ground holds ([foulGround]). Change it with [fouled]. */
-internal fun GroupWorld.fullyFouledWeeks() = stepsPerYear * 7f / 6f
+internal fun GroupWorld.fullyFouledWeeks() = ticksPerYear * 7f / 6f
 
 /** The weeks of camping whose fouling the ground of hex [h] holds ([Bands.fouledWeeks]). */
 internal fun HexGroups.campWeeksAt(h: Hex) = bands.fouledWeeks[h].toInt()

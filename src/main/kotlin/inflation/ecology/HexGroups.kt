@@ -471,7 +471,7 @@ class HexGroups(
     }
 
     /** Whether band group [g] may take recruits now: it has not for a year. */
-    internal fun mayRecruit(g: HexGroup): Boolean = recruitedAt[g.id]?.let { stepNow - it >= stepsPerYear } ?: true
+    internal fun mayRecruit(g: HexGroup): Boolean = recruitedAt[g.id]?.let { stepNow - it >= ticksPerYear } ?: true
 
     /**
      * Band [g] ends its move where a recruiter stands: it gains a share of its grown people (at least two) as first-span adults, and

@@ -115,7 +115,15 @@ abstract class GroupWorld(
      * The model's clock: the step [date] falls in (what the groups' "weeks" count: a step of [days] days), and how
      * many steps make a year, for counts of weeks compared against spans of years.
      */
-    internal fun stepOf(date: Date) = (date.absoluteDay / days).toInt()
+    /**
+     * The tick [date] falls in, counted from day 0: the clock that groups' memories, meetings and counts of weeks keep, in
+     * ticks of [StepClock.tickDays] whatever the step's length (a step of several ticks moves them on by [ticks]).
+     */
+    internal fun stepOf(date: Date) = (date.absoluteDay / fauna.clock.tickDays).toInt()
+    /** Ticks the step covers ([StepClock.ticks]): what counts of weeks (camp weeks, weeks since a raid, a band's age) move on by a step. */
+    internal val ticks get() = fauna.clock.ticks
+    /** Ticks in a year: what counts of weeks are reckoned in years by, whatever the step's length. */
+    internal val ticksPerYear get() = Date.stepsPerYear(fauna.clock.tickDays).toFloat()
 
     internal val stepsPerYear get() = Date.stepsPerYear(days).toFloat()
 

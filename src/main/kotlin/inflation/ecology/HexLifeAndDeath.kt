@@ -472,7 +472,7 @@ private fun HexGroups.mournDead(g: HexGroup, o: Outcome, date: Date) {
     }
     // Where a beast took one of them, the band remembers the place as dangerous.
     if (s.human && o.causes.any { it.cause.isTakenBy() && it.n > 0 })
-        g.memory.mark(hw.placeHex[g.place], PlaceMemory.seasonOf(date.month), stepOf(date), stepsPerYear, g.memory.danger, 1f)
+        g.memory.mark(hw.placeHex[g.place], PlaceMemory.seasonOf(date.month), stepOf(date), ticksPerYear, g.memory.danger, 1f)
     if (s.human && o.deaths > 0) g.band?.takeIf { it.holds(Tradition.BURIAL) }?.let { b ->
         // Where it lays them by its way ([BurialWay]): where it camps, or carried to where most of its dead lie, if that is
         // within a day's walk ([BODY_CARRY_KM]); the digging and any carrying are owed of its customs' time.
@@ -485,7 +485,7 @@ private fun HexGroups.mournDead(g: HexGroup, o: Outcome, date: Date) {
         b.burialOwed += owed
         stats.meeting(Met.Of.CUSTOMS_DAYS_ASKED, CustomsPart.BURIALS.label, (10f * owed).roundToInt())
         if (at != camp) { stats.meeting(Met.BANDS_CARRIED_THEIR_DEAD); note(g) { "carried its dead to its ancestors at hex %d".format(at.i) } }
-        g.memory.mark(at, PlaceMemory.seasonOf(date.month), stepOf(date), stepsPerYear, g.memory.dead, o.deaths.toFloat())
+        g.memory.mark(at, PlaceMemory.seasonOf(date.month), stepOf(date), ticksPerYear, g.memory.dead, o.deaths.toFloat())
         land.burials[p] += o.deaths.toFloat()
         land.sanctity[p] += o.deaths.toFloat()
         // Ornaments go into the grave with them: the more a band has, the richer its graves.
@@ -778,7 +778,7 @@ internal fun GroupWorld.joinBand(into: HexGroup, from: HexGroup, week: Int) {
         into.stores[Store.SEED], from.stores[Store.SEED], into.id, from.id)
     into.fed += w * (from.fed - into.fed); into.fat += w * (from.fat - into.fat); into.spent += w * (from.spent - into.spent); into.bred += w * (from.bred - into.bred)
     for (i in Store.entries) addFood(into.stores, into.storeKgPer, i, from.stores[i], from.stores[i] * from.storeKgPer[i])
-    into.memory.hear(from.memory, week, stepsPerYear, 1f)
+    into.memory.hear(from.memory, week, ticksPerYear, 1f)
     // (Its cache is left: no one goes back for it.)
     dropCache(fromBand)
     from.mergedSize = from.size; from.mergedInto = into.id
@@ -802,7 +802,7 @@ internal fun HexGroups.remember(date: Date) {
         val h = hw.placeHex[g.place.i]
         if (g.band != null) for ((k, mat) in PlaceMemory.RARE.withIndex())
             finds[k] = mat.deposit?.let { min(1f, 5f * it(land)[g.place.i]) } ?: (if (hw.coast[h]) 1f else 0f)
-        g.memory.record(h, PlaceMemory.seasonOf(m), g.fed, land.drink.water[g.place.i], fauna.afraid(g.place), week, stepsPerYear,
+        g.memory.record(h, PlaceMemory.seasonOf(m), g.fed, land.drink.water[g.place.i], fauna.afraid(g.place), week, ticksPerYear,
             finds = if (g.band != null) finds else null)
     }
     for (g in groups) {
