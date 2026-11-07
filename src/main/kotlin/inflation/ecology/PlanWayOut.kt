@@ -63,7 +63,7 @@ internal fun GroupPlanner.searchWayOut(g: HexGroup, here: Hex, reach: Float, wea
             if (nd < (out[nh.i] ?: Float.MAX_VALUE)) { out[nh.i] = nd; q += nd to nh }
         }
     }
-    buf.wayOut = out; buf.wayOutReach = reach
+    buf.wayOut = out; buf.wayOutReach = reach; buf.wayOutAhead = gs.perilAhead(here)
 }
 
 /**
@@ -77,14 +77,19 @@ private fun GroupPlanner.strikesFrom(h: Hex, effort: Float, reach: Float): Int {
 
 /**
  * The peril a group foresees at hex [h] ([HexGroups.perilAhead]), and where its camp is in peril and a way out was found
- * ([searchWayOut]), weighed by the share of the way out still to go from [h]: r / (r + its week's reach), r the effort from
- * [h] to the nearest free ground. A place a week short of safety weighs half its peril, one on the safe ground none. So
- * among places all in the peril's way, those nearer the way out are the safer, as fleeing makes them.
+ * ([searchWayOut]): the peril at its camp, weighed by the share of the way out still to go from [h], r / (r + its week's
+ * reach), r the effort from [h] to the nearest free ground. A place a week short of safety weighs half the camp's peril, one
+ * on the safe ground none. So among places all in the peril's way, those nearer the way out are the safer, as fleeing makes
+ * them, though the peril strikes them sooner than the camp: the way out passes them before it does. Not a place the peril
+ * strikes this week or next, where the group would camp when it strikes: there its own peril.
+ * (behind691, 2026-11-07: weighing each place's own peril, the way out's first places, struck sooner, scored deadlier than
+ * the camp, and bands with a way out stayed.)
  */
 internal fun GroupPlanner.wayOutPeril(h: Hex, buf: Scratch): Float {
     val ahead = gs.perilAhead(h)
     if (ahead == 0f) return 0f
     val out = buf.wayOut ?: return ahead
     val r = out[h.i] ?: return ahead
-    return ahead * r / (r + buf.wayOutReach.coerceAtLeast(1f))
+    if ((gs.perilWeeks(h) and 0b11) != 0) return ahead
+    return buf.wayOutAhead * r / (r + buf.wayOutReach.coerceAtLeast(1f))
 }

@@ -449,9 +449,10 @@ internal class GroupPlanner(internal val gs: HexGroups) {
         /**
          * For a group warned of a peril at its camp: the least effort (km of going) from each hex it can reach this week to
          * the nearest ground free of every peril, found out to [WAY_OUT_WEEKS] weeks of its reach ([searchWayOut]); null
-         * when its camp is in no peril, or no free ground lies that near. [wayOutReach]: its reach this week.
+         * when its camp is in no peril, or no free ground lies that near. [wayOutReach]: its reach this week; [wayOutAhead]: the
+         * peril at its camp ([HexGroups.perilAhead]).
          */
-        var wayOut: HashMap<Int, Float>? = null; var wayOutReach = 0f
+        var wayOut: HashMap<Int, Float>? = null; var wayOutReach = 0f; var wayOutAhead = 0f
         val explPlaces = IntList(); var explScores = FloatArray(64); var explDeaths = FloatArray(64)
         /** And for the census ([recordWarning]): the share of it it foresaw dead there this week ([deathsAt]), and how fed. */
         var explDying = FloatArray(64); var explFed = FloatArray(64)
