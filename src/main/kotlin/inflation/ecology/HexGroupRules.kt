@@ -108,6 +108,12 @@ internal const val GROUP_HABITAT = 0.15f
 internal const val PATH_WEAR = 0.05f
 internal const val PATH_FADE = 0.03f
 internal const val PATH_MASS_KG = 3000f
+/**
+ * How much a week of a band living in a hex wears each of its six borders, as a share of what a through going wears
+ * ([PATH_WEAR]), before its weight ([PATH_MASS_KG]): a band of 25 wears its borders toward about half worn,
+ * where plants regrow at the usual pace ([PATH_FADE]), within a few months; a guess, unmeasured.
+ */
+internal const val CAMP_WEAR = 0.05f
 internal const val PATH_EASE = 0.5f
 internal const val AMBUSH = 1f
 /**

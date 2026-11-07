@@ -16,7 +16,7 @@ import kotlin.math.min
  * wears it, the heavier and more numerous the more; plants grow back over it, the faster the
  * greener the ground. Worn paths make the going easier, the more so in broken country, so packs
  * and people keep to them: they gather at the easy crossings, passes and fords, and there hunters
- * wait.
+ * wait. A band wears the ways out of the hex it lives in too ([CAMP_WEAR]).
  */
 class PathWear(private val hex: HexMap) {
     val paths = FloatArray(hex.size * 6)
@@ -33,6 +33,20 @@ class PathWear(private val hex: HexMap) {
         }
         // Only going through country wears a way: a week's shift to the next hex is ranging over ground a
         // group grazes or forages anyway (a hex is wider than a day's going about), spread over it, not one line.
+        // (And a band living in a hex wears ways out of it on every side: its foragers, hunters and visitors go out and
+        // back the year round, so ground it lives on opens up around it (Olli 2026-11-07). A week's worth, as a through
+        // going's wear, spread over its six borders.)
+        for (g in groups) {
+            if (!g.alive || g.band == null) continue
+            val h = hw.placeHex[g.place]
+            val w = min(1f, g.size * g.species.massKg / PATH_MASS_KG) * CAMP_WEAR * days / 7f
+            for (d in 0 until 6) {
+                val nb = hex.neighbour(h, d); if (nb.none) continue
+                val back = (d + 3) % 6
+                paths[hex.edge(h, d)] += w * (1f - paths[hex.edge(h, d)])
+                paths[hex.edge(nb, back)] += w * (1f - paths[hex.edge(nb, back)])
+            }
+        }
         for (g in groups) {
             if (!g.alive || g.path.size < 3) continue
             val w = min(1f, g.size * g.species.massKg / PATH_MASS_KG)

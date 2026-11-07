@@ -66,7 +66,11 @@ class HexMap(private val world: World, val hexKm: Double = 10.0) {
     val riverDepthM = FloatArray(size * 6)
     /** Whether each hex is water (mostly lake or sea). */
     val water = BooleanArray(size)
-    /** Per way of travelling: effort per fine cell over the ground, rivers left aside, as a multiple of flat open ground. */
+    /**
+     * Per way of travelling: effort per fine cell over the ground, rivers and slope left aside (the slope is of the way
+     * taken across it, see [Travel.grade]), as a multiple of flat open ground: rough rock, marsh, and cliffs (infinite
+     * where a way of travelling cannot go up or down them).
+     */
     val costs = Array(Travel.entries.size) { FloatArray(grid.size) }
     val walk get() = costs[Travel.FOOT.ordinal]
 
@@ -74,13 +78,9 @@ class HexMap(private val world: World, val hexKm: Double = 10.0) {
         for (i in 0 until grid.size) {
             val base = terrain.baseCost[i]
             if (!base.isFinite() || world.isSea[i]) { for (c in costs) c[i] = Float.POSITIVE_INFINITY; continue }
-            val s = terrain.slope[i]
             val land = terrain.landCost[i]          // without the river
-            val climb = exp(3.5f * s)               // already in it
-            for (tr in Travel.entries) {
-                val slope = exp(tr.ease * s) * (if (s > tr.steep) exp(BARRIER * (s - tr.steep)) else 1f)
-                costs[tr.ordinal][i] = land / climb * slope * (if (terrain.cliff[i]) tr.cliff else 1f)
-            }
+            val climb = exp(3.5f * terrain.slope[i]) // already in it: the slope is the way's, see [cross]
+            for (tr in Travel.entries) costs[tr.ordinal][i] = land / climb * (if (terrain.cliff[i]) tr.cliff else 1f)
         }
         val wet = IntArray(size)
         for (i in 0 until grid.size) {
@@ -185,12 +185,20 @@ class HexMap(private val world: World, val hexKm: Double = 10.0) {
         // The heart of a hex: its easiest ground, preferring the middle, so a hex of valley and ridge
         // is entered at the valley; and on the largest stretch of its land that hangs together on
         // foot, so a scrap of land cut off by a river or a ring of cliffs is not taken for the hex.
+        // (Weighed by the going as it was before the slope became the way's ([Travel.grade]), the steepest slope off
+        // each cell, cliffs a scramble: so the hearts, where borders are crossed from, stay where they were.)
+        val seat = FloatArray(grid.size) { i ->
+            val base = terrain.baseCost[i]
+            if (!base.isFinite() || world.isSea[i]) Float.POSITIVE_INFINITY else {
+                val sl = terrain.slope[i]
+                terrain.landCost[i] / exp(3.5f * sl) * (exp(3.5f * sl) * (if (sl > 0.35f) exp(25f * (sl - 0.35f)) else 1f)) * (if (terrain.cliff[i]) 50f else 1f)
+            } }
         val part = IntArray(grid.size) { -1 }
         val partSize = ArrayList<Int>()
         val largest = IntArray(size) { -1 }
         val queue = IntArray(grid.size)
         for (s in 0 until grid.size) {
-            if (part[s] >= 0 || !walk[s].isFinite()) continue
+            if (part[s] >= 0 || !seat[s].isFinite()) continue
             val id = partSize.size
             var head = 0; var tail = 0
             queue[tail++] = s; part[s] = id
@@ -201,8 +209,8 @@ class HexMap(private val world: World, val hexKm: Double = 10.0) {
                     val nx = xi + DX8[k]; val ny = yi + DY8[k]
                     if (!grid.inBounds(nx, ny)) continue
                     val j = grid.index(nx, ny)
-                    if (part[j] >= 0 || owner[j] != owner[s] || !walk[j].isFinite()) continue
-                    if (k >= 4 && (!walk[grid.index(xi + DX8[k], yi)].isFinite() || !walk[grid.index(xi, yi + DY8[k])].isFinite())) continue
+                    if (part[j] >= 0 || owner[j] != owner[s] || !seat[j].isFinite()) continue
+                    if (k >= 4 && (!seat[grid.index(xi + DX8[k], yi)].isFinite() || !seat[grid.index(xi, yi + DY8[k])].isFinite())) continue
                     part[j] = id; queue[tail++] = j
                 }
             }
@@ -212,12 +220,12 @@ class HexMap(private val world: World, val hexKm: Double = 10.0) {
         }
         val best = FloatArray(size) { Float.POSITIVE_INFINITY }
         for (i in 0 until grid.size) {
-            if (!walk[i].isFinite()) continue
+            if (!seat[i].isFinite()) continue
             val h = owner[i]
             if (part[i] != largest[h]) continue
             val (cx, cy) = centreKm(h)
             val off = kotlin.math.hypot(grid.x(i) * grid.cellKm - cx, grid.y(i) * grid.cellKm - cy) / hexKm
-            val score = (walk[i] * (1 + 2 * off)).toFloat()
+            val score = (seat[i] * (1 + 2 * off)).toFloat()
             if (score < best[h]) { best[h] = score; heart[h] = i }
         }
     }
@@ -245,7 +253,11 @@ class HexMap(private val world: World, val hexKm: Double = 10.0) {
                 if (!walk[j].isFinite()) continue
                 // No slipping diagonally between two cells of a river or cliff line.
                 if (k >= 4 && (!walk[grid.index(xi + DX8[k], yi)].isFinite() || !walk[grid.index(xi, yi + DY8[k])].isFinite())) continue
-                val nd = dd + (if (k < 4) 1f else 1.4142f) * ck * 0.5f * (walk[i] + walk[j])
+                // (The slope of the step itself, up or down, not of the steepest way off either cell: going along a
+                // hillside is easy, and up a steep one the way zigzags, [Travel.grade].)
+                val len = if (k < 4) 1f else 1.4142f
+                val grade = (world.elevation[j] - world.elevation[i]) / (len * ck * 1000f)
+                val nd = dd + len * ck * 0.5f * (walk[i] + walk[j]) * tr.grade(grade)
                 if (nd < dist[j]) { if (dist[j] == Float.POSITIVE_INFINITY) sc.touch(j); dist[j] = nd; via[j] = i; q.push(nd, j) }
             }
         }
@@ -327,18 +339,37 @@ class HexMap(private val world: World, val hexKm: Double = 10.0) {
     }
 
     /**
-     * Ways of travelling, each with how hard slopes are (effort grows as e^(ease × slope)) and the slope
-     * (rise over run over a km) above which ground closes fast.
+     * Ways of travelling, each with how hard slopes are, as Tobler's hiking rule has it for people on foot (effort grows
+     * as e^(ease × |grade + 0.05|), the easiest a gentle descent), the steepest grade it keeps to by zigzagging where the
+     * ground is steeper ([zig]: the way then grows longer instead of steeper, so effort grows with the grade, not as its
+     * exponent), the steepest it can scramble at all ([scramble]: steeper is closed), its waters, and cliffs (a factor on
+     * the going; infinite: closed). Grades are rise over run, between fine cells.
+     * (Olli 2026-11-07: practically impassable barriers are real but rare; a border no one can cross must be closed, not
+     * a huge number. Before, slopes above a steep grade grew as e^(25 × excess) on top of the climb, in the cell's steepest
+     * direction whatever the way: 4-8% of land borders cost over 200 km, the costliest 10^34 times flat ground.)
      */
-    enum class Travel(val ease: Float, val steep: Float, private val wade: Float, private val deepest: Float, val cliff: Float) {
-        /** On foot and lightly loaded: most animals, hunting and raiding parties. Waist deep is hard, over the chest closed; a cliff is a desperate scramble. */
-        FOOT(3.5f, 0.35f, 1f, 1.5f, 50f),
+    enum class Travel(val ease: Float, val zig: Float, val scramble: Float, private val wade: Float, private val deepest: Float, val cliff: Float) {
+        /** On foot and lightly loaded: most animals, hunting and raiding parties. Waist deep is hard, over the chest closed; cliffs closed. */
+        FOOT(3.5f, 0.3f, 1.2f, 1f, 1.5f, Float.POSITIVE_INFINITY),
         /** Sure-footed on crags: ibex, mouflon, leopards. Water as for those on foot; cliffs only slow them. */
-        CLIMB(2f, 0.8f, 1f, 1.5f, 3f),
+        CLIMB(2f, 0.6f, 3f, 1f, 1.5f, 3f),
         /** A band moving camp with its stores, children and old: slopes cost far more, water over the knee is hard, over the waist closed, and cliffs closed. */
-        LADEN(5f, 0.25f, 0.5f, 1f, Float.POSITIVE_INFINITY),
-        /** Swimmers and waders (deer, horses, hippos): a deep river slows them, only a great one stops them; cliffs as on foot. */
-        SWIM(3.5f, 0.35f, 2.5f, 4f, 50f);
+        LADEN(5f, 0.2f, 0.8f, 0.5f, 1f, Float.POSITIVE_INFINITY),
+        /** Swimmers and waders (deer, horses, hippos): a deep river slows them, only a great one stops them; cliffs closed. */
+        SWIM(3.5f, 0.3f, 1.2f, 2.5f, 4f, Float.POSITIVE_INFINITY);
+
+        /**
+         * Effort factor for a step at [grade] (rise over run, up positive), against flat ground: Tobler's rule, or where
+         * zigzagging at [zig] is easier, that; infinite beyond [scramble].
+         */
+        fun grade(grade: Float): Float {
+            val g = abs(grade)
+            if (g > scramble) return Float.POSITIVE_INFINITY
+            fun tobler(x: Float) = exp(ease * (abs(x + 0.05f) - 0.05f))
+            val direct = tobler(grade)
+            if (g <= zig) return direct
+            return min(direct, g / zig * tobler(if (grade > 0f) zig else -zig))
+        }
 
         /** Effort factor for getting across water [depth] m deep at its easiest point; infinite where it cannot be crossed. */
         fun water(depth: Float): Float = when {
@@ -350,8 +381,6 @@ class HexMap(private val world: World, val hexKm: Double = 10.0) {
     }
 
     companion object {
-        /** How fast ground closes above a way of travelling's steepest. */
-        const val BARRIER = 25f
         /** Water up to the knee, m, is crossed without trouble. */
         const val KNEE = 0.5f
         /** How much ground the water's effort factor applies to when a river is crossed, km. */
