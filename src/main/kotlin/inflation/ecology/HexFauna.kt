@@ -348,6 +348,8 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
      * ([HexGroups.roamersLeave] takes them off, whole ones, the fraction left for next week).
      */
     val leaving = Array(kinds.size) { k -> if (kinds[k] in Catalogue.roamingResidents) FloatArray(hex.size) else null }
+    /** Of each kind that also roams, the grown young dispersing from each hex they left, heads ([disperse]); not saved: a save loads with none dispersing. */
+    @Transient internal var dispersing: Array<FloatArray?>? = null
 
     /**
      * The share of a kind's young growing up at a place where its kind stands at [heads] per km² that leave it as roamers:

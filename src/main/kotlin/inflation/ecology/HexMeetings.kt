@@ -632,30 +632,25 @@ internal fun HexGroups.settleIn(g: HexGroup) {
 }
 
 /**
- * The grown young due to leave their kind's settled ground ([HexFauna.leaving]) go as roamers, each alone, to find room and
- * a mate away from where they were born as young leaving a pack do ([liveWeek]): packs without ground, of the settled's condition where they left. Hex by
- * hex in order, whole heads (the fraction waits for next week), at most as many as the hex holds grown.
+ * The grown young due to leave their kind's settled ground ([HexFauna.leaving]) go dispersing: out of their natal ground,
+ * a pool at the hex they left, which settles in where there is room about it and loses some on the way, at rates a day
+ * over the step's days ([HexFauna.disperse]). Rates over days, so the same at any step length (plan section 58): as
+ * single roamer packs they settled, paired and died once a step, and their numbers swung with the step's length (inv692b:
+ * wolf roamers 171 / 299 / 519 / 11 at 6 / 12 / 30 / 60 days). The packs a world starts with still roam and settle as packs.
  */
 internal fun HexGroups.roamersLeave() {
     for ((k, s) in fauna.kinds.withKinds()) {
         val due = fauna.leaving[k] ?: continue
         if (s !in kinds) continue
+        var went = 0f
         for (h in hex.all) {
-            if (due[h] < 1f) continue
-            val grown = fauna.grownIn(k, h)
-            val n = min(due[h], grown).toInt()
-            due[h] = min(due[h] - n, max(0f, grown - n))
-            if (n < 1) continue
-            val p = fauna.takeGrown(k, h, n.toFloat())
-            repeat(n) {
-                val g = HexGroup(nextId++, s, p, 1, 0)
-                g.temper = Temperament.founder(g.id, seedBase)
-                g.fed = fauna.fed[k][p]; g.fat = fauna.reserve[k][p]; g.spent = fauna.spent[k][p]; g.dry = fauna.dry[k][p]
-                g.bred = fauna.bred[k][p]; g.bold = fauna.bold[k][p]; g.birthMonth = fauna.birthStart[k][p.i].toInt(); g.natal = h
-                groups += g
-            }
-            stats.meeting(Met.Of.ROAMERS_LEFT, s.name, n)
+            if (due[h] <= 0f) continue
+            val n = min(due[h], fauna.grownIn(k, h)); due[h] = 0f
+            if (n <= 0f) continue
+            fauna.takeGrown(k, h, n); fauna.addDispersing(k, h, n); went += n
         }
+        if (went >= 1f) stats.meeting(Met.Of.ROAMERS_LEFT, s.name, went.toInt())
+        fauna.disperse(k)
     }
 }
 

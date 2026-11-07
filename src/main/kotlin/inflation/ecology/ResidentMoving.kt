@@ -459,6 +459,7 @@ fun HexFauna.takeYoung(k: FaunaKind, h: Hex, heads: Float) {
 }
 
 /** Takes [heads] grown of kind [k] off the places of hex [h], each place its share by its grown there. Returns the place that held the most. */
+@IgnorableReturnValue
 fun HexFauna.takeGrown(k: FaunaKind, h: Hex, heads: Float): Place {
     val a = adults[k]; val places = hw.placesOf(h)
     var there = 0f; var most = places[0]; var mostHeads = -1f
@@ -466,6 +467,74 @@ fun HexFauna.takeGrown(k: FaunaKind, h: Hex, heads: Float): Place {
     if (there > 0f) { val keep = max(0f, 1f - heads / there); for (q in places) a[q] *= keep }
     return Place(most)
 }
+
+/** Adds [heads] grown of kind [k] to those dispersing from hex [h] ([disperse]). */
+fun HexFauna.addDispersing(k: FaunaKind, h: Hex, heads: Float) {
+    val pool = dispersing ?: Array(kinds.size) { j -> if (kinds[j] in Catalogue.roamingResidents) FloatArray(hex.size) else null }.also { dispersing = it }
+    pool[k.i]?.let { it[h] += heads }
+}
+
+/**
+ * The grown young of kind [k] dispersing from their natal ground over the step's days ([HexGroups.roamersLeave]): from the
+ * hex they left they settle in at a rate a day of one in [dispersalDays] (as far as there is room about: the room within
+ * [DISPERSAL_REACH] times [dispersalKm], nearer counting more, against all the ground there), and die on the way at
+ * [DISPERSAL_DEATH] a day; in closed form over the days, the same at any step length. Those that settle join the settled
+ * where the room is, nearer first by exp(-distance / [dispersalKm]), never back on the hex they left, each hex at most to
+ * its [HexFauna.usual]; the dead lie where they left. (Dispersal as a pool, not as lone packs: estimates of the magnitude,
+ * wolves dispersing a few months over tens of km, lions longer and nearer, with about a third lost on the way;
+ * Mech and Boitani 2003 from memory, to check.)
+ */
+fun HexFauna.disperse(k: FaunaKind) {
+    val pool = dispersing?.get(k.i) ?: return
+    val s = kinds[k]
+    val lengthKm = dispersalKm(s); val reach = (DISPERSAL_REACH * lengthKm / hex.hexKm).toInt().coerceAtLeast(1)
+    val settleRate = 1f / dispersalDays(s); val a = adults[k]
+    // (Room on each hex, heads, as the step found it, taken down as they settle.)
+    val room = FloatArray(hex.size)
+    for (h in hex.all) { var heads = 0f; var area = 0f; for (q in hw.placesOf(h)) { heads += (a[q] + young[k][q]) * land.areaKm2[q]; area += land.areaKm2[q] }
+        room[h] = max(0f, usual[k] * area - heads) }
+    for (h in hex.all) {
+        val n = pool[h]; if (n < DISPERSAL_LEAST) continue
+        // (The ground about, ring by ring, weighed by nearness: the room there and all of it.)
+        val about = ArrayList<Hex>(); val near = ArrayList<Float>()
+        var ring = listOf(h); val seen = hashSetOf(h); var roomW = 0f; var allW = 0f
+        for (r in 1..reach) {
+            ring = hex.nextRing(ring, seen)
+            for (q in ring) {
+                val w = kotlin.math.exp(-(hex.distanceKm(h, q) / lengthKm)).toFloat()
+                var area = 0f; for (p in hw.placesOf(q)) area += land.areaKm2[p]
+                if (area <= 0f) continue
+                allW += w * usual[k] * area
+                if (room[q] > 0f) { about += q; near += w; roomW += w * room[q] }
+            }
+        }
+        val settle = if (allW > 0f) settleRate * roomW / allW else 0f
+        val out = settle + DISPERSAL_DEATH
+        val gone = n * (1f - kotlin.math.exp(-out * days))
+        val settled = gone * settle / out; val died = gone - settled
+        var placed = 0f
+        if (settled > 0f && roomW > 0f) for ((i, q) in about.withIndex()) {
+            val put = min(room[q], settled * near[i] * room[q] / roomW)
+            if (put <= 0f) continue
+            var area = 0f; for (p in hw.placesOf(q)) area += land.areaKm2[p]
+            for (p in hw.placesOf(q)) a[p] += put / area
+            room[q] -= put; placed += put
+        }
+        pool[h] = n - placed - died
+        if (died > 0f) carcassKg[hw.placesOf(h)[0]] += died * s.massKg
+    }
+}
+
+/** How far a disperser of [s] goes, km, the scale of nearness its settling weighs ([disperse]); an estimate. */
+private fun dispersalKm(s: Species) = if (s == Catalogue.LION) 30f else 60f
+/** The days a disperser of [s] takes to settle where there is room enough ([disperse]); an estimate. */
+private fun dispersalDays(s: Species) = if (s == Catalogue.LION) 300f else 90f
+/** How far out a disperser looks for room, in [dispersalKm]. */
+private const val DISPERSAL_REACH = 2f
+/** The share of dispersers that die a day on the way, all causes ([disperse]): about a third lost over a wolf's three months; an estimate. */
+private const val DISPERSAL_DEATH = 0.005f
+/** The least heads dispersing from a hex worth working out ([disperse]): fewer wait in the pool. */
+private const val DISPERSAL_LEAST = 0.05f
 
 /** The grown heads of kind [k] on the places of hex [h]. */
 fun HexFauna.grownIn(k: FaunaKind, h: Hex): Float { var v = 0f; for (q in hw.placesOf(h)) v += adults[k][q] * land.areaKm2[q]; return v }
