@@ -165,10 +165,56 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
     val temperature = FloatArray(n)
     /** Rain and snow that fell during the last step, mm water. */
     val precipitation = FloatArray(n)
-    /** What fell at [p] in the last step as rain, mm water: all of it unless it [snows] there. */
-    fun rain(p: Int) = if (snows(temperature[p])) 0f else precipitation[p]
-    /** What fell at [p] in the last step as snow, mm water. */
-    fun snowfall(p: Int) = if (snows(temperature[p])) precipitation[p] else 0f
+    /** What fell at [p] in the last step as rain, mm water: all of it unless it [snows] there (after [settleStep], the step's ticks' rain). */
+    fun rain(p: Int) = if (settled) stepRain[p] else if (snows(temperature[p])) 0f else precipitation[p]
+    /** What fell at [p] in the last step as snow, mm water (after [settleStep], the step's ticks' snow). */
+    fun snowfall(p: Int) = if (settled) stepSnow[p] else if (snows(temperature[p])) precipitation[p] else 0f
+
+    // The step the slow parts take, over the ticks it covers ([inflation.world.StepClock]): what each tick brought is
+    // summed as it comes ([sumTick]) and handed over as the step's whole once the ticks are done ([settleStep]). Not saved:
+    // a step begins and ends within one [inflation.ecology.HexSim.step].
+    @Transient private var settled = false
+    @Transient private var ticksSummed = 0
+    @Transient private val sumTemp = FloatArray(n)
+    @Transient private val sumPrecip = FloatArray(n)
+    @Transient private val sumMelt = FloatArray(n)
+    @Transient private val stepRain = FloatArray(n)
+    @Transient private val stepSnow = FloatArray(n)
+    /** The coldest tick's air at each place over the last step, °C: the cold snap a step's mean ([temperature]) hides. */
+    @Transient val coldest = FloatArray(n)
+
+    /** Begins a step of the slow parts: nothing summed yet. */
+    fun beginStep() {
+        ticksSummed = 0
+    }
+
+    /** Adds the tick just drawn to the step's sums. */
+    private fun sumTick() {
+        // (The first tick's own values, not added to nothing, so that a step of one tick hands over exactly what it drew.)
+        val first = ticksSummed++ == 0
+        for (i in 0 until n) {
+            val t = temperature[i]; val p = precipitation[i]
+            if (first) { sumTemp[i] = t; sumPrecip[i] = p; sumMelt[i] = meltwater[i]; stepSnow[i] = if (snows(t)) p else 0f; stepRain[i] = if (snows(t)) 0f else p; coldest[i] = t; continue }
+            sumTemp[i] += t; sumPrecip[i] += p; sumMelt[i] += meltwater[i]
+            if (snows(t)) stepSnow[i] += p else stepRain[i] += p
+            if (t < coldest[i]) coldest[i] = t
+        }
+    }
+
+    /**
+     * Ends the step's ticks: [temperature] is now the step's mean air, [precipitation] and [meltwater] what fell and
+     * melted over it, and [rain] and [snowfall] each tick's as it fell, for the slow parts to read. At one tick a step,
+     * the tick's own. The next tick draws afresh.
+     */
+    fun settleStep() {
+        if (ticksSummed == 0) return
+        val k = 1f / ticksSummed
+        for (i in 0 until n) {
+            temperature[i] = if (ticksSummed == 1) sumTemp[i] else sumTemp[i] * k
+            precipitation[i] = sumPrecip[i]; meltwater[i] = sumMelt[i]
+        }
+        settled = true
+    }
     /** Snow on the ground, mm water equivalent. */
     val snowpack = FloatArray(n)
     /** Snowmelt released during the last step, mm. */
@@ -402,6 +448,8 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
             meltwater[i] = (1 - f) * meltSun[i] + f * meltShade[i]
         }
         date = date.plusDays(days)
+        settled = false
+        sumTick()
         prepare()
     }
 
