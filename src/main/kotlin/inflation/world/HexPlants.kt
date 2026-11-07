@@ -356,8 +356,6 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             // The young growth matures as it grows, over [FLUSH_WEEKS] of full growth; the black scar itself fades over years.
             if (fire.burnt[p] > 0f) fire.burnt[p] = max(0f, fire.burnt[p] * exp(-sprout * days / (7f * FLUSH_WEEKS)) - 0.4f * years)
         }
-        // (Once a tick, after every place has grown: the step's sums for its grazing.)
-        sumOverStep()
     }
 
     /** Frost kills back what its form cannot stand at [t] °C, and floods drown what grows on the floodplain share of place [p]. */
@@ -385,31 +383,6 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             if (land.lastTick) trampling[p] = 0f
         } else if (trails[p] > 0f) trails[p] = max(0f, trails[p] - TRAIL_FADE * years)
     }
-
-    // The herbs and browse as each tick of the step left them, summed, for what a step's grazing reaches ([herbOverStep],
-    // [browseOverStep]). Not saved: a step begins and ends within one [inflation.ecology.HexSim.step].
-    @Transient private var ticksSummed = 0
-    @Transient private val herbSum = FloatArray(n)
-    @Transient private val browseSum = FloatArray(n)
-
-    private fun sumOverStep() {
-        if (land.firstTick) ticksSummed = 0
-        val first = ticksSummed++ == 0
-        for (p in land.places) {
-            if (first) { herbSum[p] = herb[p]; browseSum[p] = browse(p) } else { herbSum[p] += herb[p]; browseSum[p] += browse(p) }
-        }
-    }
-
-    /**
-     * The herbs at [p] on average over the step's ticks, as each left them: what the step's grazing reaches. A step of
-     * many ticks grazed once on the herbs at its end would see the autumn's dying back whole for the step and the spring's
-     * growth whole (at 60 days roe and red deer were fed less in early winter and more in spring than weekly). At one
-     * tick a step, [herb].
-     */
-    fun herbOverStep(p: Place): Float = if (ticksSummed <= 1) herb[p] else herbSum[p] / ticksSummed
-
-    /** [browse] at [p] on average over the step's ticks, as [herbOverStep]; at one tick a step, [browse]. */
-    fun browseOverStep(p: Place): Float = if (ticksSummed <= 1) browse(p) else browseSum[p] / ticksSummed
 
     /**
      * (With [crowns], kg/m², of the stand lost lately that its roots will grow back: it grows as from the whole stand.)

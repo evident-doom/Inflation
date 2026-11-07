@@ -76,8 +76,6 @@ class StocksTest {
             "HexSmallLife.newborn", "HexFauna.bornThisWeek", "HexFauna.groupKilled",
             // The week's food left uneaten, a reading of the plants' stocks, not one of its own.
             "HexFauna.spareGrass", "HexFauna.spareBrowse", "HexFauna.spareFruit", "HexFauna.spareRoots",
-            // The herbs and browse summed over a step's ticks, for its grazing: readings of the plants' stocks.
-            "HexPlants.herbSum", "HexPlants.browseSum",
             // Shares, states and memories, 0..1 or days or degrees.
             "HexDrinkingWater.water", "HexDrinkingWater.waterKm", "HexDrinkingWater.dug", "HexDrinkingWater.well", "HexDrinkingWater.snowWater", "HexDrinkingWater.iced", "HexPlants.gdd", "HexPlants.moisture",
             "HexPlants.shrubShoots", "HexPlants.treeShoots", "HexPlants.animalSeed", "HexPlants.green", "HexPlants.hayFresh", "HexPlants.grassAge",

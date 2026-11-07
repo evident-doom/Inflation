@@ -178,7 +178,6 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
     @Transient private val sumTemp = FloatArray(n)
     @Transient private val sumPrecip = FloatArray(n)
     @Transient private val sumMelt = FloatArray(n)
-    @Transient private val sumSnowpack = FloatArray(n)
     @Transient private val stepRain = FloatArray(n)
     @Transient private val stepSnow = FloatArray(n)
     /** The coldest tick's air at each place over the last step, °C: the cold snap a step's mean ([temperature]) hides. */
@@ -236,12 +235,6 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
         try { return block() } finally { date = end }
     }
 
-    /**
-     * The snow lying at [i] on average over the last step's ticks, mm water, as each tick left it: what the step's grazing
-     * digs through, not the snow at its end ([snowpack]; the same at one tick a step, or before the step is settled).
-     */
-    fun snowOverStep(i: Int): Float = if (!settled || ticksSummed <= 1) snowpack[i] else sumSnowpack[i] / ticksSummed
-
     /** Adds the tick just drawn to the step's sums. */
     private fun sumTick() {
         // (The first tick's own values, not added to nothing, so that a step of one tick hands over exactly what it drew.)
@@ -250,8 +243,8 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
         temperature.copyInto(tickTemps[ticksSummed - 1])
         for (i in 0 until n) {
             val t = temperature[i]; val p = precipitation[i]
-            if (first) { sumTemp[i] = t; sumPrecip[i] = p; sumMelt[i] = meltwater[i]; sumSnowpack[i] = snowpack[i]; stepSnow[i] = if (snows(t)) p else 0f; stepRain[i] = if (snows(t)) 0f else p; coldest[i] = t; continue }
-            sumTemp[i] += t; sumPrecip[i] += p; sumMelt[i] += meltwater[i]; sumSnowpack[i] += snowpack[i]
+            if (first) { sumTemp[i] = t; sumPrecip[i] = p; sumMelt[i] = meltwater[i]; stepSnow[i] = if (snows(t)) p else 0f; stepRain[i] = if (snows(t)) 0f else p; coldest[i] = t; continue }
+            sumTemp[i] += t; sumPrecip[i] += p; sumMelt[i] += meltwater[i]
             if (snows(t)) stepSnow[i] += p else stepRain[i] += p
             if (t < coldest[i]) coldest[i] = t
         }
