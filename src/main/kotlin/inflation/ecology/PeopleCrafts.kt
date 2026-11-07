@@ -35,7 +35,8 @@ internal fun GroupWorld.gatherMaterials(g: HexGroup, b: Band, p: Place, h: Hex, 
     var asked = 0f
     /** Takes up to [give] kg of [m], as far as the band lacks it and has the time at [perDay] kg a person-day; returns what it took. */
     @IgnorableReturnValue fun gather(m: Material, give: Float, perDay: Float): Float {
-        val want = min(give, carried(b, m, people) - gd[m])
+        // (What the country gives is a week's, a tick's: a step of several ticks gives as many.)
+        val want = min(if (ticks == 1 || give == Float.MAX_VALUE) give else give * ticks, carried(b, m, people) - gd[m])
         if (want <= 0f || perDay <= 0f) return 0f
         if (time == null) { asked += want / perDay; return 0f }
         val left = time.leftFor(Activity.MATERIALS)
@@ -401,7 +402,7 @@ internal fun GroupWorld.trainHolders(g: HexGroup, b: Band, time: BandTime) {
 internal fun GroupWorld.learners(b: Band, s: Skill, adults: Float): Float {
     if (!b.knowsSkill[s] || b.weeks - b.lastUsed[s] > DISUSE_YEARS * ticksPerYear) return 0f
     val pace = (if (b.holders[s] >= 1f) 1f else SELF_TAUGHT) * b.learning
-    return minOf(adults * s.share - b.holders[s], adults * TRAINED_A_WEEK * pace).coerceAtLeast(0f)
+    return minOf(adults * s.share - b.holders[s], adults * TRAINED_A_WEEK * pace * ticks).coerceAtLeast(0f)
 }
 
 /**

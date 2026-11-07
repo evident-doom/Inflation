@@ -318,7 +318,8 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, @Transient p
                     val u = weather.windEast(wp); val vS = weather.windSouth(wp)
                     val driftE = -vS; val driftS = u // the wind turned a quarter to the right
                     val off = max(0f, driftE * offE[h] + driftS * offS[h]) / UPWELL_WIND
-                    upwelling[h] += (min(1f, off) - upwelling[h]) / UPWELL_WEEKS
+                    upwelling[h] += if (clock.ticks == 1) (min(1f, off) - upwelling[h]) / UPWELL_WEEKS
+                        else (min(1f, off) - upwelling[h]) * (1f - (1f - 1f / UPWELL_WEEKS).pow(clock.ticks))
                 }
                 val t = waterTemp[month][h]
                 val mixing = if (t < 14f) 0.25f else if (t < 20f) 0.08f else 0.02f
