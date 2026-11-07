@@ -3,10 +3,12 @@ package inflation.tools.fauna
 import inflation.ecology.Hazards
 import inflation.ecology.HexGroup
 import inflation.ecology.HexSim
+import inflation.ecology.yearAhead
 import inflation.world.Date
 import inflation.world.Hex
 import inflation.world.get
 import kotlin.math.max
+import kotlin.math.min
 
 /**
  * The step-length census, reported only: how long a step the world could take, were the step's length variable (the
@@ -15,22 +17,26 @@ import kotlin.math.max
  *
  * For each step and each group alive it notes whether the group changed hex in the step (a move between places of one hex
  * does not count), and the steps ahead to its first deadline, foreseen from where it stands:
- * - hunger: its reserves (fat and larder, days of food) at this step's drain on them, then its body's protein at that rate
- *   until the first die ([Hazards.starvedShare]); at once by its body if it already burns it. Larder lost on a move or
- *   to spoiling counts as drain, so this errs towards deadlines;
+ * - hunger, bands: its reserves (fat and larder, days of food) through the months ahead as its own foresight has them
+ *   ([yearAhead]: the food it got in each month over the last years against what keeping warm will take then), short
+ *   months drawing on them and good ones laying by, then its body's protein until the first die ([Hazards.starvedShare]).
+ *   Reckoned once a month a band. Packs: their reserves at this step's drain on them, then their body at that rate; at
+ *   once by the body if it already burns it;
  * - thirst: dry past half the days it lasts without water, as the planner reads thirst;
  * - exposure (bands): this step's planned exposure odds ([inflation.ecology.Band.planOdds]) at or over [EXPOSURE_NEAR],
  *   or the usual cold of the next three months by the band's own body heat with what it has now.
  *
  * At the year's end, for each step of the year as the start of a step of 1, 2, 5, 10 or 15 of today's steps ([LENGTHS],
  * only windows inside the year): the share of people foreseen at the start to reach a deadline within it, the share of
- * groups that changed hex within it, and the longest length that keeps both within a controller's limits ([LIMITS]).
+ * groups that changed hex within it, and that changed it twice or more (a step of that length gives a group one choice of
+ * place), and the longest length that keeps the people at a deadline and the groups changing hex twice or more within a
+ * controller's limits ([LIMITS]).
  */
 class StepLengthTally(private val sim: HexSim) {
     companion object {
         /** Step lengths weighed, in today's steps. */
         val LENGTHS = intArrayOf(1, 2, 5, 10, 15)
-        /** The controller's limits weighed: (people foreseen at a deadline within the step, groups changing hex within it), shares. */
+        /** The controller's limits weighed: (people foreseen at a deadline within the step, groups changing hex twice or more within it), shares. */
         val LIMITS = listOf(0.01 to 0.05, 0.05 to 0.2)
         /** Planned exposure deaths a step, as a share of the band, at which exposure counts as a deadline. */
         const val EXPOSURE_NEAR = 1e-3f
@@ -53,6 +59,8 @@ class StepLengthTally(private val sim: HexSim) {
     private val lastSpent = HashMap<Int, Float>()
     /** Each band's months-ahead exposure, reckoned once a month (the usual cold changes by the month): the month reckoned, and the first month ahead that reaches [EXPOSURE_NEAR] (0 for none). */
     private val coldAhead = HashMap<Int, Long>()
+    /** Each band's hunger deadline as its foresight has it, reckoned once a month: the month reckoned, and the days from that month's start (infinite for none). */
+    private val hungerMonth = HashMap<Int, Long>(); private val hungerAt = HashMap<Int, Float>()
 
     fun startYear() { steps.clear() }
 
@@ -79,12 +87,12 @@ class StepLengthTally(private val sim: HexSim) {
         // (Groups gone since: their notes go too.)
         if (lastHex.size > 2 * alive.size + 64) {
             val now = ids.toHashSet()
-            lastHex.keys.retainAll(now); lastReserve.keys.retainAll(now); lastSpent.keys.retainAll(now); coldAhead.keys.retainAll(now)
+            lastHex.keys.retainAll(now); lastReserve.keys.retainAll(now); lastSpent.keys.retainAll(now); coldAhead.keys.retainAll(now); hungerMonth.keys.retainAll(now); hungerAt.keys.retainAll(now)
         }
         steps += Step(weather.date.month, ids, sizes, human, ahead, cause, moved)
     }
 
-    /** Days ahead to [g]'s first hunger deaths at this step's drain, or null if none foreseen. */
+    /** Days ahead to [g]'s first hunger deaths, or null if none foreseen: by its foresight for a band, by this step's drain for a pack. */
     private fun hungerDays(g: HexGroup, days: Int): Float? {
         val s = g.species
         val reserve = g.fat + g.larder / g.dailyNeedKg.coerceAtLeast(1e-3f)
@@ -92,9 +100,42 @@ class StepLengthTally(private val sim: HexSim) {
         val spentBefore = lastSpent.put(g.id, g.spent)
         val left = max(0f, (1f - Hazards.STARVE_SPREAD) * Hazards.starveDays(s) - g.spent)
         if (spentBefore != null && g.spent > spentBefore) return left / ((g.spent - spentBefore) / days)
+        if (g.band != null) return foreseenHunger(g, reserve, left)
         if (before == null || reserve >= before) return null
         val drain = (before - reserve) / days
         return reserve / drain + left / drain
+    }
+
+    /**
+     * Days ahead to band [g]'s first hunger deaths through the next [MONTHS_AHEAD] months and the rest of this one, as its
+     * foresight's months have it ([yearAhead]), from [reserve] days of food with [left] days of its body to burn; null if none.
+     * This month's rest goes as the same month a year on (the foresight's twelfth). Reckoned once a month.
+     */
+    private fun foreseenHunger(g: HexGroup, reserve: Float, left: Float): Float? {
+        val b = g.band ?: return null
+        val weather = sim.weather; val date = weather.date
+        val month = date.year * Date.MONTHS_PER_YEAR + date.month
+        val elapsed = (date.dayOfMonth - 1).toFloat()
+        if (hungerMonth[g.id] != month) {
+            val fed = sim.groups.yearAhead(g, b, weather).fed
+            val e = Hazards.economy(g.species)
+            var r = reserve; var body = left; var t = 0f; var at = Float.POSITIVE_INFINITY
+            // (This month whole from its start, the reserve as it stands now: near enough for a deadline a month and more away.)
+            for (k in 0..MONTHS_AHEAD) {
+                val f = fed[if (k == 0) Date.MONTHS_PER_YEAR - 1 else k - 1]
+                val short = max(0f, 1f - e - f); val d = Date.DAYS_PER_MONTH.toFloat()
+                if (short <= 0f) { r += max(0f, f - 1f) * d; t += d; continue }
+                val onReserve = min(d, r / short); r -= onReserve * short
+                if (onReserve < d) {
+                    val onBody = min(d - onReserve, body / short); body -= onBody * short
+                    if (body <= 0f) { at = t + onReserve + onBody; break }
+                }
+                t += d
+            }
+            hungerMonth[g.id] = month; hungerAt[g.id] = at
+        }
+        val at = hungerAt[g.id] ?: return null
+        return if (at.isInfinite()) null else max(0f, at - elapsed)
     }
 
     /** Days ahead to band [g]'s exposure deadline, or null if none foreseen in [MONTHS_AHEAD] months. */
@@ -129,14 +170,15 @@ class StepLengthTally(private val sim: HexSim) {
         return out
     }
 
-    /** Groups alive at [w] (only bands if [bands]) that changed hex in the [len] steps from [w], as a share of them. */
-    private fun movedWithin(w: Int, len: Int, bands: Boolean? = null): Double {
+    /** Groups alive at [w] (only bands if [bands]) that changed hex at least [times] times in the [len] steps from [w], as a share of them. */
+    private fun movedWithin(w: Int, len: Int, bands: Boolean? = null, times: Int = 1): Double {
         val st = steps[w]; var n = 0; var m = 0
         for (k in st.ids.indices) {
             if (bands != null && st.human[k] != bands) continue
             n++
             val id = st.ids[k]
-            for (j in w until w + len) if (id in steps[j].movedHex) { m++; break }
+            var c = 0
+            for (j in w until w + len) if (id in steps[j].movedHex && ++c >= times) { m++; break }
         }
         return if (n == 0) 0.0 else m.toDouble() / n
     }
@@ -154,17 +196,18 @@ class StepLengthTally(private val sim: HexSim) {
                 val c = (n - len + 1).coerceAtLeast(1)
                 "%d: %.2f%% (%.2f / %.2f / %.2f)".format(len, 100 * sums[0] / c, 100 * sums[1] / c, 100 * sums[2] / c, 100 * sums[3] / c)
             })
-        println("     step length, groups that changed hex within 1/2/5/10/15 steps (bands / packs): " +
-            LENGTHS.joinToString(", ") { len -> "%d: %.1f%% / %.1f%%".format(len, 100 * mean(len) { movedWithin(it, len, true) }, 100 * mean(len) { movedWithin(it, len, false) }) })
+        println("     step length, groups that changed hex within 1/2/5/10/15 steps (bands / packs; twice or more, bands / packs): " +
+            LENGTHS.joinToString(", ") { len -> "%d: %.1f%% / %.1f%% (%.1f%% / %.1f%%)".format(len, 100 * mean(len) { movedWithin(it, len, true) }, 100 * mean(len) { movedWithin(it, len, false) },
+                100 * mean(len) { movedWithin(it, len, true, 2) }, 100 * mean(len) { movedWithin(it, len, false, 2) }) })
         for ((nearMost, movedMost) in LIMITS) {
             // (The longest length from each start whose window fits in the year and keeps within both limits; 1 if none does.)
             val picked = IntArray(n) { w ->
-                LENGTHS.lastOrNull { len -> w + len <= n && near(w, len)[0] <= nearMost && movedWithin(w, len) <= movedMost } ?: 1
+                LENGTHS.lastOrNull { len -> w + len <= n && near(w, len)[0] <= nearMost && movedWithin(w, len, times = 2) <= movedMost } ?: 1
             }
             val byMonth = DoubleArray(Date.MONTHS_PER_YEAR); val inMonth = IntArray(Date.MONTHS_PER_YEAR)
             for (w in 0 until n) { byMonth[steps[w].month] += picked[w].toDouble(); inMonth[steps[w].month]++ }
             val mean = picked.average()
-            println(("     step length a controller would pick (people at a deadline at most %.0f%%, groups changing hex at most %.0f%%; " +
+            println(("     step length a controller would pick (people at a deadline at most %.0f%%, groups changing hex twice or more at most %.0f%%; " +
                 "windows inside the year): mean %.1f steps (%.0f days), steps a year at that %.0f; share of starts at 1/2/5/10/15: %s; mean by month: %s").format(
                 100 * nearMost, 100 * movedMost, mean, mean * sim.cfg.daysPerStep, n / mean,
                 LENGTHS.joinToString(" / ") { len -> "%.0f%%".format(100.0 * picked.count { it == len } / n) },
