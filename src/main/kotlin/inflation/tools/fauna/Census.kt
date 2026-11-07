@@ -1,5 +1,6 @@
 package inflation.tools.fauna
 
+import inflation.ecology.HUNGER_CASES
 import inflation.ecology.HexFood.FieldFate
 import inflation.ecology.climateSuits
 import inflation.ecology.monthFit
@@ -194,6 +195,11 @@ class Census(private val sim: HexSim) {
             val ff = fauna.fedFrom[k]; val h = ff[Fed.HEADS].sum().coerceAtLeast(1e-9)
             val fruit = ff[Fed.FRUIT].sum() / h; val under = ff[Fed.UNDERGROUND].sum() / h
             "%s %.2f/%.2f/%.2f".format(fauna.kinds[k].name, ff[Fed.PLANTS].sum() / h - fruit - under, fruit, under)
+        })
+        println("     residents' animal food (game killed / small prey / carrion and bones, shares of need per animal this year, before any surplus laid on): " +
+            fauna.kinds.indices.filter { fauna.kinds[it].diet.let { d -> d.meat + d.smallPrey + d.carrion > 0f } }.joinToString(", ") { k ->
+            val ff = fauna.fedFrom[k]; val h = ff[Fed.HEADS].sum().coerceAtLeast(1e-9)
+            "%s %.2f/%.2f/%.2f".format(fauna.kinds[k].name, ff[Fed.MEAT].sum() / h, ff[Fed.SMALL_PREY].sum() / h, ff[Fed.CARRION].sum() / h)
         })
         for (ff in fauna.fedFrom) for (a in ff) a.reset()
         println("     residents held hungry with no better place next door (share of head-weeks this year / of those at a closed border / most in one week): " +
@@ -727,6 +733,10 @@ class Census(private val sim: HexSim) {
                         WarnDeaths.entries.joinToString(", ") { dd -> "%.2f".format(1000 * (lastYear[Tally.warnDied(dd, 0, what, b)] ?: 0) / pw) })
                 })
         }
+        // The year's first deaths of hunger, case by case ([HexGroups.hungerCases]).
+        println("hunger deaths of bands, the year's first $HUNGER_CASES band-steps with one (the band as it starved, after the step's deaths): " +
+            groups.hungerCases.joinToString(" | ").ifEmpty { "none" })
+        groups.hungerCases.clear()
         // Hungry bands that moved camp against hungry bands that stayed, by what their larders held then ([moveCensus]).
         println("hungry bands that moved camp against those that stayed, last year (fed under ${(100 * HUNGRY_BEFORE).roundToInt()}% of the need over the $MOVE_WEEKS weeks before, by the larder then; followed $MOVE_WEEKS weeks: bands entering; share of the need eaten; hunger and all deaths per 1000 a year): " +
             Tally.HungryCohort.entries.joinToString(", ") { c ->

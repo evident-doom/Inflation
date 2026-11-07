@@ -161,6 +161,16 @@ object Hazards {
     /** The share of animals of [s] that drown swimming [gapKm] of open water, before any cap. */
     fun drowning(s: Species, gapKm: Float) = DROWN * gapKm / Catalogue.swimKm(s).coerceAtLeast(1f)
 
+    /**
+     * Thirst over a step of [ticks] ticks that ends [dry] days without water, [added] of them gone this step: each tick's
+     * odds as its dry days stood then, compounded.
+     */
+    fun thirstOver(s: Species, dry: Float, added: Float, ticks: Int): Float {
+        var live = 1f
+        for (j in 0 until ticks) live *= 1f - thirst(s, dry - added * (ticks - 1 - j) / ticks)
+        return 1f - live
+    }
+
     /** Thirst, after [dry] days without water. */
     fun thirst(s: Species, dry: Float) = if (dry > s.daysWithoutWater) min(0.5f, 0.05f * (dry - s.daysWithoutWater)) else 0f
 }

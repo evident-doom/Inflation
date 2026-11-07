@@ -344,10 +344,12 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             // litter, and so do the leaves, stems and roots they renew: production beyond the stand's net growth, shed as it is made.
             val lost = max(0f, before - biomass(p) - burned + grew)
             val turnover = years * (herb[p] + SHRUB_RENEWAL * shrub[p] + TREE_RENEWAL * tree[p])
-            litterfall[p] = lost + turnover
+            // (Over a step of several ticks it adds up for the soil, which takes it in once a step: [HexLand.firstTick].)
+            val fell = lost + turnover
+            litterfall[p] = if (land.firstTick) fell else litterfall[p] + fell
             if (books != null) {
                 val m2 = land.areaM2[p].toDouble()
-                grewBook!!.add((grew + turnover) * m2); burntBook!!.add(-burned * m2); fellBook!!.add(-litterfall[p] * m2)
+                grewBook!!.add((grew + turnover) * m2); burntBook!!.add(-burned * m2); fellBook!!.add(-fell * m2)
             }
             trample(p, years, fellBook)
             // The young growth matures as it grows, over [FLUSH_WEEKS] of full growth; the black scar itself fades over years.
@@ -376,7 +378,8 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             // (What is beaten down falls into the litter.)
             litterfall[p] += beaten; fellBook?.add(-beaten * land.areaM2[p].toDouble())
             trails[p] = min(1f, trails[p] + TRAIL_WEAR * tr * (1f - trails[p]))
-            trampling[p] = 0f
+            // (The residents' week of trampling, set once a step, beats down each tick of it: [HexLand.lastTick].)
+            if (land.lastTick) trampling[p] = 0f
         } else if (trails[p] > 0f) trails[p] = max(0f, trails[p] - TRAIL_FADE * years)
     }
 

@@ -125,9 +125,11 @@ internal fun HexSmallLife.takeSwitching(p: Place, want: Float, most: Float, stoc
  */
 fun HexSmallLife.catchSmallIn(p: Place, want: Kg, sweptKm2: Float, weather: Weather): Kg {
     val area = land.areaKm2[p]
-    val searched = min(sweptKm2, area)
+    // (Over a step of several ticks the ground is searched again each tick, as much as its area each, and half of the
+    // small game on what was searched is had each tick: compounded over the ticks, as the game is not much replaced within a step.)
+    val searched = if (ticks == 1) min(sweptKm2, area) else min(sweptKm2 / ticks, area)
     if (want.v <= 0f || searched <= 0f) return Kg.ZERO
-    return catchSmall(p, want.perKm2(area), weather, 0.5f * searched / area).over(area)
+    return catchSmall(p, want.perKm2(area), weather, overTicks(0.5f * searched / area)).over(area)
 }
 
 /** A scavenger searching [sweptKm2] of place [p] takes up to [want] of carrion, at most half of what lies on the ground it searched; returns what was taken. */

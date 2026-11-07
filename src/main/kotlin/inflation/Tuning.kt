@@ -53,6 +53,21 @@ class Tuning(
      */
     val startDay = i("startDay", START_DAY).also { require(it in 0 until DAYS_PER_YEAR) { "t.startDay is $it: a day of the year, 0-359" } }
     /**
+     * Days a step of the slow parts covers (the residents, small life, water life and the groups), while the weather, the
+     * water and the plants keep their tick ([inflation.world.WorldConfig.daysPerStep], 6) through it: a whole number of
+     * ticks, dividing a 30-day month or a whole number of months; 0 for one tick, the model as it was. Under construction
+     * (the variable-step plan, design/2026-11-07-variable-step-plan.md in the project files): above one tick the slow parts
+     * do not yet cover their step whole.
+     */
+    val stepDays = i("stepDays", 0).also { require(it == 0 || (it > 0 && (DAYS_PER_MONTH % it == 0 || it % DAYS_PER_MONTH == 0))) { "t.stepDays is $it: 0, or days that divide a 30-day month or are whole months" } }
+    /**
+     * How far a group's net shift over a step of several ticks reaches, as the ticks raised to this power: the reach of one
+     * tick's shift ([inflation.ecology.SHIFT_DAYS]) times ticks^stepReach. 1, as far as that many ticks' shifts end to end (a
+     * march held to one bearing); 0.5, as far as that many shifts on bearings that do not hold (a wander); 0, one tick's shift
+     * for the whole step. No effect at one tick a step.
+     */
+    val stepReach = f("stepReach", 0.5f).also { require(it in 0f..1f) { "t.stepReach is $it: 0-1" } }
+    /**
      * A world begun once farming is known: the share of people's bands that start as villages on the best farm ground
      * (houses standing, grain stored and sown, the ways of living in houses known: [inflation.ecology.startVillages]); 0, none.
      */

@@ -22,8 +22,10 @@ import inflation.min
 import inflation.world.HexLand
 import inflation.world.LifeForm
 import inflation.world.Weather
+import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.pow
 
 // The residents' feeding: every kind's share of each place's plants, its animal food, the protein in what it ate, and what the eaters do to the place.
 
@@ -62,7 +64,8 @@ private fun HexFauna.smallFood(k: FaunaKind, p: Place, want: KgM2, weather: Weat
     if (want.v <= 0f) return KgM2.ZERO
     val roots = kinds[k].diet.roots > 0f
     val dug = if (roots) small.digGrubs(p, want.perKm2).perM2 else KgM2.ZERO
-    return dug + small.catchSmall(p, (want - dug).perKm2, weather, who = Taker.kind(k.i), style = if (roots) SmallHunt.ROOT else SmallHunt.STALK).perM2
+    // (At most half of the small game there a tick ([catchSmall]): over a step of several ticks, compounded.)
+    return dug + small.catchSmall(p, (want - dug).perKm2, weather, most = small.overTicks(0.5f), who = Taker.kind(k.i), style = if (roots) SmallHunt.ROOT else SmallHunt.STALK).perM2
 }
 
 /**
@@ -81,7 +84,8 @@ internal fun HexFauna.graze(weather: Weather) {
         // grazed alike (the steppe's herds live through the dry season on its standing hay). What makes the dry
         // season lean is the hay itself: poor in nourishment and protein, weathering away and not growing back
         // until the rains. Supply against demand:
-        val reach = REACH
+        // (A week's reach a tick: over a step of several ticks, what they can take of it compounds, 1 - (1 - REACH)^ticks.)
+        val reach = overTicks(REACH)
         // (Only the edible share of the plants, see [HexLand.palatable].)
         val grass = reach * land.palatable[p] * land.plants.herb[p]; val browse = land.plants.browse(p)
         // (Browse is the shoots the shrubs and trees put out within reach, see [HexPlants.shrubShoots].)
@@ -132,7 +136,7 @@ private fun HexFauna.eatPlants(p: Place, weather: Weather, grass: Float, browse:
         var grass3 = 0f; var browse3 = 0f
         if (b.got >= want && reserve[k][p] < s.maxFatDays) {
             // (In energy, as [forage] works: see [Species.needScale].)
-            val extra = SURPLUS_EAT * want / s.needScale
+            val extra = surplusShare(FaunaKind(k), p) * want / s.needScale
             if (d.grass > 0f) grass3 = z.grass(underSnow * extra / quality * d.grass / (d.grass + d.browse).coerceAtLeast(1e-6f))
             if (d.browse > 0f) browse3 = z.browse(extra / quality * d.browse / (d.grass + d.browse).coerceAtLeast(1e-6f))
             z.surplus[k] = (grass3 + browse3) * quality * s.needScale / want
@@ -158,7 +162,7 @@ private fun HexFauna.feedKinds(p: Place, weather: Weather, z: Grazing, ff: Doubl
         val eaten = z.ateKg[k]
         if (eaten > 0f) {
             val ps = plantShare(s)
-            protein[k][p] += (proteinMet(ps * z.proteinKg[k] / eaten + (1f - ps)) - protein[k][p]) * PROTEIN_MEMORY
+            protein[k][p] += (proteinMet(ps * z.proteinKg[k] / eaten + (1f - ps)) - protein[k][p]) * overTicks(PROTEIN_MEMORY)
         }
         val sleeping = asleep(k, p)
         var f = if (sleeping) {
@@ -179,6 +183,8 @@ private fun HexFauna.feedKinds(p: Place, weather: Weather, z: Grazing, ff: Doubl
                 val part = if (z.got[k] > 0f) min(1f, z.got[k]) * ps * heads / z.got[k] else 0f
                 ff[i + Fed.FRUIT.ordinal] += (z.gotFruit[k] * part).toDouble(); ff[i + Fed.UNDERGROUND.ordinal] += (z.gotUnder[k] * part).toDouble()
                 ff[i + Fed.ANIMAL.ordinal] += (min(1f, animal) * (1f - ps) * heads).toDouble(); ff[i + Fed.HEADS.ordinal] += heads.toDouble()
+                ff[i + Fed.MEAT.ordinal] += (z.gotMeat[k.i] * heads).toDouble(); ff[i + Fed.SMALL_PREY.ordinal] += (z.gotSmall[k.i] * heads).toDouble()
+                ff[i + Fed.CARRION.ordinal] += (z.gotCarrion[k.i] * heads).toDouble()
             }
             // (Animal food beyond its share makes up for plants that fell short.)
             (z.got[k] * ps + animal * (1f - ps)).coerceIn(0f, 1f)
@@ -197,11 +203,24 @@ private fun HexFauna.feedKinds(p: Place, weather: Weather, z: Grazing, ff: Doubl
         fed[k][p] = f
         val fm = fedByMonth[k]; val i = p.i * 12 + weather.date.month
         // (What the young would be born to: food, and the protein their mothers' milk and their growth need.)
-        fm[i] += (fed[k][p] * protein[k][p] - fm[i]) * FED_MEMORY
+        fm[i] += (fed[k][p] * protein[k][p] - fm[i]) * overTicks(FED_MEMORY)
         // Laying on fat for the winter: how well fed through late summer and autumn.
-        if (s.hibernates && weather.date.month in 7..11 && !asleep(k, p)) autumnFed[k][p] += (fed[k][p] - autumnFed[k][p]) * 0.2f
+        if (s.hibernates && weather.date.month in 7..11 && !asleep(k, p)) autumnFed[k][p] += (fed[k][p] - autumnFed[k][p]) * overTicks(0.2f)
         t = Profile.kindLap("residents: feeding", s.name, t)
     }
+}
+
+/**
+ * The share of its need beyond the need a fed resident of kind [k] at place [p] eats to lay on fat: [SURPLUS_EAT]; over a
+ * step of several ticks, as many ticks' worth as it would have eaten tick by tick: a tick's surplus each tick its reserves
+ * were short of [Species.maxFatDays] (the body it burnt won back first, as [graze] lays it on), so a whole tick's even when a
+ * little filled them, as week by week, but not a whole step's on reserves a few days short of full.
+ */
+private fun HexFauna.surplusShare(k: FaunaKind, p: Place): Float {
+    if (clock.ticks == 1) return SURPLUS_EAT
+    val room = max(0f, kinds[k].maxFatDays - reserve[k][p] + spent[k][p])
+    val ticksShort = ceil(room / (FAT_EFFICIENCY * SURPLUS_EAT * clock.tickDays)).coerceIn(1f, clock.ticks.toFloat())
+    return SURPLUS_EAT * ticksShort / clock.ticks
 }
 
 /**
@@ -252,7 +271,8 @@ private fun HexFauna.animalFood(k: FaunaKind, p: Place, weather: Weather, z: Gra
         }
         // With its need met and reserves short, it eats more and lays the surplus on (as from plants).
         if (gap <= 0f && reserve[k][p] < s.maxFatDays) {
-            var more = SURPLUS_EAT * animalNeed
+            // (Over a step of several ticks, no more than lays on what the reserves still have room for: [surplusShare].)
+            var more = if (clock.ticks == 1) SURPLUS_EAT * animalNeed else min(SURPLUS_EAT * animalNeed, max(0f, surplusShare(k, p) - surplus[k]) * needAll)
             val moreMeat = min(more, most * d.meat - gotMeat)
             if (moreMeat > 0f) { val x = huntResidents(k, p, KgM2(moreMeat * avail[k]), weather, huntDays).v; surplus[k] += x / needAll; more -= x }
             val moreSmall = min(more, most * d.smallPrey - gotSmall)
@@ -260,6 +280,7 @@ private fun HexFauna.animalFood(k: FaunaKind, p: Place, weather: Weather, z: Gra
                 ateBook?.add(-x * land.areaM2[p].toDouble()) }
         }
         animal = (gotMeat + gotSmall + gotCarrion + gotBones) / animalNeed
+        z.gotMeat[k.i] = gotMeat / needAll; z.gotSmall[k.i] = gotSmall / needAll; z.gotCarrion[k.i] = (gotCarrion + gotBones) / needAll
         small.deposit(DeadPool.DUNG, p, KgM2(HexSmallLife.DUNG * (gotMeat + gotSmall + gotCarrion + bonesKg)))
         if (ateBook != null) { val m2 = land.areaM2[p].toDouble()
             ateBook!!.add(-(gotSmall + gotCarrion + bonesKg) * m2); droppedBook!!.add(HexSmallLife.DUNG * (gotMeat + gotSmall + gotCarrion + bonesKg) * m2) }
@@ -281,7 +302,9 @@ private fun HexFauna.placeEffects(p: Place, grass: Float, browse: Float, z: Graz
         land.plants.eatBrowse(p, KgM2(eatB)).v +
         ate + dug
     // Fruit-eaters drop the seed where they go: shrubs and trees come up away from any parent.
-    land.plants.animalSeed[p] = min(1f, land.plants.animalSeed[p] * SEED_KEEP + ate * 1e6f / SEED_KG)
+    // (Over a step of several ticks the seed is dropped tick by tick and fades as it would each tick: S k^n + I (1 - k^n) / (1 - k), I a tick's.)
+    land.plants.animalSeed[p] = min(1f, if (clock.ticks == 1) land.plants.animalSeed[p] * SEED_KEEP + ate * 1e6f / SEED_KG
+        else SEED_KEEP.pow(clock.ticks).let { kn -> land.plants.animalSeed[p] * kn + ate * 1e6f / SEED_KG / clock.ticks * (1f - kn) / (1f - SEED_KEEP) })
     // Their feet beat down the plants and wear paths: tonnes of animal going about the place.
     var tonnes = 0f
     for ((k, s) in kinds.withKinds()) tonnes += (adults[k][p] + young[k][p]) * s.massKg / 1000f

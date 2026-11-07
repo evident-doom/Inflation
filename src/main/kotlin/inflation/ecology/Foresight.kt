@@ -59,8 +59,8 @@ internal fun HexGroups.foreseenSurvival(g: HexGroup, b: Band, weather: Weather):
  */
 internal fun HexGroups.houseLeft(g: HexGroup, b: Band, weather: Weather): Float {
     val stay = b.plannedStay()
-    val away = stay / stepsPerYear
-    val years = keepYears(b, stepsPerYear)
+    val away = stay / ticksPerYear
+    val years = keepYears(b, ticksPerYear)
     val kgYear = houseFoodAYear(g, b, g.place, weather) * g.size
     val weathered = min(1f, HOUSE_DECAY * away)
     val kg = b.house * kgYear * (away + weathered * max(0f, years - away))
@@ -104,9 +104,9 @@ internal fun HexGroups.yearAhead(g: HexGroup, b: Band, weather: Weather, shelter
     // moved yet, or keeps its camp a year and more, moves in none.)
     val moves = BooleanArray(Date.MONTHS_PER_YEAR)
     if (!b.campPlace.none) {
-        val stay = max(1f, b.stayWeeks); val perMonth = stepsPerYear / Date.MONTHS_PER_YEAR
+        val stay = max(1f, b.stayWeeks); val perMonth = ticksPerYear / Date.MONTHS_PER_YEAR
         var week = max(1f, stay - b.campWeeks)
-        while (week < stepsPerYear) { moves[(week / perMonth).toInt().coerceAtMost(Date.MONTHS_PER_YEAR - 1)] = true; week += stay }
+        while (week < ticksPerYear) { moves[(week / perMonth).toInt().coerceAtMost(Date.MONTHS_PER_YEAR - 1)] = true; week += stay }
     }
     return YearAhead(odds, fed, spread, foodCarried(g, b) / g.dailyNeedKg.coerceAtLeast(1e-3f), moves)
 }

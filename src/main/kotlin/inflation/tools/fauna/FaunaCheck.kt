@@ -14,13 +14,14 @@ import inflation.run.Nominal
  * week by week through the tallies; [Diagnostics] adds the lines the config asks for.
  */
 class FaunaCheck(private val sim: HexSim, private val options: FaunaCheckOptions) {
-    private val stepsPerYear = options.cfg.stepsPerYear
+    private val stepsPerYear = sim.stepsPerYear
     private val census = Census(sim)
     private val deaths = DeathTally(sim)
     private val hunting = HuntTally(sim)
     private val movement = MovementTally(sim)
     private val people = PeopleTally(sim, stepsPerYear)
     private val swings = LocalSwings(sim, stepsPerYear)
+    private val stepLength = StepLengthTally(sim)
     private val diagnostics = Diagnostics(sim)
     private val history = HexHistory()
     /** Time spent in the steps themselves, ns. */
@@ -31,7 +32,7 @@ class FaunaCheck(private val sim: HexSim, private val options: FaunaCheckOptions
         if (options.years == 0) { options.saveFile?.let { HexSnapshot.save(sim, it) }; return }
         printStart()
         for (y in 1..options.years) {
-            deaths.startYear(); hunting.startYear(); movement.startYear(); people.startYear()
+            deaths.startYear(); hunting.startYear(); movement.startYear(); people.startYear(); stepLength.startYear()
             repeat(stepsPerYear) { w -> week(y, w) }
             yearEnd(y)
         }
@@ -62,7 +63,7 @@ class FaunaCheck(private val sim: HexSim, private val options: FaunaCheckOptions
         val t0 = System.nanoTime()
         sim.step()
         stepNs += System.nanoTime() - t0
-        hunting.week(); movement.week(w); people.week(); swings.week(); deaths.week()
+        hunting.week(); movement.week(w); people.week(); swings.week(); deaths.week(); stepLength.week()
         diagnostics.afterStep()
         if (options.historyFile != null) history.record(sim)
     }
@@ -90,6 +91,7 @@ class FaunaCheck(private val sim: HexSim, private val options: FaunaCheckOptions
         hunting.printPeoplesHides()
         movement.printSeasons()
         census.printChoices()
+        stepLength.printYear()
         census.printHurricaneTest(hunting.meetingsYear)
         census.printHuntersFamilies(hunting.meetingsYear)
         census.printKillsStolen(hunting.meetingsYear)
@@ -98,6 +100,16 @@ class FaunaCheck(private val sim: HexSim, private val options: FaunaCheckOptions
         census.printIdentity(hunting.year, hunting.meetingsYear)
         people.printAgainstTheRecord(deaths, hunting)
         deaths.printResidentDeathsThisYear()
+        // (Of the disease deaths, the outbreaks'; and how crowded each kind lived, head-weighted, as its deaths went by.)
+        println("     residents' outbreak deaths this year (heads) / crowding squared, head-weighted mean at the deaths: " + fauna.kinds.indices.joinToString(", ") { k ->
+            val b = fauna.sickBook; val ob = b[3 * k].sumThenReset(); val h = b[3 * k + 1].sumThenReset(); val c2 = b[3 * k + 2].sumThenReset()
+            "%s %.0f / %.3f".format(fauna.kinds[k].name, ob, c2 / h.coerceAtLeast(1e-9)) })
+        // (Which resident hunters killed which residents this year, heads, the largest pairs first.)
+        val nk = fauna.kinds.size
+        val pairs = (0 until nk * nk).map { Triple(it, fauna.killsByHunter[2 * it].sumThenReset(), fauna.killsByHunter[2 * it + 1].sumThenReset()) }
+            .filter { it.second + it.third >= 1.0 }.sortedByDescending { it.second + it.third }
+        println("     residents killed by resident hunters this year, hunter > prey heads (of them young): " + pairs.take(30).joinToString(", ") { (i, a, y) ->
+            "${fauna.kinds[i / nk].name} > ${fauna.kinds[i % nk].name} %.0f (%.0f)".format(a + y, y) })
         println("     droughts under way: " + sim.weather.droughts())
         println("     fires this year: " + sim.land.fire.yearReport())
         hunting.endYear()

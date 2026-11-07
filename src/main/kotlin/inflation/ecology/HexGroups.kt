@@ -60,12 +60,12 @@ import kotlin.math.sqrt
  * rivals. Young are born in season, the hungry and the old die, and groups too big for their food split.
  */
 class HexGroups(
-    hw: HexWorld, land: HexLand, fauna: HexFauna, days: Int, seed: Long,
+    hw: HexWorld, land: HexLand, fauna: HexFauna, seed: Long,
     /** The kinds that live as groups here (default: the hunting packs and people). */
     kindsHere: List<Species>? = null,
     /** Start every kind spread evenly over the land, wherever it suits it or not (to see them find their country). */
     uniformStart: Boolean = false,
-) : GroupWorld(hw, land, fauna, days, seed) {
+) : GroupWorld(hw, land, fauna, seed) {
     val groups = ArrayList<HexGroup>()
     /**
      * The lore of the land's months: for each place and month of the year, the forage yield bands camped there found in that
@@ -76,6 +76,8 @@ class HexGroups(
     val yieldLore = FloatArray(land.n * Date.MONTHS_PER_YEAR) { Float.NaN }
     /** The storms of the hurricane test, made at the first week when `t.hurricane` asks for any (not saved: a run from a save sets them down afresh). */
     @Transient internal var hurricanes: HexHurricane? = null
+    /** For the census: the first [HUNGER_CASES] band-steps of the year with a death of hunger, each as a line of its state ([bookOutcome]); the census empties it. */
+    @Transient internal val hungerCases = ArrayList<String>()
     /** The recruiters of the same test, which roam as the storms do but give: made at the first week when `t.recruiters` asks for any. */
     @Transient internal var recruiters: HexHurricane? = null
     /** The step each band last took recruits (not saved: a band that splits, or a run from a save, may take them again sooner). */
@@ -471,7 +473,7 @@ class HexGroups(
     }
 
     /** Whether band group [g] may take recruits now: it has not for a year. */
-    internal fun mayRecruit(g: HexGroup): Boolean = recruitedAt[g.id]?.let { stepNow - it >= stepsPerYear } ?: true
+    internal fun mayRecruit(g: HexGroup): Boolean = recruitedAt[g.id]?.let { stepNow - it >= ticksPerYear } ?: true
 
     /**
      * Band [g] ends its move where a recruiter stands: it gains a share of its grown people (at least two) as first-span adults, and
@@ -793,6 +795,6 @@ internal fun GroupWorld.learnPlants(b: Band, h: Hex) {
     var w = 0f
     for (k in Biome.entries) w += hw.biome[k.ordinal][h]
     if (w <= 0f) return
-    for (k in Biome.entries) { val share = hw.biome[k.ordinal][h] / w; if (share > 0f) b.plants[k] += PLANT_LEARN * share * (1f - b.plants[k]) }
+    for (k in Biome.entries) { val share = hw.biome[k.ordinal][h] / w; if (share > 0f) b.plants[k] += overTicks(PLANT_LEARN * share) * (1f - b.plants[k]) }
 }
 

@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.world.StepClock
 import inflation.Par
 import inflation.Part
 import inflation.world.Hex
@@ -21,6 +22,7 @@ import inflation.world.HexLand
 import inflation.world.HexWorld
 import inflation.world.RiverClass
 import inflation.world.Weather
+import kotlin.math.pow
 import kotlin.math.exp
 import kotlin.math.hypot
 import kotlin.math.max
@@ -49,12 +51,14 @@ import java.util.concurrent.atomic.DoubleAdder
  *
  * Units: plankton and nutrients g/m², fish and animals kg/km² of water.
  */
-class HexWater(private val hw: HexWorld, private val land: HexLand, private val days: Int, private val small: HexSmallLife) {
+class HexWater(private val hw: HexWorld, private val land: HexLand, @Transient private val clock: StepClock, private val small: HexSmallLife) {
+    /** Days the step covers ([StepClock]). */
+    private val days get() = clock.days
     private val hex = hw.hex
     private val world = hw.world
     private val size = hex.size
     private val hexKm2 = hex.areaKm2.toFloat()
-    private val years = Date.years(days)
+    private val years get() = clock.years
 
     /** Open water in each hex, km²: sea, and lake (fresh or closed). */
     @Transient val seaKm2 = FloatArray(size) { hw.sea[it] * hexKm2 }
@@ -314,7 +318,8 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
                     val u = weather.windEast(wp); val vS = weather.windSouth(wp)
                     val driftE = -vS; val driftS = u // the wind turned a quarter to the right
                     val off = max(0f, driftE * offE[h] + driftS * offS[h]) / UPWELL_WIND
-                    upwelling[h] += (min(1f, off) - upwelling[h]) / UPWELL_WEEKS
+                    upwelling[h] += if (clock.ticks == 1) (min(1f, off) - upwelling[h]) / UPWELL_WEEKS
+                        else (min(1f, off) - upwelling[h]) * (1f - (1f - 1f / UPWELL_WEEKS).pow(clock.ticks))
                 }
                 val t = waterTemp[month][h]
                 val mixing = if (t < 14f) 0.25f else if (t < 20f) 0.08f else 0.02f
@@ -669,7 +674,17 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
             if (left <= 0f || areaKm2 <= 0f) return
             val s = stock[q] * areaKm2
             if (s <= 0f) return
-            val t = min(0.5f * s, left * s / (s + left * search / skill))
+            // (Over a step of several ticks, tick by tick: each tick's want of what is still wanted, from what is left, as
+            // [fishWithin] reckons the most; one tick's take of the step's whole want would level off at a week's.)
+            val t = if (clock.ticks == 1) min(0.5f * s, left * s / (s + left * search / skill)) else {
+                var got = 0f
+                for (j in 0 until clock.ticks) {
+                    val want = (left - got) / (clock.ticks - j); val ss = s - got
+                    if (want <= 0f || ss <= 0f) break
+                    got += min(0.5f * ss, want * ss / (ss + want * search / skill))
+                }
+                got
+            }
             stock[q] -= t / areaKm2; left -= t
             fishFlows.merge(flow, t / 1000.0, Double::plus)
         }
@@ -692,7 +707,9 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         val landKm2 = max(1f, hw.land[h] * hexKm2)
         fun most(stock: FloatArray, q: Hex, areaKm2: Float, search: Float): Float {
             val s = stock[q] * areaKm2
-            return if (s > 0f) min(0.5f * s, s * skill / search) else 0f
+            // (A tick's catch is a share of what swims there; over a step of several ticks, that share of what is left each tick.)
+            return if (s <= 0f) 0f else if (clock.ticks == 1) min(0.5f * s, s * skill / search)
+                else s * (1f - (1f - min(0.5f, skill / search)).pow(clock.ticks))
         }
         val fish0 = what == Catch.FISH || what == Catch.ALL; val shell = what == Catch.SHELLFISH || what == Catch.ALL
         var kg = 0f
@@ -724,13 +741,13 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
      */
     fun weirWithin(h: Hex, blocked: Float): Float {
         if (blocked <= 0f) return 0f
-        return pennedFor(h, blocked) + blocked * WEIR_RIVER_SHARE * riverFish[h] * max(1f, hw.land[h] * hexKm2)
+        return pennedFor(h, blocked) + blocked * weirRiverShare() * riverFish[h] * max(1f, hw.land[h] * hexKm2)
     }
 
     /** What a weir across [blocked] of the river in hex [h] would take this week at most, kg, where none stood ([weirWithin]): the share of the run passing up that it would stop. */
     fun weirWouldTake(h: Hex, blocked: Float): Float {
         if (blocked <= 0f) return 0f
-        return blocked * (WEIR_RUN_SHARE * passing[h] + WEIR_RIVER_SHARE * riverFish[h] * max(1f, hw.land[h] * hexKm2))
+        return blocked * (WEIR_RUN_SHARE * passing[h] + weirRiverShare() * riverFish[h] * max(1f, hw.land[h] * hexKm2))
     }
 
     /** The run's fish that came up to hex [h] this week bound for the river above it, kg (for the census). */
@@ -748,6 +765,9 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
     }
 
     /** The run's fish held below the weirs in hex [h] that weirs across [blocked] of the river there hold, kg: their share of what all of them stop. */
+    /** The share of the river's own fish a weir holds back in a step: [WEIR_RIVER_SHARE] a tick, compounded over the step's ticks. */
+    private fun weirRiverShare() = if (clock.ticks == 1) WEIR_RIVER_SHARE else 1f - (1f - WEIR_RIVER_SHARE).pow(clock.ticks)
+
     private fun pennedFor(h: Hex, blocked: Float) = if (weirBlock[h] > 0f) penned[h] * min(1f, blocked / weirBlock[h]) else 0f
 
     /** People emptying the traps of a weir across [blocked] of the river in hex [h]: takes up to [kg] of [weirWithin]; returns kg caught. */
@@ -755,7 +775,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, private val 
         val most = weirWithin(h, blocked)
         if (most <= 0f || kg <= 0f) return 0f
         val share = min(kg, most) / most
-        val fromRun = share * pennedFor(h, blocked); val fromRiver = share * blocked * WEIR_RIVER_SHARE * riverFish[h]
+        val fromRun = share * pennedFor(h, blocked); val fromRiver = share * blocked * weirRiverShare() * riverFish[h]
         penned[h] -= fromRun; riverFish[h] -= fromRiver
         val got = fromRun + fromRiver * max(1f, hw.land[h] * hexKm2)
         fishFlows.merge(WEIR_FLOW, got / 1000.0, Double::plus)

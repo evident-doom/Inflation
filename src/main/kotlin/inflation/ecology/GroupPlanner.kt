@@ -104,7 +104,8 @@ internal class GroupPlanner(internal val gs: HexGroups) {
         val capture = gs.control != null && g.id == gs.watched
         // (A band goes at the pace of its slowest: the old, the sick and the lamed hold it back.)
         val weak = weakShare(g)
-        val reach = (if (restless) s.maxDailyTravelKm else s.dailyTravelKm) * SHIFT_DAYS * (1f - WEAK_SLOW * weak) *
+        // (A step of several ticks reaches as far as their shifts would ([Tuning.stepReach]).)
+        val reach = (if (restless) s.maxDailyTravelKm else s.dailyTravelKm) * SHIFT_DAYS * gs.stepShift * (1f - WEAK_SLOW * weak) *
             (if (s.human) 1f / (1f + COVER_GOING * gs.land.plants.cover(g.place)) else 1f)
         val kind = gs.kindSlot[s.index]
         // Least effort to each hex within reach.

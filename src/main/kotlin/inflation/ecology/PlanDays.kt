@@ -199,7 +199,7 @@ private fun HexGroups.planRates(g: HexGroup, b: Band, weather: Weather, perDay: 
     // (The viewer: whether its houses may ask days at all ([buildHouse]'s gates), and the houses that stand here and who uses them.)
     look?.let { l -> houseGates(g, b).forEach { (k, v) -> l.note(HOUSES, k, v) } }
     if (houses) {
-        val years = keepYears(b, stepsPerYear)
+        val years = keepYears(b, ticksPerYear)
         // (The food a whole house would have saved it a person a year as it lived its weeks ([Band.houseFood]: keeping warm,
         // stores kept from spoiling, less to raiders and to mice), or at the place's usual cold if more ([houseFoodAYear]:
         // a band new to a place has lived few weeks there).)
@@ -233,7 +233,7 @@ private fun HexGroups.planRates(g: HexGroup, b: Band, weather: Weather, perDay: 
         // ([Band.weirFood]) would have taken at [perDay], less the days its traps want ([Band.weirTend]) and its mending
         // ([WEIR_WEAR] of it a year), over the years it and its heirs expect to keep the place, against its building.)
         val whole = weirLengthM(hw.placeHex[g.place]) * WEIR_DAYS_PER_M
-        val years = keepYears(b, stepsPerYear)
+        val years = keepYears(b, ticksPerYear)
         val aYear = (if (perDay > 0f) b.weirFood / perDay else 0f) - b.weirTend - WEIR_WEAR * whole
         rate[WEIRS] = if (whole > 0f) aYear * years / whole else 0f
         look?.let { l ->
@@ -360,7 +360,7 @@ private const val CROP_KEPT_WEEKS = 26f
  * expects to keep the place ([keepYears]). (Not weighed: partners less readily exchanged, [Regard.weds], and trust.)
  */
 private fun HexGroups.livingAgainstDays(g: HexGroup, b: Band) =
-    b.raidDeathRate * g.size * CUSTOMS_HOSTILITY / CUSTOMS * DEATH_DAYS * keepYears(b, stepsPerYear)
+    b.raidDeathRate * g.size * CUSTOMS_HOSTILITY / CUSTOMS * DEATH_DAYS * keepYears(b, ticksPerYear)
 
 /** Person-days a death costs a band: a person's working generation ([GENERATION_YEARS] of days). An estimate. */
 private const val DEATH_DAYS = GENERATION_YEARS * 365f
@@ -423,7 +423,7 @@ private fun HexGroups.toolRates(g: HexGroup, b: Band, perDay: Float, skip: Tool?
             Tool.BOW -> more(meatKg, 1f + 0.5f * BOW_GAIN * k, 1f + 0.5f * BOW_GAIN)
             Tool.NET -> more(netKg, 1f + NET_GAIN * k, 1f + NET_GAIN)
         }
-        val lasts = (1f / t.wearPerYear).let { if (t.heavy) min(it, keepYears(b, stepsPerYear)) else it }
+        val lasts = (1f / t.wearPerYear).let { if (t.heavy) min(it, keepYears(b, ticksPerYear)) else it }
         val whole = t.makeDays * people / b.makeSkill(t).coerceAtLeast(1e-3f)
         val over = aYear / (1f - k) * lasts / whole
         if (TOOL_TRACE.wants(g.id.toLong(), b.campWeeks.toLong(), part = t.ordinal.toLong()))
@@ -464,7 +464,7 @@ private fun HexGroups.gruelRate(g: HexGroup, b: Band, look: DaysLook? = null): P
     val seed = min(1f, b.toolWork[ToolWork.SEED_FOOD] / (WEANING_SHARE * g.dailyNeedKg * Date.DAYS_PER_YEAR).coerceAtLeast(1e-3f))
     val perMother = g.species.youngPerFemale * HUMAN_BIRTHS * tuning.humanBirths
     val births = mothersIn(g) * perMother * (birthSpacing(b, b.gruel(1f) * seed) - birthSpacing(b, b.gruel(k) * seed))
-    val lasts = min(1f / t.wearPerYear, keepYears(b, stepsPerYear))
+    val lasts = min(1f / t.wearPerYear, keepYears(b, ticksPerYear))
     val whole = (1f - k) * t.makeDays * people / b.makeSkill(t).coerceAtLeast(1e-3f)
     val rate = births * lasts / whole
     look?.let { l ->

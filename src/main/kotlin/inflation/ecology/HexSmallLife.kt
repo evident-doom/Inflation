@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.world.StepClock
 import inflation.drawUnit
 import inflation.Par
 import inflation.Part
@@ -81,7 +82,13 @@ class BirdKind(
  *   animals in the open; they thrive where the crags and the game are, and dwindle where food fails.
  * - Fire kills what cannot flee. Every month each kind spreads a little to the places around.
  */
-class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, internal val days: Int) {
+class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, @Transient private val clock: StepClock) {
+    /** Days the step covers ([StepClock]). */
+    internal val days get() = clock.days
+    /** The step's ticks ([StepClock.ticks]). */
+    internal val ticks get() = clock.ticks
+    /** A share [perTick] taken or lost each tick (a week's), over the step's ticks: 1 - (1 - p)^ticks; itself at one tick a step. */
+    internal fun overTicks(perTick: Float) = if (clock.ticks == 1) perTick else 1f - (1f - perTick.coerceIn(0f, 1f)).pow(clock.ticks)
     internal val tuning get() = land.tuning
     val n = land.n
     /** Soil: litter and organic matter, kg/m²; carrion, kg/m²; soil animals, g/m². */
@@ -156,7 +163,7 @@ class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, interna
     /** Migrant birds leaving this week from each place, kg (summed in place order after the parallel loop, so the sum is the same on any number of cores). */
     internal val leaving = Array(BIRDS.size) { FloatArray(n) }
     private var lastMonth = -1
-    internal val years = Date.years(days)
+    internal val years get() = clock.years
     /**
      * For the books (see [Books]), this step, kg; null when they are not kept: what the small animals grew (born and
      * grown, from what they ate or from their rates), ate, and dropped as dung and frass.
@@ -280,7 +287,8 @@ class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, interna
                     // insects there are booming; the rest pass on and look again.
                     var draw = 0.0
                     for (p in land.places) draw += (birdCapacity(k, p) * boom(p) * land.areaKm2[p]).toDouble()
-                    if (draw > 0.0) { returning[k] = SETTLE * waiting[k] / draw; waiting[k] *= 1.0 - SETTLE }
+                    if (draw > 0.0) { val settle = if (clock.ticks == 1) SETTLE else 1.0 - (1.0 - SETTLE).pow(clock.ticks)
+                        returning[k] = settle * waiting[k] / draw; waiting[k] *= 1.0 - settle }
                     books?.flow(Books.Stuff.MATTER, "migrant birds beyond the map", -waiting[k] * b.deaths * years)
                     waiting[k] *= 1.0 - b.deaths * years
                 }
@@ -296,7 +304,7 @@ class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, interna
             stepBiting(p, active, soilWater, weather)
             stepRodents(p, t, food, snow)
             stepHerps(p, t, soilWater)
-            val b = land.fire.burning[p]
+            val b = land.fire.stepBurning[p]
             burnSmallLife(p, b)
             rodentRoom[p] *= 1f - RODENTS_BURNT * b
             stepPollinators(p, month, active)

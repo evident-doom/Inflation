@@ -322,7 +322,7 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
             stats.bookWeek(lived, g.size)
             if (g.path.size > 1) stats.book(lived, Tally.Bands.MOVES, 1)
             // (And those within a month of a camp move: what [Tally.starvedMoved] is set against.)
-            if (b.campWeeks * days < Date.DAYS_PER_MONTH) stats.tally(Tally.movedWeeks(b.mind), g.size)
+            if (b.campWeeks * (days / ticks) < Date.DAYS_PER_MONTH) stats.tally(Tally.movedWeeks(b.mind), g.size)
             // (And against what it foresaw in the year before: [bookCalibration].)
             for ((cause, k) in o.causes) if (k > 0) bookCalibration(b, cause, k)
             // (And against what it foresaw of the week's deaths as it chose its places, the weeks before: [bookWarning].)
@@ -331,6 +331,12 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
             bookUnlucky(g, b, way, o.deaths > 0)
             // (And its hunger deaths by what its larder held then, and whether it moved camp in the month before.)
             val starved = o.causes.sumOf { if (it.cause == DeathCause.HUNGER) it.n else 0 }
+            // (And the first of the year's, case by case, for the census: what the band had as it starved.)
+            if (starved > 0 && hungerCases.size < HUNGER_CASES) hungerCases += "band %d %s: %d starved of %d (%d grown) of %d dead; fed %.2f, fat %.1f d, protein burnt %.1f d; larder kg fresh %.0f dried %.0f seed %.0f roots %.0f fruit %.0f grease %.0f, need %.1f kg/d; path %d hexes, camp %d ticks, %.0f °C, %s".format(
+                g.id, weather.date, starved, g.size + o.deaths, g.adults, o.deaths, g.fed, g.fat, g.spent,
+                g.stores[Store.FRESH] * g.storeKgPer[Store.FRESH], g.stores[Store.DRIED] * g.storeKgPer[Store.DRIED], g.stores[Store.SEED] * g.storeKgPer[Store.SEED],
+                g.stores[Store.ROOTS] * g.storeKgPer[Store.ROOTS], g.stores[Store.FRUIT] * g.storeKgPer[Store.FRUIT], g.stores[Store.GREASE] * g.storeKgPer[Store.GREASE],
+                g.dailyNeedKg, g.path.size, b.campWeeks, weather.temperature[g.place], Biome.entries[biomeOfPlace[g.place]].label)
             // (And by how often it has moved camp lately, in the season: [moveCensus].)
             if (b.leanKey >= 0) {
                 val n = inflation.world.Season.entries.size
@@ -349,7 +355,7 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
             if (starved > 0) {
                 val larderDays = g.larder / (g.dailyNeedKg / g.warmth.coerceAtLeast(1e-3f)).coerceAtLeast(1e-3f)
                 stats.tally(Tally.starvedAt(b.mind, Tally.LarderAt.of(larderDays)), starved)
-                if (b.campWeeks * days < Date.DAYS_PER_MONTH) {
+                if (b.campWeeks * (days / ticks) < Date.DAYS_PER_MONTH) {
                     stats.tally(Tally.starvedMoved(b.mind), starved)
                     if (b.fedBeforeMove < HUNGRY_BEFORE) stats.tally(Tally.starvedMovedHungry(b.mind), starved)
                 }
@@ -474,7 +480,7 @@ private fun HexGroups.mournDead(g: HexGroup, o: Outcome, date: Date) {
     }
     // Where a beast took one of them, the band remembers the place as dangerous.
     if (s.human && o.causes.any { it.cause.isTakenBy() && it.n > 0 })
-        g.memory.mark(hw.placeHex[g.place], PlaceMemory.seasonOf(date.month), stepOf(date), stepsPerYear, g.memory.danger, 1f)
+        g.memory.mark(hw.placeHex[g.place], PlaceMemory.seasonOf(date.month), stepOf(date), ticksPerYear, g.memory.danger, 1f)
     if (s.human && o.deaths > 0) g.band?.takeIf { it.holds(Tradition.BURIAL) }?.let { b ->
         // Where it lays them by its way ([BurialWay]): where it camps, or carried to where most of its dead lie, if that is
         // within a day's walk ([BODY_CARRY_KM]); the digging and any carrying are owed of its customs' time.
@@ -487,7 +493,7 @@ private fun HexGroups.mournDead(g: HexGroup, o: Outcome, date: Date) {
         b.burialOwed += owed
         stats.meeting(Met.Of.CUSTOMS_DAYS_ASKED, CustomsPart.BURIALS.label, (10f * owed).roundToInt())
         if (at != camp) { stats.meeting(Met.BANDS_CARRIED_THEIR_DEAD); note(g) { "carried its dead to its ancestors at hex %d".format(at.i) } }
-        g.memory.mark(at, PlaceMemory.seasonOf(date.month), stepOf(date), stepsPerYear, g.memory.dead, o.deaths.toFloat())
+        g.memory.mark(at, PlaceMemory.seasonOf(date.month), stepOf(date), ticksPerYear, g.memory.dead, o.deaths.toFloat())
         land.burials[p] += o.deaths.toFloat()
         land.sanctity[p] += o.deaths.toFloat()
         // Ornaments go into the grave with them: the more a band has, the richer its graves.
@@ -780,7 +786,7 @@ internal fun GroupWorld.joinBand(into: HexGroup, from: HexGroup, week: Int) {
         into.stores[Store.SEED], from.stores[Store.SEED], into.id, from.id)
     into.fed += w * (from.fed - into.fed); into.fat += w * (from.fat - into.fat); into.spent += w * (from.spent - into.spent); into.bred += w * (from.bred - into.bred)
     for (i in Store.entries) addFood(into.stores, into.storeKgPer, i, from.stores[i], from.stores[i] * from.storeKgPer[i])
-    into.memory.hear(from.memory, week, stepsPerYear, 1f)
+    into.memory.hear(from.memory, week, ticksPerYear, 1f)
     // (Its cache is left: no one goes back for it.)
     dropCache(fromBand)
     from.mergedSize = from.size; from.mergedInto = into.id
@@ -804,7 +810,7 @@ internal fun HexGroups.remember(date: Date) {
         val h = hw.placeHex[g.place.i]
         if (g.band != null) for ((k, mat) in PlaceMemory.RARE.withIndex())
             finds[k] = mat.deposit?.let { min(1f, 5f * it(land)[g.place.i]) } ?: (if (hw.coast[h]) 1f else 0f)
-        g.memory.record(h, PlaceMemory.seasonOf(m), g.fed, land.drink.water[g.place.i], fauna.afraid(g.place), week, stepsPerYear,
+        g.memory.record(h, PlaceMemory.seasonOf(m), g.fed, land.drink.water[g.place.i], fauna.afraid(g.place), week, ticksPerYear,
             finds = if (g.band != null) finds else null)
     }
     for (g in groups) {
@@ -813,10 +819,13 @@ internal fun HexGroups.remember(date: Date) {
         // and a clearly better place takes its place.
         val fared = g.fed * (1f - g.deathOdds).pow(weeksAMonth)
         if (b.seasonPlace[m] < 0) { b.seasonPlace[m] = g.place.i; b.seasonQ[m] = fared }
-        else if (b.seasonPlace[m] == g.place.i) b.seasonQ[m] += 0.3f * (fared - b.seasonQ[m])
+        else if (b.seasonPlace[m] == g.place.i) b.seasonQ[m] += overTicks(0.3f) * (fared - b.seasonQ[m])
         else {
-            b.seasonQ[m] *= MEMORY_FADE
+            b.seasonQ[m] *= if (ticks == 1) MEMORY_FADE else MEMORY_FADE.pow(ticks)
             if (fared > b.seasonQ[m] + 0.1f) { b.seasonPlace[m] = g.place.i; b.seasonQ[m] = fared }
         }
     }
 }
+
+/** The hunger cases a year the census lists ([HexGroups.hungerCases]). */
+internal const val HUNGER_CASES = 30

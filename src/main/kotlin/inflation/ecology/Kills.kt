@@ -29,6 +29,9 @@ internal fun GroupWorld.catchable(s: Species, ps: Species, p: Place): Float = fa
  */
 internal fun GroupWorld.huntGround(g: HexGroup, km2: Float): HuntGround {
     val path = g.path; val area = land.areaKm2
+    // (Over a step of several ticks, ground searched one week has game on it again the next: a place holds as much
+    // search as its area each tick.)
+    val laps = ticks
     var places = IntArray(path.size + 6); var swept = FloatArray(path.size + 6); var m = 0
     fun indexOf(p: Int): Int { for (i in 0 until m) if (places[i] == p) return i; return -1 }
     fun add(p: Int, s: Float) {
@@ -41,7 +44,7 @@ internal fun GroupWorld.huntGround(g: HexGroup, km2: Float): HuntGround {
         val p = hw.placeNear(g.place, h).takeIf { !it.none } ?: continue
         val i = indexOf(p.i)
         val had = if (i >= 0) swept[i] else 0f
-        val s = min(area[p], had + share)
+        val s = min(area[p] * laps, had + share)
         over += had + share - s
         if (i >= 0) swept[i] = s else add(p.i, s)
     }
@@ -58,7 +61,7 @@ internal fun GroupWorld.huntGround(g: HexGroup, km2: Float): HuntGround {
         while (over > 1e-3f && open > 0) {
             val each = over / open; open = 0
             for (i in onWay until m) {
-                val room = area[places[i]] - swept[i]; if (room <= 0f) continue
+                val room = area[places[i]] * laps - swept[i]; if (room <= 0f) continue
                 val s = min(room, each); swept[i] += s; over -= s
                 if (s < room) open++
             }

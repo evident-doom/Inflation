@@ -26,7 +26,7 @@ internal fun HexGroups.meetingFresh(a: HexGroup, b: HexGroup, weather: Weather):
     val now = stepOf(weather.date)
     val last = ba.lastMet[b.id]
     ba.lastMet[b.id] = now; bb.lastMet[a.id] = now
-    return if (last == null) 1f else ((now - last) / (MEETING_AGAIN_YEARS * stepsPerYear)).coerceIn(0f, 1f)
+    return if (last == null) 1f else ((now - last) / (MEETING_AGAIN_YEARS * ticksPerYear)).coerceIn(0f, 1f)
 }
 
 /**
@@ -188,7 +188,7 @@ private fun HexGroups.tellOfCountry(a: HexGroup, bandA: Band, b: HexGroup, bandB
     // Where they met is a meeting place; and a band without an appointment, or with a weaker one,
     // takes up the other's (the more they are close, the likelier).
     val wk = stepOf(weather.date); val sMeet = PlaceMemory.seasonOf(weather.date.month)
-    a.memory.mark(h0, sMeet, wk, stepsPerYear, a.memory.met, 1f); b.memory.mark(h0, sMeet, wk, stepsPerYear, b.memory.met, 1f)
+    a.memory.mark(h0, sMeet, wk, ticksPerYear, a.memory.met, 1f); b.memory.mark(h0, sMeet, wk, ticksPerYear, b.memory.met, 1f)
     // And where each has its houses, and the homes of others they know of: settled bands can be found.
     fun showsHome(teller: HexGroup, bt: Band, hearer: Band) {
         if (bt.houseHex.none || bt.house < Thresholds.HOUSE_STANDING) return
@@ -215,7 +215,7 @@ private fun HexGroups.tellOfCountry(a: HexGroup, bandA: Band, b: HexGroup, bandB
     }
     adopt(a, bandA, b, bandB, ab); adopt(b, bandB, a, bandA, ba)
     // And of the places they remember, each as far as it trusts the other.
-    a.memory.hear(b.memory, wk, stepsPerYear, ab.trust); b.memory.hear(a.memory, wk, stepsPerYear, ba.trust)
+    a.memory.hear(b.memory, wk, ticksPerYear, ab.trust); b.memory.hear(a.memory, wk, ticksPerYear, ba.trust)
 }
 
 /** One or two young adults from each band join the other; their descent and skills come with them. */

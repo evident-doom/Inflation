@@ -254,7 +254,8 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
             groundwater[p] += taken
             volume[hw.placeHex[p]] += (excess - taken) / 1000.0 * land.areaM2[p]
             ranOff[p] = excess - taken > 0f
-            runoffMm[p] = excess - taken
+            // (Over a step of several ticks it adds up, for the litter it washes away once a step: [HexLand.firstTick].)
+            runoffMm[p] = if (land.firstTick) excess - taken else runoffMm[p] + (excess - taken)
             // The water in the bed sands sinks into the rock below.
             if (drink.bedM2[p] > 0f && drink.sand[p] > 0f) {
                 val sink = min(drink.sand[p], HexDrinkingWater.SAND_DROP_M * days / HexDrinkingWater.SAND_M)

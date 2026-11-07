@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.world.StepClock
 import inflation.drawUnit
 import inflation.Par
 import inflation.Part
@@ -64,7 +65,9 @@ import java.util.concurrent.atomic.DoubleAdder
  * They stay in their country: nothing here wanders far, but over the years a kind spreads into
  * empty ground that suits it, and withdraws from ground that fails it.
  */
-class HexFauna(internal val hw: HexWorld, internal val land: HexLand, internal val days: Int, @Transient internal val stats: WeekStats) {
+class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient internal val clock: StepClock, @Transient internal val stats: WeekStats) {
+    /** Days the step covers ([StepClock]). */
+    internal val days get() = clock.days
     internal val tuning get() = land.tuning
     internal val hex = hw.hex
     val n = land.n
@@ -158,7 +161,13 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, internal v
     /** Starts an outbreak of [s] in hex [h] (a shared array: concurrent starts all set the same value). */
     fun startOutbreak(s: Species, h: Hex) { outbreak[s.index][h] = 1f }
     /** This week's share of [s] that an outbreak kills at place [p]. */
-    fun outbreakDeaths(s: Species, p: Place) = OUTBREAK_KILL * outbreak[s.index][hw.placeHex[p]]
+    fun outbreakDeaths(s: Species, p: Place): Float {
+        // (Over a step of several ticks, each tick's deaths at that tick's outbreak, compounded: [outbreakMean].)
+        val m = outbreakMean ?: return OUTBREAK_KILL * outbreak[s.index][hw.placeHex[p]]
+        return 1f - (1f - (OUTBREAK_KILL * m[s.index][hw.placeHex[p]]).coerceIn(0f, 1f)).pow(clock.ticks)
+    }
+    /** Over a step of several ticks, each kind's outbreak at each hex as the step's ticks left it, on the mean ([stepOutbreaks]); null at one tick a step. */
+    @Transient private var outbreakMean: Array<FloatArray>? = null
 
     private var outbreakSalt = 0L
     /** A number in 0..1 that changes from week to week, for place [p] and kind [k]. */
@@ -167,6 +176,17 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, internal v
     /** Outbreaks pass to neighbouring hexes where the kind lives, and burn out. */
     @Part("outbreaks")
     private fun stepOutbreaks() {
+        // (Over a step of several ticks they spread and burn out tick by tick, as they would week by week, and kill at
+        // the mean of the ticks' outbreaks: [outbreakDeaths].)
+        val ticks = clock.ticks
+        val mean = if (ticks == 1) null else (outbreakMean ?: Array(Catalogue.all.size) { FloatArray(hex.size) }.also { outbreakMean = it })
+        if (mean == null) { outbreakTick(); return }
+        for (m in mean) m.fill(0f)
+        repeat(ticks) { outbreakTick(); for ((si, o) in outbreak.withIndex()) { val m = mean[si]; for (h in hex.all) m[h] += o[h] / ticks } }
+    }
+
+    /** One tick (a week) of the outbreaks: they pass to neighbouring hexes where the kind lives, and burn out. */
+    private fun outbreakTick() {
         for ((si, s) in Catalogue.all.withIndex()) {
             val o = outbreak[si]
             if (o.all { it < 0.01f }) continue
@@ -220,6 +240,14 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, internal v
      */
     @delegate:Transient internal val killRate by lazy { Array(kinds.size) { if (kinds[it].diet.meat > 0f) FloatArray(n) else null } }
 
+    /** Heads of each kind's residents each resident hunter kind killed since last read, hunter by prey, grown (even) and young (odd) ([huntResidents]): for the fauna check's report. */
+    @delegate:Transient internal val killsByHunter by lazy { Array(2 * kinds.size * kinds.size) { java.util.concurrent.atomic.DoubleAdder() } }
+    /**
+     * For the fauna check, each kind's since last read: heads that died of a raging outbreak (of those booked as disease)
+     * (0); heads alive at the step's deaths (1); and those heads times their crowding squared (2), as [breedAndDie] went by it.
+     */
+    @delegate:Transient internal val sickBook by lazy { Array(3 * kinds.size) { java.util.concurrent.atomic.DoubleAdder() } }
+
     /**
      * The share of each kind's residents at each place the hunting parties (packs and bands) killed in their last week's
      * foraging ([HexGroups.hunt]; young and grown alike, as they take them as they come on them), set as they kill.
@@ -269,7 +297,7 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, internal v
     @Transient internal var droppedBook: DoubleAdder? = null
 
     /** The soil life and small animals the residents live among. */
-    val small = HexSmallLife(hw, land, days)
+    val small = HexSmallLife(hw, land, clock)
     /** Each kind's sense of where better country lies. */
     val bearings = HexBearings(hw, kinds, { s, p, m ->
         val food = fareFor(s, Place(p)) * min(1.5f, suits(s, Place(p))) / 1.5f
@@ -317,9 +345,9 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, internal v
     /** What a grown animal carries with it as it moves ([carried]). */
     internal enum class Carry { BRED, FAT, SPENT, BOLD }
     /** Life in the sea, lakes and rivers. */
-    val water = HexWater(hw, land, days, small)
+    val water = HexWater(hw, land, clock, small)
     /** Fruit and roots as stocks. */
-    val food = HexFood(land, small, days).also { f -> small.takeMast = { p, want -> f.take(f.mast, p, want) } }
+    val food = HexFood(land, small, clock).also { f -> small.takeMast = { p, want -> f.take(f.mast, p, want) } }
     /** Carcasses left this week in each place, kg (deaths other than kills, which the hunters count). */
     val carcassKg = FloatArray(n)
     /** Deaths this week by cause, animals ([WeekStats.residentDeaths]). */
@@ -328,7 +356,7 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, internal v
     @Transient var record: PlaceRecord? = null
         set(v) { field = v; small.record = v }
 
-    internal val years = Date.years(days)
+    internal val years get() = clock.years
     /** How each kind travels between places. */
     @Transient internal val travel = kinds.map { Catalogue.travel(it) }
     /** Young born this week, by kind (for the history). */
@@ -411,7 +439,8 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, internal v
         Phase("residents: moving") {
             // (The places are weighed once, before the bands shift: the shift and the spill both go by them.)
             // They move every [Tuning.residentMoveWeeks] weeks, a step each move: from week to week they shift by a few percent.
-            val moving = (it.date.absoluteDay / days) % tuning.residentMoveWeeks == 0L
+            // (Over steps of several ticks they move every step, the step's ticks' worth at once: [moveWeeks].)
+            val moving = clock.ticks > 1 || (it.date.absoluteDay / days) % tuning.residentMoveWeeks == 0L
             if (moving) {
                 fillArrive(it)
                 // (The game the hunters weigh, taken once before any kind moves: the kinds move on all cores at once.)
@@ -428,7 +457,9 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, internal v
     private fun newWeek(weather: Weather, date: Date) {
         val books = land.books
         ateBook = books?.adder(Books.Stuff.MATTER, "eaten"); droppedBook = books?.adder(Books.Stuff.MATTER, "dung and frass")
-        for (p in land.places) fear[p] *= FEAR_KEEP
+        // (A tick's fading a tick: over a step of several, compounded, as the step's kills add theirs.)
+        val fearKeep = if (clock.ticks == 1) FEAR_KEEP else FEAR_KEEP.pow(clock.ticks)
+        for (p in land.places) fear[p] *= fearKeep
         stepOutbreaks(); outbreakSalt++
         carcassKg.fill(0f)
         if (bearings.month != date.month) {
@@ -470,6 +501,8 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, internal v
         val got = FloatArray(nk); val surplus = FloatArray(nk)
         // (For the check: of what it got of plants, the shares of its need from fruit and from roots and mast.)
         val gotFruit = FloatArray(nk); val gotUnder = FloatArray(nk)
+        // (For the check: of its need, the shares from game it killed, small prey, and carrion and bones.)
+        val gotMeat = FloatArray(nk); val gotSmall = FloatArray(nk); val gotCarrion = FloatArray(nk)
         // (What each kind ate this week, kg per m2, and the protein in it: fresh growth full, cured grass
         // little; see [proteinMet]. What it ate to fatten is left out.)
         val ateKg = FloatArray(nk); val proteinKg = FloatArray(nk)
@@ -480,7 +513,7 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, internal v
         val b = Bites()
         /** Zeroes what a place's week fills in, for the next place (the spare food, [access] and the eaten totals are set before they are read, [b] by each [forage]). */
         fun clear() {
-            need.fill(0f); each.fill(0f); avail.fill(0f); got.fill(0f); surplus.fill(0f); gotFruit.fill(0f); gotUnder.fill(0f); ateKg.fill(0f); proteinKg.fill(0f)
+            need.fill(0f); each.fill(0f); avail.fill(0f); got.fill(0f); surplus.fill(0f); gotFruit.fill(0f); gotUnder.fill(0f); gotMeat.fill(0f); gotSmall.fill(0f); gotCarrion.fill(0f); ateKg.fill(0f); proteinKg.fill(0f)
             eatG = 0f; eatB = 0f; eatF = 0f; eatR = 0f
         }
         override fun grass(kg: Float): Float { val t = min(kg, access * spareG); spareG -= t; return t }
@@ -735,7 +768,7 @@ enum class ResidentDeath(val cause: DeathCause) {
 enum class Stuck { HEADS, STUCK, AT_EDGE, PEAK }
 
 /** Where residents' food came from ([HexFauna.fedFrom]): fresh plants, prey and carrion, reserves; and the animals counted. */
-enum class Fed { PLANTS, ANIMAL, RESERVES, HEADS, FRUIT, UNDERGROUND }
+enum class Fed { PLANTS, ANIMAL, RESERVES, HEADS, FRUIT, UNDERGROUND, MEAT, SMALL_PREY, CARRION }
 internal val FED = Fed.entries.size
 @Suppress("NOTHING_TO_INLINE") inline operator fun Array<DoubleAdder>.get(f: Fed) = this[f.ordinal]
 

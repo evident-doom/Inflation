@@ -13,6 +13,11 @@ class HexFires(land: HexLand) : HexLandPart(land) {
     /** Share of each place burnt lately, fading over a few years; share burning this step. */
     val burnt = FloatArray(n)
     val burning = FloatArray(n)
+    /**
+     * Share of each place burnt over the whole step, for the slow parts that take it in once a step (animals caught in the
+     * fire): a step of several ticks adds up its ticks' fires, at most all of it ([HexLand.firstTick]). At one tick a step, [burning].
+     */
+    @Transient val stepBurning = FloatArray(n)
     /** Fires this step: the place each started in and the km² it burned. */
     val fires = ArrayList<Fire>()
     /** For the yearly report ([yearReport]): fires bands set, those that took, and km² burnt by theirs and by the rest. */
@@ -74,6 +79,7 @@ class HexFires(land: HexLand) : HexLandPart(land) {
             fires += Fire(p.i, km2)
             if (p in set) { tookYear++; peopleKm2Year += km2 } else wildKm2Year += km2
         }
+        if (land.firstTick) burning.copyInto(stepBurning) else for (i in 0 until n) stepBurning[i] = min(1f, stepBurning[i] + burning[i])
     }
 
     /** Share of place [p] a fire burns: most of a place thick with dry grass, a little of a sparse one. */

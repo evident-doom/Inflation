@@ -88,7 +88,7 @@ private fun HexGroups.startVillage(g: HexGroup, b: Band): Pair<Int, Float>? {
     for (t in listOf(Tool.SICKLE, Tool.GRINDER)) { b.knows[t] = true; b.kit[t] = 1f }
     bands.built += Structure(Built.HOUSES, h, Skill.PIT_HOUSE.ordinal, g.id, g.adults.toFloat()).also { buildOn(it, 1f); it.user = g.id }
     b.houseHex = h; b.house = housesAt(g, h); b.atHome = true
-    b.campPlace = p; b.campWeeks = stepsPerYear.roundToInt()
+    b.campPlace = p; b.campWeeks = ticksPerYear.roundToInt()
     b.heldLivelihood = Livelihood.FARMING; b.livedOther = 0f
     b.seedDomestic = 1f
     // Its field ripens with the grass this summer; where the grain has ripened already this year, the harvest is in store.

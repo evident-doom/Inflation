@@ -628,6 +628,7 @@ internal val FORAGE_MEAL_TRACE = Trace(Config.Key.FORAGE_DIAG, "forage meals", s
 
 /** [forage]'s practice for band [band] of [g] at what it did this week (and its tally of fish). */
 internal fun GroupWorld.practise(g: HexGroup, band: Band, hunted: Boolean, smallGot: Float, plants: Float, fish: Float) {
+    band.stepTicks = ticks
     if (hunted) band.practise(Skill.HUNT)
     if (smallGot > 0f) band.practise(Skill.SMALL_GAME)
     if (plants > 0f) { band.practise(Skill.GATHER); learnPlants(band, hw.placeHex[g.place]) }
@@ -642,6 +643,13 @@ internal fun GroupWorld.recordFood(g: HexGroup, band: Band, w: ForageWeek) {
     fun add(f: FoodFrom, kg: Float) { band.foodFrom[f] += k * (kg * per - band.foodFrom[f]) }
     add(FoodFrom.PLANTS, w.plants); add(FoodFrom.SMALL_GAME, w.smallGot); add(FoodFrom.FISH, w.fish)
     add(FoodFrom.BIG_GAME, w.meat + w.killFat); add(FoodFrom.CARRION, w.scraps)
+    // (For the doom trace only: what a followed band ate this step, by source.)
+    if (DOOM_TRACE.isNotEmpty() && g.id in DOOM_TRACE) {
+        val sf = band.stepFood ?: FloatArray(FoodFrom.entries.size)
+        band.stepFood = sf
+        sf[FoodFrom.PLANTS.ordinal] = w.plants * per; sf[FoodFrom.SMALL_GAME.ordinal] = w.smallGot * per; sf[FoodFrom.FISH.ordinal] = w.fish * per
+        sf[FoodFrom.BIG_GAME.ordinal] = (w.meat + w.killFat) * per; sf[FoodFrom.CARRION.ordinal] = w.scraps * per
+    }
     band.fishPull += k * (w.fishPull - band.fishPull)
     // (Whether a weir would pay goes with the season's fish, so it is this week's, not a running worth.)
     band.weirPull = w.weirPull

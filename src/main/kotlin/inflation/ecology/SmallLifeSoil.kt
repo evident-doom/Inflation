@@ -167,7 +167,7 @@ internal fun HexSmallLife.stepLocusts(weather: Weather) {
             land.plants.consume(p, LifeForm.SHRUB, KgM2(min(0.3f * land.plants.shrub[p], 0.2f * l * days / m2)))
         dung[p] += DUNG * ate.v
         ateM2(p, ate.v); dropped(p, DUNG * ate.v)
-        val dying = l * (if (season) LOCUST_DEATHS else 0.6f)
+        val dying = l * overTicks(if (season) LOCUST_DEATHS else 0.6f)
         smallDead[p] += dying * 1f
         l -= dying
         // Most of a swarm moves on to the neighbours each week, settling the more where the green plants stand thicker.
@@ -225,7 +225,8 @@ private fun HexSmallLife.insectSeason(p: Place, active: FloatArray, dormant: Flo
 fun HexSmallLife.digGrubs(p: Place, want: KgKm2): KgKm2 {
     val there = dormantInsects[p] + dormantPollinators[p] + soilAnimals[p]
     if (want.v <= 0f || there <= 0f) return KgKm2.ZERO
-    val took = min(want.v, 0.5f * there); val f = 1f - took / there
+    // (At most half of them a tick: over a step of several ticks, compounded.)
+    val took = min(want.v, overTicks(0.5f) * there); val f = 1f - took / there
     dormantInsects[p] *= f; dormantPollinators[p] *= f; soilAnimals[p] *= f
     grubsDug[p] += took
     return KgKm2(took)

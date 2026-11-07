@@ -66,7 +66,7 @@ internal fun shelterReach(b: Band, people: Float, from: Float, to: Float, days: 
 @Part("people: night fire")
 internal fun burnNightFire(b: Band, people: Float): Float {
     val wood = b.goods
-    val want = NIGHT_WOOD * people * b.nightFire
+    val want = NIGHT_WOOD * people * b.nightFire * b.stepTicks
     val got = min(want, wood[Material.WOOD])
     wood[Material.WOOD] -= got
     b.nightWood = if (want > 0f) got / want else 1f
@@ -74,7 +74,7 @@ internal fun burnNightFire(b: Band, people: Float): Float {
 }
 
 /** Weeks [b] keeps a camp before it builds houses there: sooner the keener it is ([BandWay.HOUSES]). */
-internal fun GroupWorld.houseAfterWeeks(b: Band) = HOUSE_AFTER_YEARS * stepsPerYear / b.houseWill.coerceAtLeast(0.1f)
+internal fun GroupWorld.houseAfterWeeks(b: Band) = HOUSE_AFTER_YEARS * ticksPerYear / b.houseWill.coerceAtLeast(0.1f)
 
 /**
  * The hearth's firewood for the week, fetched by [hands] before they forage: dead wood from the trees and scrub
@@ -179,7 +179,7 @@ internal fun HexGroups.buildHouse(g: HexGroup, b: Band, p: Place, h: Hex, people
     if (time != null) dialUse?.let { u -> if (left > 0f && people > 0f && g.fed >= 0.9f) {
         val longEnough = b.campWeeks >= houseAfterWeeks(b)
         val stocked = g.larder >= 0.5f * b.storeAim * g.dailyNeedKg
-        u.choice(DialSite.HOUSES, b.houseWill, longEnough && stocked, b.campWeeks >= HOUSE_AFTER_YEARS * stepsPerYear && stocked, cut = b.houseWill < 0.1f)
+        u.choice(DialSite.HOUSES, b.houseWill, longEnough && stocked, b.campWeeks >= HOUSE_AFTER_YEARS * ticksPerYear && stocked, cut = b.houseWill < 0.1f)
         u.choice(DialSite.STORE_HOUSES, b.storeShare, longEnough && stocked, longEnough && g.larder >= 0.5f * b.storeAimAt1 * g.dailyNeedKg)
     } }
     if (b.campWeeks < houseAfterWeeks(b) || left <= 0f || people <= 0f || g.fed < 0.9f || g.larder < 0.5f * b.storeAim * g.dailyNeedKg) return 0f
@@ -338,7 +338,7 @@ internal const val WATCH_GUARD = 0.4f
  */
 internal const val SOIL_DAMPING_M = 2.2f
 
-/** Firewood a fire through the night burns in a week, kg a person. */
+/** Firewood a fire through the night burns in a week (a tick), kg a person. */
 internal const val NIGHT_WOOD = 3f
 /**
  * Firewood a whole cooking fire burns, kg a person a day (1.4 in summer in houses at Lahaul, 3200 m, where little goes to

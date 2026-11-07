@@ -17,6 +17,8 @@ import inflation.Books
 import inflation.world.Date
 import inflation.world.Weather
 import kotlin.math.max
+import kotlin.math.min
+import kotlin.math.sqrt
 
 // The residents' births and deaths: the young born in season, what kills grown and young, and the books of their deaths.
 
@@ -46,15 +48,26 @@ internal fun HexFauna.breedAndDie(weather: Weather, date: Date) {
             val area = land.areaKm2[p]
             // Births: half the adults are mothers; a mother bears what her food and reserves can build.
             val share = seasonShare(k, p, date)
+            // (Over a step of several ticks, the crowding the step's deaths go by is each tick's as its young came, its square
+            // averaged over the ticks: crowd disease and rivals' strife grow with the square of the numbers, and the numbers at
+            // the step's end, all its young born, would charge the whole step with the last tick's crowd.)
+            var crowdSq = 0f
             if (share > 0f) {
                 bred[k][p] += share
-                val due = dueYoung(k, p, a[p] + y[p], protein[k][p], share)
-                val born = 0.5f * a[p] * due * breeding(s, due, reserve[k][p], f[p], days)
-                y[p] += born
-                bornThisWeek[k] += (born * area).toDouble()
-                bornBook?.add((born * area * YOUNG_WEIGHT * s.massKg).toDouble())
-                // The young are made of what their mothers ate: what the week's food did not build comes off the mothers' reserves (as in groups).
-                if (born > 0f && a[p] > 0f) reserve[k][p] = max(0f, reserve[k][p] - fromReserves(s, born / (0.5f * a[p]), f[p], days))
+                // (Over a step of several ticks the young come tick by tick, each tick's crowding the young before it count in:
+                // borne all at once on the step's first crowding, a fast breeder would find ranges its own young had taken.)
+                val part = if (clock.ticks == 1) share else share / clock.ticks
+                val partDays = days / clock.ticks
+                repeat(clock.ticks) {
+                    val due = dueYoung(k, p, a[p] + y[p], protein[k][p], part)
+                    val born = 0.5f * a[p] * due * breeding(s, due, reserve[k][p], f[p], partDays)
+                    y[p] += born
+                    bornThisWeek[k] += (born * area).toDouble()
+                    bornBook?.add((born * area * YOUNG_WEIGHT * s.massKg).toDouble())
+                    // The young are made of what their mothers ate: what the week's food did not build comes off the mothers' reserves (as in groups).
+                    if (born > 0f && a[p] > 0f) reserve[k][p] = max(0f, reserve[k][p] - fromReserves(s, born / (0.5f * a[p]), f[p], partDays))
+                    crowdSq += (a[p] + y[p]) * (a[p] + y[p]) / clock.ticks
+                }
             }
             // Deaths.
             // Thirst by the groups' rule: an animal drinks where water is within half its days without
@@ -62,7 +75,8 @@ internal fun HexFauna.breedAndDie(weather: Weather, date: Date) {
             // mount week to week, and past what it can bear they kill as they do a pack.
             if (drinks(s, p)) dk[p] = 0f
             else dk[p] += Hazards.dryDays(s, days, f[p], land.plants.green[p])
-            hazards(k, p, weather, date.month, f[p], dk[p], a[p] + y[p] + keptKm2(k, p), hz)
+            val crowdHeads = if (clock.ticks == 1 || share <= 0f) a[p] + y[p] else sqrt(crowdSq)
+            hazards(k, p, weather, date.month, f[p], dk[p], crowdHeads + keptKm2(k, p), hz)
             spent[k][p] = Hazards.spentAfter(s, spent[k][p], f[p], days)
             val hunger = hz[Danger.HUNGER]; val cold = hz[Danger.COLD]; val heat = hz[Danger.HEAT]; val thirst = hz[Danger.THIRST]; val disease = hz.disease()
             val crowd = hz[Danger.CROWD]
@@ -80,6 +94,8 @@ internal fun HexFauna.breedAndDie(weather: Weather, date: Date) {
             val ca = if (adultSum > 0f) a[p] * adultOdds / adultSum * area else 0f
             val cy = if (youngSum > 0f) y[p] * youngOdds / youngSum * area else 0f
             bookDeaths(k, p, ca, cy, hz, eagle, croc, starved, dead[k])
+            sickBook[3 * k.i].add(((ca + cy) * hz[Danger.OUTBREAK]).toDouble())
+            sickBook[3 * k.i + 1].add(((a[p] + y[p]) * area).toDouble()); sickBook[3 * k.i + 2].add(((a[p] + y[p]) * area * crowd * crowd).toDouble())
             a[p] -= da; y[p] -= dy
             carcassKg[p] += (da + YOUNG_WEIGHT * dy) * area * s.massKg
             // Growing up.
@@ -162,10 +178,11 @@ internal fun HexFauna.hazards(k: FaunaKind, p: Place, weather: Weather, month: I
     // (Hunger, cold and heat, and thirst kill residents by the same rules as packs and bands.)
     val sleeping = asleep(k, p)
     out[Danger.HUNGER] = Hazards.hunger(s, spentBefore, fed, days)
-    val felt = feltC(s, p, weather.temperature[p])
-    out[Danger.COLD] = if (sleeping) 0f else Hazards.cold(s, felt, month)
-    out[Danger.HEAT] = if (sleeping) 0f else Hazards.heat(s, felt)
-    out[Danger.THIRST] = Hazards.thirst(s, dry)
+    // (Over a step of several ticks, each tick's cold or heat kills as it would have, and thirst as the dry days mounted through the step.)
+    out[Danger.COLD] = if (sleeping) 0f else weather.overTicks(p) { Hazards.cold(s, feltC(s, p, it), month) }
+    out[Danger.HEAT] = if (sleeping) 0f else weather.overTicks(p) { Hazards.heat(s, feltC(s, p, it)) }
+    out[Danger.THIRST] = if (clock.ticks == 1 || dry <= 0f) Hazards.thirst(s, dry)
+        else Hazards.thirstOver(s, dry, min(dry, Hazards.dryDays(s, days, fed, land.plants.green[p])), clock.ticks)
     // Crowding breeds disease and parasites, far more among the underfed: numbers grow until the
     // lean season binds, and then hunger and sickness together hold them.
     val crowd = Hazards.crowding(heads, usual[k])

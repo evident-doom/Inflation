@@ -185,10 +185,12 @@ internal fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
     for (h in g.path) {
         val p = hw.placeNear(g.place, h).takeIf { !it.none } ?: continue
         val area = land.areaKm2[p]
+        // (Carrion lies once a step, so the ground holds only its area of it; small game is searched again each tick of a
+        // step of several, as the hunting ground is: see [huntGround].)
         val swept = min(area, sweep)
         val small = this.small
         // (Small game in cover is found the less, on burnt or grazed bare ground the more: [smallSeen].)
-        offer(w, o, Food.SMALL_GAME, 0, p, small.smallPreyKg(p) * min(area, w.smallSweep * smallSeen(p)) * w.smallCatch / days, 1f, w.smallDays)
+        offer(w, o, Food.SMALL_GAME, 0, p, small.smallPreyKg(p) * min(area * ticks, w.smallSweep * smallSeen(p)) * w.smallCatch / days, 1f, w.smallDays)
         if (w.d.carrion > 0f) {
             // (At most half of what lies on the ground searched: the rest is not found in time, or others get it;
             // and only the scavengers by trade, which watch the vultures and quarter the ground for it, find
@@ -251,7 +253,9 @@ internal fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
                     h += wk * (farther - 1f); wk *= farther
                 }
             }
-            offer(w, o, f, kind, Place(q), land.total(Place(q), KgM2(share * density)).v / days, 1f, h, seek = sk, walk = wk)
+            // (A band strips its share of what is left each tick: over a step of several, the more of it, [overTicks].)
+            val got = if (band != null) overTicks(share) else share
+            offer(w, o, f, kind, Place(q), land.total(Place(q), KgM2(got * density)).v / days, 1f, h, seek = sk, walk = wk)
         }
         fun sought(density: Float) = if (band != null && density > 0f) 1f / (PLANT_SIGHT_M2_PER_DAY * density * w.gatherers) else 0f
         plant(Food.FRUIT, 0, reach, food.fruit[q], fruitQ + sought(food.fruit[q]) + walked(Food.FRUIT, walk), sought(food.fruit[q]), walked(Food.FRUIT, walk))
@@ -370,7 +374,7 @@ internal fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
                     stats.tally(Tally.bandKillsOf(prey, Tally.KillPart.LEAN_KG), (haul.kg - haul.fat).roundToInt())
                     stats.tally(Tally.bandKillsOf(prey, Tally.KillPart.FAT_KG), haul.fat.roundToInt()) }
             }
-            Food.SMALL_GAME -> small.catchSmallIn(Place(p), Kg(expected), min(land.areaKm2[p], (if (o.who[i] == 2) w.childSmallSweep else w.smallSweep) * smallSeen(Place(p))), w.weather).v.let { w.smallGot += it; if (o.who[i] == 2) w.kidsSmall += it; w.fed += it * w.feeds(Food.SMALL_GAME)
+            Food.SMALL_GAME -> small.catchSmallIn(Place(p), Kg(expected), min(land.areaKm2[p] * ticks, (if (o.who[i] == 2) w.childSmallSweep else w.smallSweep) * smallSeen(Place(p))), w.weather).v.let { w.smallGot += it; if (o.who[i] == 2) w.kidsSmall += it; w.fed += it * w.feeds(Food.SMALL_GAME)
                 if (band == null) diag(g.species, HuntStep.PACK_SMALL_GAME_KG, it) }
             Food.CARRION -> scavenge(g, Place(p), expected, w.sweep, w.rnd).let { w.scraps += it; w.fed += it * w.feeds(Food.CARRION)
                 if (band == null) diag(g.species, HuntStep.PACK_CARRION_KG, it) }

@@ -21,7 +21,7 @@ internal fun HexGroups.buildPalisade(g: HexGroup, b: Band, h: Hex, people: Float
     val gd = b.goods
     val left = time.leftFor(Activity.PALISADE)
     if (b.atHome && b.palisade < 1f && left > 0f && people > 0f)
-        dialUse?.choice(DialSite.PALISADES, b.fortifyWill, b.sinceRaided < stepsPerYear * b.fortifyWill, b.sinceRaided < stepsPerYear)
+        dialUse?.choice(DialSite.PALISADES, b.fortifyWill, b.sinceRaided < ticksPerYear * b.fortifyWill, b.sinceRaided < ticksPerYear)
     if (fortifies(b) && left > 0f && people > 0f) {
         val s = buildingAt(g, Built.PALISADE, h, -1, people)
         val built = minOf(1f - s.built, left / (PALISADE_DAYS * people), gd[Material.WOOD] / (PALISADE_WOOD * people)).coerceAtLeast(0f)
@@ -31,7 +31,7 @@ internal fun HexGroups.buildPalisade(g: HexGroup, b: Band, h: Hex, people: Float
 }
 
 /** Whether [b] rings its houses with a palisade: at home, raided lately (by its will), with the ring not whole. */
-internal fun GroupWorld.fortifies(b: Band) = b.atHome && b.sinceRaided < stepsPerYear * b.fortifyWill && b.palisade < 1f
+internal fun GroupWorld.fortifies(b: Band) = b.atHome && b.sinceRaided < ticksPerYear * b.fortifyWill && b.palisade < 1f
 
 /**
  * A band driven by hunger or a feud, knowing where a band it is not close to has its home within

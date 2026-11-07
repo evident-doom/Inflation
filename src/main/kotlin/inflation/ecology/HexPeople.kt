@@ -130,7 +130,8 @@ internal const val HUMAN_BIRTHS = 0.8f
 @Part("people: bandWeek")
 internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     val b = g.band ?: return
-    b.weeks++
+    b.weeks += ticks
+    b.stepTicks = ticks
     learnCountry(g, b, weather)
     val p = g.place
     val h = hw.placeHex[p]
@@ -160,13 +161,13 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     time.release(Activity.TOOLS)
     b.renown *= 1f - RENOWN_FADE * years
     b.unlucky?.let { u -> b.unlucky = if (u.weeks > 1) Unlucky(u.hex, u.weeks - 1) else null }
-    b.sinceRaided++
+    b.sinceRaided += ticks
     plotRaid(g, b, weather)
     keepFire(g, b)
     b.fire *= b.hearthWood
     val woodBefore = b.goods[Material.WOOD]
     val nightBurnt = burnNightFire(b, people)
-    dialUse?.amount(DialSite.NIGHT_FIRE_WOOD, b.nightFire, nightBurnt, min(NIGHT_WOOD * people, woodBefore))
+    dialUse?.amount(DialSite.NIGHT_FIRE_WOOD, b.nightFire, nightBurnt, min(NIGHT_WOOD * people * ticks, woodBefore))
     // With the time still to spare, a band that has kept its camp a while builds stone-footed houses
     // there, as far as it has gathered the stone and timber (and starts afresh where it settles
     // anew); houses it has left weather away.
@@ -355,7 +356,7 @@ internal fun GroupWorld.bandHerding(b: Band, hands: Int): Tally.Herding {
     return Tally.Herding.entries.first { it != Tally.Herding.NOT_HERDING && load < it.below }
 }
 internal fun GroupWorld.bandLiving(b: Band) =
-    if (b.atHome || b.campWeeks >= stepsPerYear / 2f) Tally.Living.SETTLED else Tally.Living.MOBILE
+    if (b.atHome || b.campWeeks >= ticksPerYear / 2f) Tally.Living.SETTLED else Tally.Living.MOBILE
 
 /**
  * The villages this week, for the reports: the hexes where two or more bands live settled ([bandLiving]), or one band at
@@ -414,7 +415,7 @@ internal fun HexGroups.tallyVillages() {
 internal fun GroupWorld.birthSpacing(b: Band, weaningFood: Float = b.weaningFood): Float {
     val nursing = NURSING_YEARS_MOST - (NURSING_YEARS_MOST - NURSING_YEARS_LEAST) * weaningFood
     // (A band at home or long at one camp moves the less: the weeks it has kept this camp count as well as its usual stay.)
-    val moves = stepsPerYear / max(b.stayWeeks, b.campWeeks + 1f)
+    val moves = ticksPerYear / max(b.stayWeeks, b.campWeeks + 1f)
     val carried = CARRY_YEARS * min(1f, moves / CARRY_MOVES)
     return SPACING_MOST / max(GESTATION_YEARS + CONCEIVE_YEARS + nursing, carried)
 }
@@ -494,7 +495,7 @@ internal fun HexGroups.bandInputs(g: HexGroup, weather: Weather, into: FloatArra
     for ((k, f) in Skill.FORAGING.withIndex()) into[x.SKILLS + k] = b.skill(f)
     for (t in Tool.entries) into[x.TOOLS + t.ordinal] = b.has(t)
     into[x.TEMPERATURE] = weather.temperature[g.place] / 30f
-    into[x.CAMP_WEEKS] = min(1f, b.campWeeks / (stepsPerYear / 2f))
+    into[x.CAMP_WEEKS] = min(1f, b.campWeeks / (ticksPerYear / 2f))
     into[x.SPARE_DAYS] = b.spareDays / max(1f, g.adults * days.toFloat())
     // Its camp's ground: how long it has gone short of water, the wood for its fire, the cover about it, the snow.
     into[x.DAYS_DRY] = min(1f, g.dry / g.species.daysWithoutWater)
@@ -526,7 +527,7 @@ internal fun HexGroups.bandInputs(g: HexGroup, weather: Weather, into: FloatArra
     }
     into[x.FRIENDS] = min(1f, friends / 3f); into[x.STRANGERS] = min(1f, strangers / 3f); into[x.FOES] = min(1f, foes / 3f)
     into[x.THEIR_SICKNESS] = if (near > 0) min(1f, theirSick / near) else 0f
-    into[x.RAIDED] = 1f - min(1f, b.sinceRaided / stepsPerYear)
+    into[x.RAIDED] = 1f - min(1f, b.sinceRaided / ticksPerYear)
     into[x.ON_A_RAID] = if (!b.raidHex.none) 1f else 0f
     into[x.INBRED] = min(1f, b.inbred * 4f)
     // The favours owed to it and that it owes, all told (in weeks of food: a few weeks' worth is a lot).
@@ -568,8 +569,8 @@ internal fun HexGroups.plantFood(g: HexGroup, b: Band, p: Place, into: FloatArra
     val need = (g.dailyNeedKg * days).coerceAtLeast(1f)
     fun weeks(kg: Float) = (kg / need).let { it / (1f + it) }
     val food = fauna.food
-    val pick = min(0.9f, b.gatherShare() * b.gatherRange)
-    val reap = min(0.9f, b.gatherShare() * b.gatherRange)
+    val pick = overTicks(min(0.9f, b.gatherShare() * b.gatherRange))
+    val reap = overTicks(min(0.9f, b.gatherShare() * b.gatherRange))
     into[at] = weeks(land.total(p, KgM2(pick * food.fruit[p])).v)
     into[at + 1] = weeks(land.total(p, KgM2(pick * food.underground(p))).v)
     // (Seed: the wild grasses' and the wild cereals' grain, reaped alike. A sown field is its sower's: [HexFeatures.SOWN_HERE].)

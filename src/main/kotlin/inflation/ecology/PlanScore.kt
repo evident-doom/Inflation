@@ -135,7 +135,7 @@ internal fun GroupPlanner.fillFeatures(f: FloatArray, c: PlanContext, t: PlaceTe
     if (slot >= 0) {
         f[Feature.REMEMBERED] = 1f; f[Feature.REMEMBERED_SAME_SEASON] = if (sameSeason) 1f else 0f
         f[Feature.REMEMBERED_FED] = mem.fed[slot]; f[Feature.REMEMBERED_WATER] = mem.water[slot]; f[Feature.REMEMBERED_DANGER] = mem.danger[slot]
-        f[Feature.REMEMBERED_AGE] = min(1f, (gs.stepOf(date) - mem.lastWeek[slot]) / gs.stepsPerYear)
+        f[Feature.REMEMBERED_AGE] = min(1f, (gs.stepOf(date) - mem.lastWeek[slot]) / gs.ticksPerYear)
     }
     // What it remembers finding there that it lacks, and how far the place takes it toward the best of that it knows.
     c.lacked?.let { lacked ->

@@ -135,7 +135,7 @@ internal fun HexGroups.keepAnimals(g: HexGroup, b: Band) {
         if (!o.alive) continue
         val s = o.species
         val bold = boldness(o)
-        o.bold = bold + BOLD_DRIFT * (1f - bold)
+        o.bold = bold + overTicks(BOLD_DRIFT) * (1f - bold)
         val tameable = s.domestication.average().toFloat()
         if (o.young > 0 && drawn(DialSite.KEEP_TAME, b.keepWill, rnd.nextFloat(), TAME * b.keepWill * bold * tameable * years) { TAME * bold * tameable * years }) {
             o.young--
@@ -192,7 +192,8 @@ private fun HexGroups.followingResidents(h: Hex, b: Band) {
         val bands = (grown + little) / s.groupSize
         if (bands < ResidentParties.MIN_BANDS) continue
         val boldNow = if (grown > 0f) boldHeads / grown else s.boldShare
-        for (q in places) bold[q] += BOLD_DRIFT * (1f - bold[q])
+        val drift = overTicks(BOLD_DRIFT)
+        for (q in places) bold[q] += drift * (1f - bold[q])
         val tameable = s.domestication.average().toFloat()
         // (Each whole band a draw, and the part band one as often as its share.)
         val draws = bands.toInt() + if (rnd.nextFloat() < bands - bands.toInt()) 1 else 0
@@ -427,7 +428,7 @@ internal fun GroupWorld.herdForage(p: Place, s: Species, n: Float): HerdForage {
     val need = land.spread(p, Kg(n * s.dailyIntakeKg * days)).v
     val d = s.diet; val total = (d.grass + d.browse).coerceAtLeast(1e-6f)
     val grazed = grazedKm2(p, s) / land.areaKm2[p]
-    return HerdForage(need, min(need * d.grass / total, grazed * HexFauna.REACH * land.palatable[p] * land.plants.herb[p]),
+    return HerdForage(need, min(need * d.grass / total, grazed * overTicks(HexFauna.REACH) * land.palatable[p] * land.plants.herb[p]),
         min(need * d.browse / total, grazed * land.plants.browse(p)))
 }
 

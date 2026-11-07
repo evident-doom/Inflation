@@ -58,8 +58,10 @@ import kotlin.math.sqrt
  * hexes lie apart. The groups ([HexGroups]) are such a world with the groups in it.
  */
 abstract class GroupWorld(
-    internal val hw: HexWorld, internal val land: HexLand, internal val fauna: HexFauna, internal val days: Int, seed: Long,
+    internal val hw: HexWorld, internal val land: HexLand, internal val fauna: HexFauna, seed: Long,
 ) {
+    /** Days the step covers, as the residents' ([StepClock]). */
+    internal val days get() = fauna.days
     internal val hex = hw.hex
     internal val n = land.n
     internal val tuning get() = land.tuning
@@ -67,7 +69,7 @@ abstract class GroupWorld(
     internal val seedBase = seed
     /** This week's tallies ([HexSim.stats]). */
     val stats get() = fauna.stats
-    internal val years = Date.years(days)
+    internal val years get() = fauna.years
     internal val small get() = fauna.small
     /** What bands have taken near where they live ([worn], t.wornGround); not saved. */
     @Volatile @Transient internal var wornGround: WornGround? = null
@@ -113,7 +115,19 @@ abstract class GroupWorld(
      * The model's clock: the step [date] falls in (what the groups' "weeks" count: a step of [days] days), and how
      * many steps make a year, for counts of weeks compared against spans of years.
      */
-    internal fun stepOf(date: Date) = (date.absoluteDay / days).toInt()
+    /**
+     * The tick [date] falls in, counted from day 0: the clock that groups' memories, meetings and counts of weeks keep, in
+     * ticks of [StepClock.tickDays] whatever the step's length (a step of several ticks moves them on by [ticks]).
+     */
+    internal fun stepOf(date: Date) = (date.absoluteDay / fauna.clock.tickDays).toInt()
+    /** Ticks the step covers ([StepClock.ticks]): what counts of weeks (camp weeks, weeks since a raid, a band's age) move on by a step. */
+    internal val ticks get() = fauna.clock.ticks
+    /** Ticks in a year: what counts of weeks are reckoned in years by, whatever the step's length. */
+    internal val ticksPerYear get() = Date.stepsPerYear(fauna.clock.tickDays).toFloat()
+    /** The share of a stock taken over the step by one who takes [p] of what is left each tick: [p] itself at one tick a step. */
+    internal fun overTicks(p: Float) = if (ticks == 1) p else 1f - (1f - p.coerceIn(0f, 1f)).pow(ticks)
+    /** How much further than one tick's a step's net shift reaches ([inflation.Tuning.stepReach]): 1 at one tick a step. */
+    internal val stepShift get() = if (ticks == 1) 1f else ticks.toFloat().pow(tuning.stepReach)
 
     internal val stepsPerYear get() = Date.stepsPerYear(days).toFloat()
 

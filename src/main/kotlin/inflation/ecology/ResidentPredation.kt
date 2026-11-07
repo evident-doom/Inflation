@@ -68,7 +68,8 @@ internal fun HexFauna.huntResidents(k: FaunaKind, p: Place, meat: KgM2, weather:
     if (parties <= 0f || daysLeft <= 0f) return KgM2.ZERO
     // (What a party searches of the place in the week, and how open the ground and clear the view: as for a pack, [openness].)
     val seen = sightAt(land, p, weather)
-    val swept = min(area, hunter.dailyTravelKm * days * 2f * hunter.senseKm * SEARCHING * seen)
+    // (Over a step of several ticks the place is searched afresh each tick: as much as its area each.)
+    val swept = min(area * clock.ticks, hunter.dailyTravelKm * days * 2f * hunter.senseKm * SEARCHING * seen)
     val cover = land.plants.cover(p)
     val open = VIGILANCE * (1f - cover) * (1f - hunter.stalking)
     val clear = 0.5f + 0.5f * seen / (1f - SIGHT_COVER * cover).coerceAtLeast(0.1f)
@@ -141,8 +142,8 @@ internal fun HexFauna.huntResidents(k: FaunaKind, p: Place, meat: KgM2, weather:
         val j = kindOf[i]; val s = kinds[j]; val kg = mass[i]
         val perKm2 = kills / area
         when (part[i]) {
-            0 -> { adults[j][p] = max(0f, adults[j][p] - perKm2); huntedByResidents[j][p] += kills }
-            1 -> { young[j][p] = max(0f, young[j][p] - perKm2); huntedByResidents[j][p] += kills }
+            0 -> { adults[j][p] = max(0f, adults[j][p] - perKm2); huntedByResidents[j][p] += kills; killsByHunter[2 * (k.i * kinds.size + j)].add(kills.toDouble()) }
+            1 -> { young[j][p] = max(0f, young[j][p] - perKm2); huntedByResidents[j][p] += kills; killsByHunter[2 * (k.i * kinds.size + j) + 1].add(kills.toDouble()) }
             2 -> { packKills += PackKill(p.i, j, kills, -1L - k.i); packGrown[j]?.let { it[p.i] = max(0f, it[p.i] - perKm2) } }
             else -> { val b = camps?.get(campOf[i]) ?: continue
                 // (What it takes of the herds comes out of the bands' herds, the band to learn of it as it keeps them: [Herd.herdTaken].)

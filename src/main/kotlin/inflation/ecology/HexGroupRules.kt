@@ -18,7 +18,7 @@ import kotlin.math.sqrt
 
 // The numbers the packs and bands on the hexes live by.
 
-/** Days of going a week's net shift amounts to, at the usual pace or a trek's. */
+/** Days of going a tick's (6 days') net shift amounts to, at the usual pace or a trek's; a longer step reaches further ([GroupWorld.stepShift]). */
 internal const val SHIFT_DAYS = 2f
 /** Snow depth that doubles the effort of going, mm. */
 internal const val SNOW_EFFORT_MM = 150f

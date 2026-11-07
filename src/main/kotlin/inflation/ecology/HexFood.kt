@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.world.StepClock
 import inflation.Par
 import inflation.world.Place
 import inflation.world.perPlace
@@ -21,6 +22,7 @@ import inflation.world.MastTrees
 import inflation.world.Weather
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.pow
 import inflation.world.Date
 
 /**
@@ -37,7 +39,24 @@ import inflation.world.Date
  *
  * Each stock comes off the plants that bear it as it grows, and what is not eaten falls into the litter.
  */
-class HexFood(private val land: HexLand, private val small: HexSmallLife, private val days: Int) {
+class HexFood(private val land: HexLand, private val small: HexSmallLife, @Transient private val clock: StepClock) {
+    /** Days the step covers ([StepClock]). */
+    private val days get() = clock.days
+
+    /**
+     * What a stock of [stock] loses over the step, losing [perTick] of itself a tick ([lossShare] of a tick's days) while
+     * [inflow] comes in evenly over the step: as the ticks one after another would have it. At one tick a step, [perTick] of it.
+     */
+    private fun lostOver(stock: Float, inflow: Float, perTick: Float): Float {
+        if (clock.ticks == 1) return stock * perTick
+        val n = clock.ticks; val a = perTick.coerceIn(0f, 1f); val keep = (1f - a).pow(n)
+        val end = keep * stock + (if (a > 0f) inflow / n * (1f - keep) / a else inflow)
+        return max(0f, stock + inflow - end)
+    }
+    /** The share of its stock a store that loses [days]/[lifeDays] of itself loses in a tick, at most all of it. */
+    private fun lossShare(lifeDays: Float) = min(1f, clock.tickDays / lifeDays)
+    /** The share lost over the step of a stock losing [perTick] a tick with nothing coming in: [perTick] at one tick a step. */
+    private fun overTicks(perTick: Float) = if (clock.ticks == 1) perTick else 1f - (1f - perTick.coerceIn(0f, 1f)).pow(clock.ticks)
     val n = land.n
     /** Wild cereals do best on broken hill country: the mean over each place's ground (see [HexLand.overGround]). */
     @Transient private val cerealGround = land.overGround { (0.5f + it).coerceAtMost(1f) }
@@ -218,25 +237,27 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
             // acorns and nuts lie on the ground as mast for rooting animals through the winter.
             val ripe = if (season in FRUIT_FROM..FRUIT_TO) FRUIT_SHARE * bearing(p, weather.mastCrop) * small.fruitSet(p) *
                 min(1f, land.plants.moisture[p] / 0.5f) / FRUIT_DAYS else 0f
-            val fallen = fruit[p] * min(1f, days / FRUIT_DAYS)
             // (It grows on the shrubs and trees that bear it, and comes off them.)
             val shrubBears = land.palatable[p] * 0.5f * land.plants.shrub[p]; val treeBears = treeBearing(p, weather.mastCrop)
             val fromShrub = if (shrubBears + treeBears > 0f) shrubBears / (shrubBears + treeBears) else 1f
             val newFruit = days * ripe
             val bore = if (newFruit > 0f) (land.plants.consume(p, LifeForm.SHRUB, KgM2(newFruit * fromShrub)) +
                 land.plants.consume(p, LifeForm.TREE, KgM2(newFruit * (1f - fromShrub)))).v else 0f
+            val fallen = lostOver(fruit[p], bore, lossShare(FRUIT_DAYS))
             fruit[p] = max(0f, fruit[p] + bore - fallen)
             small.deposit(DeadPool.LITTER, p, KgM2(fallen * fromShrub))
             // Grass seed ripens in early summer as the grass dries, and is shed over the following weeks.
             val ripeSeed = if (season in SEED_FROM..SEED_TO) SEED_SHARE * land.palatable[p] * land.plants.herb[p] / SEED_DAYS else 0f
-            val shed = seeds[p] * min(1f, days / SEED_DAYS)
-            seeds[p] = max(0f, seeds[p] + land.plants.consume(p, LifeForm.HERB, KgM2(days * ripeSeed)).v - shed)
+            val seedIn = land.plants.consume(p, LifeForm.HERB, KgM2(days * ripeSeed)).v
+            val shed = lostOver(seeds[p], seedIn, lossShare(SEED_DAYS))
+            seeds[p] = max(0f, seeds[p] + seedIn - shed)
             small.deposit(DeadPool.LITTER, p, KgM2(shed))
             // (Roots and bulbs fill from the plants above them; old ones rot into the litter, as the mast does.)
             val r = rootsCap(p) * (if (season >= ROOTS_FROM) 3f else 0.5f) / ROOTS_DAYS
-            val rotted = roots[p] * min(1f, days / ROOTS_DAYS)
-            roots[p] = max(0f, roots[p] + land.plants.consume(p, LifeForm.HERB, KgM2(days * r)).v - rotted)
-            val mastRotted = mast[p] * min(1f, days / ROOTS_DAYS)
+            val rootsIn = land.plants.consume(p, LifeForm.HERB, KgM2(days * r)).v
+            val rotted = lostOver(roots[p], rootsIn, lossShare(ROOTS_DAYS))
+            roots[p] = max(0f, roots[p] + rootsIn - rotted)
+            val mastRotted = lostOver(mast[p], fallen * (1f - fromShrub), lossShare(ROOTS_DAYS))
             mast[p] = max(0f, mast[p] + fallen * (1f - fromShrub) - mastRotted)
             small.deposit(DeadPool.LITTER, p, KgM2(rotted + mastRotted))
             // Wild cereals ripen with the other grasses; ears that shatter shed their grain within weeks,
@@ -284,7 +305,7 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
             val made = (honey + truffles + snails) * days
             val grown = land.plants.consume(p, LifeForm.HERB, KgM2(made)).v + eggs * days
             if (eggs > 0f) land.books?.leak(Books.Stuff.MATTER, "eggs, not taken from the birds", (eggs * days * land.areaM2[p]).toDouble())
-            val spoilt = finds[p] * min(1f, days / FINDS_DAYS)
+            val spoilt = lostOver(finds[p], grown, lossShare(FINDS_DAYS))
             small.deposit(DeadPool.LITTER, p, KgM2(spoilt))
             finds[p] = max(0f, finds[p] + grown - spoilt)
         }
@@ -345,7 +366,7 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, privat
     }
 
     /** The share of ripe grain shed this week by a stand whose ears hold their grain as [domestic] (0 wild) of them. */
-    private fun shedShare(domestic: Float) = (1f - domestic) * min(1f, days / SEED_DAYS) + domestic * min(1f, days / GRAIN_HOLD_DAYS)
+    private fun shedShare(domestic: Float) = overTicks((1f - domestic) * lossShare(SEED_DAYS) + domestic * lossShare(GRAIN_HOLD_DAYS))
 
     /** Names the food stocks: fruit, grass seed, small finds, roots, mast, grain, sown seed and the grain of sown fields. */
     internal fun listStocks(stocks: Stocks) {

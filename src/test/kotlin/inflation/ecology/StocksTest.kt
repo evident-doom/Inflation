@@ -80,7 +80,7 @@ class StocksTest {
             "HexDrinkingWater.water", "HexDrinkingWater.waterKm", "HexDrinkingWater.dug", "HexDrinkingWater.well", "HexDrinkingWater.snowWater", "HexDrinkingWater.iced", "HexPlants.gdd", "HexPlants.moisture",
             "HexPlants.shrubShoots", "HexPlants.treeShoots", "HexPlants.animalSeed", "HexPlants.green", "HexPlants.hayFresh", "HexPlants.grassAge",
             "HexPlants.growFrom", "HexPlants.growSpan", "HexPlants.greenOpen", "HexPlants.greenSeep", "HexPlants.greenWet",
-            "HexPlants.greenShade", "HexPlants.trails", "HexPlants.treeSeed", "HexPlants.shrubSeed", "HexFires.burnt", "HexFires.burning",
+            "HexPlants.greenShade", "HexPlants.trails", "HexPlants.treeSeed", "HexPlants.shrubSeed", "HexFires.burnt", "HexFires.burning", "HexFires.stepBurning",
             "HexFauna.waterC", "HexFauna.fed", "HexFauna.protein", "HexFauna.fear", "HexFauna.usual", "HexFauna.forageSodiumAt", "HexFauna.outbreak",
             "HexFauna.fedByMonth", "HexFauna.reserve", "HexFauna.autumnFed", "HexFauna.dry", "HexFauna.arrive", "HexFauna.worth", "HexFauna.moverYoung", "HexFauna.bred", "HexFauna.moverFat", "HexFauna.moverSpent", "HexFauna.spent", "HexFauna.bold", "HexFauna.leaving", "HexFood.domestic", "HexFood.fieldDomestic", "HexFood.fieldDays", "HexFood.fieldStress", "HexFood.fieldSoil", "HexFood.fieldWorn", "HexFood.fieldCover", "HexFood.cleared", "HexFood.croppedNow", "HexFood.wildCover", "HexSmallLife.pollination",
             "HexSmallLife.insectFrom", "HexSmallLife.harass", "HexSmallLife.spreadWeight", "HexSmallLife.returning",

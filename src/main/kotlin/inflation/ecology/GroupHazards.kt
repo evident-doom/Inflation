@@ -13,19 +13,27 @@ import kotlin.random.Random
 
 /**
  * [band]'s wounds this week: mishaps of the work and last week's hurts heal, the tended faster; some lame, some fester.
- * Returns the deaths from festering, a year's rate.
+ * Returns the deaths from festering, a year's rate. A step of several ticks is worked tick by tick (the hurts of its hunts and
+ * raids, already booked, from its first): worked whole, a month would heal every hurt at once and fester all of them for the
+ * month besides.
  */
 internal fun HexGroups.woundsWeek(band: Band): Float {
     val care = 0.5f * band.medicine + 0.5f * band.skill(Skill.HERBS)
     dialUse?.amount(DialSite.GATHER_MISHAPS, band.gatherRange, min(1f, band.hurt + MISHAPS * band.gatherRange * years), min(1f, band.hurt + MISHAPS * years))
-    band.hurt = min(1f, band.hurt + MISHAPS * band.gatherRange * years)
-    val heal = min(1f, (HEAL_UNTENDED + (HEAL_TENDED - HEAL_UNTENDED) * care) * days / 7f)
-    val fester = FESTER * (1f - 0.8f * care) * band.hurt * days / 7f
-    val mended = band.hurt * heal
-    // (The lamed leave the share only as adults die or age out, see [adultsDied] and [growUp]; no flat turnover.)
-    band.lame = min(1f, band.lame + mended * LAMED * (1f - 0.5f * care))
-    band.hurt = max(0f, band.hurt - mended - fester)
-    return fester
+    val tick = days / ticks
+    val tickYears = years / ticks
+    var festered = 0f
+    repeat(ticks) {
+        band.hurt = min(1f, band.hurt + MISHAPS * band.gatherRange * tickYears)
+        val heal = min(1f, (HEAL_UNTENDED + (HEAL_TENDED - HEAL_UNTENDED) * care) * tick / 7f)
+        val fester = FESTER * (1f - 0.8f * care) * band.hurt * tick / 7f
+        val mended = band.hurt * heal
+        // (The lamed leave the share only as adults die or age out, see [adultsDied] and [growUp]; no flat turnover.)
+        band.lame = min(1f, band.lame + mended * LAMED * (1f - 0.5f * care))
+        band.hurt = max(0f, band.hurt - mended - fester)
+        festered += fester
+    }
+    return festered
 }
 
 /** Whether a group of [s] can drink at place [p] ([Hazards.canDrink]). */
@@ -115,7 +123,7 @@ internal class Hazard(val cause: DeathReason, val adult: Float, val young: Float
  */
 internal fun GroupWorld.placeHazards(g: HexGroup, p: Place, weather: Weather, fed: Float, thirst: Float, sick: Float,
     fire: Float, home: Float, shelter: Float = g.band?.shelter ?: 0f, into: HazardSink) {
-    val s = g.species; val b = g.band; val t = weather.temperature[p]
+    val s = g.species; val b = g.band
     // (Fed as it would be with its fat drawn on, as its week's feeding draws on it: a group foresees its fat too.)
     // (In a band the shortfall is not shared evenly: parents feed their children first, see [CHILDREN_FIRST].)
     // (And the elders yield theirs to the rest, see [ELDERS_YIELD]: the grown's odds are the mean of the elders' and the others'.)
@@ -125,7 +133,8 @@ internal fun GroupWorld.placeHazards(g: HexGroup, p: Place, weather: Weather, fe
     // People keep warm as their body heat allows, through their clothes, fire, shelter and houses: past what they can
     // shiver up, they die of exposure. Animals feel the cold through their coats.
     val exposure = b?.warmth(airAt(p, weather), fire, home, days, shelter)?.odds ?: 0f
-    val cold = if (b != null) 0f else Hazards.cold(s, t, weather.date.month); val heat = Hazards.heat(s, t)
+    // (Each tick's cold or heat over a step of several, as it would have killed: [Weather.overTicks].)
+    val cold = if (b != null) 0f else weather.overTicks(p) { Hazards.cold(s, it, weather.date.month) }; val heat = weather.overTicks(p) { Hazards.heat(s, it) }
     // An outbreak raging where it is kills its share.
     val plague = fauna.outbreakDeaths(s, p)
     // Eagles take the young of the smaller hoofed animals in the open.
