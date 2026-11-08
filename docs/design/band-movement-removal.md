@@ -425,6 +425,20 @@ The new model runs behind a switch, `t.bandsStay`, until it is the default; pack
 
 ### Phase 6: learning
 
+- **Found 2026-11-08 (staytrain smoke, main 898dd8d, `t.bandsStay=true`): with bands staying, the people and ways
+  networks get no training samples.** Both arms logged `ways: no draws` (68-73 draws a round without the switch).
+  - `WaysSampler.choose` (`WaysPpo.kt`) records a draw only if `MoverPolicy.choose` stored the band's `Standing` that
+    week (`if (standing[g.id]?.week != w) return`).
+  - The draw's later critic probe is also filled only in `MoverPolicy.choose` (`probes`).
+  - A staying band goes through `GroupPlanner.stayPlan`, which never calls the policy. So no `Standing` is stored, no
+    probe is filled, and no mover choice is recorded.
+  - Until this phase is done, only the packs' (hunters') network can train under `t.bandsStay`.
+  - To fix: record the ways' draws, and fill their probes, from the camp's own terms (the home hex's features and the
+    band's state) in `stayPlan` or the ways' step, without the mover.
+  - Not a quick fix: the home hex's features come from `fillFeatures`, which needs the planner's `PlanContext`.
+- staytrain (`/mnt/project-files/specs/2026-11-08-staytrain.md`) therefore trains hunters only, from N3, with people
+  and ways held at N3.
+
 - **Retire the people move network** (`Role` people, `people.mlp`, the people's `HexFeatures`). Low or high is
   hand-written.
 - The **ways network** reads the mover's view of the chosen place (`policy.planned`, `HexPpo.planned`).
