@@ -1195,6 +1195,10 @@ class Census(private val sim: HexSim) {
                 met(Met.NEIGHBOURS_DEFENDED)))
         println("     bands' year: %d split, %d small bands joined kin, %d bands at home together became one (%d of them of the two kinds of choosing)"
             .format(met(Met.BANDS_SPLIT), met(Met.SMALL_BANDS_JOINED_KIN), met(Met.BANDS_BECAME_ONE), met(Met.BANDS_OF_TWO_MINDS_BECAME_ONE)))
+        // (Bands that hold their home hex, t.bandsStay: what they did with their neighbours and their country this year.)
+        if (sim.land.tuning.bandsStay) println("     staying bands' year: %d neighbour meetings, %d gatherings at appointments (%d bands came), %d camp shifts within the hex, %d budded into a free hex and %d in their parent's, %d raids set out"
+            .format(met(Met.NEIGHBOURS_MET), met(Met.APPOINTMENTS_GATHERED), met(Met.BANDS_AT_APPOINTMENTS), met(Met.BANDS_SHIFTED_CAMP), met(Met.BANDS_BUDDED_OUT),
+                met(Met.BANDS_BUDDED_IN_PLACE), met(Met.RAIDS_SET_OUT)))
         fun of(m: Met.Of, w: RiteWalk) = metYear[m.tally(w.label)] ?: 0
         println("     rites by the band's distance from the site: " + RiteWalk.entries.joinToString("; ") { w ->
             val h = of(Met.Of.RITES_HELD, w); val c = of(Met.Of.RITES_CUT_SHORT, w)

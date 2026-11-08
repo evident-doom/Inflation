@@ -222,6 +222,7 @@ enum class Met(val label: String) {
     NEIGHBOURS_MET("bands met neighbours in hexes about"),
     BANDS_SHIFTED_CAMP("bands shifted camp within their hex"),
     APPOINTMENTS_GATHERED("appointments kept by gatherings of bands"),
+    BANDS_AT_APPOINTMENTS("bands at appointments' gatherings"),
     ORNAMENTS_GIVEN("ornaments given"),
     PACK_GAVE_WAY("pack gave way"),
     PACKS_FOUGHT("packs fought"),

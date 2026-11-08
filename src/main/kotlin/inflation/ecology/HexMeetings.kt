@@ -139,7 +139,7 @@ internal fun HexGroups.keepAppointments(weather: Weather) {
         val site = key.first
         val came = there.take(GATHERING_MOST)
         for (g in came) wearBetween(hw.placeHex[g.place], site, g)
-        stats.meeting(Met.APPOINTMENTS_GATHERED)
+        stats.meeting(Met.APPOINTMENTS_GATHERED); stats.meeting(Met.BANDS_AT_APPOINTMENTS, came.size)
         for (i in came.indices) for (j in i + 1 until came.size) if (came[i].alive && came[j].alive) bandsMeet(came[i], came[j], weather)
     }
 }
