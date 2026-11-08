@@ -318,6 +318,8 @@ internal fun HexGroups.visitKin(weather: Weather) {
         g.band!!.grudge[o.band!!.mainLineage()] *= 0.5f
         helped(o, g, gift)
         stats.meeting(Met.HUNGRY_BANDS_FED_BY_KIN)
+        // (The visit wears the way there and back, [wearBetween].)
+        wearBetween(h0, hw.placeHex[o.place], g)
     }
 }
 

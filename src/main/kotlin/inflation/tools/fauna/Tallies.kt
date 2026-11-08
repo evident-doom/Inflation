@@ -309,6 +309,12 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
             val h = hw.placeHex[g.place]
             for (q in g.path) walked.getOrPut(g.id) { HashSet() } += q
             lastCamp.put(g.id, h)?.let { if (it != h) moves++ }
+            // (A camp shifted within its hex is a camp move too, as foragers' moves of a few km mostly are: t.bandsStay.)
+            g.band?.let { b ->
+                moves += b.shiftsUncounted
+                movesHouse[if (b.house >= Thresholds.HOUSE_STANDING) 1 else 0] += b.shiftsUncounted.toLong()
+                b.shiftsUncounted = 0
+            }
         }
         runWeek()
     }

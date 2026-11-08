@@ -190,6 +190,39 @@ compared per day.
   the same at both. That is what the move away from movement was for.
 - **All nominal limits held** in both runs.
 
+**Camp shifts within the hex, and ways worn by going between hexes.** Same world and nets, with everything above on.
+
+- **The rule (Olli):**
+  - A band tied to no spot (no house it lives in, no fresh sowing, no palisade: `Band.livesFixed`) shifts its camp a few
+    km within its hex when the ground would begin to foul (two months' camping).
+  - The shift clears only the hex's fouling, and with it the flux that comes of fouling.
+  - Its camp weeks go on, because houses and sowing wait on the time the band has held its country.
+  - Worn ground and firewood need nothing: a light band's take already counts against its whole place, and only a band
+    tied to a spot wears the ground about it.
+  - The census counts a shift as a camp move.
+- **The ways (Olli):** worn tracks come from the dealings between hexes, not from bands walking across them. Neighbour
+  meetings, kin visits and raids wear the way between the two hexes, step by step and along the more worn border where
+  there is a choice, so the busy ways become tracks. Trade routes and longer trips can use the same call later.
+
+| | Camp moves a year | Camp fouling's share of children's deaths | Hexes on routes (largest network) | People at the end, adults / young |
+|---|---|---|---|---|
+| Moving, 6 d | 4.0 | n/a | 322 (182) | 1126 / 463 |
+| Moving, 60 d | 26.8 | n/a | 428 (428) | 1116 / 484 |
+| Staying, before shifts, 6 d | 0.0 | 32% | 135 (74) | 1125 / 438 |
+| Staying, before shifts, 60 d | 0.0 | 31% | 133 (73) | 1108 / 478 |
+| Staying with shifts, 6 d | 2.9 | 9% | 135 (74) | 1126 / 451 |
+| Staying with shifts, 60 d | 3.2 | 0% | 133 (73) | 1079 / 483 |
+| Staying with shifts and travel wear, 6 d | n/a | n/a | 134 (74) | 1122 / 451 |
+| Staying with shifts and travel wear, 60 d | n/a | n/a | 134 (74) | 1111 / 483 |
+
+- **Camp moves** are about 3 a year at both lengths. That is low against the record's 5-60, which is right for
+  half-settled Natufians.
+- **Travel wear hardly changes the routes.** Each band already wears all six borders of its own hex every week
+  (`CAMP_WEAR`: its foragers going out and back), and that nearly saturates them. Meetings, at 6 a year for a pair side
+  by side, add a few per cent. Moving bands' routes also depended on the step's length (322 against 428 hexes).
+- **Open choice:** the wear around a band's own hex could go by its dealings with each neighbour, not evenly to all six
+  sides. Only then would tracks follow the interaction.
+
 ## Where it clashes with the variable step
 
 The variable-step branch makes most slow parts read the step's length as it stands: tick by tick, or as a closed form

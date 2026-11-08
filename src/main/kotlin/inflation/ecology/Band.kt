@@ -102,6 +102,8 @@ class Band(kinds: Int, totems: Int = kinds) {
     @Transient var leftBehind = 0f
     /** Whether it moved camp this week ([campAndCache]), for its record of weeks ([recordWeek]). */
     @Transient var movedCamp = false
+    /** Camp shifts within its hex ([shiftCamps]) the census has not yet counted as camp moves; it reads and clears them. */
+    @Transient var shiftsUncounted = 0
     /**
      * For the census around camp moves ([moveCensus]): its last [MOVE_WEEKS] weeks' share of the need it ate and its larder
      * (days), a ring from [recentAt]; the weeks since its last move (-1 for none seen), and how fed it was in the weeks before it.

@@ -115,6 +115,8 @@ internal fun HexGroups.fightRaids(weather: Weather) {
         if (g.alive && target.alive && (staysHome(g) || hw.placeHex[target.place] == hw.placeHex[g.place])) {
             val u = Language.understanding(b.words, tb.words)
             tallyMeeting(MetAs(Regard(b, target.id, tb, u, hex), Regard(tb, g.id, b, u, hex)), Tally.MeetingEnd.RAIDED_HOME)
+            // (The raiders' going there and back wears the way, [wearBetween].)
+            wearBetween(hw.placeHex[g.place], hw.placeHex[target.place], g)
             fight(g, b, target, tb, planned = true, weather)
         }
     }

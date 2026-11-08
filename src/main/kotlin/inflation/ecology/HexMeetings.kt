@@ -141,7 +141,8 @@ internal fun HexGroups.neighboursMeet(weather: Weather) {
             val mean = rate * NEIGHBOUR_FALL.pow(k - 1)
             // (Each pair once: the band of the lower id draws for both.)
             for (h in ring) for (b in byHex[h].orEmpty()) if (b.id > a.id) repeat(poisson(mean, r)) {
-                if (a.alive && b.alive) { stats.meeting(Met.NEIGHBOURS_MET); bandsMeet(a, b, weather) }
+                // (The meeting wears the way between their hexes: one went to the other and back, [wearBetween].)
+                if (a.alive && b.alive) { stats.meeting(Met.NEIGHBOURS_MET); wearBetween(h0, h, a); bandsMeet(a, b, weather) }
             }
         }
     }

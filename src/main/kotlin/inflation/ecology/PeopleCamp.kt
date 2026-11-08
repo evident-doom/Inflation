@@ -378,11 +378,14 @@ internal fun HexGroups.foulGround() {
             if (g.alive) { val h = hw.placeHex[g.place]; weeks[h.i] = max(weeks[h.i], b.campWeeks.toFloat()) } }
     }
     val people = FloatArray(hex.size); val kept = FloatArray(hex.size)
+    // (With t.bandsStay, the hexes where some band is tied to its spot: a house it lives in, fresh sowing, a palisade.)
+    val tied = if (tuning.bandsStay) BooleanArray(hex.size) else null
     for (g in groups) { val b = g.band ?: continue
         if (!g.alive) continue
         val h = hw.placeHex[g.place].i
         people[h] += g.size.toFloat()
         if (b.holds(Tradition.HYGIENE)) kept[h] += g.size * b.cleaned
+        if (tied != null && b.livesFixed()) tied[h] = true
     }
     val most = fullyFouledWeeks()
     for (h in 0 until hex.size) {
@@ -390,6 +393,30 @@ internal fun HexGroups.foulGround() {
         weeks[h] = if (people[h] > 0f) min(most, weeks[h] + people[h] / FOUL_PEOPLE * ticks) else max(0f, weeks[h] - FOUL_CLEAR * ticks)
         val tended = if (people[h] > 0f) kept[h] / people[h] else 0f
         midden[h] = max(tended, midden[h] * (1f - MIDDEN_WEAR * years))
+    }
+    if (tied != null) shiftCamps(weeks, people, tied)
+}
+
+/**
+ * Camp shifts within the hex, for bands that hold their home hex ([inflation.Tuning.bandsStay]): where bands camp at a hex
+ * ([people]) and none of them is tied to its spot ([tied]: [Band.livesFixed]), they move their camp to fresh ground within
+ * the hex once its fouling ([weeks], this step's added) would begin to tell ([fouled]: two months' camping). That is the
+ * normal case for foragers, a move of a few kilometres: it clears the hex's fouling (the refuse, flies and fouled water,
+ * and the flux that comes of them, [catching]) and nothing else. The band keeps its stores, shelters, goods and cache,
+ * and its weeks in the hex go on ([Band.campWeeks], [Band.stayWeeks]: the time it has held this country, which houses and
+ * sowing wait on). Worn ground and firewood need nothing: a light band's take already counts against its whole place
+ * ([WornGround]), and only a band tied to a spot wears the ground about it. (Bands tied to a spot stay on it, and their
+ * ground fouls as before.) Counted for the census as a camp move ([Band.shiftsUncounted]).
+ */
+private fun HexGroups.shiftCamps(weeks: FloatArray, people: FloatArray, tied: BooleanArray) {
+    val onset = ticksPerYear / 6f
+    val shifted = BooleanArray(hex.size)
+    for (h in 0 until hex.size) if (people[h] > 0f && !tied[h] && weeks[h] >= onset) { weeks[h] = 0f; shifted[h] = true }
+    for (g in groups) { val b = g.band ?: continue
+        if (!g.alive || !shifted[hw.placeHex[g.place].i]) continue
+        b.shiftsUncounted++
+        stats.meeting(Met.BANDS_SHIFTED_CAMP)
+        note(g) { "shifted its camp to fresh ground in its hex" }
     }
 }
 
