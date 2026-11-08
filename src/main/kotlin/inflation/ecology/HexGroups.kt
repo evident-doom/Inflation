@@ -448,9 +448,11 @@ class HexGroups(
             if (!g.alive) return@forEach
             // (With profile=jfr, the choosing is timed by kind, bands apart.)
             val t0 = Profile.mark()
-            // (A band that holds its home hex chooses nothing: it camps on its hex's low ground, [GroupPlanner.stayPlan].)
+            // (A band that holds its home hex and that no network drives chooses nothing: it camps on its hex's low ground,
+            // [GroupPlanner.stayPlan]. One that a network drives weighs its own hex's low and high ground by it, so that its
+            // choice, its standing and its ways' draws are there to learn from: [GroupPlanner.plan], held to the hex.)
             val plan = Profile.kind("choosing", if (g.band != null) "bands" else g.species.name) {
-                if (staysHome(g)) planner.stayPlan(g) else planner.plan(g, weather, date, predatorKg) }
+                if (staysHome(g) && policyFor(g) == null) planner.stayPlan(g) else planner.plan(g, weather, date, predatorKg) }
             if (g.band != null) Profile.slow("plan: band", t0, date.absoluteDay) { g.probe(date.absoluteDay) }
             choice[k] = plan.place.i; paths[k] = plan.path
             times[k] = timetable(g.species, plan.path)

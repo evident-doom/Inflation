@@ -438,6 +438,17 @@ The new model runs behind a switch, `t.bandsStay`, until it is the default; pack
   - Not a quick fix: the home hex's features come from `fillFeatures`, which needs the planner's `PlanContext`.
 - staytrain (`/mnt/project-files/specs/2026-11-08-staytrain.md`) therefore trains hunters only, from N3, with people
   and ways held at N3.
+- **Fixed 2026-11-08 (later the same day).**
+  - **The change:** a staying band that a network drives goes through the planner again, its search held to its own
+    hex (`searchReach` at 0 for staying bands; its reach is kept for the terms reckoned against it). So the people's
+    network weighs the hex's low and high ground (one place where the hex is not split), stores the band's `Standing`
+    and fills its probes, and the ways' network gets the mover's view of the camp and its draws.
+  - **Bands with no network** still camp on the low ground with no planner (`stayPlan`).
+  - **What this gives up:** with nets driving, "low ground by default" no longer holds. The network chooses low or
+    high, as the planner runs did when bands weighed their hex's two places (2-4% of steps on the high ground).
+  - **Smoke:** one round of hex-ppo (2 worlds of 400 km, a year, no check), N3 nets, `t.bandsStay=true` gave hunters
+    283 choices, people 4454 choices, and ways 341 draws (before: none).
+  - **Consequence:** people and ways can train under the switch again, without waiting for this phase.
 
 - **Retire the people move network** (`Role` people, `people.mlp`, the people's `HexFeatures`). Low or high is
   hand-written.

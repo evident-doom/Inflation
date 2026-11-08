@@ -31,8 +31,9 @@ internal fun GroupWorld.restless(g: HexGroup, weather: Weather, thirsty: Boolean
 }
 
 /**
- * Whether [g] holds its home hex this step ([inflation.Tuning.bandsStay]): a band that does chooses no place, it camps on its
- * hex's low ground ([GroupPlanner.stayPlan]) whatever the step's length; its day-to-day going is within the hex.
+ * Whether [g] holds its home hex this step ([inflation.Tuning.bandsStay]): a band that does never leaves its hex, whatever the
+ * step's length; it camps on its low ground ([GroupPlanner.stayPlan]), or, driven by a network, on its low or high ground as
+ * the network weighs them; its day-to-day going is within the hex.
  */
 internal fun GroupWorld.staysHome(g: HexGroup) = tuning.bandsStay && g.band != null
 

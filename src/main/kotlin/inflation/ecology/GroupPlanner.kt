@@ -76,11 +76,12 @@ internal class GroupPlanner(internal val gs: HexGroups) {
     }
 
     /**
-     * The step of a band that holds its home hex ([staysHome]): it weighs nothing and camps on its hex's low ground (its only
-     * ground where the hex is not split), never leaving the hex. For now: a hex's high ground is not lived on, and when to
-     * camp up there (the summer's pasture, the winter's cold) is left for later (docs/design/band-movement-removal.md). Its
-     * ways' network reads no mover's view of the place ([HexGroup.plan] null: zeros where the mover's trunk went) until it
-     * is trained on the camp's own terms.
+     * The step of a band that holds its home hex ([staysHome]) and that no network drives: it weighs nothing and camps on its
+     * hex's low ground (its only ground where the hex is not split), never leaving the hex. When to camp on the high ground
+     * by the hand-written rules (the summer's pasture, the winter's cold) is left for later (docs/design/band-movement-removal.md).
+     * A band that a network drives goes through [plan] instead, held to its own hex's low and high ground: the people's
+     * network then has its choice to learn from, and the ways' network its view of the camp and its draws (2026-11-08: through
+     * here, no band's choice or ways were recorded, and neither network could train).
      */
     internal fun stayPlan(g: HexGroup): Plan {
         val h = gs.hw.placeHex[g.place]
@@ -125,7 +126,9 @@ internal class GroupPlanner(internal val gs: HexGroups) {
         // Least effort to each hex within reach.
         val buf = scratch.get()
         val dist = buf.dist; val via = buf.via; val reached = buf.reached
-        searchReach(g, here, reach, restless, weather, buf)
+        // (A band that holds its home hex searches no other hex: it weighs its own low and high ground only, [staysHome]. Its
+        // reach stays what it would be, for the terms that are reckoned against it: at 0 they came out 0/0.)
+        searchReach(g, here, if (gs.staysHome(g)) 0f else reach, restless, weather, buf)
         // (Warned of a peril at its camp: which way is out, beyond its week's reach too, [searchWayOut].)
         buf.wayOut = null
         if (gs.perilAhead(here) > 0f) searchWayOut(g, here, reach, weather, buf)
