@@ -220,8 +220,9 @@ internal fun HexGroups.splitOff(g: HexGroup, adults: Int, young: Int): HexGroup 
 /**
  * Where band [n], just split off its parent ([splitOff], at the parent's place), makes its home when bands hold their
  * home hex ([staysHome]): the hex beside the parent's with no band in it (counting the bands split off this step,
- * [born]) whose ground suits people best, as a world's start weighs it ([HexFauna.startWeight]: food, water, warmth),
- * on that hex's better ground; if every hex beside has a band, it stays in its parent's hex and the two share it.
+ * [born]) whose ground suits people best, as a world's start weighs it ([HexFauna.startWeight]: food, water, warmth, its
+ * places summed), on that hex's low ground ([GroupPlanner.stayPlan]); if every hex beside has a band, it stays in its
+ * parent's hex and the two share it.
  * People spread by such budding a hex at a time, never on a trek. (It carries what it took from its parent: the move
  * itself is charged at its first camp there, [campAndCache], as any band's leaving.)
  */
@@ -232,10 +233,8 @@ internal fun HexGroups.findHome(n: HexGroup, born: List<HexGroup>) {
         val h = hex.neighbour(from, d)
         if (h.none || hw.placesOf(h).isEmpty()) continue
         if (groups.any { it.alive && it.band != null && hw.placeHex[it.place] == h } || born.any { it.band != null && hw.placeHex[it.place] == h }) continue
-        for (pi in hw.placesOf(h)) {
-            val w = fauna.startWeight(n.species, Place(pi))
-            if (w > bestW) { bestW = w; best = Place(pi) }
-        }
+        var w = 0f; for (pi in hw.placesOf(h)) w += fauna.startWeight(n.species, Place(pi))
+        if (w > bestW) { bestW = w; best = hw.firstPlaceIn(h) }
     }
     if (best.none) { stats.meeting(Met.BANDS_BUDDED_IN_PLACE); return }
     n.place = best

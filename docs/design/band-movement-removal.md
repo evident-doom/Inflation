@@ -32,12 +32,28 @@ model). They do not have to share a hex to meet, feast or trade.
 |---|---|
 | Density | Forager bands start at Natufian densities: **one band per hex**, as a convenient simplification for now. More people per band, or more bands per hex, come with technology, and densities rise with settling and farming. Our estimates put a hex's food limit well above 25 people: the hypothesis is that food was not what kept densities down. |
 | Influence beyond the hex | Later. For now neighbouring hexes simply have bands of their own. |
-| Place inside the hex | At most the hex's low or high ground. |
+| Place inside the hex | At most the hex's low or high ground. **For now bands camp on the low ground and choose nothing** (`GroupPlanner.stayPlan`; Olli, 8 Nov 2026). See "Later: low or high ground" below. |
 | Capacity | The existing rules for bands sharing a hex (shared stocks and the ecology already modelled). Further limits come later if needed. |
 | Survival mode | Left for now. |
 | Storms and recruiters | Dropped: they do not fit this model. |
 | Hex becomes uninhabitable | Its people disperse to neighbouring hexes. Not a priority yet. |
 | Base | Continue on top of the variable step. The other machine is only training nets on that branch and not changing it, so the branch can be merged to `main`. |
+
+## Later: low or high ground
+
+Left for later on purpose. For now a band that holds its home hex camps on the hex's low ground and runs no planner.
+
+- **Which hexes it concerns:** only split hexes have high ground, those where the land between the lowest and highest
+  tenth rises more than 400 m (`HexWorld.SPLIT_RELIEF_M`). A flat hex has one place, so nothing is lost there.
+- **What was lost:** in the planner runs before this, staying bands moved between low and high ground in 2-4% of steps.
+- **What the choice is for:** going up for the summer's pasture or to get out of the heat, and down out of the cold and
+  snow. That matters most for herders (their seasonal moves up and down, which a hex can hold).
+- **What it needs:** a few terms (the food, warmth, water and snow of each half, and the herds' forage), not the
+  planner.
+- **The ways network:** it read the people mover's view of the chosen place (`HexGroup.plan`). With no plan it reads
+  zeros in that part of its input, until it is trained on the camp's own terms (Phase 6).
+- **High ground has no camps meanwhile:** what grows and lives there is still eaten by the animals. How far a band's
+  foraging and hunting reach from its low-ground camp onto the high ground is still to be checked.
 
 ## Forager territoriality: a quick look
 

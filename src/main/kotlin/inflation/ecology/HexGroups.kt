@@ -276,7 +276,8 @@ class HexGroups(
     /**
      * Where the bands of a world start when they hold their home hex ([inflation.Tuning.bandsStay]): one band to a hex, the
      * hexes in order of how well their ground suits people ([weights], the start weights of their places summed: food,
-     * water, warmth, by area), each band on its hex's better ground; hexes whose ground suits them not at all are left out.
+     * water, warmth, by area), each band on its hex's low ground (where bands that hold their hex camp, [GroupPlanner.stayPlan]);
+     * hexes whose ground suits them not at all are left out.
      * The best country is taken first and budding spreads people from there ([findHome]). Beyond the last such hex, bands
      * are drawn as before and share.
      */
@@ -285,7 +286,7 @@ class HexGroups(
         val worth = HashMap<Hex, Float>(); for (h in hexes) worth[h] = hw.placesOf(h).sumOf { weights[it].toDouble() }.toFloat()
         // (Ties go to the lower hex number, so the order is the same on every run of the seed.)
         return hexes.sortedWith(compareByDescending<Hex> { worth.getValue(it) }.thenBy { it.i })
-            .map { h -> hw.placesOf(h).maxBy { weights[it] } }.toIntArray()
+            .map { h -> hw.firstPlaceIn(h).i }.toIntArray()
     }
 
     /** Where groups of [s] start or wander in: by area, how the ground and climate suit it, and water within its reach in a usual year. */
@@ -444,7 +445,9 @@ class HexGroups(
             if (!g.alive) return@forEach
             // (With profile=jfr, the choosing is timed by kind, bands apart.)
             val t0 = Profile.mark()
-            val plan = Profile.kind("choosing", if (g.band != null) "bands" else g.species.name) { planner.plan(g, weather, date, predatorKg) }
+            // (A band that holds its home hex chooses nothing: it camps on its hex's low ground, [GroupPlanner.stayPlan].)
+            val plan = Profile.kind("choosing", if (g.band != null) "bands" else g.species.name) {
+                if (staysHome(g)) planner.stayPlan(g) else planner.plan(g, weather, date, predatorKg) }
             if (g.band != null) Profile.slow("plan: band", t0, date.absoluteDay) { g.probe(date.absoluteDay) }
             choice[k] = plan.place.i; paths[k] = plan.path
             times[k] = timetable(g.species, plan.path)

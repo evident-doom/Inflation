@@ -102,9 +102,10 @@ class Tuning(
     /** Worn ground ([inflation.ecology.WornGround]): what bands take near where they live makes the next kilo and load of wood dearer; off unless set (under test). */
     val wornGround = read("t.wornGround")?.toBooleanStrict() ?: false
     /**
-     * Bands hold their home hex ([inflation.ecology.staysHome]): each step a band weighs only its own hex's low and high
-     * ground, never another hex; a raid is fought at the target's home without the band walking there; a band that splits
-     * off takes a free hex beside its parent's; a world starts with one band to a hex, the best country first
+     * Bands hold their home hex ([inflation.ecology.staysHome]): a band chooses no place, it camps on its hex's low ground; a
+     * band tied to no spot shifts its camp within the hex when the ground would foul; it meets its neighbours, and its
+     * dealings with them wear the ways; a raid is fought at the target's home without the band walking there; a band that
+     * splits off takes a free hex beside its parent's; a world starts with one band to a hex, the best country first
      * (docs/design/band-movement-removal.md). Off unless set (under test).
      */
     val bandsStay = read("t.bandsStay")?.toBooleanStrict() ?: false

@@ -75,6 +75,20 @@ internal class GroupPlanner(internal val gs: HexGroups) {
         return planInner(g, weather, date, predatorKg)
     }
 
+    /**
+     * The step of a band that holds its home hex ([staysHome]): it weighs nothing and camps on its hex's low ground (its only
+     * ground where the hex is not split), never leaving the hex. For now: a hex's high ground is not lived on, and when to
+     * camp up there (the summer's pasture, the winter's cold) is left for later (docs/design/band-movement-removal.md). Its
+     * ways' network reads no mover's view of the place ([HexGroup.plan] null: zeros where the mover's trunk went) until it
+     * is trained on the camp's own terms.
+     */
+    internal fun stayPlan(g: HexGroup): Plan {
+        val h = gs.hw.placeHex[g.place]
+        g.safestPeril = Float.NaN; g.drawn = false; g.weighed = false; g.plan = null; g.band?.planLoads = Float.NaN
+        planCounts.incrementAndGet(g.species.index * 3)
+        return Plan(gs.hw.firstPlaceIn(h), hexArray(1) { h })
+    }
+
     private fun planInner(g: HexGroup, weather: Weather, date: Date, predatorKg: FloatArray): Plan {
         val s = g.species
         val here = gs.hw.placeHex[g.place]
@@ -111,9 +125,7 @@ internal class GroupPlanner(internal val gs: HexGroups) {
         // Least effort to each hex within reach.
         val buf = scratch.get()
         val dist = buf.dist; val via = buf.via; val reached = buf.reached
-        // (A band that holds its home hex searches no other hex: it weighs its own low and high ground only, [staysHome]. Its
-        // reach stays what it would be, for the terms that are reckoned against it.)
-        searchReach(g, here, if (gs.staysHome(g)) 0f else reach, restless, weather, buf)
+        searchReach(g, here, reach, restless, weather, buf)
         // (Warned of a peril at its camp: which way is out, beyond its week's reach too, [searchWayOut].)
         buf.wayOut = null
         if (gs.perilAhead(here) > 0f) searchWayOut(g, here, reach, weather, buf)
