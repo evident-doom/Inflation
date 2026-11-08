@@ -156,6 +156,20 @@ are the same model as the Phase 0 runs above.
 - **The 60-day staying run lost more people in its last year** (97 dead, against 38 moving): one run, to be checked
   with replicates.
 
+**Phase 5 (the start: one band to a hex, best first), with Phase 1 on.** Same world and nets.
+
+| Step | Choosing, ms | Whole step, ms | People at the end, adults / young (bands) | Hexes with bands | Nominal limits |
+|---|---|---|---|---|---|
+| 6 d | 4.0 | 74.5 | 1120 / 435 (46) | 46 | all held |
+| 60 d | 36.7 | 252.1 | 1105 / 482 (44) | 44 | all held |
+
+- **One band to a hex:** every band ends on a hex of its own, so budding found free hexes beside its parents' every
+  time.
+- **People:** about as with moving bands at both lengths. At 60 days this run did better than Phase 1's random start
+  (1105 adults against 1048, and 42 deaths in the last year against 97).
+- **Time:** the whole step came out shorter, but these are single timed runs on a shared machine, so the step times
+  are only a rough guide.
+
 ## Where it clashes with the variable step
 
 The variable-step branch makes most slow parts read the step's length as it stands: tick by tick, or as a closed form

@@ -179,8 +179,10 @@ class HexGroups(
             if (total <= 0f) continue
             // (Groups start of all sizes about the usual, the same heads in all: [startSizes].)
             val sizes = startSizes(s, unit, count)
-            for (size in sizes) {
-                val p = inflation.drawWeighted(weights, total, rnd)
+            // (Bands that hold their home hex start one to a hex, the best country first: [bestHexesFirst].)
+            val bestFirst = if (s.human && tuning.bandsStay && !uniformStart) bestHexesFirst(weights) else null
+            for ((i, size) in sizes.withIndex()) {
+                val p = bestFirst?.getOrNull(i) ?: inflation.drawWeighted(weights, total, rnd)
                 val g = spawn(s, Place(p), size)
                 if (s.human) {
                     g.larder = START_LARDER_DAYS * g.dailyNeedKg
@@ -269,6 +271,21 @@ class HexGroups(
         val mean = per.average().toFloat()
         if (mean <= 0f) return
         for (p in 0 until n) weights[p] /= 1f + per[p] / mean
+    }
+
+    /**
+     * Where the bands of a world start when they hold their home hex ([inflation.Tuning.bandsStay]): one band to a hex, the
+     * hexes in order of how well their ground suits people ([weights], the start weights of their places summed: food,
+     * water, warmth, by area), each band on its hex's better ground; hexes whose ground suits them not at all are left out.
+     * The best country is taken first and budding spreads people from there ([findHome]). Beyond the last such hex, bands
+     * are drawn as before and share.
+     */
+    private fun bestHexesFirst(weights: FloatArray): IntArray {
+        val hexes = hex.all.filter { h -> hw.placesOf(h).any { weights[it] > 0f } }
+        val worth = HashMap<Hex, Float>(); for (h in hexes) worth[h] = hw.placesOf(h).sumOf { weights[it].toDouble() }.toFloat()
+        // (Ties go to the lower hex number, so the order is the same on every run of the seed.)
+        return hexes.sortedWith(compareByDescending<Hex> { worth.getValue(it) }.thenBy { it.i })
+            .map { h -> hw.placesOf(h).maxBy { weights[it] } }.toIntArray()
     }
 
     /** Where groups of [s] start or wander in: by area, how the ground and climate suit it, and water within its reach in a usual year. */

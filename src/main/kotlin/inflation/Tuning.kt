@@ -104,7 +104,8 @@ class Tuning(
     /**
      * Bands hold their home hex ([inflation.ecology.staysHome]): each step a band weighs only its own hex's low and high
      * ground, never another hex; a raid is fought at the target's home without the band walking there; a band that splits
-     * off takes a free hex beside its parent's (docs/design/band-movement-removal.md). Off unless set (under test).
+     * off takes a free hex beside its parent's; a world starts with one band to a hex, the best country first
+     * (docs/design/band-movement-removal.md). Off unless set (under test).
      */
     val bandsStay = read("t.bandsStay")?.toBooleanStrict() ?: false
     /** The food cost of keeping warm, against [inflation.ecology.COLD_COST]. */
