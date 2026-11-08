@@ -31,6 +31,12 @@ internal fun GroupWorld.restless(g: HexGroup, weather: Weather, thirsty: Boolean
 }
 
 /**
+ * Whether [g] holds its home hex this step ([inflation.Tuning.bandsStay]): a band that does weighs only its own hex's low
+ * and high ground, so its choice reaches no further whatever the step's length; its day-to-day going is within the hex.
+ */
+internal fun GroupWorld.staysHome(g: HexGroup) = tuning.bandsStay && g.band != null
+
+/**
  * Whether a band's week in the cold, as its clothes, fire, shelter and house leave it ([Band.warmth]), sets it looking for
  * better: when keeping warm takes [COLD_RESTLESS] more food or more, or the cold kills (both estimates).
  */

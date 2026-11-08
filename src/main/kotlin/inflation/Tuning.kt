@@ -101,6 +101,12 @@ class Tuning(
     val parties = read("t.parties")?.toBooleanStrict() ?: false
     /** Worn ground ([inflation.ecology.WornGround]): what bands take near where they live makes the next kilo and load of wood dearer; off unless set (under test). */
     val wornGround = read("t.wornGround")?.toBooleanStrict() ?: false
+    /**
+     * Bands hold their home hex ([inflation.ecology.staysHome]): each step a band weighs only its own hex's low and high
+     * ground, never another hex; a raid is fought at the target's home without the band walking there; a band that splits
+     * off takes a free hex beside its parent's (docs/design/band-movement-removal.md). Off unless set (under test).
+     */
+    val bandsStay = read("t.bandsStay")?.toBooleanStrict() ?: false
     /** The food cost of keeping warm, against [inflation.ecology.COLD_COST]. */
     val coldCost = f("coldCost", 1f)
 

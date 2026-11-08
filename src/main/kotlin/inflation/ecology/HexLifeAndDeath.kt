@@ -154,6 +154,8 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         mournDead(g, o, date)
         o.split?.let { c ->
             val n = splitOff(g, c.adults, c.young) // a young pack has no ground yet
+            // (A band that holds its home hex buds: the part that leaves takes a free hex beside its parent's, [findHome].)
+            if (staysHome(n)) findHome(n, born)
             born += n
             if (s.lifeway == Lifeway.PACK && g.band == null) stats.meeting(Met.Of.PACK_SPLIT_OFF, s.name)
             if (g.band != null) stats.meeting(Met.BANDS_SPLIT)
@@ -213,6 +215,31 @@ internal fun HexGroups.splitOff(g: HexGroup, adults: Int, young: Int): HexGroup 
         // The halves were one band: each holds the other as close as can be, until living apart fades it.
         b.ties[n.id] = SPLIT_TIE; nb.ties[g.id] = SPLIT_TIE } }
     return n
+}
+
+/**
+ * Where band [n], just split off its parent ([splitOff], at the parent's place), makes its home when bands hold their
+ * home hex ([staysHome]): the hex beside the parent's with no band in it (counting the bands split off this step,
+ * [born]) whose ground suits people best, as a world's start weighs it ([HexFauna.startWeight]: food, water, warmth),
+ * on that hex's better ground; if every hex beside has a band, it stays in its parent's hex and the two share it.
+ * People spread by such budding a hex at a time, never on a trek. (It carries what it took from its parent: the move
+ * itself is charged at its first camp there, [campAndCache], as any band's leaving.)
+ */
+internal fun HexGroups.findHome(n: HexGroup, born: List<HexGroup>) {
+    val from = hw.placeHex[n.place]
+    var best = Place.NONE; var bestW = 0f
+    for (d in 0 until 6) {
+        val h = hex.neighbour(from, d)
+        if (h.none || hw.placesOf(h).isEmpty()) continue
+        if (groups.any { it.alive && it.band != null && hw.placeHex[it.place] == h } || born.any { it.band != null && hw.placeHex[it.place] == h }) continue
+        for (pi in hw.placesOf(h)) {
+            val w = fauna.startWeight(n.species, Place(pi))
+            if (w > bestW) { bestW = w; best = Place(pi) }
+        }
+    }
+    if (best.none) { stats.meeting(Met.BANDS_BUDDED_IN_PLACE); return }
+    n.place = best
+    stats.meeting(Met.BANDS_BUDDED_OUT)
 }
 
 /**

@@ -195,6 +195,8 @@ enum class Met(val label: String) {
     RAIDS_ON_HOLY_GROUND("raids at a rite both keep, the peace broken"),
     BANDS_MOVED_A_RITE_TO_A_BETTER_MONTH("bands moved a rite to a month of plenty"),
     BANDS_SPLIT("bands split"),
+    BANDS_BUDDED_OUT("bands budded into a free hex beside"),
+    BANDS_BUDDED_IN_PLACE("bands budded with no free hex beside, sharing their parent's"),
     BANDS_SPLIT_OVER_THEIR_BELIEF("bands split over their belief"),
     BANDS_TOOK_UP_ANOTHERS_APPOINTMENT("bands took up another's appointment"),
     BANDS_TOOK_UP_ANOTHERS_BURIAL("bands took up another's burial way"),

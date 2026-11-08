@@ -111,7 +111,9 @@ internal class GroupPlanner(internal val gs: HexGroups) {
         // Least effort to each hex within reach.
         val buf = scratch.get()
         val dist = buf.dist; val via = buf.via; val reached = buf.reached
-        searchReach(g, here, reach, restless, weather, buf)
+        // (A band that holds its home hex searches no other hex: it weighs its own low and high ground only, [staysHome]. Its
+        // reach stays what it would be, for the terms that are reckoned against it.)
+        searchReach(g, here, if (gs.staysHome(g)) 0f else reach, restless, weather, buf)
         // (Warned of a peril at its camp: which way is out, beyond its week's reach too, [searchWayOut].)
         buf.wayOut = null
         if (gs.perilAhead(here) > 0f) searchWayOut(g, here, reach, weather, buf)

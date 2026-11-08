@@ -92,8 +92,16 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
         val best = dying.keys.filter { survivalSteps(g, dying.getValue(it) - least) <= 1f }
             .minWith(compareByDescending<Int> { wary.getValue(it) }.thenBy { hexKm(here, b.knownHomes.getValue(it)) }.thenBy { it })
         val at = b.knownHomes.getValue(best)
-        b.raid = Raid(at, best, RAID_WEEKS)
         stats.meeting(Met.RAIDS_SET_OUT)
+        // (A band that holds its home hex sends its fighters and stays: the raid is fought this step if the others are at the
+        // home it knows, else it comes to nothing, as a band walking there finds it empty. The walk's days are not yet charged.)
+        if (staysHome(g)) {
+            val target = bands.groupById[best]?.takeIf { it.alive && it.band != null && hw.placeHex[it.place] == at }
+            if (target != null) bands.raidsDue += g to target
+            note(g) { "sent its fighters to raid band #%d at hex %d".format(best, at.i) }
+            return
+        }
+        b.raid = Raid(at, best, RAID_WEEKS)
         note(g) { "set out to raid band #%d at hex %d".format(best, at.i) }
     }
 }
@@ -103,7 +111,8 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
 internal fun HexGroups.fightRaids(weather: Weather) {
     for ((g, target) in bands.raidsDue) {
         val b = g.band ?: continue; val tb = target.band ?: continue
-        if (g.alive && target.alive && hw.placeHex[target.place] == hw.placeHex[g.place]) {
+        // (A band that holds its home hex fights from its own: its fighters went to the target's.)
+        if (g.alive && target.alive && (staysHome(g) || hw.placeHex[target.place] == hw.placeHex[g.place])) {
             val u = Language.understanding(b.words, tb.words)
             tallyMeeting(MetAs(Regard(b, target.id, tb, u, hex), Regard(tb, g.id, b, u, hex)), Tally.MeetingEnd.RAIDED_HOME)
             fight(g, b, target, tb, planned = true, weather)
@@ -199,7 +208,8 @@ internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planne
             stats.tally(Tally.bandsLivingDied(bandLiving(it), DeathCause.RAIDS), lost)
             stats.tally(Tally.bandsMindDied(it.mind, DeathCause.RAIDS), lost)
         }
-        small.deposit(DeadPool.CARRION, who.place, Kg(lost * who.species.massKg))
+        // (Raiders who hold their home hex fell where they fought, at the raided band's.)
+        small.deposit(DeadPool.CARRION, if (k == 0 && staysHome(g)) o.place else who.place, Kg(lost * who.species.massKg))
     }
     // The stronger side carries off food; the raided remember.
     if (sg > so) { val t = RAID_TAKE * o.larder; moveFood(o, g, t, LarderMove.RAIDED); stats.meeting(Met.LARDERS_RAIDED) }
