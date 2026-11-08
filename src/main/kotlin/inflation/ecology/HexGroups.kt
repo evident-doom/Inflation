@@ -358,7 +358,10 @@ class HexGroups(
         // The week, meeting by meeting: where two groups' timetables put them in the same hex on the
         // same days, the earlier meetings are settled first, by each side's standing orders.
         Phase("groups: meetings") { val t0 = System.nanoTime(); meet(it); meetNs += System.nanoTime() - t0 },
-        Phase("groups: wearing paths") { wear.week(groups, hw, land, days); routes.week() },
+        // (Bands that hold their home hex wear the ways about it toward the neighbours they deal with, [wearToward].)
+        Phase("groups: wearing paths") {
+            val toward = if (tuning.bandsStay) groups.filter { it.alive }.associateBy { it.id }.let { byId -> { g: HexGroup -> wearToward(g, byId) } } else null
+            wear.week(groups, hw, land, days, toward); routes.week() },
         Phase("groups: hunting and foraging") { hunt(it) },
         Phase("people: feasting on kills") { feastOnKills(it) },
         Phase("people: burning off") { burnOff(it) },

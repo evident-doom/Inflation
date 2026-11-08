@@ -24,8 +24,11 @@ class PathWear(private val hex: HexMap) {
     /** How worn the busiest path through hex [h] is. */
     fun at(h: Hex): Float { var m = 0f; for (d in 0 until 6) m = max(m, paths[hex.edge(h, d)]); return m }
 
-    /** This week's ([days]) going wears the ways [groups] went; the rest grow back a little, the faster the greener the ground. */
-    fun week(groups: List<HexGroup>, hw: HexWorld, land: HexLand, days: Int) {
+    /**
+     * This week's ([days]) going wears the ways [groups] went; the rest grow back a little, the faster the greener the ground.
+     * [toward], where given, shares a band's wear about its hex out over its six borders (six in all, 1 each when even).
+     */
+    fun week(groups: List<HexGroup>, hw: HexWorld, land: HexLand, days: Int, toward: ((HexGroup) -> FloatArray?)? = null) {
         for (h in hex.all) {
             val p = hw.firstPlaceIn(h)
             val regrow = PATH_FADE * (0.3f + (if (!p.none) land.plants.green[p] else 0f)) * days / 7f
@@ -39,10 +42,12 @@ class PathWear(private val hex: HexMap) {
         for (g in groups) {
             if (!g.alive || g.band == null) continue
             val h = hw.placeHex[g.place]
-            val w = min(1f, g.size * g.species.massKg / PATH_MASS_KG) * CAMP_WEAR * days / 7f
+            val w0 = min(1f, g.size * g.species.massKg / PATH_MASS_KG) * CAMP_WEAR * days / 7f
+            val share = toward?.invoke(g)
             for (d in 0 until 6) {
                 val nb = hex.neighbour(h, d); if (nb.none) continue
                 val back = (d + 3) % 6
+                val w = min(1f, w0 * (share?.get(d) ?: 1f))
                 paths[hex.edge(h, d)] += w * (1f - paths[hex.edge(h, d)])
                 paths[hex.edge(nb, back)] += w * (1f - paths[hex.edge(nb, back)])
             }
@@ -85,6 +90,41 @@ class PathWear(private val hex: HexMap) {
             h = nb
         }
     }
+}
+
+/**
+ * How band group [g]'s wear about its hex is shared over its six borders when bands hold their home hex
+ * ([inflation.Tuning.bandsStay]): half of it evenly (its foragers and hunters going out and back all round), half toward
+ * the bands it is tied to within [NEIGHBOUR_RINGS] hexes, each by its tie, along the first step of the way to it ([firstStep]):
+ * so the ways to the neighbours it deals with most wear into tracks. Six in all; null (even) for a band with no such ties.
+ * [byId]: the living groups by id.
+ */
+internal fun HexGroups.wearToward(g: HexGroup, byId: Map<Int, HexGroup>): FloatArray? {
+    val b = g.band ?: return null
+    val h = hw.placeHex[g.place]
+    val dir = FloatArray(6); var sum = 0f
+    for ((id, tie) in b.ties) {
+        if (tie <= 0f) continue
+        val o = byId[id] ?: continue
+        val oh = hw.placeHex[o.place]
+        if (oh == h || hex.distanceKm(h, oh) > (NEIGHBOUR_RINGS + 0.5) * hex.hexKm) continue
+        val d = firstStep(h, oh); if (d < 0) continue
+        dir[d] += tie; sum += tie
+    }
+    if (sum <= 0f) return null
+    return FloatArray(6) { d -> 0.5f + 3f * dir[d] / sum }
+}
+
+/** The border of hex [from] (0..5) whose land neighbour lies nearest [to]: the first step of the way there; -1 for none. */
+internal fun HexGroups.firstStep(from: Hex, to: Hex): Int {
+    var best = -1; var bestKm = hex.distanceKm(from, to)
+    for (d in 0 until 6) {
+        val nb = hex.neighbour(from, d)
+        if (nb.none || hex.heart[nb] < 0) continue
+        val km = hex.distanceKm(nb, to)
+        if (km < bestKm - 1e-6) { bestKm = km; best = d }
+    }
+    return best
 }
 
 /** The most hexes a going between two hexes ([PathWear.travelled]) is followed for. */

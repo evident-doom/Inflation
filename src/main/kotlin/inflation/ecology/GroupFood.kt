@@ -321,6 +321,8 @@ internal fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float
     if (b.atHome) b.waterShort += (wellSpares(g.place, fetch, tempC, perHand) - b.waterShort) * min(1f, years)
     // (Moving camp takes its days first: everyone walks, at the pace of the slowest, see [moveDays].)
     time.spend(Activity.MOVING, min(days.toFloat(), moveDays(g, max(0, g.path.size - 1) * hex.hexKm.toFloat())) * hands)
+    // (And its raiders' going to a raid and back, last step's, as far as this step's days go: [Band.raidWalkOwed].)
+    if (b.raidWalkOwed > 0f) { time.spend(Activity.MOVING, min(days * hands.toFloat(), b.raidWalkOwed)); b.raidWalkOwed = 0f }
     // (Then the days that keep its people alive this week and through the year after, by its own foresight ([survivalDays]):
     // food, the hearth's firewood and the camp's shelters, each as far as it averts deaths for its days; a band that has
     // walked most of its week gives what is left where it does most.)

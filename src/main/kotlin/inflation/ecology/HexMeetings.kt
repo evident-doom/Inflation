@@ -113,9 +113,39 @@ internal fun GroupWorld.timetable(s: Species, path: HexArray): FloatArray {
 @Part("meetings: settle")
 internal fun HexGroups.meet(weather: Weather) {
     meetSettle(weather)
-    // (Bands that hold their home hex also meet their neighbours, wherever their timetables are.)
-    if (tuning.bandsStay) neighboursMeet(weather)
+    // (Bands that hold their home hex also meet their neighbours, wherever their timetables are, and keep their appointments.)
+    if (tuning.bandsStay) { neighboursMeet(weather); keepAppointments(weather) }
 }
+
+/**
+ * Bands that hold their home hex ([staysHome]) keep their appointments ([Band.appointment]) without moving camp: in the step
+ * that holds the start of an appointment's month, the bands that share its place each send people there, and every two of
+ * them meet ([bandsMeet]), the first [GATHERING_MOST] to come; each one's going there and back wears the way
+ * ([wearBetween]). A band that took up another's appointment (when bands meet) comes to its gatherings: so gatherings
+ * grow where bands' dead lie and where they have met. (A band alone at its place meets no one there.)
+ */
+@Part("meetings: appointments kept")
+internal fun HexGroups.keepAppointments(weather: Weather) {
+    // (By place and month, in the order the gatherings were first come to: a long step may hold two months' starts.)
+    val at = LinkedHashMap<Pair<Hex, Int>, ArrayList<HexGroup>>()
+    for (g in groups) {
+        if (!g.alive || !staysHome(g)) continue
+        val ap = g.band?.appointment ?: continue
+        if (!weather.date.holdsMonthStart(days, ap.month)) continue
+        at.getOrPut(ap.hex to ap.month) { ArrayList() } += g
+    }
+    for ((key, there) in at) {
+        if (there.size < 2) continue
+        val site = key.first
+        val came = there.take(GATHERING_MOST)
+        for (g in came) wearBetween(hw.placeHex[g.place], site, g)
+        stats.meeting(Met.APPOINTMENTS_GATHERED)
+        for (i in came.indices) for (j in i + 1 until came.size) if (came[i].alive && came[j].alive) bandsMeet(came[i], came[j], weather)
+    }
+}
+
+/** The most bands that meet at one appointment's gathering ([keepAppointments]): an estimate, as the largest gatherings of foragers held some hundreds of people. */
+internal const val GATHERING_MOST = 12
 
 /**
  * Bands that hold their home hex ([staysHome]) meet the bands about them without walking to them: each pair of bands in
