@@ -66,6 +66,17 @@ class PathWear(private val hex: HexMap) {
         }
     }
 
+    /** People went along [way] (hexes side by side, first to last) and back, wearing each border on it by [w]. */
+    fun along(way: List<Hex>, w: Float) {
+        for (i in 0 until way.size - 1) {
+            val a = way[i]; val b = way[i + 1]
+            val d = (0 until 6).firstOrNull { hex.neighbour(a, it) == b } ?: continue
+            val back = (d + 3) % 6
+            paths[hex.edge(a, d)] += w * (1f - paths[hex.edge(a, d)])
+            paths[hex.edge(b, back)] += w * (1f - paths[hex.edge(b, back)])
+        }
+    }
+
     /**
      * People went from hex [from] to hex [to] and back (a visit, a meeting, a raid), wearing the way by [w] each border:
      * step by step to a land neighbour nearer [to], the most worn of those first, the lowest border first among equals.
@@ -134,7 +145,10 @@ private const val TRAVEL_STEPS = 12
  * Group [g]'s people went from hex [from] to hex [to] and back, with bands that hold their home hex ([inflation.Tuning.bandsStay]):
  * the way wears as a group of its weight going through wears it ([PATH_WEAR]).
  */
-internal fun HexGroups.wearBetween(from: Hex, to: Hex, g: HexGroup) {
+internal fun HexGroups.wearBetween(from: Hex, to: Hex, g: HexGroup) = wearBetween(from, to, g.size * g.species.massKg)
+
+/** [kg] of people went from hex [from] to hex [to] and back, with bands that hold their home hex: as [wearBetween] for a group of that weight. */
+internal fun HexGroups.wearBetween(from: Hex, to: Hex, kg: Float) {
     if (!tuning.bandsStay || from == to) return
-    wear.travelled(from, to, PATH_WEAR * min(1f, g.size * g.species.massKg / PATH_MASS_KG))
+    wear.travelled(from, to, PATH_WEAR * min(1f, kg / PATH_MASS_KG))
 }

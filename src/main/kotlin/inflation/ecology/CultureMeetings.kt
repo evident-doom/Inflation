@@ -23,7 +23,8 @@ internal const val MEETING_AGAIN_YEARS = 0.25f
  */
 internal fun HexGroups.meetingFresh(a: HexGroup, b: HexGroup, weather: Weather): Float {
     val ba = a.band ?: return 1f; val bb = b.band ?: return 1f
-    val now = stepOf(weather.date)
+    // (At the tick of the step the meeting falls on: [HexGroups.meetTick], 0 but for meetings spread over a step.)
+    val now = stepOf(weather.date) + meetTick
     val last = ba.lastMet[b.id]
     ba.lastMet[b.id] = now; bb.lastMet[a.id] = now
     return if (last == null) 1f else ((now - last) / (MEETING_AGAIN_YEARS * ticksPerYear)).coerceIn(0f, 1f)
@@ -175,15 +176,20 @@ internal fun GroupWorld.tallyMeeting(metAs: MetAs, what: Tally.MeetingEnd) {
 private fun HexGroups.tellOfCountry(a: HexGroup, bandA: Band, b: HexGroup, bandB: Band, ab: Regard, ba: Regard, weather: Weather) {
     val u = ab.understood
     val h0 = hw.placeHex[a.place]
-    var ring = listOf(h0); val seen = hashSetOf(h0)
-    for (r in 0..TOLD_RINGS) {
-        for (h in ring) { if (bandA.knows(h)) bandB.learn(h, hex.size); if (bandB.knows(h)) bandA.learn(h, hex.size) }
-        if (r == TOLD_RINGS) break
-        ring = hex.nextRing(ring, seen)
+    // (Of the country about each one's home: where they meet from hexes apart, as bands that hold their home hex do, each
+    // comes away with a map of the other's country too.)
+    val hb = hw.placeHex[b.place]
+    for (home in if (hb == h0) arrayOf(h0) else arrayOf(h0, hb)) {
+        var ring = listOf(home); val seen = hashSetOf(home)
+        for (r in 0..TOLD_RINGS) {
+            for (h in ring) { if (bandA.knows(h)) bandB.learn(h, hex.size); if (bandB.knows(h)) bandA.learn(h, hex.size) }
+            if (r == TOLD_RINGS) break
+            ring = hex.nextRing(ring, seen)
+        }
     }
     stats.meeting(Met.BANDS_TOLD_OF_COUNTRY)
-    // And of the ways they know further off: landmarks, and the legs between those they know.
-    val toldWays = routes.tell(bandA, bandB, h0) + routes.tell(bandB, bandA, h0)
+    // And of the ways they know further off: landmarks, and the legs between those they know, each about its own home.
+    val toldWays = routes.tell(bandA, bandB, h0) + routes.tell(bandB, bandA, hb)
     if (toldWays > 0) stats.meeting(Met.BANDS_TOLD_OF_ROUTES)
     // Where they met is a meeting place; and a band without an appointment, or with a weaker one,
     // takes up the other's (the more they are close, the likelier).

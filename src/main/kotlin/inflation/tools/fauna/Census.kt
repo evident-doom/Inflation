@@ -1196,8 +1196,8 @@ class Census(private val sim: HexSim) {
         println("     bands' year: %d split, %d small bands joined kin, %d bands at home together became one (%d of them of the two kinds of choosing)"
             .format(met(Met.BANDS_SPLIT), met(Met.SMALL_BANDS_JOINED_KIN), met(Met.BANDS_BECAME_ONE), met(Met.BANDS_OF_TWO_MINDS_BECAME_ONE)))
         // (Bands that hold their home hex, t.bandsStay: what they did with their neighbours and their country this year.)
-        if (sim.land.tuning.bandsStay) println("     staying bands' year: %d neighbour meetings, %d gatherings at appointments (%d bands came), %d camp shifts within the hex, %d budded into a free hex and %d in their parent's, %d raids set out"
-            .format(met(Met.NEIGHBOURS_MET), met(Met.APPOINTMENTS_GATHERED), met(Met.BANDS_AT_APPOINTMENTS), met(Met.BANDS_SHIFTED_CAMP), met(Met.BANDS_BUDDED_OUT),
+        if (sim.land.tuning.bandsStay) println("     staying bands' year: %d neighbour meetings (all meetings of bands: %d, of them telling of the country %d), %d gatherings at appointments (%d bands came), %d camp shifts within the hex, %d budded into a free hex and %d in their parent's, %d raids set out"
+            .format(met(Met.NEIGHBOURS_MET), met(Met.BANDS_MET), met(Met.BANDS_TOLD_OF_COUNTRY), met(Met.APPOINTMENTS_GATHERED), met(Met.BANDS_AT_APPOINTMENTS), met(Met.BANDS_SHIFTED_CAMP), met(Met.BANDS_BUDDED_OUT),
                 met(Met.BANDS_BUDDED_IN_PLACE), met(Met.RAIDS_SET_OUT)))
         fun of(m: Met.Of, w: RiteWalk) = metYear[m.tally(w.label)] ?: 0
         println("     rites by the band's distance from the site: " + RiteWalk.entries.joinToString("; ") { w ->

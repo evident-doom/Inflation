@@ -110,10 +110,11 @@ class Tuning(
      */
     val bandsStay = read("t.bandsStay")?.toBooleanStrict() ?: false
     /**
-     * With [bandsStay]: how many times a year two bands in hexes side by side meet ([inflation.ecology.neighboursMeet]),
-     * a quarter as often for bands a hex further apart. An estimate (visits every couple of months between neighbours).
+     * With [bandsStay]: how many times a year two bands in hexes side by side meet ([inflation.ecology.neighboursMeet]: friends
+     * and kin, news of the country, gifts, words, customs), half as often for each hex further apart, out to five. Weekly
+     * between neighbours, a week of the model's calendar (6 days: 60 a year; Olli, 8 Nov 2026).
      */
-    val neighbourMeetings = f("neighbourMeetings", 6f).also { require(it >= 0f) { "t.neighbourMeetings is $it: 0 or more" } }
+    val neighbourMeetings = f("neighbourMeetings", 60f).also { require(it >= 0f) { "t.neighbourMeetings is $it: 0 or more" } }
     /** The food cost of keeping warm, against [inflation.ecology.COLD_COST]. */
     val coldCost = f("coldCost", 1f)
 

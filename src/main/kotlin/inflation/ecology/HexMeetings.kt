@@ -148,12 +148,18 @@ internal fun HexGroups.keepAppointments(weather: Weather) {
 internal const val GATHERING_MOST = 12
 
 /**
- * Bands that hold their home hex ([staysHome]) meet the bands about them without walking to them: each pair of bands in
- * hexes side by side meets [inflation.Tuning.neighbourMeetings] times a year on average, a pair a hex further apart
- * [NEIGHBOUR_FALL] as often, beyond [NEIGHBOUR_RINGS] hexes not at all; each meeting is a meeting of bands as any
- * ([bandsMeet]: news, gifts, words and customs, and a raid if their regard comes to it). The rate is a day's, so the
- * meetings a step holds go with its days, whatever its length. Bands in the same hex meet as their timetables bring
- * them together, as before. (The seed of the contracts between neighbours, docs/design/band-movement-removal.md.)
+ * Bands that hold their home hex ([staysHome]) are in touch with the bands about them without moving camp, the nearer the
+ * oftener, as far as the going between them over the map allows (a day or two's walk: Eastern Hadza bands lie 0.2 to 80 km
+ * apart, 35 on average, Hill et al. 2014; Agta camps visit each other almost daily, Migliano et al. 2020). How near is the
+ * least effort of the way there ([effortsFrom]: slope, broken ground, rivers and their fords, cliffs, snow and worn paths,
+ * as the groups' going weighs every border this step), in km of easy going: a pair a hex's easy going apart meets
+ * [inflation.Tuning.neighbourMeetings] times a year (weekly: friends and kin), each hex's worth of going further
+ * [NEIGHBOUR_FALL] as often, beyond [CONTACT_KM] not at all. Each meeting is a meeting of bands as any ([bandsMeet]: news of
+ * the country about both their homes, gifts, words and customs, and a raid if their regard comes to it), and its visitors'
+ * going there and back wears the way they went ([VISITORS], [PathWear.along]). The rate is a day's, so a step holds the
+ * meetings of its days, whatever its length. Bands in the same hex meet as their timetables bring them together, as before.
+ * (The going is the lower id's, there; the way back is taken to be as hard. The seed of the contracts between neighbours,
+ * docs/design/band-movement-removal.md.)
  */
 @Part("meetings: neighbours")
 internal fun HexGroups.neighboursMeet(weather: Weather) {
@@ -162,25 +168,77 @@ internal fun HexGroups.neighboursMeet(weather: Weather) {
     val rate = tuning.neighbourMeetings * years
     if (rate <= 0f) return
     val r = stream(seedBase, Stream.NEIGHBOUR_MEETINGS, 0L, weather.date.absoluteDay)
+    val easy = hex.hexKm.toFloat()
+    // (Each meeting falls on a tick of the step, drawn, and the step's meetings are held in the order of their ticks: a
+    // meeting is as fresh as the ticks since the pair last met ([meetingFresh], [meetTick]), so a pair that meets ten times
+    // in a 60-day step is not new to each other after the first, nor all at its start.)
+    class Due(val tick: Int, val a: HexGroup, val b: HexGroup, val way: List<Hex>)
+    val due = ArrayList<Due>()
     for (a in groups) {
         if (!a.alive || !staysHome(a)) continue
         val h0 = hw.placeHex[a.place]
-        var ring = listOf(h0); val seen = hashSetOf(h0)
-        for (k in 1..NEIGHBOUR_RINGS) {
-            ring = hex.nextRing(ring, seen)
-            val mean = rate * NEIGHBOUR_FALL.pow(k - 1)
-            // (Each pair once: the band of the lower id draws for both.)
-            for (h in ring) for (b in byHex[h].orEmpty()) if (b.id > a.id) repeat(poisson(mean, r)) {
-                // (The meeting wears the way between their hexes: one went to the other and back, [wearBetween].)
-                if (a.alive && b.alive) { stats.meeting(Met.NEIGHBOURS_MET); wearBetween(h0, h, a); bandsMeet(a, b, weather) }
-            }
+        val reach = effortsFrom(h0, Catalogue.travel(a.species).ordinal, hw.placeBand[a.place], weather, CONTACT_KM)
+        // (Each pair once, the band of the lower id drawing for both; the hexes in index order, so the draws repeat.)
+        for (h in reach.keys.sortedBy { it.i }) {
+            if (h == h0) continue
+            val bs = byHex[h] ?: continue
+            val km = reach.getValue(h).first
+            val mean = rate * NEIGHBOUR_FALL.pow(max(0f, km - easy) / easy)
+            for (b in bs) if (b.id > a.id) repeat(poisson(mean, r)) { due += Due(r.nextInt(ticks), a, b, wayTo(reach, h0, h)) }
         }
     }
+    due.sortBy { it.tick }
+    for (m in due) {
+        if (!m.a.alive || !m.b.alive) continue
+        meetTick = m.tick
+        stats.meeting(Met.NEIGHBOURS_MET)
+        wear.along(m.way, PATH_WEAR * min(1f, VISITORS * m.a.species.massKg / PATH_MASS_KG))
+        bandsMeet(m.a, m.b, weather)
+    }
+    meetTick = 0
 }
 
-/** How much less often bands a hex further apart meet ([neighboursMeet]), and how many hexes apart they meet at all. Estimates. */
-internal const val NEIGHBOUR_FALL = 0.25f
-internal const val NEIGHBOUR_RINGS = 2
+/**
+ * The least effort of the going from hex [from] to each hex within [most] (km of easy going) for a group of travel [travel]
+ * on ground band [band] this step ([stepEffort]: the planner's crossings, made for every group at the step's start), and the
+ * hex each is reached from: a search over the hexes' borders, by land.
+ */
+internal fun HexGroups.effortsFrom(from: Hex, travel: Int, band: Int, weather: Weather, most: Float): Map<Hex, Pair<Float, Hex>> {
+    val effort = planner.stepEffort(travel, band, weather)
+    val out = HashMap<Hex, Pair<Float, Hex>>(); out[from] = 0f to Hex.NONE
+    // (The nearest first; of equals, the lower hex, so the search is the same on every run.)
+    val q = java.util.PriorityQueue<Pair<Float, Hex>>(compareBy<Pair<Float, Hex>> { it.first }.thenBy { it.second.i }); q += 0f to from
+    while (q.isNotEmpty()) {
+        val (d, h) = q.poll()
+        if (d > out.getValue(h).first) continue
+        for (k in 0 until 6) {
+            val nh = hex.neighbour(h, k); if (nh.none) continue
+            val nd = d + effort[hex.edge(h, k)]
+            if (!nd.isFinite() || nd > most) continue
+            val was = out[nh]
+            if (was == null || nd < was.first) { out[nh] = nd to h; q += nd to nh }
+        }
+    }
+    return out
+}
+
+/** The hexes of the least-effort way from [from] to [to] in [reach] ([effortsFrom]), from first to last. */
+internal fun wayTo(reach: Map<Hex, Pair<Float, Hex>>, from: Hex, to: Hex): List<Hex> {
+    val way = ArrayList<Hex>(); var h = to
+    while (true) { way += h; if (h == from) break; h = reach[h]?.second?.takeIf { !it.none } ?: break }
+    way.reverse(); return way
+}
+
+/**
+ * How much less often bands a hex's easy going further apart are in touch ([neighboursMeet]), and how far apart they are in
+ * touch at all, in km of easy going (a day or two's walk). Estimates.
+ */
+internal const val NEIGHBOUR_FALL = 0.5f
+internal const val CONTACT_KM = 50f
+/** The ties [wearToward] shares a band's wear by: those within this many hexes. */
+internal const val NEIGHBOUR_RINGS = 5
+/** The people who go to a band about and back for a meeting ([neighboursMeet]), for the wear of their going. An estimate. */
+internal const val VISITORS = 4f
 
 /** The meetings of groups whose timetables bring them into the same hex ([meet]). */
 private fun HexGroups.meetSettle(weather: Weather) {

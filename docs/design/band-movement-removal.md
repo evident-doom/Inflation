@@ -237,7 +237,48 @@ compared per day.
   (`CAMP_WEAR`: its foragers going out and back), and that nearly saturates them. Meetings, at 6 a year for a pair side
   by side, add a few per cent. Moving bands' routes also depended on the step's length (322 against 428 hexes).
 - **Open choice:** the wear around a band's own hex could go by its dealings with each neighbour, not evenly to all six
-  sides. Only then would tracks follow the interaction.
+  sides. Only then would tracks follow the interaction. (Since done: half of that wear goes toward the bands it has
+  ties with.)
+
+**Contact with the bands about (Olli, 8 Nov 2026).** Same world and nets.
+
+- **What the study found** (a few searches, not a review):
+  - Eastern Hadza bands lie 0.2-80 km apart, 35 km on average, and their camps move nearly every day (Hill et al. 2014).
+  - Agta camps visit each other almost daily (Migliano et al. 2020).
+  - Random pairs of adults in different bands interact in 5-29% of years (Hill et al. 2014).
+  - Mating networks run to about 500 people (Birdsell; Wobst 1974): some 15-20 bands.
+  - So a band is in touch with every band within a day or two's walk, not only those in the next hex.
+- **What changed:**
+  - Neighbours meet through the existing meeting logic (`bandsMeet`), weekly for bands a hex's easy going apart
+    (`t.neighbourMeetings` 60 a year, 6-day weeks).
+  - The rate halves with each further hex's worth of going, out to 50 km of easy going.
+  - Distance is the least effort over the map (`effortsFrom`: the planner's border crossings this step, so slope, broken
+    ground, rivers and fords, cliffs, snow and worn paths), not hex geometry.
+  - Each meeting's visitors (4 people) wear the borders along that way.
+  - A meeting's telling now covers the country about both bands' homes, so each band builds a map of its neighbours'
+    country.
+  - A step's meetings fall on ticks drawn within it and are held in tick order, so a meeting is as fresh as the ticks
+    since that pair last met.
+
+| | Meetings of bands a year | Telling of the country | Country known, km² | Ties a band (close) | People at the end, adults / young |
+|---|---|---|---|---|---|
+| Rings, 6 a year, 6 d | ~280 | n/a | 7847 | 4.1 (3.7) | 1116 / 447 |
+| Rings, weekly, 6 d | 6861 | 920 | 16597 | 22.6 (15.2) | 1070 / 419 |
+| Rings, weekly, 60 d | 5725 | 416 | 13406 | 13.2 (9.7) | 1075 / 473 |
+| Map distance, weekly, ticks spread, 6 d | 3612 | 443 | 11293 | 13.2 (7.8) | 1076 / 433 |
+| Map distance, weekly, ticks spread, 60 d | 3648 | 431 | 10506 | 8.9 (6.5) | 1093 / 473 |
+
+- **Map distance roughly halves the meetings:** the real going is harder than hex geometry.
+- **Tellings and country known are close at both lengths** once meetings are spread over the step's ticks (before:
+  416 against 920 tellings).
+- **Ties still differ** (8.9 against 13.2). The cause is in the existing meeting and tie-keeping logic, not yet found.
+  Candidates:
+  - ties fade once a step, by the step's days;
+  - a visit to friends in leisure renews ties once a step;
+  - bands in the same hex meet by their timetables, which run once a step.
+- **Kin visits still use rings:** they reach within two rings, and the wear of appointments and raids goes by hex
+  geometry ([PathWear.travelled]). Neither uses the map yet.
+- **All nominal limits held.**
 
 ## Where it clashes with the variable step
 

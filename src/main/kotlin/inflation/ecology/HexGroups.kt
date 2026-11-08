@@ -800,6 +800,8 @@ class HexGroups(
     @Transient var meetNs = 0L
     /** The month of the week the groups meet in ([meet]): for the young in hiding ([youngHidden]). */
     @Transient internal var meetMonth = 0
+    /** The tick of the step a meeting now being held falls on ([neighboursMeet]; 0 for the rest): how fresh it is ([meetingFresh]). */
+    @Transient internal var meetTick = 0
 
 
 
