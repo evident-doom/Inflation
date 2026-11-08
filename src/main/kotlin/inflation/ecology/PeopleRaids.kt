@@ -47,7 +47,8 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
             val target = bands.groupById[raid.on]?.takeIf { it.alive && hw.placeHex[it.place] == here }
             if (target?.band != null) bands.raidsDue += g to target
             b.raid = null
-        } else b.raid = if (raid.weeks > 1) Raid(raid.hex, raid.on, raid.weeks - 1) else null
+        // (Its weeks are ticks: a step of several ticks uses up as many, so a raid gives up in the same days at any step length.)
+        } else b.raid = if (raid.weeks > ticks) Raid(raid.hex, raid.on, raid.weeks - ticks) else null
         return
     }
     // (A readier band plots on less hunger: each step of readiness closes the same share of what is left of the gap to fed.)
