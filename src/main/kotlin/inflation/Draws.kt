@@ -66,6 +66,8 @@ enum class Stream(val salt: Long) {
     TIE(0x54494542L),
     /** Resident hunters of different kinds meeting in a hex. */
     RESIDENT_MEETINGS(0x5245534dL),
+    /** Bands that hold their home hex meeting their neighbours ([inflation.ecology.neighboursMeet]). */
+    NEIGHBOUR_MEETINGS(0x4e42524dL),
     /** Newcomer animals in training's play worlds. */
     NEWCOMERS(0x4e455743L),
     /** The sizes groups of a kind start at. */

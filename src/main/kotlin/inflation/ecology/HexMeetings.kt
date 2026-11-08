@@ -112,6 +112,47 @@ internal fun GroupWorld.timetable(s: Species, path: HexArray): FloatArray {
  */
 @Part("meetings: settle")
 internal fun HexGroups.meet(weather: Weather) {
+    meetSettle(weather)
+    // (Bands that hold their home hex also meet their neighbours, wherever their timetables are.)
+    if (tuning.bandsStay) neighboursMeet(weather)
+}
+
+/**
+ * Bands that hold their home hex ([staysHome]) meet the bands about them without walking to them: each pair of bands in
+ * hexes side by side meets [inflation.Tuning.neighbourMeetings] times a year on average, a pair a hex further apart
+ * [NEIGHBOUR_FALL] as often, beyond [NEIGHBOUR_RINGS] hexes not at all; each meeting is a meeting of bands as any
+ * ([bandsMeet]: news, gifts, words and customs, and a raid if their regard comes to it). The rate is a day's, so the
+ * meetings a step holds go with its days, whatever its length. Bands in the same hex meet as their timetables bring
+ * them together, as before. (The seed of the contracts between neighbours, docs/design/band-movement-removal.md.)
+ */
+@Part("meetings: neighbours")
+internal fun HexGroups.neighboursMeet(weather: Weather) {
+    val byHex = HashMap<Hex, ArrayList<HexGroup>>()
+    for (g in groups) if (g.alive && staysHome(g)) byHex.getOrPut(hw.placeHex[g.place]) { ArrayList() } += g
+    val rate = tuning.neighbourMeetings * years
+    if (rate <= 0f) return
+    val r = stream(seedBase, Stream.NEIGHBOUR_MEETINGS, 0L, weather.date.absoluteDay)
+    for (a in groups) {
+        if (!a.alive || !staysHome(a)) continue
+        val h0 = hw.placeHex[a.place]
+        var ring = listOf(h0); val seen = hashSetOf(h0)
+        for (k in 1..NEIGHBOUR_RINGS) {
+            ring = hex.nextRing(ring, seen)
+            val mean = rate * NEIGHBOUR_FALL.pow(k - 1)
+            // (Each pair once: the band of the lower id draws for both.)
+            for (h in ring) for (b in byHex[h].orEmpty()) if (b.id > a.id) repeat(poisson(mean, r)) {
+                if (a.alive && b.alive) { stats.meeting(Met.NEIGHBOURS_MET); bandsMeet(a, b, weather) }
+            }
+        }
+    }
+}
+
+/** How much less often bands a hex further apart meet ([neighboursMeet]), and how many hexes apart they meet at all. Estimates. */
+internal const val NEIGHBOUR_FALL = 0.25f
+internal const val NEIGHBOUR_RINGS = 2
+
+/** The meetings of groups whose timetables bring them into the same hex ([meet]). */
+private fun HexGroups.meetSettle(weather: Weather) {
     meetMonth = weather.date.month
     // (The resident hunters meet as packs do, through bands standing in for them: [ResidentParties].)
     val residents = ResidentParties(this)

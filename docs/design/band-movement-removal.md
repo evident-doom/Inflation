@@ -170,6 +170,26 @@ are the same model as the Phase 0 runs above.
 - **Time:** the whole step came out shorter, but these are single timed runs on a shared machine, so the step times
   are only a rough guide.
 
+**Phase 2, first part (neighbours meet, `t.neighbourMeetings` 6 a year side by side, a quarter of that a hex further),
+with Phases 1 and 5 on.** Same world and nets.
+
+A note on reading the census: its "this week: … meetings" line is the **last step's** tally, so counts have to be
+compared per day.
+
+| | Band meetings a day | Ties a band (close) | Country known, km² | People at the end, adults / young (bands) |
+|---|---|---|---|---|
+| Moving, 6 d | 0.8 | 2.9 (1.7) | 8408 | 1126 / 463 (48) |
+| Moving, 60 d | 3.3 | 3.7 (3.0) | 12574 | 1116 / 484 (47) |
+| Staying, no neighbours, 6 d | 0 | 3.0 (1.4) | 3724 | 1120 / 435 (46) |
+| Staying, no neighbours, 60 d | 0 | 0.7 (0.1) | 3582 | 1105 / 482 (44) |
+| Staying with neighbours, 6 d | 0.6 | 3.7 (2.9) | 8054 | 1125 / 438 (44) |
+| Staying with neighbours, 60 d | 0.7 | 3.7 (3.0) | 7851 | 1108 / 478 (44) |
+
+- **Moving bands meet four times as often a day at 60 days as at 6:** another way the step's length sets behaviour.
+- **Staying bands meet as often a day at either length,** and their ties and the country they know through tellings come out
+  the same at both. That is what the move away from movement was for.
+- **All nominal limits held** in both runs.
+
 ## Where it clashes with the variable step
 
 The variable-step branch makes most slow parts read the step's length as it stands: tick by tick, or as a closed form

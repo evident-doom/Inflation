@@ -108,6 +108,11 @@ class Tuning(
      * (docs/design/band-movement-removal.md). Off unless set (under test).
      */
     val bandsStay = read("t.bandsStay")?.toBooleanStrict() ?: false
+    /**
+     * With [bandsStay]: how many times a year two bands in hexes side by side meet ([inflation.ecology.neighboursMeet]),
+     * a quarter as often for bands a hex further apart. An estimate (visits every couple of months between neighbours).
+     */
+    val neighbourMeetings = f("neighbourMeetings", 6f).also { require(it >= 0f) { "t.neighbourMeetings is $it: 0 or more" } }
     /** The food cost of keeping warm, against [inflation.ecology.COLD_COST]. */
     val coldCost = f("coldCost", 1f)
 
