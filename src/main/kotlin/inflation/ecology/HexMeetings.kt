@@ -320,7 +320,9 @@ private fun HexGroups.meetSettle(weather: Weather) {
         val apart = BooleanArray(events.size)
         Par.forEach("meetings: stand-ins apart", events.size) { i ->
             val e = events[i]; val sa = e.a >= groups.size; val sb = e.b >= groups.size
-            apart[i] = parties[e.a].species != parties[e.b].species && ((sa && !sb && strongerThan(parties[e.b], parties[e.a], e.hex)) || (sb && !sa && strongerThan(parties[e.a], parties[e.b], e.hex)))
+            apart[i] = parties[e.a].species != parties[e.b].species && ((sa && !sb && strongerThan(parties[e.b], parties[e.a], e.hex)) || (sb && !sa && strongerThan(parties[e.a], parties[e.b], e.hex))) &&
+                // (Not where a side has a strategy of its own: then it is settled by the strategies like any other, [engage].)
+                engagedOver(parties[e.a], parties[e.b], e.contested, e.hex)?.let { engages(parties[e.a], parties[e.b], it) } != true
         }
         val kept = ArrayList<Meeting>(events.size)
         for (i in events.indices) if (apart[i]) withStandIns += events[i] else kept += events[i]
@@ -353,12 +355,12 @@ private fun HexGroups.meetSettle(weather: Weather) {
         val times = if (ra == null && rb == null) min(met, ticks) else min(met, kotlin.math.ceil(min(ra?.bands ?: Float.MAX_VALUE, rb?.bands ?: Float.MAX_VALUE)).toInt() * ticks)
         // (What the one that gives way gives up: the contact's shared hexes, else the hex of the meeting, [gaveWay].)
         contested = e.contested ?: hexArray(1) { h }; contestDay = today
-        val byStrategy = e.contested?.takeIf { engages(a, b, it) }
+        val byStrategy = engagedOver(a, b, e.contested, h)?.takeIf { engages(a, b, it) }
         for (t in 0 until times) {
             ra?.fresh(); rb?.fresh()
             if (!a.alive || !b.alive) break
             // (A contact of which a side has a strategy other than the animals' is settled by the strategies, [engage].)
-            if (byStrategy != null) { engage(a, e.a, e.ai, b, e.b, e.bi, byStrategy, h, stop, rnd); continue }
+            if (byStrategy != null) { engage(a, e.a, e.ai, b, e.b, e.bi, byStrategy, h, stop, rnd); ra?.settle(); rb?.settle(); continue }
             if (slipsAway(a, b, p) || slipsAway(b, a, p)) stats.meeting(Met.SLIPPED_AWAY)
             else if (a.species.human && b.species.human) run { val t0 = Profile.mark(); bandsMeet(a, b, weather); Profile.slow("meeting: bands", t0, weather.date.absoluteDay) { a.probe(weather.date.absoluteDay) + " | " + b.probe(-1L) } }
             else if (a.species == b.species) rivalsMeet(a, e.a, e.ai, b, e.b, e.bi, h, stop)

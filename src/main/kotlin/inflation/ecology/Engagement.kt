@@ -93,6 +93,17 @@ private fun packStrategy(text: String?): Strategy? {
     return Strategy.parse(text).also { lastRead = ReadStrategy(text, it) }
 }
 
+/**
+ * The hexes a meeting of [a] and [b] at [h] is over, for the engagement: a contact's ([contested]); else, where one side
+ * holds its ground there (a pack about its footprint, a resident stand-in in its hex), the meeting's hex; null for two
+ * groups on their way, which meet by their timetables alone.
+ */
+internal fun engagedOver(a: HexGroup, b: HexGroup, contested: HexArray?, h: Hex): HexArray? =
+    contested ?: if (holdsHere(a) || holdsHere(b)) inflation.world.hexArray(1) { h } else null
+
+/** Whether [g] holds its ground where it is met: a pack about its footprint, or a resident stand-in (its id below 0) in its hex. */
+internal fun holdsHere(g: HexGroup) = (g.footprint != null && g.path.size == 1) || g.id < 0
+
 /** Whether a meeting of [a] and [b] over [contested] goes by their strategies ([engage]): it is a contact and one of them has a strategy other than the animals'. */
 internal fun GroupWorld.engages(a: HexGroup, b: HexGroup, contested: HexArray?): Boolean =
     contested != null && tuning.packsStay && !(strategyOf(a).plain && strategyOf(b).plain)

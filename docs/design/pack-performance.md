@@ -462,3 +462,24 @@ In stages, each A/B'd:
 2. staying bands' grounds, and neighbours' meetings by contact;
 3. visits, appointments and kin visits as contacts by intent;
 4. raids as attacks by intent.
+
+### Stage 1 done: resident stand-ins through the engagement (9 Nov 2026)
+
+A meeting where one side holds its ground (a pack about its footprint, or a resident stand-in in its hex) is over that
+hex for the engagement (`engagedOver`), so a strategy on either side applies to it, and the stand-ins' bulk draw
+(`standInsMeetDraw`) is kept for meetings where neither has one. The stand-in is made whole before each engagement and
+what it lost is booked after, as at any meeting. Resident stand-ins keep the animals' rule (`strategyOf`), and their
+meetings among themselves still go by the bulk draw: no strategy is set for them.
+
+Seed 1, 400x600 km, 3 years, 6 days, packs staying. Without the switch, and with the animals' rule, the results are the
+same as before, line for line. The engagements counted in the census weeks went from about a dozen to some 1,400-1,700
+under the test strategies: packs meet the resident hunters of all their footprint. The strategies now show:
+
+| strategy | leopards (contacts only / with stand-ins) | cheetahs |
+|---|---|---|
+| lair DEFEND, core GIVE_WAY_TO_STRONGER, fringe and outside YIELD | 130 / 114 | 10 / 2 |
+| AMBUSH everywhere | 122 / 148 | 6 / 10 |
+| ATTACK everywhere | 110 / 95 | 9 / 1 |
+
+Falling on whatever they meet, lions and hyenas among it, costs leopards and all but ends the cheetahs; lying in wait
+and striking only with surprise and the upper hand does them good.
