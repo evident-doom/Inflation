@@ -71,8 +71,8 @@ internal fun GroupWorld.moveDays(g: HexGroup, km: Float) = km * (g.band?.let { r
  * besides a child (Lee 1979, from memory: to check).
  */
 internal const val CARRY_KG = 15f
-/** Extra yearly deaths among children in a camp kept for a year or more. */
-internal const val CAMP_FOULING = 0.02f
+/** Extra yearly deaths among children in a camp kept for a year or more: 0.4 of the first guess (0.02), with [FLUX_RATE] to the record. */
+internal const val CAMP_FOULING = 0.008f
 /** People whose camping fouls a hex by a week of camping each week: a band of a camp's size, as fouling went by a band's weeks before it went by the place. */
 internal const val FOUL_PEOPLE = 50f
 /**
