@@ -62,20 +62,24 @@ internal fun HexGroups.hunt(weather: Weather) {
             val (x, y) = hex.centreKm(hw.placeHex[g.place])
             blocks.getOrPut((x / squareKm).toInt() + 1000 * (y / squareKm).toInt()) { ArrayList() } += g
         }
+        fun forageOne(g: HexGroup) {
+            val s = g.species
+            // The ground it searches this week, shared over the hexes it passed.
+            val sweep = searchKm2(g, g.place, weather) / g.path.size.coerceAtLeast(1)
+            val t0 = Profile.mark()
+            Profile.kind("foraging", if (s.human) "bands" else s.name) { forage(g, sweep, max(1, g.adults) * s.massKg, weather) }
+            Profile.slow(if (s.human) "forage: band" else "forage: " + s.name, t0, weather.date.absoluteDay) { g.probe(weather.date.absoluteDay) }
+        }
         for (colour in 0 until 9) {
             // (The squares with the most parties first, so the slowest is not left to last on one core.)
             val squares = blocks.entries.filter { (b, _) -> (b % 1000) % 3 + 3 * ((b / 1000) % 3) == colour }
                 .sortedByDescending { e -> e.value.sumOf { g -> if (g.band != null) 4 * g.path.size else g.path.size } }
-            Par.forEach("foraging: squares", squares.size) { i ->
-                for (g in squares[i].value) {
-                    val s = g.species
-                    // The ground it searches this week, shared over the hexes it passed.
-                    val sweep = searchKm2(g, g.place, weather) / g.path.size.coerceAtLeast(1)
-                    val t0 = Profile.mark()
-                    Profile.kind("foraging", if (s.human) "bands" else s.name) { forage(g, sweep, max(1, g.adults) * s.massKg, weather) }
-                    Profile.slow(if (s.human) "forage: band" else "forage: " + s.name, t0, weather.date.absoluteDay) { g.probe(weather.date.absoluteDay) }
-                }
-            }
+            // Within a square the parties went one after another. Those whose ground cannot meet still do not need to: each
+            // goes in the wave after the last earlier one whose ground its own meets ([forageWaves]), and a wave's parties
+            // go at once, so any two that could touch the same ground go in the order they always did, and the week comes
+            // out as it would one by one. (A square of one colour's parties keep apart from another's, as before.)
+            val waves = forageWaves(squares.map { it.value })
+            for (wave in waves) Par.forEach("foraging: parties", wave.size) { i -> forageOne(wave[i]) }
         }
     }
     val (near, far) = hunters.partition { g ->
@@ -85,6 +89,38 @@ internal fun HexGroups.hunt(weather: Weather) {
     }
     stats.summedByThread { work(near, HUNT_FINE_KM); work(far, HUNT_BLOCK_KM) }
     takePackKills(2 * day + 1)
+}
+
+/**
+ * The parties of [squares] (each square's in the order it works them) in waves for [hunt]: a party goes in the wave after the
+ * last wave of an earlier party of its square whose ground meets its own ([forageGround]), or in the first; so two parties that
+ * could touch the same ground are never in one wave, and keep their order. The waves in order, each its parties.
+ */
+private fun HexGroups.forageWaves(squares: List<List<HexGroup>>): List<List<HexGroup>> {
+    val waves = ArrayList<ArrayList<HexGroup>>()
+    for (square in squares) {
+        // (The last wave that touched each hex of the square's ground.)
+        val last = HashMap<Hex, Int>()
+        for (g in square) {
+            val ground = forageGround(g)
+            var w = 0; for (h in ground) last[h]?.let { if (it + 1 > w) w = it + 1 }
+            for (h in ground) last[h] = w
+            while (waves.size <= w) waves.add(ArrayList())
+            waves[w].add(g)
+        }
+    }
+    return waves
+}
+
+/**
+ * The hexes whose ground party [g]'s foraging can touch this step: those of its way and the six round each, where its hunting
+ * ground spills over ([huntGround]), its fishers go ([HexWater.fishFor]) and the game and herds it may come on stand.
+ */
+private fun HexGroups.forageGround(g: HexGroup): Set<Hex> {
+    val out = LinkedHashSet<Hex>()
+    for (h in g.path) { out += h; for (d in 0 until 6) { val q = hex.neighbour(h, d); if (!q.none) out += q } }
+    out += hw.placeHex[g.place]
+    return out
 }
 
 /**
