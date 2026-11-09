@@ -24,6 +24,8 @@ import inflation.Part
 import inflation.EnumFloats
 import inflation.Profile
 import inflation.world.Hex
+import inflation.world.HexArray
+import inflation.world.toHexArray
 import inflation.world.Place
 import inflation.world.get
 import inflation.world.set
@@ -503,20 +505,20 @@ fun HexFauna.disperse(k: FaunaKind) {
     val room = FloatArray(hex.size)
     for (h in hex.all) { var heads = 0f; var area = 0f; for (q in hw.placesOf(h)) { heads += (a[q] + young[k][q]) * land.areaKm2[q]; area += land.areaKm2[q] }
         room[h] = max(0f, usual[k] * area - heads) }
+    // (The ground about each hex they leave from is fixed by the map: worked out once, on all cores, the first step it is wanted.)
+    val sources = hex.all.filter { h -> pool[h] >= DISPERSAL_LEAST && !dispersalGround.containsKey(groundKey(k, h)) }
+    Par.forEach("residents: dispersal ground", sources.size) { i -> val h = sources[i]; dispersalGround[groundKey(k, h)] = dispersalAbout(h, reach, lengthKm) }
+    val about = ArrayList<Hex>(); val near = ArrayList<Float>(); val nearArea = ArrayList<Float>()
     for (h in hex.all) {
         val n = pool[h]; if (n < DISPERSAL_LEAST) continue
         // (The ground about, ring by ring, weighed by nearness: the room there and all of it.)
-        val about = ArrayList<Hex>(); val near = ArrayList<Float>()
-        var ring = listOf(h); val seen = hashSetOf(h); var roomW = 0f; var allW = 0f
-        for (r in 1..reach) {
-            ring = hex.nextRing(ring, seen)
-            for (q in ring) {
-                val w = kotlin.math.exp(-(hex.distanceKm(h, q) / lengthKm)).toFloat()
-                var area = 0f; for (p in hw.placesOf(q)) area += land.areaKm2[p]
-                if (area <= 0f) continue
-                allW += w * usual[k] * area
-                if (room[q] > 0f) { about += q; near += w; roomW += w * room[q] }
-            }
+        val ground = dispersalGround.getValue(groundKey(k, h))
+        about.clear(); near.clear(); nearArea.clear()
+        var roomW = 0f; var allW = 0f
+        for (i in 0 until ground.hexes.size) {
+            val q = ground.hexes[i]; val w = ground.weight[i]; val area = ground.area[i]
+            allW += w * usual[k] * area
+            if (room[q] > 0f) { about += q; near += w; nearArea += area; roomW += w * room[q] }
         }
         val settle = if (allW > 0f) settleRate * roomW / allW else 0f
         val out = settle + DISPERSAL_DEATH
@@ -526,7 +528,7 @@ fun HexFauna.disperse(k: FaunaKind) {
         if (settled > 0f && roomW > 0f) for ((i, q) in about.withIndex()) {
             val put = min(room[q], settled * near[i] * room[q] / roomW)
             if (put <= 0f) continue
-            var area = 0f; for (p in hw.placesOf(q)) area += land.areaKm2[p]
+            val area = nearArea[i]
             for (p in hw.placesOf(q)) a[p] += put / area
             room[q] -= put; placed += put
         }
@@ -537,6 +539,31 @@ fun HexFauna.disperse(k: FaunaKind) {
     // (The dead on the way count as homeless, as a pack without ground dies; and those that settled, for the report.)
     if (lost > 0f) deaths.merge(Tally.of(s, DeathCause.HOMELESS), lost.toDouble(), Double::plus)
     if (settledAll >= 1f) stats.meeting(Met.Of.ROAMERS_SETTLED, s.name, settledAll.toInt())
+}
+
+/**
+ * The ground about a hex its dispersers look over ([disperse]): the land hexes within its reach, ring by ring as they lie
+ * outward, each with its nearness weight exp(-km / the kind's dispersal length) and its land area, km².
+ */
+class DispersalGround(val hexes: HexArray, val weight: FloatArray, val area: FloatArray)
+
+/** The key of kind [k]'s ground about hex [h] in [HexFauna.dispersalGround]. */
+private fun HexFauna.groundKey(k: FaunaKind, h: Hex) = k.i.toLong() * hex.size + h.i
+
+/** The ground about hex [h] out to [reach] rings, weighed by nearness over [lengthKm] ([DispersalGround]), as [disperse] looks over it. */
+private fun HexFauna.dispersalAbout(h: Hex, reach: Int, lengthKm: Float): DispersalGround {
+    val hs = ArrayList<Hex>(); val ws = ArrayList<Float>(); val areas = ArrayList<Float>()
+    var ring = listOf(h); val seen = hashSetOf(h)
+    for (r in 1..reach) {
+        ring = hex.nextRing(ring, seen)
+        for (q in ring) {
+            val w = kotlin.math.exp(-(hex.distanceKm(h, q) / lengthKm)).toFloat()
+            var area = 0f; for (p in hw.placesOf(q)) area += land.areaKm2[p]
+            if (area <= 0f) continue
+            hs += q; ws += w; areas += area
+        }
+    }
+    return DispersalGround(hs.toHexArray(), ws.toFloatArray(), areas.toFloatArray())
 }
 
 /** How far a disperser of [s] goes, km, the scale of nearness its settling weighs ([disperse]); an estimate. */

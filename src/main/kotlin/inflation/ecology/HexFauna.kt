@@ -350,6 +350,8 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
     val leaving = Array(kinds.size) { k -> if (kinds[k] in Catalogue.roamingResidents) FloatArray(hex.size) else null }
     /** Of each kind that also roams, the grown young dispersing from each hex they left, heads ([disperse]); null till the first leave (and in saves made before it). */
     internal var dispersing: Array<FloatArray?>? = null
+    /** The ground about each hex its dispersers look over, by kind and hex ([dispersalAbout]): fixed by the map, worked out once and kept. Not saved. */
+    @Transient internal val dispersalGround = java.util.concurrent.ConcurrentHashMap<Long, DispersalGround>()
 
     /**
      * The share of a kind's young growing up at a place where its kind stands at [heads] per km² that leave it as roamers:
