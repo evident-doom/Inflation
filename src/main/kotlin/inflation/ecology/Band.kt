@@ -106,9 +106,9 @@ class Band(kinds: Int, totems: Int = kinds) {
     @Transient var shiftsUncounted = 0
     /**
      * Person-days its raiders spent going to a raid and back ([plotRaid], bands that hold their home hex), taken from its
-     * next step's days before other work ([planWeek]). Not saved: a save loses at most a step's walk.
+     * next step's days before other work ([planWeek]). Saved, so that a loaded world carries on as the one that ran on.
      */
-    @Transient var raidWalkOwed = 0f
+    var raidWalkOwed = 0f
     /**
      * For the census around camp moves ([moveCensus]): its last [MOVE_WEEKS] weeks' share of the need it ate and its larder
      * (days), a ring from [recentAt]; the weeks since its last move (-1 for none seen), and how fed it was in the weeks before it.
