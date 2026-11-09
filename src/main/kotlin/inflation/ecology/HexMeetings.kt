@@ -169,10 +169,12 @@ internal fun HexGroups.neighboursMeet(weather: Weather) {
     if (rate <= 0f) return
     val r = stream(seedBase, Stream.NEIGHBOUR_MEETINGS, 0L, weather.date.absoluteDay)
     val easy = hex.hexKm.toFloat()
-    // (Each meeting falls on a tick of the step, drawn, and the step's meetings are held in the order of their ticks: a
-    // meeting is as fresh as the ticks since the pair last met ([meetingFresh], [meetTick]), so a pair that meets ten times
-    // in a 60-day step is not new to each other after the first, nor all at its start.)
-    class Due(val tick: Int, val a: HexGroup, val b: HexGroup, val way: List<Hex>)
+    // (A pair's meetings in the step are held as one, standing for as many as they were ([meetTimes], [meetChance]: what each
+    // meeting brings, over that many), at the tick of the last of them, drawn: it is as fresh as the ticks since the pair last
+    // met ([meetingFresh], [meetTick]), and the freshness of meetings adds up, so the step's tellings and feasts come to what
+    // its meetings one by one would have. The pairs are met in the order of those ticks. So a step costs a meeting a pair,
+    // not a meeting a meeting: a 60-day step's ten meetings between neighbours are one.)
+    class Due(val tick: Int, val times: Int, val a: HexGroup, val b: HexGroup, val way: List<Hex>)
     val due = ArrayList<Due>()
     for (a in groups) {
         if (!a.alive || !staysHome(a)) continue
@@ -184,18 +186,24 @@ internal fun HexGroups.neighboursMeet(weather: Weather) {
             val bs = byHex[h] ?: continue
             val km = reach.getValue(h).first
             val mean = rate * NEIGHBOUR_FALL.pow(max(0f, km - easy) / easy)
-            for (b in bs) if (b.id > a.id) repeat(poisson(mean, r)) { due += Due(r.nextInt(ticks), a, b, wayTo(reach, h0, h)) }
+            for (b in bs) if (b.id > a.id) {
+                val times = poisson(mean, r); if (times == 0) continue
+                var last = 0; repeat(times) { last = max(last, r.nextInt(ticks)) }
+                due += Due(last, times, a, b, wayTo(reach, h0, h))
+            }
         }
     }
     due.sortBy { it.tick }
+    val w = PATH_WEAR * min(1f, VISITORS * Catalogue.HUMAN.massKg / PATH_MASS_KG)
     for (m in due) {
         if (!m.a.alive || !m.b.alive) continue
-        meetTick = m.tick
-        stats.meeting(Met.NEIGHBOURS_MET)
-        wear.along(m.way, PATH_WEAR * min(1f, VISITORS * m.a.species.massKg / PATH_MASS_KG))
+        meetTick = m.tick; meetTimes = m.times
+        stats.meeting(Met.NEIGHBOURS_MET, m.times)
+        // (Each going there and back wears the way: the meetings' wear compounded, as one after another would.)
+        wear.along(m.way, 1f - (1f - w).pow(m.times))
         bandsMeet(m.a, m.b, weather)
     }
-    meetTick = 0
+    meetTick = 0; meetTimes = 1
 }
 
 /**
@@ -431,7 +439,7 @@ private fun HexGroups.residentsMeet(a: HexGroup, b: HexGroup): Boolean {
  */
 @Part("meetings: band meets band")
 internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rite: RiteGathering? = null) {
-    stats.meeting(Met.BANDS_MET)
+    stats.meeting(Met.BANDS_MET, meetTimes)
     note(a) { "met band #%d (%d people; tie %.2f)".format(b.id, b.size, a.band?.tie(b.id) ?: 0f) }
     note(b) { "met band #%d (%d people; tie %.2f)".format(a.id, a.size, b.band?.tie(a.id) ?: 0f) }
     val fresh = meetingFresh(a, b, weather)

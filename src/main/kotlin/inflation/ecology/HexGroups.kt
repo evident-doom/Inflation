@@ -101,7 +101,8 @@ class HexGroups(
             // Hunters that live on the water in their prey (cheetahs, leopards) care less how far it is.
             val w = land.drink.waterKm[p] / (2f * s.dailyTravelKm) * (if (s.waterFromFood >= 0.8f) 0.3f else 1f)
             prey / (prey + PREY_HALF) * fit / (1f + w * w)
-        }, { s -> groups.any { it.alive && it.species == s } }, tuning)
+        // (People that hold their home hex have no sense of better country to work out: they never trek, t.bandsStay.)
+        }, { s -> !(s.human && tuning.bandsStay) && groups.any { it.alive && it.species == s } }, tuning)
     }
     /** Game each hunting kind can catch in each place, kg/km² weighed by catchability, worked out once a month for the bearings. */
     internal val huntable by lazy { Array(kinds.size) { FloatArray(n) } }
@@ -803,6 +804,8 @@ class HexGroups(
     /** The month of the week the groups meet in ([meet]): for the young in hiding ([youngHidden]). */
     @Transient internal var meetMonth = 0
     /** The tick of the step a meeting now being held falls on ([neighboursMeet]; 0 for the rest): how fresh it is ([meetingFresh]). */
+    /** How many meetings of the two bands the meeting now being held stands for ([neighboursMeet]; 1 for the rest): [meetChance]. */
+    @Transient internal var meetTimes = 1
     @Transient internal var meetTick = 0
 
 

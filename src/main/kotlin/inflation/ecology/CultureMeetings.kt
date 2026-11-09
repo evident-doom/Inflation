@@ -10,6 +10,7 @@ import inflation.world.Weather
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.abs
+import kotlin.math.pow
 
 // Bands meeting: how new a meeting is, whether it ends in a raid, what each takes up of the other's ways, the country they tell of, partners exchanged, kin visited, food given and the favours owed for it.
 
@@ -60,10 +61,11 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
         return false
     }
     // Meeting in peace makes them a little closer; how close they are colours the rest.
-    bandA.befriend(b.id, TIE_MEET); bandB.befriend(a.id, TIE_MEET)
+    // (What each meeting brings, as many times over as they met in the step: [HexGroups.meetTimes], [meetChance].)
+    bandA.befriend(b.id, meetChance(TIE_MEET)); bandB.befriend(a.id, meetChance(TIE_MEET))
     val close = Regard.close(ab, ba)
     // The naming game: the larger band's word tends to win.
-    repeat(WORDS_PER_MEETING) {
+    repeat(WORDS_PER_MEETING * meetTimes) {
         val k = rnd.nextInt(Language.CONCEPTS)
         if (bandA.words[k] != bandB.words[k]) {
             if (rnd.nextFloat() < a.size.toFloat() / (a.size + b.size)) bandB.words[k] = bandA.words[k] else bandA.words[k] = bandB.words[k]
@@ -80,10 +82,10 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
         // A mark goes the way most of the bands about go: either may take up the other's, the likelier the more of the bands
         // it has seen hold that way (one draw for the two, so neither comes first).
         val (from, to) = if (!t.mark) {
-            if (rnd.nextFloat() < COPY_TRADITION * u) hi to lo else continue
+            if (rnd.nextFloat() < meetChance(COPY_TRADITION * u)) hi to lo else continue
         } else {
-            val toA = COPY_TRADITION * u * conformist(bandA.heardShare(t, bandB.holds(t)))
-            val toB = COPY_TRADITION * u * conformist(bandB.heardShare(t, bandA.holds(t)))
+            val toA = meetChance(COPY_TRADITION * u * conformist(bandA.heardShare(t, bandB.holds(t))))
+            val toB = meetChance(COPY_TRADITION * u * conformist(bandB.heardShare(t, bandA.holds(t))))
             when (takeUpSide(rnd.nextFloat(), toA, toB)) { TakeUp.A -> bandB to bandA; TakeUp.B -> bandA to bandB; TakeUp.NEITHER -> continue }
         }
         to.traditions[t] = from.holds(t)
@@ -92,8 +94,8 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
     // A totem goes the same way as a mark: either may take up the other's as the other keeps it (none, if it ate of its own).
     val keptA = bandA.keptTotem; val keptB = bandB.keptTotem
     if (keptA != keptB) {
-        val toA = COPY_TRADITION * u * conformist(bandA.heardTotemShare(keptB))
-        val toB = COPY_TRADITION * u * conformist(bandB.heardTotemShare(keptA))
+        val toA = meetChance(COPY_TRADITION * u * conformist(bandA.heardTotemShare(keptB)))
+        val toB = meetChance(COPY_TRADITION * u * conformist(bandB.heardTotemShare(keptA)))
         when (takeUpSide(rnd.nextFloat(), toA, toB)) {
             TakeUp.A -> { bandA.totem = keptB; bandA.totemBroken = 0f; stats.meeting(Met.BANDS_TOOK_UP_ANOTHERS_TOTEM) }
             TakeUp.B -> { bandB.totem = keptA; bandB.totemBroken = 0f; stats.meeting(Met.BANDS_TOOK_UP_ANOTHERS_TOTEM) }
@@ -102,8 +104,8 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
     }
     // And where bands that both bury their dead lay them.
     if (bandA.holds(Tradition.BURIAL) && bandB.holds(Tradition.BURIAL) && bandA.burialWay != bandB.burialWay) {
-        val toA = COPY_TRADITION * u * conformist(bandA.heardBurialShare(bandB.burialWay))
-        val toB = COPY_TRADITION * u * conformist(bandB.heardBurialShare(bandA.burialWay))
+        val toA = meetChance(COPY_TRADITION * u * conformist(bandA.heardBurialShare(bandB.burialWay)))
+        val toB = meetChance(COPY_TRADITION * u * conformist(bandB.heardBurialShare(bandA.burialWay)))
         when (takeUpSide(rnd.nextFloat(), toA, toB)) {
             TakeUp.A -> { bandA.burialWay = bandB.burialWay; stats.meeting(Met.BANDS_TOOK_UP_ANOTHERS_BURIAL) }
             TakeUp.B -> { bandB.burialWay = bandA.burialWay; stats.meeting(Met.BANDS_TOOK_UP_ANOTHERS_BURIAL) }
@@ -113,8 +115,8 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
     // A way of life goes as a mark does, as far as a band holds its own loosely ([Band.livelihoodHold]): either may come to
     // hold the one the other shows (none shown by a band living against its own).
     val showA = bandA.shownLivelihood; val showB = bandB.shownLivelihood
-    val toA = if (showB != null && showB != bandA.heldLivelihood) COPY_TRADITION * u * conformist(bandA.heardLivelihoodShare(showB)) * (1f - bandA.livelihoodHold) else 0f
-    val toB = if (showA != null && showA != bandB.heldLivelihood) COPY_TRADITION * u * conformist(bandB.heardLivelihoodShare(showA)) * (1f - bandB.livelihoodHold) else 0f
+    val toA = if (showB != null && showB != bandA.heldLivelihood) meetChance(COPY_TRADITION * u * conformist(bandA.heardLivelihoodShare(showB)) * (1f - bandA.livelihoodHold)) else 0f
+    val toB = if (showA != null && showA != bandB.heldLivelihood) meetChance(COPY_TRADITION * u * conformist(bandB.heardLivelihoodShare(showA)) * (1f - bandB.livelihoodHold)) else 0f
     if (toA + toB > 0f) when (takeUpSide(rnd.nextFloat(), toA, toB)) {
         TakeUp.A -> if (showB != null) { bandA.heldLivelihood = showB; bandA.livedOther = 0f; stats.meeting(Met.BANDS_TOOK_UP_ANOTHERS_WAY_OF_LIFE) }
         TakeUp.B -> if (showA != null) { bandB.heldLivelihood = showA; bandB.livedOther = 0f; stats.meeting(Met.BANDS_TOOK_UP_ANOTHERS_WAY_OF_LIFE) }
@@ -131,7 +133,7 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
     // other and keep the same ways the likelier.
     val marry = (if (bandA.holds(Tradition.EXOGAMY)) 0.5f else 0f) + (if (bandB.holds(Tradition.EXOGAMY)) 0.5f else 0f)
     // (As far as each would take partners from the other: [Regard.weds], the less willing of the two.)
-    if (a.adults >= 2 && b.adults >= 2 && rnd.nextFloat() < MARRY * marry * (0.5f + close) * min(ab.weds, ba.weds)) {
+    if (a.adults >= 2 && b.adults >= 2 && rnd.nextFloat() < meetChance(MARRY * marry * (0.5f + close) * min(ab.weds, ba.weds))) {
         marryOut(a, bandA, b, bandB)
         bandA.befriend(b.id, TIE_MARRY); bandB.befriend(a.id, TIE_MARRY)
         stats.meeting(Met.BANDS_EXCHANGED_PARTNERS)
@@ -139,6 +141,12 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
     }
     return false
 }
+
+/**
+ * A chance [p] a meeting brings, over the [HexGroups.meetTimes] meetings one meeting stands for (a pair of bands that met
+ * that many times in the step, [neighboursMeet]): 1 - (1 - p)^times; [p] itself for a single meeting.
+ */
+internal fun HexGroups.meetChance(p: Float) = if (meetTimes == 1) p else 1f - (1f - p.coerceIn(0f, 1f)).pow(meetTimes)
 
 /** Which of two bands a meeting's one draw has take up the other's way: [A], [B], or neither. */
 private enum class TakeUp { A, B, NEITHER }
