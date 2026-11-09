@@ -335,3 +335,27 @@ are there, a little more often than the timetables gave.
 Timing on the larger world: meetings 23.2 to 26.0 ms, the whole step 190.0 to 202.0 ms (the second run under somewhat
 less load from other processes, 12% against 16%). Meetings drawn by rate for groups that stand still (the plan's step 3)
 remain the way to the saving.
+
+## Measured: meetings on more cores, results unchanged (9 Nov 2026)
+
+The plan's step 3 was meetings drawn by rate, not timetable, for groups that stand still. The recording of step 4b
+showed that is not where the meetings' time goes. Of the phase's 26 ms on the larger world, most is serial work on the
+resident hunters' stand-ins (`ResidentParties`: making them, listing them by hex, booking what their meetings among
+themselves came to). The bands' neighbour meetings take about 4 ms, nearly all of it each band's least-effort search
+over the hexes about it (`effortsFrom`). The timetable of groups that stand still is a few stays a group, and cheap.
+Rates there would change the results for little. So instead, with the same results:
+
+- **Neighbours' going:** each staying band's search, and the peopled hexes of it in index order, are worked out on all
+  cores (`meetings: neighbours' going`). The draws then go band by band in the groups' order, as before.
+- **Stand-ins by hex:** the hexes with two or more stand-ins are listed as indices, and each hex's list is made inside
+  its own job in `meetings: residents by hex`, not all serially before it.
+- **Smaller:** the meetings' stop array is filled for the groups only (a stand-in's stays 0), and the stand-ins' hex
+  index is made big enough at once.
+
+Identical results: the logs diff empty, apart from timing lines, against those before (small world on at 6 and 60
+days, off at 6 days; the larger world on at 6 days).
+
+Timing on the larger world: meetings 26.0 to 22.8 ms, with the machine more loaded by other processes in the second
+run (27% against 12%), so the gain is if anything larger. The whole step read 202.0 and 201.1 ms under those loads. What
+is left serial in meetings is mostly making the stand-ins (`ResidentParties.<init>`) and booking their meetings
+(`standInsMeetBook`).

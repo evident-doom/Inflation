@@ -188,13 +188,22 @@ internal fun HexGroups.neighboursMeet(weather: Weather) {
     // not a meeting a meeting: a 60-day step's ten meetings between neighbours are one.)
     class Due(val tick: Int, val times: Int, val a: HexGroup, val b: HexGroup, val way: List<Hex>)
     val due = ArrayList<Due>()
-    for (a in groups) {
-        if (!a.alive || !staysHome(a)) continue
-        val h0 = hw.placeHex[a.place]
+    // (Each band's going to the hexes about it, and those of them where bands live in index order, on all cores: they read
+    // only the step's crossings. The draws then go band by band in the groups' order, as they always did.)
+    val stayers = groups.filter { it.alive && staysHome(it) }
+    val reaches = arrayOfNulls<Map<Hex, Pair<Float, Hex>>>(stayers.size)
+    val peopled = arrayOfNulls<List<Hex>>(stayers.size)
+    Par.forEach("meetings: neighbours' going", stayers.size) { i ->
+        val a = stayers[i]; val h0 = hw.placeHex[a.place]
         val reach = effortsFrom(h0, Catalogue.travel(a.species).ordinal, hw.placeBand[a.place], weather, CONTACT_KM)
+        reaches[i] = reach
+        peopled[i] = reach.keys.filter { it != h0 && it in byHex }.sortedBy { it.i }
+    }
+    for ((i, a) in stayers.withIndex()) {
+        val h0 = hw.placeHex[a.place]
+        val reach = reaches[i] ?: continue
         // (Each pair once, the band of the lower id drawing for both; the hexes in index order, so the draws repeat.)
-        for (h in reach.keys.sortedBy { it.i }) {
-            if (h == h0) continue
+        for (h in peopled[i] ?: continue) {
             val bs = byHex[h] ?: continue
             val km = reach.getValue(h).first
             val mean = rate * NEIGHBOUR_FALL.pow(max(0f, km - easy) / easy)
@@ -304,7 +313,8 @@ private fun HexGroups.meetSettle(weather: Weather) {
     Par.forEach("meetings: tie-breaks", events) { it.tie = tieBreak(seedBase, parties[it.a].id, parties[it.b].id, today) }
     Par.forEach("meetings: tie-breaks with stand-ins", withStandIns) { it.tie = tieBreak(seedBase, parties[it.a].id, parties[it.b].id, today) }
     inTimeOrder(events)
-    val stop = IntArray(parties.size) { parties[it].path.size - 1 }
+    // (A stand-in's path is its one hex: its stop stays 0.)
+    val stop = IntArray(parties.size); for (k in groups.indices) stop[k] = groups[k].path.size - 1
     for (e in events) {
         // Both must still be on their way at that point.
         if (e.ai > stop[e.a] || e.bi > stop[e.b]) continue
@@ -352,10 +362,11 @@ private fun HexGroups.meetSettle(weather: Weather) {
     // Resident hunters of different kinds meet each other where they live, hex by hex on all cores (each hex with its own
     // draws, so the same on any number of cores); what came of it is booked after, in the hexes' order.
     run {
-        val byStandIns = residents.standInsByHex()
+        // (Each hex's list of stand-ins made by its own job, on all cores.)
+        val byStandIns = residents.hexesWithStandIns()
         val outcomes = arrayOfNulls<List<StandInsMet>>(byStandIns.size)
         Par.forEach("meetings: residents by hex", byStandIns.size) { j ->
-            val list = byStandIns[j]; if (list.size < 2) return@forEach
+            val list = residents.standInsIn(byStandIns[j]); if (list.size < 2) return@forEach
             val r = stream(seedBase, Stream.RESIDENT_MEETINGS, list[0].g.home.i.toLong(), today)
             val out = ArrayList<StandInsMet>()
             for (x in list.indices) for (y in x + 1 until list.size) {
