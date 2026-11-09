@@ -87,7 +87,9 @@ internal fun HexGroups.hunt(weather: Weather) {
     val (near, far) = hunters.partition { g ->
         val end = hw.placeHex[g.place]
         // (Its hunting ground reaches a hex beyond its way, see [huntGround].)
-        g.path.all { h -> hex.distanceKm(end, h) + 2 * hex.hexKm < HUNT_FINE_KM }
+        // (A pack that holds its ground hunts its footprint instead, [footGround].)
+        g.path.all { h -> hex.distanceKm(end, h) + 2 * hex.hexKm < HUNT_FINE_KM } &&
+            (g.footprint?.all { h -> hex.distanceKm(end, h) + 2 * hex.hexKm < HUNT_FINE_KM } ?: true)
     }
     stats.summedByThread { work(near, HUNT_FINE_KM); work(far, HUNT_BLOCK_KM) }
     takePackKills(2 * day + 1)
@@ -121,6 +123,8 @@ private fun HexGroups.forageWaves(squares: List<List<HexGroup>>): List<List<HexG
 private fun HexGroups.forageGround(g: HexGroup): Set<Hex> {
     val out = LinkedHashSet<Hex>()
     for (h in g.path) { out += h; for (d in 0 until 6) { val q = hex.neighbour(h, d); if (!q.none) out += q } }
+    // (A pack that holds its ground hunts its footprint, [footGround]: those hexes and the six round each, to be safe.)
+    g.footprint?.let { f -> for (h in f) { out += h; for (d in 0 until 6) { val q = hex.neighbour(h, d); if (!q.none) out += q } } }
     out += hw.placeHex[g.place]
     return out
 }

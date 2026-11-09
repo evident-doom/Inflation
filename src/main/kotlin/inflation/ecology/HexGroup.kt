@@ -126,6 +126,12 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
      * by its will to explore either. (Made anew each week before it is read.)
      */
     @Transient var weighed = true
+    /**
+     * For a pack that holds its ground this step ([holdsGround]): the hexes of its territory it hunts and marks ([footprint]),
+     * and each one's weight; null for every other group. (Made anew each week before it is read.)
+     */
+    @Transient var footprint: HexArray? = null
+    @Transient var footWeights: FloatArray? = null
     /** For hunters: meetings with game of each kind ([Species.index]), as of [herdsMetOn], fading over [SEARCH_DAYS] (null: none yet; see [SEARCH_HALF]). */
     var herdsMet: FloatArray? = null
     var herdsMetOn = 0.0

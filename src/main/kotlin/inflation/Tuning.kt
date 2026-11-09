@@ -129,6 +129,12 @@ class Tuning(
      * restless ([inflation.ecology.pressure]; docs/design/pack-performance.md, step 3). Off unless set (under test).
      */
     val huntersPressed = read("t.huntersPressed")?.toBooleanStrict() ?: false
+    /**
+     * Packs hold their ground ([inflation.ecology.holdsGround]): a pack on its home hex that is not restless weighs no place,
+     * it stays, and hunts and marks its territory's footprint, the hexes within its range of home weighted by nearness, at
+     * any step length ([inflation.ecology.footprint]; docs/design/pack-performance.md, step 4). Off unless set (under test).
+     */
+    val packsStay = read("t.packsStay")?.toBooleanStrict() ?: false
     /** The food cost of keeping warm, against [inflation.ecology.COLD_COST]. */
     val coldCost = f("coldCost", 1f)
 

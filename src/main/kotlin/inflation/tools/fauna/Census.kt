@@ -410,6 +410,13 @@ class Census(private val sim: HexSim) {
             val all = c.sum().coerceAtLeast(1)
             "%s %.0f/%.0f/%.0f%%".format(s.name, 100.0 * c[0] / all, 100.0 * c[1] / all, 100.0 * c[2] / all)
         })
+        // (Packs that hold their ground, t.packsStay: how many did this week, and how wide their footprints were.)
+        if (groups.tuning.packsStay) println("     packs holding their ground this week, of all packs (footprint hexes, mean and widest): " +
+            groups.kinds.filter { s -> groups.groups.any { it.alive && it.species == s && it.band == null } }.joinToString(", ") { s ->
+                val all = groups.groups.filter { it.alive && it.species == s && it.band == null }
+                val holding = all.mapNotNull { it.footprint?.size }
+                "%s %d of %d (%.1f, %d)".format(s.name, holding.size, all.size, if (holding.isEmpty()) 0.0 else holding.average(), holding.maxOrNull() ?: 0)
+            })
         val banded = groups.kinds.filter { groups.planner.exploreCounts[it.index * 4] > 0 }
         if (banded.isNotEmpty()) println("     bands' moves, share of band-weeks (its best choice would move / moved / moved only by its will to explore's draw): " +
             banded.joinToString(", ") { s ->

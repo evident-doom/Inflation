@@ -72,6 +72,7 @@ internal class GroupPlanner(internal val gs: HexGroups) {
     internal fun plan(g: HexGroup, weather: Weather, date: Date, predatorKg: FloatArray): Plan {
         // (For the census: the least peril among the places it weighs, [HexGroup.safestPeril]; unknown until it weighs any.)
         g.safestPeril = Float.NaN
+        g.footprint = null; g.footWeights = null
         return planInner(g, weather, date, predatorKg)
     }
 

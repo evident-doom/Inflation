@@ -675,7 +675,15 @@ internal fun HexGroups.mark() {
         if (!g.alive || s.human || g.home.none) continue
         val m = scent.marks.getOrPut(s.index) { FloatArray(hex.size) }
         val who = scent.markers.getOrPut(s.index) { IntArray(hex.size) { -1 } }
-        for (h in g.path) {
+        // (A pack that holds its ground marks its footprint, each hex as fresh as its weight, its home the freshest: its
+        // outskirts, marked faintly, others of its kind may share, [footprint].)
+        val foot = g.footprint; val weights = g.footWeights
+        if (foot != null && weights != null) for (i in 0 until foot.size) {
+            val h = foot[i]
+            if (who[h] == g.id) m[h] = max(m[h], weights[i])
+            else if (m[h] < MARK_FRESH) { m[h] = weights[i]; who[h] = g.id }
+        }
+        else for (h in g.path) {
             if (hex.distanceKm(h, g.home) > territoryKm(s)) continue
             if (who[h] == g.id || m[h] < MARK_FRESH) { m[h] = 1f; who[h] = g.id }
         }

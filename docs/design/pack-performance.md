@@ -262,3 +262,45 @@ So the field sees only the people about, about a twentieth of what would move a 
 within what a small change anywhere does to these runs. The field is ready for denser people (farming villages, longer
 runs, the full map). The test that it does what it should is a world where people are many and hunt or lose stock
 to beasts: there the hunters should thin out around them and fill back in by dispersal as the pressure fades.
+
+## Measured: step 4a, packs hold their ground (9 Nov 2026)
+
+Behind `t.packsStay` (off by default), `PackGround.kt`. Only leopard and cheetah packs are left as packs (wolves and
+lions live as fields and the dispersal pool), so this is about them.
+
+- **The rule:** a pack on its home hex that is not restless (`restless`: fed, has ground, not thirsty, not astray, not
+  pressed by people) and warned of no peril there weighs no place and stays (`holdsGround`, `groundPlan`). A pack away
+  from its home hex, or restless, weighs its places as before. Nothing is learnt from the stays: the hunters' network
+  still drives the restless weeks, as trained on all weeks (retraining on restless weeks only is left for later).
+- **The footprint:** its home hex and every hex with ground within its range of home (`territoryKm` scaled by the game
+  on its home ground, half to three times, as the planner reckons a pack's ground; `denKm` while denning), each weighted
+  `1 - d / (range + a hex)`. Laid out each step when the pack stays (a few dozen hexes at most).
+- **Hunting:** its step's search is shared over the footprint's places by weight, each as far as its area a tick goes,
+  what a place cannot take shared again among the others (`footGround`). It no longer depends on how far the path ran
+  that step. The foraging waves count the footprint and the six about each hex as the pack's ground, so two parties that
+  could touch the same ground are still never in one wave.
+- **Scent:** it marks its footprint, each hex as fresh as its weight, home 1. Outskirts weighted under `MARK_FRESH`
+  (0.3) are marked faintly, and others of its kind may settle and hunt there: territories overlap at their edges.
+- **Not yet:** meetings by footprint overlap. A staying pack's timetable is its home hex alone, so rivals meet it only
+  when they come in.
+
+Seed 1, 3 years, bands staying, the pool drifting:
+
+| | packs that stayed without weighing (leopard, cheetah) | leopards | cheetahs | footprint hexes (mean, widest; leopard) |
+|---|---|---|---|---|
+| 400x600 km, 6 days, without | 0%, 0% (weighed and stayed 89%, 98-100%) | 119 | 2 | |
+| 400x600 km, 6 days, with | 95%, 97% | 127 | 14 | 1.4, 7 |
+| 400x600 km, 60 days, without | 0%, 0% (weighed and stayed 81%, 80%) | 22 | 4 | |
+| 400x600 km, 60 days, with | 92%, 100% | 12 | 6 | 2.2, 7 |
+| 800x1200 km, 6 days, without | 0%, 0% (weighed and stayed 93%, 94%) | 1043 | 68 | |
+| 800x1200 km, 6 days, with | 97%, 100% | 926 | 76 | 1.5, 19 |
+
+On the small world the counts are a few dozen packs and swing with any change. On the larger world leopards end 11%
+fewer and cheetahs 12% more. Leopards are as well fed (0.99 against 1.00) and die of the same things. Most footprints
+are a hex or two: leopard ground is rich, so their range is scaled down below a hex's width. The few wide ones are in
+thin country.
+
+Timing on the larger world (recordings, the machine equally loaded): choosing over all groups 5.6 to 3.8 ms, the
+choosing phase 16.3 to 14.4 ms, meetings 24.2 to 23.2 ms, the whole step 197.6 to 190.0 ms. Less than the plan's 10-15
+ms, because the content packs were cheap to weigh already (most of the choosing is the bands' and the place values).
+The rest of the step's saving is in meetings by overlap rather than timetable (step 4b).
