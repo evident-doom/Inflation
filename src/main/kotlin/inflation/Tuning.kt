@@ -135,6 +135,13 @@ class Tuning(
      * any step length ([inflation.ecology.footprint]; docs/design/pack-performance.md, step 4). Off unless set (under test).
      */
     val packsStay = read("t.packsStay")?.toBooleanStrict() ?: false
+    /**
+     * With [packsStay], for test: the strategy every pack holding its ground settles its contacts by ([inflation.ecology.engage]),
+     * its stance on each part of its ground, as `lair:DEFEND,core:GIVE_WAY_TO_STRONGER,fringe:YIELD,outside:YIELD` (stances
+     * DEFEND, GIVE_WAY_TO_STRONGER, YIELD, AMBUSH, HIDE_AND_SCOUT, ATTACK; a part left out keeps GIVE_WAY_TO_STRONGER). Unset:
+     * the animals' rule everywhere, as at any meeting.
+     */
+    val packStrategy: String? = read("t.packStrategy")
     /** The food cost of keeping warm, against [inflation.ecology.COLD_COST]. */
     val coldCost = f("coldCost", 1f)
 

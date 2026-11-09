@@ -73,6 +73,9 @@ abstract class GroupWorld(
     internal val small get() = fauna.small
     /** What bands have taken near where they live ([worn], t.wornGround); not saved. */
     @Volatile @Transient internal var wornGround: WornGround? = null
+    /** The hexes the meeting being settled is over and its day ([meetSettle]): what a pack that gives way there gives up, [gaveWay]. */
+    @Transient internal var contested: inflation.world.HexArray = inflation.world.HexArray.EMPTY
+    @Transient internal var contestDay = 0L
 
     internal fun foodFor(s: Species, p: Place) = fauna.foodFor(s, p)
 

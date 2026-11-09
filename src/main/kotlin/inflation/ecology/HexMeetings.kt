@@ -10,6 +10,7 @@ import inflation.Stream
 import inflation.stream
 import inflation.world.Hex
 import inflation.world.HexArray
+import inflation.world.hexArray
 import inflation.world.Place
 import inflation.world.get
 import inflation.world.set
@@ -30,9 +31,16 @@ import kotlin.math.sqrt
  * Group [k] is in hex [hex] (its path's [index]) from day [from] to day [to], for the [share] of that time: 1 on its way, its
  * weight's share for a pack that holds its ground and is about its footprint all step ([footprint]).
  */
-private class Stay(val k: Int, val index: Int, val hex: Hex, val from: Float, val to: Float, val share: Float = 1f)
-/** Groups [a] and [b] are in hex [hex] together from [day], for [span] days, at their paths' [ai] and [bi]. */
-private class Meeting(val day: Float, val span: Float, val a: Int, val ai: Int, val b: Int, val bi: Int, val hex: Hex) { var tie = 0L }
+private class Stay(val k: Int, val index: Int, val hex: Hex, val from: Float, val to: Float, val share: Float = 1f,
+                   /** Whether it is a pack holding its ground about its footprint: its meetings with other groups are its contacts ([contacts]). */
+                   val holds: Boolean = false)
+/**
+ * Groups [a] and [b] are in hex [hex] together from [day], for [span] days, at their paths' [ai] and [bi]. For a contact
+ * ([contacts]), the encounters it comes to are its [mean] (worked out over all the hexes they share) and what the one that
+ * gives way gives up is [contested]; NaN and null for a meeting by timetable.
+ */
+private class Meeting(val day: Float, val span: Float, val a: Int, val ai: Int, val b: Int, val bi: Int, val hex: Hex,
+                      val mean: Float = Float.NaN, val contested: HexArray? = null) { var tie = 0L }
 
 /**
  * A draw of order for groups [id] and [other] on day [day] in the world of [seed]: who comes first when two things
@@ -60,7 +68,7 @@ private fun HexGroups.staysByHex(parties: List<HexGroup>, residents: ResidentPar
         if (foot != null && weights != null && g.path.size == 1) {
             var sum = 0f; for (w in weights) sum += w
             for (i in 0 until foot.size) { val h = foot[i]
-                (byHex[h.i] ?: ArrayList<Stay>().also { byHex[h.i] = it; made += it }) += Stay(k, 0, h, 0f, days.toFloat(), weights[i] / sum) }
+                (byHex[h.i] ?: ArrayList<Stay>().also { byHex[h.i] = it; made += it }) += Stay(k, 0, h, 0f, days.toFloat(), weights[i] / sum, true) }
             continue
         }
         val last = g.path.size - 1
@@ -287,6 +295,8 @@ private fun HexGroups.meetSettle(weather: Weather) {
             if ((sa.k >= groups.size || sb.k >= groups.size) && !residentsMeet(parties[sa.k], parties[sb.k])) continue
             // (Residents meeting residents are settled apart, below: no group is among them.)
             if (sa.k >= groups.size && sb.k >= groups.size) continue
+            // (Two groups of which one holds its ground meet as a contact, once over all the hexes they share: [contacts].)
+            if (sa.k < groups.size && sb.k < groups.size && (sa.holds || sb.holds)) continue
             val from = max(sa.from, sb.from); val to = min(sa.to, sb.to)
             if (from > to) continue
             out += Meeting(from, (to - from) * sa.share * sb.share, sa.k, sa.index, sb.k, sb.index, sa.hex)
@@ -294,6 +304,15 @@ private fun HexGroups.meetSettle(weather: Weather) {
         found[at] = out
     }
     val events = ArrayList<Meeting>().also { all -> for (l in found) all += l }
+    // (The contacts: each pair of which one holds its ground once, at the hex where their grounds overlap most, on the day the
+    // one on its way comes there (a holder is about it from the step's start), with the encounters of all the hexes shared.)
+    for (c in contacts()) {
+        val a = groups[c.a]; val b = groups[c.b]
+        fun indexAt(g: HexGroup) = if (g.footprint != null && g.path.size == 1) 0 else (0 until g.path.size).first { g.path[it] == c.hex }
+        val ai = indexAt(a); val bi = indexAt(b)
+        val day = max(if (ai > 0 || a.footprint == null) a.days[ai] else 0f, if (bi > 0 || b.footprint == null) b.days[bi] else 0f)
+        events += Meeting(day, days * c.overlap, c.a, ai, c.b, bi, c.hex, c.mean, c.contested)
+    }
     // (Meetings where the weaker is a stand-in change nothing for the stronger but what it eats: they are drawn after the
     // others, on all cores, each by its own draws, and booked in their order, for those still on their way there.)
     val withStandIns = ArrayList<Meeting>()
@@ -327,14 +346,19 @@ private fun HexGroups.meetSettle(weather: Weather) {
         val p = hw.placeNear(a.place, h).takeIf { !it.none } ?: a.place
         // (A stand-in is as many resident bands as there are there: each may meet the other, each meeting settled alone.)
         val ra = residents.of(e.a); val rb = residents.of(e.b)
-        val met = poisson(encounters(a, b, p, e.span) * (ra?.bands ?: 1f) * (rb?.bands ?: 1f), rnd)
+        val met = if (!e.mean.isNaN()) poisson(e.mean, rnd) else poisson(encounters(a, b, p, e.span) * (ra?.bands ?: 1f) * (rb?.bands ?: 1f), rnd)
         if (met == 0) continue
         // (Two groups meet at most once a tick of the step, each stand-in band once a tick: a step of several ticks holds the
         // meetings its ticks would have, [StepClock.ticks].)
         val times = if (ra == null && rb == null) min(met, ticks) else min(met, kotlin.math.ceil(min(ra?.bands ?: Float.MAX_VALUE, rb?.bands ?: Float.MAX_VALUE)).toInt() * ticks)
+        // (What the one that gives way gives up: the contact's shared hexes, else the hex of the meeting, [gaveWay].)
+        contested = e.contested ?: hexArray(1) { h }; contestDay = today
+        val byStrategy = e.contested?.takeIf { engages(a, b, it) }
         for (t in 0 until times) {
             ra?.fresh(); rb?.fresh()
             if (!a.alive || !b.alive) break
+            // (A contact of which a side has a strategy other than the animals' is settled by the strategies, [engage].)
+            if (byStrategy != null) { engage(a, e.a, e.ai, b, e.b, e.bi, byStrategy, h, stop, rnd); continue }
             if (slipsAway(a, b, p) || slipsAway(b, a, p)) stats.meeting(Met.SLIPPED_AWAY)
             else if (a.species.human && b.species.human) run { val t0 = Profile.mark(); bandsMeet(a, b, weather); Profile.slow("meeting: bands", t0, weather.date.absoluteDay) { a.probe(weather.date.absoluteDay) + " | " + b.probe(-1L) } }
             else if (a.species == b.species) rivalsMeet(a, e.a, e.ai, b, e.b, e.bi, h, stop)
@@ -645,6 +669,15 @@ internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, b
     stats.meeting(Met.HUNTERS_OF_OTHER_KINDS)
     val sa = strength(a) * (if (a.home == h) HOME_ADVANTAGE else 1f)
     val sb = strength(b) * (if (b.home == h) HOME_ADVANTAGE else 1f)
+    enemiesClash(a, ak, ai, b, bk, bi, h, stop, sa, sb)
+}
+
+/**
+ * What comes of hunters of different kinds, [a] and [b], meeting at [h] with strengths [sa] and [sb] as they stand there
+ * ([enemiesMeet]; [engage] with their ground and surprise in them): near equals keep their distance; else the stronger may
+ * take the weaker's kill and kill one of it, and the weaker turns back and gives way ([gaveWay]).
+ */
+internal fun HexGroups.enemiesClash(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk: Int, bi: Int, h: Hex, stop: IntArray, sa: Float, sb: Float) {
     val aStrong = sa >= sb
     val strong = if (aStrong) a else b; val weak = if (aStrong) b else a
     val wk = if (aStrong) bk else ak; val wi = if (aStrong) bi else ai
@@ -676,6 +709,7 @@ internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, b
         stats.deaths.merge(Tally.of(weak.species, ByBeast.of(ByBeast.How.KILLED_BY, strong.species)), 1, Int::plus)
     }
     stop[wk] = min(stop[wk], max(0, wi - 1)) // the weaker turns back
+    gaveWay(weak, contested, contestDay)
     if (weak.band != null) stats.meeting(Met.Of.TURNED_BACK_BY, strong.species.name)
 }
 
@@ -693,6 +727,7 @@ internal fun HexGroups.mark() {
     // (A tick's fading a tick: over a step of several, compounded, so a mark goes stale in the same days whatever the step.)
     val keep = if (ticks == 1) MARK_KEEP else MARK_KEEP.pow(ticks)
     for (m in scent.marks.values) for (i in m.indices) m[i] *= keep
+    scent.marks2?.let { all -> for (m in all.values) for (i in m.indices) m[i] *= keep }
     for (g in groups) {
         val s = g.species
         if (!g.alive || s.human || g.home.none) continue
@@ -701,11 +736,7 @@ internal fun HexGroups.mark() {
         // (A pack that holds its ground marks its footprint, each hex as fresh as its weight, its home the freshest: its
         // outskirts, marked faintly, others of its kind may share, [footprint].)
         val foot = g.footprint; val weights = g.footWeights
-        if (foot != null && weights != null) for (i in 0 until foot.size) {
-            val h = foot[i]
-            if (who[h] == g.id) m[h] = max(m[h], weights[i])
-            else if (m[h] < MARK_FRESH) { m[h] = weights[i]; who[h] = g.id }
-        }
+        if (foot != null && weights != null) for (i in 0 until foot.size) scent.claim(s.index, foot[i], g.id, weights[i], hex.size)
         else for (h in g.path) {
             if (hex.distanceKm(h, g.home) > territoryKm(s)) continue
             if (who[h] == g.id || m[h] < MARK_FRESH) { m[h] = 1f; who[h] = g.id }
@@ -728,9 +759,19 @@ internal fun GroupWorld.rivalsMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, b
     if (ratio > FIGHT_RATIO * (if (sa < sb) a else b).will[AnimalWay.FIGHT]) {
         // The weaker gives way: back the way it came.
         if (sa < sb) stop[ak] = min(stop[ak], max(0, ai - 1)) else stop[bk] = min(stop[bk], max(0, bi - 1))
+        gaveWay(if (sa < sb) a else b, contested, contestDay)
         stats.meeting(Met.PACK_GAVE_WAY)
         return
     }
+    rivalsFight(a, ak, ai, b, bk, bi, h, stop, sa, sb)
+}
+
+/**
+ * Rival packs [a] and [b] of one kind fight at [h], with strengths [sa] and [sb] as they stand there ([rivalsMeet]; [engage]
+ * with their ground and surprise in them): one loses, by the strengths; now and then it loses one of its grown; beaten at
+ * its home, it loses its ground and its young may be killed; it turns back and gives way ([gaveWay]).
+ */
+internal fun GroupWorld.rivalsFight(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk: Int, bi: Int, h: Hex, stop: IntArray, sa: Float, sb: Float) {
     stats.meeting(Met.PACKS_FOUGHT)
     val loser = if (rnd.nextFloat() < sa / (sa + sb)) b else a
     if (rnd.nextFloat() < RIVAL_KILL && loser.adults > 0) {
@@ -755,6 +796,7 @@ internal fun GroupWorld.rivalsMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, b
     val winner = if (loser === a) b else a
     if (loser.id < 0 && loser.home == h && winner.id >= 0 && winner.home.none && winner.adults >= 2) { winner.home = h; stats.meeting(Met.Of.ROAMERS_TOOK_OVER, winner.species.name) }
     if (loser === a) stop[ak] = min(stop[ak], max(0, ai - 1)) else stop[bk] = min(stop[bk], max(0, bi - 1))
+    gaveWay(loser, contested, contestDay)
 }
 
 /** [g] takes hex [h] as its ground and marks it there and then. */

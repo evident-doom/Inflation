@@ -359,3 +359,106 @@ Timing on the larger world: meetings 26.0 to 22.8 ms, with the machine more load
 run (27% against 12%), so the gain is if anything larger. The whole step read 202.0 and 201.1 ms under those loads. What
 is left serial in meetings is mostly making the stand-ins (`ResidentParties.<init>`) and booking their meetings
 (`standInsMeetBook`).
+
+## Contacts and engagements: one way groups come on each other (9 Nov 2026)
+
+Olli, 9 Nov 2026: this work is the pattern for future groups of people that move (bandits, war parties, scouts). What
+matters most is a model that reliably, predictably and reproducibly finds and settles the cases where two possibly
+hostile groups' spheres of influence overlap, more than model changes or small performance gains. Strategies are set
+beforehand and per hex: a band may defend its lair and yield to a stronger band on its fringe; a defender may draw the
+other in, keep high ground, fall back to ground easier to hold, or hide and scout, ambush, attack when the other is
+outnumbered. And the encounter logic must be the same whether or not the encounter turns out hostile.
+
+### Built (step 4c, behind `t.packsStay`)
+
+- **Contacts** (`Contacts.kt`): each pair of groups of which one holds its ground and whose grounds share a hex is one
+  contact. A contact has:
+  - the overlap: the sum over shared hexes of the product of the two groups' shares there;
+  - the encounters to expect: each shared hex's rate a day times the days both are there, summed;
+  - the hex where the overlap is thickest, and the contested hexes.
+
+  They are found pair by pair on all cores, keyed and ordered by the groups' ids, so the same on any cores and in any
+  order of the groups. One draw per pair, at most one meeting a tick. Cutting a hex in two leaves the encounters as they
+  were (each hex's rate goes by its area). Tested in `ContactsTest`.
+- **Yielding** (`gaveWay`): a pack holding its ground that gives way, or loses, keeps off the contested hexes for
+  `YIELD_DAYS` (30): it neither hunts nor marks them, nor is it about them for the next contacts. Its home it loses only
+  to a rival that beats it there. A group on its way turns back, as before.
+- **Claims** (`Scent.claim`): two claimants a hex by kind, the fresher first. A claim is lost only as it fades or to a
+  fresher third, not to whichever pack marks first.
+- **Engagements** (`Engagement.kt`): a contact is settled by the two sides' strategies.
+  - A strategy is a stance for each part of a group's ground: lair (home hex), core (footprint weight `CORE_WEIGHT` 0.5
+    or more), fringe, outside.
+  - Stances: `DEFEND`, `GIVE_WAY_TO_STRONGER` (the animals' rule), `YIELD`, `AMBUSH`, `HIDE_AND_SCOUT`, `ATTACK`.
+  - In order:
+    1. **Ground:** a side that would defend some contested hexes draws the meeting to the one it holds best: high
+       ground over the other (up to `ENGAGE_HIGH` 0.5 stronger at 200 m above), cover (`ENGAGE_COVER`), its lair
+       (`HOME_ADVANTAGE`). Otherwise the meeting is where the overlap is thickest.
+    2. **Detection:** each may see the other first, by senses; one keeping out of sight is up to `ENGAGE_HIDING` (3) times
+       harder to see in full cover.
+    3. **Choice:** each acts on its stance by what it knows; of an unseen other, nothing.
+    4. **Outcome:** one that saw the other coming may withdraw (it gives way); one taken unawares cannot, and its
+       attacker strikes `ENGAGE_SURPRISE` (2) times stronger. Fights are the meetings' own (`rivalsFight`, `enemiesClash`).
+  - Packs keep the animals' rule unless `t.packStrategy` sets one for test. A contact where both keep it is settled
+    as any meeting is, so the strategies change nothing where nobody has one.
+
+### Measured (step 4c)
+
+Seed 1, 3 years, bands staying, the pool drifting, packs staying:
+
+| | leopards | cheetahs |
+|---|---|---|
+| 400x600 km, 6 days, step 4b | 110 | 6 |
+| 400x600 km, 6 days, contacts, the animals' rule | 100 | 7 |
+| 400x600 km, 6 days, lair DEFEND, core GIVE_WAY_TO_STRONGER, fringe and outside YIELD | 130 | 10 |
+| 400x600 km, 6 days, AMBUSH everywhere | 122 | 6 |
+| 400x600 km, 6 days, ATTACK everywhere | 110 | 9 |
+| 400x600 km, 60 days, step 4b / contacts | 29 / 23 | 7 / 6 |
+| 800x1200 km, 6 days, step 4b / contacts | 944 / 915 | 53 / 65 |
+
+- Without the switch the results are the same as before, line for line.
+- The census weeks show the engagements at work under the test strategies: ambushes, packs watching each other unseen,
+  passing unseen, giving way; packs holding ground giving up 1 to 38 hexes in a census week. Under the animals' rule
+  no contact goes by strategy, as meant.
+- The numbers move within what any change does to these few dozen packs. On the larger world the leopards are 3%
+  under step 4b.
+- Timing on the larger world: meetings 22.8 to 23.0 ms, the whole step 201.1 to 201.8 ms. Contacts cost about what
+  the meetings over the footprint did.
+
+### Next: every encounter through the same steps
+
+Today a meeting comes about in seven ways, and is settled in five. Each way has its own idea of who meets whom and how
+often:
+
+| Path | Who meets whom, how often | How it is settled |
+|---|---|---|
+| Timetables (groups on their way) | paths share a hex on overlapping days; chance rate times time together, per hex | bands talk or raid (`meetingEndsInRaid`); packs by the rivals' or enemies' rule; a slip-away check first |
+| Contacts (above) | one side holds its ground; overlap, one draw a pair | engagement, or the rivals' and enemies' rules |
+| Resident stand-ins | per hex, chance rate times resident bands; share-of-week between residents | their own slip-or-kill rule (`standInsMeetDraw`) |
+| Neighbours (staying bands) | a yearly rate halving each hex of going apart, to 50 km; one meeting a pair a step standing for its count | talk or raid, by regard |
+| Appointments | bands with the same place and month | all pairs talk |
+| Kin visits | a hungry band to one within two hexes that has food | fed, debt remembered |
+| Raids | a band sets out on a known home | fought at the target's home (`fightRaids`) |
+
+So the same two groups meet by a chance rate or a yearly visiting rate, per hex or per pair, with or without a chance
+to slip away or to choose ground, depending on the path that brought them together. The aim is one pipeline:
+
+1. **Every party has a ground for the step** (`Sphere`): a holder its footprint; a group on its way its path by time;
+   a staying band its home hex and those within a day's walk by its foragers' time (the spread the people's pressure
+   already uses); a resident stand-in its hex.
+2. **Contacts come about by chance or by intent.**
+   - By chance: grounds overlap, times the chance rate (`contactsOf`).
+   - By intent: a visit, an appointment, a kin visit or a raid. The traveller lays the target's hex onto its ground for
+     the days it goes, with the reason. The neighbours' 60 a year becomes how often a band means to visit a friend.
+3. **One engagement:** ground, detection, choice, outcome. A side's stance is its strategy for that ground, as it
+   regards the other: kin and friends greet, strangers go by the strategy, a feud or hunger can make it a raid. Talk is
+   the outcome where both greet (exchange, news, partners, feasts as now). A raid is an attack, with detection and
+   ground as any other.
+4. **One way of holding many meetings as one**, as the neighbours' meetings already do (`meetTimes`, `meetingFresh`):
+   one settling a pair a step, standing for its count, at any step length.
+
+In stages, each A/B'd:
+
+1. resident stand-ins into the engagement;
+2. staying bands' grounds, and neighbours' meetings by contact;
+3. visits, appointments and kin visits as contacts by intent;
+4. raids as attacks by intent.

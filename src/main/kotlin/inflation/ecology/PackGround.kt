@@ -59,6 +59,9 @@ internal fun GroupPlanner.footprint(g: HexGroup, date: Date) {
     val range = if (denning) gs.tuning.denKm.toDouble() else
         (gs.territoryKm(s) * sqrt(PREY_HALF / homeValue.coerceAtLeast(1f)).coerceIn(0.5f, 3f)).toDouble()
     val fall = range + gs.hex.hexKm
+    val today = date.absoluteDay
+    // (Its yieldings that have run out are forgotten.)
+    g.yielded = g.yielded?.filter { (it and 0xFFFFFFFFL) > today }?.toLongArray()?.takeIf { it.isNotEmpty() }
     val hexes = ArrayList<Hex>(); val weights = ArrayList<Float>()
     hexes += g.home; weights += 1f
     val seen = HashSet<Hex>().also { it += g.home }
@@ -70,7 +73,8 @@ internal fun GroupPlanner.footprint(g: HexGroup, date: Date) {
             val d = gs.hex.distanceKm(h, g.home)
             if (d > range) continue
             any = true
-            if (gs.hw.placeNear(g.place, h).none) continue
+            // (Not where it gave way lately, [gaveWay].)
+            if (gs.hw.placeNear(g.place, h).none || yields(g, h, today)) continue
             hexes += h; weights += (1.0 - d / fall).toFloat()
         }
         if (!any) break
