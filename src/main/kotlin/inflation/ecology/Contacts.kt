@@ -132,12 +132,14 @@ internal fun GroupWorld.contend(a: HexGroup, b: HexGroup) = !(staysHome(a) && st
  * by day: its ground for the step's meetings ([HexGroup.footprint]), its home weighted 1 and each hex about with land
  * [BAND_ROUND_WEIGHT], as a pack's footprint is weighted by nearness. With [inflation.Tuning.packsStay]; it hunts as before.
  */
-internal fun GroupWorld.bandGround(g: HexGroup) {
+internal fun GroupWorld.bandGround(g: HexGroup, today: Long) {
     if (!tuning.packsStay) return
     val home = hw.placeHex[g.place]
+    // (Not the hexes it gave way on lately, [gaveWay]; its yieldings that have run out are forgotten.)
+    g.yielded = g.yielded?.filter { (it and 0xFFFFFFFFL) > today }?.toLongArray()?.takeIf { it.isNotEmpty() }
     val hexes = ArrayList<Hex>(7); val weights = ArrayList<Float>(7)
     hexes += home; weights += 1f
-    for (d in 0 until 6) { val q = hex.neighbour(home, d); if (!q.none && !hw.placeNear(g.place, q).none) { hexes += q; weights += BAND_ROUND_WEIGHT } }
+    for (d in 0 until 6) { val q = hex.neighbour(home, d); if (!q.none && !hw.placeNear(g.place, q).none && !yields(g, q, today)) { hexes += q; weights += BAND_ROUND_WEIGHT } }
     g.footprint = hexes.toHexArray(); g.footWeights = weights.toFloatArray()
 }
 
@@ -151,11 +153,13 @@ internal const val BAND_ROUND_WEIGHT = 0.5f
  * Nothing for a group that does not hold its ground: one on its way turns back instead.
  */
 internal fun GroupWorld.gaveWay(g: HexGroup, contested: HexArray, today: Long) {
-    if (!tuning.packsStay || g.footprint == null || g.home.none) return
+    // (A band's lair is its camp's hex, [groundOf]: it gives up the hexes about, never its camp.)
+    val lair = if (g.band != null) hw.placeHex[g.place] else g.home
+    if (!tuning.packsStay || g.footprint == null || lair.none) return
     val until = today + YIELD_DAYS
     val kept = g.yielded?.let { y -> y.filter { (it and 0xFFFFFFFFL) > today && contested.indexOf((it ushr 32).toInt()) < 0 } } ?: emptyList()
     val added = ArrayList<Long>()
-    for (i in 0 until contested.size) { val h = contested[i]; if (h != g.home) added += (h.i.toLong() shl 32) or until }
+    for (i in 0 until contested.size) { val h = contested[i]; if (h != lair) added += (h.i.toLong() shl 32) or until }
     g.yielded = (kept + added).toLongArray().takeIf { it.isNotEmpty() }
     if (added.isNotEmpty()) stats.meeting(Met.HEXES_YIELDED, added.size)
 }

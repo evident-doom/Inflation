@@ -177,7 +177,7 @@ internal fun HexGroups.raid(g: HexGroup, b: Band, o: HexGroup, ob: Band, r: Rega
  * houses and a palisade. A band with no home to hold may slip away, losing what it cannot carry; one beaten at its home
  * may be driven from it ([driveOff]).
  */
-internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planned: Boolean, weather: Weather) {
+internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planned: Boolean, weather: Weather, edge: Float? = null) {
     stats.meeting(if (planned) Met.RAIDS_ON_HOMES else Met.RAIDS)
     note(g) { "raided band #%d%s".format(o.id, if (planned) " at its home" else "") }; note(o) { "was raided by band #%d".format(g.id) }
     ob.sinceRaided = 0
@@ -188,7 +188,7 @@ internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planne
         ob.grudge[b.mainLineage()] += 0.5f * GRUDGE; ob.befriend(g.id, -0.5f * TIE_RAID)
         return
     }
-    val sides = raidSides(g, o, ob, planned, ob.atHome, weather)
+    val sides = raidSides(g, o, ob, planned, ob.atHome, weather, edge)
     val sg = sides.raiders; val so = sides.defenders
     raidWorth(o, ob, sg, so, sides.own)
     // Each side loses some of its people, the more so against the stronger side; neighbours who stood with the raided
@@ -278,7 +278,7 @@ internal fun HexGroups.raidStrengths(g: HexGroup, o: HexGroup, ob: Band, planned
  * than to the raiders (by its [Regard] of each: a band that holds neither close, or the raiders as close, stays out), behind
  * its own houses and palisade. The one rule for a raid ([fight]) and for a raiding band weighing its target ([plotRaid]).
  */
-internal fun HexGroups.raidSides(g: HexGroup, o: HexGroup, ob: Band, planned: Boolean, atHome: Boolean, weather: Weather): RaidSides {
+internal fun HexGroups.raidSides(g: HexGroup, o: HexGroup, ob: Band, planned: Boolean, atHome: Boolean, weather: Weather, edge: Float? = null): RaidSides {
     val p = o.place
     // Surprise: a planned raid at night, in cover, on a band that keeps no lookout.
     val look = sight(p, weather) * (0.5f + 0.5f * moon)
@@ -286,7 +286,8 @@ internal fun HexGroups.raidSides(g: HexGroup, o: HexGroup, ob: Band, planned: Bo
     val seen = seenRaw.coerceIn(0f, 1f)
     if (planned) dialUse?.amount(DialSite.SCOUTS_SEEN, ob.will[BandWay.SCOUTS], seen, (look * (1f + 5f * SCOUT_SHARE)).coerceIn(0f, 1f),
         cut = seenRaw > 1f)
-    val surprise = if (planned) 1f + SURPRISE_RAID * (1f - seen) else 1f
+    // (Where an engagement settled whether the raiders came unawares ([engage]), its [edge] in place of the raid's own draw.)
+    val surprise = edge ?: if (planned) 1f + SURPRISE_RAID * (1f - seen) else 1f
     // The defenders' ground and works.
     val ground = 1f + HIGH_GROUND * land.bestDefence[p]
     val works = if (atHome) 1f + HOUSE_DEFENCE * ob.house + PALISADE_DEFENCE * ob.palisade else 1f

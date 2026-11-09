@@ -39,7 +39,7 @@ enum class Stance {
     /** Falls on whatever it sees, whatever its strength. */
     ATTACK;
 
-    /** Whether it keeps out of sight: it is harder to see where there is cover ([detects]). */
+    /** Whether it keeps out of sight: it is harder to see where there is cover ([sightings]). */
     val hidden get() = this == AMBUSH || this == HIDE_AND_SCOUT
 }
 
@@ -75,23 +75,32 @@ class Strategy(val lair: Stance, val core: Stance, val fringe: Stance, val outsi
 internal fun groundOf(g: HexGroup, h: Hex): Ground {
     if (!g.home.none && h == g.home) return Ground.LAIR
     val foot = g.footprint ?: return Ground.OUTSIDE
+    // (A band's lair is its camp's hex, the first of its ground, [bandGround].)
+    if (g.band != null && foot.size > 0 && foot[0] == h) return Ground.LAIR
     val w = g.footWeights ?: return Ground.OUTSIDE
     for (i in 0 until foot.size) if (foot[i] == h) return if (w[i] >= CORE_WEIGHT) Ground.CORE else Ground.FRINGE
     return Ground.OUTSIDE
 }
 
 /** Group [g]'s strategy: a pack holding its ground keeps the one set for test ([inflation.Tuning.packStrategy]), if any; every other the animals'. */
-internal fun GroupWorld.strategyOf(g: HexGroup): Strategy =
-    if (g.footprint != null && g.band == null) packStrategy(tuning.packStrategy) ?: Strategy.ANIMALS else Strategy.ANIMALS
-
-/** The strategy set for test ([inflation.Tuning.packStrategy]), read once while the text stays the same. */
-private class ReadStrategy(val text: String, val strategy: Strategy?)
-@Volatile private var lastRead: ReadStrategy? = null
-private fun packStrategy(text: String?): Strategy? {
-    if (text == null) return null
-    lastRead?.let { if (it.text == text) return it.strategy }
-    return Strategy.parse(text).also { lastRead = ReadStrategy(text, it) }
+internal fun GroupWorld.strategyOf(g: HexGroup): Strategy = when {
+    g.footprint == null -> Strategy.ANIMALS
+    g.band == null -> packStrategies.of(tuning.packStrategy) ?: Strategy.ANIMALS
+    else -> bandStrategies.of(tuning.bandStrategy) ?: Strategy.ANIMALS
 }
+
+/** A strategy set for test ([inflation.Tuning.packStrategy], [inflation.Tuning.bandStrategy]), read once while its text stays the same. */
+private class ReadStrategies {
+    private class Read(val text: String, val strategy: Strategy?)
+    @Volatile private var last: Read? = null
+    fun of(text: String?): Strategy? {
+        if (text == null) return null
+        last?.let { if (it.text == text) return it.strategy }
+        return Strategy.parse(text).also { last = Read(text, it) }
+    }
+}
+private val packStrategies = ReadStrategies()
+private val bandStrategies = ReadStrategies()
 
 /**
  * The hexes a meeting of [a] and [b] at [h] is over, for the engagement: a contact's ([contested]); else, where one side
@@ -135,10 +144,20 @@ internal fun GroupWorld.battleground(a: HexGroup, b: HexGroup, contested: HexArr
     return if (!ha.none && hb.none) ha else if (ha.none && !hb.none) hb else thickest
 }
 
-/** Whether [g] sees [other] at place [p] before it is seen, by its senses against the other's, the other harder to see in cover if it keeps out of sight ([Stance.hidden]). */
-internal fun GroupWorld.detects(g: HexGroup, other: HexGroup, otherStance: Stance, p: Place, r: Random): Boolean {
-    val hide = if (otherStance.hidden) 1f + ENGAGE_HIDING * land.plants.cover(p) else 1f
-    return r.nextFloat() < g.species.senseKm / (g.species.senseKm + other.species.senseKm * hide)
+/**
+ * Who sees whom when [a] (stance [stA]) and [b] (stance [stB]) come on each other by chance at place [p]: whether [a] sees
+ * [b], and [b] sees [a]. One that keeps out of sight ([Stance.hidden]) is [ENGAGE_HIDING] times harder to see in full cover
+ * (its hiding, 1 in the open or when it does not hide). Two that both hide may pass unseen, each missing the other as its
+ * hiding has it; else one notices the other first, by its senses against the other's hiding; and the other notices it in
+ * turn unless the one that noticed first keeps out of sight, as its hiding has it. So only keeping out of sight gives
+ * surprise: two that do not hide see each other.
+ */
+internal fun GroupWorld.sightings(a: HexGroup, stA: Stance, b: HexGroup, stB: Stance, p: Place, r: Random): Pair<Boolean, Boolean> {
+    val cover = land.plants.cover(p)
+    val hideA = if (stA.hidden) 1f + ENGAGE_HIDING * cover else 1f; val hideB = if (stB.hidden) 1f + ENGAGE_HIDING * cover else 1f
+    if (r.nextFloat() < (1f - 1f / hideA) * (1f - 1f / hideB)) return false to false
+    val wa = a.species.senseKm / hideB; val wb = b.species.senseKm / hideA
+    return if (r.nextFloat() < wa / (wa + wb)) true to (r.nextFloat() < 1f / hideA) else (r.nextFloat() < 1f / hideB) to true
 }
 
 /** What a side does at an engagement ([engage]). */
@@ -151,13 +170,19 @@ private enum class Act { FIGHT, WITHDRAW, LIE_LOW }
  */
 @inflation.Part("meetings: engagements")
 internal fun HexGroups.engage(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk: Int, bi: Int, contested: HexArray, thickest: Hex, stop: IntArray, r: Random,
-                              stanceA: Stance? = null) {
+                              intent: Intent = Intent.CHANCE, weather: inflation.world.Weather? = null) {
     stats.meeting(Met.ENGAGEMENTS)
     val h = battleground(a, b, contested, thickest)
     val p = hw.placeNear(a.place, h).takeIf { !it.none } ?: a.place
     // (A side that came to attack, a raid set out ([Intent.RAID]), attacks whatever its strategy says of that ground.)
-    val stA = stanceA ?: strategyOf(a).at(groundOf(a, h)); val stB = strategyOf(b).at(groundOf(b, h))
-    val aSees = detects(a, b, stB, p, r); val bSees = detects(b, a, stA, p, r)
+    val raid = intent == Intent.RAID
+    val stA = if (raid) Stance.ATTACK else strategyOf(a).at(groundOf(a, h)); val stB = strategyOf(b).at(groundOf(b, h))
+    // (Who sees whom first: drawn where they come on each other by chance; at a visit or a gathering each knows the other is
+    // there; raiders know where they are going, the raided may not see them coming.)
+    val aware = intent == Intent.VISIT || intent == Intent.GATHERING
+    // (Raiders come on the raided as stealthily as they can: as one keeping out of sight.)
+    val (aSaw, bSaw) = if (aware) true to true else sightings(a, if (raid) Stance.AMBUSH else stA, b, stB, p, r)
+    val aSees = aware || raid || aSaw; val bSees = aware || bSaw
     // (Each as strong as it stands there: holding its ground, and falling on the other unseen.)
     val sa0 = strength(a); val sb0 = strength(b)
     val holdA = if (stA == Stance.DEFEND) holding(a, b, h) else 1f; val holdB = if (stB == Stance.DEFEND) holding(b, a, h) else 1f
@@ -196,6 +221,15 @@ internal fun HexGroups.engage(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk: In
     if (actB == Act.WITHDRAW && bSees && !surpriseA) { stop[bk] = minOf(stop[bk], max(0, bi - 1)); gaveWay(b, contested, contestDay); stats.meeting(Met.ENGAGEMENTS_GAVE_WAY); return }
     stats.meeting(Met.ENGAGEMENTS_FOUGHT)
     val sa = sa0 * holdA * (if (surpriseA) ENGAGE_SURPRISE else 1f); val sb = sb0 * holdB * (if (surpriseB) ENGAGE_SURPRISE else 1f)
+    // (Two bands fight by the people's own rules ([fight]: their works, the lie of the land about the camp, the bands about
+    // that stand with the defenders); the engagement has settled who falls on whom, and whether unawares.)
+    val ba = a.band; val bb = b.band
+    if (ba != null && bb != null && weather != null) {
+        val aStrikes = actA == Act.FIGHT && (actB != Act.FIGHT || surpriseA || (!surpriseB && (raid || (aSees && !bSees) || (aSees == bSees && sa >= sb))))
+        if (aStrikes) fight(a, ba, b, bb, planned = raid, weather, edge = if (surpriseA) ENGAGE_SURPRISE else 1f)
+        else fight(b, bb, a, ba, planned = false, weather, edge = if (surpriseB) ENGAGE_SURPRISE else 1f)
+        return
+    }
     if (a.species == b.species) rivalsFight(a, ak, ai, b, bk, bi, h, stop, sa, sb) else enemiesClash(a, ak, ai, b, bk, bi, h, stop, sa, sb)
 }
 
@@ -206,7 +240,7 @@ internal const val ENGAGE_HIGH = 0.5f
 internal const val ENGAGE_HIGH_M = 200f
 /** How much stronger one holding its ground is in full cover ([holding]); an estimate. */
 internal const val ENGAGE_COVER = 0.3f
-/** How much harder one keeping out of sight is to see in full cover ([detects]); an estimate. */
+/** How much harder one keeping out of sight is to see in full cover ([sightings]); an estimate. */
 internal const val ENGAGE_HIDING = 3f
 /** How much stronger one falling on the other unseen is ([engage]); an estimate. */
 internal const val ENGAGE_SURPRISE = 2f

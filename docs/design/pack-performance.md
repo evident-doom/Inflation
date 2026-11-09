@@ -570,5 +570,46 @@ No band has a strategy yet, so the results are the same as stage 3, line for lin
 - **For people-groups with strategies** (bandits, war parties, scouts): give them a strategy (`strategyOf`) and a ground
   (footprint, or `bandGround`). Their contacts, visits and raids then go through the engagement with nothing else to
   change. What a fight between two groups of people does is today's `fight` for raids and `bandsMeet` for meetings.
-  An engagement between two bands that comes to a fight should go to `fight`, the people's own rules, where today it
-  would go to the beasts' (`rivalsFight`). That is the next thing to wire, when the first people-group gets a strategy.
+  An engagement between two bands that comes to a fight goes to `fight`, the people's own rules (below).
+
+### Bands' engagements fought by the people's own rules; who sees whom (9 Nov 2026)
+
+- **Bands fight as people do:** an engagement between two bands that comes to blows goes to `fight` (their houses
+  and palisade, the lie of the land about the camp, the bands about that stand with the defenders, slipping away,
+  larders taken, driving off). The engagement only settles who falls on whom and whether unawares: its surprise
+  (`ENGAGE_SURPRISE`) takes the place of the raid's own draw of surprise (scouts, moonlight), so neither is counted
+  twice (`raidSides`, `edge`).
+- **A band's ground for its strategy:** its lair is its camp's hex, its core the hexes about (`bandGround`, weights
+  0.5). A band that gives way keeps off the hexes about that it gave up, never its camp (`gaveWay`). Test setting:
+  `t.bandStrategy`, as `t.packStrategy`.
+- **Friends greet:** two bands that are friends both ways (`FRIEND_TIE`) meet and talk whatever their strategies,
+  but at a raid. Strangers and enemies go by their strategies.
+- **Who knows of whom, by how they came to meet** (`Intent`):
+  - at a visit or a gathering, each knows the other is there;
+  - at a raid, the raiders know where they are going and come on as stealthily as they can (as one keeping out of
+    sight); the raided may not see them coming;
+  - by chance, `sightings`: one notices the other first, by its senses against the other's hiding, and the other
+    notices it in turn unless the first keeps out of sight; two that both hide may pass unseen.
+  - So surprise comes only from keeping out of sight. A first draft drew each side's sight apart, and nearly every
+    fight was an ambush, at visits too, a band failing to see its neighbours walk into its camp.
+
+Seed 1, 400x600 km, 3 years, 6 days, bands and packs staying. Without a strategy set the results are the same, line
+for line. Fights and engagements are as counted in the census weeks:
+
+| test strategy | people | people born / died, last year | raids a year | engagements fought (of them ambushes) | leopards | cheetahs |
+|---|---|---|---|---|---|---|
+| none | 1539 | 79 / 40 | 2 | | 121 | 6 |
+| packs: lair DEFEND, core GIVE_WAY_TO_STRONGER, fringe and outside YIELD | 1548 | 88 / 45 | 2 | 95 (0) | 101 | 2 |
+| packs: AMBUSH everywhere | 1541 | 83 / 42 | 7 | 826 (824) | 128 | 15 |
+| packs: ATTACK everywhere | 1541 | 83 / 46 | 1 | 114 (0) | 80 | 4 |
+| bands: lair DEFEND, core GIVE_WAY_TO_STRONGER, fringe and outside YIELD | 1451 | 75 / 54 | 35 | 1 (0) | 106 | 5 |
+| bands: ATTACK everywhere | 536 | 23 / 189 | 111 | 15 (0) | 101 | 6 |
+| bands: AMBUSH everywhere | 859 | 37 / 107 | 190 | 3653 (3629) | 122 | 5 |
+
+- Packs: lying in wait helps leopards and cheetahs; falling on everything costs them; holding the lair and yielding
+  the fringe mostly ends in giving way.
+- Bands: holding the camp and yielding elsewhere costs few lives. A neighbour's camp lies in a band's core, where it
+  gives way only to the stronger, so near equals sometimes fight. Bands that fall on every stranger, or lie in wait
+  for them, all but destroy each other within three years: what bandits everywhere would do.
+- The figures are first guesses (`ENGAGE_SURPRISE` 2, `ENGAGE_HIDING` 3, `ENGAGE_HIGH` 0.5, `ENGAGE_COVER` 0.3,
+  `CORE_WEIGHT` 0.5, `YIELD_DAYS` 30).

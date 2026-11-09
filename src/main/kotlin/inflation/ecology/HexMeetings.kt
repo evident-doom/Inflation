@@ -290,7 +290,9 @@ internal const val VISITORS = 4f
  */
 internal fun HexGroups.settle(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk: Int, bi: Int, h: Hex, p: Place, byStrategy: HexArray?,
                               stop: IntArray, weather: Weather, rite: RiteGathering? = null, intent: Intent = Intent.CHANCE) {
-    if (byStrategy != null) { engage(a, ak, ai, b, bk, bi, byStrategy, h, stop, rnd, if (intent == Intent.RAID) Stance.ATTACK else null); return }
+    // (Two bands that are friends both ways greet whatever their strategies, but where one came to raid.)
+    val friends = intent != Intent.RAID && a.band?.let { ba -> b.band?.let { bb -> ba.tie(b.id) >= FRIEND_TIE && bb.tie(a.id) >= FRIEND_TIE } } == true
+    if (byStrategy != null && !friends) { engage(a, ak, ai, b, bk, bi, byStrategy, h, stop, rnd, intent, weather); return }
     // (A raid set out on the other's home, by the rules of a raid: the defenders behind their works, [fight].)
     if (intent == Intent.RAID) { val ba = a.band; val bb = b.band; if (ba != null && bb != null) fight(a, ba, b, bb, planned = true, weather); return }
     if (slipsAway(a, b, p) || slipsAway(b, a, p)) stats.meeting(Met.SLIPPED_AWAY)

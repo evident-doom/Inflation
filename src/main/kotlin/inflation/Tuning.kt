@@ -142,6 +142,12 @@ class Tuning(
      * the animals' rule everywhere, as at any meeting.
      */
     val packStrategy: String? = read("t.packStrategy")
+    /**
+     * With [packsStay], for test: the strategy every band that holds its home hex settles its meetings by, as [packStrategy]
+     * (its lair its camp's hex, its core the hexes about). Two bands that are friends both ways greet whatever their
+     * strategies, but at a raid. Unset: the people's own rules, as at any meeting.
+     */
+    val bandStrategy: String? = read("t.bandStrategy")
     /** The food cost of keeping warm, against [inflation.ecology.COLD_COST]. */
     val coldCost = f("coldCost", 1f)
 
