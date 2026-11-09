@@ -662,6 +662,48 @@ same as before, line for line (the new inputs change nothing for nets trained be
   fought out by raids set out. People's deaths are about as many (584 against 610).
 - Meetings on the larger world 24.0 ms, the whole step 193.6 ms.
 
+### Who is present, and staying true to the record (9 Nov 2026, behind `t.bandStances`)
+
+Olli, 9 Nov 2026: a small pack moves, fights and defends together; a larger band goes about in smaller groups and is not
+in one place at a time. A planned raid has adults attacking while children and the old stay home; the defenders may
+have the whole band at home. And keep it simple: in the record, violence among foragers is mostly within the group;
+neighbouring bands are mostly kin and friendly and should by default regard each other so; planned aggression comes
+only with something valuable (fixed property, houses, fields, rich natural spots). This is the early stone age, of
+hamlets and foragers: most of this is groundwork for later.
+
+**How it was:** packs and bands alike met and fought as one body. A band's strength was all its adults, elders and
+wounded among them. In a planned raid every adult of the raiding band went and every adult of the raided fought, and
+deaths fell among all of them. Children never fought.
+
+**Now, with `t.bandStances`:**
+- **Who fights a planned raid:** a raiding party of `RAID_PARTY` (half) of the raiders' able adults (`raidParty`: its
+  grown less the wounded and lamed, `Band.ableShare`); the rest, its children and old stay home. The walk there and
+  back is charged to the party. The raided fight with their able adults at home. Deaths fall among those who fought.
+- **Who is worth raiding:** planned raids go only against bands with something fixed to take or hold
+  (`Band.livesFixed`: living in their houses, fresh sowing, a palisade). Bands on the move are not raided.
+- **Neighbours greet:** a band greets every band it has met, however wary of it; only a stranger never met, and one it
+  is wary of, does it hold off at its camp and keep its distance from. A feud is still held off at the camp.
+- **Left as it was, for now:**
+  - a band meeting beasts by chance meets them as a whole band, not as one foraging party;
+  - a raiding band's camp is not weaker while its party is out;
+  - raids that break out at meetings, by hunger, feud or trespass, are as before;
+  - "rich natural spots" do not yet make a band worth raiding.
+
+Seed 1, 3 years, bands and packs staying. Without the switch, and with it but without stances, the same as before,
+line for line.
+
+| | people | people born / died, last year | raids a year (at meetings / on homes) | meetings of bands |
+|---|---|---|---|---|
+| 400x600 km, 6 days: no stances / stances / with presence and the record | 1539 / 1546 / 1538 | 79/40, 83/44, 83/49 | 2/0, 1/0, 0/0 | 4154 / 4208 / 3665 |
+| 400x600 km, 60 days: the same | 1590 / 1584 / 1586 | 71/40, 71/39, 73/38 | 1/0, 1/0, 1/0 | 3667 / 3500 / 3517 |
+| 800x1200 km, 6 days: the same | 13819 / 13844 / 13882 | 690/610, 690/584, 692/568 | 59/35, 45/57, 39/75 | 45556 / 41891 / 43125 |
+
+- People die fewest of the three on the larger world (568 a year). Fewer raids break out at meetings.
+- Raids on homes are more (75 a year against 57), although only bands that live fixed are raided now. One seed; a
+  likely part of it: a party of half the able adults is weaker, its raiders die more, and the grudges they leave set
+  the next raid (`RAIDER_RESENT`). To watch on the full map and over more seeds.
+- Meetings on the larger world 22.5 ms, the whole step 185.6 ms.
+
 ### For the future: more rules for violent encounters
 
 Noted by Olli, 9 Nov 2026, for later:

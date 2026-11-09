@@ -90,8 +90,9 @@ class ContactsTest {
     }
 
     /** A band's stance by the regard rule ([regardStance]) for a friend, a feud and a wary stranger, at [theirs] times its strength. */
-    private fun stance(friend: Boolean = false, feud: Boolean = false, wary: Float = 0f, theirs: Float = 1f, ground: Ground): Stance {
+    private fun stance(friend: Boolean = false, feud: Boolean = false, wary: Float = 0f, theirs: Float = 1f, ground: Ground, stranger: Boolean = true): Stance {
         val x = FloatArray(StanceInputs.size)
+        x[StanceInputs.STRANGER] = if (stranger) 1f else 0f
         x[StanceInputs.FRIEND] = if (friend) 1f else 0f; x[StanceInputs.FEUD] = if (feud) 1f else 0f
         x[StanceInputs.WARINESS] = wary; x[StanceInputs.THEIRS] = theirs; x[StanceInputs.GROUND + ground.ordinal] = 1f
         return regardStance(x)
@@ -102,6 +103,8 @@ class ContactsTest {
         for (g in Ground.entries) { assertEquals(Stance.GREET, stance(friend = true, feud = true, ground = g)); assertEquals(Stance.GREET, stance(wary = 0.2f, ground = g)) }
         assertEquals(Stance.DEFEND, stance(wary = 0.8f, ground = Ground.LAIR)); assertEquals(Stance.GIVE_WAY_TO_STRONGER, stance(wary = 0.8f, ground = Ground.CORE))
         assertEquals(Stance.YIELD, stance(wary = 0.8f, ground = Ground.OUTSIDE))
+        // (A band it has met, however wary, it greets: neighbours are kin and friends.)
+        for (g in Ground.entries) assertEquals(Stance.GREET, stance(wary = 0.8f, ground = g, stranger = false))
         assertEquals(Stance.GIVE_WAY_TO_STRONGER, stance(feud = true, theirs = 0.5f, ground = Ground.CORE))
         assertEquals(Stance.HIDE_AND_SCOUT, stance(feud = true, theirs = 0.5f, ground = Ground.OUTSIDE))
         assertEquals(Stance.DEFEND, stance(feud = true, theirs = 1.5f, ground = Ground.LAIR))

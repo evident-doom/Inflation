@@ -72,7 +72,11 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
     val them = ArrayList<Pair<HexGroup, Regard>>()
     for (id in within) {
         val o = bands.groupById[id]?.takeIf { it.alive } ?: continue
-        val r = Regard(b, id, o.band ?: continue, map = hex)
+        val ob = o.band ?: continue
+        // (With t.bandStances, as the record of early foragers has it: planned raids are on bands with something fixed to
+        // take or hold, their houses, fresh sowing or a palisade ([Band.livesFixed]); bands on the move are not worth it.)
+        if (tuning.bandStances && !ob.livesFixed()) continue
+        val r = Regard(b, id, ob, map = hex)
         if (r.tie <= 0f) them += o to r
     }
     if (them.isEmpty()) return
@@ -97,7 +101,7 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
         // home it knows, else it comes to nothing, as a band walking there finds it empty. Its fighters' walk there and back,
         // the whole day's going each way, is taken from its next step's days, [Band.raidWalkOwed].)
         if (staysHome(g)) {
-            b.raidWalkOwed += foragers(g) * (2.0 * hexKm(here, at) / (WALK_KM_PER_HOUR * Activity.WORK_HOURS)).toFloat()
+            b.raidWalkOwed += raidParty(g) * (2.0 * hexKm(here, at) / (WALK_KM_PER_HOUR * Activity.WORK_HOURS)).toFloat()
             val target = bands.groupById[best]?.takeIf { it.alive && it.band != null && hw.placeHex[it.place] == at }
             if (target != null) bands.raidsDue += g to target
             note(g) { "sent its fighters to raid band #%d at hex %d".format(best, at.i) }
@@ -143,6 +147,17 @@ internal fun shareOfWill(will: Float, atOne: Float) = 1f - (1f - atOne).pow(max(
 /** A way's [will] as an effect that each further unit adds less to: 1 at the scaffold's 1, about 1.37 at 2, never above 1.58. */
 internal fun moreOfWill(will: Float) = (1f - exp(-max(0f, will))) / (1f - exp(-1f))
 internal const val RAID_RANGE_KM = 60.0
+
+/**
+ * The raiders band [g] sends on a planned raid, with [inflation.Tuning.bandStances]: [RAID_PARTY] of its able adults (its
+ * grown less the wounded and lamed, [Band.ableShare]), the rest, its children and old staying at home; all its adults
+ * without the switch, as before.
+ */
+internal fun HexGroups.raidParty(g: HexGroup): Float =
+    if (tuning.bandStances) max(1f, g.adults * (g.band?.ableShare ?: 1f) * RAID_PARTY) else foragers(g).toFloat()
+
+/** The share of a band's able adults that go on a planned raid ([raidParty]): its men of fighting age, about half its grown; an estimate. */
+internal const val RAID_PARTY = 0.5f
 internal const val RAID_PLOT = 0.3f
 /** The share of a raid's take ([RAID_TAKE]) that a mobile band slipping away loses of its larder. An estimate; no figure found. */
 internal const val SLIP_LOSS = 0.3f
@@ -195,13 +210,17 @@ internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planne
     raidWorth(o, ob, sg, so, sides.own)
     // Each side loses some of its people, the more so against the stronger side; neighbours who stood with the raided
     // lose theirs as the raided do, of as many as came. (Each group in the fight, its fighters, and the share of them it may lose.)
-    val fought = arrayListOf(Triple(g, g.adults, RAID_DEATHS * so / (sg + so)), Triple(o, o.adults, RAID_DEATHS * sg / (sg + so)))
+    // (Who fights, with t.bandStances: a planned raid's party, its able adults that went ([raidParty]), against the able
+    // adults of the band at home; children and those who stayed behind do not fight.)
+    val raiders = if (planned && tuning.bandStances) raidParty(g).roundToInt().coerceIn(1, g.adults) else g.adults
+    val defenders = if (tuning.bandStances) (o.adults * (ob.ableShare)).roundToInt().coerceIn(1, o.adults) else o.adults
+    val fought = arrayListOf(Triple(g, raiders, RAID_DEATHS * so / (sg + so)), Triple(o, defenders, RAID_DEATHS * sg / (sg + so)))
     for (n in sides.helpers) {
         fought += Triple(n.group, (n.share * n.group.adults).roundToInt(), RAID_DEATHS * sg / (sg + so))
         stats.meeting(Met.NEIGHBOURS_DEFENDED)
         note(n.group) { "stood with band #%d against band #%d".format(o.id, g.id) }
     }
-    val lostG = binomial(g.adults, fought[0].third, rnd)
+    val lostG = binomial(raiders, fought[0].third, rnd)
     for ((k, side) in fought.withIndex()) {
         val (who, fighters, share) = side
         // (Many more are wounded than killed, whether or not any die: some fester, some are lamed for life.)
@@ -306,5 +325,8 @@ internal fun HexGroups.raidSides(g: HexGroup, o: HexGroup, ob: Band, planned: Bo
             helped += share * strength(n) * ground * (1f + HOUSE_DEFENCE * nb.house + PALISADE_DEFENCE * nb.palisade)
         }
     }
-    return RaidSides(strength(g) * surprise, strength(o) * ground * works, helpers, helped)
+    // (With t.bandStances, each side as many as fight: a planned raid's party ([raidParty]), the able at home ([Band.ableShare]).)
+    val raidersHere = if (tuning.bandStances) (if (planned) raidParty(g) / g.adults.coerceAtLeast(1) else gb?.ableShare ?: 1f) else 1f
+    val defendersHere = if (tuning.bandStances) ob.ableShare else 1f
+    return RaidSides(strength(g) * raidersHere * surprise, strength(o) * defendersHere * ground * works, helpers, helped)
 }

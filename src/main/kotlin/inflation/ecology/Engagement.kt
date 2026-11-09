@@ -156,7 +156,7 @@ internal fun HexGroups.bandStance(g: HexGroup, other: HexGroup, ground: Ground):
     val known = knownStrength(g, other)
     val x = FloatArray(StanceInputs.size)
     x[StanceInputs.TIE] = r.tie; x[StanceInputs.FRIEND] = if (r.friend) 1f else 0f; x[StanceInputs.FEUD] = if (r.feud) 1f else 0f
-    x[StanceInputs.WARINESS] = r.wariness / Regard.MOST_WARY
+    x[StanceInputs.WARINESS] = r.wariness / Regard.MOST_WARY; x[StanceInputs.STRANGER] = if (r.stranger) 1f else 0f
     x[StanceInputs.KNOWN] = if (known != null) 1f else 0f; x[StanceInputs.THEIRS] = (known ?: own) / own
     x[StanceInputs.GROUND + ground.ordinal] = 1f
     return regardStance(x)
@@ -169,9 +169,10 @@ internal fun HexGroups.bandStance(g: HexGroup, other: HexGroup, ground: Ground):
  *   the stronger), else it falls back watching, as it does beyond. Whether to fall on them is not its stance's to say but
  *   its raids' ([raid], [plotRaid]: its readiness to raid, its hunger, how it regards them): a stance that attacked a
  *   weaker foe at every meeting, visits and all, set feuds burning (800x1200 km: raids on homes 35 to 120 a year);
- * - wary of the other (past [WARY_STANCE] of the wariest): it holds its camp, gives way to the stronger in its core, and
- *   keeps its distance beyond;
- * - else it greets.
+ * - a stranger it has never met and is wary of (past [WARY_STANCE] of the wariest): it holds its camp, gives way to the
+ *   stronger in its core, and keeps its distance beyond;
+ * - else it greets: neighbouring bands are mostly kin and friends, and violence among early foragers was mostly within
+ *   the band, not between bands (Olli, 9 Nov 2026: stay true to the record of foragers and hamlets).
  */
 internal fun regardStance(x: FloatArray): Stance {
     val ground = Ground.entries.first { x[StanceInputs.GROUND + it.ordinal] > 0.5f }
@@ -183,7 +184,7 @@ internal fun regardStance(x: FloatArray): Stance {
             ground == Ground.CORE && theirs * FIGHT_RATIO < 1f -> Stance.GIVE_WAY_TO_STRONGER
             else -> Stance.HIDE_AND_SCOUT
         }
-        x[StanceInputs.WARINESS] > WARY_STANCE -> when (ground) {
+        x[StanceInputs.STRANGER] > 0.5f && x[StanceInputs.WARINESS] > WARY_STANCE -> when (ground) {
             Ground.LAIR -> Stance.DEFEND
             Ground.CORE -> Stance.GIVE_WAY_TO_STRONGER
             else -> Stance.YIELD
@@ -194,7 +195,7 @@ internal fun regardStance(x: FloatArray): Stance {
 
 /** The inputs of a band's stance toward another ([bandStance], [regardStance]), laid out as a learned chooser would read them. */
 object StanceInputs : NamedSlots() {
-    val TIE = one("tie"); val FRIEND = one("friend"); val FEUD = one("feud"); val WARINESS = one("wariness")
+    val TIE = one("tie"); val FRIEND = one("friend"); val FEUD = one("feud"); val WARINESS = one("wariness"); val STRANGER = one("stranger")
     val KNOWN = one("strength known"); val THEIRS = one("their strength against ours")
     val GROUND = block(Ground.entries.map { "ground:${it.name.lowercase()}" })
 }
