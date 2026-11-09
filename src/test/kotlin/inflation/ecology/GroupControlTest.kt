@@ -16,6 +16,8 @@ class GroupControlTest {
     // (Without plateaus: on this small map one turns the first band's ground into a spot with no choice of moves.)
     private val cfg = WorldConfig(seed = 3, widthKm = 300, heightKm = 300, erosionSteps = 10, plates = 6, oceanMarginKm = 40.0, plateauKm = 0.0)
     private val world by lazy { World.generate(cfg) }
+    // (Bands that move: a band holding its home hex weighs no places, so the control has no move to be asked, t.bandsStay.)
+    private fun movingBands() = HexSim(world, tuning = inflation.Tuning(read = { if (it == "t.bandsStay") "false" else null }))
 
     private fun state(sim: HexSim): ByteArray {
         val f = File.createTempFile("hexsim", ".hexs")
@@ -33,7 +35,7 @@ class GroupControlTest {
     fun `following under a control that takes the model's choices changes nothing`() {
         val steps = 30
         fun run(control: GroupControl?): ByteArray {
-            val sim = HexSim(world)
+            val sim = movingBands()
             val band = sim.groups.groups.first { it.band != null }
             sim.groups.watched = band.id; sim.groups.control = control
             repeat(steps) { sim.step() }
@@ -48,7 +50,7 @@ class GroupControlTest {
 
     @Test
     fun `the player's pick and pinned ways are what the band does`() {
-        val sim = HexSim(world)
+        val sim = movingBands()
         // (A band with land about it, not one on an islet: bands start near water, some on the coast.)
         val band = sim.groups.groups.first { g -> g.band != null && (0 until 6).count { d ->
             val nh = sim.hex.neighbour(sim.hw.placeHex[g.place.i], d); !nh.none && sim.hw.placesOf(nh).isNotEmpty() } == 6 }

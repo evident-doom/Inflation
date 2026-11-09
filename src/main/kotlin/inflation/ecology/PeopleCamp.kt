@@ -394,7 +394,7 @@ internal fun HexGroups.foulGround() {
         val tended = if (people[h] > 0f) kept[h] / people[h] else 0f
         midden[h] = max(tended, midden[h] * (1f - MIDDEN_WEAR * years))
     }
-    if (tied != null) shiftCamps(weeks, people, tied)
+    if (tied != null) shiftCamps(weeks, people, tied, ticks)
 }
 
 /**
@@ -408,10 +408,13 @@ internal fun HexGroups.foulGround() {
  * ([WornGround]), and only a band tied to a spot wears the ground about it. (Bands tied to a spot stay on it, and their
  * ground fouls as before.) Counted for the census as a camp move ([Band.shiftsUncounted]).
  */
-private fun HexGroups.shiftCamps(weeks: FloatArray, people: FloatArray, tied: BooleanArray) {
+private fun HexGroups.shiftCamps(weeks: FloatArray, people: FloatArray, tied: BooleanArray, ticks: Int) {
     val onset = ticksPerYear / 6f
     val shifted = BooleanArray(hex.size)
-    for (h in 0 until hex.size) if (people[h] > 0f && !tied[h] && weeks[h] >= onset) { weeks[h] = 0f; shifted[h] = true }
+    // (The fresh ground keeps this step's own fouling: never cleared to nothing while people camp there, so a save taken
+    // just after every band shifted is not read as one from before the ground held its fouling, [foulGround].)
+    for (h in 0 until hex.size) if (people[h] > 0f && !tied[h] && weeks[h] >= onset) {
+        weeks[h] = min(fullyFouledWeeks(), people[h] / FOUL_PEOPLE * ticks); shifted[h] = true }
     for (g in groups) { val b = g.band ?: continue
         if (!g.alive || !shifted[hw.placeHex[g.place].i]) continue
         b.shiftsUncounted++
