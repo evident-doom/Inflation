@@ -280,14 +280,81 @@ internal fun HexGroups.battleground(a: HexGroup, b: HexGroup, contested: HexArra
  */
 internal fun GroupWorld.sightings(a: HexGroup, stA: Stance, b: HexGroup, stB: Stance, p: Place, r: Random): Pair<Boolean, Boolean> {
     val cover = land.plants.cover(p)
-    val hideA = if (stA.hidden) 1f + ENGAGE_HIDING * cover else 1f; val hideB = if (stB.hidden) 1f + ENGAGE_HIDING * cover else 1f
+    return sightingsOf(a.species.senseKm, if (stA.hidden) 1f + ENGAGE_HIDING * cover else 1f, b.species.senseKm, if (stB.hidden) 1f + ENGAGE_HIDING * cover else 1f, r)
+}
+
+/**
+ * [sightings] by the numbers: two sides of senses [senseA] and [senseB] and hiding [hideA] and [hideB] (1 for one that
+ * does not hide); whether a sees b, and b sees a, drawn by [r].
+ */
+internal fun sightingsOf(senseA: Float, hideA: Float, senseB: Float, hideB: Float, r: Random): Pair<Boolean, Boolean> {
     if (r.nextFloat() < (1f - 1f / hideA) * (1f - 1f / hideB)) return false to false
-    val wa = a.species.senseKm / hideB; val wb = b.species.senseKm / hideA
+    val wa = senseA / hideB; val wb = senseB / hideA
     return if (r.nextFloat() < wa / (wa + wb)) true to (r.nextFloat() < 1f / hideA) else (r.nextFloat() < 1f / hideB) to true
 }
 
 /** What a side does at an engagement ([engage]). */
-private enum class Act { FIGHT, WITHDRAW, LIE_LOW }
+internal enum class Act { FIGHT, WITHDRAW, LIE_LOW }
+
+/**
+ * What a side of stance [st] does at an engagement, by what it knows: whether it [sees] the other and is [seen] by it,
+ * its strength [own] and the other's [other] as they stand there, and its will to fight [will] (how much stronger the
+ * other must be before it gives way, against [FIGHT_RATIO]). One that does not see the other does nothing; else:
+ * - DEFEND and ATTACK fight;
+ * - YIELD withdraws;
+ * - GIVE_WAY_TO_STRONGER and GREET withdraw from one stronger by more than their will bears, else fight;
+ * - AMBUSH unseen falls on the other if it is the stronger with surprise ([ENGAGE_SURPRISE]), else lies low; seen, it
+ *   gives way to the stronger;
+ * - HIDE_AND_SCOUT unseen lies low and watches; seen, it falls back.
+ */
+internal fun actOf(st: Stance, sees: Boolean, seen: Boolean, own: Float, other: Float, will: Float): Act {
+    if (!sees) return Act.LIE_LOW
+    return when (st) {
+        Stance.DEFEND, Stance.ATTACK -> Act.FIGHT
+        Stance.GREET -> if (other > FIGHT_RATIO * will * own) Act.WITHDRAW else Act.FIGHT
+        Stance.YIELD -> Act.WITHDRAW
+        Stance.GIVE_WAY_TO_STRONGER -> if (other > FIGHT_RATIO * will * own) Act.WITHDRAW else Act.FIGHT
+        Stance.AMBUSH -> if (!seen) (if (own * ENGAGE_SURPRISE >= other) Act.FIGHT else Act.LIE_LOW)
+            else if (other > FIGHT_RATIO * will * own) Act.WITHDRAW else Act.FIGHT
+        // (Watching is falling back with eyes open: unseen it lies low and watches, seen it withdraws.)
+        Stance.HIDE_AND_SCOUT -> if (!seen) Act.LIE_LOW else Act.WITHDRAW
+    }
+}
+
+/** How an engagement ends ([settleEngagement]). */
+internal enum class Ending { PASSED_UNSEEN, SCOUTED, A_GAVE_WAY, B_GAVE_WAY, FOUGHT }
+
+/**
+ * How an engagement ends, and how it is fought ([engage]): [ending]; whether each side fell on the other unseen
+ * ([surpriseA], [surpriseB]); for a fight, whether [a] is the one that strikes ([aStrikes]), for the people's fight
+ * ([fight]); and the strengths the fight goes by ([sa], [sb]: as they stood, with surprise).
+ */
+internal class Engaged(val ending: Ending, val surpriseA: Boolean, val surpriseB: Boolean, val aStrikes: Boolean, val sa: Float, val sb: Float)
+
+/**
+ * The outcome of an engagement by the numbers: the two sides' stances [stA] and [stB], who sees whom ([aSees], [bSees]),
+ * their strengths as they stand ([sa0], [sb0]: holding their ground included) and wills to fight ([willA], [willB]), and
+ * whether [a] came to raid ([raid]). Each acts ([actOf]); one that falls on the other unseen strikes with surprise; one
+ * taken unawares can neither withdraw nor slip by; one that saw the other coming and withdraws gets away, giving the
+ * ground; two that both withdraw, the weaker gives it. Pure: the draws are made before ([sightingsOf]).
+ */
+internal fun settleEngagement(stA: Stance, stB: Stance, aSees: Boolean, bSees: Boolean, sa0: Float, sb0: Float, willA: Float, willB: Float, raid: Boolean): Engaged {
+    val actA = actOf(stA, aSees, bSees, sa0, sb0, willA)
+    val actB = actOf(stB, bSees, aSees, sb0, sa0, willB)
+    val surpriseA = actA == Act.FIGHT && !bSees; val surpriseB = actB == Act.FIGHT && !aSees
+    fun ended(e: Ending) = Engaged(e, surpriseA, surpriseB, false, sa0, sb0)
+    if (actA != Act.FIGHT && actB != Act.FIGHT) return when {
+        actA == Act.WITHDRAW || actB == Act.WITHDRAW ->
+            ended(if (actA == Act.WITHDRAW && (actB != Act.WITHDRAW || sa0 <= sb0)) Ending.A_GAVE_WAY else Ending.B_GAVE_WAY)
+        (aSees && actA == Act.LIE_LOW) || (bSees && actB == Act.LIE_LOW) -> ended(Ending.SCOUTED)
+        else -> ended(Ending.PASSED_UNSEEN)
+    }
+    if (actA == Act.WITHDRAW && aSees && !surpriseB) return ended(Ending.A_GAVE_WAY)
+    if (actB == Act.WITHDRAW && bSees && !surpriseA) return ended(Ending.B_GAVE_WAY)
+    val sa = sa0 * (if (surpriseA) ENGAGE_SURPRISE else 1f); val sb = sb0 * (if (surpriseB) ENGAGE_SURPRISE else 1f)
+    val aStrikes = actA == Act.FIGHT && (actB != Act.FIGHT || surpriseA || (!surpriseB && (raid || (aSees && !bSees) || (aSees == bSees && sa >= sb))))
+    return Engaged(Ending.FOUGHT, surpriseA, surpriseB, aStrikes, sa, sb)
+}
 
 /**
  * A contact between [a] and [b] (indices [ak], [bk] among the meeting's parties, at their paths' [ai], [bi]) over the
@@ -314,49 +381,24 @@ internal fun HexGroups.engage(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk: In
     // (Each as strong as it stands there: holding its ground, and falling on the other unseen.)
     val sa0 = strength(a); val sb0 = strength(b)
     val holdA = if (stA == Stance.DEFEND) holding(a, b, h) else 1f; val holdB = if (stB == Stance.DEFEND) holding(b, a, h) else 1f
-    fun act(st: Stance, sees: Boolean, seen: Boolean, own: Float, other: Float, will: Float): Act {
-        if (!sees) return Act.LIE_LOW
-        return when (st) {
-            Stance.DEFEND, Stance.ATTACK -> Act.FIGHT
-            Stance.GREET -> if (other > FIGHT_RATIO * will * own) Act.WITHDRAW else Act.FIGHT
-            Stance.YIELD -> Act.WITHDRAW
-            Stance.GIVE_WAY_TO_STRONGER -> if (other > FIGHT_RATIO * will * own) Act.WITHDRAW else Act.FIGHT
-            Stance.AMBUSH -> if (!seen) (if (own * ENGAGE_SURPRISE >= other) Act.FIGHT else Act.LIE_LOW)
-                else if (other > FIGHT_RATIO * will * own) Act.WITHDRAW else Act.FIGHT
-            // (Watching is falling back with eyes open: unseen it lies low and watches, seen it withdraws.)
-            Stance.HIDE_AND_SCOUT -> if (!seen) Act.LIE_LOW else Act.WITHDRAW
-        }
-    }
-    val actA = act(stA, aSees, bSees, sa0 * holdA, sb0 * holdB, a.will[AnimalWay.FIGHT])
-    val actB = act(stB, bSees, aSees, sb0 * holdB, sa0 * holdA, b.will[AnimalWay.FIGHT])
-    // (One that falls on the other unseen strikes with surprise; one taken unawares can neither withdraw nor slip by.)
-    val surpriseA = actA == Act.FIGHT && !bSees; val surpriseB = actB == Act.FIGHT && !aSees
+    // (What each does and how it ends, by the numbers alone, [settleEngagement].)
+    val e = settleEngagement(stA, stB, aSees, bSees, sa0 * holdA, sb0 * holdB, a.will[AnimalWay.FIGHT], b.will[AnimalWay.FIGHT], raid)
+    val surpriseA = e.surpriseA; val surpriseB = e.surpriseB
     if (surpriseA || surpriseB) stats.meeting(Met.ENGAGEMENTS_AMBUSHED)
-    val fight = actA == Act.FIGHT || actB == Act.FIGHT
-    if (!fight) {
-        when {
-            actA == Act.WITHDRAW || actB == Act.WITHDRAW -> {
-                // (Both withdrawing: the weaker as they stand gives the ground.)
-                val give = if (actA == Act.WITHDRAW && (actB != Act.WITHDRAW || sa0 * holdA <= sb0 * holdB)) a else b
-                if (give === a) stop[ak] = minOf(stop[ak], max(0, ai - 1)) else stop[bk] = minOf(stop[bk], max(0, bi - 1))
-                gaveWay(give, contested, contestDay); stats.meeting(Met.ENGAGEMENTS_GAVE_WAY)
-            }
-            (aSees && actA == Act.LIE_LOW) || (bSees && actB == Act.LIE_LOW) -> stats.meeting(Met.ENGAGEMENTS_SCOUTED)
-            else -> stats.meeting(Met.ENGAGEMENTS_PASSED_UNSEEN)
-        }
-        return
+    when (e.ending) {
+        Ending.A_GAVE_WAY -> { stop[ak] = minOf(stop[ak], max(0, ai - 1)); gaveWay(a, contested, contestDay); stats.meeting(Met.ENGAGEMENTS_GAVE_WAY); return }
+        Ending.B_GAVE_WAY -> { stop[bk] = minOf(stop[bk], max(0, bi - 1)); gaveWay(b, contested, contestDay); stats.meeting(Met.ENGAGEMENTS_GAVE_WAY); return }
+        Ending.SCOUTED -> { stats.meeting(Met.ENGAGEMENTS_SCOUTED); return }
+        Ending.PASSED_UNSEEN -> { stats.meeting(Met.ENGAGEMENTS_PASSED_UNSEEN); return }
+        Ending.FOUGHT -> {}
     }
-    // (One that saw the other coming and withdraws gets away from one that falls on it, but gives the ground.)
-    if (actA == Act.WITHDRAW && aSees && !surpriseB) { stop[ak] = minOf(stop[ak], max(0, ai - 1)); gaveWay(a, contested, contestDay); stats.meeting(Met.ENGAGEMENTS_GAVE_WAY); return }
-    if (actB == Act.WITHDRAW && bSees && !surpriseA) { stop[bk] = minOf(stop[bk], max(0, bi - 1)); gaveWay(b, contested, contestDay); stats.meeting(Met.ENGAGEMENTS_GAVE_WAY); return }
     stats.meeting(Met.ENGAGEMENTS_FOUGHT)
-    val sa = sa0 * holdA * (if (surpriseA) ENGAGE_SURPRISE else 1f); val sb = sb0 * holdB * (if (surpriseB) ENGAGE_SURPRISE else 1f)
+    val sa = e.sa; val sb = e.sb
     // (Two bands fight by the people's own rules ([fight]: their works, the lie of the land about the camp, the bands about
     // that stand with the defenders); the engagement has settled who falls on whom, and whether unawares.)
     val ba = a.band; val bb = b.band
     if (ba != null && bb != null && weather != null) {
-        val aStrikes = actA == Act.FIGHT && (actB != Act.FIGHT || surpriseA || (!surpriseB && (raid || (aSees && !bSees) || (aSees == bSees && sa >= sb))))
-        if (aStrikes) fight(a, ba, b, bb, planned = raid, weather, edge = if (surpriseA) ENGAGE_SURPRISE else 1f)
+        if (e.aStrikes) fight(a, ba, b, bb, planned = raid, weather, edge = if (surpriseA) ENGAGE_SURPRISE else 1f)
         else fight(b, bb, a, ba, planned = false, weather, edge = if (surpriseB) ENGAGE_SURPRISE else 1f)
         return
     }
