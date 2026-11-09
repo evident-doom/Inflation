@@ -508,27 +508,29 @@ fun HexFauna.disperse(k: FaunaKind) {
     // (The ground about each hex they leave from is fixed by the map: worked out once, on all cores, the first step it is wanted.)
     val sources = hex.all.filter { h -> pool[h] >= DISPERSAL_LEAST && !dispersalGround.containsKey(groundKey(k, h)) }
     Par.forEach("residents: dispersal ground", sources.size) { i -> val h = sources[i]; dispersalGround[groundKey(k, h)] = dispersalAbout(h, reach, lengthKm) }
-    val about = ArrayList<Hex>(); val near = ArrayList<Float>(); val nearArea = ArrayList<Float>()
+    // (The ground with room, as indices into the hex's ground: one array, reused, not lists of boxed numbers.)
+    var open = IntArray(64)
     for (h in hex.all) {
         val n = pool[h]; if (n < DISPERSAL_LEAST) continue
         // (The ground about, ring by ring, weighed by nearness: the room there and all of it.)
         val ground = dispersalGround.getValue(groundKey(k, h))
-        about.clear(); near.clear(); nearArea.clear()
-        var roomW = 0f; var allW = 0f
+        if (open.size < ground.hexes.size) open = IntArray(ground.hexes.size)
+        var m = 0; var roomW = 0f; var allW = 0f
         for (i in 0 until ground.hexes.size) {
-            val q = ground.hexes[i]; val w = ground.weight[i]; val area = ground.area[i]
-            allW += w * usual[k] * area
-            if (room[q] > 0f) { about += q; near += w; nearArea += area; roomW += w * room[q] }
+            val q = ground.hexes[i]; val w = ground.weight[i]
+            allW += w * usual[k] * ground.area[i]
+            if (room[q] > 0f) { open[m++] = i; roomW += w * room[q] }
         }
         val settle = if (allW > 0f) settleRate * roomW / allW else 0f
         val out = settle + DISPERSAL_DEATH
         val gone = n * (1f - kotlin.math.exp(-out * days))
         val settled = gone * settle / out; val died = gone - settled
         var placed = 0f
-        if (settled > 0f && roomW > 0f) for ((i, q) in about.withIndex()) {
-            val put = min(room[q], settled * near[i] * room[q] / roomW)
+        if (settled > 0f && roomW > 0f) for (j in 0 until m) {
+            val i = open[j]; val q = ground.hexes[i]
+            val put = min(room[q], settled * ground.weight[i] * room[q] / roomW)
             if (put <= 0f) continue
-            val area = nearArea[i]
+            val area = ground.area[i]
             for (p in hw.placesOf(q)) a[p] += put / area
             room[q] -= put; placed += put
         }
