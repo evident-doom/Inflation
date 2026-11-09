@@ -360,7 +360,7 @@ private fun HexGroups.meetSettle(weather: Weather) {
             val e = events[i]; val sa = e.a >= groups.size; val sb = e.b >= groups.size
             apart[i] = parties[e.a].species != parties[e.b].species && ((sa && !sb && strongerThan(parties[e.b], parties[e.a], e.hex)) || (sb && !sa && strongerThan(parties[e.a], parties[e.b], e.hex))) &&
                 // (Not where a side has a strategy of its own: then it is settled by the strategies like any other, [engage].)
-                engagedOver(parties[e.a], parties[e.b], e.contested, e.hex)?.let { engages(parties[e.a], parties[e.b], it) } != true
+                engagedOver(parties[e.a], parties[e.b], e.contested, e.hex)?.let { engages(parties[e.a], parties[e.b], it, e.hex) } != true
         }
         val kept = ArrayList<Meeting>(events.size)
         for (i in events.indices) if (apart[i]) withStandIns += events[i] else kept += events[i]
@@ -393,7 +393,7 @@ private fun HexGroups.meetSettle(weather: Weather) {
         val times = if (ra == null && rb == null) min(met, ticks) else min(met, kotlin.math.ceil(min(ra?.bands ?: Float.MAX_VALUE, rb?.bands ?: Float.MAX_VALUE)).toInt() * ticks)
         // (What the one that gives way gives up: the contact's shared hexes, else the hex of the meeting, [gaveWay].)
         contested = e.contested ?: hexArray(1) { h }; contestDay = today
-        val byStrategy = engagedOver(a, b, e.contested, h)?.takeIf { engages(a, b, it) }
+        val byStrategy = engagedOver(a, b, e.contested, h)?.takeIf { engages(a, b, it, h) }
         for (t in 0 until times) {
             ra?.fresh(); rb?.fresh()
             if (!a.alive || !b.alive) break
@@ -526,6 +526,8 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
     note(a) { "met band #%d (%d people; tie %.2f)".format(b.id, b.size, a.band?.tie(b.id) ?: 0f) }
     note(b) { "met band #%d (%d people; tie %.2f)".format(a.id, a.size, b.band?.tie(a.id) ?: 0f) }
     val fresh = meetingFresh(a, b, weather)
+    // (Each sees what the other is, [noteSeen].)
+    noteSeen(a, b, weather.date.absoluteDay); noteSeen(b, a, weather.date.absoluteDay)
     // (Each tells the other how its camp has lately yielded: how a planning band judges a fresh camp, [tellYield].)
     tellYield(a, b, weather.date); tellYield(b, a, weather.date)
     if (meetingEndsInRaid(a, b, weather, rite, fresh)) return

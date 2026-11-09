@@ -613,3 +613,62 @@ for line. Fights and engagements are as counted in the census weeks:
   for them, all but destroy each other within three years: what bandits everywhere would do.
 - The figures are first guesses (`ENGAGE_SURPRISE` 2, `ENGAGE_HIDING` 3, `ENGAGE_HIGH` 0.5, `ENGAGE_COVER` 0.3,
   `CORE_WEIGHT` 0.5, `YIELD_DAYS` 30).
+
+### Stances by regard, and what bands saw of each other (9 Nov 2026, behind `t.bandStances`)
+
+Olli, 9 Nov 2026: contact settings should be dynamic, per group, evaluated at least by regard, and probably something
+the nets can learn; a simple model by regard to start. Luring can wait: with the present rules it is "yield until the
+home base", the defenders choosing the fight where their odds are best. Scouting is close to yielding: we know the
+enemy is there, we have seen it, and we fall back. What a band learns of another should be stored, and read by the
+nets.
+
+- **A stance toward each band it meets, taken afresh** (`stanceOf`, `bandStance`): a strategy set for test still
+  overrides (`t.packStrategy`, `t.bandStrategy`). Else, with `t.bandStances`, a band's stance toward another band
+  follows the hand-written rule `regardStance`:
+  - friends greet;
+  - a feud: it holds its camp; about it, if it is the stronger by `FIGHT_RATIO`, it stands its ground, else it falls
+    back watching (`HIDE_AND_SCOUT`), as it does beyond. Whether to fall on a foe is its raids' to say (`raid`,
+    `plotRaid`: readiness to raid, hunger, regard), not its stance's: a first rule that attacked a weaker foe at every
+    meeting, visits and all, set feuds burning (800x1200 km: raids on homes 35 to 120 a year);
+  - wary of the other (past `WARY_STANCE` 0.5 of the wariest regard): it holds its camp, gives way to the stronger
+    in its core, and keeps its distance beyond (`YIELD`);
+  - else it greets.
+- **`GREET`**: two that both greet meet as their kinds do (two bands talk, `bandsMeet`, with its own chance of a raid
+  by regard and hunger); against one that does not greet, a greeter gives way to the stronger. Only a meeting where
+  some side takes another stance than its kind's own goes to the engagement (`engages`, `plainStance`).
+- **Learnable:** the rule reads its inputs laid out as a network would (`StanceInputs`: tie, friend, feud, wariness,
+  whether the other's strength is known, that strength against its own, the part of its ground). A network can take
+  the place of `regardStance`; nothing trains one yet.
+- **Scouting is falling back with eyes open:** `HIDE_AND_SCOUT` unseen lies low and watches; seen, it withdraws.
+- **What a band saw of others** (`Band.seenStrength`, `seenDay`; `noteSeen`): their strength the last time it saw
+  them, at a meeting, a fight, or an engagement where it saw the other (a scout's watching is for this), for
+  `SEEN_DAYS` (90). Its stance goes by it (`knownStrength`: unknown, it reckons them its equal). The people's network
+  reads it (appended to `BandInputs`, so nets trained before give it no weight): the strongest band seen lately against
+  its own strength, the strongest hostile one, and how many it saw.
+
+Seed 1, 3 years, bands and packs staying. Without the switch, and with it but without stances, the results are the
+same as before, line for line (the new inputs change nothing for nets trained before them).
+
+| | people | people born / died, last year | raids a year (at meetings / on homes) | meetings of bands | leopards | cheetahs |
+|---|---|---|---|---|---|---|
+| 400x600 km, 6 days, without / with stances | 1539 / 1546 | 79/40, 83/44 | 2/0, 1/0 | 4154 / 4208 | 121 / 109 | 6 / 7 |
+| 400x600 km, 60 days, without / with | 1590 / 1584 | 71/40, 71/39 | 1/0, 1/0 | 3667 / 3500 | 16 / 20 | 5 / 6 |
+| 800x1200 km, 6 days, without / with | 13819 / 13844 | 690/610, 690/584 | 59/35, 45/57 | 45556 / 41891 | 834 / 896 | 42 / 78 |
+
+- Most bands greet most others: the meetings of bands hold up, and the engagements counted in the census weeks are a
+  few dozen, nearly all of them one side giving way.
+- On the larger world there are more raids on homes (57 against 35) and fewer at meetings (45 against 59): feuding
+  bands no longer meet as friends and come to blows there; they hold their camps and fall back, and the feuds are
+  fought out by raids set out. People's deaths are about as many (584 against 610).
+- Meetings on the larger world 24.0 ms, the whole step 193.6 ms.
+
+### For the future: more rules for violent encounters
+
+Noted by Olli, 9 Nov 2026, for later:
+- **Pillaging:** part of it is there (a raid's winners carry off part of the larder, `RAID_TAKE`; caches are robbed,
+  `robCaches`; a beaten band may be driven from its home, `driveOff`). Herds, goods, stores in houses and captives are
+  not taken yet.
+- **Burning:** only the burning-off of land (`burnOff`). Burning a beaten band's houses, palisade, stores or fields is
+  not modelled.
+- **Luring,** drawing the other deeper into one's ground than the ground the two share, and more strategies and rules for
+  fights in general.

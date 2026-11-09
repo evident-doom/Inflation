@@ -528,6 +528,7 @@ internal fun HexGroups.bandInputs(g: HexGroup, weather: Weather, into: FloatArra
     }
     into[x.FRIENDS] = min(1f, friends / 3f); into[x.STRANGERS] = min(1f, strangers / 3f); into[x.FOES] = min(1f, foes / 3f)
     into[x.THEIR_SICKNESS] = if (near > 0) min(1f, theirSick / near) else 0f
+    seenInputs(g, b, into, weather.date.absoluteDay)
     into[x.RAIDED] = 1f - min(1f, b.sinceRaided / ticksPerYear)
     into[x.ON_A_RAID] = if (!b.raidHex.none) 1f else 0f
     into[x.INBRED] = min(1f, b.inbred * 4f)

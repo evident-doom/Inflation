@@ -522,6 +522,13 @@ class Band(kinds: Int, totems: Int = kinds) {
     /** The step this band last met each other band (by group id), for how fresh a meeting is ([meetingFresh]). */
     val lastMet = HashMap<Int, Int>()
     /**
+     * What it saw of each other band (by group id), the last time it saw it, at a meeting, a fight or watching unseen
+     * ([noteSeen]): its strength then ([HexGroups.strength]), and the day ([seenDay], absolute). Forgotten after
+     * [SEEN_DAYS]. What its stance toward that band weighs ([bandStance]) and its people's network reads ([BandInputs.SEEN]).
+     */
+    val seenStrength = HashMap<Int, Float>()
+    val seenDay = HashMap<Int, Long>()
+    /**
      * What the bands it met lately told it their camps yielded ([tellYield]): each one's recent foraging yield ([recentYield])
      * and the week it was told ([newsAt], counted from the first week of year 0), the last [NEWS_KEPT]. A [Mind.PLANS] band
      * judges a fresh camp by them ([usualWork]).

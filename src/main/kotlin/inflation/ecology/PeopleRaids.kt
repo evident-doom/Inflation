@@ -181,6 +181,8 @@ internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planne
     stats.meeting(if (planned) Met.RAIDS_ON_HOMES else Met.RAIDS)
     note(g) { "raided band #%d%s".format(o.id, if (planned) " at its home" else "") }; note(o) { "was raided by band #%d".format(g.id) }
     ob.sinceRaided = 0
+    // (Both see what the other is, [noteSeen].)
+    noteSeen(g, o, weather.date.absoluteDay); noteSeen(o, g, weather.date.absoluteDay)
     // The mobile slip away (and lose some of their stores).
     if (!ob.atHome && rnd.nextFloat() < FLEE) {
         val t = SLIP_LOSS * RAID_TAKE * o.larder; moveFood(o, g, t, LarderMove.RAIDED)

@@ -148,6 +148,14 @@ class Tuning(
      * strategies, but at a raid. Unset: the people's own rules, as at any meeting.
      */
     val bandStrategy: String? = read("t.bandStrategy")
+    /**
+     * With [packsStay]: a band takes its stance toward each band it comes on afresh, by how it regards it and what it
+     * knows of its strength ([inflation.ecology.bandStance]): friends and those it has no quarrel with greet; the wary hold
+     * their camp, give way to the stronger about it and keep their distance beyond; those it feuds with it falls on if it
+     * is the stronger, else holds its camp and falls back watching. What it saw of the others it remembers
+     * ([inflation.ecology.Band.seenStrength]). A [bandStrategy] set for test overrides it. Off unless set (under test).
+     */
+    val bandStances = read("t.bandStances")?.toBooleanStrict() ?: false
     /** The food cost of keeping warm, against [inflation.ecology.COLD_COST]. */
     val coldCost = f("coldCost", 1f)
 

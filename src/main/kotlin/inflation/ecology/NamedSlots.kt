@@ -75,6 +75,10 @@ object BandInputs : NamedSlots() {
     // [HexFeatures.USUAL_YIELD_AHEAD], so that what it lays by can follow the lean months.
     val USUAL_YIELD_AHEAD = block(List(HexFeatures.LORE_MONTHS) { k -> "usual camp yield, month ${k + 1} ahead" })
     val YIELD_LORE_KNOWN = one("usual camp yield known")
+    // What it has seen of the bands about lately ([Band.seenStrength]): the strongest it saw against its own strength, the
+    // strongest of those it holds a grudge against or is wary of, and how many it saw within [SEEN_DAYS].
+    val SEEN = one("seen: strongest band against ours"); val SEEN_HOSTILE = one("seen: strongest hostile band against ours")
+    val SEEN_COUNT = one("seen: bands seen lately")
 }
 
 /** The slots of a pack's view of itself ([animalInputs]). */
