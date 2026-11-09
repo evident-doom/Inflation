@@ -163,8 +163,12 @@ internal fun caughtFrom(d: Illness, theirSick: Float, b: Band) = d.contagion * t
  * Sickness: weekly share of the well who fall to the flux in a fouled, warm camp; to marsh fever where
  * the mosquitoes swarm in the warm months (at half their worst); weekly chance a cough breaks out among crowded people (times the
  * crowding squared), and the share it first strikes; how much keeping away from the sick spares a band.
+ * The flux, with [CAMP_FOULING], set to the forager and forager-farmer record: gastrointestinal illness 5-18% of deaths
+ * across 13 groups (Gurven and Kaplan 2007, Popul. Dev. Rev. 33: 321-365). At 0.003, with bands holding their home hex, the
+ * two came to about a third of people's deaths (allon A/B, 9 Nov 2026); at 0.4 of that, an estimated 16% where most live
+ * fixed and 6% where most move.
  */
-internal const val FLUX_RATE = 0.003f
+internal const val FLUX_RATE = 0.0012f
 internal const val FEVER_RATE = 0.03f
 internal const val COUGH_BREAKS = 0.0002f
 internal const val COUGH_FIRST = 0.2f

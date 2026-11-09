@@ -236,9 +236,9 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
      * What each place is worth to each kind for moving there, worked out in the weeks the residents move: for the
      * plant-eaters, the rate those there would grow at over a year by the rules they are born and die by, as their [flow]
      * left them ([placeWorth]); for the resident hunters, its [appeal] ([fillArrive]). Never below nothing nor past
-     * reckoning ([worthOrNothing]).
+     * reckoning ([worthOrNothing]). Saved: the dispersers' drift reads it in the weeks between ([drift]).
      */
-    @Transient internal val worth = Array(kinds.size) { FloatArray(n) }
+    internal val worth = Array(kinds.size) { FloatArray(n) }
     /** Of each plant-eating kind as it moves this week ([fillArrive]): its young to a grown one, and the fat days its grown carry, all over. */
     @Transient internal val moverYoung = FloatArray(kinds.size)
     @Transient internal val moverFat = FloatArray(kinds.size)
