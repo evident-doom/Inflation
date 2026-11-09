@@ -25,6 +25,7 @@ import inflation.EnumFloats
 import inflation.Profile
 import inflation.world.Hex
 import inflation.world.HexArray
+import inflation.world.HexList
 import inflation.world.toHexArray
 import inflation.world.Place
 import inflation.world.get
@@ -556,20 +557,25 @@ private fun HexFauna.disperseAtOnce(k: FaunaKind, pool: FloatArray, carcass: Flo
     val s = kinds[k]
     val lengthKm = dispersalKm(s); val reach = (DISPERSAL_REACH * lengthKm / hex.hexKm).toInt().coerceAtLeast(1)
     val settleRate = 1f / dispersalDays(s); val a = adults[k]; val y = young[k]; val usualK = usual[k]
-    // (Room on each hex, heads, as the step found it.)
-    val room = FloatArray(hex.size)
-    Par.forEachHex("residents: dispersal room", hex.size) { h -> var heads = 0f; var area = 0f
+    // (Room on each hex, heads, as the step found it; the hexes the pool holds enough on to weigh; and those too few to
+    // weigh, waiting in the pool, die on the way as they would, the last few hundredths of a head all of them, where
+    // they wait. One pass over the map on this kind's core: each hex is a few sums, less than a parallel loop's start.)
+    val room = FloatArray(hex.size); val died = FloatArray(hex.size)
+    val dying = 1f - exp(-DISPERSAL_DEATH * days)
+    val sourceList = HexList(); val unknownList = HexList()
+    for (h in hex.all) {
+        var heads = 0f; var area = 0f
         for (q in hw.placesOf(h)) { heads += (a[q] + y[q]) * land.areaKm2[q]; area += land.areaKm2[q] }
-        room[h] = max(0f, usualK * area - heads) }
-    val sources = hex.all.filter { h -> pool[h] >= DISPERSAL_LEAST }
-    val unknown = sources.filter { h -> !dispersalGround.containsKey(groundKey(k, h)) }
+        room[h] = max(0f, usualK * area - heads)
+        val n = pool[h]
+        if (n >= DISPERSAL_LEAST) { sourceList += h; if (!dispersalGround.containsKey(groundKey(k, h))) unknownList += h }
+        else if (n > 0f) { val d = if (n < DISPERSAL_GONE) n else n * dying
+            died[h] = d; pool[h] = max(0f, n - d); carcass[hw.placesOf(h)[0]] += d * s.massKg }
+    }
+    val sources = sourceList.toHexArray(); val unknown = unknownList.toHexArray()
     Par.forEach("residents: dispersal ground", unknown.size) { i -> val h = unknown[i]; dispersalGround[groundKey(k, h)] = dispersalAbout(h, reach, lengthKm) }
     // Each source: those that would settle, by the room about as it was, and those that die on the way.
-    val settles = FloatArray(sources.size); val roomWs = FloatArray(sources.size); val died = FloatArray(hex.size)
-    // (Those too few to weigh, waiting in the pool, die on the way as they would; the last few hundredths of a head all of them.)
-    val dying = 1f - exp(-DISPERSAL_DEATH * days)
-    Par.forEachHex("residents: dispersal, waiting", hex.size) { h -> val n = pool[h]
-        if (n > 0f && n < DISPERSAL_LEAST) died[h] = if (n < DISPERSAL_GONE) n else n * dying }
+    val settles = FloatArray(sources.size); val roomWs = FloatArray(sources.size)
     Par.forEach("residents: dispersal, sources", sources.size) { j ->
         val ground = dispersalGround.getValue(groundKey(k, sources[j]))
         var roomW = 0f; var allW = 0f
@@ -599,17 +605,15 @@ private fun HexFauna.disperseAtOnce(k: FaunaKind, pool: FloatArray, carcass: Flo
         var area = 0f; for (q in hw.placesOf(h)) area += land.areaKm2[q]
         for (p in hw.placesOf(h)) a[p] += put[h] / area
     }
-    // Each source: those left in the pool.
+    // Each source: those left in the pool, and its dead where it left (a hex's own place: no two sources share one).
     Par.forEach("residents: dispersal, placed", sources.size) { j ->
         val h = sources[j]; var placed = 0f
         val settled = settles[j]
         if (settled > 0f) { val ground = dispersalGround.getValue(groundKey(k, h)); val per = settled / roomWs[j]
             for (i in 0 until ground.hexes.size) { val q = ground.hexes[i]; val rq = room[q]; if (rq > 0f) placed += per * ground.weight[i] * rq * take[q] } }
         pool[h] = max(0f, pool[h] - placed)
+        val d = died[h]; if (d > 0f) { pool[h] = max(0f, pool[h] - d); carcass[hw.placesOf(h)[0]] += d * s.massKg }
     }
-    // The dead, where they were.
-    Par.forEachHex("residents: dispersal, dead", hex.size) { h -> val d = died[h]
-        if (d > 0f) { pool[h] = max(0f, pool[h] - d); carcass[hw.placesOf(h)[0]] += d * s.massKg } }
     var lost = 0f; for (d in died) lost += d
     var settledAll = 0f; for (v in put) settledAll += v
     if (settledAll >= 1f) stats.meeting(Met.Of.ROAMERS_SETTLED, s.name, settledAll.toInt())
@@ -626,38 +630,52 @@ private fun HexFauna.disperseAtOnce(k: FaunaKind, pool: FloatArray, carcass: Flo
  * find the empty ground, at the same pace at any step length. Each hex gathers what comes to it, on all cores.
  */
 private fun HexFauna.drift(k: FaunaKind, pool: FloatArray) {
-    val hops = clock.ticks
-    var any = false; for (h in hex.all) if (pool[h] > 0f) { any = true; break }
-    if (!any) return
     val v = worth[k]; val cross = hex.crossings[travel[k].ordinal]; val km = hex.hexKm.toFloat()
-    // What each hex is worth to them: the best of its places.
-    val hexWorth = FloatArray(hex.size)
-    Par.forEachHex("residents: drift, worth", hex.size) { h -> var b = 0f; for (q in hw.placesOf(h)) if (v[q] > b) b = v[q]; hexWorth[h] = b }
-    // The share of a hex's pool going each way a hop ([gapTo]), the same each hop: the worth is the step's.
-    val goes = FloatArray(hex.size * 6)
-    Par.forEachHex("residents: drift, ways", hex.size) { h ->
-        val here = hexWorth[h]; var most = 0f; var sum = 0f
+    // (What each hex is worth to them, the best of its places, and the share of its pool going each way a hop
+    // ([gapTo]), the same each hop since the worth is the step's: both worked out only for the hexes the pool reaches.)
+    val hexWorth = FloatArray(hex.size); val worthDone = BooleanArray(hex.size)
+    fun worthOf(h: Hex): Float {
+        if (!worthDone[h.i]) { var b = 0f; for (q in hw.placesOf(h)) if (v[q] > b) b = v[q]; hexWorth[h] = b; worthDone[h.i] = true }
+        return hexWorth[h]
+    }
+    val goes = FloatArray(hex.size * 6); val waysDone = BooleanArray(hex.size)
+    fun ways(h: Hex) {
+        if (waysDone[h.i]) return
+        waysDone[h.i] = true
+        val here = worthOf(h); var most = 0f; var sum = 0f
         for (d in 0 until 6) {
             val nh = hex.neighbour(h, d); if (nh.none) continue
-            val e = cross[hex.edge(h, d)]; if (!e.isFinite() || !(hexWorth[nh] > 0f)) continue
+            val e = cross[hex.edge(h, d)]; if (!e.isFinite() || !(worthOf(nh) > 0f)) continue
             val toward = max(0.05f, 1f + BEARING_SPILL * bearings.along(k.i, h, nh, hex.hexKm))
             val g = gapTo(here, hexWorth[nh], min(1f, km / e)) * toward
             if (g > 0f) { goes[hex.edge(h, d)] = g; sum += g; if (g > most) most = g }
         }
         if (sum > 0f) { val share = min(0.5f, DRIFT_STEP * most) / sum; for (d in 0 until 6) goes[hex.edge(h, d)] *= share }
     }
-    var now = pool.copyOf(); var next = FloatArray(hex.size)
-    repeat(hops) {
-        val from = now; val to = next
-        Par.forEachHex("residents: drift, hop", hex.size) { q ->
+    // Hop by hop, each hex the pool is on or next to gathers what stays and what comes. (On this kind's core: a few
+    // thousand hexes at most, each a few sums.)
+    val held = HexList(); val reached = HexList(); val mark = IntArray(hex.size)
+    var from = pool.copyOf(); var to = FloatArray(hex.size)
+    for (hop in 1..clock.ticks) {
+        held.clear(); reached.clear()
+        for (h in hex.all) if (from[h] > 0f) { held += h; ways(h) }
+        if (held.isEmpty()) break
+        for (j in 0 until held.size) {
+            val h = held[j]
+            if (mark[h.i] != hop) { mark[h.i] = hop; reached += h }
+            for (d in 0 until 6) { val q = hex.neighbour(h, d); if (!q.none && mark[q.i] != hop) { mark[q.i] = hop; reached += q } }
+        }
+        to.fill(0f)
+        for (j in 0 until reached.size) {
+            val q = reached[j]
             var stay = 1f; for (d in 0 until 6) stay -= goes[hex.edge(q, d)]
             var got = from[q] * stay
             for (d in 0 until 6) { val h = hex.neighbour(q, d); if (h.none) continue; val n = from[h]; if (n > 0f) got += n * goes[hex.edge(h, (d + 3) % 6)] }
             to[q] = got
         }
-        now = to; next = from
+        val t = from; from = to; to = t
     }
-    now.copyInto(pool)
+    from.copyInto(pool)
 }
 
 /**
@@ -671,18 +689,24 @@ private fun HexFauna.groundKey(k: FaunaKind, h: Hex) = k.i.toLong() * hex.size +
 
 /** The ground about hex [h] out to [reach] rings, weighed by nearness over [lengthKm] ([DispersalGround]), as [disperse] looks over it. */
 private fun HexFauna.dispersalAbout(h: Hex, reach: Int, lengthKm: Float): DispersalGround {
-    val hs = ArrayList<Hex>(); val ws = ArrayList<Float>(); val areas = ArrayList<Float>()
-    var ring = listOf(h); val seen = hashSetOf(h)
+    // (Ring by ring as [HexMap.nextRing] walks them, in the same order, without boxing a hex.)
+    val most = 3 * reach * (reach + 1)
+    val hs = HexList(most); val ws = FloatArray(most); val areas = FloatArray(most); var m = 0
+    val seen = BooleanArray(hex.size); seen[h.i] = true
+    var ring = HexList(1); ring += h; var next = HexList(6)
     for (r in 1..reach) {
-        ring = hex.nextRing(ring, seen)
-        for (q in ring) {
+        next.clear()
+        for (j in 0 until ring.size) { val o = ring[j]; for (d in 0 until 6) { val q = hex.neighbour(o, d); if (!q.none && !seen[q.i]) { seen[q.i] = true; next += q } } }
+        for (j in 0 until next.size) {
+            val q = next[j]
             val w = kotlin.math.exp(-(hex.distanceKm(h, q) / lengthKm)).toFloat()
             var area = 0f; for (p in hw.placesOf(q)) area += land.areaKm2[p]
             if (area <= 0f) continue
-            hs += q; ws += w; areas += area
+            hs += q; ws[m] = w; areas[m] = area; m++
         }
+        val t = ring; ring = next; next = t
     }
-    return DispersalGround(hs.toHexArray(), ws.toFloatArray(), areas.toFloatArray())
+    return DispersalGround(hs.toHexArray(), ws.copyOf(m), areas.copyOf(m))
 }
 
 /** How far a disperser of [s] goes, km, the scale of nearness its settling weighs ([disperse]); an estimate. */

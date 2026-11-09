@@ -216,3 +216,15 @@ pool's heads, its hexes, and the worth of its hexes against the settled's.
   short parallel loops of about 1 ms each, over every hex for both kinds, and the ground of hexes the drift newly
   brings dispersers to (1.8 ms: the cache of grounds now grows over more of the map, up to about 5 KB a hex for wolves).
   Folding the hex loops together and keeping only the pool's hexes in a list would take most of that away.
+
+### Trimmed (9 Nov 2026)
+
+The pool's seven passes over every hex fold into one pass on the kind's own core (room, sources, those waiting and
+their dead). The drift works out worth and ways only for the hexes the pool is on, and each hop gathers only on those
+and the hexes next to them. The ground about a new source is walked without boxing a hex. The arithmetic and its order
+are the same: the drifting runs come out line for line as before (400x600 at 6 and 60 days, and 800x1200 at 6 days:
+0 of 377 lines differ).
+
+Larger world: the pool 8.6 ms a step to 6.7 (20.7 before step 2). What is left is the five parallel loops that do the
+work (sources, the ground of new sources, wanted, placed, room taken), about 1.1-1.4 ms each. The whole step read 224 ms
+this run against 213 before, with meetings and others slower too: the machine's noise is larger than the saving.
