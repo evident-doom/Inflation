@@ -458,6 +458,8 @@ class HexGroups(
                 else if (planner.holdsGround(g, weather)) planner.groundPlan(g, date)
                 else planner.plan(g, weather, date, predatorKg) }
             if (g.band != null) Profile.slow("plan: band", t0, date.absoluteDay) { g.probe(date.absoluteDay) }
+            // (A band that holds its home hex is about the hexes round it as its foragers go: its ground for the meetings, [bandGround].)
+            if (staysHome(g)) bandGround(g)
             choice[k] = plan.place.i; paths[k] = plan.path
             times[k] = timetable(g.species, plan.path)
         }

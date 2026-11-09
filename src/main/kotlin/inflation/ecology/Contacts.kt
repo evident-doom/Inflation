@@ -121,10 +121,28 @@ internal fun HexGroups.contacts(): List<Contact> {
 
 /**
  * Whether groups [a] and [b] contend where their grounds overlap: the rule of who has dealings with whom, for the contacts
- * ([contacts]). Every pair as at the meetings by timetable, but two bands, which deal with each other by their own
- * meetings ([neighboursMeet]); for groups of people of other sorts later, by their regard for each other.
+ * ([contacts]). Every pair, as at the meetings by timetable: what comes of it is the meeting's ([engage], or the rules of
+ * the kinds that meet: two bands talk or raid, [bandsMeet]).
  */
-internal fun contend(a: HexGroup, b: HexGroup) = !(a.species.human && b.species.human)
+@Suppress("UNUSED_PARAMETER")
+internal fun contend(a: HexGroup, b: HexGroup) = true
+
+/**
+ * Band [g], holding its home hex ([staysHome]), is about its home hex and the six round it as its foragers go out and back
+ * by day: its ground for the step's meetings ([HexGroup.footprint]), its home weighted 1 and each hex about with land
+ * [BAND_ROUND_WEIGHT], as a pack's footprint is weighted by nearness. With [inflation.Tuning.packsStay]; it hunts as before.
+ */
+internal fun GroupWorld.bandGround(g: HexGroup) {
+    if (!tuning.packsStay) return
+    val home = hw.placeHex[g.place]
+    val hexes = ArrayList<Hex>(7); val weights = ArrayList<Float>(7)
+    hexes += home; weights += 1f
+    for (d in 0 until 6) { val q = hex.neighbour(home, d); if (!q.none && !hw.placeNear(g.place, q).none) { hexes += q; weights += BAND_ROUND_WEIGHT } }
+    g.footprint = hexes.toHexArray(); g.footWeights = weights.toFloatArray()
+}
+
+/** The weight of each hex about a band's home in its ground for the meetings ([bandGround]), its home 1: its foragers' days out; an estimate. */
+internal const val BAND_ROUND_WEIGHT = 0.5f
 
 /**
  * Pack [g], holding its ground, gave way or lost at a meeting over [contested] (the hexes of the contact, or the meeting's

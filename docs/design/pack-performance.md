@@ -483,3 +483,31 @@ under the test strategies: packs meet the resident hunters of all their footprin
 
 Falling on whatever they meet, lions and hyenas among it, costs leopards and all but ends the cheetahs; lying in wait
 and striking only with surprise and the upper hand does them good.
+
+### Stage 2 done: staying bands meet by their grounds (9 Nov 2026)
+
+A band that holds its home hex has a ground for the step's meetings (`bandGround`): its home hex weighted 1 and each
+hex about with land `BAND_ROUND_WEIGHT` (0.5), as its foragers go out and back by day. It is a holder like a pack about
+its footprint. It meets other bands, packs and resident stand-ins wherever their grounds overlap, one contact a pair,
+and two bands now contend (`contend`): a contact between them is a meeting of bands as any (`bandsMeet`, talk or
+raid). Its hunting is as before: the ground is for the meetings only, for now. The neighbours' visits
+(`neighboursMeet`) are unchanged, so bands now meet both by chance where their grounds overlap and by visiting.
+
+Seed 1, 3 years, bands staying, packs staying. Without the switch the results are the same, line for line.
+
+| | meetings of bands a year (neighbours' visits) | people | people born / died, last year | leopards | cheetahs |
+|---|---|---|---|---|---|
+| 400x600 km, 6 days, stage 1 / 2 | 4392 / 6123 (3522 / 3210) | 1533 / 1522 | 80 / 50, 86 / 51 | 100 / 121 | 7 / 7 |
+| 400x600 km, 60 days, stage 1 / 2 | 3929 / 5960 (3491 / 3337) | 1587 / 1556 | 71 / 38, 70 / 52 | 23 / 14 | 6 / 10 |
+| 800x1200 km, 6 days, stage 1 / 2 | 45077 / 71660 (38808 / 38906) | 13881 / 13483 | 685 / 576, 679 / 693 | 915 / 903 | 65 / 48 |
+
+- Meetings of bands rise by half: the chance ones come on top of the visits. At 60 days they hold up as at 6
+  (5960 against 6123), one contact a pair at any step length.
+- More people die on the larger world (693 against 576), of the sicknesses that pass at meetings: the flux 19% of
+  people's deaths against 14%, the cough 6% against 4%. Raids are about as many (72 at meetings and 6 on homes,
+  against 62 and 15). Deaths to beasts barely change (taken by lion 2% against 1%).
+- Meetings on the larger world 23.0 to 30.1 ms, the whole step 201.8 to 208.1 ms: each contact between bands is a
+  meeting of bands, up to one a tick.
+- **To settle in stage 3:** whether chance meetings come on top of the visits, as now, or the visiting rate (60 a year
+  a hex apart) is the whole of how often neighbours meet, the chance ones counted in it. The figures for foragers
+  (Hadza bands 35 km apart, Agta camps visiting almost daily) are of all contact, so the second is likelier right.
