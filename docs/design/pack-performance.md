@@ -304,3 +304,34 @@ Timing on the larger world (recordings, the machine equally loaded): choosing ov
 choosing phase 16.3 to 14.4 ms, meetings 24.2 to 23.2 ms, the whole step 197.6 to 190.0 ms. Less than the plan's 10-15
 ms, because the content packs were cheap to weigh already (most of the choosing is the bands' and the place values).
 The rest of the step's saving is in meetings by overlap rather than timetable (step 4b).
+
+## Measured: step 4b, meetings over the footprint (9 Nov 2026)
+
+Also behind `t.packsStay`. A pack that holds its ground is filed for the meetings on every hex of its footprint, the
+whole step, each for its weight's share of the time (`Stay.share`, the weight over the footprint's sum). A meeting's
+time together is the overlap of the two stays times both shares, so the encounters drawn from it scale with how much
+of their time each spends there. Everything else is the meetings as they were:
+- Rival packs whose footprints overlap meet in the overlap, as do enemies of other kinds and bands passing through.
+- The resident hunters' stand-ins are made for the footprint's hexes too, so a leopard meets the lions and wolves of
+  its whole territory, not only those of its home hex.
+- Home advantage, and losing ground to a rival, still go by the home hex. A fight in the outskirts costs no ground.
+
+This is the timetable machinery with a footprint in it, not meetings drawn from rates without timetables. It costs
+rather than saves: more hexes hold stays and stand-ins.
+
+Seed 1, 3 years, bands staying, the pool drifting; "with 4a" is packs staying, footprint hunting and scent only:
+
+| | leopards (without / with 4a / with 4a and 4b) | cheetahs | leopards born / died, last year (with 4a and 4b) |
+|---|---|---|---|
+| 400x600 km, 6 days | 119 / 127 / 110 | 2 / 14 / 6 | 55 / 53 |
+| 400x600 km, 60 days | 22 / 12 / 29 | 4 / 6 / 7 | 23 / 33 |
+| 800x1200 km, 6 days | 1043 / 926 / 944 | 68 / 76 / 53 | 486 / 485 |
+
+Without the switch the results are the same as before, line for line (6 days, small world). On the larger world
+leopards stay about 10% under the run without; cheetahs swing between 53 and 76 among the three runs, a few dozen
+packs. Deaths to rivals are 3% of leopard deaths against 2%, and killed by lions 7% against 6%: the overlap meetings
+are there, a little more often than the timetables gave.
+
+Timing on the larger world: meetings 23.2 to 26.0 ms, the whole step 190.0 to 202.0 ms (the second run under somewhat
+less load from other processes, 12% against 16%). Meetings drawn by rate for groups that stand still (the plan's step 3)
+remain the way to the saving.

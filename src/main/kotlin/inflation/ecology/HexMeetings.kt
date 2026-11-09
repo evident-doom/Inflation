@@ -26,8 +26,11 @@ import kotlin.math.sqrt
 
 // The meetings of a week, settled one by one in the order they happen.
 
-/** Group [k] is in hex [hex] (its path's [index]) from day [from] to day [to]. */
-private class Stay(val k: Int, val index: Int, val hex: Hex, val from: Float, val to: Float)
+/**
+ * Group [k] is in hex [hex] (its path's [index]) from day [from] to day [to], for the [share] of that time: 1 on its way, its
+ * weight's share for a pack that holds its ground and is about its footprint all step ([footprint]).
+ */
+private class Stay(val k: Int, val index: Int, val hex: Hex, val from: Float, val to: Float, val share: Float = 1f)
 /** Groups [a] and [b] are in hex [hex] together from [day], for [span] days, at their paths' [ai] and [bi]. */
 private class Meeting(val day: Float, val span: Float, val a: Int, val ai: Int, val b: Int, val bi: Int, val hex: Hex) { var tie = 0L }
 
@@ -51,6 +54,15 @@ private fun HexGroups.staysByHex(parties: List<HexGroup>, residents: ResidentPar
     for (k in 0 until nGroups) {
         val g = parties[k]
         if (!g.alive) continue
+        // (A pack that holds its ground is about all its footprint all step, in each hex for its weight's share of the time:
+        // whoever comes into its territory may meet it, not only whoever comes to its home, [footprint].)
+        val foot = g.footprint; val weights = g.footWeights
+        if (foot != null && weights != null && g.path.size == 1) {
+            var sum = 0f; for (w in weights) sum += w
+            for (i in 0 until foot.size) { val h = foot[i]
+                (byHex[h.i] ?: ArrayList<Stay>().also { byHex[h.i] = it; made += it }) += Stay(k, 0, h, 0f, days.toFloat(), weights[i] / sum) }
+            continue
+        }
         val last = g.path.size - 1
         for (i in g.path.indices) {
             val to = if (i < last) g.days[i + 1] else days.toFloat()
@@ -268,7 +280,7 @@ private fun HexGroups.meetSettle(weather: Weather) {
             if (sa.k >= groups.size && sb.k >= groups.size) continue
             val from = max(sa.from, sb.from); val to = min(sa.to, sb.to)
             if (from > to) continue
-            out += Meeting(from, to - from, sa.k, sa.index, sb.k, sb.index, sa.hex)
+            out += Meeting(from, (to - from) * sa.share * sb.share, sa.k, sa.index, sb.k, sb.index, sa.hex)
         } }
         found[at] = out
     }
