@@ -18,6 +18,7 @@ import inflation.world.get
 import inflation.world.set
 import inflation.Kg
 import inflation.KgKm2
+import inflation.KgM2
 import inflation.min
 import inflation.world.Weather
 import kotlin.math.max
@@ -93,18 +94,22 @@ private fun HexSmallLife.scavengeFirst(p: Place, dead: Float, need: Float, half:
 fun HexSmallLife.eagleRisk(p: Place) = EAGLE_RATE * eagles[p] * open(p)
 
 /**
- * Vultures soar out from their colony each day and find the carcasses within reach, nearest
- * first, before most other scavengers; a colony grows when they eat well and shrinks when not.
+ * Vultures soar out from their colony each day and find the carcasses within reach, before most
+ * other scavengers; a colony grows when they eat well and shrinks when not. They quarter the
+ * whole range, so they take the same share of what lies in every place in reach, at most half
+ * (as the other scavengers): taking the nearest places bare first left fixed holes in the carrion.
  */
 @Part("small life: vultures")
 internal fun HexSmallLife.stepVultures(weather: Weather) {
     val month = weather.date.month
     for (k in vulturePlace.indices) {
         val need = vultures[k] * 0.5f * days
+        var lying = 0.0
+        for (q in vultureReach[k]) lying += carrion[q].toDouble() * land.m2(Place(q))
+        val share = if (lying > 0.0) min(0.5, need / lying).toFloat() else 0f
         var got = 0f
-        for (q in vultureReach[k]) {
-            if (got >= need) break
-            if (carrion[q] > 0f) { val m2 = land.m2(Place(q)); got += scavenge(Place(q), Kg(need - got).perM2(m2)).over(m2).v }
+        if (share > 0f) for (q in vultureReach[k]) {
+            if (carrion[q] > 0f) { val m2 = land.m2(Place(q)); got += scavenge(Place(q), KgM2(share * carrion[q])).over(m2).v }
         }
         ateBook?.add(-got.toDouble())
         val fed = if (need > 0f) min(1f, got / need) else 1f
