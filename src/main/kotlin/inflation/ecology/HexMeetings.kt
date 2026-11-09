@@ -161,7 +161,7 @@ internal fun HexGroups.keepAppointments(weather: Weather) {
         for (g in came) wearBetween(hw.placeHex[g.place], site, g)
         stats.meeting(Met.APPOINTMENTS_GATHERED); stats.meeting(Met.BANDS_AT_APPOINTMENTS, came.size)
         for (i in came.indices) for (j in i + 1 until came.size) if (came[i].alive && came[j].alive) {
-            if (tuning.packsStay) settleAt(came[i], came[j], site, weather) else bandsMeet(came[i], came[j], weather) }
+            if (tuning.packsStay) settleAt(came[i], came[j], site, weather, intent = Intent.GATHERING) else bandsMeet(came[i], came[j], weather) }
     }
 }
 
@@ -289,8 +289,10 @@ internal const val VISITORS = 4f
  * the meeting's parties and the point of its way, for [stop] (where a party on its way turns back).
  */
 internal fun HexGroups.settle(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk: Int, bi: Int, h: Hex, p: Place, byStrategy: HexArray?,
-                              stop: IntArray, weather: Weather, rite: RiteGathering? = null) {
-    if (byStrategy != null) { engage(a, ak, ai, b, bk, bi, byStrategy, h, stop, rnd); return }
+                              stop: IntArray, weather: Weather, rite: RiteGathering? = null, intent: Intent = Intent.CHANCE) {
+    if (byStrategy != null) { engage(a, ak, ai, b, bk, bi, byStrategy, h, stop, rnd, if (intent == Intent.RAID) Stance.ATTACK else null); return }
+    // (A raid set out on the other's home, by the rules of a raid: the defenders behind their works, [fight].)
+    if (intent == Intent.RAID) { val ba = a.band; val bb = b.band; if (ba != null && bb != null) fight(a, ba, b, bb, planned = true, weather); return }
     if (slipsAway(a, b, p) || slipsAway(b, a, p)) stats.meeting(Met.SLIPPED_AWAY)
     else if (a.species.human && b.species.human) run { val t0 = Profile.mark(); bandsMeet(a, b, weather, rite); Profile.slow("meeting: bands", t0, weather.date.absoluteDay) { a.probe(weather.date.absoluteDay) + " | " + b.probe(-1L) } }
     else if (a.species == b.species) rivalsMeet(a, ak, ai, b, bk, bi, h, stop)
@@ -302,11 +304,14 @@ internal fun HexGroups.settle(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk: In
  * [keepAppointments]): settled as any meeting is ([settle]), the hex the meeting's ground; neither has a way to turn
  * back on.
  */
-internal fun HexGroups.settleAt(a: HexGroup, b: HexGroup, h: Hex, weather: Weather, rite: RiteGathering? = null) {
+internal fun HexGroups.settleAt(a: HexGroup, b: HexGroup, h: Hex, weather: Weather, rite: RiteGathering? = null, intent: Intent = Intent.VISIT) {
     contested = hexArray(1) { h }; contestDay = weather.date.absoluteDay
     val p = hw.placeNear(b.place, h).takeIf { !it.none } ?: b.place
-    settle(a, 0, 0, b, 1, 0, h, p, engagedOver(a, b, null, h)?.takeIf { engages(a, b, it) }, IntArray(2), weather, rite)
+    settle(a, 0, 0, b, 1, 0, h, p, engagedOver(a, b, null, h)?.takeIf { engages(a, b, it) }, IntArray(2), weather, rite, intent)
 }
+
+/** How two parties came to meet ([settle]): by chance (timetables, grounds overlapping), visiting, at a gathering, or a raid set out on the other's home. */
+enum class Intent { CHANCE, VISIT, GATHERING, RAID }
 
 /** The meetings of groups whose timetables bring them into the same hex ([meet]). */
 private fun HexGroups.meetSettle(weather: Weather) {

@@ -544,3 +544,31 @@ Seed 1, 3 years:
 - Meetings on the larger world 23.0 ms, the whole step 189.3 ms, as before stage 2.
 - Kin visits (`visitKin`) are a hungry band fed by one about it, a move of food rather than a meeting; they stay as
   they are.
+
+### Stage 4 done: raids settled as any meeting, by intent (9 Nov 2026)
+
+Every meeting now says how the two came to it (`Intent`: chance, visit, gathering, raid) and goes through `settle`.
+A raid set out on a band's home (`fightRaids`) comes in through `settleAt` as a raid. Where a side has a strategy
+other than the animals', it is an engagement with the raiders attacking (`Stance.ATTACK`, whatever their strategy says
+of that ground), so the defenders get their detection, their choice and the ground they hold best. Else it is fought
+by the rules of a raid as before (`fight`: works, dogs, fire, slipping away). A raid that breaks out at a meeting comes
+in as the meeting does, through `bandsMeet`.
+
+No band has a strategy yet, so the results are the same as stage 3, line for line, with the switch and without it
+(400x600 km, 6 and 60 days).
+
+### Where the unification stands
+
+- **One way of coming on each other, in two kinds:**
+  - by chance, where grounds overlap (contacts) or ways cross (timetables, for two parties on their way);
+  - by intent: visits, gatherings, raids.
+- **One way of settling** (`settle`): the strategies where a side has one (ground, detection, choice, outcome), else
+  the rules of the kinds that meet. Giving way acts on the ground (`gaveWay`).
+- **Left apart, on purpose:**
+  - resident stand-ins among themselves (the bulk draw): no strategy is set for them;
+  - kin visits: a move of food, not a meeting.
+- **For people-groups with strategies** (bandits, war parties, scouts): give them a strategy (`strategyOf`) and a ground
+  (footprint, or `bandGround`). Their contacts, visits and raids then go through the engagement with nothing else to
+  change. What a fight between two groups of people does is today's `fight` for raids and `bandsMeet` for meetings.
+  An engagement between two bands that comes to a fight should go to `fight`, the people's own rules, where today it
+  would go to the beasts' (`rivalsFight`). That is the next thing to wire, when the first people-group gets a strategy.

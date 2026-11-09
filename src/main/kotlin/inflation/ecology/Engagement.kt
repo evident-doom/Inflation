@@ -150,11 +150,13 @@ private enum class Act { FIGHT, WITHDRAW, LIE_LOW }
  * meetings' (where a group on its way turns back), [r] the meetings' draws.
  */
 @inflation.Part("meetings: engagements")
-internal fun HexGroups.engage(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk: Int, bi: Int, contested: HexArray, thickest: Hex, stop: IntArray, r: Random) {
+internal fun HexGroups.engage(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk: Int, bi: Int, contested: HexArray, thickest: Hex, stop: IntArray, r: Random,
+                              stanceA: Stance? = null) {
     stats.meeting(Met.ENGAGEMENTS)
     val h = battleground(a, b, contested, thickest)
     val p = hw.placeNear(a.place, h).takeIf { !it.none } ?: a.place
-    val stA = strategyOf(a).at(groundOf(a, h)); val stB = strategyOf(b).at(groundOf(b, h))
+    // (A side that came to attack, a raid set out ([Intent.RAID]), attacks whatever its strategy says of that ground.)
+    val stA = stanceA ?: strategyOf(a).at(groundOf(a, h)); val stB = strategyOf(b).at(groundOf(b, h))
     val aSees = detects(a, b, stB, p, r); val bSees = detects(b, a, stA, p, r)
     // (Each as strong as it stands there: holding its ground, and falling on the other unseen.)
     val sa0 = strength(a); val sb0 = strength(b)

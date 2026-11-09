@@ -119,7 +119,9 @@ internal fun HexGroups.fightRaids(weather: Weather) {
             tallyMeeting(MetAs(Regard(b, target.id, tb, u, hex), Regard(tb, g.id, b, u, hex)), Tally.MeetingEnd.RAIDED_HOME)
             // (The raiders' going there and back wears the way, [wearBetween].)
             wearBetween(hw.placeHex[g.place], hw.placeHex[target.place], g)
-            fight(g, b, target, tb, planned = true, weather)
+            // (Settled as any meeting is, a raid by intent, [settle]: by the strategies where a side has one, else as a raid.)
+            if (tuning.packsStay) settleAt(g, target, hw.placeHex[target.place], weather, intent = Intent.RAID)
+            else fight(g, b, target, tb, planned = true, weather)
         }
     }
     bands.raidsDue.clear()
