@@ -680,7 +680,8 @@ deaths fell among all of them. Children never fought.
   grown less the wounded and lamed, `Band.ableShare`); the rest, its children and old stay home. The walk there and
   back is charged to the party. The raided fight with their able adults at home. Deaths fall among those who fought.
 - **Who is worth raiding:** planned raids go only against bands with something fixed to take or hold
-  (`Band.livesFixed`: living in their houses, fresh sowing, a palisade). Bands on the move are not raided.
+  (`Band.livesFixed`: living in their houses, fresh sowing, a palisade). Bands on the move are not raided. (Since the
+  recalibration below, in the base model.)
 - **Neighbours greet:** a band greets every band it has met, however wary of it; only a stranger never met, and one it
   is wary of, does it hold off at its camp and keep its distance from. A feud is still held off at the camp.
 - **Left as it was, for now:**
@@ -703,6 +704,43 @@ line for line.
   likely part of it: a party of half the able adults is weaker, its raiders die more, and the grudges they leave set
   the next raid (`RAIDER_RESENT`). To watch on the full map and over more seeds.
 - Meetings on the larger world 22.5 ms, the whole step 185.6 ms.
+
+### Violence between bands against the record (9 Nov 2026, in the base model)
+
+Olli asked whether the deaths and raids are true to the record. They were not: violence between bands ran at about
+the level of early farmers, in a world of foragers and hamlets.
+
+- **The record:**
+  - Gomez et al. 2016 (Nature): lethal violence of all kinds, within groups too, about 2% of deaths at the origin of
+    our species (a secondary report gives about 3.9% for the Palaeolithic).
+  - Fry and Soderberg 2013 (Science): of 148 killings in 21 mobile forager societies, most were homicides within the
+    band, more than half by lone killers; killing between groups a minority, most of it in one society (the Tiwi).
+  - Fibiger et al. 2023 (PNAS): over a tenth of 2300 skeletons of NW Europe's first farmers (8000-4000 years ago) bear
+    weapon injuries; violence endemic among settled, growing communities.
+- **The model before:** raids about 7% of people's deaths on the larger world, and festering wounds another 8%,
+  partly from raids; no violence within bands.
+- **Now, in the base model (with or without the switches):**
+  - Planned raids go only against bands living fixed (`Band.livesFixed`: in their houses, by fresh sowing, behind a
+    palisade). (Before, only with `t.bandStances`.)
+  - A meeting comes to a raid `MOBILE_RAID` (a tenth) as often where neither band lives fixed.
+- **The census** now gives people killed in raids per 1000 a year, of bands living fixed and of bands on the move.
+
+Seed 1, 3 years, bands staying, the switches off; killed in raids per 1000 a year, the three census years:
+
+| | before: fixed | before: on the move | now: fixed | now: on the move | raids a year (meetings / homes), before / now | people died, last year, before / now |
+|---|---|---|---|---|---|---|
+| 400x600 km, 6 days | 0, 0, 0 | 1.8, 1.6, 2.4 | 0, 0, 0 | 0, 0, 0.9 | 2/0, 3/0 | 48 / 49 |
+| 400x600 km, 60 days | 0, 0, 0 | 1.3, 0, 0 | 0, 0, 0 | 0, 0, 2.2 | 0/0, 3/0 | 36 / 42 |
+| 800x1200 km, 6 days | 0.2, 5.1, 8.0 | 1.8, 1.9, 1.5 | 0, 1.5, 4.6 | 0, 0.2, 0.8 | 44/52, 28/9 | 630 / 570 |
+
+- On the larger world the bands on the move now kill each other about 0.3 per 1000 a year, against 1.5-1.9; the
+  bands living fixed a few per 1000 (1.5-4.6) as their houses and fields grow, as early farmers did.
+- On the small world the numbers are one to three killings a year among some 1300 people, too few to tell more.
+- Raids no longer show among people's chief causes of death at 6 days (5% before).
+- Deaths per raid (`RAID_DEATHS` 0.04) and the wounded per death (5) are left as they were: the levels come out
+  within the record without them.
+- Not modelled: violence within the band (most of the record's killings). It would change no mechanics; a small
+  background rate of homicide could be added for the causes of death to read true.
 
 ### For the future: more rules for violent encounters
 

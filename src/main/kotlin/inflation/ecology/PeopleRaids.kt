@@ -73,9 +73,9 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
     for (id in within) {
         val o = bands.groupById[id]?.takeIf { it.alive } ?: continue
         val ob = o.band ?: continue
-        // (With t.bandStances, as the record of early foragers has it: planned raids are on bands with something fixed to
-        // take or hold, their houses, fresh sowing or a palisade ([Band.livesFixed]); bands on the move are not worth it.)
-        if (tuning.bandStances && !ob.livesFixed()) continue
+        // (As the record of early foragers has it: planned raids are on bands with something fixed to take or hold, their
+        // houses, fresh sowing or a palisade ([Band.livesFixed]); bands on the move are not worth it.)
+        if (!ob.livesFixed()) continue
         val r = Regard(b, id, ob, map = hex)
         if (r.tie <= 0f) them += o to r
     }
@@ -149,6 +149,15 @@ internal fun moreOfWill(will: Float) = (1f - exp(-max(0f, will))) / (1f - exp(-1
 internal const val RAID_RANGE_KM = 60.0
 
 /**
+ * How much less likely a meeting comes to a raid between two bands neither of which lives fixed ([raid]): among mobile
+ * foragers most lethal violence is within the band, and killing between groups a minority (Fry & Soderberg 2013: 148
+ * killings in 21 mobile forager societies, more than half by lone killers, most for personal motives); among early
+ * farmers it was endemic (Fibiger et al. 2023: over a tenth of 2300 skeletons of NW Europe's first farmers with weapon
+ * injuries). An estimate, set to bring the mobile bands' killing between groups under 0.5 per 1000 a year.
+ */
+internal const val MOBILE_RAID = 0.1f
+
+/**
  * The raiders band [g] sends on a planned raid, with [inflation.Tuning.bandStances]: [RAID_PARTY] of its able adults (its
  * grown less the wounded and lamed, [Band.ableShare]), the rest, its children and old staying at home; all its adults
  * without the switch, as before.
@@ -179,8 +188,10 @@ internal fun HexGroups.raid(g: HexGroup, b: Band, o: HexGroup, ob: Band, r: Rega
     // (On ground it holds as its own, a band drives off those it is not close to: trespass.)
     val trespass = if (b.claims(hw.placeHex[g.place], g.memory) && r.tie <= 0f) CLAIM_PRESSURE else 0f
     val pressure = if (feud) 1f else maxOf(hunger, min(1f, peopleCrowding(g)), trespass)
-    // (Whether it comes to blows is the band's choice: its readiness to raid; and how it regards the others.)
-    val chance = r.fightChance(RAID * b.raidWill * pressure)
+    // (Whether it comes to blows is the band's choice: its readiness to raid; and how it regards the others. And what there
+    // is to fight over: a band living fixed has its houses, fields and stores to take or hold; between bands on the move, as
+    // mobile foragers, killing between groups is rare, most of their violence being within the band ([MOBILE_RAID]).)
+    val chance = r.fightChance(RAID * b.raidWill * pressure * (if (ob.livesFixed() || b.livesFixed()) 1f else MOBILE_RAID))
     if (!drawn(DialSite.RAIDS_MEETING, b.raidWill, rnd.nextFloat(), chance) { chance / b.raidWill.coerceAtLeast(1e-6f) }) return false
     fight(g, b, o, ob, planned = false, weather)
     return true
@@ -228,6 +239,7 @@ internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planne
         val lost = if (k == 0) lostG else binomial(fighters, share, rnd)
         if (lost <= 0) continue
         adultsDied(who, lost, rnd)
+        who.band?.let { stats.meeting(if (it.livesFixed()) Met.RAID_KILLED_FIXED else Met.RAID_KILLED_MOBILE, lost) }
         stats.deaths.merge(Tally.of(who.species, DeathCause.RAIDS), lost, Int::plus)
         if (who.species.human) stats.adultDeaths.merge(Tally.of(who.species, DeathCause.RAIDS), lost, Int::plus)
         who.band?.let {

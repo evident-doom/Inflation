@@ -40,6 +40,7 @@ import inflation.ecology.homesApart
 import inflation.ecology.Regard
 import inflation.ecology.pressure
 import inflation.ecology.packPressure
+import inflation.ecology.livesFixed
 import inflation.ecology.FaunaKind
 import inflation.ecology.PlaceMemory
 import inflation.ecology.FRIEND_TIE
@@ -1237,6 +1238,14 @@ class Census(private val sim: HexSim) {
         println("     raids' year: %d at meetings, %d on homes; %d raided bands slipped away, %d larders taken, %d bands driven from their homes; %d times neighbours stood with the raided"
             .format(met(Met.RAIDS), met(Met.RAIDS_ON_HOMES), met(Met.RAIDED_BANDS_SLIPPED_AWAY), met(Met.LARDERS_RAIDED), met(Met.BANDS_DRIVEN_FROM_HOME),
                 met(Met.NEIGHBOURS_DEFENDED)))
+        // (The violence between bands against the record: people killed in raids a year per 1000, of bands living fixed and of
+        // bands on the move, as they stand now; the record of mobile foragers has few killed between bands, early farmers many more.)
+        run {
+            val fixed = bands.filter { it.second.livesFixed() }.sumOf { it.first.size }; val mobile = bands.sumOf { it.first.size } - fixed
+            println("     killed in raids this year, per 1000 people: bands living fixed %.2f (%d of %d people), bands on the move %.2f (%d of %d)"
+                .format(1000.0 * met(Met.RAID_KILLED_FIXED) / fixed.coerceAtLeast(1), met(Met.RAID_KILLED_FIXED), fixed,
+                    1000.0 * met(Met.RAID_KILLED_MOBILE) / mobile.coerceAtLeast(1), met(Met.RAID_KILLED_MOBILE), mobile))
+        }
         println("     bands' year: %d split, %d small bands joined kin, %d bands at home together became one (%d of them of the two kinds of choosing)"
             .format(met(Met.BANDS_SPLIT), met(Met.SMALL_BANDS_JOINED_KIN), met(Met.BANDS_BECAME_ONE), met(Met.BANDS_OF_TWO_MINDS_BECAME_ONE)))
         // (Bands that hold their home hex, t.bandsStay: what they did with their neighbours and their country this year.)
