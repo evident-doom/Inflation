@@ -251,6 +251,21 @@ class Census(private val sim: HexSim) {
             val settled = fauna.count(fauna.slot(s)); val packs = live.filter { it.species == s }.sumOf { it.size }.toDouble()
             "%s %.0f / %.0f (%.0f%%)".format(s.name, settled, packs, 100.0 * packs / (settled + packs).coerceAtLeast(1.0))
         })
+        // (Whether the dispersers are where the hunting is: what their hexes are worth to the kind, against the settled's.)
+        val pool = fauna.dispersing
+        if (roaming.isNotEmpty() && pool != null) println("     dispersing (heads, hexes with a tenth of a head or more, worth of their hexes / of the settled's): " + roaming.joinToString(", ") { s ->
+            val k = fauna.slot(s); val p = pool[k.i]
+            if (k.none || p == null) return@joinToString "${s.name} none"
+            val v = fauna.worth[k]; val a = fauna.adults[k]
+            var heads = 0.0; var hexes = 0; var poolW = 0.0; var settled = 0.0; var settledW = 0.0
+            for (h in hex.all) {
+                var w = 0f; var there = 0f
+                for (q in hw.placesOf(h)) { if (v[q] > w) w = v[q]; there += a[q] * fauna.land.areaKm2[q] }
+                heads += p[h]; poolW += p[h] * w; settled += there; settledW += there * w
+                if (p[h] >= 0.1f) hexes++
+            }
+            "%s %.0f / %d / %.2f".format(s.name, heads, hexes, if (heads > 0.0 && settledW > 0.0) (poolW / heads) / (settledW / settled) else 0.0)
+        })
     }
 
     /** How often each kind's groups weighed their choices, and how often that came to moving (clears the counts). */

@@ -185,3 +185,34 @@ larger world (208 ms), estimated from the recording.
 
 Together, roughly 208 ms to 130 ms a step, with the displacement, nomads and multi-hex territories the movement questions
 asked for. Each step is measured before and after.
+
+## Measured: step 2, the pool at once and drifting (9 Nov 2026)
+
+Behind `t.poolDrifts` (off by default). `disperseAtOnce` weighs every source against the room as the step found it, each
+hex then takes as many as it has room for (each source's settlers cut by the same share), all in parallel loops with
+fixed-order sums (the same each run). `drift` then moves those still dispersing a hop a tick toward hexes worth more to
+the kind (the best of a hex's places' `worth`), as the plant-eaters flow: the share `DRIFT_STEP` of the best gap, at
+most a half, eased by the border and the kind's bearings. Fewer than 0.005 heads waiting on a hex die out, and those
+waiting under `DISPERSAL_LEAST` now die on the way too, which they did not before.
+
+Seed 1, 3 years, bands staying, against the pool as it was (step 1a). The census has a new line, "dispersing": the
+pool's heads, its hexes, and the worth of its hexes against the settled's.
+
+| | wolves settled, year 3 | lions settled | pool: wolves / lions | pool's worth / the settled's |
+|---|---|---|---|---|
+| 400x600, 6 days, before | 1168 | 766 | (not counted) | |
+| 400x600, 6 days, drifting | 1144 | 730 | 59 / 6 | 1.22 / 1.50 |
+| 400x600, 60 days, before | 1257 | 768 | 49 / 25 | 0.99 / 0.93 |
+| 400x600, 60 days, drifting | 1254 | 753 | 50 / 22 | 1.28 / 1.41 |
+| 800x1200, 6 days, before | 9698 | 6566 | | |
+| 800x1200, 6 days, drifting | 9651 | 6289 | 488 / 98 | 1.28 / 1.51 |
+
+- **The nomads follow the game:** the pool sits on hexes worth 1.2-1.5 times the settled's to the kind, against about
+  1.0 (as where they were born) before. About the same at 6 and 60 days.
+- **Numbers:** wolves within 2%, lions 2-5% fewer: more of them wait in the pool where the hunting is good but the
+  room is taken, and die on the way. A first value for `DRIFT_STEP`; nothing tuned.
+- **Time, larger world:** the pool 20.7 ms a step to 8.6, groups' births and deaths 41.4 to 31.3; the whole step
+  217.5 to 213.0 (within the machine's noise). Less than the 45-50 the plan hoped for. What is left is mostly a dozen
+  short parallel loops of about 1 ms each, over every hex for both kinds, and the ground of hexes the drift newly
+  brings dispersers to (1.8 ms: the cache of grounds now grows over more of the map, up to about 5 KB a hex for wolves).
+  Folding the hex loops together and keeping only the pool's hexes in a list would take most of that away.

@@ -115,6 +115,13 @@ class Tuning(
      * between neighbours, a week of the model's calendar (6 days: 60 a year; Olli, 8 Nov 2026).
      */
     val neighbourMeetings = f("neighbourMeetings", 60f).also { require(it >= 0f) { "t.neighbourMeetings is $it: 0 or more" } }
+    /**
+     * Wolves' and lions' dispersal pool weighs every hex it leaves from at once against the room about as the step found
+     * it, each hex then taking as many as it has room for, and those still dispersing drift a tick at a time toward better
+     * hunting, so the nomads follow the game ([inflation.ecology.disperse]; docs/design/pack-performance.md, step 2). Off
+     * unless set (under test).
+     */
+    val poolDrifts = read("t.poolDrifts")?.toBooleanStrict() ?: false
     /** The food cost of keeping warm, against [inflation.ecology.COLD_COST]. */
     val coldCost = f("coldCost", 1f)
 
