@@ -81,7 +81,7 @@ class StocksTest {
             "HexPlants.shrubShoots", "HexPlants.treeShoots", "HexPlants.animalSeed", "HexPlants.green", "HexPlants.hayFresh", "HexPlants.grassAge",
             "HexPlants.growFrom", "HexPlants.growSpan", "HexPlants.greenOpen", "HexPlants.greenSeep", "HexPlants.greenWet",
             "HexPlants.greenShade", "HexPlants.trails", "HexPlants.treeSeed", "HexPlants.shrubSeed", "HexFires.burnt", "HexFires.burning", "HexFires.stepBurning",
-            "HexFauna.waterC", "HexFauna.fed", "HexFauna.protein", "HexFauna.fear", "HexFauna.usual", "HexFauna.forageSodiumAt", "HexFauna.outbreak",
+            "HexFauna.waterC", "HexFauna.fed", "HexFauna.protein", "HexFauna.fear", "HexFauna.peopleNear", "HexFauna.persecuted", "HexFauna.usual", "HexFauna.forageSodiumAt", "HexFauna.outbreak",
             "HexFauna.fedByMonth", "HexFauna.reserve", "HexFauna.autumnFed", "HexFauna.dry", "HexFauna.arrive", "HexFauna.worth", "HexFauna.moverYoung", "HexFauna.bred", "HexFauna.moverFat", "HexFauna.moverSpent", "HexFauna.spent", "HexFauna.bold", "HexFauna.leaving", "HexFood.domestic", "HexFood.fieldDomestic", "HexFood.fieldDays", "HexFood.fieldStress", "HexFood.fieldSoil", "HexFood.fieldWorn", "HexFood.fieldCover", "HexFood.cleared", "HexFood.croppedNow", "HexFood.wildCover", "HexSmallLife.pollination",
             "HexSmallLife.insectFrom", "HexSmallLife.harass", "HexSmallLife.spreadWeight", "HexSmallLife.returning",
             // For the check and the viewer: heads held hungry with no better place next door, and one kind's spill last week.

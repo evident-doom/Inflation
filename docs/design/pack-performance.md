@@ -228,3 +228,37 @@ are the same: the drifting runs come out line for line as before (400x600 at 6 a
 Larger world: the pool 8.6 ms a step to 6.7 (20.7 before step 2). What is left is the five parallel loops that do the
 work (sources, the ground of new sources, wanted, placed, room taken), about 1.1-1.4 ms each. The whole step read 224 ms
 this run against 213 before, with meetings and others slower too: the machine's noise is larger than the saving.
+
+## Measured: step 3, people's pressure on the hunters (9 Nov 2026)
+
+Behind `t.huntersPressed` (off by default; off, the runs come out as before, one more table counted in the limits).
+`HuntersPressure.kt`:
+
+- **The field:** for each resident hunter kind and place, the people within a day's walk (each band's heads over its
+  hex and the six about it, per km², against `PEOPLE_HALF` = 0.5) and the kind's persecution: its heads killed by people
+  lately, plus half a head for each head of stock it took from a band (`RETALIATION`), as a share of its usual numbers
+  against `KILLED_HALF` = 0.2, fading with e-folding 120 days. Each part saturates; the sum is scaled by the kind's
+  `fearOfPeople` less the boldness of those there, so camp followers are not put off.
+- **Readers:** a resident hunter's `appeal` (as fear for the game), its `need` to spill (so the settled leave pressed
+  ground too), the dispersers' room on a hex, and a pack's restlessness past 0.25 (`pressedOff`, by the people about
+  only: the packs' kinds keep no persecution).
+- **Cost:** a pass over the bands once a step, one table per hunting kind. Nothing to see in the timings.
+
+Seed 1, 400x600 km, 3 years, 6 days, bands staying, the pool drifting, half the bands herders (and in the second pair
+half settled in villages):
+
+| | wolves | lions | leopard packs | pressure where they live (wolf, lion; lynx) | land pressed past a quarter (lynx) |
+|---|---|---|---|---|---|
+| herders, without | 1170 | 729 | 43 | | |
+| herders, with | 1148 | 734 | 39 | 0.02, 0.02; 0.04 | 4% |
+| herders and villages, without | 1165 | 729 | 45 | | |
+| herders and villages, with | 1143 | 733 | 43 | 0.02, 0.02; 0.04 | 5% |
+
+At 60 days the herders' world gives the same (wolves 1244 / 1242, lions 754 / 754).
+
+**Nothing presses the hunters on these worlds yet.** People are about 0.03 a km² (bands of 33, villages no bigger in
+three years). Bands killed no beast of prey in the census's window, and beasts took no kept stock: 0 heads by every kind.
+So the field sees only the people about, about a twentieth of what would move a hunter, and the differences above are
+within what a small change anywhere does to these runs. The field is ready for denser people (farming villages, longer
+runs, the full map). The test that it does what it should is a world where people are many and hunt or lose stock
+to beasts: there the hunters should thin out around them and fill back in by dispersal as the pressure fades.

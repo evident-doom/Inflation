@@ -122,6 +122,13 @@ class Tuning(
      * unless set (under test).
      */
     val poolDrifts = read("t.poolDrifts")?.toBooleanStrict() ?: false
+    /**
+     * The beasts of prey keep out of people's way: a pressure per hunting kind by place, of the people within a day's
+     * walk and of its kind killed by people lately, fading over months. Resident hunters weigh it in a place's appeal and
+     * leave pressed ground as from want, dispersers find less room there, and packs pressed past what they bear grow
+     * restless ([inflation.ecology.pressure]; docs/design/pack-performance.md, step 3). Off unless set (under test).
+     */
+    val huntersPressed = read("t.huntersPressed")?.toBooleanStrict() ?: false
     /** The food cost of keeping warm, against [inflation.ecology.COLD_COST]. */
     val coldCost = f("coldCost", 1f)
 

@@ -343,6 +343,8 @@ internal fun HexGroups.huntGame(g: HexGroup, k: Int, p: Place, expected: Float, 
     fauna.young[k][p] = max(0f, fauna.young[k][p] - ny / area); fauna.adults[k][p] = max(0f, fauna.adults[k][p] - na / area)
     // (The share of the settled it killed, kept for the residents' odds of being hunted, see [HexFauna.huntedOdds].)
     if (settled > 0f) fauna.groupKilled[k][p] += (na + ny) / (settled * area)
+    // (A band that kills a beast of prey presses its kind off the ground about: [persecutedBy].)
+    if (band != null) fauna.persecutedBy(k, p, (na + ny + np).toFloat())
     val young = min(HexFauna.YOUNG_WEIGHT * ps.massKg, kgEach)
     // (The grown killed, settled and of packs alike.)
     val grown = na + np

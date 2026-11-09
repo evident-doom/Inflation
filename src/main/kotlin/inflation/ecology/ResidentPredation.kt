@@ -153,6 +153,7 @@ internal fun HexFauna.huntResidents(k: FaunaKind, p: Place, meat: KgM2, weather:
                 if (HUNT_DIAG) campTaken[j][if (part[i] == 4) 0 else 1].add(heads.toDouble())
                 if (b.herds.herdTaken.size != b.herds.herd.size) b.herds.herdTaken = FloatArray(b.herds.herd.size)
                 b.herds.herdTaken[j] += heads
+                retaliate(k.i, p, heads)
                 keptTakenBy.computeIfAbsent(hunter) { DoubleAdder() }.add(heads.toDouble())
             }
         }

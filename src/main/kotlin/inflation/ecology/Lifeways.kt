@@ -26,7 +26,7 @@ internal fun GroupWorld.restless(g: HexGroup, weather: Weather, thirsty: Boolean
         Lifeway.BAND -> g.fed < Thresholds.HUNGRY || thirsty || astray || dueSoon ||
             (g.band?.let { coldRestless(it.warmth(airAt(g.place, weather), it.fire, it.homeShelter(), days)) } ?: false) ||
             s.hotC(weather.temperature[g.place]) / 10f > 0.5f
-        Lifeway.PACK -> g.fed < Thresholds.HUNGRY || g.home.none || thirsty || astray
+        Lifeway.PACK -> g.fed < Thresholds.HUNGRY || g.home.none || thirsty || astray || pressedOff(g)
     }
 }
 

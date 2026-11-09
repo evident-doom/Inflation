@@ -38,6 +38,9 @@ import inflation.ecology.spotTakenShare
 import inflation.ecology.Livelihood
 import inflation.ecology.homesApart
 import inflation.ecology.Regard
+import inflation.ecology.pressure
+import inflation.ecology.packPressure
+import inflation.ecology.FaunaKind
 import inflation.ecology.PlaceMemory
 import inflation.ecology.FRIEND_TIE
 import inflation.ecology.Mind
@@ -266,6 +269,25 @@ class Census(private val sim: HexSim) {
             }
             "%s %.0f / %d / %.2f".format(s.name, heads, hexes, if (heads > 0.0 && settledW > 0.0) (poolW / heads) / (settledW / settled) else 0.0)
         })
+        // (With t.huntersPressed: how hard people press each hunting kind where it lives, and how much of its land they press hard.)
+        if (fauna.tuning.huntersPressed) {
+            val hunters = fauna.kinds.withIndex().filter { it.value.carnivore }
+            println("     people's pressure on the hunters (head-weighted where they are / share of land past a quarter / killed by people lately, heads): " +
+                hunters.joinToString(", ") { (i, s) ->
+                    val k = FaunaKind(i); val a = fauna.adults[k]; val y = fauna.young[k]
+                    var heads = 0.0; var pressed = 0.0; var land = 0.0; var hard = 0.0; var killed = 0.0
+                    val persecuted = fauna.persecuted?.get(i)
+                    for (p in fauna.land.places) {
+                        val area = fauna.land.areaKm2[p]; val there = (a[p] + y[p]) * area; val pr = fauna.pressure(k, p)
+                        heads += there; pressed += there * pr; land += area; if (pr > 0.25f) hard += area
+                        if (persecuted != null) killed += persecuted[p] * area
+                    }
+                    "%s %.2f / %.0f%% / %.0f".format(s.name, if (heads > 0.0) pressed / heads else 0.0, 100.0 * hard / land.coerceAtLeast(1.0), killed)
+                } + "; packs: " + groups.kinds.filter { it.carnivore && !it.human && fauna.slot(it).none }.joinToString(", ") { s ->
+                    val gs = live.filter { it.species == s }
+                    "%s %.2f".format(s.name, if (gs.isEmpty()) 0.0 else gs.sumOf { fauna.packPressure(s, inflation.ecology.boldness(it), it.place).toDouble() } / gs.size)
+                })
+        }
     }
 
     /** How often each kind's groups weighed their choices, and how often that came to moving (clears the counts). */

@@ -38,6 +38,8 @@ internal fun HexGroups.hunt(weather: Weather) {
     takePackKills(2 * day); fillPackGame()
     val hunters = groups.filter { it.alive }.shuffled(rnd)
     for (a in fauna.groupKilled) a.fill(0f)
+    // (Where people are, for the beasts of prey that keep out of their way: [peopleAbout].)
+    peopleAbout()
     // Bands first set their ways for the week.
     // (Where the bands about it stand now, after this week's moves, as its own place is; and where beasts of prey may come on
     // their herds, see [herdOdds].)

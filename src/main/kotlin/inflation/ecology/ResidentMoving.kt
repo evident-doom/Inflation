@@ -216,7 +216,7 @@ internal fun HexFauna.appeal(k: FaunaKind, p: Place, weather: Weather): Float {
     // (Plant-eaters weigh their forage by how fresh it is and how well it would meet their need for
     // protein: so they go up to the green high pasture in summer and down for the winter.)
     val fresh = if (s.carnivore) 1f else land.plants.nourishment(p) * forageProtein(s, p)
-    return fareFor(s, p) * fresh * suits(s, p) * tether(s, p) * unbitten(p) * snowed * (1f - FEAR_WEIGHT * shy(s, p)) * (1f - outranked(s, p)) *
+    return fareFor(s, p) * fresh * suits(s, p) * tether(s, p) * unbitten(p) * snowed * (1f - FEAR_WEIGHT * (if (s.carnivore) pressure(k, p) else shy(s, p))) * (1f - outranked(s, p)) *
         (1f - land.fire.stepBurning[p] * FIRE_ADULT) * (1f - outbreakDeaths(s, p)) /
         (1f + Hazards.crowding(heads, usual[k])) / (1f + discomfort)
 }
@@ -363,7 +363,8 @@ private fun HexFauna.spillHunters(k: FaunaKind, weather: Weather, arrived: Float
         // (And the cold or heat, and snow deeper than they can dig through, as they drive groups: see [restless].)
         val uneasy = (s.discomfortC(feltC(s, p, weather.temperature[p]), weather.date.month) / 10f).coerceIn(0f, 1f)
         val snowedIn = (weather.snowpack[p] / s.snowLimitMm - 1f).coerceIn(0f, 1f)
-        val need = maxOf((1f - f[p]).coerceIn(0f, 1f), thirst, max(uneasy, snowedIn))
+        // (And people pressing them, with [inflation.Tuning.huntersPressed]: a want as hunger is, that drives the settled too.)
+        val need = maxOf((1f - f[p]).coerceIn(0f, 1f), thirst, max(uneasy, snowedIn), pressure(k, p))
         val h = hw.placeHex[p]
         // Hungry, thirsty, cold or snowed-in ones leave, and so do those whose country does not suit them, towards better.
         // (The settled of a kind that also roams hold their ground: only want drives them off it; roaming to better country
@@ -508,7 +509,7 @@ fun HexFauna.disperse(k: FaunaKind, carcass: FloatArray): Float {
     // (Room on each hex, heads, as the step found it, taken down as they settle.)
     val room = FloatArray(hex.size)
     for (h in hex.all) { var heads = 0f; var area = 0f; for (q in hw.placesOf(h)) { heads += (a[q] + young[k][q]) * land.areaKm2[q]; area += land.areaKm2[q] }
-        room[h] = max(0f, usual[k] * area - heads) }
+        room[h] = max(0f, usual[k] * area * (1f - pressureOnHex(k, h)) - heads) }
     // (The ground about each hex they leave from is fixed by the map: worked out once, on all cores, the first step it is wanted.)
     val sources = hex.all.filter { h -> pool[h] >= DISPERSAL_LEAST && !dispersalGround.containsKey(groundKey(k, h)) }
     Par.forEach("residents: dispersal ground", sources.size) { i -> val h = sources[i]; dispersalGround[groundKey(k, h)] = dispersalAbout(h, reach, lengthKm) }
@@ -566,7 +567,7 @@ private fun HexFauna.disperseAtOnce(k: FaunaKind, pool: FloatArray, carcass: Flo
     for (h in hex.all) {
         var heads = 0f; var area = 0f
         for (q in hw.placesOf(h)) { heads += (a[q] + y[q]) * land.areaKm2[q]; area += land.areaKm2[q] }
-        room[h] = max(0f, usualK * area - heads)
+        room[h] = max(0f, usualK * area * (1f - pressureOnHex(k, h)) - heads)
         val n = pool[h]
         if (n >= DISPERSAL_LEAST) { sourceList += h; if (!dispersalGround.containsKey(groundKey(k, h))) unknownList += h }
         else if (n > 0f) { val d = if (n < DISPERSAL_GONE) n else n * dying
@@ -708,6 +709,9 @@ private fun HexFauna.dispersalAbout(h: Hex, reach: Int, lengthKm: Float): Disper
     }
     return DispersalGround(hs.toHexArray(), ws.copyOf(m), areas.copyOf(m))
 }
+
+/** What people press kind [k] by on hex [h] ([pressure]), at its low ground: the room dispersers find there is less by it. */
+private fun HexFauna.pressureOnHex(k: FaunaKind, h: Hex): Float = if (!tuning.huntersPressed) 0f else hw.firstPlaceIn(h).let { p -> if (p.none) 0f else pressure(k, p) }
 
 /** How far a disperser of [s] goes, km, the scale of nearness its settling weighs ([disperse]); an estimate. */
 private fun dispersalKm(s: Species) = if (s == Catalogue.LION) 30f else 60f
