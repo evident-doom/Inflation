@@ -108,7 +108,7 @@ class Tuning(
      * splits off takes a free hex beside its parent's; a world starts with one band to a hex, the best country first
      * (docs/design/band-movement-removal.md). Off unless set (under test).
      */
-    val bandsStay = read("t.bandsStay")?.toBooleanStrict() ?: false
+    val bandsStay = read("t.bandsStay")?.toBooleanStrict() ?: true
     /**
      * With [bandsStay]: how many times a year two bands in hexes side by side meet ([inflation.ecology.neighboursMeet]: friends
      * and kin, news of the country, gifts, words, customs), half as often for each hex further apart, out to five. Weekly
@@ -121,20 +121,20 @@ class Tuning(
      * hunting, so the nomads follow the game ([inflation.ecology.disperse]; docs/design/pack-performance.md, step 2). Off
      * unless set (under test).
      */
-    val poolDrifts = read("t.poolDrifts")?.toBooleanStrict() ?: false
+    val poolDrifts = read("t.poolDrifts")?.toBooleanStrict() ?: true
     /**
      * The beasts of prey keep out of people's way: a pressure per hunting kind by place, of the people within a day's
      * walk and of its kind killed by people lately, fading over months. Resident hunters weigh it in a place's appeal and
      * leave pressed ground as from want, dispersers find less room there, and packs pressed past what they bear grow
      * restless ([inflation.ecology.pressure]; docs/design/pack-performance.md, step 3). Off unless set (under test).
      */
-    val huntersPressed = read("t.huntersPressed")?.toBooleanStrict() ?: false
+    val huntersPressed = read("t.huntersPressed")?.toBooleanStrict() ?: true
     /**
      * Packs hold their ground ([inflation.ecology.holdsGround]): a pack on its home hex that is not restless weighs no place,
      * it stays, and hunts and marks its territory's footprint, the hexes within its range of home weighted by nearness, at
      * any step length ([inflation.ecology.footprint]; docs/design/pack-performance.md, step 4). Off unless set (under test).
      */
-    val packsStay = read("t.packsStay")?.toBooleanStrict() ?: false
+    val packsStay = read("t.packsStay")?.toBooleanStrict() ?: true
     /**
      * With [packsStay], for test: the strategy every pack holding its ground settles its contacts by ([inflation.ecology.engage]),
      * its stance on each part of its ground, as `lair:DEFEND,core:GIVE_WAY_TO_STRONGER,fringe:YIELD,outside:YIELD` (stances
@@ -155,13 +155,13 @@ class Tuning(
      * is the stronger, else holds its camp and falls back watching. What it saw of the others it remembers
      * ([inflation.ecology.Band.seenStrength]). A [bandStrategy] set for test overrides it. Off unless set (under test).
      */
-    val bandStances = read("t.bandStances")?.toBooleanStrict() ?: false
+    val bandStances = read("t.bandStances")?.toBooleanStrict() ?: true
     /**
      * With [packsStay]: a hunter that is no band, coming on another kind more than [inflation.ecology.AVOID_RATIO] times its
      * strength, keeps out of its sight and falls back if seen ([inflation.ecology.avoids], [inflation.ecology.Stance.HIDE_AND_SCOUT]),
      * as cheetahs and leopards keep out of lions' way: their safety is in not being found. Off unless set (under test).
      */
-    val packsHide = read("t.packsHide")?.toBooleanStrict() ?: false
+    val packsHide = read("t.packsHide")?.toBooleanStrict() ?: true
     /** The food cost of keeping warm, against [inflation.ecology.COLD_COST]. */
     val coldCost = f("coldCost", 1f)
 
