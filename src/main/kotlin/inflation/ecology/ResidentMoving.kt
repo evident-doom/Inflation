@@ -494,9 +494,11 @@ fun HexFauna.addDispersing(k: FaunaKind, h: Hex, heads: Float) {
  * its [HexFauna.usual]; the dead lie where they left. (Dispersal as a pool, not as lone packs: estimates of the magnitude,
  * wolves dispersing a few months over tens of km, lions longer and nearer, with about a third lost on the way;
  * Mech and Boitani 2003 from memory, to check.)
+ * The dead's weight goes into [carcass] (by place, as [carcassKg]), and their heads are returned, for the caller to add to
+ * the carcasses and the deaths: the kinds disperse at once, each into its own ([HexGroups.roamersLeave]).
  */
-fun HexFauna.disperse(k: FaunaKind) {
-    val pool = dispersing?.get(k.i) ?: return
+fun HexFauna.disperse(k: FaunaKind, carcass: FloatArray): Float {
+    val pool = dispersing?.get(k.i) ?: return 0f
     val s = kinds[k]
     val lengthKm = dispersalKm(s); val reach = (DISPERSAL_REACH * lengthKm / hex.hexKm).toInt().coerceAtLeast(1)
     val settleRate = 1f / dispersalDays(s); val a = adults[k]
@@ -535,12 +537,12 @@ fun HexFauna.disperse(k: FaunaKind) {
             room[q] -= put; placed += put
         }
         pool[h] = n - placed - died
-        if (died > 0f) carcassKg[hw.placesOf(h)[0]] += died * s.massKg
+        if (died > 0f) carcass[hw.placesOf(h)[0]] += died * s.massKg
         lost += died; settledAll += placed
     }
-    // (The dead on the way count as homeless, as a pack without ground dies; and those that settled, for the report.)
-    if (lost > 0f) deaths.merge(Tally.of(s, DeathCause.HOMELESS), lost.toDouble(), Double::plus)
+    // (Those that settled, for the report; the dead on the way are the caller's to book.)
     if (settledAll >= 1f) stats.meeting(Met.Of.ROAMERS_SETTLED, s.name, settledAll.toInt())
+    return lost
 }
 
 /**

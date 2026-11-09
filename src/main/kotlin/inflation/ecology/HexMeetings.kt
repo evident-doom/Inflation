@@ -779,6 +779,7 @@ internal fun HexGroups.settleIn(g: HexGroup) {
  * wolf roamers 171 / 299 / 519 / 11 at 6 / 12 / 30 / 60 days). The packs a world starts with still roam and settle as packs.
  */
 internal fun HexGroups.roamersLeave() {
+    val dispersing = ArrayList<FaunaKind>()
     for ((k, s) in fauna.kinds.withKinds()) {
         val due = fauna.leaving[k] ?: continue
         if (s !in kinds) continue
@@ -790,7 +791,16 @@ internal fun HexGroups.roamersLeave() {
             fauna.takeGrown(k, h, n); fauna.addDispersing(k, h, n); went += n
         }
         if (went >= 1f) stats.meeting(Met.Of.ROAMERS_LEFT, s.name, went.toInt())
-        fauna.disperse(k)
+        dispersing += k
+    }
+    // (The kinds disperse at once, each over its own field and pool, its dead into a table of its own; the dead are added to
+    // the week's carcasses and deaths after, kind by kind in the order they always were, so the sums come out the same.)
+    val carcass = Array(dispersing.size) { FloatArray(fauna.carcassKg.size) }
+    val lost = FloatArray(dispersing.size)
+    Par.forEach("residents: dispersing kinds", dispersing.size) { i -> lost[i] = fauna.disperse(dispersing[i], carcass[i]) }
+    for ((i, k) in dispersing.withIndex()) {
+        val c = carcass[i]; for (p in c.indices) if (c[p] > 0f) fauna.carcassKg[p] += c[p]
+        if (lost[i] > 0f) fauna.deaths.merge(Tally.of(fauna.kinds[k], DeathCause.HOMELESS), lost[i].toDouble(), Double::plus)
     }
 }
 
