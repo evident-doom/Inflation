@@ -156,6 +156,12 @@ class Tuning(
      * ([inflation.ecology.Band.seenStrength]). A [bandStrategy] set for test overrides it. Off unless set (under test).
      */
     val bandStances = read("t.bandStances")?.toBooleanStrict() ?: false
+    /**
+     * With [packsStay]: a hunter that is no band, coming on another kind more than [inflation.ecology.AVOID_RATIO] times its
+     * strength, keeps out of its sight and falls back if seen ([inflation.ecology.avoids], [inflation.ecology.Stance.HIDE_AND_SCOUT]),
+     * as cheetahs and leopards keep out of lions' way: their safety is in not being found. Off unless set (under test).
+     */
+    val packsHide = read("t.packsHide")?.toBooleanStrict() ?: false
     /** The food cost of keeping warm, against [inflation.ecology.COLD_COST]. */
     val coldCost = f("coldCost", 1f)
 

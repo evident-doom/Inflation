@@ -742,6 +742,25 @@ Seed 1, 3 years, bands staying, the switches off; killed in raids per 1000 a yea
 - Not modelled: violence within the band (most of the record's killings). It would change no mechanics; a small
   background rate of homicide could be added for the causes of death to read true.
 
+### Keeping out of the stronger's way (9 Nov 2026, behind `t.packsHide`)
+
+Olli: could the encounter choices give leopards and cheetahs an edge they did not have? Lions boss them about to the
+point of extinction. On the larger world, lions killed 31-33% of all leopards' deaths and 41-54% of cheetahs'
+(young killed by lion, killed by lion). Their only escape was a single slip-away draw (`slipsAway`); nothing let
+them keep out of a lion's sight to begin with.
+
+- **The rule** (`avoids`): a hunter that is no band, coming on another kind more than `AVOID_RATIO` (2) times its
+  strength, takes `HIDE_AND_SCOUT` toward it: it keeps out of sight (up to `ENGAGE_HIDING` harder to see in cover) and
+  falls back if seen. No kind is named; the same line as the slip-away's. Cheetahs and leopards keep out of lions'
+  way, jackals out of wolves'.
+- **Outrunning** (`escapes`): one falling back from a hunter of another kind over twice its strength gets away only as
+  it would slip away (`slipChance`: senses and shelter, at most nine in ten), else it is caught and fights. So the
+  safety is mostly in not being found: cheetahs outrun lions, their cubs do not.
+- **The record:** lesser carnivores live among lions by avoiding them in space and time (Durant 1998, J. Anim. Ecol.;
+  Vanak et al. 2013, Ecology); lions are the chief killers of cheetah cubs (Laurenson 1994, J. Zool.).
+- **Measured:** not yet. The runs were started when this was written (see `HANDOFF.md`): switch off against the
+  committed code, on at 6 and 60 days, and the larger world off and on. Build and tests pass.
+
 ### For the future: more rules for violent encounters
 
 Noted by Olli, 9 Nov 2026, for later:

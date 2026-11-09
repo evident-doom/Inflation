@@ -122,7 +122,7 @@ internal fun holdsHere(g: HexGroup) = (g.footprint != null && g.path.size == 1) 
  */
 internal fun HexGroups.engages(a: HexGroup, b: HexGroup, contested: HexArray?, at: Hex = contested?.let { if (it.size > 0) it[0] else Hex.NONE } ?: Hex.NONE): Boolean {
     if (contested == null || !tuning.packsStay) return false
-    if (strategyOf(a).plain && strategyOf(b).plain && !bandStancesFor(a, b)) return false
+    if (strategyOf(a).plain && strategyOf(b).plain && !bandStancesFor(a, b) && !tuning.packsHide) return false
     return stanceOf(a, b, at) != plainStance(a, b) || stanceOf(b, a, at) != plainStance(b, a)
 }
 
@@ -141,8 +141,20 @@ internal fun HexGroups.stanceOf(g: HexGroup, other: HexGroup, h: Hex): Stance {
     val set = strategyOf(g)
     if (!set.plain) return set.at(groundOf(g, h))
     if (bandStancesFor(g, other)) return bandStance(g, other, groundOf(g, h))
+    if (avoids(g, other)) return Stance.HIDE_AND_SCOUT
     return plainStance(g, other)
 }
+
+/**
+ * Whether hunter [g] keeps out of [other]'s way ([inflation.Tuning.packsHide]): it is no band, [other] is of another kind
+ * and more than [AVOID_RATIO] times as strong ([HexGroups.strength]). It then keeps out of sight and falls back if seen
+ * ([Stance.HIDE_AND_SCOUT]): harder to find in cover ([sightings]), and one that sees the other coming gets away. Cheetahs
+ * keep out of lions' areas and hours and move their cubs, leopards keep to cover and trees: the lesser hunters live
+ * among the greater by not being found (Durant 1998, J. Anim. Ecol.; Vanak et al. 2013, Ecology). The same line as the
+ * slip-away's ([slipsAway]): no kind is named.
+ */
+internal fun HexGroups.avoids(g: HexGroup, other: HexGroup): Boolean =
+    tuning.packsHide && g.band == null && other.species != g.species && strength(other) > AVOID_RATIO * strength(g)
 
 /**
  * Band [g]'s stance toward band [other] on ground [ground] of its own, by how it regards it ([Regard]) and what it knows of
@@ -237,6 +249,18 @@ internal fun HexGroups.seenInputs(g: HexGroup, b: Band, into: FloatArray, now: L
     into[BandInputs.SEEN] = minOf(3f, most) / 3f; into[BandInputs.SEEN_HOSTILE] = minOf(3f, hostile) / 3f
     into[BandInputs.SEEN_COUNT] = minOf(1f, n / 5f)
 }
+
+/**
+ * Whether [g], falling back from [other] that comes on at place [p], outruns it: one fleeing a hunter of another kind more
+ * than [AVOID_RATIO] times as strong gets away as it slips away from one ([slipChance]: by its senses and the shelter about,
+ * at most nine in ten), drawn by [r] only then; from any other it gets away. So the lesser hunters' safety is mostly in
+ * not being found: cheetahs outrun lions, but their cubs do not (Laurenson 1994: lions the chief killers of cheetah cubs).
+ */
+internal fun HexGroups.escapes(g: HexGroup, other: HexGroup, p: Place, r: Random): Boolean =
+    if (other.species == g.species || strength(other) <= AVOID_RATIO * strength(g)) true else r.nextFloat() < slipChance(g.species, other.species, p)
+
+/** How many times stronger another kind must be before a hunter keeps out of its way ([avoids]): as the slip-away's ([slipsAway]). */
+internal const val AVOID_RATIO = 2f
 
 /** Days a band remembers what it saw of another ([Band.seenStrength]): a season; an estimate. */
 internal const val SEEN_DAYS = 90L
@@ -336,9 +360,11 @@ internal class Engaged(val ending: Ending, val surpriseA: Boolean, val surpriseB
  * their strengths as they stand ([sa0], [sb0]: holding their ground included) and wills to fight ([willA], [willB]), and
  * whether [a] came to raid ([raid]). Each acts ([actOf]); one that falls on the other unseen strikes with surprise; one
  * taken unawares can neither withdraw nor slip by; one that saw the other coming and withdraws gets away, giving the
- * ground; two that both withdraw, the weaker gives it. Pure: the draws are made before ([sightingsOf]).
+ * ground, if it outruns the other ([aEscapes], [bEscapes]: drawn before, [escapes]); two that both withdraw, the weaker
+ * gives it. Pure: the draws are made before ([sightingsOf]).
  */
-internal fun settleEngagement(stA: Stance, stB: Stance, aSees: Boolean, bSees: Boolean, sa0: Float, sb0: Float, willA: Float, willB: Float, raid: Boolean): Engaged {
+internal fun settleEngagement(stA: Stance, stB: Stance, aSees: Boolean, bSees: Boolean, sa0: Float, sb0: Float, willA: Float, willB: Float, raid: Boolean,
+                              aEscapes: Boolean = true, bEscapes: Boolean = true): Engaged {
     val actA = actOf(stA, aSees, bSees, sa0, sb0, willA)
     val actB = actOf(stB, bSees, aSees, sb0, sa0, willB)
     val surpriseA = actA == Act.FIGHT && !bSees; val surpriseB = actB == Act.FIGHT && !aSees
@@ -349,8 +375,8 @@ internal fun settleEngagement(stA: Stance, stB: Stance, aSees: Boolean, bSees: B
         (aSees && actA == Act.LIE_LOW) || (bSees && actB == Act.LIE_LOW) -> ended(Ending.SCOUTED)
         else -> ended(Ending.PASSED_UNSEEN)
     }
-    if (actA == Act.WITHDRAW && aSees && !surpriseB) return ended(Ending.A_GAVE_WAY)
-    if (actB == Act.WITHDRAW && bSees && !surpriseA) return ended(Ending.B_GAVE_WAY)
+    if (actA == Act.WITHDRAW && aSees && !surpriseB && (actB != Act.FIGHT || aEscapes)) return ended(Ending.A_GAVE_WAY)
+    if (actB == Act.WITHDRAW && bSees && !surpriseA && (actA != Act.FIGHT || bEscapes)) return ended(Ending.B_GAVE_WAY)
     val sa = sa0 * (if (surpriseA) ENGAGE_SURPRISE else 1f); val sb = sb0 * (if (surpriseB) ENGAGE_SURPRISE else 1f)
     val aStrikes = actA == Act.FIGHT && (actB != Act.FIGHT || surpriseA || (!surpriseB && (raid || (aSees && !bSees) || (aSees == bSees && sa >= sb))))
     return Engaged(Ending.FOUGHT, surpriseA, surpriseB, aStrikes, sa, sb)
@@ -382,7 +408,8 @@ internal fun HexGroups.engage(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk: In
     val sa0 = strength(a); val sb0 = strength(b)
     val holdA = if (stA == Stance.DEFEND) holding(a, b, h) else 1f; val holdB = if (stB == Stance.DEFEND) holding(b, a, h) else 1f
     // (What each does and how it ends, by the numbers alone, [settleEngagement].)
-    val e = settleEngagement(stA, stB, aSees, bSees, sa0 * holdA, sb0 * holdB, a.will[AnimalWay.FIGHT], b.will[AnimalWay.FIGHT], raid)
+    val e = settleEngagement(stA, stB, aSees, bSees, sa0 * holdA, sb0 * holdB, a.will[AnimalWay.FIGHT], b.will[AnimalWay.FIGHT], raid,
+        escapes(a, b, p, r), escapes(b, a, p, r))
     val surpriseA = e.surpriseA; val surpriseB = e.surpriseB
     if (surpriseA || surpriseB) stats.meeting(Met.ENGAGEMENTS_AMBUSHED)
     when (e.ending) {

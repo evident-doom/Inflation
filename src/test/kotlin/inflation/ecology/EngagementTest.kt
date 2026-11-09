@@ -73,6 +73,15 @@ class EngagementTest {
     }
 
     @Test
+    fun `one that falls back but cannot outrun the other is caught and fights`() {
+        val e = settleEngagement(Stance.HIDE_AND_SCOUT, Stance.GIVE_WAY_TO_STRONGER, true, true, 1f, 5f, will, will, false, aEscapes = false)
+        assertEquals(Ending.FOUGHT, e.ending); assertTrue(!e.aStrikes)
+        assertEquals(Ending.A_GAVE_WAY, settleEngagement(Stance.HIDE_AND_SCOUT, Stance.GIVE_WAY_TO_STRONGER, true, true, 1f, 5f, will, will, false, aEscapes = true).ending)
+        // (Against one that does not come on, there is nothing to outrun.)
+        assertEquals(Ending.A_GAVE_WAY, settleEngagement(Stance.HIDE_AND_SCOUT, Stance.YIELD, true, true, 1f, 5f, will, will, false, aEscapes = false).ending)
+    }
+
+    @Test
     fun `a scout unseen watches and nothing comes of it, two that hide and miss each other pass unseen`() {
         assertEquals(Ending.SCOUTED, settle(Stance.HIDE_AND_SCOUT, Stance.YIELD, aSees = true, bSees = false).ending)
         assertEquals(Ending.PASSED_UNSEEN, settle(Stance.AMBUSH, Stance.AMBUSH, aSees = false, bSees = false).ending)
