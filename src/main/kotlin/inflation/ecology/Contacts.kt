@@ -120,12 +120,12 @@ internal fun HexGroups.contacts(): List<Contact> {
 }
 
 /**
- * Whether groups [a] and [b] contend where their grounds overlap: the rule of who has dealings with whom, for the contacts
- * ([contacts]). Every pair, as at the meetings by timetable: what comes of it is the meeting's ([engage], or the rules of
- * the kinds that meet: two bands talk or raid, [bandsMeet]).
+ * Whether groups [a] and [b] come on each other by chance where their grounds overlap, for the contacts ([contacts]): every
+ * pair but two bands that both hold their home hex, whose every contact is their visiting ([neighboursMeet]: the bands
+ * about meet as often as foragers' bands are in touch, all of it, Olli 9 Nov 2026). What comes of a contact is the
+ * meeting's ([settle]).
  */
-@Suppress("UNUSED_PARAMETER")
-internal fun contend(a: HexGroup, b: HexGroup) = true
+internal fun GroupWorld.contend(a: HexGroup, b: HexGroup) = !(staysHome(a) && staysHome(b))
 
 /**
  * Band [g], holding its home hex ([staysHome]), is about its home hex and the six round it as its foragers go out and back

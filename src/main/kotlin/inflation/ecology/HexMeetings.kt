@@ -160,7 +160,8 @@ internal fun HexGroups.keepAppointments(weather: Weather) {
         val came = there.take(GATHERING_MOST)
         for (g in came) wearBetween(hw.placeHex[g.place], site, g)
         stats.meeting(Met.APPOINTMENTS_GATHERED); stats.meeting(Met.BANDS_AT_APPOINTMENTS, came.size)
-        for (i in came.indices) for (j in i + 1 until came.size) if (came[i].alive && came[j].alive) bandsMeet(came[i], came[j], weather)
+        for (i in came.indices) for (j in i + 1 until came.size) if (came[i].alive && came[j].alive) {
+            if (tuning.packsStay) settleAt(came[i], came[j], site, weather) else bandsMeet(came[i], came[j], weather) }
     }
 }
 
@@ -205,7 +206,8 @@ internal fun HexGroups.neighboursMeet(weather: Weather) {
         val a = stayers[i]; val h0 = hw.placeHex[a.place]
         val reach = effortsFrom(h0, Catalogue.travel(a.species).ordinal, hw.placeBand[a.place], weather, CONTACT_KM)
         reaches[i] = reach
-        peopled[i] = reach.keys.filter { it != h0 && it in byHex }.sortedBy { it.i }
+        // (With t.packsStay, the bands of its own hex too, a budded band and its parent: their every contact is visiting, [contend].)
+        peopled[i] = reach.keys.filter { (it != h0 || tuning.packsStay) && it in byHex }.sortedBy { it.i }
     }
     for ((i, a) in stayers.withIndex()) {
         val h0 = hw.placeHex[a.place]
@@ -230,7 +232,7 @@ internal fun HexGroups.neighboursMeet(weather: Weather) {
         stats.meeting(Met.NEIGHBOURS_MET, m.times)
         // (Each going there and back wears the way: the meetings' wear compounded, as one after another would.)
         wear.along(m.way, 1f - (1f - w).pow(m.times))
-        bandsMeet(m.a, m.b, weather)
+        if (tuning.packsStay) settleAt(m.a, m.b, hw.placeHex[m.b.place], weather) else bandsMeet(m.a, m.b, weather)
     }
     meetTick = 0; meetTimes = 1
 }
@@ -276,6 +278,35 @@ internal const val CONTACT_KM = 50f
 internal const val NEIGHBOUR_RINGS = 5
 /** The people who go to a band about and back for a meeting ([neighboursMeet]), for the wear of their going. An estimate. */
 internal const val VISITORS = 4f
+
+/**
+ * Two parties come on each other at hex [h] (place [p]), however they came to: by their timetables, by their grounds
+ * overlapping ([contacts]), by visiting ([neighboursMeet]) or at a gathering ([keepAppointments]). The one way every
+ * meeting is settled: by the two sides' strategies where either has one other than the animals' ([engage], over
+ * [byStrategy], the hexes it is over); else by the rules of the kinds that meet: a hunter that senses a much stronger one
+ * first keeps out of its way ([slipsAway]); two bands talk or raid ([bandsMeet]); rivals of one kind and hunters of
+ * different kinds by their standing orders ([rivalsMeet], [enemiesMeet]). [ak], [ai], [bk], [bi]: each party's index among
+ * the meeting's parties and the point of its way, for [stop] (where a party on its way turns back).
+ */
+internal fun HexGroups.settle(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk: Int, bi: Int, h: Hex, p: Place, byStrategy: HexArray?,
+                              stop: IntArray, weather: Weather, rite: RiteGathering? = null) {
+    if (byStrategy != null) { engage(a, ak, ai, b, bk, bi, byStrategy, h, stop, rnd); return }
+    if (slipsAway(a, b, p) || slipsAway(b, a, p)) stats.meeting(Met.SLIPPED_AWAY)
+    else if (a.species.human && b.species.human) run { val t0 = Profile.mark(); bandsMeet(a, b, weather, rite); Profile.slow("meeting: bands", t0, weather.date.absoluteDay) { a.probe(weather.date.absoluteDay) + " | " + b.probe(-1L) } }
+    else if (a.species == b.species) rivalsMeet(a, ak, ai, b, bk, bi, h, stop)
+    else enemiesMeet(a, ak, ai, b, bk, bi, h, stop)
+}
+
+/**
+ * Two parties that hold their ground meet at hex [h] not on a way but by a visit or a gathering ([neighboursMeet],
+ * [keepAppointments]): settled as any meeting is ([settle]), the hex the meeting's ground; neither has a way to turn
+ * back on.
+ */
+internal fun HexGroups.settleAt(a: HexGroup, b: HexGroup, h: Hex, weather: Weather, rite: RiteGathering? = null) {
+    contested = hexArray(1) { h }; contestDay = weather.date.absoluteDay
+    val p = hw.placeNear(b.place, h).takeIf { !it.none } ?: b.place
+    settle(a, 0, 0, b, 1, 0, h, p, engagedOver(a, b, null, h)?.takeIf { engages(a, b, it) }, IntArray(2), weather, rite)
+}
 
 /** The meetings of groups whose timetables bring them into the same hex ([meet]). */
 private fun HexGroups.meetSettle(weather: Weather) {
@@ -360,11 +391,7 @@ private fun HexGroups.meetSettle(weather: Weather) {
             ra?.fresh(); rb?.fresh()
             if (!a.alive || !b.alive) break
             // (A contact of which a side has a strategy other than the animals' is settled by the strategies, [engage].)
-            if (byStrategy != null) { engage(a, e.a, e.ai, b, e.b, e.bi, byStrategy, h, stop, rnd); ra?.settle(); rb?.settle(); continue }
-            if (slipsAway(a, b, p) || slipsAway(b, a, p)) stats.meeting(Met.SLIPPED_AWAY)
-            else if (a.species.human && b.species.human) run { val t0 = Profile.mark(); bandsMeet(a, b, weather); Profile.slow("meeting: bands", t0, weather.date.absoluteDay) { a.probe(weather.date.absoluteDay) + " | " + b.probe(-1L) } }
-            else if (a.species == b.species) rivalsMeet(a, e.a, e.ai, b, e.b, e.bi, h, stop)
-            else enemiesMeet(a, e.a, e.ai, b, e.b, e.bi, h, stop)
+            settle(a, e.a, e.ai, b, e.b, e.bi, h, p, byStrategy, stop, weather)
             ra?.settle(); rb?.settle()
         }
     }

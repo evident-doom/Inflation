@@ -511,3 +511,36 @@ Seed 1, 3 years, bands staying, packs staying. Without the switch the results ar
 - **To settle in stage 3:** whether chance meetings come on top of the visits, as now, or the visiting rate (60 a year
   a hex apart) is the whole of how often neighbours meet, the chance ones counted in it. The figures for foragers
   (Hadza bands 35 km apart, Agta camps visiting almost daily) are of all contact, so the second is likelier right.
+
+### Stage 3 done: visits are all contact between neighbouring bands; one settle for every meeting (9 Nov 2026)
+
+Olli, 9 Nov 2026: the visiting rate is the whole of how often neighbouring bands are in touch, the chance meetings
+counted in it.
+
+- Two bands that both hold their home hex no longer come on each other by chance where their grounds overlap
+  (`contend`): their every contact is their visiting (`neighboursMeet`). They still come on packs and resident
+  hunters by chance where their grounds overlap.
+- The bands of a band's own hex (a budded band and its parent) are among those it visits, at the full rate: before,
+  they met only by their timetables, and with stage 2 by contact.
+- **Every meeting is settled the one way** (`settle`): by timetable, by contact, by visit or at a gathering, by the
+  strategies where either side has one other than the animals' (`engage`), else by the rules of the kinds that meet
+  (a slip-away check, bands talk or raid, rivals', enemies' standing orders). Visits and gatherings come in through
+  `settleAt`, with the visited band's hex as the meeting's ground.
+
+Seed 1, 3 years:
+
+| | meetings of bands a year (neighbours' visits) | people | people born / died, last year | flux, of people's deaths | leopards | cheetahs |
+|---|---|---|---|---|---|---|
+| 400x600 km, 6 days, stage 1 / 2 / 3 | 4392 / 6123 / 4154 (3522 / 3210 / 3535) | 1533 / 1522 / 1539 | 80/50, 86/51, 79/40 | 28% / 36% / 26% | 100 / 121 / 121 | 7 / 7 / 6 |
+| 400x600 km, 60 days, stage 1 / 2 / 3 | 3929 / 5960 / 3667 | 1587 / 1556 / 1590 | 71/38, 70/52, 71/40 | 14% / 31% / 7% | 23 / 14 / 16 | 6 / 10 / 5 |
+| 800x1200 km, 6 days, stage 1 / 2 / 3 | 45077 / 71660 / 45556 (38808 / 38906 / 39222) | 13881 / 13483 / 13819 | 685/576, 679/693, 690/610 | 14% / 19% / 13% | 915 / 903 / 834 | 65 / 48 / 42 |
+
+- Without the switch the results are the same, line for line.
+- Meetings of bands are back where they were before stage 2, and so are people's deaths and the sicknesses passed at
+  meetings.
+- People now kill more leopards, 4% of leopards' deaths against 1% before stage 2: bands come on the packs over all
+  their grounds, not only at their camp. On the larger world leopards are 9% under stage 2. This is the people's
+  pressure on the hunters showing through the meetings; to watch on the full map.
+- Meetings on the larger world 23.0 ms, the whole step 189.3 ms, as before stage 2.
+- Kin visits (`visitKin`) are a hungry band fed by one about it, a move of food rather than a meeting; they stay as
+  they are.
