@@ -16,6 +16,13 @@ object Nourishment {
      * only a third to two thirds of their glucose absorbed, Schnorr et al. 2015): about 2.5 kcal/g, as middling forage.
      */
     const val ROOTS = 1f
+    /**
+     * Acorns and nuts as they fall, dry, shell and all ([inflation.ecology.HexFood.mast]): English oak kernel some 17.4 MJ/kg
+     * gross (Pak J Bot paper 7852, Q. robur), and by Atwater's factors on 6.1% fat, 6.1% protein and 76% carbohydrate dry
+     * (ICBC 2024, Q. robur kernel flour) at most 3.8 kcal/g, part of that carbohydrate fibre; USDA SR "nuts, acorns, dried"
+     * (American oaks, fattier) 5.1. The shell some fifth of the dry acorn (from memory, not checked): some 3,000 kcal/kg.
+     */
+    const val MAST = 3000f / UNIT_KCAL
     /** Grain and grass seed, dry: einkorn 369 kcal/100 g (USDA FDC); raw seed's poor digestion is [seedValue]'s. */
     const val GRAIN = 1.5f
     /**
