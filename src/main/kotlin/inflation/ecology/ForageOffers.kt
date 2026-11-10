@@ -238,7 +238,10 @@ internal fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
         // party-days a kg takes out there, finding and taking it (seed and grain: all their handling, threshing and grinding
         // with it, an over-count). Hadza women walk some 5.8 km a day, Pontzer et al. 2012.)
         val dayWalk = if (band != null) 2f / (WALK_KM_PER_HOUR * Activity.WORK_HOURS) else 0f
-        fun walked(t: Food, km: Float, field: Float) = km * max(w.walkDaysPerKm / dryShare(t), dayWalk * max(0f, field - w.eats))
+        // (Food too thin to find in any time, [field] infinite, is walked to as before: it is not taken up, and Inf - Inf
+        // in [plant]'s worn-ground reckoning would make its days NaN.)
+        fun walked(t: Food, km: Float, field: Float) = km * max(w.walkDaysPerKm / dryShare(t),
+            (field - w.eats).let { f -> if (f.isFinite()) dayWalk * max(0f, f) else 0f })
         // (A band's gatherers must find fruit before they pick it, as they must roots: the thinner it grows, the longer a
         // kilo; see [PLANT_SIGHT_M2_PER_DAY].)
         val food = fauna.food
