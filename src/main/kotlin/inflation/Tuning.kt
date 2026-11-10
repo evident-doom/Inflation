@@ -20,13 +20,11 @@ class Tuning(
     /** People's sickness from crowding, against [inflation.ecology.PEOPLE_SICK]. */
     val peopleSick = f("peopleSick", 1f)
     /**
-     * Time to pick or dig a kilo of plant food (not grain or seed: [inflation.ecology.reapDaysPerKg]), against [inflation.ecology.PLANT_HANDLING_DAYS_PER_KG] and its kin. 1.6:
-     * at 1, bands' gatherers got some 2,070 kcal an hour, the in-patch rate, against 460-910 for !Kung mongongo with travel and
-     * processing (Blurton Jones, Hawkes & Draper 1994) and 729 across foragers (Kraft et al. 2021); 1.6 brings them to some
-     * 1,430 at a cost of 5-6% of people, and 2.5 (some 1,010) cost 26-38% (gather screen, 2026-11-04). An approximation
-     * until it is known where the food beyond the field rates goes.
+     * Time to pick or dig a kilo of plant food (not grain or seed: [inflation.ecology.reapDaysPerKg]), against [inflation.ecology.PLANT_HANDLING_DAYS_PER_KG] and its kin:
+     * 1, the record's in-patch rates. (It was 1.6 from 2026-11-04, fitted to bring gatherers' returns down while acorns were
+     * picked as berries and the day's walk out was charged by the full load; both since fixed, 2026-11-10.)
      */
-    val plantHandling = f("plantHandling", 1.6f)
+    val plantHandling = f("plantHandling", 1f)
     /** Chance a much stronger hunter kills another kind's young, against [inflation.ecology.INTRAGUILD_KILL_YOUNG]. */
     val intraguildYoung = f("intraguildYoung", 1f)
     /** People's deaths of age and ordinary illness, of children, of thirst, and from camp fouling, against their present rates. */
