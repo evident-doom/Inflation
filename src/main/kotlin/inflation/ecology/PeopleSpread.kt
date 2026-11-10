@@ -89,8 +89,8 @@ internal const val FISH_TAKEN = 0.3f
  * Kelly 2013, from memory.) A measure for where people start and spread to, against how many hold it; not food anyone eats.
  */
 internal fun HexGroups.placeFood(p: Place): Float {
-    val m2 = land.areaKm2[p] * 1e6f
-    val forage = land.palatable[p] * (land.plants.herb[p] + land.plants.shrub[p]) * m2
+    val m2 = land.areaKm2[p.i] * 1e6f
+    val forage = land.palatable[p.i] * (land.plants.herb[p.i] + land.plants.shrub[p.i]) * m2
     return forage * GAME_OF_FORAGE + fauna.food.roots[p.i] * m2 * ROOTS_TAKEN
 }
 
