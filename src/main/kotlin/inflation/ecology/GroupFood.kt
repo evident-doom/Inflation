@@ -611,6 +611,8 @@ internal class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, pack
      * gatherers' searching (for small game and carrion) and handling, and of the gatherers' plant food, the days finding it
      * and walking to it and home.
      */
+    /** What each party's take this week fed ([Offers.who]: hunters, gatherers, children), kg of need: for the census of returns. */
+    val fedBy = FloatArray(3)
     var huntSearch = 0f; var huntHandle = 0f; var gatherSearch = 0f; var gatherHandle = 0f; var plantSeek = 0f; var plantWalk = 0f
     /** For the census of grain ([Tally.Grain]): days of a hand reaping wild and sown grain, kilos of each, people-days grinding. */
     var wildDays = 0f; var fieldDays = 0f; var wildKg = 0f; var fieldKg = 0f; var grindDays = 0f
@@ -673,6 +675,7 @@ private fun HexGroups.countFoodTime(w: ForageWeek, time: BandTime) {
     add(Tally.FoodTime.GATHER_SEARCH, w.gatherSearch * hands); add(Tally.FoodTime.GATHER_HANDLE, w.gatherHandle * hands)
     add(Tally.FoodTime.PLANT_SEEK, w.plantSeek * hands); add(Tally.FoodTime.PLANT_WALK, w.plantWalk * hands)
     add(Tally.FoodTime.FED, w.fed)
+    add(Tally.FoodTime.HUNT_FED, w.fedBy[0]); add(Tally.FoodTime.GATHER_FED, w.fedBy[1]); add(Tally.FoodTime.CHILD_FED, w.fedBy[2])
     fun grain(k: Tally.Grain, x: Float) { if (x > 0f) stats.tally(Tally.grain(k), x.roundToInt()) }
     grain(Tally.Grain.WILD_KG, w.wildKg); grain(Tally.Grain.FIELD_KG, w.fieldKg)
     grain(Tally.Grain.WILD_DAYS, 10f * w.wildDays * hands); grain(Tally.Grain.FIELD_DAYS, 10f * w.fieldDays * hands)

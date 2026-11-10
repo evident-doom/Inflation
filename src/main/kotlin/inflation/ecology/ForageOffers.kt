@@ -233,7 +233,15 @@ internal fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
         fun walkKm(share: Float) = 2f / 3f * sqrt(share * land.areaKm2[q] / PI.toFloat()) + off
         val walk = walkKm(reach)
         val seedWalk = walkKm(seedReach)
-        fun walked(t: Food, km: Float) = km * w.walkDaysPerKm / dryShare(t)
+        // (Gatherers go out and back once a day whatever they bring home: the walk costs each kg its share of a full load
+        // ([GATHER_LOAD_KG]) or of the day's take in the field, which is less where the work is slow. [field] is the
+        // party-days a kg takes out there, finding and taking it (seed and grain: all their handling, threshing and grinding
+        // with it, an over-count). Hadza women walk some 5.8 km a day, Pontzer et al. 2012.)
+        val dayWalk = if (band != null) 2f / (WALK_KM_PER_HOUR * Activity.WORK_HOURS) else 0f
+        // (Food too thin to find in any time, [field] infinite, is walked to as before: it is not taken up, and Inf - Inf
+        // in [plant]'s worn-ground reckoning would make its days NaN.)
+        fun walked(t: Food, km: Float, field: Float) = km * max(w.walkDaysPerKm / dryShare(t),
+            (field - w.eats).let { f -> if (f.isFinite()) dayWalk * max(0f, f) else 0f })
         // (A band's gatherers must find fruit before they pick it, as they must roots: the thinner it grows, the longer a
         // kilo; see [PLANT_SIGHT_M2_PER_DAY].)
         val food = fauna.food
@@ -258,7 +266,7 @@ internal fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
             offer(w, o, f, kind, Place(q), land.total(Place(q), KgM2(got * density)).v / days, 1f, h, rich = rich, seek = sk, walk = wk)
         }
         fun sought(density: Float) = if (band != null && density > 0f) 1f / (PLANT_SIGHT_M2_PER_DAY * density * w.gatherers) else 0f
-        plant(Food.FRUIT, 0, reach, food.fruit[q], fruitQ + sought(food.fruit[q]) + walked(Food.FRUIT, walk), sought(food.fruit[q]), walked(Food.FRUIT, walk))
+        plant(Food.FRUIT, 0, reach, food.fruit[q], fruitQ + sought(food.fruit[q]) + walked(Food.FRUIT, walk, fruitQ + sought(food.fruit[q])), sought(food.fruit[q]), walked(Food.FRUIT, walk, fruitQ + sought(food.fruit[q])))
         // (Roots likewise, searched out over less ground a day, [ROOT_SEARCH_M2_PER_DAY]; none are dug in frozen ground,
         // [HexFood.diggable]. The mast lying under the trees is picked up a nut at a time, as fruit is picked ([MAST_KIND]);
         // its bitter share must be leached before it is eaten, by bands that know how and have water by them
@@ -266,13 +274,13 @@ internal fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
         if (band != null) {
             val bulbs = food.diggable(Place(q))
             val rootSearch = if (bulbs > 0f) 1f / (ROOT_SEARCH_M2_PER_DAY * bulbs * w.gatherers) else 0f
-            plant(Food.ROOTS, 0, reach, bulbs, ROOT_DIGGING * pickQ + rootSearch + walked(Food.ROOTS, walk), rootSearch, walked(Food.ROOTS, walk))
+            plant(Food.ROOTS, 0, reach, bulbs, ROOT_DIGGING * pickQ + rootSearch + walked(Food.ROOTS, walk, ROOT_DIGGING * pickQ + rootSearch), rootSearch, walked(Food.ROOTS, walk, ROOT_DIGGING * pickQ + rootSearch))
             val bitter = if (band.leachesMast(land.drink.water[q] >= Thresholds.WET || land.drink.waterKm[q] < 3f)) MAST_BITTER else 0f
             val eaten = 1f - MAST_BITTER + bitter
             val leach = bitter / eaten * MAST_LEACH_DAYS_PER_KG / w.gatherers * band.slowness(Skill.LEACHING)
-            plant(Food.ROOTS, MAST_KIND, reach * eaten, food.mast[q], fruitQ + leach + sought(food.mast[q]) + walked(Food.ROOTS, walk), sought(food.mast[q]), walked(Food.ROOTS, walk), MAST_RICH)
-        } else plant(Food.ROOTS, 0, reach, food.underground(Place(q)), ROOT_DIGGING * pickQ + walked(Food.ROOTS, walk))
-        plant(Food.FINDS, 0, reach, food.finds[q], ROOT_DIGGING * pickQ + walked(Food.FINDS, walk), walked = walked(Food.FINDS, walk))
+            plant(Food.ROOTS, MAST_KIND, reach * eaten, food.mast[q], fruitQ + leach + sought(food.mast[q]) + walked(Food.ROOTS, walk, fruitQ + sought(food.mast[q])), sought(food.mast[q]), walked(Food.ROOTS, walk, fruitQ + sought(food.mast[q])), MAST_RICH)
+        } else plant(Food.ROOTS, 0, reach, food.underground(Place(q)), ROOT_DIGGING * pickQ + walked(Food.ROOTS, walk, 0f))
+        plant(Food.FINDS, 0, reach, food.finds[q], ROOT_DIGGING * pickQ + walked(Food.FINDS, walk, ROOT_DIGGING * pickQ), walked = walked(Food.FINDS, walk, ROOT_DIGGING * pickQ))
         // Grass seed must be reaped, threshed and ground: worth it only with the tools and the hands.
         // (The small seeds of wild grasses are beaten out, parched and winnowed at their own rate, [smallSeedDaysPerKg]; both
         // must be found, as fruit is. A band beats them out the sooner the thicker they stand, [standHandling]: over the place,
@@ -280,16 +288,17 @@ internal fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
         // (Its days a kilo against wild cereal's in a stand of [REF_STAND_KG_M2], whose days [seedQ] holds.)
         val refReap = reapDaysPerKg(band, tuning)
         val seedStand = if (band != null) smallSeedDaysPerKg(band, food.seeds[q]) / refReap else 1f
-        plant(Food.SEED, 0, seedReach, food.seeds[q], (seedQ - eats) * seedStand + eats + sought(food.seeds[q]) + walked(Food.SEED, seedWalk),
-            sought(food.seeds[q]), walked(Food.SEED, seedWalk))
+        plant(Food.SEED, 0, seedReach, food.seeds[q], (seedQ - eats) * seedStand + eats + sought(food.seeds[q]) + walked(Food.SEED, seedWalk, (seedQ - eats) * seedStand + eats + sought(food.seeds[q])),
+            sought(food.seeds[q]), walked(Food.SEED, seedWalk, (seedQ - eats) * seedStand + eats + sought(food.seeds[q])))
         // Wild and sown cereals: reaped like grass seed, but richer where they stand. A band's reapers cut a kilo the
         // sooner the thicker it stands ([reapDaysPerKg]): the wild stand as thick as its grain stands in it, a sown field
         // (kind [FIELD_KIND]) as thick as it stands in the plot. (An animal eats the grain where it finds it.)
         fun grainQ(stand: Float) = if (band != null) (seedQ - eats) * reapDaysPerKg(band, tuning, stand) / refReap + eats else seedQ
         val wild = food.grain[q]; val sown = food.fieldGrain[q]
-        plant(Food.GRAIN, 0, seedReach, wild, grainQ(food.wildStand(Place(q))) + sought(wild) + walked(Food.GRAIN, seedWalk), sought(wild), walked(Food.GRAIN, seedWalk))
-        if (sown > 0f) plant(Food.GRAIN, FIELD_KIND, seedReach, sown, grainQ(food.fieldStand(Place(q))) + sought(sown) + walked(Food.GRAIN, seedWalk),
-            sought(sown), walked(Food.GRAIN, seedWalk))
+        plant(Food.GRAIN, 0, seedReach, wild, grainQ(food.wildStand(Place(q))) + sought(wild) + walked(Food.GRAIN, seedWalk, grainQ(food.wildStand(Place(q))) + sought(wild)), sought(wild),
+            walked(Food.GRAIN, seedWalk, grainQ(food.wildStand(Place(q))) + sought(wild)))
+        if (sown > 0f) plant(Food.GRAIN, FIELD_KIND, seedReach, sown, grainQ(food.fieldStand(Place(q))) + sought(sown) + walked(Food.GRAIN, seedWalk, grainQ(food.fieldStand(Place(q))) + sought(sown)),
+            sought(sown), walked(Food.GRAIN, seedWalk, grainQ(food.fieldStand(Place(q))) + sought(sown)))
     }
     // Bands fish the river, the lake or the sea by their camp, as their skill and nets allow ([Band.fishing]); and gather
     // shellfish off the shore, which wants neither (kind [SHELLFISH_KIND] of the fish offered).
@@ -341,6 +350,7 @@ internal fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
             Food.SEED, Food.GRAIN -> { val d = expected * o.time[i] * w.party[o.who[i]]; w.plantWorkDays += d; w.seedWorkDays += d }
             else -> {}
         }
+        val fedBefore = w.fed
         when (o.type[i]) {
             Food.BIG_GAME -> {
                 if (HUNT_DIAG && band == null) w.killsExpected += expected
@@ -420,6 +430,7 @@ internal fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
                 w.plantFrom[PlantFrom.GRAIN] += fed
             }
         }
+        w.fedBy[o.who[i]] += w.fed - fedBefore
     }
 }
 
