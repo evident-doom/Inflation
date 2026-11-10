@@ -203,6 +203,15 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
      * Where the sown fields' grain went, kg/m² so far this year at each place ([FieldFate]), and over all the land in the last
      * whole year, t: for the census only.
      */
+    /**
+     * For the census: fruit borne at each place over the year so far, kg/m², off the shrubs and off the trees (the trees'
+     * falls as mast), and over the last whole year. Not saved: a loaded world counts from its first new year.
+     */
+    @Transient private val shrubFruitNow = FloatArray(n)
+    @Transient private val treeFruitNow = FloatArray(n)
+    @Transient val shrubFruitLastYear = FloatArray(n)
+    @Transient val treeFruitLastYear = FloatArray(n)
+    @Transient var fruitYears = 0; private set
     private val fieldFateNow = Array(FieldFate.entries.size) { FloatArray(n) }
     val fieldFateLastYear = DoubleArray(FieldFate.entries.size)
     /** What becomes of a sown field's grain in a year: the seed whose crop is spent, what it would ripen to in full, what its water and ground let it ripen to, what ripened, what was shed. */
@@ -215,6 +224,8 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
             val first = standYear < 0; standYear = year
             if (!first) grainRipenedLastYear = (0 until n).sumOf { (ripenedNow[it] * land.areaKm2[it] * 1e6f).toDouble() } / 1000
             ripenedNow.fill(0f)
+            if (!first) { shrubFruitNow.copyInto(shrubFruitLastYear); treeFruitNow.copyInto(treeFruitLastYear); fruitYears++ }
+            shrubFruitNow.fill(0f); treeFruitNow.fill(0f)
             wildCover.fill(0f)
             // (Cleared ground not cropped in the year grows back toward the place's woods and scrub.)
             if (!first) for (p in 0 until n) cleared[p] = croppedNow[p] + max(0f, cleared[p] - croppedNow[p]) * (1f - 1f / REGROW_YEARS)
@@ -243,6 +254,7 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
             val newFruit = days * ripe
             val bore = if (newFruit > 0f) (land.plants.consume(p, LifeForm.SHRUB, KgM2(newFruit * fromShrub)) +
                 land.plants.consume(p, LifeForm.TREE, KgM2(newFruit * (1f - fromShrub)))).v else 0f
+            shrubFruitNow[p] += bore * fromShrub; treeFruitNow[p] += bore * (1f - fromShrub)
             val fallen = lostOver(fruit[p], bore, lossShare(FRUIT_DAYS))
             fruit[p] = max(0f, fruit[p] + bore - fallen)
             small.deposit(DeadPool.LITTER, p, KgM2(fallen * fromShrub))

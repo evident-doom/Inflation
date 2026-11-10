@@ -418,6 +418,19 @@ class Census(private val sim: HexSim) {
         // [WORN_FRESH], if the share grew with the people.)
         val atPlace = HashMap<Int, Int>()
         for (g in groups.groups) if (g.alive && g.band != null) atPlace[g.place.i] = (atPlace[g.place.i] ?: 0) + g.size
+        // (Ground-up: what the land bears a year, kg/ha dry, against the field. Oak stands bore 182-667 kg/ha of acorns in
+        // 2013, Zeman et al. 2016; [HexFood.TREE_BEARING] means some 20 kg/ha per kg/m² of trees. Over all land, by area, and
+        // at the places bands live, by their people; and the roots standing there.)
+        if (food.fruitYears > 0) {
+            fun mean(f: (Int) -> Double, w: (Int) -> Double) = (0 until land.n).sumOf { f(it) * w(it) } / (0 until land.n).sumOf { w(it) }.coerceAtLeast(1e-9)
+            fun area(p: Int) = land.areaKm2[p].toDouble()
+            fun lived(p: Int) = (atPlace[p] ?: 0).toDouble()
+            val rows = listOf<Pair<String, (Int) -> Double>>(
+                "shrub fruit" to { p -> food.shrubFruitLastYear[p] * 1e4 }, "tree fruit and mast" to { p -> food.treeFruitLastYear[p] * 1e4 },
+                "roots standing" to { p -> food.roots[p] * 1e4 }, "trees kg/m²" to { p -> land.plants.tree[p].toDouble() })
+            println("     what the land bears, kg/ha a year (all land / where bands live): " + rows.joinToString(", ") { (name, f) ->
+                "%s %.1f / %.1f".format(name, mean(f, ::area), mean(f, ::lived)) })
+        }
         val wornKinds = listOf("fruit" to WORN_FRUIT, "roots" to WORN_ROOTS, "mast" to WORN_MAST, "seed" to WORN_SEED, "finds" to WORN_FINDS)
         val stand = listOf(food.fruit, food.roots, food.mast, food.seeds, food.finds)
         println("     worn ground, share taken at the places bands live at (median over places, per 100 people there; people at a place for the share to reach %.0f%%): ".format(100 * WORN_FRESH) +
