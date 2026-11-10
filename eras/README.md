@@ -2,7 +2,7 @@
 
 An era profile is a properties file of ordinary config keys that sets how a world starts in that era. Name it in the
 config file with `era=NAME` (`eras/NAME.properties`, looked for beside the config file, then in the directory the run starts
-in, then in the folders above them or above the running code, so a run in its own folder under the project finds the project's). Its keys are read as if they stood in the config file; the config file's own keys take precedence.
+in, then in the folders above them, so a run in its own folder under the project finds the project's). Its keys are read as if they stood in the config file; the config file's own keys take precedence.
 
 A profile sets only the start: which share of bands start as villages or herders (`t.startSettled`, `t.startHerders`), how
 domesticated the villages' grain is (`t.startDomestic`), and which ways and tools every band knows (`t.startSkills`,

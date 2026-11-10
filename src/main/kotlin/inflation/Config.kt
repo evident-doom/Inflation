@@ -160,15 +160,14 @@ object Config {
         })
     }
 
-    /** The era profile [era]: eras/[era].properties beside the config file ([dir]), else in the working directory, else in a folder above either or above the running code. */
+    /** The era profile [era]: eras/[era].properties beside the config file ([dir]), else in the working directory, else in a folder above either. */
     fun eraFile(era: String, dir: File?): File {
         require(Regex("""[\w-]+""").matches(era)) { "era=$era: a profile's name, letters, digits, - and _ (eras/NAME.properties)" }
-        // (Beside the config file or in the working directory, or in any folder above either, or above the running code: a run
-        // started in its own folder under the project still finds the project's eras/.)
-        val code = runCatching { File(Config::class.java.protectionDomain.codeSource.location.toURI()) }.getOrNull()
-        val tried = listOfNotNull(dir, File("").absoluteFile, code).flatMap { generateSequence(it.absoluteFile) { f -> f.parentFile }.toList() }
+        // (Beside the config file or in the working directory, or in any folder above either: a run started in its own folder
+        // under the project still finds the project's eras/.)
+        val tried = listOfNotNull(dir, File("").absoluteFile).flatMap { generateSequence(it.absoluteFile) { f -> f.parentFile }.toList() }
             .map { File(it, "eras/$era.properties") }.distinct()
-        return requireNotNull(tried.firstOrNull { it.isFile }) { "era profile not found: eras/$era.properties beside the config file, the working directory or the code, or above them" }
+        return requireNotNull(tried.firstOrNull { it.isFile }) { "era profile not found: eras/$era.properties beside the config file or the working directory, or above them" }
     }
 
     /** Every key the code reads: the [Key]s and the tuning keys (those a [Tuning] asks for as it is made). */
