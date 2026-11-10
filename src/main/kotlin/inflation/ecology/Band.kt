@@ -1098,6 +1098,10 @@ class Band(kinds: Int, totems: Int = kinds) {
             skills[Skill.GATHER] = START_CRAFT; skills[Skill.SMALL_GAME] = START_CRAFT; skills[Skill.HUNT] = START_CRAFT
             skills[Skill.FISH] = if (nearWater) 0.5f else 0.1f; skills[Skill.STORE] = 0.4f
             kit[Tool.SPEAR] = 1f; kit[Tool.NET] = 0.5f; kit[Tool.BASKET] = 0.5f; kit[Tool.CLOTHES] = 0.5f
+            // Each lineage's country has its own strengths: its skills and kit lie some way off the usual, the same for
+            // neighbours of one lineage ([founderSpread]).
+            for (s in Skill.entries) if (skills[s] > 0f) skills[s] = (skills[s] * founderSpread(l, s.ordinal)).coerceIn(0f, 1f)
+            for (t in Tool.entries) if (kit[t] > 0f) kit[t] = (kit[t] * founderSpread(l, FOUNDER_TOOLS + t.ordinal)).coerceIn(0f, 1f)
             // Everyone keeps fire; they know the plants of their own country well, of others' less.
             skills[Skill.FIRE] = 0.95f; fire = 1f
             plants.fill(0.5f)

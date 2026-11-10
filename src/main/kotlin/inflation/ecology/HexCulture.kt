@@ -386,6 +386,20 @@ fun customsOff(a: Band, b: Band, map: HexMap): Int =
         (if (a.holds(Tradition.BURIAL) && b.holds(Tradition.BURIAL) && a.burialWay != b.burialWay) 1 else 0) +
         (if (ritesApart(a, b)) 1 else 0) + (if (a.heldLivelihood != b.shownLivelihood) 1 else 0) + (if (homesApart(a, b, map)) 1 else 0)
 
+/**
+ * How far founding lineage [lineage]'s level at one of its skills or its kit of a tool ([part]) lies off the usual: a factor
+ * around 1 with a spread of [FOUNDER_SPREAD] (the sum of three even draws, near enough a bell), the same for every band of
+ * the lineage. So founders of one country share strengths and neighbouring lineages differ (sweep plan, local cultures).
+ */
+fun founderSpread(lineage: Int, part: Int): Float {
+    var u = 0f
+    for (k in 0 until 3) u += ((mix64((lineage.toLong() * 131 + part) * HASH_C + k * HASH_B) ushr 40).toFloat() / (1L shl 24).toFloat()) * 2f - 1f
+    return max(0f, 1f + FOUNDER_SPREAD * u)
+}
+/** The spread of founding lineages' skills and kit about the usual ([founderSpread]): an estimate; and where tools' parts start. */
+internal const val FOUNDER_SPREAD = 0.2f
+internal const val FOUNDER_TOOLS = 1000
+
 /** Where the dead of lineage [lineage]'s bands are laid ([Band.burialWay]): one way drawn for each lineage. */
 fun burialWayAt(lineage: Int) = BurialWay.entries[((mix64(lineage.toLong() * HASH_C + HASH_B) ushr 33) % BurialWay.entries.size).toInt()]
 
