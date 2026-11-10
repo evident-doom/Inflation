@@ -342,12 +342,12 @@ fun livelihoodHoldInherit(parent: Float, id: Int, seed: Long): Float {
 
 /**
  * The way of life a way of working belongs to, if any: tending kept animals to herding; sealing storage bins and building
- * of mudbrick to farming. The rest (gathering, the hunt, crafts, houses of stone or dug in) belong to every way of life.
+ * of mudbrick and growing grain to farming. The rest (gathering, the hunt, crafts, houses of stone or dug in) belong to every way of life.
  * A judgement, not a measure.
  */
 val Skill.ofLivelihood: Livelihood? get() = when (this) {
     Skill.TENDING -> Livelihood.HERDING
-    Skill.SEALING, Skill.MUDBRICK -> Livelihood.FARMING
+    Skill.SEALING, Skill.MUDBRICK, Skill.CULTIVATION -> Livelihood.FARMING
     else -> null
 }
 

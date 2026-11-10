@@ -60,6 +60,21 @@ class Herd(kinds: Int) {
      * before it; [sows] sizes it, at half.)
      */
     var herdSows = FloatArray(kinds) { 0.5f }
+    /**
+     * Of each kind, the share of its grown and young that are of herded stock: born in a herd, or given by herders, not caught
+     * young in the hunt. Only those breed ([keepHerds]): young caught wild are raised as pets and do not found a herd
+     * (Olli 2026-11-10: the first domestications are not modelled, only established herding). (Empty in a band loaded from
+     * a save made before it; [bred] sizes it, all of herded stock.)
+     */
+    var herdBred = FloatArray(kinds) { 1f }
+    /** [herdBred], sized to [herd]. */
+    fun bred(): FloatArray { if (herdBred.size != herd.size) herdBred = FloatArray(herd.size) { 1f }; return herdBred }
+    /** Adds [n] head of kind [k] of herded stock share [stock] to its grown, blending [herdBred] by heads. */
+    fun addBred(k: Int, n: Float, stock: Float, young: Boolean = false) {
+        val y = youngHerd(); val br = bred(); val had = herd[k] + y[k]
+        if (had + n > 0f) br[k] = (br[k] * had + stock * n) / (had + n)
+        if (young) y[k] += n else herd[k] += n
+    }
     /** [herdSows], sized to [herd]. */
     fun sows(): FloatArray { if (herdSows.size != herd.size) herdSows = FloatArray(herd.size) { 0.5f }; return herdSows }
     /** [herdYoung], sized to [herd]. */
@@ -77,7 +92,7 @@ class Herd(kinds: Int) {
 
     /** A new band [o] splitting off its keeper takes [share] of the herd, grown and young, and the herd's tameness, pets and last week's keeping. */
     fun splitInto(o: Herd, share: Float) {
-        sows().copyInto(o.sows())
+        sows().copyInto(o.sows()); bred().copyInto(o.bred())
         herdTame.copyInto(o.herdTame); herd.copyInto(o.herd); herdGrew.copyInto(o.herdGrew); herdPet.copyInto(o.herdPet)
         // (A band from a save made when there were fewer resident kinds keeps fewer: see [HexFauna.kinds].)
         for (i in 0 until min(herd.size, o.herd.size)) { o.herd[i] *= share; herd[i] -= o.herd[i] }
@@ -92,6 +107,7 @@ class Herd(kinds: Int) {
             val n = a.herd[i] + b.herd[i]
             val heads = n + ay[i] + by[i]
             if (heads > 0f) a.herdTame[i] = ((a.herd[i] + ay[i]) * a.herdTame[i] + (b.herd[i] + by[i]) * b.herdTame[i]) / heads
+            if (heads > 0f) { val ba = a.bred(); val bb = b.bred(); ba[i] = ((a.herd[i] + ay[i]) * ba[i] + (b.herd[i] + by[i]) * bb[i]) / heads }
             if (n > 0f) { val sa = a.sows(); val sb = b.sows(); sa[i] = (a.herd[i] * sa[i] + b.herd[i] * sb[i]) / n }
             a.herd[i] = n; ay[i] += by[i]
             // (Pets while either band's were: the joined herd is weighed as food once the younger has grown.)
@@ -105,7 +121,7 @@ class Herd(kinds: Int) {
             LinkedHashMap<String, Pair<OnSplit, OnJoin>>().apply {
                 put("herd", OnSplit.SHARED to OnJoin.SUM); put("herdYoung", OnSplit.SHARED to OnJoin.SUM)
                 put("herdPet", OnSplit.COPIED to OnJoin.MAX)
-                put("herdTame", OnSplit.COPIED to OnJoin.BLENDED); put("herdSows", OnSplit.COPIED to OnJoin.BLENDED)
+                put("herdTame", OnSplit.COPIED to OnJoin.BLENDED); put("herdSows", OnSplit.COPIED to OnJoin.BLENDED); put("herdBred", OnSplit.COPIED to OnJoin.BLENDED)
                 put("herdGrew", OnSplit.COPIED to OnJoin.LOST)
                 put("herdTaken", OnSplit.FRESH to OnJoin.LOST)
             }

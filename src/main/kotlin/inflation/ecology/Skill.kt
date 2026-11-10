@@ -57,6 +57,8 @@ enum class Domain {
     FORTIFYING,
     /** Fencing a river with stakes and wattle to lead its fish into traps: where to set it, how it holds against the current. */
     WEIRS,
+    /** Growing grain: keeping seed corn through the year, clearing and hoeing, sowing in time, reaping before the ears shed. */
+    FARMING,
 }
 
 /**
@@ -163,6 +165,14 @@ enum class Skill(val domain: Domain, val floor: Float, val start: Float = 0f, va
      * so need gates it ([PeopleCrafts]); era profiles may grant it (t.startSkills).
      */
     WEIRS(Domain.WEIRS, CRAFT_FLOOR, known = false),
+    /**
+     * Growing grain as farmers did once farming was established ([HexGroups.sowGrain], [HexGroups.harvestCrop]): what seed
+     * to keep and how to keep it from damp and mice through the year, clearing and hoeing, when to sow for the rains, when
+     * to reap. Not hit on here (Olli 2026-11-10: the first sowings are not modelled, only the established ways): era profiles
+     * grant it (t.startSettled, t.startSkills), and bands learn it from farmers they meet or marry into. The unpractised
+     * take longer at the field work ([Band.lapse] against [ref]).
+     */
+    CULTIVATION(Domain.FARMING, CRAFT_FLOOR, known = false, invent = 0f, teach = 0.1f, ref = 0.5f),
     ;
 
     /**
@@ -173,7 +183,7 @@ enum class Skill(val domain: Domain, val floor: Float, val start: Float = 0f, va
      */
     val share: Float get() = when (this) {
         GATHER, FIRE, ROASTING -> 1f
-        SMALL_GAME, FISH, HUNT, STORE, SMOKING, SALTING, SEWING, TRACK, STALK, BUTCHER, STONE_BOILING, EARTH_OVEN, LEACHING -> 0.5f
+        SMALL_GAME, FISH, HUNT, STORE, SMOKING, SALTING, SEWING, TRACK, STALK, BUTCHER, STONE_BOILING, EARTH_OVEN, LEACHING, CULTIVATION -> 0.5f
         HERBS, MIDWIFERY, LORE, TINKER, TENDING -> 0.1f
         SHOWING -> 0.3f
         else -> 0.2f
