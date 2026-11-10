@@ -54,6 +54,10 @@ internal fun GroupWorld.gatherMaterials(g: HexGroup, b: Band, p: Place, h: Hex, 
     // (Only good stone is kept: whatever stone is at hand makes poorer tools, see [TRADED]. It takes as much as it wants
     // and has the time for, slower where little crops out.)
     if (stone > 0f) gather(Material.STONE, Float.MAX_VALUE, STONE_A_DAY * min(1f, 5f * stone))
+    // Rock for grinding stones, where it lies bare along the way: only by a band that knows grinding stones, as much as it
+    // can keep, so that beyond a set for its own people ([YEAR_NEED]) it has some to give on.
+    val grinding = alongTheWay(land.groundStone)
+    if (grinding > 0f && b.knows[Tool.GRINDER]) gather(Material.GROUND_STONE, Float.MAX_VALUE, STONE_A_DAY * min(1f, 5f * grinding))
     // Salt scraped from a dry lake bed or pan along the way, and a little from the shore; ochre dug where it crops out.
     // (By its season, [inflation.Tuning.saltSeasons]: a pan's crust lies bare to scrape only in a month that dries more than
     // it rains, and sea salt is made, not picked up: sea water or brine leached from salty shore earth dried in the sun, in

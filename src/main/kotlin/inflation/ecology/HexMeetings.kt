@@ -576,6 +576,8 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
         if (Regard(gb, taker.id, tb, map = hex).tie < FEUD_GIFT) continue
         var useful = 0f
         for (m in TRADED) {
+            // (Grinding stone only to a band that makes grinding stones.)
+            if (m == Material.GROUND_STONE && !tb.knows[Tool.GRINDER]) continue
             val need = YEAR_NEED[m]
             val spare = gb.goods[m] - KEEP_YEARS * need * giver.adults
             val lack = KEEP_YEARS * need * taker.adults - tb.goods[m]
