@@ -219,6 +219,11 @@ class Band(kinds: Int, totems: Int = kinds) {
     val knows = enumBools<Tool> { it.known }
     val goods = enumFloats<Material>()
     /**
+     * Finished tools it holds beyond its own kit to give, in person's sets ([makeSpares]): made by a band that makes them
+     * well, given at meetings to bands whose kit of them falls short (all made well, of good material).
+     */
+    val spare = enumFloats<Tool>()
+    /**
      * Of each tool in its kit, the share made well (see [TRADED]): stone tools of good
      * knapping stone rather than of whatever stone is at hand, clothes of hide tanned with ochre.
      */

@@ -135,9 +135,9 @@ internal fun cacheCare(b: Band) = max(1f, b.cacheWill)
  * The kg of [m] [b]'s [people] take along first on a camp move: what mending the tools they know and take along needs
  * over the weeks they keep a camp ([Band.stayWeeks]), as each wears ([Tool.wearPerYear]); and of the materials found only
  * where they crop out (good stone, salt, ochre), what they keep of them ([KEEP_YEARS] of [YEAR_NEED]), since what is left
- * behind is not to be had again on the way.
+ * behind is not to be had again on the way. (Not grinding stone: too heavy to take first, like the grinding stones themselves.)
  */
-private fun GroupWorld.mendingKg(b: Band, m: Material, people: Float) =
+private fun GroupWorld.mendingKg(b: Band, m: Material, people: Float) = if (m == Material.GROUND_STONE) 0f else
     people * (b.stayWeeks / ticksPerYear * Tool.entries.sumOf { t -> if (b.knows[t] && !t.heavy) ((t.recipe[m] ?: 0f) * t.wearPerYear).toDouble() else 0.0 }.toFloat() +
         KEEP_YEARS * YEAR_NEED[m])
 
@@ -504,6 +504,7 @@ internal fun HexGroups.robCaches(weather: Weather) {
  * year, kg (not measured: a full kit's wear, a year's curing, a year's tanning); how many years'
  * worth a band keeps before it gives of it.
  */
-val TRADED = listOf(Material.STONE, Material.SALT, Material.OCHRE)
-val YEAR_NEED = enumFloats<Material> { when (it) { Material.STONE -> 1f; Material.SALT -> 4f; Material.OCHRE -> 0.2f; else -> 0f } }
+val TRADED = listOf(Material.STONE, Material.SALT, Material.OCHRE, Material.GROUND_STONE)
+/** (Grinding stone is not used up a little a year but made into a set at once: what a person's share of a set takes.) */
+val YEAR_NEED = enumFloats<Material> { when (it) { Material.STONE -> 1f; Material.SALT -> 4f; Material.OCHRE -> 0.2f; Material.GROUND_STONE -> 15f; else -> 0f } }
 internal const val KEEP_YEARS = 1f

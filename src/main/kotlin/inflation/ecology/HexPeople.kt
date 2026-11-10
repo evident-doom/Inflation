@@ -201,6 +201,8 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     // With time still to spare, it makes ornaments of shell and bone: they are given, worn and buried.
     makeOrnaments(b, people, time)
     time.release(Activity.ORNAMENTS)
+    // And a band that makes a tool well makes spares of it, to give.
+    makeSpares(b, people, time)
     // In autumn a band at home, or long at its camp, sows a share of its stored grain there: a plot that ripens
     // next summer to several times as much, of the kind of ears it sowed.
     harvestCrop(g, b, time)

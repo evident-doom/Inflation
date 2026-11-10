@@ -54,6 +54,10 @@ internal fun GroupWorld.gatherMaterials(g: HexGroup, b: Band, p: Place, h: Hex, 
     // (Only good stone is kept: whatever stone is at hand makes poorer tools, see [TRADED]. It takes as much as it wants
     // and has the time for, slower where little crops out.)
     if (stone > 0f) gather(Material.STONE, Float.MAX_VALUE, STONE_A_DAY * min(1f, 5f * stone))
+    // Rock for grinding stones, where it lies bare along the way: only by a band that knows grinding stones, as much as it
+    // can keep, so that beyond a set for its own people ([YEAR_NEED]) it has some to give on.
+    val grinding = alongTheWay(land.groundStone)
+    if (grinding > 0f && b.knows[Tool.GRINDER]) gather(Material.GROUND_STONE, Float.MAX_VALUE, STONE_A_DAY * min(1f, 5f * grinding))
     // Salt scraped from a dry lake bed or pan along the way, and a little from the shore; ochre dug where it crops out.
     // (By its season, [inflation.Tuning.saltSeasons]: a pan's crust lies bare to scrape only in a month that dries more than
     // it rains, and sea salt is made, not picked up: sea water or brine leached from salty shore earth dried in the sun, in
@@ -176,6 +180,8 @@ internal fun GroupWorld.wearAndInvent(b: Band, years: Float) {
         val inUse = t == Tool.CLOTHES || t.uses.any { b.weeks - b.lastUsed[it] <= 1 }
         b.kit[t] = max(0f, b.kit[t] - t.wearPerYear * years * (if (inUse) 1f else IDLE_WEAR) *
             (if (t.hafted) b.lapse(Skill.GLUING) else 1f) * wearOfMake(t, b.fine[t], b.made[t], tuning))
+        // (Spares kept to give wear as tools lying idle do.)
+        if (b.spare[t] > 0f) b.spare[t] = max(0f, b.spare[t] * (1f - t.wearPerYear * years * IDLE_WEAR))
         // A band that has a use for a tool now and then hits on it: bows where game is shy and
         // fast, sickles and grinding stones where it reaps seed, and so on.
         if (!b.knows[t] && (t != Tool.PICK || b.knowsSkill[Skill.WELLS]) && rnd.nextFloat() < INVENT * b.edge(Skill.TINKER) * years * (0.5f + b.skills[t.serves])) {
@@ -253,6 +259,67 @@ internal fun HexGroups.makeTools(b: Band, people: Float, time: BandTime?, only: 
     }
     return asked
 }
+
+/**
+ * With time still to spare, a band that makes a tool well ([Band.makeSkill] at least [SPARE_SKILL]) and has a whole kit of it
+ * makes spares of it ([Band.spare]) to give to bands whose kit falls short ([giveTools]): up to [SPARE_SETS] sets a person, as
+ * far as the time and its materials go, good stone only. Not the clothes (each band's own, made to fit) nor what is too
+ * heavy to carry to a meeting. So the bands best at a craft come to supply their neighbours with its tools.
+ */
+@Part("people: make spares")
+internal fun GroupWorld.makeSpares(b: Band, people: Float, time: BandTime) {
+    if (people <= 0f) return
+    for (t in Tool.entries) {
+        if (!b.knows[t] || t == Tool.CLOTHES || t.heavy || b.kit[t] < 1f) continue
+        val skill = b.makeSkill(t)
+        if (skill < SPARE_SKILL) continue
+        val room = SPARE_SETS * people - b.spare[t]
+        if (room <= 0f) continue
+        val left = time.leftFor(Activity.TOOLS)
+        if (left <= 0f) break
+        val way = b.makeWay(t)
+        val daysEach = t.makeDays / skill // a person's set
+        val stoneUse = if (way == Skill.BLADES || way == Skill.MICROLITHS) BLADE_STONE else 1f
+        fun use(m: Material) = if (m == Material.STONE) stoneUse else 1f
+        var can = min(room, left / daysEach)
+        for ((m, kg) in t.recipe) can = min(can, b.goods[m] / max(1e-3f, kg * use(m)))
+        if (can <= 0f) continue
+        for ((m, kg) in t.recipe) b.goods[m] = max(0f, b.goods[m] - can * kg * use(m))
+        b.spare[t] += can; time.spend(Activity.TOOLS, can * daysEach)
+        b.practise(way)
+    }
+}
+
+/**
+ * At a meeting, [giver]'s band gives [taker]'s of the spare tools it holds ([Band.spare]), as far as the taker's kit of each
+ * falls short and the giver is willing ([Band.giveWill]); a tool the taker did not know it now knows. Returns the gifts'
+ * worth to the taker, in its people's sets.
+ */
+internal fun GroupWorld.giveTools(giver: HexGroup, gb: Band, taker: HexGroup, tb: Band): Float {
+    var given = 0f
+    for (t in Tool.entries) {
+        val spare = gb.spare[t]
+        if (spare <= 0f || taker.adults <= 0) continue
+        val lack = (1f - tb.kit[t]) * taker.adults
+        if (lack <= 0f) continue
+        val gift = min(spare, lack * min(1f, gb.giveWill))
+        if (gift <= 0f) continue
+        gb.spare[t] -= gift
+        val add = gift / taker.adults
+        val k = tb.kit[t]
+        tb.made[t] = (k * tb.made[t] + add) / (k + add)
+        tb.fine[t] = (k * tb.fine[t] + add) / (k + add)
+        tb.kit[t] = k + add
+        if (!tb.knows[t]) { tb.knows[t] = true; stats.meeting(Met.Of.LEARNED, t.name.lowercase()) }
+        stats.meeting(Met.Of.GIVEN, t.name.lowercase())
+        given += add
+    }
+    return given
+}
+
+/** The skill at a craft above which a band makes spares of its tools to give; the most spare sets it keeps, a person. Not measured. */
+internal const val SPARE_SKILL = 0.8f
+internal const val SPARE_SETS = 0.2f
 
 /** What stopped a week's clothes making ([Band.clothesMade]): [want] of a kit wanted, [byTime] of it the days allowed, [can] made. */
 private fun clothesMade(want: Float, byTime: Float, can: Float) = when {

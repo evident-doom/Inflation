@@ -51,6 +51,8 @@ enum class Material(
     SALT({ it.salt }),
     /** Ochre, the red and yellow earth: hides tanned with it last (with trade on). */
     OCHRE({ it.ochre }),
+    /** Rock for grinding stones (basalt, sandstone, limestone), where it lies bare ([HexLand.groundStone]): heavy, and given on from where it is found. */
+    GROUND_STONE({ it.groundStone }),
 }
 
 /**
@@ -72,7 +74,7 @@ enum class Tool(val recipe: Map<Material, Float>, val skill: Skill, val wearPerY
     /** Sickles of flint bladelets set in bone or wood: wild cereals cut before the ears shatter. */
     SICKLE(mapOf(Material.STONE to 0.2f, Material.BONE to 0.3f, Material.RESIN to 0.05f), Skill.KNAPPING, 0.7f, 1f, listOf(Skill.GATHER), Skill.GATHER, hafted = true),
     /** Mortars, pestles and querns: nuts, acorns and seeds made into meal. Too heavy to move. */
-    GRINDER(mapOf(Material.STONE to 15f), Skill.PECKING, 0.05f, 3f, listOf(Skill.GATHER), Skill.GATHER, heavy = true),
+    GRINDER(mapOf(Material.GROUND_STONE to 15f), Skill.PECKING, 0.05f, 3f, listOf(Skill.GATHER), Skill.GATHER, heavy = true),
     /** Baskets and bags: carrying the harvest home and keeping it. */
     BASKET(mapOf(Material.FIBRE to 3f), Skill.CORDAGE, 0.7f, 2f, listOf(Skill.GATHER, Skill.STONE_BOILING, Skill.LEACHING), Skill.GATHER,
         known = true),

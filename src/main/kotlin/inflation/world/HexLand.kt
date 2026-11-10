@@ -94,6 +94,11 @@ class HexLand(internal val hw: HexWorld, internal val seed: Long, /** The run's 
     /** Share of the ground where salt can be got (crusts on dry lake beds and salt pans), and where red and yellow ochre crops out. */
     @Transient val salt = FloatArray(n) { p -> mean(p) { if (world.geology.minerals[it] and Mineral.SALT != 0) 1f else 0f } }
     @Transient val ochre = FloatArray(n) { p -> mean(p) { if (world.geology.minerals[it] and Mineral.OCHRE != 0) 1f else 0f } }
+    /**
+     * Share of the ground where rock for grinding stones lies bare (not under more than [BARE_ROCK_M] of sediment), by how well
+     * it grinds ([GRINDING_ROCK]): mortars, pestles and querns were pecked from basalt, sandstone and limestone, not from flint.
+     */
+    @Transient val groundStone = FloatArray(n) { p -> mean(p) { if (world.geology.sediment[it] > BARE_ROCK_M) 0f else GRINDING_ROCK[world.geology.rock[it].ordinal] } }
     /** Share of floodplain, which a river in spate covers. */
     @Transient val floodShare = FloatArray(n) { p -> mean(p) { if (world.floodplain.isFloodplain[it]) 1f else 0f } }
     @Transient internal val pet = Array(12) { m -> FloatArray(n) { p -> mean(p) { world.climate.monthlyPet[m][it] } } }
@@ -205,3 +210,17 @@ abstract class HexLandPart(@Transient protected val land: HexLand) {
     protected fun mean(p: Int, f: (Int) -> Float) = land.mean(p, f)
 }
 
+/**
+ * How well each surface rock ([Rock]) serves for grinding stones, 0..1: vesicular basalt and scoria best (they stay rough as
+ * they wear; Natufian and later querns and mortars of basalt were carried far from the lava fields), sandstone and granite
+ * well, limestone fairly (the Natufian bedrock and boulder mortars), the soft and loose rocks not at all. Not measured.
+ */
+internal val GRINDING_ROCK = FloatArray(Rock.entries.size) { when (Rock.entries[it]) {
+    Rock.BASALT, Rock.VOLCANIC -> 1f
+    Rock.SANDSTONE, Rock.GRANITE -> 0.7f
+    Rock.LIMESTONE -> 0.4f
+    Rock.METAMORPHIC -> 0.2f
+    Rock.SHALE, Rock.ALLUVIUM, Rock.EVAPORITE -> 0f
+} }
+/** Sediment over bedrock beyond which no rock lies bare for the taking, m (as erosion counts bedrock covered, [Erosion]). */
+internal const val BARE_ROCK_M = 2f
