@@ -88,8 +88,10 @@ internal fun HexGroups.bandPeopleByHex(also: List<HexGroup> = emptyList()): Floa
  */
 internal fun HexGroups.findHome(n: HexGroup, born: List<HexGroup>) {
     val from = hw.placeHex[n.place]
-    // (A bud of a band that wants for no food stays on its parent's ground, a band of its own: [wantsFood].)
-    if (!wantsFood(n)) { stats.meeting(Met.BANDS_BUDDED_IN_PLACE); return }
+    // (A bud of a band that wants for no food stays on its parent's ground, a band of its own ([wantsFood]), unless there is
+    // country no one holds within reach: unhunted, its game unwary, fresh ground draws foragers on whether or not their own
+    // is short. Such a bud goes only to an empty hex.)
+    val want = wantsFood(n)
     val people = bandPeopleByHex(born)
     val own = n.size.toFloat()
     var best = Place.NONE
@@ -98,7 +100,7 @@ internal fun HexGroups.findHome(n: HexGroup, born: List<HexGroup>) {
     for (r in 1..SPREAD_RINGS) {
         ring = hex.nextRing(ring, seen); keep *= SPREAD_RING_KEEP
         for (h in ring) {
-            if (hw.placesOf(h).isEmpty()) continue
+            if (hw.placesOf(h).isEmpty() || (!want && people[h.i] > 0f)) continue
             val v = keep * hexSuit(n.species, h) / (people[h.i] + own)
             if (v > bestV) { bestV = v; best = hw.firstPlaceIn(h) }
         }
@@ -130,21 +132,23 @@ internal fun HexGroups.spreadYear(): List<HexGroup> {
     fun suitAt(s: Species, h: Hex): Float { if (suit[h.i].isNaN()) suit[h.i] = hexSuit(s, h); return suit[h.i] }
     for (g in groups.toList()) {
         val b = g.band ?: continue
-        if (!g.alive || !staysHome(g) || inParty(g) || g.adults < SMALL_BAND + SEEP_ADULTS || !wantsFood(g)) continue
+        if (!g.alive || !staysHome(g) || inParty(g) || g.adults < SMALL_BAND + SEEP_ADULTS) continue
+        // (A band that wants for no food sends off only a band of its own to country no one holds: [findHome].)
+        val want = wantsFood(g)
         // (Each year's draw from the band's own stream, so the year runs the same in any order.)
         val h = hw.placeHex[g.place]
         val here = suitAt(g.species, h) / max(1f, people[h.i])
         var best = Hex.NONE; var bestV = 0f
         for (d in 0 until 6) {
             val q = hex.neighbour(h, d)
-            if (q.none || hw.placesOf(q).isEmpty()) continue
+            if (q.none || hw.placesOf(q).isEmpty() || (!want && people[q.i] > 0f)) continue
             val v = suitAt(g.species, q) / (people[q.i] + SEEP_ADULTS)
             if (v > bestV) { bestV = v; best = q }
         }
         if (best.none || bestV <= here * (1f + SEEP_MARGIN)) continue
         val fixed = b.livesFixed()
         val gapThere = suitAt(g.species, best) / (people[best.i] + g.size) / here
-        if (!fixed && (gapThere >= RELOCATE_GAP || (b.leanDays >= RELOCATE_LEAN_DAYS && gapThere >= RELOCATE_LEAN_GAP))) {
+        if (want && !fixed && (gapThere >= RELOCATE_GAP || (b.leanDays >= RELOCATE_LEAN_DAYS && gapThere >= RELOCATE_LEAN_GAP))) {
             people[h.i] -= g.size; people[best.i] += g.size
             g.place = hw.firstPlaceIn(best)
             stats.meeting(Met.BANDS_RELOCATED)
