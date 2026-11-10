@@ -44,6 +44,13 @@ internal const val RELOCATE_GAP = 3f
 internal const val RELOCATE_LEAN_DAYS = 60f
 internal const val RELOCATE_LEAN_GAP = 1.5f
 
+/**
+ * Land fit for foragers, for the census: a hex whose ground suits people ([hexSuit]) over at least this share of its area.
+ * Olli (10 Nov 2026): all such land should hold people at least sparsely, the status quo from which farming builds
+ * denser numbers. An estimate.
+ */
+internal const val FORAGE_LAND = 0.2f
+
 /** How well hex [h]'s ground suits [s]: its places' area weighted by how they suit the kind ([HexFauna.startWeight]), km². */
 internal fun HexGroups.hexSuit(s: Species, h: Hex): Float {
     var w = 0f

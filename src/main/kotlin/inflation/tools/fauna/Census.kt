@@ -41,6 +41,7 @@ import inflation.ecology.Regard
 import inflation.ecology.pressure
 import inflation.ecology.packPressure
 import inflation.ecology.livesFixed
+import inflation.ecology.hexSuit
 import inflation.ecology.FaunaKind
 import inflation.ecology.PlaceMemory
 import inflation.ecology.FRIEND_TIE
@@ -250,6 +251,18 @@ class Census(private val sim: HexSim) {
             "%s %d / %.0f / %.1f%%".format(s.name, gs.size, if (gs.isEmpty()) 0.0 else gs.sumOf { it.size }.toDouble() / gs.size,
                 100.0 * gs.map { hw.placeHex[it.place] }.distinct().size / landHexes)
         })
+        // (How much of the land fit for foragers people cover: of the land hexes whose ground suits people over at least
+        // [FORAGE_LAND] of their area, those that are a band's home, and those within one and two hexes of one.)
+        groups.kinds.firstOrNull { it.human }?.let { people ->
+            val forage = hex.all.filter { h -> hw.land[h] > 0.5f && groups.hexSuit(people, h) >= inflation.ecology.FORAGE_LAND * hex.areaKm2.toFloat() }
+            val homes = live.filter { it.band != null }.map { hw.placeHex[it.place] }.toHashSet()
+            val near1 = HashSet(homes); for (h in homes) for (d in 0 until 6) { val q = hex.neighbour(h, d); if (!q.none) near1 += q }
+            val near2 = HashSet(near1); for (h in near1) for (d in 0 until 6) { val q = hex.neighbour(h, d); if (!q.none) near2 += q }
+            val n = forage.size.coerceAtLeast(1).toDouble()
+            println("     land fit for foragers held (%d of %d land hexes): a band's home %.1f%%, within a hex of one %.1f%%, within two %.1f%%"
+                .format(forage.size, landHexes, 100.0 * forage.count { it in homes } / n, 100.0 * forage.count { it in near1 } / n,
+                    100.0 * forage.count { it in near2 } / n))
+        }
         val roaming = groups.kinds.filter { it in Catalogue.roamingResidents }
         if (roaming.isNotEmpty()) println("     settled / roaming (heads, share roaming): " + roaming.joinToString(", ") { s ->
             val settled = fauna.count(fauna.slot(s)); val packs = live.filter { it.species == s }.sumOf { it.size }.toDouble()
