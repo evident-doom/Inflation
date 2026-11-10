@@ -70,7 +70,7 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
      */
     val finds = FloatArray(n)
     val roots = perPlace(n) { p -> rootsCap(p) * 0.7f }
-    /** Fallen mast, kg/m²: acorns and nuts on the ground, the trees' share of the fallen [fruit]; rots or sprouts as old roots rot. */
+    /** Fallen mast, kg/m²: acorns and nuts on the ground, the trees' crop as it drops ([fruit] is the shrubs' alone); rots or sprouts as old roots rot. */
     val mast = FloatArray(n)
     /**
      * This week, whether the ground at each place is frozen too hard to dig: a week's mean air below [HexDrinkingWater.THAW_C],
@@ -255,9 +255,13 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
             val bore = if (newFruit > 0f) (land.plants.consume(p, LifeForm.SHRUB, KgM2(newFruit * fromShrub)) +
                 land.plants.consume(p, LifeForm.TREE, KgM2(newFruit * (1f - fromShrub)))).v else 0f
             shrubFruitNow[p] += bore * fromShrub; treeFruitNow[p] += bore * (1f - fromShrub)
-            val fallen = lostOver(fruit[p], bore, lossShare(FRUIT_DAYS))
-            fruit[p] = max(0f, fruit[p] + bore - fallen)
-            small.deposit(DeadPool.LITTER, p, KgM2(fallen * fromShrub))
+            // (The trees' crop, acorns and nuts, is mast from the start: gathered as it drops and shelled, its bitter share
+            // leached, never picked off the bough as berries are. It was counted as fruit while it hung and picked at the
+            // berry rate with no leaching: some 95% of the "fruit" at the places bands live, bears 2026-11-10.)
+            val shrubIn = bore * fromShrub; val treeIn = bore - shrubIn
+            val fallen = lostOver(fruit[p], shrubIn, lossShare(FRUIT_DAYS))
+            fruit[p] = max(0f, fruit[p] + shrubIn - fallen)
+            small.deposit(DeadPool.LITTER, p, KgM2(fallen))
             // Grass seed ripens in early summer as the grass dries, and is shed over the following weeks.
             val ripeSeed = if (season in SEED_FROM..SEED_TO) SEED_SHARE * land.palatable[p] * land.plants.herb[p] / SEED_DAYS else 0f
             val seedIn = land.plants.consume(p, LifeForm.HERB, KgM2(days * ripeSeed)).v
@@ -269,8 +273,8 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
             val rootsIn = land.plants.consume(p, LifeForm.HERB, KgM2(days * r)).v
             val rotted = lostOver(roots[p], rootsIn, lossShare(ROOTS_DAYS))
             roots[p] = max(0f, roots[p] + rootsIn - rotted)
-            val mastRotted = lostOver(mast[p], fallen * (1f - fromShrub), lossShare(ROOTS_DAYS))
-            mast[p] = max(0f, mast[p] + fallen * (1f - fromShrub) - mastRotted)
+            val mastRotted = lostOver(mast[p], treeIn, lossShare(ROOTS_DAYS))
+            mast[p] = max(0f, mast[p] + treeIn - mastRotted)
             small.deposit(DeadPool.LITTER, p, KgM2(rotted + mastRotted))
             // Wild cereals ripen with the other grasses; ears that shatter shed their grain within weeks,
             // those that hold it keep it for months. Sown fields ripen with them.
