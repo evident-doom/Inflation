@@ -890,6 +890,15 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                         listOf(0f to "0", ln(1f + 4f) / full to "4", ln(1f + 20f) / full to "20", 1f to "104+"),
                         "weeks to clear (log scale); full: accumulating")
                 }
+                if (tint == Measure.CULTURES) {
+                    val cr = layers.cultures ?: return waiting("waiting for the first week")
+                    fun colour(r: Int): Color { val c = Color.getHSBColor(((r * 0.618034f) % 1f + 1f) % 1f, 0.75f, 0.9f); return Color(c.red, c.green, c.blue, 150) }
+                    for (h in v.indices) if (!v[h].isNaN()) out[h] = colour(v[h].toInt())
+                    val top = cr.byPeople.take(12)
+                    return MapLegend(title, "Cultural regions: neighbouring bands of one tongue and nearly one set of customs, each hex in the colour of the region with most people there; ${cr.byPeople.size} regions, the largest named by their own word for people.",
+                        note = "${cr.byPeople.size} regions",
+                        swatches = top.map { (r, people) -> MapLegend.Swatch(colour(r), "%s, %.0f people".format(cr.name[r] ?: "-", people)) })
+                }
                 if (tint == Measure.HUNTERS_PER_PREY) {
                     fun colour(l: Float) = if (l >= 0) rgba(0.9f, 0.15f, 0.1f, 0.15f + 0.6f * l) else rgba(0.1f, 0.4f, 0.9f, 0.15f - 0.6f * l)
                     for (h in v.indices) if (!v[h].isNaN() && v[h] > 0f) out[h] = colour((log10(v[h]) / 1.5f).coerceIn(-1f, 1f))

@@ -1,6 +1,10 @@
 package inflation.tools.fauna
 
 import inflation.ecology.HUNGER_CASES
+import inflation.ecology.REGION_CUSTOMS_APART
+import inflation.ecology.REGION_UNDERSTOOD
+import inflation.ecology.cultureRegions
+import inflation.ecology.customsOff
 import inflation.ecology.HexFood.FieldFate
 import inflation.ecology.climateSuits
 import inflation.ecology.monthFit
@@ -21,8 +25,8 @@ import inflation.ecology.Met
 import inflation.ecology.Lifeway
 import inflation.ecology.CustomsPart
 import inflation.ecology.RiteWalk
-import inflation.ecology.ritesApart
 import inflation.ecology.livelihood
+import inflation.ecology.Band
 import inflation.ecology.woodCover
 import inflation.ecology.WORN_ROOTS
 import inflation.ecology.WORN_FRUIT
@@ -1099,6 +1103,32 @@ class Census(private val sim: HexSim) {
      * once, held or cut short, and again by how far the band was from the site when it was (see [RiteWalk]); the raids' year counts
      * every raid and what came of it; the bands' year every split and every joining. The lines are the report's: nothing in the model reads them.
      */
+    /**
+     * The cultures line: the largest regions ([cultureRegions]) by their own name ([regionName]), their bands and people, and the
+     * ways, tools and livelihoods their bands hold most unlike the map's bands as a whole (the share of the region's bands
+     * against the map's, where they differ by [CULTURE_APART] or more): what an archaeologist would map as a culture.
+     */
+    private fun printCultures() {
+        val cr = sim.groups.cultureRegions(sim.groups.groups)
+        val bs = cr.bands.mapNotNull { it.band }
+        if (bs.size != cr.bands.size || bs.isEmpty()) return
+        val traits: List<Pair<String, (Band) -> Boolean>> =
+            Skill.entries.filter { !it.known }.map { s -> s.name.lowercase().replace('_', ' ') to { b: Band -> b.knowsSkill[s] } } +
+            Tool.entries.filter { !it.known }.map { t -> t.name.lowercase() to { b: Band -> b.knows[t] } } +
+            Livelihood.entries.map { l -> "lives by ${l.name.lowercase()}" to { b: Band -> b.livelihood() == l } }
+        val mapShare = traits.map { (_, f) -> bs.count(f).toDouble() / bs.size }
+        val top = cr.byPeople.take(CULTURES_SHOWN)
+        println("     cultures: %d regions; the largest %d by their own name (bands, people; what they hold unlike the map's bands, %% of their bands against %% of all): ".format(cr.byPeople.size, top.size) +
+            top.joinToString("; ") { (r, people) ->
+                val mine = bs.indices.filter { cr.region[it] == r }.map { bs[it] }
+                val apart = traits.indices.map { k -> k to mine.count(traits[k].second).toDouble() / mine.size }
+                    .filter { (k, sh) -> kotlin.math.abs(sh - mapShare[k]) >= CULTURE_APART }
+                    .sortedByDescending { (k, sh) -> kotlin.math.abs(sh - mapShare[k]) }.take(4)
+                    .joinToString(", ") { (k, sh) -> "%s %.0f/%.0f".format(traits[k].first, 100 * sh, 100 * mapShare[k]) }
+                "%s (%d, %.0f%s)".format(cr.name[r] ?: "-", mine.size, people, if (apart.isEmpty()) "" else ": $apart")
+            })
+    }
+
     fun printIdentity(thisYear: Map<TallyKey, Int>, metYear: Map<TallyKey, Int>) {
         val bands = groups.groups.mapNotNull { g -> g.band?.takeIf { g.alive }?.let { g to it } }
         val n = bands.size
@@ -1133,9 +1163,7 @@ class Census(private val sim: HexSim) {
                 val km = hex.distanceKm(at[i], at[j])
                 val u = Language.understanding(bi.words, bj.words)
                 // (Customs as the bands reckon them, the totem one of them: see [inflation.ecology.Regard.customsApart].)
-                val off = Tradition.entries.count { bi.holds(it) != bj.holds(it) } + (if (bi.totem != bj.totem) 1 else 0) +
-                    (if (bi.holds(Tradition.BURIAL) && bj.holds(Tradition.BURIAL) && bi.burialWay != bj.burialWay) 1 else 0) +
-                    (if (ritesApart(bi, bj)) 1 else 0) + (if (bi.heldLivelihood != bj.shownLivelihood) 1 else 0) + (if (homesApart(bi, bj, hex)) 1 else 0)
+                val off = customsOff(bi, bj, hex)
                 var c = 0
                 while (c < IDENTITY_KM.size && km >= IDENTITY_KM[c]) c++
                 pairs[c]++; understood[c] += u.toDouble(); apart[c] += off.toDouble()
@@ -1173,6 +1201,7 @@ class Census(private val sim: HexSim) {
         println("     identity: %d bands; %d regions of 2 bands or more hold %.0f%% of people (people a region: median %.0f, tenth %.0f, ninetieth %.0f; largest %.0f%% of people); %d bands alone; %.0f%% of bands border another region"
             .format(n, regions.size, 100 * regions.sum() / all, q(0.5), q(0.1), q(0.9), 100 * (regions.lastOrNull() ?: 0.0) / all,
                 (0 until n).count { members[root(it)] < 2 }, 100.0 * border.count { it } / n))
+        printCultures()
         val classes = List(pairs.size) { c ->
             val lo = if (c == 0) 0.0 else IDENTITY_KM[c - 1]
             if (c < IDENTITY_KM.size) "%.0f-%.0f km".format(lo, IDENTITY_KM[c]) else "%.0f km and over".format(lo)
@@ -1292,11 +1321,11 @@ class Census(private val sim: HexSim) {
 }
 
 /**
- * The identity census's lines between regions ([Census.printIdentity]): neighbours that understand each other at this or
- * better and hold at most this many traditions differently are of one region. The report's, not measured; and the edges of
- * its distance classes, km (a band's gathering ground, the 150 km blocks founders' words and descent come from, a 450 km
+ * The identity census's distance classes, km (a band's gathering ground, the 150 km blocks founders' words and descent come from, a 450 km
  * region's words, and the 600 km after which founders' lineages repeat).
  */
-private const val REGION_UNDERSTOOD = 0.75f
-private const val REGION_CUSTOMS_APART = 1
+/** How many regions the cultures line names, and how far a region's share of bands holding a way must be from the map's to be named. */
+private const val CULTURES_SHOWN = 8
+private const val CULTURE_APART = 0.3
+
 private val IDENTITY_KM = doubleArrayOf(50.0, 150.0, 450.0, 600.0)
