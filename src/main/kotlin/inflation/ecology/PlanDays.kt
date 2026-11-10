@@ -232,7 +232,7 @@ private fun HexGroups.planRates(g: HexGroup, b: Band, weather: Weather, perDay: 
         // (A whole weir across the river by its camp: the days of foraging the food it would take a year as the band lived
         // ([Band.weirFood]) would have taken at [perDay], less the days its traps want ([Band.weirTend]) and its mending
         // ([WEIR_WEAR] of it a year), over the years it and its heirs expect to keep the place, against its building.)
-        val whole = weirLengthM(hw.placeHex[g.place]) * WEIR_DAYS_PER_M
+        val whole = weirLengthM(hw.placeHex[g.place]) * WEIR_DAYS_PER_M / b.skill(Skill.WEIRS)
         val years = keepYears(b, ticksPerYear)
         val aYear = (if (perDay > 0f) b.weirFood / perDay else 0f) - b.weirTend - WEIR_WEAR * whole
         rate[WEIRS] = if (whole > 0f) aYear * years / whole else 0f

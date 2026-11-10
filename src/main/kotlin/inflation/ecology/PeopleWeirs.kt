@@ -24,11 +24,12 @@ private fun HexGroups.weirLack(g: HexGroup, h: Hex): Float =
 /**
  * The person-days [g]'s band [b] asks this week for building or mending a weir across the river at its camp, hex [h]: where
  * fish from a whole weir there would have been worth taking up last week ([Band.weirPull] above 1/2: they would have ranked
- * in among its gatherers' foods), what it lacks of one, as far as its timber goes.
+ * in among its gatherers' foods), what it lacks of one, as far as its timber goes; if it knows how ([Skill.WEIRS]), the
+ * slower the less skilled.
  */
 internal fun HexGroups.weirAsk(g: HexGroup, b: Band, h: Hex): Float {
-    if (b.weirPull <= 0.5f) return 0f
-    return min(weirLack(g, h), b.goods[Material.WOOD] / WEIR_WOOD_KG_PER_M) * WEIR_DAYS_PER_M
+    if (b.weirPull <= 0.5f || !b.knowsSkill[Skill.WEIRS]) return 0f
+    return min(weirLack(g, h), b.goods[Material.WOOD] / WEIR_WOOD_KG_PER_M) * WEIR_DAYS_PER_M / b.skill(Skill.WEIRS)
 }
 
 /** A weir across the river at [g]'s band [b]'s camp at hex [h], where one would pay ([weirAsk]), built or mended as far as the [time] days and its timber go. */
@@ -36,14 +37,16 @@ internal fun HexGroups.weirAsk(g: HexGroup, b: Band, h: Hex): Float {
 internal fun HexGroups.buildWeir(g: HexGroup, b: Band, h: Hex, time: BandTime) {
     val left = time.leftFor(Activity.WEIRS)
     val gd = b.goods
-    if (left <= 0f || b.weirPull <= 0.5f || gd[Material.WOOD] <= 0f) return
-    val m = minOf(weirLack(g, h), left / WEIR_DAYS_PER_M, gd[Material.WOOD] / WEIR_WOOD_KG_PER_M)
+    if (left <= 0f || b.weirPull <= 0.5f || gd[Material.WOOD] <= 0f || !b.knowsSkill[Skill.WEIRS]) return
+    val perM = WEIR_DAYS_PER_M / b.skill(Skill.WEIRS)
+    val m = minOf(weirLack(g, h), left / perM, gd[Material.WOOD] / WEIR_WOOD_KG_PER_M)
     if (m <= 0f) return
     // (On the weir it is building or mending there, or a new one.)
     val s = buildingAt(g, Built.WEIR, h, -1, weirLengthM(h))
     val add = min(1f - s.built, m / s.size)
     if (add <= 0f) return
-    gd[Material.WOOD] -= add * s.size * WEIR_WOOD_KG_PER_M; buildOn(s, add); time.spend(Activity.WEIRS, add * s.size * WEIR_DAYS_PER_M)
+    gd[Material.WOOD] -= add * s.size * WEIR_WOOD_KG_PER_M; buildOn(s, add); time.spend(Activity.WEIRS, add * s.size * perM)
+    b.practise(Skill.WEIRS)
     stats.meeting(Met.BANDS_BUILT_WEIRS)
 }
 

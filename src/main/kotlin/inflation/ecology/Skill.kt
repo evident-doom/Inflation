@@ -55,6 +55,8 @@ enum class Domain {
     WATER,
     /** Ringing a settlement with a wall, a ditch or a palisade of stakes: where the timber or stone comes from, how it stands. */
     FORTIFYING,
+    /** Fencing a river with stakes and wattle to lead its fish into traps: where to set it, how it holds against the current. */
+    WEIRS,
 }
 
 /**
@@ -148,6 +150,13 @@ enum class Skill(val domain: Domain, val floor: Float, val start: Float = 0f, va
      * a way bands come to when they need it, so need gates it ([PeopleCrafts]); era profiles may grant it (t.startSkills).
      */
     FORTIFYING(Domain.FORTIFYING, CRAFT_FLOOR, known = false, settled = true),
+    /**
+     * Building fish weirs ([Built.WEIR]). Fixed weirs and traps are known from the European Mesolithic on (wattle weirs in
+     * Denmark and Ireland, about 7000 BC and later; from memory), and nothing like them from the Natufian, though the people of
+     * Mallaha by Lake Hula fished. A way bands come to when fish would pay them at a river where they camp ([Band.weirPull]),
+     * so need gates it ([PeopleCrafts]); era profiles may grant it (t.startSkills).
+     */
+    WEIRS(Domain.WEIRS, CRAFT_FLOOR, known = false),
     ;
 
     /**
