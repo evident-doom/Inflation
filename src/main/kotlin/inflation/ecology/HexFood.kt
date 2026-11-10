@@ -70,7 +70,7 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
      */
     val finds = FloatArray(n)
     val roots = perPlace(n) { p -> rootsCap(p) * 0.7f }
-    /** Fallen mast, kg/m²: acorns and nuts on the ground, the trees' share of the fallen [fruit]; rots or sprouts as old roots rot. */
+    /** Fallen mast, kg/m²: acorns and nuts on the ground, the trees' crop as it drops ([fruit] is the shrubs' alone); rots or sprouts as old roots rot. */
     val mast = FloatArray(n)
     /**
      * This week, whether the ground at each place is frozen too hard to dig: a week's mean air below [HexDrinkingWater.THAW_C],
@@ -85,8 +85,14 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
     fun takeUnderground(p: Place, want: KgM2): KgM2 {
         val all = underground(p); if (all <= 0f || want.v <= 0f) return KgM2(0f)
         val w = min(want.v, all); val fromRoots = w * diggable(p) / all
-        return KgM2(take(roots, p, KgM2(fromRoots)).v + take(mast, p, KgM2(w - fromRoots)).v)
+        return KgM2(take(roots, p, KgM2(fromRoots)).v + takeMast(MastFate.ANIMALS, p, KgM2(w - fromRoots)).v)
     }
+    /** What becomes of the mast, for the census: kg over all the land since the census last read it ([mastLedger]). */
+    enum class MastFate { FELL, PEOPLE, ANIMALS, SMALL_LIFE, ROTTED }
+    @Transient val mastLedger = DoubleArray(MastFate.entries.size)
+    /** Takes mast at [p] as [take] does, booked to [by] in [mastLedger]. */
+    fun takeMast(by: MastFate, p: Place, want: KgM2): KgM2 =
+        take(mast, p, want).also { mastLedger[by.ordinal] += it.v.toDouble() * land.areaM2[p.i] }
     /**
      * Wild cereals: large-seeded annual grasses (wild wheat and barley here), as a share of a place's
      * grass, where winters are wet, summers dry and the ground broken (the hilly flanks). Their ripe
@@ -203,6 +209,15 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
      * Where the sown fields' grain went, kg/m² so far this year at each place ([FieldFate]), and over all the land in the last
      * whole year, t: for the census only.
      */
+    /**
+     * For the census: fruit borne at each place over the year so far, kg/m², off the shrubs and off the trees (the trees'
+     * falls as mast), and over the last whole year. Not saved: a loaded world counts from its first new year.
+     */
+    @Transient private val shrubFruitNow = FloatArray(n)
+    @Transient private val treeFruitNow = FloatArray(n)
+    @Transient val shrubFruitLastYear = FloatArray(n)
+    @Transient val treeFruitLastYear = FloatArray(n)
+    @Transient var fruitYears = 0; private set
     private val fieldFateNow = Array(FieldFate.entries.size) { FloatArray(n) }
     val fieldFateLastYear = DoubleArray(FieldFate.entries.size)
     /** What becomes of a sown field's grain in a year: the seed whose crop is spent, what it would ripen to in full, what its water and ground let it ripen to, what ripened, what was shed. */
@@ -215,6 +230,8 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
             val first = standYear < 0; standYear = year
             if (!first) grainRipenedLastYear = (0 until n).sumOf { (ripenedNow[it] * land.areaKm2[it] * 1e6f).toDouble() } / 1000
             ripenedNow.fill(0f)
+            if (!first) { shrubFruitNow.copyInto(shrubFruitLastYear); treeFruitNow.copyInto(treeFruitLastYear); fruitYears++ }
+            shrubFruitNow.fill(0f); treeFruitNow.fill(0f)
             wildCover.fill(0f)
             // (Cleared ground not cropped in the year grows back toward the place's woods and scrub.)
             if (!first) for (p in 0 until n) cleared[p] = croppedNow[p] + max(0f, cleared[p] - croppedNow[p]) * (1f - 1f / REGROW_YEARS)
@@ -243,9 +260,14 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
             val newFruit = days * ripe
             val bore = if (newFruit > 0f) (land.plants.consume(p, LifeForm.SHRUB, KgM2(newFruit * fromShrub)) +
                 land.plants.consume(p, LifeForm.TREE, KgM2(newFruit * (1f - fromShrub)))).v else 0f
-            val fallen = lostOver(fruit[p], bore, lossShare(FRUIT_DAYS))
-            fruit[p] = max(0f, fruit[p] + bore - fallen)
-            small.deposit(DeadPool.LITTER, p, KgM2(fallen * fromShrub))
+            shrubFruitNow[p] += bore * fromShrub; treeFruitNow[p] += bore * (1f - fromShrub)
+            // (The trees' crop, acorns and nuts, is mast from the start: gathered as it drops and shelled, its bitter share
+            // leached, never picked off the bough as berries are. It was counted as fruit while it hung and picked at the
+            // berry rate with no leaching: some 95% of the "fruit" at the places bands live, bears 2026-11-10.)
+            val shrubIn = bore * fromShrub; val treeIn = bore - shrubIn
+            val fallen = lostOver(fruit[p], shrubIn, lossShare(FRUIT_DAYS))
+            fruit[p] = max(0f, fruit[p] + shrubIn - fallen)
+            small.deposit(DeadPool.LITTER, p, KgM2(fallen))
             // Grass seed ripens in early summer as the grass dries, and is shed over the following weeks.
             val ripeSeed = if (season in SEED_FROM..SEED_TO) SEED_SHARE * land.palatable[p] * land.plants.herb[p] / SEED_DAYS else 0f
             val seedIn = land.plants.consume(p, LifeForm.HERB, KgM2(days * ripeSeed)).v
@@ -257,8 +279,9 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
             val rootsIn = land.plants.consume(p, LifeForm.HERB, KgM2(days * r)).v
             val rotted = lostOver(roots[p], rootsIn, lossShare(ROOTS_DAYS))
             roots[p] = max(0f, roots[p] + rootsIn - rotted)
-            val mastRotted = lostOver(mast[p], fallen * (1f - fromShrub), lossShare(ROOTS_DAYS))
-            mast[p] = max(0f, mast[p] + fallen * (1f - fromShrub) - mastRotted)
+            val mastRotted = lostOver(mast[p], treeIn, lossShare(ROOTS_DAYS))
+            mastLedger[MastFate.FELL.ordinal] += treeIn.toDouble() * land.areaM2[p]; mastLedger[MastFate.ROTTED.ordinal] += mastRotted.toDouble() * land.areaM2[p]
+            mast[p] = max(0f, mast[p] + treeIn - mastRotted)
             small.deposit(DeadPool.LITTER, p, KgM2(rotted + mastRotted))
             // Wild cereals ripen with the other grasses; ears that shatter shed their grain within weeks,
             // those that hold it keep it for months. Sown fields ripen with them.
@@ -490,10 +513,13 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
          * woods and in open oak woodland; oak, elm and wild fruit among the alder, willow, ash and poplar of floodplain forest;
          * pistachio, wild almond and oak scattered on steppe and in scrub; little in conifer forest (a few stone pines and
          * hazel), none in alder swamp, mangrove or bog. Spruce, fir and larch seed feeds no one here. Each kind of country's
-         * trees go with one group whose crops boom and bust together ([MastTrees]).
+         * trees go with one group whose crops boom and bust together ([MastTrees]). Broadleaved and open woods at 0.3: in
+         * Białowieża's strict reserve, the nearest to a natural lowland forest left in Central Europe, oak is 2-5% of the stems
+         * among hornbeam, lime and spruce (Ann. For. Sci. 2018, doi 10.1007/s13595-018-0767-x, table 1); oak's larger
+         * trees and the mid-Holocene's oak, hazel and later beech put the bearing share higher, a guess.
          */
         val FOOD_TREES: Map<Biome, Pair<MastTrees, Float>> = mapOf(
-            Biome.TEMPERATE_FOREST to (MastTrees.TEMPERATE to 1f), Biome.OPEN_WOODLAND to (MastTrees.TEMPERATE to 1f),
+            Biome.TEMPERATE_FOREST to (MastTrees.TEMPERATE to 0.3f), Biome.OPEN_WOODLAND to (MastTrees.TEMPERATE to 0.3f),
             Biome.FLOODPLAIN_FOREST to (MastTrees.TEMPERATE to 0.3f),
             Biome.MEDITERRANEAN_WOODLAND to (MastTrees.DRY to 1f), Biome.STEPPE to (MastTrees.DRY to 0.5f),
             Biome.SHRUBLAND to (MastTrees.DRY to 0.5f), Biome.SEMI_DESERT to (MastTrees.DRY to 0.3f), Biome.DESERT to (MastTrees.DRY to 0.3f),

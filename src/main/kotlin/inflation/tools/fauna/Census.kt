@@ -45,6 +45,9 @@ import inflation.ecology.Regard
 import inflation.ecology.pressure
 import inflation.ecology.packPressure
 import inflation.ecology.livesFixed
+import inflation.ecology.hexSuit
+import inflation.ecology.bandPeopleByHex
+import inflation.ecology.hexFood
 import inflation.ecology.FaunaKind
 import inflation.ecology.PlaceMemory
 import inflation.ecology.FRIEND_TIE
@@ -254,6 +257,31 @@ class Census(private val sim: HexSim) {
             "%s %d / %.0f / %.1f%%".format(s.name, gs.size, if (gs.isEmpty()) 0.0 else gs.sumOf { it.size }.toDouble() / gs.size,
                 100.0 * gs.map { hw.placeHex[it.place] }.distinct().size / landHexes)
         })
+        // (How much of the land fit for foragers people cover: of the land hexes whose ground suits people over at least
+        // [FORAGE_LAND] of their area, those that are a band's home, and those within one and two hexes of one.)
+        groups.kinds.firstOrNull { it.human }?.let { people ->
+            val forage = hex.all.filter { h -> hw.land[h] > 0.5f && groups.hexSuit(people, h) >= inflation.ecology.FORAGE_LAND * hex.areaKm2.toFloat() }
+            val homes = live.filter { it.band != null }.map { hw.placeHex[it.place] }.toHashSet()
+            val near1 = HashSet(homes); for (h in homes) for (d in 0 until 6) { val q = hex.neighbour(h, d); if (!q.none) near1 += q }
+            val near2 = HashSet(near1); for (h in near1) for (d in 0 until 6) { val q = hex.neighbour(h, d); if (!q.none) near2 += q }
+            val n = forage.size.coerceAtLeast(1).toDouble()
+            println("     land fit for foragers held (%d of %d land hexes): a band's home %.1f%%, within a hex of one %.1f%%, within two %.1f%%"
+                .format(forage.size, landHexes, 100.0 * forage.count { it in homes } / n, 100.0 * forage.count { it in near1 } / n,
+                    100.0 * forage.count { it in near2 } / n))
+            // (Whether people's numbers follow their ground: the land hexes in four equal lots by the food it gives them ([hexFood]), each lot's share held, people in a held hex and people per km² over the lot; and how far mothers' reserves
+            // let them conceive, [reserveFertility]. Foragers' density spans two orders of magnitude and more with the ground.)
+            val ppl = groups.bandPeopleByHex()
+            val fit = hex.all.filter { hw.land[it] > 0.5f }.associateWith { groups.hexFood(it) }
+            val byFit = fit.keys.sortedBy { fit.getValue(it) }
+            if (byFit.size >= 4) println("     people by the food their ground gives them (land hexes in quarters, poorest first: food kg/km² a year, held, people a held hex, people/km²): " +
+                (0 until 4).joinToString("; ") { q ->
+                    val lot = byFit.subList(q * byFit.size / 4, (q + 1) * byFit.size / 4)
+                    val held = lot.count { ppl[it.i] > 0f }; val heads = lot.sumOf { ppl[it.i].toDouble() }
+                    "%.0f, %.0f%%, %.0f, %.3f".format(lot.sumOf { fit.getValue(it).toDouble() } / (lot.size * hex.areaKm2), 100.0 * held / lot.size,
+                        heads / held.coerceAtLeast(1), heads / (lot.size * hex.areaKm2))
+                } + "; mothers' reserves let them conceive %.0f%%".format(100.0 * live.filter { it.band != null && it.species == people }
+                    .let { bs -> bs.sumOf { inflation.ecology.reserveFertility(people, it.fat).toDouble() * it.size } / bs.sumOf { it.size }.coerceAtLeast(1) }))
+        }
         val roaming = groups.kinds.filter { it in Catalogue.roamingResidents }
         if (roaming.isNotEmpty()) println("     settled / roaming (heads, share roaming): " + roaming.joinToString(", ") { s ->
             val settled = fauna.count(fauna.slot(s)); val packs = live.filter { it.species == s }.sumOf { it.size }.toDouble()
@@ -394,6 +422,19 @@ class Census(private val sim: HexSim) {
         // [WORN_FRESH], if the share grew with the people.)
         val atPlace = HashMap<Int, Int>()
         for (g in groups.groups) if (g.alive && g.band != null) atPlace[g.place.i] = (atPlace[g.place.i] ?: 0) + g.size
+        // (Ground-up: what the land bears a year, kg/ha dry, against the field. Oak stands bore 182-667 kg/ha of acorns in
+        // 2013, Zeman et al. 2016; [HexFood.TREE_BEARING] means some 20 kg/ha per kg/m² of trees. Over all land, by area, and
+        // at the places bands live, by their people; and the roots standing there.)
+        if (food.fruitYears > 0) {
+            fun mean(f: (Int) -> Double, w: (Int) -> Double) = (0 until land.n).sumOf { f(it) * w(it) } / (0 until land.n).sumOf { w(it) }.coerceAtLeast(1e-9)
+            fun area(p: Int) = land.areaKm2[p].toDouble()
+            fun lived(p: Int) = (atPlace[p] ?: 0).toDouble()
+            val rows = listOf<Pair<String, (Int) -> Double>>(
+                "shrub fruit" to { p -> food.shrubFruitLastYear[p] * 1e4 }, "tree fruit and mast" to { p -> food.treeFruitLastYear[p] * 1e4 },
+                "roots standing" to { p -> food.roots[p] * 1e4 }, "trees kg/m²" to { p -> land.plants.tree[p].toDouble() })
+            println("     what the land bears, kg/ha a year (all land / where bands live): " + rows.joinToString(", ") { (name, f) ->
+                "%s %.1f / %.1f".format(name, mean(f, ::area), mean(f, ::lived)) })
+        }
         val wornKinds = listOf("fruit" to WORN_FRUIT, "roots" to WORN_ROOTS, "mast" to WORN_MAST, "seed" to WORN_SEED, "finds" to WORN_FINDS)
         val stand = listOf(food.fruit, food.roots, food.mast, food.seeds, food.finds)
         println("     worn ground, share taken at the places bands live at (median over places, per 100 people there; people at a place for the share to reach %.0f%%): ".format(100 * WORN_FRESH) +
@@ -408,7 +449,26 @@ class Census(private val sim: HexSim) {
             } + "; median people at a place %d".format(atPlace.values.sorted().let { if (it.isEmpty()) 0 else it[it.size / 2] }))
     }
 
+    /**
+     * What became of the mast since the last census, over all the land: what fell, and of it, shares eaten by people, by
+     * the resident and roaming animals, by the small life (rodents, jays), and rotted or sprouted ([HexFood.mastLedger]);
+     * with people's take a person-day. (Zeman et al. 2016: wild boar ate over 90% of a Moravian oak stand's acorns.)
+     */
+    fun printMast() {
+        val l = groups.fauna.food.mastLedger
+        val fell = l[inflation.ecology.HexFood.MastFate.FELL.ordinal]
+        if (fell <= 0.0) return
+        val people = groups.groups.filter { it.alive && it.band != null }.sumOf { it.size }.coerceAtLeast(1)
+        fun pc(f: inflation.ecology.HexFood.MastFate) = 100.0 * l[f.ordinal] / fell
+        println("     mast since the last census: fell %.0f t; eaten by people %.1f%%, animals %.1f%%, small life %.1f%%; rotted %.1f%%; people's take %.3f kg a person-day".format(
+            fell / 1000, pc(inflation.ecology.HexFood.MastFate.PEOPLE), pc(inflation.ecology.HexFood.MastFate.ANIMALS),
+            pc(inflation.ecology.HexFood.MastFate.SMALL_LIFE), pc(inflation.ecology.HexFood.MastFate.ROTTED),
+            l[inflation.ecology.HexFood.MastFate.PEOPLE.ordinal] / people / inflation.DAYS_PER_YEAR))
+        l.fill(0.0)
+    }
+
     fun printChoices() {
+        printMast()
         printCampGround()
         println("     choices a week per group (stayed without weighing / weighed and stayed / moved): " + groups.kinds.joinToString(", ") { s ->
             val c = IntArray(3) { groups.planner.planCounts.getAndSet(s.index * 3 + it, 0) }
@@ -1278,9 +1338,9 @@ class Census(private val sim: HexSim) {
         println("     bands' year: %d split, %d small bands joined kin, %d bands at home together became one (%d of them of the two kinds of choosing)"
             .format(met(Met.BANDS_SPLIT), met(Met.SMALL_BANDS_JOINED_KIN), met(Met.BANDS_BECAME_ONE), met(Met.BANDS_OF_TWO_MINDS_BECAME_ONE)))
         // (Bands that hold their home hex, t.bandsStay: what they did with their neighbours and their country this year.)
-        if (sim.land.tuning.bandsStay) println("     staying bands' year: %d neighbour meetings (all meetings of bands: %d, of them telling of the country %d), %d gatherings at appointments (%d bands came), %d camp shifts within the hex, %d budded into a free hex and %d in their parent's, %d raids set out"
+        if (sim.land.tuning.bandsStay) println("     staying bands' year: %d neighbour meetings (all meetings of bands: %d, of them telling of the country %d), %d gatherings at appointments (%d bands came), %d camp shifts within the hex, %d budded into another hex and %d in their parent's, %d households moved to a roomier hex, %d bands moved whole, %d raids set out"
             .format(met(Met.NEIGHBOURS_MET), met(Met.BANDS_MET), met(Met.BANDS_TOLD_OF_COUNTRY), met(Met.APPOINTMENTS_GATHERED), met(Met.BANDS_AT_APPOINTMENTS), met(Met.BANDS_SHIFTED_CAMP), met(Met.BANDS_BUDDED_OUT),
-                met(Met.BANDS_BUDDED_IN_PLACE), met(Met.RAIDS_SET_OUT)))
+                met(Met.BANDS_BUDDED_IN_PLACE), met(Met.HOUSEHOLDS_SEEPED), met(Met.BANDS_RELOCATED), met(Met.RAIDS_SET_OUT)))
         fun of(m: Met.Of, w: RiteWalk) = metYear[m.tally(w.label)] ?: 0
         println("     rites by the band's distance from the site: " + RiteWalk.entries.joinToString("; ") { w ->
             val h = of(Met.Of.RITES_HELD, w); val c = of(Met.Of.RITES_CUT_SHORT, w)

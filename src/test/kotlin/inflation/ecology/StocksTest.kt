@@ -98,7 +98,7 @@ class StocksTest {
             // Counted as heads, not mass (a boundary choice): eagles.
             "HexSmallLife.eagles",
             // Ledgers for checks.
-            "HexFauna.huntedByResidents", "HexFood.ripenedNow", "HexFood.fieldFateNow", "HexFood.fieldFateLastYear", "HexSmallLife.grubsDug", "HexSmallLife.herpLedger", "HexSmallLife.herpTakenBy",
+            "HexFauna.huntedByResidents", "HexFood.ripenedNow", "HexFood.mastLedger", "HexFood.shrubFruitNow", "HexFood.treeFruitNow", "HexFood.shrubFruitLastYear", "HexFood.treeFruitLastYear", "HexFood.fieldFateNow", "HexFood.fieldFateLastYear", "HexSmallLife.grubsDug", "HexSmallLife.herpLedger", "HexSmallLife.herpTakenBy",
             "HexSmallLife.tortLedger", "HexSmallLife.tortTakenBy",
         ).toSet()
     }

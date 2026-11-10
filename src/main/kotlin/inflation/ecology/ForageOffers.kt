@@ -238,7 +238,7 @@ internal fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
         // kilo; see [PLANT_SIGHT_M2_PER_DAY].)
         val food = fauna.food
         // (A plant food on offer at [q]: [share] of the ground reached, of [density] kg a km², for [workDays] a kg.)
-        fun plant(f: Food, kind: Int, share: Float, density: Float, workDays: Float, seek: Float = 0f, walked: Float = 0f) {
+        fun plant(f: Food, kind: Int, share: Float, density: Float, workDays: Float, seek: Float = 0f, walked: Float = 0f, rich: Float = 1f) {
             var h = workDays; var sk = seek; var wk = walked
             val k = wornKind(f, kind)
             if (wornLand != null && k >= 0 && density > 0f) {
@@ -255,7 +255,7 @@ internal fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
             }
             // (A band strips its share of what is left each tick: over a step of several, the more of it, [overTicks].)
             val got = if (band != null) overTicks(share) else share
-            offer(w, o, f, kind, Place(q), land.total(Place(q), KgM2(got * density)).v / days, 1f, h, seek = sk, walk = wk)
+            offer(w, o, f, kind, Place(q), land.total(Place(q), KgM2(got * density)).v / days, 1f, h, rich = rich, seek = sk, walk = wk)
         }
         fun sought(density: Float) = if (band != null && density > 0f) 1f / (PLANT_SIGHT_M2_PER_DAY * density * w.gatherers) else 0f
         plant(Food.FRUIT, 0, reach, food.fruit[q], fruitQ + sought(food.fruit[q]) + walked(Food.FRUIT, walk), sought(food.fruit[q]), walked(Food.FRUIT, walk))
@@ -270,7 +270,7 @@ internal fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
             val bitter = if (band.leachesMast(land.drink.water[q] >= Thresholds.WET || land.drink.waterKm[q] < 3f)) MAST_BITTER else 0f
             val eaten = 1f - MAST_BITTER + bitter
             val leach = bitter / eaten * MAST_LEACH_DAYS_PER_KG / w.gatherers * band.slowness(Skill.LEACHING)
-            plant(Food.ROOTS, MAST_KIND, reach * eaten, food.mast[q], fruitQ + leach + sought(food.mast[q]) + walked(Food.ROOTS, walk), sought(food.mast[q]), walked(Food.ROOTS, walk))
+            plant(Food.ROOTS, MAST_KIND, reach * eaten, food.mast[q], fruitQ + leach + sought(food.mast[q]) + walked(Food.ROOTS, walk), sought(food.mast[q]), walked(Food.ROOTS, walk), MAST_RICH)
         } else plant(Food.ROOTS, 0, reach, food.underground(Place(q)), ROOT_DIGGING * pickQ + walked(Food.ROOTS, walk))
         plant(Food.FINDS, 0, reach, food.finds[q], ROOT_DIGGING * pickQ + walked(Food.FINDS, walk), walked = walked(Food.FINDS, walk))
         // Grass seed must be reaped, threshed and ground: worth it only with the tools and the hands.
@@ -392,8 +392,9 @@ internal fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
                 gather(g, o.type[i], o.kind[i], Place(p), expected, w.hands, haul)
                 if (o.type[i] == Food.SEED) traceStand(w, "grass seed", seedStand, seedStand, haul.mass)
                 if (haul.busy > 0f) { w.busy += haul.busy; w.haulOver += haul.busy }
-                val fed = haul.kg * w.worth(o.type[i])
-                w.plants += haul.kg; w.fed += haul.kg * w.feeds(o.type[i])
+                val rich = if (o.type[i] == Food.ROOTS && o.kind[i] == MAST_KIND) MAST_RICH else 1f
+                val fed = haul.kg * w.worth(o.type[i]) * rich
+                w.plants += haul.kg; w.fed += haul.kg * w.feeds(o.type[i]) * rich
                 // (Mast, dried, keeps as seed does, for a year or more; bulbs and roots as roots.)
                 val st = when (o.type[i]) { Food.ROOTS -> if (o.kind[i] == MAST_KIND) Store.SEED else Store.ROOTS; Food.SEED -> Store.SEED; else -> Store.FRUIT }
                 w.plantKind[st] += fed; w.plantKg[st] += haul.mass
@@ -497,7 +498,8 @@ internal fun GroupWorld.gather(g: HexGroup, t: Food, kind: Int, p: Place, expect
     out.busy = 0f
     val food = fauna.food
     val stock = when (t) { Food.FRUIT -> food.fruit; Food.ROOTS -> if (kind == MAST_KIND) food.mast else food.roots; Food.SEED -> food.seeds; else -> food.finds }
-    fun take(kg: KgM2) = if (t == Food.ROOTS && band == null) food.takeUnderground(p, kg) else food.take(stock, p, kg)
+    fun take(kg: KgM2) = if (t == Food.ROOTS && band == null) food.takeUnderground(p, kg)
+        else if (stock === food.mast) food.takeMast(HexFood.MastFate.PEOPLE, p, kg) else food.take(stock, p, kg)
     val taken = land.total(p, take(land.spread(p, Kg(expected)))).v
     var took = taken; var mass = taken
     // Raw seed is poorly digested; ground and baked into bread it feeds fully.
@@ -539,6 +541,8 @@ internal const val RUN_KIND = 3
  * fruit is picked ([BAND_FRUIT_DAYS_PER_KG]): pine nuts in the Great Basin gave some 840-1,400 kcal/h (Simms 1987, from memory).
  */
 internal const val MAST_KIND = 1
+/** What a kg of mast feeds against a kg of roots, whose [Food] it is offered as ([Nourishment.MAST]). */
+internal const val MAST_RICH = Nourishment.MAST / Nourishment.ROOTS
 /** The kind of [Food.GRAIN] offered for a sown field's grain (0 the wild stand's). */
 internal const val FIELD_KIND = 1
 
