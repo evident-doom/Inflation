@@ -1198,8 +1198,8 @@ class Census(private val sim: HexSim) {
                     .sortedByDescending { (k, sh) -> kotlin.math.abs(sh - mapShare[k]) }.take(4)
                     .joinToString(", ") { (k, sh) -> "%s %.0f/%.0f".format(traits[k].first, 100 * sh, 100 * mapShare[k]) }
                 // (Its style: the variant most of its bands hold of each mark, and the share of its bands holding it, on the whole.)
-                val modal = (0 until STYLE_TRAITS).map { t -> mine.groupingBy { it.style[t] }.eachCount().maxByOrNull { it.value }!! }
-                val style = "style %s %.0f%%".format(modal.joinToString("-") { it.key.toString() }, 100.0 * modal.sumOf { it.value } / (STYLE_TRAITS * mine.size))
+                val modal = (0 until STYLE_TRAITS).map { t -> mine.groupingBy { it.style[t] }.eachCount().entries.maxByOrNull { it.value }?.toPair() ?: (0 to 0) }
+                val style = "style %s %.0f%%".format(modal.joinToString("-") { it.first.toString() }, 100.0 * modal.sumOf { it.second } / (STYLE_TRAITS * mine.size))
                 "%s (%d, %.0f; %s%s)".format(cr.name[r] ?: "-", mine.size, people, style, if (apart.isEmpty()) "" else "; $apart")
             })
     }
