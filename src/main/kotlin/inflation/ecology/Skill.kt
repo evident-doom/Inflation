@@ -53,6 +53,8 @@ enum class Domain {
     CHILDCARE,
     /** Reaching water under the ground: where it lies, and how to sink a shaft to it and keep it from falling in. */
     WATER,
+    /** Ringing a settlement with a wall, a ditch or a palisade of stakes: where the timber or stone comes from, how it stands. */
+    FORTIFYING,
 }
 
 /**
@@ -139,6 +141,13 @@ enum class Skill(val domain: Domain, val floor: Float, val start: Float = 0f, va
      * clean water), and the need is what gates them here.
      */
     WELLS(Domain.WATER, CRAFT_FLOOR, known = false, settled = true),
+    /**
+     * Ringing the houses with a palisade or a wall ([Built.PALISADE]). Hit on only by a band at home that has been raided lately.
+     * Unknown to the Natufians as far as is known: no Natufian site is walled; the first known town wall and tower are
+     * Jericho's, PPNA, about 9000 BC (from memory, to check), and wooden palisades are known later still. Like wells, it is
+     * a way bands come to when they need it, so need gates it ([PeopleCrafts]); era profiles may grant it (t.startSkills).
+     */
+    FORTIFYING(Domain.FORTIFYING, CRAFT_FLOOR, known = false, settled = true),
     ;
 
     /**

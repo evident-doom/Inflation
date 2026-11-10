@@ -24,14 +24,16 @@ internal fun HexGroups.buildPalisade(g: HexGroup, b: Band, h: Hex, people: Float
         dialUse?.choice(DialSite.PALISADES, b.fortifyWill, b.sinceRaided < ticksPerYear * b.fortifyWill, b.sinceRaided < ticksPerYear)
     if (fortifies(b) && left > 0f && people > 0f) {
         val s = buildingAt(g, Built.PALISADE, h, -1, people)
-        val built = minOf(1f - s.built, left / (PALISADE_DAYS * people), gd[Material.WOOD] / (PALISADE_WOOD * people)).coerceAtLeast(0f)
-        gd[Material.WOOD] -= built * PALISADE_WOOD * people; buildOn(s, built); time.spend(Activity.PALISADE, built * PALISADE_DAYS * people)
-        if (built > 0f) stats.meeting(Met.BANDS_BUILT_PALISADES)
+        // (Practised hands build it the faster: the days go as the band's skill at fortifying.)
+        val days = PALISADE_DAYS / b.skill(Skill.FORTIFYING)
+        val built = minOf(1f - s.built, left / (days * people), gd[Material.WOOD] / (PALISADE_WOOD * people)).coerceAtLeast(0f)
+        gd[Material.WOOD] -= built * PALISADE_WOOD * people; buildOn(s, built); time.spend(Activity.PALISADE, built * days * people)
+        if (built > 0f) { stats.meeting(Met.BANDS_BUILT_PALISADES); b.practise(Skill.FORTIFYING) }
     }
 }
 
-/** Whether [b] rings its houses with a palisade: at home, raided lately (by its will), with the ring not whole. */
-internal fun GroupWorld.fortifies(b: Band) = b.atHome && b.sinceRaided < ticksPerYear * b.fortifyWill && b.palisade < 1f
+/** Whether [b] rings its houses with a palisade: it knows how ([Skill.FORTIFYING]), at home, raided lately (by its will), with the ring not whole. */
+internal fun GroupWorld.fortifies(b: Band) = b.knowsSkill[Skill.FORTIFYING] && b.atHome && b.sinceRaided < ticksPerYear * b.fortifyWill && b.palisade < 1f
 
 /**
  * A band driven by hunger or a feud, knowing where a band it is not close to has its home within
