@@ -36,6 +36,13 @@ internal const val SEEP_MARGIN = 0.25f
 internal const val SEEP_ADULTS = 3
 /** A band tied to no spot moves its whole camp to the hex beside when that hex is this many times roomier, its band there counted. */
 internal const val RELOCATE_GAP = 3f
+/**
+ * Or, when its food has fallen short over the year by this many days ([Band.leanDays]: its ground has worsened, by drought,
+ * a shifting climate or the game gone), already when the hex beside is [RELOCATE_LEAN_GAP] times roomier. (Suitability,
+ * [hexSuit], is the ground's lasting worth and does not see a bad run of years; the band's own shortfall does.)
+ */
+internal const val RELOCATE_LEAN_DAYS = 60f
+internal const val RELOCATE_LEAN_GAP = 1.5f
 
 /** How well hex [h]'s ground suits [s]: its places' area weighted by how they suit the kind ([HexFauna.startWeight]), km². */
 internal fun HexGroups.hexSuit(s: Species, h: Hex): Float {
@@ -85,7 +92,8 @@ internal fun HexGroups.findHome(n: HexGroup, born: List<HexGroup>) {
  * ease their crowding into the hexes beside. For each, the roomiest hex beside ([hexSuit] over the people there and a
  * household more) against its own; where that is roomier by more than [SEEP_MARGIN]:
  * - a band tied to no spot moves its whole camp there if it is [RELOCATE_GAP] times roomier, its own people counted
- *   (the ground at home has worsened, or the hex beside emptied);
+ *   (the hex beside emptied), or [RELOCATE_LEAN_GAP] times when its food fell short by [RELOCATE_LEAN_DAYS] over the year
+ *   (its ground has worsened);
  * - otherwise some households leave for it, [SEEP_RATE] of its people for each unit of the gap, at most [SEEP_MOST], a
  *   tied band [SEEP_FIXED] as many, in parties of [SEEP_ADULTS] grown people with their share of the young (of
  *   [SMALL_BAND] to an empty hex), as a band of their own ([splitOff]); a party too small to live alone joins kin there
@@ -114,7 +122,8 @@ internal fun HexGroups.spreadYear(): List<HexGroup> {
         }
         if (best.none || bestV <= here * (1f + SEEP_MARGIN)) continue
         val fixed = b.livesFixed()
-        if (!fixed && suitAt(g.species, best) / (people[best.i] + g.size) >= RELOCATE_GAP * here) {
+        val gapThere = suitAt(g.species, best) / (people[best.i] + g.size) / here
+        if (!fixed && (gapThere >= RELOCATE_GAP || (b.leanDays >= RELOCATE_LEAN_DAYS && gapThere >= RELOCATE_LEAN_GAP))) {
             people[h.i] -= g.size; people[best.i] += g.size
             g.place = hw.firstPlaceIn(best)
             stats.meeting(Met.BANDS_RELOCATED)
