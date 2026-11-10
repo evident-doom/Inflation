@@ -79,8 +79,11 @@ internal fun HexGroups.hexSuit(s: Species, h: Hex): Float {
 internal const val GAME_OF_FORAGE = 0.01f
 /** Share of the roots in the ground that people dig a year where they live on them (an estimate). */
 internal const val ROOTS_TAKEN = 0.1f
-/** Share of the fish a band could catch at most step by step ([HexWater.fishWithin]) that it lands over a year (an estimate). */
-internal const val FISH_TAKEN = 0.3f
+/**
+ * Share of the fish a band could catch at most step by step ([HexWater.fishWithin]) that it lands over a year: small, as
+ * the model's bands eat next to no fish (diet censuses since 2026-10-22; Olli 2026-11-10). An estimate.
+ */
+internal const val FISH_TAKEN = 0.03f
 
 /**
  * What place [p] gives people a year, kg of food: game off its forage ([GAME_OF_FORAGE]) and roots dug from its ground
@@ -121,10 +124,9 @@ internal fun HexGroups.bandPeopleByHex(also: List<HexGroup> = emptyList()): Floa
  */
 internal fun HexGroups.findHome(n: HexGroup, born: List<HexGroup>) {
     val from = hw.placeHex[n.place]
-    // (A bud of a band that wants for no food stays on its parent's ground, a band of its own ([wantsFood]), unless there is
-    // country no one holds within reach: unhunted, its game unwary, fresh ground draws foragers on whether or not their own
-    // is short. Such a bud goes only to an empty hex.)
-    val want = wantsFood(n)
+    // (Held or empty alike, by the food for each person there once it has come, [hexFood]: an ideal free distribution, so a
+    // rich hex keeps its buds till its food a head falls to an empty poor hex's, and density follows food. Fretwell and
+    // Lucas 1970; for foragers settling new country, Winterhalder et al. 2010, from memory.)
     val people = bandPeopleByHex(born)
     val own = n.size.toFloat()
     var best = Place.NONE
@@ -133,7 +135,7 @@ internal fun HexGroups.findHome(n: HexGroup, born: List<HexGroup>) {
     for (r in 1..SPREAD_RINGS) {
         ring = hex.nextRing(ring, seen); keep *= SPREAD_RING_KEEP
         for (h in ring) {
-            if (hw.placesOf(h).isEmpty() || (!want && people[h.i] > 0f)) continue
+            if (hw.placesOf(h).isEmpty()) continue
             val v = keep * hexFood(h) / (people[h.i] + own)
             if (v > bestV) { bestV = v; best = hw.firstPlaceIn(h) }
         }
@@ -166,7 +168,8 @@ internal fun HexGroups.spreadYear(): List<HexGroup> {
     for (g in groups.toList()) {
         val b = g.band ?: continue
         if (!g.alive || !staysHome(g) || inParty(g) || g.adults < SMALL_BAND + SEEP_ADULTS) continue
-        // (A band that wants for no food sends off only a band of its own to country no one holds: [findHome].)
+        // (Its households go where food a head is more, held or not, as its buds do ([findHome]); only a band that wants for
+        // food ([wantsFood]) moves whole.)
         val want = wantsFood(g)
         // (Each year's draw from the band's own stream, so the year runs the same in any order.)
         val h = hw.placeHex[g.place]
@@ -174,7 +177,7 @@ internal fun HexGroups.spreadYear(): List<HexGroup> {
         var best = Hex.NONE; var bestV = 0f
         for (d in 0 until 6) {
             val q = hex.neighbour(h, d)
-            if (q.none || hw.placesOf(q).isEmpty() || (!want && people[q.i] > 0f)) continue
+            if (q.none || hw.placesOf(q).isEmpty()) continue
             val v = suitAt(g.species, q) / (people[q.i] + SEEP_ADULTS)
             if (v > bestV) { bestV = v; best = q }
         }
