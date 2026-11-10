@@ -223,6 +223,13 @@ class Band(kinds: Int, totems: Int = kinds) {
      * knapping stone rather than of whatever stone is at hand, clothes of hide tanned with ochre.
      */
     val fine = enumFloats<Tool> { if (it == Tool.CLOTHES) 0f else 1f }
+    /**
+     * Of each tool in its kit, how well it was made, 0..1: the skill of the hands that made it against a start band's
+     * ([makeQuality]). Poorly made tools serve worse and wear faster ([wearOfMake], [serveOfMake]); a band that has just
+     * learned of a tool can make it, but it takes years of practice to make it well. (The kit a band starts with was
+     * made well.)
+     */
+    val made = enumFloats<Tool> { 1f }
     /** Of its dried meat and fish, the share salted (with trade on). */
     var salted = 0f
     /** Of its dried meat and fish, how long on the whole it was dried for, against drying at the scaffold's 1 (the longer, the better it keeps: [driedKeep]). */
@@ -839,6 +846,7 @@ class Band(kinds: Int, totems: Int = kinds) {
         kit.copyInto(o.kit)
         knows.copyInto(o.knows)
         fine.copyInto(o.fine)
+        made.copyInto(o.made)
         o.salted = salted; o.dryDepth = dryDepth; o.pests = pests
         o.sodiumWant = sodiumWant; o.saltWantStep = saltWantStep * share; saltWantStep -= o.saltWantStep
         o.renown = renown
@@ -886,6 +894,7 @@ class Band(kinds: Int, totems: Int = kinds) {
             val ka = a.kit[i] * (1f - w)
             val kb = b.kit[i] * w
             if (ka + kb > 0f) a.fine[i] = weightedMean(a.fine[i], ka, b.fine[i], kb)
+            if (ka + kb > 0f) a.made[i] = weightedMean(a.made[i], ka, b.made[i], kb)
             a.kit[i] += w * (b.kit[i] - a.kit[i])
         }
         a.sodiumWant += w * (b.sodiumWant - a.sodiumWant); a.saltWantStep += b.saltWantStep
@@ -1000,6 +1009,11 @@ class Band(kinds: Int, totems: Int = kinds) {
     val learning get() = edge(Skill.SHOWING)
     /** How well it makes [t]: by the best way of its craft it knows (blades and microliths beat plain flakes). */
     fun makeSkill(t: Tool) = skill(t.skill.domain)
+    /** How well it makes [t], 0..1: [makeSkill] against a start band's skill at the craft (its [Skill.ref] level); at or above that, 1. */
+    fun makeQuality(t: Tool): Float {
+        val ref = t.skill.floor + (1f - t.skill.floor) * t.skill.ref
+        return if (ref <= 0f) 1f else min(1f, makeSkill(t) / ref)
+    }
     /** The way of its craft it uses for [t]. */
     fun makeWay(t: Tool) = Skill.of(t.skill.domain).filter { knowsSkill[it] }.maxByOrNull { skill(it) * it.gain } ?: t.skill
     fun has(t: Tool) = kit[t]
@@ -1008,8 +1022,8 @@ class Band(kinds: Int, totems: Int = kinds) {
 
     /** How its weapons, hunting skill and dogs do against [prey], against an ordinary armed, practised band without dogs (1). */
     fun huntEdge(prey: Species, tuning: Tuning) =
-        PURSUIT_KILLS * skill(Skill.HUNT) * edge(Skill.STALK) * (WEAPONLESS + (1f - WEAPONLESS) * has(Tool.SPEAR) * serveOfMake(Tool.SPEAR, fine[Tool.SPEAR], tuning) +
-            BOW_GAIN * has(Tool.BOW) * serveOfMake(Tool.BOW, fine[Tool.BOW], tuning) * min(1f, prey.speedKmh / 70f)) *
+        PURSUIT_KILLS * skill(Skill.HUNT) * edge(Skill.STALK) * (WEAPONLESS + (1f - WEAPONLESS) * has(Tool.SPEAR) * serveOfMake(Tool.SPEAR, fine[Tool.SPEAR], made[Tool.SPEAR], tuning) +
+            BOW_GAIN * has(Tool.BOW) * serveOfMake(Tool.BOW, fine[Tool.BOW], made[Tool.BOW], tuning) * min(1f, prey.speedKmh / 70f)) *
             (1f + DOG_HUNT * dogs.dogShare * max(0f, 1f - prey.massKg / DOG_PREY_KG))
 
 
@@ -1017,7 +1031,7 @@ class Band(kinds: Int, totems: Int = kinds) {
     fun ferocity(s: Species) = s.ferocity * (WEAPONLESS + (1f - WEAPONLESS) * has(Tool.SPEAR) + 0.5f * has(Tool.BOW))
 
     /** How much more seed its sickles reap, as well as their stone cuts. */
-    fun sickleGain(tuning: Tuning) = SICKLE_GAIN * has(Tool.SICKLE) * serveOfMake(Tool.SICKLE, fine[Tool.SICKLE], tuning)
+    fun sickleGain(tuning: Tuning) = SICKLE_GAIN * has(Tool.SICKLE) * serveOfMake(Tool.SICKLE, fine[Tool.SICKLE], made[Tool.SICKLE], tuning)
 
     /**
      * Gathering: the most of a plant food's stock in a place it can take in a week (a tick; over a step of several, that share

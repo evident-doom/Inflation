@@ -314,6 +314,13 @@ class Tuning(
     val poorStoneEdge = f("poorStoneEdge", 0.75f)
     val poorStoneWear = f("poorStoneWear", 1f)
     /**
+     * A tool made by unskilled hands ([inflation.ecology.Band.makeQuality] 0, against 1 at a start band's skill): how much
+     * worse it serves, and how much faster it wears. A beginner (the skill's floor, 0.3 of a master) makes at about half a
+     * start band's quality. Not measured.
+     */
+    val poorMakeEdge = f("poorMakeEdge", 0.7f)
+    val poorMakeWear = f("poorMakeWear", 1f)
+    /**
      * How much slower people work wholly without sodium ([inflation.ecology.SODIUM_A_PERSON_DAY], [inflation.ecology.saltPace]).
      * Not measured: salt hunger among farmers and plant gatherers is well known, its toll here a guess.
      */

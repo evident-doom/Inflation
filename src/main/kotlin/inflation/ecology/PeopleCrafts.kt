@@ -175,7 +175,7 @@ internal fun GroupWorld.wearAndInvent(b: Band, years: Float) {
         // Tools wear out in use; lying idle, slowly (cords rot, hafts dry and crack).
         val inUse = t == Tool.CLOTHES || t.uses.any { b.weeks - b.lastUsed[it] <= 1 }
         b.kit[t] = max(0f, b.kit[t] - t.wearPerYear * years * (if (inUse) 1f else IDLE_WEAR) *
-            (if (t.hafted) b.lapse(Skill.GLUING) else 1f) * wearOfMake(t, b.fine[t], tuning))
+            (if (t.hafted) b.lapse(Skill.GLUING) else 1f) * wearOfMake(t, b.fine[t], b.made[t], tuning))
         // A band that has a use for a tool now and then hits on it: bows where game is shy and
         // fast, sickles and grinding stones where it reaps seed, and so on.
         if (!b.knows[t] && (t != Tool.PICK || b.knowsSkill[Skill.WELLS]) && rnd.nextFloat() < INVENT * b.edge(Skill.TINKER) * years * (0.5f + b.skills[t.serves])) {
@@ -242,6 +242,8 @@ internal fun HexGroups.makeTools(b: Band, people: Float, time: BandTime?, only: 
             gd[made] = max(0f, gd[made] - good * want)
             b.fine[t] = (b.kit[t] * b.fine[t] + can * good) / (b.kit[t] + can)
         }
+        // (What it makes now is as good as its hands: the kit's quality is the mean of old and new, by share.)
+        b.made[t] = (b.kit[t] * b.made[t] + can * b.makeQuality(t)) / (b.kit[t] + can)
         b.kit[t] += can; time.spend(Activity.TOOLS, can * daysEach)
         b.practise(way); b.practise(Skill.TINKER, 0.02f * PRACTICE)
         // (And tries the other ways of the craft it knows now and then, so a new way can come to beat the old.)
@@ -301,21 +303,26 @@ internal fun GroupWorld.forget(b: Band) {
 internal const val IDLE_WEAR = 0.3f
 internal const val TOOLLESS = 0.2f
 
-/** Two bands that meet show each other tools one of them does not know, the more readily the better they understand each other ([understood]). */
+/**
+ * Two bands that meet show each other the tools and ways of working one of them does not know, the more readily the better
+ * they understand each other ([understood]). Bands take up a stranger's tool or way the less readily the more their customs
+ * differ, and the more readily from a band that does better than they do ([aDoesBetter]). The idea comes freely; making
+ * the tool well ([Band.makeQuality]) and working the way well come only with practice and teachers.
+ */
 internal fun GroupWorld.teach(a: Band, b: Band, understood: Float, aDoesBetter: Float = 0f) {
-    for (k in Tool.entries) if (a.knows[k] != b.knows[k] && rnd.nextFloat() < TEACH * (0.5f + 0.5f * understood)) {
+    val alike = 1f - CONFORMITY * Tradition.entries.count { a.holds(it) != b.holds(it) }.toFloat() / Tradition.entries.size
+    fun prestige(fromA: Boolean) = (1f + PRESTIGE * (if (fromA) aDoesBetter else -aDoesBetter)).coerceIn(0.2f, 2f)
+    for (k in Tool.entries) if (a.knows[k] != b.knows[k] &&
+        rnd.nextFloat() < TEACH * (0.5f + 0.5f * understood) * alike * prestige(a.knows[k])) {
         a.knows[k] = true; b.knows[k] = true
         stats.meeting(Met.Of.LEARNED, k.name.lowercase())
     }
     // And ways of working: the one that knows a way shows it; the other starts on it as a beginner.
-    // (Bands take up a stranger's way the less readily the more their customs differ, and the more
-    // readily from a band that does better than they do.)
-    val alike = 1f - CONFORMITY * Tradition.entries.count { a.holds(it) != b.holds(it) }.toFloat() / Tradition.entries.size
     for (k in Skill.entries) if (a.knowsSkill[k] != b.knowsSkill[k]) {
         val (from, to) = if (a.knowsSkill[k]) a to b else b to a
         val need = k.needs
         if (need != null && (!to.knowsSkill[need] || to.skills[need] < NEEDS_LEVEL)) continue
-        val prestige = (1f + PRESTIGE * (if (from === a) aDoesBetter else -aDoesBetter)).coerceIn(0.2f, 2f)
+        val prestige = prestige(from === a)
         if (rnd.nextFloat() >= k.teach * TEACH * (0.5f + 0.5f * understood) * alike * prestige) continue
         // (A meeting shows that a way exists; the skill itself comes only with people who stay to teach it.)
         // (Newly learned, it counts as fresh: it is lost only if it then goes unused for years.)
@@ -359,14 +366,22 @@ internal const val TANNED_WEAR = 0.5f
 fun fineMaterial(t: Tool): Material? = FINE_MATERIAL[t.ordinal]
 /** [fineMaterial] of each tool, worked out once (it is asked for in every hunt's odds: [Band.huntEdge]). */
 private val FINE_MATERIAL: Array<Material?> = Tool.entries.map { t -> when { Material.STONE in t.recipe -> Material.STONE; t == Tool.CLOTHES -> Material.OCHRE; else -> null } }.toTypedArray()
-/** How much faster tool [t] wears for being made well only in share [fine] */
-fun wearOfMake(t: Tool, fine: Float, tuning: Tuning): Float = when (fineMaterial(t)) {
+/**
+ * How much faster tool [t] wears for being made well only in share [fine] (of its material) and made by hands of quality
+ * [made] ([Band.makeQuality]): an unskilled maker's tool breaks sooner, whatever it is made of.
+ */
+fun wearOfMake(t: Tool, fine: Float, made: Float, tuning: Tuning): Float = (when (fineMaterial(t)) {
     Material.STONE -> 1f + tuning.poorStoneWear * (1f - fine)
     Material.OCHRE -> 1f - TANNED_WEAR * fine
     else -> 1f
-}
-/** How well tool [t] serves for being made well only in share [fine] stone tools of poor stone, less. */
-fun serveOfMake(t: Tool, fine: Float, tuning: Tuning): Float = if (fineMaterial(t) != Material.STONE) 1f else tuning.poorStoneEdge + (1f - tuning.poorStoneEdge) * fine
+}) * (1f + tuning.poorMakeWear * (1f - made))
+/**
+ * How well tool [t] serves for being made well only in share [fine] (stone tools of poor stone, less) and by hands of
+ * quality [made] (a clumsy spear point or sickle, less).
+ */
+fun serveOfMake(t: Tool, fine: Float, made: Float, tuning: Tuning): Float =
+    (if (fineMaterial(t) != Material.STONE) 1f else tuning.poorStoneEdge + (1f - tuning.poorStoneEdge) * fine) *
+        (tuning.poorMakeEdge + (1f - tuning.poorMakeEdge) * made)
 
 /** Flint a tool's stone takes when knapped as blades or microliths, against plain flakes. */
 internal const val BLADE_STONE = 0.4f
