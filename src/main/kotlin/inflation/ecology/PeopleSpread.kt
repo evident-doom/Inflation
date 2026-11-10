@@ -52,7 +52,8 @@ internal const val RELOCATE_LEAN_GAP = 1.5f
 internal const val FORAGE_LAND = 0.2f
 
 /**
- * Whether band [g] wants for food: its people's reserves are down below [FERTILE_RESERVE] of full, where its mothers
+ * Whether band [g] wants for food: its people's reserves fell below [FERTILE_RESERVE] of full at some step of its year
+ * ([Band.fatLow]; read once a year they missed the lean months, fit699e), where its mothers
  * conceive the less ([reserveFertility]). Only then do its buds leave its hex ([findHome]) and its households move off
  * ([spreadYear]). Foragers spread to new country as their own grows short in its worst season, not because the next
  * valley holds fewer people (Binford 2001, Kelly 2013, from memory: density follows what the leanest season gives). So a
@@ -60,7 +61,7 @@ internal const val FORAGE_LAND = 0.2f
  * (The band's lean days, [Band.leanDays], were tried first: they count the seasons' shortfall before the larder pays, so
  * nearly every band had them, fit699d.)
  */
-internal fun wantsFood(g: HexGroup) = g.fat < FERTILE_RESERVE * g.species.maxFatDays
+internal fun wantsFood(g: HexGroup) = (g.band?.fatLow ?: (g.fat / g.species.maxFatDays.coerceAtLeast(1f))) < FERTILE_RESERVE
 
 /** How well hex [h]'s ground suits [s]: its places' area weighted by how they suit the kind ([HexFauna.startWeight]), km². */
 internal fun HexGroups.hexSuit(s: Species, h: Hex): Float {
@@ -163,5 +164,7 @@ internal fun HexGroups.spreadYear(): List<HexGroup> {
         made += n
         stats.meeting(Met.HOUSEHOLDS_SEEPED)
     }
+    // (The year's lowest reserves start afresh once read: [Band.fatLow]. The buds of the year to come read it as they part.)
+    for (g in groups) g.band?.let { b -> b.fatLow = g.fat / g.species.maxFatDays.coerceAtLeast(1f) }
     return made
 }

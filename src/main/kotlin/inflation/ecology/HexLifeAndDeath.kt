@@ -682,6 +682,7 @@ private fun GroupWorld.feedOnReserves(g: HexGroup) {
     g.surplus = 0f
     // (A band counts the steps on end it lives on its reserves; the spell ends with a step it does not: see [riteWeek].)
     val b = g.band ?: return
+    b.fatLow = min(b.fatLow, g.fat / s.maxFatDays.coerceAtLeast(1f))
     if (drew) b.wantSteps++ else if (b.wantSteps > 0) { b.wantBroke = b.wantSteps; b.wantSteps = 0 }
 }
 
