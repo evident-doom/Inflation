@@ -3,6 +3,7 @@ package inflation.ecology
 import inflation.Part
 import inflation.world.Hex
 import inflation.world.Place
+import inflation.world.Date
 import kotlin.math.max
 import kotlin.math.min
 
@@ -70,6 +71,38 @@ internal fun HexGroups.hexSuit(s: Species, h: Hex): Float {
     return w
 }
 
+/**
+ * Share of the palatable forage standing on the ground (grass and browse) that comes to people as game a year: grazers and
+ * browsers make some few per cent of their forage into flesh a year, and hunters take a fraction of that (an estimate, of
+ * the order of secondary production in grassland, Coe et al. 1976, from memory, and a hunter's take of a fifth).
+ */
+internal const val GAME_OF_FORAGE = 0.01f
+/** Share of the roots in the ground that people dig a year where they live on them (an estimate). */
+internal const val ROOTS_TAKEN = 0.1f
+/** Share of the fish a band could catch at most step by step ([HexWater.fishWithin]) that it lands over a year (an estimate). */
+internal const val FISH_TAKEN = 0.3f
+
+/**
+ * What place [p] gives people a year, kg of food: game off its forage ([GAME_OF_FORAGE]) and roots dug from its ground
+ * ([ROOTS_TAKEN]). The foods of the lean months: fruit, seed and grain come in their season and keep only as stores, so
+ * they are left out. (Forager density follows the land's productivity and, where it is cold, its waters: Binford 2001,
+ * Kelly 2013, from memory.) A measure for where people start and spread to, against how many hold it; not food anyone eats.
+ */
+internal fun HexGroups.placeFood(p: Place): Float {
+    val m2 = land.areaKm2[p] * 1e6f
+    val forage = land.palatable[p] * (land.plants.herb[p] + land.plants.shrub[p]) * m2
+    return forage * GAME_OF_FORAGE + fauna.food.roots[p.i] * m2 * ROOTS_TAKEN
+}
+
+/** What hex [h] gives people a year, kg of food: its places' ([placeFood]) and the fish of its waters ([FISH_TAKEN]). */
+internal fun HexGroups.hexFood(h: Hex): Float {
+    var kg = 0f
+    for (pi in hw.placesOf(h)) kg += placeFood(Place(pi))
+    // (The fish and shellfish within reach, not the spring run, which comes in its season.)
+    val fish = fauna.water.fishWithin(h, 1f, HexWater.Catch.FISH) + fauna.water.fishWithin(h, 1f, HexWater.Catch.SHELLFISH)
+    return kg + fish * Date.DAYS_PER_YEAR / days * FISH_TAKEN
+}
+
 /** The people of the bands living in each hex, by the hex's index, those in [also] counted too (bands made this step). */
 internal fun HexGroups.bandPeopleByHex(also: List<HexGroup> = emptyList()): FloatArray {
     val people = FloatArray(hex.size)
@@ -95,13 +128,13 @@ internal fun HexGroups.findHome(n: HexGroup, born: List<HexGroup>) {
     val people = bandPeopleByHex(born)
     val own = n.size.toFloat()
     var best = Place.NONE
-    var bestV = hexSuit(n.species, from) / (people[from.i] + own)
+    var bestV = hexFood(from) / (people[from.i] + own)
     var ring = listOf(from); val seen = hashSetOf(from); var keep = 1f
     for (r in 1..SPREAD_RINGS) {
         ring = hex.nextRing(ring, seen); keep *= SPREAD_RING_KEEP
         for (h in ring) {
             if (hw.placesOf(h).isEmpty() || (!want && people[h.i] > 0f)) continue
-            val v = keep * hexSuit(n.species, h) / (people[h.i] + own)
+            val v = keep * hexFood(h) / (people[h.i] + own)
             if (v > bestV) { bestV = v; best = hw.firstPlaceIn(h) }
         }
     }
@@ -129,7 +162,7 @@ internal fun HexGroups.spreadYear(): List<HexGroup> {
     if (!tuning.bandsStay) return made
     val people = bandPeopleByHex()
     val suit = FloatArray(hex.size) { Float.NaN }
-    fun suitAt(s: Species, h: Hex): Float { if (suit[h.i].isNaN()) suit[h.i] = hexSuit(s, h); return suit[h.i] }
+    fun suitAt(s: Species, h: Hex): Float { if (suit[h.i].isNaN()) suit[h.i] = hexFood(h); return suit[h.i] }
     for (g in groups.toList()) {
         val b = g.band ?: continue
         if (!g.alive || !staysHome(g) || inParty(g) || g.adults < SMALL_BAND + SEEP_ADULTS) continue

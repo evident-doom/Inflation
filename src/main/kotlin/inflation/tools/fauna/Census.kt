@@ -43,6 +43,7 @@ import inflation.ecology.packPressure
 import inflation.ecology.livesFixed
 import inflation.ecology.hexSuit
 import inflation.ecology.bandPeopleByHex
+import inflation.ecology.hexFood
 import inflation.ecology.FaunaKind
 import inflation.ecology.PlaceMemory
 import inflation.ecology.FRIEND_TIE
@@ -263,16 +264,16 @@ class Census(private val sim: HexSim) {
             println("     land fit for foragers held (%d of %d land hexes): a band's home %.1f%%, within a hex of one %.1f%%, within two %.1f%%"
                 .format(forage.size, landHexes, 100.0 * forage.count { it in homes } / n, 100.0 * forage.count { it in near1 } / n,
                     100.0 * forage.count { it in near2 } / n))
-            // (Whether people's numbers follow their ground: the land hexes in four equal lots by how well their ground suits
-            // people, each lot's share held, people in a held hex and people per km² over the lot; and how far mothers' reserves
+            // (Whether people's numbers follow their ground: the land hexes in four equal lots by the food it gives them ([hexFood]), each lot's share held, people in a held hex and people per km² over the lot; and how far mothers' reserves
             // let them conceive, [reserveFertility]. Foragers' density spans two orders of magnitude and more with the ground.)
             val ppl = groups.bandPeopleByHex()
-            val byFit = hex.all.filter { hw.land[it] > 0.5f }.sortedBy { groups.hexSuit(people, it) }
-            if (byFit.size >= 4) println("     people by how their ground suits them (land hexes in quarters, poorest first: suit/km², held, people a held hex, people/km²): " +
+            val fit = hex.all.filter { hw.land[it] > 0.5f }.associateWith { groups.hexFood(it) }
+            val byFit = fit.keys.sortedBy { fit.getValue(it) }
+            if (byFit.size >= 4) println("     people by the food their ground gives them (land hexes in quarters, poorest first: food kg/km² a year, held, people a held hex, people/km²): " +
                 (0 until 4).joinToString("; ") { q ->
                     val lot = byFit.subList(q * byFit.size / 4, (q + 1) * byFit.size / 4)
                     val held = lot.count { ppl[it.i] > 0f }; val heads = lot.sumOf { ppl[it.i].toDouble() }
-                    "%.2f, %.0f%%, %.0f, %.3f".format(lot.sumOf { groups.hexSuit(people, it).toDouble() } / (lot.size * hex.areaKm2), 100.0 * held / lot.size,
+                    "%.0f, %.0f%%, %.0f, %.3f".format(lot.sumOf { fit.getValue(it).toDouble() } / (lot.size * hex.areaKm2), 100.0 * held / lot.size,
                         heads / held.coerceAtLeast(1), heads / (lot.size * hex.areaKm2))
                 } + "; mothers' reserves let them conceive %.0f%%".format(100.0 * live.filter { it.band != null && it.species == people }
                     .let { bs -> bs.sumOf { inflation.ecology.reserveFertility(people, it.fat).toDouble() * it.size } / bs.sumOf { it.size }.coerceAtLeast(1) }))

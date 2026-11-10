@@ -173,17 +173,18 @@ class HexGroups(
             val count = if (s.human) (usual * tuning.peopleStart).toInt()
                 else if (s == Catalogue.CHEETAH) max(1, (usual * tuning.cheetahStart).toInt())
                 else if (s in Catalogue.roamingResidents) (usual * HexFauna.ROAMERS_AT_START).roundToInt() else usual
-            val weights = if (uniformStart) FloatArray(n) { p -> land.areaKm2[p] } else startWeights(s).also { w -> if (s == Catalogue.CHEETAH) keepOutOfLionCountry(w) }
+            // (Bands that hold their home hex start where the food is, as many to a hex as its food draws, rich and poor
+            // ground alike held in proportion: [startFood].)
+            val byFood = s.human && tuning.bandsStay && !uniformStart
+            val weights = if (uniformStart) FloatArray(n) { p -> land.areaKm2[p] } else if (byFood) startFood() else startWeights(s).also { w -> if (s == Catalogue.CHEETAH) keepOutOfLionCountry(w) }
             val total = weights.sum()
             // (A kind with no ground that suits it starts with none, even where its settled density would give it one group:
             // that group had nowhere to go but place 0, and a world without places has none at all.)
             if (total <= 0f) continue
             // (Groups start of all sizes about the usual, the same heads in all: [startSizes].)
             val sizes = startSizes(s, unit, count)
-            // (Bands that hold their home hex start one to a hex, the best country first: [bestHexesFirst].)
-            val bestFirst = if (s.human && tuning.bandsStay && !uniformStart) bestHexesFirst(weights) else null
-            for ((i, size) in sizes.withIndex()) {
-                val p = bestFirst?.getOrNull(i) ?: inflation.drawWeighted(weights, total, rnd)
+            for (size in sizes) {
+                val p = inflation.drawWeighted(weights, total, rnd)
                 val g = spawn(s, Place(p), size)
                 if (s.human) {
                     g.larder = START_LARDER_DAYS * g.dailyNeedKg
@@ -275,19 +276,15 @@ class HexGroups(
     }
 
     /**
-     * Where the bands of a world start when they hold their home hex ([inflation.Tuning.bandsStay]): one band to a hex, the
-     * hexes in order of how well their ground suits people ([weights], the start weights of their places summed: food,
-     * water, warmth, by area), each band on its hex's low ground (where bands that hold their hex camp, [GroupPlanner.stayPlan]);
-     * hexes whose ground suits them not at all are left out.
-     * The best country is taken first and budding spreads people from there ([findHome]). Beyond the last such hex, bands
-     * are drawn as before and share.
+     * Where people's bands start when they hold their home hex: each place weighted by the food it gives people a year
+     * ([placeFood]), its hex's fish on its first place ([hexFood]). Drawn band by band, a hex gets bands in proportion to
+     * its food: forager density follows the land's productivity, from a band to a few hexes on poor ground to several
+     * to a hex on rich (Binford 2001, from memory).
      */
-    private fun bestHexesFirst(weights: FloatArray): IntArray {
-        val hexes = hex.all.filter { h -> hw.placesOf(h).any { weights[it] > 0f } }
-        val worth = HashMap<Hex, Float>(); for (h in hexes) worth[h] = hw.placesOf(h).sumOf { weights[it].toDouble() }.toFloat()
-        // (Ties go to the lower hex number, so the order is the same on every run of the seed.)
-        return hexes.sortedWith(compareByDescending<Hex> { worth.getValue(it) }.thenBy { it.i })
-            .map { h -> hw.firstPlaceIn(h).i }.toIntArray()
+    private fun startFood(): FloatArray {
+        val w = FloatArray(n) { p -> placeFood(Place(p)) }
+        for (h in hex.all) { val first = hw.firstPlaceIn(h); if (!first.none) w[first.i] += hexFood(h) - hw.placesOf(h).sumOf { placeFood(Place(it)).toDouble() }.toFloat() }
+        return w
     }
 
     /** Where groups of [s] start or wander in: by area, how the ground and climate suit it, and water within its reach in a usual year. */
