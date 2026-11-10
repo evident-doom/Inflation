@@ -650,6 +650,7 @@ class Band(kinds: Int, totems: Int = kinds) {
         val i = totemSlot(o.keptTotem)
         if (i < heardTotem.size) heardTotem[i] += u
         if (o.holds(Tradition.BURIAL)) heardBurial[o.burialWay] += u
+        for (t in 0 until STYLE_TRAITS) heardStyle[t * STYLE_VARIANTS + o.style[t]] += u
         o.shownLivelihood?.let { heardLivelihood[it] += u }
     }
     /**
@@ -690,12 +691,31 @@ class Band(kinds: Int, totems: Int = kinds) {
     /** The share of the burying bands it met lately, itself counted as one, that lay their dead as [w] (for [conformist]). */
     fun heardBurialShare(w: BurialWay) = (heardBurial[w] + (if (burialWay == w) 1f else 0f)) / (heardBurial.sum() + 1f)
     /**
+     * Its style ([STYLE_TRAITS] marks of no use, each one of [STYLE_VARIANTS] variants: the shape of its points, the pattern
+     * of its beads, the weave of its baskets, how it paints itself), drawn for its founding lineage ([styleAt]) and copied
+     * from the bands it meets, the more readily the more of them it has seen hold it ([conformist], [CultureMeetings]); now
+     * and then a band changes one of its own ([STYLE_DRIFT]). Nothing reads it but the observer: styles are what an
+     * archaeologist draws cultures by. [heardStyle]: of the bands it met lately, how many held each variant of each trait
+     * (trait x [STYLE_VARIANTS] + variant), fading as [heard]. [styleChosen]: drawn yet (a band of a world saved before styles
+     * draws its own when it next reckons its marks, [ensureMarks]).
+     */
+    val style = IntArray(STYLE_TRAITS)
+    val heardStyle = FloatArray(STYLE_TRAITS * STYLE_VARIANTS)
+    var styleChosen = false
+    /** The share of the bands it met lately, itself counted as one, that hold variant [v] of style trait [t] (for [conformist]). */
+    fun heardStyleShare(t: Int, v: Int): Float {
+        var all = 0f
+        for (k in 0 until STYLE_VARIANTS) all += heardStyle[t * STYLE_VARIANTS + k]
+        return (heardStyle[t * STYLE_VARIANTS + v] + (if (style[t] == v) 1f else 0f)) / (all + 1f)
+    }
+    /**
      * Gives a band without its marks yet ([marksChosen]) its lineage's totem (among the first [totems] resident kinds,
      * [HexFauna.totemKinds]) and burial way, and room to hear of every one.
      */
     fun ensureMarks(totems: Int) {
         if (heardTotem.size != totems + 1) heardTotem = FloatArray(totems + 1)
         if (!livelihoodChosen) { heldLivelihood = livelihood(); livelihoodHold = livelihoodHoldAt(mainLineage()); livelihoodChosen = true }
+        if (!styleChosen) { val l = mainLineage(); for (t in 0 until STYLE_TRAITS) style[t] = styleAt(l, t); styleChosen = true }
         if (marksChosen) return
         totem = totemAt(mainLineage(), totems); burialWay = burialWayAt(mainLineage()); marksChosen = true
     }
@@ -863,13 +883,14 @@ class Band(kinds: Int, totems: Int = kinds) {
         traditions.copyInto(o.traditions); heard.copyInto(o.heard); o.heardOf = heardOf
         o.totem = totem; o.marksChosen = marksChosen; o.heardTotem = heardTotem.copyOf(); o.totemBroken = totemBroken
         o.raidDeathRate = raidDeathRate; o.heldLivelihood = heldLivelihood; o.livelihoodHold = livelihoodHold; o.livedOther = livedOther; o.livelihoodChosen = livelihoodChosen; heardLivelihood.copyInto(o.heardLivelihood)
-        o.burialWay = burialWay; heardBurial.copyInto(o.heardBurial); words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
+        o.burialWay = burialWay; heardBurial.copyInto(o.heardBurial); style.copyInto(o.style); heardStyle.copyInto(o.heardStyle); o.styleChosen = styleChosen; words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
         o.inbred = inbred; o.campWeeks = campWeeks; o.campPlace = campPlace; o.known = known.copyOf()
         copied(o)
         // (Its kept animals go by their contracts' own rules.)
         dogs.splitInto(o.dogs, share)
         herds.splitInto(o.herds, share)
         for (m in Material.entries) { o.goods[m] = goods[m] * share; goods[m] -= o.goods[m] }
+        for (t in Tool.entries) { o.spare[t] = spare[t] * share; spare[t] -= o.spare[t] }
         o.ornaments = ornaments * share; ornaments -= o.ornaments; o.exotic = exotic * share; exotic -= o.exotic
         o.elders = elders * adults / (stay + adults).coerceAtLeast(1); elders -= o.elders
         // Its practised people go one way or the other: a craft held by one or two may go wholly with either half.
@@ -937,6 +958,7 @@ class Band(kinds: Int, totems: Int = kinds) {
         a.heardOf += b.heardOf
         for (i in 0 until min(a.heardTotem.size, b.heardTotem.size)) a.heardTotem[i] += b.heardTotem[i]
         for (way in BurialWay.entries) a.heardBurial[way] += b.heardBurial[way]
+        for (i in a.heardStyle.indices) a.heardStyle[i] += b.heardStyle[i]
         a.burialOwed += b.burialOwed
         a.riteOwed += b.riteOwed; a.riteAsked += b.riteAsked; a.riteSpare += b.riteSpare
         for ((k, v) in b.ties) if (k != id) a.ties[k] = max(a.tie(k), v)
@@ -944,6 +966,7 @@ class Band(kinds: Int, totems: Int = kinds) {
         for ((k, v) in b.favours) if (k != id) a.favours.merge(k, v, Float::plus)
         a.favours.remove(bId)
         for (i in Material.entries) a.goods[i] += b.goods[i]
+        for (t in Tool.entries) a.spare[t] += b.spare[t]
         if (a.known.size < b.known.size) a.known = a.known.copyOf(b.known.size)
         for (i in b.known.indices) a.known[i] = a.known[i] or b.known[i]
         a.dogs.absorb(b.dogs)
@@ -1093,11 +1116,16 @@ class Band(kinds: Int, totems: Int = kinds) {
             wordsAt(seed, x, y).copyInto(words)
             traditionsAt(l).copyInto(traditions)
             totem = totemAt(l, totems); burialWay = burialWayAt(l); marksChosen = true
+            for (t in 0 until STYLE_TRAITS) style[t] = styleAt(l, t); styleChosen = true
             riteStrength = riteStrengthAt(l, tuning)
             heldLivelihood = Livelihood.FORAGING; livelihoodHold = livelihoodHoldAt(l); livelihoodChosen = true
             skills[Skill.GATHER] = START_CRAFT; skills[Skill.SMALL_GAME] = START_CRAFT; skills[Skill.HUNT] = START_CRAFT
             skills[Skill.FISH] = if (nearWater) 0.5f else 0.1f; skills[Skill.STORE] = 0.4f
             kit[Tool.SPEAR] = 1f; kit[Tool.NET] = 0.5f; kit[Tool.BASKET] = 0.5f; kit[Tool.CLOTHES] = 0.5f
+            // Each lineage's country has its own strengths: its skills and kit lie some way off the usual, the same for
+            // neighbours of one lineage ([founderSpread]).
+            for (s in Skill.entries) if (skills[s] > 0f) skills[s] = (skills[s] * founderSpread(l, s.ordinal)).coerceIn(0f, 1f)
+            for (t in Tool.entries) if (kit[t] > 0f) kit[t] = (kit[t] * founderSpread(l, FOUNDER_TOOLS + t.ordinal)).coerceIn(0f, 1f)
             // Everyone keeps fire; they know the plants of their own country well, of others' less.
             skills[Skill.FIRE] = 0.95f; fire = 1f
             plants.fill(0.5f)

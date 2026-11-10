@@ -112,6 +112,18 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
             TakeUp.NEITHER -> {}
         }
     }
+    // And their style marks, each as a mark does: of no use, copied by what is seen most.
+    for (t in 0 until STYLE_TRAITS) {
+        val sa = bandA.style[t]; val sb = bandB.style[t]
+        if (sa == sb) continue
+        val toA = meetChance(COPY_TRADITION * u * conformist(bandA.heardStyleShare(t, sb)))
+        val toB = meetChance(COPY_TRADITION * u * conformist(bandB.heardStyleShare(t, sa)))
+        when (takeUpSide(rnd.nextFloat(), toA, toB)) {
+            TakeUp.A -> { bandA.style[t] = sb; stats.meeting(Met.BANDS_TOOK_UP_ANOTHERS_STYLE) }
+            TakeUp.B -> { bandB.style[t] = sa; stats.meeting(Met.BANDS_TOOK_UP_ANOTHERS_STYLE) }
+            TakeUp.NEITHER -> {}
+        }
+    }
     // A way of life goes as a mark does, as far as a band holds its own loosely ([Band.livelihoodHold]): either may come to
     // hold the one the other shows (none shown by a band living against its own).
     val showA = bandA.shownLivelihood; val showB = bandB.shownLivelihood

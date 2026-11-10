@@ -202,6 +202,7 @@ enum class Met(val label: String) {
     BANDS_SPLIT_OVER_THEIR_BELIEF("bands split over their belief"),
     BANDS_TOOK_UP_ANOTHERS_APPOINTMENT("bands took up another's appointment"),
     BANDS_TOOK_UP_ANOTHERS_BURIAL("bands took up another's burial way"),
+    BANDS_TOOK_UP_ANOTHERS_STYLE("bands took up another's style mark"),
     BANDS_TOOK_UP_ANOTHERS_RITE("bands took up another's rite"),
     BANDS_TOOK_UP_ANOTHERS_TOTEM("bands took up another's totem"),
     BANDS_TOOK_UP_ANOTHERS_WAY_OF_LIFE("bands came to hold another's way of life"),

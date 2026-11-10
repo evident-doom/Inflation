@@ -386,6 +386,30 @@ fun customsOff(a: Band, b: Band, map: HexMap): Int =
         (if (a.holds(Tradition.BURIAL) && b.holds(Tradition.BURIAL) && a.burialWay != b.burialWay) 1 else 0) +
         (if (ritesApart(a, b)) 1 else 0) + (if (a.heldLivelihood != b.shownLivelihood) 1 else 0) + (if (homesApart(a, b, map)) 1 else 0)
 
+/**
+ * How far founding lineage [lineage]'s level at one of its skills or its kit of a tool ([part]) lies off the usual: a factor
+ * around 1 with a spread of [FOUNDER_SPREAD] (the sum of three even draws, near enough a bell), the same for every band of
+ * the lineage. So founders of one country share strengths and neighbouring lineages differ (sweep plan, local cultures).
+ */
+fun founderSpread(lineage: Int, part: Int): Float {
+    var u = 0f
+    for (k in 0 until 3) u += ((mix64((lineage.toLong() * 131 + part) * HASH_C + k * HASH_B) ushr 40).toFloat() / (1L shl 24).toFloat()) * 2f - 1f
+    return max(0f, 1f + FOUNDER_SPREAD * u)
+}
+/** The spread of founding lineages' skills and kit about the usual ([founderSpread]): an estimate; and where tools' parts start. */
+internal const val FOUNDER_SPREAD = 0.2f
+internal const val FOUNDER_TOOLS = 1000
+
+/** Variant of style trait [trait] that founding lineage [lineage]'s bands start with ([Band.style]): one drawn for each lineage. */
+fun styleAt(lineage: Int, trait: Int) = ((mix64((lineage.toLong() * 31 + trait) * HASH_C + HASH_A) ushr 33) % STYLE_VARIANTS).toInt()
+/**
+ * Style marks a band holds, and the variants of each ([Band.style]); the chance a year that a band changes one of its own,
+ * to any variant: not measured, set so that a mark changes about once in a band's few decades.
+ */
+const val STYLE_TRAITS = 4
+const val STYLE_VARIANTS = 8
+internal const val STYLE_DRIFT = 0.1f
+
 /** Where the dead of lineage [lineage]'s bands are laid ([Band.burialWay]): one way drawn for each lineage. */
 fun burialWayAt(lineage: Int) = BurialWay.entries[((mix64(lineage.toLong() * HASH_C + HASH_B) ushr 33) % BurialWay.entries.size).toInt()]
 
@@ -554,6 +578,9 @@ internal fun HexGroups.cultureWeek(g: HexGroup, rnd: kotlin.random.Random) {
     }
     for (i in b.heardTotem.indices) b.heardTotem[i] *= keep
     for (w in BurialWay.entries) b.heardBurial[w] *= keep
+    for (i in b.heardStyle.indices) b.heardStyle[i] *= keep
+    // (Now and then a band makes one of its style marks its own way, [STYLE_DRIFT].)
+    if (rnd.nextFloat() < STYLE_DRIFT * years) b.style[rnd.nextInt(STYLE_TRAITS)] = rnd.nextInt(STYLE_VARIANTS)
     for (l in Livelihood.entries) b.heardLivelihood[l] *= keep
     b.totemBroken = max(0f, b.totemBroken - years)
     // (Now and then a band gives up its totem, or one without takes up a kind as its own, as with its traditions.)
