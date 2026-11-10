@@ -141,7 +141,7 @@ internal fun HexGroups.findHome(n: HexGroup, born: List<HexGroup>) {
     val people = bandPeopleByHex(born)
     val own = n.size.toFloat()
     var best = Place.NONE
-    var bestV = hexFood(from) / (people[from.i] + own)
+    val bestV = hexFood(from) / (people[from.i] + own)
     // (Failing a ring that feeds, the most food a head over all of them.)
     var fallback = Place.NONE; var fallbackV = bestV
     var ring = listOf(from); val seen = hashSetOf(from); var keep = 1f
