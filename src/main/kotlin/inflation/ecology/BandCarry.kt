@@ -58,7 +58,7 @@ internal fun carryRules(): Map<String, Pair<OnSplit, OnJoin>> {
     rule(OnSplit.FRESH, OnJoin.LOST, "cleaned", "nursed", "beastLoss")
     // People.
     rule(OnSplit.SET, OnJoin.SUM, "lastAdults")
-    rule(OnSplit.SHARED, OnJoin.SUM, "elders", "ageStage", "goods")
+    rule(OnSplit.SHARED, OnJoin.SUM, "elders", "ageStage", "goods", "spare")
     rule(OnSplit.COPIED, OnJoin.BLENDED, "raidDeathRate", "kit", "fine", "made", "salted", "dryDepth", "pests", "leanLost", "sodiumShort", "sodiumWant", "lineage", "inbred", "sisu")
     // Camp, home and raids.
     rule(OnSplit.COPIED, OnJoin.LOST, "campWeeks", "stayWeeks", "campPlace", "appointment", "houseHex", "house", "drivenFrom", "drivenBy", "homeEarth", "homeWalls", "homeGroundC", "palisade", "fire",

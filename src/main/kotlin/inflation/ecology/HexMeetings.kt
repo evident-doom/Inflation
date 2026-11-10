@@ -590,6 +590,8 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
             useful += gift / (KEEP_YEARS * need * max(1, taker.adults))
             stats.meeting(Met.Of.GIVEN, m.name.lowercase())
         }
+        // And finished tools it made beyond its own kit, to a band whose kit falls short.
+        useful += giveTools(giver, gb, taker, tb)
         // Salt to eat: a band short of sodium is given a year of it for its people by one that holds more than a year of it
         // for its own, whatever it keeps for curing (a person's year of sodium is some 20 g of salt, [SALT_BODY_YEAR]).
         if (tb.sodiumShort > 0f) {

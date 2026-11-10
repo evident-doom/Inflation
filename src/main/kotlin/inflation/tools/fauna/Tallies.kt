@@ -433,6 +433,8 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
             " | tools known (kit, made) " + Tool.entries.joinToString(", ") { t -> "%s %.0f%% (%.2f, %.2f)".format(t.name.lowercase(),
                 100.0 * bs.count { it.knows[t] } / bs.size, bs.map { it.kit[t] }.average(),
                 bs.sumOf { (it.kit[t] * it.made[t]).toDouble() } / bs.sumOf { it.kit[t].toDouble() }.coerceAtLeast(1e-9)) } +
+            " | spare tool sets held " + Tool.entries.joinToString(", ") { t -> "%s %.0f in %d bands".format(t.name.lowercase(),
+                bs.sumOf { it.spare[t].toDouble() }, bs.count { it.spare[t] > 0.01f }) } +
             " | customs " + Tradition.entries.joinToString(", ") { t -> "%s %.0f%%".format(t.name.lowercase(), 100.0 * bs.count { it.holds(t) } / bs.size) } +
             " | elders %.0f%% of adults, children inbred %.3f".format(100.0 * bs.sumOf { it.elders } / bands.sumOf { it.adults }.coerceAtLeast(1),
                 bs.map { it.inbred.toDouble() }.average()) +
