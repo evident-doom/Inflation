@@ -384,28 +384,31 @@ internal fun HexGroups.foulGround() {
         if (weeks.all { it == 0f }) for (g in groups) { val b = g.band ?: continue
             if (g.alive) { val h = hw.placeHex[g.place]; weeks[h.i] = max(weeks[h.i], b.campWeeks.toFloat()) } }
     }
-    val people = FloatArray(hex.size); val kept = FloatArray(hex.size)
+    val people = FloatArray(hex.size); val kept = FloatArray(hex.size); val camps = IntArray(hex.size)
     // (With t.bandsStay, the hexes where some band is tied to its spot: a house it lives in, fresh sowing, a palisade.)
     val tied = if (tuning.bandsStay) BooleanArray(hex.size) else null
     for (g in groups) { val b = g.band ?: continue
         if (!g.alive) continue
         val h = hw.placeHex[g.place].i
-        people[h] += g.size.toFloat()
+        people[h] += g.size.toFloat(); camps[h]++
         if (b.holds(Tradition.HYGIENE)) kept[h] += g.size * b.cleaned
         if (tied != null && b.livesFixed()) tied[h] = true
     }
+    // (Light bands sharing a hex camp apart, kilometres from each other, each fouling its own ground: the fouling that
+    // tells is a camp's, its people the hex's over its bands. Bands tied to a spot camp together, a village, and foul it all.)
+    val camp = FloatArray(hex.size) { h -> if (camps[h] > 1 && (tied == null || !tied[h])) people[h] / camps[h] else people[h] }
     val most = fullyFouledWeeks()
     for (h in 0 until hex.size) {
         // (A step of several ticks fouls and clears as many weeks' worth.)
         // (The most a hex's ground fouls is as many people camp there as [FOUL_FULL_PEOPLE], fully; a band alone on its hex fouls
         // only its share of that: refuse and fouled water gather by the people, not by the years alone. Above the hex's
         // ceiling, as where people have left, it clears.)
-        val cap = most * min(1f, people[h] / FOUL_FULL_PEOPLE)
-        weeks[h] = if (people[h] > 0f && weeks[h] < cap) min(cap, weeks[h] + people[h] / FOUL_PEOPLE * ticks) else max(min(weeks[h], cap), weeks[h] - FOUL_CLEAR * ticks)
+        val cap = most * min(1f, camp[h] / FOUL_FULL_PEOPLE)
+        weeks[h] = if (people[h] > 0f && weeks[h] < cap) min(cap, weeks[h] + camp[h] / FOUL_PEOPLE * ticks) else max(min(weeks[h], cap), weeks[h] - FOUL_CLEAR * ticks)
         val tended = if (people[h] > 0f) kept[h] / people[h] else 0f
         midden[h] = max(tended, midden[h] * (1f - MIDDEN_WEAR * years))
     }
-    if (tied != null) shiftCamps(weeks, people, tied, ticks)
+    if (tied != null) shiftCamps(weeks, camp, tied, ticks)
 }
 
 /**
@@ -420,6 +423,7 @@ internal fun HexGroups.foulGround() {
  * ground fouls as before.) Counted for the census as a camp move ([Band.shiftsUncounted]).
  */
 private fun HexGroups.shiftCamps(weeks: FloatArray, people: FloatArray, tied: BooleanArray, ticks: Int) {
+    // ([people]: those of a camp at each hex, as [foulGround] has them.)
     val onset = ticksPerYear / 6f
     val shifted = BooleanArray(hex.size)
     // (The fresh ground keeps this step's own fouling: never cleared to nothing while people camp there, so a save taken
