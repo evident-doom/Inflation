@@ -6,6 +6,7 @@ import inflation.ecology.HexSim
 import inflation.ecology.HexSnapshot
 import inflation.ecology.foundMinds
 import inflation.ecology.startHerders
+import inflation.ecology.startKnowledge
 import inflation.ecology.startVillages
 import inflation.Tuning
 import inflation.learning.LearnedModel
@@ -40,6 +41,7 @@ class FaunaCheckOptions(
             println("carrying on the world saved in $f, at ${sim.weather.date} (loaded in %.1f s)".format((System.nanoTime() - t0) / 1e9))
             // (The saved state took the place of the villages the fresh world started with: a world carried on starts its
             // villages now, among the bands it carries on with.)
+            sim.groups.startKnowledge()
             if (sim.groups.tuning.startSettled > 0f) sim.groups.startVillages()
             if (sim.groups.tuning.startHerders > 0f) sim.groups.startHerders()
             // (And its bands take up the planning kind's mind as founders do, t.planners: [foundMinds].)
