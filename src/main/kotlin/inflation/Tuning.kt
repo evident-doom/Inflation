@@ -89,6 +89,19 @@ class Tuning(
      */
     val startHerders = f("startHerders", 0f).also { require(it in 0f..1f) { "t.startHerders is $it: a share of the bands, 0-1" } }
     /**
+     * A world begun in a later era: the ways every band knows from the start beyond the founders' own, and how well, as
+     * SKILL:level,... (0-1; [inflation.ecology.Skill] names), raised to at least that level ([inflation.ecology.startKnowledge]).
+     * Read as text here, checked by the ecology.
+     */
+    val startSkills: String? = read("t.startSkills")
+    /** The tools every band knows and holds from the start, as TOOL:share,... (share of its people kitted, 0-1; [inflation.ecology.Tool] names). */
+    val startTools: String? = read("t.startTools")
+    /**
+     * The share of the grain that villages started by [startSettled] keep and sow that is of ears that hold their grain
+     * (domestic): 1 fully domesticated, lower for the cultivation of wild cereals before domestication.
+     */
+    val startDomestic = f("startDomestic", 1f).also { require(it in 0f..1f) { "t.startDomestic is $it: a share, 0-1" } }
+    /**
      * The share of people's founding bands that start with the planning kind's mind ([inflation.ecology.Mind.PLANS]): they
      * choose from the week's menu of activities, and their camp and days follow from what they hold; 0, none.
      */

@@ -13,6 +13,10 @@ import java.util.concurrent.ConcurrentHashMap
  * neither (misspelt, or no longer read) stops the run at once, naming it. A tuning key set in the file that
  * the run never reads (of a part that did not run) is named on stderr as the run ends.
  *
+ * An era profile (era=NAME) is a properties file of keys, eras/NAME.properties beside the config file or in the working
+ * directory, that sets a world's start for an era: its keys are read as if they stood in the config file, and the config
+ * file's own keys take precedence over them. A profile names no era of its own.
+ *
  * The old -Dhex.* switches are no longer read: a run given one stops at once and names the key to
  * set instead, so that no run goes on silently without a setting it was meant to have.
  */
@@ -95,7 +99,9 @@ object Config {
         SHRUB_DIAG("shrubDiag"),
         HUNT_STEPS("huntSteps"),
         AUDIT("audit"),
-        CENSUS("census");
+        CENSUS("census"),
+        /** An era profile: eras/NAME.properties, whose keys the config file's own lay over ([eraFile]). */
+        ERA("era");
 
         override fun toString() = key
     }
@@ -127,6 +133,12 @@ object Config {
             require(source.isFile) { "config file $source not found (-Dhex.config)" }
             source.reader().use { props.load(it) }
         }
+        props.getProperty(Key.ERA.key)?.trim()?.takeIf { it.isNotEmpty() }?.let { era ->
+            val f = eraFile(era, source?.absoluteFile?.parentFile)
+            val profile = Properties().also { p -> f.reader().use { p.load(it) } }
+            require(Key.ERA.key !in profile) { "era profile $f names an era itself: profiles do not nest" }
+            for (k in profile.stringPropertyNames()) if (k !in props) props.setProperty(k, profile.getProperty(k))
+        }
         val stray = System.getProperties().stringPropertyNames().filter { it.startsWith("hex.") && it != "hex.config" }.map { it.removePrefix("hex.") }.sorted()
         require(stray.isEmpty()) {
             val (gone, moved) = stray.partition { it in GONE }
@@ -146,6 +158,13 @@ object Config {
             unread("t.").takeIf { it.isNotEmpty() }?.let { System.err.println(
                 "tuning keys set but never read in this run (misspelt, or of a part that did not run): ${it.joinToString(", ")}") }
         })
+    }
+
+    /** The era profile [era]: eras/[era].properties beside the config file ([dir]), else in the working directory. */
+    fun eraFile(era: String, dir: File?): File {
+        require(Regex("""[\w-]+""").matches(era)) { "era=$era: a profile's name, letters, digits, - and _ (eras/NAME.properties)" }
+        val tried = listOfNotNull(dir?.let { File(it, "eras/$era.properties") }, File("eras/$era.properties"))
+        return requireNotNull(tried.firstOrNull { it.isFile }) { "era profile not found: ${tried.joinToString(" or ")}" }
     }
 
     /** Every key the code reads: the [Key]s and the tuning keys (those a [Tuning] asks for as it is made). */

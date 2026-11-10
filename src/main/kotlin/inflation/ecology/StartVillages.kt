@@ -12,6 +12,36 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 
 /**
+ * A world begun in a later era ([inflation.Tuning.startSkills], [inflation.Tuning.startTools]): every people's band knows those
+ * ways and tools, at least at the level and share set. It only raises what a band has, so it is the same whether a world is
+ * fresh or carried on from a save, and however often it is applied.
+ */
+internal fun HexGroups.startKnowledge() {
+    val skills = startLevels("t.startSkills", tuning.startSkills, Skill.entries)
+    val tools = startLevels("t.startTools", tuning.startTools, Tool.entries)
+    if (skills.isEmpty() && tools.isEmpty()) return
+    var n = 0
+    for (g in groups) {
+        val b = g.band ?: continue
+        if (!g.alive || !g.species.human) continue
+        for ((s, level) in skills) { b.knowsSkill[s] = true; b.skills[s] = max(b.skills[s], level); b.lastUsed[s] = b.weeks }
+        for ((t, share) in tools) { b.knows[t] = true; b.kit[t] = max(b.kit[t], share) }
+        n++
+    }
+    println("start knowledge for $n bands: ${(skills.map { "${it.first} ${it.second}" } + tools.map { "${it.first} ${it.second}" }).joinToString(", ")}")
+}
+
+/** The NAME:level,... list set in [key] ([text]), each name one of [entries] and each level 0-1. */
+internal fun <E : Enum<E>> startLevels(key: String, text: String?, entries: List<E>): List<Pair<E, Float>> =
+    text?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() }?.map { item ->
+        val (name, level) = item.split(":").map { it.trim() }.let { require(it.size == 2) { "$key: $item is not NAME:level" }; it[0] to it[1] }
+        val e = requireNotNull(entries.firstOrNull { it.name == name }) { "$key: no $name (one of ${entries.joinToString(" ")})" }
+        val v = requireNotNull(level.toFloatOrNull()) { "$key: $item: the level is no number" }
+        require(v in 0f..1f) { "$key: $item: the level is not 0-1" }
+        e to v
+    } ?: emptyList()
+
+/**
  * A world begun once farming is known ([inflation.Tuning.startSettled]): of people's bands, that share, taken from those on
  * the best farm ground ([farmWorth]), start as villages ([startVillage]); the rest start as foragers, as in any world. Fewer
  * start so where too few bands stand on farm ground. Nothing keeps a village a village afterwards: it stays, moves, sows or
@@ -78,8 +108,8 @@ private fun GroupWorld.farmWorth(p: Place) = if (land.drink.waterKm[p] < VILLAGE
 /**
  * Band [g] ([b]) starts as a village where it stands: pit houses for its grown people standing at its camp, kept a year
  * already; the ways of living in houses known ([VILLAGE_SKILLS]); sickle and grinding stones; [VILLAGE_STORE_DAYS] of
- * its food in grain, of ears that hold their grain; and last autumn's sowing in the ground, enough to ripen to
- * [VILLAGE_FIELD_DAYS] of its food (or, where this year's grain has ripened already, that harvest in store).
+ * its food in grain; and last autumn's sowing in the ground, enough to ripen to
+ * [VILLAGE_FIELD_DAYS] of its food (of ears that hold their grain as [inflation.Tuning.startDomestic] has it; or, where this year's grain has ripened already, that harvest in store).
  */
 private fun HexGroups.startVillage(g: HexGroup, b: Band): Pair<Int, Float>? {
     val p = g.place
@@ -90,12 +120,12 @@ private fun HexGroups.startVillage(g: HexGroup, b: Band): Pair<Int, Float>? {
     b.houseHex = h; b.house = housesAt(g, h); b.atHome = true
     b.campPlace = p; b.campWeeks = ticksPerYear.roundToInt()
     b.heldLivelihood = Livelihood.FARMING; b.livedOther = 0f
-    b.seedDomestic = 1f
+    b.seedDomestic = tuning.startDomestic
     // Its field ripens with the grass this summer; where the grain has ripened already this year, the harvest is in store.
     val food = fauna.food
     val ripening = land.plants.gdd[p] / land.plants.annualGdd[p].coerceAtLeast(1f) < HexFood.SEED_TO
     val harvest = VILLAGE_FIELD_DAYS * g.dailyNeedKg
-    if (ripening) { food.sow(p, land.spread(p, Kg(harvest / HexFood.yieldPerKg(1f))), 1f); b.sownPlace = p; b.sownKg = harvest / HexFood.yieldPerKg(1f); b.seedKept = b.sownKg }
+    if (ripening) { food.sow(p, land.spread(p, Kg(harvest / HexFood.yieldPerKg(1f))), tuning.startDomestic); b.sownPlace = p; b.sownKg = harvest / HexFood.yieldPerKg(1f); b.seedKept = b.sownKg }
     // (Ground and baked, a kilo of grain feeds as a kilo of need: [seedValue] with grinding stones.)
     val stored = VILLAGE_STORE_DAYS * g.dailyNeedKg + if (ripening) 0f else harvest
     addFood(g.stores, g.storeKgPer, Store.SEED, stored * seedValue(b), stored)

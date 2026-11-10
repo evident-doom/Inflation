@@ -207,6 +207,8 @@ class HexGroups(
         }
         // (A world begun once farming is known starts some bands as villages, t.startSettled; once herding is known, some
         // bands with herds, t.startHerders.)
+        // (A world begun in a later era starts its bands knowing that era's ways and tools, t.startSkills, t.startTools.)
+        startKnowledge()
         if (tuning.startSettled > 0f) startVillages()
         if (tuning.startHerders > 0f) startHerders()
         // (Some founding bands start with the planning kind's mind, t.planners.)
