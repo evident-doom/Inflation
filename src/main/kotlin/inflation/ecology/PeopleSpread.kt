@@ -114,32 +114,49 @@ internal fun HexGroups.bandPeopleByHex(also: List<HexGroup> = emptyList()): Floa
     return people
 }
 
+/** Whether any band living in each hex wants for food ([wantsFood]), by the hex's index: its ground is full. */
+internal fun HexGroups.hexesWanting(): BooleanArray {
+    val w = BooleanArray(hex.size)
+    for (g in groups) if (g.alive && g.band != null && wantsFood(g)) w[hw.placeHex[g.place].i] = true
+    return w
+}
+
 /**
  * Where band [n], just split off its parent ([splitOff], at the parent's place), makes its home when bands hold their
- * home hex ([staysHome]): of its parent's hex and the hexes within [SPREAD_RINGS] rings of it, the one with the most
- * suitable ground for each person once it is there ([hexSuit] over the people there and its own), a ring further off
- * worth [SPREAD_RING_KEEP] as much; held or empty alike. Staying in the parent's hex, the two share it. People spread by
- * such budding a few hexes at a time, never on a trek. (It carries what it took from its parent: the move itself is
- * charged at its first camp there, [campAndCache], as any band's leaving.)
+ * home hex ([staysHome]): the nearest hex whose ground still feeds the people on it. It stays in its parent's hex unless
+ * some band there wants for food ([wantsFood]: its people's reserves fell low at some step of its year); else it goes to
+ * the nearest ring, within [SPREAD_RINGS], holding a hex where no band wants, and in that ring to the hex with the most
+ * food a head once it is there ([hexFood]). Forager groups split off within or beside their home range and move on only
+ * as it grows short (Binford 2001, Kelly 2013, from memory), so a rich hex fills with several bands before its buds go,
+ * and a poor one sends them on with one. Where every hex within reach wants, it goes where food a head is most, as
+ * before (an ideal free distribution: Fretwell and Lucas 1970). People spread by such budding a few hexes at a time,
+ * never on a trek. (It carries what it took from its parent: the move itself is charged at its first camp there,
+ * [campAndCache], as any band's leaving.) The rule before (2026-11-10, fit699h-dens704): always the most food a head,
+ * held or empty alike, which while food never ran short sent every bud to an empty hex: one band a hex.
  */
 internal fun HexGroups.findHome(n: HexGroup, born: List<HexGroup>) {
     val from = hw.placeHex[n.place]
-    // (Held or empty alike, by the food for each person there once it has come, [hexFood]: an ideal free distribution, so a
-    // rich hex keeps its buds till its food a head falls to an empty poor hex's, and density follows food. Fretwell and
-    // Lucas 1970; for foragers settling new country, Winterhalder et al. 2010, from memory.)
+    val wanting = hexesWanting()
+    if (!wanting[from.i]) { stats.meeting(Met.BANDS_BUDDED_IN_PLACE); return }
     val people = bandPeopleByHex(born)
     val own = n.size.toFloat()
     var best = Place.NONE
     var bestV = hexFood(from) / (people[from.i] + own)
+    // (Failing a ring that feeds, the most food a head over all of them.)
+    var fallback = Place.NONE; var fallbackV = bestV
     var ring = listOf(from); val seen = hashSetOf(from); var keep = 1f
     for (r in 1..SPREAD_RINGS) {
         ring = hex.nextRing(ring, seen); keep *= SPREAD_RING_KEEP
+        var ringV = 0f
         for (h in ring) {
             if (hw.placesOf(h).isEmpty()) continue
-            val v = keep * hexFood(h) / (people[h.i] + own)
-            if (v > bestV) { bestV = v; best = hw.firstPlaceIn(h) }
+            val v = hexFood(h) / (people[h.i] + own)
+            if (!wanting[h.i] && v > ringV) { ringV = v; best = hw.firstPlaceIn(h) }
+            if (keep * v > fallbackV) { fallbackV = keep * v; fallback = hw.firstPlaceIn(h) }
         }
+        if (!best.none) break
     }
+    if (best.none) best = fallback
     if (best.none) { stats.meeting(Met.BANDS_BUDDED_IN_PLACE); return }
     n.place = best
     stats.meeting(Met.BANDS_BUDDED_OUT)
@@ -163,21 +180,23 @@ internal fun HexGroups.spreadYear(): List<HexGroup> {
     val made = ArrayList<HexGroup>()
     if (!tuning.bandsStay) return made
     val people = bandPeopleByHex()
+    val wanting = hexesWanting()
     val suit = FloatArray(hex.size) { Float.NaN }
     fun suitAt(s: Species, h: Hex): Float { if (suit[h.i].isNaN()) suit[h.i] = hexFood(h); return suit[h.i] }
     for (g in groups.toList()) {
         val b = g.band ?: continue
         if (!g.alive || !staysHome(g) || inParty(g) || g.adults < SMALL_BAND + SEEP_ADULTS) continue
-        // (Its households go where food a head is more, held or not, as its buds do ([findHome]); only a band that wants for
-        // food ([wantsFood]) moves whole.)
+        // (Only a band that wants for food ([wantsFood]) sends households off, to a hex beside whose bands do not, the one with
+        // most food a head, as its buds go ([findHome]); or moves whole.)
         val want = wantsFood(g)
+        if (!want) continue
         // (Each year's draw from the band's own stream, so the year runs the same in any order.)
         val h = hw.placeHex[g.place]
         val here = suitAt(g.species, h) / max(1f, people[h.i])
         var best = Hex.NONE; var bestV = 0f
         for (d in 0 until 6) {
             val q = hex.neighbour(h, d)
-            if (q.none || hw.placesOf(q).isEmpty()) continue
+            if (q.none || hw.placesOf(q).isEmpty() || wanting[q.i]) continue
             val v = suitAt(g.species, q) / (people[q.i] + SEEP_ADULTS)
             if (v > bestV) { bestV = v; best = q }
         }
