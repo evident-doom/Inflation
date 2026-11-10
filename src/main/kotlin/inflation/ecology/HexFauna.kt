@@ -372,7 +372,7 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
     /** Life in the sea, lakes and rivers. */
     val water = HexWater(hw, land, clock, small)
     /** Fruit and roots as stocks. */
-    val food = HexFood(land, small, clock).also { f -> small.takeMast = { p, want -> f.take(f.mast, p, want) } }
+    val food = HexFood(land, small, clock).also { f -> small.takeMast = { p, want -> f.takeMast(HexFood.MastFate.SMALL_LIFE, p, want) } }
     /** Carcasses left this week in each place, kg (deaths other than kills, which the hunters count). */
     val carcassKg = FloatArray(n)
     /** Deaths this week by cause, animals ([WeekStats.residentDeaths]). */

@@ -497,7 +497,8 @@ internal fun GroupWorld.gather(g: HexGroup, t: Food, kind: Int, p: Place, expect
     out.busy = 0f
     val food = fauna.food
     val stock = when (t) { Food.FRUIT -> food.fruit; Food.ROOTS -> if (kind == MAST_KIND) food.mast else food.roots; Food.SEED -> food.seeds; else -> food.finds }
-    fun take(kg: KgM2) = if (t == Food.ROOTS && band == null) food.takeUnderground(p, kg) else food.take(stock, p, kg)
+    fun take(kg: KgM2) = if (t == Food.ROOTS && band == null) food.takeUnderground(p, kg)
+        else if (stock === food.mast) food.takeMast(HexFood.MastFate.PEOPLE, p, kg) else food.take(stock, p, kg)
     val taken = land.total(p, take(land.spread(p, Kg(expected)))).v
     var took = taken; var mass = taken
     // Raw seed is poorly digested; ground and baked into bread it feeds fully.

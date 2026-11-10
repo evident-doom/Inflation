@@ -445,7 +445,26 @@ class Census(private val sim: HexSim) {
             } + "; median people at a place %d".format(atPlace.values.sorted().let { if (it.isEmpty()) 0 else it[it.size / 2] }))
     }
 
+    /**
+     * What became of the mast since the last census, over all the land: what fell, and of it, shares eaten by people, by
+     * the resident and roaming animals, by the small life (rodents, jays), and rotted or sprouted ([HexFood.mastLedger]);
+     * with people's take a person-day. (Zeman et al. 2016: wild boar ate over 90% of a Moravian oak stand's acorns.)
+     */
+    fun printMast() {
+        val l = groups.fauna.food.mastLedger
+        val fell = l[inflation.ecology.HexFood.MastFate.FELL.ordinal]
+        if (fell <= 0.0) return
+        val people = groups.groups.filter { it.alive && it.band != null }.sumOf { it.size }.coerceAtLeast(1)
+        fun pc(f: inflation.ecology.HexFood.MastFate) = 100.0 * l[f.ordinal] / fell
+        println("     mast since the last census: fell %.0f t; eaten by people %.1f%%, animals %.1f%%, small life %.1f%%; rotted %.1f%%; people's take %.3f kg a person-day".format(
+            fell / 1000, pc(inflation.ecology.HexFood.MastFate.PEOPLE), pc(inflation.ecology.HexFood.MastFate.ANIMALS),
+            pc(inflation.ecology.HexFood.MastFate.SMALL_LIFE), pc(inflation.ecology.HexFood.MastFate.ROTTED),
+            l[inflation.ecology.HexFood.MastFate.PEOPLE.ordinal] / people / inflation.DAYS_PER_YEAR))
+        l.fill(0.0)
+    }
+
     fun printChoices() {
+        printMast()
         printCampGround()
         println("     choices a week per group (stayed without weighing / weighed and stayed / moved): " + groups.kinds.joinToString(", ") { s ->
             val c = IntArray(3) { groups.planner.planCounts.getAndSet(s.index * 3 + it, 0) }

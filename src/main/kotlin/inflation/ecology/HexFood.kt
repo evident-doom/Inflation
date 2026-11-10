@@ -85,8 +85,14 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
     fun takeUnderground(p: Place, want: KgM2): KgM2 {
         val all = underground(p); if (all <= 0f || want.v <= 0f) return KgM2(0f)
         val w = min(want.v, all); val fromRoots = w * diggable(p) / all
-        return KgM2(take(roots, p, KgM2(fromRoots)).v + take(mast, p, KgM2(w - fromRoots)).v)
+        return KgM2(take(roots, p, KgM2(fromRoots)).v + takeMast(MastFate.ANIMALS, p, KgM2(w - fromRoots)).v)
     }
+    /** What becomes of the mast, for the census: kg over all the land since the census last read it ([mastLedger]). */
+    enum class MastFate { FELL, PEOPLE, ANIMALS, SMALL_LIFE, ROTTED }
+    @Transient val mastLedger = DoubleArray(MastFate.entries.size)
+    /** Takes mast at [p] as [take] does, booked to [by] in [mastLedger]. */
+    fun takeMast(by: MastFate, p: Place, want: KgM2): KgM2 =
+        take(mast, p, want).also { mastLedger[by.ordinal] += it.v.toDouble() * land.areaM2[p.i] }
     /**
      * Wild cereals: large-seeded annual grasses (wild wheat and barley here), as a share of a place's
      * grass, where winters are wet, summers dry and the ground broken (the hilly flanks). Their ripe
@@ -274,6 +280,7 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
             val rotted = lostOver(roots[p], rootsIn, lossShare(ROOTS_DAYS))
             roots[p] = max(0f, roots[p] + rootsIn - rotted)
             val mastRotted = lostOver(mast[p], treeIn, lossShare(ROOTS_DAYS))
+            mastLedger[MastFate.FELL.ordinal] += treeIn.toDouble() * land.areaM2[p]; mastLedger[MastFate.ROTTED.ordinal] += mastRotted.toDouble() * land.areaM2[p]
             mast[p] = max(0f, mast[p] + treeIn - mastRotted)
             small.deposit(DeadPool.LITTER, p, KgM2(rotted + mastRotted))
             // Wild cereals ripen with the other grasses; ears that shatter shed their grain within weeks,
