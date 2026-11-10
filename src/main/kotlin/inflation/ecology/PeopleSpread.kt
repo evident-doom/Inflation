@@ -52,13 +52,15 @@ internal const val RELOCATE_LEAN_GAP = 1.5f
 internal const val FORAGE_LAND = 0.2f
 
 /**
- * Days of food a band went short of over its year ([Band.leanDays]) below which it feels no want of room: its buds stay
- * in its hex as bands of their own ([findHome]) and none of its households leave ([spreadYear]). Foragers spread to new
- * country as their own grows short in its worst season, not because the next valley holds fewer people (Binford 2001,
- * Kelly 2013: density follows what the leanest season gives). So a hex fills to what its food carries, many bands on rich
- * ground and one thin band on poor, before people move on. The few days are an estimate.
+ * Whether band [g] wants for food: its people's reserves are down below [FERTILE_RESERVE] of full, where its mothers
+ * conceive the less ([reserveFertility]). Only then do its buds leave its hex ([findHome]) and its households move off
+ * ([spreadYear]). Foragers spread to new country as their own grows short in its worst season, not because the next
+ * valley holds fewer people (Binford 2001, Kelly 2013, from memory: density follows what the leanest season gives). So a
+ * hex fills to what its food carries, many bands on rich ground and one thin band on poor, before people move on.
+ * (The band's lean days, [Band.leanDays], were tried first: they count the seasons' shortfall before the larder pays, so
+ * nearly every band had them, fit699d.)
  */
-internal const val SPREAD_LEAN_DAYS = 3f
+internal fun wantsFood(g: HexGroup) = g.fat < FERTILE_RESERVE * g.species.maxFatDays
 
 /** How well hex [h]'s ground suits [s]: its places' area weighted by how they suit the kind ([HexFauna.startWeight]), km². */
 internal fun HexGroups.hexSuit(s: Species, h: Hex): Float {
@@ -85,8 +87,8 @@ internal fun HexGroups.bandPeopleByHex(also: List<HexGroup> = emptyList()): Floa
  */
 internal fun HexGroups.findHome(n: HexGroup, born: List<HexGroup>) {
     val from = hw.placeHex[n.place]
-    // (A bud of a band that wants for no food stays on its parent's ground, a band of its own: [SPREAD_LEAN_DAYS].)
-    if ((n.band?.leanDays ?: 0f) < SPREAD_LEAN_DAYS) { stats.meeting(Met.BANDS_BUDDED_IN_PLACE); return }
+    // (A bud of a band that wants for no food stays on its parent's ground, a band of its own: [wantsFood].)
+    if (!wantsFood(n)) { stats.meeting(Met.BANDS_BUDDED_IN_PLACE); return }
     val people = bandPeopleByHex(born)
     val own = n.size.toFloat()
     var best = Place.NONE
@@ -127,7 +129,7 @@ internal fun HexGroups.spreadYear(): List<HexGroup> {
     fun suitAt(s: Species, h: Hex): Float { if (suit[h.i].isNaN()) suit[h.i] = hexSuit(s, h); return suit[h.i] }
     for (g in groups.toList()) {
         val b = g.band ?: continue
-        if (!g.alive || !staysHome(g) || inParty(g) || g.adults < SMALL_BAND + SEEP_ADULTS || b.leanDays < SPREAD_LEAN_DAYS) continue
+        if (!g.alive || !staysHome(g) || inParty(g) || g.adults < SMALL_BAND + SEEP_ADULTS || !wantsFood(g)) continue
         // (Each year's draw from the band's own stream, so the year runs the same in any order.)
         val h = hw.placeHex[g.place]
         val here = suitAt(g.species, h) / max(1f, people[h.i])
