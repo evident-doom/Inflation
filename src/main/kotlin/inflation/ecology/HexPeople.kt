@@ -123,6 +123,18 @@ internal const val ELDERS_YIELD = 2f
 internal const val HUMAN_BIRTHS = 0.8f
 
 /**
+ * The share of her body's reserves ([Species.maxFatDays]) below which a mother conceives the less: a woman losing weight
+ * through a hunger season ovulates less often and conceives less till she has won it back (the Lese of the Ituri, Bailey
+ * et al. 1992 and Ellison et al. 1989, from memory: conceptions fell through the hunger season with a loss of a few kg;
+ * the threshold and the straight line below it are estimates). So a band that runs short in its lean months bears fewer
+ * the year after, before hunger kills, as foragers' numbers are held to what their worst season gives.
+ */
+internal const val FERTILE_RESERVE = 0.5f
+
+/** How far a mother of [s] with [fat] days of reserves conceives at her full rate ([FERTILE_RESERVE]). */
+internal fun reserveFertility(s: Species, fat: Float): Float = min(1f, fat / (FERTILE_RESERVE * s.maxFatDays).coerceAtLeast(1e-3f))
+
+/**
  * A band's week at camp: it keeps the camp or moves on (leaving what it cannot carry), gathers
  * materials from the country, makes and mends its tools, now and then hits on a new one, and its
  * skills fade a little where unused.

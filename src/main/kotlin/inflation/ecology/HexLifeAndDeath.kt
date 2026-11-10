@@ -531,7 +531,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         } else {
             val rate = if (s.human) {
                 val stepsInSeason = s.birthMonths * Date.DAYS_PER_MONTH / days.toFloat()
-                s.youngPerFemale * g.fed * (band?.let { birthSpacing(it) } ?: 1f) * HUMAN_BIRTHS * tuning.humanBirths * (1f + GRANDMOTHERS * help) / stepsInSeason
+                s.youngPerFemale * g.fed * reserveFertility(s, g.fat) * (band?.let { birthSpacing(it) } ?: 1f) * HUMAN_BIRTHS * tuning.humanBirths * (1f + GRANDMOTHERS * help) / stepsInSeason
             } else {
                 // (By the residents' rule: a week's share of the season, no more than the mother has left of it, spaced by how crowded her kind is.)
                 val share = seasonShare(s, g.birthMonth, max(0f, 1f - g.bred), date, days)
