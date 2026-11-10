@@ -1084,6 +1084,17 @@ class Census(private val sim: HexSim) {
             "hunters searching %.0f%%, handling %.0f%%; gatherers searching %.0f%%, handling %.0f%% (of it finding plant food %.0f%%, walking to it %.0f%%); %.2f kg").format(
             share(Tally.FoodTime.HUNT_SEARCH), share(Tally.FoodTime.HUNT_HANDLE), share(Tally.FoodTime.GATHER_SEARCH), share(Tally.FoodTime.GATHER_HANDLE),
             share(Tally.FoodTime.PLANT_SEEK), share(Tally.FoodTime.PLANT_WALK), ft(Tally.FoodTime.FED) / 10 / foodDays.coerceAtLeast(1e-9)))
+        run {
+            // (Each party's return a day of its own foraging, in kg of need and in kcal an hour of a 6-hour day: a kg of people's
+            // need is PEOPLE_NEED's 2,250 kcal over a grown person's daily kg of need; against the record's 729 kcal/h, Kraft 2021.)
+            val huntDays = (ft(Tally.FoodTime.HUNT_SEARCH) + ft(Tally.FoodTime.HUNT_HANDLE)) / 10
+            val gatherDays = (ft(Tally.FoodTime.GATHER_SEARCH) + ft(Tally.FoodTime.GATHER_HANDLE)) / 10
+            val kcal = 2250.0 / Catalogue.HUMAN.dailyIntakeKg
+            val hunt = ft(Tally.FoodTime.HUNT_FED) / 10 / huntDays.coerceAtLeast(1e-9); val gather = ft(Tally.FoodTime.GATHER_FED) / 10 / gatherDays.coerceAtLeast(1e-9)
+            println(("bands' returns by party, last year (kg of need a party-day of foraging; kcal an hour of a 6-hour day): hunters %.2f kg, %.0f kcal/h; " +
+                "gatherers %.2f kg, %.0f kcal/h; children's take %.0f%% of all").format(hunt, hunt * kcal / 6, gather, gather * kcal / 6,
+                100 * ft(Tally.FoodTime.CHILD_FED) / ft(Tally.FoodTime.FED).coerceAtLeast(1.0)))
+        }
         fun hg(k: Tally.Hungry) = v(Tally.hungry(k))
         val hungryWeeks = hg(Tally.Hungry.WEEKS).coerceAtLeast(1.0)
         fun sg(k: Tally.SmallGame) = v(Tally.smallGame(k))

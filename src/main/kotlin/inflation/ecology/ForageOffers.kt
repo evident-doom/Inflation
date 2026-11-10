@@ -341,6 +341,7 @@ internal fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
             Food.SEED, Food.GRAIN -> { val d = expected * o.time[i] * w.party[o.who[i]]; w.plantWorkDays += d; w.seedWorkDays += d }
             else -> {}
         }
+        val fedBefore = w.fed
         when (o.type[i]) {
             Food.BIG_GAME -> {
                 if (HUNT_DIAG && band == null) w.killsExpected += expected
@@ -420,6 +421,7 @@ internal fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
                 w.plantFrom[PlantFrom.GRAIN] += fed
             }
         }
+        w.fedBy[o.who[i]] += w.fed - fedBefore
     }
 }
 

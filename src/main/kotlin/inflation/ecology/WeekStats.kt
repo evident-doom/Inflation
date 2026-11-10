@@ -600,7 +600,8 @@ object Tally {
         WEEKS("band-weeks"), ROOM("days left it"), SPENT("days spent"), OVER("days past"), OVER_WEEKS("weeks past"),
         KILLS_OVER("kills beyond expected"), KILLS_UNDER("kills short of expected"), HAUL("hauling"), DIG("water: digging soaks, drawing from wells, carrying"),
         HUNT_SEARCH("hunters searching"), HUNT_HANDLE("hunters handling"), GATHER_SEARCH("gatherers searching"), GATHER_HANDLE("gatherers handling"),
-        PLANT_SEEK("of it finding plant food"), PLANT_WALK("of it walking to plant food"), FED("food got, kg of need")
+        PLANT_SEEK("of it finding plant food"), PLANT_WALK("of it walking to plant food"), FED("food got, kg of need"),
+        HUNT_FED("hunters' take, kg of need"), GATHER_FED("gatherers' take, kg of need"), CHILD_FED("children's take, kg of need")
     }
     fun foodTime(k: FoodTime) = TallyKey.raw("band foraging time:${k.label}")
     /**
