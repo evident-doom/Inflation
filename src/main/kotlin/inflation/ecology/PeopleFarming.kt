@@ -171,6 +171,43 @@ internal fun GroupWorld.giveStock(gb: Band, tb: Band): Float {
 }
 
 /**
+ * [g]'s band [b], knowing herding ([Skill.TENDING]) and keeping animals, builds a pen at its camp's hex [h] for those of them
+ * the pens there it may use do not hold, or goes on with the one it began, in the field work's [time] days, as far as its
+ * timber goes ([PEN_DAYS_PER_HEAD], [PEN_WOOD_KG_PER_HEAD]; the unpractised take longer, [Band.lapse]). A pen keeps its
+ * animals from beasts of prey at night ([herdOdds]) and from straying in the dark ([keepHerds]). It stands at the hex for
+ * whoever comes, and weathers away unused, as houses do.
+ */
+@Part("people: build pen")
+internal fun HexGroups.buildPen(g: HexGroup, b: Band, h: Hex, time: BandTime) {
+    if (!b.knowsSkill[Skill.TENDING]) return
+    val heads = b.herds.herd.sum() + b.herds.youngHerd().sum()
+    val left = time.leftFor(Activity.SOWING)
+    if (heads < PEN_MIN_HEADS || left <= 0f) return
+    val need = heads - penHeadsAt(g, h, begun = true)
+    val s = bands.built.firstOrNull { it.kind == Built.PEN && it.hex == h && it.user == g.id && it.built < 1f }
+        ?: if (need >= PEN_MIN_HEADS) Structure(Built.PEN, h, -1, g.id, need).also { it.user = g.id; bands.built += it } else return
+    val days = PEN_DAYS_PER_HEAD * s.size * b.lapse(Skill.TENDING); val wood = PEN_WOOD_KG_PER_HEAD * s.size
+    val gd = b.goods
+    val built = minOf(1f - s.built, left / days, gd[Material.WOOD] / wood).coerceAtLeast(0f)
+    if (built <= 0f) return
+    gd[Material.WOOD] -= built * wood; buildOn(s, built); time.spend(Activity.SOWING, built * days)
+    stats.meeting(Met.BANDS_BUILT_PENS)
+}
+
+/**
+ * Pens ([buildPen]): the fewest head a band pens; person-days and kg of brush and stakes to fence one head's room. A thorn or
+ * brush corral gives a goat 1-2 m² (from memory, unsourced): a hundred goats in a ring some 45 m round, fenced at some 4-5
+ * m a person-day with some 20 kg of brush a metre (estimates). The share of beasts of prey's chance at a herd a pen takes
+ * away ([PEN_GUARD]: most attacks on kept stock come at night, from memory, unsourced), and of a herd's strays left
+ * unwatched it keeps ([PEN_KEEPS]: the night's share). Estimates all.
+ */
+internal const val PEN_MIN_HEADS = 2f
+internal const val PEN_DAYS_PER_HEAD = 0.1f
+internal const val PEN_WOOD_KG_PER_HEAD = 9f
+internal const val PEN_GUARD = 0.5f
+internal const val PEN_KEEPS = 0.5f
+
+/**
  * Shares given at a meeting: of the giver's seed corn to a band that knows farming and has none ([giveSeed]), and of its
  * grown herded stock to a band that knows herding and has none ([giveStock]). Estimates, not measured: enough to sow a
  * small plot, and a few breeding beasts from a herd of tens.
@@ -334,6 +371,7 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
     if (b.herds.herdGrew.size != b.herds.herd.size) b.herds.herdGrew = BooleanArray(b.herds.herd.size)
     if (b.herds.herdPet.size != b.herds.herd.size) b.herds.herdPet = FloatArray(b.herds.herd.size)
     val young = b.herds.youngHerd(); val sows = b.herds.sows(); val bred = b.herds.bred()
+    val pen = penned(g, b, hw.placeHex[p])
     val herders = b.herds.herd.indices.sumOf { k -> ((b.herds.herd[k] + young[k]) / headsAHerder(fauna.kinds[k])).toDouble() }.toFloat()
     val capacity = b.freeShare.takeIf { f -> f.all { it >= 0f } }?.let { f -> f.min() * time.total / days * herdSkill(b) }
     var room = capacity?.let { it - herders }
@@ -388,7 +426,8 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
             fauna.outbreakDeaths(s, p)
         // (The herded stray as wild as they are ([straying]); those nobody went out with this week graze by the camp, and the
         // wilder of them do not come home ([unherdedStrays]).)
-        val unwatched = (1f - tended) * min(1f, unherdedStrays(s, tame) * b.lapse(Skill.TENDING) * days / 7f)
+        // (Penned at night ([Built.PEN]), they cannot wander off in the dark: [PEN_KEEPS] of the strays are kept.)
+        val unwatched = (1f - tended) * (1f - PEN_KEEPS * pen) * min(1f, unherdedStrays(s, tame) * b.lapse(Skill.TENDING) * days / 7f)
         val running = straying(s, tame) * b.lapse(Skill.TENDING) * years + unwatched
         val lost = n * min(0.9f, dying + running); val lostY = y * min(0.9f, dying + running)
         // (The dead lie by the camp; those that run off or stray go wild among their kind.)
