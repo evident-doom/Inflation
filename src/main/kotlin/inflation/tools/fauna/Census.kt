@@ -42,6 +42,7 @@ import inflation.ecology.pressure
 import inflation.ecology.packPressure
 import inflation.ecology.livesFixed
 import inflation.ecology.hexSuit
+import inflation.ecology.bandPeopleByHex
 import inflation.ecology.FaunaKind
 import inflation.ecology.PlaceMemory
 import inflation.ecology.FRIEND_TIE
