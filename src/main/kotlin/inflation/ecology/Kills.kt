@@ -337,7 +337,8 @@ internal fun HexGroups.huntGame(g: HexGroup, k: Int, p: Place, expected: Float, 
                 band.herds.herdPet[k] = petYears(ps)
             }
             bands.keptYoung.addAndGet(k, kept)
-            young[k] += kept; ny -= kept
+            // (Caught wild, they are not herded stock and do not breed: [Herd.herdBred].)
+            band.herds.addBred(k, kept.toFloat(), 0f, young = true); ny -= kept
             fauna.young[k][p] = max(0f, fauna.young[k][p] - kept / area)
             stats.meeting(Met.YOUNG_ANIMALS_KEPT, kept)
         }

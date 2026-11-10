@@ -592,6 +592,8 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
         }
         // And finished tools it made beyond its own kit, to a band whose kit falls short.
         useful += giveTools(giver, gb, taker, tb)
+        // And seed corn and breeding stock, to a band that knows farming or herding and has none to start with.
+        useful += giveSeed(giver, gb, taker, tb) + giveStock(gb, tb)
         // Salt to eat: a band short of sodium is given a year of it for its people by one that holds more than a year of it
         // for its own, whatever it keeps for curing (a person's year of sodium is some 20 g of salt, [SALT_BODY_YEAR]).
         if (tb.sodiumShort > 0f) {

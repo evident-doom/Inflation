@@ -95,7 +95,7 @@ private fun GroupWorld.startHerd(g: HexGroup, b: Band): Pair<Int, Float>? {
     if (n <= 0f) return null
     fauna.adults[k][p] -= n / area
     b.herds.herdTame[k] = (b.herds.herdTame[k] * b.herds.herd[k] + HERD_START_TAME * n) / (b.herds.herd[k] + n)
-    b.herds.herd[k] += n
+    b.herds.addBred(k, n, 1f)
     b.knowsSkill[Skill.TENDING] = true; b.skills[Skill.TENDING] = max(b.skills[Skill.TENDING], HERD_SKILL); b.lastUsed[Skill.TENDING] = b.weeks
     // (Herders hold herding as their way of life; a village keeps farming.)
     if (b.heldLivelihood == Livelihood.FORAGING) { b.heldLivelihood = Livelihood.HERDING; b.livedOther = 0f }
@@ -134,8 +134,8 @@ private fun HexGroups.startVillage(g: HexGroup, b: Band): Pair<Int, Float>? {
     return startHerd(g, b)
 }
 
-/** Ways a village starts knowing: storage bins sealed with clay, pit houses, gruel boiled with hot stones; and how well it knows them. */
-private val VILLAGE_SKILLS = listOf(Skill.SEALING, Skill.PIT_HOUSE, Skill.STONE_BOILING)
+/** Ways a village starts knowing: storage bins sealed with clay, pit houses, gruel boiled with hot stones, growing grain; and how well it knows them. */
+private val VILLAGE_SKILLS = listOf(Skill.SEALING, Skill.PIT_HOUSE, Skill.STONE_BOILING, Skill.CULTIVATION)
 private const val VILLAGE_SKILL = 0.5f
 /**
  * Farthest a village stands from drinking water, km; the grain it starts with in store, and the grain its sown field will ripen

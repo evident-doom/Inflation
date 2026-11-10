@@ -274,7 +274,7 @@ internal fun HexGroups.choreAsks(g: HexGroup, b: Band, date: Date, asks: EnumFlo
     // (A band that has just moved builds, sows and fortifies nothing where it has come to.)
     if (!moved) {
         ask(Activity.HOUSES, buildHouse(g, b, p, h, people, null))
-        if (canSow(g, b, p, date)) ask(Activity.SOWING, sowDays(p, g.stores[Store.SEED] * SOW_SHARE * b.sowWill * g.storeKgPer[Store.SEED]))
+        if (canSow(g, b, p, date)) ask(Activity.SOWING, sowDays(p, b.seedCornIn(g) * SOW_SHARE * b.sowWill * g.storeKgPer[Store.SEED]) * b.lapse(Skill.CULTIVATION))
         if (fortifies(b)) ask(Activity.PALISADE,
             minOf(1f - palisadeAt(g, h), b.goods[Material.WOOD] / (PALISADE_WOOD * people)).coerceAtLeast(0f) * PALISADE_DAYS / b.skill(Skill.FORTIFYING) * people)
         ask(Activity.WEIRS, weirAsk(g, b, h))

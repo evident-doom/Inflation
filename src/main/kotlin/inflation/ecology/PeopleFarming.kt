@@ -20,23 +20,23 @@ import kotlin.math.min
 // Bands' fields and animals: sowing and reaping, kept animals, dogs and herds.
 
 /**
- * In autumn [g]'s band, at home or at a camp it has kept long enough to build at ([houseAfterWeeks]), sows a share of its stored
- * grain there, in the [time] days to spare. (A band that then moves on leaves the plot to whoever comes by.)
+ * In autumn [g]'s band, at home or at a camp it has kept long enough to build at ([houseAfterWeeks]), sows a share of its seed
+ * corn there ([Band.seedCorn]: grain of its own crops, kept back, not grain gathered from the wild stands), in the [time] days
+ * to spare, if it knows how to grow grain ([Skill.CULTIVATION]). (A band that then moves on leaves the plot to whoever comes by.)
  */
 @Part("people: sow grain")
 internal fun HexGroups.sowGrain(g: HexGroup, b: Band, p: Place, date: Date, time: BandTime) {
     val left = time.leftFor(Activity.SOWING)
     if (canSow(g, b, p, date) && left > 0f) {
-        val stock = g.stores[Store.SEED]
-        val per = g.storeKgPer[Store.SEED]; val canIn = sowableKg(p, left) / per
-        val sow = minOf(stock * SOW_SHARE * b.sowWill, canIn)
-        dialUse?.amount(DialSite.SOWING, b.sowWill, sow, minOf(stock * SOW_SHARE, canIn))
+        val corn = b.seedCornIn(g)
+        val per = g.storeKgPer[Store.SEED]; val canIn = sowableKg(p, left / b.lapse(Skill.CULTIVATION)) / per
+        val sow = minOf(corn * SOW_SHARE * b.sowWill, canIn)
+        dialUse?.amount(DialSite.SOWING, b.sowWill, sow, minOf(corn * SOW_SHARE, canIn))
         if (sow > 0.1f) {
-            // (Its seed corn first, then grain gathered from the wild stands.)
-            val corn = b.seedCornIn(g); val fromCorn = min(sow, corn)
-            val domestic = (fromCorn * b.seedDomestic + (sow - fromCorn) * b.grainDomestic) / sow
+            val domestic = b.seedDomestic
             val kg = sow * per
-            g.stores[Store.SEED] -= sow; b.seedCorn = corn - fromCorn; time.spend(Activity.SOWING, sowDays(p, kg))
+            g.stores[Store.SEED] -= sow; b.seedCorn = corn - sow; time.spend(Activity.SOWING, sowDays(p, kg) * b.lapse(Skill.CULTIVATION))
+            b.practise(Skill.CULTIVATION)
             // (Ground it sows beyond what is cleared there it clears first: [HexFood.cleared], kept by [HexFood.sow].)
             // (A field sown afresh, or sown where last year's crop is spent, is this year's crop.)
             if (b.sownPlace != p || fauna.food.field[p] <= 0f) b.sownKg = 0f
@@ -81,6 +81,7 @@ internal fun HexGroups.harvestCrop(g: HexGroup, b: Band, time: BandTime) {
     b.seedDomestic = (b.seedDomestic * corn + b.reapedDomestic(food.fieldDomestic[f]) * worth) / (corn + worth)
     b.seedCorn = corn + worth
     addFood(g.stores, g.storeKgPer, Store.SEED, worth, kg)
+    if (b.knowsSkill[Skill.CULTIVATION]) b.practise(Skill.CULTIVATION)
     stats.tally(Tally.of(g.species, Tally.OfKind.GRAIN_REAPED), worth.toInt())
     stats.tally(Tally.grain(Tally.Grain.CROP_KG), kg.roundToInt())
     stats.tally(Tally.grain(Tally.Grain.CROP_DAYS), (10f * (kg * (perKg - grind) + ground * grind)).roundToInt())
@@ -118,9 +119,64 @@ internal fun GroupWorld.sowableKg(p: Place, days: Float): Float {
 /** [Band.seedCorn] as [g]'s stores hold it: grain is eaten, spoils, is given and taken from the wild grain first. */
 internal fun Band.seedCornIn(g: HexGroup) = min(seedCorn, g.stores[Store.SEED])
 
-/** Whether [g]'s band [b] sows at place [p] now: in autumn, at home or at a camp it has kept long enough to build at, where grass grain grows. */
+/**
+ * Whether [g]'s band [b] sows at place [p] now: in autumn, at home or at a camp it has kept long enough to build at, where grass
+ * grain grows; if it knows how to grow grain ([Skill.CULTIVATION]) and has seed corn of its own ([Band.seedCorn]) to sow.
+ */
 internal fun GroupWorld.canSow(g: HexGroup, b: Band, p: Place, date: Date) =
-    (b.atHome || b.campWeeks >= houseAfterWeeks(b)) && date.month in SOW_MONTHS && fauna.food.cereal[p] > 0f
+    b.knowsSkill[Skill.CULTIVATION] && b.seedCornIn(g) > 0f &&
+        (b.atHome || b.campWeeks >= houseAfterWeeks(b)) && date.month in SOW_MONTHS && fauna.food.cereal[p] > 0f
+
+/**
+ * At a meeting, a band that grows grain ([Skill.CULTIVATION]) gives [SEED_GIFT] of its seed corn, as far as it is giving
+ * ([Band.giveWill]), to a band that knows how to grow grain and has none of its own to sow: farming spreads with the seed as
+ * well as the know-how. Returns 1 when it gave (it founds the other's fields), else 0.
+ */
+internal fun GroupWorld.giveSeed(giver: HexGroup, gb: Band, taker: HexGroup, tb: Band): Float {
+    if (!gb.knowsSkill[Skill.CULTIVATION] || !tb.knowsSkill[Skill.CULTIVATION] || tb.seedCornIn(taker) > 0f) return 0f
+    val gift = gb.seedCornIn(giver) * SEED_GIFT * min(1f, gb.giveWill)
+    if (gift <= 0.1f) return 0f
+    val kg = gift * giver.storeKgPer[Store.SEED]
+    giver.stores[Store.SEED] -= gift; gb.seedCorn -= gift
+    addFood(taker.stores, taker.storeKgPer, Store.SEED, gift, kg)
+    tb.seedDomestic = gb.seedDomestic; tb.seedCorn = gift
+    stats.meeting(Met.Of.GIVEN, "seed corn")
+    return 1f
+}
+
+/**
+ * At a meeting, a band that keeps herded stock ([Herd.herdBred]) gives [STOCK_GIFT] of its grown herd of a kind, as far as it
+ * is giving ([Band.giveWill]), to a band that knows herding ([Skill.TENDING]) and has no herded stock of that kind: a herd
+ * starts from herders' stock, not from young caught wild. Returns 1 when it gave, else 0.
+ */
+internal fun GroupWorld.giveStock(gb: Band, tb: Band): Float {
+    if (!gb.knowsSkill[Skill.TENDING] || !tb.knowsSkill[Skill.TENDING]) return 0f
+    val gh = gb.herds; val th = tb.herds
+    val gBred = gh.bred(); val tBred = th.bred(); val tYoung = th.youngHerd()
+    var gave = 0f
+    for (k in 0 until min(gh.herd.size, th.herd.size)) {
+        if ((th.herd[k] + tYoung[k]) * tBred[k] >= 1f) continue
+        val heads = gh.herd[k] * gBred[k] * STOCK_GIFT * min(1f, gb.giveWill)
+        if (heads < 1f) continue
+        val had = th.herd[k] + tYoung[k]
+        th.herdTame[k] = (th.herdTame[k] * had + gh.herdTame[k] * heads) / (had + heads)
+        val ts = th.sows(); ts[k] = (ts[k] * th.herd[k] + gh.sows()[k] * heads) / (th.herd[k] + heads)
+        gh.herd[k] -= heads
+        th.addBred(k, heads, 1f)
+        if (k < th.herdPet.size) th.herdPet[k] = 0f
+        stats.meeting(Met.Of.GIVEN, "breeding stock")
+        gave = 1f
+    }
+    return gave
+}
+
+/**
+ * Shares given at a meeting: of the giver's seed corn to a band that knows farming and has none ([giveSeed]), and of its
+ * grown herded stock to a band that knows herding and has none ([giveStock]). Estimates, not measured: enough to sow a
+ * small plot, and a few breeding beasts from a herd of tens.
+ */
+internal const val SEED_GIFT = 0.1f
+internal const val STOCK_GIFT = 0.1f
 
 /**
  * Packs of kinds that follow people (wolves, jackals) and live by a band's camps grow bolder over
@@ -277,7 +333,7 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
     // planned a week of every month; till then, the spare days alone.
     if (b.herds.herdGrew.size != b.herds.herd.size) b.herds.herdGrew = BooleanArray(b.herds.herd.size)
     if (b.herds.herdPet.size != b.herds.herd.size) b.herds.herdPet = FloatArray(b.herds.herd.size)
-    val young = b.herds.youngHerd(); val sows = b.herds.sows()
+    val young = b.herds.youngHerd(); val sows = b.herds.sows(); val bred = b.herds.bred()
     val herders = b.herds.herd.indices.sumOf { k -> ((b.herds.herd[k] + young[k]) / headsAHerder(fauna.kinds[k])).toDouble() }.toFloat()
     val capacity = b.freeShare.takeIf { f -> f.all { it >= 0f } }?.let { f -> f.min() * time.total / days * herdSkill(b) }
     var room = capacity?.let { it - herders }
@@ -316,10 +372,13 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
         val seasonPart = seasonDays(s, s.birthMonth, date, days) / (s.birthMonths * Date.DAYS_PER_MONTH.toFloat())
         // (Short of sodium where their forage is, its beasts bear fewer young, as far as its salt does not make it up: [feedHerdSalt].)
         val salted = if (tuning.grazerSaltLack > 0f) saltBreeding(feedHerdSalt(b, s, n + 0.5f * y, fauna.forageSodiumAt[p], days), tuning.grazerSaltLack) else 1f
-        val born = if (seasonPart > 0f) n * herdMothers(s, tame, sows[k]) * s.youngPerFemale * fed * salted * seasonPart else 0f
+        // (Only its mothers of herded stock bear young, [Herd.herdBred]: young caught wild are pets. Those born are herded stock.)
+        val stock = bred[k]
+        val born = if (seasonPart > 0f) n * stock * herdMothers(s, tame, sows[k]) * s.youngPerFemale * fed * salted * seasonPart else 0f
+        if (born > 0f) bred[k] = (stock * (n + y) + born) / (n + y + born)
         // Its mothers give milk through the lactation after the birth season, as they are fed and as tame as they are.
         if (lactating(s, date)) {
-            val milk = n * herdMothers(s, tame, sows[k]) * tame * fed * milkKg(s) * days / LACTATION_DAYS
+            val milk = n * stock * herdMothers(s, tame, sows[k]) * tame * fed * milkKg(s) * days / LACTATION_DAYS
             addFood(g.stores, g.storeKgPer, Store.FRESH, milk * Nourishment.MILK * g.species.needScale, milk)
             tally(k, HerdFlow.MILK_KG, milk)
         }
@@ -474,7 +533,7 @@ internal fun GroupWorld.herdPays(g: HexGroup, b: Band, k: Int) = herdWorth(g, b,
 internal fun GroupWorld.herdWorth(g: HexGroup, b: Band, k: Int): Float {
     val lean = b.forageReturn.filter { it >= 0f }.minOrNull()?.takeIf { it > 0f } ?: return Float.POSITIVE_INFINITY
     val s = fauna.kinds[k]; val tame = b.herds.herdTame[k]
-    val mothers = herdMothers(s, tame, b.herds.sows()[k])
+    val mothers = b.herds.bred()[k] * herdMothers(s, tame, b.herds.sows()[k])
     val increase = herdIncrease(b, k, at = g.place)
     val heads = headsAHerder(s) * herdSkill(b)
     val day = heads * (increase * s.massKg * MEAT_SHARE * Nourishment.MEAT + mothers * tame * milkKg(s) * Nourishment.MILK) *
@@ -494,7 +553,7 @@ internal fun GroupWorld.herdFoodWeek(g: HexGroup, b: Band, date: Date): Float {
         if (n <= 0f) continue
         val s = fauna.kinds[k]; val tame = b.herds.herdTame[k]
         if (!b.herds.herdGrew.getOrElse(k) { false }) food += n * max(0f, herdIncrease(b, k, at = g.place)) * years * s.massKg * MEAT_SHARE * Nourishment.MEAT
-        if (lactating(s, date)) food += n * herdMothers(s, tame, b.herds.sows()[k]) * tame * milkKg(s) * days / LACTATION_DAYS * Nourishment.MILK
+        if (lactating(s, date)) food += n * b.herds.bred()[k] * herdMothers(s, tame, b.herds.sows()[k]) * tame * milkKg(s) * days / LACTATION_DAYS * Nourishment.MILK
     }
     return food * g.species.needScale
 }
@@ -517,7 +576,7 @@ internal fun GroupWorld.herdIncrease(b: Band, k: Int, fed: Float = 1f, at: Place
         (at?.let { herdSickness(it, k, heads, fed) } ?: 0f)
     // (Where its forage is short of sodium, as far as its keepers' salt would not make it up: [feedHerdSalt].)
     val salted = if (at == null || b.goods[Material.SALT] > 0f) 1f else fauna.saltBreeding(s, at)
-    return herdMothers(s, tame, b.herds.sows()[k]) * s.youngPerFemale * fed * salted / (1f + lost * s.yearsToMaturity) - lost
+    return b.herds.bred()[k] * herdMothers(s, tame, b.herds.sows()[k]) * s.youngPerFemale * fed * salted / (1f + lost * s.yearsToMaturity) - lost
 }
 
 /**
