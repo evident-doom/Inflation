@@ -100,11 +100,17 @@ enum class Skill(val domain: Domain, val floor: Float, val start: Float = 0f, va
     ROASTING(Domain.COOKING, 0.5f, 0.8f),
     /**
      * Boiling with hot stones dropped in a tight basket, a hide or a pit: seed into gruel (fuller
-     * use of it), and grease rendered from bones. Needs baskets (or hides).
+     * use of it), and grease rendered from bones. Needs baskets (or hides). Known from the start, at a little practice: boiling
+     * with hot stones is argued to be at least as old as the Upper Palaeolithic (contested), long before the Natufian (record
+     * sweep G). (Its effects stay set for the level they were, [ref] 0.)
      */
-    STONE_BOILING(Domain.COOKING, 0.3f, known = false),
-    /** Earth ovens: roots and bulbs baked for a day under hot stones, their starches made digestible. */
-    EARTH_OVEN(Domain.COOKING, 0.3f, known = false),
+    STONE_BOILING(Domain.COOKING, 0.3f, 0.3f, ref = 0f),
+    /**
+     * Earth ovens: roots and bulbs baked for a day under hot stones, their starches made digestible. Known from the start, at
+     * a little practice: earth ovens are found from the Upper Palaeolithic in Europe and are likely in the Epipalaeolithic
+     * Levant (record sweep G; from memory).
+     */
+    EARTH_OVEN(Domain.COOKING, 0.3f, 0.3f, ref = 0f),
     /** Leaching acorns and bitter roots in baskets in running water: needs baskets and water by the camp. */
     LEACHING(Domain.DETOXIFYING, 0.2f, known = false),
     /** Sewing with awls and eyed needles: clothes cut to fit, far warmer than hides wrapped and tied. */
