@@ -13,8 +13,8 @@ import java.util.concurrent.ConcurrentHashMap
  * neither (misspelt, or no longer read) stops the run at once, naming it. A tuning key set in the file that
  * the run never reads (of a part that did not run) is named on stderr as the run ends.
  *
- * An era profile (era=NAME) is a properties file of keys, eras/NAME.properties beside the config file or in the working
- * directory, that sets a world's start for an era: its keys are read as if they stood in the config file, and the config
+ * An era profile (era=NAME) is a properties file of keys, eras/NAME.properties beside the config file, in the working
+ * directory or in a folder above them (the project's eras/), that sets a world's start for an era: its keys are read as if they stood in the config file, and the config
  * file's own keys take precedence over them. A profile names no era of its own.
  *
  * The old -Dhex.* switches are no longer read: a run given one stops at once and names the key to
@@ -160,11 +160,15 @@ object Config {
         })
     }
 
-    /** The era profile [era]: eras/[era].properties beside the config file ([dir]), else in the working directory. */
+    /** The era profile [era]: eras/[era].properties beside the config file ([dir]), else in the working directory, else in a folder above either or above the running code. */
     fun eraFile(era: String, dir: File?): File {
         require(Regex("""[\w-]+""").matches(era)) { "era=$era: a profile's name, letters, digits, - and _ (eras/NAME.properties)" }
-        val tried = listOfNotNull(dir?.let { File(it, "eras/$era.properties") }, File("eras/$era.properties"))
-        return requireNotNull(tried.firstOrNull { it.isFile }) { "era profile not found: ${tried.joinToString(" or ")}" }
+        // (Beside the config file or in the working directory, or in any folder above either, or above the running code: a run
+        // started in its own folder under the project still finds the project's eras/.)
+        val code = runCatching { File(Config::class.java.protectionDomain.codeSource.location.toURI()) }.getOrNull()
+        val tried = listOfNotNull(dir, File("").absoluteFile, code).flatMap { generateSequence(it.absoluteFile) { f -> f.parentFile }.toList() }
+            .map { File(it, "eras/$era.properties") }.distinct()
+        return requireNotNull(tried.firstOrNull { it.isFile }) { "era profile not found: eras/$era.properties beside the config file, the working directory or the code, or above them" }
     }
 
     /** Every key the code reads: the [Key]s and the tuning keys (those a [Tuning] asks for as it is made). */
