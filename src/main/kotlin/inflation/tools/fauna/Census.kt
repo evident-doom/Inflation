@@ -2,6 +2,7 @@ package inflation.tools.fauna
 
 import inflation.ecology.HUNGER_CASES
 import inflation.ecology.REGION_CUSTOMS_APART
+import inflation.ecology.STYLE_TRAITS
 import inflation.ecology.REGION_UNDERSTOOD
 import inflation.ecology.cultureRegions
 import inflation.ecology.customsOff
@@ -1196,7 +1197,10 @@ class Census(private val sim: HexSim) {
                     .filter { (k, sh) -> kotlin.math.abs(sh - mapShare[k]) >= CULTURE_APART }
                     .sortedByDescending { (k, sh) -> kotlin.math.abs(sh - mapShare[k]) }.take(4)
                     .joinToString(", ") { (k, sh) -> "%s %.0f/%.0f".format(traits[k].first, 100 * sh, 100 * mapShare[k]) }
-                "%s (%d, %.0f%s)".format(cr.name[r] ?: "-", mine.size, people, if (apart.isEmpty()) "" else ": $apart")
+                // (Its style: the variant most of its bands hold of each mark, and the share of its bands holding it, on the whole.)
+                val modal = (0 until STYLE_TRAITS).map { t -> mine.groupingBy { it.style[t] }.eachCount().maxByOrNull { it.value }!! }
+                val style = "style %s %.0f%%".format(modal.joinToString("-") { it.key.toString() }, 100.0 * modal.sumOf { it.value } / (STYLE_TRAITS * mine.size))
+                "%s (%d, %.0f; %s%s)".format(cr.name[r] ?: "-", mine.size, people, style, if (apart.isEmpty()) "" else "; $apart")
             })
     }
 
