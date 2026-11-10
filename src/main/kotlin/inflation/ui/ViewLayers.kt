@@ -11,6 +11,9 @@ import inflation.world.Place
 import inflation.ecology.HexFauna
 import inflation.world.get
 import inflation.ecology.HexSim
+import inflation.ecology.CultureRegions
+import inflation.ecology.cultureRegions
+import inflation.ecology.hexRegion
 import inflation.ecology.PlaceRecord
 import inflation.ecology.HexFood
 import inflation.ecology.Species
@@ -48,7 +51,9 @@ internal class ViewLayers(private val sim: HexSim) {
         HUNTERS_PER_PREY("Hunters per prey", "kg hunters per 100 kg big game (blank under 1 kg/km² of game)", 0.9f, 0.2f, 0.1f),
         HUNGRY_BY_PLENTY("Hungry next to plenty", "grazers short /km² x kg/m² they could eat within 2 hexes", 1f, 0.2f, 0.8f),
         CARRION_WEEKS("Weeks to clear: carrion", "weeks", 0.4f, 0.1f, 0.4f), LITTER_WEEKS("Weeks to clear: litter", "weeks", 0.45f, 0.3f, 0.1f),
-        BONES_WEEKS("Weeks to clear: bones", "weeks", 0.8f, 0.8f, 0.7f), ORGANIC_WEEKS("Weeks to clear: soil organic matter", "weeks", 0.35f, 0.2f, 0.05f);
+        BONES_WEEKS("Weeks to clear: bones", "weeks", 0.8f, 0.8f, 0.7f), ORGANIC_WEEKS("Weeks to clear: soil organic matter", "weeks", 0.35f, 0.2f, 0.05f),
+        /** Each hex in the colour of the cultural region with the most people there ([inflation.ecology.cultureRegions]). */
+        CULTURES("Cultural regions", "", 0f, 0f, 0f);
         /** Whether the measure tints the hexes: the two plain ground views do not. */
         val tints get() = this != NONE && this != LAND_WATER
         val byCause get() = this == DEATHS || this == PEOPLE_DEATHS
@@ -71,6 +76,8 @@ internal class ViewLayers(private val sim: HexSim) {
 
     /** This week's value of each measure, per hex. */
     val now = HashMap<String, FloatArray>()
+    /** The cultural regions as they stood at the last week ([Measure.CULTURES]). */
+    var cultures: CultureRegions? = null
     /** Each month's mean over the last year (index: month), per hex; null until that month has been seen. */
     private val months = HashMap<String, Array<FloatArray?>>()
     /** The same month a year before the last one kept (index: month), per hex; null until two of it have been seen. */
@@ -131,6 +138,11 @@ internal class ViewLayers(private val sim: HexSim) {
         now[Measure.POLLINATORS.name] = hexMean { sl.pollinators[it] }
         now[Measure.ORGANIC.name] = hexMean { sl.organicMatter[it] }
         now[Measure.CARRION.name] = hexMean { sl.carrion[it] * 1e6f }
+        // Cultural regions: the region with the most people in each hex, by its index (no band there: none).
+        cultures = groups.cultureRegions(groups.groups).also { cr ->
+            val hr = cr.hexRegion(nh) { hw.placeHex[it.place] }
+            now[Measure.CULTURES.name] = FloatArray(nh) { if (hr[it] >= 0) hr[it].toFloat() else Float.NaN }
+        }
         now[Measure.RESIDENTS.name] = hexMean { p -> var v = 0f; for (k in fauna.kinds.indices) v += fauna.adults[k][p] + fauna.young[k][p]; v }
 
         // Deaths: this week's, by cause, as a running mean over about a month (a single week is mostly noise).

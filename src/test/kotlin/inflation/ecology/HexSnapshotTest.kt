@@ -123,7 +123,8 @@ private class StateDiff {
     private val out = ArrayList<String>()
     private val seen = IdentityHashMap<Any, Boolean>()
 
-    fun of(a: Any, b: Any): List<String> { walk("sim", a, b); return out.map { it.substringBefore("[") }.distinct().take(30) }
+    fun of(a: Any, b: Any): List<String> { walk("sim", a, b); return out.map { it.replace(INDEX, "[]") }.distinct().take(30) }
+    private val INDEX = Regex("""\[\d+]""")
 
     private fun walk(path: String, x: Any?, y: Any?) {
         if (x == null || y == null) { if ((x == null) != (y == null)) out += path; return }

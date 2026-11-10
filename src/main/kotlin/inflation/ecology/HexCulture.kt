@@ -377,6 +377,15 @@ fun homesApart(a: Band, b: Band, map: HexMap) =
 fun ritesApart(a: Band, b: Band): Boolean =
     a.rite.any { it >= 0 } && b.rite.any { it >= 0 } && a.rite.none { it >= 0 && it in b.rite }
 
+/**
+ * How many of their customs two bands hold differently, as the identity census counts them: each tradition, the totem, where
+ * the dead are laid (when both bury), the rite sites, the held against the shown livelihood, and the home ground.
+ */
+fun customsOff(a: Band, b: Band, map: HexMap): Int =
+    Tradition.entries.count { a.holds(it) != b.holds(it) } + (if (a.totem != b.totem) 1 else 0) +
+        (if (a.holds(Tradition.BURIAL) && b.holds(Tradition.BURIAL) && a.burialWay != b.burialWay) 1 else 0) +
+        (if (ritesApart(a, b)) 1 else 0) + (if (a.heldLivelihood != b.shownLivelihood) 1 else 0) + (if (homesApart(a, b, map)) 1 else 0)
+
 /** Where the dead of lineage [lineage]'s bands are laid ([Band.burialWay]): one way drawn for each lineage. */
 fun burialWayAt(lineage: Int) = BurialWay.entries[((mix64(lineage.toLong() * HASH_C + HASH_B) ushr 33) % BurialWay.entries.size).toInt()]
 
@@ -389,11 +398,20 @@ internal const val TOTEM_SHAME_YEARS = 1f
 /**
  * The traditions a band founded in a lineage's country starts with. Marrying out, sharing food,
  * caring for the sick and handing down knowledge are near universal among foragers, so every band
- * holds them; the others come about a quarter each, the same for neighbours.
+ * holds them; burying the dead nine lineages in ten ([BURYING_LINEAGES]); the others come about a quarter each, the same
+ * for neighbours.
  */
 fun traditionsAt(lineage: Int) = EnumBools<Tradition>(BooleanArray(Tradition.entries.size) { t ->
-    Tradition.entries[t] in UNIVERSAL || Math.floorMod((lineage + 1) * 2_654_435_761L.toInt() xor (t * 40_503), 100) < 25
+    Tradition.entries[t] in UNIVERSAL || Math.floorMod((lineage + 1) * 2_654_435_761L.toInt() xor (t * 40_503), 100) <
+        (if (Tradition.entries[t] == Tradition.BURIAL) BURYING_LINEAGES else 25)
 }.also { it[Tradition.LEAVE_DEAD.ordinal] = !it[Tradition.BURIAL.ordinal] }) // (the old way, where the dead are not kept)
+
+/**
+ * Of 100 founding lineages, how many bury their dead ([traditionsAt]). Burial at base camps is found at nearly every excavated
+ * Natufian site, hundreds of graves in all (Mallaha, Hayonim, el-Wad, Shukbah; from memory): what varies is how, single or
+ * collective, with or without the skull, decorated or not ([BurialWay]), not whether. Nine in ten is an estimate.
+ */
+internal const val BURYING_LINEAGES = 90
 
 private val UNIVERSAL = setOf(Tradition.EXOGAMY, Tradition.SHARING, Tradition.MEDICINE, Tradition.ORAL_TRADITION)
 

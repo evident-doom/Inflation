@@ -516,9 +516,11 @@ class Band(kinds: Int, totems: Int = kinds) {
     val makeFirst = enumFloats<Tool> { 1f }
     /**
      * How it stands with each band it has met (by the band's id), -1..1: raised by meeting in peace,
-     * gifts, feasts and marriages, lowered by raids; fading unless renewed.
+     * gifts, feasts and marriages, lowered by raids; fading unless renewed. In the order the ties were made: sums over them
+     * ([wearToward]) follow it, and a hash table's own order follows its history (a loaded one is laid out afresh), so a
+     * saved world carried on would add them up in another order and drift from the one that ran on.
      */
-    val ties = HashMap<Int, Float>()
+    val ties = LinkedHashMap<Int, Float>()
     /** The step this band last met each other band (by group id), for how fresh a meeting is ([meetingFresh]). */
     val lastMet = HashMap<Int, Int>()
     /**
