@@ -20,8 +20,10 @@ class EraProfilesTest {
             val p = Properties().also { q -> f.reader().use { q.load(it) } }
             assertEquals(emptyList(), p.stringPropertyNames().filter { it !in known || it == Config.Key.ERA.key }.sorted(), "${f.name}: keys not read (or an era)")
             val t = Tuning({ p.getProperty(it) }, { null })
-            startLevels("t.startSkills", t.startSkills, Skill.entries)
-            startLevels("t.startTools", t.startTools, Tool.entries)
+            val skills = startLevels("t.startSkills", t.startSkills, Skill.entries)
+            val tools = startLevels("t.startTools", t.startTools, Tool.entries)
+            assertEquals(skills.size, skills.map { it.first }.distinct().size, "${f.name}: a way named twice")
+            assertEquals(tools.size, tools.map { it.first }.distinct().size, "${f.name}: a tool named twice")
         }
     }
 
