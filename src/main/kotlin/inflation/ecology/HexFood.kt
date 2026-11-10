@@ -513,10 +513,13 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
          * woods and in open oak woodland; oak, elm and wild fruit among the alder, willow, ash and poplar of floodplain forest;
          * pistachio, wild almond and oak scattered on steppe and in scrub; little in conifer forest (a few stone pines and
          * hazel), none in alder swamp, mangrove or bog. Spruce, fir and larch seed feeds no one here. Each kind of country's
-         * trees go with one group whose crops boom and bust together ([MastTrees]).
+         * trees go with one group whose crops boom and bust together ([MastTrees]). Broadleaved and open woods at 0.3: in
+         * Białowieża's strict reserve, the nearest to a natural lowland forest left in Central Europe, oak is 2-5% of the stems
+         * among hornbeam, lime and spruce (Ann. For. Sci. 2018, doi 10.1007/s13595-018-0767-x, table 1); oak's larger
+         * trees and the mid-Holocene's oak, hazel and later beech put the bearing share higher, a guess.
          */
         val FOOD_TREES: Map<Biome, Pair<MastTrees, Float>> = mapOf(
-            Biome.TEMPERATE_FOREST to (MastTrees.TEMPERATE to 1f), Biome.OPEN_WOODLAND to (MastTrees.TEMPERATE to 1f),
+            Biome.TEMPERATE_FOREST to (MastTrees.TEMPERATE to 0.3f), Biome.OPEN_WOODLAND to (MastTrees.TEMPERATE to 0.3f),
             Biome.FLOODPLAIN_FOREST to (MastTrees.TEMPERATE to 0.3f),
             Biome.MEDITERRANEAN_WOODLAND to (MastTrees.DRY to 1f), Biome.STEPPE to (MastTrees.DRY to 0.5f),
             Biome.SHRUBLAND to (MastTrees.DRY to 0.5f), Biome.SEMI_DESERT to (MastTrees.DRY to 0.3f), Biome.DESERT to (MastTrees.DRY to 0.3f),
