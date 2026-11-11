@@ -53,6 +53,7 @@ class StringKeysTest {
         "Profile.kt" to (5 to "phase timings by phase name, time by part and kind, and the slowest jobs by what they were"),
         "tools/ProfileReport.kt" to (16 to "a recording's phases, loops, labels, frames, the lines the samples fell on by label, waits, time by part and kind, and slowest jobs by name, for printing; labels by class and method name, read from the @Part annotations"),
         "ecology/HexHistory.kt" to (5 to "history series: the CSV columns are text"),
+        "tools/StepSplit.kt" to (8 to "history series by name and the arms by label, as HexHistory keys them: printed, never read back"),
         "run/TestWorlds.kt" to (1 to "runs by test-world name, user input"),
         "run/Nominal.kt" to (1 to "history series grouped by kind name, as the CSV columns name them"),
         "learning/Critic.kt" to (2 to "each kind's return scale by kind name, saved with the net"),
