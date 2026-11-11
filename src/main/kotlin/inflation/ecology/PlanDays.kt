@@ -322,7 +322,7 @@ private fun HexGroups.sowRate(g: HexGroup, b: Band, perDay: Float, ask: Float, w
     val sown = raw / g.storeKgPer[Store.SEED]
     // (The crop is eaten through the year till the next harvest, so kept half a year on the mean: less what its stores would
     // lose of it in that time, where it keeps them now, [cropKept].)
-    val yieldPerKg = HexFood.yieldPerKg(b.seedDomestic)
+    val yieldPerKg = HexFood.yieldPerKg(b.seedDomestic) * fauna.food.seasonYield(g.place)
     val food = raw * yieldPerKg * seedValue(b) * b.cookValue(Food.GRAIN) * cropKept(b) - sown
     val reap = raw * yieldPerKg * reapDaysPerKg(b, tuning, yieldPerKg * HexFood.SEED_RATE)
     val against = if (b.heldLivelihood != Livelihood.FARMING) livingAgainstDays(g, b) else 0f

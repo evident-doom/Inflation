@@ -187,6 +187,25 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
      * The share of [p]'s trees that bear food (oaks, beech, hazel, wild fruit trees), by its kinds of country ([FOOD_TREES]),
      * for each group of trees whose crops go together ([MastTrees]). (Fixed by the world, so not taken from a saved run.)
      */
+    /**
+     * Where a crop can be sown at all, wild cereals or not ([canCrop]): [CROP_RAIN_MM] of rain a year and [CROP_GDD] degree-days
+     * above 5 °C; and where winters are too cold for an autumn-sown crop to live through ([SPRING_BELOW_C]), so it is sown in
+     * spring ([springSown]: [SPRING_YIELD]). (Fixed by the world's climate, so not taken from a saved run.)
+     */
+    @Transient private var cropClimate: BooleanArray? = null
+    @Transient private var springCold: BooleanArray? = null
+    private fun cropClimate(): BooleanArray = cropClimate ?: BooleanArray(n) { p ->
+        val h = land.hw.placeHex[p]
+        (0 until 12).sumOf { land.hw.precip[it][h].toDouble() } >= CROP_RAIN_MM && land.plants.annualGdd[p] >= CROP_GDD
+    }.also { cropClimate = it }
+    /** Whether [p]'s winters are too cold for an autumn-sown crop, so it is sown in spring ([SPRING_BELOW_C]). */
+    fun springSown(p: Place): Boolean = (springCold ?: BooleanArray(n) { q -> (0 until 12).minOf { land.hw.placeTemp(Place(q), it) } < SPRING_BELOW_C }
+        .also { springCold = it })[p.i]
+    /** Whether a crop can be sown at [p]: where wild cereals grow, or where the climate lets a crop ripen ([cropClimate]). */
+    fun canCrop(p: Place) = cereal[p] > 0f || cropClimate()[p.i]
+    /** What [p]'s crop bears for its season: [SPRING_YIELD] where it is sown in spring ([springSown]), else all. */
+    fun seasonYield(p: Place) = if (springSown(p)) SPRING_YIELD else 1f
+
     @Transient private val foodTrees = enumTables<MastTrees>(n).also { by ->
         for (p in 0 until n) {
             val h = land.hw.placeHex[p]
@@ -308,7 +327,7 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
                     grain[p] += ripe; fieldGrain[p] += sownRipe
                     wildCover[p] = min(cereal[p], wildCover[p] + ripe / WILD_STAND_GRAIN)
                     ripenedNow[p] += ripe + sownRipe
-                    fieldFateNow[FieldFate.FULL.ordinal][p] += yieldPerKg(fieldDomestic[p]) * (1f - fieldPulse[p] * (1f - PULSE_YIELD)) * field[p] * share
+                    fieldFateNow[FieldFate.FULL.ordinal][p] += yieldPerKg(fieldDomestic[p]) * seasonYield(p) * (1f - fieldPulse[p] * (1f - PULSE_YIELD)) * field[p] * share
                     fieldFateNow[FieldFate.EXPECTED.ordinal][p] += expected
                     fieldFateNow[FieldFate.RIPENED.ordinal][p] += sownRipe
                 }
@@ -363,7 +382,7 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
      * midwinter ([waterStress]); its cereal by the ground it is sown on ([cropSoil]), its pulses [PULSE_YIELD] of that on any ground
      * (they feed themselves nitrogen).
      */
-    fun fieldExpect(p: Place): Float = yieldPerKg(fieldDomestic[p]) * (if (fieldDays[p] > 0f) fieldStress[p] / fieldDays[p] else 1f) * sownMix(p)
+    fun fieldExpect(p: Place): Float = yieldPerKg(fieldDomestic[p]) * seasonYield(p) * (if (fieldDays[p] > 0f) fieldStress[p] / fieldDays[p] else 1f) * sownMix(p)
 
     /** What a kilo of [p]'s sown seed bears against cereal on rested ground: its cereal by [cropSoil], its pulses [PULSE_YIELD]. */
     private fun sownMix(p: Place) = (1f - fieldPulse[p]) * cropSoil(p) + fieldPulse[p] * PULSE_YIELD
@@ -542,6 +561,23 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
          * 32% more manured than unmanured (Reynolds), about what mends worn ground back to rested ([CROPPED_FLOOR]). 150.
          */
         const val MANURE_M2_PER_HEAD = 150f
+        /**
+         * Spring sowing ([springSown]): where the coldest month is below [SPRING_BELOW_C] mean, an autumn-sown wheat or barley does
+         * not live through the winter (winter cereals stand some -10 to -20 °C at the crown, under snow more; from memory,
+         * unchecked), so the crop is sown in spring, barley-like, at [SPRING_YIELD] of an autumn crop: at Butser spring-sown
+         * emmer and barley gave 0.55-0.6 of autumn-sown (Reynolds), at Forchtenberg spring barley near winter levels and spring
+         * wheats 0.3-0.4 of winter bread wheat (Rösch et al. 2017).
+         */
+        const val SPRING_BELOW_C = -5f
+        const val SPRING_YIELD = 0.6f
+        /**
+         * The least rain a year, mm, and warmth, degree-days above 5 °C, a crop is sown in beyond the wild cereals' ground ([canCrop]):
+         * dry farming of barley goes down to some 250-300 mm (from memory), and barley ripens in some 1,000-1,300 degree-days
+         * above 0 °C (from memory), some 800 above 5. Both unchecked; the field's water ([fieldStress]) and the season's warmth
+         * ([fieldExpect], the ripening window) do the rest.
+         */
+        const val CROP_RAIN_MM = 280f
+        const val CROP_GDD = 800f
         /**
          * Grain sown per m² of field: about 120 kg/ha, after Columella's 4-5 modii of wheat to the iugerum (about 110-135 kg/ha)
          * and medieval English seed rates of about 2 bushels an acre (both from memory, unchecked).

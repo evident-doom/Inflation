@@ -520,6 +520,10 @@ class Census(private val sim: HexSim) {
         fun met(m: Met) = metYear[m.key] ?: 0
         println("     farming over the year: band-weeks sowing %d, of them with pulses %d; pens built (band-weeks) %d; band-weeks manuring fields %d".format(
             met(Met.BANDS_SOWED), met(Met.BANDS_SOWED_PULSES), met(Met.BANDS_BUILT_PENS), met(Met.BANDS_MANURED_FIELDS)))
+        val f = groups.fauna.food
+        val fields = (0 until land.n).filter { f.field[it] > 0f || f.fieldGrain[it] > 0f }
+        println("     fields now: %d places, of them beyond the wild cereals' ground %d, sown in spring %d".format(
+            fields.size, fields.count { f.cereal[it] <= 0f }, fields.count { f.springSown(Place(it)) }))
     }
 
     fun printKillsStolen(metYear: Map<TallyKey, Int>) {
