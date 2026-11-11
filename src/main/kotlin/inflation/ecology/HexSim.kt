@@ -85,6 +85,9 @@ class HexSim(
     @Transient val slowPhases: List<Phase> = listOf(Phase("people: herds for the beasts") { fauna.keptAt = groups.herdsForBeasts(); groups.fillPackGame() }) +
         fauna.phases + groups.phases
 
+    /** Of [slowPhases], the residents' and small life's (with the herds they may raid): all but the groups'. */
+    @Transient private val residentPhases: List<Phase> = slowPhases.dropLast(groups.phases.size)
+
     /** The whole step, in order ([tickPhases], then [slowPhases]): at one tick a step, the week. */
     @Transient val phases: List<Phase> = tickPhases + slowPhases
 
@@ -98,12 +101,22 @@ class HexSim(
         stats.clear()
         clock.days = stepDays
         weather.beginStep()
-        repeat(clock.ticks) { i -> land.firstTick = i == 0; land.lastTick = i == clock.ticks - 1; runPhases(tickPhases, weather, books) }
+        // (Test, variable-step thread 2026-11-11: over a step of several ticks the residents and small life take each tick as
+        // a week of their own, right after it, as at one tick a step; the groups take the step whole. The land hands each tick
+        // over as a step of one ([HexLand.firstTick], [HexLand.lastTick]); so the groups see only the last tick's fires and
+        // runoff. At one tick a step, as before.)
+        val perTick = clock.ticks > 1
+        repeat(clock.ticks) { i ->
+            land.firstTick = perTick || i == 0; land.lastTick = perTick || i == clock.ticks - 1
+            runPhases(tickPhases, weather, books)
+            if (perTick) { val d = clock.days; clock.days = clock.tickDays
+                try { runPhases(residentPhases, weather, books) } finally { clock.days = d } }
+        }
         land.firstTick = true; land.lastTick = true
         // (The slow parts read the step's weather whole: its mean air, all that fell and melted, and the coldest tick.)
         weather.settleStep()
         // (Their date is the step's start and a tick, as at one tick a step, not its end: [Weather.slowParts].)
-        weather.slowParts { runPhases(slowPhases, weather, books) }
+        weather.slowParts { runPhases(if (perTick) groups.phases else slowPhases, weather, books) }
     }
 
     /** Snow falls in the cold; the melt goes to the soil, booked again there as it comes in. */
