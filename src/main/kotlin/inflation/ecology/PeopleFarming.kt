@@ -43,7 +43,7 @@ internal fun HexGroups.sowGrain(g: HexGroup, b: Band, p: Place, date: Date, time
             // (A field sown afresh, or sown where last year's crop is spent, is this year's crop.)
             if (b.sownPlace != p || fauna.food.field[p] <= 0f) b.sownKg = 0f
             b.sownPlace = p; b.sownKg += kg; b.seedKept = b.sownKg; b.sinceSowed = 0f
-            fauna.food.sow(p, land.spread(p, Kg(kg)), domestic, pulse / sow)
+            fauna.food.sow(p, land.spread(p, Kg(kg)), domestic, pulse / sow, g.id)
             stats.meeting(Met.BANDS_SOWED)
             if (pulse > 0f) stats.meeting(Met.BANDS_SOWED_PULSES)
             note(g) { "sowed %.0f kg of grain at home".format(sow) }
@@ -211,6 +211,21 @@ internal fun HexGroups.buildPen(g: HexGroup, b: Band, h: Hex, time: BandTime) {
     if (built <= 0f) return
     gd[Material.WOOD] -= built * wood; buildOn(s, built); time.spend(Activity.SOWING, built * days)
     stats.meeting(Met.BANDS_BUILT_PENS)
+}
+
+/**
+ * [g]'s band [b] spreads the dung of its animals penned in hex [h] ([penHeadsAt]) on the worn ground of the field it sowed
+ * there ([Band.sownPlace]): the week's share of a year's [HexFood.MANURE_M2_PER_HEAD] for each head penned.
+ */
+@Part("people: manure fields")
+internal fun HexGroups.manureField(g: HexGroup, b: Band, h: Hex) {
+    val f = b.sownPlace
+    if (f.none || hw.placeHex[f.i] != h) return
+    val heads = min(b.herds.herd.sum() + b.herds.youngHerd().sum(), penHeadsAt(g, h))
+    if (heads <= 0f) return
+    if (fauna.food.fieldWorn[f] <= 0f) return
+    fauna.food.manure(f, heads * HexFood.MANURE_M2_PER_HEAD * days / Date.DAYS_PER_YEAR / land.m2(f))
+    stats.meeting(Met.BANDS_MANURED_FIELDS)
 }
 
 /**

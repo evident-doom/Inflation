@@ -115,6 +115,8 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
      */
     val fieldPulse = FloatArray(n)
     val ripePulse = FloatArray(n)
+    /** The group that last sowed each place's field (-1 none): it and the bands housed in the hex hold the crop ([mayReap]). */
+    val fieldHolder = IntArray(n) { -1 }
     /**
      * How short of water a sown field has been since midwinter: the days it has stood ([fieldDays]) and the sum over
      * them of its water stress ([waterStress]), so that a dry season ripens less of it.
@@ -345,9 +347,10 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
      * Sows [kg] of seed at [p], of which [domestic] are of ears that hold their grain and [pulse] are pulses: the field's crop takes
      * after what was sown in it.
      */
-    fun sow(p: Place, kg: KgM2, domestic: Float, pulse: Float = 0f) {
+    fun sow(p: Place, kg: KgM2, domestic: Float, pulse: Float = 0f, by: Int = -1) {
         val add = max(0f, kg.v)
         if (add <= 0f) return
+        fieldHolder[p] = by
         fieldDomestic[p] = (fieldDomestic[p] * field[p] + domestic * add) / (field[p] + add)
         fieldPulse[p] = (fieldPulse[p] * field[p] + pulse * add) / (field[p] + add)
         field[p] += add
@@ -370,6 +373,12 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
 
     /** The share of [p]'s land under this year's field: grain sown at [SEED_RATE] (thicker sowing covers no more than the place). */
     private fun sownShare(p: Place) = min(1f, field[p] / SEED_RATE)
+
+    /**
+     * Dung spread on [p]'s worn ground ([fieldWorn]) enough to mend [share] of the place's land: that much of it is rested ground
+     * again, still cleared ([MANURE_M2_PER_HEAD]).
+     */
+    fun manure(p: Place, share: Float) { fieldWorn[p] = max(0f, fieldWorn[p] - max(0f, share)) }
 
     /**
      * How well this year's cereal at [p] bears against rested ground: the worn ground of it ([cerealOnWorn]) as worn ground
@@ -526,6 +535,13 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
          * wheat crop takes about 90 (Rösch et al. 2017). So all of it.
          */
         const val PULSE_MEND = 1f
+        /**
+         * The worn field a penned head's dung mends in a year, m² ([manure]). A sheep or goat drops some 0.3-0.5 t of dung a year
+         * (from memory, unchecked), half of it in the pen at night; manuring at some 10-30 t/ha (from memory; Bogaard's
+         * intensive manuring of the first farmers' plots) spreads that on some 100-250 m². At Butser, emmer and barley gave
+         * 32% more manured than unmanured (Reynolds), about what mends worn ground back to rested ([CROPPED_FLOOR]). 150.
+         */
+        const val MANURE_M2_PER_HEAD = 150f
         /**
          * Grain sown per m² of field: about 120 kg/ha, after Columella's 4-5 modii of wheat to the iugerum (about 110-135 kg/ha)
          * and medieval English seed rates of about 2 bushels an acre (both from memory, unchecked).
