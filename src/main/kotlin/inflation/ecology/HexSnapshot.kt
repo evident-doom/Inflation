@@ -65,7 +65,7 @@ object HexSnapshot {
      */
     internal val ORDERED: List<Class<out Enum<*>>> = listOf(Skill::class.java, Tool::class.java, Material::class.java, Store::class.java,
         Illness::class.java, Tradition::class.java, Biome::class.java, BandWay::class.java, inflation.world.MastTrees::class.java,
-        BurialWay::class.java)
+        BurialWay::class.java, DisputeWay::class.java)
 
     /** Writes the state of [sim] to [file]. */
     fun save(sim: HexSim, file: File) {

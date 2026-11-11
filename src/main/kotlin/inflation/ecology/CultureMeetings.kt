@@ -91,6 +91,10 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
         to.traditions[t] = from.holds(t)
         stats.meeting(if (from.holds(t)) Met.Of.TOOK_UP else Met.Of.TOOK_LEAVE_OF, t.name.lowercase())
     }
+    // How they settle quarrels is copied from the band that does better, as a way of use is.
+    if (hi.disputeWay != lo.disputeWay && rnd.nextFloat() < meetChance(COPY_TRADITION * u)) {
+        lo.disputeWay = hi.disputeWay; stats.meeting(Met.BANDS_TOOK_UP_ANOTHERS_DISPUTE_WAY)
+    }
     // A totem goes the same way as a mark: either may take up the other's as the other keeps it (none, if it ate of its own).
     val keptA = bandA.keptTotem; val keptB = bandB.keptTotem
     if (keptA != keptB) {

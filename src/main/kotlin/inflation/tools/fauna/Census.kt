@@ -111,6 +111,7 @@ import inflation.ecology.GATHER_KM
 import inflation.ecology.Language
 import inflation.ecology.Tradition
 import inflation.ecology.BurialWay
+import inflation.ecology.DisputeWay
 
 /**
  * The model as it stands, over the whole map: each method prints one or a few lines of a fauna check's
@@ -1310,6 +1311,11 @@ class Census(private val sim: HexSim) {
             .format(100.0 * kept.size / n, kept.toSet().size, 100.0 * bands.count { it.second.totemBroken > 0f } / n, 100.0 * bury.size / n,
                 if (bury.isEmpty()) 0.0 else 100.0 * bury.count { it.second.burialWay == BurialWay.AT_ANCESTORS } / bury.size,
                 if (bury.isEmpty()) 0.0 else bury.sumOf { it.second.burialOwed.toDouble() } / bury.size))
+        // (How bands settle their quarrels, [DisputeWay]: the share holding each way and their mean size.)
+        println("     ways of settling quarrels: " + DisputeWay.entries.joinToString("; ") { w ->
+            val of = bands.filter { it.second.disputeWay == w }
+            "%s %.0f%% of bands, %.0f people a band".format(w.name.lowercase(), 100.0 * of.size / n,
+                if (of.isEmpty()) 0.0 else of.sumOf { it.first.size.toDouble() } / of.size) })
         // (Ways of life: held ([Band.heldLivelihood]) and lived ([livelihood]), and the bands that live other than they hold.)
         val other = bands.filter { (_, b) -> b.livelihood() != b.heldLivelihood }
         println("     ways of life: held by bands %s; lived %s; %.0f%% of bands live other than they hold (%s), %.1f years so far a band of those; held firmly (0 to 1) %.2f a band; %d bands came to hold the way they live in the past year, %d took up another's"
@@ -1350,8 +1356,9 @@ class Census(private val sim: HexSim) {
                 .format(1000.0 * met(Met.RAID_KILLED_FIXED) / fixed.coerceAtLeast(1), met(Met.RAID_KILLED_FIXED), fixed,
                     1000.0 * met(Met.RAID_KILLED_MOBILE) / mobile.coerceAtLeast(1), met(Met.RAID_KILLED_MOBILE), mobile))
         }
-        println("     bands' year: %d split, %d small bands joined kin, %d bands at home together became one (%d of them of the two kinds of choosing)"
-            .format(met(Met.BANDS_SPLIT), met(Met.SMALL_BANDS_JOINED_KIN), met(Met.BANDS_BECAME_ONE), met(Met.BANDS_OF_TWO_MINDS_BECAME_ONE)))
+        println("     bands' year: %d split, %d small bands joined kin, %d bands at home together became one (%d of them of the two kinds of choosing); ways of settling quarrels: %d taken up by need, %d lapsed, %d copied"
+            .format(met(Met.BANDS_SPLIT), met(Met.SMALL_BANDS_JOINED_KIN), met(Met.BANDS_BECAME_ONE), met(Met.BANDS_OF_TWO_MINDS_BECAME_ONE),
+                met(Met.BANDS_TOOK_UP_A_DISPUTE_WAY), met(Met.BANDS_LET_A_DISPUTE_WAY_LAPSE), met(Met.BANDS_TOOK_UP_ANOTHERS_DISPUTE_WAY)))
         // (Bands that hold their home hex, t.bandsStay: what they did with their neighbours and their country this year.)
         if (sim.land.tuning.bandsStay) println("     staying bands' year: %d neighbour meetings (all meetings of bands: %d, of them telling of the country %d), %d gatherings at appointments (%d bands came), %d camp shifts within the hex, %d budded into another hex and %d in their parent's, %d households moved to a roomier hex, %d bands moved whole, %d raids set out; discord past the easy size: %d bands split off (counted in budded too), %d times households joined a band with room"
             .format(met(Met.NEIGHBOURS_MET), met(Met.BANDS_MET), met(Met.BANDS_TOLD_OF_COUNTRY), met(Met.APPOINTMENTS_GATHERED), met(Met.BANDS_AT_APPOINTMENTS), met(Met.BANDS_SHIFTED_CAMP), met(Met.BANDS_BUDDED_OUT),

@@ -52,6 +52,30 @@ enum class BurialWay(val about: String) {
     AT_ANCESTORS("the dead are carried to the place where most of the band's dead lie"),
 }
 
+/**
+ * How a band settles its quarrels, a way held by its lineage and copied from bands that do well ([CultureMeetings]), taken
+ * up by need ([HexGroups.discord]): each holds a band together to [sizeTimes] the size its kind splits at ([HexGroups.maxSize]),
+ * and its easy size with it. Foragers settle quarrels by leaving (Woodburn 1982, Lee 1979); a council of household or lineage
+ * heads lets each settle its own first and the heads the rest (sequential hierarchy: Johnson 1982, about six units of six);
+ * a headman who settles and speaks for the band holds villages of 100-200 (Amazonia, the Northwest Coast's house groups).
+ * Taken up where leaving is dear: a band tied to its spot or hemmed in (circumscription: Carneiro 1970; Bandy 2004, Formative
+ * villages split until a regional religion held them). All from memory, to check; the multiples are estimates.
+ */
+enum class DisputeWay(val about: String, val sizeTimes: Float) {
+    LEAVING("quarrels end with someone moving off", 1f),
+    ELDERS("the heads of households talk a quarrel out, then the band", 2f),
+    HEADMAN("a headman settles quarrels and speaks for the band", 3f),
+}
+
+/** Most people any band holds, whatever its ways (Olli, 10 Nov 2026: a band, the unit of identity, at most about 200; to revisit). */
+internal const val BAND_MOST = 200
+
+/** The chance a band takes up the next [DisputeWay] when discord splits it where leaving is dear. An estimate. */
+internal const val DISPUTE_TAKE_UP = 0.1f
+
+/** The chance a year a band keeping a [DisputeWay] beyond leaving, yet smaller than its kind's easy size, lets it lapse a step. An estimate. */
+internal const val DISPUTE_LAPSE = 0.1f
+
 /** Person-days digging a grave and the rites at it take, a death. An estimate; no figure found. */
 internal const val BURY_DAYS = 2f
 

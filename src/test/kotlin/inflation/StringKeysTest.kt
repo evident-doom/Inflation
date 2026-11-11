@@ -116,7 +116,7 @@ class StringKeysTest {
     @Test
     fun `no new reflection`() = check("""java\.lang\.reflect|::class\.java|getDeclaredField|\.declaredFields|Class\.forName|javaClass""", mapOf(
         "ecology/Catalogue.kt" to (1 to "the kinds' list, read from the file's own object"),
-        "ecology/HexSnapshot.kt" to (21 to "saves are by field name: the order and roster checks"),
+        "ecology/HexSnapshot.kt" to (22 to "saves are by field name: the order and roster checks"),
         "run/Nominal.kt" to (4 to "lists a part's tables for the check"),
         "Profile.kt" to (6 to "profile=jfr registers the model's own event classes and reads the jar's profile.jfc"),
         "tools/ProfileReport.kt" to (4 to "finds the @Part labels by reflection over the program's own classes"),
