@@ -944,8 +944,10 @@ internal fun HexFauna.fix(k: FaunaKind, p: Place, weather: Weather, out: EnumFlo
     w.done[p] = true; w.drinks[p] = drinks(s, p)
     if (!w.drinks[p]) return
     hazards(k, p, weather, weather.date.month, 1f, 0f, 0f, out)
+    // (Hunted as they have been there lately, not as this week alone: a week's kills are not a year's, [huntedLately].)
+    out[Danger.HUNTED] = huntedLately[k][p]
     val protein = forageProtein(s, p)
-    w.grown[p] = grownFixed(s, out); w.protein[p] = protein; w.huntedYoung[p] = huntedOdds(k, p, true)
+    w.grown[p] = grownFixed(s, out); w.protein[p] = protein; w.huntedYoung[p] = huntedYoungLately[k][p]
     w.young[p] = youngFixed(s, out, eagleOdds(s, p), crocodileOdds(p, weather), starvedOdds(protein))
 }
 

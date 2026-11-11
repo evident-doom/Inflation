@@ -269,6 +269,15 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
     val groupKilled = Array(kinds.size) { FloatArray(n) }
 
     /**
+     * Each plant-eating kind's odds of being hunted in a week at each place lately, its grown and its young ([huntedOdds]),
+     * fading by [FEAR_KEEP] a week ([noteHunted]): what it weighs places by as it flows ([fix]). Weighing them by one
+     * week's kills compounded over a year, a place where a pride took 5% in a week looked like 7% surviving the year, and
+     * the kind half left it in one move, and the hexes about it in rings (Olli 2026-11-11: out of proportion).
+     */
+    val huntedLately = Array(kinds.size) { FloatArray(n) }
+    val huntedYoungLately = Array(kinds.size) { FloatArray(n) }
+
+    /**
      * The strongest hunting party (pack or band) standing in each place at the start of the groups' last week
      * ([GroupPlanner.takeStock] fills it; saved, so that a loaded world goes on as it would have). The
      * [Catalogue.residentRivals] keep out of its way, as packs keep out of a much stronger party's.
@@ -462,6 +471,7 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         Phase("residents: grazing") { graze(it) },
         Phase("residents: births, deaths") { breedAndDie(it, it.date) },
         Phase("residents: moving") {
+            noteHunted()
             // (The places are weighed once, before the bands shift: the shift and the spill both go by them.)
             // They move every [Tuning.residentMoveWeeks] weeks, a step each move: from week to week they shift by a few percent.
             // (Over steps of several ticks they move every step, the step's ticks' worth at once: [moveWeeks].)
