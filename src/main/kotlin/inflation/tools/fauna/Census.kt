@@ -5,6 +5,7 @@ import inflation.ecology.REGION_CUSTOMS_APART
 import inflation.ecology.STYLE_TRAITS
 import inflation.ecology.REGION_UNDERSTOOD
 import inflation.ecology.cultureRegions
+import inflation.ecology.keptDays
 import inflation.ecology.customsOff
 import inflation.ecology.HexFood.FieldFate
 import inflation.ecology.climateSuits
@@ -1205,6 +1206,37 @@ class Census(private val sim: HexSim) {
             })
     }
 
+    /**
+     * How unevenly fortune lies within bands ([Band.unevenness]) and between them: by the way of life each band holds, its
+     * bands, mean unevenness and mean food kept back ([keptDays]); and the Gini of food kept per head across all bands, and
+     * within villages (hexes where two bands or more are at home), each weighted by people.
+     */
+    private fun printUnevenness() {
+        val gs = sim.groups
+        val bs = gs.groups.mapNotNull { g -> g.band?.takeIf { g.alive && g.species.human }?.let { Triple(g, it, (gs.keptDays(g, it) * g.dailyNeedKg / kotlin.math.max(1, g.size)).toDouble()) } }
+        if (bs.isEmpty()) return
+        fun gini(xs: List<Pair<Double, Double>>): Double {
+            // (Weighted Gini of values x with weights w: half the mean absolute difference over the mean.)
+            val wSum = xs.sumOf { it.second }; val mean = xs.sumOf { it.first * it.second } / wSum.coerceAtLeast(1e-9)
+            if (wSum <= 0.0 || mean <= 0.0) return 0.0
+            var d = 0.0
+            for (a in xs) for (b in xs) d += a.second * b.second * kotlin.math.abs(a.first - b.first)
+            return d / (2.0 * wSum * wSum * mean)
+        }
+        val byLife = Livelihood.entries.joinToString("; ") { l ->
+            val mine = bs.filter { it.second.heldLivelihood == l }
+            if (mine.isEmpty()) "%s none".format(l.name.lowercase())
+            else "%s %d, %.2f, %.0f d".format(l.name.lowercase(), mine.size, mine.map { it.second.unevenness.toDouble() }.average(),
+                mine.map { gs.keptDays(it.first, it.second).toDouble() }.average())
+        }
+        val all = gini(bs.map { it.third to it.first.size.toDouble() })
+        val villages = bs.filter { it.second.atHome }.groupBy { it.second.houseHex }.values.filter { it.size >= 2 }
+        val vPeople = villages.sumOf { v -> v.sumOf { it.first.size.toDouble() } }
+        val within = if (vPeople > 0.0) villages.sumOf { v -> gini(v.map { it.third to it.first.size.toDouble() }) * v.sumOf { it.first.size.toDouble() } } / vPeople else 0.0
+        println("     unevenness (by way of life held: bands, mean within a band, mean food kept in days): %s; Gini of food kept a head across bands %.2f, within %d villages %.2f"
+            .format(byLife, all, villages.size, within))
+    }
+
     fun printIdentity(thisYear: Map<TallyKey, Int>, metYear: Map<TallyKey, Int>) {
         val bands = groups.groups.mapNotNull { g -> g.band?.takeIf { g.alive }?.let { g to it } }
         val n = bands.size
@@ -1278,6 +1310,7 @@ class Census(private val sim: HexSim) {
             .format(n, regions.size, 100 * regions.sum() / all, q(0.5), q(0.1), q(0.9), 100 * (regions.lastOrNull() ?: 0.0) / all,
                 (0 until n).count { members[root(it)] < 2 }, 100.0 * border.count { it } / n))
         printCultures()
+        printUnevenness()
         val classes = List(pairs.size) { c ->
             val lo = if (c == 0) 0.0 else IDENTITY_KM[c - 1]
             if (c < IDENTITY_KM.size) "%.0f-%.0f km".format(lo, IDENTITY_KM[c]) else "%.0f km and over".format(lo)
