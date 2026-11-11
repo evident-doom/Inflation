@@ -649,7 +649,7 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
         }
         run {
             // (The grown ones' share: per 1000 grown a year, from the week's hazards; raids, hunts and fights are not among them.)
-            val all = sim.groups.stats.adultDeaths.entries.groupingBy { it.key.label }.fold(0.0) { s, e -> s + e.value.sumThenReset() }
+            val all = sim.groups.stats.grownHazardDeaths.entries.groupingBy { it.key.label }.fold(0.0) { s, e -> s + e.value.sumThenReset() }
                 .filter { it.value > 0.0 }
             val per = 1000.0 / (adultWeeks / weeks).coerceAtLeast(1.0)
             println("     grown ones' deaths by cause this year (expected from the week's hazards, per 1000 grown; raids and hunts apart): " +

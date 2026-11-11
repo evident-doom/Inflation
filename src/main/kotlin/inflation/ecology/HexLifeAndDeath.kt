@@ -630,7 +630,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         val adultScale = if (adultSum > 0f) adultOdds / adultSum else 0f
         val youngScale = if (youngSum * spared > 0f) youngOdds / (youngSum * spared) else 0f
         for (h in hazards) h.cause.deathClass()?.let { c -> g.addLost(c.ordinal, g.adults * h.adult * adultScale + youngExposed * spared * h.young * youngScale) }
-        for (h in hazards) if (h.adult > 0f) stats.adultDeaths.computeIfAbsent(h.cause) { DoubleAdder() }.add((g.adults * h.adult * adultScale).toDouble())
+        for (h in hazards) if (h.adult > 0f) stats.grownHazardDeaths.computeIfAbsent(h.cause) { DoubleAdder() }.add((g.adults * h.adult * adultScale).toDouble())
         g.addLost(LOST_ALL, diedExpected)
     }
     // Elders die as the others do (their share of the adults who died), and of old age besides.
