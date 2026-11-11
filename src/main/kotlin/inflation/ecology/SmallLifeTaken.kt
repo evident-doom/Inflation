@@ -155,7 +155,7 @@ fun HexSmallLife.setAsideForGroups() {
 }
 
 /**
- * At a step's start: the share of what lay on the ground at the last step's end that the groups took of it ([scavengeIn]),
+ * At a step's end: the share of what lay on the ground at the last step's end that the groups took of it ([scavengeIn]),
  * a tick's take, as a weekly group's is (what was held for them is not in it, or the share would feed on itself); and what
  * was held for them and left goes back on the ground.
  */

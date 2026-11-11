@@ -98,7 +98,7 @@ class HexSim(
     fun step() {
         // (What changed between steps, as a save loaded into the world or the viewer's hand, is charged to that.)
         books?.check("between steps")
-        stats.clear(); fauna.bornThisWeek.fill(0.0); fauna.small.settleGroupCarrion()
+        stats.clear(); fauna.bornThisWeek.fill(0.0)
         clock.days = stepDays
         weather.beginStep()
         // (Test, variable-step thread 2026-11-11: over a step of several ticks the residents and small life take each tick as
@@ -119,6 +119,8 @@ class HexSim(
         weather.settleStep()
         // (Their date is the step's start and a tick, as at one tick a step, not its end: [Weather.slowParts].)
         weather.slowParts { runPhases(if (perTick) groups.phases else slowPhases, weather, books) }
+        // (The carrion held for the groups and left goes back on the ground: [HexSmallLife.groupCarrion].)
+        fauna.small.settleGroupCarrion()
     }
 
     /** Snow falls in the cold; the melt goes to the soil, booked again there as it comes in. */

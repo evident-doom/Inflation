@@ -101,7 +101,7 @@ class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, @Transi
      * what lies at the step's end (Olli 2026-11-11, "carrion per tick": at 60 days leopard packs found 60% less, pass728).
      * Empty between steps, and always at one tick a step.
      */
-    val groupCarrion = FloatArray(n)
+    @Transient val groupCarrion = FloatArray(n)
     /** The share of the carrion lying at each place at the last step's end that the groups took ([settleGroupCarrion]). */
     val groupCarrionShare = FloatArray(n)
     /** What the groups took this step of what lay on the ground, kg/m² ([scavengeIn]). */
