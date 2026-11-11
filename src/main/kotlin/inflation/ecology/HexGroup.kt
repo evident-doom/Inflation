@@ -112,8 +112,9 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
     /** Its temperament ([Temperament]): a founder's by chance, an offshoot's from its parent. */
     var temper = Temperament.founder(id, 0L)
     /**
-     * For a band whose moves are learned: how its mover saw the place it chose this week ([HexPolicy.planned]), for its ways
-     * to read with the rest of the week's plan; null where its moves are hand-written. (Made anew each week before it is read.)
+     * For a band whose ways are learned: its camp's terms this week, the place features of the place it camps on as the planner
+     * saw them ([HexPolicy.planned], [inflation.learning.CampTerms]), for its ways to read; null where no planner saw its camp.
+     * (Made anew each week before it is read.)
      */
     @Transient var plan: FloatArray? = null
     /**
@@ -168,7 +169,7 @@ fun interface HexPolicy {
     fun scores(g: HexGroup, features: Array<FloatArray>, baseline: FloatArray): FloatArray? = null
     /** Whether [choose] reads [g]'s hand-written scores (its baseline): if not, the planner need not work them out (it passes zeros). */
     fun readsBaseline(g: HexGroup): Boolean = true
-    /** How it sees the place [g] goes to this week, described by [chosen] (as in [choose]), for the band's ways to read ([HexGroup.plan]); null if it does not tell. */
+    /** What the band's ways read of the place [g] goes to this week, described by [chosen] (as in [choose]) ([HexGroup.plan]); null if it does not tell. */
     fun planned(g: HexGroup, chosen: FloatArray): FloatArray? = null
 }
 

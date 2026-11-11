@@ -54,9 +54,8 @@ object BandInputs : NamedSlots() {
     val GOODS = block(Material.entries.map { "goods:${it.name.lowercase()}" })
     val BUILDING = block(Skill.BUILDING_WAYS.map { "building:${it.name.lowercase()}" })
     val HOUSE_HERE = one("houses here"); val PALISADE_HERE = one("palisade here")
-    // This week's move (the ways are set after it, see [hunt]): how far it walked, the days the walk takes all its people, and
-    // what an adult would carry in a load ([carriedKg]), so that its loads and its week are weighed knowing where it went.
-    val MOVE_KM = one("camp move km"); val MOVE_DAYS = one("camp move days"); val LOAD = one("load an adult carries")
+    // (Here until people's net major 11: this week's camp move, its km and days and an adult's load. Bands hold their hex, so they
+    // read nothing: docs/design/band-movement-removal.md, Phase 6.)
     // What it has begun building here and not finished (houses, as the share of its grown people they would shelter; the
     // palisade's ring): it serves nothing yet ([Structure.done]), so that the work it holds is seen.
     val HOUSES_BEGUN = one("houses begun here"); val PALISADE_BEGUN = one("palisade begun here")

@@ -125,7 +125,8 @@ class WaysEvolution(private val role: WaysKind, private val movers: List<SharedM
 
     fun evaluate(cfg: WorldConfig, years: Int, variants: Array<Mlp>): Result {
         val run = freshSim(cfg, Catalogue.learned.distinct()).also { it.stats.census = inflation.Config.flag(inflation.Config.Key.CENSUS, false) }
-        movers?.let { ms -> val ps = ms.map { MoverPolicy(it, null, { 0f }, { 0 }) }; for (s in Catalogue.learned) run.groups.policies[s] = ps[Role.of(s).ordinal] }
+        // (People's camps are hand-written since people's net major 11: [CampPolicy] camps them on their low ground and gives their ways their camp's terms.)
+        movers?.let { ms -> val ps = ms.mapIndexed { i, m -> if (i == Role.PEOPLE.ordinal) CampPolicy() else MoverPolicy(m, null, { 0f }, { 0 }) }; for (s in Catalogue.learned) run.groups.policies[s] = ps[Role.of(s).ordinal] }
         val steps = years * run.stepsPerYear
         if (role == WaysKind.BANDS) {
             val people = Catalogue.HUMAN
