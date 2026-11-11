@@ -384,7 +384,6 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
     internal val years get() = clock.years
     /** How each kind travels between places. */
     @Transient internal val travel = kinds.map { Catalogue.travel(it) }
-    /** Young born this week, by kind (for the history). */
     /** Young born to the residents this step (all its ticks: [HexSim.step] clears it), by kind. */
     @Transient val bornThisWeek = DoubleArray(kinds.size)
 
