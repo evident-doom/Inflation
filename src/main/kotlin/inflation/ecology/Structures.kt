@@ -13,14 +13,15 @@ import kotlin.math.max
 import kotlin.math.min
 
 /** What bands build that stands in the world: houses, a palisade round the houses at a hex, and weirs across its river. */
-enum class Built { HOUSES, PALISADE, WEIR, WELL }
+enum class Built { HOUSES, PALISADE, WEIR, WELL, PEN }
 
 /**
  * A thing built that stands at hex [hex], whoever built it: no band owns it. Any band that comes on it empty may use it
  * ([user], the band using it this week, -1 for none), and it weathers away while nobody does. [builder] is the band that
  * began it, kept only as a fact of the bands' dealings. Houses ([Built.HOUSES]) shelter [size] grown people when whole,
  * built in the way [design] (a [Skill]'s ordinal); [built] is how far they stand, 0..1. A palisade's [built] is how much of
- * a ring round the houses at its hex stands. A weir's [size] is its length, m, across the river at its hex; a well's its depth, m. Nothing shelters or guards till it is first [done] (whole); after that it serves
+ * a ring round the houses at its hex stands. A weir's [size] is its length, m, across the river at its hex; a well's its depth, m;
+ * a pen's the head of kept animals it holds. Nothing shelters or guards till it is first [done] (whole); after that it serves
  * as far as it stands, as it weathers and is mended.
  * (All its fields have defaults, so that a saved one loads.)
  */
@@ -146,6 +147,19 @@ internal fun HexGroups.weirAt(g: HexGroup, h: Hex, begun: Boolean = false): Floa
     var m = 0f
     structuresAt(h) { s -> if (s.kind == Built.WEIR && (s.done || begun) && usable(s, g)) m += s.built * s.size }
     return min(1f, m / width)
+}
+
+/** The head of kept animals the pens at hex [h] that [g] may use hold, as far as they stand ([Built.PEN]). Begun ones ([begun]) count only once whole. */
+internal fun HexGroups.penHeadsAt(g: HexGroup, h: Hex, begun: Boolean = false): Float {
+    var n = 0f
+    structuresAt(h) { s -> if (s.kind == Built.PEN && (s.done || begun) && usable(s, g)) n += s.built * s.size }
+    return n
+}
+
+/** The share of [b]'s kept animals, grown and young, that the pens at its camp's hex [h] hold at night ([penHeadsAt]), 0..1. */
+internal fun HexGroups.penned(g: HexGroup, b: Band, h: Hex): Float {
+    val heads = b.herds.herd.sum() + b.herds.youngHerd().sum()
+    return if (heads > 0f) min(1f, penHeadsAt(g, h) / heads) else 0f
 }
 
 /** The well at hex [h] that reaches deepest ([wellReachM]), whole or begun, or null: anyone may use it. */

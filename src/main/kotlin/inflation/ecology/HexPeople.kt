@@ -207,6 +207,8 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     // next summer to several times as much, of the kind of ears it sowed.
     harvestCrop(g, b, time)
     sowGrain(g, b, p, date, time)
+    // A band that keeps animals and knows herding pens them at night by its camp, as far as its time and brush go.
+    buildPen(g, b, h, time)
     time.release(Activity.SOWING)
     // A band at home that has been raided in the last year rings its houses with a palisade, as far
     // as its time and timber go.

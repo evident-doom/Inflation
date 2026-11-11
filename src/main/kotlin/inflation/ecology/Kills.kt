@@ -104,7 +104,8 @@ internal fun HexGroups.herdOdds(w: ForageWeek) {
         for (c in camps) {
             val b = c.band ?: continue
             if (c.place != p || !c.alive) continue
-            val guard = stalkGuard(b, 0f, b.fencedNow())
+            // (Penned at night ([Built.PEN]), a herd is that much harder to get at: [PEN_GUARD].)
+            val guard = stalkGuard(b, 0f, b.fencedNow()) * (1f - PEN_GUARD * penned(c, b, hw.placeHex[p]))
             val young = b.herds.youngHerd()
             for (k in b.herds.herd.indices) {
                 val all = b.herds.herd[k] + young[k]; if (all < 1f) continue

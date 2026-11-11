@@ -151,6 +151,7 @@ enum class Met(val label: String) {
     BANDS_BUILT_PALISADES("bands built palisades"),
     BANDS_BUILT_WEIRS("bands built weirs"),
     BANDS_DUG_WELLS("bands dug wells"),
+    BANDS_BUILT_PENS("bands built pens for their herds"),
     BANDS_BURNED_OFF_GRASS("bands burned off grass"),
     BANDS_CARRIED_THEIR_DEAD("bands carried their dead to their ancestors"),
     BANDS_CAME_TO_HOLD_THEIR_WAY_OF_LIFE("bands came to hold the way of life they live"),
