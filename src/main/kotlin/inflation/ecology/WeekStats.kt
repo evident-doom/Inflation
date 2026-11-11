@@ -63,6 +63,8 @@ class WeekStats {
     val hunting = ConcurrentSkipListMap<TallyKey, Int>()
     /** For the check: people's children expected to die of each cause, by the week's odds, since last read (a report ledger, not saved). */
     @Transient val childDeaths = ConcurrentHashMap<DeathReason, DoubleAdder>()
+    /** People's grown ones' deaths expected from each week's hazards, by cause (census only; raids and hunts are booked elsewhere). */
+    @Transient val grownHazardDeaths = ConcurrentHashMap<DeathReason, DoubleAdder>()
     /** Young born this week by kind. */
     val births = TreeMap<Species, Int>(BY_NAME)
     /** The residents' deaths this week by "kind:cause", head (fractions: the residents are densities). */
@@ -666,6 +668,15 @@ object Tally {
     fun bandsHut(h: Hut, what: Bands) = TallyKey.raw("bands shelter ${h.label}:${what.label}")
     fun bandsHutDied(h: Hut, cause: DeathReason) = ofCause(bandsHutDied(h), cause)
     fun bandsHutDied(h: Hut) = TallyKey.raw("bands shelter ${h.label}:$DIED_OF")
+    /** The quarter of the land hexes, by the food their ground gives people ([HexGroups.hexFood]), that a band's hex falls in. */
+    enum class FoodQuarter(val label: String) { POOREST("poorest"), POOR("poor"), RICH("rich"), RICHEST("richest") }
+    /** Bands' tallies by their hex's food quarter: whether births and deaths answer to the ground. */
+    fun bandsFoodQ(q: FoodQuarter, what: Bands) = TallyKey.raw("bands food quarter ${q.label}:${what.label}")
+    fun bandsFoodQDied(q: FoodQuarter, cause: DeathReason) = ofCause(bandsFoodQDied(q), cause)
+    fun bandsFoodQDied(q: FoodQuarter) = TallyKey.raw("bands food quarter ${q.label}:$DIED_OF")
+    /** What bands of a food quarter foraged in a season, need-kg: what they wanted ([QuarterFood.ASKED]) and what each source brought. */
+    enum class QuarterFood(val label: String) { ASKED("asked"), MEAT("meat"), FISH("fish"), FRUIT("fruit"), MAST("mast"), ROOTS("bulbs and roots"), SEED("seed and grain"), FINDS("small finds") }
+    fun bandsFoodQSeason(q: FoodQuarter, s: inflation.world.Season, f: QuarterFood) = TallyKey.raw("bands food quarter ${q.label} ${s.name.lowercase()}:${f.label}")
     /**
      * What thatching on to the full would have done, by the survival pass's own reckoning, in the band-weeks it stopped short
      * ([WEEKS]): deaths averted this week of exposure and of hunger and through the year after, people, 1/10000 (a negative

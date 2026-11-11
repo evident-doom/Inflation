@@ -169,7 +169,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
     }
     groups += born
     // (Once a year, crowded hexes ease into the roomier hexes beside, [spreadYear].)
-    if (date.holdsMonthStart(days, 0)) groups += spreadYear(date)
+    if (date.holdsMonthStart(days, 0)) { groups += spreadYear(date); foodCuts = null }
     // (Bands driven from their homes in the raids leave the hex: [scatterBeaten].)
     groups += scatterBeaten(date)
     tallyVillages()
@@ -378,6 +378,13 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
             if (o.births > 0) stats.book(herdSplit, Tally.Bands.BORN, o.births)
             for (d in o.causes) if (d.n > 0) stats.tally(Tally.bandsHerdingDied(herding, d.young, d.cause), d.n)
             // And by how well it was fed, with what it held against hunger: who starves, and with what in hand.
+            // And by the food quarter of its hex: whether births and deaths answer to how rich the ground is.
+            val qSplit = BandSplit.foodQ(foodQuarterOf(hw.placeHex[g.place]))
+            stats.bookWeek(qSplit, g.size)
+            stats.book(qSplit, Tally.Bands.FED, (1000f * min(1f, g.fed) * g.size).roundToInt())
+            stats.book(qSplit, Tally.Bands.FAT, (10f * g.fat).roundToInt())
+            if (o.births > 0) stats.book(qSplit, Tally.Bands.BORN, o.births)
+            stats.bookDeaths(qSplit, o.causes)
             val fedSplit = BandSplit.fed(Tally.Fed.of(g.fed))
             stats.bookWeek(fedSplit, g.size)
             stats.book(fedSplit, Tally.Bands.LARDER, (10f * g.larderDays()).roundToInt())
@@ -623,6 +630,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         val adultScale = if (adultSum > 0f) adultOdds / adultSum else 0f
         val youngScale = if (youngSum * spared > 0f) youngOdds / (youngSum * spared) else 0f
         for (h in hazards) h.cause.deathClass()?.let { c -> g.addLost(c.ordinal, g.adults * h.adult * adultScale + youngExposed * spared * h.young * youngScale) }
+        for (h in hazards) if (h.adult > 0f) stats.grownHazardDeaths.computeIfAbsent(h.cause) { DoubleAdder() }.add((g.adults * h.adult * adultScale).toDouble())
         g.addLost(LOST_ALL, diedExpected)
     }
     // Elders die as the others do (their share of the adults who died), and of old age besides.

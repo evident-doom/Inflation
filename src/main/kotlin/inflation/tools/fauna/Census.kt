@@ -672,6 +672,39 @@ class Census(private val sim: HexSim) {
         }
     }
 
+    /**
+     * Bands by the food quarter of their hex ([inflation.ecology.foodQuarterOf]) over the year just ended: whether what they
+     * forage, how well they are fed, and their births and deaths answer to how rich the ground is. Report only.
+     */
+    fun printFoodQuarters(lastYear: Map<TallyKey, Int>, stepsPerYear: Int) {
+        val qAll = Tally.FoodQuarter.entries.sumOf { (lastYear[Tally.bandsFoodQ(it, Tally.Bands.PEOPLE_WEEKS)] ?: 0).toDouble() }.coerceAtLeast(1.0)
+        println("     bands by the food quarter of their hex, last year (share of people-weeks; foraged of what was wanted, need-kg a person a day foraged, fed and fat days at the step's end, means; births and deaths per 1000 people a year; top causes per 1000): " +
+            Tally.FoodQuarter.entries.joinToString("; ") { q ->
+                fun v(k: Tally.Bands) = (lastYear[Tally.bandsFoodQ(q, k)] ?: 0).toDouble()
+                val pw = v(Tally.Bands.PEOPLE_WEEKS)
+                val years = (pw / stepsPerYear).coerceAtLeast(1e-9)
+                val prefix = Tally.bandsFoodQDied(q)
+                val died = lastYear.filterKeys { it.startsWith(prefix) }
+                val top = died.entries.sortedByDescending { it.value }.take(5).joinToString(", ") { (k, n) ->
+                    "%s %.1f".format(Tally.diedOf(k), 1000 * n / years) }
+                val got = v(Tally.Bands.MEAT) + v(Tally.Bands.PLANTS)
+                "%s %.0f%%: foraged %.0f%% of want, %.2f kg, fed %.2f, fat %.1f d; born %.1f, died %.1f (%s)".format(q.label, 100 * pw / qAll,
+                    100 * got / v(Tally.Bands.ASKED).coerceAtLeast(1.0), got / (years * 365.0).coerceAtLeast(1e-9),
+                    v(Tally.Bands.FED) / 1000 / pw.coerceAtLeast(1.0), v(Tally.Bands.FAT) / 10 / v(Tally.Bands.BAND_WEEKS).coerceAtLeast(1.0),
+                    1000 * v(Tally.Bands.BORN) / years, 1000 * died.values.sum() / years, top)
+            })
+        // (By season: what was foraged against what was wanted, and the share each source brought of it.)
+        println("     bands' foraging by food quarter and season, last year (foraged of want %; shares of what was foraged %: " +
+            Tally.QuarterFood.entries.drop(1).joinToString("/") { it.label } + "): " + Tally.FoodQuarter.entries.joinToString("; ") { q ->
+                q.label + ": " + inflation.world.Season.entries.joinToString(", ") { sea ->
+                    fun v(f: Tally.QuarterFood) = (lastYear[Tally.bandsFoodQSeason(q, sea, f)] ?: 0).toDouble()
+                    val got = Tally.QuarterFood.entries.drop(1).sumOf { v(it) }
+                    "%s %.0f%% (%s)".format(sea.name.lowercase(), 100 * got / v(Tally.QuarterFood.ASKED).coerceAtLeast(1.0),
+                        Tally.QuarterFood.entries.drop(1).joinToString("/") { "%.0f".format(100 * v(it) / got.coerceAtLeast(1.0)) })
+                }
+            })
+    }
+
     /** Bands by kind of country over the last year ([lastYear]'s tallies): how many, how they fed and on what, how they lived and died. */
     fun printBandsByCountry(lastYear: Map<TallyKey, Int>, stepsPerYear: Int) {
         // (Camp moves by the way of life lived ([livelihood]), to set against the record: mobile foragers some 5-15 a year, farmers

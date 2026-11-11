@@ -166,7 +166,8 @@ internal fun caughtFrom(d: Illness, theirSick: Float, b: Band) = d.contagion * t
  * The flux, with [CAMP_FOULING], set to the forager and forager-farmer record: gastrointestinal illness 5-18% of deaths
  * across 13 groups (Gurven and Kaplan 2007, Popul. Dev. Rev. 33: 321-365). At 0.003, with bands holding their home hex, the
  * two came to about a third of people's deaths (allon A/B, 9 Nov 2026); at 0.4 of that, an estimated 16% where most live
- * fixed and 6% where most move.
+ * fixed and 6% where most move. (Where bands meet often the flux is endemic, caught at meetings ([passIllness]), and its
+ * deaths are set by [Illness.deadly] and [Illness.immuneYears], not by this: 0.0005 left them as they were, flux716, 11 Nov 2026.)
  */
 internal const val FLUX_RATE = 0.0012f
 internal const val FEVER_RATE = 0.03f

@@ -157,6 +157,8 @@ class HexGroups(
     @Transient var hunterWays: AnimalWays? = null
     /** The packs of each kind that also lives settled standing at each place, as [fillPackGame] last found them (place × 64 + kind slot). Not saved. */
     @Transient internal var packsAt: Map<Long, List<HexGroup>>? = null
+    /** The food ([hexFood]) cutting the land hexes into quarters, for the census ([foodQuarterOf]); reckoned once a year. Not saved. */
+    @Transient internal var foodCuts: FloatArray? = null
 
     init {
         // The residents swim the same straits.
