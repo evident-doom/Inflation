@@ -359,8 +359,6 @@ internal fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
                     else huntGame(g, o.kind[i], Place(p), expected, o.kg[i], w.spareYoung, w.rnd, haul).also { if (it > 0) w.foughtBack += haul.fought }
                 val luck = (kills1 - expected) * o.time[i] * w.party[0]
                 if (luck > 0f) w.killOver += luck else w.killUnder -= luck
-                // (A beast's luck at it, food: none killed, all it expected missed; see [ForageWeek.killLuck].)
-                if (band == null && kills1 <= 0) w.killLuck -= expected * o.value[i]
                 if (kills1 <= 0) continue
                 if (band != null && o.kind[i] == band.totem.i) {
                     band.totemBroken = TOTEM_SHAME_YEARS
@@ -377,8 +375,6 @@ internal fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
                 // (Its fat feeds as grease, the rest as lean meat; for the census, the kills by month and by prey kind, lean and fat by weight.)
                 w.meat += haul.kg - haul.fat; w.killFat += haul.fat
                 w.fed += (haul.kg - haul.fat) * w.feeds(Food.BIG_GAME) + haul.fat * w.fatFeeds
-                // (Kills beyond or short of those expected, at what these fed it a kill.)
-                if (band == null) w.killLuck += (w.fed - fedBefore) * (1f - expected / kills1)
                 if (band != null) { val m = w.weather.date.month
                     stats.tally(Tally.bandKills(m, Tally.KillPart.KILLS), kills1)
                     stats.tally(Tally.bandKills(m, Tally.KillPart.LEAN_KG), (haul.kg - haul.fat).roundToInt())

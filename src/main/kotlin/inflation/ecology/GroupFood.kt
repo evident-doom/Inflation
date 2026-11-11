@@ -190,8 +190,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     // The party plans its week on what it finds, eats, and if others got there first and it is still
     // hungry, looks again at what is left.
     for (pass in 0 until foragePasses) {
-        // (A beast plans on what its kills were expected to feed it, not on its luck at them: [ForageWeek.killLuck].)
-        val left = w.aim - (w.fed - w.killLuck)
+        val left = w.aim - w.fed
         if (left <= 0.01f * w.wantAll) break
         offerFoods(w, o)
         o.takeUp()
@@ -600,14 +599,6 @@ internal class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, pack
      */
     var killOver = 0f
     var killUnder = 0f
-    /**
-     * A beast's luck at big game in the passes so far, food: what its kills fed it beyond what the kills it set out for were
-     * expected to (less, short of them). Its next pass plans on what it expected, not on what it got ([forage]): a pack that
-     * missed does not hunt again for the miss, one that overshot does not stop for it. So its food over a step is its rates'
-     * at any step length (Olli 2026-11-11, "rates are real": at 6 days a step the misses hunted again and the overshoots kept
-     * fed weekly leopards 1.29 of their want against 1.04 at 60 days; plan section 61).
-     */
-    var killLuck = 0f
     /** A beast's days spent searching in the passes so far (as [busy] holds those spent handling): the passes share its work days. */
     var searchUsed = 0f
     /** Diagnostic (huntSteps), a beast's week: the passes it planned, the days they gave it to search, and the kills of big game it could expect in them. */
