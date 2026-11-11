@@ -4,6 +4,7 @@ import inflation.Part
 import inflation.world.Hex
 import inflation.world.Place
 import inflation.world.Date
+import inflation.world.Weather
 import kotlin.math.max
 import kotlin.math.min
 
@@ -396,4 +397,93 @@ internal fun HexGroups.scatterBeaten(date: Date): List<HexGroup> {
         note(o) { "driven from its home, moved to hex %d".format(to.i) }
     }
     return made
+}
+
+/** A band that left a hex because it could not live through the season there keeps off it this many days ([leaveFailingGround]). */
+internal const val FLED_KEEP_DAYS = 360L
+
+/**
+ * Days of need band [g] would go short of, from today until its food comes back, if each month gave it [yields] (share of
+ * need a day of all hands' foraging brings: [Band.yieldNow], [usualYield]; [yields] (0) is this month's), starting after
+ * [lostDays] spent on the way: each month short of 1 adds its shortfall for its days; the first month after this one that
+ * gives 1 or more ends it (a year at most). A month no one knows counts as giving enough: a band does not fear what it
+ * cannot foresee.
+ */
+private fun shortfallDays(yields: FloatArray, dayOfMonth: Int, lostDays: Float): Float {
+    var short = lostDays
+    for (k in yields.indices) {
+        val y = yields[k]
+        if (k > 0 && (y.isNaN() || y >= 1f)) break
+        val days = if (k == 0) (Date.DAYS_PER_MONTH - dayOfMonth + 1).toFloat() else Date.DAYS_PER_MONTH.toFloat()
+        if (!y.isNaN()) short += max(0f, 1f - y) * days
+    }
+    return short
+}
+
+/**
+ * Bands that hold their home hex ([staysHome]) and whose stores will not last until the food comes back leave it for a hex
+ * beside, when that gives them a better chance (Olli 2026-11-11: a band that has lived through many winters where it is stays
+ * through a hard one; leaving in the snow may be death too; but at the point where staying is death, if leaving gives even
+ * the slightest chance, people leave). Each step, in days, so at any step length:
+ * - its stores: its people's fat and its larder, in days of need;
+ * - staying: the days it would go short until its camp gives its need again, by its yield now ([Band.yieldNow]) and the
+ *   lore of the months ahead at its camp ([usualYield]);
+ * - it acts only when staying runs past its stores: then for each hex beside, open to it this week ([stepEffort]: snow,
+ *   rivers, cliffs) and not one it shuns or fled within [FLED_KEEP_DAYS], the same months scaled by how much more food a
+ *   head that hex gives ([hexFood] over its people and the band), plus the days the move takes ([moveDays] over the way's
+ *   effort, eating from its stores and gathering nothing); it goes to the one that leaves it the most days to spare, if
+ *   that is more than staying leaves.
+ * A band tied to its spot (houses, fields, a palisade) leaves them. No network chooses this: it is the survival layer under
+ * the provider (docs/design/vacating-a-hex.md). Doom trace starve710 (2026-11-11): of the bands that starved, every one
+ * stayed at its first camp; a hex 1.25 times as rich lay a median 19 km off; their fat lasted 4-8 weeks past the month their
+ * camp's yield fell under their need.
+ */
+@Part("people: leave failing ground")
+internal fun HexGroups.leaveFailingGround(weather: Weather, date: Date) {
+    if (!tuning.bandsStay) return
+    var people: FloatArray? = null
+    val today = date.absoluteDay
+    val yields = FloatArray(Date.MONTHS_PER_YEAR)
+    for (g in groups) {
+        val b = g.band ?: continue
+        if (!g.alive || !staysHome(g) || inParty(g) || g.dailyNeedKg <= 0f) continue
+        val now = b.yieldNow
+        if (now.isNaN() || now >= 1f) continue
+        val stores = g.fat + g.larder / g.dailyNeedKg
+        val month = date.month
+        yields[0] = now
+        for (k in 1 until yields.size) yields[k] = usualYield(g.place, (month + k) % Date.MONTHS_PER_YEAR)
+        val stay = stores - shortfallDays(yields, date.dayOfMonth, 0f)
+        if (stay >= 0f) continue
+        val ppl = people ?: bandPeopleByHex().also { people = it }
+        val h = hw.placeHex[g.place]
+        val hereHead = hexFood(h) / max(1f, ppl[h.i])
+        if (hereHead <= 0f) continue
+        val effort = planner.stepEffort(Catalogue.travel(g.species).ordinal, hw.placeBand[g.place], weather)
+        val fled = fledFrom[g.id]?.takeIf { today - it.second < FLED_KEEP_DAYS }?.first
+        var best = Hex.NONE; var bestSpare = stay
+        val scaled = FloatArray(yields.size)
+        for (d in 0 until 6) {
+            val q = hex.neighbour(h, d)
+            if (q.none || hw.placesOf(q).isEmpty() || q == fled || shuns(g, q)) continue
+            val km = effort[hex.edge(h, d)]
+            if (!km.isFinite()) continue
+            val gain = hexFood(q) / (ppl[q.i] + g.size) / hereHead
+            if (gain <= 1f) continue
+            for (k in yields.indices) scaled[k] = yields[k] * gain
+            val spare = stores - shortfallDays(scaled, date.dayOfMonth, moveDays(g, km))
+            if (spare > bestSpare) { bestSpare = spare; best = q }
+        }
+        if (best.none) { stats.meeting(Met.BANDS_FAILING_NOWHERE_BETTER); continue }
+        if (b.livesFixed()) {
+            if (!b.houseHex.none) leaveStructures(g, b.houseHex)
+            b.houseHex = Hex.NONE; b.house = 0f; b.atHome = false; b.palisade = 0f
+            b.homeEarth = 0f; b.homeWalls = 0f; b.homeGroundC = 0f
+        }
+        ppl[h.i] -= g.size; ppl[best.i] += g.size
+        fledFrom[g.id] = h to today
+        g.place = hw.firstPlaceIn(best)
+        stats.meeting(Met.BANDS_LEFT_FAILING_GROUND)
+        note(g) { "its stores would not last the season at hex %d (%.0f days short); left for hex %d (%.0f to spare)".format(h.i, -stay, best.i, bestSpare) }
+    }
 }

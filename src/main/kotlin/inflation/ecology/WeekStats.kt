@@ -161,6 +161,8 @@ enum class Met(val label: String) {
     BEATEN_BANDS_MOVED_AWAY("bands driven from their homes that moved a hex away from the raiders"),
     BEATEN_HOUSEHOLDS_TO_KIN("households of bands driven from their homes that went to kin"),
     BEATEN_BANDS_JOINED_KIN("bands driven from their homes that joined kin whole"),
+    BANDS_LEFT_FAILING_GROUND("bands that left a hex where their stores would not last the lean season, for a hex beside"),
+    BANDS_FAILING_NOWHERE_BETTER("bands whose stores would not last the lean season, with no hex beside to give them a better chance"),
     BANDS_EXCHANGED_PARTNERS("bands exchanged partners"),
     BANDS_KEPT_AWAY_FROM_THE_SICK("bands kept away from the sick"),
     BANDS_MARKED_A_DEATH_TOLL("bands marked a death toll as an omen"),
