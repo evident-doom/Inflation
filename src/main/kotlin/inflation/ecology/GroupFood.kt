@@ -92,7 +92,29 @@ internal fun HexGroups.hunt(weather: Weather) {
         g.path.all { h -> hex.distanceKm(end, h) + 2 * hex.hexKm < HUNT_FINE_KM } &&
             (g.footprint?.all { h -> hex.distanceKm(end, h) + 2 * hex.hexKm < HUNT_FINE_KM } ?: true)
     }
-    stats.summedByThread { work(near, HUNT_FINE_KM); work(far, HUNT_BLOCK_KM) }
+    if (ticks <= 1) stats.summedByThread { work(near, HUNT_FINE_KM); work(far, HUNT_BLOCK_KM) }
+    else {
+        // (Test, Olli 2026-11-11 "packs on the tick too": over a step of several ticks the bands forage the step whole, and
+        // then the beasts each tick as a week of its own, as the residents do ([HexSim.step]): what they ate is the ticks' mean,
+        // what they laid on the ticks' sum, for the step's births and deaths. The meat they took in meetings is eaten in the first.)
+        val (nearPacks, nearBands) = near.partition { it.band == null }; val (farPacks, farBands) = far.partition { it.band == null }
+        stats.summedByThread { work(nearBands, HUNT_FINE_KM); work(farBands, HUNT_BLOCK_KM) }
+        val packs = nearPacks + farPacks; val n = ticks
+        // (The fat a tick lays on counts against the room the next ones hunt to fill, so a lean pack does not hunt the room
+        // over once a tick; its fat is put back for the step's births and deaths, which lay the sum on.)
+        val fedSum = FloatArray(packs.size); val surplusSum = FloatArray(packs.size); val fatStart = FloatArray(packs.size) { packs[it].fat }
+        val stepDays = fauna.clock.days
+        try {
+            fauna.clock.days = fauna.clock.tickDays
+            repeat(n) {
+                stats.summedByThread { work(nearPacks, HUNT_FINE_KM); work(farPacks, HUNT_BLOCK_KM) }
+                for ((i, g) in packs.withIndex()) {
+                    fedSum[i] += g.fed; surplusSum[i] += g.surplus; g.fat += FAT_EFFICIENCY * g.surplus; g.surplus = 0f; g.meatMet = 0f
+                }
+            }
+        } finally { fauna.clock.days = stepDays; for ((i, g) in packs.withIndex()) g.fat = fatStart[i] }
+        for ((i, g) in packs.withIndex()) { g.fed = fedSum[i] / n; g.surplus = surplusSum[i] }
+    }
     takePackKills(2 * day + 1)
 }
 
