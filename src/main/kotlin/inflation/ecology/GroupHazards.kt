@@ -131,9 +131,14 @@ internal fun GroupWorld.placeHazards(g: HexGroup, p: Place, weather: Weather, fe
     // (Fed as it would be with its fat drawn on, as its week's feeding draws on it: a group foresees its fat too.)
     // (In a band the shortfall is not shared evenly: parents feed their children first, see [CHILDREN_FIRST].)
     // (And the elders yield theirs to the rest, see [ELDERS_YIELD]: the grown's odds are the mean of the elders' and the others'.)
-    val short = shortfallOfAdults(g, fed)
-    val hunger = grownHunger(g, short)
-    val hungerYoung = youngHunger(g, short, hunger)
+    // (Fortune lies unevenly in a band that keeps its food apart ([Band.unevenness]): its poorer half eats [fed] less that share,
+    // its richer half more, and hunger takes the poorer first. So the same mean food costs more lives the more uneven it is.)
+    val uneven = b?.unevenness ?: 0f
+    fun hungerAt(f: Float): Pair<Float, Float> { val sh = shortfallOfAdults(g, f); val h = grownHunger(g, sh); return h to youngHunger(g, sh, h) }
+    val (hunger, hungerYoung) = if (uneven <= 0f) hungerAt(fed) else {
+        val (pa, py) = hungerAt(fed * (1f - uneven)); val (ra, ry) = hungerAt(min(max(fed, 1f), fed * (1f + uneven)))
+        0.5f * (pa + ra) to 0.5f * (py + ry)
+    }
     // People keep warm as their body heat allows, through their clothes, fire, shelter and houses: past what they can
     // shiver up, they die of exposure. Animals feel the cold through their coats.
     val exposure = b?.warmth(airAt(p, weather), fire, home, days, shelter)?.odds ?: 0f
