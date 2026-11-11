@@ -222,6 +222,13 @@ private fun HexFauna.surplusShare(k: FaunaKind, p: Place): Float {
 }
 
 /**
+ * The share of what lies on the ground (carrion, bones) a resident eater may take over the step: at most half of it a tick,
+ * compounded over the step's ticks, 1 - 2^-ticks (as game is taken, [takenOfGame]). Exactly half at the 6-day step; it was half
+ * a step whatever the step's length, so a 60-day step's scavengers got half of one lump where ten ticks' got most of it.
+ */
+private fun HexFauna.halfATick() = if (clock.ticks == 1) 0.5f else 1f - kotlin.math.exp(-0.6931472f * clock.ticks)
+
+/**
  * [graze]'s animal food for omnivore or hunter kind [k] at place [p], [ps] of its diet plants: the rest is game it
  * kills, small animals it catches and carrion it finds. Each food is sought for its share first; what falls short, of
  * these or of the plants ([z]), is made up from whichever of them is to be had (as a pack does). Returns the share of
@@ -238,12 +245,12 @@ private fun HexFauna.animalFood(k: FaunaKind, p: Place, weather: Weather, z: Gra
         val plantGap = if (ps > 0f) needAll * ps * max(0f, 1f - z.got[k]) else 0f
         // Carrion first, where it eats any: a carcass lying there costs no chase and no digging, so
         // it eats what it finds (at most half of what lies there) before it hunts or makes up plants.
-        var gotCarrion = if (d.carrion > 0f) small.scavenge(p, KgM2(min(animalNeed + plantGap, 0.5f * small.carrion[p]))).v else 0f
+        var gotCarrion = if (d.carrion > 0f) small.scavenge(p, KgM2(min(animalNeed + plantGap, halfATick() * small.carrion[p]))).v else 0f
         var left = animalNeed + plantGap - gotCarrion
         // (A bone-cracker eats the bones lying there too, at most half of them, at what a kilo of bone feeds it against
         // a kilo of prey: [Food.BONES], as a pack forages them.)
         val boneWorth = if (s.cracksBones) Food.BONES.energy / Nourishment.PREY else 0f
-        val bonesKg = if (boneWorth > 0f && left > 0f) small.crackBones(p, KgM2(min(left / boneWorth, 0.5f * small.bones[p]))).v else 0f
+        val bonesKg = if (boneWorth > 0f && left > 0f) small.crackBones(p, KgM2(min(left / boneWorth, halfATick() * small.bones[p]))).v else 0f
         val gotBones = bonesKg * boneWorth
         left -= gotBones
         val huntDays = FloatArray(1)
@@ -262,7 +269,7 @@ private fun HexFauna.animalFood(k: FaunaKind, p: Place, weather: Weather, z: Gra
             val x = when (food) {
                 AnimalFood.MEAT -> gap.let { if (it > 0f) huntResidents(k, p, KgM2(it * avail[k]), weather, huntDays).v else 0f }
                 AnimalFood.SMALL_PREY -> gap.let { if (it > 0f) smallFood(k, p, KgM2(it * avail[k]), weather).v else 0f }
-                AnimalFood.CARRION -> gap.let { if (it > 0f) small.scavenge(p, KgM2(min(it, 0.5f * small.carrion[p]))).v else 0f }
+                AnimalFood.CARRION -> gap.let { if (it > 0f) small.scavenge(p, KgM2(min(it, halfATick() * small.carrion[p]))).v else 0f }
             }
             when (food) { AnimalFood.MEAT -> gotMeat += x; AnimalFood.SMALL_PREY -> gotSmall += x; AnimalFood.CARRION -> gotCarrion += x }
             gap -= x
