@@ -124,8 +124,8 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
     /**
      * The ground worn by cropping at each place: [fieldWorn] the share of the place's land worn, [fieldSoil] how well that ground
      * bears against rested ground, 0..1. Ground cropped again wears further ([CROP_WEAR], toward [CROPPED_FLOOR]); worn ground
-     * left to rest mends ([REST_MEND]) and, mended, is rested ground again. A field is sown on rested ground first, so only a
-     * place whose fields cover most of it has to crop worn ground ([cropSoil]).
+     * left to rest mends ([REST_MEND]) and, mended, is rested ground again. A field is sown on cleared ground first, the mended
+     * ground of it before the worn, so a band that clears no more ground crops worn ground again ([cerealOnWorn], [cropSoil]).
      */
     val fieldWorn = FloatArray(n)
     val fieldSoil = FloatArray(n) { 1f }
@@ -372,25 +372,38 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
     private fun sownShare(p: Place) = min(1f, field[p] / SEED_RATE)
 
     /**
-     * How well this year's cereal at [p] bears against rested ground: sown on rested ground as far as there is any, the rest on
-     * the worn ground ([fieldSoil]) the pulses have left it ([fieldPulse]: they go on the worn ground first).
+     * How well this year's cereal at [p] bears against rested ground: the worn ground of it ([cerealOnWorn]) as worn ground
+     * bears ([fieldSoil]), the rest as rested ground.
      */
     fun cropSoil(p: Place): Float {
         val s = sownShare(p) * (1f - fieldPulse[p])
         if (s <= 0f) return 1f
-        val fresh = min(s, 1f - fieldWorn[p])
-        return (fresh + (s - fresh) * fieldSoil[p]) / s
+        val again = cerealOnWorn(p)
+        return (s - again + again * fieldSoil[p]) / s
     }
 
     /**
-     * After the year's crop at [p]: rested ground its cereal was sown on is worn now, worn ground cropped again with cereal wears
+     * The share of [p]'s land under this year's cereal that is worn ground cropped again. A field is sown on cleared ground first
+     * ([cleared]: what costs no clearing, [sowableCleared]), and cleared ground is the worn ground ([fieldWorn]) and the ground
+     * mended from it, still clear; the pulses take the worn ground first ([fieldPulse]), the cereal the mended ground, then what
+     * worn ground is left, then ground cleared afresh.
+     */
+    private fun cerealOnWorn(p: Place): Float {
+        val sown = sownShare(p); val worn = fieldWorn[p]
+        val s = sown * (1f - fieldPulse[p]); val pulses = min(sown * fieldPulse[p], worn)
+        val mended = max(cleared[p], worn) - worn
+        return min(max(0f, s - mended), worn - pulses)
+    }
+
+    /**
+     * After the year's crop at [p]: rested ground its cereal was sown on ([cerealOnWorn]) is worn now, worn ground cropped again with cereal wears
      * further, worn ground sown with pulses is rested ground again ([PULSE_MEND]), and worn ground left to rest mends, the mended
      * part rested ground again (its loss shrinks as [REST_MEND] says either way).
      */
     private fun wearGround(p: Place) {
         val sown = sownShare(p); val worn = fieldWorn[p]
         val s = sown * (1f - fieldPulse[p]); val onWorn = min(sown * fieldPulse[p], worn) * PULSE_MEND
-        val fresh = min(s, 1f - worn); val again = min(s - fresh, worn - onWorn); val rested = (worn - onWorn - again) * (1f - REST_MEND)
+        val again = cerealOnWorn(p); val fresh = s - again; val rested = max(0f, worn - onWorn - again) * (1f - REST_MEND)
         val freshSoil = CROPPED_FLOOR + (1f - CROPPED_FLOOR) * (1f - CROP_WEAR)
         val againSoil = CROPPED_FLOOR + (fieldSoil[p] - CROPPED_FLOOR) * (1f - CROP_WEAR)
         val w = fresh + again + rested
