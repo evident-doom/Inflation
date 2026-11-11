@@ -28,6 +28,13 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
     var climbedM = 0f
     /** Meat it took this week from other hunters it met on the way, kg (see [enemiesMeet]). */
     var meatMet = 0f
+    /**
+     * A beast's own kills it did not finish last step, kg at their credited weight (as [meatMet]): it comes back to them as to a
+     * cached carcass and eats them first this step, less what rotted while they waited ([takeHeldKill]). So a kill that outlasts
+     * the step feeds it into the next as at any step length (Olli 2026-11-11, "kill carried into next step": at 6 days a step
+     * weekly leopards ate 0.73 of their want, at 60 days 0.88-0.96, trace720).
+     */
+    var killHeld = 0f
     /** Whether [meatMet] is eaten, stored or left by now this week (for the books, which count it in hand until then; a loaded group's is spent). */
     @Transient var meatSpent = true
     /** For a hunter: the hex at the heart of the ground it holds, -1 while it holds none. */

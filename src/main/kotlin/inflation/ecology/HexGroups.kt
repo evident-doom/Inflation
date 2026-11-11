@@ -322,7 +322,8 @@ class HexGroups(
         stocks.within(StockName.GROUPS) { for (s in kinds) stocks.ofKind(KindStock.GROUP, s.name) {
             var sum = 0.0; for (g in groups) if (g.alive && g.species == s) sum += (g.adults + HexFauna.YOUNG_WEIGHT * g.young) * s.massKg.toDouble(); sum } }
         stocks.add(Books.Stuff.MATTER, StockName.HUNTERS_MEAT_IN_HAND) {
-            var sum = 0.0; for (g in groups) if (g.meatMet > 0f && !g.meatSpent) sum += g.meatMet * meatShare(g.band) / creditShare(g.band).toDouble(); sum }
+            var sum = 0.0; for (g in groups) { if (g.meatMet > 0f && !g.meatSpent) sum += g.meatMet * meatShare(g.band) / creditShare(g.band).toDouble()
+                if (g.killHeld > 0f) sum += g.killHeld * meatShare(null).toDouble() }; sum }
         fun bands(f: (Band) -> Double) = run { var sum = 0.0; for (g in groups) if (g.alive) g.band?.let { sum += f(it) }; sum }
         stocks.add(Books.Stuff.MATTER, StockName.BANDS_FOOD) { var sum = 0.0; for (g in groups) if (g.alive && g.band != null) sum += massOf(g.stores, g.storeKgPer); sum }
         stocks.add(Books.Stuff.MATTER, StockName.BANDS_CACHES) { bands { it.cacheMass().toDouble() } }
@@ -389,6 +390,8 @@ class HexGroups(
                     if (g.home.none) stats.meeting(Met.Of.PACK_ENDED_HOMELESS, g.species.name)
                 }
             }
+            // (What a beast that died or joined another held of its kills lies where it was: carrion, as it is held, [listStocks].)
+            for (g in groups) if (!g.alive && g.killHeld > 0f) { small.deposit(DeadPool.CARRION, g.place, Kg(g.killHeld * meatShare(null))); g.killHeld = 0f }
             groups.removeIf { !it.alive }
             groups += freed
             newcomers(it.date)
