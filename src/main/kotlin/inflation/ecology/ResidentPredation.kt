@@ -8,10 +8,12 @@ import inflation.world.get
 import inflation.world.set
 import inflation.ecology.HexSmallLife.DeadPool
 import inflation.Kg
+import inflation.Par
 import inflation.KgKm2
 import inflation.KgM2
 import inflation.min
 import kotlin.math.max
+import kotlin.math.pow
 import kotlin.math.min
 import java.util.concurrent.atomic.DoubleAdder
 
@@ -44,6 +46,23 @@ internal fun HexFauna.keptKm2(k: FaunaKind, p: Place): Float {
 fun HexFauna.huntedOdds(k: FaunaKind, p: Place, young: Boolean): Float {
     val s = kinds[k]
     return residentKillOdds(if (young) YOUNG_WEIGHT * s.massKg else s.massKg, p) + groupKilled[k][p]
+}
+
+/**
+ * Folds the step's [huntedOdds] of each plant-eating kind into [HexFauna.huntedLately] and [HexFauna.huntedYoungLately],
+ * the old fading by [HexFauna.FEAR_KEEP] a tick (compounded over a step of several): every step, moving or not, after
+ * the residents' hunters have hunted and with the parties' last week's kills ([groupKilled]).
+ */
+internal fun HexFauna.noteHunted() {
+    val keep = if (clock.ticks == 1) HexFauna.FEAR_KEEP else HexFauna.FEAR_KEEP.pow(clock.ticks)
+    for (k in kindIds) {
+        if (kinds[k].carnivore) continue
+        val g = huntedLately[k]; val y = huntedYoungLately[k]
+        Par.forEachPlace("residents: hunted lately", n) { p ->
+            g[p] = keep * g[p] + (1f - keep) * huntedOdds(k, p, false)
+            y[p] = keep * y[p] + (1f - keep) * huntedOdds(k, p, true)
+        }
+    }
 }
 
 /**
