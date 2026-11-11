@@ -123,7 +123,9 @@ internal fun HexGroups.hexesWanting(): BooleanArray {
 
 /**
  * Where band [n], just split off its parent ([splitOff], at the parent's place), makes its home when bands hold their
- * home hex ([staysHome]): the nearest hex whose ground still feeds the people on it. It stays in its parent's hex unless
+ * home hex ([staysHome]): an empty hex beside its parent's if there is one (the richest of them), so settlement spreads at
+ * its edge (night705: without it, buds stayed home, the held share fell from 7% to 5-6% and bands grew to 40-46);
+ * else the nearest hex whose ground still feeds the people on it. It stays in its parent's hex unless
  * some band there wants for food ([wantsFood]: its people's reserves fell low at some step of its year); else it goes to
  * the nearest ring, within [SPREAD_RINGS], holding a hex where no band wants, and in that ring to the hex with the most
  * food a head once it is there ([hexFood]). Forager groups split off within or beside their home range and move on only
@@ -136,9 +138,18 @@ internal fun HexGroups.hexesWanting(): BooleanArray {
  */
 internal fun HexGroups.findHome(n: HexGroup, born: List<HexGroup>) {
     val from = hw.placeHex[n.place]
+    val people = bandPeopleByHex(born)
+    // (First an empty hex beside its parent's, the one whose ground gives most: daughters take up the range next door.)
+    var empty = Hex.NONE; var emptyFood = 0f
+    for (d in 0 until 6) {
+        val q = hex.neighbour(from, d)
+        if (q.none || hw.placesOf(q).isEmpty() || people[q.i] > 0f) continue
+        val f = hexFood(q)
+        if (f > emptyFood) { emptyFood = f; empty = q }
+    }
+    if (!empty.none) { n.place = hw.firstPlaceIn(empty); stats.meeting(Met.BANDS_BUDDED_OUT); return }
     val wanting = hexesWanting()
     if (!wanting[from.i]) { stats.meeting(Met.BANDS_BUDDED_IN_PLACE); return }
-    val people = bandPeopleByHex(born)
     val own = n.size.toFloat()
     var best = Place.NONE
     val bestV = hexFood(from) / (people[from.i] + own)
