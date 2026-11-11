@@ -110,6 +110,12 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
     val fieldGrain = FloatArray(n)
     val fieldDomestic = FloatArray(n)
     /**
+     * Of the seed sown at each place this year ([field]), the share that is pulses (lentil, pea, bitter vetch: one kind here), sown on
+     * the worn ground first ([PULSE_YIELD], [wearGround]); and of the ripe crop standing ([fieldGrain]), the share that is pulses.
+     */
+    val fieldPulse = FloatArray(n)
+    val ripePulse = FloatArray(n)
+    /**
      * How short of water a sown field has been since midwinter: the days it has stood ([fieldDays]) and the sum over
      * them of its water stress ([waterStress]), so that a dry season ripens less of it.
      */
@@ -296,10 +302,11 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
                     val ripe = land.plants.consume(p, LifeForm.HERB, KgM2(GRAIN_SHARE * cereal[p] * land.plants.herb[p] * share)).v
                     val expected = fieldExpect(p) * field[p] * share
                     val sownRipe = land.plants.consume(p, LifeForm.HERB, KgM2(expected)).v
+                    if (sownRipe > 0f) ripePulse[p] = (ripePulse[p] * fieldGrain[p] + pulseOfRipe(p) * sownRipe) / (fieldGrain[p] + sownRipe)
                     grain[p] += ripe; fieldGrain[p] += sownRipe
                     wildCover[p] = min(cereal[p], wildCover[p] + ripe / WILD_STAND_GRAIN)
                     ripenedNow[p] += ripe + sownRipe
-                    fieldFateNow[FieldFate.FULL.ordinal][p] += yieldPerKg(fieldDomestic[p]) * field[p] * share
+                    fieldFateNow[FieldFate.FULL.ordinal][p] += yieldPerKg(fieldDomestic[p]) * (1f - fieldPulse[p] * (1f - PULSE_YIELD)) * field[p] * share
                     fieldFateNow[FieldFate.EXPECTED.ordinal][p] += expected
                     fieldFateNow[FieldFate.RIPENED.ordinal][p] += sownRipe
                 }
@@ -315,7 +322,7 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
                 if ((season > SEED_TO && season - advance <= SEED_TO) || (weather.date.holdsMonthStart(days, FIELD_FAILS_MONTH) && field[p] > 0f)) {
                     wearGround(p)
                     fieldFateNow[FieldFate.SEED.ordinal][p] += field[p]
-                    field[p] = 0f; fieldDays[p] = 0f; fieldStress[p] = 0f
+                    field[p] = 0f; fieldDays[p] = 0f; fieldStress[p] = 0f; fieldPulse[p] = 0f
                     domestic[p] = MUTANT + (domestic[p] - MUTANT) * (1f - WILD_DRIFT)
                 }
             }
@@ -334,11 +341,15 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
         }
     }
 
-    /** Sows [kg] of grain at [p], of which [domestic] are of ears that hold their grain: the field's crop takes after what was sown in it. */
-    fun sow(p: Place, kg: KgM2, domestic: Float) {
+    /**
+     * Sows [kg] of seed at [p], of which [domestic] are of ears that hold their grain and [pulse] are pulses: the field's crop takes
+     * after what was sown in it.
+     */
+    fun sow(p: Place, kg: KgM2, domestic: Float, pulse: Float = 0f) {
         val add = max(0f, kg.v)
         if (add <= 0f) return
         fieldDomestic[p] = (fieldDomestic[p] * field[p] + domestic * add) / (field[p] + add)
+        fieldPulse[p] = (fieldPulse[p] * field[p] + pulse * add) / (field[p] + add)
         field[p] += add
         fieldCover[p] = sownShare(p)
         cleared[p] = max(cleared[p], fieldCover[p]); croppedNow[p] = max(croppedNow[p], fieldCover[p])
@@ -346,31 +357,40 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
 
     /**
      * What a kilo sown at [p] ripens to as its field stands now: [yieldPerKg] of the strain sown, less as the field has gone short of water since
-     * midwinter ([waterStress]) and on the ground it is sown on ([cropSoil]).
+     * midwinter ([waterStress]); its cereal by the ground it is sown on ([cropSoil]), its pulses [PULSE_YIELD] of that on any ground
+     * (they feed themselves nitrogen).
      */
-    fun fieldExpect(p: Place): Float = yieldPerKg(fieldDomestic[p]) * (if (fieldDays[p] > 0f) fieldStress[p] / fieldDays[p] else 1f) * cropSoil(p)
+    fun fieldExpect(p: Place): Float = yieldPerKg(fieldDomestic[p]) * (if (fieldDays[p] > 0f) fieldStress[p] / fieldDays[p] else 1f) * sownMix(p)
+
+    /** What a kilo of [p]'s sown seed bears against cereal on rested ground: its cereal by [cropSoil], its pulses [PULSE_YIELD]. */
+    private fun sownMix(p: Place) = (1f - fieldPulse[p]) * cropSoil(p) + fieldPulse[p] * PULSE_YIELD
+
+    /** Of what [p]'s field ripens now, the share that is pulses ([sownMix]). */
+    private fun pulseOfRipe(p: Place): Float { val m = sownMix(p); return if (m > 0f) fieldPulse[p] * PULSE_YIELD / m else 0f }
 
     /** The share of [p]'s land under this year's field: grain sown at [SEED_RATE] (thicker sowing covers no more than the place). */
     private fun sownShare(p: Place) = min(1f, field[p] / SEED_RATE)
 
     /**
-     * How well this year's field at [p] bears against rested ground: sown on rested ground as far as there is any, the rest on
-     * the worn ground ([fieldSoil]).
+     * How well this year's cereal at [p] bears against rested ground: sown on rested ground as far as there is any, the rest on
+     * the worn ground ([fieldSoil]) the pulses have left it ([fieldPulse]: they go on the worn ground first).
      */
     fun cropSoil(p: Place): Float {
-        val s = sownShare(p)
+        val s = sownShare(p) * (1f - fieldPulse[p])
         if (s <= 0f) return 1f
         val fresh = min(s, 1f - fieldWorn[p])
         return (fresh + (s - fresh) * fieldSoil[p]) / s
     }
 
     /**
-     * After the year's crop at [p]: rested ground it was sown on is worn now, worn ground cropped again wears further, and worn
-     * ground left to rest mends, the mended part rested ground again (its loss shrinks as [REST_MEND] says either way).
+     * After the year's crop at [p]: rested ground its cereal was sown on is worn now, worn ground cropped again with cereal wears
+     * further, worn ground sown with pulses is rested ground again ([PULSE_MEND]), and worn ground left to rest mends, the mended
+     * part rested ground again (its loss shrinks as [REST_MEND] says either way).
      */
     private fun wearGround(p: Place) {
-        val s = sownShare(p); val worn = fieldWorn[p]
-        val fresh = min(s, 1f - worn); val again = min(s - fresh, worn); val rested = (worn - again) * (1f - REST_MEND)
+        val sown = sownShare(p); val worn = fieldWorn[p]
+        val s = sown * (1f - fieldPulse[p]); val onWorn = min(sown * fieldPulse[p], worn) * PULSE_MEND
+        val fresh = min(s, 1f - worn); val again = min(s - fresh, worn - onWorn); val rested = (worn - onWorn - again) * (1f - REST_MEND)
         val freshSoil = CROPPED_FLOOR + (1f - CROPPED_FLOOR) * (1f - CROP_WEAR)
         val againSoil = CROPPED_FLOOR + (fieldSoil[p] - CROPPED_FLOOR) * (1f - CROP_WEAR)
         val w = fresh + again + rested
@@ -478,6 +498,21 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
         const val CROPPED_FLOOR = 0.45f
         const val CROP_WEAR = 0.5f
         const val REST_MEND = 0.7f
+        /**
+         * What a kilo of pulses sown bears against a kilo of cereal on rested ground ([yieldPerKg]), by weight (a kilo of dry pulse
+         * feeds about as a kilo of grain: lentils some 350 kcal/100 g, wheat 340, USDA SR from memory). Lentils yield some 1.1 t/ha
+         * on the world's mean (FAO 2010) and 1.1-2.9 t/ha in trials (Najah's review of lentil cultivation), against the
+         * cereal's 2.4 t/ha here ([FIELD_YIELD] at [SEED_RATE]); sown about as thick as cereal (from memory, unchecked): 0.45.
+         * Pulses fix their own nitrogen, so they bear as well on worn ground as on rested.
+         */
+        const val PULSE_YIELD = 0.45f
+        /**
+         * The share of the worn ground under pulses that is rested ground again after their year. At Butser, spring emmer after
+         * legumes gave 3.13 t/ha against 2.57 after fallow and 1.77 unmanured (Reynolds, "Mediaeval cereal yields: an empirical
+         * challenge"): a pulse year mends more than a year's rest ([REST_MEND]); lentils fix some 46-192 kg N/ha (Najah), a 5 t/ha
+         * wheat crop takes about 90 (Rösch et al. 2017). So all of it.
+         */
+        const val PULSE_MEND = 1f
         /**
          * Grain sown per m² of field: about 120 kg/ha, after Columella's 4-5 modii of wheat to the iugerum (about 110-135 kg/ha)
          * and medieval English seed rates of about 2 bushels an acre (both from memory, unchecked).

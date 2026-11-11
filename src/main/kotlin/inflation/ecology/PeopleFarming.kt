@@ -30,22 +30,40 @@ internal fun HexGroups.sowGrain(g: HexGroup, b: Band, p: Place, date: Date, time
     if (canSow(g, b, p, date) && left > 0f) {
         val corn = b.seedCornIn(g)
         val per = g.storeKgPer[Store.SEED]; val canIn = sowableKg(p, left / b.lapse(Skill.CULTIVATION)) / per
-        val sow = minOf(corn * SOW_SHARE * b.sowWill, canIn)
-        dialUse?.amount(DialSite.SOWING, b.sowWill, sow, minOf(corn * SOW_SHARE, canIn))
+        val want = minOf(corn * SOW_SHARE * b.sowWill, canIn)
+        dialUse?.amount(DialSite.SOWING, b.sowWill, want, minOf(corn * SOW_SHARE, canIn))
+        val (sow, pulse) = sowMix(b, p, corn, want, per)
         if (sow > 0.1f) {
             val domestic = b.seedDomestic
             val kg = sow * per
             g.stores[Store.SEED] -= sow; b.seedCorn = corn - sow; time.spend(Activity.SOWING, sowDays(p, kg) * b.lapse(Skill.CULTIVATION))
+            b.seedPulse = if (b.seedCorn > 0f) ((corn * b.seedPulse - pulse) / b.seedCorn).coerceIn(0f, 1f) else 0f
             b.practise(Skill.CULTIVATION)
             // (Ground it sows beyond what is cleared there it clears first: [HexFood.cleared], kept by [HexFood.sow].)
             // (A field sown afresh, or sown where last year's crop is spent, is this year's crop.)
             if (b.sownPlace != p || fauna.food.field[p] <= 0f) b.sownKg = 0f
             b.sownPlace = p; b.sownKg += kg; b.seedKept = b.sownKg; b.sinceSowed = 0f
-            fauna.food.sow(p, land.spread(p, Kg(kg)), domestic)
+            fauna.food.sow(p, land.spread(p, Kg(kg)), domestic, pulse / sow)
             stats.meeting(Met.BANDS_SOWED)
+            if (pulse > 0f) stats.meeting(Met.BANDS_SOWED_PULSES)
             note(g) { "sowed %.0f kg of grain at home".format(sow) }
         }
     }
+}
+
+/**
+ * Of [want] of its seed corn [corn] (store units, [per] kg each) that band [b] sows at [p], what it sows and of that its pulses
+ * ([Band.seedPulse]): pulses on the place's worn ground not yet under pulses ([HexFood.fieldWorn], where they mend it), cereal on
+ * the rest, and pulses beyond the worn ground only where it has no cereal left to sow. (A rule of thumb, not a choice its ways weigh.)
+ */
+internal fun GroupWorld.sowMix(b: Band, p: Place, corn: Float, want: Float, per: Float): Pair<Float, Float> {
+    val food = fauna.food
+    val pulses = corn * b.seedPulse; val cereal = corn - pulses
+    val wornRoom = max(0f, food.fieldWorn[p] * HexFood.SEED_RATE - food.field[p] * food.fieldPulse[p]) * land.m2(p) / per
+    val onWorn = minOf(want, pulses, wornRoom)
+    val cerealSown = min(want - onWorn, cereal)
+    val pulse = onWorn + min(want - onWorn - cerealSown, pulses - onWorn)
+    return (cerealSown + pulse) to pulse
 }
 
 /**
@@ -79,6 +97,7 @@ internal fun HexGroups.harvestCrop(g: HexGroup, b: Band, time: BandTime) {
     val worth = kg * seedValue(b) * b.cookValue(Food.GRAIN)
     val corn = b.seedCorn
     b.seedDomestic = (b.seedDomestic * corn + b.reapedDomestic(food.fieldDomestic[f]) * worth) / (corn + worth)
+    b.seedPulse = (b.seedPulse * corn + food.ripePulse[f] * worth) / (corn + worth)
     b.seedCorn = corn + worth
     addFood(g.stores, g.storeKgPer, Store.SEED, worth, kg)
     if (b.knowsSkill[Skill.CULTIVATION]) b.practise(Skill.CULTIVATION)
@@ -139,7 +158,7 @@ internal fun GroupWorld.giveSeed(giver: HexGroup, gb: Band, taker: HexGroup, tb:
     val kg = gift * giver.storeKgPer[Store.SEED]
     giver.stores[Store.SEED] -= gift; gb.seedCorn -= gift
     addFood(taker.stores, taker.storeKgPer, Store.SEED, gift, kg)
-    tb.seedDomestic = gb.seedDomestic; tb.seedCorn = gift
+    tb.seedDomestic = gb.seedDomestic; tb.seedPulse = gb.seedPulse; tb.seedCorn = gift
     stats.meeting(Met.Of.GIVEN, "seed corn")
     return 1f
 }

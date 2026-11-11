@@ -464,6 +464,7 @@ private fun GroupWorld.reap(g: HexGroup, p: Place, sown: Boolean, expected: Floa
         // (The week's reaping is kept with the stores at the week's end, where the seed corn is held to the grain kept.)
         val corn = band.seedCorn; val wild = max(0f, g.stores[Store.SEED] - corn)
         if (tookField > 0f) band.seedDomestic = (band.seedDomestic * corn + harvested(food.fieldDomestic[p]) * tookField) / (corn + tookField)
+        if (tookField > 0f) band.seedPulse = (band.seedPulse * corn + food.ripePulse[p] * tookField) / (corn + tookField)
         if (tookWild > 0f) band.grainDomestic = (band.grainDomestic * wild + harvested(food.domestic[p]) * tookWild) / (wild + tookWild)
         band.seedCorn = corn + tookField
         stats.tally(Tally.of(g.species, Tally.OfKind.GRAIN_REAPED), took.toInt())

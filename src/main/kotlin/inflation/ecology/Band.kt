@@ -449,6 +449,8 @@ class Band(kinds: Int, totems: Int = kinds) {
     var raidDeathRate = 0f
     var seedDomestic = 0f
     var grainDomestic = 0f
+    /** Of its seed corn ([seedCorn]), the share that is pulses ([HexFood.fieldPulse]). */
+    var seedPulse = 0f
     /** Its ways ([BandWay]), as [setWays] sets them each week from its ways' outputs: 1 each for the scaffold's way. Read through the names below. */
     val will = enumFloats<BandWay> { 1f }
     /** Its choices: how much of its stored grain it sows in autumn at its home (the scaffold: some, once it has houses). */
@@ -864,7 +866,7 @@ class Band(kinds: Int, totems: Int = kinds) {
         o.ties.clear(); o.ties.putAll(ties); o.appointment = appointment
         o.houseHex = houseHex; o.house = house; o.drivenFrom = drivenFrom; o.drivenBy = drivenBy; o.homeEarth = homeEarth; o.homeWalls = homeWalls; o.homeGroundC = homeGroundC; o.palisade = palisade
         o.houseLives = houseLives; o.houseFood = houseFood; foodFrom.copyInto(o.foodFrom); o.fishPull = fishPull; o.weirFood = weirFood; o.weirTend = weirTend; toolWork.copyInto(o.toolWork); heldShare.copyInto(o.heldShare); monthSupply.copyInto(o.monthSupply); monthSupplySq.copyInto(o.monthSupplySq); o.supplyMonth = supplyMonth; o.supplySum = supplySum; o.supplyWeeks = supplyWeeks; o.larderSeen = larderSeen; weekSupply.copyInto(o.weekSupply); weekYield.copyInto(o.weekYield); weekWarmth.copyInto(o.weekWarmth); weekMoved.copyInto(o.weekMoved); freeShare.copyInto(o.freeShare); o.leanDays = leanDays; o.fatLow = fatLow; o.unevenness = unevenness
-        o.seedDomestic = seedDomestic; o.grainDomestic = grainDomestic; o.seedCorn = seedCorn * share; seedCorn -= o.seedCorn; o.sinceRaided = sinceRaided; o.sisu = sisu
+        o.seedDomestic = seedDomestic; o.seedPulse = seedPulse; o.grainDomestic = grainDomestic; o.seedCorn = seedCorn * share; seedCorn -= o.seedCorn; o.sinceRaided = sinceRaided; o.sisu = sisu
         o.knownHomes.putAll(knownHomes); o.homesVersion++; o.knownLineage.putAll(knownLineage); o.lastMet.putAll(lastMet); newsYield.copyInto(o.newsYield); newsAt.copyInto(o.newsAt); o.newsNext = newsNext
         skills.copyInto(o.skills)
         knowsSkill.copyInto(o.knowsSkill)
@@ -940,6 +942,7 @@ class Band(kinds: Int, totems: Int = kinds) {
         // (Seed corn blended by the seed corn each held, the rest of the grain by the rest.)
         val corn = min(a.seedCorn, seed); val bCorn = min(b.seedCorn, bSeed)
         if (corn + bCorn > 0f) a.seedDomestic = weightedMean(a.seedDomestic, corn, b.seedDomestic, bCorn)
+        if (corn + bCorn > 0f) a.seedPulse = weightedMean(a.seedPulse, corn, b.seedPulse, bCorn)
         val wild = seed - corn; val bWild = bSeed - bCorn
         if (wild + bWild > 0f) a.grainDomestic = weightedMean(a.grainDomestic, wild, b.grainDomestic, bWild)
         a.seedCorn = corn + bCorn
