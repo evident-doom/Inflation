@@ -187,6 +187,7 @@ private fun countHands(u: DialUse, g: HexGroup, b: Band, hands: Int) {
 internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather: Weather) {
     val w = ForageWeek(this, g, sweep, packKg, weather)
     if (w.band == null && g.killHeld > 0f) takeHeldKill(w, weather)
+    if (w.band == null) { w.busy = min(w.workDays, g.huntOwed); g.huntOwed = 0f }
     huntingOdds(w)
     if (w.band == null) herdOdds(w)
     // (forageDiag: the game on a beast's ground at the week's start: its ground, the heads it might meet there and the odds.)
@@ -307,6 +308,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     w.time?.let { restedDays(w, it) }
     w.time?.release(Activity.FOOD)
     if (HUNT_DIAG && w.band == null) packWeekDiag(w)
+    if (w.band == null) g.huntOwed = max(0f, w.busy + w.searchUsed - w.workDays)
     preyFoughtBack(g, w.foughtBack, w.rnd)
     eatTheWeek(w)
 }
