@@ -204,3 +204,21 @@ private fun listDoomedYear(groups: List<HexGroup>, date: inflation.world.Date, h
     }
     hungerDied.clear()
 }
+
+/**
+ * doomTrace: band [g]'s week of stores, as [foresee] closes it: its larder and the stores it aims at, what it worked to lay
+ * by, what moved its larder ([Band.larderFlow]), its hands' days by [Activity] ([Band.daysSpent]), the share of its days it
+ * had free in this month ([Band.freeShare]) and its work rates ([Band.workRate]). Days are of the band's need with keeping
+ * warm, as the doom line's larder. Whether summers' plenty goes into the larder, and if not, where it goes.
+ */
+internal fun storeTraceLine(g: HexGroup, b: Band, date: inflation.world.Date): String {
+    val need = g.dailyNeedKg.coerceAtLeast(1e-3f)
+    return ("doom store #%d %s: %d people, larder %.1f d (fresh %.1f d), aim %.1f d (at 1 %.1f, share %.2f, lean %.1f), " +
+        "works to lay by %.2f d this week; larder moved d: %s; hands' days: %s; of %.1f; free share %.2f; work rates: %s").format(
+        g.id, date, g.size, g.larder / need, perishablesHeld(g) / need, b.storeAim, b.storeAimAt1, b.storeShare, b.leanDays,
+        storeWant(g, b) / need,
+        LarderMove.entries.joinToString(" ") { "%s %.2f".format(it.label, b.larderFlow[it.ordinal] / need) },
+        Activity.entries.filter { b.daysSpent[it.ordinal] != 0f }.joinToString(" ") { "%s %.1f".format(it.label, b.daysSpent[it.ordinal]) },
+        b.daysSpent[Activity.entries.size], b.freeShare[date.month],
+        Tally.WorkRate.entries.joinToString(" ") { "%s %.2f".format(it.name.lowercase(), b.workRate[it.ordinal]) })
+}
