@@ -188,6 +188,8 @@ enum class Met(val label: String) {
     STORM_DEAD_SAFE_BEFORE("of those, bands that had a place free of peril in reach the week before"),
     STORM_DEAD_WALKED_IN("bands killed by a storm that struck the place they chose, their camp not struck"),
     BANDS_SOWED("bands sowed"),
+    BANDS_SOWED_PULSES("bands sowed pulses"),
+    BANDS_MANURED_FIELDS("band-weeks spreading penned dung on worn field ground"),
     BANDS_TOLD_OF_COUNTRY("bands told of country"),
     BANDS_TOLD_OF_ROUTES("bands told of routes"),
     BANDS_BORE_A_RITE("bands bore a rite of an omen"),
