@@ -298,6 +298,7 @@ private fun HexGroups.discord(g: HexGroup, date: Date, people: FloatArray, wanti
     joinBand(o, n, stepOf(date))
     stats.meeting(Met.HOUSEHOLDS_LEFT_IN_DISCORD)
     return true
+}
 
 /** Whether band [g] keeps off hex [h]: it was driven from it, and still fears those who drove it off ([Band.keptFrom]). */
 internal fun shuns(g: HexGroup, h: Hex) = g.band?.keptFrom(h) == true
