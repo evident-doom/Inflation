@@ -5,6 +5,7 @@ import inflation.world.Hex
 import inflation.world.Place
 import inflation.world.Date
 import inflation.world.Weather
+import inflation.world.get
 import kotlin.math.max
 import kotlin.math.min
 
