@@ -209,6 +209,8 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     sowGrain(g, b, p, date, time)
     // A band that keeps animals and knows herding pens them at night by its camp, as far as its time and brush go.
     buildPen(g, b, h, time)
+    // And spreads its penned animals' dung on its worn field ground.
+    manureField(g, b, h)
     time.release(Activity.SOWING)
     // A band at home that has been raided in the last year rings its houses with a palisade, as far
     // as its time and timber go.

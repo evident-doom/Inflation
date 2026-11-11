@@ -515,6 +515,17 @@ class Census(private val sim: HexSim) {
     }
 
     /** Kills robbed over the year, from [metYear] (the year's meeting tallies summed over its weeks): by and from each hunting kind, kills and kg. Report only. */
+    /** The year's farming counts from [metYear]: bands that sowed, sowed pulses, built pens, and band-weeks spreading dung on their fields. */
+    fun printFarming(metYear: Map<TallyKey, Int>) {
+        fun met(m: Met) = metYear[m.key] ?: 0
+        println("     farming over the year: band-weeks sowing %d, of them with pulses %d; pens built (band-weeks) %d; band-weeks manuring fields %d".format(
+            met(Met.BANDS_SOWED), met(Met.BANDS_SOWED_PULSES), met(Met.BANDS_BUILT_PENS), met(Met.BANDS_MANURED_FIELDS)))
+        val f = groups.fauna.food
+        val fields = (0 until land.n).filter { f.field[it] > 0f || f.fieldGrain[it] > 0f }
+        println("     fields now: %d places, of them beyond the wild cereals' ground %d, sown in spring %d".format(
+            fields.size, fields.count { f.cereal[it] <= 0f }, fields.count { f.springSown(Place(it)) }))
+    }
+
     fun printKillsStolen(metYear: Map<TallyKey, Int>) {
         fun met(m: Met.Of, s: Species) = metYear[m.tally(s.name)] ?: 0
         println("     kills stolen over the year (by: kills, kg / from: kills, kg): " + groups.kinds.filter { it.carnivore && !it.human }.joinToString(", ") { s ->
@@ -591,9 +602,11 @@ class Census(private val sim: HexSim) {
         val bands = groups.groups.mapNotNull { g -> g.band?.takeIf { g.alive }?.let { b -> Triple(b, b.seedCornIn(g), g.stores[Store.SEED] - b.seedCornIn(g)) } }
         val cornSum = bands.sumOf { it.second.toDouble() }
         val wild = bands.sumOf { it.third.toDouble() }
-        println("cereals seed: sown and standing in %d places, %.1f t, of it from ears that hold their grain %.2f (by weight); bands holding seed corn %d of %d, %.1f t, of it from ears that hold their grain %.2f; their other grain %.1f t, %.2f".format(
+        println("cereals seed: sown and standing in %d places, %.1f t, of it from ears that hold their grain %.2f, pulses %.2f (by weight); bands holding seed corn %d of %d, %.1f t, of it from ears that hold their grain %.2f, pulses %.2f; their other grain %.1f t, %.2f".format(
             sown.size, sownKg / 1000, if (sownKg > 0) sown.sumOf { f.fieldDomestic[it] * f.field[it] * land.areaKm2[it] * 1e6 } / sownKg else 0.0,
+            if (sownKg > 0) sown.sumOf { f.fieldPulse[it] * f.field[it] * land.areaKm2[it] * 1e6 } / sownKg else 0.0,
             bands.count { it.second > 0f }, bands.size, cornSum / 1000, if (cornSum > 0) bands.sumOf { it.first.seedDomestic * it.second.toDouble() } / cornSum else 0.0,
+            if (cornSum > 0) bands.sumOf { it.first.seedPulse * it.second.toDouble() } / cornSum else 0.0,
             wild / 1000, if (wild > 0) bands.sumOf { it.first.grainDomestic * it.third.toDouble() } / wild else 0.0))
         // (Where the sown fields' grain went in the last whole year; what bands reaped of it is in the bands' grain line.)
         fun t(k: FieldFate) = f.fieldFateLastYear[k.ordinal]

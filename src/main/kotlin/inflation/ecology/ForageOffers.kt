@@ -297,7 +297,7 @@ internal fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
         val wild = food.grain[q]; val sown = food.fieldGrain[q]
         plant(Food.GRAIN, 0, seedReach, wild, grainQ(food.wildStand(Place(q))) + sought(wild) + walked(Food.GRAIN, seedWalk, grainQ(food.wildStand(Place(q))) + sought(wild)), sought(wild),
             walked(Food.GRAIN, seedWalk, grainQ(food.wildStand(Place(q))) + sought(wild)))
-        if (sown > 0f) plant(Food.GRAIN, FIELD_KIND, seedReach, sown, grainQ(food.fieldStand(Place(q))) + sought(sown) + walked(Food.GRAIN, seedWalk, grainQ(food.fieldStand(Place(q))) + sought(sown)),
+        if (sown > 0f && mayReap(g, Place(q))) plant(Food.GRAIN, FIELD_KIND, seedReach, sown, grainQ(food.fieldStand(Place(q))) + sought(sown) + walked(Food.GRAIN, seedWalk, grainQ(food.fieldStand(Place(q))) + sought(sown)),
             sought(sown), walked(Food.GRAIN, seedWalk, grainQ(food.fieldStand(Place(q))) + sought(sown)))
     }
     // Bands fish the river, the lake or the sea by their camp, as their skill and nets allow ([Band.fishing]); and gather
@@ -464,6 +464,7 @@ private fun GroupWorld.reap(g: HexGroup, p: Place, sown: Boolean, expected: Floa
         // (The week's reaping is kept with the stores at the week's end, where the seed corn is held to the grain kept.)
         val corn = band.seedCorn; val wild = max(0f, g.stores[Store.SEED] - corn)
         if (tookField > 0f) band.seedDomestic = (band.seedDomestic * corn + harvested(food.fieldDomestic[p]) * tookField) / (corn + tookField)
+        if (tookField > 0f) band.seedPulse = (band.seedPulse * corn + food.ripePulse[p] * tookField) / (corn + tookField)
         if (tookWild > 0f) band.grainDomestic = (band.grainDomestic * wild + harvested(food.domestic[p]) * tookWild) / (wild + tookWild)
         band.seedCorn = corn + tookField
         stats.tally(Tally.of(g.species, Tally.OfKind.GRAIN_REAPED), took.toInt())
@@ -554,6 +555,17 @@ internal const val RUN_KIND = 3
 internal const val MAST_KIND = 1
 /** What a kg of mast feeds against a kg of roots, whose [Food] it is offered as ([Nourishment.MAST]). */
 internal const val MAST_RICH = Nourishment.MAST / Nourishment.ROOTS
+/**
+ * Whether [g] may reap the sown field at [p]: a field is held by the band that last sowed it ([HexFood.fieldHolder]) and the
+ * bands housed in its hex, its village; others leave it standing (taking it is a raid's). Animals eat it where they find it.
+ * (Possession, not ownership: the hold goes with the next sowing, and a field unsown has no crop to hold.)
+ */
+internal fun GroupWorld.mayReap(g: HexGroup, p: Place): Boolean {
+    val band = g.band ?: return true
+    val holder = fauna.food.fieldHolder[p]
+    return holder < 0 || holder == g.id || band.houseHex == hw.placeHex[p]
+}
+
 /** The kind of [Food.GRAIN] offered for a sown field's grain (0 the wild stand's). */
 internal const val FIELD_KIND = 1
 

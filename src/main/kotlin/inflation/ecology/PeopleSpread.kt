@@ -206,6 +206,7 @@ internal fun HexGroups.spreadYear(date: Date): List<HexGroup> {
     for (g in groups.toList()) {
         val b = g.band ?: continue
         if (!g.alive || !staysHome(g) || inParty(g)) continue
+        if (splitByFortune(g, bandsIn, made)) continue
         if (discord(g, date, people, wanting, bandsIn, made)) continue
         if (g.adults < SMALL_BAND + SEEP_ADULTS) continue
         // (Only a band that wants for food ([wantsFood]) sends households off, to a hex beside whose bands do not, the one with
@@ -315,6 +316,47 @@ private fun HexGroups.discord(g: HexGroup, date: Date, people: FloatArray, wanti
     stats.meeting(Met.HOUSEHOLDS_LEFT_IN_DISCORD)
     return true
 }
+
+/**
+ * Once a year, band [g] whose fortunes lie apart past [UNEVEN_SPLIT] ([Band.unevenness]) splits along them: the group is the
+ * smallest unit and holds its property alike (Olli 2026-11-11), so its poorer half goes its own way as a band of its own, at
+ * the same camp, and inequality now lies between the two. Each takes its share by heads, then the poorer gives the richer
+ * the unevenness of its share of the stores, seed corn and herds, so that a head of the richer holds 1 + u of the mean
+ * and one of the poorer 1 - u. Both start even. Wealth keeps them apart after ([becomeOne], [WEALTH_APART]). A band too
+ * small to make two that live alone ([SMALL_BAND] grown each) stays as it is. Returns whether it split.
+ */
+private fun HexGroups.splitByFortune(g: HexGroup, bandsIn: HashMap<Int, ArrayList<HexGroup>>, made: MutableList<HexGroup>): Boolean {
+    val b = g.band ?: return false
+    val u = b.unevenness
+    if (u < UNEVEN_SPLIT || g.adults < 2 * SMALL_BAND) return false
+    val adults = g.adults / 2; val young = g.young * adults / g.adults
+    g.adults -= adults; g.young -= young
+    val n = splitOff(g, adults, young)
+    val nb = n.band ?: return true
+    // (The poorer half gives back [u] of its share: of its food, its seed corn and its herd.)
+    moveFood(n, g, n.larder * u)
+    val corn = nb.seedCorn * u; nb.seedCorn -= corn; b.seedCorn += corn
+    val nBred = nb.herds.bred()
+    for (k in 0 until min(nb.herds.herd.size, b.herds.herd.size)) {
+        val x = nb.herds.herd[k] * u
+        if (x <= 0f) continue
+        nb.herds.herd[k] -= x; b.herds.addBred(k, x, nBred[k])
+    }
+    b.unevenness = 0f; nb.unevenness = 0f
+    bandsIn.getOrPut(hw.placeHex[n.place].i) { ArrayList() } += n
+    made += n
+    stats.meeting(Met.BANDS_SPLIT_ALONG_FORTUNES)
+    return true
+}
+
+/**
+ * The unevenness past which a band splits along its fortunes ([splitByFortune]), and how much more food a head one band at home
+ * must keep than another ([keptDays]) for the two to stay apart rather than become one ([becomeOne]). Estimates: no source
+ * gives when people living together part over wealth; set so that a split at [UNEVEN_SPLIT] (a head of the richer keeping
+ * (1 + 0.3) / (1 - 0.3), near twice, the poorer's) stays apart.
+ */
+internal const val UNEVEN_SPLIT = 0.3f
+internal const val WEALTH_APART = 1.5f
 
 /** Whether band [g] keeps off hex [h]: it was driven from it, and still fears those who drove it off ([Band.keptFrom]). */
 internal fun shuns(g: HexGroup, h: Hex) = g.band?.keptFrom(h) == true
