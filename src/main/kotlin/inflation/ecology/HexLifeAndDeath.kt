@@ -169,7 +169,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
     }
     groups += born
     // (Once a year, crowded hexes ease into the roomier hexes beside, [spreadYear].)
-    if (date.holdsMonthStart(days, 0)) groups += spreadYear()
+    if (date.holdsMonthStart(days, 0)) groups += spreadYear(date)
     tallyVillages()
     wornWeek(days)
     tendParties(date)
@@ -763,7 +763,7 @@ internal fun HexGroups.mergeAndPair(date: Date) {
  * see themselves as one group (cooperation, shared fate and living side by side: the common ingroup identity of Gaertner and
  * Dovidio). How alike they are is read from [Regard] both ways (words understood, kin, tie, customs apart): halves of a split
  * still at home together are one again at once; bands that met as strangers grow alike as their ties, words and customs come
- * together. Nothing forces it, and it needs room under the size a band at home holds ([maxSize]). The smaller joins the larger.
+ * together. Nothing forces it, and it needs room under the size a band holds without discord ([easySize]). The smaller joins the larger.
  * Bands of the two kinds of choosing ([Band.mind]) become one alike: the joined band chooses as the larger did.
  */
 private fun HexGroups.becomeOne(date: Date) {
@@ -775,7 +775,7 @@ private fun HexGroups.becomeOne(date: Date) {
             val a = bands[i]; val c = bands[j]
             val ab = a.band ?: continue; val cb = c.band ?: continue
             if (!a.alive || !c.alive || inParty(a) || inParty(c)) continue
-            if (a.size + c.size > min(maxSize(a), maxSize(c))) continue
+            if (a.size + c.size > min(easySize(a), easySize(c))) continue
             if (alike(Regard(ab, c.id, cb, map = hex)) < ONE_GROUP || alike(Regard(cb, a.id, ab, map = hex)) < ONE_GROUP) continue
             val (into, from) = if (a.size >= c.size) a to c else c to a
             joinBand(into, from, stepOf(date))

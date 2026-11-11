@@ -199,6 +199,8 @@ enum class Met(val label: String) {
     BANDS_BUDDED_OUT("bands budded into another hex"),
     BANDS_BUDDED_IN_PLACE("bands budded staying in their parent's hex"),
     HOUSEHOLDS_SEEPED("households left a crowded hex for a roomier one beside"),
+    BANDS_SPLIT_BY_DISCORD("bands split off by discord in a band past its easy size"),
+    HOUSEHOLDS_LEFT_IN_DISCORD("households left a band past its easy size for one with room"),
     BANDS_RELOCATED("bands moved their whole camp to a much roomier hex beside"),
     BANDS_SPLIT_OVER_THEIR_BELIEF("bands split over their belief"),
     BANDS_TOOK_UP_ANOTHERS_APPOINTMENT("bands took up another's appointment"),

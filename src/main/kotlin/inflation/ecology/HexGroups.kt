@@ -684,6 +684,17 @@ class HexGroups(
         } ?: s.maxGroupSize
     }
 
+    /**
+     * The size [g] holds without discord: half its [maxSize], what each half of a split starts at. A band past it begins to
+     * quarrel, and its households leave as forager households do, for another camp or a camp of their own ([discord]);
+     * one past [maxSize] splits outright. Forager camps hold about 25-30 people and change members every few weeks, and
+     * they settle quarrels by leaving (Marlowe 2005, Woodburn 1982, Lee 1979; consensus breaks down past about six
+     * households, Johnson 1982); what holds a band together past that, feasts and rites, a village's houses, a strained
+     * belief, moves both sizes alike. So a forager band is easy at 25 (32 with feasts) and a band at home in its houses
+     * at 75 (Natufian settlements about 60-100, Kuijt 2000). All from memory, to check.
+     */
+    internal fun easySize(g: HexGroup): Int = maxSize(g) / 2
+
     /** How far going to hex [h] brings band [g] toward its appointment, -1..1, in its month (0 otherwise). */
     internal fun appointPull(g: HexGroup, b: Band, month: Int, h: Hex): Float {
         val own = ownAppointPull(g, b, month, h)
