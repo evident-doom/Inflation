@@ -74,8 +74,6 @@ internal const val GATHER_SHARE = 0.5f
  * novices: about 0.5 clo.
  */
 internal const val CLOTHES_CLO = 1.5f
-/** Km of a week's camp move at which the ways' input for it ([BandInputs.MOVE_KM]) is half way to 1. */
-internal const val MOVE_KM_HALF = 20f
 
 /**
  * The spacing of a mother's births, years, as pregnancy ([GESTATION_YEARS]), the wait to conceive again once she is fertile
@@ -631,9 +629,6 @@ private fun HexGroups.ecosystemInputs(g: HexGroup, b: Band, into: FloatArray) {
     into[x.LEAN_LOST] = b.leanLost
     val adults = max(1, g.adults) * GOODS_PER_PERSON
     for (m in Material.entries) into[x.GOODS + m.ordinal] = b.goods[m] / adults
-    val km = max(0, g.path.size - 1) * hex.hexKm.toFloat()
-    val walk = moveDays(g, km)
-    into[x.MOVE_KM] = km / (km + MOVE_KM_HALF); into[x.MOVE_DAYS] = walk / (walk + days); into[x.LOAD] = carriedKg(g, b) / (CARRY_KG * (1f + BASKET_GAIN))
     for ((k, w) in Skill.BUILDING_WAYS.withIndex()) into[x.BUILDING + k] = if (b.knowsSkill[w]) b.skill(w) else 0f
     val here = h == b.houseHex
     into[x.HOUSE_HERE] = if (here) b.house else 0f; into[x.PALISADE_HERE] = if (here) b.palisade else 0f

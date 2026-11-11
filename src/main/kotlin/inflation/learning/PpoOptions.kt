@@ -86,7 +86,7 @@ class PpoOptions(
     val burnYears: Int,
     /** Bands' ways learned beside their moves (else the scaffold's, or as evolved). */
     val learnWays: Boolean,
-    /** Whether learning the ways also trains the people's mover beneath them (else only their own layers). */
+    /** Not read since people's net major 11: the ways read their camp's terms, not the people's mover ([CampTerms]). Kept so that old configs load. */
     val waysTrainMover: Boolean,
     val sampling: Sampling,
     val maps: Maps,

@@ -184,12 +184,55 @@ open class Choice(val kind: Species, val groupId: Int, val size: Int, val week: 
 }
 
 /**
- * Where a band stood in week [week] before it moved, as the critic reads it ([at]): the state its week's plan, the move and the
- * ways set after it, is judged from (see [WaysChoice]).
+ * Where a band stood in week [week], as the critic reads it ([at]): the state its ways draw is judged from (see [WaysChoice]).
  */
-class Standing(val week: Int, val at: Probe) {
-    /** The mover's whole input for the place it then chose ([SharedMover.plan]), for its ways' learning to train the mover through. */
-    @Volatile var plan: FloatArray? = null
+class Standing(val week: Int, val at: Probe)
+
+/** Whether recorded choice [c] is due to see its group again in step [w]: the first step at least [Critic.bootDays] after it chose ([steps]; null: [Critic.boot] steps on). */
+internal fun dueAgain(c: Choice, w: Int, steps: StepLog?) = if (steps == null) c.week + Critic.boot(c.kind) == w else steps.reach(c.week, Critic.bootDays(c.kind)) == w - c.week
+
+/** Gives the choices of group [id] waiting in [probes] that are due to see it again in step [w] ([dueAgain]) where it stands now, [p]. */
+internal fun seeAgain(probes: ConcurrentHashMap<Int, MutableList<Choice>>, id: Int, w: Int, p: Probe, steps: StepLog?) {
+    val waiting = probes[id] ?: return
+    synchronized(waiting) {
+        val due = waiting.filter { dueAgain(it, w, steps) }
+        if (due.isEmpty()) return
+        // (Where it then stood is unknown to the critic if any of it is not a number: its whole horizon counts as seen.)
+        val known = p.features.allFinite() && p.band.allFinite() && p.temper.allFinite() && p.group.allFinite()
+        if (known) for (c in due) c.probe = p
+        waiting.removeAll(due)
+    }
+}
+
+/**
+ * People's choice of camp once no network makes it (people's net major 11; docs/design/band-movement-removal.md, Phase 6): a band
+ * that holds its hex camps on its low ground, as one with no network does ([inflation.ecology.GroupPlanner.stayPlan]; the planner
+ * sets it). It goes through the planner, held to its hex, only for its camp's terms: this stores where it stood ([Standing]) for its
+ * ways' draws, sees its recorded weeks and draws again ([probes]), records a share [rate] of its weeks for the people's critic alone
+ * ([Choice.valueOnly]: what a band where it stands can expect, against which its ways' draws are judged), and gives the ways its
+ * camp's terms ([planned], [CampTerms]). With no [record], it records nothing.
+ */
+class CampPolicy(private val record: ConcurrentLinkedQueue<Choice>? = null, private val rate: (Species) -> Float = { 0f }, private val week: () -> Int = { 0 },
+                 private val probes: ConcurrentHashMap<Int, MutableList<Choice>>? = null, private val season: () -> Float = { 0f },
+                 private val standing: ConcurrentHashMap<Int, Standing>? = null, private val steps: StepLog? = null) : HexPolicy {
+    override fun choose(g: HexGroup, features: Array<FloatArray>, baseline: FloatArray, rnd: kotlin.random.Random): Int {
+        val here = Critic.here(features)
+        if (g.band == null || features.isEmpty() || (record == null && standing == null && probes == null)) return here
+        val w = week()
+        val at = Probe(features[here].copyOf(HexFeatures.size), g.band?.state?.copyOf(), g.temper.copyOf(), Critic.groupState(g, season()))
+        standing?.set(g.id, Standing(w, at))
+        if (probes != null) seeAgain(probes, g.id, w, at, steps)
+        // (A band whose mind reckons by itself whether it leaves is not learnt from: see [MoverPolicy].)
+        if (record == null || g.band?.mind?.gate == MoveGate.RECKONED || rnd.nextFloat() >= rate(g.species)) return here
+        if (!at.features.allFinite() || !at.band.allFinite() || !at.temper.allFinite() || !at.group.allFinite()) { NonFinite.note(g.species, "group"); return here }
+        val c = Choice(g.species, g.id, g.size, w, arrayOf(at.features), 0, 0f).also { it.temper = at.temper; it.band = at.band; it.group = at.group; it.valueOnly = true }
+        record += c
+        probes?.computeIfAbsent(g.id) { ArrayList() }?.let { waiting -> synchronized(waiting) { waiting += c } }
+        return here
+    }
+    /** (The planner sets the camp by the hand-written rule, not by the score.) */
+    override fun readsBaseline(g: HexGroup) = false
+    override fun planned(g: HexGroup, chosen: FloatArray): FloatArray? = if (g.band == null) null else CampTerms.of(chosen)
 }
 
 /** Chooses with a [SharedMover], recording a share of its choices in [record] (null: the best, not sampled). */
@@ -204,9 +247,6 @@ class MoverPolicy(private val mover: SharedMover, private val record: Concurrent
                   private val stressBoost: Float = 0f,
                   /** The days the world's steps covered, to see a group again [Critic.bootDays] on whatever the steps' lengths; null: [Critic.boot] steps on. */
                   private val steps: StepLog? = null) : HexPolicy {
-    /** Whether [c] is due to see its group again in step [w]: the first step at least [Critic.bootDays] after it chose. */
-    private fun isDue(c: Choice, w: Int) = if (steps == null) c.week + Critic.boot(c.kind) == w else steps.reach(c.week, Critic.bootDays(c.kind)) == w - c.week
-
     private val scratch = ThreadLocal.withInitial { mover.Scratch() }
     /** The scores this thread's last [choose] worked out for a band, and which band: one that then explores asks for them again ([scores]). */
     private class Last { var id = -1; var scores: FloatArray? = null }
@@ -226,17 +266,8 @@ class MoverPolicy(private val mover: SharedMover, private val record: Concurrent
         val state = g.band?.state; val temper = g.temper
         if (standing != null && g.band != null && n > 0)
             standing[g.id] = Standing(week(), Probe(features[Critic.here(features)].copyOf(HexFeatures.size), state?.copyOf(), temper.copyOf(), Critic.groupState(g, season())))
-        if (probes != null) probes[g.id]?.let { waiting -> synchronized(waiting) {
-            val w = week()
-            val due = waiting.filter { isDue(it, w) }
-            if (due.isNotEmpty()) {
-                val p = Probe(features[Critic.here(features)].copyOf(HexFeatures.size), state?.copyOf(), temper.copyOf(), Critic.groupState(g, season()))
-                // (Where it then stood is unknown to the critic if any of it is not a number: its whole horizon counts as seen.)
-                val known = p.features.allFinite() && p.band.allFinite() && p.temper.allFinite() && p.group.allFinite()
-                if (known) for (c in due) c.probe = p
-                waiting.removeAll(due)
-            }
-        } }
+        if (probes != null && probes[g.id] != null)
+            seeAgain(probes, g.id, week(), Probe(features[Critic.here(features)].copyOf(HexFeatures.size), state?.copyOf(), temper.copyOf(), Critic.groupState(g, season())), steps)
         g.weighed = true
         val net = mover.netScores(g.species, features, state, temper, scratch.get())
         val scores = FloatArray(n) { k -> net[k] + mover.residual * baseline[k] + mover.pull(temper, features[k]) }
@@ -282,13 +313,6 @@ class MoverPolicy(private val mover: SharedMover, private val record: Concurrent
         record += c
         probes?.computeIfAbsent(g.id) { ArrayList() }?.let { waiting -> synchronized(waiting) { waiting += c } }
         return taken
-    }
-    override fun planned(g: HexGroup, chosen: FloatArray): FloatArray? {
-        if (g.band == null || mover.band == 0) return null
-        val input = FloatArray(mover.inputs)
-        val trunk = mover.plan(g.species, chosen, g.band?.state, g.temper, input, scratch.get().b)
-        standing?.get(g.id)?.let { if (it.week == week()) it.plan = input }
-        return trunk
     }
     /** (The hand-written score counts only through [SharedMover.residual], and in the choices recorded to learn from.) */
     override fun readsBaseline(g: HexGroup) = mover.residual != 0f || record != null
@@ -652,7 +676,12 @@ object HexPpo {
             val total = days + if (week == 0) burnDays else 0
             val end = if (lifeDays > 0) min(day + total, lifeDays) else day + total
             val season = { (day % DAYS_PER_YEAR).toFloat() / DAYS_PER_YEAR }
-            val policies = models.mapIndexed { i, m -> MoverPolicy(m, record, { s -> min(1f, (rates[s] ?: 0f) * perStep()) }, { week }, probes, season, if (ways != null && i == Role.PEOPLE.ordinal) standing else null,
+            // (People's camps are hand-written, their low ground (people's net major 11): no network chooses them, so their weeks are
+            // recorded for the critic alone, as many as the moves and the critic's extra share were, and their ways read the camp's terms.)
+            val policies = models.mapIndexed { i, m -> if (i == Role.PEOPLE.ordinal)
+                CampPolicy(record, { s -> min(1f, (rates[s] ?: 0f) * perStep() + min(Sampling.MAX_VALUE_SHARE, (valueRates[s] ?: 0f) * perStep())) }, { week }, probes, season,
+                    if (ways != null) standing else null, steps)
+                else MoverPolicy(m, record, { s -> min(1f, (rates[s] ?: 0f) * perStep()) }, { week }, probes, season, null,
                 { s -> min(Sampling.MAX_VALUE_SHARE, (valueRates[s] ?: 0f) * perStep()) }, sampling.stressBoost, steps) }
             for (s in kinds) run.groups.policies[s] = policies[role(s)]
             ways?.let { w -> run.groups.ways = WaysSampler(w, record, { waysRate }, { week }, cfg.seed, standing, probes, { day }, { run.stepDays }) }
@@ -742,7 +771,9 @@ object HexPpo {
      * its score in the run where its own role was learned, and in the hand-written run.
      */
     fun check(cfg: WorldConfig, years: Int, kinds: List<Species>, models: List<SharedMover>): Versus<Map<Species, Double>> {
-        val roles = kinds.map { role(it) }.distinct()
+        // (People's camps are hand-written (people's net major 11): only the roles whose network chooses are checked; people's kinds
+        // are left out of what is learned.)
+        val roles = kinds.map { role(it) }.distinct().filter { it != Role.PEOPLE.ordinal }
         // (The runs go side by side: the hand-written one, and one for each role learned.)
         val runs = (listOf(-1) + roles).parallelStream().map { r ->
             r to if (r < 0) handScore(cfg, years, kinds) else score(cfg, years, kinds) { run ->
@@ -750,7 +781,7 @@ object HexPpo {
             }
         }.toList().toMap()
         val hand = runs.getValue(-1)
-        return Versus(kinds.associateWith { s -> runs.getValue(role(s))[s] ?: 0.0 }, hand)
+        return Versus(kinds.filter { role(it) in roles }.associateWith { s -> runs.getValue(role(s))[s] ?: 0.0 }, hand)
     }
 
     /**

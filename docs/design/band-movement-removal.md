@@ -461,6 +461,23 @@ The new model runs behind a switch, `t.bandsStay`, until it is the default; pack
 - `ppo.moverKitWeight`, `ppo.waysPlaceWeight` and `ppo.waysTrainMover` lose their meaning for people.
 - The nets the other machine is training now on the variable step include a people mover. Its ways networks are what
   carries over.
+- **Done 2026-11-11 (people's net major 11).**
+  - **Camps:** a staying band whose ways a network sets still goes through the planner held to its hex, but the planner
+    sets its camp on the low ground, as `stayPlan` does for a band with no network. No network chooses low or high, so
+    hand and net bands no longer differ in where they camp.
+  - **People's policy:** `CampPolicy` replaces `MoverPolicy` for people. It stores the band's `Standing`, fills the
+    probes, and records a share of band-weeks for the people's critic alone (`valueOnly`), at the old move rate plus the
+    critic's extra share. It gives the ways the camp's own terms.
+  - **Ways inputs:** `CampTerms` is the chosen place's `HexFeatures` minus the slots that only compare a place with the
+    band's own (climb, effort, stays, same hex, the bearings, toward raid/salt/lacked, leaving house) and `STEP_LENGTH`.
+    The mover's units (`plan:0..`) are gone, and so is training the mover through the ways (`ppo.waysTrainMover` is no
+    longer read). An old `ways.mlp` loads by name: the `plan:` inputs are dropped and the `camp:` ones start at zero weight.
+  - **Band inputs:** `MOVE_KM`, `MOVE_DAYS` and `LOAD` are gone from `BandInputs`.
+  - **people.mlp** is kept, untrained, only because the people's critic reads its input layout (`SharedMover.fill`).
+    The trainer saves it and does not imitate it. Decoupling the critic from it is left for Phase 7.
+  - **Checks:** the per-role reference check covers hunters only. The ways check runs both arms with `CampPolicy`.
+  - **Training:** the ways network needs retraining from scratch (or from N3's ways without the `plan:` inputs) under
+    the new major.
 
 ### Phase 7: clean up, once the switch is the default
 
