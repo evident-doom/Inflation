@@ -48,6 +48,8 @@ fun main(args: Array<String>) {
 
     // What a span came to: events summed over it, states at its end.
     fun play(sim: HexSim, length: Int): Map<String, Double> {
+        // (A mark between the arms for any trace on stderr, forageDiag=KIND and the like.)
+        System.err.println("step-split: playing $days days at $length days a step")
         sim.stepDays = length
         val h = HexHistory()
         val fauna = sim.fauna; val nk = fauna.kinds.size
