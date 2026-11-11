@@ -51,6 +51,7 @@ internal fun carryRules(): Map<String, Pair<OnSplit, OnJoin>> {
     rule(OnSplit.COPIED, OnJoin.LOST, "lastUsed", "seasonPlace", "seasonQ", "monthSupply", "monthSupplySq", "supplyMonth", "supplySum", "supplyWeeks", "weekSupply", "weekYield", "weekWarmth", "weekMoved", "freeShare", "leanDays", "fatLow", "weeks", "traditions", "words", "rite", "riteStrength", "riteHeld", "riteKept", "beliefYears", "strain", "omenPlace", "omenMonth", "omenYear", "omenWeight", "deathsUsual", "wantSteps", "wantBroke", "wantUsual", "mind", "foreseenAt", "knownHomes", "knownLineage", "lastMet", "seenStrength", "seenDay", "newsYield", "newsAt", "newsNext")
     // (A person's days of larder: a split halves the larder and the people alike; a joining band's larder is added to its own.)
     rule(OnSplit.COPIED, OnJoin.BLENDED, "larderSeen")
+    rule(OnSplit.COPIED, OnJoin.BLENDED, "unevenness")
     // (What its people foresaw: a joining band's people bring theirs.)
     rule(OnSplit.COPIED, OnJoin.BLENDED, "foreseenShares")
     // Health.

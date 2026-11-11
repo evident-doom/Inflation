@@ -587,6 +587,7 @@ internal fun HexGroups.cultureWeek(g: HexGroup, rnd: kotlin.random.Random) {
             if (hex.distanceKm(h, here) > REMEMBERED_KM && rnd.nextFloat() < 0.5f * routes.forgetShare(h)) b.known[w] = b.known[w] and (1L shl i).inv() } }
     }
     b.inbred += (1f - b.inbred) / (2f * max(2, g.adults)) * years / GENERATION_YEARS
+    unevenYear(g, b)
     val keep = exp(-years / HEARD_YEARS)
     for (t in Tradition.entries) b.heard[t] *= keep
     b.heardOf *= keep
@@ -621,6 +622,44 @@ internal fun HexGroups.cultureWeek(g: HexGroup, rnd: kotlin.random.Random) {
         }
     }
 }
+
+/**
+ * [b]'s [Band.unevenness] over the step: it grows as the food the band keeps back ([keptDays]) would let some of its people
+ * do better than others, by [UNEVEN_GROWTH] a year at most, a kept store of [UNEVEN_HALF_DAYS] days giving half of that,
+ * and is levelled at [UNEVEN_LEVEL] a year, [UNEVEN_LEVEL_SHARING] where the band holds to sharing on demand ([Tradition.SHARING]).
+ * So it settles where the two meet: low among foragers who keep little, higher among farmers and herders who keep much and
+ * do not share it.
+ */
+internal fun GroupWorld.unevenYear(g: HexGroup, b: Band) {
+    val kept = keptDays(g, b)
+    val grow = UNEVEN_GROWTH * kept / (kept + UNEVEN_HALF_DAYS) * (1f - b.unevenness)
+    val level = (if (b.holds(Tradition.SHARING)) UNEVEN_LEVEL_SHARING else UNEVEN_LEVEL) * b.unevenness
+    b.unevenness = (b.unevenness + (grow - level) * years).coerceIn(0f, 1f)
+}
+
+/**
+ * The food [g]'s band [b] keeps back, in days of its people's need: its stores (seed corn among them) and the meat of its kept
+ * animals on the hoof ([MEAT_SHARE]). What a household could hold apart from the others, were there households.
+ */
+internal fun GroupWorld.keptDays(g: HexGroup, b: Band): Float {
+    var kg = g.stores.sum()
+    for (k in b.herds.herd.indices) {
+        val n = b.herds.herd[k] + b.herds.youngHerd().getOrElse(k) { 0f } * HexFauna.YOUNG_WEIGHT
+        if (n > 0f) kg += n * fauna.kinds[k].massKg * MEAT_SHARE * Nourishment.MEAT * g.species.needScale
+    }
+    return kg / g.dailyNeedKg.coerceAtLeast(1e-3f)
+}
+
+/**
+ * [unevenYear]'s rates. Estimates, none sourced, set so that bands that keep half a year's food and do not share settle near
+ * 0.45 (the material-wealth Gini of farmers and herders, about 0.4-0.5, Borgerhoff Mulder and others 2009, from memory), the
+ * same sharing near 0.2, and foragers keeping some ten days near 0.1 or less (foragers' about 0.25-0.35 in all, much of it
+ * between bands).
+ */
+internal const val UNEVEN_GROWTH = 0.6f
+internal const val UNEVEN_HALF_DAYS = 90f
+internal const val UNEVEN_LEVEL = 0.5f
+internal const val UNEVEN_LEVEL_SHARING = 2f
 
 /** Where most of [g]'s dead lie, of the places it remembers ([PlaceMemory.deadAt]); none if it remembers no graves. */
 internal fun ancestorsHex(g: HexGroup): Hex {
