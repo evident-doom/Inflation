@@ -515,6 +515,13 @@ class Census(private val sim: HexSim) {
     }
 
     /** Kills robbed over the year, from [metYear] (the year's meeting tallies summed over its weeks): by and from each hunting kind, kills and kg. Report only. */
+    /** The year's farming counts from [metYear]: bands that sowed, sowed pulses, built pens, and band-weeks spreading dung on their fields. */
+    fun printFarming(metYear: Map<TallyKey, Int>) {
+        fun met(m: Met) = metYear[m.key] ?: 0
+        println("     farming over the year: band-weeks sowing %d, of them with pulses %d; pens built (band-weeks) %d; band-weeks manuring fields %d".format(
+            met(Met.BANDS_SOWED), met(Met.BANDS_SOWED_PULSES), met(Met.BANDS_BUILT_PENS), met(Met.BANDS_MANURED_FIELDS)))
+    }
+
     fun printKillsStolen(metYear: Map<TallyKey, Int>) {
         fun met(m: Met.Of, s: Species) = metYear[m.tally(s.name)] ?: 0
         println("     kills stolen over the year (by: kills, kg / from: kills, kg): " + groups.kinds.filter { it.carnivore && !it.human }.joinToString(", ") { s ->
