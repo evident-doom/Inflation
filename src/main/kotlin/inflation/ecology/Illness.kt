@@ -19,8 +19,14 @@ import kotlin.math.min
  * these sicknesses for ages: the first year is not a plague year).
  */
 enum class Illness(override val label: String, val weeks: Float, val deadly: Float, val young: Float, val contagion: Float, val immuneYears: Float, val endemic: Float) : DeathReason {
-    /** Dysentery and its kin: fouled water and long-kept camps, worst in the warm months and in crowds. */
-    FLUX("the flux", 3f, 0.03f, 3f, 0.25f, 2f, 0.4f),
+    /**
+     * Dysentery and its kin: fouled water and long-kept camps, worst in the warm months and in crowds. Of those who fall
+     * ill, 1% of the grown and 3% of children die: shigellosis killed 0-2.6% of cases in population-based studies in low
+     * and middle income countries, most of them children (Ram et al. 2008, Epidemiol. Infect. 136: 577-603); it was 3%,
+     * above the record, and where bands meet often, when the flux is caught at meetings and comes back as the spared forget
+     * it, that set its deaths at some 15 a 1000 a year (flux716, 11 Nov 2026) against the 2-7 of [FLUX_RATE]'s record.
+     */
+    FLUX("the flux", 3f, 0.01f, 3f, 0.25f, 2f, 0.4f),
     /** Malaria: carried by the mosquitoes about the camp in the warm months; not caught from one another. */
     MARSH_FEVER("marsh fever", 6f, 0.04f, 3f, 0f, 4f, 0.3f),
     /** A virulent cough that runs from band to band, worst in winter and at gatherings, and can empty a camp. */
