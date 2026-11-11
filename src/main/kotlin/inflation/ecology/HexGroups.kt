@@ -86,8 +86,6 @@ class HexGroups(
     @Transient internal var stepNow = 0
     /** Bands driven from their homes this step ([driveOff]), with the raiders' home hex: they scatter after the step's raids ([scatterBeaten]). */
     @Transient internal val beaten = ArrayList<Pair<HexGroup, Hex>>()
-    /** The hex each band last left because it could not live through the season there ([leaveFailingGround]), and the day it left (not saved). */
-    @Transient internal val fledFrom = HashMap<Int, Pair<Hex, Long>>()
     internal var nextId = 0
     /**
      * The kinds that live as groups: the hunters other than the residents' ([Catalogue.residentHunters]), and people (plant-eaters

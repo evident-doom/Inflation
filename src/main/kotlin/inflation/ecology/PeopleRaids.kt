@@ -99,7 +99,7 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
             .minWith(compareByDescending<Int> { wary.getValue(it) }.thenBy { hexKm(here, b.knownHomes.getValue(it)) }.thenBy { it })
         val at = b.knownHomes.getValue(best)
         stats.meeting(Met.RAIDS_SET_OUT)
-        if (fledFrom.containsKey(g.id)) stats.meeting(Met.RAIDS_SET_OUT_BY_FLED)
+        if (g.band?.fledHex?.none == false) stats.meeting(Met.RAIDS_SET_OUT_BY_FLED)
         // (A band that holds its home hex sends its fighters and stays: the raid is fought this step if the others are at the
         // home it knows, else it comes to nothing, as a band walking there finds it empty. Its fighters' walk there and back,
         // the whole day's going each way, is taken from its next step's days, [Band.raidWalkOwed].)

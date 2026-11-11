@@ -363,9 +363,12 @@ class Band(kinds: Int, totems: Int = kinds) {
     /**
      * The same in a bad year, as its years have gone ([YearAhead.leanDaysBad]): what it lays by against (Olli 2026-11-11: as long
      * as it has room to keep food, the means to keep it and free time, a band prepares for the worst, not the usual; the limits
-     * come from nature and time). Not saved: until its next foresight, [leanDays].
+     * come from nature and time). NaN until its first foresight: [leanDays] then.
      */
-    @Transient var leanDaysBad = Float.NaN
+    var leanDaysBad = Float.NaN
+    /** The hex it last left because it could not live through the season there ([leaveFailingGround]), and the day it left. */
+    var fledHex = Hex.NONE
+    var fledDay = 0L
     /** The lowest its people's reserves fell since the year's spreading, a share of full ([wantsFood]; [spreadYear] starts it afresh). */
     var fatLow = 1f
     /**
@@ -869,7 +872,7 @@ class Band(kinds: Int, totems: Int = kinds) {
     fun splitInto(o: Band, adults: Int, stay: Int, share: Float, r: Random, copied: (Band) -> Unit) {
         o.ties.clear(); o.ties.putAll(ties); o.appointment = appointment
         o.houseHex = houseHex; o.house = house; o.drivenFrom = drivenFrom; o.drivenBy = drivenBy; o.homeEarth = homeEarth; o.homeWalls = homeWalls; o.homeGroundC = homeGroundC; o.palisade = palisade
-        o.houseLives = houseLives; o.houseFood = houseFood; foodFrom.copyInto(o.foodFrom); o.fishPull = fishPull; o.weirFood = weirFood; o.weirTend = weirTend; toolWork.copyInto(o.toolWork); heldShare.copyInto(o.heldShare); monthSupply.copyInto(o.monthSupply); monthSupplySq.copyInto(o.monthSupplySq); o.supplyMonth = supplyMonth; o.supplySum = supplySum; o.supplyWeeks = supplyWeeks; o.larderSeen = larderSeen; weekSupply.copyInto(o.weekSupply); weekYield.copyInto(o.weekYield); weekWarmth.copyInto(o.weekWarmth); weekMoved.copyInto(o.weekMoved); freeShare.copyInto(o.freeShare); o.leanDays = leanDays; o.fatLow = fatLow; o.unevenness = unevenness
+        o.houseLives = houseLives; o.houseFood = houseFood; foodFrom.copyInto(o.foodFrom); o.fishPull = fishPull; o.weirFood = weirFood; o.weirTend = weirTend; toolWork.copyInto(o.toolWork); heldShare.copyInto(o.heldShare); monthSupply.copyInto(o.monthSupply); monthSupplySq.copyInto(o.monthSupplySq); o.supplyMonth = supplyMonth; o.supplySum = supplySum; o.supplyWeeks = supplyWeeks; o.larderSeen = larderSeen; weekSupply.copyInto(o.weekSupply); weekYield.copyInto(o.weekYield); weekWarmth.copyInto(o.weekWarmth); weekMoved.copyInto(o.weekMoved); freeShare.copyInto(o.freeShare); o.leanDays = leanDays; o.leanDaysBad = leanDaysBad; o.fledHex = fledHex; o.fledDay = fledDay; o.fatLow = fatLow; o.unevenness = unevenness
         o.seedDomestic = seedDomestic; o.grainDomestic = grainDomestic; o.seedCorn = seedCorn * share; seedCorn -= o.seedCorn; o.sinceRaided = sinceRaided; o.sisu = sisu
         o.knownHomes.putAll(knownHomes); o.homesVersion++; o.knownLineage.putAll(knownLineage); o.lastMet.putAll(lastMet); newsYield.copyInto(o.newsYield); newsAt.copyInto(o.newsAt); o.newsNext = newsNext
         skills.copyInto(o.skills)

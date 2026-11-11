@@ -442,7 +442,7 @@ internal fun HexGroups.leaveFailingGround(weather: Weather, date: Date) {
         val hereHead = hexFood(h) / max(1f, ppl[h.i])
         if (hereHead <= 0f) continue
         val effort = planner.stepEffort(Catalogue.travel(g.species).ordinal, hw.placeBand[g.place], weather)
-        val fled = fledFrom[g.id]?.takeIf { today - it.second < FLED_KEEP_DAYS }?.first
+        val fled = if (today - b.fledDay < FLED_KEEP_DAYS) b.fledHex else Hex.NONE
         val year = yearAhead(g, b, weather)
         val larderDays = g.larder / g.dailyNeedKg
         var best = Hex.NONE; var bestAlive = stay
@@ -465,7 +465,7 @@ internal fun HexGroups.leaveFailingGround(weather: Weather, date: Date) {
             b.homeEarth = 0f; b.homeWalls = 0f; b.homeGroundC = 0f
         }
         ppl[h.i] -= g.size; ppl[best.i] += g.size
-        fledFrom[g.id] = h to today
+        b.fledHex = h; b.fledDay = today
         g.place = hw.firstPlaceIn(best)
         stats.meeting(Met.BANDS_LEFT_FAILING_GROUND)
         note(g) { "foresaw %.2f alive at hex %d; left for hex %d (%.2f)".format(stay, h.i, best.i, bestAlive) }
