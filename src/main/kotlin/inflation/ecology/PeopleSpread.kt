@@ -404,7 +404,7 @@ internal fun HexGroups.scatterBeaten(date: Date): List<HexGroup> {
  */
 internal fun HexGroups.foodQuarterOf(h: Hex): Tally.FoodQuarter {
     val cuts = foodCuts ?: run {
-        val food = hex.all.filter { hw.land[it] > 0.5f }.map { hexFood(it) }.sorted()
+        val food = hex.all.filter { hw.land[it.i] > 0.5f }.map { hexFood(it) }.sorted()
         if (food.size < 4) FloatArray(3) { Float.MAX_VALUE } else FloatArray(3) { k -> food[(k + 1) * food.size / 4] }
     }.also { foodCuts = it }
     val f = hexFood(h)
