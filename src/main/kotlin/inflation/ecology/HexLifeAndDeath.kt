@@ -779,6 +779,9 @@ private fun HexGroups.becomeOne(date: Date) {
             if (!a.alive || !c.alive || inParty(a) || inParty(c)) continue
             if (a.size + c.size > min(easySize(a), easySize(c))) continue
             if (alike(Regard(ab, c.id, cb, map = hex)) < ONE_GROUP || alike(Regard(cb, a.id, ab, map = hex)) < ONE_GROUP) continue
+            // (Bands whose food kept a head lies far apart do not feel one group: richer and poorer stay apart, [WEALTH_APART].)
+            val ka = keptDays(a, ab); val kc = keptDays(c, cb)
+            if (max(ka, kc) > WEALTH_APART * min(ka, kc) + 1f) { stats.meeting(Met.BANDS_KEPT_APART_BY_WEALTH); continue }
             val (into, from) = if (a.size >= c.size) a to c else c to a
             joinBand(into, from, stepOf(date))
             stats.meeting(Met.BANDS_BECAME_ONE)
