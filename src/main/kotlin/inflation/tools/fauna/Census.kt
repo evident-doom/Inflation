@@ -679,6 +679,16 @@ class Census(private val sim: HexSim) {
                     v(Tally.Bands.FED) / 1000 / pw.coerceAtLeast(1.0), v(Tally.Bands.FAT) / 10 / v(Tally.Bands.BAND_WEEKS).coerceAtLeast(1.0),
                     1000 * v(Tally.Bands.BORN) / years, 1000 * died.values.sum() / years, top)
             })
+        // (By season: what was foraged against what was wanted, and the share each source brought of it.)
+        println("     bands' foraging by food quarter and season, last year (foraged of want %; shares of what was foraged %: " +
+            Tally.QuarterFood.entries.drop(1).joinToString("/") { it.label } + "): " + Tally.FoodQuarter.entries.joinToString("; ") { q ->
+                q.label + ": " + inflation.world.Season.entries.joinToString(", ") { sea ->
+                    fun v(f: Tally.QuarterFood) = (lastYear[Tally.bandsFoodQSeason(q, sea, f)] ?: 0).toDouble()
+                    val got = Tally.QuarterFood.entries.drop(1).sumOf { v(it) }
+                    "%s %.0f%% (%s)".format(sea.name.lowercase(), 100 * got / v(Tally.QuarterFood.ASKED).coerceAtLeast(1.0),
+                        Tally.QuarterFood.entries.drop(1).joinToString("/") { "%.0f".format(100 * v(it) / got.coerceAtLeast(1.0)) })
+                }
+            })
     }
 
     /** Bands by kind of country over the last year ([lastYear]'s tallies): how many, how they fed and on what, how they lived and died. */

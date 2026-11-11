@@ -668,6 +668,9 @@ object Tally {
     fun bandsFoodQ(q: FoodQuarter, what: Bands) = TallyKey.raw("bands food quarter ${q.label}:${what.label}")
     fun bandsFoodQDied(q: FoodQuarter, cause: DeathReason) = ofCause(bandsFoodQDied(q), cause)
     fun bandsFoodQDied(q: FoodQuarter) = TallyKey.raw("bands food quarter ${q.label}:$DIED_OF")
+    /** What bands of a food quarter foraged in a season, need-kg: what they wanted ([QuarterFood.ASKED]) and what each source brought. */
+    enum class QuarterFood(val label: String) { ASKED("asked"), MEAT("meat"), FISH("fish"), FRUIT("fruit"), MAST("mast"), ROOTS("bulbs and roots"), SEED("seed and grain"), FINDS("small finds") }
+    fun bandsFoodQSeason(q: FoodQuarter, s: inflation.world.Season, f: QuarterFood) = TallyKey.raw("bands food quarter ${q.label} ${s.name.lowercase()}:${f.label}")
     /**
      * What thatching on to the full would have done, by the survival pass's own reckoning, in the band-weeks it stopped short
      * ([WEEKS]): deaths averted this week of exposure and of hunger and through the year after, people, 1/10000 (a negative
