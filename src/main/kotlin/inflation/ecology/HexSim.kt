@@ -98,7 +98,7 @@ class HexSim(
     fun step() {
         // (What changed between steps, as a save loaded into the world or the viewer's hand, is charged to that.)
         books?.check("between steps")
-        stats.clear()
+        stats.clear(); fauna.bornThisWeek.fill(0.0)
         clock.days = stepDays
         weather.beginStep()
         // (Test, variable-step thread 2026-11-11: over a step of several ticks the residents and small life take each tick as
