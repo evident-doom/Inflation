@@ -15,6 +15,7 @@ import inflation.world.get
 import inflation.world.Hex
 import inflation.world.set
 import inflation.world.Weather
+import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -255,6 +256,13 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         if (time != null) f = min(f, time.leftFor(Activity.FOOD) / (w.hands * w.workDays).coerceAtLeast(1e-6f))
         // (A beast's party keeps no plan of its days: each pass has only the days the passes before it left.)
         else if (w.band == null) f = min(f, max(0f, w.workDays - w.busy - w.searchUsed) / w.workDays.coerceAtLeast(1e-6f))
+        // (A beast's pass plans on what it can expect to eat of what it kills ([passEaten]), and counts that, not the kills'
+        // worth, as what the pass was expected to feed it ([ForageWeek.killLuck]).)
+        if (w.band == null && f > 0f) {
+            f = eatenPlan(w, o, intake, f, left)
+            if (time == null) f = min(f, max(0f, w.workDays - w.busy - w.searchUsed) / w.workDays.coerceAtLeast(1e-6f))
+            w.killLuck += w.workDays * intake * f - passEaten(w, o, intake, f)
+        }
         val busy0 = w.busy
         if (pass == 0) w.searched = f
         if (HUNT_DIAG && w.band == null) { w.passes++; w.searchDays += f * w.workDays }
@@ -287,6 +295,47 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     if (HUNT_DIAG && w.band == null) packWeekDiag(w)
     preyFoughtBack(g, w.foughtBack, w.rnd)
     eatTheWeek(w)
+}
+
+/**
+ * The share of its work days, [f] or more, a beast's pass must hunt for what it can expect to eat of it ([passEaten]) to make
+ * up the [left] it lacks, kg of need; all of them if even those fall short. (Olli 2026-11-11, "plan on expected eaten food":
+ * planned on its kills' worth, weekly leopards ate 0.93 of their want and died out, at any rate of kills, luck718.)
+ */
+private fun eatenPlan(w: ForageWeek, o: Offers, intake: Float, f: Float, left: Float): Float {
+    if (passEaten(w, o, intake, f) >= left) return f
+    if (passEaten(w, o, intake, 1f) < left) return 1f
+    var lo = f; var hi = 1f
+    repeat(20) { val mid = 0.5f * (lo + hi); if (passEaten(w, o, intake, mid) >= left) hi = mid else lo = mid }
+    return hi
+}
+
+/**
+ * What a beast can expect to eat of a pass at [f] of its work days, kg of need ([intake]: its food a work day at the rates of
+ * the foods it took up), as far as it has room to eat this step ([ForageWeek.eatRoom]): its foods other than big game as they
+ * come, and its kills whole, so many or none (Poisson, as [huntGame] draws them), each at the mean worth of one, what a lucky
+ * pass kills beyond its room left uneaten.
+ */
+private fun passEaten(w: ForageWeek, o: Offers, intake: Float, f: Float): Float {
+    var kills = 0f; var food = 0f
+    for (r in 0 until o.used) { val i = o.order[r]
+        if (o.type[i] != Food.BIG_GAME) continue
+        val e = w.workDays * o.rate[i] / o.spent[o.who[i]] * f; kills += e; food += e * o.value[i] }
+    val room = max(0f, w.eatRoom - w.fed)
+    val other = min(max(0f, w.workDays * intake * f - food), room)
+    if (kills <= 0f || food <= 0f) return other
+    val each = food / kills
+    return other + each * poissonMinMean(kills, (room - other) / each)
+}
+
+/** The mean of min(K, [n]) for K Poisson with mean [mean]. */
+internal fun poissonMinMean(mean: Float, n: Float): Float {
+    if (n <= 0f || mean <= 0f) return 0f
+    val whole = min(n.toInt(), 1000)
+    var p = exp(-mean.toDouble()); var below = p; var sum = 0.0
+    for (j in 0 until whole) { sum += max(0.0, 1.0 - below); p *= mean / (j + 1); below += p }
+    if (whole == n.toInt()) sum += (n - whole) * max(0.0, 1.0 - below)
+    return sum.toFloat()
 }
 
 /** Notes in [w], from the first pass's take-up [o], the hunters' hands that took up no food and the gatherers' foods ranked out (for [countHungryWeek]). */
@@ -572,6 +621,12 @@ internal class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, pack
     // the fat a lean season draws on. (It was left to the last kill's overshoot of the want, the step's lumpiness: beasts laid
     // fat on at the weekly step and almost none at 60 days, leopards' hunger deaths 6% against 37%; leo692c, plan 52.B.5.)
     private val fatAim = if (band != null) 0f else gs.tuning.packFatAim * min(max(0f, gutKg - wantAll) * feeds(Food.BIG_GAME),
+        max(0f, s.maxFatDays - g.fat) / FAT_EFFICIENCY * g.dailyNeedKg)
+    /**
+     * The most a beast can eat this step, kg of need: its want, and what it can gorge beyond as far as its gut holds and its
+     * fat has room ([eatTheWeek]); what its kills bring beyond that is left. Not a band's: it keeps what it does not eat.
+     */
+    val eatRoom = wantAll + if (band != null) 0f else min(max(0f, gutKg - wantAll) * feeds(Food.BIG_GAME),
         max(0f, s.maxFatDays - g.fat) / FAT_EFFICIENCY * g.dailyNeedKg)
     val aim = forageWant + fatAim + (band?.let { b -> gs.storeWork(g, b).also { v -> gs.dialUse?.let { u -> countStoreWork(u, g, b, v) } } } ?: 0f)
     // What it weighs a kg of each food at in its choice: what it feeds, the part of the week's work that is for the stores
