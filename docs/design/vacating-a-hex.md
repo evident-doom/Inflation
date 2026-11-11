@@ -1,6 +1,8 @@
 # Vacating a hex: defeat, sudden danger, ruin
 
-Status: proposal, 2026-11-11. Nothing built. Asked by Olli in the survival thread: bands no longer move
+Status: 2026-11-11. Section 3 (defeat) built in `scatterBeaten` (PeopleSpread.kt); the rest is proposal. Census vacate710
+(main 48b83a5f, m5-1..3, 10 y): 0.1-0.3 bands driven from home per 100 bands a year; fire, flood, snow each under 1 death
+per 1000 people a year (exposure up to 7.2, hunger up to 5.4). Asked by Olli in the survival thread: bands no longer move
 (t.bandsStay, [band-movement-removal.md](band-movement-removal.md)), but sometimes a band must leave its hex quickly. How,
 in the current model? And what does losing a fight actually lead to, setting the hex size aside?
 
@@ -59,7 +61,7 @@ palisade if they have one. Leaving follows a loss that makes staying deadlier th
 
 When a band is beaten at home (`driveOff`), or loses more than a share of its grown people in one raid:
 
-1. **Households go to kin.** A share of its households leave as parties (`splitOff`) for the nearest kin band within
+1. **Households go to kin.** A share of its households (built: a fixed `DEFEAT_SCATTER` 0.3, an estimate) leave as parties (`splitOff`) for the nearest kin band within
    `VISIT_RINGS` that is not the raiders' ally; a party too small to live alone joins them (`mergeAndPair`, as
    `spreadYear` already does). The share grows with the loss. The refugees count in their hosts' hex for the
    one-band-per-hex rule as part of the host band, so the rule holds.

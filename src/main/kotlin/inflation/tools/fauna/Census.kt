@@ -1339,9 +1339,9 @@ class Census(private val sim: HexSim) {
         println("     rites' year: %d held, %d cut short (%.0f%% held; %d of those held in a lesser form, %d moved to a month of plenty; %d meetings at rites held together, %d of them broken by a raid; %d bands with sickness kept away); omens marked: %d death tolls, %d plenty after want, %d strange signs; %d rites born of them; %d bands split over their belief"
             .format(held, cut, 100.0 * held / (held + cut).coerceAtLeast(1), met(Met.BANDS_HELD_A_RITE_IN_A_LESSER_FORM), met(Met.BANDS_MOVED_A_RITE_TO_A_BETTER_MONTH), met(Met.BANDS_GATHERED_AT_A_RITE), met(Met.RAIDS_ON_HOLY_GROUND), met(Met.SICK_BANDS_KEPT_FROM_A_RITE), met(Met.BANDS_MARKED_A_DEATH_TOLL), met(Met.BANDS_MARKED_PLENTY_AFTER_WANT),
                 met(Met.BANDS_MARKED_A_STRANGE_SIGN), met(Met.BANDS_BORE_A_RITE), met(Met.BANDS_SPLIT_OVER_THEIR_BELIEF)))
-        println("     raids' year: %d at meetings, %d on homes; %d raided bands slipped away, %d larders taken, %d bands driven from their homes; %d times neighbours stood with the raided"
+        println("     raids' year: %d at meetings, %d on homes; %d raided bands slipped away, %d larders taken, %d bands driven from their homes (%d moved a hex away, %d households went to kin, %d joined kin whole); %d times neighbours stood with the raided"
             .format(met(Met.RAIDS), met(Met.RAIDS_ON_HOMES), met(Met.RAIDED_BANDS_SLIPPED_AWAY), met(Met.LARDERS_RAIDED), met(Met.BANDS_DRIVEN_FROM_HOME),
-                met(Met.NEIGHBOURS_DEFENDED)))
+                met(Met.BEATEN_BANDS_MOVED_AWAY), met(Met.BEATEN_HOUSEHOLDS_TO_KIN), met(Met.BEATEN_BANDS_JOINED_KIN), met(Met.NEIGHBOURS_DEFENDED)))
         // (The violence between bands against the record: people killed in raids a year per 1000, of bands living fixed and of
         // bands on the move, as they stand now; the record of mobile foragers has few killed between bands, early farmers many more.)
         run {

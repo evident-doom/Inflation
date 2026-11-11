@@ -170,6 +170,8 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
     groups += born
     // (Once a year, crowded hexes ease into the roomier hexes beside, [spreadYear].)
     if (date.holdsMonthStart(days, 0)) groups += spreadYear()
+    // (Bands driven from their homes in the raids leave the hex: [scatterBeaten].)
+    groups += scatterBeaten(date)
     tallyVillages()
     wornWeek(days)
     tendParties(date)
