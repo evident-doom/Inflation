@@ -1,6 +1,7 @@
 package inflation.tools
 
 import inflation.Args
+import inflation.ecology.Fed
 import inflation.ecology.HexHistory
 import inflation.ecology.HexSim
 import inflation.ecology.HexSnapshot
@@ -49,12 +50,27 @@ fun main(args: Array<String>) {
     fun play(sim: HexSim, length: Int): Map<String, Double> {
         sim.stepDays = length
         val h = HexHistory()
+        val fauna = sim.fauna; val nk = fauna.kinds.size
+        // (Which resident hunter killed which resident, and what the residents ate, over the span only.)
+        for (a in fauna.killsByHunter) a.reset()
+        for (ff in fauna.fedFrom) for (a in ff) a.reset()
         repeat(days / length) { sim.step(); h.record(sim) }
-        return h.keys().associateWith { k ->
+        val got = HashMap(h.keys().associateWith { k ->
             val s = h.series.getValue(k)
             if (h.isFlow(k)) { var sum = 0.0; for (i in 0 until s.size) if (!s[i].isNaN()) sum += s[i]; sum }
             else { var v = Double.NaN; for (i in 0 until s.size) if (!s[i].isNaN()) v = s[i].toDouble(); v }
+        })
+        for (i in 0 until nk * nk) {
+            val kills = fauna.killsByHunter[2 * i].sum() + fauna.killsByHunter[2 * i + 1].sum()
+            if (kills > 0.0) got[KILLS_BY + fauna.kinds[i / nk].name + " > " + fauna.kinds[i % nk].name] = kills
         }
+        for (k in 0 until nk) {
+            val ff = fauna.fedFrom[k]; val heads = ff[Fed.HEADS.ordinal].sum()
+            if (heads <= 0.0) continue
+            for (f in listOf(Fed.PLANTS, Fed.MEAT, Fed.SMALL_PREY, Fed.CARRION, Fed.RESERVES))
+                got[FED_FROM + fauna.kinds[k].name + "/" + f.name.lowercase()] = ff[f.ordinal].sum() / heads
+        }
+        return got
     }
     fun fork(snap: File, length: Int, reseed: Long = 0L): Map<String, Double> {
         val sim = HexSim(WorldCache.load(entry.config) { }, uniformStart = false)
@@ -88,6 +104,11 @@ fun main(args: Array<String>) {
     outFile?.let { f -> f.parentFile?.mkdirs(); f.writeText(lines.joinToString("\n", postfix = "\n")) }
 }
 
+/** Extra series beside [HexHistory]'s: resident hunter > resident kills over the span (heads), and each resident kind's food
+ * by source as a share of its need, heads-weighted over the span's steps ([inflation.ecology.HexFauna.fedFrom]). */
+private const val KILLS_BY = "kills by/"
+private const val FED_FROM = "fed from/"
+
 /**
  * The series of [got] whose 6-day value is at least [least] (or any head count), as the 6-day value and every other arm's
  * difference from it in %; largest difference among the step lengths first.
@@ -96,7 +117,8 @@ private fun report(title: String, arms: List<String>, got: Map<String, Map<Strin
     val base = got.getValue(arms[0])
     val keys = base.keys.filter { k ->
         val v = base[k] ?: Double.NaN
-        !v.isNaN() && (HexHistory.Key.animalKind(k) != null && v > 0.0 || HexHistory.Key.isFlow(k) && v >= least)
+        !v.isNaN() && (HexHistory.Key.animalKind(k) != null && v > 0.0 || (HexHistory.Key.isFlow(k) || k.startsWith(KILLS_BY)) && v >= least ||
+            k.startsWith(FED_FROM) && v >= 0.01)
     }
     fun pct(arm: String, k: String): Double { val b = base.getValue(k); val v = got[arm]?.get(k) ?: return Double.NaN; return if (b == 0.0) Double.NaN else 100.0 * (v - b) / b }
     val lengthArms = arms.drop(1).filter { it.matches(Regex("\\d+ d")) }
