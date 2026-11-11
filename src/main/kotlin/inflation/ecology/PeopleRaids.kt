@@ -256,7 +256,7 @@ internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planne
     if (sg > so) { val t = RAID_TAKE * o.larder; moveFood(o, g, t, LarderMove.RAIDED); stats.meeting(Met.LARDERS_RAIDED) }
     // A band beaten at its home may be driven from it, the likelier the more the raiders overpower it (none when they are
     // only as strong; Wrangham and Glowacki 2012: victors drove the defeated off their land in most non-state wars).
-    if (ob.atHome && sg > so && rnd.nextFloat() < 1f - so / sg) driveOff(o, ob, b)
+    if (ob.atHome && sg > so && rnd.nextFloat() < 1f - so / sg) driveOff(o, ob, b, hw.placeHex[g.place])
     ob.grudge[b.mainLineage()] += GRUDGE
     ob.befriend(g.id, -TIE_RAID); b.befriend(o.id, -RAIDER_RESENT * TIE_RAID)
     if (lostG > 0) b.grudge[ob.mainLineage()] += RAIDER_RESENT * GRUDGE
@@ -265,10 +265,11 @@ internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planne
 }
 
 /**
- * Band [o] ([ob]) is driven from its home by raiders of band [by]: it leaves its houses and palisade to whoever takes them up,
- * and while it fears the raiders' people it neither takes up houses there again nor seeks the place ([Band.keptFrom]).
+ * Band [o] ([ob]) is driven from its home by raiders of band [by], whose home is hex [byHex]: it leaves its houses and palisade
+ * to whoever takes them up, and while it fears the raiders' people it neither takes up houses there again nor seeks the place
+ * ([Band.keptFrom]). A band that holds its home hex ([staysHome]) leaves the hex too, after the step's raids ([scatterBeaten]).
  */
-private fun HexGroups.driveOff(o: HexGroup, ob: Band, by: Band) {
+private fun HexGroups.driveOff(o: HexGroup, ob: Band, by: Band, byHex: Hex) {
     val h = ob.houseHex
     leaveStructures(o, h)
     ob.drivenFrom = h; ob.drivenBy = by.mainLineage()
@@ -276,6 +277,7 @@ private fun HexGroups.driveOff(o: HexGroup, ob: Band, by: Band) {
     ob.homeEarth = 0f; ob.homeWalls = 0f; ob.homeGroundC = 0f
     stats.meeting(Met.BANDS_DRIVEN_FROM_HOME)
     note(o) { "was driven from its home at hex %d".format(h.i) }
+    if (staysHome(o)) beaten += o to byHex
 }
 
 /**

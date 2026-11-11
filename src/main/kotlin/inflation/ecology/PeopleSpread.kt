@@ -150,7 +150,7 @@ internal fun HexGroups.findHome(n: HexGroup, born: List<HexGroup>) {
     var empty = Hex.NONE; var emptyFood = 0f
     for (d in 0 until 6) {
         val q = hex.neighbour(from, d)
-        if (q.none || hw.placesOf(q).isEmpty() || people[q.i] > 0f) continue
+        if (q.none || hw.placesOf(q).isEmpty() || people[q.i] > 0f || shuns(n, q)) continue
         val f = hexFood(q)
         if (f > emptyFood) { emptyFood = f; empty = q }
     }
@@ -167,7 +167,7 @@ internal fun HexGroups.findHome(n: HexGroup, born: List<HexGroup>) {
         ring = hex.nextRing(ring, seen); keep *= SPREAD_RING_KEEP
         var ringV = 0f
         for (h in ring) {
-            if (hw.placesOf(h).isEmpty()) continue
+            if (hw.placesOf(h).isEmpty() || shuns(n, h)) continue
             val v = hexFood(h) / (people[h.i] + own)
             if (!wanting[h.i] && v > ringV) { ringV = v; best = hw.firstPlaceIn(h) }
             if (keep * v > fallbackV) { fallbackV = keep * v; fallback = hw.firstPlaceIn(h) }
@@ -218,7 +218,7 @@ internal fun HexGroups.spreadYear(date: Date): List<HexGroup> {
         var best = Hex.NONE; var bestV = 0f
         for (d in 0 until 6) {
             val q = hex.neighbour(h, d)
-            if (q.none || hw.placesOf(q).isEmpty() || wanting[q.i]) continue
+            if (q.none || hw.placesOf(q).isEmpty() || wanting[q.i] || shuns(g, q)) continue
             val v = suitAt(g.species, q) / (people[q.i] + SEEP_ADULTS)
             if (v > bestV) { bestV = v; best = q }
         }
@@ -298,4 +298,85 @@ private fun HexGroups.discord(g: HexGroup, date: Date, people: FloatArray, wanti
     joinBand(o, n, stepOf(date))
     stats.meeting(Met.HOUSEHOLDS_LEFT_IN_DISCORD)
     return true
+
+/** Whether band [g] keeps off hex [h]: it was driven from it, and still fears those who drove it off ([Band.keptFrom]). */
+internal fun shuns(g: HexGroup, h: Hex) = g.band?.keptFrom(h) == true
+
+/**
+ * The share of its households a band driven from its home ([driveOff]) sends to kin elsewhere ([scatterBeaten]). An estimate:
+ * the beaten scatter, and many take refuge with kin and allies rather than stay with the band (Chagnon on the Yanomamo,
+ * Meggitt 1977 on the Mae Enga, from memory: to check).
+ */
+internal const val DEFEAT_SCATTER = 0.3f
+
+/**
+ * The bands driven from their homes in this step's raids ([HexGroups.beaten]), when bands hold their home hex ([staysHome])
+ * (docs/design/vacating-a-hex.md, Olli 2026-11-11). Before, a band beaten at home lost its houses but stayed in the hex,
+ * beside those who beat it. Now, for each one still alive:
+ * - [DEFEAT_SCATTER] of its households, in parties of [SEEP_ADULTS] grown people with their share of the young, go to the
+ *   nearest kin band within [VISIT_RINGS] hexes that is not of the raiders' line, and join it ([mergeAndPair]);
+ * - the rest moves its camp to the empty hex beside that lies farthest from the raiders' home (the one whose ground gives
+ *   most, of those as far), never back to one it shuns ([shuns]);
+ * - with no empty hex beside, or too few left to live alone ([SMALL_BAND]), the whole band joins that kin band if it has
+ *   room; failing all, it stays.
+ * The hex it left is kept off by its line while the feud lasts ([Band.keptFrom]); the raiders take it up only as their own
+ * buds and households would any empty hex ([findHome], [spreadYear]). Returns the parties made, to be added to the groups.
+ */
+@Part("people: the beaten scatter")
+internal fun HexGroups.scatterBeaten(date: Date): List<HexGroup> {
+    val made = ArrayList<HexGroup>()
+    if (beaten.isEmpty()) return made
+    val list = beaten.toList(); beaten.clear()
+    for ((o, byHex) in list) {
+        val ob = o.band ?: continue
+        if (!o.alive || !staysHome(o) || inParty(o)) continue
+        val people = bandPeopleByHex(made)
+        val h = hw.placeHex[o.place]
+        // (The kin band to take refuge with: the nearest of most kinship, not of the raiders' line, with room for them.)
+        val raiders = ob.drivenBy
+        var host: HexGroup? = null; var hostKin = -1f
+        var ring = listOf(h); val seen = hashSetOf(h)
+        for (r in 0..VISIT_RINGS) {
+            for (q in ring) for (k in groups) {
+                if (k === o || !k.alive || hw.placeHex[k.place] != q || inParty(k)) continue
+                val kb = k.band ?: continue
+                if (kb.mainLineage() == raiders || kb.mind != ob.mind || k.size + SEEP_ADULTS > maxSize(k)) continue
+                val kin = kinship(ob.lineage, kb.lineage) / (1f + r)
+                if (kin > hostKin) { hostKin = kin; host = k }
+            }
+            if (host != null || r == VISIT_RINGS) break
+            ring = hex.nextRing(ring, seen)
+        }
+        // (The hex to move to: empty, beside, farthest from the raiders' home; of those as far, the one whose ground gives most.)
+        var to = Hex.NONE; var toKm = -1.0; var toFood = 0f
+        for (d in 0 until 6) {
+            val q = hex.neighbour(h, d)
+            if (q.none || hw.placesOf(q).isEmpty() || people[q.i] > 0f || shuns(o, q)) continue
+            val km = hexKm(q, byHex); val f = hexFood(q)
+            if (km > toKm + 1e-6 || (km > toKm - 1e-6 && f > toFood)) { to = q; toKm = km; toFood = f }
+        }
+        val parties = if (host == null) 0 else (o.adults * DEFEAT_SCATTER / SEEP_ADULTS).toInt()
+        if (to.none || o.adults - parties * SEEP_ADULTS < SMALL_BAND) {
+            val k = host
+            if (k != null && k.size + o.size <= maxSize(k)) {
+                joinBand(k, o, stepOf(date))
+                stats.meeting(Met.BEATEN_BANDS_JOINED_KIN)
+                note(o) { "driven from its home, joined kin band #%d".format(k.id) }
+            }
+            continue
+        }
+        val k = host
+        if (k != null) repeat(parties) {
+            val young = o.young * SEEP_ADULTS / o.adults
+            o.adults -= SEEP_ADULTS; o.young -= young
+            val n = splitOff(o, SEEP_ADULTS, young)
+            n.place = k.place
+            made += n
+            stats.meeting(Met.BEATEN_HOUSEHOLDS_TO_KIN)
+        }
+        o.place = hw.firstPlaceIn(to)
+        stats.meeting(Met.BEATEN_BANDS_MOVED_AWAY)
+        note(o) { "driven from its home, moved to hex %d".format(to.i) }
+    }
+    return made
 }
