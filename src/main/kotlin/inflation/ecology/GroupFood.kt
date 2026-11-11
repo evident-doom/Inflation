@@ -283,13 +283,13 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         if (pass == 0) w.searched = f
         if (HUNT_DIAG && w.band == null) { w.passes++; w.searchDays += f * w.workDays }
         if (FORAGE_PASS_TRACE.wants(g.id.toLong(), weather.date.absoluteDay, w.s.name)) System.err.println(
-            "forage ${w.s.name} adults ${g.adults} want ${w.wantAll} left $left offers ${o.m} used ${o.used} gain ${o.gain.toList()} spent ${o.spent.toList()} f $f: " +
+            "forage ${w.s.name} id ${g.id} adults ${g.adults} want ${w.wantAll} left $left offers ${o.m} used ${o.used} gain ${o.gain.toList()} spent ${o.spent.toList()} f $f: " +
             o.order.take(min(6, o.m)).joinToString("; ") { "t${o.type[it].ordinal} k${o.kind[it]} r=${o.rate[it]} e=${o.kg[it]} h=${o.time[it]}" })
         val passTrace = w.band == null && FORAGE_PASS_TRACE.wants(g.id.toLong(), weather.date.absoluteDay, w.s.name)
         val fed0 = w.fed; val luck0 = w.killLuck; val busyIn = w.busy; val searchIn = w.searchUsed; val meat0 = w.meat
         takeFoods(w, o, f)
         // (forageDiag: what the pass brought against its plan, and the days it took.)
-        if (passTrace) System.err.println("pass ${w.s.name} pass $pass days ${w.workDays} want ${w.wantAll} aim ${w.aim} left $left f $f planned ${f * w.workDays * intake} got ${w.fed - fed0} " +
+        if (passTrace) System.err.println("pass ${w.s.name} id ${g.id} pass $pass days ${w.workDays} want ${w.wantAll} aim ${w.aim} left $left f $f planned ${f * w.workDays * intake} got ${w.fed - fed0} " +
             "luck ${w.killLuck - luck0} meat ${w.meat - meat0} busy $busyIn -> ${w.busy} searchUsed $searchIn eats ${w.eats}")
         // (A band's parties each work [f] of the week: what they handled, and the rest searching, in which they came on
         // the game, small game and carrion they took ([Offers.spent]: days a day of searching asks). Plant food's finding and
