@@ -139,12 +139,13 @@ internal fun GroupWorld.sowableKg(p: Place, days: Float): Float {
 internal fun Band.seedCornIn(g: HexGroup) = min(seedCorn, g.stores[Store.SEED])
 
 /**
- * Whether [g]'s band [b] sows at place [p] now: in autumn, at home or at a camp it has kept long enough to build at, where grass
- * grain grows; if it knows how to grow grain ([Skill.CULTIVATION]) and has seed corn of its own ([Band.seedCorn]) to sow.
+ * Whether [g]'s band [b] sows at place [p] now: in autumn (in spring where winters are too cold, [HexFood.springSown]), at home or
+ * at a camp it has kept long enough to build at, where a crop can grow ([HexFood.canCrop]); if it knows how to grow grain ([Skill.CULTIVATION]) and has seed corn of its own ([Band.seedCorn]) to sow.
  */
 internal fun GroupWorld.canSow(g: HexGroup, b: Band, p: Place, date: Date) =
     b.knowsSkill[Skill.CULTIVATION] && b.seedCornIn(g) > 0f &&
-        (b.atHome || b.campWeeks >= houseAfterWeeks(b)) && date.month in SOW_MONTHS && fauna.food.cereal[p] > 0f
+        (b.atHome || b.campWeeks >= houseAfterWeeks(b)) && date.month in (if (fauna.food.springSown(p)) SPRING_SOW_MONTHS else SOW_MONTHS) &&
+        fauna.food.canCrop(p)
 
 /**
  * At a meeting, a band that grows grain ([Skill.CULTIVATION]) gives [SEED_GIFT] of its seed corn, as far as it is giving
@@ -376,6 +377,8 @@ internal const val DOG_GUARD = 0.5f
  * It was 0.5 days a kg sown, 60 a hectare, unsourced.
  */
 val SOW_MONTHS = 9..10
+/** Where winters are too cold for an autumn-sown crop ([HexFood.springSown]): sown as the ground thaws, March and April. */
+val SPRING_SOW_MONTHS = 2..3
 internal const val SOW_SHARE = 0.3f
 internal const val TILL_DAYS_PER_HA = 110f
 internal const val SOW_DAYS_PER_HA = 13f

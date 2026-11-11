@@ -95,6 +95,7 @@ class FaunaCheck(private val sim: HexSim, private val options: FaunaCheckOptions
         census.printHurricaneTest(hunting.meetingsYear)
         census.printHuntersFamilies(hunting.meetingsYear)
         census.printKillsStolen(hunting.meetingsYear)
+        census.printFarming(hunting.meetingsYear)
         people.printBands()
         people.printRunSites()
         census.printIdentity(hunting.year, hunting.meetingsYear)
