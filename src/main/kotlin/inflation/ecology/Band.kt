@@ -360,11 +360,17 @@ class Band(kinds: Int, totems: Int = kinds) {
      * ([monthSupply]) against what keeping warm takes then ([warmthNeed]); [foreseenSurvival] reckons it.
      */
     var leanDays = 0f
+    /**
+     * The same in a bad year, as its years have gone ([YearAhead.leanDaysBad]): what it lays by against (Olli 2026-11-11: as long
+     * as it has room to keep food, the means to keep it and free time, a band prepares for the worst, not the usual; the limits
+     * come from nature and time). Not saved: until its next foresight, [leanDays].
+     */
+    @Transient var leanDaysBad = Float.NaN
     /** The lowest its people's reserves fell since the year's spreading, a share of full ([wantsFood]; [spreadYear] starts it afresh). */
     var fatLow = 1f
     val storeAim get() = storeShare * storeAimAt1
     /** [storeAim] at the scaffold's [storeShare]. */
-    val storeAimAt1 get() = STORE_AIM_DAYS + leanDays
+    val storeAimAt1 get() = STORE_AIM_DAYS + (if (leanDaysBad.isNaN()) leanDays else max(leanDays, leanDaysBad))
     /**
      * Its appointment: the hex where it means to be in a month of the year, kept by a moon count
      * (with sky lore, to the month; without, a month either way), -1 for none; taken up from its
