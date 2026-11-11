@@ -98,7 +98,7 @@ class HexSim(
     fun step() {
         // (What changed between steps, as a save loaded into the world or the viewer's hand, is charged to that.)
         books?.check("between steps")
-        stats.clear(); fauna.bornThisWeek.fill(0.0)
+        stats.clear(); fauna.bornThisWeek.fill(0.0); fauna.small.settleGroupCarrion()
         clock.days = stepDays
         weather.beginStep()
         // (Test, variable-step thread 2026-11-11: over a step of several ticks the residents and small life take each tick as
@@ -110,7 +110,9 @@ class HexSim(
             land.firstTick = perTick || i == 0; land.lastTick = perTick || i == clock.ticks - 1
             runPhases(tickPhases, weather, books)
             if (perTick) { val d = clock.days; clock.days = clock.tickDays
-                try { runPhases(residentPhases, weather, books) } finally { clock.days = d } }
+                try { runPhases(residentPhases, weather, books) } finally { clock.days = d }
+                // (The carrion the groups would have found in this tick, held for them: [HexSmallLife.groupCarrion].)
+                if (i < clock.ticks - 1) fauna.small.setAsideForGroups() }
         }
         land.firstTick = true; land.lastTick = true
         // (The slow parts read the step's weather whole: its mean air, all that fell and melted, and the coldest tick.)

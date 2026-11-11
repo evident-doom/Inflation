@@ -196,7 +196,7 @@ internal fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
             // and only the scavengers by trade, which watch the vultures and quarter the ground for it, find
             // that much: a wolf or a band comes on a carcass now and then, not every week.)
             val found = CARRION_FOUND * min(1f, w.d.carrion / SCAVENGER_CARRION)
-            offer(w, o, Food.CARRION, 0, p, KgM2(found * small.carrion[p]).perKm2.over(swept).v / days, 1f, w.carrionDays)
+            offer(w, o, Food.CARRION, 0, p, KgM2(found * (small.carrion[p] + small.groupCarrion[p])).perKm2.over(swept).v / days, 1f, w.carrionDays)
             if (Niches.cracksBones(w.s)) offer(w, o, Food.BONES, 0, p, KgM2(found * small.bones[p]).perKm2.over(swept).v / days, 1f, w.eats * BONE_DAYS)
             else if (band != null && w.worth(Food.BONES) > 0f)
                 offer(w, o, Food.BONES, 0, p, KgM2(found * small.bones[p]).perKm2.over(swept).v / days, 1f, w.renderDays + w.eats * GREASE_YIELD)

@@ -95,6 +95,17 @@ class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, @Transi
     val litter = FloatArray(n) { p -> 0.5f * (land.plants.herb[p] + 0.2f * land.plants.shrub[p] + 0.04f * land.plants.tree[p]) + 0.3f }
     val organicMatter = FloatArray(n) { p -> 4f * min(1f, land.plants.biomass(Place(p)) / 5f) }
     val carrion = FloatArray(n)
+    /**
+     * Carrion the groups found in a step's earlier ticks, kg/m², held for them till they forage at its end ([setAsideForGroups]):
+     * over a step of several ticks they come on the carrion that lies in each, as a weekly group does each week, not only on
+     * what lies at the step's end (Olli 2026-11-11, "carrion per tick": at 60 days leopard packs found 60% less, pass728).
+     * Empty between steps, and always at one tick a step.
+     */
+    val groupCarrion = FloatArray(n)
+    /** The share of the carrion lying at each place at the last step's end that the groups took ([settleGroupCarrion]). */
+    val groupCarrionShare = FloatArray(n)
+    /** What the groups took this step of what lay on the ground, kg/m² ([scavengeIn]). */
+    @Transient val groupCarrionTaken = FloatArray(n)
     /** Where dead matter went, for the viewer (see [PlaceRecord]); set with [HexFauna.record]. */
     @Transient var record: PlaceRecord? = null
     /** Bones left when the meat is gone, kg/m²: slow to weather, food for bone-crackers. */
@@ -449,7 +460,7 @@ class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, @Transi
     internal fun listStocks(stocks: Stocks) {
         fun perM2(name: StockName, a: FloatArray) = stocks.perM2(name, a, land.areaM2)
         fun perKm2(name: StockName, a: FloatArray) = stocks.perKm2(name, a, land.areaKm2)
-        perM2(StockName.LITTER, litter); perM2(StockName.SOIL_ORGANIC_MATTER, organicMatter); perM2(StockName.CARRION, carrion); perM2(StockName.BONES, bones); perM2(StockName.DUNG, dung)
+        perM2(StockName.LITTER, litter); perM2(StockName.SOIL_ORGANIC_MATTER, organicMatter); perM2(StockName.CARRION, carrion); perM2(StockName.CARRION_FOUND_BY_GROUPS, groupCarrion); perM2(StockName.BONES, bones); perM2(StockName.DUNG, dung)
         perKm2(StockName.SMALL_DEAD, smallDead); perKm2(StockName.SOIL_ANIMALS, soilAnimals)
         // (The small animals on the land, as against those in the soil and the migrants away.)
         stocks.within(StockName.SMALL_ANIMALS) {
