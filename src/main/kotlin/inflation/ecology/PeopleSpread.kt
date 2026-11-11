@@ -427,7 +427,8 @@ private fun shortfallDays(yields: FloatArray, dayOfMonth: Int, lostDays: Float):
  * through a hard one; leaving in the snow may be death too; but at the point where staying is death, if leaving gives even
  * the slightest chance, people leave). Each step, in days, so at any step length:
  * - its stores: its people's fat and its larder, in days of need;
- * - staying: the days it would go short until its camp gives its need again, by its yield now ([Band.yieldNow]) and the
+ * - only a band already on its reserves (under [FERTILE_RESERVE] of full) whose camp has yielded under its need of late;
+ * - staying: the days it would go short until its camp gives its need again, by its recent yield ([Band.recentYield]) and the
  *   lore of the months ahead at its camp ([usualYield]);
  * - it acts only when staying runs past its stores: then for each hex beside, open to it this week ([stepEffort]: snow,
  *   rivers, cliffs) and not one it shuns or fled within [FLED_KEEP_DAYS], the same months scaled by how much more food a
@@ -448,7 +449,11 @@ internal fun HexGroups.leaveFailingGround(weather: Weather, date: Date) {
     for (g in groups) {
         val b = g.band ?: continue
         if (!g.alive || !staysHome(g) || inParty(g) || g.dailyNeedKg <= 0f) continue
-        val now = b.yieldNow
+        // (Only a band already living on its body's reserves, under [FERTILE_RESERVE] of full, and whose camp has yielded less than
+        // its need over its last weeks ([Band.recentYield]): flee713, on one week's yield and full reserves, 37-69 bands a year
+        // counted themselves doomed where hunger killed almost none.)
+        if (g.fat >= FERTILE_RESERVE * g.species.maxFatDays) continue
+        val now = b.recentYield(date, days).takeUnless { it.isNaN() } ?: b.yieldNow
         if (now.isNaN() || now >= 1f) continue
         val stores = g.fat + g.larder / g.dailyNeedKg
         val month = date.month

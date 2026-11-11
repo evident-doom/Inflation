@@ -255,6 +255,7 @@ enum class Met(val label: String) {
     RAIDS("raids"),
     RAIDS_ON_HOMES("raids on homes"),
     RAIDS_SET_OUT("raids set out"),
+    RAIDS_SET_OUT_BY_FLED("raids set out by bands that left failing ground within the year"),
     RIVAL_PACKS("rival packs"),
     SLIPPED_AWAY("slipped away"),
     SMALL_BANDS_JOINED_KIN("small bands joined kin"),
