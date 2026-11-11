@@ -169,7 +169,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
     }
     groups += born
     // (Once a year, crowded hexes ease into the roomier hexes beside, [spreadYear].)
-    if (date.holdsMonthStart(days, 0)) groups += spreadYear(date)
+    if (date.holdsMonthStart(days, 0)) { groups += spreadYear(date); foodCuts = null }
     // (Bands driven from their homes in the raids leave the hex: [scatterBeaten].)
     groups += scatterBeaten(date)
     tallyVillages()
@@ -378,6 +378,11 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
             if (o.births > 0) stats.book(herdSplit, Tally.Bands.BORN, o.births)
             for (d in o.causes) if (d.n > 0) stats.tally(Tally.bandsHerdingDied(herding, d.young, d.cause), d.n)
             // And by how well it was fed, with what it held against hunger: who starves, and with what in hand.
+            // And by the food quarter of its hex: whether births and deaths answer to how rich the ground is.
+            val qSplit = BandSplit.foodQ(foodQuarterOf(hw.placeHex[g.place]))
+            stats.bookWeek(qSplit, g.size)
+            if (o.births > 0) stats.book(qSplit, Tally.Bands.BORN, o.births)
+            stats.bookDeaths(qSplit, o.causes)
             val fedSplit = BandSplit.fed(Tally.Fed.of(g.fed))
             stats.bookWeek(fedSplit, g.size)
             stats.book(fedSplit, Tally.Bands.LARDER, (10f * g.larderDays()).roundToInt())
