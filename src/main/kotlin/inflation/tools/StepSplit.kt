@@ -57,7 +57,7 @@ fun main(args: Array<String>) {
         repeat(days / length) { sim.step(); h.record(sim) }
         val got = HashMap(h.keys().associateWith { k ->
             val s = h.series.getValue(k)
-            if (h.isFlow(k)) { var sum = 0.0; for (i in 0 until s.size) if (!s[i].isNaN()) sum += s[i]; sum }
+            if (h.isFlow(k) || k.startsWith(HUNT_DIAG_KEYS)) { var sum = 0.0; for (i in 0 until s.size) if (!s[i].isNaN()) sum += s[i]; sum }
             else { var v = Double.NaN; for (i in 0 until s.size) if (!s[i].isNaN()) v = s[i].toDouble(); v }
         })
         for (i in 0 until nk * nk) {
@@ -108,6 +108,8 @@ fun main(args: Array<String>) {
  * by source as a share of its need, heads-weighted over the span's steps ([inflation.ecology.HexFauna.fedFrom]). */
 private const val KILLS_BY = "kills by/"
 private const val FED_FROM = "fed from/"
+/** The hunt's steps counted by huntSteps=true, summed over the span (each step's counts are that step's). */
+private const val HUNT_DIAG_KEYS = "hunt diag/"
 
 /**
  * The series of [got] whose 6-day value is at least [least] (or any head count), as the 6-day value and every other arm's
@@ -117,7 +119,7 @@ private fun report(title: String, arms: List<String>, got: Map<String, Map<Strin
     val base = got.getValue(arms[0])
     val keys = base.keys.filter { k ->
         val v = base[k] ?: Double.NaN
-        !v.isNaN() && (HexHistory.Key.animalKind(k) != null && v > 0.0 || (HexHistory.Key.isFlow(k) || k.startsWith(KILLS_BY)) && v >= least ||
+        !v.isNaN() && (HexHistory.Key.animalKind(k) != null && v > 0.0 || (HexHistory.Key.isFlow(k) || k.startsWith(KILLS_BY) || k.startsWith(HUNT_DIAG_KEYS)) && v >= least ||
             k.startsWith(FED_FROM) && v >= 0.01)
     }
     fun pct(arm: String, k: String): Double { val b = base.getValue(k); val v = got[arm]?.get(k) ?: return Double.NaN; return if (b == 0.0) Double.NaN else 100.0 * (v - b) / b }
