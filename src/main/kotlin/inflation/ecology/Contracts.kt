@@ -64,11 +64,11 @@ class Herd(kinds: Int) {
      * Of each kind, the share of its grown and young that are of herded stock: born in a herd, or given by herders, not caught
      * young in the hunt. Only those breed ([keepHerds]): young caught wild are raised as pets and do not found a herd
      * (Olli 2026-11-10: the first domestications are not modelled, only established herding). (Empty in a band loaded from
-     * a save made before it; [bred] sizes it, all of herded stock.)
+     * a save made before it; [bred] sizes it, none of herded stock: herds in worlds saved before it were begun from young caught wild.)
      */
-    var herdBred = FloatArray(kinds) { 1f }
+    var herdBred = FloatArray(kinds) { 0f }
     /** [herdBred], sized to [herd]. */
-    fun bred(): FloatArray { if (herdBred.size != herd.size) herdBred = FloatArray(herd.size) { 1f }; return herdBred }
+    fun bred(): FloatArray { if (herdBred.size != herd.size) herdBred = FloatArray(herd.size) { 0f }; return herdBred }
     /** Adds [n] head of kind [k] of herded stock share [stock] to its grown, blending [herdBred] by heads. */
     fun addBred(k: Int, n: Float, stock: Float, young: Boolean = false) {
         val y = youngHerd(); val br = bred(); val had = herd[k] + y[k]
