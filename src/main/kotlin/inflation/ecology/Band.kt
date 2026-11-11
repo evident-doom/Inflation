@@ -686,6 +686,8 @@ class Band(kinds: Int, totems: Int = kinds) {
      * carrying the dead to its ancestors, done as its customs' time allows: [GroupWorld.keepCustoms]).
      */
     var burialWay = BurialWay.AT_CAMP
+    /** How it settles its quarrels ([DisputeWay]): what size it holds together to. */
+    var disputeWay = DisputeWay.LEAVING
     val heardBurial = enumFloats<BurialWay>()
     var burialOwed = 0f
     /** The share of the burying bands it met lately, itself counted as one, that lay their dead as [w] (for [conformist]). */
@@ -883,7 +885,7 @@ class Band(kinds: Int, totems: Int = kinds) {
         traditions.copyInto(o.traditions); heard.copyInto(o.heard); o.heardOf = heardOf
         o.totem = totem; o.marksChosen = marksChosen; o.heardTotem = heardTotem.copyOf(); o.totemBroken = totemBroken
         o.raidDeathRate = raidDeathRate; o.heldLivelihood = heldLivelihood; o.livelihoodHold = livelihoodHold; o.livedOther = livedOther; o.livelihoodChosen = livelihoodChosen; heardLivelihood.copyInto(o.heardLivelihood)
-        o.burialWay = burialWay; heardBurial.copyInto(o.heardBurial); style.copyInto(o.style); heardStyle.copyInto(o.heardStyle); o.styleChosen = styleChosen; words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
+        o.burialWay = burialWay; o.disputeWay = disputeWay; heardBurial.copyInto(o.heardBurial); style.copyInto(o.style); heardStyle.copyInto(o.heardStyle); o.styleChosen = styleChosen; words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
         o.inbred = inbred; o.campWeeks = campWeeks; o.campPlace = campPlace; o.known = known.copyOf()
         copied(o)
         // (Its kept animals go by their contracts' own rules.)

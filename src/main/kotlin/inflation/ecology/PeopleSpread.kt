@@ -265,11 +265,21 @@ private fun HexGroups.discord(g: HexGroup, date: Date, people: FloatArray, wanti
                               bandsIn: HashMap<Int, ArrayList<HexGroup>>, made: MutableList<HexGroup>): Boolean {
     val b = g.band ?: return false
     val over = g.size - easySize(g)
+    // (A band grown small again, below its kind's easy size, needs its way no longer: it lapses a step at a time.)
+    if (b.disputeWay != DisputeWay.LEAVING && g.size < g.species.maxGroupSize / 2 && rnd.nextFloat() < DISPUTE_LAPSE) {
+        b.disputeWay = DisputeWay.entries[b.disputeWay.ordinal - 1]; stats.meeting(Met.BANDS_LET_A_DISPUTE_WAY_LAPSE)
+    }
     if (over <= 0 || rnd.nextFloat() >= DISCORD_LEAVE) return false
     val adults = min(over * g.adults / g.size, g.adults - SMALL_BAND)
     if (adults < SEEP_ADULTS) return false
     val young = g.young * adults / g.adults
     val h = hw.placeHex[g.place]
+    // (Where leaving is dear, tied to its spot or with no empty hex beside, the band may take up the next way of settling
+    // quarrels; its people leave this time all the same.)
+    if (b.disputeWay != DisputeWay.HEADMAN && (b.livesFixed() || (0 until 6).none { d -> hex.neighbour(h, d).let { q ->
+            !q.none && hw.placesOf(q).isNotEmpty() && people[q.i] <= 0f } }) && rnd.nextFloat() < DISPUTE_TAKE_UP) {
+        b.disputeWay = DisputeWay.entries[b.disputeWay.ordinal + 1]; stats.meeting(Met.BANDS_TOOK_UP_A_DISPUTE_WAY)
+    }
     // (A camp of their own: those beyond the easy size if they are enough to live alone; else, with no camp nearby to take
     // them in (below), [SMALL_BAND] of them, those who side with them going along, if as many stay.)
     fun ownCamp(going: Int): Boolean {

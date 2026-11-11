@@ -674,13 +674,14 @@ class HexGroups(
 
 
 
-    /** How big a group of [g]'s kind grows before it splits: packs and prides keep their kind's size, bands as their ways hold them together. */
+    /** How big a group of [g]'s kind grows before it splits: packs and prides keep their kind's size, bands as their ways hold them together ([DisputeWay], feasts, houses, belief). */
     internal fun maxSize(g: HexGroup): Int {
         val s = g.species
         return g.band?.let { b ->
             // A band at home in its houses holds a village's number; feasts keep the peace in bigger bands, settled or not.
             val most = if (b.atHome) max(s.maxGroupSize, SETTLED_SIZE) else s.maxGroupSize
-            val size = if (b.holds(Tradition.FEASTS)) (most * FEAST_SIZE).toInt() else most
+            val held = (most * b.disputeWay.sizeTimes).toInt()
+            val size = min(BAND_MOST, if (b.holds(Tradition.FEASTS)) (held * FEAST_SIZE).toInt() else held)
             // A strained belief is one more quarrel: strained as far as it bears, a band holds together at half the size.
             if (tuning.rounds && b.strain > 0f) (size / (1f + b.strain / b.strainBorne())).toInt() else size
         } ?: s.maxGroupSize
