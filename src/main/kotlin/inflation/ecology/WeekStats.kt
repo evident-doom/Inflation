@@ -209,6 +209,8 @@ enum class Met(val label: String) {
     HOUSEHOLDS_LEFT_IN_DISCORD("households left a band past its easy size for one with room"),
     BANDS_RELOCATED("bands moved their whole camp to a much roomier hex beside"),
     BANDS_SPLIT_OVER_THEIR_BELIEF("bands split over their belief"),
+    BANDS_SPLIT_ALONG_FORTUNES("bands split along their fortunes, richer and poorer"),
+    BANDS_KEPT_APART_BY_WEALTH("bands at home together kept apart by their wealth"),
     BANDS_TOOK_UP_ANOTHERS_APPOINTMENT("bands took up another's appointment"),
     BANDS_TOOK_UP_ANOTHERS_BURIAL("bands took up another's burial way"),
     BANDS_TOOK_UP_ANOTHERS_STYLE("bands took up another's style mark"),
