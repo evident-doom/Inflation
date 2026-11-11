@@ -451,6 +451,11 @@ class Band(kinds: Int, totems: Int = kinds) {
     var grainDomestic = 0f
     /** Of its seed corn ([seedCorn]), the share that is pulses ([HexFood.fieldPulse]). */
     var seedPulse = 0f
+    /**
+     * The seed corn it means to sow next ([HexGroups.sowTarget], in its stores' units), kept back from its meals ([seedKeep]):
+     * reckoned afresh each week.
+     */
+    var seedTarget = 0f
     /** Its ways ([BandWay]), as [setWays] sets them each week from its ways' outputs: 1 each for the scaffold's way. Read through the names below. */
     val will = enumFloats<BandWay> { 1f }
     /** Its choices: how much of its stored grain it sows in autumn at its home (the scaffold: some, once it has houses). */
