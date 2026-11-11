@@ -381,6 +381,8 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
             // And by the food quarter of its hex: whether births and deaths answer to how rich the ground is.
             val qSplit = BandSplit.foodQ(foodQuarterOf(hw.placeHex[g.place]))
             stats.bookWeek(qSplit, g.size)
+            stats.book(qSplit, Tally.Bands.FED, (1000f * min(1f, g.fed) * g.size).roundToInt())
+            stats.book(qSplit, Tally.Bands.FAT, (10f * g.fat).roundToInt())
             if (o.births > 0) stats.book(qSplit, Tally.Bands.BORN, o.births)
             stats.bookDeaths(qSplit, o.causes)
             val fedSplit = BandSplit.fed(Tally.Fed.of(g.fed))
