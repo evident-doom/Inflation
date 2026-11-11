@@ -255,7 +255,9 @@ internal fun HexGroups.spreadYear(date: Date): List<HexGroup> {
  * (Olli, 11 Nov 2026: band size is not all food; group dynamics split bands). Enough to live alone ([SMALL_BAND] grown) go
  * as a band of their own and settle as any daughter band ([findHome]: an empty hex beside first). Fewer, a household or
  * two ([SEEP_ADULTS] at least), join the band of the same mind in its hex or one beside, whose people do not want for food
- * ([wantsFood]), with the most room under its own easy size; with none, they stay. Fed or not: households leave a camp
+ * ([wantsFood]), with the most room under its own easy size; with none, the band splits in two camps that can each live
+ * alone, [SMALL_BAND] grown going (discord711: with none taking them in, bands stayed up to a small band past their easy
+ * size and drifted from 27 to 35-38 people over 60 years); too small for that, they stay. Fed or not: households leave a camp
  * over quarrels, not only hunger. [people] and [bandsIn] are kept up to date; bands made go to [made]. Returns whether
  * anyone left.
  */
@@ -268,9 +270,12 @@ private fun HexGroups.discord(g: HexGroup, date: Date, people: FloatArray, wanti
     if (adults < SEEP_ADULTS) return false
     val young = g.young * adults / g.adults
     val h = hw.placeHex[g.place]
-    if (adults >= SMALL_BAND) {
-        g.adults -= adults; g.young -= young
-        val n = splitOff(g, adults, young)
+    // (A camp of their own: those beyond the easy size if they are enough to live alone; else, with no camp nearby to take
+    // them in (below), [SMALL_BAND] of them, those who side with them going along, if as many stay.)
+    fun ownCamp(going: Int): Boolean {
+        val goingYoung = g.young * going / g.adults
+        g.adults -= going; g.young -= goingYoung
+        val n = splitOff(g, going, goingYoung)
         findHome(n, made)
         val to = hw.placeHex[n.place]
         people[h.i] -= n.size; people[to.i] += n.size
@@ -279,6 +284,7 @@ private fun HexGroups.discord(g: HexGroup, date: Date, people: FloatArray, wanti
         stats.meeting(Met.BANDS_SPLIT_BY_DISCORD)
         return true
     }
+    if (adults >= SMALL_BAND) return ownCamp(adults)
     // (Too few to live alone: the camp nearby with most room for them.)
     var into: HexGroup? = null; var room = adults + young - 1
     for (d in -1 until 6) {
@@ -291,7 +297,7 @@ private fun HexGroups.discord(g: HexGroup, date: Date, people: FloatArray, wanti
             if (r > room) { room = r; into = o }
         }
     }
-    val o = into ?: return false
+    val o = into ?: return if (g.adults >= 2 * SMALL_BAND) ownCamp(SMALL_BAND) else false
     g.adults -= adults; g.young -= young
     val n = splitOff(g, adults, young)
     people[h.i] -= n.size; people[hw.placeHex[o.place].i] += n.size
