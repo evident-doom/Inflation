@@ -115,7 +115,7 @@ internal const val STRANGER_THIRST = 2f
  * (band 1530: 125 people, grown 50 to 12 in two months, the children kept), and with them went its foraging. In famines
  * small children and the old die first, the grown least (from memory: to check).
  */
-internal const val CHILDREN_FIRST = 0.5f
+internal const val CHILDREN_FIRST = 0.8f
 /**
  * In a lean week an elder goes without this many times the share of the band's shortfall that another grown one does: the
  * old give their food to the young and to those who bear and feed them (Olli 2026-11-05: in want the old suffer; the size is
