@@ -273,7 +273,7 @@ fun GroupWorld.sight(p: Place, weather: Weather): Float = sightAt(land, p, weath
 
 /** [GroupWorld.sight] at place [p] of [land], for any hunter there (a pack's party or a resident's). */
 fun sightAt(land: HexLand, p: Place, weather: Weather): Float {
-    val wet = 1f / (1f + weather.precipitation[p] / SIGHT_RAIN_MM)
+    val wet = 1f / (1f + weather.tickPrecipitation(p) / SIGHT_RAIN_MM)
     val haze = if (weather.temperature[p] > SIGHT_HAZE_C) 0.8f else 1f
     return wet * haze * (1f - SIGHT_COVER * land.plants.cover(p))
 }
