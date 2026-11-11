@@ -13,6 +13,7 @@ import inflation.Trace
 import inflation.world.Date
 import inflation.world.get
 import inflation.world.Hex
+import inflation.world.Place
 import inflation.world.set
 import inflation.world.Weather
 import kotlin.math.exp
@@ -210,6 +211,20 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     if (w.band == null && g.killHeld > 0f) takeHeldKill(w, weather)
     huntingOdds(w)
     if (w.band == null) herdOdds(w)
+    // (forageDiag: the game on a beast's ground at the week's start: its ground, the heads it might meet there and the odds.)
+    if (w.band == null && FORAGE_PASS_TRACE.wants(g.id.toLong(), weather.date.absoluteDay, w.s.name)) {
+        var heads = 0f; var rate = 0f; var met = 0f; var area = 0f
+        for (j in 0 until w.ground.size) {
+            val p = w.ground.place[j]; area += land.areaKm2[p]
+            for (c in w.gameFrom[j] until w.gameFrom[j + 1]) {
+                val i = w.gameAt[c]; val k = i - j * w.nk
+                val dens = fauna.adults[k][p] + fauna.packAt(k, Place(p)) + fauna.young[k][p]
+                heads += dens * w.ground.km2[j]; rate += dens * w.ground.km2[j] * w.odds[i]; met += dens * w.ground.km2[j] * w.met[i]
+            }
+        }
+        System.err.println("game ${w.s.name} id ${g.id} day ${weather.date.absoluteDay} days $days places ${w.ground.size} swept ${w.ground.km2.sum()} " +
+            "area $area sweep $sweep foot ${g.footprint != null} heads $heads met $met kills/day ${rate / days} fat ${g.fat} aim ${w.aim} want ${w.wantAll}")
+    }
     val o = Offers(mostOffers(w))
     // The party plans its week on what it finds, eats, and if others got there first and it is still
     // hungry, looks again at what is left.
