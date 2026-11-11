@@ -165,10 +165,11 @@ internal fun caughtFrom(d: Illness, theirSick: Float, b: Band) = d.contagion * t
  * crowding squared), and the share it first strikes; how much keeping away from the sick spares a band.
  * The flux, with [CAMP_FOULING], set to the forager and forager-farmer record: gastrointestinal illness 5-18% of deaths
  * across 13 groups (Gurven and Kaplan 2007, Popul. Dev. Rev. 33: 321-365). At 0.003, with bands holding their home hex, the
- * two came to about a third of people's deaths (allon A/B, 9 Nov 2026); at 0.4 of that, an estimated 16% where most live
- * fixed and 6% where most move.
+ * two came to about a third of people's deaths (allon A/B, 9 Nov 2026); at 0.4 of that (0.0012), a third of the deaths of
+ * well-fed bands still (15-16 a 1000 a year, lean715, 11 Nov 2026). 5-18% of forager deaths of some 30-40 a 1000 a year
+ * (the crude death rate from memory, not checked) is some 2-7 a 1000: 0.0005 aims at 6-7.
  */
-internal const val FLUX_RATE = 0.0012f
+internal const val FLUX_RATE = 0.0005f
 internal const val FEVER_RATE = 0.03f
 internal const val COUGH_BREAKS = 0.0002f
 internal const val COUGH_FIRST = 0.2f

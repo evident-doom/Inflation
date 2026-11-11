@@ -63,6 +63,8 @@ class WeekStats {
     val hunting = ConcurrentSkipListMap<TallyKey, Int>()
     /** For the check: people's children expected to die of each cause, by the week's odds, since last read (a report ledger, not saved). */
     @Transient val childDeaths = ConcurrentHashMap<DeathReason, DoubleAdder>()
+    /** People's grown ones' deaths expected from each week's hazards, by cause (census only; raids and hunts are booked elsewhere). */
+    @Transient val adultDeaths = ConcurrentHashMap<DeathReason, DoubleAdder>()
     /** Young born this week by kind. */
     val births = TreeMap<Species, Int>(BY_NAME)
     /** The residents' deaths this week by "kind:cause", head (fractions: the residents are densities). */

@@ -647,6 +647,16 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
             println("     children's deaths by cause this year (expected from the odds, share): " + all.entries.sortedByDescending { it.value }
                 .joinToString(", ") { "%s %.0f%%".format(it.key, 100 * it.value / total) })
         }
+        run {
+            // (The grown ones' share: per 1000 grown a year, from the week's hazards; raids, hunts and fights are not among them.)
+            val all = sim.groups.stats.adultDeaths.entries.groupingBy { it.key.label }.fold(0.0) { s, e -> s + e.value.sumThenReset() }
+                .filter { it.value > 0.0 }
+            val per = 1000.0 / (adultWeeks / weeks).coerceAtLeast(1.0)
+            println("     grown ones' deaths by cause this year (expected from the week's hazards, per 1000 grown; raids and hunts apart): " +
+                all.entries.sortedByDescending { it.value }.take(10).joinToString(", ") { "%s %.1f".format(it.key, it.value * per) } +
+                " | raids %.1f, by beasts %.1f".format(yearly(DeathCause.RAIDS.label) * per,
+                    causes.keys.filter { it.text.startsWith(Tally.of(Catalogue.HUMAN).text + ByBeast.How.KILLED_BY.words) }.sumOf { yearly(Tally.whatOf(it)) } * per))
+        }
         val hex = sim.hex
         println("     people against the record: band size %.0f [15-50, most 20-35] | people per km² %.3f [foragers 0.01-0.4; Mediterranean 0.05-0.2] | camps moved a year %.1f [5-60, median about 15] | ground walked a year %.0f km² [200-2500] | plant share of food %.0f%% [Mediterranean 40-60%%] | births a woman over her bearing years %.1f [foragers 3.5-7.9, mean 5.6; Hadza 6.2, !Kung 4.3-4.7] | children reaching 15 %.0f%% [about 55-65%%] | years left at 15 %.0f [about 35-40] | violent deaths %.0f%% [2-15%%]".format(
             bandHeads / bandWeeks, bandHeads / weeks / sim.land.areaKm2.sum(), moves.toDouble() / bandsSeen,
