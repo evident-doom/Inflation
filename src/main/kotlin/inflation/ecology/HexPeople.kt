@@ -110,9 +110,7 @@ internal const val STRANGER_THIRST = 2f
  * In a lean week a child goes without this much less of its share of the band's shortfall than a grown one: parents feed
  * their children before themselves (a drive found in every forager society, Hawkes, O'Connell and Blurton Jones on Hadza
  * sharing, from memory: to check; the size is a guess). The food is only moved, not made: the grown go without the more.
- * Olli 2026-11-05: the young are kept alive no matter what, so most of a child's share goes to it (0.5 before). Tried 0.5
- * again (2026-11-11, starve710: band 1530's grown fell 50 to 12 while its children were kept): raids set out rose 3-6x on
- * m5-1 by a path not yet found (raid713), so kept at 0.8 for now.
+ * Olli 2026-11-05: the young are kept alive no matter what, so most of a child's share goes to it (0.5 before).
  */
 internal const val CHILDREN_FIRST = 0.8f
 /**

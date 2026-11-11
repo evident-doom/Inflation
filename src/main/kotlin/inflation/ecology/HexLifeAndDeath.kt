@@ -172,8 +172,6 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
     if (date.holdsMonthStart(days, 0)) groups += spreadYear(date)
     // (Bands driven from their homes in the raids leave the hex: [scatterBeaten].)
     groups += scatterBeaten(date)
-    // (Bands whose stores will not last the season at their hex leave for one beside that gives them a better chance: [leaveFailingGround].)
-    leaveFailingGround(weather, date)
     tallyVillages()
     wornWeek(days)
     tendParties(date)

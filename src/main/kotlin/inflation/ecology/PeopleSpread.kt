@@ -4,8 +4,6 @@ import inflation.Part
 import inflation.world.Hex
 import inflation.world.Place
 import inflation.world.Date
-import inflation.world.Weather
-import inflation.world.get
 import kotlin.math.max
 import kotlin.math.min
 
@@ -398,76 +396,4 @@ internal fun HexGroups.scatterBeaten(date: Date): List<HexGroup> {
         note(o) { "driven from its home, moved to hex %d".format(to.i) }
     }
     return made
-}
-
-/** A band that left a hex because it could not live through the season there keeps off it this many days ([leaveFailingGround]). */
-internal const val FLED_KEEP_DAYS = 360L
-/**
- * The foreseen survival ([HexGroup.foreseen]: the share of its people alive a year ahead as it stands) under which a band
- * looks for ground that gives it a better chance ([leaveFailingGround]). An estimate: about one in five of its people dead.
- */
-internal const val LAST_RESORT_ALIVE = 0.8f
-/** The usual air of the month, °C, below which a band living at its houses does not leave them ([leaveFailingGround]). An estimate. */
-internal const val HOUSE_WINTER_C = 0f
-
-/**
- * Bands that hold their home hex ([staysHome]) and foresee their people dying where they are leave for a hex beside, when
- * that gives them a better chance (Olli 2026-11-11: a band that has lived through many winters where it is stays through a
- * hard one; leaving in the snow may be death too; but where staying is death, if leaving gives even the slightest chance,
- * people leave; and the reckoning is the band's own foresight, not a separate one). Each step:
- * - only a band whose foreseen survival ([foreseenSurvival], which sees this season running against the usual, [yearAhead])
- *   is under [LAST_RESORT_ALIVE];
- * - for each hex beside, open to it this week ([stepEffort]: snow, rivers, cliffs) and not one it shuns or fled within
- *   [FLED_KEEP_DAYS], the same year ahead with its food scaled by how much more food a head that hex gives ([hexFood] over
- *   its people and the band), its larder less the days the move takes ([moveDays] over the way's effort); it goes to the
- *   one where most are foreseen alive, if more than staying;
- * - a band at its houses does not leave them in the cold months (usual air under [HOUSE_WINTER_C]).
- * A band tied to its spot (houses, fields, a palisade) that leaves gives them up. No network chooses this: it is the
- * survival layer under the provider (docs/design/vacating-a-hex.md). Doom trace starve710 (2026-11-11): every band that
- * starved stayed at its first camp; a hex 1.25 times as rich lay a median 19 km off.
- */
-@Part("people: leave failing ground")
-internal fun HexGroups.leaveFailingGround(weather: Weather, date: Date) {
-    if (!tuning.bandsStay) return
-    var people: FloatArray? = null
-    val today = date.absoluteDay
-    for (g in groups) {
-        val b = g.band ?: continue
-        if (!g.alive || !staysHome(g) || inParty(g) || g.dailyNeedKg <= 0f) continue
-        val stay = g.foreseen
-        if (stay >= LAST_RESORT_ALIVE) continue
-        if (b.atHome && weather.usualTemperature(date.month, g.place) < HOUSE_WINTER_C) continue
-        val ppl = people ?: bandPeopleByHex().also { people = it }
-        val h = hw.placeHex[g.place]
-        val hereHead = hexFood(h) / max(1f, ppl[h.i])
-        if (hereHead <= 0f) continue
-        val effort = planner.stepEffort(Catalogue.travel(g.species).ordinal, hw.placeBand[g.place], weather)
-        val fled = if (today - b.fledDay < FLED_KEEP_DAYS) b.fledHex else Hex.NONE
-        val year = yearAhead(g, b, weather)
-        val larderDays = g.larder / g.dailyNeedKg
-        var best = Hex.NONE; var bestAlive = stay
-        for (d in 0 until 6) {
-            val q = hex.neighbour(h, d)
-            if (q.none || hw.placesOf(q).isEmpty() || q == fled || shuns(g, q)) continue
-            val km = effort[hex.edge(h, d)]
-            if (!km.isFinite()) continue
-            val gain = hexFood(q) / (ppl[q.i] + g.size) / hereHead
-            if (gain <= 1f) continue
-            // (The days on the way are eaten from the larder, then the fat: no food is got.)
-            val walk = moveDays(g, km)
-            val alive = year.scaled(gain).alive(g.species, larderDays - walk, g.fat + min(0f, larderDays - walk), g.spent)
-            if (alive > bestAlive) { bestAlive = alive; best = q }
-        }
-        if (best.none) { stats.meeting(Met.BANDS_FAILING_NOWHERE_BETTER); continue }
-        if (b.livesFixed()) {
-            if (!b.houseHex.none) leaveStructures(g, b.houseHex)
-            b.houseHex = Hex.NONE; b.house = 0f; b.atHome = false; b.palisade = 0f
-            b.homeEarth = 0f; b.homeWalls = 0f; b.homeGroundC = 0f
-        }
-        ppl[h.i] -= g.size; ppl[best.i] += g.size
-        b.fledHex = h; b.fledDay = today
-        g.place = hw.firstPlaceIn(best)
-        stats.meeting(Met.BANDS_LEFT_FAILING_GROUND)
-        note(g) { "foresaw %.2f alive at hex %d; left for hex %d (%.2f)".format(stay, h.i, best.i, bestAlive) }
-    }
 }

@@ -29,7 +29,6 @@ import kotlin.math.sqrt
 internal fun HexGroups.foreseenSurvival(g: HexGroup, b: Band, weather: Weather): Float {
     val year = yearAhead(g, b, weather)
     b.leanDays = year.leanDays
-    b.leanDaysBad = year.leanDaysBad
     val larderDays = g.larder / g.dailyNeedKg.coerceAtLeast(1e-3f)
     // (Of the deaths it foresees, those of hunger and of exposure, by the kind of country, for the census: whether the
     // forecast sees the hunger that comes. Whole numbers summed, so the order the cores add them in changes nothing.)
@@ -68,12 +67,6 @@ internal fun HexGroups.houseLeft(g: HexGroup, b: Band, weather: Weather): Float 
     return kg / (g.dailyNeedKg.coerceAtLeast(1e-3f) * days) / stay
 }
 
-/** The least and most this season's yield against the usual ([usualYield]) is taken to be, in [yearAhead] (estimates). */
-internal const val SEASON_LEAST = 0.25f
-internal const val SEASON_MOST = 2f
-/** How much of this season's gap from the usual carries into each month further ahead (an estimate: about 3 months to half). */
-internal const val SEASON_KEEP = 0.8f
-
 /**
  * The months of the year ahead as [foreseenSurvival] reckons them for band [b] (group [g]), worked out once: each month's
  * exposure odds and the share of its need the food it got then meets, against what keeping warm will take then. Through
@@ -105,16 +98,6 @@ internal fun HexGroups.yearAhead(g: HexGroup, b: Band, weather: Weather, shelter
             fed[k - 1] += stays * (salt * b.monthSupply[m] / needS - fed[k - 1])
             spread[k - 1] += stays * (salt * b.supplySpread(m) / needS - spread[k - 1])
         }
-    }
-    // (This season as it is running: its camp's yield of late against what bands usually find there in this month ([usualYield]),
-    // carried into the months ahead, the less the further off ([SEASON_KEEP]): a dry or hard year is foreseen as it shows, not
-    // only once it is in the record of past years ([Band.monthSupply]). Doom trace starve710: a band's record said 1.03 for the
-    // month its camp yielded 0.5.)
-    val usualNow = usualYield(p, now); val recent = b.recentYield(weather.date, days)
-    if (!usualNow.isNaN() && !recent.isNaN() && usualNow > 0f) {
-        val season = (recent / usualNow).coerceIn(SEASON_LEAST, SEASON_MOST)
-        var w = 1f
-        for (k in fed.indices) { w *= SEASON_KEEP; val f = 1f + (season - 1f) * w; fed[k] *= f; spread[k] *= f }
     }
     // (The months it moves camp in, at its usual stay ([Band.stayWeeks]) from the weeks it has kept this one, as
     // [survivalDays] reckons its stay: on a move it keeps only what it can carry ([foodCarried]). A band that has not
@@ -154,10 +137,6 @@ internal class YearAhead(private val odds: FloatArray, internal val fed: FloatAr
     private val carryDays: Float = Float.POSITIVE_INFINITY, private val moves: BooleanArray = BooleanArray(fed.size)) {
     /** The days of food it falls short of over the months ahead, before its larder pays ([Band.leanDays]), in a usual year. */
     val leanDays: Float = run { var lean = 0f; for (f in fed) lean += max(0f, 1f - f) * Date.DAYS_PER_MONTH; lean }
-    /** The same in a bad year ([YEARS]' worst), what a band lays by against ([Band.leanDaysBad]). */
-    val leanDaysBad: Float = run { var lean = 0f; for (i in fed.indices) lean += max(0f, 1f - (fed[i] + YEARS[0] * spread[i])) * Date.DAYS_PER_MONTH; lean }
-    /** The same months with the food got in each [f] times as much: the year ahead on ground that gives that much more. */
-    fun scaled(f: Float) = YearAhead(odds, FloatArray(fed.size) { fed[it] * f }, FloatArray(spread.size) { spread[it] * f }, carryDays, moves)
     /** Whether its years have differed at all: if not, one year is reckoned, not [YEARS]. */
     private val spreads = spread.any { it > SPREAD_NONE }
 
