@@ -714,7 +714,7 @@ class Census(private val sim: HexSim) {
      * from the knower (median km, and the share beyond 100 and 300 km). Olli 2026-11-12: "each band knows 1100 homes?"
      */
     fun printKnownHomes() {
-        val alive = groups.groups.filter { it.alive && it.band != null }.map { it to it.band ?: return }
+        val alive = groups.groups.filter { it.alive }.mapNotNull { g -> g.band?.let { g to it } }
         val ids = alive.mapTo(HashSet()) { it.first.id }
         val counts = alive.map { it.second.knownHomes.size }.sorted()
         if (counts.isEmpty()) return
