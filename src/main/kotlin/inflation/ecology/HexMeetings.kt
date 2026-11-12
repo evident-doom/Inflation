@@ -858,14 +858,34 @@ internal fun HexGroups.settle(weather: Weather) {
     // (Packs come in a drawn order: the first to come on empty ground takes it.)
     val today = weather.date.absoluteDay
     for (g in groups.filter { it.alive && it.species.lifeway == Lifeway.PACK && it.home.none }.sortedBy { tieBreak(seedBase, it.id, 0, today) }) {
-        val h = hw.placeHex[g.place]
-        val key = g.species.index.toLong() * hex.size + h.i
-        // (Whether it takes it is its choice: always at the hand-written way.)
+        // (Whether it takes ground is its choice: always at the hand-written way. Over a step of several ticks it comes on ground
+        // as often as a weekly pack would in so many weeks: its will each tick, and the hexes of its way, the last first, up to a
+        // hex a tick. At one chance a step a 60-day pack was without ground 17-27% of its steps against 3-4% weekly, hunted no
+        // footprint and starved: trace747, Olli 2026-11-12 "study starving steps".)
         val w = g.will[AnimalWay.SETTLE]
-        if (w < 1f && rnd.nextFloat() >= w) continue
-        if (scent.foreign(g.species, h, g.id) < MARK_FRESH && claimed.add(key)) {
-            claimGround(g, h)
-            stats.meeting(Met.Of.PACK_SETTLED, g.species.name)
+        if (w < 1f && rnd.nextFloat() >= (if (ticks > 1) 1f - (1f - w).pow(ticks) else w)) continue
+        val here = hw.placeHex[g.place]
+        // (And about it: over a step of several ticks a weekly pack would have wandered as far as a random walk of a hex a tick
+        // goes, about the square root of the ticks in rings; trace749: beaten off, 60-day packs settled again a third as often.)
+        val tries = if (ticks <= 1) listOf(here) else {
+            val seen = LinkedHashSet<Hex>(); seen += here; for (i in g.path.size - 1 downTo 0) seen += g.path[i]
+            var ring = listOf(here)
+            repeat(kotlin.math.ceil(sqrt(ticks.toFloat())).toInt()) {
+                val next = ArrayList<Hex>()
+                for (h in ring) for (d in 0 until 6) { val nh = hex.neighbour(h, d); if (!nh.none && seen.add(nh)) next += nh }
+                ring = next
+            }
+            seen.toList()
+        }
+        for (h in tries) {
+            // (Only ground with land: the rings about it may hold sea or lake.)
+            if (h != here && hw.firstPlaceIn(h).none) continue
+            val key = g.species.index.toLong() * hex.size + h.i
+            if (scent.foreign(g.species, h, g.id) < MARK_FRESH && claimed.add(key)) {
+                claimGround(g, h)
+                stats.meeting(Met.Of.PACK_SETTLED, g.species.name)
+                break
+            }
         }
     }
 }

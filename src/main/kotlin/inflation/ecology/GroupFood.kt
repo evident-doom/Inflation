@@ -15,6 +15,7 @@ import inflation.world.get
 import inflation.world.Hex
 import inflation.world.set
 import inflation.world.Weather
+import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -184,14 +185,30 @@ private fun countHands(u: DialUse, g: HexGroup, b: Band, hands: Int) {
 @Part("foraging: one group")
 internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather: Weather) {
     val w = ForageWeek(this, g, sweep, packKg, weather)
+    if (w.band == null && g.killHeld > 0f) takeHeldKill(w, weather)
+    if (w.band == null) { w.busy = min(w.workDays, g.huntOwed); g.huntOwed = 0f }
     huntingOdds(w)
     if (w.band == null) herdOdds(w)
     val o = Offers(mostOffers(w))
     // The party plans its week on what it finds, eats, and if others got there first and it is still
     // hungry, looks again at what is left.
-    for (pass in 0 until foragePasses) {
-        val left = w.aim - w.fed
+    // (A beast re-plans as often in a step as in so many weeks: a pass a week's worth, so a pack short of its want after a lean
+    // run hunts on as a weekly one would in the weeks after. With three passes a step, a 60-day pack's take was one draw where
+    // a weekly pack's was ten weeks' re-planned ones: same mean, ten times the lean tail, and hunger deaths 10-20 times the
+    // weekly; trace740, Olli 2026-11-12 "study starving steps".)
+    val passes = if (w.band == null) foragePasses * ticks else foragePasses
+    for (pass in 0 until passes) {
+        // (A beast plans on what its kills were expected to feed it, not on its luck at them: [ForageWeek.killLuck]. But only within
+        // a week's worth of passes: after it, as in the next week, what it got is what it has, and a lean run is hunted on after.)
+        if (w.band == null && pass > 0 && pass % foragePasses == 0) w.killLuck = 0f
+        var left = w.aim - (w.fed - w.killLuck)
+        // (Over a long step a beast whose plan is met only by its expectation, its luck having run against it, counts the luck
+        // then and hunts on with the days left, as a weekly one would the weeks after: the loop stopped here before the luck was
+        // ever counted, and lean 60-day packs left 30% of their days unused, trace742/743.)
+        if (left <= 0.01f * w.wantAll && w.band == null && ticks > 1 && w.killLuck < -0.01f * w.wantAll) { w.killLuck = 0f; left = w.aim - w.fed }
         if (left <= 0.01f * w.wantAll) break
+        // (Nor, over a long step, once its days are all spent: the passes left would take nothing.)
+        if (w.band == null && ticks > 1 && w.workDays - w.busy - w.searchUsed <= 0f) break
         offerFoods(w, o)
         o.takeUp()
         if (pass == 0 && w.band != null) noteUnused(w, o)
@@ -258,7 +275,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         if (pass == 0) w.searched = f
         if (HUNT_DIAG && w.band == null) { w.passes++; w.searchDays += f * w.workDays }
         if (FORAGE_PASS_TRACE.wants(g.id.toLong(), weather.date.absoluteDay, w.s.name)) System.err.println(
-            "forage ${w.s.name} adults ${g.adults} want ${w.wantAll} left $left offers ${o.m} used ${o.used} gain ${o.gain.toList()} spent ${o.spent.toList()} f $f: " +
+            "forage ${w.s.name} id ${g.id} adults ${g.adults} want ${w.wantAll} left $left offers ${o.m} used ${o.used} gain ${o.gain.toList()} spent ${o.spent.toList()} f $f: " +
             o.order.take(min(6, o.m)).joinToString("; ") { "t${o.type[it].ordinal} k${o.kind[it]} r=${o.rate[it]} e=${o.kg[it]} h=${o.time[it]}" })
         takeFoods(w, o, f)
         // (A band's parties each work [f] of the week: what they handled, and the rest searching, in which they came on
@@ -286,8 +303,23 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     w.time?.let { restedDays(w, it) }
     w.time?.release(Activity.FOOD)
     if (HUNT_DIAG && w.band == null) packWeekDiag(w)
+    if (w.band == null) g.huntOwed = max(0f, w.busy + w.searchUsed - w.workDays)
     preyFoughtBack(g, w.foughtBack, w.rnd)
     eatTheWeek(w)
+}
+
+/**
+ * A beast's kills held from the last step ([HexGroup.killHeld]), as it comes back to a cached carcass: what kept is eaten first,
+ * with this step's meat; what rotted while it waited lies as carrion. It waits on average half the days it takes to eat it, at
+ * most half the step, rotting as carrion does ([HexSmallLife.CARRION_ROT], faster in the warm: [spoilWarmth]).
+ */
+private fun HexGroups.takeHeldKill(w: ForageWeek, weather: Weather) {
+    val g = w.g; val held = g.killHeld; g.killHeld = 0f
+    val perDay = w.wantAll / days / w.feeds(Food.BIG_GAME).coerceAtLeast(1e-6f)
+    val wait = 0.5f * min(days.toFloat(), held / perDay.coerceAtLeast(1e-6f))
+    val kept = held * exp(-HexSmallLife.CARRION_ROT * spoilWarmth(weather.temperature[g.place]) * wait)
+    if (held > kept) small.deposit(DeadPool.CARRION, g.place, Kg((held - kept) * meatShare(null)))
+    w.meat += kept; w.fed += kept * w.feeds(Food.BIG_GAME); w.heldKg = kept
 }
 
 /** Notes in [w], from the first pass's take-up [o], the hunters' hands that took up no food and the gatherers' foods ranked out (for [countHungryWeek]). */
@@ -322,7 +354,7 @@ private fun HexGroups.packWeekDiag(w: ForageWeek) {
     if (w.fed >= w.aim - 0.01f * w.wantAll) diag(s, HuntStep.PACK_WEEKS_FULL, 1f)
     else if (w.busy >= 0.95f * w.workDays) diag(s, HuntStep.PACK_WEEKS_OUT_OF_TIME, 1f)
     else if (w.busy + w.searchUsed >= 0.95f * w.workDays) diag(s, HuntStep.PACK_WEEKS_SEARCH_SPENT, 1f)
-    else if (w.passes >= foragePasses) diag(s, HuntStep.PACK_WEEKS_PASSES_SPENT, 1f)
+    else if (w.passes >= foragePasses * ticks) diag(s, HuntStep.PACK_WEEKS_PASSES_SPENT, 1f)
 }
 
 /**
@@ -468,7 +500,9 @@ internal class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, pack
     val gatherHands = if (band != null) hands * (1f - hunt) else hands.toFloat()
     // (Walking costs food, see [walkCost]; a band's days at rest take less, see [restedDays].)
     var wantAll = g.dailyNeedKg * gs.days * (1f + gs.walkCost(g))
-    val eats = 1f / (packKg * EATING_RATE) // days to eat a kilo
+    // (A beast's days at a kill: t.packEating, how long its feeding keeps it from hunting, Olli 2026-11-11 "charge
+    // it, then retune leopards": weekly packs had hunted on through the days past each week's end, overrun735.)
+    val eats = (if (band == null) gs.tuning.packEating else 1f) / (packKg * EATING_RATE) // days to eat a kilo
     /**
      * The most a beast's party can eat in the week, kg: each of it eating at [EATING_RATE] of its weight every day of it,
      * its young at half a grown one as they need half ([HexGroup.dailyNeedKg]); gorging at a kill, see [eatTheWeek].
@@ -552,6 +586,8 @@ internal class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, pack
     var meat = g.meatMet; var smallGot = 0f; var scraps = 0f; var plants = 0f; var fish = 0f
     // (The fat of its kills, kg, apart from the lean [meat]; and what a kg of it feeds, as grease: see [fatOfKill].)
     var killFat = 0f
+    /** Of [meat], what a beast held of its kills from the last step ([HexGroup.killHeld]), kg as it kept. */
+    var heldKg = 0f
     val fatFeeds = s.needScale * Nourishment.GREASE
     // (Of the fish, what was caught rather than gathered off the shore: that alone is practice at fishing.)
     var fished = 0f
@@ -577,8 +613,11 @@ internal class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, pack
     // A beast short of fat hunts on past its want, as far as its gut holds, to lay fat on ([eatTheWeek]'s gorging; t.packFatAim):
     // the fat a lean season draws on. (It was left to the last kill's overshoot of the want, the step's lumpiness: beasts laid
     // fat on at the weekly step and almost none at 60 days, leopards' hunger deaths 6% against 37%; leo692c, plan 52.B.5.)
+    // (Over a step of several ticks, the fat it could lay on in each of them, as a beast lean each week of it hunts for it each
+    // week: so its aim over the want is the same share of the want at any step length, as far as its gut holds. At 60 days a
+    // pack aimed at 1.25 of its want against 1.58 weekly and starved; trace726, Olli 2026-11-11.)
     private val fatAim = if (band != null) 0f else gs.tuning.packFatAim * min(max(0f, gutKg - wantAll) * feeds(Food.BIG_GAME),
-        max(0f, s.maxFatDays - g.fat) / FAT_EFFICIENCY * g.dailyNeedKg)
+        max(0f, s.maxFatDays - g.fat) / FAT_EFFICIENCY * g.dailyNeedKg * gs.fauna.clock.ticks)
     val aim = forageWant + fatAim + (band?.let { b -> gs.storeWork(g, b).also { v -> gs.dialUse?.let { u -> countStoreWork(u, g, b, v) } } } ?: 0f)
     // What it weighs a kg of each food at in its choice: what it feeds, the part of the week's work that is for the stores
     // weighed by its will to lay that food by (its choice, [Band.storeWill]: what keeps, how long, and against what
@@ -606,6 +645,14 @@ internal class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, pack
      */
     var killOver = 0f
     var killUnder = 0f
+    /**
+     * A beast's luck at big game in the passes so far, food: what its kills fed it beyond what the kills it set out for were
+     * expected to (less, short of them). Its next pass plans on what it expected, not on what it got ([forage]): a pack that
+     * missed does not hunt again for the miss, one that overshot does not stop for it. So its food over a step is its rates'
+     * at any step length (Olli 2026-11-11, "rates are real": at 6 days a step the misses hunted again and the overshoots kept
+     * fed weekly leopards 1.29 of their want against 1.04 at 60 days; plan section 61).
+     */
+    var killLuck = 0f
     /** A beast's days spent searching in the passes so far (as [busy] holds those spent handling): the passes share its work days. */
     var searchUsed = 0f
     /** Diagnostic (huntSteps), a beast's week: the passes it planned, the days they gave it to search, and the kills of big game it could expect in them. */

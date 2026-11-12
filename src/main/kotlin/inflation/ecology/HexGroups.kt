@@ -117,6 +117,8 @@ class HexGroups(
     @delegate:Transient internal val monthBeastClassKg by lazy { Array(BeastClass.entries.size) { FloatArray(n) }.also { beastClassKg(it) } }
     /** What the people kind's [huntable] was a month ago, and whether it is known (not after a load, until the next month). */
     @delegate:Transient private val peopleGameBefore by lazy { FloatArray(n) }
+    /** The hexes within [TOLD_RINGS] rings of each hex, worked out once a hex as first asked for ([toldOf]): what bands that meet tell of about a home. */
+    @delegate:Transient internal val toldDisk by lazy { arrayOfNulls<HexArray>(hex.size) }
     @Transient private var gameBeforeKnown = false
     @Transient private var huntableFilled = false
     /** People sick of each catching illness in each place as the week's choosing begins (heads × share sick). */
@@ -341,7 +343,8 @@ class HexGroups(
         stocks.within(StockName.GROUPS) { for (s in kinds) stocks.ofKind(KindStock.GROUP, s.name) {
             var sum = 0.0; for (g in groups) if (g.alive && g.species == s) sum += (g.adults + HexFauna.YOUNG_WEIGHT * g.young) * s.massKg.toDouble(); sum } }
         stocks.add(Books.Stuff.MATTER, StockName.HUNTERS_MEAT_IN_HAND) {
-            var sum = 0.0; for (g in groups) if (g.meatMet > 0f && !g.meatSpent) sum += g.meatMet * meatShare(g.band) / creditShare(g.band).toDouble(); sum }
+            var sum = 0.0; for (g in groups) { if (g.meatMet > 0f && !g.meatSpent) sum += g.meatMet * meatShare(g.band) / creditShare(g.band).toDouble()
+                if (g.killHeld > 0f) sum += g.killHeld * meatShare(null).toDouble() }; sum }
         fun bands(f: (Band) -> Double) = run { var sum = 0.0; for (g in groups) if (g.alive) g.band?.let { sum += f(it) }; sum }
         stocks.add(Books.Stuff.MATTER, StockName.BANDS_FOOD) { var sum = 0.0; for (g in groups) if (g.alive && g.band != null) sum += massOf(g.stores, g.storeKgPer); sum }
         stocks.add(Books.Stuff.MATTER, StockName.BANDS_CACHES) { bands { it.cacheMass().toDouble() } }
@@ -408,6 +411,8 @@ class HexGroups(
                     if (g.home.none) stats.meeting(Met.Of.PACK_ENDED_HOMELESS, g.species.name)
                 }
             }
+            // (What a beast that died or joined another held of its kills lies where it was: carrion, as it is held, [listStocks].)
+            for (g in groups) if (!g.alive && g.killHeld > 0f) { small.deposit(DeadPool.CARRION, g.place, Kg(g.killHeld * meatShare(null))); g.killHeld = 0f }
             groups.removeIf { !it.alive }
             groups += freed
             newcomers(it.date)

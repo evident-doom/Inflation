@@ -74,7 +74,21 @@ class Tuning(
      * 1/e; 0: set to none once a step, as before (which takes more the shorter the step).
      */
     val thinFadeDays = f("thinFadeDays", 30f).also { require(it >= 0f) { "t.thinFadeDays is $it: 0 or more" } }
-    val packFatAim = f("packFatAim", 0f).also { require(it in 0f..1f) { "t.packFatAim is $it: 0-1" } }
+    /** How far a beast's party hunts past its want to lay fat on, as gut and fat room allow (1, since fataim722), or not (0). */
+    val packFatAim = f("packFatAim", 1f).also { require(it in 0f..1f) { "t.packFatAim is $it: 0-1" } }
+    /**
+     * Days the residents and small life take at a time inside a step of several ticks (Olli chose 12 days 2026-11-12,
+     * resdays760: about 20% faster at 60 days): 0, or one tick, for each tick; else a
+     * whole number of ticks, the step's last span shorter where it does not divide the step. They take the first tick's
+     * weather and date for the span.
+     */
+    val residentDays = i("residentDays", 12).also { require(it >= 0) { "t.residentDays is $it: 0 or a positive number of days" } }
+    /**
+     * A beast's days to eat a kilo of its kill against [inflation.ecology.EATING_RATE]'s: the days its feeding keeps it from
+     * hunting, now charged past a step's end ([inflation.ecology.HexGroup.huntOwed]). 0.7 brings weekly leopards back to where
+     * they were before that charge (retune736).
+     */
+    val packEating = f("packEating", 0.7f).also { require(it > 0f) { "t.packEating is $it: a positive multiple" } }
     val stepReach = f("stepReach", 0.5f).also { require(it in 0f..1f) { "t.stepReach is $it: 0-1" } }
     /**
      * A world begun once farming is known: the share of people's bands that start as villages on the best farm ground

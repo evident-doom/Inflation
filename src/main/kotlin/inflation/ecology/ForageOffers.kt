@@ -196,7 +196,7 @@ internal fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
             // and only the scavengers by trade, which watch the vultures and quarter the ground for it, find
             // that much: a wolf or a band comes on a carcass now and then, not every week.)
             val found = CARRION_FOUND * min(1f, w.d.carrion / SCAVENGER_CARRION)
-            offer(w, o, Food.CARRION, 0, p, KgM2(found * small.carrion[p]).perKm2.over(swept).v / days, 1f, w.carrionDays)
+            offer(w, o, Food.CARRION, 0, p, KgM2(found * (small.carrion[p] + small.groupCarrion[p])).perKm2.over(swept).v / days, 1f, w.carrionDays)
             if (Niches.cracksBones(w.s)) offer(w, o, Food.BONES, 0, p, KgM2(found * small.bones[p]).perKm2.over(swept).v / days, 1f, w.eats * BONE_DAYS)
             else if (band != null && w.worth(Food.BONES) > 0f)
                 offer(w, o, Food.BONES, 0, p, KgM2(found * small.bones[p]).perKm2.over(swept).v / days, 1f, w.renderDays + w.eats * GREASE_YIELD)
@@ -359,6 +359,10 @@ internal fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
                     else huntGame(g, o.kind[i], Place(p), expected, o.kg[i], w.spareYoung, w.rnd, haul).also { if (it > 0) w.foughtBack += haul.fought }
                 val luck = (kills1 - expected) * o.time[i] * w.party[0]
                 if (luck > 0f) w.killOver += luck else w.killUnder -= luck
+                // (A beast's luck at it: the kills beyond or short of those expected, each at what a kill of it was offered at; see
+                // [ForageWeek.killLuck]. What the kills then lose, to stronger scavengers and the like, is no luck: the next pass
+                // hunts for it.)
+                if (band == null) w.killLuck += (kills1 - expected) * o.value[i]
                 if (kills1 <= 0) continue
                 if (band != null && o.kind[i] == band.totem.i) {
                     band.totemBroken = TOTEM_SHAME_YEARS

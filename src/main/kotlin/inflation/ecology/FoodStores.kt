@@ -36,7 +36,7 @@ internal fun HexGroups.keepAndSpoil(w: ForageWeek, got: EnumFloats<Store>, gotKg
     band.larderMoved(g, LarderMove.KEPT, g.larder - unkept)
     band.storeMoved(g, StoreFlow.KEPT, unkeptStores)
     // (Racks in the sun dry little in wet weather; smoking over a slow fire works in any.)
-    val sun = band.skill(Skill.STORE) / (1f + weather.precipitation[g.place] / DRY_RAIN_MM)
+    val sun = band.skill(Skill.STORE) / (1f + weather.tickPrecipitation(g.place) / DRY_RAIN_MM)
     val smoke = if (band.knowsSkill[Skill.SMOKING] && band.fire > 0f) band.skill(Skill.SMOKING) * min(1f, band.fire) else 0f
     // (A band that knows salting and has salt salts what it cures: salt cures in any weather.)
     val salt = if (band.knowsSkill[Skill.SALTING]) band.goods[Material.SALT] else 0f

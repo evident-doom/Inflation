@@ -125,7 +125,7 @@ internal fun HexGroups.eatTheWeek(w: ForageWeek) {
     if (band != null && g.fed < Thresholds.HUNGRY) countHungryWeek(w, band)
     if (band != null) countSmallGame(w)
     if (HUNT_DIAG && band == null) {
-        val killed = meat + w.killFat > g.meatMet
+        val killed = meat + w.killFat > g.meatMet + w.heldKg
         if (!killed) diag(s, HuntStep.PACK_WEEKS_NO_KILL, 1f)
         if (g.fed < WELL_FED) diag(s, if (killed) HuntStep.PACK_WEEKS_HUNGRY_WITH_KILL else HuntStep.PACK_WEEKS_HUNGRY_NO_KILL, 1f)
         diag(s, HuntStep.PACK_PASSES, w.passes.toFloat()); diag(s, HuntStep.PACK_SEARCH_DAYS, w.searchDays); diag(s, HuntStep.PACK_KILLS_EXPECTED, w.killsExpected)
@@ -139,6 +139,8 @@ internal fun HexGroups.eatTheWeek(w: ForageWeek) {
             eaten, wantAll, g.fed, g.larder, Store.entries.joinToString(" ") { "${it.name.lowercase()} %.0f".format(g.stores[it]) },
             g.fat, 100f * band.sodiumShort, band.goods[Material.SALT], 100f * band.leanLost)
     }
+    // (A beast keeps what it could not finish of its kills, to eat on into the next step: [HexGroup.killHeld].)
+    if (band == null && spare > 0f) { g.killHeld = spare; spare = 0f }
     // What the pack could not finish is left for the scavengers; what it ate comes back in part as dung.
     small.deposit(DeadPool.CARRION, g.place, Kg(spare))
     // (A band's meat eaten already holds the small game, scraps and fish it ate; what it stored is not yet eaten.)
