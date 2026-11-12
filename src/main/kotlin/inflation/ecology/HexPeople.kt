@@ -273,10 +273,13 @@ internal fun HexGroups.choreAsks(g: HexGroup, b: Band, date: Date, asks: EnumFlo
     // (What its kit asks beyond the clothes' days given first, when given: [survivalDays].)
     ask(Activity.TOOLS, makeTools(b, people, null) - (warm?.get(Activity.TOOLS) ?: 0f))
     ask(Activity.ORNAMENTS, ornamentsWanted(b, people) * ORNAMENT_DAYS)
+    // (The seed it keeps back from its meals for its next sowing: [seedKeep].)
+    b.seedTarget = sowLeft(g, b, p, g.storeKgPer[Store.SEED], b.sowWill)
     // (A band that has just moved builds, sows and fortifies nothing where it has come to.)
     if (!moved) {
         ask(Activity.HOUSES, buildHouse(g, b, p, h, people, null))
-        if (canSow(g, b, p, date)) ask(Activity.SOWING, sowDays(p, b.seedCornIn(g) * SOW_SHARE * b.sowWill * g.storeKgPer[Store.SEED]) * b.lapse(Skill.CULTIVATION))
+        if (canSow(g, b, p, date)) { val per = g.storeKgPer[Store.SEED]
+            ask(Activity.SOWING, sowDays(p, min(sowLeft(g, b, p, per, b.sowWill), b.seedCornIn(g)) * per) * b.lapse(Skill.CULTIVATION)) }
         if (fortifies(b)) ask(Activity.PALISADE,
             minOf(1f - palisadeAt(g, h), b.goods[Material.WOOD] / (PALISADE_WOOD * people)).coerceAtLeast(0f) * PALISADE_DAYS / b.skill(Skill.FORTIFYING) * people)
         ask(Activity.WEIRS, weirAsk(g, b, h))

@@ -162,6 +162,8 @@ internal class Meal(val wantAll: Float) {
      * stores would spoil within days ([PERISHABLE]: fresh meat and fish, fruit) is eaten before the week's food, the oldest first.
      */
     fun eat(got: EnumFloats<Store>, gotKg: EnumFloats<Store>, g: HexGroup?) {
+        // (The seed corn its band keeps back for its next sowing it leaves till it would go short by [SEED_EAT_SHORT]: [seedKeep].)
+        val keep = g?.let { seedKeep(it) } ?: 0f
         for (beyond in 0..1) {
             if (g != null) for (st in PERISHABLE) g.stores[st] -= take(st, g.stores[st], g.storeKgPer[st], beyond == 1)
             for (st in EAT_ORDER) {
@@ -169,7 +171,14 @@ internal class Meal(val wantAll: Float) {
                 val kgPer = gotKg[st] / got[st]; val e = take(st, got[st], kgPer, beyond == 1)
                 got[st] -= e; gotKg[st] -= e * kgPer
             }
-            if (g != null) for (st in EAT_ORDER) g.stores[st] -= take(st, g.stores[st], g.storeKgPer[st], beyond == 1)
+            if (g != null) for (st in EAT_ORDER) g.stores[st] -= take(st, max(0f, g.stores[st] - (if (st == Store.SEED) keep else 0f)), g.storeKgPer[st], beyond == 1)
+        }
+        if (g != null && keep > 0f && need > SEED_EAT_SHORT * wantAll) {
+            val short = need - SEED_EAT_SHORT * wantAll; val before = need
+            need = short
+            val e = take(Store.SEED, min(keep, g.stores[Store.SEED]), g.storeKgPer[Store.SEED], false)
+            g.stores[Store.SEED] -= e
+            need += before - short
         }
     }
 
