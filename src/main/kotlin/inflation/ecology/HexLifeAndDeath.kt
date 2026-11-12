@@ -510,6 +510,7 @@ private fun HexGroups.mournDead(g: HexGroup, o: Outcome, date: Date) {
 @Part("groups: live week of one")
 internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNow: HashMap<Long, Int>, r: kotlin.random.Random): Outcome {
     val s = g.species
+    val fedRaw = g.fed; val fatRaw = g.fat; val spentRaw = g.spent
     feedOnReserves(g)
     if (g.birthMonth < 0) g.birthMonth = s.birthMonth
     if (date.holdsMonthStart(days, offSeason(s, g.birthMonth))) g.bred = 0f
@@ -649,6 +650,12 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     val grown = growUp(g, r)
     if (s.human) g.yearsLuck -= yearsBefore - FutureYears.of(g)
     land.books?.adder(Books.Stuff.MATTER, "groups born and grew up")?.add(((HexFauna.YOUNG_WEIGHT * bornNow + (1f - HexFauna.YOUNG_WEIGHT) * grown) * s.massKg).toDouble())
+    // (forageDiag: a beast's step that starved some of it: how it was fed, its fat and body burnt before and after.)
+    if (g.band == null && STARVED_TRACE.on) {
+        val dg = causes.sumOf { if (it.cause == DeathCause.HUNGER && !it.young) it.n else 0 }; val dy2 = causes.sumOf { if (it.cause == DeathCause.HUNGER && it.young) it.n else 0 }
+        if (dg + dy2 > 0 && STARVED_TRACE.wants(g.id.toLong(), date.absoluteDay, s.name)) System.err.println(
+            "starved ${s.name} id ${g.id} day ${date.absoluteDay} days $days died grown $dg young $dy2 left grown ${g.adults} young ${g.young} fed $fedRaw -> ${g.fed} " +
+                "fat $fatRaw -> ${g.fat} of ${s.maxFatDays} spent $spentRaw -> ${g.spent} starve ${Hazards.starveDays(s)}") }
     if (g.adults == 0) {
         // Young left without a grown animal of their kind die.
         val orphans = g.young
@@ -839,3 +846,6 @@ internal fun HexGroups.remember(date: Date) {
 
 /** The hunger cases a year the census lists ([HexGroups.hungerCases]). */
 internal const val HUNGER_CASES = 30
+
+/** forageDiag=KIND: each step of a beast's group of that kind that starved some of it ([liveWeek]). */
+private val STARVED_TRACE = inflation.Trace(inflation.Config.Key.FORAGE_DIAG, "starved", byKind = true)
