@@ -118,15 +118,19 @@ internal fun HexGroups.hexFood(h: Hex): Float {
 }
 
 /**
- * What hex [h] gives people of kind [s] now, kg a year: the game standing on its places that they can catch
- * ([GroupWorld.preyHere], as hunted down or grown back) at [GAME_TAKE], with the roots and fish of [hexFood]. For where a
+ * What hex [h] gives people of kind [s] now, kg a year as they can live on it: the game standing on its places that they
+ * can catch ([GroupWorld.preyHere], as hunted down or grown back) at [GAME_TAKE] and the roots of [hexFood], over each
+ * place's area as it suits them ([HexFauna.startWeight]), with the fish of [hexFood]. For where a
  * band moves its camp ([moveCamps]): unlike [hexFood], it sees the game a band has hunted out.
  */
 internal fun HexGroups.hexFoodNow(s: Species, h: Hex): Float {
     var kg = 0f
     for (pi in hw.placesOf(h)) {
         val p = Place(pi)
-        kg += preyHere(s, p) * land.areaKm2[p.i] * GAME_TAKE + fauna.food.roots[p.i] * land.areaKm2[p.i] * 1e6f * ROOTS_TAKEN
+        // (Weighed by how the place suits people to live on, [HexFauna.startWeight]: its ground, its worst month's cold or
+        // heat and its water. move736: on food alone, bands moved to game-rich dry and open country and died there of
+        // exposure and thirst.)
+        kg += (preyHere(s, p) * GAME_TAKE + fauna.food.roots[p.i] * 1e6f * ROOTS_TAKEN) * fauna.startWeight(s, p)
     }
     val fish = fauna.water.fishWithin(h, 1f, HexWater.Catch.FISH) + fauna.water.fishWithin(h, 1f, HexWater.Catch.SHELLFISH)
     return kg + fish * Date.DAYS_PER_YEAR / days * FISH_TAKEN
