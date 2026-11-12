@@ -796,7 +796,12 @@ internal const val MISHAPS = 0.08f
 internal const val WOUNDED_PER_DEAD = 2f
 internal const val HEAL_UNTENDED = 0.15f
 internal const val HEAL_TENDED = 0.35f
-internal const val FESTER = 0.02f
+/**
+ * [FESTER]: at 0.02, with mishaps at [MISHAPS], wounds killed 7-8 a 1000 adults a year where people crowd (flux716),
+ * against accidents 5.2% of forager deaths (Gurven, pooled deaths of 7 groups), some 1-2 a 1000 adults at their 1-1.5%
+ * adult deaths a year: 0.005 aims at that.
+ */
+internal const val FESTER = 0.005f
 internal const val LAMED = 0.2f
 /** Extra odds of dying (of any cause but old age) for a lamed adult, over an unlamed one: 1 is twice as likely. */
 internal const val LAME_RISK = 1f
