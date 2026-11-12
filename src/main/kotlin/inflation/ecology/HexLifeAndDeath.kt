@@ -171,6 +171,8 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
     groups += born
     // (Once a year, crowded hexes ease into the roomier hexes beside, [spreadYear].)
     if (date.holdsMonthStart(days, 0)) { groups += spreadYear(date); foodCuts = null }
+    // (Month by month, bands tied to no spot move to a hex beside with more food a head, [moveCamps].)
+    if (date.holdsAnyMonthStart(days)) moveCamps()
     // (Bands driven from their homes in the raids leave the hex: [scatterBeaten].)
     groups += scatterBeaten(date)
     tallyVillages()
