@@ -659,6 +659,15 @@ object Tally {
         WILD_DAYS("wild, days"), FIELD_DAYS("sown, foraged, days"), CROP_DAYS("crop brought in, days"), GRIND_DAYS("grinding, days")
     }
     fun grain(k: Grain) = TallyKey.raw("bands' grain:${k.label}")
+    /**
+     * Bands that could sow at home, in their sowing window's last month ([HexGroups.sowGrain]), each band-week after its sowing:
+     * kg of the year's full target ([sowTarget] at ways' 1) sown this season, held back by its ways ([Band.sowWill]), and of the
+     * rest unsown, short for want of seed corn or, with seed in hand, of days. The four sum to the target. Report only.
+     */
+    enum class Sowing(val label: String) {
+        WEEKS("band-weeks"), SOWN("sown, kg"), WAYS("held back by ways, kg"), SEED("short of seed, kg"), DAYS("short of days, kg")
+    }
+    fun sowing(k: Sowing) = TallyKey.raw("bands' sowing:${k.label}")
     /** How far a band's shelters stood at the week's end ([Band.shelter]): the first bin it falls [below]. The report's line. */
     enum class Hut(val label: String, val below: Float) {
         NONE("no hut", 0.5f), LIGHT("light hut", 1.05f), PART("part thatched", 1.5f), THATCHED("thatched", Float.POSITIVE_INFINITY);

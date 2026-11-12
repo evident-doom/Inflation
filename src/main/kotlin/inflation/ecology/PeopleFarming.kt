@@ -49,6 +49,26 @@ internal fun HexGroups.sowGrain(g: HexGroup, b: Band, p: Place, date: Date, time
             note(g) { "sowed %.0f kg of grain at home".format(sow) }
         }
     }
+    tallySowing(g, b, p, date)
+}
+
+/** In its sowing window's last month, what of its year's target [g]'s band [b] has sown at [p] and what held the rest back ([Tally.Sowing]). Report only. */
+private fun HexGroups.tallySowing(g: HexGroup, b: Band, p: Place, date: Date) {
+    val food = fauna.food
+    if (!stats.census || !b.knowsSkill[Skill.CULTIVATION] || !food.canCrop(p) || !(b.atHome || b.campWeeks >= houseAfterWeeks(b))) return
+    if (date.month != (if (food.springSown(p)) SPRING_SOW_MONTHS else SOW_MONTHS).last) return
+    val per = g.storeKgPer[Store.SEED]
+    val full = sowTarget(g, b, p, 1f) * per
+    if (full <= 0f) return
+    val sown = min(full, if (b.sownPlace == p && food.field[p] > 0f) b.sownKg else 0f)
+    val ways = max(0f, full - max(sown, sowTarget(g, b, p, b.sowWill) * per))
+    val unsown = max(0f, full - sown - ways)
+    val seed = min(unsown, max(0f, unsown - b.seedCornIn(g) * per))
+    stats.tally(Tally.sowing(Tally.Sowing.WEEKS), 1)
+    stats.tally(Tally.sowing(Tally.Sowing.SOWN), sown.roundToInt())
+    stats.tally(Tally.sowing(Tally.Sowing.WAYS), ways.roundToInt())
+    stats.tally(Tally.sowing(Tally.Sowing.SEED), seed.roundToInt())
+    stats.tally(Tally.sowing(Tally.Sowing.DAYS), (unsown - seed).roundToInt())
 }
 
 /**
