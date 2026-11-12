@@ -865,18 +865,26 @@ internal fun HexGroups.settle(weather: Weather) {
     // (Packs come in a drawn order: the first to come on empty ground takes it.)
     val today = weather.date.absoluteDay
     for (g in groups.filter { it.alive && it.species.lifeway == Lifeway.PACK && it.home.none }.sortedBy { tieBreak(seedBase, it.id, 0, today) }) {
-        val h = hw.placeHex[g.place]
-        val key = g.species.index.toLong() * hex.size + h.i
-        // (Whether it takes it is its choice: always at the hand-written way.)
+        // (Whether it takes ground is its choice: always at the hand-written way. Over a step of several ticks it comes on ground
+        // as often as a weekly pack would in so many weeks: its will each tick, and the hexes of its way, the last first, up to a
+        // hex a tick. At one chance a step a 60-day pack was without ground 17-27% of its steps against 3-4% weekly, hunted no
+        // footprint and starved: trace747, Olli 2026-11-12 "study starving steps".)
         val w = g.will[AnimalWay.SETTLE]
-        if (w < 1f && rnd.nextFloat() >= w) continue
-        if (g.species in Catalogue.roamingResidents) {
-            if (g.adults >= 2 && h != g.natal && fauna.roomFor(g.species, h) && scent.foreign(g.species, h, g.id) < MARK_FRESH) settleIn(g)
-            continue
-        }
-        if (scent.foreign(g.species, h, g.id) < MARK_FRESH && claimed.add(key)) {
-            claimGround(g, h)
-            stats.meeting(Met.Of.PACK_SETTLED, g.species.name)
+        if (w < 1f && rnd.nextFloat() >= (if (ticks > 1) 1f - (1f - w).pow(ticks) else w)) continue
+        val here = hw.placeHex[g.place]
+        val tries = if (ticks <= 1) listOf(here) else (listOf(here) + (g.path.size - 1 downTo 0).map { g.path[it] }).distinct().take(ticks)
+        for (h in tries) {
+            if (g.species in Catalogue.roamingResidents) {
+                // (A roamer settles in where it stands: at its own place's hex only.)
+                if (h == here && g.adults >= 2 && h != g.natal && fauna.roomFor(g.species, h) && scent.foreign(g.species, h, g.id) < MARK_FRESH) { settleIn(g); break }
+                continue
+            }
+            val key = g.species.index.toLong() * hex.size + h.i
+            if (scent.foreign(g.species, h, g.id) < MARK_FRESH && claimed.add(key)) {
+                claimGround(g, h)
+                stats.meeting(Met.Of.PACK_SETTLED, g.species.name)
+                break
+            }
         }
     }
 }
