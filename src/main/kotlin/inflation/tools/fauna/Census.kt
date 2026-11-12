@@ -1118,7 +1118,10 @@ class Census(private val sim: HexSim) {
             val swWeeks = v(Tally.sowingTime(null)).coerceAtLeast(1.0)
             println("bands' days in their sowing window, last year (band-weeks; person-days a band-week on each work, largest first; lost to cold and hunger): %.0f; ".format(v(Tally.sowingTime(null))) +
                 Activity.entries.map { it to v(Tally.sowingTime(it)) / 10 / swWeeks }.filter { it.second >= 0.05 }.sortedByDescending { it.second }
-                    .joinToString(", ") { "%s %.1f".format(it.first.label, it.second) } + "; lost %.1f".format(v(Tally.sowingLost) / 10 / swWeeks))
+                    .joinToString(", ") { "%s %.1f".format(it.first.label, it.second) } + "; lost %.1f".format(v(Tally.sowingLost) / 10 / swWeeks) +
+                "; a day of own crop against a day's foraging in the leanest month, band-weeks that have seen both %.0f%%, mean %.2f, over 1 %.0f%%".format(
+                    100 * v(Tally.sowingRatioWeeks) / swWeeks, v(Tally.sowingRatio) / 100 / v(Tally.sowingRatioWeeks).coerceAtLeast(1.0),
+                    100 * v(Tally.sowingRatioOver) / v(Tally.sowingRatioWeeks).coerceAtLeast(1.0)))
             // (A fat kill is worth more than a lean one: when in the year bands kill, and how fat what they bring in is.)
             println("bands' kills of big game by month, last year (kills; fat in the meat brought in, by weight): " + (0 until Date.MONTHS_PER_YEAR).joinToString(", ") { m ->
                 val lean = v(Tally.bandKills(m, Tally.KillPart.LEAN_KG)); val fat = v(Tally.bandKills(m, Tally.KillPart.FAT_KG))

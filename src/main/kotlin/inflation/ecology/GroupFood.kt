@@ -424,6 +424,15 @@ internal fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float
     val asks = enumFloats<Activity>()
     asks[Activity.FOOD] = storeDays * hands
     choreAsks(g, b, w.weather.date, asks, warm)
+    // (A band whose own crop has paid it better a day than its leanest month's foraging holds its sowing before the week's food as
+    // far as it learns from that, [Tuning.learnDays]: the week left short it bridges from its stores and fat; and weighs the
+    // rest of its sowing by the same returns. [cropAgainstForage].)
+    val learn = tuning.learnDays
+    val sowRatio = if (learn > 0f) cropAgainstForage(b) else -1f
+    if (sowRatio > 1f && asks[Activity.SOWING] > 0f) {
+        val first = asks[Activity.SOWING] * min(1f, sowRatio - 1f) * learn
+        warm[Activity.SOWING] += first; asks[Activity.SOWING] -= first
+    }
     // (The band weighs the rest of the asks against each other by its ways: see [timeWay]. A planning band holds its days by
     // its customs, the lives they save and what is left: [planDays].)
     if (b.mind.days == DaySplit.TIERED) {
@@ -435,7 +444,8 @@ internal fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float
         }
         // (What each chore asked, not what it was given, for the census of the week's squeeze: [countSqueeze].)
         for (a in Activity.entries) if (a != Activity.LEISURE) time.asked[a] = needs[a] + asks[a] + warm[a] + kept[a]
-    } else time.plan(needs, asks, enumFloats<Activity> { a -> timeWay(a)?.let { b.will[it] } ?: 1f }, warm, kept)
+    } else time.plan(needs, asks, enumFloats<Activity> { a -> (timeWay(a)?.let { b.will[it] } ?: 1f).let { will ->
+        if (a == Activity.SOWING && sowRatio >= 0f) will * (1f - learn) + learn * min(sowRatio, SOW_WEIGHT_MOST) else will } }, warm, kept)
     for (a in Activity.entries) b.heldShare[a] = if (time.total > 0f) time.heldFor(a) / time.total else 0f
     w.room = time.leftFor(Activity.FOOD) / time.pace(Activity.FOOD)
     // (What its fire, shelters and food leave of the week, kept month by month as a mean over the years: what its

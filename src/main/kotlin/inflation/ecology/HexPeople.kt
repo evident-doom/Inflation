@@ -204,6 +204,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     makeSpares(b, people, time)
     // In autumn a band at home, or long at its camp, sows a share of its stored grain there: a plot that ripens
     // next summer to several times as much, of the kind of ears it sowed.
+    fadeCropSeen(b)
     harvestCrop(g, b, time)
     sowGrain(g, b, p, date, time)
     // A band that keeps animals and knows herding pens them at night by its camp, as far as its time and brush go.

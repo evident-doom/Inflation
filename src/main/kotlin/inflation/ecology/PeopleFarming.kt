@@ -12,6 +12,7 @@ import inflation.min
 import inflation.monthsFrom
 import inflation.world.Date
 import inflation.world.LifeForm
+import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.roundToInt
@@ -36,7 +37,8 @@ internal fun HexGroups.sowGrain(g: HexGroup, b: Band, p: Place, date: Date, time
         if (sow > 0.1f) {
             val domestic = b.seedDomestic
             val kg = sow * per
-            g.stores[Store.SEED] -= sow; b.seedCorn = corn - sow; time.spend(Activity.SOWING, sowDays(p, kg) * b.lapse(Skill.CULTIVATION))
+            val sowing = sowDays(p, kg) * b.lapse(Skill.CULTIVATION)
+            g.stores[Store.SEED] -= sow; b.seedCorn = corn - sow; time.spend(Activity.SOWING, sowing); b.cropDaysSeen += sowing
             b.seedPulse = if (b.seedCorn > 0f) ((corn * b.seedPulse - pulse) / b.seedCorn).coerceIn(0f, 1f) else 0f
             b.practise(Skill.CULTIVATION)
             // (Ground it sows beyond what is cleared there it clears first: [HexFood.cleared], kept by [HexFood.sow].)
@@ -52,6 +54,38 @@ internal fun HexGroups.sowGrain(g: HexGroup, b: Band, p: Place, date: Date, time
     tallySowing(g, b, p, date)
 }
 
+/**
+ * What a person-day of its own crop has brought band [b], kg of its need ([Band.cropWorthSeen] over [Band.cropDaysSeen]); below 0
+ * till it has brought one in.
+ */
+internal fun cropReturn(b: Band) = if (b.cropDaysSeen > 0f && b.cropWorthSeen > 0f) b.cropWorthSeen / b.cropDaysSeen else -1f
+
+/**
+ * A day of band [b]'s own crop against a day of its foraging in its leanest month ([Band.forageReturn]), as it has seen them;
+ * below 0 where it has not seen both. Grain is food kept for the lean months, eaten when a day's foraging brings least, so it
+ * is weighed against those days, as a herd is ([herdWorth]); against the foraging of the sowing months, when it is sown, the
+ * crop was worth 0.58-0.77 of a day (learn744 2026-11-12) and bands learned to sow less. Over 1, its crop has paid it better
+ * than the foraging it saves.
+ */
+internal fun cropAgainstForage(b: Band): Float {
+    val crop = cropReturn(b); val forage = b.forageReturn.filter { it >= 0f }.minOrNull() ?: -1f
+    return if (crop > 0f && forage > 0f) crop / forage else -1f
+}
+
+/** Fades what band [b] has seen of its crop's returns by a step's share of [CROP_RETURN_YEARS] ([cropReturn]). */
+internal fun GroupWorld.fadeCropSeen(b: Band) {
+    val keep = exp(-years / CROP_RETURN_YEARS)
+    b.cropWorthSeen *= keep; b.cropDaysSeen *= keep
+}
+
+/**
+ * How long a band's memory of its crop's returns lasts ([fadeCropSeen]), years: a couple of harvests (a guess; a year's crop
+ * is sown one autumn and brought in the next summer).
+ */
+internal const val CROP_RETURN_YEARS = 2f
+/** The most a band weighs its sowing against its other chores for its crop paying better than foraging ([cropAgainstForage]): 4, a guess. */
+internal const val SOW_WEIGHT_MOST = 4f
+
 /** Whether [g]'s band [b] is one the sowing census counts at [p] now: one that grows grain, at home or long at its camp, in its sowing window, where a crop can grow. */
 private fun HexGroups.inSowingWindow(g: HexGroup, b: Band, p: Place, date: Date) =
     b.knowsSkill[Skill.CULTIVATION] && fauna.food.canCrop(p) && (b.atHome || b.campWeeks >= houseAfterWeeks(b)) &&
@@ -63,6 +97,8 @@ internal fun HexGroups.tallySowingTime(g: HexGroup, b: Band, p: Place, date: Dat
     stats.tally(Tally.sowingTime(null), 1)
     for (a in Activity.entries) { val d = (10f * time.spentOn(a)).roundToInt(); if (d > 0) stats.tally(Tally.sowingTime(a), d) }
     stats.tally(Tally.sowingLost, (10f * time.lost).roundToInt())
+    val r = cropAgainstForage(b)
+    if (r >= 0f) { stats.tally(Tally.sowingRatioWeeks, 1); stats.tally(Tally.sowingRatio, (100f * min(r, 100f)).roundToInt()); if (r > 1f) stats.tally(Tally.sowingRatioOver, 1) }
 }
 
 /** In its sowing window's last month, what of its year's target [g]'s band [b] has sown at [p] and what held the rest back ([Tally.Sowing]). Report only. */
@@ -149,6 +185,7 @@ internal fun HexGroups.harvestCrop(g: HexGroup, b: Band, time: BandTime) {
     b.seedKept -= min(kg, b.seedKept)
     time.spend(Activity.SOWING, kg * perKg)
     val worth = kg * seedValue(b) * b.cookValue(Food.GRAIN)
+    b.cropWorthSeen += worth; b.cropDaysSeen += kg * (perKg + CROP_DEHUSK_DAYS_PER_KG + grindDaysPerKg(b))
     val corn = b.seedCorn
     b.seedDomestic = (b.seedDomestic * corn + b.reapedDomestic(food.fieldDomestic[f]) * worth) / (corn + worth)
     b.seedPulse = (b.seedPulse * corn + food.ripePulse[f] * worth) / (corn + worth)
@@ -162,12 +199,12 @@ internal fun HexGroups.harvestCrop(g: HexGroup, b: Band, time: BandTime) {
 }
 
 /**
- * Person-days band [b] takes to reap, thresh and clean a kilo of its own crop ([reapDaysPerKg], less its grinding, done as it is
- * eaten: [Band.grindOwed]), as thick as it stands in
+ * Person-days band [b] takes to reap and thresh a kilo of its own crop ([reapDaysPerKg], less its grinding, cleaning and dehusking,
+ * done as it is eaten: [Band.grindOwed], [CROP_DEHUSK_DAYS_PER_KG]), as thick as it stands in
  * its plot ([HexFood.fieldStand]); before it has sown, as a field would stand ripened in full.
  */
 internal fun GroupWorld.cropReapDays(b: Band) =
-    reapDaysPerKg(b, tuning, if (b.sownPlace.none) HexFood.yieldPerKg(b.seedDomestic) * HexFood.SEED_RATE else fauna.food.fieldStand(b.sownPlace)) - grindDaysPerKg(b)
+    reapDaysPerKg(b, tuning, if (b.sownPlace.none) HexFood.yieldPerKg(b.seedDomestic) * HexFood.SEED_RATE else fauna.food.fieldStand(b.sownPlace)) - grindDaysPerKg(b) - CROP_DEHUSK_DAYS_PER_KG
 
 /**
  * Person-days to sow [kg] at [p]: hoeing and sowing the ground ([SOW_DAYS_PER_KG]), and first clearing what of it is not cleared
