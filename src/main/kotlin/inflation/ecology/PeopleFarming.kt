@@ -74,12 +74,15 @@ private fun HexGroups.tallySowing(g: HexGroup, b: Band, p: Place, date: Date) {
 /**
  * The seed band [b] (group [g]) sows a year at [p], in its stores' units: what ripens to [FARM_NEED_SHARE] of its people's
  * year's food (as far as its ways have it, [will]: [Band.sowWill]), at what a kilo sown there bears ([HexFood.yieldPerKg] of
- * its seed's strain, in its season, [HexFood.seasonYield]) and feeds ([seedValue], cooked). Farmers sow for the year they
+ * its seed's strain, in its season, [HexFood.seasonYield], on ground as worn as it has seen it) and feeds ([seedValue], cooked). Farmers sow for the year they
  * see coming, not what seed happens to be left over; nothing where it cannot farm.
  */
 internal fun GroupWorld.sowTarget(g: HexGroup, b: Band, p: Place, will: Float = b.sowWill): Float {
     if (!b.knowsSkill[Skill.CULTIVATION] || !fauna.food.canCrop(p)) return 0f
-    val perUnit = g.storeKgPer[Store.SEED] * HexFood.yieldPerKg(b.seedDomestic) * fauna.food.seasonYield(p) * seedValue(b) * b.cookValue(Food.GRAIN)
+    // (On ground it has cropped before it reckons with the wear it has seen there: [HexFood.fieldSoil].)
+    val food = fauna.food
+    val soil = if (food.fieldWorn[p] > 0f) food.fieldSoil[p] else 1f
+    val perUnit = g.storeKgPer[Store.SEED] * HexFood.yieldPerKg(b.seedDomestic) * food.seasonYield(p) * soil * seedValue(b) * b.cookValue(Food.GRAIN)
     return if (perUnit > 0f) FARM_NEED_SHARE * will * g.dailyNeedKg * Date.DAYS_PER_YEAR / perUnit else 0f
 }
 
