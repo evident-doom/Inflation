@@ -22,7 +22,6 @@ import inflation.world.HexLand
 import inflation.world.HexWorld
 import inflation.world.RiverClass
 import inflation.world.Weather
-import kotlin.math.pow
 import kotlin.math.exp
 import kotlin.math.hypot
 import kotlin.math.ln
@@ -319,8 +318,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, @Transient p
                     val u = weather.windEast(wp); val vS = weather.windSouth(wp)
                     val driftE = -vS; val driftS = u // the wind turned a quarter to the right
                     val off = max(0f, driftE * offE[h] + driftS * offS[h]) / UPWELL_WIND
-                    upwelling[h] += if (clock.ticks == 1) (min(1f, off) - upwelling[h]) / UPWELL_WEEKS
-                        else (min(1f, off) - upwelling[h]) * (1f - (1f - 1f / UPWELL_WEEKS).pow(clock.ticks))
+                    upwelling[h] += (min(1f, off) - upwelling[h]) * clock.share(1f / UPWELL_WEEKS)
                 }
                 val t = waterTemp[month][h]
                 val mixing = if (t < 14f) 0.25f else if (t < 20f) 0.08f else 0.02f
@@ -786,7 +784,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, @Transient p
 
     /** The run's fish held below the weirs in hex [h] that weirs across [blocked] of the river there hold, kg: their share of what all of them stop. */
     /** The share of the river's own fish a weir holds back in a step: [WEIR_RIVER_SHARE] a tick, compounded over the step's ticks. */
-    private fun weirRiverShare() = if (clock.ticks == 1) WEIR_RIVER_SHARE else 1f - (1f - WEIR_RIVER_SHARE).pow(clock.ticks)
+    private fun weirRiverShare() = clock.share(WEIR_RIVER_SHARE)
 
     private fun pennedFor(h: Hex, blocked: Float) = if (weirBlock[h] > 0f) penned[h] * min(1f, blocked / weirBlock[h]) else 0f
 

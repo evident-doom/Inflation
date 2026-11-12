@@ -1,5 +1,7 @@
 package inflation.world
 
+import kotlin.math.pow
+
 /**
  * The length of the step the slow parts of the model take (the residents, small life, water life and the groups), as
  * against the tick the weather, the water and the plants keep ([tickDays], [WorldConfig.daysPerStep]). Each slow part
@@ -25,4 +27,13 @@ class StepClock(val tickDays: Int) {
      * step died of 30 days more than the weekly model's.
      */
     val newbornExposure: Float get() = (days + tickDays) / (2f * days)
+    /** The step's length in ticks, as a rate a tick is reckoned over it: [days] / [tickDays]. */
+    val tickSpan: Float get() = days.toFloat() / tickDays
+    /**
+     * The share that befalls or is taken over the step of what [perTick] a tick befalls, as a hazard over days (closed forms,
+     * F1: 1 - (1 - p)^(days / tickDays)); [perTick] itself at one tick a step.
+     */
+    fun share(perTick: Float): Float = if (days == tickDays) perTick else 1f - (1f - perTick.coerceIn(0f, 1f)).pow(tickSpan)
+    /** What is kept over the step of what keeps [perTick] a tick, fading over days (F2: k^(days / tickDays)); [perTick] at one tick. */
+    fun keep(perTick: Float): Float = if (days == tickDays) perTick else perTick.pow(tickSpan)
 }

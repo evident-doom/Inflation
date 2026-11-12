@@ -88,7 +88,7 @@ class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, @Transi
     /** The step's ticks ([StepClock.ticks]). */
     internal val ticks get() = clock.ticks
     /** A share [perTick] taken or lost each tick (a week's), over the step's ticks: 1 - (1 - p)^ticks; itself at one tick a step. */
-    internal fun overTicks(perTick: Float) = if (clock.ticks == 1) perTick else 1f - (1f - perTick.coerceIn(0f, 1f)).pow(clock.ticks)
+    internal fun overTicks(perTick: Float) = clock.share(perTick)
     internal val tuning get() = land.tuning
     val n = land.n
     /** Soil: litter and organic matter, kg/m²; carrion, kg/m²; soil animals, g/m². */

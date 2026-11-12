@@ -260,7 +260,7 @@ internal fun HexGroups.campAndCache(g: HexGroup, b: Band, p: Place, h: Hex, weat
                 if (abandoned > 0f) small.deposit(DeadPool.LITTER, b.campPlace, Kg(abandoned))
             }
             for (t in Tool.entries) if (t.heavy) b.kit[t] = 0f
-            b.stayWeeks += STAY_LEARN * (b.campWeeks + ticks - b.stayWeeks)
+            b.stayWeeks += overTicks(STAY_LEARN) * (b.campWeeks + ticks - b.stayWeeks)
             // Its goods: what it takes first ([mendingKg]), then the rest in what room its loads have left after the food, each
             // kind alike; what does not fit is left at the old camp (and goes back to the ground).
             val people = g.adults.toFloat()

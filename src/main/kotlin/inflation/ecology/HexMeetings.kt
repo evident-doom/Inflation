@@ -768,7 +768,7 @@ internal fun residentStrength(s: Species) = (if (s.foragingParty > 0) minOf(s.fo
 @Part("hunters: marking ground")
 internal fun HexGroups.mark() {
     // (A tick's fading a tick: over a step of several, compounded, so a mark goes stale in the same days whatever the step.)
-    val keep = if (ticks == 1) MARK_KEEP else MARK_KEEP.pow(ticks)
+    val keep = fauna.clock.keep(MARK_KEEP)
     for (m in scent.marks.values) for (i in m.indices) m[i] *= keep
     scent.marks2?.let { all -> for (m in all.values) for (i in m.indices) m[i] *= keep }
     for (g in groups) {
@@ -863,7 +863,7 @@ internal fun HexGroups.settle(weather: Weather) {
         // hex a tick. At one chance a step a 60-day pack was without ground 17-27% of its steps against 3-4% weekly, hunted no
         // footprint and starved: trace747, Olli 2026-11-12 "study starving steps".)
         val w = g.will[AnimalWay.SETTLE]
-        if (w < 1f && rnd.nextFloat() >= (if (ticks > 1) 1f - (1f - w).pow(ticks) else w)) continue
+        if (w < 1f && rnd.nextFloat() >= fauna.clock.share(w)) continue
         val here = hw.placeHex[g.place]
         // (And about it: over a step of several ticks a weekly pack would have wandered as far as a random walk of a hex a tick
         // goes, about the square root of the ticks in rings; trace749: beaten off, 60-day packs settled again a third as often.)

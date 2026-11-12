@@ -496,7 +496,7 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         val books = land.books
         ateBook = books?.adder(Books.Stuff.MATTER, "eaten"); droppedBook = books?.adder(Books.Stuff.MATTER, "dung and frass")
         // (A tick's fading a tick: over a step of several, compounded, as the step's kills add theirs.)
-        val fearKeep = if (clock.ticks == 1) FEAR_KEEP else FEAR_KEEP.pow(clock.ticks)
+        val fearKeep = clock.keep(FEAR_KEEP)
         for (p in land.places) fear[p] *= fearKeep
         persecutionFades()
         stepOutbreaks(); outbreakSalt++
