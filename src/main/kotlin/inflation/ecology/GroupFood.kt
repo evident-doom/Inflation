@@ -207,19 +207,10 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     val o = Offers(mostOffers(w))
     // The party plans its week on what it finds, eats, and if others got there first and it is still
     // hungry, looks again at what is left.
-    // (A beast re-plans as often in a step as in so many weeks: a pass a week's worth, so a pack short of its want after a lean
-    // run hunts on as a weekly one would in the weeks after. With three passes a step, a 60-day pack's take was one draw where
-    // a weekly pack's was ten weeks' re-planned ones: same mean, ten times the lean tail, and hunger deaths 10-20 times the
-    // weekly; trace740, Olli 2026-11-12 "study starving steps".)
-    val passes = if (w.band == null) foragePasses * ticks else foragePasses
-    for (pass in 0 until passes) {
-        // (A beast plans on what its kills were expected to feed it, not on its luck at them: [ForageWeek.killLuck]. But only within
-        // a week's worth of passes: after it, as in the next week, what it got is what it has, and a lean run is hunted on after.)
-        if (w.band == null && pass > 0 && pass % foragePasses == 0) w.killLuck = 0f
+    for (pass in 0 until foragePasses) {
+        // (A beast plans on what its kills were expected to feed it, not on its luck at them: [ForageWeek.killLuck].)
         val left = w.aim - (w.fed - w.killLuck)
         if (left <= 0.01f * w.wantAll) break
-        // (Nor, over a long step, once its days are all spent: the passes left would take nothing.)
-        if (w.band == null && ticks > 1 && w.workDays - w.busy - w.searchUsed <= 0f) break
         offerFoods(w, o)
         o.takeUp()
         if (pass == 0 && w.band != null) noteUnused(w, o)
@@ -368,7 +359,7 @@ private fun HexGroups.packWeekDiag(w: ForageWeek) {
     if (w.fed >= w.aim - 0.01f * w.wantAll) diag(s, HuntStep.PACK_WEEKS_FULL, 1f)
     else if (w.busy >= 0.95f * w.workDays) diag(s, HuntStep.PACK_WEEKS_OUT_OF_TIME, 1f)
     else if (w.busy + w.searchUsed >= 0.95f * w.workDays) diag(s, HuntStep.PACK_WEEKS_SEARCH_SPENT, 1f)
-    else if (w.passes >= foragePasses * ticks) diag(s, HuntStep.PACK_WEEKS_PASSES_SPENT, 1f)
+    else if (w.passes >= foragePasses) diag(s, HuntStep.PACK_WEEKS_PASSES_SPENT, 1f)
 }
 
 /**
