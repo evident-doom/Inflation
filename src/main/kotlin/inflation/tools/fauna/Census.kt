@@ -741,6 +741,27 @@ class Census(private val sim: HexSim) {
             })
     }
 
+    /**
+     * The homes each living band knows of ([inflation.ecology.Band.knownHomes]): how many (mean, tenth, median, ninetieth
+     * percentile, most), against the bands alive; the share of them whose band is no longer alive; and how far they lie
+     * from the knower (median km, and the share beyond 100 and 300 km). Olli 2026-11-12: "each band knows 1100 homes?"
+     */
+    fun printKnownHomes() {
+        val alive = groups.groups.filter { it.alive && it.band != null }
+        val ids = alive.mapTo(HashSet()) { it.id }
+        val counts = alive.map { it.band!!.knownHomes.size }.sorted()
+        if (counts.isEmpty()) return
+        fun q(f: Double) = counts[((counts.size - 1) * f).toInt()]
+        var all = 0L; var dead = 0L; var far100 = 0L; var far300 = 0L; val km = ArrayList<Float>()
+        for (g in alive) { val here = hw.placeHex[g.place]
+            for ((id, h) in g.band!!.knownHomes) { all++; if (id !in ids) dead++
+                val d = hex.distanceKm(here, h).toFloat(); if (d > 100f) far100++; if (d > 300f) far300++; if (km.size < 2_000_000) km += d } }
+        km.sort()
+        println("known homes per band (bands alive %d): mean %.0f, p10 %d, median %d, p90 %d, most %d; of bands no longer alive %.0f%%; km from the knower median %.0f, beyond 100 km %.0f%%, beyond 300 km %.0f%%".format(
+            alive.size, counts.average(), q(0.1), q(0.5), q(0.9), counts.last(), 100.0 * dead / all.coerceAtLeast(1),
+            if (km.isEmpty()) 0f else km[km.size / 2], 100.0 * far100 / all.coerceAtLeast(1), 100.0 * far300 / all.coerceAtLeast(1)))
+    }
+
     /** Bands by kind of country over the last year ([lastYear]'s tallies): how many, how they fed and on what, how they lived and died. */
     fun printBandsByCountry(lastYear: Map<TallyKey, Int>, stepsPerYear: Int) {
         // (Camp moves by the way of life lived ([livelihood]), to set against the record: mobile foragers some 5-15 a year, farmers
