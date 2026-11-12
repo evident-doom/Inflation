@@ -663,14 +663,14 @@ class Census(private val sim: HexSim) {
      * from the knower (median km, and the share beyond 100 and 300 km). Olli 2026-11-12: "each band knows 1100 homes?"
      */
     fun printKnownHomes() {
-        val alive = groups.groups.filter { it.alive && it.band != null }
-        val ids = alive.mapTo(HashSet()) { it.id }
-        val counts = alive.map { it.band!!.knownHomes.size }.sorted()
+        val alive = groups.groups.filter { it.alive && it.band != null }.map { it to it.band ?: return }
+        val ids = alive.mapTo(HashSet()) { it.first.id }
+        val counts = alive.map { it.second.knownHomes.size }.sorted()
         if (counts.isEmpty()) return
         fun q(f: Double) = counts[((counts.size - 1) * f).toInt()]
         var all = 0L; var dead = 0L; var far100 = 0L; var far300 = 0L; val km = ArrayList<Float>()
-        for (g in alive) { val here = hw.placeHex[g.place]
-            for ((id, h) in g.band!!.knownHomes) { all++; if (id !in ids) dead++
+        for ((g, b) in alive) { val here = hw.placeHex[g.place]
+            for ((id, h) in b.knownHomes) { all++; if (id !in ids) dead++
                 val d = hex.distanceKm(here, h).toFloat(); if (d > 100f) far100++; if (d > 300f) far300++; if (km.size < 2_000_000) km += d } }
         km.sort()
         println("known homes per band (bands alive %d): mean %.0f, p10 %d, median %d, p90 %d, most %d; of bands no longer alive %.0f%%; km from the knower median %.0f, beyond 100 km %.0f%%, beyond 300 km %.0f%%".format(
