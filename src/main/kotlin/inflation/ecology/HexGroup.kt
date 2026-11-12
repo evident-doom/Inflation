@@ -46,7 +46,10 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
     /** forageDiag (window trace, [liveWeek]): a beast's 60-day window so far: its index, days, fed-days before its fat, fat and body burnt at its start, hunger deaths. */
     @Transient var winStart = -1L; @Transient var winDays = 0; @Transient var winFed = 0f; @Transient var winFat0 = 0f; @Transient var winSpent0 = 0f; @Transient var winDied = 0
     /** forageDiag: its last step's forage (want, taken, luck, aim, busy, searched, work days, passes, big-game kg a day expected on its ground) and the window's sums of them. */
-    @Transient val stepDiag = FloatArray(9); @Transient val winSum = FloatArray(9)
+    // (Null after a load, as transient fields come back: made when first wanted.)
+    @Transient private var stepDiag0: FloatArray? = null; @Transient private var winSum0: FloatArray? = null
+    val stepDiag get() = stepDiag0 ?: FloatArray(9).also { stepDiag0 = it }
+    val winSum get() = winSum0 ?: FloatArray(9).also { winSum0 = it }
     /** For a hunter: the hex at the heart of the ground it holds, -1 while it holds none. */
     var home = Hex.NONE
     /** For a roamer of a kind that also lives settled: the hex it left its kind's settled in, which it does not settle back in ([HexGroups.settle]). */
