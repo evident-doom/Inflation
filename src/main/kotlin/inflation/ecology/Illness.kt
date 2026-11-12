@@ -32,8 +32,12 @@ enum class Illness(override val label: String, val weeks: Float, val deadly: Flo
     FLUX("the flux", 3f, 0.01f, 3f, 0.1f, 2f, 0.4f),
     /** Malaria: carried by the mosquitoes about the camp in the warm months; not caught from one another. */
     MARSH_FEVER("marsh fever", 6f, 0.04f, 3f, 0f, 4f, 0.3f),
-    /** A virulent cough that runs from band to band, worst in winter and at gatherings, and can empty a camp. */
-    COUGH("the cough", 4f, 0.08f, 2f, 0.6f, 20f, 0.6f);
+    /**
+     * A virulent cough that runs from band to band, worst in winter and at gatherings, and can empty a camp. Of those who
+     * fall ill, 5% of the grown die (was 8%: it killed 4-5 a 1000 grown a year at x4 against a rough 2.5 of the record,
+     * respiratory illness 22% of forager deaths at adult deaths of 10-15 a 1000, Gurven and Kaplan 2007; fitted, not sourced).
+     */
+    COUGH("the cough", 4f, 0.05f, 2f, 0.6f, 20f, 0.6f);
 
     override val shown get() = PlaceRecord.Cause.ILLNESS
 }
@@ -150,23 +154,42 @@ internal fun GroupWorld.illnessAhead(b: Band, p: Place, t: Float, crowd: Float, 
 
 /**
  * Two bands meet: the sick pass on what is catching, the less so to a band that keeps away from the
- * sick ([Tradition.HYGIENE]) and to those spared by having had it.
+ * sick ([Tradition.HYGIENE]) and to those spared by having had it. [strangers], 0..1: how far they are strangers to each
+ * other (never met before, and not kin: [strangersAt]), whose sicknesses the spared are the less spared from ([STRANGER_GERMS]).
  */
-internal fun passIllness(a: Band, b: Band) {
+internal fun passIllness(a: Band, b: Band, strangers: Float = 0f) {
     for (d in Illness.entries) {
         if (d.contagion <= 0f) continue
         val i = d
         val sa = a.sick[i]; val sb = b.sick[i]
-        if (sa > 0f) b.sick[i] = min(1f, b.sick[i] + caughtFrom(d, sa, b))
-        if (sb > 0f) a.sick[i] = min(1f, a.sick[i] + caughtFrom(d, sb, a))
+        if (sa > 0f) b.sick[i] = min(1f, b.sick[i] + caughtFrom(d, sa, b, strangers))
+        if (sb > 0f) a.sick[i] = min(1f, a.sick[i] + caughtFrom(d, sb, a, strangers))
     }
 }
+
+/**
+ * How far two bands meeting are strangers, 0..1, for the sicknesses they bring each other ([passIllness]): bands that have
+ * met before share what goes round between them, and kin carry what their common forebears did; bands meeting for the
+ * first time carry, as far as they are not kin, kinds of their own. Read before the meeting is recorded ([meetingFresh]).
+ * (The rough pattern only, not strains: where people stay put it rarely tells; where they range far and meet many new bands,
+ * the sicknesses they bring find people less spared, the outbreaks that came with the first long journeys.)
+ */
+internal fun strangersAt(a: Band, aId: Int, b: Band, bId: Int): Float =
+    if (a.lastMet.containsKey(bId) || b.lastMet.containsKey(aId)) 0f else {
+        // (Kin as alike lineages: 1 for bands of the same forebears in the same shares, however mixed.)
+        val ab = kinship(a.lineage, b.lineage); val norm = kotlin.math.sqrt(kinship(a.lineage, a.lineage) * kinship(b.lineage, b.lineage))
+        (1f - (if (norm > 0f) ab / norm else 0f)).coerceIn(0f, 1f)
+    }
 
 /**
  * The share of band [b] that catches [d] from a band it meets with [theirSick] of its people sick of it. The one rule for
  * a meeting ([passIllness]) and for the sickness a band foresees among the bands gathered at a place ([HexGroups.deathsAt]).
  */
-internal fun caughtFrom(d: Illness, theirSick: Float, b: Band) = d.contagion * theirSick * max(0f, 1f - b.sick[d] - b.immune[d]) * b.hygiene
+internal fun caughtFrom(d: Illness, theirSick: Float, b: Band, strangers: Float = 0f) =
+    d.contagion * theirSick * max(0f, 1f - b.sick[d] - b.immune[d] * (1f - STRANGER_GERMS * strangers)) * b.hygiene
+
+/** The share of a band's sparing (immunity) that does not hold against strangers' sicknesses ([strangersAt]). An estimate. */
+internal const val STRANGER_GERMS = 0.5f
 
 /**
  * Sickness: weekly share of the well who fall to the flux in a fouled, warm camp; to marsh fever where

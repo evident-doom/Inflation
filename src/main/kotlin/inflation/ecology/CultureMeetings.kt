@@ -45,7 +45,7 @@ internal fun HexGroups.meetingFresh(a: HexGroup, b: HexGroup, weather: Weather):
  * Returns true if it came to a raid.
  */
 @Part("meetings: talk or raid")
-internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weather, rite: RiteGathering? = null, fresh: Float = 1f): Boolean {
+internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weather, rite: RiteGathering? = null, fresh: Float = 1f, strangers: Float = 0f): Boolean {
     val bandA = a.band ?: return false; val bandB = b.band ?: return false
     bandA.ensureMarks(fauna.totemKinds); bandB.ensureMarks(fauna.totemKinds)
     val u = Language.understanding(bandA.words, bandB.words)
@@ -147,7 +147,7 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
     riteMeet(bandA, bandB, ab, ba)
     teach(bandA, bandB, u, (doing(a) - doing(b)).coerceIn(-1f, 1f))
     // And the sick among them pass on what is catching.
-    passIllness(bandA, bandB)
+    passIllness(bandA, bandB, strangers)
     // Each tells the other of the country it knows round about, as far as they understand each other.
     // (News told is old: bands that meet again and again have little new to tell, [meetingFresh].)
     if (rnd.nextFloat() < u * (0.6f + 0.4f * close) * fresh) tellOfCountry(a, bandA, b, bandB, ab, ba, weather)
