@@ -51,8 +51,6 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
     val stepDiag get() = stepDiag0 ?: FloatArray(9).also { stepDiag0 = it }
     val winSum get() = winSum0 ?: FloatArray(25).also { winSum0 = it }
     @Transient var winLastPlace = -1
-    /** packtick758: the ticks a pack hunted in this step, their fed and surplus summed, and its fat at the step's start. */
-    @Transient var tickN = 0; @Transient var tickFed = 0f; @Transient var tickSurplus = 0f; @Transient var tickFat0 = Float.NaN
     /** forageDiag: why it planned as it did this step: 1 hungry, 2 homeless, 4 away from its home hex, 8 thirsty, 16 astray, 32 pressed off by people, 64 peril ahead. */
     @Transient var planWhy = 0
     /** forageDiag: the game its place was worth to it, and its bearing's strength, as it planned this step. */
