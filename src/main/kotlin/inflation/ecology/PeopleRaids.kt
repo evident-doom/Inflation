@@ -169,7 +169,7 @@ internal fun HexGroups.raidParty(g: HexGroup): Float =
 
 /** The share of a band's able adults that go on a planned raid ([raidParty]): its men of fighting age, about half its grown; an estimate. */
 internal const val RAID_PARTY = 0.5f
-internal const val RAID_PLOT = 0.1f
+internal const val RAID_PLOT = 0.05f
 /** The share of a raid's take ([RAID_TAKE]) that a mobile band slipping away loses of its larder. An estimate; no figure found. */
 internal const val SLIP_LOSS = 0.3f
 /** How much of the raided's grudge and loss of ties ([GRUDGE], [TIE_RAID]) the raiders hold against the defenders when they lost people in the raid. An estimate; no figure found. */
