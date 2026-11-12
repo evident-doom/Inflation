@@ -77,7 +77,7 @@ internal class GroupPlanner(internal val gs: HexGroups) {
             g.planWhy = (if (g.fed < Thresholds.HUNGRY) 1 else 0) or (if (g.home.none) 2 else 0) or (if (!g.home.none && here != g.home) 4 else 0) or
                 (if (g.dry > 0.5f * g.species.daysWithoutWater) 8 else 0) or (if (gs.bearings.strength(gs.kindSlot[g.species.index], here) > ASTRAY) 16 else 0) or
                 (if (gs.pressedOff(g)) 32 else 0) or (if (gs.perilAhead(here) > 0f) 64 else 0)
-            g.planGame = placeValue[gs.kindSlot[g.species.index]][g.place]; g.planBearing = gs.bearings.strength(gs.kindSlot[g.species.index], here) }
+            g.planGame = placeValue[gs.kindSlot[g.species.index]][g.place]; g.planFresh = gs.lifewayValue(g.species, g.place); g.planPrey = gs.preyHere(g.species, g.place); g.planBearing = gs.bearings.strength(gs.kindSlot[g.species.index], here) }
         return planInner(g, weather, date, predatorKg)
     }
 

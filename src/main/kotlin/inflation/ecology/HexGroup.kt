@@ -49,12 +49,14 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
     // (Null after a load, as transient fields come back: made when first wanted.)
     @Transient private var stepDiag0: FloatArray? = null; @Transient private var winSum0: FloatArray? = null
     val stepDiag get() = stepDiag0 ?: FloatArray(9).also { stepDiag0 = it }
-    val winSum get() = winSum0 ?: FloatArray(22).also { winSum0 = it }
+    val winSum get() = winSum0 ?: FloatArray(25).also { winSum0 = it }
     @Transient var winLastPlace = -1
     /** forageDiag: why it planned as it did this step: 1 hungry, 2 homeless, 4 away from its home hex, 8 thirsty, 16 astray, 32 pressed off by people, 64 peril ahead. */
     @Transient var planWhy = 0
     /** forageDiag: the game its place was worth to it, and its bearing's strength, as it planned this step. */
     @Transient var planGame = 0f; @Transient var planBearing = 0f
+    /** forageDiag: its place's worth worked out afresh as it planned, and the resident game in it alone. */
+    @Transient var planFresh = 0f; @Transient var planPrey = 0f
     /** For a hunter: the hex at the heart of the ground it holds, -1 while it holds none. */
     var home = Hex.NONE
     /** For a roamer of a kind that also lives settled: the hex it left its kind's settled in, which it does not settle back in ([HexGroups.settle]). */
