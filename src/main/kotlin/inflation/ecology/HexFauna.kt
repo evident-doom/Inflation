@@ -211,10 +211,12 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
                 }
                 front = next; tick++
             }
+            // (The step's fading worked out once, not a hex at a time: prof761, a serial loop of pows.)
+            val whole = faded(0f, span); val keepSpan = OUTBREAK_KEEP.pow(span)
             for (h in hex.all) {
                 val c = came[h.i].toFloat()
-                sum[h] = if (c <= 0f) base[h] * faded(0f, span) else o[h] * faded(0f, c) + base[h] * faded(c, span)
-                o[h] = min(1f, base[h] * OUTBREAK_KEEP.pow(span))
+                sum[h] = if (c <= 0f) base[h] * whole else o[h] * faded(0f, c) + base[h] * faded(c, span)
+                o[h] = min(1f, base[h] * keepSpan)
             }
         }
     }

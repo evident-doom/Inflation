@@ -192,6 +192,13 @@ internal fun GroupWorld.tallyMeeting(metAs: MetAs, what: Tally.MeetingEnd) {
  * the routes they know, where they met, where their homes and those of others they know are, the
  * appointments they keep, and the places they remember (as far as they trust each other).
  */
+/** The hexes within [TOLD_RINGS] rings of [home], itself first ([HexGroups.toldDisk]). */
+internal fun HexGroups.toldOf(home: Hex): IntArray = toldDisk[home.i] ?: run {
+    val out = ArrayList<Hex>(); var ring = listOf(home); val seen = hashSetOf(home)
+    for (r in 0..TOLD_RINGS) { out += ring; if (r == TOLD_RINGS) break; ring = hex.nextRing(ring, seen) }
+    IntArray(out.size) { out[it].i }.also { toldDisk[home.i] = it }
+}
+
 @Part("meetings: tell of country")
 private fun HexGroups.tellOfCountry(a: HexGroup, bandA: Band, b: HexGroup, bandB: Band, ab: Regard, ba: Regard, weather: Weather) {
     val u = ab.understood
@@ -200,12 +207,8 @@ private fun HexGroups.tellOfCountry(a: HexGroup, bandA: Band, b: HexGroup, bandB
     // comes away with a map of the other's country too.)
     val hb = hw.placeHex[b.place]
     for (home in if (hb == h0) arrayOf(h0) else arrayOf(h0, hb)) {
-        var ring = listOf(home); val seen = hashSetOf(home)
-        for (r in 0..TOLD_RINGS) {
-            for (h in ring) { if (bandA.knows(h)) bandB.learn(h, hex.size); if (bandB.knows(h)) bandA.learn(h, hex.size) }
-            if (r == TOLD_RINGS) break
-            ring = hex.nextRing(ring, seen)
-        }
+        // (The hexes about it, worked out once a hex: the boxed rings were a fifth of the telling's time, prof761.)
+        for (i in toldOf(home)) { val h = Hex(i); if (bandA.knows(h)) bandB.learn(h, hex.size); if (bandB.knows(h)) bandA.learn(h, hex.size) }
     }
     stats.meeting(Met.BANDS_TOLD_OF_COUNTRY)
     // And of the ways they know further off: landmarks, and the legs between those they know, each about its own home.
