@@ -29,11 +29,14 @@ object Temperament {
     const val AXES = 4
     val NAMES = listOf("boldness", "exploration", "activity", "sociability")
     /**
-     * Spread of founders' temperaments, in units of a place's score: three times the pull of staying
-     * put ([STAY]). Not measured; kept wide on purpose so that runs try out markedly different ways of
-     * choosing and selection and learning sort them.
+     * Spread of founders' temperaments, in units of the temperature a band chooses at: a network's score, whose unit is
+     * that temperature (1); the hand-written score takes it at its own unit, [HAND_SCORE_UNIT] ([temperPull]). So a
+     * temperament leans as far on either. Not measured; kept wide enough that runs try out different ways of choosing
+     * and selection and learning sort them. (Until 2026-11-05 the hand-written score took it at the network's scale, ten
+     * times its own: the restless pull was then the largest part of half the moves it chose, and its bands, moving a
+     * third of their weeks, starved: handmove-trace, handroles screens.)
      */
-    const val FOUNDER_SD = 3f * STAY
+    const val FOUNDER_SD = 0.15f
     /** The change at each split: a fifth of the founders' spread, so lineages stay recognisable over a few splits. Not measured. */
     const val DRIFT_SD = FOUNDER_SD / 5f
 
@@ -61,10 +64,10 @@ object Temperament {
     }
 }
 
-/** What temperament pulls group [g] toward place [p] (in hex [h]) with: the hand-written path's share. */
+/** What temperament pulls group [g] toward place [p] (in hex [h]) with: the hand-written path's share, in its units ([HAND_SCORE_UNIT], see [Temperament.FOUNDER_SD]). */
 @Part("choosing: temper pull")
 internal fun GroupWorld.temperPull(g: HexGroup, p: Place, h: Hex, hunters: Float, crowded: Float): Float {
     var remembered = 0f
     for (i in g.memory.hex.indices) if (g.memory.hex[i] == h) { remembered = 1f; break }
-    return Temperament.pull(g.temper, hunters / (hunters + 3f), remembered, if (p == g.place) 1f else 0f, crowded)
+    return HAND_SCORE_UNIT * Temperament.pull(g.temper, hunters / (hunters + 3f), remembered, if (p == g.place) 1f else 0f, crowded)
 }
