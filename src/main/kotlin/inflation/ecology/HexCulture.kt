@@ -191,8 +191,12 @@ internal const val GRUDGE = 1f
 
 internal const val GRUDGE_FADE = 0.1f
 
-/** A band's grudge against another's lineage above which it raids it unprovoked. */
-internal const val FEUD = 0.9f
+/**
+ * A band's grudge against another's lineage above which it raids it unprovoked: two raids suffered within a few years,
+ * not one. At 0.9 one raid set a feud, and every raid its answer: violent deaths 15-25% where people crowd against
+ * 11% in the forager record (Gurven, pooled deaths of 7 groups); at 2, 11-15% and people +6% (feud723, 12 Nov 2026).
+ */
+internal const val FEUD = 2f
 
 /** Rings of hexes round a meeting whose country bands tell each other of; country further than this from a band's camp is half forgotten each year. */
 internal const val TOLD_RINGS = 4
