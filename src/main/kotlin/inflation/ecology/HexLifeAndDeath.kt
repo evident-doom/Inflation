@@ -663,7 +663,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         val win = date.absoluteDay / 60
         fun line(fat: Float, spent: Float, end: String) = System.err.println("window ${s.name} id ${g.id} step $days span ${g.winDays} fed ${g.winFed / max(1, g.winDays)} " +
             "fat ${g.winFat0} -> $fat of ${s.maxFatDays} spent ${g.winSpent0} -> $spent starve ${Hazards.starveDays(s)} died ${g.winDied} grown ${g.adults} young ${g.young} " +
-            "want ${g.winSum[0]} taken ${g.winSum[1]} luck ${g.winSum[2]} aim ${g.winSum[3]} busy ${g.winSum[4]} searched ${g.winSum[5]} work ${g.winSum[6]} passes ${g.winSum[7]} rate ${g.winSum[8]} moved ${g.winSum[9]} foot ${g.winSum[10]} homeless ${g.winSum[11]} hungry ${g.winSum[12]} away ${g.winSum[13]} thirsty ${g.winSum[14]} astray ${g.winSum[15]} pressed ${g.winSum[16]} peril ${g.winSum[17]} game ${g.winSum[18]} bearing ${g.winSum[19]} $end")
+            "want ${g.winSum[0]} taken ${g.winSum[1]} luck ${g.winSum[2]} aim ${g.winSum[3]} busy ${g.winSum[4]} searched ${g.winSum[5]} work ${g.winSum[6]} passes ${g.winSum[7]} rate ${g.winSum[8]} moved ${g.winSum[9]} foot ${g.winSum[10]} homeless ${g.winSum[11]} hungry ${g.winSum[12]} away ${g.winSum[13]} thirsty ${g.winSum[14]} astray ${g.winSum[15]} pressed ${g.winSum[16]} peril ${g.winSum[17]} game ${g.winSum[18]} bearing ${g.winSum[19]} tickgame ${g.winSum[20]} ticks ${g.winSum[21]} $end")
         if (g.winStart != win) {
             if (g.winStart >= 0 && g.winDays > 0) line(fatRaw, spentRaw, "next")
             g.winStart = win; g.winDays = 0; g.winFed = 0f; g.winFat0 = fatRaw; g.winSpent0 = spentRaw; g.winDied = 0; g.winSum.fill(0f)
@@ -874,3 +874,16 @@ internal const val HUNGER_CASES = 30
 private val STARVED_TRACE = inflation.Trace(inflation.Config.Key.FORAGE_DIAG, "starved", byKind = true)
 /** forageDiag=KIND: a tenth of that kind's beasts followed through 60-day windows ([liveWeek]). */
 private val WINDOW_TRACE = inflation.Trace(inflation.Config.Key.FORAGE_DIAG, "windows", share = 0.1f, byKind = true)
+
+/**
+ * forageDiag (trace755): at each tick of a long step, after the residents' tick, the game the home place of each followed pack
+ * is worth to it ([lifewayValue]), summed into its window with the ticks counted; so the ground over the step can be set
+ * against the one reading at the step's start.
+ */
+internal fun HexGroups.tickGameTrace() {
+    for (g in groups) {
+        if (!g.alive || g.band != null || g.home.none || !WINDOW_TRACE.wants(g.id.toLong(), 0L, g.species.name)) continue
+        val p = hw.placeNear(g.place, g.home); if (p.none) continue
+        g.winSum[20] += lifewayValue(g.species, p); g.winSum[21] += 1f
+    }
+}

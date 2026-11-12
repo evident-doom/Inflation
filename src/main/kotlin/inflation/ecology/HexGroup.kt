@@ -49,7 +49,7 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
     // (Null after a load, as transient fields come back: made when first wanted.)
     @Transient private var stepDiag0: FloatArray? = null; @Transient private var winSum0: FloatArray? = null
     val stepDiag get() = stepDiag0 ?: FloatArray(9).also { stepDiag0 = it }
-    val winSum get() = winSum0 ?: FloatArray(20).also { winSum0 = it }
+    val winSum get() = winSum0 ?: FloatArray(22).also { winSum0 = it }
     @Transient var winLastPlace = -1
     /** forageDiag: why it planned as it did this step: 1 hungry, 2 homeless, 4 away from its home hex, 8 thirsty, 16 astray, 32 pressed off by people, 64 peril ahead. */
     @Transient var planWhy = 0
