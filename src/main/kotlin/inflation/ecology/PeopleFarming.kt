@@ -61,11 +61,14 @@ internal fun HexGroups.sowGrain(g: HexGroup, b: Band, p: Place, date: Date, time
 internal fun cropReturn(b: Band) = if (b.cropDaysSeen > 0f && b.cropWorthSeen > 0f) b.cropWorthSeen / b.cropDaysSeen else -1f
 
 /**
- * A day of band [b]'s own crop against a day of its foraging in [month] ([Band.forageReturn]), as it has seen them; below 0
- * where it has not seen both. Over 1, its crop has paid it better than the foraging it would give up for it.
+ * A day of band [b]'s own crop against a day of its foraging in its leanest month ([Band.forageReturn]), as it has seen them;
+ * below 0 where it has not seen both. Grain is food kept for the lean months, eaten when a day's foraging brings least, so it
+ * is weighed against those days, as a herd is ([herdWorth]); against the foraging of the sowing months, when it is sown, the
+ * crop was worth 0.58-0.77 of a day (learn744 2026-11-12) and bands learned to sow less. Over 1, its crop has paid it better
+ * than the foraging it saves.
  */
-internal fun cropAgainstForage(b: Band, month: Int): Float {
-    val crop = cropReturn(b); val forage = b.forageReturn[month]
+internal fun cropAgainstForage(b: Band): Float {
+    val crop = cropReturn(b); val forage = b.forageReturn.filter { it >= 0f }.minOrNull() ?: -1f
     return if (crop > 0f && forage > 0f) crop / forage else -1f
 }
 
@@ -94,7 +97,7 @@ internal fun HexGroups.tallySowingTime(g: HexGroup, b: Band, p: Place, date: Dat
     stats.tally(Tally.sowingTime(null), 1)
     for (a in Activity.entries) { val d = (10f * time.spentOn(a)).roundToInt(); if (d > 0) stats.tally(Tally.sowingTime(a), d) }
     stats.tally(Tally.sowingLost, (10f * time.lost).roundToInt())
-    val r = cropAgainstForage(b, date.month)
+    val r = cropAgainstForage(b)
     if (r >= 0f) { stats.tally(Tally.sowingRatioWeeks, 1); stats.tally(Tally.sowingRatio, (100f * min(r, 100f)).roundToInt()); if (r > 1f) stats.tally(Tally.sowingRatioOver, 1) }
 }
 

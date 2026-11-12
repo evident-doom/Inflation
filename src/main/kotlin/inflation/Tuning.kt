@@ -125,7 +125,7 @@ class Tuning(
     val planners = f("planners", 0f).also { require(it in 0f..1f) { "t.planners is $it: a share of the bands, 0-1" } }
     /**
      * How far bands share their days out by the returns they have seen ([inflation.ecology.cropAgainstForage]): what a day of
-     * their own crop brought them against a day's foraging in the month; 0, not at all (the ways' dials alone), 1 wholly.
+     * their own crop brought them against a day's foraging in their leanest month; 0, not at all (the ways' dials alone), 1 wholly.
      */
     val learnDays = f("learnDays", 0f).also { require(it in 0f..1f) { "t.learnDays is $it: 0-1" } }
     /** Diagnostic: the planning kind's slots over its own, for the slot-by-slot A/B (as text; [inflation.ecology.Mind] reads and checks it). */

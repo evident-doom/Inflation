@@ -424,11 +424,11 @@ internal fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float
     val asks = enumFloats<Activity>()
     asks[Activity.FOOD] = storeDays * hands
     choreAsks(g, b, w.weather.date, asks, warm)
-    // (A band whose own crop has paid it better a day than the month's foraging holds its sowing before the week's food as
+    // (A band whose own crop has paid it better a day than its leanest month's foraging holds its sowing before the week's food as
     // far as it learns from that, [Tuning.learnDays]: the week left short it bridges from its stores and fat; and weighs the
     // rest of its sowing by the same returns. [cropAgainstForage].)
     val learn = tuning.learnDays
-    val sowRatio = if (learn > 0f) cropAgainstForage(b, w.weather.date.month) else -1f
+    val sowRatio = if (learn > 0f) cropAgainstForage(b) else -1f
     if (sowRatio > 1f && asks[Activity.SOWING] > 0f) {
         val first = asks[Activity.SOWING] * min(1f, sowRatio - 1f) * learn
         warm[Activity.SOWING] += first; asks[Activity.SOWING] -= first
