@@ -290,8 +290,6 @@ class Band(kinds: Int, totems: Int = kinds) {
     fun paces() = enumFloats<Activity> { paceAt(it.where) }
     /** Its name among the bands for the useful gifts it has given (fading a fifth a year; with trade on). */
     var renown = 0f
-    /** What it is talked of for far off besides its gifts: raids it won ([FAME_RAID]), fading ([FAME_FADE]). How far its home is told of: [Bands.fameOf]. */
-    var fame = 0f
     var campWeeks = 0
     /** Weeks it has lately kept a camp before moving on, a running mean ([STAY_LEARN]): over how long a move pays back its walk. */
     var stayWeeks = STAY_WEEKS_START
@@ -905,7 +903,7 @@ class Band(kinds: Int, totems: Int = kinds) {
         made.copyInto(o.made)
         o.salted = salted; o.dryDepth = dryDepth; o.pests = pests
         o.sodiumWant = sodiumWant; o.saltWantStep = saltWantStep * share; saltWantStep -= o.saltWantStep
-        o.renown = renown; o.fame = fame
+        o.renown = renown
         rite.copyInto(o.rite); o.riteStrength = riteStrength; o.riteHeld = riteHeld; o.riteKept = riteKept; o.beliefYears = beliefYears; o.strain = strain
         o.omenPlace = omenPlace; o.omenMonth = omenMonth; o.omenYear = omenYear; o.omenWeight = omenWeight; o.deathsUsual = deathsUsual; o.wantSteps = wantSteps; o.wantBroke = wantBroke; o.wantUsual = wantUsual; o.mind = mind; foreseenShares.copyInto(o.foreseenShares); o.foreseenAt = foreseenAt
         warn.copyInto(o.warn); o.warnAt = warnAt
@@ -979,7 +977,7 @@ class Band(kinds: Int, totems: Int = kinds) {
         a.larderSeen += w * (b.larderSeen - a.larderSeen)
         a.ornaments += b.ornaments; a.exotic += b.exotic
         a.herds.absorb(b.herds)
-        a.renown = max(a.renown, b.renown); a.fame = max(a.fame, b.fame)
+        a.renown = max(a.renown, b.renown)
         a.raidDeathRate += w * (b.raidDeathRate - a.raidDeathRate)
         for (i in Tool.entries) a.knows[i] = a.knows[i] || b.knows[i]
         for (i in a.lineage.indices) a.lineage[i] += w * (b.lineage[i] - a.lineage[i])

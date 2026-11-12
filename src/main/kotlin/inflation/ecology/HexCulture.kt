@@ -3,6 +3,7 @@ package inflation.ecology
 import inflation.drawKey
 import inflation.drawUnit
 import inflation.Part
+import inflation.enumFloats
 import inflation.EnumBools
 import inflation.Stream
 import inflation.world.Hex
@@ -17,6 +18,7 @@ import inflation.world.Date
 import kotlin.math.max
 import kotlin.math.abs
 import kotlin.math.exp
+import kotlin.math.ln
 
 // What passes between bands: words, traditions, partners and grudges. A band's culture is data on
 // the band ([Band]); it changes when bands meet, when they split, and now and then by itself.
@@ -234,14 +236,61 @@ internal const val HEARSAY_OFF = 0.1f
 /** Fame ([Bands.fameOf]): each unit carries the tale of a band's home [HOMES_KM] further. */
 internal const val HOMES_FAME_REACH = 1f
 
-/** The fame a band gains for a raid it won ([Band.fame]). An estimate. */
-internal const val FAME_RAID = 0.5f
+/**
+ * The share of housed bands above which a measure is extraordinary ([reckonFame]): the top twentieth. An estimate: Olli
+ * 2026-11-12, fame is for something extraordinary, not for the ordinary run.
+ */
+internal const val FAME_TOP = 0.05f
 
-/** The fame a band's home gains for each other band housed in its hex: a large settlement is talked of far off. An estimate. */
-internal const val FAME_SETTLEMENT = 0.5f
+/** Landmarks a home is talked of for: river crossings, passes, where rivers meet, river mouths, lakes, springs, hilltops ([HexRoutes.Kind]). */
+private val FAMED_LANDMARKS = setOf(HexRoutes.Kind.FORD, HexRoutes.Kind.PASS, HexRoutes.Kind.CONFLUENCE, HexRoutes.Kind.MOUTH,
+    HexRoutes.Kind.LAKE, HexRoutes.Kind.SPRING, HexRoutes.Kind.PEAK)
 
-/** Share of [Band.fame] fading a year, as [RENOWN_FADE]. */
-internal const val FAME_FADE = 0.2f
+/**
+ * How far each band with a standing house is talked of, by its id ([Bands.fameOf]): the sum of what is extraordinary about
+ * it or its home, each 0 for the ordinary (Olli 2026-11-12: a superb location, size, exceptional technology or skill, unique
+ * resources or buildings, a centre of worship, a local geographic speciality; not just random). Measures that run on, each
+ * against the housed bands' top [FAME_TOP]: at its cut 1, and one more for each doubling past it ([extraordinary]):
+ * - size: the people of all the bands housed in its hex (a large settlement);
+ * - the ground: the food its hex gives ([hexFood]);
+ * - worship: the holiness of its hex's places ([HexLand.sanctity]);
+ * - skill: its best at any skill against the others' at that skill;
+ * - buildings: its palisade.
+ * And each one: 1 for every tool it knows that under [FAME_TOP] of housed bands know; 1 for every material whose richest
+ * source about ([Bands.materialSources]: flint, salt, ochre...) its hex is; 1 if its hex is a famed landmark ([FAMED_LANDMARKS]).
+ */
+internal fun HexGroups.reckonFame(): Map<Int, Float> {
+    val housed = ArrayList<Pair<HexGroup, Band>>()
+    for (g in groups) { val b = g.band ?: continue; if (g.alive && bands.houseOf[g.id] != null) housed += g to b }
+    if (housed.isEmpty()) return emptyMap()
+    val peopleIn = HashMap<Hex, Float>()
+    for ((g, b) in housed) peopleIn.merge(b.houseHex, g.size.toFloat(), Float::plus)
+    fun cut(xs: FloatArray) = xs.sortedArray().let { it[((it.size - 1) * (1f - FAME_TOP)).toInt()] }
+    fun measure(f: (HexGroup, Band) -> Float) = FloatArray(housed.size) { k -> f(housed[k].first, housed[k].second) }
+    val size = measure { _, b -> peopleIn[b.houseHex] ?: 0f }
+    val ground = measure { _, b -> hexFood(b.houseHex) }
+    val holy = measure { _, b -> var s = 0f; for (pi in hw.placesOf(b.houseHex)) s += land.sanctity[pi]; s }
+    val walls = measure { _, b -> b.palisade }
+    val skills = Skill.entries.map { s -> measure { _, b -> if (b.knowsSkill[s]) b.skills[s] else 0f } }
+    val runs = listOf(size, ground, holy, walls) + skills
+    val cuts = runs.map { cut(it) }
+    val knownBy = enumFloats<Tool> { t -> housed.count { it.second.knows[t] }.toFloat() / housed.size }
+    val sources = bands.materialSources.values
+    val fame = HashMap<Int, Float>()
+    for ((k, gb) in housed.withIndex()) {
+        val (g, b) = gb
+        var f = 0f
+        for ((i, xs) in runs.withIndex()) f += extraordinary(xs[k], cuts[i])
+        for (t in Tool.entries) if (b.knows[t] && knownBy[t] < FAME_TOP) f += 1f
+        for (src in sources) if (b.houseHex in src) f += 1f
+        if (routes.kind(b.houseHex) in FAMED_LANDMARKS) f += 1f
+        fame[g.id] = f
+    }
+    return fame
+}
+
+/** How extraordinary [x] is against the cut [cut] for the top few: 0 below it (or when the cut is none), 1 at it, one more for each doubling past it. */
+private fun extraordinary(x: Float, cut: Float) = if (cut <= 0f || x < cut) 0f else 1f + ln(x / cut) / ln(2f)
 
 /** How far (km) band [id]'s home is worth knowing of: [HOMES_KM], the further the more it is talked of ([Bands.fameOf]). */
 internal fun HexGroups.homeReachKm(id: Int) = HOMES_KM * (1f + HOMES_FAME_REACH * (bands.fameOf[id] ?: 0f))
