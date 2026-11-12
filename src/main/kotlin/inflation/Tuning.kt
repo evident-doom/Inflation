@@ -124,6 +124,11 @@ class Tuning(
      * choose from the week's menu of activities, and their camp and days follow from what they hold; 0, none.
      */
     val planners = f("planners", 0f).also { require(it in 0f..1f) { "t.planners is $it: a share of the bands, 0-1" } }
+    /**
+     * How far bands share their days out by the returns they have seen ([inflation.ecology.cropAgainstForage]): what a day of
+     * their own crop brought them against a day's foraging in their leanest month; 0, not at all (the ways' dials alone), 1 wholly.
+     */
+    val learnDays = f("learnDays", 0f).also { require(it in 0f..1f) { "t.learnDays is $it: 0-1" } }
     /** Diagnostic: the planning kind's slots over its own, for the slot-by-slot A/B (as text; [inflation.ecology.Mind] reads and checks it). */
     val plannerSlots: String? = read("t.plannerSlots")
     /** Diagnostic: the nets' bands' slots over their own, as [plannerSlots] (as text; [inflation.ecology.Mind] reads and checks it). */

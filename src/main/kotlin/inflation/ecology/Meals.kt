@@ -96,10 +96,12 @@ internal fun HexGroups.eatTheWeek(w: ForageWeek) {
         }
         stats.keep(Tally.of(s, Tally.OfKind.MEAT_EATEN), ateMeat.toInt())
         stats.keep(Tally.of(s, Tally.OfKind.PLANTS_EATEN), (eaten - ateMeat).toInt())
-        // (The crop grain eaten is ground as it is eaten: its days are given first next step, [Band.grindOwed].)
-        val groundDays = max(0f, cropBefore - band.seedCornIn(g)) * g.storeKgPer[Store.SEED] * grindDaysPerKg(band)
-        band.grindOwed += groundDays
+        // (The crop grain eaten is cleaned, dehusked and ground as it is eaten: its days are given first next step, [Band.grindOwed].)
+        val cropKg = max(0f, cropBefore - band.seedCornIn(g)) * g.storeKgPer[Store.SEED]
+        val groundDays = cropKg * grindDaysPerKg(band)
+        band.grindOwed += groundDays + cropKg * CROP_DEHUSK_DAYS_PER_KG
         stats.tally(Tally.grain(Tally.Grain.GRIND_DAYS), (10f * groundDays).roundToInt())
+        stats.tally(Tally.grain(Tally.Grain.CROP_DAYS), (10f * cropKg * CROP_DEHUSK_DAYS_PER_KG).roundToInt())
         keepAndSpoil(w, got, plantKg, pelts)
         band.seedCorn = band.seedCornIn(g)
         spare = 0f; meatEaten = ateMeatKg

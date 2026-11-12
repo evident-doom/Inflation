@@ -393,6 +393,15 @@ internal const val MAST_LEACH_DAYS_PER_KG = 1.2f
  */
 internal const val CUT_M2_PER_HOUR = 8f
 internal const val THRESH_DAYS_PER_KG = 0.05f
+/**
+ * Of [THRESH_DAYS_PER_KG], what is done as the crop comes in: threshing at the flail's rate (0.007 days a kilo, above). The rest,
+ * the cleaning and the pounding of hulled wheats out of their husks, waits till the grain is eaten ([CROP_DEHUSK_DAYS_PER_KG]): hulled
+ * wheats were stored as spikelets and dehusked a little at a time through the year (Hillman 1984 on Turkish village
+ * practice, from memory, unchecked), so a crop left standing in the field need wait for the reaping alone.
+ */
+internal const val THRESH_AT_HARVEST_DAYS_PER_KG = 0.007f
+/** Person-days a kilo of a band's own crop takes in cleaning and dehusking as it is eaten ([THRESH_AT_HARVEST_DAYS_PER_KG]). */
+internal const val CROP_DEHUSK_DAYS_PER_KG = THRESH_DAYS_PER_KG - THRESH_AT_HARVEST_DAYS_PER_KG
 internal const val REF_STAND_KG_M2 = 0.0023f
 internal const val REF_SEED_STAND_KG_M2 = 0.00016f
 internal const val REAP_CUT_SHARE = 0.17f
