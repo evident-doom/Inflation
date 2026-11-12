@@ -133,14 +133,15 @@ fun HexSmallLife.catchSmallIn(p: Place, want: Kg, sweptKm2: Float, weather: Weat
 }
 
 /** A scavenger searching [sweptKm2] of place [p] takes up to [want] of carrion, at most half of what lies on the ground it searched; returns what was taken. */
-fun HexSmallLife.scavengeIn(p: Place, want: Kg, sweptKm2: Float): Kg {
+fun HexSmallLife.scavengeIn(p: Place, want: Kg, sweptKm2: Float, foundShare: Float = 0f): Kg {
     val area = land.areaKm2[p]; val m2 = area * 1e6f
     val searched = min(sweptKm2, area)
     if (want.v <= 0f || searched <= 0f) return Kg.ZERO
     // (What the groups found as it lay through the step first ([HexSmallLife.groupCarrion]: found already), then at most half of
     // what lies now on the ground searched.)
     val wantM2 = want.v / m2
-    val held = min(groupCarrion[p], wantM2); groupCarrion[p] -= held
+    // (Of that, the share its own search found: [HexSmallLife.groupCarrionFound].)
+    val held = minOf(groupCarrion[p], foundShare * groupCarrionFound[p], wantM2); groupCarrion[p] -= held
     val now = if (wantM2 > held) scavenge(p, KgM2(min(wantM2 - held, 0.5f * carrion[p] * searched / area))).v else 0f
     return KgM2(held + now).over(m2)
 }

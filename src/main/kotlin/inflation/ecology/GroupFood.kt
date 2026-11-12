@@ -32,6 +32,7 @@ internal fun HexGroups.hunt(weather: Weather) {
     val ways = this.ways
     val inputs = FloatArray(WAYS_IN); val out = FloatArray(WAYS_OUT)
     // (The groups' rate at the carrion is noted afresh as they search this step: [HexSmallLife.groupCarrionRate].)
+    small.groupCarrionRate.copyInto(small.groupCarrionRateLast); small.groupCarrion.copyInto(small.groupCarrionFound)
     small.groupCarrionRate.fill(0f)
     // (What a party killed this week before the last of it died lies where it fell: the meat of it, a beast's need being
     // counted in the whole weight of its kills, see [creditShare].)

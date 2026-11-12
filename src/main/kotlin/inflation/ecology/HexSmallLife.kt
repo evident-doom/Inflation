@@ -109,6 +109,8 @@ class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, @Transi
      * carrion is shared between them and the rot at these rates ([stepSoil]).
      */
     val groupCarrionRate = FloatArray(n)
+    /** Of [groupCarrion] and [groupCarrionRate], as the step's groups set out to forage: each finder takes its rate's share of what was found. */
+    @Transient val groupCarrionFound = FloatArray(n); @Transient val groupCarrionRateLast = FloatArray(n)
     /** Where dead matter went, for the viewer (see [PlaceRecord]); set with [HexFauna.record]. */
     @Transient var record: PlaceRecord? = null
     /** Bones left when the meat is gone, kg/m²: slow to weather, food for bone-crackers. */

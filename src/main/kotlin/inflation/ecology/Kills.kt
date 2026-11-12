@@ -381,9 +381,9 @@ internal fun HexGroups.fatOfKill(k: Int, p: Place, kgEach: Float, band: Band?): 
 }
 
 /** [forage]'s scavenging of [expected] kg at place [p] by [g], over [sweep] km²: what it found, kg. */
-internal fun HexGroups.scavenge(g: HexGroup, p: Place, expected: Float, sweep: Float, rnd: kotlin.random.Random): Float {
+internal fun HexGroups.scavenge(g: HexGroup, p: Place, expected: Float, sweep: Float, rnd: kotlin.random.Random, foundShare: Float = 0f): Float {
     val band = g.band
-    val got = small.scavengeIn(p, Kg(expected), min(land.areaKm2[p], sweep)).v
+    val got = small.scavengeIn(p, Kg(expected), min(land.areaKm2[p], sweep), foundShare).v
     // A band at a carcass may meet its owner: lions or hyenas back at their kill. Driving
     // them off is done with a crowd and a din, but now and then someone is mauled.
     if (band != null && got > 1f) {
