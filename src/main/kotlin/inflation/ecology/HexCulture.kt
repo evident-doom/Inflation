@@ -171,8 +171,13 @@ internal const val TAKE_UP = 0.0005f
 
 internal const val DROP = 0.0005f
 
-/** Chance a band raids one it meets, at full pressure (a feud, hunger with food in the other's larder, or crowded country); share of the larder taken. */
-internal const val RAID = 0.015f
+/**
+ * Chance a band raids one it meets, at full pressure (a feud, hunger with food in the other's larder, or crowded country); share of the larder taken.
+ * [RAID] and [RAID_PLOT] at a third of 0.015 and 0.3: raid deaths 2.6-3.4 a 1000 people a year where people crowd (x4), against
+ * violence 11% of forager deaths (Gurven, pooled deaths of 7 groups), some 3-4 a 1000 at their 30-40 deaths; at a sixth, 1.0
+ * (raid733, 12 Nov 2026).
+ */
+internal const val RAID = 0.005f
 
 internal const val RAID_TAKE = 0.5f
 
