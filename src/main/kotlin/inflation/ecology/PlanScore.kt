@@ -289,8 +289,7 @@ private fun GroupPlanner.killedByStronger(c: PlanContext, p: Place, h: Hex): Flo
     val sheltered = gs.shelteredFromKilling(s, p)
     val young = if (g.young > 0) INTRAGUILD_KILL_YOUNG * gs.tuning.intraguildYoung * sheltered else 0f
     val grownOnly = if (g.adults > 0) INTRAGUILD_KILL * sheltered else 0f
-    val grown = (1f - young) * grownOnly
-    if (young + grown <= 0f) return 0f
+    if (young + grownOnly <= 0f) return 0f
     var killed = 0f
     for ((k, o) in gs.kinds.withIndex()) {
         if (o == s || residentStrength(o) <= 2f * mine) continue
@@ -298,7 +297,9 @@ private fun GroupPlanner.killedByStronger(c: PlanContext, p: Place, h: Hex): Flo
         if (heads <= 0f) continue
         val met = 1f - exp(-gs.encounters(s, o, false, p, gs.days.toFloat()))
         // (People drive beasts off and now and then kill a grown one, but do not seek out their young: [enemiesMeet].)
-        killed += heads / gs.unitSize(o) * met * (1f - gs.slipChance(s, o, p)) * (if (o.human) grownOnly else young + grown)
+        // (The grown that outrun it get away: [caught].)
+        val grown = grownOnly * caught(s, o)
+        killed += heads / gs.unitSize(o) * met * (1f - gs.slipChance(s, o, p)) * (if (o.human) grown else young + (1f - young) * grown)
     }
     return killed
 }

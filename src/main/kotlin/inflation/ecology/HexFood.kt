@@ -56,7 +56,7 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
     /** The share of its stock a store that loses [days]/[lifeDays] of itself loses in a tick, at most all of it. */
     private fun lossShare(lifeDays: Float) = min(1f, clock.tickDays / lifeDays)
     /** The share lost over the step of a stock losing [perTick] a tick with nothing coming in: [perTick] at one tick a step. */
-    private fun overTicks(perTick: Float) = if (clock.ticks == 1) perTick else 1f - (1f - perTick.coerceIn(0f, 1f)).pow(clock.ticks)
+    private fun overTicks(perTick: Float) = clock.share(perTick)
     val n = land.n
     /** Wild cereals do best on broken hill country: the mean over each place's ground (see [HexLand.overGround]). */
     @Transient private val cerealGround = land.overGround { (0.5f + it).coerceAtMost(1f) }

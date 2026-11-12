@@ -847,7 +847,7 @@ internal fun HexGroups.remember(date: Date) {
         if (b.seasonPlace[m] < 0) { b.seasonPlace[m] = g.place.i; b.seasonQ[m] = fared }
         else if (b.seasonPlace[m] == g.place.i) b.seasonQ[m] += overTicks(0.3f) * (fared - b.seasonQ[m])
         else {
-            b.seasonQ[m] *= if (ticks == 1) MEMORY_FADE else MEMORY_FADE.pow(ticks)
+            b.seasonQ[m] *= fauna.clock.keep(MEMORY_FADE)
             if (fared > b.seasonQ[m] + 0.1f) { b.seasonPlace[m] = g.place.i; b.seasonQ[m] = fared }
         }
     }

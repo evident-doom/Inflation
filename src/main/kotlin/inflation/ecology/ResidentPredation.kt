@@ -13,7 +13,6 @@ import inflation.KgKm2
 import inflation.KgM2
 import inflation.min
 import kotlin.math.max
-import kotlin.math.pow
 import kotlin.math.min
 import java.util.concurrent.atomic.DoubleAdder
 
@@ -54,7 +53,7 @@ fun HexFauna.huntedOdds(k: FaunaKind, p: Place, young: Boolean): Float {
  * the residents' hunters have hunted and with the parties' last week's kills ([groupKilled]).
  */
 internal fun HexFauna.noteHunted() {
-    val keep = if (clock.ticks == 1) HexFauna.FEAR_KEEP else HexFauna.FEAR_KEEP.pow(clock.ticks)
+    val keep = clock.keep(HexFauna.FEAR_KEEP)
     for (k in kindIds) {
         if (kinds[k].carnivore) continue
         val g = huntedLately[k]; val y = huntedYoungLately[k]

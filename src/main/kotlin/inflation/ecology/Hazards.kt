@@ -159,15 +159,18 @@ object Hazards {
 
     /**
      * The share of [heads] that deaths growing with their numbers take over a step of [ticks] ticks of [tickYears] each,
-     * a tick taking [perYear] of its heads (at so many) a year: the heads fall tick by tick as they die, as they did from
+     * a tick taking [perYear] of its heads (at so many) a year: the heads fall over the step as they die, as they did from
      * week to week, so a step of many ticks does not charge the crowding it began with to the whole step (at 60 days a
      * crowded place lost to strife and crowd sickness what the weekly model's falling numbers soon stopped). At one tick
      * the callers keep their own expression, the weekly model unchanged to the bit.
      */
     inline fun fallingOver(heads: Float, ticks: Int, tickYears: Float, perYear: (Float) -> Float): Float {
-        var n = heads
-        repeat(ticks) { n -= n * min(1f, perYear(n) * tickYears) }
-        return if (heads > 0f) 1f - n / heads else 0f
+        // (In closed form, not tick by tick: the hazard read at the heads halfway through the step, as they fall at the
+        // hazard they began with, and taken over the whole step, 1 - exp(-h t). Weekly-rules plan, F1 at midpoint heads.)
+        if (!(heads > 0f)) return 0f
+        val years = ticks * tickYears
+        val mid = heads * exp(-perYear(heads) * years / 2f)
+        return 1f - exp(-perYear(mid) * years)
     }
 
     /** Sickness from crowding, over [years] (a week's share of a year), at [crowd] times its kind's usual density, fed [fed]: worse when underfed. */

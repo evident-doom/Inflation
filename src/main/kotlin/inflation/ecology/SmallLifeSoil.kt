@@ -75,17 +75,26 @@ internal fun HexSmallLife.stepSoil(p: Place, t: Float, soilWater: Float, carcass
     soilGrewLeak?.add(SOIL_YIELD * decomposed * m2); soilDiedLeak?.add(-soilDied / 1e6 * m2)
     soilAnimals[p] += SOIL_YIELD * decomposed * 1e6f - soilDied
     soilReach[p] = if (t > 0f) SOIL_REACH * wet else 0f
-    // What lay from earlier weeks rots (half in three or four days at 15 °C, faster in the heat);
-    // then the week's carcasses are added, fresh for the vultures and scavengers this week.
-    if (carrion[p] > 0f) {
-        val gone = carrion[p] * (1f - exp(-CARRION_ROT * max(0.1f, warm) * days))
-        carrion[p] -= gone; litter[p] += 0.3f * gone - BONE_SHARE * gone; bones[p] += BONE_SHARE * gone
+    // What lies rots (half in three or four days at 15 °C, faster in the heat), and the step's carcasses come in evenly over
+    // its days and rot as they lie; the groups find their share of it as it lies, before it rots ([groupCarrion], at the
+    // rate their search came on it in the last step, [groupCarrionRate]). In closed form over the step's
+    // days (weekly-rules plan, F4): with inflow R a day and losses k = rot + the groups' finding, what lay over the step
+    // sums to C0 (1 - e^-kt)/k + R (t - (1 - e^-kt)/k)/k, of which rot takes its rate's part and the groups theirs.
+    val inflow = land.spread(p, Kg(carcassKg[p])).v
+    carcassBook?.add(carcassKg[p].toDouble())
+    if (carrion[p] > 0f || inflow > 0f) {
+        val rot = CARRION_ROT * max(0.1f, warm)
+        val find = groupCarrionRate[p]
+        val k = rot + find; val d = days.toFloat(); val r = inflow / d
+        val lay = (1f - exp(-k * d)) / k
+        val lain = carrion[p] * lay + r * (d - lay) / k
+        val gone = min(rot * lain, carrion[p] + inflow); val found = min(find * lain, carrion[p] + inflow - gone)
+        carrion[p] += inflow - gone - found; groupCarrion[p] += found
+        litter[p] += 0.3f * gone - BONE_SHARE * gone; bones[p] += BONE_SHARE * gone
         rotBook?.add(-0.7f * gone * m2)
         record?.let { it.carrionGone[p] += gone }
         if (carrion[p] < 1e-9f) carrion[p] = 0f
     }
-    carrion[p] += land.spread(p, Kg(carcassKg[p])).v
-    carcassBook?.add(carcassKg[p].toDouble())
     // Bones weather away over a couple of years into the soil.
     if (bones[p] > 0f) { val b = bones[p] * min(1f, years / 2f); bones[p] -= b; litter[p] += b; record?.let { it.bonesGone[p] += b } }
 }

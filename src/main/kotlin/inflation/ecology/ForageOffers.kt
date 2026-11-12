@@ -196,7 +196,11 @@ internal fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
             // and only the scavengers by trade, which watch the vultures and quarter the ground for it, find
             // that much: a wolf or a band comes on a carcass now and then, not every week.)
             val found = CARRION_FOUND * min(1f, w.d.carrion / SCAVENGER_CARRION)
-            offer(w, o, Food.CARRION, 0, p, KgM2(found * (small.carrion[p] + small.groupCarrion[p])).perKm2.over(swept).v / days, 1f, w.carrionDays)
+            // (What lies now, as far as it finds it, and what the groups found of it as it lay through the step: [HexSmallLife.groupCarrion].)
+            val held = min(small.groupCarrion[p], foundShare(w, p) * small.groupCarrionFound[p])
+            offer(w, o, Food.CARRION, 0, p, (KgM2(found * small.carrion[p]).perKm2.over(swept).v + KgM2(held).perKm2.over(area).v) / days, 1f, w.carrionDays)
+            // (How fast its search comes on carrion as it lies, a day, for the next step's share of it: [HexSmallLife.groupCarrionRate].)
+            if (!w.carrionNoted) small.groupCarrionRate[p] += carrionRate(w, p)
             if (Niches.cracksBones(w.s)) offer(w, o, Food.BONES, 0, p, KgM2(found * small.bones[p]).perKm2.over(swept).v / days, 1f, w.eats * BONE_DAYS)
             else if (band != null && w.worth(Food.BONES) > 0f)
                 offer(w, o, Food.BONES, 0, p, KgM2(found * small.bones[p]).perKm2.over(swept).v / days, 1f, w.renderDays + w.eats * GREASE_YIELD)
@@ -390,7 +394,7 @@ internal fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
             }
             Food.SMALL_GAME -> small.catchSmallIn(Place(p), Kg(expected), min(land.areaKm2[p] * ticks, (if (o.who[i] == 2) w.childSmallSweep else w.smallSweep) * smallSeen(Place(p))), w.weather).v.let { w.smallGot += it; if (o.who[i] == 2) w.kidsSmall += it; w.fed += it * w.feeds(Food.SMALL_GAME)
                 if (band == null) diag(g.species, HuntStep.PACK_SMALL_GAME_KG, it) }
-            Food.CARRION -> scavenge(g, Place(p), expected, w.sweep, w.rnd).let { w.scraps += it; w.fed += it * w.feeds(Food.CARRION)
+            Food.CARRION -> scavenge(g, Place(p), expected, w.sweep, w.rnd, foundShare(w, Place(p))).let { w.scraps += it; w.fed += it * w.feeds(Food.CARRION)
                 if (band == null) diag(g.species, HuntStep.PACK_CARRION_KG, it) }
             Food.BONES -> small.crackBonesIn(Place(p), Kg(expected), min(land.areaKm2[p], w.sweep)).v.let { kg ->
                 if (band == null) { w.scraps += kg; w.fed += kg * w.worth(Food.BONES) }
@@ -585,3 +589,18 @@ internal const val FIELD_KIND = 1
 internal fun seedValue(band: Band?) = RAW_SEED + (1f - RAW_SEED) * (band?.has(Tool.GRINDER) ?: 0f)
 
 internal const val RAW_SEED = 0.6f
+
+/**
+ * How fast a party's search comes on carrion as it lies at place [p], a day: [CARRION_FIND_RATE] for a scavenger by trade that
+ * searches all of the place in a tick, less as it finds less ([CARRION_FOUND] of its kind) or searches less of it.
+ */
+private fun HexGroups.carrionRate(w: ForageWeek, p: Place): Float {
+    val area = land.areaKm2[p]
+    return CARRION_FIND_RATE * min(1f, w.d.carrion / SCAVENGER_CARRION) * min(1f, w.sweep / area * small.tickDays / days)
+}
+
+/** The share of the carrion the groups found as it lay at [p] in this step that the party's own search found: its rate of all of theirs. */
+private fun HexGroups.foundShare(w: ForageWeek, p: Place): Float {
+    val all = small.groupCarrionRateLast[p]
+    return if (all > 0f) min(1f, carrionRate(w, p) / all) else 0f
+}

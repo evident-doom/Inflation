@@ -24,7 +24,6 @@ import inflation.world.Weather
 import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.min
-import kotlin.math.pow
 import java.util.concurrent.ConcurrentHashMap
 
 // The residents and their country: how the climate, the ground and the water suit each kind, its winter sleep and breeding season, and the calamities of fire, flood and snow.
@@ -43,7 +42,7 @@ fun HexFauna.climateSuits(s: Species, p: Place): Float {
  * A share [perTick] that befalls or is taken up each tick (a week's), over the step's ticks: 1 - (1 - p)^ticks; itself at
  * one tick a step.
  */
-internal fun HexFauna.overTicks(perTick: Float) = if (clock.ticks == 1) perTick else 1f - (1f - perTick.coerceIn(0f, 1f)).pow(clock.ticks)
+internal fun HexFauna.overTicks(perTick: Float) = clock.share(perTick)
 
 /** How well the normal temperatures of month [m] and the next at place [p] suit [s]'s coat, 0..1. */
 fun HexFauna.monthFit(s: Species, p: Place, m: Int): Float {

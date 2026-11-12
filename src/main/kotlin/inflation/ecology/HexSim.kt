@@ -114,9 +114,7 @@ class HexSim(
             land.firstTick = perTick || i == 0; land.lastTick = perTick || i == clock.ticks - 1
             runPhases(tickPhases, weather, books)
             if (perTick) { if (i % span == 0) { val d = clock.days; clock.days = clock.tickDays * min(span, clock.ticks - i)
-                try { runPhases(residentPhases, weather, books) } finally { clock.days = d } }
-                // (The carrion the groups would have found in this tick, held for them: [HexSmallLife.groupCarrion].)
-                if (i < clock.ticks - 1) fauna.small.setAsideForGroups() }
+                try { runPhases(residentPhases, weather, books) } finally { clock.days = d } } }
         }
         land.firstTick = true; land.lastTick = true
         // (The slow parts read the step's weather whole: its mean air, all that fell and melted, and the coldest tick.)

@@ -31,6 +31,9 @@ import kotlin.math.sqrt
 internal fun HexGroups.hunt(weather: Weather) {
     val ways = this.ways
     val inputs = FloatArray(WAYS_IN); val out = FloatArray(WAYS_OUT)
+    // (The groups' rate at the carrion is noted afresh as they search this step: [HexSmallLife.groupCarrionRate].)
+    small.groupCarrionRate.copyInto(small.groupCarrionRateLast); small.groupCarrion.copyInto(small.groupCarrionFound)
+    small.groupCarrionRate.fill(0f)
     // (What a party killed this week before the last of it died lies where it fell: the meat of it, a beast's need being
     // counted in the whole weight of its kills, see [creditShare].)
     for (g in groups) if (!g.alive && g.meatMet > 0f) { small.deposit(DeadPool.CARRION, g.place, Kg(g.meatMet * meatShare(g.band) / creditShare(g.band))); g.meatMet = 0f }
@@ -209,7 +212,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         if (left <= 0.01f * w.wantAll) break
         // (Nor, over a long step, once its days are all spent: the passes left would take nothing.)
         if (w.band == null && ticks > 1 && w.workDays - w.busy - w.searchUsed <= 0f) break
-        offerFoods(w, o)
+        offerFoods(w, o); w.carrionNoted = true
         o.takeUp()
         if (pass == 0 && w.band != null) noteUnused(w, o)
         if (HUNT_DIAG && pass == 0 && w.band == null && w.herds.isNotEmpty()) {
@@ -598,6 +601,8 @@ internal class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, pack
     var killFat = 0f
     /** Of [meat], what a beast held of its kills from the last step ([HexGroup.killHeld]), kg as it kept. */
     var heldKg = 0f
+    /** Whether its search's rate at the carrion is noted for this step ([HexSmallLife.groupCarrionRate]): once, at the first pass. */
+    var carrionNoted = false
     val fatFeeds = s.needScale * Nourishment.GREASE
     // (Of the fish, what was caught rather than gathered off the shore: that alone is practice at fishing.)
     var fished = 0f
