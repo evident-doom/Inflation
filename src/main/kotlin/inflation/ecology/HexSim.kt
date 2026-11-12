@@ -112,6 +112,7 @@ class HexSim(
             if (perTick) { val d = clock.days; clock.days = clock.tickDays
                 try { runPhases(residentPhases, weather, books) } finally { clock.days = d }
                 groups.tickGameTrace()
+                groups.huntPacksTick(weather)
                 // (The carrion the groups would have found in this tick, held for them: [HexSmallLife.groupCarrion].)
                 if (i < clock.ticks - 1) fauna.small.setAsideForGroups() }
         }

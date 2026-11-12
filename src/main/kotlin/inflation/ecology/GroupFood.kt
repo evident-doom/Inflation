@@ -29,7 +29,35 @@ import kotlin.math.sqrt
  * carrion, and for those that eat them plants, and for bands fish (see [forage]).
  */
 @Part("hunting: set-up")
-internal fun HexGroups.hunt(weather: Weather) {
+internal fun HexGroups.hunt(weather: Weather) = hunt(weather, packsTick = false)
+
+/**
+ * (Test, packtick758, Olli 2026-11-12 "Test pack hunting per tick": over a step of several ticks the packs hunt at each tick,
+ * right after the residents' tick, as a week of their own by their last plan ([huntPacksTick]); the step's hunt is the bands'
+ * only, and the packs' fed is then the ticks' mean, their surplus the ticks' sum, their fat as it was at the step's start
+ * for the births and deaths to lay the sum on ([endPackTicks]). At one tick a step, as before.)
+ */
+internal fun HexGroups.huntPacksTick(weather: Weather) {
+    val d = fauna.clock.days; fauna.clock.days = fauna.clock.tickDays
+    try {
+        for (g in groups) if (g.alive && g.band == null && g.tickN == 0) { g.tickFat0 = g.fat; g.tickFed = 0f; g.tickSurplus = 0f }
+        hunt(weather, packsTick = true)
+        for (g in groups) if (g.alive && g.band == null) {
+            g.tickFed += g.fed; g.tickSurplus += g.surplus; g.tickN++
+            g.fat = kotlin.math.min(g.species.maxFatDays, g.fat + FAT_EFFICIENCY * g.surplus); g.surplus = 0f; g.meatMet = 0f
+        }
+    } finally { fauna.clock.days = d }
+}
+
+/** The step's end of [huntPacksTick]: each pack that hunted the ticks, fed their mean, its surplus their sum, its fat back as it was. */
+private fun HexGroups.endPackTicks() {
+    for (g in groups) if (g.band == null && g.tickN > 0) {
+        g.fed = g.tickFed / g.tickN; g.surplus = g.tickSurplus; if (!g.tickFat0.isNaN()) g.fat = g.tickFat0
+        g.tickN = 0; g.tickFed = 0f; g.tickSurplus = 0f; g.tickFat0 = Float.NaN
+    }
+}
+
+private fun HexGroups.hunt(weather: Weather, packsTick: Boolean) {
     val ways = this.ways
     val inputs = FloatArray(WAYS_IN); val out = FloatArray(WAYS_OUT)
     // (What a party killed this week before the last of it died lies where it fell: the meat of it, a beast's need being
@@ -38,7 +66,8 @@ internal fun HexGroups.hunt(weather: Weather) {
     // (The pack members the resident hunters killed this week come off their packs; the packs are game where they now stand.)
     val day = weather.date.absoluteDay
     takePackKills(2 * day); fillPackGame()
-    val hunters = groups.filter { it.alive }.shuffled(rnd)
+    // (At a long step the packs that hunted its ticks are done: [huntPacksTick].)
+    val hunters = groups.filter { it.alive && (if (packsTick) it.band == null else !(ticks > 1 && it.band == null && it.tickN > 0)) }.shuffled(rnd)
     for (a in fauna.groupKilled) a.fill(0f)
     // (Where people are, for the beasts of prey that keep out of their way: [peopleAbout].)
     peopleAbout()
@@ -95,6 +124,7 @@ internal fun HexGroups.hunt(weather: Weather) {
     }
     stats.summedByThread { work(near, HUNT_FINE_KM); work(far, HUNT_BLOCK_KM) }
     takePackKills(2 * day + 1)
+    if (!packsTick && ticks > 1) endPackTicks()
 }
 
 /**
