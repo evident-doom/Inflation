@@ -172,7 +172,7 @@ internal const val TAKE_UP = 0.0005f
 internal const val DROP = 0.0005f
 
 /** Chance a band raids one it meets, at full pressure (a feud, hunger with food in the other's larder, or crowded country); share of the larder taken. */
-internal const val RAID = 0.015f
+internal const val RAID = 0.005f
 
 internal const val RAID_TAKE = 0.5f
 
