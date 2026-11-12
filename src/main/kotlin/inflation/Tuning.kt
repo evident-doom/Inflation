@@ -96,6 +96,11 @@ class Tuning(
      */
     val startSettled = f("startSettled", 0f).also { require(it in 0f..1f) { "t.startSettled is $it: a share of the bands, 0-1" } }
     /**
+     * People a village begun by [startSettled] holds at the start, gathered from the bands nearest its site, each band its own
+     * group in it ([inflation.ecology.startVillages]); 0, each village one band where it stood.
+     */
+    val startVillagePeople = f("startVillagePeople", 0f).also { require(it >= 0f) { "t.startVillagePeople is $it: people, 0 or more" } }
+    /**
      * A world begun once herding is known: the share of people's mobile bands that start with a tame herd, those whose camps best
      * feed one ([inflation.ecology.startHerders]); 0, none. (Villages started by [startSettled] start with a herd as well.)
      */

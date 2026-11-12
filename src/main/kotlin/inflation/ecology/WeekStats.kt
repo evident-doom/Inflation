@@ -205,6 +205,7 @@ enum class Met(val label: String) {
     BANDS_SPLIT("bands split"),
     BANDS_BUDDED_OUT("bands budded into another hex"),
     BANDS_BUDDED_IN_PLACE("bands budded staying in their parent's hex"),
+    BANDS_STAYED_IN_THEIR_VILLAGE("bands split off a village staying in it as a band of their own"),
     HOUSEHOLDS_SEEPED("households left a crowded hex for a roomier one beside"),
     BANDS_SPLIT_BY_DISCORD("bands split off by discord in a band past its easy size"),
     BANDS_TOOK_UP_A_DISPUTE_WAY("bands split by discord where leaving is dear took up the next way of settling quarrels"),
