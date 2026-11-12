@@ -84,12 +84,14 @@ internal fun HexSmallLife.stepSoil(p: Place, t: Float, soilWater: Float, carcass
     carcassBook?.add(carcassKg[p].toDouble())
     if (carrion[p] > 0f || inflow > 0f) {
         val rot = CARRION_ROT * max(0.1f, warm)
-        val find = groupCarrionRate[p]
+        val find = groupCarrionRate[p] + residentCarrionRate[p]
         val k = rot + find; val d = days.toFloat(); val r = inflow / d
         val lay = (1f - exp(-k * d)) / k
         val lain = carrion[p] * lay + r * (d - lay) / k
         val gone = min(rot * lain, carrion[p] + inflow); val found = min(find * lain, carrion[p] + inflow - gone)
-        carrion[p] += inflow - gone - found; groupCarrion[p] += found
+        // (The groups' and the residents' finds by their rates.)
+        val byResidents = if (find > 0f) found * residentCarrionRate[p] / find else 0f
+        carrion[p] += inflow - gone - found; groupCarrion[p] += found - byResidents; residentCarrion[p] += byResidents
         litter[p] += 0.3f * gone - BONE_SHARE * gone; bones[p] += BONE_SHARE * gone
         rotBook?.add(-0.7f * gone * m2)
         record?.let { it.carrionGone[p] += gone }

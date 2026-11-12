@@ -156,6 +156,8 @@ private fun HexFauna.eatPlants(p: Place, weather: Weather, grass: Float, browse:
  */
 private fun HexFauna.feedKinds(p: Place, weather: Weather, z: Grazing, ff: DoubleArray) {
     var t = Profile.mark()
+    // (Their rate at the carrion is noted afresh as they feed: [HexSmallLife.residentCarrionRate].)
+    small.residentCarrionRate[p] = 0f
     for ((k, s) in kinds.withKinds()) {
         // (And how rich in protein all it ate was; animal food is rich in it.)
         val eaten = z.ateKg[k]
@@ -207,6 +209,7 @@ private fun HexFauna.feedKinds(p: Place, weather: Weather, z: Grazing, ff: Doubl
         if (s.hibernates && weather.date.month in 7..11 && !asleep(k, p)) autumnFed[k][p] += (fed[k][p] - autumnFed[k][p]) * overTicks(0.2f)
         t = Profile.kindLap("residents: feeding", s.name, t)
     }
+    small.settleResidentCarrion(p)
 }
 
 /**
@@ -238,7 +241,11 @@ private fun HexFauna.animalFood(k: FaunaKind, p: Place, weather: Weather, z: Gra
         val plantGap = if (ps > 0f) needAll * ps * max(0f, 1f - z.got[k]) else 0f
         // Carrion first, where it eats any: a carcass lying there costs no chase and no digging, so
         // it eats what it finds (at most half of what lies there) before it hunts or makes up plants.
-        var gotCarrion = if (d.carrion > 0f) small.scavenge(p, KgM2(min(animalNeed + plantGap, 0.5f * small.carrion[p]))).v else 0f
+        var gotCarrion = if (d.carrion > 0f) small.scavengeHeld(p, animalNeed + plantGap) else 0f
+        // (And how fast its search comes on carrion as it lies, a day, for the step's soil: as a group's ([carrionRate]), its
+        // parties searching their beat's width over their day's travel, of the place a day.)
+        if (d.carrion > 0f) small.residentCarrionRate[p] += CARRION_FIND_RATE * min(1f, d.carrion / SCAVENGER_CARRION) *
+            min(1f, adults[k][p] / s.groupSize * s.dailyTravelKm * 2f * s.senseKm * SEARCHING)
         var left = animalNeed + plantGap - gotCarrion
         // (A bone-cracker eats the bones lying there too, at most half of them, at what a kilo of bone feeds it against
         // a kilo of prey: [Food.BONES], as a pack forages them.)
@@ -262,7 +269,7 @@ private fun HexFauna.animalFood(k: FaunaKind, p: Place, weather: Weather, z: Gra
             val x = when (food) {
                 AnimalFood.MEAT -> gap.let { if (it > 0f) huntResidents(k, p, KgM2(it * avail[k]), weather, huntDays).v else 0f }
                 AnimalFood.SMALL_PREY -> gap.let { if (it > 0f) smallFood(k, p, KgM2(it * avail[k]), weather).v else 0f }
-                AnimalFood.CARRION -> gap.let { if (it > 0f) small.scavenge(p, KgM2(min(it, 0.5f * small.carrion[p]))).v else 0f }
+                AnimalFood.CARRION -> small.scavengeHeld(p, gap)
             }
             when (food) { AnimalFood.MEAT -> gotMeat += x; AnimalFood.SMALL_PREY -> gotSmall += x; AnimalFood.CARRION -> gotCarrion += x }
             gap -= x
