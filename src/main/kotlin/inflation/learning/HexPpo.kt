@@ -604,11 +604,18 @@ object HexPpo {
         /** Whether its world stands within nominal limits now (the state only: a training world keeps no history). */
         fun nominal() = Nominal.state(run)
         private val startNumbers = HashMap<Species, Int>()
-        private fun numbersByKind(): Map<Species, Int> = run.groups.groups.filter { it.alive }.groupingBy { it.species }.fold(0) { a, g -> a + g.size }
+        /**
+         * Heads of kind [s]: in its groups, and for a kind that lives settled with roaming packs ([Catalogue.roamingResidents]:
+         * wolves, lions) its settled too, where nearly all of them live (the packs are the few a world starts with, and the
+         * dogs of bands that died out).
+         */
+        private fun heads(s: Species): Int = run.groups.count(s) +
+            (if (s in Catalogue.roamingResidents) run.groups.fauna.slot(s).let { k -> if (k.none) 0 else run.groups.fauna.count(k).toInt() } else 0)
+        private fun numbersByKind(): Map<Species, Int> = kinds.associateWith { heads(it) }.filterValues { it > 0 }
         private fun checkRails() {
             val now = numbersByKind()
             if (startNumbers.isEmpty()) { startNumbers.putAll(now); return }
-            val gone = kinds.count { s -> run.groups.groups.none { it.alive && it.species == s } }
+            val gone = kinds.count { s -> (now[s] ?: 0) == 0 }
             val people = { m: Map<Species, Int> -> m.entries.sumOf { (s, n) -> if (s.human) n else 0 } }
             val grown = kinds.firstOrNull { s -> (now[s] ?: 0) > 10.0 * max(startNumbers[s] ?: 0, GROWTH_FLOOR) }
             derailed = when {
@@ -694,7 +701,7 @@ object HexPpo {
                 if (before < burnDays && day >= burnDays) { startNumbers.clear(); startNumbers.putAll(numbersByKind()); saveSettled() }
                 if (before / DAYS_PER_YEAR != day / DAYS_PER_YEAR) {
                     setRates()
-                    census("year %d%s: %s".format(day / DAYS_PER_YEAR, if (day <= burnDays) " (settling)" else "", kinds.joinToString(", ") { s -> "${s.name} ${run.groups.count(s)}" }))
+                    census("year %d%s: %s".format(day / DAYS_PER_YEAR, if (day <= burnDays) " (settling)" else "", kinds.joinToString(", ") { s -> if (s in Catalogue.roamingResidents) "${s.name} ${heads(s)} (${run.groups.count(s)} roaming)" else "${s.name} ${run.groups.count(s)}" }))
                 }
                 outcomes.record(week, run.groups.groups, run.groups.merged)
             }
@@ -781,7 +788,8 @@ object HexPpo {
             }
         }.toList().toMap()
         val hand = runs.getValue(-1)
-        return Versus(kinds.filter { role(it) in roles }.associateWith { s -> runs.getValue(role(s))[s] ?: 0.0 }, hand)
+        // (Nor the kinds that live settled with roaming packs: the packs are a few of them, scored by the groups alone, [score].)
+        return Versus(kinds.filter { role(it) in roles && it !in Catalogue.roamingResidents }.associateWith { s -> runs.getValue(role(s))[s] ?: 0.0 }, hand)
     }
 
     /**
