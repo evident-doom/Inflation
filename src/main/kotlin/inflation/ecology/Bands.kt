@@ -139,6 +139,9 @@ class Bands internal constructor(private val world: GroupWorld) {
      */
     @Transient internal var fameOf: Map<Int, Float> = emptyMap()
 
+    /** How many housed bands are famed for each thing in [FAMED_FOR] (a band for each skill counted once), as [fameOf] was last reckoned. For the census. */
+    @Transient internal var famedFor = IntArray(0)
+
     /**
      * Where each material bands give each other ([TRADED]) is got (trade on): for each, the hexes where
      * it is richest, one in a square of [SOURCE_KM] at most.

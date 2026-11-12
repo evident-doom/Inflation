@@ -265,7 +265,9 @@ internal fun HexGroups.reckonFame(): Map<Int, Float> {
     if (housed.isEmpty()) return emptyMap()
     val peopleIn = HashMap<Hex, Float>()
     for ((g, b) in housed) peopleIn.merge(b.houseHex, g.size.toFloat(), Float::plus)
-    fun cut(xs: FloatArray) = xs.sortedArray().let { it[((it.size - 1) * (1f - FAME_TOP)).toInt()] }
+    // (The cut for the top few, and none where it is no higher than the middling band's: where most stand level, as at a
+    // skill's floor or with no palisade, standing there is nothing. Without it every housed band was famous, median 6: homes738c.)
+    fun cut(xs: FloatArray) = xs.sortedArray().let { val top = it[((it.size - 1) * (1f - FAME_TOP)).toInt()]; if (top > it[(it.size - 1) / 2]) top else 0f }
     fun measure(f: (HexGroup, Band) -> Float) = FloatArray(housed.size) { k -> f(housed[k].first, housed[k].second) }
     val size = measure { _, b -> peopleIn[b.houseHex] ?: 0f }
     val ground = measure { _, b -> hexFood(b.houseHex) }
@@ -277,17 +279,27 @@ internal fun HexGroups.reckonFame(): Map<Int, Float> {
     val knownBy = enumFloats<Tool> { t -> housed.count { it.second.knows[t] }.toFloat() / housed.size }
     val sources = bands.materialSources.values
     val fame = HashMap<Int, Float>()
+    // (For the census: how many bands are famed for each thing, [Bands.famedFor].)
+    val why = IntArray(FAMED_FOR.size)
     for ((k, gb) in housed.withIndex()) {
         val (g, b) = gb
         var f = 0f
-        for ((i, xs) in runs.withIndex()) f += extraordinary(xs[k], cuts[i])
-        for (t in Tool.entries) if (b.knows[t] && knownBy[t] < FAME_TOP) f += 1f
-        for (src in sources) if (b.houseHex in src) f += 1f
-        if (routes.kind(b.houseHex) in FAMED_LANDMARKS) f += 1f
+        var skilled = false
+        for ((i, xs) in runs.withIndex()) { val e = extraordinary(xs[k], cuts[i]); if (e > 0f) { f += e; if (i < 4) why[i]++ else skilled = true } }
+        if (skilled) why[4]++
+        var rare = false; for (t in Tool.entries) if (b.knows[t] && knownBy[t] < FAME_TOP) { f += 1f; rare = true }
+        if (rare) why[5]++
+        var src = false; for (s in sources) if (b.houseHex in s) { f += 1f; src = true }
+        if (src) why[6]++
+        if (routes.kind(b.houseHex) in FAMED_LANDMARKS) { f += 1f; why[7]++ }
         fame[g.id] = f
     }
+    bands.famedFor = why
     return fame
 }
+
+/** What bands are famed for, in [Bands.famedFor]'s order. */
+internal val FAMED_FOR = listOf("size", "ground", "worship", "palisade", "skill", "rare tools", "a material's source", "a landmark")
 
 /** How extraordinary [x] is against the cut [cut] for the top few: 0 below it (or when the cut is none), 1 at it, one more for each doubling past it. */
 private fun extraordinary(x: Float, cut: Float) = if (cut <= 0f || x < cut) 0f else 1f + ln(x / cut) / ln(2f)
