@@ -2,14 +2,18 @@ package inflation.learning
 
 import inflation.Stream
 import inflation.stream
+import inflation.ecology.Catalogue
 import inflation.ecology.HexFeatures
 import inflation.ecology.HexGroup
 import inflation.ecology.Species
+import inflation.ecology.Temperament
+import inflation.ecology.WAYS_IN
 import java.io.File
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.ln
 import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.sin
 import kotlin.math.sqrt
 
@@ -24,7 +28,45 @@ import kotlin.math.sqrt
  * chance of a few weeks rather than of half a year. Each kind's returns are fitted on their own scale.
  * It learns from the last [ROUNDS] rounds' choices.
  */
-class Critic(val net: Mlp, private val scale: HashMap<String, Scale> = HashMap(), rate: Float = 1e-3f) {
+class Critic(val net: Mlp, val inputs: Inputs, private val scale: HashMap<String, Scale> = HashMap(), rate: Float = 1e-3f) {
+    /**
+     * What a critic reads of where a group stands, besides the group's own state ([GROUP_IN]): its [names], and how a group of a
+     * kind, at a place with features, with its band's view of itself and its temperament, is written into them.
+     */
+    class Inputs(val names: List<String>, private val write: (Species, FloatArray, FloatArray?, FloatArray?, FloatArray) -> Unit) {
+        val size get() = names.size
+        fun fill(kind: Species, features: FloatArray, band: FloatArray?, temper: FloatArray?, into: FloatArray) = write(kind, features, band, temper, into)
+
+        companion object {
+            /** What mover [model] reads: the hunters' critic, which reads the hunters' learned kinds' identities as they learn. */
+            fun of(model: SharedMover) = Inputs(if (model.band > 0) Schema.PEOPLE_IN else Schema.MOVER_IN) { s, f, b, t, into -> model.fill(s, f, b, into, t) }
+
+            /**
+             * People's ([Schema.PEOPLE_CRITIC_IN]): the place, the band's temperament and its view of itself, without people.mlp,
+             * which chooses nothing since people's net major 11 ([CampPolicy]).
+             */
+            val PEOPLE = Inputs(Schema.PEOPLE_CRITIC_IN) { _, f, b, t, into ->
+                val n = HexFeatures.size
+                f.copyInto(into, 0, 0, min(f.size, n))
+                for (k in 0 until Temperament.AXES) into[n + k] = t?.getOrElse(k) { 0f } ?: 0f
+                val at = n + Temperament.AXES
+                into.fill(0f, at, at + WAYS_IN)
+                b?.copyInto(into, at, 0, min(b.size, WAYS_IN))
+            }
+
+            /**
+             * What people's critic once read that was the same for every band, by name ([Schema.KIND_PART]): the human kind's traits
+             * and its identity in people's mover saved in [moverFile] (zero if there is none), for folding into a critic saved
+             * reading them ([Schema.fit]).
+             */
+            fun peopleConstants(moverFile: File): List<Pair<String, Float>> {
+                val mover = if (moverFile.exists()) SharedMover.load(moverFile) else SharedMover(Mlp(intArrayOf(1, 1, 1)), FloatArray(Catalogue.all.size * SharedMover.IDENTITY))
+                val part = FloatArray(SharedMover.KIND + SharedMover.IDENTITY).also { mover.kindInputs(Catalogue.HUMAN, it, 0) }
+                return Schema.KIND_PART.zip(part.toList())
+            }
+        }
+    }
+
     /** A kind's returns' [mean] and [spread]. */
     data class Scale(val mean: Float, val spread: Float)
     private val adam = Adam(net.w.size, rate)
@@ -33,27 +75,27 @@ class Critic(val net: Mlp, private val scale: HashMap<String, Scale> = HashMap()
     private val replay = ArrayDeque<List<Sample>>()
 
     private fun scaleOf(s: Species) = scale[s.name] ?: Scale(1f, 0.1f)
-    private fun input(model: SharedMover, kind: Species, features: FloatArray, band: FloatArray?, temper: FloatArray?, group: FloatArray?, into: FloatArray) {
-        model.fill(kind, features, band, into, temper)
-        val at = model.inputs
+    private fun input(kind: Species, features: FloatArray, band: FloatArray?, temper: FloatArray?, group: FloatArray?, into: FloatArray) {
+        inputs.fill(kind, features, band, temper, into)
+        val at = inputs.size
         for (k in 0 until GROUP) into[at + k] = group?.getOrElse(k) { 0f } ?: 0f
     }
-    private fun x(model: SharedMover, c: Choice) = FloatArray(net.sizes[0]).also { input(model, c.kind, c.inputs[here(c)], c.band, c.temper, c.group, it) }
-    private fun xProbe(model: SharedMover, c: Choice) = c.probe?.let { p -> FloatArray(net.sizes[0]).also { input(model, c.kind, p.features, p.band, p.temper, p.group, it) } }
+    private fun x(c: Choice) = FloatArray(net.sizes[0]).also { input(c.kind, c.inputs[here(c)], c.band, c.temper, c.group, it) }
+    private fun xProbe(c: Choice) = c.probe?.let { p -> FloatArray(net.sizes[0]).also { input(c.kind, p.features, p.band, p.temper, p.group, it) } }
     private fun raw(x: FloatArray): Float { val b = buffers.get(); x.copyInto(b.a[0]); return net.forward(b) }
     private fun value(kind: Species, x: FloatArray): Float { val (m, s) = scaleOf(kind); return m + s * raw(x) }
 
     /** The return [c]'s group could expect where it stood. */
-    fun value(model: SharedMover, c: Choice): Float = value(c.kind, x(model, c))
+    fun value(c: Choice): Float = value(c.kind, x(c))
 
     /** [c]'s judged return: its first weeks as seen, then the critic's estimate where its group then stood (or the whole horizon as seen). */
-    fun target(model: SharedMover, c: Choice): Float = xProbe(model, c)?.let { c.part + c.boot * value(c.kind, it) } ?: c.ret
+    fun target(c: Choice): Float = xProbe(c)?.let { c.part + c.boot * value(c.kind, it) } ?: c.ret
 
     private fun target(s: Sample) = if (s.probe != null) s.part + s.boot * value(s.kind, s.probe) else s.whole
 
     /** Learns from this round's choices [cs] and the last rounds' ([ROUNDS] in all): [EPOCHS] passes of least squares toward their judged returns. */
-    fun learn(model: SharedMover, cs: List<Choice>, round: Int) {
-        replay.addLast(cs.map { c -> Sample(c.kind, x(model, c), xProbe(model, c), c.part, c.boot, c.ret) })
+    fun learn(cs: List<Choice>, round: Int) {
+        replay.addLast(cs.map { c -> Sample(c.kind, x(c), xProbe(c), c.part, c.boot, c.ret) })
         while (replay.size > ROUNDS) replay.removeFirst()
         val all = replay.flatten()
         // Each kind's returns on their own scale (its mean and spread over the samples kept).
@@ -84,16 +126,16 @@ class Critic(val net: Mlp, private val scale: HashMap<String, Scale> = HashMap()
     }
 
     /** The share of the spread in this round's judged returns, within each kind, that the critic accounts for: by kind. */
-    fun explained(model: SharedMover, cs: List<Choice>): Map<Species, Double> = cs.groupBy { it.kind }.mapValues { (_, ks) ->
-        val ts = ks.map { target(model, it).toDouble() }
-        val vs = ks.map { value(model, it).toDouble() }
+    fun explained(cs: List<Choice>): Map<Species, Double> = cs.groupBy { it.kind }.mapValues { (_, ks) ->
+        val ts = ks.map { target(it).toDouble() }
+        val vs = ks.map { value(it).toDouble() }
         val m = ts.average()
         val total = ts.sumOf { (it - m) * (it - m) }
         if (total <= 0.0) 0.0 else 1.0 - ts.indices.sumOf { (ts[it] - vs[it]) * (ts[it] - vs[it]) } / total
     }
 
-    fun save(f: File, model: SharedMover) {
-        Schema.save(net, f, names(model), listOf("value"))
+    fun save(f: File) {
+        Schema.save(net, f, inputs.names + GROUP_IN, listOf("value"))
         File(f.path + ".scale").writeText(scale.entries.sortedBy { it.key }.joinToString("") { "${it.key}\t${it.value.mean}\t${it.value.spread}\n" })
     }
 
@@ -123,17 +165,18 @@ class Critic(val net: Mlp, private val scale: HashMap<String, Scale> = HashMap()
             ln(max(1, g.size).toFloat()) / 5f, g.young.toFloat() / max(1, g.size), g.fed, g.fat, 1f,
             sin(2f * PI.toFloat() * season), cos(2f * PI.toFloat() * season))
 
-        private fun names(model: SharedMover) = (if (model.band > 0) Schema.PEOPLE_IN else Schema.MOVER_IN) + GROUP_IN
-
-        /** The critic in [f], or a new one ([HIDDEN] by [HIDDEN]), reading what [model] reads and the group's own state. */
-        fun loadOrNew(f: File, model: SharedMover): Critic {
+        /**
+         * The critic in [f], or a new one ([HIDDEN] by [HIDDEN]), reading [inputs] and the group's own state. Inputs it was saved
+         * reading that were the same for every group of its kinds, [constants], go into its biases ([Schema.fit]).
+         */
+        fun loadOrNew(f: File, inputs: Inputs, constants: List<Pair<String, Float>> = emptyList()): Critic {
             if (f.exists()) {
-                val net = Schema.load(f, names(model), listOf("value"))
+                val net = Schema.load(f, inputs.names + GROUP_IN, listOf("value"), constants = constants)
                 val scale = HashMap<String, Scale>()
                 File(f.path + ".scale").takeIf { it.exists() }?.readLines()?.filter { it.isNotBlank() }?.forEach { l -> val (k, m, s) = l.split("\t"); scale[k] = Scale(m.toFloat(), s.toFloat()) }
-                return Critic(net, scale)
+                return Critic(net, inputs, scale)
             }
-            return Critic(Mlp.random(intArrayOf(model.inputs + GROUP, HIDDEN, HIDDEN, 1), kotlin.random.Random(91)))
+            return Critic(Mlp.random(intArrayOf(inputs.size + GROUP, HIDDEN, HIDDEN, 1), kotlin.random.Random(91)), inputs)
         }
     }
 }
