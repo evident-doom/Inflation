@@ -87,6 +87,8 @@ class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, @Transi
     internal val days get() = clock.days
     /** The step's ticks ([StepClock.ticks]). */
     internal val ticks get() = clock.ticks
+    /** Days a tick ([StepClock.tickDays]): what the rates reckoned a tick are reckoned over. */
+    internal val tickDays get() = clock.tickDays
     /** A share [perTick] taken or lost each tick (a week's), over the step's ticks: 1 - (1 - p)^ticks; itself at one tick a step. */
     internal fun overTicks(perTick: Float) = clock.share(perTick)
     internal val tuning get() = land.tuning
@@ -96,10 +98,9 @@ class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, @Transi
     val organicMatter = FloatArray(n) { p -> 4f * min(1f, land.plants.biomass(Place(p)) / 5f) }
     val carrion = FloatArray(n)
     /**
-     * Carrion the groups found in a step's earlier ticks, kg/m², held for them till they forage at its end ([setAsideForGroups]):
-     * over a step of several ticks they come on the carrion that lies in each, as a weekly group does each week, not only on
-     * what lies at the step's end (Olli 2026-11-11, "carrion per tick": at 60 days leopard packs found 60% less, pass728).
-     * Empty between steps, and always at one tick a step.
+     * Carrion the groups found as it lay through the step, kg/m², held for them till they forage at its end ([stepSoil], in
+     * closed form over the step's days): they come on the carrion that lies at any time in it, not only on what lies at the
+     * step's end (Olli 2026-11-11, "carrion per tick": at 60 days leopard packs found 60% less, pass728). Empty between steps.
      */
     @Transient val groupCarrion = FloatArray(n)
     /** The share of the carrion lying at each place at the last step's end that the groups took ([settleGroupCarrion]). */
