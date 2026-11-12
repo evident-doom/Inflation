@@ -5,6 +5,7 @@ import inflation.wrapMonth
 import inflation.world.Date
 import inflation.world.Hex
 import inflation.world.HexArray
+import inflation.world.Place
 import inflation.world.Weather
 import inflation.world.get
 import inflation.world.toHexArray
@@ -24,7 +25,15 @@ import kotlin.math.sqrt
 internal fun GroupPlanner.holdsGround(g: HexGroup, weather: Weather): Boolean {
     if (!gs.tuning.packsStay || g.band != null || g.species.lifeway != Lifeway.PACK || g.home.none) return false
     val here = gs.hw.placeHex[g.place]
-    if (here != g.home || gs.perilAhead(here) > 0f) return false
+    if (gs.perilAhead(here) > 0f) return false
+    // (Off its home hex, a weekly pack weighs its places and is back within a week or so; over a step of several ticks it would
+    // be back for most of the step, so it goes home and holds its ground there, if home is within the step's content reach and
+    // safe. trace751: 60-day packs planned off home 29% of steps against 2% weekly, and so hunted no footprint for the whole
+    // step: 51-67% of the steps of the lean 60-day windows.)
+    if (here != g.home) {
+        if (gs.ticks <= 1 || gs.perilAhead(g.home) > 0f) return false
+        if (gs.hex.distanceKm(here, g.home) > g.species.dailyTravelKm * SHIFT_DAYS * gs.stepShift) return false
+    }
     if (gs.control != null && g.id == gs.watched) return false
     val s = g.species
     val thirsty = g.dry > 0.5f * s.daysWithoutWater
@@ -40,8 +49,12 @@ internal fun GroupPlanner.holdsGround(g: HexGroup, weather: Weather): Boolean {
 internal fun GroupPlanner.groundPlan(g: HexGroup, date: Date): GroupPlanner.Plan {
     g.safestPeril = Float.NaN; g.drawn = false; g.weighed = false; g.plan = null
     planCounts.incrementAndGet(g.species.index * 3)
-    footprint(g, date)
-    return GroupPlanner.Plan(g.place, HexArray(intArrayOf(g.home.i)))
+    val here = gs.hw.placeHex[g.place]
+    if (here == g.home) { footprint(g, date, g.place); return GroupPlanner.Plan(g.place, HexArray(intArrayOf(g.home.i))) }
+    // (Off its home hex at a long step ([holdsGround]): it goes home, to the place there nearest its height.)
+    val at = gs.hw.placeNear(g.place, g.home)
+    footprint(g, date, at)
+    return GroupPlanner.Plan(at, HexArray(intArrayOf(here.i, g.home.i)))
 }
 
 /**
@@ -50,12 +63,12 @@ internal fun GroupPlanner.groundPlan(g: HexGroup, date: Date): GroupPlanner.Plan
  * ([GroupWorld.territoryKm]) as wide as the game on its home ground needs it (wider where game is thin: half to three times,
  * as the planner reckons a pack's ground), or [inflation.Tuning.denKm] while it has young in the den.
  */
-internal fun GroupPlanner.footprint(g: HexGroup, date: Date) {
+internal fun GroupPlanner.footprint(g: HexGroup, date: Date, at: Place = g.place) {
     val s = g.species
     val kind = gs.kindSlot[s.index]
     val month = wrapMonth(date.month + if (date.dayOfMonth > Date.DAYS_PER_MONTH / 2) 1 else 0)
     val denning = g.young > 0 && monthsFrom(g.birthMonth, month) < gs.tuning.denMonths
-    val homeValue = placeValue[kind][g.place]
+    val homeValue = placeValue[kind][at]
     val range = if (denning) gs.tuning.denKm.toDouble() else
         (gs.territoryKm(s) * sqrt(PREY_HALF / homeValue.coerceAtLeast(1f)).coerceIn(0.5f, 3f)).toDouble()
     val fall = range + gs.hex.hexKm
@@ -74,7 +87,7 @@ internal fun GroupPlanner.footprint(g: HexGroup, date: Date) {
             if (d > range) continue
             any = true
             // (Not where it gave way lately, [gaveWay].)
-            if (gs.hw.placeNear(g.place, h).none || yields(g, h, today)) continue
+            if (gs.hw.placeNear(at, h).none || yields(g, h, today)) continue
             hexes += h; weights += (1.0 - d / fall).toFloat()
         }
         if (!any) break
