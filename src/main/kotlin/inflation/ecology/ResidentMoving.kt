@@ -989,4 +989,4 @@ internal fun HexFauna.drownRisk(s: Species, gapKm: Float) = min(1f, Hazards.drow
  * The weeks (ticks) a resident move stands for: [Tuning.residentMoveWeeks] at one tick a step, where they move every so
  * many steps; else the step's ticks, as they move every step ([HexFauna.phases]).
  */
-internal fun HexFauna.moveWeeks() = if (clock.ticks > 1) clock.ticks else tuning.residentMoveWeeks
+internal fun HexFauna.moveWeeks() = if (clock.ticks >= tuning.residentMoveWeeks) clock.ticks else tuning.residentMoveWeeks

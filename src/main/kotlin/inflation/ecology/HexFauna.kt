@@ -465,7 +465,10 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
             // (The places are weighed once, before the bands shift: the shift and the spill both go by them.)
             // They move every [Tuning.residentMoveWeeks] weeks, a step each move: from week to week they shift by a few percent.
             // (Over steps of several ticks they move every step, the step's ticks' worth at once: [moveWeeks].)
-            val moving = clock.ticks > 1 || (it.date.absoluteDay / days) % tuning.residentMoveWeeks == 0L
+            // (A span of fewer ticks than that, as the residents' 12 days in a long step ([inflation.Tuning.residentDays]), moves if
+            // a move falls in it, that move's weeks' worth: prof761, moving each span had them move half again as often.)
+            val t0 = it.date.absoluteDay / clock.tickDays; val every = tuning.residentMoveWeeks
+            val moving = clock.ticks >= every || (0 until clock.ticks).any { j -> (t0 + j) % every == 0L }
             if (moving) {
                 fillArrive(it)
                 // (The game the hunters weigh, taken once before any kind moves: the kinds move on all cores at once.)
