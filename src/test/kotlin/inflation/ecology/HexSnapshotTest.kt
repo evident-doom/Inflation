@@ -61,12 +61,6 @@ class HexSnapshotTest {
         assertEquals(null, HexSnapshot.rosterProblem("residents", kinds, kinds))
         // (A kind added at the end too: its tables would start from nothing in a settled world.)
         assertNotNull(HexSnapshot.rosterProblem("residents", kinds, kinds + "onager"))
-        // (But for the one-shot move of old worlds' packs onto their ground, the settled of a kind that also roams load.)
-        val roamers = Catalogue.roamingResidents.map { it.name }
-        assertNotNull(HexSnapshot.rosterProblem("residents", kinds, kinds + roamers))
-        assertEquals(null, HexSnapshot.rosterProblem("residents", kinds, kinds + roamers, beforeRoamers = true))
-        assertNotNull(HexSnapshot.rosterProblem("groups", kinds, kinds + roamers, beforeRoamers = true))
-        assertNotNull(HexSnapshot.rosterProblem("residents", kinds, kinds + "onager", beforeRoamers = true))
         assertNotNull(HexSnapshot.rosterProblem("residents", kinds, kinds.reversed()))
     }
 

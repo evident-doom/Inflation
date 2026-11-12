@@ -413,9 +413,7 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
             if (settled != null) {
                 val want = settled * land.areaKm2.sum() / 1000f
                 val now = count(k).toFloat()
-                // (Of a kind that also roams, the settled are all but the roamers it starts with: [HexGroups], [ROAMERS_AT_START].)
-                val settledShare = if (s in Catalogue.roamingResidents) 1f - ROAMERS_AT_START else 1f
-                if (now > 0f) { val f = settledShare * want / now; for (p in land.places) { adults[k][p] *= f; young[k][p] *= f } }
+                if (now > 0f) { val f = want / now; for (p in land.places) { adults[k][p] *= f; young[k][p] *= f } }
             }
         }
     }
@@ -668,12 +666,6 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         const val STRIFE_YOUNG = 2f
         /** [leaveShare]: of a kind that also roams, the more of its young growing up that leave on ground crowded to twice its usual numbers. */
         const val LEAVE_CROWD = 0.5f
-        /**
-         * Of a kind that also roams, the share of its numbers that start out roaming, the rest settled ([Catalogue.roamingResidents]).
-         * None since 2026-11-12 (Olli: the resident predator model is the one kept): grown young disperse as a pool ([HexFauna.disperse]),
-         * so the start's roamers were only a few packs that settled in within the first years; it was 0.15.
-         */
-        const val ROAMERS_AT_START = 0f
         /** For the check only ([stuck]): fed below this counts as hungry. */
         const val STUCK_FED = 0.8f
         /**

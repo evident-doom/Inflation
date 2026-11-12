@@ -173,10 +173,10 @@ class HexGroups(
             val unit = if (s.human) max(1, (unitSize(s) * tuning.peopleBand).toInt()) else unitSize(s)
             val usual = if (settled != null) max(if (settled > 0f) 1 else 0, (settled * area / 1000f / unit).toInt()) else (area / per / unit).toInt()
             // (People's start can be a multiple of the usual, to find what the land would carry: t.peopleStart.)
-            // (Of a kind that also lives settled, only the roamers start as packs: [Catalogue.roamingResidents].)
+            // (A kind that also lives settled starts all settled, as no packs: [Catalogue.roamingResidents].)
             val count = if (s.human) (usual * tuning.peopleStart).toInt()
                 else if (s == Catalogue.CHEETAH) max(1, (usual * tuning.cheetahStart).toInt())
-                else if (s in Catalogue.roamingResidents) (usual * HexFauna.ROAMERS_AT_START).roundToInt() else usual
+                else if (s in Catalogue.roamingResidents) 0 else usual
             // (Bands that hold their home hex start where the food is, as many to a hex as its food draws, rich and poor
             // ground alike held in proportion: [startFood].)
             val byFood = s.human && tuning.bandsStay && !uniformStart
