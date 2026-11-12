@@ -270,6 +270,8 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
     private var moves = 0
     /** Hexes each band walked this year, and its last camp. */
     private val walked = HashMap<Int, HashSet<Hex>>(); private val lastCamp = HashMap<Int, Hex>()
+    /** Hexes each band worked this year: those it walked and the ring round each camp its gatherers go out into. */
+    private val worked = HashMap<Int, HashSet<Hex>>()
     /** Camp moves and band-weeks since last read, of bands without houses [0] and with [1]. */
     private val movesHouse = LongArray(2); private val bandWeeksHouse = LongArray(2)
     /** Appointments due and kept since last read: of bands in their appointment's month, how many are at its hex. */
@@ -287,7 +289,7 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
 
     fun startYear() {
         bandWeeks = 0.0; bandHeads = 0.0; childWeeks = 0.0; adultWeeks = 0.0; motherWeeks = 0.0; moves = 0
-        walked.clear(); lastCamp.clear()
+        walked.clear(); worked.clear(); lastCamp.clear()
         sickWeeks.fill(0.0)
     }
 
@@ -312,6 +314,9 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
             for (d in inflation.ecology.Illness.entries) sickWeeks[d.ordinal] += g.size * (g.band?.sick?.get(d) ?: 0f).toDouble()
             val h = hw.placeHex[g.place]
             for (q in g.path) walked.getOrPut(g.id) { HashSet() } += q
+            // (The ring round camp, as the band's foraging has it, [GroupFood]: land hexes next to the camp's.)
+            worked.getOrPut(g.id) { HashSet() }.let { w -> w += h; for (q in g.path) w += q
+                for (d in 0 until 6) { val n = sim.hex.neighbour(h, d); if (!n.none && !hw.placeNear(g.place, n).none) w += n } }
             lastCamp.put(g.id, h)?.let { if (it != h) moves++ }
             // (A camp shifted within its hex is a camp move too, as foragers' moves of a few km mostly are: t.bandsStay.)
             g.band?.let { b ->
@@ -670,9 +675,10 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
             val share = sickWeeks[il.ordinal] / heads
             "%s %.1f%% (%.0f)".format(il.label, 100.0 * share, 1000.0 * share * 365.25 / 7.0 / il.weeks) } +
             " [shigellosis 0.6-107 bouts a 1000 a year]")
-        println("     people against the record: band size %.0f [15-50, most 20-35] | people per km² %.3f [foragers 0.01-0.4; Mediterranean 0.05-0.2] | camps moved a year %.1f [5-60, median about 15] | ground walked a year %.0f km² [200-2500] | plant share of food %.0f%% [Mediterranean 40-60%%] | births a woman over her bearing years %.1f [foragers 3.5-7.9, mean 5.6; Hadza 6.2, !Kung 4.3-4.7] | children reaching 15 %.0f%% [about 55-65%%] | years left at 15 %.0f [about 35-40] | violent deaths %.0f%% [2-15%%]".format(
+        println("     people against the record: band size %.0f [15-50, most 20-35] | people per km² %.3f [foragers 0.01-0.4; Mediterranean 0.05-0.2] | camps moved a year %.1f [5-60, median about 15] | camp hexes a year %.0f km², with the ring round camp the gatherers work %.0f km² [ground used a year 200-2500] | plant share of food %.0f%% [Mediterranean 40-60%%] | births a woman over her bearing years %.1f [foragers 3.5-7.9, mean 5.6; Hadza 6.2, !Kung 4.3-4.7] | children reaching 15 %.0f%% [about 55-65%%] | years left at 15 %.0f [about 35-40] | violent deaths %.0f%% [2-15%%]".format(
             bandHeads / bandWeeks, bandHeads / weeks / sim.land.areaKm2.sum(), moves.toDouble() / bandsSeen,
-            walked.values.map { it.size }.average() * hex.areaKm2, 100 * plants / (meat + plants).coerceAtLeast(1.0),
+            walked.values.map { it.size }.average() * hex.areaKm2,
+            worked.values.map { it.size }.average() * hex.areaKm2, 100 * plants / (meat + plants).coerceAtLeast(1.0),
             ADULT_YEARS * yearly(Tally.BORN) / (motherWeeks / weeks).coerceAtLeast(1.0), 100 * Math.pow((1 - childQ).coerceIn(0.0, 1.0), 15.0),
             1 / adultQ.coerceAtLeast(1e-3), 100 * violent / died.coerceAtLeast(1.0)))
     }
