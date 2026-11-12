@@ -116,7 +116,7 @@ class HexGroups(
     /** What the people kind's [huntable] was a month ago, and whether it is known (not after a load, until the next month). */
     @delegate:Transient private val peopleGameBefore by lazy { FloatArray(n) }
     /** The hexes within [TOLD_RINGS] rings of each hex, worked out once a hex as first asked for ([toldOf]): what bands that meet tell of about a home. */
-    @delegate:Transient internal val toldDisk by lazy { arrayOfNulls<IntArray>(hex.size) }
+    @delegate:Transient internal val toldDisk by lazy { arrayOfNulls<HexArray>(hex.size) }
     @Transient private var gameBeforeKnown = false
     @Transient private var huntableFilled = false
     /** People sick of each catching illness in each place as the week's choosing begins (heads × share sick). */
