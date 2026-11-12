@@ -326,12 +326,14 @@ internal fun HexGroups.leaveDead(g: HexGroup, freed: MutableList<HexGroup>) {
 /**
  * [n] dogs of kind [s] gone wild at [p]: a new pack of their wild kind, bold of people, without ground, with [fatShare]
  * of their kind's most fat; null if not one whole dog went, or the kind lives in no groups here. (The caller adds it to the groups.)
- * Of a resident kind they join its residents at [p] instead, bold of people ([HexFauna.cameWild]), and it is null.
+ * Of a resident kind, or one that lives settled ([Catalogue.roamingResidents]: dogs are wolves), they join its residents or its
+ * settled at [p] instead, bold of people ([HexFauna.cameWild]), and it is null.
  */
 internal fun HexGroups.dogsGoWild(s: Species, p: Place, n: Int, fatShare: Float = 0.5f): HexGroup? {
     if (n < 1) return null
-    // (Of a resident kind they join its residents there: heads come into the wild as a pack's would.)
-    if (s !in kinds) {
+    // (Of a resident kind they join its residents there: heads come into the wild as a pack's would. So do they of a kind that
+    // lives settled, since 2026-11-12 no longer as a roaming pack: the resident predator model is the one kept.)
+    if (s !in kinds || s in Catalogue.roamingResidents) {
         if (fauna.slot(s).none) return null
         fauna.cameWild(s, p, n)
         stats.births.merge(s, n, Int::plus)
