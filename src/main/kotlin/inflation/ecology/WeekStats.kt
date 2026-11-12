@@ -668,6 +668,10 @@ object Tally {
         WEEKS("band-weeks"), SOWN("sown, kg"), WAYS("held back by ways, kg"), SEED("short of seed, kg"), DAYS("short of days, kg")
     }
     fun sowing(k: Sowing) = TallyKey.raw("bands' sowing:${k.label}")
+    /** Bands in their sowing window ([HexGroups.tallySowingTime]): band-weeks (null), and tenths of person-days spent on each work, and lost to cold and hunger. */
+    private val sowingTimeKeys = Array(Activity.entries.size + 1) { i -> TallyKey.raw("bands sowing window:" + if (i == 0) "band-weeks" else "time ${Activity.entries[i - 1].label}") }
+    fun sowingTime(a: Activity?) = sowingTimeKeys[if (a == null) 0 else a.ordinal + 1]
+    val sowingLost = TallyKey.raw("bands sowing window:time lost to cold and hunger")
     /** How far a band's shelters stood at the week's end ([Band.shelter]): the first bin it falls [below]. The report's line. */
     enum class Hut(val label: String, val below: Float) {
         NONE("no hut", 0.5f), LIGHT("light hut", 1.05f), PART("part thatched", 1.5f), THATCHED("thatched", Float.POSITIVE_INFINITY);

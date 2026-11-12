@@ -52,6 +52,19 @@ internal fun HexGroups.sowGrain(g: HexGroup, b: Band, p: Place, date: Date, time
     tallySowing(g, b, p, date)
 }
 
+/** Whether [g]'s band [b] is one the sowing census counts at [p] now: one that grows grain, at home or long at its camp, in its sowing window, where a crop can grow. */
+private fun HexGroups.inSowingWindow(g: HexGroup, b: Band, p: Place, date: Date) =
+    b.knowsSkill[Skill.CULTIVATION] && fauna.food.canCrop(p) && (b.atHome || b.campWeeks >= houseAfterWeeks(b)) &&
+        date.month in (if (fauna.food.springSown(p)) SPRING_SOW_MONTHS else SOW_MONTHS) && sowTarget(g, b, p, 1f) > 0f
+
+/** Where the days of [g]'s band [b] went in its sowing window ([inSowingWindow]), tenths of person-days by work ([Tally.sowingTime]). Report only. */
+internal fun HexGroups.tallySowingTime(g: HexGroup, b: Band, p: Place, date: Date, time: BandTime) {
+    if (!stats.census || !inSowingWindow(g, b, p, date)) return
+    stats.tally(Tally.sowingTime(null), 1)
+    for (a in Activity.entries) { val d = (10f * time.spentOn(a)).roundToInt(); if (d > 0) stats.tally(Tally.sowingTime(a), d) }
+    stats.tally(Tally.sowingLost, (10f * time.lost).roundToInt())
+}
+
 /** In its sowing window's last month, what of its year's target [g]'s band [b] has sown at [p] and what held the rest back ([Tally.Sowing]). Report only. */
 private fun HexGroups.tallySowing(g: HexGroup, b: Band, p: Place, date: Date) {
     val food = fauna.food
@@ -164,6 +177,7 @@ internal fun GroupWorld.sowDays(p: Place, kg: Float): Float {
     val food = fauna.food
     return kg * SOW_DAYS_PER_KG + food.toClear(p, land.spread(p, Kg(kg))) * land.m2(p) / 1e4f * food.clearDaysPerHa(p)
 }
+
 
 /** The kg that [days] person-days sow at [p] ([sowDays]): on cleared ground first, then clearing as it goes. */
 internal fun GroupWorld.sowableKg(p: Place, days: Float): Float {
