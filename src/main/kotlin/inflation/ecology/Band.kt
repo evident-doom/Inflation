@@ -629,6 +629,12 @@ class Band(kinds: Int, totems: Int = kinds) {
     @Transient var herded = 1f
     /** What a day's foraging brings it, kg of its need, month by month: a mean over the years (below 0 till it has foraged then; [herdPays]). */
     @Transient val forageReturn = FloatArray(Date.MONTHS_PER_YEAR) { -1f }
+    /**
+     * What its own crop has brought it, kg of its need, and the person-days it took (sowing, reaping and threshing, and the
+     * dehusking and grinding it owes as it is eaten), each a sum with older years fading ([CROP_RETURN_YEARS]): [cropReturn].
+     */
+    @Transient var cropWorthSeen = 0f
+    @Transient var cropDaysSeen = 0f
     /** Person-days drying and skinning would have liked last week: what they ask of this week's plan (they follow the catch). */
     var dryAsk = 0f
     var skinAsk = 0f

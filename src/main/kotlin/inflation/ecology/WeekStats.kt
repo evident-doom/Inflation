@@ -673,6 +673,10 @@ object Tally {
     private val sowingTimeKeys = Array(Activity.entries.size + 1) { i -> TallyKey.raw("bands sowing window:" + if (i == 0) "band-weeks" else "time ${Activity.entries[i - 1].label}") }
     fun sowingTime(a: Activity?) = sowingTimeKeys[if (a == null) 0 else a.ordinal + 1]
     val sowingLost = TallyKey.raw("bands sowing window:time lost to cold and hunger")
+    /** Of those band-weeks, those that have seen both a crop and the month's foraging ([cropAgainstForage]), the ratio summed in hundredths, and those over 1. */
+    val sowingRatioWeeks = TallyKey.raw("bands sowing window:crop against forage, band-weeks")
+    val sowingRatio = TallyKey.raw("bands sowing window:crop against forage, hundredths")
+    val sowingRatioOver = TallyKey.raw("bands sowing window:crop against forage, over 1")
     /** How far a band's shelters stood at the week's end ([Band.shelter]): the first bin it falls [below]. The report's line. */
     enum class Hut(val label: String, val below: Float) {
         NONE("no hut", 0.5f), LIGHT("light hut", 1.05f), PART("part thatched", 1.5f), THATCHED("thatched", Float.POSITIVE_INFINITY);
