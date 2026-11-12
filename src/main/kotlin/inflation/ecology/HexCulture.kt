@@ -3,6 +3,7 @@ package inflation.ecology
 import inflation.drawKey
 import inflation.drawUnit
 import inflation.Part
+import inflation.enumFloats
 import inflation.EnumBools
 import inflation.Stream
 import inflation.world.Hex
@@ -17,6 +18,7 @@ import inflation.world.Date
 import kotlin.math.max
 import kotlin.math.abs
 import kotlin.math.exp
+import kotlin.math.ln
 
 // What passes between bands: words, traditions, partners and grudges. A band's culture is data on
 // the band ([Band]); it changes when bands meet, when they split, and now and then by itself.
@@ -207,6 +209,106 @@ internal const val FEUD = 2f
 internal const val TOLD_RINGS = 4
 
 internal const val REMEMBERED_KM = 100.0
+
+/**
+ * How far off a band holds the homes of other bands worth knowing, km: those it may meet, raid, visit or keep off (raids reach
+ * [RAID_RANGE_KM], its country about [REMEMBERED_KM]). Further homes it neither keeps nor is told of, unless their fame carries
+ * them further ([homeReachKm]). An estimate (Olli 2026-11-12: there is a limit to what bands know and find meaningful;
+ * homes764: median 814 homes known, 73% of dead bands, 62% beyond 300 km).
+ */
+internal const val HOMES_KM = 100.0
+
+/**
+ * The most homes a band keeps in mind: the nearest, fame counting as nearness ([homeReachKm]). An estimate, after the forager
+ * "dialect tribe" of some 500 people, a score of bands (Birdsell; a contested figure), with room for the famous.
+ */
+internal const val HOMES_HELD = 40
+
+/** Years a band goes on holding a home that no one has seen standing ([Band.homeSeen]): hearsay of dead or moved bands dies out. An estimate. */
+internal const val HOMES_HEARD_YEARS = 3f
+
+/**
+ * How far off a home told at second hand may lie from where the hearer then believes it, as a share of its distance from
+ * the hearer: geography is the vaguer the further off (Olli 2026-11-12). Each telling adds its own. An estimate.
+ */
+internal const val HEARSAY_OFF = 0.1f
+
+/** Fame ([Bands.fameOf]): each unit carries the tale of a band's home [HOMES_KM] further. */
+internal const val HOMES_FAME_REACH = 1f
+
+/**
+ * The share of housed bands above which a measure is extraordinary ([reckonFame]): the top twentieth. An estimate: Olli
+ * 2026-11-12, fame is for something extraordinary, not for the ordinary run.
+ */
+internal const val FAME_TOP = 0.05f
+
+/** Landmarks a home is talked of for: river crossings, passes, where rivers meet, river mouths, lakes, springs, hilltops ([HexRoutes.Kind]). */
+private val FAMED_LANDMARKS = setOf(HexRoutes.Kind.FORD, HexRoutes.Kind.PASS, HexRoutes.Kind.CONFLUENCE, HexRoutes.Kind.MOUTH,
+    HexRoutes.Kind.LAKE, HexRoutes.Kind.SPRING, HexRoutes.Kind.PEAK)
+
+/**
+ * How far each band with a standing house is talked of, by its id ([Bands.fameOf]): the sum of what is extraordinary about
+ * it or its home, each 0 for the ordinary (Olli 2026-11-12: a superb location, size, exceptional technology or skill, unique
+ * resources or buildings, a centre of worship, a local geographic speciality; not just random). Measures that run on, each
+ * against the housed bands' top [FAME_TOP]: at its cut 1, and one more for each doubling past it ([extraordinary]):
+ * - size: the people of all the bands housed in its hex (a large settlement);
+ * - the ground: the food its hex gives ([hexFood]);
+ * - worship: the holiness of its hex's places ([HexLand.sanctity]);
+ * - skill: its best at any skill against the middling band's at that skill;
+ * - buildings: its palisade.
+ * And each one: 1 for every tool it knows that under [FAME_TOP] of housed bands know; 1 for every material whose richest
+ * source about ([Bands.materialSources]: flint, salt, ochre...) its hex is; 1 if its hex is a famed landmark ([FAMED_LANDMARKS]).
+ */
+internal fun HexGroups.reckonFame(): Map<Int, Float> {
+    val housed = ArrayList<Pair<HexGroup, Band>>()
+    for (g in groups) { val b = g.band ?: continue; if (g.alive && bands.houseOf[g.id] != null) housed += g to b }
+    if (housed.isEmpty()) return emptyMap()
+    val peopleIn = HashMap<Hex, Float>()
+    for ((g, b) in housed) peopleIn.merge(b.houseHex, g.size.toFloat(), Float::plus)
+    // (The cut for the top few, and none where it is no higher than the middling band's: where most stand level, as at a
+    // skill's floor or with no palisade, standing there is nothing. Without it every housed band was famous, median 6: homes738c.)
+    fun cut(xs: FloatArray) = xs.sortedArray().let { val top = it[((it.size - 1) * (1f - FAME_TOP)).toInt()]; if (top > it[(it.size - 1) / 2]) top else 0f }
+    fun measure(f: (HexGroup, Band) -> Float) = FloatArray(housed.size) { k -> f(housed[k].first, housed[k].second) }
+    val size = measure { _, b -> peopleIn[b.houseHex] ?: 0f }
+    val ground = measure { _, b -> hexFood(b.houseHex) }
+    val holy = measure { _, b -> var s = 0f; for (pi in hw.placesOf(b.houseHex)) s += land.sanctity[pi]; s }
+    val walls = measure { _, b -> b.palisade }
+    // (Skill as one measure: how far its best stands above the middling band's at that skill, the most of any. Taken a skill
+    // at a time, the top twentieth at one or another of a score of skills was 65% of housed bands: homes738d.)
+    val skillMid = Skill.entries.map { s -> measure { _, b -> if (b.knowsSkill[s]) b.skills[s] else 0f }.let { xs -> xs.sortedArray()[(xs.size - 1) / 2] } }
+    val skill = measure { _, b -> var best = 0f
+        for ((i, s) in Skill.entries.withIndex()) if (b.knowsSkill[s] && skillMid[i] > 0f) best = max(best, b.skills[s] / skillMid[i])
+        best }
+    val runs = listOf(size, ground, holy, walls, skill)
+    val cuts = runs.map { cut(it) }
+    val knownBy = enumFloats<Tool> { t -> housed.count { it.second.knows[t] }.toFloat() / housed.size }
+    val sources = bands.materialSources.values
+    val fame = HashMap<Int, Float>()
+    // (For the census: how many bands are famed for each thing, [Bands.famedFor].)
+    val why = IntArray(FAMED_FOR.size)
+    for ((k, gb) in housed.withIndex()) {
+        val (g, b) = gb
+        var f = 0f
+        for ((i, xs) in runs.withIndex()) { val e = extraordinary(xs[k], cuts[i]); if (e > 0f) { f += e; why[i]++ } }
+        var rare = false; for (t in Tool.entries) if (b.knows[t] && knownBy[t] < FAME_TOP) { f += 1f; rare = true }
+        if (rare) why[5]++
+        var src = false; for (s in sources) if (b.houseHex in s) { f += 1f; src = true }
+        if (src) why[6]++
+        if (routes.kind(b.houseHex) in FAMED_LANDMARKS) { f += 1f; why[7]++ }
+        fame[g.id] = f
+    }
+    bands.famedFor = why
+    return fame
+}
+
+/** What bands are famed for, in [Bands.famedFor]'s order. */
+internal val FAMED_FOR = listOf("size", "ground", "worship", "palisade", "skill", "rare tools", "a material's source", "a landmark")
+
+/** How extraordinary [x] is against the cut [cut] for the top few: 0 below it (or when the cut is none), 1 at it, one more for each doubling past it. */
+private fun extraordinary(x: Float, cut: Float) = if (cut <= 0f || x < cut) 0f else 1f + ln(x / cut) / ln(2f)
+
+/** How far (km) band [id]'s home is worth knowing of: [HOMES_KM], the further the more it is talked of ([Bands.fameOf]). */
+internal fun HexGroups.homeReachKm(id: Int) = HOMES_KM * (1f + HOMES_FAME_REACH * (bands.fameOf[id] ?: 0f))
 
 /** A band fed under this share of its fill with nothing laid by goes to a better-stocked band within this many rings of hexes. */
 internal const val VISIT_FED = 0.6f
@@ -550,13 +652,27 @@ internal class Regard(private val of: Band, private val toId: Int, private val t
  * Touches only the band's own state (and the week's tallies), so the bands' run side by side, each drawing from its own stream [rnd].
  */
 @Part("people: cultureWeek")
-internal fun HexGroups.cultureWeek(g: HexGroup, rnd: kotlin.random.Random) {
+internal fun HexGroups.cultureWeek(g: HexGroup, rnd: kotlin.random.Random, day: Long) {
     val b = g.band ?: return
-    // A home it knows of that it passed this week and found no house standing (its people dead, or
-    // moved on) is forgotten: it is no longer ground to keep off, nor a place to raid.
+    // A home it knows of is forgotten: when it passed it this week and found no house standing (its people dead, or moved on,
+    // or never quite where it was told); when no one has seen it standing for [HOMES_HEARD_YEARS]; and when it lies further
+    // than it is worth knowing of from where the band now is ([homeReachKm]). It is no longer ground to keep off, nor a place to raid.
     if (b.knownHomes.isNotEmpty()) {
+        val here = hw.placeHex[g.place]
+        val stale = (HOMES_HEARD_YEARS * Date.DAYS_PER_YEAR).toLong()
         val it = b.knownHomes.entries.iterator()
-        while (it.hasNext()) { val (id, hh) = it.next(); if (hh in g.path && bands.houseOf[id] != hh) { it.remove(); b.knownLineage.remove(id); b.homesVersion++ } }
+        while (it.hasNext()) { val (id, hh) = it.next()
+            // (A home held from a save made before [Band.homeSeen]: as if seen half that long ago.)
+            val seen = b.homeSeen.getOrPut(id) { day - stale / 2 }
+            if ((hh in g.path && bands.houseOf[id] != hh) || day - seen > stale || hexKm(here, hh) > homeReachKm(id)) {
+                it.remove(); b.knownLineage.remove(id); b.homeSeen.remove(id); b.homeOff.remove(id); b.homesVersion++ }
+        }
+        // And it keeps no more than [HOMES_HELD] in mind: the nearest, as far as fame makes them near.
+        if (b.knownHomes.size > HOMES_HELD) {
+            val by = b.knownHomes.entries.sortedWith(compareBy<Map.Entry<Int, Hex>> { hexKm(here, it.value) / homeReachKm(it.key) }.thenBy { it.key })
+            for (e in by.subList(HOMES_HELD, by.size)) { b.knownHomes.remove(e.key); b.knownLineage.remove(e.key); b.homeSeen.remove(e.key); b.homeOff.remove(e.key) }
+            b.homesVersion++
+        }
     }
     // Once a year, a band without an appointment makes one, where its dead lie or where it has met
     // most bands, in the season it fared best there.
