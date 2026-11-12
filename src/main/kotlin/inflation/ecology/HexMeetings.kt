@@ -510,8 +510,7 @@ private fun HexGroups.strongerThan(a: HexGroup, b: HexGroup, h: Hex) =
  * stand-in carries no kill to rob).
  */
 private fun HexGroups.residentsMeet(a: HexGroup, b: HexGroup): Boolean {
-    // (But roamers of a kind that also lives settled meet its settled as rival packs: [rivalsMeet].)
-    if (a.species == b.species) return a.species in Catalogue.roamingResidents && (a.id < 0) != (b.id < 0)
+    if (a.species == b.species) return false
     val sa = strength(a); val sb = strength(b)
     return max(sa, sb) > 2f * max(1f, min(sa, sb))
 }
@@ -835,10 +834,6 @@ internal fun GroupWorld.rivalsFight(a: HexGroup, ak: Int, ai: Int, b: HexGroup, 
             if (killed > 0) stats.deaths.merge(Tally.of(loser.species, DeathCause.YOUNG_KILLED_BY_RIVALS), killed, Int::plus)
         }
     }
-    // A roamer that beats a settled band on its ground takes it, and settles in there ([settle]): a pair or more, as it settles
-    // only with a mate (a lion coalition, a wolf pair); a lone one only wins its way past.
-    val winner = if (loser === a) b else a
-    if (loser.id < 0 && loser.home == h && winner.id >= 0 && winner.home.none && winner.adults >= 2) { winner.home = h; stats.meeting(Met.Of.ROAMERS_TOOK_OVER, winner.species.name) }
     if (loser === a) stop[ak] = min(stop[ak], max(0, ai - 1)) else stop[bk] = min(stop[bk], max(0, bi - 1))
     gaveWay(loser, contested, contestDay)
 }
@@ -852,15 +847,13 @@ internal fun HexGroups.claimGround(g: HexGroup, h: Hex) {
 }
 
 /**
- * A pack without ground settles where no other pack of its kind has fresh marks. A roamer of a kind that also lives settled
- * ([Catalogue.roamingResidents]) settles in among them instead: where it took a settled band's ground at a meeting
- * ([rivalsMeet]), or, without ground, where it comes on room for it ([HexFauna.roomFor]) and no roamer's fresh marks, but
- * not back where it left ([HexGroup.natal]: young leave the ground they were born on), and only once it has a mate (a pair,
- * as wolves found their territories: lone ones pair up as lone hunters do, [mergeAndPair]).
+ * A pack without ground settles where no other pack of its kind has fresh marks. A kind that also lives settled
+ * ([Catalogue.roamingResidents]) has no packs since 2026-11-12 (its young disperse as a pool, [roamersLeave]): any group of
+ * one, as an older save may hold, settles in among its settled where it stands at once.
  */
 @Part("hunters: settling ground")
 internal fun HexGroups.settle(weather: Weather) {
-    for (g in groups) if (g.alive && g.band == null && g.species in Catalogue.roamingResidents && !g.home.none) settleIn(g)
+    for (g in groups) if (g.alive && g.band == null && g.species in Catalogue.roamingResidents) settleIn(g)
     val claimed = HashSet<Long>()
     // (Packs come in a drawn order: the first to come on empty ground takes it.)
     val today = weather.date.absoluteDay
@@ -870,10 +863,6 @@ internal fun HexGroups.settle(weather: Weather) {
         // (Whether it takes it is its choice: always at the hand-written way.)
         val w = g.will[AnimalWay.SETTLE]
         if (w < 1f && rnd.nextFloat() >= w) continue
-        if (g.species in Catalogue.roamingResidents) {
-            if (g.adults >= 2 && h != g.natal && fauna.roomFor(g.species, h) && scent.foreign(g.species, h, g.id) < MARK_FRESH) settleIn(g)
-            continue
-        }
         if (scent.foreign(g.species, h, g.id) < MARK_FRESH && claimed.add(key)) {
             claimGround(g, h)
             stats.meeting(Met.Of.PACK_SETTLED, g.species.name)
@@ -893,7 +882,7 @@ internal fun HexGroups.settleIn(g: HexGroup) {
  * a pool at the hex they left, which settles in where there is room about it and loses some on the way, at rates a day
  * over the step's days ([HexFauna.disperse]). Rates over days, so the same at any step length (plan section 58): as
  * single roamer packs they settled, paired and died once a step, and their numbers swung with the step's length (inv692b:
- * wolf roamers 171 / 299 / 519 / 11 at 6 / 12 / 30 / 60 days). The packs a world starts with still roam and settle as packs.
+ * wolf roamers 171 / 299 / 519 / 11 at 6 / 12 / 30 / 60 days).
  */
 internal fun HexGroups.roamersLeave() {
     val dispersing = ArrayList<FaunaKind>()

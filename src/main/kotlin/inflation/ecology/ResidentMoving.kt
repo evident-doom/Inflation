@@ -734,17 +734,6 @@ private const val DRIFT_STEP = 1f
 fun HexFauna.grownIn(k: FaunaKind, h: Hex): Float { var v = 0f; for (q in hw.placesOf(h)) v += adults[k][q] * land.areaKm2[q]; return v }
 
 /**
- * Whether a roamer of [s] finds room to settle in hex [h]: its kind's settled there are fewer than its territories hold
- * ([usual] over the hex's land).
- */
-fun HexFauna.roomFor(s: Species, h: Hex): Boolean {
-    val k = slot(s); if (k.none) return false
-    var heads = 0f; var area = 0f
-    for (q in hw.placesOf(h)) { heads += (adults[k][q] + young[k][q]) * land.areaKm2[q]; area += land.areaKm2[q] }
-    return heads < usual[k] * area
-}
-
-/**
  * Group [g] of a kind that also roams settles: it joins its kind's settled at its place, carrying its fat, body burnt,
  * season of births had and boldness of people in with them as any that move do ([carried]).
  */
