@@ -776,7 +776,7 @@ class Census(private val sim: HexSim) {
             offHeld / all.coerceAtLeast(1), offTrue / nTrue.coerceAtLeast(1), age / nAge.coerceAtLeast(1), fame.size, f(0.5), f(0.9), f(1.0),
             100.0 * fame.count { it >= 1f } / fame.size.coerceAtLeast(1)))
         val why = groups.bands.famedFor
-        println("     housed bands famed for (%% of them): " + inflation.ecology.FAMED_FOR.withIndex().joinToString(", ") { (i, w) ->
+        println("     housed bands famed for (% of them): " + inflation.ecology.FAMED_FOR.withIndex().joinToString(", ") { (i, w) ->
             "%s %.0f%%".format(w, 100.0 * (why.getOrNull(i) ?: 0) / fame.size.coerceAtLeast(1)) })
         // (And how near the homes known lie: the share within 50 km.)
         println("     known homes within 50 km of the knower: %.0f%%".format(100.0 * km.count { it <= 50f } / km.size.coerceAtLeast(1)))

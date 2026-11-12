@@ -139,7 +139,7 @@ class Bands internal constructor(private val world: GroupWorld) {
      */
     @Transient internal var fameOf: Map<Int, Float> = emptyMap()
 
-    /** How many housed bands are famed for each thing in [FAMED_FOR] (a band for each skill counted once), as [fameOf] was last reckoned. For the census. */
+    /** How many housed bands are famed for each thing in [FAMED_FOR] , as [fameOf] was last reckoned. For the census. */
     @Transient internal var famedFor = IntArray(0)
 
     /**

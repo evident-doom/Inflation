@@ -254,7 +254,7 @@ private val FAMED_LANDMARKS = setOf(HexRoutes.Kind.FORD, HexRoutes.Kind.PASS, He
  * - size: the people of all the bands housed in its hex (a large settlement);
  * - the ground: the food its hex gives ([hexFood]);
  * - worship: the holiness of its hex's places ([HexLand.sanctity]);
- * - skill: its best at any skill against the others' at that skill;
+ * - skill: its best at any skill against the middling band's at that skill;
  * - buildings: its palisade.
  * And each one: 1 for every tool it knows that under [FAME_TOP] of housed bands know; 1 for every material whose richest
  * source about ([Bands.materialSources]: flint, salt, ochre...) its hex is; 1 if its hex is a famed landmark ([FAMED_LANDMARKS]).
@@ -273,8 +273,13 @@ internal fun HexGroups.reckonFame(): Map<Int, Float> {
     val ground = measure { _, b -> hexFood(b.houseHex) }
     val holy = measure { _, b -> var s = 0f; for (pi in hw.placesOf(b.houseHex)) s += land.sanctity[pi]; s }
     val walls = measure { _, b -> b.palisade }
-    val skills = Skill.entries.map { s -> measure { _, b -> if (b.knowsSkill[s]) b.skills[s] else 0f } }
-    val runs = listOf(size, ground, holy, walls) + skills
+    // (Skill as one measure: how far its best stands above the middling band's at that skill, the most of any. Taken a skill
+    // at a time, the top twentieth at one or another of a score of skills was 65% of housed bands: homes738d.)
+    val skillMid = Skill.entries.map { s -> measure { _, b -> if (b.knowsSkill[s]) b.skills[s] else 0f }.let { xs -> xs.sortedArray()[(xs.size - 1) / 2] } }
+    val skill = measure { _, b -> var best = 0f
+        for ((i, s) in Skill.entries.withIndex()) if (b.knowsSkill[s] && skillMid[i] > 0f) best = max(best, b.skills[s] / skillMid[i])
+        best }
+    val runs = listOf(size, ground, holy, walls, skill)
     val cuts = runs.map { cut(it) }
     val knownBy = enumFloats<Tool> { t -> housed.count { it.second.knows[t] }.toFloat() / housed.size }
     val sources = bands.materialSources.values
@@ -284,9 +289,7 @@ internal fun HexGroups.reckonFame(): Map<Int, Float> {
     for ((k, gb) in housed.withIndex()) {
         val (g, b) = gb
         var f = 0f
-        var skilled = false
-        for ((i, xs) in runs.withIndex()) { val e = extraordinary(xs[k], cuts[i]); if (e > 0f) { f += e; if (i < 4) why[i]++ else skilled = true } }
-        if (skilled) why[4]++
+        for ((i, xs) in runs.withIndex()) { val e = extraordinary(xs[k], cuts[i]); if (e > 0f) { f += e; why[i]++ } }
         var rare = false; for (t in Tool.entries) if (b.knows[t] && knownBy[t] < FAME_TOP) { f += 1f; rare = true }
         if (rare) why[5]++
         var src = false; for (s in sources) if (b.houseHex in s) { f += 1f; src = true }
