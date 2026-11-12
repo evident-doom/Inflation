@@ -7,6 +7,7 @@ import inflation.world.get
 import inflation.world.set
 
 import inflation.Books
+import kotlin.math.min
 import inflation.StockName
 import inflation.Stocks
 import inflation.Tuning
@@ -108,11 +109,11 @@ class HexSim(
         val perTick = clock.ticks > 1
         // (Speed test, t.residentDays: the residents take that many days at a time, at the first tick of each span, by its weather.)
         val rd = land.tuning.residentDays
-        val span = (rd / clock.tickDays).let { m -> if (m > 1 && rd % clock.tickDays == 0 && clock.ticks % m == 0) m else 1 }
+        val span = (rd / clock.tickDays).let { m -> if (m > 1 && rd % clock.tickDays == 0) m else 1 }
         repeat(clock.ticks) { i ->
             land.firstTick = perTick || i == 0; land.lastTick = perTick || i == clock.ticks - 1
             runPhases(tickPhases, weather, books)
-            if (perTick) { if (i % span == 0) { val d = clock.days; clock.days = clock.tickDays * span
+            if (perTick) { if (i % span == 0) { val d = clock.days; clock.days = clock.tickDays * min(span, clock.ticks - i)
                 try { runPhases(residentPhases, weather, books) } finally { clock.days = d } }
                 groups.tickGameTrace()
                 // (The carrion the groups would have found in this tick, held for them: [HexSmallLife.groupCarrion].)
