@@ -90,6 +90,9 @@ class Bands internal constructor(private val world: GroupWorld) {
     /** (Whether a world saved before [built] was kept has had its bands' houses raised in it: see [tendStructures].) */
     @Transient internal var structuresSeen = false
 
+    /** The people at home in their houses in each hex, as [tendStructures] last counted them ([homePeopleNow]). Not saved. */
+    @Transient internal var homePeople = FloatArray(0)
+
     /** Bands' kept animals since the census last read them ([HerdFlow]): heads born, dead, run off, strayed unwatched, and kg herded and fed. */
     @Transient val herdFlows = enumFloats<HerdFlow>()
 

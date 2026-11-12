@@ -63,10 +63,10 @@ enum class BurialWay(val about: String) {
  * Taken up where leaving is dear: a band tied to its spot or hemmed in (circumscription: Carneiro 1970; Bandy 2004, Formative
  * villages split until a regional religion held them). All from memory, to check; the multiples are estimates.
  */
-enum class DisputeWay(val about: String, val sizeTimes: Float) {
-    LEAVING("quarrels end with someone moving off", 1f),
-    ELDERS("the heads of households talk a quarrel out, then the band", 2f),
-    HEADMAN("a headman settles quarrels and speaks for the band", 3f),
+enum class DisputeWay(val about: String, val sizeTimes: Float, val settledMost: Int) {
+    LEAVING("quarrels end with someone moving off", 1f, 0),
+    ELDERS("the heads of households talk a quarrel out, then the band", 2f, 170),
+    HEADMAN("a headman settles quarrels and speaks for the band", 3f, 330),
 }
 
 /** Most people any band holds, whatever its ways (Olli, 10 Nov 2026: a band, the unit of identity, at most about 200; to revisit). */
@@ -350,11 +350,21 @@ internal const val UNLUCKY_WEEKS = 8
 /** Share of its store aim a band holding to demand sharing keeps (what it stores is asked of it). */
 internal const val SHARING_STORE = 0.5f
 
-/** Most people a band at home in its houses holds before it splits. Villages are larger than forager camps: early villages
- * without bigger institutions split at 127 to 170 (Taraco Peninsula, Bandy 2004: mean about 127, splits near 170;
- * Hutterite colonies kept under about 150, splitting at 168 on average, Alberti 2014; both as summarised by Dunbar 2022);
- * Natufian settlements about 60 to 100, PPNA villages about 330 (Kuijt 2000), held by rites and shared buildings. */
-internal const val SETTLED_SIZE = 150
+/**
+ * What a band at home has that lets it live together without parting, each a share of the way from its roaming easy size up
+ * to [SETTLED_EASY] of the most its way of settling quarrels holds ([HexGroups.settledEase]): houses, sealed stores, a hall,
+ * its rites at home, feasts, a raid lately. Estimates; they sum past 1, and ease is held at 1. (A band's most at home,
+ * [DisputeWay.settledMost]: early villages without bigger institutions were 127 on average and split near 170 (Taraco Peninsula,
+ * Bandy 2004; Hutterite colonies split at 168, Alberti 2014; both as summarised by Dunbar 2022), so elders hold 170 and are easy
+ * at most at 127, three quarters of it; a headman's PPNA village about 330 (Kuijt 2000).)
+ */
+internal const val SETTLED_EASY = 0.75f
+internal const val EASE_HOUSES = 0.4f
+internal const val EASE_STORES = 0.2f
+internal const val EASE_HALL = 0.2f
+internal const val EASE_ANCESTORS = 0.1f
+internal const val EASE_FEASTS = 0.1f
+internal const val EASE_THREAT = 0.1f
 
 /** How alike ([alike]) two bands at home in one hex must find each other, both ways, to become one. No source gives where people
  * living together come to feel one group; an estimate, set so halves of a split (alike about 1) are one again at once, and bands

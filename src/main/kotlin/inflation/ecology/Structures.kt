@@ -13,7 +13,7 @@ import kotlin.math.max
 import kotlin.math.min
 
 /** What bands build that stands in the world: houses, a palisade round the houses at a hex, and weirs across its river. */
-enum class Built { HOUSES, PALISADE, WEIR, WELL, PEN }
+enum class Built { HOUSES, PALISADE, WEIR, WELL, PEN, HALL }
 
 /**
  * A thing built that stands at hex [hex], whoever built it: no band owns it. Any band that comes on it empty may use it
@@ -21,7 +21,7 @@ enum class Built { HOUSES, PALISADE, WEIR, WELL, PEN }
  * began it, kept only as a fact of the bands' dealings. Houses ([Built.HOUSES]) shelter [size] grown people when whole,
  * built in the way [design] (a [Skill]'s ordinal); [built] is how far they stand, 0..1. A palisade's [built] is how much of
  * a ring round the houses at its hex stands. A weir's [size] is its length, m, across the river at its hex; a well's its depth, m;
- * a pen's the head of kept animals it holds. Nothing shelters or guards till it is first [done] (whole); after that it serves
+ * a pen's the head of kept animals it holds; a hall's ([Built.HALL]) the people it gathers. Nothing shelters or guards till it is first [done] (whole); after that it serves
  * as far as it stands, as it weathers and is mended.
  * (All its fields have defaults, so that a saved one loads.)
  */
@@ -89,6 +89,21 @@ private inline fun HexGroups.structuresAt(h: Hex, f: (Structure) -> Unit) {
     for (i in x.start[h.i] until x.start[h.i + 1]) f(x.items[i])
     var j = x.tailFrom(h)
     while (j < x.tailHex.size && x.tailHex[j] == h) { f(x.tail[j]); j++ }
+}
+
+/** How far a hall stands whole at hex [h], 0..1 (the most of any there): anyone's at home in its hex ([Built.HALL]). */
+internal fun HexGroups.hallAt(h: Hex): Float {
+    if (h.none) return 0f
+    var most = 0f
+    structuresAt(h) { s -> if (s.kind == Built.HALL && s.done) most = max(most, s.built) }
+    return most
+}
+
+/** The people of bands at home in their houses in each hex, by hex index: who a hall there serves. */
+internal fun HexGroups.homePeopleNow(): FloatArray {
+    val people = FloatArray(hex.size)
+    for (g in groups) { val b = g.band ?: continue; if (g.alive && b.atHome && !b.houseHex.none) people[b.houseHex.i] += g.size.toFloat() }
+    return people
 }
 
 /** How far the houses at hex [h] that [g] may use shelter its grown people, 0..1. */
@@ -188,7 +203,7 @@ internal fun HexGroups.useStructures(g: HexGroup, h: Hex) {
     var room = 0f
     structuresAt(h) { s -> if (s.kind == Built.HOUSES && s.user == g.id) room += s.built * s.size }
     structuresAt(h) { s ->
-        if (s.user >= 0 || s.kind == Built.WELL) return@structuresAt
+        if (s.user >= 0 || s.kind == Built.WELL || s.kind == Built.HALL) return@structuresAt
         if (s.kind != Built.HOUSES) s.user = g.id
         else if (room < g.adults) { s.user = g.id; room += s.built * s.size }
     }
@@ -213,6 +228,7 @@ internal fun HexGroups.buildingAt(g: HexGroup, kind: Built, h: Hex, design: Int,
 @Part("people: tend structures")
 internal fun HexGroups.tendStructures(weather: Weather) {
     if (!bands.structuresSeen) { bands.structuresSeen = true; raiseSavedHouses() }
+    bands.homePeople = homePeopleNow()
     if (bands.built.isEmpty()) { fauna.water.weirBlock.fill(0f); land.drink.well.fill(0f); return }
     val where = HashMap<Int, Hex>()
     for (g in groups) if (g.alive && g.band != null) where[g.id] = hw.placeHex[g.place]
@@ -220,6 +236,8 @@ internal fun HexGroups.tendStructures(weather: Weather) {
         if (s.user >= 0 && where[s.user] != s.hex) s.user = -1
         // (A well nobody holds silts up at its own rate, used or not; whoever wants it mends it.)
         if (s.kind == Built.WELL) s.built = max(0f, s.built - WELL_WEAR * years)
+        // (A hall is the village's: it stands while anyone lives at home in its hex, and weathers once nobody does.)
+        else if (s.kind == Built.HALL) { if (bands.homePeople[s.hex.i] <= 0f) s.built = max(0f, s.built - HOUSE_DECAY * years) }
         else if (s.user < 0) s.built = max(0f, s.built - HOUSE_DECAY * years)
         // (A weir stands in the stream: the current and the floods wear it, used or not, and the band using it mends it.)
         if (s.kind == Built.WEIR) s.built = max(0f, s.built - WEIR_WEAR * years)

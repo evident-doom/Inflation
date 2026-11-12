@@ -696,29 +696,66 @@ class HexGroups(
 
 
 
-    /** How big a group of [g]'s kind grows before it splits: packs and prides keep their kind's size, bands as their ways hold them together ([DisputeWay], feasts, houses, belief). */
+    /**
+     * How big a group of [g]'s kind grows before it splits: packs and prides keep their kind's size; a roaming band as its
+     * ways of settling quarrels and its feasts hold it together ([mobileMost]); a band at home in its houses as far as the way it
+     * settles quarrels lets a settled people decide together ([settledMost]). A strained belief is one more quarrel ([strained]).
+     */
     internal fun maxSize(g: HexGroup): Int {
-        val s = g.species
-        return g.band?.let { b ->
-            // A band at home in its houses holds a village's number; feasts keep the peace in bigger bands, settled or not.
-            val most = if (b.atHome) max(s.maxGroupSize, SETTLED_SIZE) else s.maxGroupSize
-            val held = (most * b.disputeWay.sizeTimes).toInt()
-            val size = min(BAND_MOST, if (b.holds(Tradition.FEASTS)) (held * FEAST_SIZE).toInt() else held)
-            // A strained belief is one more quarrel: strained as far as it bears, a band holds together at half the size.
-            if (tuning.rounds && b.strain > 0f) (size / (1f + b.strain / b.strainBorne())).toInt() else size
-        } ?: s.maxGroupSize
+        val b = g.band ?: return g.species.maxGroupSize
+        return strained(b, if (b.atHome) settledMost(g.species, b) else mobileMost(g.species, b))
+    }
+
+    /** The most a roaming band of kind [s] holds: its kind's most, by its [DisputeWay] and [Tradition.FEASTS], at most [BAND_MOST]. */
+    private fun mobileMost(s: Species, b: Band): Int {
+        val held = (s.maxGroupSize * b.disputeWay.sizeTimes).toInt()
+        return min(BAND_MOST, if (b.holds(Tradition.FEASTS)) (held * FEAST_SIZE).toInt() else held)
     }
 
     /**
-     * The size [g] holds without discord: half its [maxSize], what each half of a split starts at. A band past it begins to
-     * quarrel, and its households leave as forager households do, for another camp or a camp of their own ([discord]);
-     * one past [maxSize] splits outright. Forager camps hold about 25-30 people and change members every few weeks, and
-     * they settle quarrels by leaving (Marlowe 2005, Woodburn 1982, Lee 1979; consensus breaks down past about six
-     * households, Johnson 1982); what holds a band together past that, feasts and rites, a village's houses, a strained
-     * belief, moves both sizes alike. So a forager band is easy at 25 (32 with feasts) and a band at home in its houses
-     * at 75 (Natufian settlements about 60-100, Kuijt 2000). All from memory, to check.
+     * The most a band at home in its houses holds: what its way of settling quarrels lets a settled people decide together
+     * ([DisputeWay.settledMost]: leaving holds no more than a roaming band; elders and a headman more, Bandy 2004, Alberti 2014,
+     * Johnson 1982), never less than it would hold roaming.
      */
-    internal fun easySize(g: HexGroup): Int = maxSize(g) / 2
+    private fun settledMost(s: Species, b: Band) = max(mobileMost(s, b), b.disputeWay.settledMost)
+
+    /** A strained belief is one more quarrel: strained as far as it bears, a band holds together at half the size. */
+    private fun strained(b: Band, size: Int) = if (tuning.rounds && b.strain > 0f) (size / (1f + b.strain / b.strainBorne())).toInt() else size
+
+    /**
+     * The size [g] holds without discord. A band past it begins to quarrel, and its households leave as forager households do,
+     * for another camp or a camp of their own ([discord]); one past [maxSize] splits outright. Forager camps hold about 25-30
+     * people and change members every few weeks, and they settle quarrels by leaving (Marlowe 2005, Woodburn 1982, Lee 1979;
+     * consensus breaks down past about six households, Johnson 1982): a roaming band is easy at half its most. A band at home in
+     * its houses is easier with what roaming foragers lack ([settledEase]): from its roaming easy size up to [SETTLED_EASY] of the
+     * most its way of settling quarrels holds. All from memory, to check.
+     */
+    internal fun easySize(g: HexGroup): Int {
+        val b = g.band ?: return g.species.maxGroupSize / 2
+        if (!b.atHome) return maxSize(g) / 2
+        val roaming = mobileMost(g.species, b) / 2f
+        val settled = settledMost(g.species, b) * SETTLED_EASY
+        return strained(b, (roaming + (settled - roaming) * settledEase(b)).toInt())
+    }
+
+    /**
+     * How far band [b] at home has what lets a settled people live together without parting, 0..1 (Olli, 12 Nov 2026: settled
+     * bands grow larger by their ways, buildings and things, not by dividing): houses, where people keep apart without leaving
+     * (Wilson 1988); stores sealed away out of sight, with fewer quarrels over sharing (Woodburn 1982, Flannery 2002); a hall
+     * the village built and gathers in (Adler and Wilshusen 1990); its rites held at its home, its dead buried there (Kuijt
+     * 1996); feasts; and a raid lately, a reason to keep together (Roscoe). Each as [EASE_HOUSES] and the rest; estimates.
+     */
+    internal fun settledEase(b: Band): Float {
+        if (!b.atHome) return 0f
+        val h = b.houseHex
+        var ease = EASE_HOUSES * min(1f, b.house)
+        if (b.knowsSkill[Skill.SEALING]) ease += EASE_STORES
+        ease += EASE_HALL * hallAt(h)
+        if (b.rite.any { it >= 0 && hw.placeHex[it] == h }) ease += EASE_ANCESTORS
+        if (b.holds(Tradition.FEASTS)) ease += EASE_FEASTS
+        if (b.sinceRaided < ticksPerYear) ease += EASE_THREAT
+        return min(1f, ease)
+    }
 
     /** How far going to hex [h] brings band [g] toward its appointment, -1..1, in its month (0 otherwise). */
     internal fun appointPull(g: HexGroup, b: Band, month: Int, h: Hex): Float {
