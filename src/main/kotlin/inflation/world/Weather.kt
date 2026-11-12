@@ -187,6 +187,15 @@ class Weather(@Transient private val places: Places, private val cfg: WorldConfi
     @Transient private val tickTemps = ArrayList<FloatArray>()
 
     /**
+     * What fell at [p] in a tick of the last step, on average, mm water: for what reads a week's rain (how far rain lets a
+     * hunter see, how racks dry), not a whole long step's (at 60 days ten weeks' rain hid game as one week's ten times as
+     * wet would: packs searched 0.6 of the weekly ground; trace732). At one tick a step, or before the step is settled,
+     * [precipitation].
+     */
+    fun tickPrecipitation(p: Place): Float =
+        if (!settled || ticksSummed <= 1) precipitation[p.i] else precipitation[p.i] / ticksSummed
+
+    /**
      * The share of the last step's ticks whose air at [p] was above [c] °C: a step's mean of 19 °C may hold warm weeks
      * above 20. Before the step is settled, or at one tick a step, 1 or 0 by the air now.
      */
