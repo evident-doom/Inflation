@@ -663,7 +663,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         val win = date.absoluteDay / 60
         fun line(fat: Float, spent: Float, end: String) = System.err.println("window ${s.name} id ${g.id} step $days span ${g.winDays} fed ${g.winFed / max(1, g.winDays)} " +
             "fat ${g.winFat0} -> $fat of ${s.maxFatDays} spent ${g.winSpent0} -> $spent starve ${Hazards.starveDays(s)} died ${g.winDied} grown ${g.adults} young ${g.young} " +
-            "want ${g.winSum[0]} taken ${g.winSum[1]} luck ${g.winSum[2]} aim ${g.winSum[3]} busy ${g.winSum[4]} searched ${g.winSum[5]} work ${g.winSum[6]} passes ${g.winSum[7]} rate ${g.winSum[8]} moved ${g.winSum[9]} foot ${g.winSum[10]} homeless ${g.winSum[11]} hungry ${g.winSum[12]} away ${g.winSum[13]} $end")
+            "want ${g.winSum[0]} taken ${g.winSum[1]} luck ${g.winSum[2]} aim ${g.winSum[3]} busy ${g.winSum[4]} searched ${g.winSum[5]} work ${g.winSum[6]} passes ${g.winSum[7]} rate ${g.winSum[8]} moved ${g.winSum[9]} foot ${g.winSum[10]} homeless ${g.winSum[11]} hungry ${g.winSum[12]} away ${g.winSum[13]} thirsty ${g.winSum[14]} astray ${g.winSum[15]} pressed ${g.winSum[16]} peril ${g.winSum[17]} $end")
         if (g.winStart != win) {
             if (g.winStart >= 0 && g.winDays > 0) line(fatRaw, spentRaw, "next")
             g.winStart = win; g.winDays = 0; g.winFed = 0f; g.winFat0 = fatRaw; g.winSpent0 = spentRaw; g.winDied = 0; g.winSum.fill(0f)
@@ -674,6 +674,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         if (g.winLastPlace >= 0 && g.winLastPlace != g.place.i) g.winSum[9] += 1f; g.winLastPlace = g.place.i
         g.winSum[10] += (g.footprint?.size ?: 0).toFloat(); if (g.home.none) g.winSum[11] += 1f
         if ((g.planWhy and 1) != 0) g.winSum[12] += 1f; if ((g.planWhy and 4) != 0) g.winSum[13] += 1f
+        for (b in 0 until 4) if ((g.planWhy and (8 shl b)) != 0) g.winSum[14 + b] += 1f
         g.winDied += causes.sumOf { if (it.cause == DeathCause.HUNGER) it.n else 0 }
         if (g.adults == 0) line(g.fat, g.spent, "ended")
     }

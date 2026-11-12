@@ -74,7 +74,9 @@ internal class GroupPlanner(internal val gs: HexGroups) {
         g.safestPeril = Float.NaN
         g.footprint = null; g.footWeights = null
         if (g.band == null) { val here = gs.hw.placeHex[g.place]
-            g.planWhy = (if (g.fed < Thresholds.HUNGRY) 1 else 0) or (if (g.home.none) 2 else 0) or (if (!g.home.none && here != g.home) 4 else 0) }
+            g.planWhy = (if (g.fed < Thresholds.HUNGRY) 1 else 0) or (if (g.home.none) 2 else 0) or (if (!g.home.none && here != g.home) 4 else 0) or
+                (if (g.dry > 0.5f * g.species.daysWithoutWater) 8 else 0) or (if (gs.bearings.strength(gs.kindSlot[g.species.index], here) > ASTRAY) 16 else 0) or
+                (if (gs.pressedOff(g)) 32 else 0) or (if (gs.perilAhead(here) > 0f) 64 else 0) }
         return planInner(g, weather, date, predatorKg)
     }
 
