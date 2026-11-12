@@ -685,12 +685,16 @@ internal const val FLEE = 0.5f
 
 /**
  * How much likelier a sickle harvest takes an ear that holds its grain than one that shatters at a
- * touch. Set so that ears that hold their grain take one to two thousand years to come to dominate
- * a cultivated stand, as the archaeobotany of Near Eastern wheat and barley shows (Fuller and
+ * touch: the selection a harvest and sowing make for it, a year. Ears that hold their grain took one to
+ * two thousand years to come to dominate a cultivated stand in Near Eastern wheat and barley (Fuller and
  * colleagues: early harvests were often green, by beating or uprooting, and sown seed was mixed with
- * wild-gathered grain), not the decades a pure sickle-and-resow model would give.
+ * wild-gathered grain), selection coefficients of some 0.002-0.004 a year (Purugganan and Fuller 2011,
+ * Evolution 65(1), from memory). 0.003: from a tenth to four fifths of a stand in some 1,200 years.
+ * (It was 0.06, meant for the same span but some twenty times faster: from 0.10 to 0.27 in 50 years of a
+ * PPNA run, eracheck 2026-11-11, where the record has a few hundredths. Olli 2026-11-12: slow it, though
+ * the millennia need not be matched exactly.)
  */
-internal const val SICKLE_SELECT = 0.06f
+internal const val SICKLE_SELECT = 0.003f
 
 /**
  * Sodium a person needs a day, kg: the 23 mg a day the Yanomami pass, the least of any people measured (INTERSALT, BMJ
