@@ -216,7 +216,11 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         // (A beast plans on what its kills were expected to feed it, not on its luck at them: [ForageWeek.killLuck]. But only within
         // a week's worth of passes: after it, as in the next week, what it got is what it has, and a lean run is hunted on after.)
         if (w.band == null && pass > 0 && pass % foragePasses == 0) w.killLuck = 0f
-        val left = w.aim - (w.fed - w.killLuck)
+        var left = w.aim - (w.fed - w.killLuck)
+        // (Over a long step a beast whose plan is met only by its expectation, its luck having run against it, counts the luck
+        // then and hunts on with the days left, as a weekly one would the weeks after: the loop stopped here before the luck was
+        // ever counted, and lean 60-day packs left 30% of their days unused, trace742/743.)
+        if (left <= 0.01f * w.wantAll && w.band == null && ticks > 1 && w.killLuck < -0.01f * w.wantAll) { w.killLuck = 0f; left = w.aim - w.fed }
         if (left <= 0.01f * w.wantAll) break
         // (Nor, over a long step, once its days are all spent: the passes left would take nothing.)
         if (w.band == null && ticks > 1 && w.workDays - w.busy - w.searchUsed <= 0f) break
