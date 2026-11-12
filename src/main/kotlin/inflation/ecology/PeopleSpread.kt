@@ -48,6 +48,11 @@ internal const val MOVE_MARGIN = 0.25f
  * it down: big game makes some 20-30% of its mass a year (an estimate, of the order of ungulates' production, from memory).
  */
 internal const val GAME_TAKE = 0.2f
+/**
+ * A band in shelters built past this ([Band.shelter]: 1 a light hut, [SHELTER_MOST] fully thatched) has thatched for the
+ * cold and stays the season: bands keep near 1.1 in the warm months and near 2 in the cold (move736 census).
+ */
+internal const val MOVE_SHELTER_MOST = 1.5f
 
 /**
  * Of a band past its easy size ([HexGroups.easySize]), the chance a year that those it holds beyond it leave ([discord]).
@@ -279,6 +284,11 @@ internal fun HexGroups.moveCamps() {
     for (g in groups) {
         val b = g.band ?: continue
         if (!g.alive || !staysHome(g) || inParty(g) || b.livesFixed()) continue
+        // (What the move itself costs is left out of the measure, so a band moves only when it costs little: it can carry
+        // all its stores ([leftBehindShare]), and it is not in huts thatched for the cold ([MOVE_SHELTER_MOST]). move736:
+        // without this, bands that had moved held half the larder of those that had not, and in winter and spring died
+        // at 5-10 times the rate.)
+        if (b.shelter > MOVE_SHELTER_MOST || leftBehindShare(g, b) > 0f) continue
         fun foodAt(q: Hex): Float { if (food[q.i].isNaN()) food[q.i] = hexFoodNow(g.species, q); return food[q.i] }
         val h = hw.placeHex[g.place]
         val here = foodAt(h) / max(1f, people[h.i])
