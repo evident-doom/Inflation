@@ -537,7 +537,7 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
             sows[k] = if (n - heads > 0f) min(1f, max(0f, (n * sows[k] - fromSows) / (n - heads))) else 0.5f
             n -= heads
         }
-        if (over > 0f) eatGrown(n * over, HerdFlow.EATEN)
+        if (over > 0f) { tally(k, HerdFlow.KG_OVER, kg); eatGrown(n * over, HerdFlow.EATEN_OVER) }
         val increase = if (nUp > 0f) gained * n / nUp else 0f
         // (The heads a year a herd of [m] grown, its young in the same share, adds at this week's feeding: its yearly
         // increase ([herdIncrease]) at its crowding. A keeper grows a herd only while a bigger one adds more, and eats one
@@ -548,9 +548,16 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
         val grows = pet || pays && increase / headsAHerder(s) <= (room ?: spare) && adds(n + increase) > adds(n)
         if (grows && !pet) { if (room != null) room -= increase / headsAHerder(s) else spare -= increase / headsAHerder(s) }
         b.herds.herdGrew[k] = grows
+        // (For the census: what held a paying herd back from growing, the leanest month's herders or a bigger herd adding no more.)
+        if (pays && !grows && !pet) tally(k, if (increase / headsAHerder(s) > (room ?: spare)) HerdFlow.KG_HELD_ROOM else HerdFlow.KG_HELD_BEST, kg)
         val kept = if (grows) n else if (pays) max(0f, min(n - increase, n - (n - best) * min(1f, years * Date.MONTHS_PER_YEAR)))
             else max(0f, n - g.dailyNeedKg * days / (s.massKg * MEAT_SHARE * Nourishment.MEAT * g.species.needScale))
-        if (n > kept) eatGrown(n - kept, if (pays) HerdFlow.EATEN else HerdFlow.EATEN_UNPAID)
+        if (n > kept) {
+            // (Of a paying herd, its increase is eaten as such, and what is eaten beyond it towards the herd that adds most is
+            // counted apart: [HerdFlow.EATEN_BEST].)
+            if (pays) { val ofIncrease = min(n - kept, increase); eatGrown(ofIncrease, HerdFlow.EATEN); eatGrown(n - kept - ofIncrease, HerdFlow.EATEN_BEST) }
+            else eatGrown(n - kept, HerdFlow.EATEN_UNPAID)
+        }
         n = kept
         if (hungry > 0f && !pet && n > 0f) {
             val each = s.massKg * MEAT_SHARE * Nourishment.MEAT * g.species.needScale
@@ -576,7 +583,13 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
  */
 enum class HerdFlow { BORN, DIED, RAN_OFF, TAKEN, STRAYED, EATEN, EATEN_UNPAID, EATEN_HUNGRY, FREED, MILK_KG, KG_TENDED, KG_FED, KG_PAYS, KG,
     KG_WORTH_HALF, KG_WORTH_UNDER, KG_WORTH_OVER, KG_WORTH_TWICE, ENDED, ENDED_UNPAID, ENDED_FREED,
-    INCREASE_KG, KG_WORTH_KNOWN, WORTH_KG, KG_PET, ENDED_PET }
+    INCREASE_KG, KG_WORTH_KNOWN, WORTH_KG, KG_PET, ENDED_PET,
+    /** Culled for being more than the band's leanest month could herd; and kg on the hoof in herds that were. */
+    EATEN_OVER, KG_OVER,
+    /** Eaten beyond a paying herd's increase, down towards the herd that adds most. */
+    EATEN_BEST,
+    /** Kg on the hoof in paying herds kept from growing: by the leanest month's herders ([Band.freeShare]), or by a bigger herd adding no more. */
+    KG_HELD_ROOM, KG_HELD_BEST }
 
 /** What [n] kept animals of kind [s] ask of place [p]'s ground this week, and the grass and browse they can get there, kg/m². */
 internal class HerdForage(val need: Float, val grass: Float, val browse: Float) {
