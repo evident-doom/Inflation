@@ -134,6 +134,15 @@ class Bands internal constructor(private val world: GroupWorld) {
     internal var houseOf: Map<Int, Hex> = emptyMap()
 
     /**
+     * How far each band with a standing house is talked of ([homeReachKm]), by its id: for what is extraordinary about it or
+     * its home ([reckonFame]); 0 for the ordinary. Set with [houseOf]. Not saved.
+     */
+    @Transient internal var fameOf: Map<Int, Float> = emptyMap()
+
+    /** How many housed bands are famed for each thing in [FAMED_FOR] , as [fameOf] was last reckoned. For the census. */
+    @Transient internal var famedFor = IntArray(0)
+
+    /**
      * Where each material bands give each other ([TRADED]) is got (trade on): for each, the hexes where
      * it is richest, one in a square of [SOURCE_KM] at most.
      */

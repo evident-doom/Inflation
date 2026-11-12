@@ -3,6 +3,8 @@ package inflation.ecology
 import inflation.Part
 import inflation.enumFloats
 import inflation.world.Hex
+import inflation.world.toHexArray
+import inflation.world.HexArray
 import inflation.world.get
 import inflation.world.set
 import inflation.world.Biome
@@ -11,6 +13,10 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.abs
 import kotlin.math.pow
+import kotlin.math.sqrt
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.math.PI
 
 // Bands meeting: how new a meeting is, whether it ends in a raid, what each takes up of the other's ways, the country they tell of, partners exchanged, kin visited, food given and the favours owed for it.
 
@@ -196,6 +202,13 @@ internal fun GroupWorld.tallyMeeting(metAs: MetAs, what: Tally.MeetingEnd) {
  * the routes they know, where they met, where their homes and those of others they know are, the
  * appointments they keep, and the places they remember (as far as they trust each other).
  */
+/** The hexes within [TOLD_RINGS] rings of [home], itself first ([HexGroups.toldDisk]). */
+internal fun HexGroups.toldOf(home: Hex): HexArray = toldDisk[home.i] ?: run {
+    val out = ArrayList<Hex>(); var ring = listOf(home); val seen = hashSetOf(home)
+    for (r in 0..TOLD_RINGS) { out += ring; if (r == TOLD_RINGS) break; ring = hex.nextRing(ring, seen) }
+    out.toHexArray().also { toldDisk[home.i] = it }
+}
+
 @Part("meetings: tell of country")
 private fun HexGroups.tellOfCountry(a: HexGroup, bandA: Band, b: HexGroup, bandB: Band, ab: Regard, ba: Regard, weather: Weather) {
     val u = ab.understood
@@ -204,12 +217,9 @@ private fun HexGroups.tellOfCountry(a: HexGroup, bandA: Band, b: HexGroup, bandB
     // comes away with a map of the other's country too.)
     val hb = hw.placeHex[b.place]
     for (home in if (hb == h0) arrayOf(h0) else arrayOf(h0, hb)) {
-        var ring = listOf(home); val seen = hashSetOf(home)
-        for (r in 0..TOLD_RINGS) {
-            for (h in ring) { if (bandA.knows(h)) bandB.learn(h, hex.size); if (bandB.knows(h)) bandA.learn(h, hex.size) }
-            if (r == TOLD_RINGS) break
-            ring = hex.nextRing(ring, seen)
-        }
+        // (The hexes about it, worked out once a hex: the boxed rings were a fifth of the telling's time, prof761.)
+        val disk = toldOf(home)
+        for (j in 0 until disk.size) { val h = disk[j]; if (bandA.knows(h)) bandB.learn(h, hex.size); if (bandB.knows(h)) bandA.learn(h, hex.size) }
     }
     stats.meeting(Met.BANDS_TOLD_OF_COUNTRY)
     // And of the ways they know further off: landmarks, and the legs between those they know, each about its own home.
@@ -219,16 +229,29 @@ private fun HexGroups.tellOfCountry(a: HexGroup, bandA: Band, b: HexGroup, bandB
     // takes up the other's (the more they are close, the likelier).
     val wk = stepOf(weather.date); val sMeet = PlaceMemory.seasonOf(weather.date.month)
     a.memory.mark(h0, sMeet, wk, ticksPerYear, a.memory.met, 1f); b.memory.mark(h0, sMeet, wk, ticksPerYear, b.memory.met, 1f)
-    // And where each has its houses, and the homes of others they know of: settled bands can be found.
+    // And where each has its houses, and the homes of others they know of: settled bands can be found. A home shown is seen
+    // at first hand, today and where it is; a home told of goes with the day it was last seen ([Band.homeSeen]), and only to a
+    // hearer it is worth knowing to ([homeReachKm]): within reach of it, or famous. The further it lies from the hearer, the
+    // less sure where ([HEARSAY_OFF]): the hearer takes it as told, or keeps its own if surer.
+    val today = weather.date.absoluteDay
     fun showsHome(teller: HexGroup, bt: Band, hearer: Band) {
         if (bt.houseHex.none || bt.house < Thresholds.HOUSE_STANDING) return
-        hearer.knownHomes[teller.id] = bt.houseHex; hearer.homesVersion++
+        hearer.knownHomes[teller.id] = bt.houseHex; hearer.homeSeen[teller.id] = today; hearer.homeOff[teller.id] = 0f; hearer.homesVersion++
         hearer.knownLineage[teller.id] = bt.mainLineage()
     }
     fun tellsHomes(bt: Band, hearer: HexGroup, bh: Band) {
-        // (A home the hearer knows already is nothing to tell: no draw is made for it. Most are: bands that meet come to know the same homes.)
-        for ((id, hh) in bt.knownHomes) if (id != hearer.id && id !in bh.knownHomes && rnd.nextFloat() < u) {
-            bh.knownHomes[id] = hh; bh.homesVersion++
+        val at = hw.placeHex[hearer.place]
+        // (A home the hearer knows as lately seen is nothing to tell: no draw is made for it. Most are: bands that meet come to know the same homes.)
+        for ((id, hh) in bt.knownHomes) {
+            if (id == hearer.id) continue
+            val seen = bt.homeSeen[id] ?: continue
+            val had = bh.homeSeen[id]
+            if (had != null && had >= seen) continue
+            val km = hexKm(at, hh)
+            if (km > homeReachKm(id) || rnd.nextFloat() >= u) continue
+            val off = (bt.homeOff[id] ?: 0f) + HEARSAY_OFF * km.toFloat()
+            if (had == null || off < (bh.homeOff[id] ?: Float.MAX_VALUE)) { bh.knownHomes[id] = blurred(hh, HEARSAY_OFF * km); bh.homeOff[id] = off }
+            bh.homeSeen[id] = seen; bh.homesVersion++
             bt.knownLineage[id]?.let { bh.knownLineage.putIfAbsent(id, it) }
         }
     }
@@ -246,6 +269,17 @@ private fun HexGroups.tellOfCountry(a: HexGroup, bandA: Band, b: HexGroup, bandB
     adopt(a, bandA, b, bandB, ab); adopt(b, bandB, a, bandA, ba)
     // And of the places they remember, each as far as it trusts the other.
     a.memory.hear(b.memory, wk, ticksPerYear, ab.trust); b.memory.hear(a.memory, wk, ticksPerYear, ba.trust)
+}
+
+/**
+ * Where a home told of at [h] is taken to be when told from [km] off: a hex up to that far from it, any way (uniformly over
+ * the disc); [h] itself when that is under half a hex.
+ */
+private fun HexGroups.blurred(h: Hex, km: Double): Hex {
+    if (km < 0.5 * hex.hexKm) return h
+    val (x, y) = hex.centreKm(h)
+    val r = km * sqrt(rnd.nextDouble()); val a = 2.0 * PI * rnd.nextDouble()
+    return hex.hexAt(x + r * cos(a), y + r * sin(a))
 }
 
 /** One or two young adults from each band join the other; their descent and skills come with them. */

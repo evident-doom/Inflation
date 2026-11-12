@@ -33,7 +33,6 @@ fun HexFauna.fatShare(k: Int, p: Place): Float {
 internal fun HexFauna.breedAndDie(weather: Weather, date: Date) {
     val dead = Array(kinds.size) { DoubleArray(ResidentDeath.entries.size) }
     val faded = DoubleArray(kinds.size)
-    bornThisWeek.fill(0.0)
     // Each kind on its own core, with its own carcasses, added up after.
     val carcasses = Array(kinds.size) { FloatArray(n) }
     val bornBook = land.books?.adder(Books.Stuff.MATTER, "residents born and grew up")
@@ -113,7 +112,8 @@ internal fun HexFauna.breedAndDie(weather: Weather, date: Date) {
     record?.foldResidents()
     for ((k, s) in kinds.withKinds()) {
         // (Summed place by place in order, so that a run is the same on any number of cores.)
-        deaths[Tally.of(s, DeathCause.RESIDENT_HUNTERS)] = huntedByResidents[k].let { h ->
+        // (Added to the step's, not set: over a step of several ticks the residents may take each tick as a week, [HexSim.step].)
+        deaths.merge(Tally.of(s, DeathCause.RESIDENT_HUNTERS), huntedByResidents[k].let { h ->
             var sum = 0.0
             for (p in h.indices) {
                 sum += h[p]
@@ -121,14 +121,14 @@ internal fun HexFauna.breedAndDie(weather: Weather, date: Date) {
                 h[p] = 0f
             }
             sum
-        }
-        for (c in ResidentDeath.entries) deaths[Tally.of(s, c.cause)] = dead[k][c]
+        }, Double::plus)
+        for (c in ResidentDeath.entries) deaths.merge(Tally.of(s, c.cause), dead[k][c], Double::plus)
         if (faded[k] > 0.0) deaths.merge(Tally.of(s, FADED_OUT), faded[k], Double::plus)
-        deaths[Tally.of(s, DeathCause.PREY_FOUGHT_BACK)] = foughtBackDead[k].let { h ->
+        deaths.merge(Tally.of(s, DeathCause.PREY_FOUGHT_BACK), foughtBackDead[k].let { h ->
             var sum = 0.0
             for (p in h.indices) { sum += h[p]; record?.let { it.animalKg[PlaceRecord.Cause.KILLED.ordinal][p] += h[p] * s.massKg }; h[p] = 0f }
             sum
-        }
+        }, Double::plus)
     }
 }
 
