@@ -73,6 +73,8 @@ internal class GroupPlanner(internal val gs: HexGroups) {
         // (For the census: the least peril among the places it weighs, [HexGroup.safestPeril]; unknown until it weighs any.)
         g.safestPeril = Float.NaN
         g.footprint = null; g.footWeights = null
+        if (g.band == null) { val here = gs.hw.placeHex[g.place]
+            g.planWhy = (if (g.fed < Thresholds.HUNGRY) 1 else 0) or (if (g.home.none) 2 else 0) or (if (!g.home.none && here != g.home) 4 else 0) }
         return planInner(g, weather, date, predatorKg)
     }
 
