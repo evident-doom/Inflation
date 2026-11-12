@@ -192,7 +192,7 @@ internal const val GRUDGE = 1f
 internal const val GRUDGE_FADE = 0.1f
 
 /** A band's grudge against another's lineage above which it raids it unprovoked. */
-internal const val FEUD = 2f
+internal const val FEUD = 0.9f
 
 /** Rings of hexes round a meeting whose country bands tell each other of; country further than this from a band's camp is half forgotten each year. */
 internal const val TOLD_RINGS = 4
