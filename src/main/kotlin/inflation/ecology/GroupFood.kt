@@ -309,6 +309,8 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     w.time?.release(Activity.FOOD)
     if (HUNT_DIAG && w.band == null) packWeekDiag(w)
     if (w.band == null) g.huntOwed = max(0f, w.busy + w.searchUsed - w.workDays)
+    if (w.band == null && STEP_DIAG) g.stepDiag.let { d -> d[0] = w.wantAll; d[1] = w.fed; d[2] = w.killLuck; d[3] = w.aim; d[4] = w.busy
+        d[5] = w.searchUsed; d[6] = w.workDays; d[7] = w.passes.toFloat() }
     preyFoughtBack(g, w.foughtBack, w.rnd)
     eatTheWeek(w)
 }
@@ -777,3 +779,6 @@ internal fun GroupWorld.recordFood(g: HexGroup, band: Band, w: ForageWeek) {
     work(ToolWork.PLANT_DAYS, w.plantWorkDays * w.hands); work(ToolWork.SEED_DAYS, w.seedWorkDays * w.hands)
     work(ToolWork.SEED_FOOD, w.plantFrom[PlantFrom.SEED] + w.plantFrom[PlantFrom.GRAIN])
 }
+
+/** Whether forageDiag is on: beasts keep their step's forage for the window trace ([liveWeek]). */
+internal val STEP_DIAG = inflation.Config.string(inflation.Config.Key.FORAGE_DIAG) != null
