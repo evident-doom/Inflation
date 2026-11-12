@@ -444,7 +444,11 @@ internal const val DOG_GUARD = 0.5f
  * - Not counted: weeding, 145 and 120 hours for a first and second hoeing (same source), till a field going unweeded bears less.
  * It was 0.5 days a kg sown, 60 a hectare, unsourced.
  */
-val SOW_MONTHS = 9..10
+/**
+ * Autumn sowing runs October to December: in the Near East winter cereals went in with the first autumn rains and on through
+ * the early winter (from memory, unchecked); it was October and November only.
+ */
+val SOW_MONTHS = 9..11
 /** Where winters are too cold for an autumn-sown crop ([HexFood.springSown]): sown as the ground thaws, March and April. */
 val SPRING_SOW_MONTHS = 2..3
 /**
