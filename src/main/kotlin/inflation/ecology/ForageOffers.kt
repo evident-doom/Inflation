@@ -465,7 +465,8 @@ private fun GroupWorld.reap(g: HexGroup, p: Place, sown: Boolean, expected: Floa
     val took = taken * seedValue(band) * (band?.cookValue(Food.GRAIN) ?: 1f)
     out.kg = took; out.mass = taken
     // A sickle takes the ears that hold their grain more than those that shatter at a touch. What is reaped from a sown
-    // field is kept as seed corn; what is reaped from the wild stand goes with the rest of the grain.
+    // field is kept as seed corn; what is reaped from the wild stand goes with the rest of the grain, but for what a band
+    // that grows grain still lacks of its sowing ([Band.seedTarget]).
     if (band != null && took > 0f) {
         fun harvested(d: Float) = band.reapedDomestic(d)
         val tookField = took * fromField / (fromField + fromWild).coerceAtLeast(1e-12f); val tookWild = took - tookField
@@ -474,7 +475,14 @@ private fun GroupWorld.reap(g: HexGroup, p: Place, sown: Boolean, expected: Floa
         if (tookField > 0f) band.seedDomestic = (band.seedDomestic * corn + harvested(food.fieldDomestic[p]) * tookField) / (corn + tookField)
         if (tookField > 0f) band.seedPulse = (band.seedPulse * corn + food.ripePulse[p] * tookField) / (corn + tookField)
         if (tookWild > 0f) band.grainDomestic = (band.grainDomestic * wild + harvested(food.domestic[p]) * tookWild) / (wild + tookWild)
-        band.seedCorn = corn + tookField
+        // (A band that grows grain and is short of seed corn keeps back wild grain it reaps to sow, as the first cultivators did.)
+        val asSeed = if (band.knowsSkill[Skill.CULTIVATION]) min(tookWild, max(0f, band.seedTarget - corn - tookField)) else 0f
+        if (asSeed > 0f) {
+            val had = corn + tookField
+            band.seedDomestic = (band.seedDomestic * had + harvested(food.domestic[p]) * asSeed) / (had + asSeed)
+            band.seedPulse = band.seedPulse * had / (had + asSeed)
+        }
+        band.seedCorn = corn + tookField + asSeed
         stats.tally(Tally.of(g.species, Tally.OfKind.GRAIN_REAPED), took.toInt())
     }
 }

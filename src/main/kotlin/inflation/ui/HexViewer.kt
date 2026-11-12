@@ -502,11 +502,12 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
          * hold their grain; ground worn by cropping ([inflation.ecology.HexFood.fieldWorn]); and ground cleared ([inflation.ecology.HexFood.cleared]).
          */
         private fun paintWorks(g: Graphics2D, sx: (Float) -> Int, sy: (Float) -> Int, onScreen: (Hex, Int) -> Boolean) {
-            val room = FloatArray(hex.size); val begun = FloatArray(hex.size); val fence = FloatArray(hex.size); val pens = FloatArray(hex.size)
+            val room = FloatArray(hex.size); val begun = FloatArray(hex.size); val fence = FloatArray(hex.size); val pens = FloatArray(hex.size); val halls = FloatArray(hex.size)
             for (st in groups.bands.built) if (!st.hex.none) when (st.kind) {
                 Built.HOUSES -> if (st.done) room[st.hex] += st.built * st.size else begun[st.hex] += st.built * st.size
                 Built.PALISADE -> fence[st.hex] = max(fence[st.hex], st.built)
                 Built.PEN -> pens[st.hex] += st.built * st.size
+                Built.HALL -> halls[st.hex] = max(halls[st.hex], if (st.done) st.built * st.size else 0f)
                 Built.WEIR, Built.WELL -> {} // (weirs and wells are not drawn)
             }
             val food = fauna.food
@@ -532,7 +533,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                         g.color = Color(1f, 1f, 1f, 0.9f); g.drawOval(px - d / 2, py - d / 2, d, d)
                     }
                 }
-                if (room[h] + begun[h] + fence[h] + pens[h] + sownKg[h] + ripeKg[h] + wornKm2[h] + clearedKm2[h] <= 0f || !onScreen(h, 1)) continue
+                if (room[h] + begun[h] + fence[h] + pens[h] + halls[h] + sownKg[h] + ripeKg[h] + wornKm2[h] + clearedKm2[h] <= 0f || !onScreen(h, 1)) continue
                 val (cx, cy) = hex.centreKm(h)
                 val x = sx(cx.toFloat()); val y = sy(cy.toFloat())
                 if (room[h] + begun[h] > 0f) {
@@ -550,6 +551,13 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                         g.drawArc(hx - 2 * r, hy - 2 * r, 4 * r, 4 * r, 90, -(360 * fence[h]).toInt())
                         g.stroke = stroke
                     }
+                }
+                if (halls[h] > 0f) {
+                    // A hall (to the upper right of the houses): a long roofed building, wider for more people gathered in it.
+                    val w = (z * (4f + 2f * ln(1f + halls[h] / 30f))).toInt().coerceAtLeast(3); val r = (3 * z).toInt().coerceAtLeast(2)
+                    val ax = x + (14 * z).toInt(); val ay = y - (10 * z).toInt()
+                    g.color = Color(0.75f, 0.55f, 0.85f, 0.95f); g.fillRect(ax - w, ay, 2 * w, 2 * r)
+                    g.color = Color(0.35f, 0.15f, 0.45f, 0.95f); g.fillPolygon(intArrayOf(ax - w - 1, ax, ax + w + 1), intArrayOf(ay, ay - 2 * r, ay), 3)
                 }
                 if (pens[h] > 0f) {
                     // A pen (to the upper left): a fenced square of stakes, larger for more head.
@@ -586,6 +594,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             "whole, outlined while only begun, larger for room for more people; a brown ring round it for a palisade, as much of the ring as stands. " +
             "A field (to the lower left) where grain was sown this year: green while it grows, gold with ripe grain standing, ringed white where most " +
             "of the sown seed is of ears that hold their grain, a purple dot in its corner where pulses are sown in it, larger for more of them; an outlined, crossed square for ground worn by cropping and left to rest; a pale outlined square for ground cleared for fields, not cropped and growing back. " +
+            "A hall (to the upper right of the houses), the village's, where its people gather: a long roofed building, wider for more people. " +
             "A pen (to the upper left) where kept animals are penned at night: a fenced square, larger for more head. " +
             "A village (below the centre) where two or more bands live settled in the hex, or one band at home larger than a camp: a ring of a dot for each band.",
             swatches = listOf(MapLegend.Swatch(Color(0.45f, 0.25f, 0.1f), "houses"), MapLegend.Swatch(Color(0.35f, 0.7f, 0.2f), "field growing"),

@@ -95,6 +95,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
     foulGround()
     bands.houseOf = groups.filter { g -> g.alive && g.band.let { it != null && !it.houseHex.none && it.house >= Thresholds.HOUSE_STANDING } }
         .associate { it.id to it.band!!.houseHex }
+    bands.fameOf = reckonFame()
     run {
         // The bands' own weeks go one after another (they share the ground, the structures and the week's tallies), then their
         // customs' year, which touches only the band, on all cores, each with a stream of its own; then the rites, which bring
@@ -104,7 +105,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         bands.tallies.flush(if (stats.census) stats.hunting else null)
         Par.forEach("people: customs year", bandGroups.size) { k ->
             val g = bandGroups[k]
-            if (g.alive) cultureWeek(g, stream(seedBase, Stream.CUSTOMS, g.id.toLong(), date.absoluteDay))
+            if (g.alive) cultureWeek(g, stream(seedBase, Stream.CUSTOMS, g.id.toLong(), date.absoluteDay), date.absoluteDay)
         }
         for (g in bandGroups) if (g.alive) riteWeek(g, weather)
         groups += bands.strays; bands.strays.clear()
@@ -170,6 +171,8 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
     groups += born
     // (Once a year, crowded hexes ease into the roomier hexes beside, [spreadYear].)
     if (date.holdsMonthStart(days, 0)) { groups += spreadYear(date); foodCuts = null }
+    // (Month by month, bands tied to no spot move to a hex beside with more food a head, [moveCamps].)
+    if (date.holdsAnyMonthStart(days)) moveCamps()
     // (Bands driven from their homes in the raids leave the hex: [scatterBeaten].)
     groups += scatterBeaten(date)
     tallyVillages()

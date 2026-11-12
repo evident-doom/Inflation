@@ -52,10 +52,46 @@ internal fun <E : Enum<E>> startLevels(key: String, text: String?, entries: List
 internal fun HexGroups.startVillages() {
     val bands = groups.filter { it.alive && it.species.human && it.band != null }
     val farm = bands.filter { farmWorth(it.place) > 0f }.sortedByDescending { farmWorth(it.place) }
-    val started = farm.take(min(farm.size, (tuning.startSettled * bands.size).roundToInt())).map { g -> g.band?.let { startVillage(g, it) } }
-    println("villages started: ${started.size} of ${bands.size} bands, with herds " + started.filterNotNull().groupBy { it.first }.entries.joinToString(", ") { (k, l) ->
+    val want = min(farm.size, (tuning.startSettled * bands.size).roundToInt())
+    val chosen = if (tuning.startVillagePeople > 0f) gatherVillages(farm, bands, want) else farm.take(want)
+    val started = chosen.map { g -> g.band?.let { startVillage(g, it) } }
+    val sites = chosen.map { hw.placeHex[it.place] }.distinct().size
+    println("villages started: ${started.size} of ${bands.size} bands in $sites hexes, %.0f people a village, with herds ".format(chosen.sumOf { it.size } / sites.coerceAtLeast(1).toDouble()) +
+        started.filterNotNull().groupBy { it.first }.entries.joinToString(", ") { (k, l) ->
         "%s %.0f head in %d".format(fauna.kinds[k].name, l.sumOf { it.second.toDouble() }, l.size) }.ifEmpty { "none" })
 }
+
+/**
+ * Villages begun in being at the era's size ([inflation.Tuning.startVillagePeople]): from the best farm ground down ([farm]),
+ * each site gathers the bands nearest it, within [GATHER_RINGS] rings of hexes, onto its own place till it holds that many
+ * people, as villages that had grown over generations; at most [want] bands in all. Each band stays a band of its own,
+ * co-resident with the rest, and may become one with them as any bands at home together ([becomeOne]). Returns the bands gathered.
+ */
+private fun HexGroups.gatherVillages(farm: List<HexGroup>, bands: List<HexGroup>, want: Int): List<HexGroup> {
+    val byHex = bands.groupBy { hw.placeHex[it.place] }
+    val used = HashSet<HexGroup>()
+    val out = ArrayList<HexGroup>()
+    for (seed in farm) {
+        if (out.size >= want) break
+        if (seed in used) continue
+        val site = seed.place
+        var people = 0
+        var ring = listOf(hw.placeHex[site]); val seen = hashSetOf(ring[0])
+        for (r in 0..GATHER_RINGS) {
+            if (r > 0) ring = hex.nextRing(ring, seen)
+            for (h in ring) for (g in byHex[h].orEmpty()) {
+                if (people >= tuning.startVillagePeople || out.size >= want || g in used) continue
+                used += g; out += g; people += g.size
+                g.place = site
+            }
+            if (people >= tuning.startVillagePeople || out.size >= want) break
+        }
+    }
+    return out
+}
+
+/** How far, in rings of hexes, a village begun in being draws its bands from (an estimate: a day or two's walk). */
+private const val GATHER_RINGS = 3
 
 /**
  * A world begun once herding is known ([inflation.Tuning.startHerders]): of people's mobile bands, that share, taken from those
@@ -107,7 +143,7 @@ private fun GroupWorld.farmWorth(p: Place) = if (land.drink.waterKm[p] < VILLAGE
 
 /**
  * Band [g] ([b]) starts as a village where it stands: pit houses for its grown people standing at its camp, kept a year
- * already; the ways of living in houses known ([VILLAGE_SKILLS]); sickle and grinding stones; [VILLAGE_STORE_DAYS] of
+ * already; quarrels settled by its elders ([DisputeWay.ELDERS]); the ways of living in houses known ([VILLAGE_SKILLS]); sickle and grinding stones; [VILLAGE_STORE_DAYS] of
  * its food in grain; and last autumn's sowing in the ground, enough to ripen to
  * [VILLAGE_FIELD_DAYS] of its food (of ears that hold their grain as [inflation.Tuning.startDomestic] has it; or, where this year's grain has ripened already, that harvest in store).
  */
@@ -120,6 +156,8 @@ private fun HexGroups.startVillage(g: HexGroup, b: Band): Pair<Int, Float>? {
     b.houseHex = h; b.house = housesAt(g, h); b.atHome = true
     b.campPlace = p; b.campWeeks = ticksPerYear.roundToInt()
     b.heldLivelihood = Livelihood.FARMING; b.livedOther = 0f
+    // (Villages in being: its heads of households settle its quarrels, as in villages that had stood a while (Bandy 2004).)
+    if (b.disputeWay < DisputeWay.ELDERS) b.disputeWay = DisputeWay.ELDERS
     b.seedDomestic = tuning.startDomestic
     // Its field ripens with the grass this summer; where the grain has ripened already this year, the harvest is in store.
     val food = fauna.food

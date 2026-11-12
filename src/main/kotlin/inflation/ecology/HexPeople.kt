@@ -187,6 +187,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     if (!kept) {
         useStructures(g, h)
         buildHouse(g, b, p, h, people, time)
+        buildHall(g, b, h, time)
     }
     time.release(Activity.HOUSES)
     // (Its home is where it last had houses to use; what stands there still shelters it, unless another band took it up.)
@@ -224,6 +225,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     b.spareDays = time.left
     countSqueeze(b, time)
     time.spend(Activity.LEISURE, time.left)
+    tallySowingTime(g, b, p, date, time)
     time.countEachInto(bands.tallies)
     bands.tallies.total(Tally.TimeTotal.LEFT, (time.left * 10f).roundToInt())
     bands.tallies.total(Tally.TimeTotal.LOST, (time.lost * 10f).roundToInt())
@@ -277,7 +279,7 @@ internal fun HexGroups.choreAsks(g: HexGroup, b: Band, date: Date, asks: EnumFlo
     b.seedTarget = sowLeft(g, b, p, g.storeKgPer[Store.SEED], b.sowWill)
     // (A band that has just moved builds, sows and fortifies nothing where it has come to.)
     if (!moved) {
-        ask(Activity.HOUSES, buildHouse(g, b, p, h, people, null))
+        ask(Activity.HOUSES, buildHouse(g, b, p, h, people, null) + buildHall(g, b, h, null))
         if (canSow(g, b, p, date)) { val per = g.storeKgPer[Store.SEED]
             ask(Activity.SOWING, sowDays(p, min(sowLeft(g, b, p, per, b.sowWill), b.seedCornIn(g)) * per) * b.lapse(Skill.CULTIVATION)) }
         if (fortifies(b)) ask(Activity.PALISADE,

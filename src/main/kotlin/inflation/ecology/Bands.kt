@@ -90,6 +90,9 @@ class Bands internal constructor(private val world: GroupWorld) {
     /** (Whether a world saved before [built] was kept has had its bands' houses raised in it: see [tendStructures].) */
     @Transient internal var structuresSeen = false
 
+    /** The people at home in their houses in each hex, as [tendStructures] last counted them ([homePeopleNow]). Not saved. */
+    @Transient internal var homePeople = FloatArray(0)
+
     /** Bands' kept animals since the census last read them ([HerdFlow]): heads born, dead, run off, strayed unwatched, and kg herded and fed. */
     @Transient val herdFlows = enumFloats<HerdFlow>()
 
@@ -132,6 +135,15 @@ class Bands internal constructor(private val world: GroupWorld) {
 
     /** Where each living band with a standing house has it, by the band's id (set each week before the bands' own weeks). */
     internal var houseOf: Map<Int, Hex> = emptyMap()
+
+    /**
+     * How far each band with a standing house is talked of ([homeReachKm]), by its id: for what is extraordinary about it or
+     * its home ([reckonFame]); 0 for the ordinary. Set with [houseOf]. Not saved.
+     */
+    @Transient internal var fameOf: Map<Int, Float> = emptyMap()
+
+    /** How many housed bands are famed for each thing in [FAMED_FOR] , as [fameOf] was last reckoned. For the census. */
+    @Transient internal var famedFor = IntArray(0)
 
     /**
      * Where each material bands give each other ([TRADED]) is got (trade on): for each, the hexes where

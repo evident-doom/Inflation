@@ -91,6 +91,7 @@ import inflation.ecology.Skill
 import inflation.ecology.Built
 import inflation.ecology.Tool
 import inflation.ecology.wellReachM
+import inflation.ecology.hallAt
 import inflation.ecology.Species
 import inflation.ecology.Store
 import inflation.ecology.Stuck
@@ -709,27 +710,6 @@ class Census(private val sim: HexSim) {
     }
 
     /**
-     * The homes each living band knows of ([inflation.ecology.Band.knownHomes]): how many (mean, tenth, median, ninetieth
-     * percentile, most), against the bands alive; the share of them whose band is no longer alive; and how far they lie
-     * from the knower (median km, and the share beyond 100 and 300 km). Olli 2026-11-12: "each band knows 1100 homes?"
-     */
-    fun printKnownHomes() {
-        val alive = groups.groups.filter { it.alive }.mapNotNull { g -> g.band?.let { g to it } }
-        val ids = alive.mapTo(HashSet()) { it.first.id }
-        val counts = alive.map { it.second.knownHomes.size }.sorted()
-        if (counts.isEmpty()) return
-        fun q(f: Double) = counts[((counts.size - 1) * f).toInt()]
-        var all = 0L; var dead = 0L; var far100 = 0L; var far300 = 0L; val km = ArrayList<Float>()
-        for ((g, b) in alive) { val here = hw.placeHex[g.place]
-            for ((id, h) in b.knownHomes) { all++; if (id !in ids) dead++
-                val d = hex.distanceKm(here, h).toFloat(); if (d > 100f) far100++; if (d > 300f) far300++; if (km.size < 2_000_000) km += d } }
-        km.sort()
-        println("known homes per band (bands alive %d): mean %.0f, p10 %d, median %d, p90 %d, most %d; of bands no longer alive %.0f%%; km from the knower median %.0f, beyond 100 km %.0f%%, beyond 300 km %.0f%%".format(
-            alive.size, counts.average(), q(0.1), q(0.5), q(0.9), counts.last(), 100.0 * dead / all.coerceAtLeast(1),
-            if (km.isEmpty()) 0f else km[km.size / 2], 100.0 * far100 / all.coerceAtLeast(1), 100.0 * far300 / all.coerceAtLeast(1)))
-    }
-
-    /**
      * Bands by the food quarter of their hex ([inflation.ecology.foodQuarterOf]) over the year just ended: whether what they
      * forage, how well they are fed, and their births and deaths answer to how rich the ground is. Report only.
      */
@@ -760,6 +740,47 @@ class Census(private val sim: HexSim) {
                         Tally.QuarterFood.entries.drop(1).joinToString("/") { "%.0f".format(100 * v(it) / got.coerceAtLeast(1.0)) })
                 }
             })
+    }
+
+    /**
+     * The homes each living band knows of ([inflation.ecology.Band.knownHomes]): how many (mean, tenth, median, ninetieth
+     * percentile, most), against the bands alive; the share of them whose band is no longer alive; and how far they lie
+     * from the knower (median km, and the share beyond 100 and 300 km). Olli 2026-11-12: "each band knows 1100 homes?"
+     */
+    fun printKnownHomes() {
+        val alive = groups.groups.filter { it.alive }.mapNotNull { g -> g.band?.let { g to it } }
+        val ids = alive.mapTo(HashSet()) { it.first.id }
+        val counts = alive.map { it.second.knownHomes.size }.sorted()
+        if (counts.isEmpty()) return
+        fun q(f: Double) = counts[((counts.size - 1) * f).toInt()]
+        var all = 0L; var dead = 0L; var far100 = 0L; var far300 = 0L; val km = ArrayList<Float>()
+        for ((g, b) in alive) { val here = hw.placeHex[g.place]
+            for ((id, h) in b.knownHomes) { all++; if (id !in ids) dead++
+                val d = hex.distanceKm(here, h).toFloat(); if (d > 100f) far100++; if (d > 300f) far300++; if (km.size < 2_000_000) km += d } }
+        km.sort()
+        println("known homes per band (bands alive %d): mean %.0f, p10 %d, median %d, p90 %d, most %d; of bands no longer alive %.0f%%; km from the knower median %.0f, beyond 100 km %.0f%%, beyond 300 km %.0f%%".format(
+            alive.size, counts.average(), q(0.1), q(0.5), q(0.9), counts.last(), 100.0 * dead / all.coerceAtLeast(1),
+            if (km.isEmpty()) 0f else km[km.size / 2], 100.0 * far100 / all.coerceAtLeast(1), 100.0 * far300 / all.coerceAtLeast(1)))
+        // (How sure: the km a home may be off as held ([inflation.ecology.Band.homeOff]) and how far off it truly is, of homes whose
+        // band is alive and housed; how lately seen, years; and how far the housed bands are talked of ([inflation.ecology.Bands.fameOf]).)
+        val houseOf = groups.bands.houseOf
+        var offHeld = 0.0; var offTrue = 0.0; var nTrue = 0L; var age = 0.0; var nAge = 0L
+        val day = sim.weather.date.absoluteDay
+        for ((_, b) in alive) for ((id, h) in b.knownHomes) {
+            offHeld += b.homeOff[id] ?: 0f
+            houseOf[id]?.let { t -> offTrue += hex.distanceKm(h, t); nTrue++ }
+            b.homeSeen[id]?.let { age += (day - it) / 365.0; nAge++ }
+        }
+        val fame = groups.bands.fameOf.values.sorted()
+        fun f(x: Double) = if (fame.isEmpty()) 0f else fame[((fame.size - 1) * x).toInt()]
+        println("     known homes: may be off %.1f km as held, %.1f km off in truth (homes of housed bands); last seen %.1f years before; fame of %d housed bands median %.2f, p90 %.2f, most %.2f, %.0f%% at 1 or more (told of twice as far)".format(
+            offHeld / all.coerceAtLeast(1), offTrue / nTrue.coerceAtLeast(1), age / nAge.coerceAtLeast(1), fame.size, f(0.5), f(0.9), f(1.0),
+            100.0 * fame.count { it >= 1f } / fame.size.coerceAtLeast(1)))
+        val why = groups.bands.famedFor
+        println("     housed bands famed for (% of them): " + inflation.ecology.FAMED_FOR.withIndex().joinToString(", ") { (i, w) ->
+            "%s %.0f%%".format(w, 100.0 * (why.getOrNull(i) ?: 0) / fame.size.coerceAtLeast(1)) })
+        // (And how near the homes known lie: the share within 50 km.)
+        println("     known homes within 50 km of the knower: %.0f%%".format(100.0 * km.count { it <= 50f } / km.size.coerceAtLeast(1)))
     }
 
     /** Bands by kind of country over the last year ([lastYear]'s tallies): how many, how they fed and on what, how they lived and died. */
@@ -1000,6 +1021,23 @@ class Census(private val sim: HexSim) {
                 bs.count { land.drink.drawsFromWell(it.first.place, it.first.species.dailyTravelKm) },
                 100.0 * bs.filter { it.second.atHome }.let { h -> h.sumOf { it.second.waterShort.toDouble() } / h.size.coerceAtLeast(1) }))
         }
+        run {
+            // Bands at home in their houses, as they stand now: the most their ways of settling quarrels hold, the size they hold
+            // without discord, and what eases it ([HexGroups.settledEase]); and the halls standing ([Built.HALL]).
+            val homeBands = groups.groups.filter { it.alive }.mapNotNull { g -> g.band?.takeIf { it.atHome }?.let { g to it } }
+            val home = homeBands.map { it.first }
+            val n = home.size.coerceAtLeast(1).toDouble()
+            fun share(f: (Band) -> Boolean) = 100.0 * homeBands.count { f(it.second) } / n
+            val halls = groups.bands.built.filter { it.kind == Built.HALL }
+            println("bands at home in their houses now (nothing chooses by it): %d bands, %.1f people a band, the largest %d; by how they settle quarrels %s; most they hold %.0f, easy %.0f, a band on average; past their easy size %.0f%%; ease %.2f (houses whole %.0f%%, sealed stores %.0f%%, a hall %.0f%%, rites at home %.0f%%, feasts %.0f%%, raided within the year %.0f%%); halls %d whole, %d begun, gathering %.0f people on average".format(
+                home.size, home.sumOf { it.size } / n, home.maxOfOrNull { it.size } ?: 0,
+                DisputeWay.entries.joinToString(" / ") { w -> "%s %.0f%%".format(w.name.lowercase(), share { it.disputeWay == w }) },
+                home.sumOf { groups.maxSize(it) } / n, home.sumOf { groups.easySize(it) } / n, 100.0 * home.count { it.size > groups.easySize(it) } / n,
+                homeBands.sumOf { groups.settledEase(it.second).toDouble() } / n,
+                share { it.house >= 1f - 1e-3f }, share { it.knowsSkill[Skill.SEALING] }, share { groups.hallAt(it.houseHex) > 0f },
+                share { b -> b.rite.any { it >= 0 && hw.placeHex[it] == b.houseHex } }, share { it.holds(Tradition.FEASTS) }, share { it.sinceRaided < groups.ticksPerYear },
+                halls.count { it.done }, halls.count { !it.done }, halls.filter { it.done }.map { it.size.toDouble() }.average().takeIf { it.isFinite() } ?: 0.0))
+        }
         println("bands by whether they keep a herd and how much of their hands' days it asks, last year (share of people-weeks; people a band; clad, mobile; children a person; fed; air where they stood, °C; births per 1000 people a year; grown deaths per 1000 grown a year, children's per 1000 children, by cause, largest first): " + Tally.Herding.entries.joinToString(", ") { h ->
             fun v(k: Tally.Bands) = (lastYear[Tally.bandsHerding(h, k)] ?: 0).toDouble()
             val pw = v(Tally.Bands.PEOPLE_WEEKS); val cw = v(Tally.Bands.CHILD_WEEKS); val bw = v(Tally.Bands.BAND_WEEKS).coerceAtLeast(1.0)
@@ -1070,6 +1108,17 @@ class Census(private val sim: HexSim) {
                 gr(Tally.Grain.WILD_KG) / 1000, gr(Tally.Grain.WILD_DAYS) / 10, gr(Tally.Grain.FIELD_KG) / 1000, gr(Tally.Grain.FIELD_DAYS) / 10,
                 gr(Tally.Grain.CROP_KG) / 1000, gr(Tally.Grain.CROP_DAYS) / 10, gr(Tally.Grain.GRIND_DAYS) / 10,
                 grainKg / personYears.coerceAtLeast(1e-9), grainDays / personYears.coerceAtLeast(1e-9), grainDays / grainKg.coerceAtLeast(1e-9)))
+            // (What of their year's sowing target farming bands had sown by their window's last month, and what held the rest back.)
+            fun sw(k: Tally.Sowing) = v(Tally.sowing(k))
+            val target = (sw(Tally.Sowing.SOWN) + sw(Tally.Sowing.WAYS) + sw(Tally.Sowing.SEED) + sw(Tally.Sowing.DAYS)).coerceAtLeast(1.0)
+            println("bands' sowing against the year's target, last year (band-weeks in the window's last month; of the target at ways' full: sown, held back by ways, short of seed corn, short of days; target a band-week, kg): %.0f; %.0f%%, %.0f%%, %.0f%%, %.0f%%; %.0f".format(
+                sw(Tally.Sowing.WEEKS), 100 * sw(Tally.Sowing.SOWN) / target, 100 * sw(Tally.Sowing.WAYS) / target, 100 * sw(Tally.Sowing.SEED) / target,
+                100 * sw(Tally.Sowing.DAYS) / target, target / sw(Tally.Sowing.WEEKS).coerceAtLeast(1.0)))
+            // (Where farming bands' days went in their sowing window: the work the sowing competes with.)
+            val swWeeks = v(Tally.sowingTime(null)).coerceAtLeast(1.0)
+            println("bands' days in their sowing window, last year (band-weeks; person-days a band-week on each work, largest first; lost to cold and hunger): %.0f; ".format(v(Tally.sowingTime(null))) +
+                Activity.entries.map { it to v(Tally.sowingTime(it)) / 10 / swWeeks }.filter { it.second >= 0.05 }.sortedByDescending { it.second }
+                    .joinToString(", ") { "%s %.1f".format(it.first.label, it.second) } + "; lost %.1f".format(v(Tally.sowingLost) / 10 / swWeeks))
             // (A fat kill is worth more than a lean one: when in the year bands kill, and how fat what they bring in is.)
             println("bands' kills of big game by month, last year (kills; fat in the meat brought in, by weight): " + (0 until Date.MONTHS_PER_YEAR).joinToString(", ") { m ->
                 val lean = v(Tally.bandKills(m, Tally.KillPart.LEAN_KG)); val fat = v(Tally.bandKills(m, Tally.KillPart.FAT_KG))
