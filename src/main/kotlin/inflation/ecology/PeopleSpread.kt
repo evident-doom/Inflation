@@ -267,7 +267,7 @@ internal fun HexGroups.spreadYear(date: Date): List<HexGroup> {
  * Foragers leave a camp as what they get about it falls below what they would get elsewhere, less the move (Kelly 2013,
  * from memory). Within the hex the band shifts camp as its ground fouls ([shiftCamps]).
  */
-@Part("people: spread")
+@Part("people: camps moved")
 internal fun HexGroups.moveCamps() {
     if (!tuning.bandsStay) return
     val people = bandPeopleByHex()
