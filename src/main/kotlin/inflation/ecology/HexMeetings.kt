@@ -895,6 +895,8 @@ internal fun HexGroups.settle(weather: Weather) {
                 if (h == here && g.adults >= 2 && h != g.natal && fauna.roomFor(g.species, h) && scent.foreign(g.species, h, g.id) < MARK_FRESH) { settleIn(g); break }
                 continue
             }
+            // (Only ground with land: the rings about it may hold sea or lake.)
+            if (h != here && hw.firstPlaceIn(h).none) continue
             val key = g.species.index.toLong() * hex.size + h.i
             if (scent.foreign(g.species, h, g.id) < MARK_FRESH && claimed.add(key)) {
                 claimGround(g, h)
