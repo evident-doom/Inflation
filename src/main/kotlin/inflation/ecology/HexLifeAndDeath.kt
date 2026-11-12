@@ -96,6 +96,13 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
     bands.houseOf = groups.filter { g -> g.alive && g.band.let { it != null && !it.houseHex.none && it.house >= Thresholds.HOUSE_STANDING } }
         .associate { it.id to it.band!!.houseHex }
     run {
+        val homesIn = HashMap<Hex, Int>(); for (h in bands.houseOf.values) homesIn.merge(h, 1, Int::plus)
+        val fame = HashMap<Int, Float>()
+        for (g in groups) { val b = g.band ?: continue; val h = bands.houseOf[g.id] ?: continue
+            fame[g.id] = b.fame + b.renown + FAME_SETTLEMENT * ((homesIn[h] ?: 1) - 1) }
+        bands.fameOf = fame
+    }
+    run {
         // The bands' own weeks go one after another (they share the ground, the structures and the week's tallies), then their
         // customs' year, which touches only the band, on all cores, each with a stream of its own; then the rites, which bring
         // bands together, one after another.
@@ -104,7 +111,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         bands.tallies.flush(if (stats.census) stats.hunting else null)
         Par.forEach("people: customs year", bandGroups.size) { k ->
             val g = bandGroups[k]
-            if (g.alive) cultureWeek(g, stream(seedBase, Stream.CUSTOMS, g.id.toLong(), date.absoluteDay))
+            if (g.alive) cultureWeek(g, stream(seedBase, Stream.CUSTOMS, g.id.toLong(), date.absoluteDay), date.absoluteDay)
         }
         for (g in bandGroups) if (g.alive) riteWeek(g, weather)
         groups += bands.strays; bands.strays.clear()

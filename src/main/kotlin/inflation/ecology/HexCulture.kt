@@ -208,6 +208,44 @@ internal const val TOLD_RINGS = 4
 
 internal const val REMEMBERED_KM = 100.0
 
+/**
+ * How far off a band holds the homes of other bands worth knowing, km: those it may meet, raid, visit or keep off (raids reach
+ * [RAID_RANGE_KM], its country about [REMEMBERED_KM]). Further homes it neither keeps nor is told of, unless their fame carries
+ * them further ([homeReachKm]). An estimate (Olli 2026-11-12: there is a limit to what bands know and find meaningful;
+ * homes764: median 814 homes known, 73% of dead bands, 62% beyond 300 km).
+ */
+internal const val HOMES_KM = 100.0
+
+/**
+ * The most homes a band keeps in mind: the nearest, fame counting as nearness ([homeReachKm]). An estimate, after the forager
+ * "dialect tribe" of some 500 people, a score of bands (Birdsell; a contested figure), with room for the famous.
+ */
+internal const val HOMES_HELD = 40
+
+/** Years a band goes on holding a home that no one has seen standing ([Band.homeSeen]): hearsay of dead or moved bands dies out. An estimate. */
+internal const val HOMES_HEARD_YEARS = 3f
+
+/**
+ * How far off a home told at second hand may lie from where the hearer then believes it, as a share of its distance from
+ * the hearer: geography is the vaguer the further off (Olli 2026-11-12). Each telling adds its own. An estimate.
+ */
+internal const val HEARSAY_OFF = 0.1f
+
+/** Fame ([Bands.fameOf]): each unit carries the tale of a band's home [HOMES_KM] further. */
+internal const val HOMES_FAME_REACH = 1f
+
+/** The fame a band gains for a raid it won ([Band.fame]). An estimate. */
+internal const val FAME_RAID = 0.5f
+
+/** The fame a band's home gains for each other band housed in its hex: a large settlement is talked of far off. An estimate. */
+internal const val FAME_SETTLEMENT = 0.5f
+
+/** Share of [Band.fame] fading a year, as [RENOWN_FADE]. */
+internal const val FAME_FADE = 0.2f
+
+/** How far (km) band [id]'s home is worth knowing of: [HOMES_KM], the further the more it is talked of ([Bands.fameOf]). */
+internal fun HexGroups.homeReachKm(id: Int) = HOMES_KM * (1f + HOMES_FAME_REACH * (bands.fameOf[id] ?: 0f))
+
 /** A band fed under this share of its fill with nothing laid by goes to a better-stocked band within this many rings of hexes. */
 internal const val VISIT_FED = 0.6f
 
@@ -550,13 +588,27 @@ internal class Regard(private val of: Band, private val toId: Int, private val t
  * Touches only the band's own state (and the week's tallies), so the bands' run side by side, each drawing from its own stream [rnd].
  */
 @Part("people: cultureWeek")
-internal fun HexGroups.cultureWeek(g: HexGroup, rnd: kotlin.random.Random) {
+internal fun HexGroups.cultureWeek(g: HexGroup, rnd: kotlin.random.Random, day: Long) {
     val b = g.band ?: return
-    // A home it knows of that it passed this week and found no house standing (its people dead, or
-    // moved on) is forgotten: it is no longer ground to keep off, nor a place to raid.
+    // A home it knows of is forgotten: when it passed it this week and found no house standing (its people dead, or moved on,
+    // or never quite where it was told); when no one has seen it standing for [HOMES_HEARD_YEARS]; and when it lies further
+    // than it is worth knowing of from where the band now is ([homeReachKm]). It is no longer ground to keep off, nor a place to raid.
     if (b.knownHomes.isNotEmpty()) {
+        val here = hw.placeHex[g.place]
+        val stale = (HOMES_HEARD_YEARS * Date.DAYS_PER_YEAR).toLong()
         val it = b.knownHomes.entries.iterator()
-        while (it.hasNext()) { val (id, hh) = it.next(); if (hh in g.path && bands.houseOf[id] != hh) { it.remove(); b.knownLineage.remove(id); b.homesVersion++ } }
+        while (it.hasNext()) { val (id, hh) = it.next()
+            // (A home held from a save made before [Band.homeSeen]: as if seen half that long ago.)
+            val seen = b.homeSeen.getOrPut(id) { day - stale / 2 }
+            if ((hh in g.path && bands.houseOf[id] != hh) || day - seen > stale || hexKm(here, hh) > homeReachKm(id)) {
+                it.remove(); b.knownLineage.remove(id); b.homeSeen.remove(id); b.homeOff.remove(id); b.homesVersion++ }
+        }
+        // And it keeps no more than [HOMES_HELD] in mind: the nearest, as far as fame makes them near.
+        if (b.knownHomes.size > HOMES_HELD) {
+            val by = b.knownHomes.entries.sortedWith(compareBy<Map.Entry<Int, Hex>> { hexKm(here, it.value) / homeReachKm(it.key) }.thenBy { it.key })
+            for (e in by.subList(HOMES_HELD, by.size)) { b.knownHomes.remove(e.key); b.knownLineage.remove(e.key); b.homeSeen.remove(e.key); b.homeOff.remove(e.key) }
+            b.homesVersion++
+        }
     }
     // Once a year, a band without an appointment makes one, where its dead lie or where it has met
     // most bands, in the season it fared best there.

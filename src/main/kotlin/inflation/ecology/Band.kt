@@ -290,6 +290,8 @@ class Band(kinds: Int, totems: Int = kinds) {
     fun paces() = enumFloats<Activity> { paceAt(it.where) }
     /** Its name among the bands for the useful gifts it has given (fading a fifth a year; with trade on). */
     var renown = 0f
+    /** What it is talked of for far off besides its gifts: raids it won ([FAME_RAID]), fading ([FAME_FADE]). How far its home is told of: [Bands.fameOf]. */
+    var fame = 0f
     var campWeeks = 0
     /** Weeks it has lately kept a camp before moving on, a running mean ([STAY_LEARN]): over how long a move pays back its walk. */
     var stayWeeks = STAY_WEEKS_START
@@ -411,6 +413,13 @@ class Band(kinds: Int, totems: Int = kinds) {
     @Transient var keepOffVersion = -1
     @Transient var keepOffClose = IntArray(0)
     val knownLineage = HashMap<Int, Int>()
+    /**
+     * For each home in [knownHomes], the day (absolute) someone last saw it standing at first hand: told on, the day goes with
+     * it, so that a home no one has seen for [HOMES_HEARD_YEARS] (its band dead or gone) is forgotten ([HexGroups.cultureWeek]).
+     */
+    val homeSeen = HashMap<Int, Long>()
+    /** For each home in [knownHomes], how far (km) it may lie from where this band believes: 0 seen at first hand, the more the further off it was told of ([HEARSAY_OFF]). */
+    val homeOff = HashMap<Int, Float>()
     /** A raid it is set on, if any. */
     var raid: Raid? = null
     val raidHex get() = raid?.hex ?: Hex.NONE
@@ -877,7 +886,7 @@ class Band(kinds: Int, totems: Int = kinds) {
         o.houseHex = houseHex; o.house = house; o.drivenFrom = drivenFrom; o.drivenBy = drivenBy; o.homeEarth = homeEarth; o.homeWalls = homeWalls; o.homeGroundC = homeGroundC; o.palisade = palisade
         o.houseLives = houseLives; o.houseFood = houseFood; foodFrom.copyInto(o.foodFrom); o.fishPull = fishPull; o.weirFood = weirFood; o.weirTend = weirTend; toolWork.copyInto(o.toolWork); heldShare.copyInto(o.heldShare); monthSupply.copyInto(o.monthSupply); monthSupplySq.copyInto(o.monthSupplySq); o.supplyMonth = supplyMonth; o.supplySum = supplySum; o.supplyWeeks = supplyWeeks; o.larderSeen = larderSeen; weekSupply.copyInto(o.weekSupply); weekYield.copyInto(o.weekYield); weekWarmth.copyInto(o.weekWarmth); weekMoved.copyInto(o.weekMoved); freeShare.copyInto(o.freeShare); o.leanDays = leanDays; o.fatLow = fatLow; o.unevenness = unevenness
         o.seedDomestic = seedDomestic; o.seedPulse = seedPulse; o.grainDomestic = grainDomestic; o.seedCorn = seedCorn * share; seedCorn -= o.seedCorn; o.sinceRaided = sinceRaided; o.sisu = sisu
-        o.knownHomes.putAll(knownHomes); o.homesVersion++; o.knownLineage.putAll(knownLineage); o.lastMet.putAll(lastMet); newsYield.copyInto(o.newsYield); newsAt.copyInto(o.newsAt); o.newsNext = newsNext
+        o.knownHomes.putAll(knownHomes); o.homesVersion++; o.knownLineage.putAll(knownLineage); o.homeSeen.putAll(homeSeen); o.homeOff.putAll(homeOff); o.lastMet.putAll(lastMet); newsYield.copyInto(o.newsYield); newsAt.copyInto(o.newsAt); o.newsNext = newsNext
         skills.copyInto(o.skills)
         knowsSkill.copyInto(o.knowsSkill)
         sick.copyInto(o.sick)
@@ -896,7 +905,7 @@ class Band(kinds: Int, totems: Int = kinds) {
         made.copyInto(o.made)
         o.salted = salted; o.dryDepth = dryDepth; o.pests = pests
         o.sodiumWant = sodiumWant; o.saltWantStep = saltWantStep * share; saltWantStep -= o.saltWantStep
-        o.renown = renown
+        o.renown = renown; o.fame = fame
         rite.copyInto(o.rite); o.riteStrength = riteStrength; o.riteHeld = riteHeld; o.riteKept = riteKept; o.beliefYears = beliefYears; o.strain = strain
         o.omenPlace = omenPlace; o.omenMonth = omenMonth; o.omenYear = omenYear; o.omenWeight = omenWeight; o.deathsUsual = deathsUsual; o.wantSteps = wantSteps; o.wantBroke = wantBroke; o.wantUsual = wantUsual; o.mind = mind; foreseenShares.copyInto(o.foreseenShares); o.foreseenAt = foreseenAt
         warn.copyInto(o.warn); o.warnAt = warnAt
@@ -970,7 +979,7 @@ class Band(kinds: Int, totems: Int = kinds) {
         a.larderSeen += w * (b.larderSeen - a.larderSeen)
         a.ornaments += b.ornaments; a.exotic += b.exotic
         a.herds.absorb(b.herds)
-        a.renown = max(a.renown, b.renown)
+        a.renown = max(a.renown, b.renown); a.fame = max(a.fame, b.fame)
         a.raidDeathRate += w * (b.raidDeathRate - a.raidDeathRate)
         for (i in Tool.entries) a.knows[i] = a.knows[i] || b.knows[i]
         for (i in a.lineage.indices) a.lineage[i] += w * (b.lineage[i] - a.lineage[i])

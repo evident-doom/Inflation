@@ -146,7 +146,7 @@ private fun strip(g: HexGroup) {
     b.house = 0f; b.houseHex = Hex.NONE; b.palisade = 0f; b.ornaments = 0f; b.exotic = 0f
     b.seedCorn = 0f; b.seedKept = 0f; b.sownKg = 0f; b.sownPlace = Place.NONE
     b.herds.herd.fill(0f); b.herds.herdTame.fill(0f); b.herds.herdYoung.fill(0f); b.herds.herdPet.fill(0f)
-    b.knownHomes.clear(); b.seasonPlace.fill(-1)
+    b.knownHomes.clear(); b.homeSeen.clear(); b.homeOff.clear(); b.seasonPlace.fill(-1)
     g.stores.fill(0f)
     g.memory.hex.fill(Hex.NONE)
 }

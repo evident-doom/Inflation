@@ -253,7 +253,8 @@ internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planne
         small.deposit(DeadPool.CARRION, if (k == 0 && staysHome(g)) o.place else who.place, Kg(lost * who.species.massKg))
     }
     // The stronger side carries off food; the raided remember.
-    if (sg > so) { val t = RAID_TAKE * o.larder; moveFood(o, g, t, LarderMove.RAIDED); stats.meeting(Met.LARDERS_RAIDED) }
+    // (And a band that wins is talked of further off: [Band.fame].)
+    if (sg > so) { val t = RAID_TAKE * o.larder; moveFood(o, g, t, LarderMove.RAIDED); stats.meeting(Met.LARDERS_RAIDED); b.fame += FAME_RAID }
     // A band beaten at its home may be driven from it, the likelier the more the raiders overpower it (none when they are
     // only as strong; Wrangham and Glowacki 2012: victors drove the defeated off their land in most non-state wars).
     if (ob.atHome && sg > so && rnd.nextFloat() < 1f - so / sg) driveOff(o, ob, b, hw.placeHex[g.place])

@@ -41,14 +41,14 @@ internal fun carryRules(): Map<String, Pair<OnSplit, OnJoin>> {
     val r = LinkedHashMap<String, Pair<OnSplit, OnJoin>>()
     fun rule(split: OnSplit, join: OnJoin, vararg fields: String) { for (f in fields) r[f] = split to join }
     // Know-how and lore.
-    rule(OnSplit.COPIED, OnJoin.MAX, "skills", "plants", "renown", "grudge")
+    rule(OnSplit.COPIED, OnJoin.MAX, "skills", "plants", "renown", "fame", "grudge")
     rule(OnSplit.COPIED, OnJoin.ANY, "knowsSkill", "knows", "known")
     rule(OnSplit.DRAWN, OnJoin.SUM, "holders")
     rule(OnSplit.COPIED, OnJoin.SUM, "heard", "heardOf", "heardTotem", "heardBurial", "heardLivelihood", "heardStyle")
     rule(OnSplit.COPIED, OnJoin.LOST, "totem", "marksChosen", "totemBroken", "burialWay", "disputeWay", "style", "styleChosen", "heldLivelihood", "livelihoodHold", "livedOther", "livelihoodChosen")
     rule(OnSplit.FRESH, OnJoin.SUM, "burialOwed", "riteOwed", "riteAsked", "riteSpare", "raidWalkOwed")
     rule(OnSplit.FRESH, OnJoin.LOST, "riteDue")
-    rule(OnSplit.COPIED, OnJoin.LOST, "lastUsed", "seasonPlace", "seasonQ", "monthSupply", "monthSupplySq", "supplyMonth", "supplySum", "supplyWeeks", "weekSupply", "weekYield", "weekWarmth", "weekMoved", "freeShare", "leanDays", "fatLow", "weeks", "traditions", "words", "rite", "riteStrength", "riteHeld", "riteKept", "beliefYears", "strain", "omenPlace", "omenMonth", "omenYear", "omenWeight", "deathsUsual", "wantSteps", "wantBroke", "wantUsual", "mind", "foreseenAt", "knownHomes", "knownLineage", "lastMet", "seenStrength", "seenDay", "newsYield", "newsAt", "newsNext")
+    rule(OnSplit.COPIED, OnJoin.LOST, "lastUsed", "seasonPlace", "seasonQ", "monthSupply", "monthSupplySq", "supplyMonth", "supplySum", "supplyWeeks", "weekSupply", "weekYield", "weekWarmth", "weekMoved", "freeShare", "leanDays", "fatLow", "weeks", "traditions", "words", "rite", "riteStrength", "riteHeld", "riteKept", "beliefYears", "strain", "omenPlace", "omenMonth", "omenYear", "omenWeight", "deathsUsual", "wantSteps", "wantBroke", "wantUsual", "mind", "foreseenAt", "knownHomes", "knownLineage", "homeSeen", "homeOff", "lastMet", "seenStrength", "seenDay", "newsYield", "newsAt", "newsNext")
     // (A person's days of larder: a split halves the larder and the people alike; a joining band's larder is added to its own.)
     rule(OnSplit.COPIED, OnJoin.BLENDED, "larderSeen")
     rule(OnSplit.COPIED, OnJoin.BLENDED, "unevenness")
