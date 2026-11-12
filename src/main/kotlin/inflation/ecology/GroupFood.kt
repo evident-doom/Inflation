@@ -380,8 +380,11 @@ internal fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float
     // before every other ask: what it cannot herd it culls and eats ([keepHerds]). Shared out with the asks, they were cut
     // whenever foraging alone would fill the week, and the cuts compounded week on week till no herd was left; held with
     // the fire and shelters, a band that shrank kept its whole herd, which took its firewood and food till it died.)
+    // (And its ripe crop's reaping, with them: a crop left standing sheds its grain within weeks, so farmers bring it in
+    // before any chore but the week's food. Shared out with the asks, the reaping was weighed against the customs, the
+    // tools and the rest, and some half of its days asked were not given while the crop shed: smoke723 2026-11-12.)
     val kept = enumFloats<Activity>()
-    kept[Activity.SOWING] = herdDays(b) * (1f - walkedShare(time))
+    kept[Activity.SOWING] = herdDays(b) * (1f - walkedShare(time)) + cropRipe(g, b) * cropReapDays(b)
     val asks = enumFloats<Activity>()
     asks[Activity.FOOD] = storeDays * hands
     choreAsks(g, b, w.weather.date, asks, warm)
