@@ -43,6 +43,8 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
     var huntOwed = 0f
     /** Whether [meatMet] is eaten, stored or left by now this week (for the books, which count it in hand until then; a loaded group's is spent). */
     @Transient var meatSpent = true
+    /** forageDiag (window trace, [liveWeek]): a beast's 60-day window so far: its index, days, fed-days before its fat, fat and body burnt at its start, hunger deaths. */
+    @Transient var winStart = -1L; @Transient var winDays = 0; @Transient var winFed = 0f; @Transient var winFat0 = 0f; @Transient var winSpent0 = 0f; @Transient var winDied = 0
     /** For a hunter: the hex at the heart of the ground it holds, -1 while it holds none. */
     var home = Hex.NONE
     /** For a roamer of a kind that also lives settled: the hex it left its kind's settled in, which it does not settle back in ([HexGroups.settle]). */

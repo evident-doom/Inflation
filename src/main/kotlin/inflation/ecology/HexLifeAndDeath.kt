@@ -656,6 +656,21 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         if (dg + dy2 > 0 && STARVED_TRACE.wants(g.id.toLong(), date.absoluteDay, s.name)) System.err.println(
             "starved ${s.name} id ${g.id} day ${date.absoluteDay} days $days died grown $dg young $dy2 left grown ${g.adults} young ${g.young} fed $fedRaw -> ${g.fed} " +
                 "fat $fatRaw -> ${g.fat} of ${s.maxFatDays} spent $spentRaw -> ${g.spent} starve ${Hazards.starveDays(s)}") }
+    // (forageDiag: a sample of beasts followed through 60-day windows, whatever the step: how fed they were before their fat,
+    // their fat and body burnt at each window's start and end, and their hunger deaths; so a weekly pack's ten weeks can be
+    // set against a 60-day pack's one step.)
+    if (g.band == null && WINDOW_TRACE.wants(g.id.toLong(), 0L, s.name)) {
+        val win = date.absoluteDay / 60
+        fun line(fat: Float, spent: Float, end: String) = System.err.println("window ${s.name} id ${g.id} step $days span ${g.winDays} fed ${g.winFed / max(1, g.winDays)} " +
+            "fat ${g.winFat0} -> $fat of ${s.maxFatDays} spent ${g.winSpent0} -> $spent starve ${Hazards.starveDays(s)} died ${g.winDied} grown ${g.adults} $end")
+        if (g.winStart != win) {
+            if (g.winStart >= 0 && g.winDays > 0) line(fatRaw, spentRaw, "next")
+            g.winStart = win; g.winDays = 0; g.winFed = 0f; g.winFat0 = fatRaw; g.winSpent0 = spentRaw; g.winDied = 0
+        }
+        g.winDays += days; g.winFed += fedRaw * days
+        g.winDied += causes.sumOf { if (it.cause == DeathCause.HUNGER) it.n else 0 }
+        if (g.adults == 0) line(g.fat, g.spent, "ended")
+    }
     if (g.adults == 0) {
         // Young left without a grown animal of their kind die.
         val orphans = g.young
@@ -849,3 +864,5 @@ internal const val HUNGER_CASES = 30
 
 /** forageDiag=KIND: each step of a beast's group of that kind that starved some of it ([liveWeek]). */
 private val STARVED_TRACE = inflation.Trace(inflation.Config.Key.FORAGE_DIAG, "starved", byKind = true)
+/** forageDiag=KIND: a tenth of that kind's beasts followed through 60-day windows ([liveWeek]). */
+private val WINDOW_TRACE = inflation.Trace(inflation.Config.Key.FORAGE_DIAG, "windows", share = 0.1f, byKind = true)
