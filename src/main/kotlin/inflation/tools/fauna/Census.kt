@@ -29,6 +29,7 @@ import inflation.ecology.CustomsPart
 import inflation.ecology.RiteWalk
 import inflation.ecology.livelihood
 import inflation.ecology.Band
+import inflation.ecology.withKinds
 import inflation.ecology.woodCover
 import inflation.ecology.WORN_ROOTS
 import inflation.ecology.WORN_FRUIT
@@ -363,6 +364,40 @@ class Census(private val sim: HexSim) {
      * game ([preyHere]) and wood cover ([woodCover]) against the mean of the land places of its kind of country this
      * week, by how long it has kept that camp. Report only: whether the ground a band lives on tells it to move.
      */
+    /**
+     * Whether bands' hunting thins the big game about them (Olli 2026-11-12: can people at these densities move big game
+     * numbers at all?): the plant-eaters' weight a km² (grown and young at [YOUNG_WEIGHT]) and the game people can catch a
+     * km² ([preyHere]) on the land places of each kind of country with bands, by hexes to the nearest band's camp: its own,
+     * the ring round it, two or three out, and further. Now, area-weighted. Report only.
+     */
+    private fun printGameByBands() {
+        val dist = HashMap<Hex, Int>()
+        var front = groups.groups.filter { it.alive && it.band != null }.map { hw.placeHex[it.place] }.distinct()
+        for (h in front) dist[h] = 0
+        for (d in 1..3) {
+            val next = ArrayList<Hex>()
+            for (h in front) for (k in 0 until 6) { val q = hex.neighbour(h, k); if (!q.none && q !in dist) { dist[q] = d; next += q } }
+            front = next
+        }
+        fun ring(d: Int?) = when (d) { 0 -> 0; 1 -> 1; 2, 3 -> 2; else -> 3 }
+        val kinds = Biome.entries.size
+        val area = Array(kinds) { DoubleArray(4) }; val herb = Array(kinds) { DoubleArray(4) }; val game = Array(kinds) { DoubleArray(4) }
+        val people = Catalogue.HUMAN
+        val fauna = groups.fauna
+        for (p in 0 until land.n) {
+            val h = hw.placeHex[p]; if (hw.land[h] < 0.5f) continue
+            val c = groups.biomeOfPlace[p]; val r = ring(dist[h]); val a = land.areaKm2[p].toDouble()
+            var w = 0.0
+            for ((k, sp) in fauna.kinds.withKinds()) if (!sp.carnivore) w += (fauna.adults[k][p] + inflation.ecology.HexFauna.YOUNG_WEIGHT * fauna.young[k][p]) * sp.massKg.toDouble()
+            area[c][r] += a; herb[c][r] += w * a; game[c][r] += groups.preyHere(people, Place(p)).toDouble() * a
+        }
+        val shown = Biome.entries.filter { area[it.ordinal][0] > 0.0 }
+        println("     big game by hexes from the nearest band's camp, now (plant-eaters kg/km2 / game people can catch kg/km2, km2; same / ring / 2-3 / further): " +
+            shown.joinToString(", ") { b -> val c = b.ordinal
+                b.label + " " + (0 until 4).joinToString(" | ") { r ->
+                    val a = area[c][r]; if (a <= 0.0) "-" else "%.0f / %.0f, %.0f".format(herb[c][r] / a, game[c][r] / a, a) } })
+    }
+
     private fun printCampGround() {
         val n = land.n
         val kinds = Biome.entries.size
@@ -473,6 +508,7 @@ class Census(private val sim: HexSim) {
     fun printChoices() {
         printMast()
         printCampGround()
+        printGameByBands()
         println("     choices a week per group (stayed without weighing / weighed and stayed / moved): " + groups.kinds.joinToString(", ") { s ->
             val c = IntArray(3) { groups.planner.planCounts.getAndSet(s.index * 3 + it, 0) }
             val all = c.sum().coerceAtLeast(1)
