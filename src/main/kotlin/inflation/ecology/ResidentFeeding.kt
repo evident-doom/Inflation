@@ -245,7 +245,9 @@ private fun HexFauna.animalFood(k: FaunaKind, p: Place, weather: Weather, z: Gra
         val animalNeed = needAll * (1f - ps)
         val plantGap = if (ps > 0f) needAll * ps * max(0f, 1f - z.got[k]) else 0f
         // Carrion first, where it eats any: a carcass lying there costs no chase and no digging, so
-        // it eats what it finds (at most half of what lies there) before it hunts or makes up plants.
+        // it eats what it finds (what it found as it lay, then at most half of what lies there) before it hunts, up to its
+        // diet's share of carrion; any shortfall it makes up from any of its foods below. (Taken up to its whole need, once
+        // it found carrion as it lay a lynx lived on it: whole779.)
         // (How fast its search comes on carrion as it lies, a day, for the step's soil: as a group's ([carrionRate]), its
         // parties searching their beat's width over their day's travel, of the place a day; of what was found, its share.)
         val rate = if (d.carrion > 0f) CARRION_FIND_RATE * min(1f, d.carrion / SCAVENGER_CARRION) *
@@ -253,7 +255,7 @@ private fun HexFauna.animalFood(k: FaunaKind, p: Place, weather: Weather, z: Gra
         small.residentCarrionRate[p] += rate
         var mine = if (found.rate > 0f) min(1f, rate / found.rate) * found.held else 0f
         fun scavengeMine(want: Float): Float { val (got, held) = small.scavengeHeld(p, want, mine); mine -= held; return got }
-        var gotCarrion = if (d.carrion > 0f) scavengeMine(animalNeed + plantGap) else 0f
+        var gotCarrion = if (d.carrion > 0f) scavengeMine(min(animalNeed + plantGap, needAll * d.carrion / all)) else 0f
         var left = animalNeed + plantGap - gotCarrion
         // (A bone-cracker eats the bones lying there too, at most half of them, at what a kilo of bone feeds it against
         // a kilo of prey: [Food.BONES], as a pack forages them.)
