@@ -663,13 +663,13 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         val win = date.absoluteDay / 60
         fun line(fat: Float, spent: Float, end: String) = System.err.println("window ${s.name} id ${g.id} step $days span ${g.winDays} fed ${g.winFed / max(1, g.winDays)} " +
             "fat ${g.winFat0} -> $fat of ${s.maxFatDays} spent ${g.winSpent0} -> $spent starve ${Hazards.starveDays(s)} died ${g.winDied} grown ${g.adults} young ${g.young} " +
-            "want ${g.winSum[0]} taken ${g.winSum[1]} luck ${g.winSum[2]} aim ${g.winSum[3]} busy ${g.winSum[4]} searched ${g.winSum[5]} work ${g.winSum[6]} passes ${g.winSum[7]} $end")
+            "want ${g.winSum[0]} taken ${g.winSum[1]} luck ${g.winSum[2]} aim ${g.winSum[3]} busy ${g.winSum[4]} searched ${g.winSum[5]} work ${g.winSum[6]} passes ${g.winSum[7]} rate ${g.winSum[8]} $end")
         if (g.winStart != win) {
             if (g.winStart >= 0 && g.winDays > 0) line(fatRaw, spentRaw, "next")
             g.winStart = win; g.winDays = 0; g.winFed = 0f; g.winFat0 = fatRaw; g.winSpent0 = spentRaw; g.winDied = 0; g.winSum.fill(0f)
         }
         g.winDays += days; g.winFed += fedRaw * days
-        for (i in 0 until 8) g.winSum[i] += g.stepDiag[i]
+        for (i in 0 until 9) g.winSum[i] += g.stepDiag[i]
         g.winDied += causes.sumOf { if (it.cause == DeathCause.HUNGER) it.n else 0 }
         if (g.adults == 0) line(g.fat, g.spent, "ended")
     }

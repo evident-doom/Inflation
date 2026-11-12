@@ -282,6 +282,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
             planWeek(w, daysFor(need), daysFor(left) - daysFor(need), if (intake > 0f) intake / w.hands.coerceAtLeast(1) else 0f)
         }
         val time = w.time
+        if (pass == 0 && w.band == null && STEP_DIAG) g.stepDiag[8] = intake * w.workDays / w.wantAll.coerceAtLeast(1e-6f)
         var f = if (intake > 0f) min(1f, left / (w.workDays * intake)) else 0f
         if (time != null) f = min(f, time.leftFor(Activity.FOOD) / (w.hands * w.workDays).coerceAtLeast(1e-6f))
         // (A beast's party keeps no plan of its days: each pass has only the days the passes before it left.)
