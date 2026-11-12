@@ -787,7 +787,7 @@ internal fun HexGroups.mark() {
         }
         if (who[g.home] != g.id || m[g.home] < MARK_FRESH) {
             if (HOME_TRACE.wants(g.id.toLong(), 0L, s.name)) System.err.println("homeloss ${s.name} id ${g.id} step $days cause " +
-                (if (who[g.home] != g.id) "markedover" else "faded") + " foot ${foot != null} onpath ${g.home in g.path.a.map { Hex(it) }} fed ${g.fed} fat ${g.fat}")
+                (if (who[g.home] != g.id) "markedover" else "faded") + " foot ${foot != null} onpath ${g.home.i in g.path.a} fed ${g.fed} fat ${g.fat}")
             g.home = Hex.NONE
         }
     }
