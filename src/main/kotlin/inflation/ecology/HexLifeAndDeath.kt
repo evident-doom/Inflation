@@ -682,8 +682,8 @@ private fun GroupWorld.feedOnReserves(g: HexGroup) {
     val drew = g.fed < WELL_FED && g.fat > 0f
     // (What its people save by spending less when short, [Hazards.economy], the fat need not pay.)
     if (g.fed < WELL_FED) { val e = Hazards.economy(s); val draw = Hazards.fatDrawn(g.fed, g.fat, days, economy = e)
-        val fed = Hazards.onFat(g.fed, g.fat, days, economy = e); g.fat -= draw; g.fatDrew = draw; g.band?.fatFed = draw / days; g.fed = fed }
-    else { g.fatDrew = 0f; val gain = FAT_EFFICIENCY * g.surplus; val back = min(g.spent, gain); g.spent -= back
+        val fed = Hazards.onFat(g.fed, g.fat, days, economy = e); g.fat -= draw; g.band?.fatFed = draw / days; g.fed = fed }
+    else { val gain = FAT_EFFICIENCY * g.surplus; val back = min(g.spent, gain); g.spent -= back
         // (What it ate beyond its need wins back the body it burnt before it lays on fat.)
         g.fat = min(s.maxFatDays, g.fat + gain - back) }
     g.surplus = 0f

@@ -26,9 +26,7 @@ internal fun GroupWorld.restless(g: HexGroup, weather: Weather, thirsty: Boolean
         Lifeway.BAND -> g.fed < Thresholds.HUNGRY || thirsty || astray || dueSoon ||
             (g.band?.let { coldRestless(it.warmth(airAt(g.place, weather), it.fire, it.homeShelter(), days)) } ?: false) ||
             s.hotC(weather.temperature[g.place]) / 10f > 0.5f
-        // (And a pack living on its fat that would not have enough for another step like the last: it looks for better before
-        // it starves, at any step length; at 60 days a pack on its fat stayed on poor ground and starved within one step, trace738.)
-        Lifeway.PACK -> g.fed < Thresholds.HUNGRY || (g.fatDrew > 0f && g.fat < g.fatDrew) || g.home.none || thirsty || astray || pressedOff(g)
+        Lifeway.PACK -> g.fed < Thresholds.HUNGRY || g.home.none || thirsty || astray || pressedOff(g)
     }
 }
 
