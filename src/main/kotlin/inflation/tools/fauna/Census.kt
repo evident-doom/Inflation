@@ -91,6 +91,7 @@ import inflation.ecology.Skill
 import inflation.ecology.Built
 import inflation.ecology.Tool
 import inflation.ecology.wellReachM
+import inflation.ecology.hallAt
 import inflation.ecology.Species
 import inflation.ecology.Store
 import inflation.ecology.Stuck
@@ -1019,6 +1020,22 @@ class Census(private val sim: HexSim) {
                 bs.count { it.second.knowsSkill[Skill.WELLS] }, bs.size, bs.count { it.second.knows[Tool.PICK] },
                 bs.count { land.drink.drawsFromWell(it.first.place, it.first.species.dailyTravelKm) },
                 100.0 * bs.filter { it.second.atHome }.let { h -> h.sumOf { it.second.waterShort.toDouble() } / h.size.coerceAtLeast(1) }))
+        }
+        run {
+            // Bands at home in their houses, as they stand now: the most their ways of settling quarrels hold, the size they hold
+            // without discord, and what eases it ([HexGroups.settledEase]); and the halls standing ([Built.HALL]).
+            val home = groups.groups.filter { it.alive && it.band?.atHome == true }
+            val n = home.size.coerceAtLeast(1).toDouble()
+            fun share(f: (Band) -> Boolean) = 100.0 * home.count { f(it.band!!) } / n
+            val halls = groups.bands.built.filter { it.kind == Built.HALL }
+            println("bands at home in their houses now (nothing chooses by it): %d bands, %.1f people a band, the largest %d; by how they settle quarrels %s; most they hold %.0f, easy %.0f, a band on average; past their easy size %.0f%%; ease %.2f (houses whole %.0f%%, sealed stores %.0f%%, a hall %.0f%%, rites at home %.0f%%, feasts %.0f%%, raided within the year %.0f%%); halls %d whole, %d begun, gathering %.0f people on average".format(
+                home.size, home.sumOf { it.size } / n, home.maxOfOrNull { it.size } ?: 0,
+                DisputeWay.entries.joinToString(" / ") { w -> "%s %.0f%%".format(w.name.lowercase(), share { it.disputeWay == w }) },
+                home.sumOf { groups.maxSize(it) } / n, home.sumOf { groups.easySize(it) } / n, 100.0 * home.count { it.size > groups.easySize(it) } / n,
+                home.sumOf { groups.settledEase(it.band!!).toDouble() } / n,
+                share { it.house >= 1f - 1e-3f }, share { it.knowsSkill[Skill.SEALING] }, share { groups.hallAt(it.houseHex) > 0f },
+                share { b -> b.rite.any { it >= 0 && hw.placeHex[it] == b.houseHex } }, share { it.holds(Tradition.FEASTS) }, share { it.sinceRaided < groups.ticksPerYear },
+                halls.count { it.done }, halls.count { !it.done }, halls.filter { it.done }.map { it.size.toDouble() }.average().takeIf { it.isFinite() } ?: 0.0))
         }
         println("bands by whether they keep a herd and how much of their hands' days it asks, last year (share of people-weeks; people a band; clad, mobile; children a person; fed; air where they stood, °C; births per 1000 people a year; grown deaths per 1000 grown a year, children's per 1000 children, by cause, largest first): " + Tally.Herding.entries.joinToString(", ") { h ->
             fun v(k: Tally.Bands) = (lastYear[Tally.bandsHerding(h, k)] ?: 0).toDouble()

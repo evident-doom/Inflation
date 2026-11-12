@@ -107,7 +107,7 @@ private fun GroupWorld.farmWorth(p: Place) = if (land.drink.waterKm[p] < VILLAGE
 
 /**
  * Band [g] ([b]) starts as a village where it stands: pit houses for its grown people standing at its camp, kept a year
- * already; the ways of living in houses known ([VILLAGE_SKILLS]); sickle and grinding stones; [VILLAGE_STORE_DAYS] of
+ * already; quarrels settled by its elders ([DisputeWay.ELDERS]); the ways of living in houses known ([VILLAGE_SKILLS]); sickle and grinding stones; [VILLAGE_STORE_DAYS] of
  * its food in grain; and last autumn's sowing in the ground, enough to ripen to
  * [VILLAGE_FIELD_DAYS] of its food (of ears that hold their grain as [inflation.Tuning.startDomestic] has it; or, where this year's grain has ripened already, that harvest in store).
  */
@@ -120,6 +120,8 @@ private fun HexGroups.startVillage(g: HexGroup, b: Band): Pair<Int, Float>? {
     b.houseHex = h; b.house = housesAt(g, h); b.atHome = true
     b.campPlace = p; b.campWeeks = ticksPerYear.roundToInt()
     b.heldLivelihood = Livelihood.FARMING; b.livedOther = 0f
+    // (Villages in being: its heads of households settle its quarrels, as in villages that had stood a while (Bandy 2004).)
+    if (b.disputeWay < DisputeWay.ELDERS) b.disputeWay = DisputeWay.ELDERS
     b.seedDomestic = tuning.startDomestic
     // Its field ripens with the grass this summer; where the grain has ripened already this year, the harvest is in store.
     val food = fauna.food

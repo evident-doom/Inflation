@@ -216,6 +216,42 @@ internal fun HexGroups.buildHouse(g: HexGroup, b: Band, p: Place, h: Hex, people
 }
 
 /**
+ * A hall: a band at home whose houses stand whole, in a hex where more people live at home than a roaming band holds, builds
+ * them a hall, or mends the one that stands, with the [time] days to spare and as far as its stone and timber go: a building
+ * of the village's, not the band's, where its people gather (the communal buildings of Jerf el Ahmar and Wadi Faynan 16;
+ * Adler and Wilshusen 1990: such buildings grow with the community). It is anyone's at home in its hex and lets them live
+ * together the easier ([HexGroups.settledEase]). With no [time] it builds nothing, and returns the person-days it would have liked.
+ */
+@IgnorableReturnValue
+@Part("people: build hall")
+internal fun HexGroups.buildHall(g: HexGroup, b: Band, h: Hex, time: BandTime?): Float {
+    if (!b.atHome || b.houseHex != h || b.house < 1f - 1e-3f || hallAt(h) >= 1f) return 0f
+    val served = bands.homePeople.getOrElse(h.i) { 0f }
+    if (served <= g.species.maxGroupSize) return 0f
+    val left = time?.leftFor(Activity.HOUSES) ?: Float.MAX_VALUE
+    if (left <= 0f) return 0f
+    val gd = b.goods
+    val begun = bands.built.firstOrNull { it.kind == Built.HALL && it.hex == h && it.built < 1f }
+    val size = begun?.size ?: served
+    val days = HALL_DAYS * size / b.skill(Domain.BUILDING).coerceAtLeast(0.1f)
+    val built = minOf(1f - (begun?.built ?: 0f), left / days, gd[Material.STONE] / (HALL_STONE * size), gd[Material.WOOD] / (HALL_WOOD * size)).coerceAtLeast(0f)
+    if (time == null) return built * days
+    if (built <= 0f) return 0f
+    val s = begun ?: Structure(Built.HALL, h, -1, g.id, size).also { bands.built += it }
+    gd[Material.STONE] -= built * HALL_STONE * size; gd[Material.WOOD] -= built * HALL_WOOD * size
+    buildOn(s, built); time.spend(Activity.HOUSES, built * days)
+    return 0f
+}
+
+/**
+ * A hall's person-days, stone and timber, kg, for each person it gathers: a tenth of a house's days and a third of its stone
+ * and timber, as a roofed space shared by all rather than a home for each (estimates; no figure found).
+ */
+internal const val HALL_DAYS = 2f
+internal const val HALL_STONE = 50f
+internal const val HALL_WOOD = 20f
+
+/**
  * Houses: person-days of work for one person's share of a hamlet (digging, walls, roof); weeks at a
  * camp before a band starts to build; share a year a left house weathers away; how much warmer a
  * full house keeps its people, °C; how much less its pits let stores spoil; share of the stored
