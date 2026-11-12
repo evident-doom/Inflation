@@ -264,6 +264,8 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
     private var bandHeads = 0.0
     private var childWeeks = 0.0
     private var adultWeeks = 0.0
+    /** People-weeks sick of each illness this year, for the bouts a 1000 a year ([printAgainstTheRecord]). */
+    private val sickWeeks = DoubleArray(inflation.ecology.Illness.entries.size)
     private var motherWeeks = 0.0
     private var moves = 0
     /** Hexes each band walked this year, and its last camp. */
@@ -286,6 +288,7 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
     fun startYear() {
         bandWeeks = 0.0; bandHeads = 0.0; childWeeks = 0.0; adultWeeks = 0.0; motherWeeks = 0.0; moves = 0
         walked.clear(); lastCamp.clear()
+        sickWeeks.fill(0.0)
     }
 
     fun week() {
@@ -306,6 +309,7 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
         }
         for (g in groups.groups) if (g.alive && g.band != null) {
             bandWeeks++; bandHeads += g.size; childWeeks += g.young; adultWeeks += g.adults; motherWeeks += (g.adults - g.band!!.elders) / 2.0
+            for (d in inflation.ecology.Illness.entries) sickWeeks[d.ordinal] += g.size * (g.band?.sick?.get(d) ?: 0f).toDouble()
             val h = hw.placeHex[g.place]
             for (q in g.path) walked.getOrPut(g.id) { HashSet() } += q
             lastCamp.put(g.id, h)?.let { if (it != h) moves++ }
@@ -531,10 +535,11 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
     private fun herdFlows(): String {
         val f = sim.groups.bands.herdFlows
         val kg = f[HerdFlow.KG].coerceAtLeast(1e-6f)
-        return "; since last: born %.0f, died %.0f, ran off %.0f, taken by beasts %.0f, strayed unwatched %.0f, eaten of the increase %.0f, eaten down for not paying %.0f, eaten for hunger %.0f, gone wild with bands that died out %.0f, milk %.0f t; herded %.2f, fed %.2f, in herds that pay %.2f (a herder's day against a lean month's foraging day: under 0.5 %.2f, 0.5-1 %.2f, 1-2 %.2f, 2 or more %.2f); herds ended %.0f while paying, %.0f not paying, %.0f with their band".format(
+        return "; since last: born %.0f, died %.0f, ran off %.0f, taken by beasts %.0f, strayed unwatched %.0f, eaten of the increase %.0f, eaten down for not paying %.0f, eaten for hunger %.0f, gone wild with bands that died out %.0f, milk %.0f t; herded %.2f, fed %.2f, in herds that pay %.2f (a herder's day against a lean month's foraging day: under 0.5 %.2f, 0.5-1 %.2f, 1-2 %.2f, 2 or more %.2f); herds ended %.0f while paying, %.0f not paying, %.0f with their band; of the eaten, culled above what the leanest month could herd %.0f, eaten beyond the increase towards the herd that adds most %.0f; on the hoof, in herds above the leanest month's herders %.2f, in paying herds kept from growing by the leanest month's herders %.2f, by a bigger herd adding no more %.2f".format(
             f[HerdFlow.BORN], f[HerdFlow.DIED], f[HerdFlow.RAN_OFF], f[HerdFlow.TAKEN], f[HerdFlow.STRAYED], f[HerdFlow.EATEN], f[HerdFlow.EATEN_UNPAID], f[HerdFlow.EATEN_HUNGRY], f[HerdFlow.FREED], f[HerdFlow.MILK_KG] / 1000f,
             f[HerdFlow.KG_TENDED] / kg, f[HerdFlow.KG_FED] / kg, f[HerdFlow.KG_PAYS] / kg,
-            f[HerdFlow.KG_WORTH_HALF] / kg, f[HerdFlow.KG_WORTH_UNDER] / kg, f[HerdFlow.KG_WORTH_OVER] / kg, f[HerdFlow.KG_WORTH_TWICE] / kg, f[HerdFlow.ENDED], f[HerdFlow.ENDED_UNPAID], f[HerdFlow.ENDED_FREED])
+            f[HerdFlow.KG_WORTH_HALF] / kg, f[HerdFlow.KG_WORTH_UNDER] / kg, f[HerdFlow.KG_WORTH_OVER] / kg, f[HerdFlow.KG_WORTH_TWICE] / kg, f[HerdFlow.ENDED], f[HerdFlow.ENDED_UNPAID], f[HerdFlow.ENDED_FREED],
+            f[HerdFlow.EATEN_OVER], f[HerdFlow.EATEN_BEST], f[HerdFlow.KG_OVER] / kg, f[HerdFlow.KG_HELD_ROOM] / kg, f[HerdFlow.KG_HELD_BEST] / kg)
             .also { f.fill(0f) } + kindFlows()
     }
 
@@ -647,7 +652,24 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
             println("     children's deaths by cause this year (expected from the odds, share): " + all.entries.sortedByDescending { it.value }
                 .joinToString(", ") { "%s %.0f%%".format(it.key, 100 * it.value / total) })
         }
+        run {
+            // (The grown ones' share: per 1000 grown a year, from the week's hazards; raids, hunts and fights are not among them.)
+            val all = sim.groups.stats.grownHazardDeaths.entries.groupingBy { it.key.label }.fold(0.0) { s, e -> s + e.value.sumThenReset() }
+                .filter { it.value > 0.0 }
+            val per = 1000.0 / (adultWeeks / weeks).coerceAtLeast(1.0)
+            println("     grown ones' deaths by cause this year (expected from the week's hazards, per 1000 grown; raids and hunts apart): " +
+                all.entries.sortedByDescending { it.value }.take(10).joinToString(", ") { "%s %.1f".format(it.key, it.value * per) } +
+                " | raids %.1f, by beasts %.1f".format(yearly(DeathCause.RAIDS.label) * per,
+                    causes.keys.filter { it.text.startsWith(Tally.of(Catalogue.HUMAN).text + ByBeast.How.KILLED_BY.words) }.sumOf { yearly(Tally.whatOf(it)) } * per))
+        }
         val hex = sim.hex
+        // (Bouts a 1000 a year: the people-weeks sick over the weeks a bout lasts, per person-year. Shigellosis 0.6-107 a 1000 a
+        // year in population-based studies, Ram et al. 2008.)
+        println("     illness this year (sick share of people, bouts a 1000 people a year): " + inflation.ecology.Illness.entries.joinToString(", ") { il ->
+            val heads = bandHeads.coerceAtLeast(1.0)
+            val share = sickWeeks[il.ordinal] / heads
+            "%s %.1f%% (%.0f)".format(il.label, 100.0 * share, 1000.0 * share * 365.25 / 7.0 / il.weeks) } +
+            " [shigellosis 0.6-107 bouts a 1000 a year]")
         println("     people against the record: band size %.0f [15-50, most 20-35] | people per km² %.3f [foragers 0.01-0.4; Mediterranean 0.05-0.2] | camps moved a year %.1f [5-60, median about 15] | ground walked a year %.0f km² [200-2500] | plant share of food %.0f%% [Mediterranean 40-60%%] | births a woman over her bearing years %.1f [foragers 3.5-7.9, mean 5.6; Hadza 6.2, !Kung 4.3-4.7] | children reaching 15 %.0f%% [about 55-65%%] | years left at 15 %.0f [about 35-40] | violent deaths %.0f%% [2-15%%]".format(
             bandHeads / bandWeeks, bandHeads / weeks / sim.land.areaKm2.sum(), moves.toDouble() / bandsSeen,
             walked.values.map { it.size }.average() * hex.areaKm2, 100 * plants / (meat + plants).coerceAtLeast(1.0),

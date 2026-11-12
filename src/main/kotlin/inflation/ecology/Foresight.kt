@@ -266,6 +266,8 @@ internal fun HexGroups.foresee(weather: Weather) {
         stats.tally(Tally.bandsIn(c, Tally.Bands.FORESEEN), (1000f * (1f - g.foreseen) * g.size).roundToInt())
         // (What moved its larder this week, person-days of the need before keeping warm, by the season: where stores go.)
         val perDay = (g.dailyNeedKg / g.warmth.coerceAtLeast(1e-3f)).coerceAtLeast(1e-3f) / g.size.coerceAtLeast(1)
+        // (doomTrace: the band's week of stores, before the week's flows and days are cleared.)
+        if (g.id in DOOM_TRACE) System.err.println(storeTraceLine(g, b, weather.date))
         for (why in LarderMove.entries) {
             val kg = b.larderFlow[why.ordinal]; b.larderFlow[why.ordinal] = 0f
             if (kg != 0f) stats.tally(Tally.larderFlow(b.mind, weather.date.season, why), (kg / perDay).roundToInt())

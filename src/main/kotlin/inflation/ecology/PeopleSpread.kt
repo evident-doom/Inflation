@@ -46,6 +46,13 @@ internal const val RELOCATE_LEAN_DAYS = 60f
 internal const val RELOCATE_LEAN_GAP = 1.5f
 
 /**
+ * Of a band past its easy size ([HexGroups.easySize]), the chance a year that those it holds beyond it leave ([discord]).
+ * Forager households move between camps every few weeks (Lee 1979, Woodburn 1982, from memory); a year's single draw at
+ * this chance keeps the band near its easy size whatever its growth. An estimate.
+ */
+internal const val DISCORD_LEAVE = 0.5f
+
+/**
  * Land fit for foragers, for the census: a hex whose ground suits people ([hexSuit]) over at least this share of its area.
  * Olli (10 Nov 2026): all such land should hold people at least sparsely, the status quo from which farming builds
  * denser numbers. An estimate.
@@ -143,7 +150,7 @@ internal fun HexGroups.findHome(n: HexGroup, born: List<HexGroup>) {
     var empty = Hex.NONE; var emptyFood = 0f
     for (d in 0 until 6) {
         val q = hex.neighbour(from, d)
-        if (q.none || hw.placesOf(q).isEmpty() || people[q.i] > 0f) continue
+        if (q.none || hw.placesOf(q).isEmpty() || people[q.i] > 0f || shuns(n, q)) continue
         val f = hexFood(q)
         if (f > emptyFood) { emptyFood = f; empty = q }
     }
@@ -160,7 +167,7 @@ internal fun HexGroups.findHome(n: HexGroup, born: List<HexGroup>) {
         ring = hex.nextRing(ring, seen); keep *= SPREAD_RING_KEEP
         var ringV = 0f
         for (h in ring) {
-            if (hw.placesOf(h).isEmpty()) continue
+            if (hw.placesOf(h).isEmpty() || shuns(n, h)) continue
             val v = hexFood(h) / (people[h.i] + own)
             if (!wanting[h.i] && v > ringV) { ringV = v; best = hw.firstPlaceIn(h) }
             if (keep * v > fallbackV) { fallbackV = keep * v; fallback = hw.firstPlaceIn(h) }
@@ -187,16 +194,21 @@ internal fun HexGroups.findHome(n: HexGroup, born: List<HexGroup>) {
  * Returns the bands made, to be added to the groups.
  */
 @Part("people: spread")
-internal fun HexGroups.spreadYear(): List<HexGroup> {
+internal fun HexGroups.spreadYear(date: Date): List<HexGroup> {
     val made = ArrayList<HexGroup>()
     if (!tuning.bandsStay) return made
     val people = bandPeopleByHex()
     val wanting = hexesWanting()
+    val bandsIn = HashMap<Int, ArrayList<HexGroup>>()
+    for (g in groups) if (g.alive && g.band != null) bandsIn.getOrPut(hw.placeHex[g.place].i) { ArrayList() } += g
     val suit = FloatArray(hex.size) { Float.NaN }
     fun suitAt(s: Species, h: Hex): Float { if (suit[h.i].isNaN()) suit[h.i] = hexFood(h); return suit[h.i] }
     for (g in groups.toList()) {
         val b = g.band ?: continue
-        if (!g.alive || !staysHome(g) || inParty(g) || g.adults < SMALL_BAND + SEEP_ADULTS) continue
+        if (!g.alive || !staysHome(g) || inParty(g)) continue
+        if (splitByFortune(g, bandsIn, made)) continue
+        if (discord(g, date, people, wanting, bandsIn, made)) continue
+        if (g.adults < SMALL_BAND + SEEP_ADULTS) continue
         // (Only a band that wants for food ([wantsFood]) sends households off, to a hex beside whose bands do not, the one with
         // most food a head, as its buds go ([findHome]); or moves whole.)
         val want = wantsFood(g)
@@ -207,7 +219,7 @@ internal fun HexGroups.spreadYear(): List<HexGroup> {
         var best = Hex.NONE; var bestV = 0f
         for (d in 0 until 6) {
             val q = hex.neighbour(h, d)
-            if (q.none || hw.placesOf(q).isEmpty() || wanting[q.i]) continue
+            if (q.none || hw.placesOf(q).isEmpty() || wanting[q.i] || shuns(g, q)) continue
             val v = suitAt(g.species, q) / (people[q.i] + SEEP_ADULTS)
             if (v > bestV) { bestV = v; best = q }
         }
@@ -237,4 +249,206 @@ internal fun HexGroups.spreadYear(): List<HexGroup> {
     // (The year's lowest reserves start afresh once read: [Band.fatLow]. The buds of the year to come read it as they part.)
     for (g in groups) g.band?.let { b -> b.fatLow = g.fat / g.species.maxFatDays.coerceAtLeast(1f) }
     return made
+}
+
+/**
+ * Once a year, band [g] past its easy size ([HexGroups.easySize]) quarrels, and at [DISCORD_LEAVE] those beyond it leave
+ * (Olli, 11 Nov 2026: band size is not all food; group dynamics split bands). Enough to live alone ([SMALL_BAND] grown) go
+ * as a band of their own and settle as any daughter band ([findHome]: an empty hex beside first). Fewer, a household or
+ * two ([SEEP_ADULTS] at least), join the band of the same mind in its hex or one beside, whose people do not want for food
+ * ([wantsFood]), with the most room under its own easy size; with none, the band splits in two camps that can each live
+ * alone, [SMALL_BAND] grown going (discord711: with none taking them in, bands stayed up to a small band past their easy
+ * size and drifted from 27 to 35-38 people over 60 years); too small for that, they stay. Fed or not: households leave a camp
+ * over quarrels, not only hunger. [people] and [bandsIn] are kept up to date; bands made go to [made]. Returns whether
+ * anyone left.
+ */
+private fun HexGroups.discord(g: HexGroup, date: Date, people: FloatArray, wanting: BooleanArray,
+                              bandsIn: HashMap<Int, ArrayList<HexGroup>>, made: MutableList<HexGroup>): Boolean {
+    val b = g.band ?: return false
+    val over = g.size - easySize(g)
+    // (A band grown small again, below its kind's easy size, needs its way no longer: it lapses a step at a time.)
+    if (b.disputeWay != DisputeWay.LEAVING && g.size < g.species.maxGroupSize / 2 && rnd.nextFloat() < DISPUTE_LAPSE) {
+        b.disputeWay = DisputeWay.entries[b.disputeWay.ordinal - 1]; stats.meeting(Met.BANDS_LET_A_DISPUTE_WAY_LAPSE)
+    }
+    if (over <= 0 || rnd.nextFloat() >= DISCORD_LEAVE) return false
+    val adults = min(over * g.adults / g.size, g.adults - SMALL_BAND)
+    if (adults < SEEP_ADULTS) return false
+    val young = g.young * adults / g.adults
+    val h = hw.placeHex[g.place]
+    // (Where leaving is dear, tied to its spot or with no empty hex beside, the band may take up the next way of settling
+    // quarrels; its people leave this time all the same.)
+    if (b.disputeWay != DisputeWay.HEADMAN && (b.livesFixed() || (0 until 6).none { d -> hex.neighbour(h, d).let { q ->
+            !q.none && hw.placesOf(q).isNotEmpty() && people[q.i] <= 0f } }) && rnd.nextFloat() < DISPUTE_TAKE_UP) {
+        b.disputeWay = DisputeWay.entries[b.disputeWay.ordinal + 1]; stats.meeting(Met.BANDS_TOOK_UP_A_DISPUTE_WAY)
+    }
+    // (A camp of their own: those beyond the easy size if they are enough to live alone; else, with no camp nearby to take
+    // them in (below), [SMALL_BAND] of them, those who side with them going along, if as many stay.)
+    fun ownCamp(going: Int): Boolean {
+        val goingYoung = g.young * going / g.adults
+        g.adults -= going; g.young -= goingYoung
+        val n = splitOff(g, going, goingYoung)
+        findHome(n, made)
+        val to = hw.placeHex[n.place]
+        people[h.i] -= n.size; people[to.i] += n.size
+        bandsIn.getOrPut(to.i) { ArrayList() } += n
+        made += n
+        stats.meeting(Met.BANDS_SPLIT_BY_DISCORD)
+        return true
+    }
+    if (adults >= SMALL_BAND) return ownCamp(adults)
+    // (Too few to live alone: the camp nearby with most room for them.)
+    var into: HexGroup? = null; var room = adults + young - 1
+    for (d in -1 until 6) {
+        val q = if (d < 0) h else hex.neighbour(h, d)
+        if (q.none || wanting[q.i]) continue
+        for (o in bandsIn[q.i].orEmpty()) {
+            val ob = o.band ?: continue
+            if (o === g || !o.alive || ob.mind != b.mind || inParty(o) || !staysHome(o)) continue
+            val r = easySize(o) - o.size
+            if (r > room) { room = r; into = o }
+        }
+    }
+    val o = into ?: return if (g.adults >= 2 * SMALL_BAND) ownCamp(SMALL_BAND) else false
+    g.adults -= adults; g.young -= young
+    val n = splitOff(g, adults, young)
+    people[h.i] -= n.size; people[hw.placeHex[o.place].i] += n.size
+    joinBand(o, n, stepOf(date))
+    stats.meeting(Met.HOUSEHOLDS_LEFT_IN_DISCORD)
+    return true
+}
+
+/**
+ * Once a year, band [g] whose fortunes lie apart past [UNEVEN_SPLIT] ([Band.unevenness]) splits along them: the group is the
+ * smallest unit and holds its property alike (Olli 2026-11-11), so its poorer half goes its own way as a band of its own, at
+ * the same camp, and inequality now lies between the two. Each takes its share by heads, then the poorer gives the richer
+ * the unevenness of its share of the stores, seed corn and herds, so that a head of the richer holds 1 + u of the mean
+ * and one of the poorer 1 - u. Both start even. Wealth keeps them apart after ([becomeOne], [WEALTH_APART]). A band too
+ * small to make two that live alone ([SMALL_BAND] grown each) stays as it is. Returns whether it split.
+ */
+private fun HexGroups.splitByFortune(g: HexGroup, bandsIn: HashMap<Int, ArrayList<HexGroup>>, made: MutableList<HexGroup>): Boolean {
+    val b = g.band ?: return false
+    val u = b.unevenness
+    if (u < UNEVEN_SPLIT || g.adults < 2 * SMALL_BAND) return false
+    val adults = g.adults / 2; val young = g.young * adults / g.adults
+    g.adults -= adults; g.young -= young
+    val n = splitOff(g, adults, young)
+    val nb = n.band ?: return true
+    // (The poorer half gives back [u] of its share: of its food, its seed corn and its herd.)
+    moveFood(n, g, n.larder * u)
+    val corn = nb.seedCorn * u; nb.seedCorn -= corn; b.seedCorn += corn
+    val nBred = nb.herds.bred()
+    for (k in 0 until min(nb.herds.herd.size, b.herds.herd.size)) {
+        val x = nb.herds.herd[k] * u
+        if (x <= 0f) continue
+        nb.herds.herd[k] -= x; b.herds.addBred(k, x, nBred[k])
+    }
+    b.unevenness = 0f; nb.unevenness = 0f
+    bandsIn.getOrPut(hw.placeHex[n.place].i) { ArrayList() } += n
+    made += n
+    stats.meeting(Met.BANDS_SPLIT_ALONG_FORTUNES)
+    return true
+}
+
+/**
+ * The unevenness past which a band splits along its fortunes ([splitByFortune]), and how much more food a head one band at home
+ * must keep than another ([keptDays]) for the two to stay apart rather than become one ([becomeOne]). Estimates: no source
+ * gives when people living together part over wealth; set so that a split at [UNEVEN_SPLIT] (a head of the richer keeping
+ * (1 + 0.3) / (1 - 0.3), near twice, the poorer's) stays apart.
+ */
+internal const val UNEVEN_SPLIT = 0.3f
+internal const val WEALTH_APART = 1.5f
+
+/** Whether band [g] keeps off hex [h]: it was driven from it, and still fears those who drove it off ([Band.keptFrom]). */
+internal fun shuns(g: HexGroup, h: Hex) = g.band?.keptFrom(h) == true
+
+/**
+ * The share of its households a band driven from its home ([driveOff]) sends to kin elsewhere ([scatterBeaten]). An estimate:
+ * the beaten scatter, and many take refuge with kin and allies rather than stay with the band (Chagnon on the Yanomamo,
+ * Meggitt 1977 on the Mae Enga, from memory: to check).
+ */
+internal const val DEFEAT_SCATTER = 0.3f
+
+/**
+ * The bands driven from their homes in this step's raids ([HexGroups.beaten]), when bands hold their home hex ([staysHome])
+ * (docs/design/vacating-a-hex.md, Olli 2026-11-11). Before, a band beaten at home lost its houses but stayed in the hex,
+ * beside those who beat it. Now, for each one still alive:
+ * - [DEFEAT_SCATTER] of its households, in parties of [SEEP_ADULTS] grown people with their share of the young, go to the
+ *   nearest kin band within [VISIT_RINGS] hexes that is not of the raiders' line, and join it ([mergeAndPair]);
+ * - the rest moves its camp to the empty hex beside that lies farthest from the raiders' home (the one whose ground gives
+ *   most, of those as far), never back to one it shuns ([shuns]);
+ * - with no empty hex beside, or too few left to live alone ([SMALL_BAND]), the whole band joins that kin band if it has
+ *   room; failing all, it stays.
+ * The hex it left is kept off by its line while the feud lasts ([Band.keptFrom]); the raiders take it up only as their own
+ * buds and households would any empty hex ([findHome], [spreadYear]). Returns the parties made, to be added to the groups.
+ */
+@Part("people: the beaten scatter")
+internal fun HexGroups.scatterBeaten(date: Date): List<HexGroup> {
+    val made = ArrayList<HexGroup>()
+    if (beaten.isEmpty()) return made
+    val list = beaten.toList(); beaten.clear()
+    for ((o, byHex) in list) {
+        val ob = o.band ?: continue
+        if (!o.alive || !staysHome(o) || inParty(o)) continue
+        val people = bandPeopleByHex(made)
+        val h = hw.placeHex[o.place]
+        // (The kin band to take refuge with: the nearest of most kinship, not of the raiders' line, with room for them.)
+        val raiders = ob.drivenBy
+        var host: HexGroup? = null; var hostKin = -1f
+        var ring = listOf(h); val seen = hashSetOf(h)
+        for (r in 0..VISIT_RINGS) {
+            for (q in ring) for (k in groups) {
+                if (k === o || !k.alive || hw.placeHex[k.place] != q || inParty(k)) continue
+                val kb = k.band ?: continue
+                if (kb.mainLineage() == raiders || kb.mind != ob.mind || k.size + SEEP_ADULTS > maxSize(k)) continue
+                val kin = kinship(ob.lineage, kb.lineage) / (1f + r)
+                if (kin > hostKin) { hostKin = kin; host = k }
+            }
+            if (host != null || r == VISIT_RINGS) break
+            ring = hex.nextRing(ring, seen)
+        }
+        // (The hex to move to: empty, beside, farthest from the raiders' home; of those as far, the one whose ground gives most.)
+        var to = Hex.NONE; var toKm = -1.0; var toFood = 0f
+        for (d in 0 until 6) {
+            val q = hex.neighbour(h, d)
+            if (q.none || hw.placesOf(q).isEmpty() || people[q.i] > 0f || shuns(o, q)) continue
+            val km = hexKm(q, byHex); val f = hexFood(q)
+            if (km > toKm + 1e-6 || (km > toKm - 1e-6 && f > toFood)) { to = q; toKm = km; toFood = f }
+        }
+        val parties = if (host == null) 0 else (o.adults * DEFEAT_SCATTER / SEEP_ADULTS).toInt()
+        if (to.none || o.adults - parties * SEEP_ADULTS < SMALL_BAND) {
+            val k = host
+            if (k != null && k.size + o.size <= maxSize(k)) {
+                joinBand(k, o, stepOf(date))
+                stats.meeting(Met.BEATEN_BANDS_JOINED_KIN)
+                note(o) { "driven from its home, joined kin band #%d".format(k.id) }
+            }
+            continue
+        }
+        val k = host
+        if (k != null) repeat(parties) {
+            val young = o.young * SEEP_ADULTS / o.adults
+            o.adults -= SEEP_ADULTS; o.young -= young
+            val n = splitOff(o, SEEP_ADULTS, young)
+            n.place = k.place
+            made += n
+            stats.meeting(Met.BEATEN_HOUSEHOLDS_TO_KIN)
+        }
+        o.place = hw.firstPlaceIn(to)
+        stats.meeting(Met.BEATEN_BANDS_MOVED_AWAY)
+        note(o) { "driven from its home, moved to hex %d".format(to.i) }
+    }
+    return made
+}
+
+/**
+ * The [Tally.FoodQuarter] of hex [h]: where its food ([hexFood]) falls among the land hexes', the cuts reckoned once a year
+ * ([HexGroups.foodCuts], the census's own quarters). Report only: nothing chooses by it.
+ */
+internal fun HexGroups.foodQuarterOf(h: Hex): Tally.FoodQuarter {
+    val cuts = foodCuts ?: run {
+        val food = hex.all.filter { hw.land[it.i] > 0.5f }.map { hexFood(it) }.sorted()
+        if (food.size < 4) FloatArray(3) { Float.MAX_VALUE } else FloatArray(3) { k -> food[(k + 1) * food.size / 4] }
+    }.also { foodCuts = it }
+    val f = hexFood(h)
+    return Tally.FoodQuarter.entries[cuts.count { f >= it }]
 }

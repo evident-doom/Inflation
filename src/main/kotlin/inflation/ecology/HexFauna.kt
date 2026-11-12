@@ -271,6 +271,15 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
     val groupKilled = Array(kinds.size) { FloatArray(n) }
 
     /**
+     * Each plant-eating kind's odds of being hunted in a week at each place lately, its grown and its young ([huntedOdds]),
+     * fading by [FEAR_KEEP] a week ([noteHunted]): what it weighs places by as it flows ([fix]). Weighing them by one
+     * week's kills compounded over a year, a place where a pride took 5% in a week looked like 7% surviving the year, and
+     * the kind half left it in one move, and the hexes about it in rings (Olli 2026-11-11: out of proportion).
+     */
+    val huntedLately = Array(kinds.size) { FloatArray(n) }
+    val huntedYoungLately = Array(kinds.size) { FloatArray(n) }
+
+    /**
      * The strongest hunting party (pack or band) standing in each place at the start of the groups' last week
      * ([GroupPlanner.takeStock] fills it; saved, so that a loaded world goes on as it would have). The
      * [Catalogue.residentRivals] keep out of its way, as packs keep out of a much stronger party's.
@@ -406,9 +415,7 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
             if (settled != null) {
                 val want = settled * land.areaKm2.sum() / 1000f
                 val now = count(k).toFloat()
-                // (Of a kind that also roams, the settled are all but the roamers it starts with: [HexGroups], [ROAMERS_AT_START].)
-                val settledShare = if (s in Catalogue.roamingResidents) 1f - ROAMERS_AT_START else 1f
-                if (now > 0f) { val f = settledShare * want / now; for (p in land.places) { adults[k][p] *= f; young[k][p] *= f } }
+                if (now > 0f) { val f = want / now; for (p in land.places) { adults[k][p] *= f; young[k][p] *= f } }
             }
         }
     }
@@ -464,6 +471,7 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         Phase("residents: grazing") { graze(it) },
         Phase("residents: births, deaths") { breedAndDie(it, it.date) },
         Phase("residents: moving") {
+            noteHunted()
             // (The places are weighed once, before the bands shift: the shift and the spill both go by them.)
             // They move every [Tuning.residentMoveWeeks] weeks, a step each move: from week to week they shift by a few percent.
             // (Over steps of several ticks they move every step, the step's ticks' worth at once: [moveWeeks].)
@@ -663,8 +671,6 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         const val STRIFE_YOUNG = 2f
         /** [leaveShare]: of a kind that also roams, the more of its young growing up that leave on ground crowded to twice its usual numbers. */
         const val LEAVE_CROWD = 0.5f
-        /** Of a kind that also roams, the share of its numbers that start out roaming, the rest settled ([Catalogue.roamingResidents]). */
-        const val ROAMERS_AT_START = 0.15f
         /** For the check only ([stuck]): fed below this counts as hungry. */
         const val STUCK_FED = 0.8f
         /**

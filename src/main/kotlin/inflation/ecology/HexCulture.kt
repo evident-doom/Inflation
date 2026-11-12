@@ -52,6 +52,30 @@ enum class BurialWay(val about: String) {
     AT_ANCESTORS("the dead are carried to the place where most of the band's dead lie"),
 }
 
+/**
+ * How a band settles its quarrels, a way held by its lineage and copied from bands that do well ([CultureMeetings]), taken
+ * up by need ([HexGroups.discord]): each holds a band together to [sizeTimes] the size its kind splits at ([HexGroups.maxSize]),
+ * and its easy size with it. Foragers settle quarrels by leaving (Woodburn 1982, Lee 1979); a council of household or lineage
+ * heads lets each settle its own first and the heads the rest (sequential hierarchy: Johnson 1982, about six units of six);
+ * a headman who settles and speaks for the band holds villages of 100-200 (Amazonia, the Northwest Coast's house groups).
+ * Taken up where leaving is dear: a band tied to its spot or hemmed in (circumscription: Carneiro 1970; Bandy 2004, Formative
+ * villages split until a regional religion held them). All from memory, to check; the multiples are estimates.
+ */
+enum class DisputeWay(val about: String, val sizeTimes: Float) {
+    LEAVING("quarrels end with someone moving off", 1f),
+    ELDERS("the heads of households talk a quarrel out, then the band", 2f),
+    HEADMAN("a headman settles quarrels and speaks for the band", 3f),
+}
+
+/** Most people any band holds, whatever its ways (Olli, 10 Nov 2026: a band, the unit of identity, at most about 200; to revisit). */
+internal const val BAND_MOST = 200
+
+/** The chance a band takes up the next [DisputeWay] when discord splits it where leaving is dear. An estimate. */
+internal const val DISPUTE_TAKE_UP = 0.1f
+
+/** The chance a year a band keeping a [DisputeWay] beyond leaving, yet smaller than its kind's easy size, lets it lapse a step. An estimate. */
+internal const val DISPUTE_LAPSE = 0.1f
+
 /** Person-days digging a grave and the rites at it take, a death. An estimate; no figure found. */
 internal const val BURY_DAYS = 2f
 
@@ -147,8 +171,13 @@ internal const val TAKE_UP = 0.0005f
 
 internal const val DROP = 0.0005f
 
-/** Chance a band raids one it meets, at full pressure (a feud, hunger with food in the other's larder, or crowded country); share of the larder taken. */
-internal const val RAID = 0.015f
+/**
+ * Chance a band raids one it meets, at full pressure (a feud, hunger with food in the other's larder, or crowded country); share of the larder taken.
+ * [RAID] and [RAID_PLOT] at a third of 0.015 and 0.3: raid deaths 2.6-3.4 a 1000 people a year where people crowd (x4), against
+ * violence 11% of forager deaths (Gurven, pooled deaths of 7 groups), some 3-4 a 1000 at their 30-40 deaths; at a sixth, 1.0
+ * (raid733, 12 Nov 2026).
+ */
+internal const val RAID = 0.005f
 
 internal const val RAID_TAKE = 0.5f
 
@@ -167,8 +196,12 @@ internal const val GRUDGE = 1f
 
 internal const val GRUDGE_FADE = 0.1f
 
-/** A band's grudge against another's lineage above which it raids it unprovoked. */
-internal const val FEUD = 0.9f
+/**
+ * A band's grudge against another's lineage above which it raids it unprovoked: two raids suffered within a few years,
+ * not one. At 0.9 one raid set a feud, and every raid its answer: violent deaths 15-25% where people crowd against
+ * 11% in the forager record (Gurven, pooled deaths of 7 groups); at 2, 11-15% and people +6% (feud723, 12 Nov 2026).
+ */
+internal const val FEUD = 2f
 
 /** Rings of hexes round a meeting whose country bands tell each other of; country further than this from a band's camp is half forgotten each year. */
 internal const val TOLD_RINGS = 4
@@ -563,6 +596,7 @@ internal fun HexGroups.cultureWeek(g: HexGroup, rnd: kotlin.random.Random) {
             if (hex.distanceKm(h, here) > REMEMBERED_KM && rnd.nextFloat() < 0.5f * routes.forgetShare(h)) b.known[w] = b.known[w] and (1L shl i).inv() } }
     }
     b.inbred += (1f - b.inbred) / (2f * max(2, g.adults)) * years / GENERATION_YEARS
+    unevenYear(g, b)
     val keep = exp(-years / HEARD_YEARS)
     for (t in Tradition.entries) b.heard[t] *= keep
     b.heardOf *= keep
@@ -597,6 +631,44 @@ internal fun HexGroups.cultureWeek(g: HexGroup, rnd: kotlin.random.Random) {
         }
     }
 }
+
+/**
+ * [b]'s [Band.unevenness] over the step: it grows as the food the band keeps back ([keptDays]) would let some of its people
+ * do better than others, by [UNEVEN_GROWTH] a year at most, a kept store of [UNEVEN_HALF_DAYS] days giving half of that,
+ * and is levelled at [UNEVEN_LEVEL] a year, [UNEVEN_LEVEL_SHARING] where the band holds to sharing on demand ([Tradition.SHARING]).
+ * So it settles where the two meet: low among foragers who keep little, higher among farmers and herders who keep much and
+ * do not share it.
+ */
+internal fun GroupWorld.unevenYear(g: HexGroup, b: Band) {
+    val kept = keptDays(g, b)
+    val grow = UNEVEN_GROWTH * kept / (kept + UNEVEN_HALF_DAYS) * (1f - b.unevenness)
+    val level = (if (b.holds(Tradition.SHARING)) UNEVEN_LEVEL_SHARING else UNEVEN_LEVEL) * b.unevenness
+    b.unevenness = (b.unevenness + (grow - level) * years).coerceIn(0f, 1f)
+}
+
+/**
+ * The food [g]'s band [b] keeps back, in days of its people's need: its stores (seed corn among them) and the meat of its kept
+ * animals on the hoof ([MEAT_SHARE]). What a household could hold apart from the others, were there households.
+ */
+internal fun GroupWorld.keptDays(g: HexGroup, b: Band): Float {
+    var kg = g.stores.sum()
+    for (k in b.herds.herd.indices) {
+        val n = b.herds.herd[k] + b.herds.youngHerd().getOrElse(k) { 0f } * HexFauna.YOUNG_WEIGHT
+        if (n > 0f) kg += n * fauna.kinds[k].massKg * MEAT_SHARE * Nourishment.MEAT * g.species.needScale
+    }
+    return kg / g.dailyNeedKg.coerceAtLeast(1e-3f)
+}
+
+/**
+ * [unevenYear]'s rates. Estimates, none sourced, set so that bands that keep half a year's food and do not share settle near
+ * 0.45 (the material-wealth Gini of farmers and herders, about 0.4-0.5, Borgerhoff Mulder and others 2009, from memory), the
+ * same sharing near 0.2, and foragers keeping some ten days near 0.1 or less (foragers' about 0.25-0.35 in all, much of it
+ * between bands).
+ */
+internal const val UNEVEN_GROWTH = 0.6f
+internal const val UNEVEN_HALF_DAYS = 90f
+internal const val UNEVEN_LEVEL = 0.5f
+internal const val UNEVEN_LEVEL_SHARING = 2f
 
 /** Where most of [g]'s dead lie, of the places it remembers ([PlaceMemory.deadAt]); none if it remembers no graves. */
 internal fun ancestorsHex(g: HexGroup): Hex {

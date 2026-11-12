@@ -57,10 +57,8 @@ internal fun HexGroups.planDays(g: HexGroup, b: Band, weather: Weather, time: Ba
     given[Activity.CUSTOMS] = paid[0] * time.pace(Activity.CUSTOMS); given[Activity.ORNAMENTS] = paid[1] * time.pace(Activity.ORNAMENTS)
     left -= paid.sum()
     look?.let { it.customsAsked = owed[0]; it.customsPaid = paid[0]; it.ornamentsAsked = owed[1]; it.ornamentsPaid = paid[1] }
-    // Its ripe crop, reaped as it ripens: food in hand, before anything reckoned. (Not asked among the chores: [harvestCrop]
-    // takes what days are free, and a planning band holds its leisure, so none were.)
-    val reap = min(cropRipe(g, b) * cropReapDays(b), left * time.pace(Activity.SOWING))
-    left -= reap / time.pace(Activity.SOWING)
+    // (Its ripe crop's reaping is held first, in [kept], with its herders' days: [planWeek].)
+    val reap = cropRipe(g, b) * cropReapDays(b)
     // What it holds by lives saved, tier by tier: survival now (the stores), then over generations (the houses and weirs,
     // the one that saves the most days for its days first), each as far as it asks this week ([planRates]); a tier has
     // what the one below it left.
@@ -72,9 +70,7 @@ internal fun HexGroups.planDays(g: HexGroup, b: Band, weather: Weather, time: Ba
     // with its other tools.)
     gruelRate(g, b, look).let { (r, a) -> rate[GRUEL] = r; ask[GRUEL] = a }
     toolRates(g, b, perDay, skip = if (rate[GRUEL] > 0f) Tool.GRINDER else null, look = look).let { (r, a) -> rate[TOOLS] = r; ask[TOOLS] = a }
-    // (Its sowing by the days its crop saves, less what living against its way of life would cost it: [sowRate]. Its ask
-    // for the sowing activity holds the reaping of its ripe crop too ([choreAsks]), given above: the sowing is the rest.)
-    ask[SOW] = max(0f, ask[SOW] - cropRipe(g, b) * cropReapDays(b))
+    // (Its sowing by the days its crop saves, less what living against its way of life would cost it: [sowRate].)
     rate[SOW] = sowRate(g, b, perDay, ask[SOW], weather)
     val d = FloatArray(SCORED_ITEMS)
     // (The stores and the gruel while they save any lives; a house, a weir or its tools when they save more days than they take.)
@@ -89,7 +85,6 @@ internal fun HexGroups.planDays(g: HexGroup, b: Band, weather: Weather, time: Ba
     }
     // (Added: the grinding stones and the other tools are both tools' days.)
     for (i in 0 until SCORED_ITEMS) given[acts[i]] += d[i]
-    given[Activity.SOWING] += reap
     look?.let { l ->
         for (i in 0 until SCORED_ITEMS) l.items += ItemLook(SCORED_PICKS[i], SCORED_NAMES[i], if (i < LIVES_ITEMS) "lives" else "days", ask[i] / time.pace(acts[i]), rate[i],
             if (i < LIVES_ITEMS) SAVES_NONE * g.size else 1f, d[i] / time.pace(acts[i]), order.indexOf(i), l.pending[i])
@@ -322,7 +317,7 @@ private fun HexGroups.sowRate(g: HexGroup, b: Band, perDay: Float, ask: Float, w
     val sown = raw / g.storeKgPer[Store.SEED]
     // (The crop is eaten through the year till the next harvest, so kept half a year on the mean: less what its stores would
     // lose of it in that time, where it keeps them now, [cropKept].)
-    val yieldPerKg = HexFood.yieldPerKg(b.seedDomestic)
+    val yieldPerKg = HexFood.yieldPerKg(b.seedDomestic) * fauna.food.seasonYield(g.place)
     val food = raw * yieldPerKg * seedValue(b) * b.cookValue(Food.GRAIN) * cropKept(b) - sown
     val reap = raw * yieldPerKg * reapDaysPerKg(b, tuning, yieldPerKg * HexFood.SEED_RATE)
     val against = if (b.heldLivelihood != Livelihood.FARMING) livingAgainstDays(g, b) else 0f

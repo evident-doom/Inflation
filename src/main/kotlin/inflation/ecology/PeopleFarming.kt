@@ -30,32 +30,69 @@ internal fun HexGroups.sowGrain(g: HexGroup, b: Band, p: Place, date: Date, time
     if (canSow(g, b, p, date) && left > 0f) {
         val corn = b.seedCornIn(g)
         val per = g.storeKgPer[Store.SEED]; val canIn = sowableKg(p, left / b.lapse(Skill.CULTIVATION)) / per
-        val sow = minOf(corn * SOW_SHARE * b.sowWill, canIn)
-        dialUse?.amount(DialSite.SOWING, b.sowWill, sow, minOf(corn * SOW_SHARE, canIn))
+        val want = minOf(sowLeft(g, b, p, per, b.sowWill), corn, canIn)
+        dialUse?.amount(DialSite.SOWING, b.sowWill, want, minOf(sowLeft(g, b, p, per, 1f), corn, canIn))
+        val (sow, pulse) = sowMix(b, p, corn, want, per)
         if (sow > 0.1f) {
             val domestic = b.seedDomestic
             val kg = sow * per
             g.stores[Store.SEED] -= sow; b.seedCorn = corn - sow; time.spend(Activity.SOWING, sowDays(p, kg) * b.lapse(Skill.CULTIVATION))
+            b.seedPulse = if (b.seedCorn > 0f) ((corn * b.seedPulse - pulse) / b.seedCorn).coerceIn(0f, 1f) else 0f
             b.practise(Skill.CULTIVATION)
             // (Ground it sows beyond what is cleared there it clears first: [HexFood.cleared], kept by [HexFood.sow].)
             // (A field sown afresh, or sown where last year's crop is spent, is this year's crop.)
             if (b.sownPlace != p || fauna.food.field[p] <= 0f) b.sownKg = 0f
             b.sownPlace = p; b.sownKg += kg; b.seedKept = b.sownKg; b.sinceSowed = 0f
-            fauna.food.sow(p, land.spread(p, Kg(kg)), domestic)
+            fauna.food.sow(p, land.spread(p, Kg(kg)), domestic, pulse / sow, g.id)
             stats.meeting(Met.BANDS_SOWED)
+            if (pulse > 0f) stats.meeting(Met.BANDS_SOWED_PULSES)
             note(g) { "sowed %.0f kg of grain at home".format(sow) }
         }
     }
 }
 
 /**
- * The ripe grain of the crop [g]'s band [b] sowed ([Band.sownPlace]), kg, where the band is in that hex: its share of what
- * stands there, by the seed it sowed against all sown there (all of it once the year's sowing is struck off).
+ * The seed band [b] (group [g]) sows a year at [p], in its stores' units: what ripens to [FARM_NEED_SHARE] of its people's
+ * year's food (as far as its ways have it, [will]: [Band.sowWill]), at what a kilo sown there bears ([HexFood.yieldPerKg] of
+ * its seed's strain, in its season, [HexFood.seasonYield]) and feeds ([seedValue], cooked). Farmers sow for the year they
+ * see coming, not what seed happens to be left over; nothing where it cannot farm.
+ */
+internal fun GroupWorld.sowTarget(g: HexGroup, b: Band, p: Place, will: Float = b.sowWill): Float {
+    if (!b.knowsSkill[Skill.CULTIVATION] || !fauna.food.canCrop(p)) return 0f
+    val perUnit = g.storeKgPer[Store.SEED] * HexFood.yieldPerKg(b.seedDomestic) * fauna.food.seasonYield(p) * seedValue(b) * b.cookValue(Food.GRAIN)
+    return if (perUnit > 0f) FARM_NEED_SHARE * will * g.dailyNeedKg * Date.DAYS_PER_YEAR / perUnit else 0f
+}
+
+/** Of [g]'s band [b]'s year's sowing at [p] at [will] ([sowTarget], units of [per] kg), what is still to sow: less what it has sown there this season. */
+internal fun GroupWorld.sowLeft(g: HexGroup, b: Band, p: Place, per: Float, will: Float): Float {
+    val sown = if (b.sownPlace == p && fauna.food.field[p] > 0f) b.sownKg / per else 0f
+    return max(0f, sowTarget(g, b, p, will) - sown)
+}
+
+/**
+ * Of [want] of its seed corn [corn] (store units, [per] kg each) that band [b] sows at [p], what it sows and of that its pulses
+ * ([Band.seedPulse]): pulses on the place's worn ground not yet under pulses ([HexFood.fieldWorn], where they mend it), cereal on
+ * the rest, and pulses beyond the worn ground only where it has no cereal left to sow. (A rule of thumb, not a choice its ways weigh.)
+ */
+internal fun GroupWorld.sowMix(b: Band, p: Place, corn: Float, want: Float, per: Float): Pair<Float, Float> {
+    val food = fauna.food
+    val pulses = corn * b.seedPulse; val cereal = corn - pulses
+    val wornRoom = max(0f, food.fieldWorn[p] * HexFood.SEED_RATE - food.field[p] * food.fieldPulse[p]) * land.m2(p) / per
+    val onWorn = minOf(want, pulses, wornRoom)
+    val cerealSown = min(want - onWorn, cereal)
+    val pulse = onWorn + min(want - onWorn - cerealSown, pulses - onWorn)
+    return (cerealSown + pulse) to pulse
+}
+
+/**
+ * The ripe grain of the crop [g]'s band [b] sowed ([Band.sownPlace]), kg, where the band is in that hex and the field has
+ * ripened ([HexFood.fieldRipening]): its share of what stands there, by the seed it sowed against all sown there (all of it once the year's sowing is struck off).
  */
 internal fun GroupWorld.cropRipe(g: HexGroup, b: Band): Float {
     val f = b.sownPlace
     if (f.none || b.sownKg <= 0f || hw.placeHex[f.i] != hw.placeHex[g.place.i]) return 0f
     val food = fauna.food
+    if (food.fieldRipening(f)) return 0f
     val share = if (food.field[f] > 0f) min(1f, b.sownKg / (food.field[f] * land.m2(f))) else 1f
     return food.fieldGrain[f] * land.m2(f) * share
 }
@@ -70,31 +107,31 @@ internal fun HexGroups.harvestCrop(g: HexGroup, b: Band, time: BandTime) {
     if (ripe <= 0f || left <= 0f) return
     val perKg = cropReapDays(b)
     val f = b.sownPlace; val food = fauna.food
-    val kg = land.total(f, food.take(food.fieldGrain, f, land.spread(f, Kg(min(ripe, left / perKg))))).v
+    val kg = land.total(f, food.reapField(f, land.spread(f, Kg(min(ripe, left / perKg))))).v
     if (kg <= 0f) return
-    // (What it keeps back to sow again, as much as it sowed, is not ground: it is charged the grinding of the rest only.
-    // The crop comes in over weeks, so what is kept is counted off over the whole harvest, not each week's.)
-    val grind = grindDaysPerKg(b); val kept = min(kg, b.seedKept); b.seedKept -= kept; val ground = kg - kept
-    time.spend(Activity.SOWING, kg * (perKg - grind) + ground * grind)
+    // (It is ground as it is eaten, through the year, not as it comes in: [Band.grindOwed].)
+    b.seedKept -= min(kg, b.seedKept)
+    time.spend(Activity.SOWING, kg * perKg)
     val worth = kg * seedValue(b) * b.cookValue(Food.GRAIN)
     val corn = b.seedCorn
     b.seedDomestic = (b.seedDomestic * corn + b.reapedDomestic(food.fieldDomestic[f]) * worth) / (corn + worth)
+    b.seedPulse = (b.seedPulse * corn + food.ripePulse[f] * worth) / (corn + worth)
     b.seedCorn = corn + worth
     addFood(g.stores, g.storeKgPer, Store.SEED, worth, kg)
     if (b.knowsSkill[Skill.CULTIVATION]) b.practise(Skill.CULTIVATION)
     stats.tally(Tally.of(g.species, Tally.OfKind.GRAIN_REAPED), worth.toInt())
     stats.tally(Tally.grain(Tally.Grain.CROP_KG), kg.roundToInt())
-    stats.tally(Tally.grain(Tally.Grain.CROP_DAYS), (10f * (kg * (perKg - grind) + ground * grind)).roundToInt())
-    stats.tally(Tally.grain(Tally.Grain.GRIND_DAYS), (10f * ground * grind).roundToInt())
+    stats.tally(Tally.grain(Tally.Grain.CROP_DAYS), (10f * kg * perKg).roundToInt())
     note(g) { "brought in %.0f kg of its crop".format(kg) }
 }
 
 /**
- * Person-days band [b] takes to reap, thresh and clean a kilo of its own crop ([reapDaysPerKg]), as thick as it stands in
+ * Person-days band [b] takes to reap, thresh and clean a kilo of its own crop ([reapDaysPerKg], less its grinding, done as it is
+ * eaten: [Band.grindOwed]), as thick as it stands in
  * its plot ([HexFood.fieldStand]); before it has sown, as a field would stand ripened in full.
  */
 internal fun GroupWorld.cropReapDays(b: Band) =
-    reapDaysPerKg(b, tuning, if (b.sownPlace.none) HexFood.yieldPerKg(b.seedDomestic) * HexFood.SEED_RATE else fauna.food.fieldStand(b.sownPlace))
+    reapDaysPerKg(b, tuning, if (b.sownPlace.none) HexFood.yieldPerKg(b.seedDomestic) * HexFood.SEED_RATE else fauna.food.fieldStand(b.sownPlace)) - grindDaysPerKg(b)
 
 /**
  * Person-days to sow [kg] at [p]: hoeing and sowing the ground ([SOW_DAYS_PER_KG]), and first clearing what of it is not cleared
@@ -116,16 +153,20 @@ internal fun GroupWorld.sowableKg(p: Place, days: Float): Float {
     return free + (days - free * SOW_DAYS_PER_KG) / (SOW_DAYS_PER_KG + clearPerKg)
 }
 
+/** The seed corn [g]'s band keeps back from its meals for its next sowing ([Band.seedTarget]), as far as it holds it ([seedCornIn]). */
+internal fun seedKeep(g: HexGroup): Float = g.band?.let { min(it.seedTarget, it.seedCornIn(g)) } ?: 0f
+
 /** [Band.seedCorn] as [g]'s stores hold it: grain is eaten, spoils, is given and taken from the wild grain first. */
 internal fun Band.seedCornIn(g: HexGroup) = min(seedCorn, g.stores[Store.SEED])
 
 /**
- * Whether [g]'s band [b] sows at place [p] now: in autumn, at home or at a camp it has kept long enough to build at, where grass
- * grain grows; if it knows how to grow grain ([Skill.CULTIVATION]) and has seed corn of its own ([Band.seedCorn]) to sow.
+ * Whether [g]'s band [b] sows at place [p] now: in autumn (in spring where winters are too cold, [HexFood.springSown]), at home or
+ * at a camp it has kept long enough to build at, where a crop can grow ([HexFood.canCrop]); if it knows how to grow grain ([Skill.CULTIVATION]) and has seed corn of its own ([Band.seedCorn]) to sow.
  */
 internal fun GroupWorld.canSow(g: HexGroup, b: Band, p: Place, date: Date) =
     b.knowsSkill[Skill.CULTIVATION] && b.seedCornIn(g) > 0f &&
-        (b.atHome || b.campWeeks >= houseAfterWeeks(b)) && date.month in SOW_MONTHS && fauna.food.cereal[p] > 0f
+        (b.atHome || b.campWeeks >= houseAfterWeeks(b)) && date.month in (if (fauna.food.springSown(p)) SPRING_SOW_MONTHS else SOW_MONTHS) &&
+        fauna.food.canCrop(p)
 
 /**
  * At a meeting, a band that grows grain ([Skill.CULTIVATION]) gives [SEED_GIFT] of its seed corn, as far as it is giving
@@ -139,7 +180,7 @@ internal fun GroupWorld.giveSeed(giver: HexGroup, gb: Band, taker: HexGroup, tb:
     val kg = gift * giver.storeKgPer[Store.SEED]
     giver.stores[Store.SEED] -= gift; gb.seedCorn -= gift
     addFood(taker.stores, taker.storeKgPer, Store.SEED, gift, kg)
-    tb.seedDomestic = gb.seedDomestic; tb.seedCorn = gift
+    tb.seedDomestic = gb.seedDomestic; tb.seedPulse = gb.seedPulse; tb.seedCorn = gift
     stats.meeting(Met.Of.GIVEN, "seed corn")
     return 1f
 }
@@ -192,6 +233,21 @@ internal fun HexGroups.buildPen(g: HexGroup, b: Band, h: Hex, time: BandTime) {
     if (built <= 0f) return
     gd[Material.WOOD] -= built * wood; buildOn(s, built); time.spend(Activity.SOWING, built * days)
     stats.meeting(Met.BANDS_BUILT_PENS)
+}
+
+/**
+ * [g]'s band [b] spreads the dung of its animals penned in hex [h] ([penHeadsAt]) on the worn ground of the field it sowed
+ * there ([Band.sownPlace]): the week's share of a year's [HexFood.MANURE_M2_PER_HEAD] for each head penned.
+ */
+@Part("people: manure fields")
+internal fun HexGroups.manureField(g: HexGroup, b: Band, h: Hex) {
+    val f = b.sownPlace
+    if (f.none || hw.placeHex[f.i] != h) return
+    val heads = min(b.herds.herd.sum() + b.herds.youngHerd().sum(), penHeadsAt(g, h))
+    if (heads <= 0f) return
+    if (fauna.food.fieldWorn[f] <= 0f) return
+    fauna.food.manure(f, heads * HexFood.MANURE_M2_PER_HEAD * days / Date.DAYS_PER_YEAR / land.m2(f))
+    stats.meeting(Met.BANDS_MANURED_FIELDS)
 }
 
 /**
@@ -342,7 +398,18 @@ internal const val DOG_GUARD = 0.5f
  * It was 0.5 days a kg sown, 60 a hectare, unsourced.
  */
 val SOW_MONTHS = 9..10
-internal const val SOW_SHARE = 0.3f
+/** Where winters are too cold for an autumn-sown crop ([HexFood.springSown]): sown as the ground thaws, March and April. */
+val SPRING_SOW_MONTHS = 2..3
+/**
+ * The share of its people's year's food a farming band sows for ([sowTarget]), at its ways' 1: Neolithic farmers' bones show
+ * a diet mostly of plants, cereals and pulses the staple (from memory, unchecked); half, the rest from herds, hunting and gathering.
+ */
+internal const val FARM_NEED_SHARE = 0.5f
+/**
+ * How short of its need a band goes before it eats its seed corn kept back ([seedKeep]): farmers went hungry before they ate
+ * next year's seed, and ate it in famine (from memory, unsourced): half.
+ */
+internal const val SEED_EAT_SHORT = 0.5f
 internal const val TILL_DAYS_PER_HA = 110f
 internal const val SOW_DAYS_PER_HA = 13f
 internal const val SOW_DAYS_PER_KG = (TILL_DAYS_PER_HA + SOW_DAYS_PER_HA) / (HexFood.SEED_RATE * 1e4f)
@@ -470,7 +537,7 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
             sows[k] = if (n - heads > 0f) min(1f, max(0f, (n * sows[k] - fromSows) / (n - heads))) else 0.5f
             n -= heads
         }
-        if (over > 0f) eatGrown(n * over, HerdFlow.EATEN)
+        if (over > 0f) { tally(k, HerdFlow.KG_OVER, kg); eatGrown(n * over, HerdFlow.EATEN_OVER) }
         val increase = if (nUp > 0f) gained * n / nUp else 0f
         // (The heads a year a herd of [m] grown, its young in the same share, adds at this week's feeding: its yearly
         // increase ([herdIncrease]) at its crowding. A keeper grows a herd only while a bigger one adds more, and eats one
@@ -481,9 +548,16 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
         val grows = pet || pays && increase / headsAHerder(s) <= (room ?: spare) && adds(n + increase) > adds(n)
         if (grows && !pet) { if (room != null) room -= increase / headsAHerder(s) else spare -= increase / headsAHerder(s) }
         b.herds.herdGrew[k] = grows
+        // (For the census: what held a paying herd back from growing, the leanest month's herders or a bigger herd adding no more.)
+        if (pays && !grows && !pet) tally(k, if (increase / headsAHerder(s) > (room ?: spare)) HerdFlow.KG_HELD_ROOM else HerdFlow.KG_HELD_BEST, kg)
         val kept = if (grows) n else if (pays) max(0f, min(n - increase, n - (n - best) * min(1f, years * Date.MONTHS_PER_YEAR)))
             else max(0f, n - g.dailyNeedKg * days / (s.massKg * MEAT_SHARE * Nourishment.MEAT * g.species.needScale))
-        if (n > kept) eatGrown(n - kept, if (pays) HerdFlow.EATEN else HerdFlow.EATEN_UNPAID)
+        if (n > kept) {
+            // (Of a paying herd, its increase is eaten as such, and what is eaten beyond it towards the herd that adds most is
+            // counted apart: [HerdFlow.EATEN_BEST].)
+            if (pays) { val ofIncrease = min(n - kept, increase); eatGrown(ofIncrease, HerdFlow.EATEN); eatGrown(n - kept - ofIncrease, HerdFlow.EATEN_BEST) }
+            else eatGrown(n - kept, HerdFlow.EATEN_UNPAID)
+        }
         n = kept
         if (hungry > 0f && !pet && n > 0f) {
             val each = s.massKg * MEAT_SHARE * Nourishment.MEAT * g.species.needScale
@@ -509,7 +583,13 @@ internal fun HexGroups.keepHerds(g: HexGroup, b: Band, date: Date, time: BandTim
  */
 enum class HerdFlow { BORN, DIED, RAN_OFF, TAKEN, STRAYED, EATEN, EATEN_UNPAID, EATEN_HUNGRY, FREED, MILK_KG, KG_TENDED, KG_FED, KG_PAYS, KG,
     KG_WORTH_HALF, KG_WORTH_UNDER, KG_WORTH_OVER, KG_WORTH_TWICE, ENDED, ENDED_UNPAID, ENDED_FREED,
-    INCREASE_KG, KG_WORTH_KNOWN, WORTH_KG, KG_PET, ENDED_PET }
+    INCREASE_KG, KG_WORTH_KNOWN, WORTH_KG, KG_PET, ENDED_PET,
+    /** Culled for being more than the band's leanest month could herd; and kg on the hoof in herds that were. */
+    EATEN_OVER, KG_OVER,
+    /** Eaten beyond a paying herd's increase, down towards the herd that adds most. */
+    EATEN_BEST,
+    /** Kg on the hoof in paying herds kept from growing: by the leanest month's herders ([Band.freeShare]), or by a bigger herd adding no more. */
+    KG_HELD_ROOM, KG_HELD_BEST }
 
 /** What [n] kept animals of kind [s] ask of place [p]'s ground this week, and the grass and browse they can get there, kg/m². */
 internal class HerdForage(val need: Float, val grass: Float, val browse: Float) {

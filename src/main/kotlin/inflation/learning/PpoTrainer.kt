@@ -33,8 +33,8 @@ class PpoTrainer(private val o: PpoOptions) {
     private val adams = models.map { Adams(Adam(it.net.w.size, o.rate), Adam(it.identity.size, o.rate)) }
     /** One critic for each role: what a group's return can be expected to be where it stands. */
     private val critics = Role.entries.mapIndexed { i, r -> Critic.loadOrNew(r.criticFile(out), models[i]) }
-    /** Bands' ways, learned beside their moves (see [WaysPpo]): a head on the people's mover, reading its last hidden layer and training it. */
-    private val waysState = if (o.learnWays) models[Role.PEOPLE.ordinal].let { m -> WaysPpo.State(out, o.hidden, o.rate, m.trunk, m.net.w.size) } else null
+    /** Bands' ways, learned from their draws, reading their camp's terms (see [WaysPpo], [CampTerms]). */
+    private val waysState = if (o.learnWays) WaysPpo.State(out, o.hidden, o.rate) else null
     /** The check of each round's networks against the kept ones (see [EcoCheck]), running beside the training. */
     private val eco = EcoCheck(out)
     private var checking: Pair<CompletableFuture<EcoCheck.Verdict>, File>? = null
@@ -51,6 +51,10 @@ class PpoTrainer(private val o: PpoOptions) {
     fun run() {
         // A fresh network first learns to choose as the hand-written behaviour does, so learning starts from it: each role
         // whose network is not in the out directory, whatever the others' (one role may be warm-started from a kept net).
+        // (People's network chooses nothing since people's net major 11 ([CampPolicy]): it is kept, untrained, only as what its critic
+        // reads ([Critic], [SharedMover.fill]), so a fresh one is saved as it is, without imitating; one carried on is saved again
+        // under today's version, with its ways.)
+        models[Role.PEOPLE.ordinal].save(files[Role.PEOPLE.ordinal])
         val fresh = Role.entries.filter { !files[it.ordinal].exists() }.toSet()
         if (fresh.isNotEmpty()) {
             HexPpo.imitate(kinds, models, o.worlds, o.size, o.sampling, o.maps, fresh)
@@ -82,11 +86,9 @@ class PpoTrainer(private val o: PpoOptions) {
             val byKind = judge(all, valueOnly, round, stats)
             for (mi in models.indices) learn(mi, all, byKind, round - firstRound, round, stats)
             waysState?.let { st ->
-                // (The ways train the people's mover beneath them too, unless it is held: then it is saved again.)
-                val pi = Role.PEOPLE.ordinal
-                val held = Role.PEOPLE in o.fixed && round - firstRound < o.fixedRounds
-                stats.append(WaysPpo.learn(st, waysChoices, round, waysExplained, if (held || !o.waysTrainMover) null else models[pi])).append("; "); st.save()
-                if (!held && o.waysTrainMover) models[pi].save(files[pi])
+                // (Held with people's role, the ways play as they are and do not learn.)
+                if (Role.PEOPLE in o.fixed && round - firstRound < o.fixedRounds) stats.append("ways held; ")
+                else { stats.append(WaysPpo.learn(st, waysChoices, round, waysExplained)).append("; "); st.save() }
             }
             val returns = byKind.entries.sortedBy { it.key.name }.joinToString(", ") { (s, cs) -> "%s %.3f".format(s.name, cs.map { it.ret.toDouble() }.average()) }
             // (What was not a number when the networks chose, if anything: see [NonFinite].)
@@ -143,8 +145,17 @@ class PpoTrainer(private val o: PpoOptions) {
         val judged = HashMap<Choice, Float>()
         for ((mi, model) in models.withIndex()) {
             val mine = all.filter { Role.of(it.kind).ordinal == mi }
-            if (mine.isEmpty()) continue
             val critic = critics[mi]
+            // (People's weeks are all for the critic alone since no network chooses their camps ([CampPolicy]): it learns from them,
+            // and judges the ways' draws by them, [judgeWays].)
+            if (mine.isEmpty()) {
+                val alone = valueOnly.filter { Role.of(it.kind).ordinal == mi }
+                if (alone.isEmpty()) continue
+                val explainedAlone = critic.explained(model, alone)
+                critic.learn(model, alone, round); critic.save(Role.entries[mi].criticFile(out), model)
+                stats.append("%s critic explains %.2f of %d weeks recorded for it alone, %.0f%% seen again; ".format(Role.entries[mi], explainedAlone.values.average(), alone.size, 100.0 * alone.count { it.probe != null } / alone.size))
+                continue
+            }
             // (Judged with the critic as it stood before this round, then it learns from the round.)
             val t0 = System.nanoTime()
             val explained = critic.explained(model, mine)
@@ -231,7 +242,8 @@ class PpoTrainer(private val o: PpoOptions) {
         val seeds = (91L until 91L + o.checkSeeds).toList()
         val scores = seeds.parallelStream().map { seed -> HexPpo.check(HexPpo.checkWorld(seed, o.size, o.checkOnMaps, o.maps), o.years + 1, kinds, models) }.toList()
         val parts = ArrayList<String>()
-        for (s in kinds) {
+        // (People's camps are hand-written: only the kinds whose network chooses, [HexPpo.check].)
+        for (s in kinds.filter { k -> scores.all { v -> k in v.learned } }) {
             val learnedEach = scores.map { it.learned[s] ?: 0.0 }
             val handEach = scores.map { it.hand[s] ?: 0.0 }
             parts += s.name + " " + HexPpo.compare(learnedEach, handEach)
@@ -239,7 +251,7 @@ class PpoTrainer(private val o: PpoOptions) {
         val c = "check round %d (each role learned alone vs all hand-written, animal-weeks per animal, %d %s worlds: mean change +- its standard error, worlds better): %s".format(round + 1, seeds.size, if (o.checkOnMaps && !o.maps.isEmpty()) "training" else "fresh", parts.joinToString(", "))
         log.check(c)
         waysState?.let { st ->
-            val w = seeds.parallelStream().map { seed -> WaysPpo.check(HexPpo.checkWorld(seed, o.size, o.checkOnMaps, o.maps), o.years + 1, kinds, st.ways, models[Role.PEOPLE.ordinal]) }.toList()
+            val w = seeds.parallelStream().map { seed -> WaysPpo.check(HexPpo.checkWorld(seed, o.size, o.checkOnMaps, o.maps), o.years + 1, kinds, st.ways) }.toList()
             val waysLine = "check round %d ways (learned vs scaffold, people-weeks per person): %s".format(round + 1, HexPpo.compare(w.map { it.learned }, w.map { it.hand }))
             log.check(waysLine)
         }

@@ -19,8 +19,17 @@ import kotlin.math.min
  * these sicknesses for ages: the first year is not a plague year).
  */
 enum class Illness(override val label: String, val weeks: Float, val deadly: Float, val young: Float, val contagion: Float, val immuneYears: Float, val endemic: Float) : DeathReason {
-    /** Dysentery and its kin: fouled water and long-kept camps, worst in the warm months and in crowds. */
-    FLUX("the flux", 3f, 0.03f, 3f, 0.25f, 2f, 0.4f),
+    /**
+     * Dysentery and its kin: fouled water and long-kept camps, worst in the warm months and in crowds. Of those who fall
+     * ill, 1% of the grown and 3% of children die: shigellosis killed 0-2.6% of cases in population-based studies in low
+     * and middle income countries, most of them children (Ram et al. 2008, Epidemiol. Infect. 136: 577-603); it was 3%,
+     * above the record, and where bands meet often, when the flux is caught at meetings and comes back as the spared forget
+     * it, that set its deaths at some 15 a 1000 a year (flux716, 11 Nov 2026) against the 2-7 of [FLUX_RATE]'s record.
+     * Passed on at meetings at 0.1 (was 0.25): people fell ill some 140 times a 1000 a year where bands crowd, against
+     * 0.6-107 for shigellosis in population-based studies (the same review); at 0.1, 83-86, and its deaths 2.6 a 1000,
+     * inside both records (sick722, 12 Nov 2026).
+     */
+    FLUX("the flux", 3f, 0.01f, 3f, 0.1f, 2f, 0.4f),
     /** Malaria: carried by the mosquitoes about the camp in the warm months; not caught from one another. */
     MARSH_FEVER("marsh fever", 6f, 0.04f, 3f, 0f, 4f, 0.3f),
     /** A virulent cough that runs from band to band, worst in winter and at gatherings, and can empty a camp. */
@@ -166,7 +175,8 @@ internal fun caughtFrom(d: Illness, theirSick: Float, b: Band) = d.contagion * t
  * The flux, with [CAMP_FOULING], set to the forager and forager-farmer record: gastrointestinal illness 5-18% of deaths
  * across 13 groups (Gurven and Kaplan 2007, Popul. Dev. Rev. 33: 321-365). At 0.003, with bands holding their home hex, the
  * two came to about a third of people's deaths (allon A/B, 9 Nov 2026); at 0.4 of that, an estimated 16% where most live
- * fixed and 6% where most move.
+ * fixed and 6% where most move. (Where bands meet often the flux is endemic, caught at meetings ([passIllness]), and its
+ * deaths are set by [Illness.deadly] and [Illness.immuneYears], not by this: 0.0005 left them as they were, flux716, 11 Nov 2026.)
  */
 internal const val FLUX_RATE = 0.0012f
 internal const val FEVER_RATE = 0.03f

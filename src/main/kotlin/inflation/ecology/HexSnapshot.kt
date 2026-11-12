@@ -65,7 +65,7 @@ object HexSnapshot {
      */
     internal val ORDERED: List<Class<out Enum<*>>> = listOf(Skill::class.java, Tool::class.java, Material::class.java, Store::class.java,
         Illness::class.java, Tradition::class.java, Biome::class.java, BandWay::class.java, inflation.world.MastTrees::class.java,
-        BurialWay::class.java)
+        BurialWay::class.java, DisputeWay::class.java)
 
     /** Writes the state of [sim] to [file]. */
     fun save(sim: HexSim, file: File) {
@@ -90,10 +90,8 @@ object HexSnapshot {
 
     /**
      * Loads the state in [file] into [sim], which must be built over the same world (seed and size). Returns the day it was saved on.
-     * [beforeRoamers]: a save made before the [Catalogue.roamingResidents] were residents too loads, their settled as the fresh
-     * model has them (only for [inflation.tools.MigrateRoamers], which moves the packs onto their ground).
      */
-    @IgnorableReturnValue fun load(sim: HexSim, file: File, beforeRoamers: Boolean = false): Long {
+    @IgnorableReturnValue fun load(sim: HexSim, file: File): Long {
         DataInputStream(BufferedInputStream(GZIPInputStream(file.inputStream(), 1 shl 16), 1 shl 16)).use { inp ->
             require(inp.readInt() == MAGIC) { "$file is not a saved hex world" }
             val version = inp.readInt()
@@ -112,7 +110,7 @@ object HexSnapshot {
             val code = rosters(sim).toMap()
             repeat(inp.readInt()) {
                 val name = inp.readUTF(); val saved = List(inp.readInt()) { inp.readUTF() }
-                rosterProblem(name, saved, code[name].orEmpty(), beforeRoamers)?.let { throw IllegalArgumentException("$file: $it") }
+                rosterProblem(name, saved, code[name].orEmpty())?.let { throw IllegalArgumentException("$file: $it") }
             }
             val r = Reader(inp, SPECIES)
             val byName = roots(sim).toMap()
@@ -146,12 +144,8 @@ object HexSnapshot {
      * they load right): the tables are restored by position, and a kind added, dropped or moved would start from numbers that
      * are not its own.
      */
-    internal fun rosterProblem(name: String, saved: List<String>, code: List<String>, beforeRoamers: Boolean = false): String? =
-        // (Except, with [beforeRoamers], the settled of the kinds that also roam, added after those saved: their tables have grown
-        // at the end, and they start as a fresh model has them ([Catalogue.roamingResidents]). For the one-shot move of old worlds'
-        // packs onto their ground, [inflation.tools.MigrateRoamers]; goes with it, docs/design/roaming-packs.md.)
-        if (saved == code || (beforeRoamers && name == "residents" && code.size > saved.size && code.subList(0, saved.size) == saved &&
-                code.drop(saved.size).all { n -> Catalogue.roamingResidents.any { it.name == n } })) null else "it keeps other kinds as $name than the code does, so their numbers would land on the wrong kinds or start from none: saved $saved, code $code"
+    internal fun rosterProblem(name: String, saved: List<String>, code: List<String>): String? =
+        if (saved == code) null else "it keeps other kinds as $name than the code does, so their numbers would land on the wrong kinds or start from none: saved $saved, code $code"
 
     /**
      * The kinds each part keeps its tables by, in order: the residents and those living as groups. Left out are the kinds the

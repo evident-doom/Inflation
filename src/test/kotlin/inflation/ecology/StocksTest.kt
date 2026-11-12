@@ -73,7 +73,7 @@ class StocksTest {
             "HexHydrology.lakeRain", "HexHydrology.lakeEvap", "HexHydrology.flow", "HexHydrology.flood", "HexHydrology.soak",
             "HexHydrology.soakTarget", "HexHydrology.runoffMm", "HexPlants.litterfall", "HexPlants.browsing", "HexPlants.grazing",
             "HexPlants.rooting", "HexPlants.trampling", "HexPlants.trodden", "HexSmallLife.washedKg", "HexSmallLife.laidKgM2", "HexSmallLife.leaving",
-            "HexSmallLife.newborn", "HexFauna.bornThisWeek", "HexSmallLife.groupCarrionShare", "HexSmallLife.groupCarrionTaken", "HexFauna.groupKilled",
+            "HexSmallLife.newborn", "HexFauna.bornThisWeek", "HexSmallLife.groupCarrionShare", "HexSmallLife.groupCarrionTaken", "HexFauna.groupKilled", "HexFauna.huntedLately", "HexFauna.huntedYoungLately",
             // The week's food left uneaten, a reading of the plants' stocks, not one of its own.
             "HexFauna.spareGrass", "HexFauna.spareBrowse", "HexFauna.spareFruit", "HexFauna.spareRoots",
             // Shares, states and memories, 0..1 or days or degrees.
@@ -82,7 +82,7 @@ class StocksTest {
             "HexPlants.growFrom", "HexPlants.growSpan", "HexPlants.greenOpen", "HexPlants.greenSeep", "HexPlants.greenWet",
             "HexPlants.greenShade", "HexPlants.trails", "HexPlants.treeSeed", "HexPlants.shrubSeed", "HexFires.burnt", "HexFires.burning", "HexFires.stepBurning",
             "HexFauna.waterC", "HexFauna.fed", "HexFauna.protein", "HexFauna.fear", "HexFauna.peopleNear", "HexFauna.persecuted", "HexFauna.usual", "HexFauna.forageSodiumAt", "HexFauna.outbreak",
-            "HexFauna.fedByMonth", "HexFauna.reserve", "HexFauna.autumnFed", "HexFauna.dry", "HexFauna.arrive", "HexFauna.worth", "HexFauna.moverYoung", "HexFauna.bred", "HexFauna.moverFat", "HexFauna.moverSpent", "HexFauna.spent", "HexFauna.bold", "HexFauna.leaving", "HexFood.domestic", "HexFood.fieldDomestic", "HexFood.fieldDays", "HexFood.fieldStress", "HexFood.fieldSoil", "HexFood.fieldWorn", "HexFood.fieldCover", "HexFood.cleared", "HexFood.croppedNow", "HexFood.wildCover", "HexSmallLife.pollination",
+            "HexFauna.fedByMonth", "HexFauna.reserve", "HexFauna.autumnFed", "HexFauna.dry", "HexFauna.arrive", "HexFauna.worth", "HexFauna.moverYoung", "HexFauna.bred", "HexFauna.moverFat", "HexFauna.moverSpent", "HexFauna.spent", "HexFauna.bold", "HexFauna.leaving", "HexFood.domestic", "HexFood.fieldDomestic", "HexFood.fieldPulse", "HexFood.ripePulse", "HexFood.fieldDays", "HexFood.fieldStress", "HexFood.fieldSoil", "HexFood.fieldWorn", "HexFood.fieldCover", "HexFood.cleared", "HexFood.croppedNow", "HexFood.wildCover", "HexSmallLife.pollination",
             "HexSmallLife.insectFrom", "HexSmallLife.harass", "HexSmallLife.spreadWeight", "HexSmallLife.returning",
             // For the check and the viewer: heads held hungry with no better place next door, and one kind's spill last week.
             "HexFauna.stuck", "HexFauna.climbed", "HexFauna.flowEast", "HexFauna.flowSouth", "HexFauna.flowOut",

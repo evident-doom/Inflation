@@ -9,6 +9,7 @@ import inflation.world.get
 import inflation.world.set
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 // Eating the week's food: the meal a party makes of what it got, grease rendered from bones, and the tallies and books of what was eaten.
 
@@ -53,6 +54,7 @@ internal fun HexGroups.eatTheWeek(w: ForageWeek) {
         // (And what its grown people sweat out working and resting in the heat: [BodyHeat.sweatLitres], [inflation.Tuning.sweatSodium].)
         val sodiumNeed = (SODIUM_A_PERSON_DAY * g.size + band.sweatLitres * tuning.sweatSodium * g.adults) * days
         val stored = g.larder; val storedKinds = storesNow(g)
+        val cropBefore = band.seedCornIn(g)
         meal.eatForSodium(sodiumNeed / SODIUM_PER_KG_MEAT, got, plantKg, g)
         meal.eat(got, plantKg, g)
         band.larderMoved(g, LarderMove.ATE, g.larder - stored)
@@ -94,6 +96,10 @@ internal fun HexGroups.eatTheWeek(w: ForageWeek) {
         }
         stats.keep(Tally.of(s, Tally.OfKind.MEAT_EATEN), ateMeat.toInt())
         stats.keep(Tally.of(s, Tally.OfKind.PLANTS_EATEN), (eaten - ateMeat).toInt())
+        // (The crop grain eaten is ground as it is eaten: its days are given first next step, [Band.grindOwed].)
+        val groundDays = max(0f, cropBefore - band.seedCornIn(g)) * g.storeKgPer[Store.SEED] * grindDaysPerKg(band)
+        band.grindOwed += groundDays
+        stats.tally(Tally.grain(Tally.Grain.GRIND_DAYS), (10f * groundDays).roundToInt())
         keepAndSpoil(w, got, plantKg, pelts)
         band.seedCorn = band.seedCornIn(g)
         spare = 0f; meatEaten = ateMeatKg
@@ -167,6 +173,8 @@ internal class Meal(val wantAll: Float) {
      * stores would spoil within days ([PERISHABLE]: fresh meat and fish, fruit) is eaten before the week's food, the oldest first.
      */
     fun eat(got: EnumFloats<Store>, gotKg: EnumFloats<Store>, g: HexGroup?) {
+        // (The seed corn its band keeps back for its next sowing it leaves till it would go short by [SEED_EAT_SHORT]: [seedKeep].)
+        val keep = g?.let { seedKeep(it) } ?: 0f
         for (beyond in 0..1) {
             if (g != null) for (st in PERISHABLE) g.stores[st] -= take(st, g.stores[st], g.storeKgPer[st], beyond == 1)
             for (st in EAT_ORDER) {
@@ -174,7 +182,14 @@ internal class Meal(val wantAll: Float) {
                 val kgPer = gotKg[st] / got[st]; val e = take(st, got[st], kgPer, beyond == 1)
                 got[st] -= e; gotKg[st] -= e * kgPer
             }
-            if (g != null) for (st in EAT_ORDER) g.stores[st] -= take(st, g.stores[st], g.storeKgPer[st], beyond == 1)
+            if (g != null) for (st in EAT_ORDER) g.stores[st] -= take(st, max(0f, g.stores[st] - (if (st == Store.SEED) keep else 0f)), g.storeKgPer[st], beyond == 1)
+        }
+        if (g != null && keep > 0f && need > SEED_EAT_SHORT * wantAll) {
+            val short = need - SEED_EAT_SHORT * wantAll; val before = need
+            need = short
+            val e = take(Store.SEED, min(keep, g.stores[Store.SEED]), g.storeKgPer[Store.SEED], false)
+            g.stores[Store.SEED] -= e
+            need += before - short
         }
     }
 
@@ -258,6 +273,20 @@ private fun HexGroups.tallyBandForage(w: ForageWeek, band: Band, smallFed: Float
     stats.tally(Tally.bandsIn(c, Tally.Bands.MEAT), (meat * w.worth(Food.BIG_GAME) + w.killFat * w.fatFeeds + smallFed + scrapsFed).toInt())
     stats.tally(Tally.bandsIn(c, Tally.Bands.PLANTS), plantsFed.toInt())
     for (f in PlantFrom.entries) stats.tally(Tally.plantsFrom(f), w.plantFrom[f].toInt())
+    // (And by the food quarter of its hex: what it foraged against what it wanted, as the ground is richer.)
+    val q = foodQuarterOf(hw.placeHex[g.place])
+    stats.tally(Tally.bandsFoodQ(q, Tally.Bands.ASKED), wantAll.toInt())
+    stats.tally(Tally.bandsFoodQ(q, Tally.Bands.MEAT), (meat * w.worth(Food.BIG_GAME) + w.killFat * w.fatFeeds + smallFed + scrapsFed + fish * w.worth(Food.FISH)).toInt())
+    stats.tally(Tally.bandsFoodQ(q, Tally.Bands.PLANTS), plantsFed.toInt())
+    // (And by season: which sources carry its people through the lean one.)
+    val sea = w.weather.date.season
+    fun qs(f: Tally.QuarterFood, kg: Float) = stats.tally(Tally.bandsFoodQSeason(q, sea, f), kg.toInt())
+    qs(Tally.QuarterFood.ASKED, wantAll)
+    qs(Tally.QuarterFood.MEAT, meat * w.worth(Food.BIG_GAME) + w.killFat * w.fatFeeds + smallFed + scrapsFed)
+    qs(Tally.QuarterFood.FISH, fish * w.worth(Food.FISH))
+    qs(Tally.QuarterFood.FRUIT, w.plantFrom[PlantFrom.FRUIT]); qs(Tally.QuarterFood.MAST, w.plantFrom[PlantFrom.MAST])
+    qs(Tally.QuarterFood.ROOTS, w.plantFrom[PlantFrom.BULBS]); qs(Tally.QuarterFood.SEED, w.plantFrom[PlantFrom.SEED] + w.plantFrom[PlantFrom.GRAIN])
+    qs(Tally.QuarterFood.FINDS, w.plantFrom[PlantFrom.FINDS])
     stats.tally(Tally.bandsIn(c, Tally.Bands.FISH), (fish * w.worth(Food.FISH)).toInt())
     stats.tally(Tally.bandsIn(c, Tally.Bands.BAND_WEEKS), 1); stats.tally(Tally.bandsIn(c, Tally.Bands.PEOPLE_WEEKS), g.size)
     stats.tally(Tally.bandsIn(c, Tally.Bands.HEARTH), (100f * band.hearthWood).toInt())

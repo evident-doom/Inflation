@@ -63,6 +63,8 @@ class WeekStats {
     val hunting = ConcurrentSkipListMap<TallyKey, Int>()
     /** For the check: people's children expected to die of each cause, by the week's odds, since last read (a report ledger, not saved). */
     @Transient val childDeaths = ConcurrentHashMap<DeathReason, DoubleAdder>()
+    /** People's grown ones' deaths expected from each week's hazards, by cause (census only; raids and hunts are booked elsewhere). */
+    @Transient val grownHazardDeaths = ConcurrentHashMap<DeathReason, DoubleAdder>()
     /** Young born this week by kind. */
     val births = TreeMap<Species, Int>(BY_NAME)
     /** The residents' deaths this week by "kind:cause", head (fractions: the residents are densities). */
@@ -158,6 +160,9 @@ enum class Met(val label: String) {
     BANDS_BECAME_ONE("bands at home together became one"),
     BANDS_OF_TWO_MINDS_BECAME_ONE("bands at home together of the two kinds of choosing became one"),
     BANDS_DRIVEN_FROM_HOME("bands driven from their homes"),
+    BEATEN_BANDS_MOVED_AWAY("bands driven from their homes that moved a hex away from the raiders"),
+    BEATEN_HOUSEHOLDS_TO_KIN("households of bands driven from their homes that went to kin"),
+    BEATEN_BANDS_JOINED_KIN("bands driven from their homes that joined kin whole"),
     BANDS_EXCHANGED_PARTNERS("bands exchanged partners"),
     BANDS_KEPT_AWAY_FROM_THE_SICK("bands kept away from the sick"),
     BANDS_MARKED_A_DEATH_TOLL("bands marked a death toll as an omen"),
@@ -185,6 +190,8 @@ enum class Met(val label: String) {
     STORM_DEAD_SAFE_BEFORE("of those, bands that had a place free of peril in reach the week before"),
     STORM_DEAD_WALKED_IN("bands killed by a storm that struck the place they chose, their camp not struck"),
     BANDS_SOWED("bands sowed"),
+    BANDS_SOWED_PULSES("bands sowed pulses"),
+    BANDS_MANURED_FIELDS("band-weeks spreading penned dung on worn field ground"),
     BANDS_TOLD_OF_COUNTRY("bands told of country"),
     BANDS_TOLD_OF_ROUTES("bands told of routes"),
     BANDS_BORE_A_RITE("bands bore a rite of an omen"),
@@ -199,8 +206,15 @@ enum class Met(val label: String) {
     BANDS_BUDDED_OUT("bands budded into another hex"),
     BANDS_BUDDED_IN_PLACE("bands budded staying in their parent's hex"),
     HOUSEHOLDS_SEEPED("households left a crowded hex for a roomier one beside"),
+    BANDS_SPLIT_BY_DISCORD("bands split off by discord in a band past its easy size"),
+    BANDS_TOOK_UP_A_DISPUTE_WAY("bands split by discord where leaving is dear took up the next way of settling quarrels"),
+    BANDS_LET_A_DISPUTE_WAY_LAPSE("small bands let their way of settling quarrels lapse a step"),
+    BANDS_TOOK_UP_ANOTHERS_DISPUTE_WAY("bands took up another's way of settling quarrels"),
+    HOUSEHOLDS_LEFT_IN_DISCORD("households left a band past its easy size for one with room"),
     BANDS_RELOCATED("bands moved their whole camp to a much roomier hex beside"),
     BANDS_SPLIT_OVER_THEIR_BELIEF("bands split over their belief"),
+    BANDS_SPLIT_ALONG_FORTUNES("bands split along their fortunes, richer and poorer"),
+    BANDS_KEPT_APART_BY_WEALTH("bands at home together kept apart by their wealth"),
     BANDS_TOOK_UP_ANOTHERS_APPOINTMENT("bands took up another's appointment"),
     BANDS_TOOK_UP_ANOTHERS_BURIAL("bands took up another's burial way"),
     BANDS_TOOK_UP_ANOTHERS_STYLE("bands took up another's style mark"),
@@ -264,9 +278,9 @@ enum class Met(val label: String) {
         PACK_SETTLED("packs settled ground, "), PACK_ENDED("packs ended, "), PACK_ENDED_HOMELESS("packs ended without ground, "),
         /**
          * Of kinds that also live settled (report only): grown young that left settled ground as roamers, roamers that settled in
-         * where there was room, and those that took a settled band's ground.
+         * where there was room.
          */
-        ROAMERS_LEFT("roamers left settled ground, "), ROAMERS_SETTLED("roamers settled in, "), ROAMERS_TOOK_OVER("roamers took over ground, "),
+        ROAMERS_LEFT("roamers left settled ground, "), ROAMERS_SETTLED("roamers settled in, "),
         /** Kills robbed (report only): by the thief's kind and from the victim's, with the kg taken. */
         KILLS_STOLEN_BY("kills stolen by "), KILLS_STOLEN_FROM("kills stolen from "), KG_STOLEN_BY("kg of kills stolen by "), KG_STOLEN_FROM("kg of kills stolen from "),
         RITES_HELD("rites held, band "), RITES_CUT_SHORT("rites cut short, band "),
@@ -654,6 +668,15 @@ object Tally {
     fun bandsHut(h: Hut, what: Bands) = TallyKey.raw("bands shelter ${h.label}:${what.label}")
     fun bandsHutDied(h: Hut, cause: DeathReason) = ofCause(bandsHutDied(h), cause)
     fun bandsHutDied(h: Hut) = TallyKey.raw("bands shelter ${h.label}:$DIED_OF")
+    /** The quarter of the land hexes, by the food their ground gives people ([HexGroups.hexFood]), that a band's hex falls in. */
+    enum class FoodQuarter(val label: String) { POOREST("poorest"), POOR("poor"), RICH("rich"), RICHEST("richest") }
+    /** Bands' tallies by their hex's food quarter: whether births and deaths answer to the ground. */
+    fun bandsFoodQ(q: FoodQuarter, what: Bands) = TallyKey.raw("bands food quarter ${q.label}:${what.label}")
+    fun bandsFoodQDied(q: FoodQuarter, cause: DeathReason) = ofCause(bandsFoodQDied(q), cause)
+    fun bandsFoodQDied(q: FoodQuarter) = TallyKey.raw("bands food quarter ${q.label}:$DIED_OF")
+    /** What bands of a food quarter foraged in a season, need-kg: what they wanted ([QuarterFood.ASKED]) and what each source brought. */
+    enum class QuarterFood(val label: String) { ASKED("asked"), MEAT("meat"), FISH("fish"), FRUIT("fruit"), MAST("mast"), ROOTS("bulbs and roots"), SEED("seed and grain"), FINDS("small finds") }
+    fun bandsFoodQSeason(q: FoodQuarter, s: inflation.world.Season, f: QuarterFood) = TallyKey.raw("bands food quarter ${q.label} ${s.name.lowercase()}:${f.label}")
     /**
      * What thatching on to the full would have done, by the survival pass's own reckoning, in the band-weeks it stopped short
      * ([WEEKS]): deaths averted this week of exposure and of hunger and through the year after, people, 1/10000 (a negative

@@ -110,6 +110,14 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
     val fieldGrain = FloatArray(n)
     val fieldDomestic = FloatArray(n)
     /**
+     * Of the seed sown at each place this year ([field]), the share that is pulses (lentil, pea, bitter vetch: one kind here), sown on
+     * the worn ground first ([PULSE_YIELD], [wearGround]); and of the ripe crop standing ([fieldGrain]), the share that is pulses.
+     */
+    val fieldPulse = FloatArray(n)
+    val ripePulse = FloatArray(n)
+    /** The group that last sowed each place's field (-1 none): it and the bands housed in the hex hold the crop ([mayReap]). */
+    val fieldHolder = IntArray(n) { -1 }
+    /**
      * How short of water a sown field has been since midwinter: the days it has stood ([fieldDays]) and the sum over
      * them of its water stress ([waterStress]), so that a dry season ripens less of it.
      */
@@ -118,8 +126,8 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
     /**
      * The ground worn by cropping at each place: [fieldWorn] the share of the place's land worn, [fieldSoil] how well that ground
      * bears against rested ground, 0..1. Ground cropped again wears further ([CROP_WEAR], toward [CROPPED_FLOOR]); worn ground
-     * left to rest mends ([REST_MEND]) and, mended, is rested ground again. A field is sown on rested ground first, so only a
-     * place whose fields cover most of it has to crop worn ground ([cropSoil]).
+     * left to rest mends ([REST_MEND]) and, mended, is rested ground again. A field is sown on cleared ground first, the mended
+     * ground of it before the worn, so a band that clears no more ground crops worn ground again ([cerealOnWorn], [cropSoil]).
      */
     val fieldWorn = FloatArray(n)
     val fieldSoil = FloatArray(n) { 1f }
@@ -162,6 +170,29 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
      * land sown ([fieldCover]); where that is not known (a save from before it was kept), a field as it would ripen in full.
      */
     fun fieldStand(p: Place): Float = if (fieldCover[p] > 0f) fieldGrain[p] / fieldCover[p] else yieldPerKg(0f) * SEED_RATE
+    /**
+     * Whether the sown field at [p] is still ripening: sown, and its season ([SEED_FROM] to [SEED_TO] of the year's warmth) not
+     * yet over. A sown field is one sowing on one ground and ripens as one stand, not patch by patch as the wild cereals of a
+     * place do: its grain fills over the season, sheds none before it is ripe, and is reaped once it is ([HexFood] week,
+     * [inflation.ecology.cropRipe]). (Before, its grain was reaped and shed week by week as it filled, and a field reaped as
+     * it filled was cut whole for each week's sixth of its grain: some six times the cutting a kilo, sow719 2026-11-12.)
+     */
+    fun fieldRipening(p: Place): Boolean {
+        if (field[p] <= 0f) return false
+        val season = land.plants.gdd[p] / land.plants.annualGdd[p].coerceAtLeast(1f)
+        return season >= SEED_FROM && season < SEED_TO
+    }
+    /**
+     * Reaps [want] of the sown grain at [p]: the reapers cut the ground they take it from, so the field's sown ground
+     * ([fieldCover]) goes with its grain and what stands on the rest stands as thick as before. Shedding thins the stand, not
+     * the ground. (Before, reaping thinned the stand as shedding does, so each kilo reaped made the next dearer to cut.)
+     */
+    fun reapField(p: Place, want: KgM2): KgM2 {
+        val before = fieldGrain[p]
+        val t = take(fieldGrain, p, want)
+        if (before > 0f) fieldCover[p] *= fieldGrain[p] / before
+        return t
+    }
     /** The share wild cereals would make of a place's grass in its climate, colder by [dT] and with [rainShare] of its rain. */
     private fun cerealShare(p: Place, dT: Float = 0f, rainShare: Float = 1f): Float {
         val h = land.hw.placeHex[p]
@@ -179,6 +210,25 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
      * The share of [p]'s trees that bear food (oaks, beech, hazel, wild fruit trees), by its kinds of country ([FOOD_TREES]),
      * for each group of trees whose crops go together ([MastTrees]). (Fixed by the world, so not taken from a saved run.)
      */
+    /**
+     * Where a crop can be sown at all, wild cereals or not ([canCrop]): [CROP_RAIN_MM] of rain a year and [CROP_GDD] degree-days
+     * above 5 °C; and where winters are too cold for an autumn-sown crop to live through ([SPRING_BELOW_C]), so it is sown in
+     * spring ([springSown]: [SPRING_YIELD]). (Fixed by the world's climate, so not taken from a saved run.)
+     */
+    @Transient private var cropClimate: BooleanArray? = null
+    @Transient private var springCold: BooleanArray? = null
+    private fun cropClimate(): BooleanArray = cropClimate ?: BooleanArray(n) { p ->
+        val h = land.hw.placeHex[p]
+        (0 until 12).sumOf { land.hw.precip[it][h].toDouble() } >= CROP_RAIN_MM && land.plants.annualGdd[p] >= CROP_GDD
+    }.also { cropClimate = it }
+    /** Whether [p]'s winters are too cold for an autumn-sown crop, so it is sown in spring ([SPRING_BELOW_C]). */
+    fun springSown(p: Place): Boolean = (springCold ?: BooleanArray(n) { q -> (0 until 12).minOf { land.hw.placeTemp(Place(q), it) } < SPRING_BELOW_C }
+        .also { springCold = it })[p.i]
+    /** Whether a crop can be sown at [p]: where wild cereals grow, or where the climate lets a crop ripen ([cropClimate]). */
+    fun canCrop(p: Place) = cereal[p] > 0f || cropClimate()[p.i]
+    /** What [p]'s crop bears for its season: [SPRING_YIELD] where it is sown in spring ([springSown]), else all. */
+    fun seasonYield(p: Place) = if (springSown(p)) SPRING_YIELD else 1f
+
     @Transient private val foodTrees = enumTables<MastTrees>(n).also { by ->
         for (p in 0 until n) {
             val h = land.hw.placeHex[p]
@@ -296,16 +346,17 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
                     val ripe = land.plants.consume(p, LifeForm.HERB, KgM2(GRAIN_SHARE * cereal[p] * land.plants.herb[p] * share)).v
                     val expected = fieldExpect(p) * field[p] * share
                     val sownRipe = land.plants.consume(p, LifeForm.HERB, KgM2(expected)).v
+                    if (sownRipe > 0f) ripePulse[p] = (ripePulse[p] * fieldGrain[p] + pulseOfRipe(p) * sownRipe) / (fieldGrain[p] + sownRipe)
                     grain[p] += ripe; fieldGrain[p] += sownRipe
                     wildCover[p] = min(cereal[p], wildCover[p] + ripe / WILD_STAND_GRAIN)
                     ripenedNow[p] += ripe + sownRipe
-                    fieldFateNow[FieldFate.FULL.ordinal][p] += yieldPerKg(fieldDomestic[p]) * field[p] * share
+                    fieldFateNow[FieldFate.FULL.ordinal][p] += yieldPerKg(fieldDomestic[p]) * seasonYield(p) * (1f - fieldPulse[p] * (1f - PULSE_YIELD)) * field[p] * share
                     fieldFateNow[FieldFate.EXPECTED.ordinal][p] += expected
                     fieldFateNow[FieldFate.RIPENED.ordinal][p] += sownRipe
                 }
                 val lost = grain[p] * shedShare(domestic[p])
                 grain[p] = max(0f, grain[p] - lost); small.deposit(DeadPool.LITTER, p, KgM2(lost))
-                val fieldLost = fieldGrain[p] * shedShare(fieldDomestic[p])
+                val fieldLost = if (fieldRipening(p)) 0f else fieldGrain[p] * shedShare(fieldDomestic[p])
                 fieldGrain[p] = max(0f, fieldGrain[p] - fieldLost); small.deposit(DeadPool.LITTER, p, KgM2(fieldLost))
                 fieldFateNow[FieldFate.SHED.ordinal][p] += fieldLost
                 // After the year's ripening, the sown crop is spent, and a stand that seeded itself
@@ -315,7 +366,7 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
                 if ((season > SEED_TO && season - advance <= SEED_TO) || (weather.date.holdsMonthStart(days, FIELD_FAILS_MONTH) && field[p] > 0f)) {
                     wearGround(p)
                     fieldFateNow[FieldFate.SEED.ordinal][p] += field[p]
-                    field[p] = 0f; fieldDays[p] = 0f; fieldStress[p] = 0f
+                    field[p] = 0f; fieldDays[p] = 0f; fieldStress[p] = 0f; fieldPulse[p] = 0f
                     domestic[p] = MUTANT + (domestic[p] - MUTANT) * (1f - WILD_DRIFT)
                 }
             }
@@ -334,11 +385,16 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
         }
     }
 
-    /** Sows [kg] of grain at [p], of which [domestic] are of ears that hold their grain: the field's crop takes after what was sown in it. */
-    fun sow(p: Place, kg: KgM2, domestic: Float) {
+    /**
+     * Sows [kg] of seed at [p], of which [domestic] are of ears that hold their grain and [pulse] are pulses: the field's crop takes
+     * after what was sown in it.
+     */
+    fun sow(p: Place, kg: KgM2, domestic: Float, pulse: Float = 0f, by: Int = -1) {
         val add = max(0f, kg.v)
         if (add <= 0f) return
+        fieldHolder[p] = by
         fieldDomestic[p] = (fieldDomestic[p] * field[p] + domestic * add) / (field[p] + add)
+        fieldPulse[p] = (fieldPulse[p] * field[p] + pulse * add) / (field[p] + add)
         field[p] += add
         fieldCover[p] = sownShare(p)
         cleared[p] = max(cleared[p], fieldCover[p]); croppedNow[p] = max(croppedNow[p], fieldCover[p])
@@ -346,31 +402,59 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
 
     /**
      * What a kilo sown at [p] ripens to as its field stands now: [yieldPerKg] of the strain sown, less as the field has gone short of water since
-     * midwinter ([waterStress]) and on the ground it is sown on ([cropSoil]).
+     * midwinter ([waterStress]); its cereal by the ground it is sown on ([cropSoil]), its pulses [PULSE_YIELD] of that on any ground
+     * (they feed themselves nitrogen).
      */
-    fun fieldExpect(p: Place): Float = yieldPerKg(fieldDomestic[p]) * (if (fieldDays[p] > 0f) fieldStress[p] / fieldDays[p] else 1f) * cropSoil(p)
+    fun fieldExpect(p: Place): Float = yieldPerKg(fieldDomestic[p]) * seasonYield(p) * (if (fieldDays[p] > 0f) fieldStress[p] / fieldDays[p] else 1f) * sownMix(p)
+
+    /** What a kilo of [p]'s sown seed bears against cereal on rested ground: its cereal by [cropSoil], its pulses [PULSE_YIELD]. */
+    private fun sownMix(p: Place) = (1f - fieldPulse[p]) * cropSoil(p) + fieldPulse[p] * PULSE_YIELD
+
+    /** Of what [p]'s field ripens now, the share that is pulses ([sownMix]). */
+    private fun pulseOfRipe(p: Place): Float { val m = sownMix(p); return if (m > 0f) fieldPulse[p] * PULSE_YIELD / m else 0f }
 
     /** The share of [p]'s land under this year's field: grain sown at [SEED_RATE] (thicker sowing covers no more than the place). */
     private fun sownShare(p: Place) = min(1f, field[p] / SEED_RATE)
 
     /**
-     * How well this year's field at [p] bears against rested ground: sown on rested ground as far as there is any, the rest on
-     * the worn ground ([fieldSoil]).
+     * Dung spread on [p]'s worn ground ([fieldWorn]) enough to mend [share] of the place's land: that much of it is rested ground
+     * again, still cleared ([MANURE_M2_PER_HEAD]).
+     */
+    fun manure(p: Place, share: Float) { fieldWorn[p] = max(0f, fieldWorn[p] - max(0f, share)) }
+
+    /**
+     * How well this year's cereal at [p] bears against rested ground: the worn ground of it ([cerealOnWorn]) as worn ground
+     * bears ([fieldSoil]), the rest as rested ground.
      */
     fun cropSoil(p: Place): Float {
-        val s = sownShare(p)
+        val s = sownShare(p) * (1f - fieldPulse[p])
         if (s <= 0f) return 1f
-        val fresh = min(s, 1f - fieldWorn[p])
-        return (fresh + (s - fresh) * fieldSoil[p]) / s
+        val again = cerealOnWorn(p)
+        return (s - again + again * fieldSoil[p]) / s
     }
 
     /**
-     * After the year's crop at [p]: rested ground it was sown on is worn now, worn ground cropped again wears further, and worn
-     * ground left to rest mends, the mended part rested ground again (its loss shrinks as [REST_MEND] says either way).
+     * The share of [p]'s land under this year's cereal that is worn ground cropped again. A field is sown on cleared ground first
+     * ([cleared]: what costs no clearing, [sowableCleared]), and cleared ground is the worn ground ([fieldWorn]) and the ground
+     * mended from it, still clear; the pulses take the worn ground first ([fieldPulse]), the cereal the mended ground, then what
+     * worn ground is left, then ground cleared afresh.
+     */
+    private fun cerealOnWorn(p: Place): Float {
+        val sown = sownShare(p); val worn = fieldWorn[p]
+        val s = sown * (1f - fieldPulse[p]); val pulses = min(sown * fieldPulse[p], worn)
+        val mended = max(cleared[p], worn) - worn
+        return min(max(0f, s - mended), worn - pulses)
+    }
+
+    /**
+     * After the year's crop at [p]: rested ground its cereal was sown on ([cerealOnWorn]) is worn now, worn ground cropped again with cereal wears
+     * further, worn ground sown with pulses is rested ground again ([PULSE_MEND]), and worn ground left to rest mends, the mended
+     * part rested ground again (its loss shrinks as [REST_MEND] says either way).
      */
     private fun wearGround(p: Place) {
-        val s = sownShare(p); val worn = fieldWorn[p]
-        val fresh = min(s, 1f - worn); val again = min(s - fresh, worn); val rested = (worn - again) * (1f - REST_MEND)
+        val sown = sownShare(p); val worn = fieldWorn[p]
+        val s = sown * (1f - fieldPulse[p]); val onWorn = min(sown * fieldPulse[p], worn) * PULSE_MEND
+        val again = cerealOnWorn(p); val fresh = s - again; val rested = max(0f, worn - onWorn - again) * (1f - REST_MEND)
         val freshSoil = CROPPED_FLOOR + (1f - CROPPED_FLOOR) * (1f - CROP_WEAR)
         val againSoil = CROPPED_FLOOR + (fieldSoil[p] - CROPPED_FLOOR) * (1f - CROP_WEAR)
         val w = fresh + again + rested
@@ -478,6 +562,45 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
         const val CROPPED_FLOOR = 0.45f
         const val CROP_WEAR = 0.5f
         const val REST_MEND = 0.7f
+        /**
+         * What a kilo of pulses sown bears against a kilo of cereal on rested ground ([yieldPerKg]), by weight (a kilo of dry pulse
+         * feeds about as a kilo of grain: lentils some 350 kcal/100 g, wheat 340, USDA SR from memory). Lentils yield some 1.1 t/ha
+         * on the world's mean (FAO 2010) and 1.1-2.9 t/ha in trials (Najah's review of lentil cultivation), against the
+         * cereal's 2.4 t/ha here ([FIELD_YIELD] at [SEED_RATE]); sown about as thick as cereal (from memory, unchecked): 0.45.
+         * Pulses fix their own nitrogen, so they bear as well on worn ground as on rested.
+         */
+        const val PULSE_YIELD = 0.45f
+        /**
+         * The share of the worn ground under pulses that is rested ground again after their year. At Butser, spring emmer after
+         * legumes gave 3.13 t/ha against 2.57 after fallow and 1.77 unmanured (Reynolds, "Mediaeval cereal yields: an empirical
+         * challenge"): a pulse year mends more than a year's rest ([REST_MEND]); lentils fix some 46-192 kg N/ha (Najah), a 5 t/ha
+         * wheat crop takes about 90 (Rösch et al. 2017). So all of it.
+         */
+        const val PULSE_MEND = 1f
+        /**
+         * The worn field a penned head's dung mends in a year, m² ([manure]). A sheep or goat drops some 0.3-0.5 t of dung a year
+         * (from memory, unchecked), half of it in the pen at night; manuring at some 10-30 t/ha (from memory; Bogaard's
+         * intensive manuring of the first farmers' plots) spreads that on some 100-250 m². At Butser, emmer and barley gave
+         * 32% more manured than unmanured (Reynolds), about what mends worn ground back to rested ([CROPPED_FLOOR]). 150.
+         */
+        const val MANURE_M2_PER_HEAD = 150f
+        /**
+         * Spring sowing ([springSown]): where the coldest month is below [SPRING_BELOW_C] mean, an autumn-sown wheat or barley does
+         * not live through the winter (winter cereals stand some -10 to -20 °C at the crown, under snow more; from memory,
+         * unchecked), so the crop is sown in spring, barley-like, at [SPRING_YIELD] of an autumn crop: at Butser spring-sown
+         * emmer and barley gave 0.55-0.6 of autumn-sown (Reynolds), at Forchtenberg spring barley near winter levels and spring
+         * wheats 0.3-0.4 of winter bread wheat (Rösch et al. 2017).
+         */
+        const val SPRING_BELOW_C = -5f
+        const val SPRING_YIELD = 0.6f
+        /**
+         * The least rain a year, mm, and warmth, degree-days above 5 °C, a crop is sown in beyond the wild cereals' ground ([canCrop]):
+         * dry farming of barley goes down to some 250-300 mm (from memory), and barley ripens in some 1,000-1,300 degree-days
+         * above 0 °C (from memory), some 800 above 5. Both unchecked; the field's water ([fieldStress]) and the season's warmth
+         * ([fieldExpect], the ripening window) do the rest.
+         */
+        const val CROP_RAIN_MM = 280f
+        const val CROP_GDD = 800f
         /**
          * Grain sown per m² of field: about 120 kg/ha, after Columella's 4-5 modii of wheat to the iugerum (about 110-135 kg/ha)
          * and medieval English seed rates of about 2 bushels an acre (both from memory, unchecked).

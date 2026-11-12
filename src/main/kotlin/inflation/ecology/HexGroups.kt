@@ -84,6 +84,8 @@ class HexGroups(
     @Transient internal val recruitedAt = HashMap<Int, Int>()
     /** The step now, for the recruiters' pull. */
     @Transient internal var stepNow = 0
+    /** Bands driven from their homes this step ([driveOff]), with the raiders' home hex: they scatter after the step's raids ([scatterBeaten]). */
+    @Transient internal val beaten = ArrayList<Pair<HexGroup, Hex>>()
     internal var nextId = 0
     /**
      * The kinds that live as groups: the hunters other than the residents' ([Catalogue.residentHunters]), and people (plant-eaters
@@ -157,6 +159,8 @@ class HexGroups(
     @Transient var hunterWays: AnimalWays? = null
     /** The packs of each kind that also lives settled standing at each place, as [fillPackGame] last found them (place × 64 + kind slot). Not saved. */
     @Transient internal var packsAt: Map<Long, List<HexGroup>>? = null
+    /** The food ([hexFood]) cutting the land hexes into quarters, for the census ([foodQuarterOf]); reckoned once a year. Not saved. */
+    @Transient internal var foodCuts: FloatArray? = null
 
     init {
         // The residents swim the same straits.
@@ -171,10 +175,10 @@ class HexGroups(
             val unit = if (s.human) max(1, (unitSize(s) * tuning.peopleBand).toInt()) else unitSize(s)
             val usual = if (settled != null) max(if (settled > 0f) 1 else 0, (settled * area / 1000f / unit).toInt()) else (area / per / unit).toInt()
             // (People's start can be a multiple of the usual, to find what the land would carry: t.peopleStart.)
-            // (Of a kind that also lives settled, only the roamers start as packs: [Catalogue.roamingResidents].)
+            // (A kind that also lives settled starts all settled, as no packs: [Catalogue.roamingResidents].)
             val count = if (s.human) (usual * tuning.peopleStart).toInt()
                 else if (s == Catalogue.CHEETAH) max(1, (usual * tuning.cheetahStart).toInt())
-                else if (s in Catalogue.roamingResidents) (usual * HexFauna.ROAMERS_AT_START).roundToInt() else usual
+                else if (s in Catalogue.roamingResidents) 0 else usual
             // (Bands that hold their home hex start where the food is, as many to a hex as its food draws, rich and poor
             // ground alike held in proportion: [startFood].)
             val byFood = s.human && tuning.bandsStay && !uniformStart
@@ -193,6 +197,7 @@ class HexGroups(
                     val (x, y) = hex.centreKm(hw.placeHex[p])
                     g.band = Band.start(fauna.kinds.size, fauna.totemKinds, land.drink.waterKm[p] < 3f, x, y, tuning, seedBase).also { b ->
                         b.sisu = Sisu.founder(g.id, seedBase)
+                        dressForCountry(b, Place(p))
                         b.elders = g.adults / 6
                         // The rest of the adults spread over the three spans of adult life.
                         b.ageStage[0] = (g.adults - b.elders) / 3; b.ageStage[1] = (g.adults - b.elders) / 3
@@ -288,7 +293,21 @@ class HexGroups(
     private fun startFood(): FloatArray {
         val w = FloatArray(n) { p -> placeFood(Place(p)) }
         for (h in hex.all) { val first = hw.firstPlaceIn(h); if (!first.none) w[first.i] += hexFood(h) - hw.placesOf(h).sumOf { placeFood(Place(it)).toDouble() }.toFloat() }
+        // (No band lives the year round above the trees, where no month is warm enough for them: such ground was a summer's.)
+        for (p in 0 until n) if ((0 until Date.MONTHS_PER_YEAR).maxOf { hw.placeTemp(Place(p), it) } < FOUNDER_TREELINE_C) w[p] = 0f
         return w
+    }
+
+    /**
+     * Founding band [b], starting at [p], is dressed for its country's winter, as a band that has always lived there would
+     * be: the colder its coldest month, the fuller its kit of clothes and the better they are sewn ([FOUNDER_WARM_C],
+     * [FOUNDER_COLD_C], [FOUNDER_COLD_SEWING]).
+     */
+    private fun dressForCountry(b: Band, p: Place) {
+        val coldest = (0 until Date.MONTHS_PER_YEAR).minOf { hw.placeTemp(p, it) }
+        val cold = ((FOUNDER_WARM_C - coldest) / (FOUNDER_WARM_C - FOUNDER_COLD_C)).coerceIn(0f, 1f)
+        b.kit[Tool.CLOTHES] = min(1f, b.kit[Tool.CLOTHES] * (1f + cold))
+        b.skills[Skill.SEWING] += (1f - b.skills[Skill.SEWING]) * FOUNDER_COLD_SEWING * cold
     }
 
     /** Where groups of [s] start or wander in: by area, how the ground and climate suit it, and water within its reach in a usual year. */
@@ -453,9 +472,9 @@ class HexGroups(
             if (!g.alive) return@forEach
             // (With profile=jfr, the choosing is timed by kind, bands apart.)
             val t0 = Profile.mark()
-            // (A band that holds its home hex and that no network drives chooses nothing: it camps on its hex's low ground,
-            // [GroupPlanner.stayPlan]. One that a network drives weighs its own hex's low and high ground by it, so that its
-            // choice, its standing and its ways' draws are there to learn from: [GroupPlanner.plan], held to the hex.)
+            // (A band that holds its home hex chooses nothing: it camps on its hex's low ground, [GroupPlanner.stayPlan]. One whose
+            // ways a network sets goes through the planner, held to the hex, and camps there too, so that its camp's terms, its
+            // standing and its ways' draws are there to learn from: [GroupPlanner.plan], [inflation.learning.CampPolicy].)
             val plan = Profile.kind("choosing", if (g.band != null) "bands" else g.species.name) {
                 // (A content pack on its home hex weighs nothing either: it stays and works its footprint, [holdsGround].)
                 planner.notePlan(g)
@@ -678,17 +697,29 @@ class HexGroups(
 
 
 
-    /** How big a group of [g]'s kind grows before it splits: packs and prides keep their kind's size, bands as their ways hold them together. */
+    /** How big a group of [g]'s kind grows before it splits: packs and prides keep their kind's size, bands as their ways hold them together ([DisputeWay], feasts, houses, belief). */
     internal fun maxSize(g: HexGroup): Int {
         val s = g.species
         return g.band?.let { b ->
             // A band at home in its houses holds a village's number; feasts keep the peace in bigger bands, settled or not.
             val most = if (b.atHome) max(s.maxGroupSize, SETTLED_SIZE) else s.maxGroupSize
-            val size = if (b.holds(Tradition.FEASTS)) (most * FEAST_SIZE).toInt() else most
+            val held = (most * b.disputeWay.sizeTimes).toInt()
+            val size = min(BAND_MOST, if (b.holds(Tradition.FEASTS)) (held * FEAST_SIZE).toInt() else held)
             // A strained belief is one more quarrel: strained as far as it bears, a band holds together at half the size.
             if (tuning.rounds && b.strain > 0f) (size / (1f + b.strain / b.strainBorne())).toInt() else size
         } ?: s.maxGroupSize
     }
+
+    /**
+     * The size [g] holds without discord: half its [maxSize], what each half of a split starts at. A band past it begins to
+     * quarrel, and its households leave as forager households do, for another camp or a camp of their own ([discord]);
+     * one past [maxSize] splits outright. Forager camps hold about 25-30 people and change members every few weeks, and
+     * they settle quarrels by leaving (Marlowe 2005, Woodburn 1982, Lee 1979; consensus breaks down past about six
+     * households, Johnson 1982); what holds a band together past that, feasts and rites, a village's houses, a strained
+     * belief, moves both sizes alike. So a forager band is easy at 25 (32 with feasts) and a band at home in its houses
+     * at 75 (Natufian settlements about 60-100, Kuijt 2000). All from memory, to check.
+     */
+    internal fun easySize(g: HexGroup): Int = maxSize(g) / 2
 
     /** How far going to hex [h] brings band [g] toward its appointment, -1..1, in its month (0 otherwise). */
     internal fun appointPull(g: HexGroup, b: Band, month: Int, h: Hex): Float {

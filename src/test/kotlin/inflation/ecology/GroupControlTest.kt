@@ -80,6 +80,9 @@ class GroupControlTest {
     fun `a pack can be steered too`() {
         val sim = HexSim(world)
         val pack = sim.groups.groups.first { !it.species.human }
+        // (Homeless, it roams and weighs its places, [restless]: wolves and lions no longer start as roaming packs (2026-11-12), and
+        // a content pack on its own ground has little reach.)
+        pack.home = Hex.NONE
         sim.groups.watched = pack.id
         var places = IntArray(0); var chosen: Int; var way = HexArray.EMPTY
         sim.groups.control = object : GroupControl {

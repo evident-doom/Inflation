@@ -362,6 +362,12 @@ class Band(kinds: Int, totems: Int = kinds) {
     var leanDays = 0f
     /** The lowest its people's reserves fell since the year's spreading, a share of full ([wantsFood]; [spreadYear] starts it afresh). */
     var fatLow = 1f
+    /**
+     * How unevenly fortune lies among its people, 0 (all alike) to 1, a Gini-like share: the group is the smallest unit (Olli
+     * 2026-11-11), so what households would hold apart is this one number. It grows with the food the band keeps back
+     * ([keptDays]: stores, seed corn, herds) and is levelled by sharing ([unevenYear]). Nothing reads it yet but the census.
+     */
+    var unevenness = 0f
     val storeAim get() = storeShare * storeAimAt1
     /** [storeAim] at the scaffold's [storeShare]. */
     val storeAimAt1 get() = STORE_AIM_DAYS + leanDays
@@ -443,6 +449,18 @@ class Band(kinds: Int, totems: Int = kinds) {
     var raidDeathRate = 0f
     var seedDomestic = 0f
     var grainDomestic = 0f
+    /** Of its seed corn ([seedCorn]), the share that is pulses ([HexFood.fieldPulse]). */
+    var seedPulse = 0f
+    /**
+     * The seed corn it means to sow next ([HexGroups.sowTarget], in its stores' units), kept back from its meals ([seedKeep]):
+     * reckoned afresh each week.
+     */
+    var seedTarget = 0f
+    /**
+     * Person-days of grinding its people owe for the crop grain they ate last step ([GRIND_DAYS_PER_KG] with grinding stones):
+     * ground as it is eaten, not as it is reaped, so given first of the next step's days, as the water dug for is ([planWeek]).
+     */
+    var grindOwed = 0f
     /** Its ways ([BandWay]), as [setWays] sets them each week from its ways' outputs: 1 each for the scaffold's way. Read through the names below. */
     val will = enumFloats<BandWay> { 1f }
     /** Its choices: how much of its stored grain it sows in autumn at its home (the scaffold: some, once it has houses). */
@@ -686,6 +704,8 @@ class Band(kinds: Int, totems: Int = kinds) {
      * carrying the dead to its ancestors, done as its customs' time allows: [GroupWorld.keepCustoms]).
      */
     var burialWay = BurialWay.AT_CAMP
+    /** How it settles its quarrels ([DisputeWay]): what size it holds together to. */
+    var disputeWay = DisputeWay.LEAVING
     val heardBurial = enumFloats<BurialWay>()
     var burialOwed = 0f
     /** The share of the burying bands it met lately, itself counted as one, that lay their dead as [w] (for [conformist]). */
@@ -855,8 +875,8 @@ class Band(kinds: Int, totems: Int = kinds) {
     fun splitInto(o: Band, adults: Int, stay: Int, share: Float, r: Random, copied: (Band) -> Unit) {
         o.ties.clear(); o.ties.putAll(ties); o.appointment = appointment
         o.houseHex = houseHex; o.house = house; o.drivenFrom = drivenFrom; o.drivenBy = drivenBy; o.homeEarth = homeEarth; o.homeWalls = homeWalls; o.homeGroundC = homeGroundC; o.palisade = palisade
-        o.houseLives = houseLives; o.houseFood = houseFood; foodFrom.copyInto(o.foodFrom); o.fishPull = fishPull; o.weirFood = weirFood; o.weirTend = weirTend; toolWork.copyInto(o.toolWork); heldShare.copyInto(o.heldShare); monthSupply.copyInto(o.monthSupply); monthSupplySq.copyInto(o.monthSupplySq); o.supplyMonth = supplyMonth; o.supplySum = supplySum; o.supplyWeeks = supplyWeeks; o.larderSeen = larderSeen; weekSupply.copyInto(o.weekSupply); weekYield.copyInto(o.weekYield); weekWarmth.copyInto(o.weekWarmth); weekMoved.copyInto(o.weekMoved); freeShare.copyInto(o.freeShare); o.leanDays = leanDays; o.fatLow = fatLow
-        o.seedDomestic = seedDomestic; o.grainDomestic = grainDomestic; o.seedCorn = seedCorn * share; seedCorn -= o.seedCorn; o.sinceRaided = sinceRaided; o.sisu = sisu
+        o.houseLives = houseLives; o.houseFood = houseFood; foodFrom.copyInto(o.foodFrom); o.fishPull = fishPull; o.weirFood = weirFood; o.weirTend = weirTend; toolWork.copyInto(o.toolWork); heldShare.copyInto(o.heldShare); monthSupply.copyInto(o.monthSupply); monthSupplySq.copyInto(o.monthSupplySq); o.supplyMonth = supplyMonth; o.supplySum = supplySum; o.supplyWeeks = supplyWeeks; o.larderSeen = larderSeen; weekSupply.copyInto(o.weekSupply); weekYield.copyInto(o.weekYield); weekWarmth.copyInto(o.weekWarmth); weekMoved.copyInto(o.weekMoved); freeShare.copyInto(o.freeShare); o.leanDays = leanDays; o.fatLow = fatLow; o.unevenness = unevenness
+        o.seedDomestic = seedDomestic; o.seedPulse = seedPulse; o.grainDomestic = grainDomestic; o.seedCorn = seedCorn * share; seedCorn -= o.seedCorn; o.sinceRaided = sinceRaided; o.sisu = sisu
         o.knownHomes.putAll(knownHomes); o.homesVersion++; o.knownLineage.putAll(knownLineage); o.lastMet.putAll(lastMet); newsYield.copyInto(o.newsYield); newsAt.copyInto(o.newsAt); o.newsNext = newsNext
         skills.copyInto(o.skills)
         knowsSkill.copyInto(o.knowsSkill)
@@ -883,7 +903,7 @@ class Band(kinds: Int, totems: Int = kinds) {
         traditions.copyInto(o.traditions); heard.copyInto(o.heard); o.heardOf = heardOf
         o.totem = totem; o.marksChosen = marksChosen; o.heardTotem = heardTotem.copyOf(); o.totemBroken = totemBroken
         o.raidDeathRate = raidDeathRate; o.heldLivelihood = heldLivelihood; o.livelihoodHold = livelihoodHold; o.livedOther = livedOther; o.livelihoodChosen = livelihoodChosen; heardLivelihood.copyInto(o.heardLivelihood)
-        o.burialWay = burialWay; heardBurial.copyInto(o.heardBurial); style.copyInto(o.style); heardStyle.copyInto(o.heardStyle); o.styleChosen = styleChosen; words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
+        o.burialWay = burialWay; o.disputeWay = disputeWay; heardBurial.copyInto(o.heardBurial); style.copyInto(o.style); heardStyle.copyInto(o.heardStyle); o.styleChosen = styleChosen; words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
         o.inbred = inbred; o.campWeeks = campWeeks; o.campPlace = campPlace; o.known = known.copyOf()
         copied(o)
         // (Its kept animals go by their contracts' own rules.)
@@ -932,6 +952,7 @@ class Band(kinds: Int, totems: Int = kinds) {
         // (Seed corn blended by the seed corn each held, the rest of the grain by the rest.)
         val corn = min(a.seedCorn, seed); val bCorn = min(b.seedCorn, bSeed)
         if (corn + bCorn > 0f) a.seedDomestic = weightedMean(a.seedDomestic, corn, b.seedDomestic, bCorn)
+        if (corn + bCorn > 0f) a.seedPulse = weightedMean(a.seedPulse, corn, b.seedPulse, bCorn)
         val wild = seed - corn; val bWild = bSeed - bCorn
         if (wild + bWild > 0f) a.grainDomestic = weightedMean(a.grainDomestic, wild, b.grainDomestic, bWild)
         a.seedCorn = corn + bCorn
@@ -971,6 +992,7 @@ class Band(kinds: Int, totems: Int = kinds) {
         for (i in b.known.indices) a.known[i] = a.known[i] or b.known[i]
         a.dogs.absorb(b.dogs)
         a.inbred += w * (b.inbred - a.inbred); a.elders += b.elders
+        a.unevenness += w * (b.unevenness - a.unevenness)
         a.sisu += w * (b.sisu - a.sisu)
         for (i in a.ageStage.indices) a.ageStage[i] += b.ageStage[i]
     }

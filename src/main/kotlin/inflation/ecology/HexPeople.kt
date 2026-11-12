@@ -74,8 +74,6 @@ internal const val GATHER_SHARE = 0.5f
  * novices: about 0.5 clo.
  */
 internal const val CLOTHES_CLO = 1.5f
-/** Km of a week's camp move at which the ways' input for it ([BandInputs.MOVE_KM]) is half way to 1. */
-internal const val MOVE_KM_HALF = 20f
 
 /**
  * The spacing of a mother's births, years, as pregnancy ([GESTATION_YEARS]), the wait to conceive again once she is fertile
@@ -209,6 +207,8 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     sowGrain(g, b, p, date, time)
     // A band that keeps animals and knows herding pens them at night by its camp, as far as its time and brush go.
     buildPen(g, b, h, time)
+    // And spreads its penned animals' dung on its worn field ground.
+    manureField(g, b, h)
     time.release(Activity.SOWING)
     // A band at home that has been raided in the last year rings its houses with a palisade, as far
     // as its time and timber go.
@@ -273,17 +273,20 @@ internal fun HexGroups.choreAsks(g: HexGroup, b: Band, date: Date, asks: EnumFlo
     // (What its kit asks beyond the clothes' days given first, when given: [survivalDays].)
     ask(Activity.TOOLS, makeTools(b, people, null) - (warm?.get(Activity.TOOLS) ?: 0f))
     ask(Activity.ORNAMENTS, ornamentsWanted(b, people) * ORNAMENT_DAYS)
+    // (The seed it keeps back from its meals for its next sowing: [seedKeep].)
+    b.seedTarget = sowLeft(g, b, p, g.storeKgPer[Store.SEED], b.sowWill)
     // (A band that has just moved builds, sows and fortifies nothing where it has come to.)
     if (!moved) {
         ask(Activity.HOUSES, buildHouse(g, b, p, h, people, null))
-        if (canSow(g, b, p, date)) ask(Activity.SOWING, sowDays(p, b.seedCornIn(g) * SOW_SHARE * b.sowWill * g.storeKgPer[Store.SEED]) * b.lapse(Skill.CULTIVATION))
+        if (canSow(g, b, p, date)) { val per = g.storeKgPer[Store.SEED]
+            ask(Activity.SOWING, sowDays(p, min(sowLeft(g, b, p, per, b.sowWill), b.seedCornIn(g)) * per) * b.lapse(Skill.CULTIVATION)) }
         if (fortifies(b)) ask(Activity.PALISADE,
             minOf(1f - palisadeAt(g, h), b.goods[Material.WOOD] / (PALISADE_WOOD * people)).coerceAtLeast(0f) * PALISADE_DAYS / b.skill(Skill.FORTIFYING) * people)
         ask(Activity.WEIRS, weirAsk(g, b, h))
         ask(Activity.WELLS, wellAsk(g, b, h))
     }
-    // (Its own crop, ripe, it brings in wherever it has come from: the field work is sowing's time.)
-    cropRipe(g, b).takeIf { it > 0f }?.let { asks[Activity.SOWING] += it * cropReapDays(b) }
+    // (Its own crop, ripe, it brings in wherever it has come from, in sowing's time: held first, with the herders' days,
+    // not asked here: [planWeek].)
     ask(Activity.DRYING, b.dryAsk)
     ask(Activity.SKINS, b.skinAsk)
 }
@@ -323,12 +326,14 @@ internal fun HexGroups.leaveDead(g: HexGroup, freed: MutableList<HexGroup>) {
 /**
  * [n] dogs of kind [s] gone wild at [p]: a new pack of their wild kind, bold of people, without ground, with [fatShare]
  * of their kind's most fat; null if not one whole dog went, or the kind lives in no groups here. (The caller adds it to the groups.)
- * Of a resident kind they join its residents at [p] instead, bold of people ([HexFauna.cameWild]), and it is null.
+ * Of a resident kind, or one that lives settled ([Catalogue.roamingResidents]: dogs are wolves), they join its residents or its
+ * settled at [p] instead, bold of people ([HexFauna.cameWild]), and it is null.
  */
 internal fun HexGroups.dogsGoWild(s: Species, p: Place, n: Int, fatShare: Float = 0.5f): HexGroup? {
     if (n < 1) return null
-    // (Of a resident kind they join its residents there: heads come into the wild as a pack's would.)
-    if (s !in kinds) {
+    // (Of a resident kind they join its residents there: heads come into the wild as a pack's would. So do they of a kind that
+    // lives settled, since 2026-11-12 no longer as a roaming pack: the resident predator model is the one kept.)
+    if (s !in kinds || s in Catalogue.roamingResidents) {
         if (fauna.slot(s).none) return null
         fauna.cameWild(s, p, n)
         stats.births.merge(s, n, Int::plus)
@@ -629,9 +634,6 @@ private fun HexGroups.ecosystemInputs(g: HexGroup, b: Band, into: FloatArray) {
     into[x.LEAN_LOST] = b.leanLost
     val adults = max(1, g.adults) * GOODS_PER_PERSON
     for (m in Material.entries) into[x.GOODS + m.ordinal] = b.goods[m] / adults
-    val km = max(0, g.path.size - 1) * hex.hexKm.toFloat()
-    val walk = moveDays(g, km)
-    into[x.MOVE_KM] = km / (km + MOVE_KM_HALF); into[x.MOVE_DAYS] = walk / (walk + days); into[x.LOAD] = carriedKg(g, b) / (CARRY_KG * (1f + BASKET_GAIN))
     for ((k, w) in Skill.BUILDING_WAYS.withIndex()) into[x.BUILDING + k] = if (b.knowsSkill[w]) b.skill(w) else 0f
     val here = h == b.houseHex
     into[x.HOUSE_HERE] = if (here) b.house else 0f; into[x.PALISADE_HERE] = if (here) b.palisade else 0f
@@ -685,12 +687,16 @@ internal const val FLEE = 0.5f
 
 /**
  * How much likelier a sickle harvest takes an ear that holds its grain than one that shatters at a
- * touch. Set so that ears that hold their grain take one to two thousand years to come to dominate
- * a cultivated stand, as the archaeobotany of Near Eastern wheat and barley shows (Fuller and
+ * touch: the selection a harvest and sowing make for it, a year. Ears that hold their grain took one to
+ * two thousand years to come to dominate a cultivated stand in Near Eastern wheat and barley (Fuller and
  * colleagues: early harvests were often green, by beating or uprooting, and sown seed was mixed with
- * wild-gathered grain), not the decades a pure sickle-and-resow model would give.
+ * wild-gathered grain), selection coefficients of some 0.002-0.004 a year (Purugganan and Fuller 2011,
+ * Evolution 65(1), from memory). 0.003: from a tenth to four fifths of a stand in some 1,200 years.
+ * (It was 0.06, meant for the same span but some twenty times faster: from 0.10 to 0.27 in 50 years of a
+ * PPNA run, eracheck 2026-11-11, where the record has a few hundredths. Olli 2026-11-12: slow it, though
+ * the millennia need not be matched exactly.)
  */
-internal const val SICKLE_SELECT = 0.06f
+internal const val SICKLE_SELECT = 0.003f
 
 /**
  * Sodium a person needs a day, kg: the 23 mg a day the Yanomami pass, the least of any people measured (INTERSALT, BMJ
@@ -790,7 +796,12 @@ internal const val MISHAPS = 0.08f
 internal const val WOUNDED_PER_DEAD = 2f
 internal const val HEAL_UNTENDED = 0.15f
 internal const val HEAL_TENDED = 0.35f
-internal const val FESTER = 0.02f
+/**
+ * [FESTER]: at 0.02, with mishaps at [MISHAPS], wounds killed 7-8 a 1000 adults a year where people crowd (flux716),
+ * against accidents 5.2% of forager deaths (Gurven, pooled deaths of 7 groups), some 1-2 a 1000 adults at their 1-1.5%
+ * adult deaths a year: 0.005 aims at that.
+ */
+internal const val FESTER = 0.005f
 internal const val LAMED = 0.2f
 /** Extra odds of dying (of any cause but old age) for a lamed adult, over an unlamed one: 1 is twice as likely. */
 internal const val LAME_RISK = 1f

@@ -90,9 +90,10 @@ internal class GroupPlanner(internal val gs: HexGroups) {
      * The step of a band that holds its home hex ([staysHome]) and that no network drives: it weighs nothing and camps on its
      * hex's low ground (its only ground where the hex is not split), never leaving the hex. When to camp on the high ground
      * by the hand-written rules (the summer's pasture, the winter's cold) is left for later (docs/design/band-movement-removal.md).
-     * A band that a network drives goes through [plan] instead, held to its own hex's low and high ground: the people's
-     * network then has its choice to learn from, and the ways' network its view of the camp and its draws (2026-11-08: through
-     * here, no band's choice or ways were recorded, and neither network could train).
+     * A band whose ways a network sets goes through [plan] instead, held to its own hex, and camps on the same low ground: the
+     * planner gives its ways' network its camp's terms ([HexPolicy.planned]) and the training its weeks and draws to learn from
+     * (2026-11-08: through here, no band's weeks or ways were recorded). Until people's net major 11 a people's network chose
+     * there between the hex's low and high ground.
      */
     internal fun stayPlan(g: HexGroup): Plan {
         val h = gs.hw.placeHex[g.place]
@@ -323,6 +324,10 @@ internal class GroupPlanner(internal val gs: HexGroups) {
         g.band?.planLoads = Float.NaN
         if (party != null && g.weighed) best = partyPlace(party, here, buf, best, gs.stepOf(date))
         else if (explores && !g.drawn) best = if (g.band?.mind?.gate == MoveGate.RECKONED) planned(g, policy, buf, best, dueSoon, here, date) else if (g.weighed) explored(g, policy, buf, best, date) else best
+        // (A band that holds its home hex camps on its low ground by the hand-written rule, as one with no network does ([stayPlan]):
+        // since people's net major 11 no network chooses its camp; the planner ran, held to the hex, for its camp's terms, which its
+        // ways read (below). docs/design/band-movement-removal.md, Phase 6.)
+        if (gs.staysHome(g)) best = gs.hw.firstPlaceIn(here)
         // (For the census: whether the band would have moved by its best choice, and whether it moved by its draw.)
         if (g.band != null) {
             val k = s.index * 4
@@ -341,7 +346,7 @@ internal class GroupPlanner(internal val gs: HexGroups) {
             restless, reach, goal) { pathTo(it) })
         // (For the census: what it foresaw of the week's deaths where it goes and where it might have gone, [recordWarning].)
         if (explores && gs.stats.bandSplits) g.band?.let { gs.recordWarning(g, it, buf, best) }
-        // (A band's ways read how its mover saw the place it goes to: see [HexGroup.plan].)
+        // (A band's ways read its camp's terms, the place features of the place it goes to: see [HexGroup.plan].)
         if (g.band != null) {
             var k = -1
             if (policy != null) for (i in 0 until candPlaces.size) if (candPlaces[i] == best.i) { k = i; break }

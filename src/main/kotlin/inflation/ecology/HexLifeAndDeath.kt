@@ -169,7 +169,9 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
     }
     groups += born
     // (Once a year, crowded hexes ease into the roomier hexes beside, [spreadYear].)
-    if (date.holdsMonthStart(days, 0)) groups += spreadYear()
+    if (date.holdsMonthStart(days, 0)) { groups += spreadYear(date); foodCuts = null }
+    // (Bands driven from their homes in the raids leave the hex: [scatterBeaten].)
+    groups += scatterBeaten(date)
     tallyVillages()
     wornWeek(days)
     tendParties(date)
@@ -376,6 +378,13 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
             if (o.births > 0) stats.book(herdSplit, Tally.Bands.BORN, o.births)
             for (d in o.causes) if (d.n > 0) stats.tally(Tally.bandsHerdingDied(herding, d.young, d.cause), d.n)
             // And by how well it was fed, with what it held against hunger: who starves, and with what in hand.
+            // And by the food quarter of its hex: whether births and deaths answer to how rich the ground is.
+            val qSplit = BandSplit.foodQ(foodQuarterOf(hw.placeHex[g.place]))
+            stats.bookWeek(qSplit, g.size)
+            stats.book(qSplit, Tally.Bands.FED, (1000f * min(1f, g.fed) * g.size).roundToInt())
+            stats.book(qSplit, Tally.Bands.FAT, (10f * g.fat).roundToInt())
+            if (o.births > 0) stats.book(qSplit, Tally.Bands.BORN, o.births)
+            stats.bookDeaths(qSplit, o.causes)
             val fedSplit = BandSplit.fed(Tally.Fed.of(g.fed))
             stats.bookWeek(fedSplit, g.size)
             stats.book(fedSplit, Tally.Bands.LARDER, (10f * g.larderDays()).roundToInt())
@@ -622,6 +631,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         val adultScale = if (adultSum > 0f) adultOdds / adultSum else 0f
         val youngScale = if (youngSum * spared > 0f) youngOdds / (youngSum * spared) else 0f
         for (h in hazards) h.cause.deathClass()?.let { c -> g.addLost(c.ordinal, g.adults * h.adult * adultScale + youngExposed * spared * h.young * youngScale) }
+        for (h in hazards) if (h.adult > 0f) stats.grownHazardDeaths.computeIfAbsent(h.cause) { DoubleAdder() }.add((g.adults * h.adult * adultScale).toDouble())
         g.addLost(LOST_ALL, diedExpected)
     }
     // Elders die as the others do (their share of the adults who died), and of old age besides.
@@ -793,7 +803,7 @@ internal fun HexGroups.mergeAndPair(date: Date) {
  * see themselves as one group (cooperation, shared fate and living side by side: the common ingroup identity of Gaertner and
  * Dovidio). How alike they are is read from [Regard] both ways (words understood, kin, tie, customs apart): halves of a split
  * still at home together are one again at once; bands that met as strangers grow alike as their ties, words and customs come
- * together. Nothing forces it, and it needs room under the size a band at home holds ([maxSize]). The smaller joins the larger.
+ * together. Nothing forces it, and it needs room under the size a band holds without discord ([easySize]). The smaller joins the larger.
  * Bands of the two kinds of choosing ([Band.mind]) become one alike: the joined band chooses as the larger did.
  */
 private fun HexGroups.becomeOne(date: Date) {
@@ -805,8 +815,11 @@ private fun HexGroups.becomeOne(date: Date) {
             val a = bands[i]; val c = bands[j]
             val ab = a.band ?: continue; val cb = c.band ?: continue
             if (!a.alive || !c.alive || inParty(a) || inParty(c)) continue
-            if (a.size + c.size > min(maxSize(a), maxSize(c))) continue
+            if (a.size + c.size > min(easySize(a), easySize(c))) continue
             if (alike(Regard(ab, c.id, cb, map = hex)) < ONE_GROUP || alike(Regard(cb, a.id, ab, map = hex)) < ONE_GROUP) continue
+            // (Bands whose food kept a head lies far apart do not feel one group: richer and poorer stay apart, [WEALTH_APART].)
+            val ka = keptDays(a, ab); val kc = keptDays(c, cb)
+            if (max(ka, kc) > WEALTH_APART * min(ka, kc) + 1f) { stats.meeting(Met.BANDS_KEPT_APART_BY_WEALTH); continue }
             val (into, from) = if (a.size >= c.size) a to c else c to a
             joinBand(into, from, stepOf(date))
             stats.meeting(Met.BANDS_BECAME_ONE)

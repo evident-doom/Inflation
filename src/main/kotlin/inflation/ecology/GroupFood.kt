@@ -312,8 +312,10 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     }
     if (w.band != null && w.time == null) planWeek(w, 0f, 0f, 0f)
     // (What a day's foraging brought it this week, kg of its need, kept month by month as a mean over the years: what a
-    // herder's day must bring to be worth it, [herdPays].)
-    w.band?.let { b -> w.time?.spentOn(Activity.FOOD)?.takeIf { it > 0f }?.let { d ->
+    // herder's day must bring to be worth it, [herdPays]. Its days foraging only: not the water dug for nor the grain
+    // ground, which go in the food's time too. With them, a week of hardly any foraging, the band living on its stores,
+    // read as a day's foraging bringing next to nothing, and every herd paid millions of times over: herd726 2026-11-12.)
+    w.band?.let { b -> w.time?.spentOn(Activity.FOOD)?.let { it - w.digDays - w.grindOwedDays }?.takeIf { it > 0.5f * w.hands }?.let { d ->
         val got = w.fed / d; val m = weather.date.month; val was = b.forageReturn[m]
         b.forageReturn[m] = if (was < 0f) got else was + min(1f, years * Date.MONTHS_PER_YEAR) * (got - was)
     } }
@@ -414,6 +416,8 @@ internal fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float
     val fetch = w.s.dailyTravelKm; val tempC = w.weather.temperature[g.place]; val perHand = g.size.toFloat() / hands
     w.digDays = waterShare(g.place, fetch, waterLitres(tempC), perHand) * days * hands
     time.spend(Activity.FOOD, w.digDays)
+    // (And the grinding of the crop grain its people ate last step: [Band.grindOwed].)
+    if (b.grindOwed > 0f) { w.grindOwedDays = min(time.left, b.grindOwed); time.spend(Activity.FOOD, w.grindOwedDays); b.grindOwed = 0f }
     // (What of its days a well at home would have spared it, for its wells: [Band.waterShort].)
     if (b.atHome) b.waterShort += (wellSpares(g.place, fetch, tempC, perHand) - b.waterShort) * min(1f, years)
     // (Moving camp takes its days first: everyone walks, at the pace of the slowest, see [moveDays].)
@@ -435,8 +439,11 @@ internal fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float
     // before every other ask: what it cannot herd it culls and eats ([keepHerds]). Shared out with the asks, they were cut
     // whenever foraging alone would fill the week, and the cuts compounded week on week till no herd was left; held with
     // the fire and shelters, a band that shrank kept its whole herd, which took its firewood and food till it died.)
+    // (And its ripe crop's reaping, with them: a crop left standing sheds its grain within weeks, so farmers bring it in
+    // before any chore but the week's food. Shared out with the asks, the reaping was weighed against the customs, the
+    // tools and the rest, and some half of its days asked were not given while the crop shed: smoke723 2026-11-12.)
     val kept = enumFloats<Activity>()
-    kept[Activity.SOWING] = herdDays(b) * (1f - walkedShare(time))
+    kept[Activity.SOWING] = herdDays(b) * (1f - walkedShare(time)) + cropRipe(g, b) * cropReapDays(b)
     val asks = enumFloats<Activity>()
     asks[Activity.FOOD] = storeDays * hands
     choreAsks(g, b, w.weather.date, asks, warm)
@@ -687,6 +694,8 @@ internal class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, pack
     /** For the census of grain ([Tally.Grain]): days of a hand reaping wild and sown grain, kilos of each, people-days grinding. */
     var wildDays = 0f; var fieldDays = 0f; var wildKg = 0f; var fieldKg = 0f; var grindDays = 0f
     var digDays = 0f
+    /** Person-days this week's plan gave first to grinding the crop grain eaten last step ([Band.grindOwed]). */
+    var grindOwedDays = 0f
     var room = 0f
     /** Census of hungry weeks ([noteUnused]): hunters' hands whose party took up no food, and the gatherers' foods ranked out (their number, the best one's pay a day of handling and its kind). */
     var idleHunters = 0f; var rankedOut = 0; var bestOutPay = 0f; var bestOutFood: Food? = null

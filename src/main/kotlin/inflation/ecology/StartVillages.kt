@@ -129,7 +129,7 @@ private fun HexGroups.startVillage(g: HexGroup, b: Band): Pair<Int, Float>? {
     // (Ground and baked, a kilo of grain feeds as a kilo of need: [seedValue] with grinding stones.)
     val stored = VILLAGE_STORE_DAYS * g.dailyNeedKg + if (ripening) 0f else harvest
     addFood(g.stores, g.storeKgPer, Store.SEED, stored * seedValue(b), stored)
-    b.seedCorn = g.stores[Store.SEED]
+    b.seedCorn = g.stores[Store.SEED]; b.seedPulse = VILLAGE_PULSE
     // (Villages kept goats and sheep from the first: the herd a herding band starts with.)
     return startHerd(g, b)
 }
@@ -144,6 +144,11 @@ private const val VILLAGE_SKILL = 0.5f
  */
 private const val VILLAGE_WATER_KM = 3f
 private const val VILLAGE_STORE_DAYS = 180f
+/**
+ * The share of a start village's seed corn that is pulses ([Band.seedPulse]). Lentil, pea and bitter vetch are found with the
+ * cereals at the first farming villages (Zohary & Hopf, from memory); their share of the seed sown is not on record: a guess.
+ */
+private const val VILLAGE_PULSE = 0.25f
 private const val VILLAGE_FIELD_DAYS = Date.DAYS_PER_YEAR / 2f
 /**
  * A starting herd, kg on the hoof for each of the band's people: a third of the some 4.5 tropical livestock units (1100 kg)

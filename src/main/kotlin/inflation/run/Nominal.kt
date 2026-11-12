@@ -355,7 +355,8 @@ object Nominal {
                 Key.peopleWay(k) != null -> { weekly(0.0, 1.0, ""); eachYear(PEOPLE_MIN.getValue(Key.peopleWay(k)!!), 1.0, "of the bands over the year") }
                 Key.huntersOf(k) == HexHistory.Hunters.FED -> eachYear(HUNTERS_FED_YEAR_MIN, Double.POSITIVE_INFINITY, "of its need got over the year")
                 Key.huntersOf(k) == HexHistory.Hunters.HOLDING && Catalogue.roamingResidents.none { it.name == Key.huntersKind(k) } -> { weekly(0.0, 1.0, ""); eachYear(HOLDING_MIN, 1.0, "of packs holding ground over the year") }
-                Key.huntersOf(k) == HexHistory.Hunters.KILLS -> {
+                // (Not of the kinds that live settled with roaming packs: the packs' kills, a few packs' at most, are not the kind's.)
+                Key.huntersOf(k) == HexHistory.Hunters.KILLS && Catalogue.roamingResidents.none { it.name == Key.huntersKind(k) } -> {
                     val kind = Key.huntersKind(k)!!
                     for (y in 0 until years) if (yearly(Key.animals(kind), y) >= HUNTERS_FLOOR) t.check(yearly(k, y) > 0, k) { "killed nothing in year ${y + 1}" }
                 }

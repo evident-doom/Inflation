@@ -95,6 +95,7 @@ class FaunaCheck(private val sim: HexSim, private val options: FaunaCheckOptions
         census.printHurricaneTest(hunting.meetingsYear)
         census.printHuntersFamilies(hunting.meetingsYear)
         census.printKillsStolen(hunting.meetingsYear)
+        census.printFarming(hunting.meetingsYear)
         people.printBands()
         people.printRunSites()
         census.printIdentity(hunting.year, hunting.meetingsYear)
@@ -113,6 +114,7 @@ class FaunaCheck(private val sim: HexSim, private val options: FaunaCheckOptions
         println("     droughts under way: " + sim.weather.droughts())
         println("     fires this year: " + sim.land.fire.yearReport())
         hunting.endYear()
+        census.printFoodQuarters(hunting.lastYear, stepsPerYear)
         print("     "); census.printSkillsAndCereals(hunting.grainReapedLastYear)
         System.out.flush()
         // The history so far, for the graphs, and the saved world (every five years and at the end).
