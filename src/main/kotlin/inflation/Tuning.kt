@@ -85,10 +85,11 @@ class Tuning(
     val residentDays = i("residentDays", 12).also { require(it >= 0) { "t.residentDays is $it: 0 or a positive number of days" } }
     /**
      * A beast's days to eat a kilo of its kill against [inflation.ecology.EATING_RATE]'s: the days its feeding keeps it from
-     * hunting, now charged past a step's end ([inflation.ecology.HexGroup.huntOwed]). 0.7 brings weekly leopards back to where
-     * they were before that charge (retune736).
+     * hunting, now charged past a step's end ([inflation.ecology.HexGroup.huntOwed]). 0.7 brought weekly leopards back to where
+     * they were before that charge (retune736), but left cheetahs and leopards out of hunting time in a fifth of their weeks
+     * (chdiag774); 0.35 cuts that to 1-2%, and over 10 years cheetahs hold (36 -> 199 at y10), leopards +13%, the rest within 2% (eat775).
      */
-    val packEating = f("packEating", 0.7f).also { require(it > 0f) { "t.packEating is $it: a positive multiple" } }
+    val packEating = f("packEating", 0.35f).also { require(it > 0f) { "t.packEating is $it: a positive multiple" } }
     val stepReach = f("stepReach", 0.5f).also { require(it in 0f..1f) { "t.stepReach is $it: 0-1" } }
     /**
      * A world begun once farming is known: the share of people's bands that start as villages on the best farm ground
