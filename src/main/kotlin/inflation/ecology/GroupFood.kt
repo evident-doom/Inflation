@@ -500,7 +500,9 @@ internal class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, pack
     val gatherHands = if (band != null) hands * (1f - hunt) else hands.toFloat()
     // (Walking costs food, see [walkCost]; a band's days at rest take less, see [restedDays].)
     var wantAll = g.dailyNeedKg * gs.days * (1f + gs.walkCost(g))
-    val eats = 1f / (packKg * EATING_RATE) // days to eat a kilo
+    // (A beast's days at a kill: t.packEating, a test of how long its feeding keeps it from hunting, Olli 2026-11-11 "charge
+    // it, then retune leopards": weekly packs had hunted on through the days past each week's end, overrun735.)
+    val eats = (if (band == null) gs.tuning.packEating else 1f) / (packKg * EATING_RATE) // days to eat a kilo
     /**
      * The most a beast's party can eat in the week, kg: each of it eating at [EATING_RATE] of its weight every day of it,
      * its young at half a grown one as they need half ([HexGroup.dailyNeedKg]); gorging at a kill, see [eatTheWeek].

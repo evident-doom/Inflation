@@ -75,6 +75,8 @@ class Tuning(
      */
     val thinFadeDays = f("thinFadeDays", 30f).also { require(it >= 0f) { "t.thinFadeDays is $it: 0 or more" } }
     val packFatAim = f("packFatAim", 0f).also { require(it in 0f..1f) { "t.packFatAim is $it: 0-1" } }
+    /** A beast's days to eat a kilo of its kill against [inflation.ecology.EATING_RATE]'s (a test multiple; 1 as before). */
+    val packEating = f("packEating", 1f).also { require(it > 0f) { "t.packEating is $it: a positive multiple" } }
     val stepReach = f("stepReach", 0.5f).also { require(it in 0f..1f) { "t.stepReach is $it: 0-1" } }
     /**
      * A world begun once farming is known: the share of people's bands that start as villages on the best farm ground
