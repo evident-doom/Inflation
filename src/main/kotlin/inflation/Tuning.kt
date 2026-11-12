@@ -76,6 +76,12 @@ class Tuning(
     val thinFadeDays = f("thinFadeDays", 30f).also { require(it >= 0f) { "t.thinFadeDays is $it: 0 or more" } }
     val packFatAim = f("packFatAim", 0f).also { require(it in 0f..1f) { "t.packFatAim is $it: 0-1" } }
     /** A beast's days to eat a kilo of its kill against [inflation.ecology.EATING_RATE]'s (a test multiple; 1 as before). */
+    /**
+     * Days the residents and small life take at a time inside a step of several ticks (speed test, variable-step thread
+     * 2026-11-12): 0, or one tick, for each tick; a whole number of ticks that divides the step, else each tick. They take
+     * the first tick's weather and date for the span.
+     */
+    val residentDays = i("residentDays", 0).also { require(it >= 0) { "t.residentDays is $it: 0 or a positive number of days" } }
     val packEating = f("packEating", 1f).also { require(it > 0f) { "t.packEating is $it: a positive multiple" } }
     val stepReach = f("stepReach", 0.5f).also { require(it in 0f..1f) { "t.stepReach is $it: 0-1" } }
     /**
