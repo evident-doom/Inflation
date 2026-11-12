@@ -170,6 +170,29 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
      * land sown ([fieldCover]); where that is not known (a save from before it was kept), a field as it would ripen in full.
      */
     fun fieldStand(p: Place): Float = if (fieldCover[p] > 0f) fieldGrain[p] / fieldCover[p] else yieldPerKg(0f) * SEED_RATE
+    /**
+     * Whether the sown field at [p] is still ripening: sown, and its season ([SEED_FROM] to [SEED_TO] of the year's warmth) not
+     * yet over. A sown field is one sowing on one ground and ripens as one stand, not patch by patch as the wild cereals of a
+     * place do: its grain fills over the season, sheds none before it is ripe, and is reaped once it is ([HexFood] week,
+     * [inflation.ecology.cropRipe]). (Before, its grain was reaped and shed week by week as it filled, and a field reaped as
+     * it filled was cut whole for each week's sixth of its grain: some six times the cutting a kilo, sow719 2026-11-12.)
+     */
+    fun fieldRipening(p: Place): Boolean {
+        if (field[p] <= 0f) return false
+        val season = land.plants.gdd[p] / land.plants.annualGdd[p].coerceAtLeast(1f)
+        return season >= SEED_FROM && season < SEED_TO
+    }
+    /**
+     * Reaps [want] of the sown grain at [p]: the reapers cut the ground they take it from, so the field's sown ground
+     * ([fieldCover]) goes with its grain and what stands on the rest stands as thick as before. Shedding thins the stand, not
+     * the ground. (Before, reaping thinned the stand as shedding does, so each kilo reaped made the next dearer to cut.)
+     */
+    fun reapField(p: Place, want: KgM2): KgM2 {
+        val before = fieldGrain[p]
+        val t = take(fieldGrain, p, want)
+        if (before > 0f) fieldCover[p] *= fieldGrain[p] / before
+        return t
+    }
     /** The share wild cereals would make of a place's grass in its climate, colder by [dT] and with [rainShare] of its rain. */
     private fun cerealShare(p: Place, dT: Float = 0f, rainShare: Float = 1f): Float {
         val h = land.hw.placeHex[p]
@@ -333,7 +356,7 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
                 }
                 val lost = grain[p] * shedShare(domestic[p])
                 grain[p] = max(0f, grain[p] - lost); small.deposit(DeadPool.LITTER, p, KgM2(lost))
-                val fieldLost = fieldGrain[p] * shedShare(fieldDomestic[p])
+                val fieldLost = if (fieldRipening(p)) 0f else fieldGrain[p] * shedShare(fieldDomestic[p])
                 fieldGrain[p] = max(0f, fieldGrain[p] - fieldLost); small.deposit(DeadPool.LITTER, p, KgM2(fieldLost))
                 fieldFateNow[FieldFate.SHED.ordinal][p] += fieldLost
                 // After the year's ripening, the sown crop is spent, and a stand that seeded itself

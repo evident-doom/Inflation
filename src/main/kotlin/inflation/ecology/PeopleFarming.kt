@@ -85,13 +85,14 @@ internal fun GroupWorld.sowMix(b: Band, p: Place, corn: Float, want: Float, per:
 }
 
 /**
- * The ripe grain of the crop [g]'s band [b] sowed ([Band.sownPlace]), kg, where the band is in that hex: its share of what
- * stands there, by the seed it sowed against all sown there (all of it once the year's sowing is struck off).
+ * The ripe grain of the crop [g]'s band [b] sowed ([Band.sownPlace]), kg, where the band is in that hex and the field has
+ * ripened ([HexFood.fieldRipening]): its share of what stands there, by the seed it sowed against all sown there (all of it once the year's sowing is struck off).
  */
 internal fun GroupWorld.cropRipe(g: HexGroup, b: Band): Float {
     val f = b.sownPlace
     if (f.none || b.sownKg <= 0f || hw.placeHex[f.i] != hw.placeHex[g.place.i]) return 0f
     val food = fauna.food
+    if (food.fieldRipening(f)) return 0f
     val share = if (food.field[f] > 0f) min(1f, b.sownKg / (food.field[f] * land.m2(f))) else 1f
     return food.fieldGrain[f] * land.m2(f) * share
 }
@@ -106,7 +107,7 @@ internal fun HexGroups.harvestCrop(g: HexGroup, b: Band, time: BandTime) {
     if (ripe <= 0f || left <= 0f) return
     val perKg = cropReapDays(b)
     val f = b.sownPlace; val food = fauna.food
-    val kg = land.total(f, food.take(food.fieldGrain, f, land.spread(f, Kg(min(ripe, left / perKg))))).v
+    val kg = land.total(f, food.reapField(f, land.spread(f, Kg(min(ripe, left / perKg))))).v
     if (kg <= 0f) return
     // (What it keeps back to sow again, as much as it sowed, is not ground: it is charged the grinding of the rest only.
     // The crop comes in over weeks, so what is kept is counted off over the whole harvest, not each week's.)

@@ -297,7 +297,7 @@ internal fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
         val wild = food.grain[q]; val sown = food.fieldGrain[q]
         plant(Food.GRAIN, 0, seedReach, wild, grainQ(food.wildStand(Place(q))) + sought(wild) + walked(Food.GRAIN, seedWalk, grainQ(food.wildStand(Place(q))) + sought(wild)), sought(wild),
             walked(Food.GRAIN, seedWalk, grainQ(food.wildStand(Place(q))) + sought(wild)))
-        if (sown > 0f && mayReap(g, Place(q))) plant(Food.GRAIN, FIELD_KIND, seedReach, sown, grainQ(food.fieldStand(Place(q))) + sought(sown) + walked(Food.GRAIN, seedWalk, grainQ(food.fieldStand(Place(q))) + sought(sown)),
+        if (sown > 0f && !food.fieldRipening(Place(q)) && mayReap(g, Place(q))) plant(Food.GRAIN, FIELD_KIND, seedReach, sown, grainQ(food.fieldStand(Place(q))) + sought(sown) + walked(Food.GRAIN, seedWalk, grainQ(food.fieldStand(Place(q))) + sought(sown)),
             sought(sown), walked(Food.GRAIN, seedWalk, grainQ(food.fieldStand(Place(q))) + sought(sown)))
     }
     // Bands fish the river, the lake or the sea by their camp, as their skill and nets allow ([Band.fishing]); and gather
@@ -451,7 +451,7 @@ private fun GroupWorld.reap(g: HexGroup, p: Place, sown: Boolean, expected: Floa
     val band = g.band
     val food = fauna.food
     val want = land.spread(p, Kg(expected)).v
-    val fromField = if (sown) food.take(food.fieldGrain, p, KgM2(want)).v else 0f
+    val fromField = if (sown) food.reapField(p, KgM2(want)).v else 0f
     val fromWild = if (sown) 0f else food.take(food.grain, p, KgM2(want)).v
     val taken = land.total(p, KgM2(fromField + fromWild)).v
     val took = taken * seedValue(band) * (band?.cookValue(Food.GRAIN) ?: 1f)
