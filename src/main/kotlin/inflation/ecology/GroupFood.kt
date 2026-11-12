@@ -359,6 +359,8 @@ internal fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float
     val fetch = w.s.dailyTravelKm; val tempC = w.weather.temperature[g.place]; val perHand = g.size.toFloat() / hands
     w.digDays = waterShare(g.place, fetch, waterLitres(tempC), perHand) * days * hands
     time.spend(Activity.FOOD, w.digDays)
+    // (And the grinding of the crop grain its people ate last step: [Band.grindOwed].)
+    if (b.grindOwed > 0f) { time.spend(Activity.FOOD, min(time.left, b.grindOwed)); b.grindOwed = 0f }
     // (What of its days a well at home would have spared it, for its wells: [Band.waterShort].)
     if (b.atHome) b.waterShort += (wellSpares(g.place, fetch, tempC, perHand) - b.waterShort) * min(1f, years)
     // (Moving camp takes its days first: everyone walks, at the pace of the slowest, see [moveDays].)

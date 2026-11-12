@@ -9,6 +9,7 @@ import inflation.world.get
 import inflation.world.set
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 // Eating the week's food: the meal a party makes of what it got, grease rendered from bones, and the tallies and books of what was eaten.
 
@@ -53,6 +54,7 @@ internal fun HexGroups.eatTheWeek(w: ForageWeek) {
         // (And what its grown people sweat out working and resting in the heat: [BodyHeat.sweatLitres], [inflation.Tuning.sweatSodium].)
         val sodiumNeed = (SODIUM_A_PERSON_DAY * g.size + band.sweatLitres * tuning.sweatSodium * g.adults) * days
         val stored = g.larder; val storedKinds = storesNow(g)
+        val cropBefore = band.seedCornIn(g)
         meal.eatForSodium(sodiumNeed / SODIUM_PER_KG_MEAT, got, plantKg, g)
         meal.eat(got, plantKg, g)
         band.larderMoved(g, LarderMove.ATE, g.larder - stored)
@@ -94,6 +96,10 @@ internal fun HexGroups.eatTheWeek(w: ForageWeek) {
         }
         stats.keep(Tally.of(s, Tally.OfKind.MEAT_EATEN), ateMeat.toInt())
         stats.keep(Tally.of(s, Tally.OfKind.PLANTS_EATEN), (eaten - ateMeat).toInt())
+        // (The crop grain eaten is ground as it is eaten: its days are given first next step, [Band.grindOwed].)
+        val groundDays = max(0f, cropBefore - band.seedCornIn(g)) * g.storeKgPer[Store.SEED] * grindDaysPerKg(band)
+        band.grindOwed += groundDays
+        stats.tally(Tally.grain(Tally.Grain.GRIND_DAYS), (10f * groundDays).roundToInt())
         keepAndSpoil(w, got, plantKg, pelts)
         band.seedCorn = band.seedCornIn(g)
         spare = 0f; meatEaten = ateMeatKg
