@@ -109,10 +109,9 @@ internal fun HexGroups.harvestCrop(g: HexGroup, b: Band, time: BandTime) {
     val f = b.sownPlace; val food = fauna.food
     val kg = land.total(f, food.reapField(f, land.spread(f, Kg(min(ripe, left / perKg))))).v
     if (kg <= 0f) return
-    // (What it keeps back to sow again, as much as it sowed, is not ground: it is charged the grinding of the rest only.
-    // The crop comes in over weeks, so what is kept is counted off over the whole harvest, not each week's.)
-    val grind = grindDaysPerKg(b); val kept = min(kg, b.seedKept); b.seedKept -= kept; val ground = kg - kept
-    time.spend(Activity.SOWING, kg * (perKg - grind) + ground * grind)
+    // (It is ground as it is eaten, through the year, not as it comes in: [Band.grindOwed].)
+    b.seedKept -= min(kg, b.seedKept)
+    time.spend(Activity.SOWING, kg * perKg)
     val worth = kg * seedValue(b) * b.cookValue(Food.GRAIN)
     val corn = b.seedCorn
     b.seedDomestic = (b.seedDomestic * corn + b.reapedDomestic(food.fieldDomestic[f]) * worth) / (corn + worth)
@@ -122,17 +121,17 @@ internal fun HexGroups.harvestCrop(g: HexGroup, b: Band, time: BandTime) {
     if (b.knowsSkill[Skill.CULTIVATION]) b.practise(Skill.CULTIVATION)
     stats.tally(Tally.of(g.species, Tally.OfKind.GRAIN_REAPED), worth.toInt())
     stats.tally(Tally.grain(Tally.Grain.CROP_KG), kg.roundToInt())
-    stats.tally(Tally.grain(Tally.Grain.CROP_DAYS), (10f * (kg * (perKg - grind) + ground * grind)).roundToInt())
-    stats.tally(Tally.grain(Tally.Grain.GRIND_DAYS), (10f * ground * grind).roundToInt())
+    stats.tally(Tally.grain(Tally.Grain.CROP_DAYS), (10f * kg * perKg).roundToInt())
     note(g) { "brought in %.0f kg of its crop".format(kg) }
 }
 
 /**
- * Person-days band [b] takes to reap, thresh and clean a kilo of its own crop ([reapDaysPerKg]), as thick as it stands in
+ * Person-days band [b] takes to reap, thresh and clean a kilo of its own crop ([reapDaysPerKg], less its grinding, done as it is
+ * eaten: [Band.grindOwed]), as thick as it stands in
  * its plot ([HexFood.fieldStand]); before it has sown, as a field would stand ripened in full.
  */
 internal fun GroupWorld.cropReapDays(b: Band) =
-    reapDaysPerKg(b, tuning, if (b.sownPlace.none) HexFood.yieldPerKg(b.seedDomestic) * HexFood.SEED_RATE else fauna.food.fieldStand(b.sownPlace))
+    reapDaysPerKg(b, tuning, if (b.sownPlace.none) HexFood.yieldPerKg(b.seedDomestic) * HexFood.SEED_RATE else fauna.food.fieldStand(b.sownPlace)) - grindDaysPerKg(b)
 
 /**
  * Person-days to sow [kg] at [p]: hoeing and sowing the ground ([SOW_DAYS_PER_KG]), and first clearing what of it is not cleared

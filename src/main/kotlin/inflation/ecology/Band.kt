@@ -456,6 +456,11 @@ class Band(kinds: Int, totems: Int = kinds) {
      * reckoned afresh each week.
      */
     var seedTarget = 0f
+    /**
+     * Person-days of grinding its people owe for the crop grain they ate last step ([GRIND_DAYS_PER_KG] with grinding stones):
+     * ground as it is eaten, not as it is reaped, so given first of the next step's days, as the water dug for is ([planWeek]).
+     */
+    var grindOwed = 0f
     /** Its ways ([BandWay]), as [setWays] sets them each week from its ways' outputs: 1 each for the scaffold's way. Read through the names below. */
     val will = enumFloats<BandWay> { 1f }
     /** Its choices: how much of its stored grain it sows in autumn at its home (the scaffold: some, once it has houses). */

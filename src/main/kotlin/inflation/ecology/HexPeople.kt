@@ -285,8 +285,8 @@ internal fun HexGroups.choreAsks(g: HexGroup, b: Band, date: Date, asks: EnumFlo
         ask(Activity.WEIRS, weirAsk(g, b, h))
         ask(Activity.WELLS, wellAsk(g, b, h))
     }
-    // (Its own crop, ripe, it brings in wherever it has come from: the field work is sowing's time.)
-    cropRipe(g, b).takeIf { it > 0f }?.let { asks[Activity.SOWING] += it * cropReapDays(b) }
+    // (Its own crop, ripe, it brings in wherever it has come from, in sowing's time: held first, with the herders' days,
+    // not asked here: [planWeek].)
     ask(Activity.DRYING, b.dryAsk)
     ask(Activity.SKINS, b.skinAsk)
 }

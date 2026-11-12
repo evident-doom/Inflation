@@ -78,7 +78,7 @@ internal fun carryRules(): Map<String, Pair<OnSplit, OnJoin>> {
     rule(OnSplit.SHARED, OnJoin.SUM, "saltWantStep")
     rule(OnSplit.CONTRACT, OnJoin.CONTRACT, "herds", "dogs")
     // (The crop stays with the band that sowed it: an offshoot sowed nothing, and a joining band's crop is left to whoever reaps it.)
-    rule(OnSplit.FRESH, OnJoin.LOST, "sownPlace", "sownKg", "seedKept", "sinceSowed", "seedTarget")
+    rule(OnSplit.FRESH, OnJoin.LOST, "sownPlace", "sownKg", "seedKept", "sinceSowed", "seedTarget", "grindOwed")
     rule(OnSplit.COPIED, OnJoin.LOST, "sinceRaided")
     // Its ways' choices.
     rule(OnSplit.CHOSEN, OnJoin.CHOSEN, "storeShare", "will", "makeFirst", "effort")
