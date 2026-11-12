@@ -877,7 +877,18 @@ internal fun HexGroups.settle(weather: Weather) {
         val w = g.will[AnimalWay.SETTLE]
         if (w < 1f && rnd.nextFloat() >= (if (ticks > 1) 1f - (1f - w).pow(ticks) else w)) continue
         val here = hw.placeHex[g.place]
-        val tries = if (ticks <= 1) listOf(here) else (listOf(here) + (g.path.size - 1 downTo 0).map { g.path[it] }).distinct().take(ticks)
+        // (And about it: over a step of several ticks a weekly pack would have wandered as far as a random walk of a hex a tick
+        // goes, about the square root of the ticks in rings; trace749: beaten off, 60-day packs settled again a third as often.)
+        val tries = if (ticks <= 1) listOf(here) else {
+            val seen = LinkedHashSet<Hex>(); seen += here; for (i in g.path.size - 1 downTo 0) seen += g.path[i]
+            var ring = listOf(here)
+            repeat(kotlin.math.ceil(sqrt(ticks.toFloat())).toInt()) {
+                val next = ArrayList<Hex>()
+                for (h in ring) for (d in 0 until 6) { val nh = hex.neighbour(h, d); if (!nh.none && seen.add(nh)) next += nh }
+                ring = next
+            }
+            seen.toList()
+        }
         for (h in tries) {
             if (g.species in Catalogue.roamingResidents) {
                 // (A roamer settles in where it stands: at its own place's hex only.)
