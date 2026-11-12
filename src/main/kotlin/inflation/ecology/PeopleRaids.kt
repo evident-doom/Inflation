@@ -57,10 +57,10 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
     val hungry = g.fed < shareOfWill(b.raidWill, RAID_HUNGER)
     dialUse?.choice(DialSite.RAIDS_HUNGER, b.raidWill, hungry, g.fed < RAID_HUNGER)
     // (A band neither hungry nor holding a grudge to a feud looks at no home: nothing to plot.)
-    if (!hungry && (!b.holdsFeuds() || b.grudge.none { it > FEUD })) return
+    if (!hungry && b.grudge.none { it > FEUD }) return
     val within = ArrayList<Int>()
     for ((id, h) in b.knownHomes) {
-        val feud = b.holdsFeuds() && (b.knownLineage[id] ?: -1).let { it >= 0 && b.grudge[it] > FEUD }
+        val feud = (b.knownLineage[id] ?: -1).let { it >= 0 && b.grudge[it] > FEUD }
         if (!hungry && !feud) continue
         if (hexKm(here, h) <= RAID_RANGE_KM) within += id
     }
@@ -181,18 +181,11 @@ internal const val PALISADE_DEFENCE = 1f
 internal const val SURPRISE_RAID = 1f
 internal const val HIGH_GROUND = 0.5f
 
-/**
- * Whether a band carries a grudge into raids of its own (a feud): only one with something fixed of its own to avenge and
- * hold, its sowing, herds or palisade. Among mobile foragers revenge killing is between persons, settled within the band or
- * by leaving; group feuds come with fields and herds (Kelly 2000, Warless Societies; from memory).
- */
-internal fun Band.holdsFeuds() = sownKg > 0f || palisade > 0f || herds.herd.any { it >= 1f }
-
 /** [g] raids [o] (as it regards it: [r]) if it is hungry and [o] has food, or holds a feud against its people. Returns whether it did. */
 internal fun HexGroups.raid(g: HexGroup, b: Band, o: HexGroup, ob: Band, r: Regard, weather: Weather): Boolean {
     // What drives a raid: an old feud, or competition (hunger with food in the other's larder, or too
     // many people on the same country); kin and those who understand each other fight less.
-    val feud = r.feud && b.holdsFeuds()
+    val feud = r.feud
     val hunger = if (o.larder > 10f * o.dailyNeedKg) (1f - g.fed) else 0f
     // (On ground it holds as its own, a band drives off those it is not close to: trespass.)
     val trespass = if (b.claims(hw.placeHex[g.place], g.memory) && r.tie <= 0f) CLAIM_PRESSURE else 0f
