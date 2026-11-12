@@ -26,7 +26,7 @@ enum class Illness(override val label: String, val weeks: Float, val deadly: Flo
      * above the record, and where bands meet often, when the flux is caught at meetings and comes back as the spared forget
      * it, that set its deaths at some 15 a 1000 a year (flux716, 11 Nov 2026) against the 2-7 of [FLUX_RATE]'s record.
      */
-    FLUX("the flux", 3f, 0.01f, 3f, 0.25f, 2f, 0.4f),
+    FLUX("the flux", 3f, 0.01f, 3f, 0.1f, 2f, 0.4f),
     /** Malaria: carried by the mosquitoes about the camp in the warm months; not caught from one another. */
     MARSH_FEVER("marsh fever", 6f, 0.04f, 3f, 0f, 4f, 0.3f),
     /** A virulent cough that runs from band to band, worst in winter and at gatherings, and can empty a camp. */
