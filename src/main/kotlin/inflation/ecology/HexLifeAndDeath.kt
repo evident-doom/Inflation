@@ -19,6 +19,7 @@ import inflation.world.Date
 import inflation.world.Weather
 import kotlin.math.exp
 import kotlin.math.hypot
+import kotlin.math.ln
 import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.roundToInt
@@ -97,10 +98,13 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         .associate { it.id to it.band!!.houseHex }
     run {
         val homesIn = HashMap<Hex, Int>(); for (h in bands.houseOf.values) homesIn.merge(h, 1, Int::plus)
-        val fame = HashMap<Int, Float>()
+        val raw = HashMap<Int, Float>()
         for (g in groups) { val b = g.band ?: continue; val h = bands.houseOf[g.id] ?: continue
-            fame[g.id] = b.fame + b.renown + FAME_SETTLEMENT * ((homesIn[h] ?: 1) - 1) }
-        bands.fameOf = fame
+            raw[g.id] = b.fame + b.renown + FAME_SETTLEMENT * ((homesIn[h] ?: 1) - 1) }
+        // (Fame is against the other bands: a band talked of as much as the middling band is famous for nothing; one talked
+        // of twice as much, 1; the middle no lower than one band's neighbours in its hex make. Taken raw, renown alone put 98% of housed bands at 1 or more, median 19 (homes738).)
+        val mid = raw.values.sorted().let { if (it.isEmpty()) 0f else it[it.size / 2] }.coerceAtLeast(FAME_SETTLEMENT)
+        bands.fameOf = raw.mapValues { (_, v) -> max(0f, ln(v / mid) / ln(2f)) }
     }
     run {
         // The bands' own weeks go one after another (they share the ground, the structures and the week's tallies), then their
