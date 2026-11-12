@@ -118,7 +118,7 @@ class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, @Transi
      */
     val residentCarrion = FloatArray(n)
     /** How fast the residents of each place come on its carrion, a day, as they last fed there: summed over the kinds that eat it ([stepSoil]). */
-    val residentCarrionRate = FloatArray(n)
+    @Transient val residentCarrionRate = FloatArray(n)
     /** Where dead matter went, for the viewer (see [PlaceRecord]); set with [HexFauna.record]. */
     @Transient var record: PlaceRecord? = null
     /** Bones left when the meat is gone, kg/m²: slow to weather, food for bone-crackers. */
