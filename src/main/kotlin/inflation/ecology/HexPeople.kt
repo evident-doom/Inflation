@@ -358,11 +358,16 @@ internal const val KNOWN_AT_START = 3
 /** How strongly people's camps draw bold animals of kinds that follow people (refuse, scraps, warmth). */
 internal const val CAMP_LURE = 0.3f
 
-/** People per km² around a camp (its hex and the six round it) at which crowding brings sickness; yearly deaths from it then. */
+/**
+ * People per km² around a camp (its hex and the six round it) at which crowding brings sickness; yearly deaths from it then.
+ * [PEOPLE_SICK] and [PEOPLE_OUTBREAK] at half of 0.012 and 0.3 (crowd734, 12 Nov 2026): all illness came to about 17 adult
+ * deaths a 1000 a year where people crowd (x4), against some 9 in the forager record (illness 72% of deaths, Gurven, at
+ * 1-1.5% adult deaths a year); halved, outbreaks and crowding sickness kill some 40% fewer at x4 and x8. Fitted, not sourced.
+ */
 internal const val PEOPLE_FULL_KM2 = 0.5f
-internal const val PEOPLE_SICK = 0.012f
+internal const val PEOPLE_SICK = 0.006f
 /** Outbreaks start among people at this share of the rate for animals of the same crowding (small bands keep few diseases going). */
-internal const val PEOPLE_OUTBREAK = 0.3f
+internal const val PEOPLE_OUTBREAK = 0.15f
 /** How much a cave or rock shelter adds to a camp's worth (dry, warm, easy to defend). */
 internal const val CAVE_CAMP = 0.5f
 /** Yearly deaths from vipers and scorpions among people, in the warm months. */
