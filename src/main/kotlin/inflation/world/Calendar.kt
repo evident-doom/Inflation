@@ -61,6 +61,9 @@ data class Date(val absoluteDay: Long) {
      * a month or once a year at a month's start, true in exactly one step whatever the step's length (a step taken to
      * hold the months it starts in would skip months at steps longer than one).
      */
+    /** Whether the step of [days] days from this date holds the first day of any month: true once a month whatever the step's length. */
+    fun holdsAnyMonthStart(days: Int) = (DAYS_PER_MONTH - (dayOfMonth - 1)) % DAYS_PER_MONTH < days
+
     fun holdsMonthStart(days: Int, m: Int): Boolean {
         var d = absoluteDay + (DAYS_PER_MONTH - (dayOfMonth - 1)) % DAYS_PER_MONTH
         while (d < absoluteDay + days) { if (Date(d).month == m) return true; d += DAYS_PER_MONTH }

@@ -10,8 +10,8 @@ import kotlin.math.min
 /*
  * How people spread over the land when bands hold their home hex ([staysHome], t.bandsStay): not by treks, but as a band's
  * daughters settle where there is room within a few days' walk ([findHome]), as households drift year by year from a hex
- * crowded for what it offers to a roomier one beside it, and as a band tied to no spot leaves a hex that has become much
- * poorer than one beside it ([spreadYear]). One measure for all three: a hex's people against how well its ground suits
+ * crowded for what it offers to a roomier one beside it ([spreadYear]), and as a band tied to no spot moves to a hex
+ * beside that gives more food a head now ([moveCamps]). One measure for all three: a hex's people against how well its ground suits
  * people ([hexSuit]: its places' suitable area, km²), its crowding.
  *
  * Why (Olli, 10 Nov 2026): with daughters taking only an empty hex beside the parent's, people spread only from the edge
@@ -35,15 +35,19 @@ internal const val SEEP_FIXED = 0.3f
 internal const val SEEP_MARGIN = 0.25f
 /** The fewest grown people who leave together: a household or two. */
 internal const val SEEP_ADULTS = 3
-/** A band tied to no spot moves its whole camp to the hex beside when that hex is this many times roomier, its band there counted. */
-internal const val RELOCATE_GAP = 3f
 /**
- * Or, when its food has fallen short over the year by this many days ([Band.leanDays]: its ground has worsened, by drought,
- * a shifting climate or the game gone), already when the hex beside is [RELOCATE_LEAN_GAP] times roomier. (Suitability,
- * [hexSuit], is the ground's lasting worth and does not see a bad run of years; the band's own shortfall does.)
+ * A band tied to no spot moves its camp to the hex beside when that hex gives this share more food a head now, its own
+ * people counted there ([moveCamps]). The margin is what a move costs (a day or two's carrying, ground less well known),
+ * not a wish to move: within it the band stays. Olli, 12 Nov 2026: the hex is the model's unit, not the band's range, so a
+ * mobile band moves hexes as and when it pays; the rule was a yearly move only for bands short of food, at 3x the room
+ * (1.5x after 60 lean days), on the ground's lasting worth, which does not see game hunted down. An estimate.
  */
-internal const val RELOCATE_LEAN_DAYS = 60f
-internal const val RELOCATE_LEAN_GAP = 1.5f
+internal const val MOVE_MARGIN = 0.25f
+/**
+ * Share of the standing game people can catch ([GroupWorld.preyHere]) that a band can take from it a year without running
+ * it down: big game makes some 20-30% of its mass a year (an estimate, of the order of ungulates' production, from memory).
+ */
+internal const val GAME_TAKE = 0.2f
 
 /**
  * Of a band past its easy size ([HexGroups.easySize]), the chance a year that those it holds beyond it leave ([discord]).
@@ -109,6 +113,21 @@ internal fun HexGroups.hexFood(h: Hex): Float {
     var kg = 0f
     for (pi in hw.placesOf(h)) kg += placeFood(Place(pi))
     // (The fish and shellfish within reach, not the spring run, which comes in its season.)
+    val fish = fauna.water.fishWithin(h, 1f, HexWater.Catch.FISH) + fauna.water.fishWithin(h, 1f, HexWater.Catch.SHELLFISH)
+    return kg + fish * Date.DAYS_PER_YEAR / days * FISH_TAKEN
+}
+
+/**
+ * What hex [h] gives people of kind [s] now, kg a year: the game standing on its places that they can catch
+ * ([GroupWorld.preyHere], as hunted down or grown back) at [GAME_TAKE], with the roots and fish of [hexFood]. For where a
+ * band moves its camp ([moveCamps]): unlike [hexFood], it sees the game a band has hunted out.
+ */
+internal fun HexGroups.hexFoodNow(s: Species, h: Hex): Float {
+    var kg = 0f
+    for (pi in hw.placesOf(h)) {
+        val p = Place(pi)
+        kg += preyHere(s, p) * land.areaKm2[p.i] * GAME_TAKE + fauna.food.roots[p.i] * land.areaKm2[p.i] * 1e6f * ROOTS_TAKEN
+    }
     val fish = fauna.water.fishWithin(h, 1f, HexWater.Catch.FISH) + fauna.water.fishWithin(h, 1f, HexWater.Catch.SHELLFISH)
     return kg + fish * Date.DAYS_PER_YEAR / days * FISH_TAKEN
 }
@@ -184,13 +203,10 @@ internal fun HexGroups.findHome(n: HexGroup, born: List<HexGroup>) {
  * Once a year (the step that holds the year's first month start, whatever its length): bands that hold their home hex
  * ease their crowding into the hexes beside. For each, the roomiest hex beside ([hexSuit] over the people there and a
  * household more) against its own; where that is roomier by more than [SEEP_MARGIN]:
- * - a band tied to no spot moves its whole camp there if it is [RELOCATE_GAP] times roomier, its own people counted
- *   (the hex beside emptied), or [RELOCATE_LEAN_GAP] times when its food fell short by [RELOCATE_LEAN_DAYS] over the year
- *   (its ground has worsened);
- * - otherwise some households leave for it, [SEEP_RATE] of its people for each unit of the gap, at most [SEEP_MOST], a
- *   tied band [SEEP_FIXED] as many, in parties of [SEEP_ADULTS] grown people with their share of the young (of
- *   [SMALL_BAND] to an empty hex), as a band of their own ([splitOff]); a party too small to live alone joins kin there
- *   ([mergeAndPair]).
+ * some households leave for it, [SEEP_RATE] of its people for each unit of the gap, at most [SEEP_MOST], a tied band
+ * [SEEP_FIXED] as many, in parties of [SEEP_ADULTS] grown people with their share of the young (of [SMALL_BAND] to an
+ * empty hex), as a band of their own ([splitOff]); a party too small to live alone joins kin there ([mergeAndPair]).
+ * (Whole bands move month by month, [moveCamps].)
  * Returns the bands made, to be added to the groups.
  */
 @Part("people: spread")
@@ -210,7 +226,7 @@ internal fun HexGroups.spreadYear(date: Date): List<HexGroup> {
         if (discord(g, date, people, wanting, bandsIn, made)) continue
         if (g.adults < SMALL_BAND + SEEP_ADULTS) continue
         // (Only a band that wants for food ([wantsFood]) sends households off, to a hex beside whose bands do not, the one with
-        // most food a head, as its buds go ([findHome]); or moves whole.)
+        // most food a head, as its buds go ([findHome]).)
         val want = wantsFood(g)
         if (!want) continue
         // (Each year's draw from the band's own stream, so the year runs the same in any order.)
@@ -225,13 +241,6 @@ internal fun HexGroups.spreadYear(date: Date): List<HexGroup> {
         }
         if (best.none || bestV <= here * (1f + SEEP_MARGIN)) continue
         val fixed = b.livesFixed()
-        val gapThere = suitAt(g.species, best) / (people[best.i] + g.size) / here
-        if (want && !fixed && (gapThere >= RELOCATE_GAP || (b.leanDays >= RELOCATE_LEAN_DAYS && gapThere >= RELOCATE_LEAN_GAP))) {
-            people[h.i] -= g.size; people[best.i] += g.size
-            g.place = hw.firstPlaceIn(best)
-            stats.meeting(Met.BANDS_RELOCATED)
-            continue
-        }
         val share = min(SEEP_MOST, SEEP_RATE * (bestV / here - 1f)) * (if (fixed) SEEP_FIXED else 1f)
         // (A party goes whole or not at all: as often as the year's share of its people makes up a party. To an empty hex
         // it must be a band that can live alone, else it would only join kin back home, [mergeAndPair].)
@@ -249,6 +258,39 @@ internal fun HexGroups.spreadYear(date: Date): List<HexGroup> {
     // (The year's lowest reserves start afresh once read: [Band.fatLow]. The buds of the year to come read it as they part.)
     for (g in groups) g.band?.let { b -> b.fatLow = g.fat / g.species.maxFatDays.coerceAtLeast(1f) }
     return made
+}
+
+/**
+ * At each month's start, bands that hold their home hex and are tied to no spot ([Band.livesFixed]: houses, fresh sowing,
+ * a palisade) move their camp to the hex beside that gives most food a head now ([hexFoodNow], their own people counted
+ * there), if it gives [MOVE_MARGIN] more than their own. One measure, no other pull: a band moves for food, not to move.
+ * Foragers leave a camp as what they get about it falls below what they would get elsewhere, less the move (Kelly 2013,
+ * from memory). Within the hex the band shifts camp as its ground fouls ([shiftCamps]).
+ */
+@Part("people: spread")
+internal fun HexGroups.moveCamps() {
+    if (!tuning.bandsStay) return
+    val people = bandPeopleByHex()
+    val food = FloatArray(hex.size) { Float.NaN }
+    for (g in groups) {
+        val b = g.band ?: continue
+        if (!g.alive || !staysHome(g) || inParty(g) || b.livesFixed()) continue
+        fun foodAt(q: Hex): Float { if (food[q.i].isNaN()) food[q.i] = hexFoodNow(g.species, q); return food[q.i] }
+        val h = hw.placeHex[g.place]
+        val here = foodAt(h) / max(1f, people[h.i])
+        var best = Hex.NONE; var bestV = here * (1f + MOVE_MARGIN)
+        for (d in 0 until 6) {
+            val q = hex.neighbour(h, d)
+            if (q.none || hw.placesOf(q).isEmpty() || shuns(g, q)) continue
+            val v = foodAt(q) / (people[q.i] + g.size)
+            if (v > bestV) { bestV = v; best = q }
+        }
+        if (best.none) continue
+        people[h.i] -= g.size; people[best.i] += g.size
+        g.place = hw.firstPlaceIn(best)
+        stats.meeting(Met.BANDS_RELOCATED)
+        note(g) { "moved its camp to the hex beside, for more food a head" }
+    }
 }
 
 /**
