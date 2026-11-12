@@ -225,6 +225,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     b.spareDays = time.left
     countSqueeze(b, time)
     time.spend(Activity.LEISURE, time.left)
+    tallySowingTime(g, b, p, date, time)
     time.countEachInto(bands.tallies)
     bands.tallies.total(Tally.TimeTotal.LEFT, (time.left * 10f).roundToInt())
     bands.tallies.total(Tally.TimeTotal.LOST, (time.lost * 10f).roundToInt())

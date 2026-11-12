@@ -49,17 +49,53 @@ internal fun HexGroups.sowGrain(g: HexGroup, b: Band, p: Place, date: Date, time
             note(g) { "sowed %.0f kg of grain at home".format(sow) }
         }
     }
+    tallySowing(g, b, p, date)
+}
+
+/** Whether [g]'s band [b] is one the sowing census counts at [p] now: one that grows grain, at home or long at its camp, in its sowing window, where a crop can grow. */
+private fun HexGroups.inSowingWindow(g: HexGroup, b: Band, p: Place, date: Date) =
+    b.knowsSkill[Skill.CULTIVATION] && fauna.food.canCrop(p) && (b.atHome || b.campWeeks >= houseAfterWeeks(b)) &&
+        date.month in (if (fauna.food.springSown(p)) SPRING_SOW_MONTHS else SOW_MONTHS) && sowTarget(g, b, p, 1f) > 0f
+
+/** Where the days of [g]'s band [b] went in its sowing window ([inSowingWindow]), tenths of person-days by work ([Tally.sowingTime]). Report only. */
+internal fun HexGroups.tallySowingTime(g: HexGroup, b: Band, p: Place, date: Date, time: BandTime) {
+    if (!stats.census || !inSowingWindow(g, b, p, date)) return
+    stats.tally(Tally.sowingTime(null), 1)
+    for (a in Activity.entries) { val d = (10f * time.spentOn(a)).roundToInt(); if (d > 0) stats.tally(Tally.sowingTime(a), d) }
+    stats.tally(Tally.sowingLost, (10f * time.lost).roundToInt())
+}
+
+/** In its sowing window's last month, what of its year's target [g]'s band [b] has sown at [p] and what held the rest back ([Tally.Sowing]). Report only. */
+private fun HexGroups.tallySowing(g: HexGroup, b: Band, p: Place, date: Date) {
+    val food = fauna.food
+    if (!stats.census || !b.knowsSkill[Skill.CULTIVATION] || !food.canCrop(p) || !(b.atHome || b.campWeeks >= houseAfterWeeks(b))) return
+    if (date.month != (if (food.springSown(p)) SPRING_SOW_MONTHS else SOW_MONTHS).last) return
+    val per = g.storeKgPer[Store.SEED]
+    val full = sowTarget(g, b, p, 1f) * per
+    if (full <= 0f) return
+    val sown = min(full, if (b.sownPlace == p && food.field[p] > 0f) b.sownKg else 0f)
+    val ways = max(0f, full - max(sown, sowTarget(g, b, p, b.sowWill) * per))
+    val unsown = max(0f, full - sown - ways)
+    val seed = min(unsown, max(0f, unsown - b.seedCornIn(g) * per))
+    stats.tally(Tally.sowing(Tally.Sowing.WEEKS), 1)
+    stats.tally(Tally.sowing(Tally.Sowing.SOWN), sown.roundToInt())
+    stats.tally(Tally.sowing(Tally.Sowing.WAYS), ways.roundToInt())
+    stats.tally(Tally.sowing(Tally.Sowing.SEED), seed.roundToInt())
+    stats.tally(Tally.sowing(Tally.Sowing.DAYS), (unsown - seed).roundToInt())
 }
 
 /**
  * The seed band [b] (group [g]) sows a year at [p], in its stores' units: what ripens to [FARM_NEED_SHARE] of its people's
  * year's food (as far as its ways have it, [will]: [Band.sowWill]), at what a kilo sown there bears ([HexFood.yieldPerKg] of
- * its seed's strain, in its season, [HexFood.seasonYield]) and feeds ([seedValue], cooked). Farmers sow for the year they
+ * its seed's strain, in its season, [HexFood.seasonYield], on ground as worn as it has seen it) and feeds ([seedValue], cooked). Farmers sow for the year they
  * see coming, not what seed happens to be left over; nothing where it cannot farm.
  */
 internal fun GroupWorld.sowTarget(g: HexGroup, b: Band, p: Place, will: Float = b.sowWill): Float {
     if (!b.knowsSkill[Skill.CULTIVATION] || !fauna.food.canCrop(p)) return 0f
-    val perUnit = g.storeKgPer[Store.SEED] * HexFood.yieldPerKg(b.seedDomestic) * fauna.food.seasonYield(p) * seedValue(b) * b.cookValue(Food.GRAIN)
+    // (On ground it has cropped before it reckons with the wear it has seen there: [HexFood.fieldSoil].)
+    val food = fauna.food
+    val soil = if (food.fieldWorn[p] > 0f) food.fieldSoil[p] else 1f
+    val perUnit = g.storeKgPer[Store.SEED] * HexFood.yieldPerKg(b.seedDomestic) * food.seasonYield(p) * soil * seedValue(b) * b.cookValue(Food.GRAIN)
     return if (perUnit > 0f) FARM_NEED_SHARE * will * g.dailyNeedKg * Date.DAYS_PER_YEAR / perUnit else 0f
 }
 
@@ -135,12 +171,23 @@ internal fun GroupWorld.cropReapDays(b: Band) =
 
 /**
  * Person-days to sow [kg] at [p]: hoeing and sowing the ground ([SOW_DAYS_PER_KG]), and first clearing what of it is not cleared
- * yet of its trees and scrub ([HexFood.toClear], [HexFood.clearDaysPerHa]).
+ * yet of its trees and scrub ([HexFood.toClear], [HexFood.clearDaysPerHa]), which as far as its burning leaves it loose is
+ * sown without hoeing ([burntLoose]).
  */
 internal fun GroupWorld.sowDays(p: Place, kg: Float): Float {
     val food = fauna.food
-    return kg * SOW_DAYS_PER_KG + food.toClear(p, land.spread(p, Kg(kg))) * land.m2(p) / 1e4f * food.clearDaysPerHa(p)
+    val clearHa = food.toClear(p, land.spread(p, Kg(kg))) * land.m2(p) / 1e4f
+    return kg * SOW_DAYS_PER_KG + clearHa * (food.clearDaysPerHa(p) - TILL_DAYS_PER_HA * burntLoose(p))
 }
+
+/**
+ * The share of the ground [p]'s band clears and burns this year that is left loose enough to sow without hoeing: at Forchtenberg
+ * the burnt plots were sown direct, and hoeing after burning bore no more (Rösch et al. 2017, Land 6(1):11); there the wood
+ * burnt was a 15-year stand's, some 4-6 kg/m² ([HexFood.FELL_DAYS_PER_HA]). Thinner scrub burns off thinner, and leaves the
+ * share of that it bears, [BURN_LOOSENS_KG_M2]; grass sward is hoed.
+ */
+internal fun GroupWorld.burntLoose(p: Place) = min(1f, (land.plants.tree[p] + land.plants.shrub[p]) / BURN_LOOSENS_KG_M2)
+internal const val BURN_LOOSENS_KG_M2 = 5f
 
 /** The kg that [days] person-days sow at [p] ([sowDays]): on cleared ground first, then clearing as it goes. */
 internal fun GroupWorld.sowableKg(p: Place, days: Float): Float {
@@ -149,7 +196,7 @@ internal fun GroupWorld.sowableKg(p: Place, days: Float): Float {
     val free = food.sowableCleared(p) * land.m2(p)
     if (days <= free * SOW_DAYS_PER_KG) return days / SOW_DAYS_PER_KG
     // (Beyond it each kg sown needs 1/[HexFood.SEED_RATE] m² cleared.)
-    val clearPerKg = food.clearDaysPerHa(p) / (HexFood.SEED_RATE * 1e4f)
+    val clearPerKg = (food.clearDaysPerHa(p) - TILL_DAYS_PER_HA * burntLoose(p)) / (HexFood.SEED_RATE * 1e4f)
     return free + (days - free * SOW_DAYS_PER_KG) / (SOW_DAYS_PER_KG + clearPerKg)
 }
 
@@ -397,7 +444,11 @@ internal const val DOG_GUARD = 0.5f
  * - Not counted: weeding, 145 and 120 hours for a first and second hoeing (same source), till a field going unweeded bears less.
  * It was 0.5 days a kg sown, 60 a hectare, unsourced.
  */
-val SOW_MONTHS = 9..10
+/**
+ * Autumn sowing runs October to December: in the Near East winter cereals went in with the first autumn rains and on through
+ * the early winter (from memory, unchecked); it was October and November only.
+ */
+val SOW_MONTHS = 9..11
 /** Where winters are too cold for an autumn-sown crop ([HexFood.springSown]): sown as the ground thaws, March and April. */
 val SPRING_SOW_MONTHS = 2..3
 /**

@@ -205,6 +205,7 @@ enum class Met(val label: String) {
     BANDS_SPLIT("bands split"),
     BANDS_BUDDED_OUT("bands budded into another hex"),
     BANDS_BUDDED_IN_PLACE("bands budded staying in their parent's hex"),
+    BANDS_STAYED_IN_THEIR_VILLAGE("bands split off a village staying in it as a band of their own"),
     HOUSEHOLDS_SEEPED("households left a crowded hex for a roomier one beside"),
     BANDS_SPLIT_BY_DISCORD("bands split off by discord in a band past its easy size"),
     BANDS_TOOK_UP_A_DISPUTE_WAY("bands split by discord where leaving is dear took up the next way of settling quarrels"),
@@ -659,6 +660,19 @@ object Tally {
         WILD_DAYS("wild, days"), FIELD_DAYS("sown, foraged, days"), CROP_DAYS("crop brought in, days"), GRIND_DAYS("grinding, days")
     }
     fun grain(k: Grain) = TallyKey.raw("bands' grain:${k.label}")
+    /**
+     * Bands that could sow at home, in their sowing window's last month ([HexGroups.sowGrain]), each band-week after its sowing:
+     * kg of the year's full target ([sowTarget] at ways' 1) sown this season, held back by its ways ([Band.sowWill]), and of the
+     * rest unsown, short for want of seed corn or, with seed in hand, of days. The four sum to the target. Report only.
+     */
+    enum class Sowing(val label: String) {
+        WEEKS("band-weeks"), SOWN("sown, kg"), WAYS("held back by ways, kg"), SEED("short of seed, kg"), DAYS("short of days, kg")
+    }
+    fun sowing(k: Sowing) = TallyKey.raw("bands' sowing:${k.label}")
+    /** Bands in their sowing window ([HexGroups.tallySowingTime]): band-weeks (null), and tenths of person-days spent on each work, and lost to cold and hunger. */
+    private val sowingTimeKeys = Array(Activity.entries.size + 1) { i -> TallyKey.raw("bands sowing window:" + if (i == 0) "band-weeks" else "time ${Activity.entries[i - 1].label}") }
+    fun sowingTime(a: Activity?) = sowingTimeKeys[if (a == null) 0 else a.ordinal + 1]
+    val sowingLost = TallyKey.raw("bands sowing window:time lost to cold and hunger")
     /** How far a band's shelters stood at the week's end ([Band.shelter]): the first bin it falls [below]. The report's line. */
     enum class Hut(val label: String, val below: Float) {
         NONE("no hut", 0.5f), LIGHT("light hut", 1.05f), PART("part thatched", 1.5f), THATCHED("thatched", Float.POSITIVE_INFINITY);

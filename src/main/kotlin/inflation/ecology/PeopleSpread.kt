@@ -130,7 +130,7 @@ internal fun HexGroups.hexesWanting(): BooleanArray {
 
 /**
  * Where band [n], just split off its parent ([splitOff], at the parent's place), makes its home when bands hold their
- * home hex ([staysHome]): an empty hex beside its parent's if there is one (the richest of them), so settlement spreads at
+ * home hex ([staysHome]): split off a village, in the village while its ground feeds them; else an empty hex beside its parent's if there is one (the richest of them), so settlement spreads at
  * its edge (night705: without it, buds stayed home, the held share fell from 7% to 5-6% and bands grew to 40-46);
  * else the nearest hex whose ground still feeds the people on it. It stays in its parent's hex unless
  * some band there wants for food ([wantsFood]: its people's reserves fell low at some step of its year); else it goes to
@@ -145,6 +145,11 @@ internal fun HexGroups.hexesWanting(): BooleanArray {
  */
 internal fun HexGroups.findHome(n: HexGroup, born: List<HexGroup>) {
     val from = hw.placeHex[n.place]
+    // (A band split off a village, its parent at home in its houses here, stays in its village as a group of its own while no
+    // band here wants for food: villages grew by their people staying on, house by house (Kuijt 2000; Flannery 2002, from
+    // memory), where a roaming band's bud takes up the range next door. Olli, 12 Nov 2026: bands gather into villages.)
+    val nb = n.band
+    if (nb != null && nb.houseHex == from && nb.house > 0.05f && !hexesWanting()[from.i]) { stats.meeting(Met.BANDS_STAYED_IN_THEIR_VILLAGE); return }
     val people = bandPeopleByHex(born)
     // (First an empty hex beside its parent's, the one whose ground gives most: daughters take up the range next door.)
     var empty = Hex.NONE; var emptyFood = 0f
