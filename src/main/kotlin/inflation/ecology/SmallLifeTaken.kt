@@ -148,12 +148,12 @@ fun HexSmallLife.scavengeIn(p: Place, want: Kg, sweptKm2: Float, foundShare: Flo
 
 /**
  * A resident takes up to [want] (kg/m²) of carrion at place [p]: what the residents found as it lay ([HexSmallLife.residentCarrion])
- * first, then at most half of what lies now. Returns what was taken.
+ * first, up to [most] of it (its share), then at most half of what lies now. Returns what was taken, and of it what was held.
  */
-fun HexSmallLife.scavengeHeld(p: Place, want: Float): Float {
-    if (want <= 0f) return 0f
-    val held = min(residentCarrion[p], want); residentCarrion[p] -= held
-    return held + if (want > held) scavenge(p, KgM2(min(want - held, 0.5f * carrion[p]))).v else 0f
+fun HexSmallLife.scavengeHeld(p: Place, want: Float, most: Float): Pair<Float, Float> {
+    if (want <= 0f) return 0f to 0f
+    val held = minOf(residentCarrion[p], want, max(0f, most)); residentCarrion[p] -= held
+    return (held + if (want > held) scavenge(p, KgM2(min(want - held, 0.5f * carrion[p]))).v else 0f) to held
 }
 
 /** As the residents of place [p] have fed: what they found and left goes back on the ground. */
