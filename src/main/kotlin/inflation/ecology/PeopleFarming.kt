@@ -171,13 +171,23 @@ internal fun GroupWorld.cropReapDays(b: Band) =
 
 /**
  * Person-days to sow [kg] at [p]: hoeing and sowing the ground ([SOW_DAYS_PER_KG]), and first clearing what of it is not cleared
- * yet of its trees and scrub ([HexFood.toClear], [HexFood.clearDaysPerHa]).
+ * yet of its trees and scrub ([HexFood.toClear], [HexFood.clearDaysPerHa]), which as far as its burning leaves it loose is
+ * sown without hoeing ([burntLoose]).
  */
 internal fun GroupWorld.sowDays(p: Place, kg: Float): Float {
     val food = fauna.food
-    return kg * SOW_DAYS_PER_KG + food.toClear(p, land.spread(p, Kg(kg))) * land.m2(p) / 1e4f * food.clearDaysPerHa(p)
+    val clearHa = food.toClear(p, land.spread(p, Kg(kg))) * land.m2(p) / 1e4f
+    return kg * SOW_DAYS_PER_KG + clearHa * (food.clearDaysPerHa(p) - TILL_DAYS_PER_HA * burntLoose(p))
 }
 
+/**
+ * The share of the ground [p]'s band clears and burns this year that is left loose enough to sow without hoeing: at Forchtenberg
+ * the burnt plots were sown direct, and hoeing after burning bore no more (Rösch et al. 2017, Land 6(1):11); there the wood
+ * burnt was a 15-year stand's, some 4-6 kg/m² ([HexFood.FELL_DAYS_PER_HA]). Thinner scrub burns off thinner, and leaves the
+ * share of that it bears, [BURN_LOOSENS_KG_M2]; grass sward is hoed.
+ */
+internal fun GroupWorld.burntLoose(p: Place) = min(1f, (land.plants.tree[p] + land.plants.shrub[p]) / BURN_LOOSENS_KG_M2)
+internal const val BURN_LOOSENS_KG_M2 = 5f
 
 /** The kg that [days] person-days sow at [p] ([sowDays]): on cleared ground first, then clearing as it goes. */
 internal fun GroupWorld.sowableKg(p: Place, days: Float): Float {
@@ -186,7 +196,7 @@ internal fun GroupWorld.sowableKg(p: Place, days: Float): Float {
     val free = food.sowableCleared(p) * land.m2(p)
     if (days <= free * SOW_DAYS_PER_KG) return days / SOW_DAYS_PER_KG
     // (Beyond it each kg sown needs 1/[HexFood.SEED_RATE] m² cleared.)
-    val clearPerKg = food.clearDaysPerHa(p) / (HexFood.SEED_RATE * 1e4f)
+    val clearPerKg = (food.clearDaysPerHa(p) - TILL_DAYS_PER_HA * burntLoose(p)) / (HexFood.SEED_RATE * 1e4f)
     return free + (days - free * SOW_DAYS_PER_KG) / (SOW_DAYS_PER_KG + clearPerKg)
 }
 
