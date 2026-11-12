@@ -122,9 +122,6 @@ internal fun HexGroups.eatTheWeek(w: ForageWeek) {
         land.books?.let { bookEaten(it, gorge * meatShare(null), HexSmallLife.DUNG * gorge) }
     }
     g.fed = (eaten / wantAll).coerceIn(0f, 1f)
-    // (forageDiag: how the week's take became its meal: taken and eaten of the want, kg left, its fat and burnt protein.)
-    if (band == null && FORAGE_MEAL_TRACE.wants(g.id.toLong(), weather.date.absoluteDay, s.name)) System.err.println(
-        "meal ${s.name} id ${g.id} day ${weather.date.absoluteDay} days $days adults ${g.adults} young ${g.young} want $wantAll taken ${w.fed} eaten $eaten luck ${w.killLuck} aim ${w.aim} passes ${w.passes} left $spare fat ${g.fat} of ${s.maxFatDays} spent ${g.spent}")
     if (band != null && g.fed < Thresholds.HUNGRY) countHungryWeek(w, band)
     if (band != null) countSmallGame(w)
     if (HUNT_DIAG && band == null) {

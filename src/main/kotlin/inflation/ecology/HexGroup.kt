@@ -37,26 +37,12 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
     var killHeld = 0f
     /**
      * A beast's days of hunting and eating that ran past its last step's end, owed to this one: a kill taken late in a step is
-     * eaten into the next, and those days are not hunted again (test, put to Olli 2026-11-11 as "charge overrun to the next step": weekly
+     * eaten into the next, and those days are not hunted again (Olli 2026-11-11, "charge overrun to the next step": weekly
      * packs ended the week busy 1.25 of its days, free days a 60-day step's packs did not have; trace734).
      */
     var huntOwed = 0f
     /** Whether [meatMet] is eaten, stored or left by now this week (for the books, which count it in hand until then; a loaded group's is spent). */
     @Transient var meatSpent = true
-    /** forageDiag (window trace, [liveWeek]): a beast's 60-day window so far: its index, days, fed-days before its fat, fat and body burnt at its start, hunger deaths. */
-    @Transient var winStart = -1L; @Transient var winDays = 0; @Transient var winFed = 0f; @Transient var winFat0 = 0f; @Transient var winSpent0 = 0f; @Transient var winDied = 0
-    /** forageDiag: its last step's forage (want, taken, luck, aim, busy, searched, work days, passes, big-game kg a day expected on its ground) and the window's sums of them. */
-    // (Null after a load, as transient fields come back: made when first wanted.)
-    @Transient private var stepDiag0: FloatArray? = null; @Transient private var winSum0: FloatArray? = null
-    val stepDiag get() = stepDiag0 ?: FloatArray(9).also { stepDiag0 = it }
-    val winSum get() = winSum0 ?: FloatArray(25).also { winSum0 = it }
-    @Transient var winLastPlace = -1
-    /** forageDiag: why it planned as it did this step: 1 hungry, 2 homeless, 4 away from its home hex, 8 thirsty, 16 astray, 32 pressed off by people, 64 peril ahead. */
-    @Transient var planWhy = 0
-    /** forageDiag: the game its place was worth to it, and its bearing's strength, as it planned this step. */
-    @Transient var planGame = 0f; @Transient var planBearing = 0f
-    /** forageDiag: its place's worth worked out afresh as it planned, and the resident game in it alone. */
-    @Transient var planFresh = 0f; @Transient var planPrey = 0f
     /** For a hunter: the hex at the heart of the ground it holds, -1 while it holds none. */
     var home = Hex.NONE
     /** Days since it last drank. */

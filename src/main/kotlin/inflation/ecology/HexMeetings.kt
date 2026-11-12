@@ -784,11 +784,7 @@ internal fun HexGroups.mark() {
             if (hex.distanceKm(h, g.home) > territoryKm(s)) continue
             if (who[h] == g.id || m[h] < MARK_FRESH) { m[h] = 1f; who[h] = g.id }
         }
-        if (who[g.home] != g.id || m[g.home] < MARK_FRESH) {
-            if (HOME_TRACE.wants(g.id.toLong(), 0L, s.name)) System.err.println("homeloss ${s.name} id ${g.id} step $days cause " +
-                (if (who[g.home] != g.id) "markedover" else "faded") + " foot ${foot != null} onpath ${g.home.i in g.path.a} fed ${g.fed} fat ${g.fat}")
-            g.home = Hex.NONE
-        }
+        if (who[g.home] != g.id || m[g.home] < MARK_FRESH) g.home = Hex.NONE
     }
 }
 
@@ -828,8 +824,7 @@ internal fun GroupWorld.rivalsFight(a: HexGroup, ak: Int, ai: Int, b: HexGroup, 
     }
     if (loser.home == h) {
         // (A settled band's stand-in keeps its ground: its ground is its kind's settled there, [ResidentParties].)
-        if (loser.id >= 0) { loser.home = Hex.NONE
-            if (HOME_TRACE.wants(loser.id.toLong(), 0L, loser.species.name)) System.err.println("homeloss ${loser.species.name} id ${loser.id} step $days cause beaten") }
+        if (loser.id >= 0) loser.home = Hex.NONE
         // The winners take over the ground and kill the young they find there (as lions and wolves do).
         // (Prides and packs that take over ground do this; solitary hunters seldom.)
         if (loser.young > 0 && loser.species.groupSize >= 3) {
@@ -941,6 +936,3 @@ internal fun HexGroups.roamersLeave() {
 internal const val BEER_KG = 1f
 
 internal const val BEER_TIES = 0.5f
-
-/** forageDiag=KIND: a tenth of that kind's packs, each ground they lose and why, and each they take ([mark], [rivalsFight], [settle]). */
-private val HOME_TRACE = inflation.Trace(inflation.Config.Key.FORAGE_DIAG, "homes", share = 0.1f, byKind = true)

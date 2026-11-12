@@ -519,7 +519,6 @@ private fun HexGroups.mournDead(g: HexGroup, o: Outcome, date: Date) {
 @Part("groups: live week of one")
 internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNow: HashMap<Long, Int>, r: kotlin.random.Random): Outcome {
     val s = g.species
-    val fedRaw = g.fed; val fatRaw = g.fat; val spentRaw = g.spent
     feedOnReserves(g)
     if (g.birthMonth < 0) g.birthMonth = s.birthMonth
     if (date.holdsMonthStart(days, offSeason(s, g.birthMonth))) g.bred = 0f
@@ -660,35 +659,6 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     val grown = growUp(g, r)
     if (s.human) g.yearsLuck -= yearsBefore - FutureYears.of(g)
     land.books?.adder(Books.Stuff.MATTER, "groups born and grew up")?.add(((HexFauna.YOUNG_WEIGHT * bornNow + (1f - HexFauna.YOUNG_WEIGHT) * grown) * s.massKg).toDouble())
-    // (forageDiag: a beast's step that starved some of it: how it was fed, its fat and body burnt before and after.)
-    if (g.band == null && STARVED_TRACE.on) {
-        val dg = causes.sumOf { if (it.cause == DeathCause.HUNGER && !it.young) it.n else 0 }; val dy2 = causes.sumOf { if (it.cause == DeathCause.HUNGER && it.young) it.n else 0 }
-        if (dg + dy2 > 0 && STARVED_TRACE.wants(g.id.toLong(), date.absoluteDay, s.name)) System.err.println(
-            "starved ${s.name} id ${g.id} day ${date.absoluteDay} days $days died grown $dg young $dy2 left grown ${g.adults} young ${g.young} fed $fedRaw -> ${g.fed} " +
-                "fat $fatRaw -> ${g.fat} of ${s.maxFatDays} spent $spentRaw -> ${g.spent} starve ${Hazards.starveDays(s)}") }
-    // (forageDiag: a sample of beasts followed through 60-day windows, whatever the step: how fed they were before their fat,
-    // their fat and body burnt at each window's start and end, and their hunger deaths; so a weekly pack's ten weeks can be
-    // set against a 60-day pack's one step.)
-    if (g.band == null && WINDOW_TRACE.wants(g.id.toLong(), 0L, s.name)) {
-        val win = date.absoluteDay / 60
-        fun line(fat: Float, spent: Float, end: String) = System.err.println("window ${s.name} id ${g.id} step $days span ${g.winDays} fed ${g.winFed / max(1, g.winDays)} " +
-            "fat ${g.winFat0} -> $fat of ${s.maxFatDays} spent ${g.winSpent0} -> $spent starve ${Hazards.starveDays(s)} died ${g.winDied} grown ${g.adults} young ${g.young} " +
-            "want ${g.winSum[0]} taken ${g.winSum[1]} luck ${g.winSum[2]} aim ${g.winSum[3]} busy ${g.winSum[4]} searched ${g.winSum[5]} work ${g.winSum[6]} passes ${g.winSum[7]} rate ${g.winSum[8]} moved ${g.winSum[9]} foot ${g.winSum[10]} homeless ${g.winSum[11]} hungry ${g.winSum[12]} away ${g.winSum[13]} thirsty ${g.winSum[14]} astray ${g.winSum[15]} pressed ${g.winSum[16]} peril ${g.winSum[17]} game ${g.winSum[18]} bearing ${g.winSum[19]} tickgame ${g.winSum[20]} ticks ${g.winSum[21]} tickprey ${g.winSum[22]} fresh ${g.winSum[23]} prey ${g.winSum[24]} $end")
-        if (g.winStart != win) {
-            if (g.winStart >= 0 && g.winDays > 0) line(fatRaw, spentRaw, "next")
-            g.winStart = win; g.winDays = 0; g.winFed = 0f; g.winFat0 = fatRaw; g.winSpent0 = spentRaw; g.winDied = 0; g.winSum.fill(0f)
-        }
-        g.winDays += days; g.winFed += fedRaw * days
-        for (i in 0 until 9) g.winSum[i] += g.stepDiag[i]
-        // (And the steps it changed place, the hexes of its footprint, the steps it had no home.)
-        if (g.winLastPlace >= 0 && g.winLastPlace != g.place.i) g.winSum[9] += 1f; g.winLastPlace = g.place.i
-        g.winSum[10] += (g.footprint?.size ?: 0).toFloat(); if (g.home.none) g.winSum[11] += 1f
-        if ((g.planWhy and 1) != 0) g.winSum[12] += 1f; if ((g.planWhy and 4) != 0) g.winSum[13] += 1f
-        for (b in 0 until 4) if ((g.planWhy and (8 shl b)) != 0) g.winSum[14 + b] += 1f
-        g.winSum[18] += g.planGame; g.winSum[19] += g.planBearing; g.winSum[23] += g.planFresh; g.winSum[24] += g.planPrey
-        g.winDied += causes.sumOf { if (it.cause == DeathCause.HUNGER) it.n else 0 }
-        if (g.adults == 0) line(g.fat, g.spent, "ended")
-    }
     if (g.adults == 0) {
         // Young left without a grown animal of their kind die.
         val orphans = g.young
@@ -882,21 +852,3 @@ internal fun HexGroups.remember(date: Date) {
 
 /** The hunger cases a year the census lists ([HexGroups.hungerCases]). */
 internal const val HUNGER_CASES = 30
-
-/** forageDiag=KIND: each step of a beast's group of that kind that starved some of it ([liveWeek]). */
-private val STARVED_TRACE = inflation.Trace(inflation.Config.Key.FORAGE_DIAG, "starved", byKind = true)
-/** forageDiag=KIND: a tenth of that kind's beasts followed through 60-day windows ([liveWeek]). */
-private val WINDOW_TRACE = inflation.Trace(inflation.Config.Key.FORAGE_DIAG, "windows", share = 0.1f, byKind = true)
-
-/**
- * forageDiag (trace755): at each tick of a long step, after the residents' tick, the game the home place of each followed pack
- * is worth to it ([lifewayValue]), summed into its window with the ticks counted; so the ground over the step can be set
- * against the one reading at the step's start.
- */
-internal fun HexGroups.tickGameTrace() {
-    for (g in groups) {
-        if (!g.alive || g.band != null || g.home.none || !WINDOW_TRACE.wants(g.id.toLong(), 0L, g.species.name)) continue
-        val p = hw.placeNear(g.place, g.home); if (p.none) continue
-        g.winSum[20] += lifewayValue(g.species, p); g.winSum[21] += 1f; g.winSum[22] += preyHere(g.species, p)
-    }
-}

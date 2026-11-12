@@ -13,7 +13,6 @@ import inflation.Trace
 import inflation.world.Date
 import inflation.world.get
 import inflation.world.Hex
-import inflation.world.Place
 import inflation.world.set
 import inflation.world.Weather
 import kotlin.math.exp
@@ -190,20 +189,6 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     if (w.band == null) { w.busy = min(w.workDays, g.huntOwed); g.huntOwed = 0f }
     huntingOdds(w)
     if (w.band == null) herdOdds(w)
-    // (forageDiag: the game on a beast's ground at the week's start: its ground, the heads it might meet there and the odds.)
-    if (w.band == null && FORAGE_PASS_TRACE.wants(g.id.toLong(), weather.date.absoluteDay, w.s.name)) {
-        var heads = 0f; var rate = 0f; var met = 0f; var area = 0f
-        for (j in 0 until w.ground.size) {
-            val p = w.ground.place[j]; area += land.areaKm2[p]
-            for (c in w.gameFrom[j] until w.gameFrom[j + 1]) {
-                val i = w.gameAt[c]; val k = i - j * w.nk
-                val dens = fauna.adults[k][p] + fauna.packAt(k, Place(p)) + fauna.young[k][p]
-                heads += dens * w.ground.km2[j]; rate += dens * w.ground.km2[j] * w.odds[i]; met += dens * w.ground.km2[j] * w.met[i]
-            }
-        }
-        System.err.println("game ${w.s.name} id ${g.id} day ${weather.date.absoluteDay} days $days places ${w.ground.size} swept ${w.ground.km2.sum()} " +
-            "area $area sweep $sweep foot ${g.footprint != null} heads $heads met $met kills/day ${rate / days} fat ${g.fat} aim ${w.aim} want ${w.wantAll}")
-    }
     val o = Offers(mostOffers(w))
     // The party plans its week on what it finds, eats, and if others got there first and it is still
     // hungry, looks again at what is left.
@@ -282,7 +267,6 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
             planWeek(w, daysFor(need), daysFor(left) - daysFor(need), if (intake > 0f) intake / w.hands.coerceAtLeast(1) else 0f)
         }
         val time = w.time
-        if (pass == 0 && w.band == null && STEP_DIAG) g.stepDiag[8] = intake * w.workDays / w.wantAll.coerceAtLeast(1e-6f)
         var f = if (intake > 0f) min(1f, left / (w.workDays * intake)) else 0f
         if (time != null) f = min(f, time.leftFor(Activity.FOOD) / (w.hands * w.workDays).coerceAtLeast(1e-6f))
         // (A beast's party keeps no plan of its days: each pass has only the days the passes before it left.)
@@ -293,12 +277,7 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         if (FORAGE_PASS_TRACE.wants(g.id.toLong(), weather.date.absoluteDay, w.s.name)) System.err.println(
             "forage ${w.s.name} id ${g.id} adults ${g.adults} want ${w.wantAll} left $left offers ${o.m} used ${o.used} gain ${o.gain.toList()} spent ${o.spent.toList()} f $f: " +
             o.order.take(min(6, o.m)).joinToString("; ") { "t${o.type[it].ordinal} k${o.kind[it]} r=${o.rate[it]} e=${o.kg[it]} h=${o.time[it]}" })
-        val passTrace = w.band == null && FORAGE_PASS_TRACE.wants(g.id.toLong(), weather.date.absoluteDay, w.s.name)
-        val fed0 = w.fed; val luck0 = w.killLuck; val busyIn = w.busy; val searchIn = w.searchUsed; val meat0 = w.meat
         takeFoods(w, o, f)
-        // (forageDiag: what the pass brought against its plan, and the days it took.)
-        if (passTrace) System.err.println("pass ${w.s.name} id ${g.id} pass $pass days ${w.workDays} want ${w.wantAll} aim ${w.aim} left $left f $f planned ${f * w.workDays * intake} got ${w.fed - fed0} " +
-            "luck ${w.killLuck - luck0} meat ${w.meat - meat0} busy $busyIn -> ${w.busy} searchUsed $searchIn eats ${w.eats}")
         // (A band's parties each work [f] of the week: what they handled, and the rest searching, in which they came on
         // the game, small game and carrion they took ([Offers.spent]: days a day of searching asks). Plant food's finding and
         // the walk to it are in its days a kilo.)
@@ -325,8 +304,6 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     w.time?.release(Activity.FOOD)
     if (HUNT_DIAG && w.band == null) packWeekDiag(w)
     if (w.band == null) g.huntOwed = max(0f, w.busy + w.searchUsed - w.workDays)
-    if (w.band == null && STEP_DIAG) g.stepDiag.let { d -> d[0] = w.wantAll; d[1] = w.fed; d[2] = w.killLuck; d[3] = w.aim; d[4] = w.busy
-        d[5] = w.searchUsed; d[6] = w.workDays; d[7] = w.passes.toFloat() }
     preyFoughtBack(g, w.foughtBack, w.rnd)
     eatTheWeek(w)
 }
@@ -523,7 +500,7 @@ internal class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, pack
     val gatherHands = if (band != null) hands * (1f - hunt) else hands.toFloat()
     // (Walking costs food, see [walkCost]; a band's days at rest take less, see [restedDays].)
     var wantAll = g.dailyNeedKg * gs.days * (1f + gs.walkCost(g))
-    // (A beast's days at a kill: t.packEating, a test of how long its feeding keeps it from hunting, Olli 2026-11-11 "charge
+    // (A beast's days at a kill: t.packEating, how long its feeding keeps it from hunting, Olli 2026-11-11 "charge
     // it, then retune leopards": weekly packs had hunted on through the days past each week's end, overrun735.)
     val eats = (if (band == null) gs.tuning.packEating else 1f) / (packKg * EATING_RATE) // days to eat a kilo
     /**
@@ -802,6 +779,3 @@ internal fun GroupWorld.recordFood(g: HexGroup, band: Band, w: ForageWeek) {
     work(ToolWork.PLANT_DAYS, w.plantWorkDays * w.hands); work(ToolWork.SEED_DAYS, w.seedWorkDays * w.hands)
     work(ToolWork.SEED_FOOD, w.plantFrom[PlantFrom.SEED] + w.plantFrom[PlantFrom.GRAIN])
 }
-
-/** Whether forageDiag is on: beasts keep their step's forage for the window trace ([liveWeek]). */
-internal val STEP_DIAG = inflation.Config.string(inflation.Config.Key.FORAGE_DIAG) != null

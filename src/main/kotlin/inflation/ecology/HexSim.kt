@@ -102,12 +102,12 @@ class HexSim(
         stats.clear(); fauna.bornThisWeek.fill(0.0)
         clock.days = stepDays
         weather.beginStep()
-        // (Test, variable-step thread 2026-11-11: over a step of several ticks the residents and small life take each tick as
+        // (Over a step of several ticks the residents and small life take each tick as
         // a week of their own, right after it, as at one tick a step; the groups take the step whole. The land hands each tick
         // over as a step of one ([HexLand.firstTick], [HexLand.lastTick]); so the groups see only the last tick's fires and
         // runoff. At one tick a step, as before.)
         val perTick = clock.ticks > 1
-        // (Speed test, t.residentDays: the residents take that many days at a time, at the first tick of each span, by its weather.)
+        // (t.residentDays: the residents take that many days at a time, at the first tick of each span, by its weather.)
         val rd = land.tuning.residentDays
         val span = (rd / clock.tickDays).let { m -> if (m > 1 && rd % clock.tickDays == 0) m else 1 }
         repeat(clock.ticks) { i ->
@@ -115,7 +115,6 @@ class HexSim(
             runPhases(tickPhases, weather, books)
             if (perTick) { if (i % span == 0) { val d = clock.days; clock.days = clock.tickDays * min(span, clock.ticks - i)
                 try { runPhases(residentPhases, weather, books) } finally { clock.days = d } }
-                groups.tickGameTrace()
                 // (The carrion the groups would have found in this tick, held for them: [HexSmallLife.groupCarrion].)
                 if (i < clock.ticks - 1) fauna.small.setAsideForGroups() }
         }
