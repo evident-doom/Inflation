@@ -25,8 +25,11 @@ enum class Illness(override val label: String, val weeks: Float, val deadly: Flo
      * and middle income countries, most of them children (Ram et al. 2008, Epidemiol. Infect. 136: 577-603); it was 3%,
      * above the record, and where bands meet often, when the flux is caught at meetings and comes back as the spared forget
      * it, that set its deaths at some 15 a 1000 a year (flux716, 11 Nov 2026) against the 2-7 of [FLUX_RATE]'s record.
+     * Passed on at meetings at 0.1 (was 0.25): people fell ill some 140 times a 1000 a year where bands crowd, against
+     * 0.6-107 for shigellosis in population-based studies (the same review); at 0.1, 83-86, and its deaths 2.6 a 1000,
+     * inside both records (sick722, 12 Nov 2026).
      */
-    FLUX("the flux", 3f, 0.01f, 3f, 0.05f, 2f, 0.4f),
+    FLUX("the flux", 3f, 0.01f, 3f, 0.1f, 2f, 0.4f),
     /** Malaria: carried by the mosquitoes about the camp in the warm months; not caught from one another. */
     MARSH_FEVER("marsh fever", 6f, 0.04f, 3f, 0f, 4f, 0.3f),
     /** A virulent cough that runs from band to band, worst in winter and at gatherings, and can empty a camp. */

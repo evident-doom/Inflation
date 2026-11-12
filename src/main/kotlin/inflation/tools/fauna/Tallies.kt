@@ -309,7 +309,7 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
         }
         for (g in groups.groups) if (g.alive && g.band != null) {
             bandWeeks++; bandHeads += g.size; childWeeks += g.young; adultWeeks += g.adults; motherWeeks += (g.adults - g.band!!.elders) / 2.0
-            for (d in inflation.ecology.Illness.entries) sickWeeks[d.ordinal] += g.size * g.band!!.sick[d].toDouble()
+            for (d in inflation.ecology.Illness.entries) sickWeeks[d.ordinal] += g.size * (g.band?.sick?.get(d) ?: 0f).toDouble()
             val h = hw.placeHex[g.place]
             for (q in g.path) walked.getOrPut(g.id) { HashSet() } += q
             lastCamp.put(g.id, h)?.let { if (it != h) moves++ }
