@@ -172,6 +172,17 @@ internal const val CAMP_SAFETY = 0.5f
 /** Days of food a band has stored when the world begins. */
 internal const val START_LARDER_DAYS = 30f
 /**
+ * Founding bands' dress for their country ([HexGroups.dressForCountry]): from a half kit where the coldest month is
+ * [FOUNDER_WARM_C] °C or milder to a whole one where it is [FOUNDER_COLD_C] or colder, and sewing that much nearer mastery
+ * by [FOUNDER_COLD_SEWING] (estimates: people of cold countries wear whole, tailored outfits, as the Inuit's of caribou
+ * hide; the bounds are a guess). No band is founded where the warmest month is under [FOUNDER_TREELINE_C], the alpine
+ * meadow's bound ([inflation.world.Biomes]).
+ */
+internal const val FOUNDER_WARM_C = 10f
+internal const val FOUNDER_COLD_C = -5f
+internal const val FOUNDER_COLD_SEWING = 0.5f
+internal const val FOUNDER_TREELINE_C = 10f
+/**
  * The spread of people's bands' sizes when the world begins, as the sd of their log: foragers' residential camps run from about
  * half to about twice the usual size, a dozen to fifty or so about a mean of 25-30 (Kelly 1995; Marlowe 2005; both from memory,
  * to check), which a lognormal of sd 0.4 spans in nine bands of ten (an estimate fitted to that range).
