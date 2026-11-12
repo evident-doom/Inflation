@@ -41,6 +41,8 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
      * packs ended the week busy 1.25 of its days, free days a 60-day step's packs did not have; trace734).
      */
     var huntOwed = 0f
+    /** Days of fat it drew in its last step ([feedOnReserves]; 0 when it drew none): a pack that could not draw as much again goes restless ([restless]). */
+    var fatDrew = 0f
     /** Whether [meatMet] is eaten, stored or left by now this week (for the books, which count it in hand until then; a loaded group's is spent). */
     @Transient var meatSpent = true
     /** For a hunter: the hex at the heart of the ground it holds, -1 while it holds none. */
