@@ -162,12 +162,12 @@ internal fun HexGroups.harvestCrop(g: HexGroup, b: Band, time: BandTime) {
 }
 
 /**
- * Person-days band [b] takes to reap, thresh and clean a kilo of its own crop ([reapDaysPerKg], less its grinding, done as it is
- * eaten: [Band.grindOwed]), as thick as it stands in
+ * Person-days band [b] takes to reap and thresh a kilo of its own crop ([reapDaysPerKg], less its grinding, cleaning and dehusking,
+ * done as it is eaten: [Band.grindOwed], [CROP_DEHUSK_DAYS_PER_KG]), as thick as it stands in
  * its plot ([HexFood.fieldStand]); before it has sown, as a field would stand ripened in full.
  */
 internal fun GroupWorld.cropReapDays(b: Band) =
-    reapDaysPerKg(b, tuning, if (b.sownPlace.none) HexFood.yieldPerKg(b.seedDomestic) * HexFood.SEED_RATE else fauna.food.fieldStand(b.sownPlace)) - grindDaysPerKg(b)
+    reapDaysPerKg(b, tuning, if (b.sownPlace.none) HexFood.yieldPerKg(b.seedDomestic) * HexFood.SEED_RATE else fauna.food.fieldStand(b.sownPlace)) - grindDaysPerKg(b) - CROP_DEHUSK_DAYS_PER_KG
 
 /**
  * Person-days to sow [kg] at [p]: hoeing and sowing the ground ([SOW_DAYS_PER_KG]), and first clearing what of it is not cleared
