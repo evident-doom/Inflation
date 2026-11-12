@@ -135,6 +135,7 @@ class FaunaCheck(private val sim: HexSim, private val options: FaunaCheckOptions
         census.printSkillsAndCereals(hunting.grainReapedLastYear)
         census.printKindByKind(movement.movedKm)
         census.printBandsByCountry(hunting.lastYear, stepsPerYear)
+        census.printKnownHomes()
         census.printSqueeze(hunting.lastYear, stepsPerYear)
         census.printIslands()
         deaths.printRunDeaths()
