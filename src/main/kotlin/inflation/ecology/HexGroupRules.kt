@@ -490,6 +490,13 @@ internal const val FIGHT_RATIO = 1.5f
  */
 internal const val CARRION_FOUND = 0.5f
 internal const val SCAVENGER_CARRION = 0.5f
+/**
+ * How fast a scavenger by trade that searches all of a place in a tick comes on a carcass lying there, a day: about one in
+ * two or three days, against carrion rotting at [HexSmallLife.CARRION_ROT] (0.2 a day at 15 °C), so it gets about two
+ * thirds of what dies in its ground. An estimate, set so weekly packs find about the carrion they found when each week's
+ * carcasses lay fresh at its end (cf2-767: at the search's own share a tick they found a third as much).
+ */
+internal const val CARRION_FIND_RATE = 0.4f
 
 
 /** Months over which a group's sense of how thick each kind usually is follows the change (about a year). */

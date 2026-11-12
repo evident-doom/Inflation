@@ -38,7 +38,6 @@ import inflation.world.HexPlants
 import inflation.world.LifeForm
 import inflation.world.Weather
 import kotlin.math.exp
-import kotlin.math.ln
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.hypot
@@ -77,15 +76,15 @@ internal fun HexSmallLife.stepSoil(p: Place, t: Float, soilWater: Float, carcass
     soilAnimals[p] += SOIL_YIELD * decomposed * 1e6f - soilDied
     soilReach[p] = if (t > 0f) SOIL_REACH * wet else 0f
     // What lies rots (half in three or four days at 15 °C, faster in the heat), and the step's carcasses come in evenly over
-    // its days and rot as they lie; the groups find their share of it as it lies, before it rots ([groupCarrion]: at the
-    // rate they took the carrion lying at the last step's end, [groupCarrionShare] a tick). In closed form over the step's
+    // its days and rot as they lie; the groups find their share of it as it lies, before it rots ([groupCarrion], at the
+    // rate their search came on it in the last step, [groupCarrionRate]). In closed form over the step's
     // days (weekly-rules plan, F4): with inflow R a day and losses k = rot + the groups' finding, what lay over the step
     // sums to C0 (1 - e^-kt)/k + R (t - (1 - e^-kt)/k)/k, of which rot takes its rate's part and the groups theirs.
     val inflow = land.spread(p, Kg(carcassKg[p])).v
     carcassBook?.add(carcassKg[p].toDouble())
     if (carrion[p] > 0f || inflow > 0f) {
         val rot = CARRION_ROT * max(0.1f, warm)
-        val find = -ln(1f - min(0.5f, groupCarrionShare[p])) / tickDays
+        val find = groupCarrionRate[p]
         val k = rot + find; val d = days.toFloat(); val r = inflow / d
         val lay = (1f - exp(-k * d)) / k
         val lain = carrion[p] * lay + r * (d - lay) / k

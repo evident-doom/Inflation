@@ -196,7 +196,11 @@ internal fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
             // and only the scavengers by trade, which watch the vultures and quarter the ground for it, find
             // that much: a wolf or a band comes on a carcass now and then, not every week.)
             val found = CARRION_FOUND * min(1f, w.d.carrion / SCAVENGER_CARRION)
-            offer(w, o, Food.CARRION, 0, p, KgM2(found * (small.carrion[p] + small.groupCarrion[p])).perKm2.over(swept).v / days, 1f, w.carrionDays)
+            // (What lies now, as far as it finds it, and what the groups found of it as it lay through the step: [HexSmallLife.groupCarrion].)
+            offer(w, o, Food.CARRION, 0, p, (KgM2(found * small.carrion[p]).perKm2.over(swept).v + KgM2(small.groupCarrion[p]).perKm2.over(area).v) / days, 1f, w.carrionDays)
+            // (How fast its search comes on carrion as it lies, a day, for the next step's share of it ([HexSmallLife.groupCarrionRate]):
+            // [CARRION_FIND_RATE] for a scavenger by trade that searches all of a place in a tick, less as it finds less or searches less.)
+            if (!w.carrionNoted) small.groupCarrionRate[p] += CARRION_FIND_RATE * found / CARRION_FOUND * min(1f, sweep / area * small.tickDays / days)
             if (Niches.cracksBones(w.s)) offer(w, o, Food.BONES, 0, p, KgM2(found * small.bones[p]).perKm2.over(swept).v / days, 1f, w.eats * BONE_DAYS)
             else if (band != null && w.worth(Food.BONES) > 0f)
                 offer(w, o, Food.BONES, 0, p, KgM2(found * small.bones[p]).perKm2.over(swept).v / days, 1f, w.renderDays + w.eats * GREASE_YIELD)

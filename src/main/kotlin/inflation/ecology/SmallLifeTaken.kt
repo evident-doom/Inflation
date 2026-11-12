@@ -137,25 +137,17 @@ fun HexSmallLife.scavengeIn(p: Place, want: Kg, sweptKm2: Float): Kg {
     val area = land.areaKm2[p]; val m2 = area * 1e6f
     val searched = min(sweptKm2, area)
     if (want.v <= 0f || searched <= 0f) return Kg.ZERO
-    // (What lies now first, then what the groups found as it lay through the step ([HexSmallLife.groupCarrion]).)
-    val now = scavenge(p, min(want, Kg(0.5f * carrion[p] * searched * 1e6f)).perM2(m2)).v
-    val all = if (groupCarrion[p] > 0f) min(want, Kg(0.5f * (carrion[p] + now + groupCarrion[p]) * searched * 1e6f)).perM2(m2).v else now
-    val held = min(groupCarrion[p], max(0f, all - now)); groupCarrion[p] -= held
-    groupCarrionTaken[p] += now
+    // (What the groups found as it lay through the step first ([HexSmallLife.groupCarrion]: found already), then at most half of
+    // what lies now on the ground searched.)
+    val wantM2 = want.v / m2
+    val held = min(groupCarrion[p], wantM2); groupCarrion[p] -= held
+    val now = if (wantM2 > held) scavenge(p, KgM2(min(wantM2 - held, 0.5f * carrion[p] * searched / area))).v else 0f
     return KgM2(held + now).over(m2)
 }
 
-/**
- * At a step's end: the share of what lay on the ground at the last step's end that the groups took of it ([scavengeIn]),
- * a tick's take, as a weekly group's is (what was held for them is not in it, or the share would feed on itself); and what
- * was held for them and left goes back on the ground.
- */
+/** At a step's end: what was held for the groups and left goes back on the ground. */
 fun HexSmallLife.settleGroupCarrion() {
-    for (p in 0 until n) {
-        val taken = groupCarrionTaken[p]; val there = taken + carrion[p]
-        groupCarrionShare[p] = if (there > 0f) min(0.5f, taken / there) else 0f
-        carrion[p] += groupCarrion[p]; groupCarrion[p] = 0f; groupCarrionTaken[p] = 0f
-    }
+    for (p in 0 until n) { carrion[p] += groupCarrion[p]; groupCarrion[p] = 0f }
 }
 
 /** The same for bones, for bone-crackers. */

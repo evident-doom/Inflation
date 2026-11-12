@@ -103,10 +103,12 @@ class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, @Transi
      * step's end (Olli 2026-11-11, "carrion per tick": at 60 days leopard packs found 60% less, pass728). Empty between steps.
      */
     @Transient val groupCarrion = FloatArray(n)
-    /** The share of the carrion lying at each place at the last step's end that the groups took ([settleGroupCarrion]). */
-    val groupCarrionShare = FloatArray(n)
-    /** What the groups took this step of what lay on the ground, kg/m² ([scavengeIn]). */
-    @Transient val groupCarrionTaken = FloatArray(n)
+    /**
+     * How fast the groups that searched each place in the last step came on its carrion, a day: the share of the place each
+     * searched a day, times how well it finds carrion ([CARRION_FOUND], [inflation.ecology.offerFoods]), summed. The step's
+     * carrion is shared between them and the rot at these rates ([stepSoil]).
+     */
+    val groupCarrionRate = FloatArray(n)
     /** Where dead matter went, for the viewer (see [PlaceRecord]); set with [HexFauna.record]. */
     @Transient var record: PlaceRecord? = null
     /** Bones left when the meat is gone, kg/m²: slow to weather, food for bone-crackers. */
