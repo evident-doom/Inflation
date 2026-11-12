@@ -73,12 +73,17 @@ internal class GroupPlanner(internal val gs: HexGroups) {
         // (For the census: the least peril among the places it weighs, [HexGroup.safestPeril]; unknown until it weighs any.)
         g.safestPeril = Float.NaN
         g.footprint = null; g.footWeights = null
-        if (g.band == null) { val here = gs.hw.placeHex[g.place]
-            g.planWhy = (if (g.fed < Thresholds.HUNGRY) 1 else 0) or (if (g.home.none) 2 else 0) or (if (!g.home.none && here != g.home) 4 else 0) or
-                (if (g.dry > 0.5f * g.species.daysWithoutWater) 8 else 0) or (if (gs.bearings.strength(gs.kindSlot[g.species.index], here) > ASTRAY) 16 else 0) or
-                (if (gs.pressedOff(g)) 32 else 0) or (if (gs.perilAhead(here) > 0f) 64 else 0)
-            g.planGame = placeValue[gs.kindSlot[g.species.index]][g.place]; g.planFresh = gs.lifewayValue(g.species, g.place); g.planPrey = gs.preyHere(g.species, g.place); g.planBearing = gs.bearings.strength(gs.kindSlot[g.species.index], here) }
         return planInner(g, weather, date, predatorKg)
+    }
+
+    /** forageDiag: why a pack plans as it does this step, and its place's worth, for every pack whichever way it plans ([HexGroup.planWhy]). */
+    internal fun notePlan(g: HexGroup) {
+        if (g.band != null) return
+        val here = gs.hw.placeHex[g.place]
+        g.planWhy = (if (g.fed < Thresholds.HUNGRY) 1 else 0) or (if (g.home.none) 2 else 0) or (if (!g.home.none && here != g.home) 4 else 0) or
+            (if (g.dry > 0.5f * g.species.daysWithoutWater) 8 else 0) or (if (gs.bearings.strength(gs.kindSlot[g.species.index], here) > ASTRAY) 16 else 0) or
+            (if (gs.pressedOff(g)) 32 else 0) or (if (gs.perilAhead(here) > 0f) 64 else 0)
+        g.planGame = placeValue[gs.kindSlot[g.species.index]][g.place]; g.planFresh = gs.lifewayValue(g.species, g.place); g.planPrey = gs.preyHere(g.species, g.place); g.planBearing = gs.bearings.strength(gs.kindSlot[g.species.index], here)
     }
 
     /**

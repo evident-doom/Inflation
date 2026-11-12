@@ -456,6 +456,7 @@ class HexGroups(
             // choice, its standing and its ways' draws are there to learn from: [GroupPlanner.plan], held to the hex.)
             val plan = Profile.kind("choosing", if (g.band != null) "bands" else g.species.name) {
                 // (A content pack on its home hex weighs nothing either: it stays and works its footprint, [holdsGround].)
+                planner.notePlan(g)
                 if (staysHome(g) && policyFor(g) == null) planner.stayPlan(g)
                 else if (planner.holdsGround(g, weather)) planner.groundPlan(g, date)
                 else planner.plan(g, weather, date, predatorKg) }
