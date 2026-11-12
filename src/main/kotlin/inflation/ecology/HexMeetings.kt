@@ -477,7 +477,7 @@ private fun HexGroups.standInsMeetDraw(strong: HexGroup, weak: HexGroup, p: Plac
     // (A resident kind's young are born in its season: [Species.birthMonth].)
     val youngKilled = if (weak.young > 0 && !strong.species.human)
         binomial(stayed, min(1f, INTRAGUILD_KILL_YOUNG * tuning.intraguildYoung * odds * youngHidden(weak.species, weak.species.birthMonth)), r) else 0
-    val grownKilled = if (weak.adults > 0) binomial(stayed - youngKilled, min(1f, INTRAGUILD_KILL * odds), r) else 0
+    val grownKilled = if (weak.adults > 0) binomial(stayed - youngKilled, min(1f, INTRAGUILD_KILL * odds * caught(weak.species, strong.species)), r) else 0
     return StandInsMet(times - stayed, stayed, youngKilled, grownKilled)
 }
 
@@ -696,6 +696,14 @@ internal fun HexGroups.slipChance(s: Species, o: Species, p: Place): Float {
 internal fun HexGroups.youngHidden(s: Species, birthMonth: Int): Float =
     if (s.hidesYoung && monthsFrom(birthMonth, meetMonth) < tuning.denMonths) 1f - YOUNG_HIDDEN else 1f
 
+/**
+ * The share of a much stronger party of kind [o]'s chances at a grown one of kind [s] that it still has once it comes on:
+ * those that run faster get away by the margin of their speed ([Species.speedKmh]), 1 for one no faster. So a grown
+ * cheetah outruns lions and wolves, but its cubs do not (Laurenson 1994; [youngHidden] for the young). People do not run
+ * their kills down but corner them with spears, so 1 for them.
+ */
+internal fun caught(s: Species, o: Species): Float = if (o.human) 1f else min(1f, o.speedKmh / s.speedKmh)
+
 /** What keeps a much stronger party ([enemiesMeet]) from killing one of kind [weak] at place [p]: its shelter there. */
 internal fun HexGroups.shelteredFromKilling(weak: Species, p: Place) = 1f - SHELTER_EFFECT * Niches.shelter(weak, p, land)
 
@@ -746,7 +754,7 @@ internal fun HexGroups.enemiesClash(a: HexGroup, ak: Int, ai: Int, b: HexGroup, 
         weak.young--
         small.deposit(DeadPool.CARRION, weak.place, Kg(HexFauna.YOUNG_WEIGHT * weak.species.massKg))
         stats.deaths.merge(Tally.of(weak.species, ByBeast.of(ByBeast.How.YOUNG_KILLED_BY, strong.species)), 1, Int::plus)
-    } else if (ratio > 2f && weak.adults > 0 && rnd.nextFloat() < INTRAGUILD_KILL * odds) {
+    } else if (ratio > 2f && weak.adults > 0 && rnd.nextFloat() < INTRAGUILD_KILL * odds * caught(weak.species, strong.species)) {
         adultsDied(weak, 1, rnd)
         small.deposit(DeadPool.CARRION, weak.place, Kg(weak.species.massKg))
         stats.deaths.merge(Tally.of(weak.species, ByBeast.of(ByBeast.How.KILLED_BY, strong.species)), 1, Int::plus)
