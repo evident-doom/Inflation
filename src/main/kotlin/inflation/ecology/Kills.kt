@@ -58,19 +58,33 @@ internal fun GroupWorld.huntGround(g: HexGroup, km2: Float): HuntGround {
             val q = hw.placeNear(g.place, nh).takeIf { !it.none } ?: continue
             if (indexOf(q.i) < 0) add(q.i, 0f)
         }
-        // (Evenly over the places about, those too small for their share filled and the rest shared again among the others.)
+        // (Over the places about, those too small for their share filled and the rest shared again among the others. A
+        // band's hunters go where the game is ([BAND_SEARCH_FLOOR], [HexFauna.game]): each place its share by the catchable game on it against
+        // the others' (Olli 2026-11-12: spread evenly, a rich neighbour got the same thin share as one hunted out, and bands
+        // that stayed starved with better ground in reach). A beast's party, evenly.)
+        val weight = FloatArray(m) { i -> if (i < onWay) 0f else if (g.band != null) BAND_SEARCH_FLOOR + fauna.game(g.species, Place(places[i])) else 1f }
         var open = m - onWay
         while (over > 1e-3f && open > 0) {
-            val each = over / open; open = 0
+            var sum = 0f
+            for (i in onWay until m) if (area[places[i]] * laps - swept[i] > 0f) sum += weight[i]
+            if (!(sum > 0f)) break
+            val pot = over; open = 0
             for (i in onWay until m) {
                 val room = area[places[i]] * laps - swept[i]; if (room <= 0f) continue
-                val s = min(room, each); swept[i] += s; over -= s
+                val s = min(room, pot * weight[i] / sum); swept[i] += s; over -= s
                 if (s < room) open++
             }
         }
     }
     return HuntGround(places.copyOf(m), swept.copyOf(m))
 }
+
+/**
+ * The least weight a place about a band's camp gets in its hunters' search beyond its own place ([huntGround]), kg of catchable
+ * game a km²: a place with none is still walked through. (Against the game itself, some tens to hundreds of kg a km² where
+ * bands live; an estimate, small enough that the game leads.)
+ */
+internal const val BAND_SEARCH_FLOOR = 1f
 
 /** The places of a hunting party's week's ground ([huntGround]), and the km² of each it searches. */
 internal class HuntGround(val place: IntArray, val km2: FloatArray) { val size get() = place.size }
