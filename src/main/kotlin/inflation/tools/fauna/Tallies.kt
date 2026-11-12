@@ -264,6 +264,8 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
     private var bandHeads = 0.0
     private var childWeeks = 0.0
     private var adultWeeks = 0.0
+    /** People-weeks sick of each illness this year, for the bouts a 1000 a year ([printAgainstTheRecord]). */
+    private val sickWeeks = DoubleArray(inflation.ecology.Illness.entries.size)
     private var motherWeeks = 0.0
     private var moves = 0
     /** Hexes each band walked this year, and its last camp. */
@@ -286,6 +288,7 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
     fun startYear() {
         bandWeeks = 0.0; bandHeads = 0.0; childWeeks = 0.0; adultWeeks = 0.0; motherWeeks = 0.0; moves = 0
         walked.clear(); lastCamp.clear()
+        sickWeeks.fill(0.0)
     }
 
     fun week() {
@@ -306,6 +309,7 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
         }
         for (g in groups.groups) if (g.alive && g.band != null) {
             bandWeeks++; bandHeads += g.size; childWeeks += g.young; adultWeeks += g.adults; motherWeeks += (g.adults - g.band!!.elders) / 2.0
+            for (d in inflation.ecology.Illness.entries) sickWeeks[d.ordinal] += g.size * g.band!!.sick[d].toDouble()
             val h = hw.placeHex[g.place]
             for (q in g.path) walked.getOrPut(g.id) { HashSet() } += q
             lastCamp.put(g.id, h)?.let { if (it != h) moves++ }
@@ -658,6 +662,13 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
                     causes.keys.filter { it.text.startsWith(Tally.of(Catalogue.HUMAN).text + ByBeast.How.KILLED_BY.words) }.sumOf { yearly(Tally.whatOf(it)) } * per))
         }
         val hex = sim.hex
+        // (Bouts a 1000 a year: the people-weeks sick over the weeks a bout lasts, per person-year. Shigellosis 0.6-107 a 1000 a
+        // year in population-based studies, Ram et al. 2008.)
+        println("     illness this year (sick share of people, bouts a 1000 people a year): " + inflation.ecology.Illness.entries.joinToString(", ") { il ->
+            val heads = bandHeads.coerceAtLeast(1.0)
+            val share = sickWeeks[il.ordinal] / heads
+            "%s %.1f%% (%.0f)".format(il.label, 100.0 * share, 1000.0 * share * 365.25 / 7.0 / il.weeks) } +
+            " [shigellosis 0.6-107 bouts a 1000 a year]")
         println("     people against the record: band size %.0f [15-50, most 20-35] | people per km² %.3f [foragers 0.01-0.4; Mediterranean 0.05-0.2] | camps moved a year %.1f [5-60, median about 15] | ground walked a year %.0f km² [200-2500] | plant share of food %.0f%% [Mediterranean 40-60%%] | births a woman over her bearing years %.1f [foragers 3.5-7.9, mean 5.6; Hadza 6.2, !Kung 4.3-4.7] | children reaching 15 %.0f%% [about 55-65%%] | years left at 15 %.0f [about 35-40] | violent deaths %.0f%% [2-15%%]".format(
             bandHeads / bandWeeks, bandHeads / weeks / sim.land.areaKm2.sum(), moves.toDouble() / bandsSeen,
             walked.values.map { it.size }.average() * hex.areaKm2, 100 * plants / (meat + plants).coerceAtLeast(1.0),
