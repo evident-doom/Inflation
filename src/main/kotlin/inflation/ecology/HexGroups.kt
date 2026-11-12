@@ -195,6 +195,7 @@ class HexGroups(
                     val (x, y) = hex.centreKm(hw.placeHex[p])
                     g.band = Band.start(fauna.kinds.size, fauna.totemKinds, land.drink.waterKm[p] < 3f, x, y, tuning, seedBase).also { b ->
                         b.sisu = Sisu.founder(g.id, seedBase)
+                        dressForCountry(b, Place(p))
                         b.elders = g.adults / 6
                         // The rest of the adults spread over the three spans of adult life.
                         b.ageStage[0] = (g.adults - b.elders) / 3; b.ageStage[1] = (g.adults - b.elders) / 3
@@ -290,7 +291,21 @@ class HexGroups(
     private fun startFood(): FloatArray {
         val w = FloatArray(n) { p -> placeFood(Place(p)) }
         for (h in hex.all) { val first = hw.firstPlaceIn(h); if (!first.none) w[first.i] += hexFood(h) - hw.placesOf(h).sumOf { placeFood(Place(it)).toDouble() }.toFloat() }
+        // (No band lives the year round above the trees, where no month is warm enough for them: such ground was a summer's.)
+        for (p in 0 until n) if ((0 until Date.MONTHS_PER_YEAR).maxOf { hw.placeTemp(Place(p), it) } < FOUNDER_TREELINE_C) w[p] = 0f
         return w
+    }
+
+    /**
+     * Founding band [b], starting at [p], is dressed for its country's winter, as a band that has always lived there would
+     * be: the colder its coldest month, the fuller its kit of clothes and the better they are sewn ([FOUNDER_WARM_C],
+     * [FOUNDER_COLD_C], [FOUNDER_COLD_SEWING]).
+     */
+    private fun dressForCountry(b: Band, p: Place) {
+        val coldest = (0 until Date.MONTHS_PER_YEAR).minOf { hw.placeTemp(p, it) }
+        val cold = ((FOUNDER_WARM_C - coldest) / (FOUNDER_WARM_C - FOUNDER_COLD_C)).coerceIn(0f, 1f)
+        b.kit[Tool.CLOTHES] = min(1f, b.kit[Tool.CLOTHES] * (1f + cold))
+        b.skills[Skill.SEWING] += (1f - b.skills[Skill.SEWING]) * FOUNDER_COLD_SEWING * cold
     }
 
     /** Where groups of [s] start or wander in: by area, how the ground and climate suit it, and water within its reach in a usual year. */
