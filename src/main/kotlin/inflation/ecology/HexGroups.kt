@@ -285,14 +285,20 @@ class HexGroups(
     }
 
     /**
-     * Where people's bands start when they hold their home hex: each place weighted by the food it gives people a year
-     * ([placeFood]), its hex's fish on its first place ([hexFood]). Drawn band by band, a hex gets bands in proportion to
-     * its food: forager density follows the land's productivity, from a band to a few hexes on poor ground to several
-     * to a hex on rich (Binford 2001, from memory).
+     * Where people's bands start when they hold their home hex: each place weighted by its area and the food it gives people
+     * a year a km² ([placeFood]) to the power [START_FOOD_POWER], its hex's fish on its first place ([hexFood]). Drawn band by
+     * band, rich ground gets more bands than poor, but less than in proportion to its food: forager density rises with the
+     * land's productivity about log-linearly, from about 0.04 a km² where it is low to 0.1-0.2 in temperate forest, with
+     * wide scatter (Zhu et al. 2021, Nat. Ecol. Evol. 5: 1536-1545, Binford's 357 groups: log10 density = 9.6e-4 NPP - 1.53).
+     * In proportion to food (before 12 Nov 2026), forest started with 3 times steppe's people and 13 times semi-desert's,
+     * against about 2 and 3 times from that relation (country741).
      */
     private fun startFood(): FloatArray {
-        val w = FloatArray(n) { p -> placeFood(Place(p)) }
-        for (h in hex.all) { val first = hw.firstPlaceIn(h); if (!first.none) w[first.i] += hexFood(h) - hw.placesOf(h).sumOf { placeFood(Place(it)).toDouble() }.toFloat() }
+        fun weigh(kg: Float, km2: Float) = if (kg > 0f && km2 > 0f) km2 * (kg / km2).pow(START_FOOD_POWER) else 0f
+        val w = FloatArray(n) { p -> weigh(placeFood(Place(p)), land.areaKm2[p]) }
+        for (h in hex.all) { val first = hw.firstPlaceIn(h); if (first.none) continue
+            val places = hw.placesOf(h); val km2 = places.sumOf { land.areaKm2[it].toDouble() }.toFloat()
+            w[first.i] += max(0f, weigh(hexFood(h), km2) - places.sumOf { w[it].toDouble() }.toFloat()) }
         // (No band lives the year round above the trees, where no month is warm enough for them: such ground was a summer's.)
         for (p in 0 until n) if ((0 until Date.MONTHS_PER_YEAR).maxOf { hw.placeTemp(Place(p), it) } < FOUNDER_TREELINE_C) w[p] = 0f
         return w

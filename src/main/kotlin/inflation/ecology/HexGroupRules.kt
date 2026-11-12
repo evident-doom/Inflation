@@ -182,6 +182,13 @@ internal const val FOUNDER_WARM_C = 10f
 internal const val FOUNDER_COLD_C = -5f
 internal const val FOUNDER_COLD_SEWING = 0.5f
 internal const val FOUNDER_TREELINE_C = 10f
+
+/**
+ * How founding bands' numbers follow the food their ground gives a km² ([HexGroups] startFood): 1 in proportion, 0 not at
+ * all. At 0.5 forest starts with some 1.6 times steppe's people and 3 times semi-desert's (their food 2.5 and 10 times
+ * apart), near the forager record's log-linear rise with productivity (Zhu et al. 2021). Fitted to that, not sourced.
+ */
+internal const val START_FOOD_POWER = 0.5f
 /**
  * The spread of people's bands' sizes when the world begins, as the sd of their log: foragers' residential camps run from about
  * half to about twice the usual size, a dozen to fifty or so about a mean of 25-30 (Kelly 1995; Marlowe 2005; both from memory,
