@@ -329,6 +329,24 @@ class Tuning(
      */
     val grazerSaltLack = f("grazerSaltLack", 0.3f)
     /**
+     * Famine by age (design "Famine deaths by age", 2026-11-13): a band carries one body state, the days of protein its
+     * people have burnt ([inflation.ecology.HexGroup.spent]); each age reads it times its share of the burden (how food is
+     * shared: the young fed first, elders yielding) over its reserve against a grown one's (how long its body holds out).
+     * The record (Mokyr and O Grada on Ireland; reviews of famine and age): death rates highest under five and among the
+     * old, most famine deaths illness rather than starvation itself. No source gives these numbers: all four are stand-ins,
+     * to be fitted. The prime grown bear the rest, so the band's burden is conserved ([inflation.ecology.ageTilts]).
+     */
+    val youngShare = f("youngShare", 0.8f)
+    val elderShare = f("elderShare", 1.5f)
+    val youngReserve = f("youngReserve", 0.6f)
+    val elderReserve = f("elderReserve", 0.8f)
+    /**
+     * How much deadlier illness is to the starving: its odds times 1 + this x the share of their starve days burnt, over
+     * the step ([inflation.ecology.famineIllness]). In Ireland 1845-50 fever and dysentery killed some 50-60% of the famine's
+     * dead and starvation itself 3-9% (Mokyr and O Grada, Table 5). A stand-in, to be fitted to that.
+     */
+    val famineIllness = f("famineIllness", 2f)
+    /**
      * How far inland the sea's spray keeps plant forage in sodium, km: it falls off as e^(-km / this)
      * ([inflation.ecology.forageSodium]). A guess fitted to ungulates' salt licks lying mostly beyond 500 km of the coast
      * (Maro and Dudley 2022). No place on a 1000 x 2000 km test world is then short; about 9% on an 8000 x 2000 one.

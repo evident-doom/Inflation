@@ -66,8 +66,7 @@ enum class WarnDeaths(val label: String) { HUNGER("hunger"), THIRST("thirst"), O
  * ([placeHazards]'s hunger and thirst, the young's at half as much again), by the same rules.
  */
 internal fun GroupWorld.foreseenHungerThirst(g: HexGroup, p: Place, fed: Float): Float {
-    val short = shortfallOfAdults(g, fed)
-    val grown = grownHunger(g, short); val young = youngHunger(g, short, grown)
+    val (grown, young) = ageHunger(g, fed)
     val thirst = thirstOdds(g, p, g.dry, dryAfter(g, p, fed))
     return (g.adults * (grown + thirst).coerceIn(0f, Hazards.MAX_GROWN_ODDS) +
         g.young * (1.5f * young + 1.5f * thirst).coerceIn(0f, Hazards.MAX_YOUNG_ODDS)) / max(1, g.size)

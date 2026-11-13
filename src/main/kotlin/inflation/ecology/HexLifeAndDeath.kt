@@ -230,11 +230,14 @@ internal fun HexGroups.splitOff(g: HexGroup, adults: Int, young: Int): HexGroup 
  * (rounded at random, so single deaths fall on the old as often as their share says), so the age
  * structure stays whole and births are not reckoned on the dead. Never more than there are.
  */
+/** A band's protein burnt, days, from which the census counts it starving ([WeekStats.famine]). */
+internal const val FAMINE_SPENT = 10f
+
 internal fun adultsDied(g: HexGroup, n: Int, r: Random, elderRisk: Float = 1f) {
     val dead = min(n, g.adults)
     if (dead <= 0) return
     g.band?.let { b ->
-        // (The elders' share of the dead is the heavier by [elderRisk] when they are likelier to die: of hunger, see [ELDERS_YIELD].)
+        // (The elders' share of the dead is the heavier by [elderRisk] when they are likelier to die: of hunger, see [ageTilts].)
         if (elderRisk == 1f || b.elders <= 0 || b.elders >= g.adults) {
             b.elders -= min(b.elders, (dead * b.elders + r.nextInt(g.adults)) / g.adults)
             for (i in b.ageStage.indices) b.ageStage[i] -= min(b.ageStage[i], (dead * b.ageStage[i] + r.nextInt(g.adults)) / g.adults)
@@ -589,6 +592,8 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
             healed * cared * s.youngMortality * (if (s.human) tuning.humanYoung else 1f) * years))
     placeHazards(g, g.place, weather, g.fed, thirst, sick, band?.fire ?: 0f, band?.homeShelter() ?: 0f) { c, a, y -> hazards += Hazard(c, a, y) }
     band?.let { houseWorthWeek(g, it, weather, stalked) }
+    // (Illness is the deadlier the more its people have burnt of their bodies: [famineIllness], before the step's burning is booked.)
+    val famine = famineIllness(g, g.fed)
     val spentBefore = g.spent
     g.spent = Hazards.spentAfter(s, g.spent, g.fed, days)
     // (No beast to blame, none taken: a hazard of none weighs nothing in sharing the deaths, and is left out.)
@@ -602,7 +607,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
             val k = band?.let { b -> caretakersTake(b) } ?: 0f
             Hazard(ByBeast.of(ByBeast.How.TAKEN_BY, it), stalked + k * young * g.young / g.adults.coerceAtLeast(1), (1f - k) * young) },
         Hazard(DeathCause.WOUNDS, festered, 0f)))
-    ill?.let { a -> for (it in Illness.entries) hazards += Hazard(it, a[it], a[it] * it.young) }
+    ill?.let { a -> for (it in Illness.entries) hazards += Hazard(it, a[it] * famine.first, a[it] * it.young * famine.second) }
     // The elders' care spares some of the young.
     val spared = 1f - ELDER_CARE * help
     var adultSum = 0f; var youngSum = 0f
@@ -635,6 +640,18 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         for (h in hazards) h.cause.deathClass()?.let { c -> g.addLost(c.ordinal, g.adults * h.adult * adultScale + youngExposed * spared * h.young * youngScale) }
         for (h in hazards) if (h.adult > 0f) stats.grownHazardDeaths.computeIfAbsent(h.cause) { DoubleAdder() }.add((g.adults * h.adult * adultScale).toDouble())
         g.addLost(LOST_ALL, diedExpected)
+        // (Census: deaths in bands starving, by age and cause class: [WeekStats.famine].)
+        if (band != null && spentBefore >= FAMINE_SPENT) {
+            fun add(k: Famine, v: Float) = stats.famine[k.ordinal].add(v.toDouble())
+            val e = min(band.elders, g.adults); val others = g.adults - e
+            add(Famine.YEARS_GROWN, g.adults * years); add(Famine.YEARS_YOUNG, youngExposed * years); add(Famine.YEARS_ELDERS, e * years)
+            for (h in hazards) {
+                val hunger = h.cause == DeathCause.HUNGER; val ill = h.cause is Illness || h.cause == DeathCause.DISEASE
+                add(if (hunger) Famine.GROWN_HUNGER else if (ill) Famine.GROWN_ILLNESS else Famine.GROWN_OTHER, g.adults * h.adult * adultScale)
+                add(if (hunger) Famine.YOUNG_HUNGER else if (ill) Famine.YOUNG_ILLNESS else Famine.YOUNG_OTHER, youngExposed * spared * h.young * youngScale)
+            }
+            if (e > 0) add(Famine.ELDERS_ALL, g.adults * adultOdds * e * elderRisk / (e * elderRisk + others))
+        }
     }
     // Elders die as the others do (their share of the adults who died), and of old age besides.
     adultsDied(g, da, r, elderRisk)
