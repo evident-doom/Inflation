@@ -258,7 +258,6 @@ private fun HexFauna.foundShares(p: Place, weather: Weather, z: Grazing): Found 
     if (held <= 0f) return Found(null)
     val n = kinds.size
     val search = FloatArray(n); val want = FloatArray(n); val share = FloatArray(n)
-    var all = 0f
     for ((k, s) in kinds.withKinds()) {
         val ps = plantShare(s)
         if (adults[k][p] + 0.5f * young[k][p] <= 0f || ps >= 1f) continue
@@ -266,14 +265,19 @@ private fun HexFauna.foundShares(p: Place, weather: Weather, z: Grazing): Found 
         val na = needAll(k, p, weather)
         want[k.i] = na * (1f - ps) + (if (ps > 0f) na * ps * max(0f, 1f - z.got[k]) else 0f)
         if (want[k.i] <= 0f) continue
-        search[k.i] = sk; all += sk
+        search[k.i] = sk
     }
     // Fill from the kinds whose want is soonest met by their search's share; the rest share what is left by search.
+    // (The search still to share is summed afresh from those left, not counted down: a float sum counted down can reach
+    // 0 or below with a kind still to come, and 0/0 put NaN in the held carrion, carr789.)
     val order = (0 until n).filter { search[it] > 0f }.sortedBy { want[it] / search[it] }
-    for (i in order) {
-        val fair = held * search[i] / all
-        share[i] = min(want[i], fair)
-        held -= share[i]; all -= search[i]
+    for ((j, i) in order.withIndex()) {
+        if (held <= 0f) break
+        var rest = 0.0
+        for (m in j until order.size) rest += search[order[m]]
+        val fair = if (rest > 0.0) (held * (search[i] / rest)).toFloat() else held
+        share[i] = min(want[i], min(held, fair)).coerceAtLeast(0f)
+        held -= share[i]
     }
     return Found(share)
 }
