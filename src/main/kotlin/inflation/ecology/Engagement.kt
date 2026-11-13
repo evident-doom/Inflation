@@ -385,11 +385,12 @@ internal fun settleEngagement(stA: Stance, stB: Stance, aSees: Boolean, bSees: B
 /**
  * A contact between [a] and [b] (indices [ak], [bk] among the meeting's parties, at their paths' [ai], [bi]) over the
  * hexes [contested], thickest at [thickest], settled by their strategies (see the head of this file). [stop] is the
- * meetings' (where a group on its way turns back), [r] the meetings' draws.
+ * meetings' (where a group on its way turns back), [r] the meetings' draws. Returns whether it came to anything: one side gave
+ * way or they fought (not scouted or passed unseen).
  */
 @inflation.Part("meetings: engagements")
 internal fun HexGroups.engage(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk: Int, bi: Int, contested: HexArray, thickest: Hex, stop: IntArray, r: Random,
-                              intent: Intent = Intent.CHANCE, weather: inflation.world.Weather? = null) {
+                              intent: Intent = Intent.CHANCE, weather: inflation.world.Weather? = null): Boolean {
     stats.meeting(Met.ENGAGEMENTS)
     val h = battleground(a, b, contested, thickest)
     val p = hw.placeNear(a.place, h).takeIf { !it.none } ?: a.place
@@ -413,10 +414,10 @@ internal fun HexGroups.engage(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk: In
     val surpriseA = e.surpriseA; val surpriseB = e.surpriseB
     if (surpriseA || surpriseB) stats.meeting(Met.ENGAGEMENTS_AMBUSHED)
     when (e.ending) {
-        Ending.A_GAVE_WAY -> { stop[ak] = minOf(stop[ak], max(0, ai - 1)); gaveWay(a, contested, contestDay); stats.meeting(Met.ENGAGEMENTS_GAVE_WAY); return }
-        Ending.B_GAVE_WAY -> { stop[bk] = minOf(stop[bk], max(0, bi - 1)); gaveWay(b, contested, contestDay); stats.meeting(Met.ENGAGEMENTS_GAVE_WAY); return }
-        Ending.SCOUTED -> { stats.meeting(Met.ENGAGEMENTS_SCOUTED); return }
-        Ending.PASSED_UNSEEN -> { stats.meeting(Met.ENGAGEMENTS_PASSED_UNSEEN); return }
+        Ending.A_GAVE_WAY -> { stop[ak] = minOf(stop[ak], max(0, ai - 1)); gaveWay(a, contested, contestDay); stats.meeting(Met.ENGAGEMENTS_GAVE_WAY); return true }
+        Ending.B_GAVE_WAY -> { stop[bk] = minOf(stop[bk], max(0, bi - 1)); gaveWay(b, contested, contestDay); stats.meeting(Met.ENGAGEMENTS_GAVE_WAY); return true }
+        Ending.SCOUTED -> { stats.meeting(Met.ENGAGEMENTS_SCOUTED); return false }
+        Ending.PASSED_UNSEEN -> { stats.meeting(Met.ENGAGEMENTS_PASSED_UNSEEN); return false }
         Ending.FOUGHT -> {}
     }
     stats.meeting(Met.ENGAGEMENTS_FOUGHT)
@@ -427,9 +428,10 @@ internal fun HexGroups.engage(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk: In
     if (ba != null && bb != null && weather != null) {
         if (e.aStrikes) fight(a, ba, b, bb, planned = raid, weather, edge = if (surpriseA) ENGAGE_SURPRISE else 1f)
         else fight(b, bb, a, ba, planned = false, weather, edge = if (surpriseB) ENGAGE_SURPRISE else 1f)
-        return
+        return true
     }
     if (a.species == b.species) rivalsFight(a, ak, ai, b, bk, bi, h, stop, sa, sb) else enemiesClash(a, ak, ai, b, bk, bi, h, stop, sa, sb)
+    return true
 }
 
 /** The weight in a footprint at and above which a hex is a pack's core, below it its fringe ([groundOf]); an estimate. */

@@ -68,9 +68,11 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
     // Whether it sets out turns on how it regards the bands it could fall on ([Regard.fightChance]): the warier of one of them,
     // the likelier; never on a band it is close to. (No regard is warier than [Regard.MOST_WARY], so a draw above that chance
     // needs no look at them.)
-    val drive = RAID_PLOT * b.raidWill * days / 7f
+    // (A week's chance of setting out, over the step's weeks: [overWeeks].)
+    val drive = RAID_PLOT * b.raidWill
+    val weeks = days / 7f
     val u = rnd.nextFloat()
-    if (dialUse == null && u >= drive * Regard.MOST_WARY) return
+    if (dialUse == null && u >= overWeeks(drive * Regard.MOST_WARY, weeks)) return
     val them = ArrayList<Pair<HexGroup, Regard>>()
     for (id in within) {
         val o = bands.groupById[id]?.takeIf { it.alive } ?: continue
@@ -83,7 +85,7 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
     }
     if (them.isEmpty()) return
     val wariest = them.maxOf { it.second.wariness }
-    if (drawn(DialSite.RAIDS_PLOT, b.raidWill, u, drive * wariest) { RAID_PLOT * days / 7f * wariest }) {
+    if (drawn(DialSite.RAIDS_PLOT, b.raidWill, u, overWeeks(drive * wariest, weeks)) { overWeeks(RAID_PLOT * wariest, weeks) }) {
         // Above all it keeps alive: it falls on the home where it would lose fewest of its own (the defenders as it
         // knows them, at home behind their works; see [raidStrengths]); of homes about as safe (within a step of its
         // score, see [survivalSteps]), the one it is warier of, then the nearest.
