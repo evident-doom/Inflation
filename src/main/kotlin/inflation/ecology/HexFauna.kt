@@ -362,11 +362,11 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
     /** Of each kind that also roams, the grown young dispersing from each hex they left, heads ([disperse]); null till the first leave (and in saves made before it). */
     internal var dispersing: Array<FloatArray?>? = null
     /**
-     * With [inflation.Tuning.huntersPressed]: of each resident hunter kind, its heads killed by people lately per km² by place,
+     * Of each resident hunter kind, its heads killed by people lately per km² by place,
      * fading at a rate a day ([persecutedBy], [pressure]); null till people first kill a hunter (and in saves made before it).
      */
     internal var persecuted: Array<FloatArray?>? = null
-    /** With [inflation.Tuning.huntersPressed]: people within a day's walk of each hex, per km², as the step began ([peopleAbout]). Not saved. */
+    /** People within a day's walk of each hex, per km², as the step began ([peopleAbout]). Not saved. */
     @Transient internal val peopleNear = FloatArray(hex.size)
     /** The ground about each hex its dispersers look over, by kind and hex ([dispersalAbout]): fixed by the map, worked out once and kept. Not saved. */
     @Transient internal val dispersalGround = java.util.concurrent.ConcurrentHashMap<Long, DispersalGround>()

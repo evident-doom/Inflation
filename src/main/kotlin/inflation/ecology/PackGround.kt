@@ -11,19 +11,19 @@ import inflation.world.get
 import inflation.world.toHexArray
 import kotlin.math.sqrt
 
-// Packs that hold their ground (docs/design/pack-performance.md, "Territory wider than a hex"): with
-// [inflation.Tuning.packsStay], a content pack on its home hex weighs no place and stays, as bands that hold their home hex
+// Packs that hold their ground (docs/design/pack-performance.md, "Territory wider than a hex"): a
+// content pack on its home hex weighs no place and stays, as bands that hold their home hex
 // do ([staysHome]); its territory is a footprint, the hexes within its range of home, which it hunts and marks by nearness,
 // the same at any step length. Only restless packs (the homeless, the hungry, the thirsty, the astray, the pressed) and those
 // away from home weigh their places as before.
 
 /**
- * Whether pack [g] holds its ground this step ([inflation.Tuning.packsStay]): it is on its home hex, not restless
+ * Whether pack [g] holds its ground this step: it is on its home hex, not restless
  * ([restless]: fed, has ground, not thirsty, not astray, not pressed by people) and warned of no peril there, and nobody is
  * steering it. Its choice to stay is then made without weighing any place ([groundPlan]).
  */
 internal fun GroupPlanner.holdsGround(g: HexGroup, weather: Weather): Boolean {
-    if (!gs.tuning.packsStay || g.band != null || g.species.lifeway != Lifeway.PACK || g.home.none) return false
+    if (g.band != null || g.species.lifeway != Lifeway.PACK || g.home.none) return false
     val here = gs.hw.placeHex[g.place]
     if (gs.perilAhead(here) > 0f) return false
     // (Off its home hex, a weekly pack weighs its places and is back within a week or so; over a step of several ticks it would

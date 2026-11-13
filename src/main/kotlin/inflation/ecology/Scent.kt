@@ -15,7 +15,7 @@ class Scent {
     internal val markers = HashMap<Int, IntArray>()
     /**
      * The second claimant of each hex by kind, its freshness and whose ([claim]): two packs whose grounds overlap both keep
-     * their claim on the hexes they share, the fresher first. Made with [inflation.Tuning.packsStay]; null before.
+     * their claim on the hexes they share, the fresher first. Null before.
      */
     internal var marks2: HashMap<Int, FloatArray>? = null
     internal var markers2: HashMap<Int, IntArray>? = null
