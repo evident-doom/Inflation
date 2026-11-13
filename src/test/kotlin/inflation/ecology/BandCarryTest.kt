@@ -65,4 +65,49 @@ class BandCarryTest {
         a.absorb(b, 5, 0.25f, 0f, 0f, 0f, 0f, 1, 2)
         assertEquals(0.75f, a.foreseenShares[0], 1e-6f); assertEquals(0.25f, a.foreseenShares[bins - 1], 1e-6f)
     }
+
+    @Test
+    fun `an offshoot takes every field its rule says it copies`() {
+        // (Each number or array of numbers whose rule is [OnSplit.COPIED] set to a value of its own, then the band split: the
+        // new band must hold the same. Before 13 Nov 2026 the rules said so of stayWeeks, weaningFood, waterShort and others
+        // that splitInto left at a new band's start.)
+        val a = Band(1)
+        val checked = ArrayList<java.lang.reflect.Field>()
+        for ((k, name) in Band.CARRY.filterValues { it.first == OnSplit.COPIED }.keys.withIndex()) {
+            val f = Band::class.java.getDeclaredField(name).also { it.isAccessible = true }
+            val x = 3 + k
+            when (val v = f.get(a)) {
+                is Float -> f.setFloat(a, x + 0.25f)
+                is Int -> f.setInt(a, x)
+                is Long -> f.setLong(a, x.toLong())
+                is FloatArray -> v.fill(x + 0.25f)
+                is IntArray -> v.fill(x)
+                is LongArray -> v.fill(x.toLong())
+                else -> continue
+            }
+            checked += f
+        }
+        a.seenStrength[7] = 2f; a.seenDay[7] = 11L
+        val o = Band(1)
+        a.splitInto(o, 2, 8, 0.2f, Random(1)) {}
+        for (f in checked) when (val v = f.get(a)) {
+            is FloatArray -> assertEquals(v.toList(), (f.get(o) as FloatArray).toList(), f.name)
+            is IntArray -> assertEquals(v.toList(), (f.get(o) as IntArray).toList(), f.name)
+            is LongArray -> assertEquals(v.toList(), (f.get(o) as LongArray).toList(), f.name)
+            else -> assertEquals(v, f.get(o), f.name)
+        }
+        assertEquals(2f, o.seenStrength[7]); assertEquals(11L, o.seenDay[7])
+    }
+
+    @Test
+    fun `a joining band adds what it heard of ways of life and its raid walk, and blends last week's lean food and salt`() {
+        val a = Band(1); val b = Band(1)
+        val l = Livelihood.entries[0]
+        a.heardLivelihood[l] = 1f; b.heardLivelihood[l] = 2f
+        a.raidWalkOwed = 1f; b.raidWalkOwed = 3f
+        a.leanLost = 0.2f; b.leanLost = 0.6f; a.sodiumShort = 0f; b.sodiumShort = 0.4f
+        a.absorb(b, 5, 0.5f, 0f, 0f, 0f, 0f, 1, 2)
+        assertEquals(3f, a.heardLivelihood[l], 1e-6f); assertEquals(4f, a.raidWalkOwed, 1e-6f)
+        assertEquals(0.4f, a.leanLost, 1e-6f); assertEquals(0.2f, a.sodiumShort, 1e-6f)
+    }
 }

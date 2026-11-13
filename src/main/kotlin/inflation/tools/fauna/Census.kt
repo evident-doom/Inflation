@@ -736,7 +736,7 @@ class Census(private val sim: HexSim) {
                     "%s %.1f".format(Tally.diedOf(k), 1000 * n / years) }
                 val got = v(Tally.Bands.MEAT) + v(Tally.Bands.PLANTS)
                 "%s %.0f%%: foraged %.0f%% of want, %.2f kg, fed %.2f, fat %.1f d; born %.1f, died %.1f (%s)".format(q.label, 100 * pw / qAll,
-                    100 * got / v(Tally.Bands.ASKED).coerceAtLeast(1.0), got / (years * 365.0).coerceAtLeast(1e-9),
+                    100 * got / v(Tally.Bands.ASKED).coerceAtLeast(1.0), got / (years * inflation.world.Date.DAYS_PER_YEAR).coerceAtLeast(1e-9),
                     v(Tally.Bands.FED) / 1000 / pw.coerceAtLeast(1.0), v(Tally.Bands.FAT) / 10 / v(Tally.Bands.BAND_WEEKS).coerceAtLeast(1.0),
                     1000 * v(Tally.Bands.BORN) / years, 1000 * died.values.sum() / years, top)
             })
@@ -779,7 +779,7 @@ class Census(private val sim: HexSim) {
         for ((_, b) in alive) for ((id, h) in b.knownHomes) {
             offHeld += b.homeOff[id] ?: 0f
             houseOf[id]?.let { t -> offTrue += hex.distanceKm(h, t); nTrue++ }
-            b.homeSeen[id]?.let { age += (day - it) / 365.0; nAge++ }
+            b.homeSeen[id]?.let { age += (day - it).toDouble() / inflation.world.Date.DAYS_PER_YEAR; nAge++ }
         }
         val fame = groups.bands.fameOf.values.sorted()
         fun f(x: Double) = if (fame.isEmpty()) 0f else fame[((fame.size - 1) * x).toInt()]

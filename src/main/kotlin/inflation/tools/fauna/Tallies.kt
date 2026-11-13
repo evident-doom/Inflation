@@ -378,7 +378,7 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
     /** Camp moves a year of bands with houses or without, since last read. */
     private fun movesWith(houses: Boolean): Double {
         val i = if (houses) 1 else 0
-        val v = movesHouse[i] * 52.0 / bandWeeksHouse[i].coerceAtLeast(1)
+        val v = movesHouse[i] * stepsPerYear.toDouble() / bandWeeksHouse[i].coerceAtLeast(1)
         movesHouse[i] = 0
         bandWeeksHouse[i] = 0
         return v
