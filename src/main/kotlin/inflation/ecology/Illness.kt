@@ -54,10 +54,12 @@ internal fun HexGroups.illnessWeek(g: HexGroup, b: Band, weather: Weather, r: ko
     val t = weather.temperature[p]
     val crowd = peopleCrowding(g)
     val deaths = enumFloats<Illness>()
+    // (The starving fall to the flux the more: they eat what they can find and keep no clean camp, [inflation.Tuning.famineCatching].)
+    val starving = 1f + tuning.famineCatching * burntShare(g, g.fed)
     for (d in Illness.entries) {
         val i = d
         val h = hw.placeHex[p]
-        val catching = catching(d, b, p, t, crowd, campWeeksAt(h), hygieneAt(b, h), weather)
+        val catching = catching(d, b, p, t, crowd, campWeeksAt(h), hygieneAt(b, h), weather) * (if (d == Illness.FLUX) starving else 1f)
         // (Rates a day over the step's days in closed form, the same at any step length (plan section 52.A.4): the well
         // fall ill at a week's [catching] spread over its days, bouts end at 1 / [Illness.weeks] a week, the dead [Illness.deadly]
         // of those, and the spared lose it over [Illness.immuneYears]. The cough breaks out at most once a step, at a moment

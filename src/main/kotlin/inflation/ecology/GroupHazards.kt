@@ -196,6 +196,14 @@ internal fun GroupWorld.ageHunger(g: HexGroup, fed: Float, spent: Float = g.spen
 }
 
 /**
+ * The share of their starve days [g]'s people have burnt over a step fed [fed], its mean: the band's protein burnt runs
+ * straight from the step's start to its end at the step's food, so the mean of the two is exact at any step length. 0 for
+ * animals.
+ */
+internal fun GroupWorld.burntShare(g: HexGroup, fed: Float): Float =
+    if (!g.species.human) 0f else 0.5f * (g.spent + spentAtEnd(g, fed, g.spent)) / Hazards.starveDays(g.species)
+
+/**
  * How much deadlier illness is to [g]'s grown and young over the step, starving ([inflation.Tuning.famineIllness]): 1 +
  * that times their share of the starve days burnt ([ageTilts]), its mean over the step. Fed [fed] the band's burnt
  * protein runs straight from the step's start to its end, so the mean of the two is exact at any step length. 1 for
@@ -204,7 +212,7 @@ internal fun GroupWorld.ageHunger(g: HexGroup, fed: Float, spent: Float = g.spen
 internal fun GroupWorld.famineIllness(g: HexGroup, fed: Float): Pair<Float, Float> {
     val f = tuning.famineIllness; val s = g.species
     if (f <= 0f || !s.human) return 1f to 1f
-    val burnt = 0.5f * (g.spent + spentAtEnd(g, fed, g.spent)) / Hazards.starveDays(s)
+    val burnt = burntShare(g, fed)
     if (burnt <= 0f) return 1f to 1f
     val a = ageTilts(g)
     val elders = g.band?.elders?.coerceAtMost(g.adults) ?: 0

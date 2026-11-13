@@ -347,6 +347,12 @@ class Tuning(
      */
     val famineIllness = f("famineIllness", 2f)
     /**
+     * How much more often the starving fall to the flux: its catching times 1 + this x the share of their starve days burnt
+     * ([inflation.ecology.burntShare]). Famine stage 2 (design "Famine deaths by age"): dysentery and diarrhoea killed some
+     * 21-28% of Ireland's famine dead (Mokyr and O Grada, Table 5). A stand-in, to be fitted; 0 is the stage 1 rule.
+     */
+    val famineCatching = f("famineCatching", 10f)
+    /**
      * How far inland the sea's spray keeps plant forage in sodium, km: it falls off as e^(-km / this)
      * ([inflation.ecology.forageSodium]). A guess fitted to ungulates' salt licks lying mostly beyond 500 km of the coast
      * (Maro and Dudley 2022). No place on a 1000 x 2000 km test world is then short; about 9% on an 8000 x 2000 one.
