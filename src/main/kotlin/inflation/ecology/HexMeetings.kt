@@ -141,7 +141,7 @@ internal fun HexGroups.meet(weather: Weather) {
  * Bands that hold their home hex ([staysHome]) keep their appointments ([Band.appointment]) without moving camp: in the step
  * that holds the start of an appointment's month, the bands that share its place each send people there, and every two of
  * them meet ([bandsMeet]), the first [GATHERING_MOST] to come; each one's going there and back wears the way
- * ([wearBetween]). A band that took up another's appointment (when bands meet) comes to its gatherings: so gatherings
+ * ([wearBetween]) and costs its [VISITORS] the days of the walk. Only bands whose home is within [CONTACT_KM] of the place come. A band that took up another's appointment (when bands meet) comes to its gatherings: so gatherings
  * grow where bands' dead lie and where they have met. (A band alone at its place meets no one there.)
  */
 @Part("meetings: appointments kept")
@@ -150,15 +150,24 @@ internal fun HexGroups.keepAppointments(weather: Weather) {
     val at = LinkedHashMap<Pair<Hex, Int>, ArrayList<HexGroup>>()
     for (g in groups) {
         if (!g.alive || !staysHome(g)) continue
-        val ap = g.band?.appointment ?: continue
+        val b = g.band ?: continue
+        val ap = b.appointment ?: continue
         if (!weather.date.holdsMonthStart(days, ap.month)) continue
+        // (A place beyond [CONTACT_KM] of its home is beyond its people's reach: it lets the appointment go, and may make a
+        // nearer one. Before 13 Nov 2026 bands kept appointments however far their home lay, so bands 200 km and more apart
+        // met yearly: appointments are copied at splits and taken up at meetings.)
+        if (hex.distanceKm(hw.placeHex[g.place], ap.hex) > CONTACT_KM) { b.appointment = null; stats.meeting(Met.APPOINTMENTS_OUT_OF_REACH); continue }
         at.getOrPut(ap.hex to ap.month) { ArrayList() } += g
     }
     for ((key, there) in at) {
         if (there.size < 2) continue
         val site = key.first
         val came = there.take(GATHERING_MOST)
-        for (g in came) wearBetween(hw.placeHex[g.place], site, g)
+        for (g in came) {
+            wearBetween(hw.placeHex[g.place], site, g)
+            // (Its [VISITORS] walk there and back, taken from its next step's days as raiders' walks are: [Band.raidWalkOwed].)
+            g.band?.let { b -> b.raidWalkOwed += VISITORS * (2.0 * hex.distanceKm(hw.placeHex[g.place], site) / (WALK_KM_PER_HOUR * Activity.WORK_HOURS)).toFloat() }
+        }
         stats.meeting(Met.APPOINTMENTS_GATHERED); stats.meeting(Met.BANDS_AT_APPOINTMENTS, came.size)
         for (i in came.indices) for (j in i + 1 until came.size) if (came[i].alive && came[j].alive) {
             settleAt(came[i], came[j], site, weather, intent = Intent.GATHERING) }

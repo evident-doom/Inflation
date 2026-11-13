@@ -86,7 +86,9 @@ internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
         if (given > 0f && b.riteAsked > 0f) {
             land.sanctity[b.riteDue] += g.adults * given / b.riteAsked
             stats.meeting(Met.BANDS_HELD_A_RITE_IN_A_LESSER_FORM)
-            gatherAtRite(g, b.riteDue, b.riteHeld, weather)
+            // (It meets the others gathered there only if its people walked there: the walk's days given in full. Before 13 Nov
+            // 2026 any share given brought it to the gathering, however far.)
+            if (given >= b.riteAsked - RITE_DAYS * g.adults) gatherAtRite(g, b.riteDue, b.riteHeld, weather)
         }
         b.strain += if (b.riteAsked > 0f) withheld / b.riteAsked else 1f
         val byNeed = if (b.riteAsked > 0f) (b.riteOwed - withheld) / b.riteAsked else 0f
