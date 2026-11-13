@@ -199,7 +199,10 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     // run hunts on as a weekly one would in the weeks after. With three passes a step, a 60-day pack's take was one draw where
     // a weekly pack's was ten weeks' re-planned ones: same mean, ten times the lean tail, and hunger deaths 10-20 times the
     // weekly; trace740, Olli 2026-11-12 "study starving steps".)
-    val passes = if (w.band == null) foragePasses * ticks else foragePasses
+    // (Stage 4b: at most two weeks' worth, at any step length. Its hunger no longer reads its luck over the step but its reserve
+    // against its kills ([Hazards.hungerKills]), so the lean tail of one long draw no longer kills; the second week's worth is
+    // the hunt-on after a lean run. Thirty passes at 60 days cost a 60-day pack five times a weekly one's.)
+    val passes = if (w.band == null) foragePasses * min(ticks, MAKEUP_WEEKS) else foragePasses
     for (pass in 0 until passes) {
         // (A beast plans on what its kills were expected to feed it, not on its luck at them: [ForageWeek.killLuck]. But only within
         // a week's worth of passes: after it, as in the next week, what it got is what it has, and a lean run is hunted on after.)
@@ -320,6 +323,9 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     eatTheWeek(w)
 }
 
+/** The most weeks' worth of passes a beast forages in a step ([forage]). */
+private const val MAKEUP_WEEKS = 2
+
 /**
  * A beast's kills held from the last step ([HexGroup.killHeld]), as it comes back to a cached carcass: what kept is eaten first,
  * with this step's meat; what rotted while it waited lies as carrion. It waits on average half the days it takes to eat it, at
@@ -366,7 +372,7 @@ private fun HexGroups.packWeekDiag(w: ForageWeek) {
     if (w.fed >= w.aim - 0.01f * w.wantAll) diag(s, HuntStep.PACK_WEEKS_FULL, 1f)
     else if (w.busy >= 0.95f * w.workDays) diag(s, HuntStep.PACK_WEEKS_OUT_OF_TIME, 1f)
     else if (w.busy + w.searchUsed >= 0.95f * w.workDays) diag(s, HuntStep.PACK_WEEKS_SEARCH_SPENT, 1f)
-    else if (w.passes >= foragePasses * ticks) diag(s, HuntStep.PACK_WEEKS_PASSES_SPENT, 1f)
+    else if (w.passes >= foragePasses * min(ticks, MAKEUP_WEEKS)) diag(s, HuntStep.PACK_WEEKS_PASSES_SPENT, 1f)
 }
 
 /**
