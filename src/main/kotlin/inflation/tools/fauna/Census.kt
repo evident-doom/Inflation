@@ -218,6 +218,12 @@ class Census(private val sim: HexSim) {
             "%s %.2f/%.2f/%.2f".format(fauna.kinds[k].name, ff[Fed.MEAT].sum() / h, ff[Fed.SMALL_PREY].sum() / h, ff[Fed.CARRION].sum() / h)
         })
         for (ff in fauna.fedFrom) for (a in ff) a.reset()
+        // (Trace: where the carrion came from and went this year, thousand t: [inflation.ecology.CarrionFlow].)
+        val cf = fauna.small.carrionFlow
+        println("     carrion flow (thousand t this year): " + inflation.ecology.CarrionFlow.entries.joinToString(", ") { f ->
+            var t = 0.0; val a = cf[f.ordinal]; for (pl in 0 until land.n) t += a[pl] * land.areaKm2[pl]
+            "%s %.1f".format(f.label, t) })
+        for (a in cf) a.fill(0.0)
         println("     residents held hungry with no better place next door (share of head-weeks this year / of those at a closed border / most in one week): " +
             fauna.kinds.indices.filter { fauna.stuck[it][Stuck.HEADS.ordinal] > 0.0 }.joinToString(", ") { k ->
             val st = fauna.stuck[k]; val h = st[Stuck.HEADS.ordinal]
