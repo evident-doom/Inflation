@@ -136,8 +136,6 @@ class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, @Transi
     @Transient internal var vultureColonyRates = FloatArray(0)
     /** Each place's carrion rot rate this step, a day ([stepSoil]): what the vultures found and left has rotted by as it lay. */
     @Transient val carrionRotRate = FloatArray(n)
-    /** Each place's carrion as it lay on the step's days on average, kg/m² ([stepSoil]): what the vultures set their rate by ([stepVultures]). */
-    @Transient val carrionLying = FloatArray(n)
     /** Where dead matter went, for the viewer (see [PlaceRecord]); set with [HexFauna.record]. */
     @Transient var record: PlaceRecord? = null
     /** Bones left when the meat is gone, kg/m²: slow to weather, food for bone-crackers. */

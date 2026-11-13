@@ -82,7 +82,6 @@ internal fun HexSmallLife.stepSoil(p: Place, t: Float, soilWater: Float, carcass
     // sums to C0 (1 - e^-kt)/k + R (t - (1 - e^-kt)/k)/k, of which rot takes its rate's part and the groups theirs.
     val inflow = land.spread(p, Kg(carcassKg[p])).v
     carcassBook?.add(carcassKg[p].toDouble())
-    carrionLying[p] = 0f
     if (carrion[p] > 0f || inflow > 0f) {
         val rot = CARRION_ROT * max(0.1f, warm)
         carrionRotRate[p] = rot
@@ -90,7 +89,6 @@ internal fun HexSmallLife.stepSoil(p: Place, t: Float, soilWater: Float, carcass
         val k = rot + find; val d = days.toFloat(); val r = inflow / d
         val lay = (1f - exp(-k * d)) / k
         val lain = carrion[p] * lay + r * (d - lay) / k
-        carrionLying[p] = lain / d
         val gone = min(rot * lain, carrion[p] + inflow); val found = min(find * lain, carrion[p] + inflow - gone)
         // (The groups' and the residents' finds by their rates.)
         val byResidents = if (find > 0f) found * residentCarrionRate[p] / find else 0f
