@@ -317,8 +317,8 @@ class Census(private val sim: HexSim) {
             }
             "%s %.0f / %d / %.2f".format(s.name, heads, hexes, if (heads > 0.0 && settledW > 0.0) (poolW / heads) / (settledW / settled) else 0.0)
         })
-        // (With t.huntersPressed: how hard people press each hunting kind where it lives, and how much of its land they press hard.)
-        if (fauna.tuning.huntersPressed) {
+        // (How hard people press each hunting kind where it lives, and how much of its land they press hard.)
+        run {
             val hunters = fauna.kinds.withIndex().filter { it.value.carnivore }
             println("     people's pressure on the hunters (head-weighted where they are / share of land past a quarter / killed by people lately, heads): " +
                 hunters.joinToString(", ") { (i, s) ->
@@ -504,7 +504,7 @@ class Census(private val sim: HexSim) {
      * with people's take a person-day. (Zeman et al. 2016: wild boar ate over 90% of a Moravian oak stand's acorns.)
      */
     fun printMast() {
-        val l = groups.fauna.food.mastLedger
+        val l = groups.fauna.food.mastLedger.map { it.sumThenReset() }
         val fell = l[inflation.ecology.HexFood.MastFate.FELL.ordinal]
         if (fell <= 0.0) return
         val people = groups.groups.filter { it.alive && it.band != null }.sumOf { it.size }.coerceAtLeast(1)
@@ -513,7 +513,6 @@ class Census(private val sim: HexSim) {
             fell / 1000, pc(inflation.ecology.HexFood.MastFate.PEOPLE), pc(inflation.ecology.HexFood.MastFate.ANIMALS),
             pc(inflation.ecology.HexFood.MastFate.SMALL_LIFE), pc(inflation.ecology.HexFood.MastFate.ROTTED),
             l[inflation.ecology.HexFood.MastFate.PEOPLE.ordinal] / people / inflation.DAYS_PER_YEAR))
-        l.fill(0.0)
     }
 
     fun printChoices() {
@@ -525,8 +524,8 @@ class Census(private val sim: HexSim) {
             val all = c.sum().coerceAtLeast(1)
             "%s %.0f/%.0f/%.0f%%".format(s.name, 100.0 * c[0] / all, 100.0 * c[1] / all, 100.0 * c[2] / all)
         })
-        // (Packs that hold their ground, t.packsStay: how many did this week, and how wide their footprints were.)
-        if (groups.tuning.packsStay) println("     packs holding their ground this week, of all packs (footprint hexes, mean and widest): " +
+        // (Packs that hold their ground: how many did this week, and how wide their footprints were.)
+        println("     packs holding their ground this week, of all packs (footprint hexes, mean and widest): " +
             groups.kinds.filter { s -> groups.groups.any { it.alive && it.species == s && it.band == null } }.joinToString(", ") { s ->
                 val all = groups.groups.filter { it.alive && it.species == s && it.band == null }
                 val holding = all.mapNotNull { it.footprint?.size }
@@ -736,7 +735,7 @@ class Census(private val sim: HexSim) {
                     "%s %.1f".format(Tally.diedOf(k), 1000 * n / years) }
                 val got = v(Tally.Bands.MEAT) + v(Tally.Bands.PLANTS)
                 "%s %.0f%%: foraged %.0f%% of want, %.2f kg, fed %.2f, fat %.1f d; born %.1f, died %.1f (%s)".format(q.label, 100 * pw / qAll,
-                    100 * got / v(Tally.Bands.ASKED).coerceAtLeast(1.0), got / (years * 365.0).coerceAtLeast(1e-9),
+                    100 * got / v(Tally.Bands.ASKED).coerceAtLeast(1.0), got / (years * inflation.world.Date.DAYS_PER_YEAR).coerceAtLeast(1e-9),
                     v(Tally.Bands.FED) / 1000 / pw.coerceAtLeast(1.0), v(Tally.Bands.FAT) / 10 / v(Tally.Bands.BAND_WEEKS).coerceAtLeast(1.0),
                     1000 * v(Tally.Bands.BORN) / years, 1000 * died.values.sum() / years, top)
             })
@@ -779,7 +778,7 @@ class Census(private val sim: HexSim) {
         for ((_, b) in alive) for ((id, h) in b.knownHomes) {
             offHeld += b.homeOff[id] ?: 0f
             houseOf[id]?.let { t -> offTrue += hex.distanceKm(h, t); nTrue++ }
-            b.homeSeen[id]?.let { age += (day - it) / 365.0; nAge++ }
+            b.homeSeen[id]?.let { age += (day - it).toDouble() / inflation.world.Date.DAYS_PER_YEAR; nAge++ }
         }
         val fame = groups.bands.fameOf.values.sorted()
         fun f(x: Double) = if (fame.isEmpty()) 0f else fame[((fame.size - 1) * x).toInt()]

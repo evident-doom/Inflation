@@ -121,9 +121,6 @@ class BandTime(left: Float, private val pace: EnumFloats<Activity>? = null) {
         spent[a] += days; worked[a] += personDays; left -= days; lost += days - personDays; held[a] = max(0f, held[a] - days)
     }
 
-    /** Takes [personDays] for [a], but never more than it may take ([leftFor]). */
-    fun spendAtMost(a: Activity, personDays: Float) = spend(a, min(personDays, leftFor(a)))
-
     /** Counts [personDays] as gone to [a] before this stretch began (the time foraging took, worked out apart). */
     fun took(a: Activity, personDays: Float) { spent[a] += personDays; worked[a] += personDays }
 
@@ -174,9 +171,6 @@ class BandTime(left: Float, private val pace: EnumFloats<Activity>? = null) {
     fun count(census: MutableMap<TallyKey, Int>, vararg activities: Activity) {
         for (a in activities) census.merge(Tally.bandTime(a), (spent[a] * 10f).roundToInt(), Int::plus)
     }
-
-    /** Adds what went to every [Activity] to [census] (tenths of a day), so a new activity needs no list of its own here. */
-    fun countEach(census: MutableMap<TallyKey, Int>) = count(census, *Activity.entries.toTypedArray())
 
     /** Adds what went to every [Activity] to [t] (tenths of a day). */
     internal fun countEachInto(t: BandTallies) { for (a in Activity.entries) t.time(a, (spent[a] * 10f).roundToInt()) }

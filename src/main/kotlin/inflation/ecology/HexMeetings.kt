@@ -161,7 +161,7 @@ internal fun HexGroups.keepAppointments(weather: Weather) {
         for (g in came) wearBetween(hw.placeHex[g.place], site, g)
         stats.meeting(Met.APPOINTMENTS_GATHERED); stats.meeting(Met.BANDS_AT_APPOINTMENTS, came.size)
         for (i in came.indices) for (j in i + 1 until came.size) if (came[i].alive && came[j].alive) {
-            if (tuning.packsStay) settleAt(came[i], came[j], site, weather, intent = Intent.GATHERING) else bandsMeet(came[i], came[j], weather) }
+            settleAt(came[i], came[j], site, weather, intent = Intent.GATHERING) }
     }
 }
 
@@ -206,8 +206,8 @@ internal fun HexGroups.neighboursMeet(weather: Weather) {
         val a = stayers[i]; val h0 = hw.placeHex[a.place]
         val reach = effortsFrom(h0, Catalogue.travel(a.species).ordinal, hw.placeBand[a.place], weather, CONTACT_KM)
         reaches[i] = reach
-        // (With t.packsStay, the bands of its own hex too, a budded band and its parent: their every contact is visiting, [contend].)
-        peopled[i] = reach.keys.filter { (it != h0 || tuning.packsStay) && it in byHex }.sortedBy { it.i }
+        // (The bands of its own hex too, a budded band and its parent: their every contact is visiting, [contend].)
+        peopled[i] = reach.keys.filter { it in byHex }.sortedBy { it.i }
     }
     for ((i, a) in stayers.withIndex()) {
         val h0 = hw.placeHex[a.place]
@@ -232,7 +232,7 @@ internal fun HexGroups.neighboursMeet(weather: Weather) {
         stats.meeting(Met.NEIGHBOURS_MET, m.times)
         // (Each going there and back wears the way: the meetings' wear compounded, as one after another would.)
         wear.along(m.way, 1f - (1f - w).pow(m.times))
-        if (tuning.packsStay) settleAt(m.a, m.b, hw.placeHex[m.b.place], weather) else bandsMeet(m.a, m.b, weather)
+        settleAt(m.a, m.b, hw.placeHex[m.b.place], weather)
     }
     meetTick = 0; meetTimes = 1
 }

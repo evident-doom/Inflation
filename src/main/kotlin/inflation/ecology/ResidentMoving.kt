@@ -363,7 +363,7 @@ private fun HexFauna.spillHunters(k: FaunaKind, weather: Weather, arrived: Float
         // (And the cold or heat, and snow deeper than they can dig through, as they drive groups: see [restless].)
         val uneasy = (s.discomfortC(feltC(s, p, weather.temperature[p]), weather.date.month) / 10f).coerceIn(0f, 1f)
         val snowedIn = (weather.snowpack[p] / s.snowLimitMm - 1f).coerceIn(0f, 1f)
-        // (And people pressing them, with [inflation.Tuning.huntersPressed]: a want as hunger is, that drives the settled too.)
+        // (And people pressing them: a want as hunger is, that drives the settled too.)
         val need = maxOf((1f - f[p]).coerceIn(0f, 1f), thirst, max(uneasy, snowedIn), pressure(k, p))
         val h = hw.placeHex[p]
         // Hungry, thirsty, cold or snowed-in ones leave, and so do those whose country does not suit them, towards better.
@@ -501,55 +501,11 @@ fun HexFauna.addDispersing(k: FaunaKind, h: Hex, heads: Float) {
  */
 fun HexFauna.disperse(k: FaunaKind, carcass: FloatArray): Float {
     val pool = dispersing?.get(k.i) ?: return 0f
-    if (tuning.poolDrifts) return disperseAtOnce(k, pool, carcass).also { drift(k, pool) }
-    val s = kinds[k]
-    val lengthKm = dispersalKm(s); val reach = (DISPERSAL_REACH * lengthKm / hex.hexKm).toInt().coerceAtLeast(1)
-    val settleRate = 1f / dispersalDays(s); val a = adults[k]
-    var lost = 0f; var settledAll = 0f
-    // (Room on each hex, heads, as the step found it, taken down as they settle.)
-    val room = FloatArray(hex.size)
-    for (h in hex.all) { var heads = 0f; var area = 0f; for (q in hw.placesOf(h)) { heads += (a[q] + young[k][q]) * land.areaKm2[q]; area += land.areaKm2[q] }
-        room[h] = max(0f, usual[k] * area * (1f - pressureOnHex(k, h)) - heads) }
-    // (The ground about each hex they leave from is fixed by the map: worked out once, on all cores, the first step it is wanted.)
-    val sources = hex.all.filter { h -> pool[h] >= DISPERSAL_LEAST && !dispersalGround.containsKey(groundKey(k, h)) }
-    Par.forEach("residents: dispersal ground", sources.size) { i -> val h = sources[i]; dispersalGround[groundKey(k, h)] = dispersalAbout(h, reach, lengthKm) }
-    // (The ground with room, as indices into the hex's ground: one array, reused, not lists of boxed numbers.)
-    var open = IntArray(64)
-    for (h in hex.all) {
-        val n = pool[h]; if (n < DISPERSAL_LEAST) continue
-        // (The ground about, ring by ring, weighed by nearness: the room there and all of it.)
-        val ground = dispersalGround.getValue(groundKey(k, h))
-        if (open.size < ground.hexes.size) open = IntArray(ground.hexes.size)
-        var m = 0; var roomW = 0f; var allW = 0f
-        for (i in 0 until ground.hexes.size) {
-            val q = ground.hexes[i]; val w = ground.weight[i]
-            allW += w * usual[k] * ground.area[i]
-            if (room[q] > 0f) { open[m++] = i; roomW += w * room[q] }
-        }
-        val settle = if (allW > 0f) settleRate * roomW / allW else 0f
-        val out = settle + DISPERSAL_DEATH
-        val gone = n * (1f - kotlin.math.exp(-out * days))
-        val settled = gone * settle / out; val died = gone - settled
-        var placed = 0f
-        if (settled > 0f && roomW > 0f) for (j in 0 until m) {
-            val i = open[j]; val q = ground.hexes[i]
-            val put = min(room[q], settled * ground.weight[i] * room[q] / roomW)
-            if (put <= 0f) continue
-            val area = ground.area[i]
-            for (p in hw.placesOf(q)) a[p] += put / area
-            room[q] -= put; placed += put
-        }
-        pool[h] = n - placed - died
-        if (died > 0f) carcass[hw.placesOf(h)[0]] += died * s.massKg
-        lost += died; settledAll += placed
-    }
-    // (Those that settled, for the report; the dead on the way are the caller's to book.)
-    if (settledAll >= 1f) stats.meeting(Met.Of.ROAMERS_SETTLED, s.name, settledAll.toInt())
-    return lost
+    return disperseAtOnce(k, pool, carcass).also { drift(k, pool) }
 }
 
 /**
- * [disperse] with every source at once ([Tuning.poolDrifts]): each hex's dispersers weigh the room about as the step
+ * [disperse] with every source at once: each hex's dispersers weigh the room about as the step
  * found it, not as the sources before them left it, and where more would settle on a hex than it has room for, each
  * source's settlers there are cut by the same share. So no source comes first, as none does over a stretch of days.
  * Over sources, then over hexes, then over sources, all on all cores; the sums in a fixed order, the same each run.
@@ -622,7 +578,7 @@ private fun HexFauna.disperseAtOnce(k: FaunaKind, pool: FloatArray, carcass: Flo
 }
 
 /**
- * Those still dispersing of kind [k] drift toward better hunting ([Tuning.poolDrifts]): a hop a tick (a week of the
+ * Those still dispersing of kind [k] drift toward better hunting: a hop a tick (a week of the
  * model's calendar), as many as the step holds, each taking a share of a hex's pool to the hexes next to
  * it that are worth more to the kind ([worth], the best of a hex's places), as the plant-eaters flow ([gapTo]): the
  * share [DRIFT_STEP] of how much better the best of them is, split by how much better each is, eased by the border
@@ -711,7 +667,7 @@ private fun HexFauna.dispersalAbout(h: Hex, reach: Int, lengthKm: Float): Disper
 }
 
 /** What people press kind [k] by on hex [h] ([pressure]), at its low ground: the room dispersers find there is less by it. */
-private fun HexFauna.pressureOnHex(k: FaunaKind, h: Hex): Float = if (!tuning.huntersPressed) 0f else hw.firstPlaceIn(h).let { p -> if (p.none) 0f else pressure(k, p) }
+private fun HexFauna.pressureOnHex(k: FaunaKind, h: Hex): Float = hw.firstPlaceIn(h).let { p -> if (p.none) 0f else pressure(k, p) }
 
 /** How far a disperser of [s] goes, km, the scale of nearness its settling weighs ([disperse]); an estimate. */
 private fun dispersalKm(s: Species) = if (s == Catalogue.LION) 30f else 60f
@@ -723,7 +679,7 @@ private const val DISPERSAL_REACH = 2f
 private const val DISPERSAL_DEATH = 0.005f
 /** The least heads dispersing from a hex worth working out ([disperse]): fewer wait in the pool. */
 private const val DISPERSAL_LEAST = 0.05f
-/** With [Tuning.poolDrifts]: fewer heads than this waiting in a hex's pool die out on the way ([disperseAtOnce]): else the drift leaves crumbs everywhere. */
+/** Fewer heads than this waiting in a hex's pool die out on the way ([disperseAtOnce]): else the drift leaves crumbs everywhere. */
 private const val DISPERSAL_GONE = 0.005f
 /** The runs of sources [disperseAtOnce] sums the settlers they would send in, each on a core, then added in order. */
 private const val DISPERSAL_RUNS = 16

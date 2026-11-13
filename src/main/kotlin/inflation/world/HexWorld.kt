@@ -137,9 +137,6 @@ class HexWorld(val world: World, val hex: HexMap) {
     /** Whether fine cell [i] (land) lies on its hex's high ground. */
     private fun bandAt(i: Int) = if (world.elevation[i] >= splitM[hex.owner[i]]) HIGH else LOW
 
-    /** The place fine cell [i] lies in, or -1 for sea and lake. */
-    fun placeAt(i: Int): Int = if (world.isSea[i] || world.water.isLake(i)) -1 else if (bandAt(i) == HIGH) high[hex.owner[i]] else low[hex.owner[i]]
-
     /** Normal temperature of place [p] in month [m], °C: its hex's, corrected for the place's height. */
     fun placeTemp(p: Place, m: Int): Float = temp[m][placeHex[p]] - Climate.LAPSE_RATE.toFloat() * (placeElevationM[p] - elevationM[placeHex[p]])
 

@@ -6,14 +6,20 @@
 # BASE_REF's save, so that NEW_REF is seen to read old saves as BASE_REF does. With --tests, NEW_REF's tests too.
 # Where NEW_REF keeps the same state in another layout (fields moved into a part, see MovedInto), its saves cannot
 # match BASE_REF's byte for byte: then both saves are read by NEW_REF and written again (--years 0), and those must match.
+# Both runs move by the same networks: NETS (a baseline's name or a directory; default the latest baseline) under
+# BASELINES (default REPO's runs/baselines), since the worktrees have no runs/ of their own.
 set -u
 REPO=$1; BASE=$2; NEW=$3; W=$4; TESTS=${5:-}
 mkdir -p "$W"; W=$(cd "$W" && pwd)
 # (The paths java is given, in Windows form under Git Bash.)
-WJ=$W; case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) WJ=$(cygpath -m "$W");; esac
+jpath() { case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) cygpath -m "$1";; *) echo "$1";; esac; }
+WJ=$(jpath "$W")
+BL=$(jpath "$(cd "${BASELINES:-$REPO/runs/baselines}" 2>/dev/null && pwd || echo "${BASELINES:-$REPO/runs/baselines}")")
 CFG="huntDiag=wolf,lion
 fedDiag=true
-follow=wolf"
+follow=wolf
+baselines=$BL${NETS:+
+nets=$NETS}"
 WORLD="--width 300 --height 400"; ARGS="$WORLD --years 1"
 
 tree() { echo "$W/tree-$(git -C "$REPO" rev-parse --short "$1")"; }

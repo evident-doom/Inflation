@@ -6,8 +6,7 @@ import inflation.world.HexArray
 import inflation.world.get
 import inflation.world.toHexArray
 
-// Contacts between groups whose grounds overlap (docs/design/pack-performance.md, "Contacts"): with
-// [inflation.Tuning.packsStay], a pack that holds its ground is about its whole footprint all step ([footprint]), and any
+// Contacts between groups whose grounds overlap (docs/design/pack-performance.md, "Contacts"): a pack that holds its ground is about its whole footprint all step ([footprint]), and any
 // other group whose ground for the step shares a hex with it is in contact with it. A contact is one thing between two
 // groups, not one per hex they share: how much their grounds overlap, the encounters to expect from it over the step, where
 // it is thickest, and the hexes they contest. It is settled once ([meetSettle]: one draw, at most one meeting a tick), and
@@ -100,12 +99,11 @@ internal fun GroupWorld.sphereOf(g: HexGroup): Sphere? {
 }
 
 /**
- * The contacts of the step among [groups] ([contactsOf]), with [inflation.Tuning.packsStay]: each pair of which one holds its
- * ground ([HexGroup.footprint]) and whose grounds share a hex, that [contend]; none without the switch or a pack holding ground.
+ * The contacts of the step among [groups] ([contactsOf]): each pair of which one holds its ground ([HexGroup.footprint]) and
+ * whose grounds share a hex, that [contend]; none without a group holding ground.
  */
 @inflation.Part("meetings: contacts")
 internal fun HexGroups.contacts(): List<Contact> {
-    if (!tuning.packsStay) return emptyList()
     val n = groups.size
     val held = BooleanArray(n) { val g = groups[it]; g.alive && g.footprint != null && g.path.size == 1 }
     if (held.none { it }) return emptyList()
@@ -131,10 +129,9 @@ internal fun GroupWorld.contend(a: HexGroup, b: HexGroup) = !(staysHome(a) && st
 /**
  * Band [g], holding its home hex ([staysHome]), is about its home hex and the six round it as its foragers go out and back
  * by day: its ground for the step's meetings ([HexGroup.footprint]), its home weighted 1 and each hex about with land
- * [BAND_ROUND_WEIGHT], as a pack's footprint is weighted by nearness. With [inflation.Tuning.packsStay]; it hunts as before.
+ * [BAND_ROUND_WEIGHT], as a pack's footprint is weighted by nearness; it hunts as before.
  */
 internal fun GroupWorld.bandGround(g: HexGroup, today: Long) {
-    if (!tuning.packsStay) return
     val home = hw.placeHex[g.place]
     // (Not the hexes it gave way on lately, [gaveWay]; its yieldings that have run out are forgotten.)
     g.yielded = g.yielded?.filter { (it and 0xFFFFFFFFL) > today }?.toLongArray()?.takeIf { it.isNotEmpty() }
@@ -156,7 +153,7 @@ internal const val BAND_ROUND_WEIGHT = 0.5f
 internal fun GroupWorld.gaveWay(g: HexGroup, contested: HexArray, today: Long) {
     // (A band's lair is its camp's hex, [groundOf]: it gives up the hexes about, never its camp.)
     val lair = if (g.band != null) hw.placeHex[g.place] else g.home
-    if (!tuning.packsStay || g.footprint == null || lair.none) return
+    if (g.footprint == null || lair.none) return
     val until = today + YIELD_DAYS
     val kept = g.yielded?.let { y -> y.filter { (it and 0xFFFFFFFFL) > today && contested.indexOf((it ushr 32).toInt()) < 0 } } ?: emptyList()
     val added = ArrayList<Long>()

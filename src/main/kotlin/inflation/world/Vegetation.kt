@@ -162,7 +162,7 @@ class Vegetation(private val world: World, private val seed: Long, private val t
         val slope = world.terrain.slope
         // Cells are independent of each other, so they are stepped in parallel.
         Par.forEach("fine plants: step", n) { i ->
-            if (!isVegetated(i) || water.submerged[i]) {
+            if (!isVegetated(i)) {
                 litterfall[i] = biomass(i)
                 herb[i] = 0f; shrub[i] = 0f; tree[i] = 0f
                 return@forEach
@@ -252,7 +252,7 @@ class Vegetation(private val world: World, private val seed: Long, private val t
 
     /** Whether cell [i] is dry and hot enough to burn this step. */
     private fun canBurn(i: Int, weather: Weather, water: LiveWater): Boolean {
-        if (!isVegetated(i) || water.submerged[i] || water.flood[i] > 0f || water.discharge[i] >= 1f) return false
+        if (!isVegetated(i) || water.flood[i] > 0f || water.discharge[i] >= 1f) return false
         val wet = water.soil[i] / LiveWater.SOIL_CAPACITY
         return fuel(i) >= 0.2f && wet < 0.3f && weather.temperature[i] > 15f && weather.precipitation[i] < 5f
     }

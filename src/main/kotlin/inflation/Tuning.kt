@@ -152,52 +152,18 @@ class Tuning(
      */
     val neighbourMeetings = f("neighbourMeetings", 60f).also { require(it >= 0f) { "t.neighbourMeetings is $it: 0 or more" } }
     /**
-     * Wolves' and lions' dispersal pool weighs every hex it leaves from at once against the room about as the step found
-     * it, each hex then taking as many as it has room for, and those still dispersing drift a tick at a time toward better
-     * hunting, so the nomads follow the game ([inflation.ecology.disperse]; docs/design/pack-performance.md, step 2). Off
-     * unless set (under test).
-     */
-    val poolDrifts = read("t.poolDrifts")?.toBooleanStrict() ?: true
-    /**
-     * The beasts of prey keep out of people's way: a pressure per hunting kind by place, of the people within a day's
-     * walk and of its kind killed by people lately, fading over months. Resident hunters weigh it in a place's appeal and
-     * leave pressed ground as from want, dispersers find less room there, and packs pressed past what they bear grow
-     * restless ([inflation.ecology.pressure]; docs/design/pack-performance.md, step 3). Off unless set (under test).
-     */
-    val huntersPressed = read("t.huntersPressed")?.toBooleanStrict() ?: true
-    /**
-     * Packs hold their ground ([inflation.ecology.holdsGround]): a pack on its home hex that is not restless weighs no place,
-     * it stays, and hunts and marks its territory's footprint, the hexes within its range of home weighted by nearness, at
-     * any step length ([inflation.ecology.footprint]; docs/design/pack-performance.md, step 4). Off unless set (under test).
-     */
-    val packsStay = read("t.packsStay")?.toBooleanStrict() ?: true
-    /**
-     * With [packsStay], for test: the strategy every pack holding its ground settles its contacts by ([inflation.ecology.engage]),
+     * For test: the strategy every pack holding its ground settles its contacts by ([inflation.ecology.engage]),
      * its stance on each part of its ground, as `lair:DEFEND,core:GIVE_WAY_TO_STRONGER,fringe:YIELD,outside:YIELD` (stances
      * DEFEND, GIVE_WAY_TO_STRONGER, YIELD, AMBUSH, HIDE_AND_SCOUT, ATTACK; a part left out keeps GIVE_WAY_TO_STRONGER). Unset:
      * the animals' rule everywhere, as at any meeting.
      */
     val packStrategy: String? = read("t.packStrategy")
     /**
-     * With [packsStay], for test: the strategy every band that holds its home hex settles its meetings by, as [packStrategy]
+     * For test: the strategy every band that holds its home hex settles its meetings by, as [packStrategy]
      * (its lair its camp's hex, its core the hexes about). Two bands that are friends both ways greet whatever their
      * strategies, but at a raid. Unset: the people's own rules, as at any meeting.
      */
     val bandStrategy: String? = read("t.bandStrategy")
-    /**
-     * With [packsStay]: a band takes its stance toward each band it comes on afresh, by how it regards it and what it
-     * knows of its strength ([inflation.ecology.bandStance]): friends and those it has no quarrel with greet; the wary hold
-     * their camp, give way to the stronger about it and keep their distance beyond; those it feuds with it falls on if it
-     * is the stronger, else holds its camp and falls back watching. What it saw of the others it remembers
-     * ([inflation.ecology.Band.seenStrength]). A [bandStrategy] set for test overrides it. Off unless set (under test).
-     */
-    val bandStances = read("t.bandStances")?.toBooleanStrict() ?: true
-    /**
-     * With [packsStay]: a hunter that is no band, coming on another kind more than [inflation.ecology.AVOID_RATIO] times its
-     * strength, keeps out of its sight and falls back if seen ([inflation.ecology.avoids], [inflation.ecology.Stance.HIDE_AND_SCOUT]),
-     * as cheetahs and leopards keep out of lions' way: their safety is in not being found. Off unless set (under test).
-     */
-    val packsHide = read("t.packsHide")?.toBooleanStrict() ?: true
     /** The food cost of keeping warm, against [inflation.ecology.COLD_COST]. */
     val coldCost = f("coldCost", 1f)
 
