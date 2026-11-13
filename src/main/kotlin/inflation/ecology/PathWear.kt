@@ -16,7 +16,7 @@ import kotlin.math.min
  * wears it, the heavier and more numerous the more; plants grow back over it, the faster the
  * greener the ground. Worn paths make the going easier, the more so in broken country, so packs
  * and people keep to them: they gather at the easy crossings, passes and fords, and there hunters
- * wait. A band wears the ways out of the hex it lives in too ([CAMP_WEAR]).
+ * wait. A band wears the ways out of the hex it lives in too ([CAMP_WEAR]). Ways wear between land hexes only.
  */
 class PathWear(private val hex: HexMap) {
     val paths = FloatArray(hex.size * 6)
@@ -39,13 +39,17 @@ class PathWear(private val hex: HexMap) {
         // (And a band living in a hex wears ways out of it on every side: its foragers, hunters and visitors go out and
         // back the year round, so ground it lives on opens up around it (Olli 2026-11-07). A week's worth, as a through
         // going's wear, spread over its six borders.)
+        // (Over land only: its people go out along the shore, not into the sea, so no way wears toward a sea or lake hex
+        // ([HexMap.heart] below 0). Before, every coastal band wore ways into the water on its sea sides, and the viewer
+        // drew paths into the sea: Olli 2026-11-13.)
         for (g in groups) {
             if (!g.alive || g.band == null) continue
             val h = hw.placeHex[g.place]
+            if (hex.heart[h] < 0) continue
             val w0 = min(1f, g.size * g.species.massKg / PATH_MASS_KG) * CAMP_WEAR * days / 7f
             val share = toward?.invoke(g)
             for (d in 0 until 6) {
-                val nb = hex.neighbour(h, d); if (nb.none) continue
+                val nb = hex.neighbour(h, d); if (nb.none || hex.heart[nb] < 0) continue
                 val back = (d + 3) % 6
                 val w = min(1f, w0 * (share?.get(d) ?: 1f))
                 paths[hex.edge(h, d)] += w * (1f - paths[hex.edge(h, d)])
@@ -58,6 +62,7 @@ class PathWear(private val hex: HexMap) {
             val w = min(1f, g.size * g.species.massKg / PATH_MASS_KG)
             for (i in 0 until g.path.size - 1) {
                 val a = g.path[i]; val b = g.path[i + 1]
+                if (hex.heart[a] < 0 || hex.heart[b] < 0) continue
                 val d = (0 until 6).firstOrNull { hex.neighbour(a, it) == b } ?: continue
                 val back = (0 until 6).firstOrNull { hex.neighbour(b, it) == a } ?: continue
                 paths[hex.edge(a, d)] += PATH_WEAR * w * (1f - paths[hex.edge(a, d)])
@@ -70,6 +75,7 @@ class PathWear(private val hex: HexMap) {
     fun along(way: List<Hex>, w: Float) {
         for (i in 0 until way.size - 1) {
             val a = way[i]; val b = way[i + 1]
+            if (hex.heart[a] < 0 || hex.heart[b] < 0) continue
             val d = (0 until 6).firstOrNull { hex.neighbour(a, it) == b } ?: continue
             val back = (d + 3) % 6
             paths[hex.edge(a, d)] += w * (1f - paths[hex.edge(a, d)])
