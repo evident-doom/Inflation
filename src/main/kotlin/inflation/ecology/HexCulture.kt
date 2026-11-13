@@ -17,6 +17,7 @@ import inflation.mix64
 import inflation.world.Date
 import kotlin.math.max
 import kotlin.math.abs
+import kotlin.math.min
 import kotlin.math.exp
 import kotlin.math.ln
 
@@ -399,6 +400,13 @@ internal const val TIE_MARRY = 0.3f
 internal const val TIE_RAID = 0.8f
 
 internal const val TIE_FADE = 0.5f
+/**
+ * How much faster a tie fades to a band whose home is beyond [CONTACT_KM]: nobody walks there to renew it, so it is soon
+ * only a memory (Olli, 13 Nov 2026: a band held ties with bands hundreds of km off). A guess: a full tie is gone in two years.
+ */
+internal const val FAR_TIE_FADE = 4f
+/** Of its parent's ties to other bands a band split off holds this share: kin of kin, known through the parent (a guess). */
+internal const val SPLIT_TIES_KEPT = 0.5f
 
 internal const val TIE_PEACE = 0.8f
 
@@ -706,13 +714,14 @@ internal fun HexGroups.cultureWeek(g: HexGroup, rnd: kotlin.random.Random, day: 
     if (b.ties.isNotEmpty()) {
         val fade = TIE_FADE * days / Date.DAYS_PER_YEAR.toFloat()
         val here = hw.placeHex[g.place]
-        val near = HashSet<Int>()
-        for ((k, v) in b.ties) if (v > 0f) bands.bandHex[k]?.let { h -> if (hexKm(here, h) <= VISIT_RINGS * hex.hexKm) near += k }
+        val near = HashSet<Int>(); val far = HashSet<Int>()
+        for ((k, v) in b.ties) bands.bandHex[k]?.let { h -> val km = hexKm(here, h)
+            if (v > 0f && km <= VISIT_RINGS * hex.hexKm) near += k else if (km > CONTACT_KM.toDouble()) far += k }
         val leisure = b.spareDays / (forageHands(g) * days).toFloat()
         val visited = if (near.isEmpty()) 0f else 1f - exp(-leisure / (VISIT_SHARE * near.size))
         if (near.isNotEmpty()) stats.meeting(Met.BANDS_VISITED_FRIENDS)
         val it = b.ties.entries.iterator()
-        while (it.hasNext()) { val e = it.next(); e.setValue(e.value * (1f - fade * (if (e.key in near) 1f - visited else 1f))); if (abs(e.value) < 0.01f) it.remove() }
+        while (it.hasNext()) { val e = it.next(); e.setValue(e.value * (1f - min(1f, fade * (if (e.key in near) 1f - visited else if (e.key in far) FAR_TIE_FADE else 1f)))); if (abs(e.value) < 0.01f) it.remove() }
     }
     // Country far from where it now lives fades from memory, a share of it a year.
     if (rnd.nextFloat() < years) {
