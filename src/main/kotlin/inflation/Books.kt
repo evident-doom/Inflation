@@ -149,6 +149,7 @@ enum class StockName(val label: String) {
     SOIL_ORGANIC_MATTER("soil organic matter"),
     CARRION("carrion"),
     CARRION_FOUND_BY_GROUPS("carrion groups found in a step's earlier ticks"),
+    CARRION_FOUND_BY_RESIDENTS("carrion residents found as it lay, held till they feed"),
     BONES("bones"),
     DUNG("dung"),
     SMALL_DEAD("small dead"),

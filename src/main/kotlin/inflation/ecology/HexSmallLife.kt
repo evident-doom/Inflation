@@ -111,6 +111,20 @@ class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, @Transi
     val groupCarrionRate = FloatArray(n)
     /** Of [groupCarrion] and [groupCarrionRate], as the step's groups set out to forage: each finder takes its rate's share of what was found. */
     @Transient val groupCarrionFound = FloatArray(n); @Transient val groupCarrionRateLast = FloatArray(n)
+    /**
+     * Carrion the residents found as it lay through the last span, kg/m², held for them till they feed next ([stepSoil]):
+     * like [groupCarrion], so over a long step they come on what lies at any time in it, not only on what is left at its end.
+     * What they leave of it goes back on the ground as they feed ([HexFauna.feedKinds]).
+     */
+    val residentCarrion = FloatArray(n)
+    /**
+     * Trace (census "carrion flow"): kg/m² of carrion by [CarrionFlow] at each place this year, read and cleared at the
+     * census. Counts only.
+     */
+    @Transient val carrionFlow = Array(CarrionFlow.entries.size) { DoubleArray(n) }
+    fun flow(f: CarrionFlow, p: Place, kgM2: Float) { carrionFlow[f.ordinal][p.i] += kgM2.toDouble() }
+    /** How fast the residents of each place come on its carrion, a day, as they last fed there: summed over the kinds that eat it ([stepSoil]). */
+    @Transient val residentCarrionRate = FloatArray(n)
     /** Where dead matter went, for the viewer (see [PlaceRecord]); set with [HexFauna.record]. */
     @Transient var record: PlaceRecord? = null
     /** Bones left when the meat is gone, kg/m²: slow to weather, food for bone-crackers. */
@@ -446,7 +460,7 @@ class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, @Transi
     enum class DeadPool { CARRION, LITTER, DUNG }
     /** Lays [kgM2] of dead matter into [pool] at place [p]. */
     fun deposit(pool: DeadPool, p: Place, kgM2: KgM2) {
-        when (pool) { DeadPool.CARRION -> carrion[p] += kgM2.v; DeadPool.LITTER -> litter[p] += kgM2.v; DeadPool.DUNG -> dung[p] += kgM2.v }
+        when (pool) { DeadPool.CARRION -> { carrion[p] += kgM2.v; flow(CarrionFlow.DIRECT_IN, p, kgM2.v) }; DeadPool.LITTER -> litter[p] += kgM2.v; DeadPool.DUNG -> dung[p] += kgM2.v }
     }
     /** Lays [kg] of the buried dead into the ground at place [p]: they rot into the soil's organic matter, out of the scavengers' reach. */
     fun bury(p: Place, kg: Kg) { organicMatter[p] += land.spread(p, kg).v }
@@ -465,7 +479,7 @@ class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, @Transi
     internal fun listStocks(stocks: Stocks) {
         fun perM2(name: StockName, a: FloatArray) = stocks.perM2(name, a, land.areaM2)
         fun perKm2(name: StockName, a: FloatArray) = stocks.perKm2(name, a, land.areaKm2)
-        perM2(StockName.LITTER, litter); perM2(StockName.SOIL_ORGANIC_MATTER, organicMatter); perM2(StockName.CARRION, carrion); perM2(StockName.CARRION_FOUND_BY_GROUPS, groupCarrion); perM2(StockName.BONES, bones); perM2(StockName.DUNG, dung)
+        perM2(StockName.LITTER, litter); perM2(StockName.SOIL_ORGANIC_MATTER, organicMatter); perM2(StockName.CARRION, carrion); perM2(StockName.CARRION_FOUND_BY_GROUPS, groupCarrion); perM2(StockName.CARRION_FOUND_BY_RESIDENTS, residentCarrion); perM2(StockName.BONES, bones); perM2(StockName.DUNG, dung)
         perKm2(StockName.SMALL_DEAD, smallDead); perKm2(StockName.SOIL_ANIMALS, soilAnimals)
         // (The small animals on the land, as against those in the soil and the migrants away.)
         stocks.within(StockName.SMALL_ANIMALS) {
@@ -722,3 +736,11 @@ enum class Nest(val days: Float) { RODENTS(21f), HARES(28f), HYRAX(30f), BIRDS(3
 
 /** Nest kind [n]'s row of a table kept per [Nest]. */
 @Suppress("NOTHING_TO_INLINE") inline operator fun Array<FloatArray>.get(n: Nest) = this[n.ordinal]
+
+/** Where carrion came from and went, for the census trace ([HexSmallLife.carrionFlow]). */
+enum class CarrionFlow(val label: String) {
+    DIRECT_IN("laid straight down (residents' leftovers, meetings)"), SOIL_IN("carcasses over the step"), ROT("rotted"),
+    GROUPS_FOUND("found as it lay by groups"), RESIDENTS_FOUND("found as it lay by residents"),
+    RESIDENTS_HELD("residents ate of what they found"), RESIDENTS_LYING("residents ate of what lay"), HELD_BACK("residents' finds left back on the ground"),
+    GROUPS_ATE("groups ate"), VULTURES("vultures ate"), TAKEN("taken from the ground by anyone")
+}

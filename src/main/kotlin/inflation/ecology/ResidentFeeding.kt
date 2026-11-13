@@ -156,6 +156,9 @@ private fun HexFauna.eatPlants(p: Place, weather: Weather, grass: Float, browse:
  */
 private fun HexFauna.feedKinds(p: Place, weather: Weather, z: Grazing, ff: DoubleArray) {
     var t = Profile.mark()
+    // (Their rate at the carrion is noted afresh as they feed: [HexSmallLife.residentCarrionRate].)
+    small.residentCarrionRate[p] = 0f
+    val found = foundShares(p, weather, z)
     for ((k, s) in kinds.withKinds()) {
         // (And how rich in protein all it ate was; animal food is rich in it.)
         val eaten = z.ateKg[k]
@@ -174,7 +177,7 @@ private fun HexFauna.feedKinds(p: Place, weather: Weather, z: Grazing, ff: Doubl
             val ps = plantShare(s)
             val heads = adults[k][p] + 0.5f * young[k][p]
             // (With none there, nothing is sought and nothing is eaten: animalFood would find no need.)
-            val animal = if (heads > 0f) animalFood(k, p, weather, z, ps) else 0f
+            val animal = if (heads > 0f) animalFood(k, p, weather, z, ps, found) else 0f
             if (heads > 0f) {
                 val i = k.i * FED
                 ff[i + Fed.PLANTS.ordinal] += (min(1f, z.got[k]) * ps * heads).toDouble()
@@ -184,6 +187,7 @@ private fun HexFauna.feedKinds(p: Place, weather: Weather, z: Grazing, ff: Doubl
                 ff[i + Fed.ANIMAL.ordinal] += (min(1f, animal) * (1f - ps) * heads).toDouble(); ff[i + Fed.HEADS.ordinal] += heads.toDouble()
                 ff[i + Fed.MEAT.ordinal] += (z.gotMeat[k.i] * heads).toDouble(); ff[i + Fed.SMALL_PREY.ordinal] += (z.gotSmall[k.i] * heads).toDouble()
                 ff[i + Fed.CARRION.ordinal] += (z.gotCarrion[k.i] * heads).toDouble()
+                ff[i + Fed.CARRION_KG.ordinal] += (z.carrionKg[k.i] * land.areaKm2[p]).toDouble(); ff[i + Fed.NEED_KG.ordinal] += (z.needKg[k.i] * land.areaKm2[p]).toDouble()
             }
             // (Animal food beyond its share makes up for plants that fell short.)
             (z.got[k] * ps + animal * (1f - ps)).coerceIn(0f, 1f)
@@ -207,6 +211,7 @@ private fun HexFauna.feedKinds(p: Place, weather: Weather, z: Grazing, ff: Doubl
         if (s.hibernates && weather.date.month in 7..11 && !asleep(k, p)) autumnFed[k][p] += (fed[k][p] - autumnFed[k][p]) * overTicks(0.2f)
         t = Profile.kindLap("residents: feeding", s.name, t)
     }
+    small.settleResidentCarrion(p)
 }
 
 /**
@@ -227,18 +232,68 @@ private fun HexFauna.surplusShare(k: FaunaKind, p: Place): Float {
  * these or of the plants ([z]), is made up from whichever of them is to be had (as a pack does). Returns the share of
  * its animal need met; what it ate beyond, laid on, goes to [Grazing.surplus].
  */
-private fun HexFauna.animalFood(k: FaunaKind, p: Place, weather: Weather, z: Grazing, ps: Float): Float {
+/** Each kind's share of what the residents of a place found of its carrion as it lay ([HexSmallLife.residentCarrion]), by kind index ([foundShares]); none when nothing is held. */
+private class Found(val share: FloatArray?)
+
+/**
+ * All of a kind's diet over the step at place [p], in kg of prey per m2 that would feed it ([Nourishment.PREY]): its heads,
+ * the young at half, at its daily intake as the cold raises it.
+ */
+private fun HexFauna.needAll(k: FaunaKind, p: Place, weather: Weather): Float {
+    val s = kinds[k]
+    return (adults[k][p] + 0.5f * young[k][p]) * s.dailyIntakeKg * coldNeed(s, feltC(s, p, weather.temperature[p]), weather.date.month, tuning) *
+        days / 1e6f / (Nourishment.PREY * s.needScale)
+}
+
+/**
+ * How what the residents at place [p] found of the carrion as it lay is shared among the kinds, before any feeds: by the
+ * weekly rule on a tick's worth, in the order they feed. Each tick, as weekly, each kind in turn eats what it would of
+ * the carrion (its animal need and the plants it went short of, [z], over a tick), at most half of what still lies;
+ * a tick's worth lying is twice a tick's find (the find rate is half of what lies a tick). The tick's takes, over the
+ * step's ticks, are each kind's share, scaled down if they come to more than was found. Water-filled by search, capped
+ * only at want, the carnivores lived almost wholly on carrion and prey kinds rose 5-16% (carr789); by search alone about
+ * half went back on the ground (flow786-787); by want alone the boar took it from the carnivores (flow785).
+ */
+private fun HexFauna.foundShares(p: Place, weather: Weather, z: Grazing): Found {
+    val held = small.residentCarrion[p]
+    if (!(held > 0f)) return Found(null)
+    val ticks = clock.ticks
+    val share = FloatArray(kinds.size)
+    var lying = 2f * held / ticks
+    var sum = 0f
+    for ((k, s) in kinds.withKinds()) {
+        val ps = plantShare(s)
+        if (adults[k][p] + 0.5f * young[k][p] <= 0f || ps >= 1f || s.diet.carrion <= 0f || asleep(k, p)) continue
+        val na = needAll(k, p, weather)
+        val want = (na * (1f - ps) + (if (ps > 0f) na * ps * max(0f, 1f - z.got[k]) else 0f)) / ticks
+        if (!(want > 0f)) continue
+        val take = min(want, 0.5f * lying)
+        lying -= take
+        share[k.i] = take * ticks; sum += take * ticks
+    }
+    if (sum > held) { val f = held / sum; for (i in share.indices) share[i] *= f }
+    return Found(share)
+}
+
+private fun HexFauna.animalFood(k: FaunaKind, p: Place, weather: Weather, z: Grazing, ps: Float, found: Found): Float {
     val s = kinds[k]; val avail = z.avail; val surplus = z.surplus
     var animal = 0f
-    val needAll = (adults[k][p] + 0.5f * young[k][p]) * s.dailyIntakeKg * coldNeed(s, feltC(s, p, weather.temperature[p]), weather.date.month, tuning) *
-        days / 1e6f / (Nourishment.PREY * s.needScale) // all of the diet, in kg of prey per m2 that would feed it ([Nourishment.PREY])
+    val needAll = needAll(k, p, weather)
     if (ps < 1f && needAll > 0f) {
         val d = s.diet; val all = d.total
         val animalNeed = needAll * (1f - ps)
         val plantGap = if (ps > 0f) needAll * ps * max(0f, 1f - z.got[k]) else 0f
         // Carrion first, where it eats any: a carcass lying there costs no chase and no digging, so
         // it eats what it finds (at most half of what lies there) before it hunts or makes up plants.
-        var gotCarrion = if (d.carrion > 0f) small.scavenge(p, KgM2(min(animalNeed + plantGap, 0.5f * small.carrion[p]))).v else 0f
+        // (What they found as it lay goes to each kind by the weekly rule on a tick's worth: [foundShares].)
+        var mine = found.share?.get(k.i) ?: 0f
+        fun scavengeMine(want: Float): Float { val (got, held) = small.scavengeHeld(p, want, mine); mine -= held; return got }
+        var gotCarrion = if (d.carrion > 0f) scavengeMine(animalNeed + plantGap) else 0f
+        // (Over a step of several ticks, taken whole: the residents that eat carrion come on it as it lies at the rate their
+        // weekly feeding takes it, half of what lies each tick (ln 2 a tick), for the step's soil ([stepSoil]); at one tick a
+        // step, as before, only what lies as they feed. Rates by search or held for a single tick moved weekly diets far
+        // from main's, cf6-776..share780.)
+        if (d.carrion > 0f && clock.ticks > 1) small.residentCarrionRate[p] = 0.6931472f / clock.tickDays
         var left = animalNeed + plantGap - gotCarrion
         // (A bone-cracker eats the bones lying there too, at most half of them, at what a kilo of bone feeds it against
         // a kilo of prey: [Food.BONES], as a pack forages them.)
@@ -262,7 +317,7 @@ private fun HexFauna.animalFood(k: FaunaKind, p: Place, weather: Weather, z: Gra
             val x = when (food) {
                 AnimalFood.MEAT -> gap.let { if (it > 0f) huntResidents(k, p, KgM2(it * avail[k]), weather, huntDays).v else 0f }
                 AnimalFood.SMALL_PREY -> gap.let { if (it > 0f) smallFood(k, p, KgM2(it * avail[k]), weather).v else 0f }
-                AnimalFood.CARRION -> gap.let { if (it > 0f) small.scavenge(p, KgM2(min(it, 0.5f * small.carrion[p]))).v else 0f }
+                AnimalFood.CARRION -> scavengeMine(gap)
             }
             when (food) { AnimalFood.MEAT -> gotMeat += x; AnimalFood.SMALL_PREY -> gotSmall += x; AnimalFood.CARRION -> gotCarrion += x }
             gap -= x
@@ -279,6 +334,7 @@ private fun HexFauna.animalFood(k: FaunaKind, p: Place, weather: Weather, z: Gra
         }
         animal = (gotMeat + gotSmall + gotCarrion + gotBones) / animalNeed
         z.gotMeat[k.i] = gotMeat / needAll; z.gotSmall[k.i] = gotSmall / needAll; z.gotCarrion[k.i] = (gotCarrion + gotBones) / needAll
+        z.carrionKg[k.i] = gotCarrion; z.needKg[k.i] = needAll
         small.deposit(DeadPool.DUNG, p, KgM2(HexSmallLife.DUNG * (gotMeat + gotSmall + gotCarrion + bonesKg)))
         if (ateBook != null) { val m2 = land.areaM2[p].toDouble()
             ateBook!!.add(-(gotSmall + gotCarrion + bonesKg) * m2); droppedBook!!.add(HexSmallLife.DUNG * (gotMeat + gotSmall + gotCarrion + bonesKg) * m2) }

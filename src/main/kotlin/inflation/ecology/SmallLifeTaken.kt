@@ -143,8 +143,24 @@ fun HexSmallLife.scavengeIn(p: Place, want: Kg, sweptKm2: Float, foundShare: Flo
     // (Of that, the share its own search found: [HexSmallLife.groupCarrionFound].)
     val held = minOf(groupCarrion[p], foundShare * groupCarrionFound[p], wantM2); groupCarrion[p] -= held
     val now = if (wantM2 > held) scavenge(p, KgM2(min(wantM2 - held, 0.5f * carrion[p] * searched / area))).v else 0f
+    flow(CarrionFlow.GROUPS_ATE, p, held + now)
     return KgM2(held + now).over(m2)
 }
+
+/**
+ * A resident takes up to [want] (kg/m²) of carrion at place [p]: what the residents found as it lay ([HexSmallLife.residentCarrion])
+ * first, up to [most] of it (its share), then at most half of what lies now. Returns what was taken, and of it what was held.
+ */
+fun HexSmallLife.scavengeHeld(p: Place, want: Float, most: Float): Pair<Float, Float> {
+    if (want <= 0f) return 0f to 0f
+    val held = minOf(residentCarrion[p], want, max(0f, most)); residentCarrion[p] -= held
+    val lying = if (want > held) scavenge(p, KgM2(min(want - held, 0.5f * carrion[p]))).v else 0f
+    flow(CarrionFlow.RESIDENTS_HELD, p, held); flow(CarrionFlow.RESIDENTS_LYING, p, lying)
+    return (held + lying) to held
+}
+
+/** As the residents of place [p] have fed: what they found and left goes back on the ground. */
+fun HexSmallLife.settleResidentCarrion(p: Place) { flow(CarrionFlow.HELD_BACK, p, residentCarrion[p]); carrion[p] += residentCarrion[p]; residentCarrion[p] = 0f }
 
 /** At a step's end: what was held for the groups and left goes back on the ground. */
 fun HexSmallLife.settleGroupCarrion() {
@@ -166,7 +182,7 @@ fun HexSmallLife.crackBonesIn(p: Place, want: Kg, sweptKm2: Float): Kg {
 fun HexSmallLife.smallPreyKg(p: Place) = rodents[p] + hares[p] + hyrax[p] + birds[p] + herps[p] + tortoises[p] + locusts[p] + INSECT_CATCH * (insects[p] + pollinators[p])
 
 /** Takes up to [want] of carrion in place [p]; returns what was taken. */
-fun HexSmallLife.scavenge(p: Place, want: KgM2): KgM2 { val t = min(carrion[p], want.v); carrion[p] -= t; record?.let { it.carrionGone[p] += t }; return KgM2(t) }
+fun HexSmallLife.scavenge(p: Place, want: KgM2): KgM2 { val t = min(carrion[p], want.v); carrion[p] -= t; flow(CarrionFlow.TAKEN, p, t); record?.let { it.carrionGone[p] += t }; return KgM2(t) }
 
 /** Takes up to [want] of bones in place [p] (for bone-crackers); returns what was taken. */
 fun HexSmallLife.crackBones(p: Place, want: KgM2): KgM2 { val t = min(bones[p], want.v); bones[p] -= t; record?.let { it.bonesGone[p] += t }; return KgM2(t) }

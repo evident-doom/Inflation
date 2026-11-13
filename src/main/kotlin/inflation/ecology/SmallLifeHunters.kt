@@ -109,7 +109,7 @@ internal fun HexSmallLife.stepVultures(weather: Weather) {
         val share = if (lying > 0.0) min(0.5, need / lying).toFloat() else 0f
         var got = 0f
         if (share > 0f) for (q in vultureReach[k]) {
-            if (carrion[q] > 0f) { val m2 = land.m2(Place(q)); got += scavenge(Place(q), KgM2(share * carrion[q])).over(m2).v }
+            if (carrion[q] > 0f) { val m2 = land.m2(Place(q)); val t = scavenge(Place(q), KgM2(share * carrion[q])); flow(CarrionFlow.VULTURES, Place(q), t.v); got += t.over(m2).v }
         }
         ateBook?.add(-got.toDouble())
         val fed = if (need > 0f) min(1f, got / need) else 1f
