@@ -77,7 +77,7 @@ import inflation.world.Place
  * otherwise each week waits, at the followed group's choice, for the player. While it waits the rest
  * of the world waits too (saving and loading included). Closed, it takes no part in the run.
  */
-class GroupControlWindow(
+class GroupControlWindow internal constructor(
     private val sim: HexSim,
     private val ground: BufferedImage,
     /** Km to the ground picture's pixels. */
