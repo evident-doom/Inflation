@@ -105,6 +105,7 @@ internal class ResidentParties(private val gs: HexGroups) {
     fun of(i: Int): StandIn? = (i - gs.groups.size).let { if (it >= 0) standIns[it] else null }
 
     /** After the meetings: the residents the stand-ins lost come off their numbers. */
+    @inflation.Part("meetings: residents' losses")
     fun done() {
         val f = gs.fauna
         for (si in standIns) {

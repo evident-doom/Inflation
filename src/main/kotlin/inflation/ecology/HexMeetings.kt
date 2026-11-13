@@ -315,11 +315,15 @@ internal fun HexGroups.settleAt(a: HexGroup, b: HexGroup, h: Hex, weather: Weath
 /** How two parties came to meet ([settle]): by chance (timetables, grounds overlapping), visiting, at a gathering, or a raid set out on the other's home. */
 enum class Intent { CHANCE, VISIT, GATHERING, RAID }
 
+/** The resident hunters' stand-ins for the meetings ([ResidentParties]). */
+@Part("meetings: stand-ins made")
+private fun HexGroups.residentParties() = ResidentParties(this)
+
 /** The meetings of groups whose timetables bring them into the same hex ([meet]). */
 private fun HexGroups.meetSettle(weather: Weather) {
     meetMonth = weather.date.month
     // (The resident hunters meet as packs do, through bands standing in for them: [ResidentParties].)
-    val residents = ResidentParties(this)
+    val residents = residentParties()
     val parties = groups + residents.parties
     val byHex = staysByHex(parties, residents)
     // Each pair once, hex by hex on all cores.
@@ -374,34 +378,7 @@ private fun HexGroups.meetSettle(weather: Weather) {
     inTimeOrder(events)
     // (A stand-in's path is its one hex: its stop stays 0.)
     val stop = IntArray(parties.size); for (k in groups.indices) stop[k] = groups[k].path.size - 1
-    for (e in events) {
-        // Both must still be on their way at that point.
-        if (e.ai > stop[e.a] || e.bi > stop[e.b]) continue
-        val a = parties[e.a]; val b = parties[e.b]
-        if (!a.alive || !b.alive) continue
-        val h = e.hex
-        // Sharing a hex is not meeting: they must cross each other's ground, be about at the same
-        // hours, and neither slip away first. (How often they run into each other while both are there,
-        // for the share of the time each is in it.)
-        val p = hw.placeNear(a.place, h).takeIf { !it.none } ?: a.place
-        // (A stand-in is as many resident bands as there are there: each may meet the other, each meeting settled alone.)
-        val ra = residents.of(e.a); val rb = residents.of(e.b)
-        val met = if (!e.mean.isNaN()) poisson(e.mean, rnd) else poisson(encounters(a, b, p, e.span) * (ra?.bands ?: 1f) * (rb?.bands ?: 1f), rnd)
-        if (met == 0) continue
-        // (Two groups meet at most once a tick of the step, each stand-in band once a tick: a step of several ticks holds the
-        // meetings its ticks would have, [StepClock.ticks].)
-        val times = if (ra == null && rb == null) min(met, ticks) else min(met, kotlin.math.ceil(min(ra?.bands ?: Float.MAX_VALUE, rb?.bands ?: Float.MAX_VALUE)).toInt() * ticks)
-        // (What the one that gives way gives up: the contact's shared hexes, else the hex of the meeting, [gaveWay].)
-        contested = e.contested ?: hexArray(1) { h }; contestDay = today
-        val byStrategy = engagedOver(a, b, e.contested, h)?.takeIf { engages(a, b, it, h) }
-        for (t in 0 until times) {
-            ra?.fresh(); rb?.fresh()
-            if (!a.alive || !b.alive) break
-            // (A contact of which a side has a strategy other than the animals' is settled by the strategies, [engage].)
-            settle(a, e.a, e.ai, b, e.b, e.bi, h, p, byStrategy, stop, weather)
-            ra?.settle(); rb?.settle()
-        }
-    }
+    settleInTimeOrder(events, parties, residents, stop, today, weather)
     run {
         val drawn = arrayOfNulls<StandInsMet>(withStandIns.size)
         Par.forEach("meetings: stand-ins drawn", withStandIns.size) { i ->
@@ -455,6 +432,39 @@ private fun HexGroups.meetSettle(weather: Weather) {
     }
 }
 
+/** The meetings of [meetSettle] in their order ([inTimeOrder]), each drawn and settled ([settle]) one after the other. */
+@Part("meetings: in time order")
+private fun HexGroups.settleInTimeOrder(events: List<Meeting>, parties: List<HexGroup>, residents: ResidentParties, stop: IntArray, today: Long, weather: Weather) {
+    for (e in events) {
+        // Both must still be on their way at that point.
+        if (e.ai > stop[e.a] || e.bi > stop[e.b]) continue
+        val a = parties[e.a]; val b = parties[e.b]
+        if (!a.alive || !b.alive) continue
+        val h = e.hex
+        // Sharing a hex is not meeting: they must cross each other's ground, be about at the same
+        // hours, and neither slip away first. (How often they run into each other while both are there,
+        // for the share of the time each is in it.)
+        val p = hw.placeNear(a.place, h).takeIf { !it.none } ?: a.place
+        // (A stand-in is as many resident bands as there are there: each may meet the other, each meeting settled alone.)
+        val ra = residents.of(e.a); val rb = residents.of(e.b)
+        val met = if (!e.mean.isNaN()) poisson(e.mean, rnd) else poisson(encounters(a, b, p, e.span) * (ra?.bands ?: 1f) * (rb?.bands ?: 1f), rnd)
+        if (met == 0) continue
+        // (Two groups meet at most once a tick of the step, each stand-in band once a tick: a step of several ticks holds the
+        // meetings its ticks would have, [StepClock.ticks].)
+        val times = if (ra == null && rb == null) min(met, ticks) else min(met, kotlin.math.ceil(min(ra?.bands ?: Float.MAX_VALUE, rb?.bands ?: Float.MAX_VALUE)).toInt() * ticks)
+        // (What the one that gives way gives up: the contact's shared hexes, else the hex of the meeting, [gaveWay].)
+        contested = e.contested ?: hexArray(1) { h }; contestDay = today
+        val byStrategy = engagedOver(a, b, e.contested, h)?.takeIf { engages(a, b, it, h) }
+        for (t in 0 until times) {
+            ra?.fresh(); rb?.fresh()
+            if (!a.alive || !b.alive) break
+            // (A contact of which a side has a strategy other than the animals' is settled by the strategies, [engage].)
+            settle(a, e.a, e.ai, b, e.b, e.bi, h, p, byStrategy, stop, weather)
+            ra?.settle(); rb?.settle()
+        }
+    }
+}
+
 /** What came of [times] bands of a resident hunter kind meeting a stronger party ([standInsMeetDraw]). */
 private class StandInsMet(val slipped: Int, val stayed: Int, val youngKilled: Int, val grownKilled: Int) {
     lateinit var weak: ResidentParties.StandIn
@@ -482,6 +492,7 @@ private fun HexGroups.standInsMeetDraw(strong: HexGroup, weak: HexGroup, p: Plac
 }
 
 /** Books what came of [m] ([standInsMeetDraw]): the meetings, and the kills, eaten by [strong] and left as carrion, and lost to [si]. */
+@Part("meetings: stand-ins booked")
 private fun HexGroups.standInsMeetBook(strong: HexGroup, weak: HexGroup, si: ResidentParties.StandIn, m: StandInsMet) {
     stats.meeting(Met.SLIPPED_AWAY, m.slipped)
     stats.meeting(Met.HUNTERS_OF_OTHER_KINDS, m.stayed)
