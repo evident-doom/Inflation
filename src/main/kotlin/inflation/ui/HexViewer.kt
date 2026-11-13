@@ -174,6 +174,9 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
     /** What people have made in the land, one mark for each thing standing (see [WorksPainter]). */
     private val worksBox = JCheckBox("Works", true)
     private val works = WorksPainter(sim)
+    /** The ground of the band picked in the list, or the one followed (see [BandGroundPainter]). */
+    private val groundBox = JCheckBox("Band's ground", true)
+    private val bandGround = BandGroundPainter(sim)
     private val features by lazy { HexGeography(hw) }
     /** The followed group's week, as its log tells it (see [GroupControlWindow]): shown when that group is picked. */
     @Volatile private var followLog = ""
@@ -273,13 +276,14 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         pathsBox.addActionListener { map.repaint() }
         namesBox.addActionListener { map.repaint() }
         worksBox.addActionListener { map.repaint() }
+        groundBox.addActionListener { map.repaint() }
         pullChoice.addActionListener { map.repaint() }
         bar.add(run)
         bar.add(step)
         shows.add(JLabel("Tint:")); shows.add(tintChoice); shows.add(modeChoice); shows.add(causeChoice)
         shows.add(JLabel("  Kind:")); shows.add(residentChoice); shows.add(flowBox); shows.add(heightBox); shows.add(pullChoice)
         shows.add(JLabel("  Draw:"))
-        for (box in listOf(peopleBox, huntersBox, worksBox, pathsBox, namesBox, riversBox, windBox)) shows.add(box)
+        for (box in listOf(peopleBox, huntersBox, worksBox, groundBox, pathsBox, namesBox, riversBox, windBox)) shows.add(box)
         val graphs = JButton("History…"); graphs.addActionListener { HexHistoryPanel.show(history, live = true, title = "History, seed ${cfg.seed}") }
         // Save the world as it stands, or carry on one saved before.
         val save = JButton("Save…")
@@ -323,7 +327,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         groupTabs.addTab("Band", JScrollPane(bandCard).apply { preferredSize = Dimension(400, 380) })
         groupTabs.addTab("In words", JScrollPane(groupInfo))
         side.add(groupTabs, BorderLayout.SOUTH)
-        groupView.addListSelectionListener { e -> if (!e.valueIsAdjusting) showGroup() }
+        groupView.addListSelectionListener { e -> if (!e.valueIsAdjusting) { showGroup(); map.repaint() } }
         val split = JSplitPane(JSplitPane.HORIZONTAL_SPLIT, map, side)
         split.resizeWeight = 0.75
         val south = JPanel(BorderLayout())
@@ -715,6 +719,15 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             if (worksBox.isSelected) {
                 works.paint(g, scale, ::sx, ::sy, ::onScreen)
                 legends += WorksPainter.legend
+            }
+            // The ground of the band picked in the list, or else of the one followed.
+            if (groundBox.isSelected) {
+                val i = groupView.selectedIndex
+                val id = if (i in groupIds.indices) groupIds[i] else groups.watched
+                groups.groups.firstOrNull { it.id == id && it.alive && it.band != null }?.let {
+                    bandGround.paint(g, it, kmPx, ::sx, ::sy, ::onScreen)
+                    legends += BandGroundPainter.legend
+                }
             }
             // The hex being inspected.
             if (!picked.none) {

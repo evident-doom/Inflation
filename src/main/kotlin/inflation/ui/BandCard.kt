@@ -163,7 +163,14 @@ internal class BandCard(private val sim: HexSim) : JPanel(), Scrollable {
 
     override fun paintComponent(g0: Graphics) {
         super.paintComponent(g0)
-        val g = g0 as Graphics2D
+        // (Drawn into a picture of its own, whose Graphics2D needs no cast, then onto the panel.)
+        val img = java.awt.image.BufferedImage(max(1, width), max(1, height), java.awt.image.BufferedImage.TYPE_INT_RGB)
+        val g = img.createGraphics()
+        try { g.color = background; g.fillRect(0, 0, width, height); paintCard(g) } finally { g.dispose() }
+        g0.drawImage(img, 0, 0, null)
+    }
+
+    private fun paintCard(g: Graphics2D) {
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON)
         var y = pad
