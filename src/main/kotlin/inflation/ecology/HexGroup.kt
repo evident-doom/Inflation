@@ -36,14 +36,6 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
      */
     var killHeld = 0f
     /**
-     * A beast's hunt as its last step had it, for its hunger ([Hazards.hungerKills]): the kills a day it makes hunting with all its
-     * days (its take-up's rates, handling counted), the days of its need a kill feeds, and the share of its need it ate of food
-     * that comes evenly (small game, carrion, plants, what it held), not kill by kill. 0 for bands.
-     */
-    var killRate = 0f
-    var killDays = 0f
-    var evenFed = 0f
-    /**
      * A beast's days of hunting and eating that ran past its last step's end, owed to this one: a kill taken late in a step is
      * eaten into the next, and those days are not hunted again (Olli 2026-11-11, "charge overrun to the next step": weekly
      * packs ended the week busy 1.25 of its days, free days a 60-day step's packs did not have; trace734).

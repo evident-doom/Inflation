@@ -179,12 +179,6 @@ internal fun shortfallOfAdults(g: HexGroup, fed: Float): Float {
  */
 internal fun GroupWorld.grownHunger(g: HexGroup, short: Float): Float {
     val s = g.species
-    // (A beast: its reserve against its kills over the step's days, [Hazards.hungerKills]. Foreseen fed other than its own scales
-    // its hunt and its even food alike, so a place that would feed it less is the hungrier.)
-    if (g.band == null) {
-        val fed = 1f - short; val scale = if (g.fed > 0f) fed / g.fed else 0f
-        return Hazards.hungerKills(s, g.spent, g.fat, min(1f, g.evenFed * scale), g.killRate * scale, g.killDays, days)
-    }
     val hungerPrime = Hazards.hunger(s, g.spent, Hazards.onFatOf(s, 1f - short, g.fat, days), days)
     val elders = g.band?.elders?.coerceAtMost(g.adults) ?: 0
     return if (elders == 0) hungerPrime else ((g.adults - elders) * hungerPrime + elders * eldersHunger(g, short)) / g.adults
