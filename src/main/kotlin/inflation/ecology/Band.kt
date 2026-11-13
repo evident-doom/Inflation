@@ -32,7 +32,6 @@ import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.min
-import kotlin.math.abs
 import inflation.world.Biome
 import inflation.world.Weather
 import kotlin.math.cos
@@ -904,7 +903,7 @@ class Band(kinds: Int, totems: Int = kinds) {
     }
 
     fun splitInto(o: Band, adults: Int, stay: Int, share: Float, r: Random, copied: (Band) -> Unit) {
-        o.ties.clear(); for ((k, v) in ties) if (abs(v) * SPLIT_TIES_KEPT >= 0.01f) o.ties[k] = v * SPLIT_TIES_KEPT; o.appointment = appointment
+        o.ties.clear(); o.ties.putAll(ties); o.appointment = appointment
         o.houseHex = houseHex; o.house = house; o.drivenFrom = drivenFrom; o.drivenBy = drivenBy; o.homeEarth = homeEarth; o.homeWalls = homeWalls; o.homeGroundC = homeGroundC; o.palisade = palisade
         o.houseLives = houseLives; o.houseFood = houseFood; foodFrom.copyInto(o.foodFrom); o.fishPull = fishPull; o.weirFood = weirFood; o.weirTend = weirTend; toolWork.copyInto(o.toolWork); heldShare.copyInto(o.heldShare); monthSupply.copyInto(o.monthSupply); monthSupplySq.copyInto(o.monthSupplySq); o.supplyMonth = supplyMonth; o.supplySum = supplySum; o.supplyWeeks = supplyWeeks; o.larderSeen = larderSeen; weekSupply.copyInto(o.weekSupply); weekYield.copyInto(o.weekYield); weekWarmth.copyInto(o.weekWarmth); weekMoved.copyInto(o.weekMoved); freeShare.copyInto(o.freeShare); o.leanDays = leanDays; o.fatLow = fatLow; o.unevenness = unevenness
         o.seedDomestic = seedDomestic; o.seedPulse = seedPulse; o.grainDomestic = grainDomestic; o.seedCorn = seedCorn * share; seedCorn -= o.seedCorn; o.sinceRaided = sinceRaided; o.sisu = sisu

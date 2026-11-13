@@ -405,8 +405,6 @@ internal const val TIE_FADE = 0.5f
  * only a memory (Olli, 13 Nov 2026: a band held ties with bands hundreds of km off). A guess: a full tie is gone in two years.
  */
 internal const val FAR_TIE_FADE = 4f
-/** Of its parent's ties to other bands a band split off holds this share: kin of kin, known through the parent (a guess). */
-internal const val SPLIT_TIES_KEPT = 0.5f
 
 internal const val TIE_PEACE = 0.8f
 
