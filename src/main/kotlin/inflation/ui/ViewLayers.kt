@@ -53,7 +53,14 @@ internal class ViewLayers(private val sim: HexSim) {
         CARRION_WEEKS("Weeks to clear: carrion", "weeks", 0.4f, 0.1f, 0.4f), LITTER_WEEKS("Weeks to clear: litter", "weeks", 0.45f, 0.3f, 0.1f),
         BONES_WEEKS("Weeks to clear: bones", "weeks", 0.8f, 0.8f, 0.7f), ORGANIC_WEEKS("Weeks to clear: soil organic matter", "weeks", 0.35f, 0.2f, 0.05f),
         /** Each hex in the colour of the cultural region with the most people there ([inflation.ecology.cultureRegions]). */
-        CULTURES("Cultural regions", "", 0f, 0f, 0f);
+        CULTURES("Cultural regions", "", 0f, 0f, 0f),
+        /** The ground bands' hunters searched in their last week of foraging ([inflation.ecology.Band.huntSeen]), a running mean. */
+        HUNTING_GROUND("People's hunting ground", "km² searched a week per km²", 0.85f, 0.25f, 0.1f),
+        /**
+         * The ground bands' gatherers worked: each hex a band walked through in its last week counts one, each hex round its camp
+         * its gatherers worked counts the share they did ([inflation.ecology.Band.ringSeen]), a running mean.
+         */
+        GATHERING_GROUND("People's gathering ground", "bands gathering (ring hexes at their share)", 0.3f, 0.75f, 0.2f);
         /** Whether the measure tints the hexes: the two plain ground views do not. */
         val tints get() = this != NONE && this != LAND_WATER
         val byCause get() = this == DEATHS || this == PEOPLE_DEATHS
@@ -93,6 +100,7 @@ internal class ViewLayers(private val sim: HexSim) {
     // Kept from week to week: deaths, kills and dead matter gone, as running means over about a month.
     private val deaths = Array(2) { Array(PlaceRecord.Cause.entries.size) { FloatArray(nh) } }
     private val killsKg = FloatArray(nh)
+    private val hunted = FloatArray(nh); private val gathered = FloatArray(nh)
     private val gone = Array(4) { FloatArray(nh) }
     private var fearBefore: FloatArray? = null
     private var weeksSeen = 0
@@ -101,7 +109,7 @@ internal class ViewLayers(private val sim: HexSim) {
     fun reset() {
         months.clear(); yearBefore.clear(); sums.clear(); counts.clear(); weeksInMonth = 0; month = -1; lastMonth = -1
         for (a in deaths) for (b in a) b.fill(0f)
-        killsKg.fill(0f); for (a in gone) a.fill(0f); fearBefore = null; weeksSeen = 0
+        killsKg.fill(0f); hunted.fill(0f); gathered.fill(0f); for (a in gone) a.fill(0f); fearBefore = null; weeksSeen = 0
         record.clear()
     }
 
@@ -170,6 +178,26 @@ internal class ViewLayers(private val sim: HexSim) {
         fearBefore = fauna.fear.copyOf()
         for (h in 0 until nh) if (area[h] > 0) killsKg[h] = keep * killsKg[h] + (1f - keep) * (killed[h] / area[h].toFloat())
         now[Measure.KILLS.name] = FloatArray(nh) { if (area[it] > 0) killsKg[it] else Float.NaN }
+
+        // People's ground: where their hunters searched and their gatherers worked last week (a running mean over about a month).
+        val huntKm2 = DoubleArray(nh); val gatherN = DoubleArray(nh)
+        val weeksInStep = (sim.stepDays / sim.cfg.daysPerStep.toFloat()).coerceAtLeast(1f)
+        for (g in groups.groups) {
+            val b = g.band ?: continue
+            if (!g.alive) continue
+            b.huntSeen?.let { gr -> for (i in 0 until gr.size) huntKm2[hw.placeHex[gr.place[i]].i] += (gr.km2[i] / weeksInStep).toDouble() }
+            val walked = HashSet<Hex>()
+            for (h in g.path) if (walked.add(h)) gatherN[h.i] += 1.0
+            val camp = hw.placeHex[g.place]
+            if (walked.isEmpty() && walked.add(camp)) gatherN[camp.i] += 1.0
+            if (b.ringSeen > 0f) for (d in 0 until 6) { val q = hex.neighbour(camp, d); if (!q.none && q !in walked) gatherN[q.i] += b.ringSeen.toDouble() }
+        }
+        for (h in 0 until nh) if (area[h] > 0) {
+            hunted[h] = keep * hunted[h] + (1f - keep) * (huntKm2[h] / area[h]).toFloat()
+            gathered[h] = keep * gathered[h] + (1f - keep) * gatherN[h].toFloat()
+        }
+        now[Measure.HUNTING_GROUND.name] = FloatArray(nh) { if (area[it] > 0) hunted[it] else Float.NaN }
+        now[Measure.GATHERING_GROUND.name] = FloatArray(nh) { if (area[it] > 0) gathered[it] else Float.NaN }
 
         // Hunters per prey: kg of hunting animals (packs and hunting residents; not people) against kg of game, over a hex and its ring.
         // Where there is next to no big game the ratio is two near-zero numbers (jackals living on rodents), so it is left blank.

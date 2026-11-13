@@ -563,7 +563,7 @@ private fun HexGroups.residentsMeet(a: HexGroup, b: HexGroup): Boolean {
  */
 @Part("meetings: band meets band")
 internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rite: RiteGathering? = null) {
-    stats.meeting(Met.BANDS_MET, meetTimes)
+    stats.meeting(Met.BANDS_MET, meetTimes); dealt(if (rite != null) Dealing.Kind.RITE else Dealing.Kind.MET, a, b)
     note(a) { "met band #%d (%d people; tie %.2f)".format(b.id, b.size, a.band?.tie(b.id) ?: 0f) }
     note(b) { "met band #%d (%d people; tie %.2f)".format(a.id, a.size, b.band?.tie(a.id) ?: 0f) }
     // (Strangers' sicknesses: read before [meetingFresh] records the meeting.)
@@ -601,7 +601,7 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
         moveFood(rich, poor, gift, LarderMove.GIFT)
         poor.band?.befriend(rich.id, TIE_GIFT); rich.band?.befriend(poor.id, 0.5f * TIE_GIFT)
         helped(rich, poor, gift)
-        stats.meeting(Met.FOOD_GIVEN)
+        stats.meeting(Met.FOOD_GIVEN); dealt(Dealing.Kind.FOOD, rich, poor)
         note(rich) { "gave %.0f kg of food to hungry band #%d".format(gift, poor.id) }
         note(poor) { "was given %.0f kg of food by band #%d".format(gift, rich.id) }
         }
@@ -618,7 +618,7 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
         val shell = gb.takeOrnaments(given)
         tb.ornaments += given; tb.exotic += shell
         tb.befriend(giver.id, 0.5f * TIE_GIFT)
-        stats.meeting(Met.ORNAMENTS_GIVEN)
+        stats.meeting(Met.ORNAMENTS_GIVEN); dealt(Dealing.Kind.ORNAMENTS, giver, taker)
     }
     // Useful gifts: a band gives of the good stone, salt and ochre it has beyond its own needs to
     // a band that lacks them. The more the gift meets the other's want, the more it binds them both, and
@@ -662,6 +662,7 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
         if (useful <= 0f) continue
         tb.befriend(giver.id, TIE_USEFUL * useful); gb.befriend(taker.id, 0.5f * TIE_USEFUL * useful)
         gb.renown += useful
+        dealt(Dealing.Kind.GOODS, giver, taker)
         note(giver) { "gave band #%d stone, salt or ochre it lacked".format(taker.id) }
         note(taker) { "was given stone, salt or ochre by band #%d".format(giver.id) }
     }
@@ -694,7 +695,7 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
         }
         val warmth = 1f + BEER_TIES * min(1f, beer / (BEER_KG * guest.size).coerceAtLeast(1e-3f))
         guest.band?.befriend(host.id, TIE_FEAST * warmth); hb.befriend(guest.id, 0.5f * TIE_FEAST * warmth)
-        stats.meeting(Met.FEASTS)
+        stats.meeting(Met.FEASTS); dealt(Dealing.Kind.FEAST, host, guest)
         note(host) { "feasted band #%d with %.0f kg".format(guest.id, meal) }; note(guest) { "was feasted by band #%d".format(host.id) }
     }
     // Word of where the other did better this month.

@@ -77,7 +77,7 @@ import inflation.world.Place
  * otherwise each week waits, at the followed group's choice, for the player. While it waits the rest
  * of the world waits too (saving and loading included). Closed, it takes no part in the run.
  */
-class GroupControlWindow(
+class GroupControlWindow internal constructor(
     private val sim: HexSim,
     private val ground: BufferedImage,
     /** Km to the ground picture's pixels. */
@@ -86,6 +86,8 @@ class GroupControlWindow(
     private val rivers: RiverOverlay,
     /** Read the world only while it stands still (see [WorldLock]). */
     private val world: WorldLock,
+    /** What passed between bands lately (see [RelationsView]): drawn round the followed band and listed. */
+    private val relations: RelationsView,
     /** Lets one more week run (on the simulation's thread). */
     private val requestStep: () -> Unit,
     /** Whether the overview is running weeks on its own. */
@@ -113,6 +115,12 @@ class GroupControlWindow(
     private var pinsFor = -1
 
     private val handsOff = JCheckBox("Model decides", false)
+    /** The followed band's dealings with other bands drawn on the local map. */
+    private val dealingsBox = JCheckBox("Dealings", true)
+    /** The followed band's dealings of the last weeks, each with the other band's id, for following it. */
+    private val dealingsList = javax.swing.DefaultListModel<String>()
+    private val dealingsView = javax.swing.JList(dealingsList)
+    private var dealingIds = IntArray(0)
     private val reset = JButton("Undo my changes")
     /** Where the followed group went in the last few weeks, newest last (the hexes of each week's way). */
     private val trail = ArrayDeque<HexArray>()
@@ -126,6 +134,8 @@ class GroupControlWindow(
     private val knows = text()
     private val place = text()
     private val lastWeek = text()
+    /** The group's state drawn ([BandCard]). */
+    private val card = BandCard(sim)
     private val map = LocalMap()
     private val table = JTable()
     private val tableModel = Choices()
@@ -165,16 +175,27 @@ class GroupControlWindow(
         val choices = JSplitPane(JSplitPane.VERTICAL_SPLIT, JScrollPane(table), JScrollPane(place)).apply { resizeWeight = 0.6 }
         val tabs = JTabbedPane()
         tabs.addTab("Status", JScrollPane(status))
+        tabs.addTab("Band", JScrollPane(card))
         tabs.addTab("Plan", plan.component)
         tabs.addTab("Where to go", choices)
         tabs.addTab("Ways", JScrollPane(waysPanel))
         tabs.addTab("What it knows", JScrollPane(knows))
         tabs.addTab("Last week", JScrollPane(lastWeek))
+        // Its dealings: pick one and Follow (or double-click) to follow the other band.
+        val followOther = JButton("Follow the other band")
+        fun followPicked() { val i = dealingsView.selectedIndex; if (i in dealingIds.indices) follow(dealingIds[i]) }
+        followOther.addActionListener { followPicked() }
+        dealingsView.font = Font(Font.MONOSPACED, Font.PLAIN, 12)
+        dealingsView.addMouseListener(object : MouseAdapter() { override fun mouseClicked(e: MouseEvent) { if (e.clickCount == 2) followPicked() } })
+        val dealingsPanel = JPanel(BorderLayout()); dealingsPanel.add(JScrollPane(dealingsView), BorderLayout.CENTER); dealingsPanel.add(followOther, BorderLayout.SOUTH)
+        tabs.addTab("Dealings", dealingsPanel)
+        dealingsBox.toolTipText = "Draw what passed between the followed band and others in the last ${RelationsView.WEEKS_KEPT} weeks (lines to them, off the map: to its edge)"
+        dealingsBox.addActionListener { map.repaint() }
 
         val bar = JPanel(BorderLayout())
         run.toolTipText = "Same as the overview's Run/Pause: weeks run on their own, the model deciding for the followed group"
         run.addActionListener { toggleRun() }
-        val buttons = JPanel(); buttons.add(handsOff); buttons.add(reset); buttons.add(next); buttons.add(run)
+        val buttons = JPanel(); buttons.add(dealingsBox); buttons.add(handsOff); buttons.add(reset); buttons.add(next); buttons.add(run)
         bar.add(note, BorderLayout.CENTER); bar.add(buttons, BorderLayout.EAST)
         val left = JPanel(BorderLayout()); left.add(map, BorderLayout.CENTER)
         val split = JSplitPane(JSplitPane.HORIZONTAL_SPLIT, left, tabs).apply { resizeWeight = 0.5 }
@@ -327,7 +348,9 @@ class GroupControlWindow(
             handsOff.isSelected -> "  The model decides; the choices shown are the ones it made."
             else -> "  Running…"
         }
-        if (g == null) { title.text = " "; status.text = ""; map.repaint(); return }
+        if (g == null) { title.text = " "; status.text = ""; card.show(null); dealingsList.clear(); dealingIds = IntArray(0); map.repaint(); return }
+        card.show(g)
+        listDealings(g)
         val s = g.species
         val date = sim.weather.date
         title.text = "  %s #%d — year %d, month %d, day %d%s".format(s.name, g.id, date.year, date.month + 1, date.dayOfMonth, if (w) "   (deciding)" else "")
@@ -345,6 +368,22 @@ class GroupControlWindow(
         } else { order = IntArray(0); tableModel.fireTableDataChanged(); place.text = "" }
         updating = false
         map.repaint()
+    }
+
+    /** The followed band's dealings of the last weeks into the Dealings tab, newest first, each with the other band and how far off it is now. */
+    private fun listDealings(g: HexGroup) {
+        val here = hw.placeHex[g.place]
+        val rows = relations.of(g.id)
+        dealingIds = IntArray(rows.size) { i -> rows[i].second.let { d -> if (d.from == g.id) d.to else d.from } }
+        dealingsList.clear()
+        for ((i, row) in rows.withIndex()) {
+            val (age, d) = row
+            val other = dealingIds[i]
+            val o = groups.groups.firstOrNull { it.id == other && it.alive }
+            val far = if (o != null) "%.0f km".format(hex.distanceKm(here, hw.placeHex[o.place])) else "gone"
+            val what = if (d.from == g.id) "${d.kind.label} #$other" else "#$other ${d.kind.label} it"
+            dealingsList.addElement("%-14s %-44s %s".format(if (age == 0) "this week" else "$age weeks ago", what, far))
+        }
     }
 
     /** The groups now in hex [h] and the six about it. */
@@ -692,6 +731,7 @@ class GroupControlWindow(
                     g.drawString("%s %d%s".format(o.species.name, o.size, if (left) " (gone)" else ""), ox + big, oy - big)
                 }
             }
+            if (dealingsBox.isSelected) paintDealings(g, grp, ::sx, ::sy)
             // The legend.
             g.font = g.font.deriveFont(11f)
             val lines = listOfNotNull("yellow: the model's pick", if (d != null && pick != d.model) "cyan: yours" else null,
@@ -702,6 +742,37 @@ class GroupControlWindow(
             g.color = Color.WHITE
             for ((i, l) in lines.withIndex()) g.drawString(l, 12, 20 + 16 * i)
         }
+    }
+
+    /**
+     * The followed band's dealings of the last weeks on the local map: a line from it to the other band where it stands now,
+     * in the kind's colour, fainter the older; a band off the map gets a line to the map's edge, labelled with its id and how
+     * far off it is.
+     */
+    private fun LocalMap.paintDealings(g: Graphics2D, grp: HexGroup, sx: (Double) -> Int, sy: (Double) -> Int) {
+        val (fx, fy) = hex.centreKm(hw.placeHex[grp.place]); val x0 = sx(fx); val y0 = sy(fy)
+        val font = g.font; g.font = font.deriveFont(Font.BOLD, 10f)
+        for ((age, d) in relations.of(grp.id).reversed()) {
+            val other = if (d.from == grp.id) d.to else d.from
+            val o = groups.groups.firstOrNull { it.id == other && it.alive } ?: continue
+            val h = hw.placeHex[o.place]
+            val (ox, oy) = hex.centreKm(h)
+            var x1 = sx(ox); var y1 = sy(oy)
+            val inside = x1 in 0 until width && y1 in 0 until height
+            if (!inside) {
+                // (To the map's edge, the way the other band lies.)
+                val ang = atan2((y1 - y0).toDouble(), (x1 - x0).toDouble()); val r = min(width, height) / 2.0 - 16
+                x1 = x0 + (r * cos(ang)).toInt(); y1 = y0 + (r * sin(ang)).toInt()
+            }
+            val c = RelationsView.colourOf(d.kind); val a = (0.95f - 0.2f * age).coerceAtLeast(0.3f)
+            g.color = Color(c.red / 255f, c.green / 255f, c.blue / 255f, a)
+            g.stroke = BasicStroke(if (d.kind == inflation.ecology.Dealing.Kind.RAID) 3f else 2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND,
+                1f, if (inside) null else floatArrayOf(6f, 4f), 0f)
+            g.drawLine(x0, y0, x1, y1)
+            if (!inside) g.drawString("#%d %s, %.0f km".format(other, d.kind.label, hex.distanceKm(hw.placeHex[grp.place], h)),
+                (x1 + 4).coerceIn(4, width - 160), (y1 - 4).coerceIn(12, height - 4))
+        }
+        g.stroke = BasicStroke(1f); g.font = font
     }
 
     private fun arrow(g: Graphics2D, x0: Int, y0: Int, x1: Int, y1: Int, c: Color, w: Float) {

@@ -649,6 +649,13 @@ class Band(kinds: Int, totems: Int = kinds) {
     /** Fresh meat in its stores this week beyond what it can eat before it rots, kg of its need: set before a feast on the kill ([feastOnKills]). */
     @Transient var feastMeat = 0f
     /**
+     * For the viewer only, nothing in the model reads them: the ground its hunters searched in its last week of foraging
+     * ([huntGround]: places and km² of each), and the share of each hex round its camp its gatherers worked ([DialSite.GATHER_RING]
+     * as dialled: [RING_REACH] by its [gatherRange]). Not saved.
+     */
+    @Transient internal var huntSeen: HuntGround? = null
+    @Transient var ringSeen = 0f
+    /**
      * Its choices: how much of its effort goes to each kind of food ([FOOD_TYPES]: big game, small
      * game, carrion, bones, fruit, roots, grass seed, small finds, fish), 1 the scaffold's, with no most. Big game's
      * sets how many of its hands go hunting ([HUNTERS_SHARE] of them at 1, see [huntersShare]).

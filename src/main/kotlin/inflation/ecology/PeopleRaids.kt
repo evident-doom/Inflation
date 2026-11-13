@@ -221,6 +221,7 @@ internal fun HexGroups.raid(g: HexGroup, b: Band, o: HexGroup, ob: Band, r: Rega
  */
 internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planned: Boolean, weather: Weather, edge: Float? = null) {
     stats.meeting(if (planned) Met.RAIDS_ON_HOMES else Met.RAIDS)
+    dealt(Dealing.Kind.RAID, g, o)
     note(g) { "raided band #%d%s".format(o.id, if (planned) " at its home" else "") }; note(o) { "was raided by band #%d".format(g.id) }
     ob.sinceRaided = 0
     // (Both see what the other is, [noteSeen].)
@@ -244,7 +245,7 @@ internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planne
     val fought = arrayListOf(Triple(g, raiders, RAID_DEATHS * so / (sg + so)), Triple(o, defenders, RAID_DEATHS * sg / (sg + so)))
     for (n in sides.helpers) {
         fought += Triple(n.group, (n.share * n.group.adults).roundToInt(), RAID_DEATHS * sg / (sg + so))
-        stats.meeting(Met.NEIGHBOURS_DEFENDED)
+        stats.meeting(Met.NEIGHBOURS_DEFENDED); dealt(Dealing.Kind.DEFENDED, n.group, o)
         note(n.group) { "stood with band #%d against band #%d".format(o.id, g.id) }
     }
     val lostG = binomial(raiders, fought[0].third, rnd)

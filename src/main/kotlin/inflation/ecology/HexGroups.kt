@@ -334,6 +334,13 @@ class HexGroups(
     @Volatile var watched = -1
     val watchLog = ConcurrentLinkedQueue<String>()
     internal inline fun note(g: HexGroup, msg: () -> String) { if (g.id == watched) watchLog += msg() }
+    /**
+     * For the viewer only, nothing in the model reads them: while [keepDealings] is on, what passed between two bands, [dealt]
+     * from the one that acted to the other; the viewer takes them away each week. Not saved.
+     */
+    @Transient @Volatile var keepDealings = false
+    @Transient val dealings = ConcurrentLinkedQueue<Dealing>()
+    internal fun dealt(kind: Dealing.Kind, from: HexGroup, to: HexGroup) { if (keepDealings) dealings += Dealing(kind, from.id, to.id) }
     /** The player's hand on the followed group (the viewer's group controls), null for none: see [GroupControl]. */
     @Transient @Volatile var control: GroupControl? = null
     /** The followed planning band's latest reckonings, for the viewer's Plan tab ([looked]): where to camp, and its week's days. */
