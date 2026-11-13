@@ -68,6 +68,8 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
     // Whether it sets out turns on how it regards the bands it could fall on ([Regard.fightChance]): the warier of one of them,
     // the likelier; never on a band it is close to. (No regard is warier than [Regard.MOST_WARY], so a draw above that chance
     // needs no look at them.)
+    // (Linear in the step's days, not compounded: a band sets out at most once a step, so this stands for the raids a week's
+    // chance would bring over the step's weeks (lsf801: compounding took 60-day raids from 0.75 to 0.63 of weekly).)
     val drive = RAID_PLOT * b.raidWill * days / 7f
     val u = rnd.nextFloat()
     if (dialUse == null && u >= drive * Regard.MOST_WARY) return
@@ -203,8 +205,10 @@ internal fun HexGroups.raid(g: HexGroup, b: Band, o: HexGroup, ob: Band, r: Rega
     // (Whether it comes to blows is the band's choice: its readiness to raid; and how it regards the others. And what there
     // is to fight over: a band living fixed has its houses, fields and stores to take or hold; between bands on the move, as
     // mobile foragers, killing between groups is rare, most of their violence being within the band ([MOBILE_RAID]).)
-    val chance = r.fightChance(RAID * b.raidWill * pressure * (if (ob.livesFixed() || b.livesFixed()) 1f else MOBILE_RAID))
-    if (!drawn(DialSite.RAIDS_MEETING, b.raidWill, rnd.nextFloat(), chance) { chance / b.raidWill.coerceAtLeast(1e-6f) }) return false
+    // (Over the meetings one meeting stands for ([meetChance]): a pair that met that many times had that many chances to fall out.)
+    val once = r.fightChance(RAID * b.raidWill * pressure * (if (ob.livesFixed() || b.livesFixed()) 1f else MOBILE_RAID))
+    val chance = meetChance(once)
+    if (!drawn(DialSite.RAIDS_MEETING, b.raidWill, rnd.nextFloat(), chance) { meetChance(once / b.raidWill.coerceAtLeast(1e-6f)) }) return false
     fight(g, b, o, ob, planned = false, weather)
     return true
 }

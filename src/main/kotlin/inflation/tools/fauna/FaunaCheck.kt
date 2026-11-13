@@ -99,6 +99,7 @@ class FaunaCheck(private val sim: HexSim, private val options: FaunaCheckOptions
         people.printBands()
         people.printRunSites()
         census.printIdentity(hunting.year, hunting.meetingsYear)
+        census.printClusters()
         people.printAgainstTheRecord(deaths, hunting)
         deaths.printResidentDeathsThisYear()
         // (Of the disease deaths, the outbreaks'; and how crowded each kind lived, head-weighted, as its deaths went by.)

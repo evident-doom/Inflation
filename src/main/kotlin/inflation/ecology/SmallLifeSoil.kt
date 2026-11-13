@@ -84,15 +84,18 @@ internal fun HexSmallLife.stepSoil(p: Place, t: Float, soilWater: Float, carcass
     carcassBook?.add(carcassKg[p].toDouble())
     if (carrion[p] > 0f || inflow > 0f) {
         val rot = CARRION_ROT * max(0.1f, warm)
-        val find = groupCarrionRate[p] + residentCarrionRate[p]
+        carrionRotRate[p] = rot
+        val find = groupCarrionRate[p] + residentCarrionRate[p] + vultureCarrionRate[p]
         val k = rot + find; val d = days.toFloat(); val r = inflow / d
         val lay = (1f - exp(-k * d)) / k
         val lain = carrion[p] * lay + r * (d - lay) / k
         val gone = min(rot * lain, carrion[p] + inflow); val found = min(find * lain, carrion[p] + inflow - gone)
         // (The groups' and the residents' finds by their rates.)
         val byResidents = if (find > 0f) found * residentCarrionRate[p] / find else 0f
-        carrion[p] += inflow - gone - found; groupCarrion[p] += found - byResidents; residentCarrion[p] += byResidents
-        flow(CarrionFlow.SOIL_IN, p, inflow); flow(CarrionFlow.ROT, p, gone); flow(CarrionFlow.GROUPS_FOUND, p, found - byResidents); flow(CarrionFlow.RESIDENTS_FOUND, p, byResidents)
+        val byVultures = if (find > 0f) found * vultureCarrionRate[p] / find else 0f
+        val byGroups = found - byResidents - byVultures
+        carrion[p] += inflow - gone - found; groupCarrion[p] += byGroups; residentCarrion[p] += byResidents; vultureCarrion[p] += byVultures
+        flow(CarrionFlow.SOIL_IN, p, inflow); flow(CarrionFlow.ROT, p, gone); flow(CarrionFlow.GROUPS_FOUND, p, byGroups); flow(CarrionFlow.RESIDENTS_FOUND, p, byResidents)
         litter[p] += 0.3f * gone - BONE_SHARE * gone; bones[p] += BONE_SHARE * gone
         rotBook?.add(-0.7f * gone * m2)
         record?.let { it.carrionGone[p] += gone }

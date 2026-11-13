@@ -292,7 +292,11 @@ internal fun HexGroups.settle(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk: In
                               stop: IntArray, weather: Weather, rite: RiteGathering? = null, intent: Intent = Intent.CHANCE) {
     // (Two bands that are friends both ways greet whatever their strategies, but where one came to raid.)
     val friends = intent != Intent.RAID && a.band?.let { ba -> b.band?.let { bb -> ba.tie(b.id) >= FRIEND_TIE && bb.tie(a.id) >= FRIEND_TIE } } == true
-    if (byStrategy != null && !friends) { engage(a, ak, ai, b, bk, bi, byStrategy, h, stop, rnd, intent, weather); return }
+    // (A meeting that stands for several ([meetTimes]: neighbours' visits held as one) engages as often, till it comes to something.)
+    if (byStrategy != null && !friends) {
+        for (t in 0 until meetTimes) { if (!a.alive || !b.alive || engage(a, ak, ai, b, bk, bi, byStrategy, h, stop, rnd, intent, weather)) break }
+        return
+    }
     // (A raid set out on the other's home, by the rules of a raid: the defenders behind their works, [fight].)
     if (intent == Intent.RAID) { val ba = a.band; val bb = b.band; if (ba != null && bb != null) fight(a, ba, b, bb, planned = true, weather); return }
     if (slipsAway(a, b, p) || slipsAway(b, a, p)) stats.meeting(Met.SLIPPED_AWAY)

@@ -748,10 +748,11 @@ internal fun HexGroups.cultureWeek(g: HexGroup, rnd: kotlin.random.Random, day: 
         b.totem = if (b.totem.none) FaunaKind(rnd.nextInt(fauna.totemKinds)) else FaunaKind.NONE; b.totemBroken = 0f
     }
     for (i in b.grudge.indices) b.grudge[i] *= 1f - GRUDGE_FADE * years
-    if (rnd.nextFloat() < WORD_DRIFT * Language.CONCEPTS * years) b.words[rnd.nextInt(Language.CONCEPTS)] = rnd.nextInt(Language.FORMS)
+    // (As many changes as the step's years hold: a long step may hold more than one.)
+    repeat(poisson(WORD_DRIFT * Language.CONCEPTS * years, rnd)) { b.words[rnd.nextInt(Language.CONCEPTS)] = rnd.nextInt(Language.FORMS) }
     for (t in Tradition.entries) {
         val held = b.holds(t)
-        if (rnd.nextFloat() < (if (held) DROP else TAKE_UP) * years) {
+        if (rnd.nextFloat() < 1f - exp(-(if (held) DROP else TAKE_UP) * years)) {
             b.traditions[t] = !held
             stats.meeting(if (held) Met.Of.DROPPED else Met.Of.TOOK_UP, t.name.lowercase())
         }
