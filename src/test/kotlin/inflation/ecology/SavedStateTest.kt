@@ -48,8 +48,6 @@ class SavedStateTest {
         "fauna.food.ripenedNow", "fauna.food.fieldFateNow", "fauna.food.fieldFateLastYear", "fauna.food.fieldGrain", "fauna.food.fieldDomestic", "fauna.food.fieldPulse", "fauna.food.ripePulse", "fauna.food.fieldHolder", "fauna.food.fieldDays", "fauna.food.fieldStress", "fauna.food.fieldSoil", "fauna.food.fieldWorn", "fauna.food.fieldCover", "fauna.food.cleared", "fauna.food.croppedNow", "fauna.food.wildCover",
         // (A worn route forms from many crossings: on this small world a year may or may not see the first one, or a way along it.)
         "groups.routes.legWear", "groups.routes.onRoute", "groups.routes.way",
-        // (Carrion the residents found as it lay is held only over steps of several ticks; the test steps weekly.)
-        "fauna.small.residentCarrion",
         // (Grave goods need a death in a band that owns ornaments: on this small world a year may or may not see one.)
         "land.graveGoods",
         // (Burials need a death in a band that keeps the burial tradition: on this small world a year may or may not see one.)
