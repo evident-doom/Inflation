@@ -81,91 +81,103 @@ internal class WorksPainter(private val sim: HexSim) {
     }
 
     /**
-     * Draws the works of each hex on screen ([onScreen]), [sx] and [sy] taking km to the screen, at map scale [scale]
-     * (the marks grow with the zoom, but not below a readable size).
+     * Draws the works of each hex on screen ([onScreen]) inside the hex itself, [sx] and [sy] taking km to the screen at
+     * [kmPx] pixels a km: every mark is sized against the hex as drawn, so they shrink and grow with it and stay within it.
+     * When a hex is too small on screen for the marks to be told apart, one small square for its houses, one for its field
+     * and a dot for a village.
      */
-    fun paint(g: Graphics2D, scale: Double, sx: (Float) -> Int, sy: (Float) -> Int, onScreen: (Hex, Int) -> Boolean) {
+    fun paint(g: Graphics2D, kmPx: Double, sx: (Float) -> Int, sy: (Float) -> Int, onScreen: (Hex, Int) -> Boolean) {
         val works = gather()
-        val z = max(0.6, scale).toFloat()
+        // The hex's corner radius on screen; the marks are laid out in fractions of it.
+        val u = (hex.hexKm / sqrt(3.0) * kmPx).toFloat()
+        if (u < 1.5f) return
         val stroke = g.stroke; val font = g.font
-        g.font = font.deriveFont(Font.BOLD, 8f * min(1.5f, z))
+        g.font = font.deriveFont(Font.BOLD, min(11f, max(7f, 0.18f * u)))
         for (h in hex.all) {
             val w = works[h.i] ?: continue
             if (!onScreen(h, 1)) continue
             val (cx, cy) = hex.centreKm(h)
             val x = sx(cx.toFloat()); val y = sy(cy.toFloat())
-            if (w.village > 0) village(g, x, y + (9 * z).toInt(), z, w.village)
-            houses(g, x, y, z, w)
-            if (w.halls.isNotEmpty()) hall(g, x + (16 * z).toInt(), y - (15 * z).toInt(), z, w.halls)
-            if (w.penHead > 0f) pen(g, x - (9 * z).toInt(), y - (9 * z).toInt(), z, w.penHead)
-            if (w.wells > 0) well(g, x - (14 * z).toInt(), y - (1 * z).toInt(), z, w.wells)
-            if (w.weirs > 0) weir(g, x + (9 * z).toInt(), y + (4 * z).toInt(), z, w.weirs)
-            if (w.midden >= MIDDEN_SHOWN) midden(g, x + (2 * z).toInt(), y + (2 * z).toInt(), z, w.midden)
-            field(g, x - (10 * z).toInt(), y + (3 * z).toInt(), z, w)
+            if (u < SMALL_HEX_PX) { compact(g, x, y, u, w); continue }
+            fun at(fx: Float, fy: Float) = (x + fx * u).toInt() to (y + fy * u).toInt()
+            val line = max(0.6f, 0.05f * u)
+            if (w.village > 0) at(0f, 0.6f).let { (px, py) -> village(g, px, py, u, w.village) }
+            if (w.houses.isNotEmpty()) at(-0.2f, -0.12f).let { (px, py) -> houses(g, px, py, u, line, w) }
+            if (w.halls.isNotEmpty()) at(0f, -0.62f).let { (px, py) -> hall(g, px, py, u, line, w.halls) }
+            if (w.penHead > 0f) at(-0.5f, -0.3f).let { (px, py) -> pen(g, px, py, u, line, w.penHead) }
+            if (w.wells > 0) at(-0.62f, 0.1f).let { (px, py) -> well(g, px, py, u, line, w.wells) }
+            if (w.weirs > 0) at(0.4f, 0.3f).let { (px, py) -> weir(g, px, py, u, line, w.weirs) }
+            if (w.midden >= MIDDEN_SHOWN) at(0.15f, 0.12f).let { (px, py) -> midden(g, px, py, u, w.midden) }
+            at(-0.15f, 0.15f).let { (px, py) -> field(g, px, py, u, line, w) }
         }
         g.stroke = stroke; g.font = font
     }
 
-    /** A village: a ring of a dot for each band, below the hex's centre. */
-    private fun village(g: Graphics2D, x: Int, y: Int, z: Float, bands: Int) {
-        val d = (3 * z).toInt().coerceAtLeast(2); val n = min(bands, 8)
+    /** A hex too small on screen for the marks: a square for its houses (dark if any in use), one for its field, a dot for a village. */
+    private fun compact(g: Graphics2D, x: Int, y: Int, u: Float, w: Works) {
+        val s = max(2, (0.4f * u).toInt())
+        if (w.houses.isNotEmpty()) { g.color = if (w.houses.any { it.user >= 0 }) HOUSE_USED else HOUSE_EMPTY; g.fillRect(x, y - s, s, s) }
+        if (w.fieldHa > 0f || w.ripeKg > 0f) { g.color = if (w.ripeKg > 0f) FIELD_RIPE else FIELD_GROWING; g.fillRect(x - s, y, s, s) }
+        if (w.village > 0) { g.color = VILLAGE; g.fillOval(x - s / 2, y + s / 2, s, s) }
+    }
+
+    /** A village: a ring of a dot for each band. */
+    private fun village(g: Graphics2D, x: Int, y: Int, u: Float, bands: Int) {
+        val d = (0.08f * u).toInt().coerceAtLeast(2); val n = min(bands, 8); val ring = 0.13f * u
         for (k in 0 until n) {
             val a = 2 * Math.PI * k / n
-            val px = x + (4 * z * cos(a)).toInt(); val py = y + (4 * z * sin(a)).toInt()
+            val px = x + (ring * cos(a)).toInt(); val py = y + (ring * sin(a)).toInt()
             g.color = VILLAGE; g.fillOval(px - d / 2, py - d / 2, d, d)
-            g.color = EDGE; g.drawOval(px - d / 2, py - d / 2, d, d)
         }
     }
 
     /**
-     * The houses, in a row up and to the right of the centre, whole ones first and the largest first: each its own mark, as
+     * The houses, in a row from ([x0], [y0]) rightwards, whole ones first and the largest first: each its own mark, as
      * wide as the people it shelters ask, filled from the ground up as far as it stands, dark where a band uses it this week,
      * grey where none does, its outline dashed while it has never stood whole. More than [HOUSES_DRAWN]: the rest as "+n".
      * The palisade, if any, a ring round the row, as much of it as stands.
      */
-    private fun houses(g: Graphics2D, x0: Int, y0: Int, z: Float, w: Works) {
-        if (w.houses.isEmpty()) return
+    private fun houses(g: Graphics2D, x0: Int, base: Int, u: Float, line: Float, w: Works) {
         val shown = w.houses.sortedWith(compareByDescending<Structure> { it.done }.thenByDescending { it.size }).take(HOUSES_DRAWN)
-        var x = x0 + (3 * z).toInt(); val base = y0 - (3 * z).toInt()
-        val left = x
+        var x = x0
         var top = base
         for (st in shown) {
-            val r = (z * (2.2f + 0.9f * ln(1f + st.size / 8f))).toInt().coerceAtLeast(2)
+            val r = (u * (0.06f + 0.025f * ln(1f + st.size / 8f))).toInt().coerceAtLeast(1)
             val hx = x + r
             val poly = Polygon(intArrayOf(hx - r, hx, hx + r, hx + r, hx - r), intArrayOf(base - r, base - 2 * r, base - r, base, base), 5)
             top = min(top, base - 2 * r)
-            val fill = if (st.user >= 0) HOUSE_USED else HOUSE_EMPTY
             val stands = st.built.coerceIn(0f, 1f)
             if (stands > 0f) {
                 // (Filled from the ground up, as far as it stands.)
                 val clip = g.clip
                 val hgt = (2 * r * stands).toInt().coerceAtLeast(1)
                 g.clipRect(hx - r - 1, base - hgt, 2 * r + 2, hgt + 1)
-                g.color = fill; g.fillPolygon(poly)
+                g.color = if (st.user >= 0) HOUSE_USED else HOUSE_EMPTY; g.fillPolygon(poly)
                 g.clip = clip
             }
-            g.color = EDGE
-            g.stroke = if (st.done) BasicStroke(1f) else BasicStroke(1f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 4f, floatArrayOf(2f, 2f), 0f)
-            g.drawPolygon(poly)
-            x += 2 * r + (1 * z).toInt().coerceAtLeast(1)
+            if (!st.done || u >= 20f) {
+                g.color = EDGE
+                g.stroke = if (st.done) BasicStroke(line) else BasicStroke(line, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 4f, floatArrayOf(2f, 2f), 0f)
+                g.drawPolygon(poly)
+            }
+            x += 2 * r + 1
         }
         val more = w.houses.size - shown.size
-        if (more > 0) { g.color = EDGE; g.drawString("+$more", x + 1, base) }
+        if (more > 0 && u >= 25f) { g.color = EDGE; g.drawString("+$more", x + 1, base) }
         if (w.fence > 0f) {
-            // The palisade: an ellipse round the row of houses, as much of it as stands.
-            val pad = (3 * z).toInt()
-            g.stroke = BasicStroke(1.5f * z)
+            // The palisade: an ellipse close round the row of houses, as much of it as stands.
+            val pad = max(1, (0.04f * u).toInt())
+            g.stroke = BasicStroke(line)
             g.color = PALISADE
-            g.drawArc(left - pad, top - pad, (x - left) + 2 * pad, (base - top) + 2 * pad, 90, -(360 * w.fence.coerceIn(0f, 1f)).toInt())
-            g.stroke = BasicStroke(1f)
+            g.drawArc(x0 - pad, top - pad, (x - x0) + 2 * pad, (base - top) + 2 * pad, 90, -(360 * w.fence.coerceIn(0f, 1f)).toInt())
         }
     }
 
     /** A hall: a long roofed building, wider for more people gathered in it, as far as the largest stands; outlined while never whole. */
-    private fun hall(g: Graphics2D, x: Int, y: Int, z: Float, halls: List<Structure>) {
+    private fun hall(g: Graphics2D, x: Int, y: Int, u: Float, line: Float, halls: List<Structure>) {
         val st = halls.maxBy { it.size * it.built }
-        val w = (z * (4f + 2f * ln(1f + st.size / 30f))).toInt().coerceAtLeast(3); val r = (3 * z).toInt().coerceAtLeast(2)
-        g.stroke = BasicStroke(1f)
+        val w = (u * (0.1f + 0.04f * ln(1f + st.size / 30f))).toInt().coerceAtLeast(2); val r = (0.06f * u).toInt().coerceAtLeast(1)
+        g.stroke = BasicStroke(line)
         if (st.done && st.built > 0f) {
             g.color = HALL_WALL; g.fillRect(x - w, y, 2 * w, 2 * r)
             g.color = HALL_ROOF; g.fillPolygon(intArrayOf(x - w - 1, x, x + w + 1), intArrayOf(y, y - 2 * r, y), 3)
@@ -175,51 +187,51 @@ internal class WorksPainter(private val sim: HexSim) {
     }
 
     /** A pen: a fenced square of stakes, larger for more head. */
-    private fun pen(g: Graphics2D, x: Int, y: Int, z: Float, head: Float) {
-        val r = (z * (2f + ln(1f + head / 20f))).toInt().coerceAtLeast(2)
-        g.stroke = BasicStroke(1.2f * z)
+    private fun pen(g: Graphics2D, x: Int, y: Int, u: Float, line: Float, head: Float) {
+        val r = (u * (0.05f + 0.025f * ln(1f + head / 20f))).toInt().coerceAtLeast(1)
+        g.stroke = BasicStroke(line)
         g.color = PEN; g.drawRect(x - r, y - r, 2 * r, 2 * r)
         g.drawLine(x - r, y, x + r, y)
-        g.stroke = BasicStroke(1f)
     }
 
-    /** A well: a stone ring with water in it; a dot beside it for each more. */
-    private fun well(g: Graphics2D, x: Int, y: Int, z: Float, n: Int) {
-        val r = (2.5f * z).toInt().coerceAtLeast(2)
+    /** A well: a ring with water in it; a dot beside it for each more. */
+    private fun well(g: Graphics2D, x: Int, y: Int, u: Float, line: Float, n: Int) {
+        val r = (0.05f * u).toInt().coerceAtLeast(1)
         g.color = WELL_WATER; g.fillOval(x - r, y - r, 2 * r, 2 * r)
-        g.stroke = BasicStroke(1.2f * z); g.color = WELL_STONE; g.drawOval(x - r, y - r, 2 * r, 2 * r)
-        g.stroke = BasicStroke(1f)
-        for (k in 1 until min(n, 4)) g.fillOval(x + r + 2 * k * z.toInt().coerceAtLeast(1), y - 1, 2, 2)
+        g.stroke = BasicStroke(line); g.color = WELL_STONE; g.drawOval(x - r, y - r, 2 * r, 2 * r)
+        val d = max(1, r / 2)
+        for (k in 1 until min(n, 4)) g.fillOval(x + r + k * 2 * d, y - d / 2, d, d)
     }
 
     /** A weir: a fence of stakes across the water, a zigzag; one more line under it for each more. */
-    private fun weir(g: Graphics2D, x: Int, y: Int, z: Float, n: Int) {
-        val s = (2 * z).coerceAtLeast(1.5f)
-        g.stroke = BasicStroke(1.2f * z)
+    private fun weir(g: Graphics2D, x: Int, y: Int, u: Float, line: Float, n: Int) {
+        val s = max(1f, 0.04f * u)
+        g.stroke = BasicStroke(line)
+        g.color = WEIR
         for (k in 0 until min(n, 3)) {
-            val yy = y + (k * 2.5f * z).toInt()
+            val yy = y + (k * 1.6f * s).toInt()
             val xs = IntArray(5) { x + (it * s).toInt() }; val ys = IntArray(5) { yy + if (it % 2 == 0) 0 else -s.toInt() }
-            g.color = WEIR; g.drawPolyline(xs, ys, 5)
+            g.drawPolyline(xs, ys, 5)
         }
-        g.stroke = BasicStroke(1f)
     }
 
     /** The midden: a grey heap, larger the more there is. */
-    private fun midden(g: Graphics2D, x: Int, y: Int, z: Float, m: Float) {
-        val r = (z * (1.5f + 2f * m.coerceIn(0f, 1f))).toInt().coerceAtLeast(2)
+    private fun midden(g: Graphics2D, x: Int, y: Int, u: Float, m: Float) {
+        val r = (u * (0.03f + 0.05f * m.coerceIn(0f, 1f))).toInt().coerceAtLeast(1)
         g.color = MIDDEN; g.fillArc(x - r, y - r, 2 * r, 2 * r, 0, 180)
     }
 
     /**
-     * This year's field, to the lower left: a square larger for more ground under it (log scale, [FIELD_FULL_HA] full),
-     * green while it grows, gold as far as ripe grain stands against what the sown ground would bear, ringed white where most of
-     * the seed is of ears that hold their grain, a purple corner for pulses. Without one: an outlined, crossed square for ground
-     * worn by cropping and left to rest, a pale outlined square for ground cleared and growing back.
+     * This year's field, its top right corner at ([x], [y]): a square larger for more ground under it (log scale,
+     * [FIELD_FULL_HA] full), green while it grows, gold as far as ripe grain stands against what the sown ground would bear,
+     * ringed white where most of the seed is of ears that hold their grain, a purple corner for pulses. Without one: an
+     * outlined, crossed square for ground worn by cropping and left to rest, a pale outlined square for ground cleared and
+     * growing back.
      */
-    private fun field(g: Graphics2D, x: Int, y: Int, z: Float, w: Works) {
-        g.stroke = BasicStroke(1f)
+    private fun field(g: Graphics2D, x: Int, y: Int, u: Float, line: Float, w: Works) {
+        g.stroke = BasicStroke(line)
         if (w.fieldHa > 0f || w.ripeKg > 0f) {
-            val s = (z * (3f + 4f * min(1f, ln(1f + w.fieldHa) / ln(1f + FIELD_FULL_HA)))).toInt().coerceAtLeast(3)
+            val s = (u * (0.12f + 0.2f * min(1f, ln(1f + w.fieldHa) / ln(1f + FIELD_FULL_HA)))).toInt().coerceAtLeast(2)
             val fx = x - s; val fy = y
             g.color = FIELD_GROWING; g.fillRect(fx, fy, s, s)
             if (w.ripeKg > 0f) {
@@ -228,18 +240,17 @@ internal class WorksPainter(private val sim: HexSim) {
                 val share = min(1f, w.ripeKg / full)
                 g.color = FIELD_RIPE; g.fillRect(fx, fy, s, (s * share).toInt().coerceAtLeast(1))
             }
-            g.color = FURROW
-            g.drawLine(fx, fy + s / 3, fx + s, fy + s / 3); g.drawLine(fx, fy + 2 * s / 3, fx + s, fy + 2 * s / 3)
+            if (s >= 6) { g.color = FURROW; g.drawLine(fx, fy + s / 3, fx + s, fy + s / 3); g.drawLine(fx, fy + 2 * s / 3, fx + s, fy + 2 * s / 3) }
             if (w.sownKg > 0f && w.tame / w.sownKg > 0.5f) { g.color = Color.WHITE; g.drawRect(fx - 1, fy - 1, s + 1, s + 1) }
             if (w.sownKg > 0f && w.pulse > 0.05f * w.sownKg) {
                 val d = (s * min(1f, 0.3f + w.pulse / w.sownKg)).toInt().coerceAtLeast(2)
                 g.color = PULSE; g.fillOval(fx + s - d / 2, fy - d / 2, d, d)
             }
         } else if (w.wornKm2 > 0f) {
-            val s = (6 * z).toInt().coerceAtLeast(3)
+            val s = (0.15f * u).toInt().coerceAtLeast(2)
             g.color = WORN; g.drawRect(x - s, y, s, s); g.drawLine(x - s, y + s, x, y)
         } else if (w.clearedKm2 > 0f) {
-            val s = (6 * z).toInt().coerceAtLeast(3)
+            val s = (0.15f * u).toInt().coerceAtLeast(2)
             g.color = CLEARED; g.drawRect(x - s, y, s, s)
         }
     }
@@ -287,7 +298,9 @@ internal class WorksPainter(private val sim: HexSim) {
 
     companion object {
         /** Houses drawn one by one in a hex; the rest are counted. */
-        const val HOUSES_DRAWN = 5
+        const val HOUSES_DRAWN = 4
+        /** Below this corner radius in pixels a hex gets only [compact]'s marks. */
+        const val SMALL_HEX_PX = 14f
         /** A field's mark is full size at this many hectares. */
         const val FIELD_FULL_HA = 20f
         /** For the mark only: about what a kg of seed ripens to on fair ground (2.4 t/ha at 120 kg/ha). */
@@ -314,14 +327,14 @@ internal class WorksPainter(private val sim: HexSim) {
         val CLEARED = Color(0.8f, 0.7f, 0.5f, 0.8f)
         val VILLAGE = Color(0.9f, 0.2f, 0.6f, 0.95f)
 
-        val legend = MapLegend("Works", "People's works, one mark for each thing standing. Houses in a row up and to the right of a hex's centre, " +
+        val legend = MapLegend("Works", "People's works, drawn small inside each hex, one mark for each thing standing (zoomed out, only a square for houses, one for a field and a dot for a village). Houses in a row just above the hex's centre, " +
             "each as wide as the people it shelters, filled from the ground up as far as it stands: dark where a band uses it this week, grey where " +
             "none does, dashed while it has never stood whole; past $HOUSES_DRAWN the rest counted as +n. A brown ring round them for a palisade, as much " +
-            "of it as stands. A hall above them, outlined while never whole. A pen (upper left) larger for more head; a well (left) as a ring of " +
-            "stone; a weir (right) as a zigzag of stakes, a line for each; the midden as a grey heap. This year's field (lower left), larger for more " +
+            "of it as stands. A hall at the top of the hex, outlined while never whole. A pen (upper left) larger for more head; a well (left) as a ring of " +
+            "stone; a weir (right) as a zigzag of stakes, a line for each; the midden as a grey heap. This year's field (below the centre, left), larger for more " +
             "ground sown (full at ${FIELD_FULL_HA.toInt()} ha), green while it grows and gold from the top as far as ripe grain stands, ringed white " +
             "where most of the seed holds its grain, a purple corner for pulses; a crossed square for ground worn by cropping and resting, a pale " +
-            "square for ground cleared and growing back. A village (below the centre): a ring of a dot for each band.",
+            "square for ground cleared and growing back. A village (low in the hex): a ring of a dot for each band.",
             swatches = listOf(MapLegend.Swatch(HOUSE_USED, "house in use"), MapLegend.Swatch(HOUSE_EMPTY, "house standing empty"),
                 MapLegend.Swatch(PALISADE, "palisade"), MapLegend.Swatch(HALL_WALL, "hall"), MapLegend.Swatch(PEN, "pen"),
                 MapLegend.Swatch(WELL_WATER, "well"), MapLegend.Swatch(WEIR, "weir"), MapLegend.Swatch(MIDDEN, "midden"),

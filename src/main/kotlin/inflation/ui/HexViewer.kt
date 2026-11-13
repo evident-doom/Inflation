@@ -328,16 +328,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             }
             kindButtons += b; bottom.add(b)
         }
-        val side = JPanel(BorderLayout())
-        side.add(JScrollPane(info), BorderLayout.NORTH)
-        side.add(JScrollPane(groupView), BorderLayout.CENTER)
-        // The picked group: drawn, and in words.
-        val groupTabs = javax.swing.JTabbedPane()
-        groupTabs.addTab("Band", JScrollPane(bandCard).apply { preferredSize = Dimension(400, 380) })
-        groupTabs.addTab("Relations", JScrollPane(relationsText))
-        groupTabs.addTab("In words", JScrollPane(groupInfo))
-        side.add(groupTabs, BorderLayout.SOUTH)
-        groupView.addListSelectionListener { e -> if (!e.valueIsAdjusting) { showGroup(); map.repaint() } }
+        val side = sidePanel()
         val split = JSplitPane(JSplitPane.HORIZONTAL_SPLIT, map, side)
         split.resizeWeight = 0.75
         val south = JPanel(BorderLayout())
@@ -392,6 +383,23 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
     }
 
     /** The model: learned networks ([nets], [waysFile], see [LearnedModel]). */
+    /**
+     * The side: the hex in words, the groups in it, the picked group (drawn, its relations, in words), one above the other,
+     * each given its own share of the height (the hex's text cannot push the list out of sight), the dividers movable.
+     */
+    private fun sidePanel(): JSplitPane {
+        val groupTabs = javax.swing.JTabbedPane()
+        groupTabs.addTab("Band", JScrollPane(bandCard))
+        groupTabs.addTab("Relations", JScrollPane(relationsText))
+        groupTabs.addTab("In words", JScrollPane(groupInfo))
+        val hexText = JScrollPane(info).apply { preferredSize = Dimension(400, 220); minimumSize = Dimension(100, 60) }
+        val groupsHere = JScrollPane(groupView).apply { preferredSize = Dimension(400, 90); minimumSize = Dimension(100, 40) }
+        groupTabs.minimumSize = Dimension(100, 120)
+        val lower = JSplitPane(JSplitPane.VERTICAL_SPLIT, groupsHere, groupTabs).apply { resizeWeight = 0.15 }
+        groupView.addListSelectionListener { e -> if (!e.valueIsAdjusting) { showGroup(); map.repaint() } }
+        return JSplitPane(JSplitPane.VERTICAL_SPLIT, hexText, lower).apply { resizeWeight = 0.3 }
+    }
+
     private fun useNetworks() {
         LearnedModel.apply(groups, nets, waysFile, Config.string(Config.Key.HUNTER_WAYS)) { println(it) }
     }
@@ -729,9 +737,9 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                     "bays and straits, peninsulas, isthmuses and islands (narrower than the ground one place draws on, or than a range). The larger the feature, the larger its name; a name is written only where it fits along its river or across its country.", note = features.summary(),
                     swatches = HexGeography.Kind.entries.map { MapLegend.Swatch(featureColour(it), it.label) })
             }
-            // People's works: houses and palisades to the upper right of a hex's centre, fields to the lower left.
+            // People's works, small inside their hexes.
             if (worksBox.isSelected) {
-                works.paint(g, scale, ::sx, ::sy, ::onScreen)
+                works.paint(g, kmPx, ::sx, ::sy, ::onScreen)
                 legends += WorksPainter.legend
             }
             val t = min(1f, frame.toFloat() / frames)
@@ -1065,7 +1073,9 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         for ((i, r) in rows.withIndex()) if (i < groupList.size()) { if (groupList[i] != r) groupList[i] = r } else groupList.addElement(r)
         while (groupList.size() > rows.size) groupList.removeElementAt(groupList.size() - 1)
         val again = groupIds.indexOf(picked)
-        if (again >= 0) { groupView.selectedIndex = again; showGroupNow() } else { groupView.clearSelection(); groupInfo.text = ""; bandCard.show(null); relationsText.text = relations.html(null) }
+        // (Nothing picked here yet: the first band in the hex, so a hex with a band in it always shows one.)
+        val pick = if (again >= 0) again else here.indexOfFirst { it.band != null }
+        if (pick >= 0) { groupView.selectedIndex = pick; showGroupNow() } else { groupView.clearSelection(); groupInfo.text = ""; bandCard.show(null); relationsText.text = relations.html(null) }
     }
 
     /** Shows the group picked in the list. */
