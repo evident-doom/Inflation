@@ -73,7 +73,7 @@ internal class WornGround(n: Int) {
     /** A week of [days] days: what was taken comes back. */
     fun fade(days: Int) {
         for (k in 0 until WORN_KINDS) {
-            val keep = exp(-days / (365f * WORN_YEARS[k]))
+            val keep = exp(-days / (inflation.world.Date.DAYS_PER_YEAR * WORN_YEARS[k]))
             val a = taken[k]; val c = crop[k]
             for (p in a.indices) { a[p] *= keep; c[p] *= keep }
             for (s in spots.values) s.taken[k] *= keep

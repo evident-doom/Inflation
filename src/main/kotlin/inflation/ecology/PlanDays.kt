@@ -358,7 +358,7 @@ private fun HexGroups.livingAgainstDays(g: HexGroup, b: Band) =
     b.raidDeathRate * g.size * CUSTOMS_HOSTILITY / CUSTOMS * DEATH_DAYS * keepYears(b, ticksPerYear)
 
 /** Person-days a death costs a band: a person's working generation ([GENERATION_YEARS] of days). An estimate. */
-private const val DEATH_DAYS = GENERATION_YEARS * 365f
+private const val DEATH_DAYS = GENERATION_YEARS * Date.DAYS_PER_YEAR
 /** [SCORED_ACTS]' items by name, for the viewer ([ItemLook]). */
 private val SCORED_NAMES = arrayOf("stores", "grinding stones for gruel", "houses", "weirs", "tools", "sowing")
 /** [SCORED_ACTS]' and [UNRECKONED_ACTS]' items (the clothes last) as the player may pick them ([PlanItem]). */
