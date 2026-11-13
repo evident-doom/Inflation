@@ -181,6 +181,16 @@ internal const val PALISADE_DEFENCE = 1f
 internal const val SURPRISE_RAID = 1f
 internal const val HIGH_GROUND = 0.5f
 
+/**
+ * How far band [g] is under strain, 0..1, for whether crowding or trespass bring it to raid ([raid]): its want this week
+ * (1 - fed) or its reserves run down (1 - fat over the most it holds), whichever is more. Among foragers, raiding and
+ * feuding rise with resource stress, above all unpredictable shortfalls, not with numbers as such (Ember and Ember 1992,
+ * J. Confl. Resolut. 36: 242-262, from memory: to check). (Before 12 Nov 2026 crowding drove raids of itself: at x4 raids
+ * were 14% of grown deaths and at x8 20%, while food did not bind, adults746.)
+ */
+internal fun raidStrain(g: HexGroup): Float =
+    max(1f - g.fed, 1f - g.fat / g.species.maxFatDays.coerceAtLeast(1f)).coerceIn(0f, 1f)
+
 /** [g] raids [o] (as it regards it: [r]) if it is hungry and [o] has food, or holds a feud against its people. Returns whether it did. */
 internal fun HexGroups.raid(g: HexGroup, b: Band, o: HexGroup, ob: Band, r: Regard, weather: Weather): Boolean {
     // What drives a raid: an old feud, or competition (hunger with food in the other's larder, or too
@@ -189,7 +199,10 @@ internal fun HexGroups.raid(g: HexGroup, b: Band, o: HexGroup, ob: Band, r: Rega
     val hunger = if (o.larder > 10f * o.dailyNeedKg) (1f - g.fed) else 0f
     // (On ground it holds as its own, a band drives off those it is not close to: trespass.)
     val trespass = if (b.claims(hw.placeHex[g.place], g.memory) && r.tie <= 0f) CLAIM_PRESSURE else 0f
-    val pressure = if (feud) 1f else maxOf(hunger, min(1f, peopleCrowding(g)), trespass)
+    // (Crowding and trespass drive a band to blows only as far as it is under strain, [raidStrain]: a band fed and with its
+    // reserves full does not raid however many others share its country (Olli, 12 Nov 2026: raiding is a stress reaction).)
+    val strain = raidStrain(g)
+    val pressure = if (feud) 1f else maxOf(hunger, strain * min(1f, peopleCrowding(g)), strain * trespass)
     // (Whether it comes to blows is the band's choice: its readiness to raid; and how it regards the others. And what there
     // is to fight over: a band living fixed has its houses, fields and stores to take or hold; between bands on the move, as
     // mobile foragers, killing between groups is rare, most of their violence being within the band ([MOBILE_RAID]).)
