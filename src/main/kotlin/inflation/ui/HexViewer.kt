@@ -12,8 +12,6 @@ import inflation.Args
 import inflation.Config
 
 import inflation.ecology.HexGeography
-import inflation.ecology.Built
-import inflation.ecology.villages
 import inflation.ecology.HexRoutes
 import inflation.ecology.WATER_LANDMARK_KM
 import inflation.ecology.Catalogue
@@ -89,8 +87,10 @@ import inflation.world.set
 
 /**
  * Watches the hex world: the fine terrain with its hex borders (see [HexPicture]) as the ground,
- * the packs and bands as marks walking hex to hex along the ways they took each week, and one
- * resident kind's density as a tint over the hexes.
+ * the packs and bands as marks walking hex to hex along the ways they took each week, a measure
+ * or one kind's density as a tint over the hexes, and people's works one mark for each thing
+ * standing ([WorksPainter]). Clicking a hex inspects it; a group picked in its list is drawn
+ * ([BandCard]) and told in words.
  *
  * Usage: hex-viewer [--seed N] [--width KM] [--height KM] [--load FILE]
  * (--load carries on a saved world: the seed and size must be the ones it was saved with.) The
@@ -171,10 +171,11 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
     private val pathsBox = JCheckBox("Paths", true)
     /** The names of the great features of the country (see [HexGeography]), written over the map. */
     private val namesBox = JCheckBox("Names", false)
-    /** What people have made in the land: houses and palisades (standing or begun), this year's fields, worn ground. */
+    /** What people have made in the land, one mark for each thing standing (see [WorksPainter]). */
     private val worksBox = JCheckBox("Works", true)
+    private val works = WorksPainter(sim)
     private val features by lazy { HexGeography(hw) }
-    /** Follow mode: the group followed (-1 none), kept in view week by week, with what happened to it. */
+    /** The followed group's week, as its log tells it (see [GroupControlWindow]): shown when that group is picked. */
     @Volatile private var followLog = ""
 
     /** The followed group's controls (see [GroupControlWindow]): part of the run only while open. */
@@ -240,9 +241,13 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         font = Font(Font.MONOSPACED, Font.PLAIN, 12)
     }
     private var groupIds = IntArray(0)
+    /** The group picked in the list, drawn (see [BandCard]); its text beside it. */
+    private val bandCard = BandCard(sim)
 
     init {
-        val bar = JPanel()
+        // Two rows: time, files and windows; then what is drawn, wrapping to as many rows as the width needs.
+        val bar = JPanel(FlowLayout(FlowLayout.LEFT, 4, 2))
+        val shows = JPanel(WrapLayout(FlowLayout.LEFT, 4, 2))
         // (The time controls here take over from the follow window: a week waiting there for the player goes on with the picks shown.)
         val run = runButton
         run.addActionListener { running = !running; run.text = if (running) "Pause" else "Run"; control.overviewTakesOver(); control.syncTime() }
@@ -271,20 +276,10 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         pullChoice.addActionListener { map.repaint() }
         bar.add(run)
         bar.add(step)
-        bar.add(tintChoice)
-        bar.add(modeChoice)
-        bar.add(causeChoice)
-        bar.add(residentChoice)
-        bar.add(flowBox)
-        bar.add(heightBox)
-        bar.add(huntersBox)
-        bar.add(peopleBox)
-        bar.add(pathsBox)
-        bar.add(namesBox)
-        bar.add(worksBox)
-        bar.add(windBox)
-        bar.add(riversBox)
-        bar.add(pullChoice)
+        shows.add(JLabel("Tint:")); shows.add(tintChoice); shows.add(modeChoice); shows.add(causeChoice)
+        shows.add(JLabel("  Kind:")); shows.add(residentChoice); shows.add(flowBox); shows.add(heightBox); shows.add(pullChoice)
+        shows.add(JLabel("  Draw:"))
+        for (box in listOf(peopleBox, huntersBox, worksBox, pathsBox, namesBox, riversBox, windBox)) shows.add(box)
         val graphs = JButton("History…"); graphs.addActionListener { HexHistoryPanel.show(history, live = true, title = "History, seed ${cfg.seed}") }
         // Save the world as it stands, or carry on one saved before.
         val save = JButton("Save…")
@@ -323,7 +318,11 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         val side = JPanel(BorderLayout())
         side.add(JScrollPane(info), BorderLayout.NORTH)
         side.add(JScrollPane(groupView), BorderLayout.CENTER)
-        side.add(JScrollPane(groupInfo), BorderLayout.SOUTH)
+        // The picked group: drawn, and in words.
+        val groupTabs = javax.swing.JTabbedPane()
+        groupTabs.addTab("Band", JScrollPane(bandCard).apply { preferredSize = Dimension(400, 380) })
+        groupTabs.addTab("In words", JScrollPane(groupInfo))
+        side.add(groupTabs, BorderLayout.SOUTH)
         groupView.addListSelectionListener { e -> if (!e.valueIsAdjusting) showGroup() }
         val split = JSplitPane(JSplitPane.HORIZONTAL_SPLIT, map, side)
         split.resizeWeight = 0.75
@@ -331,7 +330,10 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         south.add(legendText.apply { border = BorderFactory.createEmptyBorder(2, 6, 2, 6) }, BorderLayout.NORTH)
         south.add(bottom, BorderLayout.CENTER)
         south.addComponentListener(object : ComponentAdapter() { override fun componentResized(e: ComponentEvent) = bottom.revalidate() })
-        add(bar, BorderLayout.NORTH); add(split, BorderLayout.CENTER); add(south, BorderLayout.SOUTH)
+        val north = JPanel(BorderLayout())
+        north.add(bar, BorderLayout.NORTH); north.add(shows, BorderLayout.CENTER)
+        north.addComponentListener(object : ComponentAdapter() { override fun componentResized(e: ComponentEvent) = shows.revalidate() })
+        add(north, BorderLayout.NORTH); add(split, BorderLayout.CENTER); add(south, BorderLayout.SOUTH)
         snapshot()
         Thread(::loop, "hex simulation").apply { isDaemon = true }.start()
         Timer(33) { if (frame < frames) { frame++; map.repaint() } }.start()
@@ -495,111 +497,6 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         private val upDownLegend = MapLegend("Up/down", "Up/down: where the chosen kind stands in each hex's span of heights, by heads",
             { x -> Color(x, 0.25f, 1f - x, 0.75f) }, listOf(0f to "lowest band", 0.5f to "between", 1f to "highest band"),
             "hexes of one band left clear")
-
-        /**
-         * People's works by hex ([worksBox]): houses (room for how many, standing or begun) and palisades from the structures
-         * that stand ([inflation.ecology.HexGroups.built]); this year's sown fields, their ripe grain and the share of ears that
-         * hold their grain; ground worn by cropping ([inflation.ecology.HexFood.fieldWorn]); and ground cleared ([inflation.ecology.HexFood.cleared]).
-         */
-        private fun paintWorks(g: Graphics2D, sx: (Float) -> Int, sy: (Float) -> Int, onScreen: (Hex, Int) -> Boolean) {
-            val room = FloatArray(hex.size); val begun = FloatArray(hex.size); val fence = FloatArray(hex.size); val pens = FloatArray(hex.size); val halls = FloatArray(hex.size)
-            for (st in groups.bands.built) if (!st.hex.none) when (st.kind) {
-                Built.HOUSES -> if (st.done) room[st.hex] += st.built * st.size else begun[st.hex] += st.built * st.size
-                Built.PALISADE -> fence[st.hex] = max(fence[st.hex], st.built)
-                Built.PEN -> pens[st.hex] += st.built * st.size
-                Built.HALL -> halls[st.hex] = max(halls[st.hex], if (st.done) st.built * st.size else 0f)
-                Built.WEIR, Built.WELL -> {} // (weirs and wells are not drawn)
-            }
-            val food = fauna.food
-            val sownKg = FloatArray(hex.size); val ripeKg = FloatArray(hex.size); val tame = FloatArray(hex.size); val pulse = FloatArray(hex.size); val wornKm2 = FloatArray(hex.size); val clearedKm2 = FloatArray(hex.size)
-            for (p in 0 until land.n) {
-                val h = hw.placeHex[p]; val m2 = land.areaKm2[p] * 1e6f
-                val kg = food.field[p] * m2
-                sownKg[h] += kg; tame[h] += food.fieldDomestic[p] * kg; pulse[h] += food.fieldPulse[p] * kg; ripeKg[h] += food.fieldGrain[p] * m2
-                wornKm2[h] += food.fieldWorn[p] * land.areaKm2[p]; clearedKm2[h] += food.cleared[p] * land.areaKm2[p]
-            }
-            val z = max(0.6, scale).toFloat()
-            val village = IntArray(hex.size)
-            for ((h, bs) in groups.villages()) village[h.i] = bs.size
-            for (h in hex.all) {
-                if (village[h.i] >= 1 && onScreen(h, 1)) {
-                    // A village ([villages]): a ring of a dot for each band below the hex's centre.
-                    val (cx, cy) = hex.centreKm(h)
-                    val x = sx(cx.toFloat()); val y = sy(cy.toFloat()) + (9 * z).toInt(); val d = (3 * z).toInt().coerceAtLeast(2)
-                    for (k in 0 until min(village[h.i], 8)) {
-                        val a = 2 * Math.PI * k / min(village[h.i], 8)
-                        val px = x + (4 * z * cos(a)).toInt(); val py = y + (4 * z * sin(a)).toInt()
-                        g.color = Color(0.9f, 0.2f, 0.6f, 0.95f); g.fillOval(px - d / 2, py - d / 2, d, d)
-                        g.color = Color(1f, 1f, 1f, 0.9f); g.drawOval(px - d / 2, py - d / 2, d, d)
-                    }
-                }
-                if (room[h] + begun[h] + fence[h] + pens[h] + halls[h] + sownKg[h] + ripeKg[h] + wornKm2[h] + clearedKm2[h] <= 0f || !onScreen(h, 1)) continue
-                val (cx, cy) = hex.centreKm(h)
-                val x = sx(cx.toFloat()); val y = sy(cy.toFloat())
-                if (room[h] + begun[h] > 0f) {
-                    // A house, larger for room for more people; filled when whole, outlined while only begun.
-                    val r = (z * (3f + 1.5f * ln(1f + (room[h] + begun[h]) / 10f))).toInt().coerceAtLeast(2)
-                    val hx = x + (6 * z).toInt(); val hy = y - (6 * z).toInt()
-                    val xs = intArrayOf(hx - r, hx, hx + r, hx + r, hx - r); val ys = intArrayOf(hy, hy - r, hy, hy + r, hy + r)
-                    g.color = Color(0.45f, 0.25f, 0.1f, 0.95f)
-                    if (room[h] > 0f) g.fillPolygon(xs, ys, 5)
-                    g.color = Color(1f, 0.95f, 0.85f, 0.95f); g.drawPolygon(xs, ys, 5)
-                    if (fence[h] > 0f) {
-                        // The palisade: a ring round the houses, as much of it as stands.
-                        val stroke = g.stroke; g.stroke = BasicStroke(1.5f * z)
-                        g.color = Color(0.3f, 0.15f, 0.05f, 0.95f)
-                        g.drawArc(hx - 2 * r, hy - 2 * r, 4 * r, 4 * r, 90, -(360 * fence[h]).toInt())
-                        g.stroke = stroke
-                    }
-                }
-                if (halls[h] > 0f) {
-                    // A hall (to the upper right of the houses): a long roofed building, wider for more people gathered in it.
-                    val w = (z * (4f + 2f * ln(1f + halls[h] / 30f))).toInt().coerceAtLeast(3); val r = (3 * z).toInt().coerceAtLeast(2)
-                    val ax = x + (14 * z).toInt(); val ay = y - (10 * z).toInt()
-                    g.color = Color(0.75f, 0.55f, 0.85f, 0.95f); g.fillRect(ax - w, ay, 2 * w, 2 * r)
-                    g.color = Color(0.35f, 0.15f, 0.45f, 0.95f); g.fillPolygon(intArrayOf(ax - w - 1, ax, ax + w + 1), intArrayOf(ay, ay - 2 * r, ay), 3)
-                }
-                if (pens[h] > 0f) {
-                    // A pen (to the upper left): a fenced square of stakes, larger for more head.
-                    val r = (z * (2f + ln(1f + pens[h] / 20f))).toInt().coerceAtLeast(2)
-                    val px = x - (9 * z).toInt(); val py = y - (9 * z).toInt()
-                    val stroke = g.stroke; g.stroke = BasicStroke(1.2f * z)
-                    g.color = Color(0.85f, 0.6f, 0.3f, 0.95f); g.drawRect(px - r, py - r, 2 * r, 2 * r)
-                    g.drawLine(px - r, py, px + r, py)
-                    g.stroke = stroke
-                }
-                if (sownKg[h] + ripeKg[h] + wornKm2[h] + clearedKm2[h] > 0f) {
-                    val fx = x - (9 * z).toInt(); val fy = y + (3 * z).toInt(); val w = (6 * z).toInt().coerceAtLeast(3)
-                    if (sownKg[h] + ripeKg[h] > 0f) {
-                        // A field: green while it grows, gold when there is ripe grain; ringed white where most ears hold their grain.
-                        g.color = if (ripeKg[h] > 0f) Color(0.95f, 0.75f, 0.15f, 0.95f) else Color(0.35f, 0.7f, 0.2f, 0.95f)
-                        g.fillRect(fx, fy, w, w)
-                        g.color = Color(0.25f, 0.15f, 0.05f, 0.9f)
-                        g.drawLine(fx, fy + w / 3, fx + w, fy + w / 3); g.drawLine(fx, fy + 2 * w / 3, fx + w, fy + 2 * w / 3)
-                        if (sownKg[h] > 0f && tame[h] / sownKg[h] > 0.5f) { g.color = Color.WHITE; g.drawRect(fx - 1, fy - 1, w + 1, w + 1) }
-                        // Pulses sown in it: a purple dot in its corner, larger for a larger share of the seed.
-                        if (sownKg[h] > 0f && pulse[h] > 0.05f * sownKg[h]) { val d = (w * min(1f, 0.3f + pulse[h] / sownKg[h])).toInt().coerceAtLeast(2)
-                            g.color = Color(0.5f, 0.2f, 0.6f, 0.95f); g.fillOval(fx + w - d / 2, fy - d / 2, d, d) }
-                    } else if (wornKm2[h] > 0f) {
-                        // Ground worn by cropping and left to rest.
-                        g.color = Color(0.55f, 0.4f, 0.25f, 0.8f); g.drawRect(fx, fy, w, w); g.drawLine(fx, fy + w, fx + w, fy)
-                    } else {
-                        // Ground cleared for fields and not cropped, growing back.
-                        g.color = Color(0.8f, 0.7f, 0.5f, 0.8f); g.drawRect(fx, fy, w, w)
-                    }
-                }
-            }
-        }
-        private val worksLegend = MapLegend("Works", "People's works: a house (to the upper right of a hex's centre) where houses stand, filled when " +
-            "whole, outlined while only begun, larger for room for more people; a brown ring round it for a palisade, as much of the ring as stands. " +
-            "A field (to the lower left) where grain was sown this year: green while it grows, gold with ripe grain standing, ringed white where most " +
-            "of the sown seed is of ears that hold their grain, a purple dot in its corner where pulses are sown in it, larger for more of them; an outlined, crossed square for ground worn by cropping and left to rest; a pale outlined square for ground cleared for fields, not cropped and growing back. " +
-            "A hall (to the upper right of the houses), the village's, where its people gather: a long roofed building, wider for more people. " +
-            "A pen (to the upper left) where kept animals are penned at night: a fenced square, larger for more head. " +
-            "A village (below the centre) where two or more bands live settled in the hex, or one band at home larger than a camp: a ring of a dot for each band.",
-            swatches = listOf(MapLegend.Swatch(Color(0.45f, 0.25f, 0.1f), "houses"), MapLegend.Swatch(Color(0.35f, 0.7f, 0.2f), "field growing"),
-                MapLegend.Swatch(Color(0.95f, 0.75f, 0.15f), "field ripe"), MapLegend.Swatch(Color(0.5f, 0.2f, 0.6f), "pulses sown"), MapLegend.Swatch(Color(0.85f, 0.6f, 0.3f), "pen"), MapLegend.Swatch(Color(0.55f, 0.4f, 0.25f), "worn ground"),
-                MapLegend.Swatch(Color(0.9f, 0.2f, 0.6f), "village")))
 
         private fun paintMap(g: Graphics2D) {
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
@@ -816,8 +713,8 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             }
             // People's works: houses and palisades to the upper right of a hex's centre, fields to the lower left.
             if (worksBox.isSelected) {
-                paintWorks(g, ::sx, ::sy, ::onScreen)
-                legends += worksLegend
+                works.paint(g, scale, ::sx, ::sy, ::onScreen)
+                legends += WorksPainter.legend
             }
             // The hex being inspected.
             if (!picked.none) {
@@ -1090,6 +987,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             .joinToString(", ") { (s, l) -> "%s %d in %d".format(s.name, l.sumOf { it.size }, l.size) }.ifEmpty { "none" })
         sb.appendLine("   forage (grass and browse) %.0f t, rodents and reptiles %.1f t, carrion %.1f t".format(food * 1000, small / 1000, carrion / 1000))
         sb.appendLine("river: biggest %.0f m³/s, flow now %.0f m³/s".format(land.hydro.meanFlow[h], land.hydro.flow[h]))
+        works.describe(h).takeIf { it.isNotEmpty() }?.let { sb.appendLine("works:"); sb.append(it) }
         // The tinted measure here: this week, and month by month over the last year.
         val tint = Measure.entries[tintChoice.selectedIndex]
         if (tint.tints) {
@@ -1124,7 +1022,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         for ((i, r) in rows.withIndex()) if (i < groupList.size()) { if (groupList[i] != r) groupList[i] = r } else groupList.addElement(r)
         while (groupList.size() > rows.size) groupList.removeElementAt(groupList.size() - 1)
         val again = groupIds.indexOf(picked)
-        if (again >= 0) { groupView.selectedIndex = again; showGroupNow() } else { groupView.clearSelection(); groupInfo.text = "" }
+        if (again >= 0) { groupView.selectedIndex = again; showGroupNow() } else { groupView.clearSelection(); groupInfo.text = ""; bandCard.show(null) }
     }
 
     /** Shows the group picked in the list. */
@@ -1134,6 +1032,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         val i = groupView.selectedIndex
         if (i < 0 || i >= groupIds.size) return
         val g = groups.groups.firstOrNull { it.id == groupIds[i] } ?: return
+        bandCard.show(g)
         val s = g.species
         val sb = StringBuilder()
         sb.appendLine("%s #%d".format(s.name, g.id))

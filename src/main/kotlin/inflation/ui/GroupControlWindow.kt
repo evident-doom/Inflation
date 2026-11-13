@@ -126,6 +126,8 @@ class GroupControlWindow(
     private val knows = text()
     private val place = text()
     private val lastWeek = text()
+    /** The group's state drawn ([BandCard]). */
+    private val card = BandCard(sim)
     private val map = LocalMap()
     private val table = JTable()
     private val tableModel = Choices()
@@ -165,6 +167,7 @@ class GroupControlWindow(
         val choices = JSplitPane(JSplitPane.VERTICAL_SPLIT, JScrollPane(table), JScrollPane(place)).apply { resizeWeight = 0.6 }
         val tabs = JTabbedPane()
         tabs.addTab("Status", JScrollPane(status))
+        tabs.addTab("Band", JScrollPane(card))
         tabs.addTab("Plan", plan.component)
         tabs.addTab("Where to go", choices)
         tabs.addTab("Ways", JScrollPane(waysPanel))
@@ -327,7 +330,8 @@ class GroupControlWindow(
             handsOff.isSelected -> "  The model decides; the choices shown are the ones it made."
             else -> "  Running…"
         }
-        if (g == null) { title.text = " "; status.text = ""; map.repaint(); return }
+        if (g == null) { title.text = " "; status.text = ""; card.show(null); map.repaint(); return }
+        card.show(g)
         val s = g.species
         val date = sim.weather.date
         title.text = "  %s #%d — year %d, month %d, day %d%s".format(s.name, g.id, date.year, date.month + 1, date.dayOfMonth, if (w) "   (deciding)" else "")
