@@ -81,9 +81,6 @@ class SharedMover(val net: Mlp, val identity: FloatArray) {
         if (band > 0) { into.fill(0f, INPUTS, inputs); state?.copyInto(into, INPUTS, 0, min(state.size, band)) }
     }
 
-    /** The size of its last hidden layer: what a band's ways read of the place it chose ([plan]). */
-    val trunk get() = net.sizes[net.sizes.size - 2]
-
     /**
      * How it sees candidate place [features] for a group of kind [s] with temperament [temper] and view of itself [state]: its last
      * hidden layer on that input, written whole into [input] (as [fill] does), run in [b].

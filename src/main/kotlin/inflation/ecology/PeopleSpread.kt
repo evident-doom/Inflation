@@ -117,9 +117,13 @@ internal fun HexGroups.placeFood(p: Place): Float {
 internal fun HexGroups.hexFood(h: Hex): Float {
     var kg = 0f
     for (pi in hw.placesOf(h)) kg += placeFood(Place(pi))
-    // (The fish and shellfish within reach, not the spring run, which comes in its season.)
+    return kg + hexFish(h)
+}
+
+/** The fish and shellfish within reach of hex [h] that people land a year, kg ([FISH_TAKEN]); not the spring run, which comes in its season. */
+private fun HexGroups.hexFish(h: Hex): Float {
     val fish = fauna.water.fishWithin(h, 1f, HexWater.Catch.FISH) + fauna.water.fishWithin(h, 1f, HexWater.Catch.SHELLFISH)
-    return kg + fish * Date.DAYS_PER_YEAR / days * FISH_TAKEN
+    return fish * Date.DAYS_PER_YEAR / days * FISH_TAKEN
 }
 
 /**
@@ -137,8 +141,7 @@ internal fun HexGroups.hexFoodNow(s: Species, h: Hex): Float {
         // exposure and thirst.)
         kg += (preyHere(s, p) * GAME_TAKE + fauna.food.roots[p.i] * 1e6f * ROOTS_TAKEN) * fauna.startWeight(s, p)
     }
-    val fish = fauna.water.fishWithin(h, 1f, HexWater.Catch.FISH) + fauna.water.fishWithin(h, 1f, HexWater.Catch.SHELLFISH)
-    return kg + fish * Date.DAYS_PER_YEAR / days * FISH_TAKEN
+    return kg + hexFish(h)
 }
 
 /** The people of the bands living in each hex, by the hex's index, those in [also] counted too (bands made this step). */
