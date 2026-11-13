@@ -18,8 +18,7 @@ import kotlin.math.sqrt
 /**
  * One band's reach beyond its camp, drawn over the map: the country it knows (faint), the ground its hunters searched and
  * its gatherers worked in its last week, and the places it holds in mind: its houses, cache, the place its dead mostly lie,
- * its meeting place and month, its rite sites by month, the places it keeps to by month, the homes of other bands it knows
- * of, where it was driven from; a raid it set out on and a scouting party it has out. Read from the world as it stands; call
+ * its meeting place and month, its rite sites by month, the places it keeps to by month, where it was driven from; a raid it set out on and a scouting party it has out. Read from the world as it stands; call
  * only while it stands still (see [WorldLock]).
  */
 internal class BandGroundPainter(private val sim: HexSim) {
@@ -92,11 +91,6 @@ internal class BandGroundPainter(private val sim: HexSim) {
             g.color = RITE; g.fillPolygon(intArrayOf(x - r, x, x + r), intArrayOf(y + r, y - r, y + r), 3)
             label(h, "rite " + ms.joinToString(","), RITE, 12)
         }
-        // The homes of the bands it knows of.
-        for ((_, h) in b.knownHomes) if (onScreen(h, 1)) {
-            val (x, y) = centre(h); val r = (3 * z).toInt().coerceAtLeast(2)
-            g.color = HOMES; g.drawOval(x - r, y - r, 2 * r, 2 * r)
-        }
         // Its houses, cache, ancestors, where it was driven from.
         if (!b.houseHex.none) { line(b.houseHex, HOUSE, false); label(b.houseHex, "its houses", HOUSE) }
         if (!b.cachePlace.none && b.cacheKg >= 1f) { val h = hw.placeHex[b.cachePlace]; line(h, CACHE, true); label(h, "cache %.0f kg".format(b.cacheKg), CACHE, 12) }
@@ -125,7 +119,6 @@ internal class BandGroundPainter(private val sim: HexSim) {
         private val HUNT = Color(0.95f, 0.3f, 0.1f, 0.9f)
         private val SEASON = Color(1f, 1f, 0.6f)
         private val RITE = Color(0.75f, 0.45f, 1f)
-        private val HOMES = Color(1f, 0.95f, 0.85f, 0.85f)
         private val HOUSE = Color(1f, 0.8f, 0.4f)
         private val CACHE = Color(0.9f, 0.75f, 0.5f)
         private val DEAD = Color(0.85f, 0.85f, 0.85f)
@@ -137,9 +130,8 @@ internal class BandGroundPainter(private val sim: HexSim) {
             "wash; green, the hexes it walked through last week and, fainter, the hexes round its camp its gatherers worked, as far as they " +
             "did; red outlines, the ground its hunters searched, the fuller the more of the hex. Labels: the places it keeps to by month (m1-m12), " +
             "its rite sites (triangles), its houses, cache and the place most of its dead lie (cross), its meeting place and month, a raid it set " +
-            "out on, its scouting party and the party's goal, where raiders drove it from while the feud lasts; open rings, the homes of other " +
-            "bands it knows of.", swatches = listOf(MapLegend.Swatch(GATHER, "gathered"), MapLegend.Swatch(HUNT, "hunted"),
-                MapLegend.Swatch(SEASON, "places by month"), MapLegend.Swatch(RITE, "rite site", triangle = true), MapLegend.Swatch(HOMES, "homes it knows of"),
+            "out on, its scouting party and the party's goal, where raiders drove it from while the feud lasts.", swatches = listOf(MapLegend.Swatch(GATHER, "gathered"), MapLegend.Swatch(HUNT, "hunted"),
+                MapLegend.Swatch(SEASON, "places by month"), MapLegend.Swatch(RITE, "rite site", triangle = true),
                 MapLegend.Swatch(MEET, "meeting place"), MapLegend.Swatch(RAID, "raid"), MapLegend.Swatch(PARTY, "scouting party")))
     }
 }
