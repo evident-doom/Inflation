@@ -233,7 +233,7 @@ private fun HexFauna.surplusShare(k: FaunaKind, p: Place): Float {
  * its animal need met; what it ate beyond, laid on, goes to [Grazing.surplus].
  */
 /** What the residents of a place found of its carrion as it lay ([HexSmallLife.residentCarrion]) as they set out to feed, and how well they all come on it then ([carrionSearch]). */
-private class Found(val held: Float, val want: Float)
+private class Found(val held: Float, var want: Float)
 
 /**
  * How well kind [k] comes on the carrion at place [p], for its share of what the residents found as it lay ([Found]): as a
@@ -259,7 +259,10 @@ private fun HexFauna.animalFood(k: FaunaKind, p: Place, weather: Weather, z: Gra
         // Carrion first, where it eats any: a carcass lying there costs no chase and no digging, so
         // it eats what it finds (at most half of what lies there) before it hunts or makes up plants.
         // (What they found as it lay goes to each kind by how well it comes on carrion, not to the first to feed: [Found].)
-        var mine = if (found.want > 0f) found.held * carrionSearch(k, p) / found.want else 0f
+        // (Of what is still held, as the kinds before it fed: what they left goes to those after, the boar among them.)
+        val search = carrionSearch(k, p)
+        var mine = if (found.want > 0f) small.residentCarrion[p] * min(1f, search / found.want) else 0f
+        found.want -= search
         fun scavengeMine(want: Float): Float { val (got, held) = small.scavengeHeld(p, want, mine); mine -= held; return got }
         var gotCarrion = if (d.carrion > 0f) scavengeMine(animalNeed + plantGap) else 0f
         // (Over a step of several ticks, taken whole: the residents that eat carrion come on it as it lies at the rate their
