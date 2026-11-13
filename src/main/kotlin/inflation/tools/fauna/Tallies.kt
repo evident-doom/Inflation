@@ -667,6 +667,21 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
                 " | raids %.1f, by beasts %.1f".format(yearly(DeathCause.RAIDS.label) * per,
                     causes.keys.filter { it.text.startsWith(Tally.of(Catalogue.HUMAN).text + ByBeast.How.KILLED_BY.words) }.sumOf { yearly(Tally.whatOf(it)) } * per))
         }
+        run {
+            // (Bands starving, their protein burnt FAMINE_SPENT days or more: deaths per 1000 a year by age and cause, from the
+            // odds. The famine-by-age check: the young's and the elders' above the prime's, illness at least as many as hunger.)
+            val f = sim.groups.stats.famine.mapValues { it.value.sumThenReset() }
+            fun v(k: String) = f[k] ?: 0.0
+            fun per(d: Double, w: String) = 1000.0 * d / v("years $w").coerceAtLeast(1e-9)
+            val grownAll = v("grown hunger") + v("grown illness") + v("grown other")
+            val primeYears = (v("years grown") - v("years elders")).coerceAtLeast(1e-9)
+            println(("     deaths in starving bands (protein burnt %.0f d and over; per 1000 a year, from the odds; %.0f people-years): " +
+                "grown hunger %.1f, illness %.1f, other %.1f; young hunger %.1f, illness %.1f, other %.1f; elders all %.1f, prime all %.1f").format(
+                inflation.ecology.FAMINE_SPENT, v("years grown") + v("years young"),
+                per(v("grown hunger"), "grown"), per(v("grown illness"), "grown"), per(v("grown other"), "grown"),
+                per(v("young hunger"), "young"), per(v("young illness"), "young"), per(v("young other"), "young"),
+                per(v("elders all"), "elders"), 1000.0 * (grownAll - v("elders all")) / primeYears))
+        }
         val hex = sim.hex
         // (Bouts a 1000 a year: the people-weeks sick over the weeks a bout lasts, per person-year. Shigellosis 0.6-107 a 1000 a
         // year in population-based studies, Ram et al. 2008.)

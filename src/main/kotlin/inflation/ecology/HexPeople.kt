@@ -104,19 +104,6 @@ internal const val CARRY_MOVES = 5f
 internal const val HUMAN_THIRST = 0.3f
 /** How much more thirst troubles people on ground they do not know (they look for water where animals and birds lead them). */
 internal const val STRANGER_THIRST = 2f
-/**
- * In a lean week a child goes without this much less of its share of the band's shortfall than a grown one: parents feed
- * their children before themselves (a drive found in every forager society, Hawkes, O'Connell and Blurton Jones on Hadza
- * sharing, from memory: to check; the size is a guess). The food is only moved, not made: the grown go without the more.
- * Olli 2026-11-05: the young are kept alive no matter what, so most of a child's share goes to it (0.5 before).
- */
-internal const val CHILDREN_FIRST = 0.8f
-/**
- * In a lean week an elder goes without this many times the share of the band's shortfall that another grown one does: the
- * old give their food to the young and to those who bear and feed them (Olli 2026-11-05: in want the old suffer; the size is
- * a guess). The food is only moved: the others go without the less, and the elders die of hunger the more ([elderRisk]).
- */
-internal const val ELDERS_YIELD = 2f
 /** People's births against the catalogue's rate: long nursing spaces births three and a half to four years apart. */
 internal const val HUMAN_BIRTHS = 0.8f
 
