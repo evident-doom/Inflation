@@ -40,6 +40,9 @@ internal class RelationsView(private val sim: HexSim) {
         recent = (listOf<List<Dealing>>(now) + recent).take(WEEKS_KEPT)
     }
 
+    /** The dealings of the last [WEEKS_KEPT] weeks that group [id] had a part in, each with its age in weeks (0 this week). */
+    fun of(id: Int): List<Pair<Int, Dealing>> = recent.withIndex().flatMap { (age, w) -> w.filter { it.from == id || it.to == id }.map { age to it } }
+
     /** Forgets the dealings (after a load). */
     fun reset() { groups.dealings.clear(); recent = emptyList() }
 
@@ -152,6 +155,8 @@ internal class RelationsView(private val sim: HexSim) {
             Color(1f, 1f, 1f), Color(0.35f, 0.95f, 0.35f), Color(0.95f, 0.9f, 0.7f), Color(0.6f, 0.9f, 0.6f),
             Color(1f, 0.8f, 0.15f), Color(0.3f, 0.8f, 0.9f), Color(1f, 0.5f, 0.8f), Color(0.75f, 0.75f, 0.75f),
             Color(0.75f, 0.45f, 1f), Color(1f, 0.15f, 0.1f), Color(1f, 0.55f, 0.1f))
+        /** The colour [k] is drawn in. */
+        fun colourOf(k: Dealing.Kind): Color = COLOURS[k.ordinal]
         /** Which kind of a week's dealings between two bands is drawn: the weightiest. */
         private val WEIGHT = intArrayOf(0, 5, 3, 4, 6, 5, 7, 1, 2, 9, 8)
 
