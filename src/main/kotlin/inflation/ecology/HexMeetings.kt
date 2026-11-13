@@ -141,7 +141,7 @@ internal fun HexGroups.meet(weather: Weather) {
  * Bands that hold their home hex ([staysHome]) keep their appointments ([Band.appointment]) without moving camp: in the step
  * that holds the start of an appointment's month, the bands that share its place each send people there, and every two of
  * them meet ([bandsMeet]), the first [GATHERING_MOST] to come; each one's going there and back wears the way
- * ([wearBetween]). A band that took up another's appointment (when bands meet) comes to its gatherings: so gatherings
+ * ([wearBetween]) and costs its [VISITORS] the days of the walk. Only bands whose home is within [CONTACT_KM] of the place come. A band that took up another's appointment (when bands meet) comes to its gatherings: so gatherings
  * grow where bands' dead lie and where they have met. (A band alone at its place meets no one there.)
  */
 @Part("meetings: appointments kept")
@@ -150,15 +150,24 @@ internal fun HexGroups.keepAppointments(weather: Weather) {
     val at = LinkedHashMap<Pair<Hex, Int>, ArrayList<HexGroup>>()
     for (g in groups) {
         if (!g.alive || !staysHome(g)) continue
-        val ap = g.band?.appointment ?: continue
+        val b = g.band ?: continue
+        val ap = b.appointment ?: continue
         if (!weather.date.holdsMonthStart(days, ap.month)) continue
+        // (A place beyond [CONTACT_KM] of its home is beyond its people's reach: it lets the appointment go, and may make a
+        // nearer one. Before 13 Nov 2026 bands kept appointments however far their home lay, so bands 200 km and more apart
+        // met yearly: appointments are copied at splits and taken up at meetings.)
+        if (hex.distanceKm(hw.placeHex[g.place], ap.hex) > CONTACT_KM) { b.appointment = null; stats.meeting(Met.APPOINTMENTS_OUT_OF_REACH); continue }
         at.getOrPut(ap.hex to ap.month) { ArrayList() } += g
     }
     for ((key, there) in at) {
         if (there.size < 2) continue
         val site = key.first
         val came = there.take(GATHERING_MOST)
-        for (g in came) wearBetween(hw.placeHex[g.place], site, g)
+        for (g in came) {
+            wearBetween(hw.placeHex[g.place], site, g)
+            // (Its [VISITORS] walk there and back, taken from its next step's days as raiders' walks are: [Band.raidWalkOwed].)
+            g.band?.let { b -> b.raidWalkOwed += VISITORS * (2.0 * hex.distanceKm(hw.placeHex[g.place], site) / (WALK_KM_PER_HOUR * Activity.WORK_HOURS)).toFloat() }
+        }
         stats.meeting(Met.APPOINTMENTS_GATHERED); stats.meeting(Met.BANDS_AT_APPOINTMENTS, came.size)
         for (i in came.indices) for (j in i + 1 until came.size) if (came[i].alive && came[j].alive) {
             settleAt(came[i], came[j], site, weather, intent = Intent.GATHERING) }
@@ -195,7 +204,7 @@ internal fun HexGroups.neighboursMeet(weather: Weather) {
     // met ([meetingFresh], [meetTick]), and the freshness of meetings adds up, so the step's tellings and feasts come to what
     // its meetings one by one would have. The pairs are met in the order of those ticks. So a step costs a meeting a pair,
     // not a meeting a meeting: a 60-day step's ten meetings between neighbours are one.)
-    class Due(val tick: Int, val times: Int, val a: HexGroup, val b: HexGroup, val way: List<Hex>)
+    class Due(val tick: Int, val times: Int, val a: HexGroup, val b: HexGroup, val way: List<Hex>, val km: Float, val bVisits: Boolean)
     val due = ArrayList<Due>()
     // (Each band's going to the hexes about it, and those of them where bands live in index order, on all cores: they read
     // only the step's crossings. The draws then go band by band in the groups' order, as they always did.)
@@ -218,9 +227,17 @@ internal fun HexGroups.neighboursMeet(weather: Weather) {
             val km = reach.getValue(h).first
             val mean = rate * NEIGHBOUR_FALL.pow(max(0f, km - easy) / easy)
             for (b in bs) if (b.id > a.id) {
-                val times = poisson(mean, r); if (times == 0) continue
+                val drawn = poisson(mean, r); if (drawn == 0) continue
+                // (Either may be the one that walks over, drawn: not always the lower id's people.)
+                val bVisits = r.nextBoolean()
+                // (Beyond its own ground ([OWN_GROUND_HEXES]) a meeting is a trip the visitor makes as far as its time for its
+                // customs went to its last trips ([Band.visitShare]): a band short of days visits less, not for free.)
+                val times = if (km <= OWN_GROUND_HEXES * easy) drawn else {
+                    val share = (if (bVisits) b else a).band?.visitShare ?: 1f
+                    var k = 0; repeat(drawn) { if (r.nextFloat() < share) k++ }; k }
+                if (times == 0) continue
                 var last = 0; repeat(times) { last = max(last, r.nextInt(ticks)) }
-                due += Due(last, times, a, b, wayTo(reach, h0, h))
+                due += Due(last, times, a, b, wayTo(reach, h0, h), km, bVisits)
             }
         }
     }
@@ -232,7 +249,12 @@ internal fun HexGroups.neighboursMeet(weather: Weather) {
         stats.meeting(Met.NEIGHBOURS_MET, m.times)
         // (Each going there and back wears the way: the meetings' wear compounded, as one after another would.)
         wear.along(m.way, 1f - (1f - w).pow(m.times))
-        settleAt(m.a, m.b, hw.placeHex[m.b.place], weather)
+        // (Within their own grounds bands come on each other as their foragers go about: that walk is the foraging's. Beyond,
+        // the visitors walk there and back for it, from the band's time for its customs ([Band.visitOwed]). carry758: charged
+        // as a trip each, all 2-4 a week, from any work, the walks took bands' days from food and starved them.)
+        val (visitor, host) = if (m.bVisits) m.b to m.a else m.a to m.b
+        if (m.km > OWN_GROUND_HEXES * easy) visitor.band?.let { it.visitOwed += visitDays(VISITORS * m.times, m.km.toDouble()) }
+        settleAt(visitor, host, hw.placeHex[host.place], weather)
     }
     meetTick = 0; meetTimes = 1
 }
@@ -278,6 +300,11 @@ internal const val CONTACT_KM = 50f
 internal const val NEIGHBOUR_RINGS = 5
 /** The people who go to a band about and back for a meeting ([neighboursMeet]), for the wear of their going. An estimate. */
 internal const val VISITORS = 4f
+/** How far apart, in hexes of easy going, two bands' grounds (each its home hex and the ring about it) overlap: their foragers meet there on their rounds. */
+internal const val OWN_GROUND_HEXES = 2f
+
+/** The days [people] give to walk [km] there and back ([Band.raidWalkOwed]: taken from the band's next step). */
+internal fun visitDays(people: Float, km: Double) = people * (2.0 * km / (WALK_KM_PER_HOUR * Activity.WORK_HOURS)).toFloat()
 
 /**
  * Two parties come on each other at hex [h] (place [p]), however they came to: by their timetables, by their grounds
@@ -547,6 +574,13 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
     // (Each tells the other how its camp has lately yielded: how a planning band judges a fresh camp, [tellYield].)
     tellYield(a, b, weather.date); tellYield(b, a, weather.date)
     if (meetingEndsInRaid(a, b, weather, rite, fresh, strangers)) return
+    // (Food passes between camps only as people carry it on foot. Olli, 13 Nov 2026: any contact between bands is a walk,
+    // nothing moves free. Bands camped in one hex share as they will. Bands from hexes apart share what the [VISITORS] carry,
+    // [CARRY_KG] each, for each meeting the step holds. At a rite's gathering each shares what it brought for the trip,
+    // [Band.riteFood]. Feasts and beer come out of the same loads.)
+    var carry = if (rite == null && hw.placeHex[a.place] != hw.placeHex[b.place]) VISITORS * CARRY_KG * meetTimes else Float.POSITIVE_INFINITY
+    fun canGive(giver: HexGroup) = if (rite != null) giver.band?.riteFood ?: Float.POSITIVE_INFINITY else carry
+    fun gave(giver: HexGroup, kg: Float) { if (rite != null) giver.band?.let { it.riteFood = max(0f, it.riteFood - kg) } else carry = max(0f, carry - kg) }
     val (poor, rich) = if (a.wellOff() < b.wellOff()) a to b else b to a
     // Bands that hold to sharing give more, and sooner.
     val sharing = rich.band?.holds(Tradition.SHARING) == true
@@ -560,7 +594,9 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
         rich.band?.let { rb -> dialUse?.amount(DialSite.GIVE_MEETING, rb.giveWill, chosen, atOne * rich.larder) }
         // (And no less than the favours it owes the poor band, as fully as it returns them.)
         val week = poor.dailyNeedKg * days
-        val gift = given(rich, poor, chosen, (1f - poor.fed) * week + week)
+        val carried = canGive(rich)
+        val gift = given(rich, poor, min(chosen, carried), min((1f - poor.fed) * week + week, carried))
+        gave(rich, gift)
         if (gift > 0f) {
         moveFood(rich, poor, gift, LarderMove.GIFT)
         poor.band?.befriend(rich.id, TIE_GIFT); rich.band?.befriend(poor.id, 0.5f * TIE_GIFT)
@@ -642,13 +678,16 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
         val spare = host.larder - hb.storeAim * host.dailyNeedKg
         dialUse?.amount(DialSite.STORE_HOST, hb.storeShare, max(0f, spare), max(0f, host.larder - hb.storeAimAt1 * host.dailyNeedKg))
         if (spare <= 0f) continue
-        val meal = min(spare, FEAST_KG * guest.size * keen)
+        val meal = minOf(spare, FEAST_KG * guest.size * keen, canGive(host))
+        if (meal <= 0f) continue
+        gave(host, meal)
         moveFood(host, guest, meal, LarderMove.FEAST)
         // With grain to spare and vessels to brew in, the host pours beer: the feast is remembered better. It brews only grain
         // beyond its seed corn and beyond what it means to keep laid by: a band does not drink the seed it sows.
         val grain = host.stores[Store.SEED] - hb.seedCornIn(host)
         val beer = if (hb.has(Tool.BASKET) > 0.5f && hb.has(Tool.GRINDER) > 0.2f)
-            max(0f, minOf(0.2f * grain, spare - meal, BEER_KG * guest.size)) else 0f
+            max(0f, minOf(0.2f * grain, spare - meal, BEER_KG * guest.size, canGive(host))) else 0f
+        gave(host, beer)
         if (beer > 0f) {
             host.stores[Store.SEED] -= beer; stats.meeting(Met.FEASTS_WITH_BEER)
             land.books?.flow(Books.Stuff.MATTER, "eaten", -(beer * host.storeKgPer[Store.SEED]).toDouble())

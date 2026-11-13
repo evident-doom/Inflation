@@ -137,8 +137,12 @@ internal fun HexGroups.feastOnKills(weather: Weather) {
         var ring = listOf(h0); val seen = hashSetOf(h0)
         for (r in 0..VISIT_RINGS) {
             for (h in ring) for (guest in byHex[h].orEmpty()) if (guest !== host && left > 0f) {
-                val meal = min(left, FEAST_KG * guest.size * keen)
+                // (From another hex the guests' [VISITORS] come and carry home what they can, [MEAT_LOAD_KG] each, and give
+                // the days of the walk ([visitDays]). Olli, 13 Nov 2026: no free movement.)
+                val apart = r > 0
+                val meal = minOf(left, FEAST_KG * guest.size * keen, if (apart) VISITORS * MEAT_LOAD_KG else Float.POSITIVE_INFINITY)
                 if (meal <= 0f) continue
+                if (apart) guest.band?.let { it.raidWalkOwed += visitDays(VISITORS, hex.distanceKm(h0, h)) }
                 host.stores[Store.FRESH] -= meal; addFood(guest.stores, guest.storeKgPer, Store.FRESH, meal, meal * host.storeKgPer[Store.FRESH])
                 hb.larderMoved(host, LarderMove.FEAST, -meal); guest.band?.larderMoved(guest, LarderMove.FEAST, meal)
                 left -= meal

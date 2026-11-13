@@ -1617,9 +1617,9 @@ class Census(private val sim: HexSim) {
             .format(met(Met.BANDS_SPLIT), met(Met.SMALL_BANDS_JOINED_KIN), met(Met.BANDS_BECAME_ONE), met(Met.BANDS_OF_TWO_MINDS_BECAME_ONE),
                 met(Met.BANDS_TOOK_UP_A_DISPUTE_WAY), met(Met.BANDS_LET_A_DISPUTE_WAY_LAPSE), met(Met.BANDS_TOOK_UP_ANOTHERS_DISPUTE_WAY)))
         // (Bands that hold their home hex, t.bandsStay: what they did with their neighbours and their country this year.)
-        if (sim.land.tuning.bandsStay) println("     staying bands' year: %d neighbour meetings (all meetings of bands: %d, of them telling of the country %d), %d gatherings at appointments (%d bands came), %d camp shifts within the hex, %d budded into another hex and %d in their parent's, %d households moved to a roomier hex, %d bands moved whole, %d raids set out; discord past the easy size: %d bands split off (counted in budded too), %d times households joined a band with room"
-            .format(met(Met.NEIGHBOURS_MET), met(Met.BANDS_MET), met(Met.BANDS_TOLD_OF_COUNTRY), met(Met.APPOINTMENTS_GATHERED), met(Met.BANDS_AT_APPOINTMENTS), met(Met.BANDS_SHIFTED_CAMP), met(Met.BANDS_BUDDED_OUT),
-                met(Met.BANDS_BUDDED_IN_PLACE), met(Met.HOUSEHOLDS_SEEPED), met(Met.BANDS_RELOCATED), met(Met.RAIDS_SET_OUT),
+        if (sim.land.tuning.bandsStay) println("     staying bands' year: %d neighbour meetings (all meetings of bands: %d, of them telling of the country %d), %d gatherings at appointments (%d bands came, %d let theirs go as beyond reach), %d camp shifts within the hex, %d budded into another hex and %d in their parent's, %d households moved to a roomier hex, %d bands moved whole for food and %d to houses beside, %d raids set out; discord past the easy size: %d bands split off (counted in budded too), %d times households joined a band with room"
+            .format(met(Met.NEIGHBOURS_MET), met(Met.BANDS_MET), met(Met.BANDS_TOLD_OF_COUNTRY), met(Met.APPOINTMENTS_GATHERED), met(Met.BANDS_AT_APPOINTMENTS), met(Met.APPOINTMENTS_OUT_OF_REACH), met(Met.BANDS_SHIFTED_CAMP), met(Met.BANDS_BUDDED_OUT),
+                met(Met.BANDS_BUDDED_IN_PLACE), met(Met.HOUSEHOLDS_SEEPED), met(Met.BANDS_RELOCATED), met(Met.BANDS_BACK_TO_HOUSES), met(Met.RAIDS_SET_OUT),
                 met(Met.BANDS_SPLIT_BY_DISCORD), met(Met.HOUSEHOLDS_LEFT_IN_DISCORD)))
         fun of(m: Met.Of, w: RiteWalk) = metYear[m.tally(w.label)] ?: 0
         println("     rites by the band's distance from the site: " + RiteWalk.entries.joinToString("; ") { w ->

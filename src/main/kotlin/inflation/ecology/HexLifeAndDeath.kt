@@ -827,7 +827,12 @@ internal fun GroupWorld.joinBand(into: HexGroup, from: HexGroup, week: Int) {
     intoBand.absorb(fromBand, from.adults, w, into.stores[Store.DRIED], from.stores[Store.DRIED],
         into.stores[Store.SEED], from.stores[Store.SEED], into.id, from.id)
     into.fed += w * (from.fed - into.fed); into.fat += w * (from.fat - into.fat); into.spent += w * (from.spent - into.spent); into.bred += w * (from.bred - into.bred)
-    for (i in Store.entries) addFood(into.stores, into.storeKgPer, i, from.stores[i], from.stores[i] * from.storeKgPer[i])
+    // (From another hex it brings what its people can carry ([carryKg]), as a camp moved does; the rest is left. Olli, 13 Nov
+    // 2026: no free movement.)
+    val loadKg = Store.entries.sumOf { (from.stores[it] * from.storeKgPer[it]).toDouble() }.toFloat()
+    val brought = if (hw.placeHex[from.place] == hw.placeHex[into.place] || loadKg <= 0f) 1f else min(1f, carryKg(from, fromBand) / loadKg)
+    for (i in Store.entries) addFood(into.stores, into.storeKgPer, i, brought * from.stores[i], brought * from.stores[i] * from.storeKgPer[i])
+    if (brought < 1f) small.deposit(DeadPool.LITTER, from.place, Kg((1f - brought) * loadKg))
     into.memory.hear(from.memory, week, ticksPerYear, 1f)
     // (Its cache is left: no one goes back for it.)
     dropCache(fromBand)
