@@ -205,9 +205,11 @@ class Species(
     val takesPeople: Float = 0f,
     /** Its mothers hide their young and move them from lair to lair in their first months, as the cats do ([youngHidden]). */
     val hidesYoung: Boolean = false,
-) {
+) : Comparable<Species> {
     /** Position in [Catalogue.all] (its [id], which the catalogue checks run without gaps), for array lookups. */
     val index get() = id
+    /** By [id]: so a save writes a map keyed by kind (HexGroups.policies) in the same order every run, not in identity-hash order. */
+    override fun compareTo(other: Species) = id.compareTo(other.id)
     /** [shelters] as an array, for [Niches.shelter]'s loop. */
     internal val shelterArray: Array<Niches.Shelter> = shelters.toTypedArray()
     /** Mostly eats animals. */

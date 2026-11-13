@@ -504,7 +504,7 @@ class Census(private val sim: HexSim) {
      * with people's take a person-day. (Zeman et al. 2016: wild boar ate over 90% of a Moravian oak stand's acorns.)
      */
     fun printMast() {
-        val l = groups.fauna.food.mastLedger
+        val l = groups.fauna.food.mastLedger.map { it.sumThenReset() }
         val fell = l[inflation.ecology.HexFood.MastFate.FELL.ordinal]
         if (fell <= 0.0) return
         val people = groups.groups.filter { it.alive && it.band != null }.sumOf { it.size }.coerceAtLeast(1)
@@ -513,7 +513,6 @@ class Census(private val sim: HexSim) {
             fell / 1000, pc(inflation.ecology.HexFood.MastFate.PEOPLE), pc(inflation.ecology.HexFood.MastFate.ANIMALS),
             pc(inflation.ecology.HexFood.MastFate.SMALL_LIFE), pc(inflation.ecology.HexFood.MastFate.ROTTED),
             l[inflation.ecology.HexFood.MastFate.PEOPLE.ordinal] / people / inflation.DAYS_PER_YEAR))
-        l.fill(0.0)
     }
 
     fun printChoices() {

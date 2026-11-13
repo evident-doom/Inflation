@@ -715,9 +715,8 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         const val DISEASE = 0.3f
         /** Food, kg/m², at which a place carries a kind's usual density. */
         const val FOOD_FULL = 0.3f
-        /** Hunger, for every animal and band alike: below this share of its need fed, a week kills this share of the shortfall. */
+        /** Fed above this share of its need, an animal or band has days to spare ([spareDays]). */
         const val HUNGER_FROM = 0.5f
-        const val HUNGER_RATE = 0.3f
         /**
          * A kind's usual density, per km²: as the catalogue gives it, else by Damuth's rule from its body
          * mass; what crowding (and the sickness it breeds) is reckoned against, for residents and groups alike.
