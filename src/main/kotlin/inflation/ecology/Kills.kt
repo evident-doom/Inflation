@@ -421,7 +421,7 @@ internal const val FOUGHT_BACK = 0.00125f
  * shared over the party. Hunters weigh their game by it, as by the days a kill takes.
  */
 internal fun dangerDays(s: Species, ps: Species, massKg: Float, heads: Float): Float =
-    foughtBack(s, ps, massKg) * 365f * min(GENERATION_YEARS, 1f / s.backgroundMortality.coerceAtLeast(1e-3f)) / heads.coerceAtLeast(1f)
+    foughtBack(s, ps, massKg) * inflation.world.Date.DAYS_PER_YEAR * min(GENERATION_YEARS, 1f / s.backgroundMortality.coerceAtLeast(1e-3f)) / heads.coerceAtLeast(1f)
 
 /**
  * [g]'s hunters that its game killed this week: [expected] on average, and some more wounded ([WOUNDED_PER_DEAD]); the
