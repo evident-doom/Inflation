@@ -110,17 +110,22 @@ class HexSim(
         // (t.residentDays: the residents take that many days at a time, at the first tick of each span, by its weather.)
         val rd = land.tuning.residentDays
         val span = (rd / clock.tickDays).let { m -> if (m > 1 && rd % clock.tickDays == 0) m else 1 }
+        // (A span as long as the step or longer: the residents take the step whole, after its ticks, with the groups, by the
+        // step's weather settled ([Weather.settleStep]: its mean air, and each tick's for the odds of cold and heat,
+        // [Weather.overTicks]). A span inside the ticks sees only its first tick's air: a 60-day span
+        // there cut gazelle cold deaths from 1.34M to 0.30M in ten years (span777).)
+        val whole = perTick && rd >= clock.days
         repeat(clock.ticks) { i ->
             land.firstTick = perTick || i == 0; land.lastTick = perTick || i == clock.ticks - 1
             runPhases(tickPhases, weather, books)
-            if (perTick) { if (i % span == 0) { val d = clock.days; clock.days = clock.tickDays * min(span, clock.ticks - i)
+            if (perTick && !whole) { if (i % span == 0) { val d = clock.days; clock.days = clock.tickDays * min(span, clock.ticks - i)
                 try { runPhases(residentPhases, weather, books) } finally { clock.days = d } } }
         }
         land.firstTick = true; land.lastTick = true
         // (The slow parts read the step's weather whole: its mean air, all that fell and melted, and the coldest tick.)
         weather.settleStep()
         // (Their date is the step's start and a tick, as at one tick a step, not its end: [Weather.slowParts].)
-        weather.slowParts { runPhases(if (perTick) groups.phases else slowPhases, weather, books) }
+        weather.slowParts { runPhases(if (perTick && !whole) groups.phases else slowPhases, weather, books) }
         // (The carrion held for the groups and left goes back on the ground: [HexSmallLife.groupCarrion].)
         fauna.small.settleGroupCarrion()
     }
