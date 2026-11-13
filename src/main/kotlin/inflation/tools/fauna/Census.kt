@@ -317,8 +317,8 @@ class Census(private val sim: HexSim) {
             }
             "%s %.0f / %d / %.2f".format(s.name, heads, hexes, if (heads > 0.0 && settledW > 0.0) (poolW / heads) / (settledW / settled) else 0.0)
         })
-        // (With t.huntersPressed: how hard people press each hunting kind where it lives, and how much of its land they press hard.)
-        if (fauna.tuning.huntersPressed) {
+        // (How hard people press each hunting kind where it lives, and how much of its land they press hard.)
+        run {
             val hunters = fauna.kinds.withIndex().filter { it.value.carnivore }
             println("     people's pressure on the hunters (head-weighted where they are / share of land past a quarter / killed by people lately, heads): " +
                 hunters.joinToString(", ") { (i, s) ->
@@ -524,8 +524,8 @@ class Census(private val sim: HexSim) {
             val all = c.sum().coerceAtLeast(1)
             "%s %.0f/%.0f/%.0f%%".format(s.name, 100.0 * c[0] / all, 100.0 * c[1] / all, 100.0 * c[2] / all)
         })
-        // (Packs that hold their ground, t.packsStay: how many did this week, and how wide their footprints were.)
-        if (groups.tuning.packsStay) println("     packs holding their ground this week, of all packs (footprint hexes, mean and widest): " +
+        // (Packs that hold their ground: how many did this week, and how wide their footprints were.)
+        println("     packs holding their ground this week, of all packs (footprint hexes, mean and widest): " +
             groups.kinds.filter { s -> groups.groups.any { it.alive && it.species == s && it.band == null } }.joinToString(", ") { s ->
                 val all = groups.groups.filter { it.alive && it.species == s && it.band == null }
                 val holding = all.mapNotNull { it.footprint?.size }

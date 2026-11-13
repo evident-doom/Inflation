@@ -121,20 +121,19 @@ internal fun holdsHere(g: HexGroup) = (g.footprint != null && g.path.size == 1) 
  * contact is thickest (the first of [contested] when nothing else says).
  */
 internal fun HexGroups.engages(a: HexGroup, b: HexGroup, contested: HexArray?, at: Hex = contested?.let { if (it.size > 0) it[0] else Hex.NONE } ?: Hex.NONE): Boolean {
-    if (contested == null || !tuning.packsStay) return false
-    if (strategyOf(a).plain && strategyOf(b).plain && !bandStancesFor(a, b) && !tuning.packsHide) return false
+    if (contested == null) return false
     return stanceOf(a, b, at) != plainStance(a, b) || stanceOf(b, a, at) != plainStance(b, a)
 }
 
 /** [g]'s stance toward [other] when it meets it by its kind's own rules: two bands greet, every other the animals' rule. */
 internal fun plainStance(g: HexGroup, other: HexGroup) = if (g.band != null && other.band != null) Stance.GREET else Stance.GIVE_WAY_TO_STRONGER
 
-/** Whether [a] and [b] are two bands that take their stances by regard ([inflation.Tuning.bandStances]). */
-internal fun GroupWorld.bandStancesFor(a: HexGroup, b: HexGroup) = tuning.bandStances && a.band != null && b.band != null
+/** Whether [a] and [b] are two bands, which take their stances by regard ([bandStance]). */
+internal fun bandStancesFor(a: HexGroup, b: HexGroup) = a.band != null && b.band != null
 
 /**
  * [g]'s stance toward [other] at hex [h]: a strategy set for test ([strategyOf]), as it says of that part of its ground;
- * else, a band toward a band with [inflation.Tuning.bandStances], by how it regards it and what it knows ([bandStance]);
+ * else, a band toward a band, by how it regards it and what it knows ([bandStance]);
  * else its kind's own way ([plainStance]).
  */
 internal fun HexGroups.stanceOf(g: HexGroup, other: HexGroup, h: Hex): Stance {
@@ -146,7 +145,7 @@ internal fun HexGroups.stanceOf(g: HexGroup, other: HexGroup, h: Hex): Stance {
 }
 
 /**
- * Whether hunter [g] keeps out of [other]'s way ([inflation.Tuning.packsHide]): it is no band, [other] is of another kind
+ * Whether hunter [g] keeps out of [other]'s way: it is no band, [other] is of another kind
  * and more than [AVOID_RATIO] times as strong ([HexGroups.strength]). It then keeps out of sight and falls back if seen
  * ([Stance.HIDE_AND_SCOUT]): harder to find in cover ([sightings]), and one that sees the other coming gets away. Cheetahs
  * keep out of lions' areas and hours and move their cubs, leopards keep to cover and trees: the lesser hunters live
@@ -154,7 +153,7 @@ internal fun HexGroups.stanceOf(g: HexGroup, other: HexGroup, h: Hex): Stance {
  * slip-away's ([slipsAway]): no kind is named.
  */
 internal fun HexGroups.avoids(g: HexGroup, other: HexGroup): Boolean =
-    tuning.packsHide && g.band == null && other.species != g.species && strength(other) > AVOID_RATIO * strength(g)
+    g.band == null && other.species != g.species && strength(other) > AVOID_RATIO * strength(g)
 
 /**
  * Band [g]'s stance toward band [other] on ground [ground] of its own, by how it regards it ([Regard]) and what it knows of
@@ -226,7 +225,7 @@ internal fun GroupWorld.knownStrength(g: HexGroup, other: HexGroup): Float? {
 /** Band [g] saw [other] on [day]: it remembers its strength ([Band.seenStrength]); nothing for a group that is not a band, or of one. */
 internal fun HexGroups.noteSeen(g: HexGroup, other: HexGroup, day: Long) {
     val b = g.band ?: return
-    if (other.band == null || !tuning.bandStances) return
+    if (other.band == null) return
     b.seenStrength[other.id] = strength(other); b.seenDay[other.id] = day
 }
 
