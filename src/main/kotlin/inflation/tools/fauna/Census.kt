@@ -1414,10 +1414,9 @@ class Census(private val sim: HexSim) {
         val near = ArrayList<Int>(); val region = ArrayList<Int>()
     }
 
-    /** Band [i]'s row of pairs with every band after it ([IdentityRow]); reads the bands only. */
-    private fun identityRow(i: Int, bands: List<Pair<inflation.ecology.HexGroup, Band>>, at: Array<Hex>, living: List<Livelihood>): IdentityRow {
+    /** Fills [row] with band [i]'s pairs with every band after it ([IdentityRow]); reads the bands only. */
+    private fun identityRow(i: Int, bands: List<Pair<inflation.ecology.HexGroup, Band>>, at: Array<Hex>, living: List<Livelihood>, row: IdentityRow) {
         val n = bands.size
-        val row = IdentityRow(IDENTITY_KM.size + 1, Tally.Understood.entries.size, Tally.Wary.entries.size)
         val bi = bands[i].second; val li = bi.mainLineage()
         for (j in i + 1 until n) {
             val bj = bands[j].second
@@ -1451,7 +1450,6 @@ class Census(private val sim: HexSim) {
                 if (u >= REGION_UNDERSTOOD && off <= REGION_CUSTOMS_APART) row.region.add(j)
             }
         }
-        return row
     }
 
     fun printIdentity(thisYear: Map<TallyKey, Int>, metYear: Map<TallyKey, Int>) {
@@ -1470,8 +1468,9 @@ class Census(private val sim: HexSim) {
         // (Every pair once: by distance class for the means, and the neighbours for the regions. Each band's row of pairs is
         // counted on all cores, then the rows are added up and the regions joined in the bands' order: the same on any cores.)
         val living = bands.map { it.second.livelihood() }
-        val rows = arrayOfNulls<IdentityRow>(n)
-        Par.forEach("census: identity pairs", n) { i -> rows[i] = identityRow(i, bands, at, living) }
+        val classes = IDENTITY_KM.size + 1
+        val rows = Array(n) { IdentityRow(classes, Tally.Understood.entries.size, Tally.Wary.entries.size) }
+        Par.forEach("census: identity pairs", n) { i -> identityRow(i, bands, at, living, rows[i]) }
         val pairs = LongArray(IDENTITY_KM.size + 1); val understood = DoubleArray(pairs.size); val apart = DoubleArray(pairs.size)
         val sameLineage = LongArray(pairs.size); val sameTotem = LongArray(pairs.size); val sameRite = LongArray(pairs.size)
         val sameLiving = LongArray(pairs.size); val oneGround = LongArray(pairs.size)
@@ -1485,7 +1484,7 @@ class Census(private val sim: HexSim) {
         // (How far apart they are, and whether any place either remembers going to is one the other remembers too.)
         val nearKm = DoubleArray(nearW.size); val nearSharedPlace = LongArray(nearW.size)
         for (i in 0 until n) {
-            val r = rows[i]!!
+            val r = rows[i]
             for (c in pairs.indices) {
                 pairs[c] += r.pairs[c]; understood[c] += r.understood[c]; apart[c] += r.apart[c]; sameLineage[c] += r.sameLineage[c]
                 sameTotem[c] += r.sameTotem[c]; sameRite[c] += r.sameRite[c]; sameLiving[c] += r.sameLiving[c]; oneGround[c] += r.oneGround[c]
