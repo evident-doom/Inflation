@@ -96,7 +96,8 @@ internal fun HexGroups.keepAndSpoil(w: ForageWeek, got: EnumFloats<Store>, gotKg
     g.stores[Store.FRESH] -= band.feastMeat
     // (Pits sealed with clay and plaster keep the mice out.)
     val unspoilt = g.larder; val unspoiltStores = storesNow(g)
-    var rotten = spoil(g.stores, weather.temperature[g.place], 1f - PIT_KEEP * home, driedKeep(band), g.storeKgPer)
+    // (Over a step of several ticks, from what it held when the last step's spoiling was done, [Band.storesLeft].)
+    var rotten = spoil(g.stores, weather.temperature[g.place], 1f - PIT_KEEP * home, driedKeep(band), g.storeKgPer, band.storesLeft)
     val sealed = band.sealedLetsThrough()
     if (home > 0f) {
         for (st in listOf(Store.FRUIT, Store.ROOTS)) {
@@ -114,6 +115,7 @@ internal fun HexGroups.keepAndSpoil(w: ForageWeek, got: EnumFloats<Store>, gotKg
     band.larderMoved(g, LarderMove.SPOILT, g.larder - unspoilt)
     band.storeMoved(g, StoreFlow.SPOILT, unspoiltStores)
     g.stores[Store.FRESH] += band.feastMeat
+    band.storesLeft = (band.storesLeft ?: FloatArray(Store.entries.size)).also { g.stores.a.copyInto(it) }
     small.deposit(DeadPool.CARRION, g.place, Kg(rotten + unskinned))
 }
 
@@ -282,16 +284,34 @@ internal fun seedRodents(home: Float, sealed: Float) = (1f - home) + home * (1f 
 internal const val SEED_RODENTS = 0.002f
 
 /** Spoils a week of [stores] at [t] °C, each kind at its own rate; returns kg lost (weighed at [kgPer] for each kg of worth). */
-internal fun GroupWorld.spoil(stores: EnumFloats<Store>, t: Float, keep: Float = 1f, driedKeep: Float = 1f, kgPer: EnumFloats<Store>? = null): Float {
+internal fun GroupWorld.spoil(stores: EnumFloats<Store>, t: Float, keep: Float = 1f, driedKeep: Float = 1f, kgPer: EnumFloats<Store>? = null,
+                              start: FloatArray? = null): Float {
     var lost = 0f
     val warm = spoilWarmth(t)
+    val n = ticks
     for (st in Store.entries) {
-        val share = if (st == Store.FRESH) 1f - exp(-HexSmallLife.CARRION_ROT * warm * days) else
-            overWeeks(st.lostWeekly * keep * (if (st == Store.DRIED) driedKeep else 1f), days / 7f)
-        val x = stores[st] * share
+        val weekly = st.lostWeekly * keep * (if (st == Store.DRIED) driedKeep else 1f)
+        // (Over a step of several ticks with what it held at the step's start ([start]): the stock went there to here evenly
+        // over the ticks and spoilt tick by tick, [spoiltOnTheWay]; else what it holds now, over the step's days.)
+        val x = if (st == Store.FRESH) stores[st] * (1f - exp(-HexSmallLife.CARRION_ROT * warm * days))
+            else if (start != null && n > 1) spoiltOnTheWay(start[st.ordinal], stores[st], overWeeks(weekly, fauna.clock.tickDays / 7f), n)
+            else stores[st] * overWeeks(weekly, days / 7f)
         stores[st] -= x; lost += x * (kgPer?.get(st) ?: 1f)
     }
     return lost
+}
+
+/**
+ * What spoils of a stock that went from [s0] to [s1] (before spoiling) evenly over [n] ticks, [perTick] of it spoiling at
+ * each tick's end: S_i = (S_(i-1) + r)(1 - perTick), r = (s1 - s0) / n, so S_n = s0 q^n + r q (1 - q^n) / (1 - q), q = 1 - perTick.
+ * At one tick, s1 perTick. Between none and all of [s1].
+ */
+internal fun spoiltOnTheWay(s0: Float, s1: Float, perTick: Float, n: Int): Float {
+    if (s1 <= 0f) return 0f
+    val q = 1.0 - perTick.coerceIn(0f, 1f); val r = (s1 - max(0f, s0)).toDouble() / n
+    val qn = q.pow(n)
+    val end = if (q >= 1.0) s1.toDouble() else max(0f, s0) * qn + r * q * (1.0 - qn) / (1.0 - q)
+    return (s1 - end).coerceIn(0.0, s1.toDouble()).toFloat()
 }
 
 /**

@@ -73,7 +73,7 @@ class StocksTest {
             "HexHydrology.lakeRain", "HexHydrology.lakeEvap", "HexHydrology.flow", "HexHydrology.flood", "HexHydrology.soak",
             "HexHydrology.soakTarget", "HexHydrology.runoffMm", "HexPlants.litterfall", "HexPlants.browsing", "HexPlants.grazing",
             "HexPlants.rooting", "HexPlants.trampling", "HexPlants.trodden", "HexSmallLife.washedKg", "HexSmallLife.laidKgM2", "HexSmallLife.leaving",
-            "HexSmallLife.newborn", "HexFauna.bornThisWeek", "HexSmallLife.groupCarrionRate", "HexSmallLife.groupCarrionFound", "HexSmallLife.groupCarrionRateLast", "HexSmallLife.carrionFlow", "HexSmallLife.residentCarrionRate", "HexSmallLife.vultureCarrionRate", "HexSmallLife.vultureColonyRates", "HexSmallLife.carrionRotRate", "HexFauna.groupKilled", "HexFauna.huntedLately", "HexFauna.huntedYoungLately",
+            "HexSmallLife.newborn", "HexFauna.bornThisWeek", "HexSmallLife.groupCarrionRate", "HexSmallLife.groupCarrionFound", "HexSmallLife.groupCarrionRateLast", "HexSmallLife.carrionFlow", "HexSmallLife.residentCarrionRate", "HexSmallLife.vultureCarrionRate", "HexSmallLife.vultureColonyRates", "HexSmallLife.carrionRotRate", "HexSmallLife.carrionLying", "HexFauna.groupKilled", "HexFauna.huntedLately", "HexFauna.huntedYoungLately",
             // The week's food left uneaten, a reading of the plants' stocks, not one of its own.
             "HexFauna.spareGrass", "HexFauna.spareBrowse", "HexFauna.spareFruit", "HexFauna.spareRoots",
             // Shares, states and memories, 0..1 or days or degrees.

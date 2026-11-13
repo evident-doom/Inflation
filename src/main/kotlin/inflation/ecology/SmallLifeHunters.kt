@@ -130,9 +130,13 @@ internal fun HexSmallLife.stepVultures(weather: Weather) {
         if (share > 0f) for (q in vultureReach[k]) {
             if (carrion[q] > 0f) { val m2 = land.m2(Place(q)); val t = scavenge(Place(q), KgM2(share * carrion[q])); flow(CarrionFlow.VULTURES, Place(q), t.v); got += t.over(m2).v }
         }
-        // (Their rate for the next step's carrion as it lies: their day's need of what lies in their range now, at most half a
+        // (Their rate for the next step's carrion as it lies: their day's need of what lay in their range on the step's days on
+        // average ([carrionLying]: what lies at its end is less, and a rate set by it found more than they eat), at most half a
         // tick's worth (as the half a week they take at most), the same in every place in reach.)
-        if (ticks > 1) rates[k] = if (lying > 0.0) min(0.6931472f / tickDays, (vultures[k] * 0.5 / lying).toFloat()) else 0f
+        if (ticks > 1) {
+            var lay = 0.0; for (q in vultureReach[k]) lay += carrionLying[q].toDouble() * land.m2(Place(q))
+            rates[k] = if (lay > 0.0) min(0.6931472f / tickDays, (vultures[k] * 0.5 / lay).toFloat()) else 0f
+        }
         ateBook?.add(-got.toDouble())
         val fed = if (need > 0f) min(1f, got / need) else 1f
         var b = vultures[k]

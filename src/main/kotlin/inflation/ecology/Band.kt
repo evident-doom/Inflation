@@ -94,6 +94,8 @@ class Band(kinds: Int, totems: Int = kinds) {
     @Transient var stepTicks = 1
     /** What it ate last step from each source ([FoodFrom] order), kg a person a day, for the doom trace ([traceDoomed]); null until it has eaten. */
     @Transient var stepFood: FloatArray? = null
+    /** Its stores ([Store] order, kg of need) when its last step's spoiling was done ([spoil]): where the step's stock started from. */
+    @Transient var storesLeft: FloatArray? = null
     /** Its larder at last week's [foresee], days of its people's need before keeping warm (NaN for not yet seen). */
     var larderSeen = Float.NaN
     /** The share of this week's need its fat met ([feedOnReserves]): not food it got, for [foresee]. */
