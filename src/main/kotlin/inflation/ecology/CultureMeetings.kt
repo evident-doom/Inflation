@@ -158,7 +158,7 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
     if (a.adults >= 2 && b.adults >= 2 && rnd.nextFloat() < meetChance(MARRY * marry * (0.5f + close) * min(ab.weds, ba.weds))) {
         marryOut(a, bandA, b, bandB)
         bandA.befriend(b.id, TIE_MARRY); bandB.befriend(a.id, TIE_MARRY)
-        stats.meeting(Met.BANDS_EXCHANGED_PARTNERS)
+        stats.meeting(Met.BANDS_EXCHANGED_PARTNERS); dealt(Dealing.Kind.PARTNERS, a, b)
         tallyMeeting(metAs, Tally.MeetingEnd.PARTNERS)
     }
     return false
@@ -221,7 +221,7 @@ private fun HexGroups.tellOfCountry(a: HexGroup, bandA: Band, b: HexGroup, bandB
         val disk = toldOf(home)
         for (j in 0 until disk.size) { val h = disk[j]; if (bandA.knows(h)) bandB.learn(h, hex.size); if (bandB.knows(h)) bandA.learn(h, hex.size) }
     }
-    stats.meeting(Met.BANDS_TOLD_OF_COUNTRY)
+    stats.meeting(Met.BANDS_TOLD_OF_COUNTRY); dealt(Dealing.Kind.TOLD, a, b)
     // And of the ways they know further off: landmarks, and the legs between those they know, each about its own home.
     val toldWays = routes.tell(bandA, bandB, h0) + routes.tell(bandB, bandA, hb)
     if (toldWays > 0) stats.meeting(Met.BANDS_TOLD_OF_ROUTES)
@@ -387,7 +387,7 @@ internal fun HexGroups.visitKin(weather: Weather) {
         // Who was helped remembers: grudges against the helpers' people fade, and it owes them a favour.
         g.band!!.grudge[o.band!!.mainLineage()] *= 0.5f
         helped(o, g, gift)
-        stats.meeting(Met.HUNGRY_BANDS_FED_BY_KIN)
+        stats.meeting(Met.HUNGRY_BANDS_FED_BY_KIN); dealt(Dealing.Kind.FED_KIN, o, g)
         // (The visit wears the way there and back, [wearBetween].)
         wearBetween(h0, hw.placeHex[o.place], g)
     }

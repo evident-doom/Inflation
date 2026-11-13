@@ -177,6 +177,13 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
     /** The ground of the band picked in the list, or the one followed (see [BandGroundPainter]). */
     private val groundBox = JCheckBox("Band's ground", true)
     private val bandGround = BandGroundPainter(sim)
+    /** What passed between bands lately, and the picked band's ties (see [RelationsView]). */
+    private val dealingsBox = JCheckBox("Dealings", true)
+    private val relations = RelationsView(sim)
+    /** Bands bound to each other both ways, as an observer would group them (see [BlocsView]). */
+    private val blocsBox = JCheckBox("Blocs", false)
+    private val blocs = BlocsView(sim)
+    private val relationsText = javax.swing.JEditorPane("text/html", "").apply { isEditable = false }
     private val features by lazy { HexGeography(hw) }
     /** The followed group's week, as its log tells it (see [GroupControlWindow]): shown when that group is picked. */
     @Volatile private var followLog = ""
@@ -277,13 +284,15 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         namesBox.addActionListener { map.repaint() }
         worksBox.addActionListener { map.repaint() }
         groundBox.addActionListener { map.repaint() }
+        dealingsBox.addActionListener { map.repaint() }
+        blocsBox.addActionListener { map.repaint() }
         pullChoice.addActionListener { map.repaint() }
         bar.add(run)
         bar.add(step)
         shows.add(JLabel("Tint:")); shows.add(tintChoice); shows.add(modeChoice); shows.add(causeChoice)
         shows.add(JLabel("  Kind:")); shows.add(residentChoice); shows.add(flowBox); shows.add(heightBox); shows.add(pullChoice)
         shows.add(JLabel("  Draw:"))
-        for (box in listOf(peopleBox, huntersBox, worksBox, groundBox, pathsBox, namesBox, riversBox, windBox)) shows.add(box)
+        for (box in listOf(peopleBox, huntersBox, worksBox, groundBox, dealingsBox, blocsBox, pathsBox, namesBox, riversBox, windBox)) shows.add(box)
         val graphs = JButton("History…"); graphs.addActionListener { HexHistoryPanel.show(history, live = true, title = "History, seed ${cfg.seed}") }
         // Save the world as it stands, or carry on one saved before.
         val save = JButton("Save…")
@@ -325,6 +334,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         // The picked group: drawn, and in words.
         val groupTabs = javax.swing.JTabbedPane()
         groupTabs.addTab("Band", JScrollPane(bandCard).apply { preferredSize = Dimension(400, 380) })
+        groupTabs.addTab("Relations", JScrollPane(relationsText))
         groupTabs.addTab("In words", JScrollPane(groupInfo))
         side.add(groupTabs, BorderLayout.SOUTH)
         groupView.addListSelectionListener { e -> if (!e.valueIsAdjusting) { showGroup(); map.repaint() } }
@@ -358,6 +368,8 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             // (Its bands take up the planning kind's mind as founders do, t.planners, as hexFauna's carried-on worlds do.)
             groups.foundMinds()
             layers.reset()
+            relations.reset()
+            blocs.reset()
             useNetworks()
             lastDrawn.clear()
             snapshot()
@@ -373,6 +385,8 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         sim.step()
         history.record(sim)
         layers.week()
+        relations.week()
+        blocs.week()
         snapshot()
         control.weekDone()
     }
@@ -729,13 +743,23 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                     legends += BandGroundPainter.legend
                 }
             }
+            // What passed between bands lately, between where they stand now, and the picked band's ties.
+            val t = min(1f, frame.toFloat() / frames)
+            val at = HashMap<Int, Pair<Float, Float>>()
+            if (dealingsBox.isSelected || blocsBox.isSelected) for (s in shown) if (Catalogue.all[s.kind].human) at[s.id] = along(s.way, t)
+            if (blocsBox.isSelected) { blocs.paint(g, at, ::sx, ::sy, ::onScreen); legends += blocs.legend() }
+            if (dealingsBox.isSelected) {
+                val i = groupView.selectedIndex
+                val id = if (i in groupIds.indices) groupIds[i] else groups.watched
+                relations.paint(g, at, groups.groups.firstOrNull { it.id == id && it.alive }, ::sx, ::sy)
+                legends += RelationsView.legend
+            }
             // The hex being inspected.
             if (!picked.none) {
                 g.stroke = BasicStroke(2.5f); hexagon(picked, Color.WHITE, false); g.stroke = BasicStroke(1f)
             }
             // The groups, each part of the way along the hexes it walked this week; at the end of the
             // week those sharing a hex stand side by side in a small ring around its centre.
-            val t = min(1f, frame.toFloat() / frames)
             for (s in shown) {
                 val sp = Catalogue.all[s.kind]
                 // The group followed in the follow window: a yellow ring.
@@ -1035,7 +1059,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         for ((i, r) in rows.withIndex()) if (i < groupList.size()) { if (groupList[i] != r) groupList[i] = r } else groupList.addElement(r)
         while (groupList.size() > rows.size) groupList.removeElementAt(groupList.size() - 1)
         val again = groupIds.indexOf(picked)
-        if (again >= 0) { groupView.selectedIndex = again; showGroupNow() } else { groupView.clearSelection(); groupInfo.text = ""; bandCard.show(null) }
+        if (again >= 0) { groupView.selectedIndex = again; showGroupNow() } else { groupView.clearSelection(); groupInfo.text = ""; bandCard.show(null); relationsText.text = relations.html(null) }
     }
 
     /** Shows the group picked in the list. */
@@ -1046,6 +1070,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         if (i < 0 || i >= groupIds.size) return
         val g = groups.groups.firstOrNull { it.id == groupIds[i] } ?: return
         bandCard.show(g)
+        relationsText.text = relations.html(g); relationsText.caretPosition = 0
         val s = g.species
         val sb = StringBuilder()
         sb.appendLine("%s #%d".format(s.name, g.id))
