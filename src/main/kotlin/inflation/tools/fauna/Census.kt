@@ -14,6 +14,7 @@ import inflation.ecology.set
 import inflation.ecology.get
 import inflation.ecology.PlantFrom
 import inflation.world.Hex
+import inflation.Par
 import inflation.StockName
 import inflation.Stocks
 import inflation.ecology.Activity
@@ -1401,6 +1402,58 @@ class Census(private val sim: HexSim) {
             .format(byLife, all, villages.size, within))
     }
 
+    /** One band's pairs with the bands after it, for [printIdentity]: its sums by distance class and by wariness, and its neighbours. */
+    private class IdentityRow(classes: Int, understoodKinds: Int, wariKinds: Int) {
+        val pairs = LongArray(classes); val understood = DoubleArray(classes); val apart = DoubleArray(classes)
+        val sameLineage = LongArray(classes); val sameTotem = LongArray(classes); val sameRite = LongArray(classes)
+        val sameLiving = LongArray(classes); val oneGround = LongArray(classes)
+        val nearU = LongArray(understoodKinds); val nearW = LongArray(wariKinds)
+        val nearKeptOff = LongArray(wariKinds); val nearHome = LongArray(wariKinds); val nearNeverMet = LongArray(wariKinds)
+        val nearKm = DoubleArray(wariKinds); val nearSharedPlace = LongArray(wariKinds)
+        /** The neighbours within [GATHER_KM] (in order), and of those the ones of its region (understood and of like customs). */
+        val near = ArrayList<Int>(); val region = ArrayList<Int>()
+    }
+
+    /** Band [i]'s row of pairs with every band after it ([IdentityRow]); reads the bands only. */
+    private fun identityRow(i: Int, bands: List<Pair<inflation.ecology.HexGroup, Band>>, at: Array<Hex>, living: List<Livelihood>): IdentityRow {
+        val n = bands.size
+        val row = IdentityRow(IDENTITY_KM.size + 1, Tally.Understood.entries.size, Tally.Wary.entries.size)
+        val bi = bands[i].second; val li = bi.mainLineage()
+        for (j in i + 1 until n) {
+            val bj = bands[j].second
+            val km = hex.distanceKm(at[i], at[j])
+            val u = Language.understanding(bi.words, bj.words)
+            // (Customs as the bands reckon them, the totem one of them: see [inflation.ecology.Regard.customsApart].)
+            val off = customsOff(bi, bj, hex)
+            var c = 0
+            while (c < IDENTITY_KM.size && km >= IDENTITY_KM[c]) c++
+            row.pairs[c]++; row.understood[c] += u.toDouble(); row.apart[c] += off.toDouble()
+            if (li == bj.mainLineage()) row.sameLineage[c]++
+            if (!bi.totem.none && bi.totem == bj.totem) row.sameTotem[c]++
+            if (bi.rite.any { it >= 0 && it in bj.rite }) row.sameRite[c]++
+            if (living[i] == living[j]) row.sameLiving[c]++
+            if (!bi.houseHex.none && !bj.houseHex.none && !homesApart(bi, bj, hex)) row.oneGround[c]++
+            if (km <= GATHER_KM) {
+                row.near.add(j)
+                row.nearU[Tally.Understood.of(u).ordinal]++
+                val w = maxOf(Regard(bi, bands[j].first.id, bj, u, hex).wariness, Regard(bj, bands[i].first.id, bi, u, hex).wariness)
+                val wc = Tally.Wary.of(w).ordinal
+                row.nearW[wc]++
+                val idI = bands[i].first.id; val idJ = bands[j].first.id
+                if ((idJ in bi.knownHomes && Regard.closeOf(bi, idJ) <= 0f) || (idI in bj.knownHomes && Regard.closeOf(bj, idI) <= 0f)) row.nearKeptOff[wc]++
+                if (bi.atHome && bj.atHome) row.nearHome[wc]++
+                if (idJ !in bi.ties && idI !in bj.ties) row.nearNeverMet[wc]++
+                row.nearKm[wc] += km
+                val mi = bands[i].first.memory.hex; val mj = bands[j].first.memory.hex
+                var shared = false
+                for (x in 0 until PlaceMemory.MEMORY_SLOTS) if (!mi[x].none) for (y in 0 until PlaceMemory.MEMORY_SLOTS) if (mi[x] == mj[y]) shared = true
+                if (shared) row.nearSharedPlace[wc]++
+                if (u >= REGION_UNDERSTOOD && off <= REGION_CUSTOMS_APART) row.region.add(j)
+            }
+        }
+        return row
+    }
+
     fun printIdentity(thisYear: Map<TallyKey, Int>, metYear: Map<TallyKey, Int>) {
         val bands = groups.groups.mapNotNull { g -> g.band?.takeIf { g.alive }?.let { g to it } }
         val n = bands.size
@@ -1414,11 +1467,14 @@ class Census(private val sim: HexSim) {
             while (parent[j] != r) { val next = parent[j]; parent[j] = r; j = next }
             return r
         }
-        // (Every pair once: by distance class for the means, and the neighbours for the regions.)
+        // (Every pair once: by distance class for the means, and the neighbours for the regions. Each band's row of pairs is
+        // counted on all cores, then the rows are added up and the regions joined in the bands' order: the same on any cores.)
+        val living = bands.map { it.second.livelihood() }
+        val rows = arrayOfNulls<IdentityRow>(n)
+        Par.forEach("census: identity pairs", n) { i -> rows[i] = identityRow(i, bands, at, living) }
         val pairs = LongArray(IDENTITY_KM.size + 1); val understood = DoubleArray(pairs.size); val apart = DoubleArray(pairs.size)
         val sameLineage = LongArray(pairs.size); val sameTotem = LongArray(pairs.size); val sameRite = LongArray(pairs.size)
         val sameLiving = LongArray(pairs.size); val oneGround = LongArray(pairs.size)
-        val living = bands.map { it.second.livelihood() }
         val nearA = ArrayList<Int>(); val nearB = ArrayList<Int>()
         // (Neighbours by how well they understand each other and how wary the warier is, as their regard stands now: whether
         // unlike bands live within reach of each other at all, against whom the year's meetings were with.)
@@ -1429,39 +1485,18 @@ class Census(private val sim: HexSim) {
         // (How far apart they are, and whether any place either remembers going to is one the other remembers too.)
         val nearKm = DoubleArray(nearW.size); val nearSharedPlace = LongArray(nearW.size)
         for (i in 0 until n) {
-            val bi = bands[i].second; val li = bi.mainLineage()
-            for (j in i + 1 until n) {
-                val bj = bands[j].second
-                val km = hex.distanceKm(at[i], at[j])
-                val u = Language.understanding(bi.words, bj.words)
-                // (Customs as the bands reckon them, the totem one of them: see [inflation.ecology.Regard.customsApart].)
-                val off = customsOff(bi, bj, hex)
-                var c = 0
-                while (c < IDENTITY_KM.size && km >= IDENTITY_KM[c]) c++
-                pairs[c]++; understood[c] += u.toDouble(); apart[c] += off.toDouble()
-                if (li == bj.mainLineage()) sameLineage[c]++
-                if (!bi.totem.none && bi.totem == bj.totem) sameTotem[c]++
-                if (bi.rite.any { it >= 0 && it in bj.rite }) sameRite[c]++
-                if (living[i] == living[j]) sameLiving[c]++
-                if (!bi.houseHex.none && !bj.houseHex.none && !homesApart(bi, bj, hex)) oneGround[c]++
-                if (km <= GATHER_KM) {
-                    nearA += i; nearB += j
-                    nearU[Tally.Understood.of(u).ordinal]++
-                    val w = maxOf(Regard(bi, bands[j].first.id, bj, u, hex).wariness, Regard(bj, bands[i].first.id, bi, u, hex).wariness)
-                    val wc = Tally.Wary.of(w).ordinal
-                    nearW[wc]++
-                    val idI = bands[i].first.id; val idJ = bands[j].first.id
-                    if ((idJ in bi.knownHomes && Regard.closeOf(bi, idJ) <= 0f) || (idI in bj.knownHomes && Regard.closeOf(bj, idI) <= 0f)) nearKeptOff[wc]++
-                    if (bi.atHome && bj.atHome) nearHome[wc]++
-                    if (idJ !in bi.ties && idI !in bj.ties) nearNeverMet[wc]++
-                    nearKm[wc] += km
-                    val mi = bands[i].first.memory.hex; val mj = bands[j].first.memory.hex
-                    var shared = false
-                    for (x in 0 until PlaceMemory.MEMORY_SLOTS) if (!mi[x].none) for (y in 0 until PlaceMemory.MEMORY_SLOTS) if (mi[x] == mj[y]) shared = true
-                    if (shared) nearSharedPlace[wc]++
-                    if (u >= REGION_UNDERSTOOD && off <= REGION_CUSTOMS_APART) { val ri = root(i); val rj = root(j); if (ri != rj) parent[ri] = rj }
-                }
+            val r = rows[i]!!
+            for (c in pairs.indices) {
+                pairs[c] += r.pairs[c]; understood[c] += r.understood[c]; apart[c] += r.apart[c]; sameLineage[c] += r.sameLineage[c]
+                sameTotem[c] += r.sameTotem[c]; sameRite[c] += r.sameRite[c]; sameLiving[c] += r.sameLiving[c]; oneGround[c] += r.oneGround[c]
             }
+            for (k in nearU.indices) nearU[k] += r.nearU[k]
+            for (k in nearW.indices) {
+                nearW[k] += r.nearW[k]; nearKeptOff[k] += r.nearKeptOff[k]; nearHome[k] += r.nearHome[k]; nearNeverMet[k] += r.nearNeverMet[k]
+                nearKm[k] += r.nearKm[k]; nearSharedPlace[k] += r.nearSharedPlace[k]
+            }
+            for (x in 0 until r.near.size) { val j = r.near[x]; nearA += i; nearB += j }
+            for (x in 0 until r.region.size) { val ri = root(i); val rj = root(r.region[x]); if (ri != rj) parent[ri] = rj }
         }
         val people = DoubleArray(n); val members = IntArray(n)
         for (i in 0 until n) { val r = root(i); people[r] += bands[i].first.size.toDouble(); members[r]++ }
