@@ -20,7 +20,7 @@ import kotlin.math.sin
 
 /**
  * Bands' dealings with each other: over the map, what passed between bands in the last weeks (lines from the band that acted
- * to the other, by kind, fading with the weeks) and the ties of the band picked (green as far as it is fond of a band, red
+ * to the other, by kind, fading with the weeks) and the ties of the band picked (dotted: pale green as far as it is fond of a band, pink
  * as far as it is not, dashed red where it holds a feud against that band's people); and for the side panel, how the band
  * picked stands toward each band it has ties with, knows the home of, or dealt with lately ([Regard]). The dealings come
  * from the model's [inflation.ecology.HexGroups.dealings], taken once a week by [week].
@@ -62,8 +62,11 @@ internal class RelationsView(private val sim: HexSim) {
                 val ob = o.band ?: continue
                 val feud = Regard(pb, id, ob, map = hex).feud
                 val w = 1f + 3f * abs(tie)
-                g.stroke = if (feud) BasicStroke(w, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND, 4f, floatArrayOf(7f, 5f), 0f) else BasicStroke(w)
-                g.color = if (tie >= 0f) Color(0.3f, 1f, 0.4f, 0.35f + 0.6f * min(1f, tie)) else Color(1f, 0.25f, 0.2f, 0.35f + 0.6f * min(1f, -tie))
+                // (Dotted, in colours no dealing uses, so a tie is never taken for something done this month.)
+                g.stroke = if (feud) BasicStroke(w, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND, 4f, floatArrayOf(7f, 5f), 0f)
+                    else BasicStroke(w, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND, 4f, floatArrayOf(1f, 2f * w + 2f), 0f)
+                g.color = if (tie >= 0f) Color(TIE_FOND.red, TIE_FOND.green, TIE_FOND.blue, (255 * (0.35f + 0.6f * min(1f, tie))).toInt())
+                    else Color(TIE_COLD.red, TIE_COLD.green, TIE_COLD.blue, (255 * (0.35f + 0.6f * min(1f, -tie))).toInt())
                 if (feud) g.color = FEUD_COLOUR
                 g.drawLine(sx(from.first), sy(from.second), sx(to.first), sy(to.second))
             }
@@ -150,6 +153,9 @@ internal class RelationsView(private val sim: HexSim) {
         /** Weeks of dealings kept and drawn, fading. */
         const val WEEKS_KEPT = 4
         private val FEUD_COLOUR = Color(1f, 0.15f, 0.1f, 0.95f)
+        /** The picked band's ties: fond (dotted), and cold (dotted). */
+        private val TIE_FOND = Color(0.85f, 1f, 0.75f)
+        private val TIE_COLD = Color(0.95f, 0.55f, 0.75f)
         /** Each kind's colour, in [Dealing.Kind]'s order. */
         private val COLOURS = arrayOf(
             Color(1f, 1f, 1f), Color(0.35f, 0.95f, 0.35f), Color(0.95f, 0.9f, 0.7f), Color(0.6f, 0.9f, 0.6f),
@@ -161,8 +167,10 @@ internal class RelationsView(private val sim: HexSim) {
         private val WEIGHT = intArrayOf(0, 5, 3, 4, 6, 5, 7, 1, 2, 9, 8)
 
         val legend = MapLegend("Dealings", "Dealings between bands over the last $WEEKS_KEPT weeks, fading with age, from the band that acted to the " +
-            "other (arrowheads), between their camps; between two bands in a week, only the weightiest. For the band picked in the list, its ties: " +
-            "green as far as it is fond of a band, red as far as it is not, dashed red where it holds a feud against that band's people.",
-            swatches = Dealing.Kind.entries.map { MapLegend.Swatch(COLOURS[it.ordinal], it.label) } + MapLegend.Swatch(FEUD_COLOUR, "feud (ties of the picked band)"))
+            "other (arrowheads), between their camps; between two bands in a week, only the weightiest. For the band picked in the list, its ties, dotted " +
+            "(standing feelings, however far, not dealings): pale green as far as it is fond of a band, pink as far as it is not, dashed red where it holds a feud against that band's people. " +
+            "Far ties are mostly inherited: a daughter band takes its mother's ties when it splits off.",
+            swatches = Dealing.Kind.entries.map { MapLegend.Swatch(COLOURS[it.ordinal], it.label) } + listOf(MapLegend.Swatch(TIE_FOND, "tie, fond (picked band, dotted)"),
+                MapLegend.Swatch(TIE_COLD, "tie, cold (picked band, dotted)"), MapLegend.Swatch(FEUD_COLOUR, "feud (picked band, dashed)")))
     }
 }
