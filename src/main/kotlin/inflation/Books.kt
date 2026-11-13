@@ -150,6 +150,7 @@ enum class StockName(val label: String) {
     CARRION("carrion"),
     CARRION_FOUND_BY_GROUPS("carrion groups found in a step's earlier ticks"),
     CARRION_FOUND_BY_RESIDENTS("carrion residents found as it lay, held till they feed"),
+    CARRION_FOUND_BY_VULTURES("carrion vultures found as it lay, eaten at the step's end"),
     BONES("bones"),
     DUNG("dung"),
     SMALL_DEAD("small dead"),

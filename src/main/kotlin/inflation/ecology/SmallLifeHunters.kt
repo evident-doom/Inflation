@@ -102,15 +102,35 @@ fun HexSmallLife.eagleRisk(p: Place) = EAGLE_RATE * eagles[p] * open(p)
 @Part("small life: vultures")
 internal fun HexSmallLife.stepVultures(weather: Weather) {
     val month = weather.date.month
+    // (Over a step of several ticks they came on the carrion as it lay through the step ([vultureCarrion], [stepSoil]), each
+    // colony at its own rate over its range: each takes its rate's share of what was found in each place, up to its need.)
+    if (vultureColonyRates.size != vulturePlace.size) vultureColonyRates = vultureColonyRates.copyOf(vulturePlace.size)
+    val rates = vultureColonyRates
+    val wasRate = vultureCarrionRate.copyOf(); val pool = vultureCarrion.copyOf()
     for (k in vulturePlace.indices) {
         val need = vultures[k] * 0.5f * days
+        var got = 0f
+        val rk = rates.getOrElse(k) { 0f }
+        if (rk > 0f) {
+            var found = 0.0
+            for (q in vultureReach[k]) if (wasRate[q] > 0f) found += pool[q].toDouble() * min(1f, rk / wasRate[q]) * land.m2(Place(q))
+            val eat = if (found > 0.0) min(1.0, need / found).toFloat() else 0f
+            for (q in vultureReach[k]) if (wasRate[q] > 0f && pool[q] > 0f) {
+                val t = min(vultureCarrion[q], pool[q] * min(1f, rk / wasRate[q]) * eat)
+                vultureCarrion[q] -= t; flow(CarrionFlow.VULTURES, Place(q), t); got += t * land.m2(Place(q))
+            }
+        }
         var lying = 0.0
         for (q in vultureReach[k]) lying += carrion[q].toDouble() * land.m2(Place(q))
-        val share = if (lying > 0.0) min(0.5, need / lying).toFloat() else 0f
-        var got = 0f
+        // (Over a weekly step, or what they still need after what they found as it lay: the same share of what lies in every
+        // place in reach, at most half.)
+        val share = if (lying > 0.0 && rk <= 0f) min(0.5, need / lying).toFloat() else 0f
         if (share > 0f) for (q in vultureReach[k]) {
             if (carrion[q] > 0f) { val m2 = land.m2(Place(q)); val t = scavenge(Place(q), KgM2(share * carrion[q])); flow(CarrionFlow.VULTURES, Place(q), t.v); got += t.over(m2).v }
         }
+        // (Their rate for the next step's carrion as it lies: their day's need of what lies in their range now, at most half a
+        // tick's worth (as the half a week they take at most), the same in every place in reach.)
+        if (ticks > 1) rates[k] = if (lying > 0.0) min(0.6931472f / tickDays, (vultures[k] * 0.5 / lying).toFloat()) else 0f
         ateBook?.add(-got.toDouble())
         val fed = if (need > 0f) min(1f, got / need) else 1f
         var b = vultures[k]
@@ -118,4 +138,8 @@ internal fun HexSmallLife.stepVultures(weather: Weather) {
         b -= b * (0.08f * years + 0.4f * years * (1f - fed))
         vultures[k] = if (b < 2f) 0f else min(b, 2000f) // a colony below a pair is gone
     }
+    // (What they found and left goes back on the ground; their rates over each place for the next step.)
+    for (q in vultureCarrion.indices) if (vultureCarrion[q] > 0f) { flow(CarrionFlow.HELD_BACK, Place(q), vultureCarrion[q]); carrion[q] += vultureCarrion[q]; vultureCarrion[q] = 0f }
+    vultureCarrionRate.fill(0f)
+    if (ticks > 1) for (k in vulturePlace.indices) if (vultures[k] > 0f && rates[k] > 0f) for (q in vultureReach[k]) vultureCarrionRate[q] += rates[k]
 }
