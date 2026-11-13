@@ -242,9 +242,9 @@ internal fun HexGroups.neighboursMeet(weather: Weather) {
         stats.meeting(Met.NEIGHBOURS_MET, m.times)
         // (Each going there and back wears the way: the meetings' wear compounded, as one after another would.)
         wear.along(m.way, 1f - (1f - w).pow(m.times))
-        // (And costs the visitors the days of it, there and back each time, in km of easy going, as an appointment's walk does.)
+        // (Its days are not charged: neighbours mostly come on each other as their foragers go about, carry758: charged as a
+        // trip each, 2-4 a week, they took bands' days from food and starved them. Either side may be the one visited, drawn.)
         val (visitor, host) = if (m.bVisits) m.b to m.a else m.a to m.b
-        visitor.band?.let { it.raidWalkOwed += visitDays(VISITORS * m.times, m.km.toDouble()) }
         settleAt(visitor, host, hw.placeHex[host.place], weather)
     }
     meetTick = 0; meetTimes = 1
