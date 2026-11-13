@@ -65,7 +65,7 @@ abstract class GroupWorld(
     internal val hex = hw.hex
     internal val n = land.n
     internal val tuning get() = land.tuning
-    internal open val rnd: kotlin.random.Random = stream(seed, Stream.GROUPS)
+    internal val rnd = stream(seed, Stream.GROUPS)
     internal val seedBase = seed
     /** This week's tallies ([HexSim.stats]). */
     val stats get() = fauna.stats
@@ -74,17 +74,8 @@ abstract class GroupWorld(
     /** What bands have taken near where they live ([worn], t.wornGround); not saved. */
     @Volatile @Transient internal var wornGround: WornGround? = null
     /** The hexes the meeting being settled is over and its day ([meetSettle]): what a pack that gives way there gives up, [gaveWay]. */
-    // (Each thread its own, so meetings settled side by side on all cores keep theirs apart: [meetSettle], t.meetBatches.)
-    @Transient private var contestedAt: ThreadLocal<inflation.world.HexArray>? = null
-    @Transient private var contestDayAt: ThreadLocal<Long>? = null
-    private fun contestedTL() = contestedAt ?: ThreadLocal.withInitial { inflation.world.HexArray.EMPTY }.also { contestedAt = it }
-    private fun contestDayTL() = contestDayAt ?: ThreadLocal.withInitial { 0L }.also { contestDayAt = it }
-    internal var contested: inflation.world.HexArray
-        get() = contestedTL().get()
-        set(v) { contestedTL().set(v) }
-    internal var contestDay: Long
-        get() = contestDayTL().get()
-        set(v) { contestDayTL().set(v) }
+    @Transient internal var contested: inflation.world.HexArray = inflation.world.HexArray.EMPTY
+    @Transient internal var contestDay = 0L
 
     internal fun foodFor(s: Species, p: Place) = fauna.foodFor(s, p)
 

@@ -172,12 +172,6 @@ class Tuning(
      */
     val packsStay = read("t.packsStay")?.toBooleanStrict() ?: true
     /**
-     * The meetings of beasts settled in batches on all cores ([inflation.ecology.meetSettle]): meetings in time order that share
-     * no party and lie far apart, none of them of bands, each with its own stream of chance. Off unless set (under test, a speed
-     * change: the draws' order changes, the rules do not).
-     */
-    val meetBatches = read("t.meetBatches")?.toBooleanStrict() ?: false
-    /**
      * With [packsStay], for test: the strategy every pack holding its ground settles its contacts by ([inflation.ecology.engage]),
      * its stance on each part of its ground, as `lair:DEFEND,core:GIVE_WAY_TO_STRONGER,fringe:YIELD,outside:YIELD` (stances
      * DEFEND, GIVE_WAY_TO_STRONGER, YIELD, AMBUSH, HIDE_AND_SCOUT, ATTACK; a part left out keeps GIVE_WAY_TO_STRONGER). Unset:

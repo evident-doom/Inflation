@@ -374,12 +374,11 @@ private fun HexGroups.meetSettle(weather: Weather) {
     inTimeOrder(events)
     // (A stand-in's path is its one hex: its stop stays 0.)
     val stop = IntArray(parties.size); for (k in groups.indices) stop[k] = groups[k].path.size - 1
-    // (One meeting, settled: [settle], as many times as the pair met.)
-    fun settleEvent(e: Meeting) {
+    for (e in events) {
         // Both must still be on their way at that point.
-        if (e.ai > stop[e.a] || e.bi > stop[e.b]) return
+        if (e.ai > stop[e.a] || e.bi > stop[e.b]) continue
         val a = parties[e.a]; val b = parties[e.b]
-        if (!a.alive || !b.alive) return
+        if (!a.alive || !b.alive) continue
         val h = e.hex
         // Sharing a hex is not meeting: they must cross each other's ground, be about at the same
         // hours, and neither slip away first. (How often they run into each other while both are there,
@@ -388,7 +387,7 @@ private fun HexGroups.meetSettle(weather: Weather) {
         // (A stand-in is as many resident bands as there are there: each may meet the other, each meeting settled alone.)
         val ra = residents.of(e.a); val rb = residents.of(e.b)
         val met = if (!e.mean.isNaN()) poisson(e.mean, rnd) else poisson(encounters(a, b, p, e.span) * (ra?.bands ?: 1f) * (rb?.bands ?: 1f), rnd)
-        if (met == 0) return
+        if (met == 0) continue
         // (Two groups meet at most once a tick of the step, each stand-in band once a tick: a step of several ticks holds the
         // meetings its ticks would have, [StepClock.ticks].)
         val times = if (ra == null && rb == null) min(met, ticks) else min(met, kotlin.math.ceil(min(ra?.bands ?: Float.MAX_VALUE, rb?.bands ?: Float.MAX_VALUE)).toInt() * ticks)
@@ -401,31 +400,6 @@ private fun HexGroups.meetSettle(weather: Weather) {
             // (A contact of which a side has a strategy other than the animals' is settled by the strategies, [engage].)
             settle(a, e.a, e.ai, b, e.b, e.bi, h, p, byStrategy, stop, weather)
             ra?.settle(); rb?.settle()
-        }
-    }
-    if (!tuning.meetBatches) for (e in events) settleEvent(e)
-    else {
-        // (t.meetBatches: the beasts' meetings in time order, gathered while they share no party and lie [MEET_APART_KM] or more
-        // apart, each batch on all cores, each meeting with its own stream from its tie-break: what one settles, the place's
-        // carcasses and the two parties, no other in the batch touches. A meeting of bands, which tell of homes and ways and
-        // trade people, is settled alone, in its turn, as before.)
-        val streams = meetRnd(); val used = HashSet<Int>(); val batch = ArrayList<Meeting>()
-        var i = 0
-        while (i < events.size) {
-            val e = events[i]
-            if (parties[e.a].species.human || parties[e.b].species.human) { settleEvent(e); i++; continue }
-            batch.clear(); used.clear()
-            while (i < events.size) {
-                val f = events[i]
-                if (parties[f.a].species.human || parties[f.b].species.human || f.a in used || f.b in used) break
-                if (batch.any { hex.distanceKm(it.hex, f.hex) < MEET_APART_KM }) break
-                batch += f; used += f.a; used += f.b; i++
-            }
-            if (batch.size == 1) settleEvent(batch[0])
-            else Par.forEach("meetings: settle in batches", batch) { f ->
-                streams.set(kotlin.random.Random(f.tie xor MEET_STREAM_SALT))
-                try { settleEvent(f) } finally { streams.set(null) }
-            }
         }
     }
     run {
@@ -972,8 +946,3 @@ internal fun HexGroups.roamersLeave() {
 internal const val BEER_KG = 1f
 
 internal const val BEER_TIES = 0.5f
-
-/** How far apart two beasts' meetings settled side by side must lie ([meetSettle], t.meetBatches): beyond the ground either touches. */
-private const val MEET_APART_KM = 150f
-/** Mixed into a meeting's tie-break for its own stream of chance ([meetSettle]). */
-private const val MEET_STREAM_SALT = 0x5DEECE66DL

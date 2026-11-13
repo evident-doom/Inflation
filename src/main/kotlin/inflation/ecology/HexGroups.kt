@@ -67,10 +67,6 @@ class HexGroups(
     uniformStart: Boolean = false,
 ) : GroupWorld(hw, land, fauna, seed) {
     val groups = ArrayList<HexGroup>()
-    /** The stream of chance of the meeting a thread is settling in a batch ([meetSettle], t.meetBatches); else the groups' shared one. */
-    @Transient private var meetRndAt: ThreadLocal<kotlin.random.Random?>? = null
-    internal fun meetRnd(): ThreadLocal<kotlin.random.Random?> = meetRndAt ?: ThreadLocal<kotlin.random.Random?>().also { meetRndAt = it }
-    override val rnd: kotlin.random.Random get() = meetRndAt?.get() ?: super.rnd
     /**
      * The lore of the land's months: for each place and month of the year, the forage yield bands camped there found in that
      * month over the years ([Band.yieldNow]: days of need a day of all hands' foraging brings), a running mean ([YIELD_LORE_RATE]
