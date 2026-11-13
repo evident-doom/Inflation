@@ -227,10 +227,17 @@ internal fun HexGroups.neighboursMeet(weather: Weather) {
             val km = reach.getValue(h).first
             val mean = rate * NEIGHBOUR_FALL.pow(max(0f, km - easy) / easy)
             for (b in bs) if (b.id > a.id) {
-                val times = poisson(mean, r); if (times == 0) continue
-                var last = 0; repeat(times) { last = max(last, r.nextInt(ticks)) }
+                val drawn = poisson(mean, r); if (drawn == 0) continue
                 // (Either may be the one that walks over, drawn: not always the lower id's people.)
-                due += Due(last, times, a, b, wayTo(reach, h0, h), km, r.nextBoolean())
+                val bVisits = r.nextBoolean()
+                // (Beyond its own ground ([OWN_GROUND_HEXES]) a meeting is a trip the visitor makes as far as its time for its
+                // customs went to its last trips ([Band.visitShare]): a band short of days visits less, not for free.)
+                val times = if (km <= OWN_GROUND_HEXES * easy) drawn else {
+                    val share = (if (bVisits) b else a).band?.visitShare ?: 1f
+                    var k = 0; repeat(drawn) { if (r.nextFloat() < share) k++ }; k }
+                if (times == 0) continue
+                var last = 0; repeat(times) { last = max(last, r.nextInt(ticks)) }
+                due += Due(last, times, a, b, wayTo(reach, h0, h), km, bVisits)
             }
         }
     }
@@ -242,9 +249,11 @@ internal fun HexGroups.neighboursMeet(weather: Weather) {
         stats.meeting(Met.NEIGHBOURS_MET, m.times)
         // (Each going there and back wears the way: the meetings' wear compounded, as one after another would.)
         wear.along(m.way, 1f - (1f - w).pow(m.times))
-        // (Its days are not charged: neighbours mostly come on each other as their foragers go about, carry758: charged as a
-        // trip each, 2-4 a week, they took bands' days from food and starved them. Either side may be the one visited, drawn.)
+        // (Within their own grounds bands come on each other as their foragers go about: that walk is the foraging's. Beyond,
+        // the visitors walk there and back for it, from the band's time for its customs ([Band.visitOwed]). carry758: charged
+        // as a trip each, all 2-4 a week, from any work, the walks took bands' days from food and starved them.)
         val (visitor, host) = if (m.bVisits) m.b to m.a else m.a to m.b
+        if (m.km > OWN_GROUND_HEXES * easy) visitor.band?.let { it.visitOwed += visitDays(VISITORS * m.times, m.km.toDouble()) }
         settleAt(visitor, host, hw.placeHex[host.place], weather)
     }
     meetTick = 0; meetTimes = 1
@@ -291,6 +300,8 @@ internal const val CONTACT_KM = 50f
 internal const val NEIGHBOUR_RINGS = 5
 /** The people who go to a band about and back for a meeting ([neighboursMeet]), for the wear of their going. An estimate. */
 internal const val VISITORS = 4f
+/** How far apart, in hexes of easy going, two bands' grounds (each its home hex and the ring about it) overlap: their foragers meet there on their rounds. */
+internal const val OWN_GROUND_HEXES = 2f
 
 /** The days [people] give to walk [km] there and back ([Band.raidWalkOwed]: taken from the band's next step). */
 internal fun visitDays(people: Float, km: Double) = people * (2.0 * km / (WALK_KM_PER_HOUR * Activity.WORK_HOURS)).toFloat()

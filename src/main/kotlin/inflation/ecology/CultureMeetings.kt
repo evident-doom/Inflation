@@ -379,7 +379,7 @@ internal fun HexGroups.visitKin(weather: Weather) {
         val most = if (apart) (1f - g.fed) * week + carryKg(g, gb) else need
         val gift = given(o, g, minOf(share * o.larder, need, most), min(need, most))
         if (gift <= 0f) continue
-        // (Their walk is not charged here: carry758 tests whether charging it starves hungry bands further.)
+        if (apart) gb.raidWalkOwed += visitDays(g.adults.toFloat(), hex.distanceKm(h0, ho))
         val eat = min(gift, (1f - g.fed) * week)
         g.fed += eat / week
         moveFood(o, g, gift, LarderMove.KIN); val ateKg = eatStores(g, eat)

@@ -147,6 +147,12 @@ internal fun GroupWorld.keepCustoms(b: Band, people: Float, time: BandTime) {
         tally(CustomsPart.RITES, b.riteOwed, paid)
         time.spend(Activity.CUSTOMS, paid); b.riteOwed -= paid
     }
+    // (Then the walks of its visits beyond its ground: as far as they are given, it goes on visiting, [Band.visitShare].)
+    if (b.visitOwed > 0f) {
+        val paid = min(b.visitOwed, max(0f, time.leftFor(Activity.CUSTOMS)))
+        b.visitShare = paid / b.visitOwed
+        time.spend(Activity.CUSTOMS, paid); b.visitOwed -= paid
+    } else b.visitShare = 1f
     val clean = cleanDays(b, people)
     b.cleaned = if (clean > 0f) min(1f, time.leftFor(Activity.CUSTOMS) / clean) else 1f
     tally(CustomsPart.CLEANING, clean, b.cleaned * clean)
