@@ -628,13 +628,13 @@ class Band(kinds: Int, totems: Int = kinds) {
     /** The share of its herd its herders kept this week, as its week's plan gave them days ([herdDays]; 1 till it plans). */
     @Transient var herded = 1f
     /** What a day's foraging brings it, kg of its need, month by month: a mean over the years (below 0 till it has foraged then; [herdPays]). */
-    @Transient val forageReturn = FloatArray(Date.MONTHS_PER_YEAR) { -1f }
+    val forageReturn = FloatArray(Date.MONTHS_PER_YEAR) { -1f }
     /**
      * What its own crop has brought it, kg of its need, and the person-days it took (sowing, reaping and threshing, and the
      * dehusking and grinding it owes as it is eaten), each a sum with older years fading ([CROP_RETURN_YEARS]): [cropReturn].
      */
-    @Transient var cropWorthSeen = 0f
-    @Transient var cropDaysSeen = 0f
+    var cropWorthSeen = 0f
+    var cropDaysSeen = 0f
     /** Person-days drying and skinning would have liked last week: what they ask of this week's plan (they follow the catch). */
     var dryAsk = 0f
     var skinAsk = 0f
@@ -885,6 +885,17 @@ class Band(kinds: Int, totems: Int = kinds) {
         }
     }
 
+    /**
+     * The rest of what [splitInto] copies to the new band [o] ([OnSplit.COPIED] in [CARRY]), apart to keep [splitInto] under the
+     * JIT's method size: its running means of how long it keeps a camp, its weanlings' food, its water and its days' returns,
+     * what it saw of other bands, and last week's lean food and salt.
+     */
+    private fun copyRest(o: Band) {
+        o.stayWeeks = stayWeeks; o.weaningFood = weaningFood; o.waterShort = waterShort; o.leanLost = leanLost; o.sodiumShort = sodiumShort
+        o.seenStrength.putAll(seenStrength); o.seenDay.putAll(seenDay)
+        forageReturn.copyInto(o.forageReturn); o.cropWorthSeen = cropWorthSeen; o.cropDaysSeen = cropDaysSeen
+    }
+
     fun splitInto(o: Band, adults: Int, stay: Int, share: Float, r: Random, copied: (Band) -> Unit) {
         o.ties.clear(); o.ties.putAll(ties); o.appointment = appointment
         o.houseHex = houseHex; o.house = house; o.drivenFrom = drivenFrom; o.drivenBy = drivenBy; o.homeEarth = homeEarth; o.homeWalls = homeWalls; o.homeGroundC = homeGroundC; o.palisade = palisade
@@ -918,6 +929,7 @@ class Band(kinds: Int, totems: Int = kinds) {
         o.raidDeathRate = raidDeathRate; o.heldLivelihood = heldLivelihood; o.livelihoodHold = livelihoodHold; o.livedOther = livedOther; o.livelihoodChosen = livelihoodChosen; heardLivelihood.copyInto(o.heardLivelihood)
         o.burialWay = burialWay; o.disputeWay = disputeWay; heardBurial.copyInto(o.heardBurial); style.copyInto(o.style); heardStyle.copyInto(o.heardStyle); o.styleChosen = styleChosen; words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
         o.inbred = inbred; o.campWeeks = campWeeks; o.campPlace = campPlace; o.known = known.copyOf()
+        copyRest(o)
         copied(o)
         // (Its kept animals go by their contracts' own rules.)
         dogs.splitInto(o.dogs, share)
@@ -1008,6 +1020,14 @@ class Band(kinds: Int, totems: Int = kinds) {
         a.unevenness += w * (b.unevenness - a.unevenness)
         a.sisu += w * (b.sisu - a.sisu)
         for (i in a.ageStage.indices) a.ageStage[i] += b.ageStage[i]
+        absorbRest(b, w)
+    }
+
+    /** The rest of what [absorb] carries from the joining band [b] ([CARRY]), apart to keep [absorb] under the JIT's method size. */
+    private fun absorbRest(b: Band, w: Float) {
+        for (l in Livelihood.entries) heardLivelihood[l] += b.heardLivelihood[l]
+        raidWalkOwed += b.raidWalkOwed
+        leanLost += w * (b.leanLost - leanLost); sodiumShort += w * (b.sodiumShort - sodiumShort)
     }
 
     /** How well the band does at [s], against a master: from the skill's floor untrained to 1 (see [Skill]). */
