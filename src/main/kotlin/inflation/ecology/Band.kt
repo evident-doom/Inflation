@@ -823,7 +823,7 @@ class Band(kinds: Int, totems: Int = kinds) {
     /** Whether its people walk to the site for the rite under way: a far site ([CONTACT_KM] on) at most once a year and not in a lean month, else it holds the rite at its camp ([HexGroups.riteWeek]). */
     var riteTrip = true
     /** The year it last walked to a far rite site ([riteTrip]); -1: never. */
-    var farRiteYear = -1
+    var farRiteYear = -1L
     /**
      * What the rite under way asked of it at its month's start ([riteAsked], person-days), and the days of that month it
      * gave to neither its needs nor its customs ([riteSpare]): what it could have given the rite and gave to other work.
