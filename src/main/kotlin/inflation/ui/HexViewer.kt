@@ -734,26 +734,8 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                 works.paint(g, scale, ::sx, ::sy, ::onScreen)
                 legends += WorksPainter.legend
             }
-            // The ground of the band picked in the list, or else of the one followed.
-            if (groundBox.isSelected) {
-                val i = groupView.selectedIndex
-                val id = if (i in groupIds.indices) groupIds[i] else groups.watched
-                groups.groups.firstOrNull { it.id == id && it.alive && it.band != null }?.let {
-                    bandGround.paint(g, it, kmPx, ::sx, ::sy, ::onScreen)
-                    legends += BandGroundPainter.legend
-                }
-            }
-            // What passed between bands lately, between where they stand now, and the picked band's ties.
             val t = min(1f, frame.toFloat() / frames)
-            val at = HashMap<Int, Pair<Float, Float>>()
-            if (dealingsBox.isSelected || blocsBox.isSelected) for (s in shown) if (Catalogue.all[s.kind].human) at[s.id] = along(s.way, t)
-            if (blocsBox.isSelected) { blocs.paint(g, at, ::sx, ::sy, ::onScreen); legends += blocs.legend() }
-            if (dealingsBox.isSelected) {
-                val i = groupView.selectedIndex
-                val id = if (i in groupIds.indices) groupIds[i] else groups.watched
-                relations.paint(g, at, groups.groups.firstOrNull { it.id == id && it.alive }, ::sx, ::sy)
-                legends += RelationsView.legend
-            }
+            paintBands(g, t, kmPx, ::sx, ::sy, ::onScreen, legends)
             // The hex being inspected.
             if (!picked.none) {
                 g.stroke = BasicStroke(2.5f); hexagon(picked, Color.WHITE, false); g.stroke = BasicStroke(1f)
@@ -799,6 +781,30 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             }
             // What the tints' colours mean, in the top right corner.
             MapLegend.draw(g, legends, width)
+        }
+
+        /** The bands' layers ([groundBox], [blocsBox], [dealingsBox]), at [t] of the way through the week's moves. */
+        private fun paintBands(g: Graphics2D, t: Float, kmPx: Double, sx: (Float) -> Int, sy: (Float) -> Int, onScreen: (Hex, Int) -> Boolean,
+                               legends: MutableList<MapLegend>) {
+            // The ground of the band picked in the list, or else of the one followed.
+            if (groundBox.isSelected) {
+                val i = groupView.selectedIndex
+                val id = if (i in groupIds.indices) groupIds[i] else groups.watched
+                groups.groups.firstOrNull { it.id == id && it.alive && it.band != null }?.let {
+                    bandGround.paint(g, it, kmPx, sx, sy, onScreen)
+                    legends += BandGroundPainter.legend
+                }
+            }
+            // What passed between bands lately, between where they stand now, and the picked band's ties.
+            val at = HashMap<Int, Pair<Float, Float>>()
+            if (dealingsBox.isSelected || blocsBox.isSelected) for (s in shown) if (Catalogue.all[s.kind].human) at[s.id] = along(s.way, t)
+            if (blocsBox.isSelected) { blocs.paint(g, at, sx, sy, onScreen); legends += blocs.legend() }
+            if (dealingsBox.isSelected) {
+                val i = groupView.selectedIndex
+                val id = if (i in groupIds.indices) groupIds[i] else groups.watched
+                relations.paint(g, at, groups.groups.firstOrNull { it.id == id && it.alive }, sx, sy)
+                legends += RelationsView.legend
+            }
         }
 
         private fun along(w: FloatArray, t: Float): Pair<Float, Float> {
