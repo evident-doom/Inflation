@@ -90,6 +90,8 @@ class Band(kinds: Int, totems: Int = kinds) {
     val weekYield = FloatArray(SUPPLY_YEARS * WEEKS_KEPT) { Float.NaN }
     /** This week's yield as [weekYield] counts it, set when it plans its week ([planWeek]). */
     @Transient var yieldNow = Float.NaN
+    /** The food it has with it at a rite's gathering away from its camp, what it can still give there ([HexGroups.gatherAtRite]): kg. */
+    @Transient var riteFood = Float.POSITIVE_INFINITY
     /** The ticks of the step it is living through ([inflation.world.StepClock.ticks]), set as its week begins ([bandWeek]): for [practise]. */
     @Transient var stepTicks = 1
     /** What it ate last step from each source ([FoodFrom] order), kg a person a day, for the doom trace ([traceDoomed]); null until it has eaten. */

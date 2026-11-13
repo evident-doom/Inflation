@@ -569,7 +569,10 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
         rich.band?.let { rb -> dialUse?.amount(DialSite.GIVE_MEETING, rb.giveWill, chosen, atOne * rich.larder) }
         // (And no less than the favours it owes the poor band, as fully as it returns them.)
         val week = poor.dailyNeedKg * days
-        val gift = given(rich, poor, chosen, (1f - poor.fed) * week + week)
+        // (At a rite's gathering, only of the food it brought: [Band.riteFood].)
+        val carried = if (rite != null) rich.band?.riteFood ?: Float.POSITIVE_INFINITY else Float.POSITIVE_INFINITY
+        val gift = given(rich, poor, min(chosen, carried), min((1f - poor.fed) * week + week, carried))
+        if (rite != null) rich.band?.let { it.riteFood = max(0f, it.riteFood - gift) }
         if (gift > 0f) {
         moveFood(rich, poor, gift, LarderMove.GIFT)
         poor.band?.befriend(rich.id, TIE_GIFT); rich.band?.befriend(poor.id, 0.5f * TIE_GIFT)
@@ -651,13 +654,16 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
         val spare = host.larder - hb.storeAim * host.dailyNeedKg
         dialUse?.amount(DialSite.STORE_HOST, hb.storeShare, max(0f, spare), max(0f, host.larder - hb.storeAimAt1 * host.dailyNeedKg))
         if (spare <= 0f) continue
-        val meal = min(spare, FEAST_KG * guest.size * keen)
+        val meal = min(min(spare, FEAST_KG * guest.size * keen), if (rite != null) hb.riteFood else Float.POSITIVE_INFINITY)
+        if (meal <= 0f) continue
+        if (rite != null) hb.riteFood = max(0f, hb.riteFood - meal)
         moveFood(host, guest, meal, LarderMove.FEAST)
         // With grain to spare and vessels to brew in, the host pours beer: the feast is remembered better. It brews only grain
         // beyond its seed corn and beyond what it means to keep laid by: a band does not drink the seed it sows.
         val grain = host.stores[Store.SEED] - hb.seedCornIn(host)
         val beer = if (hb.has(Tool.BASKET) > 0.5f && hb.has(Tool.GRINDER) > 0.2f)
-            max(0f, minOf(0.2f * grain, spare - meal, BEER_KG * guest.size)) else 0f
+            max(0f, minOf(0.2f * grain, spare - meal, BEER_KG * guest.size, if (rite != null) hb.riteFood else Float.POSITIVE_INFINITY)) else 0f
+        if (rite != null) hb.riteFood = max(0f, hb.riteFood - beer)
         if (beer > 0f) {
             host.stores[Store.SEED] -= beer; stats.meeting(Met.FEASTS_WITH_BEER)
             land.books?.flow(Books.Stuff.MATTER, "eaten", -(beer * host.storeKgPer[Store.SEED]).toDouble())

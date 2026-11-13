@@ -140,6 +140,9 @@ internal fun HexGroups.gatherAtRite(g: HexGroup, site: Int, month: Long, weather
         drawn(DialSite.SHUN_SICK, b.will[BandWay.SHUNNING_THE_SICK], rnd.nextFloat(), b.shunSick) { 0.5f }) {
         stats.meeting(Met.SICK_BANDS_KEPT_FROM_A_RITE); return
     }
+    // (Its larder stays at its camp: at a gathering away from it, it has with it only food for the trip, and gives of that
+    // only. Olli, 13 Nov 2026: bands gave food 10 hexes from home. A guess: food for each day of the rite and the walk.)
+    if (b != null) { val km = riteKm(g, site); b.riteFood = if (km <= tuning.roundArrivedKm) Float.POSITIVE_INFINITY else riteDays(km) * g.dailyNeedKg }
     val rite = RiteGathering(site, here)
     for (o in here) if (g.alive && o.alive && o !== g) {
         stats.meeting(Met.BANDS_GATHERED_AT_A_RITE)
