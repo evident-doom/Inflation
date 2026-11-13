@@ -54,6 +54,9 @@ internal const val GAME_TAKE = 0.2f
  */
 internal const val MOVE_SHELTER_MOST = 1.5f
 
+/** How far standing houses free for a band in a hex beside must roof its grown people for it to move its camp to them ([moveCamps]): half, a guess. */
+internal const val HOUSES_TAKEN_UP = 0.5f
+
 /**
  * Of a band past its easy size ([HexGroups.easySize]), the chance a year that those it holds beyond it leave ([discord]).
  * Forager households move between camps every few weeks (Lee 1979, Woodburn 1982, from memory); a year's single draw at
@@ -190,7 +193,7 @@ internal fun HexGroups.findHome(n: HexGroup, born: List<HexGroup>) {
         val f = hexFood(q)
         if (f > emptyFood) { emptyFood = f; empty = q }
     }
-    if (!empty.none) { n.place = hw.firstPlaceIn(empty); stats.meeting(Met.BANDS_BUDDED_OUT); return }
+    if (!empty.none) { n.place = hw.firstPlaceIn(empty); homeLeft(n); stats.meeting(Met.BANDS_BUDDED_OUT); return }
     val wanting = hexesWanting()
     if (!wanting[from.i]) { stats.meeting(Met.BANDS_BUDDED_IN_PLACE); return }
     val own = n.size.toFloat()
@@ -213,6 +216,7 @@ internal fun HexGroups.findHome(n: HexGroup, born: List<HexGroup>) {
     if (best.none) best = fallback
     if (best.none) { stats.meeting(Met.BANDS_BUDDED_IN_PLACE); return }
     n.place = best
+    homeLeft(n)
     stats.meeting(Met.BANDS_BUDDED_OUT)
 }
 
@@ -268,6 +272,7 @@ internal fun HexGroups.spreadYear(date: Date): List<HexGroup> {
         g.adults -= adults; g.young -= young
         val n = splitOff(g, adults, young)
         n.place = hw.firstPlaceIn(best)
+        homeLeft(n)
         people[h.i] -= n.size; people[best.i] += n.size
         made += n
         stats.meeting(Met.HOUSEHOLDS_SEEPED)
@@ -280,7 +285,9 @@ internal fun HexGroups.spreadYear(date: Date): List<HexGroup> {
 /**
  * At each month's start, bands that hold their home hex and are tied to no spot ([Band.livesFixed]: houses, fresh sowing,
  * a palisade) move their camp to the hex beside that gives most food a head now ([hexFoodNow], their own people counted
- * there), if it gives [MOVE_MARGIN] more than their own. One measure, no other pull: a band moves for food, not to move.
+ * there), if it gives [MOVE_MARGIN] more than their own, and only if they have wanted for food this year ([wantsFood]): a band
+ * moves for food, not to move, and seldom. Before that, a band goes to standing houses free for it in a hex beside
+ * ([housesBeside]).
  * Foragers leave a camp as what they get about it falls below what they would get elsewhere, less the move (Kelly 2013,
  * from memory). Within the hex the band shifts camp as its ground fouls ([shiftCamps]).
  */
@@ -292,6 +299,19 @@ internal fun HexGroups.moveCamps() {
     for (g in groups) {
         val b = g.band ?: continue
         if (!g.alive || !staysHome(g) || inParty(g) || b.livesFixed()) continue
+        // (Houses first: a band not living in houses goes to standing houses free for it in a hex beside, if they would roof
+        // [HOUSES_TAKEN_UP] of its grown people, its own home's first. Olli, 13 Nov 2026: bands left houses standing empty
+        // a hex away, as nothing here looked at them.)
+        val back = housesBeside(g, b)
+        if (!back.none) {
+            people[hw.placeHex[g.place].i] -= g.size; people[back.i] += g.size
+            g.place = hw.firstPlaceIn(back)
+            stats.meeting(Met.BANDS_BACK_TO_HOUSES)
+            note(g) { "moved its camp to the houses standing in the hex beside" }
+            continue
+        }
+        // (Moving for food is the rare exception, Olli 13 Nov 2026: only a band that has wanted for food this year ([wantsFood]).)
+        if (!wantsFood(g)) continue
         // (What the move itself costs is left out of the measure, so a band moves only when it costs little: it can carry
         // all its stores ([leftBehindShare]), and it is not in huts thatched for the cold ([MOVE_SHELTER_MOST]). move736:
         // without this, bands that had moved held half the larder of those that had not, and in winter and spring died
@@ -313,6 +333,27 @@ internal fun HexGroups.moveCamps() {
         stats.meeting(Met.BANDS_RELOCATED)
         note(g) { "moved its camp to the hex beside, for more food a head" }
     }
+}
+
+/** The hex beside [g]'s camp whose standing houses, free for it, would roof [HOUSES_TAKEN_UP] of its grown people: its home's ([Band.houseHex]) first, else the most room; none if no such hex (or it fears raiders there, [Band.keptFrom]). */
+private fun HexGroups.housesBeside(g: HexGroup, b: Band): Hex {
+    val h = hw.placeHex[g.place]
+    var best = Hex.NONE; var most = HOUSES_TAKEN_UP
+    for (d in 0 until 6) {
+        val q = hex.neighbour(h, d)
+        if (q.none || hw.placesOf(q).isEmpty() || shuns(g, q) || b.keptFrom(q)) continue
+        val room = housesAt(g, q)
+        if (room < HOUSES_TAKEN_UP) continue
+        val v = room + (if (q == b.houseHex) 1f else 0f)
+        if (v >= most) { most = v; best = q }
+    }
+    return best
+}
+
+/** A band leaving its parent's hex does not take its parent's houses as its home: they are the parent's. */
+private fun HexGroups.homeLeft(n: HexGroup) {
+    val b = n.band ?: return
+    if (b.houseHex != hw.placeHex[n.place]) { b.houseHex = Hex.NONE; b.house = 0f; b.atHome = false }
 }
 
 /**

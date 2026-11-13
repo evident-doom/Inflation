@@ -90,6 +90,12 @@ class Band(kinds: Int, totems: Int = kinds) {
     val weekYield = FloatArray(SUPPLY_YEARS * WEEKS_KEPT) { Float.NaN }
     /** This week's yield as [weekYield] counts it, set when it plans its week ([planWeek]). */
     @Transient var yieldNow = Float.NaN
+    /** The food it has with it at a rite's gathering away from its camp, what it can still give there ([HexGroups.gatherAtRite]): kg. */
+    var riteFood = Float.POSITIVE_INFINITY
+    /** The person-days of walking its visits to neighbours beyond its own ground still ask, given from its customs' time ([HexGroups.neighboursMeet], [keepCustoms]). */
+    var visitOwed = 0f
+    /** The share of those days its customs' time gave last: as far as it goes visiting beyond its ground ([HexGroups.neighboursMeet]). */
+    var visitShare = 1f
     /** The ticks of the step it is living through ([inflation.world.StepClock.ticks]), set as its week begins ([bandWeek]): for [practise]. */
     @Transient var stepTicks = 1
     /** What it ate last step from each source ([FoodFrom] order), kg a person a day, for the doom trace ([traceDoomed]); null until it has eaten. */
@@ -1006,7 +1012,7 @@ class Band(kinds: Int, totems: Int = kinds) {
         for (way in BurialWay.entries) a.heardBurial[way] += b.heardBurial[way]
         for (i in a.heardStyle.indices) a.heardStyle[i] += b.heardStyle[i]
         a.burialOwed += b.burialOwed
-        a.riteOwed += b.riteOwed; a.riteAsked += b.riteAsked; a.riteSpare += b.riteSpare
+        a.riteOwed += b.riteOwed; a.riteAsked += b.riteAsked; a.riteSpare += b.riteSpare; a.visitOwed += b.visitOwed
         for ((k, v) in b.ties) if (k != id) a.ties[k] = max(a.tie(k), v)
         a.ties.remove(bId)
         for ((k, v) in b.favours) if (k != id) a.favours.merge(k, v, Float::plus)
