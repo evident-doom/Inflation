@@ -31,9 +31,12 @@ object Hazards {
      * on their fat for the rest, so it is gone: what they still lack they burn of their body's protein ([spentAfter]), and
      * an animal dies when it has burnt what carries it ([starveDays]), some sooner and some later ([starvedShare]).
      */
-    fun hunger(s: Species, spent: Float, fed: Float, days: Int): Float {
-        val before = starvedShare(s, spent); val after = starvedShare(s, spentAfter(s, spent, fed, days))
-        return if (after > before) min(1f, (after - before) / max(1e-6f, 1f - before)) else 0f
+    fun hunger(s: Species, spent: Float, fed: Float, days: Int) = starvedRise(s, spent, spentAfter(s, spent, fed, days))
+
+    /** The share of animals of [s] alive with [spent] days of their body's protein burnt that die of it by [after] burnt ([starvedShare]). */
+    fun starvedRise(s: Species, spent: Float, after: Float): Float {
+        val was = starvedShare(s, spent); val now = starvedShare(s, after)
+        return if (now > was) min(1f, (now - was) / max(1e-6f, 1f - was)) else 0f
     }
 
     /**
