@@ -392,12 +392,12 @@ object HexPpo {
     const val HORIZON = 26
     const val DISCOUNT = 0.95f
     /**
-     * Weeks ([StepLog.WEEK], 6 days) over which a band's choice is judged: a third of a year. Since bands hold their home hex
+     * Weeks ([StepLog.WEEK], 6 days) over which a band's choice is judged: a year (360 days). Since bands hold their home hex
      * (people net major 11) their choices are their ways ([WaysPpo]), drawn for a quarter, whose levers (stores, size, splits,
-     * disputes) act over the year and beyond. 13 (78 days) until 2026-11-13: what a move did to its band showed within about
-     * 8 to 13 weeks (see tools/HexChoiceEffect).
+     * disputes) act over the year and beyond. Until 2026-11-13 it was 13 (78 days): what a move did to its band showed within
+     * about 8 to 13 weeks (see tools/HexChoiceEffect). A third of a year (20) was the other arm of the A/B that chose this.
      */
-    const val PEOPLE_HORIZON = 20
+    const val PEOPLE_HORIZON = 60
     const val PEOPLE_DISCOUNT = 0.98f
     /** The fewest animals of a kind its tenfold growth is measured from: a kind may grow from a few groups to this tenfold before the world counts as off the rails. */
     const val GROWTH_FLOOR = 10_000
