@@ -164,7 +164,9 @@ internal fun GroupWorld.ageTilts(g: HexGroup): AgeTilts {
     val t = tuning
     val elders = b.elders.coerceAtMost(g.adults); val prime = g.adults - elders
     val primeShare = if (prime > 0) max(0f, (g.size - t.youngShare * g.young - t.elderShare * elders) / prime) else 1f
-    return AgeTilts(primeShare, t.elderShare / t.elderReserve, t.youngShare / t.youngReserve)
+    // (Starvation itself comes the later the more of the starving die of illness first: [inflation.Tuning.starveLater].)
+    val later = 1f / t.starveLater.coerceAtLeast(0.1f)
+    return AgeTilts(primeShare * later, t.elderShare / t.elderReserve * later, t.youngShare / t.youngReserve * later)
 }
 
 /** [g]'s protein burnt at the end of a step fed [fed] (its fat drawn on), from [spent] at its start. */
@@ -212,7 +214,8 @@ internal fun GroupWorld.burntShare(g: HexGroup, fed: Float): Float =
 internal fun GroupWorld.famineIllness(g: HexGroup, fed: Float): Pair<Float, Float> {
     val f = tuning.famineIllness; val s = g.species
     if (f <= 0f || !s.human) return 1f to 1f
-    val burnt = burntShare(g, fed)
+    // (Illness reads the body's state as it is, not moved later as starvation itself is: [inflation.Tuning.starveLater] undone.)
+    val burnt = burntShare(g, fed) * (if (g.band != null) tuning.starveLater.coerceAtLeast(0.1f) else 1f)
     if (burnt <= 0f) return 1f to 1f
     val a = ageTilts(g)
     val elders = g.band?.elders?.coerceAtMost(g.adults) ?: 0

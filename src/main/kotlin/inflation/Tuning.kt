@@ -353,6 +353,13 @@ class Tuning(
      */
     val famineCatching = f("famineCatching", 10f)
     /**
+     * How much later starvation itself kills a band's people: their starve days times this ([inflation.ecology.ageTilts]).
+     * Famine stage 2: most famine dead die of illness before their bodies give out (starvation itself 3-9% of Ireland's,
+     * Mokyr and O Grada, Table 5), so the ramp moves later as illness takes more. Illness reads the unmoved share
+     * ([inflation.ecology.burntShare]). 1 is the stage 1 rule; to be fitted.
+     */
+    val starveLater = f("starveLater", 1f)
+    /**
      * How far inland the sea's spray keeps plant forage in sodium, km: it falls off as e^(-km / this)
      * ([inflation.ecology.forageSodium]). A guess fitted to ungulates' salt licks lying mostly beyond 500 km of the coast
      * (Maro and Dudley 2022). No place on a 1000 x 2000 km test world is then short; about 9% on an 8000 x 2000 one.
