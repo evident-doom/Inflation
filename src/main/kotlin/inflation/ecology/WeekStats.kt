@@ -66,11 +66,10 @@ class WeekStats {
     /** People's grown ones' deaths expected from each week's hazards, by cause (census only; raids and hunts are booked elsewhere). */
     @Transient val grownHazardDeaths = ConcurrentHashMap<DeathReason, DoubleAdder>()
     /**
-     * Bands starving (their protein burnt [FAMINE_SPENT] days or more as the step began): people-years by age ("years grown",
-     * "years young", "years elders") and deaths expected from the odds by age and cause class ("grown hunger", "young
-     * illness", "elders all"...). Census only, a report ledger, not saved: the famine-by-age check.
+     * Bands starving (their protein burnt [FAMINE_SPENT] days or more as the step began): people-years by age and deaths expected
+     * from the odds by age and cause class ([Famine]). Census only, a report ledger, not saved: the famine-by-age check.
      */
-    @Transient val famine = ConcurrentHashMap<String, DoubleAdder>()
+    @Transient val famine = Array(Famine.entries.size) { DoubleAdder() }
     /** Young born this week by kind. */
     val births = TreeMap<Species, Int>(BY_NAME)
     /** The residents' deaths this week by "kind:cause", head (fractions: the residents are densities). */
@@ -745,3 +744,6 @@ object Tally {
     /** Hide people got from [source], grams. */
     fun hide(source: HideSource) = TallyKey.raw("people hide:${source.label}")
 }
+
+/** The famine-by-age ledger's entries ([WeekStats.famine]): people-years by age, then deaths by age and cause class. */
+enum class Famine { YEARS_GROWN, YEARS_YOUNG, YEARS_ELDERS, GROWN_HUNGER, GROWN_ILLNESS, GROWN_OTHER, YOUNG_HUNGER, YOUNG_ILLNESS, YOUNG_OTHER, ELDERS_ALL }

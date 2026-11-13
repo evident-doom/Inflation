@@ -1,5 +1,6 @@
 package inflation.tools.fauna
 
+import inflation.ecology.Famine
 import inflation.EnumFloats
 import inflation.enumFloats
 import inflation.world.Hex
@@ -670,17 +671,17 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
         run {
             // (Bands starving, their protein burnt FAMINE_SPENT days or more: deaths per 1000 a year by age and cause, from the
             // odds. The famine-by-age check: the young's and the elders' above the prime's, illness at least as many as hunger.)
-            val f = sim.groups.stats.famine.mapValues { it.value.sumThenReset() }
-            fun v(k: String) = f[k] ?: 0.0
-            fun per(d: Double, w: String) = 1000.0 * d / v("years $w").coerceAtLeast(1e-9)
-            val grownAll = v("grown hunger") + v("grown illness") + v("grown other")
-            val primeYears = (v("years grown") - v("years elders")).coerceAtLeast(1e-9)
+            val f = sim.groups.stats.famine.map { it.sumThenReset() }
+            fun v(k: Famine) = f[k.ordinal]
+            fun per(d: Double, years: Famine) = 1000.0 * d / v(years).coerceAtLeast(1e-9)
+            val grownAll = v(Famine.GROWN_HUNGER) + v(Famine.GROWN_ILLNESS) + v(Famine.GROWN_OTHER)
+            val primeYears = (v(Famine.YEARS_GROWN) - v(Famine.YEARS_ELDERS)).coerceAtLeast(1e-9)
             println(("     deaths in starving bands (protein burnt %.0f d and over; per 1000 a year, from the odds; %.0f people-years): " +
                 "grown hunger %.1f, illness %.1f, other %.1f; young hunger %.1f, illness %.1f, other %.1f; elders all %.1f, prime all %.1f").format(
-                inflation.ecology.FAMINE_SPENT, v("years grown") + v("years young"),
-                per(v("grown hunger"), "grown"), per(v("grown illness"), "grown"), per(v("grown other"), "grown"),
-                per(v("young hunger"), "young"), per(v("young illness"), "young"), per(v("young other"), "young"),
-                per(v("elders all"), "elders"), 1000.0 * (grownAll - v("elders all")) / primeYears))
+                inflation.ecology.FAMINE_SPENT, v(Famine.YEARS_GROWN) + v(Famine.YEARS_YOUNG),
+                per(v(Famine.GROWN_HUNGER), Famine.YEARS_GROWN), per(v(Famine.GROWN_ILLNESS), Famine.YEARS_GROWN), per(v(Famine.GROWN_OTHER), Famine.YEARS_GROWN),
+                per(v(Famine.YOUNG_HUNGER), Famine.YEARS_YOUNG), per(v(Famine.YOUNG_ILLNESS), Famine.YEARS_YOUNG), per(v(Famine.YOUNG_OTHER), Famine.YEARS_YOUNG),
+                per(v(Famine.ELDERS_ALL), Famine.YEARS_ELDERS), 1000.0 * (grownAll - v(Famine.ELDERS_ALL)) / primeYears))
         }
         val hex = sim.hex
         // (Bouts a 1000 a year: the people-weeks sick over the weeks a bout lasts, per person-year. Shigellosis 0.6-107 a 1000 a

@@ -642,14 +642,15 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         g.addLost(LOST_ALL, diedExpected)
         // (Census: deaths in bands starving, by age and cause class: [WeekStats.famine].)
         if (band != null && spentBefore >= FAMINE_SPENT) {
-            fun add(k: String, v: Float) { stats.famine.computeIfAbsent(k) { DoubleAdder() }.add(v.toDouble()) }
+            fun add(k: Famine, v: Float) = stats.famine[k.ordinal].add(v.toDouble())
             val e = min(band.elders, g.adults); val others = g.adults - e
-            add("years grown", g.adults * years); add("years young", youngExposed * years); add("years elders", e * years)
+            add(Famine.YEARS_GROWN, g.adults * years); add(Famine.YEARS_YOUNG, youngExposed * years); add(Famine.YEARS_ELDERS, e * years)
             for (h in hazards) {
-                val c = if (h.cause == DeathCause.HUNGER) "hunger" else if (h.cause is Illness || h.cause == DeathCause.DISEASE) "illness" else "other"
-                add("grown $c", g.adults * h.adult * adultScale); add("young $c", youngExposed * spared * h.young * youngScale)
+                val hunger = h.cause == DeathCause.HUNGER; val ill = h.cause is Illness || h.cause == DeathCause.DISEASE
+                add(if (hunger) Famine.GROWN_HUNGER else if (ill) Famine.GROWN_ILLNESS else Famine.GROWN_OTHER, g.adults * h.adult * adultScale)
+                add(if (hunger) Famine.YOUNG_HUNGER else if (ill) Famine.YOUNG_ILLNESS else Famine.YOUNG_OTHER, youngExposed * spared * h.young * youngScale)
             }
-            if (e > 0) add("elders all", g.adults * adultOdds * e * elderRisk / (e * elderRisk + others))
+            if (e > 0) add(Famine.ELDERS_ALL, g.adults * adultOdds * e * elderRisk / (e * elderRisk + others))
         }
     }
     // Elders die as the others do (their share of the adults who died), and of old age besides.
