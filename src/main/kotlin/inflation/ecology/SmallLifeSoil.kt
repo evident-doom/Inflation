@@ -84,6 +84,7 @@ internal fun HexSmallLife.stepSoil(p: Place, t: Float, soilWater: Float, carcass
     carcassBook?.add(carcassKg[p].toDouble())
     if (carrion[p] > 0f || inflow > 0f) {
         val rot = CARRION_ROT * max(0.1f, warm)
+        carrionRotRate[p] = rot
         val find = groupCarrionRate[p] + residentCarrionRate[p] + vultureCarrionRate[p]
         val k = rot + find; val d = days.toFloat(); val r = inflow / d
         val lay = (1f - exp(-k * d)) / k

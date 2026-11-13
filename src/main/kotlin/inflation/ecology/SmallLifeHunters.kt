@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.ecology.HexSmallLife.Companion.BONE_SHARE
 import inflation.ecology.HexSmallLife.Companion.CHUKAR_AT
 import inflation.ecology.HexSmallLife.Companion.EAGLE_HALF
 import inflation.ecology.HexSmallLife.Companion.EAGLE_NEED
@@ -21,6 +22,7 @@ import inflation.KgKm2
 import inflation.KgM2
 import inflation.min
 import inflation.world.Weather
+import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.min
 
@@ -139,7 +141,16 @@ internal fun HexSmallLife.stepVultures(weather: Weather) {
         vultures[k] = if (b < 2f) 0f else min(b, 2000f) // a colony below a pair is gone
     }
     // (What they found and left goes back on the ground; their rates over each place for the next step.)
-    for (q in vultureCarrion.indices) if (vultureCarrion[q] > 0f) { flow(CarrionFlow.HELD_BACK, Place(q), vultureCarrion[q]); carrion[q] += vultureCarrion[q]; vultureCarrion[q] = 0f }
+    // (Found through the step, it lay half the step on average: what has rotted by its end goes as rot does, [stepSoil].)
+    for (q in vultureCarrion.indices) if (vultureCarrion[q] > 0f) {
+        val left = vultureCarrion[q]; vultureCarrion[q] = 0f
+        val back = left * exp(-carrionRotRate[q] * 0.5f * days); val gone = left - back
+        flow(CarrionFlow.HELD_BACK, Place(q), back); carrion[q] += back
+        flow(CarrionFlow.ROT, Place(q), gone)
+        litter[q] += 0.3f * gone - BONE_SHARE * gone; bones[q] += BONE_SHARE * gone
+        rotBook?.add(-0.7 * gone * land.m2(Place(q)))
+        record?.let { it.carrionGone[q] += gone }
+    }
     vultureCarrionRate.fill(0f)
     if (ticks > 1) for (k in vulturePlace.indices) if (vultures[k] > 0f && rates[k] > 0f) for (q in vultureReach[k]) vultureCarrionRate[q] += rates[k]
 }
