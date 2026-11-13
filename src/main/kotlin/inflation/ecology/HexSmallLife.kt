@@ -122,7 +122,7 @@ class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, @Transi
      * census. Counts only.
      */
     @Transient val carrionFlow = Array(CarrionFlow.entries.size) { DoubleArray(n) }
-    fun flow(f: CarrionFlow, p: Int, kgM2: Float) { carrionFlow[f.ordinal][p] += kgM2.toDouble() }
+    fun flow(f: CarrionFlow, p: Place, kgM2: Float) { carrionFlow[f.ordinal][p.i] += kgM2.toDouble() }
     /** How fast the residents of each place come on its carrion, a day, as they last fed there: summed over the kinds that eat it ([stepSoil]). */
     @Transient val residentCarrionRate = FloatArray(n)
     /** Where dead matter went, for the viewer (see [PlaceRecord]); set with [HexFauna.record]. */
@@ -460,7 +460,7 @@ class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, @Transi
     enum class DeadPool { CARRION, LITTER, DUNG }
     /** Lays [kgM2] of dead matter into [pool] at place [p]. */
     fun deposit(pool: DeadPool, p: Place, kgM2: KgM2) {
-        when (pool) { DeadPool.CARRION -> { carrion[p] += kgM2.v; flow(CarrionFlow.DIRECT_IN, p.i, kgM2.v) }; DeadPool.LITTER -> litter[p] += kgM2.v; DeadPool.DUNG -> dung[p] += kgM2.v }
+        when (pool) { DeadPool.CARRION -> { carrion[p] += kgM2.v; flow(CarrionFlow.DIRECT_IN, p, kgM2.v) }; DeadPool.LITTER -> litter[p] += kgM2.v; DeadPool.DUNG -> dung[p] += kgM2.v }
     }
     /** Lays [kg] of the buried dead into the ground at place [p]: they rot into the soil's organic matter, out of the scavengers' reach. */
     fun bury(p: Place, kg: Kg) { organicMatter[p] += land.spread(p, kg).v }
