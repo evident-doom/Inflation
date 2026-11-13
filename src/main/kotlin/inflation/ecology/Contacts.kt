@@ -103,6 +103,7 @@ internal fun GroupWorld.sphereOf(g: HexGroup): Sphere? {
  * The contacts of the step among [groups] ([contactsOf]), with [inflation.Tuning.packsStay]: each pair of which one holds its
  * ground ([HexGroup.footprint]) and whose grounds share a hex, that [contend]; none without the switch or a pack holding ground.
  */
+@inflation.Part("meetings: contacts")
 internal fun HexGroups.contacts(): List<Contact> {
     if (!tuning.packsStay) return emptyList()
     val n = groups.size
