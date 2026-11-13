@@ -1451,6 +1451,34 @@ class Census(private val sim: HexSim) {
         }
     }
 
+    /**
+     * How the groups fall into clusters out of each other's reach (design: order-free meetings, stage 0): groups (bands, and
+     * all groups) joined when their places lie within [km] of each other, as many clusters as there are; the largest's share
+     * of the groups and of the people, and how many clusters hold one group alone.
+     */
+    fun printClusters() {
+        val all = groups.groups.filter { it.alive }
+        for (bandsOnly in listOf(true, false)) {
+            val gs = if (bandsOnly) all.filter { it.band != null } else all
+            val n = gs.size
+            if (n < 2) continue
+            val at = Array(n) { hw.placeHex[gs[it].place] }
+            val line = StringBuilder()
+            for (km in doubleArrayOf(30.0, 60.0, 120.0)) {
+                val parent = IntArray(n) { it }
+                fun root(i: Int): Int { var r = i; while (parent[r] != r) r = parent[r]; var j = i; while (parent[j] != r) { val nx = parent[j]; parent[j] = r; j = nx }; return r }
+                for (i in 0 until n) for (j in i + 1 until n) if (hex.distanceKm(at[i], at[j]) <= km) { val ri = root(i); val rj = root(j); if (ri != rj) parent[ri] = rj }
+                val count = IntArray(n); val heads = DoubleArray(n)
+                for (i in 0 until n) { val r = root(i); count[r]++; heads[r] += gs[i].size.toDouble() }
+                val sizes = (0 until n).filter { count[it] > 0 }.map { count[it] }.sortedDescending()
+                val big = (0 until n).maxByOrNull { count[it] } ?: 0
+                line.append("; within %.0f km: %d clusters, largest %.0f%% of groups (%.0f%% of heads), next %s, %d alone".format(km, sizes.size,
+                    100.0 * count[big] / n, 100.0 * heads[big] / heads.sum().coerceAtLeast(1.0), sizes.drop(1).take(4).joinToString("/"), sizes.count { it == 1 }))
+            }
+            println("     clusters of %s (%d)%s".format(if (bandsOnly) "bands" else "all groups", n, line))
+        }
+    }
+
     fun printIdentity(thisYear: Map<TallyKey, Int>, metYear: Map<TallyKey, Int>) {
         val bands = groups.groups.mapNotNull { g -> g.band?.takeIf { g.alive }?.let { g to it } }
         val n = bands.size
