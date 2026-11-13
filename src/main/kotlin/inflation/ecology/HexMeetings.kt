@@ -953,10 +953,14 @@ internal const val MEET_AGAIN_DAYS = 6f
 
 /**
  * The meetings expected over the step, [mean] as they would come with no pause after one, among [pairs] that may each meet
- * (at least one): each pair is kept apart [MEET_AGAIN_DAYS] after a meeting, so it meets at rate x/(1 + x d) for its rate
- * x a day (a renewal process with a dead time), the same at any step length. It replaces a cap of one meeting a tick.
+ * (at least one): each pair meets at most once in each [MEET_AGAIN_DAYS], so in each such span with the chance 1 - e^(-x d)
+ * for its rate x a day, and over the step's days D, D/d of those: the same at any step length, and the weekly cap's mean at
+ * 6 days (min(Poisson, 1) has mean 1 - e^(-mean)). It replaces a cap of one meeting a tick. (A pause after each, x/(1 + x d),
+ * cut the weekly meetings by a quarter and moved weekly leopards +33%: meet795.)
  */
 internal fun GroupWorld.afterMeeting(mean: Float, pairs: Float): Float {
     val n = max(1f, pairs); val d = days.toFloat()
-    return if (mean <= 0f || d <= 0f) 0f else mean / (1f + MEET_AGAIN_DAYS * mean / (n * d))
+    if (mean <= 0f || d <= 0f) return 0f
+    val spans = n * d / MEET_AGAIN_DAYS
+    return spans * (1f - kotlin.math.exp(-mean / spans))
 }
