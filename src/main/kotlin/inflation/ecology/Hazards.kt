@@ -37,6 +37,50 @@ object Hazards {
     }
 
     /**
+     * Hunger for a beast that lives kill by kill: the share of a group of [s] whose reserve runs out within a step of [days]
+     * (Olli 2026-11-12, "re-think the hunger formula"). Its reserve, in days of its need, is its [fat] and what is left of its body
+     * ([starveDays] less [spent]); it drains at what [evenFed] (food that comes evenly, a share of need) and its [economy] do not
+     * cover, and each kill, at [killRate] a day, puts back [killDays]. It first runs out at tau_k = (u + k a)/c, after just k
+     * kills, with chance u/(u + k a) x Poisson(k; lambda tau_k) (Kemperman's hitting-time theorem, checked against 200,000
+     * simulated paths: plan doc "Weekly rules in closed form"). Summed over the k that fall within the step it is the same rule at
+     * any step length: a mean fed over 60 days no longer hides the lean runs a weekly step sees. How long a body lasts differs
+     * between animals as [starvedShare] has it (+-[STARVE_SPREAD] about [starveDays]): taken at [SPREAD_POINTS], those already
+     * dead left out.
+     */
+    fun hungerKills(s: Species, spent: Float, fat: Float, evenFed: Float, killRate: Float, killDays: Float, days: Int): Float {
+        val c = 1f - economy(s) - evenFed
+        if (c <= 0f) return 0f
+        val sd = starveDays(s)
+        var alive = 0; var dead = 0.0
+        for (m in SPREAD_POINTS) {
+            val u = max(0f, fat) + sd * m - spent
+            if (u <= 0f) continue
+            alive++; dead += runsOut(u.toDouble(), c.toDouble(), killRate.toDouble(), killDays.toDouble(), days.toDouble())
+        }
+        return if (alive == 0) 0f else min(1f, (dead / alive).toFloat())
+    }
+
+    /** Body lasting at [STARVE_SPREAD] about [starveDays], as the midpoints of five equal shares of animals ([hungerKills]). */
+    private val SPREAD_POINTS = floatArrayOf(0.6f, 0.8f, 1f, 1.2f, 1.4f)
+
+    /** The chance a reserve [u] drained at [c] a day, refilled by [a] at each of the kills that come at [lambda] a day, reaches 0 within [t] days ([hungerKills]). */
+    private fun runsOut(u: Double, c: Double, lambda: Double, a: Double, t: Double): Double {
+        if (u >= c * t) return 0.0
+        if (lambda <= 0.0 || a <= 0.0) return 1.0
+        var p = 0.0; var lnFact = 0.0; var k = 0
+        while (k < MAX_KILL_TERMS) {
+            val tau = (u + k * a) / c
+            if (tau > t) break
+            if (k > 0) lnFact += ln(k.toDouble())
+            val mu = lambda * tau
+            p += u / (u + k * a) * exp(k * ln(mu) - mu - lnFact)
+            k++
+        }
+        return min(1.0, p)
+    }
+    private const val MAX_KILL_TERMS = 400
+
+    /**
      * The days of its body's protein an animal of [s] has burnt after a step of [days] fed [fed] past its fat, having burnt
      * [spent] before: what it lacks beyond what it saves by spending less ([economy]).
      */

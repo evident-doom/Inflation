@@ -215,6 +215,9 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         offerFoods(w, o); w.carrionNoted = true
         o.takeUp()
         if (pass == 0 && w.band != null) noteUnused(w, o)
+        if (pass == 0 && w.band == null) for (r in 0 until o.used) { val i = o.order[r]
+            if (o.type[i] != Food.BIG_GAME) continue
+            val k = w.workDays * o.rate[i] / o.spent[o.who[i]]; w.capKills += k; w.capFood += k * o.value[i] }
         if (HUNT_DIAG && pass == 0 && w.band == null && w.herds.isNotEmpty()) {
             val cut = o.gain[0] / o.spent[0]
             for (i in 0 until o.m) if (o.herd[i] >= 0) { diag(g.species, HuntStep.HERDS_ON_OFFER, 1f)
@@ -307,6 +310,12 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     w.time?.release(Activity.FOOD)
     if (HUNT_DIAG && w.band == null) packWeekDiag(w)
     if (w.band == null) g.huntOwed = max(0f, w.busy + w.searchUsed - w.workDays)
+    if (w.band == null) {
+        val needDay = w.wantAll / days
+        g.killRate = w.capKills / days
+        g.killDays = if (w.capKills > 0f && needDay > 0f) w.capFood / w.capKills / needDay else 0f
+        g.evenFed = if (w.wantAll > 0f) (max(0f, w.fed - w.killFed) / w.wantAll).coerceIn(0f, 1f) else 0f
+    }
     preyFoughtBack(g, w.foughtBack, w.rnd)
     eatTheWeek(w)
 }
@@ -674,6 +683,10 @@ internal class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, pack
     var passes = 0
     var searchDays = 0f
     var killsExpected = 0f
+    /** A beast's first take-up at full effort, over the step: the kills of big game it would make and what they would feed it; and what its kills fed it ([HexGroup.killRate]). */
+    var capKills = 0f
+    var capFood = 0f
+    var killFed = 0f
     var haulOver = 0f
     /**
      * For the census of foraging's days ([countFoodTime]), days of a hand: the hunters' searching and handling of game, the
