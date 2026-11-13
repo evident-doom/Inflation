@@ -315,8 +315,17 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     if (w.band == null) g.huntOwed = max(0f, w.busy + w.searchUsed - w.workDays)
     if (w.band == null) {
         val needDay = w.wantAll / days
-        g.killRate = w.capKills / days
-        g.killDays = if (w.capKills > 0f && needDay > 0f) w.capFood / w.capKills / needDay else 0f
+        // (Its kills as it made them, at the rate of the days it hunted carried to all its working days: what it can do when
+        // hungry. Its first take-up's planned rate alone read 60-day leopards fed in full as hunting below their need, and
+        // killed them at twice the weekly odds, lh793. With no kill made, the planned rate.)
+        val used = ((w.busy + w.searchUsed) / w.workDays.coerceAtLeast(1e-6f)).coerceIn(0.05f, 1f)
+        if (w.killsMade > 0) {
+            g.killRate = max(w.capKills, w.killsMade / used) / days
+            g.killDays = if (needDay > 0f) w.killFed / w.killsMade / needDay else 0f
+        } else {
+            g.killRate = w.capKills / days
+            g.killDays = if (w.capKills > 0f && needDay > 0f) w.capFood / w.capKills / needDay else 0f
+        }
         g.evenFed = if (w.wantAll > 0f) (max(0f, w.fed - w.killFed) / w.wantAll).coerceIn(0f, 1f) else 0f
     }
     preyFoughtBack(g, w.foughtBack, w.rnd)
@@ -693,6 +702,7 @@ internal class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, pack
     var capKills = 0f
     var capFood = 0f
     var killFed = 0f
+    var killsMade = 0
     var haulOver = 0f
     /**
      * For the census of foraging's days ([countFoodTime]), days of a hand: the hunters' searching and handling of game, the
