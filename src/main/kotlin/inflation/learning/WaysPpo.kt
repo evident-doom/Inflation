@@ -149,8 +149,8 @@ object WaysPpo {
         fun save() = ways.save(file)
     }
 
-    /** Weeks a band keeps one draw of its ways, and over which the draw is judged (as people's moves are, [HexPpo.PEOPLE_HORIZON]). */
-    const val SEASON = HexPpo.PEOPLE_HORIZON
+    /** Weeks a band keeps one draw of its ways: a quarter of the 360-day year (judged over [HexPpo.PEOPLE_HORIZON]). */
+    const val SEASON = 15
     /** [SEASON] in days ([StepLog.WEEK]-day weeks). */
     val SEASON_DAYS = SEASON * StepLog.WEEK
 

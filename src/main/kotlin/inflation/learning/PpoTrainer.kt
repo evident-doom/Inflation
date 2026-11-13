@@ -32,7 +32,10 @@ class PpoTrainer(private val o: PpoOptions) {
     private class Adams(val net: Adam, val identity: Adam)
     private val adams = models.map { Adams(Adam(it.net.w.size, o.rate), Adam(it.identity.size, o.rate)) }
     /** One critic for each role: what a group's return can be expected to be where it stands. */
-    private val critics = Role.entries.mapIndexed { i, r -> Critic.loadOrNew(r.criticFile(out), models[i]) }
+    private val critics = Role.entries.mapIndexed { i, r ->
+        // (People's critic reads no mover since people's net major 11: the human kind's part people.mlp gave it goes into its biases.)
+        if (r == Role.PEOPLE) Critic.loadOrNew(r.criticFile(out), Critic.Inputs.PEOPLE, Critic.Inputs.peopleConstants(files[i]))
+        else Critic.loadOrNew(r.criticFile(out), Critic.Inputs.of(models[i])) }
     /** Bands' ways, learned from their draws, reading their camp's terms (see [WaysPpo], [CampTerms]). */
     private val waysState = if (o.learnWays) WaysPpo.State(out, o.hidden, o.rate) else null
     /** The check of each round's networks against the kept ones (see [EcoCheck]), running beside the training. */
@@ -143,7 +146,7 @@ class PpoTrainer(private val o: PpoOptions) {
         val byKind = all.groupBy { it.kind }
         val expected = HashMap<Choice, Float>()
         val judged = HashMap<Choice, Float>()
-        for ((mi, model) in models.withIndex()) {
+        for (mi in models.indices) {
             val mine = all.filter { Role.of(it.kind).ordinal == mi }
             val critic = critics[mi]
             // (People's weeks are all for the critic alone since no network chooses their camps ([CampPolicy]): it learns from them,
@@ -151,17 +154,17 @@ class PpoTrainer(private val o: PpoOptions) {
             if (mine.isEmpty()) {
                 val alone = valueOnly.filter { Role.of(it.kind).ordinal == mi }
                 if (alone.isEmpty()) continue
-                val explainedAlone = critic.explained(model, alone)
-                critic.learn(model, alone, round); critic.save(Role.entries[mi].criticFile(out), model)
+                val explainedAlone = critic.explained(alone)
+                critic.learn(alone, round); critic.save(Role.entries[mi].criticFile(out))
                 stats.append("%s critic explains %.2f of %d weeks recorded for it alone, %.0f%% seen again; ".format(Role.entries[mi], explainedAlone.values.average(), alone.size, 100.0 * alone.count { it.probe != null } / alone.size))
                 continue
             }
             // (Judged with the critic as it stood before this round, then it learns from the round.)
             val t0 = System.nanoTime()
-            val explained = critic.explained(model, mine)
-            for (c in mine) { expected[c] = critic.value(model, c); judged[c] = critic.target(model, c) }
+            val explained = critic.explained(mine)
+            for (c in mine) { expected[c] = critic.value(c); judged[c] = critic.target(c) }
             // (The critic learns too from the groups that took their best, [Choice.valueOnly]: judged, not judging.)
-            critic.learn(model, mine + valueOnly.filter { Role.of(it.kind).ordinal == mi }, round)
+            critic.learn(mine + valueOnly.filter { Role.of(it.kind).ordinal == mi }, round)
             // (What the deaths of people cost their choices' returns, by cause class: the weights on them, if any, are in [HexPpo.Player].)
             if (mi == Role.PEOPLE.ordinal) mine.filter { !it.valueOnly && it !is WaysChoice }.takeIf { it.isNotEmpty() }?.let { ms ->
                 stats.append("people's returns lose %.4f to cold and camp, %.4f to going without, %.4f in all; ".format(ms.map { it.lostKit.toDouble() }.average(), ms.map { it.lostFood.toDouble() }.average(), ms.map { it.lostAll.toDouble() }.average()))
@@ -185,9 +188,9 @@ class PpoTrainer(private val o: PpoOptions) {
      */
     private fun judgeWays(cs: List<WaysChoice>): Double {
         if (cs.isEmpty()) return 0.0
-        val model = models[Role.PEOPLE.ordinal]; val critic = critics[Role.PEOPLE.ordinal]
-        val expected = FloatArray(cs.size) { critic.value(model, cs[it]) }
-        val judged = FloatArray(cs.size) { critic.target(model, cs[it]) }
+        val critic = critics[Role.PEOPLE.ordinal]
+        val expected = FloatArray(cs.size) { critic.value(cs[it]) }
+        val judged = FloatArray(cs.size) { critic.target(cs[it]) }
         val gap = FloatArray(cs.size) { judged[it] - expected[it] + cs[it].credit }
         val mean = gap.average().toFloat()
         val sd = sqrt(gap.map { ((it - mean) * (it - mean)).toDouble() }.average()).toFloat().coerceAtLeast(1e-3f)
@@ -227,7 +230,7 @@ class PpoTrainer(private val o: PpoOptions) {
                 adams[mi].net.step(model.net.w, gradW, inputRates); adams[mi].identity.step(model.identity, gradId)
             }
         }
-        model.save(files[mi]); critics[mi].save(Role.entries[mi].criticFile(out), model)
+        model.save(files[mi]); critics[mi].save(Role.entries[mi].criticFile(out))
         stats.append(Role.entries[mi]).append(' ').append(mine.size).append(" choices (%.0f s, clipped %.2f%s); ".format((System.nanoTime() - t0) / 1e9, clipped.toDouble() / seen.coerceAtLeast(1),
             if (skipped > 0) ", $skipped steps left out: not numbers" else ""))
     }

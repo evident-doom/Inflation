@@ -41,6 +41,14 @@ object Schema {
     val MOVER_OUT = listOf("score")
     /** People's mover: the mover's inputs, then the band's view of itself and of the bands about it ([WAYS_IN], from [Band.state]). */
     val PEOPLE_IN: List<String> get() = MOVER_IN + WAYS_IN.map { "band:$it" }
+    /**
+     * What people's critic reads of where a band stands ([Critic.Inputs.PEOPLE]), besides the band's own state: the place, the band's
+     * temperament and its view of itself. Not the kind's part: people are one kind, so it was constant (folded into the critic's
+     * biases when a critic saved reading it loads, [fit]).
+     */
+    val PEOPLE_CRITIC_IN: List<String> get() = PLACE.map { "place:$it" } + TEMPER.map { "temper:$it" } + WAYS_IN.map { "band:$it" }
+    /** The kind's part of a mover's input by name ([SharedMover.kindInputs]): its traits, then its identity. */
+    val KIND_PART: List<String> get() = KIND.map { "kind:$it" } + (0 until SharedMover.IDENTITY).map { "identity:$it" }
 
     /** A band's view of itself ([inflation.ecology.BAND_INPUT_NAMES]) and its ways ([inflation.ecology.WAYS_OUT_NAMES]). */
     val WAYS_IN: List<String> get() = inflation.ecology.BAND_INPUT_NAMES
@@ -79,7 +87,7 @@ object Schema {
      * to have the first of today's names (features and choices have been added at the end), except
      * that a mover's place features come before its kind's part ([legacyMover]).
      */
-    fun load(file: File, inputs: List<String>, outputs: List<String>, legacyMover: Boolean = false): Mlp {
+    fun load(file: File, inputs: List<String>, outputs: List<String>, legacyMover: Boolean = false, constants: List<Pair<String, Float>> = emptyList()): Mlp {
         val net = Mlp.load(file.readText())
         val nf = namesFile(file)
         val (savedIn, savedOut) = if (nf.exists()) nf.readLines().let { it[0].split("|") to it[1].split("|") } else {
@@ -92,11 +100,16 @@ object Schema {
             } else inputs.take(nIn)
             ins to outputs.take(nOut)
         }
-        return fit(net, savedIn, savedOut, inputs, outputs)
+        return fit(net, savedIn, savedOut, inputs, outputs, constants)
     }
 
-    /** [net], trained on [savedIn] and [savedOut], refitted to [inputs] and [outputs] by name. */
-    fun fit(net: Mlp, savedIn: List<String>, savedOut: List<String>, inputs: List<String>, outputs: List<String>): Mlp {
+    /**
+     * [net], trained on [savedIn] and [savedOut], refitted to [inputs] and [outputs] by name. A saved input dropped that only
+     * ever held the same value, one of [constants] (its name and value), goes into the first layer's biases, so the network
+     * gives what it gave.
+     */
+    fun fit(net: Mlp, savedIn: List<String>, savedOut: List<String>, inputs: List<String>, outputs: List<String>,
+            constants: List<Pair<String, Float>> = emptyList()): Mlp {
         if (savedIn == inputs && savedOut == outputs) return net
         require(net.sizes.size >= 3) { "a network needs a hidden layer to be refitted" }
         val sizes = net.sizes.copyOf().also { it[0] = inputs.size; it[it.size - 1] = outputs.size }
@@ -104,9 +117,12 @@ object Schema {
         val h = net.sizes[1]; val top = net.sizes.size - 1
         // First layer: each hidden unit's weight on each input, by the input's name; then its bias.
         val inAt = inputs.map { savedIn.indexOf(it) }
+        val folded = constants.filter { (n, _) -> n !in inputs }.mapNotNull { (n, v) -> savedIn.indexOf(n).takeIf { it >= 0 }?.let { it to v } }
         for (j in 0 until h) {
             for ((i, k) in inAt.withIndex()) if (k >= 0) m.w[m.at(1, i, j)] = net.w[net.at(1, k, j)]
-            m.w[m.biasAt(1, j)] = net.w[net.biasAt(1, j)]
+            var bias = net.w[net.biasAt(1, j)]
+            for ((k, v) in folded) bias += net.w[net.at(1, k, j)] * v
+            m.w[m.biasAt(1, j)] = bias
         }
         // The hidden layers between are as they were.
         for (l in 2 until top) net.w.copyInto(m.w, m.at(l, 0, 0), net.at(l, 0, 0), net.biasAt(l, net.sizes[l]))
