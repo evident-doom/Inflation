@@ -69,7 +69,7 @@ internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
     if (b.riteDue >= 0 && b.riteOwed <= 0f) {
         land.sanctity[b.riteDue] += g.adults.toFloat()
         b.riteKept = now
-        gatherAtRite(g, b.riteDue, b.riteHeld, weather)
+        if (b.riteTrip) gatherAtRite(g, b.riteDue, b.riteHeld, weather)
         stats.meeting(Met.BANDS_HELD_A_RITE)
         stats.meeting(Met.Of.RITES_HELD, RiteWalk.of(riteKm(g, b.riteDue), tuning).label)
         b.riteDue = -1
@@ -88,7 +88,7 @@ internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
             stats.meeting(Met.BANDS_HELD_A_RITE_IN_A_LESSER_FORM)
             // (It meets the others gathered there only if its people walked there: the walk's days given in full. Before 13 Nov
             // 2026 any share given brought it to the gathering, however far.)
-            if (given >= b.riteAsked - RITE_DAYS * g.adults) gatherAtRite(g, b.riteDue, b.riteHeld, weather)
+            if (b.riteTrip && given >= b.riteAsked - RITE_DAYS * g.adults) gatherAtRite(g, b.riteDue, b.riteHeld, weather)
         }
         b.strain += if (b.riteAsked > 0f) withheld / b.riteAsked else 1f
         val byNeed = if (b.riteAsked > 0f) (b.riteOwed - withheld) / b.riteAsked else 0f
@@ -102,7 +102,15 @@ internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
     val site = b.rite[weather.date.month]
     if (site >= 0 && b.riteHeld != now) {
         b.riteHeld = now; b.riteDue = site
-        b.riteOwed = riteDays(riteKm(g, site)) * g.adults
+        // (A far site, beyond a day or two's walk, is walked to at most once a year and not in a lean month; else the rite
+        // is held at the camp, without the gathering. Olli, 13 Nov 2026: trips of 100-300 km are on record, yearly or rarer,
+        // as at Australian ceremonial gatherings, from memory.)
+        val km = riteKm(g, site)
+        val lean = g.fed < Thresholds.HUNGRY || g.fat / g.species.maxFatDays.coerceAtLeast(1f) < FERTILE_RESERVE
+        b.riteTrip = km <= CONTACT_KM || (b.farRiteYear != weather.date.year && !lean)
+        if (km > CONTACT_KM && b.riteTrip) b.farRiteYear = weather.date.year
+        if (km > CONTACT_KM && !b.riteTrip) stats.meeting(Met.FAR_RITES_HELD_AT_CAMP)
+        b.riteOwed = (if (b.riteTrip) riteDays(km) else RITE_DAYS) * g.adults
         b.riteAsked = b.riteOwed; b.riteSpare = 0f
         stats.meeting(Met.Of.CUSTOMS_DAYS_ASKED, CustomsPart.RITES.label, (10f * b.riteOwed).roundToInt())
     }

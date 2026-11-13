@@ -266,7 +266,8 @@ enum class Met(val label: String) {
     YOUNG_ANIMALS_KEPT("young animals kept"),
     YOUNG_HUNTERS_LEFT_THEIR_PACK("young hunters left their pack"),
     APPOINTMENTS_OUT_OF_REACH("bands that let an appointment go, its place beyond their reach"),
-    BANDS_BACK_TO_HOUSES("bands moved their camp to standing houses in the hex beside");
+    BANDS_BACK_TO_HOUSES("bands moved their camp to standing houses in the hex beside"),
+    FAR_RITES_HELD_AT_CAMP("rites at a far site held at the camp: walked there already this year, or a lean month");
 
     /** Its key in [WeekStats.meetings]. */
     val key = TallyKey.raw(label)

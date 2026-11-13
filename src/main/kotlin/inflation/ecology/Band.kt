@@ -820,6 +820,10 @@ class Band(kinds: Int, totems: Int = kinds) {
     var riteDue = -1
     /** The month, counted from the world's start, it last held a rite to the end (-1: never). */
     var riteKept = -1L
+    /** Whether its people walk to the site for the rite under way: a far site ([CONTACT_KM] on) at most once a year and not in a lean month, else it holds the rite at its camp ([HexGroups.riteWeek]). */
+    var riteTrip = true
+    /** The year it last walked to a far rite site ([riteTrip]); -1: never. */
+    var farRiteYear = -1
     /**
      * What the rite under way asked of it at its month's start ([riteAsked], person-days), and the days of that month it
      * gave to neither its needs nor its customs ([riteSpare]): what it could have given the rite and gave to other work.
@@ -927,7 +931,7 @@ class Band(kinds: Int, totems: Int = kinds) {
         o.salted = salted; o.dryDepth = dryDepth; o.pests = pests
         o.sodiumWant = sodiumWant; o.saltWantStep = saltWantStep * share; saltWantStep -= o.saltWantStep
         o.renown = renown
-        rite.copyInto(o.rite); o.riteStrength = riteStrength; o.riteHeld = riteHeld; o.riteKept = riteKept; o.beliefYears = beliefYears; o.strain = strain
+        rite.copyInto(o.rite); o.riteStrength = riteStrength; o.riteHeld = riteHeld; o.riteKept = riteKept; o.farRiteYear = farRiteYear; o.beliefYears = beliefYears; o.strain = strain
         o.omenPlace = omenPlace; o.omenMonth = omenMonth; o.omenYear = omenYear; o.omenWeight = omenWeight; o.deathsUsual = deathsUsual; o.wantSteps = wantSteps; o.wantBroke = wantBroke; o.wantUsual = wantUsual; o.mind = mind; foreseenShares.copyInto(o.foreseenShares); o.foreseenAt = foreseenAt
         warn.copyInto(o.warn); o.warnAt = warnAt
         traditions.copyInto(o.traditions); heard.copyInto(o.heard); o.heardOf = heardOf
