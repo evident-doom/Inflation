@@ -147,12 +147,6 @@ internal fun GroupWorld.keepCustoms(b: Band, people: Float, time: BandTime) {
         tally(CustomsPart.RITES, b.riteOwed, paid)
         time.spend(Activity.CUSTOMS, paid); b.riteOwed -= paid
     }
-    // (Then the walks of its visits beyond its ground: as far as they are given, it goes on visiting, [Band.visitShare].)
-    if (b.visitOwed > 0f) {
-        val paid = min(b.visitOwed, max(0f, time.leftFor(Activity.CUSTOMS)))
-        b.visitShare = paid / b.visitOwed
-        time.spend(Activity.CUSTOMS, paid); b.visitOwed -= paid
-    } else b.visitShare = 1f
     val clean = cleanDays(b, people)
     b.cleaned = if (clean > 0f) min(1f, time.leftFor(Activity.CUSTOMS) / clean) else 1f
     tally(CustomsPart.CLEANING, clean, b.cleaned * clean)
@@ -161,6 +155,14 @@ internal fun GroupWorld.keepCustoms(b: Band, people: Float, time: BandTime) {
     b.nursed = if (nurse > 0f) min(1f, time.leftFor(Activity.CUSTOMS) / nurse) else 1f
     tally(CustomsPart.NURSING, nurse, b.nursed * nurse)
     time.spend(Activity.CUSTOMS, b.nursed * nurse)
+    // (Last, the walks of its visits beyond its ground, from the week's rest only: they are not asked of its time
+    // ([Band.visitOwed]), so they take nothing from food or other work. As far as they are given, it goes on visiting
+    // ([Band.visitShare]). carry758c: asked as customs, they took days from food, short weeks 7% -> 11%.)
+    if (b.visitOwed > 0f) {
+        val paid = min(b.visitOwed, max(0f, time.leftFor(Activity.CUSTOMS)))
+        b.visitShare = paid / b.visitOwed
+        time.spend(Activity.CUSTOMS, paid); b.visitOwed -= paid
+    } else b.visitShare = 1f
     // (What of the week went neither to its needs nor to its customs could have gone to a rite under way.)
     if (b.riteDue >= 0 && time.vital > 0f) b.riteSpare += max(0f, time.total - time.vital - time.spentOn(Activity.CUSTOMS))
     if (heldDays > 0f || canDays > 0f) {
