@@ -158,7 +158,7 @@ private fun HexFauna.feedKinds(p: Place, weather: Weather, z: Grazing, ff: Doubl
     var t = Profile.mark()
     // (Their rate at the carrion is noted afresh as they feed: [HexSmallLife.residentCarrionRate].)
     small.residentCarrionRate[p] = 0f
-    val found = Found(small.residentCarrion[p], kinds.withKinds().sumOf { (k, _) -> carrionWant(k, p).toDouble() }.toFloat())
+    val found = Found(small.residentCarrion[p], kinds.withKinds().sumOf { (k, _) -> carrionSearch(k, p).toDouble() }.toFloat())
     for ((k, s) in kinds.withKinds()) {
         // (And how rich in protein all it ate was; animal food is rich in it.)
         val eaten = z.ateKg[k]
@@ -232,14 +232,19 @@ private fun HexFauna.surplusShare(k: FaunaKind, p: Place): Float {
  * these or of the plants ([z]), is made up from whichever of them is to be had (as a pack does). Returns the share of
  * its animal need met; what it ate beyond, laid on, goes to [Grazing.surplus].
  */
-/** What the residents of a place found of its carrion as it lay ([HexSmallLife.residentCarrion]) as they set out to feed, and all their wants of carrion then ([carrionWant]). */
+/** What the residents of a place found of its carrion as it lay ([HexSmallLife.residentCarrion]) as they set out to feed, and how well they all come on it then ([carrionSearch]). */
 private class Found(val held: Float, val want: Float)
 
-/** Kind [k]'s want of carrion at place [p], a day: its heads' intake at its diet's share of carrion; 0 asleep or for one that eats none. */
-private fun HexFauna.carrionWant(k: FaunaKind, p: Place): Float {
+/**
+ * How well kind [k] comes on the carrion at place [p], for its share of what the residents found as it lay ([Found]): as a
+ * group's search ([carrionRate]), the more it lives on carrion ([SCAVENGER_CARRION]) and the more of the place its parties
+ * cover a day, up to all of it; 0 asleep or for one that eats none. (By its want of carrion, the many boar, which eat a little
+ * of it each, took the most; jackals, wolves and lions went short: flow785.)
+ */
+private fun HexFauna.carrionSearch(k: FaunaKind, p: Place): Float {
     val s = kinds[k]; val d = s.diet
     if (d.carrion <= 0f || asleep(k, p)) return 0f
-    return (adults[k][p] + 0.5f * young[k][p]) * s.dailyIntakeKg * d.carrion / d.total
+    return min(1f, d.carrion / SCAVENGER_CARRION) * min(1f, adults[k][p] / s.groupSize * s.dailyTravelKm * 2f * s.senseKm * SEARCHING)
 }
 
 private fun HexFauna.animalFood(k: FaunaKind, p: Place, weather: Weather, z: Grazing, ps: Float, found: Found): Float {
@@ -253,8 +258,8 @@ private fun HexFauna.animalFood(k: FaunaKind, p: Place, weather: Weather, z: Gra
         val plantGap = if (ps > 0f) needAll * ps * max(0f, 1f - z.got[k]) else 0f
         // Carrion first, where it eats any: a carcass lying there costs no chase and no digging, so
         // it eats what it finds (at most half of what lies there) before it hunts or makes up plants.
-        // (What they found as it lay goes to each kind by its want of carrion, not to the first to feed: [Found].)
-        var mine = if (found.want > 0f) found.held * carrionWant(k, p) / found.want else 0f
+        // (What they found as it lay goes to each kind by how well it comes on carrion, not to the first to feed: [Found].)
+        var mine = if (found.want > 0f) found.held * carrionSearch(k, p) / found.want else 0f
         fun scavengeMine(want: Float): Float { val (got, held) = small.scavengeHeld(p, want, mine); mine -= held; return got }
         var gotCarrion = if (d.carrion > 0f) scavengeMine(animalNeed + plantGap) else 0f
         // (Over a step of several ticks, taken whole: the residents that eat carrion come on it as it lies at the rate their
