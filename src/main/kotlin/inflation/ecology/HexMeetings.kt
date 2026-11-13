@@ -386,12 +386,11 @@ private fun HexGroups.meetSettle(weather: Weather) {
         val p = hw.placeNear(a.place, h).takeIf { !it.none } ?: a.place
         // (A stand-in is as many resident bands as there are there: each may meet the other, each meeting settled alone.)
         val ra = residents.of(e.a); val rb = residents.of(e.b)
-        // (Two that have met do not meet again for [MEET_AGAIN_DAYS], nor each stand-in band: the meetings come at the rate
-        // [afterMeeting] leaves, over the step's days. It was at most once a tick, a cap of the step's ticks.)
-        val pairs = if (ra == null && rb == null) 1f else min(ra?.bands ?: Float.MAX_VALUE, rb?.bands ?: Float.MAX_VALUE)
-        val met = poisson(afterMeeting(if (!e.mean.isNaN()) e.mean else encounters(a, b, p, e.span) * (ra?.bands ?: 1f) * (rb?.bands ?: 1f), pairs), rnd)
+        val met = if (!e.mean.isNaN()) poisson(e.mean, rnd) else poisson(encounters(a, b, p, e.span) * (ra?.bands ?: 1f) * (rb?.bands ?: 1f), rnd)
         if (met == 0) continue
-        val times = met
+        // (Two groups meet at most once a tick of the step, each stand-in band once a tick: a step of several ticks holds the
+        // meetings its ticks would have, [StepClock.ticks].)
+        val times = if (ra == null && rb == null) min(met, ticks) else min(met, kotlin.math.ceil(min(ra?.bands ?: Float.MAX_VALUE, rb?.bands ?: Float.MAX_VALUE)).toInt() * ticks)
         // (What the one that gives way gives up: the contact's shared hexes, else the hex of the meeting, [gaveWay].)
         contested = e.contested ?: hexArray(1) { h }; contestDay = today
         val byStrategy = engagedOver(a, b, e.contested, h)?.takeIf { engages(a, b, it, h) }
@@ -412,8 +411,8 @@ private fun HexGroups.meetSettle(weather: Weather) {
             val si = residents.of(if (weak === a) e.a else e.b) ?: return@forEach
             val r = kotlin.random.Random(e.tie)
             val p = weak.place
-            val met = poisson(afterMeeting(encounters(a, b, p, e.span) * si.bands, si.bands), r)
-            if (met > 0) drawn[i] = standInsMeetDraw(strong, weak, p, met, r).also { it.weak = si }
+            val met = poisson(encounters(a, b, p, e.span) * si.bands, r)
+            if (met > 0) drawn[i] = standInsMeetDraw(strong, weak, p, min(met, kotlin.math.ceil(si.bands).toInt() * ticks), r).also { it.weak = si }
         }
         for ((i, m) in drawn.withIndex()) if (m != null) {
             val e = withStandIns[i]; val strong = if (residents.of(e.a) == null) parties[e.a] else parties[e.b]
@@ -437,9 +436,9 @@ private fun HexGroups.meetSettle(weather: Weather) {
                 val p = weak.g.place
                 // (A settled band is in this hex only the share of the week its territory lies in it, as a pack's timetable would put it:
                 // both must be there at once, so the two shares multiply, [weekInHex].)
-                val met = poisson(afterMeeting(encounters(sx.g, sy.g, p, days.toFloat() * weekInHex(sx.g.species) * weekInHex(sy.g.species)) * sx.bands * sy.bands, min(sx.bands, sy.bands)), r)
+                val met = poisson(encounters(sx.g, sy.g, p, days.toFloat() * weekInHex(sx.g.species) * weekInHex(sy.g.species)) * sx.bands * sy.bands, r)
                 if (met == 0) continue
-                out += standInsMeetDraw(strong.g, weak.g, p, met, r).also { it.strong = strong; it.weak = weak }
+                out += standInsMeetDraw(strong.g, weak.g, p, min(met, kotlin.math.ceil(min(sx.bands, sy.bands)).toInt() * ticks), r).also { it.strong = strong; it.weak = weak }
             }
             outcomes[j] = out
         }
@@ -947,20 +946,3 @@ internal fun HexGroups.roamersLeave() {
 internal const val BEER_KG = 1f
 
 internal const val BEER_TIES = 0.5f
-
-/** Days two that have met, or a stand-in band and another, keep apart before they can meet again ([afterMeeting]): a week, as the weekly step had it. */
-internal const val MEET_AGAIN_DAYS = 6f
-
-/**
- * The meetings expected over the step, [mean] as they would come with no pause after one, among [pairs] that may each meet
- * (at least one): each pair meets at most once in each [MEET_AGAIN_DAYS], so in each such span with the chance 1 - e^(-x d)
- * for its rate x a day, and over the step's days D, D/d of those: the same at any step length, and the weekly cap's mean at
- * 6 days (min(Poisson, 1) has mean 1 - e^(-mean)). It replaces a cap of one meeting a tick. (A pause after each, x/(1 + x d),
- * cut the weekly meetings by a quarter and moved weekly leopards +33%: meet795.)
- */
-internal fun GroupWorld.afterMeeting(mean: Float, pairs: Float): Float {
-    val n = max(1f, pairs); val d = days.toFloat()
-    if (mean <= 0f || d <= 0f) return 0f
-    val spans = n * d / MEET_AGAIN_DAYS
-    return spans * (1f - kotlin.math.exp(-mean / spans))
-}
