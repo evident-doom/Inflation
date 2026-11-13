@@ -588,6 +588,11 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         Hazard(DeathCause.OTHER, healed * s.backgroundMortality * (if (s.human) tuning.humanOther else 1f) * years,
             healed * cared * s.youngMortality * (if (s.human) tuning.humanYoung else 1f) * years))
     placeHazards(g, g.place, weather, g.fed, thirst, sick, band?.fire ?: 0f, band?.homeShelter() ?: 0f) { c, a, y -> hazards += Hazard(c, a, y) }
+    // (huntSteps: a beast's step whose hunger odds are past 1%, as the step starts: what its hunger reads, [Hazards.hungerKills].)
+    if (HUNT_DIAG && band == null) hazards.firstOrNull { it.cause == DeathCause.HUNGER }?.takeIf { it.adult > 0.01f }?.let { h ->
+        if (PACK_HUNGER_CASES.incrementAndGet() <= 400) System.err.println("pack hunger: %s %s step %d d, adults %d young %d, fed %.2f even %.2f, fat %.1f d, spent %.1f of %.1f d, kills %.3f/d of %.1f d each, odds %.3f".format(
+            s.name, weather.date, days, g.adults, g.young, g.fed, g.evenFed, g.fat, g.spent, Hazards.starveDays(s), g.killRate, g.killDays, h.adult))
+    }
     band?.let { houseWorthWeek(g, it, weather, stalked) }
     val spentBefore = g.spent
     g.spent = Hazards.spentAfter(s, g.spent, g.fed, days)
@@ -855,3 +860,6 @@ internal fun HexGroups.remember(date: Date) {
 
 /** The hunger cases a year the census lists ([HexGroups.hungerCases]). */
 internal const val HUNGER_CASES = 30
+
+/** How many beasts' hungry steps the huntSteps trace has printed ("pack hunger"), at most 400 a run. */
+private val PACK_HUNGER_CASES = java.util.concurrent.atomic.AtomicInteger()
