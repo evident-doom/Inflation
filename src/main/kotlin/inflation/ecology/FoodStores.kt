@@ -9,6 +9,8 @@ import inflation.world.Weather
 import inflation.world.get
 import inflation.world.set
 import kotlin.math.exp
+import kotlin.math.ln
+import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.max
 import kotlin.math.min
@@ -98,7 +100,7 @@ internal fun HexGroups.keepAndSpoil(w: ForageWeek, got: EnumFloats<Store>, gotKg
     val sealed = band.sealedLetsThrough()
     if (home > 0f) {
         for (st in listOf(Store.FRUIT, Store.ROOTS)) {
-            val x = g.stores[st] * MICE * sealed * home * days / 7f
+            val x = g.stores[st] * overWeeks(MICE * sealed * home, days / 7f)
             g.stores[st] -= x
             rotten += x * g.storeKgPer[st]
         }
@@ -106,7 +108,7 @@ internal fun HexGroups.keepAndSpoil(w: ForageWeek, got: EnumFloats<Store>, gotKg
     }
     // (Mice and rats get into the grain and nuts wherever they are kept: storage pits at home keep them out the better, sealed
     // the better still, [seedRodents].)
-    val gnawed = g.stores[Store.SEED] * SEED_RODENTS * seedRodents(home, sealed) * days / 7f
+    val gnawed = g.stores[Store.SEED] * overWeeks(SEED_RODENTS * seedRodents(home, sealed), days / 7f)
     g.stores[Store.SEED] -= gnawed; rotten += gnawed * g.storeKgPer[Store.SEED]
     rotten += infest(g, band, weather.temperature[g.place], 1f - home * (1f - sealed))
     band.larderMoved(g, LarderMove.SPOILT, g.larder - unspoilt)
@@ -184,12 +186,14 @@ internal fun GroupWorld.infest(g: HexGroup, band: Band, t: Float, seedKeep: Floa
     if (t <= 0f) { band.pests *= exp(-PEST_FROST * week); return 0f }
     if (t <= PEST_MIN_T) return 0f
     val warm = min(2.8f, exp(0.069f * (t - 15f)))
-    val p = band.pests
-    band.pests = min(1f, p + (PEST_GROWTH * p * (1f - p) + PEST_ARRIVE * (1f - p)) * warm * week)
+    // (Over the step in closed form: dp/dt = (1 - p)(ARRIVE + GROWTH p) a week at this warmth, [pestsOver]; they eat as the
+    // mean of p over the step, each store compounding.)
+    val (pEnd, pMean) = pestsOver(band.pests, warm * week)
+    band.pests = pEnd
     var eaten = 0f
     for (st in Store.entries) if (st.pestWeekly > 0f) {
         val keep = when (st) { Store.DRIED -> curedKeep(band); Store.SEED -> seedKeep; else -> 1f }
-        val x = g.stores[st] * min(1f, st.pestWeekly * keep * band.pests * warm * week)
+        val x = g.stores[st] * (1f - exp(-st.pestWeekly * keep * pMean * warm * week))
         g.stores[st] -= x; eaten += x * g.storeKgPer[st]
     }
     return eaten
@@ -202,6 +206,26 @@ internal fun GroupWorld.infest(g: HexGroup, band: Band, t: Float, seedKeep: Floa
  * kills them.)
  */
 internal const val PEST_ARRIVE = 0.005f
+
+/**
+ * Pests [p0] after [weeks] weeks at 15 °C (warmth already in it), by dp/dt = (1 - p)(A + G p) with A = [PEST_ARRIVE], G =
+ * [PEST_GROWTH]: Q = (A + G p) / (1 - p) grows as exp((A + G) t), p = (Q - A) / (Q + G). Returns the end and the mean over
+ * the weeks.
+ */
+internal fun pestsOver(p0: Float, weeks: Float): Pair<Float, Float> {
+    if (weeks <= 0f) return p0 to p0
+    if (p0 >= 1f) return 1f to 1f
+    val a = PEST_ARRIVE.toDouble(); val gr = PEST_GROWTH.toDouble(); val k = a + gr; val w = weeks.toDouble()
+    val q0 = (a + gr * p0) / (1.0 - p0)
+    val q1 = q0 * exp(k * w)
+    val end = ((q1 - a) / (q1 + gr)).coerceIn(0.0, 1.0)
+    // (Mean of 1 - (A + G) / (Q + G) over the weeks: 1 - (k / G) (1 - ln((q1 + G) / (q0 + G)) / (k w)).)
+    val mean = (1.0 - (k / gr) * (1.0 - ln((q1 + gr) / (q0 + gr)) / (k * w))).coerceIn(0.0, 1.0)
+    return end.toFloat() to mean.toFloat()
+}
+
+/** The share lost over [weeks] weeks at [weekly] a week, compounding: 1 - (1 - weekly)^weeks. */
+internal fun overWeeks(weekly: Float, weeks: Float): Float = 1f - (1f - weekly.coerceIn(0f, 1f)).pow(weeks)
 internal const val PEST_GROWTH = 0.1f
 internal const val PEST_MIN_T = 12f
 internal const val PEST_FROST = 0.1f
@@ -214,12 +238,15 @@ internal fun GroupWorld.keepWorth(g: HexGroup, b: Band, home: Float): Float {
     val more = 1f - home
     if (more <= 0f) return 0f
     var kept = 0f
-    for (st in Store.entries) if (st != Store.FRESH)
-        kept += g.stores[st] * min(1f, st.lostWeekly * (if (st == Store.DRIED) driedKeep(b) else 1f) * days / 7f) * PIT_KEEP * more
+    val weeks = days / 7f
+    for (st in Store.entries) if (st != Store.FRESH) {
+        val rate = st.lostWeekly * (if (st == Store.DRIED) driedKeep(b) else 1f)
+        kept += g.stores[st] * (overWeeks(rate * (1f - PIT_KEEP * home), weeks) - overWeeks(rate * (1f - PIT_KEEP), weeks))
+    }
     val sealed = b.sealedLetsThrough()
-    for (st in listOf(Store.FRUIT, Store.ROOTS)) kept -= g.stores[st] * MICE * sealed * more * days / 7f
+    for (st in listOf(Store.FRUIT, Store.ROOTS)) kept -= g.stores[st] * (overWeeks(MICE * sealed, weeks) - overWeeks(MICE * sealed * home, weeks))
     // (And the grain and nuts the mice would not get at in its pits: [seedRodents] at a whole house against the houses it has.)
-    kept += g.stores[Store.SEED] * SEED_RODENTS * (seedRodents(home, sealed) - seedRodents(1f, sealed)) * days / 7f
+    kept += g.stores[Store.SEED] * (overWeeks(SEED_RODENTS * seedRodents(home, sealed), weeks) - overWeeks(SEED_RODENTS * seedRodents(1f, sealed), weeks))
     return kept
 }
 
@@ -259,8 +286,8 @@ internal fun GroupWorld.spoil(stores: EnumFloats<Store>, t: Float, keep: Float =
     var lost = 0f
     val warm = spoilWarmth(t)
     for (st in Store.entries) {
-        val share = if (st == Store.FRESH) 1f - exp(-HexSmallLife.CARRION_ROT * warm * days) else min(1f,
-            st.lostWeekly * keep * (if (st == Store.DRIED) driedKeep else 1f) * days / 7f)
+        val share = if (st == Store.FRESH) 1f - exp(-HexSmallLife.CARRION_ROT * warm * days) else
+            overWeeks(st.lostWeekly * keep * (if (st == Store.DRIED) driedKeep else 1f), days / 7f)
         val x = stores[st] * share
         stores[st] -= x; lost += x * (kgPer?.get(st) ?: 1f)
     }
