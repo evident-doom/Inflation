@@ -541,6 +541,8 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         val gotFruit = FloatArray(nk); val gotUnder = FloatArray(nk)
         // (For the check: of its need, the shares from game it killed, small prey, and carrion and bones.)
         val gotMeat = FloatArray(nk); val gotSmall = FloatArray(nk); val gotCarrion = FloatArray(nk)
+        /** Trace: kg/m² of carrion (not bones) each kind ate, and its whole need then, kg/m² of prey ([Fed.CARRION_KG]). */
+        val carrionKg = FloatArray(nk); val needKg = FloatArray(nk)
         // (What each kind ate this week, kg per m2, and the protein in it: fresh growth full, cured grass
         // little; see [proteinMet]. What it ate to fatten is left out.)
         val ateKg = FloatArray(nk); val proteinKg = FloatArray(nk)
@@ -551,7 +553,7 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         val b = Bites()
         /** Zeroes what a place's week fills in, for the next place (the spare food, [access] and the eaten totals are set before they are read, [b] by each [forage]). */
         fun clear() {
-            need.fill(0f); each.fill(0f); avail.fill(0f); got.fill(0f); surplus.fill(0f); gotFruit.fill(0f); gotUnder.fill(0f); gotMeat.fill(0f); gotSmall.fill(0f); gotCarrion.fill(0f); ateKg.fill(0f); proteinKg.fill(0f)
+            need.fill(0f); each.fill(0f); avail.fill(0f); got.fill(0f); surplus.fill(0f); gotFruit.fill(0f); gotUnder.fill(0f); gotMeat.fill(0f); gotSmall.fill(0f); gotCarrion.fill(0f); carrionKg.fill(0f); needKg.fill(0f); ateKg.fill(0f); proteinKg.fill(0f)
             eatG = 0f; eatB = 0f; eatF = 0f; eatR = 0f
         }
         override fun grass(kg: Float): Float { val t = min(kg, access * spareG); spareG -= t; return t }
@@ -819,7 +821,7 @@ enum class ResidentDeath(val cause: DeathCause) {
 enum class Stuck { HEADS, STUCK, AT_EDGE, PEAK }
 
 /** Where residents' food came from ([HexFauna.fedFrom]): fresh plants, prey and carrion, reserves; and the animals counted. */
-enum class Fed { PLANTS, ANIMAL, RESERVES, HEADS, FRUIT, UNDERGROUND, MEAT, SMALL_PREY, CARRION }
+enum class Fed { PLANTS, ANIMAL, RESERVES, HEADS, FRUIT, UNDERGROUND, MEAT, SMALL_PREY, CARRION, CARRION_KG, NEED_KG }
 internal val FED = Fed.entries.size
 @Suppress("NOTHING_TO_INLINE") inline operator fun Array<DoubleAdder>.get(f: Fed) = this[f.ordinal]
 
