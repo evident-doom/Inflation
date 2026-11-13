@@ -1468,8 +1468,7 @@ class Census(private val sim: HexSim) {
         // (Every pair once: by distance class for the means, and the neighbours for the regions. Each band's row of pairs is
         // counted on all cores, then the rows are added up and the regions joined in the bands' order: the same on any cores.)
         val living = bands.map { it.second.livelihood() }
-        val classes = IDENTITY_KM.size + 1
-        val rows = Array(n) { IdentityRow(classes, Tally.Understood.entries.size, Tally.Wary.entries.size) }
+        val rows = Array(n) { IdentityRow(IDENTITY_KM.size + 1, Tally.Understood.entries.size, Tally.Wary.entries.size) }
         Par.forEach("census: identity pairs", n) { i -> identityRow(i, bands, at, living, rows[i]) }
         val pairs = LongArray(IDENTITY_KM.size + 1); val understood = DoubleArray(pairs.size); val apart = DoubleArray(pairs.size)
         val sameLineage = LongArray(pairs.size); val sameTotem = LongArray(pairs.size); val sameRite = LongArray(pairs.size)
