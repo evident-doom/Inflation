@@ -479,21 +479,29 @@ private class StandInsMet(val slipped: Int, val stayed: Int, val youngKilled: In
 
 /**
  * [times] bands of resident hunter [weak] (a stand-in, [ResidentParties]) meet [strong] at place [p], each as one band of it
- * would ([escapes], [enemiesMeet]): drawn together by [r], those that slip away, and of the rest those that lose one of
- * their young, else one of their grown. (A stand-in carries no kill to rob.)
+ * would by the kinds' own rules ([plainOutcome], [enemiesClash]), drawn together by [r]: the weaker gives way to one stronger
+ * than its will to fight bears, and gets away unless the other is much the stronger and it does not outrun it ([escapes]:
+ * those slip away); those that stand, or are caught, clash, and of them past twice the strength some lose one of their
+ * young, else one of their grown. (A stand-in carries no kill to rob.) Before, its own lines: a slip drawn whatever the
+ * weaker chose, and no will to fight.
  */
 private fun HexGroups.standInsMeetDraw(strong: HexGroup, weak: HexGroup, p: Place, times: Int, r: kotlin.random.Random): StandInsMet {
     val h = hw.placeHex[p]
     val ss = strengthAt(strong, h); val sw = strengthAt(weak, h)
-    val slip = if (muchStronger(strong, weak, h)) slipChance(weak.species, strong.species, p) else 0f
-    val stayed = binomial(times, 1f - slip, r)
-    if (stayed == 0 || ss / max(1f, sw) <= 2f) return StandInsMet(times - stayed, stayed, 0, 0)
+    val ratio = ss / max(1f, sw)
+    // (It gives way as [actOf] has it; giving way, it gets away as [escapes] has it: from one much stronger by its slip chance.)
+    val givesWay = ratio > FIGHT_RATIO * weak.will[AnimalWay.FIGHT]
+    val getsAway = if (!givesWay) 0f else if (muchStronger(strong, weak, h)) slipChance(weak.species, strong.species, p) else 1f
+    val away = if (getsAway >= 1f) times else if (getsAway <= 0f) 0 else binomial(times, getsAway, r)
+    val slipped = if (muchStronger(strong, weak, h)) away else 0
+    val stayed = times - away
+    if (stayed == 0 || ratio <= 2f) return StandInsMet(slipped, times - slipped, 0, 0)
     val odds = shelteredFromKilling(weak.species, weak.place) * strong.will[AnimalWay.KILL]
     // (A resident kind's young are born in its season: [Species.birthMonth].)
     val youngKilled = if (weak.young > 0 && !strong.species.human)
         binomial(stayed, min(1f, INTRAGUILD_KILL_YOUNG * tuning.intraguildYoung * odds * youngHidden(weak.species, weak.species.birthMonth)), r) else 0
     val grownKilled = if (weak.adults > 0) binomial(stayed - youngKilled, min(1f, INTRAGUILD_KILL * odds * caught(weak.species, strong.species)), r) else 0
-    return StandInsMet(times - stayed, stayed, youngKilled, grownKilled)
+    return StandInsMet(slipped, times - slipped, youngKilled, grownKilled)
 }
 
 /** Books what came of [m] ([standInsMeetDraw]): the meetings, and the kills, eaten by [strong] and left as carrion, and lost to [si]. */
@@ -506,12 +514,13 @@ private fun HexGroups.standInsMeetBook(strong: HexGroup, weak: HexGroup, si: Res
     val youngKilled = si.take(m.youngKilled, true); val grownKilled = si.take(m.grownKilled, false)
     if (youngKilled > 0) {
         val kg = youngKilled * HexFauna.YOUNG_WEIGHT * mass
-        strong.meatMet += 0.5f * kg; small.deposit(DeadPool.CARRION, weak.place, Kg(0.5f * kg)); bookKill(strong, 0.5f * kg, kg, 0.5f * kg)
+        // (Left where it fell, as the kinds' own rule leaves a rival it kills ([enemiesClash]): carrion, for the killer too.)
+        small.deposit(DeadPool.CARRION, weak.place, Kg(kg))
         stats.deaths.merge(Tally.of(ws, ByBeast.of(ByBeast.How.YOUNG_KILLED_BY, strong.species)), youngKilled, Int::plus)
     }
     if (grownKilled > 0) {
         val kg = grownKilled * mass
-        strong.meatMet += 0.5f * kg; small.deposit(DeadPool.CARRION, weak.place, Kg(0.5f * kg)); bookKill(strong, 0.5f * kg, kg, 0.5f * kg)
+        small.deposit(DeadPool.CARRION, weak.place, Kg(kg))
         stats.deaths.merge(Tally.of(ws, ByBeast.of(ByBeast.How.KILLED_BY, strong.species)), grownKilled, Int::plus)
     }
 }

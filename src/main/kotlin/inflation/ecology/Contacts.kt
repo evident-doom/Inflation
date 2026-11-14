@@ -141,9 +141,12 @@ internal fun HexGroups.bandGround(g: HexGroup, today: Long, weather: Weather) {
     val w = g.footprint?.weights ?: return
     var out = 0f; for (i in 1 until w.size) out += w[i]
     // (Home first, [layGround]: its weight set so its share of all is the home share; with nothing about, it is all.)
-    val home = if (fixed) BAND_FIXED_HOME else BAND_MOBILE_HOME
+    val home = g.band?.let { homeShare(it) } ?: BAND_MOBILE_HOME
     if (out > 0f) w[0] = out * home / (1f - home)
 }
+
+/** The share of its time band [b] spends at its camp's hex ([bandGround]), and of its people there when met at it ([presentAt]). */
+internal fun homeShare(b: Band) = if (b.livesFixed()) BAND_FIXED_HOME else BAND_MOBILE_HOME
 
 /** The catchment of a band on the move ([bandGround]): about two hours' walk, 10 km, about its camp; km². */
 internal const val BAND_MOBILE_KM2 = 314f

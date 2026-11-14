@@ -9,7 +9,8 @@ import kotlin.math.min
 //
 // A pack moves, hunts and fights together: all of its party is there ([foragers]). A band does not go about as one
 // (Olli, 14 Nov 2026): most of its people are at its camp most of the time, and its foragers go out in small parties. Met
-// at its camp's hex, it is its able grown people ([Band.ableShare]: the wounded and lamed do not fight); met anywhere
+// at its camp's hex, it is its able grown people ([Band.ableShare]: the wounded and lamed do not fight) at home, its
+// home share of them ([homeShare]: the rest are out, as a band's parties are, uncounted); met anywhere
 // else on its ground, it is one party of them out foraging ([BAND_PARTY]), whatever the band's size; at a gathering, where
 // its grown all walked ([gatherAtRite]), it is its able grown. A raid's party is the raid's ([raidParty]), counted where
 // the raid is fought.
@@ -24,7 +25,10 @@ import kotlin.math.min
 internal fun HexGroups.presentAt(g: HexGroup, h: Hex, gathered: Boolean = false): Float {
     val b = g.band ?: return foragers(g).toFloat()
     val able = g.adults * b.ableShare
-    return if (gathered || h == hw.placeHex[g.place]) able else min(able, BAND_PARTY)
+    // (At its camp, those of them at home: its home share, the share of its time its ground gives the camp ([bandGround]),
+    // standing for the parties it has out, foraging, fetching, visiting, raiding, with no count of who went where. Olli,
+    // 14 Nov 2026: below the band, approximate. At a gathering all walked there.)
+    return if (gathered) able else if (h == hw.placeHex[g.place]) able * homeShare(b) else min(able, BAND_PARTY)
 }
 
 /** How strong [g] is as it is met at hex [h], before any advantage of the ground: those there ([presentAt]), their weight and their weapons ([ferocity]). */
