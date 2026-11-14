@@ -22,7 +22,7 @@ internal fun HexGroups.fillPackGame() {
         a[g.place.i] += g.adults / land.areaKm2[g.place]
         at.getOrPut(g.place.i.toLong() * 64 + k) { ArrayList() } += g
     }
-    packsAt = at
+    packsAt = at; packsAtStamp = StaleCheck.stamp()
 }
 
 /**
@@ -39,6 +39,7 @@ internal fun HexGroups.takePackKills(day: Long) {
     // (In a fixed order, whatever order the threads made them in.)
     all.sortWith(compareBy<PackKill>({ it.at }, { it.k }, { it.by }))
     val at = packsAt ?: return
+    StaleCheck.read("packsAt", packsAtStamp)
     var i = 0
     while (i < all.size) {
         val p = all[i].at; val k = all[i].k

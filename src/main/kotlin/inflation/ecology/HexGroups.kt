@@ -157,6 +157,8 @@ class HexGroups(
     @Transient var hunterWays: AnimalWays? = null
     /** The packs of each kind that also lives settled standing at each place, as [fillPackGame] last found them (place × 64 + kind slot). Not saved. */
     @Transient internal var packsAt: Map<Long, List<HexGroup>>? = null
+    /** [StaleCheck]'s stamp of [packsAt]. */
+    @Transient internal var packsAtStamp = 0L
     /** The food ([hexFood]) cutting the land hexes into quarters, for the census ([foodQuarterOf]); reckoned once a year. Not saved. */
     @Transient internal var foodCuts: FloatArray? = null
 
@@ -320,7 +322,7 @@ class HexGroups(
 
     /** A new group of [s] at place [p], [unit] adults and a third as many young, half-fat. */
     internal fun spawn(s: Species, p: Place, unit: Int): HexGroup {
-        val g = HexGroup(nextId++, s, p, unit, max(0, unit / 3))
+        val g = HexGroup(nextId++, s, p, unit, max(0, unit / 3)); StaleCheck.moved()
         g.temper = Temperament.founder(g.id, seedBase)
         g.fat = 0.5f * s.maxFatDays
         return g
@@ -495,7 +497,7 @@ class HexGroups(
                 stats.meeting(if (paths[k]!!.size <= 1) Met.HUNGRY_BANDS_CHOSE_TO_STAY else Met.HUNGRY_BANDS_CHOSE_TO_MOVE)
             if (hurricanes != null && g.band != null) notePeril(g, Place(choice[k]))
             g.climbedM = max(0f, hw.placeElevationM[choice[k]] - hw.placeElevationM[g.place.i])
-            g.place = Place(choice[k]); g.path = paths[k]!!; g.days = times[k]!!; g.meatMet = 0f; g.meatSpent = false
+            run { val was = hw.placeHex[g.place]; g.place = Place(choice[k]); if (hw.placeHex[g.place] != was) StaleCheck.moved() }; g.path = paths[k]!!; g.days = times[k]!!; g.meatMet = 0f; g.meatSpent = false
             // (For the census: what it had to live on as it chose, and whether it moves camp, [noteReserves].)
             if (stats.bandSplits) g.band?.let { noteReserves(g, it) }
             crossWater(g, g.path)

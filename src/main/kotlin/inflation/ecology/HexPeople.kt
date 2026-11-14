@@ -331,7 +331,7 @@ internal fun HexGroups.dogsGoWild(s: Species, p: Place, n: Int, fatShare: Float 
         stats.births.merge(s, n, Int::plus)
         return null
     }
-    val pack = HexGroup(nextId++, s, p, n, 0)
+    val pack = HexGroup(nextId++, s, p, n, 0); StaleCheck.moved()
     pack.temper = Temperament.founder(pack.id, seedBase)
     pack.fat = fatShare * s.maxFatDays
     pack.bold = 1f
@@ -536,6 +536,7 @@ internal fun HexGroups.bandInputs(g: HexGroup, weather: Weather, into: FloatArra
     for (d in -1 until 6) {
         val h = if (d < 0) here else hex.neighbour(here, d)
         if (h.none) continue
+        StaleCheck.read("bandIndex", bands.indexStamp)
         for (o in bands.bandIndex[h] ?: continue) {
             if (o === g) continue
             val ob = o.band ?: continue
@@ -660,7 +661,7 @@ internal fun HexGroups.fillBandStates(weather: Weather) {
 /** Files every living band under the hex it is in now ([HexGroups.bandIndex]), for [bandInputs]' bands about. */
 @Part("people: index bands")
 internal fun HexGroups.indexBands() {
-    bands.bandIndex.clear()
+    bands.bandIndex.clear(); bands.indexStamp = StaleCheck.stamp()
     for (g in groups) if (g.alive && g.band != null) bands.bandIndex.getOrPut(hw.placeHex[g.place]) { ArrayList() } += g
     // (And the herds kept away from their camps, under the hex they are kept in: [Herd.at], for the beasts that hunt there, [herdOdds].)
     bands.herdIndex.clear()

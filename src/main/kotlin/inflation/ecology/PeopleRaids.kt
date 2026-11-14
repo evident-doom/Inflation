@@ -46,6 +46,7 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
     val here = hw.placeHex[g.place]
     b.raid?.let { raid ->
         if (here == raid.hex) {
+            StaleCheck.read("groupById", bands.whereStamp)
             val target = bands.groupById[raid.on]?.takeIf { it.alive && hw.placeHex[it.place] == here }
             if (target?.band != null) bands.raidsDue += g to target
             b.raid = null
@@ -77,6 +78,7 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
     if (dialUse == null && u >= drive * Regard.MOST_WARY) return
     val them = ArrayList<Pair<HexGroup, Regard>>()
     for (id in within) {
+        StaleCheck.read("groupById", bands.whereStamp)
         val o = bands.groupById[id]?.takeIf { it.alive } ?: continue
         val ob = o.band ?: continue
         // (As the record of early foragers has it: planned raids are on bands with something fixed to take or hold, their

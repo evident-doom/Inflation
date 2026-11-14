@@ -90,7 +90,7 @@ internal fun HexGroups.tripAlong(g: HexGroup, way: Way, people: Float, paid: Wal
 /** As [walkOver], and band [g] makes its camp in hex [to]. Returns whether it went (false: no way there). */
 @IgnorableReturnValue internal fun HexGroups.moveCamp(g: HexGroup, to: Hex, weather: Weather): Boolean {
     if (walkOver(g, to, weather) == null) return false
-    g.place = hw.firstPlaceIn(to)
+    g.place = hw.firstPlaceIn(to); StaleCheck.moved()
     return true
 }
 

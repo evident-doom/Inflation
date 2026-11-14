@@ -119,6 +119,9 @@ class Bands internal constructor(private val world: GroupWorld) {
     @Transient internal val bandIndex = HashMap<Hex, ArrayList<HexGroup>>()
     /** The bands whose herds are kept away from their camps this week, by the hex they are kept in ([Herd.at], [indexBands]). */
     @Transient internal val herdIndex = HashMap<Hex, ArrayList<HexGroup>>()
+    /** [StaleCheck]'s stamps: of [bandIndex] and [herdIndex], and of [followersByHex], [groupById] and [bandHex]. */
+    @Transient internal var indexStamp = 0L
+    @Transient internal var whereStamp = 0L
 
     /** Dogs that left their band hungry this week as a pack of their own ([keepAnimals]): added to the groups once every band has had its week. */
     @Transient internal val strays = ArrayList<HexGroup>()

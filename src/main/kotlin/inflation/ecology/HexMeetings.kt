@@ -432,7 +432,7 @@ private fun HexGroups.meetSettle(weather: Weather) {
         val i = max(0, stop[k])
         val h = g.path[i]
         g.path = g.path.copyOf(i + 1); g.days = g.days.copyOf(i + 1)
-        g.place = hw.placeNear(g.place, h).takeIf { !it.none } ?: g.place
+        run { val was = hw.placeHex[g.place]; g.place = hw.placeNear(g.place, h).takeIf { !it.none } ?: g.place; if (hw.placeHex[g.place] != was) StaleCheck.moved() }
     }
 }
 

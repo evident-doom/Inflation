@@ -248,6 +248,7 @@ internal fun HexGroups.seenInputs(g: HexGroup, b: Band, into: FloatArray, now: L
     var most = 0f; var hostile = 0f; var n = 0
     for ((id, s) in b.seenStrength) {
         n++; most = maxOf(most, s / own)
+        StaleCheck.read("groupById", bands.whereStamp)
         val o = bands.groupById[id]?.takeIf { it.alive }?.band ?: continue
         val r = Regard(b, id, o, map = hex)
         if (r.feud || r.wariness / Regard.MOST_WARY > WARY_STANCE) hostile = maxOf(hostile, s / own)
