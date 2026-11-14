@@ -1,6 +1,7 @@
 package inflation.ecology
 
 import inflation.world.Hex
+import inflation.world.get
 import inflation.world.Weather
 import kotlin.math.min
 import kotlin.math.pow
