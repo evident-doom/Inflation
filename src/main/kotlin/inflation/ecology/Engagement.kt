@@ -140,20 +140,19 @@ internal fun HexGroups.stanceOf(g: HexGroup, other: HexGroup, h: Hex, day: Long)
     val set = strategyOf(g)
     if (!set.plain) return set.at(groundOf(g, h))
     if (bandStancesFor(g, other)) return bandStance(g, other, groundOf(g, h), day)
-    if (avoids(g, other)) return Stance.HIDE_AND_SCOUT
+    if (avoids(g, other, h)) return Stance.HIDE_AND_SCOUT
     return plainStance(g, other)
 }
 
 /**
- * Whether hunter [g] keeps out of [other]'s way: it is no band, [other] is of another kind
- * and more than [AVOID_RATIO] times as strong ([HexGroups.strength]). It then keeps out of sight and falls back if seen
+ * Whether hunter [g] keeps out of [other]'s way where they meet at hex [h]: it is no band, and [other] is much the stronger
+ * there ([muchStronger]: of another kind, over [AVOID_RATIO] times as strong by those present). It then keeps out of sight and falls back if seen
  * ([Stance.HIDE_AND_SCOUT]): harder to find in cover ([sightings]), and one that sees the other coming gets away. Cheetahs
  * keep out of lions' areas and hours and move their cubs, leopards keep to cover and trees: the lesser hunters live
  * among the greater by not being found (Durant 1998, J. Anim. Ecol.; Vanak et al. 2013, Ecology). The same line as the
  * slip-away's ([slipsAway]): no kind is named.
  */
-internal fun HexGroups.avoids(g: HexGroup, other: HexGroup): Boolean =
-    g.band == null && other.species != g.species && strength(other) > AVOID_RATIO * strength(g)
+internal fun HexGroups.avoids(g: HexGroup, other: HexGroup, h: Hex): Boolean = g.band == null && muchStronger(other, g, h)
 
 /**
  * Band [g]'s stance toward band [other] on ground [ground] of its own, by how it regards it ([Regard]) and what it knows of
@@ -256,7 +255,7 @@ internal fun HexGroups.seenInputs(g: HexGroup, b: Band, into: FloatArray, now: L
  * not being found: cheetahs outrun lions, but their cubs do not (Laurenson 1994: lions the chief killers of cheetah cubs).
  */
 internal fun HexGroups.escapes(g: HexGroup, other: HexGroup, p: Place, r: Random): Boolean =
-    if (other.species == g.species || strength(other) <= AVOID_RATIO * strength(g)) true else r.nextFloat() < slipChance(g.species, other.species, p)
+    if (!muchStronger(other, g, hw.placeHex[p])) true else r.nextFloat() < slipChance(g.species, other.species, p)
 
 /** How many times stronger another kind must be before a hunter keeps out of its way ([avoids]): as the slip-away's ([slipsAway]). */
 internal const val AVOID_RATIO = 2f
@@ -406,7 +405,9 @@ internal fun HexGroups.engage(met: Encounter, contested: HexArray, r: Random, we
     // (What each saw of the other it remembers: a scout's watching is for this.)
     if (aSees) noteSeen(a, b, day); if (bSees) noteSeen(b, a, day)
     // (Each as strong as it stands there: holding its ground, and falling on the other unseen.)
-    val sa0 = strength(a); val sb0 = strength(b)
+    // (Those present there, by their weight and weapons ([presentStrength]); a raid's own party for the raiders ([raidParty]).
+    // The lair's advantage is in holding it ([holding]), not counted twice.)
+    val sa0 = if (raid) raidParty(a) * a.species.massKg * ferocity(a) else presentStrength(a, h); val sb0 = presentStrength(b, h)
     val holdA = if (stA == Stance.DEFEND) holding(a, b, h) else 1f; val holdB = if (stB == Stance.DEFEND) holding(b, a, h) else 1f
     // (What each does and how it ends, by the numbers alone, [settleEngagement].)
     val e = settleEngagement(stA, stB, aSees, bSees, sa0 * holdA, sb0 * holdB, a.will[AnimalWay.FIGHT], b.will[AnimalWay.FIGHT], raid,

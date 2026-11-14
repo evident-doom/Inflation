@@ -329,7 +329,7 @@ private fun HexGroups.meetSettle(weather: Weather) {
         for (i in stays.indices) { for (j in i + 1 until stays.size) {
             val sa = stays[i]; val sb = stays[j]
             // (A kind's own residents keep their ground by their strife, [HexFauna.strife], not by meeting.)
-            if ((sa.k >= groups.size || sb.k >= groups.size) && !residentsMeet(parties[sa.k], parties[sb.k])) continue
+            if ((sa.k >= groups.size || sb.k >= groups.size) && !residentsMeet(parties[sa.k], parties[sb.k], sa.hex)) continue
             // (Residents meeting residents are settled apart, below: no group is among them.)
             if (sa.k >= groups.size && sb.k >= groups.size) continue
             // (Two groups of which one holds its ground meet as a contact, once over all the hexes they share: [contacts].)
@@ -403,7 +403,7 @@ private fun HexGroups.meetSettle(weather: Weather) {
             val out = ArrayList<StandInsMet>()
             for (x in list.indices) for (y in x + 1 until list.size) {
                 val sx = list[x]; val sy = list[y]
-                if (!residentsMeet(sx.g, sy.g)) continue
+                if (!residentsMeet(sx.g, sy.g, sx.g.home)) continue
                 val (strong, weak) = if (strength(sx.g) >= strength(sy.g)) sx to sy else sy to sx
                 val p = weak.g.place
                 // (A settled band is in this hex only the share of the week its territory lies in it, as a pack's timetable would put it:
@@ -474,8 +474,8 @@ private class StandInsMet(val slipped: Int, val stayed: Int, val youngKilled: In
  */
 private fun HexGroups.standInsMeetDraw(strong: HexGroup, weak: HexGroup, p: Place, times: Int, r: kotlin.random.Random): StandInsMet {
     val h = hw.placeHex[p]
-    val ss = strength(strong) * (if (strong.home == h) HOME_ADVANTAGE else 1f); val sw = strength(weak) * (if (weak.home == h) HOME_ADVANTAGE else 1f)
-    val slip = if (strength(strong) > 2f * strength(weak)) slipChance(weak.species, strong.species, p) else 0f
+    val ss = strengthAt(strong, h); val sw = strengthAt(weak, h)
+    val slip = if (muchStronger(strong, weak, h)) slipChance(weak.species, strong.species, p) else 0f
     val stayed = binomial(times, 1f - slip, r)
     if (stayed == 0 || ss / max(1f, sw) <= 2f) return StandInsMet(times - stayed, stayed, 0, 0)
     val odds = shelteredFromKilling(weak.species, weak.place) * strong.will[AnimalWay.KILL]
@@ -506,18 +506,17 @@ private fun HexGroups.standInsMeetBook(strong: HexGroup, weak: HexGroup, si: Res
     }
 }
 
-/** Whether [a] is the stronger at meeting [b] in hex [h], each at home the stronger ([enemiesMeet]). */
-private fun HexGroups.strongerThan(a: HexGroup, b: HexGroup, h: Hex) =
-    strength(a) * (if (a.home == h) HOME_ADVANTAGE else 1f) >= strength(b) * (if (b.home == h) HOME_ADVANTAGE else 1f)
+/** Whether [a] is the stronger at meeting [b] in hex [h], as they stand there ([strengthAt]: those present, each in its lair the stronger). */
+private fun HexGroups.strongerThan(a: HexGroup, b: HexGroup, h: Hex) = strengthAt(a, h) >= strengthAt(b, h)
 
 /**
  * Whether a resident hunters' stand-in ([ResidentParties]) and another party meet to any end: not its own kind (they keep
  * their ground by strife), and only where one is the much stronger ([enemiesMeet]: else they keep their distance, and a
  * stand-in carries no kill to rob).
  */
-private fun HexGroups.residentsMeet(a: HexGroup, b: HexGroup): Boolean {
+private fun HexGroups.residentsMeet(a: HexGroup, b: HexGroup, h: Hex): Boolean {
     if (a.species == b.species) return false
-    val sa = strength(a); val sb = strength(b)
+    val sa = presentStrength(a, h); val sb = presentStrength(b, h)
     return max(sa, sb) > 2f * max(1f, min(sa, sb))
 }
 
@@ -698,7 +697,7 @@ internal fun GroupWorld.encounters(a: Species, b: Species, bands: Boolean, p: Pl
  * of another kind; the keener its senses and the better its shelter, the likelier.
  */
 internal fun HexGroups.slipsAway(g: HexGroup, other: HexGroup, p: Place): Boolean {
-    if (g.species == other.species || strength(other) <= 2f * strength(g)) return false
+    if (!muchStronger(other, g, hw.placeHex[p])) return false
     return rnd.nextFloat() < slipChance(g.species, other.species, p)
 }
 
@@ -739,8 +738,7 @@ internal fun HexGroups.shelteredFromKilling(weak: Species, p: Place) = 1f - SHEL
 internal fun HexGroups.enemiesMeet(enc: Encounter) {
     val a = enc.a; val b = enc.b; val h = enc.hex
     stats.meeting(Met.HUNTERS_OF_OTHER_KINDS)
-    val sa = strength(a) * (if (a.home == h) HOME_ADVANTAGE else 1f)
-    val sb = strength(b) * (if (b.home == h) HOME_ADVANTAGE else 1f)
+    val sa = strengthAt(a, h); val sb = strengthAt(b, h)
     enemiesClash(enc, sa, sb)
 }
 
@@ -823,10 +821,11 @@ internal fun HexGroups.mark() {
  * and the loser gives up the ground.
  */
 @Part("meetings: rival packs")
-internal fun GroupWorld.rivalsMeet(enc: Encounter) {
+internal fun HexGroups.rivalsMeet(enc: Encounter) {
     val a = enc.a; val b = enc.b; val h = enc.hex
     stats.meeting(Met.RIVAL_PACKS)
-    val sa = a.adults * (if (a.home == h) HOME_ADVANTAGE else 1f); val sb = b.adults * (if (b.home == h) HOME_ADVANTAGE else 1f)
+    // (As strong as they stand there, those present and each in its lair the stronger ([strengthAt]), as every meeting weighs them.)
+    val sa = strengthAt(a, h); val sb = strengthAt(b, h)
     val ratio = max(sa, sb) / max(1f, min(sa, sb))
     // (How much stronger the other has to be before the weaker gives way is the weaker's choice.)
     if (ratio > FIGHT_RATIO * (if (sa < sb) a else b).will[AnimalWay.FIGHT]) {
@@ -844,7 +843,7 @@ internal fun GroupWorld.rivalsMeet(enc: Encounter) {
  * with their ground and surprise in them): one loses, by the strengths; now and then it loses one of its grown; beaten at
  * its home, it loses its ground and its young may be killed; it turns back and gives way ([gaveWay]).
  */
-internal fun GroupWorld.rivalsFight(enc: Encounter, sa: Float, sb: Float) {
+internal fun HexGroups.rivalsFight(enc: Encounter, sa: Float, sb: Float) {
     val a = enc.a; val b = enc.b; val h = enc.hex
     stats.meeting(Met.PACKS_FOUGHT)
     val loser = if (rnd.nextFloat() < sa / (sa + sb)) b else a
