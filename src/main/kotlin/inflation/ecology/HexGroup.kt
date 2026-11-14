@@ -145,8 +145,8 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
     @Transient var footprint: HexArray? = null
     @Transient var footWeights: FloatArray? = null
     /**
-     * For a pack that holds its ground: the hexes it gave way on at meetings and keeps off until a day ([gaveWay]), each the
-     * hex's index in the high half and the absolute day in the low; null for none.
+     * For a pack that holds its ground: the hexes it gave way on at meetings and keeps off until a day ([gaveWay]), each
+     * packed as [Yield] has it; null for none.
      */
     var yielded: LongArray? = null
     /** For hunters: meetings with game of each kind ([Species.index]), as of [herdsMetOn], fading over [SEARCH_DAYS] (null: none yet; see [SEARCH_HALF]). */

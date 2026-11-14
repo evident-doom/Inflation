@@ -219,9 +219,7 @@ object StanceInputs : NamedSlots() {
  */
 internal fun GroupWorld.knownStrength(g: HexGroup, other: HexGroup, today: Long): Float? {
     val b = g.band ?: return null
-    val day = b.seenDay[other.id] ?: return null
-    if (today - day > SEEN_DAYS) return null
-    return b.seenStrength[other.id]
+    return b.seen(other.id, today)
 }
 
 /**
@@ -238,7 +236,7 @@ internal fun HexGroups.knownAt(other: HexGroup, known: Float, h: Hex): Float =
 internal fun HexGroups.noteSeen(g: HexGroup, other: HexGroup, day: Long) {
     val b = g.band ?: return
     if (other.band == null) return
-    b.seenStrength[other.id] = strength(other); b.seenDay[other.id] = day
+    b.saw(other.id, strength(other), day)
 }
 
 /**
@@ -247,8 +245,7 @@ internal fun HexGroups.noteSeen(g: HexGroup, other: HexGroup, day: Long) {
  * saw (a few is many); those it saw longer ago forgotten.
  */
 internal fun HexGroups.seenInputs(g: HexGroup, b: Band, into: FloatArray, now: Long) {
-    val it = b.seenDay.entries.iterator()
-    while (it.hasNext()) { val e = it.next(); if (now - e.value > SEEN_DAYS) { it.remove(); b.seenStrength.remove(e.key) } }
+    b.forgetSeen(now)
     val own = strength(g).coerceAtLeast(1e-3f)
     var most = 0f; var hostile = 0f; var n = 0
     for ((id, s) in b.seenStrength) {

@@ -168,7 +168,7 @@ internal const val BAND_FIXED_HOME = 0.85f
  * a pack's territory ([footprint]) and a band's ground ([bandGround]) are laid out, whatever the step's length.
  */
 internal fun HexGroups.layGround(g: HexGroup, home: Hex, areaKm2: Float, today: Long, weather: Weather, at: inflation.world.Place = g.place) {
-    g.yielded = g.yielded?.filter { (it and 0xFFFFFFFFL) > today }?.toLongArray()?.takeIf { it.isNotEmpty() }
+    g.yielded = g.yielded?.filter { Yield.until(it) > today }?.toLongArray()?.takeIf { it.isNotEmpty() }
     // (Searched as far as three times the area's radius and two hexes more: enough for any ground but one hemmed in.)
     val radius = kotlin.math.sqrt(areaKm2 / Math.PI.toFloat())
     val reach = reachOf(g, home, 3f * radius + 2f * hex.hexKm.toFloat(), weather)
@@ -204,9 +204,9 @@ internal fun GroupWorld.gaveWay(g: HexGroup, contested: HexArray, today: Long) {
     val lair = if (g.band != null) hw.placeHex[g.place] else g.home
     if (g.footprint == null || lair.none) return
     val until = today + YIELD_DAYS
-    val kept = g.yielded?.let { y -> y.filter { (it and 0xFFFFFFFFL) > today && contested.indexOf((it ushr 32).toInt()) < 0 } } ?: emptyList()
+    val kept = g.yielded?.let { y -> y.filter { Yield.until(it) > today && contested.indexOf(Yield.hex(it)) < 0 } } ?: emptyList()
     val added = ArrayList<Long>()
-    for (i in 0 until contested.size) { val h = contested[i]; if (h != lair) added += (h.i.toLong() shl 32) or until }
+    for (i in 0 until contested.size) { val h = contested[i]; if (h != lair) added += Yield.of(h, until) }
     g.yielded = (kept + added).toLongArray().takeIf { it.isNotEmpty() }
     if (added.isNotEmpty()) stats.meeting(Met.HEXES_YIELDED, added.size)
 }
@@ -214,8 +214,20 @@ internal fun GroupWorld.gaveWay(g: HexGroup, contested: HexArray, today: Long) {
 /** Whether pack [g] keeps off hex [h] on day [today], having given way there ([gaveWay]). */
 internal fun yields(g: HexGroup, h: Hex, today: Long): Boolean {
     val y = g.yielded ?: return false
-    for (e in y) if ((e ushr 32).toInt() == h.i && (e and 0xFFFFFFFFL) > today) return true
+    for (e in y) if (Yield.hex(e) == h.i && Yield.until(e) > today) return true
     return false
+}
+
+/**
+ * One hex a pack gave way on and the day it keeps off it until ([HexGroup.yielded], [gaveWay]), packed in a `Long` as it
+ * is saved: the hex's index in the high half, the absolute day in the low. The one place the packing is written.
+ */
+internal object Yield {
+    fun of(h: Hex, until: Long): Long = (h.i.toLong() shl 32) or (until and 0xFFFFFFFFL)
+    /** The hex's index. */
+    fun hex(e: Long): Int = (e ushr 32).toInt()
+    /** The day it keeps off it until, absolute. */
+    fun until(e: Long): Long = e and 0xFFFFFFFFL
 }
 
 /** The index of the hex of index [i] in [this], or -1. */

@@ -575,6 +575,21 @@ class Band(kinds: Int, totems: Int = kinds) {
      */
     val seenStrength = HashMap<Int, Float>()
     val seenDay = HashMap<Int, Long>()
+
+    /** It saw band [id] on [day], of strength [strength] ([seenStrength], [seenDay]: the two kept together). */
+    fun saw(id: Int, strength: Float, day: Long) { seenStrength[id] = strength; seenDay[id] = day }
+
+    /** The strength it last saw band [id] at, if it saw it within [SEEN_DAYS] of [today]; else null. */
+    fun seen(id: Int, today: Long): Float? {
+        val day = seenDay[id] ?: return null
+        return if (today - day > SEEN_DAYS) null else seenStrength[id]
+    }
+
+    /** It forgets the bands it last saw more than [SEEN_DAYS] before [now]. */
+    fun forgetSeen(now: Long) {
+        val it = seenDay.entries.iterator()
+        while (it.hasNext()) { val e = it.next(); if (now - e.value > SEEN_DAYS) { it.remove(); seenStrength.remove(e.key) } }
+    }
     /**
      * What the bands it met lately told it their camps yielded ([tellYield]): each one's recent foraging yield ([recentYield])
      * and the week it was told ([newsAt], counted from the first week of year 0), the last [NEWS_KEPT]. A [Mind.PLANS] band
