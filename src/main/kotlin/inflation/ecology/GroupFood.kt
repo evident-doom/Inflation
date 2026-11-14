@@ -43,7 +43,7 @@ internal fun HexGroups.hunt(weather: Weather) {
     val hunters = groups.filter { it.alive }.shuffled(rnd)
     for (a in fauna.groupKilled) a.fill(0f)
     // (Where people are, for the beasts of prey that keep out of their way: [peopleAbout].)
-    peopleAbout()
+    peopleAbout(weather)
     // Bands first set their ways for the week.
     // (Where the bands about it stand now, after this week's moves, as its own place is; and where beasts of prey may come on
     // their herds, see [herdOdds].)
@@ -93,7 +93,7 @@ internal fun HexGroups.hunt(weather: Weather) {
         // (Its hunting ground reaches a hex beyond its way, see [huntGround].)
         // (A pack that holds its ground hunts its footprint instead, [footGround].)
         g.path.all { h -> hex.distanceKm(end, h) + 2 * hex.hexKm < HUNT_FINE_KM } &&
-            (g.footprint?.all { h -> hex.distanceKm(end, h) + 2 * hex.hexKm < HUNT_FINE_KM } ?: true)
+            (g.footprint?.hexes?.all { h -> hex.distanceKm(end, h) + 2 * hex.hexKm < HUNT_FINE_KM } ?: true)
     }
     stats.summedByThread { work(near, HUNT_FINE_KM); work(far, HUNT_BLOCK_KM) }
     takePackKills(2 * day + 1)
@@ -128,7 +128,7 @@ private fun HexGroups.forageGround(g: HexGroup): Set<Hex> {
     val out = LinkedHashSet<Hex>()
     for (h in g.path) { out += h; for (d in 0 until 6) { val q = hex.neighbour(h, d); if (!q.none) out += q } }
     // (A pack that holds its ground hunts its footprint, [footGround]: those hexes and the six round each, to be safe.)
-    g.footprint?.let { f -> for (h in f) { out += h; for (d in 0 until 6) { val q = hex.neighbour(h, d); if (!q.none) out += q } } }
+    g.footprint?.let { f -> for (h in f.hexes) { out += h; for (d in 0 until 6) { val q = hex.neighbour(h, d); if (!q.none) out += q } } }
     out += hw.placeHex[g.place]
     return out
 }

@@ -64,11 +64,11 @@ private fun HexGroups.staysByHex(parties: List<HexGroup>, residents: ResidentPar
         if (!g.alive) continue
         // (A pack that holds its ground is about all its footprint all step, in each hex for its weight's share of the time:
         // whoever comes into its territory may meet it, not only whoever comes to its home, [footprint].)
-        val foot = g.footprint; val weights = g.footWeights
-        if (foot != null && weights != null && g.path.size == 1) {
-            var sum = 0f; for (w in weights) sum += w
-            for (i in 0 until foot.size) { val h = foot[i]
-                (byHex[h.i] ?: ArrayList<Stay>().also { byHex[h.i] = it; made += it }) += Stay(k, 0, h, 0f, days.toFloat(), weights[i] / sum, true) }
+        val foot = g.footprint
+        if (foot != null && g.rangesFromHome) {
+            val shares = foot.shares()
+            for (i in 0 until foot.hexes.size) { val h = foot.hexes[i]
+                (byHex[h.i] ?: ArrayList<Stay>().also { byHex[h.i] = it; made += it }) += Stay(k, 0, h, 0f, days.toFloat(), shares[i], true) }
             continue
         }
         val last = g.path.size - 1
@@ -241,7 +241,7 @@ internal fun HexGroups.neighboursMeet(weather: Weather) {
     due.sortBy { it.tick }
     for (m in due) {
         if (!m.a.alive || !m.b.alive) continue
-        meetTick = m.tick; meetTimes = m.times
+        asMeetings(m.times, m.tick) {
         stats.meeting(Met.NEIGHBOURS_MET, m.times)
         // (Each going there and back wears the way the visitors went, the meetings' wear compounded ([tripAlong]). Within their
         // own grounds bands come on each other as their foragers go about: that walk is the foraging's. Beyond, the visitors
@@ -250,8 +250,19 @@ internal fun HexGroups.neighboursMeet(weather: Weather) {
         val (visitor, host) = if (m.bVisits) m.b to m.a else m.a to m.b
         tripAlong(visitor, m.way, VISITORS, if (m.km > OWN_GROUND_HEXES * easy) WalkPaid.SPARE_TIME else WalkPaid.BY_CALLER, m.times)
         settleAt(visitor, host, hw.placeHex[host.place], weather)
+        }
     }
-    meetTick = 0; meetTimes = 1
+}
+
+/**
+ * Settles what [block] settles as [times] meetings held as one, at tick [tick] of the step ([meetTimes], [meetTick]), and
+ * puts them back as they were (one meeting, at the step's start) however it ends: no meeting settled after can read
+ * another's. The one place they are set.
+ */
+internal inline fun HexGroups.asMeetings(times: Int, tick: Int, block: () -> Unit) {
+    val t0 = meetTimes; val k0 = meetTick
+    meetTimes = times; meetTick = tick
+    try { block() } finally { meetTimes = t0; meetTick = k0 }
 }
 
 
@@ -844,12 +855,13 @@ internal fun HexGroups.mark() {
         val m = scent.marks.getOrPut(s.index) { FloatArray(hex.size) }
         val who = scent.markers.getOrPut(s.index) { IntArray(hex.size) { -1 } }
         // (A pack that holds its ground marks its footprint, each hex as fresh as its weight, its home the freshest: its
-        // outskirts, marked faintly, others of its kind may share, [footprint].)
-        val foot = g.footprint; val weights = g.footWeights
-        if (foot != null && weights != null) for (i in 0 until foot.size) scent.claim(s.index, foot[i], g.id, weights[i], hex.size)
+        // outskirts, marked faintly, others of its kind may share, [footprint]. One on the move marks the hexes of its
+        // territory it passed, fresh, by the same rule ([Scent.claim]): before, by an older one that kept one claimant.)
+        val foot = g.footprint
+        if (foot != null) for (i in 0 until foot.hexes.size) scent.claim(s.index, foot.hexes[i], g.id, foot.weights[i], hex.size)
         else for (h in g.path) {
             if (hex.distanceKm(h, g.home) > territoryKm(s)) continue
-            if (who[h] == g.id || m[h] < MARK_FRESH) { m[h] = 1f; who[h] = g.id }
+            scent.claim(s.index, h, g.id, 1f, hex.size)
         }
         if (who[g.home] != g.id || m[g.home] < MARK_FRESH) g.home = Hex.NONE
     }
@@ -895,7 +907,7 @@ internal fun HexGroups.rivalsFight(enc: Encounter, sa: Float, sb: Float) {
     }
     if (loser.home == h) {
         // (A settled band's stand-in keeps its ground: its ground is its kind's settled there, [ResidentParties].)
-        if (loser.id >= 0) loser.home = Hex.NONE
+        if (!loser.standIn) loser.home = Hex.NONE
         // The winners take over the ground and kill the young they find there (as lions and wolves do).
         // (Prides and packs that take over ground do this; solitary hunters seldom.)
         if (loser.young > 0 && loser.species.groupSize >= 3) {

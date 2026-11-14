@@ -89,11 +89,8 @@ internal fun contactsOf(spheres: Array<Sphere?>, ids: IntArray, held: BooleanArr
  * hexes of its path by the share of the step it spends in each ([HexGroup.days], its timetable); null for neither.
  */
 internal fun GroupWorld.sphereOf(g: HexGroup): Sphere? {
-    val foot = g.footprint; val weights = g.footWeights
-    if (foot != null && weights != null && g.path.size == 1) {
-        var sum = 0f; for (w in weights) sum += w
-        return Sphere(foot, FloatArray(weights.size) { weights[it] / sum })
-    }
+    val foot = g.footprint
+    if (foot != null && g.rangesFromHome) return Sphere(foot.hexes, foot.shares())
     if (g.path.size == 0) return null
     val step = days.toFloat(); val last = g.path.size - 1
     return Sphere(g.path, FloatArray(g.path.size) { i -> ((if (i < last) g.days[i + 1] else step) - g.days[i]).coerceAtLeast(0f) / step })
@@ -135,13 +132,13 @@ internal fun GroupWorld.contend(a: HexGroup, b: HexGroup) = !(staysHome(a) && st
  * walk for hunter-gatherers and one for farmers, from memory). Unlike a pack it does not go about as one: most of its people
  * are at camp most of the time (the young, the old, those at work about the camp), only its foragers going out; the more so
  * for a band living fixed. So its camp's hex holds [BAND_MOBILE_HOME] or [BAND_FIXED_HOME] of its time
- * ([HexGroup.footWeights]: the weights' shares are the time a group is in each hex, [sphereOf]), and the hexes about share
+ * ([Footprint.weights]: the weights' shares are the time a group is in each hex, [sphereOf]), and the hexes about share
  * the rest by their going.
  */
 internal fun HexGroups.bandGround(g: HexGroup, today: Long, weather: Weather) {
     val fixed = g.band?.livesFixed() == true
     layGround(g, hw.placeHex[g.place], if (fixed) BAND_FIXED_KM2 else BAND_MOBILE_KM2, today, weather, g.place)
-    val w = g.footWeights ?: return
+    val w = g.footprint?.weights ?: return
     var out = 0f; for (i in 1 until w.size) out += w[i]
     // (Home first, [layGround]: its weight set so its share of all is the home share; with nothing about, it is all.)
     val home = if (fixed) BAND_FIXED_HOME else BAND_MOBILE_HOME
@@ -158,7 +155,7 @@ internal const val BAND_MOBILE_HOME = 0.7f
 internal const val BAND_FIXED_HOME = 0.85f
 
 /**
- * Lays out the hexes group [g] ranges over from home this step ([HexGroup.footprint], [HexGroup.footWeights]): its ground
+ * Lays out the hexes group [g] ranges over from home this step ([HexGroup.footprint], [Footprint]): its ground
  * is an area, [areaKm2] of land (a territory's, a catchment's), taken by the ground from hex [home] outward, the easiest
  * going first ([reachOf]: its kind's going, so never across a strait it cannot swim, a cliff it cannot climb or a river it
  * cannot ford), until the land taken comes to the area. Only hexes with ground near [at]'s height and not given way on
@@ -183,15 +180,32 @@ internal fun HexGroups.layGround(g: HexGroup, home: Hex, areaKm2: Float, today: 
         hexes += reach.hexes[i]; dists += reach.dist[i]; land += landKm2(reach.hexes[i])
     }
     val fall = dists.last() + hex.hexKm.toFloat()
-    g.footprint = hexes.toHexArray(); g.footWeights = FloatArray(dists.size) { 1f - dists[it] / fall }
+    g.footprint = Footprint(hexes.toHexArray(), FloatArray(dists.size) { 1f - dists[it] / fall }, hunted = g.band == null)
+}
+
+/**
+ * The ground a group ranges over from home this step ([layGround]): its [hexes], home first, each [weights] by its going
+ * (their [shares] the time it is in each, [sphereOf]), and what the ground is for: [hunted], a pack's territory, which it
+ * hunts and marks ([huntGround], [mark]); else a band's catchment, the ground it is met on only, its hunting by its own
+ * rules ([bandGround]). The one value for both, laid by the one builder.
+ */
+class Footprint(val hexes: HexArray, val weights: FloatArray, val hunted: Boolean) {
+    /** Each hex's share of the group's time: its weight over all of them. */
+    fun shares(): FloatArray { var sum = 0f; for (w in weights) sum += w; return FloatArray(weights.size) { weights[it] / sum } }
 }
 
 /**
  * Whether this group spends its step at home, its people ranging out from there ([layGround]), rather than on a way: a pack
  * holding its ground, which ranges as one; a band at its camp, most of its people at home and its foragers going out
- * ([bandGround]). Its [HexGroup.footWeights] are then the shares of its time in each hex ([sphereOf]).
+ * ([bandGround]). Its [Footprint.shares] are then the shares of its time in each hex ([sphereOf]).
  */
 internal val HexGroup.rangesFromHome get() = footprint != null && path.size == 1
+
+/**
+ * Whether [g] holds its ground where it is met, so that a meeting there is over ground it holds ([engagedOver]): one ranging
+ * from home ([rangesFromHome]), or a resident stand-in in its hex ([HexGroup.standIn]). The one test.
+ */
+internal fun holdsGround(g: HexGroup) = g.rangesFromHome || g.standIn
 
 /**
  * Pack [g], holding its ground, gave way or lost at a meeting over [contested] (the hexes of the contact, or the meeting's

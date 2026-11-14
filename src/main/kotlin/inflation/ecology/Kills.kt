@@ -29,7 +29,7 @@ internal fun GroupWorld.catchable(s: Species, ps: Species, p: Place): Float = fa
  */
 internal fun GroupWorld.huntGround(g: HexGroup, km2: Float): HuntGround {
     // (A band's ground is for its meetings only, [bandGround]: it hunts as it did.)
-    if (g.band == null) g.footprint?.let { return footGround(g, it, g.footWeights ?: return@let, km2) }
+    g.footprint?.takeIf { it.hunted }?.let { return footGround(g, it.hexes, it.weights, km2) }
     val path = g.path; val area = land.areaKm2
     // (Over a step of several ticks, ground searched one week has game on it again the next: a place holds as much
     // search as its area each tick.)

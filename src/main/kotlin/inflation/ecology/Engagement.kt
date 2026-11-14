@@ -76,10 +76,11 @@ class Strategy(val lair: Stance, val core: Stance, val fringe: Stance, val outsi
 /** The part of group [g]'s ground hex [h] is: its home its lair; of its footprint, the hexes weighted [CORE_WEIGHT] or more its core and the rest its fringe; else outside. */
 internal fun groundOf(g: HexGroup, h: Hex): Ground {
     if (!g.home.none && h == g.home) return Ground.LAIR
-    val foot = g.footprint ?: return Ground.OUTSIDE
+    val ground = g.footprint ?: return Ground.OUTSIDE
+    val foot = ground.hexes
     // (A band's lair is its camp's hex, the first of its ground, [bandGround].)
     if (g.band != null && foot.size > 0 && foot[0] == h) return Ground.LAIR
-    val w = g.footWeights ?: return Ground.OUTSIDE
+    val w = ground.weights
     for (i in 0 until foot.size) if (foot[i] == h) return if (w[i] >= CORE_WEIGHT) Ground.CORE else Ground.FRINGE
     return Ground.OUTSIDE
 }
@@ -110,10 +111,7 @@ private val bandStrategies = ReadStrategies()
  * groups on their way, which meet by their timetables alone.
  */
 internal fun engagedOver(a: HexGroup, b: HexGroup, contested: HexArray?, h: Hex): HexArray? =
-    contested ?: if (holdsHere(a) || holdsHere(b)) inflation.world.hexArray(1) { h } else null
-
-/** Whether [g] holds its ground where it is met: a pack about its footprint, or a resident stand-in (its id below 0) in its hex. */
-internal fun holdsHere(g: HexGroup) = g.rangesFromHome || g.id < 0
+    contested ?: if (holdsGround(a) || holdsGround(b)) inflation.world.hexArray(1) { h } else null
 
 /**
  * Whether a meeting of [a] and [b] over [contested] goes by their stances ([engage]): one of them takes a stance there

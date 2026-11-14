@@ -528,7 +528,7 @@ class Census(private val sim: HexSim) {
         println("     packs holding their ground this week, of all packs (footprint hexes, mean and widest): " +
             groups.kinds.filter { s -> groups.groups.any { it.alive && it.species == s && it.band == null } }.joinToString(", ") { s ->
                 val all = groups.groups.filter { it.alive && it.species == s && it.band == null }
-                val holding = all.mapNotNull { it.footprint?.size }
+                val holding = all.mapNotNull { it.footprint?.hexes?.size }
                 "%s %d of %d (%.1f, %d)".format(s.name, holding.size, all.size, if (holding.isEmpty()) 0.0 else holding.average(), holding.maxOrNull() ?: 0)
             })
         val banded = groups.kinds.filter { groups.planner.exploreCounts[it.index * 4] > 0 }
