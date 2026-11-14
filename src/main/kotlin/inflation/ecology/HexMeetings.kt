@@ -344,7 +344,7 @@ private fun HexGroups.meetSettle(weather: Weather) {
     // one on its way comes there (a holder is about it from the step's start), with the encounters of all the hexes shared.)
     for (c in contacts()) {
         val a = groups[c.a]; val b = groups[c.b]
-        fun indexAt(g: HexGroup) = if (g.footprint != null && g.path.size == 1) 0 else (0 until g.path.size).first { g.path[it] == c.hex }
+        fun indexAt(g: HexGroup) = if (g.rangesFromHome) 0 else (0 until g.path.size).first { g.path[it] == c.hex }
         val ai = indexAt(a); val bi = indexAt(b)
         val day = max(if (ai > 0 || a.footprint == null) a.days[ai] else 0f, if (bi > 0 || b.footprint == null) b.days[bi] else 0f)
         events += Meeting(day, days * c.overlap, c.a, ai, c.b, bi, c.hex, c.mean, c.contested)

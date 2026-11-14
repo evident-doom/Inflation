@@ -46,24 +46,25 @@ internal fun GroupPlanner.holdsGround(g: HexGroup, weather: Weather): Boolean {
  * footprint is laid out for its hunting and marking ([footprint]). Its choice is not weighed, so nothing of it is learned
  * from: the hunters' network learns from the weeks a pack is restless only.
  */
-internal fun GroupPlanner.groundPlan(g: HexGroup, date: Date): GroupPlanner.Plan {
+internal fun GroupPlanner.groundPlan(g: HexGroup, date: Date, weather: Weather): GroupPlanner.Plan {
     g.safestPeril = Float.NaN; g.drawn = false; g.weighed = false; g.plan = null
     planCounts.incrementAndGet(g.species.index * 3)
     val here = gs.hw.placeHex[g.place]
-    if (here == g.home) { footprint(g, date, g.place); return GroupPlanner.Plan(g.place, HexArray(intArrayOf(g.home.i))) }
+    if (here == g.home) { footprint(g, date, weather, g.place); return GroupPlanner.Plan(g.place, HexArray(intArrayOf(g.home.i))) }
     // (Off its home hex at a long step ([holdsGround]): it goes home, to the place there nearest its height.)
     val at = gs.hw.placeNear(g.place, g.home)
-    footprint(g, date, at)
+    footprint(g, date, weather, at)
     return GroupPlanner.Plan(at, HexArray(intArrayOf(here.i, g.home.i)))
 }
 
 /**
- * Lays out pack [g]'s footprint ([HexGroup.footprint]): its home hex and every hex with ground within its range of home,
- * each weighted by nearness, 1 at home falling off to a hex's width beyond the range. Its range is its kind's
+ * Lays out pack [g]'s footprint ([HexGroup.footprint]): the land of a circle of its range about its home, taken by the
+ * ground from home outward, the easiest first ([layGround]: never across a strait it cannot swim or a cliff it cannot
+ * climb). Its range is its kind's
  * ([GroupWorld.territoryKm]) as wide as the game on its home ground needs it (wider where game is thin: half to three times,
  * as the planner reckons a pack's ground), or [inflation.Tuning.denKm] while it has young in the den.
  */
-internal fun GroupPlanner.footprint(g: HexGroup, date: Date, at: Place = g.place) {
+internal fun GroupPlanner.footprint(g: HexGroup, date: Date, weather: Weather, at: Place = g.place) {
     val s = g.species
     val kind = gs.kindSlot[s.index]
     val month = wrapMonth(date.month + if (date.dayOfMonth > Date.DAYS_PER_MONTH / 2) 1 else 0)
@@ -71,29 +72,8 @@ internal fun GroupPlanner.footprint(g: HexGroup, date: Date, at: Place = g.place
     val homeValue = placeValue[kind][at]
     val range = if (denning) gs.tuning.denKm.toDouble() else
         (gs.territoryKm(s) * sqrt(PREY_HALF / homeValue.coerceAtLeast(1f)).coerceIn(0.5f, 3f)).toDouble()
-    val fall = range + gs.hex.hexKm
-    val today = date.absoluteDay
-    // (Its yieldings that have run out are forgotten.)
-    g.yielded = g.yielded?.filter { (it and 0xFFFFFFFFL) > today }?.toLongArray()?.takeIf { it.isNotEmpty() }
-    val hexes = ArrayList<Hex>(); val weights = ArrayList<Float>()
-    hexes += g.home; weights += 1f
-    val seen = HashSet<Hex>().also { it += g.home }
-    var ring: List<Hex> = listOf(g.home)
-    while (true) {
-        val next = gs.hex.nextRing(ring, seen)
-        var any = false
-        for (h in next) {
-            val d = gs.hex.distanceKm(h, g.home)
-            if (d > range) continue
-            any = true
-            // (Not where it gave way lately, [gaveWay].)
-            if (gs.hw.placeNear(at, h).none || yields(g, h, today)) continue
-            hexes += h; weights += (1.0 - d / fall).toFloat()
-        }
-        if (!any) break
-        ring = next
-    }
-    g.footprint = hexes.toHexArray(); g.footWeights = weights.toFloatArray()
+    // (Its territory is an area, a circle of that range on open ground; the ground gives it its shape, [layGround].)
+    gs.layGround(g, g.home, (Math.PI * range * range).toFloat(), date.absoluteDay, weather, at)
 }
 
 /**

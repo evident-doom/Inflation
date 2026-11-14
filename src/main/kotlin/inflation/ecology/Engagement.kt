@@ -113,7 +113,7 @@ internal fun engagedOver(a: HexGroup, b: HexGroup, contested: HexArray?, h: Hex)
     contested ?: if (holdsHere(a) || holdsHere(b)) inflation.world.hexArray(1) { h } else null
 
 /** Whether [g] holds its ground where it is met: a pack about its footprint, or a resident stand-in (its id below 0) in its hex. */
-internal fun holdsHere(g: HexGroup) = (g.footprint != null && g.path.size == 1) || g.id < 0
+internal fun holdsHere(g: HexGroup) = g.rangesFromHome || g.id < 0
 
 /**
  * Whether a meeting of [a] and [b] over [contested] goes by their stances ([engage]): one of them takes a stance there

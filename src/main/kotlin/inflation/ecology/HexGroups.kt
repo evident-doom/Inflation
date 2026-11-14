@@ -484,11 +484,11 @@ class HexGroups(
             val plan = Profile.kind("choosing", if (g.band != null) "bands" else g.species.name) {
                 // (A content pack on its home hex weighs nothing either: it stays and works its footprint, [holdsGround].)
                 if (staysHome(g) && policyFor(g) == null) planner.stayPlan(g)
-                else if (planner.holdsGround(g, weather)) planner.groundPlan(g, date)
+                else if (planner.holdsGround(g, weather)) planner.groundPlan(g, date, weather)
                 else planner.plan(g, weather, date, predatorKg) }
             if (g.band != null) Profile.slow("plan: band", t0, date.absoluteDay) { g.probe(date.absoluteDay) }
             // (A band that holds its home hex is about the hexes round it as its foragers go: its ground for the meetings, [bandGround].)
-            if (staysHome(g)) bandGround(g, date.absoluteDay)
+            if (staysHome(g)) bandGround(g, date.absoluteDay, weather)
             choice[k] = plan.place.i; paths[k] = plan.path
             times[k] = timetable(g.species, plan.path)
         }

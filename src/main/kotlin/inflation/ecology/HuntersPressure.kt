@@ -31,7 +31,7 @@ internal fun HexGroups.peopleAbout() {
 }
 
 /** The land of hex [h], km². */
-private fun GroupWorld.landKm2(h: Hex): Float { var a = 0f; for (q in hw.placesOf(h)) a += land.areaKm2[q]; return a }
+internal fun GroupWorld.landKm2(h: Hex): Float { var a = 0f; for (q in hw.placesOf(h)) a += land.areaKm2[q]; return a }
 
 /**
  * [heads] of resident hunter kind [k] killed by people at place [p] ([huntGame]), or the heads people would kill of it
