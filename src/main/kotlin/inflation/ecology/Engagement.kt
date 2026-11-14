@@ -120,9 +120,9 @@ internal fun holdsHere(g: HexGroup) = g.rangesFromHome || g.id < 0
  * other than its kind's own way of meeting ([plainStance]: the animals' rule, or two bands greeting), judged where the
  * contact is thickest (the first of [contested] when nothing else says).
  */
-internal fun HexGroups.engages(a: HexGroup, b: HexGroup, contested: HexArray?, at: Hex = contested?.let { if (it.size > 0) it[0] else Hex.NONE } ?: Hex.NONE): Boolean {
+internal fun HexGroups.engages(a: HexGroup, b: HexGroup, contested: HexArray?, at: Hex, day: Long): Boolean {
     if (contested == null) return false
-    return stanceOf(a, b, at) != plainStance(a, b) || stanceOf(b, a, at) != plainStance(b, a)
+    return stanceOf(a, b, at, day) != plainStance(a, b) || stanceOf(b, a, at, day) != plainStance(b, a)
 }
 
 /** [g]'s stance toward [other] when it meets it by its kind's own rules: two bands greet, every other the animals' rule. */
@@ -136,10 +136,10 @@ internal fun bandStancesFor(a: HexGroup, b: HexGroup) = a.band != null && b.band
  * else, a band toward a band, by how it regards it and what it knows ([bandStance]);
  * else its kind's own way ([plainStance]).
  */
-internal fun HexGroups.stanceOf(g: HexGroup, other: HexGroup, h: Hex): Stance {
+internal fun HexGroups.stanceOf(g: HexGroup, other: HexGroup, h: Hex, day: Long): Stance {
     val set = strategyOf(g)
     if (!set.plain) return set.at(groundOf(g, h))
-    if (bandStancesFor(g, other)) return bandStance(g, other, groundOf(g, h))
+    if (bandStancesFor(g, other)) return bandStance(g, other, groundOf(g, h), day)
     if (avoids(g, other)) return Stance.HIDE_AND_SCOUT
     return plainStance(g, other)
 }
@@ -160,11 +160,11 @@ internal fun HexGroups.avoids(g: HexGroup, other: HexGroup): Boolean =
  * its strength ([knownStrength]), as [regardStance] has it. The inputs are laid out as a learned chooser would read them
  * ([StanceInputs]), so that a network can take the place of the rule.
  */
-internal fun HexGroups.bandStance(g: HexGroup, other: HexGroup, ground: Ground): Stance {
+internal fun HexGroups.bandStance(g: HexGroup, other: HexGroup, ground: Ground, day: Long): Stance {
     val b = g.band ?: return Stance.GIVE_WAY_TO_STRONGER; val ob = other.band ?: return Stance.GIVE_WAY_TO_STRONGER
     val r = Regard(b, other.id, ob, map = hex)
     val own = strength(g).coerceAtLeast(1e-3f)
-    val known = knownStrength(g, other)
+    val known = knownStrength(g, other, day)
     val x = FloatArray(StanceInputs.size)
     x[StanceInputs.TIE] = r.tie; x[StanceInputs.FRIEND] = if (r.friend) 1f else 0f; x[StanceInputs.FEUD] = if (r.feud) 1f else 0f
     x[StanceInputs.WARINESS] = r.wariness / Regard.MOST_WARY; x[StanceInputs.STRANGER] = if (r.stranger) 1f else 0f
@@ -215,10 +215,10 @@ object StanceInputs : NamedSlots() {
  * What band [g] knows of [other]'s strength: as it last saw it ([Band.seenStrength]) within [SEEN_DAYS], else null (it
  * goes by its own, as if they were even).
  */
-internal fun GroupWorld.knownStrength(g: HexGroup, other: HexGroup): Float? {
+internal fun GroupWorld.knownStrength(g: HexGroup, other: HexGroup, today: Long): Float? {
     val b = g.band ?: return null
     val day = b.seenDay[other.id] ?: return null
-    if (contestDay - day > SEEN_DAYS) return null
+    if (today - day > SEEN_DAYS) return null
     return b.seenStrength[other.id]
 }
 
@@ -281,11 +281,11 @@ internal fun GroupWorld.holding(g: HexGroup, other: HexGroup, h: Hex): Float {
  * Where a contact over [contested] is fought: of those hexes, the one a side that would hold any draws it to, the one it
  * holds best ([holding]; of equals, the first); [thickest] where neither or both would hold some.
  */
-internal fun HexGroups.battleground(a: HexGroup, b: HexGroup, contested: HexArray, thickest: Hex): Hex {
+internal fun HexGroups.battleground(a: HexGroup, b: HexGroup, contested: HexArray, thickest: Hex, day: Long): Hex {
     fun best(g: HexGroup, o: HexGroup): Hex {
         var at = Hex.NONE; var most = 0f
         for (i in 0 until contested.size) { val h = contested[i]
-            if (stanceOf(g, o, h) != Stance.DEFEND) continue
+            if (stanceOf(g, o, h, day) != Stance.DEFEND) continue
             val v = holding(g, o, h); if (v > most) { most = v; at = h } }
         return at
     }
@@ -382,20 +382,21 @@ internal fun settleEngagement(stA: Stance, stB: Stance, aSees: Boolean, bSees: B
 }
 
 /**
- * A contact between [a] and [b] (indices [ak], [bk] among the meeting's parties, at their paths' [ai], [bi]) over the
- * hexes [contested], thickest at [thickest], settled by their strategies (see the head of this file). [stop] is the
- * meetings' (where a group on its way turns back), [r] the meetings' draws. Returns whether it came to anything: one side gave
- * way or they fought (not scouted or passed unseen).
+ * The encounter [met] over the hexes [contested] (thickest at its hex), settled by the two sides' strategies (see the head of
+ * this file), on the ground the one that would hold some draws it to ([battleground]); [r] the meetings' draws. Returns
+ * whether it came to anything: one side gave way or they fought (not scouted or passed unseen).
  */
 @inflation.Part("meetings: engagements")
-internal fun HexGroups.engage(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk: Int, bi: Int, contested: HexArray, thickest: Hex, stop: IntArray, r: Random,
-                              intent: Intent = Intent.CHANCE, weather: inflation.world.Weather? = null): Boolean {
+internal fun HexGroups.engage(met: Encounter, contested: HexArray, r: Random, weather: inflation.world.Weather? = null): Boolean {
     stats.meeting(Met.ENGAGEMENTS)
-    val h = battleground(a, b, contested, thickest)
+    val a = met.a; val b = met.b; val intent = met.intent; val day = met.day
+    val h = battleground(a, b, contested, met.hex, day)
     val p = hw.placeNear(a.place, h).takeIf { !it.none } ?: a.place
+    // (Met on the ground the engagement chose: what follows is settled there.)
+    val enc = met.at(h, p)
     // (A side that came to attack, a raid set out ([Intent.RAID]), attacks whatever its strategy says of that ground.)
     val raid = intent == Intent.RAID
-    val stA = if (raid) Stance.ATTACK else stanceOf(a, b, h); val stB = stanceOf(b, a, h)
+    val stA = if (raid) Stance.ATTACK else stanceOf(a, b, h, day); val stB = stanceOf(b, a, h, day)
     // (Who sees whom first: drawn where they come on each other by chance; at a visit or a gathering each knows the other is
     // there; raiders know where they are going, the raided may not see them coming.)
     val aware = intent == Intent.VISIT || intent == Intent.GATHERING
@@ -403,7 +404,7 @@ internal fun HexGroups.engage(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk: In
     val (aSaw, bSaw) = if (aware) true to true else sightings(a, if (raid) Stance.AMBUSH else stA, b, stB, p, r)
     val aSees = aware || raid || aSaw; val bSees = aware || bSaw
     // (What each saw of the other it remembers: a scout's watching is for this.)
-    if (aSees) noteSeen(a, b, contestDay); if (bSees) noteSeen(b, a, contestDay)
+    if (aSees) noteSeen(a, b, day); if (bSees) noteSeen(b, a, day)
     // (Each as strong as it stands there: holding its ground, and falling on the other unseen.)
     val sa0 = strength(a); val sb0 = strength(b)
     val holdA = if (stA == Stance.DEFEND) holding(a, b, h) else 1f; val holdB = if (stB == Stance.DEFEND) holding(b, a, h) else 1f
@@ -413,8 +414,8 @@ internal fun HexGroups.engage(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk: In
     val surpriseA = e.surpriseA; val surpriseB = e.surpriseB
     if (surpriseA || surpriseB) stats.meeting(Met.ENGAGEMENTS_AMBUSHED)
     when (e.ending) {
-        Ending.A_GAVE_WAY -> { stop[ak] = minOf(stop[ak], max(0, ai - 1)); gaveWay(a, contested, contestDay); stats.meeting(Met.ENGAGEMENTS_GAVE_WAY); return true }
-        Ending.B_GAVE_WAY -> { stop[bk] = minOf(stop[bk], max(0, bi - 1)); gaveWay(b, contested, contestDay); stats.meeting(Met.ENGAGEMENTS_GAVE_WAY); return true }
+        Ending.A_GAVE_WAY -> { enc.turnBack(a); gaveWay(a, enc.contested, day); stats.meeting(Met.ENGAGEMENTS_GAVE_WAY); return true }
+        Ending.B_GAVE_WAY -> { enc.turnBack(b); gaveWay(b, enc.contested, day); stats.meeting(Met.ENGAGEMENTS_GAVE_WAY); return true }
         Ending.SCOUTED -> { stats.meeting(Met.ENGAGEMENTS_SCOUTED); return false }
         Ending.PASSED_UNSEEN -> { stats.meeting(Met.ENGAGEMENTS_PASSED_UNSEEN); return false }
         Ending.FOUGHT -> {}
@@ -429,7 +430,7 @@ internal fun HexGroups.engage(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk: In
         else fight(b, bb, a, ba, planned = false, weather, edge = if (surpriseB) ENGAGE_SURPRISE else 1f)
         return true
     }
-    if (a.species == b.species) rivalsFight(a, ak, ai, b, bk, bi, h, stop, sa, sb) else enemiesClash(a, ak, ai, b, bk, bi, h, stop, sa, sb)
+    if (a.species == b.species) rivalsFight(enc, sa, sb) else enemiesClash(enc, sa, sb)
     return true
 }
 

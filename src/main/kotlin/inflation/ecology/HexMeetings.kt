@@ -275,24 +275,24 @@ internal const val OWN_GROUND_HEXES = 2f
  * meeting is settled: by the two sides' strategies where either has one other than the animals' ([engage], over
  * [byStrategy], the hexes it is over); else by the rules of the kinds that meet: a hunter that senses a much stronger one
  * first keeps out of its way ([slipsAway]); two bands talk or raid ([bandsMeet]); rivals of one kind and hunters of
- * different kinds by their standing orders ([rivalsMeet], [enemiesMeet]). [ak], [ai], [bk], [bi]: each party's index among
- * the meeting's parties and the point of its way, for [stop] (where a party on its way turns back).
+ * different kinds by their standing orders ([rivalsMeet], [enemiesMeet]). [enc]: the two, where, what is contested, how
+ * they came to meet, the day, and how a party on its way turns back ([Encounter]).
  */
-internal fun HexGroups.settle(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk: Int, bi: Int, h: Hex, p: Place, byStrategy: HexArray?,
-                              stop: IntArray, weather: Weather, rite: RiteGathering? = null, intent: Intent = Intent.CHANCE) {
+internal fun HexGroups.settle(enc: Encounter, byStrategy: HexArray?, weather: Weather, rite: RiteGathering? = null) {
+    val a = enc.a; val b = enc.b; val p = enc.place; val intent = enc.intent
     // (Two bands that are friends both ways greet whatever their strategies, but where one came to raid.)
     val friends = intent != Intent.RAID && a.band?.let { ba -> b.band?.let { bb -> ba.tie(b.id) >= FRIEND_TIE && bb.tie(a.id) >= FRIEND_TIE } } == true
     // (A meeting that stands for several ([meetTimes]: neighbours' visits held as one) engages as often, till it comes to something.)
     if (byStrategy != null && !friends) {
-        for (t in 0 until meetTimes) { if (!a.alive || !b.alive || engage(a, ak, ai, b, bk, bi, byStrategy, h, stop, rnd, intent, weather)) break }
+        for (t in 0 until meetTimes) { if (!a.alive || !b.alive || engage(enc, byStrategy, rnd, weather)) break }
         return
     }
     // (A raid set out on the other's home, by the rules of a raid: the defenders behind their works, [fight].)
     if (intent == Intent.RAID) { val ba = a.band; val bb = b.band; if (ba != null && bb != null) fight(a, ba, b, bb, planned = true, weather); return }
     if (slipsAway(a, b, p) || slipsAway(b, a, p)) stats.meeting(Met.SLIPPED_AWAY)
     else if (a.species.human && b.species.human) run { val t0 = Profile.mark(); bandsMeet(a, b, weather, rite); Profile.slow("meeting: bands", t0, weather.date.absoluteDay) { a.probe(weather.date.absoluteDay) + " | " + b.probe(-1L) } }
-    else if (a.species == b.species) rivalsMeet(a, ak, ai, b, bk, bi, h, stop)
-    else enemiesMeet(a, ak, ai, b, bk, bi, h, stop)
+    else if (a.species == b.species) rivalsMeet(enc)
+    else enemiesMeet(enc)
 }
 
 /**
@@ -301,9 +301,10 @@ internal fun HexGroups.settle(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk: In
  * back on.
  */
 internal fun HexGroups.settleAt(a: HexGroup, b: HexGroup, h: Hex, weather: Weather, rite: RiteGathering? = null, intent: Intent = Intent.VISIT) {
-    contested = hexArray(1) { h }; contestDay = weather.date.absoluteDay
+    val day = weather.date.absoluteDay
     val p = hw.placeNear(b.place, h).takeIf { !it.none } ?: b.place
-    settle(a, 0, 0, b, 1, 0, h, p, engagedOver(a, b, null, h)?.takeIf { engages(a, b, it) }, IntArray(2), weather, rite, intent)
+    val enc = Encounter.withoutWays(a, b, h, p, hexArray(1) { h }, intent, day)
+    settle(enc, engagedOver(a, b, null, h)?.takeIf { engages(a, b, it, h, day) }, weather, rite)
 }
 
 /** How two parties came to meet ([settle]): by chance (timetables, grounds overlapping), visiting, at a gathering, or a raid set out on the other's home. */
@@ -358,7 +359,7 @@ private fun HexGroups.meetSettle(weather: Weather) {
             val e = events[i]; val sa = e.a >= groups.size; val sb = e.b >= groups.size
             apart[i] = parties[e.a].species != parties[e.b].species && ((sa && !sb && strongerThan(parties[e.b], parties[e.a], e.hex)) || (sb && !sa && strongerThan(parties[e.a], parties[e.b], e.hex))) &&
                 // (Not where a side has a strategy of its own: then it is settled by the strategies like any other, [engage].)
-                engagedOver(parties[e.a], parties[e.b], e.contested, e.hex)?.let { engages(parties[e.a], parties[e.b], it, e.hex) } != true
+                engagedOver(parties[e.a], parties[e.b], e.contested, e.hex)?.let { engages(parties[e.a], parties[e.b], it, e.hex, weather.date.absoluteDay) } != true
         }
         val kept = ArrayList<Meeting>(events.size)
         for (i in events.indices) if (apart[i]) withStandIns += events[i] else kept += events[i]
@@ -447,13 +448,13 @@ private fun HexGroups.settleInTimeOrder(events: List<Meeting>, parties: List<Hex
         // meetings its ticks would have, [StepClock.ticks].)
         val times = if (ra == null && rb == null) min(met, ticks) else min(met, kotlin.math.ceil(min(ra?.bands ?: Float.MAX_VALUE, rb?.bands ?: Float.MAX_VALUE)).toInt() * ticks)
         // (What the one that gives way gives up: the contact's shared hexes, else the hex of the meeting, [gaveWay].)
-        contested = e.contested ?: hexArray(1) { h }; contestDay = today
-        val byStrategy = engagedOver(a, b, e.contested, h)?.takeIf { engages(a, b, it, h) }
+        val enc = Encounter(a, b, h, p, e.contested ?: hexArray(1) { h }, Intent.CHANCE, today, stop, e.a, e.ai, e.b, e.bi)
+        val byStrategy = engagedOver(a, b, e.contested, h)?.takeIf { engages(a, b, it, h, today) }
         for (t in 0 until times) {
             ra?.fresh(); rb?.fresh()
             if (!a.alive || !b.alive) break
             // (A contact of which a side has a strategy other than the animals' is settled by the strategies, [engage].)
-            settle(a, e.a, e.ai, b, e.b, e.bi, h, p, byStrategy, stop, weather)
+            settle(enc, byStrategy, weather)
             ra?.settle(); rb?.settle()
         }
     }
@@ -735,11 +736,12 @@ internal fun HexGroups.shelteredFromKilling(weak: Species, p: Place) = 1f - SHEL
  * now and then: Palomares & Caro 1999. What lies there is carrion, for whoever eats carrion, the killer too.)
  */
 @Part("meetings: hunters of other kinds")
-internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk: Int, bi: Int, h: Hex, stop: IntArray) {
+internal fun HexGroups.enemiesMeet(enc: Encounter) {
+    val a = enc.a; val b = enc.b; val h = enc.hex
     stats.meeting(Met.HUNTERS_OF_OTHER_KINDS)
     val sa = strength(a) * (if (a.home == h) HOME_ADVANTAGE else 1f)
     val sb = strength(b) * (if (b.home == h) HOME_ADVANTAGE else 1f)
-    enemiesClash(a, ak, ai, b, bk, bi, h, stop, sa, sb)
+    enemiesClash(enc, sa, sb)
 }
 
 /**
@@ -747,10 +749,10 @@ internal fun HexGroups.enemiesMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, b
  * ([enemiesMeet]; [engage] with their ground and surprise in them): near equals keep their distance; else the stronger may
  * take the weaker's kill and kill one of it, and the weaker turns back and gives way ([gaveWay]).
  */
-internal fun HexGroups.enemiesClash(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk: Int, bi: Int, h: Hex, stop: IntArray, sa: Float, sb: Float) {
+internal fun HexGroups.enemiesClash(enc: Encounter, sa: Float, sb: Float) {
+    val a = enc.a; val b = enc.b
     val aStrong = sa >= sb
     val strong = if (aStrong) a else b; val weak = if (aStrong) b else a
-    val wk = if (aStrong) bk else ak; val wi = if (aStrong) bi else ai
     val ratio = max(sa, sb) / max(1f, min(sa, sb))
     if (ratio < THEFT_RATIO) return // near equals keep their distance
     // A leopard hauls its kill up a tree where there are trees; others guard it where they can.
@@ -778,8 +780,8 @@ internal fun HexGroups.enemiesClash(a: HexGroup, ak: Int, ai: Int, b: HexGroup, 
         small.deposit(DeadPool.CARRION, weak.place, Kg(weak.species.massKg))
         stats.deaths.merge(Tally.of(weak.species, ByBeast.of(ByBeast.How.KILLED_BY, strong.species)), 1, Int::plus)
     }
-    stop[wk] = min(stop[wk], max(0, wi - 1)) // the weaker turns back
-    gaveWay(weak, contested, contestDay)
+    enc.turnBack(weak) // the weaker turns back
+    gaveWay(weak, enc.contested, enc.day)
     if (weak.band != null) stats.meeting(Met.Of.TURNED_BACK_BY, strong.species.name)
 }
 
@@ -821,19 +823,20 @@ internal fun HexGroups.mark() {
  * and the loser gives up the ground.
  */
 @Part("meetings: rival packs")
-internal fun GroupWorld.rivalsMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk: Int, bi: Int, h: Hex, stop: IntArray) {
+internal fun GroupWorld.rivalsMeet(enc: Encounter) {
+    val a = enc.a; val b = enc.b; val h = enc.hex
     stats.meeting(Met.RIVAL_PACKS)
     val sa = a.adults * (if (a.home == h) HOME_ADVANTAGE else 1f); val sb = b.adults * (if (b.home == h) HOME_ADVANTAGE else 1f)
     val ratio = max(sa, sb) / max(1f, min(sa, sb))
     // (How much stronger the other has to be before the weaker gives way is the weaker's choice.)
     if (ratio > FIGHT_RATIO * (if (sa < sb) a else b).will[AnimalWay.FIGHT]) {
         // The weaker gives way: back the way it came.
-        if (sa < sb) stop[ak] = min(stop[ak], max(0, ai - 1)) else stop[bk] = min(stop[bk], max(0, bi - 1))
-        gaveWay(if (sa < sb) a else b, contested, contestDay)
+        enc.turnBack(if (sa < sb) a else b)
+        gaveWay(if (sa < sb) a else b, enc.contested, enc.day)
         stats.meeting(Met.PACK_GAVE_WAY)
         return
     }
-    rivalsFight(a, ak, ai, b, bk, bi, h, stop, sa, sb)
+    rivalsFight(enc, sa, sb)
 }
 
 /**
@@ -841,7 +844,8 @@ internal fun GroupWorld.rivalsMeet(a: HexGroup, ak: Int, ai: Int, b: HexGroup, b
  * with their ground and surprise in them): one loses, by the strengths; now and then it loses one of its grown; beaten at
  * its home, it loses its ground and its young may be killed; it turns back and gives way ([gaveWay]).
  */
-internal fun GroupWorld.rivalsFight(a: HexGroup, ak: Int, ai: Int, b: HexGroup, bk: Int, bi: Int, h: Hex, stop: IntArray, sa: Float, sb: Float) {
+internal fun GroupWorld.rivalsFight(enc: Encounter, sa: Float, sb: Float) {
+    val a = enc.a; val b = enc.b; val h = enc.hex
     stats.meeting(Met.PACKS_FOUGHT)
     val loser = if (rnd.nextFloat() < sa / (sa + sb)) b else a
     if (rnd.nextFloat() < RIVAL_KILL && loser.adults > 0) {
@@ -861,8 +865,8 @@ internal fun GroupWorld.rivalsFight(a: HexGroup, ak: Int, ai: Int, b: HexGroup, 
             if (killed > 0) stats.deaths.merge(Tally.of(loser.species, DeathCause.YOUNG_KILLED_BY_RIVALS), killed, Int::plus)
         }
     }
-    if (loser === a) stop[ak] = min(stop[ak], max(0, ai - 1)) else stop[bk] = min(stop[bk], max(0, bi - 1))
-    gaveWay(loser, contested, contestDay)
+    enc.turnBack(loser)
+    gaveWay(loser, enc.contested, enc.day)
 }
 
 /** [g] takes hex [h] as its ground and marks it there and then. */
