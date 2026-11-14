@@ -208,7 +208,7 @@ private fun HexFauna.feedKinds(p: Place, weather: Weather, z: Grazing, ff: Doubl
         // (What the young would be born to: food, and the protein their mothers' milk and their growth need.)
         fm[i] += (fed[k][p] * protein[k][p] - fm[i]) * overTicks(FED_MEMORY)
         // Laying on fat for the winter: how well fed through late summer and autumn.
-        if (s.hibernates && weather.date.month in 7..11 && !asleep(k, p)) autumnFed[k][p] += (fed[k][p] - autumnFed[k][p]) * overTicks(0.2f)
+        if (s.hibernates && land.localMonth(p, weather.date.month) in 7..11 && !asleep(k, p)) autumnFed[k][p] += (fed[k][p] - autumnFed[k][p]) * overTicks(0.2f)
         t = Profile.kindLap("residents: feeding", s.name, t)
     }
     small.settleResidentCarrion(p)

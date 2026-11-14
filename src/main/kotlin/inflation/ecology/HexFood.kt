@@ -372,7 +372,8 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
                 }
             }
             // Small finds in season.
-            val month = weather.date.month
+            // (By the place's own seasons: [inflation.world.HexLand.localMonth].)
+            val month = land.localMonth(p, weather.date.month)
             val honey = if (month in 3..5) HONEY * small.pollination[p] * (land.plants.shrub[p] + 0.1f * land.plants.tree[p]) else 0f
             val truffles = if (month in 2..4) TRUFFLES * land.plants.herb[p] * (1f - land.plants.moisture[p]).coerceIn(0f, 1f) * land.plants.green[p] else 0f
             val eggs = if (month in 3..5) EGGS * small.birds[p] / 1e6f else 0f

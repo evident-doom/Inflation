@@ -44,7 +44,8 @@ internal fun HexGroups.placeHerd(g: HexGroup, b: Band, date: Date, weather: Weat
  * summer, or with none in reach.
  */
 internal fun HexGroups.summerPasture(g: HexGroup, b: Band, date: Date, weather: Weather, was: Place): Place? {
-    if (date.month !in SUMMER_MONTHS || b.herds.herd.all { it <= 0f }) return null
+    // (By the camp's own seasons, [inflation.world.HexLand.localMonth]: up as its grass dries.)
+    if (land.localMonth(g.place, date.month) !in SUMMER_MONTHS || b.herds.herd.all { it <= 0f }) return null
     val camp = g.place; val home = hw.placeHex[camp]
     val low = hw.placeElevationM[camp.i]
     fun upland(q: Place) = hw.placeElevationM[q.i] >= low + UPLAND_M
