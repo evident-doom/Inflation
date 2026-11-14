@@ -43,7 +43,7 @@ internal fun HexGroups.strengthAt(g: HexGroup, h: Hex, gathered: Boolean = false
 /**
  * Whether [a] is much the stronger of the two at hex [h]: of another kind, and more than [AVOID_RATIO] times as strong as
  * [b] by those present there ([presentStrength]). The one test of when the weaker keeps out of the way: hides from it
- * ([avoids]), slips away from it ([slipsAway]), must outrun it to get away ([escapes]), as the stand-ins weigh it too.
+ * ([avoids]), must outrun it to get away ([escapes]), as the stand-ins weigh it too.
  */
 internal fun HexGroups.muchStronger(a: HexGroup, b: HexGroup, h: Hex): Boolean =
     a.species != b.species && presentStrength(a, h) > AVOID_RATIO * presentStrength(b, h)

@@ -273,13 +273,13 @@ internal const val OWN_GROUND_HEXES = 2f
  * Two parties come on each other at hex [h] (place [p]), however they came to: by their timetables, by their grounds
  * overlapping ([contacts]), by visiting ([neighboursMeet]) or at a gathering ([keepAppointments]). The one way every
  * meeting is settled: by the two sides' strategies where either has one other than the animals' ([engage], over
- * [byStrategy], the hexes it is over); else by the rules of the kinds that meet: a hunter that senses a much stronger one
- * first keeps out of its way ([slipsAway]); two bands talk or raid ([bandsMeet]); rivals of one kind and hunters of
+ * [byStrategy], the hexes it is over); else by the rules of the kinds that meet ([plainOutcome]): a hunter giving way to a much stronger
+ * one gets away only if it outruns it ([escapes]); two bands talk or raid ([bandsMeet]); rivals of one kind and hunters of
  * different kinds by their standing orders ([rivalsMeet], [enemiesMeet]). [enc]: the two, where, what is contested, how
  * they came to meet, the day, and how a party on its way turns back ([Encounter]).
  */
 internal fun HexGroups.settle(enc: Encounter, byStrategy: HexArray?, weather: Weather, rite: RiteGathering? = null) {
-    val a = enc.a; val b = enc.b; val p = enc.place; val intent = enc.intent
+    val a = enc.a; val b = enc.b; val intent = enc.intent
     // (Two bands that are friends both ways greet whatever their strategies, but where one came to raid.)
     val friends = intent != Intent.RAID && a.band?.let { ba -> b.band?.let { bb -> ba.tie(b.id) >= FRIEND_TIE && bb.tie(a.id) >= FRIEND_TIE } } == true
     // (A meeting that stands for several ([meetTimes]: neighbours' visits held as one) engages as often, till it comes to something.)
@@ -289,8 +289,7 @@ internal fun HexGroups.settle(enc: Encounter, byStrategy: HexArray?, weather: We
     }
     // (A raid set out on the other's home, by the rules of a raid: the defenders behind their works, [fight].)
     if (intent == Intent.RAID) { val ba = a.band; val bb = b.band; if (ba != null && bb != null) fight(a, ba, b, bb, planned = true, weather, enc.hex); return }
-    if (slipsAway(a, b, p) || slipsAway(b, a, p)) stats.meeting(Met.SLIPPED_AWAY)
-    else if (a.species.human && b.species.human) run { val t0 = Profile.mark(); bandsMeet(a, b, weather, rite, enc.hex); Profile.slow("meeting: bands", t0, weather.date.absoluteDay) { a.probe(weather.date.absoluteDay) + " | " + b.probe(-1L) } }
+    if (a.species.human && b.species.human) run { val t0 = Profile.mark(); bandsMeet(a, b, weather, rite, enc.hex); Profile.slow("meeting: bands", t0, weather.date.absoluteDay) { a.probe(weather.date.absoluteDay) + " | " + b.probe(-1L) } }
     else if (a.species == b.species) rivalsMeet(enc)
     else enemiesMeet(enc)
 }
@@ -469,7 +468,7 @@ private class StandInsMet(val slipped: Int, val stayed: Int, val youngKilled: In
 
 /**
  * [times] bands of resident hunter [weak] (a stand-in, [ResidentParties]) meet [strong] at place [p], each as one band of it
- * would ([slipsAway], [enemiesMeet]): drawn together by [r], those that slip away, and of the rest those that lose one of
+ * would ([escapes], [enemiesMeet]): drawn together by [r], those that slip away, and of the rest those that lose one of
  * their young, else one of their grown. (A stand-in carries no kill to rob.)
  */
 private fun HexGroups.standInsMeetDraw(strong: HexGroup, weak: HexGroup, p: Place, times: Int, r: kotlin.random.Random): StandInsMet {
@@ -693,15 +692,9 @@ internal fun GroupWorld.encounters(a: Species, b: Species, bands: Boolean, p: Pl
 }
 
 /**
- * Whether hunter [g] senses [other] first and keeps out of its way, as it does a much stronger one
- * of another kind; the keener its senses and the better its shelter, the likelier.
+ * The chance a hunter of kind [s] giving way to a much stronger party of kind [o] at place [p] gets away ([escapes]): the
+ * keener its senses against the other's and the better its shelter, the likelier.
  */
-internal fun HexGroups.slipsAway(g: HexGroup, other: HexGroup, p: Place): Boolean {
-    if (!muchStronger(other, g, hw.placeHex[p])) return false
-    return rnd.nextFloat() < slipChance(g.species, other.species, p)
-}
-
-/** The chance a hunter of kind [s] slips away from a much stronger party of kind [o] at place [p] ([slipsAway]). */
 internal fun HexGroups.slipChance(s: Species, o: Species, p: Place): Float {
     val first = s.senseKm / (s.senseKm + o.senseKm)
     return min(0.9f, AVOID_SKILL * first * (1f - o.stalking * 0.5f) + SHELTER_EFFECT * 0.5f * Niches.shelter(s, p, land))
@@ -730,8 +723,8 @@ internal fun HexGroups.shelteredFromKilling(weak: Species, p: Place) = 1f - SHEL
 /**
  * Standing orders, hunters of different kinds, as the animals' rule has it ([plainOutcome]: the one set of lines the
  * engagements draw too). The weaker gives way to one stronger than its will to fight bears, leaving its kill to be taken
- * ([leavesKill]: hyenas rob leopards, lions rob everyone); unless the other is much the stronger and it did not slip away
- * ([slipsAway]), when it is caught; near equals stand. Standing or caught, they clash ([enemiesClash]): a much stronger
+ * ([leavesKill]: hyenas rob leopards, lions rob everyone); unless the other is much the stronger and it did not get away
+ * ([escapes]), when it is caught; near equals stand. Standing or caught, they clash ([enemiesClash]): a much stronger
  * party now and then kills one of the other, and leaves it where it fell, as rivals of one kind do ([rivalsMeet]):
  * killing a rival is not hunting it. (Lions leave the cheetahs they kill uneaten; wolves eat a coyote now and then:
  * Palomares & Caro 1999. What lies there is carrion, for whoever eats carrion, the killer too.)
@@ -750,14 +743,20 @@ internal fun HexGroups.enemiesMeet(enc: Encounter) {
 
 /**
  * How a meeting by the kinds' own rules ends ([rivalsMeet], [enemiesMeet]): as an engagement of two keeping the animals'
- * rule ([Stance.GIVE_WAY_TO_STRONGER]) that see each other ([settleEngagement]), with strengths [sa] and [sb] as they stand
- * there, so that the lines where the weaker gives way or is caught are drawn once. Whether one got away from a much
- * stronger one was drawn before ([slipsAway]): one still here did not ([muchStronger]).
+ * rule ([Stance.GIVE_WAY_TO_STRONGER]) ([settleEngagement]), with strengths [sa] and [sb] as they stand there, so that the
+ * lines where the weaker gives way or is caught are drawn once. Neither hides, so they see each other ([sightings]); one
+ * giving way to a much stronger one of another kind gets away as it would from an engagement ([escapes]): the one model
+ * of noticing and getting away (docs/design/coherence-review.md, C3; before, a slip-away of its own was drawn first).
  */
 internal fun HexGroups.plainOutcome(enc: Encounter, sa: Float, sb: Float): Engaged {
-    val a = enc.a; val b = enc.b; val h = enc.hex
-    return settleEngagement(Stance.GIVE_WAY_TO_STRONGER, Stance.GIVE_WAY_TO_STRONGER, true, true, sa, sb,
-        a.will[AnimalWay.FIGHT], b.will[AnimalWay.FIGHT], raid = false, aEscapes = !muchStronger(b, a, h), bEscapes = !muchStronger(a, b, h))
+    val a = enc.a; val b = enc.b; val p = enc.place
+    val aEscapes = escapes(a, b, p, rnd); val bEscapes = escapes(b, a, p, rnd)
+    val e = settleEngagement(Stance.GIVE_WAY_TO_STRONGER, Stance.GIVE_WAY_TO_STRONGER, true, true, sa, sb,
+        a.will[AnimalWay.FIGHT], b.will[AnimalWay.FIGHT], raid = false, aEscapes = aEscapes, bEscapes = bEscapes)
+    // (One that got away from a much stronger one slipped away.)
+    val h = enc.hex
+    if ((e.ending == Ending.A_GAVE_WAY && muchStronger(b, a, h)) || (e.ending == Ending.B_GAVE_WAY && muchStronger(a, b, h))) stats.meeting(Met.SLIPPED_AWAY)
+    return e
 }
 
 /** [weak] gives way to [strong] of another kind, [ratio] times as strong, at a meeting by the kinds' own rules ([enemiesMeet]): it leaves its kill ([leavesKill]) and turns back. */

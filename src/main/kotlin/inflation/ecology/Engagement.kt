@@ -150,7 +150,7 @@ internal fun HexGroups.stanceOf(g: HexGroup, other: HexGroup, h: Hex, day: Long)
  * ([Stance.HIDE_AND_SCOUT]): harder to find in cover ([sightings]), and one that sees the other coming gets away. Cheetahs
  * keep out of lions' areas and hours and move their cubs, leopards keep to cover and trees: the lesser hunters live
  * among the greater by not being found (Durant 1998, J. Anim. Ecol.; Vanak et al. 2013, Ecology). The same line as the
- * slip-away's ([slipsAway]): no kind is named.
+ * getting away's ([escapes]): no kind is named.
  */
 internal fun HexGroups.avoids(g: HexGroup, other: HexGroup, h: Hex): Boolean = g.band == null && muchStronger(other, g, h)
 
@@ -270,7 +270,7 @@ internal fun HexGroups.seenInputs(g: HexGroup, b: Band, into: FloatArray, now: L
 internal fun HexGroups.escapes(g: HexGroup, other: HexGroup, p: Place, r: Random): Boolean =
     if (!muchStronger(other, g, hw.placeHex[p])) true else r.nextFloat() < slipChance(g.species, other.species, p)
 
-/** How many times stronger another kind must be before a hunter keeps out of its way ([avoids]): as the slip-away's ([slipsAway]). */
+/** How many times stronger another kind must be before a hunter keeps out of its way ([avoids]) and must outrun it to get away ([escapes]). */
 internal const val AVOID_RATIO = 2f
 
 /** Days a band remembers what it saw of another ([Band.seenStrength]): a season; an estimate. */
