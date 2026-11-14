@@ -85,6 +85,14 @@ internal class ViewLayers(private val sim: HexSim) {
     val now = HashMap<String, FloatArray>()
     /** The cultural regions as they stood at the last week ([Measure.CULTURES]). */
     var cultures: CultureRegions? = null
+    /**
+     * Each cultural region's lasting number, by its index in [cultures]: a region keeps the number (and so its colour) of the
+     * region most of its people were in the week before; one that takes none over gets a new one ([lastingIds]).
+     */
+    var cultureIds: Map<Int, Int> = emptyMap(); private set
+    /** Each band's region's lasting number at the last week, by group id. */
+    private var bandCulture = HashMap<Int, Int>()
+    private var nextCulture = 0
     /** Each month's mean over the last year (index: month), per hex; null until that month has been seen. */
     private val months = HashMap<String, Array<FloatArray?>>()
     /** The same month a year before the last one kept (index: month), per hex; null until two of it have been seen. */
@@ -110,10 +118,30 @@ internal class ViewLayers(private val sim: HexSim) {
         months.clear(); yearBefore.clear(); sums.clear(); counts.clear(); weeksInMonth = 0; month = -1; lastMonth = -1
         for (a in deaths) for (b in a) b.fill(0f)
         killsKg.fill(0f); hunted.fill(0f); gathered.fill(0f); for (a in gone) a.fill(0f); fearBefore = null; weeksSeen = 0
+        bandCulture = HashMap(); cultureIds = emptyMap()
         record.clear()
     }
 
     /** After each week: works out every measure and adds it to the month. */
+    /**
+     * The regions' lasting numbers (by index in [cr]): the largest region first takes the number most of its people's bands
+     * had last week, if no larger region took it; a region of new bands, or whose number is taken, gets a new one.
+     */
+    private fun lastingIds(cr: CultureRegions): Map<Int, Int> {
+        val members = cr.bands.indices.groupBy { cr.region[it] }
+        val ids = HashMap<Int, Int>(); val taken = HashSet<Int>()
+        for ((r, _) in cr.byPeople) {
+            val had = HashMap<Int, Double>()
+            for (i in members[r].orEmpty()) bandCulture[cr.bands[i].id]?.let { had.merge(it, cr.bands[i].size.toDouble(), Double::plus) }
+            val id = had.entries.filter { it.key !in taken }.maxByOrNull { it.value }?.key ?: nextCulture++
+            ids[r] = id; taken += id
+        }
+        val next = HashMap<Int, Int>()
+        for (i in cr.bands.indices) ids[cr.region[i]]?.let { next[cr.bands[i].id] = it }
+        bandCulture = next
+        return ids
+    }
+
     fun week() {
         val area = DoubleArray(nh)
         for (p in 0 until n) area[hw.placeHex[p]] += land.areaKm2[p].toDouble()
@@ -148,8 +176,9 @@ internal class ViewLayers(private val sim: HexSim) {
         now[Measure.CARRION.name] = hexMean { sl.carrion[it] * 1e6f }
         // Cultural regions: the region with the most people in each hex, by its index (no band there: none).
         cultures = groups.cultureRegions(groups.groups).also { cr ->
+            val ids = lastingIds(cr); cultureIds = ids
             val hr = cr.hexRegion(nh) { hw.placeHex[it.place] }
-            now[Measure.CULTURES.name] = FloatArray(nh) { if (hr[it] >= 0) hr[it].toFloat() else Float.NaN }
+            now[Measure.CULTURES.name] = FloatArray(nh) { if (hr[it] >= 0) (ids[hr[it]] ?: hr[it]).toFloat() else Float.NaN }
         }
         now[Measure.RESIDENTS.name] = hexMean { p -> var v = 0f; for (k in fauna.kinds.indices) v += fauna.adults[k][p] + fauna.young[k][p]; v }
 

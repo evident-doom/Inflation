@@ -309,6 +309,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                 "Click a hex on the map and pick a group in the list first.")
         }
         bar.add(follow)
+        bar.add(stepChoice())
         bar.add(graphs); bar.add(save); bar.add(open); bar.add(date)
         useNetworks()
         load?.let { f -> commands += { loadWorld(f) } }
@@ -398,6 +399,16 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         val lower = JSplitPane(JSplitPane.VERTICAL_SPLIT, groupsHere, groupTabs).apply { resizeWeight = 0.15 }
         groupView.addListSelectionListener { e -> if (!e.valueIsAdjusting) { showGroup(); map.repaint() } }
         return JSplitPane(JSplitPane.VERTICAL_SPLIT, hexText, lower).apply { resizeWeight = 0.3 }
+    }
+
+    /** The step's length: days the slow parts take at once ([HexSim.stepDays]), changed between steps. */
+    private fun stepChoice(): JComboBox<String> {
+        val stepDays = (listOf(6, 12, 30, 60) + sim.stepDays).distinct().sorted()
+        val stepChoice = JComboBox(stepDays.map { "step $it d" }.toTypedArray())
+        stepChoice.selectedIndex = stepDays.indexOf(sim.stepDays)
+        stepChoice.toolTipText = "Days each step covers: 6 is the week; longer steps run faster but rougher"
+        stepChoice.addActionListener { val d = stepDays[stepChoice.selectedIndex]; commands += { sim.stepDays = d } }
+        return stepChoice
     }
 
     private fun useNetworks() {
@@ -866,9 +877,9 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                     fun colour(r: Int): Color { val c = Color.getHSBColor(((r * 0.618034f) % 1f + 1f) % 1f, 0.75f, 0.9f); return Color(c.red, c.green, c.blue, 150) }
                     for (h in v.indices) if (!v[h].isNaN()) out[h] = colour(v[h].toInt())
                     val top = cr.byPeople.take(12)
-                    return MapLegend(title, "Cultural regions: neighbouring bands of one tongue and nearly one set of customs, each hex in the colour of the region with most people there; ${cr.byPeople.size} regions, the largest named by their own word for people.",
+                    return MapLegend(title, "Cultural regions: neighbouring bands of one tongue and nearly one set of customs, each hex in the colour of the region with most people there (a region keeps its colour from week to week while most of its people stay in it); ${cr.byPeople.size} regions, the largest named by their own word for people.",
                         note = "${cr.byPeople.size} regions",
-                        swatches = top.map { (r, people) -> MapLegend.Swatch(colour(r), "%s, %.0f people".format(cr.name[r] ?: "-", people)) })
+                        swatches = top.map { (r, people) -> MapLegend.Swatch(colour(layers.cultureIds[r] ?: r), "%s, %.0f people".format(cr.name[r] ?: "-", people)) })
                 }
                 if (tint == Measure.HUNTERS_PER_PREY) {
                     fun colour(l: Float) = if (l >= 0) rgba(0.9f, 0.15f, 0.1f, 0.15f + 0.6f * l) else rgba(0.1f, 0.4f, 0.9f, 0.15f - 0.6f * l)
