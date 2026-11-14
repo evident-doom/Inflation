@@ -151,7 +151,7 @@ internal fun shareOfWill(will: Float, atOne: Float) = 1f - (1f - atOne).pow(max(
 
 /** A way's [will] as an effect that each further unit adds less to: 1 at the scaffold's 1, about 1.37 at 2, never above 1.58. */
 internal fun moreOfWill(will: Float) = (1f - exp(-max(0f, will))) / (1f - exp(-1f))
-internal const val RAID_RANGE_KM = 60.0
+internal const val RAID_RANGE_KM = 2.5 * DAY_WALK_KM
 
 /**
  * How much less likely a meeting comes to a raid between two bands neither of which lives fixed ([raid]): among mobile

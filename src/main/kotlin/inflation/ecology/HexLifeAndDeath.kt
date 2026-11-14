@@ -511,7 +511,7 @@ private fun HexGroups.mournDead(g: HexGroup, o: Outcome, date: Date, weather: We
         val p = if (at == camp) g.place else hw.placeNear(g.place, at).takeIf { !it.none } ?: g.place
         val carryKm = way?.km?.toDouble() ?: 0.0
         if (way != null) tripAlong(g, way, BEARERS * o.deaths, WalkPaid.BY_CALLER)
-        val owed = o.deaths * (BURY_DAYS + BEARERS * (2.0 * carryKm / (WALK_KM_PER_HOUR * Activity.WORK_HOURS)).toFloat())
+        val owed = o.deaths * (BURY_DAYS + BEARERS * (2.0 * carryKm / DAY_WALK_KM).toFloat())
         b.burialOwed += owed
         stats.meeting(Met.Of.CUSTOMS_DAYS_ASKED, CustomsPart.BURIALS.label, (10f * owed).roundToInt())
         if (at != camp) { stats.meeting(Met.BANDS_CARRIED_THEIR_DEAD); note(g) { "carried its dead to its ancestors at hex %d".format(at.i) } }

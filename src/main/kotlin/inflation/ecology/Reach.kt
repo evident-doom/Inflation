@@ -110,14 +110,14 @@ internal fun HexGroups.toward(g: HexGroup, goal: Hex, here: Hex, h: Hex, weather
     return ((from - goalKm(g, goal, h, weather)) / (scale?.let { min(from, it) } ?: from)).toFloat().coerceIn(-1f, 1f)
 }
 
-/** How far off a goal its pull goes by the ground ([goalKm]): a fortnight's walk of foragers, about; further, as the crow flies. An estimate. */
-internal const val GOAL_GOING_KM = 150f
+/** How far off a goal its pull goes by the ground ([goalKm]): six days' walk ([DAY_WALK_KM]); further, as the crow flies. An estimate. */
+internal const val GOAL_GOING_KM = 6f * DAY_WALK_KM
 
 /**
- * How far a band looks for kin to join or to take refuge with ([mergeAndPair], [scatterBeaten]): a day or two's walk, km of
- * easy going (the [VISIT_RINGS] rings it looked within before, by the ground).
+ * How far a band looks for kin to join or to take refuge with ([mergeAndPair], [scatterBeaten]): a day's walk ([DAY_WALK_KM]),
+ * km of easy going.
  */
-internal fun GroupWorld.kinReachKm(): Float = (VISIT_RINGS + 0.5f) * hex.hexKm.toFloat()
+internal fun GroupWorld.kinReachKm(): Float = DAY_WALK_KM
 
 /** [reachOf]'s reach for group [g] from hex [from]: its kind, the height band of its place. */
 internal fun HexGroups.reachOf(g: HexGroup, from: Hex, most: Float, weather: Weather): Reach =

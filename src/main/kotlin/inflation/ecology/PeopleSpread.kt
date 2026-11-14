@@ -479,7 +479,7 @@ internal const val DEFEAT_SCATTER = 0.3f
  * (docs/design/vacating-a-hex.md, Olli 2026-11-11). Before, a band beaten at home lost its houses but stayed in the hex,
  * beside those who beat it. Now, for each one still alive:
  * - [DEFEAT_SCATTER] of its households, in parties of [SEEP_ADULTS] grown people with their share of the young, go to the
- *   nearest kin band within [VISIT_RINGS] hexes that is not of the raiders' line, and join it ([mergeAndPair]);
+ *   nearest kin band within a day's walk ([kinReachKm]) that is not of the raiders' line, and join it ([mergeAndPair]);
  * - the rest moves its camp to the empty hex beside that lies farthest from the raiders' home (the one whose ground gives
  *   most, of those as far), never back to one it shuns ([shuns]);
  * - with no empty hex beside, or too few left to live alone ([SMALL_BAND]), the whole band joins that kin band if it has

@@ -343,6 +343,6 @@ internal const val ROUTE_WEEKS = 4
 internal const val PASS_RUGGED = 0.3f
 internal const val WATER_LANDMARK_KM = 1f
 internal const val MAX_LEG_HEXES = 60
-internal const val ROUTE_TOLD_KM = 150.0
+internal const val ROUTE_TOLD_KM = 6.0 * DAY_WALK_KM
 internal const val LANDMARK_FORGET = 0.1f
 internal const val ROUTE_FORGET = 0.3f

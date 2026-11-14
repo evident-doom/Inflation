@@ -205,9 +205,9 @@ internal fun GroupWorld.tallyMeeting(metAs: MetAs, what: Tally.MeetingEnd) {
  */
 /**
  * The km of easy going about a home whose country bands that meet tell each other of ([tellOfCountry]): its people's day or
- * two of walking out, by the ground ([reachOf]), as far as [TOLD_RINGS] rings of hexes went before as the crow flies.
+ * two of walking out ([DAY_WALK_KM]), by the ground ([reachOf]).
  */
-internal fun GroupWorld.toldKm(): Float = (TOLD_RINGS + 0.5f) * hex.hexKm.toFloat()
+internal fun GroupWorld.toldKm(): Float = 2f * DAY_WALK_KM
 
 @Part("meetings: tell of country")
 private fun HexGroups.tellOfCountry(a: HexGroup, bandA: Band, b: HexGroup, bandB: Band, ab: Regard, ba: Regard, weather: Weather) {

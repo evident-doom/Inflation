@@ -271,7 +271,7 @@ internal inline fun HexGroups.asMeetings(times: Int, tick: Int, block: () -> Uni
  * touch at all, in km of easy going (a day or two's walk). Estimates.
  */
 internal const val NEIGHBOUR_FALL = 0.5f
-internal const val CONTACT_KM = 50f
+internal const val CONTACT_KM = 2f * DAY_WALK_KM
 /** The ties [wearToward] shares a band's wear by: those within this many hexes. */
 internal const val NEIGHBOUR_RINGS = 5
 /** The people who go to a band about and back for a meeting ([neighboursMeet]), for the wear of their going. An estimate. */

@@ -546,7 +546,7 @@ internal class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, pack
     val seedDays = reapDaysPerKg(band, gs.tuning) / gatherers + eats
     // (A band's gatherers walk to the food and carry it home: party-days a km of the way out costs a fresh kg brought
     // home, there and back; see [GATHER_LOAD_KG]. An animal eats where it finds.)
-    val walkDaysPerKm = if (band != null) 2f / (WALK_KM_PER_HOUR * Activity.WORK_HOURS * GATHER_LOAD_KG * carry * gatherers) else 0f
+    val walkDaysPerKm = if (band != null) 2f / (DAY_WALK_KM * GATHER_LOAD_KG * carry * gatherers) else 0f
     // Bands gather over all the ground they walked, the women's and children's day round; animals where they end the week.
     val gatherAt = if (band != null) g.path.toList().mapNotNull { h: Hex -> gs.hw.placeNear(g.place, h).takeIf { !it.none }?.i }
         .ifEmpty { listOf(g.place.i) } else listOf(g.place.i)
@@ -568,12 +568,12 @@ internal class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, pack
      * where it kills ([eats]).
      */
     val carryDaysPerKg = if (band != null) 2f * (s.dailyTravelKm / 2f) /
-        (WALK_KM_PER_HOUR * Activity.WORK_HOURS * MEAT_LOAD_KG * huntHeads.coerceAtLeast(1f)) else eats
+        (DAY_WALK_KM * MEAT_LOAD_KG * huntHeads.coerceAtLeast(1f)) else eats
     /**
      * The gatherers' party-days to bring a kg of carrion home: a band cuts it from the carcass it comes on and carries it to camp as it
      * does a kill (a load each, there and back from about half a day's going out), and then eats it; a beast eats it where it lies ([eats]).
      */
-    val carrionDays = if (band != null) 2f * (s.dailyTravelKm / 2f) / (WALK_KM_PER_HOUR * Activity.WORK_HOURS * MEAT_LOAD_KG * gatherHands.coerceAtLeast(1f)) + eats else eats
+    val carrionDays = if (band != null) 2f * (s.dailyTravelKm / 2f) / (DAY_WALK_KM * MEAT_LOAD_KG * gatherHands.coerceAtLeast(1f)) + eats else eats
     /** The hunters its kills this week are expected to cost ([foughtBack]): they die once the week's foraging is done ([preyFoughtBack]). */
     var foughtBack = 0f
     // What a kg of each food holds for it, in kg of its need: its energy ([Food.energy]) by the kind's [Species.needScale]

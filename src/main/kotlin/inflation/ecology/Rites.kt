@@ -219,7 +219,7 @@ internal const val RITE_SEARCH_KM = 400f
 
 /** The days a rite [km] off asks of each adult: [RITE_DAYS], and the walk there and back unless the band is camped at it. */
 private fun HexGroups.riteDays(km: Double) =
-    RITE_DAYS + if (km <= tuning.roundArrivedKm) 0f else (2.0 * km / (WALK_KM_PER_HOUR * Activity.WORK_HOURS)).toFloat()
+    RITE_DAYS + if (km <= tuning.roundArrivedKm) 0f else (2.0 * km / DAY_WALK_KM).toFloat()
 
 /** How far a band is from its rite's site, for the report ([Met.Of.RITES_HELD], [Met.Of.RITES_CUT_SHORT]). */
 enum class RiteWalk(val label: String) {

@@ -87,7 +87,7 @@ internal const val BEARERS = 4f
 
 /** How far bearers carry one of the dead: a day's walk, before the body has begun to rot in most weather. Farther off
  *  the band lays it where it camps. */
-val BODY_CARRY_KM = (WALK_KM_PER_HOUR * Activity.WORK_HOURS).toDouble()
+val BODY_CARRY_KM = DAY_WALK_KM.toDouble()
 
 /**
  * Conformist learning (Henrich and Boyd 1998): the weight a band gives a way held by share [s] of the bands it has seen,
@@ -206,11 +206,8 @@ internal const val GRUDGE_FADE = 0.1f
  */
 internal const val FEUD = 2f
 
-/** Rings of hexes round a meeting whose country bands tell each other of; country further than this from a band's camp is half forgotten each year. */
-internal const val TOLD_RINGS = 4
-
-/** How far from its camp, by the going ([reachOf]), a band keeps its country in mind: beyond, it is half forgotten each year. */
-internal const val REMEMBERED_KM = 100.0
+/** How far from its camp, by the going ([reachOf]), a band keeps its country in mind: four days' walk ([DAY_WALK_KM]); beyond, it is half forgotten each year. */
+internal const val REMEMBERED_KM = 4.0 * DAY_WALK_KM
 
 /**
  * How far off a band holds the homes of other bands worth knowing, km: those it may meet, raid, visit or keep off (raids reach
@@ -218,7 +215,7 @@ internal const val REMEMBERED_KM = 100.0
  * them further ([homeReachKm]). An estimate (Olli 2026-11-12: there is a limit to what bands know and find meaningful;
  * homes764: median 814 homes known, 73% of dead bands, 62% beyond 300 km).
  */
-internal const val HOMES_KM = 100.0
+internal const val HOMES_KM = 4.0 * DAY_WALK_KM
 
 /**
  * The most homes a band keeps in mind: the nearest, fame counting as nearness ([homeReachKm]). An estimate, after the forager
@@ -331,10 +328,8 @@ internal fun HexGroups.homeKm(reach: Reach, from: Hex, id: Int, hh: Hex): Float?
     val km = hexKm(from, hh); return if (km > HOMES_KM && km <= far) km.toFloat() else null
 }
 
-/** A band fed under this share of its fill with nothing laid by goes to a better-stocked band within this many rings of hexes. */
+/** A band fed under this share of its fill with nothing laid by goes to a better-stocked band within a day's walk ([kinReachKm]). */
 internal const val VISIT_FED = 0.6f
-
-internal const val VISIT_RINGS = 2
 
 /** Adults below which a band joins kin nearby: too few to hunt, gather, guard and marry within. */
 internal const val SMALL_BAND = 8

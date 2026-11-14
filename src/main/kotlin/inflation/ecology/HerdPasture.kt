@@ -29,7 +29,7 @@ internal fun HexGroups.placeHerd(g: HexGroup, b: Band, date: Date, weather: Weat
         findWay(g, hw.placeHex[was], hw.placeHex[keep], weather)?.let { way ->
             val herders = herdDays(b) / days.coerceAtLeast(1)
             wearWay(way, herders * g.species.massKg + herdKg(b), 1, back = false)
-            b.raidWalkOwed += herders * way.km / (WALK_KM_PER_HOUR * Activity.WORK_HOURS)
+            b.raidWalkOwed += herders * way.km / DAY_WALK_KM
             stats.meeting(Met.HERDS_DRIVEN_TO_PASTURE)
         }
     }
@@ -81,8 +81,8 @@ internal fun GroupWorld.herdKg(b: Band): Float {
 
 /** The months a herd is taken up to summer pasture ([summerPasture]): June to September (0-based), up after the lowland grass dries, down before the snow. */
 internal val SUMMER_MONTHS = 5..8
-/** How far a band takes its herd to summer pasture, km of easy going ([summerPasture]): a few days' drive. An estimate. */
-internal const val SUMMER_PASTURE_KM = 60f
+/** How far a band takes its herd to summer pasture, km of easy going ([summerPasture]): two and a half days' walk ([DAY_WALK_KM]), a few days' drive. An estimate. */
+internal const val SUMMER_PASTURE_KM = 2.5f * DAY_WALK_KM
 /** How much higher than its camp a summer pasture lies, m ([summerPasture]): enough for the grass to stay green. An estimate. */
 internal const val UPLAND_M = 600f
 /** How far herders take a herd out by day and back, km of easy going ([bestGrazing]): a day's grazing round of some 10 km. An estimate. */

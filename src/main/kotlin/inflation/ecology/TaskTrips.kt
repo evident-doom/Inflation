@@ -75,8 +75,8 @@ internal fun GroupWorld.taskRate(m: Material, p: Place, h: Hex, month: Int): Flo
 
 /** How many of a band go on a task trip ([taskTrips]): a few, as task groups were (two to six, Binford 1980; an estimate). */
 internal const val TASK_PARTY = 3f
-/** How far a task trip goes, km of easy going ([taskTrips]): two days out at most. An estimate. */
-internal const val TASK_KM = 40f
+/** How far a task trip goes, km of easy going ([taskTrips]): two days' walk out at most ([DAY_WALK_KM]). An estimate. */
+internal const val TASK_KM = 2f * DAY_WALK_KM
 /** What each of a task party carries home, kg ([taskTrips]): a load on the back besides food for the way. An estimate. */
 internal const val TASK_LOAD_KG = 20f
 /** How far a band lacks a material ([lacking]) before it sends for it ([taskTrips]): half of what it carries. An estimate. */

@@ -433,6 +433,14 @@ internal const val SHELLFISH_DAYS_PER_KG = 0.12f
  * Draper 1994, J Anthropol Res 50: 217-248, pp. 228-232).
  */
 internal const val WALK_KM_PER_HOUR = 4f
+
+/**
+ * A day's walk, km of easy going: [WALK_KM_PER_HOUR] over a working day ([Activity.WORK_HOURS]). The one measure of what a
+ * walk costs in days ([visitDays]) and of the people's distances (a day out and back, two days, four: [CONTACT_KM],
+ * [HOMES_KM]), so that they stay in step. (How far a whole band moves its camp in a step, with its children and its
+ * loads, is slower: its kind's [Species.dailyTravelKm], [GroupPlanner].)
+ */
+internal const val DAY_WALK_KM = WALK_KM_PER_HOUR * Activity.WORK_HOURS
 /**
  * A hunter's load of a kill carried to camp, kg as carried: Hadza carcasses of zebra, wildebeest and hartebeest size
  * (some 115-340 kg alive) take 7-10 carriers, smaller ones one to three (Bunn, in Breathing Life into Fossils, ch. 15):
