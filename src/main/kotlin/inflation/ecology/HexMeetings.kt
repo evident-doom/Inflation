@@ -326,7 +326,6 @@ private fun HexGroups.residentParties() = ResidentParties(this)
 
 /** The meetings of groups whose timetables bring them into the same hex ([meet]). */
 private fun HexGroups.meetSettle(weather: Weather) {
-    meetMonth = weather.date.month
     // (The resident hunters meet as packs do, through bands standing in for them: [ResidentParties].)
     val residents = residentParties()
     val parties = groups + residents.parties
@@ -394,7 +393,7 @@ private fun HexGroups.meetSettle(weather: Weather) {
             val r = kotlin.random.Random(e.tie)
             val p = weak.place
             val met = poisson(encounters(a, b, p, e.span) * si.bands, r)
-            if (met > 0) drawn[i] = standInsMeetDraw(strong, weak, p, min(met, kotlin.math.ceil(si.bands).toInt() * ticks), r).also { it.weak = si }
+            if (met > 0) drawn[i] = standInsMeetDraw(strong, weak, p, min(met, kotlin.math.ceil(si.bands).toInt() * ticks), r, inflation.world.Date(today).month).also { it.weak = si }
         }
         for ((i, m) in drawn.withIndex()) if (m != null) {
             val e = withStandIns[i]; val strong = if (residents.of(e.a) == null) parties[e.a] else parties[e.b]
@@ -420,7 +419,7 @@ private fun HexGroups.meetSettle(weather: Weather) {
                 // both must be there at once, so the two shares multiply, [weekInHex].)
                 val met = poisson(encounters(sx.g, sy.g, p, days.toFloat() * weekInHex(sx.g.species) * weekInHex(sy.g.species)) * sx.bands * sy.bands, r)
                 if (met == 0) continue
-                out += standInsMeetDraw(strong.g, weak.g, p, min(met, kotlin.math.ceil(min(sx.bands, sy.bands)).toInt() * ticks), r).also { it.strong = strong; it.weak = weak }
+                out += standInsMeetDraw(strong.g, weak.g, p, min(met, kotlin.math.ceil(min(sx.bands, sy.bands)).toInt() * ticks), r, inflation.world.Date(today).month).also { it.strong = strong; it.weak = weak }
             }
             outcomes[j] = out
         }
@@ -485,7 +484,7 @@ private class StandInsMet(val slipped: Int, val stayed: Int, val youngKilled: In
  * young, else one of their grown. (A stand-in carries no kill to rob.) Before, its own lines: a slip drawn whatever the
  * weaker chose, and no will to fight.
  */
-private fun HexGroups.standInsMeetDraw(strong: HexGroup, weak: HexGroup, p: Place, times: Int, r: kotlin.random.Random): StandInsMet {
+private fun HexGroups.standInsMeetDraw(strong: HexGroup, weak: HexGroup, p: Place, times: Int, r: kotlin.random.Random, month: Int): StandInsMet {
     val h = hw.placeHex[p]
     val ss = strengthAt(strong, h); val sw = strengthAt(weak, h)
     val ratio = ss / max(1f, sw)
@@ -499,7 +498,7 @@ private fun HexGroups.standInsMeetDraw(strong: HexGroup, weak: HexGroup, p: Plac
     val odds = shelteredFromKilling(weak.species, weak.place) * strong.will[AnimalWay.KILL]
     // (A resident kind's young are born in its season: [Species.birthMonth].)
     val youngKilled = if (weak.young > 0 && !strong.species.human)
-        binomial(stayed, min(1f, INTRAGUILD_KILL_YOUNG * tuning.intraguildYoung * odds * youngHidden(weak.species, weak.species.birthMonth)), r) else 0
+        binomial(stayed, min(1f, INTRAGUILD_KILL_YOUNG * tuning.intraguildYoung * odds * youngHidden(weak.species, weak.species.birthMonth, month)), r) else 0
     val grownKilled = if (weak.adults > 0) binomial(stayed - youngKilled, min(1f, INTRAGUILD_KILL * odds * caught(weak.species, strong.species)), r) else 0
     return StandInsMet(slipped, times - slipped, youngKilled, grownKilled)
 }
@@ -721,12 +720,13 @@ internal fun HexGroups.slipChance(s: Species, o: Species, p: Place): Float {
 }
 
 /**
- * The share of a much stronger party's chances at the young of [s], born in month [birthMonth], that it still has: where
+ * The share of a much stronger party's chances at the young of [s], born in month [birthMonth], that it still has in [month] (the
+ * meeting's, from its own day): where
  * the mothers hide their young and move them from lair to lair ([Species.hidesYoung]), for their first months in the
  * lair ([inflation.Tuning.denMonths]), most of those chances come to nothing ([YOUNG_HIDDEN]).
  */
-internal fun HexGroups.youngHidden(s: Species, birthMonth: Int): Float =
-    if (s.hidesYoung && monthsFrom(birthMonth, meetMonth) < tuning.denMonths) 1f - YOUNG_HIDDEN else 1f
+internal fun HexGroups.youngHidden(s: Species, birthMonth: Int, month: Int): Float =
+    if (s.hidesYoung && monthsFrom(birthMonth, month) < tuning.denMonths) 1f - YOUNG_HIDDEN else 1f
 
 /**
  * The share of a much stronger party of kind [o]'s chances at a grown one of kind [s] that it still has once it comes on:
@@ -815,7 +815,7 @@ internal fun HexGroups.enemiesClash(enc: Encounter, sa: Float, sb: Float) {
     val odds = fire * shelteredFromKilling(weak.species, weak.place) * strong.will[AnimalWay.KILL]
     // (People drive hunters off and now and then kill one, but do not seek out their young.)
     if (ratio > 2f && weak.young > 0 && !strong.species.human &&
-        rnd.nextFloat() < INTRAGUILD_KILL_YOUNG * tuning.intraguildYoung * odds * youngHidden(weak.species, weak.birthMonth)) {
+        rnd.nextFloat() < INTRAGUILD_KILL_YOUNG * tuning.intraguildYoung * odds * youngHidden(weak.species, weak.birthMonth, inflation.world.Date(enc.day).month)) {
         weak.young--
         small.deposit(DeadPool.CARRION, weak.place, Kg(HexFauna.YOUNG_WEIGHT * weak.species.massKg))
         stats.deaths.merge(Tally.of(weak.species, ByBeast.of(ByBeast.How.YOUNG_KILLED_BY, strong.species)), 1, Int::plus)

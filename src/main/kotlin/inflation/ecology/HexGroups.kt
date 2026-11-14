@@ -883,8 +883,6 @@ class HexGroups(
 
     /** Time spent settling meetings, ns, over the run (for measuring the cost). */
     @Transient var meetNs = 0L
-    /** The month of the week the groups meet in ([meet]): for the young in hiding ([youngHidden]). */
-    @Transient internal var meetMonth = 0
     /** The tick of the step a meeting now being held falls on ([neighboursMeet]; 0 for the rest): how fresh it is ([meetingFresh]). */
     /** How many meetings of the two bands the meeting now being held stands for ([neighboursMeet]; 1 for the rest): [meetChance]. */
     @Transient internal var meetTimes = 1
