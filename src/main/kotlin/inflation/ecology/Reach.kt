@@ -11,13 +11,18 @@ import inflation.world.hexArray
 import inflation.world.set
 import inflation.world.toHexArray
 
-// The ground's reach (docs/design/coherence-review.md, B): one least-effort search of the hexes a group of a kind can reach
-// from a hex this step, shared by everything a group does in person: the planner's choice of a place ([searchReach]), every
-// trip and move ([findWay], [Movement]), the neighbours' meetings ([neighboursMeet]). Reckoned in km of easy going over
-// the hexes' borders as this step's going weighs them ([GroupPlanner.stepEffort]: slope, cliffs, rivers and fords, snow,
-// worn paths), and over the straits a kind that swims can cover ([Catalogue.swimKm]). Searched once a step for each kind,
-// height band and hex, as far as anyone has asked, and shared: least-effort distances within a reach do not depend on how
-// far the search went beyond it, so a search to 50 km answers every question within 50 km exactly as its own would.
+// The ground's reach (docs/design/coherence-review.md, B): one least-effort search of the ground about a hex, shared by
+// everything a group does in person: the planner's choice of a place ([searchReach]), every trip and move ([findWay],
+// [Movement]), the neighbours' meetings ([neighboursMeet]). It answers "how far is it, and which way", in km of easy going
+// over the hexes' borders (slope, cliffs, rivers and fords, snow, worn paths: [GroupPlanner.stepEffort]) and over the
+// straits a kind that swims can cover ([Catalogue.swimKm]).
+//
+// It sets no limit on going of its own, and nothing in it depends on the step's length: how far to look is each caller's
+// ([most]: the neighbours' 50 km, a rite's search, the planner's reach for the group's step). The step only says which
+// state of the ground is read (this step's snow and worn paths, as the going's effort is reckoned once a step), and how
+// long a search is kept: the searches are shared until the groups next choose. Sharing changes no answer: least-effort
+// distances within a reach do not depend on how far the search went beyond it, so a search to 50 km answers every
+// question within 50 km exactly as its own would.
 
 /**
  * The hexes [hexes] (in index order) within [reach] km of easy going of [from], each with its least effort [dist] and the
@@ -41,9 +46,10 @@ internal class Reach(val from: Hex, val reach: Float, val hexes: HexArray, val d
 }
 
 /**
- * The reach of a group of kind [s] on height band [band] from hex [from] this step, at least [most] km of easy going: this
- * step's search for them, if one went as far, else a new one (then kept for the step, [GroupPlanner.reachCache], let go when
- * the groups next choose). Callers take only the hexes within their own [most] ([Reach.km], [Reach.wayTo]). Safe on all
+ * The ground about hex [from] for a group of kind [s] on height band [band], out to at least [most] km of easy going (as
+ * far as the caller asks; no limit of its own): a search already made over the ground as it lies now, if one went as far,
+ * else a new one (then kept, [GroupPlanner.reachCache], until the groups next choose and the ground's going is reckoned
+ * afresh). Callers take only the hexes within their own [most] ([Reach.km], [Reach.wayTo]). Safe on all
  * cores: two that search at once keep the one that went further, and their answers agree within the shorter.
  */
 @Part("reach: least-effort search")
