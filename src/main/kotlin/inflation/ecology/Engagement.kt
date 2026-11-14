@@ -430,8 +430,9 @@ internal fun HexGroups.engage(met: Encounter, contested: HexArray, r: Random, we
     val surpriseA = e.surpriseA; val surpriseB = e.surpriseB
     if (surpriseA || surpriseB) stats.meeting(Met.ENGAGEMENTS_AMBUSHED)
     when (e.ending) {
-        Ending.A_GAVE_WAY -> { enc.turnBack(a); gaveWay(a, enc.contested, day); stats.meeting(Met.ENGAGEMENTS_GAVE_WAY); return true }
-        Ending.B_GAVE_WAY -> { enc.turnBack(b); gaveWay(b, enc.contested, day); stats.meeting(Met.ENGAGEMENTS_GAVE_WAY); return true }
+        // (One giving way to another kind leaves its kill to it, as at any meeting, [leavesKill].)
+        Ending.A_GAVE_WAY -> { leavesKill(b, a, e.sb / max(1f, e.sa)); enc.turnBack(a); gaveWay(a, enc.contested, day); stats.meeting(Met.ENGAGEMENTS_GAVE_WAY); return true }
+        Ending.B_GAVE_WAY -> { leavesKill(a, b, e.sa / max(1f, e.sb)); enc.turnBack(b); gaveWay(b, enc.contested, day); stats.meeting(Met.ENGAGEMENTS_GAVE_WAY); return true }
         Ending.SCOUTED -> { stats.meeting(Met.ENGAGEMENTS_SCOUTED); return false }
         Ending.PASSED_UNSEEN -> { stats.meeting(Met.ENGAGEMENTS_PASSED_UNSEEN); return false }
         Ending.FOUGHT -> {}

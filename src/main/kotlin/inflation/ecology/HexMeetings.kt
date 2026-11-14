@@ -728,18 +728,54 @@ internal fun HexGroups.shelteredFromKilling(weak: Species, p: Place) = 1f - SHEL
 
 
 /**
- * Standing orders, hunters of different kinds. The weaker gives way; if it had made a kill this week
- * the stronger drives it off and takes most of the meat (hyenas rob leopards, lions rob everyone);
- * a much stronger party now and then kills one of the other, and leaves it where it fell, as rivals of one kind do
- * ([rivalsMeet]): killing a rival is not hunting it. (Lions leave the cheetahs they kill uneaten; wolves eat a coyote
- * now and then: Palomares & Caro 1999. What lies there is carrion, for whoever eats carrion, the killer too.)
+ * Standing orders, hunters of different kinds, as the animals' rule has it ([plainOutcome]: the one set of lines the
+ * engagements draw too). The weaker gives way to one stronger than its will to fight bears, leaving its kill to be taken
+ * ([leavesKill]: hyenas rob leopards, lions rob everyone); unless the other is much the stronger and it did not slip away
+ * ([slipsAway]), when it is caught; near equals stand. Standing or caught, they clash ([enemiesClash]): a much stronger
+ * party now and then kills one of the other, and leaves it where it fell, as rivals of one kind do ([rivalsMeet]):
+ * killing a rival is not hunting it. (Lions leave the cheetahs they kill uneaten; wolves eat a coyote now and then:
+ * Palomares & Caro 1999. What lies there is carrion, for whoever eats carrion, the killer too.)
  */
 @Part("meetings: hunters of other kinds")
 internal fun HexGroups.enemiesMeet(enc: Encounter) {
     val a = enc.a; val b = enc.b; val h = enc.hex
     stats.meeting(Met.HUNTERS_OF_OTHER_KINDS)
     val sa = strengthAt(a, h); val sb = strengthAt(b, h)
-    enemiesClash(enc, sa, sb)
+    when (plainOutcome(enc, sa, sb).ending) {
+        Ending.A_GAVE_WAY -> yields(enc, a, b, sb / max(1f, sa))
+        Ending.B_GAVE_WAY -> yields(enc, b, a, sa / max(1f, sb))
+        else -> enemiesClash(enc, sa, sb)
+    }
+}
+
+/**
+ * How a meeting by the kinds' own rules ends ([rivalsMeet], [enemiesMeet]): as an engagement of two keeping the animals'
+ * rule ([Stance.GIVE_WAY_TO_STRONGER]) that see each other ([settleEngagement]), with strengths [sa] and [sb] as they stand
+ * there, so that the lines where the weaker gives way or is caught are drawn once. Whether one got away from a much
+ * stronger one was drawn before ([slipsAway]): one still here did not ([muchStronger]).
+ */
+internal fun HexGroups.plainOutcome(enc: Encounter, sa: Float, sb: Float): Engaged {
+    val a = enc.a; val b = enc.b; val h = enc.hex
+    return settleEngagement(Stance.GIVE_WAY_TO_STRONGER, Stance.GIVE_WAY_TO_STRONGER, true, true, sa, sb,
+        a.will[AnimalWay.FIGHT], b.will[AnimalWay.FIGHT], raid = false, aEscapes = !muchStronger(b, a, h), bEscapes = !muchStronger(a, b, h))
+}
+
+/** [weak] gives way to [strong] of another kind, [ratio] times as strong, at a meeting by the kinds' own rules ([enemiesMeet]): it leaves its kill ([leavesKill]) and turns back. */
+private fun HexGroups.yields(enc: Encounter, weak: HexGroup, strong: HexGroup, ratio: Float) {
+    leavesKill(strong, weak, ratio)
+    enc.turnBack(weak)
+    gaveWay(weak, enc.contested, enc.day)
+    stats.meeting(Met.HUNTERS_GAVE_WAY)
+    if (weak.band != null) stats.meeting(Met.Of.TURNED_BACK_BY, strong.species.name)
+}
+
+/**
+ * [weak], giving way to or beaten by [strong] of another kind [ratio] times as strong, leaves its kill to it past
+ * [THEFT_RATIO] ([stealKill]): giving way at a kill is how most of it is lost, as a leopard gives up its kill to hyenas.
+ * The one rule wherever the meeting is settled ([enemiesMeet], [enemiesClash], [engage]).
+ */
+internal fun HexGroups.leavesKill(strong: HexGroup, weak: HexGroup, ratio: Float) {
+    if (strong.species != weak.species && ratio >= THEFT_RATIO) stealKill(strong, weak)
 }
 
 /**
@@ -753,16 +789,7 @@ internal fun HexGroups.enemiesClash(enc: Encounter, sa: Float, sb: Float) {
     val strong = if (aStrong) a else b; val weak = if (aStrong) b else a
     val ratio = max(sa, sb) / max(1f, min(sa, sb))
     if (ratio < THEFT_RATIO) return // near equals keep their distance
-    // A leopard hauls its kill up a tree where there are trees; others guard it where they can.
-    val cached = if (Niches.Shelter.TREE in Niches.shelters(weak.species)) land.plants.canopy(weak.place) else 0f
-    if (weak.meatMet > 0f && rnd.nextFloat() < THEFT * strong.will[AnimalWay.STEAL] * (1f - cached)) {
-        val taken = 0.7f * weak.meatMet
-        weak.meatMet -= taken; strong.meatMet += taken
-        bookKill(strong, taken, 0f, 0f); bookKill(weak, -taken, 0f, 0f)
-        stats.meeting(Met.KILL_STOLEN)
-        stats.meeting(Met.Of.KILLS_STOLEN_BY, strong.species.name); stats.meeting(Met.Of.KILLS_STOLEN_FROM, weak.species.name)
-        stats.meeting(Met.Of.KG_STOLEN_BY, strong.species.name, taken.roundToInt()); stats.meeting(Met.Of.KG_STOLEN_FROM, weak.species.name, taken.roundToInt())
-    }
+    leavesKill(strong, weak, ratio)
     // A camp fire, and dogs that bark at night, keep lions and hyenas from taking people.
     val fire = if (weak.species.human) (1f - CAMPFIRE) * (1f - DOG_GUARD * (weak.band?.dogs?.dogShare ?: 0f)) else 1f
     // A much stronger party now and then kills one of the other: its young most often, an adult seldom.
@@ -781,6 +808,20 @@ internal fun HexGroups.enemiesClash(enc: Encounter, sa: Float, sb: Float) {
     enc.turnBack(weak) // the weaker turns back
     gaveWay(weak, enc.contested, enc.day)
     if (weak.band != null) stats.meeting(Met.Of.TURNED_BACK_BY, strong.species.name)
+}
+
+/** [strong] drives [weak] off its kill, if it made one this week, and takes most of the meat ([leavesKill]); a leopard hauls its kill up a tree where there are trees. */
+private fun HexGroups.stealKill(strong: HexGroup, weak: HexGroup) {
+    // A leopard hauls its kill up a tree where there are trees; others guard it where they can.
+    val cached = if (Niches.Shelter.TREE in Niches.shelters(weak.species)) land.plants.canopy(weak.place) else 0f
+    if (weak.meatMet > 0f && rnd.nextFloat() < THEFT * strong.will[AnimalWay.STEAL] * (1f - cached)) {
+        val taken = 0.7f * weak.meatMet
+        weak.meatMet -= taken; strong.meatMet += taken
+        bookKill(strong, taken, 0f, 0f); bookKill(weak, -taken, 0f, 0f)
+        stats.meeting(Met.KILL_STOLEN)
+        stats.meeting(Met.Of.KILLS_STOLEN_BY, strong.species.name); stats.meeting(Met.Of.KILLS_STOLEN_FROM, weak.species.name)
+        stats.meeting(Met.Of.KG_STOLEN_BY, strong.species.name, taken.roundToInt()); stats.meeting(Met.Of.KG_STOLEN_FROM, weak.species.name, taken.roundToInt())
+    }
 }
 
 /** The strength of a usual band of resident [s], as [HexGroups.strength] reckons a pack's: its grown that go about together, their weight, their ferocity. */
@@ -816,9 +857,10 @@ internal fun HexGroups.mark() {
 }
 
 /**
- * Standing orders, rival packs. On its own ground a pack holds; an intruder, or the weaker of two
- * strangers, gives way and turns back. Packs of near equal strength fight: now and then one dies,
- * and the loser gives up the ground.
+ * Standing orders, rival packs, as the animals' rule has it ([plainOutcome]: the one set of lines the engagements draw
+ * too). On its own ground a pack holds (the stronger in its lair); an intruder, or the weaker of two strangers, stronger
+ * against by more than its will to fight bears, gives way and turns back. Packs of near equal strength fight: now and
+ * then one dies, and the loser gives up the ground.
  */
 @Part("meetings: rival packs")
 internal fun HexGroups.rivalsMeet(enc: Encounter) {
@@ -826,12 +868,12 @@ internal fun HexGroups.rivalsMeet(enc: Encounter) {
     stats.meeting(Met.RIVAL_PACKS)
     // (As strong as they stand there, those present and each in its lair the stronger ([strengthAt]), as every meeting weighs them.)
     val sa = strengthAt(a, h); val sb = strengthAt(b, h)
-    val ratio = max(sa, sb) / max(1f, min(sa, sb))
-    // (How much stronger the other has to be before the weaker gives way is the weaker's choice.)
-    if (ratio > FIGHT_RATIO * (if (sa < sb) a else b).will[AnimalWay.FIGHT]) {
+    // (How much stronger the other has to be before the weaker gives way is the weaker's choice, [actOf].)
+    val gave = when (plainOutcome(enc, sa, sb).ending) { Ending.A_GAVE_WAY -> a; Ending.B_GAVE_WAY -> b; else -> null }
+    if (gave != null) {
         // The weaker gives way: back the way it came.
-        enc.turnBack(if (sa < sb) a else b)
-        gaveWay(if (sa < sb) a else b, enc.contested, enc.day)
+        enc.turnBack(gave)
+        gaveWay(gave, enc.contested, enc.day)
         stats.meeting(Met.PACK_GAVE_WAY)
         return
     }
