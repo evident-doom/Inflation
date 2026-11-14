@@ -69,14 +69,14 @@ internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
     if (b.riteDue >= 0 && b.riteOwed <= 0f) {
         land.sanctity[b.riteDue] += g.adults.toFloat()
         b.riteKept = now
-        gatherAtRite(g, b.riteDue, b.riteHeld, weather)
+        if (b.riteTrip) gatherAtRite(g, b.riteDue, b.riteHeld, weather)
         stats.meeting(Met.BANDS_HELD_A_RITE)
-        stats.meeting(Met.Of.RITES_HELD, RiteWalk.of(riteKm(g, b.riteDue), tuning).label)
+        stats.meeting(Met.Of.RITES_HELD, RiteWalk.of(riteKm(g, b.riteDue, weather), tuning).label)
         b.riteDue = -1
     } else if (b.riteDue >= 0 && b.riteHeld != now) {
         // (For the report: how far off the site is now, and how much of the rite's days had been given.)
-        val km = riteKm(g, b.riteDue); val walk = RiteWalk.of(km, tuning)
-        val asked = riteDays(km) * g.adults
+        val km = riteKm(g, b.riteDue, weather); val walk = RiteWalk.of(km, tuning)
+        val asked = b.riteAsked
         stats.meeting(Met.Of.RITES_CUT_SHORT, walk.label)
         stats.meeting(Met.Of.RITES_CUT_SHORT_PERCENT_GIVEN, walk.label, if (asked > 0f) (100f * (1f - b.riteOwed / asked)).roundToInt().coerceIn(0, 100) else 0)
         // (Held in a lesser form with what was given; the strain is what other work took of what it did not give.)
@@ -88,7 +88,7 @@ internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
             stats.meeting(Met.BANDS_HELD_A_RITE_IN_A_LESSER_FORM)
             // (It meets the others gathered there only if its people walked there: the walk's days given in full. Before 13 Nov
             // 2026 any share given brought it to the gathering, however far.)
-            if (given >= b.riteAsked - RITE_DAYS * g.adults) gatherAtRite(g, b.riteDue, b.riteHeld, weather)
+            if (b.riteTrip && given >= b.riteAsked - RITE_DAYS * g.adults) gatherAtRite(g, b.riteDue, b.riteHeld, weather)
         }
         b.strain += if (b.riteAsked > 0f) withheld / b.riteAsked else 1f
         val byNeed = if (b.riteAsked > 0f) (b.riteOwed - withheld) / b.riteAsked else 0f
@@ -102,7 +102,15 @@ internal fun HexGroups.riteWeek(g: HexGroup, weather: Weather) {
     val site = b.rite[weather.date.month]
     if (site >= 0 && b.riteHeld != now) {
         b.riteHeld = now; b.riteDue = site
-        b.riteOwed = riteDays(riteKm(g, site)) * g.adults
+        // (A far site, beyond a day or two's walk, is walked to at most once a year and not in a lean month; else the rite
+        // is held at the camp, without the gathering. Olli, 13 Nov 2026: trips of 100-300 km are on record, yearly or rarer,
+        // as at Australian ceremonial gatherings, from memory.)
+        val km = riteKm(g, site, weather)
+        val lean = g.fed < Thresholds.HUNGRY || g.fat / g.species.maxFatDays.coerceAtLeast(1f) < FERTILE_RESERVE
+        b.riteTrip = km <= CONTACT_KM || (km.isFinite() && b.farRiteYear != weather.date.year && !lean)
+        if (km > CONTACT_KM && b.riteTrip) b.farRiteYear = weather.date.year
+        if (km > CONTACT_KM && !b.riteTrip) stats.meeting(Met.FAR_RITES_HELD_AT_CAMP)
+        b.riteOwed = (if (b.riteTrip) riteDays(km) else RITE_DAYS) * g.adults
         b.riteAsked = b.riteOwed; b.riteSpare = 0f
         stats.meeting(Met.Of.CUSTOMS_DAYS_ASKED, CustomsPart.RITES.label, (10f * b.riteOwed).roundToInt())
     }
@@ -142,7 +150,7 @@ internal fun HexGroups.gatherAtRite(g: HexGroup, site: Int, month: Long, weather
     }
     // (Its larder stays at its camp: at a gathering away from it, it has with it only food for the trip, and gives of that
     // only. Olli, 13 Nov 2026: bands gave food 10 hexes from home. A guess: food for each day of the rite and the walk.)
-    if (b != null) { val km = riteKm(g, site); b.riteFood = if (km <= tuning.roundArrivedKm) Float.POSITIVE_INFINITY else riteDays(km) * g.dailyNeedKg }
+    if (b != null) { val km = riteKm(g, site, weather); b.riteFood = if (km <= tuning.roundArrivedKm) Float.POSITIVE_INFINITY else riteDays(km) * g.dailyNeedKg }
     val rite = RiteGathering(site, here)
     for (o in here) if (g.alive && o.alive && o !== g) {
         stats.meeting(Met.BANDS_GATHERED_AT_A_RITE)
@@ -196,7 +204,12 @@ private fun HexGroups.riteToPlenty(b: Band, month: Int) {
 }
 
 /** How far [g] is from rite site [site], km. */
-private fun HexGroups.riteKm(g: HexGroup, site: Int) = hex.distanceKm(hw.placeHex[g.place], hw.placeHex[site])
+/** How far a band walks to its rite's site: km of easy going by the ground ([tripKm]), searched up to [RITE_SEARCH_KM]; infinite if no way there. */
+private fun HexGroups.riteKm(g: HexGroup, site: Int, weather: Weather): Double =
+    tripKm(g, hw.placeHex[g.place], hw.placeHex[site], weather, RITE_SEARCH_KM)?.toDouble() ?: Double.POSITIVE_INFINITY
+
+/** The farthest, in km of easy going, a band looks for a way to its rite's site ([riteKm]): beyond, the site is out of reach (an estimate, past the longest trips on record). */
+internal const val RITE_SEARCH_KM = 400f
 
 /** The days a rite [km] off asks of each adult: [RITE_DAYS], and the walk there and back unless the band is camped at it. */
 private fun HexGroups.riteDays(km: Double) =

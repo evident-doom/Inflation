@@ -100,12 +100,14 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
         val best = dying.keys.filter { survivalSteps(g, dying.getValue(it) - least) <= 1f }
             .minWith(compareByDescending<Int> { wary.getValue(it) }.thenBy { hexKm(here, b.knownHomes.getValue(it)) }.thenBy { it })
         val at = b.knownHomes.getValue(best)
+        // (Its fighters go by the ground, [tripKm]: with no way there, no raid.)
+        val walkKm = tripKm(g, here, at, weather) ?: return
         stats.meeting(Met.RAIDS_SET_OUT)
         // (A band that holds its home hex sends its fighters and stays: the raid is fought this step if the others are at the
         // home it knows, else it comes to nothing, as a band walking there finds it empty. Its fighters' walk there and back,
         // the whole day's going each way, is taken from its next step's days, [Band.raidWalkOwed].)
         if (staysHome(g)) {
-            b.raidWalkOwed += raidParty(g) * (2.0 * hexKm(here, at) / (WALK_KM_PER_HOUR * Activity.WORK_HOURS)).toFloat()
+            b.raidWalkOwed += visitDays(raidParty(g), walkKm.toDouble())
             val target = bands.groupById[best]?.takeIf { it.alive && it.band != null && hw.placeHex[it.place] == at }
             if (target != null) bands.raidsDue += g to target
             note(g) { "sent its fighters to raid band #%d at hex %d".format(best, at.i) }
