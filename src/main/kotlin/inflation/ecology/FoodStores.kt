@@ -119,7 +119,7 @@ internal fun HexGroups.keepAndSpoil(w: ForageWeek, got: EnumFloats<Store>, gotKg
 
 /**
  * Feasts on kills: a band holding more fresh meat than it can eat before it rots ([Band.feastMeat]) sets it before the bands
- * within a day or two's walk ([VISIT_RINGS]), the nearest first, as much as [FEAST_KG] a guest by its will to feast; the guests
+ * within a day or two's walk by the ground ([kinReachKm], [reachOf]), the nearest by the going first, as much as [FEAST_KG] a guest by its will to feast; the guests
  * take it home to eat first ([PERISHABLE]) and remember it, as at a feast at a meeting. What is left rots as fresh meat does
  * ([spoil]). (A big kill is shared out across camps: Hadza meat goes to every household in camp and beyond.)
  */
@@ -134,12 +134,14 @@ internal fun HexGroups.feastOnKills(weather: Weather) {
         val keen = hb.byCustom(hb.holds(Tradition.FEASTS), hb.feastWill)
         var left = min(hb.feastMeat, host.stores[Store.FRESH])
         val h0 = hw.placeHex[host.place]
-        var ring = listOf(h0); val seen = hashSetOf(h0)
-        for (r in 0..VISIT_RINGS) {
-            for (h in ring) for (guest in byHex[h].orEmpty()) if (guest !== host && left > 0f) {
+        val most = kinReachKm(); val reach = reachOf(host, h0, most, weather)
+        val order = (0 until reach.hexes.size).filter { reach.dist[it] <= most }.sortedWith(compareBy<Int> { reach.dist[it] }.thenBy { reach.hexes[it].i })
+        for (i in order) {
+            val h = reach.hexes[i]
+            for (guest in byHex[h].orEmpty()) if (guest !== host && left > 0f) {
                 // (From another hex the guests' [VISITORS] come and carry home what they can, [MEAT_LOAD_KG] each, and give
                 // the days of the walk ([visitDays]). Olli, 13 Nov 2026: no free movement.)
-                val apart = r > 0
+                val apart = h != h0
                 val meal = minOf(left, FEAST_KG * guest.size * keen, if (apart) VISITORS * MEAT_LOAD_KG else Float.POSITIVE_INFINITY)
                 if (meal <= 0f) continue
                 // (By the ground, wearing the way, from their next step's days: [trip]. No way there, no guests from there.)
@@ -150,8 +152,7 @@ internal fun HexGroups.feastOnKills(weather: Weather) {
                 guest.band?.befriend(host.id, TIE_FEAST); hb.befriend(guest.id, 0.5f * TIE_FEAST)
                 stats.meeting(Met.KILL_FEASTS)
             }
-            if (r == VISIT_RINGS || left <= 0f) break
-            ring = hex.nextRing(ring, seen)
+            if (left <= 0f) break
         }
         // (What none ate rots, as it would have in its stores.)
         val rot = min(left, host.stores[Store.FRESH]) * (1f - exp(-HexSmallLife.CARRION_ROT * spoilWarmth(weather.temperature[host.place]) * days))

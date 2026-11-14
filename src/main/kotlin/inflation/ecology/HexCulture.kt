@@ -401,7 +401,8 @@ internal const val TIE_RAID = 0.8f
 
 internal const val TIE_FADE = 0.5f
 /**
- * How much faster a tie fades to a band whose home is beyond [CONTACT_KM]: nobody walks there to renew it, so it is soon
+ * How much faster a tie fades to a band whose home is beyond [CONTACT_KM] of easy going by the ground ([reachOf]): nobody
+ * walks there to renew it, so it is soon
  * only a memory (Olli, 13 Nov 2026: a band held ties with bands hundreds of km off). A guess: a full tie is gone in two years.
  */
 internal const val FAR_TIE_FADE = 4f
@@ -411,12 +412,6 @@ internal const val TIE_PEACE = 0.8f
 /** A tie above which a band counts the other a friend ([Regard.friend]). */
 internal const val FRIEND_TIE = 0.3f
 
-/**
- * Share of its hands' week a band gives to leisure at which visits keep a tie with one friendly band near most of the way
- * from fading (1 - 1/e): visits to more bands share the same leisure. Foragers spend much of their free time visiting
- * other camps (Lee 1979, Wiessner on hxaro); the rate is an estimate, no time-use figure found.
- */
-internal const val VISIT_SHARE = 0.18f
 
 /** A feast: food set before each guest, kg; days of food a band keeps back for itself beyond its aim before it feasts others. */
 internal const val FEAST_KG = 3f
@@ -668,7 +663,7 @@ internal class Regard(private val of: Band, private val toId: Int, private val t
  * Touches only the band's own state (and the week's tallies), so the bands' run side by side, each drawing from its own stream [rnd].
  */
 @Part("people: cultureWeek")
-internal fun HexGroups.cultureWeek(g: HexGroup, rnd: kotlin.random.Random, day: Long) {
+internal fun HexGroups.cultureWeek(g: HexGroup, rnd: kotlin.random.Random, day: Long, weather: inflation.world.Weather) {
     val b = g.band ?: return
     // A home it knows of is forgotten: when it passed it this week and found no house standing (its people dead, or moved on,
     // or never quite where it was told); when no one has seen it standing for [HOMES_HEARD_YEARS]; and when it lies further
@@ -708,18 +703,19 @@ internal fun HexGroups.cultureWeek(g: HexGroup, rnd: kotlin.random.Random, day: 
             stats.meeting(Met.BANDS_MADE_AN_APPOINTMENT)
         }
     }
-    // Ties fade unless renewed: by visits to the friendly bands within a day or two's walk, in the band's leisure.
+    // Ties fade unless renewed, and they are renewed by meeting: the neighbours' visits ([neighboursMeet]: walked by the
+    // ground, paid from the band's time, wearing the way), gatherings, feasts, kin's help ([befriend]). No other visit keeps
+    // them: before, a band's leisure renewed its ties to friendly bands within two hexes as the crow flies without anyone
+    // walking there (docs/design/coherence-review.md, A5). A band beyond the neighbours' reach by the ground ([CONTACT_KM],
+    // [reachOf]) nobody walks to, and its tie fades the faster ([FAR_TIE_FADE]).
     if (b.ties.isNotEmpty()) {
         val fade = TIE_FADE * days / Date.DAYS_PER_YEAR.toFloat()
         val here = hw.placeHex[g.place]
-        val near = HashSet<Int>(); val far = HashSet<Int>()
-        for ((k, v) in b.ties) bands.bandHex[k]?.let { h -> val km = hexKm(here, h)
-            if (v > 0f && km <= VISIT_RINGS * hex.hexKm) near += k else if (km > CONTACT_KM.toDouble()) far += k }
-        val leisure = b.spareDays / (forageHands(g) * days).toFloat()
-        val visited = if (near.isEmpty()) 0f else 1f - exp(-leisure / (VISIT_SHARE * near.size))
-        if (near.isNotEmpty()) stats.meeting(Met.BANDS_VISITED_FRIENDS)
+        val reach = reachOf(g, here, CONTACT_KM, weather)
+        val far = HashSet<Int>()
+        for (k in b.ties.keys) bands.bandHex[k]?.let { h -> if (reach.km(h, CONTACT_KM) == null) far += k }
         val it = b.ties.entries.iterator()
-        while (it.hasNext()) { val e = it.next(); e.setValue(e.value * (1f - min(1f, fade * (if (e.key in near) 1f - visited else if (e.key in far) FAR_TIE_FADE else 1f)))); if (abs(e.value) < 0.01f) it.remove() }
+        while (it.hasNext()) { val e = it.next(); e.setValue(e.value * (1f - min(1f, fade * (if (e.key in far) FAR_TIE_FADE else 1f)))); if (abs(e.value) < 0.01f) it.remove() }
     }
     // Country far from where it now lives fades from memory, a share of it a year.
     if (rnd.nextFloat() < years) {

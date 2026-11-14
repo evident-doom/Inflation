@@ -105,7 +105,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         bands.tallies.flush(if (stats.census) stats.hunting else null)
         Par.forEach("people: customs year", bandGroups.size) { k ->
             val g = bandGroups[k]
-            if (g.alive) cultureWeek(g, stream(seedBase, Stream.CUSTOMS, g.id.toLong(), date.absoluteDay), date.absoluteDay)
+            if (g.alive) cultureWeek(g, stream(seedBase, Stream.CUSTOMS, g.id.toLong(), date.absoluteDay), date.absoluteDay, weather)
         }
         for (g in bandGroups) if (g.alive) riteWeek(g, weather)
         groups += bands.strays; bands.strays.clear()

@@ -344,24 +344,23 @@ internal fun HexGroups.visitKin(weather: Weather) {
     for (g in groups) if (g.alive && g.band != null && g.larder > 0f) byHex.getOrPut(hw.placeHex[g.place]) { ArrayList() } += g
     for (g in hungry) {
         val gb = g.band ?: continue
-        // The best-stocked band within two hexes, the nearer the better.
+        // The best-stocked band within a day or two's walk by the ground ([kinReachKm], [reachOf]), the nearer by the going the better.
         var best: HexGroup? = null; var bestScore = 0f
         val h0 = hw.placeHex[g.place]
-        var ring = listOf(h0); val seen = hashSetOf(h0)
-        for (r in 0..VISIT_RINGS) {
-            for (h in ring) for (o in byHex[h].orEmpty()) if (o !== g) {
+        val reachKm = kinReachKm(); val reach = reachOf(g, h0, reachKm, weather)
+        for (i in 0 until reach.hexes.size) {
+            if (reach.dist[i] > reachKm) continue
+            for (o in byHex[reach.hexes[i]].orEmpty()) if (o !== g) {
                 // (What it can hope for there: an ordinary share of the larder, the more the closer the band holds it
                 // ([Regard.close], as at a meeting), or what the band owes it.)
                 val owed = min(0.9f * o.larder, o.band!!.owesTo(g.id) * FAVOUR_DAYS * g.dailyNeedKg)
                 val ob = o.band ?: continue
-                val score = max(BAND_GIFT * (1f + Regard(ob, g.id, gb, map = hex).close) * o.larder, owed) / (1f + r)
+                val score = max(BAND_GIFT * (1f + Regard(ob, g.id, gb, map = hex).close) * o.larder, owed) / (1f + reach.dist[i] / hex.hexKm.toFloat())
                 if (score > bestScore) {
                     bestScore = score
                     best = o
                 }
             }
-            if (r == VISIT_RINGS) break
-            ring = hex.nextRing(ring, seen)
         }
         val o = best ?: continue
         // (How much the band visited gives is its choice, more to a band it is close to, as at a meeting; and it owes the
