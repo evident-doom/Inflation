@@ -43,21 +43,35 @@ internal class Reach(val from: Hex, val reach: Float, val hexes: HexArray, val d
         out.reverse()
         return Way(dist[i], out)
     }
+
+    /**
+     * This reach as far as [most] only: the same answers within it, and its [hexes] only those within it, whatever search
+     * it came from ([reachOf]). The ways to them stay within it: each step of a way is no further than the hex it leads to.
+     */
+    fun within(most: Float): Reach {
+        if (most >= reach) return this
+        var n = 0; for (d in dist) if (d <= most) n++
+        val hs = HexArray(n); val ds = FloatArray(n); val vs = HexArray(n)
+        var k = 0
+        for (i in 0 until hexes.size) if (dist[i] <= most) { hs[k] = hexes[i]; ds[k] = dist[i]; vs[k] = via[i]; k++ }
+        return Reach(from, most, hs, ds, vs)
+    }
 }
 
 /**
  * The ground about hex [from] for a group of kind [s] on height band [band], out to at least [most] km of easy going (as
  * far as the caller asks; no limit of its own): a search already made over the ground as it lies now, if one went as far,
  * else a new one (then kept, [GroupPlanner.reachCache], until the groups next choose and the ground's going is reckoned
- * afresh). Callers take only the hexes within their own [most] ([Reach.km], [Reach.wayTo]). Safe on all
- * cores: two that search at once keep the one that went further, and their answers agree within the shorter.
+ * afresh), taken as far as [most] only ([Reach.within]): so what a caller gets is the same whichever searches were made
+ * before it, on whichever core, and a caller that goes over all its [Reach.hexes] sees the same hexes on every run.
+ * Safe on all cores: two that search at once keep the one that went further, and their answers agree within the shorter.
  */
 @Part("reach: least-effort search")
 internal fun HexGroups.reachOf(s: Species, band: Int, from: Hex, most: Float, weather: Weather): Reach {
     val key = (s.index.toLong() * 8 + band) * hex.size + from.i
-    planner.reachCache[key]?.let { if (it.reach >= most) return it }
+    planner.reachCache[key]?.let { if (it.reach >= most) return it.within(most) }
     val mine = searchFrom(s, band, from, most, weather)
-    return planner.reachCache.merge(key, mine) { a, b -> if (a.reach >= b.reach) a else b } ?: mine
+    return (planner.reachCache.merge(key, mine) { a, b -> if (a.reach >= b.reach) a else b } ?: mine).within(most)
 }
 
 /**
