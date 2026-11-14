@@ -233,7 +233,7 @@ internal class ViewLayers(private val sim: HexSim) {
                 val d = deaths[scope][c]
                 for (h in 0 until nh) d[h] = if (area[h] > 0) keep * d[h] +
                     (1f - keep) * (week[h] / area[h].toFloat() * (if (scope == 1) 1000f else 1f)) else 0f
-                if (scope == 1) { val y = peopleDied[c]; for (h in 0 until nh) y[h] = keepYear * y[h] + week[h].toFloat() }
+                if (scope == 1) { val y = peopleDied[c]; for (h in 0 until nh) y[h] = keepYear * y[h] + week[h] }
             }
         }
         // (People's deaths as a rate: against the people living in the hex, so the tint is not only where people are.)
