@@ -12,6 +12,7 @@ import inflation.ecology.HexFauna
 import inflation.world.get
 import inflation.ecology.HexSim
 import inflation.ecology.CultureRegions
+import inflation.ecology.Dealing
 import inflation.ecology.cultureRegions
 import inflation.ecology.hexRegion
 import inflation.ecology.PlaceRecord
@@ -54,6 +55,8 @@ internal class ViewLayers(private val sim: HexSim) {
         BONES_WEEKS("Weeks to clear: bones", "weeks", 0.8f, 0.8f, 0.7f), ORGANIC_WEEKS("Weeks to clear: soil organic matter", "weeks", 0.35f, 0.2f, 0.05f),
         /** Each hex in the colour of the cultural region with the most people there ([inflation.ecology.cultureRegions]). */
         CULTURES("Cultural regions", "", 0f, 0f, 0f),
+        /** Raids over about the last year at the raided band's camp, coloured by the share across cultural regions ([ViewLayers.dealings]). */
+        RAIDS("Raids, within and across cultures", "raids over about the last year", 0.9f, 0.1f, 0.2f),
         /** The ground bands' hunters searched in their last week of foraging ([inflation.ecology.Band.huntSeen]), a running mean. */
         HUNTING_GROUND("People's hunting ground", "km² searched a week per km²", 0.85f, 0.25f, 0.1f),
         /**
@@ -93,6 +96,13 @@ internal class ViewLayers(private val sim: HexSim) {
     /** Each band's region's lasting number at the last week, by group id. */
     private var bandCulture = HashMap<Int, Int>()
     private var nextCulture = 0
+    /** Raids at each hex over about the last year (a running sum fading over [RAID_MEMORY_WEEKS]): all, and those across regions. */
+    val raidsHere = FloatArray(nh); val raidsAcross = FloatArray(nh)
+    /** Over about the last year, all hexes: raids within and across regions, and the other dealings within and across. */
+    var raidsWithinAll = 0.0; private set
+    var raidsAcrossAll = 0.0; private set
+    var othersWithinAll = 0.0; private set
+    var othersAcrossAll = 0.0; private set
     /** Each month's mean over the last year (index: month), per hex; null until that month has been seen. */
     private val months = HashMap<String, Array<FloatArray?>>()
     /** The same month a year before the last one kept (index: month), per hex; null until two of it have been seen. */
@@ -119,10 +129,32 @@ internal class ViewLayers(private val sim: HexSim) {
         for (a in deaths) for (b in a) b.fill(0f)
         killsKg.fill(0f); hunted.fill(0f); gathered.fill(0f); for (a in gone) a.fill(0f); fearBefore = null; weeksSeen = 0
         bandCulture = HashMap(); cultureIds = emptyMap()
+        raidsHere.fill(0f); raidsAcross.fill(0f); raidsWithinAll = 0.0; raidsAcrossAll = 0.0; othersWithinAll = 0.0; othersAcrossAll = 0.0
         record.clear()
     }
 
-    /** After each week: works out every measure and adds it to the month. */
+    /**
+     * After each week, once [week] has placed the bands in their regions: the week's dealings ([RelationsView.thisWeek]) counted
+     * as within one cultural region or across two; raids also at the raided band's hex. All fade over [RAID_MEMORY_WEEKS].
+     */
+    fun dealings(week: List<Dealing>) {
+        val weeks = (sim.stepDays / sim.cfg.daysPerStep.toFloat()).coerceAtLeast(1f)
+        val keep = kotlin.math.exp(-weeks / RAID_MEMORY_WEEKS)
+        for (h in 0 until nh) { raidsHere[h] *= keep; raidsAcross[h] *= keep }
+        raidsWithinAll *= keep; raidsAcrossAll *= keep; othersWithinAll *= keep; othersAcrossAll *= keep
+        val camp = HashMap<Int, Int>(); for (g in groups.groups) if (g.alive) camp[g.id] = hw.placeHex[g.place].i
+        for (d in week) {
+            val a = bandCulture[d.from] ?: continue; val b = bandCulture[d.to] ?: continue
+            val across = a != b
+            if (d.kind == Dealing.Kind.RAID) {
+                if (across) raidsAcrossAll++ else raidsWithinAll++
+                val h = camp[d.to] ?: continue
+                raidsHere[h]++; if (across) raidsAcross[h]++
+            } else if (d.kind != Dealing.Kind.DEFENDED) { if (across) othersAcrossAll++ else othersWithinAll++ }
+        }
+        now[Measure.RAIDS.name] = FloatArray(nh) { if (raidsHere[it] >= 0.05f) raidsHere[it] else Float.NaN }
+    }
+
     /**
      * The regions' lasting numbers (by index in [cr]): the largest region first takes the number most of its people's bands
      * had last week, if no larger region took it; a region of new bands, or whose number is taken, gets a new one.
@@ -142,6 +174,7 @@ internal class ViewLayers(private val sim: HexSim) {
         return ids
     }
 
+    /** After each week: works out every measure and adds it to the month. */
     fun week() {
         val area = DoubleArray(nh)
         for (p in 0 until n) area[hw.placeHex[p]] += land.areaKm2[p].toDouble()
@@ -397,6 +430,8 @@ internal class ViewLayers(private val sim: HexSim) {
     companion object {
         /** Share of the running mean kept each week (about a month's memory). */
         const val KEEP = 0.75f
+        /** Weeks over which counted raids and dealings fade (a running sum: about the last year). */
+        const val RAID_MEMORY_WEEKS = 60f
         /** Weeks to clear are shown up to ten years. */
         const val MAX_WEEKS = 520f
         /** Hunters per prey is shown only where the hex and its ring hold at least this much big game, kg/km². */

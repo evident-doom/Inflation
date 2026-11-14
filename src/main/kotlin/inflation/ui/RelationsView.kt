@@ -40,6 +40,9 @@ internal class RelationsView(private val sim: HexSim) {
         recent = (listOf<List<Dealing>>(now) + recent).take(WEEKS_KEPT)
     }
 
+    /** This week's dealings. */
+    val thisWeek: List<Dealing> get() = recent.firstOrNull().orEmpty()
+
     /** The dealings of the last [WEEKS_KEPT] weeks that group [id] had a part in, each with its age in weeks (0 this week). */
     fun of(id: Int): List<Pair<Int, Dealing>> = recent.withIndex().flatMap { (age, w) -> w.filter { it.from == id || it.to == id }.map { age to it } }
 

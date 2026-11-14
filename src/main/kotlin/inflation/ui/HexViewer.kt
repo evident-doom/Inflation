@@ -378,6 +378,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         history.record(sim)
         layers.week()
         relations.week()
+        layers.dealings(relations.thisWeek)
         blocs.week()
         snapshot()
         control.weekDone()
@@ -881,6 +882,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                         note = "${cr.byPeople.size} regions",
                         swatches = top.map { (r, people) -> MapLegend.Swatch(colour(layers.cultureIds[r] ?: r), "%s, %.0f people".format(cr.name[r] ?: "-", people)) })
                 }
+                if (tint == Measure.RAIDS) return raidsTint(v, out, title)
                 if (tint == Measure.HUNTERS_PER_PREY) {
                     fun colour(l: Float) = if (l >= 0) rgba(0.9f, 0.15f, 0.1f, 0.15f + 0.6f * l) else rgba(0.1f, 0.4f, 0.9f, 0.15f - 0.6f * l)
                     for (h in v.indices) if (!v[h].isNaN() && v[h] > 0f) out[h] = colour((log10(v[h]) / 1.5f).coerceIn(-1f, 1f))
@@ -954,6 +956,28 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
     private fun causeNote(tint: Measure) = if (tint.byCause) " (" + causeChoice.selectedItem + ")" else ""
 
     /** The measures' own fixed colour scales; null for a measure without one. */
+    /**
+     * The raids tint: each hex by the raids on bands camped there over about the last year, fuller for more (log scale, full at
+     * [RAIDS_FULL]), amber where they were within one cultural region and crimson where across two; the note sets the share of
+     * raids across regions against the share of all other dealings across them, so whether raids gather where cultures meet.
+     */
+    private fun raidsTint(v: FloatArray, out: Array<Color?>, title: String): MapLegend {
+        fun colour(n: Float, across: Float): Color {
+            val a = 0.15f + 0.75f * min(1f, ln(1f + n) / ln(1f + RAIDS_FULL))
+            return rgba(1f - 0.15f * across, 0.7f * (1f - across), 0.1f + 0.25f * across, a)
+        }
+        for (h in v.indices) if (!v[h].isNaN() && v[h] > 0f) out[h] = colour(v[h], (layers.raidsAcross[h] / v[h]).coerceIn(0f, 1f))
+        val raids = layers.raidsWithinAll + layers.raidsAcrossAll; val others = layers.othersWithinAll + layers.othersAcrossAll
+        val note = if (raids < 0.5) "no raids counted yet (counted from when the viewer started)" else
+            "about the last year: %.0f raids, %.0f%% across regions; of all other dealings %.0f%% across".format(raids,
+                100 * layers.raidsAcrossAll / raids, if (others > 0) 100 * layers.othersAcrossAll / others else 0.0)
+        return MapLegend(title, "Raids on bands camped in each hex over about the last year, counted from when the viewer started (fading " +
+            "over ${ViewLayers.RAID_MEMORY_WEEKS.toInt()} weeks): fuller for more, full at ${RAIDS_FULL.toInt()}; amber where raider and raided were of one " +
+            "cultural region, crimson where of two. The note compares the share of raids across regions with the share of all other dealings across them: " +
+            "raids gather where cultures meet as far as the first is the larger.", note = note,
+            swatches = listOf(MapLegend.Swatch(colour(RAIDS_FULL, 0f), "raids within a region"), MapLegend.Swatch(colour(RAIDS_FULL, 1f), "raids across regions")))
+    }
+
     private fun fixedColour(tint: Measure, values: FloatArray, out: Array<Color?>): MapLegend? {
         // What the scale says, and the values it runs over: its ends, with any marked between them.
         val (legend, marks) = when (tint) {
@@ -1169,6 +1193,8 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
     }
 
     companion object {
+        /** Raids over about a year at which a hex's raids tint is full. */
+        private const val RAIDS_FULL = 5f
         /** The colour of a landmark on the map (passes are drawn as triangles). */
         private fun featureColour(k: HexGeography.Kind) = when (k) {
             HexGeography.Kind.RIVER, HexGeography.Kind.LAKE, HexGeography.Kind.BAY, HexGeography.Kind.STRAIT -> Color(0.1f, 0.25f, 0.7f)
