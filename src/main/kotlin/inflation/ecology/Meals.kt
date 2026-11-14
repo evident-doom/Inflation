@@ -287,6 +287,15 @@ private fun HexGroups.tallyBandForage(w: ForageWeek, band: Band, smallFed: Float
     qs(Tally.QuarterFood.ROOTS, w.plantFrom[PlantFrom.BULBS]); qs(Tally.QuarterFood.SEED, w.plantFrom[PlantFrom.SEED] + w.plantFrom[PlantFrom.GRAIN])
     qs(Tally.QuarterFood.FINDS, w.plantFrom[PlantFrom.FINDS])
     stats.tally(Tally.bandsIn(c, Tally.Bands.FISH), (fish * w.worth(Food.FISH)).toInt())
+    // (And for the bad-year census: what it got against what it wanted, and of it the crop, by country and by way of life.)
+    stats.tally(Tally.bandsIn(c, Tally.Bands.CROP), w.plantFrom[PlantFrom.GRAIN].toInt())
+    if (stats.bandSplits) {
+        val lived = BandSplit.livelihood(band.livelihood())
+        stats.book(lived, Tally.Bands.ASKED, wantAll.toInt())
+        stats.book(lived, Tally.Bands.MEAT, (meat * w.worth(Food.BIG_GAME) + w.killFat * w.fatFeeds + smallFed + scrapsFed + fish * w.worth(Food.FISH)).toInt())
+        stats.book(lived, Tally.Bands.PLANTS, plantsFed.toInt())
+        stats.book(lived, Tally.Bands.CROP, w.plantFrom[PlantFrom.GRAIN].toInt())
+    }
     stats.tally(Tally.bandsIn(c, Tally.Bands.BAND_WEEKS), 1); stats.tally(Tally.bandsIn(c, Tally.Bands.PEOPLE_WEEKS), g.size)
     stats.tally(Tally.bandsIn(c, Tally.Bands.HEARTH), (100f * band.hearthWood).toInt())
     stats.tally(Tally.bandsIn(c, Tally.Bands.FUEL_DAYS), (100f * w.fuelDays / days).toInt())

@@ -752,6 +752,28 @@ class Census(private val sim: HexSim) {
     }
 
     /**
+     * The bad-year census (Olli 2026-11-14: do cold and dry years bring hunger, as the record has for farmers more than
+     * foragers?): bands by kind of country and by way of life over the year just ended, each with the food got against the
+     * food wanted, the crop's share of it, how well fed, the fat held, births and deaths of hunger and of all causes. Printed
+     * every year, so a run's worst year in each country can be set against its usual one. Report only.
+     */
+    fun printLeanYear(lastYear: Map<TallyKey, Int>, stepsPerYear: Int) {
+        fun row(label: String, v: (Tally.Bands) -> Double): String {
+            val pw = v(Tally.Bands.PEOPLE_WEEKS); val years = (pw / stepsPerYear).coerceAtLeast(1e-9)
+            val got = v(Tally.Bands.MEAT) + v(Tally.Bands.PLANTS) + v(Tally.Bands.FISH)
+            return "%s %.0f: got %.0f%% of want, crop %.1f%%, fed %.3f, fat %.1f d, born %.1f, hunger %.2f, died %.1f".format(label, years,
+                100 * got / v(Tally.Bands.ASKED).coerceAtLeast(1.0), 100 * v(Tally.Bands.CROP) / got.coerceAtLeast(1.0),
+                v(Tally.Bands.FED) / 1000 / pw.coerceAtLeast(1.0), v(Tally.Bands.FAT) / 10 / v(Tally.Bands.BAND_WEEKS).coerceAtLeast(1.0),
+                1000 * v(Tally.Bands.BORN) / years, 1000 * v(Tally.Bands.HUNGER_DIED) / years, 1000 * v(Tally.Bands.DIED) / years)
+        }
+        val cs = lastYear.keys.mapNotNull { Tally.bandsCountry(it, Tally.Bands.BAND_WEEKS) }.distinct().sortedBy { it.label }
+        println("     lean year by country (people-years: food got of want, crop share of it, fed, fat at the week's end, births, hunger and all deaths per 1000 a year): " +
+            cs.joinToString("; ") { c -> row(c.label) { (lastYear[Tally.bandsIn(c, it)] ?: 0).toDouble() } })
+        println("     lean year by way of life (the same): " + inflation.ecology.Livelihood.entries.joinToString("; ") { l ->
+            row(l.name.lowercase()) { (lastYear[Tally.bandsLivelihood(l, it)] ?: 0).toDouble() } })
+    }
+
+    /**
      * The homes each living band knows of ([inflation.ecology.Band.knownHomes]): how many (mean, tenth, median, ninetieth
      * percentile, most), against the bands alive; the share of them whose band is no longer alive; and how far they lie
      * from the knower (median km, and the share beyond 100 and 300 km). Olli 2026-11-12: "each band knows 1100 homes?"

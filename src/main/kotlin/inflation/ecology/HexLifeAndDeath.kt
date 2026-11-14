@@ -332,6 +332,15 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
             // (And by the way of life it lives: its camp moves, set against the record's for each way.)
             val lived = BandSplit.livelihood(b.livelihood())
             stats.bookWeek(lived, g.size)
+            // (And for the bad-year census, by country and by way of life: how fed, its fat, births and deaths: [inflation.tools.fauna.Census.printLeanYear].)
+            val hungry = o.causes.sumOf { if (it.cause == DeathCause.HUNGER) it.n else 0 }; val dead = o.causes.sumOf { it.n }
+            for (split in arrayOf(country, lived)) {
+                stats.book(split, Tally.Bands.FED, (1000f * min(1f, g.fed) * g.size).roundToInt())
+                stats.book(split, Tally.Bands.FAT, (10f * g.fat).roundToInt())
+                if (hungry > 0) stats.book(split, Tally.Bands.HUNGER_DIED, hungry)
+                if (dead > 0) stats.book(split, Tally.Bands.DIED, dead)
+            }
+            if (o.births > 0) stats.book(lived, Tally.Bands.BORN, o.births)
             if (g.path.size > 1) stats.book(lived, Tally.Bands.MOVES, 1)
             // (And those within a month of a camp move: what [Tally.starvedMoved] is set against.)
             if (b.campWeeks * (days / ticks) < Date.DAYS_PER_MONTH) stats.tally(Tally.movedWeeks(b.mind), g.size)
