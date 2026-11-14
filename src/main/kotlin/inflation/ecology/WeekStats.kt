@@ -248,6 +248,8 @@ enum class Met(val label: String) {
     BANDS_AT_APPOINTMENTS("bands at appointments' gatherings"),
     ORNAMENTS_GIVEN("ornaments given"),
     PACK_GAVE_WAY("pack gave way"),
+    /** Parties a band sent for a rare material its own ground does not give ([taskTrips]). */
+    TASK_TRIPS("task trips for stone, salt, ochre or shell"),
     HUNTERS_GAVE_WAY("hunter gave way to another kind"),
     /** People killed in raids, by whether their band lives fixed ([Band.livesFixed]: in its houses, by fresh sowing, behind a palisade) or not. */
     RAID_KILLED_FIXED("people killed in raids, of bands living fixed"),

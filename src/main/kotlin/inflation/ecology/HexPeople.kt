@@ -143,6 +143,8 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     keepHerds(g, b, date, time)
     val people = g.adults.toFloat()
     gatherMaterials(g, b, p, h, people, area, time, date.month)
+    // (And what its own ground does not give, a few of its people fetch from where it does: [taskTrips].)
+    taskTrips(g, b, time, weather, date.month)
     time.release(Activity.MATERIALS)
     val living0 = b.livingGoods()
     wearAndInvent(b, years)
@@ -250,12 +252,12 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
  * out by the chore's own rules, as things stand when it plans (it moved camp, if it did, but has not yet foraged).
  * Drying and skinning follow the catch, so they ask what they would have liked last week.
  */
-internal fun HexGroups.choreAsks(g: HexGroup, b: Band, date: Date, asks: EnumFloats<Activity>, warm: EnumFloats<Activity>? = null) {
+internal fun HexGroups.choreAsks(g: HexGroup, b: Band, date: Date, asks: EnumFloats<Activity>, warm: EnumFloats<Activity>? = null, weather: Weather) {
     val p = g.place; val h = hw.placeHex[p]; val people = g.adults.toFloat()
     val moved = movedCamp(g, b)
     fun ask(a: Activity, days: Float) { asks[a] = if (days.isFinite()) max(0f, days) else 0f }
     if (moved && !b.campPlace.none) ask(Activity.CACHING, min(1f, b.cacheWill) * leftBehindKg(g, b) * cacheCare(b) / CACHE_KG_A_DAY)
-    ask(Activity.MATERIALS, gatherMaterials(g, b, p, h, people, land.m2(p), null, date.month))
+    ask(Activity.MATERIALS, gatherMaterials(g, b, p, h, people, land.m2(p), null, date.month) + taskTrips(g, b, null, weather, date.month))
     // (What the shelters it aims at take beyond the days already given them first, when given: [survivalDays].)
     ask(Activity.SHELTER, shelterWork(b, people, if (moved) 0f else b.shelter, b.shelterWill) - (warm?.get(Activity.SHELTER) ?: 0f))
     ask(Activity.CUSTOMS, b.burialOwed + b.riteOwed + cleanDays(b, people) + nurseDays(b, people))
