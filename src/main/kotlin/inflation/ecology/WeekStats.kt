@@ -371,7 +371,7 @@ object Tally {
         /** For [Herding]: how well fed through the week ([HexGroup.fed], at most 1), thousandths summed over people-weeks. */
         FED("fed, 1/1000"),
         /** For the bad-year census ([inflation.tools.fauna.Census.printLeanYear]): the crop grain it got, kg; its deaths, of hunger and of all causes. */
-        CROP("crop got, kg"), HUNGER_DIED("died of hunger"), DIED("died"),
+        CROP("crop got, kg"), HUNGER_DIED("hunger deaths, lean-year count"), DIED("deaths, lean-year count"),
         /** Its clothes ([Band.clothesClo]), clo, and its spare days over the last season ([Band.spareMean]), share: tenths and thousandths summed over band-weeks. */
         CLOTHES("clothes clo, 1/10"), SPARE("spare days, 1/1000"),
         /** The week's mean air at its camp, °C, tenths summed over band-weeks; the band-weeks it came to a new camp. */
