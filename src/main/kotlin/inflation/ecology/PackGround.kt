@@ -9,7 +9,6 @@ import inflation.world.Place
 import inflation.world.Weather
 import inflation.world.get
 import inflation.world.toHexArray
-import kotlin.math.sqrt
 
 // Packs that hold their ground (docs/design/pack-performance.md, "Territory wider than a hex"): a
 // content pack on its home hex weighs no place and stays, as bands that hold their home hex
@@ -60,9 +59,9 @@ internal fun GroupPlanner.groundPlan(g: HexGroup, date: Date, weather: Weather):
 /**
  * Lays out pack [g]'s footprint ([HexGroup.footprint]): the land of a circle of its range about its home, taken by the
  * ground from home outward, the easiest first ([layGround]: never across a strait it cannot swim or a cliff it cannot
- * climb). Its range is its kind's
- * ([GroupWorld.territoryKm]) as wide as the game on its home ground needs it (wider where game is thin: half to three times,
- * as the planner reckons a pack's ground), or [inflation.Tuning.denKm] while it has young in the den.
+ * climb). Its area is its kind's
+ * ([GroupWorld.territoryKm2]) as wide as the game on its home ground needs it (wider where game is thin: a quarter to nine
+ * times, as the planner reckons a pack's ground), or a circle of [inflation.Tuning.denKm] while it has young in the den.
  */
 internal fun GroupPlanner.footprint(g: HexGroup, date: Date, weather: Weather, at: Place = g.place) {
     val s = g.species
@@ -70,10 +69,13 @@ internal fun GroupPlanner.footprint(g: HexGroup, date: Date, weather: Weather, a
     val month = wrapMonth(date.month + if (date.dayOfMonth > Date.DAYS_PER_MONTH / 2) 1 else 0)
     val denning = g.young > 0 && monthsFrom(g.birthMonth, month) < gs.tuning.denMonths
     val homeValue = placeValue[kind][at]
-    val range = if (denning) gs.tuning.denKm.toDouble() else
-        (gs.territoryKm(s) * sqrt(PREY_HALF / homeValue.coerceAtLeast(1f)).coerceIn(0.5f, 3f)).toDouble()
-    // (Its territory is an area, a circle of that range on open ground; the ground gives it its shape, [layGround].)
-    gs.layGround(g, g.home, (Math.PI * range * range).toFloat(), date.absoluteDay, weather, at)
+    // (Its territory is an area: its kind's own ([GroupWorld.territoryKm2]), as wide as the game on its home ground needs it
+    // (a quarter to nine times, the range half to three times); a circle of [inflation.Tuning.denKm] while denning. The
+    // ground gives it its shape, [layGround]. Before, the area was a circle of the kind's range with 5 km added for the
+    // hexes' grain ([GroupWorld.territoryKm]): a leopard's ground came to 356 km² against its own 100.)
+    val area = if (denning) (Math.PI * gs.tuning.denKm * gs.tuning.denKm).toFloat() else
+        gs.territoryKm2(s) * (PREY_HALF / homeValue.coerceAtLeast(1f)).coerceIn(0.25f, 9f)
+    gs.layGround(g, g.home, area, date.absoluteDay, weather, at)
 }
 
 /**
