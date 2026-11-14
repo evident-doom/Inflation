@@ -335,7 +335,8 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
             // (And for the bad-year census, by country and by way of life: how fed, its fat, births and deaths: [inflation.tools.fauna.Census.printLeanYear].)
             val hungry = o.causes.sumOf { if (it.cause == DeathCause.HUNGER) it.n else 0 }; val dead = o.causes.sumOf { it.n }
             for (split in arrayOf(country, lived)) {
-                stats.book(split, Tally.Bands.FED, (1000f * min(1f, g.fed) * g.size).roundToInt())
+                // (In hundredths: thousandths summed over a year of the foragers' people-weeks pass an Int.)
+                stats.book(split, Tally.Bands.FED_LEAN, (100f * min(1f, g.fed) * g.size).roundToInt())
                 stats.book(split, Tally.Bands.FAT, (10f * g.fat).roundToInt())
                 if (hungry > 0) stats.book(split, Tally.Bands.HUNGER_DIED, hungry)
                 if (dead > 0) stats.book(split, Tally.Bands.DIED, dead)

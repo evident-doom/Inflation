@@ -763,7 +763,7 @@ class Census(private val sim: HexSim) {
             val got = v(Tally.Bands.MEAT) + v(Tally.Bands.PLANTS) + v(Tally.Bands.FISH)
             return "%s %.0f: got %.0f%% of want, crop %.1f%%, fed %.3f, fat %.1f d, born %.1f, hunger %.2f, died %.1f".format(label, years,
                 100 * got / v(Tally.Bands.ASKED).coerceAtLeast(1.0), 100 * v(Tally.Bands.CROP) / got.coerceAtLeast(1.0),
-                v(Tally.Bands.FED) / 1000 / pw.coerceAtLeast(1.0), v(Tally.Bands.FAT) / 10 / v(Tally.Bands.BAND_WEEKS).coerceAtLeast(1.0),
+                v(Tally.Bands.FED_LEAN) / 100 / pw.coerceAtLeast(1.0), v(Tally.Bands.FAT) / 10 / v(Tally.Bands.BAND_WEEKS).coerceAtLeast(1.0),
                 1000 * v(Tally.Bands.BORN) / years, 1000 * v(Tally.Bands.HUNGER_DIED) / years, 1000 * v(Tally.Bands.DIED) / years)
         }
         val cs = lastYear.keys.mapNotNull { Tally.bandsCountry(it, Tally.Bands.BAND_WEEKS) }.distinct().sortedBy { it.label }
