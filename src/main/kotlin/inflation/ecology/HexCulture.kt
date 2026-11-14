@@ -693,18 +693,17 @@ internal fun HexGroups.cultureWeek(g: HexGroup, rnd: kotlin.random.Random, day: 
         val here = hw.placeHex[g.place]; val reach = homesReach(g, weather)
         fun kmTo(id: Int, hh: Hex): Float? = homeKm(reach, here, id, hh)
         val stale = (HOMES_HEARD_YEARS * Date.DAYS_PER_YEAR).toLong()
-        val it = b.knownHomes.entries.iterator()
-        while (it.hasNext()) { val (id, hh) = it.next()
+        val gone = ArrayList<Int>()
+        for ((id, hh) in b.knownHomes) {
             // (A home held from a save made before [Band.homeSeen]: as if seen half that long ago.)
             val seen = b.homeSeen.getOrPut(id) { day - stale / 2 }
-            if ((hh in g.path && bands.houseOf[id] != hh) || day - seen > stale || kmTo(id, hh) == null) {
-                it.remove(); b.knownLineage.remove(id); b.homeSeen.remove(id); b.homeOff.remove(id); b.homesVersion++ }
+            if ((hh in g.path && bands.houseOf[id] != hh) || day - seen > stale || kmTo(id, hh) == null) gone += id
         }
+        for (id in gone) b.forgetHome(id)
         // And it keeps no more than [HOMES_HELD] in mind: the nearest, as far as fame makes them near.
         if (b.knownHomes.size > HOMES_HELD) {
             val by = b.knownHomes.entries.sortedWith(compareBy<Map.Entry<Int, Hex>> { (kmTo(it.key, it.value) ?: Float.MAX_VALUE) / homeReachKm(it.key) }.thenBy { it.key })
-            for (e in by.subList(HOMES_HELD, by.size)) { b.knownHomes.remove(e.key); b.knownLineage.remove(e.key); b.homeSeen.remove(e.key); b.homeOff.remove(e.key) }
-            b.homesVersion++
+            for (id in by.subList(HOMES_HELD, by.size).map { it.key }) b.forgetHome(id)
         }
     }
     // Once a year, a band without an appointment makes one, where its dead lie or where it has met

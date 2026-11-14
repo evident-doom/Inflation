@@ -424,6 +424,9 @@ class Band(kinds: Int, totems: Int = kinds) {
     val homeSeen = HashMap<Int, Long>()
     /** For each home in [knownHomes], how far (km) it may lie from where this band believes: 0 seen at first hand, the more the further off it was told of ([HEARSAY_OFF]). */
     val homeOff = HashMap<Int, Float>()
+
+    /** It forgets the home of band [id]: where it is ([knownHomes]), whose it is ([knownLineage]), when it was seen and how surely ([homeSeen], [homeOff]), all together. */
+    fun forgetHome(id: Int) { knownHomes.remove(id); knownLineage.remove(id); homeSeen.remove(id); homeOff.remove(id); homesVersion++ }
     /** A raid it is set on, if any. */
     var raid: Raid? = null
     val raidHex get() = raid?.hex ?: Hex.NONE
@@ -566,7 +569,11 @@ class Band(kinds: Int, totems: Int = kinds) {
      * saved world carried on would add them up in another order and drift from the one that ran on.
      */
     val ties = LinkedHashMap<Int, Float>()
-    /** The step this band last met each other band (by group id), for how fresh a meeting is ([meetingFresh]). */
+    /**
+     * The step this band last met each other band (by group id), for how fresh a meeting is ([meetingFresh]), and whether
+     * they have ever met, for the sicknesses strangers bring ([strangersAt]). Never pruned: it grows with every band met,
+     * the dead too (consolidation-review.md, 5).
+     */
     val lastMet = HashMap<Int, Int>()
     /**
      * What it saw of each other band (by group id), the last time it saw it, at a meeting, a fight or watching unseen
