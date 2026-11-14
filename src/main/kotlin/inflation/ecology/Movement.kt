@@ -42,22 +42,7 @@ internal fun HexGroups.wayReach(from: Hex, to: Hex): Float = (3.0 * hex.distance
  */
 internal fun HexGroups.findWay(g: HexGroup, from: Hex, to: Hex, weather: Weather, most: Float = wayReach(from, to)): Way? {
     if (from == to) return Way(0f, listOf(from))
-    val effort = planner.stepEffort(Catalogue.travel(g.species).ordinal, hw.placeBand[g.place], weather)
-    val best = HashMap<Hex, Pair<Float, Hex>>(); best[from] = 0f to Hex.NONE
-    val q = java.util.PriorityQueue<Pair<Float, Hex>>(compareBy<Pair<Float, Hex>> { it.first }.thenBy { it.second.i }); q += 0f to from
-    while (q.isNotEmpty()) {
-        val (d, h) = q.poll()
-        if (h == to) return Way(d, wayTo(best, from, to))
-        if (d > best.getValue(h).first) continue
-        for (k in 0 until 6) {
-            val nh = hex.neighbour(h, k); if (nh.none) continue
-            val nd = d + effort[hex.edge(h, k)]
-            if (!nd.isFinite() || nd > most) continue
-            val was = best[nh]
-            if (was == null || nd < was.first) { best[nh] = nd to h; q += nd to nh }
-        }
-    }
-    return null
+    return reachOf(g, from, most, weather).wayTo(to, most)
 }
 
 /** The km of easy going of [findWay]'s way, null if none: for a reckoning that walks nowhere (a report, a choice weighed). */
@@ -76,7 +61,7 @@ internal fun HexGroups.wayKm(g: HexGroup, from: Hex, to: Hex, weather: Weather, 
     return way.km
 }
 
-/** As [trip], along a way already found (a search that found many at once, [effortsFrom]). */
+/** As [trip], along a way already found (a search that found many at once, [reachOf]). */
 internal fun HexGroups.tripAlong(g: HexGroup, way: Way, people: Float, paid: WalkPaid, times: Int = 1) {
     if (way.hexes.size < 2 || times <= 0) return
     wearWay(way, people * g.species.massKg, times, back = true)

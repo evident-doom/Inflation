@@ -611,6 +611,8 @@ class HexGroups(
      */
     @delegate:Transient val seaLinks: Array<HexArray> by lazy { links().to }
     @delegate:Transient val seaGaps: Array<FloatArray> by lazy { links().gapKm }
+    /** Each core's working arrays for the searches of the ground ([reachOf]). */
+    @Transient internal val reachScratch: ThreadLocal<ReachScratch> = ThreadLocal.withInitial { ReachScratch(hex.size) }
     /** For each hex, the hexes across the sea from it ([to]) and the open water to each ([gapKm]). */
     class SeaCrossings(val to: Array<HexArray>, val gapKm: Array<FloatArray>)
     @Transient private var linksMade: SeaCrossings? = null

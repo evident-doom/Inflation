@@ -558,9 +558,7 @@ internal class GroupPlanner(internal val gs: HexGroups) {
 
     private val scratch = ThreadLocal.withInitial { Scratch(gs.hex.size) }
 
-    /** This week's searches, shared by the groups of a kind starting from the same place in the same mood. */
-    internal class Reach(val reach: Float, val hexes: HexArray, val dist: FloatArray, val via: HexArray)
-
+    /** This step's searches of the ground ([reachOf]), by kind, height band and hex: let go when the groups next choose. */
     @Transient internal val reachCache = ConcurrentHashMap<Long, Reach>()
 
     /**

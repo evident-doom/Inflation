@@ -206,22 +206,22 @@ internal fun HexGroups.neighboursMeet(weather: Weather) {
     // (Each band's going to the hexes about it, and those of them where bands live in index order, on all cores: they read
     // only the step's crossings. The draws then go band by band in the groups' order, as they always did.)
     val stayers = groups.filter { it.alive && staysHome(it) }
-    val reaches = arrayOfNulls<Map<Hex, Pair<Float, Hex>>>(stayers.size)
+    val reaches = arrayOfNulls<Reach>(stayers.size)
     val peopled = arrayOfNulls<List<Hex>>(stayers.size)
     Par.forEach("meetings: neighbours' going", stayers.size) { i ->
         val a = stayers[i]; val h0 = hw.placeHex[a.place]
-        val reach = effortsFrom(h0, Catalogue.travel(a.species).ordinal, hw.placeBand[a.place], weather, CONTACT_KM)
+        val reach = reachOf(a, h0, CONTACT_KM, weather)
         reaches[i] = reach
-        // (The bands of its own hex too, a budded band and its parent: their every contact is visiting, [contend].)
-        peopled[i] = reach.keys.filter { it in byHex }.sortedBy { it.i }
+        // (The bands of its own hex too, a budded band and its parent: their every contact is visiting, [contend]. The reach's
+        // hexes are in index order; only those within the neighbours' reach, as the step's search may have gone further.)
+        peopled[i] = (0 until reach.hexes.size).filter { reach.dist[it] <= CONTACT_KM && reach.hexes[it] in byHex }.map { reach.hexes[it] }
     }
     for ((i, a) in stayers.withIndex()) {
-        val h0 = hw.placeHex[a.place]
         val reach = reaches[i] ?: continue
         // (Each pair once, the band of the lower id drawing for both; the hexes in index order, so the draws repeat.)
         for (h in peopled[i] ?: continue) {
             val bs = byHex[h] ?: continue
-            val km = reach.getValue(h).first
+            val km = reach.km(h, CONTACT_KM) ?: continue
             val mean = rate * NEIGHBOUR_FALL.pow(max(0f, km - easy) / easy)
             for (b in bs) if (b.id > a.id) {
                 val drawn = poisson(mean, r); if (drawn == 0) continue
@@ -234,7 +234,7 @@ internal fun HexGroups.neighboursMeet(weather: Weather) {
                     var k = 0; repeat(drawn) { if (r.nextFloat() < share) k++ }; k }
                 if (times == 0) continue
                 var last = 0; repeat(times) { last = max(last, r.nextInt(ticks)) }
-                due += Due(last, times, a, b, Way(km, wayTo(reach, h0, h)), km, bVisits)
+                due += Due(last, times, a, b, reach.wayTo(h, CONTACT_KM) ?: continue, km, bVisits)
             }
         }
     }
@@ -254,36 +254,6 @@ internal fun HexGroups.neighboursMeet(weather: Weather) {
     meetTick = 0; meetTimes = 1
 }
 
-/**
- * The least effort of the going from hex [from] to each hex within [most] (km of easy going) for a group of travel [travel]
- * on ground band [band] this step ([stepEffort]: the planner's crossings, made for every group at the step's start), and the
- * hex each is reached from: a search over the hexes' borders, by land.
- */
-internal fun HexGroups.effortsFrom(from: Hex, travel: Int, band: Int, weather: Weather, most: Float): Map<Hex, Pair<Float, Hex>> {
-    val effort = planner.stepEffort(travel, band, weather)
-    val out = HashMap<Hex, Pair<Float, Hex>>(); out[from] = 0f to Hex.NONE
-    // (The nearest first; of equals, the lower hex, so the search is the same on every run.)
-    val q = java.util.PriorityQueue<Pair<Float, Hex>>(compareBy<Pair<Float, Hex>> { it.first }.thenBy { it.second.i }); q += 0f to from
-    while (q.isNotEmpty()) {
-        val (d, h) = q.poll()
-        if (d > out.getValue(h).first) continue
-        for (k in 0 until 6) {
-            val nh = hex.neighbour(h, k); if (nh.none) continue
-            val nd = d + effort[hex.edge(h, k)]
-            if (!nd.isFinite() || nd > most) continue
-            val was = out[nh]
-            if (was == null || nd < was.first) { out[nh] = nd to h; q += nd to nh }
-        }
-    }
-    return out
-}
-
-/** The hexes of the least-effort way from [from] to [to] in [reach] ([effortsFrom]), from first to last. */
-internal fun wayTo(reach: Map<Hex, Pair<Float, Hex>>, from: Hex, to: Hex): List<Hex> {
-    val way = ArrayList<Hex>(); var h = to
-    while (true) { way += h; if (h == from) break; h = reach[h]?.second?.takeIf { !it.none } ?: break }
-    way.reverse(); return way
-}
 
 /**
  * How much less often bands a hex's easy going further apart are in touch ([neighboursMeet]), and how far apart they are in
