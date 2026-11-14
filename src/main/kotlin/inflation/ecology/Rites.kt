@@ -161,7 +161,7 @@ internal fun HexGroups.gatherAtRite(g: HexGroup, site: Int, month: Long, weather
     val rite = RiteGathering(site, here)
     for (o in here) if (g.alive && o.alive && o !== g) {
         stats.meeting(Met.BANDS_GATHERED_AT_A_RITE)
-        bandsMeet(g, o, weather, rite)
+        bandsMeet(g, o, weather, rite, hw.placeHex[site])
     }
     here += g
 }

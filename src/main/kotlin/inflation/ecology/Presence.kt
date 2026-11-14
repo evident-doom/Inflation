@@ -10,25 +10,35 @@ import kotlin.math.min
 // A pack moves, hunts and fights together: all of its party is there ([foragers]). A band does not go about as one
 // (Olli, 14 Nov 2026): most of its people are at its camp most of the time, and its foragers go out in small parties. Met
 // at its camp's hex, it is its able grown people ([Band.ableShare]: the wounded and lamed do not fight); met anywhere
-// else on its ground, it is one party of them out foraging ([BAND_PARTY]), whatever the band's size. A raid's party is the
-// raid's ([raidParty]), counted where the raid is fought.
+// else on its ground, it is one party of them out foraging ([BAND_PARTY]), whatever the band's size; at a gathering, where
+// its grown all walked ([gatherAtRite]), it is its able grown. A raid's party is the raid's ([raidParty]), counted where
+// the raid is fought.
+//
+// A group is the stronger in its lair ([lairAdvantage]), wherever the meeting is settled: by the kinds' own rules
+// ([strengthAt]) or by the strategies ([engage]), where holding a hex adds only its lie ([holding]).
 
-/** How many of [g] are there where it is met at hex [h]: a pack's party; a band's able grown at its camp's hex, else one party out ([BAND_PARTY]). */
-internal fun HexGroups.presentAt(g: HexGroup, h: Hex): Float {
+/**
+ * How many of [g] are there where it is met at hex [h]: a pack's party; a band's able grown at its camp's hex or at a
+ * gathering ([gathered]), else one party out ([BAND_PARTY]).
+ */
+internal fun HexGroups.presentAt(g: HexGroup, h: Hex, gathered: Boolean = false): Float {
     val b = g.band ?: return foragers(g).toFloat()
     val able = g.adults * b.ableShare
-    return if (h == hw.placeHex[g.place]) able else min(able, BAND_PARTY)
+    return if (gathered || h == hw.placeHex[g.place]) able else min(able, BAND_PARTY)
 }
 
 /** How strong [g] is as it is met at hex [h], before any advantage of the ground: those there ([presentAt]), their weight and their weapons ([ferocity]). */
-internal fun HexGroups.presentStrength(g: HexGroup, h: Hex): Float = presentAt(g, h) * g.species.massKg * ferocity(g)
+internal fun HexGroups.presentStrength(g: HexGroup, h: Hex, gathered: Boolean = false): Float = presentAt(g, h, gathered) * g.species.massKg * ferocity(g)
 
 /** Whether hex [h] is [g]'s lair: a pack's home hex, a band's camp's hex. */
 internal fun HexGroups.inLair(g: HexGroup, h: Hex): Boolean =
     (!g.home.none && h == g.home) || (g.band != null && h == hw.placeHex[g.place])
 
-/** How strong [g] is as it is met at hex [h] ([presentStrength]), the stronger in its lair ([HOME_ADVANTAGE], [inLair]): what the kinds' own rules weigh. */
-internal fun HexGroups.strengthAt(g: HexGroup, h: Hex): Float = presentStrength(g, h) * (if (inLair(g, h)) HOME_ADVANTAGE else 1f)
+/** How much stronger [g] is at hex [h] for its being its lair ([inLair]): [HOME_ADVANTAGE] there, else 1. The one lair rule. */
+internal fun HexGroups.lairAdvantage(g: HexGroup, h: Hex): Float = if (inLair(g, h)) HOME_ADVANTAGE else 1f
+
+/** How strong [g] is as it is met at hex [h] ([presentStrength]), the stronger in its lair ([lairAdvantage]): what every meeting weighs. */
+internal fun HexGroups.strengthAt(g: HexGroup, h: Hex, gathered: Boolean = false): Float = presentStrength(g, h, gathered) * lairAdvantage(g, h)
 
 /**
  * Whether [a] is much the stronger of the two at hex [h]: of another kind, and more than [AVOID_RATIO] times as strong as

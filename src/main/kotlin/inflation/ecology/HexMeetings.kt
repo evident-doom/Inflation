@@ -288,9 +288,9 @@ internal fun HexGroups.settle(enc: Encounter, byStrategy: HexArray?, weather: We
         return
     }
     // (A raid set out on the other's home, by the rules of a raid: the defenders behind their works, [fight].)
-    if (intent == Intent.RAID) { val ba = a.band; val bb = b.band; if (ba != null && bb != null) fight(a, ba, b, bb, planned = true, weather); return }
+    if (intent == Intent.RAID) { val ba = a.band; val bb = b.band; if (ba != null && bb != null) fight(a, ba, b, bb, planned = true, weather, enc.hex); return }
     if (slipsAway(a, b, p) || slipsAway(b, a, p)) stats.meeting(Met.SLIPPED_AWAY)
-    else if (a.species.human && b.species.human) run { val t0 = Profile.mark(); bandsMeet(a, b, weather, rite); Profile.slow("meeting: bands", t0, weather.date.absoluteDay) { a.probe(weather.date.absoluteDay) + " | " + b.probe(-1L) } }
+    else if (a.species.human && b.species.human) run { val t0 = Profile.mark(); bandsMeet(a, b, weather, rite, enc.hex); Profile.slow("meeting: bands", t0, weather.date.absoluteDay) { a.probe(weather.date.absoluteDay) + " | " + b.probe(-1L) } }
     else if (a.species == b.species) rivalsMeet(enc)
     else enemiesMeet(enc)
 }
@@ -525,7 +525,7 @@ private fun HexGroups.residentsMeet(a: HexGroup, b: HexGroup, h: Hex): Boolean {
  * and a band that is going hungry is given a share of the other's larder. [rite]: the gathering they meet at, if any ([gatherAtRite]).
  */
 @Part("meetings: band meets band")
-internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rite: RiteGathering? = null) {
+internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rite: RiteGathering? = null, at: Hex = hw.placeHex[b.place]) {
     stats.meeting(Met.BANDS_MET, meetTimes)
     note(a) { "met band #%d (%d people; tie %.2f)".format(b.id, b.size, a.band?.tie(b.id) ?: 0f) }
     note(b) { "met band #%d (%d people; tie %.2f)".format(a.id, a.size, b.band?.tie(a.id) ?: 0f) }
@@ -536,7 +536,7 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
     noteSeen(a, b, weather.date.absoluteDay); noteSeen(b, a, weather.date.absoluteDay)
     // (Each tells the other how its camp has lately yielded: how a planning band judges a fresh camp, [tellYield].)
     tellYield(a, b, weather.date); tellYield(b, a, weather.date)
-    if (meetingEndsInRaid(a, b, weather, rite, fresh, strangers)) return
+    if (meetingEndsInRaid(a, b, weather, rite, fresh, strangers, at)) return
     // (Food passes between camps only as people carry it on foot. Olli, 13 Nov 2026: any contact between bands is a walk,
     // nothing moves free. Bands camped in one hex share as they will. Bands from hexes apart share what the [VISITORS] carry,
     // [CARRY_KG] each, for each meeting the step holds. At a rite's gathering each shares what it brought for the trip,

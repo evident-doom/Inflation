@@ -139,7 +139,7 @@ internal fun bandStancesFor(a: HexGroup, b: HexGroup) = a.band != null && b.band
 internal fun HexGroups.stanceOf(g: HexGroup, other: HexGroup, h: Hex, day: Long): Stance {
     val set = strategyOf(g)
     if (!set.plain) return set.at(groundOf(g, h))
-    if (bandStancesFor(g, other)) return bandStance(g, other, groundOf(g, h), day)
+    if (bandStancesFor(g, other)) return bandStance(g, other, h, day)
     if (avoids(g, other, h)) return Stance.HIDE_AND_SCOUT
     return plainStance(g, other)
 }
@@ -155,15 +155,18 @@ internal fun HexGroups.stanceOf(g: HexGroup, other: HexGroup, h: Hex, day: Long)
 internal fun HexGroups.avoids(g: HexGroup, other: HexGroup, h: Hex): Boolean = g.band == null && muchStronger(other, g, h)
 
 /**
- * Band [g]'s stance toward band [other] on ground [ground] of its own, by how it regards it ([Regard]) and what it knows of
- * its strength ([knownStrength]), as [regardStance] has it. The inputs are laid out as a learned chooser would read them
- * ([StanceInputs]), so that a network can take the place of the rule.
+ * Band [g]'s stance toward band [other] at hex [h], on that part of its own ground ([groundOf]), by how it regards it
+ * ([Regard]) and what it knows of its strength ([knownStrength]), as [regardStance] has it. Both as they would stand
+ * there, as the meeting is then fought ([strengthAt], [knownAt]): its own as many of it as are there, the other's as many
+ * of the band it knows as would be. The inputs are laid out as a learned chooser would read them ([StanceInputs]), so
+ * that a network can take the place of the rule.
  */
-internal fun HexGroups.bandStance(g: HexGroup, other: HexGroup, ground: Ground, day: Long): Stance {
+internal fun HexGroups.bandStance(g: HexGroup, other: HexGroup, h: Hex, day: Long): Stance {
     val b = g.band ?: return Stance.GIVE_WAY_TO_STRONGER; val ob = other.band ?: return Stance.GIVE_WAY_TO_STRONGER
     val r = Regard(b, other.id, ob, map = hex)
-    val own = strength(g).coerceAtLeast(1e-3f)
-    val known = knownStrength(g, other, day)
+    val ground = groundOf(g, h)
+    val own = strengthAt(g, h).coerceAtLeast(1e-3f)
+    val known = knownStrength(g, other, day)?.let { knownAt(other, it, h) }
     val x = FloatArray(StanceInputs.size)
     x[StanceInputs.TIE] = r.tie; x[StanceInputs.FRIEND] = if (r.friend) 1f else 0f; x[StanceInputs.FEUD] = if (r.feud) 1f else 0f
     x[StanceInputs.WARINESS] = r.wariness / Regard.MOST_WARY; x[StanceInputs.STRANGER] = if (r.stranger) 1f else 0f
@@ -221,7 +224,17 @@ internal fun GroupWorld.knownStrength(g: HexGroup, other: HexGroup, today: Long)
     return b.seenStrength[other.id]
 }
 
-/** Band [g] saw [other] on [day]: it remembers its strength ([Band.seenStrength]); nothing for a group that is not a band, or of one. */
+/**
+ * What a band that knows [other]'s whole strength as [known] ([knownStrength]) expects of it at hex [h]: as many of it as
+ * would be there ([presentAt]: all its able at its camp, a party out), the stronger in its lair ([lairAdvantage]).
+ */
+internal fun HexGroups.knownAt(other: HexGroup, known: Float, h: Hex): Float =
+    known * presentAt(other, h) / other.adults.coerceAtLeast(1) * lairAdvantage(other, h)
+
+/**
+ * Band [g] saw [other] on [day]: it remembers its strength ([Band.seenStrength]), the whole band's (how many they are, as
+ * neighbours know of each other; [knownAt] takes it to where they meet); nothing for a group that is not a band, or of one.
+ */
 internal fun HexGroups.noteSeen(g: HexGroup, other: HexGroup, day: Long) {
     val b = g.band ?: return
     if (other.band == null) return
@@ -266,26 +279,28 @@ internal const val SEEN_DAYS = 90L
 internal const val WARY_STANCE = 0.5f
 
 /**
- * How well [g] holds hex [h] against [other] coming on it, if it stands to hold it ([Stance.DEFEND]): as it stands on high
- * ground over where the other comes from ([ENGAGE_HIGH], up to [ENGAGE_HIGH_M] above), in cover ([ENGAGE_COVER]), and in
- * its lair ([HOME_ADVANTAGE]). 1 for no advantage.
+ * How well [g] holds hex [h] against [other] coming on it, if it stands to hold it ([Stance.DEFEND]): by the lie of it, as
+ * it stands on high ground over where the other comes from ([ENGAGE_HIGH], up to [ENGAGE_HIGH_M] above) and in cover
+ * ([ENGAGE_COVER]). 1 for no advantage. Its lair's advantage is not here: a group has it in its lair whatever its stance
+ * ([lairAdvantage], [strengthAt]).
  */
 internal fun GroupWorld.holding(g: HexGroup, other: HexGroup, h: Hex): Float {
     val p = hw.placeNear(g.place, h).takeIf { !it.none } ?: g.place
     val above = (hw.placeElevationM[p.i] - hw.placeElevationM[other.place.i]) / ENGAGE_HIGH_M
-    return (1f + ENGAGE_HIGH * above.coerceIn(0f, 1f)) * (1f + ENGAGE_COVER * land.plants.cover(p)) * (if (groundOf(g, h) == Ground.LAIR) HOME_ADVANTAGE else 1f)
+    return (1f + ENGAGE_HIGH * above.coerceIn(0f, 1f)) * (1f + ENGAGE_COVER * land.plants.cover(p))
 }
 
 /**
  * Where a contact over [contested] is fought: of those hexes, the one a side that would hold any draws it to, the one it
- * holds best ([holding]; of equals, the first); [thickest] where neither or both would hold some.
+ * stands best on (by the lie of it, [holding], and its lair, [lairAdvantage]; of equals, the first); [thickest] where
+ * neither or both would hold some.
  */
 internal fun HexGroups.battleground(a: HexGroup, b: HexGroup, contested: HexArray, thickest: Hex, day: Long): Hex {
     fun best(g: HexGroup, o: HexGroup): Hex {
         var at = Hex.NONE; var most = 0f
         for (i in 0 until contested.size) { val h = contested[i]
             if (stanceOf(g, o, h, day) != Stance.DEFEND) continue
-            val v = holding(g, o, h); if (v > most) { most = v; at = h } }
+            val v = holding(g, o, h) * lairAdvantage(g, h); if (v > most) { most = v; at = h } }
         return at
     }
     val ha = best(a, b); val hb = best(b, a)
@@ -404,10 +419,10 @@ internal fun HexGroups.engage(met: Encounter, contested: HexArray, r: Random, we
     val aSees = aware || raid || aSaw; val bSees = aware || bSaw
     // (What each saw of the other it remembers: a scout's watching is for this.)
     if (aSees) noteSeen(a, b, day); if (bSees) noteSeen(b, a, day)
-    // (Each as strong as it stands there: holding its ground, and falling on the other unseen.)
-    // (Those present there, by their weight and weapons ([presentStrength]); a raid's own party for the raiders ([raidParty]).
-    // The lair's advantage is in holding it ([holding]), not counted twice.)
-    val sa0 = if (raid) raidParty(a) * a.species.massKg * ferocity(a) else presentStrength(a, h); val sb0 = presentStrength(b, h)
+    // (Each as strong as it stands there: those present, by their weight and weapons, in its lair the stronger ([strengthAt],
+    // as every meeting weighs them; a raid's own party for the raiders, [raidParty]); holding its ground; falling on the other unseen.)
+    val gathered = intent == Intent.GATHERING
+    val sa0 = if (raid) raidParty(a) * a.species.massKg * ferocity(a) else strengthAt(a, h, gathered); val sb0 = strengthAt(b, h, gathered)
     val holdA = if (stA == Stance.DEFEND) holding(a, b, h) else 1f; val holdB = if (stB == Stance.DEFEND) holding(b, a, h) else 1f
     // (What each does and how it ends, by the numbers alone, [settleEngagement].)
     val e = settleEngagement(stA, stB, aSees, bSees, sa0 * holdA, sb0 * holdB, a.will[AnimalWay.FIGHT], b.will[AnimalWay.FIGHT], raid,
@@ -423,12 +438,13 @@ internal fun HexGroups.engage(met: Encounter, contested: HexArray, r: Random, we
     }
     stats.meeting(Met.ENGAGEMENTS_FOUGHT)
     val sa = e.sa; val sb = e.sb
-    // (Two bands fight by the people's own rules ([fight]: their works, the lie of the land about the camp, the bands about
-    // that stand with the defenders); the engagement has settled who falls on whom, and whether unawares.)
+    // (Two bands fight by the people's own rules ([fight]), where they met and with those there: at the defenders' camp
+    // behind their works and with the bands about that stand with them, elsewhere as parties on open ground. The engagement
+    // has settled who falls on whom, whether unawares, and that nobody got away.)
     val ba = a.band; val bb = b.band
     if (ba != null && bb != null && weather != null) {
-        if (e.aStrikes) fight(a, ba, b, bb, planned = raid, weather, edge = if (surpriseA) ENGAGE_SURPRISE else 1f)
-        else fight(b, bb, a, ba, planned = false, weather, edge = if (surpriseB) ENGAGE_SURPRISE else 1f)
+        if (e.aStrikes) fight(a, ba, b, bb, planned = raid, weather, h, gathered, edge = if (surpriseA) ENGAGE_SURPRISE else 1f)
+        else fight(b, bb, a, ba, planned = false, weather, h, gathered, edge = if (surpriseB) ENGAGE_SURPRISE else 1f)
         return true
     }
     if (a.species == b.species) rivalsFight(enc, sa, sb) else enemiesClash(enc, sa, sb)

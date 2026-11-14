@@ -192,8 +192,11 @@ internal const val HIGH_GROUND = 0.5f
 internal fun raidStrain(g: HexGroup): Float =
     max(1f - g.fed, 1f - g.fat / g.species.maxFatDays.coerceAtLeast(1f)).coerceIn(0f, 1f)
 
-/** [g] raids [o] (as it regards it: [r]) if it is hungry and [o] has food, or holds a feud against its people. Returns whether it did. */
-internal fun HexGroups.raid(g: HexGroup, b: Band, o: HexGroup, ob: Band, r: Regard, weather: Weather): Boolean {
+/**
+ * [g] raids [o] (as it regards it: [r]) where they met, at hex [at] (at a gathering if [gathered]), if it is hungry and [o]
+ * has food, or holds a feud against its people. Returns whether it did.
+ */
+internal fun HexGroups.raid(g: HexGroup, b: Band, o: HexGroup, ob: Band, r: Regard, weather: Weather, at: Hex = hw.placeHex[o.place], gathered: Boolean = false): Boolean {
     // What drives a raid: an old feud, or competition (hunger with food in the other's larder, or too
     // many people on the same country); kin and those who understand each other fight less.
     val feud = r.feud
@@ -211,38 +214,43 @@ internal fun HexGroups.raid(g: HexGroup, b: Band, o: HexGroup, ob: Band, r: Rega
     val once = r.fightChance(RAID * b.raidWill * pressure * (if (ob.livesFixed() || b.livesFixed()) 1f else MOBILE_RAID))
     val chance = meetChance(once)
     if (!drawn(DialSite.RAIDS_MEETING, b.raidWill, rnd.nextFloat(), chance) { meetChance(once / b.raidWill.coerceAtLeast(1e-6f)) }) return false
-    fight(g, b, o, ob, planned = false, weather)
+    fight(g, b, o, ob, planned = false, weather, at, gathered)
     return true
 }
 
 /**
- * [g] falls on [o]. A planned raid on a band at home may take it by surprise, the less so the more
- * it sees (scouts, open ground, moonlight); the defenders gain from high, broken ground, their
- * houses and a palisade. A band with no home to hold may slip away, losing what it cannot carry; one beaten at its home
- * may be driven from it ([driveOff]).
+ * [g] falls on [o] where they met, at hex [at] (by default [o]'s camp; at a gathering if [gathered]), each side with those
+ * of it there ([presentAt]; a planned raid's party, [raidParty]). A planned raid may take the band by surprise, the less so
+ * the more it sees (scouts, open ground, moonlight); the defenders gain from high, broken ground, and at their camp from
+ * their houses and a palisade and from the bands at home there that stand with them ([raidSides]). Only at its camp is
+ * there a larder to carry off, and a home to be driven from ([driveOff]). A band with no home to hold may slip away,
+ * losing what it cannot carry; where an engagement settled the meeting ([edge] given: who saw whom, who got away, [engage])
+ * it has had its chance.
  */
-internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planned: Boolean, weather: Weather, edge: Float? = null) {
+internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planned: Boolean, weather: Weather,
+                             at: Hex = hw.placeHex[o.place], gathered: Boolean = false, edge: Float? = null) {
     stats.meeting(if (planned) Met.RAIDS_ON_HOMES else Met.RAIDS)
     note(g) { "raided band #%d%s".format(o.id, if (planned) " at its home" else "") }; note(o) { "was raided by band #%d".format(g.id) }
     ob.sinceRaided = 0
     // (Both see what the other is, [noteSeen].)
     noteSeen(g, o, weather.date.absoluteDay); noteSeen(o, g, weather.date.absoluteDay)
-    // The mobile slip away (and lose some of their stores).
-    if (!ob.atHome && rnd.nextFloat() < FLEE) {
-        val t = SLIP_LOSS * RAID_TAKE * o.larder; moveFood(o, g, t, LarderMove.RAIDED)
+    val atCamp = at == hw.placeHex[o.place]
+    // The mobile slip away (and lose some of their stores, if it is at their camp).
+    if (edge == null && !ob.atHome && rnd.nextFloat() < FLEE) {
+        if (atCamp) { val t = SLIP_LOSS * RAID_TAKE * o.larder; moveFood(o, g, t, LarderMove.RAIDED) }
         stats.meeting(Met.RAIDED_BANDS_SLIPPED_AWAY)
         ob.grudge[b.mainLineage()] += 0.5f * GRUDGE; ob.befriend(g.id, -0.5f * TIE_RAID)
         return
     }
-    val sides = raidSides(g, o, ob, planned, ob.atHome, weather, edge)
+    val sides = raidSides(g, o, ob, planned, ob.atHome, weather, edge, at, gathered)
     val sg = sides.raiders; val so = sides.defenders
-    raidWorth(o, ob, sg, so, sides.own)
+    if (atCamp) raidWorth(o, ob, sg, so, sides.own)
     // Each side loses some of its people, the more so against the stronger side; neighbours who stood with the raided
     // lose theirs as the raided do, of as many as came. (Each group in the fight, its fighters, and the share of them it may lose.)
-    // (Who fights: a planned raid's party, its able adults that went ([raidParty]), against the able
-    // adults of the band at home; children and those who stayed behind do not fight.)
-    val raiders = if (planned) raidParty(g).roundToInt().coerceIn(1, g.adults) else g.adults
-    val defenders = (o.adults * (ob.ableShare)).roundToInt().coerceIn(1, o.adults)
+    // (Who fights: those of each side there ([presentAt]): a planned raid's party, its able adults that went ([raidParty]),
+    // against the able adults of the band at its camp, or a party of them met out; children and those who stayed behind do not fight.)
+    val raiders = (if (planned) raidParty(g) else presentAt(g, at, gathered)).roundToInt().coerceIn(1, g.adults)
+    val defenders = presentAt(o, at, gathered).roundToInt().coerceIn(1, o.adults)
     val fought = arrayListOf(Triple(g, raiders, RAID_DEATHS * so / (sg + so)), Triple(o, defenders, RAID_DEATHS * sg / (sg + so)))
     for (n in sides.helpers) {
         fought += Triple(n.group, (n.share * n.group.adults).roundToInt(), RAID_DEATHS * sg / (sg + so))
@@ -265,14 +273,14 @@ internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planne
             stats.tally(Tally.bandsLivingDied(bandLiving(it), DeathCause.RAIDS), lost)
             stats.tally(Tally.bandsMindDied(it.mind, DeathCause.RAIDS), lost)
         }
-        // (Raiders who hold their home hex fell where they fought, at the raided band's.)
-        small.deposit(DeadPool.CARRION, if (k == 0 && staysHome(g)) o.place else who.place, Kg(lost * who.species.massKg))
+        // (The dead fell where they fought.)
+        small.deposit(DeadPool.CARRION, sides.place, Kg(lost * who.species.massKg))
     }
-    // The stronger side carries off food; the raided remember.
-    if (sg > so) { val t = RAID_TAKE * o.larder; moveFood(o, g, t, LarderMove.RAIDED); stats.meeting(Met.LARDERS_RAIDED) }
+    // The stronger side carries off food, if it fell on the camp where the larder is; the raided remember.
+    if (atCamp && sg > so) { val t = RAID_TAKE * o.larder; moveFood(o, g, t, LarderMove.RAIDED); stats.meeting(Met.LARDERS_RAIDED) }
     // A band beaten at its home may be driven from it, the likelier the more the raiders overpower it (none when they are
     // only as strong; Wrangham and Glowacki 2012: victors drove the defeated off their land in most non-state wars).
-    if (ob.atHome && sg > so && rnd.nextFloat() < 1f - so / sg) driveOff(o, ob, b, hw.placeHex[g.place])
+    if (atCamp && ob.atHome && sg > so && rnd.nextFloat() < 1f - so / sg) driveOff(o, ob, b, hw.placeHex[g.place])
     ob.grudge[b.mainLineage()] += GRUDGE
     ob.befriend(g.id, -TIE_RAID); b.befriend(o.id, -RAIDER_RESENT * TIE_RAID)
     if (lostG > 0) b.grudge[ob.mainLineage()] += RAIDER_RESENT * GRUDGE
@@ -314,8 +322,8 @@ private fun raidWorth(o: HexGroup, ob: Band, sg: Float, so: Float, own: Float) {
 /** A band [group] (band [band]) at home where a neighbour is raided, standing with it with [share] of its people ([raidSides]). */
 internal class Helper(val group: HexGroup, val band: Band, val share: Float)
 
-/** The sides of a raid: the [raiders]' strength, the raided band's [own] and its [helpers], with theirs. */
-internal class RaidSides(val raiders: Float, val own: Float, val helpers: List<Helper>, private val helped: Float) {
+/** The sides of a raid fought at [place]: the [raiders]' strength, the raided band's [own] and its [helpers], with theirs. */
+internal class RaidSides(val raiders: Float, val own: Float, val helpers: List<Helper>, private val helped: Float, val place: inflation.world.Place) {
     /** All who hold off the raiders. */
     val defenders get() = own + helped
 }
@@ -325,14 +333,18 @@ internal fun HexGroups.raidStrengths(g: HexGroup, o: HexGroup, ob: Band, planned
     raidSides(g, o, ob, planned, atHome, weather).let { it.raiders to it.defenders }
 
 /**
- * The sides when [g] falls on [o] (band [ob]) where it is: a planned raid may take it by surprise, the less so the more it
- * sees (scouts, open ground, moonlight); defenders [atHome] gain from high, broken ground, their houses and a palisade, and
- * the other bands at home in the same hex stand with them, each with as many of its people as it is closer to the raided
- * than to the raiders (by its [Regard] of each: a band that holds neither close, or the raiders as close, stays out), behind
- * its own houses and palisade. The one rule for a raid ([fight]) and for a raiding band weighing its target ([plotRaid]).
+ * The sides when [g] falls on [o] (band [ob]) at hex [at] (by default its camp; at a gathering if [gathered]), each with
+ * those of it there ([presentAt]; a planned raid's party, [raidParty]): a planned raid may take it by surprise, the less so
+ * the more it sees (scouts, open ground, moonlight); the defenders gain from high, broken ground; at their camp, [atHome],
+ * from their houses and a palisade, and the other bands at home in the same hex stand with them, each with as many of its
+ * people as it is closer to the raided than to the raiders (by its [Regard] of each: a band that holds neither close, or
+ * the raiders as close, stays out), behind its own houses and palisade. The one rule for a raid ([fight]) and for a
+ * raiding band weighing its target ([plotRaid]).
  */
-internal fun HexGroups.raidSides(g: HexGroup, o: HexGroup, ob: Band, planned: Boolean, atHome: Boolean, weather: Weather, edge: Float? = null): RaidSides {
-    val p = o.place
+internal fun HexGroups.raidSides(g: HexGroup, o: HexGroup, ob: Band, planned: Boolean, atHome: Boolean, weather: Weather, edge: Float? = null,
+                                 at: Hex = hw.placeHex[o.place], gathered: Boolean = false): RaidSides {
+    val atCamp = at == hw.placeHex[o.place]
+    val p = if (atCamp) o.place else hw.placeNear(o.place, at).takeIf { !it.none } ?: o.place
     // Surprise: a planned raid at night, in cover, on a band that keeps no lookout.
     val look = sight(p, weather) * (0.5f + 0.5f * moon)
     val seenRaw = look * (1f + 5f * ob.scoutShare)
@@ -343,22 +355,22 @@ internal fun HexGroups.raidSides(g: HexGroup, o: HexGroup, ob: Band, planned: Bo
     val surprise = edge ?: if (planned) 1f + SURPRISE_RAID * (1f - seen) else 1f
     // The defenders' ground and works.
     val ground = 1f + HIGH_GROUND * land.bestDefence[p]
-    val works = if (atHome) 1f + HOUSE_DEFENCE * ob.house + PALISADE_DEFENCE * ob.palisade else 1f
+    val works = if (atHome && atCamp) 1f + HOUSE_DEFENCE * ob.house + PALISADE_DEFENCE * ob.palisade else 1f
     val helpers = ArrayList<Helper>(); var helped = 0f
     val gb = g.band
-    if (atHome && gb != null) {
-        val h = hw.placeHex[p]
+    if (atHome && atCamp && gb != null) {
+        val h = at
         for (n in groups) {
             val nb = n.band ?: continue
             if (n === o || n === g || !n.alive || !nb.atHome || hw.placeHex[n.place] != h) continue
             val share = Regard(nb, o.id, ob, map = hex).close - Regard(nb, g.id, gb, map = hex).close
             if (share <= 0f) continue
             helpers += Helper(n, nb, share)
-            helped += share * strength(n) * ground * (1f + HOUSE_DEFENCE * nb.house + PALISADE_DEFENCE * nb.palisade)
+            helped += share * presentStrength(n, h) * ground * (1f + HOUSE_DEFENCE * nb.house + PALISADE_DEFENCE * nb.palisade)
         }
     }
-    // (Each side as many as fight: a planned raid's party ([raidParty]), the able at home ([Band.ableShare]).)
-    val raidersHere = if (planned) raidParty(g) / g.adults.coerceAtLeast(1) else gb?.ableShare ?: 1f
-    val defendersHere = ob.ableShare
-    return RaidSides(strength(g) * raidersHere * surprise, strength(o) * defendersHere * ground * works, helpers, helped)
+    // (Each side as many as are there and fight ([presentAt]): a planned raid's party ([raidParty]); the able at their camp
+    // or at a gathering, a party met out.)
+    val raiders = (if (planned) raidParty(g) else presentAt(g, at, gathered)) * g.species.massKg * ferocity(g)
+    return RaidSides(raiders * surprise, presentStrength(o, at, gathered) * ground * works, helpers, helped, p)
 }

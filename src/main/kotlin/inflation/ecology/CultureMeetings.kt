@@ -45,7 +45,8 @@ internal fun HexGroups.meetingFresh(a: HexGroup, b: HexGroup, weather: Weather):
  * Returns true if it came to a raid.
  */
 @Part("meetings: talk or raid")
-internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weather, rite: RiteGathering? = null, fresh: Float = 1f, strangers: Float = 0f): Boolean {
+internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weather, rite: RiteGathering? = null, fresh: Float = 1f, strangers: Float = 0f,
+                                          at: inflation.world.Hex = hw.placeHex[b.place]): Boolean {
     val bandA = a.band ?: return false; val bandB = b.band ?: return false
     bandA.ensureMarks(fauna.totemKinds); bandB.ensureMarks(fauna.totemKinds)
     val u = Language.understanding(bandA.words, bandB.words)
@@ -53,7 +54,7 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
     if (rite != null && rite.site in bandA.rite && rite.site in bandB.rite) { ab.holy = true; ba.holy = true }
     val metAs = MetAs(ab, ba)
     tallyMeeting(metAs, Tally.MeetingEnd.MET)
-    val raider = if (raid(a, bandA, b, bandB, ab, weather)) bandA else if (raid(b, bandB, a, bandA, ba, weather)) bandB else null
+    val raider = if (raid(a, bandA, b, bandB, ab, weather, at, rite != null)) bandA else if (raid(b, bandB, a, bandA, ba, weather, at, rite != null)) bandB else null
     if (raider != null) {
         tallyMeeting(metAs, Tally.MeetingEnd.RAIDED)
         if (ab.holy && rite != null) { if (raider === bandA) sacrilege(bandA, a.id, b.id, rite) else sacrilege(bandB, b.id, a.id, rite) }
