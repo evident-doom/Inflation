@@ -140,15 +140,14 @@ internal fun HexGroups.meet(weather: Weather) {
 /**
  * Bands that hold their home hex ([staysHome]) keep their appointments ([Band.appointment]) without moving camp: in the step
  * that holds the start of an appointment's month, the bands that share its place each send people there, and every two of
- * them meet ([bandsMeet]), the first [GATHERING_MOST] to come; each one's going there and back wears the way
- * ([wearBetween]) and costs its [VISITORS] the days of the walk. Only bands whose home is within [CONTACT_KM] of the place come. A band that took up another's appointment (when bands meet) comes to its gatherings: so gatherings
+ * them meet ([bandsMeet]), the first [GATHERING_MOST] to come; each one's [VISITORS] go there and back by the ground,
+ * wearing the way and giving the days of the walk ([trip]). Only bands whose home is within [CONTACT_KM] of the place come. A band that took up another's appointment (when bands meet) comes to its gatherings: so gatherings
  * grow where bands' dead lie and where they have met. (A band alone at its place meets no one there.)
  */
 @Part("meetings: appointments kept")
 internal fun HexGroups.keepAppointments(weather: Weather) {
     // (By place and month, in the order the gatherings were first come to: a long step may hold two months' starts.)
     val at = LinkedHashMap<Pair<Hex, Int>, ArrayList<HexGroup>>()
-    val walkKm = HashMap<Int, Float>()
     for (g in groups) {
         if (!g.alive || !staysHome(g)) continue
         val b = g.band ?: continue
@@ -157,20 +156,15 @@ internal fun HexGroups.keepAppointments(weather: Weather) {
         // (A place beyond [CONTACT_KM] of its home is beyond its people's reach: it lets the appointment go, and may make a
         // nearer one. Before 13 Nov 2026 bands kept appointments however far their home lay, so bands 200 km and more apart
         // met yearly: appointments are copied at splits and taken up at meetings.)
-        val km = tripKm(g, hw.placeHex[g.place], ap.hex, weather, CONTACT_KM)
-        if (km == null) { b.appointment = null; stats.meeting(Met.APPOINTMENTS_OUT_OF_REACH); continue }
-        walkKm[g.id] = km
+        if (wayKm(g, hw.placeHex[g.place], ap.hex, weather, CONTACT_KM) == null) { b.appointment = null; stats.meeting(Met.APPOINTMENTS_OUT_OF_REACH); continue }
         at.getOrPut(ap.hex to ap.month) { ArrayList() } += g
     }
     for ((key, there) in at) {
         if (there.size < 2) continue
         val site = key.first
         val came = there.take(GATHERING_MOST)
-        for (g in came) {
-            wearBetween(hw.placeHex[g.place], site, g)
-            // (Its [VISITORS] walk there and back, taken from its next step's days as raiders' walks are: [Band.raidWalkOwed].)
-            g.band?.let { b -> b.raidWalkOwed += visitDays(VISITORS, (walkKm[g.id] ?: 0f).toDouble()) }
-        }
+        // (Its [VISITORS] walk there and back by the ground, wearing the way, from its next step's days as raiders' walks are: [trip].)
+        for (g in came) trip(g, site, weather, VISITORS, WalkPaid.NEXT_STEP, most = CONTACT_KM)
         stats.meeting(Met.APPOINTMENTS_GATHERED); stats.meeting(Met.BANDS_AT_APPOINTMENTS, came.size)
         for (i in came.indices) for (j in i + 1 until came.size) if (came[i].alive && came[j].alive) {
             settleAt(came[i], came[j], site, weather, intent = Intent.GATHERING) }
@@ -207,7 +201,7 @@ internal fun HexGroups.neighboursMeet(weather: Weather) {
     // met ([meetingFresh], [meetTick]), and the freshness of meetings adds up, so the step's tellings and feasts come to what
     // its meetings one by one would have. The pairs are met in the order of those ticks. So a step costs a meeting a pair,
     // not a meeting a meeting: a 60-day step's ten meetings between neighbours are one.)
-    class Due(val tick: Int, val times: Int, val a: HexGroup, val b: HexGroup, val way: List<Hex>, val km: Float, val bVisits: Boolean)
+    class Due(val tick: Int, val times: Int, val a: HexGroup, val b: HexGroup, val way: Way, val km: Float, val bVisits: Boolean)
     val due = ArrayList<Due>()
     // (Each band's going to the hexes about it, and those of them where bands live in index order, on all cores: they read
     // only the step's crossings. The draws then go band by band in the groups' order, as they always did.)
@@ -240,23 +234,21 @@ internal fun HexGroups.neighboursMeet(weather: Weather) {
                     var k = 0; repeat(drawn) { if (r.nextFloat() < share) k++ }; k }
                 if (times == 0) continue
                 var last = 0; repeat(times) { last = max(last, r.nextInt(ticks)) }
-                due += Due(last, times, a, b, wayTo(reach, h0, h), km, bVisits)
+                due += Due(last, times, a, b, Way(km, wayTo(reach, h0, h)), km, bVisits)
             }
         }
     }
     due.sortBy { it.tick }
-    val w = PATH_WEAR * min(1f, VISITORS * Catalogue.HUMAN.massKg / PATH_MASS_KG)
     for (m in due) {
         if (!m.a.alive || !m.b.alive) continue
         meetTick = m.tick; meetTimes = m.times
         stats.meeting(Met.NEIGHBOURS_MET, m.times)
-        // (Each going there and back wears the way: the meetings' wear compounded, as one after another would.)
-        wear.along(m.way, 1f - (1f - w).pow(m.times))
-        // (Within their own grounds bands come on each other as their foragers go about: that walk is the foraging's. Beyond,
-        // the visitors walk there and back for it, from the band's time for its customs ([Band.visitOwed]). carry758: charged
-        // as a trip each, all 2-4 a week, from any work, the walks took bands' days from food and starved them.)
+        // (Each going there and back wears the way the visitors went, the meetings' wear compounded ([tripAlong]). Within their
+        // own grounds bands come on each other as their foragers go about: that walk is the foraging's. Beyond, the visitors
+        // walk there and back for it, from the band's time for its customs ([WalkPaid.SPARE_TIME]). carry758: charged as a trip
+        // each, all 2-4 a week, from any work, the walks took bands' days from food and starved them.)
         val (visitor, host) = if (m.bVisits) m.b to m.a else m.a to m.b
-        if (m.km > OWN_GROUND_HEXES * easy) visitor.band?.let { it.visitOwed += visitDays(VISITORS * m.times, m.km.toDouble()) }
+        tripAlong(visitor, m.way, VISITORS, if (m.km > OWN_GROUND_HEXES * easy) WalkPaid.SPARE_TIME else WalkPaid.BY_CALLER, m.times)
         settleAt(visitor, host, hw.placeHex[host.place], weather)
     }
     meetTick = 0; meetTimes = 1
@@ -286,33 +278,6 @@ internal fun HexGroups.effortsFrom(from: Hex, travel: Int, band: Int, weather: W
     return out
 }
 
-/**
- * The km of easy going of band [g]'s least-effort way from hex [from] to hex [to] this step ([effortsFrom]'s going: slope,
- * cliffs, rivers and fords, snow, worn paths), searched no further than [most] km of easy going; null if no way there. What
- * every trip between bands is costed by (Olli, 13 Nov 2026: trips go by the ground, not as the crow flies). Unless given, the
- * search goes as far as three times the straight distance and two hexes more.
- */
-internal fun HexGroups.tripKm(g: HexGroup, from: Hex, to: Hex, weather: Weather,
-                              most: Float = (3.0 * hex.distanceKm(from, to) + 2.0 * hex.hexKm).toFloat()): Float? {
-    if (from == to) return 0f
-    val effort = planner.stepEffort(Catalogue.travel(g.species).ordinal, hw.placeBand[g.place], weather)
-    val best = HashMap<Hex, Float>(); best[from] = 0f
-    val q = java.util.PriorityQueue<Pair<Float, Hex>>(compareBy<Pair<Float, Hex>> { it.first }.thenBy { it.second.i }); q += 0f to from
-    while (q.isNotEmpty()) {
-        val (d, h) = q.poll()
-        if (h == to) return d
-        if (d > best.getValue(h)) continue
-        for (k in 0 until 6) {
-            val nh = hex.neighbour(h, k); if (nh.none) continue
-            val nd = d + effort[hex.edge(h, k)]
-            if (!nd.isFinite() || nd > most) continue
-            val was = best[nh]
-            if (was == null || nd < was) { best[nh] = nd; q += nd to nh }
-        }
-    }
-    return null
-}
-
 /** The hexes of the least-effort way from [from] to [to] in [reach] ([effortsFrom]), from first to last. */
 internal fun wayTo(reach: Map<Hex, Pair<Float, Hex>>, from: Hex, to: Hex): List<Hex> {
     val way = ArrayList<Hex>(); var h = to
@@ -333,8 +298,6 @@ internal const val VISITORS = 4f
 /** How far apart, in hexes of easy going, two bands' grounds (each its home hex and the ring about it) overlap: their foragers meet there on their rounds. */
 internal const val OWN_GROUND_HEXES = 2f
 
-/** The days [people] give to walk [km] there and back ([Band.raidWalkOwed]: taken from the band's next step). */
-internal fun visitDays(people: Float, km: Double) = people * (2.0 * km / (WALK_KM_PER_HOUR * Activity.WORK_HOURS)).toFloat()
 
 /**
  * Two parties come on each other at hex [h] (place [p]), however they came to: by their timetables, by their grounds

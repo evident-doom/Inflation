@@ -142,8 +142,8 @@ internal fun HexGroups.feastOnKills(weather: Weather) {
                 val apart = r > 0
                 val meal = minOf(left, FEAST_KG * guest.size * keen, if (apart) VISITORS * MEAT_LOAD_KG else Float.POSITIVE_INFINITY)
                 if (meal <= 0f) continue
-                val walk = if (apart) tripKm(guest, h, h0, weather) ?: continue else 0f
-                if (apart) guest.band?.let { it.raidWalkOwed += visitDays(VISITORS, walk.toDouble()) }
+                // (By the ground, wearing the way, from their next step's days: [trip]. No way there, no guests from there.)
+                if (apart && trip(guest, h0, weather, VISITORS, WalkPaid.NEXT_STEP) == null) continue
                 host.stores[Store.FRESH] -= meal; addFood(guest.stores, guest.storeKgPer, Store.FRESH, meal, meal * host.storeKgPer[Store.FRESH])
                 hb.larderMoved(host, LarderMove.FEAST, -meal); guest.band?.larderMoved(guest, LarderMove.FEAST, meal)
                 left -= meal

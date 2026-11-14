@@ -156,7 +156,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         o.split?.let { c ->
             val n = splitOff(g, c.adults, c.young) // a young pack has no ground yet
             // (A band that holds its home hex buds: the part that leaves settles where there is room near, [findHome].)
-            if (staysHome(n)) findHome(n, born)
+            if (staysHome(n)) findHome(n, born, weather)
             born += n
             if (s.lifeway == Lifeway.PACK && g.band == null) stats.meeting(Met.Of.PACK_SPLIT_OFF, s.name)
             if (g.band != null) stats.meeting(Met.BANDS_SPLIT)
@@ -170,15 +170,15 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
     }
     groups += born
     // (Once a year, crowded hexes ease into the roomier hexes beside, [spreadYear].)
-    if (date.holdsMonthStart(days, 0)) { groups += spreadYear(date); foodCuts = null }
+    if (date.holdsMonthStart(days, 0)) { groups += spreadYear(date, weather); foodCuts = null }
     // (Month by month, bands tied to no spot move to a hex beside with more food a head, [moveCamps].)
-    if (date.holdsAnyMonthStart(days)) moveCamps()
+    if (date.holdsAnyMonthStart(days)) moveCamps(weather)
     // (Bands driven from their homes in the raids leave the hex: [scatterBeaten].)
-    groups += scatterBeaten(date)
+    groups += scatterBeaten(date, weather)
     tallyVillages()
     wornWeek(days)
     tendParties(date)
-    mergeAndPair(date)
+    mergeAndPair(date, weather)
 }
 
 /**
@@ -740,7 +740,7 @@ private fun GroupWorld.growUp(g: HexGroup, r: Random): Int {
 
 /** Small bands join kin, and lone hunters find mates (see [demography]). */
 @Part("groups: merging and pairing")
-internal fun HexGroups.mergeAndPair(date: Date) {
+internal fun HexGroups.mergeAndPair(date: Date, weather: Weather) {
     // A band grown too small to hunt, gather and defend itself joins the nearest kin band that has room.
     val bandsByHex = HashMap<Hex, ArrayList<HexGroup>>()
     for (g in groups) if (g.alive && g.band != null) bandsByHex.getOrPut(hw.placeHex[g.place]) { ArrayList() } += g
@@ -762,10 +762,10 @@ internal fun HexGroups.mergeAndPair(date: Date) {
             ring = hex.nextRing(ring, seen)
         }
         val o = best ?: continue
-        joinBand(o, g, stepOf(date))
+        if (!joinOver(o, g, weather, stepOf(date))) continue
         stats.meeting(Met.SMALL_BANDS_JOINED_KIN)
     }
-    becomeOne(date)
+    becomeOne(date, weather)
     // A hunter left on its own looks for a mate: lone adults of a kind within a few hexes pair up, and
     // the pair holds the ground of the one that had any.
     val lone = HashMap<Int, ArrayList<HexGroup>>()
@@ -796,7 +796,7 @@ internal fun HexGroups.mergeAndPair(date: Date) {
  * together. Nothing forces it, and it needs room under the size a band holds without discord ([easySize]). The smaller joins the larger.
  * Bands of the two kinds of choosing ([Band.mind]) become one alike: the joined band chooses as the larger did.
  */
-private fun HexGroups.becomeOne(date: Date) {
+private fun HexGroups.becomeOne(date: Date, weather: Weather) {
     val atHome = HashMap<Hex, ArrayList<HexGroup>>()
     for (g in groups) { val b = g.band ?: continue; if (g.alive && b.atHome) atHome.getOrPut(b.houseHex) { ArrayList() } += g }
     for ((_, bands) in atHome) {
@@ -811,7 +811,7 @@ private fun HexGroups.becomeOne(date: Date) {
             val ka = keptDays(a, ab); val kc = keptDays(c, cb)
             if (max(ka, kc) > WEALTH_APART * min(ka, kc) + 1f) { stats.meeting(Met.BANDS_KEPT_APART_BY_WEALTH); continue }
             val (into, from) = if (a.size >= c.size) a to c else c to a
-            joinBand(into, from, stepOf(date))
+            if (!joinOver(into, from, weather, stepOf(date))) continue
             stats.meeting(Met.BANDS_BECAME_ONE)
             if (ab.mind != cb.mind) stats.meeting(Met.BANDS_OF_TWO_MINDS_BECAME_ONE)
         }
