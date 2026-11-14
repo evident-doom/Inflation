@@ -47,7 +47,7 @@ internal class ViewLayers(private val sim: HexSim) {
         POLLINATORS("Pollinators", "kg/km²", 1f, 0.85f, 0.1f), ORGANIC("Soil organic matter", "kg/m²", 0.35f, 0.2f, 0.05f),
         CARRION("Carrion", "kg/km²", 0.4f, 0.1f, 0.4f),
         RESIDENTS("Residents (all)", "head/km²", 1f, 0.1f, 0.6f),
-        DEATHS("Where animals die", "kg/km² a week", 0.6f, 0f, 0f), PEOPLE_DEATHS("Where people die", "deaths per 1000 km² a week", 0.6f, 0f, 0.3f),
+        DEATHS("Where animals die", "kg/km² a week", 0.6f, 0f, 0f), PEOPLE_DEATHS("How often people die", "deaths a year per 1000 people living there, over about the last year", 0.6f, 0f, 0.3f),
         KILLS("Kills by packs and people", "kg/km² a week", 0.85f, 0.05f, 0.05f),
         HUNTERS_PER_PREY("Hunters per prey", "kg hunters per 100 kg big game (blank under 1 kg/km² of game)", 0.9f, 0.2f, 0.1f),
         HUNGRY_BY_PLENTY("Hungry next to plenty", "grazers short /km² x kg/m² they could eat within 2 hexes", 1f, 0.2f, 0.8f),
@@ -122,6 +122,9 @@ internal class ViewLayers(private val sim: HexSim) {
     private val gone = Array(4) { FloatArray(nh) }
     private var fearBefore: FloatArray? = null
     private var weeksSeen = 0
+    /** People's deaths by cause at each hex, and the people-weeks lived there, as running sums over about a year ([RAID_MEMORY_WEEKS]). */
+    private val peopleDied = Array(PlaceRecord.Cause.entries.size) { FloatArray(nh) }
+    private val peopleWeeks = FloatArray(nh)
 
     /** Forgets the record (after a load, which moves the date). */
     fun reset() {
@@ -129,6 +132,7 @@ internal class ViewLayers(private val sim: HexSim) {
         for (a in deaths) for (b in a) b.fill(0f)
         killsKg.fill(0f); hunted.fill(0f); gathered.fill(0f); for (a in gone) a.fill(0f); fearBefore = null; weeksSeen = 0
         bandCulture = HashMap(); cultureIds = emptyMap()
+        for (a in peopleDied) a.fill(0f); peopleWeeks.fill(0f)
         raidsHere.fill(0f); raidsAcross.fill(0f); raidsWithinAll = 0.0; raidsAcrossAll = 0.0; othersWithinAll = 0.0; othersAcrossAll = 0.0
         record.clear()
     }
@@ -221,19 +225,29 @@ internal class ViewLayers(private val sim: HexSim) {
 
         // Deaths: this week's, by cause, as a running mean over about a month (a single week is mostly noise).
         val keep = if (weeksSeen == 0) 0f else KEEP
+        val stepWeeks = (sim.stepDays / sim.cfg.daysPerStep.toFloat()).coerceAtLeast(1f)
+        val keepYear = kotlin.math.exp(-stepWeeks / RAID_MEMORY_WEEKS)
         for ((scope, src) in listOf(record.animalKg, record.people).withIndex()) {
             for (c in PlaceRecord.Cause.entries.indices) {
                 val week = hexSum { src[c][it] }
                 val d = deaths[scope][c]
                 for (h in 0 until nh) d[h] = if (area[h] > 0) keep * d[h] +
                     (1f - keep) * (week[h] / area[h].toFloat() * (if (scope == 1) 1000f else 1f)) else 0f
+                if (scope == 1) { val y = peopleDied[c]; for (h in 0 until nh) y[h] = keepYear * y[h] + week[h].toFloat() }
             }
         }
+        // (People's deaths as a rate: against the people living in the hex, so the tint is not only where people are.)
+        for (h in 0 until nh) peopleWeeks[h] *= keepYear
+        for (g in groups.groups) if (g.alive && g.band != null) peopleWeeks[hw.placeHex[g.place].i] += g.size * stepWeeks
         for ((scope, m) in listOf(Measure.DEATHS, Measure.PEOPLE_DEATHS).withIndex()) {
             val all = FloatArray(nh) { if (area[it] > 0) 0f else Float.NaN }
             for (c in PlaceRecord.Cause.entries.indices) {
-                now[key(m, c)] = FloatArray(nh) { if (area[it] > 0) deaths[scope][c][it] else Float.NaN }
-                for (h in 0 until nh) all[h] += deaths[scope][c][h]
+                // (People: deaths a year per 1000 living there, blank where under [RATE_PEOPLE] lived on average.)
+                val v = if (scope == 0) FloatArray(nh) { if (area[it] > 0) deaths[0][c][it] else Float.NaN }
+                    else FloatArray(nh) { if (peopleWeeks[it] >= RATE_PEOPLE * RAID_MEMORY_WEEKS) peopleDied[c][it] / peopleWeeks[it] * 1000f * WEEKS_A_YEAR else Float.NaN }
+                now[key(m, c)] = v
+                for (h in 0 until nh) all[h] += if (v[h].isNaN()) 0f else v[h]
+                if (scope == 1) for (h in 0 until nh) if (v[h].isNaN()) all[h] = Float.NaN
             }
             now[key(m, PlaceRecord.Cause.entries.size)] = all
         }
@@ -436,6 +450,10 @@ internal class ViewLayers(private val sim: HexSim) {
         const val KEEP = 0.75f
         /** Weeks over which counted raids and dealings fade (a running sum: about the last year). */
         const val RAID_MEMORY_WEEKS = 60f
+        /** People's death rates are shown where at least so many lived on average over the year. */
+        const val RATE_PEOPLE = 10f
+        /** Six-day weeks in a year. */
+        const val WEEKS_A_YEAR = 60f
         /** Weeks to clear are shown up to ten years. */
         const val MAX_WEEKS = 520f
         /** Hunters per prey is shown only where the hex and its ring hold at least this much big game, kg/km². */
