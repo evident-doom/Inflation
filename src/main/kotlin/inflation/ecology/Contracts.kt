@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.world.Place
 import kotlin.math.max
 import kotlin.math.min
 
@@ -60,6 +61,13 @@ class Herd(kinds: Int) {
      * before it; [sows] sizes it, at half.)
      */
     var herdSows = FloatArray(kinds) { 0.5f }
+    /**
+     * Where it is kept this week ([placeHerd]): its band's camp, or a summer pasture; [Place.NONE] till its first keeping.
+     * Worked out afresh each week from where it was, so not saved: a loaded world's herds start at camp.
+     */
+    @Transient var at = Place.NONE
+    /** Where it grazes by day this week, within a day's going of where it is kept ([bestGrazing]); [Place.NONE] till its first keeping. */
+    @Transient var grazeAt = Place.NONE
     /**
      * Of each kind, the share of its grown and young that are of herded stock: born in a herd, or given by herders, not caught
      * young in the hunt. Only those breed ([keepHerds]): young caught wild are raised as pets and do not found a herd

@@ -99,13 +99,18 @@ internal fun HexGroups.herdOdds(w: ForageWeek) {
     val s = w.g.species; val view = FloatArray(2)
     for (j in 0 until w.ground.size) {
         val p = Place(w.ground.place[j])
-        val camps = bands.bandIndex[hw.placeHex[p]] ?: continue
+        // (The herds kept here: at their bands' camps, or at a summer pasture away from them ([Herd.at], [HexGroups.herdIndex]).)
+        val atCamps = bands.bandIndex[hw.placeHex[p]]; val away = bands.herdIndex[hw.placeHex[p]]
+        if (atCamps == null && away == null) continue
         var looked = false
-        for (c in camps) {
+        for (c in atCamps.orEmpty() + away.orEmpty()) {
             val b = c.band ?: continue
-            if (c.place != p || !c.alive) continue
-            // (Penned at night ([Built.PEN]), a herd is that much harder to get at: [PEN_GUARD].)
-            val guard = stalkGuard(b, 0f, b.fencedNow()) * (1f - PEN_GUARD * penned(c, b, hw.placeHex[p]))
+            val kept = b.herds.at.takeIf { !it.none } ?: c.place
+            if (kept != p || !c.alive) continue
+            // (Penned at night ([Built.PEN]), a herd is that much harder to get at: [PEN_GUARD]. At a pasture away from its camp
+            // its herders keep a fire and their dogs, but there is no pen or palisade there.)
+            val atCamp = kept == c.place
+            val guard = if (atCamp) stalkGuard(b, 0f, b.fencedNow()) * (1f - PEN_GUARD * penned(c, b, hw.placeHex[p])) else stalkGuard(b, 0f, 0f)
             val young = b.herds.youngHerd()
             for (k in b.herds.herd.indices) {
                 val all = b.herds.herd[k] + young[k]; if (all < 1f) continue

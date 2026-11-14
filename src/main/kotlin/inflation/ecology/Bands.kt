@@ -117,6 +117,8 @@ class Bands internal constructor(private val world: GroupWorld) {
 
     /** Bands by the hex they are in ([indexBands]): at the start of the week for [fillBandStates], after the moves for [setWays]. */
     @Transient internal val bandIndex = HashMap<Hex, ArrayList<HexGroup>>()
+    /** The bands whose herds are kept away from their camps this week, by the hex they are kept in ([Herd.at], [indexBands]). */
+    @Transient internal val herdIndex = HashMap<Hex, ArrayList<HexGroup>>()
 
     /** Dogs that left their band hungry this week as a pack of their own ([keepAnimals]): added to the groups once every band has had its week. */
     @Transient internal val strays = ArrayList<HexGroup>()

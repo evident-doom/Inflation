@@ -140,7 +140,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     campAndCache(g, b, p, h, weather, date, time)
     time.release(Activity.CACHING)
     keepAnimals(g, b)
-    keepHerds(g, b, date, time)
+    keepHerds(g, b, date, time, weather)
     val people = g.adults.toFloat()
     gatherMaterials(g, b, p, h, people, area, time, date.month)
     // (And what its own ground does not give, a few of its people fetch from where it does: [taskTrips].)
@@ -662,6 +662,10 @@ internal fun HexGroups.fillBandStates(weather: Weather) {
 internal fun HexGroups.indexBands() {
     bands.bandIndex.clear()
     for (g in groups) if (g.alive && g.band != null) bands.bandIndex.getOrPut(hw.placeHex[g.place]) { ArrayList() } += g
+    // (And the herds kept away from their camps, under the hex they are kept in: [Herd.at], for the beasts that hunt there, [herdOdds].)
+    bands.herdIndex.clear()
+    for (g in groups) { val b = g.band ?: continue; val at = b.herds.at
+        if (g.alive && !at.none && hw.placeHex[at] != hw.placeHex[g.place]) bands.herdIndex.getOrPut(hw.placeHex[at]) { ArrayList() } += g }
 }
 
 @Part("people: set ways")
