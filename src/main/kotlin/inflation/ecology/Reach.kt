@@ -60,6 +60,12 @@ internal fun HexGroups.reachOf(s: Species, band: Int, from: Hex, most: Float, we
     return planner.reachCache.merge(key, mine) { a, b -> if (a.reach >= b.reach) a else b } ?: mine
 }
 
+/**
+ * How far a band looks for kin to join or to take refuge with ([mergeAndPair], [scatterBeaten]): a day or two's walk, km of
+ * easy going (the [VISIT_RINGS] rings it looked within before, by the ground).
+ */
+internal fun GroupWorld.kinReachKm(): Float = (VISIT_RINGS + 0.5f) * hex.hexKm.toFloat()
+
 /** [reachOf]'s reach for group [g] from hex [from]: its kind, the height band of its place. */
 internal fun HexGroups.reachOf(g: HexGroup, from: Hex, most: Float, weather: Weather): Reach =
     reachOf(g.species, hw.placeBand[g.place], from, most, weather)

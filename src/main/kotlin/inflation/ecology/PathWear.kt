@@ -7,6 +7,7 @@ import inflation.world.set
 import inflation.world.HexLand
 import inflation.world.HexMap
 import inflation.world.HexWorld
+import inflation.world.Weather
 import kotlin.math.max
 import kotlin.math.min
 
@@ -90,30 +91,24 @@ class PathWear(private val hex: HexMap) {
  * so the ways to the neighbours it deals with most wear into tracks. Six in all; null (even) for a band with no such ties.
  * [byId]: the living groups by id.
  */
-internal fun HexGroups.wearToward(g: HexGroup, byId: Map<Int, HexGroup>): FloatArray? {
+internal fun HexGroups.wearToward(g: HexGroup, byId: Map<Int, HexGroup>, weather: Weather): FloatArray? {
     val b = g.band ?: return null
     val h = hw.placeHex[g.place]
     val dir = FloatArray(6); var sum = 0f
+    // (The bands within [NEIGHBOUR_RINGS] hexes' going by the ground ([reachOf]), each by the first step of the way there.)
+    val most = (NEIGHBOUR_RINGS + 0.5f) * hex.hexKm.toFloat()
+    val reach = reachOf(g, h, most, weather)
     for ((id, tie) in b.ties) {
         if (tie <= 0f) continue
         val o = byId[id] ?: continue
         val oh = hw.placeHex[o.place]
-        if (oh == h || hex.distanceKm(h, oh) > (NEIGHBOUR_RINGS + 0.5) * hex.hexKm) continue
-        val d = firstStep(h, oh); if (d < 0) continue
+        if (oh == h) continue
+        val way = reach.wayTo(oh, most) ?: continue
+        if (way.hexes.size < 2) continue
+        val d = (0 until 6).firstOrNull { hex.neighbour(h, it) == way.hexes[1] } ?: continue
         dir[d] += tie; sum += tie
     }
     if (sum <= 0f) return null
     return FloatArray(6) { d -> 0.5f + 3f * dir[d] / sum }
 }
 
-/** The border of hex [from] (0..5) whose land neighbour lies nearest [to]: the first step of the way there; -1 for none. */
-internal fun HexGroups.firstStep(from: Hex, to: Hex): Int {
-    var best = -1; var bestKm = hex.distanceKm(from, to)
-    for (d in 0 until 6) {
-        val nb = hex.neighbour(from, d)
-        if (nb.none || hex.heart[nb] < 0) continue
-        val km = hex.distanceKm(nb, to)
-        if (km < bestKm - 1e-6) { bestKm = km; best = d }
-    }
-    return best
-}

@@ -512,7 +512,7 @@ fun HexFauna.disperse(k: FaunaKind, carcass: FloatArray): Float {
  */
 private fun HexFauna.disperseAtOnce(k: FaunaKind, pool: FloatArray, carcass: FloatArray): Float {
     val s = kinds[k]
-    val lengthKm = dispersalKm(s); val reach = (DISPERSAL_REACH * lengthKm / hex.hexKm).toInt().coerceAtLeast(1)
+    val lengthKm = dispersalKm(s)
     val settleRate = 1f / dispersalDays(s); val a = adults[k]; val y = young[k]; val usualK = usual[k]
     // (Room on each hex, heads, as the step found it; the hexes the pool holds enough on to weigh; and those too few to
     // weigh, waiting in the pool, die on the way as they would, the last few hundredths of a head all of them, where
@@ -530,7 +530,7 @@ private fun HexFauna.disperseAtOnce(k: FaunaKind, pool: FloatArray, carcass: Flo
             died[h] = d; pool[h] = max(0f, n - d); carcass[hw.placesOf(h)[0]] += d * s.massKg }
     }
     val sources = sourceList.toHexArray(); val unknown = unknownList.toHexArray()
-    Par.forEach("residents: dispersal ground", unknown.size) { i -> val h = unknown[i]; dispersalGround[groundKey(k, h)] = dispersalAbout(h, reach, lengthKm) }
+    Par.forEach("residents: dispersal ground", unknown.size) { i -> val h = unknown[i]; dispersalGround[groundKey(k, h)] = dispersalAbout(k, h, DISPERSAL_REACH * lengthKm, lengthKm) }
     // Each source: those that would settle, by the room about as it was, and those that die on the way.
     val settles = FloatArray(sources.size); val roomWs = FloatArray(sources.size)
     Par.forEach("residents: dispersal, sources", sources.size) { j ->
@@ -636,32 +636,43 @@ private fun HexFauna.drift(k: FaunaKind, pool: FloatArray) {
 }
 
 /**
- * The ground about a hex its dispersers look over ([disperse]): the land hexes within its reach, ring by ring as they lie
- * outward, each with its nearness weight exp(-km / the kind's dispersal length) and its land area, km².
+ * The ground about a hex its dispersers look over ([disperse]): the land hexes within its reach by the borders its kind can
+ * cross ([dispersalAbout]), the least going first, each with its weight exp(-km of easy going / the kind's dispersal length)
+ * and its land area, km².
  */
 class DispersalGround(val hexes: HexArray, val weight: FloatArray, val area: FloatArray)
 
 /** The key of kind [k]'s ground about hex [h] in [HexFauna.dispersalGround]. */
 private fun HexFauna.groundKey(k: FaunaKind, h: Hex) = k.i.toLong() * hex.size + h.i
 
-/** The ground about hex [h] out to [reach] rings, weighed by nearness over [lengthKm] ([DispersalGround]), as [disperse] looks over it. */
-private fun HexFauna.dispersalAbout(h: Hex, reach: Int, lengthKm: Float): DispersalGround {
-    // (Ring by ring as [HexMap.nextRing] walks them, in the same order, without boxing a hex.)
-    val most = 3 * reach * (reach + 1)
-    val hs = HexList(most); val ws = FloatArray(most); val areas = FloatArray(most); var m = 0
-    val seen = BooleanArray(hex.size); seen[h.i] = true
-    var ring = HexList(1); ring += h; var next = HexList(6)
-    for (r in 1..reach) {
-        next.clear()
-        for (j in 0 until ring.size) { val o = ring[j]; for (d in 0 until 6) { val q = hex.neighbour(o, d); if (!q.none && !seen[q.i]) { seen[q.i] = true; next += q } } }
-        for (j in 0 until next.size) {
-            val q = next[j]
-            val w = kotlin.math.exp(-(hex.distanceKm(h, q) / lengthKm)).toFloat()
-            var area = 0f; for (p in hw.placesOf(q)) area += land.areaKm2[p]
-            if (area <= 0f) continue
-            hs += q; ws[m] = w; areas[m] = area; m++
+/**
+ * The ground about hex [h] that kind [k]'s dispersers can go to ([DispersalGround], as [disperse] looks over it): the hexes
+ * within [mostKm] km of easy going by the borders the kind can cross (its [HexMap.crossings], as its drift goes: [drift]),
+ * each weighed by its going over [lengthKm]. Never across a strait it cannot swim or a cliff it cannot climb in one step,
+ * where the drift could not go either. The least effort first, of equals the lower hex, so the same on every run.
+ */
+private fun HexFauna.dispersalAbout(k: FaunaKind, h: Hex, mostKm: Float, lengthKm: Float): DispersalGround {
+    val cross = hex.crossings[travel[k].ordinal]
+    val dist = HashMap<Hex, Float>(); dist[h] = 0f
+    val q = java.util.PriorityQueue<Pair<Float, Hex>>(compareBy<Pair<Float, Hex>> { it.first }.thenBy { it.second.i }); q += 0f to h
+    val order = ArrayList<Hex>()
+    while (q.isNotEmpty()) {
+        val (d, at) = q.poll()
+        if (d > dist.getValue(at)) continue
+        if (at != h) order += at
+        for (e in 0 until 6) {
+            val nh = hex.neighbour(at, e); if (nh.none) continue
+            val nd = d + cross[hex.edge(at, e)]
+            if (!nd.isFinite() || nd > mostKm) continue
+            val was = dist[nh]
+            if (was == null || nd < was) { dist[nh] = nd; q += nd to nh }
         }
-        val t = ring; ring = next; next = t
+    }
+    val hs = HexList(order.size); val ws = FloatArray(order.size); val areas = FloatArray(order.size); var m = 0
+    for (q2 in order) {
+        var area = 0f; for (p in hw.placesOf(q2)) area += land.areaKm2[p]
+        if (area <= 0f) continue
+        hs += q2; ws[m] = kotlin.math.exp(-(dist.getValue(q2) / lengthKm)); areas[m] = area; m++
     }
     return DispersalGround(hs.toHexArray(), ws.copyOf(m), areas.copyOf(m))
 }

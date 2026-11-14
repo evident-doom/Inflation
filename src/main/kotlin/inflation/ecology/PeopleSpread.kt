@@ -500,17 +500,17 @@ internal fun HexGroups.scatterBeaten(date: Date, weather: Weather): List<HexGrou
         // (The kin band to take refuge with: the nearest of most kinship, not of the raiders' line, with room for them.)
         val raiders = ob.drivenBy
         var host: HexGroup? = null; var hostKin = -1f
-        var ring = listOf(h); val seen = hashSetOf(h)
-        for (r in 0..VISIT_RINGS) {
-            for (q in ring) for (k in groups) {
-                if (k === o || !k.alive || hw.placeHex[k.place] != q || inParty(k)) continue
-                val kb = k.band ?: continue
-                if (kb.mainLineage() == raiders || kb.mind != ob.mind || k.size + SEEP_ADULTS > maxSize(k)) continue
-                val kin = kinship(ob.lineage, kb.lineage) / (1f + r)
-                if (kin > hostKin) { hostKin = kin; host = k }
-            }
-            if (host != null || r == VISIT_RINGS) break
-            ring = hex.nextRing(ring, seen)
+        // (Among the bands it can walk to ([kinReachKm], by the ground), the nearer by the going the likelier.)
+        val most = kinReachKm(); val reach = reachOf(o, h, most, weather)
+        val near = HashMap<Hex, Float>()
+        for (i in 0 until reach.hexes.size) if (reach.dist[i] <= most) near[reach.hexes[i]] = reach.dist[i]
+        for (k in groups) {
+            if (k === o || !k.alive || inParty(k)) continue
+            val km = near[hw.placeHex[k.place]] ?: continue
+            val kb = k.band ?: continue
+            if (kb.mainLineage() == raiders || kb.mind != ob.mind || k.size + SEEP_ADULTS > maxSize(k)) continue
+            val kin = kinship(ob.lineage, kb.lineage) / (1f + km / hex.hexKm.toFloat())
+            if (kin > hostKin) { hostKin = kin; host = k }
         }
         // (The hex to move to: empty, beside, farthest from the raiders' home; of those as far, the one whose ground gives most.)
         var to = Hex.NONE; var toKm = -1.0; var toFood = 0f

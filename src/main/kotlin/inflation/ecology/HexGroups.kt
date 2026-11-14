@@ -388,7 +388,7 @@ class HexGroups(
         Phase("groups: meetings") { val t0 = System.nanoTime(); meet(it); meetNs += System.nanoTime() - t0 },
         // (Bands that hold their home hex wear the ways about it toward the neighbours they deal with, [wearToward].)
         Phase("groups: wearing paths") {
-            val toward = if (tuning.bandsStay) groups.filter { it.alive }.associateBy { it.id }.let { byId -> { g: HexGroup -> wearToward(g, byId) } } else null
+            val toward = if (tuning.bandsStay) groups.filter { it.alive }.associateBy { it.id }.let { byId -> { g: HexGroup -> wearToward(g, byId, it) } } else null
             wear.week(groups, hw, land, days, toward); routes.week() },
         Phase("groups: hunting and foraging") { hunt(it) },
         Phase("people: feasting on kills") { feastOnKills(it) },

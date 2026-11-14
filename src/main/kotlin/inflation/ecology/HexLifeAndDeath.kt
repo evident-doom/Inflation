@@ -152,7 +152,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
             continue
         }
         bookOutcome(g, o, weather)
-        mournDead(g, o, date)
+        mournDead(g, o, date, weather)
         o.split?.let { c ->
             val n = splitOff(g, c.adults, c.young) // a young pack has no ground yet
             // (A band that holds its home hex buds: the part that leaves settles where there is room near, [findHome].)
@@ -455,7 +455,7 @@ private fun HexGroups.bookUnlucky(g: HexGroup, b: Band, way: Tally.Living, died:
  * remembered as dangerous or as its dead's, burials and the ornaments that go with them.
  */
 @Part("groups: mourn the dead")
-private fun HexGroups.mournDead(g: HexGroup, o: Outcome, date: Date) {
+private fun HexGroups.mournDead(g: HexGroup, o: Outcome, date: Date, weather: Weather) {
     val s = g.species
     // A settled band that does not bury its dead, with a death where it means to stay, may take up burial then: it cannot
     // leave its dead, so it puts them in the ground ([SETTLED_BURY], each death).
@@ -502,12 +502,15 @@ private fun HexGroups.mournDead(g: HexGroup, o: Outcome, date: Date) {
         g.memory.mark(hw.placeHex[g.place], PlaceMemory.seasonOf(date.month), stepOf(date), ticksPerYear, g.memory.danger, 1f)
     if (s.human && o.deaths > 0) g.band?.takeIf { it.holds(Tradition.BURIAL) }?.let { b ->
         // Where it lays them by its way ([BurialWay]): where it camps, or carried to where most of its dead lie, if that is
-        // within a day's walk ([BODY_CARRY_KM]); the digging and any carrying are owed of its customs' time.
+        // within a day's walk by the ground ([BODY_CARRY_KM], [findWay]); the digging and any carrying are owed of its customs'
+        // time, and the bearers' going wears the way ([tripAlong]).
         val camp = hw.placeHex[g.place]
         val site = if (b.burialWay == BurialWay.AT_ANCESTORS) ancestorsHex(g) else Hex.NONE
-        val at = if (!site.none && hexKm(camp, site) <= BODY_CARRY_KM) site else camp
+        val way = if (!site.none && site != camp) findWay(g, camp, site, weather, BODY_CARRY_KM.toFloat()) else null
+        val at = if (way != null) site else camp
         val p = if (at == camp) g.place else hw.placeNear(g.place, at).takeIf { !it.none } ?: g.place
-        val carryKm = if (at == camp) 0.0 else hexKm(camp, at)
+        val carryKm = way?.km?.toDouble() ?: 0.0
+        if (way != null) tripAlong(g, way, BEARERS * o.deaths, WalkPaid.BY_CALLER)
         val owed = o.deaths * (BURY_DAYS + BEARERS * (2.0 * carryKm / (WALK_KM_PER_HOUR * Activity.WORK_HOURS)).toFloat())
         b.burialOwed += owed
         stats.meeting(Met.Of.CUSTOMS_DAYS_ASKED, CustomsPart.BURIALS.label, (10f * owed).roundToInt())
@@ -749,17 +752,17 @@ internal fun HexGroups.mergeAndPair(date: Date, weather: Weather) {
         if (!g.alive || g.adults >= SMALL_BAND || inParty(g)) continue
         var best: HexGroup? = null; var bestKin = -1f
         val h0 = hw.placeHex[g.place]
-        var ring = listOf(h0); val seen = hashSetOf(h0)
-        for (r in 0..VISIT_RINGS) {
-            for (h in ring) for (o in bandsByHex[h].orEmpty()) {
+        // (Among the bands it can walk to ([kinReachKm], by the ground), the nearest of most kinship: the nearer by the going.)
+        val most = kinReachKm(); val reach = reachOf(g, h0, most, weather)
+        for (i in 0 until reach.hexes.size) {
+            if (reach.dist[i] > most) continue
+            for (o in bandsByHex[reach.hexes[i]].orEmpty()) {
                 // (A band joins only one of its own mind: the two kinds of choosing stay apart.)
                 val ob = o.band ?: continue
                 if (o === g || !o.alive || o.size + g.size > maxSize(o) || ob.mind != b.mind || inParty(o)) continue
-                val k = kinship(b.lineage, ob.lineage) / (1f + r)
+                val k = kinship(b.lineage, ob.lineage) / (1f + reach.dist[i] / hex.hexKm.toFloat())
                 if (k > bestKin) { bestKin = k; best = o }
             }
-            if (best != null || r == VISIT_RINGS) break
-            ring = hex.nextRing(ring, seen)
         }
         val o = best ?: continue
         if (!joinOver(o, g, weather, stepOf(date))) continue
@@ -774,9 +777,11 @@ internal fun HexGroups.mergeAndPair(date: Date, weather: Weather) {
         val used = HashSet<Int>()
         for (a in list) {
             if (a.id in used) continue
-            // (As far as it chooses to look; and only among its own lineage while variants are weighed against each other.)
-            val b = list.firstOrNull { it.id != a.id && it.id !in used && it.tag == a.tag &&
-                hex.distanceKm(hw.placeHex[it.place], hw.placeHex[a.place]) <= MATE_SEARCH_KM * a.will[AnimalWay.MATE] } ?: continue
+            // (As far as it chooses to look, by the ground its kind can cross ([reachOf]); and only among its own lineage while
+            // variants are weighed against each other.)
+            val most = (MATE_SEARCH_KM * a.will[AnimalWay.MATE]).toFloat()
+            val reach = reachOf(a, hw.placeHex[a.place], most, weather)
+            val b = list.firstOrNull { it.id != a.id && it.id !in used && it.tag == a.tag && reach.km(hw.placeHex[it.place], most) != null } ?: continue
             used += a.id; used += b.id
             a.adults += b.adults; a.young += b.young
             a.fed = (a.fed + b.fed) / 2f; a.fat = (a.fat + b.fat) / 2f; a.spent = (a.spent + b.spent) / 2f; a.bred = (a.bred + b.bred) / 2f

@@ -59,10 +59,12 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
     // (A band neither hungry nor holding a grudge to a feud looks at no home: nothing to plot.)
     if (!hungry && b.grudge.none { it > FEUD }) return
     val within = ArrayList<Int>()
+    // (Within [RAID_RANGE_KM] of easy going by the ground ([reachOf]): a home beyond a strait or a range it cannot cross is no target.)
+    val reach = reachOf(g, here, RAID_RANGE_KM.toFloat(), weather)
     for ((id, h) in b.knownHomes) {
         val feud = (b.knownLineage[id] ?: -1).let { it >= 0 && b.grudge[it] > FEUD }
         if (!hungry && !feud) continue
-        if (hexKm(here, h) <= RAID_RANGE_KM) within += id
+        if (reach.km(h, RAID_RANGE_KM.toFloat()) != null) within += id
     }
     if (within.isEmpty()) return
     // Whether it sets out turns on how it regards the bands it could fall on ([Regard.fightChance]): the warier of one of them,
