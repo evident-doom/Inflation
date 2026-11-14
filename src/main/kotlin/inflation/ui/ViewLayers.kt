@@ -152,8 +152,11 @@ internal class ViewLayers(private val sim: HexSim) {
                 raidsHere[h]++; if (across) raidsAcross[h]++
             } else if (d.kind != Dealing.Kind.DEFENDED) { if (across) othersAcrossAll++ else othersWithinAll++ }
         }
-        now[Measure.RAIDS.name] = FloatArray(nh) { if (raidsHere[it] >= 0.05f) raidsHere[it] else Float.NaN }
+        raidsNow()
     }
+
+    /** The raids tint's values: the hexes with any raids counted, the rest blank. */
+    private fun raidsNow() { now[Measure.RAIDS.name] = FloatArray(nh) { if (raidsHere[it] >= 0.05f) raidsHere[it] else Float.NaN } }
 
     /**
      * The regions' lasting numbers (by index in [cr]): the largest region first takes the number most of its people's bands
@@ -213,6 +216,7 @@ internal class ViewLayers(private val sim: HexSim) {
             val hr = cr.hexRegion(nh) { hw.placeHex[it.place] }
             now[Measure.CULTURES.name] = FloatArray(nh) { if (hr[it] >= 0) (ids[hr[it]] ?: hr[it]).toFloat() else Float.NaN }
         }
+        raidsNow()
         now[Measure.RESIDENTS.name] = hexMean { p -> var v = 0f; for (k in fauna.kinds.indices) v += fauna.adults[k][p] + fauna.young[k][p]; v }
 
         // Deaths: this week's, by cause, as a running mean over about a month (a single week is mostly noise).
