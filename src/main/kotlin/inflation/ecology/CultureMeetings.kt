@@ -241,15 +241,15 @@ private fun HexGroups.tellOfCountry(a: HexGroup, bandA: Band, b: HexGroup, bandB
         hearer.knownLineage[teller.id] = bt.mainLineage()
     }
     fun tellsHomes(bt: Band, hearer: HexGroup, bh: Band) {
-        // (How far each home lies from the hearer by the going ([homesReach]): one search, as far as the furthest it could hold.)
-        val reach = homesReach(hearer, bt.knownHomes.keys, weather)
+        // (How far each home lies from the hearer for knowing of it ([homeKm]): by the going near, by its fame further.)
+        val at = hw.placeHex[hearer.place]; val reach = homesReach(hearer, weather)
         // (A home the hearer knows as lately seen is nothing to tell: no draw is made for it. Most are: bands that meet come to know the same homes.)
         for ((id, hh) in bt.knownHomes) {
             if (id == hearer.id) continue
             val seen = bt.homeSeen[id] ?: continue
             val had = bh.homeSeen[id]
             if (had != null && had >= seen) continue
-            val km = reach.km(hh, homeReachKm(id).toFloat())?.toDouble() ?: continue
+            val km = homeKm(reach, at, id, hh)?.toDouble() ?: continue
             if (rnd.nextFloat() >= u) continue
             val off = (bt.homeOff[id] ?: 0f) + HEARSAY_OFF * km.toFloat()
             if (had == null || off < (bh.homeOff[id] ?: Float.MAX_VALUE)) { bh.knownHomes[id] = blurred(hh, HEARSAY_OFF * km); bh.homeOff[id] = off }

@@ -313,13 +313,22 @@ private fun extraordinary(x: Float, cut: Float) = if (cut <= 0f || x < cut) 0f e
 internal fun HexGroups.homeReachKm(id: Int) = HOMES_KM * (1f + HOMES_FAME_REACH * (bands.fameOf[id] ?: 0f))
 
 /**
- * The ground about group [g]'s camp by the going ([searchedAtLeast]), as far as the furthest of the homes [ids] could be worth
- * knowing ([homeReachKm]): what a home's distance from it is read from, each within its own reach. Homes are known and
- * told of by how far its people would walk to them: not across a strait as along a coast.
+ * The ground about group [g]'s camp by the going, [HOMES_KM] of it ([searchedAtLeast]): what the homes it knows of are
+ * reckoned from ([homeKm]).
  */
-internal fun HexGroups.homesReach(g: HexGroup, ids: Collection<Int>, weather: inflation.world.Weather): Reach {
-    var most = HOMES_KM.toFloat(); for (id in ids) most = max(most, homeReachKm(id).toFloat())
-    return searchedAtLeast(g.species, hw.placeBand[g.place], hw.placeHex[g.place], most, weather)
+internal fun HexGroups.homesReach(g: HexGroup, weather: inflation.world.Weather): Reach =
+    searchedAtLeast(g.species, hw.placeBand[g.place], hw.placeHex[g.place], HOMES_KM.toFloat(), weather)
+
+/**
+ * How far home [hh] of band [id] lies from [from] for knowing of it, km, if it is worth knowing of ([homeReachKm]); else
+ * null. Within [HOMES_KM], by how far its people would walk to it ([reach], from [from]: [homesReach]), so not across a strait
+ * as along a coast; a famous home beyond, as the crow flies, as far as its fame carries: fame carries news further than
+ * anyone walks.
+ */
+internal fun HexGroups.homeKm(reach: Reach, from: Hex, id: Int, hh: Hex): Float? {
+    reach.km(hh, HOMES_KM.toFloat())?.let { return it }
+    val far = homeReachKm(id); if (far <= HOMES_KM) return null
+    val km = hexKm(from, hh); return if (km > HOMES_KM && km <= far) km.toFloat() else null
 }
 
 /** A band fed under this share of its fill with nothing laid by goes to a better-stocked band within this many rings of hexes. */
@@ -681,8 +690,8 @@ internal fun HexGroups.cultureWeek(g: HexGroup, rnd: kotlin.random.Random, day: 
     // than it is worth knowing of from where the band now is ([homeReachKm], by the going: [homesReach]). It is no longer
     // ground to keep off, nor a place to raid.
     if (b.knownHomes.isNotEmpty()) {
-        val reach = homesReach(g, b.knownHomes.keys, weather)
-        fun kmTo(id: Int, hh: Hex): Float? = reach.km(hh, homeReachKm(id).toFloat())
+        val here = hw.placeHex[g.place]; val reach = homesReach(g, weather)
+        fun kmTo(id: Int, hh: Hex): Float? = homeKm(reach, here, id, hh)
         val stale = (HOMES_HEARD_YEARS * Date.DAYS_PER_YEAR).toLong()
         val it = b.knownHomes.entries.iterator()
         while (it.hasNext()) { val (id, hh) = it.next()
