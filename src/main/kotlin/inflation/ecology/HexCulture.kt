@@ -209,6 +209,7 @@ internal const val FEUD = 2f
 /** Rings of hexes round a meeting whose country bands tell each other of; country further than this from a band's camp is half forgotten each year. */
 internal const val TOLD_RINGS = 4
 
+/** How far from its camp, by the going ([reachOf]), a band keeps its country in mind: beyond, it is half forgotten each year. */
 internal const val REMEMBERED_KM = 100.0
 
 /**
@@ -310,6 +311,16 @@ private fun extraordinary(x: Float, cut: Float) = if (cut <= 0f || x < cut) 0f e
 
 /** How far (km) band [id]'s home is worth knowing of: [HOMES_KM], the further the more it is talked of ([Bands.fameOf]). */
 internal fun HexGroups.homeReachKm(id: Int) = HOMES_KM * (1f + HOMES_FAME_REACH * (bands.fameOf[id] ?: 0f))
+
+/**
+ * The ground about group [g]'s camp by the going ([searchedAtLeast]), as far as the furthest of the homes [ids] could be worth
+ * knowing ([homeReachKm]): what a home's distance from it is read from, each within its own reach. Homes are known and
+ * told of by how far its people would walk to them: not across a strait as along a coast.
+ */
+internal fun HexGroups.homesReach(g: HexGroup, ids: Collection<Int>, weather: inflation.world.Weather): Reach {
+    var most = HOMES_KM.toFloat(); for (id in ids) most = max(most, homeReachKm(id).toFloat())
+    return searchedAtLeast(g.species, hw.placeBand[g.place], hw.placeHex[g.place], most, weather)
+}
 
 /** A band fed under this share of its fill with nothing laid by goes to a better-stocked band within this many rings of hexes. */
 internal const val VISIT_FED = 0.6f
@@ -667,20 +678,22 @@ internal fun HexGroups.cultureWeek(g: HexGroup, rnd: kotlin.random.Random, day: 
     val b = g.band ?: return
     // A home it knows of is forgotten: when it passed it this week and found no house standing (its people dead, or moved on,
     // or never quite where it was told); when no one has seen it standing for [HOMES_HEARD_YEARS]; and when it lies further
-    // than it is worth knowing of from where the band now is ([homeReachKm]). It is no longer ground to keep off, nor a place to raid.
+    // than it is worth knowing of from where the band now is ([homeReachKm], by the going: [homesReach]). It is no longer
+    // ground to keep off, nor a place to raid.
     if (b.knownHomes.isNotEmpty()) {
-        val here = hw.placeHex[g.place]
+        val reach = homesReach(g, b.knownHomes.keys, weather)
+        fun kmTo(id: Int, hh: Hex): Float? = reach.km(hh, homeReachKm(id).toFloat())
         val stale = (HOMES_HEARD_YEARS * Date.DAYS_PER_YEAR).toLong()
         val it = b.knownHomes.entries.iterator()
         while (it.hasNext()) { val (id, hh) = it.next()
             // (A home held from a save made before [Band.homeSeen]: as if seen half that long ago.)
             val seen = b.homeSeen.getOrPut(id) { day - stale / 2 }
-            if ((hh in g.path && bands.houseOf[id] != hh) || day - seen > stale || hexKm(here, hh) > homeReachKm(id)) {
+            if ((hh in g.path && bands.houseOf[id] != hh) || day - seen > stale || kmTo(id, hh) == null) {
                 it.remove(); b.knownLineage.remove(id); b.homeSeen.remove(id); b.homeOff.remove(id); b.homesVersion++ }
         }
         // And it keeps no more than [HOMES_HELD] in mind: the nearest, as far as fame makes them near.
         if (b.knownHomes.size > HOMES_HELD) {
-            val by = b.knownHomes.entries.sortedWith(compareBy<Map.Entry<Int, Hex>> { hexKm(here, it.value) / homeReachKm(it.key) }.thenBy { it.key })
+            val by = b.knownHomes.entries.sortedWith(compareBy<Map.Entry<Int, Hex>> { (kmTo(it.key, it.value) ?: Float.MAX_VALUE) / homeReachKm(it.key) }.thenBy { it.key })
             for (e in by.subList(HOMES_HELD, by.size)) { b.knownHomes.remove(e.key); b.knownLineage.remove(e.key); b.homeSeen.remove(e.key); b.homeOff.remove(e.key) }
             b.homesVersion++
         }
@@ -717,12 +730,13 @@ internal fun HexGroups.cultureWeek(g: HexGroup, rnd: kotlin.random.Random, day: 
         val it = b.ties.entries.iterator()
         while (it.hasNext()) { val e = it.next(); e.setValue(e.value * (1f - min(1f, fade * (if (e.key in far) FAR_TIE_FADE else 1f)))); if (abs(e.value) < 0.01f) it.remove() }
     }
-    // Country far from where it now lives fades from memory, a share of it a year.
+    // Country far from where it now lives, by the going ([REMEMBERED_KM]), fades from memory, a share of it a year.
     if (rnd.nextFloat() < years) {
         val here = hw.placeHex[g.place]
+        val near = searchedAtLeast(g.species, hw.placeBand[g.place], here, REMEMBERED_KM.toFloat(), weather)
         for (w in b.known.indices) { var bits = b.known[w]; while (bits != 0L) { val i = java.lang.Long.numberOfTrailingZeros(bits); bits = bits and (bits - 1)
             val h = Hex(w * 64 + i)
-            if (hex.distanceKm(h, here) > REMEMBERED_KM && rnd.nextFloat() < 0.5f * routes.forgetShare(h)) b.known[w] = b.known[w] and (1L shl i).inv() } }
+            if (near.km(h, REMEMBERED_KM.toFloat()) == null && rnd.nextFloat() < 0.5f * routes.forgetShare(h)) b.known[w] = b.known[w] and (1L shl i).inv() } }
     }
     b.inbred += (1f - b.inbred) / (2f * max(2, g.adults)) * years / GENERATION_YEARS
     unevenYear(g, b)

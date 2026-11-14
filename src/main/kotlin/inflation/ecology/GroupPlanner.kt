@@ -162,7 +162,8 @@ internal class GroupPlanner(internal val gs: HexGroups) {
         val territory = if (denning) gs.tuning.denKm else gs.territoryKm(s) * sqrt(PREY_HALF / homeValue.coerceAtLeast(1f)).coerceIn(0.5f, 3f) *
             (1f + min(2f, g.lean.toFloat() / GIVE_UP_WEEKS))
         val goalHex = if (goal >= 0) gs.hw.placeHex[goal] else Hex.NONE
-        val fromHere = if (goal >= 0) gs.hexKm(here, goalHex) else 0.0
+        // (How far off by the going, near it: [goalKm].)
+        val fromHere = if (goal >= 0) gs.goalKm(g, goalHex, here, weather) else 0.0
         val pullKm = reach.toDouble().coerceAtLeast(gs.hex.hexKm)
         // (A band keeps off the known homes of bands it is not close to ([Regard.closeOf]): those hexes, once for the week.)
         // (And off the place raiders drove it from, while it fears them: [Band.keptFrom].)
@@ -206,7 +207,7 @@ internal class GroupPlanner(internal val gs: HexGroups) {
         // leaving is, so that a slot setting ([Slots]) never counts the walk twice or not at all.)
         fun fedThere(h: Hex, fed: Float, km: Float) = if (g.band?.mind?.gate == MoveGate.RECKONED) fed else max(0f, fed - moveShort(g, h, campHex, km))
         val c = PlanContext(g, kind, here, sensed, month, goal, goalQ, fromHere, reach, thirsty, restless, season, keepOff,
-            weather, date, goalHex, predatorKg, buf, lacked, lackedHex, lackedQ, if (!lackedHex.none) gs.hexKm(here, lackedHex) else 0.0)
+            weather, date, goalHex, predatorKg, buf, lacked, lackedHex, lackedQ, if (!lackedHex.none) gs.goalKm(g, lackedHex, here, weather) else 0.0)
         val at = c.at
         if (gs.hurricanes != null) { var least = Float.POSITIVE_INFINITY
             for (ri in 0 until reached.size) least = min(least, gs.perilAhead(reached[ri]))
@@ -223,7 +224,7 @@ internal class GroupPlanner(internal val gs: HexGroups) {
             // (its choice: the hand-written score weighs these heavily; a learned one sees both, see [HexFeatures]).
             at.offGround = (if (beyond > 0f && (denning || (g.fed >= Thresholds.HUNGRY && !astray))) KEEP_TO_GROUND else 0f) +
                 (if (foreign > MARK_FRESH && g.fed >= 0.3f) KEEP_OFF_MARKS else 0f)
-            at.toGoal = if (goal >= 0) gs.hexKm(h, goalHex) else 0.0
+            at.toGoal = if (goal >= 0) gs.goalKm(g, goalHex, h, weather) else 0.0
             // The open water on the way there, as the share of it a crossing drowns (see [move]): worked out when first wanted.
             var drowning = -1f
             // Better country further off: the way the kind's sense of the land points.
@@ -312,7 +313,7 @@ internal class GroupPlanner(internal val gs: HexGroups) {
         val chosen = best
         if (traced) bookMove(chosen != g.place, buf)
         g.band?.planLoads = Float.NaN
-        if (party != null && g.weighed) best = partyPlace(party, here, buf, best, gs.stepOf(date))
+        if (party != null && g.weighed) best = partyPlace(g, party, here, buf, best, gs.stepOf(date), weather)
         else if (explores && !g.drawn) best = if (g.band?.mind?.gate == MoveGate.RECKONED) planned(g, policy, buf, best, dueSoon, here, date) else if (g.weighed) explored(g, policy, buf, best, date) else best
         // (A band that holds its home hex camps on its low ground by the hand-written rule, as one with no network does ([stayPlan]):
         // since people's net major 11 no network chooses its camp; the planner ran, held to the hex, for its camp's terms, which its

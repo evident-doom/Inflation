@@ -129,11 +129,12 @@ internal fun GroupPlanner.catchWithin(g: HexGroup, b: Band, h: Hex): Float =
  * appointment, its dead, its houses, raids and the homes of others, gatherings, and country it does not know.
  * (Kept apart from [planInner] so that the planner stays small enough for the JIT to compile.)
  */
-internal fun GroupPlanner.bandPull(g: HexGroup, b: Band, month: Int, h: Hex, here: Hex, p: Place, keepOff: HexArray?, sensed: HexArray, reach: Float): Float {
+internal fun GroupPlanner.bandPull(g: HexGroup, b: Band, month: Int, h: Hex, here: Hex, p: Place, keepOff: HexArray?, sensed: HexArray, reach: Float,
+                                   weather: inflation.world.Weather): Float {
     var score = 0f
     // Its appointment draws a band in its month (to the month with sky lore; within a month
     // either way, more weakly, without); its ancestors' places draw it a little always.
-    val pull = gs.appointPull(g, b, month, h)
+    val pull = gs.appointPull(g, b, month, h, weather)
     if (pull != 0f) score += APPOINT_PULL * pull
     val dead = g.memory.deadAt(h)
     if (dead > 0f) score += ANCESTOR_PULL * min(1f, dead / 10f)
@@ -147,14 +148,14 @@ internal fun GroupPlanner.bandPull(g: HexGroup, b: Band, month: Int, h: Hex, her
     // It keeps off the known homes of bands it is not close to (unless set on raiding them).
     if (b.raidHex != h && keepOff != null && keepOff.binarySearch(h) >= 0) score -= TRESPASS_AVOID
     // A band set on a raid heads for its target.
-    score += RAID_PULL * raidProgress(b, here, h)
+    score += RAID_PULL * raidProgress(g, b, here, h, weather)
     // A band short of sodium heads for the nearest salt it knows of, as a hungry animal seeks a lick. What it gets there
     // lasts it years (it keeps [KEEP_YEARS] of [YEAR_NEED]): a year of weeks without the share of its work that salt lack
     // takes ([saltPace]), a year being as far ahead as a band foresees ([foreseenSurvival]), paid for by the weeks the
     // walk there takes, at its reach a week.
     // (Not where it can get salt already: on the shore or a salt pan, as [saltWeeks] has it.)
-    val saltWeeks = saltWeeks(g, b, here, reach)
-    if (saltWeeks > 0f) score += (1f - saltPace(b.sodiumShort, 1f, gs.tuning.saltLack)) * gs.stepsPerYear / saltWeeks * saltProgress(b, here, h, reach)
+    val saltWeeks = saltWeeks(g, b, here, reach, weather)
+    if (saltWeeks > 0f) score += (1f - saltPace(b.sodiumShort, 1f, gs.tuning.saltLack)) * gs.stepsPerYear / saltWeeks * saltProgress(g, b, here, h, reach, weather)
     // A band with food enough to feast others is drawn to where other bands are (gatherings).
     if (gs.peopleSlot >= 0 && b.holds(Tradition.FEASTS))
         gs.dialUse?.choice(DialSite.STORE_FEAST, b.storeShare, g.larder > b.storeAim * g.dailyNeedKg, g.larder > b.storeAimAt1 * g.dailyNeedKg)
@@ -185,27 +186,21 @@ internal fun GroupPlanner.cropHarvestWeeks(g: HexGroup, b: Band, h: Hex): Float 
     return kg * food.fieldExpect(f) * seedValue(b) / (g.dailyNeedKg.coerceAtLeast(1e-3f) * gs.days)
 }
 
-/** How far going to hex [h] brings band [b] toward the hex it is set on raiding, from [here], -1 to 1 (0 if it is set on none). */
-internal fun GroupPlanner.raidProgress(b: Band, here: Hex, h: Hex): Float {
-    if (b.raidHex.none) return 0f
-    val from = gs.hexKm(here, b.raidHex)
-    return if (from > 0.0) ((from - gs.hexKm(h, b.raidHex)) / from).toFloat().coerceIn(-1f, 1f) else 0f
-}
+/** How far going to hex [h] brings band [b] (group [g]) toward the hex it is set on raiding, from [here], -1 to 1 (0 if it is set on none): by the going ([toward]). */
+internal fun GroupPlanner.raidProgress(g: HexGroup, b: Band, here: Hex, h: Hex, weather: inflation.world.Weather): Float =
+    if (b.raidHex.none) 0f else gs.toward(g, b.raidHex, here, h, weather)
 
 /** The weeks band [b] (group [g]) would walk from [here] to the salt it knows of, at its [reach] a week, if it is short of sodium and cannot get salt where it is and the salt is a hex off or more; else 0. */
-internal fun GroupPlanner.saltWeeks(g: HexGroup, b: Band, here: Hex, reach: Float): Float {
+internal fun GroupPlanner.saltWeeks(g: HexGroup, b: Band, here: Hex, reach: Float, weather: inflation.world.Weather): Float {
     if (b.sodiumShort <= 0f || gs.hw.coast[here] || gs.land.salt[g.place] > 0f) return 0f
     val salt = gs.bands.saltKnown(b, here)
-    val from = if (!salt.none) gs.hexKm(here, salt) else 0.0
+    val from = if (!salt.none) gs.goalKm(g, salt, here, weather) else 0.0
     return if (from > gs.hex.hexKm) max(1.0, from / reach).toFloat() else 0f
 }
 
-/** How far going to hex [h] brings band [b] toward the salt it knows of ([saltWeeks] is above 0), from [here], -1 to 1. */
-internal fun GroupPlanner.saltProgress(b: Band, here: Hex, h: Hex, reach: Float): Float {
-    val salt = gs.bands.saltKnown(b, here)
-    val from = gs.hexKm(here, salt)
-    return ((from - gs.hexKm(h, salt)) / min(from, reach.toDouble())).toFloat().coerceIn(-1f, 1f)
-}
+/** How far going to hex [h] brings band [b] (group [g]) toward the salt it knows of ([saltWeeks] is above 0), from [here], -1 to 1, against its [reach]: by the going ([toward]). */
+internal fun GroupPlanner.saltProgress(g: HexGroup, b: Band, here: Hex, h: Hex, reach: Float, weather: inflation.world.Weather): Float =
+    gs.toward(g, gs.bands.saltKnown(b, here), here, h, weather, reach.toDouble())
 
 /** How many of the bands about a feasting band [b] (group [g]) would draw it to place [p] (in hex [h]), against [GATHER_HEADS], 0 to 1; 0 for a band that does not feast or has not the food to. */
 internal fun GroupPlanner.feastDraw(g: HexGroup, b: Band, p: Place, h: Hex, sensed: HexArray): Float {

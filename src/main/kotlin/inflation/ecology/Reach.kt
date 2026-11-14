@@ -10,6 +10,8 @@ import inflation.world.get
 import inflation.world.hexArray
 import inflation.world.set
 import inflation.world.toHexArray
+import kotlin.math.max
+import kotlin.math.min
 
 // The ground's reach (docs/design/coherence-review.md, B): one least-effort search of the ground about a hex, shared by
 // everything a group does in person: the planner's choice of a place ([searchReach]), every trip and move ([findWay],
@@ -44,6 +46,9 @@ internal class Reach(val from: Hex, val reach: Float, val hexes: HexArray, val d
         return Way(dist[i], out)
     }
 
+    /** Each hex within [most] and its km of easy going, in index order. */
+    inline fun forEachWithin(most: Float, f: (Hex, Float) -> Unit) { for (i in 0 until hexes.size) if (dist[i] <= most) f(hexes[i], dist[i]) }
+
     /**
      * This reach as far as [most] only: the same answers within it, and its [hexes] only those within it, whatever search
      * it came from ([reachOf]). The ways to them stay within it: each step of a way is no further than the hex it leads to.
@@ -67,12 +72,46 @@ internal class Reach(val from: Hex, val reach: Float, val hexes: HexArray, val d
  * Safe on all cores: two that search at once keep the one that went further, and their answers agree within the shorter.
  */
 @Part("reach: least-effort search")
-internal fun HexGroups.reachOf(s: Species, band: Int, from: Hex, most: Float, weather: Weather): Reach {
+internal fun HexGroups.reachOf(s: Species, band: Int, from: Hex, most: Float, weather: Weather): Reach =
+    searchedAtLeast(s, band, from, most, weather).within(most)
+
+/**
+ * A search of the ground about [from] that went at least [most] km ([reachOf]), perhaps further, as it is kept: for a caller
+ * that reads it only within [most] itself ([Reach.km] and [Reach.wayTo] with [most], [Reach.forEachWithin]), sparing the
+ * copy [Reach.within] makes. What it reads so is the same on every run.
+ */
+internal fun HexGroups.searchedAtLeast(s: Species, band: Int, from: Hex, most: Float, weather: Weather): Reach {
     val key = (s.index.toLong() * 8 + band) * hex.size + from.i
-    planner.reachCache[key]?.let { if (it.reach >= most) return it.within(most) }
+    planner.reachCache[key]?.let { if (it.reach >= most) return it }
     val mine = searchFrom(s, band, from, most, weather)
-    return (planner.reachCache.merge(key, mine) { a, b -> if (a.reach >= b.reach) a else b } ?: mine).within(most)
+    return planner.reachCache.merge(key, mine) { a, b -> if (a.reach >= b.reach) a else b } ?: mine
 }
+
+/** The km of easy going from [from] to [to] for group [g], if within [most] ([reachOf]); else null. A point query: no copy is made. */
+internal fun HexGroups.goingKm(g: HexGroup, from: Hex, to: Hex, most: Float, weather: Weather): Float? =
+    searchedAtLeast(g.species, hw.placeBand[g.place], from, most, weather).km(to, most)
+
+/**
+ * How far hex [h] is from the [goal] group [g] is drawn to, for the pulls toward goals (its season's place, its appointment,
+ * a raid's target, salt, what it lacks: [toward]): by the going within [GOAL_GOING_KM] of the goal, searched from the goal
+ * ([goingKm]); beyond that as the crow flies, but never nearer than [GOAL_GOING_KM]. So a pull toward a place beyond a strait
+ * or a ridge points along the way there, not across it; a goal much further off points the way it lies.
+ */
+internal fun HexGroups.goalKm(g: HexGroup, goal: Hex, h: Hex, weather: Weather): Double =
+    goingKm(g, goal, h, GOAL_GOING_KM, weather)?.toDouble() ?: max(GOAL_GOING_KM.toDouble(), hexKm(h, goal))
+
+/**
+ * How far going from [here] to [h] brings group [g] toward [goal], -1 to 1, against [scale] km (by default the whole way):
+ * by [goalKm]. The one measure of every pull toward a goal; 0 where [here] is the goal.
+ */
+internal fun HexGroups.toward(g: HexGroup, goal: Hex, here: Hex, h: Hex, weather: Weather, scale: Double? = null): Float {
+    val from = goalKm(g, goal, here, weather)
+    if (!(from > 0.0)) return 0f
+    return ((from - goalKm(g, goal, h, weather)) / (scale?.let { min(from, it) } ?: from)).toFloat().coerceIn(-1f, 1f)
+}
+
+/** How far off a goal its pull goes by the ground ([goalKm]): a fortnight's walk of foragers, about; further, as the crow flies. An estimate. */
+internal const val GOAL_GOING_KM = 150f
 
 /**
  * How far a band looks for kin to join or to take refuge with ([mergeAndPair], [scatterBeaten]): a day or two's walk, km of

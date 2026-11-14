@@ -117,8 +117,6 @@ class HexGroups(
     @delegate:Transient internal val monthBeastClassKg by lazy { Array(BeastClass.entries.size) { FloatArray(n) }.also { beastClassKg(it) } }
     /** What the people kind's [huntable] was a month ago, and whether it is known (not after a load, until the next month). */
     @delegate:Transient private val peopleGameBefore by lazy { FloatArray(n) }
-    /** The hexes within [TOLD_RINGS] rings of each hex, worked out once a hex as first asked for ([toldOf]): what bands that meet tell of about a home. */
-    @delegate:Transient internal val toldDisk by lazy { arrayOfNulls<HexArray>(hex.size) }
     @Transient private var gameBeforeKnown = false
     @Transient private var huntableFilled = false
     /** People sick of each catching illness in each place as the week's choosing begins (heads × share sick). */
@@ -766,28 +764,27 @@ class HexGroups(
     }
 
     /** How far going to hex [h] brings band [g] toward its appointment, -1..1, in its month (0 otherwise). */
-    internal fun appointPull(g: HexGroup, b: Band, month: Int, h: Hex): Float {
-        val own = ownAppointPull(g, b, month, h)
+    internal fun appointPull(g: HexGroup, b: Band, month: Int, h: Hex, weather: Weather): Float {
+        val own = ownAppointPull(g, b, month, h, weather)
         val sites = recruiters ?: return own
         if (tuning.recruiterSeen == 0 || !mayRecruit(g)) return own
         // The recruiters draw as an appointment does, all year, as strongly as [Tuning.recruiterPull] has it: the nearest site, how far going to [h] brings it there.
         val here = hw.placeHex[g.place]
         val site = sites.nearest(here); if (site.none || site == here) return own
-        val fromHere = hexKm(here, site)
-        val pull = tuning.recruiterPull * ((fromHere - hexKm(h, site)) / fromHere).toFloat().coerceIn(-1f, 1f)
+        val pull = tuning.recruiterPull * toward(g, site, here, h, weather)
         return if (kotlin.math.abs(pull) > kotlin.math.abs(own)) pull else own
     }
 
-    private fun ownAppointPull(g: HexGroup, b: Band, month: Int, h: Hex): Float {
+    private fun ownAppointPull(g: HexGroup, b: Band, month: Int, h: Hex, weather: Weather): Float {
         val ap = b.appointment ?: return 0f
         val off = minOf(monthsFrom(ap.month, month), monthsFrom(month, ap.month))
         // The month before, it is on its way; without sky lore it also lingers a month after, the count being loose.
         val before = monthsFrom(month, ap.month) == 1
         val weight = when { off == 0 -> 1f; before -> 0.7f; off == 1 && !b.holds(Tradition.SKY_LORE) -> 0.5f; else -> return 0f }
         val here = hw.placeHex[g.place]
-        val fromHere = hexKm(here, ap.hex)
-        if (fromHere <= hex.hexKm) return if (h == here) weight else 0f
-        return weight * ((fromHere - hexKm(h, ap.hex)) / fromHere).toFloat().coerceIn(-1f, 1f)
+        // (By the going near it: [toward].)
+        if (hexKm(here, ap.hex) <= hex.hexKm) return if (h == here) weight else 0f
+        return weight * toward(g, ap.hex, here, h, weather)
     }
 
     /** The main kind of country of each place. */

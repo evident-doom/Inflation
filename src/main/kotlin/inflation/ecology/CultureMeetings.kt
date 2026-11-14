@@ -203,12 +203,11 @@ internal fun GroupWorld.tallyMeeting(metAs: MetAs, what: Tally.MeetingEnd) {
  * the routes they know, where they met, where their homes and those of others they know are, the
  * appointments they keep, and the places they remember (as far as they trust each other).
  */
-/** The hexes within [TOLD_RINGS] rings of [home], itself first ([HexGroups.toldDisk]). */
-internal fun HexGroups.toldOf(home: Hex): HexArray = toldDisk[home.i] ?: run {
-    val out = ArrayList<Hex>(); var ring = listOf(home); val seen = hashSetOf(home)
-    for (r in 0..TOLD_RINGS) { out += ring; if (r == TOLD_RINGS) break; ring = hex.nextRing(ring, seen) }
-    out.toHexArray().also { toldDisk[home.i] = it }
-}
+/**
+ * The km of easy going about a home whose country bands that meet tell each other of ([tellOfCountry]): its people's day or
+ * two of walking out, by the ground ([reachOf]), as far as [TOLD_RINGS] rings of hexes went before as the crow flies.
+ */
+internal fun GroupWorld.toldKm(): Float = (TOLD_RINGS + 0.5f) * hex.hexKm.toFloat()
 
 @Part("meetings: tell of country")
 private fun HexGroups.tellOfCountry(a: HexGroup, bandA: Band, b: HexGroup, bandB: Band, ab: Regard, ba: Regard, weather: Weather) {
@@ -217,10 +216,11 @@ private fun HexGroups.tellOfCountry(a: HexGroup, bandA: Band, b: HexGroup, bandB
     // (Of the country about each one's home: where they meet from hexes apart, as bands that hold their home hex do, each
     // comes away with a map of the other's country too.)
     val hb = hw.placeHex[b.place]
-    for (home in if (hb == h0) arrayOf(h0) else arrayOf(h0, hb)) {
-        // (The hexes about it, worked out once a hex: the boxed rings were a fifth of the telling's time, prof761.)
-        val disk = toldOf(home)
-        for (j in 0 until disk.size) { val h = disk[j]; if (bandA.knows(h)) bandB.learn(h, hex.size); if (bandB.knows(h)) bandA.learn(h, hex.size) }
+    // (The country about it is what its people walk, by the ground ([toldKm]): not across a strait or a cliff they cannot go.)
+    val told = toldKm()
+    for ((home, who) in if (hb == h0) arrayOf(h0 to a) else arrayOf(h0 to a, hb to b)) {
+        searchedAtLeast(who.species, hw.placeBand[who.place], home, told, weather).forEachWithin(told) { h, _ ->
+            if (bandA.knows(h)) bandB.learn(h, hex.size); if (bandB.knows(h)) bandA.learn(h, hex.size) }
     }
     stats.meeting(Met.BANDS_TOLD_OF_COUNTRY)
     // And of the ways they know further off: landmarks, and the legs between those they know, each about its own home.
@@ -241,15 +241,16 @@ private fun HexGroups.tellOfCountry(a: HexGroup, bandA: Band, b: HexGroup, bandB
         hearer.knownLineage[teller.id] = bt.mainLineage()
     }
     fun tellsHomes(bt: Band, hearer: HexGroup, bh: Band) {
-        val at = hw.placeHex[hearer.place]
+        // (How far each home lies from the hearer by the going ([homesReach]): one search, as far as the furthest it could hold.)
+        val reach = homesReach(hearer, bt.knownHomes.keys, weather)
         // (A home the hearer knows as lately seen is nothing to tell: no draw is made for it. Most are: bands that meet come to know the same homes.)
         for ((id, hh) in bt.knownHomes) {
             if (id == hearer.id) continue
             val seen = bt.homeSeen[id] ?: continue
             val had = bh.homeSeen[id]
             if (had != null && had >= seen) continue
-            val km = hexKm(at, hh)
-            if (km > homeReachKm(id) || rnd.nextFloat() >= u) continue
+            val km = reach.km(hh, homeReachKm(id).toFloat())?.toDouble() ?: continue
+            if (rnd.nextFloat() >= u) continue
             val off = (bt.homeOff[id] ?: 0f) + HEARSAY_OFF * km.toFloat()
             if (had == null || off < (bh.homeOff[id] ?: Float.MAX_VALUE)) { bh.knownHomes[id] = blurred(hh, HEARSAY_OFF * km); bh.homeOff[id] = off }
             bh.homeSeen[id] = seen; bh.homesVersion++

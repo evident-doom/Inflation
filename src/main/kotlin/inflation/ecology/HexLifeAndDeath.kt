@@ -177,7 +177,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
     groups += scatterBeaten(date, weather)
     tallyVillages()
     wornWeek(days)
-    tendParties(date)
+    tendParties(date, weather)
     mergeAndPair(date, weather)
 }
 
