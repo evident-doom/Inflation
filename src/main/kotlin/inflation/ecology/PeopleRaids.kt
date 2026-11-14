@@ -100,14 +100,14 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
         val best = dying.keys.filter { survivalSteps(g, dying.getValue(it) - least) <= 1f }
             .minWith(compareByDescending<Int> { wary.getValue(it) }.thenBy { hexKm(here, b.knownHomes.getValue(it)) }.thenBy { it })
         val at = b.knownHomes.getValue(best)
-        // (Its fighters go by the ground, [tripKm]: with no way there, no raid.)
-        val walkKm = tripKm(g, here, at, weather) ?: return
+        // (Its fighters go by the ground, [findWay]: with no way there, no raid.)
+        val way = findWay(g, here, at, weather) ?: return
         stats.meeting(Met.RAIDS_SET_OUT)
         // (A band that holds its home hex sends its fighters and stays: the raid is fought this step if the others are at the
         // home it knows, else it comes to nothing, as a band walking there finds it empty. Its fighters' walk there and back,
         // the whole day's going each way, is taken from its next step's days, [Band.raidWalkOwed].)
         if (staysHome(g)) {
-            b.raidWalkOwed += visitDays(raidParty(g), walkKm.toDouble())
+            tripAlong(g, way, raidParty(g), WalkPaid.NEXT_STEP)
             val target = bands.groupById[best]?.takeIf { it.alive && it.band != null && hw.placeHex[it.place] == at }
             if (target != null) bands.raidsDue += g to target
             note(g) { "sent its fighters to raid band #%d at hex %d".format(best, at.i) }
@@ -127,8 +127,6 @@ internal fun HexGroups.fightRaids(weather: Weather) {
         if (g.alive && target.alive && (staysHome(g) || hw.placeHex[target.place] == hw.placeHex[g.place])) {
             val u = Language.understanding(b.words, tb.words)
             tallyMeeting(MetAs(Regard(b, target.id, tb, u, hex), Regard(tb, g.id, b, u, hex)), Tally.MeetingEnd.RAIDED_HOME)
-            // (The raiders' going there and back wears the way, [wearBetween].)
-            wearBetween(hw.placeHex[g.place], hw.placeHex[target.place], g)
             // (Settled as any meeting is, a raid by intent, [settle]: by the strategies where a side has one, else as a raid.)
             settleAt(g, target, hw.placeHex[target.place], weather, intent = Intent.RAID)
         }

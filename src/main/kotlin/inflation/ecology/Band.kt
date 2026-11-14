@@ -111,8 +111,8 @@ class Band(kinds: Int, totems: Int = kinds) {
     /** Camp shifts within its hex ([shiftCamps]) the census has not yet counted as camp moves; it reads and clears them. */
     @Transient var shiftsUncounted = 0
     /**
-     * Person-days its raiders spent going to a raid and back ([plotRaid], bands that hold their home hex), taken from its
-     * next step's days before other work ([planWeek]). Saved, so that a loaded world carries on as the one that ran on.
+     * Person-days its people spent walking this step that its next step's days pay before other work ([planWeek]): raiders
+     * going to a raid and back, visitors to appointments, kin and feasts, a camp moved ([WalkPaid.NEXT_STEP], [walkOver]). Saved, so that a loaded world carries on as the one that ran on.
      */
     var raidWalkOwed = 0f
     /**

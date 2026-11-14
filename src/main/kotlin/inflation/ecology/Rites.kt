@@ -150,7 +150,14 @@ internal fun HexGroups.gatherAtRite(g: HexGroup, site: Int, month: Long, weather
     }
     // (Its larder stays at its camp: at a gathering away from it, it has with it only food for the trip, and gives of that
     // only. Olli, 13 Nov 2026: bands gave food 10 hexes from home. A guess: food for each day of the rite and the walk.)
-    if (b != null) { val km = riteKm(g, site, weather); b.riteFood = if (km <= tuning.roundArrivedKm) Float.POSITIVE_INFINITY else riteDays(km) * g.dailyNeedKg }
+    // (Its grown walk there and back by the ground and wear the way ([trip]); the walk's days are the rite's, [riteDays].)
+    if (b != null) {
+        val way = findWay(g, hw.placeHex[g.place], hw.placeHex[site], weather, RITE_SEARCH_KM)
+        val km = way?.km?.toDouble() ?: Double.POSITIVE_INFINITY
+        if (km <= tuning.roundArrivedKm) b.riteFood = Float.POSITIVE_INFINITY
+        else b.riteFood = riteDays(km) * g.dailyNeedKg
+        if (way != null) tripAlong(g, way, g.adults.toFloat(), WalkPaid.BY_CALLER)
+    }
     val rite = RiteGathering(site, here)
     for (o in here) if (g.alive && o.alive && o !== g) {
         stats.meeting(Met.BANDS_GATHERED_AT_A_RITE)
@@ -203,10 +210,9 @@ private fun HexGroups.riteToPlenty(b: Band, month: Int) {
     stats.meeting(Met.BANDS_MOVED_A_RITE_TO_A_BETTER_MONTH)
 }
 
-/** How far [g] is from rite site [site], km. */
-/** How far a band walks to its rite's site: km of easy going by the ground ([tripKm]), searched up to [RITE_SEARCH_KM]; infinite if no way there. */
+/** How far a band walks to its rite's site: km of easy going by the ground ([wayKm]), searched up to [RITE_SEARCH_KM]; infinite if no way there. */
 private fun HexGroups.riteKm(g: HexGroup, site: Int, weather: Weather): Double =
-    tripKm(g, hw.placeHex[g.place], hw.placeHex[site], weather, RITE_SEARCH_KM)?.toDouble() ?: Double.POSITIVE_INFINITY
+    wayKm(g, hw.placeHex[g.place], hw.placeHex[site], weather, RITE_SEARCH_KM)?.toDouble() ?: Double.POSITIVE_INFINITY
 
 /** The farthest, in km of easy going, a band looks for a way to its rite's site ([riteKm]): beyond, the site is out of reach (an estimate, past the longest trips on record). */
 internal const val RITE_SEARCH_KM = 400f

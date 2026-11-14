@@ -376,12 +376,13 @@ internal fun HexGroups.visitKin(weather: Weather) {
         // go to eat where the food is), and take home what they can carry ([carryKg]). Olli, 13 Nov 2026: no free movement.)
         val ho = hw.placeHex[o.place]
         val apart = ho != h0
-        // (Its way there by the ground, [tripKm]: none, and it cannot go.)
-        val walkKm = if (apart) tripKm(g, h0, ho, weather) ?: continue else 0f
+        // (Its way there by the ground, [findWay]: none, and it cannot go.)
+        val way = if (apart) findWay(g, h0, ho, weather) ?: continue else null
         val most = if (apart) (1f - g.fed) * week + carryKg(g, gb) else need
         val gift = given(o, g, minOf(share * o.larder, need, most), min(need, most))
         if (gift <= 0f) continue
-        if (apart) gb.raidWalkOwed += visitDays(g.adults.toFloat(), walkKm.toDouble())
+        // (All its grown walk there and back, wearing the way, from its next step's days: [tripAlong].)
+        if (way != null) tripAlong(g, way, g.adults.toFloat(), WalkPaid.NEXT_STEP)
         val eat = min(gift, (1f - g.fed) * week)
         g.fed += eat / week
         moveFood(o, g, gift, LarderMove.KIN); val ateKg = eatStores(g, eat)
@@ -390,8 +391,6 @@ internal fun HexGroups.visitKin(weather: Weather) {
         g.band!!.grudge[o.band!!.mainLineage()] *= 0.5f
         helped(o, g, gift)
         stats.meeting(Met.HUNGRY_BANDS_FED_BY_KIN)
-        // (The visit wears the way there and back, [wearBetween].)
-        wearBetween(h0, hw.placeHex[o.place], g)
     }
 }
 
