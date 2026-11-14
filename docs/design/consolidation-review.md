@@ -22,7 +22,9 @@ Ranked by how much each one can make the model disagree with itself.
 
 So a band whose herders are 60 km off still defends its camp with everyone, and the herders at the pasture are met by nobody: a beast at the pasture meets the herd but no people.
 
-**Fix:** one record of who is away this step, by purpose and place, filled by each mechanism that sends people out; `presentAt` reads it. The herders at a pasture are present there as a party, and the camp holds the rest.
+**Fix, kept at band level** (Olli, 14 Nov 2026: the model keeps no exact count of a band's members; below the band, approximate):
+- a band met at its camp is its able grown times its home share ([BAND_MOBILE_HOME], [BAND_FIXED_HOME]), the share of its time its ground already gives the camp. That stands for its usual parties out, with no record of who went where;
+- where people should be met apart for weeks, as herders at a summer camp, the band splits in two and joins up again, as scouting parties do, rather than keeping track of the ones away.
 
 ## 2. Walking: one quantity, eight formulas and two models
 
@@ -142,7 +144,7 @@ The same meeting by the kinds' own rules (`plainOutcome`, `enemiesClash`) gives 
 ## 9. Small ones
 
 - **`meetMonth`** is set by the meetings and read by `youngHidden`, the last of the meeting globals: it belongs with `asMeetings` or on the `Encounter`.
-- **Party sizes:** a raid half its able, task parties 3, visitors 4, bearers 4, a band met out 4, scouts 15%. Each is sourced alone; once item 1 exists they should come from one table of "who goes for what".
+- **Party sizes:** a raid half its able, task parties 3, visitors 4, bearers 4, a band met out 4, scouts 15%. Each is sourced alone; they could sit together, as estimates of one kind, without tracking anyone.
 
 ## Order proposed
 
