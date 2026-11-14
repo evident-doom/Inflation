@@ -217,7 +217,9 @@ internal class GroupPlanner(internal val gs: HexGroups) {
             val d = dist[h]
             at.d = d
             // How far beyond its ground the hex lies (0 within it), and how fresh another pack's mark on it is.
-            val beyond = if (s.lifeway == Lifeway.PACK && !g.home.none) (gs.hexKm(h, g.home) / territory - 1.0).toFloat().coerceIn(0f, 2f) else 0f
+            // (By the going from home, as its ground is laid ([layGround]): a hex across a gorge from home is further off its ground.)
+            val beyond = if (s.lifeway == Lifeway.PACK && !g.home.none)
+                ((gs.goingKm(g, g.home, h, 3f * territory, weather) ?: (3f * territory)) / territory - 1f).coerceIn(0f, 2f) else 0f
             val foreign = if (s.lifeway == Lifeway.PACK && h != g.home) gs.scent.foreign(s, h, g.id) else 0f
             at.beyond = beyond; at.foreign = foreign
             // A pack on its own ground stays on it while fed, and keeps off ground another pack of its kind holds

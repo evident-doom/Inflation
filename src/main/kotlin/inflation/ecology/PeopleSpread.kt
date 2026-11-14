@@ -208,7 +208,8 @@ internal fun HexGroups.findHome(n: HexGroup, born: List<HexGroup>, weather: Weat
         ring = hex.nextRing(ring, seen); keep *= SPREAD_RING_KEEP
         var ringV = 0f
         for (h in ring) {
-            if (hw.placesOf(h).isEmpty() || shuns(n, h)) continue
+            // (Only where it can walk to, as its move goes ([moveCamp]): else a hex across a strait wins and it stays put.)
+            if (hw.placesOf(h).isEmpty() || shuns(n, h) || wayKm(n, from, h, weather) == null) continue
             val v = hexFood(h) / (people[h.i] + own)
             if (!wanting[h.i] && v > ringV) { ringV = v; best = hw.firstPlaceIn(h) }
             if (keep * v > fallbackV) { fallbackV = keep * v; fallback = hw.firstPlaceIn(h) }

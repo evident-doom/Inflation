@@ -31,7 +31,7 @@ internal fun GroupPlanner.holdsGround(g: HexGroup, weather: Weather): Boolean {
     // step: 51-67% of the steps of the lean 60-day windows.)
     if (here != g.home) {
         if (gs.ticks <= 1 || gs.hw.firstPlaceIn(g.home).none || gs.perilAhead(g.home) > 0f) return false
-        if (gs.hex.distanceKm(here, g.home) > g.species.dailyTravelKm * SHIFT_DAYS * gs.stepShift) return false
+        if (gs.goingKm(g, here, g.home, g.species.dailyTravelKm * SHIFT_DAYS * gs.stepShift, weather) == null) return false
     }
     if (gs.control != null && g.id == gs.watched) return false
     val s = g.species

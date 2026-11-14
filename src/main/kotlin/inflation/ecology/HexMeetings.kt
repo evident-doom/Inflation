@@ -853,7 +853,7 @@ internal fun residentStrength(s: Species) = (if (s.foragingParty > 0) minOf(s.fo
  * has lost its ground.
  */
 @Part("hunters: marking ground")
-internal fun HexGroups.mark() {
+internal fun HexGroups.mark(weather: inflation.world.Weather) {
     // (A tick's fading a tick: over a step of several, compounded, so a mark goes stale in the same days whatever the step.)
     val keep = fauna.clock.keep(MARK_KEEP)
     for (m in scent.marks.values) for (i in m.indices) m[i] *= keep
@@ -869,7 +869,7 @@ internal fun HexGroups.mark() {
         val foot = g.footprint
         if (foot != null) for (i in 0 until foot.hexes.size) scent.claim(s.index, foot.hexes[i], g.id, foot.weights[i], hex.size)
         else for (h in g.path) {
-            if (hex.distanceKm(h, g.home) > territoryKm(s)) continue
+            if (goingKm(g, g.home, h, territoryKm(s), weather) == null) continue
             scent.claim(s.index, h, g.id, 1f, hex.size)
         }
         if (who[g.home] != g.id || m[g.home] < MARK_FRESH) g.home = Hex.NONE

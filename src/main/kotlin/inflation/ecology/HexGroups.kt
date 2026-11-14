@@ -394,7 +394,7 @@ class HexGroups(
         Phase("people: robbing caches") { robCaches(it) },
         Phase("people: visiting kin") { visitKin(it) },
         Phase("groups: births, deaths") {
-            mark()
+            mark(it)
             settle(it)
             demography(it, it.date)
             roamersLeave()

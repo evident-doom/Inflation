@@ -176,11 +176,14 @@ class Bands internal constructor(private val world: GroupWorld) {
         (materialSources.getValue(Material.SALT).toList() + shore.values).distinct().sorted().toHexArray()
     }
 
-    /** The nearest of the [saltSources] band [b] knows, from hex [here], or -1 if it knows none (kept on the band till it moves on). */
-    internal fun saltKnown(b: Band, here: Hex): Hex {
+    /**
+     * The nearest of the [saltSources] band [b] knows, from hex [here], by [km] (from [here] to a source: [HexGroups.saltKnown]
+     * gives the going), or -1 if it knows none (kept on the band till it moves on).
+     */
+    internal fun saltKnown(b: Band, here: Hex, km: (Hex) -> Double): Hex {
         if (b.saltFrom == here) return b.saltAt
         var best = Hex.NONE; var bestKm = Double.MAX_VALUE
-        for (h in saltSources) if (b.knows(h)) { val km = hexKm(here, h); if (km < bestKm) { bestKm = km; best = h } }
+        for (h in saltSources) if (b.knows(h)) { val d = km(h); if (d < bestKm) { bestKm = d; best = h } }
         b.saltFrom = here; b.saltAt = best
         return best
     }

@@ -402,7 +402,7 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
             stats.book(fedSplit, Tally.Bands.SODIUM_SHORT, (100f * b.sodiumShort).roundToInt())
             val saltHere = if (hw.coast[hw.placeHex[g.place]]) 1f else min(1f, 5f * land.salt[g.place])
             stats.book(fedSplit, Tally.Bands.SALT_HERE, (100f * saltHere).roundToInt())
-            val salt = bands.saltKnown(b, hw.placeHex[g.place])
+            val salt = saltKnown(g, b, hw.placeHex[g.place], weather)
             if (!salt.none) {
                 stats.book(fedSplit, Tally.Bands.SALT_KNOWN, 1)
                 stats.book(fedSplit, Tally.Bands.SALT_KM, hexKm(hw.placeHex[g.place], salt).roundToInt())

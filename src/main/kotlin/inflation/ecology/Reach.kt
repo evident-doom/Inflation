@@ -110,6 +110,17 @@ internal fun HexGroups.toward(g: HexGroup, goal: Hex, here: Hex, h: Hex, weather
     return ((from - goalKm(g, goal, h, weather)) / (scale?.let { min(from, it) } ?: from)).toFloat().coerceIn(-1f, 1f)
 }
 
+/**
+ * The nearest salt band [g] ([b]) knows ([Bands.saltKnown]), from hex [here]: by the going within [GOAL_GOING_KM] ([reachOf]
+ * from [here]), beyond as the crow flies but never nearer than that, as a goal's distance is ([goalKm]): so not the one
+ * across a strait when another lies along the shore.
+ */
+internal fun HexGroups.saltKnown(g: HexGroup, b: Band, here: Hex, weather: Weather): Hex {
+    if (b.saltFrom == here) return b.saltAt
+    val reach = searchedAtLeast(g.species, hw.placeBand[g.place], here, GOAL_GOING_KM, weather)
+    return bands.saltKnown(b, here) { h -> reach.km(h, GOAL_GOING_KM)?.toDouble() ?: max(GOAL_GOING_KM.toDouble(), hexKm(here, h)) }
+}
+
 /** How far off a goal its pull goes by the ground ([goalKm]): six days' walk ([DAY_WALK_KM]); further, as the crow flies. An estimate. */
 internal const val GOAL_GOING_KM = 6f * DAY_WALK_KM
 
