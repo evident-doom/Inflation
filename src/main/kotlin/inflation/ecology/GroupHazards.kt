@@ -164,9 +164,7 @@ internal fun GroupWorld.ageTilts(g: HexGroup): AgeTilts {
     val t = tuning
     val elders = b.elders.coerceAtMost(g.adults); val prime = g.adults - elders
     val primeShare = if (prime > 0) max(0f, (g.size - t.youngShare * g.young - t.elderShare * elders) / prime) else 1f
-    // (Starvation itself comes the later the more of the starving die of illness first: [inflation.Tuning.starveLater].)
-    val later = 1f / t.starveLater.coerceAtLeast(0.1f)
-    return AgeTilts(primeShare * later, t.elderShare / t.elderReserve * later, t.youngShare / t.youngReserve * later)
+    return AgeTilts(primeShare, t.elderShare / t.elderReserve, t.youngShare / t.youngReserve)
 }
 
 /** [g]'s protein burnt at the end of a step fed [fed] (its fat drawn on), from [spent] at its start. */
@@ -198,14 +196,6 @@ internal fun GroupWorld.ageHunger(g: HexGroup, fed: Float, spent: Float = g.spen
 }
 
 /**
- * The share of their starve days [g]'s people have burnt over a step fed [fed], its mean: the band's protein burnt runs
- * straight from the step's start to its end at the step's food, so the mean of the two is exact at any step length. 0 for
- * animals.
- */
-internal fun GroupWorld.burntShare(g: HexGroup, fed: Float): Float =
-    if (!g.species.human) 0f else 0.5f * (g.spent + spentAtEnd(g, fed, g.spent)) / Hazards.starveDays(g.species)
-
-/**
  * How much deadlier illness is to [g]'s grown and young over the step, starving ([inflation.Tuning.famineIllness]): 1 +
  * that times their share of the starve days burnt ([ageTilts]), its mean over the step. Fed [fed] the band's burnt
  * protein runs straight from the step's start to its end, so the mean of the two is exact at any step length. 1 for
@@ -214,8 +204,7 @@ internal fun GroupWorld.burntShare(g: HexGroup, fed: Float): Float =
 internal fun GroupWorld.famineIllness(g: HexGroup, fed: Float): Pair<Float, Float> {
     val f = tuning.famineIllness; val s = g.species
     if (f <= 0f || !s.human) return 1f to 1f
-    // (Illness reads the body's state as it is, not moved later as starvation itself is: [inflation.Tuning.starveLater] undone.)
-    val burnt = burntShare(g, fed) * (if (g.band != null) tuning.starveLater.coerceAtLeast(0.1f) else 1f)
+    val burnt = 0.5f * (g.spent + spentAtEnd(g, fed, g.spent)) / Hazards.starveDays(s)
     if (burnt <= 0f) return 1f to 1f
     val a = ageTilts(g)
     val elders = g.band?.elders?.coerceAtMost(g.adults) ?: 0
