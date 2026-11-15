@@ -10,6 +10,7 @@ import inflation.Tuning
 import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.pow
 
 /**
  * Plant life forms tracked on each place ([HexPlants]). Food, fodder, fuel and materials are drawn from these.
@@ -248,7 +249,8 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
         }
         val years = Date.years(days)
         val memory = 1 - exp(-days / 360f)
-        if (stepCount++ % 5 == 0) seedSources()
+        // (Seed sources afresh every [SEED_SOURCE_DAYS], at any tick length.)
+        if (stepCount++ % max(1, (SEED_SOURCE_DAYS / days).toInt()) == 0) seedSources()
         if (!shootsSet) {
             for (p in land.places) {
                 shrubShoots[p] = land.palatable[p] * SHRUB_RENEWAL * shrub[p]
@@ -257,6 +259,11 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             shootsSet = true
         }
         val shootsKept = exp(-years)
+        // (The rules set as a share a tick at [SET_AT_DAYS] a tick, as a rate a day: the same at that tick, and as much in
+        // a month at any other. The plants' warmth rises halfway to a warmer tick's in one; frost and floods take their share.)
+        val perSet = days / SET_AT_DAYS
+        val warmUp = 1f - 0.5f.pow(perSet)
+        val frostKept = 0.3f.pow(perSet)
         val lengthening = weather.date.dayOfYear < Date.DAYS_PER_YEAR / 2
         fire.spread(weather, years)
         // (For the books: what grew, what burnt and what fell into the litter, kg.)
@@ -270,7 +277,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             val t = weather.temperature[p]
             val wet = hydro.soil[p] / hydro.soilCap[p]
             moisture[p] += (((1 - land.slopeShade[p]) * hydro.soil[p] + land.slopeShade[p] * hydro.soilShade[p]) / hydro.soilCap[p] - moisture[p]) * memory
-            warmth[p] = if (t > warmth[p]) warmth[p] + (t - warmth[p]) * 0.5f else warmth[p] + (t - warmth[p]) * memory * 0.1f
+            warmth[p] = if (t > warmth[p]) warmth[p] + (t - warmth[p]) * warmUp else warmth[p] + (t - warmth[p]) * memory * 0.1f
             // Plants are adapted to their place: where summers are cool they grow fully at less warmth (alpine
             // grasses at 5-10 °C); where summers are hot they need the usual warmth.
             val season = growthWarmth(p, t)
@@ -358,11 +365,12 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
                 shrubNote(ShrubPart.ASH, p, sAsh)
                 fertility[p] = min(1f, fertility[p] + ASH_FERTILITY * ash[p] * years)
             }
-            frostAndFlood(p, t)
+            frostAndFlood(p, t, frostKept, perSet)
             fertility[p] += (land.soilFertility[p] - fertility[p]) * years / SOIL_RECOVERY_YEARS
             val cover = min(1f, herb[p] / 0.3f + shrub[p] + canopy(p))
             val bare = (1f - cover) * (1f - cover)
-            if (bare > 0.01f) fertility[p] *= 1f - min(0.5f, EROSION * bare * weather.precipitation[p] / 50f * land.slope[p] / 0.2f * years)
+            // (On the rain a week, whatever the tick: [EROSION] is set against 50 mm a week.)
+            if (bare > 0.01f) fertility[p] *= 1f - min(0.5f, EROSION * bare * weather.precipitation[p] * 7f / days / 50f * land.slope[p] / 0.2f * years)
             val sFire = shrub[p]
             val burned = if (fire.burning[p] > 0f) fire.burn(p, fire.burning[p]) else 0f
             shrubNote(ShrubPart.FIRE, p, sFire)
@@ -377,30 +385,34 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
                 val m2 = land.areaM2[p].toDouble()
                 grewBook!!.add((grew + turnover) * m2); burntBook!!.add(-burned * m2); fellBook!!.add(-fell * m2)
             }
-            trample(p, years, fellBook)
+            trample(p, years, perSet, fellBook)
             // The young growth matures as it grows, over [FLUSH_WEEKS] of full growth; the black scar itself fades over years.
             if (fire.burnt[p] > 0f) fire.burnt[p] = max(0f, fire.burnt[p] * exp(-sprout * days / (7f * FLUSH_WEEKS)) - 0.4f * years)
         }
     }
 
-    /** Frost kills back what its form cannot stand at [t] °C, and floods drown what grows on the floodplain share of place [p]. */
-    private fun frostAndFlood(p: Place, t: Float) {
-        if (t < LifeForm.HERB.frostKill) herb[p] *= 0.3f
-        if (t < LifeForm.SHRUB.frostKill) { val s0 = shrub[p]; shrub[p] *= 0.3f; shrubNote(ShrubPart.FROST, p, s0) }
-        if (t < LifeForm.TREE.frostKill) tree[p] *= 0.3f
+    /**
+     * Frost kills back what its form cannot stand at [t] °C ([frostKept] of it left, a tick's share of [SET_AT_DAYS]' 0.3), and
+     * floods drown what grows on the floodplain share of place [p] (as much a day, [perSet] the tick's days against [SET_AT_DAYS]).
+     */
+    private fun frostAndFlood(p: Place, t: Float, frostKept: Float, perSet: Float) {
+        if (t < LifeForm.HERB.frostKill) herb[p] *= frostKept
+        if (t < LifeForm.SHRUB.frostKill) { val s0 = shrub[p]; shrub[p] *= frostKept; shrubNote(ShrubPart.FROST, p, s0) }
+        if (t < LifeForm.TREE.frostKill) tree[p] *= frostKept
         // Floods drown what grows on the floodplain share of the place.
         val f = hydro.flood[p]; val fs = land.floodShare[p]
-        if (f > 1f) { val s0 = shrub[p]; herb[p] *= 1f - 0.5f * fs; shrub[p] *= 1f - 0.1f * fs; shrubNote(ShrubPart.FLOOD, p, s0) }
-        if (f > 3f) tree[p] *= 1f - 0.03f * fs
+        if (f > 1f) { val s0 = shrub[p]; herb[p] *= (1f - 0.5f * fs).pow(perSet); shrub[p] *= (1f - 0.1f * fs).pow(perSet); shrubNote(ShrubPart.FLOOD, p, s0) }
+        if (f > 3f) tree[p] *= (1f - 0.03f * fs).pow(perSet)
     }
 
     /** Trampling, spread over place [p]: a herd beats down a share of it, wearing trails that fade over [years] where none walk. */
-    private fun trample(p: Place, years: Float, fellBook: java.util.concurrent.atomic.DoubleAdder?) {
+    private fun trample(p: Place, years: Float, perSet: Float, fellBook: java.util.concurrent.atomic.DoubleAdder?) {
         val tr = trampling[p] / land.areaKm2[p]
         if (tr > 0f) {
-            val h0 = herb[p]; val s0 = shrub[p]
-            herb[p] *= exp(-tuning.trampleHerb * tr)
-            val beaten = h0 - herb[p] + s0 - shrub[p]
+            val h0 = herb[p]
+            // (As much beaten down a day at any tick: [inflation.Tuning.trampleHerb] is a [SET_AT_DAYS] tick's.)
+            herb[p] *= exp(-tuning.trampleHerb * tr * perSet)
+            val beaten = h0 - herb[p]
             // (What is beaten down falls into the litter.)
             litterfall[p] += beaten; fellBook?.add(-beaten * land.areaM2[p].toDouble())
             trails[p] = min(1f, trails[p] + TRAIL_WEAR * tr * (1f - trails[p]))
@@ -447,6 +459,13 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
          * shrubs on good ground; not checked against a source).
          */
         const val SEEDLING_YEARS = 3f
+        /**
+         * The tick length, days, at which the rules once taken as a share a tick were set (frost, floods, trampling, the plants'
+         * warmth rising): they go as a rate a day, the same as before at this tick.
+         */
+        const val SET_AT_DAYS = 6f
+        /** How often the seed sources of shrubs and trees are worked out afresh, days (every 5 ticks of 6 days, before). */
+        const val SEED_SOURCE_DAYS = 30f
         /** What changes the shrubs, for shrubDiag (see [shrubBook]). */
         val SHRUB_PARTS: List<String> get() = ShrubPart.entries.map { it.label }
         /**
