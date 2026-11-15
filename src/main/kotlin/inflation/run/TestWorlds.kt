@@ -92,6 +92,11 @@ object TestWorlds {
         Entry("m5-1", 1, 1000, 2000, "the full map, model 5"),
         Entry("m5-2", 2, 1000, 2000, "the full map, model 5"),
         Entry("m5-3", 3, 1000, 2000, "the full map, model 5"),
+        // New seeds 4..6, settled for 30 years on main 2afaf7c4 from t.startDay=150 with the default nets of 2026-11-14
+        // (night1114-kept-last): Olli 2026-11-14 "reseed a new world" for the overnight training and its checks.
+        Entry("s6-4", 4, 1000, 2000, "the full map, new seed 4"),
+        Entry("s6-5", 5, 1000, 2000, "the full map, new seed 5"),
+        Entry("s6-6", 6, 1000, 2000, "the full map, new seed 6"),
         // The same seeds, settled for 30 years from t.startDay=150 with t.startSettled=0.6, so that villages start with the
         // domestic strain of grain and keep it apart (they are the only way it enters a world): for testing strains, not
         // the set in use.
