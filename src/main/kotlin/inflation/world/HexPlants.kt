@@ -101,6 +101,17 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
     @Transient private val growFrom = FloatArray(n) { p -> (warmest[p] - 20f).coerceIn(-2f, tuning.growFromC) }
     @Transient private val growSpan = FloatArray(n) { p -> (warmest[p] - 6f).coerceIn(6f, tuning.growSpanC) }
     @Transient val perennialShare = FloatArray(n) { p -> ((PERENNIAL_FULL_C + 4f - warmest[p]) / 4f).coerceIn(0f, 1f) }
+    /**
+     * Each place's coldest month, °C (normal): its plants stand frost down to [FROST_MARGIN] below it, as they grow by its
+     * warmest ([frostKillC]).
+     */
+    @Transient private val coldest = FloatArray(n) { p -> (0 until 12).minOf { hw.placeTemp(Place(p), it) } }
+    /**
+     * The tick's mean warmth, °C, that kills [form] at place [p] outright: the form's own [LifeForm.frostKill], or colder where
+     * the place's winters are, by [FROST_MARGIN] below its coldest month: larch and the steppe's perennial grasses stand winters
+     * that would kill the trees and grass of a milder country.
+     */
+    private fun frostKillC(form: LifeForm, p: Place) = min(form.frostKill, coldest[p] - FROST_MARGIN)
     /** How far the warmth [t], °C, lets the plants of place [p] grow, 0..1, as they are adapted to it. */
     fun growthWarmth(p: Place, t: Float) = ((t - growFrom[p]) / growSpan[p]).coerceIn(0f, 1f) * if (t > 38f) 0.3f else 1f
     /**
@@ -392,13 +403,13 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
     }
 
     /**
-     * Frost kills back what its form cannot stand at [t] °C ([frostKept] of it left, a tick's share of [SET_AT_DAYS]' 0.3), and
+     * Frost kills back what its form cannot stand at [t] °C there ([frostKillC]) ([frostKept] of it left, a tick's share of [SET_AT_DAYS]' 0.3), and
      * floods drown what grows on the floodplain share of place [p] (as much a day, [perSet] the tick's days against [SET_AT_DAYS]).
      */
     private fun frostAndFlood(p: Place, t: Float, frostKept: Float, perSet: Float) {
-        if (t < LifeForm.HERB.frostKill) herb[p] *= frostKept
-        if (t < LifeForm.SHRUB.frostKill) { val s0 = shrub[p]; shrub[p] *= frostKept; shrubNote(ShrubPart.FROST, p, s0) }
-        if (t < LifeForm.TREE.frostKill) tree[p] *= frostKept
+        if (t < frostKillC(LifeForm.HERB, p)) herb[p] *= frostKept
+        if (t < frostKillC(LifeForm.SHRUB, p)) { val s0 = shrub[p]; shrub[p] *= frostKept; shrubNote(ShrubPart.FROST, p, s0) }
+        if (t < frostKillC(LifeForm.TREE, p)) tree[p] *= frostKept
         // Floods drown what grows on the floodplain share of the place.
         val f = hydro.flood[p]; val fs = land.floodShare[p]
         if (f > 1f) { val s0 = shrub[p]; herb[p] *= (1f - 0.5f * fs).pow(perSet); shrub[p] *= (1f - 0.1f * fs).pow(perSet); shrubNote(ShrubPart.FLOOD, p, s0) }
@@ -466,6 +477,11 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
         const val SET_AT_DAYS = 6f
         /** How often the seed sources of shrubs and trees are worked out afresh, days (every 5 ticks of 6 days, before). */
         const val SEED_SOURCE_DAYS = 30f
+        /**
+         * How far below its coldest month's mean a place's plants stand a tick's mean warmth before frost kills them, °C
+         * ([frostKillC]): a winter's cold spells run some 10-20 °C below its mean month (an estimate, from memory).
+         */
+        const val FROST_MARGIN = 15f
         /** What changes the shrubs, for shrubDiag (see [shrubBook]). */
         val SHRUB_PARTS: List<String> get() = ShrubPart.entries.map { it.label }
         /**
