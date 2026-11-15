@@ -365,8 +365,7 @@ internal const val STOCK_GIFT = 0.1f
 @Part("people: keep dogs and animals")
 internal fun HexGroups.keepAnimals(g: HexGroup, b: Band) {
     val h = hw.placeHex[g.place]
-    StaleCheck.read("followersByHex", bands.whereStamp)
-    for (o in bands.followersByHex[h].orEmpty()) {
+    for (o in where.followersIn(h)) {
         if (!o.alive) continue
         val s = o.species
         val bold = boldness(o)

@@ -46,8 +46,7 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
     val here = hw.placeHex[g.place]
     b.raid?.let { raid ->
         if (here == raid.hex) {
-            StaleCheck.readById("groupById", bands.byIdStamp)
-            val target = bands.groupById[raid.on]?.takeIf { it.alive && hw.placeHex[it.place] == here }
+            val target = where.group(raid.on)?.takeIf { it.alive && hw.placeHex[it.place] == here }
             if (target?.band != null) bands.raidsDue += g to target
             b.raid = null
         // (Its weeks are ticks: a step of several ticks uses up as many, so a raid gives up in the same days at any step length.)
@@ -78,8 +77,7 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
     if (dialUse == null && u >= drive * Regard.MOST_WARY) return
     val them = ArrayList<Pair<HexGroup, Regard>>()
     for (id in within) {
-        StaleCheck.readById("groupById", bands.byIdStamp)
-        val o = bands.groupById[id]?.takeIf { it.alive } ?: continue
+        val o = where.group(id)?.takeIf { it.alive } ?: continue
         val ob = o.band ?: continue
         // (As the record of early foragers has it: planned raids are on bands with something fixed to take or hold, their
         // houses, fresh sowing or a palisade ([Band.livesFixed]); bands on the move are not worth it.)
@@ -112,7 +110,7 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
         // the whole day's going each way, is taken from its next step's days, [Band.raidWalkOwed].)
         if (staysHome(g)) {
             tripAlong(g, way, raidParty(g), WalkPaid.NEXT_STEP)
-            val target = bands.groupById[best]?.takeIf { it.alive && it.band != null && hw.placeHex[it.place] == at }
+            val target = where.group(best)?.takeIf { it.alive && it.band != null && hw.placeHex[it.place] == at }
             if (target != null) bands.raidsDue += g to target
             note(g) { "sent its fighters to raid band #%d at hex %d".format(best, at.i) }
             return

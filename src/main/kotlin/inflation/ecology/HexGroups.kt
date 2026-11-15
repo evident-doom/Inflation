@@ -120,11 +120,13 @@ class HexGroups(
     @Transient private var gameBeforeKnown = false
     @Transient private var huntableFilled = false
     /** People sick of each catching illness in each place as the week's choosing begins (heads × share sick). */
+    /** Who is where, built at the step's named moments ([WhoIsWhere]). */
+    @Transient internal val where = WhoIsWhere()
     @delegate:Transient internal val sickPeople by lazy { Array(Illness.entries.size) { FloatArray(n) } }
     /** The beasts of prey in each place as the week's choosing begins, kg (the hunters other than people). */
     @delegate:Transient internal val beastKg by lazy { FloatArray(n) }
     /** What the bands share ([Bands]; saves from before it was split out kept its tables here). */
-    @field:MovedInto("built", "followersByHex", "bandHex", "houseOf", "materialSources\$delegate", "saltSources\$delegate")
+    @field:MovedInto("built", "houseOf", "materialSources\$delegate", "saltSources\$delegate")
     val bands = Bands(this)
     /**
      * How each group chooses where to go ([GroupPlanner]; saves from before it was split out kept its tables and its usual densities here).

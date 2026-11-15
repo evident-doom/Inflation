@@ -729,8 +729,7 @@ internal fun HexGroups.cultureWeek(g: HexGroup, rnd: kotlin.random.Random, day: 
         val here = hw.placeHex[g.place]
         val reach = reachOf(g, here, CONTACT_KM, weather)
         val far = HashSet<Int>()
-        StaleCheck.read("bandHex", bands.whereStamp)
-        for (k in b.ties.keys) bands.bandHex[k]?.let { h -> if (reach.km(h, CONTACT_KM) == null) far += k }
+        for (k in b.ties.keys) where.bandHex(k)?.let { h -> if (reach.km(h, CONTACT_KM) == null) far += k }
         val it = b.ties.entries.iterator()
         while (it.hasNext()) { val e = it.next(); e.setValue(e.value * (1f - min(1f, fade * (if (e.key in far) FAR_TIE_FADE else 1f)))); if (abs(e.value) < 0.01f) it.remove() }
     }

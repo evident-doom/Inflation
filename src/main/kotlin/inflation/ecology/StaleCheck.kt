@@ -39,14 +39,20 @@ internal object StaleCheck {
     private val all = ConcurrentHashMap<Site, LongAdder>()
 
     /** A read of [index] of where groups are, built at [stamp]: counted as stale where groups have moved or been made since. */
-    fun read(index: String, stamp: Long) { if (on) count(index, stamp != moves) }
+    fun read(index: String, stamp: Long) { if (on) count(index, stamp != moves, CALLER) }
 
-    /** A read of [index] of groups by id, built at [stamp] ([madeStamp]): counted as stale where groups have been made since. */
-    fun readById(index: String, stamp: Long) { if (on) count(index, stamp != makes) }
+    /**
+     * As [read], for a lookup made through [WhoIsWhere], counted by the line that asked [WhoIsWhere]; [byId] for one of groups by
+     * id, built at [madeStamp]: stale only where groups have been made since.
+     */
+    fun readThrough(index: String, stamp: Long, byId: Boolean) { if (on) count(index, stamp != (if (byId) makes else moves), CALLER + 1) }
 
-    /** Counts a read by the line that called [read] or [readById]. */
-    private fun count(index: String, stale: Boolean) {
-        val f = Throwable().stackTrace.getOrNull(2)
+    /** The stack frame of the line that called [read], seen from [count]. */
+    private const val CALLER = 2
+
+    /** Counts a read by the line [depth] frames up (see [CALLER]). */
+    private fun count(index: String, stale: Boolean, depth: Int) {
+        val f = Throwable().stackTrace.getOrNull(depth)
         val at = Site(index, f?.fileName, f?.lineNumber ?: -1)
         all.computeIfAbsent(at) { LongAdder() }.increment()
         if (stale) reads.computeIfAbsent(at) { LongAdder() }.increment()

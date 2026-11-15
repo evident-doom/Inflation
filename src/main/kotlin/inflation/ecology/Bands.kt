@@ -115,14 +115,6 @@ class Bands internal constructor(private val world: GroupWorld) {
     /** The weeks in a row each hex that is a village now has been one ([tallyVillages]). */
     @Transient internal val villageAge = HashMap<Hex, Int>()
 
-    /** Bands by the hex they are in ([indexBands]): at the start of the week for [fillBandStates], after the moves for [setWays]. */
-    @Transient internal val bandIndex = HashMap<Hex, ArrayList<HexGroup>>()
-    /** The bands whose herds are kept away from their camps this week, by the hex they are kept in ([Herd.at], [indexBands]). */
-    @Transient internal val herdIndex = HashMap<Hex, ArrayList<HexGroup>>()
-    /** [StaleCheck]'s stamps: of [bandIndex] and [herdIndex], of [followersByHex] and [bandHex], and of [groupById] (by groups made). */
-    @Transient internal var indexStamp = 0L
-    @Transient internal var whereStamp = 0L
-    @Transient internal var byIdStamp = 0L
 
     /** Dogs that left their band hungry this week as a pack of their own ([keepAnimals]): added to the groups once every band has had its week. */
     @Transient internal val strays = ArrayList<HexGroup>()
@@ -130,14 +122,8 @@ class Bands internal constructor(private val world: GroupWorld) {
     /** Raiders that reached their target's home this week, with the band they came for: fought once every band has had its week. */
     @Transient internal val raidsDue = ArrayList<Pair<HexGroup, HexGroup>>()
 
-    /** Packs of kinds that follow people, by the hex they end the week in (for taming). */
-    internal var followersByHex: Map<Hex, List<HexGroup>> = emptyMap()
 
-    /** Each living band's hex by its id, as of this week's camps (for visiting, see [cultureWeek]). */
-    internal var bandHex: Map<Int, Hex> = emptyMap()
 
-    /** Each group by its id, as the bands' weeks begin and when the bands are indexed ([indexBands]): the groups they look for by id (raid targets, homes they know of, bands they saw). Not saved. */
-    @Transient internal var groupById: Map<Int, HexGroup> = emptyMap()
 
     /** Where each living band with a standing house has it, by the band's id (set each week before the bands' own weeks). */
     internal var houseOf: Map<Int, Hex> = emptyMap()

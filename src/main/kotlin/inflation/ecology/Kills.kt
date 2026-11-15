@@ -99,12 +99,11 @@ internal fun HexGroups.herdOdds(w: ForageWeek) {
     val s = w.g.species; val view = FloatArray(2)
     for (j in 0 until w.ground.size) {
         val p = Place(w.ground.place[j])
-        // (The herds kept here: at their bands' camps, or at a summer pasture away from them ([Herd.at], [HexGroups.herdIndex]).)
-        StaleCheck.read("bandIndex/herdIndex", bands.indexStamp)
-        val atCamps = bands.bandIndex[hw.placeHex[p]]; val away = bands.herdIndex[hw.placeHex[p]]
-        if (atCamps == null && away == null) continue
+        // (The herds kept here: at their bands' camps, or at a summer pasture away from them ([Herd.at], [WhoIsWhere.herdsKeptIn]).)
+        val atCamps = where.bandsIn(hw.placeHex[p]); val away = where.herdsKeptIn(hw.placeHex[p])
+        if (atCamps.isEmpty() && away.isEmpty()) continue
         var looked = false
-        for (c in atCamps.orEmpty() + away.orEmpty()) {
+        for (c in atCamps + away) {
             val b = c.band ?: continue
             val kept = b.herds.at.takeIf { !it.none } ?: c.place
             if (kept != p || !c.alive) continue

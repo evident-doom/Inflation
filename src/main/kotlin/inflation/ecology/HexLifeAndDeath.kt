@@ -88,10 +88,7 @@ internal fun HexGroups.inheritSeasons(g: HexGroup) {
 @Part("groups: demography")
 internal fun HexGroups.demography(weather: Weather, date: Date) {
     // Bands keep or move camp, gather materials and make their tools.
-    bands.followersByHex = groups.filter { it.alive && it.species.followsPeople && !it.species.human }.groupBy { hw.placeHex[it.place] }
-    bands.groupById = groups.associateBy { it.id }
-    bands.bandHex = groups.filter { it.alive && it.band != null }.associate { it.id to hw.placeHex[it.place] }
-    bands.whereStamp = StaleCheck.stamp(); bands.byIdStamp = StaleCheck.madeStamp()
+    where.build(this, WhoIsWhere.Moment.DEMOGRAPHY)
     tendStructures(weather)
     foulGround()
     bands.houseOf = groups.filter { g -> g.alive && g.band.let { it != null && !it.houseHex.none && it.house >= Thresholds.HOUSE_STANDING } }

@@ -536,8 +536,7 @@ internal fun HexGroups.bandInputs(g: HexGroup, weather: Weather, into: FloatArra
     for (d in -1 until 6) {
         val h = if (d < 0) here else hex.neighbour(here, d)
         if (h.none) continue
-        StaleCheck.read("bandIndex", bands.indexStamp)
-        for (o in bands.bandIndex[h] ?: continue) {
+        for (o in where.bandsIn(h)) {
             if (o === g) continue
             val ob = o.band ?: continue
             val r = Regard(b, o.id, ob, map = hex)
@@ -647,7 +646,7 @@ val BAND_INPUT_NAMES: List<String> get() = BandInputs.names
  */
 @Part("bands: taking stock")
 internal fun HexGroups.fillBandStates(weather: Weather) {
-    indexBands()
+    where.build(this, WhoIsWhere.Moment.WEEK_BEGINS)
     val list = groups.filter { it.alive && it.band != null }
     Par.forEach("people: ways of the bands", list.size) { k ->
         val g = list[k]; val b = g.band!!
@@ -658,21 +657,6 @@ internal fun HexGroups.fillBandStates(weather: Weather) {
 }
 
 /** Sets a band's ways from [ways]' outputs: 0 is the scaffold (effort 1, stores [Band.storeAimAt1], every tool alike). */
-/**
- * Files every living band under the hex it is in now ([HexGroups.bandIndex]), for [bandInputs]' bands about, and finds every
- * group by its id afresh ([Bands.groupById]), for the bands it saw lately ([seenInputs]): some were born since the last.
- */
-@Part("people: index bands")
-internal fun HexGroups.indexBands() {
-    bands.bandIndex.clear(); bands.indexStamp = StaleCheck.stamp()
-    bands.groupById = groups.associateBy { it.id }; bands.byIdStamp = StaleCheck.madeStamp()
-    for (g in groups) if (g.alive && g.band != null) bands.bandIndex.getOrPut(hw.placeHex[g.place]) { ArrayList() } += g
-    // (And the herds kept away from their camps, under the hex they are kept in: [Herd.at], for the beasts that hunt there, [herdOdds].)
-    bands.herdIndex.clear()
-    for (g in groups) { val b = g.band ?: continue; val at = b.herds.at
-        if (g.alive && !at.none && hw.placeHex[at] != hw.placeHex[g.place]) bands.herdIndex.getOrPut(hw.placeHex[at]) { ArrayList() } += g }
-}
-
 @Part("people: set ways")
 internal fun HexGroups.setWays(g: HexGroup, weather: Weather, ways: BandWays, inputs: FloatArray, out: FloatArray) {
     val b = g.band ?: return
