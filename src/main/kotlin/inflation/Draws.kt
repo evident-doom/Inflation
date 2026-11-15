@@ -41,8 +41,6 @@ enum class Stream(val salt: Long) {
     /** The mast crop's years, for each weather replicate. */
     MAST(0x4d415354L),
     ERUPTIONS(0x45525550L),
-    /** The fine grid's plants ([inflation.world.Vegetation]): their start, and each cell's draws a step. */
-    FINE_PLANTS(0x56454745L),
     FIRES(0x46495245L),
     OUTBREAKS(0x4f555442L),
     LOCUSTS(0x4c4f4355L),

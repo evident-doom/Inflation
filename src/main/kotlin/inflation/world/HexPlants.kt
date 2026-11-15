@@ -12,7 +12,32 @@ import kotlin.math.max
 import kotlin.math.min
 
 /**
- * The plants of the places of [HexLand], on the averages of each place's cells (begun from the fine [Vegetation]'s rules, since gone further):
+ * Plant life forms tracked on each place ([HexPlants]). Food, fodder, fuel and materials are drawn from these.
+ * (Herbs' fastest growth: a short sward in full warmth and water doubles in about three weeks, as spring
+ * pasture and semi-arid grassland put on 1-3 g/m² a day from a low stand, from memory; slower growth would
+ * leave a dry country's spring over before its grass had grown.)
+ */
+enum class LifeForm(
+    /** Largest standing biomass in the best conditions, kg dry matter per m². */
+    val maxBiomass: Float,
+    /** Fastest relative growth, per year. */
+    val growthPerYear: Float,
+    /** Long-term soil moisture (0..1) below which the form cannot persist, and where it thrives. */
+    val moistureMin: Float,
+    val moistureFull: Float,
+    /** Growing-season temperature (warmest month, °C) below which it cannot persist, and where it thrives. */
+    val warmthMin: Float,
+    val warmthFull: Float,
+    /** Air temperature that kills it outright, °C. */
+    val frostKill: Float,
+) {
+    HERB(0.6f, 12f, 0.05f, 0.35f, 4f, 12f, -45f),
+    SHRUB(3f, 0.8f, 0.12f, 0.45f, 6f, 14f, -30f),
+    TREE(25f, 0.25f, 0.3f, 0.7f, 10f, 16f, -25f),
+}
+
+/**
+ * The plants of the places of [HexLand], on the averages of each place's cells:
  * herbs, shrubs and trees grow towards ceilings set by recent moisture, warmth and soil; trees shade the rest;
  * seed comes from the place itself and its neighbours (the other half of its hex, the places
  * in the hexes around); frost, floods, ash and fire set them back. Grazing, browsing, rooting, trampling and
