@@ -77,6 +77,11 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
     val browsing = FloatArray(n); val grazing = FloatArray(n); val rooting = FloatArray(n); val animalSeed = FloatArray(n)
     private val trampling = FloatArray(n)
     /**
+     * The share of each place people keep open of shrubs and trees ([keepOpen]: the ground cleared for their fields, set by
+     * the ecology): the woody plants' ceiling there is less by it, so they grow back on it only as it is let go.
+     */
+    val opened = FloatArray(n)
+    /**
      * Ground stepped on at each place, m² (see [tread]): the seedlings of shrubs and trees it kills. Trodden in the week's grazing
      * and counted, then cleared, in the next week's plant step (the plants grow before the animals feed).
      */
@@ -192,7 +197,9 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             LifeForm.SHRUB -> 1f - 0.6f * land.waterlogged[p]
             LifeForm.TREE -> 1f - 0.95f * land.waterlogged[p]
         }
-        val open = form.maxBiomass * m * t * soilF * wetFactor
+        // (Shrubs and trees grow only off the ground kept open: [opened].)
+        val woody = if (form == LifeForm.HERB) 1f else 1f - opened[p]
+        val open = form.maxBiomass * m * t * soilF * wetFactor * woody
         // The wet valley floor grows on its own soil: moist from the water table and as fertile as its alluvium.
         val wf = hydro.wetFloor(p); if (wf <= 0f) return open
         val floor = form.maxBiomass * t * (0.3f + 0.7f * min(1f, land.floorFertility[p] + organicFertility[p]))
@@ -201,7 +208,21 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
         // forests along rivers in dry country), except where it stands so near the surface that the soil is
         // sodden: there they drown and the floor is wet meadow and reed.
         val rooted = max(0f, wf - hydro.saturatedFloor(p))
-        return (1f - wf) * open + rooted * floor * wetFactor
+        return (1f - wf) * open + rooted * floor * wetFactor * woody
+    }
+
+    /**
+     * People keep [share] of place [p] open of shrubs and trees ([opened]): ground newly cleared, beyond what was open, has
+     * its shrubs and trees cut, and their shoots with them, as their share of the woody ground left. Returns what was cut,
+     * kg/m², for the caller to leave lying (felled and burnt or left to rot where it fell, as clearing for the first
+     * fields was). Less open than before cuts nothing: the woods come back by their own growth.
+     */
+    fun keepOpen(p: Place, share: Float): KgM2 {
+        val was = opened[p]; opened[p] = share.coerceIn(0f, 1f)
+        if (opened[p] <= was) return KgM2.ZERO
+        val f = (opened[p] - was) / (1f - was).coerceAtLeast(1e-6f)
+        shrubShoots[p] *= 1f - f; treeShoots[p] *= 1f - f
+        return consume(p, LifeForm.SHRUB, KgM2(f * shrub[p]), ShrubPart.CLEARED) + consume(p, LifeForm.TREE, KgM2(f * tree[p]))
     }
 
     /** Takes up to [want] of the plants of [form] at [p]; returns what was taken. */
@@ -546,6 +567,6 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
 /** What changes the shrubs, for shrubDiag ([HexPlants.shrubBook]); [label] is its line in the report. */
 enum class ShrubPart(val label: String) {
     GREW("grew"), DIED_BACK("died back over its ceiling"), BROWSED("browsed"), FROST("frost"), FLOOD("flood"), ASH("ash"), FIRE("fire"),
-    TAKEN_OTHERWISE("taken otherwise (small life, fruit, curing, people)")
+    TAKEN_OTHERWISE("taken otherwise (small life, fruit, curing, people)"), CLEARED("cleared for fields")
 }
 

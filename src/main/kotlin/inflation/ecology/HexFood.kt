@@ -285,7 +285,7 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
             shrubFruitNow.fill(0f); treeFruitNow.fill(0f)
             wildCover.fill(0f)
             // (Cleared ground not cropped in the year grows back toward the place's woods and scrub.)
-            if (!first) for (p in 0 until n) cleared[p] = croppedNow[p] + max(0f, cleared[p] - croppedNow[p]) * (1f - 1f / REGROW_YEARS)
+            if (!first) for (p in 0 until n) { cleared[p] = croppedNow[p] + max(0f, cleared[p] - croppedNow[p]) * (1f - 1f / REGROW_YEARS); keepOpen(Place(p)) }
             croppedNow.fill(0f)
             for (k in FieldFate.entries.indices) {
                 if (!first) fieldFateLastYear[k] = (0 until n).sumOf { (fieldFateNow[k][it] * land.areaKm2[it] * 1e6f).toDouble() } / 1000
@@ -400,6 +400,13 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
         field[p] += add
         fieldCover[p] = sownShare(p)
         cleared[p] = max(cleared[p], fieldCover[p]); croppedNow[p] = max(croppedNow[p], fieldCover[p])
+        keepOpen(p)
+    }
+
+    /** The plants keep [p]'s cleared ground open of shrubs and trees ([HexPlants.keepOpen]); what is cut there is left as litter. */
+    private fun keepOpen(p: Place) {
+        val cut = land.plants.keepOpen(p, cleared[p])
+        if (cut.v > 0f) small.deposit(DeadPool.LITTER, p, cut)
     }
 
     /**
