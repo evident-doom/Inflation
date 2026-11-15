@@ -608,6 +608,14 @@ class Band(kinds: Int, totems: Int = kinds) {
     /** The loads a [Mind.PLANS] band's adults take on this week's camp move, as it chose them ([relayLoads]; NaN: as its ways have it, [carryLoads]). */
     @Transient var planLoads = Float.NaN
     fun tie(other: Int) = ties[other] ?: 0f
+    /**
+     * Band [by] (group [byId]) did it a wrong of [weight] (1: it raided it): its grudge against their people rises by [weight]
+     * times [GRUDGE], and its tie to that band falls by [weight] times [TIE_RAID]. The one rule for every wrong: a raid, a
+     * raid slipped away from, a raid stood against, a cache robbed, a sacrilege.
+     */
+    fun wronged(byId: Int, by: Band, weight: Float) { grudge[by.mainLineage()] += weight * GRUDGE; befriend(byId, -weight * TIE_RAID) }
+    /** Band [by] made amends ([share] of its grudge against their people forgiven): kin by marriage, help in need. */
+    fun amends(by: Band, share: Float) { grudge[by.mainLineage()] *= 1f - share }
     fun befriend(other: Int, by: Float) { ties[other] = (tie(other) + by * (if (by > 0f) 1f - tie(other) else 1f + tie(other))).coerceIn(-1f, 1f) }
     /**
      * Favours: what each band it has dealt with owes it (above 0) or it is owed by it (below 0), in

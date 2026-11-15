@@ -292,7 +292,7 @@ internal const val OWN_GROUND_HEXES = 2f
 internal fun HexGroups.settle(enc: Encounter, byStrategy: HexArray?, weather: Weather, rite: RiteGathering? = null) {
     val a = enc.a; val b = enc.b; val intent = enc.intent
     // (Two bands that are friends both ways greet whatever their strategies, but where one came to raid.)
-    val friends = intent != Intent.RAID && a.band?.let { ba -> b.band?.let { bb -> ba.tie(b.id) >= FRIEND_TIE && bb.tie(a.id) >= FRIEND_TIE } } == true
+    val friends = intent != Intent.RAID && a.band?.let { ba -> b.band?.let { bb -> Regard(ba, b.id, bb).friend && Regard(bb, a.id, ba).friend } } == true
     // (A meeting that stands for several ([meetTimes]: neighbours' visits held as one) engages as often, till it comes to something.)
     if (byStrategy != null && !friends) {
         for (t in 0 until meetTimes) { if (!a.alive || !b.alive || engage(enc, byStrategy, rnd, weather)) break }
@@ -590,7 +590,7 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
     // Gifts: bands close to each other give each other ornaments, which travel on along the ties.
     for ((giver, taker) in listOf(a to b, b to a)) {
         val gb = giver.band ?: continue; val tb = taker.band ?: continue
-        if (Regard(gb, taker.id, tb, map = hex).tie < FRIEND_TIE || gb.ornaments < 1f) continue
+        if (!Regard(gb, taker.id, tb, map = hex).friend || gb.ornaments < 1f) continue
         val gift = min(1f, ORNAMENT_GIFT * gb.giveWill) * gb.ornaments
         dialUse?.amount(DialSite.GIVE_ORNAMENTS, gb.giveWill, gift, min(1f, ORNAMENT_GIFT) * gb.ornaments, cut = ORNAMENT_GIFT * gb.giveWill > 1f)
         // (Less at a meeting soon after the last: gifts mark meetings after time apart, [meetingFresh].)

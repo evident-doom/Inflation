@@ -325,7 +325,7 @@ private fun GroupWorld.marryOut(a: HexGroup, bandA: Band, b: HexGroup, bandB: Ba
         if (bandB.holders[i] > 0f) bandB.holders[i] = max(0f, bandB.holders[i] - fromB[i])
     }
     // Kin by marriage forgive.
-    bandA.grudge[bandB.mainLineage()] *= 0.5f; bandB.grudge[bandA.mainLineage()] *= 0.5f
+    bandA.amends(bandB, 0.5f); bandB.amends(bandA, 0.5f)
 }
 
 /**
@@ -391,7 +391,7 @@ internal fun HexGroups.visitKin(weather: Weather) {
         g.fed += (meal.wantAll - meal.need) / week
         land.books?.flow(inflation.Books.Stuff.MATTER, "eaten", -meal.ateKg.toDouble())
         // Who was helped remembers: grudges against the helpers' people fade, and it owes them a favour.
-        g.band!!.grudge[o.band!!.mainLineage()] *= 0.5f
+        g.band!!.amends(o.band!!, 0.5f)
         helped(o, g, gift)
         stats.meeting(Met.HUNGRY_BANDS_FED_BY_KIN)
     }

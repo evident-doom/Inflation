@@ -604,6 +604,13 @@ private val UNIVERSAL = setOf(Tradition.EXOGAMY, Tradition.SHARING, Tradition.ME
 fun kinship(a: FloatArray, b: FloatArray): Float { var s = 0f; for (i in a.indices) s += a[i] * b[i]; return s }
 
 /**
+ * How strongly band [a] is drawn to band [b], [km] off by the going, as kin to go to: their kinship, the less the farther
+ * (a hex's width halves it). The one rule for a small band joining kin ([mergeAndPair]) and a band driven from its home
+ * taking refuge with them ([scatterBeaten]).
+ */
+internal fun GroupWorld.kinPull(a: Band, b: Band, km: Float) = kinship(a.lineage, b.lineage) / (1f + km / hex.hexKm.toFloat())
+
+/**
  * How band [of] stands toward band [to] (of group [toId]): how well they understand each other (at a meeting, [heard] as it
  * began; otherwise their words as they stand), its tie to them, whether they are strangers, its grudge against their people,
  * how near kin they are and how far apart their customs, each read as it stands when asked. Everything between two bands

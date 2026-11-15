@@ -51,7 +51,6 @@ Two customs do have a way, and are read both ways:
 ## 3. A few reads go around Regard
 
 - **Friends by three tests.** `Regard.friend` is `tie > FRIEND_TIE`. The meetings' greeting between friends (`HexMeetings.settle`) tests `tie >= FRIEND_TIE` both ways, and the ornaments given test `tie < FRIEND_TIE` for not a friend. So a tie of exactly `FRIEND_TIE` is a friend at the greeting and for ornaments, and not one for `Regard`. Fix: all three read `Regard.friend`.
-- **Understanding read raw.** The meeting's start (`meetingEndsInRaid`) and a raid's choice of target (`PeopleRaids`) call `Language.understanding` directly. `Regard` takes the understanding a meeting began with (`heard`) for exactly this, so both should pass it in and read the rest from the same `Regard`.
 - **The nearest of most kinship, twice.** A small band joining kin (`mergeAndPair`) and a band driven from its home seeking refuge (`PeopleSpread`) both weigh a host by `kinship / (1 + going km / hexKm)`. Both go by the ground, which is right, but the rule is written twice. Fix: one function for it.
 
 Results should be unchanged except for the friends at exactly `FRIEND_TIE`, which is vanishingly rare. A line-for-line check covers it.

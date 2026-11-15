@@ -510,7 +510,7 @@ internal fun HexGroups.scatterBeaten(date: Date, weather: Weather): List<HexGrou
             val km = near[hw.placeHex[k.place]] ?: continue
             val kb = k.band ?: continue
             if (kb.mainLineage() == raiders || kb.mind != ob.mind || k.size + SEEP_ADULTS > maxSize(k)) continue
-            val kin = kinship(ob.lineage, kb.lineage) / (1f + km / hex.hexKm.toFloat())
+            val kin = kinPull(ob, kb, km)
             if (kin > hostKin) { hostKin = kin; host = k }
         }
         // (The hex to move to: empty, beside, farthest from the raiders' home; of those as far, the one whose ground gives most.)

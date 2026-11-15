@@ -757,7 +757,7 @@ internal fun HexGroups.mergeAndPair(date: Date, weather: Weather) {
                 // (A band joins only one of its own mind: the two kinds of choosing stay apart.)
                 val ob = o.band ?: continue
                 if (o === g || !o.alive || o.size + g.size > maxSize(o) || ob.mind != b.mind || inParty(o)) continue
-                val k = kinship(b.lineage, ob.lineage) / (1f + reach.dist[i] / hex.hexKm.toFloat())
+                val k = kinPull(b, ob, reach.dist[i])
                 if (k > bestKin) { bestKin = k; best = o }
             }
         }

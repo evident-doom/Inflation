@@ -241,7 +241,7 @@ internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planne
     if (edge == null && !ob.atHome && rnd.nextFloat() < FLEE) {
         if (atCamp) { val t = SLIP_LOSS * RAID_TAKE * o.larder; moveFood(o, g, t, LarderMove.RAIDED) }
         stats.meeting(Met.RAIDED_BANDS_SLIPPED_AWAY)
-        ob.grudge[b.mainLineage()] += 0.5f * GRUDGE; ob.befriend(g.id, -0.5f * TIE_RAID)
+        ob.wronged(g.id, b, 0.5f)
         return
     }
     val sides = raidSides(g, o, ob, planned, ob.atHome, weather, edge, at, gathered)
@@ -283,11 +283,13 @@ internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planne
     // A band beaten at its home may be driven from it, the likelier the more the raiders overpower it (none when they are
     // only as strong; Wrangham and Glowacki 2012: victors drove the defeated off their land in most non-state wars).
     if (atCamp && ob.atHome && sg > so && rnd.nextFloat() < 1f - so / sg) driveOff(o, ob, b, hw.placeHex[g.place])
-    ob.grudge[b.mainLineage()] += GRUDGE
-    ob.befriend(g.id, -TIE_RAID); b.befriend(o.id, -RAIDER_RESENT * TIE_RAID)
+    ob.wronged(g.id, b, 1f)
+    // (The raiders cut their own tie to the band they fell on whatever came of it, and hold a grudge against it only for
+    // those they lost: not a wrong done them, so not [Band.wronged].)
+    b.befriend(o.id, -RAIDER_RESENT * TIE_RAID)
     if (lostG > 0) b.grudge[ob.mainLineage()] += RAIDER_RESENT * GRUDGE
     // (Those who stood with them remember the raiders too, as far as they stood.)
-    for (n in sides.helpers) { n.band.grudge[b.mainLineage()] += n.share * GRUDGE; n.band.befriend(g.id, -n.share * TIE_RAID) }
+    for (n in sides.helpers) n.band.wronged(g.id, b, n.share)
 }
 
 /**
