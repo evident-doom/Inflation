@@ -143,28 +143,28 @@ private fun HexFauna.bookDeaths(k: FaunaKind, p: Place, ca: Float, cy: Float, hz
     val fireA = hz[Danger.FIRE_A]; val floodA = hz[Danger.FLOOD_A]; val snowA = hz[Danger.SNOW_A]
     val fireY = hz[Danger.FIRE_Y]; val floodY = hz[Danger.FLOOD_Y]; val snowY = hz[Danger.SNOW_Y]
     dd[ResidentDeath.AGE] += ca * s.backgroundMortality * years + cy * s.youngMortality * years
-    dd[ResidentDeath.HUNGER] += (ca + 1.5f * cy) * hunger
-    dd[ResidentDeath.COLD] += (ca + 1.5f * cy) * cold
-    dd[ResidentDeath.HEAT] += (ca + 1.5f * cy) * heat
+    dd[ResidentDeath.HUNGER] += (ca + Hazards.YOUNG_HARDER * cy) * hunger
+    dd[ResidentDeath.COLD] += (ca + Hazards.YOUNG_HARDER * cy) * cold
+    dd[ResidentDeath.HEAT] += (ca + Hazards.YOUNG_HARDER * cy) * heat
     dd[ResidentDeath.DISEASE] += (ca + cy) * disease
     dd[ResidentDeath.EAGLES] += cy * eagle
     dd[ResidentDeath.FIRE] += ca * fireA + cy * fireY
     dd[ResidentDeath.FLOOD] += ca * floodA + cy * floodY
     dd[ResidentDeath.SNOW] += ca * snowA + cy * snowY
     dd[ResidentDeath.CROCODILES] += cy * croc
-    dd[ResidentDeath.THIRST] += (ca + 1.5f * cy) * thirst
+    dd[ResidentDeath.THIRST] += (ca + Hazards.YOUNG_HARDER * cy) * thirst
     dd[ResidentDeath.SHORT_OF_PROTEIN] += cy * starved
     val strife = hz[Danger.STRIFE]
     dd[ResidentDeath.RIVALS] += ca * strife; dd[ResidentDeath.YOUNG_KILLED_BY_RIVALS] += cy * STRIFE_YOUNG * strife
     record?.let { r ->
         val ka = ca * s.massKg; val ky = cy * s.massKg
-        r.resident(k.i, p, PlaceRecord.Cause.HUNGER, (ka + 1.5f * ky) * hunger)
-        r.resident(k.i, p, PlaceRecord.Cause.THIRST, (ka + 1.5f * ky) * thirst)
-        r.resident(k.i, p, PlaceRecord.Cause.COLD, (ka + 1.5f * ky) * cold + ka * snowA + ky * snowY)
+        r.resident(k.i, p, PlaceRecord.Cause.HUNGER, (ka + Hazards.YOUNG_HARDER * ky) * hunger)
+        r.resident(k.i, p, PlaceRecord.Cause.THIRST, (ka + Hazards.YOUNG_HARDER * ky) * thirst)
+        r.resident(k.i, p, PlaceRecord.Cause.COLD, (ka + Hazards.YOUNG_HARDER * ky) * cold + ka * snowA + ky * snowY)
         r.resident(k.i, p, PlaceRecord.Cause.ILLNESS, (ka + ky) * disease)
         r.resident(k.i, p, PlaceRecord.Cause.KILLED, ky * (eagle + croc) + (ka + STRIFE_YOUNG * ky) * strife)
         r.resident(k.i, p, PlaceRecord.Cause.OTHER, ka * s.backgroundMortality * years + ky * (s.youngMortality * years + starved) +
-            (ka + 1.5f * ky) * heat + ka * (fireA + floodA) + ky * (fireY + floodY))
+            (ka + Hazards.YOUNG_HARDER * ky) * heat + ka * (fireA + floodA) + ky * (fireY + floodY))
     }
 }
 
@@ -249,14 +249,14 @@ internal fun HexFauna.crocodileOdds(p: Place, weather: Weather) = water.crocodil
  * young short of protein ([starvedOdds]), which grow slowly and die more.
  */
 private fun HexFauna.youngSum(s: Species, hz: EnumFloats<Danger>, eagle: Float, croc: Float, starved: Float) =
-    youngFixed(s, hz, eagle, croc, starved) + 1.5f * hz[Danger.HUNGER] + hz[Danger.SICK] + STRIFE_YOUNG * hz[Danger.STRIFE]
+    youngFixed(s, hz, eagle, croc, starved) + Hazards.YOUNG_HARDER * hz[Danger.HUNGER] + hz[Danger.SICK] + STRIFE_YOUNG * hz[Danger.STRIFE]
 
 /**
  * Of [youngSum], the odds that do not change with the numbers at a place or how well they are fed: their usual
  * deaths, cold and thirst, a raging outbreak, fire, flood and snow, [eagle]s, [croc]odiles and [starved] of protein.
  */
 internal fun HexFauna.youngFixed(s: Species, hz: EnumFloats<Danger>, eagle: Float, croc: Float, starved: Float) =
-    s.youngMortality * years + 1.5f * (hz[Danger.COLD] + hz[Danger.HEAT] + hz[Danger.THIRST]) + hz[Danger.OUTBREAK] + eagle +
+    s.youngMortality * years + Hazards.YOUNG_HARDER * (hz[Danger.COLD] + hz[Danger.HEAT] + hz[Danger.THIRST]) + hz[Danger.OUTBREAK] + eagle +
         hz[Danger.FIRE_Y] + hz[Danger.FLOOD_Y] + hz[Danger.SNOW_Y] + croc + starved
 
 /**

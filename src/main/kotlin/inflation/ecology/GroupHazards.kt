@@ -143,9 +143,9 @@ internal fun GroupWorld.placeHazards(g: HexGroup, p: Place, weather: Weather, fe
     val (fireA, floodA, snowA) = fauna.calamities(s, p, weather, false)
     val (fireY, floodY, snowY) = fauna.calamities(s, p, weather, true)
     val croc = if (s.human) 0f else fauna.crocodileOdds(p, weather)
-    into.add(DeathCause.HUNGER, hunger, 1.5f * hungerYoung); into.add(DeathCause.COLD, cold, 1.5f * cold)
-    into.add(DeathCause.HEAT, heat, 1.5f * heat)
-    into.add(DeathCause.EXPOSURE, exposure, 1.5f * exposure); into.add(DeathCause.THIRST, thirst, 1.5f * thirst)
+    into.add(DeathCause.HUNGER, hunger, Hazards.YOUNG_HARDER * hungerYoung); into.add(DeathCause.COLD, cold, Hazards.YOUNG_HARDER * cold)
+    into.add(DeathCause.HEAT, heat, Hazards.YOUNG_HARDER * heat)
+    into.add(DeathCause.EXPOSURE, exposure, Hazards.YOUNG_HARDER * exposure); into.add(DeathCause.THIRST, thirst, Hazards.YOUNG_HARDER * thirst)
     into.add(DeathCause.DISEASE, sick, sick); into.add(DeathCause.OUTBREAK, plague, plague)
     into.add(DeathCause.FIRE, fireA, fireY); into.add(DeathCause.FLOOD, floodA, floodY); into.add(DeathCause.SNOW, snowA, snowY)
     into.add(DeathCause.CROCODILES, 0f, croc); into.add(DeathCause.EAGLES, 0f, eagle)
@@ -273,7 +273,7 @@ internal fun GroupWorld.shareDeaths(hazards: List<Hazard>, adults: Int, young: I
 internal fun HexGroups.houseWorthWeek(g: HexGroup, b: Band, weather: Weather, stalked: Float) {
     val s = g.species; val fire = b.fire; val now = b.homeShelter(); val air = airAt(g.place, weather)
     val had = b.warmth(air, fire, now, days); val whole = b.warmth(air, fire, 1f, days)
-    fun lives(d: Float) = g.adults * d + g.young * min(1f, 1.5f * d)
+    fun lives(d: Float) = g.adults * d + g.young * min(1f, Hazards.YOUNG_HARDER * d)
     val exposure = lives(max(0f, had.odds - whole.odds))
     b.houseLivesWeek += exposure
     val walls = if (b.homeWalls > 0f) b.homeWalls else 1f
@@ -297,7 +297,7 @@ internal fun HexGroups.houseWorthWeek(g: HexGroup, b: Band, weather: Weather, st
     if (more > 0f) {
         fun starve(fed: Float, young: Boolean) = ageHunger(g, fed).let { if (young) it.second else it.first }
         w[HouseWorth.HUNGER] += g.adults * max(0f, starve(g.fed, false) - starve(g.fed + more, false)) +
-            g.young * max(0f, min(1f, 1.5f * starve(g.fed, true)) - min(1f, 1.5f * starve(g.fed + more, true)))
+            g.young * max(0f, min(1f, Hazards.YOUNG_HARDER * starve(g.fed, true)) - min(1f, Hazards.YOUNG_HARDER * starve(g.fed + more, true)))
         w[HouseWorth.PROTEIN_DAYS] += g.adults * max(0f, Hazards.spentAfter(s, g.spent, g.fed, days) - Hazards.spentAfter(s, g.spent, g.fed + more, days))
     }
     val people = max(1, g.size).toFloat(); val k = 1f / stepsPerYear

@@ -743,8 +743,7 @@ private fun GroupWorld.growUp(g: HexGroup, r: Random): Int {
 @Part("groups: merging and pairing")
 internal fun HexGroups.mergeAndPair(date: Date, weather: Weather) {
     // A band grown too small to hunt, gather and defend itself joins the nearest kin band that has room.
-    val bandsByHex = HashMap<Hex, ArrayList<HexGroup>>()
-    for (g in groups) if (g.alive && g.band != null) bandsByHex.getOrPut(hw.placeHex[g.place]) { ArrayList() } += g
+    where.build(this, WhoIsWhere.Moment.MERGING)
     for (g in groups) {
         val b = g.band ?: continue
         if (!g.alive || g.adults >= SMALL_BAND || inParty(g)) continue
@@ -754,7 +753,7 @@ internal fun HexGroups.mergeAndPair(date: Date, weather: Weather) {
         val most = kinReachKm(); val reach = reachOf(g, h0, most, weather)
         for (i in 0 until reach.hexes.size) {
             if (reach.dist[i] > most) continue
-            for (o in bandsByHex[reach.hexes[i]].orEmpty()) {
+            for (o in where.bandsIn(reach.hexes[i])) {
                 // (A band joins only one of its own mind: the two kinds of choosing stay apart.)
                 val ob = o.band ?: continue
                 if (o === g || !o.alive || o.size + g.size > maxSize(o) || ob.mind != b.mind || inParty(o)) continue

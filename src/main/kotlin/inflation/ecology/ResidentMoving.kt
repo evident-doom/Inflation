@@ -165,7 +165,7 @@ private fun HexFauna.growthFor(k: FaunaKind, parts: EnumFloats<Growth>, youngPer
     val due = dueYoung(k, p, heads, protein, min(1f, days / (s.birthMonths * Date.DAYS_PER_MONTH.toFloat())))
     val born = 0.5f * due * breeding(s, due, carried, f, days)
     val grownDie = (grownFixed + hunger + sick).coerceIn(0f, Hazards.MAX_GROWN_ODDS)
-    val youngDie = min(Hazards.MAX_YOUNG_ODDS, (youngFixed + 1.5f * hunger + sick).coerceIn(0f, Hazards.MAX_YOUNG_ODDS) + huntedYoung)
+    val youngDie = min(Hazards.MAX_YOUNG_ODDS, (youngFixed + Hazards.YOUNG_HARDER * hunger + sick).coerceIn(0f, Hazards.MAX_YOUNG_ODDS) + huntedYoung)
     if (parts != null) { parts[Growth.BORN] = born; parts[Growth.GROWN_DIE] = grownDie; parts[Growth.YOUNG_DIE] = youngDie; parts[Growth.FED] = f; parts[Growth.PROTEIN] = protein }
     return (born - grownDie - youngPerGrown * youngDie) / (1f + youngPerGrown)
 }

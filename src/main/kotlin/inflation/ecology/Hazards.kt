@@ -26,6 +26,14 @@ object Hazards {
     const val MAX_YOUNG_ODDS = 0.95f
 
     /**
+     * How much harder hunger, cold, heat, exposure and thirst fall on the young than on the grown: half as much again (an
+     * estimate: the young have less of a body to burn, and lose heat and water faster for their size). The one weight the
+     * groups' ([placeHazards]) and residents' ([HexFauna.hazards]) deaths, the residents' weighing of a move and the death
+     * warning ([foreseenHungerThirst]) all give the young; illness, fire, flood and snow fall on them as on the grown.
+     */
+    const val YOUNG_HARDER = 1.5f
+
+    /**
      * Hunger: the share of animals of [s] that die in a step of [days], fed a share [fed] of their wants with their fat
      * drawn on ([onFat]), having burnt [spent] days of their body's protein before it. Below [WELL_FED] they would have drawn
      * on their fat for the rest, so it is gone: what they still lack they burn of their body's protein ([spentAfter]), and

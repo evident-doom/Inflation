@@ -4,7 +4,6 @@ import inflation.ecology.HexSmallLife.DeadPool
 import inflation.EnumFloats
 import inflation.Kg
 import inflation.Part
-import inflation.world.Hex
 import inflation.world.Weather
 import inflation.world.get
 import inflation.world.set
@@ -127,8 +126,6 @@ internal fun HexGroups.keepAndSpoil(w: ForageWeek, got: EnumFloats<Store>, gotKg
 internal fun HexGroups.feastOnKills(weather: Weather) {
     val hosts = groups.filter { g -> g.alive && (g.band?.feastMeat ?: 0f) > 0f }
     if (hosts.isEmpty()) return
-    val byHex = HashMap<Hex, ArrayList<HexGroup>>()
-    for (g in groups) if (g.alive && g.band != null) byHex.getOrPut(hw.placeHex[g.place]) { ArrayList() } += g
     for (host in hosts) {
         val hb = host.band ?: continue
         val keen = hb.byCustom(hb.holds(Tradition.FEASTS), hb.feastWill)
@@ -138,7 +135,8 @@ internal fun HexGroups.feastOnKills(weather: Weather) {
         val order = (0 until reach.hexes.size).filter { reach.dist[it] <= most }.sortedWith(compareBy<Int> { reach.dist[it] }.thenBy { reach.hexes[it].i })
         for (i in order) {
             val h = reach.hexes[i]
-            for (guest in byHex[h].orEmpty()) if (guest !== host && left > 0f) {
+            // (The bands there as the hunt began, [WhoIsWhere.Moment.MOVED]: those that died in it come to no feast.)
+            for (guest in where.bandsIn(h)) if (guest !== host && guest.alive && left > 0f) {
                 // (From another hex the guests' [VISITORS] come and carry home what they can, [MEAT_LOAD_KG] each, and give
                 // the days of the walk ([visitDays]). Olli, 13 Nov 2026: no free movement.)
                 val apart = h != h0

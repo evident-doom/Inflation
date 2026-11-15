@@ -18,10 +18,12 @@ internal class WhoIsWhere {
     enum class Moment {
         /** As the week begins, before any group moves: for the bands' view of the bands about ([fillBandStates]). */
         WEEK_BEGINS,
-        /** After the week's moves and meetings, as the hunting begins: for the ways the bands set and the beasts at their herds ([herdOdds]). */
+        /** After the week's moves and meetings, as the hunting begins: for the ways the bands set, the beasts at their herds ([herdOdds]) and the feasts on kills ([feastOnKills]). */
         MOVED,
         /** As the births and deaths begin and the bands have their own weeks ([demography]). */
         DEMOGRAPHY,
+        /** After the births, splits and the month's camp moves, as small bands join kin ([mergeAndPair]). */
+        MERGING,
     }
 
     /** The moment it was last built at; null before the first. */
