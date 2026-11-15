@@ -191,7 +191,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
     fun ceiling(form: LifeForm, p: Place): Float {
         val m = ((moisture[p] - form.moistureMin) / (form.moistureFull - form.moistureMin)).coerceIn(0f, 1f)
         val t = ((warmth[p] - form.warmthMin) / (form.warmthFull - form.warmthMin)).coerceIn(0f, 1f)
-        val soilF = 0.3f + 0.7f * min(1f, fertility[p] + organicFertility[p])
+        val soilF = soilOpen(p)
         val wetFactor = when (form) {
             LifeForm.HERB -> 1f
             LifeForm.SHRUB -> 1f - 0.6f * land.waterlogged[p]
@@ -202,7 +202,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
         val open = form.maxBiomass * m * t * soilF * wetFactor * woody
         // The wet valley floor grows on its own soil: moist from the water table and as fertile as its alluvium.
         val wf = hydro.wetFloor(p); if (wf <= 0f) return open
-        val floor = form.maxBiomass * t * (0.3f + 0.7f * min(1f, land.floorFertility[p] + organicFertility[p]))
+        val floor = form.maxBiomass * t * soilFloor(p)
         if (form == LifeForm.HERB) return (1f - wf) * open + wf * floor
         // Woody plants root down to the water table there (the poplar, willow and tamarisk of the gallery
         // forests along rivers in dry country), except where it stands so near the surface that the soil is
@@ -224,6 +224,16 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
         shrubShoots[p] *= 1f - f; treeShoots[p] *= 1f - f
         return consume(p, LifeForm.SHRUB, KgM2(f * shrub[p]), ShrubPart.CLEARED) + consume(p, LifeForm.TREE, KgM2(f * tree[p]))
     }
+
+    /** How much the soil of place [p]'s open ground lets plants grow, 0.3 to 1: its fertility and its organic matter's ([ceiling]). */
+    private fun soilOpen(p: Place) = 0.3f + 0.7f * min(1f, fertility[p] + organicFertility[p])
+    /** The same on its wet valley floor, of its alluvium ([HexLand.floorFertility]). */
+    private fun soilFloor(p: Place) = 0.3f + 0.7f * min(1f, land.floorFertility[p] + organicFertility[p])
+    /**
+     * How much place [p]'s soil lets what is sown there grow, 0.3 to 1: its open ground's and its wet valley floor's ([soilOpen],
+     * [soilFloor]) by their shares, as the plants' ceilings have them. The one soil the plants and the fields both grow on.
+     */
+    fun soil(p: Place): Float { val wf = hydro.wetFloor(p); return (1f - wf) * soilOpen(p) + wf * soilFloor(p) }
 
     /** Takes up to [want] of the plants of [form] at [p]; returns what was taken. */
     fun consume(p: Place, form: LifeForm, want: KgM2, shrubPart: ShrubPart = ShrubPart.TAKEN_OTHERWISE): KgM2 {

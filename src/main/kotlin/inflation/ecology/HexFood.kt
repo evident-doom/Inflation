@@ -411,13 +411,14 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
 
     /**
      * What a kilo sown at [p] ripens to as its field stands now: [yieldPerKg] of the strain sown, less as the field has gone short of water since
-     * midwinter ([waterStress]); its cereal by the ground it is sown on ([cropSoil]), its pulses [PULSE_YIELD] of that on any ground
-     * (they feed themselves nitrogen).
+     * midwinter ([waterStress]); its cereal by the place's soil ([inflation.world.HexPlants.soil], as the plants' growth has it: the
+     * first fields were on the fertile alluvium of fans and spring-fed basins) and by how worn the field is ([cropSoil]), its pulses
+     * [PULSE_YIELD] of that on any ground (they feed themselves nitrogen).
      */
     fun fieldExpect(p: Place): Float = yieldPerKg(fieldDomestic[p]) * seasonYield(p) * (if (fieldDays[p] > 0f) fieldStress[p] / fieldDays[p] else 1f) * sownMix(p)
 
-    /** What a kilo of [p]'s sown seed bears against cereal on rested ground: its cereal by [cropSoil], its pulses [PULSE_YIELD]. */
-    private fun sownMix(p: Place) = (1f - fieldPulse[p]) * cropSoil(p) + fieldPulse[p] * PULSE_YIELD
+    /** What a kilo of [p]'s sown seed bears against cereal on the best rested ground: its cereal by the soil and [cropSoil], its pulses [PULSE_YIELD]. */
+    private fun sownMix(p: Place) = (1f - fieldPulse[p]) * land.plants.soil(p) * cropSoil(p) + fieldPulse[p] * PULSE_YIELD
 
     /** Of what [p]'s field ripens now, the share that is pulses ([sownMix]). */
     private fun pulseOfRipe(p: Place): Float { val m = sownMix(p); return if (m > 0f) fieldPulse[p] * PULSE_YIELD / m else 0f }
