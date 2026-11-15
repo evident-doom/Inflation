@@ -71,3 +71,5 @@ None of these changes a result, so each can be checked line for line.
 
 All of these left one year on m5-1 the same, line for line.
 
+- **Item 1, cut to the minimum:** only the lone dispersers' drift is slowed by the snow they go into (as `stepEffort` slows groups). The grazers' flow and the hunters' spill keep the fixed crossings: they shift a little each week, and a place's worth already counts its snow, so an effort on top counted it twice. An A/B of snow in all three moves (snow1) and of the drift alone (snow2) moved no key number the same way in all pairs.
+
