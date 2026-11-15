@@ -369,6 +369,11 @@ class Tuning(
      * rains, and sea salt is made in such a month at [inflation.ecology.SEA_SALT_A_DAY], not picked up all year at the pan's rate.
      */
     val saltSeasons = f("saltSeasons", 1f)
+    /**
+     * Goods given at meetings make favours by the days they spared the taker (1; 0 the old rule: only food does), as
+     * [inflation.ecology.gaveGoods] reckons them.
+     */
+    val goodsFavours = f("goodsFavours", 1f)
     /** How much less salted meat and fish spoil. */
     val saltKeep = f("saltKeep", 0.7f)
 

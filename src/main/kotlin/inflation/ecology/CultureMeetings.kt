@@ -405,9 +405,17 @@ internal const val FAVOUR_DAYS = 7f
  * help met; help to a band that is owed favours settles them first.
  */
 internal fun helped(giver: HexGroup, taker: HexGroup, kg: Float) {
-    val gb = giver.band ?: return; val tb = taker.band ?: return
     if (kg <= 0f) return
-    val f = kg / max(1e-3f, FAVOUR_DAYS * taker.dailyNeedKg)
+    helpedBy(giver, taker, kg / max(1e-3f, FAVOUR_DAYS * taker.dailyNeedKg))
+}
+
+/**
+ * [giver] helped [taker] by [f] favours, of food ([helped]) or goods ([gaveGoods]): [taker] owes it them; help to a band
+ * that is owed favours settles them first.
+ */
+internal fun helpedBy(giver: HexGroup, taker: HexGroup, f: Float) {
+    val gb = giver.band ?: return; val tb = taker.band ?: return
+    if (f <= 0f) return
     fun add(b: Band, other: Int, by: Float) { val v = (b.favours[other] ?: 0f) + by; if (abs(v) < 0.01f) b.favours.remove(other) else b.favours[other] = v }
     add(gb, taker.id, f); add(tb, giver.id, -f)
 }

@@ -603,11 +603,17 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
     }
     // Useful gifts: a band gives of the good stone, salt and ochre it has beyond its own needs to
     // a band that lacks them. The more the gift meets the other's want, the more it binds them both, and
-    // the giver's name goes about among the bands.
+    // the giver's name goes about among the bands. The taker owes the giver favours for the days the goods
+    // spared it ([worthDaysPerKg], [gaveGoods]), as for food.
     for ((giver, taker) in listOf(a to b, b to a)) {
         val gb = giver.band ?: continue; val tb = taker.band ?: continue
         if (Regard(gb, taker.id, tb, map = hex).tie < FEUD_GIFT) continue
         var useful = 0f
+        // (What was given, for the favours and the census: of what, kg or a person's sets, and its worth to each side, days.)
+        val gifts = ArrayList<Given>(2)
+        // (The giver's own reckoning only for the census.)
+        fun worth(m: Material, kg: Float) { gifts += Given(m.name.lowercase(), kg, kg * worthDaysPerKg(taker, tb, m, weather),
+            if (stats.census) kg * worthDaysPerKg(giver, gb, m, weather) else 0f) }
         for (m in TRADED) {
             // (Grinding stone only to a band that makes grinding stones.)
             if (m == Material.GROUND_STONE && !tb.knows[Tool.GRINDER]) continue
@@ -618,13 +624,14 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
             // (Above its 1 a band gives beyond what the other lacks, as far as it can spare: goods given away for the regard they win.)
             val gift = min(spare, lack * gb.giveWill)
             dialUse?.amount(DialSite.GIVE_SPARE, gb.giveWill, gift, min(spare, lack))
-            gb.goods[m] -= gift; tb.goods[m] += gift
+            gb.goods[m] -= gift; tb.goods[m] += gift; worth(m, gift)
             if (m == Material.SALT) { gb.noteSalt(SaltFlow.GIVEN_OUT, gift); tb.noteSalt(SaltFlow.GIVEN_IN, gift) }
             useful += gift / (KEEP_YEARS * need * max(1, taker.adults))
             stats.meeting(Met.Of.GIVEN, m.name.lowercase())
         }
         // And finished tools it made beyond its own kit, to a band whose kit falls short.
-        useful += giveTools(giver, gb, taker, tb)
+        useful += giveTools(giver, gb, taker, tb) { t, sets ->
+            gifts += Given("tools", sets, sets * toolWorthDays(taker, tb, t, weather), if (stats.census) sets * toolWorthDays(giver, gb, t, weather) else 0f) }
         // And seed corn and breeding stock, to a band that knows farming or herding and has none to start with.
         useful += giveSeed(giver, gb, taker, tb) + giveStock(gb, tb)
         // Salt to eat: a band short of sodium is given a year of it for its people by one that holds more than a year of it
@@ -634,12 +641,16 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
             val lack = SALT_BODY_YEAR * taker.size - tb.goods[Material.SALT]
             if (spare > 0f && lack > 0f) {
                 val gift = min(spare, lack) * min(1f, gb.giveWill)
-                gb.goods[Material.SALT] -= gift; tb.goods[Material.SALT] += gift
+                gb.goods[Material.SALT] -= gift; tb.goods[Material.SALT] += gift; worth(Material.SALT, gift)
                 gb.noteSalt(SaltFlow.GIVEN_OUT, gift); tb.noteSalt(SaltFlow.GIVEN_IN, gift)
                 useful += gift / (SALT_BODY_YEAR * max(1, taker.size))
                 stats.meeting(Met.Of.GIVEN, "salt to eat")
             }
         }
+        // (Seed corn and breeding stock make no favours: a start given, not days spared.)
+        val days = gifts.sumOf { it.takerDays.toDouble() }.toFloat()
+        val favours = gaveGoods(giver, taker, days, weather)
+        if (stats.census) for (x in gifts) bookGiven(x.of, x.amount, x.takerDays, x.giverDays, if (days > 0f) favours * x.takerDays / days else 0f)
         if (useful <= 0f) continue
         tb.befriend(giver.id, TIE_USEFUL * useful); gb.befriend(taker.id, 0.5f * TIE_USEFUL * useful)
         gb.renown += useful

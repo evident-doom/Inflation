@@ -303,10 +303,10 @@ internal fun GroupWorld.makeSpares(b: Band, people: Float, time: BandTime) {
 /**
  * At a meeting, [giver]'s band gives [taker]'s of the spare tools it holds ([Band.spare]), as far as the taker's kit of each
  * falls short and the giver is willing ([Band.giveWill]); a tool the taker did not know it now knows. Returns the gifts'
- * worth to the taker, in its people's sets.
+ * worth to the taker, in its people's sets; [given] is told each tool given and how many of a person's sets.
  */
-internal fun GroupWorld.giveTools(giver: HexGroup, gb: Band, taker: HexGroup, tb: Band): Float {
-    var given = 0f
+internal fun GroupWorld.giveTools(giver: HexGroup, gb: Band, taker: HexGroup, tb: Band, given: (Tool, Float) -> Unit = { _, _ -> }): Float {
+    var sets = 0f
     for (t in Tool.entries) {
         val spare = gb.spare[t]
         if (spare <= 0f || taker.adults <= 0) continue
@@ -322,9 +322,10 @@ internal fun GroupWorld.giveTools(giver: HexGroup, gb: Band, taker: HexGroup, tb
         tb.kit[t] = k + add
         if (!tb.knows[t]) { tb.knows[t] = true; stats.meeting(Met.Of.LEARNED, t.name.lowercase()) }
         stats.meeting(Met.Of.GIVEN, t.name.lowercase())
-        given += add
+        given(t, gift)
+        sets += add
     }
-    return given
+    return sets
 }
 
 /** The skill at a craft above which a band makes spares of its tools to give; the most spare sets it keeps, a person. Not measured. */

@@ -22,6 +22,9 @@ import inflation.ecology.SaltCount
 import inflation.ecology.SaltFlow
 import inflation.ecology.SaltWhere
 import inflation.ecology.saltCountKey
+import inflation.ecology.GIVEN_OF
+import inflation.ecology.GivenCount
+import inflation.ecology.givenKey
 import inflation.ecology.saltFlowKey
 import inflation.ecology.Catalogue
 import inflation.ecology.Met
@@ -1095,6 +1098,15 @@ class Census(private val sim: HexSim) {
                 c(SaltCount.HELD) / c(SaltCount.BAND_WEEKS).coerceAtLeast(1.0),
                 SaltFlow.entries.joinToString(", ") { f -> "%.3f".format((lastYear[saltFlowKey(w, f)] ?: 0) / 1000.0 / personYears) },
                 c(SaltCount.DAYS) / 10.0 / personYears) })
+        // What bands gave each other at meetings and what it was worth, each reckoning from where it stood ([worthDaysPerKg]):
+        // the taker's days against the giver's are what a gift gained, and its days a kg the good's price there.
+        println("goods given at meetings, last year (kg or a person's sets of tools; days a kg or set to the taker, to the giver; favours owed for a day): " +
+            GIVEN_OF.joinToString(", ") { of ->
+                fun c(k: GivenCount) = (lastYear[givenKey(of, k)] ?: 0).toDouble()
+                val kg = c(GivenCount.KG) / 10.0
+                "%s %.0f: %.2f, %.2f; %.3f".format(of, kg, c(GivenCount.TAKER_DAYS) / 10.0 / kg.coerceAtLeast(1e-9),
+                    c(GivenCount.GIVER_DAYS) / 10.0 / kg.coerceAtLeast(1e-9), c(GivenCount.FAVOURS) / 100.0 / (c(GivenCount.TAKER_DAYS) / 10.0).coerceAtLeast(1e-9))
+            })
         run {
             // Meat brought in against meat eaten (each at what it feeds): what a kill beyond the band's hunger leaves to spoil.
             val h = Catalogue.HUMAN
