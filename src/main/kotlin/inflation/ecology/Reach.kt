@@ -4,7 +4,6 @@ import inflation.Part
 import inflation.world.Hex
 import inflation.world.HexArray
 import inflation.world.HexList
-import inflation.ecology.GroupPlanner.LongHeap
 import inflation.world.Weather
 import inflation.world.get
 import inflation.world.hexArray
@@ -136,44 +135,20 @@ internal fun HexGroups.reachOf(g: HexGroup, from: Hex, most: Float, weather: Wea
 
 /** The search itself ([reachOf]): least effort first, of equals the lower hex, so it is the same on every run and every core. */
 private fun HexGroups.searchFrom(s: Species, band: Int, from: Hex, most: Float, weather: Weather): Reach {
-    val buf = reachScratch.get()
-    val dist = buf.dist; val via = buf.via; val reached = buf.reached; val q = buf.queue
-    q.clear()
-    dist[from] = 0f; reached += from; q += packed(0f, from)
+    val le = hex.searcher(); le.start(from)
     val effort = planner.stepEffort(Catalogue.travel(s).ordinal, band, weather)
     val swim = Catalogue.swimKm(s)
-    while (q.isNotEmpty()) {
-        val e = q.poll()
-        val d = Float.fromBits((e ushr 32).toInt()); val h = Hex((e and 0xffffffffL).toInt())
-        if (d > dist[h]) continue
-        for (k in 0 until 6) {
-            val nh = hex.neighbour(h, k)
-            if (nh.none) continue
-            val nd = d + effort[hex.edge(h, k)]
-            if (!nd.isFinite() || nd > most) continue
-            if (nd < dist[nh]) { if (dist[nh] == Float.MAX_VALUE) reached += nh; dist[nh] = nd; via[nh] = h; q += packed(nd, nh) }
-        }
+    while (true) {
+        val h = le.next(); if (h.none) break
+        le.across(hex, h, effort, most)
         // Swimmers may cross a strait they can cover, at a great effort.
-        if (swim > 0f) for (i in seaLinks[h].indices) { val nh = seaLinks[h][i]
+        if (swim > 0f) for (i in seaLinks[h].indices) {
             val gapKm = seaGaps[h][i]
-            if (gapKm > swim) continue
-            val nd = d + gapKm * SWIM_EFFORT
-            if (nd > most) continue
-            if (nd < dist[nh]) { if (dist[nh] == Float.MAX_VALUE) reached += nh; dist[nh] = nd; via[nh] = h; q += packed(nd, nh) }
+            if (gapKm <= swim) le.offer(h, seaLinks[h][i], le.dist(h) + gapKm * SWIM_EFFORT, most)
         }
     }
-    val hs = reached.toHexArray().also { it.sort() }
-    val out = Reach(from, most, hs, FloatArray(hs.size) { dist[hs[it]] }, hexArray(hs.size) { via[hs[it]] })
-    for (i in 0 until reached.size) { val h = reached[i]; dist[h] = Float.MAX_VALUE; via[h] = Hex.NONE }
-    reached.clear()
+    val hs = le.reached.toHexArray().also { it.sort() }
+    val out = Reach(from, most, hs, FloatArray(hs.size) { le.dist(hs[it]) }, hexArray(hs.size) { le.via(hs[it]) })
+    le.clear()
     return out
-}
-
-/** A search's heap entry: its effort's bits above its hex, so the heap pops the least effort first, of equals the lower hex. */
-private fun packed(d: Float, h: Hex): Long = (d.toRawBits().toLong() shl 32) or h.i.toLong()
-
-/** Each core's working arrays for [searchFrom], left clean after each search. */
-internal class ReachScratch(size: Int) {
-    val dist = FloatArray(size) { Float.MAX_VALUE }; val via = HexArray(size)
-    val reached = HexList(); val queue = LongHeap()
 }

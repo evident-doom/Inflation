@@ -60,3 +60,14 @@ None of these changes a result, so each can be checked line for line.
 
 1. Items 2 and 3, and the three profile fixes: none should change a result, and each is checked line for line.
 2. Item 1 on its own A/B: the snow in the residents' going.
+
+## Done
+
+- **Item 2:** a kind's dispersal distance and days are `Species.dispersalKm` and `dispersalDays` (lions 30 km and 300 days, the rest 60 and 90). A kind's start away from another's country reads `Species.keepsOff` (cheetahs: lions), in `HexGroups.keepOffKind`. `tuning.cheetahStart` stays, a knob for one kind by its name.
+- **Item 3:** one search, `LeastEffort` (world), one per thread (`HexMap.searcher`): least effort first, of equals the lower hex. The groups' reach, the way out of a peril (both passes), the residents' dispersal ground, `HexMap.efforts` and the doom trace all drive it; the planner's own heap and `ReachScratch` are gone.
+- **Shelter:** a prey kind's shelter at a place (`HexFauna.preyShelter`) is worked out once for its grown, young and packs in a hunt, and once for grown and young in `game` and in the hunt of kept herds, not once for each. It is not shared between hunters or kept for the week: the plants it reads can change between one place's feeding and another's.
+- **Booking outcomes:** the outcome loop runs in `WeekStats.summedByThread`, so its tallies go to the thread's own sums and are merged into the sorted ledgers once.
+- **Not changed:** the small parallel jobs. `IntStream.range(...).parallel()` already deals the jobs out in chunks; the jobs look tiny and the cores idle only under `profile=jfr`, which times each job and opens an event for it, an overhead as large as the job. Nor `HexList.add` in the reach search: the list keeps its size from search to search, so its share is the samples landing on the search's own writes.
+
+All of these left one year on m5-1 the same, line for line.
+

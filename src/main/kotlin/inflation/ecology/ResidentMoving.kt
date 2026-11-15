@@ -489,10 +489,10 @@ fun HexFauna.addDispersing(k: FaunaKind, h: Hex, heads: Float) {
 
 /**
  * The grown young of kind [k] dispersing from their natal ground over the step's days ([HexGroups.roamersLeave]): from the
- * hex they left they settle in at a rate a day of one in [dispersalDays] (as far as there is room about: the room within
- * [DISPERSAL_REACH] times [dispersalKm], nearer counting more, against all the ground there), and die on the way at
+ * hex they left they settle in at a rate a day of one in [Species.dispersalDays] (as far as there is room about: the room within
+ * [DISPERSAL_REACH] times [Species.dispersalKm], nearer counting more, against all the ground there), and die on the way at
  * [DISPERSAL_DEATH] a day; in closed form over the days, the same at any step length. Those that settle join the settled
- * where the room is, nearer first by exp(-distance / [dispersalKm]), never back on the hex they left, each hex at most to
+ * where the room is, nearer first by exp(-distance / [Species.dispersalKm]), never back on the hex they left, each hex at most to
  * its [HexFauna.usual]; the dead lie where they left. (Dispersal as a pool, not as lone packs: estimates of the magnitude,
  * wolves dispersing a few months over tens of km, lions longer and nearer, with about a third lost on the way;
  * Mech and Boitani 2003 from memory, to check.)
@@ -512,8 +512,8 @@ fun HexFauna.disperse(k: FaunaKind, carcass: FloatArray): Float {
  */
 private fun HexFauna.disperseAtOnce(k: FaunaKind, pool: FloatArray, carcass: FloatArray): Float {
     val s = kinds[k]
-    val lengthKm = dispersalKm(s)
-    val settleRate = 1f / dispersalDays(s); val a = adults[k]; val y = young[k]; val usualK = usual[k]
+    val lengthKm = s.dispersalKm
+    val settleRate = 1f / s.dispersalDays; val a = adults[k]; val y = young[k]; val usualK = usual[k]
     // (Room on each hex, heads, as the step found it; the hexes the pool holds enough on to weigh; and those too few to
     // weigh, waiting in the pool, die on the way as they would, the last few hundredths of a head all of them, where
     // they wait. One pass over the map on this kind's core: each hex is a few sums, less than a parallel loop's start.)
@@ -653,38 +653,25 @@ private fun HexFauna.groundKey(k: FaunaKind, h: Hex) = k.i.toLong() * hex.size +
  */
 private fun HexFauna.dispersalAbout(k: FaunaKind, h: Hex, mostKm: Float, lengthKm: Float): DispersalGround {
     val cross = hex.crossings[travel[k].ordinal]
-    val dist = HashMap<Hex, Float>(); dist[h] = 0f
-    val q = java.util.PriorityQueue<Pair<Float, Hex>>(compareBy<Pair<Float, Hex>> { it.first }.thenBy { it.second.i }); q += 0f to h
-    val order = ArrayList<Hex>()
-    while (q.isNotEmpty()) {
-        val (d, at) = q.poll()
-        if (d > dist.getValue(at)) continue
-        if (at != h) order += at
-        for (e in 0 until 6) {
-            val nh = hex.neighbour(at, e); if (nh.none) continue
-            val nd = d + cross[hex.edge(at, e)]
-            if (!nd.isFinite() || nd > mostKm) continue
-            val was = dist[nh]
-            if (was == null || nd < was) { dist[nh] = nd; q += nd to nh }
-        }
-    }
-    val hs = HexList(order.size); val ws = FloatArray(order.size); val areas = FloatArray(order.size); var m = 0
-    for (q2 in order) {
-        var area = 0f; for (p in hw.placesOf(q2)) area += land.areaKm2[p]
+    val le = hex.searcher(); le.start(h)
+    val hs = HexList(); var ws = FloatArray(16); var areas = FloatArray(16); var m = 0
+    while (true) {
+        val at = le.next(); if (at.none) break
+        le.across(hex, at, cross, mostKm)
+        if (at == h) continue
+        var area = 0f; for (p in hw.placesOf(at)) area += land.areaKm2[p]
         if (area <= 0f) continue
-        hs += q2; ws[m] = kotlin.math.exp(-(dist.getValue(q2) / lengthKm)); areas[m] = area; m++
+        if (m == ws.size) { ws = ws.copyOf(2 * m); areas = areas.copyOf(2 * m) }
+        hs += at; ws[m] = kotlin.math.exp(-(le.dist(at) / lengthKm)); areas[m] = area; m++
     }
+    le.clear()
     return DispersalGround(hs.toHexArray(), ws.copyOf(m), areas.copyOf(m))
 }
 
 /** What people press kind [k] by on hex [h] ([pressure]), at its low ground: the room dispersers find there is less by it. */
 private fun HexFauna.pressureOnHex(k: FaunaKind, h: Hex): Float = hw.firstPlaceIn(h).let { p -> if (p.none) 0f else pressure(k, p) }
 
-/** How far a disperser of [s] goes, km, the scale of nearness its settling weighs ([disperse]); an estimate. */
-private fun dispersalKm(s: Species) = if (s == Catalogue.LION) 30f else 60f
-/** The days a disperser of [s] takes to settle where there is room enough ([disperse]); an estimate. */
-private fun dispersalDays(s: Species) = if (s == Catalogue.LION) 300f else 90f
-/** How far out a disperser looks for room, in [dispersalKm]. */
+/** How far out a disperser looks for room, in [Species.dispersalKm]. */
 private const val DISPERSAL_REACH = 2f
 /** The share of dispersers that die a day on the way, all causes ([disperse]): about a third lost over a wolf's three months; an estimate. */
 private const val DISPERSAL_DEATH = 0.005f

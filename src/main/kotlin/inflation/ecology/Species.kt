@@ -205,6 +205,15 @@ class Species(
     val takesPeople: Float = 0f,
     /** Its mothers hide their young and move them from lair to lair in their first months, as the cats do ([youngHidden]). */
     val hidesYoung: Boolean = false,
+    /** How far its dispersers go, km: the scale of nearness their settling weighs ([disperse]); an estimate. */
+    val dispersalKm: Float = 60f,
+    /** The days its dispersers take to settle where there is room enough ([disperse]); an estimate. */
+    val dispersalDays: Float = 90f,
+    /**
+     * A kind it keeps off the ground of, losing its kills and young to it: it starts away from where that kind starts
+     * ([HexGroups]' start). Null: none.
+     */
+    val keepsOff: Species? = null,
 ) : Comparable<Species> {
     /** Position in [Catalogue.all] (its [id], which the catalogue checks run without gaps), for array lookups. */
     val index get() = id

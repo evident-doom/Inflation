@@ -138,32 +138,36 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
     for (key in outbreaksStarting.sorted()) fauna.startOutbreak(Catalogue.all[(key / hex.size).toInt()], Hex((key % hex.size).toInt()))
     outbreaksStarting.clear()
     val born = ArrayList<HexGroup>()
-    for ((k, o) in outcome.withIndex()) {
-        val g = list[k]; val s = g.species
-        if (o == null) {
-            // Young whose last grown animal was killed this week (by hunters or rivals) die too.
-            if (!g.alive && g.young > 0) {
-                stats.deaths.merge(Tally.of(s, DeathCause.ORPHANED), g.young, Int::plus)
-                small.deposit(DeadPool.CARRION, g.place, KgM2(HexFauna.YOUNG_WEIGHT * g.young * s.massKg / (land.areaKm2[g.place] * 1e6f)))
-                g.young = 0
+    // (The tallies each outcome books summed in the thread's own sums and put in the ledgers once: merged one by one into
+    // the sorted ledgers they were a quarter of the booking, [WeekStats.summedByThread].)
+    stats.summedByThread {
+        for ((k, o) in outcome.withIndex()) {
+            val g = list[k]; val s = g.species
+            if (o == null) {
+                // Young whose last grown animal was killed this week (by hunters or rivals) die too.
+                if (!g.alive && g.young > 0) {
+                    stats.deaths.merge(Tally.of(s, DeathCause.ORPHANED), g.young, Int::plus)
+                    small.deposit(DeadPool.CARRION, g.place, KgM2(HexFauna.YOUNG_WEIGHT * g.young * s.massKg / (land.areaKm2[g.place] * 1e6f)))
+                    g.young = 0
+                }
+                continue
             }
-            continue
-        }
-        bookOutcome(g, o, weather)
-        mournDead(g, o, date, weather)
-        o.split?.let { c ->
-            val n = splitOff(g, c.adults, c.young) // a young pack has no ground yet
-            // (A band that holds its home hex buds: the part that leaves settles where there is room near, [findHome].)
-            if (staysHome(n)) findHome(n, born, weather)
-            born += n
-            if (s.lifeway == Lifeway.PACK && g.band == null) stats.meeting(Met.Of.PACK_SPLIT_OFF, s.name)
-            if (g.band != null) stats.meeting(Met.BANDS_SPLIT)
-            leaveBelief(g, n)
-        }
-        if (o.leavers > 0) {
-            repeat(o.leavers) { born += splitOff(g, 1, 0) } // each goes alone, to find a mate and ground
-            stats.meeting(Met.YOUNG_HUNTERS_LEFT_THEIR_PACK, o.leavers)
-            stats.meeting(Met.Of.PACK_LEFT_ALONE, s.name, o.leavers)
+            bookOutcome(g, o, weather)
+            mournDead(g, o, date, weather)
+            o.split?.let { c ->
+                val n = splitOff(g, c.adults, c.young) // a young pack has no ground yet
+                // (A band that holds its home hex buds: the part that leaves settles where there is room near, [findHome].)
+                if (staysHome(n)) findHome(n, born, weather)
+                born += n
+                if (s.lifeway == Lifeway.PACK && g.band == null) stats.meeting(Met.Of.PACK_SPLIT_OFF, s.name)
+                if (g.band != null) stats.meeting(Met.BANDS_SPLIT)
+                leaveBelief(g, n)
+            }
+            if (o.leavers > 0) {
+                repeat(o.leavers) { born += splitOff(g, 1, 0) } // each goes alone, to find a mate and ground
+                stats.meeting(Met.YOUNG_HUNTERS_LEFT_THEIR_PACK, o.leavers)
+                stats.meeting(Met.Of.PACK_LEFT_ALONE, s.name, o.leavers)
+            }
         }
     }
     groups += born

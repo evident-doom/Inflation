@@ -146,22 +146,16 @@ internal fun GroupPlanner.traceDoomed(c: PlanContext, best: Place, byNet: Boolea
     // (The wider search: its own least-effort walk, with this week's going, apart from the shared one.)
     val effort = stepEffort(Catalogue.travel(s).ordinal, gs.hw.placeBand[g.place], c.weather)
     val wide = DOOM_WIDE * c.reach
-    val d = HashMap<Int, Float>(); val q = java.util.PriorityQueue<Pair<Float, Hex>>(compareBy { it.first })
-    d[c.here.i] = 0f; q += 0f to c.here
+    val le = gs.hex.searcher(); le.start(c.here)
     var wBest = Float.NEGATIVE_INFINITY; var wBestKm = 0f; var wBestHex = Hex.NONE; var firstBetterKm = Float.NaN
-    while (q.isNotEmpty()) {
-        val (dd, h) = q.poll()
-        if (dd > (d[h.i] ?: Float.MAX_VALUE)) continue
-        val v = value(h).first
+    while (true) {
+        val h = le.next(); if (h.none) break
+        val dd = le.dist(h); val v = value(h).first
         if (v > wBest) { wBest = v; wBestKm = dd; wBestHex = h }
         if (firstBetterKm.isNaN() && v >= DOOM_BETTER * here && v > 0f) firstBetterKm = dd
-        for (k in 0 until 6) {
-            val nh = gs.hex.neighbour(h, k); if (nh.none) continue
-            val nd = dd + effort[gs.hex.edge(h, k)]
-            if (!nd.isFinite() || nd > wide) continue
-            if (nd < (d[nh.i] ?: Float.MAX_VALUE)) { d[nh.i] = nd; q += nd to nh }
-        }
+        le.across(gs.hex, h, effort, wide)
     }
+    le.clear()
     val bestHex = gs.hw.placeHex[best]
     val chose = value(bestHex).first
     val crowdBest = if (!wBestHex.none) gs.crowdedBy(s, kinAround(g, kind, wBestHex, c.sensed)) else 0f

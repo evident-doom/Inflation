@@ -114,11 +114,11 @@ internal fun HexGroups.herdOdds(w: ForageWeek) {
             val young = b.herds.youngHerd()
             for (k in b.herds.herd.indices) {
                 val all = b.herds.herd[k] + young[k]; if (all < 1f) continue
-                val ps = fauna.kinds[k]
+                val ps = fauna.kinds[k]; val sh = fauna.preyShelter(ps, p)
                 // (The grown and the young, each as catchable as their weight makes them ([HexFauna.catchable]).)
                 for (y in 0..1) {
                     val n = if (y == 1) young[k] else b.herds.herd[k]; if (n <= 0f) continue
-                    val success = killChance(fauna.catchable(s, ps, if (y == 1) HexFauna.YOUNG_WEIGHT * ps.massKg else ps.massKg, p), 1f) * guard
+                    val success = killChance(fauna.catchable(s, ps, if (y == 1) HexFauna.YOUNG_WEIGHT * ps.massKg else ps.massKg, p, sh), 1f) * guard
                     if (!(success > 0f)) continue
                     if (!looked) { openness(s, p, w.weather, view); looked = true }
                     val image = w.g.metLately(ps.index, w.today).let { it / (it + SEARCH_HALF) }

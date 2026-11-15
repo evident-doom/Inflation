@@ -184,7 +184,7 @@ class HexGroups(
             // (Bands that hold their home hex start where the food is, as many to a hex as its food draws, rich and poor
             // ground alike held in proportion: [startFood].)
             val byFood = s.human && tuning.bandsStay && !uniformStart
-            val weights = if (uniformStart) FloatArray(n) { p -> land.areaKm2[p] } else if (byFood) startFood() else startWeights(s).also { w -> if (s == Catalogue.CHEETAH) keepOutOfLionCountry(w) }
+            val weights = if (uniformStart) FloatArray(n) { p -> land.areaKm2[p] } else if (byFood) startFood() else startWeights(s).also { w -> s.keepsOff?.let { o -> keepOffKind(o, w) } }
             val total = weights.sum()
             // (A kind with no ground that suits it starts with none, even where its settled density would give it one group:
             // that group had nowhere to go but place 0, and a world without places has none at all.)
@@ -274,13 +274,13 @@ class HexGroups(
 
 
     /**
-     * Cheetahs begin away from the lions' country (they lose their kills and their young to lions; Durant 1998 has them keeping off
-     * lion ground): their start [weights] fall where the lions' own start weights, per km² and against their mean, are high. Only
-     * the start's placement; the number of cheetahs and everything after the start are as before.
+     * A kind begins away from the country of the kind [other] it keeps off ([Species.keepsOff]: cheetahs off lions'): its
+     * start [weights] fall where [other]'s own start weights, per km² and against their mean, are high. Only the start's
+     * placement; its numbers and everything after the start are as before. Nothing where [other] is not in this world.
      */
-    private fun keepOutOfLionCountry(weights: FloatArray) {
-        val lion = kinds.firstOrNull { it == Catalogue.LION } ?: return
-        val per = FloatArray(n) { p -> startWeight(lion, Place(p)) / land.areaKm2[p].coerceAtLeast(1e-6f) }
+    private fun keepOffKind(other: Species, weights: FloatArray) {
+        if (other !in kinds) return
+        val per = FloatArray(n) { p -> startWeight(other, Place(p)) / land.areaKm2[p].coerceAtLeast(1e-6f) }
         val mean = per.average().toFloat()
         if (mean <= 0f) return
         for (p in 0 until n) weights[p] /= 1f + per[p] / mean
@@ -614,7 +614,6 @@ class HexGroups(
     @delegate:Transient val seaLinks: Array<HexArray> by lazy { links().to }
     @delegate:Transient val seaGaps: Array<FloatArray> by lazy { links().gapKm }
     /** Each core's working arrays for the searches of the ground ([reachOf]). */
-    @Transient internal val reachScratch: ThreadLocal<ReachScratch> = ThreadLocal.withInitial { ReachScratch(hex.size) }
     /** For each hex, the hexes across the sea from it ([to]) and the open water to each ([gapKm]). */
     class SeaCrossings(val to: Array<HexArray>, val gapKm: Array<FloatArray>)
     @Transient private var linksMade: SeaCrossings? = null

@@ -470,7 +470,7 @@ internal class GroupPlanner(internal val gs: HexGroups) {
     /** Per thread: least effort to each hex, the hex it was reached from, the hexes reached, the queue. */
     internal class Scratch(size: Int) {
         val dist = FloatArray(size) { Float.MAX_VALUE }; val via = HexArray(size)
-        val reached = HexList(); val queue = LongHeap()
+        val reached = HexList()
         /** The candidates weighed for a policy: places, their features (arrays reused from week to week), hand-written scores. */
         val candPlaces = IntList(); val candFeats = ArrayList<FloatArray>(); var candScores = FloatArray(64)
         /** For a band, every place weighed ([exploreChoice]): the place, its whole hand-written score, and the survival steps it would cost. */
@@ -534,31 +534,6 @@ internal class GroupPlanner(internal val gs: HexGroups) {
         fun toIntArray() = items.copyOf(size)
     }
 
-    /** A binary min-heap of longs (no boxing). */
-    internal class LongHeap {
-        private var a = LongArray(256); private var n = 0
-        fun clear() { n = 0 }
-        fun isNotEmpty() = n > 0
-        operator fun plusAssign(v: Long) {
-            if (n == a.size) a = a.copyOf(2 * n)
-            var i = n++
-            while (i > 0) { val up = (i - 1) / 2; if (a[up] <= v) break; a[i] = a[up]; i = up }
-            a[i] = v
-        }
-        fun poll(): Long {
-            val top = a[0]; val last = a[--n]
-            var i = 0
-            while (true) {
-                var c = 2 * i + 1; if (c >= n) break
-                if (c + 1 < n && a[c + 1] < a[c]) c++
-                if (a[c] >= last) break
-                a[i] = a[c]; i = c
-            }
-            if (n > 0) a[i] = last
-            return top
-        }
-    }
-
     private val scratch = ThreadLocal.withInitial { Scratch(gs.hex.size) }
 
     /** This step's searches of the ground ([reachOf]), by kind, height band and hex: let go when the groups next choose. */
@@ -572,8 +547,6 @@ internal class GroupPlanner(internal val gs: HexGroups) {
      */
     @Transient internal val stepEffort = ConcurrentHashMap<Int, FloatArray>()
 
-    /** Effort and hex packed in one number, ordered by effort (efforts are never negative). */
-    internal fun Long.withPlace(d: Float, h: Hex): Long = (d.toRawBits().toLong() shl 32) or h.i.toLong()
 
     /**
      * What each place offers each kind this week, worked out once for all its groups: the game it can

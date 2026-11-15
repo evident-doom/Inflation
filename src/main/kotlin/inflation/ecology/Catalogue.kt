@@ -316,6 +316,8 @@ object Catalogue {
         activity = floatArrayOf(0.25f, 0.05f, 0.3f, 0.4f),
         takesPeople = 1f,
         hidesYoung = true,
+        // (A pride's young males roam some 30 km before settling, and take a year or so to win a pride: an estimate.)
+        dispersalKm = 30f, dispersalDays = 300f,
     )
 
     /** Leopard: a solitary stalker of broken and wooded ground; caches kills away from bigger rivals. */
@@ -692,6 +694,8 @@ object Catalogue {
         startKm2PerAnimal = 100f,
         activity = floatArrayOf(0.25f, 0.55f, 0.15f, 0.05f),
         swimKm = 1f,
+        // (Lions take their kills and kill their cubs; Durant 1998 has cheetahs keeping off lion ground.)
+        keepsOff = LION,
     )
 
     // ---------------------------------------------------------------- people
