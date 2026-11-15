@@ -996,7 +996,7 @@ internal fun HexGroups.settleIn(g: HexGroup) {
  * single roamer packs they settled, paired and died once a step, and their numbers swung with the step's length (inv692b:
  * wolf roamers 171 / 299 / 519 / 11 at 6 / 12 / 30 / 60 days).
  */
-internal fun HexGroups.roamersLeave() {
+internal fun HexGroups.roamersLeave(weather: Weather) {
     val dispersing = ArrayList<FaunaKind>()
     for ((k, s) in fauna.kinds.withKinds()) {
         val due = fauna.leaving[k] ?: continue
@@ -1015,7 +1015,7 @@ internal fun HexGroups.roamersLeave() {
     // the week's carcasses and deaths after, kind by kind in the order they always were, so the sums come out the same.)
     val carcass = Array(dispersing.size) { FloatArray(fauna.carcassKg.size) }
     val lost = FloatArray(dispersing.size)
-    Par.forEach("residents: dispersing kinds", dispersing.size) { i -> lost[i] = fauna.disperse(dispersing[i], carcass[i]) }
+    Par.forEach("residents: dispersing kinds", dispersing.size) { i -> lost[i] = fauna.disperse(dispersing[i], carcass[i], weather) }
     for ((i, k) in dispersing.withIndex()) {
         val c = carcass[i]; for (p in c.indices) if (c[p] > 0f) fauna.carcassKg[p] += c[p]
         if (lost[i] > 0f) fauna.deaths.merge(Tally.of(fauna.kinds[k], DeathCause.HOMELESS), lost[i].toDouble(), Double::plus)

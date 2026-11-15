@@ -499,9 +499,9 @@ fun HexFauna.addDispersing(k: FaunaKind, h: Hex, heads: Float) {
  * The dead's weight goes into [carcass] (by place, as [carcassKg]), and their heads are returned, for the caller to add to
  * the carcasses and the deaths: the kinds disperse at once, each into its own ([HexGroups.roamersLeave]).
  */
-fun HexFauna.disperse(k: FaunaKind, carcass: FloatArray): Float {
+fun HexFauna.disperse(k: FaunaKind, carcass: FloatArray, weather: Weather): Float {
     val pool = dispersing?.get(k.i) ?: return 0f
-    return disperseAtOnce(k, pool, carcass).also { drift(k, pool) }
+    return disperseAtOnce(k, pool, carcass).also { drift(k, pool, weather) }
 }
 
 /**
@@ -586,7 +586,7 @@ private fun HexFauna.disperseAtOnce(k: FaunaKind, pool: FloatArray, carcass: Flo
  * Not across a border they cannot cross, nor to a hex worth nothing to them. So the nomads follow the game about and
  * find the empty ground, at the same pace at any step length. Each hex gathers what comes to it, on all cores.
  */
-private fun HexFauna.drift(k: FaunaKind, pool: FloatArray) {
+private fun HexFauna.drift(k: FaunaKind, pool: FloatArray, weather: Weather) {
     val v = worth[k]; val cross = hex.crossings[travel[k].ordinal]; val km = hex.hexKm.toFloat()
     // (What each hex is worth to them, the best of its places, and the share of its pool going each way a hop
     // ([gapTo]), the same each hop since the worth is the step's: both worked out only for the hexes the pool reaches.)
@@ -604,7 +604,10 @@ private fun HexFauna.drift(k: FaunaKind, pool: FloatArray) {
             val nh = hex.neighbour(h, d); if (nh.none) continue
             val e = cross[hex.edge(h, d)]; if (!e.isFinite() || !(worthOf(nh) > 0f)) continue
             val toward = max(0.05f, 1f + BEARING_SPILL * bearings.along(k.i, h, nh, hex.hexKm))
-            val g = gapTo(here, hexWorth[nh], min(1f, km / e)) * toward
+            // (Lone dispersers going tens of km are slowed by the snow they go into, as groups are ([GroupPlanner.stepEffort]):
+            // the hex's low ground. The rest of the residents shift a little each week, where a place's worth already has its snow.)
+            val snow = hw.firstPlaceIn(nh).let { q -> if (q.none) 0f else weather.snowpack[q] }
+            val g = gapTo(here, hexWorth[nh], min(1f, km / (e * (1f + snow / SNOW_EFFORT_MM)))) * toward
             if (g > 0f) { goes[hex.edge(h, d)] = g; sum += g; if (g > most) most = g }
         }
         if (sum > 0f) { val share = min(0.5f, DRIFT_STEP * most) / sum; for (d in 0 until 6) goes[hex.edge(h, d)] *= share }

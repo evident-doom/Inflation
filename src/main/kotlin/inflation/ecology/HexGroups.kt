@@ -401,7 +401,7 @@ class HexGroups(
             mark(it)
             settle(it)
             demography(it, it.date)
-            roamersLeave()
+            roamersLeave(it)
         },
         Phase("groups: the dead and newcomers") {
             // (Groups that merged into another this week, kept for following what became of their choices.)
