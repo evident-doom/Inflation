@@ -110,3 +110,13 @@ Both should read `where.bandsIn` once each is shown to read at a moment `where` 
 1. Items 2 and 6 first, together. They should leave results unchanged and are checked line for line.
 2. Then items 3, 4 and 5 in one A/B, as small changes to how a band works and what it foresees.
 3. Item 1 last and on its own. It is the biggest change and wants a herding world to judge it.
+
+## Done
+
+All six items are on main (2026-11-15).
+
+- **Items 2 and 6** (5245460e): `Hazards.YOUNG_HARDER` replaces the bare 1.5 in 21 places (the house's worth had two more). Feasts read who is where after the moves, skipping bands that died in the hunt. Merging builds it at a new named moment, `MERGING`. A year on m5-1 gives the same CSV as before, with 0 stale reads.
+- **Items 3, 4 and 5** (5e9339fe): every work's days are its figure times `lapse`. The ways bands start without take `PRACTISED_LEVEL` (0.5) for their reference, and the palisade's and weir's days are one function each. A stone-footed house's days had ignored skill altogether. The kin's gift is eaten through a `Meal`, and `backgroundOdds` is the one rule for the week's background deaths and the forecast's. In the A/B no number moved the same way in all six pairs, and every run was within limits.
+- **Item 1:** a herd has fat and burnt body by kind (`herdFat`, `herdSpent`) and lays on fat by grazing past its need, as residents do. It dies by the residents' `hazards` where it grazes (hunger off its body, cold, heat, crowding, outbreaks, fire, flood, snow), with the young harder and at their own background rate, but not of thirst, since its herders water it. It bears by `breeding`, and its young come off the mothers' fat. `herdIncrease` weighs a year by the same body. Dogs leave a camp as hunger wears their body (`dogSpent`), and what a band gives them is counted in their own units. A/B on the ppnb era (a fifth of bands start as herders): people rose 0.1-0.4% and jackals rose, in all six pairs; herd hides fell from 0.85 to 0.78 kg a person. The base runs miss the year-1 food limit on ppnb as the variant's do.
+
+Left as they are: fish die of hunger by `0.5 × (1 − fed)` (HexWater), the same made-up rule herds had; and the smaller things above.

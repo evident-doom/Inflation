@@ -485,7 +485,7 @@ internal const val WELL_STOCKED_DAYS = 30f
 internal fun HexGroup.wellOff() = fed + larderDays() / WELL_STOCKED_DAYS
 
 /** [g] eats [value] of its stores, what spoils first first; returns the kg it ate. */
-internal fun eatStores(g: HexGroup, value: Float): Float {
+@IgnorableReturnValue internal fun eatStores(g: HexGroup, value: Float): Float {
     var need = value; var kg = 0f
     for (st in EAT_ORDER) { val e = min(need, g.stores[st]); g.stores[st] -= e; need -= e; kg += e * g.storeKgPer[st] }
     return kg
