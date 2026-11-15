@@ -82,3 +82,14 @@ So the check now compares the model with an old copy of itself, and its differen
 1. Item 5: no result changes, so it can be checked line for line.
 2. Item 3 with item 4: one A/B, plus the 6-against-30-day check.
 3. Items 1 and 2: one A/B, since both are where the fields meet the land, and the clearing's wood and the soil's yield together decide where a band sows.
+
+## Done
+
+Each item on its own branch and A/B, three worlds by two replicates over three years.
+
+- **Item 5:** `Vegetation`, `LiveWater` and `HexLandCheck` are gone, and `LifeForm` is in HexPlants.kt; the fine `Weather` stays for `HexWeatherCheck`. One year on m5-1 is the same line for line.
+- **Item 3:** frost, floods, trampling and the plants' warmth go as a rate a day, set at the 6-day tick (`SET_AT_DAYS`), so they come out the same there. The seed sources are worked out every 30 days, and erosion reads the rain a week. A/B: no key number moved the same way in all pairs. (The 6- against 30-day check is not run: a 30-day tick makes the worlds afresh, which is left to the overnight runs.)
+- **Item 4:** plants stand a tick's mean down to `FROST_MARGIN` (15 °C) below their place's coldest month, or their form's own `frostKill` where that is colder. A/B against item 3: m5-2 and m5-3 the same, m5-1 moved in nothing the same way in all pairs.
+- **Item 1:** `HexPlants.opened`, set from `HexFood.cleared`. Newly cleared ground has its shrubs, trees and shoots cut and left as litter, and the woody ceiling is less by the share kept open. A/B on the farming era (`era=ppnb`; at the default era no band sows in three years, so it moved nothing): wolves −0.3% in all pairs, nothing else.
+- **Item 2:** `HexPlants.soil`, the one soil the plants' ceilings and the fields read; a field's cereal bears by it, times its own wear. A/B on the farming era: grain reaped on m5-1 −18%, people −0.2 to −0.5%, the big grazers −0.01 to −0.1%, in all pairs. The yields per kg were for rested ground; they now hold on the best soil only.
+
