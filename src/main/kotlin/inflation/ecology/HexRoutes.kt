@@ -262,20 +262,25 @@ class HexRoutes(private val g: HexGroups) {
      */
     fun tell(teller: Band, listener: Band, here: Hex): Int {
         var learnt = 0
-        // (Only the rows of hexes within reach: the landmarks are in hex order, row by row.)
+        // (Only the hexes within reach, row by row and in each row the columns within reach: the landmarks are in hex order,
+        // so each row's are found by a search and walked in the order they were before, when whole rows were walked.)
         val rows = (ROUTE_TOLD_KM / hex.rowKm).toInt() + 1
-        val row = hex.row(here)
-        val from = landmarks.binarySearch(hex.at(0, max(0, row - rows))).let { if (it < 0) -it - 1 else it }
-        val until = Hex((row + rows + 1) * hex.cols)
-        for (i in from until landmarks.size) {
-            val a = landmarks[i]
-            if (a >= until) break
-            if (!teller.knows(a) || hex.distanceKm(a, here) > ROUTE_TOLD_KM) continue
-            if (!listener.knows(a)) { listener.learn(a, hex.size); learnt++ }
-            for (i in legsAt[a] ?: continue) {
-                val leg = legs[i]
-                if (!teller.knows(leg[0]) || !teller.knows(leg[leg.size - 1])) continue
-                for (h in leg) if (!listener.knows(h)) { listener.learn(h, hex.size); learnt++ }
+        val reachCols = (ROUTE_TOLD_KM / hex.hexKm).toInt() + 1
+        val row = hex.row(here); val col = hex.col(here)
+        for (r in max(0, row - rows)..row + rows) {
+            val first = hex.at(max(0, col - reachCols), r)
+            if (first.i >= hex.size) break
+            val last = hex.at(min(hex.cols - 1, col + reachCols), r)
+            var i = landmarks.binarySearch(first).let { if (it < 0) -it - 1 else it }
+            while (i < landmarks.size && landmarks[i] <= last) {
+                val a = landmarks[i++]
+                if (!teller.knows(a) || hex.distanceKm(a, here) > ROUTE_TOLD_KM) continue
+                if (!listener.knows(a)) { listener.learn(a, hex.size); learnt++ }
+                for (k in legsAt[a] ?: continue) {
+                    val leg = legs[k]
+                    if (!teller.knows(leg[0]) || !teller.knows(leg[leg.size - 1])) continue
+                    for (h in leg) if (!listener.knows(h)) { listener.learn(h, hex.size); learnt++ }
+                }
             }
         }
         return learnt
