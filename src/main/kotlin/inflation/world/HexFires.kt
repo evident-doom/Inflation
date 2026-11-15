@@ -67,6 +67,7 @@ class HexFires(land: HexLand) : HexLandPart(land) {
                     val nb = Place(j)
                     if (burning[nb] > 0f || !canBurn(nb, weather)) continue
                     if (hex.distanceKm(hw.placeHex[p], hw.placeHex[nb]) > farKm) continue
+                    if (riverBetween(hw.placeHex[c], hw.placeHex[nb])) continue
                     val (nx, ny) = hex.centreKm(hw.placeHex[nb])
                     val dx = (nx - cx).toFloat(); val dy = (ny - cy).toFloat()
                     val len = kotlin.math.hypot(dx, dy)
@@ -80,6 +81,16 @@ class HexFires(land: HexLand) : HexLandPart(land) {
             if (p in set) { tookYear++; peopleKm2Year += km2 } else wildKm2Year += km2
         }
         if (land.firstTick) burning.copyInto(stepBurning) else for (i in 0 until n) stepBurning[i] = min(1f, stepBurning[i] + burning[i])
+    }
+
+    /**
+     * Whether a river [FIREBREAK_M] wide or more runs on the border between hexes [a] and [b] (none between a hex's own low and
+     * high ground): a fire front stops at it, as it does at any open water.
+     */
+    private fun riverBetween(a: Hex, b: Hex): Boolean {
+        if (a == b) return false
+        for (d in 0 until 6) if (hex.neighbour(a, d) == b) return Channel.widthM(hex.riverM3s[hex.edge(a, d)]) >= FIREBREAK_M
+        return false
     }
 
     /** Share of place [p] a fire burns: most of a place thick with dry grass, a little of a sparse one. */
@@ -109,6 +120,12 @@ class HexFires(land: HexLand) : HexLandPart(land) {
         const val GRAZE_SCALE = 5f
         /** How far a fire front can run in a day, km. */
         const val SPREAD_KM_PER_DAY = 5f
+        /**
+         * The width of river, m, that stops a fire front: embers carry a grass fire over a stream, but a break of a few tens of
+         * metres of open ground or water holds it (fire lines cut against grass fires are 10-30 m; an estimate). Some 36 m³/s
+         * of mean flow ([Channel.widthM]).
+         */
+        const val FIREBREAK_M = 30f
     }
 }
 
