@@ -24,8 +24,7 @@ internal fun HexGroups.buildPalisade(g: HexGroup, b: Band, h: Hex, people: Float
         dialUse?.choice(DialSite.PALISADES, b.fortifyWill, b.sinceRaided < ticksPerYear * b.fortifyWill, b.sinceRaided < ticksPerYear)
     if (fortifies(b) && left > 0f && people > 0f) {
         val s = buildingAt(g, Built.PALISADE, h, -1, people)
-        // (Practised hands build it the faster: the days go as the band's skill at fortifying.)
-        val days = PALISADE_DAYS / b.skill(Skill.FORTIFYING)
+        val days = palisadeDays(b)
         val built = minOf(1f - s.built, left / (days * people), gd[Material.WOOD] / (PALISADE_WOOD * people)).coerceAtLeast(0f)
         gd[Material.WOOD] -= built * PALISADE_WOOD * people; buildOn(s, built); time.spend(Activity.PALISADE, built * days * people)
         if (built > 0f) { stats.meeting(Met.BANDS_BUILT_PALISADES); b.practise(Skill.FORTIFYING) }
@@ -176,7 +175,10 @@ internal const val SLIP_LOSS = 0.3f
 /** How much of the raided's grudge and loss of ties ([GRUDGE], [TIE_RAID]) the raiders hold against the defenders when they lost people in the raid. An estimate; no figure found. */
 internal const val RAIDER_RESENT = 0.3f
 internal const val RAID_WEEKS = 4
+/** Person-days a person's share of a palisade takes a practised band ([Skill.ref]): an estimate. */
 internal const val PALISADE_DAYS = 6f
+/** Person-days a person's share of a palisade takes band [b]: [PALISADE_DAYS], the more the less it is practised ([Band.lapse]). */
+internal fun palisadeDays(b: Band) = PALISADE_DAYS * b.lapse(Skill.FORTIFYING)
 internal const val PALISADE_WOOD = 80f
 internal const val PALISADE_DEFENCE = 1f
 internal const val SURPRISE_RAID = 1f

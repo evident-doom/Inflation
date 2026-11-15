@@ -384,10 +384,12 @@ internal fun HexGroups.visitKin(weather: Weather) {
         if (gift <= 0f) continue
         // (All its grown walk there and back, wearing the way, from its next step's days: [tripAlong].)
         if (way != null) tripAlong(g, way, g.adults.toFloat(), WalkPaid.NEXT_STEP)
-        val eat = min(gift, (1f - g.fed) * week)
-        g.fed += eat / week
-        moveFood(o, g, gift, LarderMove.KIN); val ateKg = eatStores(g, eat)
-        land.books?.flow(inflation.Books.Stuff.MATTER, "eaten", -ateKg.toDouble())
+        // (What it is given goes into its stores, and it eats of them what it fell short of this week as it eats any meal
+        // ([Meal]): what spoils first first, its protein feeding only so far, the seed corn kept back.)
+        moveFood(o, g, gift, LarderMove.KIN)
+        val meal = Meal(min(gift, (1f - g.fed) * week)); meal.eat(enumFloats(), enumFloats(), g)
+        g.fed += (meal.wantAll - meal.need) / week
+        land.books?.flow(inflation.Books.Stuff.MATTER, "eaten", -meal.ateKg.toDouble())
         // Who was helped remembers: grudges against the helpers' people fade, and it owes them a favour.
         g.band!!.grudge[o.band!!.mainLineage()] *= 0.5f
         helped(o, g, gift)

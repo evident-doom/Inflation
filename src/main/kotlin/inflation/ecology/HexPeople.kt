@@ -273,7 +273,7 @@ internal fun HexGroups.choreAsks(g: HexGroup, b: Band, date: Date, asks: EnumFlo
         if (canSow(g, b, p, date)) { val per = g.storeKgPer[Store.SEED]
             ask(Activity.SOWING, sowDays(p, min(sowLeft(g, b, p, per, b.sowWill), b.seedCornIn(g)) * per) * b.lapse(Skill.CULTIVATION)) }
         if (fortifies(b)) ask(Activity.PALISADE,
-            minOf(1f - palisadeAt(g, h), b.goods[Material.WOOD] / (PALISADE_WOOD * people)).coerceAtLeast(0f) * PALISADE_DAYS / b.skill(Skill.FORTIFYING) * people)
+            minOf(1f - palisadeAt(g, h), b.goods[Material.WOOD] / (PALISADE_WOOD * people)).coerceAtLeast(0f) * palisadeDays(b) * people)
         ask(Activity.WEIRS, weirAsk(g, b, h))
         ask(Activity.WELLS, wellAsk(g, b, h))
     }

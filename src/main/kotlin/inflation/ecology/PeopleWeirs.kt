@@ -29,7 +29,7 @@ private fun HexGroups.weirLack(g: HexGroup, h: Hex): Float =
  */
 internal fun HexGroups.weirAsk(g: HexGroup, b: Band, h: Hex): Float {
     if (b.weirPull <= 0.5f || !b.knowsSkill[Skill.WEIRS]) return 0f
-    return min(weirLack(g, h), b.goods[Material.WOOD] / WEIR_WOOD_KG_PER_M) * WEIR_DAYS_PER_M / b.skill(Skill.WEIRS)
+    return min(weirLack(g, h), b.goods[Material.WOOD] / WEIR_WOOD_KG_PER_M) * weirDaysPerM(b)
 }
 
 /** A weir across the river at [g]'s band [b]'s camp at hex [h], where one would pay ([weirAsk]), built or mended as far as the [time] days and its timber go. */
@@ -38,7 +38,7 @@ internal fun HexGroups.buildWeir(g: HexGroup, b: Band, h: Hex, time: BandTime) {
     val left = time.leftFor(Activity.WEIRS)
     val gd = b.goods
     if (left <= 0f || b.weirPull <= 0.5f || gd[Material.WOOD] <= 0f || !b.knowsSkill[Skill.WEIRS]) return
-    val perM = WEIR_DAYS_PER_M / b.skill(Skill.WEIRS)
+    val perM = weirDaysPerM(b)
     val m = minOf(weirLack(g, h), left / perM, gd[Material.WOOD] / WEIR_WOOD_KG_PER_M)
     if (m <= 0f) return
     // (On the weir it is building or mending there, or a new one.)
@@ -60,9 +60,11 @@ internal const val WEIR_MAX_M = 100f
 /**
  * Person-days to build a metre of weir. The Kepel dam took 50-70 men ten days, besides those cutting stakes, to build across
  * the Klamath (Waterman & Kroeber 1938): some 600-700 person-days over a river there taken as about 100 m wide (the width is an
- * estimate). A shallow stream's weir is lighter work: this overstates it there.
+ * estimate), by practised hands ([Skill.ref]). A shallow stream's weir is lighter work: this overstates it there.
  */
 internal const val WEIR_DAYS_PER_M = 7f
+/** Person-days a metre of weir takes band [b]: [WEIR_DAYS_PER_M], the more the less it is practised ([Band.lapse]). */
+internal fun weirDaysPerM(b: Band) = WEIR_DAYS_PER_M * b.lapse(Skill.WEIRS)
 
 /** Timber in a metre of weir, kg: posts and stakes some 30 cm apart and the wattle or lattice between them (an estimate). */
 internal const val WEIR_WOOD_KG_PER_M = 40f

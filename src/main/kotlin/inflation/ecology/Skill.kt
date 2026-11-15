@@ -120,14 +120,14 @@ enum class Skill(val domain: Domain, val floor: Float, val start: Float = 0f, va
     /** Round huts on stone footings, roofed with timber and brush. */
     STONE_FOOTING(Domain.BUILDING, CRAFT_FLOOR, 0.5f),
     /** Pit houses dug half into the ground: warmer, and a third of the stone. */
-    PIT_HOUSE(Domain.BUILDING, CRAFT_FLOOR, known = false, invent = 0.1f, teach = 0.1f, settled = true),
+    PIT_HOUSE(Domain.BUILDING, CRAFT_FLOOR, known = false, invent = 0.1f, teach = 0.1f, settled = true, ref = PRACTISED_LEVEL),
     /** Walls of mud and straw (pisé, then moulded bricks) where there is clay by water: no stone, half the timber, longer to build. */
-    MUDBRICK(Domain.BUILDING, CRAFT_FLOOR, known = false, invent = 0.01f, teach = 0.05f, settled = true),
+    MUDBRICK(Domain.BUILDING, CRAFT_FLOOR, known = false, invent = 0.01f, teach = 0.05f, settled = true, ref = PRACTISED_LEVEL),
     TRACK(Domain.TRACKING, 0.2f, 0.8f, practice = HUNTING_PRACTICE),
     STALK(Domain.STALKING, 0.2f, 0.8f, practice = HUNTING_PRACTICE),
     BUTCHER(Domain.BUTCHERY, 0.5f, 0.8f),
     /** Tending kept animals: fewer run off or are lost on the move, more can be kept, and they grow tame faster under practised hands. */
-    TENDING(Domain.HERDING, CRAFT_FLOOR, known = false, invent = 0.05f, teach = 0.1f, ref = 0.5f),
+    TENDING(Domain.HERDING, CRAFT_FLOOR, known = false, invent = 0.05f, teach = 0.1f, ref = PRACTISED_LEVEL),
     /** Apprenticeship: how fast the band's young and newcomers come to its skills (all practice goes faster or slower). */
     SHOWING(Domain.TEACHING, CRAFT_FLOOR, 0.5f),
     /** Songs, stories and names that keep know-how from fading. */
@@ -150,21 +150,21 @@ enum class Skill(val domain: Domain, val floor: Float, val start: Float = 0f, va
      * dig, so it is hit on and passed on as readily as the other simple ways: what held wells back was need (people lived by
      * clean water), and the need is what gates them here.
      */
-    WELLS(Domain.WATER, CRAFT_FLOOR, known = false, settled = true),
+    WELLS(Domain.WATER, CRAFT_FLOOR, known = false, settled = true, ref = PRACTISED_LEVEL),
     /**
      * Ringing the houses with a palisade or a wall ([Built.PALISADE]). Hit on only by a band at home that has been raided lately.
      * Unknown to the Natufians as far as is known: no Natufian site is walled; the first known town wall and tower are
      * Jericho's, PPNA, about 9000 BC (from memory, to check), and wooden palisades are known later still. Like wells, it is
      * a way bands come to when they need it, so need gates it ([PeopleCrafts]); era profiles may grant it (t.startSkills).
      */
-    FORTIFYING(Domain.FORTIFYING, CRAFT_FLOOR, known = false, settled = true),
+    FORTIFYING(Domain.FORTIFYING, CRAFT_FLOOR, known = false, settled = true, ref = PRACTISED_LEVEL),
     /**
      * Building fish weirs ([Built.WEIR]). Fixed weirs and traps are known from the European Mesolithic on (wattle weirs in
      * Denmark and Ireland, about 7000 BC and later; from memory), and nothing like them from the Natufian, though the people of
      * Mallaha by Lake Hula fished. A way bands come to when fish would pay them at a river where they camp ([Band.weirPull]),
      * so need gates it ([PeopleCrafts]); era profiles may grant it (t.startSkills).
      */
-    WEIRS(Domain.WEIRS, CRAFT_FLOOR, known = false),
+    WEIRS(Domain.WEIRS, CRAFT_FLOOR, known = false, ref = PRACTISED_LEVEL),
     /**
      * Growing grain as farmers did once farming was established ([HexGroups.sowGrain], [HexGroups.harvestCrop]): what seed
      * to keep and how to keep it from damp and mice through the year, clearing and hoeing, when to sow for the rains, when
@@ -172,7 +172,7 @@ enum class Skill(val domain: Domain, val floor: Float, val start: Float = 0f, va
      * grant it (t.startSettled, t.startSkills), and bands learn it from farmers they meet or marry into. The unpractised
      * take longer at the field work ([Band.lapse] against [ref]).
      */
-    CULTIVATION(Domain.FARMING, CRAFT_FLOOR, known = false, invent = 0f, teach = 0.1f, ref = 0.5f),
+    CULTIVATION(Domain.FARMING, CRAFT_FLOOR, known = false, invent = 0f, teach = 0.1f, ref = PRACTISED_LEVEL),
     ;
 
     /**
@@ -226,7 +226,11 @@ enum class Skill(val domain: Domain, val floor: Float, val start: Float = 0f, va
     /** The best level [n] holders can keep a way at: what is passed on falls a little short each time, and more learners make up for it. */
     fun cap(n: Float) = 1f - exp(-n / complexity)
 
-    /** The level its effects are set for (a start band's, unless bands start without it). */
+    /**
+     * The level its effects are set for: a start band's, or for a way bands start without, a practised band's ([PRACTISED_LEVEL]).
+     * The day figures of the work it does are a band's at this level, from the record and experiments with practised hands:
+     * a band takes them times [Band.lapse] (survival-skills.md: handling times against a start band's level).
+     */
     val ref = if (ref >= 0f) ref else start
 
     companion object {
@@ -242,3 +246,6 @@ enum class Skill(val domain: Domain, val floor: Float, val start: Float = 0f, va
         val BUILDING_WAYS = listOf(STONE_FOOTING, PIT_HOUSE, MUDBRICK)
     }
 }
+
+/** The level of a practised band at a way bands do not start with: what its [Skill.ref] and the day figures of its work are set for. */
+internal const val PRACTISED_LEVEL = 0.5f

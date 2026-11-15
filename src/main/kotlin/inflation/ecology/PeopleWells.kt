@@ -61,8 +61,8 @@ internal fun wellReachM(s: Structure) = s.built * s.size
 /** The depth a band at place [p] sinks a well to, m: [WELL_MARGIN_M] below the water table there this week. */
 private fun GroupWorld.wellDepthM(p: Place) = land.hydro.waterTableM(p) + WELL_MARGIN_M
 
-/** Person-days a metre of well takes [b]: [WELL_DAYS_PER_M] for a master, the more the less it is practised, the less with picks. */
-private fun wellDaysPerM(b: Band) = WELL_DAYS_PER_M / (b.skill(Skill.WELLS) * (1f + PICK_GAIN * b.has(Tool.PICK)))
+/** Person-days a metre of well takes [b]: [WELL_DAYS_PER_M], the more the less it is practised ([Band.lapse]), the less with picks. */
+private fun wellDaysPerM(b: Band) = WELL_DAYS_PER_M * b.lapse(Skill.WELLS) / (1f + PICK_GAIN * b.has(Tool.PICK))
 
 /**
  * The person-days [g]'s band [b] asks this week for sinking, deepening or mending a well at its home, hex [h]: where the water

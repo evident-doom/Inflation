@@ -1165,6 +1165,8 @@ class Band(kinds: Int, totems: Int = kinds) {
 
     /** How much more (above 1) or less a skill's work leaves undone than a start band's: the sick die, infants are lost. */
     fun lapse(s: Skill) = (s.floor + (1f - s.floor) * s.ref) / skill(s)
+    /** As [lapse], for a kind of work done by the best way it knows of it ([skill]): against the start level of its first way. */
+    fun lapse(d: Domain) = Skill.of(d).first().let { s -> (s.floor + (1f - s.floor) * s.ref) / skill(d).coerceAtLeast(s.floor) }
     /** How much better (above 1) or worse it does at [s] than a start band. */
     fun edge(s: Skill) = 1f / lapse(s)
     /** The insulation of the clothes its people wear by day, clo: a whole kit at [CLOTHES_CLO], as well sewn as its hands sew. */

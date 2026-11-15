@@ -331,4 +331,11 @@ internal fun HexGroups.peopleCrowding(g: HexGroup, h: Hex = hw.placeHex[g.place]
 }
 
 /** The share of the sick and wounded of [band] its healers do not save (1 for a group with no band). */
+/**
+ * The yearly odds that a grown one of kind [s] in band [band] (none: not of a band) dies of age, accidents and ordinary
+ * illness ([DeathCause.OTHER]): its kind's, less what the band's healers save ([healedShare]), and for people as
+ * [inflation.Tuning.humanOther] sets it. The one rule for the week's deaths ([liveWeek]) and the year a band foresees ([yearAhead]).
+ */
+internal fun GroupWorld.backgroundOdds(s: Species, band: Band?) = healedShare(band) * s.backgroundMortality * (if (s.human) tuning.humanOther else 1f)
+
 internal fun healedShare(band: Band?) = (1f - 0.15f * (band?.medicine ?: 0f)) * (band?.lapse(Skill.HERBS)?.let { 1f + HEALING_REACH * (it - 1f) } ?: 1f)
