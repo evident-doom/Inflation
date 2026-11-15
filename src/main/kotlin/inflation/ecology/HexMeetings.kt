@@ -1028,3 +1028,10 @@ internal fun HexGroups.roamersLeave() {
 internal const val BEER_KG = 1f
 
 internal const val BEER_TIES = 0.5f
+
+/**
+ * How much a gift that meets a band's whole want binds it to the giver (the giver half as much);
+ * ties below which no gift is given. Not measured: as a feast.
+ */
+internal const val TIE_USEFUL = 0.3f
+internal const val FEUD_GIFT = -0.2f

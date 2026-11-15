@@ -339,3 +339,26 @@ internal fun HexGroups.peopleCrowding(g: HexGroup, h: Hex = hw.placeHex[g.place]
 internal fun GroupWorld.backgroundOdds(s: Species, band: Band?) = healedShare(band) * s.backgroundMortality * (if (s.human) tuning.humanOther else 1f)
 
 internal fun healedShare(band: Band?) = (1f - 0.15f * (band?.medicine ?: 0f)) * (band?.lapse(Skill.HERBS)?.let { 1f + HEALING_REACH * (it - 1f) } ?: 1f)
+
+/**
+ * Wounds: how much less the hurt and the lamed do; yearly share of adults hurt by mishaps (falls,
+ * cuts, sprains, snakebite gone bad) at the usual gathering range; wounded who live for each one
+ * killed by prey or by a beast (in raids, [RAID_WOUNDED_PER_DEAD]); weekly share of the wounded who heal, untended and with
+ * the best care; weekly share whose wound festers and kills, untended (care saves most); share of
+ * the healed lamed for life, untended (care halves it); the lamed's extra odds of dying ([LAME_RISK]).
+ */
+internal const val HURT_HANDS = 0.8f
+internal const val LAME_HANDS = 0.4f
+internal const val MISHAPS = 0.08f
+internal const val WOUNDED_PER_DEAD = 2f
+internal const val HEAL_UNTENDED = 0.15f
+internal const val HEAL_TENDED = 0.35f
+/**
+ * [FESTER]: at 0.02, with mishaps at [MISHAPS], wounds killed 7-8 a 1000 adults a year where people crowd (flux716),
+ * against accidents 5.2% of forager deaths (Gurven, pooled deaths of 7 groups), some 1-2 a 1000 adults at their 1-1.5%
+ * adult deaths a year: 0.005 aims at that.
+ */
+internal const val FESTER = 0.005f
+internal const val LAMED = 0.2f
+/** Extra odds of dying (of any cause but old age) for a lamed adult, over an unlamed one: 1 is twice as likely. */
+internal const val LAME_RISK = 1f

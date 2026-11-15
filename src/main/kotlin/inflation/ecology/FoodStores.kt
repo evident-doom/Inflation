@@ -339,3 +339,13 @@ internal fun countStoreWork(u: DialUse, g: HexGroup, b: Band, work: Float) {
     u.amount(DialSite.STORE_WANT, b.storeShare, work, if (worn) storeWant(g, b, b.storeAimAt1) * (1f - b.mendFirst) else storeWant(g, b, b.storeAimAt1))
     if (worn) u.amount(DialSite.MENDING_FIRST, b.will[BandWay.MENDING_FIRST], work, mendAt1)
 }
+
+/** Person-days to dry or smoke a kilo of meat or fish (cutting it thin, tending the racks and fire), at full skill. */
+internal const val DRY_DAYS_PER_KG = 0.1f
+/**
+ * Keeping: rain in a week that halves what racks in the sun dry, mm; how much less smoked meat spoils
+ * at full skill than sun-dried; how much of the mice's take sealed pits and bins keep out at full skill.
+ */
+internal const val DRY_RAIN_MM = 30f
+internal const val SMOKE_KEEP = 0.5f
+internal const val SEAL_KEEP = 0.7f

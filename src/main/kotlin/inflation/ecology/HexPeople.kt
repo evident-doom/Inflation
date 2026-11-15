@@ -494,8 +494,6 @@ internal fun HexGroup.wellOff() = fed + larderDays() / WELL_STOCKED_DAYS
 /** The scaffold's store: days of food a band aims to keep against bad weeks, besides its lean months ([Band.leanDays]); share of the gap it works to close a week. */
 internal const val STORE_AIM_DAYS = 30f
 internal const val STORE_FILL = 0.25f
-/** Person-days to dry or smoke a kilo of meat or fish (cutting it thin, tending the racks and fire), at full skill. */
-internal const val DRY_DAYS_PER_KG = 0.1f
 
 /**
  * What a band knows of itself this week, for its ways: the season, how fed it is and what it has on
@@ -688,39 +686,6 @@ internal const val FLEE = 0.5f
  */
 internal const val SICKLE_SELECT = 0.003f
 
-/**
- * Sodium a person needs a day, kg: the 23 mg a day the Yanomami pass, the least of any people measured (INTERSALT, BMJ
- * 1988; Mancilha-Carvalho et al., J Hum Hypertens 1989: 0.9 mmol a day, healthy and with low blood pressure, on a
- * mostly plant diet and no salt). How much slower they work wholly without it is [inflation.Tuning.saltLack] ([saltPace]).
- */
-internal const val SODIUM_A_PERSON_DAY = 23e-6f
-/** Sodium in a kg of meat or fish, kg: raw deer 51 mg/100 g (USDA SR "game meat, deer, raw"), freshwater fish about 50. */
-internal const val SODIUM_PER_KG_MEAT = 0.51e-3f
-/**
- * The share of their working pace a band's people keep, [short] of the sodium they [need] (kg each, or both as shares):
- * wholly without it, [lack] less ([inflation.Tuning.saltLack]): listless, weak and cramped, they work the slower, but what
- * they eat feeds them as ever. (Before, salt lack spoilt the food itself, so a band eating its fill of grain and nothing
- * else burnt its body down and died of "hunger" beside tonnes of it: seedstarve trace, 2026-11-06.) The one rule for the
- * week's pace ([Band.saltPace]) and for what a band weighs of going to salt.
- */
-internal fun saltPace(short: Float, need: Float, lack: Float) = if (need > 0f) 1f - lack * (short / need).coerceIn(0f, 1f) else 1f
-/** Sodium's share of salt by weight (Na in NaCl). */
-internal const val SALT_SODIUM = 0.393f
-/** Salt that holds a person's year of sodium ([SODIUM_A_PERSON_DAY]), kg: some 21 g. */
-internal const val SALT_BODY_YEAR = SODIUM_A_PERSON_DAY * Date.DAYS_PER_YEAR / SALT_SODIUM
-/** Salt to cure a kilo of meat or fish, kg (how much less salted meat and fish spoil: [inflation.Tuning.saltKeep]). */
-internal const val SALT_PER_KG = 0.1f
-
-/**
- * How much a gift that meets a band's whole want binds it to the giver (the giver half as much);
- * ties below which no gift is given. Not measured: as a feast.
- */
-internal const val TIE_USEFUL = 0.3f
-internal const val FEUD_GIFT = -0.2f
-/** How a band's name for its gifts counts against food in hand when other bands weigh whose ways to take up; share of it that fades a year. */
-internal const val RENOWN = 0.2f
-internal const val RENOWN_FADE = 0.2f
-
 /** Share of the way to knowing a kind of country's plants a week's gathering there goes; the least a stranger finds of what a local would. */
 internal const val PLANT_LEARN = 0.05f
 internal const val PLANT_FLOOR = 0.1f
@@ -731,13 +696,6 @@ internal const val START_CRAFT = 0.6f
  * of the bitter plants leaching makes food (against the palatable), and person-days to leach a kilo.
  */
 internal const val EARTH_OVEN_GAIN = 0.3f
-/**
- * Keeping: rain in a week that halves what racks in the sun dry, mm; how much less smoked meat spoils
- * at full skill than sun-dried; how much of the mice's take sealed pits and bins keep out at full skill.
- */
-internal const val DRY_RAIN_MM = 30f
-internal const val SMOKE_KEEP = 0.5f
-internal const val SEAL_KEEP = 0.7f
 /** How far a healer's or midwife's skill reaches into the deaths it can prevent (share of the gap to a start band's). */
 internal const val HEALING_REACH = 0.5f
 
@@ -773,26 +731,4 @@ internal const val MEND_BELOW = 0.5f
  */
 internal const val SMALL_SKIN = 0.1f
 internal const val SKIN_DAYS = 0.5f
-/**
- * Wounds: how much less the hurt and the lamed do; yearly share of adults hurt by mishaps (falls,
- * cuts, sprains, snakebite gone bad) at the usual gathering range; wounded who live for each one
- * killed by prey or by a beast (in raids, [RAID_WOUNDED_PER_DEAD]); weekly share of the wounded who heal, untended and with
- * the best care; weekly share whose wound festers and kills, untended (care saves most); share of
- * the healed lamed for life, untended (care halves it); the lamed's extra odds of dying ([LAME_RISK]).
- */
-internal const val HURT_HANDS = 0.8f
-internal const val LAME_HANDS = 0.4f
-internal const val MISHAPS = 0.08f
-internal const val WOUNDED_PER_DEAD = 2f
-internal const val HEAL_UNTENDED = 0.15f
-internal const val HEAL_TENDED = 0.35f
-/**
- * [FESTER]: at 0.02, with mishaps at [MISHAPS], wounds killed 7-8 a 1000 adults a year where people crowd (flux716),
- * against accidents 5.2% of forager deaths (Gurven, pooled deaths of 7 groups), some 1-2 a 1000 adults at their 1-1.5%
- * adult deaths a year: 0.005 aims at that.
- */
-internal const val FESTER = 0.005f
-internal const val LAMED = 0.2f
-/** Extra odds of dying (of any cause but old age) for a lamed adult, over an unlamed one: 1 is twice as likely. */
-internal const val LAME_RISK = 1f
 

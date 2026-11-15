@@ -431,3 +431,7 @@ internal fun HexGroups.given(giver: HexGroup, taker: HexGroup, chosen: Float, ne
     stats.meeting(if (gift < due) Met.FAVOURS_HELD_BACK else Met.FAVOURS_RETURNED)
     return gift
 }
+
+/** How a band's name for its gifts counts against food in hand when other bands weigh whose ways to take up; share of it that fades a year. */
+internal const val RENOWN = 0.2f
+internal const val RENOWN_FADE = 0.2f
