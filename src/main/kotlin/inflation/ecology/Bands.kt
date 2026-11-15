@@ -119,9 +119,10 @@ class Bands internal constructor(private val world: GroupWorld) {
     @Transient internal val bandIndex = HashMap<Hex, ArrayList<HexGroup>>()
     /** The bands whose herds are kept away from their camps this week, by the hex they are kept in ([Herd.at], [indexBands]). */
     @Transient internal val herdIndex = HashMap<Hex, ArrayList<HexGroup>>()
-    /** [StaleCheck]'s stamps: of [bandIndex] and [herdIndex], and of [followersByHex], [groupById] and [bandHex]. */
+    /** [StaleCheck]'s stamps: of [bandIndex] and [herdIndex], of [followersByHex] and [bandHex], and of [groupById] (by groups made). */
     @Transient internal var indexStamp = 0L
     @Transient internal var whereStamp = 0L
+    @Transient internal var byIdStamp = 0L
 
     /** Dogs that left their band hungry this week as a pack of their own ([keepAnimals]): added to the groups once every band has had its week. */
     @Transient internal val strays = ArrayList<HexGroup>()
@@ -135,7 +136,7 @@ class Bands internal constructor(private val world: GroupWorld) {
     /** Each living band's hex by its id, as of this week's camps (for visiting, see [cultureWeek]). */
     internal var bandHex: Map<Int, Hex> = emptyMap()
 
-    /** Each group by its id, as the bands' weeks begin (the groups they look for by id: raid targets, homes they know of). Not saved. */
+    /** Each group by its id, as the bands' weeks begin and when the bands are indexed ([indexBands]): the groups they look for by id (raid targets, homes they know of, bands they saw). Not saved. */
     @Transient internal var groupById: Map<Int, HexGroup> = emptyMap()
 
     /** Where each living band with a standing house has it, by the band's id (set each week before the bands' own weeks). */

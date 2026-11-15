@@ -91,7 +91,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
     bands.followersByHex = groups.filter { it.alive && it.species.followsPeople && !it.species.human }.groupBy { hw.placeHex[it.place] }
     bands.groupById = groups.associateBy { it.id }
     bands.bandHex = groups.filter { it.alive && it.band != null }.associate { it.id to hw.placeHex[it.place] }
-    bands.whereStamp = StaleCheck.stamp()
+    bands.whereStamp = StaleCheck.stamp(); bands.byIdStamp = StaleCheck.madeStamp()
     tendStructures(weather)
     foulGround()
     bands.houseOf = groups.filter { g -> g.alive && g.band.let { it != null && !it.houseHex.none && it.house >= Thresholds.HOUSE_STANDING } }
@@ -203,7 +203,7 @@ private fun HexGroups.leaveBelief(g: HexGroup, n: HexGroup) {
 @Part("groups: split off")
 internal fun HexGroups.splitOff(g: HexGroup, adults: Int, young: Int): HexGroup {
     val s = g.species
-    val n = HexGroup(nextId++, s, g.place, adults, young); StaleCheck.moved()
+    val n = HexGroup(nextId++, s, g.place, adults, young); StaleCheck.made()
     g.memory.copyInto(n.memory)
     n.fed = g.fed
     n.fat = g.fat

@@ -322,7 +322,7 @@ class HexGroups(
 
     /** A new group of [s] at place [p], [unit] adults and a third as many young, half-fat. */
     internal fun spawn(s: Species, p: Place, unit: Int): HexGroup {
-        val g = HexGroup(nextId++, s, p, unit, max(0, unit / 3)); StaleCheck.moved()
+        val g = HexGroup(nextId++, s, p, unit, max(0, unit / 3)); StaleCheck.made()
         g.temper = Temperament.founder(g.id, seedBase)
         g.fat = 0.5f * s.maxFatDays
         return g
