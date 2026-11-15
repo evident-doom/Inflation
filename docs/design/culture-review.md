@@ -46,7 +46,11 @@ Two customs do have a way, and are read both ways:
 - **Feasts** (`BandWay.FEASTING`, `feastWill`) go through `byCustom` in 7 places. They are a hard switch in 4 more: how big a roaming band grows before it splits (`mobileMost`, `FEAST_SIZE`), how easily a settled band lives together (`settledEase`, `EASE_FEASTS`), and the planner's pull toward gatherings (`feastDraw`, and a census tally beside it in `PlanBands`). So a band keen to feast without the custom feasts at meetings, but feasting never holds it together and its plans never draw it to others.
 - **Sharing** (`BandWay.GIVING`, `giveWill`) is a hard switch in 4 places: kin's gifts are doubled (`CultureMeetings`, and the will is then applied on top), the stores' aim (`SHARING_STORE`), unevenness within the band (`UNEVEN_LEVEL_SHARING`), and the demand-sharing at a meeting (`HexMeetings`).
 
-**Fix:** where a custom has a way, every read goes through `byCustom`: a share of the effect by how keen the band is, not all or nothing. Where an effect is the custom itself rather than how keenly it is followed (sharing's levelling within the band may be one), that read stays a switch and says why. This changes results, so it gets an A/B.
+**Fix, as read closely:** most of these are right as they are, by one of two patterns.
+- **The custom sets the norm and the will scales around it.** Sharing's four reads double the gift, halve the store aim and raise the hunger line before giving; the giving will then scales the gift (`shareOfWill`). Running them through `byCustom` too would count the will twice.
+- **The custom's own effect on a people.** How big a roaming band grows (`FEAST_SIZE`) and how easily a settled one lives together (`EASE_FEASTS`) come of holding to feasts, not of how keenly a band feasts this week.
+
+The one real mismatch is the planner's pull toward others to feast them (`feastDraw`): a band keen to feast without the custom feasts at meetings and on big kills, yet was never drawn toward others to feast. `Band.feastKeen` is now the one keenness every feast read uses, and the draw scales by it (1 at the custom's default). This changes results, so it gets an A/B.
 
 ## 3. A few reads go around Regard
 

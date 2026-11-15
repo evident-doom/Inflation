@@ -651,7 +651,7 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
     for ((host, guest) in listOf(a to b, b to a)) {
         val hb = host.band ?: continue
         // (Feasting is its choice: by its custom, unless its will leads it away from it.)
-        val keen = hb.byCustom(hb.holds(Tradition.FEASTS), hb.feastWill)
+        val keen = hb.feastKeen
         dialUse?.amount(DialSite.FEASTING, hb.feastWill, keen, hb.byCustom(hb.holds(Tradition.FEASTS), 1f),
             cut = keen == 0f && hb.feastWill > 0f)
         // (Not at every meeting: a feast is an occasion, [meetingFresh].)

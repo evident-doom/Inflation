@@ -90,7 +90,7 @@ internal fun HexGroups.keepAndSpoil(w: ForageWeek, got: EnumFloats<Store>, gotKg
     band.houseFoodWeek += kept; band.houseWeek[HouseWorth.KEPT_KG] += kept
     // (Fresh meat beyond what it can eat before it rots it sets before its neighbours, by its custom of feasting: it rots, what
     // the feast leaves, once they have eaten ([feastOnKills]).)
-    band.feastMeat = if (band.byCustom(band.holds(Tradition.FEASTS), band.feastWill) > 0f)
+    band.feastMeat = if (band.feastKeen > 0f)
         max(0f, g.stores[Store.FRESH] - killKeeps(band, g.dailyNeedKg * days, weather.temperature[g.place]) + band.driedLast) else 0f
     g.stores[Store.FRESH] -= band.feastMeat
     // (Pits sealed with clay and plaster keep the mice out.)
@@ -128,7 +128,7 @@ internal fun HexGroups.feastOnKills(weather: Weather) {
     if (hosts.isEmpty()) return
     for (host in hosts) {
         val hb = host.band ?: continue
-        val keen = hb.byCustom(hb.holds(Tradition.FEASTS), hb.feastWill)
+        val keen = hb.feastKeen
         var left = min(hb.feastMeat, host.stores[Store.FRESH])
         val h0 = hw.placeHex[host.place]
         val most = kinReachKm(); val reach = reachOf(host, h0, most, weather)

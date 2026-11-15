@@ -716,7 +716,7 @@ class HexGroups(
         return strained(b, if (b.atHome) settledMost(g.species, b) else mobileMost(g.species, b))
     }
 
-    /** The most a roaming band of kind [s] holds: its kind's most, by its [DisputeWay] and [Tradition.FEASTS], at most [BAND_MOST]. */
+    /** The most a roaming band of kind [s] holds: its kind's most, by its [DisputeWay] and [Tradition.FEASTS] (held, not how keenly: [Band.feastKeen]), at most [BAND_MOST]. */
     private fun mobileMost(s: Species, b: Band): Int {
         val held = (s.maxGroupSize * b.disputeWay.sizeTimes).toInt()
         return min(BAND_MOST, if (b.holds(Tradition.FEASTS)) (held * FEAST_SIZE).toInt() else held)

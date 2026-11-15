@@ -545,6 +545,12 @@ class Band(kinds: Int, totems: Int = kinds) {
      * one that does not only as far as its will goes above the default.
      */
     fun byCustom(holds: Boolean, will: Float) = max(0f, will - (if (holds) 0f else 1f))
+    /**
+     * How keenly it feasts others ([byCustom] of [Tradition.FEASTS] by its [feastWill]): at a meeting, on a big kill, and in
+     * going where others are to feast them ([GroupPlanner.feastDraw]). How big a roaming band grows and how easily a settled
+     * one lives together go by the custom itself, held or not ([mobileMost], [settledEase]): what holding it does to a people.
+     */
+    val feastKeen get() = byCustom(holds(Tradition.FEASTS), feastWill)
 
     /** Whether it holds hex [h] as its own: its houses, its dead, its appointment place. */
     fun claims(h: Hex, memory: PlaceMemory) = h == houseHex || h == appointHex || memory.deadAt(h) > 0f
