@@ -16,6 +16,28 @@ class TradeWorthTest {
     }
 
     @Test
+    fun `a band gives of what it holds beyond its year's keep as far as the other lacks it, grinding stone only to grinders`() {
+        val rich = Band(1); val poor = Band(2)
+        rich.goods[Material.SALT] = 100f
+        // (10 grown keep 40 kg of salt a year: 60 to spare; 5 grown lack 20.)
+        assertEquals(60f, spareGoods(rich, 10, Material.SALT), 1e-4f)
+        assertEquals(20f, lackGoods(poor, 5, Material.SALT), 1e-4f)
+        assertEquals(20f, goodsGiven(rich, 10, poor, 5, Material.SALT), 1e-4f)
+        assertEquals(0f, goodsGiven(poor, 5, rich, 10, Material.SALT))
+        rich.goods[Material.GROUND_STONE] = 1000f
+        assertEquals(0f, goodsGiven(rich, 10, poor, 5, Material.GROUND_STONE), "a band that makes no grinding stones asks for none")
+        poor.knows[Tool.GRINDER] = true
+        assertTrue(goodsGiven(rich, 10, poor, 5, Material.GROUND_STONE) > 0f)
+    }
+
+    @Test
+    fun `carriers take a load each, one at least and all the grown at most`() {
+        assertEquals(1f, carriersFor(3f, 10))
+        assertEquals(3f, carriersFor(2.5f * FETCH_LOAD, 10))
+        assertEquals(4f, carriersFor(100f * FETCH_LOAD, 4))
+    }
+
+    @Test
     fun `days spared make favours by what the band's hands would have foraged in them, a favour a week of its need`() {
         // (A day of all 10 hands brings 3 days of need: 10 person-days spared are 3 days of need.)
         assertEquals(3f / FAVOUR_DAYS, favoursOfDays(10f, 3f, adults = 10, size = 25), 1e-6f)

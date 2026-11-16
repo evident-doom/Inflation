@@ -77,8 +77,20 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
      * the rule a soak in a dry bed goes by. Bulbs and roots cannot be had then; the mast lying on it can.
      */
     @Transient private val frozen = BooleanArray(n)
-    /** The bulbs and roots at [p] that can be dug this week, kg/m²: none while the ground is frozen. */
-    fun diggable(p: Place) = if (frozen[p]) 0f else roots[p]
+    /**
+     * The bulbs and roots at [p] that can be dug this week, kg/m²: none while the ground is frozen, and only part where it
+     * is baked dry ([softness]).
+     */
+    fun diggable(p: Place) = if (frozen[p]) 0f else roots[p] * softness(p)
+    /**
+     * How much of a place's ground a snout or a digging stick gets into this week, 0..1: all where the soil holds
+     * [SOFT_SOIL] of the water it can or more, less as it dries. A summer-baked crust keeps boar to the damp spots by the
+     * water and the shaded slopes; bulbs are dug in the wet season, when the ground gives (from memory of the record).
+     */
+    fun softness(p: Place): Float {
+        val cap = land.hydro.soilCap[p]
+        return if (cap > 0f) (land.hydro.soil[p] / cap / SOFT_SOIL).coerceIn(0f, 1f) else 1f
+    }
     /** What rooting animals find under the trees and in the ground at [p] this week, kg/m²: the roots they can dig and the mast. */
     fun underground(p: Place) = diggable(p) + mast[p]
     /** Takes up to [want] of what is [underground] at [p], from the roots and the mast as each makes of it; returns what was taken. */
@@ -668,6 +680,8 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
          * richest in bulbs there is, so this is a high mean; the plots are patchy (most under 200 kg/ha, hotspots over 3,000).
          */
         const val ROOTS_SHARE = 0.03f
+        /** [softness]: the share of what it can hold the soil holds of water at which the ground is soft to dig, an estimate. */
+        const val SOFT_SOIL = 0.3f
         const val ROOTS_DAYS = 180f
         /** Small finds a day in season: honey per kg/m² of shrubs (and trees) at full pollination, truffles and snails per kg/m² of herbs,
          * eggs per kg of birds; days they keep. */
@@ -686,7 +700,7 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
          * and kept grazers off two thirds of the uplands.)
          */
         fun access(s: Species, crag: Float): Float {
-            val climber = max(0f, s.habitat.rugged)
+            val climber = s.climbing
             return 1f - (1f - min(1f, climber)) * crag.coerceIn(0f, 1f)
         }
     }

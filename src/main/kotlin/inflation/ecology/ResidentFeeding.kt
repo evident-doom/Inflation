@@ -96,11 +96,19 @@ internal fun HexFauna.graze(weather: Weather) {
 }
 
 /**
- * [graze]'s plants at place [p] ([grass] and [browse] of them within reach), into [z]: each kind in turn by body mass
- * eats by the one feeding rule ([forage]), as far as it can get at what the bigger ones left: where food is short the
- * bigger kinds drive the smaller off it (a hippo or an aurochs gives way to nothing smaller). What fell short it makes
- * up from the other foods (diet switching); with food to spare and reserves short, it
- * eats more grass and browse and lays the surplus on.
+ * The shares of its want of grass and of browse kind [s] can crop at place [p] ([cropRate]), by how thick they stand:
+ * the edible herbs, and the shoots within reach counted as the standing plants that would give as much in a week ([REACH]).
+ */
+internal fun HexFauna.cropGrass(s: Species, p: Place) = cropRate(s, land.palatable[p] * land.plants.herb[p])
+internal fun HexFauna.cropBrowse(s: Species, p: Place) = cropRate(s, land.plants.browse(p) / REACH)
+
+/**
+ * [graze]'s plants at place [p] ([grass] and [browse] of them within reach), into [z], shared out among the kinds there by
+ * what each can crop ([forage], [cropRate]), not by rank: first each kind asks what it would eat of each food as it stands;
+ * where they ask more of a food than there is, each gets that food's share of what it asked (exploitative competition:
+ * none drives the others off, but each eats the food down for all). What fell short of one food it makes up from the
+ * others as far as its shares go (diet switching). Then those fed, with reserves short, eat more grass and browse of
+ * what is left and lay the surplus on.
  */
 private fun HexFauna.eatPlants(p: Place, weather: Weather, grass: Float, browse: Float, z: Grazing) {
     val quality = land.plants.nourishment(p)
@@ -121,28 +129,51 @@ private fun HexFauna.eatPlants(p: Place, weather: Weather, grass: Float, browse:
     z.spareG = grass; z.spareB = browse; z.spareF = food.fruit[p]; z.spareR = food.underground(p)
     val b = z.b
     val gp = grassProtein(p); val bp = browseProtein(p)
+    // (Each kind's crop of the grass and browse as they stand, and its depth of snow, the same in every turn.)
+    val snow = weather.snowpack[p]
+    fun eat(k: Int) {
+        val s = kinds[k]
+        z.kind = k; z.access = avail[k]
+        forage(s, s.diet, quality, need[k], grassUnderSnow(s, snow), z, b, cropGrass(s, p), cropBrowse(s, p))
+    }
+    // What each asks of each food.
+    z.mode = Grazing.ASKING
+    for (k in byMass) if (need[k] > 0f) eat(k)
+    // Each food shared by what was asked of it.
+    fun share(asked: FloatArray, cap: FloatArray, spare: Float) {
+        var sum = 0f; for (k in byMass) sum += asked[k]
+        val r = if (sum > spare && sum > 0f) spare / sum else 1f
+        for (k in byMass) cap[k] = r * asked[k]
+    }
+    share(z.askG, z.capG, z.spareG); share(z.askB, z.capB, z.spareB); share(z.askF, z.capF, z.spareF); share(z.askR, z.capR, z.spareR)
+    z.mode = Grazing.SHARES
     for (k in byMass) {
         val s = kinds[k]
         val want = need[k]
         if (want <= 0f) continue
-        val d = s.diet
-        val underSnow = grassUnderSnow(s, weather.snowpack[p])
-        z.access = avail[k]
-        forage(s, d, quality, want, underSnow, z, b)
+        eat(k)
         z.got[k] = b.got / want
         z.gotFruit[k] = (b.fruit + b.fruit2) * Nourishment.FRUIT * s.needScale / want
         z.gotUnder[k] = (b.roots + b.roots2) * Nourishment.ROOTS * s.needScale / want
-        var grass3 = 0f; var browse3 = 0f
-        if (b.got >= want && reserve[k][p] < s.maxFatDays) {
-            // (In energy, as [forage] works: see [Species.needScale].)
-            val extra = surplusShare(FaunaKind(k), p) * want / s.needScale
-            if (d.grass > 0f) grass3 = z.grass(underSnow * extra / quality * d.grass / (d.grass + d.browse).coerceAtLeast(1e-6f))
-            if (d.browse > 0f) browse3 = z.browse(extra / quality * d.browse / (d.grass + d.browse).coerceAtLeast(1e-6f))
-            z.surplus[k] = (grass3 + browse3) * quality * s.needScale / want
-        }
-        z.eatG += b.grass + b.grass2 + grass3; z.eatB += b.browse + b.browse2 + browse3
+        z.eatG += b.grass + b.grass2; z.eatB += b.browse + b.browse2
         z.eatF += b.fruit + b.fruit2; z.eatR += b.roots + b.roots2
         z.ateKg[k] = b.eaten; z.proteinKg[k] = protein(b, gp, bp)
+    }
+    // Then the fed lay on fat from what is left.
+    z.mode = Grazing.FREE
+    for (k in byMass) {
+        val s = kinds[k]
+        val want = need[k]
+        if (want <= 0f || z.got[k] < 1f || reserve[k][p] >= s.maxFatDays) continue
+        val d = s.diet
+        z.access = avail[k]
+        // (In energy, as [forage] works: see [Species.needScale]; as far as it can crop them, as it fed.)
+        val extra = surplusShare(FaunaKind(k), p) * want / s.needScale
+        val gb = (d.grass + d.browse).coerceAtLeast(1e-6f)
+        val grass3 = if (d.grass > 0f) z.grass(cropGrass(s, p) * grassUnderSnow(s, snow) * extra / quality * d.grass / gb) else 0f
+        val browse3 = if (d.browse > 0f) z.browse(cropBrowse(s, p) * extra / quality * d.browse / gb) else 0f
+        z.surplus[k] = (grass3 + browse3) * quality * s.needScale / want
+        z.eatG += grass3; z.eatB += browse3
     }
     // What is left, for [roomFor] (how well a band coming here would be fed on it) to reckon on when they move.
     spareGrass[p] = max(0f, z.spareG); spareBrowse[p] = max(0f, z.spareB); spareFruit[p] = max(0f, z.spareF)

@@ -50,6 +50,9 @@ class SavedStateTest {
         "groups.routes.legWear", "groups.routes.onRoute", "groups.routes.way",
         // (Carrion the residents found as it lay is held only over steps of several ticks; the test steps weekly.)
         "fauna.small.residentCarrion",
+        // (Plagues break out only where a kind is crowded past its usual numbers many times over ([Hazards.crowdBackstop]):
+        // on this small world a year may see none.)
+        "fauna.outbreak",
         // (Grave goods need a death in a band that owns ornaments: on this small world a year may or may not see one.)
         "land.graveGoods",
         // (Burials need a death in a band that keeps the burial tradition: on this small world a year may or may not see one.)

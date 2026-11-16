@@ -31,9 +31,9 @@ class DeathCauseTest {
 
     @Test
     fun `game fights back by its defence and its weight, the same for every hunter`() {
-        // (Gazelles do not fight back; a boar more than a red deer; an aurochs more than a boar; and the lighter the hunter the more.)
+        // (Gazelles do not fight back; a boar more than a deer; an aurochs more than a boar; and the lighter the hunter the more.)
         assertEquals(0f, foughtBack(Catalogue.HUMAN, Catalogue.GAZELLE, Catalogue.GAZELLE.massKg))
-        val deer = foughtBack(Catalogue.HUMAN, Catalogue.RED_DEER, Catalogue.RED_DEER.massKg)
+        val deer = foughtBack(Catalogue.HUMAN, Catalogue.DEER, Catalogue.DEER.massKg)
         val boar = foughtBack(Catalogue.HUMAN, Catalogue.BOAR, Catalogue.BOAR.massKg)
         val aurochs = foughtBack(Catalogue.HUMAN, Catalogue.AUROCHS, Catalogue.AUROCHS.massKg)
         kotlin.test.assertTrue(deer > 0f && boar > deer && aurochs > boar, "deer $deer boar $boar aurochs $aurochs")

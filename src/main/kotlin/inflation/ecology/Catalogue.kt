@@ -43,92 +43,42 @@ object Catalogue {
         habitat = Habitat(cover = -1f, wet = -0.5f),
         activity = floatArrayOf(0.25f, 0.4f, 0.25f, 0.1f),
         swimKm = 1f,
+        kin = Kin.RUMINANTS, dampTolerance = 0.2f,
     )
 
-    /** Roe deer: small, solitary or in families, browsing woodland edges and thickets. */
-    val ROE_DEER = Species(
-        id = 1, name = "roe deer", massKg = 25f,
-        diet = Diet(grass = 0.2f, browse = 0.7f, fruit = 0.1f),
-        groupSize = 3, maxGroupSize = 6,
-        dailyTravelKm = 3f, maxDailyTravelKm = 20f, senseKm = 1f,
-        daysWithoutWater = 4, waterFromFood = 0.9f,
-        birthMonth = 5, birthMonths = 1, youngPerFemale = 1.6f, yearsToMaturity = 2f,
-        // (Snow 50 cm deep, some 125 mm of water, bounds it in the north: Danilkin 1996, Mysterud and Østbye 2006.)
-        backgroundMortality = 0.07f, firstYearLost = HOOFED_YOUNG_LOST, snowLimitMm = 125f,
-        products = Products(meat = 12f, fat = 0.5f, hide = 1.5f, bone = 3f, sinew = 0.2f, hornOrAntler = 0.3f),
-        comfortC = -8f..29f, winterCoat = true,
-        speedKmh = 70f,
-        domestication = floatArrayOf(0.4f, 0.6f, 0.1f, 0.3f, 0.1f, 0.1f),
-        habitat = Habitat(cover = 0.6f),
-        activity = floatArrayOf(0.35f, 0.1f, 0.35f, 0.2f),
-        shelters = setOf(Niches.Shelter.THICKET),
-        swimKm = 4f,
-    )
-
-    /** Persian fallow deer: herds in open woodland and parkland; common in Levantine Epipalaeolithic sites. */
-    val FALLOW_DEER = Species(
-        id = 2, name = "fallow deer", massKg = 65f,
-        diet = Diet(grass = 0.5f, browse = 0.4f, fruit = 0.1f),
+    /**
+     * Deer: the Persian fallow deer of the Levant's open woods and parkland, the commonest deer in Epipalaeolithic sites,
+     * and the red deer of the northern woods and hills, kept as one kind: they share one slot, mixing grass and browse
+     * in woodland and its edges, and nothing in the model would part them. Herds split by sex outside the rut.
+     * (The roe, the small selective browser, is left out with them: without a rule by which body size sets the food a
+     * kind needs it only stacked on the others.) Figures between the fallow and the red deer's.
+     */
+    val DEER = Species(
+        id = 1, name = "deer", massKg = 90f,
+        diet = Diet(grass = 0.45f, browse = 0.45f, fruit = 0.1f),
         groupSize = 6, maxGroupSize = 25,
-        dailyTravelKm = 4f, maxDailyTravelKm = 25f, senseKm = 2f,
-        daysWithoutWater = 3, waterFromFood = 0.6f,
-        birthMonth = 5, birthMonths = 1, youngPerFemale = 0.9f, yearsToMaturity = 2f,
-        backgroundMortality = 0.1f, firstYearLost = HOOFED_YOUNG_LOST, snowLimitMm = 150f,
-        products = Products(meat = 32f, fat = 2f, hide = 4f, bone = 7f, sinew = 0.5f, hornOrAntler = 2f),
-        comfortC = -5f..35f, winterCoat = true,
-        speedKmh = 65f,
+        dailyTravelKm = 5f, maxDailyTravelKm = 30f, senseKm = 2.5f,
+        daysWithoutWater = 3, waterFromFood = 0.55f,
+        birthMonth = 5, birthMonths = 1, youngPerFemale = 0.85f, yearsToMaturity = 2.5f,
+        backgroundMortality = 0.09f, firstYearLost = HOOFED_YOUNG_LOST, snowLimitMm = 160f,
+        products = Products(meat = 45f, fat = 3.5f, hide = 6f, bone = 11f, sinew = 0.7f, hornOrAntler = 3.5f),
+        comfortC = -10f..33f, winterCoat = true,
+        speedKmh = 62f,
         domestication = floatArrayOf(0.5f, 0.5f, 0.4f, 0.4f, 0.3f, 0.4f), // kept in parks, never domesticated
-        habitat = Habitat(cover = 0.3f),
-        defence = 0.1f,
-        activity = floatArrayOf(0.35f, 0.1f, 0.35f, 0.2f),
-        shelters = setOf(Niches.Shelter.THICKET),
-        swimKm = 6f,
-    )
-
-    /** Red deer: woodland and hills, grazing and browsing, herds split by sex outside the rut. */
-    val RED_DEER = Species(
-        id = 3, name = "red deer", massKg = 150f,
-        diet = Diet(grass = 0.5f, browse = 0.5f),
-        groupSize = 8, maxGroupSize = 30,
-        dailyTravelKm = 6f, maxDailyTravelKm = 40f, senseKm = 3f,
-        daysWithoutWater = 3, waterFromFood = 0.5f,
-        birthMonth = 5, birthMonths = 1, youngPerFemale = 0.8f, yearsToMaturity = 3f,
-        backgroundMortality = 0.08f, firstYearLost = HOOFED_YOUNG_LOST, snowLimitMm = 180f,
-        products = Products(meat = 75f, fat = 6f, hide = 9f, bone = 18f, sinew = 1f, hornOrAntler = 5f),
-        comfortC = -12f..29f, winterCoat = true,
-        speedKmh = 60f,
-        domestication = floatArrayOf(0.5f, 0.4f, 0.3f, 0.3f, 0.2f, 0.3f),
-        habitat = Habitat(cover = 0.5f, rugged = 0.2f),
-        defence = 0.25f,
+        habitat = Habitat(cover = 0.4f, rugged = 0.1f),
+        defence = 0.15f,
         activity = floatArrayOf(0.35f, 0.1f, 0.35f, 0.2f),
         shelters = setOf(Niches.Shelter.THICKET, Niches.Shelter.WATER),
-        swimKm = 10f,
+        swimKm = 8f,
+        kin = Kin.RUMINANTS, dampTolerance = 0.6f, climbing = 0.1f,
     )
 
-    /** Nubian ibex: cliffs and steep rock of the hot dry hills and gorges, where nothing can follow it. */
-    val IBEX = Species(
-        id = 4, name = "ibex", massKg = 45f,
-        fearOfPeople = 0.75f, boldShare = 0.04f,
-        diet = Diet(grass = 0.6f, browse = 0.4f),
-        groupSize = 8, maxGroupSize = 25,
-        dailyTravelKm = 4f, maxDailyTravelKm = 20f, senseKm = 3f,
-        daysWithoutWater = 3, waterFromFood = 0.6f,
-        birthMonth = 4, birthMonths = 1, youngPerFemale = 0.9f, yearsToMaturity = 2.5f,
-        backgroundMortality = 0.1f, firstYearLost = HOOFED_YOUNG_LOST, snowLimitMm = 80f,
-        products = Products(meat = 21f, fat = 1.5f, hide = 3f, bone = 5.5f, sinew = 0.4f, hornOrAntler = 4f),
-        comfortC = 0f..38f, winterCoat = true,
-        speedKmh = 55f,
-        foresight = 0.5f,
-        domestication = floatArrayOf(0.7f, 0.5f, 0.4f, 0.4f, 0.4f, 0.6f), // its cousin became the goat
-        habitat = Habitat(cover = -0.3f, rugged = 1f),
-        defence = 0.1f,
-        activity = floatArrayOf(0.3f, 0.4f, 0.2f, 0.1f),
-        shelters = setOf(Niches.Shelter.CRAG),
-    )
+
+
 
     /** Wild boar: omnivore of forest, thicket and marsh; roots, acorns, bulbs; large litters. */
     val BOAR = Species(
-        id = 5, name = "wild boar", massKg = 90f,
+        id = 2, name = "wild boar", massKg = 90f,
         fearOfPeople = 0.6f, boldShare = 0.1f,
         diet = Diet(grass = 0.15f, browse = 0.1f, roots = 0.45f, fruit = 0.2f, smallPrey = 0.05f, carrion = 0.05f),
         groupSize = 6, maxGroupSize = 20,
@@ -150,11 +100,12 @@ object Catalogue {
         activity = floatArrayOf(0.2f, 0.05f, 0.25f, 0.5f),
         shelters = setOf(Niches.Shelter.THICKET, Niches.Shelter.WATER),
         swimKm = 10f,
+        kin = Kin.PIGS, dampTolerance = 0.9f,
     )
 
     /** Aurochs: huge wild cattle of wet lowlands, floodplains and open woodland; formidable when cornered. */
     val AUROCHS = Species(
-        id = 6, name = "aurochs", massKg = 750f,
+        id = 3, name = "aurochs", massKg = 750f,
         fearOfPeople = 0.6f, boldShare = 0.05f,
         diet = Diet(grass = 0.8f, browse = 0.2f),
         groupSize = 15, maxGroupSize = 40,
@@ -172,11 +123,12 @@ object Catalogue {
         defence = 0.9f,
         activity = floatArrayOf(0.25f, 0.35f, 0.2f, 0.2f),
         swimKm = 8f,
+        kin = Kin.RUMINANTS, dampTolerance = 0.8f,
     )
 
     /** Onager (Asiatic wild ass): fast grazer of steppe and semi-desert, needs to drink often. */
     val ONAGER = Species(
-        id = 7, name = "onager", massKg = 230f,
+        id = 4, name = "onager", massKg = 230f,
         diet = Diet(grass = 0.9f, browse = 0.1f),
         groupSize = 8, maxGroupSize = 30,
         dailyTravelKm = 15f, maxDailyTravelKm = 50f, senseKm = 4f,
@@ -193,6 +145,7 @@ object Catalogue {
         defence = 0.4f,
         hindgut = true,
         activity = floatArrayOf(0.25f, 0.35f, 0.2f, 0.2f),
+        kin = Kin.EQUIDS, dampTolerance = 0.2f,
     )
 
     /**
@@ -200,7 +153,7 @@ object Catalogue {
      * water and grazes the banks at night; adults fear nothing, calves fall to lions and crocodiles.
      */
     val HIPPO = Species(
-        id = 8, name = "hippo", massKg = 1400f,
+        id = 5, name = "hippo", massKg = 1400f,
         fearOfPeople = 0.3f, boldShare = 0.05f,
         diet = Diet(grass = 0.95f, browse = 0.05f),
         groupSize = 10, maxGroupSize = 30,
@@ -219,6 +172,7 @@ object Catalogue {
         activity = floatArrayOf(0.1f, 0f, 0.2f, 0.7f),
         shelters = setOf(Niches.Shelter.WATER),
         swimKm = 15f,
+        dampTolerance = 1f,
     )
 
     /**
@@ -230,7 +184,7 @@ object Catalogue {
      * northern record for a southern bear, which likely eats less meat: an estimate.)
      */
     val BEAR = Species(
-        id = 9, name = "brown bear", massKg = 150f,
+        id = 6, name = "brown bear", massKg = 150f,
         fearOfPeople = 0.6f, boldShare = 0.05f,
         diet = Diet(grass = 0.1f, browse = 0.1f, roots = 0.2f, fruit = 0.3f, meat = 0.1f, smallPrey = 0.1f, carrion = 0.1f),
         fibreDigestion = 0.5f, // a bear digests cellulose poorly (captive grizzlies on high-fibre feed); set as the boar
@@ -254,6 +208,7 @@ object Catalogue {
         swimKm = 10f,
         // a fifth of the lion's weight: bears took 358 of 100,000 person-years, lions 57; no Natufian or Hiwi bear kills known (review/2026-10-22-predators-megafauna.md)
         takesPeople = 0.08f,
+        dampTolerance = 0.7f, climbing = 0.4f,
     )
 
     /**
@@ -261,7 +216,7 @@ object Catalogue {
      * small packs. Eats much small prey and carrion.
      */
     val WOLF = Species(
-        id = 18, name = "wolf", massKg = 22f,
+        id = 15, name = "wolf", massKg = 22f,
         fearOfPeople = 0.5f, boldShare = 0.15f,
         diet = Diet(meat = 0.6f, smallPrey = 0.25f, carrion = 0.15f),
         groupSize = 3, maxGroupSize = 8,
@@ -293,7 +248,7 @@ object Catalogue {
      * included, and drive other predators off their kills.
      */
     val LION = Species(
-        id = 19, name = "lion", massKg = 150f,
+        id = 16, name = "lion", massKg = 150f,
         fearOfPeople = 0.6f, boldShare = 0.05f,
         diet = Diet(meat = 0.9f, carrion = 0.1f),
         groupSize = 5, maxGroupSize = 12,
@@ -322,7 +277,7 @@ object Catalogue {
 
     /** Leopard: a solitary stalker of broken and wooded ground; caches kills away from bigger rivals. */
     val LEOPARD = Species(
-        id = 20, name = "leopard", massKg = 45f,
+        id = 17, name = "leopard", massKg = 45f,
         fearOfPeople = 0.7f, boldShare = 0.03f,
         diet = Diet(meat = 0.6f, smallPrey = 0.35f, carrion = 0.05f),
         groupSize = 2, maxGroupSize = 4,
@@ -348,42 +303,13 @@ object Catalogue {
         shelters = setOf(Niches.Shelter.CRAG, Niches.Shelter.DEN, Niches.Shelter.THICKET, Niches.Shelter.TREE),
         takesPeople = 1.2f,
         hidesYoung = true,
+        climbing = 0.6f,
     )
 
-    /**
-     * Eurasian lynx: a solitary stalker of forest and broken ground, the roe deer's chief hunter (a
-     * roe or a chamois a week or so), with hares and birds between; a mother keeps her kits with
-     * her through their first winter.
-     */
-    val LYNX = Species(
-        id = 25, name = "lynx", massKg = 20f,
-        fearOfPeople = 0.9f, boldShare = 0.01f,
-        diet = Diet(meat = 0.75f, smallPrey = 0.22f, carrion = 0.03f),
-        groupSize = 1, maxGroupSize = 4,
-        dailyTravelKm = 8f, maxDailyTravelKm = 25f, senseKm = 3f,
-        daysWithoutWater = 6, waterFromFood = 0.8f,
-        // (Kept as a resident: a litter of two or three a year.)
-        birthMonth = 5, birthMonths = 1, youngPerFemale = 2.5f, yearsToMaturity = 2f,
-        backgroundMortality = 0.1f, youngMortality = 0.5f, snowLimitMm = 900f,
-        products = Products(meat = 8f, fat = 0.3f, hide = 1.5f, bone = 2f, sinew = 0.1f, fur = true),
-        comfortC = -30f..28f, winterCoat = true,
-        speedKmh = 50f,
-        domestication = floatArrayOf(0.1f, 0.3f, 0.1f, 0.0f, 0.2f, 0.0f),
-        habitat = Habitat(cover = 0.8f, rugged = 0.4f),
-        // (It lies up in thickets and among rocks and climbs out of a wolf's reach.)
-        shelters = setOf(Niches.Shelter.CRAG, Niches.Shelter.THICKET, Niches.Shelter.TREE),
-        stalking = 1f,
-        // (A lynx holds its own against animals its size and kills foxes and the young of others; from memory, not checked.)
-        ferocity = 0.9f,
-        // (A lynx fights back with teeth and claws: an estimate between the onager's kicks (0.4) and the boar's tusks (0.6).)
-        defence = 0.5f,
-        startKm2PerAnimal = 150f,
-        hidesYoung = true,
-    )
 
     /** Striped hyena: mostly a scavenger, cracking the bones others leave; also takes small prey and young. */
     val HYENA = Species(
-        id = 21, name = "striped hyena", massKg = 35f,
+        id = 18, name = "striped hyena", massKg = 35f,
         fearOfPeople = 0.5f, boldShare = 0.1f,
         diet = Diet(meat = 0.1f, smallPrey = 0.25f, carrion = 0.55f, fruit = 0.1f),
         groupSize = 2, maxGroupSize = 5,
@@ -409,11 +335,12 @@ object Catalogue {
         shelters = setOf(Niches.Shelter.DEN),
         cracksBones = true,
         takesPeople = 0.3f,
+        climbing = 0.3f,
     )
 
     /** Golden jackal: pairs living on rodents, carrion and the young of gazelle and deer. */
     val JACKAL = Species(
-        id = 22, name = "jackal", massKg = 10f,
+        id = 19, name = "jackal", massKg = 10f,
         fearOfPeople = 0.4f, boldShare = 0.15f,
         diet = Diet(meat = 0.1f, smallPrey = 0.5f, carrion = 0.25f, fruit = 0.15f),
         groupSize = 2, maxGroupSize = 6,
@@ -448,7 +375,7 @@ object Catalogue {
      * 15–20 °C. Adults kick hard enough to keep wolves at bay.
      */
     val ELK = Species(
-        id = 10, name = "elk", massKg = 400f,
+        id = 7, name = "elk", massKg = 400f,
         // (Its summer water plants are browse here: it does not dig bulbs or pick up acorns, and the model's roots are those.)
         diet = Diet(grass = 0.1f, browse = 0.9f),
         groupSize = 2, maxGroupSize = 5,
@@ -466,15 +393,17 @@ object Catalogue {
         activity = floatArrayOf(0.3f, 0.2f, 0.3f, 0.2f),
         shelters = setOf(Niches.Shelter.THICKET, Niches.Shelter.WATER),
         swimKm = 15f,
+        kin = Kin.RUMINANTS, dampTolerance = 0.9f,
     )
 
     /**
-     * Wild goat (bezoar): herds of the broken hill country, crags and open oak woods of the Taurus
-     * and Zagros; they climb to the high pastures in summer and come down to the lower slopes and
+     * Wild goat: herds of the crags and broken hill country, the bezoar of the Taurus and Zagros and, kept as the same
+     * kind, the Nubian ibex of the hot dry hills and gorges of the south: they share the one slot, cliffs and steep rock
+     * where nothing can follow them. They climb to the high pastures in summer and come down to the lower slopes and
      * valleys in winter, ahead of the deep snow. The ancestor of the goat (figures from memory).
      */
     val WILD_GOAT = Species(
-        id = 11, name = "wild goat", massKg = 40f,
+        id = 8, name = "wild goat", massKg = 40f,
         fearOfPeople = 0.75f, boldShare = 0.05f,
         diet = Diet(grass = 0.5f, browse = 0.5f),
         groupSize = 10, maxGroupSize = 50,
@@ -483,7 +412,7 @@ object Catalogue {
         birthMonth = 4, birthMonths = 1, youngPerFemale = 1.3f, yearsToMaturity = 2f,
         backgroundMortality = 0.1f, firstYearLost = HOOFED_YOUNG_LOST, snowLimitMm = 100f,
         products = Products(meat = 18f, fat = 1.5f, hide = 3f, bone = 5f, sinew = 0.4f, hornOrAntler = 3f),
-        comfortC = -15f..35f, winterCoat = true,
+        comfortC = -15f..38f, winterCoat = true,
         speedKmh = 50f,
         foresight = 0.6f,
         domestication = floatArrayOf(0.8f, 0.6f, 0.7f, 0.6f, 0.6f, 0.8f),
@@ -492,6 +421,7 @@ object Catalogue {
         defence = 0.1f,
         activity = floatArrayOf(0.3f, 0.4f, 0.2f, 0.1f),
         shelters = setOf(Niches.Shelter.CRAG),
+        kin = Kin.RUMINANTS, dampTolerance = 0.2f, climbing = 0.9f,
     )
 
     /**
@@ -499,7 +429,7 @@ object Catalogue {
      * future mount. A family band of a stallion and his mares, roaming far between grazing and water.
      */
     val HORSE = Species(
-        id = 12, name = "wild horse", massKg = 300f,
+        id = 9, name = "wild horse", massKg = 300f,
         fearOfPeople = 0.7f, boldShare = 0.05f,
         diet = Diet(grass = 0.9f, browse = 0.1f),
         groupSize = 10, maxGroupSize = 25,
@@ -519,14 +449,16 @@ object Catalogue {
         defence = 0.4f,
         hindgut = true,
         activity = floatArrayOf(0.25f, 0.35f, 0.2f, 0.2f),
+        kin = Kin.EQUIDS, dampTolerance = 0.4f,
     )
 
     /**
-     * Mouflon: wild sheep of rolling hills and open slopes, less of a cliff-dweller than the ibex;
-     * the ancestor of the sheep.
+     * Mouflon: wild sheep of rolling hills, open slopes and uplands, less of a cliff-dweller than the wild goat; the
+     * ancestor of the sheep. (The argali, the great wild sheep of the Central Asian plateaus, is the same slot farther
+     * east, and left out.)
      */
     val MOUFLON = Species(
-        id = 13, name = "mouflon", massKg = 40f,
+        id = 10, name = "mouflon", massKg = 40f,
         fearOfPeople = 0.7f, boldShare = 0.06f,
         diet = Diet(grass = 0.8f, browse = 0.2f),
         groupSize = 10, maxGroupSize = 40,
@@ -535,7 +467,7 @@ object Catalogue {
         birthMonth = 5, birthMonths = 1, youngPerFemale = 1.2f, yearsToMaturity = 2f,
         backgroundMortality = 0.12f, firstYearLost = HOOFED_YOUNG_LOST, snowLimitMm = 80f,
         products = Products(meat = 18f, fat = 2f, hide = 3f, bone = 5f, sinew = 0.3f, hornOrAntler = 2f),
-        comfortC = -15f..32f, winterCoat = true,
+        comfortC = -20f..32f, winterCoat = true,
         speedKmh = 55f,
         foresight = 0.5f,
         domestication = floatArrayOf(0.8f, 0.6f, 0.7f, 0.6f, 0.6f, 0.8f),
@@ -544,32 +476,9 @@ object Catalogue {
         defence = 0.1f,
         activity = floatArrayOf(0.3f, 0.4f, 0.2f, 0.1f),
         shelters = setOf(Niches.Shelter.CRAG),
+        kin = Kin.RUMINANTS, dampTolerance = 0.2f, climbing = 0.6f,
     )
 
-    /**
-     * Argali: the great wild sheep of open high country, rolling uplands and plateaus above the
-     * trees; herds go up to the summer pastures as the snow leaves them and come down before it
-     * lies deep, to the windswept slopes and valleys (figures from memory).
-     */
-    val ARGALI = Species(
-        id = 26, name = "argali", massKg = 100f,
-        fearOfPeople = 0.8f, boldShare = 0.04f,
-        diet = Diet(grass = 0.85f, browse = 0.15f),
-        groupSize = 15, maxGroupSize = 80,
-        dailyTravelKm = 8f, maxDailyTravelKm = 40f, senseKm = 4f,
-        daysWithoutWater = 3, waterFromFood = 0.5f,
-        birthMonth = 5, birthMonths = 1, youngPerFemale = 1.1f, yearsToMaturity = 2f,
-        backgroundMortality = 0.1f, firstYearLost = HOOFED_YOUNG_LOST, snowLimitMm = 100f,
-        products = Products(meat = 45f, fat = 5f, hide = 6f, bone = 12f, sinew = 0.8f, hornOrAntler = 8f),
-        comfortC = -30f..25f, winterCoat = true,
-        speedKmh = 60f,
-        foresight = 0.6f,
-        domestication = floatArrayOf(0.5f, 0.4f, 0.5f, 0.4f, 0.4f, 0.5f),
-        habitat = Habitat(cover = -0.8f, rugged = 0.4f, wet = -0.3f),
-        defence = 0.2f,
-        activity = floatArrayOf(0.3f, 0.4f, 0.2f, 0.1f),
-        shelters = setOf(Niches.Shelter.CRAG),
-    )
 
     // ---------------------------------------------------------------- the hot, dry south
 
@@ -578,7 +487,7 @@ object Catalogue {
      * plants, and tracks distant rain. Its long horns make adults dangerous to tackle.
      */
     val ORYX = Species(
-        id = 14, name = "oryx", massKg = 70f,
+        id = 11, name = "oryx", massKg = 70f,
         diet = Diet(grass = 0.7f, browse = 0.3f),
         groupSize = 10, maxGroupSize = 30,
         dailyTravelKm = 10f, maxDailyTravelKm = 40f, senseKm = 4f,
@@ -593,6 +502,7 @@ object Catalogue {
         habitat = Habitat(cover = -1f, rugged = -0.2f, wet = -0.8f),
         defence = 0.4f,
         activity = floatArrayOf(0.3f, 0.3f, 0.3f, 0.1f),
+        kin = Kin.RUMINANTS, dampTolerance = 0f,
     )
 
     /**
@@ -600,7 +510,7 @@ object Catalogue {
      * seeds and fruit; outruns almost everything and kicks hard. Large clutches, but a pair rears about one chick a year.
      */
     val OSTRICH = Species(
-        id = 15, name = "ostrich", massKg = 110f,
+        id = 12, name = "ostrich", massKg = 110f,
         // A picky feeder on green shoots, flowers, seeds and fruit, not a bulk grazer; it does not dig (the seeds and flowers
         // are counted with the fruit).
         diet = Diet(grass = 0.2f, browse = 0.4f, fruit = 0.4f),
@@ -622,32 +532,16 @@ object Catalogue {
         // chick's metabolisable energy (Swart, Mackie and Hayes 1993). Like horses, they eat as much of poor forage as of good.
         hindgut = true,
         activity = floatArrayOf(0.2f, 0.6f, 0.2f, 0f),
+        dampTolerance = 0.3f,
     )
 
-    /** Bubal hartebeest: a grazer of dry grassland and semi-desert edges, in herds; kept by the Egyptians. */
-    val HARTEBEEST = Species(
-        id = 16, name = "hartebeest", massKg = 150f,
-        diet = Diet(grass = 0.95f, browse = 0.05f),
-        groupSize = 12, maxGroupSize = 40,
-        dailyTravelKm = 8f, maxDailyTravelKm = 40f, senseKm = 3f,
-        daysWithoutWater = 5, waterFromFood = 0.5f, // goes days without drinking where the grass is green
-        birthMonth = 4, birthMonths = 2, youngPerFemale = 0.8f, yearsToMaturity = 2f,
-        backgroundMortality = 0.08f, firstYearLost = HOOFED_YOUNG_LOST, snowLimitMm = 30f,
-        products = Products(meat = 70f, fat = 4f, hide = 9f, bone = 18f, sinew = 1f, hornOrAntler = 2f),
-        comfortC = 5f..40f,
-        speedKmh = 70f,
-        domestication = floatArrayOf(0.6f, 0.5f, 0.4f, 0.3f, 0.4f, 0.5f),
-        habitat = Habitat(cover = -0.8f, rugged = -0.3f),
-        defence = 0.2f,
-        activity = floatArrayOf(0.25f, 0.45f, 0.25f, 0.05f),
-    )
 
     /**
      * Wild dromedary: a browser of desert and thorn scrub that goes two weeks without drinking and
      * then drinks a hundred litres; the future beast of burden of the desert routes.
      */
     val DROMEDARY = Species(
-        id = 17, name = "dromedary", massKg = 450f,
+        id = 13, name = "dromedary", massKg = 450f,
         diet = Diet(grass = 0.3f, browse = 0.7f),
         groupSize = 8, maxGroupSize = 20,
         dailyTravelKm = 15f, maxDailyTravelKm = 60f, senseKm = 4f,
@@ -664,6 +558,38 @@ object Catalogue {
         defence = 0.6f,
         fibreDigestion = 1.5f, // a camel keeps coarse food long in its foregut and gets more from it than cattle do,
         activity = floatArrayOf(0.2f, 0.5f, 0.2f, 0.1f),
+        // (Camels carry the stomach worms of the cud-chewers.)
+        kin = Kin.RUMINANTS, dampTolerance = 0f,
+    )
+
+    /**
+     * Elephant: the Asian elephant of the Syrian and Mesopotamian rivers, hunted out by the Iron Age; the one beast
+     * bigger than the hippo, mixing grass and browse and breaking down the shrubs and young trees it browses. It drinks
+     * every day or two and keeps near water, bears little cold, and fears nothing grown; its calves fall to lions.
+     * A calf every four or five years, grown at a dozen. (Figures from memory of the Asian elephant.)
+     */
+    val ELEPHANT = Species(
+        id = 14, name = "elephant", massKg = 3000f,
+        fearOfPeople = 0.4f, boldShare = 0.05f,
+        diet = Diet(grass = 0.5f, browse = 0.4f, fruit = 0.1f),
+        groupSize = 8, maxGroupSize = 20,
+        dailyTravelKm = 8f, maxDailyTravelKm = 30f, senseKm = 5f,
+        daysWithoutWater = 2, waterFromFood = 0.3f,
+        birthMonth = 0, birthMonths = 12, youngPerFemale = 0.22f, yearsToMaturity = 12f,
+        backgroundMortality = 0.03f, firstYearLost = 0.15f, snowLimitMm = 60f,
+        products = Products(meat = 1500f, fat = 150f, hide = 300f, bone = 500f, sinew = 10f, hornOrAntler = 15f),
+        comfortC = 5f..40f,
+        speedKmh = 25f,
+        foresight = 0.8f,
+        domestication = floatArrayOf(0.9f, 0.05f, 0.1f, 0.4f, 0.5f, 0.7f), // tamed for work, never bred on
+        habitat = Habitat(cover = 0.3f, rugged = -0.5f, wet = 0.5f),
+        defence = 1f,
+        // (Elephants ferment in the hindgut and pass much of their food half digested: they eat their fill of poor forage.)
+        hindgut = true,
+        activity = floatArrayOf(0.3f, 0.2f, 0.25f, 0.25f),
+        shelters = setOf(Niches.Shelter.WATER),
+        swimKm = 20f,
+        kin = Kin.NONE, dampTolerance = 0.8f,
     )
 
     /**
@@ -671,7 +597,7 @@ object Catalogue {
      * open; it loses its kills to anything bigger and cannot hunt in cover or broken ground.
      */
     val CHEETAH = Species(
-        id = 23, name = "cheetah", massKg = 45f,
+        id = 20, name = "cheetah", massKg = 45f,
         fearOfPeople = 0.7f, boldShare = 0.08f,
         diet = Diet(meat = 0.8f, smallPrey = 0.2f),
         groupSize = 2, maxGroupSize = 4,
@@ -709,7 +635,7 @@ object Catalogue {
      * what they know of next week they must learn.
      */
     val HUMAN = Species(
-        id = 24, name = "people", massKg = 55f,
+        id = 21, name = "people", massKg = 55f,
         fearOfPeople = 0.0f, boldShare = 0.0f,
         // Natufian middens and plant remains suggest plant food (nuts, acorns, seeds, pulses, roots)
         // made up as much of the diet as game; hunting is a little over a third.
@@ -740,32 +666,29 @@ object Catalogue {
         intakeKg = 1.6f, needUnits = Nourishment.PEOPLE_NEED,
     )
 
-    private val firstHerbivores = listOf(
-        GAZELLE, ROE_DEER, FALLOW_DEER, RED_DEER, IBEX, BOAR, AUROCHS, ONAGER, HIPPO, BEAR,
-        ELK, WILD_GOAT, HORSE, MOUFLON, ORYX, OSTRICH, HARTEBEEST, DROMEDARY,
+    private val herbivores = listOf(
+        GAZELLE, DEER, BOAR, AUROCHS, ONAGER, HIPPO, BEAR, ELK, WILD_GOAT, HORSE, MOUFLON, ORYX, OSTRICH, DROMEDARY, ELEPHANT,
     )
     // (A new kind takes the next free [Species.id], so every kind keeps its index, and saved networks their identities.)
-    val predators = listOf(WOLF, LION, LEOPARD, HYENA, JACKAL, CHEETAH, HUMAN, LYNX)
-    /** Kinds added after the predators (with later ids, so the others keep their indices). */
-    private val laterHerbivores = listOf(ARGALI)
+    val predators = listOf(WOLF, LION, LEOPARD, HYENA, JACKAL, CHEETAH, HUMAN)
 
     /**
      * Plant-eaters that follow the seasons over long distances; the others live out their lives in small home ranges.
      * They live as residents ([resident]) as the others do; the set keeps their place at the end of [HexFauna.kinds] and
      * the learned movers' "migratory" input.
      */
-    val migratory = setOf(GAZELLE, WILD_GOAT, HORSE, ONAGER, ORYX, OSTRICH, HARTEBEEST, DROMEDARY, ARGALI)
+    val migratory = setOf(GAZELLE, WILD_GOAT, HORSE, ONAGER, ORYX, OSTRICH, DROMEDARY)
 
     /**
      * Hunters that live everywhere they can on small home ranges, kept as
      * numbers per place like the plant-eaters rather than as packs that choose where to go
-     * (cheaper, and the same rules of eating, breeding and dying): golden jackals, lynx, and striped hyenas, lone
+     * (cheaper, and the same rules of eating, breeding and dying): golden jackals and striped hyenas, lone
      * foragers that did nothing as packs that residents do not (Olli 2026-10-31, on packs' cost against what they add,
      * review/2026-10-31-mobile-predators-worth.md). Leopards stay packs: as residents nothing held them but the
      * breeding spacing, and they rose some fivefold in ten years (review/2026-10-31-ab-residents.md). (They stay in
      * [predators], so every kind keeps its index.)
      */
-    val residentHunters by lazy { setOf(JACKAL, LYNX, HYENA) }
+    val residentHunters by lazy { setOf(JACKAL, HYENA) }
 
     /**
      * Hunters that live both ways (docs/design/roaming-packs.md, Olli 2026-11-02): most settled on their ground as residents,
@@ -783,10 +706,10 @@ object Catalogue {
      * The resident hunters keep out of the way of a much stronger party ([HexFauna.strongest]). (Bears and hyenas rob a
      * pack's kills they come on by scent: [scavengedAtKill].)
      */
-    val residentRivals by lazy { setOf(JACKAL, LYNX, HYENA, BEAR) }
+    val residentRivals by lazy { setOf(JACKAL, HYENA, BEAR) }
 
     /** Kinds that climb crags and screes others cannot cross. */
-    val climbers = setOf(IBEX, MOUFLON, WILD_GOAT, LEOPARD)
+    val climbers by lazy { all.filter { it.climbing >= 0.5f }.toSet() }
 
     /**
      * How far a kind will swim open water, km: elk, hippos, red deer, boar and bears cross straits of
@@ -800,7 +723,7 @@ object Catalogue {
     fun travel(s: Species) = if (s in climbers) HexMap.Travel.CLIMB
         else if (!s.carnivore && s.massKg > 60f) HexMap.Travel.SWIM else HexMap.Travel.FOOT
     /** Every kind, in [Species.id] order (so `all[s.index] === s`). */
-    val all = (firstHerbivores + predators + laterHerbivores).sortedBy { it.id }
+    val all = (herbivores + predators).sortedBy { it.id }
     /**
      * The kinds that move as groups with a learned mover: the beasts of prey and people. Named, not read
      * from the diet: people eat about half meat, and a small retune of their diet would otherwise drop

@@ -55,7 +55,7 @@ internal fun HexFauna.fedOnSpare(s: Species, p: Place, heads: Float, each: Float
     if (!(want > 0f)) return 1f
     dry.reach = reach; dry.grass = spareGrass[p]; dry.browse = spareBrowse[p]
     dry.fruit = spareFruit[p]; dry.roots = spareRoots[p]
-    return (forage(s, s.diet, land.plants.nourishment(p), want, grassUnderSnow(s, snowMm), dry, b).got / want).coerceIn(0f, 1f)
+    return (forage(s, s.diet, land.plants.nourishment(p), want, grassUnderSnow(s, snowMm), dry, b, cropGrass(s, p), cropBrowse(s, p)).got / want).coerceIn(0f, 1f)
 }
 
 /** [fedOnSpare] for [heads] of plant-eating kind [k] coming to place [p] this week. */
@@ -161,7 +161,7 @@ private fun HexFauna.growthFor(k: FaunaKind, parts: EnumFloats<Growth>, youngPer
 @IgnorableReturnValue private fun HexFauna.growthOf(k: FaunaKind, p: Place, grownFixed: Float, youngFixed: Float, huntedYoung: Float, protein: Float, youngPerGrown: Float,
                      carried: Float, f: Float, heads: Float, parts: EnumFloats<Growth>?): Float {
     val s = kinds[k]
-    val hunger = Hazards.hunger(s, moverSpent[k], Hazards.onFat(f, carried, days, 1f), days); val sick = Hazards.crowdDisease(Hazards.crowding(heads, usual[k]), f, years)
+    val hunger = Hazards.hunger(s, moverSpent[k], Hazards.onFat(f, carried, days, 1f), days); val sick = Hazards.crowdBackstop(Hazards.crowding(heads + sharersKm2(k, p), usual[k]), f, years) + wetSickness(s, p, f) * years
     val due = dueYoung(k, p, heads, protein, min(1f, days / (s.birthMonths * Date.DAYS_PER_MONTH.toFloat())))
     val born = 0.5f * due * breeding(s, due, carried, f, days)
     val grownDie = (grownFixed + hunger + sick).coerceIn(0f, Hazards.MAX_GROWN_ODDS)
@@ -216,9 +216,9 @@ internal fun HexFauna.appeal(k: FaunaKind, p: Place, weather: Weather): Float {
     // (Plant-eaters weigh their forage by how fresh it is and how well it would meet their need for
     // protein: so they go up to the green high pasture in summer and down for the winter.)
     val fresh = if (s.carnivore) 1f else land.plants.nourishment(p) * forageProtein(s, p)
-    return fareFor(s, p) * fresh * suits(s, p) * tether(s, p) * unbitten(p) * snowed * (1f - FEAR_WEIGHT * (if (s.carnivore) pressure(k, p) else shy(s, p))) * (1f - outranked(s, p)) *
+    return fareFor(s, p) * fresh * tether(s, p) * unbitten(p) * snowed * (1f - FEAR_WEIGHT * (if (s.carnivore) pressure(k, p) else shy(s, p))) * (1f - outranked(s, p)) *
         (1f - land.fire.stepBurning[p] * FIRE_ADULT) * (1f - outbreakDeaths(s, p)) /
-        (1f + Hazards.crowding(heads, usual[k])) / (1f + discomfort)
+        (1f + Hazards.crowding(heads, usualAt(k.i, p))) / (1f + discomfort)
 }
 
 /** Whether [s] can drink at place [p] ([Hazards.canDrink]). */
@@ -513,17 +513,19 @@ fun HexFauna.disperse(k: FaunaKind, carcass: FloatArray, weather: Weather): Floa
 private fun HexFauna.disperseAtOnce(k: FaunaKind, pool: FloatArray, carcass: FloatArray): Float {
     val s = kinds[k]
     val lengthKm = s.dispersalKm
-    val settleRate = 1f / s.dispersalDays; val a = adults[k]; val y = young[k]; val usualK = usual[k]
+    val settleRate = 1f / s.dispersalDays; val a = adults[k]; val y = young[k]
     // (Room on each hex, heads, as the step found it; the hexes the pool holds enough on to weigh; and those too few to
     // weigh, waiting in the pool, die on the way as they would, the last few hundredths of a head all of them, where
     // they wait. One pass over the map on this kind's core: each hex is a few sums, less than a parallel loop's start.)
-    val room = FloatArray(hex.size); val died = FloatArray(hex.size)
+    val room = FloatArray(hex.size); val died = FloatArray(hex.size); val holdsOf = FloatArray(hex.size)
     val dying = 1f - exp(-DISPERSAL_DEATH * days)
     val sourceList = HexList(); val unknownList = HexList()
     for (h in hex.all) {
         var heads = 0f; var area = 0f
-        for (q in hw.placesOf(h)) { heads += (a[q] + y[q]) * land.areaKm2[q]; area += land.areaKm2[q] }
-        room[h] = max(0f, usualK * area * (1f - pressureOnHex(k, h)) - heads)
+        // (The room its territories leave on the hex, as the game there holds them: [usualAt].)
+        var holds = 0f
+        for (q in hw.placesOf(h)) { heads += (a[q] + y[q]) * land.areaKm2[q]; area += land.areaKm2[q]; holds += usualAt(k.i, Place(q)) * land.areaKm2[q] }
+        holdsOf[h] = holds; room[h] = max(0f, holds * (1f - pressureOnHex(k, h)) - heads)
         val n = pool[h]
         if (n >= DISPERSAL_LEAST) { sourceList += h; if (!dispersalGround.containsKey(groundKey(k, h))) unknownList += h }
         else if (n > 0f) { val d = if (n < DISPERSAL_GONE) n else n * dying
@@ -536,7 +538,7 @@ private fun HexFauna.disperseAtOnce(k: FaunaKind, pool: FloatArray, carcass: Flo
     Par.forEach("residents: dispersal, sources", sources.size) { j ->
         val ground = dispersalGround.getValue(groundKey(k, sources[j]))
         var roomW = 0f; var allW = 0f
-        for (i in 0 until ground.hexes.size) { val w = ground.weight[i]; allW += w * usualK * ground.area[i]; roomW += w * room[ground.hexes[i]] }
+        for (i in 0 until ground.hexes.size) { val w = ground.weight[i]; allW += w * holdsOf[ground.hexes[i]]; roomW += w * room[ground.hexes[i]] }
         val settle = if (allW > 0f) settleRate * roomW / allW else 0f
         val out = settle + DISPERSAL_DEATH
         val gone = pool[sources[j]] * (1f - exp(-out * days))
