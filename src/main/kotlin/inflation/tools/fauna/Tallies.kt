@@ -8,6 +8,10 @@ import inflation.ecology.set
 import inflation.ecology.get
 import inflation.ecology.ADULT_YEARS
 import inflation.ecology.Tally
+import inflation.ecology.campWeeksAt
+import inflation.ecology.peopleCrowding
+import inflation.ecology.hygieneAt
+import inflation.ecology.catching
 import inflation.ecology.ByBeast
 import inflation.ecology.Catalogue
 import inflation.ecology.TallyKey
@@ -277,6 +281,8 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
     private var adultWeeks = 0.0
     /** People-weeks sick of each illness this year, for the bouts a 1000 a year ([printAgainstTheRecord]). */
     private val sickWeeks = DoubleArray(inflation.ecology.Illness.entries.size)
+    /** The flux's inputs as the census week finds each band, by its heads: camp weeks of fouling, crowding, hygiene, catching (a week's). */
+    private val fluxIn = DoubleArray(4)
     private var motherWeeks = 0.0
     private var moves = 0
     /** Hexes each band walked this year, and its last camp. */
@@ -301,7 +307,7 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
     fun startYear() {
         bandWeeks = 0.0; bandHeads = 0.0; childWeeks = 0.0; adultWeeks = 0.0; motherWeeks = 0.0; moves = 0
         walked.clear(); worked.clear(); lastCamp.clear()
-        sickWeeks.fill(0.0)
+        sickWeeks.fill(0.0); fluxIn.fill(0.0)
     }
 
     fun week() {
@@ -324,6 +330,11 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
             bandWeeks++; bandHeads += g.size; childWeeks += g.young; adultWeeks += g.adults; motherWeeks += (g.adults - g.band!!.elders) / 2.0
             for (d in inflation.ecology.Illness.entries) sickWeeks[d.ordinal] += g.size * (g.band?.sick?.get(d) ?: 0f).toDouble()
             val h = hw.placeHex[g.place]
+            g.band?.let { b ->
+                val cw = groups.campWeeksAt(h); val crowd = groups.peopleCrowding(g); val hy = groups.hygieneAt(b, h)
+                val c = groups.catching(inflation.ecology.Illness.FLUX, b, g.place, sim.weather.temperature[g.place], crowd, cw, hy, sim.weather)
+                fluxIn[0] += g.size * cw.toDouble(); fluxIn[1] += g.size * crowd.toDouble(); fluxIn[2] += g.size * hy.toDouble(); fluxIn[3] += g.size * c.toDouble()
+            }
             for (q in g.path) walked.getOrPut(g.id) { HashSet() } += q
             // (The ring round camp, as the band's foraging has it, [GroupFood]: land hexes next to the camp's.)
             worked.getOrPut(g.id) { HashSet() }.let { w -> w += h; for (q in g.path) w += q
@@ -797,6 +808,12 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
             val share = sickWeeks[il.ordinal] / heads
             "%s %.1f%% (%.0f)".format(il.label, 100.0 * share, 1000.0 * share * 365.25 / 7.0 / il.weeks) } +
             " [shigellosis 0.6-107 bouts a 1000 a year]")
+        run {
+            // (What the flux comes of, as each census week finds the bands, by heads: the step-length check, gap813.)
+            val heads = bandHeads.coerceAtLeast(1.0)
+            println("     the flux's inputs as the census week finds them (by heads): camp weeks of fouling %.2f, crowding %.3f, hygiene %.3f, a week's catching %.5f"
+                .format(fluxIn[0] / heads, fluxIn[1] / heads, fluxIn[2] / heads, fluxIn[3] / heads))
+        }
         println("     people against the record: band size %.0f [15-50, most 20-35] | people per km² %.3f [foragers 0.01-0.4; Mediterranean 0.05-0.2] | camps moved a year %.1f [5-60, median about 15] | camp hexes a year %.0f km², with the ring round camp the gatherers work %.0f km² [ground used a year 200-2500] | plant share of food %.0f%% [Mediterranean 40-60%%] | births a woman over her bearing years %.1f [foragers 3.5-7.9, mean 5.6; Hadza 6.2, !Kung 4.3-4.7] | children reaching 15 %.0f%% [about 55-65%%] | years left at 15 %.0f [about 35-40] | violent deaths %.0f%% [2-15%%]".format(
             bandHeads / bandWeeks, bandHeads / weeks / sim.land.areaKm2.sum(), moves.toDouble() / bandsSeen,
             walked.values.map { it.size }.average() * hex.areaKm2,

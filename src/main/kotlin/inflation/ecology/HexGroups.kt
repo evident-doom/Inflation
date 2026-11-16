@@ -890,6 +890,11 @@ class HexGroups(
     /** The tick of the step a meeting now being held falls on ([neighboursMeet]; 0 for the rest): how fresh it is ([meetingFresh]). */
     /** How many meetings of the two bands the meeting now being held stands for ([neighboursMeet]; 1 for the rest): [meetChance]. */
     @Transient internal var meetTimes = 1
+    /**
+     * How many of the step's ticks the meeting now being held met in ([neighboursMeet]; 1 for the rest): the weekly model
+     * folds a pair's meetings within a week into one, so what passes once a meeting week, as sickness ([passIllness]), passes this often.
+     */
+    @Transient internal var meetTicks = 1
     @Transient internal var meetTick = 0
 
 

@@ -201,7 +201,7 @@ internal fun HexGroups.neighboursMeet(weather: Weather) {
     // met ([meetingFresh], [meetTick]), and the freshness of meetings adds up, so the step's tellings and feasts come to what
     // its meetings one by one would have. The pairs are met in the order of those ticks. So a step costs a meeting a pair,
     // not a meeting a meeting: a 60-day step's ten meetings between neighbours are one.)
-    class Due(val tick: Int, val times: Int, val a: HexGroup, val b: HexGroup, val way: Way, val km: Float, val bVisits: Boolean)
+    class Due(val tick: Int, val times: Int, val ticksMet: Int, val a: HexGroup, val b: HexGroup, val way: Way, val km: Float, val bVisits: Boolean)
     val due = ArrayList<Due>()
     // (Each band's going to the hexes about it, and those of them where bands live in index order, on all cores: they read
     // only the step's crossings. The draws then go band by band in the groups' order, as they always did.)
@@ -233,15 +233,16 @@ internal fun HexGroups.neighboursMeet(weather: Weather) {
                     val share = (if (bVisits) b else a).band?.visitShare ?: 1f
                     var k = 0; repeat(drawn) { if (r.nextFloat() < share) k++ }; k }
                 if (times == 0) continue
-                var last = 0; repeat(times) { last = max(last, r.nextInt(ticks)) }
-                due += Due(last, times, a, b, reach.wayTo(h, CONTACT_KM) ?: continue, km, bVisits)
+                // (And the ticks they met in, as many as the weekly model's meetings of the pair: at most one a tick, [meetTicks].)
+                var last = 0; var met = 0L; repeat(times) { val t = r.nextInt(ticks); last = max(last, t); met = met or (1L shl (t and 63)) }
+                due += Due(last, times, java.lang.Long.bitCount(met), a, b, reach.wayTo(h, CONTACT_KM) ?: continue, km, bVisits)
             }
         }
     }
     due.sortBy { it.tick }
     for (m in due) {
         if (!m.a.alive || !m.b.alive) continue
-        asMeetings(m.times, m.tick) {
+        asMeetings(m.times, m.tick, m.ticksMet) {
         stats.meeting(Met.NEIGHBOURS_MET, m.times)
         // (Each going there and back wears the way the visitors went, the meetings' wear compounded ([tripAlong]). Within their
         // own grounds bands come on each other as their foragers go about: that walk is the foraging's. Beyond, the visitors
@@ -259,10 +260,10 @@ internal fun HexGroups.neighboursMeet(weather: Weather) {
  * puts them back as they were (one meeting, at the step's start) however it ends: no meeting settled after can read
  * another's. The one place they are set.
  */
-internal inline fun HexGroups.asMeetings(times: Int, tick: Int, block: () -> Unit) {
-    val t0 = meetTimes; val k0 = meetTick
-    meetTimes = times; meetTick = tick
-    try { block() } finally { meetTimes = t0; meetTick = k0 }
+internal inline fun HexGroups.asMeetings(times: Int, tick: Int, ticksMet: Int = 1, block: () -> Unit) {
+    val t0 = meetTimes; val k0 = meetTick; val m0 = meetTicks
+    meetTimes = times; meetTick = tick; meetTicks = ticksMet
+    try { block() } finally { meetTimes = t0; meetTick = k0; meetTicks = m0 }
 }
 
 
