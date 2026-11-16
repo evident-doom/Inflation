@@ -2,6 +2,7 @@ package inflation.ecology
 
 import inflation.world.Hex
 import inflation.world.Weather
+import inflation.world.get
 import kotlin.math.max
 import kotlin.math.min
 
@@ -39,7 +40,7 @@ internal fun favoursOfDays(days: Float, recentYield: Float, adults: Int, size: I
 }
 
 /** What a person-day gets of [m] at a source in hex [h], kg (sea salt is made, slower than a pan's crust is scraped); NaN for a good not got at sources. */
-private fun GroupWorld.rateAt(m: Material, h: Hex): Float = when (m) {
+private fun HexGroups.rateAt(m: Material, h: Hex): Float = when (m) {
     Material.STONE, Material.GROUND_STONE -> STONE_A_DAY
     Material.OCHRE -> OCHRE_A_DAY
     Material.SALT -> if (hw.coast[h] && h !in bands.materialSources.getValue(Material.SALT)) SEA_SALT_A_DAY else SALT_A_DAY

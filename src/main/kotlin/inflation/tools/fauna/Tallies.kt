@@ -613,7 +613,7 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
         return TRADED.joinToString(" | ") { m ->
             val n = IntArray(rings.size + 1); val adults = DoubleArray(rings.size + 1); val kg = DoubleArray(rings.size + 1); val worth = DoubleArray(rings.size + 1)
             for (g in bands) {
-                val b = g.band!!
+                val b = g.band ?: continue
                 val km = groups.nearestSourceKm(hw.placeHex[g.place], m)
                 val i = rings.indexOfFirst { km < it }.let { if (it < 0) rings.size else it }
                 n[i]++; adults[i] += g.adults.toDouble(); kg[i] += b.goods[m].toDouble(); worth[i] += groups.worthDaysPerKg(g, b, m, weather).toDouble()
