@@ -147,6 +147,15 @@ Three years on m7-1 (main, 2026-11-16; Gini across bands; the tenth best-off ban
 
 So the one-way flow already gathers credit and standing at the sources, but nothing turns it into possessions: there is no counterflow. Possessions are no more unequal than foragers' (crafted goods are one kind, all alike). That is what steps 2 and 3 are for. (50 km takes in most bands; the next census should ring them by distance, as the falloff does.)
 
+### Crafted goods (step 2)
+
+Ornaments are made of finer kinds by skilled hands and are worth their days (`t.craftWorth`, 1; 0 the old rule): stone figurines (8 days, 0.3 kg of grinding stone) and drilled stone beads (6 days) pecked and carved, obsidian pieces (4 days, 0.1 kg), shell beads and bone pendants (2 days, as all ornaments took before). A band makes the finest kinds its materials and hands allow (a least skill at the craft), then the plainer, up to three a person; each is worth its days times the skill of the hands (`Band.ornamentWorth`). Standing counts by worth; ornaments given carry their worth and make favours by it on the log scale; graves and offshoots take worth with the pieces. Rare materials only open the kinds: pricing them would ask searches of the ground.
+
+- With `t.craftWorth=0` a year on m7-1 runs line for line as main (2026-11-16). A/B on m7-1, 3 years, 4 replicates: people +0.12%, mixed, inside the weather's 4.4%; 1 of 27 key numbers the same way in all pairs (hippo +0.2%); all runs with it within nominal limits.
+- Ornaments' worth a person rises from 4.4 to 5.4 days in three years, but hardly grows less even: Gini 0.16 to 0.17, the top tenth's share 16% to 19%. Nearly all the making is figurines (195 band-weeks of it a year, against 38 of pendants, 11 of shell beads, 7 of obsidian and 3 of drilled beads): grinding stone lies by 98% of bands and the pecking hand is common where grinders are made, and a band stops at three a person, so it makes only to replace what it gives and buries. Fine goods are neither scarce nor few hands' work.
+
+What would let crafted wealth part bands: skill as a specialist's (a least skill only few reach, kept by practice: the finest kinds taught within a band and lost without makers); materials that are truly rare (obsidian, shell inland, later copper; greenstone, which the geology does not yet tell from grinding rock); and a band making for worth, not up to a count, when it has time and the will to it, so that those with spare days and hands store their surplus as finery, and finery is worn out, buried and given away at the rate the record shows.
+
 ## Checks against the record
 
 - **Falloff**: what each band holds of each traded good against its distance from the nearest source, by year. Down-the-line exchange shows an exponential fall beyond a supply zone of a few hundred km; directional trade shows plateaus. The coast against inland shell tally ([Tallies.kt](../../src/main/kotlin/inflation/tools/fauna/Tallies.kt)) is a first, coarse form.
