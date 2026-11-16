@@ -128,6 +128,8 @@ object Catalogue {
         shelters = setOf(Niches.Shelter.THICKET, Niches.Shelter.WATER),
         swimKm = 10f,
         kin = Kin.PIGS, dampTolerance = 0.9f,
+        // (No sweat glands to speak of: it cools in mud and shade.)
+        sweats = false,
     )
 
     /** Aurochs: huge wild cattle of wet lowlands, floodplains and open woodland; formidable when cornered. */

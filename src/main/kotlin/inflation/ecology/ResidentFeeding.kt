@@ -62,9 +62,14 @@ internal fun HexFauna.unbitten(p: Place) = 1f - HexSmallLife.HARASS_FEED * small
 private fun HexFauna.smallFood(k: FaunaKind, p: Place, want: KgM2, weather: Weather): KgM2 {
     if (want.v <= 0f) return KgM2.ZERO
     val roots = kinds[k].diet.roots > 0f
-    val dug = if (roots) small.digGrubs(p, want.perKm2).perM2 else KgM2.ZERO
+    // (A rooter digs its small food, the grubs and the nests, only as far as the ground is soft, as it digs roots:
+    // [HexFood.softness]. Cutting the grubs alone, the boar dug out nests for the rest and took the rodents the
+    // jackals and hyenas live on.)
+    val w = if (roots) want * food.softness(p) else want
+    if (w.v <= 0f) return KgM2.ZERO
+    val dug = if (roots) small.digGrubs(p, w.perKm2).perM2 else KgM2.ZERO
     // (At most half of the small game there a tick ([catchSmall]): over a step of several ticks, compounded.)
-    return dug + small.catchSmall(p, (want - dug).perKm2, weather, most = small.overTicks(0.5f), who = Taker.kind(k.i), style = if (roots) SmallHunt.ROOT else SmallHunt.STALK).perM2
+    return dug + small.catchSmall(p, (w - dug).perKm2, weather, most = small.overTicks(0.5f), who = Taker.kind(k.i), style = if (roots) SmallHunt.ROOT else SmallHunt.STALK).perM2
 }
 
 /**

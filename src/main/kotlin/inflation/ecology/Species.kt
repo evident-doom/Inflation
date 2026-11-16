@@ -136,6 +136,11 @@ class Species(
      */
     val climbing: Float = 0f,
     /**
+     * Whether it cools itself by sweating or panting; a kind that does not (pigs) takes on the sun's heat in the open
+     * and keeps to shade and wallows in hot weather ([HexFauna.sunLoadC]).
+     */
+    val sweats: Boolean = true,
+    /**
      * How well it bears damp ground, 0..1: the liver fluke and lungworm of wet pasture, foot rot in soft ground
      * ([HexFauna.wetSickness]). Cattle, pigs, elk and hippos live with them; sheep, goats and the kinds of the dry
      * country sicken. 1, the default, for kinds that take no worms from the pasture (the hunters).
