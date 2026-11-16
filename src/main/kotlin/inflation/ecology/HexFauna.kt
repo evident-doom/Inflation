@@ -845,6 +845,13 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         const val WET_SICK = 0.3f
         /** [damp]: the share of the way to the week's dampness it goes a week, about half a year's memory. */
         const val DAMP_WEEK = 1f / 26f
+        /**
+         * [damp]: the share of what it holds of water above which soil is wet ground for the flukes and foot rot, all of it
+         * at full. With the square of the soil's water counted, the hills' winter-moist soil sickened wild goats, sheep,
+         * gazelle, onagers and the desert kinds on their own ground, and over 150 years the goats and sheep, the oryx and
+         * the camels died out (main 2026-11-16, three seeds).
+         */
+        const val SOIL_WET = 0.9f
         /** The share of two diets that is of the same sorts of food, 0..1 (Schoener's overlap). */
         fun dietOverlap(a: Diet, b: Diet): Float {
             val ta = (a.grass + a.browse + a.fruit + a.roots).coerceAtLeast(1e-6f); val tb = (b.grass + b.browse + b.fruit + b.roots).coerceAtLeast(1e-6f)

@@ -50,8 +50,8 @@ object Catalogue {
      * Deer: the Persian fallow deer of the Levant's open woods and parkland, the commonest deer in Epipalaeolithic sites,
      * and the red deer of the northern woods and hills, kept as one kind: they share one slot, mixing grass and browse
      * in woodland and its edges, and nothing in the model would part them. Herds split by sex outside the rut.
-     * (The roe, the small selective browser, is left out with them: without a rule by which body size sets the food a
-     * kind needs it only stacked on the others.) Figures between the fallow and the red deer's.
+     * Figures between the fallow and the red deer's. (The roe, the small selective browser, is a kind of its own:
+     * [ROE_DEER].)
      */
     val DEER = Species(
         id = 1, name = "deer", massKg = 90f,
@@ -71,6 +71,33 @@ object Catalogue {
         shelters = setOf(Niches.Shelter.THICKET, Niches.Shelter.WATER),
         swimKm = 8f,
         kin = Kin.RUMINANTS, dampTolerance = 0.6f, climbing = 0.1f,
+    )
+
+    /**
+     * Roe deer: small, solitary or in families, picking the best shoots, buds, leaves and herbs of woodland edges and
+     * thickets; the small selective browser beside the bigger deer that mix grass and browse, living off thinner and
+     * better food than they can (its small gut and wide-ranging bites: [gutFill], [cropRate]), and the staple prey of
+     * the middle-sized hunters, leopard and lynx. Left out with the fallow and red deer in model 6, the leopards lost
+     * their prey and starved (2026-11-16); back as the next kind.
+     */
+    val ROE_DEER = Species(
+        id = 22, name = "roe deer", massKg = 25f,
+        diet = Diet(grass = 0.2f, browse = 0.7f, fruit = 0.1f),
+        groupSize = 3, maxGroupSize = 6,
+        dailyTravelKm = 3f, maxDailyTravelKm = 20f, senseKm = 1f,
+        daysWithoutWater = 4, waterFromFood = 0.9f,
+        birthMonth = 5, birthMonths = 1, youngPerFemale = 1.6f, yearsToMaturity = 2f,
+        // (Snow 50 cm deep, some 125 mm of water, bounds it in the north: Danilkin 1996, Mysterud and Østbye 2006.)
+        backgroundMortality = 0.07f, firstYearLost = HOOFED_YOUNG_LOST, snowLimitMm = 125f,
+        products = Products(meat = 12f, fat = 0.5f, hide = 1.5f, bone = 3f, sinew = 0.2f, hornOrAntler = 0.3f),
+        comfortC = -8f..29f, winterCoat = true,
+        speedKmh = 70f,
+        domestication = floatArrayOf(0.4f, 0.6f, 0.1f, 0.3f, 0.1f, 0.1f),
+        habitat = Habitat(cover = 0.6f),
+        activity = floatArrayOf(0.35f, 0.1f, 0.35f, 0.2f),
+        shelters = setOf(Niches.Shelter.THICKET),
+        swimKm = 4f,
+        kin = Kin.RUMINANTS, dampTolerance = 0.6f,
     )
 
 
@@ -671,6 +698,7 @@ object Catalogue {
 
     private val herbivores = listOf(
         GAZELLE, DEER, BOAR, AUROCHS, ONAGER, HIPPO, BEAR, ELK, WILD_GOAT, HORSE, MOUFLON, ORYX, OSTRICH, DROMEDARY, ELEPHANT,
+        ROE_DEER,
     )
     // (A new kind takes the next free [Species.id], so every kind keeps its index, and saved networks their identities.)
     val predators = listOf(WOLF, LION, LEOPARD, HYENA, JACKAL, CHEETAH, HUMAN)
