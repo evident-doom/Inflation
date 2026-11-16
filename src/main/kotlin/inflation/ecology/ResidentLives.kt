@@ -37,6 +37,7 @@ internal fun HexFauna.breedAndDie(weather: Weather, date: Date) {
     // Each kind on its own core, with its own carcasses, added up after.
     val carcasses = Array(kinds.size) { FloatArray(n) }
     val bornBook = land.books?.adder(Books.Stuff.MATTER, "residents born and grew up")
+    stepYoungShare(date, bornBook)
     Par.forEach("residents: births, deaths", kindIds.toList()) { k -> Profile.kind("residents: births, deaths", kinds[k].name) {
         val s = kinds[k]
         val carcassKg = carcasses[k]
@@ -64,7 +65,7 @@ internal fun HexFauna.breedAndDie(weather: Weather, date: Date) {
                 y[p] += born
                 bornHere = born
                 bornThisWeek[k] += (born * area).toDouble()
-                bornBook?.add((born * area * YOUNG_WEIGHT * s.massKg).toDouble())
+                bornBook?.add((born * area * youngShare[k.i] * s.massKg).toDouble())
                 // The young are made of what their mothers ate: what the week's food did not build comes off the mothers' reserves (as in groups).
                 if (born > 0f && a[p] > 0f) reserve[k][p] = max(0f, reserve[k][p] - fromReserves(s, born / (0.5f * a[p]), f[p], days))
             }
@@ -98,13 +99,13 @@ internal fun HexFauna.breedAndDie(weather: Weather, date: Date) {
             sickBook[3 * k.i].add(((ca + cy) * hz[Danger.OUTBREAK]).toDouble())
             sickBook[3 * k.i + 1].add(((a[p] + y[p]) * area).toDouble()); sickBook[3 * k.i + 2].add(((a[p] + y[p]) * area * crowd * crowd).toDouble())
             a[p] -= da; y[p] -= dy
-            carcassKg[p] += (da + YOUNG_WEIGHT * dy) * area * s.massKg
+            carcassKg[p] += (da + youngShare[k.i] * dy) * area * s.massKg
             // Growing up.
             val up = y[p] * grow
             y[p] -= up; a[p] += up
             // (Of a kind that also roams, grown young on crowded ground are due to leave it as roamers: [leaving].)
             leavingK?.let { it[hw.placeHex[p]] += up * area * leaveShare(a[p] + y[p], usualAt(k.i, p)) }
-            bornBook?.add((up * area * (1f - YOUNG_WEIGHT) * s.massKg).toDouble())
+            bornBook?.add((up * area * (1f - youngShare[k.i]) * s.massKg).toDouble())
             // (Too thin to hold on: gone below the floor here, fading when they spill, [EXTINCT]; with t.thinFadeDays=0 gone below EXTINCT.)
             if (a[p] + y[p] < thinGone) { faded[k] += ((a[p] + y[p]) * area).toDouble(); carcassKg[p] += (a[p] + 0.3f * y[p]) * area * s.massKg; a[p] = 0f; y[p] = 0f }
         }
@@ -293,7 +294,20 @@ internal fun HexFauna.offSeason(s: Species) = offSeason(s, s.birthMonth)
 private fun HexFauna.seasonShare(k: FaunaKind, p: Place, date: Date) = seasonShare(kinds[k], birthStart[k][p.i].toInt(), max(0f, 1f - bred[k][p]), date, days)
 
 /** Eagles take the young of the smaller hoofed animals in the open: the share of [s]'s young at [p] they take in a step. */
-internal fun HexFauna.eagleOdds(s: Species, p: Place) = if (s.massKg <= EAGLE_PREY_KG) small.eagleRisk(p) * years else 0f
+internal fun HexFauna.eagleOdds(s: Species, p: Place) = if (youngKgOf(s) <= EAGLE_PREY_KG) small.eagleRisk(p) * years else 0f
+
+/**
+ * Brings each kind's young's weight ([HexFauna.youngShare]) to [date]'s, booking what they put on (or, as the year's
+ * young join the last year's, the mean's fall) into [book] as growth: the young's weight in the stocks matches its flows.
+ */
+internal fun HexFauna.stepYoungShare(date: Date, book: java.util.concurrent.atomic.DoubleAdder?) {
+    for ((k, s) in kinds.withKinds()) {
+        val now = HexFauna.youngShareIn(s, date.month); val d = now - youngShare[k.i]
+        if (d == 0f) continue
+        if (book != null) { var heads = 0.0; for (p in land.places) heads += young[k][p] * land.areaKm2[p]; book.add(heads * d * s.massKg) }
+        youngShare[k.i] = now
+    }
+}
 
 /** Crocodiles take the young that come down to warm rivers and lakes to drink: the share at [p] they take in a step. */
 internal fun HexFauna.crocodileOdds(p: Place, weather: Weather) = water.crocodileRisk(p, weather) * years

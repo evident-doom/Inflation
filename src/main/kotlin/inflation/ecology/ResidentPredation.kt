@@ -22,10 +22,10 @@ import java.util.concurrent.atomic.DoubleAdder
 fun HexFauna.killed(p: Place, kg: Kg) { fear[p] += kg.v / land.areaKm2[p] }
 
 /** The odds that an animal of [kg] about place [p] is killed by the residents' hunters in a week, as they hunted there this week ([killRate]). */
-fun HexFauna.residentKillOdds(kg: Float, p: Place): Float {
+fun HexFauna.residentKillOdds(kg: Float, p: Place, young: Boolean = false): Float {
     val rates = killRate
     var v = 0f
-    for (k in kindIds) { val r = rates[k] ?: continue; if (r[p] > 0f) v += r[p] * kinds[k].preySize(kg) }
+    for (k in kindIds) { val r = rates[k] ?: continue; if (r[p] > 0f) v += r[p] * kinds[k].preySize(kg, young) }
     return v
 }
 
@@ -44,7 +44,7 @@ internal fun HexFauna.keptKm2(k: FaunaKind, p: Place): Float {
  */
 fun HexFauna.huntedOdds(k: FaunaKind, p: Place, young: Boolean): Float {
     val s = kinds[k]
-    return residentKillOdds(if (young) YOUNG_WEIGHT * s.massKg else s.massKg, p) + groupKilled[k][p]
+    return residentKillOdds(if (young) youngKg(k.i) else s.massKg, p, young) + groupKilled[k][p]
 }
 
 /**
@@ -125,7 +125,7 @@ internal fun HexFauna.huntResidents(k: FaunaKind, p: Place, meat: KgM2, weather:
         // (Not other beasts of prey: hunters kill their rivals and their young, [Danger.STRIFE] and the lions' killing, but
         // do not live on them as game. As game, wolves and hyenas ate each other: a quarter of each's deaths.)
         if (j == k || s === hunter || Catalogue.beastOfPrey(s)) continue
-        val ym = YOUNG_WEIGHT * s.massKg
+        val ym = youngKg(j.i)
         // (Its shelter there once for its grown, young and packs: the ground does not change while one hunts.)
         val sh = preyShelter(s, p)
         offer(j.i, 0, -1, adults[j][p], s.massKg, s, 1f, s.groupSize.toFloat(), sh)
@@ -219,7 +219,7 @@ fun HexFauna.game(s: Species, p: Place): Float {
         if (ps === s || Catalogue.beastOfPrey(ps)) continue
         val a = adults[j][p]; val y = young[j][p]
         if (a + y <= 0f) continue
-        val ym = YOUNG_WEIGHT * ps.massKg; val sh = preyShelter(ps, p)
+        val ym = youngKg(j.i); val sh = preyShelter(ps, p)
         v += a * ps.massKg * catchable(s, ps, ps.massKg, p, sh) + y * ym * catchable(s, ps, ym, p, sh)
     }
     return v
@@ -236,8 +236,8 @@ fun HexFauna.preyBiomass(s: Species, p: Place): Float {
         if (ps === s || Catalogue.beastOfPrey(ps)) continue
         val a = adults[j][p]; val y = young[j][p]
         if (a + y <= 0f) continue
-        val ym = YOUNG_WEIGHT * ps.massKg
-        v += a * ps.massKg * s.preySize(ps.massKg) + y * ym * s.preySize(ym)
+        val ym = youngKg(j.i)
+        v += a * ps.massKg * s.preySize(ps.massKg) + y * ym * s.preySize(ym, young = true)
     }
     return v
 }
@@ -251,7 +251,7 @@ fun HexFauna.catchable(s: Species, ps: Species, massKg: Float, p: Place): Float 
 
 /** [catchable], given [shelter], [ps]'s [preyShelter] at [p]: for a caller that weighs its grown and young, or many hunters, alike. */
 fun HexFauna.catchable(s: Species, ps: Species, massKg: Float, p: Place, shelter: Float): Float =
-    (s.preySize(massKg) * (1f - youngDefence(ps, massKg)) * closingIn(s, ps, massKg, p, shelter)).coerceIn(0f, 1f)
+    (s.preySize(massKg, young = massKg < ps.massKg) * (1f - youngDefence(ps, massKg)) * closingIn(s, ps, massKg, p, shelter)).coerceIn(0f, 1f)
 
 /**
  * How well an animal of kind [ps] weighing [massKg] fends off a hunter, 0..1: its kind's [Species.defence] for a grown one,

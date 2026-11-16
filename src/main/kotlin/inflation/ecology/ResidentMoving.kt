@@ -314,7 +314,7 @@ internal fun HexFauna.spill(weather: Weather) {
         for (p in land.places) if (a[p] + y[p] > 0f && a[p] + y[p] < EXTINCT) {
             val keep = if (a[p] + y[p] < EXTINCT_FLOOR) 0f else thinKeep
             faded[k] += ((a[p] + y[p]) * (1f - keep) * land.areaKm2[p]).toDouble()
-            drowned[k][p] += (a[p] + y[p] * YOUNG_WEIGHT) * (1f - keep); a[p] *= keep; y[p] *= keep }
+            drowned[k][p] += (a[p] + y[p] * youngShare[k.i]) * (1f - keep); a[p] *= keep; y[p] *= keep }
         // (Those that came walked here, at a group's cost a km out of their fat, see [walkCost].)
         for (p in land.places) if (arrived[p] > 0f) {
             val heads = (a[p] + y[p]) * land.areaKm2[p]
@@ -418,7 +418,7 @@ private fun HexFauna.spillHunters(k: FaunaKind, weather: Weather, arrived: Float
             moveA[seaTo] += goA * share - lostA
             moveY[seaTo] += goY * share - lostY
             cameA[seaTo] += goA * share - lostA; for (c in carry.indices) came[c][seaTo] += (goA * share - lostA) * carry[c][p]
-            drowned[seaTo] += lostA + lostY * YOUNG_WEIGHT; drownedHeads += (lostA + lostY).toDouble()
+            drowned[seaTo] += lostA + lostY * youngShare[k.i]; drownedHeads += (lostA + lostY).toDouble()
         }
         moveA[p] -= goA; moveY[p] -= goY
         for (i in ws.indices) {
@@ -834,7 +834,7 @@ internal fun HexFauna.flow(k: FaunaKind, weather: Weather, arrived: FloatArray, 
             val mY = m * (gy[p] / (ga[p] + gy[p])); val mA = m - mY
             val risk = 1f - ways.keep[i]
             val lostA = mA * risk; val lostY = mY * min(1f, 2f * risk)
-            if (lostA + lostY > 0f) { drowned[q] += lostA + lostY * YOUNG_WEIGHT; drownedAt[q] += (lostA + lostY).toDouble() }
+            if (lostA + lostY > 0f) { drowned[q] += lostA + lostY * youngShare[k.i]; drownedAt[q] += (lostA + lostY).toDouble() }
             val came = m - lostA - lostY; val rise = zq - hw.placeElevationM[p]
             na[q] += mA - lostA; ny[q] += mY - lostY
             for (c in gc.indices) nc[c][q] += (mA - lostA) * (if (ga[p] > 0f) gc[c][p] / ga[p] else 0f)

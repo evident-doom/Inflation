@@ -291,14 +291,16 @@ class Species(
      */
     fun coatC(month: Int): Float = if (winterCoat) 10f * COAT[month] else 0f
     /**
-     * How readily it takes game of [kg], 0..1, resident hunters and packs alike: not at all under [preyFrom] times its
-     * weight (that is small prey, hunted otherwise) or over [preyUpTo] times it, fully up to [preyPreferredUpTo] times
+     * How readily it takes game of [kg] ([young] if it is a young one), 0..1, resident hunters and packs alike: not at all under [preyFrom] times its
+     * weight (that is small prey, hunted otherwise; a young one, under [YOUNG_PREY_FROM]) or over [preyUpTo] times it, fully up to [preyPreferredUpTo] times
      * it, and falling off evenly between. (The even fall is a simplification: the record gives the preferred and the
      * accessible range, not the shape.)
      */
-    fun preySize(kg: Float): Float {
+    fun preySize(kg: Float, young: Boolean = false): Float {
         val r = kg / massKg
-        if (r < preyFrom || r > preyUpTo) return 0f
+        // (The young it comes on lying hidden it takes down to [YOUNG_PREY_FROM] of its weight, however small its game:
+        // newborn fawns, kids and calves are much of a wolf's early-summer food, found in the grass, not run down.)
+        if (r < (if (young) min(preyFrom, YOUNG_PREY_FROM) else preyFrom) || r > preyUpTo) return 0f
         if (r <= preyPreferredUpTo) return 1f
         return (preyUpTo - r) / (preyUpTo - preyPreferredUpTo)
     }
@@ -318,6 +320,12 @@ class Species(
          * 0.15-0.2 kg/m² of dry matter, sheep on much thinner ones (from memory of the grazing record); an estimate between.
          */
         const val CROP_HALF = 0.03f
+        /**
+         * [preySize]: the smallest young a hunter takes as game, times its own weight, whatever its grown game: a wolf a
+         * newborn fawn of a kilo or so, a lion a calf of some 7 kg. (With its grown game's quarter, the seasonal weight of
+         * the young put the first months' fawns and kids out of every wolf's reach, and the small kinds boomed.)
+         */
+        const val YOUNG_PREY_FROM = 0.05f
     }
 }
 

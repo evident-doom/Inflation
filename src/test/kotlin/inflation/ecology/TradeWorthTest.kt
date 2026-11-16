@@ -76,6 +76,18 @@ class TradeWorthTest {
     }
 
     @Test
+    fun `ornaments taken carry their worth in their share, and the kinds run finest first`() {
+        val b = Band(1)
+        b.ornaments = 10f; b.exotic = 4f; b.ornamentWorth = 50f
+        assertEquals(10f, b.ornamentWorthOf(2f), 1e-5f)
+        assertEquals(0.8f, b.takeOrnaments(2f), 1e-5f)
+        assertEquals(40f, b.ornamentWorth, 1e-4f); assertEquals(8f, b.ornaments, 1e-5f)
+        val days = OrnamentKind.entries.map { it.days }
+        assertEquals(days.sortedDescending(), days, "finest first")
+        assertEquals(ORNAMENT_DAYS, OrnamentKind.BONE_PENDANT.days, "the plain kind takes what an ornament always took")
+    }
+
+    @Test
     fun `carriers take a load each, one at least and all the grown at most`() {
         assertEquals(1f, carriersFor(3f, 10))
         assertEquals(3f, carriersFor(2.5f * FETCH_LOAD, 10))

@@ -633,7 +633,7 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
         for (st in groups.bands.built) if (st.user >= 0) inUse.getOrPut(st.user) { ArrayList() } += st
         val traded = groups.tradedNow().filter { it == Material.STONE || it == Material.SALT || it == Material.OBSIDIAN }
         class W(val g: HexGroup, val people: Double, val v: DoubleArray, val atSource: Boolean)
-        val names = listOf("food, days", "goods kg", "herds kg", "dogs", "ornaments", "sheltered", "halls", "weirs m", "wells m", "pens",
+        val names = listOf("food, days", "goods kg", "herds kg", "dogs", "ornaments", "ornament worth, days", "sheltered", "halls", "weirs m", "wells m", "pens",
             "renown", "credit", "fame")
         val standingFrom = names.indexOf("renown")
         val ws = bands.mapNotNull { g ->
@@ -647,6 +647,7 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
                 fauna.kinds.indices.sumOf { k -> heads(b, k) * fauna.kinds[k].massKg.toDouble() },
                 b.dogs.kept.sum().toDouble(),
                 b.ornaments.toDouble(),
+                b.ornamentWorth.toDouble(),
                 min(people, sized(Built.HOUSES)),
                 mine.count { it.kind == Built.HALL }.toDouble(),
                 sized(Built.WEIR), sized(Built.WELL), sized(Built.PEN),

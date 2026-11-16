@@ -516,8 +516,8 @@ internal const val HIDING = 0.8f
 internal const val MOON_DARK = 0.3f
 /** Extra yearly deaths among packs without ground of their own. */
 internal const val DISPERSAL_DEATHS = 0.4f
-/** Hoofed animals up to this mass, kg, lose young to eagles. */
-internal const val EAGLE_PREY_KG = 80f
+/** Young up to this weight now, kg, are taken by eagles: as the young of hoofed kinds up to some 80 kg grown were at three tenths of their weight; now the first weeks' piglets and calves of the bigger kinds too, as they are light ([HexFauna.youngShare]). */
+internal const val EAGLE_PREY_KG = 24f
 /** Strength ratio beyond which the weaker pack gives way without a fight. */
 internal const val FIGHT_RATIO = 1.5f
 

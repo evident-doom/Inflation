@@ -383,6 +383,8 @@ class Tuning(
     val callInFavours = f("callInFavours", 1f)
     /** The favours a gift earns are logarithmic in its worth, small gifts adding little (1; 0 the old rule: its weeks of need), as [inflation.ecology.favoursOfGift] has it. */
     val logFavours = f("logFavours", 1f)
+    /** Ornaments are made of finer kinds by skilled hands, worth their days, and count by worth in standing and gifts (1; 0 the old rule: all alike), as [inflation.ecology.makeOrnaments] has it. */
+    val craftWorth = f("craftWorth", 1f)
     /** How much less salted meat and fish spoil. */
     val saltKeep = f("saltKeep", 0.7f)
 

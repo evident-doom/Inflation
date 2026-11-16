@@ -10,6 +10,7 @@ import inflation.Kg
 import inflation.min
 import inflation.Tuning
 import inflation.world.LifeForm
+import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -356,6 +357,9 @@ private fun clothesMade(want: Float, byTime: Float, can: Float) = when {
 @Part("people: make ornaments")
 internal fun GroupWorld.makeOrnaments(b: Band, people: Float, time: BandTime) {
     val gd = b.goods
+    // (A band from a save made before worth was kept holds plain ones, made by middling hands.)
+    if (b.ornamentWorth <= 0f && b.ornaments > 0f) b.ornamentWorth = b.ornaments * ORNAMENT_DAYS
+    if (tuning.craftWorth > 0f) { makeCrafted(b, people, time); return }
     val left = time.leftFor(Activity.ORNAMENTS)
     if (left > 0f && people > 0f) {
         val made = min(left / ORNAMENT_DAYS, ornamentsWanted(b, people))
@@ -364,7 +368,48 @@ internal fun GroupWorld.makeOrnaments(b: Band, people: Float, time: BandTime) {
             gd[Material.SHELL] = max(0f, gd[Material.SHELL] - fromShell * SHELL_EACH)
             gd[Material.BONE] = max(0f, gd[Material.BONE] - (made - fromShell) * BONE_EACH)
             b.ornaments += made; b.exotic += fromShell; time.spend(Activity.ORNAMENTS, made * ORNAMENT_DAYS)
+            b.ornamentWorth += made * ORNAMENT_DAYS
         }
+    }
+}
+
+/**
+ * The kinds of ornament a band makes, finest first, each [days] of work from [kgEach] of [material], made only by hands of
+ * [least] skill or more at its craft ([domain], [Band.skill]): figurines and drilled beads pecked and carved from stone,
+ * pieces of obsidian (blades and mirrors), beads of sea shell and pendants of bone. Days and skills not measured; estimates.
+ */
+enum class OrnamentKind(val label: String, val days: Float, val material: Material, val kgEach: Float, val domain: Domain, val least: Float) {
+    FIGURINE("stone figurines", 8f, Material.GROUND_STONE, 0.3f, Domain.GROUND_STONE, 0.6f),
+    STONE_BEAD("drilled stone beads", 6f, Material.GROUND_STONE, 0.03f, Domain.GROUND_STONE, 0.5f),
+    OBSIDIAN_PIECE("obsidian pieces", 4f, Material.OBSIDIAN, 0.1f, Domain.KNAPPING, 0.5f),
+    SHELL_BEAD("shell beads", ORNAMENT_DAYS, Material.SHELL, SHELL_EACH, Domain.BONEWORK, 0f),
+    BONE_PENDANT("bone pendants", ORNAMENT_DAYS, Material.BONE, BONE_EACH, Domain.BONEWORK, 0f),
+}
+
+/**
+ * Crafted goods as stored labour ([inflation.Tuning.craftWorth]; docs/design/trade.md, "What flows back", 2): with its
+ * ornaments' time, [b] makes the finest kinds ([OrnamentKind]) its materials and hands allow, then the plainer, up to
+ * [ORNAMENTS_PER_PERSON] a person; each worth its days times the skill of the hands that made it ([Band.ornamentWorth]). A
+ * fine piece takes more days, so a skilled band makes fewer and worth more; rare materials only open the kinds (their worth
+ * would ask searches of the ground, which change the run: see [tradedNow]).
+ */
+private fun GroupWorld.makeCrafted(b: Band, people: Float, time: BandTime) {
+    val gd = b.goods
+    var left = time.leftFor(Activity.ORNAMENTS)
+    var want = ORNAMENTS_PER_PERSON * people - b.ornaments
+    if (left <= 0f || people <= 0f || want <= 0f) return
+    for (k in OrnamentKind.entries) {
+        if (left <= 0f || want <= 0f) break
+        val hands = b.skill(k.domain)
+        if (hands <= 0f || hands < k.least) continue
+        val made = minOf(want, left / k.days, gd[k.material] / k.kgEach)
+        if (made <= 0f) continue
+        gd[k.material] = max(0f, gd[k.material] - made * k.kgEach)
+        b.ornaments += made; if (k.material == Material.SHELL) b.exotic += made
+        b.ornamentWorth += made * k.days * hands
+        time.spend(Activity.ORNAMENTS, made * k.days)
+        want -= made; left -= made * k.days
+        stats.meeting(Met.Of.MADE, k.label, ceil(made).toInt())
     }
 }
 

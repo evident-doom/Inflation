@@ -80,7 +80,8 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
     }
     // Ways are copied from the band that does better: more food in hand, more children.
     fun doing(g: HexGroup) = g.wellOff() + g.young.toFloat() / max(1, g.adults) +
-        STANDING * (g.band?.ornaments ?: 0f) / max(1, g.size) + RENOWN * (g.band?.renown ?: 0f)
+        STANDING * (g.band?.let { b -> if (tuning.craftWorth > 0f) b.ornamentWorth / ORNAMENT_DAYS else b.ornaments } ?: 0f) / max(1, g.size) +
+            RENOWN * (g.band?.renown ?: 0f)
     val (lo, hi) = if (doing(a) < doing(b)) bandA to bandB else bandB to bandA
     // Each sees what the other holds, as far as it understands it.
     bandA.hear(bandB, u); bandB.hear(bandA, u)

@@ -441,10 +441,15 @@ class Band(kinds: Int, totems: Int = kinds) {
      */
     var ornaments = 0f
     var exotic = 0f
-    /** Takes [n] of its ornaments, shell among them in its share; returns the shell ones taken. */
+    /** The person-days of skilled work in its ornaments ([makeCrafted]): what they are worth, as wealth held and worn. */
+    var ornamentWorth = 0f
+    /** The worth of [n] of its ornaments, in their share. */
+    fun ornamentWorthOf(n: Float) = if (ornaments > 0f) ornamentWorth * min(1f, n / ornaments) else 0f
+    /** Takes [n] of its ornaments, shell and worth among them in their shares; returns the shell ones taken. */
     @IgnorableReturnValue fun takeOrnaments(n: Float): Float {
         val share = if (ornaments > 0f) exotic / ornaments else 0f
         val shell = n * share
+        ornamentWorth = max(0f, ornamentWorth - ornamentWorthOf(n))
         ornaments -= n; exotic -= shell
         return shell
     }
@@ -989,6 +994,7 @@ class Band(kinds: Int, totems: Int = kinds) {
         for (m in Material.entries) { o.goods[m] = goods[m] * share; goods[m] -= o.goods[m] }
         for (t in Tool.entries) { o.spare[t] = spare[t] * share; spare[t] -= o.spare[t] }
         o.ornaments = ornaments * share; ornaments -= o.ornaments; o.exotic = exotic * share; exotic -= o.exotic
+        o.ornamentWorth = ornamentWorth * share; ornamentWorth -= o.ornamentWorth
         o.elders = elders * adults / (stay + adults).coerceAtLeast(1); elders -= o.elders
         // Its practised people go one way or the other: a craft held by one or two may go wholly with either half.
         val go = adults.toFloat() / (stay + adults).coerceAtLeast(1)
@@ -1046,7 +1052,7 @@ class Band(kinds: Int, totems: Int = kinds) {
         blendWarning(a, b, w)
         // (Its larder as last seen, a person's days: the two larders are put together, so near enough the two blended.)
         a.larderSeen += w * (b.larderSeen - a.larderSeen)
-        a.ornaments += b.ornaments; a.exotic += b.exotic
+        a.ornaments += b.ornaments; a.exotic += b.exotic; a.ornamentWorth += b.ornamentWorth
         a.herds.absorb(b.herds)
         a.renown = max(a.renown, b.renown)
         a.raidDeathRate += w * (b.raidDeathRate - a.raidDeathRate)
