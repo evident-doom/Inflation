@@ -8,6 +8,10 @@ import inflation.ecology.set
 import inflation.ecology.get
 import inflation.ecology.ADULT_YEARS
 import inflation.ecology.Tally
+import inflation.ecology.campWeeksAt
+import inflation.ecology.peopleCrowding
+import inflation.ecology.hygieneAt
+import inflation.ecology.catching
 import inflation.ecology.ByBeast
 import inflation.ecology.Catalogue
 import inflation.ecology.TallyKey
