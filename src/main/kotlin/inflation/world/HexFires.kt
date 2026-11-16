@@ -28,9 +28,13 @@ class HexFires(land: HexLand) : HexLandPart(land) {
 
     private fun fuel(p: Place) = (plants.herb[p] + 0.5f * plants.shrub[p]) * (1f - 0.8f * (1f - exp(-plants.grazing[p] / GRAZE_SCALE)))
 
-    /** Whether place [p] would burn this week if lit: fuel enough, not flooded, dry soil, warm and rainless. */
+    /**
+     * Whether place [p] would burn this week if lit: fuel enough, not flooded, dry soil, warm and rainless (a week's rain: read
+     * by the groups after a longer step, the step's whole rain was its ticks' together, and a 30-day month's rarely came under
+     * 5 mm, so bands all but stopped burning off; lim810: their fire deaths 2.07 a 1000 a year weekly, 0.01 at 30 days).
+     */
     internal fun canBurn(p: Place, weather: Weather) =
-        hydro.flood[p] <= 0f && fuel(p) >= 0.2f && hydro.soil[p] / hydro.soilCap[p] < 0.3f && weather.temperature[p] > 15f && weather.precipitation[p] < 5f
+        hydro.flood[p] <= 0f && fuel(p) >= 0.2f && hydro.soil[p] / hydro.soilCap[p] < 0.3f && weather.temperature[p] > 15f && weather.tickPrecipitation(p) < 5f
 
     /** Fires people have set, to be lit next step: the places' indices (saved: a queue of them would be left out of a save, and the fires lost with it). */
     private var lit = IntArray(0)
