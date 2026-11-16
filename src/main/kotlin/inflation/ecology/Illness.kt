@@ -203,6 +203,11 @@ internal const val STRANGER_GERMS = 0.5f
  */
 internal const val FLUX_RATE = 0.0012f
 internal const val FEVER_RATE = 0.03f
-internal const val COUGH_BREAKS = 0.0002f
+/**
+ * (0.0002 before 16 Nov 2026, when a crowding sickness and outbreaks among people stood beside the cough and killed some 1.5
+ * a 1000 a year where people settle, against the cough's 2.4; the cough takes their deaths over at 1.6 times, a first
+ * refit: respiratory illness was some 22% of forager deaths, Gurven and Kaplan 2007.)
+ */
+internal const val COUGH_BREAKS = 0.00032f
 internal const val COUGH_FIRST = 0.2f
 internal const val HYGIENE_GUARD = 0.4f

@@ -15,10 +15,6 @@ class Tuning(
     private fun d(name: String, default: Double) = read("t.$name")?.toDouble() ?: default
     private fun i(name: String, default: Int) = read("t.$name")?.toInt() ?: default
 
-    /** Outbreaks starting among people, against [inflation.ecology.HexFauna.OUTBREAK_START]. */
-    val peopleOutbreak = f("peopleOutbreak", 1f)
-    /** People's sickness from crowding, against [inflation.ecology.PEOPLE_SICK]. */
-    val peopleSick = f("peopleSick", 1f)
     /**
      * Time to pick or dig a kilo of plant food (not grain or seed: [inflation.ecology.reapDaysPerKg]), against [inflation.ecology.PLANT_HANDLING_DAYS_PER_KG] and its kin:
      * 1, the record's in-patch rates. (It was 1.6 from 2026-11-04, fitted to bring gatherers' returns down while acorns were

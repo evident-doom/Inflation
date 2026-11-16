@@ -85,15 +85,18 @@ internal fun mothersIn(g: HexGroup): Float {
  */
 internal fun HexGroups.sicknessWeek(g: HexGroup, weather: Weather, kinNow: HashMap<Long, Int>, r: Random): Float {
     val s = g.species
+    // (People's sickness is all [Illness]'s: the cough is the epidemic that runs between crowded bands, caught at meetings
+    // and leaving its survivors spared, and the flux the sickness of crowded and fouled camps. Before 16 Nov 2026 they also
+    // fell to a crowding sickness at PEOPLE_SICK times the crowding squared and to the animals' outbreaks at PEOPLE_OUTBREAK
+    // of their rate, spread hex to hex and sparing no one: the same deaths fitted twice beside [Illness], disease review item 1.)
+    if (s.human) return 0f
     val usual = HexFauna.usualDensity(s)
     // (Hunters by their kind's numbers over the ground they range over, as residents by theirs in their place.)
-    val packs = if (s.human) 0f else Hazards.crowding(kinKm2(g, kinNow), usual)
-    val crowdNow = if (s.human) peopleCrowding(g) else packs
-    if (r.nextFloat() < HexFauna.OUTBREAK_START * (if (s.human) PEOPLE_OUTBREAK * tuning.peopleOutbreak else 1f) * crowdNow * crowdNow * years)
+    val packs = Hazards.crowding(kinKm2(g, kinNow), usual)
+    if (r.nextFloat() < HexFauna.OUTBREAK_START * packs * packs * years)
         outbreaksStarting += s.index.toLong() * hex.size + hw.placeHex[g.place].i
-    return if (s.human) peopleSickness(g) * years * famineIllness(g, g.fed).first
-        // Hunters catch mange, distemper and rabies where their kind crowds the ground.
-        else Hazards.crowdDisease(packs, g.fed, years)
+    // Hunters catch mange, distemper and rabies where their kind crowds the ground.
+    return Hazards.crowdDisease(packs, g.fed, years)
 }
 
 /**
@@ -304,16 +307,6 @@ internal fun HexGroups.houseWorthWeek(g: HexGroup, b: Band, weather: Weather, st
     b.houseLives += k * (b.houseLivesWeek / people * stepsPerYear - b.houseLives)
     b.houseFood += k * (b.houseFoodWeek / people * stepsPerYear - b.houseFood)
     b.houseLivesWeek = 0f; b.houseFoodWeek = 0f
-}
-
-/**
- * Yearly deaths from crowding among people: fevers and worms where many camp near each other, by the
- * people in a band's hex and the six round it.
- */
-private fun HexGroups.peopleSickness(g: HexGroup): Float {
-    val dens = peopleCrowding(g)
-    // (Marsh fever is its own sickness, not counted here: see [Illness].)
-    return PEOPLE_SICK * tuning.peopleSick * dens * dens
 }
 
 /** People round a band's camp (its hex and the six round it), per km², against [PEOPLE_FULL_KM2]. */

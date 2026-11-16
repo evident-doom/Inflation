@@ -107,3 +107,6 @@ Still open:
 - **Item 3:** outbreaks still keep to one kind (`outbreak[s]`, passed by that kind's heads), herds still neither start nor carry them, and survivors are still not spared.
 - **People not held by food:** the probe's 20% growth in ten years, with nothing holding it, is the farming problem from the other side.
 
+## Done
+
+- **Item 1** (branch `claude/people-sickness`, its A/B waiting for the Model 7 test worlds): people's sickness is `Illness`'s alone. Their crowding sickness (`peopleSickness`, `PEOPLE_SICK`) and their outbreaks (`PEOPLE_OUTBREAK`) are gone, with their tuning keys, and the cough's outbreaks rise 1.6 times (`COUGH_BREAKS` 0.00032) to take over the 1.5 deaths a 1000 a year they carried, a first refit for the A/B to check against the record. (The review had `famineIllness` scaling only the crowding sickness; it already scales every `Illness` too, so nothing was needed there.)
