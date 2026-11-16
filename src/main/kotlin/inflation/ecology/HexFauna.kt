@@ -370,6 +370,16 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
      * that feed mothers and young best; how well fed it was in each month lately (place × 12 + month).
      */
     val birthStart = Array(kinds.size) { k -> ByteArray(n) { kinds[k].birthMonth.toByte() } }
+    /**
+     * Each kind's young's mean weight now, as a share of a grown one's ([youngShareIn]): light after the births, heavier as
+     * they grow; brought on each step and booked as growth as it changes ([stepYoungShare]), so the young's weight in the
+     * stocks always matches its flows. By the kind's own birth month, the same everywhere, so moving changes no weight.
+     */
+    val youngShare = FloatArray(kinds.size) { YOUNG_WEIGHT }
+    /** A young of kind [k]'s weight now, kg ([youngShare]). */
+    internal fun youngKg(k: Int) = youngShare[k] * kinds[k].massKg
+    /** A young of [s]'s weight now, kg, for a kind kept as residents; the groups' fixed [YOUNG_WEIGHT] for any other. */
+    internal fun youngKgOf(s: Species): Float { val k = slots[s.index]; return if (k >= 0) youngKg(k) else YOUNG_WEIGHT * s.massKg }
     internal val fedByMonth = Array(kinds.size) { FloatArray(n * 12) { 0.7f } }
     /**
      * The share of the year's season of births the mothers of each kind in each place have had (0..1): it goes with them
@@ -547,10 +557,10 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         stepWater(weather)
     }
 
-    /** Names the residents' stocks (the young at [YOUNG_WEIGHT] of a grown animal), with the food stocks and the small life. */
+    /** Names the residents' stocks (the young at their weight now, [youngShare]), with the food stocks and the small life. */
     internal fun listStocks(stocks: Stocks) {
         stocks.within(StockName.RESIDENT_ANIMALS) { for ((k, s) in kinds.withKinds())
-            stocks.ofKind(KindStock.RESIDENT, s.name, adults[k], young[k]) { var sum = 0.0; for (p in land.places) sum += (adults[k][p] + YOUNG_WEIGHT * young[k][p]) * land.areaKm2[p] * s.massKg.toDouble(); sum } }
+            stocks.ofKind(KindStock.RESIDENT, s.name, adults[k], young[k]) { var sum = 0.0; for (p in land.places) sum += (adults[k][p] + youngShare[k.i] * young[k][p]) * land.areaKm2[p] * s.massKg.toDouble(); sum } }
         food.listStocks(stocks)
         small.listStocks(stocks)
     }
@@ -757,6 +767,21 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         const val RESIDENT_KILL_MOST = 0.02f
         /** The weight of a young animal against a grown one: in a hunter's kill, and in the carcasses the dead leave. */
         const val YOUNG_WEIGHT = 0.3f
+        /**
+         * The mean weight of [s]'s young [month]s into the year (0-based) as a share of a grown one's: each year's young born
+         * at its birth weight ([NEWBORN_SHARE] of its mother's over her litter, a piglet some 1.4 kg, a deer calf some 8)
+         * and growing evenly to grown at [Species.yearsToMaturity], those of the years before mixed in as many as are still
+         * growing. Piglets weigh 1-2 kg in their first weeks, when foxes, jackals and eagles take them, and some 35-45 kg at
+         * a year (from memory); counted at a fixed three tenths of a sow all year, no small hunter could take one.
+         */
+        fun youngShareIn(s: Species, month: Int): Float {
+            val born = (NEWBORN_SHARE / max(1f, s.youngPerFemale)).coerceAtMost(1f)
+            val grow = 12f * s.yearsToMaturity.coerceAtLeast(0.1f)
+            val since = ((month - s.birthMonth) % 12 + 12) % 12
+            var sum = 0f; var cohorts = 0; var age = since.toFloat()
+            while (age < grow) { sum += born + (1f - born) * (age / grow); cohorts++; age += 12f }
+            return if (cohorts > 0) sum / cohorts else 1f
+        }
         /** How strongly a strait draws spilling residents against a neighbouring hex on land (a trickle). */
         const val SEA_SPILL = 0.02f
         /** Newcomers among the residents: a kind under this many animals gets this many at each of this many places, once a year. */

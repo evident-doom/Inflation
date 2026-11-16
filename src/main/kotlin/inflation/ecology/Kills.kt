@@ -354,16 +354,16 @@ internal fun HexGroups.huntGame(g: HexGroup, k: Int, p: Place, expected: Float, 
     if (settled > 0f) fauna.groupKilled[k][p] += (na + ny) / (settled * area)
     // (A band that kills a beast of prey presses its kind off the ground about: [persecutedBy].)
     if (band != null) fauna.persecutedBy(k, p, (na + ny + np).toFloat())
-    val young = min(HexFauna.YOUNG_WEIGHT * ps.massKg, kgEach)
+    val ym = fauna.youngKg(k); val young = min(ym, kgEach)
     // (The grown killed, settled and of packs alike.)
     val grown = na + np
     // (Each kill may cost a hunter, grown prey the more: those kept alive were taken too.)
-    out.fought = grown * foughtBack(s, ps, ps.massKg) + (kills1 - grown) * foughtBack(s, ps, HexFauna.YOUNG_WEIGHT * ps.massKg)
+    out.fought = grown * foughtBack(s, ps, ps.massKg) + (kills1 - grown) * foughtBack(s, ps, ym)
     out.kg = grown * kgEach + ny * young
     out.fat = grown * fatOfKill(k, p, kgEach, band)
     // (Hides, bone and sinew come out of what the hunters leave of the carcasses.)
     val leftA = grown * leftOver(ps, kgEach, band)
-    small.deposit(DeadPool.CARRION, p, KgM2((leftA + ny * (HexFauna.YOUNG_WEIGHT * ps.massKg - young) - tallyHide(Tally.HideSource.RESIDENTS, ps, band?.skin(ps, grown.toFloat(), leftA))) / (area * 1e6f)))
+    small.deposit(DeadPool.CARRION, p, KgM2((leftA + ny * (ym - young) - tallyHide(Tally.HideSource.RESIDENTS, ps, band?.skin(ps, grown.toFloat(), leftA))) / (area * 1e6f)))
     band?.let { it.practise(Skill.HUNT); it.practise(Skill.TRACK); it.practise(Skill.STALK); it.practise(Skill.BUTCHER) }
     stats.killed(ps, kills1)
     note(g) { "killed %d %s".format(kills1, ps.name) }

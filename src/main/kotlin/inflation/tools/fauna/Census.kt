@@ -411,7 +411,7 @@ class Census(private val sim: HexSim) {
             val h = hw.placeHex[p]; if (hw.land[h] < 0.5f) continue
             val c = groups.biomeOfPlace[p]; val r = ring(dist[h]); val a = land.areaKm2[p].toDouble()
             var w = 0.0
-            for ((k, sp) in fauna.kinds.withKinds()) if (!sp.carnivore) w += (fauna.adults[k][p] + inflation.ecology.HexFauna.YOUNG_WEIGHT * fauna.young[k][p]) * sp.massKg.toDouble()
+            for ((k, sp) in fauna.kinds.withKinds()) if (!sp.carnivore) w += (fauna.adults[k][p] + fauna.youngShare[k.i] * fauna.young[k][p]) * sp.massKg.toDouble()
             area[c][r] += a; herb[c][r] += w * a; game[c][r] += groups.preyHere(people, Place(p)).toDouble() * a
         }
         val shown = Biome.entries.filter { area[it.ordinal][0] > 0.0 }
