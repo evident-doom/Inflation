@@ -34,6 +34,7 @@ import kotlin.math.abs
  *
  * Usage:
  *   testWorld list
+ *   testWorld latest   (the latest world and default nets kept in the repository, fetched into place: [LatestData])
  *   testWorld build NAME... [--years N] [--commit HASH]   (settles each and saves it; the config file's keys apply, as in hexFauna)
  *   testWorld adopt NAME STATE.bin [--years N] [--commit HASH] [--config "t.startDay 150"]   (keeps a save settled elsewhere as NAME and writes its about.properties)
  *   testWorld ab --variant FILE [--base FILE] [--worlds full-1,full-2,full-3] [--years 3] [--replicates 2] [--parallel 1] [--out DIR]
@@ -88,7 +89,7 @@ object TestWorlds {
         Entry("m455-2", 2, 1000, 2000, "the full map, model 4.55"),
         Entry("m455-3", 3, 1000, 2000, "the full map, model 4.55"),
         // The same seeds, settled for 30 years on model 5 (striped hyenas live as residents, #511) from t.startDay=150:
-        // the set in use, replacing m455-1..3, whose saves model 5 refuses.
+        // the set in use until s6-4..6, replacing m455-1..3, whose saves model 5 refuses.
         Entry("m5-1", 1, 1000, 2000, "the full map, model 5"),
         Entry("m5-2", 2, 1000, 2000, "the full map, model 5"),
         Entry("m5-3", 3, 1000, 2000, "the full map, model 5"),
@@ -116,9 +117,14 @@ object TestWorlds {
 
     fun named(name: String): Entry = ALL.firstOrNull { it.name == name } ?: error("no test world $name; they are ${ALL.joinToString(", ") { it.name }}")
 
+    /** Stops unless [e] is built here; a missing one is fetched from the repository first where it is the latest world kept there ([LatestData]). */
+    fun requireBuilt(e: Entry) {
+        require(e.state.isFile || LatestData.world(e)) { "test world ${e.name} is not built yet (testWorld build ${e.name})" }
+    }
+
     /** Says what [e] is and how it was made, and warns where today's code or config differ from when it was settled. */
     fun check(e: Entry, sim: HexSim) {
-        require(e.state.isFile) { "test world ${e.name} is not built yet (testWorld build ${e.name})" }
+        requireBuilt(e)
         val a = e.info() ?: Properties()
         println("test world ${e.name}: seed ${e.seed}, ${e.widthKm} x ${e.heightKm} km (${e.note}), ${sim.land.n} places; settled ${a.getProperty("years", "?")} years at commit ${a.getProperty("commit", "?")} on ${a.getProperty("built", "?")}")
         if (a.getProperty("worldKey") != e.worldKey) println("WARNING: the world-making code has changed since ${e.name} was settled: its saved state is of the old land and climate. Rebuild it (testWorld build ${e.name}) before trusting a test on it.")
@@ -151,7 +157,7 @@ object TestWorlds {
      */
     fun ab(variant: File, base: File?, worlds: List<Entry>, years: Int, replicates: Int, parallel: Int, out: File) {
         out.mkdirs()
-        for (w in worlds) require(w.state.isFile) { "test world ${w.name} is not built yet (testWorld build ${w.name})" }
+        for (w in worlds) requireBuilt(w)
         val baseProps = configWith(emptyMap(), base ?: Config.source)
         val varProps = Properties().also { it.putAll(baseProps) }
         variant.reader().use { varProps.load(it) }
@@ -249,7 +255,7 @@ object TestWorlds {
      */
     fun abArms(arms: List<File>, nullArm: File, base: File?, worlds: List<Entry>, years: Int, replicates: Int, parallel: Int, out: File) {
         out.mkdirs()
-        for (w in worlds) require(w.state.isFile) { "test world ${w.name} is not built yet (testWorld build ${w.name})" }
+        for (w in worlds) requireBuilt(w)
         val names = (arms + nullArm).map { it.nameWithoutExtension }
         require(names.toSet().size == names.size && "base" !in names) { "arms need names of their own, none 'base': $names" }
         val baseProps = configWith(emptyMap(), base ?: Config.source)
