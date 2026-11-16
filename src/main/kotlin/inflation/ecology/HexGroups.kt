@@ -600,7 +600,6 @@ class HexGroups(
     }
 
 
-
     /** The groups that merged into another in the last step (gone from [groups]), with their numbers when they did ([HexGroup.mergedSize]). */
     @Transient val merged = ArrayList<HexGroup>()
     /** Outbreaks breaking out among the groups this week, by kind and hex (see [liveWeek]), started once all have lived it. */
@@ -696,8 +695,9 @@ class HexGroups(
             if (!g.alive || !g.species.human) continue
             val p = g.place
             // (Dry enough by the same test that lets any fire take: a gate of its own, stricter, had kept bands from ever burning.)
+            // (A week's chance; over a longer step, the chance it comes up in one of the step's ticks.)
             if (land.fire.canBurn(p, weather) && land.fire.burnt[p] < 0.1f &&
-                drawn(DialSite.BURNING_OFF, g.band?.burnWill ?: 1f, rnd.nextFloat(), BURN_OFF * (g.band?.burnWill ?: 1f)) { BURN_OFF }) {
+                drawn(DialSite.BURNING_OFF, g.band?.burnWill ?: 1f, rnd.nextFloat(), overTicks(BURN_OFF * (g.band?.burnWill ?: 1f))) { overTicks(BURN_OFF) }) {
                 land.fire.ignite(p)
                 stats.meeting(Met.BANDS_BURNED_OFF_GRASS)
             }

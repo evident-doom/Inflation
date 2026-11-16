@@ -18,6 +18,13 @@ class HexFires(land: HexLand) : HexLandPart(land) {
      * fire): a step of several ticks adds up its ticks' fires, at most all of it ([HexLand.firstTick]). At one tick a step, [burning].
      */
     @Transient val stepBurning = FloatArray(n)
+    /**
+     * Share of each place burnt over all the ticks of the step being taken, for the parts that take the step whole after its
+     * ticks (the groups; [settleStep]): the land hands each tick over as a step of one, so [stepBurning] held only the last
+     * tick's fires, and bands' burns, lit in a step's first tick, never reached them (step811: their fire deaths 2.07 a 1000
+     * a year weekly, 0.01 at 30 days, with as many fires set).
+     */
+    @Transient private val wholeBurning = FloatArray(n)
     /** Fires this step: the place each started in and the km² it burned. */
     val fires = ArrayList<Fire>()
     /** For the yearly report ([yearReport]): fires bands set, those that took, and km² burnt by theirs and by the rest. */
@@ -28,9 +35,13 @@ class HexFires(land: HexLand) : HexLandPart(land) {
 
     private fun fuel(p: Place) = (plants.herb[p] + 0.5f * plants.shrub[p]) * (1f - 0.8f * (1f - exp(-plants.grazing[p] / GRAZE_SCALE)))
 
-    /** Whether place [p] would burn this week if lit: fuel enough, not flooded, dry soil, warm and rainless. */
+    /**
+     * Whether place [p] would burn this week if lit: fuel enough, not flooded, dry soil, warm and rainless (a week's rain: read
+     * by the groups after a longer step, the step's whole rain was its ticks' together, and a 30-day month's rarely came under
+     * 5 mm, so bands all but stopped burning off; lim810: their fire deaths 2.07 a 1000 a year weekly, 0.01 at 30 days).
+     */
     internal fun canBurn(p: Place, weather: Weather) =
-        hydro.flood[p] <= 0f && fuel(p) >= 0.2f && hydro.soil[p] / hydro.soilCap[p] < 0.3f && weather.temperature[p] > 15f && weather.precipitation[p] < 5f
+        hydro.flood[p] <= 0f && fuel(p) >= 0.2f && hydro.soil[p] / hydro.soilCap[p] < 0.3f && weather.temperature[p] > 15f && weather.tickPrecipitation(p) < 5f
 
     /** Fires people have set, to be lit next step: the places' indices (saved: a queue of them would be left out of a save, and the fires lost with it). */
     private var lit = IntArray(0)
@@ -81,7 +92,17 @@ class HexFires(land: HexLand) : HexLandPart(land) {
             if (p in set) { tookYear++; peopleKm2Year += km2 } else wildKm2Year += km2
         }
         if (land.firstTick) burning.copyInto(stepBurning) else for (i in 0 until n) stepBurning[i] = min(1f, stepBurning[i] + burning[i])
+        for (i in 0 until n) wholeBurning[i] = min(1f, wholeBurning[i] + burning[i])
     }
+
+    /** A step of the slow parts begins: none of it burnt yet ([wholeBurning]). */
+    fun beginStep() = wholeBurning.fill(0f)
+
+    /**
+     * The step's ticks are done: over a step of several ([ticks]), [stepBurning] becomes all they burnt together, for the parts
+     * that take the step whole. At one tick a step it already is.
+     */
+    fun settleStep(ticks: Int) { if (ticks > 1) wholeBurning.copyInto(stepBurning) }
 
     /**
      * Whether a river [FIREBREAK_M] wide or more runs on the border between hexes [a] and [b] (none between a hex's own low and

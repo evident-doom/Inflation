@@ -200,7 +200,7 @@ internal const val START_BAND_SPREAD = 0.4f
 internal const val START_PACK_SPREAD = 0.5f
 /** Share of its larder a band gives one that is going hungry, when they meet. */
 internal const val BAND_GIFT = 0.3f
-/** Chance a band burns off the dry grass around its camp in a dry-season week, to bring up green grass that draws game. */
+/** Chance a band burns off the dry grass around its camp in a dry-season week (a tick; over a longer step [GroupWorld.overTicks]), to bring up green grass that draws game. */
 internal const val BURN_OFF = 0.1f
 /** How much a camp fire through the night keeps lions and hyenas from taking people. */
 internal const val CAMPFIRE = 0.7f
