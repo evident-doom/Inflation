@@ -1,8 +1,13 @@
 package inflation.ecology
 
 import inflation.world.Weather
+import kotlin.math.abs
+import kotlin.math.exp
+import kotlin.math.ln
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.sign
+import kotlin.math.sqrt
 
 /*
  * Calling in favours in goods (docs/design/trade.md, toward money, step 2). Goods given make favours as food does
@@ -12,6 +17,31 @@ import kotlin.math.min
  * reckoned in the creditor's days ([daysOfFavours]) and each good at the creditor's worth of it ([worthDaysPerKg]), so a
  * debt made by salt may be paid in stone. A band going to ask for goods counts what each band owes it ([askForGoods]).
  */
+
+/**
+ * The favours a gift worth [weeks] of the taker's need earns, on the log scale ([inflation.Tuning.logFavours]): half of
+ * ln(1 + weeks²). A gift of a week earns 0.35, of ten weeks 2.3, of a tenth of a week 0.005: gifts under a week add
+ * little, so a big gift outweighs many small ones, and above a week each week more earns less (Olli, 2026-11-16: "bigger
+ * gifts are always more valuable than many smaller ones"). The ledger grew by some 1,600 favours a year on m7-1 without it,
+ * a gift's favours being its weeks. With [log] false, the weeks.
+ */
+internal fun favoursOfGift(weeks: Float, log: Boolean): Float = if (!log) weeks else 0.5f * ln(1f + weeks * weeks)
+
+/**
+ * The weeks of the creditor's need that, given at once, settle [f] favours ([favoursOfGift]'s inverse): what a debt of [f]
+ * asks of the debtor. (Capped where the scale runs out of numbers; no larder holds as much.)
+ */
+internal fun weeksOfFavours(f: Float, log: Boolean): Float = if (!log) f else sqrt(exp(2f * min(f, 40f)) - 1f)
+
+/**
+ * A band's ledger ([Band.favours]) put on the log scale once ([Band.favoursLog]): each balance as if one gift. Saves from
+ * before it hold weeks; a band from a world begun with it has nothing to change.
+ */
+internal fun HexGroups.ledgerOnScale(b: Band) {
+    if (tuning.logFavours <= 0f || b.favoursLog) return
+    for (e in b.favours.entries) e.setValue(sign(e.value) * favoursOfGift(abs(e.value), true))
+    b.favoursLog = true
+}
 
 /** Person-days of its work [f] favours are to a band of [adults] grown and [size] people at its yield of late: the inverse of [favoursOfDays]. */
 internal fun daysOfFavours(f: Float, recentYield: Float, adults: Int, size: Int): Float =
@@ -24,7 +54,7 @@ internal fun daysOfFavours(f: Float, recentYield: Float, adults: Int, size: Int)
 internal fun HexGroups.goodsOwedDays(gb: Band, taker: HexGroup, tb: Band, weather: Weather): Float {
     if (tuning.callInFavours <= 0f) return 0f
     val f = gb.owesTo(taker.id)
-    return if (f <= 0f) 0f else daysOfFavours(f, tb.recentYield(weather.date, days), taker.adults, taker.size)
+    return if (f <= 0f) 0f else daysOfFavours(weeksOfFavours(f, tuning.logFavours > 0f), tb.recentYield(weather.date, days), taker.adults, taker.size)
 }
 
 /**

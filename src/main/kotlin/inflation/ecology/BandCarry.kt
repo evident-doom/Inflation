@@ -42,7 +42,7 @@ internal fun carryRules(): Map<String, Pair<OnSplit, OnJoin>> {
     fun rule(split: OnSplit, join: OnJoin, vararg fields: String) { for (f in fields) r[f] = split to join }
     // Know-how and lore.
     rule(OnSplit.COPIED, OnJoin.MAX, "skills", "plants", "renown", "grudge")
-    rule(OnSplit.COPIED, OnJoin.ANY, "knowsSkill", "knows", "known")
+    rule(OnSplit.COPIED, OnJoin.ANY, "knowsSkill", "knows", "known", "favoursLog")
     rule(OnSplit.DRAWN, OnJoin.SUM, "holders")
     rule(OnSplit.COPIED, OnJoin.SUM, "heard", "heardOf", "heardTotem", "heardBurial", "heardLivelihood", "heardStyle")
     rule(OnSplit.COPIED, OnJoin.LOST, "totem", "marksChosen", "totemBroken", "burialWay", "disputeWay", "style", "styleChosen", "heldLivelihood", "livelihoodHold", "livedOther", "livelihoodChosen")

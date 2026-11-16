@@ -381,6 +381,8 @@ class Tuning(
     val obsidian = f("obsidian", 1f)
     /** A band that owes favours to a band lacking goods gives it no less than it owes, of what it can spare (1; 0 the old rule: favours returned in food only), as [inflation.ecology.goodsRepaid] has it. */
     val callInFavours = f("callInFavours", 1f)
+    /** The favours a gift earns are logarithmic in its worth, small gifts adding little (1; 0 the old rule: its weeks of need), as [inflation.ecology.favoursOfGift] has it. */
+    val logFavours = f("logFavours", 1f)
     /** How much less salted meat and fish spoil. */
     val saltKeep = f("saltKeep", 0.7f)
 

@@ -634,6 +634,8 @@ class Band(kinds: Int, totems: Int = kinds) {
      * return, and lapses only when the other band is gone (see [helped]).
      */
     val favours = HashMap<Int, Float>()
+    /** Whether its [favours] are on the log scale ([favoursOfGift], [ledgerOnScale]); a band from a save made before it holds weeks. */
+    var favoursLog = false
     /** Favours it owes band [other] (0 if none). */
     fun owesTo(other: Int) = max(0f, -(favours[other] ?: 0f))
     /** Its choices: how fully it returns the favours it owes when a band it owes is hungry (1 the scaffold's: as far as the other's need goes; 0 not at all). */
@@ -966,7 +968,7 @@ class Band(kinds: Int, totems: Int = kinds) {
         o.fire = fire
         kit.copyInto(o.kit)
         knows.copyInto(o.knows)
-        fine.copyInto(o.fine); glassy.copyInto(o.glassy)
+        fine.copyInto(o.fine); glassy.copyInto(o.glassy); o.favoursLog = favoursLog
         made.copyInto(o.made)
         o.salted = salted; o.dryDepth = dryDepth; o.pests = pests
         o.sodiumWant = sodiumWant; o.saltWantStep = saltWantStep * share; saltWantStep -= o.saltWantStep
@@ -1061,6 +1063,7 @@ class Band(kinds: Int, totems: Int = kinds) {
         for ((k, v) in b.ties) if (k != id) a.ties[k] = max(a.tie(k), v)
         a.ties.remove(bId)
         for ((k, v) in b.favours) if (k != id) a.favours.merge(k, v, Float::plus)
+        a.favoursLog = a.favoursLog || b.favoursLog
         a.favours.remove(bId)
         for (i in Material.entries) a.goods[i] += b.goods[i]
         for (t in Tool.entries) a.spare[t] += b.spare[t]

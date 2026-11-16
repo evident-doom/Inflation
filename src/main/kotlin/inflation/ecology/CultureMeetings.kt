@@ -355,7 +355,7 @@ internal fun HexGroups.visitKin(weather: Weather) {
             for (o in byHex[reach.hexes[i]].orEmpty()) if (o !== g) {
                 // (What it can hope for there: an ordinary share of the larder, the more the closer the band holds it
                 // ([Regard.close], as at a meeting), or what the band owes it.)
-                val owed = min(0.9f * o.larder, o.band!!.owesTo(g.id) * FAVOUR_DAYS * g.dailyNeedKg)
+                val owed = min(0.9f * o.larder, weeksOfFavours(o.band!!.owesTo(g.id), tuning.logFavours > 0f) * FAVOUR_DAYS * g.dailyNeedKg)
                 val ob = o.band ?: continue
                 val score = max(BAND_GIFT * (1f + Regard(ob, g.id, gb, map = hex).close) * o.larder, owed) / (1f + reach.dist[i] / hex.hexKm.toFloat())
                 if (score > bestScore) {
@@ -404,9 +404,9 @@ internal const val FAVOUR_DAYS = 7f
  * [giver] helped [taker] with [kg] of food: [taker] owes it favours, the more the more of its needs the
  * help met; help to a band that is owed favours settles them first.
  */
-internal fun helped(giver: HexGroup, taker: HexGroup, kg: Float) {
+internal fun HexGroups.helped(giver: HexGroup, taker: HexGroup, kg: Float) {
     if (kg <= 0f) return
-    helpedBy(giver, taker, kg / max(1e-3f, FAVOUR_DAYS * taker.dailyNeedKg))
+    helpedBy(giver, taker, favoursOfGift(kg / max(1e-3f, FAVOUR_DAYS * taker.dailyNeedKg), tuning.logFavours > 0f))
 }
 
 /**
@@ -428,7 +428,7 @@ internal fun helpedBy(giver: HexGroup, taker: HexGroup, f: Float) {
  */
 internal fun HexGroups.given(giver: HexGroup, taker: HexGroup, chosen: Float, need: Float): Float {
     val gb = giver.band ?: return chosen
-    val owed = gb.owesTo(taker.id) * FAVOUR_DAYS * taker.dailyNeedKg
+    val owed = weeksOfFavours(gb.owesTo(taker.id), tuning.logFavours > 0f) * FAVOUR_DAYS * taker.dailyNeedKg
     val room = min(0.9f * giver.larder, need)
     val due = min(owed, room)
     if (due <= 0f) return chosen

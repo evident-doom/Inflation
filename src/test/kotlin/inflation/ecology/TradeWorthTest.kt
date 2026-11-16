@@ -66,6 +66,16 @@ class TradeWorthTest {
     }
 
     @Test
+    fun `a gift's favours are logarithmic past a week and small below it, and a debt asks back what would settle it at once`() {
+        assertEquals(0.5f * kotlin.math.ln(2f), favoursOfGift(1f, true), 1e-6f)
+        assertTrue(favoursOfGift(0.1f, true) * 10f < favoursOfGift(1f, true), "ten tenths of a week earn less than a week")
+        assertTrue(favoursOfGift(10f, true) < 10f * favoursOfGift(1f, true), "past a week, each week more earns less")
+        assertEquals(3f, favoursOfGift(3f, false))
+        for (w in listOf(0.2f, 1f, 7f, 30f)) assertEquals(w, weeksOfFavours(favoursOfGift(w, true), true), w * 1e-3f)
+        assertTrue(weeksOfFavours(300f, true).isFinite(), "an old linear ledger read on the log scale stays a number")
+    }
+
+    @Test
     fun `carriers take a load each, one at least and all the grown at most`() {
         assertEquals(1f, carriersFor(3f, 10))
         assertEquals(3f, carriersFor(2.5f * FETCH_LOAD, 10))

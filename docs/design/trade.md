@@ -102,6 +102,13 @@ The cause is the direction of the goods: they go down the line, away from the so
 
 What a debt should be is a design question before the next step: favours that fade as ties do (hxaro partners keep balances open on purpose, but not for ever); goods' favours worth less than a week of need for a day of work spared; debts called in as labour, feasts or brides rather than goods; or debts passed on to a third band, the step toward money, which a one-way ledger like this would make worth doing.
 
+### Favours on a log scale
+
+Chosen over fading (Olli, 2026-11-16): the favours a gift earns are logarithmic in its worth, so that big gifts count for more than many small ones (`t.logFavours`, 1; 0 the old rule). A gift worth `w` weeks of the taker's need earns `0.5 · ln(1 + w²)`: a week 0.35, ten weeks 2.3, a tenth of a week 0.005. Under a week gifts add little, so a big one outweighs many small ones; past a week each week more earns less, so there several middling gifts can still outweigh one big one (ten one-week gifts 3.5 against one ten-week gift 2.3). Wherever a debt turns back into what is owed (food to a hungry creditor, a kin visit's hopes, goods called in), it is the inverse: the gift that, given at once, would settle it (`weeksOfFavours`). Ledgers saved before are put on the scale once, each balance as one gift (`Band.favoursLog`).
+
+- With `t.logFavours=0` a year on m7-1 runs line for line as main (2026-11-16). A/B on m7-1, 3 years, 4 replicates: people 0.00%, mixed; 2 of 27 key numbers the same way in all pairs, as chance gives; all runs with it within nominal limits.
+- The ledger: some 8,500 favours outstanding against 41,600 (6.6 a band against 32); growing by about 150 a year against 1,100; the largest debt 10–15 against 270; the tenth most owed hold 38% against 47%. Still 87% of bands owed and 91% owing, some 16 partners each. It still grows, as goods still go one way; slowly now.
+
 ### What the first falloff shows
 
 A year on m5-1 (the old rule): bands within 50 km of good stone hold about 96 kg an adult, at 50–100 km under 1 kg, beyond 100 km none, while what a kg is worth to them rises from 0.2 to 1.2 days. Salt and ochre fall the same way. So today's giving does not carry goods down the line beyond a band or two: a band gives only what it holds beyond a year's keep, and a band that has just been given a year's worth has none to spare. The record's falloff runs for hundreds of km; here it ends within about 100. Asking (step 2) and keeping a little more than a year's need where goods are dear are the likely ways to lengthen it.
