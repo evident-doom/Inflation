@@ -99,8 +99,10 @@ internal fun grassUnderSnow(s: Species, snowMm: Float): Float = (1f - snowMm / s
     if (gap > 0f && d.fruit > 0f) { fruit2 = pantry.fruit(gap / Nourishment.FRUIT); gap -= fruit2 * Nourishment.FRUIT }
     if (gap > 0f && d.roots > 0f && underSnow > 0f) { roots2 = pantry.roots(underSnow * gap / Nourishment.ROOTS); gap -= roots2 * Nourishment.ROOTS }
     val short = max(0f, gap) * s.needScale
-    // Grass and browse nourish fully only when green; fruit and roots keep their value.
-    val got = ((grass + browse + grass2 + browse2) * q + (fruit + fruit2) * Nourishment.FRUIT + (roots + roots2) * Nourishment.ROOTS) * s.needScale
+    // Grass and browse nourish fully only when green; fruit and roots keep their value. (What it switched to, as its gut
+    // digests fibre, [qf], as the gap was reckoned: counted at [q], a boar's or a bear's switched forage fed it twice what
+    // it was reckoned to, and a camel's two thirds.)
+    val got = ((grass + browse) * q + (grass2 + browse2) * qf + (fruit + fruit2) * Nourishment.FRUIT + (roots + roots2) * Nourishment.ROOTS) * s.needScale
     out.grass = grass; out.browse = browse; out.fruit = fruit; out.roots = roots
     out.grass2 = grass2; out.browse2 = browse2; out.fruit2 = fruit2; out.roots2 = roots2
     out.short = short; out.room = room; out.q = q; out.got = got
