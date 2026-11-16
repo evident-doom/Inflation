@@ -238,17 +238,17 @@ class Census(private val sim: HexSim) {
                 100 * st[Stuck.AT_EDGE.ordinal] / st[Stuck.STUCK.ordinal].coerceAtLeast(1e-9), 100 * st[Stuck.PEAK.ordinal])
         })
         for (st in fauna.stuck) st.fill(0.0)
-        // What they find there: edible forage, how green, how well the roe deer fed, how far water is.
+        // What they find there: edible forage, how green, how well the deer fed, how far water is.
         fun mean(f: (Int) -> Double, c: Boolean) = (0 until land.n).filter { hw.coast[hw.placeHex[it]] == c }.let { ps ->
             ps.sumOf { f(it) * land.areaKm2[it] } / ps.sumOf { land.areaKm2[it].toDouble() }.coerceAtLeast(1.0) }
         fun both(f: (Int) -> Double) = arrayOf(mean(f, true), mean(f, false))
-        val roe = fauna.kinds.indexOf(Catalogue.ROE_DEER)
+        val roe = fauna.kinds.indexOf(Catalogue.DEER)
         val forage = both { (land.palatable[it] * (land.plants.herb[it] + land.plants.shrub[it])).toDouble() }
         val green = both { land.plants.green[it].toDouble() }
         val roeFed = if (roe >= 0) both { fauna.fed[roe][it].toDouble() } else arrayOf(0.0, 0.0)
         val water = both { land.drink.waterKm[it].toDouble() }
         val temperature = both { weather.temperature[it].toDouble() }
-        println("     the sea / inland: edible forage %.3f / %.3f kg/m², green %.2f / %.2f, roe deer fed %.2f / %.2f, water %.1f / %.1f km, temperature %.1f / %.1f °C".format(
+        println("     the sea / inland: edible forage %.3f / %.3f kg/m², green %.2f / %.2f, deer fed %.2f / %.2f, water %.1f / %.1f km, temperature %.1f / %.1f °C".format(
             forage[0], forage[1], green[0], green[1], roeFed[0], roeFed[1], water[0], water[1], temperature[0], temperature[1]))
     }
 

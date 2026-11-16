@@ -92,6 +92,12 @@ object TestWorlds {
         Entry("m5-1", 1, 1000, 2000, "the full map, model 5"),
         Entry("m5-2", 2, 1000, 2000, "the full map, model 5"),
         Entry("m5-3", 3, 1000, 2000, "the full map, model 5"),
+        // The same seeds, settled for 30 years on model 6 (one deer, the elephant; food shared by what each kind can crop,
+        // sickness by all that share its parasites, habitat only at the start) from t.startDay=150: the set in use,
+        // replacing m5-1..3, whose saves model 6 refuses.
+        Entry("m6-1", 1, 1000, 2000, "the full map, model 6"),
+        Entry("m6-2", 2, 1000, 2000, "the full map, model 6"),
+        Entry("m6-3", 3, 1000, 2000, "the full map, model 6"),
         // New seeds 4..6, settled for 30 years on main 2afaf7c4 from t.startDay=150 with the default nets of 2026-11-14
         // (night1114-kept-last): Olli 2026-11-14 "reseed a new world" for the overnight training and its checks.
         Entry("s6-4", 4, 1000, 2000, "the full map, new seed 4"),
@@ -106,7 +112,7 @@ object TestWorlds {
     )
 
     /** The worlds a change is tested on unless --worlds says otherwise: the set in use. */
-    val FULL = ALL.filter { it.name.startsWith("m5-") }
+    val FULL = ALL.filter { it.name.startsWith("m6-") }
 
     fun named(name: String): Entry = ALL.firstOrNull { it.name == name } ?: error("no test world $name; they are ${ALL.joinToString(", ") { it.name }}")
 

@@ -59,7 +59,6 @@ internal fun HexGroups.inheritSeasons(g: HexGroup) {
     val distOf = DoubleArray(count) { i -> val (cx, cy) = hex.centreKm(hw.placeHex[near[i]]); hypot(cx - hx, cy - hy) / reachKm }
     // (And its forage, ground and water, the same every month as the forebears reckon them.)
     val foodOf = FloatArray(count) { foodFor(s, Place(near[it])) }
-    val suitsOf = FloatArray(count) { fauna.suits(s, Place(near[it])) }
     val tetherOf = FloatArray(count) { fauna.usualTether(s, Place(near[it])) }
     var top = 0f
     for (m in 0 until 12) {
@@ -74,7 +73,7 @@ internal fun HexGroups.inheritSeasons(g: HexGroup) {
             val dist = distOf[i]
             // ... and how much forage grows there at all: a desert flush is little food; and whether it can drink there in a usual year.
             val food = foodOf[i]
-            val score = (0.2f + grow) * food / (food + 0.3f) * suitsOf[i] * tetherOf[i] * snow / (1f + discomfort * discomfort) /
+            val score = (0.2f + grow) * food / (food + 0.3f) * tetherOf[i] * snow / (1f + discomfort * discomfort) /
                 (1f + SEASON_DISTANCE * dist.toFloat())
             if (score > bestScore) { bestScore = score; best = p }
         }

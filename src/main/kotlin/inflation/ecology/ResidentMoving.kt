@@ -55,7 +55,7 @@ internal fun HexFauna.fedOnSpare(s: Species, p: Place, heads: Float, each: Float
     if (!(want > 0f)) return 1f
     dry.reach = reach; dry.grass = spareGrass[p]; dry.browse = spareBrowse[p]
     dry.fruit = spareFruit[p]; dry.roots = spareRoots[p]
-    return (forage(s, s.diet, land.plants.nourishment(p), want, grassUnderSnow(s, snowMm), dry, b).got / want).coerceIn(0f, 1f)
+    return (forage(s, s.diet, land.plants.nourishment(p), want, grassUnderSnow(s, snowMm), dry, b, cropGrass(s, p), cropBrowse(s, p)).got / want).coerceIn(0f, 1f)
 }
 
 /** [fedOnSpare] for [heads] of plant-eating kind [k] coming to place [p] this week. */
@@ -161,7 +161,7 @@ private fun HexFauna.growthFor(k: FaunaKind, parts: EnumFloats<Growth>, youngPer
 @IgnorableReturnValue private fun HexFauna.growthOf(k: FaunaKind, p: Place, grownFixed: Float, youngFixed: Float, huntedYoung: Float, protein: Float, youngPerGrown: Float,
                      carried: Float, f: Float, heads: Float, parts: EnumFloats<Growth>?): Float {
     val s = kinds[k]
-    val hunger = Hazards.hunger(s, moverSpent[k], Hazards.onFat(f, carried, days, 1f), days); val sick = Hazards.crowdDisease(Hazards.crowding(heads, usual[k]), f, years)
+    val hunger = Hazards.hunger(s, moverSpent[k], Hazards.onFat(f, carried, days, 1f), days); val sick = Hazards.crowdDisease(Hazards.crowding(heads + sharersKm2(k, p), usual[k]), f, years) + wetSickness(s, p, f) * years
     val due = dueYoung(k, p, heads, protein, min(1f, days / (s.birthMonths * Date.DAYS_PER_MONTH.toFloat())))
     val born = 0.5f * due * breeding(s, due, carried, f, days)
     val grownDie = (grownFixed + hunger + sick).coerceIn(0f, Hazards.MAX_GROWN_ODDS)
@@ -216,7 +216,7 @@ internal fun HexFauna.appeal(k: FaunaKind, p: Place, weather: Weather): Float {
     // (Plant-eaters weigh their forage by how fresh it is and how well it would meet their need for
     // protein: so they go up to the green high pasture in summer and down for the winter.)
     val fresh = if (s.carnivore) 1f else land.plants.nourishment(p) * forageProtein(s, p)
-    return fareFor(s, p) * fresh * suits(s, p) * tether(s, p) * unbitten(p) * snowed * (1f - FEAR_WEIGHT * (if (s.carnivore) pressure(k, p) else shy(s, p))) * (1f - outranked(s, p)) *
+    return fareFor(s, p) * fresh * tether(s, p) * unbitten(p) * snowed * (1f - FEAR_WEIGHT * (if (s.carnivore) pressure(k, p) else shy(s, p))) * (1f - outranked(s, p)) *
         (1f - land.fire.stepBurning[p] * FIRE_ADULT) * (1f - outbreakDeaths(s, p)) /
         (1f + Hazards.crowding(heads, usual[k])) / (1f + discomfort)
 }

@@ -147,6 +147,26 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
     // ([HexGroups.mark]), so its settled are held where its packs were.)
     @Transient internal val usual = FloatArray(kinds.size) { k -> val s = kinds[k]
         if (s in Catalogue.roamingResidents) tuning.roamerUsual * s.groupSize / hex.areaKm2.toFloat() else usualDensity(s) }
+    /**
+     * How far each kind's sickness of crowding is bred by each other kind's numbers ([sharersKm2]), by kind index: the
+     * kinds that share its parasites ([Species.kin]) as far as their diets overlap (the share of each's food that is of
+     * the same sorts, grass, browse, fruit and roots: they graze the same ground and pick up each other's worms), at
+     * [SHARED_SICK]; its own kind fully. Crowding is of all who feed and sicken alike, not of one kind as if alone.
+     */
+    @Transient internal val sharers: Array<FloatArray> = Array(kinds.size) { k -> FloatArray(kinds.size) { j ->
+        val a = kinds[k]; val b = kinds[j]
+        if (j == k) 1f else if (a.kin == Kin.NONE || a.kin != b.kin) 0f else SHARED_SICK * dietOverlap(a.diet, b.diet) } }
+    /**
+     * How damp each place's ground has been over the last months, 0..1 ([wetSickness]): the marsh and the floodplain,
+     * and the soil as wet as it holds, a mean of some half a year. NaN until the first step reckons it.
+     */
+    val damp = FloatArray(n) { Float.NaN }
+    /**
+     * Each kind's crowding by the others that share its parasites at each place, heads per km² as so many of its own
+     * ([sharersKm2]): reckoned once a step before births and deaths ([reckonShared]), from the numbers as they were then,
+     * so that the kinds, each on its own core, read the same crowd whatever order they run in.
+     */
+    @Transient internal val shared = Array(kinds.size) { FloatArray(n) }
     /** The sodium in each place's forage, a share of its dry matter, or [LICK] by a salt lick ([forageSodium], [saltBreeding]). */
     @Transient internal val forageSodiumAt = forageSodium(hw, land)
     /**
@@ -325,7 +345,7 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
     val small = HexSmallLife(hw, land, clock)
     /** Each kind's sense of where better country lies. */
     val bearings = HexBearings(hw, kinds, { s, p, m ->
-        val food = fareFor(s, Place(p)) * min(1.5f, suits(s, Place(p))) / 1.5f
+        val food = fareFor(s, Place(p))
         saturate(food, Thresholds.FOOD_HALF) * tether(s, Place(p)) * unbitten(Place(p)) * monthFit(s, Place(p), m)
     }, { s -> val k = slot(s); (0 until n).any { adults[k][it] > 0f } }, land.tuning)
     /**
@@ -555,11 +575,27 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         fun clear() {
             need.fill(0f); each.fill(0f); avail.fill(0f); got.fill(0f); surplus.fill(0f); gotFruit.fill(0f); gotUnder.fill(0f); gotMeat.fill(0f); gotSmall.fill(0f); gotCarrion.fill(0f); carrionKg.fill(0f); needKg.fill(0f); ateKg.fill(0f); proteinKg.fill(0f)
             eatG = 0f; eatB = 0f; eatF = 0f; eatR = 0f
+            askG.fill(0f); askB.fill(0f); askF.fill(0f); askR.fill(0f); mode = FREE
         }
-        override fun grass(kg: Float): Float { val t = min(kg, access * spareG); spareG -= t; return t }
-        override fun browse(kg: Float): Float { val t = min(kg, access * spareB); spareB -= t; return t }
-        override fun fruit(kg: Float): Float { val t = min(kg, access * spareF); spareF -= t; return t }
-        override fun roots(kg: Float): Float { val t = min(kg, access * spareR); spareR -= t; return t }
+        // (The feeding is shared out in turns, [eatPlants]: first each kind asks what it would eat of the food there
+        // ([ASKING]: noted in [askG] and the rest, nothing eaten), then each eats its share of what was asked of each food
+        // ([SHARES]: at most [capG] and the rest), then the fed lay on fat from what is left ([FREE]).)
+        var mode = FREE; var kind = 0
+        val askG = FloatArray(nk); val askB = FloatArray(nk); val askF = FloatArray(nk); val askR = FloatArray(nk)
+        val capG = FloatArray(nk); val capB = FloatArray(nk); val capF = FloatArray(nk); val capR = FloatArray(nk)
+        private inline fun take(kg: Float, spare: Float, ask: FloatArray, cap: FloatArray, eat: (Float) -> Unit): Float {
+            var t = min(kg, access * spare)
+            when (mode) {
+                ASKING -> { ask[kind] += t; return t }
+                SHARES -> { t = min(t, cap[kind]); cap[kind] -= t }
+            }
+            eat(t); return t
+        }
+        override fun grass(kg: Float): Float = take(kg, spareG, askG, capG) { spareG -= it }
+        override fun browse(kg: Float): Float = take(kg, spareB, askB, capB) { spareB -= it }
+        override fun fruit(kg: Float): Float = take(kg, spareF, askF, capF) { spareF -= it }
+        override fun roots(kg: Float): Float = take(kg, spareR, askR, capR) { spareR -= it }
+        companion object { const val ASKING = 0; const val SHARES = 1; const val FREE = 2 }
     }
 
     /** One thread's [Grazing], cleared for each place it grazes ([graze]): made once, not afresh for every place every week. */
@@ -770,6 +806,20 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         const val START_SHARE = 0.5f
         /** Forage quality (against green, 1) at which a herbivore's gut just holds its need: middling forage. */
         const val GUT_QREF = 0.8f
+        /** [sharers]: how far another kind that shares its parasites crowds it, at a diet the same as its own. */
+        const val SHARED_SICK = 1f
+        /**
+         * [wetSickness]: deaths a year of a kind that bears no damp at all on ground wet the year round, and well fed. Liver
+         * fluke kills a fifth to a half of sheep in a bad fluke year on wet pasture (from memory of the veterinary record).
+         */
+        const val WET_SICK = 0.3f
+        /** [damp]: the share of the way to the week's dampness it goes a week, about half a year's memory. */
+        const val DAMP_WEEK = 1f / 26f
+        /** The share of two diets that is of the same sorts of food, 0..1 (Schoener's overlap). */
+        fun dietOverlap(a: Diet, b: Diet): Float {
+            val ta = (a.grass + a.browse + a.fruit + a.roots).coerceAtLeast(1e-6f); val tb = (b.grass + b.browse + b.fruit + b.roots).coerceAtLeast(1e-6f)
+            return min(a.grass / ta, b.grass / tb) + min(a.browse / ta, b.browse / tb) + min(a.fruit / ta, b.fruit / tb) + min(a.roots / ta, b.roots / tb)
+        }
         /** Seed carried by fruit-eaters: kg of fruit eaten per km² that seeds a place fully; share kept from week to week. */
         const val SEED_KG = 200f
         const val SEED_KEEP = 0.9f

@@ -686,7 +686,7 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
          * and kept grazers off two thirds of the uplands.)
          */
         fun access(s: Species, crag: Float): Float {
-            val climber = max(0f, s.habitat.rugged)
+            val climber = s.climbing
             return 1f - (1f - min(1f, climber)) * crag.coerceIn(0f, 1f)
         }
     }

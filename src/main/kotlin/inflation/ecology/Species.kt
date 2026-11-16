@@ -125,6 +125,23 @@ class Species(
      */
     val hindgut: Boolean = false,
     /**
+     * The kinds it shares its worms, flukes and plagues with ([Kin]): crowding by any of them breeds its sickness, as far
+     * as they feed on the same ground ([HexFauna.sharers]). The hoofed cud-chewers share the stomach worms and the
+     * cattle plague, horses and asses theirs, pigs theirs.
+     */
+    val kin: Kin = Kin.NONE,
+    /**
+     * How well it climbs crags and screes, 0..1: the share of a place's crag it feeds on ([HexFood.access]), and from 0.5
+     * up, a climber that crosses crags others cannot ([Catalogue.climbers]) and finds refuge on them from hunters.
+     */
+    val climbing: Float = 0f,
+    /**
+     * How well it bears damp ground, 0..1: the liver fluke and lungworm of wet pasture, foot rot in soft ground
+     * ([HexFauna.wetSickness]). Cattle, pigs, elk and hippos live with them; sheep, goats and the kinds of the dry
+     * country sicken. 1, the default, for kinds that take no worms from the pasture (the hunters).
+     */
+    val dampTolerance: Float = 1f,
+    /**
      * For predators: fighting weight per kg compared with a wolf, for fights over carcasses and
      * ground: a hyena clan bites above its weight, a jackal below.
      */
@@ -244,6 +261,21 @@ class Species(
         else Allometry.dailyIntakeKg(massKg, diet) / (0.08f * massKg.pow(0.75f))
 
     /**
+     * Its gut's room against its need, against a 100 kg kind's: (M/100)^0.25, as gut capacity grows with M and need with
+     * M^0.75 ([gutFill]). A gazelle 0.67, an aurochs 1.65.
+     */
+    val gutSize: Float get() = (massKg / 100f).pow(0.25f).coerceIn(0.6f, 2f)
+
+    /**
+     * Standing food, kg/m², at which it crops all but 1/e of its want in its feeding day ([cropRate]): [CROP_HALF] for a
+     * 100 kg kind going 5 km a day, growing with the square root of its mass (its bite holds more, and it needs a fuller
+     * sward to fill it) and falling with the square root of its day's going (it searches more ground for the scattered
+     * good bites). A gazelle 0.012, an onager 0.026, an aurochs 0.065. (The exponents are a reading of the bite-size and
+     * search-rate rules, not measured.)
+     */
+    val cropHalfKgM2: Float get() = CROP_HALF * (massKg / 100f).pow(0.5f) * (5f / dailyTravelKm.coerceAtLeast(1f)).pow(0.5f)
+
+    /**
      * How far its coat stretches the cold end in [month] (from the winter solstice), °C: a winter coat
      * grows in through the autumn to 10 °C and is moulted in spring.
      */
@@ -271,12 +303,33 @@ class Species(
     companion object {
         /** Share of a winter coat grown, by month from the winter solstice. */
         private val COAT = floatArrayOf(1f, 1f, 0.9f, 0.5f, 0.2f, 0f, 0f, 0f, 0.2f, 0.5f, 0.8f, 1f)
+        /**
+         * [cropHalfKgM2] of a 100 kg kind going 5 km a day, kg/m²: cattle reach their full intake on swards of some
+         * 0.15-0.2 kg/m² of dry matter, sheep on much thinner ones (from memory of the grazing record); an estimate between.
+         */
+        const val CROP_HALF = 0.03f
     }
 }
 
-/** How much more (or less) than its need a plant-eater eats of forage of [quality] (0..1, 1 fresh and green). */
-fun gutFill(s: Species, quality: Float): Float =
-    if (s.hindgut) 1f else min(1f, 0.5f + 0.5f * quality / 0.8f * s.fibreDigestion)
+/**
+ * How much more (or less) than its need a plant-eater eats of forage of [quality] (0..1, 1 fresh and green). What a
+ * ruminant falls short of on poor forage is shared out by the size of its gut against its need ([Species.gutSize]): a big
+ * one holds coarse food longer and gets more from it, a small one must find better food (Jarman 1974, Bell 1971, Demment
+ * and Van Soest 1985: gut capacity goes with M, need with M^0.75). On forage good enough to fill any gut, size changes nothing.
+ */
+fun gutFill(s: Species, quality: Float): Float {
+    if (s.hindgut) return 1f
+    val f = min(1f, 0.5f + 0.5f * quality / 0.8f * s.fibreDigestion)
+    return 1f - (1f - f) / s.gutSize
+}
+
+/**
+ * The share of its want of a food it can crop in its feeding day where [kgM2] of it stands: all where the food is thick,
+ * less where it is thin, as each bite holds less and more time goes to walking between them ([Species.cropHalfKgM2];
+ * Spalinger and Hobbs 1992, Illius and Gordon 1987). Small and wide-ranging kinds make a living off thin pickings that
+ * starve a big one; a big one does well only where its food stands thick.
+ */
+fun cropRate(s: Species, kgM2: Float): Float = if (kgM2 <= 0f) 0f else 1f - kotlin.math.exp(-kgM2 / s.cropHalfKgM2)
 
 object Allometry {
     /**
@@ -308,6 +361,9 @@ object Allometry {
      */
     fun herbivoreDensityPerKm2(massKg: Float): Float = 10f.pow(4.23f) * (massKg * 1000f).pow(-0.75f)
 }
+
+/** Kinds that share their parasites and plagues ([Species.kin]); [NONE] shares them with no other kind. */
+enum class Kin { NONE, RUMINANTS, EQUIDS, PIGS }
 
 /** The kinds of group a species lives in (see [Species.lifeway]); not the learning [inflation.learning.Role]. */
 enum class Lifeway { PACK, BAND }

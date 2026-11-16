@@ -455,9 +455,9 @@ internal class GroupPlanner(internal val gs: HexGroups) {
         for (p in 0 until gs.n) { land2 += gs.land.areaKm2[p]; kg += predatorKg[p] }
         val huntersNow = (kg / land2.coerceAtLeast(1.0)).toFloat()
         usualHuntersKm2 = if (usualHuntersKm2 <= 0f) huntersNow else usualHuntersKm2 + (huntersNow - usualHuntersKm2) / USUAL_MONTHS
-        for ((k, s) in gs.kinds.withIndex()) {
+        for (k in gs.kinds.indices) {
             val e = expectHeads[k]
-            Par.forEach("choosing: suited area", gs.n) { p -> e[p] = gs.fauna.suits(s, Place(p)) * gs.land.areaKm2[p] }
+            Par.forEach("choosing: area", gs.n) { p -> e[p] = gs.land.areaKm2[p] }
             val suitArea = e.sumOf { it.toDouble() }
             var heads = 0L; for (p in 0 until gs.n) heads += gs.headsHere[k][p]
             val now = (heads / suitArea.coerceAtLeast(1.0)).toFloat()
@@ -522,7 +522,6 @@ internal class GroupPlanner(internal val gs: HexGroups) {
         /** How far drinking water lies, km (for people, including what they can dig for). */
         var waterKm = 0f
         /** How well the place's country suits the kind, as a log. */
-        var suitsLn = 0f
     }
 
     /** A growable list of ints, in the order added. */
@@ -621,7 +620,6 @@ internal val MOVE_TRACE = Config.flag(Config.Key.MOVE_TRACE, false)
  * one changes what trained nets see, so it is a net version change ([inflation.learning.NetVersion]).
  */
 internal object InputScale {
-    const val SUITS_LN = 2f
     const val USUAL_C = 20f
     const val AHEAD_C = 10f
     const val ANCESTOR_DEAD = 10f

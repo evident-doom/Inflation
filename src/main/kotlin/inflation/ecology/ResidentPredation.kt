@@ -240,7 +240,7 @@ private fun HexFauna.closingIn(s: Species, ps: Species, massKg: Float, p: Place,
     // Shelter: crags, dens, thickets and trees, as the prey uses them ([preyShelter]); small prey hide in any cover.
     // (Hunters that follow the scent find much of what hides; shelter counts for half against them.)
     // (But crags are a wild goat's whole defence: no hunter follows it up a cliff.)
-    val refuge = 1f - (if (ps.habitat.rugged >= 0.5f) 1f else 0.5f) * SHELTER_EFFECT * shelter
+    val refuge = 1f - (if (ps.climbing >= 0.5f) 1f else 0.5f) * SHELTER_EFFECT * shelter
     // Small prey hide in thick cover from hunters that run them down; a stalker uses the same cover to get close.
     val hide = 1f - HIDING * land.plants.cover(p) * (1f - s.stalking) * max(0f, 1f - massKg / HIDING_KG)
     // Stalkers hunt by night: dark weeks around the new moon hide them, bright ones give them away.

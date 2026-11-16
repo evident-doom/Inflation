@@ -117,8 +117,6 @@ internal const val YOUNG_HIDDEN = 0.5f
 internal const val AVOID_STRONGER = 0.3f
 /** How much of a courser's success thick cover takes away (a cheetah in a wood runs into trees). */
 internal const val COURSING_COVER = 0.7f
-/** How much a pack weighs its own kind of country (the log of [HexFauna.suits]) in choosing its ground. */
-internal const val GROUP_HABITAT = 0.15f
 /**
  * Paths: share of the way to fully worn one passage of a group of [PATH_MASS_KG] or more wears;
  * weekly share plants take back at the greenest (less on bare ground); weight of a group that wears
