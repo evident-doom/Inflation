@@ -7,6 +7,7 @@ import inflation.ecology.Mind
 import inflation.ecology.Species
 import inflation.run.baselineDir
 import inflation.run.baselinesRoot
+import inflation.run.LatestData
 import java.io.File
 
 /**
@@ -29,8 +30,13 @@ object LearnedModel {
     fun configuredNets(): String = Config.string(Config.Key.NETS) ?: latestBaseline()?.path
         ?: error("no trained networks: nets= names none and ${baselinesRoot()} holds no baseline. Train one (hex-ppo) and keep it with `baseline save`")
 
-    /** The baseline kept last (by the time its info.txt says, else its folder's), or none. */
-    fun latestBaseline(): File? = baselinesRoot().listFiles()?.filter { it.isDirectory && Role.entries.any { r -> r.file(it).exists() } }
+    /**
+     * The baseline kept last (by the time its info.txt says, else its folder's); where none is kept here, the nets kept in
+     * the repository, fetched ([LatestData]); or none.
+     */
+    fun latestBaseline(): File? = keptBaseline() ?: LatestData.latestNets()
+
+    private fun keptBaseline(): File? = baselinesRoot().listFiles()?.filter { it.isDirectory && Role.entries.any { r -> r.file(it).exists() } }
         ?.maxByOrNull { d -> File(d, "info.txt").takeIf { it.exists() }?.readLines()?.firstOrNull()?.removePrefix("kept ")
             ?.let { runCatching { java.time.LocalDateTime.parse(it) }.getOrNull() } ?: java.time.LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(d.lastModified()), java.time.ZoneId.systemDefault()) }
 
