@@ -81,3 +81,29 @@ Item 3 is the one that changes the outbreaks' rhythm most; take it first, then 1
 1. Item 2's first step, a probe with no fix: how numbers settle with the crowding disease weakened. It decides how much of items 1 and 2 to do, and is the start of food limiting populations.
 2. Item 1: people's sickness through `Illness` alone. One A/B.
 3. Item 3: outbreaks that spare survivors, then cross kinds and herds. One A/B each.
+
+## The probe (on Model 5), and what Model 6 has done since
+
+**The probe** of item 2 ran ten years on m5-1 and m5-2 (default era, replicate 0), with the crowding disease (`DISEASE`) and people's crowding sickness (`PEOPLE_SICK`) scaled by 1, 0.5 and 0.1. Over the ten years:
+
+- **No runaway.** Numbers settled within the range they were in. The totals shifted, but no kind grew without bound, and how fed each kind was moved by 0.02 at most.
+- **Hunger took over the limiting.** On m5-1, hunger rose from 4.5 to 5.8 to 7.9 million resident deaths a year as disease fell from 8.0 to 6.5 to 4.4 million. On m5-2, hunger went from 1.5 to 1.7 to 2.0 million as disease went from 5.3 to 4.3 to 3.1. The disease left at 0.1 is not all crowding: the knob did not scale the outbreaks, whose starts rise with crowding.
+- **Which kinds hold the ground changed.** These are year-10 changes at 0.1 against 1, on m5-1 and m5-2:
+  - The big generalist grazers rose: wild boar +56% and +66%, aurochs +42% and +44%, brown bear +33% and +36%, wild horse +27%, elk +25%, onager +22%.
+  - The smaller browsers and climbers fell: ibex −20% and −28%, fallow deer −15% and −22%, mouflon −8% and −29%, wild goat −5% and −27%, roe deer −5% and −29%.
+  - Their hunters fell with them: lynx −14% and −25%, leopard −16% and −25%.
+  - So the crowding disease was holding the big grazers down, and with it lifted they took the food from the smaller kinds.
+- **People: no change** (±2%) at any scale. People's crowding sickness is not what holds their numbers. They grew about 20% over the ten years in every run: they are not yet held by anything.
+
+So food can carry the limit without numbers running away. Moving the limit to food mainly redraws which kinds win, which is a reason to check the kinds' densities against their record once it is moved.
+
+**Model 6** (d54b4fc3, 2acb3b8b, landed by another session the same day) has since done most of item 2 for the residents:
+- crowding sickness is a backstop only past `CROWDED` times the usual numbers (`Hazards.crowdBackstop`), so food and the hunters hold herds in the ordinary run of years;
+- it counts the kinds that share a kind's parasites (`Species.kin`, `SHARED_SICK`), which is part of item 3;
+- plagues start only past the same crowding.
+
+Still open:
+- **Item 1:** people's four rules (`peopleSickness` and people's outbreaks beside `Illness`). The probe adds that people's crowding sickness does not hold their numbers either way.
+- **Item 3:** outbreaks still keep to one kind (`outbreak[s]`, passed by that kind's heads), herds still neither start nor carry them, and survivors are still not spared.
+- **People not held by food:** the probe's 20% growth in ten years, with nothing holding it, is the farming problem from the other side.
+
