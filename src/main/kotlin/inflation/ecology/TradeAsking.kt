@@ -84,6 +84,7 @@ internal fun HexGroups.askForGoods(weather: Weather) {
     val today = weather.date.absoluteDay
     val passOn = tuning.passOnYears
     val traded = tradedNow()
+    val callIn = tuning.callInFavours > 0f
     val bandsNow = groups.filter { it.alive && it.band != null }
     val short = bandsNow.filter { g -> val b = g.band; b != null && g.adults > 0 && traded.any { lackGoods(b, g.adults, it, passOn) > 0f } }
         .sortedBy { tieBreak(seedBase, it.id, 1, today) }
@@ -99,7 +100,9 @@ internal fun HexGroups.askForGoods(weather: Weather) {
         val known = gb.lastMet.keys.mapNotNull { byId[it] }.filter { o ->
             val ob = o.band
             ob != null && o.alive && o !== g && hexKm(h0, hw.placeHex[o.place]) <= ASK_REACH_KM &&
-                traded.any { m -> goodsGiven(ob, o.adults, gb, g.adults, m, passOn) > 0f }
+                (traded.any { m -> goodsGiven(ob, o.adults, gb, g.adults, m, passOn) > 0f } ||
+                    // (Or a band that owes it, and can spare what it lacks: [goodsDue].)
+                    (callIn && ob.owesTo(g.id) > 0f && traded.any { m -> spareGoods(ob, o.adults, m) > 0f && lackGoods(gb, g.adults, m, passOn) > 0f }))
         }.sortedBy { it.id }
         if (known.isEmpty()) continue
         for ((j, m) in traded.withIndex()) worth[j] = if (lackGoods(gb, g.adults, m, passOn) > 0f) worthDaysPerKg(g, gb, m, weather) else 0f
@@ -110,9 +113,15 @@ internal fun HexGroups.askForGoods(weather: Weather) {
             if (Regard(ob, g.id, gb, map = hex).tie < FEUD_GIFT) continue
             val km = reach.km(hw.placeHex[o.place], ASK_REACH_KM) ?: continue
             var kg = 0f; var days = 0f
+            // (What it can hope for there: what the band would give of its own accord, or what it owes, [goodsDue].)
+            var owedLeft = goodsOwedDays(ob, g, gb, weather)
             for ((j, m) in traded.withIndex()) {
                 if (worth[j] <= 0f) continue
-                val hope = goodsGiven(ob, o.adults, gb, g.adults, m, stockFrom(o, ob, g, gb, m, weather, worth[j])); kg += hope; days += hope * worth[j]
+                val stock = stockFrom(o, ob, g, gb, m, weather, worth[j])
+                val chosen = goodsGiven(ob, o.adults, gb, g.adults, m, stock)
+                val hope = if (owedLeft <= 0f) chosen else
+                    goodsDue(chosen, spareGoods(ob, o.adults, m), lackGoods(gb, g.adults, m, stock), worth[j], owedLeft, ob.repayWill).also { owedLeft = max(0f, owedLeft - it * worth[j]) }
+                kg += hope; days += hope * worth[j]
             }
             if (kg <= 0f) continue
             val carriers = carriersFor(kg, g.adults)
@@ -124,9 +133,13 @@ internal fun HexGroups.askForGoods(weather: Weather) {
         val way = findWay(g, h0, hw.placeHex[o.place], weather, ASK_REACH_KM) ?: continue
         val gifts = ArrayList<Given>(2)
         var useful = 0f
+        // (What the band asked owes it, called in as it gives: [goodsRepaid].)
+        val owed = floatArrayOf(goodsOwedDays(ob, g, gb, weather))
         for ((j, m) in traded.withIndex()) {
             if (worth[j] <= 0f) continue
-            val gift = goodsGiven(ob, o.adults, gb, g.adults, m, stockFrom(o, ob, g, gb, m, weather, worth[j]))
+            val stock = stockFrom(o, ob, g, gb, m, weather, worth[j])
+            val chosen = goodsGiven(ob, o.adults, gb, g.adults, m, stock)
+            val gift = if (owed[0] <= 0f) chosen else goodsRepaid(o, ob, g, gb, chosen, spareGoods(ob, o.adults, m), lackGoods(gb, g.adults, m, stock), worth[j], owed)
             if (gift <= 0f) continue
             ob.goods[m] -= gift; gb.goods[m] += gift
             if (m == Material.SALT) { ob.noteSalt(SaltFlow.GIVEN_OUT, gift); gb.noteSalt(SaltFlow.GIVEN_IN, gift) }

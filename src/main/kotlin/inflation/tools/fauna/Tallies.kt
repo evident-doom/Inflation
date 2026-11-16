@@ -41,6 +41,7 @@ import inflation.ecology.WEIR_MAX_M
 import inflation.ecology.WEIR_TEND_DAYS_PER_M
 import inflation.ecology.WEIR_WOOD_KG_PER_M
 import java.util.TreeMap
+import kotlin.math.max
 import inflation.world.get
 import inflation.world.set
 import inflation.world.Place
@@ -397,6 +398,7 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
         if (bands.isEmpty()) return
         val bs = bands.map { it.band!! }
         println("     bands: " + skillsAndKit(bands, bs) + houses(bands, bs) + goods(bands, bs) + gatherings(bands, bs))
+        println("     favours between bands (a favour is a week of the helped band's need): " + debts(bs))
         println("     bands by km from the nearest source of each good as the crow flies (share of bands; kg an adult held; days a kg as they reckon it): " + bySource(bands))
         println("     bands by fish within reach of their camp, thirds from least to most: " + fishing(bands) + weirs(bands))
     }
@@ -600,6 +602,22 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
 
     /** The heads of kind [k] band [b] keeps, grown and young. */
     private fun heads(b: Band, k: Int) = b.herds.herd.getOrElse(k) { 0f } + b.herds.herdYoung.getOrElse(k) { 0f }
+
+    /**
+     * Who owes whom ([Band.favours]): the share of bands owed favours and owing them, the favours owed in all and a band, how
+     * much of it the tenth most owed are owed (credit gathering in few hands, or not), how many bands each deals with in
+     * favours, and the largest single debt.
+     */
+    private fun debts(bs: List<Band>): String {
+        val owedTo = bs.map { b -> b.favours.values.sumOf { v -> max(0f, v).toDouble() } }.sortedDescending()
+        val all = owedTo.sum()
+        val top = owedTo.take((bs.size / 10).coerceAtLeast(1)).sum()
+        val largest = bs.maxOfOrNull { b -> b.favours.values.maxOfOrNull { it } ?: 0f } ?: 0f
+        return "owed to %.0f%% of bands, owing %.0f%%; owed in all %.1f (%.2f a band), the tenth most owed are owed %.0f%% of it; partners a band %.2f; largest debt %.2f".format(
+            100.0 * bs.count { b -> b.favours.values.any { it > 0f } } / bs.size.coerceAtLeast(1),
+            100.0 * bs.count { b -> b.favours.values.any { it < 0f } } / bs.size.coerceAtLeast(1),
+            all, all / bs.size.coerceAtLeast(1), 100.0 * top / all.coerceAtLeast(1e-9), bs.map { it.favours.size }.average(), largest)
+    }
 
     /**
      * What bands hold of each traded good ([TRADED]) by how far their camp lies from its nearest source ([nearestSourceKm],

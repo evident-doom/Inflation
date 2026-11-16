@@ -614,6 +614,8 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
         // (The giver's own reckoning only for the census.)
         fun worth(m: Material, kg: Float) { gifts += Given(m.name.lowercase(), kg, kg * worthDaysPerKg(taker, tb, m, weather),
             if (stats.census) kg * worthDaysPerKg(giver, gb, m, weather) else 0f) }
+        // (What the giver owes the taker, in the taker's days, called in in goods it lacks as it gives: [goodsRepaid].)
+        val owed = floatArrayOf(goodsOwedDays(gb, taker, tb, weather))
         for (m in tradedNow()) {
             // (Grinding stone only to a band that makes grinding stones.)
             if (m == Material.GROUND_STONE && !tb.knows[Tool.GRINDER]) continue
@@ -623,7 +625,8 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
             val lack = if (spare <= 0f) 0f else lackGoods(tb, taker.adults, m, stockFrom(giver, gb, taker, tb, m, weather))
             if (spare <= 0f || lack <= 0f) continue
             // (Above its 1 a band gives beyond what the other lacks, as far as it can spare: goods given away for the regard they win.)
-            val gift = min(spare, lack * gb.giveWill)
+            val chosen = min(spare, lack * gb.giveWill)
+            val gift = if (owed[0] <= 0f) chosen else goodsRepaid(giver, gb, taker, tb, chosen, spare, lack, worthDaysPerKg(taker, tb, m, weather), owed)
             dialUse?.amount(DialSite.GIVE_SPARE, gb.giveWill, gift, min(spare, lack))
             gb.goods[m] -= gift; tb.goods[m] += gift; worth(m, gift)
             if (m == Material.SALT) { gb.noteSalt(SaltFlow.GIVEN_OUT, gift); tb.noteSalt(SaltFlow.GIVEN_IN, gift) }

@@ -53,6 +53,19 @@ class TradeWorthTest {
     }
 
     @Test
+    fun `a band that owes gives no less than it owes, as far as it can spare and the other lacks, as fully as it repays`() {
+        // (Owes 10 days; a kg is worth 0.5 days to the creditor: 20 kg owed.)
+        assertEquals(20f, goodsDue(chosen = 5f, spare = 100f, lack = 50f, takerWorth = 0.5f, owedDays = 10f, repayWill = 1f), 1e-4f)
+        assertEquals(12f, goodsDue(5f, spare = 12f, lack = 50f, takerWorth = 0.5f, owedDays = 10f, repayWill = 1f), 1e-4f, "no more than it can spare")
+        assertEquals(10f, goodsDue(5f, 100f, 50f, 0.5f, 10f, repayWill = 0.5f), 1e-4f, "half as fully")
+        assertEquals(5f, goodsDue(5f, 100f, 50f, 0.5f, 10f, repayWill = 0f), "what it would give anyway at the least")
+        assertEquals(5f, goodsDue(5f, 100f, 50f, 0.5f, owedDays = 0f, repayWill = 1f), "nothing owed")
+        // (Days and favours turn into each other at the band's yield.)
+        assertEquals(10f, daysOfFavours(favoursOfDays(10f, 3f, 10, 25), 3f, 10, 25), 1e-4f)
+        assertEquals(10f, daysOfFavours(favoursOfDays(10f, Float.NaN, 10, 25), Float.NaN, 10, 25), 1e-4f)
+    }
+
+    @Test
     fun `carriers take a load each, one at least and all the grown at most`() {
         assertEquals(1f, carriersFor(3f, 10))
         assertEquals(3f, carriersFor(2.5f * FETCH_LOAD, 10))
