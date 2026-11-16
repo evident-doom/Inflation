@@ -597,9 +597,13 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
         // (Less at a meeting soon after the last: gifts mark meetings after time apart, [meetingFresh].)
         val given = gift * fresh
         if (given <= 0f) continue
+        val worth = gb.ornamentWorthOf(given)
         val shell = gb.takeOrnaments(given)
-        tb.ornaments += given; tb.exotic += shell
+        tb.ornaments += given; tb.exotic += shell; tb.ornamentWorth += worth
         tb.befriend(giver.id, 0.5f * TIE_GIFT)
+        // (With crafted goods worth their days, a gift of them makes favours by its worth, on the log scale: [favoursOfGift].)
+        if (tuning.craftWorth > 0f && worth > 0f) helpedBy(giver, taker,
+            favoursOfGift(favoursOfDays(worth, tb.recentYield(weather.date, days), taker.adults, taker.size), tuning.logFavours > 0f))
         stats.meeting(Met.ORNAMENTS_GIVEN)
     }
     // Useful gifts: a band gives of the good stone, salt and ochre it has beyond its own needs to
