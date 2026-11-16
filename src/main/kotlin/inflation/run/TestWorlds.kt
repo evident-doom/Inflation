@@ -113,8 +113,7 @@ object TestWorlds {
 
     /** Stops unless [e] is built here; a missing one is fetched from the repository first where it is the latest world kept there ([LatestData]). */
     fun requireBuilt(e: Entry) {
-        if (!e.state.isFile) LatestData.world(e)
-        require(e.state.isFile) { "test world ${e.name} is not built yet (testWorld build ${e.name})" }
+        require(e.state.isFile || LatestData.world(e)) { "test world ${e.name} is not built yet (testWorld build ${e.name})" }
     }
 
     /** Says what [e] is and how it was made, and warns where today's code or config differ from when it was settled. */

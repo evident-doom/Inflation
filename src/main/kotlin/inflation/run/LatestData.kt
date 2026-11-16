@@ -77,7 +77,7 @@ object LatestData {
         if (a.getProperty("nets") != name) return null
         val names = files("baselines/$name")
         val ok = names.isNotEmpty() && names.all { copy("baselines/$name/$it", File(dir, it)) }
-        if (!ok) { println("WARNING: could not copy baseline $name from $BRANCH"); dir.deleteRecursively(); return null }
+        if (!ok) { println("WARNING: could not copy baseline $name from $BRANCH"); dir.walkBottomUp().forEach { it.delete() }; return null }
         println("baseline $name fetched from $BRANCH: $dir")
         return dir
     }
@@ -92,8 +92,8 @@ object LatestData {
         a.getProperty("world")?.let { name ->
             val e = TestWorlds.named(name)
             val theirs = git("cat-file", "blob", "$REF:test-worlds/$name/about.properties")?.let { s -> Properties().also { it.load(s.reader()) } }
-            if (e.state.isFile && e.info() == theirs) println("test world $name is up to date") else world(e)
+            if (e.state.isFile && e.info() == theirs) println("test world $name is up to date") else check(world(e)) { "could not fetch test world $name" }
         }
-        a.getProperty("nets")?.let { name -> if (File(baselinesRoot(), name).isDirectory) println("baseline $name is here already") else baseline(name) }
+        a.getProperty("nets")?.let { name -> if (File(baselinesRoot(), name).isDirectory) println("baseline $name is here already") else check(baseline(name) != null) { "could not fetch baseline $name" } }
     }
 }
