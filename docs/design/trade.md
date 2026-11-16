@@ -123,6 +123,30 @@ In the order the record and the project's aim suggest:
 
 Hxaro's lesson for each step: an exact settlement ends the bond. Bands that keep balances open stay tied; strangers settle at once and stay strangers.
 
+## What flows back: wealth
+
+Goods go one way, down the line from the sources, and the favours they make were never paid back. Something has to flow the other way, and the record says it is mostly not like goods: work feasts (Dietler and Herbich; Göbekli Tepe's enclosures read as built by gatherings fed with meat and likely beer), potlatch and *moka* (great gifts make rank, called in as support and labour), counterflows of unlike things (*kula* necklaces one way and armshells the other; Australian axes one way and *pituri* the other; marriage partners one way and gifts the other), and debt that cannot be repaid in kind becoming service (Graeber). That counterflow, turned into things that last, is a candidate for how early wealth gathered.
+
+### Possession, not property
+
+There is no property in the world but possession (Olli, 2026-11-16). A band owns what it holds in hand or occupies now: what it carries and stores, its herds and dogs, its crafted goods, the structures it is using. A house left behind is whoever's is in it next; getting it back takes force: there is no authority, law or register in the world. The model's lists (a structure's builder) are its own bookkeeping, not claims the people hold. Debts are memory, enforced only by regard, grudges and raids. Standing (renown, fame, ties, credit) is what others remember of a band, not something it holds, and is measured apart from possession. Monuments and decoration belong to no one: their fame goes to the builders, their holiness to the place.
+
+### The plan
+
+1. **A census of wealth**: for each band what it possesses (food and goods stored, herds and dogs, ornaments, the structures it uses now) and its standing (renown, fame, credit net of debt), each with how unequal it is across bands (Gini, the top tenth's share), and how it differs at the sources and away from them. Report only: today's spread, to measure the rest against.
+2. **Crafted goods as stored labour**, held and worn: ornaments told apart by their worth in days, the skilled days that went into them and their rare materials (shell beads quick; drilled stone and greenstone beads, carved bone and figurines slow; obsidian pieces from few sources; later copper and malachite), made better by skilled hands, so that specialists have a reason. Durable and portable: great gifts (on the log scale one fine gift outweighs many trinkets), grave goods, marriage gifts, robbed in raids, later tokens. Standing by the worth of what a band holds and wears, not by count.
+3. **Labour as the counterflow**: a debtor repays in its people's days of work for the creditor, at the creditor's camp, into projects of three kinds: useful (houses, weirs, wells, pens), ceremonial (halls, and monuments or enclosures at rite sites with no use but holiness, rites drawn and fame), and decoration (plastered and painted walls). Great projects as work feasts, the host feeding the workers from its larder: stored surplus turned into monuments, and debts into fame. What the work builds is the creditor's only while it stays there, so settled, defended camps at rich places gain by it.
+
+### The first census of wealth
+
+Three years on m7-1 (main, 2026-11-16; Gini across bands; the tenth best-off bands' share):
+
+- **Possessions are fairly even.** Food stored 15–19 days of need (Gini 0.34–0.47, top tenth 23–27%); goods some 250 kg a person (0.19–0.21, 22%); ornaments 2.2 a person (0.16, 16%); houses in use shelter 56% of people (0.37–0.39, 22%). Kept herds and dogs are nearly none, and no band uses a hall, weir, well or pen.
+- **Standing is not.** Renown Gini 0.60 (top tenth 44%), credit 0.79 (62%), fame 0.85 (72%).
+- **The sources gain in standing, little in possessions.** The 87% of bands within 50 km of good stone, salt or obsidian are creditors (+1.7 favours a band) and the rest debtors (−2.9); they have half again the renown (47 against 32), three times the fame, twice the share housed (0.59 against 0.28), and more goods (260 kg a person against 180); their food stores are as large or somewhat larger (15.7 against 8.0 days in one year, 19.1 against 19.0 in another).
+
+So the one-way flow already gathers credit and standing at the sources, but nothing turns it into possessions: there is no counterflow. Possessions are no more unequal than foragers' (crafted goods are one kind, all alike). That is what steps 2 and 3 are for. (50 km takes in most bands; the next census should ring them by distance, as the falloff does.)
+
 ## Checks against the record
 
 - **Falloff**: what each band holds of each traded good against its distance from the nearest source, by year. Down-the-line exchange shows an exponential fall beyond a supply zone of a few hundred km; directional trade shows plateaus. The coast against inland shell tally ([Tallies.kt](../../src/main/kotlin/inflation/tools/fauna/Tallies.kt)) is a first, coarse form.

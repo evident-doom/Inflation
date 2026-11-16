@@ -24,6 +24,7 @@ import inflation.ecology.Skill
 import inflation.ecology.Species
 import inflation.ecology.Tool
 import inflation.ecology.Material
+import inflation.ecology.Structure
 import inflation.ecology.tradedNow
 import inflation.ecology.SOURCE_RINGS_KM
 import inflation.ecology.nearestSourceKm
@@ -42,6 +43,7 @@ import inflation.ecology.WEIR_TEND_DAYS_PER_M
 import inflation.ecology.WEIR_WOOD_KG_PER_M
 import java.util.TreeMap
 import kotlin.math.max
+import kotlin.math.min
 import inflation.world.get
 import inflation.world.set
 import inflation.world.Place
@@ -265,6 +267,9 @@ class MovementTally(private val sim: HexSim) {
 }
 
 /** People week by week, for the bands' line and the comparison with the ethnographic record. */
+/** How near a band's camp must lie to a source of good stone, salt or obsidian to count as at the sources, for the census of wealth (km as the crow flies). */
+private const val WEALTH_SOURCE_KM = 50f
+
 class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
     private var bandWeeks = 0.0
     private var bandHeads = 0.0
@@ -399,6 +404,7 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
         val bs = bands.map { it.band!! }
         println("     bands: " + skillsAndKit(bands, bs) + houses(bands, bs) + goods(bands, bs) + gatherings(bands, bs))
         println("     favours between bands (a favour is a week of the helped band's need): " + debts(bs))
+        println("     wealth, a person (mean; Gini across bands; the tenth best-off bands' share of all): " + wealth(bands))
         println("     bands by km from the nearest source of each good as the crow flies (share of bands; kg an adult held; days a kg as they reckon it): " + bySource(bands))
         println("     bands by fish within reach of their camp, thirds from least to most: " + fishing(bands) + weirs(bands))
     }
@@ -602,6 +608,60 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
 
     /** The heads of kind [k] band [b] keeps, grown and young. */
     private fun heads(b: Band, k: Int) = b.herds.herd.getOrElse(k) { 0f } + b.herds.herdYoung.getOrElse(k) { 0f }
+
+    /**
+     * Wealth as possession and standing apart (docs/design/trade.md, "What flows back"): what each band holds now (food in
+     * days of its need, goods, kept herds by weight, dogs, ornaments, the share of its people its houses in use shelter, and
+     * the halls, weirs, wells and pens it uses), and its standing (renown, credit net of debt in favours, fame), each a
+     * person, with how unequal it is across bands and how it stands at the sources (within [WEALTH_SOURCE_KM] of good
+     * stone, salt or obsidian) against away from them. Possession only: a structure counts for the band using it this week.
+     */
+    private fun wealth(bands: List<HexGroup>): String {
+        val groups = sim.groups; val hw = sim.hw; val fauna = sim.fauna
+        val inUse = HashMap<Int, ArrayList<Structure>>()
+        for (st in groups.bands.built) if (st.user >= 0) inUse.getOrPut(st.user) { ArrayList() } += st
+        val traded = groups.tradedNow().filter { it == Material.STONE || it == Material.SALT || it == Material.OBSIDIAN }
+        class W(val g: HexGroup, val people: Double, val v: DoubleArray, val atSource: Boolean)
+        val names = listOf("food, days", "goods kg", "herds kg", "dogs", "ornaments", "sheltered", "halls", "weirs m", "wells m", "pens",
+            "renown", "credit", "fame")
+        val standingFrom = names.indexOf("renown")
+        val ws = bands.mapNotNull { g ->
+            val b = g.band ?: return@mapNotNull null
+            val people = g.size.toDouble().coerceAtLeast(1.0)
+            val mine = inUse[g.id].orEmpty()
+            fun sized(k: Built) = mine.filter { it.kind == k }.sumOf { (it.size * it.built).toDouble() }
+            val v = doubleArrayOf(
+                g.larder / g.dailyNeedKg.coerceAtLeast(1e-3f).toDouble() * people,
+                b.goods.sum().toDouble(),
+                fauna.kinds.indices.sumOf { k -> heads(b, k) * fauna.kinds[k].massKg.toDouble() },
+                b.dogs.kept.sum().toDouble(),
+                b.ornaments.toDouble(),
+                min(people, sized(Built.HOUSES)),
+                mine.count { it.kind == Built.HALL }.toDouble(),
+                sized(Built.WEIR), sized(Built.WELL), sized(Built.PEN),
+                b.renown.toDouble() * people,
+                b.favours.values.sumOf { it.toDouble() } * people,
+                (groups.bands.fameOf[g.id] ?: 0f).toDouble() * people)
+            val h = hw.placeHex[g.place]
+            W(g, people, v, traded.any { m -> groups.nearestSourceKm(h, m) < WEALTH_SOURCE_KM })
+        }
+        if (ws.isEmpty()) return "no bands"
+        fun perPerson(l: List<W>, i: Int) = l.sumOf { it.v[i] } / l.sumOf { it.people }.coerceAtLeast(1.0)
+        fun gini(i: Int): Double {
+            val xs = ws.map { max(0.0, it.v[i] / it.people) }.sorted(); val n = xs.size; val sum = xs.sum()
+            if (sum <= 0.0 || n < 2) return 0.0
+            return xs.withIndex().sumOf { (k, x) -> (2.0 * (k + 1) - n - 1) * x } / (n * sum)
+        }
+        fun topTenth(i: Int): Double {
+            val xs = ws.map { max(0.0, it.v[i]) }.sortedDescending(); val sum = xs.sum()
+            return if (sum <= 0.0) 0.0 else 100.0 * xs.take((xs.size / 10).coerceAtLeast(1)).sum() / sum
+        }
+        val near = ws.filter { it.atSource }; val far = ws.filter { !it.atSource }
+        fun part(range: IntRange) = range.joinToString(", ") { i -> "%s %.2f; %.2f; %.0f%%".format(names[i], perPerson(ws, i), gini(i), topTenth(i)) }
+        return "held: " + part(0 until standingFrom) + " | standing, a band weighted by its people: " + part(standingFrom until names.size) +
+            " | within %.0f km of good stone, salt or obsidian (%.0f%% of bands) against further: ".format(WEALTH_SOURCE_KM, 100.0 * near.size / ws.size) +
+            names.indices.joinToString(", ") { i -> "%s %.2f/%.2f".format(names[i], perPerson(near, i), perPerson(far, i)) }
+    }
 
     /**
      * Who owes whom ([Band.favours]): the share of bands owed favours and owing them, the favours owed in all and a band, how
