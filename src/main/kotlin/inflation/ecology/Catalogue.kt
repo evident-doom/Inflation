@@ -209,6 +209,9 @@ object Catalogue {
         // a fifth of the lion's weight: bears took 358 of 100,000 person-years, lions 57; no Natufian or Hiwi bear kills known (review/2026-10-22-predators-megafauna.md)
         takesPeople = 0.08f,
         dampTolerance = 0.7f, climbing = 0.4f,
+        // (Its kills are mostly the young of spring, found hidden in their first weeks: moose and elk calves, fawns, piglets;
+        // grown deer and elk now and then, cattle seldom. Swenson et al. 2007 and the Scandinavian bear studies, from memory.)
+        preyFrom = 0.05f, preyPreferredUpTo = 0.5f, preyUpTo = 3f,
     )
 
     /**
@@ -707,6 +710,12 @@ object Catalogue {
      * pack's kills they come on by scent: [scavengedAtKill].)
      */
     val residentRivals by lazy { setOf(JACKAL, HYENA, BEAR) }
+
+    /**
+     * Beasts of prey, the hunters and the bear: other hunters kill them as rivals and kill their young ([Danger.STRIFE],
+     * the lions' killing), but do not live on them as game.
+     */
+    fun beastOfPrey(s: Species) = s.carnivore || s in residentRivals
 
     /** Kinds that climb crags and screes others cannot cross. */
     val climbers by lazy { all.filter { it.climbing >= 0.5f }.toSet() }

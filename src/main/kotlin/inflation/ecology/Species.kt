@@ -156,6 +156,11 @@ class Species(
      * less readily the nearer it is to [preyUpTo] (see [preySize]).
      */
     val preyPreferredUpTo: Float = preyUpTo,
+    /**
+     * For hunters: the smallest game it hunts as game, times its own weight; smaller is small prey, caught otherwise
+     * ([preySize]). A quarter for most; a bear, which finds the hidden fawns and calves of spring, far smaller.
+     */
+    val preyFrom: Float = 0.25f,
     /** For predators: land per animal at the start, km². */
     val startKm2PerAnimal: Float = 0f,
     /**
@@ -281,14 +286,14 @@ class Species(
      */
     fun coatC(month: Int): Float = if (winterCoat) 10f * COAT[month] else 0f
     /**
-     * How readily it takes game of [kg], 0..1, resident hunters and packs alike: not at all under a quarter of its
+     * How readily it takes game of [kg], 0..1, resident hunters and packs alike: not at all under [preyFrom] times its
      * weight (that is small prey, hunted otherwise) or over [preyUpTo] times it, fully up to [preyPreferredUpTo] times
      * it, and falling off evenly between. (The even fall is a simplification: the record gives the preferred and the
      * accessible range, not the shape.)
      */
     fun preySize(kg: Float): Float {
         val r = kg / massKg
-        if (r < 0.25f || r > preyUpTo) return 0f
+        if (r < preyFrom || r > preyUpTo) return 0f
         if (r <= preyPreferredUpTo) return 1f
         return (preyUpTo - r) / (preyUpTo - preyPreferredUpTo)
     }

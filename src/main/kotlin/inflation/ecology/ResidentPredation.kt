@@ -124,7 +124,7 @@ internal fun HexFauna.huntResidents(k: FaunaKind, p: Place, meat: KgM2, weather:
     for ((j, s) in kinds.withKinds()) {
         // (Not other beasts of prey: hunters kill their rivals and their young, [Danger.STRIFE] and the lions' killing, but
         // do not live on them as game. As game, wolves and hyenas ate each other: a quarter of each's deaths.)
-        if (j == k || s === hunter || s.carnivore) continue
+        if (j == k || s === hunter || Catalogue.beastOfPrey(s)) continue
         val ym = YOUNG_WEIGHT * s.massKg
         // (Its shelter there once for its grown, young and packs: the ground does not change while one hunts.)
         val sh = preyShelter(s, p)
@@ -216,7 +216,7 @@ fun HexFauna.afraid(p: Place) = fear[p] / (fear[p] + FEAR_HALF)
 fun HexFauna.game(s: Species, p: Place): Float {
     var v = 0f
     for ((j, ps) in kinds.withKinds()) {
-        if (ps === s || ps.carnivore) continue
+        if (ps === s || Catalogue.beastOfPrey(ps)) continue
         val a = adults[j][p]; val y = young[j][p]
         if (a + y <= 0f) continue
         val ym = YOUNG_WEIGHT * ps.massKg; val sh = preyShelter(ps, p)
@@ -233,7 +233,7 @@ fun HexFauna.game(s: Species, p: Place): Float {
 fun HexFauna.preyBiomass(s: Species, p: Place): Float {
     var v = 0f
     for ((j, ps) in kinds.withKinds()) {
-        if (ps === s || ps.carnivore) continue
+        if (ps === s || Catalogue.beastOfPrey(ps)) continue
         val a = adults[j][p]; val y = young[j][p]
         if (a + y <= 0f) continue
         val ym = YOUNG_WEIGHT * ps.massKg
