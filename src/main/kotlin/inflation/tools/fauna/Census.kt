@@ -205,6 +205,15 @@ class Census(private val sim: HexSim) {
         println("     residents by the sea / inland, per km² (coast %.0f%% of land): ".format(100 * coastA / (coastA + inA)) +
             fauna.kinds.indices.joinToString(", ") { k -> "%s %.2f / %.2f".format(fauna.kinds[k].name, coastN[k] / coastA.coerceAtLeast(1.0),
                 inN[k] / inA.coerceAtLeast(1.0)) })
+        // (The hunters that hold ground by their game: the game they can catch lately and the heads it holds, the land's mean
+        // and as their animals find it, against those there: [HexFauna.usualAt].)
+        val byPrey = fauna.kinds.indices.filter { fauna.gameMean[it].isNotEmpty() }
+        if (byPrey.isNotEmpty()) println("     ground by game (game kg/km², heads it holds, heads there, per km²; land / where they are): " + byPrey.joinToString(", ") { k ->
+            var a = 0.0; var g = 0.0; var u = 0.0; var h = 0.0; var gh = 0.0; var uh = 0.0
+            for (pl in 0 until land.n) { val ar = land.areaKm2[pl].toDouble(); val m = fauna.gameMean[k][pl].toDouble().takeIf { !it.isNaN() } ?: 0.0
+                val us = fauna.usualAt(k, inflation.world.Place(pl)).toDouble(); val r = residents(k, pl)
+                a += ar; g += m * ar; u += us * ar; h += r; gh += m * r; uh += us * r }
+            "%s %.0f / %.0f, %.4f / %.4f, %.4f".format(fauna.kinds[k].name, g / a, gh / h.coerceAtLeast(1e-9), u / a, uh / h.coerceAtLeast(1e-9), h / a) })
         println("     residents fed from (fresh plants / prey and carrion / reserves, shares of need per animal this year): " +
             fauna.kinds.indices.joinToString(", ") { k ->
             val ff = fauna.fedFrom[k]; val h = ff[Fed.HEADS].sum().coerceAtLeast(1e-9)
