@@ -101,8 +101,14 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         val bandGroups = groups.filter { it.alive && it.band != null }
         for (g in bandGroups) if (g.alive) bandWeek(g, weather, date)
         bands.tallies.flush(if (stats.census) stats.hunting else null)
+        // (The bands alive now, strays made this week among them: an id is never given again, so a band met that is not among
+        // them will never be met again, and each band forgets it ([Band.forgetGone]).)
+        val living = HashSet<Int>(2 * groups.size)
+        for (g in groups) if (g.alive) living += g.id
+        for (g in bands.strays) if (g.alive) living += g.id
         Par.forEach("people: customs year", bandGroups.size) { k ->
             val g = bandGroups[k]
+            if (g.alive) g.band?.forgetGone(living)
             if (g.alive) cultureWeek(g, stream(seedBase, Stream.CUSTOMS, g.id.toLong(), date.absoluteDay), date.absoluteDay, weather)
         }
         for (g in bandGroups) if (g.alive) riteWeek(g, weather)

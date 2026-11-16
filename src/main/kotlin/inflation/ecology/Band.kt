@@ -577,10 +577,12 @@ class Band(kinds: Int, totems: Int = kinds) {
     val ties = LinkedHashMap<Int, Float>()
     /**
      * The step this band last met each other band (by group id), for how fresh a meeting is ([meetingFresh]), and whether
-     * they have ever met, for the sicknesses strangers bring ([strangersAt]). Never pruned: it grows with every band met,
-     * the dead too (consolidation-review.md, 5).
+     * they have ever met, for the sicknesses strangers bring ([strangersAt]). Bands no longer alive are forgotten each week
+     * ([forgetGone]): ids are never given again, and the map is only looked up, so this changes nothing but its size.
      */
     val lastMet = HashMap<Int, Int>()
+    /** It forgets, in [lastMet], the bands not among [living] (by group id): they are dead or merged, and will never be met again. */
+    fun forgetGone(living: Set<Int>) { if (lastMet.isNotEmpty()) lastMet.keys.retainAll(living) }
     /**
      * What it saw of each other band (by group id), the last time it saw it, at a meeting, a fight or watching unseen
      * ([noteSeen]): its strength then ([HexGroups.strength]), and the day ([seenDay], absolute). Forgotten after
