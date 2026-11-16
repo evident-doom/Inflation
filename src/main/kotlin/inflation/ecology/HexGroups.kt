@@ -397,6 +397,7 @@ class HexGroups(
         Phase("people: burning off") { burnOff(it) },
         Phase("people: robbing caches") { robCaches(it) },
         Phase("people: visiting kin") { visitKin(it) },
+        Phase("people: asking for goods") { askForGoods(it) },
         Phase("groups: births, deaths") {
             mark(it)
             settle(it)

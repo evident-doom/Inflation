@@ -159,6 +159,7 @@ private class ThreadSums<K>(private val ledger: ConcurrentSkipListMap<K, Int>) {
 
 /** What the week's [meetings][WeekStats.meetings] count, each under its [label]. */
 enum class Met(val label: String) {
+    BANDS_ASKED_FOR_GOODS("bands went to ask another for stone, salt or ochre"),
     BANDS_ATE_THEIR_TOTEM("bands ate their totem"),
     BANDS_BACK_AT_A_CACHE("bands back at a cache"),
     BANDS_BUILT_HOUSES("bands built houses"),
@@ -291,7 +292,7 @@ enum class Met(val label: String) {
     /** Meetings of something named (a kind, a skill, a tool, a custom, a good), keyed [before] its name [after]. */
     enum class Of(val before: String, val after: String = "") {
         NEWCOMERS("newcomers: "), SEA_CROSSINGS("sea crossings: "), HIT_ON("band hit on "), LOST("band lost "), TOOK_A_PUP("bands took a ", " pup"),
-        LEARNED("band learned "), TOOK_UP("band took up "), TOOK_LEAVE_OF("band took leave of "), DROPPED("band dropped "), GIVEN("", " given"),
+        LEARNED("band learned "), TOOK_UP("band took up "), TOOK_LEAVE_OF("band took leave of "), DROPPED("band dropped "), GIVEN("", " given"), ASKED("", " given to bands that came asking"),
         TURNED_BACK_BY("bands turned back by "), DOGS_GONE_WILD("dogs gone wild as ", " packs"), DOGS_LEFT("dogs left hungry camps for ", " packs"),
         /** How packs of a kind come and go (report only): grown young gone alone, packs split off, lone pairs, ground taken, packs ended (and those without ground). */
         PACK_LEFT_ALONE("pack young left alone, "), PACK_SPLIT_OFF("packs split off, "), PACK_PAIRED("lone hunters paired, "),
