@@ -18,6 +18,13 @@ class HexFires(land: HexLand) : HexLandPart(land) {
      * fire): a step of several ticks adds up its ticks' fires, at most all of it ([HexLand.firstTick]). At one tick a step, [burning].
      */
     @Transient val stepBurning = FloatArray(n)
+    /**
+     * Share of each place burnt over all the ticks of the step being taken, for the parts that take the step whole after its
+     * ticks (the groups; [settleStep]): the land hands each tick over as a step of one, so [stepBurning] held only the last
+     * tick's fires, and bands' burns, lit in a step's first tick, never reached them (step811: their fire deaths 2.07 a 1000
+     * a year weekly, 0.01 at 30 days, with as many fires set).
+     */
+    @Transient private val wholeBurning = FloatArray(n)
     /** Fires this step: the place each started in and the km² it burned. */
     val fires = ArrayList<Fire>()
     /** For the yearly report ([yearReport]): fires bands set, those that took, and km² burnt by theirs and by the rest. */
@@ -85,7 +92,17 @@ class HexFires(land: HexLand) : HexLandPart(land) {
             if (p in set) { tookYear++; peopleKm2Year += km2 } else wildKm2Year += km2
         }
         if (land.firstTick) burning.copyInto(stepBurning) else for (i in 0 until n) stepBurning[i] = min(1f, stepBurning[i] + burning[i])
+        for (i in 0 until n) wholeBurning[i] = min(1f, wholeBurning[i] + burning[i])
     }
+
+    /** A step of the slow parts begins: none of it burnt yet ([wholeBurning]). */
+    fun beginStep() = wholeBurning.fill(0f)
+
+    /**
+     * The step's ticks are done: over a step of several ([ticks]), [stepBurning] becomes all they burnt together, for the parts
+     * that take the step whole. At one tick a step it already is.
+     */
+    fun settleStep(ticks: Int) { if (ticks > 1) wholeBurning.copyInto(stepBurning) }
 
     /**
      * Whether a river [FIREBREAK_M] wide or more runs on the border between hexes [a] and [b] (none between a hex's own low and
