@@ -208,7 +208,7 @@ class Census(private val sim: HexSim) {
         // (The hunters that hold ground by their game: the game they can catch lately and the heads it holds, the land's mean
         // and as their animals find it, against those there: [HexFauna.usualAt].)
         val byPrey = fauna.kinds.indices.filter { fauna.gameMean[it].isNotEmpty() }
-        if (byPrey.isNotEmpty()) println("     ground by game (game kg/km², heads it holds, heads there, per km²; land / where they are): " + byPrey.joinToString(", ") { k ->
+        if (byPrey.isNotEmpty()) println("     ground by prey (prey of its size kg/km², heads it holds, heads there, per km²; land / where they are): " + byPrey.joinToString(", ") { k ->
             var a = 0.0; var g = 0.0; var u = 0.0; var h = 0.0; var gh = 0.0; var uh = 0.0
             for (pl in 0 until land.n) { val ar = land.areaKm2[pl].toDouble(); val m = fauna.gameMean[k][pl].toDouble().takeIf { !it.isNaN() } ?: 0.0
                 val us = fauna.usualAt(k, inflation.world.Place(pl)).toDouble(); val r = residents(k, pl)

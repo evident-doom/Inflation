@@ -226,6 +226,23 @@ fun HexFauna.game(s: Species, p: Place): Float {
 }
 
 /**
+ * The prey of a size hunter [s] takes standing at place [p], kg per km²: every other kind there but the beasts of prey,
+ * grown and young (at [YOUNG_WEIGHT]), by its weight as far as it is of a size [s] takes ([Species.preySize]), however
+ * well it defends or hides itself. What hunters' numbers follow ([HexFauna.usualAt]), as the record measures it.
+ */
+fun HexFauna.preyBiomass(s: Species, p: Place): Float {
+    var v = 0f
+    for ((j, ps) in kinds.withKinds()) {
+        if (ps === s || ps.carnivore) continue
+        val a = adults[j][p]; val y = young[j][p]
+        if (a + y <= 0f) continue
+        val ym = YOUNG_WEIGHT * ps.massKg
+        v += a * ps.massKg * s.preySize(ps.massKg) + y * ym * s.preySize(ym)
+    }
+    return v
+}
+
+/**
  * How catchable an animal of kind [ps] weighing [massKg] (grown, or young) is for hunter [s] at place [p] this week,
  * 0..1: its size against what the hunter takes ([Species.preySize]), defence, refuge in broken ground, small prey
  * hiding in thick cover, and for stalkers, dark nights.

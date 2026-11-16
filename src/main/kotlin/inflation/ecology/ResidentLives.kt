@@ -243,9 +243,9 @@ internal fun HexFauna.reckonShared() {
             for (j in row.indices) { val w = row[j]; if (j == k || w <= 0f) continue
                 val h = adults[j][p] + young[j][p]; if (h > 0f) sum += w * h / usual[j] }
             shared[k][p.i] = sum * usual[k]
-            // (And the game a hunter that holds ground by it can catch here, lately: [HexFauna.usualAt].)
+            // (And the prey of its size a hunter that holds ground by it has here, lately: [HexFauna.usualAt].)
             val g = gameMean[k]
-            if (g.isNotEmpty()) { val now = game(kinds[k], p); val m = g[p.i]; g[p.i] = if (m.isNaN()) now else m + (now - m) * rate }
+            if (g.isNotEmpty()) { val now = preyBiomass(kinds[k], p); val m = g[p.i]; g[p.i] = if (m.isNaN()) now else m + (now - m) * rate }
         }
     }
 }

@@ -168,13 +168,13 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
      */
     @Transient internal val shared = Array(kinds.size) { FloatArray(n) }
     /**
-     * For each resident hunter that lives mainly on game it kills ([holdsByPrey]), the game it can catch at each place, kg
-     * per km² ([game]), a mean of some half a year ([GAME_WEEK]); empty for every other kind. NaN until the first step.
+     * For each resident hunter that lives mainly on game it kills ([holdsByPrey]), the prey of its size at each place, kg
+     * per km² ([preyBiomass]), a mean of some half a year ([GAME_WEEK]); empty for every other kind. NaN until the first step.
      */
     val gameMean: Array<FloatArray> = Array(kinds.size) { k -> if (holdsByPrey(kinds[k])) FloatArray(n) { Float.NaN } else FloatArray(0) }
     /**
      * The density at place [p] at which kind [k] holds all the ground there is, heads per km²: for a hunter that lives
-     * mainly on game it kills, as many as the game it can catch there lately feeds at [PREY_SUPPORT] of its weight in
+     * mainly on game it kills, as many as the prey of its size there lately holds at [PREY_SUPPORT] of its weight in
      * hunters (territories shrink where game is rich and spread where it is thin: wolves' numbers follow their prey's
      * biomass, Fuller 1989, lions' theirs, Hayward et al. 2007); for every other kind its [usual] density, the same everywhere.
      */
@@ -826,11 +826,12 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         /** [sharers]: how far another kind that shares its parasites crowds it, at a diet the same as its own. */
         const val SHARED_SICK = 0.3f
         /**
-         * [usualAt]: kg of a hunter its territories hold for each kg of game it can catch there. Some 0.1-0.4% in the record
-         * for a single kind: wolves about a kg for 1000 of prey (Fuller 1989), lions some 3 (Hayward et al. 2007; both from
-         * memory); Carbone and Gittleman 2002 give more. An estimate between, to be held against the census.
+         * [usualAt]: kg of a hunter its territories hold for each kg of prey of its size there ([preyBiomass]). Wolves some
+         * 3.3 to the 1000 km² for each deer-equivalent a km² (Fuller 1989), about 2 kg for 1000 of prey at a 35 kg wolf;
+         * lions in the same range (Hayward et al. 2007); both from memory. Reckoned once on the game it could catch (as
+         * defence, cover and shelter leave it), only a few hundred kg a km², the ground held a wolf a third of the record's.
          */
-        const val PREY_SUPPORT = 0.003f
+        const val PREY_SUPPORT = 0.002f
         /** [usualAt]'s least, heads per km², where there is next to no game: a territory of some 10,000 km². */
         const val TERRITORY_LEAST = 1e-4f
         /** [gameMean]: the share of the way to the week's game it goes a week, about half a year's memory. */
