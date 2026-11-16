@@ -157,7 +157,7 @@ private fun HexFauna.eatPlants(p: Place, weather: Weather, grass: Float, browse:
         z.gotUnder[k] = (b.roots + b.roots2) * Nourishment.ROOTS * s.needScale / want
         z.eatG += b.grass + b.grass2; z.eatB += b.browse + b.browse2
         z.eatF += b.fruit + b.fruit2; z.eatR += b.roots + b.roots2
-        z.ateKg[k] = b.eaten; z.proteinKg[k] = protein(b, gp, bp)
+        z.ateKg[k] = b.eaten; z.proteinKg[k] = protein(b, s.selected(gp), s.selected(bp))
     }
     // Then the fed lay on fat from what is left.
     z.mode = Grazing.FREE
@@ -170,9 +170,10 @@ private fun HexFauna.eatPlants(p: Place, weather: Weather, grass: Float, browse:
         // (In energy, as [forage] works: see [Species.needScale]; as far as it can crop them, as it fed.)
         val extra = surplusShare(FaunaKind(k), p) * want / s.needScale
         val gb = (d.grass + d.browse).coerceAtLeast(1e-6f)
-        val grass3 = if (d.grass > 0f) z.grass(cropGrass(s, p) * grassUnderSnow(s, snow) * extra / quality * d.grass / gb) else 0f
-        val browse3 = if (d.browse > 0f) z.browse(cropBrowse(s, p) * extra / quality * d.browse / gb) else 0f
-        z.surplus[k] = (grass3 + browse3) * quality * s.needScale / want
+        val qs = s.selected(quality)
+        val grass3 = if (d.grass > 0f) z.grass(cropGrass(s, p) * grassUnderSnow(s, snow) * extra / qs * d.grass / gb) else 0f
+        val browse3 = if (d.browse > 0f) z.browse(cropBrowse(s, p) * extra / qs * d.browse / gb) else 0f
+        z.surplus[k] = (grass3 + browse3) * qs * s.needScale / want
         z.eatG += grass3; z.eatB += browse3
     }
     // What is left, for [roomFor] (how well a band coming here would be fed on it) to reckon on when they move.
@@ -408,7 +409,7 @@ private fun HexFauna.placeEffects(p: Place, grass: Float, browse: Float, z: Graz
 fun HexFauna.forageProtein(s: Species, p: Place): Float {
     val d = s.diet; val plants = d.grass + d.browse + d.fruit + d.roots
     if (plants <= 0f) return 1f
-    val share = (d.grass * grassProtein(p) + d.browse * browseProtein(p) + (d.fruit + d.roots) * PROTEIN_FRUIT) / plants
+    val share = (d.grass * s.selected(grassProtein(p)) + d.browse * s.selected(browseProtein(p)) + (d.fruit + d.roots) * PROTEIN_FRUIT) / plants
     val ps = plantShare(s)
     return proteinMet(ps * share + (1f - ps))
 }

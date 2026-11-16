@@ -50,7 +50,7 @@ internal class Bites {
 internal fun grassUnderSnow(s: Species, snowMm: Float): Float = (1f - snowMm / s.snowLimitMm).coerceIn(0f, 1f)
 
 /**
- * How animals of [s] eating diet [d] feed where the forage nourishes [q], asking [need] kg per m² this week, from
+ * How animals of [s] eating diet [d] feed where the forage nourishes [placeQ] (as it picks it over, [selected]), asking [need] kg per m² this week, from
  * [pantry]: grass and roots (as far as it gets at them under the snow, [underSnow], see [grassUnderSnow]), browse as far as the gut fills at that nourishment, fruit, then
  * switching between them for a shortfall; into [out]. The standing straw is the cured grass, eaten as grass at what it
  * nourishes ([HexPlants.nourishment]). Each food feeds by its energy ([Nourishment]): grass and browse at [q], fruit and roots
@@ -58,8 +58,10 @@ internal fun grassUnderSnow(s: Species, snowMm: Float): Float = (1f - snowMm / s
  * ([HexFauna.graze]) and for the room they reckon a place has for more of them ([HexFauna.roomFor]). [cropG] and [cropB] are
  * the shares of its want of grass and of browse it can crop where they stand ([cropRate]).
  */
-@IgnorableReturnValue internal fun forage(s: Species, d: Diet, q: Float, need: Float, underSnow: Float, pantry: Pantry, out: Bites,
+@IgnorableReturnValue internal fun forage(s: Species, d: Diet, placeQ: Float, need: Float, underSnow: Float, pantry: Pantry, out: Bites,
     cropG: Float = 1f, cropB: Float = 1f): Bites {
+    // (The forage as it picks it over, [selected]: a small kind eats better than the place's mean.)
+    val q = s.selected(placeQ)
     // (Worked in energy, [Nourishment]'s units: a kg of green forage feeds a unit.)
     val want = need / s.needScale
     val total = (d.grass + d.browse + d.fruit + d.roots).coerceAtLeast(1e-6f)

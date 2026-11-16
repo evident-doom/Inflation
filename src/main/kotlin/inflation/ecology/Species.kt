@@ -329,6 +329,19 @@ fun gutFill(s: Species, quality: Float): Float {
 }
 
 /**
+ * The worth of the forage [s] eats where the place's grass and browse are worth [q] (0..1, of fresh growth's), as it picks
+ * them over: a small kind, whose gut is small against its need ([Species.gutSize]), picks the leaves, buds, shoots and
+ * flowers out of the same sward and thicket and eats better than the place's mean; a big one crops it as it stands. The
+ * other half of the size trade-off ([gutFill]): the small live on thin, good food, the big on plenty of coarse (Jarman
+ * 1974, Bell 1971, Hofmann 1989). Of the gap to fresh growth, [SELECTION] of the share its gut falls short of a 100 kg
+ * kind's: a gazelle about a sixth, a goat a tenth, a deer none.
+ */
+fun Species.selected(q: Float): Float = q + (1f - q) * SELECTION * (1f - gutSize).coerceIn(0f, 1f)
+
+/** [selected]: how far a small kind's picking closes the gap to fresh growth, at a gut none at all against a 100 kg kind's; an estimate. */
+const val SELECTION = 0.5f
+
+/**
  * The share of its want of a food it can crop in its feeding day where [kgM2] of it stands: all where the food is thick,
  * less where it is thin, as each bite holds less and more time goes to walking between them ([Species.cropHalfKgM2];
  * Spalinger and Hobbs 1992, Illius and Gordon 1987). Small and wide-ranging kinds make a living off thin pickings that
