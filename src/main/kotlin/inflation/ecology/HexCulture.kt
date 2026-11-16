@@ -281,7 +281,8 @@ internal fun HexGroups.reckonFame(): Map<Int, Float> {
     val runs = listOf(size, ground, holy, walls, skill)
     val cuts = runs.map { cut(it) }
     val knownBy = enumFloats<Tool> { t -> housed.count { it.second.knows[t] }.toFloat() / housed.size }
-    val sources = bands.materialSources.values
+    // (An obsidian source counts only with obsidian got at all, [inflation.Tuning.obsidian].)
+    val sources = bands.materialSources.filterKeys { it != Material.OBSIDIAN || tuning.obsidian > 0f }.values
     val fame = HashMap<Int, Float>()
     // (For the census: how many bands are famed for each thing, [Bands.famedFor].)
     val why = IntArray(FAMED_FOR.size)

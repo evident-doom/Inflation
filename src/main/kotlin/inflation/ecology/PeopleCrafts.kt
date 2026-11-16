@@ -54,6 +54,8 @@ internal fun GroupWorld.gatherMaterials(g: HexGroup, b: Band, p: Place, h: Hex, 
     // (Only good stone is kept: whatever stone is at hand makes poorer tools, see [TRADED]. It takes as much as it wants
     // and has the time for, slower where little crops out.)
     if (stone > 0f) gather(Material.STONE, Float.MAX_VALUE, STONE_A_DAY * min(1f, 5f * stone))
+    // Obsidian where it crops out along the way, as flint is got ([inflation.Tuning.obsidian]; 0: none is got).
+    if (tuning.obsidian > 0f) { val glass = alongTheWay(land.obsidian); if (glass > 0f) gather(Material.OBSIDIAN, Float.MAX_VALUE, STONE_A_DAY * min(1f, 5f * glass)) }
     // Rock for grinding stones, where it lies bare along the way: only by a band that knows grinding stones, as much as it
     // can keep, so that beyond a set for its own people ([YEAR_NEED]) it has some to give on.
     val grinding = alongTheWay(land.groundStone)
@@ -254,9 +256,20 @@ internal fun HexGroups.makeTools(b: Band, people: Float, time: BandTime?, only: 
         if (time == null) { asked += can * daysEach; continue }
         if (made != null) {
             val want = can * (t.recipe[made] ?: TAN_OCHRE) * use(made) * people
-            val good = if (want > 0f) min(1f, gd[made] / want) else 1f
-            gd[made] = max(0f, gd[made] - good * want)
-            b.fine[t] = (b.kit[t] * b.fine[t] + can * good) / (b.kit[t] + can)
+            // (Good stone of obsidian first, its sharper edge in the share made of it ([Band.glassy], [OBSIDIAN_EDGE]); then flint.)
+            val glass = if (made == Material.STONE && want > 0f && gd[Material.OBSIDIAN] > 0f) min(gd[Material.OBSIDIAN], want) else 0f
+            if (glass > 0f) {
+                gd[Material.OBSIDIAN] -= glass
+                val flint = min(gd[made], want - glass)
+                gd[made] -= flint
+                val good = (glass + flint) / want
+                b.fine[t] = (b.kit[t] * b.fine[t] + can * good) / (b.kit[t] + can)
+            } else {
+                val good = if (want > 0f) min(1f, gd[made] / want) else 1f
+                gd[made] = max(0f, gd[made] - good * want)
+                b.fine[t] = (b.kit[t] * b.fine[t] + can * good) / (b.kit[t] + can)
+            }
+            if (glass > 0f || b.glassy[t] > 0f) b.glassy[t] = (b.kit[t] * b.glassy[t] + can * glass / want) / (b.kit[t] + can)
         }
         // (What it makes now is as good as its hands: the kit's quality is the mean of old and new, by share.)
         b.made[t] = (b.kit[t] * b.made[t] + can * b.makeQuality(t)) / (b.kit[t] + can)
@@ -454,12 +467,18 @@ fun wearOfMake(t: Tool, fine: Float, made: Float, tuning: Tuning): Float = (when
     else -> 1f
 }) * (1f + tuning.poorMakeWear * (1f - made))
 /**
- * How well tool [t] serves for being made well only in share [fine] (stone tools of poor stone, less) and by hands of
- * quality [made] (a clumsy spear point or sickle, less).
+ * How well tool [t] serves for being made well only in share [fine] (stone tools of poor stone, less), by hands of
+ * quality [made] (a clumsy spear point or sickle, less), and of obsidian in share [glassy] (more, [OBSIDIAN_EDGE]).
  */
-fun serveOfMake(t: Tool, fine: Float, made: Float, tuning: Tuning): Float =
+fun serveOfMake(t: Tool, fine: Float, made: Float, tuning: Tuning, glassy: Float = 0f): Float =
     (if (fineMaterial(t) != Material.STONE) 1f else tuning.poorStoneEdge + (1f - tuning.poorStoneEdge) * fine) *
-        (tuning.poorMakeEdge + (1f - tuning.poorMakeEdge) * made)
+        (tuning.poorMakeEdge + (1f - tuning.poorMakeEdge) * made) * (if (glassy > 0f) 1f + OBSIDIAN_EDGE * glassy else 1f)
+
+/**
+ * How much better a stone tool serves made wholly of obsidian ([Band.glassy]) than of flint: an obsidian edge is many times
+ * sharper, but the arrow or the sickle as a whole gains little by it. Not measured; an estimate.
+ */
+internal const val OBSIDIAN_EDGE = 0.1f
 
 /** Flint a tool's stone takes when knapped as blades or microliths, against plain flakes. */
 internal const val BLADE_STONE = 0.4f

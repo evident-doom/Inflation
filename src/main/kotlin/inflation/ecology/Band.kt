@@ -234,6 +234,8 @@ class Band(kinds: Int, totems: Int = kinds) {
      * knapping stone rather than of whatever stone is at hand, clothes of hide tanned with ochre.
      */
     val fine = enumFloats<Tool> { if (it == Tool.CLOTHES) 0f else 1f }
+    /** Of each stone tool in its kit, the share made of obsidian ([makeTools]): it serves the better for it ([OBSIDIAN_EDGE]). */
+    val glassy = enumFloats<Tool>()
     /**
      * Of each tool in its kit, how well it was made, 0..1: the skill of the hands that made it against a start band's
      * ([makeQuality]). Poorly made tools serve worse and wear faster ([wearOfMake], [serveOfMake]); a band that has just
@@ -964,7 +966,7 @@ class Band(kinds: Int, totems: Int = kinds) {
         o.fire = fire
         kit.copyInto(o.kit)
         knows.copyInto(o.knows)
-        fine.copyInto(o.fine)
+        fine.copyInto(o.fine); glassy.copyInto(o.glassy)
         made.copyInto(o.made)
         o.salted = salted; o.dryDepth = dryDepth; o.pests = pests
         o.sodiumWant = sodiumWant; o.saltWantStep = saltWantStep * share; saltWantStep -= o.saltWantStep
@@ -1015,6 +1017,7 @@ class Band(kinds: Int, totems: Int = kinds) {
             val ka = a.kit[i] * (1f - w)
             val kb = b.kit[i] * w
             if (ka + kb > 0f) a.fine[i] = weightedMean(a.fine[i], ka, b.fine[i], kb)
+            if (ka + kb > 0f && (a.glassy[i] > 0f || b.glassy[i] > 0f)) a.glassy[i] = weightedMean(a.glassy[i], ka, b.glassy[i], kb)
             if (ka + kb > 0f) a.made[i] = weightedMean(a.made[i], ka, b.made[i], kb)
             a.kit[i] += w * (b.kit[i] - a.kit[i])
         }
@@ -1155,8 +1158,8 @@ class Band(kinds: Int, totems: Int = kinds) {
 
     /** How its weapons, hunting skill and dogs do against [prey], against an ordinary armed, practised band without dogs (1). */
     fun huntEdge(prey: Species, tuning: Tuning) =
-        PURSUIT_KILLS * skill(Skill.HUNT) * edge(Skill.STALK) * (WEAPONLESS + (1f - WEAPONLESS) * has(Tool.SPEAR) * serveOfMake(Tool.SPEAR, fine[Tool.SPEAR], made[Tool.SPEAR], tuning) +
-            BOW_GAIN * has(Tool.BOW) * serveOfMake(Tool.BOW, fine[Tool.BOW], made[Tool.BOW], tuning) * min(1f, prey.speedKmh / 70f)) *
+        PURSUIT_KILLS * skill(Skill.HUNT) * edge(Skill.STALK) * (WEAPONLESS + (1f - WEAPONLESS) * has(Tool.SPEAR) * serveOfMake(Tool.SPEAR, fine[Tool.SPEAR], made[Tool.SPEAR], tuning, glassy[Tool.SPEAR]) +
+            BOW_GAIN * has(Tool.BOW) * serveOfMake(Tool.BOW, fine[Tool.BOW], made[Tool.BOW], tuning, glassy[Tool.BOW]) * min(1f, prey.speedKmh / 70f)) *
             (1f + DOG_HUNT * dogs.dogShare * max(0f, 1f - prey.massKg / DOG_PREY_KG))
 
 
@@ -1164,7 +1167,7 @@ class Band(kinds: Int, totems: Int = kinds) {
     fun ferocity(s: Species) = s.ferocity * (WEAPONLESS + (1f - WEAPONLESS) * has(Tool.SPEAR) + 0.5f * has(Tool.BOW))
 
     /** How much more seed its sickles reap, as well as their stone cuts. */
-    fun sickleGain(tuning: Tuning) = SICKLE_GAIN * has(Tool.SICKLE) * serveOfMake(Tool.SICKLE, fine[Tool.SICKLE], made[Tool.SICKLE], tuning)
+    fun sickleGain(tuning: Tuning) = SICKLE_GAIN * has(Tool.SICKLE) * serveOfMake(Tool.SICKLE, fine[Tool.SICKLE], made[Tool.SICKLE], tuning, glassy[Tool.SICKLE])
 
     /**
      * Gathering: the most of a plant food's stock in a place it can take in a week (a tick; over a step of several, that share

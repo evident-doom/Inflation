@@ -381,6 +381,8 @@ class Tuning(
      * source (1; 0 the old rule: only its own keep), as [inflation.ecology.lackGoods] reckons it.
      */
     val passOnYears = f("passOnYears", 1f)
+    /** Obsidian is got where it crops out and knapped before flint (1; 0 none is got, the old rule), as [inflation.ecology.gatherMaterials] has it. */
+    val obsidian = f("obsidian", 1f)
     /** How much less salted meat and fish spoil. */
     val saltKeep = f("saltKeep", 0.7f)
 

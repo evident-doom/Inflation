@@ -504,7 +504,7 @@ internal fun HexGroups.robCaches(weather: Weather) {
  * year, kg (not measured: a full kit's wear, a year's curing, a year's tanning); how many years'
  * worth a band keeps before it gives of it.
  */
-val TRADED = listOf(Material.STONE, Material.SALT, Material.OCHRE, Material.GROUND_STONE)
+val TRADED = listOf(Material.STONE, Material.SALT, Material.OCHRE, Material.GROUND_STONE, Material.OBSIDIAN)
 /** (Grinding stone is not used up a little a year but made into a set at once: what a person's share of a set takes.) */
-val YEAR_NEED = enumFloats<Material> { when (it) { Material.STONE -> 1f; Material.SALT -> 4f; Material.OCHRE -> 0.2f; Material.GROUND_STONE -> 15f; else -> 0f } }
+val YEAR_NEED = enumFloats<Material> { when (it) { Material.STONE -> 1f; Material.SALT -> 4f; Material.OCHRE -> 0.2f; Material.GROUND_STONE -> 15f; Material.OBSIDIAN -> 0.2f; else -> 0f } }
 internal const val KEEP_YEARS = 1f

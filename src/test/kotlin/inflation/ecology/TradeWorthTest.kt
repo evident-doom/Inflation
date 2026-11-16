@@ -42,6 +42,17 @@ class TradeWorthTest {
     }
 
     @Test
+    fun `a stone tool made of obsidian serves better by its edge, other tools and none of it not at all`() {
+        val t = inflation.Tuning.config
+        val flint = serveOfMake(Tool.BOW, 1f, 1f, t)
+        assertEquals(flint * (1f + OBSIDIAN_EDGE), serveOfMake(Tool.BOW, 1f, 1f, t, glassy = 1f), 1e-6f)
+        assertEquals(flint, serveOfMake(Tool.BOW, 1f, 1f, t, glassy = 0f))
+        assertEquals(1f, serveOfMake(Tool.NET, 1f, 1f, t, glassy = 0f) / serveOfMake(Tool.NET, 1f, 1f, t))
+        assertTrue(Material.OBSIDIAN in TRADED && Material.OBSIDIAN in PASSED_ON)
+        assertEquals(Material.OBSIDIAN, Material.entries.last(), "last, so saves made before it load")
+    }
+
+    @Test
     fun `carriers take a load each, one at least and all the grown at most`() {
         assertEquals(1f, carriersFor(3f, 10))
         assertEquals(3f, carriersFor(2.5f * FETCH_LOAD, 10))

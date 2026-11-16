@@ -21,10 +21,10 @@ internal const val ASK_REACH_KM = GOAL_GOING_KM
 internal fun spareGoods(b: Band, adults: Int, m: Material): Float = b.goods[m] - KEEP_YEARS * YEAR_NEED[m] * adults
 
 /**
- * The goods a band takes in beyond its own keep to give on ([lackGoods]): good stone, salt and ochre, light for what they are
+ * The goods a band takes in beyond its own keep to give on ([lackGoods]): good stone, salt, ochre and obsidian, light for what they are
  * worth. Grinding stone is heavy and made into a set at once, and goes no further than the band that makes it.
  */
-internal val PASSED_ON = listOf(Material.STONE, Material.SALT, Material.OCHRE)
+internal val PASSED_ON = listOf(Material.STONE, Material.SALT, Material.OCHRE, Material.OBSIDIAN)
 
 /**
  * What band [b] of [adults] grown lacks of [m] ([TRADED]), kg: for its own year's keep ([KEEP_YEARS]), and of the goods it
