@@ -123,29 +123,36 @@ class WeekStats {
  */
 private class ThreadSums<K>(private val ledger: ConcurrentSkipListMap<K, Int>) {
     @Volatile var on = false
-    /** One thread's sums, by key, and the keys it added to in the order it first did (walked at the flush instead of the map). */
-    private class Mine<T> { val at = HashMap<T, IntArray>(); val keys = ArrayList<T>(); val sums = ArrayList<IntArray>() }
+    /**
+     * One thread's sums since the last flush ([round]), by key, and the keys it added to in the order it first did (walked at
+     * the flush instead of the map).
+     */
+    private class Mine<T>(val round: Int) { val at = HashMap<T, IntArray>(); val keys = ArrayList<T>(); val sums = ArrayList<IntArray>() }
+    /**
+     * The sums of the threads that added since the last flush. Emptied at each flush, and a thread takes new sums in the next
+     * round: the pool's threads come and go (millions over a long run), and sums kept here for every thread that ever added
+     * filled most of the heap (memory-histo-1116: 13 of 14.3 GB in a max-population run).
+     */
     private val all = ConcurrentLinkedQueue<Mine<K>>()
-    private val mine = ThreadLocal.withInitial { Mine<K>().also { all += it } }
+    @Volatile private var round = 0
+    private val mine = ThreadLocal<Mine<K>>()
 
     fun add(key: K, n: Int) {
         if (!on) { ledger.merge(key, n, Int::plus); return }
-        val m = mine.get()
+        val m = mine.get()?.takeIf { it.round == round } ?: Mine<K>(round).also { mine.set(it); all += it }
         m.at.getOrPut(key) { IntArray(1).also { m.keys += key; m.sums += it } }[0] += n
     }
 
     /**
      * Puts every thread's sums in the ledger and turns them off (once the loops have joined): summed over the threads first,
      * then each key merged once (the sums are whole numbers, so the ledger is the same as merging thread by thread). A
-     * thread's keys are walked from its list, not its map, whose table stays as wide as its busiest week.
+     * thread's keys are walked from its list, not its map. The sums are then let go: each thread starts afresh next round.
      */
     fun flush() {
         on = false
         val total = HashMap<K, IntArray>()
-        for (m in all) {
-            for (i in m.keys.indices) total.getOrPut(m.keys[i]) { IntArray(1) }[0] += m.sums[i][0]
-            m.at.clear(); m.keys.clear(); m.sums.clear()
-        }
+        for (m in all) for (i in m.keys.indices) total.getOrPut(m.keys[i]) { IntArray(1) }[0] += m.sums[i][0]
+        all.clear(); round++
         for ((k, v) in total) ledger.merge(k, v[0], Int::plus)
     }
 }
