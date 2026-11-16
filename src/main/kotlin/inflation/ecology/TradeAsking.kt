@@ -20,16 +20,28 @@ internal const val ASK_REACH_KM = GOAL_GOING_KM
 /** What band [b] of [adults] grown holds of [m] ([TRADED]) beyond its own year's keep ([KEEP_YEARS], [YEAR_NEED]), kg: what it can give. */
 internal fun spareGoods(b: Band, adults: Int, m: Material): Float = b.goods[m] - KEEP_YEARS * YEAR_NEED[m] * adults
 
-/** What band [b] of [adults] grown lacks of [m] ([TRADED]) for its own year's keep, kg; grinding stone only to a band that makes grinding stones. */
-internal fun lackGoods(b: Band, adults: Int, m: Material): Float =
-    if (m == Material.GROUND_STONE && !b.knows[Tool.GRINDER]) 0f else KEEP_YEARS * YEAR_NEED[m] * adults - b.goods[m]
+/**
+ * The goods a band takes in beyond its own keep to give on ([lackGoods]): good stone, salt and ochre, light for what they are
+ * worth. Grinding stone is heavy and made into a set at once, and goes no further than the band that makes it.
+ */
+internal val PASSED_ON = listOf(Material.STONE, Material.SALT, Material.OCHRE)
+
+/**
+ * What band [b] of [adults] grown lacks of [m] ([TRADED]), kg: for its own year's keep ([KEEP_YEARS]), and of the goods it
+ * gives on ([PASSED_ON]) [passOn] years' more, a stock to give to bands further from the source for the regard it wins, as
+ * goods went down the line from band to band (Renfrew 1975). What it can spare is reckoned against its own keep alone
+ * ([spareGoods]), so the stock is what it gives on. Grinding stone only to a band that makes grinding stones.
+ */
+internal fun lackGoods(b: Band, adults: Int, m: Material, passOn: Float = 0f): Float =
+    if (m == Material.GROUND_STONE && !b.knows[Tool.GRINDER]) 0f
+    else (KEEP_YEARS + (if (m in PASSED_ON) passOn else 0f)) * YEAR_NEED[m] * adults - b.goods[m]
 
 /**
  * What [giver] ([adultsGiving] grown) gives [taker] ([adultsTaking]) of [m], kg: of what it can spare, as far as the taker lacks
- * it, by how freely it gives ([Band.giveWill]: above its 1 beyond the lack, for the regard it wins), as at a meeting.
+ * it (with [passOn] years' stock to give on, [lackGoods]), by how freely it gives ([Band.giveWill]: above its 1 beyond the lack, for the regard it wins), as at a meeting.
  */
-internal fun goodsGiven(giver: Band, adultsGiving: Int, taker: Band, adultsTaking: Int, m: Material): Float {
-    val spare = spareGoods(giver, adultsGiving, m); val lack = lackGoods(taker, adultsTaking, m)
+internal fun goodsGiven(giver: Band, adultsGiving: Int, taker: Band, adultsTaking: Int, m: Material, passOn: Float = 0f): Float {
+    val spare = spareGoods(giver, adultsGiving, m); val lack = lackGoods(taker, adultsTaking, m, passOn)
     return if (spare <= 0f || lack <= 0f) 0f else min(spare, lack * giver.giveWill)
 }
 
@@ -48,8 +60,9 @@ internal fun carriersFor(kg: Float, adults: Int): Float = min(adults.toFloat(), 
 internal fun HexGroups.askForGoods(weather: Weather) {
     if (tuning.askForGoods <= 0f) return
     val today = weather.date.absoluteDay
+    val passOn = tuning.passOnYears
     val bandsNow = groups.filter { it.alive && it.band != null }
-    val short = bandsNow.filter { g -> val b = g.band; b != null && g.adults > 0 && TRADED.any { lackGoods(b, g.adults, it) > 0f } }
+    val short = bandsNow.filter { g -> val b = g.band; b != null && g.adults > 0 && TRADED.any { lackGoods(b, g.adults, it, passOn) > 0f } }
         .sortedBy { tieBreak(seedBase, it.id, 1, today) }
     if (short.isEmpty()) return
     val byId = bandsNow.associateBy { it.id }
@@ -62,10 +75,10 @@ internal fun HexGroups.askForGoods(weather: Weather) {
         val known = gb.lastMet.keys.mapNotNull { byId[it] }.filter { o ->
             val ob = o.band
             ob != null && o.alive && o !== g && hexKm(h0, hw.placeHex[o.place]) <= ASK_REACH_KM &&
-                TRADED.any { m -> goodsGiven(ob, o.adults, gb, g.adults, m) > 0f }
+                TRADED.any { m -> goodsGiven(ob, o.adults, gb, g.adults, m, passOn) > 0f }
         }.sortedBy { it.id }
         if (known.isEmpty()) continue
-        for ((j, m) in TRADED.withIndex()) worth[j] = if (lackGoods(gb, g.adults, m) > 0f) worthDaysPerKg(g, gb, m, weather) else 0f
+        for ((j, m) in TRADED.withIndex()) worth[j] = if (lackGoods(gb, g.adults, m, passOn) > 0f) worthDaysPerKg(g, gb, m, weather) else 0f
         val reach = reachOf(g, h0, ASK_REACH_KM, weather)
         var best: HexGroup? = null; var bestNet = 0f; var bestCarriers = 0f
         for (o in known) {
@@ -73,7 +86,7 @@ internal fun HexGroups.askForGoods(weather: Weather) {
             if (Regard(ob, g.id, gb, map = hex).tie < FEUD_GIFT) continue
             val km = reach.km(hw.placeHex[o.place], ASK_REACH_KM) ?: continue
             var kg = 0f; var days = 0f
-            for ((j, m) in TRADED.withIndex()) { val hope = goodsGiven(ob, o.adults, gb, g.adults, m); kg += hope; days += hope * worth[j] }
+            for ((j, m) in TRADED.withIndex()) { val hope = goodsGiven(ob, o.adults, gb, g.adults, m, passOn); kg += hope; days += hope * worth[j] }
             if (kg <= 0f) continue
             val carriers = carriersFor(kg, g.adults)
             val net = days - visitDays(carriers, km.toDouble())
@@ -85,7 +98,7 @@ internal fun HexGroups.askForGoods(weather: Weather) {
         val gifts = ArrayList<Given>(2)
         var useful = 0f
         for ((j, m) in TRADED.withIndex()) {
-            val gift = goodsGiven(ob, o.adults, gb, g.adults, m)
+            val gift = goodsGiven(ob, o.adults, gb, g.adults, m, passOn)
             if (gift <= 0f) continue
             ob.goods[m] -= gift; gb.goods[m] += gift
             if (m == Material.SALT) { ob.noteSalt(SaltFlow.GIVEN_OUT, gift); gb.noteSalt(SaltFlow.GIVEN_IN, gift) }

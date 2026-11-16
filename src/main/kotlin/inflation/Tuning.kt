@@ -376,6 +376,11 @@ class Tuning(
     val goodsFavours = f("goodsFavours", 1f)
     /** Bands short of good stone, salt or ochre go to ask a band they know holds more than it needs (1; 0 none: they wait for meetings), as [inflation.ecology.askForGoods] has it. */
     val askForGoods = f("askForGoods", 1f)
+    /**
+     * Years of need of good stone, salt and ochre a band takes in beyond its own keep, to give on to bands further from the
+     * source (1; 0 the old rule: only its own keep), as [inflation.ecology.lackGoods] reckons it.
+     */
+    val passOnYears = f("passOnYears", 1f)
     /** How much less salted meat and fish spoil. */
     val saltKeep = f("saltKeep", 0.7f)
 

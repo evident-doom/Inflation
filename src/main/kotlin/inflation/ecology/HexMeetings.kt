@@ -619,7 +619,8 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
             if (m == Material.GROUND_STONE && !tb.knows[Tool.GRINDER]) continue
             val need = YEAR_NEED[m]
             val spare = gb.goods[m] - KEEP_YEARS * need * giver.adults
-            val lack = KEEP_YEARS * need * taker.adults - tb.goods[m]
+            // (And of the goods it gives on, a stock beyond its keep for the bands further out: [lackGoods].)
+            val lack = lackGoods(tb, taker.adults, m, tuning.passOnYears)
             if (spare <= 0f || lack <= 0f) continue
             // (Above its 1 a band gives beyond what the other lacks, as far as it can spare: goods given away for the regard they win.)
             val gift = min(spare, lack * gb.giveWill)

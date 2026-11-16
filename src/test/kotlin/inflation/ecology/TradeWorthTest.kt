@@ -31,6 +31,17 @@ class TradeWorthTest {
     }
 
     @Test
+    fun `a band takes in a stock to give on beyond its keep, and spares it, but no grinding stone`() {
+        val b = Band(1)
+        // (5 grown keep 20 kg of salt a year; with a year's stock to give on it takes in 40.)
+        assertEquals(40f, lackGoods(b, 5, Material.SALT, passOn = 1f), 1e-4f)
+        b.goods[Material.SALT] = 40f
+        assertEquals(20f, spareGoods(b, 5, Material.SALT), 1e-4f, "the stock is what it can give on")
+        b.knows[Tool.GRINDER] = true
+        assertEquals(lackGoods(b, 5, Material.GROUND_STONE), lackGoods(b, 5, Material.GROUND_STONE, passOn = 1f), "grinding stone is not given on")
+    }
+
+    @Test
     fun `carriers take a load each, one at least and all the grown at most`() {
         assertEquals(1f, carriersFor(3f, 10))
         assertEquals(3f, carriersFor(2.5f * FETCH_LOAD, 10))
