@@ -378,12 +378,51 @@ internal fun GroupWorld.makeOrnaments(b: Band, people: Float, time: BandTime) {
  * [least] skill or more at its craft ([domain], [Band.skill]): figurines and drilled beads pecked and carved from stone,
  * pieces of obsidian (blades and mirrors), beads of sea shell and pendants of bone. Days and skills not measured; estimates.
  */
-enum class OrnamentKind(val label: String, val days: Float, val material: Material, val kgEach: Float, val domain: Domain, val least: Float) {
-    FIGURINE("stone figurines", 8f, Material.GROUND_STONE, 0.3f, Domain.GROUND_STONE, 0.6f),
-    STONE_BEAD("drilled stone beads", 6f, Material.GROUND_STONE, 0.03f, Domain.GROUND_STONE, 0.5f),
-    OBSIDIAN_PIECE("obsidian pieces", 4f, Material.OBSIDIAN, 0.1f, Domain.KNAPPING, 0.5f),
+enum class OrnamentKind(val label: String, val days: Float, val material: Material, val kgEach: Float, val domain: Domain, val least: Float,
+                         val master: Float = least) {
+    FIGURINE("stone figurines", 8f, Material.GROUND_STONE, 0.3f, Domain.GROUND_STONE, 0.6f, master = 0.85f),
+    STONE_BEAD("drilled stone beads", 6f, Material.GROUND_STONE, 0.03f, Domain.GROUND_STONE, 0.5f, master = 0.75f),
+    OBSIDIAN_PIECE("obsidian pieces", 4f, Material.OBSIDIAN, 0.1f, Domain.KNAPPING, 0.5f, master = 0.65f),
     SHELL_BEAD("shell beads", ORNAMENT_DAYS, Material.SHELL, SHELL_EACH, Domain.BONEWORK, 0f),
-    BONE_PENDANT("bone pendants", ORNAMENT_DAYS, Material.BONE, BONE_EACH, Domain.BONEWORK, 0f),
+    BONE_PENDANT("bone pendants", ORNAMENT_DAYS, Material.BONE, BONE_EACH, Domain.BONEWORK, 0f);
+
+    /** Whether it is finery: a kind only skilled hands make ([master] above [least] or a least at all), made for worth with [inflation.Tuning.finery]. */
+    val fine get() = least > 0f
+    /** The skill its makers need: [least], or with finery [master], a specialist's ([inflation.Tuning.finery]). */
+    fun needs(finery: Boolean) = if (finery) master else least
+}
+
+/**
+ * Finery (docs/design/trade.md, "What would let crafted wealth part bands"; [inflation.Tuning.finery]): beyond its plain
+ * ornaments, a band with a master's hands and the material makes the fine kinds for their worth, up to [FINERY_WORTH]
+ * person-days of them a person, at most [FINERY_DAYS_A_WEEK] person-days a person a week; they wear out, break and are
+ * lost at [FINERY_WEAR] a year ([wearOrnaments]), and the making practises the craft. All estimates.
+ */
+internal const val FINERY_WORTH = 30f
+internal const val FINERY_DAYS_A_WEEK = 0.2f
+internal const val FINERY_WEAR = 0.1f
+
+/** The best of [b]'s hands at a fine kind it can make, with its material, at a master's skill ([OrnamentKind.needs]); 0 if none. */
+internal fun fineryHands(b: Band): Float {
+    var best = 0f
+    for (k in OrnamentKind.entries) if (k.fine) {
+        val hands = b.skill(k.domain)
+        if (hands >= k.master && b.goods[k.material] >= k.kgEach) best = max(best, hands)
+    }
+    return best
+}
+
+/** The person-days [b] would give its finery this week ([FINERY_WORTH], [FINERY_DAYS_A_WEEK]), for the week's plan to ask; 0 without master's hands and material. */
+internal fun fineryDays(b: Band, people: Float): Float {
+    val hands = fineryHands(b)
+    if (hands <= 0f) return 0f
+    return max(0f, min(FINERY_DAYS_A_WEEK * people, (FINERY_WORTH * people - b.ornamentWorth) / hands))
+}
+
+/** Its ornaments wear out, break and are lost at [FINERY_WEAR] a year, over [years]: pieces, shell and worth alike. */
+internal fun wearOrnaments(b: Band, years: Float) {
+    if (b.ornaments <= 0f) return
+    b.takeOrnaments(b.ornaments * min(1f, FINERY_WEAR * years))
 }
 
 /**
@@ -395,14 +434,17 @@ enum class OrnamentKind(val label: String, val days: Float, val material: Materi
  */
 private fun GroupWorld.makeCrafted(b: Band, people: Float, time: BandTime) {
     val gd = b.goods
+    val finery = tuning.finery > 0f
     var left = time.leftFor(Activity.ORNAMENTS)
     var want = ORNAMENTS_PER_PERSON * people - b.ornaments
-    if (left <= 0f || people <= 0f || want <= 0f) return
+    if (left <= 0f || people <= 0f || (want <= 0f && !finery)) return
     for (k in OrnamentKind.entries) {
-        if (left <= 0f || want <= 0f) break
+        if (left <= 0f) break
         val hands = b.skill(k.domain)
-        if (hands <= 0f || hands < k.least) continue
-        val made = minOf(want, left / k.days, gd[k.material] / k.kgEach)
+        if (hands <= 0f || hands < k.needs(finery)) continue
+        // (With finery the fine kinds are made for their worth, up to [FINERY_WORTH] a person; the plain ones up to the count.)
+        val room = if (finery && k.fine) (FINERY_WORTH * people - b.ornamentWorth) / (k.days * hands) else want
+        val made = minOf(room, left / k.days, gd[k.material] / k.kgEach)
         if (made <= 0f) continue
         gd[k.material] = max(0f, gd[k.material] - made * k.kgEach)
         b.ornaments += made; if (k.material == Material.SHELL) b.exotic += made
@@ -410,6 +452,8 @@ private fun GroupWorld.makeCrafted(b: Band, people: Float, time: BandTime) {
         time.spend(Activity.ORNAMENTS, made * k.days)
         want -= made; left -= made * k.days
         stats.meeting(Met.Of.MADE, k.label, ceil(made).toInt())
+        // (The making keeps the hands in practice: a master's skill is kept by making, and lost without.)
+        if (finery) Skill.of(k.domain).filter { b.knowsSkill[it] }.maxByOrNull { b.skill(it) * it.gain }?.let { b.practise(it) }
     }
 }
 

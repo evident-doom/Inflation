@@ -88,6 +88,18 @@ class TradeWorthTest {
     }
 
     @Test
+    fun `finery wears out in its share, and a band without a master's hands asks no days for it`() {
+        val b = Band(1)
+        b.ornaments = 10f; b.exotic = 2f; b.ornamentWorth = 50f
+        wearOrnaments(b, 1f)
+        assertEquals(10f * (1f - FINERY_WEAR), b.ornaments, 1e-4f); assertEquals(50f * (1f - FINERY_WEAR), b.ornamentWorth, 1e-3f)
+        b.goods[Material.GROUND_STONE] = 100f
+        assertEquals(0f, fineryDays(b, 20f), "plain hands make no finery")
+        assertTrue(OrnamentKind.entries.filter { it.fine }.all { it.master > it.least }, "finery asks more of the hands than plain making")
+        assertTrue(OrnamentKind.entries.filter { !it.fine }.all { it.needs(true) == 0f })
+    }
+
+    @Test
     fun `carriers take a load each, one at least and all the grown at most`() {
         assertEquals(1f, carriersFor(3f, 10))
         assertEquals(3f, carriersFor(2.5f * FETCH_LOAD, 10))

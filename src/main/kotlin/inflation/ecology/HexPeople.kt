@@ -160,6 +160,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     time.release(Activity.TOOLS)
     b.renown *= 1f - RENOWN_FADE * years
     ledgerOnScale(b)
+    if (tuning.finery > 0f && tuning.craftWorth > 0f) wearOrnaments(b, years)
     // (Its weeks are ticks: a step of several ticks uses up as many, so the mark lasts the same days at any step length.)
     b.unlucky?.let { u -> b.unlucky = if (u.weeks > ticks) Unlucky(u.hex, u.weeks - ticks) else null }
     b.sinceRaided += ticks
@@ -265,7 +266,7 @@ internal fun HexGroups.choreAsks(g: HexGroup, b: Band, date: Date, asks: EnumFlo
     ask(Activity.TRAINING, Skill.entries.sumOf { s -> (learners(b, s, people) * APPRENTICE_DAYS * s.complexity).toDouble() }.toFloat())
     // (What its kit asks beyond the clothes' days given first, when given: [survivalDays].)
     ask(Activity.TOOLS, makeTools(b, people, null) - (warm?.get(Activity.TOOLS) ?: 0f))
-    ask(Activity.ORNAMENTS, ornamentsWanted(b, people) * ORNAMENT_DAYS)
+    ask(Activity.ORNAMENTS, ornamentsWanted(b, people) * ORNAMENT_DAYS + (if (tuning.finery > 0f && tuning.craftWorth > 0f) fineryDays(b, people) else 0f))
     // (The seed it keeps back from its meals for its next sowing: [seedKeep].)
     b.seedTarget = sowLeft(g, b, p, g.storeKgPer[Store.SEED], b.sowWill)
     // (A band that has just moved builds, sows and fortifies nothing where it has come to.)
