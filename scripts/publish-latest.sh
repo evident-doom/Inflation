@@ -40,7 +40,9 @@ if [ "$N" != - ]; then
 else NN=$(old nets); [ -n "$NN" ] || die "the branch holds no nets to keep: give NETS_DIR"; fi
 
 WC=$(git cat-file blob ":test-worlds/$WN/about.properties" | sed -n 's/^commit=//p')
+# (info.txt's "commit HASH" line as `baseline save` writes it, else the first "main HASH" in it, as in hand-kept ones.)
 NC=$(git cat-file blob ":baselines/$NN/info.txt" 2>/dev/null | sed -n 's/^commit //p' || true)
+[ -n "$NC" ] || NC=$(git cat-file blob ":baselines/$NN/info.txt" 2>/dev/null | grep -o 'main [0-9a-f]\{7,\}' | head -1 | cut -d' ' -f2 || true)
 printf 'world=%s\nworldCommit=%s\nnets=%s\nnetsCommit=%s\nupdated=%s\n' "$WN" "$WC" "$NN" "$NC" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$TMP/LATEST.properties"
 add "$TMP/LATEST.properties" LATEST.properties
 
