@@ -157,13 +157,17 @@ internal fun GroupWorld.illnessAhead(b: Band, p: Place, t: Float, crowd: Float, 
  * sick ([Tradition.HYGIENE]) and to those spared by having had it. [strangers], 0..1: how far they are strangers to each
  * other (never met before, and not kin: [strangersAt]), whose sicknesses the spared are the less spared from ([STRANGER_GERMS]).
  */
-internal fun passIllness(a: Band, b: Band, strangers: Float = 0f) {
-    for (d in Illness.entries) {
-        if (d.contagion <= 0f) continue
-        val i = d
-        val sa = a.sick[i]; val sb = b.sick[i]
-        if (sa > 0f) b.sick[i] = min(1f, b.sick[i] + caughtFrom(d, sa, b, strangers))
-        if (sb > 0f) a.sick[i] = min(1f, a.sick[i] + caughtFrom(d, sb, a, strangers))
+internal fun passIllness(a: Band, b: Band, strangers: Float = 0f, times: Int = 1) {
+    // (A meeting that stands for [times] meetings over a long step ([HexGroups.meetTimes]) passes it on as often: before, once,
+    // and the flux's bouts at 30-day steps came to a third of the weekly model's with its catching unchanged; flux815.)
+    repeat(times) {
+        for (d in Illness.entries) {
+            if (d.contagion <= 0f) continue
+            val i = d
+            val sa = a.sick[i]; val sb = b.sick[i]
+            if (sa > 0f) b.sick[i] = min(1f, b.sick[i] + caughtFrom(d, sa, b, strangers))
+            if (sb > 0f) a.sick[i] = min(1f, a.sick[i] + caughtFrom(d, sb, a, strangers))
+        }
     }
 }
 
