@@ -148,7 +148,7 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
     riteMeet(bandA, bandB, ab, ba)
     teach(bandA, bandB, u, (doing(a) - doing(b)).coerceIn(-1f, 1f))
     // And the sick among them pass on what is catching.
-    passIllness(bandA, bandB, strangers, meetTimes)
+    passIllness(bandA, bandB, strangers, meetTicks)
     // Each tells the other of the country it knows round about, as far as they understand each other.
     // (News told is old: bands that meet again and again have little new to tell, [meetingFresh].)
     if (rnd.nextFloat() < u * (0.6f + 0.4f * close) * fresh) tellOfCountry(a, bandA, b, bandB, ab, ba, weather)

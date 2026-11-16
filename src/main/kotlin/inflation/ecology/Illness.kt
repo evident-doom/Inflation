@@ -158,8 +158,9 @@ internal fun GroupWorld.illnessAhead(b: Band, p: Place, t: Float, crowd: Float, 
  * other (never met before, and not kin: [strangersAt]), whose sicknesses the spared are the less spared from ([STRANGER_GERMS]).
  */
 internal fun passIllness(a: Band, b: Band, strangers: Float = 0f, times: Int = 1) {
-    // (A meeting that stands for [times] meetings over a long step ([HexGroups.meetTimes]) passes it on as often: before, once,
-    // and the flux's bouts at 30-day steps came to a third of the weekly model's with its catching unchanged; flux815.)
+    // (A meeting standing for meetings in [times] of a long step's ticks ([HexGroups.meetTicks]) passes it on as often, as the
+    // weekly model does once a week they meet: before, once a step, and the flux's bouts at 30-day steps came to a third of
+    // the weekly model's with its catching unchanged; flux815.)
     repeat(times) {
         for (d in Illness.entries) {
             if (d.contagion <= 0f) continue
