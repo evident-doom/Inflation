@@ -157,8 +157,8 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         val a = kinds[k]; val b = kinds[j]
         if (j == k) 1f else if (a.kin == Kin.NONE || a.kin != b.kin) 0f else SHARED_SICK * dietOverlap(a.diet, b.diet) } }
     /**
-     * How damp each place's ground has been over the last months, 0..1 ([wetSickness]): the marsh and the floodplain,
-     * and the soil as wet as it holds, a mean of some half a year. NaN until the first step reckons it.
+     * How damp each place's ground has been over the last months, 0..1 ([wetSickness]): the share of it sodden
+     * ([stepDamp]), a mean of some half a year. NaN until the first step reckons it.
      */
     val damp = FloatArray(n) { Float.NaN }
     /**
@@ -823,8 +823,9 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         const val START_SHARE = 0.5f
         /** Forage quality (against green, 1) at which a herbivore's gut just holds its need: middling forage. */
         const val GUT_QREF = 0.8f
-        /** [sharers]: how far another kind that shares its parasites crowds it, at a diet the same as its own. */
-        const val SHARED_SICK = 0.3f
+        /** [sharers]: how far another kind that shares its parasites crowds it, at a diet the same as its own. (At 0.3 the cud-chewers
+         * crowded each other past the backstop at half their own numbers: a modest share, as their worms are mostly their own.) */
+        const val SHARED_SICK = 0.1f
         /**
          * [usualAt]: kg of a hunter its territories hold for each kg of prey of its size there ([preyBiomass]). Wolves some
          * 3.3 to the 1000 km² for each deer-equivalent a km² (Fuller 1989), about 2 kg for 1000 of prey at a 35 kg wolf;
@@ -845,13 +846,6 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         const val WET_SICK = 0.3f
         /** [damp]: the share of the way to the week's dampness it goes a week, about half a year's memory. */
         const val DAMP_WEEK = 1f / 26f
-        /**
-         * [damp]: the share of what it holds of water above which soil is wet ground for the flukes and foot rot, all of it
-         * at full. With the square of the soil's water counted, the hills' winter-moist soil sickened wild goats, sheep,
-         * gazelle, onagers and the desert kinds on their own ground, and over 150 years the goats and sheep, the oryx and
-         * the camels died out (main 2026-11-16, three seeds).
-         */
-        const val SOIL_WET = 0.9f
         /** The share of two diets that is of the same sorts of food, 0..1 (Schoener's overlap). */
         fun dietOverlap(a: Diet, b: Diet): Float {
             val ta = (a.grass + a.browse + a.fruit + a.roots).coerceAtLeast(1e-6f); val tb = (b.grass + b.browse + b.fruit + b.roots).coerceAtLeast(1e-6f)

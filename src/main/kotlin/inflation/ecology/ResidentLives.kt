@@ -261,20 +261,15 @@ internal fun HexFauna.wetSickness(s: Species, p: Place, fed: Float): Float {
 }
 
 /**
- * Brings each place's [HexFauna.damp] a step on: the week's dampness, the most of the marsh share, the floodplain share while
- * it floods, and how
- * far the soil stands wet, above [HexFauna.SOIL_WET] of the water it holds (wet ground, not merely moist, keeps the snails
- * of the fluke), followed at [HexFauna.DAMP_WEEK] a week.
+ * Brings each place's [HexFauna.damp] a step on: the share of it whose soil is sodden this week ([HexHydrology.saturated]:
+ * marsh and bog, a flooded floodplain, a valley floor over a high water table), where the fluke's snails live and hooves
+ * soften, followed at [HexFauna.DAMP_WEEK] a week. (Reckoned from the soil's water against what it holds, the winter
+ * soil of the hills at field capacity counted as wet ground, and goats, sheep and gazelle sickened on their own hills.)
  */
 internal fun HexFauna.stepDamp() {
     val h = land.hydro; val rate = overTicks(HexFauna.DAMP_WEEK)
     for (p in land.places) {
-        val cap = h.soilCap[p]; val soil = if (cap > 0f) (h.soil[p] / cap).coerceIn(0f, 1f) else 0f
-        // (Soil counts only as it nears what it holds, standing wet: winter-moist hill soil keeps no fluke snails.)
-        val wet = ((soil - HexFauna.SOIL_WET) / (1f - HexFauna.SOIL_WET)).coerceIn(0f, 1f)
-        // (The floodplain only while it is under water: its meadows breed flukes after a flood, not through the dry months.)
-        val flooded = if (h.flood[p] > 0f) land.floodShare[p] else 0f
-        val now = max(max(land.waterlogged[p], flooded), wet)
+        val now = h.saturated(p)
         val d = damp[p.i]
         damp[p.i] = if (d.isNaN()) now else d + (now - d) * rate
     }
