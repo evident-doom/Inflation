@@ -4,7 +4,6 @@ import inflation.ecology.HexSmallLife.DeadPool
 import inflation.EnumFloats
 import inflation.Kg
 import inflation.Part
-import inflation.world.Hex
 import inflation.world.Weather
 import inflation.world.get
 import inflation.world.set
@@ -91,7 +90,7 @@ internal fun HexGroups.keepAndSpoil(w: ForageWeek, got: EnumFloats<Store>, gotKg
     band.houseFoodWeek += kept; band.houseWeek[HouseWorth.KEPT_KG] += kept
     // (Fresh meat beyond what it can eat before it rots it sets before its neighbours, by its custom of feasting: it rots, what
     // the feast leaves, once they have eaten ([feastOnKills]).)
-    band.feastMeat = if (band.byCustom(band.holds(Tradition.FEASTS), band.feastWill) > 0f)
+    band.feastMeat = if (band.feastKeen > 0f)
         max(0f, g.stores[Store.FRESH] - killKeeps(band, g.dailyNeedKg * days, weather.temperature[g.place]) + band.driedLast) else 0f
     g.stores[Store.FRESH] -= band.feastMeat
     // (Pits sealed with clay and plaster keep the mice out.)
@@ -119,7 +118,7 @@ internal fun HexGroups.keepAndSpoil(w: ForageWeek, got: EnumFloats<Store>, gotKg
 
 /**
  * Feasts on kills: a band holding more fresh meat than it can eat before it rots ([Band.feastMeat]) sets it before the bands
- * within a day or two's walk ([VISIT_RINGS]), the nearest first, as much as [FEAST_KG] a guest by its will to feast; the guests
+ * within a day or two's walk by the ground ([kinReachKm], [reachOf]), the nearest by the going first, as much as [FEAST_KG] a guest by its will to feast; the guests
  * take it home to eat first ([PERISHABLE]) and remember it, as at a feast at a meeting. What is left rots as fresh meat does
  * ([spoil]). (A big kill is shared out across camps: Hadza meat goes to every household in camp and beyond.)
  */
@@ -127,31 +126,31 @@ internal fun HexGroups.keepAndSpoil(w: ForageWeek, got: EnumFloats<Store>, gotKg
 internal fun HexGroups.feastOnKills(weather: Weather) {
     val hosts = groups.filter { g -> g.alive && (g.band?.feastMeat ?: 0f) > 0f }
     if (hosts.isEmpty()) return
-    val byHex = HashMap<Hex, ArrayList<HexGroup>>()
-    for (g in groups) if (g.alive && g.band != null) byHex.getOrPut(hw.placeHex[g.place]) { ArrayList() } += g
     for (host in hosts) {
         val hb = host.band ?: continue
-        val keen = hb.byCustom(hb.holds(Tradition.FEASTS), hb.feastWill)
+        val keen = hb.feastKeen
         var left = min(hb.feastMeat, host.stores[Store.FRESH])
         val h0 = hw.placeHex[host.place]
-        var ring = listOf(h0); val seen = hashSetOf(h0)
-        for (r in 0..VISIT_RINGS) {
-            for (h in ring) for (guest in byHex[h].orEmpty()) if (guest !== host && left > 0f) {
+        val most = kinReachKm(); val reach = reachOf(host, h0, most, weather)
+        val order = (0 until reach.hexes.size).filter { reach.dist[it] <= most }.sortedWith(compareBy<Int> { reach.dist[it] }.thenBy { reach.hexes[it].i })
+        for (i in order) {
+            val h = reach.hexes[i]
+            // (The bands there as the hunt began, [WhoIsWhere.Moment.MOVED]: those that died in it come to no feast.)
+            for (guest in where.bandsIn(h)) if (guest !== host && guest.alive && left > 0f) {
                 // (From another hex the guests' [VISITORS] come and carry home what they can, [MEAT_LOAD_KG] each, and give
                 // the days of the walk ([visitDays]). Olli, 13 Nov 2026: no free movement.)
-                val apart = r > 0
+                val apart = h != h0
                 val meal = minOf(left, FEAST_KG * guest.size * keen, if (apart) VISITORS * MEAT_LOAD_KG else Float.POSITIVE_INFINITY)
                 if (meal <= 0f) continue
-                val walk = if (apart) tripKm(guest, h, h0, weather) ?: continue else 0f
-                if (apart) guest.band?.let { it.raidWalkOwed += visitDays(VISITORS, walk.toDouble()) }
+                // (By the ground, wearing the way, from their next step's days: [trip]. No way there, no guests from there.)
+                if (apart && trip(guest, h0, weather, VISITORS, WalkPaid.NEXT_STEP) == null) continue
                 host.stores[Store.FRESH] -= meal; addFood(guest.stores, guest.storeKgPer, Store.FRESH, meal, meal * host.storeKgPer[Store.FRESH])
                 hb.larderMoved(host, LarderMove.FEAST, -meal); guest.band?.larderMoved(guest, LarderMove.FEAST, meal)
                 left -= meal
                 guest.band?.befriend(host.id, TIE_FEAST); hb.befriend(guest.id, 0.5f * TIE_FEAST)
                 stats.meeting(Met.KILL_FEASTS)
             }
-            if (r == VISIT_RINGS || left <= 0f) break
-            ring = hex.nextRing(ring, seen)
+            if (left <= 0f) break
         }
         // (What none ate rots, as it would have in its stores.)
         val rot = min(left, host.stores[Store.FRESH]) * (1f - exp(-HexSmallLife.CARRION_ROT * spoilWarmth(weather.temperature[host.place]) * days))
@@ -340,3 +339,13 @@ internal fun countStoreWork(u: DialUse, g: HexGroup, b: Band, work: Float) {
     u.amount(DialSite.STORE_WANT, b.storeShare, work, if (worn) storeWant(g, b, b.storeAimAt1) * (1f - b.mendFirst) else storeWant(g, b, b.storeAimAt1))
     if (worn) u.amount(DialSite.MENDING_FIRST, b.will[BandWay.MENDING_FIRST], work, mendAt1)
 }
+
+/** Person-days to dry or smoke a kilo of meat or fish (cutting it thin, tending the racks and fire), at full skill. */
+internal const val DRY_DAYS_PER_KG = 0.1f
+/**
+ * Keeping: rain in a week that halves what racks in the sun dry, mm; how much less smoked meat spoils
+ * at full skill than sun-dried; how much of the mice's take sealed pits and bins keep out at full skill.
+ */
+internal const val DRY_RAIN_MM = 30f
+internal const val SMOKE_KEEP = 0.5f
+internal const val SEAL_KEEP = 0.7f

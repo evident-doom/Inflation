@@ -29,7 +29,7 @@ internal fun GroupWorld.catchable(s: Species, ps: Species, p: Place): Float = fa
  */
 internal fun GroupWorld.huntGround(g: HexGroup, km2: Float): HuntGround {
     // (A band's ground is for its meetings only, [bandGround]: it hunts as it did.)
-    if (g.band == null) g.footprint?.let { return footGround(g, it, g.footWeights ?: return@let, km2) }
+    g.footprint?.takeIf { it.hunted }?.let { return footGround(g, it.hexes, it.weights, km2) }
     val path = g.path; val area = land.areaKm2
     // (Over a step of several ticks, ground searched one week has game on it again the next: a place holds as much
     // search as its area each tick.)
@@ -99,21 +99,26 @@ internal fun HexGroups.herdOdds(w: ForageWeek) {
     val s = w.g.species; val view = FloatArray(2)
     for (j in 0 until w.ground.size) {
         val p = Place(w.ground.place[j])
-        val camps = bands.bandIndex[hw.placeHex[p]] ?: continue
+        // (The herds kept here: at their bands' camps, or at a summer pasture away from them ([Herd.at], [WhoIsWhere.herdsKeptIn]).)
+        val atCamps = where.bandsIn(hw.placeHex[p]); val away = where.herdsKeptIn(hw.placeHex[p])
+        if (atCamps.isEmpty() && away.isEmpty()) continue
         var looked = false
-        for (c in camps) {
+        for (c in atCamps + away) {
             val b = c.band ?: continue
-            if (c.place != p || !c.alive) continue
-            // (Penned at night ([Built.PEN]), a herd is that much harder to get at: [PEN_GUARD].)
-            val guard = stalkGuard(b, 0f, b.fencedNow()) * (1f - PEN_GUARD * penned(c, b, hw.placeHex[p]))
+            val kept = b.herds.at.takeIf { !it.none } ?: c.place
+            if (kept != p || !c.alive) continue
+            // (Penned at night ([Built.PEN]), a herd is that much harder to get at: [PEN_GUARD]. At a pasture away from its camp
+            // its herders keep a fire and their dogs, but there is no pen or palisade there.)
+            val atCamp = kept == c.place
+            val guard = if (atCamp) stalkGuard(b, 0f, b.fencedNow()) * (1f - PEN_GUARD * penned(c, b, hw.placeHex[p])) else stalkGuard(b, 0f, 0f)
             val young = b.herds.youngHerd()
             for (k in b.herds.herd.indices) {
                 val all = b.herds.herd[k] + young[k]; if (all < 1f) continue
-                val ps = fauna.kinds[k]
+                val ps = fauna.kinds[k]; val sh = fauna.preyShelter(ps, p)
                 // (The grown and the young, each as catchable as their weight makes them ([HexFauna.catchable]).)
                 for (y in 0..1) {
                     val n = if (y == 1) young[k] else b.herds.herd[k]; if (n <= 0f) continue
-                    val success = killChance(fauna.catchable(s, ps, if (y == 1) HexFauna.YOUNG_WEIGHT * ps.massKg else ps.massKg, p), 1f) * guard
+                    val success = killChance(fauna.catchable(s, ps, if (y == 1) HexFauna.YOUNG_WEIGHT * ps.massKg else ps.massKg, p, sh), 1f) * guard
                     if (!(success > 0f)) continue
                     if (!looked) { openness(s, p, w.weather, view); looked = true }
                     val image = w.g.metLately(ps.index, w.today).let { it / (it + SEARCH_HALF) }

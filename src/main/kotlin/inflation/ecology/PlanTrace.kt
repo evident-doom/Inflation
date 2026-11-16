@@ -57,7 +57,7 @@ internal fun GroupPlanner.tellNotANumber(c: PlanContext, t: PlaceTerms?, p: Plac
     val causes = StringBuilder()
     gs.foreseenHazards(g, p, c.weather, fed, thirst, d) { cause, a, y ->
         if (a != 0f || y != 0f) causes.append(" ").append(cause).append(" ").append(a).append("/").append(y) }
-    val terms = t?.let { "food value %s discomfort %s drain %s suits %s water %s km".format(placeValue[c.kind][p], it.discomfort, it.drain, it.suitsLn, it.waterKm) } ?: "not kept"
+    val terms = t?.let { "food value %s discomfort %s drain %s water %s km".format(placeValue[c.kind][p], it.discomfort, it.drain, it.waterKm) } ?: "not kept"
     println("not a number: ${s.name} #${g.id} of ${g.size} (${g.adults} grown, ${g.young} young, odds of dying ${g.deathOdds}, fed ${g.fed}) at place ${p.i}, " +
         "$d km of going: score before deaths $alive, deaths $deaths, drowning $drowning, steps ${gs.survivalSteps(g, deaths + drowning)}; " +
         "foreseen fed $fed, thirst $thirst, crowded $crowded, prey $prey; " +

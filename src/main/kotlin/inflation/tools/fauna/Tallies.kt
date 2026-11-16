@@ -24,6 +24,10 @@ import inflation.ecology.Skill
 import inflation.ecology.Species
 import inflation.ecology.Tool
 import inflation.ecology.Material
+import inflation.ecology.TRADED
+import inflation.ecology.SOURCE_RINGS_KM
+import inflation.ecology.nearestSourceKm
+import inflation.ecology.worthDaysPerKg
 import inflation.ecology.Tradition
 import inflation.ecology.bandLiving
 import inflation.ecology.boldness
@@ -393,6 +397,7 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
         if (bands.isEmpty()) return
         val bs = bands.map { it.band!! }
         println("     bands: " + skillsAndKit(bands, bs) + houses(bands, bs) + goods(bands, bs) + gatherings(bands, bs))
+        println("     bands by km from the nearest source of each good as the crow flies (share of bands; kg an adult held; days a kg as they reckon it): " + bySource(bands))
         println("     bands by fish within reach of their camp, thirds from least to most: " + fishing(bands) + weirs(bands))
     }
 
@@ -595,6 +600,29 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
 
     /** The heads of kind [k] band [b] keeps, grown and young. */
     private fun heads(b: Band, k: Int) = b.herds.herd.getOrElse(k) { 0f } + b.herds.herdYoung.getOrElse(k) { 0f }
+
+    /**
+     * What bands hold of each traded good ([TRADED]) by how far their camp lies from its nearest source ([nearestSourceKm],
+     * in [SOURCE_RINGS_KM]), and what a kg is worth to them ([worthDaysPerKg]): the falloff with distance from the source
+     * the record shows for obsidian and shell (docs/design/trade.md).
+     */
+    private fun bySource(bands: List<HexGroup>): String {
+        val groups = sim.groups; val hw = sim.hw; val weather = sim.weather
+        val rings = SOURCE_RINGS_KM
+        fun ringName(i: Int) = if (i < rings.size) "<%.0f".format(rings[i]) else ">%.0f".format(rings.last())
+        return TRADED.joinToString(" | ") { m ->
+            val n = IntArray(rings.size + 1); val adults = DoubleArray(rings.size + 1); val kg = DoubleArray(rings.size + 1); val worth = DoubleArray(rings.size + 1)
+            for (g in bands) {
+                val b = g.band ?: continue
+                val km = groups.nearestSourceKm(hw.placeHex[g.place], m)
+                val i = rings.indexOfFirst { km < it }.let { if (it < 0) rings.size else it }
+                n[i]++; adults[i] += g.adults.toDouble(); kg[i] += b.goods[m].toDouble(); worth[i] += groups.worthDaysPerKg(g, b, m, weather).toDouble()
+            }
+            m.name.lowercase() + " " + n.indices.filter { n[it] > 0 }.joinToString(", ") { i ->
+                "%s %.0f%%: %.2f, %.2f".format(ringName(i), 100.0 * n[i] / bands.size, kg[i] / adults[i].coerceAtLeast(1.0), worth[i] / n[i])
+            }
+        }
+    }
 
     /** What bands hold a grown person (what a camp move must carry or leave), kept herds, ornaments and shell, grave goods. */
     private fun goods(bands: List<HexGroup>, bs: List<Band>): String {

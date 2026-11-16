@@ -111,8 +111,8 @@ class Band(kinds: Int, totems: Int = kinds) {
     /** Camp shifts within its hex ([shiftCamps]) the census has not yet counted as camp moves; it reads and clears them. */
     @Transient var shiftsUncounted = 0
     /**
-     * Person-days its raiders spent going to a raid and back ([plotRaid], bands that hold their home hex), taken from its
-     * next step's days before other work ([planWeek]). Saved, so that a loaded world carries on as the one that ran on.
+     * Person-days its people spent walking this step that its next step's days pay before other work ([planWeek]): raiders
+     * going to a raid and back, visitors to appointments, kin and feasts, a camp moved ([WalkPaid.NEXT_STEP], [walkOver]). Saved, so that a loaded world carries on as the one that ran on.
      */
     var raidWalkOwed = 0f
     /**
@@ -424,6 +424,9 @@ class Band(kinds: Int, totems: Int = kinds) {
     val homeSeen = HashMap<Int, Long>()
     /** For each home in [knownHomes], how far (km) it may lie from where this band believes: 0 seen at first hand, the more the further off it was told of ([HEARSAY_OFF]). */
     val homeOff = HashMap<Int, Float>()
+
+    /** It forgets the home of band [id]: where it is ([knownHomes]), whose it is ([knownLineage]), when it was seen and how surely ([homeSeen], [homeOff]), all together. */
+    fun forgetHome(id: Int) { knownHomes.remove(id); knownLineage.remove(id); homeSeen.remove(id); homeOff.remove(id); homesVersion++ }
     /** A raid it is set on, if any. */
     var raid: Raid? = null
     val raidHex get() = raid?.hex ?: Hex.NONE
@@ -542,6 +545,12 @@ class Band(kinds: Int, totems: Int = kinds) {
      * one that does not only as far as its will goes above the default.
      */
     fun byCustom(holds: Boolean, will: Float) = max(0f, will - (if (holds) 0f else 1f))
+    /**
+     * How keenly it feasts others ([byCustom] of [Tradition.FEASTS] by its [feastWill]): at a meeting, on a big kill, and in
+     * going where others are to feast them ([GroupPlanner.feastDraw]). How big a roaming band grows and how easily a settled
+     * one lives together go by the custom itself, held or not ([mobileMost], [settledEase]): what holding it does to a people.
+     */
+    val feastKeen get() = byCustom(holds(Tradition.FEASTS), feastWill)
 
     /** Whether it holds hex [h] as its own: its houses, its dead, its appointment place. */
     fun claims(h: Hex, memory: PlaceMemory) = h == houseHex || h == appointHex || memory.deadAt(h) > 0f
@@ -566,8 +575,14 @@ class Band(kinds: Int, totems: Int = kinds) {
      * saved world carried on would add them up in another order and drift from the one that ran on.
      */
     val ties = LinkedHashMap<Int, Float>()
-    /** The step this band last met each other band (by group id), for how fresh a meeting is ([meetingFresh]). */
+    /**
+     * The step this band last met each other band (by group id), for how fresh a meeting is ([meetingFresh]), and whether
+     * they have ever met, for the sicknesses strangers bring ([strangersAt]). Bands no longer alive are forgotten each week
+     * ([forgetGone]): ids are never given again, and the map is only looked up, so this changes nothing but its size.
+     */
     val lastMet = HashMap<Int, Int>()
+    /** It forgets, in [lastMet], the bands not among [living] (by group id): they are dead or merged, and will never be met again. */
+    fun forgetGone(living: Set<Int>) { if (lastMet.isNotEmpty()) lastMet.keys.retainAll(living) }
     /**
      * What it saw of each other band (by group id), the last time it saw it, at a meeting, a fight or watching unseen
      * ([noteSeen]): its strength then ([HexGroups.strength]), and the day ([seenDay], absolute). Forgotten after
@@ -575,6 +590,21 @@ class Band(kinds: Int, totems: Int = kinds) {
      */
     val seenStrength = HashMap<Int, Float>()
     val seenDay = HashMap<Int, Long>()
+
+    /** It saw band [id] on [day], of strength [strength] ([seenStrength], [seenDay]: the two kept together). */
+    fun saw(id: Int, strength: Float, day: Long) { seenStrength[id] = strength; seenDay[id] = day }
+
+    /** The strength it last saw band [id] at, if it saw it within [SEEN_DAYS] of [today]; else null. */
+    fun seen(id: Int, today: Long): Float? {
+        val day = seenDay[id] ?: return null
+        return if (today - day > SEEN_DAYS) null else seenStrength[id]
+    }
+
+    /** It forgets the bands it last saw more than [SEEN_DAYS] before [now]. */
+    fun forgetSeen(now: Long) {
+        val it = seenDay.entries.iterator()
+        while (it.hasNext()) { val e = it.next(); if (now - e.value > SEEN_DAYS) { it.remove(); seenStrength.remove(e.key) } }
+    }
     /**
      * What the bands it met lately told it their camps yielded ([tellYield]): each one's recent foraging yield ([recentYield])
      * and the week it was told ([newsAt], counted from the first week of year 0), the last [NEWS_KEPT]. A [Mind.PLANS] band
@@ -586,6 +616,14 @@ class Band(kinds: Int, totems: Int = kinds) {
     /** The loads a [Mind.PLANS] band's adults take on this week's camp move, as it chose them ([relayLoads]; NaN: as its ways have it, [carryLoads]). */
     @Transient var planLoads = Float.NaN
     fun tie(other: Int) = ties[other] ?: 0f
+    /**
+     * Band [by] (group [byId]) did it a wrong of [weight] (1: it raided it): its grudge against their people rises by [weight]
+     * times [GRUDGE], and its tie to that band falls by [weight] times [TIE_RAID]. The one rule for every wrong: a raid, a
+     * raid slipped away from, a raid stood against, a cache robbed, a sacrilege.
+     */
+    fun wronged(byId: Int, by: Band, weight: Float) { grudge[by.mainLineage()] += weight * GRUDGE; befriend(byId, -weight * TIE_RAID) }
+    /** Band [by] made amends ([share] of its grudge against their people forgiven): kin by marriage, help in need. */
+    fun amends(by: Band, share: Float) { grudge[by.mainLineage()] *= 1f - share }
     fun befriend(other: Int, by: Float) { ties[other] = (tie(other) + by * (if (by > 0f) 1f - tie(other) else 1f + tie(other))).coerceIn(-1f, 1f) }
     /**
      * Favours: what each band it has dealt with owes it (above 0) or it is owed by it (below 0), in
@@ -1143,6 +1181,8 @@ class Band(kinds: Int, totems: Int = kinds) {
 
     /** How much more (above 1) or less a skill's work leaves undone than a start band's: the sick die, infants are lost. */
     fun lapse(s: Skill) = (s.floor + (1f - s.floor) * s.ref) / skill(s)
+    /** As [lapse], for a kind of work done by the best way it knows of it ([skill]): against the start level of its first way. */
+    fun lapse(d: Domain) = Skill.of(d).first().let { s -> (s.floor + (1f - s.floor) * s.ref) / skill(d).coerceAtLeast(s.floor) }
     /** How much better (above 1) or worse it does at [s] than a start band. */
     fun edge(s: Skill) = 1f / lapse(s)
     /** The insulation of the clothes its people wear by day, clo: a whole kit at [CLOTHES_CLO], as well sewn as its hands sew. */

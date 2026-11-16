@@ -7,6 +7,7 @@ import inflation.world.set
 import inflation.world.HexLand
 import inflation.world.HexMap
 import inflation.world.HexWorld
+import inflation.world.Weather
 import kotlin.math.max
 import kotlin.math.min
 
@@ -57,7 +58,7 @@ class PathWear(private val hex: HexMap) {
             }
         }
         for (g in groups) {
-            // (Bands that hold their home hex wear ways by going between hexes to their neighbours instead: [travelled].)
+            // (Bands that hold their home hex wear ways by going between hexes to their neighbours instead: their trips, [trip], [walkOver].)
             if (!g.alive || g.path.size < 3) continue
             val w = min(1f, g.size * g.species.massKg / PATH_MASS_KG)
             for (i in 0 until g.path.size - 1) {
@@ -71,40 +72,14 @@ class PathWear(private val hex: HexMap) {
         }
     }
 
-    /** People went along [way] (hexes side by side, first to last) and back, wearing each border on it by [w]. */
-    fun along(way: List<Hex>, w: Float) {
+    /** People went along [way] (hexes side by side, first to last), and back if [back], wearing each border on it by [w]. */
+    fun along(way: List<Hex>, w: Float, back: Boolean = true) {
         for (i in 0 until way.size - 1) {
             val a = way[i]; val b = way[i + 1]
             if (hex.heart[a] < 0 || hex.heart[b] < 0) continue
             val d = (0 until 6).firstOrNull { hex.neighbour(a, it) == b } ?: continue
-            val back = (d + 3) % 6
             paths[hex.edge(a, d)] += w * (1f - paths[hex.edge(a, d)])
-            paths[hex.edge(b, back)] += w * (1f - paths[hex.edge(b, back)])
-        }
-    }
-
-    /**
-     * People went from hex [from] to hex [to] and back (a visit, a meeting, a raid), wearing the way by [w] each border:
-     * step by step to a land neighbour nearer [to], the most worn of those first, the lowest border first among equals.
-     * Going keeps to the tracks there are, so the ways between hexes that deal with each other most wear into tracks, as
-     * trade routes will. Nothing where no step brings it nearer over land.
-     */
-    fun travelled(from: Hex, to: Hex, w: Float) {
-        var h = from; var steps = TRAVEL_STEPS
-        while (h != to && steps-- > 0) {
-            val now = hex.distanceKm(h, to)
-            var best = -1; var bestWear = -1f
-            for (d in 0 until 6) {
-                val nb = hex.neighbour(h, d)
-                if (nb.none || hex.heart[nb] < 0 || hex.distanceKm(nb, to) >= now - 1e-6) continue
-                val wear = paths[hex.edge(h, d)]
-                if (wear > bestWear) { bestWear = wear; best = d }
-            }
-            if (best < 0) return
-            val nb = hex.neighbour(h, best); val back = (best + 3) % 6
-            paths[hex.edge(h, best)] += w * (1f - paths[hex.edge(h, best)])
-            paths[hex.edge(nb, back)] += w * (1f - paths[hex.edge(nb, back)])
-            h = nb
+            if (back) { val e = hex.edge(b, (d + 3) % 6); paths[e] += w * (1f - paths[e]) }
         }
     }
 }
@@ -116,45 +91,24 @@ class PathWear(private val hex: HexMap) {
  * so the ways to the neighbours it deals with most wear into tracks. Six in all; null (even) for a band with no such ties.
  * [byId]: the living groups by id.
  */
-internal fun HexGroups.wearToward(g: HexGroup, byId: Map<Int, HexGroup>): FloatArray? {
+internal fun HexGroups.wearToward(g: HexGroup, byId: Map<Int, HexGroup>, weather: Weather): FloatArray? {
     val b = g.band ?: return null
     val h = hw.placeHex[g.place]
     val dir = FloatArray(6); var sum = 0f
+    // (The bands within [NEIGHBOUR_RINGS] hexes' going by the ground ([reachOf]), each by the first step of the way there.)
+    val most = (NEIGHBOUR_RINGS + 0.5f) * hex.hexKm.toFloat()
+    val reach = reachOf(g, h, most, weather)
     for ((id, tie) in b.ties) {
         if (tie <= 0f) continue
         val o = byId[id] ?: continue
         val oh = hw.placeHex[o.place]
-        if (oh == h || hex.distanceKm(h, oh) > (NEIGHBOUR_RINGS + 0.5) * hex.hexKm) continue
-        val d = firstStep(h, oh); if (d < 0) continue
+        if (oh == h) continue
+        val way = reach.wayTo(oh, most) ?: continue
+        if (way.hexes.size < 2) continue
+        val d = (0 until 6).firstOrNull { hex.neighbour(h, it) == way.hexes[1] } ?: continue
         dir[d] += tie; sum += tie
     }
     if (sum <= 0f) return null
     return FloatArray(6) { d -> 0.5f + 3f * dir[d] / sum }
 }
 
-/** The border of hex [from] (0..5) whose land neighbour lies nearest [to]: the first step of the way there; -1 for none. */
-internal fun HexGroups.firstStep(from: Hex, to: Hex): Int {
-    var best = -1; var bestKm = hex.distanceKm(from, to)
-    for (d in 0 until 6) {
-        val nb = hex.neighbour(from, d)
-        if (nb.none || hex.heart[nb] < 0) continue
-        val km = hex.distanceKm(nb, to)
-        if (km < bestKm - 1e-6) { bestKm = km; best = d }
-    }
-    return best
-}
-
-/** The most hexes a going between two hexes ([PathWear.travelled]) is followed for. */
-private const val TRAVEL_STEPS = 12
-
-/**
- * Group [g]'s people went from hex [from] to hex [to] and back, with bands that hold their home hex ([inflation.Tuning.bandsStay]):
- * the way wears as a group of its weight going through wears it ([PATH_WEAR]).
- */
-internal fun HexGroups.wearBetween(from: Hex, to: Hex, g: HexGroup) = wearBetween(from, to, g.size * g.species.massKg)
-
-/** [kg] of people went from hex [from] to hex [to] and back, with bands that hold their home hex: as [wearBetween] for a group of that weight. */
-internal fun HexGroups.wearBetween(from: Hex, to: Hex, kg: Float) {
-    if (!tuning.bandsStay || from == to) return
-    wear.travelled(from, to, PATH_WEAR * min(1f, kg / PATH_MASS_KG))
-}

@@ -34,11 +34,11 @@ internal fun GroupPlanner.fillFeatures(f: FloatArray, c: PlanContext, t: PlaceTe
     val prey = c.at.prey; val crowded = c.at.crowded; val hunters = c.at.hunters
     val g = c.g; val s = g.species; val here = c.here; val month = c.month; val reach = c.reach; val goal = c.goal
     val fromHere = c.fromHere; val weather = c.weather; val date = c.date
-    // (The herds' slots, [Feature.HERDS_ABOUT], [Feature.KEEPS_HEADING] and [Feature.FORAGE_QUALITY], stay 0: kept for the
-    // networks' layout until they are trained again.)
+    // (The herds' slots, [Feature.HERDS_ABOUT], [Feature.KEEPS_HEADING] and [Feature.FORAGE_QUALITY], and the old habitat label's,
+    // [Feature.CLIMATE], stay 0: kept for the networks' layout until they are trained again. A kind weighs a place by what it
+    // finds there, not by a label of its country.)
     // What the place offers it, as the baseline weighs it: game, and for bands plant food and a safe camp.
     f[Feature.FOOD] = prey / (prey + PREY_HALF)
-    f[Feature.CLIMATE] = t.suitsLn / InputScale.SUITS_LN
     // (What the coming months are usually like there.)
     for (k in 0 until Feature.LORE_MONTHS)
         f[Feature.USUAL_AHEAD + k] = weather.usualTemperature((month + k + 1) % Date.MONTHS_PER_YEAR, p) / InputScale.USUAL_C
@@ -93,7 +93,7 @@ internal fun GroupPlanner.fillFeatures(f: FloatArray, c: PlanContext, t: PlaceTe
     f[Feature.TO_BIRTHS_SIN] = sin(toBirth).toFloat(); f[Feature.TO_BIRTHS_COS] = cos(toBirth).toFloat()
     // Its ancestors buried here, and how far going here brings it toward its appointment.
     f[Feature.ANCESTORS] = min(1f, g.memory.deadAt(h) / InputScale.ANCESTOR_DEAD)
-    f[Feature.APPOINTMENT] = g.band?.let { gs.appointPull(g, it, month, h) } ?: 0f
+    f[Feature.APPOINTMENT] = g.band?.let { gs.appointPull(g, it, month, h, weather) } ?: 0f
     f[Feature.HOUSES] = if (g.band != null) gs.housesAt(g, h) else 0f
     f[Feature.OWN_SIZE] = ln(g.size.toFloat().coerceAtLeast(1f) / gs.unitSize(s)) / InputScale.OWN_SIZE_LN
     f[Feature.LASTING_WATER] = min(1f, gs.land.drink.nearRiver[p] + gs.land.drink.nearLake[p] + gs.land.drink.nearSpring[p])
@@ -121,9 +121,9 @@ internal fun GroupPlanner.fillFeatures(f: FloatArray, c: PlanContext, t: PlaceTe
         // The pulls the hand-written score adds for a band ([bandPull]), which a network weighs as it learns.
         val keepOff = c.keepOff
         if (b.raidHex != h && keepOff != null && keepOff.binarySearch(h) >= 0) f[Feature.KEEPS_OFF] = 1f
-        f[Feature.TOWARD_RAID] = raidProgress(b, here, h)
-        val saltWeeks = saltWeeks(g, b, here, reach)
-        if (saltWeeks > 0f) f[Feature.TOWARD_SALT] = (1f - saltPace(b.sodiumShort, 1f, gs.tuning.saltLack)) * saltProgress(b, here, h, reach)
+        f[Feature.TOWARD_RAID] = raidProgress(g, b, here, h, weather)
+        val saltWeeks = saltWeeks(g, b, here, reach, weather)
+        if (saltWeeks > 0f) f[Feature.TOWARD_SALT] = (1f - saltPace(b.sodiumShort, 1f, gs.tuning.saltLack)) * saltProgress(g, b, here, h, reach, weather)
         val sown = cropHarvestWeeks(g, b, h); f[Feature.SOWN_HERE] = sown / (1f + sown)
         val lost = herdLoss(g, b, p); f[Feature.HERD_LOSS] = lost / (1f + lost)
         if (h == b.unluckyHex) f[Feature.UNLUCKY_CAMP] = 1f
@@ -145,7 +145,7 @@ internal fun GroupPlanner.fillFeatures(f: FloatArray, c: PlanContext, t: PlaceTe
         for (i in 0 until PlaceMemory.MEMORY_SLOTS) if (mem.hex[i] == h) for (k in lacked.indices) most = max(most, lacked[k] * mem.foundAt(i, k))
         f[Feature.REMEMBERED_LACKED] = most
         if (!c.lackedHex.none && c.lackedFrom > gs.hex.hexKm)
-            f[Feature.TOWARD_LACKED] = ((c.lackedFrom - gs.hexKm(h, c.lackedHex)) / c.lackedFrom).toFloat().coerceIn(-1f, 1f) * c.lackedQ
+            f[Feature.TOWARD_LACKED] = ((c.lackedFrom - gs.goalKm(g, c.lackedHex, h, weather)) / c.lackedFrom).toFloat().coerceIn(-1f, 1f) * c.lackedQ
     }
 }
 
@@ -171,8 +171,6 @@ internal fun GroupPlanner.scorePlace(c: PlanContext, t: PlaceTerms, p: Place, h:
     // shares of the week's need.
     score -= 0.5f * t.discomfort + t.drain + offGround
     if (parts != null) { parts[MoveTerm.COLD.ordinal] += score - last; last = score }
-    // Its own kind of country: open plains for a cheetah, crags for a wild goat, whatever the food.
-    if (!s.human) score += GROUP_HABITAT * t.suitsLn
     // What it senses coming, as keenly as its kind does: a cold snap or heat wave, snow
     // too deep to dig through, and in a dry spell the rain on its way.
     val tAhead = weather.forecastTemp(p.i)
@@ -211,7 +209,7 @@ internal fun GroupPlanner.scorePlace(c: PlanContext, t: PlaceTerms, p: Place, h:
     if (parts != null) { parts[MoveTerm.STAY.ordinal] += score - last; last = score }
     // Bold animals of kinds that follow people are drawn to their camps: refuse, scraps, warmth.
     if (s.followsPeople && gs.peopleSlot >= 0) score += CAMP_LURE * boldness(g) * min(1f, knownHeads(gs.peopleSlot, p, h, sensed) / 25f)
-    g.band?.let { b -> score += bandPull(g, b, month, h, here, p, keepOff, sensed, reach) }
+    g.band?.let { b -> score += bandPull(g, b, month, h, here, p, keepOff, sensed, reach, weather) }
     // A hungry pack gives up ground it has hunted out lately and looks further afield.
     if (g.fed < Thresholds.HUNGRY && (h == here || h in g.recent)) score -= HUNGRY_LEAVE
     if (parts != null) parts[MoveTerm.BAND.ordinal] += score - last
@@ -420,5 +418,4 @@ internal fun GroupPlanner.fillTerms(t: PlaceTerms, g: HexGroup, p: Place, weathe
     t.drain = gs.drain(g, p, weather)
     t.aheadC = s.discomfortC(weather.forecastTemp(p.i), date.month)
     t.waterKm = if (s.human) gs.land.drink.peopleWaterKm(p) else gs.land.drink.animalWaterKm(p)
-    t.suitsLn = ln(gs.fauna.suits(s, p).coerceAtLeast(1e-3f))
 }

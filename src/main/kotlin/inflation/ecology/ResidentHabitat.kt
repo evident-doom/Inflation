@@ -157,11 +157,16 @@ internal fun HexFauna.ruggedFit(rugged: Float): FloatArray = (ruggedFits ?: Conc
  * two graze out from water and back, and leave the far country to those that live on the water
  * in their food (gazelle, oryx, camels). Kinds bound to water (hippos) use only what lies by it.
  */
-fun HexFauna.tether(s: Species, p: Place): Float = tetherAt(s, p, land.drink.animalWater(p), land.drink.animalWaterKm(p))
+fun HexFauna.tether(s: Species, p: Place): Float =
+    tetherAt(s, p, if (s.maxWaterKm.isFinite()) land.drink.deep[p] else land.drink.animalWater(p), land.drink.animalWaterKm(p))
 
 /** [tether] in an ordinary year: from the lasting water around, not this week's. */
-fun HexFauna.usualTether(s: Species, p: Place): Float = tetherAt(s, p, land.drink.nearRiver[p] + land.drink.nearLake[p] + land.drink.nearSpring[p],
+fun HexFauna.usualTether(s: Species, p: Place): Float = tetherAt(s, p, if (s.maxWaterKm.isFinite()) usualDeep(p) else land.drink.nearRiver[p] + land.drink.nearLake[p] + land.drink.nearSpring[p],
     land.drink.waterKmMean[p])
+
+/** [usualTether]'s deep water for the kinds bound to it: the fresh lakes, and the rivers big enough to lie in ([HexDrinkingWater.deep]). */
+private fun HexFauna.usualDeep(p: Place) =
+    min(1f, (if (land.hydro.meanFlow[hw.placeHex[p]] >= inflation.world.HexDrinkingWater.DEEP_RIVER_M3S) land.drink.nearRiver[p] else 0f) + land.drink.nearLake[p])
 
 private fun HexFauna.tetherAt(s: Species, p: Place, water: Float, waterKm: Float): Float {
     if (s.maxWaterKm.isFinite()) return min(1f, water)

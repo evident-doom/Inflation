@@ -72,7 +72,7 @@ internal class GroupPlanner(internal val gs: HexGroups) {
     internal fun plan(g: HexGroup, weather: Weather, date: Date, predatorKg: FloatArray): Plan {
         // (For the census: the least peril among the places it weighs, [HexGroup.safestPeril]; unknown until it weighs any.)
         g.safestPeril = Float.NaN
-        g.footprint = null; g.footWeights = null
+        g.footprint = null
         return planInner(g, weather, date, predatorKg)
     }
 
@@ -162,7 +162,8 @@ internal class GroupPlanner(internal val gs: HexGroups) {
         val territory = if (denning) gs.tuning.denKm else gs.territoryKm(s) * sqrt(PREY_HALF / homeValue.coerceAtLeast(1f)).coerceIn(0.5f, 3f) *
             (1f + min(2f, g.lean.toFloat() / GIVE_UP_WEEKS))
         val goalHex = if (goal >= 0) gs.hw.placeHex[goal] else Hex.NONE
-        val fromHere = if (goal >= 0) gs.hexKm(here, goalHex) else 0.0
+        // (How far off by the going, near it: [goalKm].)
+        val fromHere = if (goal >= 0) gs.goalKm(g, goalHex, here, weather) else 0.0
         val pullKm = reach.toDouble().coerceAtLeast(gs.hex.hexKm)
         // (A band keeps off the known homes of bands it is not close to ([Regard.closeOf]): those hexes, once for the week.)
         // (And off the place raiders drove it from, while it fears them: [Band.keptFrom].)
@@ -206,7 +207,7 @@ internal class GroupPlanner(internal val gs: HexGroups) {
         // leaving is, so that a slot setting ([Slots]) never counts the walk twice or not at all.)
         fun fedThere(h: Hex, fed: Float, km: Float) = if (g.band?.mind?.gate == MoveGate.RECKONED) fed else max(0f, fed - moveShort(g, h, campHex, km))
         val c = PlanContext(g, kind, here, sensed, month, goal, goalQ, fromHere, reach, thirsty, restless, season, keepOff,
-            weather, date, goalHex, predatorKg, buf, lacked, lackedHex, lackedQ, if (!lackedHex.none) gs.hexKm(here, lackedHex) else 0.0)
+            weather, date, goalHex, predatorKg, buf, lacked, lackedHex, lackedQ, if (!lackedHex.none) gs.goalKm(g, lackedHex, here, weather) else 0.0)
         val at = c.at
         if (gs.hurricanes != null) { var least = Float.POSITIVE_INFINITY
             for (ri in 0 until reached.size) least = min(least, gs.perilAhead(reached[ri]))
@@ -216,14 +217,16 @@ internal class GroupPlanner(internal val gs: HexGroups) {
             val d = dist[h]
             at.d = d
             // How far beyond its ground the hex lies (0 within it), and how fresh another pack's mark on it is.
-            val beyond = if (s.lifeway == Lifeway.PACK && !g.home.none) (gs.hexKm(h, g.home) / territory - 1.0).toFloat().coerceIn(0f, 2f) else 0f
+            // (By the going from home, as its ground is laid ([layGround]): a hex across a gorge from home is further off its ground.)
+            val beyond = if (s.lifeway == Lifeway.PACK && !g.home.none)
+                ((gs.goingKm(g, g.home, h, 3f * territory, weather) ?: (3f * territory)) / territory - 1f).coerceIn(0f, 2f) else 0f
             val foreign = if (s.lifeway == Lifeway.PACK && h != g.home) gs.scent.foreign(s, h, g.id) else 0f
             at.beyond = beyond; at.foreign = foreign
             // A pack on its own ground stays on it while fed, and keeps off ground another pack of its kind holds
             // (its choice: the hand-written score weighs these heavily; a learned one sees both, see [HexFeatures]).
             at.offGround = (if (beyond > 0f && (denning || (g.fed >= Thresholds.HUNGRY && !astray))) KEEP_TO_GROUND else 0f) +
                 (if (foreign > MARK_FRESH && g.fed >= 0.3f) KEEP_OFF_MARKS else 0f)
-            at.toGoal = if (goal >= 0) gs.hexKm(h, goalHex) else 0.0
+            at.toGoal = if (goal >= 0) gs.goalKm(g, goalHex, h, weather) else 0.0
             // The open water on the way there, as the share of it a crossing drowns (see [move]): worked out when first wanted.
             var drowning = -1f
             // Better country further off: the way the kind's sense of the land points.
@@ -312,7 +315,7 @@ internal class GroupPlanner(internal val gs: HexGroups) {
         val chosen = best
         if (traced) bookMove(chosen != g.place, buf)
         g.band?.planLoads = Float.NaN
-        if (party != null && g.weighed) best = partyPlace(party, here, buf, best, gs.stepOf(date))
+        if (party != null && g.weighed) best = partyPlace(g, party, here, buf, best, gs.stepOf(date), weather)
         else if (explores && !g.drawn) best = if (g.band?.mind?.gate == MoveGate.RECKONED) planned(g, policy, buf, best, dueSoon, here, date) else if (g.weighed) explored(g, policy, buf, best, date) else best
         // (A band that holds its home hex camps on its low ground by the hand-written rule, as one with no network does ([stayPlan]):
         // since people's net major 11 no network chooses its camp; the planner ran, held to the hex, for its camp's terms, which its
@@ -452,9 +455,9 @@ internal class GroupPlanner(internal val gs: HexGroups) {
         for (p in 0 until gs.n) { land2 += gs.land.areaKm2[p]; kg += predatorKg[p] }
         val huntersNow = (kg / land2.coerceAtLeast(1.0)).toFloat()
         usualHuntersKm2 = if (usualHuntersKm2 <= 0f) huntersNow else usualHuntersKm2 + (huntersNow - usualHuntersKm2) / USUAL_MONTHS
-        for ((k, s) in gs.kinds.withIndex()) {
+        for (k in gs.kinds.indices) {
             val e = expectHeads[k]
-            Par.forEach("choosing: suited area", gs.n) { p -> e[p] = gs.fauna.suits(s, Place(p)) * gs.land.areaKm2[p] }
+            Par.forEach("choosing: area", gs.n) { p -> e[p] = gs.land.areaKm2[p] }
             val suitArea = e.sumOf { it.toDouble() }
             var heads = 0L; for (p in 0 until gs.n) heads += gs.headsHere[k][p]
             val now = (heads / suitArea.coerceAtLeast(1.0)).toFloat()
@@ -467,7 +470,7 @@ internal class GroupPlanner(internal val gs: HexGroups) {
     /** Per thread: least effort to each hex, the hex it was reached from, the hexes reached, the queue. */
     internal class Scratch(size: Int) {
         val dist = FloatArray(size) { Float.MAX_VALUE }; val via = HexArray(size)
-        val reached = HexList(); val queue = LongHeap()
+        val reached = HexList()
         /** The candidates weighed for a policy: places, their features (arrays reused from week to week), hand-written scores. */
         val candPlaces = IntList(); val candFeats = ArrayList<FloatArray>(); var candScores = FloatArray(64)
         /** For a band, every place weighed ([exploreChoice]): the place, its whole hand-written score, and the survival steps it would cost. */
@@ -519,7 +522,6 @@ internal class GroupPlanner(internal val gs: HexGroups) {
         /** How far drinking water lies, km (for people, including what they can dig for). */
         var waterKm = 0f
         /** How well the place's country suits the kind, as a log. */
-        var suitsLn = 0f
     }
 
     /** A growable list of ints, in the order added. */
@@ -531,36 +533,9 @@ internal class GroupPlanner(internal val gs: HexGroups) {
         fun toIntArray() = items.copyOf(size)
     }
 
-    /** A binary min-heap of longs (no boxing). */
-    internal class LongHeap {
-        private var a = LongArray(256); private var n = 0
-        fun clear() { n = 0 }
-        fun isNotEmpty() = n > 0
-        operator fun plusAssign(v: Long) {
-            if (n == a.size) a = a.copyOf(2 * n)
-            var i = n++
-            while (i > 0) { val up = (i - 1) / 2; if (a[up] <= v) break; a[i] = a[up]; i = up }
-            a[i] = v
-        }
-        fun poll(): Long {
-            val top = a[0]; val last = a[--n]
-            var i = 0
-            while (true) {
-                var c = 2 * i + 1; if (c >= n) break
-                if (c + 1 < n && a[c + 1] < a[c]) c++
-                if (a[c] >= last) break
-                a[i] = a[c]; i = c
-            }
-            if (n > 0) a[i] = last
-            return top
-        }
-    }
-
     private val scratch = ThreadLocal.withInitial { Scratch(gs.hex.size) }
 
-    /** This week's searches, shared by the groups of a kind starting from the same place in the same mood. */
-    internal class Reach(val reach: Float, val hexes: HexArray, val dist: FloatArray, val via: HexArray)
-
+    /** This step's searches of the ground ([reachOf]), by kind, height band and hex: let go when the groups next choose. */
     @Transient internal val reachCache = ConcurrentHashMap<Long, Reach>()
 
     /**
@@ -571,8 +546,6 @@ internal class GroupPlanner(internal val gs: HexGroups) {
      */
     @Transient internal val stepEffort = ConcurrentHashMap<Int, FloatArray>()
 
-    /** Effort and hex packed in one number, ordered by effort (efforts are never negative). */
-    internal fun Long.withPlace(d: Float, h: Hex): Long = (d.toRawBits().toLong() shl 32) or h.i.toLong()
 
     /**
      * What each place offers each kind this week, worked out once for all its groups: the game it can
@@ -647,7 +620,6 @@ internal val MOVE_TRACE = Config.flag(Config.Key.MOVE_TRACE, false)
  * one changes what trained nets see, so it is a net version change ([inflation.learning.NetVersion]).
  */
 internal object InputScale {
-    const val SUITS_LN = 2f
     const val USUAL_C = 20f
     const val AHEAD_C = 10f
     const val ANCESTOR_DEAD = 10f

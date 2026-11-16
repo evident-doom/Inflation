@@ -87,7 +87,7 @@ internal const val BEARERS = 4f
 
 /** How far bearers carry one of the dead: a day's walk, before the body has begun to rot in most weather. Farther off
  *  the band lays it where it camps. */
-val BODY_CARRY_KM = (WALK_KM_PER_HOUR * Activity.WORK_HOURS).toDouble()
+val BODY_CARRY_KM = DAY_WALK_KM.toDouble()
 
 /**
  * Conformist learning (Henrich and Boyd 1998): the weight a band gives a way held by share [s] of the bands it has seen,
@@ -206,10 +206,8 @@ internal const val GRUDGE_FADE = 0.1f
  */
 internal const val FEUD = 2f
 
-/** Rings of hexes round a meeting whose country bands tell each other of; country further than this from a band's camp is half forgotten each year. */
-internal const val TOLD_RINGS = 4
-
-internal const val REMEMBERED_KM = 100.0
+/** How far from its camp, by the going ([reachOf]), a band keeps its country in mind: four days' walk ([DAY_WALK_KM]); beyond, it is half forgotten each year. */
+internal const val REMEMBERED_KM = 4.0 * DAY_WALK_KM
 
 /**
  * How far off a band holds the homes of other bands worth knowing, km: those it may meet, raid, visit or keep off (raids reach
@@ -217,7 +215,7 @@ internal const val REMEMBERED_KM = 100.0
  * them further ([homeReachKm]). An estimate (Olli 2026-11-12: there is a limit to what bands know and find meaningful;
  * homes764: median 814 homes known, 73% of dead bands, 62% beyond 300 km).
  */
-internal const val HOMES_KM = 100.0
+internal const val HOMES_KM = 4.0 * DAY_WALK_KM
 
 /**
  * The most homes a band keeps in mind: the nearest, fame counting as nearness ([homeReachKm]). An estimate, after the forager
@@ -311,10 +309,27 @@ private fun extraordinary(x: Float, cut: Float) = if (cut <= 0f || x < cut) 0f e
 /** How far (km) band [id]'s home is worth knowing of: [HOMES_KM], the further the more it is talked of ([Bands.fameOf]). */
 internal fun HexGroups.homeReachKm(id: Int) = HOMES_KM * (1f + HOMES_FAME_REACH * (bands.fameOf[id] ?: 0f))
 
-/** A band fed under this share of its fill with nothing laid by goes to a better-stocked band within this many rings of hexes. */
-internal const val VISIT_FED = 0.6f
+/**
+ * The ground about group [g]'s camp by the going, [HOMES_KM] of it ([searchedAtLeast]): what the homes it knows of are
+ * reckoned from ([homeKm]).
+ */
+internal fun HexGroups.homesReach(g: HexGroup, weather: inflation.world.Weather): Reach =
+    searchedAtLeast(g.species, hw.placeBand[g.place], hw.placeHex[g.place], HOMES_KM.toFloat(), weather)
 
-internal const val VISIT_RINGS = 2
+/**
+ * How far home [hh] of band [id] lies from [from] for knowing of it, km, if it is worth knowing of ([homeReachKm]); else
+ * null. Within [HOMES_KM], by how far its people would walk to it ([reach], from [from]: [homesReach]), so not across a strait
+ * as along a coast; a famous home beyond, as the crow flies, as far as its fame carries: fame carries news further than
+ * anyone walks.
+ */
+internal fun HexGroups.homeKm(reach: Reach, from: Hex, id: Int, hh: Hex): Float? {
+    reach.km(hh, HOMES_KM.toFloat())?.let { return it }
+    val far = homeReachKm(id); if (far <= HOMES_KM) return null
+    val km = hexKm(from, hh); return if (km > HOMES_KM && km <= far) km.toFloat() else null
+}
+
+/** A band fed under this share of its fill with nothing laid by goes to a better-stocked band within a day's walk ([kinReachKm]). */
+internal const val VISIT_FED = 0.6f
 
 /** Adults below which a band joins kin nearby: too few to hunt, gather, guard and marry within. */
 internal const val SMALL_BAND = 8
@@ -401,7 +416,8 @@ internal const val TIE_RAID = 0.8f
 
 internal const val TIE_FADE = 0.5f
 /**
- * How much faster a tie fades to a band whose home is beyond [CONTACT_KM]: nobody walks there to renew it, so it is soon
+ * How much faster a tie fades to a band whose home is beyond [CONTACT_KM] of easy going by the ground ([reachOf]): nobody
+ * walks there to renew it, so it is soon
  * only a memory (Olli, 13 Nov 2026: a band held ties with bands hundreds of km off). A guess: a full tie is gone in two years.
  */
 internal const val FAR_TIE_FADE = 4f
@@ -411,12 +427,6 @@ internal const val TIE_PEACE = 0.8f
 /** A tie above which a band counts the other a friend ([Regard.friend]). */
 internal const val FRIEND_TIE = 0.3f
 
-/**
- * Share of its hands' week a band gives to leisure at which visits keep a tie with one friendly band near most of the way
- * from fading (1 - 1/e): visits to more bands share the same leisure. Foragers spend much of their free time visiting
- * other camps (Lee 1979, Wiessner on hxaro); the rate is an estimate, no time-use figure found.
- */
-internal const val VISIT_SHARE = 0.18f
 
 /** A feast: food set before each guest, kg; days of food a band keeps back for itself beyond its aim before it feasts others. */
 internal const val FEAST_KG = 3f
@@ -594,6 +604,13 @@ private val UNIVERSAL = setOf(Tradition.EXOGAMY, Tradition.SHARING, Tradition.ME
 fun kinship(a: FloatArray, b: FloatArray): Float { var s = 0f; for (i in a.indices) s += a[i] * b[i]; return s }
 
 /**
+ * How strongly band [a] is drawn to band [b], [km] off by the going, as kin to go to: their kinship, the less the farther
+ * (a hex's width halves it). The one rule for a small band joining kin ([mergeAndPair]) and a band driven from its home
+ * taking refuge with them ([scatterBeaten]).
+ */
+internal fun GroupWorld.kinPull(a: Band, b: Band, km: Float) = kinship(a.lineage, b.lineage) / (1f + km / hex.hexKm.toFloat())
+
+/**
  * How band [of] stands toward band [to] (of group [toId]): how well they understand each other (at a meeting, [heard] as it
  * began; otherwise their words as they stand), its tie to them, whether they are strangers, its grudge against their people,
  * how near kin they are and how far apart their customs, each read as it stands when asked. Everything between two bands
@@ -668,26 +685,27 @@ internal class Regard(private val of: Band, private val toId: Int, private val t
  * Touches only the band's own state (and the week's tallies), so the bands' run side by side, each drawing from its own stream [rnd].
  */
 @Part("people: cultureWeek")
-internal fun HexGroups.cultureWeek(g: HexGroup, rnd: kotlin.random.Random, day: Long) {
+internal fun HexGroups.cultureWeek(g: HexGroup, rnd: kotlin.random.Random, day: Long, weather: inflation.world.Weather) {
     val b = g.band ?: return
     // A home it knows of is forgotten: when it passed it this week and found no house standing (its people dead, or moved on,
     // or never quite where it was told); when no one has seen it standing for [HOMES_HEARD_YEARS]; and when it lies further
-    // than it is worth knowing of from where the band now is ([homeReachKm]). It is no longer ground to keep off, nor a place to raid.
+    // than it is worth knowing of from where the band now is ([homeReachKm], by the going: [homesReach]). It is no longer
+    // ground to keep off, nor a place to raid.
     if (b.knownHomes.isNotEmpty()) {
-        val here = hw.placeHex[g.place]
+        val here = hw.placeHex[g.place]; val reach = homesReach(g, weather)
+        fun kmTo(id: Int, hh: Hex): Float? = homeKm(reach, here, id, hh)
         val stale = (HOMES_HEARD_YEARS * Date.DAYS_PER_YEAR).toLong()
-        val it = b.knownHomes.entries.iterator()
-        while (it.hasNext()) { val (id, hh) = it.next()
+        val gone = ArrayList<Int>()
+        for ((id, hh) in b.knownHomes) {
             // (A home held from a save made before [Band.homeSeen]: as if seen half that long ago.)
             val seen = b.homeSeen.getOrPut(id) { day - stale / 2 }
-            if ((hh in g.path && bands.houseOf[id] != hh) || day - seen > stale || hexKm(here, hh) > homeReachKm(id)) {
-                it.remove(); b.knownLineage.remove(id); b.homeSeen.remove(id); b.homeOff.remove(id); b.homesVersion++ }
+            if ((hh in g.path && bands.houseOf[id] != hh) || day - seen > stale || kmTo(id, hh) == null) gone += id
         }
+        for (id in gone) b.forgetHome(id)
         // And it keeps no more than [HOMES_HELD] in mind: the nearest, as far as fame makes them near.
         if (b.knownHomes.size > HOMES_HELD) {
-            val by = b.knownHomes.entries.sortedWith(compareBy<Map.Entry<Int, Hex>> { hexKm(here, it.value) / homeReachKm(it.key) }.thenBy { it.key })
-            for (e in by.subList(HOMES_HELD, by.size)) { b.knownHomes.remove(e.key); b.knownLineage.remove(e.key); b.homeSeen.remove(e.key); b.homeOff.remove(e.key) }
-            b.homesVersion++
+            val by = b.knownHomes.entries.sortedWith(compareBy<Map.Entry<Int, Hex>> { (kmTo(it.key, it.value) ?: Float.MAX_VALUE) / homeReachKm(it.key) }.thenBy { it.key })
+            for (id in by.subList(HOMES_HELD, by.size).map { it.key }) b.forgetHome(id)
         }
     }
     // Once a year, a band without an appointment makes one, where its dead lie or where it has met
@@ -708,25 +726,27 @@ internal fun HexGroups.cultureWeek(g: HexGroup, rnd: kotlin.random.Random, day: 
             stats.meeting(Met.BANDS_MADE_AN_APPOINTMENT)
         }
     }
-    // Ties fade unless renewed: by visits to the friendly bands within a day or two's walk, in the band's leisure.
+    // Ties fade unless renewed, and they are renewed by meeting: the neighbours' visits ([neighboursMeet]: walked by the
+    // ground, paid from the band's time, wearing the way), gatherings, feasts, kin's help ([befriend]). No other visit keeps
+    // them: before, a band's leisure renewed its ties to friendly bands within two hexes as the crow flies without anyone
+    // walking there (docs/design/coherence-review.md, A5). A band beyond the neighbours' reach by the ground ([CONTACT_KM],
+    // [reachOf]) nobody walks to, and its tie fades the faster ([FAR_TIE_FADE]).
     if (b.ties.isNotEmpty()) {
         val fade = TIE_FADE * days / Date.DAYS_PER_YEAR.toFloat()
         val here = hw.placeHex[g.place]
-        val near = HashSet<Int>(); val far = HashSet<Int>()
-        for ((k, v) in b.ties) bands.bandHex[k]?.let { h -> val km = hexKm(here, h)
-            if (v > 0f && km <= VISIT_RINGS * hex.hexKm) near += k else if (km > CONTACT_KM.toDouble()) far += k }
-        val leisure = b.spareDays / (forageHands(g) * days).toFloat()
-        val visited = if (near.isEmpty()) 0f else 1f - exp(-leisure / (VISIT_SHARE * near.size))
-        if (near.isNotEmpty()) stats.meeting(Met.BANDS_VISITED_FRIENDS)
+        val reach = reachOf(g, here, CONTACT_KM, weather)
+        val far = HashSet<Int>()
+        for (k in b.ties.keys) where.bandHex(k)?.let { h -> if (reach.km(h, CONTACT_KM) == null) far += k }
         val it = b.ties.entries.iterator()
-        while (it.hasNext()) { val e = it.next(); e.setValue(e.value * (1f - min(1f, fade * (if (e.key in near) 1f - visited else if (e.key in far) FAR_TIE_FADE else 1f)))); if (abs(e.value) < 0.01f) it.remove() }
+        while (it.hasNext()) { val e = it.next(); e.setValue(e.value * (1f - min(1f, fade * (if (e.key in far) FAR_TIE_FADE else 1f)))); if (abs(e.value) < 0.01f) it.remove() }
     }
-    // Country far from where it now lives fades from memory, a share of it a year.
+    // Country far from where it now lives, by the going ([REMEMBERED_KM]), fades from memory, a share of it a year.
     if (rnd.nextFloat() < years) {
         val here = hw.placeHex[g.place]
+        val near = searchedAtLeast(g.species, hw.placeBand[g.place], here, REMEMBERED_KM.toFloat(), weather)
         for (w in b.known.indices) { var bits = b.known[w]; while (bits != 0L) { val i = java.lang.Long.numberOfTrailingZeros(bits); bits = bits and (bits - 1)
             val h = Hex(w * 64 + i)
-            if (hex.distanceKm(h, here) > REMEMBERED_KM && rnd.nextFloat() < 0.5f * routes.forgetShare(h)) b.known[w] = b.known[w] and (1L shl i).inv() } }
+            if (near.km(h, REMEMBERED_KM.toFloat()) == null && rnd.nextFloat() < 0.5f * routes.forgetShare(h)) b.known[w] = b.known[w] and (1L shl i).inv() } }
     }
     b.inbred += (1f - b.inbred) / (2f * max(2, g.adults)) * years / GENERATION_YEARS
     unevenYear(g, b)

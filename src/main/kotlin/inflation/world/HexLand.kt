@@ -13,9 +13,8 @@ import kotlin.math.exp
 /**
  * Water and plants on the places of a [HexWorld] (each hex, or its low and high ground), stepped with the
  * weather on the same places: what each place is, and its parts, the water ([HexHydrology], [HexDrinkingWater]),
- * the plants ([HexPlants]) and fires ([HexFires]), on the averages of each place's cells. They began as the rules
- * of the fine [LiveWater] and [Vegetation] and have since gone further (a soil and an aquifer of each place's own,
- * sunny and shaded slopes, another fire spread), so the two no longer agree.
+ * the plants ([HexPlants]) and fires ([HexFires]), on the averages of each place's cells. (They began as the rules of a
+ * fine-grid water and plant model, since gone further and removed, 2026-11-15.)
  */
 class HexLand(internal val hw: HexWorld, internal val seed: Long, /** The run's settings ([Tuning]). */ @Transient val tuning: Tuning = Tuning.config) {
     private val world = hw.world
@@ -94,6 +93,22 @@ class HexLand(internal val hw: HexWorld, internal val seed: Long, /** The run's 
     /** Share of the ground where salt can be got (crusts on dry lake beds and salt pans), and where red and yellow ochre crops out. */
     @Transient val salt = FloatArray(n) { p -> mean(p) { if (world.geology.minerals[it] and Mineral.SALT != 0) 1f else 0f } }
     @Transient val ochre = FloatArray(n) { p -> mean(p) { if (world.geology.minerals[it] and Mineral.OCHRE != 0) 1f else 0f } }
+
+    /**
+     * How many months each place's seasons run behind the land's usual ones (ahead, below 0): the month its mean temperature
+     * first reaches [SPRING_C] against the median such month of all places, -2 to 3 (a place that never warms so far, 3).
+     * So the seasons the calendar rules name (honey, eggs, the small game's and birds' breeding, the hibernators' autumn, the
+     * herds' summer: [localMonth]) come later in the hills and earlier on the warm coast, and stay where they were on
+     * average. Worked out once from the climate's months.
+     */
+    @Transient val seasonLag: ByteArray = run {
+        val warm = IntArray(n) { p -> (0 until 12).firstOrNull { m -> mean(p) { world.climate.monthlyTemp[m][it] } >= SPRING_C } ?: 12 }
+        val usual = if (n == 0) 0 else warm.sorted()[n / 2]
+        ByteArray(n) { p -> (warm[p] - usual).coerceIn(-2, 3).toByte() }
+    }
+
+    /** The month at place [p] as its seasons go ([seasonLag]): [month] of the calendar, less the months its seasons run behind. */
+    fun localMonth(p: Place, month: Int): Int = Math.floorMod(month - seasonLag[p.i], 12)
     /**
      * Share of the ground where rock for grinding stones lies bare (not under more than [BARE_ROCK_M] of sediment), by how well
      * it grinds ([GRINDING_ROCK]): mortars, pestles and querns were pecked from basalt, sandstone and limestone, not from flint.
@@ -224,3 +239,6 @@ internal val GRINDING_ROCK = FloatArray(Rock.entries.size) { when (Rock.entries[
 } }
 /** Sediment over bedrock beyond which no rock lies bare for the taking, m (as erosion counts bedrock covered, [Erosion]). */
 internal const val BARE_ROCK_M = 2f
+
+/** The mean temperature, °C, a place reaches as its spring comes ([HexLand.seasonLag]): when the grass and the insects wake. An estimate. */
+const val SPRING_C = 10f

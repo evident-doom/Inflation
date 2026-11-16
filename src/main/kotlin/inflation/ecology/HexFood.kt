@@ -77,8 +77,20 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
      * the rule a soak in a dry bed goes by. Bulbs and roots cannot be had then; the mast lying on it can.
      */
     @Transient private val frozen = BooleanArray(n)
-    /** The bulbs and roots at [p] that can be dug this week, kg/m²: none while the ground is frozen. */
-    fun diggable(p: Place) = if (frozen[p]) 0f else roots[p]
+    /**
+     * The bulbs and roots at [p] that can be dug this week, kg/m²: none while the ground is frozen, and only part where it
+     * is baked dry ([softness]).
+     */
+    fun diggable(p: Place) = if (frozen[p]) 0f else roots[p] * softness(p)
+    /**
+     * How much of a place's ground a snout or a digging stick gets into this week, 0..1: all where the soil holds
+     * [SOFT_SOIL] of the water it can or more, less as it dries. A summer-baked crust keeps boar to the damp spots by the
+     * water and the shaded slopes; bulbs are dug in the wet season, when the ground gives (from memory of the record).
+     */
+    fun softness(p: Place): Float {
+        val cap = land.hydro.soilCap[p]
+        return if (cap > 0f) (land.hydro.soil[p] / cap / SOFT_SOIL).coerceIn(0f, 1f) else 1f
+    }
     /** What rooting animals find under the trees and in the ground at [p] this week, kg/m²: the roots they can dig and the mast. */
     fun underground(p: Place) = diggable(p) + mast[p]
     /** Takes up to [want] of what is [underground] at [p], from the roots and the mast as each makes of it; returns what was taken. */
@@ -285,7 +297,7 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
             shrubFruitNow.fill(0f); treeFruitNow.fill(0f)
             wildCover.fill(0f)
             // (Cleared ground not cropped in the year grows back toward the place's woods and scrub.)
-            if (!first) for (p in 0 until n) cleared[p] = croppedNow[p] + max(0f, cleared[p] - croppedNow[p]) * (1f - 1f / REGROW_YEARS)
+            if (!first) for (p in 0 until n) { cleared[p] = croppedNow[p] + max(0f, cleared[p] - croppedNow[p]) * (1f - 1f / REGROW_YEARS); keepOpen(Place(p)) }
             croppedNow.fill(0f)
             for (k in FieldFate.entries.indices) {
                 if (!first) fieldFateLastYear[k] = (0 until n).sumOf { (fieldFateNow[k][it] * land.areaKm2[it] * 1e6f).toDouble() } / 1000
@@ -372,7 +384,8 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
                 }
             }
             // Small finds in season.
-            val month = weather.date.month
+            // (By the place's own seasons: [inflation.world.HexLand.localMonth].)
+            val month = land.localMonth(p, weather.date.month)
             val honey = if (month in 3..5) HONEY * small.pollination[p] * (land.plants.shrub[p] + 0.1f * land.plants.tree[p]) else 0f
             val truffles = if (month in 2..4) TRUFFLES * land.plants.herb[p] * (1f - land.plants.moisture[p]).coerceIn(0f, 1f) * land.plants.green[p] else 0f
             val eggs = if (month in 3..5) EGGS * small.birds[p] / 1e6f else 0f
@@ -399,17 +412,25 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
         field[p] += add
         fieldCover[p] = sownShare(p)
         cleared[p] = max(cleared[p], fieldCover[p]); croppedNow[p] = max(croppedNow[p], fieldCover[p])
+        keepOpen(p)
+    }
+
+    /** The plants keep [p]'s cleared ground open of shrubs and trees ([HexPlants.keepOpen]); what is cut there is left as litter. */
+    private fun keepOpen(p: Place) {
+        val cut = land.plants.keepOpen(p, cleared[p])
+        if (cut.v > 0f) small.deposit(DeadPool.LITTER, p, cut)
     }
 
     /**
      * What a kilo sown at [p] ripens to as its field stands now: [yieldPerKg] of the strain sown, less as the field has gone short of water since
-     * midwinter ([waterStress]); its cereal by the ground it is sown on ([cropSoil]), its pulses [PULSE_YIELD] of that on any ground
-     * (they feed themselves nitrogen).
+     * midwinter ([waterStress]); its cereal by the place's soil ([inflation.world.HexPlants.soil], as the plants' growth has it: the
+     * first fields were on the fertile alluvium of fans and spring-fed basins) and by how worn the field is ([cropSoil]), its pulses
+     * [PULSE_YIELD] of that on any ground (they feed themselves nitrogen).
      */
     fun fieldExpect(p: Place): Float = yieldPerKg(fieldDomestic[p]) * seasonYield(p) * (if (fieldDays[p] > 0f) fieldStress[p] / fieldDays[p] else 1f) * sownMix(p)
 
-    /** What a kilo of [p]'s sown seed bears against cereal on rested ground: its cereal by [cropSoil], its pulses [PULSE_YIELD]. */
-    private fun sownMix(p: Place) = (1f - fieldPulse[p]) * cropSoil(p) + fieldPulse[p] * PULSE_YIELD
+    /** What a kilo of [p]'s sown seed bears against cereal on the best rested ground: its cereal by the soil and [cropSoil], its pulses [PULSE_YIELD]. */
+    private fun sownMix(p: Place) = (1f - fieldPulse[p]) * land.plants.soil(p) * cropSoil(p) + fieldPulse[p] * PULSE_YIELD
 
     /** Of what [p]'s field ripens now, the share that is pulses ([sownMix]). */
     private fun pulseOfRipe(p: Place): Float { val m = sownMix(p); return if (m > 0f) fieldPulse[p] * PULSE_YIELD / m else 0f }
@@ -659,6 +680,8 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
          * richest in bulbs there is, so this is a high mean; the plots are patchy (most under 200 kg/ha, hotspots over 3,000).
          */
         const val ROOTS_SHARE = 0.03f
+        /** [softness]: the share of what it can hold the soil holds of water at which the ground is soft to dig, an estimate. */
+        const val SOFT_SOIL = 0.3f
         const val ROOTS_DAYS = 180f
         /** Small finds a day in season: honey per kg/m² of shrubs (and trees) at full pollination, truffles and snails per kg/m² of herbs,
          * eggs per kg of birds; days they keep. */
@@ -677,7 +700,7 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
          * and kept grazers off two thirds of the uplands.)
          */
         fun access(s: Species, crag: Float): Float {
-            val climber = max(0f, s.habitat.rugged)
+            val climber = s.climbing
             return 1f - (1f - min(1f, climber)) * crag.coerceIn(0f, 1f)
         }
     }

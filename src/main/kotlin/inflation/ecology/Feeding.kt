@@ -50,14 +50,18 @@ internal class Bites {
 internal fun grassUnderSnow(s: Species, snowMm: Float): Float = (1f - snowMm / s.snowLimitMm).coerceIn(0f, 1f)
 
 /**
- * How animals of [s] eating diet [d] feed where the forage nourishes [q], asking [need] kg per m² this week, from
+ * How animals of [s] eating diet [d] feed where the forage nourishes [placeQ] (as it picks it over, [selected]), asking [need] kg per m² this week, from
  * [pantry]: grass and roots (as far as it gets at them under the snow, [underSnow], see [grassUnderSnow]), browse as far as the gut fills at that nourishment, fruit, then
  * switching between them for a shortfall; into [out]. The standing straw is the cured grass, eaten as grass at what it
  * nourishes ([HexPlants.nourishment]). Each food feeds by its energy ([Nourishment]): grass and browse at [q], fruit and roots
  * at theirs, all by [Species.needScale] in kg of its need ([Bites.got], [Bites.short]). The one rule for the residents' week's grazing
- * ([HexFauna.graze]) and for the room they reckon a place has for more of them ([HexFauna.roomFor]).
+ * ([HexFauna.graze]) and for the room they reckon a place has for more of them ([HexFauna.roomFor]). [cropG] and [cropB] are
+ * the shares of its want of grass and of browse it can crop where they stand ([cropRate]).
  */
-@IgnorableReturnValue internal fun forage(s: Species, d: Diet, q: Float, need: Float, underSnow: Float, pantry: Pantry, out: Bites): Bites {
+@IgnorableReturnValue internal fun forage(s: Species, d: Diet, placeQ: Float, need: Float, underSnow: Float, pantry: Pantry, out: Bites,
+    cropG: Float = 1f, cropB: Float = 1f): Bites {
+    // (The forage as it picks it over, [selected]: a small kind eats better than the place's mean.)
+    val q = s.selected(placeQ)
     // (Worked in energy, [Nourishment]'s units: a kg of green forage feeds a unit.)
     val want = need / s.needScale
     val total = (d.grass + d.browse + d.fruit + d.roots).coerceAtLeast(1e-6f)
@@ -65,8 +69,9 @@ internal fun grassUnderSnow(s: Species, snowMm: Float): Float = (1f - snowMm / s
     val fill = gutFill(s, q)
     // (As the residents: what it cannot get at is a share of the place's food it cannot reach, not a share
     // of its need it goes without; where food is plenty it still eats its fill.)
-    val grass = pantry.grass(underSnow * want * fill * d.grass / total)
-    val browse = pantry.browse(want * fill * d.browse / total)
+    // (And as far as it can crop the grass and browse where they stand as thick as they do: [cropG] and [cropB], [cropRate].)
+    val grass = pantry.grass(cropG * underSnow * want * fill * d.grass / total)
+    val browse = pantry.browse(cropB * want * fill * d.browse / total)
     val fruit = pantry.fruit(want * d.fruit / total / Nourishment.FRUIT)
     // (Roots and the mast on the ground lie under the snow as the grass does, and are dug out the same way: boar root less
     // the deeper the snow, keep to oak woods under 40 cm of it and still find acorns there, Chiyojima et al., Mammalian
@@ -90,14 +95,16 @@ internal fun grassUnderSnow(s: Species, snowMm: Float): Float = (1f - snowMm / s
     // the gut holds: capping that too starved grazers and wild sheep wherever the lean season comes without snow.)
     val buried = (1f - underSnow) * want * fill * d.grass / total * q
     if (gap > 0f && d.browse > 0f) {
-        browse2 = pantry.browse(min(min(gap / qf, room), max(0f, gap - buried) / qf + SWITCH * want * fill * d.browse / total))
+        browse2 = pantry.browse(cropB * min(min(gap / qf, room), max(0f, gap - buried) / qf + SWITCH * want * fill * d.browse / total))
         gap -= browse2 * qf; room -= browse2 }
-    if (gap > 0f && d.grass > 0f && underSnow > 0f) { grass2 = pantry.grass(underSnow * min(gap / qf, room)); gap -= grass2 * qf; room -= grass2 }
+    if (gap > 0f && d.grass > 0f && underSnow > 0f) { grass2 = pantry.grass(cropG * underSnow * min(gap / qf, room)); gap -= grass2 * qf; room -= grass2 }
     if (gap > 0f && d.fruit > 0f) { fruit2 = pantry.fruit(gap / Nourishment.FRUIT); gap -= fruit2 * Nourishment.FRUIT }
     if (gap > 0f && d.roots > 0f && underSnow > 0f) { roots2 = pantry.roots(underSnow * gap / Nourishment.ROOTS); gap -= roots2 * Nourishment.ROOTS }
     val short = max(0f, gap) * s.needScale
-    // Grass and browse nourish fully only when green; fruit and roots keep their value.
-    val got = ((grass + browse + grass2 + browse2) * q + (fruit + fruit2) * Nourishment.FRUIT + (roots + roots2) * Nourishment.ROOTS) * s.needScale
+    // Grass and browse nourish fully only when green; fruit and roots keep their value. (What it switched to, as its gut
+    // digests fibre, [qf], as the gap was reckoned: counted at [q], a boar's or a bear's switched forage fed it twice what
+    // it was reckoned to, and a camel's two thirds.)
+    val got = ((grass + browse) * q + (grass2 + browse2) * qf + (fruit + fruit2) * Nourishment.FRUIT + (roots + roots2) * Nourishment.ROOTS) * s.needScale
     out.grass = grass; out.browse = browse; out.fruit = fruit; out.roots = roots
     out.grass2 = grass2; out.browse2 = browse2; out.fruit2 = fruit2; out.roots2 = roots2
     out.short = short; out.room = room; out.q = q; out.got = got

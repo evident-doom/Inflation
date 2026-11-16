@@ -22,6 +22,9 @@ import inflation.ecology.SaltCount
 import inflation.ecology.SaltFlow
 import inflation.ecology.SaltWhere
 import inflation.ecology.saltCountKey
+import inflation.ecology.GIVEN_OF
+import inflation.ecology.GivenCount
+import inflation.ecology.givenKey
 import inflation.ecology.saltFlowKey
 import inflation.ecology.Catalogue
 import inflation.ecology.Met
@@ -202,6 +205,15 @@ class Census(private val sim: HexSim) {
         println("     residents by the sea / inland, per km² (coast %.0f%% of land): ".format(100 * coastA / (coastA + inA)) +
             fauna.kinds.indices.joinToString(", ") { k -> "%s %.2f / %.2f".format(fauna.kinds[k].name, coastN[k] / coastA.coerceAtLeast(1.0),
                 inN[k] / inA.coerceAtLeast(1.0)) })
+        // (The hunters that hold ground by their game: the game they can catch lately and the heads it holds, the land's mean
+        // and as their animals find it, against those there: [HexFauna.usualAt].)
+        val byPrey = fauna.kinds.indices.filter { fauna.gameMean[it].isNotEmpty() }
+        if (byPrey.isNotEmpty()) println("     ground by prey (prey of its size kg/km², heads it holds, heads there, per km²; land / where they are): " + byPrey.joinToString(", ") { k ->
+            var a = 0.0; var g = 0.0; var u = 0.0; var h = 0.0; var gh = 0.0; var uh = 0.0
+            for (pl in 0 until land.n) { val ar = land.areaKm2[pl].toDouble(); val m = fauna.gameMean[k][pl].toDouble().takeIf { !it.isNaN() } ?: 0.0
+                val us = fauna.usualAt(k, inflation.world.Place(pl)).toDouble(); val r = residents(k, pl)
+                a += ar; g += m * ar; u += us * ar; h += r; gh += m * r; uh += us * r }
+            "%s %.0f / %.0f, %.4f / %.4f, %.4f".format(fauna.kinds[k].name, g / a, gh / h.coerceAtLeast(1e-9), u / a, uh / h.coerceAtLeast(1e-9), h / a) })
         println("     residents fed from (fresh plants / prey and carrion / reserves, shares of need per animal this year): " +
             fauna.kinds.indices.joinToString(", ") { k ->
             val ff = fauna.fedFrom[k]; val h = ff[Fed.HEADS].sum().coerceAtLeast(1e-9)
@@ -235,17 +247,17 @@ class Census(private val sim: HexSim) {
                 100 * st[Stuck.AT_EDGE.ordinal] / st[Stuck.STUCK.ordinal].coerceAtLeast(1e-9), 100 * st[Stuck.PEAK.ordinal])
         })
         for (st in fauna.stuck) st.fill(0.0)
-        // What they find there: edible forage, how green, how well the roe deer fed, how far water is.
+        // What they find there: edible forage, how green, how well the deer fed, how far water is.
         fun mean(f: (Int) -> Double, c: Boolean) = (0 until land.n).filter { hw.coast[hw.placeHex[it]] == c }.let { ps ->
             ps.sumOf { f(it) * land.areaKm2[it] } / ps.sumOf { land.areaKm2[it].toDouble() }.coerceAtLeast(1.0) }
         fun both(f: (Int) -> Double) = arrayOf(mean(f, true), mean(f, false))
-        val roe = fauna.kinds.indexOf(Catalogue.ROE_DEER)
+        val roe = fauna.kinds.indexOf(Catalogue.DEER)
         val forage = both { (land.palatable[it] * (land.plants.herb[it] + land.plants.shrub[it])).toDouble() }
         val green = both { land.plants.green[it].toDouble() }
         val roeFed = if (roe >= 0) both { fauna.fed[roe][it].toDouble() } else arrayOf(0.0, 0.0)
         val water = both { land.drink.waterKm[it].toDouble() }
         val temperature = both { weather.temperature[it].toDouble() }
-        println("     the sea / inland: edible forage %.3f / %.3f kg/m², green %.2f / %.2f, roe deer fed %.2f / %.2f, water %.1f / %.1f km, temperature %.1f / %.1f °C".format(
+        println("     the sea / inland: edible forage %.3f / %.3f kg/m², green %.2f / %.2f, deer fed %.2f / %.2f, water %.1f / %.1f km, temperature %.1f / %.1f °C".format(
             forage[0], forage[1], green[0], green[1], roeFed[0], roeFed[1], water[0], water[1], temperature[0], temperature[1]))
     }
 
@@ -528,7 +540,7 @@ class Census(private val sim: HexSim) {
         println("     packs holding their ground this week, of all packs (footprint hexes, mean and widest): " +
             groups.kinds.filter { s -> groups.groups.any { it.alive && it.species == s && it.band == null } }.joinToString(", ") { s ->
                 val all = groups.groups.filter { it.alive && it.species == s && it.band == null }
-                val holding = all.mapNotNull { it.footprint?.size }
+                val holding = all.mapNotNull { it.footprint?.hexes?.size }
                 "%s %d of %d (%.1f, %d)".format(s.name, holding.size, all.size, if (holding.isEmpty()) 0.0 else holding.average(), holding.maxOrNull() ?: 0)
             })
         val banded = groups.kinds.filter { groups.planner.exploreCounts[it.index * 4] > 0 }
@@ -1117,6 +1129,15 @@ class Census(private val sim: HexSim) {
                 c(SaltCount.HELD) / c(SaltCount.BAND_WEEKS).coerceAtLeast(1.0),
                 SaltFlow.entries.joinToString(", ") { f -> "%.3f".format((lastYear[saltFlowKey(w, f)] ?: 0) / 1000.0 / personYears) },
                 c(SaltCount.DAYS) / 10.0 / personYears) })
+        // What bands gave each other at meetings and what it was worth, each reckoning from where it stood ([worthDaysPerKg]):
+        // the taker's days against the giver's are what a gift gained, and its days a kg the good's price there.
+        println("goods given at meetings, last year (kg or a person's sets of tools; days a kg or set to the taker, to the giver; favours owed for a day): " +
+            GIVEN_OF.joinToString(", ") { of ->
+                fun c(k: GivenCount) = (lastYear[givenKey(of, k)] ?: 0).toDouble()
+                val kg = c(GivenCount.KG) / 10.0
+                "%s %.0f: %.2f, %.2f; %.3f".format(of, kg, c(GivenCount.TAKER_DAYS) / 10.0 / kg.coerceAtLeast(1e-9),
+                    c(GivenCount.GIVER_DAYS) / 10.0 / kg.coerceAtLeast(1e-9), c(GivenCount.FAVOURS) / 100.0 / (c(GivenCount.TAKER_DAYS) / 10.0).coerceAtLeast(1e-9))
+            })
         run {
             // Meat brought in against meat eaten (each at what it feeds): what a kill beyond the band's hunger leaves to spoil.
             val h = Catalogue.HUMAN

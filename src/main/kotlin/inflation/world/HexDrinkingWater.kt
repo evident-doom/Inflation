@@ -52,6 +52,12 @@ class HexDrinkingWater(land: HexLand) : HexLandPart(land) {
      */
     @Transient val campKm = FloatArray(n)
     /**
+     * This week's standing water at each place deep enough to lie in all day, 0..1 of the place within reach of it: fresh
+     * lakes, floodwater, and rivers of [DEEP_RIVER_M3S] or more in a usual year while they run; not the pools and seeps of
+     * a wet week, nor springs or creeks. What hippos are bound to ([inflation.ecology.HexFauna.tether]).
+     */
+    @Transient val deep = FloatArray(n)
+    /**
      * This week: share of each place within an easy walk of a stream bed where people can dig down to
      * water (a soak), 0..1: where the water table under the valley floor lies within [DIG_M] and the
      * ground is not frozen. Animals do not count it; a band pays for it in time (see the ecology).
@@ -180,6 +186,7 @@ class HexDrinkingWater(land: HexLand) : HexLandPart(land) {
             val flooded = if (hydro.flood[p] > 0f) land.floodShare[p] else 0f
             val lasting = nearRiver[p] * running + nearLake[p] + (if (thawed) springs else 0f)
             water[p] = max(pools, min(1f, lasting + flooded))
+            deep[p] = min(1f, (if (hydro.meanFlow[h] >= DEEP_RIVER_M3S) nearRiver[p] * running else 0f) + nearLake[p] + flooded)
             // (The streams still running at this week's share of a usual year's flow: those whose usual flow keeps a trickle.)
             val k = runningClass(if (hydro.meanFlow[h] > 0f) hydro.flow[h] / hydro.meanFlow[h] else 0f)
             waterKm[p] = if (pools > 0f) 0f else if (k >= 0) riverClassKmMean[k][p] else stillKmMean[p]
@@ -224,6 +231,12 @@ class HexDrinkingWater(land: HexLand) : HexLandPart(land) {
         const val DRINK_KM = 3f
         const val MAX_WATER_KM = 60f
         const val POOL_WETNESS = 0.8f
+        /**
+         * [deep]: a river's usual flow, m³/s, from which it holds pools deep enough for a hippo to lie in by day: the
+         * coastal rivers of the Levant that kept them into historical times were of tens of m³/s (from memory); a guess at
+         * the least. With every wet week's pools counted, hippos lived along every rainy coast.
+         */
+        const val DEEP_RIVER_M3S = 5f
         /**
          * Least snow lying, and least fresh snow in a week, that animals can eat for water, mm water equivalent: a few cm of
          * snow, as "snow lying" is counted (see [inflation.tools.GenerateWorld]).

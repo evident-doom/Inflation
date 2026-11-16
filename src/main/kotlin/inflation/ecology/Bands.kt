@@ -115,8 +115,6 @@ class Bands internal constructor(private val world: GroupWorld) {
     /** The weeks in a row each hex that is a village now has been one ([tallyVillages]). */
     @Transient internal val villageAge = HashMap<Hex, Int>()
 
-    /** Bands by the hex they are in ([indexBands]): at the start of the week for [fillBandStates], after the moves for [setWays]. */
-    @Transient internal val bandIndex = HashMap<Hex, ArrayList<HexGroup>>()
 
     /** Dogs that left their band hungry this week as a pack of their own ([keepAnimals]): added to the groups once every band has had its week. */
     @Transient internal val strays = ArrayList<HexGroup>()
@@ -124,14 +122,8 @@ class Bands internal constructor(private val world: GroupWorld) {
     /** Raiders that reached their target's home this week, with the band they came for: fought once every band has had its week. */
     @Transient internal val raidsDue = ArrayList<Pair<HexGroup, HexGroup>>()
 
-    /** Packs of kinds that follow people, by the hex they end the week in (for taming). */
-    internal var followersByHex: Map<Hex, List<HexGroup>> = emptyMap()
 
-    /** Each living band's hex by its id, as of this week's camps (for visiting, see [cultureWeek]). */
-    internal var bandHex: Map<Int, Hex> = emptyMap()
 
-    /** Each group by its id, as the bands' weeks begin (the groups they look for by id: raid targets, homes they know of). Not saved. */
-    @Transient internal var groupById: Map<Int, HexGroup> = emptyMap()
 
     /** Where each living band with a standing house has it, by the band's id (set each week before the bands' own weeks). */
     internal var houseOf: Map<Int, Hex> = emptyMap()
@@ -174,11 +166,14 @@ class Bands internal constructor(private val world: GroupWorld) {
         (materialSources.getValue(Material.SALT).toList() + shore.values).distinct().sorted().toHexArray()
     }
 
-    /** The nearest of the [saltSources] band [b] knows, from hex [here], or -1 if it knows none (kept on the band till it moves on). */
-    internal fun saltKnown(b: Band, here: Hex): Hex {
+    /**
+     * The nearest of the [saltSources] band [b] knows, from hex [here], by [km] (from [here] to a source: [HexGroups.saltKnown]
+     * gives the going), or -1 if it knows none (kept on the band till it moves on).
+     */
+    internal fun saltKnown(b: Band, here: Hex, km: (Hex) -> Double): Hex {
         if (b.saltFrom == here) return b.saltAt
         var best = Hex.NONE; var bestKm = Double.MAX_VALUE
-        for (h in saltSources) if (b.knows(h)) { val km = hexKm(here, h); if (km < bestKm) { bestKm = km; best = h } }
+        for (h in saltSources) if (b.knows(h)) { val d = km(h); if (d < bestKm) { bestKm = d; best = h } }
         b.saltFrom = here; b.saltAt = best
         return best
     }

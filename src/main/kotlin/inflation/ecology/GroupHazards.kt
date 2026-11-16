@@ -143,9 +143,9 @@ internal fun GroupWorld.placeHazards(g: HexGroup, p: Place, weather: Weather, fe
     val (fireA, floodA, snowA) = fauna.calamities(s, p, weather, false)
     val (fireY, floodY, snowY) = fauna.calamities(s, p, weather, true)
     val croc = if (s.human) 0f else fauna.crocodileOdds(p, weather)
-    into.add(DeathCause.HUNGER, hunger, 1.5f * hungerYoung); into.add(DeathCause.COLD, cold, 1.5f * cold)
-    into.add(DeathCause.HEAT, heat, 1.5f * heat)
-    into.add(DeathCause.EXPOSURE, exposure, 1.5f * exposure); into.add(DeathCause.THIRST, thirst, 1.5f * thirst)
+    into.add(DeathCause.HUNGER, hunger, Hazards.YOUNG_HARDER * hungerYoung); into.add(DeathCause.COLD, cold, Hazards.YOUNG_HARDER * cold)
+    into.add(DeathCause.HEAT, heat, Hazards.YOUNG_HARDER * heat)
+    into.add(DeathCause.EXPOSURE, exposure, Hazards.YOUNG_HARDER * exposure); into.add(DeathCause.THIRST, thirst, Hazards.YOUNG_HARDER * thirst)
     into.add(DeathCause.DISEASE, sick, sick); into.add(DeathCause.OUTBREAK, plague, plague)
     into.add(DeathCause.FIRE, fireA, fireY); into.add(DeathCause.FLOOD, floodA, floodY); into.add(DeathCause.SNOW, snowA, snowY)
     into.add(DeathCause.CROCODILES, 0f, croc); into.add(DeathCause.EAGLES, 0f, eagle)
@@ -273,7 +273,7 @@ internal fun GroupWorld.shareDeaths(hazards: List<Hazard>, adults: Int, young: I
 internal fun HexGroups.houseWorthWeek(g: HexGroup, b: Band, weather: Weather, stalked: Float) {
     val s = g.species; val fire = b.fire; val now = b.homeShelter(); val air = airAt(g.place, weather)
     val had = b.warmth(air, fire, now, days); val whole = b.warmth(air, fire, 1f, days)
-    fun lives(d: Float) = g.adults * d + g.young * min(1f, 1.5f * d)
+    fun lives(d: Float) = g.adults * d + g.young * min(1f, Hazards.YOUNG_HARDER * d)
     val exposure = lives(max(0f, had.odds - whole.odds))
     b.houseLivesWeek += exposure
     val walls = if (b.homeWalls > 0f) b.homeWalls else 1f
@@ -297,7 +297,7 @@ internal fun HexGroups.houseWorthWeek(g: HexGroup, b: Band, weather: Weather, st
     if (more > 0f) {
         fun starve(fed: Float, young: Boolean) = ageHunger(g, fed).let { if (young) it.second else it.first }
         w[HouseWorth.HUNGER] += g.adults * max(0f, starve(g.fed, false) - starve(g.fed + more, false)) +
-            g.young * max(0f, min(1f, 1.5f * starve(g.fed, true)) - min(1f, 1.5f * starve(g.fed + more, true)))
+            g.young * max(0f, min(1f, Hazards.YOUNG_HARDER * starve(g.fed, true)) - min(1f, Hazards.YOUNG_HARDER * starve(g.fed + more, true)))
         w[HouseWorth.PROTEIN_DAYS] += g.adults * max(0f, Hazards.spentAfter(s, g.spent, g.fed, days) - Hazards.spentAfter(s, g.spent, g.fed + more, days))
     }
     val people = max(1, g.size).toFloat(); val k = 1f / stepsPerYear
@@ -331,4 +331,34 @@ internal fun HexGroups.peopleCrowding(g: HexGroup, h: Hex = hw.placeHex[g.place]
 }
 
 /** The share of the sick and wounded of [band] its healers do not save (1 for a group with no band). */
+/**
+ * The yearly odds that a grown one of kind [s] in band [band] (none: not of a band) dies of age, accidents and ordinary
+ * illness ([DeathCause.OTHER]): its kind's, less what the band's healers save ([healedShare]), and for people as
+ * [inflation.Tuning.humanOther] sets it. The one rule for the week's deaths ([liveWeek]) and the year a band foresees ([yearAhead]).
+ */
+internal fun GroupWorld.backgroundOdds(s: Species, band: Band?) = healedShare(band) * s.backgroundMortality * (if (s.human) tuning.humanOther else 1f)
+
 internal fun healedShare(band: Band?) = (1f - 0.15f * (band?.medicine ?: 0f)) * (band?.lapse(Skill.HERBS)?.let { 1f + HEALING_REACH * (it - 1f) } ?: 1f)
+
+/**
+ * Wounds: how much less the hurt and the lamed do; yearly share of adults hurt by mishaps (falls,
+ * cuts, sprains, snakebite gone bad) at the usual gathering range; wounded who live for each one
+ * killed by prey or by a beast (in raids, [RAID_WOUNDED_PER_DEAD]); weekly share of the wounded who heal, untended and with
+ * the best care; weekly share whose wound festers and kills, untended (care saves most); share of
+ * the healed lamed for life, untended (care halves it); the lamed's extra odds of dying ([LAME_RISK]).
+ */
+internal const val HURT_HANDS = 0.8f
+internal const val LAME_HANDS = 0.4f
+internal const val MISHAPS = 0.08f
+internal const val WOUNDED_PER_DEAD = 2f
+internal const val HEAL_UNTENDED = 0.15f
+internal const val HEAL_TENDED = 0.35f
+/**
+ * [FESTER]: at 0.02, with mishaps at [MISHAPS], wounds killed 7-8 a 1000 adults a year where people crowd (flux716),
+ * against accidents 5.2% of forager deaths (Gurven, pooled deaths of 7 groups), some 1-2 a 1000 adults at their 1-1.5%
+ * adult deaths a year: 0.005 aims at that.
+ */
+internal const val FESTER = 0.005f
+internal const val LAMED = 0.2f
+/** Extra odds of dying (of any cause but old age) for a lamed adult, over an unlamed one: 1 is twice as likely. */
+internal const val LAME_RISK = 1f

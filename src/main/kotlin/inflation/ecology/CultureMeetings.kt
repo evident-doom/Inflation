@@ -45,7 +45,8 @@ internal fun HexGroups.meetingFresh(a: HexGroup, b: HexGroup, weather: Weather):
  * Returns true if it came to a raid.
  */
 @Part("meetings: talk or raid")
-internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weather, rite: RiteGathering? = null, fresh: Float = 1f, strangers: Float = 0f): Boolean {
+internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weather, rite: RiteGathering? = null, fresh: Float = 1f, strangers: Float = 0f,
+                                          at: inflation.world.Hex = hw.placeHex[b.place]): Boolean {
     val bandA = a.band ?: return false; val bandB = b.band ?: return false
     bandA.ensureMarks(fauna.totemKinds); bandB.ensureMarks(fauna.totemKinds)
     val u = Language.understanding(bandA.words, bandB.words)
@@ -53,7 +54,7 @@ internal fun HexGroups.meetingEndsInRaid(a: HexGroup, b: HexGroup, weather: Weat
     if (rite != null && rite.site in bandA.rite && rite.site in bandB.rite) { ab.holy = true; ba.holy = true }
     val metAs = MetAs(ab, ba)
     tallyMeeting(metAs, Tally.MeetingEnd.MET)
-    val raider = if (raid(a, bandA, b, bandB, ab, weather)) bandA else if (raid(b, bandB, a, bandA, ba, weather)) bandB else null
+    val raider = if (raid(a, bandA, b, bandB, ab, weather, at, rite != null)) bandA else if (raid(b, bandB, a, bandA, ba, weather, at, rite != null)) bandB else null
     if (raider != null) {
         tallyMeeting(metAs, Tally.MeetingEnd.RAIDED)
         if (ab.holy && rite != null) { if (raider === bandA) sacrilege(bandA, a.id, b.id, rite) else sacrilege(bandB, b.id, a.id, rite) }
@@ -202,12 +203,11 @@ internal fun GroupWorld.tallyMeeting(metAs: MetAs, what: Tally.MeetingEnd) {
  * the routes they know, where they met, where their homes and those of others they know are, the
  * appointments they keep, and the places they remember (as far as they trust each other).
  */
-/** The hexes within [TOLD_RINGS] rings of [home], itself first ([HexGroups.toldDisk]). */
-internal fun HexGroups.toldOf(home: Hex): HexArray = toldDisk[home.i] ?: run {
-    val out = ArrayList<Hex>(); var ring = listOf(home); val seen = hashSetOf(home)
-    for (r in 0..TOLD_RINGS) { out += ring; if (r == TOLD_RINGS) break; ring = hex.nextRing(ring, seen) }
-    out.toHexArray().also { toldDisk[home.i] = it }
-}
+/**
+ * The km of easy going about a home whose country bands that meet tell each other of ([tellOfCountry]): its people's day or
+ * two of walking out ([DAY_WALK_KM]), by the ground ([reachOf]).
+ */
+internal fun GroupWorld.toldKm(): Float = 2f * DAY_WALK_KM
 
 @Part("meetings: tell of country")
 private fun HexGroups.tellOfCountry(a: HexGroup, bandA: Band, b: HexGroup, bandB: Band, ab: Regard, ba: Regard, weather: Weather) {
@@ -216,10 +216,11 @@ private fun HexGroups.tellOfCountry(a: HexGroup, bandA: Band, b: HexGroup, bandB
     // (Of the country about each one's home: where they meet from hexes apart, as bands that hold their home hex do, each
     // comes away with a map of the other's country too.)
     val hb = hw.placeHex[b.place]
-    for (home in if (hb == h0) arrayOf(h0) else arrayOf(h0, hb)) {
-        // (The hexes about it, worked out once a hex: the boxed rings were a fifth of the telling's time, prof761.)
-        val disk = toldOf(home)
-        for (j in 0 until disk.size) { val h = disk[j]; if (bandA.knows(h)) bandB.learn(h, hex.size); if (bandB.knows(h)) bandA.learn(h, hex.size) }
+    // (The country about it is what its people walk, by the ground ([toldKm]): not across a strait or a cliff they cannot go.)
+    val told = toldKm()
+    for ((home, who) in if (hb == h0) arrayOf(h0 to a) else arrayOf(h0 to a, hb to b)) {
+        searchedAtLeast(who.species, hw.placeBand[who.place], home, told, weather).forEachWithin(told) { h, _ ->
+            if (bandA.knows(h)) bandB.learn(h, hex.size); if (bandB.knows(h)) bandA.learn(h, hex.size) }
     }
     stats.meeting(Met.BANDS_TOLD_OF_COUNTRY)
     // And of the ways they know further off: landmarks, and the legs between those they know, each about its own home.
@@ -240,15 +241,16 @@ private fun HexGroups.tellOfCountry(a: HexGroup, bandA: Band, b: HexGroup, bandB
         hearer.knownLineage[teller.id] = bt.mainLineage()
     }
     fun tellsHomes(bt: Band, hearer: HexGroup, bh: Band) {
-        val at = hw.placeHex[hearer.place]
+        // (How far each home lies from the hearer for knowing of it ([homeKm]): by the going near, by its fame further.)
+        val at = hw.placeHex[hearer.place]; val reach = homesReach(hearer, weather)
         // (A home the hearer knows as lately seen is nothing to tell: no draw is made for it. Most are: bands that meet come to know the same homes.)
         for ((id, hh) in bt.knownHomes) {
             if (id == hearer.id) continue
             val seen = bt.homeSeen[id] ?: continue
             val had = bh.homeSeen[id]
             if (had != null && had >= seen) continue
-            val km = hexKm(at, hh)
-            if (km > homeReachKm(id) || rnd.nextFloat() >= u) continue
+            val km = homeKm(reach, at, id, hh)?.toDouble() ?: continue
+            if (rnd.nextFloat() >= u) continue
             val off = (bt.homeOff[id] ?: 0f) + HEARSAY_OFF * km.toFloat()
             if (had == null || off < (bh.homeOff[id] ?: Float.MAX_VALUE)) { bh.knownHomes[id] = blurred(hh, HEARSAY_OFF * km); bh.homeOff[id] = off }
             bh.homeSeen[id] = seen; bh.homesVersion++
@@ -323,7 +325,7 @@ private fun GroupWorld.marryOut(a: HexGroup, bandA: Band, b: HexGroup, bandB: Ba
         if (bandB.holders[i] > 0f) bandB.holders[i] = max(0f, bandB.holders[i] - fromB[i])
     }
     // Kin by marriage forgive.
-    bandA.grudge[bandB.mainLineage()] *= 0.5f; bandB.grudge[bandA.mainLineage()] *= 0.5f
+    bandA.amends(bandB, 0.5f); bandB.amends(bandA, 0.5f)
 }
 
 /**
@@ -344,24 +346,23 @@ internal fun HexGroups.visitKin(weather: Weather) {
     for (g in groups) if (g.alive && g.band != null && g.larder > 0f) byHex.getOrPut(hw.placeHex[g.place]) { ArrayList() } += g
     for (g in hungry) {
         val gb = g.band ?: continue
-        // The best-stocked band within two hexes, the nearer the better.
+        // The best-stocked band within a day or two's walk by the ground ([kinReachKm], [reachOf]), the nearer by the going the better.
         var best: HexGroup? = null; var bestScore = 0f
         val h0 = hw.placeHex[g.place]
-        var ring = listOf(h0); val seen = hashSetOf(h0)
-        for (r in 0..VISIT_RINGS) {
-            for (h in ring) for (o in byHex[h].orEmpty()) if (o !== g) {
+        val reachKm = kinReachKm(); val reach = reachOf(g, h0, reachKm, weather)
+        for (i in 0 until reach.hexes.size) {
+            if (reach.dist[i] > reachKm) continue
+            for (o in byHex[reach.hexes[i]].orEmpty()) if (o !== g) {
                 // (What it can hope for there: an ordinary share of the larder, the more the closer the band holds it
                 // ([Regard.close], as at a meeting), or what the band owes it.)
                 val owed = min(0.9f * o.larder, o.band!!.owesTo(g.id) * FAVOUR_DAYS * g.dailyNeedKg)
                 val ob = o.band ?: continue
-                val score = max(BAND_GIFT * (1f + Regard(ob, g.id, gb, map = hex).close) * o.larder, owed) / (1f + r)
+                val score = max(BAND_GIFT * (1f + Regard(ob, g.id, gb, map = hex).close) * o.larder, owed) / (1f + reach.dist[i] / hex.hexKm.toFloat())
                 if (score > bestScore) {
                     bestScore = score
                     best = o
                 }
             }
-            if (r == VISIT_RINGS) break
-            ring = hex.nextRing(ring, seen)
         }
         val o = best ?: continue
         // (How much the band visited gives is its choice, more to a band it is close to, as at a meeting; and it owes the
@@ -376,22 +377,23 @@ internal fun HexGroups.visitKin(weather: Weather) {
         // go to eat where the food is), and take home what they can carry ([carryKg]). Olli, 13 Nov 2026: no free movement.)
         val ho = hw.placeHex[o.place]
         val apart = ho != h0
-        // (Its way there by the ground, [tripKm]: none, and it cannot go.)
-        val walkKm = if (apart) tripKm(g, h0, ho, weather) ?: continue else 0f
+        // (Its way there by the ground, [findWay]: none, and it cannot go.)
+        val way = if (apart) findWay(g, h0, ho, weather) ?: continue else null
         val most = if (apart) (1f - g.fed) * week + carryKg(g, gb) else need
         val gift = given(o, g, minOf(share * o.larder, need, most), min(need, most))
         if (gift <= 0f) continue
-        if (apart) gb.raidWalkOwed += visitDays(g.adults.toFloat(), walkKm.toDouble())
-        val eat = min(gift, (1f - g.fed) * week)
-        g.fed += eat / week
-        moveFood(o, g, gift, LarderMove.KIN); val ateKg = eatStores(g, eat)
-        land.books?.flow(inflation.Books.Stuff.MATTER, "eaten", -ateKg.toDouble())
+        // (All its grown walk there and back, wearing the way, from its next step's days: [tripAlong].)
+        if (way != null) tripAlong(g, way, g.adults.toFloat(), WalkPaid.NEXT_STEP)
+        // (What it is given goes into its stores, and it eats of them what it fell short of this week as it eats any meal
+        // ([Meal]): what spoils first first, its protein feeding only so far, the seed corn kept back.)
+        moveFood(o, g, gift, LarderMove.KIN)
+        val meal = Meal(min(gift, (1f - g.fed) * week)); meal.eat(enumFloats(), enumFloats(), g)
+        g.fed += (meal.wantAll - meal.need) / week
+        land.books?.flow(inflation.Books.Stuff.MATTER, "eaten", -meal.ateKg.toDouble())
         // Who was helped remembers: grudges against the helpers' people fade, and it owes them a favour.
-        g.band!!.grudge[o.band!!.mainLineage()] *= 0.5f
+        g.band!!.amends(o.band!!, 0.5f)
         helped(o, g, gift)
         stats.meeting(Met.HUNGRY_BANDS_FED_BY_KIN)
-        // (The visit wears the way there and back, [wearBetween].)
-        wearBetween(h0, hw.placeHex[o.place], g)
     }
 }
 
@@ -403,9 +405,17 @@ internal const val FAVOUR_DAYS = 7f
  * help met; help to a band that is owed favours settles them first.
  */
 internal fun helped(giver: HexGroup, taker: HexGroup, kg: Float) {
-    val gb = giver.band ?: return; val tb = taker.band ?: return
     if (kg <= 0f) return
-    val f = kg / max(1e-3f, FAVOUR_DAYS * taker.dailyNeedKg)
+    helpedBy(giver, taker, kg / max(1e-3f, FAVOUR_DAYS * taker.dailyNeedKg))
+}
+
+/**
+ * [giver] helped [taker] by [f] favours, of food ([helped]) or goods ([gaveGoods]): [taker] owes it them; help to a band
+ * that is owed favours settles them first.
+ */
+internal fun helpedBy(giver: HexGroup, taker: HexGroup, f: Float) {
+    val gb = giver.band ?: return; val tb = taker.band ?: return
+    if (f <= 0f) return
     fun add(b: Band, other: Int, by: Float) { val v = (b.favours[other] ?: 0f) + by; if (abs(v) < 0.01f) b.favours.remove(other) else b.favours[other] = v }
     add(gb, taker.id, f); add(tb, giver.id, -f)
 }
@@ -429,3 +439,7 @@ internal fun HexGroups.given(giver: HexGroup, taker: HexGroup, chosen: Float, ne
     stats.meeting(if (gift < due) Met.FAVOURS_HELD_BACK else Met.FAVOURS_RETURNED)
     return gift
 }
+
+/** How a band's name for its gifts counts against food in hand when other bands weigh whose ways to take up; share of it that fades a year. */
+internal const val RENOWN = 0.2f
+internal const val RENOWN_FADE = 0.2f

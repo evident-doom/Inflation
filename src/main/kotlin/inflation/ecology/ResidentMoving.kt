@@ -55,7 +55,7 @@ internal fun HexFauna.fedOnSpare(s: Species, p: Place, heads: Float, each: Float
     if (!(want > 0f)) return 1f
     dry.reach = reach; dry.grass = spareGrass[p]; dry.browse = spareBrowse[p]
     dry.fruit = spareFruit[p]; dry.roots = spareRoots[p]
-    return (forage(s, s.diet, land.plants.nourishment(p), want, grassUnderSnow(s, snowMm), dry, b).got / want).coerceIn(0f, 1f)
+    return (forage(s, s.diet, land.plants.nourishment(p), want, grassUnderSnow(s, snowMm), dry, b, cropGrass(s, p), cropBrowse(s, p)).got / want).coerceIn(0f, 1f)
 }
 
 /** [fedOnSpare] for [heads] of plant-eating kind [k] coming to place [p] this week. */
@@ -161,11 +161,11 @@ private fun HexFauna.growthFor(k: FaunaKind, parts: EnumFloats<Growth>, youngPer
 @IgnorableReturnValue private fun HexFauna.growthOf(k: FaunaKind, p: Place, grownFixed: Float, youngFixed: Float, huntedYoung: Float, protein: Float, youngPerGrown: Float,
                      carried: Float, f: Float, heads: Float, parts: EnumFloats<Growth>?): Float {
     val s = kinds[k]
-    val hunger = Hazards.hunger(s, moverSpent[k], Hazards.onFat(f, carried, days, 1f), days); val sick = Hazards.crowdDisease(Hazards.crowding(heads, usual[k]), f, years)
+    val hunger = Hazards.hunger(s, moverSpent[k], Hazards.onFat(f, carried, days, 1f), days); val sick = Hazards.crowdBackstop(Hazards.crowding(heads + sharersKm2(k, p), usual[k]), f, years) + wetSickness(s, p, f) * years
     val due = dueYoung(k, p, heads, protein, min(1f, days / (s.birthMonths * Date.DAYS_PER_MONTH.toFloat())))
     val born = 0.5f * due * breeding(s, due, carried, f, days)
     val grownDie = (grownFixed + hunger + sick).coerceIn(0f, Hazards.MAX_GROWN_ODDS)
-    val youngDie = min(Hazards.MAX_YOUNG_ODDS, (youngFixed + 1.5f * hunger + sick).coerceIn(0f, Hazards.MAX_YOUNG_ODDS) + huntedYoung)
+    val youngDie = min(Hazards.MAX_YOUNG_ODDS, (youngFixed + Hazards.YOUNG_HARDER * hunger + sick).coerceIn(0f, Hazards.MAX_YOUNG_ODDS) + huntedYoung)
     if (parts != null) { parts[Growth.BORN] = born; parts[Growth.GROWN_DIE] = grownDie; parts[Growth.YOUNG_DIE] = youngDie; parts[Growth.FED] = f; parts[Growth.PROTEIN] = protein }
     return (born - grownDie - youngPerGrown * youngDie) / (1f + youngPerGrown)
 }
@@ -216,9 +216,9 @@ internal fun HexFauna.appeal(k: FaunaKind, p: Place, weather: Weather): Float {
     // (Plant-eaters weigh their forage by how fresh it is and how well it would meet their need for
     // protein: so they go up to the green high pasture in summer and down for the winter.)
     val fresh = if (s.carnivore) 1f else land.plants.nourishment(p) * forageProtein(s, p)
-    return fareFor(s, p) * fresh * suits(s, p) * tether(s, p) * unbitten(p) * snowed * (1f - FEAR_WEIGHT * (if (s.carnivore) pressure(k, p) else shy(s, p))) * (1f - outranked(s, p)) *
+    return fareFor(s, p) * fresh * tether(s, p) * unbitten(p) * snowed * (1f - FEAR_WEIGHT * (if (s.carnivore) pressure(k, p) else shy(s, p))) * (1f - outranked(s, p)) *
         (1f - land.fire.stepBurning[p] * FIRE_ADULT) * (1f - outbreakDeaths(s, p)) /
-        (1f + Hazards.crowding(heads, usual[k])) / (1f + discomfort)
+        (1f + Hazards.crowding(heads, usualAt(k.i, p))) / (1f + discomfort)
 }
 
 /** Whether [s] can drink at place [p] ([Hazards.canDrink]). */
@@ -489,19 +489,19 @@ fun HexFauna.addDispersing(k: FaunaKind, h: Hex, heads: Float) {
 
 /**
  * The grown young of kind [k] dispersing from their natal ground over the step's days ([HexGroups.roamersLeave]): from the
- * hex they left they settle in at a rate a day of one in [dispersalDays] (as far as there is room about: the room within
- * [DISPERSAL_REACH] times [dispersalKm], nearer counting more, against all the ground there), and die on the way at
+ * hex they left they settle in at a rate a day of one in [Species.dispersalDays] (as far as there is room about: the room within
+ * [DISPERSAL_REACH] times [Species.dispersalKm], nearer counting more, against all the ground there), and die on the way at
  * [DISPERSAL_DEATH] a day; in closed form over the days, the same at any step length. Those that settle join the settled
- * where the room is, nearer first by exp(-distance / [dispersalKm]), never back on the hex they left, each hex at most to
+ * where the room is, nearer first by exp(-distance / [Species.dispersalKm]), never back on the hex they left, each hex at most to
  * its [HexFauna.usual]; the dead lie where they left. (Dispersal as a pool, not as lone packs: estimates of the magnitude,
  * wolves dispersing a few months over tens of km, lions longer and nearer, with about a third lost on the way;
  * Mech and Boitani 2003 from memory, to check.)
  * The dead's weight goes into [carcass] (by place, as [carcassKg]), and their heads are returned, for the caller to add to
  * the carcasses and the deaths: the kinds disperse at once, each into its own ([HexGroups.roamersLeave]).
  */
-fun HexFauna.disperse(k: FaunaKind, carcass: FloatArray): Float {
+fun HexFauna.disperse(k: FaunaKind, carcass: FloatArray, weather: Weather): Float {
     val pool = dispersing?.get(k.i) ?: return 0f
-    return disperseAtOnce(k, pool, carcass).also { drift(k, pool) }
+    return disperseAtOnce(k, pool, carcass).also { drift(k, pool, weather) }
 }
 
 /**
@@ -512,31 +512,33 @@ fun HexFauna.disperse(k: FaunaKind, carcass: FloatArray): Float {
  */
 private fun HexFauna.disperseAtOnce(k: FaunaKind, pool: FloatArray, carcass: FloatArray): Float {
     val s = kinds[k]
-    val lengthKm = dispersalKm(s); val reach = (DISPERSAL_REACH * lengthKm / hex.hexKm).toInt().coerceAtLeast(1)
-    val settleRate = 1f / dispersalDays(s); val a = adults[k]; val y = young[k]; val usualK = usual[k]
+    val lengthKm = s.dispersalKm
+    val settleRate = 1f / s.dispersalDays; val a = adults[k]; val y = young[k]
     // (Room on each hex, heads, as the step found it; the hexes the pool holds enough on to weigh; and those too few to
     // weigh, waiting in the pool, die on the way as they would, the last few hundredths of a head all of them, where
     // they wait. One pass over the map on this kind's core: each hex is a few sums, less than a parallel loop's start.)
-    val room = FloatArray(hex.size); val died = FloatArray(hex.size)
+    val room = FloatArray(hex.size); val died = FloatArray(hex.size); val holdsOf = FloatArray(hex.size)
     val dying = 1f - exp(-DISPERSAL_DEATH * days)
     val sourceList = HexList(); val unknownList = HexList()
     for (h in hex.all) {
         var heads = 0f; var area = 0f
-        for (q in hw.placesOf(h)) { heads += (a[q] + y[q]) * land.areaKm2[q]; area += land.areaKm2[q] }
-        room[h] = max(0f, usualK * area * (1f - pressureOnHex(k, h)) - heads)
+        // (The room its territories leave on the hex, as the game there holds them: [usualAt].)
+        var holds = 0f
+        for (q in hw.placesOf(h)) { heads += (a[q] + y[q]) * land.areaKm2[q]; area += land.areaKm2[q]; holds += usualAt(k.i, Place(q)) * land.areaKm2[q] }
+        holdsOf[h] = holds; room[h] = max(0f, holds * (1f - pressureOnHex(k, h)) - heads)
         val n = pool[h]
         if (n >= DISPERSAL_LEAST) { sourceList += h; if (!dispersalGround.containsKey(groundKey(k, h))) unknownList += h }
         else if (n > 0f) { val d = if (n < DISPERSAL_GONE) n else n * dying
             died[h] = d; pool[h] = max(0f, n - d); carcass[hw.placesOf(h)[0]] += d * s.massKg }
     }
     val sources = sourceList.toHexArray(); val unknown = unknownList.toHexArray()
-    Par.forEach("residents: dispersal ground", unknown.size) { i -> val h = unknown[i]; dispersalGround[groundKey(k, h)] = dispersalAbout(h, reach, lengthKm) }
+    Par.forEach("residents: dispersal ground", unknown.size) { i -> val h = unknown[i]; dispersalGround[groundKey(k, h)] = dispersalAbout(k, h, DISPERSAL_REACH * lengthKm, lengthKm) }
     // Each source: those that would settle, by the room about as it was, and those that die on the way.
     val settles = FloatArray(sources.size); val roomWs = FloatArray(sources.size)
     Par.forEach("residents: dispersal, sources", sources.size) { j ->
         val ground = dispersalGround.getValue(groundKey(k, sources[j]))
         var roomW = 0f; var allW = 0f
-        for (i in 0 until ground.hexes.size) { val w = ground.weight[i]; allW += w * usualK * ground.area[i]; roomW += w * room[ground.hexes[i]] }
+        for (i in 0 until ground.hexes.size) { val w = ground.weight[i]; allW += w * holdsOf[ground.hexes[i]]; roomW += w * room[ground.hexes[i]] }
         val settle = if (allW > 0f) settleRate * roomW / allW else 0f
         val out = settle + DISPERSAL_DEATH
         val gone = pool[sources[j]] * (1f - exp(-out * days))
@@ -586,7 +588,7 @@ private fun HexFauna.disperseAtOnce(k: FaunaKind, pool: FloatArray, carcass: Flo
  * Not across a border they cannot cross, nor to a hex worth nothing to them. So the nomads follow the game about and
  * find the empty ground, at the same pace at any step length. Each hex gathers what comes to it, on all cores.
  */
-private fun HexFauna.drift(k: FaunaKind, pool: FloatArray) {
+private fun HexFauna.drift(k: FaunaKind, pool: FloatArray, weather: Weather) {
     val v = worth[k]; val cross = hex.crossings[travel[k].ordinal]; val km = hex.hexKm.toFloat()
     // (What each hex is worth to them, the best of its places, and the share of its pool going each way a hop
     // ([gapTo]), the same each hop since the worth is the step's: both worked out only for the hexes the pool reaches.)
@@ -604,7 +606,10 @@ private fun HexFauna.drift(k: FaunaKind, pool: FloatArray) {
             val nh = hex.neighbour(h, d); if (nh.none) continue
             val e = cross[hex.edge(h, d)]; if (!e.isFinite() || !(worthOf(nh) > 0f)) continue
             val toward = max(0.05f, 1f + BEARING_SPILL * bearings.along(k.i, h, nh, hex.hexKm))
-            val g = gapTo(here, hexWorth[nh], min(1f, km / e)) * toward
+            // (Lone dispersers going tens of km are slowed by the snow they go into, as groups are ([GroupPlanner.stepEffort]):
+            // the hex's low ground. The rest of the residents shift a little each week, where a place's worth already has its snow.)
+            val snow = hw.firstPlaceIn(nh).let { q -> if (q.none) 0f else weather.snowpack[q] }
+            val g = gapTo(here, hexWorth[nh], min(1f, km / (e * (1f + snow / SNOW_EFFORT_MM)))) * toward
             if (g > 0f) { goes[hex.edge(h, d)] = g; sum += g; if (g > most) most = g }
         }
         if (sum > 0f) { val share = min(0.5f, DRIFT_STEP * most) / sum; for (d in 0 until 6) goes[hex.edge(h, d)] *= share }
@@ -636,44 +641,42 @@ private fun HexFauna.drift(k: FaunaKind, pool: FloatArray) {
 }
 
 /**
- * The ground about a hex its dispersers look over ([disperse]): the land hexes within its reach, ring by ring as they lie
- * outward, each with its nearness weight exp(-km / the kind's dispersal length) and its land area, km².
+ * The ground about a hex its dispersers look over ([disperse]): the land hexes within its reach by the borders its kind can
+ * cross ([dispersalAbout]), the least going first, each with its weight exp(-km of easy going / the kind's dispersal length)
+ * and its land area, km².
  */
 class DispersalGround(val hexes: HexArray, val weight: FloatArray, val area: FloatArray)
 
 /** The key of kind [k]'s ground about hex [h] in [HexFauna.dispersalGround]. */
 private fun HexFauna.groundKey(k: FaunaKind, h: Hex) = k.i.toLong() * hex.size + h.i
 
-/** The ground about hex [h] out to [reach] rings, weighed by nearness over [lengthKm] ([DispersalGround]), as [disperse] looks over it. */
-private fun HexFauna.dispersalAbout(h: Hex, reach: Int, lengthKm: Float): DispersalGround {
-    // (Ring by ring as [HexMap.nextRing] walks them, in the same order, without boxing a hex.)
-    val most = 3 * reach * (reach + 1)
-    val hs = HexList(most); val ws = FloatArray(most); val areas = FloatArray(most); var m = 0
-    val seen = BooleanArray(hex.size); seen[h.i] = true
-    var ring = HexList(1); ring += h; var next = HexList(6)
-    for (r in 1..reach) {
-        next.clear()
-        for (j in 0 until ring.size) { val o = ring[j]; for (d in 0 until 6) { val q = hex.neighbour(o, d); if (!q.none && !seen[q.i]) { seen[q.i] = true; next += q } } }
-        for (j in 0 until next.size) {
-            val q = next[j]
-            val w = kotlin.math.exp(-(hex.distanceKm(h, q) / lengthKm)).toFloat()
-            var area = 0f; for (p in hw.placesOf(q)) area += land.areaKm2[p]
-            if (area <= 0f) continue
-            hs += q; ws[m] = w; areas[m] = area; m++
-        }
-        val t = ring; ring = next; next = t
+/**
+ * The ground about hex [h] that kind [k]'s dispersers can go to ([DispersalGround], as [disperse] looks over it): the hexes
+ * within [mostKm] km of easy going by the borders the kind can cross (its [HexMap.crossings], as its drift goes: [drift]),
+ * each weighed by its going over [lengthKm]. Never across a strait it cannot swim or a cliff it cannot climb in one step,
+ * where the drift could not go either. The least effort first, of equals the lower hex, so the same on every run.
+ */
+private fun HexFauna.dispersalAbout(k: FaunaKind, h: Hex, mostKm: Float, lengthKm: Float): DispersalGround {
+    val cross = hex.crossings[travel[k].ordinal]
+    val le = hex.searcher(); le.start(h)
+    val hs = HexList(); var ws = FloatArray(16); var areas = FloatArray(16); var m = 0
+    while (true) {
+        val at = le.next(); if (at.none) break
+        le.across(hex, at, cross, mostKm)
+        if (at == h) continue
+        var area = 0f; for (p in hw.placesOf(at)) area += land.areaKm2[p]
+        if (area <= 0f) continue
+        if (m == ws.size) { ws = ws.copyOf(2 * m); areas = areas.copyOf(2 * m) }
+        hs += at; ws[m] = kotlin.math.exp(-(le.dist(at) / lengthKm)); areas[m] = area; m++
     }
+    le.clear()
     return DispersalGround(hs.toHexArray(), ws.copyOf(m), areas.copyOf(m))
 }
 
 /** What people press kind [k] by on hex [h] ([pressure]), at its low ground: the room dispersers find there is less by it. */
 private fun HexFauna.pressureOnHex(k: FaunaKind, h: Hex): Float = hw.firstPlaceIn(h).let { p -> if (p.none) 0f else pressure(k, p) }
 
-/** How far a disperser of [s] goes, km, the scale of nearness its settling weighs ([disperse]); an estimate. */
-private fun dispersalKm(s: Species) = if (s == Catalogue.LION) 30f else 60f
-/** The days a disperser of [s] takes to settle where there is room enough ([disperse]); an estimate. */
-private fun dispersalDays(s: Species) = if (s == Catalogue.LION) 300f else 90f
-/** How far out a disperser looks for room, in [dispersalKm]. */
+/** How far out a disperser looks for room, in [Species.dispersalKm]. */
 private const val DISPERSAL_REACH = 2f
 /** The share of dispersers that die a day on the way, all causes ([disperse]): about a third lost over a wolf's three months; an estimate. */
 private const val DISPERSAL_DEATH = 0.005f

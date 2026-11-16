@@ -51,8 +51,8 @@ What is ported from the earlier 1 km model and what is not is in `docs/design/he
 
 ### Over time on the fine grid
 
-The fine grid's own weekly weather, water and plants (`Weather`, `LiveWater`, `Vegetation`) are
-kept as the reference the hex versions are checked against (`HexLandCheck`, `HexWeatherCheck`).
+The fine grid's own weekly weather (`Weather`) is kept as the reference the hexes' weather is checked
+against (`HexWeatherCheck`); the water and plants run on the hexes' places only (`HexHydrology`, `HexPlants`).
 One step is 6 days (5 steps per month), configurable in `WorldConfig`.
 
 | Process | Model |
@@ -62,7 +62,7 @@ One step is 6 days (5 steps per month), configurable in `WorldConfig`.
 | Water | Soil bucket (150 mm), groundwater and baseflow; runoff routed down the network every step. Rivers above bankfull (4× mean) flood their floodplains |
 | Waterworks | Dams with reservoirs that fill and release steadily, canals that divert part or all of a river (must run downhill and cannot loop), irrigation onto fields, and permanent rerouting of a river |
 | Eruptions | Active volcanoes erupt at their own rates; explosivity follows the VEI frequency distribution; ash falls downwind, smothers vegetation and enriches soil |
-| Vegetation | Herbs, shrubs and trees per cell, growing towards a ceiling set by recent moisture, warmth and soil. They die back under drought, frost, deep floods, ash and fire, and regrow: herbs within a season, trees over decades and only from nearby seed. Grazing, browsing and felling go through `consume`; animals' passage through `trample`, which wears trails |
+| Vegetation | Herbs, shrubs and trees on each place, growing towards a ceiling set by recent moisture, warmth and soil. They die back under drought, frost, deep floods, ash and fire, and regrow: herbs within a season, trees over decades and only from nearby seed. Grazing, browsing and felling go through `consume`; animals' passage through `trample`, which wears trails |
 
 ![relief](docs/img/relief-seed7.png)
 ![biomes](docs/img/biomes-seed7.png)

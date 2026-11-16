@@ -43,11 +43,11 @@ internal fun HexGroups.hunt(weather: Weather) {
     val hunters = groups.filter { it.alive }.shuffled(rnd)
     for (a in fauna.groupKilled) a.fill(0f)
     // (Where people are, for the beasts of prey that keep out of their way: [peopleAbout].)
-    peopleAbout()
+    peopleAbout(weather)
     // Bands first set their ways for the week.
     // (Where the bands about it stand now, after this week's moves, as its own place is; and where beasts of prey may come on
     // their herds, see [herdOdds].)
-    indexBands()
+    where.build(this, WhoIsWhere.Moment.MOVED)
     // (Without a ways network the bands keep the scaffold's ways, not those a saved world's bands last had from theirs.)
     // (A planning band reads no ways: it keeps the scaffold's, [planDays].)
     if (ways != null) setBandWays(hunters, weather, ways, inputs, out)
@@ -93,7 +93,7 @@ internal fun HexGroups.hunt(weather: Weather) {
         // (Its hunting ground reaches a hex beyond its way, see [huntGround].)
         // (A pack that holds its ground hunts its footprint instead, [footGround].)
         g.path.all { h -> hex.distanceKm(end, h) + 2 * hex.hexKm < HUNT_FINE_KM } &&
-            (g.footprint?.all { h -> hex.distanceKm(end, h) + 2 * hex.hexKm < HUNT_FINE_KM } ?: true)
+            (g.footprint?.hexes?.all { h -> hex.distanceKm(end, h) + 2 * hex.hexKm < HUNT_FINE_KM } ?: true)
     }
     stats.summedByThread { work(near, HUNT_FINE_KM); work(far, HUNT_BLOCK_KM) }
     takePackKills(2 * day + 1)
@@ -128,7 +128,7 @@ private fun HexGroups.forageGround(g: HexGroup): Set<Hex> {
     val out = LinkedHashSet<Hex>()
     for (h in g.path) { out += h; for (d in 0 until 6) { val q = hex.neighbour(h, d); if (!q.none) out += q } }
     // (A pack that holds its ground hunts its footprint, [footGround]: those hexes and the six round each, to be safe.)
-    g.footprint?.let { f -> for (h in f) { out += h; for (d in 0 until 6) { val q = hex.neighbour(h, d); if (!q.none) out += q } } }
+    g.footprint?.let { f -> for (h in f.hexes) { out += h; for (d in 0 until 6) { val q = hex.neighbour(h, d); if (!q.none) out += q } } }
     out += hw.placeHex[g.place]
     return out
 }
@@ -426,7 +426,7 @@ internal fun HexGroups.planWeek(w: ForageWeek, needDays: Float, storeDays: Float
     kept[Activity.SOWING] = herdDays(b) * (1f - walkedShare(time)) + cropRipe(g, b) * cropReapDays(b)
     val asks = enumFloats<Activity>()
     asks[Activity.FOOD] = storeDays * hands
-    choreAsks(g, b, w.weather.date, asks, warm)
+    choreAsks(g, b, w.weather.date, asks, warm, w.weather)
     // (A band whose own crop has paid it better a day than its leanest month's foraging holds its sowing before the week's food as
     // far as it learns from that, [Tuning.learnDays]: the week left short it bridges from its stores and fat; and weighs the
     // rest of its sowing by the same returns. [cropAgainstForage].)
@@ -546,7 +546,7 @@ internal class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, pack
     val seedDays = reapDaysPerKg(band, gs.tuning) / gatherers + eats
     // (A band's gatherers walk to the food and carry it home: party-days a km of the way out costs a fresh kg brought
     // home, there and back; see [GATHER_LOAD_KG]. An animal eats where it finds.)
-    val walkDaysPerKm = if (band != null) 2f / (WALK_KM_PER_HOUR * Activity.WORK_HOURS * GATHER_LOAD_KG * carry * gatherers) else 0f
+    val walkDaysPerKm = if (band != null) 2f / (DAY_WALK_KM * GATHER_LOAD_KG * carry * gatherers) else 0f
     // Bands gather over all the ground they walked, the women's and children's day round; animals where they end the week.
     val gatherAt = if (band != null) g.path.toList().mapNotNull { h: Hex -> gs.hw.placeNear(g.place, h).takeIf { !it.none }?.i }
         .ifEmpty { listOf(g.place.i) } else listOf(g.place.i)
@@ -568,12 +568,12 @@ internal class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, pack
      * where it kills ([eats]).
      */
     val carryDaysPerKg = if (band != null) 2f * (s.dailyTravelKm / 2f) /
-        (WALK_KM_PER_HOUR * Activity.WORK_HOURS * MEAT_LOAD_KG * huntHeads.coerceAtLeast(1f)) else eats
+        (DAY_WALK_KM * MEAT_LOAD_KG * huntHeads.coerceAtLeast(1f)) else eats
     /**
      * The gatherers' party-days to bring a kg of carrion home: a band cuts it from the carcass it comes on and carries it to camp as it
      * does a kill (a load each, there and back from about half a day's going out), and then eats it; a beast eats it where it lies ([eats]).
      */
-    val carrionDays = if (band != null) 2f * (s.dailyTravelKm / 2f) / (WALK_KM_PER_HOUR * Activity.WORK_HOURS * MEAT_LOAD_KG * gatherHands.coerceAtLeast(1f)) + eats else eats
+    val carrionDays = if (band != null) 2f * (s.dailyTravelKm / 2f) / (DAY_WALK_KM * MEAT_LOAD_KG * gatherHands.coerceAtLeast(1f)) + eats else eats
     /** The hunters its kills this week are expected to cost ([foughtBack]): they die once the week's foraging is done ([preyFoughtBack]). */
     var foughtBack = 0f
     // What a kg of each food holds for it, in kg of its need: its energy ([Food.energy]) by the kind's [Species.needScale]

@@ -70,7 +70,7 @@ internal class ResidentParties(private val gs: HexGroups) {
                 val grown = max(1, (s.groupSize * a / (a + y)).roundToInt()); val little = (s.groupSize * y / (a + y)).roundToInt()
                 // (Its id is out of the groups' range, fixed by kind and hex: the meetings' order draws repeat run to run.)
                 val g = HexGroup(-1 - (k * gs.hex.size + h.i), s, Place(p), grown, little)
-                g.home = h; g.path = hexArray(1) { h }; g.days = FloatArray(1)
+                g.home = h; g.path = hexArray(1) { h }; g.days = FloatArray(1); g.standIn = true
                 made[h.i] = StandIn(g, k, grown, little, bands, a, y)
             }
             val more = made.count { it != null }

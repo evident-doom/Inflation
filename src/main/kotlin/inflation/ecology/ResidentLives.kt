@@ -31,6 +31,7 @@ fun HexFauna.fatShare(k: Int, p: Place): Float {
 }
 
 internal fun HexFauna.breedAndDie(weather: Weather, date: Date) {
+    stepDamp(); reckonShared()
     val dead = Array(kinds.size) { DoubleArray(ResidentDeath.entries.size) }
     val faded = DoubleArray(kinds.size)
     // Each kind on its own core, with its own carcasses, added up after.
@@ -77,8 +78,9 @@ internal fun HexFauna.breedAndDie(weather: Weather, date: Date) {
             spent[k][p] = Hazards.spentAfter(s, spent[k][p], f[p], days)
             val hunger = hz[Danger.HUNGER]; val cold = hz[Danger.COLD]; val heat = hz[Danger.HEAT]; val thirst = hz[Danger.THIRST]; val disease = hz.disease()
             val crowd = hz[Danger.CROWD]
-            // Where they are crowded, now and then a plague breaks out among them.
-            if (crowd > 0f && hash(p, k) < OUTBREAK_START * crowd * crowd * years) startOutbreak(s, hw.placeHex[p])
+            // Where they are crowded far past the usual, now and then a plague breaks out among them.
+            val over = crowd - 1f
+            if (over > 0f && hash(p, k) < OUTBREAK_START * over * over * years) startOutbreak(s, hw.placeHex[p])
             val fireA = hz[Danger.FIRE_A]; val floodA = hz[Danger.FLOOD_A]; val snowA = hz[Danger.SNOW_A]
             val adultSum = s.backgroundMortality * years + hunger + cold + heat + thirst + disease + fireA + floodA + snowA + hz[Danger.STRIFE]
             val adultOdds = adultSum.coerceIn(0f, Hazards.MAX_GROWN_ODDS)
@@ -101,7 +103,7 @@ internal fun HexFauna.breedAndDie(weather: Weather, date: Date) {
             val up = y[p] * grow
             y[p] -= up; a[p] += up
             // (Of a kind that also roams, grown young on crowded ground are due to leave it as roamers: [leaving].)
-            leavingK?.let { it[hw.placeHex[p]] += up * area * leaveShare(a[p] + y[p], usual[k]) }
+            leavingK?.let { it[hw.placeHex[p]] += up * area * leaveShare(a[p] + y[p], usualAt(k.i, p)) }
             bornBook?.add((up * area * (1f - YOUNG_WEIGHT) * s.massKg).toDouble())
             // (Too thin to hold on: gone below the floor here, fading when they spill, [EXTINCT]; with t.thinFadeDays=0 gone below EXTINCT.)
             if (a[p] + y[p] < thinGone) { faded[k] += ((a[p] + y[p]) * area).toDouble(); carcassKg[p] += (a[p] + 0.3f * y[p]) * area * s.massKg; a[p] = 0f; y[p] = 0f }
@@ -143,28 +145,28 @@ private fun HexFauna.bookDeaths(k: FaunaKind, p: Place, ca: Float, cy: Float, hz
     val fireA = hz[Danger.FIRE_A]; val floodA = hz[Danger.FLOOD_A]; val snowA = hz[Danger.SNOW_A]
     val fireY = hz[Danger.FIRE_Y]; val floodY = hz[Danger.FLOOD_Y]; val snowY = hz[Danger.SNOW_Y]
     dd[ResidentDeath.AGE] += ca * s.backgroundMortality * years + cy * s.youngMortality * years
-    dd[ResidentDeath.HUNGER] += (ca + 1.5f * cy) * hunger
-    dd[ResidentDeath.COLD] += (ca + 1.5f * cy) * cold
-    dd[ResidentDeath.HEAT] += (ca + 1.5f * cy) * heat
+    dd[ResidentDeath.HUNGER] += (ca + Hazards.YOUNG_HARDER * cy) * hunger
+    dd[ResidentDeath.COLD] += (ca + Hazards.YOUNG_HARDER * cy) * cold
+    dd[ResidentDeath.HEAT] += (ca + Hazards.YOUNG_HARDER * cy) * heat
     dd[ResidentDeath.DISEASE] += (ca + cy) * disease
     dd[ResidentDeath.EAGLES] += cy * eagle
     dd[ResidentDeath.FIRE] += ca * fireA + cy * fireY
     dd[ResidentDeath.FLOOD] += ca * floodA + cy * floodY
     dd[ResidentDeath.SNOW] += ca * snowA + cy * snowY
     dd[ResidentDeath.CROCODILES] += cy * croc
-    dd[ResidentDeath.THIRST] += (ca + 1.5f * cy) * thirst
+    dd[ResidentDeath.THIRST] += (ca + Hazards.YOUNG_HARDER * cy) * thirst
     dd[ResidentDeath.SHORT_OF_PROTEIN] += cy * starved
     val strife = hz[Danger.STRIFE]
     dd[ResidentDeath.RIVALS] += ca * strife; dd[ResidentDeath.YOUNG_KILLED_BY_RIVALS] += cy * STRIFE_YOUNG * strife
     record?.let { r ->
         val ka = ca * s.massKg; val ky = cy * s.massKg
-        r.resident(k.i, p, PlaceRecord.Cause.HUNGER, (ka + 1.5f * ky) * hunger)
-        r.resident(k.i, p, PlaceRecord.Cause.THIRST, (ka + 1.5f * ky) * thirst)
-        r.resident(k.i, p, PlaceRecord.Cause.COLD, (ka + 1.5f * ky) * cold + ka * snowA + ky * snowY)
+        r.resident(k.i, p, PlaceRecord.Cause.HUNGER, (ka + Hazards.YOUNG_HARDER * ky) * hunger)
+        r.resident(k.i, p, PlaceRecord.Cause.THIRST, (ka + Hazards.YOUNG_HARDER * ky) * thirst)
+        r.resident(k.i, p, PlaceRecord.Cause.COLD, (ka + Hazards.YOUNG_HARDER * ky) * cold + ka * snowA + ky * snowY)
         r.resident(k.i, p, PlaceRecord.Cause.ILLNESS, (ka + ky) * disease)
         r.resident(k.i, p, PlaceRecord.Cause.KILLED, ky * (eagle + croc) + (ka + STRIFE_YOUNG * ky) * strife)
         r.resident(k.i, p, PlaceRecord.Cause.OTHER, ka * s.backgroundMortality * years + ky * (s.youngMortality * years + starved) +
-            (ka + 1.5f * ky) * heat + ka * (fireA + floodA) + ky * (fireY + floodY))
+            (ka + Hazards.YOUNG_HARDER * ky) * heat + ka * (fireA + floodA) + ky * (fireY + floodY))
     }
 }
 
@@ -187,14 +189,19 @@ internal fun HexFauna.hazards(k: FaunaKind, p: Place, weather: Weather, month: I
         else Hazards.thirstOver(s, dry - min(dry, Hazards.dryDays(s, days, fed, land.plants.green[p])), dry, days, clock.tickDays)
     // Crowding breeds disease and parasites, far more among the underfed: numbers grow until the
     // lean season binds, and then hunger and sickness together hold them.
-    val crowd = Hazards.crowding(heads, usual[k])
+    // (Crowded by its own kind and by those that share its parasites, counted as so many of its own: [sharersKm2].)
+    val others = sharersKm2(k, p); val u = usualAt(k.i, p)
+    val crowd = Hazards.crowding(heads + others, u)
     out[Danger.CROWD] = crowd
-    // (Over a step of several ticks the crowd thins as they sicken: [Hazards.fallingOver].)
-    out[Danger.SICK] = if (clock.ticks == 1) Hazards.crowdDisease(crowd, fed, years)
-        else Hazards.fallingOver(heads, clock.ticks, years / clock.ticks) { n -> Hazards.crowdDisease(Hazards.crowding(n, usual[k]), fed, 1f) }
+    // (Over a step of several ticks the crowd thins as they sicken: [Hazards.fallingOver].) And damp ground breeds flukes
+    // and foot rot in the kinds that do not bear it ([wetSickness]).
+    // (Only past the worst crowding: [Hazards.crowdBackstop].)
+    out[Danger.SICK] = (if (clock.ticks == 1) Hazards.crowdBackstop(crowd, fed, years)
+        else Hazards.fallingOver(heads, clock.ticks, years / clock.ticks) { n -> Hazards.crowdBackstop(Hazards.crowding(n + others, u), fed, 1f) }) +
+        wetSickness(s, p, fed) * years
     out[Danger.OUTBREAK] = outbreakDeaths(s, p)
     // Hunters hold ground: past the numbers their territories hold, they fight their own kind and kill its young.
-    out[Danger.STRIFE] = if (s.carnivore) strife(heads, usual[k], if (s in Catalogue.roamingResidents) tuning.roamerStrifeCrowd else STRIFE_CROWD) else 0f
+    out[Danger.STRIFE] = if (s.carnivore) strife(heads, u, if (s in Catalogue.roamingResidents) tuning.roamerStrifeCrowd else STRIFE_CROWD) else 0f
     val (fireA, floodA, snowA) = calamities(s, p, weather, false)
     val (fireY, floodY, snowY) = calamities(s, p, weather, true)
     out[Danger.FIRE_A] = fireA; out[Danger.FLOOD_A] = floodA; out[Danger.SNOW_A] = if (sleeping) 0f else snowA
@@ -220,9 +227,57 @@ internal fun HexFauna.strife(heads: Float, usualKm2: Float, crowd: Float): Float
     return Hazards.fallingOver(heads, clock.ticks, years / clock.ticks) { n -> val over = n / (crowd * usualKm2) - 1f; if (over > 0f) STRIFE_DEATHS * over * over else 0f }
 }
 
+/**
+ * The heads per km² of the other kinds at place [p] that crowd kind [k] by sharing its parasites ([HexFauna.sharers]),
+ * counted as so many of [k]'s own: each other kind's numbers against its usual density, times [k]'s usual. So two kinds
+ * of one sort living together each sicken at half the numbers either would alone.
+ */
+internal fun HexFauna.sharersKm2(k: FaunaKind, p: Place): Float = shared[k.i][p.i]
+
+/** Reckons [HexFauna.shared] from the numbers now ([sharersKm2]). */
+internal fun HexFauna.reckonShared() {
+    val rate = overTicks(HexFauna.GAME_WEEK)
+    Par.forEachPlace("residents: shared crowding", n) { p ->
+        for (k in kinds.indices) {
+            val row = sharers[k]; var sum = 0f
+            for (j in row.indices) { val w = row[j]; if (j == k || w <= 0f) continue
+                val h = adults[j][p] + young[j][p]; if (h > 0f) sum += w * h / usual[j] }
+            shared[k][p.i] = sum * usual[k]
+            // (And the prey of its size a hunter that holds ground by it has here, lately: [HexFauna.usualAt].)
+            val g = gameMean[k]
+            if (g.isNotEmpty()) { val now = preyBiomass(kinds[k], p); val m = g[p.i]; g[p.i] = if (m.isNaN()) now else m + (now - m) * rate }
+        }
+    }
+}
+
+/**
+ * Deaths a year of [s] at place [p], fed [fed], of the sickness of damp ground: flukes, lungworm and foot rot, as damp as
+ * the ground has been ([HexFauna.damp]), for a kind as far as it does not bear it ([Species.dampTolerance]); far more
+ * among the underfed, as crowding's.
+ */
+internal fun HexFauna.wetSickness(s: Species, p: Place, fed: Float): Float {
+    val d = damp[p.i]; if (!(d > 0f)) return 0f
+    return HexFauna.WET_SICK * d * (1f - s.dampTolerance).coerceIn(0f, 1f) * (1f + HexFauna.MALNOURISHED * (1f - fed).coerceIn(0f, 1f))
+}
+
+/**
+ * Brings each place's [HexFauna.damp] a step on: the share of it whose soil is sodden this week ([HexHydrology.saturated]:
+ * marsh and bog, a flooded floodplain, a valley floor over a high water table), where the fluke's snails live and hooves
+ * soften, followed at [HexFauna.DAMP_WEEK] a week. (Reckoned from the soil's water against what it holds, the winter
+ * soil of the hills at field capacity counted as wet ground, and goats, sheep and gazelle sickened on their own hills.)
+ */
+internal fun HexFauna.stepDamp() {
+    val h = land.hydro; val rate = overTicks(HexFauna.DAMP_WEEK)
+    for (p in land.places) {
+        val now = h.saturated(p)
+        val d = damp[p.i]
+        damp[p.i] = if (d.isNaN()) now else d + (now - d) * rate
+    }
+}
+
 /** The young a mother of kind [k] at place [p] is due this step, its [share] of her season, among [heads] of her kind per km², fed [protein] of her need for it ([youngDue]), and as far as her sodium there allows ([saltBreeding]). */
 internal fun HexFauna.dueYoung(k: FaunaKind, p: Place, heads: Float, protein: Float, share: Float) =
-    youngDue(kinds[k], heads, usual[k], tuning.breedSpacing, protein * saltBreeding(kinds[k], p), share)
+    youngDue(kinds[k], heads, usualAt(k.i, p), tuning.breedSpacing, protein * saltBreeding(kinds[k], p), share)
 
 /**
  * The month kind [s]'s mothers start their year again ([bred]): the middle of the months outside its season as it
@@ -249,14 +304,14 @@ internal fun HexFauna.crocodileOdds(p: Place, weather: Weather) = water.crocodil
  * young short of protein ([starvedOdds]), which grow slowly and die more.
  */
 private fun HexFauna.youngSum(s: Species, hz: EnumFloats<Danger>, eagle: Float, croc: Float, starved: Float) =
-    youngFixed(s, hz, eagle, croc, starved) + 1.5f * hz[Danger.HUNGER] + hz[Danger.SICK] + STRIFE_YOUNG * hz[Danger.STRIFE]
+    youngFixed(s, hz, eagle, croc, starved) + Hazards.YOUNG_HARDER * hz[Danger.HUNGER] + hz[Danger.SICK] + STRIFE_YOUNG * hz[Danger.STRIFE]
 
 /**
  * Of [youngSum], the odds that do not change with the numbers at a place or how well they are fed: their usual
  * deaths, cold and thirst, a raging outbreak, fire, flood and snow, [eagle]s, [croc]odiles and [starved] of protein.
  */
 internal fun HexFauna.youngFixed(s: Species, hz: EnumFloats<Danger>, eagle: Float, croc: Float, starved: Float) =
-    s.youngMortality * years + 1.5f * (hz[Danger.COLD] + hz[Danger.HEAT] + hz[Danger.THIRST]) + hz[Danger.OUTBREAK] + eagle +
+    s.youngMortality * years + Hazards.YOUNG_HARDER * (hz[Danger.COLD] + hz[Danger.HEAT] + hz[Danger.THIRST]) + hz[Danger.OUTBREAK] + eagle +
         hz[Danger.FIRE_Y] + hz[Danger.FLOOD_Y] + hz[Danger.SNOW_Y] + croc + starved
 
 /**

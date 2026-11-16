@@ -491,7 +491,7 @@ internal fun HexGroups.robCaches(weather: Weather) {
                 val take = min(ob.cacheKg * min(1f, takeShare), room)
                 if (take <= 0f) continue
                 ob.takeFromCache(g, take)
-                ob.befriend(g.id, -TIE_RAID * 0.5f); ob.grudge[b.mainLineage()] += 0.5f * GRUDGE
+                ob.wronged(g.id, b, 0.5f)
                 stats.meeting(Met.CACHES_ROBBED)
                 note(g) { "found and took %.0f kg from band #%d's cache".format(take, o.id) }; note(o) { "its cache was robbed by band #%d".format(g.id) }
             }
