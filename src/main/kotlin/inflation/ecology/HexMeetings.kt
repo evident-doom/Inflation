@@ -614,7 +614,7 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
         // (The giver's own reckoning only for the census.)
         fun worth(m: Material, kg: Float) { gifts += Given(m.name.lowercase(), kg, kg * worthDaysPerKg(taker, tb, m, weather),
             if (stats.census) kg * worthDaysPerKg(giver, gb, m, weather) else 0f) }
-        for (m in TRADED) {
+        for (m in tradedNow()) {
             // (Grinding stone only to a band that makes grinding stones.)
             if (m == Material.GROUND_STONE && !tb.knows[Tool.GRINDER]) continue
             val need = YEAR_NEED[m]

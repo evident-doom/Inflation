@@ -17,6 +17,14 @@ import kotlin.math.min
 /** How far a band goes to ask another for goods, km of easy going: as far as it looks for any goal, six days' walk ([GOAL_GOING_KM]). */
 internal const val ASK_REACH_KM = GOAL_GOING_KM
 
+/**
+ * The traded goods ([TRADED]) in play: obsidian only where it is got at all ([inflation.Tuning.obsidian]). With it off none is
+ * held, but reckoning its worth for every band would still search the ground where nothing else asks it, and those searches
+ * changed the run (bisected 2026-11-16: off, with obsidian in [TRADED], a year on m7-1 went another way from the first months).
+ */
+internal fun HexGroups.tradedNow(): List<Material> = if (tuning.obsidian > 0f) TRADED else TRADED_WITHOUT_OBSIDIAN
+private val TRADED_WITHOUT_OBSIDIAN = TRADED - Material.OBSIDIAN
+
 /** What band [b] of [adults] grown holds of [m] ([TRADED]) beyond its own year's keep ([KEEP_YEARS], [YEAR_NEED]), kg: what it can give. */
 internal fun spareGoods(b: Band, adults: Int, m: Material): Float = b.goods[m] - KEEP_YEARS * YEAR_NEED[m] * adults
 
@@ -75,12 +83,13 @@ internal fun HexGroups.askForGoods(weather: Weather) {
     if (tuning.askForGoods <= 0f) return
     val today = weather.date.absoluteDay
     val passOn = tuning.passOnYears
+    val traded = tradedNow()
     val bandsNow = groups.filter { it.alive && it.band != null }
-    val short = bandsNow.filter { g -> val b = g.band; b != null && g.adults > 0 && TRADED.any { lackGoods(b, g.adults, it, passOn) > 0f } }
+    val short = bandsNow.filter { g -> val b = g.band; b != null && g.adults > 0 && traded.any { lackGoods(b, g.adults, it, passOn) > 0f } }
         .sortedBy { tieBreak(seedBase, it.id, 1, today) }
     if (short.isEmpty()) return
     val byId = bandsNow.associateBy { it.id }
-    val worth = FloatArray(TRADED.size)
+    val worth = FloatArray(traded.size)
     for (g in short) {
         val gb = g.band ?: continue
         if (!g.alive || g.adults <= 0) continue
@@ -90,10 +99,10 @@ internal fun HexGroups.askForGoods(weather: Weather) {
         val known = gb.lastMet.keys.mapNotNull { byId[it] }.filter { o ->
             val ob = o.band
             ob != null && o.alive && o !== g && hexKm(h0, hw.placeHex[o.place]) <= ASK_REACH_KM &&
-                TRADED.any { m -> goodsGiven(ob, o.adults, gb, g.adults, m, passOn) > 0f }
+                traded.any { m -> goodsGiven(ob, o.adults, gb, g.adults, m, passOn) > 0f }
         }.sortedBy { it.id }
         if (known.isEmpty()) continue
-        for ((j, m) in TRADED.withIndex()) worth[j] = if (lackGoods(gb, g.adults, m, passOn) > 0f) worthDaysPerKg(g, gb, m, weather) else 0f
+        for ((j, m) in traded.withIndex()) worth[j] = if (lackGoods(gb, g.adults, m, passOn) > 0f) worthDaysPerKg(g, gb, m, weather) else 0f
         val reach = reachOf(g, h0, ASK_REACH_KM, weather)
         var best: HexGroup? = null; var bestNet = 0f; var bestCarriers = 0f
         for (o in known) {
@@ -101,7 +110,7 @@ internal fun HexGroups.askForGoods(weather: Weather) {
             if (Regard(ob, g.id, gb, map = hex).tie < FEUD_GIFT) continue
             val km = reach.km(hw.placeHex[o.place], ASK_REACH_KM) ?: continue
             var kg = 0f; var days = 0f
-            for ((j, m) in TRADED.withIndex()) {
+            for ((j, m) in traded.withIndex()) {
                 if (worth[j] <= 0f) continue
                 val hope = goodsGiven(ob, o.adults, gb, g.adults, m, stockFrom(o, ob, g, gb, m, weather, worth[j])); kg += hope; days += hope * worth[j]
             }
@@ -115,7 +124,7 @@ internal fun HexGroups.askForGoods(weather: Weather) {
         val way = findWay(g, h0, hw.placeHex[o.place], weather, ASK_REACH_KM) ?: continue
         val gifts = ArrayList<Given>(2)
         var useful = 0f
-        for ((j, m) in TRADED.withIndex()) {
+        for ((j, m) in traded.withIndex()) {
             if (worth[j] <= 0f) continue
             val gift = goodsGiven(ob, o.adults, gb, g.adults, m, stockFrom(o, ob, g, gb, m, weather, worth[j]))
             if (gift <= 0f) continue

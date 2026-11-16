@@ -24,7 +24,7 @@ import inflation.ecology.Skill
 import inflation.ecology.Species
 import inflation.ecology.Tool
 import inflation.ecology.Material
-import inflation.ecology.TRADED
+import inflation.ecology.tradedNow
 import inflation.ecology.SOURCE_RINGS_KM
 import inflation.ecology.nearestSourceKm
 import inflation.ecology.worthDaysPerKg
@@ -610,7 +610,7 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
         val groups = sim.groups; val hw = sim.hw; val weather = sim.weather
         val rings = SOURCE_RINGS_KM
         fun ringName(i: Int) = if (i < rings.size) "<%.0f".format(rings[i]) else ">%.0f".format(rings.last())
-        return TRADED.joinToString(" | ") { m ->
+        return groups.tradedNow().joinToString(" | ") { m ->
             val n = IntArray(rings.size + 1); val adults = DoubleArray(rings.size + 1); val kg = DoubleArray(rings.size + 1); val worth = DoubleArray(rings.size + 1)
             for (g in bands) {
                 val b = g.band ?: continue
