@@ -86,6 +86,11 @@ internal fun grassUnderSnow(s: Species, snowMm: Float): Float = (1f - snowMm / s
     // more of it (switching shifts what it eats, not how much its gut takes).
     // (Its need is reckoned in forage of middling quality, [HexFauna.GUT_QREF]: on that it fills its need exactly.)
     var room = max(0f, want * fill / HexFauna.GUT_QREF - (grass + browse))
+    // (A kind that digests fibre poorly, a pig or a bear, makes up a shortfall with grass and browse only to (1 + SWITCH)
+    // times their share of its diet: it cannot fill up on forage when its mast, roots and fruit fail, and goes hungry
+    // with green forage about it, as wild boar do after a poor mast or under snow. Made up as far as the gut held, a
+    // boar's quarter of forage rose to two fifths of its food and it never wanted.)
+    if (s.fibreDigestion < 1f) room = min(room, max(0f, (1f + SWITCH) * want * fill * (d.grass + d.browse) / total - (grass + browse)))
     // (What it switches to nourishes it as well as its gut digests fibre, [Species.fibreDigestion].)
     val qf = q * s.fibreDigestion
     // (But grass the snow buries is made up with browse to at most (1 + SWITCH) times its usual share. A

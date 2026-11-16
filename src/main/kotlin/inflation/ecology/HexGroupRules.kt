@@ -27,20 +27,37 @@ internal const val SURPLUS_EAT = 0.3f
 internal const val FAT_EFFICIENCY = 0.6f
 /** A newborn's weight against its mother's, paid from her reserves. */
 internal const val NEWBORN_SHARE = 0.08f
-/** A newborn of [s], in days of its mother's food: what she gives of her reserves or her food to bear it. */
-fun youngDays(s: Species) = NEWBORN_SHARE * s.massKg / s.dailyIntakeKg
+/**
+ * The food a mother gives in milk to nurse a young to weaning, against her own weight: a quarter. A wild sow weans her
+ * piglets at some 8-10 kg after three months, about a tenth of her weight each, out of milk worth some two to three times
+ * the food that gain holds, the piglets rooting for part of their own from a few weeks (from memory of the record): a
+ * litter of five costs her some two months of food on top of her own. A hind or a doe nursing one calf or fawn, a week or two.
+ */
+internal const val MILK_SHARE = 0.25f
+/** The months a mother nurses over, days: what she spares of her food over them goes to her young ([breeding]). */
+internal const val NURSING_DAYS = 90f
+/** A young of [s], in days of its mother's food: what she gives of her reserves or her food to bear it and nurse it to weaning. */
+fun youngDays(s: Species) = (NEWBORN_SHARE + MILK_SHARE) * s.massKg / s.dailyIntakeKg
 
 /** What a mother of [s] fed [fed] over [days] can give her young of the week's food: what she ate above the hunger line, days of food. */
 fun spareDays(fed: Float, days: Int) = max(0f, fed - HexFauna.HUNGER_FROM) * days
 
 /**
- * The share of her young due this step a mother of [s] bears, [young] of them in full: she builds them first out of the
- * food she ate beyond the hunger line ([spareDays]), the rest out of her reserves of [fat] days, and bears only those she
- * can build.
+ * What a mother of [s] fed [fed] spares for [young] of hers over their nursing, days of food: what she eats above the
+ * hunger line over the nursing months ([NURSING_DAYS]), as many of them as [young] are of her year's ([Species.youngPerFemale]),
+ * and at least this step's [days]. (The step's alone, a litter of five cost a sow a fortnight's fat and she bore it in any year.)
+ */
+fun nursingSpare(s: Species, young: Float, fed: Float, days: Int): Float =
+    spareDays(fed, 1) * max(days.toFloat(), NURSING_DAYS * min(1f, young / s.youngPerFemale.coerceAtLeast(1e-3f)))
+
+/**
+ * The share of her young due this step a mother of [s] bears, [young] of them in full: she builds and nurses them first
+ * out of the food she eats beyond the hunger line over their nursing ([nursingSpare]), the rest out of her reserves of
+ * [fat] days, and rears only those she can. So a well-fed sow rears her whole litter, and a lean one after a poor mast a few.
  */
 fun breeding(s: Species, young: Float, fat: Float, fed: Float, days: Int): Float {
     val cost = young * youngDays(s)
-    return if (cost > 0f) min(1f, (spareDays(fed, days) + fat) / cost) else 1f
+    return if (cost > 0f) min(1f, (nursingSpare(s, young, fed, days) + fat) / cost) else 1f
 }
 
 /**
@@ -91,7 +108,7 @@ fun seasonDays(start: Int, months: Int, date: Date, days: Int): Int {
 fun offSeason(s: Species, start: Int) = (start + s.birthMonths + (12 - s.birthMonths) / 2) % 12
 
 /** Days of reserves a mother of [s] fed [fed] over [days] gives up for [young] young: what her spare food did not build. */
-fun fromReserves(s: Species, young: Float, fed: Float, days: Int) = max(0f, young * youngDays(s) - spareDays(fed, days))
+fun fromReserves(s: Species, young: Float, fed: Float, days: Int) = max(0f, young * youngDays(s) - nursingSpare(s, young, fed, days))
 /** Share of its fill above which a group lays on reserves rather than drawing on them (a week's food is never exactly what it needs). */
 internal const val WELL_FED = 0.9f
 /**
