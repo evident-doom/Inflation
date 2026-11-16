@@ -37,6 +37,20 @@ internal fun lackGoods(b: Band, adults: Int, m: Material, passOn: Float = 0f): F
     else (KEEP_YEARS + (if (m in PASSED_ON) passOn else 0f)) * YEAR_NEED[m] * adults - b.goods[m]
 
 /**
+ * The years' stock to give on ([lackGoods]) group [taker]'s band [tb] takes of [m] from [giver]'s [gb]: [inflation.Tuning.passOnYears]
+ * of the goods given on ([PASSED_ON]), but only from a band that holds them the cheaper ([worthDaysPerKg]: nearer their source),
+ * so that the stock goes down the line, away from the source, and not round among neighbours who hold it as dear (as it did
+ * without this: ten to fifty times the goods given, at the same worth to both sides, A/B 2026-11-16). [takerWorth]: the
+ * taker's own reckoning of [m], if the caller has it.
+ */
+internal fun HexGroups.stockFrom(giver: HexGroup, gb: Band, taker: HexGroup, tb: Band, m: Material, weather: Weather, takerWorth: Float = Float.NaN): Float {
+    val passOn = tuning.passOnYears
+    if (passOn <= 0f || m !in PASSED_ON) return 0f
+    val tw = if (takerWorth.isNaN()) worthDaysPerKg(taker, tb, m, weather) else takerWorth
+    return if (tw > worthDaysPerKg(giver, gb, m, weather)) passOn else 0f
+}
+
+/**
  * What [giver] ([adultsGiving] grown) gives [taker] ([adultsTaking]) of [m], kg: of what it can spare, as far as the taker lacks
  * it (with [passOn] years' stock to give on, [lackGoods]), by how freely it gives ([Band.giveWill]: above its 1 beyond the lack, for the regard it wins), as at a meeting.
  */
@@ -71,7 +85,8 @@ internal fun HexGroups.askForGoods(weather: Weather) {
         val gb = g.band ?: continue
         if (!g.alive || g.adults <= 0) continue
         val h0 = hw.placeHex[g.place]
-        // (Those it has met within reach as the crow flies that hold some of what it lacks: the ground is searched only then.)
+        // (Those it has met within reach as the crow flies that hold some of what it lacks, with a stock to give on at most:
+        // the ground is searched only then.)
         val known = gb.lastMet.keys.mapNotNull { byId[it] }.filter { o ->
             val ob = o.band
             ob != null && o.alive && o !== g && hexKm(h0, hw.placeHex[o.place]) <= ASK_REACH_KM &&
@@ -86,7 +101,10 @@ internal fun HexGroups.askForGoods(weather: Weather) {
             if (Regard(ob, g.id, gb, map = hex).tie < FEUD_GIFT) continue
             val km = reach.km(hw.placeHex[o.place], ASK_REACH_KM) ?: continue
             var kg = 0f; var days = 0f
-            for ((j, m) in TRADED.withIndex()) { val hope = goodsGiven(ob, o.adults, gb, g.adults, m, passOn); kg += hope; days += hope * worth[j] }
+            for ((j, m) in TRADED.withIndex()) {
+                if (worth[j] <= 0f) continue
+                val hope = goodsGiven(ob, o.adults, gb, g.adults, m, stockFrom(o, ob, g, gb, m, weather, worth[j])); kg += hope; days += hope * worth[j]
+            }
             if (kg <= 0f) continue
             val carriers = carriersFor(kg, g.adults)
             val net = days - visitDays(carriers, km.toDouble())
@@ -98,7 +116,8 @@ internal fun HexGroups.askForGoods(weather: Weather) {
         val gifts = ArrayList<Given>(2)
         var useful = 0f
         for ((j, m) in TRADED.withIndex()) {
-            val gift = goodsGiven(ob, o.adults, gb, g.adults, m, passOn)
+            if (worth[j] <= 0f) continue
+            val gift = goodsGiven(ob, o.adults, gb, g.adults, m, stockFrom(o, ob, g, gb, m, weather, worth[j]))
             if (gift <= 0f) continue
             ob.goods[m] -= gift; gb.goods[m] += gift
             if (m == Material.SALT) { ob.noteSalt(SaltFlow.GIVEN_OUT, gift); gb.noteSalt(SaltFlow.GIVEN_IN, gift) }
