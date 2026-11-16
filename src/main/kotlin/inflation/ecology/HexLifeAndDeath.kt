@@ -108,7 +108,7 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         for (g in bands.strays) if (g.alive) living += g.id
         Par.forEach("people: customs year", bandGroups.size) { k ->
             val g = bandGroups[k]
-            if (g.alive) g.band!!.forgetGone(living)
+            if (g.alive) g.band?.forgetGone(living)
             if (g.alive) cultureWeek(g, stream(seedBase, Stream.CUSTOMS, g.id.toLong(), date.absoluteDay), date.absoluteDay, weather)
         }
         for (g in bandGroups) if (g.alive) riteWeek(g, weather)
