@@ -74,7 +74,12 @@ Grinding stone and salt are bulky and should stay near their sources; obsidian a
 - Worth in days ([TradeWorth.kt](../../src/main/kotlin/inflation/ecology/TradeWorth.kt)): a kg of a traded good is worth to a band the walk to the cheapest source it knows and back with a load (`FETCH_LOAD`), plus the work there; a band that knows none reckons `UNKNOWN_SOURCE_KM`. A spare tool is worth its making and its good stone.
 - Goods given at meetings make favours (`gaveGoods`), turned into food by the taker's own recent yield (`favoursOfDays`), and settle favours owed as food does (`helpedBy`). Seed corn and breeding stock make none. The `goodsFavours` key turns it off (0: the old rule).
 - The census prints the goods given at meetings with their worth to the taker and to the giver (the price where they changed hands), and bands' holdings and reckoned worth by distance from the nearest source (the falloff).
-- Not yet: an A/B of `goodsFavours` on the test worlds, and a check that `goodsFavours=0` runs line for line as before.
+- With `goodsFavours=0` a year on m5-1 runs line for line as before the change (2026-11-16).
+- A/B of `goodsFavours` 0 against 1 (m5-1..3, 3 years, 2 replicates, 2026-11-16): no key number moves beyond chance (people within 0.01%, against the weather's own 0.01–0.74%); all runs within nominal limits. Goods make about 0.02 favours a day of their worth: the ledger fills, but nothing yet calls on it beyond food in hunger.
+
+### What the first falloff shows
+
+A year on m5-1 (the old rule): bands within 50 km of good stone hold about 96 kg an adult, at 50–100 km under 1 kg, beyond 100 km none, while what a kg is worth to them rises from 0.2 to 1.2 days. Salt and ochre fall the same way. So today's giving does not carry goods down the line beyond a band or two: a band gives only what it holds beyond a year's keep, and a band that has just been given a year's worth has none to spare. The record's falloff runs for hundreds of km; here it ends within about 100. Asking (step 2) and keeping a little more than a year's need where goods are dear are the likely ways to lengthen it.
 
 ### 5. Beyond food loans, toward money
 
