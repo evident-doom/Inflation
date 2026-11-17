@@ -258,6 +258,13 @@ internal const val CATCH = 0.35f
  * and eating at this many kg a day per kg of hunter.
  */
 internal const val HANDLING_DAYS = 0.3f
+/**
+ * The days a kill of [kg] takes hunter [s] ([HANDLING_DAYS] for game of its own weight or more), less for smaller game in
+ * proportion: a wolf kills a fawn it finds lying in the grass in minutes, not the hours it takes to pull down a hind.
+ * (At a third of a day for any kill, a kilo or so of newborn fawn was worth less to a wolf than a grown roe, and wolves
+ * passed the fawns by while there were grown ones about.)
+ */
+internal fun handlingDays(s: Species, kg: Float) = HANDLING_DAYS * min(1f, kg / s.massKg.coerceAtLeast(1f))
 internal const val STALK_DAYS = 0.04f
 internal const val EATING_RATE = 0.15f
 /** Share of the time a hunting party on the move is searching, and sensing prey on either side as far as its kind senses. */

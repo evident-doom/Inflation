@@ -118,7 +118,7 @@ internal fun HexFauna.huntResidents(k: FaunaKind, p: Place, meat: KgM2, weather:
         if (!(r > 0f)) return
         val meat1 = min(kg, most)
         kindOf[m] = j; part[m] = pt; campOf[m] = c; dens[m] = d; mass[m] = kg; rate[m] = r; eat[m] = meat1
-        time[m] = HANDLING_DAYS + STALK_DAYS / success.coerceIn(1e-3f, 1f) + meat1 * eats + dangerDays(hunter, ps, kg, partyHeads)
+        time[m] = handlingDays(hunter, kg) + STALK_DAYS / success.coerceIn(1e-3f, 1f) + meat1 * eats + dangerDays(hunter, ps, kg, partyHeads)
         m++
     }
     for ((j, s) in kinds.withKinds()) {
