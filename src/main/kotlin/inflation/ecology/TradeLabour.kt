@@ -25,10 +25,12 @@ internal fun labourKey(c: LabourCount) = TallyKey.raw("labour for favours:${c.la
 /**
  * Bands whose house and hall building ran short of days last week ([Band.buildShort]) and that have food to set before
  * workers, in a drawn order, call on the bands within [CONTACT_KM] of easy going that owe them favours ([Band.owesTo]),
- * nearest first by id: each pledges people for as many of the days as it owes ([daysOfFavours] of [weeksOfFavours]), as
+ * nearest first by id, if it ate its fill ([FINERY_FED]: a band going hungry keeps its people at home), of its leisure only
+ * (half the rest its last week left it at most, [Band.spareDays]): each pledges people for as many of the days as it owes ([daysOfFavours] of [weeksOfFavours]), as
  * fully as it returns favours ([Band.repayWill]), at most [LABOUR_DAYS_A_WEEK] an adult. They walk there and back by the
  * ground at once ([tripAlong]); the days are the creditor's to build with next week ([Band.labourFrom], [BandTime.lend]). What
- * they built with is settled at the next call ([settleLabour]): their band pays those days ([Band.raidWalkOwed]), the creditor
+ * they built with is settled at the next call ([settleLabour]): their band pays those days and the walk of its rest only
+ * ([Band.labourOwed]: charged to its next step's working days, labour for monuments cost people 2.3% on m7-1), the creditor
  * feeds them for them from its larder (a work feast, the food going to their band), and the debt shrinks by their worth to it
  * ([helpedBy], on the log scale). Days pledged and not built with cost the walk alone: paid for as pledged, 60% of them went
  * unused, and labour cost people 1% on m7-1 (A/B 2026-11-17, every pair).
@@ -53,18 +55,23 @@ internal fun HexGroups.callInLabour(weather: Weather) {
         var short = cb.buildShort - cb.labourFrom.values.sum()
         val y = cb.recentYield(weather.date, days)
         val debtors = cb.favours.entries.filter { it.value > 0f }.mapNotNull { byId[it.key] }
-            .filter { it.alive && it.adults > 0 && it !== c && hexKm(here, hw.placeHex[it.place]) <= CONTACT_KM }.sortedBy { it.id }
+            .filter { it.alive && it.adults > 0 && it !== c && it.fed >= FINERY_FED && hexKm(here, hw.placeHex[it.place]) <= CONTACT_KM }.sortedBy { it.id }
         for (d in debtors) {
             if (short <= 0f || c.larder <= 0f) break
             val db = d.band ?: continue
             val owes = db.owesTo(c.id)
             if (owes <= 0f) continue
             val owedDays = daysOfFavours(weeksOfFavours(owes, log), y, c.adults, c.size)
-            val work = minOf(short, owedDays * max(0f, db.repayWill), LABOUR_DAYS_A_WEEK * d.adults * ticks, c.larder / max(1e-3f, perPerson))
+            // (Of its leisure only, as finery is: no more than [FINERY_LEISURE] of the rest its week left it, [Band.spareDays].
+            // From its working days, labour for monuments cost people 4% on m7-1, A/B 2026-11-17.)
+            val work = minOf(short, owedDays * max(0f, db.repayWill), LABOUR_DAYS_A_WEEK * d.adults * ticks, c.larder / max(1e-3f, perPerson),
+                FINERY_LEISURE * max(0f, db.spareDays))
             if (work <= 0f) continue
             val way = findWay(d, hw.placeHex[d.place], here, weather, CONTACT_KM) ?: continue
             // (Its people walk there and back, wearing the way, from their band's next step's days: the work is paid as it is done.)
-            tripAlong(d, way, min(d.adults.toFloat(), work / days), WalkPaid.NEXT_STEP)
+            val walkers = min(d.adults.toFloat(), work / days)
+            tripAlong(d, way, walkers, WalkPaid.BY_CALLER)
+            db.labourOwed += visitDays(walkers, way.km.toDouble())
             cb.labourFrom.merge(d.id, work, Float::plus); cb.labourUsed = Float.NaN; short -= work
             stats.meeting(Met.BANDS_WORKED_FOR_FAVOURS)
             stats.tally(labourKey(LabourCount.GIVEN), Math.round(10f * work))
@@ -88,7 +95,7 @@ private fun HexGroups.settleLabour(c: HexGroup, cb: Band, byId: Map<Int, HexGrou
         val db = d.band ?: continue
         val work = pledged * used
         if (work <= 0f) continue
-        db.raidWalkOwed += work
+        db.labourOwed += work
         val fed = min(work * perPerson, c.larder)
         moveFood(c, d, fed, LarderMove.FEAST)
         helpedBy(d, c, favoursOfGift(favoursOfDays(work, y, c.adults, c.size), log))

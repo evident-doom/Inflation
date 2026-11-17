@@ -46,7 +46,7 @@ internal fun carryRules(): Map<String, Pair<OnSplit, OnJoin>> {
     rule(OnSplit.DRAWN, OnJoin.SUM, "holders")
     rule(OnSplit.COPIED, OnJoin.SUM, "heard", "heardOf", "heardTotem", "heardBurial", "heardLivelihood", "heardStyle")
     rule(OnSplit.COPIED, OnJoin.LOST, "totem", "marksChosen", "totemBroken", "burialWay", "disputeWay", "style", "styleChosen", "heldLivelihood", "livelihoodHold", "livedOther", "livelihoodChosen")
-    rule(OnSplit.FRESH, OnJoin.SUM, "burialOwed", "riteOwed", "riteAsked", "riteSpare", "raidWalkOwed", "visitOwed")
+    rule(OnSplit.FRESH, OnJoin.SUM, "burialOwed", "riteOwed", "riteAsked", "riteSpare", "raidWalkOwed", "visitOwed", "labourOwed")
     rule(OnSplit.FRESH, OnJoin.LOST, "riteFood", "visitShare")
     rule(OnSplit.FRESH, OnJoin.LOST, "riteDue", "riteTrip")
     rule(OnSplit.COPIED, OnJoin.LOST, "lastUsed", "seasonPlace", "seasonQ", "monthSupply", "monthSupplySq", "supplyMonth", "supplySum", "supplyWeeks", "weekSupply", "weekYield", "weekWarmth", "weekMoved", "freeShare", "leanDays", "fatLow", "weeks", "traditions", "words", "rite", "riteStrength", "riteHeld", "riteKept", "farRiteYear", "beliefYears", "strain", "omenPlace", "omenMonth", "omenYear", "omenWeight", "deathsUsual", "wantSteps", "wantBroke", "wantUsual", "mind", "foreseenAt", "knownHomes", "knownLineage", "homeSeen", "homeOff", "lastMet", "seenStrength", "seenDay", "newsYield", "newsAt", "newsNext", "forageReturn", "cropWorthSeen", "cropDaysSeen")

@@ -183,11 +183,10 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
         buildHouse(g, b, p, h, people, time)
         buildHall(g, b, h, time)
     }
-    // (Of its leisure and what was lent: a monument at holy ground, or its houses adorned; what a monument wanted and did not get.)
-    val ceremonyShort = if (!kept) ceremonialWork(g, b, h, people, time) else 0f
-    // (What its building asked and did not get, for calling in labour; the lent days unused go back, never its rest.)
-    b.buildShort = max(0f, time.asked[Activity.HOUSES] - time.workedOn(Activity.HOUSES)) + ceremonyShort
-    if (lentIn > 0f) b.labourUsed = (lentIn - time.reclaim(Activity.HOUSES)) / lentIn
+    // (What its house and hall building asked and did not get, for calling in labour; the lent days it left are kept back for
+    // its ceremonial work at the week's end, never its rest.)
+    val houseShort = max(0f, time.asked[Activity.HOUSES] - time.workedOn(Activity.HOUSES))
+    val lentBack = if (lentIn > 0f) time.reclaim(Activity.HOUSES) else 0f
     time.release(Activity.HOUSES)
     // (Its home is where it last had houses to use; what stands there still shelters it, unless another band took it up.)
     if (!kept && housesAt(g, h) > 0.05f) b.houseHex = h
@@ -220,6 +219,15 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     buildWeir(g, b, h, time)
     // Where it has had to dig for its water at home, it sinks a well there, or deepens or mends the one there, as far as its time goes.
     buildWell(g, b, h, time)
+    // (What its people worked and walked for bands it owed is paid of what is left, its rest, and waits for later weeks beyond it.)
+    if (b.labourOwed > 0f) { val paid = min(b.labourOwed, max(0f, time.left)); time.spend(Activity.HOUSES, paid); b.labourOwed -= paid }
+    // (Last, of its rest and the lent days still unused: a monument at holy ground, or its houses adorned. Done before the week's
+    // other chores it took the days they would have had, and people fell 1.5%, A/B 2026-11-17. What a monument wanted and did
+    // not get is its building's shortfall, for calling in labour; the lent days unused go back.)
+    if (lentBack > 0f) time.lend(Activity.HOUSES, lentBack)
+    val ceremonyShort = if (!kept) ceremonialWork(g, b, h, people, time) else 0f
+    if (lentIn > 0f) b.labourUsed = (lentIn - time.reclaim(Activity.HOUSES)) / lentIn
+    b.buildShort = houseShort + ceremonyShort
     // What no chore took is its leisure. (Counted once every chore has had its time.)
     time.noneBelowZero()
     b.spareDays = time.left

@@ -32,8 +32,19 @@ internal const val ADORN_WEAR = 0.2f
 /** Holiness a person-day of a monument's work adds to the place ([HexLand.sanctity]): a tenth of what a grown person's rite gives. An estimate. */
 internal const val MONUMENT_SANCTITY = 0.1f
 
-/** Renown a person-day of ceremonial work wins its band ([Band.renown]). An estimate. */
-internal const val CEREMONY_RENOWN = 0.05f
+/**
+ * Renown a person-day of ceremonial work wins its band ([Band.renown]). An estimate. At 0.05 it more than doubled bands'
+ * renown, which steers whose ways are copied, and the share of bands with spears fell below its floor (A/B 2026-11-17).
+ */
+internal const val CEREMONY_RENOWN = 0.01f
+
+/**
+ * The stone group [g]'s band [b] may set in a monument: what it holds beyond its year's keep for its tools and its stock to
+ * give on ([KEEP_YEARS], [inflation.Tuning.passOnYears], [YEAR_NEED]). Of all its stone, monuments took some 6,000 t in five
+ * years on m7-1 and the share of bands with spears fell below its floor (A/B 2026-11-17).
+ */
+internal fun HexGroups.monumentStone(g: HexGroup, b: Band): Float =
+    max(0f, b.goods[Material.STONE] - (KEEP_YEARS + tuning.passOnYears) * YEAR_NEED[Material.STONE] * g.adults)
 
 /** How holy band [b]'s home hex [h] is: the sanctity of its places summed. */
 internal fun HexGroups.holiness(h: Hex): Float { var s = 0f; for (pi in hw.placesOf(h)) s += land.sanctity[pi]; return s }
@@ -52,7 +63,9 @@ internal fun HexGroups.ceremonialWork(g: HexGroup, b: Band, h: Hex, people: Floa
     val gd = b.goods
     if (holy) {
         val wish = MONUMENT_WISH * people * ticks
-        val days = minOf(own + lent, time.leftFor(Activity.HOUSES), wish, gd[Material.STONE] / MONUMENT_STONE)
+        // (Only of the stone beyond what it keeps for its tools and its stock to give on: [monumentStone].)
+        val stone = monumentStone(g, b)
+        val days = minOf(own + lent, time.leftFor(Activity.HOUSES), wish, stone / MONUMENT_STONE)
         if (days > 0f) {
             val s = bands.built.firstOrNull { it.kind == Built.MONUMENT && it.hex == h }
                 ?: Structure(Built.MONUMENT, h, -1, g.id, 0f).also { it.built = 1f; it.done = true; bands.built += it; stats.meeting(Met.MONUMENTS_BEGUN) }
@@ -63,7 +76,10 @@ internal fun HexGroups.ceremonialWork(g: HexGroup, b: Band, h: Hex, people: Floa
             b.renown += days * CEREMONY_RENOWN
             stats.tally(ceremonyKey(CeremonyCount.MONUMENT), Math.round(10f * days))
         }
-        return max(0f, wish - max(0f, days))
+        // (What it would give and could not, as far as the stone it holds still allows: debtors called for days that could not be
+        // built with only walked. Asked for whatever the stone, three quarters of the labour went unused and people fell 8%,
+        // A/B 2026-11-17.)
+        return max(0f, min(wish - max(0f, days), (stone - max(0f, days) * MONUMENT_STONE) / MONUMENT_STONE))
     }
     // (Not holy ground: it adorns the houses it lives in, of its leisure and what is lent.)
     val house = bands.built.firstOrNull { it.kind == Built.HOUSES && it.hex == h && it.user == g.id } ?: return 0f
