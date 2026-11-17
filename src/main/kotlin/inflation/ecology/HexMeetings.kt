@@ -599,7 +599,7 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
         if (given <= 0f) continue
         val worth = gb.ornamentWorthOf(given)
         val shell = gb.takeOrnaments(given)
-        tb.ornaments += given; tb.exotic += shell; tb.ornamentWorth += worth
+        tb.ornaments += given; tb.exotic += shell; tb.ornamentWorth += worth; noteOrnaments(OrnamentFlow.GIVEN, worth)
         tb.befriend(giver.id, 0.5f * TIE_GIFT)
         // (With crafted goods worth their days, a gift of them makes favours by its worth, on the log scale: [favoursOfGift].)
         if (tuning.craftWorth > 0f && worth > 0f) helpedBy(giver, taker,

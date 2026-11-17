@@ -368,7 +368,7 @@ internal fun GroupWorld.makeOrnaments(b: Band, people: Float, time: BandTime) {
             gd[Material.SHELL] = max(0f, gd[Material.SHELL] - fromShell * SHELL_EACH)
             gd[Material.BONE] = max(0f, gd[Material.BONE] - (made - fromShell) * BONE_EACH)
             b.ornaments += made; b.exotic += fromShell; time.spend(Activity.ORNAMENTS, made * ORNAMENT_DAYS)
-            b.ornamentWorth += made * ORNAMENT_DAYS
+            b.ornamentWorth += made * ORNAMENT_DAYS; noteOrnaments(OrnamentFlow.MADE, made * ORNAMENT_DAYS)
         }
     }
 }
@@ -419,11 +419,27 @@ internal fun fineryDays(b: Band, people: Float): Float {
     return max(0f, min(FINERY_DAYS_A_WEEK * people, (FINERY_WORTH * people - b.ornamentWorth) / hands))
 }
 
-/** Its ornaments wear out, break and are lost at [FINERY_WEAR] a year, over [years]: pieces, shell and worth alike. */
-internal fun wearOrnaments(b: Band, years: Float) {
-    if (b.ornaments <= 0f) return
-    b.takeOrnaments(b.ornaments * min(1f, FINERY_WEAR * years))
+/** Its ornaments wear out, break and are lost at [FINERY_WEAR] a year, over [years]: pieces, shell and worth alike. Returns the worth lost. */
+@IgnorableReturnValue
+internal fun wearOrnaments(b: Band, years: Float): Float {
+    if (b.ornaments <= 0f) return 0f
+    val n = b.ornaments * min(1f, FINERY_WEAR * years)
+    val worth = b.ornamentWorthOf(n)
+    b.takeOrnaments(n)
+    return worth
 }
+
+/**
+ * Where ornaments' worth comes from and goes, for the census (person-days of worth): made, worn out and broken
+ * ([wearOrnaments]), buried with the dead, given at meetings (a move between bands, not an end). Report only.
+ */
+enum class OrnamentFlow(val label: String) { MADE("made"), BROKEN("worn out and broken"), BURIED("buried"), GIVEN("given") }
+
+@OptIn(RawKey::class)
+internal fun ornamentFlowKey(f: OrnamentFlow) = TallyKey.raw("ornament worth:${f.label}, days/10")
+
+/** Books [days] of ornaments' worth moved by [f], for the census. */
+internal fun GroupWorld.noteOrnaments(f: OrnamentFlow, days: Float) { if (days > 0f) stats.tally(ornamentFlowKey(f), Math.round(10f * days)) }
 
 /**
  * Crafted goods as stored labour ([inflation.Tuning.craftWorth]; docs/design/trade.md, "What flows back", 2): with its
@@ -449,6 +465,7 @@ private fun GroupWorld.makeCrafted(b: Band, people: Float, time: BandTime) {
         gd[k.material] = max(0f, gd[k.material] - made * k.kgEach)
         b.ornaments += made; if (k.material == Material.SHELL) b.exotic += made
         b.ornamentWorth += made * k.days * hands
+        noteOrnaments(OrnamentFlow.MADE, made * k.days * hands)
         time.spend(Activity.ORNAMENTS, made * k.days)
         want -= made; left -= made * k.days
         stats.meeting(Met.Of.MADE, k.label, ceil(made).toInt())

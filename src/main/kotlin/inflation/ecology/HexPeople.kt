@@ -160,7 +160,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     time.release(Activity.TOOLS)
     b.renown *= 1f - RENOWN_FADE * years
     ledgerOnScale(b)
-    if (tuning.finery > 0f && tuning.craftWorth > 0f) wearOrnaments(b, years)
+    if (tuning.finery > 0f && tuning.craftWorth > 0f) noteOrnaments(OrnamentFlow.BROKEN, wearOrnaments(b, years))
     // (Its weeks are ticks: a step of several ticks uses up as many, so the mark lasts the same days at any step length.)
     b.unlucky?.let { u -> b.unlucky = if (u.weeks > ticks) Unlucky(u.hex, u.weeks - ticks) else null }
     b.sinceRaided += ticks

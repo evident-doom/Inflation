@@ -25,6 +25,8 @@ import inflation.ecology.saltCountKey
 import inflation.ecology.GIVEN_OF
 import inflation.ecology.GivenCount
 import inflation.ecology.givenKey
+import inflation.ecology.OrnamentFlow
+import inflation.ecology.ornamentFlowKey
 import inflation.ecology.saltFlowKey
 import inflation.ecology.Catalogue
 import inflation.ecology.Met
@@ -1131,6 +1133,13 @@ class Census(private val sim: HexSim) {
                 c(SaltCount.DAYS) / 10.0 / personYears) })
         // What bands gave each other at meetings and what it was worth, each reckoning from where it stood ([worthDaysPerKg]):
         // the taker's days against the giver's are what a gift gained, and its days a kg the good's price there.
+        // Ornaments' worth: what was made, and where it went (the sinks: worn out and broken, buried; given only moves it).
+        run {
+            val people = (sim.groups.groups.filter { it.alive && it.band != null }.sumOf { it.size }).toDouble().coerceAtLeast(1.0)
+            val held = sim.groups.groups.mapNotNull { it.band?.takeIf { _ -> it.alive } }.sumOf { it.ornamentWorth.toDouble() }
+            println("ornaments' worth, last year (person-days a person; held now, then made, worn out and broken, buried, given): held %.2f; ".format(held / people) +
+                OrnamentFlow.entries.joinToString(", ") { f -> "%s %.3f".format(f.label, (lastYear[ornamentFlowKey(f)] ?: 0) / 10.0 / people) })
+        }
         println("goods given at meetings, last year (kg or a person's sets of tools; days a kg or set to the taker, to the giver; favours owed for a day): " +
             GIVEN_OF.joinToString(", ") { of ->
                 fun c(k: GivenCount) = (lastYear[givenKey(of, k)] ?: 0).toDouble()

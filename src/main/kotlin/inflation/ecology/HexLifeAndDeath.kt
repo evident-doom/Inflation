@@ -537,6 +537,7 @@ private fun HexGroups.mournDead(g: HexGroup, o: Outcome, date: Date, weather: We
         land.sanctity[p] += o.deaths.toFloat()
         // Ornaments go into the grave with them: the more a band has, the richer its graves.
         val goods = min(b.ornaments, GRAVE_GOODS * b.ornaments * o.deaths)
+        noteOrnaments(OrnamentFlow.BURIED, b.ornamentWorthOf(goods))
         b.takeOrnaments(goods); land.graveGoods[p] += goods
     }
 }
