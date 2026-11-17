@@ -156,6 +156,14 @@ Ornaments are made of finer kinds by skilled hands and are worth their days (`t.
 
 What would let crafted wealth part bands: skill as a specialist's (a least skill only few reach, kept by practice: the finest kinds taught within a band and lost without makers); materials that are truly rare (obsidian, shell inland, later copper; greenstone, which the geology does not yet tell from grinding rock); and a band making for worth, not up to a count, when it has time and the will to it, so that those with spare days and hands store their surplus as finery, and finery is worn out, buried and given away at the rate the record shows.
 
+### Finery: a master's hands, made for worth, of leisure, and broken (step 2, continued)
+
+With `t.finery` (1; 0 the previous step): the fine kinds ask a master's skill (figurines 0.85, drilled beads 0.75, obsidian 0.65, against 0.6, 0.5 and 0.5), and making them practises the craft, so the skill is kept by making and lost without. Beyond the plain ornaments, a band with such hands and the material makes finery for its worth, up to 30 person-days of it a person, but only of its leisure: at most half the week's rest still unspent when the chores are done, at most 0.2 person-days a person a week, and none for a band that ate under 0.9 of its need (`fineryLeft`). Ornaments are worn out, broken and lost at a tenth a year (`wearOrnaments`): a sink beside graves, so that wealth settles where making meets loss. The census now counts the worth made, broken, buried and given each year.
+
+- Made from days the week asked for, finery cost people 2.2% on m7-1, lower in every pair: it took days from rest. Of leisure only, people −0.19%, mixed, inside the weather's 15.7%.
+- With `t.finery=0` a year on m7-1 runs line for line as main (2026-11-17). A/B of 0 against 1 on m7-1, 5 years, 4 replicates: 4 of 27 key numbers the same way in all pairs (about 3 by chance), most leopards +4.3% (they have gone either way in these A/Bs: −5.5% with obsidian); all runs with finery within nominal limits.
+- Ornaments' worth a person 7.4 days against 5.9 after five years; its Gini rises year on year, 0.19, 0.24, 0.28, 0.29, 0.30 (0.19 without), the top tenth's share 26% against 20%. Bands within 50 km of a source hold 7.7 days a person, those further 5.3. In the fifth year 1.26 days a person were made, 0.73 broken and 0.26 buried: near the level where making meets loss. Gifts move nearly as much as is held each year (6.9 days a person), the circulation that keeps finery from gathering faster.
+
 ## Checks against the record
 
 - **Falloff**: what each band holds of each traded good against its distance from the nearest source, by year. Down-the-line exchange shows an exponential fall beyond a supply zone of a few hundred km; directional trade shows plateaus. The coast against inland shell tally ([Tallies.kt](../../src/main/kotlin/inflation/tools/fauna/Tallies.kt)) is a first, coarse form.
