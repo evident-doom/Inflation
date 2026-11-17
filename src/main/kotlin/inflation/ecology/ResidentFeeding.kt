@@ -68,6 +68,26 @@ internal fun HexFauna.plantWant(k: FaunaKind, p: Place, weather: Weather): Float
 /** How much of the food at place [p] kind [s] can get at: cliffs keep all but climbers off some of it, a kind that must drink often uses only the ground within reach of water, and biting insects cost it feeding time ([unbitten]). */
 internal fun HexFauna.reachOf(s: Species, p: Place) = HexFood.access(s, land.crag[p]) * tether(s, p) * unbitten(p)
 
+/**
+ * The share of its feeding time kind [s] keeps at place [p] for the cover there: all for a kind that hides in thickets
+ * or trees, escapes up crags (the wild goats and sheep, as much of the oak scrub as of the cliffs) or stands and fights
+ * ([COVER_DEFENCE]); for one that escapes by seeing danger early and outrunning it
+ * (gazelle, wild asses and horses, oryx, ostriches), less the thicker the cover, by [COVER_WATCH] at full cover. In the
+ * woods it cannot see a stalker coming and spends its time watching, and it leaves such ground to the hiders (the
+ * runners of the open plains keep to them: from memory of the vigilance record). Without it onagers and ostriches stood
+ * thickest in the woodland and the swamp forest.
+ */
+internal fun HexFauna.inSight(s: Species, p: Place): Float {
+    if (s.carnivore || s.defence >= COVER_DEFENCE || Niches.Shelter.THICKET in s.shelters || Niches.Shelter.TREE in s.shelters ||
+        Niches.Shelter.CRAG in s.shelters) return 1f
+    return 1f - COVER_WATCH * land.plants.cover(p)
+}
+
+/** [inSight]: the feeding time a runner of the open plains loses in full cover; an estimate. */
+internal const val COVER_WATCH = 0.5f
+/** [inSight]: the defence from which a kind stands its ground in cover rather than watching for a stalker. */
+internal const val COVER_DEFENCE = 0.5f
+
 /** The share of its feeding time biting insects leave an animal at place [p]: the part of [reachOf] that is not the ground. */
 internal fun HexFauna.unbitten(p: Place) = 1f - HexSmallLife.HARASS_FEED * small.harassment(p)
 
@@ -120,10 +140,11 @@ internal fun HexFauna.graze(weather: Weather) {
 
 /**
  * The shares of its want of grass and of browse kind [s] can crop at place [p] ([cropRate]), by how thick they stand:
- * the edible herbs, and the shoots within reach counted as the standing plants that would give as much in a week ([REACH]).
+ * the edible herbs, and the shoots within reach counted as the standing plants that would give as much in a week ([REACH]);
+ * less in cover for a kind that watches for stalkers there rather than feeding ([inSight]).
  */
-internal fun HexFauna.cropGrass(s: Species, p: Place) = cropRate(s, land.palatable[p] * land.plants.herb[p])
-internal fun HexFauna.cropBrowse(s: Species, p: Place) = cropRate(s, land.plants.browse(p) / REACH)
+internal fun HexFauna.cropGrass(s: Species, p: Place) = cropRate(s, land.palatable[p] * land.plants.herb[p]) * inSight(s, p)
+internal fun HexFauna.cropBrowse(s: Species, p: Place) = cropRate(s, land.plants.browse(p) / REACH) * inSight(s, p)
 
 /**
  * [graze]'s plants at place [p] ([grass] and [browse] of them within reach), into [z], shared out among the kinds there by
