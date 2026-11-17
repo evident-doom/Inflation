@@ -387,6 +387,8 @@ class Tuning(
     val craftWorth = f("craftWorth", 1f)
     /** Finery: the fine ornaments need a master's hands, are made for worth beyond the plain ones of leisure only, and wear out (1; 0 made up to a count, as by any hands skilled enough), as [inflation.ecology.fineryLeft] has it. */
     val finery = f("finery", 1f)
+    /** A band short of days for its houses and hall calls on the bands near it that owe it, to build for it, fed at its feast (1; 0 none), as [inflation.ecology.callInLabour] has it. */
+    val labourFavours = f("labourFavours", 1f)
     /** How much less salted meat and fish spoil. */
     val saltKeep = f("saltKeep", 0.7f)
 

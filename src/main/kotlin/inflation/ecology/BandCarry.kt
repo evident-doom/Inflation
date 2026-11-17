@@ -70,7 +70,8 @@ internal fun carryRules(): Map<String, Pair<OnSplit, OnJoin>> {
     // Ties.
     rule(OnSplit.COPIED, OnJoin.MAX, "ties")
     // (Favours stay with the band that was helped or helped: the new band owes and is owed nothing.)
-    rule(OnSplit.FRESH, OnJoin.SUM, "favours")
+    rule(OnSplit.FRESH, OnJoin.SUM, "favours", "labourIn")
+    rule(OnSplit.FRESH, OnJoin.LOST, "buildShort")
     // Wealth and animals.
     rule(OnSplit.SHARED, OnJoin.SUM, "ornaments", "exotic", "ornamentWorth")
     rule(OnSplit.COPIED, OnJoin.BLENDED, "seedDomestic", "seedPulse", "grainDomestic")

@@ -27,6 +27,8 @@ import inflation.ecology.GivenCount
 import inflation.ecology.givenKey
 import inflation.ecology.OrnamentFlow
 import inflation.ecology.ornamentFlowKey
+import inflation.ecology.LabourCount
+import inflation.ecology.labourKey
 import inflation.ecology.saltFlowKey
 import inflation.ecology.Catalogue
 import inflation.ecology.Met
@@ -1139,6 +1141,12 @@ class Census(private val sim: HexSim) {
             val held = sim.groups.groups.mapNotNull { it.band?.takeIf { _ -> it.alive } }.sumOf { it.ornamentWorth.toDouble() }
             println("ornaments' worth, last year (person-days a person; held now, then made, worn out and broken, buried, given): held %.2f; ".format(held / people) +
                 OrnamentFlow.entries.joinToString(", ") { f -> "%s %.3f".format(f.label, (lastYear[ornamentFlowKey(f)] ?: 0) / 10.0 / people) })
+        }
+        run {
+            val people = (sim.groups.groups.filter { it.alive && it.band != null }.sumOf { it.size }).toDouble().coerceAtLeast(1.0)
+            fun c(k: LabourCount) = (lastYear[labourKey(k)] ?: 0) / 10.0
+            println("labour for favours, last year (person-days a person given, of them built with; kg of food a person set before the workers): %.3f, %.3f; %.3f".format(
+                c(LabourCount.GIVEN) / people, c(LabourCount.USED) / people, c(LabourCount.FED) / people))
         }
         println("goods given at meetings, last year (kg or a person's sets of tools; days a kg or set to the taker, to the giver; favours owed for a day): " +
             GIVEN_OF.joinToString(", ") { of ->

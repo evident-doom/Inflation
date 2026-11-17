@@ -160,6 +160,7 @@ private class ThreadSums<K>(private val ledger: ConcurrentSkipListMap<K, Int>) {
 /** What the week's [meetings][WeekStats.meetings] count, each under its [label]. */
 enum class Met(val label: String) {
     BANDS_ASKED_FOR_GOODS("bands went to ask another for stone, salt or ochre"),
+    BANDS_WORKED_FOR_FAVOURS("bands sent people to build for a band they owed"),
     BANDS_ATE_THEIR_TOTEM("bands ate their totem"),
     BANDS_BACK_AT_A_CACHE("bands back at a cache"),
     BANDS_BUILT_HOUSES("bands built houses"),

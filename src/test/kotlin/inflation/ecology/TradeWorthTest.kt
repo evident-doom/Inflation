@@ -102,6 +102,19 @@ class TradeWorthTest {
     }
 
     @Test
+    fun `days lent for building are held for it alone, and what it leaves goes back, never the band's rest`() {
+        val t = BandTime(10f)
+        t.lend(Activity.HOUSES, 5f)
+        assertEquals(15f, t.leftFor(Activity.HOUSES), 1e-5f)
+        assertEquals(10f, t.unheld, 1e-5f, "the rest is the band's own")
+        t.spend(Activity.HOUSES, 3f)
+        assertEquals(2f, t.reclaim(Activity.HOUSES), 1e-5f)
+        assertEquals(10f, t.left, 1e-5f, "the band's own days all still there: the 3 built were lent")
+        assertEquals(10f, t.unheld, 1e-5f, "what was left of the lent days went back")
+        assertEquals(0f, t.reclaim(Activity.HOUSES))
+    }
+
+    @Test
     fun `carriers take a load each, one at least and all the grown at most`() {
         assertEquals(1f, carriersFor(3f, 10))
         assertEquals(3f, carriersFor(2.5f * FETCH_LOAD, 10))
