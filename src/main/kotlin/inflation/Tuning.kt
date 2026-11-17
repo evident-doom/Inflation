@@ -385,7 +385,7 @@ class Tuning(
     val logFavours = f("logFavours", 1f)
     /** Ornaments are made of finer kinds by skilled hands, worth their days, and count by worth in standing and gifts (1; 0 the old rule: all alike), as [inflation.ecology.makeOrnaments] has it. */
     val craftWorth = f("craftWorth", 1f)
-    /** Finery: the fine ornaments need a master's hands, are made for worth beyond the plain ones, and wear out (1; 0 made up to a count, as by any hands skilled enough), as [inflation.ecology.fineryDays] has it. */
+    /** Finery: the fine ornaments need a master's hands, are made for worth beyond the plain ones of leisure only, and wear out (1; 0 made up to a count, as by any hands skilled enough), as [inflation.ecology.fineryLeft] has it. */
     val finery = f("finery", 1f)
     /** How much less salted meat and fish spoil. */
     val saltKeep = f("saltKeep", 0.7f)

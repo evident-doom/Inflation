@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import kotlin.math.min
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -93,8 +94,9 @@ class TradeWorthTest {
         b.ornaments = 10f; b.exotic = 2f; b.ornamentWorth = 50f
         wearOrnaments(b, 1f)
         assertEquals(10f * (1f - FINERY_WEAR), b.ornaments, 1e-4f); assertEquals(50f * (1f - FINERY_WEAR), b.ornamentWorth, 1e-3f)
-        b.goods[Material.GROUND_STONE] = 100f
-        assertEquals(0f, fineryDays(b, 20f), "plain hands make no finery")
+        // (Of 10 person-days of rest left, half at most, and no more than 0.2 a person; none for a band short of food.)
+        assertEquals(min(FINERY_DAYS_A_WEEK * 20f, FINERY_LEISURE * 10f), fineryLeft(BandTime(10f), 20f, fed = 1f), 1e-5f)
+        assertEquals(0f, fineryLeft(BandTime(10f), 20f, fed = 0.5f), "a band that went short makes no finery")
         assertTrue(OrnamentKind.entries.filter { it.fine }.all { it.master > it.least }, "finery asks more of the hands than plain making")
         assertTrue(OrnamentKind.entries.filter { !it.fine }.all { it.needs(true) == 0f })
     }

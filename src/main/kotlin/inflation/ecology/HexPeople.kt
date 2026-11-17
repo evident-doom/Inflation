@@ -189,7 +189,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     b.homeWalls = if (b.atHome) wallsAt(g, h) else 0f
     b.homeGroundC = if (b.atHome) (0 until Date.MONTHS_PER_YEAR).sumOf { weather.usualTemperature(it, p).toDouble() }.toFloat() / Date.MONTHS_PER_YEAR else 0f
     // With time still to spare, it makes ornaments of shell and bone: they are given, worn and buried.
-    makeOrnaments(b, people, time)
+    makeOrnaments(b, people, time, g.fed)
     time.release(Activity.ORNAMENTS)
     // And a band that makes a tool well makes spares of it, to give.
     makeSpares(b, people, time)
@@ -266,7 +266,7 @@ internal fun HexGroups.choreAsks(g: HexGroup, b: Band, date: Date, asks: EnumFlo
     ask(Activity.TRAINING, Skill.entries.sumOf { s -> (learners(b, s, people) * APPRENTICE_DAYS * s.complexity).toDouble() }.toFloat())
     // (What its kit asks beyond the clothes' days given first, when given: [survivalDays].)
     ask(Activity.TOOLS, makeTools(b, people, null) - (warm?.get(Activity.TOOLS) ?: 0f))
-    ask(Activity.ORNAMENTS, ornamentsWanted(b, people) * ORNAMENT_DAYS + (if (tuning.finery > 0f && tuning.craftWorth > 0f) fineryDays(b, people) else 0f))
+    ask(Activity.ORNAMENTS, ornamentsWanted(b, people) * ORNAMENT_DAYS)
     // (The seed it keeps back from its meals for its next sowing: [seedKeep].)
     b.seedTarget = sowLeft(g, b, p, g.storeKgPer[Store.SEED], b.sowWill)
     // (A band that has just moved builds, sows and fortifies nothing where it has come to.)
