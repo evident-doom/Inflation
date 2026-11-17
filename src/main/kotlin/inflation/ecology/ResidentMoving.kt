@@ -55,7 +55,7 @@ internal fun HexFauna.fedOnSpare(s: Species, p: Place, heads: Float, each: Float
     if (!(want > 0f)) return 1f
     dry.reach = reach; dry.grass = spareGrass[p]; dry.browse = spareBrowse[p]
     dry.fruit = spareFruit[p]; dry.roots = spareRoots[p]
-    return (forage(s, s.diet, land.plants.nourishment(p), want, grassUnderSnow(s, snowMm), dry, b, cropGrass(s, p), cropBrowse(s, p)).got / want).coerceIn(0f, 1f)
+    return (forage(s, leanDiet(s, p), land.plants.nourishment(p), want, grassUnderSnow(s, snowMm), dry, b, cropGrass(s, p), cropBrowse(s, p)).got / want).coerceIn(0f, 1f)
 }
 
 /** [fedOnSpare] for [heads] of plant-eating kind [k] coming to place [p] this week. */

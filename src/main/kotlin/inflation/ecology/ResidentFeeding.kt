@@ -37,6 +37,24 @@ fun HexFauna.grassProtein(p: Place): Float {
 
 fun HexFauna.browseProtein(p: Place) = PROTEIN_DRY_BROWSE + (1f - PROTEIN_DRY_BROWSE) * land.plants.green[p]
 
+/**
+ * [s]'s diet at place [p] this week, a kind that eats both grass and browse leaning toward whichever is the better of
+ * them now, by the square of their protein ([grassProtein], [browseProtein]), its grass and browse together as much as
+ * ever: grazing the fresh grass of spring, browsing the shoots through the dry season and the winter, when the grass has
+ * cured to straw and the shoots keep their protein. The mixed feeders' edge (fallow and red deer, gazelle, goats and
+ * sheep shift from grass to browse with the season; Hofmann 1989, from memory). With their shares fixed, a deer ate half
+ * cured grass through a dry summer and lost out to the small selective kinds and the big bulk grazers alike.
+ */
+internal fun HexFauna.leanDiet(s: Species, p: Place): Diet {
+    val d = s.diet
+    if (d.grass <= 0f || d.browse <= 0f) return d
+    val gp = grassProtein(p); val bp = browseProtein(p)
+    val wg = d.grass * gp * gp; val wb = d.browse * bp * bp
+    if (!(wg + wb > 0f)) return d
+    val both = d.grass + d.browse; val g = both * wg / (wg + wb)
+    return d.copy(grass = g, browse = both - g)
+}
+
 /** How well a diet with [share] of fresh growth's protein meets a mother's and a growing young's need, 0..1. */
 fun HexFauna.proteinMet(share: Float) = min(1f, share / PROTEIN_NEED)
 
@@ -139,7 +157,7 @@ private fun HexFauna.eatPlants(p: Place, weather: Weather, grass: Float, browse:
     fun eat(k: Int) {
         val s = kinds[k]
         z.kind = k; z.access = avail[k]
-        forage(s, s.diet, quality, need[k], grassUnderSnow(s, snow), z, b, cropGrass(s, p), cropBrowse(s, p))
+        forage(s, leanDiet(s, p), quality, need[k], grassUnderSnow(s, snow), z, b, cropGrass(s, p), cropBrowse(s, p))
     }
     // What each asks of each food.
     z.mode = Grazing.ASKING
@@ -412,7 +430,7 @@ private fun HexFauna.placeEffects(p: Place, grass: Float, browse: Float, z: Graz
 
 /** How well kind [s]'s diet at place [p] would meet its need for protein, 0..1 (see [proteinMet]). */
 fun HexFauna.forageProtein(s: Species, p: Place): Float {
-    val d = s.diet; val plants = d.grass + d.browse + d.fruit + d.roots
+    val d = leanDiet(s, p); val plants = d.grass + d.browse + d.fruit + d.roots
     if (plants <= 0f) return 1f
     val share = (d.grass * s.selected(grassProtein(p)) + d.browse * s.selected(browseProtein(p)) + (d.fruit + d.roots) * PROTEIN_FRUIT) / plants
     val ps = plantShare(s)

@@ -59,7 +59,8 @@ object Catalogue {
         groupSize = 6, maxGroupSize = 25,
         dailyTravelKm = 5f, maxDailyTravelKm = 30f, senseKm = 2.5f,
         daysWithoutWater = 3, waterFromFood = 0.55f,
-        birthMonth = 5, birthMonths = 1, youngPerFemale = 0.85f, yearsToMaturity = 2.5f,
+        // (A hind or doe bears her first at two: the fallow deer at about two, the red deer at two or three; from memory.)
+        birthMonth = 5, birthMonths = 1, youngPerFemale = 0.85f, yearsToMaturity = 2f,
         backgroundMortality = 0.09f, firstYearLost = HOOFED_YOUNG_LOST, snowLimitMm = 160f,
         products = Products(meat = 45f, fat = 3.5f, hide = 6f, bone = 11f, sinew = 0.7f, hornOrAntler = 3.5f),
         comfortC = -10f..33f, winterCoat = true,
