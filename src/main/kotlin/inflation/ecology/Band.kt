@@ -441,8 +441,10 @@ class Band(kinds: Int, totems: Int = kinds) {
      */
     var ornaments = 0f
     var exotic = 0f
-    /** Person-days of building other bands' people owe it for its next week's houses and hall ([callInLabour]). */
-    var labourIn = 0f
+    /** Person-days of building pledged it for its next week's houses and hall, by the band that sent the people ([callInLabour]); settled at the next call ([settleLabour]). */
+    val labourFrom = HashMap<Int, Float>()
+    /** The share of the pledged days ([labourFrom]) its building used ([BandTime.reclaim]); NaN: not yet built with. */
+    var labourUsed = Float.NaN
     /** The person-days its house and hall building asked for last week and did not get ([callInLabour]). */
     var buildShort = 0f
     /** The person-days of skilled work in its ornaments ([makeCrafted]): what they are worth, as wealth held and worn. */
@@ -1056,7 +1058,8 @@ class Band(kinds: Int, totems: Int = kinds) {
         blendWarning(a, b, w)
         // (Its larder as last seen, a person's days: the two larders are put together, so near enough the two blended.)
         a.larderSeen += w * (b.larderSeen - a.larderSeen)
-        a.ornaments += b.ornaments; a.exotic += b.exotic; a.ornamentWorth += b.ornamentWorth; a.labourIn += b.labourIn
+        a.ornaments += b.ornaments; a.exotic += b.exotic; a.ornamentWorth += b.ornamentWorth
+        for ((k, v) in b.labourFrom) a.labourFrom.merge(k, v, Float::plus)
         a.herds.absorb(b.herds)
         a.renown = max(a.renown, b.renown)
         a.raidDeathRate += w * (b.raidDeathRate - a.raidDeathRate)

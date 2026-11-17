@@ -164,6 +164,14 @@ With `t.finery` (1; 0 the previous step): the fine kinds ask a master's skill (f
 - With `t.finery=0` a year on m7-1 runs line for line as main (2026-11-17). A/B of 0 against 1 on m7-1, 5 years, 4 replicates: 4 of 27 key numbers the same way in all pairs (about 3 by chance), most leopards +4.3% (they have gone either way in these A/Bs: −5.5% with obsidian); all runs with finery within nominal limits.
 - Ornaments' worth a person 7.4 days against 5.9 after five years; its Gini rises year on year, 0.19, 0.24, 0.28, 0.29, 0.30 (0.19 without), the top tenth's share 26% against 20%. Bands within 50 km of a source hold 7.7 days a person, those further 5.3. In the fifth year 1.26 days a person were made, 0.73 broken and 0.26 buried: near the level where making meets loss. Gifts move nearly as much as is held each year (6.9 days a person), the circulation that keeps finery from gathering faster.
 
+### Labour for favours (step 3a)
+
+A band whose house and hall building ran short of days last week, and that has food, calls on the bands within two days' walk that owe it (`t.labourFavours`, 1; 0 none; [TradeLabour.kt](../../src/main/kotlin/inflation/ecology/TradeLabour.kt)). Each pledges people for as many days as it owes, as fully as it repays, a day an adult a week at most; they walk there at once, and the days are held for the creditor's building next week (`BandTime.lend`), what it leaves taken back so it never becomes the creditor's rest (`reclaim`). At the next call the labour is settled as far as it was built with: the debtor pays those days, the creditor feeds the workers for them (a work feast, the food to their band), and the debt shrinks by their worth to the creditor on the log scale. What is built is the creditor's only while it stays.
+
+- Paid as pledged, 60% of the days went unused and labour cost people 1% in every pair; settled as built with, people −0.07%, mixed (m7-1, 5 years, 4 replicates, 2026-11-17). With `t.labourFavours=0` a year runs line for line as main.
+- It is a trickle: 0.17 person-days a person a year pledged, 0.08 built with, 0.11 kg of food a person fed, some 16 bands a year; housing and credit do not change. Houses are cheap and bands mostly finish their own; labour waits for projects too big for one band (3b).
+- One run with labour broke a nominal limit on cheetahs (6 of 47 lost unaccounted for in year 5, against 10%); taken as chance in a kind of few heads that swings 50% with the weather, but noted.
+
 ## Checks against the record
 
 - **Falloff**: what each band holds of each traded good against its distance from the nearest source, by year. Down-the-line exchange shows an exponential fall beyond a supply zone of a few hundred km; directional trade shows plateaus. The coast against inland shell tally ([Tallies.kt](../../src/main/kotlin/inflation/tools/fauna/Tallies.kt)) is a first, coarse form.

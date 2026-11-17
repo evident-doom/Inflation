@@ -138,8 +138,8 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     val time = b.week ?: BandTime(b.spareDays, b.paces())
     b.week = null
     // (Days other bands' people owe it for building, held for its houses and hall: [callInLabour].)
-    val lentIn = b.labourIn
-    if (lentIn > 0f) { time.lend(Activity.HOUSES, lentIn); b.labourIn = 0f }
+    val lentIn = b.labourFrom.values.sum()
+    if (lentIn > 0f) time.lend(Activity.HOUSES, lentIn)
     campAndCache(g, b, p, h, weather, date, time)
     time.release(Activity.CACHING)
     keepAnimals(g, b)
@@ -185,7 +185,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     }
     // (What its building asked and did not get, for calling in labour; the lent days unused go back, never its rest.)
     b.buildShort = max(0f, time.asked[Activity.HOUSES] - time.workedOn(Activity.HOUSES))
-    if (lentIn > 0f) stats.tally(labourKey(LabourCount.USED), Math.round(10f * (lentIn - time.reclaim(Activity.HOUSES))))
+    if (lentIn > 0f) b.labourUsed = (lentIn - time.reclaim(Activity.HOUSES)) / lentIn
     time.release(Activity.HOUSES)
     // (Its home is where it last had houses to use; what stands there still shelters it, unless another band took it up.)
     if (!kept && housesAt(g, h) > 0.05f) b.houseHex = h
