@@ -295,7 +295,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
         if (stepCount++ % max(1, (SEED_SOURCE_DAYS / days).toInt()) == 0) seedSources()
         if (!shootsSet) {
             for (p in land.places) {
-                shrubShoots[p] = land.palatable[p] * SHRUB_IN_REACH * SHRUB_RENEWAL * shrub[p]
+                shrubShoots[p] = land.palatable[p] * SHRUB_IN_REACH * SHRUB_BROWSE * SHRUB_RENEWAL * shrub[p]
                 treeShoots[p] = land.palatable[p] * TREE_IN_REACH * TREE_RENEWAL * tree[p]
             }
             shootsSet = true
@@ -381,7 +381,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             shrubNote(if (shrub[p] >= sGrow) ShrubPart.GREW else ShrubPart.DIED_BACK, p, sGrow)
             // New shoots: what the woody plants grew, and the leaves and twigs they renew, in growing weather.
             val renew = season * water0 * years
-            shrubShoots[p] = shrubShoots[p] * shootsKept + land.palatable[p] * SHRUB_IN_REACH * (max(0f, shrub[p] - shrub0) + SHRUB_RENEWAL * renew * shrub[p])
+            shrubShoots[p] = shrubShoots[p] * shootsKept + land.palatable[p] * SHRUB_IN_REACH * SHRUB_BROWSE * (max(0f, shrub[p] - shrub0) + SHRUB_RENEWAL * renew * shrub[p])
             treeShoots[p] = treeShoots[p] * shootsKept + land.palatable[p] * TREE_IN_REACH * (max(0f, tree[p] - tree0) + TREE_RENEWAL * renew * tree[p])
             // In the cold the deciduous leaves fall: through the winter only twigs and buds are left to browse.
             // (Where winters are mild enough to grow on, the leaves stay, as on the evergreen scrub of the south.)
@@ -538,6 +538,15 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
          * current year's twigs and leaves in reach that browsed woods are measured to grow, and the browsers lacked for none.
          */
         const val SHRUB_IN_REACH = 0.5f
+        /**
+         * Share of shrubs' new growth that is browse at all: the current year's shoots and soft leaves of the kinds browsers
+         * eat, not the tough, resinous evergreen leaves of the maquis, the thorny and the bitter (an estimate; the place's
+         * palatable share is the herbs'). With all of it counted, woods grew some 100 g/m² of browse in reach a year
+         * against some 10-50 that browsed woods are measured to (from memory), and the small browsers stood at twice their
+         * record's densities. At 0.4 the deer, elk and elephants, which live mostly on browse, crashed; at 0.65 the small
+         * kinds came down by a third and the elk held.
+         */
+        const val SHRUB_BROWSE = 0.65f
         /**
          * Degree-days above 0 °C of growth over which a grass sward stays leafy, and by which it has gone to stem and seed and
          * is worth no more than cured grass ([grassAge]). Leafy until the stems start to run up: barley and wheat, both grasses

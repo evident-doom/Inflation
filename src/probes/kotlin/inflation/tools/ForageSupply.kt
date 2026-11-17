@@ -24,7 +24,7 @@ fun main(args: Array<String>) {
     val shown = biomes.indices.filter { area[it] > 0.01 * area.sum() }.sortedByDescending { area[it] }
     val eaters = fauna.kinds.indices.filter { !fauna.kinds[it].carnivore }
     // [month][biome][measure]: herb, browse, fruit, under, grazed, browsed, dug, grazed share, weight; summed area-weighted, then averaged by steps.
-    val m = 9
+    val m = 12
     val acc = Array(12) { Array(biomes.size) { DoubleArray(m) } }
     val steps = IntArray(12)
     val perYear = sim.stepsPerYear
@@ -43,9 +43,10 @@ fun main(args: Array<String>) {
             v[7] += (if (herb > 0.0) land.plants.grazing[p] * days / 1e6 / herb else 0.0) * a
             var w = 0.0; for (k in eaters) w += (fauna.adults[k][p] + 0.3f * fauna.young[k][p]) * fauna.kinds[k].massKg
             v[8] += w * a
+            v[9] += land.plants.shrub[p] * a; v[10] += land.plants.tree[p] * a; v[11] += land.palatable[p] * a
         }
     }
-    val names = listOf("herbs kg/m²", "shoots kg/m²", "fruit kg/m²", "roots+mast kg/m²", "grazed g/m²/mo", "browsed g/m²/mo", "dug g/m²/mo", "herbs grazed/step", "plant-eaters kg/km²")
+    val names = listOf("herbs kg/m²", "shoots kg/m²", "fruit kg/m²", "roots+mast kg/m²", "grazed g/m²/mo", "browsed g/m²/mo", "dug g/m²/mo", "herbs grazed/step", "plant-eaters kg/km²", "shrub kg/m²", "tree kg/m²", "palatable")
     for (b in shown) {
         println("${biomes[b].label} (${"%.0f".format(100 * area[b] / area.sum())}% of land)")
         println("  month " + names.joinToString(" | "))
