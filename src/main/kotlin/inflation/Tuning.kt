@@ -389,6 +389,8 @@ class Tuning(
     val finery = f("finery", 1f)
     /** A band short of days for its houses and hall calls on the bands near it that owe it, to build for it, fed at its feast (1; 0 none), as [inflation.ecology.callInLabour] has it. */
     val labourFavours = f("labourFavours", 1f)
+    /** Ceremonial work of leisure and lent days: a monument at holy home ground, else the houses adorned (1; 0 none), as [inflation.ecology.ceremonialWork] has it. */
+    val ceremony = f("ceremony", 1f)
     /** How much less salted meat and fish spoil. */
     val saltKeep = f("saltKeep", 0.7f)
 

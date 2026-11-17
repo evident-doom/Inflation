@@ -13,7 +13,9 @@ import kotlin.math.max
 import kotlin.math.min
 
 /** What bands build that stands in the world: houses, a palisade round the houses at a hex, and weirs across its river. */
-enum class Built { HOUSES, PALISADE, WEIR, WELL, PEN, HALL }
+enum class Built { HOUSES, PALISADE, WEIR, WELL, PEN, HALL,
+    /** A monument ([ceremonialWork]): a shrine, tower or enclosure at holy ground; its [Structure.size] the person-days of work in it. Last, so saves load. */
+    MONUMENT }
 
 /**
  * A thing built that stands at hex [hex], whoever built it: no band owns it. Any band that comes on it empty may use it
@@ -29,6 +31,8 @@ class Structure(var kind: Built = Built.HOUSES, var hex: Hex = Hex.NONE, var des
     var built = 0f
     var user = -1
     var done = false
+    /** Person-days of plaster and paint given its walls ([ceremonialWork]); weathering away at [ADORN_WEAR] a year. */
+    var adorned = 0f
 }
 
 /** Whether [g] may use [s]: nobody else is using it this week. */
@@ -236,11 +240,14 @@ internal fun HexGroups.tendStructures(weather: Weather) {
         if (s.user >= 0 && where[s.user] != s.hex) s.user = -1
         // (A well nobody holds silts up at its own rate, used or not; whoever wants it mends it.)
         if (s.kind == Built.WELL) s.built = max(0f, s.built - WELL_WEAR * years)
+        // (A monument is stone set to last: its work weathers away slowly, used or not, and it belongs to no one.)
+        else if (s.kind == Built.MONUMENT) { s.size *= max(0f, 1f - MONUMENT_WEAR * years); s.built = if (s.size >= 1f) 1f else 0f }
         // (A hall is the village's: it stands while anyone lives at home in its hex, and weathers once nobody does.)
         else if (s.kind == Built.HALL) { if (bands.homePeople[s.hex.i] <= 0f) s.built = max(0f, s.built - HOUSE_DECAY * years) }
         else if (s.user < 0) s.built = max(0f, s.built - HOUSE_DECAY * years)
         // (A weir stands in the stream: the current and the floods wear it, used or not, and the band using it mends it.)
         if (s.kind == Built.WEIR) s.built = max(0f, s.built - WEIR_WEAR * years)
+        if (s.adorned > 0f) s.adorned *= max(0f, 1f - ADORN_WEAR * years)
         if (s.kind == Built.HOUSES && s.design == Skill.MUDBRICK.ordinal) {
             val places = hw.placesOf(s.hex)
             var rain = 0f; for (p in places) rain += weather.rain(p)

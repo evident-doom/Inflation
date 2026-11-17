@@ -136,6 +136,9 @@ class BandTime(left: Float, private val pace: EnumFloats<Activity>? = null) {
         left += personDays; held[a] += personDays; lent[a] += personDays
     }
 
+    /** What is still held of the days lent to [a] ([lend]): what other bands' people could still work at it. */
+    fun lentLeft(a: Activity) = min(lent[a], held[a])
+
     /** Takes back what is still held of the days lent to [a] ([lend]), so that they never become this band's rest; returns them. */
     fun reclaim(a: Activity): Float {
         val back = min(lent[a], held[a])

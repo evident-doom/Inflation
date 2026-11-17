@@ -508,7 +508,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                 Built.PALISADE -> fence[st.hex] = max(fence[st.hex], st.built)
                 Built.PEN -> pens[st.hex] += st.built * st.size
                 Built.HALL -> halls[st.hex] = max(halls[st.hex], if (st.done) st.built * st.size else 0f)
-                Built.WEIR, Built.WELL -> {} // (weirs and wells are not drawn)
+                Built.WEIR, Built.WELL, Built.MONUMENT -> {} // (weirs, wells and monuments are not drawn)
             }
             val food = fauna.food
             val sownKg = FloatArray(hex.size); val ripeKg = FloatArray(hex.size); val tame = FloatArray(hex.size); val pulse = FloatArray(hex.size); val wornKm2 = FloatArray(hex.size); val clearedKm2 = FloatArray(hex.size)

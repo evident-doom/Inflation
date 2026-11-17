@@ -183,8 +183,10 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
         buildHouse(g, b, p, h, people, time)
         buildHall(g, b, h, time)
     }
+    // (Of its leisure and what was lent: a monument at holy ground, or its houses adorned; what a monument wanted and did not get.)
+    val ceremonyShort = if (!kept) ceremonialWork(g, b, h, people, time) else 0f
     // (What its building asked and did not get, for calling in labour; the lent days unused go back, never its rest.)
-    b.buildShort = max(0f, time.asked[Activity.HOUSES] - time.workedOn(Activity.HOUSES))
+    b.buildShort = max(0f, time.asked[Activity.HOUSES] - time.workedOn(Activity.HOUSES)) + ceremonyShort
     if (lentIn > 0f) b.labourUsed = (lentIn - time.reclaim(Activity.HOUSES)) / lentIn
     time.release(Activity.HOUSES)
     // (Its home is where it last had houses to use; what stands there still shelters it, unless another band took it up.)

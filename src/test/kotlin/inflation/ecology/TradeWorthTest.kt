@@ -112,6 +112,8 @@ class TradeWorthTest {
         assertEquals(10f, t.left, 1e-5f, "the band's own days all still there: the 3 built were lent")
         assertEquals(10f, t.unheld, 1e-5f, "what was left of the lent days went back")
         assertEquals(0f, t.reclaim(Activity.HOUSES))
+        val u = BandTime(10f); u.lend(Activity.HOUSES, 4f); u.spend(Activity.HOUSES, 1f)
+        assertEquals(3f, u.lentLeft(Activity.HOUSES), 1e-5f, "what other bands' people could still work at")
     }
 
     @Test

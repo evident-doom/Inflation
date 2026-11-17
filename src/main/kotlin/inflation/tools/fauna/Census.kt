@@ -29,6 +29,8 @@ import inflation.ecology.OrnamentFlow
 import inflation.ecology.ornamentFlowKey
 import inflation.ecology.LabourCount
 import inflation.ecology.labourKey
+import inflation.ecology.CeremonyCount
+import inflation.ecology.ceremonyKey
 import inflation.ecology.saltFlowKey
 import inflation.ecology.Catalogue
 import inflation.ecology.Met
@@ -1145,6 +1147,11 @@ class Census(private val sim: HexSim) {
         run {
             val people = (sim.groups.groups.filter { it.alive && it.band != null }.sumOf { it.size }).toDouble().coerceAtLeast(1.0)
             fun c(k: LabourCount) = (lastYear[labourKey(k)] ?: 0) / 10.0
+            val monuments = sim.groups.bands.built.filter { it.kind == Built.MONUMENT && it.size >= 1f }
+            println("ceremonial work, last year (person-days a person to monuments, to adorning houses; monuments standing, person-days in them, the largest; houses adorned): %.3f, %.3f; %d, %.0f, %.0f; %d".format(
+                (lastYear[ceremonyKey(CeremonyCount.MONUMENT)] ?: 0) / 10.0 / people, (lastYear[ceremonyKey(CeremonyCount.ADORNED)] ?: 0) / 10.0 / people,
+                monuments.size, monuments.sumOf { it.size.toDouble() }, monuments.maxOfOrNull { it.size.toDouble() } ?: 0.0,
+                sim.groups.bands.built.count { it.kind == Built.HOUSES && it.adorned >= 1f }))
             println("labour for favours, last year (person-days a person given, of them built with; kg of food a person set before the workers): %.3f, %.3f; %.3f".format(
                 c(LabourCount.GIVEN) / people, c(LabourCount.USED) / people, c(LabourCount.FED) / people))
         }
