@@ -437,8 +437,15 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
         if (soil[p] < to) soil[p] += part * (to - soil[p])
         if (soilShade[p] < to) soilShade[p] += part * (to - soilShade[p])
         val deepCap = soilCap[p] - topCap(p)
-        soilTop[p] = soilTop[p].coerceIn(max(0f, soil[p] - deepCap), min(soil[p], topCap(p)))
-        soilTopShade[p] = soilTopShade[p].coerceIn(max(0f, soilShade[p] - deepCap), min(soilShade[p], topCap(p)))
+        soilTop[p] = topWithin(soilTop[p], soil[p], topCap(p), deepCap)
+        soilTopShade[p] = topWithin(soilTopShade[p], soilShade[p], topCap(p), deepCap)
+    }
+
+    /** [top] mm kept within what a top layer of [tc] mm over a deep one of [dc] can hold of [soil] mm in all (float rounding
+     *  can put soil - dc a hair above tc when the soil is full: then the top layer is full). */
+    private fun topWithin(top: Float, soil: Float, tc: Float, dc: Float): Float {
+        val hi = min(soil, tc)
+        return top.coerceIn(min(max(0f, soil - dc), hi), hi)
     }
 
     /** What [layered] left in the top layer, and the deep layer's surplus over what it holds, mm (one slope at a time, in its place's turn). */
@@ -457,7 +464,7 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
     private fun layered(p: Place, soil0: Float, top0: Float, inflow: Float, demand: Float): Float {
         val tc = topCap(p); val dc = soilCap[p] - tc
         // (A save from before the layers holds no top layer of its own: keep it within what the soil holds.)
-        val t0 = top0.coerceIn(max(0f, soil0 - dc), min(soil0, tc))
+        val t0 = topWithin(top0, soil0, tc, dc)
         var top = t0 + inflow; var deep = soil0 - t0
         if (top > tc) { deep += top - tc; top = tc }
         plants.lightShares(p, light)
