@@ -33,7 +33,7 @@ enum class LifeForm(
     val frostKill: Float,
 ) {
     HERB(0.6f, 12f, 0.05f, 0.35f, 4f, 12f, -45f),
-    SHRUB(3f, 0.8f, 0.2f, 0.45f, 6f, 14f, -30f),
+    SHRUB(3f, 0.8f, 0.12f, 0.45f, 6f, 14f, -30f),
     TREE(25f, 0.25f, 0.3f, 0.7f, 10f, 16f, -25f),
 }
 
