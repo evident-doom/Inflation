@@ -179,12 +179,15 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
      */
     val foodMean: Array<FloatArray> = Array(kinds.size) { k -> if (!kinds[k].carnivore && !holdsByPrey(kinds[k])) FloatArray(n) { Float.NaN } else FloatArray(0) }
     /**
-     * Each plant-eater's [foodMean] over the country it can live in, by [startWeight]: where it has its [usual] numbers.
+     * Each plant-eater's [foodMean] over the country it can live in, by its area, climate and water ([foodRefWeights]): where it has its [usual] numbers.
      * 0 until reckoned, and for every other kind. (Saved: reckoned at a step's start from the means then, so a run carried
      * on from a save goes on as it would have.)
      */
     val foodRef = FloatArray(kinds.size)
-    /** [foodRef]'s weights by kind and place ([startWeight]), reckoned once when first needed. */
+    /**
+     * [foodRef]'s weights by kind and place: [startWeight] without the cover it likes ([suits]), which changes as the plants
+     * grow; of the fixed facts of the place alone (area, climate, water), so the same whenever reckoned, and after a reload.
+     */
     @Transient private var foodRefWeights: Array<FloatArray>? = null
     /**
      * The density at place [p] at which kind [k] holds all the ground there is, heads per km²: for a hunter that lives
@@ -213,7 +216,7 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
     }
     /** Reckons [foodRef] from [foodMean] ([foodScale]). */
     internal fun reckonFoodRef() {
-        val w = foodRefWeights ?: Array(kinds.size) { k -> if (foodMean[k].isEmpty()) FloatArray(0) else FloatArray(n) { p -> startWeight(kinds[k], Place(p)) } }
+        val w = foodRefWeights ?: Array(kinds.size) { k -> if (foodMean[k].isEmpty()) FloatArray(0) else FloatArray(n) { p -> val pl = Place(p); land.areaKm2[p] * climateSuits(kinds[k], pl) * usualTether(kinds[k], pl) } }
             .also { foodRefWeights = it }
         for (k in kinds.indices) {
             val m = foodMean[k]; val wk = w[k]
