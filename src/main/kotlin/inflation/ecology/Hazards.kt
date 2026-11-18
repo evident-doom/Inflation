@@ -136,19 +136,40 @@ object Hazards {
     /** The heat [s] feels at [feltC], beyond what it bears: by the same rule as the cold ([cold]), booked on its own. */
     fun heat(s: Species, feltC: Float) = s.hotC(feltC) / 10f * HexFauna.COLD_DEATHS
 
-    /** How far an animal of [s] goes to water and back as often as it must: a kind that can go days without drinking can live as many half-days' going from it. */
-    fun fetchKm(s: Species) = 0.5f * s.dailyTravelKm * max(1, s.daysWithoutWater)
+    /**
+     * How many days apart an animal of [s] drinks, its food [wet] (0..1: [dryDays]'s share of the water in its food, for a
+     * plant-eater 0.5 + 0.5 x green, for a hunter how well fed): it goes to water before half the days it lasts without
+     * it are gone, and the water in its food stretches that. A cow drinks every day; khulan in the Gobi every day or two
+     * (median 1.0 day, mean 2.1; Kaczensky et al. 2020); gazelle and oryx on green forage hardly at all. At most
+     * [MAX_DRINK_DAYS].
+     */
+    fun drinkDays(s: Species, wet: Float): Float {
+        val dry = 1f - s.waterFromFood * wet.coerceIn(0f, 1f)
+        val days = max(1f, 0.5f * s.daysWithoutWater) / max(1e-3f, dry)
+        return min(MAX_DRINK_DAYS, days)
+    }
+
+    /**
+     * How far from water an animal of [s] lives, km: half the going of the days between its drinks ([drinkDays]), out and
+     * back. Khulan in the Gobi go a median 7.2 km from the water they drink at (mean 8.6; Kaczensky et al. 2020). The one
+     * reach of the water rules: where it can drink ([canDrink]) and how much of a place's far ground it grazes
+     * ([HexFauna.farReach]).
+     */
+    fun fetchKm(s: Species, wet: Float = 1f) = 0.5f * s.dailyTravelKm * drinkDays(s, wet)
+
+    /** [drinkDays]: the most days apart any animal goes to drink; beyond it, a kind living on the water in its food. */
+    const val MAX_DRINK_DAYS = 30f
 
     /**
      * Whether [s] can drink at place [p] of [drink], the one rule for residents and groups: where there is water (for
-     * animals, soft snow too), or where water is within its going ([fetchKm]); a kind that keeps to the water's edge
+     * animals, soft snow too), or where water is within its going ([fetchKm], by the water in its food [wet]); a kind that keeps to the water's edge
      * ([Species.maxWaterKm], kept there by its range) always can. People carry water home in skins, gourds and ostrich
      * eggshells: anywhere within the day's round will do; and they dig for it in a dry bed where the water lies near
      * ([HexDrinkingWater.dug]), or draw it from a well ([HexDrinkingWater.well]).
      */
-    fun canDrink(drink: HexDrinkingWater, s: Species, p: Place): Boolean {
+    fun canDrink(drink: HexDrinkingWater, s: Species, p: Place, wet: Float = 1f): Boolean {
         if (s.human) { val fetch = s.dailyTravelKm; return drink.water[p] >= Thresholds.WET || drink.waterKm[p] <= fetch || drink.mustDig(p, fetch) || drink.drawsFromWell(p, fetch) }
-        return s.maxWaterKm.isFinite() || drink.animalWater(p) >= Thresholds.WET || drink.waterKm[p] <= fetchKm(s)
+        return s.maxWaterKm.isFinite() || drink.animalWater(p) >= Thresholds.WET || drink.animalWaterKm(p) <= fetchKm(s, wet)
     }
 
     /** The days of [days] an animal of [s] goes dry away from water, eased by the water in its food: plant-eaters' from [green] food, hunters' from the body water of what they ate ([fed]). */

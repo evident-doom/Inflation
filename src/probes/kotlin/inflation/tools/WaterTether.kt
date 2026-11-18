@@ -36,6 +36,8 @@ fun main(args: Array<String>) {
     val bands = floatArrayOf(2f, 5f, 8f, 15f, 40f)
     // Land [biome]: within each band (5), km sum, standing water, area.
     val landAcc = Array(biomes.size) { DoubleArray(8) }
+    // The far zone's grass against the place's mean ([HexFauna.herbFar]), area-weighted, by kind of country.
+    val farGrass = DoubleArray(biomes.size)
     // Kinds [kind][biome]: heads, heads*km, heads*tether, heads drinking, heads dry, heads*fed, area-steps.
     val kindAcc = Array(fauna.kinds.size) { Array(biomes.size) { DoubleArray(6) } }
     // Kinds by month [kind][month]: heads, heads*km, heads*tether, heads drinking, heads dry, heads*fed.
@@ -62,6 +64,7 @@ fun main(args: Array<String>) {
             l[5] += km * a
             if (land.drink.animalWater(pl) >= 0.05f) l[6] += a
             l[7] += a
+            farGrass[b] += fauna.herbFar[p] * a
             val src = srcAcc[b][mo]; src[0] += a
             val snow = land.drink.snowWater[p] > 0f
             val pools = !snow && land.drink.water[p] >= 0.999f && land.drink.waterKm[p] == 0f
@@ -95,7 +98,7 @@ fun main(args: Array<String>) {
     for (b in shown) {
         val l = landAcc[b]; val a = l[7]
         println("  %-24s %4.1f%% of land: ".format(biomes[b].label, 100 * area[b] / area.sum()) +
-            (0 until 5).joinToString(" / ") { "%3.0f%%".format(100 * l[it] / a) } + " | %5.1f km | %3.0f%%".format(l[5] / a, 100 * l[6] / a))
+            (0 until 5).joinToString(" / ") { "%3.0f%%".format(100 * l[it] / a) } + " | %5.1f km | %3.0f%% | far grass against the mean %.2f".format(l[5] / a, 100 * l[6] / a, farGrass[b] / a))
     }
     println()
     println("LASTING WATER by kind of country (area-weighted): share of ground within 3 km of a stream (0.1 m³/s and more in a usual year) / fresh lake / spring; springs per 1000 km²")
@@ -121,12 +124,12 @@ fun main(args: Array<String>) {
     println("  heads/km² | share of kind | mean km to water | mean tether | can drink here | gone dry at all | fed")
     for (k in eaters) {
         val sp = fauna.kinds[k]
-        // (The tether's reach, as ResidentHabitat.tetherAt has it: the pull is halved at this distance.)
-        val half = sp.dailyTravelKm * sp.daysWithoutWater / 4f * (1f + 10f * sp.waterFromFood * sp.waterFromFood)
+        // (Its reach from water on dry and on green forage, [Hazards.fetchKm]: the far ground's share is halved there.)
+        val half = Hazards.fetchKm(sp, 0.5f)
         val all = kindAcc[k].sumOf { it[0] }
         if (all <= 0.0) { println("${sp.name}: none"); continue }
-        println("${sp.name}: tether half %.1f km, never dry within %.1f km, days without water %d, water from food %.2f".format(
-            half, Hazards.fetchKm(sp), sp.daysWithoutWater, sp.waterFromFood))
+        println("${sp.name}: reach from water %.1f km on dry forage, %.1f km on green, days without water %d, water from food %.2f".format(
+            half, Hazards.fetchKm(sp, 1f), sp.daysWithoutWater, sp.waterFromFood))
         for (b in shown) {
             val v = kindAcc[k][b]; val h = v[0]
             if (h / all < 0.005) continue
