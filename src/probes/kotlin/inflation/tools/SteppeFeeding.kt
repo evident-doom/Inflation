@@ -28,7 +28,7 @@ fun main(args: Array<String>) {
     val shown = listOf(Biome.STEPPE, Biome.SEMI_DESERT, Biome.MEDITERRANEAN_WOODLAND, Biome.OPEN_WOODLAND).map { it.ordinal }
     val eaters = fauna.kinds.indices.filter { !fauna.kinds[it].carnivore }
     // Land [biome][quarter]: area, herb*area, eaten share*area, area where the pool ran out.
-    val landAcc = Array(biomes.size) { Array(4) { DoubleArray(6) } }
+    val landAcc = Array(biomes.size) { Array(4) { DoubleArray(11) } }
     // Kinds [kind][biome][quarter]: heads, heads*fed, heads*crop, heads*fill, heads where the pool ran out, area-steps.
     val kindAcc = Array(fauna.kinds.size) { Array(biomes.size) { Array(4) { DoubleArray(5) } } }
     val stepsIn = IntArray(4)
@@ -61,6 +61,11 @@ fun main(args: Array<String>) {
             for (k in eaters) massYear[p] += (fauna.adults[k][p] + fauna.young[k][p]).toDouble() * fauna.kinds[k].massKg
             val l = landAcc[b][qtr]; l[0] += a; l[1] += herb * a; l[2] += eaten * a; if (out) l[3] += a
             l[4] += herb * land.plants.leafy(pl) * a; l[5] += land.plants.nourishment(pl) * a
+            // (The rooters' and fruit-eaters' food: roots standing and as far as they can be dug, fallen mast, fruit, kg/m²;
+            // what the residents dug, kg/km² a day, as g/m² over the step.)
+            val fd = fauna.food
+            l[6] += fd.roots[pl] * a; l[7] += fd.diggable(pl) * a; l[8] += fd.mast[p] * a; l[9] += fd.fruit[p] * a
+            l[10] += land.plants.rooting[p] * sim.clock.days / 1000.0 * a
             val q = land.plants.nourishment(pl)
             var kgKm2 = 0.0
             for (k in eaters) kgKm2 += (fauna.adults[k][p] + fauna.young[k][p]).toDouble() * fauna.kinds[k].massKg
@@ -92,6 +97,9 @@ fun main(args: Array<String>) {
         println("  land: edible herbs kg/m² | share of it eaten a step | share of land where the step's pool ran out | of the herbs fresh leaf kg/m² (leafy) | nourishment")
         for (qt in 0 until 4) { val l = landAcc[b][qt]; if (l[0] <= 0.0) continue
             println("    Q${qt + 1}  %.4f | %.4f | %3.0f%% | %.5f | %.2f".format(l[1] / l[0], l[2] / l[0], 100 * l[3] / l[0], l[4] / l[0], l[5] / l[0])) }
+        println("  roots and fruit, g/m²: roots standing | diggable | fallen mast | fruit | dug by residents a step")
+        for (qt in 0 until 4) { val l = landAcc[b][qt]; if (l[0] <= 0.0) continue
+            println("    Q${qt + 1}  %.2f | %.2f | %.2f | %.2f | %.3f".format(1000 * l[6] / l[0], 1000 * l[7] / l[0], 1000 * l[8] / l[0], 1000 * l[9] / l[0], l[10] / l[0])) }
         println("  kinds: heads/km² | fed | grass crop share | gut fill | heads where the pool ran out (diet grass/browse/fruit/roots)")
         for (k in eaters) {
             val tot = (0 until 4).sumOf { kindAcc[k][b][it][0] }
