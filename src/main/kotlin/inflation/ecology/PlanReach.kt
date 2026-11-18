@@ -1,6 +1,5 @@
 package inflation.ecology
 
-import inflation.ecology.GroupPlanner.Reach
 import inflation.ecology.GroupPlanner.Scratch
 import inflation.Par
 import inflation.Part
@@ -15,55 +14,17 @@ import kotlin.math.min
 // Choosing: the least-effort search of the hexes a group can reach this week, and the effort of each step.
 
 /**
- * Least effort to each hex within [reach] of [here] for [g] this week, into [buf] (its dist, via and
- * reached): from a search shared with groups of its kind starting from the same place that reach as
- * far or further, else from a new one (then shared).
+ * Least effort to each hex within [reach] of [here] for [g] this week, into [buf] (its dist, via and reached), from the
+ * step's shared search of the ground ([reachOf]): the hexes within its own reach, in index order, so the choice does not
+ * depend on which group's search went furthest. ([restless] no longer parts the searches: within a reach they agree.)
  */
 @Part("choosing: reach (least-effort search)")
+@Suppress("UNUSED_PARAMETER")
 internal fun GroupPlanner.searchReach(g: HexGroup, here: Hex, reach: Float, restless: Boolean, weather: Weather, buf: Scratch) {
-    val s = g.species
     val dist = buf.dist; val via = buf.via; val reached = buf.reached
     for (i in 0 until reached.size) { val h = reached[i]; dist[h] = Float.MAX_VALUE; via[h] = Hex.NONE }
     reached.clear()
-    val q = buf.queue; q.clear()
-    // Groups of a kind starting from the same place this week share the search.
-    // Each group's reach is its own (hunger, the band's weak), so a search is shared only
-    // with groups that reach no further, and each takes the hexes within its own reach: least-effort
-    // distances within a reach do not depend on how far the search went beyond it. The hexes are kept
-    // in index order, so the choice does not depend on which group's search was kept.
-    val reachKey = ((s.index.toLong() * 8 + gs.hw.placeBand[g.place]) * gs.hex.size + here.i) * 2 + (if (restless) 1 else 0)
-    var shared = reachCache[reachKey]
-    if (shared == null || shared.reach < reach) {
-        dist[here] = 0f; reached += here; q += 0L.withPlace(0f, here)
-        // (The effort of each crossing this week, through snow and along worn paths: see [stepEffort].)
-        val effort = stepEffort(Catalogue.travel(s).ordinal, gs.hw.placeBand[g.place], weather)
-        while (q.isNotEmpty()) {
-            val e = q.poll()
-            val d = Float.fromBits((e ushr 32).toInt()); val h = Hex((e and 0xffffffffL).toInt())
-            if (d > dist[h]) continue
-            for (k in 0 until 6) {
-                val nh = gs.hex.neighbour(h, k)
-                if (nh.none) continue
-                val nd = d + effort[gs.hex.edge(h, k)]
-                if (!nd.isFinite() || nd > reach) continue
-                if (nd < dist[nh]) { if (dist[nh] == Float.MAX_VALUE) reached += nh; dist[nh] = nd; via[nh] = h; q += 0L.withPlace(nd, nh) }
-            }
-            // Swimmers may cross a strait they can cover, at a great effort.
-            val swim = Catalogue.swimKm(s)
-            if (swim > 0f) for (i in gs.seaLinks[h].indices) { val nh = gs.seaLinks[h][i]
-                val gapKm = gs.seaGaps[h][i]
-                if (gapKm > swim) continue
-                val nd = d + gapKm * SWIM_EFFORT
-                if (nd > reach) continue
-                if (nd < dist[nh]) { if (dist[nh] == Float.MAX_VALUE) reached += nh; dist[nh] = nd; via[nh] = h; q += 0L.withPlace(nd, nh) }
-            }
-        }
-        val hs = reached.toHexArray().also { it.sort() }
-        val mine = Reach(reach, hs, FloatArray(hs.size) { dist[hs[it]] }, hexArray(hs.size) { via[hs[it]] })
-        shared = reachCache.merge(reachKey, mine) { a, b -> if (a.reach >= b.reach) a else b }!!
-        for (i in 0 until reached.size) { val h = reached[i]; dist[h] = Float.MAX_VALUE; via[h] = Hex.NONE }
-        reached.clear()
-    }
+    val shared = gs.reachOf(g.species, gs.hw.placeBand[g.place], here, reach, weather)
     for (i in shared.hexes.indices) {
         if (shared.dist[i] > reach) continue
         val h = shared.hexes[i]; reached += h; dist[h] = shared.dist[i]; via[h] = shared.via[i]

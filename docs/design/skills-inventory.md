@@ -35,7 +35,7 @@ Each row is a skill. It has variants by tool or material, and constants of the m
 | | boats | rafts, dugouts, skin boats | (none) |
 | **Knowing the land** | navigation and landscape lore | — | `SIGHT_*`, `SCOUT_*`, `KNOWN_AT_START`, `UNKNOWN_COUNTRY` |
 | | weather and sky lore | calendars by moon and stars | `RAIN_AHEAD_MM`, appointment keeping |
-| **Health** | medicine | herbs, wound care, bone setting | `PEOPLE_SICK`, `MARSH_FEVER`, the `MEDICINE` custom |
+| **Health** | medicine | herbs, wound care, bone setting | `Illness` (the flux, marsh fever, the cough), the `MEDICINE` custom |
 | | midwifery and child care | weaning foods (gruel), carrying | `youngMortality`, `birthSpacing` |
 | | camp hygiene | middens, latrines, moving camp | `CAMP_FOULING` |
 | **Animals** | taming and herding | pens, fences, dogs | `CAPTURE`, `TAMING_RATE`, `HERD_RUN_OFF`, `HERD_GOATS_A_HERDER`, `HERD_MASS_EXP`, `herdLoss` |

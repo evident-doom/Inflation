@@ -57,7 +57,7 @@ internal fun HexGroups.inParty(g: HexGroup) = parties.containsKey(g.id) || party
  * one, as many and for as long as its will to explore says ([BandWay.EXPLORING]). Serial, in the groups' order.
  */
 @Part("people: scouting parties")
-internal fun HexGroups.tendParties(date: Date) {
+internal fun HexGroups.tendParties(date: Date, weather: inflation.world.Weather) {
     if (!tuning.parties) return
     val week = stepOf(date)
     val byId = groups.associateBy { it.id }
@@ -93,7 +93,7 @@ internal fun HexGroups.tendParties(date: Date) {
         if (n.larder > carry) moveFood(n, g, n.larder - carry)
         val home = hw.placeHex[g.place]
         val rangeKm = weeks / 2 * g.species.maxDailyTravelKm * SHIFT_DAYS
-        parties[n.id] = Party(g.id, home, destination(home, rangeKm), week, week + weeks / 2, week + weeks)
+        parties[n.id] = Party(g.id, home, destination(g, home, rangeKm, weather), week, week + weeks / 2, week + weeks)
         partyOut[g.id] = n.id
         sent += n
         stats.meeting(Met.PARTIES_SENT)
@@ -115,39 +115,38 @@ internal fun HexGroups.difference(h: Hex, home: Hex): Float {
     return 0.5f * kinds + height + max(sea, lake)
 }
 
-/** The land hex within [rangeKm] of [home] most different from it ([difference]), the farther of two alike; [home] if none is. */
-internal fun HexGroups.destination(home: Hex, rangeKm: Float): Hex {
-    var best = home; var top = 0f
-    var ring = listOf(home); val seen = hashSetOf(home)
-    val rings = (rangeKm / hex.hexKm).toInt()
-    for (r in 1..rings) {
-        ring = hex.nextRing(ring, seen)
-        for (h in ring) {
-            if (hw.land[h] < 0.5f) continue
-            val d = difference(h, home) * (1f + PARTY_FAR * r / rings.coerceAtLeast(1))
-            if (d > top) { top = d; best = h }
-        }
+/**
+ * The land hex within [rangeKm] of easy going of [home] for band [g]'s people ([reachOf]: so never across a strait or up a
+ * cliff they cannot go) most different from it ([difference]), the farther by the going of two alike; [home] if none is.
+ */
+internal fun HexGroups.destination(g: HexGroup, home: Hex, rangeKm: Float, weather: inflation.world.Weather): Hex {
+    var best = home; var top = 0f; var bestKm = 0f
+    searchedAtLeast(g.species, hw.placeBand[g.place], home, rangeKm, weather).forEachWithin(rangeKm) { h, km ->
+        if (h == home || hw.land[h] < 0.5f) return@forEachWithin
+        val d = difference(h, home) * (1f + PARTY_FAR * km / rangeKm.coerceAtLeast(1f))
+        if (d > top || (d == top && km > bestKm)) { top = d; best = h; bestKm = km }
     }
     return best
 }
 
 /**
- * Where a party goes this week ([Party]), of the places weighed in [buf] no deadlier than the safest by a survival step:
- * going out, the nearest to the country it set out to see ([Party.target]), until it is there or it is time to turn; then the
- * nearest to its band's camp (where it is now, or where it left it). [best] if it can weigh none.
+ * Where party [g] goes this week ([Party]), of the places weighed in [buf] no deadlier than the safest by a survival step:
+ * going out, the nearest by the going to the country it set out to see ([Party.target], [goalKm]), until it is there or it
+ * is time to turn; then the nearest by the going to its band's camp (where it is now, or where it left it). [best] if it
+ * can weigh none.
  */
-internal fun GroupPlanner.partyPlace(p: Party, here: Hex, buf: GroupPlanner.Scratch, best: Place, week: Int): Place {
+internal fun GroupPlanner.partyPlace(g: HexGroup, p: Party, here: Hex, buf: GroupPlanner.Scratch, best: Place, week: Int, weather: inflation.world.Weather): Place {
     val n = buf.explPlaces.size
     val safest = safestSteps(n, null, buf.explDeaths)
     if (!safest.isFinite()) return best
     val hw = gs.hw
     if (here == p.target) p.reached = true
     val back = p.reached || week >= p.turn
-    val to = if (back) gs.bands.groupById[p.band]?.takeIf { it.alive }?.let { hw.placeHex[it.place] } ?: p.homeHex else p.target
+    val to = if (back) gs.where.group(p.band)?.takeIf { it.alive }?.let { hw.placeHex[it.place] } ?: p.homeHex else p.target
     var pick = -1; var near = Double.POSITIVE_INFINITY
     for (k in 0 until n) {
         if (!inSafeSet(k, null, buf.explDeaths, safest)) continue
-        val d = gs.hex.distanceKm(hw.placeHex[buf.explPlaces[k]], to)
+        val d = gs.goalKm(g, to, hw.placeHex[buf.explPlaces[k]], weather)
         if (d < near) { near = d; pick = k }
     }
     return if (pick < 0) best else Place(buf.explPlaces[pick])

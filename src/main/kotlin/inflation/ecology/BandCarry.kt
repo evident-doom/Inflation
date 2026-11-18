@@ -42,14 +42,14 @@ internal fun carryRules(): Map<String, Pair<OnSplit, OnJoin>> {
     fun rule(split: OnSplit, join: OnJoin, vararg fields: String) { for (f in fields) r[f] = split to join }
     // Know-how and lore.
     rule(OnSplit.COPIED, OnJoin.MAX, "skills", "plants", "renown", "grudge")
-    rule(OnSplit.COPIED, OnJoin.ANY, "knowsSkill", "knows", "known")
+    rule(OnSplit.COPIED, OnJoin.ANY, "knowsSkill", "knows", "known", "favoursLog")
     rule(OnSplit.DRAWN, OnJoin.SUM, "holders")
     rule(OnSplit.COPIED, OnJoin.SUM, "heard", "heardOf", "heardTotem", "heardBurial", "heardLivelihood", "heardStyle")
     rule(OnSplit.COPIED, OnJoin.LOST, "totem", "marksChosen", "totemBroken", "burialWay", "disputeWay", "style", "styleChosen", "heldLivelihood", "livelihoodHold", "livedOther", "livelihoodChosen")
-    rule(OnSplit.FRESH, OnJoin.SUM, "burialOwed", "riteOwed", "riteAsked", "riteSpare", "raidWalkOwed", "visitOwed")
+    rule(OnSplit.FRESH, OnJoin.SUM, "burialOwed", "riteOwed", "riteAsked", "riteSpare", "raidWalkOwed", "visitOwed", "labourOwed")
     rule(OnSplit.FRESH, OnJoin.LOST, "riteFood", "visitShare")
-    rule(OnSplit.FRESH, OnJoin.LOST, "riteDue")
-    rule(OnSplit.COPIED, OnJoin.LOST, "lastUsed", "seasonPlace", "seasonQ", "monthSupply", "monthSupplySq", "supplyMonth", "supplySum", "supplyWeeks", "weekSupply", "weekYield", "weekWarmth", "weekMoved", "freeShare", "leanDays", "fatLow", "weeks", "traditions", "words", "rite", "riteStrength", "riteHeld", "riteKept", "beliefYears", "strain", "omenPlace", "omenMonth", "omenYear", "omenWeight", "deathsUsual", "wantSteps", "wantBroke", "wantUsual", "mind", "foreseenAt", "knownHomes", "knownLineage", "homeSeen", "homeOff", "lastMet", "seenStrength", "seenDay", "newsYield", "newsAt", "newsNext", "forageReturn", "cropWorthSeen", "cropDaysSeen")
+    rule(OnSplit.FRESH, OnJoin.LOST, "riteDue", "riteTrip")
+    rule(OnSplit.COPIED, OnJoin.LOST, "lastUsed", "seasonPlace", "seasonQ", "monthSupply", "monthSupplySq", "supplyMonth", "supplySum", "supplyWeeks", "weekSupply", "weekYield", "weekWarmth", "weekMoved", "freeShare", "leanDays", "fatLow", "weeks", "traditions", "words", "rite", "riteStrength", "riteHeld", "riteKept", "farRiteYear", "beliefYears", "strain", "omenPlace", "omenMonth", "omenYear", "omenWeight", "deathsUsual", "wantSteps", "wantBroke", "wantUsual", "mind", "foreseenAt", "knownHomes", "knownLineage", "homeSeen", "homeOff", "lastMet", "seenStrength", "seenDay", "newsYield", "newsAt", "newsNext", "forageReturn", "cropWorthSeen", "cropDaysSeen")
     // (A person's days of larder: a split halves the larder and the people alike; a joining band's larder is added to its own.)
     rule(OnSplit.COPIED, OnJoin.BLENDED, "larderSeen")
     rule(OnSplit.COPIED, OnJoin.BLENDED, "unevenness")
@@ -61,7 +61,7 @@ internal fun carryRules(): Map<String, Pair<OnSplit, OnJoin>> {
     // People.
     rule(OnSplit.SET, OnJoin.SUM, "lastAdults")
     rule(OnSplit.SHARED, OnJoin.SUM, "elders", "ageStage", "goods", "spare")
-    rule(OnSplit.COPIED, OnJoin.BLENDED, "raidDeathRate", "kit", "fine", "made", "salted", "dryDepth", "pests", "leanLost", "sodiumShort", "sodiumWant", "lineage", "inbred", "sisu")
+    rule(OnSplit.COPIED, OnJoin.BLENDED, "raidDeathRate", "kit", "fine", "glassy", "made", "salted", "dryDepth", "pests", "leanLost", "sodiumShort", "sodiumWant", "lineage", "inbred", "sisu")
     // Camp, home and raids.
     rule(OnSplit.COPIED, OnJoin.LOST, "campWeeks", "stayWeeks", "campPlace", "appointment", "houseHex", "house", "drivenFrom", "drivenBy", "homeEarth", "homeWalls", "homeGroundC", "palisade", "fire",
         "houseLives", "houseFood", "foodFrom", "fishPull", "weaningFood", "waterShort")
@@ -70,9 +70,10 @@ internal fun carryRules(): Map<String, Pair<OnSplit, OnJoin>> {
     // Ties.
     rule(OnSplit.COPIED, OnJoin.MAX, "ties")
     // (Favours stay with the band that was helped or helped: the new band owes and is owed nothing.)
-    rule(OnSplit.FRESH, OnJoin.SUM, "favours")
+    rule(OnSplit.FRESH, OnJoin.SUM, "favours", "labourFrom")
+    rule(OnSplit.FRESH, OnJoin.LOST, "buildShort", "labourUsed")
     // Wealth and animals.
-    rule(OnSplit.SHARED, OnJoin.SUM, "ornaments", "exotic")
+    rule(OnSplit.SHARED, OnJoin.SUM, "ornaments", "exotic", "ornamentWorth")
     rule(OnSplit.COPIED, OnJoin.BLENDED, "seedDomestic", "seedPulse", "grainDomestic")
     rule(OnSplit.SHARED, OnJoin.SUM, "seedCorn")
     // (The salt a step its people's want takes: split with the people, added on joining.)

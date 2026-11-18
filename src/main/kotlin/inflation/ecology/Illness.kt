@@ -157,13 +157,18 @@ internal fun GroupWorld.illnessAhead(b: Band, p: Place, t: Float, crowd: Float, 
  * sick ([Tradition.HYGIENE]) and to those spared by having had it. [strangers], 0..1: how far they are strangers to each
  * other (never met before, and not kin: [strangersAt]), whose sicknesses the spared are the less spared from ([STRANGER_GERMS]).
  */
-internal fun passIllness(a: Band, b: Band, strangers: Float = 0f) {
-    for (d in Illness.entries) {
-        if (d.contagion <= 0f) continue
-        val i = d
-        val sa = a.sick[i]; val sb = b.sick[i]
-        if (sa > 0f) b.sick[i] = min(1f, b.sick[i] + caughtFrom(d, sa, b, strangers))
-        if (sb > 0f) a.sick[i] = min(1f, a.sick[i] + caughtFrom(d, sb, a, strangers))
+internal fun passIllness(a: Band, b: Band, strangers: Float = 0f, times: Int = 1) {
+    // (A meeting standing for meetings in [times] of a long step's ticks ([HexGroups.meetTicks]) passes it on as often, as the
+    // weekly model does once a week they meet: before, once a step, and the flux's bouts at 30-day steps came to a third of
+    // the weekly model's with its catching unchanged; flux815.)
+    repeat(times) {
+        for (d in Illness.entries) {
+            if (d.contagion <= 0f) continue
+            val i = d
+            val sa = a.sick[i]; val sb = b.sick[i]
+            if (sa > 0f) b.sick[i] = min(1f, b.sick[i] + caughtFrom(d, sa, b, strangers))
+            if (sb > 0f) a.sick[i] = min(1f, a.sick[i] + caughtFrom(d, sb, a, strangers))
+        }
     }
 }
 
@@ -203,6 +208,11 @@ internal const val STRANGER_GERMS = 0.5f
  */
 internal const val FLUX_RATE = 0.0012f
 internal const val FEVER_RATE = 0.03f
-internal const val COUGH_BREAKS = 0.0002f
+/**
+ * (0.0002 before 16 Nov 2026, when a crowding sickness and outbreaks among people stood beside the cough and killed some 1.5
+ * a 1000 a year where people settle, against the cough's 2.4; the cough takes their deaths over at 1.6 times, a first
+ * refit: respiratory illness was some 22% of forager deaths, Gurven and Kaplan 2007.)
+ */
+internal const val COUGH_BREAKS = 0.00032f
 internal const val COUGH_FIRST = 0.2f
 internal const val HYGIENE_GUARD = 0.4f

@@ -3,13 +3,14 @@ package inflation.tools
 import inflation.Args
 import inflation.Config
 import inflation.ecology.HexHistory
+import inflation.run.LatestData
 import inflation.run.Nominal
 import inflation.run.TestWorlds
 import inflation.run.gitCommit
 import java.io.File
 import java.util.Properties
 
-private const val USAGE = "testWorld list | testWorld build NAME... [--years N] [--commit HASH] | testWorld adopt NAME STATE.bin [--years N] [--commit HASH] [--config TEXT] | testWorld ab --variant FILE [--base FILE] [--worlds m5-1,m5-2,m5-3] [--years 3] [--replicates 2] [--parallel 1] [--out DIR] | testWorld ab-report DIR [--worlds a,b] [--replicates 2] | testWorld ab-arms --arms A.properties,B.properties --null NULL.properties [--base FILE] [--worlds m5-1,m5-2,m5-3] [--years 10] [--replicates 2] [--parallel 1] [--out DIR] | testWorld arms-report DIR --arms A,B --null NULL [--worlds a,b] [--replicates 2] | testWorld nominal HISTORY.csv... | testWorld compare --full A.csv,B.csv [--full-variant A2.csv,B2.csv] NAME=BASE.csv[,VARIANT.csv] ...\n" +
+private const val USAGE = "testWorld list | testWorld latest | testWorld build NAME... [--years N] [--commit HASH] | testWorld adopt NAME STATE.bin [--years N] [--commit HASH] [--config TEXT] | testWorld ab --variant FILE [--base FILE] [--worlds m6-1,m6-2,m6-3] [--years 3] [--replicates 2] [--parallel 1] [--out DIR] | testWorld ab-report DIR [--worlds a,b] [--replicates 2] | testWorld ab-arms --arms A.properties,B.properties --null NULL.properties [--base FILE] [--worlds m6-1,m6-2,m6-3] [--years 10] [--replicates 2] [--parallel 1] [--out DIR] | testWorld arms-report DIR --arms A,B --null NULL [--worlds a,b] [--replicates 2] | testWorld nominal HISTORY.csv... | testWorld compare --full A.csv,B.csv [--full-variant A2.csv,B2.csv] NAME=BASE.csv[,VARIANT.csv] ...\n" +
     "a test on a settled world: hexFauna --world NAME --years N [--replicate R] [--history FILE]"
 
 /** The testWorld program: see [TestWorlds]. */
@@ -17,6 +18,8 @@ fun main(args: Array<String>) {
     val a = Args(args.drop(1).toTypedArray(), USAGE)
     when (args.getOrNull(0)) {
         "list" -> { a.done(); TestWorlds.list() }
+        // The latest world and nets kept in the repository (its latest-data branch), copied into place: see LatestData.
+        "latest" -> { a.done(); LatestData.sync() }
         "build" -> {
             val years = a.int("--years", TestWorlds.SETTLE_YEARS)
             val commit = a.string("--commit") ?: gitCommit()

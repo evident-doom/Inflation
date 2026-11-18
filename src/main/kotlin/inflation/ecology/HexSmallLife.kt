@@ -348,8 +348,10 @@ class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, @Transi
             val b = land.fire.stepBurning[p]
             burnSmallLife(p, b)
             rodentRoom[p] *= 1f - RODENTS_BURNT * b
-            stepPollinators(p, month, active)
-            stepGame(p, t, month, b)
+            // (By the place's own seasons: [inflation.world.HexLand.localMonth].)
+            val local = land.localMonth(p, month)
+            stepPollinators(p, local, active)
+            stepGame(p, t, local, b)
         }
         // What the runoff washed off goes down the rivers; floods lay part of it on the floodplains with their silt.
         land.hydro.carrySilt(washedKg, laidKgM2)

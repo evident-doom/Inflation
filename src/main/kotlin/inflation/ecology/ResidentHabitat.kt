@@ -61,13 +61,33 @@ internal fun HexFauna.stepWater(weather: Weather) {
 
 /**
  * The temperature [s] feels at place [p] with the air at [t] °C: a kind bound to water (hippos)
- * lies in it through the cold, as far as open water is at hand; ice shelters nothing.
+ * lies in it through the cold, as far as open water is at hand; ice shelters nothing. A kind that cannot sweat feels
+ * the heat more in the open ([sunLoadC]).
  */
-fun HexFauna.feltC(s: Species, p: Place, t: Float): Float = if (s.maxWaterKm.isInfinite()) t else refugeC(s, t, waterC[p], tether(s, p))
+fun HexFauna.feltC(s: Species, p: Place, t: Float): Float =
+    (if (s.maxWaterKm.isInfinite()) t else refugeC(s, t, waterC[p], tether(s, p))) + sunLoadC(s, p, t)
+
+/**
+ * The heat a kind that cannot sweat ([Species.sweats]) takes on at place [p] in warm air of [t] °C, °C on what it feels:
+ * up to [NO_SWEAT_C] in the open sun with no water at hand, none in full cover or by a wallow, and none until the air
+ * warms past [SUN_FROM_C], fully by ten degrees above. A pig cools only in shade and mud: on the open steppe of a hot
+ * summer it overheats where an oak wood or a marsh keeps it (boar wallow and lie up in thickets by day; from memory).
+ */
+fun HexFauna.sunLoadC(s: Species, p: Place, t: Float): Float {
+    if (s.sweats || t <= SUN_FROM_C) return 0f
+    val open = 1f - land.plants.cover(p); val dry = 1f - min(1f, land.drink.animalWater(p))
+    return NO_SWEAT_C * open * dry * ((t - SUN_FROM_C) / 10f).coerceAtMost(1f)
+}
+
+/** [sunLoadC]: the most a kind that cannot sweat feels on top of the air in the open sun with no water at hand, °C; an estimate. */
+const val NO_SWEAT_C = 8f
+/** [sunLoadC]: the air, °C, from which the sun's heat tells on a kind that cannot sweat. */
+const val SUN_FROM_C = 20f
 
 /** [feltC] in month [m] of an ordinary year, from the normals. */
 fun HexFauna.feltNormalC(s: Species, p: Place, m: Int): Float =
-    if (s.maxWaterKm.isInfinite()) hw.placeTemp(p, m) else refugeC(s, hw.placeTemp(p, m), waterNormalC[m][p], usualTether(s, p))
+    (if (s.maxWaterKm.isInfinite()) hw.placeTemp(p, m) else refugeC(s, hw.placeTemp(p, m), waterNormalC[m][p], usualTether(s, p))) +
+        sunLoadC(s, p, hw.placeTemp(p, m))
 
 private fun HexFauna.refugeC(s: Species, t: Float, water: Float, share: Float): Float =
     if (water.isNaN() || water <= 0f || water <= t) t else t + share * (water - t)
@@ -157,11 +177,16 @@ internal fun HexFauna.ruggedFit(rugged: Float): FloatArray = (ruggedFits ?: Conc
  * two graze out from water and back, and leave the far country to those that live on the water
  * in their food (gazelle, oryx, camels). Kinds bound to water (hippos) use only what lies by it.
  */
-fun HexFauna.tether(s: Species, p: Place): Float = tetherAt(s, p, land.drink.animalWater(p), land.drink.animalWaterKm(p))
+fun HexFauna.tether(s: Species, p: Place): Float =
+    tetherAt(s, p, if (s.maxWaterKm.isFinite()) land.drink.deep[p] else land.drink.animalWater(p), land.drink.animalWaterKm(p))
 
 /** [tether] in an ordinary year: from the lasting water around, not this week's. */
-fun HexFauna.usualTether(s: Species, p: Place): Float = tetherAt(s, p, land.drink.nearRiver[p] + land.drink.nearLake[p] + land.drink.nearSpring[p],
+fun HexFauna.usualTether(s: Species, p: Place): Float = tetherAt(s, p, if (s.maxWaterKm.isFinite()) usualDeep(p) else land.drink.nearRiver[p] + land.drink.nearLake[p] + land.drink.nearSpring[p],
     land.drink.waterKmMean[p])
+
+/** [usualTether]'s deep water for the kinds bound to it: the fresh lakes, and the rivers big enough to lie in ([HexDrinkingWater.deep]). */
+private fun HexFauna.usualDeep(p: Place) =
+    min(1f, (if (land.hydro.meanFlow[hw.placeHex[p]] >= inflation.world.HexDrinkingWater.DEEP_RIVER_M3S) land.drink.nearRiver[p] else 0f) + land.drink.nearLake[p])
 
 private fun HexFauna.tetherAt(s: Species, p: Place, water: Float, waterKm: Float): Float {
     if (s.maxWaterKm.isFinite()) return min(1f, water)

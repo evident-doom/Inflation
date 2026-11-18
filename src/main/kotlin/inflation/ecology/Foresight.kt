@@ -20,7 +20,7 @@ import kotlin.math.sqrt
  *   its larder and then its fat paying the shortfalls as they come, and its people burning their body's protein past that
  *   ([Hazards.hunger]); over a bad, a usual and a good year, as far apart as its years have been ([Band.supplySpread]);
  * - what it cannot carry when it moves camp, at its usual stay ([Band.stayWeeks]), lost;
- * - and its kind's background deaths.
+ * - and its background deaths, as the week has them ([backgroundOdds]: its healers' share in them, and the tuning).
  * Not foreseen: disease, outbreaks, raids, beasts, fire and flood, thirst; tools and clothes wearing out over the year; the
  * larder it has now spoiling (what spoilt of what it laid by before is in its months). The food a band will get is last
  * years', so what it does differently now shows only through its stores, its fat and what keeping warm takes. What training may judge a band's state by ([HexGroup.foreseen]).
@@ -108,7 +108,7 @@ internal fun HexGroups.yearAhead(g: HexGroup, b: Band, weather: Weather, shelter
         var week = max(1f, stay - b.campWeeks)
         while (week < ticksPerYear) { moves[(week / perMonth).toInt().coerceAtMost(Date.MONTHS_PER_YEAR - 1)] = true; week += stay }
     }
-    return YearAhead(odds, fed, spread, foodCarried(g, b) / g.dailyNeedKg.coerceAtLeast(1e-3f), moves)
+    return YearAhead(odds, fed, spread, foodCarried(g, b) / g.dailyNeedKg.coerceAtLeast(1e-3f), moves, backgroundOdds(g.species, b))
 }
 
 
@@ -131,10 +131,12 @@ internal fun GroupWorld.foreseenSaltPace(b: Band, k: Int): Float {
 /**
  * The months ahead in order from next month ([yearAhead]): the exposure odds, the share of the need the food it got then
  * meets ([fed], above 1 where it laid food by) and how far that share has gone from year to year ([spread], a standard
- * deviation; 0 for none seen); the months it [moves] camp in, keeping only the [carryDays] of its need it can carry.
+ * deviation; 0 for none seen); the months it [moves] camp in, keeping only the [carryDays] of its need it can carry; the
+ * yearly odds of its [background] deaths ([backgroundOdds]; none given: its kind's, untended).
  */
 internal class YearAhead(private val odds: FloatArray, internal val fed: FloatArray, internal val spread: FloatArray = FloatArray(fed.size),
-    private val carryDays: Float = Float.POSITIVE_INFINITY, private val moves: BooleanArray = BooleanArray(fed.size)) {
+    private val carryDays: Float = Float.POSITIVE_INFINITY, private val moves: BooleanArray = BooleanArray(fed.size),
+    private val background: Float? = null) {
     /** The days of food it falls short of over the months ahead, before its larder pays ([Band.leanDays]), in a usual year. */
     val leanDays: Float = run { var lean = 0f; for (f in fed) lean += max(0f, 1f - f) * Date.DAYS_PER_MONTH; lean }
     /** Whether its years have differed at all: if not, one year is reckoned, not [YEARS]. */
@@ -190,6 +192,7 @@ internal class YearAhead(private val odds: FloatArray, internal val fed: FloatAr
         val days = Date.DAYS_PER_MONTH
         var larder = larderDays; var fatLeft = fat; var burnt = spent
         var alive = 1f
+        val other = (background ?: s.backgroundMortality) / Date.MONTHS_PER_YEAR
         for (k in odds.indices) {
             // (A month it moves camp in, it keeps only what it carries.)
             if (moves[k]) larder = min(larder, carryDays)
@@ -202,7 +205,7 @@ internal class YearAhead(private val odds: FloatArray, internal val fed: FloatAr
             val hunger = Hazards.hunger(s, burnt, onFat, days); burnt = Hazards.spentAfter(s, burnt, onFat, days)
             if (causes != null) { causes[1] += alive * odds[k]; causes[0] += alive * (1f - odds[k]) * hunger }
             sb?.append("  +%d: fed %.2f paid %.1f larder %.1f onFat %.2f fat %.1f burnt %.1f hunger %.3f exposure %.3f\n".format(k + 1, got, paid, larder, onFat, fatLeft, burnt, hunger, odds[k]))
-            alive *= (1f - odds[k]) * (1f - hunger) * (1f - s.backgroundMortality / Date.MONTHS_PER_YEAR)
+            alive *= (1f - odds[k]) * (1f - hunger) * (1f - other)
         }
         return alive
     }

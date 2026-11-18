@@ -117,16 +117,16 @@ class HexGroups(
     @delegate:Transient internal val monthBeastClassKg by lazy { Array(BeastClass.entries.size) { FloatArray(n) }.also { beastClassKg(it) } }
     /** What the people kind's [huntable] was a month ago, and whether it is known (not after a load, until the next month). */
     @delegate:Transient private val peopleGameBefore by lazy { FloatArray(n) }
-    /** The hexes within [TOLD_RINGS] rings of each hex, worked out once a hex as first asked for ([toldOf]): what bands that meet tell of about a home. */
-    @delegate:Transient internal val toldDisk by lazy { arrayOfNulls<HexArray>(hex.size) }
     @Transient private var gameBeforeKnown = false
     @Transient private var huntableFilled = false
     /** People sick of each catching illness in each place as the week's choosing begins (heads × share sick). */
+    /** Who is where, built at the step's named moments ([WhoIsWhere]). */
+    @Transient internal val where = WhoIsWhere()
     @delegate:Transient internal val sickPeople by lazy { Array(Illness.entries.size) { FloatArray(n) } }
     /** The beasts of prey in each place as the week's choosing begins, kg (the hunters other than people). */
     @delegate:Transient internal val beastKg by lazy { FloatArray(n) }
     /** What the bands share ([Bands]; saves from before it was split out kept its tables here). */
-    @field:MovedInto("built", "followersByHex", "bandHex", "houseOf", "materialSources\$delegate", "saltSources\$delegate")
+    @field:MovedInto("built", "houseOf", "materialSources\$delegate", "saltSources\$delegate")
     val bands = Bands(this)
     /**
      * How each group chooses where to go ([GroupPlanner]; saves from before it was split out kept its tables and its usual densities here).
@@ -159,6 +159,8 @@ class HexGroups(
     @Transient var hunterWays: AnimalWays? = null
     /** The packs of each kind that also lives settled standing at each place, as [fillPackGame] last found them (place × 64 + kind slot). Not saved. */
     @Transient internal var packsAt: Map<Long, List<HexGroup>>? = null
+    /** [StaleCheck]'s stamp of [packsAt]. */
+    @Transient internal var packsAtStamp = 0L
     /** The food ([hexFood]) cutting the land hexes into quarters, for the census ([foodQuarterOf]); reckoned once a year. Not saved. */
     @Transient internal var foodCuts: FloatArray? = null
 
@@ -182,7 +184,7 @@ class HexGroups(
             // (Bands that hold their home hex start where the food is, as many to a hex as its food draws, rich and poor
             // ground alike held in proportion: [startFood].)
             val byFood = s.human && tuning.bandsStay && !uniformStart
-            val weights = if (uniformStart) FloatArray(n) { p -> land.areaKm2[p] } else if (byFood) startFood() else startWeights(s).also { w -> if (s == Catalogue.CHEETAH) keepOutOfLionCountry(w) }
+            val weights = if (uniformStart) FloatArray(n) { p -> land.areaKm2[p] } else if (byFood) startFood() else startWeights(s).also { w -> s.keepsOff?.let { o -> keepOffKind(o, w) } }
             val total = weights.sum()
             // (A kind with no ground that suits it starts with none, even where its settled density would give it one group:
             // that group had nowhere to go but place 0, and a world without places has none at all.)
@@ -272,13 +274,13 @@ class HexGroups(
 
 
     /**
-     * Cheetahs begin away from the lions' country (they lose their kills and their young to lions; Durant 1998 has them keeping off
-     * lion ground): their start [weights] fall where the lions' own start weights, per km² and against their mean, are high. Only
-     * the start's placement; the number of cheetahs and everything after the start are as before.
+     * A kind begins away from the country of the kind [other] it keeps off ([Species.keepsOff]: cheetahs off lions'): its
+     * start [weights] fall where [other]'s own start weights, per km² and against their mean, are high. Only the start's
+     * placement; its numbers and everything after the start are as before. Nothing where [other] is not in this world.
      */
-    private fun keepOutOfLionCountry(weights: FloatArray) {
-        val lion = kinds.firstOrNull { it == Catalogue.LION } ?: return
-        val per = FloatArray(n) { p -> startWeight(lion, Place(p)) / land.areaKm2[p].coerceAtLeast(1e-6f) }
+    private fun keepOffKind(other: Species, weights: FloatArray) {
+        if (other !in kinds) return
+        val per = FloatArray(n) { p -> startWeight(other, Place(p)) / land.areaKm2[p].coerceAtLeast(1e-6f) }
         val mean = per.average().toFloat()
         if (mean <= 0f) return
         for (p in 0 until n) weights[p] /= 1f + per[p] / mean
@@ -322,7 +324,7 @@ class HexGroups(
 
     /** A new group of [s] at place [p], [unit] adults and a third as many young, half-fat. */
     internal fun spawn(s: Species, p: Place, unit: Int): HexGroup {
-        val g = HexGroup(nextId++, s, p, unit, max(0, unit / 3))
+        val g = HexGroup(nextId++, s, p, unit, max(0, unit / 3)); StaleCheck.made()
         g.temper = Temperament.founder(g.id, seedBase)
         g.fat = 0.5f * s.maxFatDays
         return g
@@ -395,18 +397,20 @@ class HexGroups(
         Phase("groups: meetings") { val t0 = System.nanoTime(); meet(it); meetNs += System.nanoTime() - t0 },
         // (Bands that hold their home hex wear the ways about it toward the neighbours they deal with, [wearToward].)
         Phase("groups: wearing paths") {
-            val toward = if (tuning.bandsStay) groups.filter { it.alive }.associateBy { it.id }.let { byId -> { g: HexGroup -> wearToward(g, byId) } } else null
+            val toward = if (tuning.bandsStay) groups.filter { it.alive }.associateBy { it.id }.let { byId -> { g: HexGroup -> wearToward(g, byId, it) } } else null
             wear.week(groups, hw, land, days, toward); routes.week() },
         Phase("groups: hunting and foraging") { hunt(it) },
         Phase("people: feasting on kills") { feastOnKills(it) },
         Phase("people: burning off") { burnOff(it) },
         Phase("people: robbing caches") { robCaches(it) },
         Phase("people: visiting kin") { visitKin(it) },
+        Phase("people: asking for goods") { askForGoods(it) },
+        Phase("people: labour for favours") { callInLabour(it) },
         Phase("groups: births, deaths") {
-            mark()
+            mark(it)
             settle(it)
             demography(it, it.date)
-            roamersLeave()
+            roamersLeave(it)
         },
         Phase("groups: the dead and newcomers") {
             // (Groups that merged into another this week, kept for following what became of their choices.)
@@ -491,11 +495,11 @@ class HexGroups(
             val plan = Profile.kind("choosing", if (g.band != null) "bands" else g.species.name) {
                 // (A content pack on its home hex weighs nothing either: it stays and works its footprint, [holdsGround].)
                 if (staysHome(g) && policyFor(g) == null) planner.stayPlan(g)
-                else if (planner.holdsGround(g, weather)) planner.groundPlan(g, date)
+                else if (planner.holdsGround(g, weather)) planner.groundPlan(g, date, weather)
                 else planner.plan(g, weather, date, predatorKg) }
             if (g.band != null) Profile.slow("plan: band", t0, date.absoluteDay) { g.probe(date.absoluteDay) }
             // (A band that holds its home hex is about the hexes round it as its foragers go: its ground for the meetings, [bandGround].)
-            if (staysHome(g)) bandGround(g, date.absoluteDay)
+            if (staysHome(g)) bandGround(g, date.absoluteDay, weather)
             choice[k] = plan.place.i; paths[k] = plan.path
             times[k] = timetable(g.species, plan.path)
         }
@@ -504,7 +508,7 @@ class HexGroups(
                 stats.meeting(if (paths[k]!!.size <= 1) Met.HUNGRY_BANDS_CHOSE_TO_STAY else Met.HUNGRY_BANDS_CHOSE_TO_MOVE)
             if (hurricanes != null && g.band != null) notePeril(g, Place(choice[k]))
             g.climbedM = max(0f, hw.placeElevationM[choice[k]] - hw.placeElevationM[g.place.i])
-            g.place = Place(choice[k]); g.path = paths[k]!!; g.days = times[k]!!; g.meatMet = 0f; g.meatSpent = false
+            run { val was = hw.placeHex[g.place]; g.place = Place(choice[k]); if (hw.placeHex[g.place] != was) StaleCheck.moved() }; g.path = paths[k]!!; g.days = times[k]!!; g.meatMet = 0f; g.meatSpent = false
             // (For the census: what it had to live on as it chose, and whether it moves camp, [noteReserves].)
             if (stats.bandSplits) g.band?.let { noteReserves(g, it) }
             crossWater(g, g.path)
@@ -604,7 +608,6 @@ class HexGroups(
     }
 
 
-
     /** The groups that merged into another in the last step (gone from [groups]), with their numbers when they did ([HexGroup.mergedSize]). */
     @Transient val merged = ArrayList<HexGroup>()
     /** Outbreaks breaking out among the groups this week, by kind and hex (see [liveWeek]), started once all have lived it. */
@@ -618,6 +621,7 @@ class HexGroups(
      */
     @delegate:Transient val seaLinks: Array<HexArray> by lazy { links().to }
     @delegate:Transient val seaGaps: Array<FloatArray> by lazy { links().gapKm }
+    /** Each core's working arrays for the searches of the ground ([reachOf]). */
     /** For each hex, the hexes across the sea from it ([to]) and the open water to each ([gapKm]). */
     class SeaCrossings(val to: Array<HexArray>, val gapKm: Array<FloatArray>)
     @Transient private var linksMade: SeaCrossings? = null
@@ -699,8 +703,9 @@ class HexGroups(
             if (!g.alive || !g.species.human) continue
             val p = g.place
             // (Dry enough by the same test that lets any fire take: a gate of its own, stricter, had kept bands from ever burning.)
+            // (A week's chance; over a longer step, the chance it comes up in one of the step's ticks.)
             if (land.fire.canBurn(p, weather) && land.fire.burnt[p] < 0.1f &&
-                drawn(DialSite.BURNING_OFF, g.band?.burnWill ?: 1f, rnd.nextFloat(), BURN_OFF * (g.band?.burnWill ?: 1f)) { BURN_OFF }) {
+                drawn(DialSite.BURNING_OFF, g.band?.burnWill ?: 1f, rnd.nextFloat(), overTicks(BURN_OFF * (g.band?.burnWill ?: 1f))) { overTicks(BURN_OFF) }) {
                 land.fire.ignite(p)
                 stats.meeting(Met.BANDS_BURNED_OFF_GRASS)
             }
@@ -719,7 +724,7 @@ class HexGroups(
         return strained(b, if (b.atHome) settledMost(g.species, b) else mobileMost(g.species, b))
     }
 
-    /** The most a roaming band of kind [s] holds: its kind's most, by its [DisputeWay] and [Tradition.FEASTS], at most [BAND_MOST]. */
+    /** The most a roaming band of kind [s] holds: its kind's most, by its [DisputeWay] and [Tradition.FEASTS] (held, not how keenly: [Band.feastKeen]), at most [BAND_MOST]. */
     private fun mobileMost(s: Species, b: Band): Int {
         val held = (s.maxGroupSize * b.disputeWay.sizeTimes).toInt()
         return min(BAND_MOST, if (b.holds(Tradition.FEASTS)) (held * FEAST_SIZE).toInt() else held)
@@ -771,28 +776,27 @@ class HexGroups(
     }
 
     /** How far going to hex [h] brings band [g] toward its appointment, -1..1, in its month (0 otherwise). */
-    internal fun appointPull(g: HexGroup, b: Band, month: Int, h: Hex): Float {
-        val own = ownAppointPull(g, b, month, h)
+    internal fun appointPull(g: HexGroup, b: Band, month: Int, h: Hex, weather: Weather): Float {
+        val own = ownAppointPull(g, b, month, h, weather)
         val sites = recruiters ?: return own
         if (tuning.recruiterSeen == 0 || !mayRecruit(g)) return own
         // The recruiters draw as an appointment does, all year, as strongly as [Tuning.recruiterPull] has it: the nearest site, how far going to [h] brings it there.
         val here = hw.placeHex[g.place]
         val site = sites.nearest(here); if (site.none || site == here) return own
-        val fromHere = hexKm(here, site)
-        val pull = tuning.recruiterPull * ((fromHere - hexKm(h, site)) / fromHere).toFloat().coerceIn(-1f, 1f)
+        val pull = tuning.recruiterPull * toward(g, site, here, h, weather)
         return if (kotlin.math.abs(pull) > kotlin.math.abs(own)) pull else own
     }
 
-    private fun ownAppointPull(g: HexGroup, b: Band, month: Int, h: Hex): Float {
+    private fun ownAppointPull(g: HexGroup, b: Band, month: Int, h: Hex, weather: Weather): Float {
         val ap = b.appointment ?: return 0f
         val off = minOf(monthsFrom(ap.month, month), monthsFrom(month, ap.month))
         // The month before, it is on its way; without sky lore it also lingers a month after, the count being loose.
         val before = monthsFrom(month, ap.month) == 1
         val weight = when { off == 0 -> 1f; before -> 0.7f; off == 1 && !b.holds(Tradition.SKY_LORE) -> 0.5f; else -> return 0f }
         val here = hw.placeHex[g.place]
-        val fromHere = hexKm(here, ap.hex)
-        if (fromHere <= hex.hexKm) return if (h == here) weight else 0f
-        return weight * ((fromHere - hexKm(h, ap.hex)) / fromHere).toFloat().coerceIn(-1f, 1f)
+        // (By the going near it: [toward].)
+        if (hexKm(here, ap.hex) <= hex.hexKm) return if (h == here) weight else 0f
+        return weight * toward(g, ap.hex, here, h, weather)
     }
 
     /** The main kind of country of each place. */
@@ -891,11 +895,14 @@ class HexGroups(
 
     /** Time spent settling meetings, ns, over the run (for measuring the cost). */
     @Transient var meetNs = 0L
-    /** The month of the week the groups meet in ([meet]): for the young in hiding ([youngHidden]). */
-    @Transient internal var meetMonth = 0
     /** The tick of the step a meeting now being held falls on ([neighboursMeet]; 0 for the rest): how fresh it is ([meetingFresh]). */
     /** How many meetings of the two bands the meeting now being held stands for ([neighboursMeet]; 1 for the rest): [meetChance]. */
     @Transient internal var meetTimes = 1
+    /**
+     * How many of the step's ticks the meeting now being held met in ([neighboursMeet]; 1 for the rest): the weekly model
+     * folds a pair's meetings within a week into one, so what passes once a meeting week, as sickness ([passIllness]), passes this often.
+     */
+    @Transient internal var meetTicks = 1
     @Transient internal var meetTick = 0
 
 

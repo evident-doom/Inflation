@@ -32,6 +32,27 @@ class DrawsTest {
         }
     }
 
+    /**
+     * Each count comes up as often as the Poisson odds say, within five standard errors, at means on both sides of the switch
+     * from inversion to transformed rejection and far past where a normal draw stood in: so the draw is exact, skew and all.
+     */
+    @Test
+    fun poissonCountsFollowTheOdds() {
+        val r = Random(3)
+        for (m in listOf(0.05f, 0.7f, 3f, 9.9f, 10f, 12f, 31f, 80f, 500f)) {
+            val draws = 200_000
+            val seen = HashMap<Int, Int>()
+            repeat(draws) { val k = poisson(m, r); assertTrue(k >= 0); seen.merge(k, 1, Int::plus) }
+            val lam = m.toDouble(); val sd = sqrt(lam)
+            for (k in maxOf(0, (lam - 4 * sd).toInt())..(lam + 4 * sd + 2).toInt()) {
+                var lnFact = 0.0; for (i in 2..k) lnFact += kotlin.math.ln(i.toDouble())
+                val p = kotlin.math.exp(k * kotlin.math.ln(lam) - lam - lnFact)
+                val f = (seen[k] ?: 0).toDouble() / draws
+                assertTrue(abs(f - p) < 5 * sqrt(p * (1 - p) / draws) + 1e-4, "poisson($m): count $k came up ${"%.5f".format(f)}, expected ${"%.5f".format(p)}")
+            }
+        }
+    }
+
     /** A stream is fixed by its key, differs with the world's seed, and no group replays another's at any lag (as id * 7919 + day once did). */
     @Test
     fun streamsAreKeptApart() {

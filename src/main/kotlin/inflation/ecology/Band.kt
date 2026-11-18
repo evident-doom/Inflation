@@ -94,6 +94,8 @@ class Band(kinds: Int, totems: Int = kinds) {
     var riteFood = Float.POSITIVE_INFINITY
     /** The person-days of walking its visits to neighbours beyond its own ground still ask, given from its customs' time ([HexGroups.neighboursMeet], [keepCustoms]). */
     var visitOwed = 0f
+    /** Person-days its people worked and walked for bands it owed ([callInLabour]), paid from the rest its weeks leave it only, after every chore. */
+    var labourOwed = 0f
     /** The share of those days its customs' time gave last: as far as it goes visiting beyond its ground ([HexGroups.neighboursMeet]). */
     var visitShare = 1f
     /** The ticks of the step it is living through ([inflation.world.StepClock.ticks]), set as its week begins ([bandWeek]): for [practise]. */
@@ -111,8 +113,8 @@ class Band(kinds: Int, totems: Int = kinds) {
     /** Camp shifts within its hex ([shiftCamps]) the census has not yet counted as camp moves; it reads and clears them. */
     @Transient var shiftsUncounted = 0
     /**
-     * Person-days its raiders spent going to a raid and back ([plotRaid], bands that hold their home hex), taken from its
-     * next step's days before other work ([planWeek]). Saved, so that a loaded world carries on as the one that ran on.
+     * Person-days its people spent walking this step that its next step's days pay before other work ([planWeek]): raiders
+     * going to a raid and back, visitors to appointments, kin and feasts, a camp moved ([WalkPaid.NEXT_STEP], [walkOver]). Saved, so that a loaded world carries on as the one that ran on.
      */
     var raidWalkOwed = 0f
     /**
@@ -234,6 +236,8 @@ class Band(kinds: Int, totems: Int = kinds) {
      * knapping stone rather than of whatever stone is at hand, clothes of hide tanned with ochre.
      */
     val fine = enumFloats<Tool> { if (it == Tool.CLOTHES) 0f else 1f }
+    /** Of each stone tool in its kit, the share made of obsidian ([makeTools]): it serves the better for it ([OBSIDIAN_EDGE]). */
+    val glassy = enumFloats<Tool>()
     /**
      * Of each tool in its kit, how well it was made, 0..1: the skill of the hands that made it against a start band's
      * ([makeQuality]). Poorly made tools serve worse and wear faster ([wearOfMake], [serveOfMake]); a band that has just
@@ -424,6 +428,9 @@ class Band(kinds: Int, totems: Int = kinds) {
     val homeSeen = HashMap<Int, Long>()
     /** For each home in [knownHomes], how far (km) it may lie from where this band believes: 0 seen at first hand, the more the further off it was told of ([HEARSAY_OFF]). */
     val homeOff = HashMap<Int, Float>()
+
+    /** It forgets the home of band [id]: where it is ([knownHomes]), whose it is ([knownLineage]), when it was seen and how surely ([homeSeen], [homeOff]), all together. */
+    fun forgetHome(id: Int) { knownHomes.remove(id); knownLineage.remove(id); homeSeen.remove(id); homeOff.remove(id); homesVersion++ }
     /** A raid it is set on, if any. */
     var raid: Raid? = null
     val raidHex get() = raid?.hex ?: Hex.NONE
@@ -436,10 +443,21 @@ class Band(kinds: Int, totems: Int = kinds) {
      */
     var ornaments = 0f
     var exotic = 0f
-    /** Takes [n] of its ornaments, shell among them in its share; returns the shell ones taken. */
+    /** Person-days of building pledged it for its next week's houses and hall, by the band that sent the people ([callInLabour]); settled at the next call ([settleLabour]). */
+    val labourFrom = HashMap<Int, Float>()
+    /** The share of the pledged days ([labourFrom]) its building used ([BandTime.reclaim]); NaN: not yet built with. */
+    var labourUsed = Float.NaN
+    /** The person-days its house and hall building asked for last week and did not get ([callInLabour]). */
+    var buildShort = 0f
+    /** The person-days of skilled work in its ornaments ([makeCrafted]): what they are worth, as wealth held and worn. */
+    var ornamentWorth = 0f
+    /** The worth of [n] of its ornaments, in their share. */
+    fun ornamentWorthOf(n: Float) = if (ornaments > 0f) ornamentWorth * min(1f, n / ornaments) else 0f
+    /** Takes [n] of its ornaments, shell and worth among them in their shares; returns the shell ones taken. */
     @IgnorableReturnValue fun takeOrnaments(n: Float): Float {
         val share = if (ornaments > 0f) exotic / ornaments else 0f
         val shell = n * share
+        ornamentWorth = max(0f, ornamentWorth - ornamentWorthOf(n))
         ornaments -= n; exotic -= shell
         return shell
     }
@@ -542,6 +560,12 @@ class Band(kinds: Int, totems: Int = kinds) {
      * one that does not only as far as its will goes above the default.
      */
     fun byCustom(holds: Boolean, will: Float) = max(0f, will - (if (holds) 0f else 1f))
+    /**
+     * How keenly it feasts others ([byCustom] of [Tradition.FEASTS] by its [feastWill]): at a meeting, on a big kill, and in
+     * going where others are to feast them ([GroupPlanner.feastDraw]). How big a roaming band grows and how easily a settled
+     * one lives together go by the custom itself, held or not ([mobileMost], [settledEase]): what holding it does to a people.
+     */
+    val feastKeen get() = byCustom(holds(Tradition.FEASTS), feastWill)
 
     /** Whether it holds hex [h] as its own: its houses, its dead, its appointment place. */
     fun claims(h: Hex, memory: PlaceMemory) = h == houseHex || h == appointHex || memory.deadAt(h) > 0f
@@ -566,8 +590,14 @@ class Band(kinds: Int, totems: Int = kinds) {
      * saved world carried on would add them up in another order and drift from the one that ran on.
      */
     val ties = LinkedHashMap<Int, Float>()
-    /** The step this band last met each other band (by group id), for how fresh a meeting is ([meetingFresh]). */
+    /**
+     * The step this band last met each other band (by group id), for how fresh a meeting is ([meetingFresh]), and whether
+     * they have ever met, for the sicknesses strangers bring ([strangersAt]). Bands no longer alive are forgotten each week
+     * ([forgetGone]): ids are never given again, and the map is only looked up, so this changes nothing but its size.
+     */
     val lastMet = HashMap<Int, Int>()
+    /** It forgets, in [lastMet], the bands not among [living] (by group id): they are dead or merged, and will never be met again. */
+    fun forgetGone(living: Set<Int>) { if (lastMet.isNotEmpty()) lastMet.keys.retainAll(living) }
     /**
      * What it saw of each other band (by group id), the last time it saw it, at a meeting, a fight or watching unseen
      * ([noteSeen]): its strength then ([HexGroups.strength]), and the day ([seenDay], absolute). Forgotten after
@@ -575,6 +605,21 @@ class Band(kinds: Int, totems: Int = kinds) {
      */
     val seenStrength = HashMap<Int, Float>()
     val seenDay = HashMap<Int, Long>()
+
+    /** It saw band [id] on [day], of strength [strength] ([seenStrength], [seenDay]: the two kept together). */
+    fun saw(id: Int, strength: Float, day: Long) { seenStrength[id] = strength; seenDay[id] = day }
+
+    /** The strength it last saw band [id] at, if it saw it within [SEEN_DAYS] of [today]; else null. */
+    fun seen(id: Int, today: Long): Float? {
+        val day = seenDay[id] ?: return null
+        return if (today - day > SEEN_DAYS) null else seenStrength[id]
+    }
+
+    /** It forgets the bands it last saw more than [SEEN_DAYS] before [now]. */
+    fun forgetSeen(now: Long) {
+        val it = seenDay.entries.iterator()
+        while (it.hasNext()) { val e = it.next(); if (now - e.value > SEEN_DAYS) { it.remove(); seenStrength.remove(e.key) } }
+    }
     /**
      * What the bands it met lately told it their camps yielded ([tellYield]): each one's recent foraging yield ([recentYield])
      * and the week it was told ([newsAt], counted from the first week of year 0), the last [NEWS_KEPT]. A [Mind.PLANS] band
@@ -586,6 +631,14 @@ class Band(kinds: Int, totems: Int = kinds) {
     /** The loads a [Mind.PLANS] band's adults take on this week's camp move, as it chose them ([relayLoads]; NaN: as its ways have it, [carryLoads]). */
     @Transient var planLoads = Float.NaN
     fun tie(other: Int) = ties[other] ?: 0f
+    /**
+     * Band [by] (group [byId]) did it a wrong of [weight] (1: it raided it): its grudge against their people rises by [weight]
+     * times [GRUDGE], and its tie to that band falls by [weight] times [TIE_RAID]. The one rule for every wrong: a raid, a
+     * raid slipped away from, a raid stood against, a cache robbed, a sacrilege.
+     */
+    fun wronged(byId: Int, by: Band, weight: Float) { grudge[by.mainLineage()] += weight * GRUDGE; befriend(byId, -weight * TIE_RAID) }
+    /** Band [by] made amends ([share] of its grudge against their people forgiven): kin by marriage, help in need. */
+    fun amends(by: Band, share: Float) { grudge[by.mainLineage()] *= 1f - share }
     fun befriend(other: Int, by: Float) { ties[other] = (tie(other) + by * (if (by > 0f) 1f - tie(other) else 1f + tie(other))).coerceIn(-1f, 1f) }
     /**
      * Favours: what each band it has dealt with owes it (above 0) or it is owed by it (below 0), in
@@ -594,6 +647,8 @@ class Band(kinds: Int, totems: Int = kinds) {
      * return, and lapses only when the other band is gone (see [helped]).
      */
     val favours = HashMap<Int, Float>()
+    /** Whether its [favours] are on the log scale ([favoursOfGift], [ledgerOnScale]); a band from a save made before it holds weeks. */
+    var favoursLog = false
     /** Favours it owes band [other] (0 if none). */
     fun owesTo(other: Int) = max(0f, -(favours[other] ?: 0f))
     /** Its choices: how fully it returns the favours it owes when a band it owes is hungry (1 the scaffold's: as far as the other's need goes; 0 not at all). */
@@ -827,6 +882,10 @@ class Band(kinds: Int, totems: Int = kinds) {
     var riteDue = -1
     /** The month, counted from the world's start, it last held a rite to the end (-1: never). */
     var riteKept = -1L
+    /** Whether its people walk to the site for the rite under way: a far site ([CONTACT_KM] on) at most once a year and not in a lean month, else it holds the rite at its camp ([HexGroups.riteWeek]). */
+    var riteTrip = true
+    /** The year it last walked to a far rite site ([riteTrip]); -1: never. */
+    var farRiteYear = -1L
     /**
      * What the rite under way asked of it at its month's start ([riteAsked], person-days), and the days of that month it
      * gave to neither its needs nor its customs ([riteSpare]): what it could have given the rite and gave to other work.
@@ -929,12 +988,12 @@ class Band(kinds: Int, totems: Int = kinds) {
         o.fire = fire
         kit.copyInto(o.kit)
         knows.copyInto(o.knows)
-        fine.copyInto(o.fine)
+        fine.copyInto(o.fine); glassy.copyInto(o.glassy); o.favoursLog = favoursLog
         made.copyInto(o.made)
         o.salted = salted; o.dryDepth = dryDepth; o.pests = pests
         o.sodiumWant = sodiumWant; o.saltWantStep = saltWantStep * share; saltWantStep -= o.saltWantStep
         o.renown = renown
-        rite.copyInto(o.rite); o.riteStrength = riteStrength; o.riteHeld = riteHeld; o.riteKept = riteKept; o.beliefYears = beliefYears; o.strain = strain
+        rite.copyInto(o.rite); o.riteStrength = riteStrength; o.riteHeld = riteHeld; o.riteKept = riteKept; o.farRiteYear = farRiteYear; o.beliefYears = beliefYears; o.strain = strain
         o.omenPlace = omenPlace; o.omenMonth = omenMonth; o.omenYear = omenYear; o.omenWeight = omenWeight; o.deathsUsual = deathsUsual; o.wantSteps = wantSteps; o.wantBroke = wantBroke; o.wantUsual = wantUsual; o.mind = mind; foreseenShares.copyInto(o.foreseenShares); o.foreseenAt = foreseenAt
         warn.copyInto(o.warn); o.warnAt = warnAt
         traditions.copyInto(o.traditions); heard.copyInto(o.heard); o.heardOf = heardOf
@@ -950,6 +1009,7 @@ class Band(kinds: Int, totems: Int = kinds) {
         for (m in Material.entries) { o.goods[m] = goods[m] * share; goods[m] -= o.goods[m] }
         for (t in Tool.entries) { o.spare[t] = spare[t] * share; spare[t] -= o.spare[t] }
         o.ornaments = ornaments * share; ornaments -= o.ornaments; o.exotic = exotic * share; exotic -= o.exotic
+        o.ornamentWorth = ornamentWorth * share; ornamentWorth -= o.ornamentWorth
         o.elders = elders * adults / (stay + adults).coerceAtLeast(1); elders -= o.elders
         // Its practised people go one way or the other: a craft held by one or two may go wholly with either half.
         val go = adults.toFloat() / (stay + adults).coerceAtLeast(1)
@@ -980,6 +1040,7 @@ class Band(kinds: Int, totems: Int = kinds) {
             val ka = a.kit[i] * (1f - w)
             val kb = b.kit[i] * w
             if (ka + kb > 0f) a.fine[i] = weightedMean(a.fine[i], ka, b.fine[i], kb)
+            if (ka + kb > 0f && (a.glassy[i] > 0f || b.glassy[i] > 0f)) a.glassy[i] = weightedMean(a.glassy[i], ka, b.glassy[i], kb)
             if (ka + kb > 0f) a.made[i] = weightedMean(a.made[i], ka, b.made[i], kb)
             a.kit[i] += w * (b.kit[i] - a.kit[i])
         }
@@ -1006,7 +1067,8 @@ class Band(kinds: Int, totems: Int = kinds) {
         blendWarning(a, b, w)
         // (Its larder as last seen, a person's days: the two larders are put together, so near enough the two blended.)
         a.larderSeen += w * (b.larderSeen - a.larderSeen)
-        a.ornaments += b.ornaments; a.exotic += b.exotic
+        a.ornaments += b.ornaments; a.exotic += b.exotic; a.ornamentWorth += b.ornamentWorth
+        for ((k, v) in b.labourFrom) a.labourFrom.merge(k, v, Float::plus)
         a.herds.absorb(b.herds)
         a.renown = max(a.renown, b.renown)
         a.raidDeathRate += w * (b.raidDeathRate - a.raidDeathRate)
@@ -1019,10 +1081,11 @@ class Band(kinds: Int, totems: Int = kinds) {
         for (way in BurialWay.entries) a.heardBurial[way] += b.heardBurial[way]
         for (i in a.heardStyle.indices) a.heardStyle[i] += b.heardStyle[i]
         a.burialOwed += b.burialOwed
-        a.riteOwed += b.riteOwed; a.riteAsked += b.riteAsked; a.riteSpare += b.riteSpare; a.visitOwed += b.visitOwed
+        a.riteOwed += b.riteOwed; a.riteAsked += b.riteAsked; a.riteSpare += b.riteSpare; a.visitOwed += b.visitOwed; a.labourOwed += b.labourOwed
         for ((k, v) in b.ties) if (k != id) a.ties[k] = max(a.tie(k), v)
         a.ties.remove(bId)
         for ((k, v) in b.favours) if (k != id) a.favours.merge(k, v, Float::plus)
+        a.favoursLog = a.favoursLog || b.favoursLog
         a.favours.remove(bId)
         for (i in Material.entries) a.goods[i] += b.goods[i]
         for (t in Tool.entries) a.spare[t] += b.spare[t]
@@ -1120,8 +1183,8 @@ class Band(kinds: Int, totems: Int = kinds) {
 
     /** How its weapons, hunting skill and dogs do against [prey], against an ordinary armed, practised band without dogs (1). */
     fun huntEdge(prey: Species, tuning: Tuning) =
-        PURSUIT_KILLS * skill(Skill.HUNT) * edge(Skill.STALK) * (WEAPONLESS + (1f - WEAPONLESS) * has(Tool.SPEAR) * serveOfMake(Tool.SPEAR, fine[Tool.SPEAR], made[Tool.SPEAR], tuning) +
-            BOW_GAIN * has(Tool.BOW) * serveOfMake(Tool.BOW, fine[Tool.BOW], made[Tool.BOW], tuning) * min(1f, prey.speedKmh / 70f)) *
+        PURSUIT_KILLS * skill(Skill.HUNT) * edge(Skill.STALK) * (WEAPONLESS + (1f - WEAPONLESS) * has(Tool.SPEAR) * serveOfMake(Tool.SPEAR, fine[Tool.SPEAR], made[Tool.SPEAR], tuning, glassy[Tool.SPEAR]) +
+            BOW_GAIN * has(Tool.BOW) * serveOfMake(Tool.BOW, fine[Tool.BOW], made[Tool.BOW], tuning, glassy[Tool.BOW]) * min(1f, prey.speedKmh / 70f)) *
             (1f + DOG_HUNT * dogs.dogShare * max(0f, 1f - prey.massKg / DOG_PREY_KG))
 
 
@@ -1129,7 +1192,7 @@ class Band(kinds: Int, totems: Int = kinds) {
     fun ferocity(s: Species) = s.ferocity * (WEAPONLESS + (1f - WEAPONLESS) * has(Tool.SPEAR) + 0.5f * has(Tool.BOW))
 
     /** How much more seed its sickles reap, as well as their stone cuts. */
-    fun sickleGain(tuning: Tuning) = SICKLE_GAIN * has(Tool.SICKLE) * serveOfMake(Tool.SICKLE, fine[Tool.SICKLE], made[Tool.SICKLE], tuning)
+    fun sickleGain(tuning: Tuning) = SICKLE_GAIN * has(Tool.SICKLE) * serveOfMake(Tool.SICKLE, fine[Tool.SICKLE], made[Tool.SICKLE], tuning, glassy[Tool.SICKLE])
 
     /**
      * Gathering: the most of a plant food's stock in a place it can take in a week (a tick; over a step of several, that share
@@ -1146,6 +1209,8 @@ class Band(kinds: Int, totems: Int = kinds) {
 
     /** How much more (above 1) or less a skill's work leaves undone than a start band's: the sick die, infants are lost. */
     fun lapse(s: Skill) = (s.floor + (1f - s.floor) * s.ref) / skill(s)
+    /** As [lapse], for a kind of work done by the best way it knows of it ([skill]): against the start level of its first way. */
+    fun lapse(d: Domain) = Skill.of(d).first().let { s -> (s.floor + (1f - s.floor) * s.ref) / skill(d).coerceAtLeast(s.floor) }
     /** How much better (above 1) or worse it does at [s] than a start band. */
     fun edge(s: Skill) = 1f / lapse(s)
     /** The insulation of the clothes its people wear by day, clo: a whole kit at [CLOTHES_CLO], as well sewn as its hands sew. */

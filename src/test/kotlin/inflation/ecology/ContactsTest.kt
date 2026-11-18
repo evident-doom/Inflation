@@ -84,7 +84,7 @@ class ContactsTest {
     @Test
     fun `a pack's ground is its lair, core and fringe by its footprint's weights`() {
         val g = HexGroup(1, Catalogue.all.first { !it.human && it.lifeway == Lifeway.PACK }, inflation.world.Place(0), 2, 0)
-        g.home = Hex(5); g.footprint = HexArray(intArrayOf(5, 6, 7)); g.footWeights = floatArrayOf(1f, 0.6f, 0.3f)
+        g.home = Hex(5); g.footprint = Footprint(HexArray(intArrayOf(5, 6, 7)), floatArrayOf(1f, 0.6f, 0.3f), hunted = true)
         assertEquals(Ground.LAIR, groundOf(g, Hex(5))); assertEquals(Ground.CORE, groundOf(g, Hex(6)))
         assertEquals(Ground.FRINGE, groundOf(g, Hex(7))); assertEquals(Ground.OUTSIDE, groundOf(g, Hex(8)))
     }

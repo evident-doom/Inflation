@@ -82,7 +82,7 @@ private fun HexGroups.gatherVillages(farm: List<HexGroup>, bands: List<HexGroup>
             for (h in ring) for (g in byHex[h].orEmpty()) {
                 if (people >= tuning.startVillagePeople || out.size >= want || g in used) continue
                 used += g; out += g; people += g.size
-                g.place = site
+                g.place = site; StaleCheck.moved()
             }
             if (people >= tuning.startVillagePeople || out.size >= want) break
         }

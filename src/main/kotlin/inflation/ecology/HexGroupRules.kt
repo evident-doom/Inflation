@@ -27,20 +27,37 @@ internal const val SURPLUS_EAT = 0.3f
 internal const val FAT_EFFICIENCY = 0.6f
 /** A newborn's weight against its mother's, paid from her reserves. */
 internal const val NEWBORN_SHARE = 0.08f
-/** A newborn of [s], in days of its mother's food: what she gives of her reserves or her food to bear it. */
-fun youngDays(s: Species) = NEWBORN_SHARE * s.massKg / s.dailyIntakeKg
+/**
+ * The food a mother gives in milk to nurse a young to weaning, against her own weight: a quarter. A wild sow weans her
+ * piglets at some 8-10 kg after three months, about a tenth of her weight each, out of milk worth some two to three times
+ * the food that gain holds, the piglets rooting for part of their own from a few weeks (from memory of the record): a
+ * litter of five costs her some two months of food on top of her own. A hind or a doe nursing one calf or fawn, a week or two.
+ */
+internal const val MILK_SHARE = 0.25f
+/** The months a mother nurses over, days: what she spares of her food over them goes to her young ([breeding]). */
+internal const val NURSING_DAYS = 90f
+/** A young of [s], in days of its mother's food: what she gives of her reserves or her food to bear it and nurse it to weaning. */
+fun youngDays(s: Species) = (NEWBORN_SHARE + MILK_SHARE) * s.massKg / s.dailyIntakeKg
 
 /** What a mother of [s] fed [fed] over [days] can give her young of the week's food: what she ate above the hunger line, days of food. */
 fun spareDays(fed: Float, days: Int) = max(0f, fed - HexFauna.HUNGER_FROM) * days
 
 /**
- * The share of her young due this step a mother of [s] bears, [young] of them in full: she builds them first out of the
- * food she ate beyond the hunger line ([spareDays]), the rest out of her reserves of [fat] days, and bears only those she
- * can build.
+ * What a mother of [s] fed [fed] spares for [young] of hers over their nursing, days of food: what she eats above the
+ * hunger line over the nursing months ([NURSING_DAYS]), as many of them as [young] are of her year's ([Species.youngPerFemale]),
+ * and at least this step's [days]. (The step's alone, a litter of five cost a sow a fortnight's fat and she bore it in any year.)
+ */
+fun nursingSpare(s: Species, young: Float, fed: Float, days: Int): Float =
+    spareDays(fed, 1) * max(days.toFloat(), NURSING_DAYS * min(1f, young / s.youngPerFemale.coerceAtLeast(1e-3f)))
+
+/**
+ * The share of her young due this step a mother of [s] bears, [young] of them in full: she builds and nurses them first
+ * out of the food she eats beyond the hunger line over their nursing ([nursingSpare]), the rest out of her reserves of
+ * [fat] days, and rears only those she can. So a well-fed sow rears her whole litter, and a lean one after a poor mast a few.
  */
 fun breeding(s: Species, young: Float, fat: Float, fed: Float, days: Int): Float {
     val cost = young * youngDays(s)
-    return if (cost > 0f) min(1f, (spareDays(fed, days) + fat) / cost) else 1f
+    return if (cost > 0f) min(1f, (nursingSpare(s, young, fed, days) + fat) / cost) else 1f
 }
 
 /**
@@ -91,7 +108,7 @@ fun seasonDays(start: Int, months: Int, date: Date, days: Int): Int {
 fun offSeason(s: Species, start: Int) = (start + s.birthMonths + (12 - s.birthMonths) / 2) % 12
 
 /** Days of reserves a mother of [s] fed [fed] over [days] gives up for [young] young: what her spare food did not build. */
-fun fromReserves(s: Species, young: Float, fed: Float, days: Int) = max(0f, young * youngDays(s) - spareDays(fed, days))
+fun fromReserves(s: Species, young: Float, fed: Float, days: Int) = max(0f, young * youngDays(s) - nursingSpare(s, young, fed, days))
 /** Share of its fill above which a group lays on reserves rather than drawing on them (a week's food is never exactly what it needs). */
 internal const val WELL_FED = 0.9f
 /**
@@ -117,8 +134,6 @@ internal const val YOUNG_HIDDEN = 0.5f
 internal const val AVOID_STRONGER = 0.3f
 /** How much of a courser's success thick cover takes away (a cheetah in a wood runs into trees). */
 internal const val COURSING_COVER = 0.7f
-/** How much a pack weighs its own kind of country (the log of [HexFauna.suits]) in choosing its ground. */
-internal const val GROUP_HABITAT = 0.15f
 /**
  * Paths: share of the way to fully worn one passage of a group of [PATH_MASS_KG] or more wears;
  * weekly share plants take back at the greenest (less on bare ground); weight of a group that wears
@@ -202,7 +217,7 @@ internal const val START_BAND_SPREAD = 0.4f
 internal const val START_PACK_SPREAD = 0.5f
 /** Share of its larder a band gives one that is going hungry, when they meet. */
 internal const val BAND_GIFT = 0.3f
-/** Chance a band burns off the dry grass around its camp in a dry-season week, to bring up green grass that draws game. */
+/** Chance a band burns off the dry grass around its camp in a dry-season week (a tick; over a longer step [GroupWorld.overTicks]), to bring up green grass that draws game. */
 internal const val BURN_OFF = 0.1f
 /** How much a camp fire through the night keeps lions and hyenas from taking people. */
 internal const val CAMPFIRE = 0.7f
@@ -243,6 +258,13 @@ internal const val CATCH = 0.35f
  * and eating at this many kg a day per kg of hunter.
  */
 internal const val HANDLING_DAYS = 0.3f
+/**
+ * The days a kill of [kg] takes hunter [s] ([HANDLING_DAYS] for game of its own weight or more), less for smaller game in
+ * proportion: a wolf kills a fawn it finds lying in the grass in minutes, not the hours it takes to pull down a hind.
+ * (At a third of a day for any kill, a kilo or so of newborn fawn was worth less to a wolf than a grown roe, and wolves
+ * passed the fawns by while there were grown ones about.)
+ */
+internal fun handlingDays(s: Species, kg: Float) = HANDLING_DAYS * min(1f, kg / s.massKg.coerceAtLeast(1f))
 internal const val STALK_DAYS = 0.04f
 internal const val EATING_RATE = 0.15f
 /** Share of the time a hunting party on the move is searching, and sensing prey on either side as far as its kind senses. */
@@ -433,6 +455,14 @@ internal const val SHELLFISH_DAYS_PER_KG = 0.12f
  * Draper 1994, J Anthropol Res 50: 217-248, pp. 228-232).
  */
 internal const val WALK_KM_PER_HOUR = 4f
+
+/**
+ * A day's walk, km of easy going: [WALK_KM_PER_HOUR] over a working day ([Activity.WORK_HOURS]). The one measure of what a
+ * walk costs in days ([visitDays]) and of the people's distances (a day out and back, two days, four: [CONTACT_KM],
+ * [HOMES_KM]), so that they stay in step. (How far a whole band moves its camp in a step, with its children and its
+ * loads, is slower: its kind's [Species.dailyTravelKm], [GroupPlanner].)
+ */
+internal const val DAY_WALK_KM = WALK_KM_PER_HOUR * Activity.WORK_HOURS
 /**
  * A hunter's load of a kill carried to camp, kg as carried: Hadza carcasses of zebra, wildebeest and hartebeest size
  * (some 115-340 kg alive) take 7-10 carriers, smaller ones one to three (Bunn, in Breathing Life into Fossils, ch. 15):
@@ -493,8 +523,8 @@ internal const val HIDING = 0.8f
 internal const val MOON_DARK = 0.3f
 /** Extra yearly deaths among packs without ground of their own. */
 internal const val DISPERSAL_DEATHS = 0.4f
-/** Hoofed animals up to this mass, kg, lose young to eagles. */
-internal const val EAGLE_PREY_KG = 80f
+/** Young up to this weight now, kg, are taken by eagles: as the young of hoofed kinds up to some 80 kg grown were at three tenths of their weight; now the first weeks' piglets and calves of the bigger kinds too, as they are light ([HexFauna.youngShare]). */
+internal const val EAGLE_PREY_KG = 24f
 /** Strength ratio beyond which the weaker pack gives way without a fight. */
 internal const val FIGHT_RATIO = 1.5f
 

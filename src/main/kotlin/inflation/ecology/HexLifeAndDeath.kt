@@ -59,7 +59,6 @@ internal fun HexGroups.inheritSeasons(g: HexGroup) {
     val distOf = DoubleArray(count) { i -> val (cx, cy) = hex.centreKm(hw.placeHex[near[i]]); hypot(cx - hx, cy - hy) / reachKm }
     // (And its forage, ground and water, the same every month as the forebears reckon them.)
     val foodOf = FloatArray(count) { foodFor(s, Place(near[it])) }
-    val suitsOf = FloatArray(count) { fauna.suits(s, Place(near[it])) }
     val tetherOf = FloatArray(count) { fauna.usualTether(s, Place(near[it])) }
     var top = 0f
     for (m in 0 until 12) {
@@ -74,7 +73,7 @@ internal fun HexGroups.inheritSeasons(g: HexGroup) {
             val dist = distOf[i]
             // ... and how much forage grows there at all: a desert flush is little food; and whether it can drink there in a usual year.
             val food = foodOf[i]
-            val score = (0.2f + grow) * food / (food + 0.3f) * suitsOf[i] * tetherOf[i] * snow / (1f + discomfort * discomfort) /
+            val score = (0.2f + grow) * food / (food + 0.3f) * tetherOf[i] * snow / (1f + discomfort * discomfort) /
                 (1f + SEASON_DISTANCE * dist.toFloat())
             if (score > bestScore) { bestScore = score; best = p }
         }
@@ -88,9 +87,7 @@ internal fun HexGroups.inheritSeasons(g: HexGroup) {
 @Part("groups: demography")
 internal fun HexGroups.demography(weather: Weather, date: Date) {
     // Bands keep or move camp, gather materials and make their tools.
-    bands.followersByHex = groups.filter { it.alive && it.species.followsPeople && !it.species.human }.groupBy { hw.placeHex[it.place] }
-    bands.groupById = groups.associateBy { it.id }
-    bands.bandHex = groups.filter { it.alive && it.band != null }.associate { it.id to hw.placeHex[it.place] }
+    where.build(this, WhoIsWhere.Moment.DEMOGRAPHY)
     tendStructures(weather)
     foulGround()
     bands.houseOf = groups.filter { g -> g.alive && g.band.let { it != null && !it.houseHex.none && it.house >= Thresholds.HOUSE_STANDING } }
@@ -103,9 +100,15 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
         val bandGroups = groups.filter { it.alive && it.band != null }
         for (g in bandGroups) if (g.alive) bandWeek(g, weather, date)
         bands.tallies.flush(if (stats.census) stats.hunting else null)
+        // (The bands alive now, strays made this week among them: an id is never given again, so a band met that is not among
+        // them will never be met again, and each band forgets it ([Band.forgetGone]).)
+        val living = HashSet<Int>(2 * groups.size)
+        for (g in groups) if (g.alive) living += g.id
+        for (g in bands.strays) if (g.alive) living += g.id
         Par.forEach("people: customs year", bandGroups.size) { k ->
             val g = bandGroups[k]
-            if (g.alive) cultureWeek(g, stream(seedBase, Stream.CUSTOMS, g.id.toLong(), date.absoluteDay), date.absoluteDay)
+            if (g.alive) g.band?.forgetGone(living)
+            if (g.alive) cultureWeek(g, stream(seedBase, Stream.CUSTOMS, g.id.toLong(), date.absoluteDay), date.absoluteDay, weather)
         }
         for (g in bandGroups) if (g.alive) riteWeek(g, weather)
         groups += bands.strays; bands.strays.clear()
@@ -140,45 +143,49 @@ internal fun HexGroups.demography(weather: Weather, date: Date) {
     for (key in outbreaksStarting.sorted()) fauna.startOutbreak(Catalogue.all[(key / hex.size).toInt()], Hex((key % hex.size).toInt()))
     outbreaksStarting.clear()
     val born = ArrayList<HexGroup>()
-    for ((k, o) in outcome.withIndex()) {
-        val g = list[k]; val s = g.species
-        if (o == null) {
-            // Young whose last grown animal was killed this week (by hunters or rivals) die too.
-            if (!g.alive && g.young > 0) {
-                stats.deaths.merge(Tally.of(s, DeathCause.ORPHANED), g.young, Int::plus)
-                small.deposit(DeadPool.CARRION, g.place, KgM2(HexFauna.YOUNG_WEIGHT * g.young * s.massKg / (land.areaKm2[g.place] * 1e6f)))
-                g.young = 0
+    // (The tallies each outcome books summed in the thread's own sums and put in the ledgers once: merged one by one into
+    // the sorted ledgers they were a quarter of the booking, [WeekStats.summedByThread].)
+    stats.summedByThread {
+        for ((k, o) in outcome.withIndex()) {
+            val g = list[k]; val s = g.species
+            if (o == null) {
+                // Young whose last grown animal was killed this week (by hunters or rivals) die too.
+                if (!g.alive && g.young > 0) {
+                    stats.deaths.merge(Tally.of(s, DeathCause.ORPHANED), g.young, Int::plus)
+                    small.deposit(DeadPool.CARRION, g.place, KgM2(HexFauna.YOUNG_WEIGHT * g.young * s.massKg / (land.areaKm2[g.place] * 1e6f)))
+                    g.young = 0
+                }
+                continue
             }
-            continue
-        }
-        bookOutcome(g, o, weather)
-        mournDead(g, o, date)
-        o.split?.let { c ->
-            val n = splitOff(g, c.adults, c.young) // a young pack has no ground yet
-            // (A band that holds its home hex buds: the part that leaves settles where there is room near, [findHome].)
-            if (staysHome(n)) findHome(n, born)
-            born += n
-            if (s.lifeway == Lifeway.PACK && g.band == null) stats.meeting(Met.Of.PACK_SPLIT_OFF, s.name)
-            if (g.band != null) stats.meeting(Met.BANDS_SPLIT)
-            leaveBelief(g, n)
-        }
-        if (o.leavers > 0) {
-            repeat(o.leavers) { born += splitOff(g, 1, 0) } // each goes alone, to find a mate and ground
-            stats.meeting(Met.YOUNG_HUNTERS_LEFT_THEIR_PACK, o.leavers)
-            stats.meeting(Met.Of.PACK_LEFT_ALONE, s.name, o.leavers)
+            bookOutcome(g, o, weather)
+            mournDead(g, o, date, weather)
+            o.split?.let { c ->
+                val n = splitOff(g, c.adults, c.young) // a young pack has no ground yet
+                // (A band that holds its home hex buds: the part that leaves settles where there is room near, [findHome].)
+                if (staysHome(n)) findHome(n, born, weather)
+                born += n
+                if (s.lifeway == Lifeway.PACK && g.band == null) stats.meeting(Met.Of.PACK_SPLIT_OFF, s.name)
+                if (g.band != null) stats.meeting(Met.BANDS_SPLIT)
+                leaveBelief(g, n)
+            }
+            if (o.leavers > 0) {
+                repeat(o.leavers) { born += splitOff(g, 1, 0) } // each goes alone, to find a mate and ground
+                stats.meeting(Met.YOUNG_HUNTERS_LEFT_THEIR_PACK, o.leavers)
+                stats.meeting(Met.Of.PACK_LEFT_ALONE, s.name, o.leavers)
+            }
         }
     }
     groups += born
     // (Once a year, crowded hexes ease into the roomier hexes beside, [spreadYear].)
-    if (date.holdsMonthStart(days, 0)) { groups += spreadYear(date); foodCuts = null }
+    if (date.holdsMonthStart(days, 0)) { groups += spreadYear(date, weather); foodCuts = null }
     // (Month by month, bands tied to no spot move to a hex beside with more food a head, [moveCamps].)
-    if (date.holdsAnyMonthStart(days)) moveCamps()
+    if (date.holdsAnyMonthStart(days)) moveCamps(weather)
     // (Bands driven from their homes in the raids leave the hex: [scatterBeaten].)
-    groups += scatterBeaten(date)
+    groups += scatterBeaten(date, weather)
     tallyVillages()
     wornWeek(days)
-    tendParties(date)
-    mergeAndPair(date)
+    tendParties(date, weather)
+    mergeAndPair(date, weather)
 }
 
 /**
@@ -202,7 +209,7 @@ private fun HexGroups.leaveBelief(g: HexGroup, n: HexGroup) {
 @Part("groups: split off")
 internal fun HexGroups.splitOff(g: HexGroup, adults: Int, young: Int): HexGroup {
     val s = g.species
-    val n = HexGroup(nextId++, s, g.place, adults, young)
+    val n = HexGroup(nextId++, s, g.place, adults, young); StaleCheck.made()
     g.memory.copyInto(n.memory)
     n.fed = g.fed
     n.fat = g.fat
@@ -230,11 +237,14 @@ internal fun HexGroups.splitOff(g: HexGroup, adults: Int, young: Int): HexGroup 
  * (rounded at random, so single deaths fall on the old as often as their share says), so the age
  * structure stays whole and births are not reckoned on the dead. Never more than there are.
  */
+/** A band's protein burnt, days, from which the census counts it starving ([WeekStats.famine]). */
+internal const val FAMINE_SPENT = 10f
+
 internal fun adultsDied(g: HexGroup, n: Int, r: Random, elderRisk: Float = 1f) {
     val dead = min(n, g.adults)
     if (dead <= 0) return
     g.band?.let { b ->
-        // (The elders' share of the dead is the heavier by [elderRisk] when they are likelier to die: of hunger, see [ELDERS_YIELD].)
+        // (The elders' share of the dead is the heavier by [elderRisk] when they are likelier to die: of hunger, see [ageTilts].)
         if (elderRisk == 1f || b.elders <= 0 || b.elders >= g.adults) {
             b.elders -= min(b.elders, (dead * b.elders + r.nextInt(g.adults)) / g.adults)
             for (i in b.ageStage.indices) b.ageStage[i] -= min(b.ageStage[i], (dead * b.ageStage[i] + r.nextInt(g.adults)) / g.adults)
@@ -329,6 +339,16 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
             // (And by the way of life it lives: its camp moves, set against the record's for each way.)
             val lived = BandSplit.livelihood(b.livelihood())
             stats.bookWeek(lived, g.size)
+            // (And for the bad-year census, by country and by way of life: how fed, its fat, births and deaths: [inflation.tools.fauna.Census.printLeanYear].)
+            val hungry = o.causes.sumOf { if (it.cause == DeathCause.HUNGER) it.n else 0 }; val dead = o.causes.sumOf { it.n }
+            for (split in arrayOf(country, lived)) {
+                // (In hundredths: thousandths summed over a year of the foragers' people-weeks pass an Int.)
+                stats.book(split, Tally.Bands.FED_LEAN, (100f * min(1f, g.fed) * g.size).roundToInt())
+                stats.book(split, Tally.Bands.FAT, (10f * g.fat).roundToInt())
+                if (hungry > 0) stats.book(split, Tally.Bands.HUNGER_DIED, hungry)
+                if (dead > 0) stats.book(split, Tally.Bands.DIED, dead)
+            }
+            if (o.births > 0) stats.book(lived, Tally.Bands.BORN, o.births)
             if (g.path.size > 1) stats.book(lived, Tally.Bands.MOVES, 1)
             // (And those within a month of a camp move: what [Tally.starvedMoved] is set against.)
             if (b.campWeeks * (days / ticks) < Date.DAYS_PER_MONTH) stats.tally(Tally.movedWeeks(b.mind), g.size)
@@ -399,7 +419,7 @@ private fun HexGroups.bookOutcome(g: HexGroup, o: Outcome, weather: Weather) {
             stats.book(fedSplit, Tally.Bands.SODIUM_SHORT, (100f * b.sodiumShort).roundToInt())
             val saltHere = if (hw.coast[hw.placeHex[g.place]]) 1f else min(1f, 5f * land.salt[g.place])
             stats.book(fedSplit, Tally.Bands.SALT_HERE, (100f * saltHere).roundToInt())
-            val salt = bands.saltKnown(b, hw.placeHex[g.place])
+            val salt = saltKnown(g, b, hw.placeHex[g.place], weather)
             if (!salt.none) {
                 stats.book(fedSplit, Tally.Bands.SALT_KNOWN, 1)
                 stats.book(fedSplit, Tally.Bands.SALT_KM, hexKm(hw.placeHex[g.place], salt).roundToInt())
@@ -452,7 +472,7 @@ private fun HexGroups.bookUnlucky(g: HexGroup, b: Band, way: Tally.Living, died:
  * remembered as dangerous or as its dead's, burials and the ornaments that go with them.
  */
 @Part("groups: mourn the dead")
-private fun HexGroups.mournDead(g: HexGroup, o: Outcome, date: Date) {
+private fun HexGroups.mournDead(g: HexGroup, o: Outcome, date: Date, weather: Weather) {
     val s = g.species
     // A settled band that does not bury its dead, with a death where it means to stay, may take up burial then: it cannot
     // leave its dead, so it puts them in the ground ([SETTLED_BURY], each death).
@@ -499,13 +519,16 @@ private fun HexGroups.mournDead(g: HexGroup, o: Outcome, date: Date) {
         g.memory.mark(hw.placeHex[g.place], PlaceMemory.seasonOf(date.month), stepOf(date), ticksPerYear, g.memory.danger, 1f)
     if (s.human && o.deaths > 0) g.band?.takeIf { it.holds(Tradition.BURIAL) }?.let { b ->
         // Where it lays them by its way ([BurialWay]): where it camps, or carried to where most of its dead lie, if that is
-        // within a day's walk ([BODY_CARRY_KM]); the digging and any carrying are owed of its customs' time.
+        // within a day's walk by the ground ([BODY_CARRY_KM], [findWay]); the digging and any carrying are owed of its customs'
+        // time, and the bearers' going wears the way ([tripAlong]).
         val camp = hw.placeHex[g.place]
         val site = if (b.burialWay == BurialWay.AT_ANCESTORS) ancestorsHex(g) else Hex.NONE
-        val at = if (!site.none && hexKm(camp, site) <= BODY_CARRY_KM) site else camp
+        val way = if (!site.none && site != camp) findWay(g, camp, site, weather, BODY_CARRY_KM.toFloat()) else null
+        val at = if (way != null) site else camp
         val p = if (at == camp) g.place else hw.placeNear(g.place, at).takeIf { !it.none } ?: g.place
-        val carryKm = if (at == camp) 0.0 else hexKm(camp, at)
-        val owed = o.deaths * (BURY_DAYS + BEARERS * (2.0 * carryKm / (WALK_KM_PER_HOUR * Activity.WORK_HOURS)).toFloat())
+        val carryKm = way?.km?.toDouble() ?: 0.0
+        if (way != null) tripAlong(g, way, BEARERS * o.deaths, WalkPaid.BY_CALLER)
+        val owed = o.deaths * (BURY_DAYS + BEARERS * (2.0 * carryKm / DAY_WALK_KM).toFloat())
         b.burialOwed += owed
         stats.meeting(Met.Of.CUSTOMS_DAYS_ASKED, CustomsPart.BURIALS.label, (10f * owed).roundToInt())
         if (at != camp) { stats.meeting(Met.BANDS_CARRIED_THEIR_DEAD); note(g) { "carried its dead to its ancestors at hex %d".format(at.i) } }
@@ -514,6 +537,7 @@ private fun HexGroups.mournDead(g: HexGroup, o: Outcome, date: Date) {
         land.sanctity[p] += o.deaths.toFloat()
         // Ornaments go into the grave with them: the more a band has, the richer its graves.
         val goods = min(b.ornaments, GRAVE_GOODS * b.ornaments * o.deaths)
+        noteOrnaments(OrnamentFlow.BURIED, b.ornamentWorthOf(goods))
         b.takeOrnaments(goods); land.graveGoods[p] += goods
     }
 }
@@ -585,10 +609,12 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     val homeless = if (s.lifeway == Lifeway.PACK && g.home.none) DISPERSAL_DEATHS * years else 0f
     // Every hazard of the week, once: its cause and the odds it adds for a grown one and for a young one.
     val hazards = arrayListOf(
-        Hazard(DeathCause.OTHER, healed * s.backgroundMortality * (if (s.human) tuning.humanOther else 1f) * years,
+        Hazard(DeathCause.OTHER, backgroundOdds(s, band) * years,
             healed * cared * s.youngMortality * (if (s.human) tuning.humanYoung else 1f) * years))
     placeHazards(g, g.place, weather, g.fed, thirst, sick, band?.fire ?: 0f, band?.homeShelter() ?: 0f) { c, a, y -> hazards += Hazard(c, a, y) }
     band?.let { houseWorthWeek(g, it, weather, stalked) }
+    // (Illness is the deadlier the more its people have burnt of their bodies: [famineIllness], before the step's burning is booked.)
+    val famine = famineIllness(g, g.fed)
     val spentBefore = g.spent
     g.spent = Hazards.spentAfter(s, g.spent, g.fed, days)
     // (No beast to blame, none taken: a hazard of none weighs nothing in sharing the deaths, and is left out.)
@@ -602,7 +628,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
             val k = band?.let { b -> caretakersTake(b) } ?: 0f
             Hazard(ByBeast.of(ByBeast.How.TAKEN_BY, it), stalked + k * young * g.young / g.adults.coerceAtLeast(1), (1f - k) * young) },
         Hazard(DeathCause.WOUNDS, festered, 0f)))
-    ill?.let { a -> for (it in Illness.entries) hazards += Hazard(it, a[it], a[it] * it.young) }
+    ill?.let { a -> for (it in Illness.entries) hazards += Hazard(it, a[it] * famine.first, a[it] * it.young * famine.second) }
     // The elders' care spares some of the young.
     val spared = 1f - ELDER_CARE * help
     var adultSum = 0f; var youngSum = 0f
@@ -635,6 +661,18 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
         for (h in hazards) h.cause.deathClass()?.let { c -> g.addLost(c.ordinal, g.adults * h.adult * adultScale + youngExposed * spared * h.young * youngScale) }
         for (h in hazards) if (h.adult > 0f) stats.grownHazardDeaths.computeIfAbsent(h.cause) { DoubleAdder() }.add((g.adults * h.adult * adultScale).toDouble())
         g.addLost(LOST_ALL, diedExpected)
+        // (Census: deaths in bands starving, by age and cause class: [WeekStats.famine].)
+        if (band != null && spentBefore >= FAMINE_SPENT) {
+            fun add(k: Famine, v: Float) = stats.famine[k.ordinal].add(v.toDouble())
+            val e = min(band.elders, g.adults); val others = g.adults - e
+            add(Famine.YEARS_GROWN, g.adults * years); add(Famine.YEARS_YOUNG, youngExposed * years); add(Famine.YEARS_ELDERS, e * years)
+            for (h in hazards) {
+                val hunger = h.cause == DeathCause.HUNGER; val ill = h.cause is Illness || h.cause == DeathCause.DISEASE
+                add(if (hunger) Famine.GROWN_HUNGER else if (ill) Famine.GROWN_ILLNESS else Famine.GROWN_OTHER, g.adults * h.adult * adultScale)
+                add(if (hunger) Famine.YOUNG_HUNGER else if (ill) Famine.YOUNG_ILLNESS else Famine.YOUNG_OTHER, youngExposed * spared * h.young * youngScale)
+            }
+            if (e > 0) add(Famine.ELDERS_ALL, g.adults * adultOdds * e * elderRisk / (e * elderRisk + others))
+        }
     }
     // Elders die as the others do (their share of the adults who died), and of old age besides.
     adultsDied(g, da, r, elderRisk)
@@ -723,32 +761,31 @@ private fun GroupWorld.growUp(g: HexGroup, r: Random): Int {
 
 /** Small bands join kin, and lone hunters find mates (see [demography]). */
 @Part("groups: merging and pairing")
-internal fun HexGroups.mergeAndPair(date: Date) {
+internal fun HexGroups.mergeAndPair(date: Date, weather: Weather) {
     // A band grown too small to hunt, gather and defend itself joins the nearest kin band that has room.
-    val bandsByHex = HashMap<Hex, ArrayList<HexGroup>>()
-    for (g in groups) if (g.alive && g.band != null) bandsByHex.getOrPut(hw.placeHex[g.place]) { ArrayList() } += g
+    where.build(this, WhoIsWhere.Moment.MERGING)
     for (g in groups) {
         val b = g.band ?: continue
         if (!g.alive || g.adults >= SMALL_BAND || inParty(g)) continue
         var best: HexGroup? = null; var bestKin = -1f
         val h0 = hw.placeHex[g.place]
-        var ring = listOf(h0); val seen = hashSetOf(h0)
-        for (r in 0..VISIT_RINGS) {
-            for (h in ring) for (o in bandsByHex[h].orEmpty()) {
+        // (Among the bands it can walk to ([kinReachKm], by the ground), the nearest of most kinship: the nearer by the going.)
+        val most = kinReachKm(); val reach = reachOf(g, h0, most, weather)
+        for (i in 0 until reach.hexes.size) {
+            if (reach.dist[i] > most) continue
+            for (o in where.bandsIn(reach.hexes[i])) {
                 // (A band joins only one of its own mind: the two kinds of choosing stay apart.)
                 val ob = o.band ?: continue
                 if (o === g || !o.alive || o.size + g.size > maxSize(o) || ob.mind != b.mind || inParty(o)) continue
-                val k = kinship(b.lineage, ob.lineage) / (1f + r)
+                val k = kinPull(b, ob, reach.dist[i])
                 if (k > bestKin) { bestKin = k; best = o }
             }
-            if (best != null || r == VISIT_RINGS) break
-            ring = hex.nextRing(ring, seen)
         }
         val o = best ?: continue
-        joinBand(o, g, stepOf(date))
+        if (!joinOver(o, g, weather, stepOf(date))) continue
         stats.meeting(Met.SMALL_BANDS_JOINED_KIN)
     }
-    becomeOne(date)
+    becomeOne(date, weather)
     // A hunter left on its own looks for a mate: lone adults of a kind within a few hexes pair up, and
     // the pair holds the ground of the one that had any.
     val lone = HashMap<Int, ArrayList<HexGroup>>()
@@ -757,9 +794,11 @@ internal fun HexGroups.mergeAndPair(date: Date) {
         val used = HashSet<Int>()
         for (a in list) {
             if (a.id in used) continue
-            // (As far as it chooses to look; and only among its own lineage while variants are weighed against each other.)
-            val b = list.firstOrNull { it.id != a.id && it.id !in used && it.tag == a.tag &&
-                hex.distanceKm(hw.placeHex[it.place], hw.placeHex[a.place]) <= MATE_SEARCH_KM * a.will[AnimalWay.MATE] } ?: continue
+            // (As far as it chooses to look, by the ground its kind can cross ([reachOf]); and only among its own lineage while
+            // variants are weighed against each other.)
+            val most = (MATE_SEARCH_KM * a.will[AnimalWay.MATE]).toFloat()
+            val reach = reachOf(a, hw.placeHex[a.place], most, weather)
+            val b = list.firstOrNull { it.id != a.id && it.id !in used && it.tag == a.tag && reach.km(hw.placeHex[it.place], most) != null } ?: continue
             used += a.id; used += b.id
             a.adults += b.adults; a.young += b.young
             a.fed = (a.fed + b.fed) / 2f; a.fat = (a.fat + b.fat) / 2f; a.spent = (a.spent + b.spent) / 2f; a.bred = (a.bred + b.bred) / 2f
@@ -779,7 +818,7 @@ internal fun HexGroups.mergeAndPair(date: Date) {
  * together. Nothing forces it, and it needs room under the size a band holds without discord ([easySize]). The smaller joins the larger.
  * Bands of the two kinds of choosing ([Band.mind]) become one alike: the joined band chooses as the larger did.
  */
-private fun HexGroups.becomeOne(date: Date) {
+private fun HexGroups.becomeOne(date: Date, weather: Weather) {
     val atHome = HashMap<Hex, ArrayList<HexGroup>>()
     for (g in groups) { val b = g.band ?: continue; if (g.alive && b.atHome) atHome.getOrPut(b.houseHex) { ArrayList() } += g }
     for ((_, bands) in atHome) {
@@ -794,7 +833,7 @@ private fun HexGroups.becomeOne(date: Date) {
             val ka = keptDays(a, ab); val kc = keptDays(c, cb)
             if (max(ka, kc) > WEALTH_APART * min(ka, kc) + 1f) { stats.meeting(Met.BANDS_KEPT_APART_BY_WEALTH); continue }
             val (into, from) = if (a.size >= c.size) a to c else c to a
-            joinBand(into, from, stepOf(date))
+            if (!joinOver(into, from, weather, stepOf(date))) continue
             stats.meeting(Met.BANDS_BECAME_ONE)
             if (ab.mind != cb.mind) stats.meeting(Met.BANDS_OF_TWO_MINDS_BECAME_ONE)
         }

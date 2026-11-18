@@ -34,7 +34,7 @@ fun main(args: Array<String>) {
     val bands = listOf(0.0 to 300.0, 300.0 to 700.0, 700.0 to 1200.0, 1200.0 to 1800.0, 1800.0 to 2500.0, 2500.0 to 9000.0)
     val bandOf = IntArray(n) { p -> bands.indexOfFirst { (lo, hi) -> hw.placeElevationM[p] >= lo && hw.placeElevationM[p] < hi } }
     val pet = land.pet
-    val watchKinds = run.fauna.kinds.filter { it.name in setOf("red deer", "ibex", "mouflon", "aurochs", "fallow deer", "wild boar") }
+    val watchKinds = run.fauna.kinds.filter { it.name in setOf("deer", "wild goat", "mouflon", "aurochs", "wild boar") }
     val names = watchKinds.map { it.name + " per km²" } + listOf("evaporative demand mm/week", "soil holds mm", "temperature °C", "rain mm/week",
         "snow lying mm", "melt mm/week", "soil water / held", "warmth part", "water part", "share cured", "green", "grass kg/m²",
         "growth (warmth × water)")
@@ -71,8 +71,8 @@ fun main(args: Array<String>) {
             area[b][m] += a
         }
     }
-    // How much better the higher of two neighbouring height bands in a hex looks to red deer and mouflon, month by month (geometric mean of high/low).
-    for (name in listOf("red deer", "mouflon", "ibex")) {
+    // How much better the higher of two neighbouring height bands in a hex looks to deer and mouflon, month by month (geometric mean of high/low).
+    for (name in listOf("deer", "mouflon", "wild goat")) {
         val kk = run.fauna.kinds.indexOfFirst { it.name == name }; if (kk < 0) continue
         println("$name: higher band's appeal against the lower's, by month: " +
             (0 until 12).joinToString(" ") { m -> if (ratioN[kk][m] > 0) "%.2f".format(exp(ratioSum[kk][m] / ratioN[kk][m])) else "-" })

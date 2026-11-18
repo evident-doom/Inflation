@@ -2,6 +2,7 @@ package inflation.ecology
 
 import inflation.world.Hex
 import inflation.world.Place
+import inflation.world.Weather
 import inflation.world.get
 import inflation.world.set
 import kotlin.math.exp
@@ -12,26 +13,33 @@ import kotlin.math.exp
 
 /**
  * The people within a day's walk of each hex, per km², as the step begins ([HexFauna.peopleNear]): each band's heads
- * spread over its hex and the six about it (a forager's day out and back), by their land. Once a step, before the
+ * spread over its hex and those of the six about it its people can walk to and back in a day, by the ground ([reachOf]:
+ * within [PRESSURE_REACH_HEXES] hexes' going; not across a strait or a cliff), by their land. Once a step, before the
  * foraging and the residents' moves read it.
  */
-internal fun HexGroups.peopleAbout() {
+internal fun HexGroups.peopleAbout(weather: Weather) {
     val near = fauna.peopleNear
     near.fill(0f)
+    val most = PRESSURE_REACH_HEXES * hex.hexKm.toFloat()
+    val about = ArrayList<Hex>(7)
     for (g in groups) {
         if (!g.alive || g.band == null) continue
         val h = hw.placeHex[g.place]
-        var area = landKm2(h)
-        for (d in 0 until 6) { val q = hex.neighbour(h, d); if (!q.none) area += landKm2(q) }
+        val reach = reachOf(g, h, most, weather)
+        about.clear(); about += h
+        for (d in 0 until 6) { val q = hex.neighbour(h, d); if (!q.none && reach.km(q, most) != null) about += q }
+        var area = 0f; for (q in about) area += landKm2(q)
         if (!(area > 0f)) continue
         val each = g.size / area
-        near[h] += each
-        for (d in 0 until 6) { val q = hex.neighbour(h, d); if (!q.none) near[q] += each }
+        for (q in about) near[q] += each
     }
 }
 
+/** How far by the going a band's people range about its camp in a day out and back, for their pressure on the hunters ([peopleAbout]): a hex and a half. */
+internal const val PRESSURE_REACH_HEXES = 1.5f
+
 /** The land of hex [h], km². */
-private fun GroupWorld.landKm2(h: Hex): Float { var a = 0f; for (q in hw.placesOf(h)) a += land.areaKm2[q]; return a }
+internal fun GroupWorld.landKm2(h: Hex): Float { var a = 0f; for (q in hw.placesOf(h)) a += land.areaKm2[q]; return a }
 
 /**
  * [heads] of resident hunter kind [k] killed by people at place [p] ([huntGame]), or the heads people would kill of it

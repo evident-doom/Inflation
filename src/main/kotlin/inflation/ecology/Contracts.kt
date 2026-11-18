@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.world.Place
 import kotlin.math.max
 import kotlin.math.min
 
@@ -61,12 +62,31 @@ class Herd(kinds: Int) {
      */
     var herdSows = FloatArray(kinds) { 0.5f }
     /**
+     * Where it is kept this week ([placeHerd]): its band's camp, or a summer pasture; [Place.NONE] till its first keeping.
+     * Worked out afresh each week from where it was, so not saved: a loaded world's herds start at camp.
+     */
+    @Transient var at = Place.NONE
+    /** Where it grazes by day this week, within a day's going of where it is kept ([bestGrazing]); [Place.NONE] till its first keeping. */
+    @Transient var grazeAt = Place.NONE
+    /**
      * Of each kind, the share of its grown and young that are of herded stock: born in a herd, or given by herders, not caught
      * young in the hunt. Only those breed ([keepHerds]): young caught wild are raised as pets and do not found a herd
      * (Olli 2026-11-10: the first domestications are not modelled, only established herding). (Empty in a band loaded from
      * a save made before it; [bred] sizes it, none of herded stock: herds in worlds saved before it were begun from young caught wild.)
      */
     var herdBred = FloatArray(kinds) { 0f }
+    /**
+     * Of each kind, its body as a resident's is ([HexFauna.reserve], [HexFauna.spent]): its fat, as a share of its kind's most
+     * ([Species.maxFatDays]), and the days of its body's protein it has burnt. The one body every animal has, by which it
+     * starves, bears and dies ([keepHerds]). (Empty in a band loaded from a save made before it; [fat] and [spent] size them,
+     * half-fat and unburnt, as a new group starts.)
+     */
+    var herdFat = FloatArray(kinds) { 0.5f }
+    var herdSpent = FloatArray(kinds)
+    /** [herdFat], sized to [herd]. */
+    fun fat(): FloatArray { if (herdFat.size != herd.size) herdFat = FloatArray(herd.size) { 0.5f }; return herdFat }
+    /** [herdSpent], sized to [herd]. */
+    fun spent(): FloatArray { if (herdSpent.size != herd.size) herdSpent = FloatArray(herd.size); return herdSpent }
     /** [herdBred], sized to [herd]. */
     fun bred(): FloatArray { if (herdBred.size != herd.size) herdBred = FloatArray(herd.size) { 0f }; return herdBred }
     /** Adds [n] head of kind [k] of herded stock share [stock] to its grown, blending [herdBred] by heads. */
@@ -92,7 +112,7 @@ class Herd(kinds: Int) {
 
     /** A new band [o] splitting off its keeper takes [share] of the herd, grown and young, and the herd's tameness, pets and last week's keeping. */
     fun splitInto(o: Herd, share: Float) {
-        sows().copyInto(o.sows()); bred().copyInto(o.bred())
+        sows().copyInto(o.sows()); bred().copyInto(o.bred()); fat().copyInto(o.fat()); spent().copyInto(o.spent())
         herdTame.copyInto(o.herdTame); herd.copyInto(o.herd); herdGrew.copyInto(o.herdGrew); herdPet.copyInto(o.herdPet)
         // (A band from a save made when there were fewer resident kinds keeps fewer: see [HexFauna.kinds].)
         for (i in 0 until min(herd.size, o.herd.size)) { o.herd[i] *= share; herd[i] -= o.herd[i] }
@@ -108,6 +128,8 @@ class Herd(kinds: Int) {
             val heads = n + ay[i] + by[i]
             if (heads > 0f) a.herdTame[i] = ((a.herd[i] + ay[i]) * a.herdTame[i] + (b.herd[i] + by[i]) * b.herdTame[i]) / heads
             if (heads > 0f) { val ba = a.bred(); val bb = b.bred(); ba[i] = ((a.herd[i] + ay[i]) * ba[i] + (b.herd[i] + by[i]) * bb[i]) / heads }
+            if (heads > 0f) { val fa = a.fat(); val fb = b.fat(); fa[i] = ((a.herd[i] + ay[i]) * fa[i] + (b.herd[i] + by[i]) * fb[i]) / heads
+                val sa = a.spent(); val sb = b.spent(); sa[i] = ((a.herd[i] + ay[i]) * sa[i] + (b.herd[i] + by[i]) * sb[i]) / heads }
             if (n > 0f) { val sa = a.sows(); val sb = b.sows(); sa[i] = (a.herd[i] * sa[i] + b.herd[i] * sb[i]) / n }
             a.herd[i] = n; ay[i] += by[i]
             // (Pets while either band's were: the joined herd is weighed as food once the younger has grown.)
@@ -122,6 +144,7 @@ class Herd(kinds: Int) {
                 put("herd", OnSplit.SHARED to OnJoin.SUM); put("herdYoung", OnSplit.SHARED to OnJoin.SUM)
                 put("herdPet", OnSplit.COPIED to OnJoin.MAX)
                 put("herdTame", OnSplit.COPIED to OnJoin.BLENDED); put("herdSows", OnSplit.COPIED to OnJoin.BLENDED); put("herdBred", OnSplit.COPIED to OnJoin.BLENDED)
+                put("herdFat", OnSplit.COPIED to OnJoin.BLENDED); put("herdSpent", OnSplit.COPIED to OnJoin.BLENDED)
                 put("herdGrew", OnSplit.COPIED to OnJoin.LOST)
                 put("herdTaken", OnSplit.FRESH to OnJoin.LOST)
             }
@@ -137,6 +160,14 @@ class Dogs(kinds: Int) {
     val contract get() = ContractKind.COMPANION
     /** Its dogs, by kind. */
     val kept = FloatArray(kinds)
+    /**
+     * Of each kind, the days of their body's protein its dogs have burnt, going short by the camp ([keepAnimals]): past what
+     * carries them they leave, as hunger would kill them ([Hazards.hunger]). (Empty in a band loaded from a save made before
+     * it; [spent] sizes it, unburnt.)
+     */
+    var dogSpent = FloatArray(kinds)
+    /** [dogSpent], sized to [kept]. */
+    fun spent(): FloatArray { if (dogSpent.size != kept.size) dogSpent = FloatArray(kept.size); return dogSpent }
     /** Its dogs against its hunters (one to three a full pack): they track, bay and hold small game, and bark at night. */
     var dogShare = 0f
     /** How far its dogs were fed this week, 0..1 (1 with none; for the census). */
@@ -144,18 +175,22 @@ class Dogs(kinds: Int) {
 
     /** A new band [o] splitting off its keeper takes [share] of the dogs. */
     fun splitInto(o: Dogs, share: Float) {
-        kept.copyInto(o.kept)
+        kept.copyInto(o.kept); spent().copyInto(o.spent())
         for (i in o.kept.indices) { o.kept[i] *= share; kept[i] -= o.kept[i] }
     }
 
-    /** The dogs of a band joining its keeper, [b], are added to its own. */
-    fun absorb(b: Dogs) { for (i in b.kept.indices) kept[i] += b.kept[i] }
+    /** The dogs of a band joining its keeper, [b], are added to its own, their burnt body blended by heads. */
+    fun absorb(b: Dogs) {
+        val sa = spent(); val sb = b.spent()
+        for (i in b.kept.indices) { val n = kept[i] + b.kept[i]; if (n > 0f && i < sa.size && i < sb.size) sa[i] = (kept[i] * sa[i] + b.kept[i] * sb[i]) / n; kept[i] += b.kept[i] }
+    }
 
     companion object {
         /** Each field's rule, as [splitInto] and [absorb] carry it out; BandCarryTest fails when a field is missing here. */
         val CARRY: Map<String, Pair<OnSplit, OnJoin>> by lazy {
             LinkedHashMap<String, Pair<OnSplit, OnJoin>>().apply {
                 put("kept", OnSplit.SHARED to OnJoin.SUM)
+                put("dogSpent", OnSplit.COPIED to OnJoin.BLENDED)
                 put("dogShare", OnSplit.FRESH to OnJoin.LOST)
             }
         }

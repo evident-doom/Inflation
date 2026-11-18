@@ -65,6 +65,11 @@ class WeekStats {
     @Transient val childDeaths = ConcurrentHashMap<DeathReason, DoubleAdder>()
     /** People's grown ones' deaths expected from each week's hazards, by cause (census only; raids and hunts are booked elsewhere). */
     @Transient val grownHazardDeaths = ConcurrentHashMap<DeathReason, DoubleAdder>()
+    /**
+     * Bands starving (their protein burnt [FAMINE_SPENT] days or more as the step began): people-years by age and deaths expected
+     * from the odds by age and cause class ([Famine]). Census only, a report ledger, not saved: the famine-by-age check.
+     */
+    @Transient val famine = Array(Famine.entries.size) { DoubleAdder() }
     /** Young born this week by kind. */
     val births = TreeMap<Species, Int>(BY_NAME)
     /** The residents' deaths this week by "kind:cause", head (fractions: the residents are densities). */
@@ -118,35 +123,45 @@ class WeekStats {
  */
 private class ThreadSums<K>(private val ledger: ConcurrentSkipListMap<K, Int>) {
     @Volatile var on = false
-    /** One thread's sums, by key, and the keys it added to in the order it first did (walked at the flush instead of the map). */
-    private class Mine<T> { val at = HashMap<T, IntArray>(); val keys = ArrayList<T>(); val sums = ArrayList<IntArray>() }
+    /**
+     * One thread's sums since the last flush ([round]), by key, and the keys it added to in the order it first did (walked at
+     * the flush instead of the map).
+     */
+    private class Mine<T>(val round: Int) { val at = HashMap<T, IntArray>(); val keys = ArrayList<T>(); val sums = ArrayList<IntArray>() }
+    /**
+     * The sums of the threads that added since the last flush. Emptied at each flush, and a thread takes new sums in the next
+     * round: the pool's threads come and go (millions over a long run), and sums kept here for every thread that ever added
+     * filled most of the heap (memory-histo-1116: 13 of 14.3 GB in a max-population run).
+     */
     private val all = ConcurrentLinkedQueue<Mine<K>>()
-    private val mine = ThreadLocal.withInitial { Mine<K>().also { all += it } }
+    @Volatile private var round = 0
+    private val mine = ThreadLocal<Mine<K>>()
 
     fun add(key: K, n: Int) {
         if (!on) { ledger.merge(key, n, Int::plus); return }
-        val m = mine.get()
+        val m = mine.get()?.takeIf { it.round == round } ?: Mine<K>(round).also { mine.set(it); all += it }
         m.at.getOrPut(key) { IntArray(1).also { m.keys += key; m.sums += it } }[0] += n
     }
 
     /**
      * Puts every thread's sums in the ledger and turns them off (once the loops have joined): summed over the threads first,
      * then each key merged once (the sums are whole numbers, so the ledger is the same as merging thread by thread). A
-     * thread's keys are walked from its list, not its map, whose table stays as wide as its busiest week.
+     * thread's keys are walked from its list, not its map. The sums are then let go: each thread starts afresh next round.
      */
     fun flush() {
         on = false
         val total = HashMap<K, IntArray>()
-        for (m in all) {
-            for (i in m.keys.indices) total.getOrPut(m.keys[i]) { IntArray(1) }[0] += m.sums[i][0]
-            m.at.clear(); m.keys.clear(); m.sums.clear()
-        }
+        for (m in all) for (i in m.keys.indices) total.getOrPut(m.keys[i]) { IntArray(1) }[0] += m.sums[i][0]
+        all.clear(); round++
         for ((k, v) in total) ledger.merge(k, v[0], Int::plus)
     }
 }
 
 /** What the week's [meetings][WeekStats.meetings] count, each under its [label]. */
 enum class Met(val label: String) {
+    BANDS_ASKED_FOR_GOODS("bands went to ask another for stone, salt or ochre"),
+    BANDS_WORKED_FOR_FAVOURS("bands sent people to build for a band they owed"),
+    MONUMENTS_BEGUN("monuments begun at holy ground"),
     BANDS_ATE_THEIR_TOTEM("bands ate their totem"),
     BANDS_BACK_AT_A_CACHE("bands back at a cache"),
     BANDS_BUILT_HOUSES("bands built houses"),
@@ -222,10 +237,11 @@ enum class Met(val label: String) {
     BANDS_TOOK_UP_ANOTHERS_RITE("bands took up another's rite"),
     BANDS_TOOK_UP_ANOTHERS_TOTEM("bands took up another's totem"),
     BANDS_TOOK_UP_ANOTHERS_WAY_OF_LIFE("bands came to hold another's way of life"),
-    BANDS_VISITED_FRIENDS("bands visited friends"),
     CACHES_ROBBED("caches robbed"),
     FAVOURS_HELD_BACK("favours held back"),
     FAVOURS_RETURNED("favours returned"),
+    GOODS_FAVOURS_HELD_BACK("favours held back in goods"),
+    GOODS_FAVOURS_RETURNED("favours returned in goods"),
     FEASTS("feasts"),
     KILL_FEASTS("feasts on kills too big to eat before they rot"),
     FEASTS_WITH_BEER("feasts with beer"),
@@ -244,6 +260,11 @@ enum class Met(val label: String) {
     BANDS_AT_APPOINTMENTS("bands at appointments' gatherings"),
     ORNAMENTS_GIVEN("ornaments given"),
     PACK_GAVE_WAY("pack gave way"),
+    /** Parties a band sent for a rare material its own ground does not give ([taskTrips]). */
+    TASK_TRIPS("task trips for stone, salt, ochre or shell"),
+    /** Herds driven by their herders to a pasture in another hex, or back ([placeHerd]). */
+    HERDS_DRIVEN_TO_PASTURE("herds driven to or from a summer pasture"),
+    HUNTERS_GAVE_WAY("hunter gave way to another kind"),
     /** People killed in raids, by whether their band lives fixed ([Band.livesFixed]: in its houses, by fresh sowing, behind a palisade) or not. */
     RAID_KILLED_FIXED("people killed in raids, of bands living fixed"),
     RAID_KILLED_MOBILE("people killed in raids, of bands on the move"),
@@ -266,7 +287,8 @@ enum class Met(val label: String) {
     YOUNG_ANIMALS_KEPT("young animals kept"),
     YOUNG_HUNTERS_LEFT_THEIR_PACK("young hunters left their pack"),
     APPOINTMENTS_OUT_OF_REACH("bands that let an appointment go, its place beyond their reach"),
-    BANDS_BACK_TO_HOUSES("bands moved their camp to standing houses in the hex beside");
+    BANDS_BACK_TO_HOUSES("bands moved their camp to standing houses in the hex beside"),
+    FAR_RITES_HELD_AT_CAMP("rites at a far site held at the camp: walked there already this year, or a lean month");
 
     /** Its key in [WeekStats.meetings]. */
     val key = TallyKey.raw(label)
@@ -274,7 +296,7 @@ enum class Met(val label: String) {
     /** Meetings of something named (a kind, a skill, a tool, a custom, a good), keyed [before] its name [after]. */
     enum class Of(val before: String, val after: String = "") {
         NEWCOMERS("newcomers: "), SEA_CROSSINGS("sea crossings: "), HIT_ON("band hit on "), LOST("band lost "), TOOK_A_PUP("bands took a ", " pup"),
-        LEARNED("band learned "), TOOK_UP("band took up "), TOOK_LEAVE_OF("band took leave of "), DROPPED("band dropped "), GIVEN("", " given"),
+        LEARNED("band learned "), TOOK_UP("band took up "), TOOK_LEAVE_OF("band took leave of "), DROPPED("band dropped "), GIVEN("", " given"), ASKED("", " given to bands that came asking"), MADE("ornaments made: "),
         TURNED_BACK_BY("bands turned back by "), DOGS_GONE_WILD("dogs gone wild as ", " packs"), DOGS_LEFT("dogs left hungry camps for ", " packs"),
         /** How packs of a kind come and go (report only): grown young gone alone, packs split off, lone pairs, ground taken, packs ended (and those without ground). */
         PACK_LEFT_ALONE("pack young left alone, "), PACK_SPLIT_OFF("packs split off, "), PACK_PAIRED("lone hunters paired, "),
@@ -364,6 +386,8 @@ object Tally {
         CLAD_WEEKS("clad people-weeks"), CHILD_WEEKS("children-weeks"), MOBILE_WEEKS("mobile band-weeks"), AIR("air, 1/10 °C"),
         /** For [Herding]: how well fed through the week ([HexGroup.fed], at most 1), thousandths summed over people-weeks. */
         FED("fed, 1/1000"),
+        /** For the bad-year census ([inflation.tools.fauna.Census.printLeanYear]): the crop grain it got, kg; its deaths, of hunger and of all causes. */
+        CROP("crop got, kg"), FED_LEAN("fed, 1/100, lean-year count"), HUNGER_DIED("hunger deaths, lean-year count"), DIED("deaths, lean-year count"),
         /** Its clothes ([Band.clothesClo]), clo, and its spare days over the last season ([Band.spareMean]), share: tenths and thousandths summed over band-weeks. */
         CLOTHES("clothes clo, 1/10"), SPARE("spare days, 1/1000"),
         /** The week's mean air at its camp, °C, tenths summed over band-weeks; the band-weeks it came to a new camp. */
@@ -739,3 +763,6 @@ object Tally {
     /** Hide people got from [source], grams. */
     fun hide(source: HideSource) = TallyKey.raw("people hide:${source.label}")
 }
+
+/** The famine-by-age ledger's entries ([WeekStats.famine]): people-years by age, then deaths by age and cause class. */
+enum class Famine { YEARS_GROWN, YEARS_YOUNG, YEARS_ELDERS, GROWN_HUNGER, GROWN_ILLNESS, GROWN_OTHER, YOUNG_HUNGER, YOUNG_ILLNESS, YOUNG_OTHER, ELDERS_ALL }

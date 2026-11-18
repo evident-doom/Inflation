@@ -142,11 +142,16 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
      * For a pack that holds its ground this step ([holdsGround]): the hexes of its territory it hunts and marks ([footprint]),
      * and each one's weight; null for every other group. (Made anew each week before it is read.)
      */
-    @Transient var footprint: HexArray? = null
-    @Transient var footWeights: FloatArray? = null
+    /** The ground it ranges over from home this step ([Footprint], [layGround]); null for one on its way. */
+    @Transient var footprint: Footprint? = null
     /**
-     * For a pack that holds its ground: the hexes it gave way on at meetings and keeps off until a day ([gaveWay]), each the
-     * hex's index in the high half and the absolute day in the low; null for none.
+     * Whether it is a resident stand-in ([ResidentParties]): a party standing for its kind's settled bands in its hex,
+     * met in the step's meetings, not a group of its own. It holds its ground there and does not lose its home.
+     */
+    @Transient var standIn = false
+    /**
+     * For a pack that holds its ground: the hexes it gave way on at meetings and keeps off until a day ([gaveWay]), each
+     * packed as [Yield] has it; null for none.
      */
     var yielded: LongArray? = null
     /** For hunters: meetings with game of each kind ([Species.index]), as of [herdsMetOn], fading over [SEARCH_DAYS] (null: none yet; see [SEARCH_HALF]). */

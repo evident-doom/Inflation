@@ -1,5 +1,6 @@
 package inflation.tools.fauna
 
+import inflation.ecology.Famine
 import inflation.EnumFloats
 import inflation.enumFloats
 import inflation.world.Hex
@@ -7,6 +8,10 @@ import inflation.ecology.set
 import inflation.ecology.get
 import inflation.ecology.ADULT_YEARS
 import inflation.ecology.Tally
+import inflation.ecology.campWeeksAt
+import inflation.ecology.peopleCrowding
+import inflation.ecology.hygieneAt
+import inflation.ecology.catching
 import inflation.ecology.ByBeast
 import inflation.ecology.Catalogue
 import inflation.ecology.TallyKey
@@ -23,6 +28,11 @@ import inflation.ecology.Skill
 import inflation.ecology.Species
 import inflation.ecology.Tool
 import inflation.ecology.Material
+import inflation.ecology.Structure
+import inflation.ecology.tradedNow
+import inflation.ecology.SOURCE_RINGS_KM
+import inflation.ecology.nearestSourceKm
+import inflation.ecology.worthDaysPerKg
 import inflation.ecology.Tradition
 import inflation.ecology.bandLiving
 import inflation.ecology.boldness
@@ -36,6 +46,8 @@ import inflation.ecology.WEIR_MAX_M
 import inflation.ecology.WEIR_TEND_DAYS_PER_M
 import inflation.ecology.WEIR_WOOD_KG_PER_M
 import java.util.TreeMap
+import kotlin.math.max
+import kotlin.math.min
 import inflation.world.get
 import inflation.world.set
 import inflation.world.Place
@@ -259,6 +271,9 @@ class MovementTally(private val sim: HexSim) {
 }
 
 /** People week by week, for the bands' line and the comparison with the ethnographic record. */
+/** How near a band's camp must lie to a source of good stone, salt or obsidian to count as at the sources, for the census of wealth (km as the crow flies). */
+private const val WEALTH_SOURCE_KM = 50f
+
 class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
     private var bandWeeks = 0.0
     private var bandHeads = 0.0
@@ -266,6 +281,8 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
     private var adultWeeks = 0.0
     /** People-weeks sick of each illness this year, for the bouts a 1000 a year ([printAgainstTheRecord]). */
     private val sickWeeks = DoubleArray(inflation.ecology.Illness.entries.size)
+    /** The flux's inputs as the census week finds each band, by its heads: camp weeks of fouling, crowding, hygiene, catching (a week's). */
+    private val fluxIn = DoubleArray(4)
     private var motherWeeks = 0.0
     private var moves = 0
     /** Hexes each band walked this year, and its last camp. */
@@ -290,7 +307,7 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
     fun startYear() {
         bandWeeks = 0.0; bandHeads = 0.0; childWeeks = 0.0; adultWeeks = 0.0; motherWeeks = 0.0; moves = 0
         walked.clear(); worked.clear(); lastCamp.clear()
-        sickWeeks.fill(0.0)
+        sickWeeks.fill(0.0); fluxIn.fill(0.0)
     }
 
     fun week() {
@@ -313,6 +330,11 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
             bandWeeks++; bandHeads += g.size; childWeeks += g.young; adultWeeks += g.adults; motherWeeks += (g.adults - g.band!!.elders) / 2.0
             for (d in inflation.ecology.Illness.entries) sickWeeks[d.ordinal] += g.size * (g.band?.sick?.get(d) ?: 0f).toDouble()
             val h = hw.placeHex[g.place]
+            g.band?.let { b ->
+                val cw = groups.campWeeksAt(h); val crowd = groups.peopleCrowding(g); val hy = groups.hygieneAt(b, h)
+                val c = groups.catching(inflation.ecology.Illness.FLUX, b, g.place, sim.weather.temperature[g.place], crowd, cw, hy, sim.weather)
+                fluxIn[0] += g.size * cw.toDouble(); fluxIn[1] += g.size * crowd.toDouble(); fluxIn[2] += g.size * hy.toDouble(); fluxIn[3] += g.size * c.toDouble()
+            }
             for (q in g.path) walked.getOrPut(g.id) { HashSet() } += q
             // (The ring round camp, as the band's foraging has it, [GroupFood]: land hexes next to the camp's.)
             worked.getOrPut(g.id) { HashSet() }.let { w -> w += h; for (q in g.path) w += q
@@ -392,6 +414,9 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
         if (bands.isEmpty()) return
         val bs = bands.map { it.band!! }
         println("     bands: " + skillsAndKit(bands, bs) + houses(bands, bs) + goods(bands, bs) + gatherings(bands, bs))
+        println("     favours between bands (a favour is a week of the helped band's need): " + debts(bs))
+        println("     wealth, a person (mean; Gini across bands; the tenth best-off bands' share of all): " + wealth(bands))
+        println("     bands by km from the nearest source of each good as the crow flies (share of bands; kg an adult held; days a kg as they reckon it): " + bySource(bands))
         println("     bands by fish within reach of their camp, thirds from least to most: " + fishing(bands) + weirs(bands))
     }
 
@@ -595,6 +620,100 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
     /** The heads of kind [k] band [b] keeps, grown and young. */
     private fun heads(b: Band, k: Int) = b.herds.herd.getOrElse(k) { 0f } + b.herds.herdYoung.getOrElse(k) { 0f }
 
+    /**
+     * Wealth as possession and standing apart (docs/design/trade.md, "What flows back"): what each band holds now (food in
+     * days of its need, goods, kept herds by weight, dogs, ornaments, the share of its people its houses in use shelter, and
+     * the halls, weirs, wells and pens it uses), and its standing (renown, credit net of debt in favours, fame), each a
+     * person, with how unequal it is across bands and how it stands at the sources (within [WEALTH_SOURCE_KM] of good
+     * stone, salt or obsidian) against away from them. Possession only: a structure counts for the band using it this week.
+     */
+    private fun wealth(bands: List<HexGroup>): String {
+        val groups = sim.groups; val hw = sim.hw; val fauna = sim.fauna
+        val inUse = HashMap<Int, ArrayList<Structure>>()
+        for (st in groups.bands.built) if (st.user >= 0) inUse.getOrPut(st.user) { ArrayList() } += st
+        val traded = groups.tradedNow().filter { it == Material.STONE || it == Material.SALT || it == Material.OBSIDIAN }
+        class W(val g: HexGroup, val people: Double, val v: DoubleArray, val atSource: Boolean)
+        val names = listOf("food, days", "goods kg", "herds kg", "dogs", "ornaments", "ornament worth, days", "sheltered", "halls", "weirs m", "wells m", "pens",
+            "renown", "credit", "fame")
+        val standingFrom = names.indexOf("renown")
+        val ws = bands.mapNotNull { g ->
+            val b = g.band ?: return@mapNotNull null
+            val people = g.size.toDouble().coerceAtLeast(1.0)
+            val mine = inUse[g.id].orEmpty()
+            fun sized(k: Built) = mine.filter { it.kind == k }.sumOf { (it.size * it.built).toDouble() }
+            val v = doubleArrayOf(
+                g.larder / g.dailyNeedKg.coerceAtLeast(1e-3f).toDouble() * people,
+                b.goods.sum().toDouble(),
+                fauna.kinds.indices.sumOf { k -> heads(b, k) * fauna.kinds[k].massKg.toDouble() },
+                b.dogs.kept.sum().toDouble(),
+                b.ornaments.toDouble(),
+                b.ornamentWorth.toDouble(),
+                min(people, sized(Built.HOUSES)),
+                mine.count { it.kind == Built.HALL }.toDouble(),
+                sized(Built.WEIR), sized(Built.WELL), sized(Built.PEN),
+                b.renown.toDouble() * people,
+                b.favours.values.sumOf { it.toDouble() } * people,
+                (groups.bands.fameOf[g.id] ?: 0f).toDouble() * people)
+            val h = hw.placeHex[g.place]
+            W(g, people, v, traded.any { m -> groups.nearestSourceKm(h, m) < WEALTH_SOURCE_KM })
+        }
+        if (ws.isEmpty()) return "no bands"
+        fun perPerson(l: List<W>, i: Int) = l.sumOf { it.v[i] } / l.sumOf { it.people }.coerceAtLeast(1.0)
+        fun gini(i: Int): Double {
+            val xs = ws.map { max(0.0, it.v[i] / it.people) }.sorted(); val n = xs.size; val sum = xs.sum()
+            if (sum <= 0.0 || n < 2) return 0.0
+            return xs.withIndex().sumOf { (k, x) -> (2.0 * (k + 1) - n - 1) * x } / (n * sum)
+        }
+        fun topTenth(i: Int): Double {
+            val xs = ws.map { max(0.0, it.v[i]) }.sortedDescending(); val sum = xs.sum()
+            return if (sum <= 0.0) 0.0 else 100.0 * xs.take((xs.size / 10).coerceAtLeast(1)).sum() / sum
+        }
+        val near = ws.filter { it.atSource }; val far = ws.filter { !it.atSource }
+        fun part(range: IntRange) = range.joinToString(", ") { i -> "%s %.2f; %.2f; %.0f%%".format(names[i], perPerson(ws, i), gini(i), topTenth(i)) }
+        return "held: " + part(0 until standingFrom) + " | standing, a band weighted by its people: " + part(standingFrom until names.size) +
+            " | within %.0f km of good stone, salt or obsidian (%.0f%% of bands) against further: ".format(WEALTH_SOURCE_KM, 100.0 * near.size / ws.size) +
+            names.indices.joinToString(", ") { i -> "%s %.2f/%.2f".format(names[i], perPerson(near, i), perPerson(far, i)) }
+    }
+
+    /**
+     * Who owes whom ([Band.favours]): the share of bands owed favours and owing them, the favours owed in all and a band, how
+     * much of it the tenth most owed are owed (credit gathering in few hands, or not), how many bands each deals with in
+     * favours, and the largest single debt.
+     */
+    private fun debts(bs: List<Band>): String {
+        val owedTo = bs.map { b -> b.favours.values.sumOf { v -> max(0f, v).toDouble() } }.sortedDescending()
+        val all = owedTo.sum()
+        val top = owedTo.take((bs.size / 10).coerceAtLeast(1)).sum()
+        val largest = bs.maxOfOrNull { b -> b.favours.values.maxOfOrNull { it } ?: 0f } ?: 0f
+        return "owed to %.0f%% of bands, owing %.0f%%; owed in all %.1f (%.2f a band), the tenth most owed are owed %.0f%% of it; partners a band %.2f; largest debt %.2f".format(
+            100.0 * bs.count { b -> b.favours.values.any { it > 0f } } / bs.size.coerceAtLeast(1),
+            100.0 * bs.count { b -> b.favours.values.any { it < 0f } } / bs.size.coerceAtLeast(1),
+            all, all / bs.size.coerceAtLeast(1), 100.0 * top / all.coerceAtLeast(1e-9), bs.map { it.favours.size }.average(), largest)
+    }
+
+    /**
+     * What bands hold of each traded good ([TRADED]) by how far their camp lies from its nearest source ([nearestSourceKm],
+     * in [SOURCE_RINGS_KM]), and what a kg is worth to them ([worthDaysPerKg]): the falloff with distance from the source
+     * the record shows for obsidian and shell (docs/design/trade.md).
+     */
+    private fun bySource(bands: List<HexGroup>): String {
+        val groups = sim.groups; val hw = sim.hw; val weather = sim.weather
+        val rings = SOURCE_RINGS_KM
+        fun ringName(i: Int) = if (i < rings.size) "<%.0f".format(rings[i]) else ">%.0f".format(rings.last())
+        return groups.tradedNow().joinToString(" | ") { m ->
+            val n = IntArray(rings.size + 1); val adults = DoubleArray(rings.size + 1); val kg = DoubleArray(rings.size + 1); val worth = DoubleArray(rings.size + 1)
+            for (g in bands) {
+                val b = g.band ?: continue
+                val km = groups.nearestSourceKm(hw.placeHex[g.place], m)
+                val i = rings.indexOfFirst { km < it }.let { if (it < 0) rings.size else it }
+                n[i]++; adults[i] += g.adults.toDouble(); kg[i] += b.goods[m].toDouble(); worth[i] += groups.worthDaysPerKg(g, b, m, weather).toDouble()
+            }
+            m.name.lowercase() + " " + n.indices.filter { n[it] > 0 }.joinToString(", ") { i ->
+                "%s %.0f%%: %.2f, %.2f".format(ringName(i), 100.0 * n[i] / bands.size, kg[i] / adults[i].coerceAtLeast(1.0), worth[i] / n[i])
+            }
+        }
+    }
+
     /** What bands hold a grown person (what a camp move must carry or leave), kept herds, ornaments and shell, grave goods. */
     private fun goods(bands: List<HexGroup>, bs: List<Band>): String {
         val hw = sim.hw; val land = sim.land; val fauna = sim.fauna
@@ -667,6 +786,21 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
                 " | raids %.1f, by beasts %.1f".format(yearly(DeathCause.RAIDS.label) * per,
                     causes.keys.filter { it.text.startsWith(Tally.of(Catalogue.HUMAN).text + ByBeast.How.KILLED_BY.words) }.sumOf { yearly(Tally.whatOf(it)) } * per))
         }
+        run {
+            // (Bands starving, their protein burnt FAMINE_SPENT days or more: deaths per 1000 a year by age and cause, from the
+            // odds. The famine-by-age check: the young's and the elders' above the prime's, illness at least as many as hunger.)
+            val f = sim.groups.stats.famine.map { it.sumThenReset() }
+            fun v(k: Famine) = f[k.ordinal]
+            fun per(d: Double, years: Famine) = 1000.0 * d / v(years).coerceAtLeast(1e-9)
+            val grownAll = v(Famine.GROWN_HUNGER) + v(Famine.GROWN_ILLNESS) + v(Famine.GROWN_OTHER)
+            val primeYears = (v(Famine.YEARS_GROWN) - v(Famine.YEARS_ELDERS)).coerceAtLeast(1e-9)
+            println(("     deaths in starving bands (protein burnt %.0f d and over; per 1000 a year, from the odds; %.0f people-years): " +
+                "grown hunger %.1f, illness %.1f, other %.1f; young hunger %.1f, illness %.1f, other %.1f; elders all %.1f, prime all %.1f").format(
+                inflation.ecology.FAMINE_SPENT, v(Famine.YEARS_GROWN) + v(Famine.YEARS_YOUNG),
+                per(v(Famine.GROWN_HUNGER), Famine.YEARS_GROWN), per(v(Famine.GROWN_ILLNESS), Famine.YEARS_GROWN), per(v(Famine.GROWN_OTHER), Famine.YEARS_GROWN),
+                per(v(Famine.YOUNG_HUNGER), Famine.YEARS_YOUNG), per(v(Famine.YOUNG_ILLNESS), Famine.YEARS_YOUNG), per(v(Famine.YOUNG_OTHER), Famine.YEARS_YOUNG),
+                per(v(Famine.ELDERS_ALL), Famine.YEARS_ELDERS), 1000.0 * (grownAll - v(Famine.ELDERS_ALL)) / primeYears))
+        }
         val hex = sim.hex
         // (Bouts a 1000 a year: the people-weeks sick over the weeks a bout lasts, per person-year. Shigellosis 0.6-107 a 1000 a
         // year in population-based studies, Ram et al. 2008.)
@@ -675,6 +809,12 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
             val share = sickWeeks[il.ordinal] / heads
             "%s %.1f%% (%.0f)".format(il.label, 100.0 * share, 1000.0 * share * 365.25 / 7.0 / il.weeks) } +
             " [shigellosis 0.6-107 bouts a 1000 a year]")
+        run {
+            // (What the flux comes of, as each census week finds the bands, by heads: the step-length check, gap813.)
+            val heads = bandHeads.coerceAtLeast(1.0)
+            println("     the flux's inputs as the census week finds them (by heads): camp weeks of fouling %.2f, crowding %.3f, hygiene %.3f, a week's catching %.5f"
+                .format(fluxIn[0] / heads, fluxIn[1] / heads, fluxIn[2] / heads, fluxIn[3] / heads))
+        }
         println("     people against the record: band size %.0f [15-50, most 20-35] | people per km² %.3f [foragers 0.01-0.4; Mediterranean 0.05-0.2] | camps moved a year %.1f [5-60, median about 15] | camp hexes a year %.0f km², with the ring round camp the gatherers work %.0f km² [ground used a year 200-2500] | plant share of food %.0f%% [Mediterranean 40-60%%] | births a woman over her bearing years %.1f [foragers 3.5-7.9, mean 5.6; Hadza 6.2, !Kung 4.3-4.7] | children reaching 15 %.0f%% [about 55-65%%] | years left at 15 %.0f [about 35-40] | violent deaths %.0f%% [2-15%%]".format(
             bandHeads / bandWeeks, bandHeads / weeks / sim.land.areaKm2.sum(), moves.toDouble() / bandsSeen,
             walked.values.map { it.size }.average() * hex.areaKm2,

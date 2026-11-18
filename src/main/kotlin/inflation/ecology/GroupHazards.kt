@@ -85,15 +85,18 @@ internal fun mothersIn(g: HexGroup): Float {
  */
 internal fun HexGroups.sicknessWeek(g: HexGroup, weather: Weather, kinNow: HashMap<Long, Int>, r: Random): Float {
     val s = g.species
+    // (People's sickness is all [Illness]'s: the cough is the epidemic that runs between crowded bands, caught at meetings
+    // and leaving its survivors spared, and the flux the sickness of crowded and fouled camps. Before 16 Nov 2026 they also
+    // fell to a crowding sickness at PEOPLE_SICK times the crowding squared and to the animals' outbreaks at PEOPLE_OUTBREAK
+    // of their rate, spread hex to hex and sparing no one: the same deaths fitted twice beside [Illness], disease review item 1.)
+    if (s.human) return 0f
     val usual = HexFauna.usualDensity(s)
     // (Hunters by their kind's numbers over the ground they range over, as residents by theirs in their place.)
-    val packs = if (s.human) 0f else Hazards.crowding(kinKm2(g, kinNow), usual)
-    val crowdNow = if (s.human) peopleCrowding(g) else packs
-    if (r.nextFloat() < HexFauna.OUTBREAK_START * (if (s.human) PEOPLE_OUTBREAK * tuning.peopleOutbreak else 1f) * crowdNow * crowdNow * years)
+    val packs = Hazards.crowding(kinKm2(g, kinNow), usual)
+    if (r.nextFloat() < HexFauna.OUTBREAK_START * packs * packs * years)
         outbreaksStarting += s.index.toLong() * hex.size + hw.placeHex[g.place].i
-    return if (s.human) peopleSickness(g) * years * (1f + HexFauna.MALNOURISHED * (1f - g.fed))
-        // Hunters catch mange, distemper and rabies where their kind crowds the ground.
-        else Hazards.crowdDisease(packs, g.fed, years)
+    // Hunters catch mange, distemper and rabies where their kind crowds the ground.
+    return Hazards.crowdDisease(packs, g.fed, years)
 }
 
 /**
@@ -129,16 +132,8 @@ internal fun GroupWorld.placeHazards(g: HexGroup, p: Place, weather: Weather, fe
     fire: Float, home: Float, shelter: Float = g.band?.shelter ?: 0f, into: HazardSink) {
     val s = g.species; val b = g.band
     // (Fed as it would be with its fat drawn on, as its week's feeding draws on it: a group foresees its fat too.)
-    // (In a band the shortfall is not shared evenly: parents feed their children first, see [CHILDREN_FIRST].)
-    // (And the elders yield theirs to the rest, see [ELDERS_YIELD]: the grown's odds are the mean of the elders' and the others'.)
-    // (Fortune lies unevenly in a band that keeps its food apart ([Band.unevenness]): its poorer half eats [fed] less that share,
-    // its richer half more, and hunger takes the poorer first. So the same mean food costs more lives the more uneven it is.)
-    val uneven = b?.unevenness ?: 0f
-    fun hungerAt(f: Float): Pair<Float, Float> { val sh = shortfallOfAdults(g, f); val h = grownHunger(g, sh); return h to youngHunger(g, sh, h) }
-    val (hunger, hungerYoung) = if (uneven <= 0f) hungerAt(fed) else {
-        val (pa, py) = hungerAt(fed * (1f - uneven)); val (ra, ry) = hungerAt(min(max(fed, 1f), fed * (1f + uneven)))
-        0.5f * (pa + ra) to 0.5f * (py + ry)
-    }
+    // (Each age bears its share of the band's burden by how food is shared and how long its body holds out: [ageHunger].)
+    val (hunger, hungerYoung) = ageHunger(g, fed)
     // People keep warm as their body heat allows, through their clothes, fire, shelter and houses: past what they can
     // shiver up, they die of exposure. Animals feel the cold through their coats.
     val exposure = b?.warmth(airAt(p, weather), fire, home, days, shelter)?.odds ?: 0f
@@ -151,58 +146,87 @@ internal fun GroupWorld.placeHazards(g: HexGroup, p: Place, weather: Weather, fe
     val (fireA, floodA, snowA) = fauna.calamities(s, p, weather, false)
     val (fireY, floodY, snowY) = fauna.calamities(s, p, weather, true)
     val croc = if (s.human) 0f else fauna.crocodileOdds(p, weather)
-    into.add(DeathCause.HUNGER, hunger, 1.5f * hungerYoung); into.add(DeathCause.COLD, cold, 1.5f * cold)
-    into.add(DeathCause.HEAT, heat, 1.5f * heat)
-    into.add(DeathCause.EXPOSURE, exposure, 1.5f * exposure); into.add(DeathCause.THIRST, thirst, 1.5f * thirst)
+    into.add(DeathCause.HUNGER, hunger, Hazards.YOUNG_HARDER * hungerYoung); into.add(DeathCause.COLD, cold, Hazards.YOUNG_HARDER * cold)
+    into.add(DeathCause.HEAT, heat, Hazards.YOUNG_HARDER * heat)
+    into.add(DeathCause.EXPOSURE, exposure, Hazards.YOUNG_HARDER * exposure); into.add(DeathCause.THIRST, thirst, Hazards.YOUNG_HARDER * thirst)
     into.add(DeathCause.DISEASE, sick, sick); into.add(DeathCause.OUTBREAK, plague, plague)
     into.add(DeathCause.FIRE, fireA, fireY); into.add(DeathCause.FLOOD, floodA, floodY); into.add(DeathCause.SNOW, snowA, snowY)
     into.add(DeathCause.CROCODILES, 0f, croc); into.add(DeathCause.EAGLES, 0f, eagle)
 }
 
 /**
- * How much of its need a grown member of [g] in the childbearing years goes without when the group as a whole is fed [fed]:
- * in a band, the shortfall spares a child [CHILDREN_FIRST] of its share and falls [ELDERS_YIELD] times as hard on an elder,
- * so the band's food is shared out whole (each one's shortfall times their number, summed, is the band's), as far as no one
- * goes without more than all of it.
+ * How hard the band's protein burnt bears on each age of [g] (design "Famine deaths by age", 2026-11-13): a prime grown
+ * one's, an elder's and a young one's share of the burden ([inflation.Tuning.elderShare], [inflation.Tuning.youngShare];
+ * the prime bear the rest, so heads times shares sum to the band's: the food is only moved) over their reserve against a
+ * grown one's ([inflation.Tuning.elderReserve], [inflation.Tuning.youngReserve]). 1 for all where it is no band.
  */
-internal fun shortfallOfAdults(g: HexGroup, fed: Float): Float {
-    val shortfall = 1f - fed
-    val b = g.band
-    if (b == null || shortfall <= 0f || (g.young == 0 && b.elders == 0)) return shortfall
-    val elders = b.elders.coerceAtMost(g.adults)
-    return min(1f, shortfall * g.size / (g.adults - elders + ELDERS_YIELD * elders + g.young * (1f - CHILDREN_FIRST)))
+internal class AgeTilts(val prime: Float, val elder: Float, val young: Float)
+
+internal fun GroupWorld.ageTilts(g: HexGroup): AgeTilts {
+    val b = g.band ?: return AgeTilts(1f, 1f, 1f)
+    val t = tuning
+    val elders = b.elders.coerceAtMost(g.adults); val prime = g.adults - elders
+    val primeShare = if (prime > 0) max(0f, (g.size - t.youngShare * g.young - t.elderShare * elders) / prime) else 1f
+    return AgeTilts(primeShare, t.elderShare / t.elderReserve, t.youngShare / t.youngReserve)
 }
 
+/** [g]'s protein burnt at the end of a step fed [fed] (its fat drawn on), from [spent] at its start. */
+private fun GroupWorld.spentAtEnd(g: HexGroup, fed: Float, spent: Float) =
+    Hazards.spentAfter(g.species, spent, Hazards.onFatOf(g.species, fed, g.fat, days), days)
+
 /**
- * The week's hunger odds of [g]'s grown when one in the childbearing years goes without [short] of its need
- * ([shortfallOfAdults]): the mean of the elders' ([eldersHunger]) and the others'. [placeHazards]'s hunger.
+ * The step's hunger odds of [g]'s grown and young fed [fed] (its fat drawn on), having burnt [spent] days of protein before
+ * it: each age's share of the band's burnt protein ([ageTilts]), at the step's start and end, read off the starve ramp
+ * ([Hazards.starvedRise]); the grown's the mean of the elders' and the prime's. Only the band's state is carried, so the
+ * same at any step length. Where fortune lies unevenly ([Band.unevenness]) the poorer half bears that share more of the
+ * burden and the richer half less, so the same mean food costs more lives the more uneven it is. [placeHazards]'s hunger.
  */
-internal fun GroupWorld.grownHunger(g: HexGroup, short: Float): Float {
+internal fun GroupWorld.ageHunger(g: HexGroup, fed: Float, spent: Float = g.spent): Pair<Float, Float> {
     val s = g.species
-    val hungerPrime = Hazards.hunger(s, g.spent, Hazards.onFatOf(s, 1f - short, g.fat, days), days)
+    val end = spentAtEnd(g, fed, spent)
+    val a = ageTilts(g)
     val elders = g.band?.elders?.coerceAtMost(g.adults) ?: 0
-    return if (elders == 0) hungerPrime else ((g.adults - elders) * hungerPrime + elders * eldersHunger(g, short)) / g.adults
+    fun at(u: Float): Pair<Float, Float> {
+        fun odds(k: Float) = Hazards.starvedRise(s, k * u * spent, k * u * end)
+        val prime = odds(a.prime)
+        val grown = if (elders == 0 || g.adults == 0) prime else ((g.adults - elders) * prime + elders * odds(a.elder)) / g.adults
+        return grown to (if (g.band == null) grown else odds(a.young))
+    }
+    val uneven = g.band?.unevenness ?: 0f
+    if (uneven <= 0f) return at(1f)
+    val (pa, py) = at(1f + uneven); val (ra, ry) = at(1f - uneven)
+    return 0.5f * (pa + ra) to 0.5f * (py + ry)
 }
 
-/** The same for [g]'s young, fed first in a band ([CHILDREN_FIRST]); [grown]'s odds ([grownHunger]) where it is no band. */
-internal fun GroupWorld.youngHunger(g: HexGroup, short: Float, grown: Float) =
-    if (g.band == null) grown else Hazards.hunger(g.species, g.spent, Hazards.onFatOf(g.species, 1f - short * (1f - CHILDREN_FIRST), g.fat, days), days)
-
-/** The week's hunger odds of an elder of [g]'s band when a grown one in the childbearing years goes without [short] of its need ([shortfallOfAdults]). */
-private fun GroupWorld.eldersHunger(g: HexGroup, short: Float, spent: Float = g.spent) =
-    Hazards.hunger(g.species, spent, Hazards.onFatOf(g.species, 1f - min(1f, ELDERS_YIELD * short), g.fat, days), days)
+/**
+ * How much deadlier illness is to [g]'s grown and young over the step, starving ([inflation.Tuning.famineIllness]): 1 +
+ * that times their share of the starve days burnt ([ageTilts]), its mean over the step. Fed [fed] the band's burnt
+ * protein runs straight from the step's start to its end, so the mean of the two is exact at any step length. 1 for
+ * animals.
+ */
+internal fun GroupWorld.famineIllness(g: HexGroup, fed: Float): Pair<Float, Float> {
+    val f = tuning.famineIllness; val s = g.species
+    if (f <= 0f || !s.human) return 1f to 1f
+    val burnt = 0.5f * (g.spent + spentAtEnd(g, fed, g.spent)) / Hazards.starveDays(s)
+    if (burnt <= 0f) return 1f to 1f
+    val a = ageTilts(g)
+    val elders = g.band?.elders?.coerceAtMost(g.adults) ?: 0
+    val grown = if (g.adults > 0) ((g.adults - elders) * a.prime + elders * a.elder) / g.adults else a.prime
+    return (1f + f * grown * burnt) to (1f + f * a.young * burnt)
+}
 
 /**
- * How many times as likely an elder of [g]'s band is to die this week as another grown one, of the grown's odds [adultOdds]
- * (all causes, summed): only hunger tells them apart ([ELDERS_YIELD]), at [fed] with [spent] days of body protein spent; 1 for
- * animals, or with no elders.
+ * How many times as likely an elder of [g]'s band is to die this week as another grown one, of the grown's odds [adultSum]
+ * (all causes, summed): only hunger tells them apart ([ageTilts]), at [fed] with [spent] days of body protein spent before
+ * the step; 1 for animals, or with no elders.
  */
 internal fun GroupWorld.elderRisk(g: HexGroup, fed: Float, spent: Float, adultSum: Float): Float {
     val b = g.band ?: return 1f
     val elders = b.elders.coerceAtMost(g.adults); if (elders == 0 || elders == g.adults) return 1f
-    val short = shortfallOfAdults(g, fed); if (short <= 0f) return 1f
-    val prime = Hazards.hunger(g.species, spent, Hazards.onFatOf(g.species, 1f - short, g.fat, days), days)
-    val old = eldersHunger(g, short, spent)
+    val s = g.species; val end = spentAtEnd(g, fed, spent); val a = ageTilts(g)
+    val prime = Hazards.starvedRise(s, a.prime * spent, a.prime * end)
+    val old = Hazards.starvedRise(s, a.elder * spent, a.elder * end)
+    if (old <= 0f && prime <= 0f) return 1f
     val mean = ((g.adults - elders) * prime + elders * old) / g.adults
     val others = adultSum - mean
     val primeOdds = others + prime
@@ -252,7 +276,7 @@ internal fun GroupWorld.shareDeaths(hazards: List<Hazard>, adults: Int, young: I
 internal fun HexGroups.houseWorthWeek(g: HexGroup, b: Band, weather: Weather, stalked: Float) {
     val s = g.species; val fire = b.fire; val now = b.homeShelter(); val air = airAt(g.place, weather)
     val had = b.warmth(air, fire, now, days); val whole = b.warmth(air, fire, 1f, days)
-    fun lives(d: Float) = g.adults * d + g.young * min(1f, 1.5f * d)
+    fun lives(d: Float) = g.adults * d + g.young * min(1f, Hazards.YOUNG_HARDER * d)
     val exposure = lives(max(0f, had.odds - whole.odds))
     b.houseLivesWeek += exposure
     val walls = if (b.homeWalls > 0f) b.homeWalls else 1f
@@ -274,28 +298,15 @@ internal fun HexGroups.houseWorthWeek(g: HexGroup, b: Band, weather: Weather, st
     // and the days of body protein it would have spared against hunger later ([Hazards.spentAfter]).)
     val more = b.houseFoodWeek / max(1e-3f, g.dailyNeedKg * days)
     if (more > 0f) {
-        fun starve(fed: Float, young: Boolean): Float {
-            val short = shortfallOfAdults(g, fed) * (if (young) 1f - CHILDREN_FIRST else 1f)
-            return Hazards.hunger(s, g.spent, Hazards.onFatOf(s, 1f - short, g.fat, days), days)
-        }
+        fun starve(fed: Float, young: Boolean) = ageHunger(g, fed).let { if (young) it.second else it.first }
         w[HouseWorth.HUNGER] += g.adults * max(0f, starve(g.fed, false) - starve(g.fed + more, false)) +
-            g.young * max(0f, min(1f, 1.5f * starve(g.fed, true)) - min(1f, 1.5f * starve(g.fed + more, true)))
+            g.young * max(0f, min(1f, Hazards.YOUNG_HARDER * starve(g.fed, true)) - min(1f, Hazards.YOUNG_HARDER * starve(g.fed + more, true)))
         w[HouseWorth.PROTEIN_DAYS] += g.adults * max(0f, Hazards.spentAfter(s, g.spent, g.fed, days) - Hazards.spentAfter(s, g.spent, g.fed + more, days))
     }
     val people = max(1, g.size).toFloat(); val k = 1f / stepsPerYear
     b.houseLives += k * (b.houseLivesWeek / people * stepsPerYear - b.houseLives)
     b.houseFood += k * (b.houseFoodWeek / people * stepsPerYear - b.houseFood)
     b.houseLivesWeek = 0f; b.houseFoodWeek = 0f
-}
-
-/**
- * Yearly deaths from crowding among people: fevers and worms where many camp near each other, by the
- * people in a band's hex and the six round it.
- */
-private fun HexGroups.peopleSickness(g: HexGroup): Float {
-    val dens = peopleCrowding(g)
-    // (Marsh fever is its own sickness, not counted here: see [Illness].)
-    return PEOPLE_SICK * tuning.peopleSick * dens * dens
 }
 
 /** People round a band's camp (its hex and the six round it), per km², against [PEOPLE_FULL_KM2]. */
@@ -313,4 +324,34 @@ internal fun HexGroups.peopleCrowding(g: HexGroup, h: Hex = hw.placeHex[g.place]
 }
 
 /** The share of the sick and wounded of [band] its healers do not save (1 for a group with no band). */
+/**
+ * The yearly odds that a grown one of kind [s] in band [band] (none: not of a band) dies of age, accidents and ordinary
+ * illness ([DeathCause.OTHER]): its kind's, less what the band's healers save ([healedShare]), and for people as
+ * [inflation.Tuning.humanOther] sets it. The one rule for the week's deaths ([liveWeek]) and the year a band foresees ([yearAhead]).
+ */
+internal fun GroupWorld.backgroundOdds(s: Species, band: Band?) = healedShare(band) * s.backgroundMortality * (if (s.human) tuning.humanOther else 1f)
+
 internal fun healedShare(band: Band?) = (1f - 0.15f * (band?.medicine ?: 0f)) * (band?.lapse(Skill.HERBS)?.let { 1f + HEALING_REACH * (it - 1f) } ?: 1f)
+
+/**
+ * Wounds: how much less the hurt and the lamed do; yearly share of adults hurt by mishaps (falls,
+ * cuts, sprains, snakebite gone bad) at the usual gathering range; wounded who live for each one
+ * killed by prey or by a beast (in raids, [RAID_WOUNDED_PER_DEAD]); weekly share of the wounded who heal, untended and with
+ * the best care; weekly share whose wound festers and kills, untended (care saves most); share of
+ * the healed lamed for life, untended (care halves it); the lamed's extra odds of dying ([LAME_RISK]).
+ */
+internal const val HURT_HANDS = 0.8f
+internal const val LAME_HANDS = 0.4f
+internal const val MISHAPS = 0.08f
+internal const val WOUNDED_PER_DEAD = 2f
+internal const val HEAL_UNTENDED = 0.15f
+internal const val HEAL_TENDED = 0.35f
+/**
+ * [FESTER]: at 0.02, with mishaps at [MISHAPS], wounds killed 7-8 a 1000 adults a year where people crowd (flux716),
+ * against accidents 5.2% of forager deaths (Gurven, pooled deaths of 7 groups), some 1-2 a 1000 adults at their 1-1.5%
+ * adult deaths a year: 0.005 aims at that.
+ */
+internal const val FESTER = 0.005f
+internal const val LAMED = 0.2f
+/** Extra odds of dying (of any cause but old age) for a lamed adult, over an unlamed one: 1 is twice as likely. */
+internal const val LAME_RISK = 1f

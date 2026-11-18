@@ -187,7 +187,7 @@ internal fun GroupWorld.wornWoodCover(s: WornGround.Spot?, cover: Float): Float 
     if (s == null || cover <= 0f || s.taken[WORN_WOOD] <= 0f) return cover
     val clearedKm2 = s.taken[WORN_WOOD] / (DEADWOOD_KG_M2 * cover * 1e6f)
     val km = 2f * 2f / 3f * sqrt(clearedKm2 / PI.toFloat())
-    val walkDaysPerKg = km / (WALK_KM_PER_HOUR * Activity.WORK_HOURS) / WOOD_LOAD_KG
+    val walkDaysPerKg = km / DAY_WALK_KM / WOOD_LOAD_KG
     return 1f / (FUEL_A_DAY * (1f / (FUEL_A_DAY * cover) + walkDaysPerKg))
 }
 

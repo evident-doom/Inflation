@@ -5,6 +5,7 @@ import inflation.world.Hex
 import inflation.world.HexArray
 import inflation.world.get
 import inflation.world.toHexArray
+import inflation.world.Weather
 
 // Contacts between groups whose grounds overlap (docs/design/pack-performance.md, "Contacts"): a pack that holds its ground is about its whole footprint all step ([footprint]), and any
 // other group whose ground for the step shares a hex with it is in contact with it. A contact is one thing between two
@@ -88,11 +89,8 @@ internal fun contactsOf(spheres: Array<Sphere?>, ids: IntArray, held: BooleanArr
  * hexes of its path by the share of the step it spends in each ([HexGroup.days], its timetable); null for neither.
  */
 internal fun GroupWorld.sphereOf(g: HexGroup): Sphere? {
-    val foot = g.footprint; val weights = g.footWeights
-    if (foot != null && weights != null && g.path.size == 1) {
-        var sum = 0f; for (w in weights) sum += w
-        return Sphere(foot, FloatArray(weights.size) { weights[it] / sum })
-    }
+    val foot = g.footprint
+    if (foot != null && g.rangesFromHome) return Sphere(foot.hexes, foot.shares())
     if (g.path.size == 0) return null
     val step = days.toFloat(); val last = g.path.size - 1
     return Sphere(g.path, FloatArray(g.path.size) { i -> ((if (i < last) g.days[i + 1] else step) - g.days[i]).coerceAtLeast(0f) / step })
@@ -105,7 +103,7 @@ internal fun GroupWorld.sphereOf(g: HexGroup): Sphere? {
 @inflation.Part("meetings: contacts")
 internal fun HexGroups.contacts(): List<Contact> {
     val n = groups.size
-    val held = BooleanArray(n) { val g = groups[it]; g.alive && g.footprint != null && g.path.size == 1 }
+    val held = BooleanArray(n) { val g = groups[it]; g.alive && g.rangesFromHome }
     if (held.none { it }) return emptyList()
     val spheres = arrayOfNulls<Sphere>(n)
     for (k in 0 until n) if (groups[k].alive) spheres[k] = sphereOf(groups[k])
@@ -127,22 +125,90 @@ internal fun HexGroups.contacts(): List<Contact> {
 internal fun GroupWorld.contend(a: HexGroup, b: HexGroup) = !(staysHome(a) && staysHome(b))
 
 /**
- * Band [g], holding its home hex ([staysHome]), is about its home hex and the six round it as its foragers go out and back
- * by day: its ground for the step's meetings ([HexGroup.footprint]), its home weighted 1 and each hex about with land
- * [BAND_ROUND_WEIGHT], as a pack's footprint is weighted by nearness; it hunts as before.
+ * Band [g], holding its home hex ([staysHome]): the ground its people range over from its camp ([HexGroup.footprint]), for
+ * the step's meetings, laid out as a pack's territory is ([layGround]); it hunts as before. Its ground is its catchment, the
+ * land its people work from camp and back within the day: wider for a band on the move than for one living fixed by its
+ * houses and fields ([BAND_MOBILE_KM2], [BAND_FIXED_KM2]: Vita-Finzi and Higgs 1970, site catchments of about two hours'
+ * walk for hunter-gatherers and one for farmers, from memory). Unlike a pack it does not go about as one: most of its people
+ * are at camp most of the time (the young, the old, those at work about the camp), only its foragers going out; the more so
+ * for a band living fixed. So its camp's hex holds [BAND_MOBILE_HOME] or [BAND_FIXED_HOME] of its time
+ * ([Footprint.weights]: the weights' shares are the time a group is in each hex, [sphereOf]), and the hexes about share
+ * the rest by their going.
  */
-internal fun GroupWorld.bandGround(g: HexGroup, today: Long) {
-    val home = hw.placeHex[g.place]
-    // (Not the hexes it gave way on lately, [gaveWay]; its yieldings that have run out are forgotten.)
-    g.yielded = g.yielded?.filter { (it and 0xFFFFFFFFL) > today }?.toLongArray()?.takeIf { it.isNotEmpty() }
-    val hexes = ArrayList<Hex>(7); val weights = ArrayList<Float>(7)
-    hexes += home; weights += 1f
-    for (d in 0 until 6) { val q = hex.neighbour(home, d); if (!q.none && !hw.placeNear(g.place, q).none && !yields(g, q, today)) { hexes += q; weights += BAND_ROUND_WEIGHT } }
-    g.footprint = hexes.toHexArray(); g.footWeights = weights.toFloatArray()
+internal fun HexGroups.bandGround(g: HexGroup, today: Long, weather: Weather) {
+    val fixed = g.band?.livesFixed() == true
+    layGround(g, hw.placeHex[g.place], if (fixed) BAND_FIXED_KM2 else BAND_MOBILE_KM2, today, weather, g.place)
+    val w = g.footprint?.weights ?: return
+    var out = 0f; for (i in 1 until w.size) out += w[i]
+    // (Home first, [layGround]: its weight set so its share of all is the home share; with nothing about, it is all.)
+    val home = g.band?.let { homeShare(it) } ?: BAND_MOBILE_HOME
+    if (out > 0f) w[0] = out * home / (1f - home)
 }
 
-/** The weight of each hex about a band's home in its ground for the meetings ([bandGround]), its home 1: its foragers' days out; an estimate. */
-internal const val BAND_ROUND_WEIGHT = 0.5f
+/** The share of its time band [b] spends at its camp's hex ([bandGround]), and of its people there when met at it ([presentAt]). */
+internal fun homeShare(b: Band) = if (b.livesFixed()) BAND_FIXED_HOME else BAND_MOBILE_HOME
+
+/** The catchment of a band on the move ([bandGround]): about two hours' walk, 10 km, about its camp; km². */
+internal const val BAND_MOBILE_KM2 = 314f
+/** The catchment of a band living fixed by its houses and fields ([bandGround]): about an hour's walk, 5 km; km². */
+internal const val BAND_FIXED_KM2 = 79f
+/** The share of its time a band on the move spends at its camp's hex, its foragers out by day ([bandGround]); an estimate. */
+internal const val BAND_MOBILE_HOME = 0.7f
+/** The share of its time a band living fixed spends at its camp's hex, its fields and herds close by ([bandGround]); an estimate. */
+internal const val BAND_FIXED_HOME = 0.85f
+
+/**
+ * Lays out the hexes group [g] ranges over from home this step ([HexGroup.footprint], [Footprint]): its ground
+ * is an area, [areaKm2] of land (a territory's, a catchment's), taken by the ground from hex [home] outward, the easiest
+ * going first ([reachOf]: its kind's going, so never across a strait it cannot swim, a cliff it cannot climb or a river it
+ * cannot ford), until the land taken comes to the area. Only hexes with ground near [at]'s height and not given way on
+ * lately ([gaveWay], those run out forgotten). So a ground keeps its size and takes its shape from the land: round on open
+ * ground, along the valley in broken country, short of a barrier. Each hex weighted by its going: 1 at home, falling to a
+ * hex's width beyond the farthest taken. [home] first, then the rest, easiest first (of equals, the lower hex). The one way
+ * a pack's territory ([footprint]) and a band's ground ([bandGround]) are laid out, whatever the step's length.
+ */
+internal fun HexGroups.layGround(g: HexGroup, home: Hex, areaKm2: Float, today: Long, weather: Weather, at: inflation.world.Place = g.place) {
+    g.yielded = g.yielded?.filter { Yield.until(it) > today }?.toLongArray()?.takeIf { it.isNotEmpty() }
+    // (Searched as far as three times the area's radius and two hexes more: enough for any ground but one hemmed in.)
+    val radius = kotlin.math.sqrt(areaKm2 / Math.PI.toFloat())
+    val reach = reachOf(g, home, 3f * radius + 2f * hex.hexKm.toFloat(), weather)
+    val order = (0 until reach.hexes.size).filter { i -> val h = reach.hexes[i]
+        h != home && !hw.placeNear(at, h).none && !yields(g, h, today) }
+        .sortedWith(compareBy<Int> { reach.dist[it] }.thenBy { reach.hexes[it].i })
+    val hexes = ArrayList<Hex>(); val dists = ArrayList<Float>()
+    hexes += home; dists += 0f
+    var land = landKm2(home)
+    for (i in order) {
+        if (land >= areaKm2) break
+        hexes += reach.hexes[i]; dists += reach.dist[i]; land += landKm2(reach.hexes[i])
+    }
+    val fall = dists.last() + hex.hexKm.toFloat()
+    g.footprint = Footprint(hexes.toHexArray(), FloatArray(dists.size) { 1f - dists[it] / fall }, hunted = g.band == null)
+}
+
+/**
+ * The ground a group ranges over from home this step ([layGround]): its [hexes], home first, each [weights] by its going
+ * (their [shares] the time it is in each, [sphereOf]), and what the ground is for: [hunted], a pack's territory, which it
+ * hunts and marks ([huntGround], [mark]); else a band's catchment, the ground it is met on only, its hunting by its own
+ * rules ([bandGround]). The one value for both, laid by the one builder.
+ */
+class Footprint(val hexes: HexArray, val weights: FloatArray, val hunted: Boolean) {
+    /** Each hex's share of the group's time: its weight over all of them. */
+    fun shares(): FloatArray { var sum = 0f; for (w in weights) sum += w; return FloatArray(weights.size) { weights[it] / sum } }
+}
+
+/**
+ * Whether this group spends its step at home, its people ranging out from there ([layGround]), rather than on a way: a pack
+ * holding its ground, which ranges as one; a band at its camp, most of its people at home and its foragers going out
+ * ([bandGround]). Its [Footprint.shares] are then the shares of its time in each hex ([sphereOf]).
+ */
+internal val HexGroup.rangesFromHome get() = footprint != null && path.size == 1
+
+/**
+ * Whether [g] holds its ground where it is met, so that a meeting there is over ground it holds ([engagedOver]): one ranging
+ * from home ([rangesFromHome]), or a resident stand-in in its hex ([HexGroup.standIn]). The one test.
+ */
+internal fun holdsGround(g: HexGroup) = g.rangesFromHome || g.standIn
 
 /**
  * Pack [g], holding its ground, gave way or lost at a meeting over [contested] (the hexes of the contact, or the meeting's
@@ -155,9 +221,9 @@ internal fun GroupWorld.gaveWay(g: HexGroup, contested: HexArray, today: Long) {
     val lair = if (g.band != null) hw.placeHex[g.place] else g.home
     if (g.footprint == null || lair.none) return
     val until = today + YIELD_DAYS
-    val kept = g.yielded?.let { y -> y.filter { (it and 0xFFFFFFFFL) > today && contested.indexOf((it ushr 32).toInt()) < 0 } } ?: emptyList()
+    val kept = g.yielded?.let { y -> y.filter { Yield.until(it) > today && contested.indexOf(Yield.hex(it)) < 0 } } ?: emptyList()
     val added = ArrayList<Long>()
-    for (i in 0 until contested.size) { val h = contested[i]; if (h != lair) added += (h.i.toLong() shl 32) or until }
+    for (i in 0 until contested.size) { val h = contested[i]; if (h != lair) added += Yield.of(h, until) }
     g.yielded = (kept + added).toLongArray().takeIf { it.isNotEmpty() }
     if (added.isNotEmpty()) stats.meeting(Met.HEXES_YIELDED, added.size)
 }
@@ -165,8 +231,20 @@ internal fun GroupWorld.gaveWay(g: HexGroup, contested: HexArray, today: Long) {
 /** Whether pack [g] keeps off hex [h] on day [today], having given way there ([gaveWay]). */
 internal fun yields(g: HexGroup, h: Hex, today: Long): Boolean {
     val y = g.yielded ?: return false
-    for (e in y) if ((e ushr 32).toInt() == h.i && (e and 0xFFFFFFFFL) > today) return true
+    for (e in y) if (Yield.hex(e) == h.i && Yield.until(e) > today) return true
     return false
+}
+
+/**
+ * One hex a pack gave way on and the day it keeps off it until ([HexGroup.yielded], [gaveWay]), packed in a `Long` as it
+ * is saved: the hex's index in the high half, the absolute day in the low. The one place the packing is written.
+ */
+internal object Yield {
+    fun of(h: Hex, until: Long): Long = (h.i.toLong() shl 32) or (until and 0xFFFFFFFFL)
+    /** The hex's index. */
+    fun hex(e: Long): Int = (e ushr 32).toInt()
+    /** The day it keeps off it until, absolute. */
+    fun until(e: Long): Long = e and 0xFFFFFFFFL
 }
 
 /** The index of the hex of index [i] in [this], or -1. */

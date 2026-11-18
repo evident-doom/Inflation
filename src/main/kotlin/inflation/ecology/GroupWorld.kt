@@ -73,9 +73,6 @@ abstract class GroupWorld(
     internal val small get() = fauna.small
     /** What bands have taken near where they live ([worn], t.wornGround); not saved. */
     @Volatile @Transient internal var wornGround: WornGround? = null
-    /** The hexes the meeting being settled is over and its day ([meetSettle]): what a pack that gives way there gives up, [gaveWay]. */
-    @Transient internal var contested: inflation.world.HexArray = inflation.world.HexArray.EMPTY
-    @Transient internal var contestDay = 0L
 
     internal fun foodFor(s: Species, p: Place) = fauna.foodFor(s, p)
 
@@ -136,7 +133,15 @@ abstract class GroupWorld(
 
     internal fun hexKm(a: Hex, b: Hex): Double = hex.distanceKm(a, b)
 
-    internal fun territoryKm(s: Species) = sqrt(max(1f, s.startKm2PerAnimal) * s.groupSize / Math.PI.toFloat()) + 5f
+    /**
+     * How far from home a group of kind [s] counts as on its own ground, km: the radius of its territory ([territoryKm2]) and
+     * 5 km more, for the hexes' grain (a hex is [inflation.world.HexMap.hexKm] across). For what is beyond its ground; its
+     * ground itself is laid by area ([territoryKm2], [footprint]).
+     */
+    internal fun territoryKm(s: Species) = sqrt(territoryKm2(s) / Math.PI.toFloat()) + 5f
+
+    /** The land a usual group of kind [s] holds as its territory, km²: its own figure a head ([Species.startKm2PerAnimal]) for its usual group. */
+    internal fun territoryKm2(s: Species) = max(1f, s.startKm2PerAnimal) * s.groupSize
 
     /** Whether kind [s]'s home range reaches beyond its hex, so that it counts its kind over the six round it too. */
     internal fun rangesWide(s: Species) = territoryKm(s) > 0.6f * hex.hexKm

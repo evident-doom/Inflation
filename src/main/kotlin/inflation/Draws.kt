@@ -41,8 +41,6 @@ enum class Stream(val salt: Long) {
     /** The mast crop's years, for each weather replicate. */
     MAST(0x4d415354L),
     ERUPTIONS(0x45525550L),
-    /** The fine grid's plants ([inflation.world.Vegetation]): their start, and each cell's draws a step. */
-    FINE_PLANTS(0x56454745L),
     FIRES(0x46495245L),
     OUTBREAKS(0x4f555442L),
     LOCUSTS(0x4c4f4355L),
@@ -138,14 +136,53 @@ fun drawWeighted(weights: FloatArray, total: Float, r: kotlin.random.Random): In
     return i
 }
 
-/** A Poisson draw of [mean] from [r] (normal, rounded to the nearest count, above a mean of 30). */
+/**
+ * A Poisson draw of [mean] from [r], exact at every mean. Below [POISSON_INVERT_BELOW], by inversion: one even draw, walked up
+ * the counts' summed odds until it is passed. From it, by Hörmann's transformed rejection (PTRS: W. Hörmann 1993, "The
+ * transformed rejection method for generating Poisson random variables", Insurance: Mathematics and Economics 12: 39-45):
+ * about 2.5 even draws whatever the mean. (Before 16 Nov 2026: one draw for each count up to a mean of 30, Knuth's product of
+ * draws, and above it a normal draw rounded, which has no skew and is clipped at nought.)
+ */
 fun poisson(mean: Float, r: kotlin.random.Random): Int {
-    if (mean <= 0f) return 0
-    if (mean > 30f) return (mean + sqrt(mean) * gaussianF(r)).roundToInt().coerceAtLeast(0)
-    val l = exp(-mean.toDouble()); var k = 0; var pr = 1.0
-    do { k++; pr *= r.nextDouble() } while (pr > l)
-    return k - 1
+    if (!(mean > 0f)) return 0
+    if (mean == Float.POSITIVE_INFINITY) return Int.MAX_VALUE
+    val lam = mean.toDouble()
+    if (lam < POISSON_INVERT_BELOW) {
+        val u = r.nextDouble()
+        var p = exp(-lam); var sum = p; var k = 0
+        while (u > sum && p > 0.0) { k++; p *= lam / k; sum += p }
+        return k
+    }
+    val slam = sqrt(lam); val logLam = ln(lam)
+    val b = 0.931 + 2.53 * slam; val a = -0.059 + 0.02483 * b
+    val invAlpha = 1.1239 + 1.1328 / (b - 3.4); val vr = 0.9277 - 3.6224 / (b - 2)
+    while (true) {
+        val u = r.nextDouble() - 0.5; val v = r.nextDouble(); val us = 0.5 - kotlin.math.abs(u)
+        val k = kotlin.math.floor((2 * a / us + b) * u + lam + 0.43)
+        // (Most draws fall in the box where the hat and the odds agree, and are taken as they are.)
+        if (us >= 0.07 && v <= vr) return k.toInt()
+        if (k < 0 || (us < 0.013 && v > us)) continue
+        if (ln(v) + ln(invAlpha) - ln(a / (us * us) + b) <= -lam + k * logLam - lnFactorial(k)) return k.toInt()
+    }
 }
+
+/** The mean below which [poisson] draws by inversion: there the walk up the counts is short, and one even draw is enough. */
+private const val POISSON_INVERT_BELOW = 10.0
+
+/** ln k! for a whole [k] >= 0: by Stirling's series with its first ten terms, from 7! up; below, from 7! down. */
+private fun lnFactorial(k: Double): Double {
+    if (k < 2.0) return 0.0
+    var x = k + 1.0; var down = 0.0
+    while (x < 8.0) { down += ln(x); x += 1.0 }
+    val x2 = 1.0 / (x * x)
+    var s = STIRLING[STIRLING.size - 1]
+    for (i in STIRLING.size - 2 downTo 0) s = s * x2 + STIRLING[i]
+    return s / x + 0.5 * ln(2 * Math.PI) + (x - 0.5) * ln(x) - x - down
+}
+
+/** Stirling's series for ln Γ: the Bernoulli numbers' terms B(2n) / (2n (2n - 1)), n = 1 to 10. */
+private val STIRLING = doubleArrayOf(1.0 / 12, -1.0 / 360, 1.0 / 1260, -1.0 / 1680, 1.0 / 1188, -691.0 / 360360, 1.0 / 156, -3617.0 / 122400,
+    43867.0 / 244188, -174611.0 / 125400)
 
 /**
  * A binomial draw of [n] tries at [p] from [r]. Exact, try by try, up to 50 tries; beyond that, normal (rounded to

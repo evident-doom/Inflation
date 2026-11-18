@@ -37,11 +37,13 @@ internal class WorksPainter(private val sim: HexSim) {
         var penHead = 0f
         var weirs = 0
         var wells = 0
+        /** The largest monument's person-days of work. */
+        var monument = 0f
         var fieldHa = 0f; var sownKg = 0f; var ripeKg = 0f; var tame = 0f; var pulse = 0f
         var wornKm2 = 0f; var clearedKm2 = 0f
         var village = 0
         var midden = 0f
-        val any get() = houses.isNotEmpty() || fence > 0f || halls.isNotEmpty() || penHead > 0f || weirs > 0 || wells > 0 ||
+        val any get() = houses.isNotEmpty() || fence > 0f || halls.isNotEmpty() || penHead > 0f || weirs > 0 || wells > 0 || monument > 0f ||
             fieldHa > 0f || ripeKg > 0f || wornKm2 > 0f || clearedKm2 > 0f || village > 0 || midden >= MIDDEN_SHOWN
     }
 
@@ -59,6 +61,7 @@ internal class WorksPainter(private val sim: HexSim) {
                 Built.PEN -> w.penHead += st.built * st.size
                 Built.WEIR -> w.weirs++
                 Built.WELL -> w.wells++
+                Built.MONUMENT -> w.monument = max(w.monument, st.size)
             }
         }
         val food = sim.fauna.food
@@ -107,6 +110,7 @@ internal class WorksPainter(private val sim: HexSim) {
             if (w.penHead > 0f) at(-0.5f, -0.3f).let { (px, py) -> pen(g, px, py, u, line, w.penHead) }
             if (w.wells > 0) at(-0.62f, 0.1f).let { (px, py) -> well(g, px, py, u, line, w.wells) }
             if (w.weirs > 0) at(0.4f, 0.3f).let { (px, py) -> weir(g, px, py, u, line, w.weirs) }
+            if (w.monument > 0f) at(0.45f, -0.45f).let { (px, py) -> monument(g, px, py, u, w.monument) }
             if (w.midden >= MIDDEN_SHOWN) at(0.15f, 0.12f).let { (px, py) -> midden(g, px, py, u, w.midden) }
             at(-0.15f, 0.15f).let { (px, py) -> field(g, px, py, u, line, w) }
         }
@@ -215,6 +219,12 @@ internal class WorksPainter(private val sim: HexSim) {
         }
     }
 
+    /** A monument: a standing stone, taller for more work in it (log scale). */
+    private fun monument(g: Graphics2D, x: Int, y: Int, u: Float, days: Float) {
+        val hgt = (u * (0.08f + 0.04f * ln(1f + days / 100f))).toInt().coerceAtLeast(2); val wd = max(1, hgt / 3)
+        g.color = MONUMENT; g.fillRect(x - wd / 2, y - hgt, wd, hgt)
+    }
+
     /** The midden: a grey heap, larger the more there is. */
     private fun midden(g: Graphics2D, x: Int, y: Int, u: Float, m: Float) {
         val r = (u * (0.03f + 0.05f * m.coerceIn(0f, 1f))).toInt().coerceAtLeast(1)
@@ -273,6 +283,7 @@ internal class WorksPainter(private val sim: HexSim) {
                 Built.PEN -> "pen for %.0f head: %s; %s".format(st.size, stands, who)
                 Built.WEIR -> "weir %.0f m across the river: %s; %s".format(st.size, stands, who)
                 Built.WELL -> "well %.0f m deep: %s; %s".format(st.size, stands, who)
+                Built.MONUMENT -> "monument of %.0f person-days: %s; %s".format(st.size, stands, who)
             })
         }
         val food = sim.fauna.food
@@ -326,6 +337,7 @@ internal class WorksPainter(private val sim: HexSim) {
         val WORN = Color(0.55f, 0.4f, 0.25f, 0.8f)
         val CLEARED = Color(0.8f, 0.7f, 0.5f, 0.8f)
         val VILLAGE = Color(0.9f, 0.2f, 0.6f, 0.95f)
+        val MONUMENT = Color(0.92f, 0.9f, 0.85f, 0.95f)
 
         val legend = MapLegend("Works", "People's works, drawn small inside each hex, one mark for each thing standing (zoomed out, only a square for houses, one for a field and a dot for a village). Houses in a row just above the hex's centre, " +
             "each as wide as the people it shelters, filled from the ground up as far as it stands: dark where a band uses it this week, grey where " +
@@ -334,11 +346,11 @@ internal class WorksPainter(private val sim: HexSim) {
             "stone; a weir (right) as a zigzag of stakes, a line for each; the midden as a grey heap. This year's field (below the centre, left), larger for more " +
             "ground sown (full at ${FIELD_FULL_HA.toInt()} ha), green while it grows and gold from the top as far as ripe grain stands, ringed white " +
             "where most of the seed holds its grain, a purple corner for pulses; a crossed square for ground worn by cropping and resting, a pale " +
-            "square for ground cleared and growing back. A village (low in the hex): a ring of a dot for each band.",
+            "square for ground cleared and growing back. A village (low in the hex): a ring of a dot for each band. A monument (upper right): a standing stone, taller for more work in it.",
             swatches = listOf(MapLegend.Swatch(HOUSE_USED, "house in use"), MapLegend.Swatch(HOUSE_EMPTY, "house standing empty"),
                 MapLegend.Swatch(PALISADE, "palisade"), MapLegend.Swatch(HALL_WALL, "hall"), MapLegend.Swatch(PEN, "pen"),
                 MapLegend.Swatch(WELL_WATER, "well"), MapLegend.Swatch(WEIR, "weir"), MapLegend.Swatch(MIDDEN, "midden"),
                 MapLegend.Swatch(FIELD_GROWING, "field growing"), MapLegend.Swatch(FIELD_RIPE, "ripe grain"), MapLegend.Swatch(PULSE, "pulses sown"),
-                MapLegend.Swatch(WORN, "worn ground"), MapLegend.Swatch(VILLAGE, "village")))
+                MapLegend.Swatch(WORN, "worn ground"), MapLegend.Swatch(VILLAGE, "village"), MapLegend.Swatch(MONUMENT, "monument")))
     }
 }

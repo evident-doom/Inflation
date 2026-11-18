@@ -22,10 +22,10 @@ import java.util.concurrent.atomic.DoubleAdder
 fun HexFauna.killed(p: Place, kg: Kg) { fear[p] += kg.v / land.areaKm2[p] }
 
 /** The odds that an animal of [kg] about place [p] is killed by the residents' hunters in a week, as they hunted there this week ([killRate]). */
-fun HexFauna.residentKillOdds(kg: Float, p: Place): Float {
+fun HexFauna.residentKillOdds(kg: Float, p: Place, young: Boolean = false): Float {
     val rates = killRate
     var v = 0f
-    for (k in kindIds) { val r = rates[k] ?: continue; if (r[p] > 0f) v += r[p] * kinds[k].preySize(kg) }
+    for (k in kindIds) { val r = rates[k] ?: continue; if (r[p] > 0f) v += r[p] * kinds[k].preySize(kg, young) }
     return v
 }
 
@@ -44,7 +44,7 @@ internal fun HexFauna.keptKm2(k: FaunaKind, p: Place): Float {
  */
 fun HexFauna.huntedOdds(k: FaunaKind, p: Place, young: Boolean): Float {
     val s = kinds[k]
-    return residentKillOdds(if (young) YOUNG_WEIGHT * s.massKg else s.massKg, p) + groupKilled[k][p]
+    return residentKillOdds(if (young) youngKg(k.i) else s.massKg, p, young) + groupKilled[k][p]
 }
 
 /**
@@ -72,7 +72,7 @@ internal fun HexFauna.noteHunted() {
  * on and killed at a pack's odds ([killChance], [seenFirst]), takes a pack's days to stalk, kill and eat, and is weighed
  * also by the days its danger costs ([dangerDays]); the party takes the best first while they raise its rate (Charnov's
  * rule, as [Offers.takeUp]) for as many of the week's days as it needs ([spent]: the party-days its hunting took this
- * week so far). A party new to every kind of game, as a resident hunter keeps no memory of what it met ([SEARCH_HALF]).
+ * week so far). Its search image of each kind is a pack's at as many meetings as it has here ([SEARCH_HALF]).
  * Of each kill it eats what a party can (a beast's whole prey, gorging included: [Nourishment.PREY]); what it cannot,
  * and the parts it leaves ([MEAT_SHARE]), are left as carrion. Returns what it ate.
  */
@@ -94,7 +94,6 @@ internal fun HexFauna.huntResidents(k: FaunaKind, p: Place, meat: KgM2, weather:
     val partyKg = partyHeads * hunter.massKg
     val eats = 1f / (partyKg * EATING_RATE)
     val most = max(partyHeads * hunter.dailyIntakeKg * days, partyKg * EATING_RATE * days)
-    val image = 1f / 2f // (m / (m + SEARCH_HALF) at m = SEARCH_HALF: a party new to every kind)
     // The game on offer: each kind's grown (part 0), young (1) and packs' grown (2), and each camp's kept herds, grown
     // (3) and young (4); heads per km², each one's weight, its kills a party-day of searching, and the days each takes.
     val camps = keptAt?.get(p.i)
@@ -103,26 +102,35 @@ internal fun HexFauna.huntResidents(k: FaunaKind, p: Place, meat: KgM2, weather:
     val dens = FloatArray(cap); val mass = FloatArray(cap); val rate = FloatArray(cap); val time = FloatArray(cap); val eat = FloatArray(cap)
     var m = 0
     var game = 0f
-    fun offer(j: Int, pt: Int, c: Int, d: Float, kg: Float, ps: Species, guard: Float, groupHeads: Float) {
+    fun offer(j: Int, pt: Int, c: Int, d: Float, kg: Float, ps: Species, guard: Float, groupHeads: Float, shelter: Float) {
         if (d <= 0f) return
-        val catchKg = catchable(hunter, ps, kg, p)
+        val catchKg = catchable(hunter, ps, kg, p, shelter)
         game += d * kg * catchKg
         val success = killChance(catchKg, 1f) * guard
         if (!(success > 0f)) return
         val met = (0.5f + 0.5f * Niches.overlap(hunter, ps)) * (1f - seenFirst(open, clear, null, ps)) / groupHeads.coerceAtLeast(1f)
-        val r = d * swept * success * met * image / days
+        // (Its search image of the kind, by the packs' rule, m / (m + SEARCH_HALF): m the meetings with it over SEARCH_DAYS, as
+        // often as it comes on them here. A resident lives its life on this ground and knows its game: it keeps to the kinds it
+        // meets often and passes up what has grown rare there, the switching that lets scarce game recover.)
+        val meets = d * swept * met / days
+        val known = meets * SEARCH_DAYS.toFloat()
+        val r = meets * success * known / (known + SEARCH_HALF)
         if (!(r > 0f)) return
         val meat1 = min(kg, most)
         kindOf[m] = j; part[m] = pt; campOf[m] = c; dens[m] = d; mass[m] = kg; rate[m] = r; eat[m] = meat1
-        time[m] = HANDLING_DAYS + STALK_DAYS / success.coerceIn(1e-3f, 1f) + meat1 * eats + dangerDays(hunter, ps, kg, partyHeads)
+        time[m] = handlingDays(hunter, kg) + STALK_DAYS / success.coerceIn(1e-3f, 1f) + meat1 * eats + dangerDays(hunter, ps, kg, partyHeads)
         m++
     }
     for ((j, s) in kinds.withKinds()) {
-        if (j == k || s === hunter) continue
-        val ym = YOUNG_WEIGHT * s.massKg
-        offer(j.i, 0, -1, adults[j][p], s.massKg, s, 1f, s.groupSize.toFloat())
-        offer(j.i, 1, -1, young[j][p], ym, s, 1f, s.groupSize.toFloat())
-        offer(j.i, 2, -1, packAt(j.i, p), s.massKg, s, 1f, s.groupSize.toFloat())
+        // (Not other beasts of prey: hunters kill their rivals and their young, [Danger.STRIFE] and the lions' killing, but
+        // do not live on them as game. As game, wolves and hyenas ate each other: a quarter of each's deaths.)
+        if (j == k || s === hunter || Catalogue.beastOfPrey(s)) continue
+        val ym = youngKg(j.i)
+        // (Its shelter there once for its grown, young and packs: the ground does not change while one hunts.)
+        val sh = preyShelter(s, p)
+        offer(j.i, 0, -1, adults[j][p], s.massKg, s, 1f, s.groupSize.toFloat(), sh)
+        offer(j.i, 1, -1, young[j][p], ym, s, 1f, s.groupSize.toFloat(), sh)
+        offer(j.i, 2, -1, packAt(j.i, p), s.massKg, s, 1f, s.groupSize.toFloat(), sh)
     }
     // (The herds kept at bands' camps there, as their kind in the wild, come on as one band of all their heads, through
     // each band's guard against beasts: [stalkGuard], by night its fire, dogs, watch and palisade, by day its dogs.)
@@ -131,9 +139,9 @@ internal fun HexFauna.huntResidents(k: FaunaKind, p: Place, meat: KgM2, weather:
         for (j in b.herds.herd.indices) {
             val all = b.herds.herd[j] + yh[j]
             if (j == k.i || all < 1f) continue
-            val s = kinds[j]
-            offer(j, 3, c, b.herds.herd[j] / area, s.massKg, s, guard, all)
-            offer(j, 4, c, yh[j] / area, YOUNG_WEIGHT * s.massKg, s, guard, all)
+            val s = kinds[j]; val sh = preyShelter(s, p)
+            offer(j, 3, c, b.herds.herd[j] / area, s.massKg, s, guard, all, sh)
+            offer(j, 4, c, yh[j] / area, YOUNG_WEIGHT * s.massKg, s, guard, all, sh)
         }
     }
     if (m == 0) return KgM2.ZERO
@@ -202,17 +210,34 @@ internal fun HexFauna.huntResidents(k: FaunaKind, p: Place, meat: KgM2, weather:
 fun HexFauna.afraid(p: Place) = fear[p] / (fear[p] + FEAR_HALF)
 
 /**
- * The resident game hunter [s] sees at place [p], kg per km²: every other kind there, grown and young (at
+ * The resident game hunter [s] sees at place [p], kg per km²: every other kind there but the beasts of prey, grown and young (at
  * [YOUNG_WEIGHT]), by its weight and how catchable it is ([catchable]). Resident hunters and the groups count it alike.
  */
 fun HexFauna.game(s: Species, p: Place): Float {
     var v = 0f
     for ((j, ps) in kinds.withKinds()) {
-        if (ps === s) continue
+        if (ps === s || Catalogue.beastOfPrey(ps)) continue
         val a = adults[j][p]; val y = young[j][p]
         if (a + y <= 0f) continue
-        val ym = YOUNG_WEIGHT * ps.massKg
-        v += a * ps.massKg * catchable(s, ps, ps.massKg, p) + y * ym * catchable(s, ps, ym, p)
+        val ym = youngKg(j.i); val sh = preyShelter(ps, p)
+        v += a * ps.massKg * catchable(s, ps, ps.massKg, p, sh) + y * ym * catchable(s, ps, ym, p, sh)
+    }
+    return v
+}
+
+/**
+ * The prey of a size hunter [s] takes standing at place [p], kg per km²: every other kind there but the beasts of prey,
+ * grown and young (at [YOUNG_WEIGHT]), by its weight as far as it is of a size [s] takes ([Species.preySize]), however
+ * well it defends or hides itself. What hunters' numbers follow ([HexFauna.usualAt]), as the record measures it.
+ */
+fun HexFauna.preyBiomass(s: Species, p: Place): Float {
+    var v = 0f
+    for ((j, ps) in kinds.withKinds()) {
+        if (ps === s || Catalogue.beastOfPrey(ps)) continue
+        val a = adults[j][p]; val y = young[j][p]
+        if (a + y <= 0f) continue
+        val ym = youngKg(j.i)
+        v += a * ps.massKg * s.preySize(ps.massKg) + y * ym * s.preySize(ym, young = true)
     }
     return v
 }
@@ -222,22 +247,41 @@ fun HexFauna.game(s: Species, p: Place): Float {
  * 0..1: its size against what the hunter takes ([Species.preySize]), defence, refuge in broken ground, small prey
  * hiding in thick cover, and for stalkers, dark nights.
  */
-fun HexFauna.catchable(s: Species, ps: Species, massKg: Float, p: Place): Float =
-    (s.preySize(massKg) * (1f - ps.defence) * closingIn(s, ps, massKg, p)).coerceIn(0f, 1f)
+fun HexFauna.catchable(s: Species, ps: Species, massKg: Float, p: Place): Float = catchable(s, ps, massKg, p, preyShelter(ps, p))
 
-private fun HexFauna.closingIn(s: Species, ps: Species, massKg: Float, p: Place): Float {
-    // Shelter: crags, dens, thickets and trees, as the prey uses them; small prey hide in any cover.
+/** [catchable], given [shelter], [ps]'s [preyShelter] at [p]: for a caller that weighs its grown and young, or many hunters, alike. */
+fun HexFauna.catchable(s: Species, ps: Species, massKg: Float, p: Place, shelter: Float): Float =
+    (s.preySize(massKg, young = massKg < ps.massKg) * (1f - youngDefence(ps, massKg)) * closingIn(s, ps, massKg, p, shelter)).coerceIn(0f, 1f)
+
+/**
+ * How well an animal of kind [ps] weighing [massKg] fends off a hunter, 0..1: its kind's [Species.defence] for a grown one,
+ * less for the young by the square root of their weight against the grown's. A calf is guarded by its mother and the herd
+ * but is no bull: lions take buffalo calves far more readily than grown buffalo, wolves moose calves than cows (from
+ * memory). At [YOUNG_WEIGHT] of the grown's weight, about half the grown's defence.
+ */
+fun youngDefence(ps: Species, massKg: Float): Float = ps.defence * kotlin.math.sqrt((massKg / ps.massKg).coerceIn(0f, 1f))
+
+/** How well game of kind [ps] can shelter at place [p] now ([Niches.shelter]), its ground's part as worked out for the run. */
+fun HexFauna.preyShelter(ps: Species, p: Place): Float {
+    val k = slots[ps.index]
+    return if (k >= 0) Niches.shelter(ps, p, land, groundShelter[k][p]) else Niches.shelter(ps, p, land)
+}
+
+private fun HexFauna.closingIn(s: Species, ps: Species, massKg: Float, p: Place, shelter: Float): Float {
+    // Shelter: crags, dens, thickets and trees, as the prey uses them ([preyShelter]); small prey hide in any cover.
     // (Hunters that follow the scent find much of what hides; shelter counts for half against them.)
     // (But crags are a wild goat's whole defence: no hunter follows it up a cliff.)
-    val k = slots[ps.index]
-    val shelter = if (k >= 0) Niches.shelter(ps, p, land, groundShelter[k][p]) else Niches.shelter(ps, p, land)
-    val refuge = 1f - (if (ps.habitat.rugged >= 0.5f) 1f else 0.5f) * SHELTER_EFFECT * shelter
+    val refuge = 1f - (if (ps.climbing >= 0.5f) 1f else 0.5f) * SHELTER_EFFECT * shelter
     // Small prey hide in thick cover from hunters that run them down; a stalker uses the same cover to get close.
     val hide = 1f - HIDING * land.plants.cover(p) * (1f - s.stalking) * max(0f, 1f - massKg / HIDING_KG)
     // Stalkers hunt by night: dark weeks around the new moon hide them, bright ones give them away.
     val dark = 1f + MOON_DARK * s.stalking * (1f - 2f * moon)
-    // A courser must run its quarry down; a stalker gets close unseen and needs no speed.
-    val speed = s.stalking + (1f - s.stalking) * min(1f, s.speedKmh / ps.speedKmh)
+    // A courser must run its quarry down; a stalker gets close unseen and needs no speed. (Against quarry faster than it,
+    // a courser's chance falls with the square of their speeds: a chase is won or lost on the gap, and a wolf rarely runs
+    // down a grown ostrich or onager in the open. Linear, a hunter a sixth slower than its quarry still closed in nine
+    // times in ten.)
+    val ratio = min(1f, s.speedKmh / ps.speedKmh)
+    val speed = s.stalking + (1f - s.stalking) * ratio * ratio
     // And it needs room to run: in thick woods and scrub a chase ends at the first tangle.
     val room = 1f - COURSING_COVER * (1f - s.stalking) * land.plants.cover(p)
     return refuge * hide * dark * speed * room
