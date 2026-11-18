@@ -14,15 +14,12 @@ import kotlin.math.pow
 
 /**
  * Plant life forms tracked on each place ([HexPlants]). Food, fodder, fuel and materials are drawn from these.
- * (Herbs' fastest growth: a short sward in full warmth and water doubles in about three weeks, as spring
- * pasture and semi-arid grassland put on 1-3 g/m² a day from a low stand, from memory; slower growth would
- * leave a dry country's spring over before its grass had grown.)
+ * They grow by the water they transpire; the stands and ramps here only set where a new world's plants start
+ * ([HexPlants.ceiling]) and the scales of cover and canopy.
  */
 enum class LifeForm(
-    /** Largest standing biomass in the best conditions, kg dry matter per m². */
+    /** A full stand in the best conditions, kg dry matter per m² (the scale of [HexPlants.canopy] and [HexPlants.groundCover]). */
     val maxBiomass: Float,
-    /** Fastest relative growth, per year. */
-    val growthPerYear: Float,
     /** Long-term soil moisture (0..1) below which the form cannot persist, and where it thrives. */
     val moistureMin: Float,
     val moistureFull: Float,
@@ -32,9 +29,9 @@ enum class LifeForm(
     /** Air temperature that kills it outright, °C. */
     val frostKill: Float,
 ) {
-    HERB(0.6f, 12f, 0.05f, 0.35f, 4f, 12f, -45f),
-    SHRUB(3f, 0.8f, 0.12f, 0.45f, 6f, 14f, -30f),
-    TREE(25f, 0.25f, 0.3f, 0.7f, 10f, 16f, -25f),
+    HERB(0.6f, 0.05f, 0.35f, 4f, 12f, -45f),
+    SHRUB(3f, 0.12f, 0.45f, 6f, 14f, -30f),
+    TREE(25f, 0.3f, 0.7f, 10f, 16f, -25f),
 }
 
 /**
