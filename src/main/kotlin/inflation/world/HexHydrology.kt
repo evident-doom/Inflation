@@ -243,10 +243,15 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
             val heat = exp(0.06f * (t - hw.placeTemp(p, m))).coerceIn(0.3f, 3f)
             val demand = land.pet[m][p] * share * heat
             val sunnyIn = soil[p] + rain + weather.meltSun[p]; val shadyIn = soilShade[p] + rain + weather.meltShade[p]
-            val sunny = layered(p, soil[p], soilTop[p], rain + weather.meltSun[p], demand * hw.sunlight.ratio[0][m][p])
+            val f0 = land.slopeShade[p]
+            val sunDemand = demand * hw.sunlight.ratio[0][m][p]; val shadeDemand = demand * hw.sunlight.ratio[1][m][p]
+            val sunny = layered(p, soil[p], soilTop[p], rain + weather.meltSun[p], sunDemand)
             val sunnyTop = lastTop; val sunnySurplus = lastSurplus
-            val shady = layered(p, soilShade[p], soilTopShade[p], rain + weather.meltShade[p], demand * hw.sunlight.ratio[1][m][p])
+            for (k in 0..2) transpired[k][p] = (1 - f0) * lastTranspired[k]
+            val shady = layered(p, soilShade[p], soilTopShade[p], rain + weather.meltShade[p], shadeDemand)
             val shadyTop = lastTop; val shadySurplus = lastSurplus
+            for (k in 0..2) transpired[k][p] += f0 * lastTranspired[k]
+            demandMm[p] = (1 - f0) * sunDemand + f0 * shadeDemand
             soil[p] = sunny - sunnySurplus; soilShade[p] = shady - shadySurplus
             soilTop[p] = sunnyTop; soilTopShade[p] = shadyTop
             val excess = (1 - land.slopeShade[p]) * sunnySurplus + land.slopeShade[p] * shadySurplus
@@ -472,12 +477,27 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
         val topStress = min(1f, top / (UNSTRESSED * tc)); val deepStress = min(1f, deep / (UNSTRESSED * dc))
         val fromTop = demand * topStress * (herbs + bare + TOP_ROOTS[1] * shrubs + TOP_ROOTS[2] * trees)
         val fromDeep = demand * deepStress * ((1f - TOP_ROOTS[1]) * shrubs + (1f - TOP_ROOTS[2]) * trees)
-        top -= min(top, fromTop); deep -= min(deep, fromDeep)
+        val gotTop = min(top, fromTop); val gotDeep = min(deep, fromDeep)
+        top -= gotTop; deep -= gotDeep
         lastTop = top; lastSurplus = max(0f, deep - dc)
+        // What each form transpired: its part of each layer's draw, each layer's draw cut alike when the layer ran short.
+        val topPart = if (fromTop > 0f) demand * topStress * gotTop / fromTop else 0f
+        val deepPart = if (fromDeep > 0f) demand * deepStress * gotDeep / fromDeep else 0f
+        lastTranspired[0] = topPart * herbs
+        lastTranspired[1] = topPart * TOP_ROOTS[1] * shrubs + deepPart * (1f - TOP_ROOTS[1]) * shrubs
+        lastTranspired[2] = topPart * TOP_ROOTS[2] * trees + deepPart * (1f - TOP_ROOTS[2]) * trees
         return top + deep
     }
-    /** Scratch for [layered]: the light shares of herbs, shrubs and trees. */
+    /** Scratch for [layered]: the light shares of herbs, shrubs and trees, and what each transpired on the slope, mm. */
     @Transient private val light = FloatArray(3)
+    @Transient private val lastTranspired = FloatArray(3)
+    /**
+     * What the herbs, shrubs and trees of each place transpired from its soil this tick, mm (its sunny and shaded slopes by
+     * their shares): what [HexPlants] grows on. Set before the plants' turn each tick ([HexLand] runs water before plants).
+     */
+    @Transient val transpired = Array(3) { FloatArray(n) }
+    /** The evaporative demand on each place this tick, mm (its slopes by their shares): the most its leaves could transpire. */
+    @Transient val demandMm = FloatArray(n)
 
     private fun soakTo(p: Place, h: Hex): Float {
         var to = 0f

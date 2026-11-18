@@ -39,7 +39,8 @@ enum class LifeForm(
 
 /**
  * The plants of the places of [HexLand], on the averages of each place's cells:
- * herbs, shrubs and trees grow towards ceilings set by recent moisture, warmth and soil; trees shade the rest;
+ * herbs, shrubs and trees grow by the water they transpire ([HexHydrology.transpired]) and shed leaves and twigs as they
+ * go, each taking its share of the light (trees first, then shrubs, then herbs) and of the soil water its roots reach;
  * seed comes from the place itself and its neighbours (the other half of its hex, the places
  * in the hexes around); frost, floods, ash and fire set them back. Grazing, browsing, rooting, trampling and
  * seed carried by animals are set by the ecology.
@@ -94,8 +95,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
     val green = FloatArray(n)
     /**
      * The cured grass weathering where it stands: how much of the stand has fallen into the litter since
-     * it last grew, kg/m² (the crowns that grew it are still there, so it grows back as fast as it would
-     * have), and how fresh the cured part still is, 0..1: 1 just cured, 0 leached to straw (see [inflation.Tuning.hayWeathering]).
+     * it last grew, kg/m² (new growth makes it good again), and how fresh the cured part still is, 0..1: 1 just cured, 0 leached to straw (see [inflation.Tuning.hayWeathering]).
      */
     val hayFallen = FloatArray(n); val hayFresh = FloatArray(n) { 1f }
     /**
@@ -190,16 +190,25 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
      * water the place gives to the air ([HexHydrology.step]).
      */
     fun lightShares(p: Place, out: FloatArray) {
-        val trees = canopy(p)
-        val shrubs = (1f - trees) * (1f - exp(-LIGHT_K * SHRUB_LAI_PER_KG * shrub[p]))
-        val herbs = (1f - trees - shrubs) * (1f - exp(-LIGHT_K * HERB_LAI_PER_KG * herb[p] * green[p]))
-        out[0] = herbs; out[1] = shrubs; out[2] = trees
+        val trees = canopy(p); val shrubs = shrubLight(p, trees)
+        out[0] = herbLight(p, trees + shrubs); out[1] = shrubs; out[2] = trees
     }
+    /** The share of the light at [p] the shrubs take under the trees' [trees] ([lightShares]). */
+    private fun shrubLight(p: Place, trees: Float) = (1f - trees) * (1f - exp(-LIGHT_K * SHRUB_LAI_PER_KG * shrub[p]))
+    /**
+     * The share the green herbs take of what the woody plants leave ([above] taken): on at least [HERB_SEED_BANK] kg/m², the
+     * seedlings that come up from the seed in the soil wherever the ground greens, as the herbs grow from it.
+     */
+    private fun herbLight(p: Place, above: Float) = (1f - above) * (1f - exp(-LIGHT_K * HERB_LAI_PER_KG * max(herb[p], HERB_SEED_BANK) * green[p]))
     /** Cover to hide in at place [p], 0..1: scrub and forest. */
     fun cover(p: Place) = min(1f, shrub[p] / 2f + canopy(p))
     /** Cover on the ground at place [p], 0..1, that small game hides in: standing grass and herbs (full at their most) and scrub; fire and grazing take it off. */
     fun groundCover(p: Place) = min(1f, herb[p] / LifeForm.HERB.maxBiomass + shrub[p] / 2f)
 
+    /**
+     * The stand of [form] place [p]'s climate and soil would once have carried: only where a new world's plants start
+     * from, and for the diagnostics; the plants grow by their water, not toward it.
+     */
     fun ceiling(form: LifeForm, p: Place): Float {
         val m = ((moisture[p] - form.moistureMin) / (form.moistureFull - form.moistureMin)).coerceIn(0f, 1f)
         val t = ((warmth[p] - form.warmthMin) / (form.warmthFull - form.warmthMin)).coerceIn(0f, 1f)
@@ -355,14 +364,12 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             val shaded = land.slopeShade[p]
             val sunnyGrowth = herbGrowth(p, season, wet, cured[p])
             val shadyGrowth = herbGrowth(p, season, hydro.soilShade[p] / hydro.soilCap[p], curedShade[p])
-            val openGrowth = (1 - shaded) * sunnyGrowth + shaded * shadyGrowth
             // The seeps grow as long as the ground water flows, whatever the weather brings.
             val seepGrowth = season * hydro.seeping(p)
             // So does the turf of the wet valley floor, as far as the water table under it lies within its roots' reach:
             // when the river falls in a drought, the table under the floodplain falls with it and the meadows brown.
             val wetShare = hydro.wetFloor(p); val openShare = 1f - HexHydrology.SEEP_SHARE - wetShare
             val wetGrowth = season * (1f - hydro.floorTableM(p) / HexHydrology.TURF_REACH_M).coerceIn(0f, 1f)
-            val grassGrowth = openShare * openGrowth + HexHydrology.SEEP_SHARE * seepGrowth + wetShare * wetGrowth
             // Greenness follows growth, with a lag: a flush takes some weeks to come and to cure.
             // After a fire the burn greens up with young growth, rich forage, when the soil is moist enough to sprout
             // it (the burnt straw no longer holds it back): a burn in the dry season stays black until the rain.
@@ -373,34 +380,51 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             greenSeep[p] += (seepGrowth - greenSeep[p]) * GREEN_RATE
             greenWet[p] += (wetGrowth - greenWet[p]) * GREEN_RATE
             green[p] = openShare * ((1 - shaded) * greenOpen[p] + shaded * greenShade[p]) + HexHydrology.SEEP_SHARE * greenSeep[p] + wetShare * greenWet[p]
-            val shade = canopy(p)
             val browsed = 1f - exp(-browsing[p] / tuning.browseScale)
-            val young = 1f - min(1f, tree[p] / (0.3f * ceiling(LifeForm.TREE, p).coerceAtLeast(1e-3f)))
+            val young = 1f - min(1f, tree[p] / YOUNG_STAND_KG)
             val rooted = 1f - exp(-rooting[p] / ROOT_SCALE)
             val treeSeedHere = max(treeSeed[p], 0.5f * animalSeed[p]) * (1f + 1.5f * rooted)
             val shrubSeedHere = max(shrubSeed[p], animalSeed[p]) * (1f + 1.5f * rooted)
-            val tree0 = tree[p]; val shrub0 = shrub[p]
-            // (Woody plants on the wet valley floor draw on the water table whatever the weather.)
-            val woodyWater = water0 + wetShare * (1f - water0)
             // Hooves kill the seedlings they come down on: a seedling lives if no hoof falls on its spot in the years it
             // takes to grow up out of their way, the share of the ground stepped on in a year being last week's at its rate.
             val trod = exp(-trodden[p] / land.areaM2[p] / years * SEEDLING_YEARS).let { if (it.isNaN()) 1f else it }
             // (The residents' treading is a tick's walking, set once a step: it falls again each tick of the step, [HexLand.lastTick].)
             if (land.lastTick) trodden[p] = 0f
-            grew += grow(LifeForm.TREE, tree, p, season * woodyWater * years * (1 - 0.8f * browsed * young), treeSeedHere * (1 - 0.9f * browsed) * trod)
+            // The plants grow by the water they transpired ([HexHydrology.transpired]), at [WUE_KG_PER_MM], as warm as it is
+            // for them and as the soil feeds them: no ceiling but the light their leaves take and the water.
+            val trees = canopy(p); val shrubs = shrubLight(p, trees); val herbs = herbLight(p, trees + shrubs)
+            val made = WUE_KG_PER_MM * season * soil(p)
+            // Woody roots reach the water table under the wet valley floor where it is not sodden: there the shrubs and
+            // trees transpire as much as the air takes, whatever the weather (the gallery forests of dry country).
+            val table = hydro.demandMm[p] * max(0f, wetShare - hydro.saturatedFloor(p))
+            val woody = 1f - opened[p]
+            // Seedlings come up from the seed rain where the soil is moist in growing weather, and live as far as hooves and
+            // browsers spare them: the stand that grows from nothing (to be replaced by wet-year recruitment, phase 3).
+            val sprouting = season * water0 * years * woody * trod
+            val gTree = made * (hydro.transpired[2][p] + table * trees) * (1f - 0.95f * land.waterlogged[p]) * (1 - 0.8f * browsed * young) +
+                ESTABLISH_TREE * sprouting * treeSeedHere * (1 - 0.9f * browsed)
+            grew += growBy(tree, p, gTree, TREE_RENEWAL * years)
             val sGrow = shrub[p]
-            grew += grow(LifeForm.SHRUB, shrub, p, season * woodyWater * years * (1 - 0.6f * shade) * (1 - 0.5f * browsed), shrubSeedHere * (1 - 0.8f * browsed) * trod)
+            val gShrub = made * (hydro.transpired[1][p] + table * shrubs) * (1f - 0.6f * land.waterlogged[p]) * (1 - 0.5f * browsed) +
+                ESTABLISH_SHRUB * sprouting * shrubSeedHere * (1 - 0.8f * browsed)
+            grew += growBy(shrub, p, gShrub, SHRUB_RENEWAL * years)
             shrubNote(if (shrub[p] >= sGrow) ShrubPart.GREW else ShrubPart.DIED_BACK, p, sGrow)
-            // New shoots: what the woody plants grew, and the leaves and twigs they renew, in growing weather.
-            val renew = season * water0 * years
-            shrubShoots[p] = shrubShoots[p] * shootsKept + land.palatable[p] * SHRUB_IN_REACH * SHRUB_BROWSE * (max(0f, shrub[p] - shrub0) + SHRUB_RENEWAL * renew * shrub[p])
-            treeShoots[p] = treeShoots[p] * shootsKept + land.palatable[p] * TREE_IN_REACH * (max(0f, tree[p] - tree0) + TREE_RENEWAL * renew * tree[p])
+            // New shoots: what the woody plants grew (their new leaves and twigs, which the old ones are shed against).
+            shrubShoots[p] = shrubShoots[p] * shootsKept + land.palatable[p] * SHRUB_IN_REACH * SHRUB_BROWSE * gShrub
+            treeShoots[p] = treeShoots[p] * shootsKept + land.palatable[p] * TREE_IN_REACH * gTree
             // In the cold the deciduous leaves fall: through the winter only twigs and buds are left to browse.
             // (Where winters are mild enough to grow on, the leaves stay, as on the evergreen scrub of the south.)
             if (tuning.leafFall > 0f && season <= 0f && t < growFrom[p]) { val k = exp(-tuning.leafFall * years); shrubShoots[p] *= k; treeShoots[p] *= k }
             val lawn = 1f - exp(-grazing[p] / LAWN_SCALE)
             val herb0 = herb[p]
-            grew += grow(LifeForm.HERB, herb, p, grassGrowth * years * (1 - 0.8f * shade), 1f, 1f - 0.5f * lawn - 0.2f * rooted, hayFallen[p])
+            // The herbs of the open ground transpire from its soil while they grow (the annuals not once cured); those of the
+            // seeps and the wet valley floor as far as their water flows ([seepGrowth], [wetGrowth], warmth in them).
+            val active = (1 - shaded) * (if (cured[p]) perennialShare[p] else 1f) + shaded * (if (curedShade[p]) perennialShare[p] else 1f)
+            val herbWater = openShare * season * active * hydro.transpired[0][p] +
+                hydro.demandMm[p] * herbs * (HexHydrology.SEEP_SHARE * seepGrowth + wetShare * wetGrowth)
+            val gHerb = WUE_KG_PER_MM * soil(p) * herbWater * (1f - 0.5f * lawn - 0.2f * rooted)
+            // Green leaves are renewed as they grow, the old shed to the litter.
+            grew += growBy(herb, p, gHerb, HERB_RENEWAL * years * green[p])
             // Cured grass weathers where it stands: the dead stems break and fall into the litter, and what
             // stands is leached of its protein, week by week, until rain sprouts it again. New growth makes
             // good what fell, and freshens the stand by its share of it.
@@ -430,14 +454,12 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             shrubNote(ShrubPart.FIRE, p, sFire)
             // What the plants lost (died back, weathered, frosted, drowned, smothered: all but the fire's) falls into the
             // litter, and so do the leaves, stems and roots they renew: production beyond the stand's net growth, shed as it is made.
-            val lost = max(0f, before - biomass(p) - burned + grew)
-            val turnover = years * (herb[p] + SHRUB_RENEWAL * shrub[p] + TREE_RENEWAL * tree[p])
+            val fell = max(0f, before - biomass(p) - burned + grew)
             // (Over a step of several ticks it adds up for the soil, which takes it in once a step: [HexLand.firstTick].)
-            val fell = lost + turnover
             litterfall[p] = if (land.firstTick) fell else litterfall[p] + fell
             if (books != null) {
                 val m2 = land.areaM2[p].toDouble()
-                grewBook!!.add((grew + turnover) * m2); burntBook!!.add(-burned * m2); fellBook!!.add(-fell * m2)
+                grewBook!!.add(grew * m2); burntBook!!.add(-burned * m2); fellBook!!.add(-fell * m2)
             }
             trample(p, years, perSet, fellBook)
             // The young growth matures as it grows, over [FLUSH_WEEKS] of full growth; the black scar itself fades over years.
@@ -476,16 +498,13 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
     }
 
     /**
-     * (With [crowns], kg/m², of the stand lost lately that its roots will grow back: it grows as from the whole stand.)
-     * Returns what grew, kg/m² (what dies back above the ceiling is not counted against it: it falls into the litter).
+     * Adds [g] kg/m² of new growth to stand [b] at place [p] and sheds [shed] of it (a share) to the litter. Returns the growth,
+     * kg/m² (what is shed is counted with the plants' other losses).
      */
-    private fun grow(form: LifeForm, b: FloatArray, p: Place, time: Float, seedRain: Float, capFactor: Float = 1f, crowns: Float = 0f): Float {
-        val cap = ceiling(form, p) * capFactor
-        val v = b[p]; val base = v + crowns
-        if (v < cap) b[p] = v + form.growthPerYear * time * (base + seedRain * cap * 0.05f) * (1 - v / cap.coerceAtLeast(1e-6f))
-        else b[p] = v - (v - cap) * min(1f, 2f * time + 0.002f)
-        if (b[p] < 0f) b[p] = 0f
-        return max(0f, b[p] - v)
+    private fun growBy(b: FloatArray, p: Place, g: Float, shed: Float): Float {
+        val add = max(0f, g)
+        b[p] = max(0f, (b[p] + add) * (1f - min(1f, shed)))
+        return add
     }
 
     /** Names the plants' stocks: herbs, shrubs and trees. */
@@ -549,6 +568,24 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
         const val SHRUB_LAI_PER_KG = 1.3f
         const val SHRUB_RENEWAL = 0.2f
         const val TREE_RENEWAL = 0.04f
+        /** Share of the green herbs renewed as leaves a year (shed to the litter as new leaves grow); a guess to source. */
+        const val HERB_RENEWAL = 1f
+        /**
+         * Aboveground dry matter grown per mm transpired, kg/m²: C3 plants make some 2-3 g of dry matter per kg of water, about
+         * half of it above ground (from memory; to source). Dryland production of some 0.3-0.5 g/m² per mm of rain (Le Houérou,
+         * from memory), with a third to a half of the rain transpired, agrees.
+         */
+        const val WUE_KG_PER_MM = 0.0012f
+        /** The herbs' seedlings, kg/m², that come up from the seed in the soil wherever the ground greens ([herbLight]). A guess. */
+        const val HERB_SEED_BANK = 0.02f
+        /**
+         * Seedlings of shrubs and trees established a year, kg/m², under a full seed rain in moist growing weather all year: the
+         * start of a stand on open ground. Guesses, to be replaced by wet-year recruitment.
+         */
+        const val ESTABLISH_SHRUB = 0.03f
+        const val ESTABLISH_TREE = 0.05f
+        /** A stand of trees, kg/m², grown out of the reach of browsers (below it, browsing holds the young trees back). */
+        const val YOUNG_STAND_KG = 5f
         /** Share of trees' new growth within a browser's reach (saplings and low boughs). */
         const val TREE_IN_REACH = 0.03f
         /**
