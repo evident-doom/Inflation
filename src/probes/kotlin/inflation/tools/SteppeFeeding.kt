@@ -36,6 +36,9 @@ fun main(args: Array<String>) {
     // and over 3000 kg/km². If the kinds feed one another's hunger, fed falls along both.
     val ownBins = Array(fauna.kinds.size) { Array(biomes.size) { DoubleArray(8) } }
     val allBins = Array(fauna.kinds.size) { Array(biomes.size) { DoubleArray(8) } }
+    // Grazing against growth, by place over the last year: grass eaten, kg/m² of the place, and the peak of the edible herbs
+    // standing (the peak-standing-crop measure of a year's growth, which leaves out what grew and was eaten or fell before it).
+    val ateYear = DoubleArray(n); val peakHerb = DoubleArray(n)
     val perYear = sim.stepsPerYear
     for (s in 0 until years * perYear) {
         sim.step()
@@ -49,6 +52,7 @@ fun main(args: Array<String>) {
             val pool = HexFauna.REACH * herb
             val out = pool > 0.0 && fauna.grazeLeft[p] < 0.05 * pool
             val eaten = if (herb > 0.0) (pool - fauna.grazeLeft[p]).coerceAtLeast(0.0) / herb else 0.0
+            ateYear[p] += (pool - fauna.grazeLeft[p]).coerceAtLeast(0.0); if (herb > peakHerb[p]) peakHerb[p] = herb
             val l = landAcc[b][qtr]; l[0] += a; l[1] += herb * a; l[2] += eaten * a; if (out) l[3] += a
             l[4] += herb * land.plants.leafy(pl) * a; l[5] += land.plants.nourishment(pl) * a
             val q = land.plants.nourishment(pl)
@@ -74,6 +78,9 @@ fun main(args: Array<String>) {
     for (b in shown) {
         println()
         println(biomes[b].label + ": by quarter (Jan-Mar, Apr-Jun, Jul-Sep, Oct-Dec)")
+        var ar = 0.0; var ate = 0.0; var peak = 0.0
+        for (p in 0 until n) if (hw.placeBiome[p] == b) { val a = land.areaKm2[p].toDouble(); ar += a; ate += ateYear[p] * a; peak += peakHerb[p] * a }
+        if (ar > 0.0) println("  year: grass eaten %.1f g/m², peak edible herbs %.1f g/m², eaten/peak %.1f%%".format(1000 * ate / ar, 1000 * peak / ar, 100 * ate / peak.coerceAtLeast(1e-12)))
         println("  land: edible herbs kg/m² | share of it eaten a step | share of land where the step's pool ran out | of the herbs fresh leaf kg/m² (leafy) | nourishment")
         for (qt in 0 until 4) { val l = landAcc[b][qt]; if (l[0] <= 0.0) continue
             println("    Q${qt + 1}  %.4f | %.4f | %3.0f%% | %.5f | %.2f".format(l[1] / l[0], l[2] / l[0], 100 * l[3] / l[0], l[4] / l[0], l[5] / l[0])) }
