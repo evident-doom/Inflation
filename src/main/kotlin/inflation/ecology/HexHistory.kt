@@ -295,7 +295,7 @@ class HexHistory {
     }
 
     /** The kind of country most of place [p] is. */
-    private fun biomeOf(sim: HexSim, p: Place): Int = sim.hw.placeBiome[p]
+    private fun biomeOf(sim: HexSim, p: Place): Int = sim.land.country.kind[p]
 
     /** How the weeks are grouped: by week, month or year. */
     enum class Period(val label: String) { WEEK("week"), MONTH("month"), YEAR("year") }

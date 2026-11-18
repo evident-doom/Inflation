@@ -221,7 +221,7 @@ fun HexSmallLife.herpExposed(p: Place) = rockHides[p] * HERP_COVER_KG / (HERP_CO
  * sheltered ground (cover, as [herpExposed]); taken as half of each. As they near it, the young
  * crowd the sites and fewer come through.
  */
-fun HexSmallLife.herpSites(p: Place) = HERP_MOST * (0.5f * min(1f, wetland[p] + land.floodShare[p]) + 0.5f * (1f - herpExposed(p)))
+fun HexSmallLife.herpSites(p: Place) = HERP_MOST * (0.5f * min(1f, wetland(p) + land.floodShare[p]) + 0.5f * (1f - herpExposed(p)))
 
 /** Whether reptiles and amphibians are out: warm, and not baking in a drought. */
 fun HexSmallLife.herpsActive(t: Float, soilWater: Float) = t in 12f..34f && !(t > 28f && soilWater < 10f)

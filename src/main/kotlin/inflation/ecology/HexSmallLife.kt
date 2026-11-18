@@ -15,7 +15,6 @@ import inflation.KgKm2
 import inflation.KgM2
 import inflation.StockName
 import inflation.min
-import inflation.world.Biome
 import inflation.world.HexPlants
 import inflation.wrapMonth
 import inflation.world.Date
@@ -23,7 +22,6 @@ import inflation.world.HexLand
 import inflation.world.HexWorld
 import inflation.world.LifeForm
 import inflation.world.Weather
-import java.util.EnumSet
 import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.min
@@ -223,10 +221,10 @@ class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, @Transi
     internal fun dropped(p: Place, kgM2: Float) { droppedBook?.add(kgM2 * land.areaM2[p].toDouble()) }
     internal fun ateM2(p: Place, kgM2: Float) { ateBook?.add(-kgM2 * land.areaM2[p].toDouble()) }
     @Transient internal var crowdLeak: DoubleAdder? = null
-    /** Share of each place that is wetland, where biting insects breed. */
-    @Transient val wetland = FloatArray(n) { p -> hw.placeCells[p].count { val b = hw.world.biome[it]; b in WETLANDS }.toFloat() / hw.placeCells[p].size }
+    /** Share of place [p] that is wetland, where biting insects breed: its sodden ground as it is now ([inflation.world.HexCountry.wetland]). */
+    fun wetland(p: Place) = land.country.wetland(p)
     /** Marsh, bog and floodplain, where ducks and geese feed. */
-    @Transient private val waterfowl = FloatArray(n) { p -> min(1f, wetland[p] + land.floodShare[p]) }
+    private fun waterfowl(p: Place) = min(1f, wetland(p) + land.floodShare[p])
     /** The year's mean temperature and rain at each place. */
     @Transient private val meanTemp = FloatArray(n) { p -> (0 until 12).map { hw.placeTemp(Place(p), it) }.average().toFloat() }
     @Transient internal val annualRain = FloatArray(n) { p -> (0 until 12).sumOf { hw.precip[it][hw.placeHex[p]].toDouble() }.toFloat() }
@@ -243,7 +241,7 @@ class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, @Transi
             for (k in bird.indices) bird[k][p] = 0.5f * birdCapacity(k, p)
             birds[p] = bird.sumOf { it[p].toDouble() }.toFloat()
             tortoises[p] = 0.5f * tortoiseCapacity(p); foxes[p] = 0.3f
-            dormantBiting[p] = 50f * waterfowl[p]
+            dormantBiting[p] = 50f * waterfowl(p)
         }
         // Vultures: the most broken ground with plants in each block, if broken enough for cliffs.
         val hex = hw.hex
@@ -275,10 +273,10 @@ class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, @Transi
             QUAIL -> 5f * open(p) * grass
             SANDGROUSE -> 3f * open(p) * dry
             ROCK_DOVE -> 4f * rockKopje[p] * (0.3f + 0.7f * grass)
-            MALLARD -> 6f * waterfowl[p] * (0.5f + 0.5f * grass)
-            GREYLAG_GOOSE -> 10f * waterfowl[p] * grass
-            CRANE -> 8f * waterfowl[p] * (0.5f + 0.5f * grass) + 1f * open(p) * grass
-            WHITE_STORK -> 3f * waterfowl[p] + 2f * open(p) * grass
+            MALLARD -> 6f * waterfowl(p) * (0.5f + 0.5f * grass)
+            GREYLAG_GOOSE -> 10f * waterfowl(p) * grass
+            CRANE -> 8f * waterfowl(p) * (0.5f + 0.5f * grass) + 1f * open(p) * grass
+            WHITE_STORK -> 3f * waterfowl(p) + 2f * open(p) * grass
             // Rich woodland and scrub hold some 40-120 breeding pairs per 10 ha (Bialowieza, Tomialojc &
             // Wesolowski, J. Ornithol. 2004, doi:10.1007/s10336-003-0017-2); at some 20-25 g a bird, up to
             // about 40 kg/km2. Open grass holds a tenth of that (larks, pipits).
@@ -528,7 +526,6 @@ class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, @Transi
     }
 
     companion object {
-        val WETLANDS = EnumSet.of(Biome.MARSH, Biome.SWAMP_FOREST, Biome.BOG, Biome.SALT_MARSH, Biome.MANGROVE)
         /** Share of rodents and of hares a fire kills where it burns all of a place (the rest bolt). Not measured. */
         const val RODENTS_BURNT = 0.5f
         const val HARES_BURNT = 0.3f

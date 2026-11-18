@@ -61,24 +61,20 @@ class HexLand(internal val hw: HexWorld, internal val seed: Long, /** The run's 
         for (i in hw.placeCells[p]) if (world.floodplain.isFloodplain[i]) { s += world.geology.rock[i].fertility * exp(-Biomes.slope(grid, world.elevation, i) / 0.15f); k++ }
         if (k == 0) 0f else (s / k).toFloat()
     }
-    /** Share of waterlogged ground (marsh, bog, salt marsh), where woody plants drown (fixed by the world, so not taken from a saved run: runs saved before it was filled hold zeros). */
-    @Transient val waterlogged = FloatArray(n) { p -> mean(p) { if (world.biome[it] == Biome.MARSH || world.biome[it] == Biome.BOG || world.biome[it] == Biome.SALT_MARSH) 1f else 0f } }
     /**
-     * The share of each place's plants an animal or a forager can eat, 0..1: most of an open
-     * grassland, little of aromatic garrigue, thorny scrub, desert bush, bog or conifer forest, where
-     * the plants are defended (bitter, aromatic, thorny or poisonous) or tough. (Fixed by the world and
-     * the config, so not taken from a saved run.)
+     * Share of waterlogged ground, where woody plants drown: under the tides, or low flat ground whose soil has stayed near full
+     * over the last year ([HexCountry.sodden]). Set each step by [country] from the water as it is (Olli 2026-11-18: no longer
+     * from world-gen's marsh, bog and salt marsh labels).
      */
-    @Transient val palatable = FloatArray(n) { p ->
-        val h = hw.placeHex[p]
-        var s = 0f; var w = 0f
-        for (b in Biome.entries) { val share = hw.biome[b.ordinal][h]; if (share <= 0f) continue; val v = PALATABLE[b] ?: continue; s += share * v; w += share }
-        val v = if (w > 0f) s / w else 0.5f
-        // (Half of even the poorest country's plants is eaten by something; the rest of it by the
-        // share for its kind. A balancing run may change that floor: t.palatableFloor.)
-        val floor = tuning.palatableFloor
-        floor + (1f - floor) * v
-    }
+    @Transient val waterlogged = FloatArray(n)
+    /**
+     * The share of each place's plants an animal or a forager can eat, 0..1: most of an open grassland, little of aromatic
+     * garrigue, thorny scrub, desert bush, bog or conifer forest, where the plants are defended (bitter, aromatic, thorny or
+     * poisonous) or tough. Set each step by [country] from the herbs, shrubs and trees standing there now and the climate they
+     * grow in ([HexCountry.palatableNow]), no longer from world-gen's label. (Half of even the poorest country's plants is
+     * eaten by something; the rest of it by that share. A balancing run may change that floor: t.palatableFloor.)
+     */
+    @Transient val palatable = FloatArray(n)
 
     /** The dead buried at each place (graves weather away over centuries), and the ornaments buried with them. */
     val burials = FloatArray(n)
@@ -189,11 +185,13 @@ class HexLand(internal val hw: HexWorld, internal val seed: Long, /** The run's 
     val plants = HexPlants(this)
     @field:MovedInto("burnt", "burning", "fires", "lit")
     val fire = HexFires(this)
+    /** What kind of country each place is now, and the waterlogged and edible shares that follow from its water and plants. */
+    val country = HexCountry(this)
 
     /** The land's part of the week, in order: the water, then the plants that grow by it. */
     @Transient val phases = listOf(
         Phase("water") { hydro.step(it); drink.step(it) },
-        Phase("plants") { plants.step(it) },
+        Phase("plants") { plants.step(it); country.step() },
     )
     /** Advances one step with the weather of that step on the same places. */
     fun step(weather: Weather) = runPhases(phases, weather, books)
@@ -201,13 +199,6 @@ class HexLand(internal val hw: HexWorld, internal val seed: Long, /** The run's 
     companion object {
         /** Steps through each place's ground at which its ruggedness is kept (see [ruggedSpread]). */
         const val RUGGED_SHARES = 8
-        /** Share of the plants of each kind of country that are edible (see [palatable]). */
-        val PALATABLE = mapOf(
-            Biome.ALPINE_MEADOW to 0.7f, Biome.STEPPE to 0.7f, Biome.OPEN_WOODLAND to 0.6f, Biome.FLOODPLAIN_FOREST to 0.5f,
-            Biome.MARSH to 0.5f, Biome.MEDITERRANEAN_WOODLAND to 0.45f, Biome.TEMPERATE_FOREST to 0.4f, Biome.SALT_MARSH to 0.4f,
-            Biome.SEMI_DESERT to 0.35f, Biome.SHRUBLAND to 0.3f, Biome.CONIFER_FOREST to 0.3f, Biome.SWAMP_FOREST to 0.3f,
-            Biome.DESERT to 0.3f, Biome.BOG to 0.2f, Biome.MANGROVE to 0.2f, Biome.ICE_AND_ROCK to 0.2f,
-        )
     }
 }
 

@@ -15,7 +15,6 @@ import inflation.KgM2
 import inflation.EnumFloats
 import inflation.enumTables
 import inflation.world.HexDrinkingWater
-import inflation.world.Biome
 import inflation.world.HexLand
 import inflation.world.LifeForm
 import inflation.world.MastTrees
@@ -220,7 +219,7 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
     }
 
     /**
-     * The share of [p]'s trees that bear food (oaks, beech, hazel, wild fruit trees), by its kinds of country ([FOOD_TREES]),
+     * The share of [p]'s trees that bear food (oaks, beech, hazel, wild fruit trees), by the climate of its cells ([foodTreesOf]),
      * for each group of trees whose crops go together ([MastTrees]). (Fixed by the world, so not taken from a saved run.)
      */
     /**
@@ -243,12 +242,10 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
     fun seasonYield(p: Place) = if (springSown(p)) SPRING_YIELD else 1f
 
     @Transient private val foodTrees = enumTables<MastTrees>(n).also { by ->
+        val world = land.hw.world
         for (p in 0 until n) {
-            val h = land.hw.placeHex[p]
-            var w = 0f
-            for (b in Biome.entries) { val share = land.hw.biome[b.ordinal][h]; if (share <= 0f) continue; w += share
-                val (t, bears) = FOOD_TREES[b] ?: continue; by[t][p] += share * bears }
-            if (w > 0f) for (t in by.a) t[p] /= w
+            val cells = land.hw.placeCells[p]
+            for (i in cells) { val (t, bears) = foodTreesOf(world.climate, i) ?: continue; by[t][p] += bears / cells.size }
         }
     }
     /** The fruiting share of [p]'s trees this year, kg/m²: the food-bearing trees ([foodTrees]) of each group in its year's mast crop ([Weather.mastCrop]). */
@@ -653,7 +650,8 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
          */
         const val TREE_BEARING = 1.25f
         /**
-         * The share of the trees that bear food people and beasts eat, by kind of country (an estimate, by the trees that
+         * The share of the trees that bear food people and beasts eat on fine cell [i], by its climate on the lines world-gen
+         * draws its kinds of country by, not by their labels (Olli 2026-11-18); null for none (an estimate, by the trees that
          * make them up; no measured shares were found): oak, beech, hazel and wild fruit in broadleaved and Mediterranean
          * woods and in open oak woodland; oak, elm and wild fruit among the alder, willow, ash and poplar of floodplain forest;
          * pistachio, wild almond and oak scattered on steppe and in scrub; little in conifer forest (a few stone pines and
@@ -663,13 +661,18 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
          * among hornbeam, lime and spruce (Ann. For. Sci. 2018, doi 10.1007/s13595-018-0767-x, table 1); oak's larger
          * trees and the mid-Holocene's oak, hazel and later beech put the bearing share higher, a guess.
          */
-        val FOOD_TREES: Map<Biome, Pair<MastTrees, Float>> = mapOf(
-            Biome.TEMPERATE_FOREST to (MastTrees.TEMPERATE to 0.3f), Biome.OPEN_WOODLAND to (MastTrees.TEMPERATE to 0.3f),
-            Biome.FLOODPLAIN_FOREST to (MastTrees.TEMPERATE to 0.3f),
-            Biome.MEDITERRANEAN_WOODLAND to (MastTrees.DRY to 1f), Biome.STEPPE to (MastTrees.DRY to 0.5f),
-            Biome.SHRUBLAND to (MastTrees.DRY to 0.5f), Biome.SEMI_DESERT to (MastTrees.DRY to 0.3f), Biome.DESERT to (MastTrees.DRY to 0.3f),
-            Biome.CONIFER_FOREST to (MastTrees.CONIFER to 0.1f), Biome.ALPINE_MEADOW to (MastTrees.CONIFER to 0.1f),
-        )
+        fun foodTreesOf(climate: inflation.world.Climate, i: Int): Pair<MastTrees, Float>? {
+            val ai = climate.aridity(i); val warm = climate.warmestMonthTemp(i); val cold = climate.coldestMonthTemp(i)
+            return when {
+                warm < 0f -> null
+                warm < 10f -> MastTrees.CONIFER to 0.1f
+                ai < 0.2f -> MastTrees.DRY to 0.3f
+                ai < 0.45f -> MastTrees.DRY to 0.5f
+                ai < 0.75f -> if (cold < 2f) MastTrees.TEMPERATE to 0.3f else MastTrees.DRY to 1f
+                cold < -6f -> MastTrees.CONIFER to 0.1f
+                else -> MastTrees.TEMPERATE to 0.3f
+            }
+        }
         /**
          * Bulbs, corms, tubers and rhizomes to be dug, per kg/m² of herbs; days to replace them, and for fallen mast to
          * rot or sprout. Edible underground storage organs in the southern Cape's shrublands, sampled at random, came to

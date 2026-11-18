@@ -212,6 +212,21 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
     }
 
     /**
+     * Share of the shrubs' ceiling ([ceiling]) left to them at place [p] under a canopy of [shade] and beside its grass, 0..1:
+     * the forms share the place's light and water, rather than each growing to its own ceiling on all of it (Olli 2026-11-18:
+     * steppe had grown 0.66 kg/m² of shrub, forest floors 1.4). Trees overhead take the light ([SHRUB_SHADE_CAP]); a dense
+     * sward takes the topsoil's water first where water is short, leaving the shrubs what soaks deeper (Walter's two-layer
+     * model of dry grassland and savanna), as its herbs of the last year ([HexCountry.herbYear]) fill [HexCountry.SWARD_KG_M2]
+     * and as the soil falls short of the shrubs' [LifeForm.moistureFull] ([GRASS_HOLD]). Grazed or burnt-off grass leaves the
+     * water to the shrubs: scrub comes into overgrazed grassland.
+     */
+    private fun shrubRoom(p: Place, shade: Float): Float {
+        val dryness = (1f - moisture[p] / LifeForm.SHRUB.moistureFull).coerceIn(0f, 1f)
+        val sward = min(1f, land.country.herbYear[p] / HexCountry.SWARD_KG_M2)
+        return (1f - SHRUB_SHADE_CAP * shade) * max(GRASS_HOLD_FLOOR, 1f - GRASS_HOLD * dryness * sward)
+    }
+
+    /**
      * People keep [share] of place [p] open of shrubs and trees ([opened]): ground newly cleared, beyond what was open, has
      * its shrubs and trees cut, and their shoots with them, as their share of the woody ground left. Returns what was cut,
      * kg/m², for the caller to leave lying (felled and burnt or left to rot where it fell, as clearing for the first
@@ -377,7 +392,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             if (land.lastTick) trodden[p] = 0f
             grew += grow(LifeForm.TREE, tree, p, season * woodyWater * years * (1 - 0.8f * browsed * young), treeSeedHere * (1 - 0.9f * browsed) * trod)
             val sGrow = shrub[p]
-            grew += grow(LifeForm.SHRUB, shrub, p, season * woodyWater * years * (1 - 0.6f * shade) * (1 - 0.5f * browsed), shrubSeedHere * (1 - 0.8f * browsed) * trod)
+            grew += grow(LifeForm.SHRUB, shrub, p, season * woodyWater * years * (1 - 0.6f * shade) * (1 - 0.5f * browsed), shrubSeedHere * (1 - 0.8f * browsed) * trod, shrubRoom(p, shade))
             shrubNote(if (shrub[p] >= sGrow) ShrubPart.GREW else ShrubPart.DIED_BACK, p, sGrow)
             // New shoots: what the woody plants grew, and the leaves and twigs they renew, in growing weather.
             val renew = season * water0 * years
@@ -388,7 +403,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             if (tuning.leafFall > 0f && season <= 0f && t < growFrom[p]) { val k = exp(-tuning.leafFall * years); shrubShoots[p] *= k; treeShoots[p] *= k }
             val lawn = 1f - exp(-grazing[p] / LAWN_SCALE)
             val herb0 = herb[p]
-            grew += grow(LifeForm.HERB, herb, p, grassGrowth * years * (1 - 0.8f * shade), 1f, 1f - 0.5f * lawn - 0.2f * rooted, hayFallen[p])
+            grew += grow(LifeForm.HERB, herb, p, grassGrowth * years * (1 - 0.8f * shade), 1f, (1f - 0.5f * lawn - 0.2f * rooted) * (1f - HERB_SHADE_CAP * shade), hayFallen[p])
             // Cured grass weathers where it stands: the dead stems break and fall into the litter, and what
             // stands is leached of its protein, week by week, until rain sprouts it again. New growth makes
             // good what fell, and freshens the stand by its share of it.
@@ -527,6 +542,20 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
          */
         const val GERMINATION_MM = 20f
         /** Share of shrubs' and trees' standing mass renewed as leaves and twigs a year (as shed into the litter). */
+        /**
+         * Share of the shrubs' and of the herbs' ceilings a full canopy takes (their growth was already slowed under it; now
+         * their standing stock is held down too). Guesses: an understory of a few tenths of a kg/m² of shrubs and some tens
+         * of g/m² of herbs under closed broadleaved forest, against kg and some hundreds of g in the open; not measured here.
+         */
+        const val SHRUB_SHADE_CAP = 0.85f
+        const val HERB_SHADE_CAP = 0.8f
+        /**
+         * How much of the shrubs' ceiling a full sward takes in fully dry soil ([shrubRoom]), and the least it leaves them. A
+         * guess, set so that a semi-arid steppe's sward (about 0.1-0.15 kg/m² of herbs, at 0.2-0.3 of the soil's water) holds
+         * its shrubs to about half their ceiling; no measured value was found.
+         */
+        const val GRASS_HOLD = 2.5f
+        const val GRASS_HOLD_FLOOR = 0.15f
         const val SHRUB_RENEWAL = 0.2f
         const val TREE_RENEWAL = 0.04f
         /** Share of trees' new growth within a browser's reach (saplings and low boughs). */
