@@ -912,7 +912,9 @@ private fun HexGroups.bookPackHunger(g: HexGroup, hazards: List<Hazard>) {
     var ha = 0f; var hy = 0f
     for (h in hazards) if (h.cause == DeathCause.HUNGER) { ha += h.adult; hy += h.young }
     add(PackHunger.HEAD_YEARS, grown * years); add(PackHunger.YOUNG_YEARS, g.young * years)
-    add(PackHunger.FED, grown * g.fed); add(PackHunger.ON_FAT, grown * onFat); add(PackHunger.FAT_DAYS, grown * g.fat)
-    add(PackHunger.SPENT_DAYS, grown * g.spent)
+    // (Weighted by head-years, so their means over [PackHunger.HEAD_YEARS] do not grow with the steps in a year.)
+    val w = grown * years
+    add(PackHunger.FED, w * g.fed); add(PackHunger.ON_FAT, w * onFat); add(PackHunger.FAT_DAYS, w * g.fat)
+    add(PackHunger.SPENT_DAYS, w * g.spent)
     add(PackHunger.GROWN_HUNGER, grown * min(1f, ha)); add(PackHunger.YOUNG_HUNGER, g.young * min(1f, hy))
 }
