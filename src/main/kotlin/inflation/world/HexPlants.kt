@@ -183,6 +183,18 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
 
     fun biomass(p: Place) = herb[p] + shrub[p] + tree[p]
     fun canopy(p: Place) = min(1f, tree[p] / (0.4f * LifeForm.TREE.maxBiomass))
+    /**
+     * The shares of the light at place [p] taken by the leaves of its herbs, shrubs and trees, into [out] in that order (the
+     * rest falls on bare ground): the trees' crowns first ([canopy]), then the shrubs under and between them, then the green
+     * herbs in what light is left, each by Beer's law on its leaf area ([LIGHT_K]). What each takes is its share of the
+     * water the place gives to the air ([HexHydrology.step]).
+     */
+    fun lightShares(p: Place, out: FloatArray) {
+        val trees = canopy(p)
+        val shrubs = (1f - trees) * (1f - exp(-LIGHT_K * SHRUB_LAI_PER_KG * shrub[p]))
+        val herbs = (1f - trees - shrubs) * (1f - exp(-LIGHT_K * HERB_LAI_PER_KG * herb[p] * green[p]))
+        out[0] = herbs; out[1] = shrubs; out[2] = trees
+    }
     /** Cover to hide in at place [p], 0..1: scrub and forest. */
     fun cover(p: Place) = min(1f, shrub[p] / 2f + canopy(p))
     /** Cover on the ground at place [p], 0..1, that small game hides in: standing grass and herbs (full at their most) and scrub; fire and grazing take it off. */
@@ -527,6 +539,14 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
          */
         const val GERMINATION_MM = 20f
         /** Share of shrubs' and trees' standing mass renewed as leaves and twigs a year (as shed into the litter). */
+        /** Light extinction of a stand's leaves (Beer's law): about 0.5 for most canopies (Monsi & Saeki 1953, from memory). */
+        const val LIGHT_K = 0.5f
+        /**
+         * Leaf area per kg/m² of green herbs (their specific leaf area, about 20 m² a kg) and per kg/m² of a shrub stand (about
+         * a sixth of it leaf, at about 8 m² a kg). Guesses to source.
+         */
+        const val HERB_LAI_PER_KG = 20f
+        const val SHRUB_LAI_PER_KG = 1.3f
         const val SHRUB_RENEWAL = 0.2f
         const val TREE_RENEWAL = 0.04f
         /** Share of trees' new growth within a browser's reach (saplings and low boughs). */

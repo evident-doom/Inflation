@@ -318,7 +318,7 @@ object Nominal {
                 k == Key.TEMPERATURE -> { weekly(TEMPERATURE_WEEK_MIN, TEMPERATURE_WEEK_MAX, "°C"); eachYear(TEMPERATURE_YEAR_MIN, TEMPERATURE_YEAR_MAX, "°C") }
                 k == Key.RAIN -> { weekly(0.0, RAIN_WEEK_MAX * WorldConfig().stepsPerYear / w, "mm a row"); eachYear(RAIN_YEAR_MIN, RAIN_YEAR_MAX, "mm a year") }
                 k == Key.SNOW -> { weekly(0.0, SNOW_MAX_MM, "mm"); drift(t, k, years, ::yearly, SNOW, gone = false) }
-                k == Key.SOIL_WATER -> weekly(0.0, SOIL_WATER_MAX_MM, "mm")
+                k == Key.SOIL_WATER || k == Key.SOIL_TOP -> weekly(0.0, SOIL_WATER_MAX_MM, "mm")
                 k == Key.LAND_AREA || Key.biomeWhat(k) == Key.AREA -> {
                     var lo = Double.MAX_VALUE; var hi = -Double.MAX_VALUE
                     for (i in first until s.size) { val v = s[i].toDouble(); if (!v.isNaN()) { lo = min(lo, v); hi = max(hi, v) } }

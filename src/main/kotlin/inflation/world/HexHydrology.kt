@@ -103,6 +103,15 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
      * the sunny rest. Less sun dries them more slowly and melts their snow later.
      */
     val soilShade = FloatArray(n) { soilCap[it] * 0.6f }
+    /**
+     * Of [soil] and [soilShade], the water in the top layer, mm: the herbs' root zone, [TOP_SHARE] of [soilCap] (the rest is
+     * the deep layer, which only shrubs' and trees' roots reach). Rain fills the top first and soaks on into the deep layer
+     * when the top is full; water rising from below wets the deep layer first. Part of the soil's water, not a stock of its own.
+     */
+    val soilTop = FloatArray(n) { soil[it] * TOP_SHARE }
+    val soilTopShade = FloatArray(n) { soilShade[it] * TOP_SHARE }
+    /** What the top layer holds when full, mm ([soilTop]). */
+    fun topCap(p: Place) = TOP_SHARE * soilCap[p]
     /** Ground water under each place, mm over the place (starts settled: see the init below). */
     val groundwater = FloatArray(n)
     /** The lowest place of each hex, where its stream runs and ground water from above comes out; -1 for sea. */
@@ -229,18 +238,18 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
             val t = weather.temperature[p]
             val rain = weather.rain(p.i)
             // Evaporation follows the week's heat against the month's normal (about 6% a degree) and the sun on the
-            // slopes; plants draw at full rate until the soil is half dry, then less as it dries (the same stress their
-            // growth feels). The sunny and the shaded slopes each keep their own soil water.
+            // slopes. The plants give it to the air by the light their leaves take, each from the soil layers its roots
+            // reach, and bare ground from the top layer ([layered]). The sunny and the shaded slopes each keep their own soil water.
             val heat = exp(0.06f * (t - hw.placeTemp(p, m))).coerceIn(0.3f, 3f)
-            fun bucket(water: Float, sun: Float): Float {
-                val et = min(water, land.pet[m][p] * sun * share * heat * min(1f, water / (UNSTRESSED * soilCap[p])))
-                return water - et
-            }
+            val demand = land.pet[m][p] * share * heat
             val sunnyIn = soil[p] + rain + weather.meltSun[p]; val shadyIn = soilShade[p] + rain + weather.meltShade[p]
-            val sunny = bucket(sunnyIn, hw.sunlight.ratio[0][m][p])
-            val shady = bucket(shadyIn, hw.sunlight.ratio[1][m][p])
-            soil[p] = min(sunny, soilCap[p]); soilShade[p] = min(shady, soilCap[p])
-            val excess = (1 - land.slopeShade[p]) * max(0f, sunny - soilCap[p]) + land.slopeShade[p] * max(0f, shady - soilCap[p])
+            val sunny = layered(p, soil[p], soilTop[p], rain + weather.meltSun[p], demand * hw.sunlight.ratio[0][m][p])
+            val sunnyTop = lastTop; val sunnySurplus = lastSurplus
+            val shady = layered(p, soilShade[p], soilTopShade[p], rain + weather.meltShade[p], demand * hw.sunlight.ratio[1][m][p])
+            val shadyTop = lastTop; val shadySurplus = lastSurplus
+            soil[p] = sunny - sunnySurplus; soilShade[p] = shady - shadySurplus
+            soilTop[p] = sunnyTop; soilTopShade[p] = shadyTop
+            val excess = (1 - land.slopeShade[p]) * sunnySurplus + land.slopeShade[p] * shadySurplus
             // The turf of the seeps draws what it evaporates from the ground water seeping out under it.
             val ground0 = groundwater[p]
             if (t > 0f) groundwater[p] = max(0f, groundwater[p] - SEEP_SHARE * land.pet[m][p] * share * heat * seeping(p))
@@ -423,11 +432,45 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
     fun waterTableM(p: Place) = aquiferM[p] * (1f - groundwater[p] / aquiferCap[p]).coerceIn(0f, 1f)
 
     /** How wet the soil of [p] in hex [h] is kept this week by a flood over its floodplain and by the water table, mm. */
-    /** Wets place [p]'s sunny and shaded soil each [part] of the way up to [to] mm. */
+    /** Wets place [p]'s sunny and shaded soil each [part] of the way up to [to] mm (from below: the deep layer first, [soilTop]). */
     private fun wet(p: Place, to: Float, part: Float) {
         if (soil[p] < to) soil[p] += part * (to - soil[p])
         if (soilShade[p] < to) soilShade[p] += part * (to - soilShade[p])
+        val deepCap = soilCap[p] - topCap(p)
+        soilTop[p] = soilTop[p].coerceIn(max(0f, soil[p] - deepCap), min(soil[p], topCap(p)))
+        soilTopShade[p] = soilTopShade[p].coerceIn(max(0f, soilShade[p] - deepCap), min(soilShade[p], topCap(p)))
     }
+
+    /** What [layered] left in the top layer, and the deep layer's surplus over what it holds, mm (one slope at a time, in its place's turn). */
+    private var lastTop = 0f
+    private var lastSurplus = 0f
+
+    /**
+     * One slope of place [p] through the step: its soil water [soil0] mm, [top0] of it in the top layer, takes in [inflow]
+     * mm (the top layer first, the rest soaking down), and gives to the air what the plants on it transpire and its bare
+     * ground evaporates against [demand] mm (the step's evaporative demand on that slope): each form by the share of the
+     * light its leaves take ([HexPlants.lightShares]) from the layers its roots reach ([TOP_ROOTS]), bare ground from the
+     * top layer only. Each draws at full rate until its layer is [UNSTRESSED] full, then less as it dries. Returns the water
+     * left, mm, with the deep layer's surplus over its capacity in it ([lastSurplus], to run off or soak into the rock);
+     * [lastTop] is the top layer's.
+     */
+    private fun layered(p: Place, soil0: Float, top0: Float, inflow: Float, demand: Float): Float {
+        val tc = topCap(p); val dc = soilCap[p] - tc
+        // (A save from before the layers holds no top layer of its own: keep it within what the soil holds.)
+        val t0 = top0.coerceIn(max(0f, soil0 - dc), min(soil0, tc))
+        var top = t0 + inflow; var deep = soil0 - t0
+        if (top > tc) { deep += top - tc; top = tc }
+        plants.lightShares(p, light)
+        val herbs = light[0]; val shrubs = light[1]; val trees = light[2]; val bare = max(0f, 1f - herbs - shrubs - trees)
+        val topStress = min(1f, top / (UNSTRESSED * tc)); val deepStress = min(1f, deep / (UNSTRESSED * dc))
+        val fromTop = demand * topStress * (herbs + bare + TOP_ROOTS[1] * shrubs + TOP_ROOTS[2] * trees)
+        val fromDeep = demand * deepStress * ((1f - TOP_ROOTS[1]) * shrubs + (1f - TOP_ROOTS[2]) * trees)
+        top -= min(top, fromTop); deep -= min(deep, fromDeep)
+        lastTop = top; lastSurplus = max(0f, deep - dc)
+        return top + deep
+    }
+    /** Scratch for [layered]: the light shares of herbs, shrubs and trees. */
+    @Transient private val light = FloatArray(3)
 
     private fun soakTo(p: Place, h: Hex): Float {
         var to = 0f
@@ -490,6 +533,16 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
         const val G = 9.81
         /** Share of the soil's water plants take up without stress; drier than that, growth and evaporation fall in step (FAO-56, p about 0.5). */
         const val UNSTRESSED = 0.5f
+        /**
+         * Share of the soil's water capacity in the top layer, the herbs' root zone ([soilTop]): about the top 0.3 m of a
+         * soil whose woody roots reach about 1 m. A guess to source (root profiles of steppe grasses and dwarf shrubs).
+         */
+        const val TOP_SHARE = 0.35f
+        /**
+         * Share of each form's water drawn from the top layer, by [LifeForm] order (herbs, shrubs, trees): grasses root in the
+         * top, shrubs and trees mostly below it (Walter's two-layer model of dry grassland). Guesses to source.
+         */
+        val TOP_ROOTS = floatArrayOf(1f, 0.3f, 0.1f)
         /** How moist the water table keeps the ground round fresh lakes and springs, as a share of a full soil. */
         const val WATER_TABLE = 0.6f
         /**

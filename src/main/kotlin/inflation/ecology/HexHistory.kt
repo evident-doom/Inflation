@@ -57,6 +57,8 @@ class HexHistory {
         const val RAIN = "weather/rain mm"
         const val SNOW = "weather/snow lying mm"
         const val SOIL_WATER = "weather/soil water mm"
+        /** Of it, the top layer's, the herbs' root zone ([inflation.world.HexHydrology.soilTop]). */
+        const val SOIL_TOP = "weather/top soil water mm"
         const val DROUGHTS = "weather/droughts under way"
         /** What a [biome] series measures besides a kind's head count. */
         const val AREA = "area km²"
@@ -272,6 +274,7 @@ class HexHistory {
         put(Key.SNOW, mean { w.snowpack[it] })
         put(Key.DROUGHTS, w.droughtCount().toFloat())
         put(Key.SOIL_WATER, mean { land.hydro.soil[it] })
+        put(Key.SOIL_TOP, mean { land.hydro.soilTop[it] })
         // By kind of country: its area, plants per km² and head counts (and the whole land's area, to set worlds of other sizes beside each other).
         val biomeArea = DoubleArray(Biome.entries.size)
         for (p in 0 until n) biomeArea[biomeOf(sim, Place(p))] += area[p].toDouble()
