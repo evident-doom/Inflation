@@ -393,10 +393,12 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             val trod = exp(-trodden[p] / land.areaM2[p] / years * SEEDLING_YEARS).let { if (it.isNaN()) 1f else it }
             // (The residents' treading is a tick's walking, set once a step: it falls again each tick of the step, [HexLand.lastTick].)
             if (land.lastTick) trodden[p] = 0f
-            // The plants grow by the water they transpired ([HexHydrology.transpired]), at [WUE_KG_PER_MM], as warm as it is
-            // for them and as the soil feeds them: no ceiling but the light their leaves take and the water.
+            // The plants grow by the water they transpired ([HexHydrology.transpired]), at [WUE_KG_PER_MM], in growing weather
+            // and as the soil feeds them: no ceiling but the light their leaves take and the water. (The warmth is in the
+            // water already: the air takes more of it the warmer it is. Below the plants' growing warmth they grow nothing.)
             val trees = canopy(p); val shrubs = shrubLight(p, trees); val herbs = herbLight(p, trees + shrubs)
-            val made = WUE_KG_PER_MM * season * soil(p)
+            val growing = if (season > 0f) 1f else 0f
+            val made = WUE_KG_PER_MM * growing * soil(p)
             // Woody roots reach the water table under the wet valley floor where it is not sodden: there the shrubs and
             // trees transpire as much as the air takes, whatever the weather (the gallery forests of dry country).
             val table = hydro.demandMm[p] * max(0f, wetShare - hydro.saturatedFloor(p))
@@ -431,7 +433,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             // The herbs of the open ground transpire from its soil while they grow (the annuals not once cured); those of the
             // seeps and the wet valley floor as far as their water flows ([seepGrowth], [wetGrowth], warmth in them).
             val active = (1 - shaded) * (if (cured[p]) perennialShare[p] else 1f) + shaded * (if (curedShade[p]) perennialShare[p] else 1f)
-            val herbWater = openShare * season * active * hydro.transpired[0][p] +
+            val herbWater = openShare * growing * active * hydro.transpired[0][p] +
                 hydro.demandMm[p] * herbs * (HexHydrology.SEEP_SHARE * seepGrowth + wetShare * wetGrowth)
             val gHerb = WUE_KG_PER_MM * soil(p) * herbWater * (1f - 0.5f * lawn - 0.2f * rooted)
             // Green leaves are renewed as they grow, the old shed to the litter.
