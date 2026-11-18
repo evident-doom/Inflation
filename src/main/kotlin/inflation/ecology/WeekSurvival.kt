@@ -61,13 +61,7 @@ internal fun HexGroups.survivalDays(g: HexGroup, b: Band, weather: Weather, time
         val f = (fire * GRID).roundToInt(); val sh = (shelter * GRID).roundToInt(); val c = (clothes * GRID).roundToInt()
         // (The kit it has is reckoned as it is, not to the hundredth: a band that makes no clothes this week keeps its kit as it is.)
         val kit = if (c == (clothes0 * GRID).roundToInt()) clothes0 else c / GRID
-        return warmthAt.getOrPut((f * 10_000L + sh) * 1_000L + c) {
-            val w = b.warmth(air, f / GRID, home, days, sh / GRID, kit)
-            // (Over a step of several ticks, the deaths of each tick's air at this fire and shelter, as the hazards reckon them
-            // ([placeHazards]): planned by the step's mean air, a month's cold weeks went unseen and unguarded against.)
-            if (ticks <= 1) w else Warmth(w.extra,
-                weather.overTicks(p) { t -> b.warmth(airAt(p, weather, t), f / GRID, home, fauna.clock.tickDays, sh / GRID, kit).odds }, w.debt, w.pace, w.campPace)
-        }
+        return warmthAt.getOrPut((f * 10_000L + sh) * 1_000L + c) { b.warmth(air, f / GRID, home, days, sh / GRID, kit) }
     }
     val larderDays = g.larder / g.dailyNeedKg.coerceAtLeast(1e-3f)
     // (The year after under each shelter it might put up, worked out once for each to the hundredth: through the days it
