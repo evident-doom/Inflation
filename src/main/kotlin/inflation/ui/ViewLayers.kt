@@ -12,6 +12,7 @@ import inflation.ecology.HexFauna
 import inflation.world.get
 import inflation.ecology.HexSim
 import inflation.ecology.CultureRegions
+import inflation.ecology.Dealing
 import inflation.ecology.cultureRegions
 import inflation.ecology.hexRegion
 import inflation.ecology.PlaceRecord
@@ -46,14 +47,23 @@ internal class ViewLayers(private val sim: HexSim) {
         POLLINATORS("Pollinators", "kg/km²", 1f, 0.85f, 0.1f), ORGANIC("Soil organic matter", "kg/m²", 0.35f, 0.2f, 0.05f),
         CARRION("Carrion", "kg/km²", 0.4f, 0.1f, 0.4f),
         RESIDENTS("Residents (all)", "head/km²", 1f, 0.1f, 0.6f),
-        DEATHS("Where animals die", "kg/km² a week", 0.6f, 0f, 0f), PEOPLE_DEATHS("Where people die", "deaths per 1000 km² a week", 0.6f, 0f, 0.3f),
+        DEATHS("Where animals die", "kg/km² a week", 0.6f, 0f, 0f), PEOPLE_DEATHS("How often people die", "deaths a year per 1000 people living there, over about the last year", 0.6f, 0f, 0.3f),
         KILLS("Kills by packs and people", "kg/km² a week", 0.85f, 0.05f, 0.05f),
         HUNTERS_PER_PREY("Hunters per prey", "kg hunters per 100 kg big game (blank under 1 kg/km² of game)", 0.9f, 0.2f, 0.1f),
         HUNGRY_BY_PLENTY("Hungry next to plenty", "grazers short /km² x kg/m² they could eat within 2 hexes", 1f, 0.2f, 0.8f),
         CARRION_WEEKS("Weeks to clear: carrion", "weeks", 0.4f, 0.1f, 0.4f), LITTER_WEEKS("Weeks to clear: litter", "weeks", 0.45f, 0.3f, 0.1f),
         BONES_WEEKS("Weeks to clear: bones", "weeks", 0.8f, 0.8f, 0.7f), ORGANIC_WEEKS("Weeks to clear: soil organic matter", "weeks", 0.35f, 0.2f, 0.05f),
         /** Each hex in the colour of the cultural region with the most people there ([inflation.ecology.cultureRegions]). */
-        CULTURES("Cultural regions", "", 0f, 0f, 0f);
+        CULTURES("Cultural regions", "", 0f, 0f, 0f),
+        /** Raids over about the last year at the raided band's camp, coloured by the share across cultural regions ([ViewLayers.dealings]). */
+        RAIDS("Raids, within and across cultures", "raids over about the last year", 0.9f, 0.1f, 0.2f),
+        /** The ground bands' hunters searched in their last week of foraging ([inflation.ecology.Band.huntSeen]), a running mean. */
+        HUNTING_GROUND("People's hunting ground", "km² searched a week per km²", 0.85f, 0.25f, 0.1f),
+        /**
+         * The ground bands' gatherers worked: each hex a band walked through in its last week counts one, each hex round its camp
+         * its gatherers worked counts the share they did ([inflation.ecology.Band.ringSeen]), a running mean.
+         */
+        GATHERING_GROUND("People's gathering ground", "bands gathering (ring hexes at their share)", 0.3f, 0.75f, 0.2f);
         /** Whether the measure tints the hexes: the two plain ground views do not. */
         val tints get() = this != NONE && this != LAND_WATER
         val byCause get() = this == DEATHS || this == PEOPLE_DEATHS
@@ -78,6 +88,21 @@ internal class ViewLayers(private val sim: HexSim) {
     val now = HashMap<String, FloatArray>()
     /** The cultural regions as they stood at the last week ([Measure.CULTURES]). */
     var cultures: CultureRegions? = null
+    /**
+     * Each cultural region's lasting number, by its index in [cultures]: a region keeps the number (and so its colour) of the
+     * region most of its people were in the week before; one that takes none over gets a new one ([lastingIds]).
+     */
+    var cultureIds: Map<Int, Int> = emptyMap(); private set
+    /** Each band's region's lasting number at the last week, by group id. */
+    private var bandCulture = HashMap<Int, Int>()
+    private var nextCulture = 0
+    /** Raids at each hex over about the last year (a running sum fading over [RAID_MEMORY_WEEKS]): all, and those across regions. */
+    val raidsHere = FloatArray(nh); val raidsAcross = FloatArray(nh)
+    /** Over about the last year, all hexes: raids within and across regions, and the other dealings within and across. */
+    var raidsWithinAll = 0.0; private set
+    var raidsAcrossAll = 0.0; private set
+    var othersWithinAll = 0.0; private set
+    var othersAcrossAll = 0.0; private set
     /** Each month's mean over the last year (index: month), per hex; null until that month has been seen. */
     private val months = HashMap<String, Array<FloatArray?>>()
     /** The same month a year before the last one kept (index: month), per hex; null until two of it have been seen. */
@@ -93,16 +118,67 @@ internal class ViewLayers(private val sim: HexSim) {
     // Kept from week to week: deaths, kills and dead matter gone, as running means over about a month.
     private val deaths = Array(2) { Array(PlaceRecord.Cause.entries.size) { FloatArray(nh) } }
     private val killsKg = FloatArray(nh)
+    private val hunted = FloatArray(nh); private val gathered = FloatArray(nh)
     private val gone = Array(4) { FloatArray(nh) }
     private var fearBefore: FloatArray? = null
     private var weeksSeen = 0
+    /** People's deaths by cause at each hex, and the people-weeks lived there, as running sums over about a year ([RAID_MEMORY_WEEKS]). */
+    private val peopleDied = Array(PlaceRecord.Cause.entries.size) { FloatArray(nh) }
+    private val peopleWeeks = FloatArray(nh)
 
     /** Forgets the record (after a load, which moves the date). */
     fun reset() {
         months.clear(); yearBefore.clear(); sums.clear(); counts.clear(); weeksInMonth = 0; month = -1; lastMonth = -1
         for (a in deaths) for (b in a) b.fill(0f)
-        killsKg.fill(0f); for (a in gone) a.fill(0f); fearBefore = null; weeksSeen = 0
+        killsKg.fill(0f); hunted.fill(0f); gathered.fill(0f); for (a in gone) a.fill(0f); fearBefore = null; weeksSeen = 0
+        bandCulture = HashMap(); cultureIds = emptyMap()
+        for (a in peopleDied) a.fill(0f); peopleWeeks.fill(0f)
+        raidsHere.fill(0f); raidsAcross.fill(0f); raidsWithinAll = 0.0; raidsAcrossAll = 0.0; othersWithinAll = 0.0; othersAcrossAll = 0.0
         record.clear()
+    }
+
+    /**
+     * After each week, once [week] has placed the bands in their regions: the week's dealings ([RelationsView.thisWeek]) counted
+     * as within one cultural region or across two; raids also at the raided band's hex. All fade over [RAID_MEMORY_WEEKS].
+     */
+    fun dealings(week: List<Dealing>) {
+        val weeks = (sim.stepDays / sim.cfg.daysPerStep.toFloat()).coerceAtLeast(1f)
+        val keep = kotlin.math.exp(-weeks / RAID_MEMORY_WEEKS)
+        for (h in 0 until nh) { raidsHere[h] *= keep; raidsAcross[h] *= keep }
+        raidsWithinAll *= keep; raidsAcrossAll *= keep; othersWithinAll *= keep; othersAcrossAll *= keep
+        val camp = HashMap<Int, Int>(); for (g in groups.groups) if (g.alive) camp[g.id] = hw.placeHex[g.place].i
+        for (d in week) {
+            val a = bandCulture[d.from] ?: continue; val b = bandCulture[d.to] ?: continue
+            val across = a != b
+            if (d.kind == Dealing.Kind.RAID) {
+                if (across) raidsAcrossAll++ else raidsWithinAll++
+                val h = camp[d.to] ?: continue
+                raidsHere[h]++; if (across) raidsAcross[h]++
+            } else if (d.kind != Dealing.Kind.DEFENDED) { if (across) othersAcrossAll++ else othersWithinAll++ }
+        }
+        raidsNow()
+    }
+
+    /** The raids tint's values: the hexes with any raids counted, the rest blank. */
+    private fun raidsNow() { now[Measure.RAIDS.name] = FloatArray(nh) { if (raidsHere[it] >= 0.05f) raidsHere[it] else Float.NaN } }
+
+    /**
+     * The regions' lasting numbers (by index in [cr]): the largest region first takes the number most of its people's bands
+     * had last week, if no larger region took it; a region of new bands, or whose number is taken, gets a new one.
+     */
+    private fun lastingIds(cr: CultureRegions): Map<Int, Int> {
+        val members = cr.bands.indices.groupBy { cr.region[it] }
+        val ids = HashMap<Int, Int>(); val taken = HashSet<Int>()
+        for ((r, _) in cr.byPeople) {
+            val had = HashMap<Int, Double>()
+            for (i in members[r].orEmpty()) bandCulture[cr.bands[i].id]?.let { had.merge(it, cr.bands[i].size.toDouble(), Double::plus) }
+            val id = had.entries.filter { it.key !in taken }.maxByOrNull { it.value }?.key ?: nextCulture++
+            ids[r] = id; taken += id
+        }
+        val next = HashMap<Int, Int>()
+        for (i in cr.bands.indices) ids[cr.region[i]]?.let { next[cr.bands[i].id] = it }
+        bandCulture = next
+        return ids
     }
 
     /** After each week: works out every measure and adds it to the month. */
@@ -140,26 +216,38 @@ internal class ViewLayers(private val sim: HexSim) {
         now[Measure.CARRION.name] = hexMean { sl.carrion[it] * 1e6f }
         // Cultural regions: the region with the most people in each hex, by its index (no band there: none).
         cultures = groups.cultureRegions(groups.groups).also { cr ->
+            val ids = lastingIds(cr); cultureIds = ids
             val hr = cr.hexRegion(nh) { hw.placeHex[it.place] }
-            now[Measure.CULTURES.name] = FloatArray(nh) { if (hr[it] >= 0) hr[it].toFloat() else Float.NaN }
+            now[Measure.CULTURES.name] = FloatArray(nh) { if (hr[it] >= 0) (ids[hr[it]] ?: hr[it]).toFloat() else Float.NaN }
         }
+        raidsNow()
         now[Measure.RESIDENTS.name] = hexMean { p -> var v = 0f; for (k in fauna.kinds.indices) v += fauna.adults[k][p] + fauna.young[k][p]; v }
 
         // Deaths: this week's, by cause, as a running mean over about a month (a single week is mostly noise).
         val keep = if (weeksSeen == 0) 0f else KEEP
+        val stepWeeks = (sim.stepDays / sim.cfg.daysPerStep.toFloat()).coerceAtLeast(1f)
+        val keepYear = kotlin.math.exp(-stepWeeks / RAID_MEMORY_WEEKS)
         for ((scope, src) in listOf(record.animalKg, record.people).withIndex()) {
             for (c in PlaceRecord.Cause.entries.indices) {
                 val week = hexSum { src[c][it] }
                 val d = deaths[scope][c]
                 for (h in 0 until nh) d[h] = if (area[h] > 0) keep * d[h] +
                     (1f - keep) * (week[h] / area[h].toFloat() * (if (scope == 1) 1000f else 1f)) else 0f
+                if (scope == 1) { val y = peopleDied[c]; for (h in 0 until nh) y[h] = keepYear * y[h] + week[h] }
             }
         }
+        // (People's deaths as a rate: against the people living in the hex, so the tint is not only where people are.)
+        for (h in 0 until nh) peopleWeeks[h] *= keepYear
+        for (g in groups.groups) if (g.alive && g.band != null) peopleWeeks[hw.placeHex[g.place].i] += g.size * stepWeeks
         for ((scope, m) in listOf(Measure.DEATHS, Measure.PEOPLE_DEATHS).withIndex()) {
             val all = FloatArray(nh) { if (area[it] > 0) 0f else Float.NaN }
             for (c in PlaceRecord.Cause.entries.indices) {
-                now[key(m, c)] = FloatArray(nh) { if (area[it] > 0) deaths[scope][c][it] else Float.NaN }
-                for (h in 0 until nh) all[h] += deaths[scope][c][h]
+                // (People: deaths a year per 1000 living there, blank where under [RATE_PEOPLE] lived on average.)
+                val v = if (scope == 0) FloatArray(nh) { if (area[it] > 0) deaths[0][c][it] else Float.NaN }
+                    else FloatArray(nh) { if (peopleWeeks[it] >= RATE_PEOPLE * RAID_MEMORY_WEEKS) peopleDied[c][it] / peopleWeeks[it] * 1000f * WEEKS_A_YEAR else Float.NaN }
+                now[key(m, c)] = v
+                for (h in 0 until nh) all[h] += if (v[h].isNaN()) 0f else v[h]
+                if (scope == 1) for (h in 0 until nh) if (v[h].isNaN()) all[h] = Float.NaN
             }
             now[key(m, PlaceRecord.Cause.entries.size)] = all
         }
@@ -170,6 +258,26 @@ internal class ViewLayers(private val sim: HexSim) {
         fearBefore = fauna.fear.copyOf()
         for (h in 0 until nh) if (area[h] > 0) killsKg[h] = keep * killsKg[h] + (1f - keep) * (killed[h] / area[h].toFloat())
         now[Measure.KILLS.name] = FloatArray(nh) { if (area[it] > 0) killsKg[it] else Float.NaN }
+
+        // People's ground: where their hunters searched and their gatherers worked last week (a running mean over about a month).
+        val huntKm2 = DoubleArray(nh); val gatherN = DoubleArray(nh)
+        val weeksInStep = (sim.stepDays / sim.cfg.daysPerStep.toFloat()).coerceAtLeast(1f)
+        for (g in groups.groups) {
+            val b = g.band ?: continue
+            if (!g.alive) continue
+            b.huntSeen?.let { gr -> for (i in 0 until gr.size) huntKm2[hw.placeHex[gr.place[i]].i] += (gr.km2[i] / weeksInStep).toDouble() }
+            val walked = HashSet<Hex>()
+            for (h in g.path) if (walked.add(h)) gatherN[h.i] += 1.0
+            val camp = hw.placeHex[g.place]
+            if (walked.isEmpty() && walked.add(camp)) gatherN[camp.i] += 1.0
+            if (b.ringSeen > 0f) for (d in 0 until 6) { val q = hex.neighbour(camp, d); if (!q.none && q !in walked) gatherN[q.i] += b.ringSeen.toDouble() }
+        }
+        for (h in 0 until nh) if (area[h] > 0) {
+            hunted[h] = keep * hunted[h] + (1f - keep) * (huntKm2[h] / area[h]).toFloat()
+            gathered[h] = keep * gathered[h] + (1f - keep) * gatherN[h].toFloat()
+        }
+        now[Measure.HUNTING_GROUND.name] = FloatArray(nh) { if (area[it] > 0) hunted[it] else Float.NaN }
+        now[Measure.GATHERING_GROUND.name] = FloatArray(nh) { if (area[it] > 0) gathered[it] else Float.NaN }
 
         // Hunters per prey: kg of hunting animals (packs and hunting residents; not people) against kg of game, over a hex and its ring.
         // Where there is next to no big game the ratio is two near-zero numbers (jackals living on rodents), so it is left blank.
@@ -340,6 +448,12 @@ internal class ViewLayers(private val sim: HexSim) {
     companion object {
         /** Share of the running mean kept each week (about a month's memory). */
         const val KEEP = 0.75f
+        /** Weeks over which counted raids and dealings fade (a running sum: about the last year). */
+        const val RAID_MEMORY_WEEKS = 60f
+        /** People's death rates are shown where at least so many lived on average over the year. */
+        const val RATE_PEOPLE = 10f
+        /** Six-day weeks in a year. */
+        const val WEEKS_A_YEAR = 60f
         /** Weeks to clear are shown up to ten years. */
         const val MAX_WEEKS = 520f
         /** Hunters per prey is shown only where the hex and its ring hold at least this much big game, kg/km². */

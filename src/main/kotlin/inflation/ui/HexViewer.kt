@@ -12,8 +12,6 @@ import inflation.Args
 import inflation.Config
 
 import inflation.ecology.HexGeography
-import inflation.ecology.Built
-import inflation.ecology.villages
 import inflation.ecology.HexRoutes
 import inflation.ecology.WATER_LANDMARK_KM
 import inflation.ecology.Catalogue
@@ -89,8 +87,10 @@ import inflation.world.set
 
 /**
  * Watches the hex world: the fine terrain with its hex borders (see [HexPicture]) as the ground,
- * the packs and bands as marks walking hex to hex along the ways they took each week, and one
- * resident kind's density as a tint over the hexes.
+ * the packs and bands as marks walking hex to hex along the ways they took each week, a measure
+ * or one kind's density as a tint over the hexes, and people's works one mark for each thing
+ * standing ([WorksPainter]). Clicking a hex inspects it; a group picked in its list is drawn
+ * ([BandCard]) and told in words.
  *
  * Usage: hex-viewer [--seed N] [--width KM] [--height KM] [--load FILE]
  * (--load carries on a saved world: the seed and size must be the ones it was saved with.) The
@@ -171,15 +171,26 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
     private val pathsBox = JCheckBox("Paths", true)
     /** The names of the great features of the country (see [HexGeography]), written over the map. */
     private val namesBox = JCheckBox("Names", false)
-    /** What people have made in the land: houses and palisades (standing or begun), this year's fields, worn ground. */
+    /** What people have made in the land, one mark for each thing standing (see [WorksPainter]). */
     private val worksBox = JCheckBox("Works", true)
+    private val works = WorksPainter(sim)
+    /** The ground of the band picked in the list, or the one followed (see [BandGroundPainter]). */
+    private val groundBox = JCheckBox("Band's ground", true)
+    private val bandGround = BandGroundPainter(sim)
+    /** What passed between bands lately, and the picked band's ties (see [RelationsView]). */
+    private val dealingsBox = JCheckBox("Dealings", true)
+    private val relations = RelationsView(sim)
+    /** Bands bound to each other both ways, as an observer would group them (see [BlocsView]). */
+    private val blocsBox = JCheckBox("Blocs", false)
+    private val blocs = BlocsView(sim)
+    private val relationsText = javax.swing.JEditorPane("text/html", "").apply { isEditable = false }
     private val features by lazy { HexGeography(hw) }
-    /** Follow mode: the group followed (-1 none), kept in view week by week, with what happened to it. */
+    /** The followed group's week, as its log tells it (see [GroupControlWindow]): shown when that group is picked. */
     @Volatile private var followLog = ""
 
     /** The followed group's controls (see [GroupControlWindow]): part of the run only while open. */
     private val control by lazy {
-        GroupControlWindow(sim, ground, px, rivers, worldLock, requestStep = { commands += { advance() } }, running = { running },
+        GroupControlWindow(sim, ground, px, rivers, worldLock, relations, requestStep = { commands += { advance() } }, running = { running },
             toggleRun = { runButton.doClick() })
     }
 
@@ -240,9 +251,13 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         font = Font(Font.MONOSPACED, Font.PLAIN, 12)
     }
     private var groupIds = IntArray(0)
+    /** The group picked in the list, drawn (see [BandCard]); its text beside it. */
+    private val bandCard = BandCard(sim)
 
     init {
-        val bar = JPanel()
+        // Two rows: time, files and windows; then what is drawn, wrapping to as many rows as the width needs.
+        val bar = JPanel(FlowLayout(FlowLayout.LEFT, 4, 2))
+        val shows = JPanel(WrapLayout(FlowLayout.LEFT, 4, 2))
         // (The time controls here take over from the follow window: a week waiting there for the player goes on with the picks shown.)
         val run = runButton
         run.addActionListener { running = !running; run.text = if (running) "Pause" else "Run"; control.overviewTakesOver(); control.syncTime() }
@@ -268,23 +283,16 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         pathsBox.addActionListener { map.repaint() }
         namesBox.addActionListener { map.repaint() }
         worksBox.addActionListener { map.repaint() }
+        groundBox.addActionListener { map.repaint() }
+        dealingsBox.addActionListener { map.repaint() }
+        blocsBox.addActionListener { map.repaint() }
         pullChoice.addActionListener { map.repaint() }
         bar.add(run)
         bar.add(step)
-        bar.add(tintChoice)
-        bar.add(modeChoice)
-        bar.add(causeChoice)
-        bar.add(residentChoice)
-        bar.add(flowBox)
-        bar.add(heightBox)
-        bar.add(huntersBox)
-        bar.add(peopleBox)
-        bar.add(pathsBox)
-        bar.add(namesBox)
-        bar.add(worksBox)
-        bar.add(windBox)
-        bar.add(riversBox)
-        bar.add(pullChoice)
+        shows.add(JLabel("Tint:")); shows.add(tintChoice); shows.add(modeChoice); shows.add(causeChoice)
+        shows.add(JLabel("  Kind:")); shows.add(residentChoice); shows.add(flowBox); shows.add(heightBox); shows.add(pullChoice)
+        shows.add(JLabel("  Draw:"))
+        for (box in listOf(peopleBox, huntersBox, worksBox, groundBox, dealingsBox, blocsBox, pathsBox, namesBox, riversBox, windBox)) shows.add(box)
         val graphs = JButton("History…"); graphs.addActionListener { HexHistoryPanel.show(history, live = true, title = "History, seed ${cfg.seed}") }
         // Save the world as it stands, or carry on one saved before.
         val save = JButton("Save…")
@@ -301,6 +309,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                 "Click a hex on the map and pick a group in the list first.")
         }
         bar.add(follow)
+        bar.add(stepChoice())
         bar.add(graphs); bar.add(save); bar.add(open); bar.add(date)
         useNetworks()
         load?.let { f -> commands += { loadWorld(f) } }
@@ -320,18 +329,17 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             }
             kindButtons += b; bottom.add(b)
         }
-        val side = JPanel(BorderLayout())
-        side.add(JScrollPane(info), BorderLayout.NORTH)
-        side.add(JScrollPane(groupView), BorderLayout.CENTER)
-        side.add(JScrollPane(groupInfo), BorderLayout.SOUTH)
-        groupView.addListSelectionListener { e -> if (!e.valueIsAdjusting) showGroup() }
+        val side = sidePanel()
         val split = JSplitPane(JSplitPane.HORIZONTAL_SPLIT, map, side)
         split.resizeWeight = 0.75
         val south = JPanel(BorderLayout())
         south.add(legendText.apply { border = BorderFactory.createEmptyBorder(2, 6, 2, 6) }, BorderLayout.NORTH)
         south.add(bottom, BorderLayout.CENTER)
         south.addComponentListener(object : ComponentAdapter() { override fun componentResized(e: ComponentEvent) = bottom.revalidate() })
-        add(bar, BorderLayout.NORTH); add(split, BorderLayout.CENTER); add(south, BorderLayout.SOUTH)
+        val north = JPanel(BorderLayout())
+        north.add(bar, BorderLayout.NORTH); north.add(shows, BorderLayout.CENTER)
+        north.addComponentListener(object : ComponentAdapter() { override fun componentResized(e: ComponentEvent) = shows.revalidate() })
+        add(north, BorderLayout.NORTH); add(split, BorderLayout.CENTER); add(south, BorderLayout.SOUTH)
         snapshot()
         Thread(::loop, "hex simulation").apply { isDaemon = true }.start()
         Timer(33) { if (frame < frames) { frame++; map.repaint() } }.start()
@@ -352,6 +360,8 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             // (Its bands take up the planning kind's mind as founders do, t.planners, as hexFauna's carried-on worlds do.)
             groups.foundMinds()
             layers.reset()
+            relations.reset()
+            blocs.reset()
             useNetworks()
             lastDrawn.clear()
             snapshot()
@@ -367,11 +377,41 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         sim.step()
         history.record(sim)
         layers.week()
+        relations.week()
+        layers.dealings(relations.thisWeek)
+        blocs.week()
         snapshot()
         control.weekDone()
     }
 
     /** The model: learned networks ([nets], [waysFile], see [LearnedModel]). */
+    /**
+     * The side: the hex in words, the groups in it, the picked group (drawn, its relations, in words), one above the other,
+     * each given its own share of the height (the hex's text cannot push the list out of sight), the dividers movable.
+     */
+    private fun sidePanel(): JSplitPane {
+        val groupTabs = javax.swing.JTabbedPane()
+        groupTabs.addTab("Band", JScrollPane(bandCard))
+        groupTabs.addTab("Relations", JScrollPane(relationsText))
+        groupTabs.addTab("In words", JScrollPane(groupInfo))
+        val hexText = JScrollPane(info).apply { preferredSize = Dimension(400, 220); minimumSize = Dimension(100, 60) }
+        val groupsHere = JScrollPane(groupView).apply { preferredSize = Dimension(400, 90); minimumSize = Dimension(100, 40) }
+        groupTabs.minimumSize = Dimension(100, 120)
+        val lower = JSplitPane(JSplitPane.VERTICAL_SPLIT, groupsHere, groupTabs).apply { resizeWeight = 0.15 }
+        groupView.addListSelectionListener { e -> if (!e.valueIsAdjusting) { showGroup(); map.repaint() } }
+        return JSplitPane(JSplitPane.VERTICAL_SPLIT, hexText, lower).apply { resizeWeight = 0.3 }
+    }
+
+    /** The step's length: days the slow parts take at once ([HexSim.stepDays]), changed between steps. */
+    private fun stepChoice(): JComboBox<String> {
+        val stepDays = (listOf(6, 12, 30, 60) + sim.stepDays).distinct().sorted()
+        val stepChoice = JComboBox(stepDays.map { "step $it d" }.toTypedArray())
+        stepChoice.selectedIndex = stepDays.indexOf(sim.stepDays)
+        stepChoice.toolTipText = "Days each step covers: 6 is the week; longer steps run faster but rougher"
+        stepChoice.addActionListener { val d = stepDays[stepChoice.selectedIndex]; commands += { sim.stepDays = d } }
+        return stepChoice
+    }
+
     private fun useNetworks() {
         LearnedModel.apply(groups, nets, waysFile, Config.string(Config.Key.HUNTER_WAYS)) { println(it) }
     }
@@ -495,111 +535,6 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         private val upDownLegend = MapLegend("Up/down", "Up/down: where the chosen kind stands in each hex's span of heights, by heads",
             { x -> Color(x, 0.25f, 1f - x, 0.75f) }, listOf(0f to "lowest band", 0.5f to "between", 1f to "highest band"),
             "hexes of one band left clear")
-
-        /**
-         * People's works by hex ([worksBox]): houses (room for how many, standing or begun) and palisades from the structures
-         * that stand ([inflation.ecology.HexGroups.built]); this year's sown fields, their ripe grain and the share of ears that
-         * hold their grain; ground worn by cropping ([inflation.ecology.HexFood.fieldWorn]); and ground cleared ([inflation.ecology.HexFood.cleared]).
-         */
-        private fun paintWorks(g: Graphics2D, sx: (Float) -> Int, sy: (Float) -> Int, onScreen: (Hex, Int) -> Boolean) {
-            val room = FloatArray(hex.size); val begun = FloatArray(hex.size); val fence = FloatArray(hex.size); val pens = FloatArray(hex.size); val halls = FloatArray(hex.size)
-            for (st in groups.bands.built) if (!st.hex.none) when (st.kind) {
-                Built.HOUSES -> if (st.done) room[st.hex] += st.built * st.size else begun[st.hex] += st.built * st.size
-                Built.PALISADE -> fence[st.hex] = max(fence[st.hex], st.built)
-                Built.PEN -> pens[st.hex] += st.built * st.size
-                Built.HALL -> halls[st.hex] = max(halls[st.hex], if (st.done) st.built * st.size else 0f)
-                Built.WEIR, Built.WELL, Built.MONUMENT -> {} // (weirs, wells and monuments are not drawn)
-            }
-            val food = fauna.food
-            val sownKg = FloatArray(hex.size); val ripeKg = FloatArray(hex.size); val tame = FloatArray(hex.size); val pulse = FloatArray(hex.size); val wornKm2 = FloatArray(hex.size); val clearedKm2 = FloatArray(hex.size)
-            for (p in 0 until land.n) {
-                val h = hw.placeHex[p]; val m2 = land.areaKm2[p] * 1e6f
-                val kg = food.field[p] * m2
-                sownKg[h] += kg; tame[h] += food.fieldDomestic[p] * kg; pulse[h] += food.fieldPulse[p] * kg; ripeKg[h] += food.fieldGrain[p] * m2
-                wornKm2[h] += food.fieldWorn[p] * land.areaKm2[p]; clearedKm2[h] += food.cleared[p] * land.areaKm2[p]
-            }
-            val z = max(0.6, scale).toFloat()
-            val village = IntArray(hex.size)
-            for ((h, bs) in groups.villages()) village[h.i] = bs.size
-            for (h in hex.all) {
-                if (village[h.i] >= 1 && onScreen(h, 1)) {
-                    // A village ([villages]): a ring of a dot for each band below the hex's centre.
-                    val (cx, cy) = hex.centreKm(h)
-                    val x = sx(cx.toFloat()); val y = sy(cy.toFloat()) + (9 * z).toInt(); val d = (3 * z).toInt().coerceAtLeast(2)
-                    for (k in 0 until min(village[h.i], 8)) {
-                        val a = 2 * Math.PI * k / min(village[h.i], 8)
-                        val px = x + (4 * z * cos(a)).toInt(); val py = y + (4 * z * sin(a)).toInt()
-                        g.color = Color(0.9f, 0.2f, 0.6f, 0.95f); g.fillOval(px - d / 2, py - d / 2, d, d)
-                        g.color = Color(1f, 1f, 1f, 0.9f); g.drawOval(px - d / 2, py - d / 2, d, d)
-                    }
-                }
-                if (room[h] + begun[h] + fence[h] + pens[h] + halls[h] + sownKg[h] + ripeKg[h] + wornKm2[h] + clearedKm2[h] <= 0f || !onScreen(h, 1)) continue
-                val (cx, cy) = hex.centreKm(h)
-                val x = sx(cx.toFloat()); val y = sy(cy.toFloat())
-                if (room[h] + begun[h] > 0f) {
-                    // A house, larger for room for more people; filled when whole, outlined while only begun.
-                    val r = (z * (3f + 1.5f * ln(1f + (room[h] + begun[h]) / 10f))).toInt().coerceAtLeast(2)
-                    val hx = x + (6 * z).toInt(); val hy = y - (6 * z).toInt()
-                    val xs = intArrayOf(hx - r, hx, hx + r, hx + r, hx - r); val ys = intArrayOf(hy, hy - r, hy, hy + r, hy + r)
-                    g.color = Color(0.45f, 0.25f, 0.1f, 0.95f)
-                    if (room[h] > 0f) g.fillPolygon(xs, ys, 5)
-                    g.color = Color(1f, 0.95f, 0.85f, 0.95f); g.drawPolygon(xs, ys, 5)
-                    if (fence[h] > 0f) {
-                        // The palisade: a ring round the houses, as much of it as stands.
-                        val stroke = g.stroke; g.stroke = BasicStroke(1.5f * z)
-                        g.color = Color(0.3f, 0.15f, 0.05f, 0.95f)
-                        g.drawArc(hx - 2 * r, hy - 2 * r, 4 * r, 4 * r, 90, -(360 * fence[h]).toInt())
-                        g.stroke = stroke
-                    }
-                }
-                if (halls[h] > 0f) {
-                    // A hall (to the upper right of the houses): a long roofed building, wider for more people gathered in it.
-                    val w = (z * (4f + 2f * ln(1f + halls[h] / 30f))).toInt().coerceAtLeast(3); val r = (3 * z).toInt().coerceAtLeast(2)
-                    val ax = x + (14 * z).toInt(); val ay = y - (10 * z).toInt()
-                    g.color = Color(0.75f, 0.55f, 0.85f, 0.95f); g.fillRect(ax - w, ay, 2 * w, 2 * r)
-                    g.color = Color(0.35f, 0.15f, 0.45f, 0.95f); g.fillPolygon(intArrayOf(ax - w - 1, ax, ax + w + 1), intArrayOf(ay, ay - 2 * r, ay), 3)
-                }
-                if (pens[h] > 0f) {
-                    // A pen (to the upper left): a fenced square of stakes, larger for more head.
-                    val r = (z * (2f + ln(1f + pens[h] / 20f))).toInt().coerceAtLeast(2)
-                    val px = x - (9 * z).toInt(); val py = y - (9 * z).toInt()
-                    val stroke = g.stroke; g.stroke = BasicStroke(1.2f * z)
-                    g.color = Color(0.85f, 0.6f, 0.3f, 0.95f); g.drawRect(px - r, py - r, 2 * r, 2 * r)
-                    g.drawLine(px - r, py, px + r, py)
-                    g.stroke = stroke
-                }
-                if (sownKg[h] + ripeKg[h] + wornKm2[h] + clearedKm2[h] > 0f) {
-                    val fx = x - (9 * z).toInt(); val fy = y + (3 * z).toInt(); val w = (6 * z).toInt().coerceAtLeast(3)
-                    if (sownKg[h] + ripeKg[h] > 0f) {
-                        // A field: green while it grows, gold when there is ripe grain; ringed white where most ears hold their grain.
-                        g.color = if (ripeKg[h] > 0f) Color(0.95f, 0.75f, 0.15f, 0.95f) else Color(0.35f, 0.7f, 0.2f, 0.95f)
-                        g.fillRect(fx, fy, w, w)
-                        g.color = Color(0.25f, 0.15f, 0.05f, 0.9f)
-                        g.drawLine(fx, fy + w / 3, fx + w, fy + w / 3); g.drawLine(fx, fy + 2 * w / 3, fx + w, fy + 2 * w / 3)
-                        if (sownKg[h] > 0f && tame[h] / sownKg[h] > 0.5f) { g.color = Color.WHITE; g.drawRect(fx - 1, fy - 1, w + 1, w + 1) }
-                        // Pulses sown in it: a purple dot in its corner, larger for a larger share of the seed.
-                        if (sownKg[h] > 0f && pulse[h] > 0.05f * sownKg[h]) { val d = (w * min(1f, 0.3f + pulse[h] / sownKg[h])).toInt().coerceAtLeast(2)
-                            g.color = Color(0.5f, 0.2f, 0.6f, 0.95f); g.fillOval(fx + w - d / 2, fy - d / 2, d, d) }
-                    } else if (wornKm2[h] > 0f) {
-                        // Ground worn by cropping and left to rest.
-                        g.color = Color(0.55f, 0.4f, 0.25f, 0.8f); g.drawRect(fx, fy, w, w); g.drawLine(fx, fy + w, fx + w, fy)
-                    } else {
-                        // Ground cleared for fields and not cropped, growing back.
-                        g.color = Color(0.8f, 0.7f, 0.5f, 0.8f); g.drawRect(fx, fy, w, w)
-                    }
-                }
-            }
-        }
-        private val worksLegend = MapLegend("Works", "People's works: a house (to the upper right of a hex's centre) where houses stand, filled when " +
-            "whole, outlined while only begun, larger for room for more people; a brown ring round it for a palisade, as much of the ring as stands. " +
-            "A field (to the lower left) where grain was sown this year: green while it grows, gold with ripe grain standing, ringed white where most " +
-            "of the sown seed is of ears that hold their grain, a purple dot in its corner where pulses are sown in it, larger for more of them; an outlined, crossed square for ground worn by cropping and left to rest; a pale outlined square for ground cleared for fields, not cropped and growing back. " +
-            "A hall (to the upper right of the houses), the village's, where its people gather: a long roofed building, wider for more people. " +
-            "A pen (to the upper left) where kept animals are penned at night: a fenced square, larger for more head. " +
-            "A village (below the centre) where two or more bands live settled in the hex, or one band at home larger than a camp: a ring of a dot for each band.",
-            swatches = listOf(MapLegend.Swatch(Color(0.45f, 0.25f, 0.1f), "houses"), MapLegend.Swatch(Color(0.35f, 0.7f, 0.2f), "field growing"),
-                MapLegend.Swatch(Color(0.95f, 0.75f, 0.15f), "field ripe"), MapLegend.Swatch(Color(0.5f, 0.2f, 0.6f), "pulses sown"), MapLegend.Swatch(Color(0.85f, 0.6f, 0.3f), "pen"), MapLegend.Swatch(Color(0.55f, 0.4f, 0.25f), "worn ground"),
-                MapLegend.Swatch(Color(0.9f, 0.2f, 0.6f), "village")))
 
         private fun paintMap(g: Graphics2D) {
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
@@ -814,18 +749,19 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                     "bays and straits, peninsulas, isthmuses and islands (narrower than the ground one place draws on, or than a range). The larger the feature, the larger its name; a name is written only where it fits along its river or across its country.", note = features.summary(),
                     swatches = HexGeography.Kind.entries.map { MapLegend.Swatch(featureColour(it), it.label) })
             }
-            // People's works: houses and palisades to the upper right of a hex's centre, fields to the lower left.
+            // People's works, small inside their hexes.
             if (worksBox.isSelected) {
-                paintWorks(g, ::sx, ::sy, ::onScreen)
-                legends += worksLegend
+                works.paint(g, kmPx, ::sx, ::sy, ::onScreen)
+                legends += WorksPainter.legend
             }
+            val t = min(1f, frame.toFloat() / frames)
+            paintBands(g, t, kmPx, ::sx, ::sy, ::onScreen, legends)
             // The hex being inspected.
             if (!picked.none) {
                 g.stroke = BasicStroke(2.5f); hexagon(picked, Color.WHITE, false); g.stroke = BasicStroke(1f)
             }
             // The groups, each part of the way along the hexes it walked this week; at the end of the
             // week those sharing a hex stand side by side in a small ring around its centre.
-            val t = min(1f, frame.toFloat() / frames)
             for (s in shown) {
                 val sp = Catalogue.all[s.kind]
                 // The group followed in the follow window: a yellow ring.
@@ -865,6 +801,30 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             }
             // What the tints' colours mean, in the top right corner.
             MapLegend.draw(g, legends, width)
+        }
+
+        /** The bands' layers ([groundBox], [blocsBox], [dealingsBox]), at [t] of the way through the week's moves. */
+        private fun paintBands(g: Graphics2D, t: Float, kmPx: Double, sx: (Float) -> Int, sy: (Float) -> Int, onScreen: (Hex, Int) -> Boolean,
+                               legends: MutableList<MapLegend>) {
+            // The ground of the band picked in the list, or else of the one followed.
+            if (groundBox.isSelected) {
+                val i = groupView.selectedIndex
+                val id = if (i in groupIds.indices) groupIds[i] else groups.watched
+                groups.groups.firstOrNull { it.id == id && it.alive && it.band != null }?.let {
+                    bandGround.paint(g, it, kmPx, sx, sy, onScreen)
+                    legends += BandGroundPainter.legend
+                }
+            }
+            // What passed between bands lately, between where they stand now, and the picked band's ties.
+            val at = HashMap<Int, Pair<Float, Float>>()
+            if (dealingsBox.isSelected || blocsBox.isSelected) for (s in shown) if (Catalogue.all[s.kind].human) at[s.id] = along(s.way, t)
+            if (blocsBox.isSelected) { blocs.paint(g, at, sx, sy, onScreen); legends += blocs.legend() }
+            if (dealingsBox.isSelected) {
+                val i = groupView.selectedIndex
+                val id = if (i in groupIds.indices) groupIds[i] else groups.watched
+                relations.paint(g, at, groups.groups.firstOrNull { it.id == id && it.alive }, sx, sy)
+                legends += RelationsView.legend
+            }
         }
 
         private fun along(w: FloatArray, t: Float): Pair<Float, Float> {
@@ -918,10 +878,11 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                     fun colour(r: Int): Color { val c = Color.getHSBColor(((r * 0.618034f) % 1f + 1f) % 1f, 0.75f, 0.9f); return Color(c.red, c.green, c.blue, 150) }
                     for (h in v.indices) if (!v[h].isNaN()) out[h] = colour(v[h].toInt())
                     val top = cr.byPeople.take(12)
-                    return MapLegend(title, "Cultural regions: neighbouring bands of one tongue and nearly one set of customs, each hex in the colour of the region with most people there; ${cr.byPeople.size} regions, the largest named by their own word for people.",
+                    return MapLegend(title, "Cultural regions: neighbouring bands of one tongue and nearly one set of customs, each hex in the colour of the region with most people there (a region keeps its colour from week to week while most of its people stay in it); ${cr.byPeople.size} regions, the largest named by their own word for people.",
                         note = "${cr.byPeople.size} regions",
-                        swatches = top.map { (r, people) -> MapLegend.Swatch(colour(r), "%s, %.0f people".format(cr.name[r] ?: "-", people)) })
+                        swatches = top.map { (r, people) -> MapLegend.Swatch(colour(layers.cultureIds[r] ?: r), "%s, %.0f people".format(cr.name[r] ?: "-", people)) })
                 }
+                if (tint == Measure.RAIDS) return raidsTint(v, out, title)
                 if (tint == Measure.HUNTERS_PER_PREY) {
                     fun colour(l: Float) = if (l >= 0) rgba(0.9f, 0.15f, 0.1f, 0.15f + 0.6f * l) else rgba(0.1f, 0.4f, 0.9f, 0.15f - 0.6f * l)
                     for (h in v.indices) if (!v[h].isNaN() && v[h] > 0f) out[h] = colour((log10(v[h]) / 1.5f).coerceIn(-1f, 1f))
@@ -995,6 +956,28 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
     private fun causeNote(tint: Measure) = if (tint.byCause) " (" + causeChoice.selectedItem + ")" else ""
 
     /** The measures' own fixed colour scales; null for a measure without one. */
+    /**
+     * The raids tint: each hex by the raids on bands camped there over about the last year, fuller for more (log scale, full at
+     * [RAIDS_FULL]), amber where they were within one cultural region and crimson where across two; the note sets the share of
+     * raids across regions against the share of all other dealings across them, so whether raids gather where cultures meet.
+     */
+    private fun raidsTint(v: FloatArray, out: Array<Color?>, title: String): MapLegend {
+        fun colour(n: Float, across: Float): Color {
+            val a = 0.15f + 0.75f * min(1f, ln(1f + n) / ln(1f + RAIDS_FULL))
+            return rgba(1f - 0.15f * across, 0.7f * (1f - across), 0.1f + 0.25f * across, a)
+        }
+        for (h in v.indices) if (!v[h].isNaN() && v[h] > 0f) out[h] = colour(v[h], (layers.raidsAcross[h] / v[h]).coerceIn(0f, 1f))
+        val raids = layers.raidsWithinAll + layers.raidsAcrossAll; val others = layers.othersWithinAll + layers.othersAcrossAll
+        val note = if (raids < 0.5) "no raids counted yet (counted from when the viewer started)" else
+            "about the last year: %.0f raids, %.0f%% across regions; of all other dealings %.0f%% across".format(raids,
+                100 * layers.raidsAcrossAll / raids, if (others > 0) 100 * layers.othersAcrossAll / others else 0.0)
+        return MapLegend(title, "Raids on bands camped in each hex over about the last year, counted from when the viewer started (fading " +
+            "over ${ViewLayers.RAID_MEMORY_WEEKS.toInt()} weeks): fuller for more, full at ${RAIDS_FULL.toInt()}; amber where raider and raided were of one " +
+            "cultural region, crimson where of two. The note compares the share of raids across regions with the share of all other dealings across them: " +
+            "raids gather where cultures meet as far as the first is the larger.", note = note,
+            swatches = listOf(MapLegend.Swatch(colour(RAIDS_FULL, 0f), "raids within a region"), MapLegend.Swatch(colour(RAIDS_FULL, 1f), "raids across regions")))
+    }
+
     private fun fixedColour(tint: Measure, values: FloatArray, out: Array<Color?>): MapLegend? {
         // What the scale says, and the values it runs over: its ends, with any marked between them.
         val (legend, marks) = when (tint) {
@@ -1090,6 +1073,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             .joinToString(", ") { (s, l) -> "%s %d in %d".format(s.name, l.sumOf { it.size }, l.size) }.ifEmpty { "none" })
         sb.appendLine("   forage (grass and browse) %.0f t, rodents and reptiles %.1f t, carrion %.1f t".format(food * 1000, small / 1000, carrion / 1000))
         sb.appendLine("river: biggest %.0f m³/s, flow now %.0f m³/s".format(land.hydro.meanFlow[h], land.hydro.flow[h]))
+        works.describe(h).takeIf { it.isNotEmpty() }?.let { sb.appendLine("works:"); sb.append(it) }
         // The tinted measure here: this week, and month by month over the last year.
         val tint = Measure.entries[tintChoice.selectedIndex]
         if (tint.tints) {
@@ -1124,7 +1108,9 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         for ((i, r) in rows.withIndex()) if (i < groupList.size()) { if (groupList[i] != r) groupList[i] = r } else groupList.addElement(r)
         while (groupList.size() > rows.size) groupList.removeElementAt(groupList.size() - 1)
         val again = groupIds.indexOf(picked)
-        if (again >= 0) { groupView.selectedIndex = again; showGroupNow() } else { groupView.clearSelection(); groupInfo.text = "" }
+        // (Nothing picked here yet: the first band in the hex, so a hex with a band in it always shows one.)
+        val pick = if (again >= 0) again else here.indexOfFirst { it.band != null }
+        if (pick >= 0) { groupView.selectedIndex = pick; showGroupNow() } else { groupView.clearSelection(); groupInfo.text = ""; bandCard.show(null); relationsText.text = relations.html(null) }
     }
 
     /** Shows the group picked in the list. */
@@ -1134,6 +1120,8 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         val i = groupView.selectedIndex
         if (i < 0 || i >= groupIds.size) return
         val g = groups.groups.firstOrNull { it.id == groupIds[i] } ?: return
+        bandCard.show(g)
+        relationsText.text = relations.html(g); relationsText.caretPosition = 0
         val s = g.species
         val sb = StringBuilder()
         sb.appendLine("%s #%d".format(s.name, g.id))
@@ -1205,6 +1193,8 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
     }
 
     companion object {
+        /** Raids over about a year at which a hex's raids tint is full. */
+        private const val RAIDS_FULL = 5f
         /** The colour of a landmark on the map (passes are drawn as triangles). */
         private fun featureColour(k: HexGeography.Kind) = when (k) {
             HexGeography.Kind.RIVER, HexGeography.Kind.LAKE, HexGeography.Kind.BAY, HexGeography.Kind.STRAIT -> Color(0.1f, 0.25f, 0.7f)
