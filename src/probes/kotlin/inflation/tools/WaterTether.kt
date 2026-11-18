@@ -55,7 +55,8 @@ fun main(args: Array<String>) {
             if (land.drink.animalWater(pl) >= 0.05f) l[6] += a
             l[7] += a
             for (k in eaters) {
-                val h = (fauna.adults[k][p] + fauna.young[k][p]).toDouble()
+                // (The residents' numbers are a km²: heads are those times the place's area.)
+                val h = (fauna.adults[k][p] + fauna.young[k][p]).toDouble() * a
                 if (h <= 0.0) continue
                 val sp = fauna.kinds[k]
                 val t = fauna.tether(sp, pl).toDouble()
