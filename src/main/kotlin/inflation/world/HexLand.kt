@@ -66,7 +66,7 @@ class HexLand(internal val hw: HexWorld, internal val seed: Long, /** The run's 
      * over the last year ([HexCountry.sodden]). Set each step by [country] from the water as it is (Olli 2026-11-18: no longer
      * from world-gen's marsh, bog and salt marsh labels).
      */
-    @Transient val waterlogged = FloatArray(n)
+    val waterlogged = FloatArray(n)
     /**
      * The share of each place's plants an animal or a forager can eat, 0..1: most of an open grassland, little of aromatic
      * garrigue, thorny scrub, desert bush, bog or conifer forest, where the plants are defended (bitter, aromatic, thorny or
@@ -74,7 +74,7 @@ class HexLand(internal val hw: HexWorld, internal val seed: Long, /** The run's 
      * grow in ([HexCountry.palatableNow]), no longer from world-gen's label. (Half of even the poorest country's plants is
      * eaten by something; the rest of it by that share. A balancing run may change that floor: t.palatableFloor.)
      */
-    @Transient val palatable = FloatArray(n)
+    val palatable = FloatArray(n)
 
     /** The dead buried at each place (graves weather away over centuries), and the ornaments buried with them. */
     val burials = FloatArray(n)

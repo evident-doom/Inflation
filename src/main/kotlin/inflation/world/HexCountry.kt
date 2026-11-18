@@ -34,7 +34,7 @@ class HexCountry(land: HexLand) : HexLandPart(land) {
     @Transient private val tidalMarsh = FloatArray(n) { p -> mean(p) { i -> if (tidalCell(i) && world.climate.coldestMonthTemp(i) <= 16f) 1f else 0f } }
     @Transient private val tidalMangrove = FloatArray(n) { p -> mean(p) { i -> if (tidalCell(i) && world.climate.coldestMonthTemp(i) > 16f) 1f else 0f } }
     /** Share of each place that is sodden ground with trees standing in the water (swamp forest, mangrove), set each step. */
-    @Transient val swamp = FloatArray(n)
+    val swamp = FloatArray(n)
 
     /**
      * How sodden each place's low flat ground has been over about the last year, 0..1: the year's mean of how near full its soil
@@ -45,7 +45,7 @@ class HexCountry(land: HexLand) : HexLandPart(land) {
     /** Herbs standing over about the last year, kg/m² (the year's mean, as a sward's cover is judged, not its season). */
     val herbYear = FloatArray(n) { p -> plants.herb[p] }
     /** What kind of country each place is now, as a [Biome] ordinal ([classify]). */
-    @Transient val kind = IntArray(n)
+    val kind = IntArray(n)
 
     init { refresh() }
 
@@ -60,7 +60,7 @@ class HexCountry(land: HexLand) : HexLandPart(land) {
         refresh()
     }
 
-    /** Sets the waterlogged and edible shares and the kinds afresh from the water and plants as they stand (also after a saved run is loaded: [inflation.ecology.HexSnapshot.load]). */
+    /** Sets the waterlogged and edible shares and the kinds afresh from the water and plants as they stand (saved with the run, as the step left them). */
     internal fun refresh() {
         for (p in land.places) {
             land.waterlogged[p] = min(1f, tidalMarsh[p] + lowFlat[p] * sodden[p])
