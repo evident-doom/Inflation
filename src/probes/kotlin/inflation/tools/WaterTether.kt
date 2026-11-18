@@ -39,6 +39,9 @@ fun main(args: Array<String>) {
     val kindAcc = Array(fauna.kinds.size) { Array(biomes.size) { DoubleArray(6) } }
     // Kinds by month [kind][month]: heads, heads*km, heads*tether, heads drinking, heads dry, heads*fed.
     val monthAcc = Array(fauna.kinds.size) { Array(12) { DoubleArray(6) } }
+    // Where the water comes from, by kind of country and month [biome][month]: area, pools everywhere, snow eaten, flooded,
+    // area-km of the walk where neither pools nor snow, area of that ground.
+    val srcAcc = Array(biomes.size) { Array(12) { DoubleArray(5) } }
     var steps = 0
     val perYear = sim.stepsPerYear
     for (s in 0 until years * perYear) {
@@ -54,6 +57,10 @@ fun main(args: Array<String>) {
             l[5] += km * a
             if (land.drink.animalWater(pl) >= 0.05f) l[6] += a
             l[7] += a
+            val src = srcAcc[b][mo]; src[0] += a
+            val snow = land.drink.snowWater[p] > 0f
+            val pools = !snow && land.drink.water[p] >= 0.999f && land.drink.waterKm[p] == 0f
+            if (snow) src[1] += a else if (pools) src[2] += a else { src[4] += a; src[3] += land.drink.waterKm[p] * a }
             for (k in eaters) {
                 // (The residents' numbers are a km²: heads are those times the place's area.)
                 val h = (fauna.adults[k][p] + fauna.young[k][p]).toDouble() * a
@@ -76,6 +83,21 @@ fun main(args: Array<String>) {
         val l = landAcc[b]; val a = l[7]
         println("  %-24s %4.1f%% of land: ".format(biomes[b].label, 100 * area[b] / area.sum()) +
             (0 until 5).joinToString(" / ") { "%3.0f%%".format(100 * l[it] / a) } + " | %5.1f km | %3.0f%%".format(l[5] / a, 100 * l[6] / a))
+    }
+    println()
+    println("LASTING WATER by kind of country (area-weighted): share of ground within 3 km of a stream (0.1 m³/s and more in a usual year) / fresh lake / spring; springs per 1000 km²")
+    val springCells = DoubleArray(biomes.size); val lw = Array(biomes.size) { DoubleArray(3) }
+    for (p in 0 until n) { val b = hw.placeBiome[p]; val a = land.areaKm2[p].toDouble()
+        springCells[b] += hw.placeCells[p].count { land.drink.spring[it] }
+        lw[b][0] += land.drink.nearRiver[p] * a; lw[b][1] += land.drink.nearLake[p] * a; lw[b][2] += land.drink.nearSpring[p] * a }
+    for (b in shown) println("  %-24s %3.0f%% / %3.0f%% / %3.0f%% ; %.1f".format(biomes[b].label,
+        100 * lw[b][0] / area[b], 100 * lw[b][1] / area[b], 100 * lw[b][2] / area[b], 1000 * springCells[b] / area[b]))
+    println()
+    println("WATER BY MONTH, steppe and semi-desert (share of land with snow eaten for water / pools everywhere (wet soil or a rainy week) / mean walk km over the rest)")
+    for (b in shown) {
+        if (biomes[b].label != "steppe" && biomes[b].label != "semi desert") continue
+        println("  " + biomes[b].label + ": " + (0 until 12).joinToString("  ") { m -> val v = srcAcc[b][m]
+            if (v[0] <= 0.0) "$m -" else "$m %.0f%%/%.0f%%/%.1f".format(100 * v[1] / v[0], 100 * v[2] / v[0], if (v[4] > 0.0) v[3] / v[4] else 0.0) })
     }
     println()
     println("KINDS: tether half km (pull halved) and never-dry walk km (Hazards.fetchKm); then by kind of country, by heads standing there:")
