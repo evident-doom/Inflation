@@ -280,7 +280,7 @@ class Species(
      * Standing food, kg/m², at which it crops all but 1/e of its want in its feeding day ([cropRate]): [CROP_HALF] for a
      * 100 kg kind going 5 km a day, growing with the square root of its mass (its bite holds more, and it needs a fuller
      * sward to fill it) and falling with the square root of its day's going (it searches more ground for the scattered
-     * good bites). A gazelle 0.012, an onager 0.026, an aurochs 0.065. (The exponents are a reading of the bite-size and
+     * good bites). A gazelle 0.005, an onager 0.010, an aurochs 0.026. (The exponents are a reading of the bite-size and
      * search-rate rules, not measured.)
      */
     val cropHalfKgM2: Float get() = CROP_HALF * (massKg / 100f).pow(0.5f) * (5f / dailyTravelKm.coerceAtLeast(1f)).pow(0.5f)
@@ -316,10 +316,13 @@ class Species(
         /** Share of a winter coat grown, by month from the winter solstice. */
         private val COAT = floatArrayOf(1f, 1f, 0.9f, 0.5f, 0.2f, 0f, 0f, 0f, 0.2f, 0.5f, 0.8f, 1f)
         /**
-         * [cropHalfKgM2] of a 100 kg kind going 5 km a day, kg/m²: cattle reach their full intake on swards of some
-         * 0.15-0.2 kg/m² of dry matter, sheep on much thinner ones (from memory of the grazing record); an estimate between.
+         * [cropHalfKgM2] of a 100 kg kind going 5 km a day, kg/m². The pasture's thinness already sets how much food it
+         * offers ([HexFauna.REACH], a week's share of what stands); this is only the cropping time a bite size costs on top.
+         * At 0.03 the two together, with the hindgut's loss on cured grass, starved horses and onagers on the steppe that
+         * fed them in nature (hunger 56-64% of their deaths); at this a horse crops some 97% of its want there, an aurochs
+         * some 82%, and the small kinds keep their edge only on the thinnest pickings.
          */
-        const val CROP_HALF = 0.03f
+        const val CROP_HALF = 0.012f
         /**
          * [preySize]: the smallest young a hunter takes as game, times its own weight, whatever its grown game: a wolf a
          * newborn fawn of a kilo or so, a lion a calf of some 7 kg. (With its grown game's quarter, the seasonal weight of
