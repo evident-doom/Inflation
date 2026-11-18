@@ -182,21 +182,27 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
     fun canopy(p: Place) = min(1f, tree[p] / (0.4f * LifeForm.TREE.maxBiomass))
     /**
      * The shares of the light at place [p] taken by the leaves of its herbs, shrubs and trees, into [out] in that order (the
-     * rest falls on bare ground): the trees' crowns first ([canopy]), then the shrubs under and between them, then the green
-     * herbs in what light is left, each by Beer's law on its leaf area ([LIGHT_K]). What each takes is its share of the
-     * water the place gives to the air ([HexHydrology.step]).
+     * rest falls on bare ground): the trees' crowns first ([canopy]); under and between them the shrubs and the green herbs
+     * side by side, as one layer by Beer's law on their leaf areas together ([LIGHT_K]), each by its share of that leaf area.
+     * What each takes is its share of the water the place gives to the air ([HexHydrology.step]).
      */
     fun lightShares(p: Place, out: FloatArray) {
-        val trees = canopy(p); val shrubs = shrubLight(p, trees)
-        out[0] = herbLight(p, trees + shrubs); out[1] = shrubs; out[2] = trees
+        val trees = canopy(p)
+        out[0] = herbLight(p, trees); out[1] = shrubLight(p, trees); out[2] = trees
     }
-    /** The share of the light at [p] the shrubs take under the trees' [trees] ([lightShares]). */
-    private fun shrubLight(p: Place, trees: Float) = (1f - trees) * (1f - exp(-LIGHT_K * SHRUB_LAI_PER_KG * shrub[p]))
-    /**
-     * The share the green herbs take of what the woody plants leave ([above] taken): on at least [HERB_SEED_BANK] kg/m², the
-     * seedlings that come up from the seed in the soil wherever the ground greens, as the herbs grow from it.
-     */
-    private fun herbLight(p: Place, above: Float) = (1f - above) * (1f - exp(-LIGHT_K * HERB_LAI_PER_KG * max(herb[p], HERB_SEED_BANK) * green[p]))
+    /** Leaf area of place [p]'s shrubs, and of its green herbs: these on at least [HERB_SWARD] kg/m² (see there). */
+    private fun shrubLeaf(p: Place) = SHRUB_LAI_PER_KG * shrub[p]
+    private fun herbLeaf(p: Place) = HERB_LAI_PER_KG * max(herb[p], HERB_SWARD) * green[p]
+    /** The light the shrubs and the herbs take together under the trees' [trees] share. */
+    private fun understory(trees: Float, leaf: Float) = (1f - trees) * (1f - exp(-LIGHT_K * leaf))
+    private fun shrubLight(p: Place, trees: Float): Float {
+        val s = shrubLeaf(p); val h = herbLeaf(p)
+        return if (s + h > 0f) understory(trees, s + h) * s / (s + h) else 0f
+    }
+    private fun herbLight(p: Place, trees: Float): Float {
+        val s = shrubLeaf(p); val h = herbLeaf(p)
+        return if (s + h > 0f) understory(trees, s + h) * h / (s + h) else 0f
+    }
     /** Cover to hide in at place [p], 0..1: scrub and forest. */
     fun cover(p: Place) = min(1f, shrub[p] / 2f + canopy(p))
     /** Cover on the ground at place [p], 0..1, that small game hides in: standing grass and herbs (full at their most) and scrub; fire and grazing take it off. */
@@ -390,7 +396,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             // The plants grow by the water they transpired ([HexHydrology.transpired]), at [WUE_KG_PER_MM], in growing weather
             // and as the soil feeds them: no ceiling but the light their leaves take and the water. (The warmth is in the
             // water already: the air takes more of it the warmer it is. Below the plants' growing warmth they grow nothing.)
-            val trees = canopy(p); val shrubs = shrubLight(p, trees); val herbs = herbLight(p, trees + shrubs)
+            val trees = canopy(p); val shrubs = shrubLight(p, trees); val herbs = herbLight(p, trees)
             val growing = if (season > 0f) 1f else 0f
             val made = WUE_KG_PER_MM * growing * soil(p)
             // Woody roots reach the water table under the wet valley floor where it is not sodden: there the shrubs and
@@ -575,8 +581,13 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
          * from memory), with a third to a half of the rain transpired, agrees.
          */
         const val WUE_KG_PER_MM = 0.0012f
-        /** The herbs' seedlings, kg/m², that come up from the seed in the soil wherever the ground greens ([herbLight]). A guess. */
-        const val HERB_SEED_BANK = 0.02f
+        /**
+         * The sward's leaf, kg/m², that greens wherever the ground does whatever was grazed or weathered off it: the perennials'
+         * tillers sprout from their crowns and roots, the annuals from the seed in the soil, so a sward's leaf area in a green
+         * spell is not set by the dead stand left standing. Its mass grows from the water as all growth does ([herbLeaf]). A
+         * guess: a steppe sward's green leaf area in spring of about 1 (to source).
+         */
+        const val HERB_SWARD = 0.06f
         /**
          * Seedlings of shrubs and trees established a year, kg/m², under a full seed rain in moist growing weather all year: the
          * start of a stand on open ground. Guesses, to be replaced by wet-year recruitment.
