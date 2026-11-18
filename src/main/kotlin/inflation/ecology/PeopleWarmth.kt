@@ -40,19 +40,19 @@ internal fun putUpShelter(b: Band, people: Float, time: BandTime, moved: Boolean
 /**
  * Person-days [b]'s [people] take to bring their shelters from [from] to [to]: up to 1, a light hut of poles and brush or
  * leaves ([SHELTER_DAYS] a whole one), which keeps off the wind and rain and holds the bedding; beyond, up to
- * [SHELTER_MOST], its thatching, thick enough to hold the warmth in ([THATCH_DAYS] a whole one, [BodyHeat]). The practised
- * build faster.
+ * [SHELTER_MOST], its thatching, thick enough to hold the warmth in ([THATCH_DAYS] a whole one, [BodyHeat]). Those are a
+ * start band's figures at woodwork: the more practised build faster, the less slower ([Band.lapse]).
  */
 internal fun shelterWork(b: Band, people: Float, from: Float, to: Float): Float {
     if (to <= from || people <= 0f) return 0f
     val hut = max(0f, min(1f, to) - min(1f, from)); val thatch = max(0f, max(1f, to) - max(1f, from))
-    return people * (hut * SHELTER_DAYS + thatch * THATCH_DAYS) / b.skill(Skill.WOODWORK)
+    return people * (hut * SHELTER_DAYS + thatch * THATCH_DAYS) * b.lapse(Skill.WOODWORK)
 }
 
 /** How far [days] person-days of [b]'s [people] bring their shelters from [from] towards [to] ([shelterWork] the other way). */
 internal fun shelterReach(b: Band, people: Float, from: Float, to: Float, days: Float): Float {
     if (to <= from || people <= 0f || days <= 0f) return max(from, 0f)
-    val per = people / b.skill(Skill.WOODWORK)
+    val per = people * b.lapse(Skill.WOODWORK)
     var s = from; var d = days
     if (s < 1f) {
         val hut = min(1f, to) - s; val need = hut * SHELTER_DAYS * per
@@ -202,7 +202,7 @@ internal fun HexGroups.buildHouse(g: HexGroup, b: Band, p: Place, h: Hex, people
         for (w in known) u.choice(DialSite.BUILD_WAY, b.will[buildWay(w)], way == w, at1 == w, dial = buildWay(w).slot)
     }
     val (stoneEach, woodEach, daysEach) = houseNeeds(way)
-    val daysNow = daysEach * size / b.skill(way) * b.skill(Skill.STONE_FOOTING)
+    val daysNow = daysEach * size * b.lapse(way)
     var built = min(1f - (begun?.built ?: 0f), left / daysNow)
     built = minOf(built, if (stoneEach > 0f) gd[Material.STONE] / (stoneEach * size) else 1f, gd[Material.WOOD] / (woodEach * size))
     built = max(0f, built)
@@ -233,7 +233,7 @@ internal fun HexGroups.buildHall(g: HexGroup, b: Band, h: Hex, time: BandTime?):
     val gd = b.goods
     val begun = bands.built.firstOrNull { it.kind == Built.HALL && it.hex == h && it.built < 1f }
     val size = begun?.size ?: served
-    val days = HALL_DAYS * size / b.skill(Domain.BUILDING).coerceAtLeast(0.1f)
+    val days = HALL_DAYS * size * b.lapse(Domain.BUILDING)
     val built = minOf(1f - (begun?.built ?: 0f), left / days, gd[Material.STONE] / (HALL_STONE * size), gd[Material.WOOD] / (HALL_WOOD * size)).coerceAtLeast(0f)
     if (time == null) return built * days
     if (built <= 0f) return 0f

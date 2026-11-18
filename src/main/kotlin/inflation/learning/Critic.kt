@@ -140,9 +140,12 @@ class Critic(val net: Mlp, val inputs: Inputs, private val scale: HashMap<String
     }
 
     companion object {
-        /** Weeks over which a choice is judged as seen before the critic's estimate takes over: animals, people. */
+        /**
+         * Weeks over which a choice is judged as seen before the critic's estimate takes over: animals, people. People's
+         * is a third of [HexPpo.PEOPLE_HORIZON] (60 weeks), so a year's judgement is not mostly the critic's guess.
+         */
         const val BOOT = 8
-        const val PEOPLE_BOOT = 6
+        const val PEOPLE_BOOT = 20
         const val ROUNDS = 3
         const val EPOCHS = 8
         const val HIDDEN = 64

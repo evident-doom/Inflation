@@ -1,5 +1,6 @@
 package inflation.ecology
 
+import inflation.world.Date
 import inflation.Books
 import inflation.ecology.HexSmallLife.DeadPool
 import inflation.EnumFloats
@@ -287,6 +288,15 @@ private fun HexGroups.tallyBandForage(w: ForageWeek, band: Band, smallFed: Float
     qs(Tally.QuarterFood.ROOTS, w.plantFrom[PlantFrom.BULBS]); qs(Tally.QuarterFood.SEED, w.plantFrom[PlantFrom.SEED] + w.plantFrom[PlantFrom.GRAIN])
     qs(Tally.QuarterFood.FINDS, w.plantFrom[PlantFrom.FINDS])
     stats.tally(Tally.bandsIn(c, Tally.Bands.FISH), (fish * w.worth(Food.FISH)).toInt())
+    // (And for the bad-year census: what it got against what it wanted, and of it the crop, by country and by way of life.)
+    stats.tally(Tally.bandsIn(c, Tally.Bands.CROP), w.plantFrom[PlantFrom.GRAIN].toInt())
+    if (stats.bandSplits) {
+        val lived = BandSplit.livelihood(band.livelihood())
+        stats.book(lived, Tally.Bands.ASKED, wantAll.toInt())
+        stats.book(lived, Tally.Bands.MEAT, (meat * w.worth(Food.BIG_GAME) + w.killFat * w.fatFeeds + smallFed + scrapsFed + fish * w.worth(Food.FISH)).toInt())
+        stats.book(lived, Tally.Bands.PLANTS, plantsFed.toInt())
+        stats.book(lived, Tally.Bands.CROP, w.plantFrom[PlantFrom.GRAIN].toInt())
+    }
     stats.tally(Tally.bandsIn(c, Tally.Bands.BAND_WEEKS), 1); stats.tally(Tally.bandsIn(c, Tally.Bands.PEOPLE_WEEKS), g.size)
     stats.tally(Tally.bandsIn(c, Tally.Bands.HEARTH), (100f * band.hearthWood).toInt())
     stats.tally(Tally.bandsIn(c, Tally.Bands.FUEL_DAYS), (100f * w.fuelDays / days).toInt())
@@ -346,3 +356,26 @@ internal const val GREASE_YIELD = 0.05f
 
 /** Person-days to smash and boil a kg of bones for their grease, with the fuel to heat the stones (a guess: "many hours"). */
 internal const val BONE_RENDER_DAYS = 0.2f
+
+/**
+ * Sodium a person needs a day, kg: the 23 mg a day the Yanomami pass, the least of any people measured (INTERSALT, BMJ
+ * 1988; Mancilha-Carvalho et al., J Hum Hypertens 1989: 0.9 mmol a day, healthy and with low blood pressure, on a
+ * mostly plant diet and no salt). How much slower they work wholly without it is [inflation.Tuning.saltLack] ([saltPace]).
+ */
+internal const val SODIUM_A_PERSON_DAY = 23e-6f
+/** Sodium in a kg of meat or fish, kg: raw deer 51 mg/100 g (USDA SR "game meat, deer, raw"), freshwater fish about 50. */
+internal const val SODIUM_PER_KG_MEAT = 0.51e-3f
+/**
+ * The share of their working pace a band's people keep, [short] of the sodium they [need] (kg each, or both as shares):
+ * wholly without it, [lack] less ([inflation.Tuning.saltLack]): listless, weak and cramped, they work the slower, but what
+ * they eat feeds them as ever. (Before, salt lack spoilt the food itself, so a band eating its fill of grain and nothing
+ * else burnt its body down and died of "hunger" beside tonnes of it: seedstarve trace, 2026-11-06.) The one rule for the
+ * week's pace ([Band.saltPace]) and for what a band weighs of going to salt.
+ */
+internal fun saltPace(short: Float, need: Float, lack: Float) = if (need > 0f) 1f - lack * (short / need).coerceIn(0f, 1f) else 1f
+/** Sodium's share of salt by weight (Na in NaCl). */
+internal const val SALT_SODIUM = 0.393f
+/** Salt that holds a person's year of sodium ([SODIUM_A_PERSON_DAY]), kg: some 21 g. */
+internal const val SALT_BODY_YEAR = SODIUM_A_PERSON_DAY * Date.DAYS_PER_YEAR / SALT_SODIUM
+/** Salt to cure a kilo of meat or fish, kg (how much less salted meat and fish spoil: [inflation.Tuning.saltKeep]). */
+internal const val SALT_PER_KG = 0.1f

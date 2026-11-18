@@ -22,6 +22,15 @@ import inflation.ecology.SaltCount
 import inflation.ecology.SaltFlow
 import inflation.ecology.SaltWhere
 import inflation.ecology.saltCountKey
+import inflation.ecology.GIVEN_OF
+import inflation.ecology.GivenCount
+import inflation.ecology.givenKey
+import inflation.ecology.OrnamentFlow
+import inflation.ecology.ornamentFlowKey
+import inflation.ecology.LabourCount
+import inflation.ecology.labourKey
+import inflation.ecology.CeremonyCount
+import inflation.ecology.ceremonyKey
 import inflation.ecology.saltFlowKey
 import inflation.ecology.Catalogue
 import inflation.ecology.Met
@@ -202,6 +211,15 @@ class Census(private val sim: HexSim) {
         println("     residents by the sea / inland, per km² (coast %.0f%% of land): ".format(100 * coastA / (coastA + inA)) +
             fauna.kinds.indices.joinToString(", ") { k -> "%s %.2f / %.2f".format(fauna.kinds[k].name, coastN[k] / coastA.coerceAtLeast(1.0),
                 inN[k] / inA.coerceAtLeast(1.0)) })
+        // (The hunters that hold ground by their game: the game they can catch lately and the heads it holds, the land's mean
+        // and as their animals find it, against those there: [HexFauna.usualAt].)
+        val byPrey = fauna.kinds.indices.filter { fauna.gameMean[it].isNotEmpty() }
+        if (byPrey.isNotEmpty()) println("     ground by prey (prey of its size kg/km², heads it holds, heads there, per km²; land / where they are): " + byPrey.joinToString(", ") { k ->
+            var a = 0.0; var g = 0.0; var u = 0.0; var h = 0.0; var gh = 0.0; var uh = 0.0
+            for (pl in 0 until land.n) { val ar = land.areaKm2[pl].toDouble(); val m = fauna.gameMean[k][pl].toDouble().takeIf { !it.isNaN() } ?: 0.0
+                val us = fauna.usualAt(k, inflation.world.Place(pl)).toDouble(); val r = residents(k, pl)
+                a += ar; g += m * ar; u += us * ar; h += r; gh += m * r; uh += us * r }
+            "%s %.0f / %.0f, %.4f / %.4f, %.4f".format(fauna.kinds[k].name, g / a, gh / h.coerceAtLeast(1e-9), u / a, uh / h.coerceAtLeast(1e-9), h / a) })
         println("     residents fed from (fresh plants / prey and carrion / reserves, shares of need per animal this year): " +
             fauna.kinds.indices.joinToString(", ") { k ->
             val ff = fauna.fedFrom[k]; val h = ff[Fed.HEADS].sum().coerceAtLeast(1e-9)
@@ -235,17 +253,17 @@ class Census(private val sim: HexSim) {
                 100 * st[Stuck.AT_EDGE.ordinal] / st[Stuck.STUCK.ordinal].coerceAtLeast(1e-9), 100 * st[Stuck.PEAK.ordinal])
         })
         for (st in fauna.stuck) st.fill(0.0)
-        // What they find there: edible forage, how green, how well the roe deer fed, how far water is.
+        // What they find there: edible forage, how green, how well the deer fed, how far water is.
         fun mean(f: (Int) -> Double, c: Boolean) = (0 until land.n).filter { hw.coast[hw.placeHex[it]] == c }.let { ps ->
             ps.sumOf { f(it) * land.areaKm2[it] } / ps.sumOf { land.areaKm2[it].toDouble() }.coerceAtLeast(1.0) }
         fun both(f: (Int) -> Double) = arrayOf(mean(f, true), mean(f, false))
-        val roe = fauna.kinds.indexOf(Catalogue.ROE_DEER)
+        val roe = fauna.kinds.indexOf(Catalogue.DEER)
         val forage = both { (land.palatable[it] * (land.plants.herb[it] + land.plants.shrub[it])).toDouble() }
         val green = both { land.plants.green[it].toDouble() }
         val roeFed = if (roe >= 0) both { fauna.fed[roe][it].toDouble() } else arrayOf(0.0, 0.0)
         val water = both { land.drink.waterKm[it].toDouble() }
         val temperature = both { weather.temperature[it].toDouble() }
-        println("     the sea / inland: edible forage %.3f / %.3f kg/m², green %.2f / %.2f, roe deer fed %.2f / %.2f, water %.1f / %.1f km, temperature %.1f / %.1f °C".format(
+        println("     the sea / inland: edible forage %.3f / %.3f kg/m², green %.2f / %.2f, deer fed %.2f / %.2f, water %.1f / %.1f km, temperature %.1f / %.1f °C".format(
             forage[0], forage[1], green[0], green[1], roeFed[0], roeFed[1], water[0], water[1], temperature[0], temperature[1]))
     }
 
@@ -399,7 +417,7 @@ class Census(private val sim: HexSim) {
             val h = hw.placeHex[p]; if (hw.land[h] < 0.5f) continue
             val c = groups.biomeOfPlace[p]; val r = ring(dist[h]); val a = land.areaKm2[p].toDouble()
             var w = 0.0
-            for ((k, sp) in fauna.kinds.withKinds()) if (!sp.carnivore) w += (fauna.adults[k][p] + inflation.ecology.HexFauna.YOUNG_WEIGHT * fauna.young[k][p]) * sp.massKg.toDouble()
+            for ((k, sp) in fauna.kinds.withKinds()) if (!sp.carnivore) w += (fauna.adults[k][p] + fauna.youngShare[k.i] * fauna.young[k][p]) * sp.massKg.toDouble()
             area[c][r] += a; herb[c][r] += w * a; game[c][r] += groups.preyHere(people, Place(p)).toDouble() * a
         }
         val shown = Biome.entries.filter { area[it.ordinal][0] > 0.0 }
@@ -752,6 +770,28 @@ class Census(private val sim: HexSim) {
     }
 
     /**
+     * The bad-year census (Olli 2026-11-14: do cold and dry years bring hunger, as the record has for farmers more than
+     * foragers?): bands by kind of country and by way of life over the year just ended, each with the food got against the
+     * food wanted, the crop's share of it, how well fed, the fat held, births and deaths of hunger and of all causes. Printed
+     * every year, so a run's worst year in each country can be set against its usual one. Report only.
+     */
+    fun printLeanYear(lastYear: Map<TallyKey, Int>, stepsPerYear: Int) {
+        fun row(label: String, v: (Tally.Bands) -> Double): String {
+            val pw = v(Tally.Bands.PEOPLE_WEEKS); val years = (pw / stepsPerYear).coerceAtLeast(1e-9)
+            val got = v(Tally.Bands.MEAT) + v(Tally.Bands.PLANTS) + v(Tally.Bands.FISH)
+            return "%s %.0f: got %.0f%% of want, crop %.1f%%, fed %.3f, fat %.1f d, born %.1f, hunger %.2f, died %.1f".format(label, years,
+                100 * got / v(Tally.Bands.ASKED).coerceAtLeast(1.0), 100 * v(Tally.Bands.CROP) / got.coerceAtLeast(1.0),
+                v(Tally.Bands.FED_LEAN) / 100 / pw.coerceAtLeast(1.0), v(Tally.Bands.FAT) / 10 / v(Tally.Bands.BAND_WEEKS).coerceAtLeast(1.0),
+                1000 * v(Tally.Bands.BORN) / years, 1000 * v(Tally.Bands.HUNGER_DIED) / years, 1000 * v(Tally.Bands.DIED) / years)
+        }
+        val cs = lastYear.keys.mapNotNull { Tally.bandsCountry(it, Tally.Bands.BAND_WEEKS) }.distinct().sortedBy { it.label }
+        println("     lean year by country (people-years: food got of want, crop share of it, fed, fat at the week's end, births, hunger and all deaths per 1000 a year): " +
+            cs.joinToString("; ") { c -> row(c.label) { (lastYear[Tally.bandsIn(c, it)] ?: 0).toDouble() } })
+        println("     lean year by way of life (the same): " + inflation.ecology.Livelihood.entries.joinToString("; ") { l ->
+            row(l.name.lowercase()) { (lastYear[Tally.bandsLivelihood(l, it)] ?: 0).toDouble() } })
+    }
+
+    /**
      * The homes each living band knows of ([inflation.ecology.Band.knownHomes]): how many (mean, tenth, median, ninetieth
      * percentile, most), against the bands alive; the share of them whose band is no longer alive; and how far they lie
      * from the knower (median km, and the share beyond 100 and 300 km). Olli 2026-11-12: "each band knows 1100 homes?"
@@ -1095,6 +1135,33 @@ class Census(private val sim: HexSim) {
                 c(SaltCount.HELD) / c(SaltCount.BAND_WEEKS).coerceAtLeast(1.0),
                 SaltFlow.entries.joinToString(", ") { f -> "%.3f".format((lastYear[saltFlowKey(w, f)] ?: 0) / 1000.0 / personYears) },
                 c(SaltCount.DAYS) / 10.0 / personYears) })
+        // What bands gave each other at meetings and what it was worth, each reckoning from where it stood ([worthDaysPerKg]):
+        // the taker's days against the giver's are what a gift gained, and its days a kg the good's price there.
+        // Ornaments' worth: what was made, and where it went (the sinks: worn out and broken, buried; given only moves it).
+        run {
+            val people = (sim.groups.groups.filter { it.alive && it.band != null }.sumOf { it.size }).toDouble().coerceAtLeast(1.0)
+            val held = sim.groups.groups.mapNotNull { it.band?.takeIf { _ -> it.alive } }.sumOf { it.ornamentWorth.toDouble() }
+            println("ornaments' worth, last year (person-days a person; held now, then made, worn out and broken, buried, given): held %.2f; ".format(held / people) +
+                OrnamentFlow.entries.joinToString(", ") { f -> "%s %.3f".format(f.label, (lastYear[ornamentFlowKey(f)] ?: 0) / 10.0 / people) })
+        }
+        run {
+            val people = (sim.groups.groups.filter { it.alive && it.band != null }.sumOf { it.size }).toDouble().coerceAtLeast(1.0)
+            fun c(k: LabourCount) = (lastYear[labourKey(k)] ?: 0) / 10.0
+            val monuments = sim.groups.bands.built.filter { it.kind == Built.MONUMENT && it.size >= 1f }
+            println("ceremonial work, last year (person-days a person to monuments, to adorning houses; monuments standing, person-days in them, the largest; houses adorned): %.3f, %.3f; %d, %.0f, %.0f; %d".format(
+                (lastYear[ceremonyKey(CeremonyCount.MONUMENT)] ?: 0) / 10.0 / people, (lastYear[ceremonyKey(CeremonyCount.ADORNED)] ?: 0) / 10.0 / people,
+                monuments.size, monuments.sumOf { it.size.toDouble() }, monuments.maxOfOrNull { it.size.toDouble() } ?: 0.0,
+                sim.groups.bands.built.count { it.kind == Built.HOUSES && it.adorned >= 1f }))
+            println("labour for favours, last year (person-days a person given, of them built with; kg of food a person set before the workers): %.3f, %.3f; %.3f".format(
+                c(LabourCount.GIVEN) / people, c(LabourCount.USED) / people, c(LabourCount.FED) / people))
+        }
+        println("goods given at meetings, last year (kg or a person's sets of tools; days a kg or set to the taker, to the giver; favours owed for a day): " +
+            GIVEN_OF.joinToString(", ") { of ->
+                fun c(k: GivenCount) = (lastYear[givenKey(of, k)] ?: 0).toDouble()
+                val kg = c(GivenCount.KG) / 10.0
+                "%s %.0f: %.2f, %.2f; %.3f".format(of, kg, c(GivenCount.TAKER_DAYS) / 10.0 / kg.coerceAtLeast(1e-9),
+                    c(GivenCount.GIVER_DAYS) / 10.0 / kg.coerceAtLeast(1e-9), c(GivenCount.FAVOURS) / 100.0 / (c(GivenCount.TAKER_DAYS) / 10.0).coerceAtLeast(1e-9))
+            })
         run {
             // Meat brought in against meat eaten (each at what it feeds): what a kill beyond the band's hunger leaves to spoil.
             val h = Catalogue.HUMAN

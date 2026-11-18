@@ -120,11 +120,13 @@ class HexGroups(
     @Transient private var gameBeforeKnown = false
     @Transient private var huntableFilled = false
     /** People sick of each catching illness in each place as the week's choosing begins (heads × share sick). */
+    /** Who is where, built at the step's named moments ([WhoIsWhere]). */
+    @Transient internal val where = WhoIsWhere()
     @delegate:Transient internal val sickPeople by lazy { Array(Illness.entries.size) { FloatArray(n) } }
     /** The beasts of prey in each place as the week's choosing begins, kg (the hunters other than people). */
     @delegate:Transient internal val beastKg by lazy { FloatArray(n) }
     /** What the bands share ([Bands]; saves from before it was split out kept its tables here). */
-    @field:MovedInto("built", "followersByHex", "bandHex", "houseOf", "materialSources\$delegate", "saltSources\$delegate")
+    @field:MovedInto("built", "houseOf", "materialSources\$delegate", "saltSources\$delegate")
     val bands = Bands(this)
     /**
      * How each group chooses where to go ([GroupPlanner]; saves from before it was split out kept its tables and its usual densities here).
@@ -182,7 +184,7 @@ class HexGroups(
             // (Bands that hold their home hex start where the food is, as many to a hex as its food draws, rich and poor
             // ground alike held in proportion: [startFood].)
             val byFood = s.human && tuning.bandsStay && !uniformStart
-            val weights = if (uniformStart) FloatArray(n) { p -> land.areaKm2[p] } else if (byFood) startFood() else startWeights(s).also { w -> if (s == Catalogue.CHEETAH) keepOutOfLionCountry(w) }
+            val weights = if (uniformStart) FloatArray(n) { p -> land.areaKm2[p] } else if (byFood) startFood() else startWeights(s).also { w -> s.keepsOff?.let { o -> keepOffKind(o, w) } }
             val total = weights.sum()
             // (A kind with no ground that suits it starts with none, even where its settled density would give it one group:
             // that group had nowhere to go but place 0, and a world without places has none at all.)
@@ -272,13 +274,13 @@ class HexGroups(
 
 
     /**
-     * Cheetahs begin away from the lions' country (they lose their kills and their young to lions; Durant 1998 has them keeping off
-     * lion ground): their start [weights] fall where the lions' own start weights, per km² and against their mean, are high. Only
-     * the start's placement; the number of cheetahs and everything after the start are as before.
+     * A kind begins away from the country of the kind [other] it keeps off ([Species.keepsOff]: cheetahs off lions'): its
+     * start [weights] fall where [other]'s own start weights, per km² and against their mean, are high. Only the start's
+     * placement; its numbers and everything after the start are as before. Nothing where [other] is not in this world.
      */
-    private fun keepOutOfLionCountry(weights: FloatArray) {
-        val lion = kinds.firstOrNull { it == Catalogue.LION } ?: return
-        val per = FloatArray(n) { p -> startWeight(lion, Place(p)) / land.areaKm2[p].coerceAtLeast(1e-6f) }
+    private fun keepOffKind(other: Species, weights: FloatArray) {
+        if (other !in kinds) return
+        val per = FloatArray(n) { p -> startWeight(other, Place(p)) / land.areaKm2[p].coerceAtLeast(1e-6f) }
         val mean = per.average().toFloat()
         if (mean <= 0f) return
         for (p in 0 until n) weights[p] /= 1f + per[p] / mean
@@ -322,7 +324,7 @@ class HexGroups(
 
     /** A new group of [s] at place [p], [unit] adults and a third as many young, half-fat. */
     internal fun spawn(s: Species, p: Place, unit: Int): HexGroup {
-        val g = HexGroup(nextId++, s, p, unit, max(0, unit / 3)); StaleCheck.moved()
+        val g = HexGroup(nextId++, s, p, unit, max(0, unit / 3)); StaleCheck.made()
         g.temper = Temperament.founder(g.id, seedBase)
         g.fat = 0.5f * s.maxFatDays
         return g
@@ -334,6 +336,13 @@ class HexGroups(
     @Volatile var watched = -1
     val watchLog = ConcurrentLinkedQueue<String>()
     internal inline fun note(g: HexGroup, msg: () -> String) { if (g.id == watched) watchLog += msg() }
+    /**
+     * For the viewer only, nothing in the model reads them: while [keepDealings] is on, what passed between two bands, [dealt]
+     * from the one that acted to the other; the viewer takes them away each week. Not saved.
+     */
+    @Transient @Volatile var keepDealings = false
+    @Transient val dealings = ConcurrentLinkedQueue<Dealing>()
+    internal fun dealt(kind: Dealing.Kind, from: HexGroup, to: HexGroup) { if (keepDealings) dealings += Dealing(kind, from.id, to.id) }
     /** The player's hand on the followed group (the viewer's group controls), null for none: see [GroupControl]. */
     @Transient @Volatile var control: GroupControl? = null
     /** The followed planning band's latest reckonings, for the viewer's Plan tab ([looked]): where to camp, and its week's days. */
@@ -395,11 +404,13 @@ class HexGroups(
         Phase("people: burning off") { burnOff(it) },
         Phase("people: robbing caches") { robCaches(it) },
         Phase("people: visiting kin") { visitKin(it) },
+        Phase("people: asking for goods") { askForGoods(it) },
+        Phase("people: labour for favours") { callInLabour(it) },
         Phase("groups: births, deaths") {
             mark(it)
             settle(it)
             demography(it, it.date)
-            roamersLeave()
+            roamersLeave(it)
         },
         Phase("groups: the dead and newcomers") {
             // (Groups that merged into another this week, kept for following what became of their choices.)
@@ -597,7 +608,6 @@ class HexGroups(
     }
 
 
-
     /** The groups that merged into another in the last step (gone from [groups]), with their numbers when they did ([HexGroup.mergedSize]). */
     @Transient val merged = ArrayList<HexGroup>()
     /** Outbreaks breaking out among the groups this week, by kind and hex (see [liveWeek]), started once all have lived it. */
@@ -612,7 +622,6 @@ class HexGroups(
     @delegate:Transient val seaLinks: Array<HexArray> by lazy { links().to }
     @delegate:Transient val seaGaps: Array<FloatArray> by lazy { links().gapKm }
     /** Each core's working arrays for the searches of the ground ([reachOf]). */
-    @Transient internal val reachScratch: ThreadLocal<ReachScratch> = ThreadLocal.withInitial { ReachScratch(hex.size) }
     /** For each hex, the hexes across the sea from it ([to]) and the open water to each ([gapKm]). */
     class SeaCrossings(val to: Array<HexArray>, val gapKm: Array<FloatArray>)
     @Transient private var linksMade: SeaCrossings? = null
@@ -694,8 +703,9 @@ class HexGroups(
             if (!g.alive || !g.species.human) continue
             val p = g.place
             // (Dry enough by the same test that lets any fire take: a gate of its own, stricter, had kept bands from ever burning.)
+            // (A week's chance; over a longer step, the chance it comes up in one of the step's ticks.)
             if (land.fire.canBurn(p, weather) && land.fire.burnt[p] < 0.1f &&
-                drawn(DialSite.BURNING_OFF, g.band?.burnWill ?: 1f, rnd.nextFloat(), BURN_OFF * (g.band?.burnWill ?: 1f)) { BURN_OFF }) {
+                drawn(DialSite.BURNING_OFF, g.band?.burnWill ?: 1f, rnd.nextFloat(), overTicks(BURN_OFF * (g.band?.burnWill ?: 1f))) { overTicks(BURN_OFF) }) {
                 land.fire.ignite(p)
                 stats.meeting(Met.BANDS_BURNED_OFF_GRASS)
             }
@@ -714,7 +724,7 @@ class HexGroups(
         return strained(b, if (b.atHome) settledMost(g.species, b) else mobileMost(g.species, b))
     }
 
-    /** The most a roaming band of kind [s] holds: its kind's most, by its [DisputeWay] and [Tradition.FEASTS], at most [BAND_MOST]. */
+    /** The most a roaming band of kind [s] holds: its kind's most, by its [DisputeWay] and [Tradition.FEASTS] (held, not how keenly: [Band.feastKeen]), at most [BAND_MOST]. */
     private fun mobileMost(s: Species, b: Band): Int {
         val held = (s.maxGroupSize * b.disputeWay.sizeTimes).toInt()
         return min(BAND_MOST, if (b.holds(Tradition.FEASTS)) (held * FEAST_SIZE).toInt() else held)
@@ -888,6 +898,11 @@ class HexGroups(
     /** The tick of the step a meeting now being held falls on ([neighboursMeet]; 0 for the rest): how fresh it is ([meetingFresh]). */
     /** How many meetings of the two bands the meeting now being held stands for ([neighboursMeet]; 1 for the rest): [meetChance]. */
     @Transient internal var meetTimes = 1
+    /**
+     * How many of the step's ticks the meeting now being held met in ([neighboursMeet]; 1 for the rest): the weekly model
+     * folds a pair's meetings within a week into one, so what passes once a meeting week, as sickness ([passIllness]), passes this often.
+     */
+    @Transient internal var meetTicks = 1
     @Transient internal var meetTick = 0
 
 

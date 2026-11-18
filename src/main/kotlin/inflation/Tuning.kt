@@ -15,10 +15,6 @@ class Tuning(
     private fun d(name: String, default: Double) = read("t.$name")?.toDouble() ?: default
     private fun i(name: String, default: Int) = read("t.$name")?.toInt() ?: default
 
-    /** Outbreaks starting among people, against [inflation.ecology.HexFauna.OUTBREAK_START]. */
-    val peopleOutbreak = f("peopleOutbreak", 1f)
-    /** People's sickness from crowding, against [inflation.ecology.PEOPLE_SICK]. */
-    val peopleSick = f("peopleSick", 1f)
     /**
      * Time to pick or dig a kilo of plant food (not grain or seed: [inflation.ecology.reapDaysPerKg]), against [inflation.ecology.PLANT_HANDLING_DAYS_PER_KG] and its kin:
      * 1, the record's in-patch rates. (It was 1.6 from 2026-11-04, fitted to bring gatherers' returns down while acorns were
@@ -210,6 +206,17 @@ class Tuning(
      */
     val breedSpacing = f("breedSpacing", 1.5f)
     /**
+     * Residents: how far a plant-eater's usual numbers at a place follow its food there against its food over the country
+     * it lives in ([inflation.ecology.HexFauna.foodScale]), as a power: 0 the same everywhere (Damuth's rule by its size alone), 1 in proportion.
+     */
+    val usualByFood = f("usualByFood", 1f)
+    /**
+     * Residents: the share of a place a plant-eater that hides in thickets lives on, as so many times the share its shelter
+     * covers ([inflation.ecology.HexFauna.hidingShare]): 1 the covered ground alone, more as it feeds out into the open
+     * round it (an estimate); 0 all of every place.
+     */
+    val coverReach = f("coverReach", 1f)
+    /**
      * Residents: weeks between their moves (up and down the slopes, and spilling to the hexes about): the plant-eaters
      * flow a step each move, the hunters shift and spill what that many weeks' would ([inflation.ecology.HexFauna.spill]).
      * Three: moving every week (in up to nine passes) cost a quarter of the week's time. Against that, moving every three
@@ -369,6 +376,32 @@ class Tuning(
      * rains, and sea salt is made in such a month at [inflation.ecology.SEA_SALT_A_DAY], not picked up all year at the pan's rate.
      */
     val saltSeasons = f("saltSeasons", 1f)
+    /**
+     * Goods given at meetings make favours by the days they spared the taker (1; 0 the old rule: only food does), as
+     * [inflation.ecology.gaveGoods] reckons them.
+     */
+    val goodsFavours = f("goodsFavours", 1f)
+    /** Bands short of good stone, salt or ochre go to ask a band they know holds more than it needs (1; 0 none: they wait for meetings), as [inflation.ecology.askForGoods] has it. */
+    val askForGoods = f("askForGoods", 1f)
+    /**
+     * Years of need of good stone, salt and ochre a band takes in beyond its own keep, to give on to bands further from the
+     * source (1; 0 the old rule: only its own keep), as [inflation.ecology.lackGoods] reckons it.
+     */
+    val passOnYears = f("passOnYears", 1f)
+    /** Obsidian is got where it crops out and knapped before flint (1; 0 none is got, the old rule), as [inflation.ecology.gatherMaterials] has it. */
+    val obsidian = f("obsidian", 1f)
+    /** A band that owes favours to a band lacking goods gives it no less than it owes, of what it can spare (1; 0 the old rule: favours returned in food only), as [inflation.ecology.goodsRepaid] has it. */
+    val callInFavours = f("callInFavours", 1f)
+    /** The favours a gift earns are logarithmic in its worth, small gifts adding little (1; 0 the old rule: its weeks of need), as [inflation.ecology.favoursOfGift] has it. */
+    val logFavours = f("logFavours", 1f)
+    /** Ornaments are made of finer kinds by skilled hands, worth their days, and count by worth in standing and gifts (1; 0 the old rule: all alike), as [inflation.ecology.makeOrnaments] has it. */
+    val craftWorth = f("craftWorth", 1f)
+    /** Finery: the fine ornaments need a master's hands, are made for worth beyond the plain ones of leisure only, and wear out (1; 0 made up to a count, as by any hands skilled enough), as [inflation.ecology.fineryLeft] has it. */
+    val finery = f("finery", 1f)
+    /** A band short of days for its houses and hall calls on the bands near it that owe it, to build for it, fed at its feast (1; 0 none), as [inflation.ecology.callInLabour] has it. */
+    val labourFavours = f("labourFavours", 1f)
+    /** Ceremonial work of leisure and lent days: a monument at holy home ground, else the houses adorned (1; 0 none), as [inflation.ecology.ceremonialWork] has it. */
+    val ceremony = f("ceremony", 1f)
     /** How much less salted meat and fish spoil. */
     val saltKeep = f("saltKeep", 0.7f)
 

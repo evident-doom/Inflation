@@ -66,7 +66,7 @@ class StocksTest {
             "HexHydrology.drain", "HexHydrology.lakeM2", "HexHydrology.lakeFull", "HexHydrology.lakeHold", "HexHydrology.usualGround",
             "HexDrinkingWater.nearRiver", "HexDrinkingWater.nearLake", "HexDrinkingWater.nearSpring", "HexDrinkingWater.waterKmMean",
             "HexDrinkingWater.nearBed", "HexDrinkingWater.bedM2", "HexDrinkingWater.streamKm", "HexDrinkingWater.stillKmMean", "HexDrinkingWater.riverClassKmMean", "HexDrinkingWater.riverClassKmLeast", "HexDrinkingWater.lakeKmLeast", "HexDrinkingWater.springKmLeast", "HexDrinkingWater.campKm", "HexPlants.annualGdd", "HexPlants.warmth",
-            "HexPlants.fertility", "HexPlants.organicFertility", "HexPlants.warmest", "HexPlants.perennialShare", "HexFood.cerealGround", "HexFood.foodTrees",
+            "HexPlants.fertility", "HexPlants.organicFertility", "HexPlants.warmest", "HexPlants.coldest", "HexPlants.perennialShare", "HexFood.cerealGround", "HexFood.foodTrees",
             "HexFood.cereal", "HexSmallLife.eagleCrags", "HexSmallLife.rockKopje", "HexSmallLife.rockChukar", "HexSmallLife.rockHides", "HexSmallLife.wetland",
             "HexSmallLife.waterfowl", "HexSmallLife.meanTemp", "HexSmallLife.annualRain", "HexSmallLife.soilReach", "HexFauna.groundShelter",
             // Rates and the week's passing water: flows over a step, not water held.
@@ -77,11 +77,11 @@ class StocksTest {
             // The week's food left uneaten, a reading of the plants' stocks, not one of its own.
             "HexFauna.spareGrass", "HexFauna.spareBrowse", "HexFauna.spareFruit", "HexFauna.spareRoots",
             // Shares, states and memories, 0..1 or days or degrees.
-            "HexDrinkingWater.water", "HexDrinkingWater.waterKm", "HexDrinkingWater.dug", "HexDrinkingWater.well", "HexDrinkingWater.snowWater", "HexDrinkingWater.iced", "HexPlants.gdd", "HexPlants.moisture",
+            "HexDrinkingWater.water", "HexDrinkingWater.waterKm", "HexDrinkingWater.deep", "HexDrinkingWater.dug", "HexDrinkingWater.well", "HexDrinkingWater.snowWater", "HexDrinkingWater.iced", "HexPlants.gdd", "HexPlants.moisture", "HexPlants.opened",
             "HexPlants.shrubShoots", "HexPlants.treeShoots", "HexPlants.animalSeed", "HexPlants.green", "HexPlants.hayFresh", "HexPlants.grassAge",
             "HexPlants.growFrom", "HexPlants.growSpan", "HexPlants.greenOpen", "HexPlants.greenSeep", "HexPlants.greenWet",
-            "HexPlants.greenShade", "HexPlants.trails", "HexPlants.treeSeed", "HexPlants.shrubSeed", "HexFires.burnt", "HexFires.burning", "HexFires.stepBurning",
-            "HexFauna.waterC", "HexFauna.fed", "HexFauna.protein", "HexFauna.fear", "HexFauna.peopleNear", "HexFauna.persecuted", "HexFauna.usual", "HexFauna.forageSodiumAt", "HexFauna.outbreak",
+            "HexPlants.greenShade", "HexPlants.trails", "HexPlants.treeSeed", "HexPlants.shrubSeed", "HexFires.burnt", "HexFires.burning", "HexFires.stepBurning", "HexFires.wholeBurning",
+            "HexFauna.waterC", "HexFauna.fed", "HexFauna.protein", "HexFauna.fear", "HexFauna.peopleNear", "HexFauna.persecuted", "HexFauna.usual", "HexFauna.forageSodiumAt", "HexFauna.outbreak", "HexFauna.damp", "HexFauna.youngShare", "HexFauna.sharers", "HexFauna.shared", "HexFauna.gameMean", "HexFauna.foodMean", "HexFauna.foodRef", "HexFauna.foodRefWeights",
             "HexFauna.fedByMonth", "HexFauna.reserve", "HexFauna.autumnFed", "HexFauna.dry", "HexFauna.arrive", "HexFauna.worth", "HexFauna.moverYoung", "HexFauna.bred", "HexFauna.moverFat", "HexFauna.moverSpent", "HexFauna.spent", "HexFauna.bold", "HexFauna.leaving", "HexFood.domestic", "HexFood.fieldDomestic", "HexFood.fieldPulse", "HexFood.ripePulse", "HexFood.fieldDays", "HexFood.fieldStress", "HexFood.fieldSoil", "HexFood.fieldWorn", "HexFood.fieldCover", "HexFood.cleared", "HexFood.croppedNow", "HexFood.wildCover", "HexSmallLife.pollination",
             "HexSmallLife.insectFrom", "HexSmallLife.harass", "HexSmallLife.spreadWeight", "HexSmallLife.returning",
             // For the check and the viewer: heads held hungry with no better place next door, and one kind's spill last week.

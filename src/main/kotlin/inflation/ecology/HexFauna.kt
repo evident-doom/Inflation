@@ -147,6 +147,98 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
     // ([HexGroups.mark]), so its settled are held where its packs were.)
     @Transient internal val usual = FloatArray(kinds.size) { k -> val s = kinds[k]
         if (s in Catalogue.roamingResidents) tuning.roamerUsual * s.groupSize / hex.areaKm2.toFloat() else usualDensity(s) }
+    /**
+     * How far each kind's sickness of crowding is bred by each other kind's numbers ([sharersKm2]), by kind index: the
+     * kinds that share its parasites ([Species.kin]) as far as their diets overlap (the share of each's food that is of
+     * the same sorts, grass, browse, fruit and roots: they graze the same ground and pick up each other's worms), at
+     * [SHARED_SICK]; its own kind fully. Crowding is of all who feed and sicken alike, not of one kind as if alone.
+     */
+    @Transient internal val sharers: Array<FloatArray> = Array(kinds.size) { k -> FloatArray(kinds.size) { j ->
+        val a = kinds[k]; val b = kinds[j]
+        if (j == k) 1f else if (a.kin == Kin.NONE || a.kin != b.kin) 0f else SHARED_SICK * dietOverlap(a.diet, b.diet) } }
+    /**
+     * How damp each place's ground has been over the last months, 0..1 ([wetSickness]): the share of it sodden
+     * ([stepDamp]), a mean of some half a year. NaN until the first step reckons it.
+     */
+    val damp = FloatArray(n) { Float.NaN }
+    /**
+     * Each kind's crowding by the others that share its parasites at each place, heads per km² as so many of its own
+     * ([sharersKm2]): reckoned once a step before births and deaths ([reckonShared]), from the numbers as they were then,
+     * so that the kinds, each on its own core, read the same crowd whatever order they run in.
+     */
+    @Transient internal val shared = Array(kinds.size) { FloatArray(n) }
+    /**
+     * For each resident hunter that lives mainly on game it kills ([holdsByPrey]), the prey of its size at each place, kg
+     * per km² ([preyBiomass]), a mean of some half a year ([GAME_WEEK]); empty for every other kind. NaN until the first step.
+     */
+    val gameMean: Array<FloatArray> = Array(kinds.size) { k -> if (holdsByPrey(kinds[k])) FloatArray(n) { Float.NaN } else FloatArray(0) }
+    /**
+     * For each plant-eater (each kind not holding ground by its prey, [gameMean], nor a hunter), its food at each place,
+     * kg/m² as [foodFor] has it, a mean of about a year ([USUAL_FOOD_WEEK]); empty for every other kind. NaN until the
+     * first step. What its usual numbers at a place go by ([usualAt]).
+     */
+    val foodMean: Array<FloatArray> = Array(kinds.size) { k -> if (!kinds[k].carnivore && !holdsByPrey(kinds[k])) FloatArray(n) { Float.NaN } else FloatArray(0) }
+    /**
+     * Each plant-eater's [foodMean] over the country it can live in, by its area, climate and water ([foodRefWeights]): where it has its [usual] numbers.
+     * 0 until reckoned, and for every other kind. (Saved: reckoned at a step's start from the means then, so a run carried
+     * on from a save goes on as it would have.)
+     */
+    val foodRef = FloatArray(kinds.size)
+    /**
+     * [foodRef]'s weights by kind and place: [startWeight] without the cover it likes ([suits]), which changes as the plants
+     * grow; of the fixed facts of the place alone (area, climate, water), so the same whenever reckoned, and after a reload.
+     */
+    @Transient private var foodRefWeights: Array<FloatArray>? = null
+    /**
+     * The density at place [p] at which kind [k] holds all the ground there is, heads per km²: for a hunter that lives
+     * mainly on game it kills, as many as the prey of its size there lately holds at [PREY_SUPPORT] of its weight in
+     * hunters (territories shrink where game is rich and spread where it is thin: wolves' numbers follow their prey's
+     * biomass, Fuller 1989, lions' theirs, Hayward et al. 2007); for every other kind its [usual] density, the same everywhere.
+     */
+    internal fun usualAt(k: Int, p: Place): Float {
+        val g = gameMean[k]
+        if (g.isEmpty()) return usual[k] * foodScale(k, p) * hidingShare(k, p)
+        val m = g[p.i]
+        return if (m.isNaN()) usual[k] else max(TERRITORY_LEAST, PREY_SUPPORT * m / kinds[k].massKg)
+    }
+    /**
+     * How many times its [usual] numbers place [p] holds of plant-eater [k]: its food there ([foodMean]) against its
+     * food over the country it lives in ([foodRef]), to the power [Tuning.usualByFood], within [USUAL_FOOD_LEAST] and
+     * [USUAL_FOOD_MOST]. Damuth's densities are means over the country a kind lives in, rich and poor ground together;
+     * here rich ground holds more and poor less, as many over all. 1 for every other kind, and until the means are reckoned.
+     */
+    internal fun foodScale(k: Int, p: Place): Float {
+        val power = tuning.usualByFood; val m = foodMean[k]
+        if (power <= 0f || m.isEmpty()) return 1f
+        val f = m[p.i]; val r = foodRef[k]
+        if (f.isNaN() || !(r > 0f)) return 1f
+        return (f / r).pow(power).coerceIn(USUAL_FOOD_LEAST, USUAL_FOOD_MOST)
+    }
+    /**
+     * The share of place [p] that plant-eater [k] can live on, if it is one that hides in thickets ([Niches.Shelter.THICKET]):
+     * the ground its shelter covers there ([preyShelter]: the scrub and woods, and the reeds and water for those that take
+     * to them), as far as [Tuning.coverReach] times it, at least [HIDING_LEAST]. A place's cover is a mean over its ground:
+     * at a third, a boar, a deer or an elk lies up in the third that is thicket and feeds out from it, and the open rest
+     * is not its country; counted as all of it, the boar held the steppe as thick as the oak woods (cover 0.56 where they
+     * stood on the steppe, shrubs 1 kg/m²). 1 for every other kind.
+     */
+    internal fun hidingShare(k: Int, p: Place): Float {
+        val reach = tuning.coverReach; val s = kinds[k]
+        if (reach <= 0f || s.carnivore || Niches.Shelter.THICKET !in s.shelters) return 1f
+        return (reach * preyShelter(s, p)).coerceIn(HIDING_LEAST, 1f)
+    }
+    /** Reckons [foodRef] from [foodMean] ([foodScale]). */
+    internal fun reckonFoodRef() {
+        val w = foodRefWeights ?: Array(kinds.size) { k -> if (foodMean[k].isEmpty()) FloatArray(0) else FloatArray(n) { p -> val pl = Place(p); land.areaKm2[p] * climateSuits(kinds[k], pl) * usualTether(kinds[k], pl) } }
+            .also { foodRefWeights = it }
+        for (k in kinds.indices) {
+            val m = foodMean[k]; val wk = w[k]
+            if (m.isEmpty()) continue
+            var sw = 0.0; var swf = 0.0
+            for (p in 0 until n) { val f = m[p]; if (f.isNaN()) continue; sw += wk[p]; swf += wk[p] * f }
+            foodRef[k] = if (sw > 0.0) (swf / sw).toFloat() else 0f
+        }
+    }
     /** The sodium in each place's forage, a share of its dry matter, or [LICK] by a salt lick ([forageSodium], [saltBreeding]). */
     @Transient internal val forageSodiumAt = forageSodium(hw, land)
     /**
@@ -325,7 +417,7 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
     val small = HexSmallLife(hw, land, clock)
     /** Each kind's sense of where better country lies. */
     val bearings = HexBearings(hw, kinds, { s, p, m ->
-        val food = fareFor(s, Place(p)) * min(1.5f, suits(s, Place(p))) / 1.5f
+        val food = fareFor(s, Place(p))
         saturate(food, Thresholds.FOOD_HALF) * tether(s, Place(p)) * unbitten(Place(p)) * monthFit(s, Place(p), m)
     }, { s -> val k = slot(s); (0 until n).any { adults[k][it] > 0f } }, land.tuning)
     /**
@@ -333,6 +425,16 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
      * that feed mothers and young best; how well fed it was in each month lately (place × 12 + month).
      */
     val birthStart = Array(kinds.size) { k -> ByteArray(n) { kinds[k].birthMonth.toByte() } }
+    /**
+     * Each kind's young's mean weight now, as a share of a grown one's ([youngShareIn]): light after the births, heavier as
+     * they grow; brought on each step and booked as growth as it changes ([stepYoungShare]), so the young's weight in the
+     * stocks always matches its flows. By the kind's own birth month, the same everywhere, so moving changes no weight.
+     */
+    val youngShare = FloatArray(kinds.size) { YOUNG_WEIGHT }
+    /** A young of kind [k]'s weight now, kg ([youngShare]). */
+    internal fun youngKg(k: Int) = youngShare[k] * kinds[k].massKg
+    /** A young of [s]'s weight now, kg, for a kind kept as residents; the groups' fixed [YOUNG_WEIGHT] for any other. */
+    internal fun youngKgOf(s: Species): Float { val k = slots[s.index]; return if (k >= 0) youngKg(k) else YOUNG_WEIGHT * s.massKg }
     internal val fedByMonth = Array(kinds.size) { FloatArray(n * 12) { 0.7f } }
     /**
      * The share of the year's season of births the mothers of each kind in each place have had (0..1): it goes with them
@@ -510,10 +612,10 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         stepWater(weather)
     }
 
-    /** Names the residents' stocks (the young at [YOUNG_WEIGHT] of a grown animal), with the food stocks and the small life. */
+    /** Names the residents' stocks (the young at their weight now, [youngShare]), with the food stocks and the small life. */
     internal fun listStocks(stocks: Stocks) {
         stocks.within(StockName.RESIDENT_ANIMALS) { for ((k, s) in kinds.withKinds())
-            stocks.ofKind(KindStock.RESIDENT, s.name, adults[k], young[k]) { var sum = 0.0; for (p in land.places) sum += (adults[k][p] + YOUNG_WEIGHT * young[k][p]) * land.areaKm2[p] * s.massKg.toDouble(); sum } }
+            stocks.ofKind(KindStock.RESIDENT, s.name, adults[k], young[k]) { var sum = 0.0; for (p in land.places) sum += (adults[k][p] + youngShare[k.i] * young[k][p]) * land.areaKm2[p] * s.massKg.toDouble(); sum } }
         food.listStocks(stocks)
         small.listStocks(stocks)
     }
@@ -555,11 +657,27 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         fun clear() {
             need.fill(0f); each.fill(0f); avail.fill(0f); got.fill(0f); surplus.fill(0f); gotFruit.fill(0f); gotUnder.fill(0f); gotMeat.fill(0f); gotSmall.fill(0f); gotCarrion.fill(0f); carrionKg.fill(0f); needKg.fill(0f); ateKg.fill(0f); proteinKg.fill(0f)
             eatG = 0f; eatB = 0f; eatF = 0f; eatR = 0f
+            askG.fill(0f); askB.fill(0f); askF.fill(0f); askR.fill(0f); mode = FREE
         }
-        override fun grass(kg: Float): Float { val t = min(kg, access * spareG); spareG -= t; return t }
-        override fun browse(kg: Float): Float { val t = min(kg, access * spareB); spareB -= t; return t }
-        override fun fruit(kg: Float): Float { val t = min(kg, access * spareF); spareF -= t; return t }
-        override fun roots(kg: Float): Float { val t = min(kg, access * spareR); spareR -= t; return t }
+        // (The feeding is shared out in turns, [eatPlants]: first each kind asks what it would eat of the food there
+        // ([ASKING]: noted in [askG] and the rest, nothing eaten), then each eats its share of what was asked of each food
+        // ([SHARES]: at most [capG] and the rest), then the fed lay on fat from what is left ([FREE]).)
+        var mode = FREE; var kind = 0
+        val askG = FloatArray(nk); val askB = FloatArray(nk); val askF = FloatArray(nk); val askR = FloatArray(nk)
+        val capG = FloatArray(nk); val capB = FloatArray(nk); val capF = FloatArray(nk); val capR = FloatArray(nk)
+        private inline fun take(kg: Float, spare: Float, ask: FloatArray, cap: FloatArray, eat: (Float) -> Unit): Float {
+            var t = min(kg, access * spare)
+            when (mode) {
+                ASKING -> { ask[kind] += t; return t }
+                SHARES -> { t = min(t, cap[kind]); cap[kind] -= t }
+            }
+            eat(t); return t
+        }
+        override fun grass(kg: Float): Float = take(kg, spareG, askG, capG) { spareG -= it }
+        override fun browse(kg: Float): Float = take(kg, spareB, askB, capB) { spareB -= it }
+        override fun fruit(kg: Float): Float = take(kg, spareF, askF, capF) { spareF -= it }
+        override fun roots(kg: Float): Float = take(kg, spareR, askR, capR) { spareR -= it }
+        companion object { const val ASKING = 0; const val SHARES = 1; const val FREE = 2 }
     }
 
     /** One thread's [Grazing], cleared for each place it grazes ([graze]): made once, not afresh for every place every week. */
@@ -704,6 +822,21 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         const val RESIDENT_KILL_MOST = 0.02f
         /** The weight of a young animal against a grown one: in a hunter's kill, and in the carcasses the dead leave. */
         const val YOUNG_WEIGHT = 0.3f
+        /**
+         * The mean weight of [s]'s young [month]s into the year (0-based) as a share of a grown one's: each year's young born
+         * at its birth weight ([NEWBORN_SHARE] of its mother's over her litter, a piglet some 1.4 kg, a deer calf some 8)
+         * and growing evenly to grown at [Species.yearsToMaturity], those of the years before mixed in as many as are still
+         * growing. Piglets weigh 1-2 kg in their first weeks, when foxes, jackals and eagles take them, and some 35-45 kg at
+         * a year (from memory); counted at a fixed three tenths of a sow all year, no small hunter could take one.
+         */
+        fun youngShareIn(s: Species, month: Int): Float {
+            val born = (NEWBORN_SHARE / max(1f, s.youngPerFemale)).coerceAtMost(1f)
+            val grow = 12f * s.yearsToMaturity.coerceAtLeast(0.1f)
+            val since = ((month - s.birthMonth) % 12 + 12) % 12
+            var sum = 0f; var cohorts = 0; var age = since.toFloat()
+            while (age < grow) { sum += born + (1f - born) * (age / grow); cohorts++; age += 12f }
+            return if (cohorts > 0) sum / cohorts else 1f
+        }
         /** How strongly a strait draws spilling residents against a neighbouring hex on land (a trickle). */
         const val SEA_SPILL = 0.02f
         /** Newcomers among the residents: a kind under this many animals gets this many at each of this many places, once a year. */
@@ -770,6 +903,41 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         const val START_SHARE = 0.5f
         /** Forage quality (against green, 1) at which a herbivore's gut just holds its need: middling forage. */
         const val GUT_QREF = 0.8f
+        /** [sharers]: how far another kind that shares its parasites crowds it, at a diet the same as its own. (At 0.3 the cud-chewers
+         * crowded each other past the backstop at half their own numbers: a modest share, as their worms are mostly their own.) */
+        const val SHARED_SICK = 0.1f
+        /**
+         * [usualAt]: kg of a hunter its territories hold for each kg of prey of its size there ([preyBiomass]). Wolves some
+         * 3.3 to the 1000 km² for each deer-equivalent a km² (Fuller 1989), about 2 kg for 1000 of prey at a 35 kg wolf;
+         * lions in the same range (Hayward et al. 2007); both from memory. Reckoned once on the game it could catch (as
+         * defence, cover and shelter leave it), only a few hundred kg a km², the ground held a wolf a third of the record's.
+         */
+        const val PREY_SUPPORT = 0.002f
+        /** [usualAt]'s least, heads per km², where there is next to no game: a territory of some 10,000 km². */
+        const val TERRITORY_LEAST = 1e-4f
+        /** [gameMean]: the share of the way to the week's game it goes a week, about half a year's memory. */
+        const val GAME_WEEK = 1f / 26f
+        /** [foodMean]: the share of the way to the week's food it goes a week, about a year's memory. */
+        const val USUAL_FOOD_WEEK = 1f / 52f
+        /** [foodScale]'s least and most: poor ground holds a tenth of a kind's usual numbers at least, rich four times at most (an estimate). */
+        const val USUAL_FOOD_LEAST = 0.1f
+        /** [hidingShare]'s least: a thicket kind holds a twentieth of its usual numbers on the openest ground (an estimate, so its crowding stays finite). */
+        const val HIDING_LEAST = 0.05f
+        const val USUAL_FOOD_MOST = 4f
+        /** Whether resident kind [s] holds ground by the game it kills ([usualAt]): a hunter with game most of its diet. */
+        fun holdsByPrey(s: Species) = s.carnivore && s.diet.meat > 0.5f * (s.diet.meat + s.diet.smallPrey + s.diet.carrion + s.diet.plants)
+        /**
+         * [wetSickness]: deaths a year of a kind that bears no damp at all on ground wet the year round, and well fed. Liver
+         * fluke kills a fifth to a half of sheep in a bad fluke year on wet pasture (from memory of the veterinary record).
+         */
+        const val WET_SICK = 0.3f
+        /** [damp]: the share of the way to the week's dampness it goes a week, about half a year's memory. */
+        const val DAMP_WEEK = 1f / 26f
+        /** The share of two diets that is of the same sorts of food, 0..1 (Schoener's overlap). */
+        fun dietOverlap(a: Diet, b: Diet): Float {
+            val ta = (a.grass + a.browse + a.fruit + a.roots).coerceAtLeast(1e-6f); val tb = (b.grass + b.browse + b.fruit + b.roots).coerceAtLeast(1e-6f)
+            return min(a.grass / ta, b.grass / tb) + min(a.browse / ta, b.browse / tb) + min(a.fruit / ta, b.fruit / tb) + min(a.roots / ta, b.roots / tb)
+        }
         /** Seed carried by fruit-eaters: kg of fruit eaten per km² that seeds a place fully; share kept from week to week. */
         const val SEED_KG = 200f
         const val SEED_KEEP = 0.9f

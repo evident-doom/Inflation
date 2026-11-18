@@ -26,6 +26,14 @@ object Hazards {
     const val MAX_YOUNG_ODDS = 0.95f
 
     /**
+     * How much harder hunger, cold, heat, exposure and thirst fall on the young than on the grown: half as much again (an
+     * estimate: the young have less of a body to burn, and lose heat and water faster for their size). The one weight the
+     * groups' ([placeHazards]) and residents' ([HexFauna.hazards]) deaths, the residents' weighing of a move and the death
+     * warning ([foreseenHungerThirst]) all give the young; illness, fire, flood and snow fall on them as on the grown.
+     */
+    const val YOUNG_HARDER = 1.5f
+
+    /**
      * Hunger: the share of animals of [s] that die in a step of [days], fed a share [fed] of their wants with their fat
      * drawn on ([onFat]), having burnt [spent] days of their body's protein before it. Below [WELL_FED] they would have drawn
      * on their fat for the rest, so it is gone: what they still lack they burn of their body's protein ([spentAfter]), and
@@ -182,6 +190,17 @@ object Hazards {
 
     /** Sickness from crowding, over [years] (a week's share of a year), at [crowd] times its kind's usual density, fed [fed]: worse when underfed. */
     fun crowdDisease(crowd: Float, fed: Float, years: Float) = HexFauna.DISEASE * crowd * crowd * years * (1f + HexFauna.MALNOURISHED * (1f - fed))
+
+    /**
+     * The residents' sickness of crowding, over [years], at [crowd] ([crowding]), fed [fed]: a backstop for the worst
+     * crowds only, none up to [HexFauna.CROWDED] times the usual density and growing with the square of the excess beyond,
+     * as fast as [crowdDisease] at twice its crowd (so at 1.5 some 0.3 a year among the well fed). Food and the hunters are
+     * what hold wild herds in the ordinary run of years; the plagues come where they have let numbers run far past them.
+     */
+    fun crowdBackstop(crowd: Float, fed: Float, years: Float): Float {
+        val over = crowd - 1f
+        return if (over > 0f) 4f * HexFauna.DISEASE * over * over * years * (1f + HexFauna.MALNOURISHED * (1f - fed)) else 0f
+    }
 
     /** The share of animals of [s] that drown swimming [gapKm] of open water, before any cap. */
     fun drowning(s: Species, gapKm: Float) = DROWN * gapKm / Catalogue.swimKm(s).coerceAtLeast(1f)

@@ -157,7 +157,7 @@ internal fun GroupPlanner.bandPull(g: HexGroup, b: Band, month: Int, h: Hex, her
     val saltWeeks = saltWeeks(g, b, here, reach, weather)
     if (saltWeeks > 0f) score += (1f - saltPace(b.sodiumShort, 1f, gs.tuning.saltLack)) * gs.stepsPerYear / saltWeeks * saltProgress(g, b, here, h, reach, weather)
     // A band with food enough to feast others is drawn to where other bands are (gatherings).
-    if (gs.peopleSlot >= 0 && b.holds(Tradition.FEASTS))
+    if (gs.peopleSlot >= 0 && b.feastKeen > 0f)
         gs.dialUse?.choice(DialSite.STORE_FEAST, b.storeShare, g.larder > b.storeAim * g.dailyNeedKg, g.larder > b.storeAimAt1 * g.dailyNeedKg)
     score += GATHER_PULL * feastDraw(g, b, p, h, sensed)
     // Bands keep to country they know; what lies beyond they know only as a sense of better land.
@@ -202,12 +202,17 @@ internal fun GroupPlanner.saltWeeks(g: HexGroup, b: Band, here: Hex, reach: Floa
 internal fun GroupPlanner.saltProgress(g: HexGroup, b: Band, here: Hex, h: Hex, reach: Float, weather: inflation.world.Weather): Float =
     gs.toward(g, gs.saltKnown(g, b, here, weather), here, h, weather, reach.toDouble())
 
-/** How many of the bands about a feasting band [b] (group [g]) would draw it to place [p] (in hex [h]), against [GATHER_HEADS], 0 to 1; 0 for a band that does not feast or has not the food to. */
+/**
+ * How many of the bands about a feasting band [b] (group [g]) would draw it to place [p] (in hex [h]), against [GATHER_HEADS],
+ * 0 to 1, by how keenly it feasts ([Band.feastKeen]: 1 at the custom's default, more or less by its will); 0 for a band that
+ * does not feast or has not the food to.
+ */
 internal fun GroupPlanner.feastDraw(g: HexGroup, b: Band, p: Place, h: Hex, sensed: HexArray): Float {
-    if (gs.peopleSlot < 0 || !b.holds(Tradition.FEASTS)) return 0f
+    val keen = b.feastKeen
+    if (gs.peopleSlot < 0 || keen <= 0f) return 0f
     if (g.larder <= b.storeAim * g.dailyNeedKg) return 0f
     val others = knownHeads(gs.peopleSlot, p, h, sensed) - (if (p == g.place) g.size else 0)
-    return if (others > 0f) min(1f, others / GATHER_HEADS) else 0f
+    return if (others > 0f) keen * min(1f, others / GATHER_HEADS) else 0f
 }
 
 /**

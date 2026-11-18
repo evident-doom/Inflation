@@ -201,7 +201,7 @@ internal fun HexGroups.neighboursMeet(weather: Weather) {
     // met ([meetingFresh], [meetTick]), and the freshness of meetings adds up, so the step's tellings and feasts come to what
     // its meetings one by one would have. The pairs are met in the order of those ticks. So a step costs a meeting a pair,
     // not a meeting a meeting: a 60-day step's ten meetings between neighbours are one.)
-    class Due(val tick: Int, val times: Int, val a: HexGroup, val b: HexGroup, val way: Way, val km: Float, val bVisits: Boolean)
+    class Due(val tick: Int, val times: Int, val ticksMet: Int, val a: HexGroup, val b: HexGroup, val way: Way, val km: Float, val bVisits: Boolean)
     val due = ArrayList<Due>()
     // (Each band's going to the hexes about it, and those of them where bands live in index order, on all cores: they read
     // only the step's crossings. The draws then go band by band in the groups' order, as they always did.)
@@ -233,15 +233,16 @@ internal fun HexGroups.neighboursMeet(weather: Weather) {
                     val share = (if (bVisits) b else a).band?.visitShare ?: 1f
                     var k = 0; repeat(drawn) { if (r.nextFloat() < share) k++ }; k }
                 if (times == 0) continue
-                var last = 0; repeat(times) { last = max(last, r.nextInt(ticks)) }
-                due += Due(last, times, a, b, reach.wayTo(h, CONTACT_KM) ?: continue, km, bVisits)
+                // (And the ticks they met in, as many as the weekly model's meetings of the pair: at most one a tick, [meetTicks].)
+                var last = 0; var met = 0L; repeat(times) { val t = r.nextInt(ticks); last = max(last, t); met = met or (1L shl (t and 63)) }
+                due += Due(last, times, java.lang.Long.bitCount(met), a, b, reach.wayTo(h, CONTACT_KM) ?: continue, km, bVisits)
             }
         }
     }
     due.sortBy { it.tick }
     for (m in due) {
         if (!m.a.alive || !m.b.alive) continue
-        asMeetings(m.times, m.tick) {
+        asMeetings(m.times, m.tick, m.ticksMet) {
         stats.meeting(Met.NEIGHBOURS_MET, m.times)
         // (Each going there and back wears the way the visitors went, the meetings' wear compounded ([tripAlong]). Within their
         // own grounds bands come on each other as their foragers go about: that walk is the foraging's. Beyond, the visitors
@@ -259,10 +260,10 @@ internal fun HexGroups.neighboursMeet(weather: Weather) {
  * puts them back as they were (one meeting, at the step's start) however it ends: no meeting settled after can read
  * another's. The one place they are set.
  */
-internal inline fun HexGroups.asMeetings(times: Int, tick: Int, block: () -> Unit) {
-    val t0 = meetTimes; val k0 = meetTick
-    meetTimes = times; meetTick = tick
-    try { block() } finally { meetTimes = t0; meetTick = k0 }
+internal inline fun HexGroups.asMeetings(times: Int, tick: Int, ticksMet: Int = 1, block: () -> Unit) {
+    val t0 = meetTimes; val k0 = meetTick; val m0 = meetTicks
+    meetTimes = times; meetTick = tick; meetTicks = ticksMet
+    try { block() } finally { meetTimes = t0; meetTick = k0; meetTicks = m0 }
 }
 
 
@@ -292,7 +293,7 @@ internal const val OWN_GROUND_HEXES = 2f
 internal fun HexGroups.settle(enc: Encounter, byStrategy: HexArray?, weather: Weather, rite: RiteGathering? = null) {
     val a = enc.a; val b = enc.b; val intent = enc.intent
     // (Two bands that are friends both ways greet whatever their strategies, but where one came to raid.)
-    val friends = intent != Intent.RAID && a.band?.let { ba -> b.band?.let { bb -> ba.tie(b.id) >= FRIEND_TIE && bb.tie(a.id) >= FRIEND_TIE } } == true
+    val friends = intent != Intent.RAID && a.band?.let { ba -> b.band?.let { bb -> Regard(ba, b.id, bb).friend && Regard(bb, a.id, ba).friend } } == true
     // (A meeting that stands for several ([meetTimes]: neighbours' visits held as one) engages as often, till it comes to something.)
     if (byStrategy != null && !friends) {
         for (t in 0 until meetTimes) { if (!a.alive || !b.alive || engage(enc, byStrategy, rnd, weather)) break }
@@ -544,7 +545,7 @@ private fun HexGroups.residentsMeet(a: HexGroup, b: HexGroup, h: Hex): Boolean {
  */
 @Part("meetings: band meets band")
 internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rite: RiteGathering? = null, at: Hex = hw.placeHex[b.place]) {
-    stats.meeting(Met.BANDS_MET, meetTimes)
+    stats.meeting(Met.BANDS_MET, meetTimes); dealt(if (rite != null) Dealing.Kind.RITE else Dealing.Kind.MET, a, b)
     note(a) { "met band #%d (%d people; tie %.2f)".format(b.id, b.size, a.band?.tie(b.id) ?: 0f) }
     note(b) { "met band #%d (%d people; tie %.2f)".format(a.id, a.size, b.band?.tie(a.id) ?: 0f) }
     // (Strangers' sicknesses: read before [meetingFresh] records the meeting.)
@@ -582,7 +583,7 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
         moveFood(rich, poor, gift, LarderMove.GIFT)
         poor.band?.befriend(rich.id, TIE_GIFT); rich.band?.befriend(poor.id, 0.5f * TIE_GIFT)
         helped(rich, poor, gift)
-        stats.meeting(Met.FOOD_GIVEN)
+        stats.meeting(Met.FOOD_GIVEN); dealt(Dealing.Kind.FOOD, rich, poor)
         note(rich) { "gave %.0f kg of food to hungry band #%d".format(gift, poor.id) }
         note(poor) { "was given %.0f kg of food by band #%d".format(gift, rich.id) }
         }
@@ -590,41 +591,56 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
     // Gifts: bands close to each other give each other ornaments, which travel on along the ties.
     for ((giver, taker) in listOf(a to b, b to a)) {
         val gb = giver.band ?: continue; val tb = taker.band ?: continue
-        if (Regard(gb, taker.id, tb, map = hex).tie < FRIEND_TIE || gb.ornaments < 1f) continue
+        if (!Regard(gb, taker.id, tb, map = hex).friend || gb.ornaments < 1f) continue
         val gift = min(1f, ORNAMENT_GIFT * gb.giveWill) * gb.ornaments
         dialUse?.amount(DialSite.GIVE_ORNAMENTS, gb.giveWill, gift, min(1f, ORNAMENT_GIFT) * gb.ornaments, cut = ORNAMENT_GIFT * gb.giveWill > 1f)
         // (Less at a meeting soon after the last: gifts mark meetings after time apart, [meetingFresh].)
         val given = gift * fresh
         if (given <= 0f) continue
+        val worth = gb.ornamentWorthOf(given)
         val shell = gb.takeOrnaments(given)
-        tb.ornaments += given; tb.exotic += shell
+        tb.ornaments += given; tb.exotic += shell; tb.ornamentWorth += worth; noteOrnaments(OrnamentFlow.GIVEN, worth)
         tb.befriend(giver.id, 0.5f * TIE_GIFT)
-        stats.meeting(Met.ORNAMENTS_GIVEN)
+        // (With crafted goods worth their days, a gift of them makes favours by its worth, on the log scale: [favoursOfGift].)
+        if (tuning.craftWorth > 0f && worth > 0f) helpedBy(giver, taker,
+            favoursOfGift(favoursOfDays(worth, tb.recentYield(weather.date, days), taker.adults, taker.size), tuning.logFavours > 0f))
+        stats.meeting(Met.ORNAMENTS_GIVEN); dealt(Dealing.Kind.ORNAMENTS, giver, taker)
     }
     // Useful gifts: a band gives of the good stone, salt and ochre it has beyond its own needs to
     // a band that lacks them. The more the gift meets the other's want, the more it binds them both, and
-    // the giver's name goes about among the bands.
+    // the giver's name goes about among the bands. The taker owes the giver favours for the days the goods
+    // spared it ([worthDaysPerKg], [gaveGoods]), as for food.
     for ((giver, taker) in listOf(a to b, b to a)) {
         val gb = giver.band ?: continue; val tb = taker.band ?: continue
         if (Regard(gb, taker.id, tb, map = hex).tie < FEUD_GIFT) continue
         var useful = 0f
-        for (m in TRADED) {
+        // (What was given, for the favours and the census: of what, kg or a person's sets, and its worth to each side, days.)
+        val gifts = ArrayList<Given>(2)
+        // (The giver's own reckoning only for the census.)
+        fun worth(m: Material, kg: Float) { gifts += Given(m.name.lowercase(), kg, kg * worthDaysPerKg(taker, tb, m, weather),
+            if (stats.census) kg * worthDaysPerKg(giver, gb, m, weather) else 0f) }
+        // (What the giver owes the taker, in the taker's days, called in in goods it lacks as it gives: [goodsRepaid].)
+        val owed = floatArrayOf(goodsOwedDays(gb, taker, tb, weather))
+        for (m in tradedNow()) {
             // (Grinding stone only to a band that makes grinding stones.)
             if (m == Material.GROUND_STONE && !tb.knows[Tool.GRINDER]) continue
             val need = YEAR_NEED[m]
             val spare = gb.goods[m] - KEEP_YEARS * need * giver.adults
-            val lack = KEEP_YEARS * need * taker.adults - tb.goods[m]
+            // (And of the goods it gives on, a stock beyond its keep for the bands further out, from a band nearer the source: [stockFrom].)
+            val lack = if (spare <= 0f) 0f else lackGoods(tb, taker.adults, m, stockFrom(giver, gb, taker, tb, m, weather))
             if (spare <= 0f || lack <= 0f) continue
             // (Above its 1 a band gives beyond what the other lacks, as far as it can spare: goods given away for the regard they win.)
-            val gift = min(spare, lack * gb.giveWill)
+            val chosen = min(spare, lack * gb.giveWill)
+            val gift = if (owed[0] <= 0f) chosen else goodsRepaid(giver, gb, taker, tb, chosen, spare, lack, worthDaysPerKg(taker, tb, m, weather), owed)
             dialUse?.amount(DialSite.GIVE_SPARE, gb.giveWill, gift, min(spare, lack))
-            gb.goods[m] -= gift; tb.goods[m] += gift
+            gb.goods[m] -= gift; tb.goods[m] += gift; worth(m, gift)
             if (m == Material.SALT) { gb.noteSalt(SaltFlow.GIVEN_OUT, gift); tb.noteSalt(SaltFlow.GIVEN_IN, gift) }
             useful += gift / (KEEP_YEARS * need * max(1, taker.adults))
             stats.meeting(Met.Of.GIVEN, m.name.lowercase())
         }
         // And finished tools it made beyond its own kit, to a band whose kit falls short.
-        useful += giveTools(giver, gb, taker, tb)
+        useful += giveTools(giver, gb, taker, tb) { t, sets ->
+            gifts += Given("tools", sets, sets * toolWorthDays(taker, tb, t, weather), if (stats.census) sets * toolWorthDays(giver, gb, t, weather) else 0f) }
         // And seed corn and breeding stock, to a band that knows farming or herding and has none to start with.
         useful += giveSeed(giver, gb, taker, tb) + giveStock(gb, tb)
         // Salt to eat: a band short of sodium is given a year of it for its people by one that holds more than a year of it
@@ -634,15 +650,20 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
             val lack = SALT_BODY_YEAR * taker.size - tb.goods[Material.SALT]
             if (spare > 0f && lack > 0f) {
                 val gift = min(spare, lack) * min(1f, gb.giveWill)
-                gb.goods[Material.SALT] -= gift; tb.goods[Material.SALT] += gift
+                gb.goods[Material.SALT] -= gift; tb.goods[Material.SALT] += gift; worth(Material.SALT, gift)
                 gb.noteSalt(SaltFlow.GIVEN_OUT, gift); tb.noteSalt(SaltFlow.GIVEN_IN, gift)
                 useful += gift / (SALT_BODY_YEAR * max(1, taker.size))
                 stats.meeting(Met.Of.GIVEN, "salt to eat")
             }
         }
+        // (Seed corn and breeding stock make no favours: a start given, not days spared.)
+        val days = gifts.sumOf { it.takerDays.toDouble() }.toFloat()
+        val favours = gaveGoods(giver, taker, days, weather)
+        if (stats.census) for (x in gifts) bookGiven(x.of, x.amount, x.takerDays, x.giverDays, if (days > 0f) favours * x.takerDays / days else 0f)
         if (useful <= 0f) continue
         tb.befriend(giver.id, TIE_USEFUL * useful); gb.befriend(taker.id, 0.5f * TIE_USEFUL * useful)
         gb.renown += useful
+        dealt(Dealing.Kind.GOODS, giver, taker)
         note(giver) { "gave band #%d stone, salt or ochre it lacked".format(taker.id) }
         note(taker) { "was given stone, salt or ochre by band #%d".format(giver.id) }
     }
@@ -651,7 +672,7 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
     for ((host, guest) in listOf(a to b, b to a)) {
         val hb = host.band ?: continue
         // (Feasting is its choice: by its custom, unless its will leads it away from it.)
-        val keen = hb.byCustom(hb.holds(Tradition.FEASTS), hb.feastWill)
+        val keen = hb.feastKeen
         dialUse?.amount(DialSite.FEASTING, hb.feastWill, keen, hb.byCustom(hb.holds(Tradition.FEASTS), 1f),
             cut = keen == 0f && hb.feastWill > 0f)
         // (Not at every meeting: a feast is an occasion, [meetingFresh].)
@@ -675,7 +696,7 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
         }
         val warmth = 1f + BEER_TIES * min(1f, beer / (BEER_KG * guest.size).coerceAtLeast(1e-3f))
         guest.band?.befriend(host.id, TIE_FEAST * warmth); hb.befriend(guest.id, 0.5f * TIE_FEAST * warmth)
-        stats.meeting(Met.FEASTS)
+        stats.meeting(Met.FEASTS); dealt(Dealing.Kind.FEAST, host, guest)
         note(host) { "feasted band #%d with %.0f kg".format(guest.id, meal) }; note(guest) { "was feasted by band #%d".format(host.id) }
     }
     // Word of where the other did better this month.
@@ -996,7 +1017,7 @@ internal fun HexGroups.settleIn(g: HexGroup) {
  * single roamer packs they settled, paired and died once a step, and their numbers swung with the step's length (inv692b:
  * wolf roamers 171 / 299 / 519 / 11 at 6 / 12 / 30 / 60 days).
  */
-internal fun HexGroups.roamersLeave() {
+internal fun HexGroups.roamersLeave(weather: Weather) {
     val dispersing = ArrayList<FaunaKind>()
     for ((k, s) in fauna.kinds.withKinds()) {
         val due = fauna.leaving[k] ?: continue
@@ -1015,7 +1036,7 @@ internal fun HexGroups.roamersLeave() {
     // the week's carcasses and deaths after, kind by kind in the order they always were, so the sums come out the same.)
     val carcass = Array(dispersing.size) { FloatArray(fauna.carcassKg.size) }
     val lost = FloatArray(dispersing.size)
-    Par.forEach("residents: dispersing kinds", dispersing.size) { i -> lost[i] = fauna.disperse(dispersing[i], carcass[i]) }
+    Par.forEach("residents: dispersing kinds", dispersing.size) { i -> lost[i] = fauna.disperse(dispersing[i], carcass[i], weather) }
     for ((i, k) in dispersing.withIndex()) {
         val c = carcass[i]; for (p in c.indices) if (c[p] > 0f) fauna.carcassKg[p] += c[p]
         if (lost[i] > 0f) fauna.deaths.merge(Tally.of(fauna.kinds[k], DeathCause.HOMELESS), lost[i].toDouble(), Double::plus)
@@ -1028,3 +1049,10 @@ internal fun HexGroups.roamersLeave() {
 internal const val BEER_KG = 1f
 
 internal const val BEER_TIES = 0.5f
+
+/**
+ * How much a gift that meets a band's whole want binds it to the giver (the giver half as much);
+ * ties below which no gift is given. Not measured: as a feast.
+ */
+internal const val TIE_USEFUL = 0.3f
+internal const val FEUD_GIFT = -0.2f

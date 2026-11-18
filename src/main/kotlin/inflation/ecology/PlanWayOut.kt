@@ -33,36 +33,22 @@ internal fun GroupPlanner.searchWayOut(g: HexGroup, here: Hex, reach: Float, wea
     val effort = stepEffort(Catalogue.travel(g.species).ordinal, gs.hw.placeBand[g.place], weather)
     val wide = WAY_OUT_WEEKS * reach
     // (Out from the camp: every hex within the wide reach, and which of them are free.)
-    val seen = HashMap<Int, Float>(); val q = java.util.PriorityQueue<Pair<Float, Hex>>(compareBy { it.first })
-    seen[here.i] = 0f; q += 0f to here
+    val le = gs.hex.searcher(); le.start(here)
     val free = ArrayList<Hex>()
-    while (q.isNotEmpty()) {
-        val (d, h) = q.poll()
-        if (d > (seen[h.i] ?: Float.MAX_VALUE)) continue
-        if (strikesFrom(h, d, reach) == 0) { free += h; continue }
-        for (k in 0 until 6) {
-            val nh = gs.hex.neighbour(h, k); if (nh.none) continue
-            val nd = d + effort[gs.hex.edge(h, k)]
-            if (!nd.isFinite() || nd > wide) continue
-            // (Not where the peril strikes the week it would get there.)
-            if ((strikesFrom(nh, nd, reach) and 1) != 0) continue
-            if (nd < (seen[nh.i] ?: Float.MAX_VALUE)) { seen[nh.i] = nd; q += nd to nh }
-        }
+    while (true) {
+        val h = le.next(); if (h.none) break
+        if (strikesFrom(h, le.dist(h), reach) == 0) { free += h; continue }
+        // (Not where the peril strikes the week it would get there.)
+        le.across(gs.hex, h, effort, wide) { nh, nd -> (strikesFrom(nh, nd, reach) and 1) == 0 }
     }
+    val seen = HashSet<Int>(); for (i in 0 until le.reached.size) seen += le.reached[i].i
+    le.clear()
     if (free.isEmpty()) return
     // (Back from the free ground, over the hexes found: the effort still to go from each.)
-    val out = HashMap<Int, Float>()
-    for (h in free) { out[h.i] = 0f; q += 0f to h }
-    while (q.isNotEmpty()) {
-        val (d, h) = q.poll()
-        if (d > (out[h.i] ?: Float.MAX_VALUE)) continue
-        for (k in 0 until 6) {
-            val nh = gs.hex.neighbour(h, k); if (nh.none || nh.i !in seen) continue
-            val nd = d + effort[gs.hex.edge(h, k)]
-            if (!nd.isFinite()) continue
-            if (nd < (out[nh.i] ?: Float.MAX_VALUE)) { out[nh.i] = nd; q += nd to nh }
-        }
-    }
+    for (h in free) le.start(h)
+    while (true) { val h = le.next(); if (h.none) break; le.across(gs.hex, h, effort) { nh, _ -> nh.i in seen } }
+    val out = HashMap<Int, Float>(); for (i in 0 until le.reached.size) { val h = le.reached[i]; out[h.i] = le.dist(h) }
+    le.clear()
     buf.wayOut = out; buf.wayOutReach = reach; buf.wayOutAhead = gs.perilAhead(here)
 }
 

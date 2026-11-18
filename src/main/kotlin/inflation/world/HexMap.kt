@@ -1,7 +1,6 @@
 package inflation.world
 
 import inflation.Par
-import java.util.PriorityQueue
 import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.math.max
@@ -31,6 +30,9 @@ class HexMap(private val world: World, val hexKm: Double = 10.0) {
     private val terrain = world.terrain
     /** Each thread's [cross] search, made first as the borders are worked out while the map is built. */
     @Transient private val crossScratch = ThreadLocal.withInitial { CrossScratch(grid.size) }
+    @Transient private val searchers = ThreadLocal.withInitial { LeastEffort(size) }
+    /** This thread's least-effort search over the map ([LeastEffort]), clean between searches. */
+    fun searcher(): LeastEffort = searchers.get()
     /** Distance between the centres of two rows of hexes, km. */
     val rowKm = hexKm * sqrt(3.0) / 2
     /** Area of one hex, km² (√3/2 of [hexKm] squared, [hexKm] being the distance between centres). */
@@ -322,19 +324,11 @@ class HexMap(private val world: World, val hexKm: Double = 10.0) {
     /** Least effort from hex [a] to every hex, over the borders, travelling as [tr]; infinite where there is no way. */
     fun efforts(a: Hex, tr: Travel = Travel.FOOT): FloatArray {
         val crossing = crossings[tr.ordinal]
+        val le = searcher(); le.start(a)
+        while (true) { val h = le.next(); if (h.none) break; le.across(this, h, crossing) }
         val dist = FloatArray(size) { Float.POSITIVE_INFINITY }
-        val q = PriorityQueue<Pair<Float, Hex>>(compareBy { it.first })
-        dist[a] = 0f; q += 0f to a
-        while (q.isNotEmpty()) {
-            val (d, h) = q.poll()
-            if (d > dist[h]) continue
-            for (k in 0 until 6) {
-                val n = neighbour(h, k)
-                if (n.none) continue
-                val nd = d + crossing[edge(h, k)]
-                if (nd < dist[n]) { dist[n] = nd; q += nd to n }
-            }
-        }
+        for (i in 0 until le.reached.size) { val h = le.reached[i]; dist[h] = le.dist(h) }
+        le.clear()
         return dist
     }
 

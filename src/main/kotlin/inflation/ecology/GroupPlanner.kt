@@ -455,9 +455,9 @@ internal class GroupPlanner(internal val gs: HexGroups) {
         for (p in 0 until gs.n) { land2 += gs.land.areaKm2[p]; kg += predatorKg[p] }
         val huntersNow = (kg / land2.coerceAtLeast(1.0)).toFloat()
         usualHuntersKm2 = if (usualHuntersKm2 <= 0f) huntersNow else usualHuntersKm2 + (huntersNow - usualHuntersKm2) / USUAL_MONTHS
-        for ((k, s) in gs.kinds.withIndex()) {
+        for (k in gs.kinds.indices) {
             val e = expectHeads[k]
-            Par.forEach("choosing: suited area", gs.n) { p -> e[p] = gs.fauna.suits(s, Place(p)) * gs.land.areaKm2[p] }
+            Par.forEach("choosing: area", gs.n) { p -> e[p] = gs.land.areaKm2[p] }
             val suitArea = e.sumOf { it.toDouble() }
             var heads = 0L; for (p in 0 until gs.n) heads += gs.headsHere[k][p]
             val now = (heads / suitArea.coerceAtLeast(1.0)).toFloat()
@@ -470,7 +470,7 @@ internal class GroupPlanner(internal val gs: HexGroups) {
     /** Per thread: least effort to each hex, the hex it was reached from, the hexes reached, the queue. */
     internal class Scratch(size: Int) {
         val dist = FloatArray(size) { Float.MAX_VALUE }; val via = HexArray(size)
-        val reached = HexList(); val queue = LongHeap()
+        val reached = HexList()
         /** The candidates weighed for a policy: places, their features (arrays reused from week to week), hand-written scores. */
         val candPlaces = IntList(); val candFeats = ArrayList<FloatArray>(); var candScores = FloatArray(64)
         /** For a band, every place weighed ([exploreChoice]): the place, its whole hand-written score, and the survival steps it would cost. */
@@ -522,7 +522,6 @@ internal class GroupPlanner(internal val gs: HexGroups) {
         /** How far drinking water lies, km (for people, including what they can dig for). */
         var waterKm = 0f
         /** How well the place's country suits the kind, as a log. */
-        var suitsLn = 0f
     }
 
     /** A growable list of ints, in the order added. */
@@ -532,31 +531,6 @@ internal class GroupPlanner(internal val gs: HexGroups) {
         operator fun get(i: Int) = items[i]
         fun clear() { size = 0 }
         fun toIntArray() = items.copyOf(size)
-    }
-
-    /** A binary min-heap of longs (no boxing). */
-    internal class LongHeap {
-        private var a = LongArray(256); private var n = 0
-        fun clear() { n = 0 }
-        fun isNotEmpty() = n > 0
-        operator fun plusAssign(v: Long) {
-            if (n == a.size) a = a.copyOf(2 * n)
-            var i = n++
-            while (i > 0) { val up = (i - 1) / 2; if (a[up] <= v) break; a[i] = a[up]; i = up }
-            a[i] = v
-        }
-        fun poll(): Long {
-            val top = a[0]; val last = a[--n]
-            var i = 0
-            while (true) {
-                var c = 2 * i + 1; if (c >= n) break
-                if (c + 1 < n && a[c + 1] < a[c]) c++
-                if (a[c] >= last) break
-                a[i] = a[c]; i = c
-            }
-            if (n > 0) a[i] = last
-            return top
-        }
     }
 
     private val scratch = ThreadLocal.withInitial { Scratch(gs.hex.size) }
@@ -572,8 +546,6 @@ internal class GroupPlanner(internal val gs: HexGroups) {
      */
     @Transient internal val stepEffort = ConcurrentHashMap<Int, FloatArray>()
 
-    /** Effort and hex packed in one number, ordered by effort (efforts are never negative). */
-    internal fun Long.withPlace(d: Float, h: Hex): Long = (d.toRawBits().toLong() shl 32) or h.i.toLong()
 
     /**
      * What each place offers each kind this week, worked out once for all its groups: the game it can
@@ -648,7 +620,6 @@ internal val MOVE_TRACE = Config.flag(Config.Key.MOVE_TRACE, false)
  * one changes what trained nets see, so it is a net version change ([inflation.learning.NetVersion]).
  */
 internal object InputScale {
-    const val SUITS_LN = 2f
     const val USUAL_C = 20f
     const val AHEAD_C = 10f
     const val ANCESTOR_DEAD = 10f

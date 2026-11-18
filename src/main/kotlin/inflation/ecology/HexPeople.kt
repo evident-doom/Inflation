@@ -137,6 +137,9 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     // what it lacks of its materials, then to making and mending; what a chore leaves is free for those after it.
     val time = b.week ?: BandTime(b.spareDays, b.paces())
     b.week = null
+    // (Days other bands' people owe it for building, held for its houses and hall: [callInLabour].)
+    val lentIn = b.labourFrom.values.sum()
+    if (lentIn > 0f) time.lend(Activity.HOUSES, lentIn)
     campAndCache(g, b, p, h, weather, date, time)
     time.release(Activity.CACHING)
     keepAnimals(g, b)
@@ -159,6 +162,8 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     makeTools(b, people, time)
     time.release(Activity.TOOLS)
     b.renown *= 1f - RENOWN_FADE * years
+    ledgerOnScale(b)
+    if (tuning.finery > 0f && tuning.craftWorth > 0f) noteOrnaments(OrnamentFlow.BROKEN, wearOrnaments(b, years))
     // (Its weeks are ticks: a step of several ticks uses up as many, so the mark lasts the same days at any step length.)
     b.unlucky?.let { u -> b.unlucky = if (u.weeks > ticks) Unlucky(u.hex, u.weeks - ticks) else null }
     b.sinceRaided += ticks
@@ -178,6 +183,10 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
         buildHouse(g, b, p, h, people, time)
         buildHall(g, b, h, time)
     }
+    // (What its house and hall building asked and did not get, for calling in labour; the lent days it left are kept back for
+    // its ceremonial work at the week's end, never its rest.)
+    val houseShort = max(0f, time.asked[Activity.HOUSES] - time.workedOn(Activity.HOUSES))
+    val lentBack = if (lentIn > 0f) time.reclaim(Activity.HOUSES) else 0f
     time.release(Activity.HOUSES)
     // (Its home is where it last had houses to use; what stands there still shelters it, unless another band took it up.)
     if (!kept && housesAt(g, h) > 0.05f) b.houseHex = h
@@ -187,7 +196,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     b.homeWalls = if (b.atHome) wallsAt(g, h) else 0f
     b.homeGroundC = if (b.atHome) (0 until Date.MONTHS_PER_YEAR).sumOf { weather.usualTemperature(it, p).toDouble() }.toFloat() / Date.MONTHS_PER_YEAR else 0f
     // With time still to spare, it makes ornaments of shell and bone: they are given, worn and buried.
-    makeOrnaments(b, people, time)
+    makeOrnaments(b, people, time, g.fed)
     time.release(Activity.ORNAMENTS)
     // And a band that makes a tool well makes spares of it, to give.
     makeSpares(b, people, time)
@@ -210,6 +219,15 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     buildWeir(g, b, h, time)
     // Where it has had to dig for its water at home, it sinks a well there, or deepens or mends the one there, as far as its time goes.
     buildWell(g, b, h, time)
+    // (What its people worked and walked for bands it owed is paid of what is left, its rest, and waits for later weeks beyond it.)
+    if (b.labourOwed > 0f) { val paid = min(b.labourOwed, max(0f, time.left)); time.spend(Activity.HOUSES, paid); b.labourOwed -= paid }
+    // (Last, of its rest and the lent days still unused: a monument at holy ground, or its houses adorned. Done before the week's
+    // other chores it took the days they would have had, and people fell 1.5%, A/B 2026-11-17. What a monument wanted and did
+    // not get is its building's shortfall, for calling in labour; the lent days unused go back.)
+    if (lentBack > 0f) time.lend(Activity.HOUSES, lentBack)
+    val ceremonyShort = if (!kept) ceremonialWork(g, b, h, people, time) else 0f
+    if (lentIn > 0f) b.labourUsed = (lentIn - time.reclaim(Activity.HOUSES)) / lentIn
+    b.buildShort = houseShort + ceremonyShort
     // What no chore took is its leisure. (Counted once every chore has had its time.)
     time.noneBelowZero()
     b.spareDays = time.left
@@ -273,7 +291,7 @@ internal fun HexGroups.choreAsks(g: HexGroup, b: Band, date: Date, asks: EnumFlo
         if (canSow(g, b, p, date)) { val per = g.storeKgPer[Store.SEED]
             ask(Activity.SOWING, sowDays(p, min(sowLeft(g, b, p, per, b.sowWill), b.seedCornIn(g)) * per) * b.lapse(Skill.CULTIVATION)) }
         if (fortifies(b)) ask(Activity.PALISADE,
-            minOf(1f - palisadeAt(g, h), b.goods[Material.WOOD] / (PALISADE_WOOD * people)).coerceAtLeast(0f) * PALISADE_DAYS / b.skill(Skill.FORTIFYING) * people)
+            minOf(1f - palisadeAt(g, h), b.goods[Material.WOOD] / (PALISADE_WOOD * people)).coerceAtLeast(0f) * palisadeDays(b) * people)
         ask(Activity.WEIRS, weirAsk(g, b, h))
         ask(Activity.WELLS, wellAsk(g, b, h))
     }
@@ -331,7 +349,7 @@ internal fun HexGroups.dogsGoWild(s: Species, p: Place, n: Int, fatShare: Float 
         stats.births.merge(s, n, Int::plus)
         return null
     }
-    val pack = HexGroup(nextId++, s, p, n, 0); StaleCheck.moved()
+    val pack = HexGroup(nextId++, s, p, n, 0); StaleCheck.made()
     pack.temper = Temperament.founder(pack.id, seedBase)
     pack.fat = fatShare * s.maxFatDays
     pack.bold = 1f
@@ -351,15 +369,10 @@ internal const val KNOWN_AT_START = 3
 internal const val CAMP_LURE = 0.3f
 
 /**
- * People per km² around a camp (its hex and the six round it) at which crowding brings sickness; yearly deaths from it then.
- * [PEOPLE_SICK] and [PEOPLE_OUTBREAK] at half of 0.012 and 0.3 (crowd734, 12 Nov 2026): all illness came to about 17 adult
- * deaths a 1000 a year where people crowd (x4), against some 9 in the forager record (illness 72% of deaths, Gurven, at
- * 1-1.5% adult deaths a year); halved, outbreaks and crowding sickness kill some 40% fewer at x4 and x8. Fitted, not sourced.
+ * People per km² around a camp (its hex and the six round it) at which they count as crowded, for the sicknesses that
+ * crowding brings ([Illness], [peopleCrowding]).
  */
 internal const val PEOPLE_FULL_KM2 = 0.5f
-internal const val PEOPLE_SICK = 0.006f
-/** Outbreaks start among people at this share of the rate for animals of the same crowding (small bands keep few diseases going). */
-internal const val PEOPLE_OUTBREAK = 0.15f
 /** How much a cave or rock shelter adds to a camp's worth (dry, warm, easy to defend). */
 internal const val CAVE_CAMP = 0.5f
 /** Yearly deaths from vipers and scorpions among people, in the warm months. */
@@ -485,7 +498,7 @@ internal const val WELL_STOCKED_DAYS = 30f
 internal fun HexGroup.wellOff() = fed + larderDays() / WELL_STOCKED_DAYS
 
 /** [g] eats [value] of its stores, what spoils first first; returns the kg it ate. */
-internal fun eatStores(g: HexGroup, value: Float): Float {
+@IgnorableReturnValue internal fun eatStores(g: HexGroup, value: Float): Float {
     var need = value; var kg = 0f
     for (st in EAT_ORDER) { val e = min(need, g.stores[st]); g.stores[st] -= e; need -= e; kg += e * g.storeKgPer[st] }
     return kg
@@ -494,8 +507,6 @@ internal fun eatStores(g: HexGroup, value: Float): Float {
 /** The scaffold's store: days of food a band aims to keep against bad weeks, besides its lean months ([Band.leanDays]); share of the gap it works to close a week. */
 internal const val STORE_AIM_DAYS = 30f
 internal const val STORE_FILL = 0.25f
-/** Person-days to dry or smoke a kilo of meat or fish (cutting it thin, tending the racks and fire), at full skill. */
-internal const val DRY_DAYS_PER_KG = 0.1f
 
 /**
  * What a band knows of itself this week, for its ways: the season, how fed it is and what it has on
@@ -536,8 +547,7 @@ internal fun HexGroups.bandInputs(g: HexGroup, weather: Weather, into: FloatArra
     for (d in -1 until 6) {
         val h = if (d < 0) here else hex.neighbour(here, d)
         if (h.none) continue
-        StaleCheck.read("bandIndex", bands.indexStamp)
-        for (o in bands.bandIndex[h] ?: continue) {
+        for (o in where.bandsIn(h)) {
             if (o === g) continue
             val ob = o.band ?: continue
             val r = Regard(b, o.id, ob, map = hex)
@@ -647,7 +657,7 @@ val BAND_INPUT_NAMES: List<String> get() = BandInputs.names
  */
 @Part("bands: taking stock")
 internal fun HexGroups.fillBandStates(weather: Weather) {
-    indexBands()
+    where.build(this, WhoIsWhere.Moment.WEEK_BEGINS)
     val list = groups.filter { it.alive && it.band != null }
     Par.forEach("people: ways of the bands", list.size) { k ->
         val g = list[k]; val b = g.band!!
@@ -658,17 +668,6 @@ internal fun HexGroups.fillBandStates(weather: Weather) {
 }
 
 /** Sets a band's ways from [ways]' outputs: 0 is the scaffold (effort 1, stores [Band.storeAimAt1], every tool alike). */
-/** Files every living band under the hex it is in now ([HexGroups.bandIndex]), for [bandInputs]' bands about. */
-@Part("people: index bands")
-internal fun HexGroups.indexBands() {
-    bands.bandIndex.clear(); bands.indexStamp = StaleCheck.stamp()
-    for (g in groups) if (g.alive && g.band != null) bands.bandIndex.getOrPut(hw.placeHex[g.place]) { ArrayList() } += g
-    // (And the herds kept away from their camps, under the hex they are kept in: [Herd.at], for the beasts that hunt there, [herdOdds].)
-    bands.herdIndex.clear()
-    for (g in groups) { val b = g.band ?: continue; val at = b.herds.at
-        if (g.alive && !at.none && hw.placeHex[at] != hw.placeHex[g.place]) bands.herdIndex.getOrPut(hw.placeHex[at]) { ArrayList() } += g }
-}
-
 @Part("people: set ways")
 internal fun HexGroups.setWays(g: HexGroup, weather: Weather, ways: BandWays, inputs: FloatArray, out: FloatArray) {
     val b = g.band ?: return
@@ -700,39 +699,6 @@ internal const val FLEE = 0.5f
  */
 internal const val SICKLE_SELECT = 0.003f
 
-/**
- * Sodium a person needs a day, kg: the 23 mg a day the Yanomami pass, the least of any people measured (INTERSALT, BMJ
- * 1988; Mancilha-Carvalho et al., J Hum Hypertens 1989: 0.9 mmol a day, healthy and with low blood pressure, on a
- * mostly plant diet and no salt). How much slower they work wholly without it is [inflation.Tuning.saltLack] ([saltPace]).
- */
-internal const val SODIUM_A_PERSON_DAY = 23e-6f
-/** Sodium in a kg of meat or fish, kg: raw deer 51 mg/100 g (USDA SR "game meat, deer, raw"), freshwater fish about 50. */
-internal const val SODIUM_PER_KG_MEAT = 0.51e-3f
-/**
- * The share of their working pace a band's people keep, [short] of the sodium they [need] (kg each, or both as shares):
- * wholly without it, [lack] less ([inflation.Tuning.saltLack]): listless, weak and cramped, they work the slower, but what
- * they eat feeds them as ever. (Before, salt lack spoilt the food itself, so a band eating its fill of grain and nothing
- * else burnt its body down and died of "hunger" beside tonnes of it: seedstarve trace, 2026-11-06.) The one rule for the
- * week's pace ([Band.saltPace]) and for what a band weighs of going to salt.
- */
-internal fun saltPace(short: Float, need: Float, lack: Float) = if (need > 0f) 1f - lack * (short / need).coerceIn(0f, 1f) else 1f
-/** Sodium's share of salt by weight (Na in NaCl). */
-internal const val SALT_SODIUM = 0.393f
-/** Salt that holds a person's year of sodium ([SODIUM_A_PERSON_DAY]), kg: some 21 g. */
-internal const val SALT_BODY_YEAR = SODIUM_A_PERSON_DAY * Date.DAYS_PER_YEAR / SALT_SODIUM
-/** Salt to cure a kilo of meat or fish, kg (how much less salted meat and fish spoil: [inflation.Tuning.saltKeep]). */
-internal const val SALT_PER_KG = 0.1f
-
-/**
- * How much a gift that meets a band's whole want binds it to the giver (the giver half as much);
- * ties below which no gift is given. Not measured: as a feast.
- */
-internal const val TIE_USEFUL = 0.3f
-internal const val FEUD_GIFT = -0.2f
-/** How a band's name for its gifts counts against food in hand when other bands weigh whose ways to take up; share of it that fades a year. */
-internal const val RENOWN = 0.2f
-internal const val RENOWN_FADE = 0.2f
-
 /** Share of the way to knowing a kind of country's plants a week's gathering there goes; the least a stranger finds of what a local would. */
 internal const val PLANT_LEARN = 0.05f
 internal const val PLANT_FLOOR = 0.1f
@@ -743,13 +709,6 @@ internal const val START_CRAFT = 0.6f
  * of the bitter plants leaching makes food (against the palatable), and person-days to leach a kilo.
  */
 internal const val EARTH_OVEN_GAIN = 0.3f
-/**
- * Keeping: rain in a week that halves what racks in the sun dry, mm; how much less smoked meat spoils
- * at full skill than sun-dried; how much of the mice's take sealed pits and bins keep out at full skill.
- */
-internal const val DRY_RAIN_MM = 30f
-internal const val SMOKE_KEEP = 0.5f
-internal const val SEAL_KEEP = 0.7f
 /** How far a healer's or midwife's skill reaches into the deaths it can prevent (share of the gap to a start band's). */
 internal const val HEALING_REACH = 0.5f
 
@@ -785,26 +744,4 @@ internal const val MEND_BELOW = 0.5f
  */
 internal const val SMALL_SKIN = 0.1f
 internal const val SKIN_DAYS = 0.5f
-/**
- * Wounds: how much less the hurt and the lamed do; yearly share of adults hurt by mishaps (falls,
- * cuts, sprains, snakebite gone bad) at the usual gathering range; wounded who live for each one
- * killed by prey or by a beast (in raids, [RAID_WOUNDED_PER_DEAD]); weekly share of the wounded who heal, untended and with
- * the best care; weekly share whose wound festers and kills, untended (care saves most); share of
- * the healed lamed for life, untended (care halves it); the lamed's extra odds of dying ([LAME_RISK]).
- */
-internal const val HURT_HANDS = 0.8f
-internal const val LAME_HANDS = 0.4f
-internal const val MISHAPS = 0.08f
-internal const val WOUNDED_PER_DEAD = 2f
-internal const val HEAL_UNTENDED = 0.15f
-internal const val HEAL_TENDED = 0.35f
-/**
- * [FESTER]: at 0.02, with mishaps at [MISHAPS], wounds killed 7-8 a 1000 adults a year where people crowd (flux716),
- * against accidents 5.2% of forager deaths (Gurven, pooled deaths of 7 groups), some 1-2 a 1000 adults at their 1-1.5%
- * adult deaths a year: 0.005 aims at that.
- */
-internal const val FESTER = 0.005f
-internal const val LAMED = 0.2f
-/** Extra odds of dying (of any cause but old age) for a lamed adult, over an unlamed one: 1 is twice as likely. */
-internal const val LAME_RISK = 1f
 

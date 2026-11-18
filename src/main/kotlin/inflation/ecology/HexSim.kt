@@ -101,7 +101,7 @@ class HexSim(
         books?.check("between steps")
         stats.clear(); fauna.bornThisWeek.fill(0.0)
         clock.days = stepDays
-        weather.beginStep()
+        weather.beginStep(); land.fire.beginStep()
         // (Over a step of several ticks the residents and small life take each tick as
         // a week of their own, right after it, as at one tick a step; the groups take the step whole. The land hands each tick
         // over as a step of one ([HexLand.firstTick], [HexLand.lastTick]); so the groups see only the last tick's fires and
@@ -122,6 +122,8 @@ class HexSim(
                 try { runPhases(residentPhases, weather, books) } finally { clock.days = d } } }
         }
         land.firstTick = true; land.lastTick = true
+        // (And the step's fires whole, all its ticks': [HexFires.settleStep].)
+        land.fire.settleStep(clock.ticks)
         // (The slow parts read the step's weather whole: its mean air, all that fell and melted, and the coldest tick.)
         weather.settleStep()
         // (Their date is the step's start and a tick, as at one tick a step, not its end: [Weather.slowParts].)

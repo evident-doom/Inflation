@@ -92,7 +92,13 @@ enum class BandWay(val label: String) {
      */
     BUILD_STONE_FOOTING("build: stone footing"), BUILD_PIT_HOUSE("build: pit house"), BUILD_MUDBRICK("build: mudbrick"),
     /** Hours its people keep awake by turns through the night, armed, by the fire ([Band.watchHours]): sleep lost against beasts kept off. */
-    NIGHT_WATCH("night watch");
+    NIGHT_WATCH("night watch"),
+    /**
+     * How a band weighs its ask for days at its weir and its well against the others' ([BandTime.plan]), as it weighs the
+     * palisade's ([TIME_PALISADE]): need gates all three ([weirAsk], [wellAsk], [fortifies]), and this weighs what need asks.
+     * (Last among the ways, so a band saved before them keeps its other ways where they were.)
+     */
+    TIME_WEIRS("time: weirs"), TIME_WELLS("time: wells");
     /** Its place among the ways' outputs. */
     val slot get() = WaysOut.WAYS + ordinal
 }
@@ -119,7 +125,9 @@ fun timeWay(a: Activity): BandWay? = when (a) {
     Activity.PALISADE -> BandWay.TIME_PALISADE
     Activity.MATERIALS -> BandWay.TIME_MATERIALS
     Activity.CACHING -> BandWay.TIME_CACHING
-    Activity.FIREWOOD, Activity.MOVING, Activity.WEIRS, Activity.LEISURE, Activity.WELLS -> null
+    Activity.WEIRS -> BandWay.TIME_WEIRS
+    Activity.WELLS -> BandWay.TIME_WELLS
+    Activity.FIREWOOD, Activity.MOVING, Activity.LEISURE -> null
 }
 /** The way that sets how keenly a band lays food [t] by ([Band.storeWill]). */
 fun storeWay(t: Food) = when (t) {

@@ -4,7 +4,6 @@ import inflation.ecology.HexSmallLife.DeadPool
 import inflation.EnumFloats
 import inflation.Kg
 import inflation.Part
-import inflation.world.Hex
 import inflation.world.Weather
 import inflation.world.get
 import inflation.world.set
@@ -91,7 +90,7 @@ internal fun HexGroups.keepAndSpoil(w: ForageWeek, got: EnumFloats<Store>, gotKg
     band.houseFoodWeek += kept; band.houseWeek[HouseWorth.KEPT_KG] += kept
     // (Fresh meat beyond what it can eat before it rots it sets before its neighbours, by its custom of feasting: it rots, what
     // the feast leaves, once they have eaten ([feastOnKills]).)
-    band.feastMeat = if (band.byCustom(band.holds(Tradition.FEASTS), band.feastWill) > 0f)
+    band.feastMeat = if (band.feastKeen > 0f)
         max(0f, g.stores[Store.FRESH] - killKeeps(band, g.dailyNeedKg * days, weather.temperature[g.place]) + band.driedLast) else 0f
     g.stores[Store.FRESH] -= band.feastMeat
     // (Pits sealed with clay and plaster keep the mice out.)
@@ -127,18 +126,17 @@ internal fun HexGroups.keepAndSpoil(w: ForageWeek, got: EnumFloats<Store>, gotKg
 internal fun HexGroups.feastOnKills(weather: Weather) {
     val hosts = groups.filter { g -> g.alive && (g.band?.feastMeat ?: 0f) > 0f }
     if (hosts.isEmpty()) return
-    val byHex = HashMap<Hex, ArrayList<HexGroup>>()
-    for (g in groups) if (g.alive && g.band != null) byHex.getOrPut(hw.placeHex[g.place]) { ArrayList() } += g
     for (host in hosts) {
         val hb = host.band ?: continue
-        val keen = hb.byCustom(hb.holds(Tradition.FEASTS), hb.feastWill)
+        val keen = hb.feastKeen
         var left = min(hb.feastMeat, host.stores[Store.FRESH])
         val h0 = hw.placeHex[host.place]
         val most = kinReachKm(); val reach = reachOf(host, h0, most, weather)
         val order = (0 until reach.hexes.size).filter { reach.dist[it] <= most }.sortedWith(compareBy<Int> { reach.dist[it] }.thenBy { reach.hexes[it].i })
         for (i in order) {
             val h = reach.hexes[i]
-            for (guest in byHex[h].orEmpty()) if (guest !== host && left > 0f) {
+            // (The bands there as the hunt began, [WhoIsWhere.Moment.MOVED]: those that died in it come to no feast.)
+            for (guest in where.bandsIn(h)) if (guest !== host && guest.alive && left > 0f) {
                 // (From another hex the guests' [VISITORS] come and carry home what they can, [MEAT_LOAD_KG] each, and give
                 // the days of the walk ([visitDays]). Olli, 13 Nov 2026: no free movement.)
                 val apart = h != h0
@@ -341,3 +339,13 @@ internal fun countStoreWork(u: DialUse, g: HexGroup, b: Band, work: Float) {
     u.amount(DialSite.STORE_WANT, b.storeShare, work, if (worn) storeWant(g, b, b.storeAimAt1) * (1f - b.mendFirst) else storeWant(g, b, b.storeAimAt1))
     if (worn) u.amount(DialSite.MENDING_FIRST, b.will[BandWay.MENDING_FIRST], work, mendAt1)
 }
+
+/** Person-days to dry or smoke a kilo of meat or fish (cutting it thin, tending the racks and fire), at full skill. */
+internal const val DRY_DAYS_PER_KG = 0.1f
+/**
+ * Keeping: rain in a week that halves what racks in the sun dry, mm; how much less smoked meat spoils
+ * at full skill than sun-dried; how much of the mice's take sealed pits and bins keep out at full skill.
+ */
+internal const val DRY_RAIN_MM = 30f
+internal const val SMOKE_KEEP = 0.5f
+internal const val SEAL_KEEP = 0.7f

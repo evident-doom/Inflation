@@ -69,7 +69,7 @@ internal fun GroupWorld.foreseenHungerThirst(g: HexGroup, p: Place, fed: Float):
     val (grown, young) = ageHunger(g, fed)
     val thirst = thirstOdds(g, p, g.dry, dryAfter(g, p, fed))
     return (g.adults * (grown + thirst).coerceIn(0f, Hazards.MAX_GROWN_ODDS) +
-        g.young * (1.5f * young + 1.5f * thirst).coerceIn(0f, Hazards.MAX_YOUNG_ODDS)) / max(1, g.size)
+        g.young * (Hazards.YOUNG_HARDER * young + Hazards.YOUNG_HARDER * thirst).coerceIn(0f, Hazards.MAX_YOUNG_ODDS)) / max(1, g.size)
 }
 
 /** The slot of band [b]'s [Band.warn] for [lag] weeks back, [what]. */

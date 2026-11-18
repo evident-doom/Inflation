@@ -148,9 +148,9 @@ class StringKeysTest {
         "Par.kt" to (1 to "a parallel loop over the hexes turns each index into its hex"),
         "world/HexMap.kt" to (7 to "the map's own layout: a column and row, a point, and the per-hex builders"),
         "ecology/HexCulture.kt" to (1 to "the hexes a band knows are kept as bits"),
-        "ecology/Reach.kt" to (1 to "the reach search's heap packs effort and hex into one long"),
+        "world/LeastEffort.kt" to (1 to "the least-effort search's heap packs effort and hex into one long"),
         "ecology/HexLifeAndDeath.kt" to (1 to "outbreaks starting are keyed by kind and hex in one long"),
-        "ecology/HexRoutes.kt" to (2 to "lake shares keyed by lake and hex in one long; the first hex of a row, for the landmarks' search"),
+        "ecology/HexRoutes.kt" to (1 to "lake shares keyed by lake and hex in one long"),
         "tools/fauna/Tallies.kt" to (1 to "a per-hex table walked by its index"),
         "ui/HexViewer.kt" to (1 to "a layer's per-hex values walked by their index"),
     ), "Hex made from an Int", "Take the Hex from the map (HexMap.all, neighbour, owner, HexWorld.placeHex)", ".")

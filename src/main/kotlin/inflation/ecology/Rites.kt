@@ -180,8 +180,7 @@ internal fun HexGroups.sacrilege(raider: Band, raiderId: Int, victim: Int, rite:
         val wb = w.band ?: continue
         if (!w.alive || w.id == raiderId || w.id == victim || rite.site !in wb.rite) continue
         val held = wb.riteStrength / (1f + wb.riteStrength)
-        wb.grudge[raider.mainLineage()] += held * GRUDGE
-        wb.befriend(raiderId, -held * TIE_RAID)
+        wb.wronged(raiderId, raider, held)
     }
 }
 

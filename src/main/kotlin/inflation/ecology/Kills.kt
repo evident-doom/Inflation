@@ -99,12 +99,11 @@ internal fun HexGroups.herdOdds(w: ForageWeek) {
     val s = w.g.species; val view = FloatArray(2)
     for (j in 0 until w.ground.size) {
         val p = Place(w.ground.place[j])
-        // (The herds kept here: at their bands' camps, or at a summer pasture away from them ([Herd.at], [HexGroups.herdIndex]).)
-        StaleCheck.read("bandIndex/herdIndex", bands.indexStamp)
-        val atCamps = bands.bandIndex[hw.placeHex[p]]; val away = bands.herdIndex[hw.placeHex[p]]
-        if (atCamps == null && away == null) continue
+        // (The herds kept here: at their bands' camps, or at a summer pasture away from them ([Herd.at], [WhoIsWhere.herdsKeptIn]).)
+        val atCamps = where.bandsIn(hw.placeHex[p]); val away = where.herdsKeptIn(hw.placeHex[p])
+        if (atCamps.isEmpty() && away.isEmpty()) continue
         var looked = false
-        for (c in atCamps.orEmpty() + away.orEmpty()) {
+        for (c in atCamps + away) {
             val b = c.band ?: continue
             val kept = b.herds.at.takeIf { !it.none } ?: c.place
             if (kept != p || !c.alive) continue
@@ -115,11 +114,11 @@ internal fun HexGroups.herdOdds(w: ForageWeek) {
             val young = b.herds.youngHerd()
             for (k in b.herds.herd.indices) {
                 val all = b.herds.herd[k] + young[k]; if (all < 1f) continue
-                val ps = fauna.kinds[k]
+                val ps = fauna.kinds[k]; val sh = fauna.preyShelter(ps, p)
                 // (The grown and the young, each as catchable as their weight makes them ([HexFauna.catchable]).)
                 for (y in 0..1) {
                     val n = if (y == 1) young[k] else b.herds.herd[k]; if (n <= 0f) continue
-                    val success = killChance(fauna.catchable(s, ps, if (y == 1) HexFauna.YOUNG_WEIGHT * ps.massKg else ps.massKg, p), 1f) * guard
+                    val success = killChance(fauna.catchable(s, ps, if (y == 1) HexFauna.YOUNG_WEIGHT * ps.massKg else ps.massKg, p, sh), 1f) * guard
                     if (!(success > 0f)) continue
                     if (!looked) { openness(s, p, w.weather, view); looked = true }
                     val image = w.g.metLately(ps.index, w.today).let { it / (it + SEARCH_HALF) }
@@ -355,16 +354,16 @@ internal fun HexGroups.huntGame(g: HexGroup, k: Int, p: Place, expected: Float, 
     if (settled > 0f) fauna.groupKilled[k][p] += (na + ny) / (settled * area)
     // (A band that kills a beast of prey presses its kind off the ground about: [persecutedBy].)
     if (band != null) fauna.persecutedBy(k, p, (na + ny + np).toFloat())
-    val young = min(HexFauna.YOUNG_WEIGHT * ps.massKg, kgEach)
+    val ym = fauna.youngKg(k); val young = min(ym, kgEach)
     // (The grown killed, settled and of packs alike.)
     val grown = na + np
     // (Each kill may cost a hunter, grown prey the more: those kept alive were taken too.)
-    out.fought = grown * foughtBack(s, ps, ps.massKg) + (kills1 - grown) * foughtBack(s, ps, HexFauna.YOUNG_WEIGHT * ps.massKg)
+    out.fought = grown * foughtBack(s, ps, ps.massKg) + (kills1 - grown) * foughtBack(s, ps, ym)
     out.kg = grown * kgEach + ny * young
     out.fat = grown * fatOfKill(k, p, kgEach, band)
     // (Hides, bone and sinew come out of what the hunters leave of the carcasses.)
     val leftA = grown * leftOver(ps, kgEach, band)
-    small.deposit(DeadPool.CARRION, p, KgM2((leftA + ny * (HexFauna.YOUNG_WEIGHT * ps.massKg - young) - tallyHide(Tally.HideSource.RESIDENTS, ps, band?.skin(ps, grown.toFloat(), leftA))) / (area * 1e6f)))
+    small.deposit(DeadPool.CARRION, p, KgM2((leftA + ny * (ym - young) - tallyHide(Tally.HideSource.RESIDENTS, ps, band?.skin(ps, grown.toFloat(), leftA))) / (area * 1e6f)))
     band?.let { it.practise(Skill.HUNT); it.practise(Skill.TRACK); it.practise(Skill.STALK); it.practise(Skill.BUTCHER) }
     stats.killed(ps, kills1)
     note(g) { "killed %d %s".format(kills1, ps.name) }

@@ -45,11 +45,14 @@ class SavedStateTest {
         "land.plants.curedShade", "land.plants.ash", "land.fire.burning", "land.fire.burnt", "fauna.huntedByResidents", "fauna.small.locusts",
         "fauna.small.returning", "fauna.small.waiting", "fauna.small.leaving", "fauna.small.newborn", "fauna.water.run", "fauna.water.penned",
         "fauna.water.runStock", "fauna.water.runWaiting", "fauna.food.cereal", "fauna.food.domestic", "fauna.food.field",
-        "fauna.food.ripenedNow", "fauna.food.fieldFateNow", "fauna.food.fieldFateLastYear", "fauna.food.fieldGrain", "fauna.food.fieldDomestic", "fauna.food.fieldPulse", "fauna.food.ripePulse", "fauna.food.fieldHolder", "fauna.food.fieldDays", "fauna.food.fieldStress", "fauna.food.fieldSoil", "fauna.food.fieldWorn", "fauna.food.fieldCover", "fauna.food.cleared", "fauna.food.croppedNow", "fauna.food.wildCover",
+        "fauna.food.ripenedNow", "fauna.food.fieldFateNow", "fauna.food.fieldFateLastYear", "fauna.food.fieldGrain", "fauna.food.fieldDomestic", "fauna.food.fieldPulse", "fauna.food.ripePulse", "fauna.food.fieldHolder", "fauna.food.fieldDays", "fauna.food.fieldStress", "fauna.food.fieldSoil", "fauna.food.fieldWorn", "fauna.food.fieldCover", "fauna.food.cleared", "land.plants.opened", "fauna.food.croppedNow", "fauna.food.wildCover",
         // (A worn route forms from many crossings: on this small world a year may or may not see the first one, or a way along it.)
         "groups.routes.legWear", "groups.routes.onRoute", "groups.routes.way",
         // (Carrion the residents found as it lay is held only over steps of several ticks; the test steps weekly.)
         "fauna.small.residentCarrion",
+        // (Plagues break out only where a kind is crowded past its usual numbers many times over ([Hazards.crowdBackstop]):
+        // on this small world a year may see none.)
+        "fauna.outbreak",
         // (Grave goods need a death in a band that owns ornaments: on this small world a year may or may not see one.)
         "land.graveGoods",
         // (Burials need a death in a band that keeps the burial tradition: on this small world a year may or may not see one.)

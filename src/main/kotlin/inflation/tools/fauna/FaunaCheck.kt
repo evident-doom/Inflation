@@ -116,6 +116,7 @@ class FaunaCheck(private val sim: HexSim, private val options: FaunaCheckOptions
         println("     fires this year: " + sim.land.fire.yearReport())
         hunting.endYear()
         census.printFoodQuarters(hunting.lastYear, stepsPerYear)
+        census.printLeanYear(hunting.lastYear, stepsPerYear)
         print("     "); census.printSkillsAndCereals(hunting.grainReapedLastYear)
         System.out.flush()
         // The history so far, for the graphs, and the saved world (every five years and at the end).

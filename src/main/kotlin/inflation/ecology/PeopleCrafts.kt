@@ -10,6 +10,7 @@ import inflation.Kg
 import inflation.min
 import inflation.Tuning
 import inflation.world.LifeForm
+import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -54,6 +55,8 @@ internal fun GroupWorld.gatherMaterials(g: HexGroup, b: Band, p: Place, h: Hex, 
     // (Only good stone is kept: whatever stone is at hand makes poorer tools, see [TRADED]. It takes as much as it wants
     // and has the time for, slower where little crops out.)
     if (stone > 0f) gather(Material.STONE, Float.MAX_VALUE, STONE_A_DAY * min(1f, 5f * stone))
+    // Obsidian where it crops out along the way, as flint is got ([inflation.Tuning.obsidian]; 0: none is got).
+    if (tuning.obsidian > 0f) { val glass = alongTheWay(land.obsidian); if (glass > 0f) gather(Material.OBSIDIAN, Float.MAX_VALUE, STONE_A_DAY * min(1f, 5f * glass)) }
     // Rock for grinding stones, where it lies bare along the way: only by a band that knows grinding stones, as much as it
     // can keep, so that beyond a set for its own people ([YEAR_NEED]) it has some to give on.
     val grinding = alongTheWay(land.groundStone)
@@ -254,9 +257,20 @@ internal fun HexGroups.makeTools(b: Band, people: Float, time: BandTime?, only: 
         if (time == null) { asked += can * daysEach; continue }
         if (made != null) {
             val want = can * (t.recipe[made] ?: TAN_OCHRE) * use(made) * people
-            val good = if (want > 0f) min(1f, gd[made] / want) else 1f
-            gd[made] = max(0f, gd[made] - good * want)
-            b.fine[t] = (b.kit[t] * b.fine[t] + can * good) / (b.kit[t] + can)
+            // (Good stone of obsidian first, its sharper edge in the share made of it ([Band.glassy], [OBSIDIAN_EDGE]); then flint.)
+            val glass = if (made == Material.STONE && want > 0f && gd[Material.OBSIDIAN] > 0f) min(gd[Material.OBSIDIAN], want) else 0f
+            if (glass > 0f) {
+                gd[Material.OBSIDIAN] -= glass
+                val flint = min(gd[made], want - glass)
+                gd[made] -= flint
+                val good = (glass + flint) / want
+                b.fine[t] = (b.kit[t] * b.fine[t] + can * good) / (b.kit[t] + can)
+            } else {
+                val good = if (want > 0f) min(1f, gd[made] / want) else 1f
+                gd[made] = max(0f, gd[made] - good * want)
+                b.fine[t] = (b.kit[t] * b.fine[t] + can * good) / (b.kit[t] + can)
+            }
+            if (glass > 0f || b.glassy[t] > 0f) b.glassy[t] = (b.kit[t] * b.glassy[t] + can * glass / want) / (b.kit[t] + can)
         }
         // (What it makes now is as good as its hands: the kit's quality is the mean of old and new, by share.)
         b.made[t] = (b.kit[t] * b.made[t] + can * b.makeQuality(t)) / (b.kit[t] + can)
@@ -303,10 +317,10 @@ internal fun GroupWorld.makeSpares(b: Band, people: Float, time: BandTime) {
 /**
  * At a meeting, [giver]'s band gives [taker]'s of the spare tools it holds ([Band.spare]), as far as the taker's kit of each
  * falls short and the giver is willing ([Band.giveWill]); a tool the taker did not know it now knows. Returns the gifts'
- * worth to the taker, in its people's sets.
+ * worth to the taker, in its people's sets; [given] is told each tool given and how many of a person's sets.
  */
-internal fun GroupWorld.giveTools(giver: HexGroup, gb: Band, taker: HexGroup, tb: Band): Float {
-    var given = 0f
+internal fun GroupWorld.giveTools(giver: HexGroup, gb: Band, taker: HexGroup, tb: Band, given: (Tool, Float) -> Unit = { _, _ -> }): Float {
+    var sets = 0f
     for (t in Tool.entries) {
         val spare = gb.spare[t]
         if (spare <= 0f || taker.adults <= 0) continue
@@ -322,9 +336,10 @@ internal fun GroupWorld.giveTools(giver: HexGroup, gb: Band, taker: HexGroup, tb
         tb.kit[t] = k + add
         if (!tb.knows[t]) { tb.knows[t] = true; stats.meeting(Met.Of.LEARNED, t.name.lowercase()) }
         stats.meeting(Met.Of.GIVEN, t.name.lowercase())
-        given += add
+        given(t, gift)
+        sets += add
     }
-    return given
+    return sets
 }
 
 /** The skill at a craft above which a band makes spares of its tools to give; the most spare sets it keeps, a person. Not measured. */
@@ -340,8 +355,11 @@ private fun clothesMade(want: Float, byTime: Float, can: Float) = when {
 
 /** Ornaments of shell and bone, made with the [time] days [b] has still to spare. */
 @Part("people: make ornaments")
-internal fun GroupWorld.makeOrnaments(b: Band, people: Float, time: BandTime) {
+internal fun GroupWorld.makeOrnaments(b: Band, people: Float, time: BandTime, fed: Float = 1f) {
     val gd = b.goods
+    // (A band from a save made before worth was kept holds plain ones, made by middling hands.)
+    if (b.ornamentWorth <= 0f && b.ornaments > 0f) b.ornamentWorth = b.ornaments * ORNAMENT_DAYS
+    if (tuning.craftWorth > 0f) { makeCrafted(b, people, time, fed); return }
     val left = time.leftFor(Activity.ORNAMENTS)
     if (left > 0f && people > 0f) {
         val made = min(left / ORNAMENT_DAYS, ornamentsWanted(b, people))
@@ -350,7 +368,104 @@ internal fun GroupWorld.makeOrnaments(b: Band, people: Float, time: BandTime) {
             gd[Material.SHELL] = max(0f, gd[Material.SHELL] - fromShell * SHELL_EACH)
             gd[Material.BONE] = max(0f, gd[Material.BONE] - (made - fromShell) * BONE_EACH)
             b.ornaments += made; b.exotic += fromShell; time.spend(Activity.ORNAMENTS, made * ORNAMENT_DAYS)
+            b.ornamentWorth += made * ORNAMENT_DAYS; noteOrnaments(OrnamentFlow.MADE, made * ORNAMENT_DAYS)
         }
+    }
+}
+
+/**
+ * The kinds of ornament a band makes, finest first, each [days] of work from [kgEach] of [material], made only by hands of
+ * [least] skill or more at its craft ([domain], [Band.skill]): figurines and drilled beads pecked and carved from stone,
+ * pieces of obsidian (blades and mirrors), beads of sea shell and pendants of bone. Days and skills not measured; estimates.
+ */
+enum class OrnamentKind(val label: String, val days: Float, val material: Material, val kgEach: Float, val domain: Domain, val least: Float,
+                         val master: Float = least) {
+    FIGURINE("stone figurines", 8f, Material.GROUND_STONE, 0.3f, Domain.GROUND_STONE, 0.6f, master = 0.85f),
+    STONE_BEAD("drilled stone beads", 6f, Material.GROUND_STONE, 0.03f, Domain.GROUND_STONE, 0.5f, master = 0.75f),
+    OBSIDIAN_PIECE("obsidian pieces", 4f, Material.OBSIDIAN, 0.1f, Domain.KNAPPING, 0.5f, master = 0.65f),
+    SHELL_BEAD("shell beads", ORNAMENT_DAYS, Material.SHELL, SHELL_EACH, Domain.BONEWORK, 0f),
+    BONE_PENDANT("bone pendants", ORNAMENT_DAYS, Material.BONE, BONE_EACH, Domain.BONEWORK, 0f);
+
+    /** Whether it is finery: a kind only skilled hands make ([master] above [least] or a least at all), made for worth with [inflation.Tuning.finery]. */
+    val fine get() = least > 0f
+    /** The skill its makers need: [least], or with finery [master], a specialist's ([inflation.Tuning.finery]). */
+    fun needs(finery: Boolean) = if (finery) master else least
+}
+
+/**
+ * Finery (docs/design/trade.md, "What would let crafted wealth part bands"; [inflation.Tuning.finery]): beyond its plain
+ * ornaments, a band with a master's hands and the material makes the fine kinds for their worth, up to [FINERY_WORTH]
+ * person-days of them a person, at most [FINERY_DAYS_A_WEEK] person-days a person a week, and only of its leisure: of the
+ * week's rest still unspent when its chores are done, no more than [FINERY_LEISURE] of it, and only when it ate at least
+ * [FINERY_FED] of its need ([fineryLeft]). Made from what the week asked for, finery cost people 2.2% on m7-1 (A/B
+ * 2026-11-17, every pair): a band that struggles makes none. They wear out, break and are lost at [FINERY_WEAR] a year
+ * ([wearOrnaments]), and the making practises the craft. All estimates.
+ */
+internal const val FINERY_WORTH = 30f
+internal const val FINERY_DAYS_A_WEEK = 0.2f
+internal const val FINERY_WEAR = 0.1f
+internal const val FINERY_LEISURE = 0.5f
+internal const val FINERY_FED = 0.9f
+
+/** The person-days [b] may give its finery now ([FINERY_DAYS_A_WEEK], [FINERY_LEISURE], [FINERY_FED]): of its leisure only. */
+internal fun fineryLeft(time: BandTime, people: Float, fed: Float): Float =
+    if (fed < FINERY_FED) 0f else min(FINERY_DAYS_A_WEEK * people, FINERY_LEISURE * time.unheld)
+
+/** Its ornaments wear out, break and are lost at [FINERY_WEAR] a year, over [years]: pieces, shell and worth alike. Returns the worth lost. */
+@IgnorableReturnValue
+internal fun wearOrnaments(b: Band, years: Float): Float {
+    if (b.ornaments <= 0f) return 0f
+    val n = b.ornaments * min(1f, FINERY_WEAR * years)
+    val worth = b.ornamentWorthOf(n)
+    b.takeOrnaments(n)
+    return worth
+}
+
+/**
+ * Where ornaments' worth comes from and goes, for the census (person-days of worth): made, worn out and broken
+ * ([wearOrnaments]), buried with the dead, given at meetings (a move between bands, not an end). Report only.
+ */
+enum class OrnamentFlow(val label: String) { MADE("made"), BROKEN("worn out and broken"), BURIED("buried"), GIVEN("given") }
+
+@OptIn(RawKey::class)
+internal fun ornamentFlowKey(f: OrnamentFlow) = TallyKey.raw("ornament worth:${f.label}, days/10")
+
+/** Books [days] of ornaments' worth moved by [f], for the census. */
+internal fun GroupWorld.noteOrnaments(f: OrnamentFlow, days: Float) { if (days > 0f) stats.tally(ornamentFlowKey(f), Math.round(10f * days)) }
+
+/**
+ * Crafted goods as stored labour ([inflation.Tuning.craftWorth]; docs/design/trade.md, "What flows back", 2): with its
+ * ornaments' time, [b] makes the finest kinds ([OrnamentKind]) its materials and hands allow, then the plainer, up to
+ * [ORNAMENTS_PER_PERSON] a person; each worth its days times the skill of the hands that made it ([Band.ornamentWorth]). A
+ * fine piece takes more days, so a skilled band makes fewer and worth more; rare materials only open the kinds (their worth
+ * would ask searches of the ground, which change the run: see [tradedNow]).
+ */
+private fun GroupWorld.makeCrafted(b: Band, people: Float, time: BandTime, fed: Float) {
+    val gd = b.goods
+    val finery = tuning.finery > 0f
+    var left = time.leftFor(Activity.ORNAMENTS)
+    // (Finery only of its leisure: [fineryLeft].)
+    var fineLeft = if (finery) fineryLeft(time, people, fed) else 0f
+    var want = ORNAMENTS_PER_PERSON * people - b.ornaments
+    if (left <= 0f || people <= 0f || (want <= 0f && !finery)) return
+    for (k in OrnamentKind.entries) {
+        if (left <= 0f) break
+        val hands = b.skill(k.domain)
+        if (hands <= 0f || hands < k.needs(finery)) continue
+        // (With finery the fine kinds are made for their worth, up to [FINERY_WORTH] a person; the plain ones up to the count.)
+        val room = if (finery && k.fine) min((FINERY_WORTH * people - b.ornamentWorth) / (k.days * hands), fineLeft / k.days) else want
+        val made = minOf(room, left / k.days, gd[k.material] / k.kgEach)
+        if (made <= 0f) continue
+        if (finery && k.fine) fineLeft -= made * k.days
+        gd[k.material] = max(0f, gd[k.material] - made * k.kgEach)
+        b.ornaments += made; if (k.material == Material.SHELL) b.exotic += made
+        b.ornamentWorth += made * k.days * hands
+        noteOrnaments(OrnamentFlow.MADE, made * k.days * hands)
+        time.spend(Activity.ORNAMENTS, made * k.days)
+        want -= made; left -= made * k.days
+        stats.meeting(Met.Of.MADE, k.label, ceil(made).toInt())
+        // (The making keeps the hands in practice: a master's skill is kept by making, and lost without.)
+        if (finery) Skill.of(k.domain).filter { b.knowsSkill[it] }.maxByOrNull { b.skill(it) * it.gain }?.let { b.practise(it) }
     }
 }
 
@@ -453,12 +568,18 @@ fun wearOfMake(t: Tool, fine: Float, made: Float, tuning: Tuning): Float = (when
     else -> 1f
 }) * (1f + tuning.poorMakeWear * (1f - made))
 /**
- * How well tool [t] serves for being made well only in share [fine] (stone tools of poor stone, less) and by hands of
- * quality [made] (a clumsy spear point or sickle, less).
+ * How well tool [t] serves for being made well only in share [fine] (stone tools of poor stone, less), by hands of
+ * quality [made] (a clumsy spear point or sickle, less), and of obsidian in share [glassy] (more, [OBSIDIAN_EDGE]).
  */
-fun serveOfMake(t: Tool, fine: Float, made: Float, tuning: Tuning): Float =
+fun serveOfMake(t: Tool, fine: Float, made: Float, tuning: Tuning, glassy: Float = 0f): Float =
     (if (fineMaterial(t) != Material.STONE) 1f else tuning.poorStoneEdge + (1f - tuning.poorStoneEdge) * fine) *
-        (tuning.poorMakeEdge + (1f - tuning.poorMakeEdge) * made)
+        (tuning.poorMakeEdge + (1f - tuning.poorMakeEdge) * made) * (if (glassy > 0f) 1f + OBSIDIAN_EDGE * glassy else 1f)
+
+/**
+ * How much better a stone tool serves made wholly of obsidian ([Band.glassy]) than of flint: an obsidian edge is many times
+ * sharper, but the arrow or the sickle as a whole gains little by it. Not measured; an estimate.
+ */
+internal const val OBSIDIAN_EDGE = 0.1f
 
 /** Flint a tool's stone takes when knapped as blades or microliths, against plain flakes. */
 internal const val BLADE_STONE = 0.4f

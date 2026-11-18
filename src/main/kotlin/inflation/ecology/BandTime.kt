@@ -127,6 +127,26 @@ class BandTime(left: Float, private val pace: EnumFloats<Activity>? = null) {
     /** What is still held for [a] after its turn is free for the activities after it. */
     fun release(a: Activity) { held[a] = 0f }
 
+    /** Person-days of other bands' people lent to each activity this week ([lend]). */
+    private val lent = enumFloats<Activity>()
+
+    /** Adds [personDays] of other bands' people's days, held for [a] alone ([callInLabour]); what [a] does not use is taken back ([reclaim]). */
+    fun lend(a: Activity, personDays: Float) {
+        if (personDays <= 0f) return
+        left += personDays; held[a] += personDays; lent[a] += personDays
+    }
+
+    /** What is still held of the days lent to [a] ([lend]): what other bands' people could still work at it. */
+    fun lentLeft(a: Activity) = min(lent[a], held[a])
+
+    /** Takes back what is still held of the days lent to [a] ([lend]), so that they never become this band's rest; returns them. */
+    fun reclaim(a: Activity): Float {
+        val back = min(lent[a], held[a])
+        if (back > 0f) { held[a] -= back; left -= back }
+        lent[a] = 0f
+        return back
+    }
+
     /** Sets what is left to no less than none. */
     fun noneBelowZero() { left = max(0f, left) }
 

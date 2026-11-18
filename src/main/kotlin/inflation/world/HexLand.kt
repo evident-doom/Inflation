@@ -13,9 +13,8 @@ import kotlin.math.exp
 /**
  * Water and plants on the places of a [HexWorld] (each hex, or its low and high ground), stepped with the
  * weather on the same places: what each place is, and its parts, the water ([HexHydrology], [HexDrinkingWater]),
- * the plants ([HexPlants]) and fires ([HexFires]), on the averages of each place's cells. They began as the rules
- * of the fine [LiveWater] and [Vegetation] and have since gone further (a soil and an aquifer of each place's own,
- * sunny and shaded slopes, another fire spread), so the two no longer agree.
+ * the plants ([HexPlants]) and fires ([HexFires]), on the averages of each place's cells. (They began as the rules of a
+ * fine-grid water and plant model, since gone further and removed, 2026-11-15.)
  */
 class HexLand(internal val hw: HexWorld, internal val seed: Long, /** The run's settings ([Tuning]). */ @Transient val tuning: Tuning = Tuning.config) {
     private val world = hw.world
@@ -91,6 +90,8 @@ class HexLand(internal val hw: HexWorld, internal val seed: Long, /** The run's 
     val graveGoods = FloatArray(n)
     /** Share of the ground where good knapping stone (flint, obsidian) crops out. */
     @Transient val stone = FloatArray(n) { p -> mean(p) { if (world.geology.minerals[it] and (Mineral.FLINT or Mineral.OBSIDIAN) != 0) 1f else 0f } }
+    /** Share of the ground where obsidian crops out, near explosive volcanic vents: glass that knaps to the sharpest edge of any stone. */
+    @Transient val obsidian = FloatArray(n) { p -> mean(p) { if (world.geology.minerals[it] and Mineral.OBSIDIAN != 0) 1f else 0f } }
     /** Share of the ground where salt can be got (crusts on dry lake beds and salt pans), and where red and yellow ochre crops out. */
     @Transient val salt = FloatArray(n) { p -> mean(p) { if (world.geology.minerals[it] and Mineral.SALT != 0) 1f else 0f } }
     @Transient val ochre = FloatArray(n) { p -> mean(p) { if (world.geology.minerals[it] and Mineral.OCHRE != 0) 1f else 0f } }

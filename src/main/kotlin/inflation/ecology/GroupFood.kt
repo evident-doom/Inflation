@@ -47,7 +47,7 @@ internal fun HexGroups.hunt(weather: Weather) {
     // Bands first set their ways for the week.
     // (Where the bands about it stand now, after this week's moves, as its own place is; and where beasts of prey may come on
     // their herds, see [herdOdds].)
-    indexBands()
+    where.build(this, WhoIsWhere.Moment.MOVED)
     // (Without a ways network the bands keep the scaffold's ways, not those a saved world's bands last had from theirs.)
     // (A planning band reads no ways: it keeps the scaffold's, [planDays].)
     if (ways != null) setBandWays(hunters, weather, ways, inputs, out)
@@ -703,6 +703,8 @@ internal class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, pack
     val avoid = if (band != null && g.fed >= Thresholds.HUNGRY) band.totem.i else -1
     // The ground its hunters search for game this week, and how much of each place (see [huntGround]).
     val ground = gs.huntGround(g, sweep * g.path.size.coerceAtLeast(1) * sqrt(hunt))
+    // (Kept on the band for the viewer, with the share of the ring round its camp its gatherers work: nothing reads them back.)
+    init { band?.let { it.huntSeen = ground; it.ringSeen = roundShare } }
     // The odds a meeting with each kind ends in a kill, in each place of that ground (they do not change within the week).
     val nk = gs.fauna.kinds.size
     val odds = FloatArray(ground.size * nk)

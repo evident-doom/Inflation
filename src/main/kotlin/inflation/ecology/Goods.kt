@@ -53,6 +53,12 @@ enum class Material(
     OCHRE({ it.ochre }),
     /** Rock for grinding stones (basalt, sandstone, limestone), where it lies bare ([HexLand.groundStone]): heavy, and given on from where it is found. */
     GROUND_STONE({ it.groundStone }),
+    /**
+     * Obsidian, volcanic glass, where it crops out by explosive vents ([HexLand.obsidian]): good knapping stone with the
+     * sharpest edge of any, from few sources, light for its worth; the record's best tracer of exchange (Renfrew, Dixon and
+     * Cann 1968). A band knaps its stone tools of it before flint ([OBSIDIAN_EDGE]). Last, so saves made before it load.
+     */
+    OBSIDIAN({ it.obsidian }),
 }
 
 /**

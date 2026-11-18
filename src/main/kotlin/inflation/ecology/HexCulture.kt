@@ -281,7 +281,8 @@ internal fun HexGroups.reckonFame(): Map<Int, Float> {
     val runs = listOf(size, ground, holy, walls, skill)
     val cuts = runs.map { cut(it) }
     val knownBy = enumFloats<Tool> { t -> housed.count { it.second.knows[t] }.toFloat() / housed.size }
-    val sources = bands.materialSources.values
+    // (An obsidian source counts only with obsidian got at all, [inflation.Tuning.obsidian].)
+    val sources = bands.materialSources.filterKeys { it != Material.OBSIDIAN || tuning.obsidian > 0f }.values
     val fame = HashMap<Int, Float>()
     // (For the census: how many bands are famed for each thing, [Bands.famedFor].)
     val why = IntArray(FAMED_FOR.size)
@@ -604,6 +605,13 @@ private val UNIVERSAL = setOf(Tradition.EXOGAMY, Tradition.SHARING, Tradition.ME
 fun kinship(a: FloatArray, b: FloatArray): Float { var s = 0f; for (i in a.indices) s += a[i] * b[i]; return s }
 
 /**
+ * How strongly band [a] is drawn to band [b], [km] off by the going, as kin to go to: their kinship, the less the farther
+ * (a hex's width halves it). The one rule for a small band joining kin ([mergeAndPair]) and a band driven from its home
+ * taking refuge with them ([scatterBeaten]).
+ */
+internal fun GroupWorld.kinPull(a: Band, b: Band, km: Float) = kinship(a.lineage, b.lineage) / (1f + km / hex.hexKm.toFloat())
+
+/**
  * How band [of] stands toward band [to] (of group [toId]): how well they understand each other (at a meeting, [heard] as it
  * began; otherwise their words as they stand), its tie to them, whether they are strangers, its grudge against their people,
  * how near kin they are and how far apart their customs, each read as it stands when asked. Everything between two bands
@@ -729,8 +737,7 @@ internal fun HexGroups.cultureWeek(g: HexGroup, rnd: kotlin.random.Random, day: 
         val here = hw.placeHex[g.place]
         val reach = reachOf(g, here, CONTACT_KM, weather)
         val far = HashSet<Int>()
-        StaleCheck.read("bandHex", bands.whereStamp)
-        for (k in b.ties.keys) bands.bandHex[k]?.let { h -> if (reach.km(h, CONTACT_KM) == null) far += k }
+        for (k in b.ties.keys) where.bandHex(k)?.let { h -> if (reach.km(h, CONTACT_KM) == null) far += k }
         val it = b.ties.entries.iterator()
         while (it.hasNext()) { val e = it.next(); e.setValue(e.value * (1f - min(1f, fade * (if (e.key in far) FAR_TIE_FADE else 1f)))); if (abs(e.value) < 0.01f) it.remove() }
     }

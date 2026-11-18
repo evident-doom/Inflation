@@ -24,8 +24,7 @@ internal fun HexGroups.buildPalisade(g: HexGroup, b: Band, h: Hex, people: Float
         dialUse?.choice(DialSite.PALISADES, b.fortifyWill, b.sinceRaided < ticksPerYear * b.fortifyWill, b.sinceRaided < ticksPerYear)
     if (fortifies(b) && left > 0f && people > 0f) {
         val s = buildingAt(g, Built.PALISADE, h, -1, people)
-        // (Practised hands build it the faster: the days go as the band's skill at fortifying.)
-        val days = PALISADE_DAYS / b.skill(Skill.FORTIFYING)
+        val days = palisadeDays(b)
         val built = minOf(1f - s.built, left / (days * people), gd[Material.WOOD] / (PALISADE_WOOD * people)).coerceAtLeast(0f)
         gd[Material.WOOD] -= built * PALISADE_WOOD * people; buildOn(s, built); time.spend(Activity.PALISADE, built * days * people)
         if (built > 0f) { stats.meeting(Met.BANDS_BUILT_PALISADES); b.practise(Skill.FORTIFYING) }
@@ -46,8 +45,7 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
     val here = hw.placeHex[g.place]
     b.raid?.let { raid ->
         if (here == raid.hex) {
-            StaleCheck.read("groupById", bands.whereStamp)
-            val target = bands.groupById[raid.on]?.takeIf { it.alive && hw.placeHex[it.place] == here }
+            val target = where.group(raid.on)?.takeIf { it.alive && hw.placeHex[it.place] == here }
             if (target?.band != null) bands.raidsDue += g to target
             b.raid = null
         // (Its weeks are ticks: a step of several ticks uses up as many, so a raid gives up in the same days at any step length.)
@@ -78,8 +76,7 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
     if (dialUse == null && u >= drive * Regard.MOST_WARY) return
     val them = ArrayList<Pair<HexGroup, Regard>>()
     for (id in within) {
-        StaleCheck.read("groupById", bands.whereStamp)
-        val o = bands.groupById[id]?.takeIf { it.alive } ?: continue
+        val o = where.group(id)?.takeIf { it.alive } ?: continue
         val ob = o.band ?: continue
         // (As the record of early foragers has it: planned raids are on bands with something fixed to take or hold, their
         // houses, fresh sowing or a palisade ([Band.livesFixed]); bands on the move are not worth it.)
@@ -112,7 +109,7 @@ internal fun HexGroups.plotRaid(g: HexGroup, b: Band, weather: Weather) {
         // the whole day's going each way, is taken from its next step's days, [Band.raidWalkOwed].)
         if (staysHome(g)) {
             tripAlong(g, way, raidParty(g), WalkPaid.NEXT_STEP)
-            val target = bands.groupById[best]?.takeIf { it.alive && it.band != null && hw.placeHex[it.place] == at }
+            val target = where.group(best)?.takeIf { it.alive && it.band != null && hw.placeHex[it.place] == at }
             if (target != null) bands.raidsDue += g to target
             note(g) { "sent its fighters to raid band #%d at hex %d".format(best, at.i) }
             return
@@ -178,7 +175,10 @@ internal const val SLIP_LOSS = 0.3f
 /** How much of the raided's grudge and loss of ties ([GRUDGE], [TIE_RAID]) the raiders hold against the defenders when they lost people in the raid. An estimate; no figure found. */
 internal const val RAIDER_RESENT = 0.3f
 internal const val RAID_WEEKS = 4
+/** Person-days a person's share of a palisade takes a practised band ([Skill.ref]): an estimate. */
 internal const val PALISADE_DAYS = 6f
+/** Person-days a person's share of a palisade takes band [b]: [PALISADE_DAYS], the more the less it is practised ([Band.lapse]). */
+internal fun palisadeDays(b: Band) = PALISADE_DAYS * b.lapse(Skill.FORTIFYING)
 internal const val PALISADE_WOOD = 80f
 internal const val PALISADE_DEFENCE = 1f
 internal const val SURPRISE_RAID = 1f
@@ -232,6 +232,7 @@ internal fun HexGroups.raid(g: HexGroup, b: Band, o: HexGroup, ob: Band, r: Rega
 internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planned: Boolean, weather: Weather,
                              at: Hex = hw.placeHex[o.place], gathered: Boolean = false, edge: Float? = null) {
     stats.meeting(if (planned) Met.RAIDS_ON_HOMES else Met.RAIDS)
+    dealt(Dealing.Kind.RAID, g, o)
     note(g) { "raided band #%d%s".format(o.id, if (planned) " at its home" else "") }; note(o) { "was raided by band #%d".format(g.id) }
     ob.sinceRaided = 0
     // (Both see what the other is, [noteSeen].)
@@ -241,7 +242,7 @@ internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planne
     if (edge == null && !ob.atHome && rnd.nextFloat() < FLEE) {
         if (atCamp) { val t = SLIP_LOSS * RAID_TAKE * o.larder; moveFood(o, g, t, LarderMove.RAIDED) }
         stats.meeting(Met.RAIDED_BANDS_SLIPPED_AWAY)
-        ob.grudge[b.mainLineage()] += 0.5f * GRUDGE; ob.befriend(g.id, -0.5f * TIE_RAID)
+        ob.wronged(g.id, b, 0.5f)
         return
     }
     val sides = raidSides(g, o, ob, planned, ob.atHome, weather, edge, at, gathered)
@@ -256,7 +257,7 @@ internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planne
     val fought = arrayListOf(Triple(g, raiders, RAID_DEATHS * so / (sg + so)), Triple(o, defenders, RAID_DEATHS * sg / (sg + so)))
     for (n in sides.helpers) {
         fought += Triple(n.group, (n.share * n.group.adults).roundToInt(), RAID_DEATHS * sg / (sg + so))
-        stats.meeting(Met.NEIGHBOURS_DEFENDED)
+        stats.meeting(Met.NEIGHBOURS_DEFENDED); dealt(Dealing.Kind.DEFENDED, n.group, o)
         note(n.group) { "stood with band #%d against band #%d".format(o.id, g.id) }
     }
     val lostG = binomial(raiders, fought[0].third, rnd)
@@ -283,11 +284,13 @@ internal fun HexGroups.fight(g: HexGroup, b: Band, o: HexGroup, ob: Band, planne
     // A band beaten at its home may be driven from it, the likelier the more the raiders overpower it (none when they are
     // only as strong; Wrangham and Glowacki 2012: victors drove the defeated off their land in most non-state wars).
     if (atCamp && ob.atHome && sg > so && rnd.nextFloat() < 1f - so / sg) driveOff(o, ob, b, hw.placeHex[g.place])
-    ob.grudge[b.mainLineage()] += GRUDGE
-    ob.befriend(g.id, -TIE_RAID); b.befriend(o.id, -RAIDER_RESENT * TIE_RAID)
+    ob.wronged(g.id, b, 1f)
+    // (The raiders cut their own tie to the band they fell on whatever came of it, and hold a grudge against it only for
+    // those they lost: not a wrong done them, so not [Band.wronged].)
+    b.befriend(o.id, -RAIDER_RESENT * TIE_RAID)
     if (lostG > 0) b.grudge[ob.mainLineage()] += RAIDER_RESENT * GRUDGE
     // (Those who stood with them remember the raiders too, as far as they stood.)
-    for (n in sides.helpers) { n.band.grudge[b.mainLineage()] += n.share * GRUDGE; n.band.befriend(g.id, -n.share * TIE_RAID) }
+    for (n in sides.helpers) n.band.wronged(g.id, b, n.share)
 }
 
 /**

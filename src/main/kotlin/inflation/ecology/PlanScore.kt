@@ -34,11 +34,11 @@ internal fun GroupPlanner.fillFeatures(f: FloatArray, c: PlanContext, t: PlaceTe
     val prey = c.at.prey; val crowded = c.at.crowded; val hunters = c.at.hunters
     val g = c.g; val s = g.species; val here = c.here; val month = c.month; val reach = c.reach; val goal = c.goal
     val fromHere = c.fromHere; val weather = c.weather; val date = c.date
-    // (The herds' slots, [Feature.HERDS_ABOUT], [Feature.KEEPS_HEADING] and [Feature.FORAGE_QUALITY], stay 0: kept for the
-    // networks' layout until they are trained again.)
+    // (The herds' slots, [Feature.HERDS_ABOUT], [Feature.KEEPS_HEADING] and [Feature.FORAGE_QUALITY], and the old habitat label's,
+    // [Feature.CLIMATE], stay 0: kept for the networks' layout until they are trained again. A kind weighs a place by what it
+    // finds there, not by a label of its country.)
     // What the place offers it, as the baseline weighs it: game, and for bands plant food and a safe camp.
     f[Feature.FOOD] = prey / (prey + PREY_HALF)
-    f[Feature.CLIMATE] = t.suitsLn / InputScale.SUITS_LN
     // (What the coming months are usually like there.)
     for (k in 0 until Feature.LORE_MONTHS)
         f[Feature.USUAL_AHEAD + k] = weather.usualTemperature((month + k + 1) % Date.MONTHS_PER_YEAR, p) / InputScale.USUAL_C
@@ -171,8 +171,6 @@ internal fun GroupPlanner.scorePlace(c: PlanContext, t: PlaceTerms, p: Place, h:
     // shares of the week's need.
     score -= 0.5f * t.discomfort + t.drain + offGround
     if (parts != null) { parts[MoveTerm.COLD.ordinal] += score - last; last = score }
-    // Its own kind of country: open plains for a cheetah, crags for a wild goat, whatever the food.
-    if (!s.human) score += GROUP_HABITAT * t.suitsLn
     // What it senses coming, as keenly as its kind does: a cold snap or heat wave, snow
     // too deep to dig through, and in a dry spell the rain on its way.
     val tAhead = weather.forecastTemp(p.i)
@@ -420,5 +418,4 @@ internal fun GroupPlanner.fillTerms(t: PlaceTerms, g: HexGroup, p: Place, weathe
     t.drain = gs.drain(g, p, weather)
     t.aheadC = s.discomfortC(weather.forecastTemp(p.i), date.month)
     t.waterKm = if (s.human) gs.land.drink.peopleWaterKm(p) else gs.land.drink.animalWaterKm(p)
-    t.suitsLn = ln(gs.fauna.suits(s, p).coerceAtLeast(1e-3f))
 }

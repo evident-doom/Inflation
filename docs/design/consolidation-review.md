@@ -88,6 +88,8 @@ Each is right at a different moment, and a mechanism that reads one after groups
 
 **Fix:** one step index of groups by hex and by id, rebuilt at named points (start of step, after moves), the rest as views of it; the saved copy dropped.
 
+**Done:** `WhoIsWhere` (on `HexGroups.where`) holds the bands, the herds kept away, the followers of people by hex, each band's hex and every group by id, built together at three named moments: as the week begins, after the moves, and as demography begins. It is not rebuilt as groups go, because a group dies wherever its last grown one does, on any core, and an index that followed that would differ with the cores' timing. `StaleCheck` counts any read after groups moved or were made since a build; a year on m5-1 shows none, and the run is the same as before line for line. `packsAt` stays the pack game's own record of where the game stood, `homePeople` counts heads, not places, and the meetings' `byHex` follows each tick. The saved `bandHex` and `followersByHex` are gone (an older save notes them as dropped).
+
 ## 5. What a band knows of another: nine maps by id
 
 A band keeps nine maps keyed by the other band's id, each pruned by its own rule or not at all:
