@@ -22,7 +22,7 @@ import java.io.File
  * - "deaths/<kind>": deaths of that kind in the week by cause (and for people, "adult deaths/" and "young deaths/" apart); "births": young born to residents, packs
  *   and bands; "kills": animals killed by hunters, by prey kind;
  * - "weather": mean temperature, rain, snow lying, droughts under way;
- * - "biome/<biome>": for each kind of country, plants per km² and the head count of each kind.
+ * - "biome/<biome>": for each kind of country as it is now ([inflation.world.HexCountry]), its area, plants, herbs and shrubs per m², canopy and the head count of each kind.
  *
  * Counts of things that happen (deaths, births, kills, rain) add up over a month or year; states
  * (head counts, biomass, temperature) are averaged. The history can be written to and read from a
@@ -61,6 +61,12 @@ class HexHistory {
         /** What a [biome] series measures besides a kind's head count. */
         const val AREA = "area km²"
         const val PLANTS = "plants kg per m²"
+        const val HERBS = "herbs kg per m²"
+        const val SHRUBS = "shrubs kg per m²"
+        const val CANOPY = "canopy share"
+        /** Share of the land waterlogged, and the land's mean edible share of its plants (by area). */
+        const val WATERLOGGED = "land/waterlogged share"
+        const val PALATABLE = "land/edible share"
         /** Head count of [kind] (residents, or packs and bands). */
         fun animals(kind: String) = ANIMALS + kind
         /** The kind an [animals] key counts, or null for any other key. */
@@ -278,6 +284,16 @@ class HexHistory {
         put(Key.LAND_AREA, biomeArea.sum().toFloat())
         val plants = DoubleArray(Biome.entries.size)
         for (p in 0 until n) plants[biomeOf(sim, Place(p))] += (land.plants.biomass(Place(p)) * area[p]).toDouble()
+        // (And its herbs, shrubs and canopy apart: what makes it the kind it is.)
+        val herbs = DoubleArray(Biome.entries.size); val shrubs = DoubleArray(Biome.entries.size); val canopy = DoubleArray(Biome.entries.size)
+        var wet = 0.0; var edible = 0.0
+        for (p in 0 until n) {
+            val b = biomeOf(sim, Place(p)); val a = area[p].toDouble()
+            herbs[b] += land.plants.herb[p] * a; shrubs[b] += land.plants.shrub[p] * a; canopy[b] += land.plants.canopy(Place(p)) * a
+            wet += land.waterlogged[p] * a; edible += land.palatable[p] * a
+        }
+        put(Key.WATERLOGGED, (wet / biomeArea.sum()).toFloat())
+        put(Key.PALATABLE, (edible / biomeArea.sum()).toFloat())
         val heads = TreeMap<String, DoubleArray>()
         for ((k, s) in fauna.kinds.withIndex()) {
             val a = heads.getOrPut(s.name) { DoubleArray(Biome.entries.size) }
@@ -288,6 +304,9 @@ class HexHistory {
             if (biomeArea[b.ordinal] <= 0.0) continue
             put(Key.biome(b, Key.AREA), biomeArea[b.ordinal].toFloat())
             put(Key.biome(b, Key.PLANTS), (plants[b.ordinal] / biomeArea[b.ordinal]).toFloat())
+            put(Key.biome(b, Key.HERBS), (herbs[b.ordinal] / biomeArea[b.ordinal]).toFloat())
+            put(Key.biome(b, Key.SHRUBS), (shrubs[b.ordinal] / biomeArea[b.ordinal]).toFloat())
+            put(Key.biome(b, Key.CANOPY), (canopy[b.ordinal] / biomeArea[b.ordinal]).toFloat())
             for ((kind, a) in heads) put(Key.biome(b, kind), a[b.ordinal].toFloat())
         }
         // Keep every series as long as the record.
