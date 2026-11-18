@@ -6,6 +6,7 @@ import inflation.ecology.tether
 import inflation.tools.fauna.FaunaCheckOptions
 import inflation.world.Biome
 import inflation.world.Place
+import inflation.world.get
 
 /**
  * How far the plant-eaters stand from water, and what the water rules leave them, by kind of country, over the last
@@ -42,6 +43,10 @@ fun main(args: Array<String>) {
     // Where the water comes from, by kind of country and month [biome][month]: area, pools everywhere, snow eaten, flooded,
     // area-km of the walk where neither pools nor snow, area of that ground.
     val srcAcc = Array(biomes.size) { Array(12) { DoubleArray(5) } }
+    // Creeks running, by kind of country and month [biome][month]: area with any creek within reach (nearRiver > 0), of it
+    // where the smallest creeks (0.1 m³/s usual) still run by the hex's main river's flow, and of that where the main
+    // river is big (10 m³/s and more usual), so that it, not the creeks' own ground, keeps them running.
+    val creekAcc = Array(biomes.size) { Array(12) { DoubleArray(3) } }
     var steps = 0
     val perYear = sim.stepsPerYear
     for (s in 0 until years * perYear) {
@@ -60,6 +65,14 @@ fun main(args: Array<String>) {
             val src = srcAcc[b][mo]; src[0] += a
             val snow = land.drink.snowWater[p] > 0f
             val pools = !snow && land.drink.water[p] >= 0.999f && land.drink.waterKm[p] == 0f
+            val hx = hw.placeHex[p]
+            if (land.drink.nearRiver[p] > 0f) {
+                val c = creekAcc[b][mo]; c[0] += a
+                val mf = land.hydro.meanFlow[hx]
+                if (inflation.world.HexDrinkingWater.runningClass(if (mf > 0f) land.hydro.flow[hx] / mf else 0f) == 0) {
+                    c[1] += a; if (mf >= 10f) c[2] += a
+                }
+            }
             if (snow) src[1] += a else if (pools) src[2] += a else { src[4] += a; src[3] += land.drink.waterKm[p] * a }
             for (k in eaters) {
                 // (The residents' numbers are a km²: heads are those times the place's area.)
@@ -99,6 +112,10 @@ fun main(args: Array<String>) {
         println("  " + biomes[b].label + ": " + (0 until 12).joinToString("  ") { m -> val v = srcAcc[b][m]
             if (v[0] <= 0.0) "$m -" else "$m %.0f%%/%.0f%%/%.1f".format(100 * v[1] / v[0], 100 * v[2] / v[0], if (v[4] > 0.0) v[3] / v[4] else 0.0) })
     }
+    println()
+    println("CREEKS BY MONTH (share of the land with a stream within reach where the smallest creeks still run / of that, share in hexes whose main river is 10 m³/s or more)")
+    for (b in shown) println("  %-24s ".format(biomes[b].label) + (0 until 12).joinToString("  ") { m -> val c = creekAcc[b][m]
+        if (c[0] <= 0.0) "$m -" else "$m %.0f%%/%.0f%%".format(100 * c[1] / c[0], if (c[1] > 0.0) 100 * c[2] / c[1] else 0.0) })
     println()
     println("KINDS: tether half km (pull halved) and never-dry walk km (Hazards.fetchKm); then by kind of country, by heads standing there:")
     println("  heads/km² | share of kind | mean km to water | mean tether | can drink here | gone dry at all | fed")
