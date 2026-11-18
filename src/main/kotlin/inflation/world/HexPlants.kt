@@ -60,8 +60,8 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
         return sum.toFloat()
     }
     val herb = FloatArray(n); val shrub = FloatArray(n); val tree = FloatArray(n)
-    /** The share of each place's herbs that grew this step: what evens out the grazed and the ungrazed ground again ([inflation.ecology.HexFauna.herbFar]). */
-    @Transient val herbNew = FloatArray(n)
+    /** The share of each place's herbs that grew this step (saved, as the residents graze by it after a load): what evens out the grazed and the ungrazed ground again ([inflation.ecology.HexFauna.herbFar]). */
+    val herbNew = FloatArray(n)
     val moisture = FloatArray(n) { p -> (mean(p) { world.climate.aridity(it) } / 1.5f).coerceIn(0f, 1f) }
     private val warmth = FloatArray(n) { p -> mean(p) { world.climate.warmestMonthTemp(it) } }
     val fertility = land.soilFertility.copyOf()

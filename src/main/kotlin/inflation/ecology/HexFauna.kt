@@ -652,9 +652,9 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
     /**
      * Each place's far-zone grass ([nearShare]: its ground beyond an easy walk of water) against the place's mean, 1 when both
      * zones stand alike: the daily drinkers crop the near zone down and leave the far to those that range from water
-     * ([graze]); regrowth evens them again ([HexPlants.herbNew]). Not saved: a world carried on starts even.
+     * ([graze]); regrowth evens them again ([inflation.world.HexPlants.herbNew]). A save without it starts even.
      */
-    @Transient val herbFar = FloatArray(n) { 1f }
+    val herbFar = FloatArray(n) { 1f }
 
     /** One thread's [Grazing], cleared for each place it grazes ([graze]): made once, not afresh for every place every week. */
     @Transient internal val grazings = ThreadLocal.withInitial { Grazing(kinds.size) }
