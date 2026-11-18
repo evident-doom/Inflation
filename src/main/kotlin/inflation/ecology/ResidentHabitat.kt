@@ -235,7 +235,7 @@ private fun farReachAt(farKm: Float, reachKm: Float): Float { val r = farKm / ma
 
 /**
  * The share of its feeding time [s] keeps at place [p] for the walk to water and back as often as it drinks ([Hazards.drinkDays]):
- * the walk at [WALK_KMH] out of a feeding day of [FEED_HOURS], from the ground it grazes there (the near zone, and the far
+ * the walk at [WATER_WALK_KMH] out of a feeding day of [WATER_FEED_HOURS], from the ground it grazes there (the near zone, and the far
  * zone as far as it reaches it). A cow grazing 5 km out from the water it drinks at daily walks 10 km a day for it,
  * some two and a half hours of her grazing day; a gazelle on green forage hardly ever goes.
  */
@@ -251,13 +251,13 @@ private fun walkKeptAt(s: Species, near: Float, far: Float, farKm: Float, wet: F
     if (!(used > 0f)) return 1f
     val km = (near * NEAR_KM + (1f - near) * far * farKm) / used
     val perDay = 2f * km / Hazards.drinkDays(s, wet)
-    return max(0f, 1f - perDay / (WALK_KMH * FEED_HOURS))
+    return max(0f, 1f - perDay / (WATER_WALK_KMH * WATER_FEED_HOURS))
 }
 
 /** [walkKept]: how fast an animal walks to water and back, km/h (cattle walk to water at some 3-5 km/h; from memory). */
-const val WALK_KMH = 4f
+const val WATER_WALK_KMH = 4f
 /** [walkKept]: the hours of a grazer's day it would spend feeding (cattle graze some 8-11 hours a day; from memory). */
-const val FEED_HOURS = 10f
+const val WATER_FEED_HOURS = 10f
 
 /**
  * What place [p] offers kind [s] to live on, on [foodFor]'s scale: its plant food, and for the residents' hunters
