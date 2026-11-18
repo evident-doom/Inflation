@@ -64,6 +64,8 @@ class HexHistory {
         const val HERBS = "herbs kg per m²"
         const val SHRUBS = "shrubs kg per m²"
         const val CANOPY = "canopy share"
+        /** Soil moisture the plants have known over the last months, 0..1 ([inflation.world.HexPlants.moisture]): what sets their ceilings. */
+        const val MOISTURE = "moisture share"
         /** Share of the land waterlogged, and the land's mean edible share of its plants (by area). */
         const val WATERLOGGED = "land/waterlogged share"
         const val PALATABLE = "land/edible share"
@@ -286,10 +288,12 @@ class HexHistory {
         for (p in 0 until n) plants[biomeOf(sim, Place(p))] += (land.plants.biomass(Place(p)) * area[p]).toDouble()
         // (And its herbs, shrubs and canopy apart: what makes it the kind it is.)
         val herbs = DoubleArray(Biome.entries.size); val shrubs = DoubleArray(Biome.entries.size); val canopy = DoubleArray(Biome.entries.size)
+        val moisture = DoubleArray(Biome.entries.size)
         var wet = 0.0; var edible = 0.0
         for (p in 0 until n) {
             val b = biomeOf(sim, Place(p)); val a = area[p].toDouble()
             herbs[b] += land.plants.herb[p] * a; shrubs[b] += land.plants.shrub[p] * a; canopy[b] += land.plants.canopy(Place(p)) * a
+            moisture[b] += land.plants.moisture[p] * a
             wet += land.waterlogged[p] * a; edible += land.palatable[p] * a
         }
         put(Key.WATERLOGGED, (wet / biomeArea.sum()).toFloat())
@@ -307,6 +311,7 @@ class HexHistory {
             put(Key.biome(b, Key.HERBS), (herbs[b.ordinal] / biomeArea[b.ordinal]).toFloat())
             put(Key.biome(b, Key.SHRUBS), (shrubs[b.ordinal] / biomeArea[b.ordinal]).toFloat())
             put(Key.biome(b, Key.CANOPY), (canopy[b.ordinal] / biomeArea[b.ordinal]).toFloat())
+            put(Key.biome(b, Key.MOISTURE), (moisture[b.ordinal] / biomeArea[b.ordinal]).toFloat())
             for ((kind, a) in heads) put(Key.biome(b, kind), a[b.ordinal].toFloat())
         }
         // Keep every series as long as the record.
