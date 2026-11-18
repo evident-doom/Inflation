@@ -31,6 +31,11 @@ fun main(args: Array<String>) {
     // Kinds [kind][biome][quarter]: heads, heads*fed, heads*crop, heads*fill, heads where the pool ran out, area-steps.
     val kindAcc = Array(fauna.kinds.size) { Array(biomes.size) { Array(4) { DoubleArray(5) } } }
     val stepsIn = IntArray(4)
+    // Fed by crowding [kind][biome][bin]: heads and heads*fed where the kind stands at under 0.5, 0.5-1, 1-2 and over 2
+    // times its usual numbers ([HexFauna.usualAt]); and by all plant-eaters' weight there, under 250, 250-1000, 1000-3000
+    // and over 3000 kg/km². If the kinds feed one another's hunger, fed falls along both.
+    val ownBins = Array(fauna.kinds.size) { Array(biomes.size) { DoubleArray(8) } }
+    val allBins = Array(fauna.kinds.size) { Array(biomes.size) { DoubleArray(8) } }
     val perYear = sim.stepsPerYear
     for (s in 0 until years * perYear) {
         sim.step()
@@ -46,6 +51,9 @@ fun main(args: Array<String>) {
             val eaten = if (herb > 0.0) (pool - fauna.grazeLeft[p]).coerceAtLeast(0.0) / herb else 0.0
             val l = landAcc[b][qtr]; l[0] += a; l[1] += herb * a; l[2] += eaten * a; if (out) l[3] += a
             val q = land.plants.nourishment(pl)
+            var kgKm2 = 0.0
+            for (k in eaters) kgKm2 += (fauna.adults[k][p] + fauna.young[k][p]).toDouble() * fauna.kinds[k].massKg
+            val allBin = when { kgKm2 < 250.0 -> 0; kgKm2 < 1000.0 -> 1; kgKm2 < 3000.0 -> 2; else -> 3 }
             for (k in eaters) {
                 val h = (fauna.adults[k][p] + fauna.young[k][p]).toDouble() * a
                 if (h <= 0.0) continue
@@ -53,6 +61,11 @@ fun main(args: Array<String>) {
                 val v = kindAcc[k][b][qtr]
                 v[0] += h; v[1] += h * fauna.fed[k][p]; v[2] += h * fauna.cropGrass(sp, pl); v[3] += h * gutFill(sp, sp.selected(q))
                 if (out) v[4] += h
+                val crowd = (fauna.adults[k][p] + fauna.young[k][p]) / fauna.usualAt(k, pl).coerceAtLeast(1e-9f)
+                val ownBin = when { crowd < 0.5f -> 0; crowd < 1f -> 1; crowd < 2f -> 2; else -> 3 }
+                val f = fauna.fed[k][p].toDouble()
+                ownBins[k][b][2 * ownBin] += h; ownBins[k][b][2 * ownBin + 1] += h * f
+                allBins[k][b][2 * allBin] += h; allBins[k][b][2 * allBin + 1] += h * f
             }
         }
     }
@@ -72,6 +85,9 @@ fun main(args: Array<String>) {
             for (qt in 0 until 4) { val v = kindAcc[k][b][qt]; val h = v[0]; if (h <= 0.0) continue
                 val area = landAcc[b][qt][0] / stepsIn[qt].coerceAtLeast(1)
                 println("      Q${qt + 1}  %.3f | %.2f | %.2f | %.2f | %3.0f%%".format(h / stepsIn[qt].coerceAtLeast(1) / area, v[1] / h, v[2] / h, v[3] / h, 100 * v[4] / h)) }
+            fun bins(a: DoubleArray) = (0 until 4).joinToString("  ") { i -> val hh = a[2 * i]; if (hh <= 0.0) "-" else "%.2f (%.0f%%)".format(a[2 * i + 1] / hh, 100 * hh / tot) }
+            println("      fed by own crowding (<0.5, 0.5-1, 1-2, >2 x usual; share of heads): " + bins(ownBins[k][b]))
+            println("      fed by all plant-eaters' weight (<250, 250-1000, 1000-3000, >3000 kg/km²): " + bins(allBins[k][b]))
         }
     }
 }

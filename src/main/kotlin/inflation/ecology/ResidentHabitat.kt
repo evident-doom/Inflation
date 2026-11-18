@@ -20,7 +20,6 @@ import inflation.wrapMonth
 import inflation.KgM2
 import inflation.min
 import inflation.world.HexLand
-import inflation.world.HexDrinkingWater
 import inflation.world.Weather
 import kotlin.math.exp
 import kotlin.math.max
@@ -174,96 +173,27 @@ internal fun HexFauna.ruggedFit(rugged: Float): FloatArray = (ruggedFits ?: Conc
 }
 
 /**
- * Share of place [p]'s food that [s] can use for its water, and keep feeding on for the going to it: the ground within an
- * easy walk of water ([nearShare]) and the share of the far ground within its reach ([farReach]), less the feeding time
- * the walk to water costs it ([walkKept]). What a place is worth to it as it weighs where to go; it feeds by the same
- * rule ([foodAccess], [walkKept]). Kinds bound to water (hippos) use only what lies by deep water.
+ * Share of place [p]'s food that [s] can use for its water: grazers that must drink every day or
+ * two graze out from water and back, and leave the far country to those that live on the water
+ * in their food (gazelle, oryx, camels). Kinds bound to water (hippos) use only what lies by it.
  */
 fun HexFauna.tether(s: Species, p: Place): Float =
-    if (s.maxWaterKm.isFinite()) min(1f, land.drink.deep[p]) else waterShare(s, p) * walkKept(s, p)
+    tetherAt(s, p, if (s.maxWaterKm.isFinite()) land.drink.deep[p] else land.drink.animalWater(p), land.drink.animalWaterKm(p))
 
-/**
- * Share of place [p]'s ground [s] grazes for its water: the ground within an easy walk of water ([nearShare]) and the far
- * ground as far as its reach goes ([farReach]). Kinds bound to water (hippos) use only what lies by deep water.
- */
-fun HexFauna.waterShare(s: Species, p: Place): Float {
-    if (s.maxWaterKm.isFinite()) return min(1f, land.drink.deep[p])
-    val near = nearShare(p)
-    return near + (1f - near) * farReach(s, p, wetOf(s, p))
-}
-
-/** [tether] in an ordinary year: from the lasting water around, not this week's, and the place's usual green. */
-fun HexFauna.usualTether(s: Species, p: Place): Float {
-    if (s.maxWaterKm.isFinite()) return usualDeep(p)
-    val near = min(1f, land.drink.nearRiver[p] + land.drink.nearLake[p] + land.drink.nearSpring[p])
-    // (Green half the year: a plant-eater's food as wet as on the mean.)
-    val reach = Hazards.fetchKm(s, if (s.carnivore) 1f else 0.75f)
-    val far = farReachAt(farKm(near, land.drink.waterKmMean[p]), reach)
-    return (near + (1f - near) * far) * walkKeptAt(s, near, far, farKm(near, land.drink.waterKmMean[p]), 0.75f)
-}
+/** [tether] in an ordinary year: from the lasting water around, not this week's. */
+fun HexFauna.usualTether(s: Species, p: Place): Float = tetherAt(s, p, if (s.maxWaterKm.isFinite()) usualDeep(p) else land.drink.nearRiver[p] + land.drink.nearLake[p] + land.drink.nearSpring[p],
+    land.drink.waterKmMean[p])
 
 /** [usualTether]'s deep water for the kinds bound to it: the fresh lakes, and the rivers big enough to lie in ([HexDrinkingWater.deep]). */
 private fun HexFauna.usualDeep(p: Place) =
     min(1f, (if (land.hydro.meanFlow[hw.placeHex[p]] >= inflation.world.HexDrinkingWater.DEEP_RIVER_M3S) land.drink.nearRiver[p] else 0f) + land.drink.nearLake[p])
 
-/** The water in [s]'s food at place [p] this week, as [Hazards.dryDays] counts it: a plant-eater's from the green, a hunter's from the body water of its fed prey. */
-internal fun HexFauna.wetOf(s: Species, p: Place) = if (s.carnivore) 1f else 0.5f + 0.5f * land.plants.green[p]
-
-/**
- * The share of place [p]'s ground within an easy walk ([HexDrinkingWater.DRINK_KM]) of water an animal can drink this
- * week, standing or running, or soft snow: every kind grazes it.
- */
-internal fun HexFauna.nearShare(p: Place) = min(1f, land.drink.animalWater(p))
-
-/**
- * The mean walk to water from the far zone of a place (its ground beyond an easy walk of water), km, from the share [near]
- * within an easy walk and the place's mean walk [meanKm]: the near ground lies half an easy walk out on the mean.
- */
-internal fun farKm(near: Float, meanKm: Float): Float {
-    if (near >= 0.999f) return HexDrinkingWater.DRINK_KM
-    return max(HexDrinkingWater.DRINK_KM, (meanKm - near * NEAR_KM) / (1f - near))
+private fun HexFauna.tetherAt(s: Species, p: Place, water: Float, waterKm: Float): Float {
+    if (s.maxWaterKm.isFinite()) return min(1f, water)
+    val reachKm = s.dailyTravelKm * s.daysWithoutWater / 4f * (1f + 10f * s.waterFromFood * s.waterFromFood)
+    val r = waterKm / reachKm
+    return 1f / (1f + r * r)
 }
-
-/** [farKm]: the mean walk to water from the near zone, km: half an easy walk. */
-internal const val NEAR_KM = 0.5f * HexDrinkingWater.DRINK_KM
-
-/**
- * The share of place [p]'s far ground (beyond an easy walk of water) that [s] grazes this week, its food [wet] ([wetOf]):
- * the far ground lies at [farKm] from water on the mean, and the kind goes out to its reach ([Hazards.fetchKm]); the share
- * falls as the far ground's walk outgrows the reach, as the old tether did: half at the reach.
- */
-internal fun HexFauna.farReach(s: Species, p: Place, wet: Float): Float {
-    if (s.maxWaterKm.isFinite()) return 0f
-    return farReachAt(farKm(nearShare(p), land.drink.animalWaterKm(p)), Hazards.fetchKm(s, wet))
-}
-
-private fun farReachAt(farKm: Float, reachKm: Float): Float { val r = farKm / max(1e-3f, reachKm); return 1f / (1f + r * r) }
-
-/**
- * The share of its feeding time [s] keeps at place [p] for the walk to water and back as often as it drinks ([Hazards.drinkDays]):
- * the walk at [WATER_WALK_KMH] out of a feeding day of [WATER_FEED_HOURS], from the ground it grazes there (the near zone, and the far
- * zone as far as it reaches it). A cow grazing 5 km out from the water it drinks at daily walks 10 km a day for it,
- * some two and a half hours of her grazing day; a gazelle on green forage hardly ever goes.
- */
-internal fun HexFauna.walkKept(s: Species, p: Place): Float {
-    if (s.maxWaterKm.isFinite()) return 1f
-    val wet = wetOf(s, p); val near = nearShare(p)
-    if (near >= 0.999f) return walkKeptAt(s, 1f, 0f, NEAR_KM, wet)
-    return walkKeptAt(s, near, farReach(s, p, wet), farKm(near, land.drink.animalWaterKm(p)), wet)
-}
-
-private fun walkKeptAt(s: Species, near: Float, far: Float, farKm: Float, wet: Float): Float {
-    val used = near + (1f - near) * far
-    if (!(used > 0f)) return 1f
-    val km = (near * NEAR_KM + (1f - near) * far * farKm) / used
-    val perDay = 2f * km / Hazards.drinkDays(s, wet)
-    return max(0f, 1f - perDay / (WATER_WALK_KMH * WATER_FEED_HOURS))
-}
-
-/** [walkKept]: how fast an animal walks to water and back, km/h (cattle walk to water at some 3-5 km/h; from memory). */
-const val WATER_WALK_KMH = 4f
-/** [walkKept]: the hours of a grazer's day it would spend feeding (cattle graze some 8-11 hours a day; from memory). */
-const val WATER_FEED_HOURS = 10f
 
 /**
  * What place [p] offers kind [s] to live on, on [foodFor]'s scale: its plant food, and for the residents' hunters

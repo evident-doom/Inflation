@@ -582,8 +582,6 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         // How much of the place's food each kind can get at: cliffs keep all but climbers off some of
         // it, and far from water a kind that must drink often uses only the ground within reach of it.
         val avail = FloatArray(nk)
-        // (The share of its feeding time each kind keeps for the walk to water, [walkKept].)
-        val walk = FloatArray(nk)
         // (Of each kind's need: what it got of plants; what it ate beyond, laid on.)
         val got = FloatArray(nk); val surplus = FloatArray(nk)
         // (For the check: of what it got of plants, the shares of its need from fruit and from roots and mast.)
@@ -602,7 +600,7 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         val b = Bites()
         /** Zeroes what a place's week fills in, for the next place (the spare food, [access] and the eaten totals are set before they are read, [b] by each [forage]). */
         fun clear() {
-            need.fill(0f); each.fill(0f); avail.fill(0f); walk.fill(1f); got.fill(0f); surplus.fill(0f); gotFruit.fill(0f); gotUnder.fill(0f); gotMeat.fill(0f); gotSmall.fill(0f); gotCarrion.fill(0f); carrionKg.fill(0f); needKg.fill(0f); ateKg.fill(0f); proteinKg.fill(0f)
+            need.fill(0f); each.fill(0f); avail.fill(0f); got.fill(0f); surplus.fill(0f); gotFruit.fill(0f); gotUnder.fill(0f); gotMeat.fill(0f); gotSmall.fill(0f); gotCarrion.fill(0f); carrionKg.fill(0f); needKg.fill(0f); ateKg.fill(0f); proteinKg.fill(0f)
             eatG = 0f; eatB = 0f; eatF = 0f; eatR = 0f
             askG.fill(0f); askB.fill(0f); askF.fill(0f); askR.fill(0f); mode = FREE
         }

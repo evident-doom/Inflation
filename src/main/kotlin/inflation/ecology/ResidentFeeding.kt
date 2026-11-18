@@ -65,21 +65,8 @@ internal fun HexFauna.plantWant(k: FaunaKind, p: Place, weather: Weather): Float
         days / 1e6f * plantShare(s)
 }
 
-/**
- * How much of the food at place [p] kind [s] can get at, as one share for weighing a place ([fedOnSpare]): cliffs keep all
- * but climbers off some of it, a kind that must drink often uses only the ground within its reach of water and loses
- * feeding time to the walk there ([tether]), and biting insects cost it feeding time ([unbitten]). It feeds by
- * [foodAccess], with the walk in its cropping ([walkKept]).
- */
+/** How much of the food at place [p] kind [s] can get at: cliffs keep all but climbers off some of it, a kind that must drink often uses only the ground within reach of water, and biting insects cost it feeding time ([unbitten]). */
 internal fun HexFauna.reachOf(s: Species, p: Place) = HexFood.access(s, land.crag[p]) * tether(s, p) * unbitten(p)
-
-/**
- * The share of the food at place [p] kind [s] gets at as it feeds: the cliffs, the biting insects, and the ground within its
- * reach of water ([waterShare]); a hunter's hunting the walk to water too ([tether]). A plant-eater's walk is in its
- * cropping ([walkKept]).
- */
-internal fun HexFauna.foodAccess(s: Species, p: Place) =
-    HexFood.access(s, land.crag[p]) * unbitten(p) * (if (s.carnivore) tether(s, p) else waterShare(s, p))
 
 /**
  * The share of its feeding time kind [s] keeps at place [p] for the cover there: all for a kind that hides in thickets
@@ -169,7 +156,7 @@ internal fun HexFauna.cropBrowse(s: Species, p: Place) = cropRate(s, land.plants
  */
 private fun HexFauna.eatPlants(p: Place, weather: Weather, grass: Float, browse: Float, z: Grazing) {
     val quality = land.plants.nourishment(p)
-    val need = z.need; val each = z.each; val avail = z.avail; val walk = z.walk
+    val need = z.need; val each = z.each; val avail = z.avail
     for ((k, s) in kinds.withKinds()) {
         killRate[k]?.set(p, 0f)
         val heads = adults[k][p] + 0.5f * young[k][p]
@@ -181,9 +168,7 @@ private fun HexFauna.eatPlants(p: Place, weather: Weather, grass: Float, browse:
         each[k] = plantWant(k, p, weather)
         need[k] = heads * each[k]
         // (Biting insects harassing them cost them feeding time.)
-        avail[k] = foodAccess(s, p)
-        // (And the walk to water and back takes from its feeding time: [walkKept].)
-        walk[k.i] = if (s.carnivore) 1f else walkKept(s, p)
+        avail[k] = reachOf(s, p)
     }
     z.spareG = grass; z.spareB = browse; z.spareF = food.fruit[p]; z.spareR = food.underground(p)
     val b = z.b
@@ -193,7 +178,7 @@ private fun HexFauna.eatPlants(p: Place, weather: Weather, grass: Float, browse:
     fun eat(k: Int) {
         val s = kinds[k]
         z.kind = k; z.access = avail[k]
-        forage(s, leanDiet(s, p), quality, need[k], grassUnderSnow(s, snow), z, b, cropGrass(s, p) * walk[k], cropBrowse(s, p) * walk[k])
+        forage(s, leanDiet(s, p), quality, need[k], grassUnderSnow(s, snow), z, b, cropGrass(s, p), cropBrowse(s, p))
     }
     // What each asks of each food.
     z.mode = Grazing.ASKING
@@ -230,8 +215,8 @@ private fun HexFauna.eatPlants(p: Place, weather: Weather, grass: Float, browse:
         val extra = surplusShare(FaunaKind(k), p) * want / s.needScale
         val gb = (d.grass + d.browse).coerceAtLeast(1e-6f)
         val qs = s.selected(quality)
-        val grass3 = if (d.grass > 0f) z.grass(cropGrass(s, p) * walk[k] * grassUnderSnow(s, snow) * extra / qs * d.grass / gb) else 0f
-        val browse3 = if (d.browse > 0f) z.browse(cropBrowse(s, p) * walk[k] * extra / qs * d.browse / gb) else 0f
+        val grass3 = if (d.grass > 0f) z.grass(cropGrass(s, p) * grassUnderSnow(s, snow) * extra / qs * d.grass / gb) else 0f
+        val browse3 = if (d.browse > 0f) z.browse(cropBrowse(s, p) * extra / qs * d.browse / gb) else 0f
         z.surplus[k] = (grass3 + browse3) * qs * s.needScale / want
         z.eatG += grass3; z.eatB += browse3
     }

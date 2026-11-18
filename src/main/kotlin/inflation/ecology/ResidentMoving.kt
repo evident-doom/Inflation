@@ -222,7 +222,7 @@ internal fun HexFauna.appeal(k: FaunaKind, p: Place, weather: Weather): Float {
 }
 
 /** Whether [s] can drink at place [p] ([Hazards.canDrink]). */
-internal fun HexFauna.drinks(s: Species, p: Place) = Hazards.canDrink(land.drink, s, p, wetOf(s, p))
+internal fun HexFauna.drinks(s: Species, p: Place) = Hazards.canDrink(land.drink, s, p)
 
 /** What a place is worth to a kind for moving there: nothing when below nothing or not a number (see [shiftBands], [spill]). */
 internal fun HexFauna.worthOrNothing(w: Float) = if (w > 0f && w.isFinite()) w else 0f
