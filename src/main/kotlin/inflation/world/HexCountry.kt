@@ -60,7 +60,8 @@ class HexCountry(land: HexLand) : HexLandPart(land) {
         refresh()
     }
 
-    private fun refresh() {
+    /** Sets the waterlogged and edible shares and the kinds afresh from the water and plants as they stand (also after a saved run is loaded: [inflation.ecology.HexSnapshot.load]). */
+    internal fun refresh() {
         for (p in land.places) {
             land.waterlogged[p] = min(1f, tidalMarsh[p] + lowFlat[p] * sodden[p])
             swamp[p] = min(1f, tidalMangrove[p] + lowFlatSwamp[p] * sodden[p])

@@ -121,6 +121,8 @@ object HexSnapshot {
                 byName[name]?.let { restore.into(it, node) }
             }
             if (restore.dropped.isNotEmpty()) System.err.println("$file: the code no longer has, and so dropped: ${restore.dropped.joinToString(", ")}")
+            // (What the land works out from its saved water and plants, afresh, as the run that saved it had it.)
+            sim.land.country.refresh()
             return day
         }
     }
