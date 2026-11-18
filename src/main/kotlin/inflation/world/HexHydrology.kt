@@ -456,8 +456,9 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
      * One slope of place [p] through the step: its soil water [soil0] mm, [top0] of it in the top layer, takes in [inflow]
      * mm (the top layer first, the rest soaking down), and gives to the air what the plants on it transpire and its bare
      * ground evaporates against [demand] mm (the step's evaporative demand on that slope): each form by the share of the
-     * light its leaves take ([HexPlants.lightShares]) from the layers its roots reach ([TOP_ROOTS]), bare ground from the
-     * top layer only. Each draws at full rate until its layer is [UNSTRESSED] full, then less as it dries. Returns the water
+     * light its leaves take ([HexPlants.lightShares]) from the layers its roots reach ([TOP_ROOTS]), each at full rate until its
+     * layer is [UNSTRESSED] full, then less as it dries; bare ground from the uppermost [SKIN_SHARE] of the top layer only,
+     * which dries in days after rain and then shields the water under it. Returns the water
      * left, mm, with the deep layer's surplus over its capacity in it ([lastSurplus], to run off or soak into the rock);
      * [lastTop] is the top layer's.
      */
@@ -470,7 +471,8 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
         plants.lightShares(p, light)
         val herbs = light[0]; val shrubs = light[1]; val trees = light[2]; val bare = max(0f, 1f - herbs - shrubs - trees)
         val topStress = min(1f, top / (UNSTRESSED * tc)); val deepStress = min(1f, deep / (UNSTRESSED * dc))
-        val fromTop = demand * topStress * (herbs + bare + TOP_ROOTS[1] * shrubs + TOP_ROOTS[2] * trees)
+        val skinStress = ((top - (1f - SKIN_SHARE) * tc) / (SKIN_SHARE * tc)).coerceIn(0f, 1f)
+        val fromTop = demand * (topStress * (herbs + TOP_ROOTS[1] * shrubs + TOP_ROOTS[2] * trees) + skinStress * bare)
         val fromDeep = demand * deepStress * ((1f - TOP_ROOTS[1]) * shrubs + (1f - TOP_ROOTS[2]) * trees)
         top -= min(top, fromTop); deep -= min(deep, fromDeep)
         lastTop = top; lastSurplus = max(0f, deep - dc)
@@ -545,6 +547,12 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
          * soil whose woody roots reach about 1 m. A guess to source (root profiles of steppe grasses and dwarf shrubs).
          */
         const val TOP_SHARE = 0.35f
+        /**
+         * Share of the top layer's water that bare ground gives to the air: the uppermost 0.1 m of its 0.3 m, which dries within
+         * days of rain (a dry surface crust then all but stops evaporation: the soil's second stage of drying). Below it the
+         * water is left to the roots. A guess to source (Ritchie 1972 for the two stages).
+         */
+        const val SKIN_SHARE = 0.33f
         /**
          * Share of each form's water drawn from the top layer, by [LifeForm] order (herbs, shrubs, trees): grasses root in the
          * top, shrubs and trees mostly below it (Walter's two-layer model of dry grassland). Guesses to source.
