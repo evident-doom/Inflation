@@ -547,14 +547,14 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
          * their standing stock is held down too). Guesses: an understory of a few tenths of a kg/m² of shrubs and some tens
          * of g/m² of herbs under closed broadleaved forest, against kg and some hundreds of g in the open; not measured here.
          */
-        const val SHRUB_SHADE_CAP = 0.85f
-        const val HERB_SHADE_CAP = 0.8f
+        const val SHRUB_SHADE_CAP = 0f
+        const val HERB_SHADE_CAP = 0f
         /**
          * How much of the shrubs' ceiling a full sward takes in fully dry soil ([shrubRoom]), and the least it leaves them. A
          * guess, set so that a semi-arid steppe's sward (about 0.1-0.15 kg/m² of herbs, at 0.2-0.3 of the soil's water) holds
          * its shrubs to about half their ceiling; no measured value was found.
          */
-        const val GRASS_HOLD = 2.5f
+        const val GRASS_HOLD = 0f
         const val GRASS_HOLD_FLOOR = 0.15f
         const val SHRUB_RENEWAL = 0.2f
         const val TREE_RENEWAL = 0.04f
