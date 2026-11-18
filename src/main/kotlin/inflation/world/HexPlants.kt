@@ -189,8 +189,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
     fun groundCover(p: Place) = min(1f, herb[p] / LifeForm.HERB.maxBiomass + shrub[p] / 2f)
 
     fun ceiling(form: LifeForm, p: Place): Float {
-        val m0 = ((moisture[p] - form.moistureMin) / (form.moistureFull - form.moistureMin)).coerceIn(0f, 1f)
-        val m = if (form == LifeForm.SHRUB) m0 * m0 * m0 * m0 else m0
+        val m = ((moisture[p] - form.moistureMin) / (form.moistureFull - form.moistureMin)).coerceIn(0f, 1f)
         val t = ((warmth[p] - form.warmthMin) / (form.warmthFull - form.warmthMin)).coerceIn(0f, 1f)
         val soilF = soilOpen(p)
         val wetFactor = when (form) {
