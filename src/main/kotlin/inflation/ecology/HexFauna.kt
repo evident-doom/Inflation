@@ -178,8 +178,12 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
      * first step. What its usual numbers at a place go by ([usualAt]).
      */
     val foodMean: Array<FloatArray> = Array(kinds.size) { k -> if (!kinds[k].carnivore && !holdsByPrey(kinds[k])) FloatArray(n) { Float.NaN } else FloatArray(0) }
-    /** Each plant-eater's [foodMean] over the country it can live in, by [startWeight]: where it has its [usual] numbers. NaN until reckoned. */
-    @Transient internal val foodRef = FloatArray(kinds.size) { Float.NaN }
+    /**
+     * Each plant-eater's [foodMean] over the country it can live in, by [startWeight]: where it has its [usual] numbers.
+     * 0 until reckoned, and for every other kind. (Saved: reckoned at a step's start from the means then, so a run carried
+     * on from a save goes on as it would have.)
+     */
+    val foodRef = FloatArray(kinds.size)
     /** [foodRef]'s weights by kind and place ([startWeight]), reckoned once when first needed. */
     @Transient private var foodRefWeights: Array<FloatArray>? = null
     /**
@@ -216,7 +220,7 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
             if (m.isEmpty()) continue
             var sw = 0.0; var swf = 0.0
             for (p in 0 until n) { val f = m[p]; if (f.isNaN()) continue; sw += wk[p]; swf += wk[p] * f }
-            foodRef[k] = if (sw > 0.0) (swf / sw).toFloat() else Float.NaN
+            foodRef[k] = if (sw > 0.0) (swf / sw).toFloat() else 0f
         }
     }
     /** The sodium in each place's forage, a share of its dry matter, or [LICK] by a salt lick ([forageSodium], [saltBreeding]). */
