@@ -68,7 +68,7 @@ class WaysLog(private val sim: HexSim, file: File) {
         val (x, y) = hex.centreKm(here)
         row.append(',').append(here.i).append(',').append(place).append(',').append(hw.placeBand[place]).append(',').append(x).append(',').append(y)
             .append(',').append(sim.cfg.northLatitude - y / WorldConfig.KM_PER_DEGREE).append(',').append(hw.placeElevationM[place])
-            .append(',').append(Biome.entries[hw.placeBiome[place]].name.lowercase())
+            .append(',').append(Biome.entries[sim.land.country.kind[place]].name.lowercase())
             .append(',').append(sim.land.hydro.meanFlow[here]).append(',').append(riverKm[here]).append(',').append(coastKm[here])
             .append(',').append(if (from != here) 1 else 0).append(',').append(from.i).append(',').append(if (from != here) hex.distanceKm(from, here) else 0.0)
         for (v in inputs) row.append(',').append(v)

@@ -137,7 +137,7 @@ internal fun HexSmallLife.stepInsects(p: Place, t: Float): Float {
  */
 @Part("small life: biting insects")
 internal fun HexSmallLife.stepBiting(p: Place, active: Float, soilWater: Float, weather: Weather) {
-    val standing = land.hydro.flood[p] > 0f || wetland[p] > 0.1f || soilWater / land.hydro.soilCap[p] > 0.9f
+    val standing = land.hydro.flood[p] > 0f || wetland(p) > 0.1f || soilWater / land.hydro.soilCap[p] > 0.9f
     smallDead[p] += insectSeason(p, biting, dormantBiting, active, if (standing) 500f else 0f, least = 0f)
     harass[p] = harassmentNow(p, weather)
 }
