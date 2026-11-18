@@ -161,7 +161,7 @@ private fun HexFauna.growthFor(k: FaunaKind, parts: EnumFloats<Growth>, youngPer
 @IgnorableReturnValue private fun HexFauna.growthOf(k: FaunaKind, p: Place, grownFixed: Float, youngFixed: Float, huntedYoung: Float, protein: Float, youngPerGrown: Float,
                      carried: Float, f: Float, heads: Float, parts: EnumFloats<Growth>?): Float {
     val s = kinds[k]
-    val hunger = Hazards.hunger(s, moverSpent[k], Hazards.onFat(f, carried, days, 1f), days); val sick = Hazards.crowdBackstop(Hazards.crowding(heads + sharersKm2(k, p), usual[k]), f, years) + wetSickness(s, p, f) * years
+    val hunger = Hazards.hunger(s, moverSpent[k], Hazards.onFat(f, carried, days, 1f), days); val sick = Hazards.crowdBackstop(Hazards.crowding(heads + sharersKm2(k, p), usualAt(k.i, p)), f, years) + wetSickness(s, p, f) * years
     val due = dueYoung(k, p, heads, protein, min(1f, days / (s.birthMonths * Date.DAYS_PER_MONTH.toFloat())))
     val born = 0.5f * due * breeding(s, due, carried, f, days)
     val grownDie = (grownFixed + hunger + sick).coerceIn(0f, Hazards.MAX_GROWN_ODDS)

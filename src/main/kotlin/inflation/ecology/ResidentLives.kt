@@ -237,18 +237,26 @@ internal fun HexFauna.sharersKm2(k: FaunaKind, p: Place): Float = shared[k.i][p.
 
 /** Reckons [HexFauna.shared] from the numbers now ([sharersKm2]). */
 internal fun HexFauna.reckonShared() {
-    val rate = overTicks(HexFauna.GAME_WEEK)
+    val rate = overTicks(HexFauna.GAME_WEEK); val foodRate = overTicks(HexFauna.USUAL_FOOD_WEEK)
+    val usuals = ThreadLocal.withInitial { FloatArray(kinds.size) }
     Par.forEachPlace("residents: shared crowding", n) { p ->
+        // (Each against its usual numbers at the place, [usualAt]: on the ground's food for the plant-eaters, and the
+        // thicket kinds on the ground they hide in. Reckoned once a kind, as the step began.)
+        val u = usuals.get(); for (k in kinds.indices) u[k] = usualAt(k, p)
         for (k in kinds.indices) {
             val row = sharers[k]; var sum = 0f
             for (j in row.indices) { val w = row[j]; if (j == k || w <= 0f) continue
-                val h = adults[j][p] + young[j][p]; if (h > 0f) sum += w * h / usual[j] }
-            shared[k][p.i] = sum * usual[k]
+                val h = adults[j][p] + young[j][p]; if (h > 0f) sum += w * h / u[j] }
+            shared[k][p.i] = sum * u[k]
             // (And the prey of its size a hunter that holds ground by it has here, lately: [HexFauna.usualAt].)
             val g = gameMean[k]
             if (g.isNotEmpty()) { val now = preyBiomass(kinds[k], p); val m = g[p.i]; g[p.i] = if (m.isNaN()) now else m + (now - m) * rate }
+            // (And a plant-eater's food here, about a year's mean: [HexFauna.foodScale].)
+            val fm = foodMean[k]
+            if (fm.isNotEmpty()) { val now = foodFor(kinds[k], p); val m = fm[p.i]; fm[p.i] = if (m.isNaN()) now else m + (now - m) * foodRate }
         }
     }
+    if (tuning.usualByFood > 0f) reckonFoodRef()
 }
 
 /**

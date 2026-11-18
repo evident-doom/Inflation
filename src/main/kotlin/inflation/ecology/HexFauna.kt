@@ -173,6 +173,23 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
      */
     val gameMean: Array<FloatArray> = Array(kinds.size) { k -> if (holdsByPrey(kinds[k])) FloatArray(n) { Float.NaN } else FloatArray(0) }
     /**
+     * For each plant-eater (each kind not holding ground by its prey, [gameMean], nor a hunter), its food at each place,
+     * kg/m² as [foodFor] has it, a mean of about a year ([USUAL_FOOD_WEEK]); empty for every other kind. NaN until the
+     * first step. What its usual numbers at a place go by ([usualAt]).
+     */
+    val foodMean: Array<FloatArray> = Array(kinds.size) { k -> if (!kinds[k].carnivore && !holdsByPrey(kinds[k])) FloatArray(n) { Float.NaN } else FloatArray(0) }
+    /**
+     * Each plant-eater's [foodMean] over the country it can live in, by its area, climate and water ([foodRefWeights]): where it has its [usual] numbers.
+     * 0 until reckoned, and for every other kind. (Saved: reckoned at a step's start from the means then, so a run carried
+     * on from a save goes on as it would have.)
+     */
+    val foodRef = FloatArray(kinds.size)
+    /**
+     * [foodRef]'s weights by kind and place: [startWeight] without the cover it likes ([suits]), which changes as the plants
+     * grow; of the fixed facts of the place alone (area, climate, water), so the same whenever reckoned, and after a reload.
+     */
+    @Transient private var foodRefWeights: Array<FloatArray>? = null
+    /**
      * The density at place [p] at which kind [k] holds all the ground there is, heads per km²: for a hunter that lives
      * mainly on game it kills, as many as the prey of its size there lately holds at [PREY_SUPPORT] of its weight in
      * hunters (territories shrink where game is rich and spread where it is thin: wolves' numbers follow their prey's
@@ -180,9 +197,47 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
      */
     internal fun usualAt(k: Int, p: Place): Float {
         val g = gameMean[k]
-        if (g.isEmpty()) return usual[k]
+        if (g.isEmpty()) return usual[k] * foodScale(k, p) * hidingShare(k, p)
         val m = g[p.i]
         return if (m.isNaN()) usual[k] else max(TERRITORY_LEAST, PREY_SUPPORT * m / kinds[k].massKg)
+    }
+    /**
+     * How many times its [usual] numbers place [p] holds of plant-eater [k]: its food there ([foodMean]) against its
+     * food over the country it lives in ([foodRef]), to the power [Tuning.usualByFood], within [USUAL_FOOD_LEAST] and
+     * [USUAL_FOOD_MOST]. Damuth's densities are means over the country a kind lives in, rich and poor ground together;
+     * here rich ground holds more and poor less, as many over all. 1 for every other kind, and until the means are reckoned.
+     */
+    internal fun foodScale(k: Int, p: Place): Float {
+        val power = tuning.usualByFood; val m = foodMean[k]
+        if (power <= 0f || m.isEmpty()) return 1f
+        val f = m[p.i]; val r = foodRef[k]
+        if (f.isNaN() || !(r > 0f)) return 1f
+        return (f / r).pow(power).coerceIn(USUAL_FOOD_LEAST, USUAL_FOOD_MOST)
+    }
+    /**
+     * The share of place [p] that plant-eater [k] can live on, if it is one that hides in thickets ([Niches.Shelter.THICKET]):
+     * the ground its shelter covers there ([preyShelter]: the scrub and woods, and the reeds and water for those that take
+     * to them), as far as [Tuning.coverReach] times it, at least [HIDING_LEAST]. A place's cover is a mean over its ground:
+     * at a third, a boar, a deer or an elk lies up in the third that is thicket and feeds out from it, and the open rest
+     * is not its country; counted as all of it, the boar held the steppe as thick as the oak woods (cover 0.56 where they
+     * stood on the steppe, shrubs 1 kg/m²). 1 for every other kind.
+     */
+    internal fun hidingShare(k: Int, p: Place): Float {
+        val reach = tuning.coverReach; val s = kinds[k]
+        if (reach <= 0f || s.carnivore || Niches.Shelter.THICKET !in s.shelters) return 1f
+        return (reach * preyShelter(s, p)).coerceIn(HIDING_LEAST, 1f)
+    }
+    /** Reckons [foodRef] from [foodMean] ([foodScale]). */
+    internal fun reckonFoodRef() {
+        val w = foodRefWeights ?: Array(kinds.size) { k -> if (foodMean[k].isEmpty()) FloatArray(0) else FloatArray(n) { p -> val pl = Place(p); land.areaKm2[p] * climateSuits(kinds[k], pl) * usualTether(kinds[k], pl) } }
+            .also { foodRefWeights = it }
+        for (k in kinds.indices) {
+            val m = foodMean[k]; val wk = w[k]
+            if (m.isEmpty()) continue
+            var sw = 0.0; var swf = 0.0
+            for (p in 0 until n) { val f = m[p]; if (f.isNaN()) continue; sw += wk[p]; swf += wk[p] * f }
+            foodRef[k] = if (sw > 0.0) (swf / sw).toFloat() else 0f
+        }
     }
     /** The sodium in each place's forage, a share of its dry matter, or [LICK] by a salt lick ([forageSodium], [saltBreeding]). */
     @Transient internal val forageSodiumAt = forageSodium(hw, land)
@@ -862,6 +917,13 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         const val TERRITORY_LEAST = 1e-4f
         /** [gameMean]: the share of the way to the week's game it goes a week, about half a year's memory. */
         const val GAME_WEEK = 1f / 26f
+        /** [foodMean]: the share of the way to the week's food it goes a week, about a year's memory. */
+        const val USUAL_FOOD_WEEK = 1f / 52f
+        /** [foodScale]'s least and most: poor ground holds a tenth of a kind's usual numbers at least, rich four times at most (an estimate). */
+        const val USUAL_FOOD_LEAST = 0.1f
+        /** [hidingShare]'s least: a thicket kind holds a twentieth of its usual numbers on the openest ground (an estimate, so its crowding stays finite). */
+        const val HIDING_LEAST = 0.05f
+        const val USUAL_FOOD_MOST = 4f
         /** Whether resident kind [s] holds ground by the game it kills ([usualAt]): a hunter with game most of its diet. */
         fun holdsByPrey(s: Species) = s.carnivore && s.diet.meat > 0.5f * (s.diet.meat + s.diet.smallPrey + s.diet.carrion + s.diet.plants)
         /**
