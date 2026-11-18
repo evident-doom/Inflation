@@ -33,7 +33,7 @@ enum class LifeForm(
     val frostKill: Float,
 ) {
     HERB(0.6f, 12f, 0.05f, 0.35f, 4f, 12f, -45f),
-    SHRUB(3f, 0.8f, 0.12f, 0.45f, 6f, 14f, -30f),
+    SHRUB(3f, 0.8f, 0.2f, 0.45f, 6f, 14f, -30f),
     TREE(25f, 0.25f, 0.3f, 0.7f, 10f, 16f, -25f),
 }
 
@@ -189,8 +189,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
     fun groundCover(p: Place) = min(1f, herb[p] / LifeForm.HERB.maxBiomass + shrub[p] / 2f)
 
     fun ceiling(form: LifeForm, p: Place): Float {
-        val m0 = ((moisture[p] - form.moistureMin) / (form.moistureFull - form.moistureMin)).coerceIn(0f, 1f)
-        val m = if (form == LifeForm.SHRUB) m0 * m0 else m0
+        val m = ((moisture[p] - form.moistureMin) / (form.moistureFull - form.moistureMin)).coerceIn(0f, 1f)
         val t = ((warmth[p] - form.warmthMin) / (form.warmthFull - form.warmthMin)).coerceIn(0f, 1f)
         val soilF = soilOpen(p)
         val wetFactor = when (form) {
