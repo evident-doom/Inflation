@@ -136,7 +136,10 @@ internal fun GroupWorld.placeHazards(g: HexGroup, p: Place, weather: Weather, fe
     val (hunger, hungerYoung) = ageHunger(g, fed)
     // People keep warm as their body heat allows, through their clothes, fire, shelter and houses: past what they can
     // shiver up, they die of exposure. Animals feel the cold through their coats.
-    val exposure = b?.warmth(airAt(p, weather), fire, home, days, shelter)?.odds ?: 0f
+    // (Over a step of several ticks, each tick's air for its days, as the cold below and as the survival pass plans the fire and
+    // shelters against ([survivalDays]): the step's mean air blurred a month's cold weeks away.)
+    val exposure = if (b == null) 0f else if (ticks <= 1) b.warmth(airAt(p, weather), fire, home, days, shelter).odds
+        else weather.overTicks(p) { t -> b.warmth(airAt(p, weather, t), fire, home, fauna.clock.tickDays, shelter).odds }
     // (Each tick's cold or heat over a step of several, as it would have killed: [Weather.overTicks].)
     val cold = if (b != null) 0f else weather.overTicks(p) { Hazards.cold(s, it, weather.date.month) }; val heat = weather.overTicks(p) { Hazards.heat(s, it) }
     // An outbreak raging where it is kills its share.
