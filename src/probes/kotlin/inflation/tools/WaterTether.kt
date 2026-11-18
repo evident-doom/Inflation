@@ -121,12 +121,12 @@ fun main(args: Array<String>) {
     println("  heads/km² | share of kind | mean km to water | mean tether | can drink here | gone dry at all | fed")
     for (k in eaters) {
         val sp = fauna.kinds[k]
-        // (Its reach from water on dry and on green forage, [Hazards.fetchKm]: the far ground's share is halved there.)
-        val half = Hazards.fetchKm(sp, 0.5f)
+        // (The tether's reach, as ResidentHabitat.tetherAt has it: the pull is halved at this distance.)
+        val half = sp.dailyTravelKm * sp.daysWithoutWater / 4f * (1f + 10f * sp.waterFromFood * sp.waterFromFood)
         val all = kindAcc[k].sumOf { it[0] }
         if (all <= 0.0) { println("${sp.name}: none"); continue }
-        println("${sp.name}: reach from water %.1f km on dry forage, %.1f km on green, days without water %d, water from food %.2f".format(
-            half, Hazards.fetchKm(sp, 1f), sp.daysWithoutWater, sp.waterFromFood))
+        println("${sp.name}: tether half %.1f km, never dry within %.1f km, days without water %d, water from food %.2f".format(
+            half, Hazards.fetchKm(sp), sp.daysWithoutWater, sp.waterFromFood))
         for (b in shown) {
             val v = kindAcc[k][b]; val h = v[0]
             if (h / all < 0.005) continue
