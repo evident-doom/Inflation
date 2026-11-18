@@ -211,6 +211,12 @@ class Tuning(
      */
     val usualByFood = f("usualByFood", 1f)
     /**
+     * Residents: the share of a place a plant-eater that hides in thickets lives on, as so many times the share its shelter
+     * covers ([inflation.ecology.HexFauna.hidingShare]): 1 the covered ground alone, more as it feeds out into the open
+     * round it (an estimate); 0 all of every place.
+     */
+    val coverReach = f("coverReach", 1f)
+    /**
      * Residents: weeks between their moves (up and down the slopes, and spilling to the hexes about): the plant-eaters
      * flow a step each move, the hunters shift and spill what that many weeks' would ([inflation.ecology.HexFauna.spill]).
      * Three: moving every week (in up to nine passes) cost a quarter of the week's time. Against that, moving every three

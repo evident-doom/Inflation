@@ -197,7 +197,7 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
      */
     internal fun usualAt(k: Int, p: Place): Float {
         val g = gameMean[k]
-        if (g.isEmpty()) return usual[k] * foodScale(k, p)
+        if (g.isEmpty()) return usual[k] * foodScale(k, p) * hidingShare(k, p)
         val m = g[p.i]
         return if (m.isNaN()) usual[k] else max(TERRITORY_LEAST, PREY_SUPPORT * m / kinds[k].massKg)
     }
@@ -213,6 +213,19 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         val f = m[p.i]; val r = foodRef[k]
         if (f.isNaN() || !(r > 0f)) return 1f
         return (f / r).pow(power).coerceIn(USUAL_FOOD_LEAST, USUAL_FOOD_MOST)
+    }
+    /**
+     * The share of place [p] that plant-eater [k] can live on, if it is one that hides in thickets ([Niches.Shelter.THICKET]):
+     * the ground its shelter covers there ([preyShelter]: the scrub and woods, and the reeds and water for those that take
+     * to them), as far as [Tuning.coverReach] times it, at least [HIDING_LEAST]. A place's cover is a mean over its ground:
+     * at a third, a boar, a deer or an elk lies up in the third that is thicket and feeds out from it, and the open rest
+     * is not its country; counted as all of it, the boar held the steppe as thick as the oak woods (cover 0.56 where they
+     * stood on the steppe, shrubs 1 kg/m²). 1 for every other kind.
+     */
+    internal fun hidingShare(k: Int, p: Place): Float {
+        val reach = tuning.coverReach; val s = kinds[k]
+        if (reach <= 0f || s.carnivore || Niches.Shelter.THICKET !in s.shelters) return 1f
+        return (reach * preyShelter(s, p)).coerceIn(HIDING_LEAST, 1f)
     }
     /** Reckons [foodRef] from [foodMean] ([foodScale]). */
     internal fun reckonFoodRef() {
@@ -908,6 +921,8 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         const val USUAL_FOOD_WEEK = 1f / 52f
         /** [foodScale]'s least and most: poor ground holds a tenth of a kind's usual numbers at least, rich four times at most (an estimate). */
         const val USUAL_FOOD_LEAST = 0.1f
+        /** [hidingShare]'s least: a thicket kind holds a twentieth of its usual numbers on the openest ground (an estimate, so its crowding stays finite). */
+        const val HIDING_LEAST = 0.05f
         const val USUAL_FOOD_MOST = 4f
         /** Whether resident kind [s] holds ground by the game it kills ([usualAt]): a hunter with game most of its diet. */
         fun holdsByPrey(s: Species) = s.carnivore && s.diet.meat > 0.5f * (s.diet.meat + s.diet.smallPrey + s.diet.carrion + s.diet.plants)
