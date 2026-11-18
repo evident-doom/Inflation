@@ -70,6 +70,11 @@ class WeekStats {
      * from the odds by age and cause class ([Famine]). Census only, a report ledger, not saved: the famine-by-age check.
      */
     @Transient val famine = Array(Famine.entries.size) { DoubleAdder() }
+    /**
+     * Beasts in groups (packs and the like), by kind: their grown ones' steps by how fed over the step with their fat drawn
+     * on ([PackHunger]), and what that bucket held and lost. Census only, a report ledger, not saved: why packs starve at long steps.
+     */
+    @Transient val packHunger = ConcurrentHashMap<Species, Array<DoubleAdder>>()
     /** Young born this week by kind. */
     val births = TreeMap<Species, Int>(BY_NAME)
     /** The residents' deaths this week by "kind:cause", head (fractions: the residents are densities). */
@@ -765,4 +770,14 @@ object Tally {
 }
 
 /** The famine-by-age ledger's entries ([WeekStats.famine]): people-years by age, then deaths by age and cause class. */
+/**
+ * The pack-hunger ledger's entries ([WeekStats.packHunger]), each per bucket of fed with fat drawn on (under half, half to
+ * [WELL_FED], [WELL_FED] and over): grown head-years; grown-weighted sums of fed, fed with fat, fat (days), protein burnt
+ * as the step began (days); hunger deaths expected, grown and young; young head-years.
+ */
+enum class PackHunger { HEAD_YEARS, FED, ON_FAT, FAT_DAYS, SPENT_DAYS, GROWN_HUNGER, YOUNG_HUNGER, YOUNG_YEARS;
+    companion object { const val BUCKETS = 3; fun bucket(onFat: Float) = if (onFat < 0.5f) 0 else if (onFat < WELL_FED) 1 else 2
+        fun at(bucket: Int, e: PackHunger) = bucket * entries.size + e.ordinal }
+}
+
 enum class Famine { YEARS_GROWN, YEARS_YOUNG, YEARS_ELDERS, GROWN_HUNGER, GROWN_ILLNESS, GROWN_OTHER, YOUNG_HUNGER, YOUNG_ILLNESS, YOUNG_OTHER, ELDERS_ALL }

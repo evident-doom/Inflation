@@ -1,6 +1,7 @@
 package inflation.tools.fauna
 
 import inflation.ecology.Famine
+import inflation.ecology.PackHunger
 import inflation.EnumFloats
 import inflation.enumFloats
 import inflation.world.Hex
@@ -800,6 +801,23 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
                 per(v(Famine.GROWN_HUNGER), Famine.YEARS_GROWN), per(v(Famine.GROWN_ILLNESS), Famine.YEARS_GROWN), per(v(Famine.GROWN_OTHER), Famine.YEARS_GROWN),
                 per(v(Famine.YOUNG_HUNGER), Famine.YEARS_YOUNG), per(v(Famine.YOUNG_ILLNESS), Famine.YEARS_YOUNG), per(v(Famine.YOUNG_OTHER), Famine.YEARS_YOUNG),
                 per(v(Famine.ELDERS_ALL), Famine.YEARS_ELDERS), 1000.0 * (grownAll - v(Famine.ELDERS_ALL)) / primeYears))
+        }
+        run {
+            // (Beasts in groups by how fed over the step with their fat drawn on: share of grown head-years, mean fed, fed with
+            // fat, fat days, protein burnt as the step began, and hunger deaths per 1000 a year, grown and young, from the odds.)
+            val names = arrayOf("under half", "half to 0.9", "0.9 and over")
+            for ((sp, arr) in sim.groups.stats.packHunger.entries.sortedBy { it.key.name }) {
+                val v = arr.map { it.sumThenReset() }
+                fun at(b: Int, e: PackHunger) = v[PackHunger.at(b, e)]
+                val all = (0 until PackHunger.BUCKETS).sumOf { at(it, PackHunger.HEAD_YEARS) }
+                if (all <= 0.0) continue
+                println("     %s by how fed over the step, fat drawn on (share of grown head-years: fed, with fat, fat d, protein burnt d at start; hunger deaths per 1000 a year grown, young; %.0f grown head-years): ".format(sp.name, all) +
+                    (0 until PackHunger.BUCKETS).joinToString(", ") { b ->
+                        val y = at(b, PackHunger.HEAD_YEARS).coerceAtLeast(1e-9); val yy = at(b, PackHunger.YOUNG_YEARS).coerceAtLeast(1e-9)
+                        "%s %.1f%%: %.3f, %.3f, %.1f, %.2f; %.1f, %.1f".format(names[b], 100.0 * at(b, PackHunger.HEAD_YEARS) / all,
+                            at(b, PackHunger.FED) / y, at(b, PackHunger.ON_FAT) / y, at(b, PackHunger.FAT_DAYS) / y, at(b, PackHunger.SPENT_DAYS) / y,
+                            1000.0 * at(b, PackHunger.GROWN_HUNGER) / y, 1000.0 * at(b, PackHunger.YOUNG_HUNGER) / yy) })
+            }
         }
         val hex = sim.hex
         // (Bouts a 1000 a year: the people-weeks sick over the weeks a bout lasts, per person-year. Shigellosis 0.6-107 a 1000 a
