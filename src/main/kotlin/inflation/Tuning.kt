@@ -206,6 +206,11 @@ class Tuning(
      */
     val breedSpacing = f("breedSpacing", 1.5f)
     /**
+     * Residents: how far a plant-eater's usual numbers at a place follow its food there against its food over the country
+     * it lives in ([inflation.ecology.HexFauna.foodScale]), as a power: 0 the same everywhere (Damuth's rule by its size alone), 1 in proportion.
+     */
+    val usualByFood = f("usualByFood", 1f)
+    /**
      * Residents: weeks between their moves (up and down the slopes, and spilling to the hexes about): the plant-eaters
      * flow a step each move, the hunters shift and spill what that many weeks' would ([inflation.ecology.HexFauna.spill]).
      * Three: moving every week (in up to nine passes) cost a quarter of the week's time. Against that, moving every three
