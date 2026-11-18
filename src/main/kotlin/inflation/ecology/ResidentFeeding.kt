@@ -67,19 +67,19 @@ internal fun HexFauna.plantWant(k: FaunaKind, p: Place, weather: Weather): Float
 
 /**
  * How much of the food at place [p] kind [s] can get at, as one share for weighing a place ([fedOnSpare]): cliffs keep all
- * but climbers off some of it, a kind that must drink often uses only the ground within reach of water and loses feeding
- * time to the walk ([tether]), and biting insects cost it feeding time ([unbitten]). It feeds by [foodAccess], the water's
- * zones and walk on their own ([graze]).
+ * but climbers off some of it, a kind that must drink often uses only the ground within its reach of water and loses
+ * feeding time to the walk there ([tether]), and biting insects cost it feeding time ([unbitten]). It feeds by
+ * [foodAccess], with the walk in its cropping ([walkKept]).
  */
 internal fun HexFauna.reachOf(s: Species, p: Place) = HexFood.access(s, land.crag[p]) * tether(s, p) * unbitten(p)
 
 /**
- * The share of the food at place [p] kind [s] gets at as it feeds, before water: the cliffs and the biting insects. A
- * hunter's hunting keeps its water's [tether] too: it hunts the ground within reach of water. The plant-eaters' water is
- * in the grass's zones ([Grazing.grass], [farReach]) and the walk's feeding time ([walkKept]).
+ * The share of the food at place [p] kind [s] gets at as it feeds: the cliffs, the biting insects, and the ground within its
+ * reach of water ([waterShare]); a hunter's hunting the walk to water too ([tether]). A plant-eater's walk is in its
+ * cropping ([walkKept]).
  */
 internal fun HexFauna.foodAccess(s: Species, p: Place) =
-    HexFood.access(s, land.crag[p]) * unbitten(p) * (if (s.carnivore) tether(s, p) else 1f)
+    HexFood.access(s, land.crag[p]) * unbitten(p) * (if (s.carnivore) tether(s, p) else waterShare(s, p))
 
 /**
  * The share of its feeding time kind [s] keeps at place [p] for the cover there: all for a kind that hides in thickets
@@ -141,9 +141,6 @@ internal fun HexFauna.graze(weather: Weather) {
         // until the rains. Supply against demand:
         // (A week's reach a tick: over a step of several ticks, what they can take of it compounds, 1 - (1 - REACH)^ticks.)
         val reach = overTicks(REACH)
-        // (Regrowth evens the zones near water and far from it again: the new growth comes up alike on both.)
-        val pl = p.i
-        herbFar[pl] = 1f + (herbFar[pl] - 1f) * (1f - land.plants.herbNew[pl])
         // (Only the edible share of the plants, see [HexLand.palatable].)
         val grass = reach * land.palatable[p] * land.plants.herb[p]; val browse = land.plants.browse(p)
         // (Browse is the shoots the shrubs and trees put out within reach, see [HexPlants.shrubShoots].)
@@ -185,24 +182,17 @@ private fun HexFauna.eatPlants(p: Place, weather: Weather, grass: Float, browse:
         need[k] = heads * each[k]
         // (Biting insects harassing them cost them feeding time.)
         avail[k] = foodAccess(s, p)
-        // (Water: the far zone's grass as far as the kind's reach goes, [farReach]; the walk, in its cropping, [walkKept].)
-        z.farOf[k] = if (s.carnivore) 1f else farReach(s, p, wetOf(s, p))
-        walk[k.i] = walkKept(s, p)
+        // (And the walk to water and back takes from its feeding time: [walkKept].)
+        walk[k.i] = if (s.carnivore) 1f else walkKept(s, p)
     }
     z.spareG = grass; z.spareB = browse; z.spareF = food.fruit[p]; z.spareR = food.underground(p)
-    // The grass in the two zones: near water, cropped down by the daily drinkers, and far from it ([herbFar]).
-    val near = nearShare(p)
-    val farMost = if (near < 0.999f) 1f / (1f - near) else 1f
-    herbFar[p.i] = herbFar[p.i].coerceIn(0f, farMost)
-    z.spareGF = if (near < 0.999f) grass * (1f - near) * herbFar[p.i] else 0f
-    z.spareGN = grass - z.spareGF
     val b = z.b
     val gp = grassProtein(p); val bp = browseProtein(p)
     // (Each kind's crop of the grass and browse as they stand, and its depth of snow, the same in every turn.)
     val snow = weather.snowpack[p]
     fun eat(k: Int) {
         val s = kinds[k]
-        z.kind = k; z.access = avail[k]; z.far = z.farOf[k]
+        z.kind = k; z.access = avail[k]
         forage(s, leanDiet(s, p), quality, need[k], grassUnderSnow(s, snow), z, b, cropGrass(s, p) * walk[k], cropBrowse(s, p) * walk[k])
     }
     // What each asks of each food.
@@ -214,7 +204,7 @@ private fun HexFauna.eatPlants(p: Place, weather: Weather, grass: Float, browse:
         val r = if (sum > spare && sum > 0f) spare / sum else 1f
         for (k in byMass) cap[k] = r * asked[k]
     }
-    share(z.askGN, z.capGN, z.spareGN); share(z.askGF, z.capGF, z.spareGF); share(z.askB, z.capB, z.spareB); share(z.askF, z.capF, z.spareF); share(z.askR, z.capR, z.spareR)
+    share(z.askG, z.capG, z.spareG); share(z.askB, z.capB, z.spareB); share(z.askF, z.capF, z.spareF); share(z.askR, z.capR, z.spareR)
     z.mode = Grazing.SHARES
     for (k in byMass) {
         val s = kinds[k]
@@ -235,7 +225,7 @@ private fun HexFauna.eatPlants(p: Place, weather: Weather, grass: Float, browse:
         val want = need[k]
         if (want <= 0f || z.got[k] < 1f || reserve[k][p] >= s.maxFatDays) continue
         val d = s.diet
-        z.access = avail[k]; z.far = z.farOf[k]; z.kind = k
+        z.access = avail[k]
         // (In energy, as [forage] works: see [Species.needScale]; as far as it can crop them, as it fed.)
         val extra = surplusShare(FaunaKind(k), p) * want / s.needScale
         val gb = (d.grass + d.browse).coerceAtLeast(1e-6f)
@@ -453,14 +443,6 @@ private fun HexFauna.placeEffects(p: Place, grass: Float, browse: Float, z: Graz
     grazeLeft[p] = max(0f, grass - eatG); browseLeft[p] = max(0f, browse - eatB)
     val dug = food.takeUnderground(p, KgM2(z.eatR)).v
     val ate = food.take(food.fruit, p, KgM2(z.eatF)).v
-    // The far zone's grass after the week's grazing, against the place's mean ([herbFar]): what was eaten of each zone
-    // comes off that zone's stand.
-    val near = nearShare(p); val herb0 = land.plants.herb[p]
-    if (near < 0.999f && herb0 > 0f) {
-        val herb1 = max(0f, herb0 - eatG)
-        val far1 = max(0f, herb0 * (1f - near) * herbFar[p.i] - z.eatGF)
-        herbFar[p.i] = if (herb1 > 1e-9f) (far1 / ((1f - near) * herb1)).coerceIn(0f, 1f / (1f - near)) else 1f
-    }
     val eaten = land.plants.consume(p, LifeForm.HERB, KgM2(eatG)).v +
         land.plants.eatBrowse(p, KgM2(eatB)).v +
         ate + dug

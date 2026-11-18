@@ -36,8 +36,6 @@ fun main(args: Array<String>) {
     val bands = floatArrayOf(2f, 5f, 8f, 15f, 40f)
     // Land [biome]: within each band (5), km sum, standing water, area.
     val landAcc = Array(biomes.size) { DoubleArray(8) }
-    // The far zone's grass against the place's mean ([HexFauna.herbFar]), area-weighted, by kind of country.
-    val farGrass = DoubleArray(biomes.size)
     // Kinds [kind][biome]: heads, heads*km, heads*tether, heads drinking, heads dry, heads*fed, area-steps.
     val kindAcc = Array(fauna.kinds.size) { Array(biomes.size) { DoubleArray(6) } }
     // Kinds by month [kind][month]: heads, heads*km, heads*tether, heads drinking, heads dry, heads*fed.
@@ -64,7 +62,6 @@ fun main(args: Array<String>) {
             l[5] += km * a
             if (land.drink.animalWater(pl) >= 0.05f) l[6] += a
             l[7] += a
-            farGrass[b] += fauna.herbFar[p] * a
             val src = srcAcc[b][mo]; src[0] += a
             val snow = land.drink.snowWater[p] > 0f
             val pools = !snow && land.drink.water[p] >= 0.999f && land.drink.waterKm[p] == 0f
@@ -98,7 +95,7 @@ fun main(args: Array<String>) {
     for (b in shown) {
         val l = landAcc[b]; val a = l[7]
         println("  %-24s %4.1f%% of land: ".format(biomes[b].label, 100 * area[b] / area.sum()) +
-            (0 until 5).joinToString(" / ") { "%3.0f%%".format(100 * l[it] / a) } + " | %5.1f km | %3.0f%% | far grass against the mean %.2f".format(l[5] / a, 100 * l[6] / a, farGrass[b] / a))
+            (0 until 5).joinToString(" / ") { "%3.0f%%".format(100 * l[it] / a) } + " | %5.1f km | %3.0f%%".format(l[5] / a, 100 * l[6] / a))
     }
     println()
     println("LASTING WATER by kind of country (area-weighted): share of ground within 3 km of a stream (0.1 m³/s and more in a usual year) / fresh lake / spring; springs per 1000 km²")

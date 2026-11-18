@@ -177,12 +177,19 @@ internal fun HexFauna.ruggedFit(rugged: Float): FloatArray = (ruggedFits ?: Conc
  * Share of place [p]'s food that [s] can use for its water, and keep feeding on for the going to it: the ground within an
  * easy walk of water ([nearShare]) and the share of the far ground within its reach ([farReach]), less the feeding time
  * the walk to water costs it ([walkKept]). What a place is worth to it as it weighs where to go; it feeds by the same
- * rule, zone by zone ([HexFauna.graze]). Kinds bound to water (hippos) use only what lies by deep water.
+ * rule ([foodAccess], [walkKept]). Kinds bound to water (hippos) use only what lies by deep water.
  */
-fun HexFauna.tether(s: Species, p: Place): Float {
+fun HexFauna.tether(s: Species, p: Place): Float =
+    if (s.maxWaterKm.isFinite()) min(1f, land.drink.deep[p]) else waterShare(s, p) * walkKept(s, p)
+
+/**
+ * Share of place [p]'s ground [s] grazes for its water: the ground within an easy walk of water ([nearShare]) and the far
+ * ground as far as its reach goes ([farReach]). Kinds bound to water (hippos) use only what lies by deep water.
+ */
+fun HexFauna.waterShare(s: Species, p: Place): Float {
     if (s.maxWaterKm.isFinite()) return min(1f, land.drink.deep[p])
-    val near = nearShare(p); val far = farReach(s, p, wetOf(s, p))
-    return (near + (1f - near) * far) * walkKept(s, p)
+    val near = nearShare(p)
+    return near + (1f - near) * farReach(s, p, wetOf(s, p))
 }
 
 /** [tether] in an ordinary year: from the lasting water around, not this week's, and the place's usual green. */
@@ -203,9 +210,8 @@ private fun HexFauna.usualDeep(p: Place) =
 internal fun HexFauna.wetOf(s: Species, p: Place) = if (s.carnivore) 1f else 0.5f + 0.5f * land.plants.green[p]
 
 /**
- * The near zone of place [p] this week: the share of its ground within an easy walk ([HexDrinkingWater.DRINK_KM]) of water
- * an animal can drink, standing or running, or soft snow. Every kind grazes it; it is the ground the daily drinkers crop
- * down around the water (the piosphere).
+ * The share of place [p]'s ground within an easy walk ([HexDrinkingWater.DRINK_KM]) of water an animal can drink this
+ * week, standing or running, or soft snow: every kind grazes it.
  */
 internal fun HexFauna.nearShare(p: Place) = min(1f, land.drink.animalWater(p))
 

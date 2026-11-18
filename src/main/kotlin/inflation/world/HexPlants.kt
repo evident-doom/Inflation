@@ -60,8 +60,6 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
         return sum.toFloat()
     }
     val herb = FloatArray(n); val shrub = FloatArray(n); val tree = FloatArray(n)
-    /** The share of each place's herbs that grew this step (saved, as the residents graze by it after a load): what evens out the grazed and the ungrazed ground again ([inflation.ecology.HexFauna.herbFar]). */
-    val herbNew = FloatArray(n)
     val moisture = FloatArray(n) { p -> (mean(p) { world.climate.aridity(it) } / 1.5f).coerceIn(0f, 1f) }
     private val warmth = FloatArray(n) { p -> mean(p) { world.climate.warmestMonthTemp(it) } }
     val fertility = land.soilFertility.copyOf()
@@ -395,7 +393,6 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             // stands is leached of its protein, week by week, until rain sprouts it again. New growth makes
             // good what fell, and freshens the stand by its share of it.
             val grown = max(0f, herb[p] - herb0)
-            herbNew[p] = if (herb[p] > 1e-9f) min(1f, grown / herb[p]) else 1f
             hayFallen[p] = max(0f, hayFallen[p] - grown)
             if (tuning.hayWeathering > 0f) {
                 val kept = exp(-tuning.hayWeathering * years)

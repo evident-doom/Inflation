@@ -153,7 +153,7 @@ object Hazards {
      * How far from water an animal of [s] lives, km: half the going of the days between its drinks ([drinkDays]), out and
      * back. Khulan in the Gobi go a median 7.2 km from the water they drink at (mean 8.6; Kaczensky et al. 2020). The one
      * reach of the water rules: where it can drink ([canDrink]) and how much of a place's far ground it grazes
-     * ([HexFauna.farReach]).
+     * ([farReach]).
      */
     fun fetchKm(s: Species, wet: Float = 1f) = 0.5f * s.dailyTravelKm * drinkDays(s, wet)
 

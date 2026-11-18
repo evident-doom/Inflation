@@ -582,6 +582,8 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         // How much of the place's food each kind can get at: cliffs keep all but climbers off some of
         // it, and far from water a kind that must drink often uses only the ground within reach of it.
         val avail = FloatArray(nk)
+        // (The share of its feeding time each kind keeps for the walk to water, [walkKept].)
+        val walk = FloatArray(nk)
         // (Of each kind's need: what it got of plants; what it ate beyond, laid on.)
         val got = FloatArray(nk); val surplus = FloatArray(nk)
         // (For the check: of what it got of plants, the shares of its need from fruit and from roots and mast.)
@@ -594,22 +596,15 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         // little; see [proteinMet]. What it ate to fatten is left out.)
         val ateKg = FloatArray(nk); val proteinKg = FloatArray(nk)
         var spareG = 0f; var spareB = 0f; var spareF = 0f; var spareR = 0f
-        // (The grass in the place's two zones, near water and far from it ([nearShare]): spareG is their sum.)
-        var spareGN = 0f; var spareGF = 0f
-        // (The share of the food the kind eating now can get at; and of the far zone's grass, the share within its reach of water ([farReach]).)
-        var access = 0f; var far = 1f
-        // (Each kind's reach into the far zone, [farReach], set with [avail].)
-        val farOf = FloatArray(nk)
-        // (Each kind's feeding time kept for the walk to water, [walkKept].)
-        val walk = FloatArray(nk)
+        // (The share of the food the kind eating now can get at.)
+        var access = 0f
         var eatG = 0f; var eatB = 0f; var eatF = 0f; var eatR = 0f
-        var eatGN = 0f; var eatGF = 0f
         val b = Bites()
         /** Zeroes what a place's week fills in, for the next place (the spare food, [access] and the eaten totals are set before they are read, [b] by each [forage]). */
         fun clear() {
-            need.fill(0f); each.fill(0f); avail.fill(0f); got.fill(0f); surplus.fill(0f); gotFruit.fill(0f); gotUnder.fill(0f); gotMeat.fill(0f); gotSmall.fill(0f); gotCarrion.fill(0f); carrionKg.fill(0f); needKg.fill(0f); ateKg.fill(0f); proteinKg.fill(0f)
-            eatG = 0f; eatB = 0f; eatF = 0f; eatR = 0f; eatGN = 0f; eatGF = 0f; far = 1f; farOf.fill(1f); walk.fill(1f)
-            askG.fill(0f); askB.fill(0f); askF.fill(0f); askR.fill(0f); askGN.fill(0f); askGF.fill(0f); mode = FREE
+            need.fill(0f); each.fill(0f); avail.fill(0f); walk.fill(1f); got.fill(0f); surplus.fill(0f); gotFruit.fill(0f); gotUnder.fill(0f); gotMeat.fill(0f); gotSmall.fill(0f); gotCarrion.fill(0f); carrionKg.fill(0f); needKg.fill(0f); ateKg.fill(0f); proteinKg.fill(0f)
+            eatG = 0f; eatB = 0f; eatF = 0f; eatR = 0f
+            askG.fill(0f); askB.fill(0f); askF.fill(0f); askR.fill(0f); mode = FREE
         }
         // (The feeding is shared out in turns, [eatPlants]: first each kind asks what it would eat of the food there
         // ([ASKING]: noted in [askG] and the rest, nothing eaten), then each eats its share of what was asked of each food
@@ -617,7 +612,6 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         var mode = FREE; var kind = 0
         val askG = FloatArray(nk); val askB = FloatArray(nk); val askF = FloatArray(nk); val askR = FloatArray(nk)
         val capG = FloatArray(nk); val capB = FloatArray(nk); val capF = FloatArray(nk); val capR = FloatArray(nk)
-        val askGN = FloatArray(nk); val askGF = FloatArray(nk); val capGN = FloatArray(nk); val capGF = FloatArray(nk)
         private inline fun take(kg: Float, spare: Float, ask: FloatArray, cap: FloatArray, eat: (Float) -> Unit): Float {
             var t = min(kg, access * spare)
             when (mode) {
@@ -626,35 +620,12 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
             }
             eat(t); return t
         }
-        /**
-         * Grass from the two zones: the near zone as far as the kind gets at the place ([access]), the far zone as far as
-         * that and its reach of water go ([far]); from each by what stands there within its reach, so a kind that ranges
-         * far takes more of the far grass as the near is cropped down. In [SHARES] each zone is shared out on its own.
-         */
-        override fun grass(kg: Float): Float {
-            val avN = access * max(0f, spareGN); val avF = access * far * max(0f, spareGF); val av = avN + avF
-            val t = min(kg, av)
-            if (!(t > 0f)) return 0f
-            var tn = t * avN / av; var tf = t - tn
-            when (mode) {
-                ASKING -> { askG[kind] += t; askGN[kind] += tn; askGF[kind] += tf; return t }
-                SHARES -> { tn = min(tn, capGN[kind]); tf = min(tf, capGF[kind]); capGN[kind] -= tn; capGF[kind] -= tf }
-            }
-            spareGN -= tn; spareGF -= tf; spareG = spareGN + spareGF; eatGN += tn; eatGF += tf
-            return tn + tf
-        }
+        override fun grass(kg: Float): Float = take(kg, spareG, askG, capG) { spareG -= it }
         override fun browse(kg: Float): Float = take(kg, spareB, askB, capB) { spareB -= it }
         override fun fruit(kg: Float): Float = take(kg, spareF, askF, capF) { spareF -= it }
         override fun roots(kg: Float): Float = take(kg, spareR, askR, capR) { spareR -= it }
         companion object { const val ASKING = 0; const val SHARES = 1; const val FREE = 2 }
     }
-
-    /**
-     * Each place's far-zone grass ([nearShare]: its ground beyond an easy walk of water) against the place's mean, 1 when both
-     * zones stand alike: the daily drinkers crop the near zone down and leave the far to those that range from water
-     * ([graze]); regrowth evens them again ([inflation.world.HexPlants.herbNew]). A save without it starts even.
-     */
-    val herbFar = FloatArray(n) { 1f }
 
     /** One thread's [Grazing], cleared for each place it grazes ([graze]): made once, not afresh for every place every week. */
     @Transient internal val grazings = ThreadLocal.withInitial { Grazing(kinds.size) }
