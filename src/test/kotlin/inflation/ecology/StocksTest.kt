@@ -91,6 +91,8 @@ class StocksTest {
             // Ash is mm of rock, not living or dead matter; the grass that fell to the litter is a memory of the stand (the
             // litter holds its mass).
             "HexPlants.ash", "HexPlants.hayFallen",
+            // Weeks of drought the woody plants have had, not matter.
+            "HexPlants.droughtShrub", "HexPlants.droughtTree",
             // Part of a stock already counted, or a sum of stocks: the nests are part of their kinds; birds sum [bird];
             // the week's carcasses pass to the carrion within the step (booked as a flow each way); what is left to
             // graze or browse is part of the plants.
