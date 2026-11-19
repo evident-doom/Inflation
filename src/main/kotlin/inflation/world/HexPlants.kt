@@ -187,15 +187,19 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
     fun biomass(p: Place) = herb[p] + shrub[p] + tree[p]
     fun canopy(p: Place) = min(1f, tree[p] / (0.4f * LifeForm.TREE.maxBiomass))
     /**
-     * The share of the light at place [p] the trees' leaves take: a stand's leaf mass levels off once its crowns close, so
-     * the light it takes grows with its mass only while it is young ([TREE_CLOSED_KG]); the wood it lays on after does not
-     * add to it. ([canopy], the cover the crowns give, is the forest's structure for the animals and stays as it was.)
+     * The share of the light at place [p] the trees' leaves take, which is the share of its ground under their crowns (the
+     * crowns let little through; the rest of the ground is open to the sky): a stand's leaf mass levels off once its crowns
+     * close, so the light it takes grows with its mass only while it is young ([TREE_CLOSED_KG]); the wood it lays on after
+     * does not add to it. ([canopy], the cover the crowns give, is the forest's structure for the animals and stays as it was.)
      */
     fun treeLight(p: Place) = (1f - GAP_SHARE) * (1f - exp(-tree[p] / TREE_CLOSED_KG))
     /**
      * The shares of the light at place [p] taken by the leaves of its herbs, shrubs and trees, into [out] in that order (the
-     * rest falls on bare ground): the trees' crowns first ([treeLight]), then the shrubs under and between them, standing over
-     * the herbs, then the herbs in leaf in what light is left, each by Beer's law on its leaf area ([LIGHT_K]). What each takes
+     * rest falls on bare ground): the trees' crowns first ([treeLight]), then the shrubs on the ground open to the sky between
+     * them, standing over the herbs, then the herbs in leaf in what light is left, each by Beer's law on its leaf area
+     * ([LIGHT_K]). The shrubs and herbs grow where the light is, so their leaf area is that of their mass on the open ground,
+     * not spread over the ground the crowns shade. (Spread under the crowns as dim light, a sparse understory's few leaves
+     * took a ninth of what they take in the open, and closed forest's shrubs starved to 0.03 kg/m²: plants-final-ab3.) What each takes
      * is its share of the water the place gives to the air ([HexHydrology.step]). (With shrubs and herbs as one layer split by
      * leaf area, a sparse shrub stand's few leaves lost to the sward's many and shrubs died out everywhere: plants-final-ab.)
      */
@@ -203,9 +207,12 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
         val trees = treeLight(p)
         out[0] = herbLight(p, trees); out[1] = shrubLight(p, trees); out[2] = trees
     }
-    /** Leaf area of place [p]'s shrubs, and of its herbs in leaf ([inLeaf]): these on at least [HERB_SWARD] kg/m² (see there). */
-    private fun shrubLeaf(p: Place) = SHRUB_LAI_MAX * (1f - exp(-shrub[p] / SHRUB_CLOSED_KG))
-    private fun herbLeaf(p: Place) = HERB_LAI_PER_KG * max(herb[p], HERB_SWARD) * max(green[p], inLeaf(p))
+    /**
+     * Leaf area of place [p]'s shrubs, and of its herbs in leaf ([inLeaf]), on the [open] share of its ground they stand on:
+     * the herbs on at least [HERB_SWARD] kg/m² of it (see there).
+     */
+    private fun shrubLeaf(p: Place, open: Float) = SHRUB_LAI_MAX * (1f - exp(-shrub[p] / open / SHRUB_CLOSED_KG))
+    private fun herbLeaf(p: Place, open: Float) = HERB_LAI_PER_KG * max(herb[p] / open, HERB_SWARD) * max(green[p], inLeaf(p))
     /**
      * The share of place [p]'s sward in leaf, 0..1: all of it in growing weather, but for the annuals that have cured (their
      * perennials stay in leaf). [green] says how fast the sward grows; this, how much of it has leaves out to take the light,
@@ -216,9 +223,9 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
         val shaded = land.slopeShade[p]
         return (1 - shaded) * (if (cured[p]) perennialShare[p] else 1f) + shaded * (if (curedShade[p]) perennialShare[p] else 1f)
     }
-    /** The light the shrubs take under the trees' [trees] share, and the herbs under both. */
-    private fun shrubLight(p: Place, trees: Float) = (1f - trees) * (1f - exp(-LIGHT_K * shrubLeaf(p)))
-    private fun herbLight(p: Place, trees: Float) = (1f - trees - shrubLight(p, trees)) * (1f - exp(-LIGHT_K * herbLeaf(p)))
+    /** The light the shrubs take on the ground open between the trees' crowns (their [trees] share), and the herbs under the shrubs. */
+    private fun shrubLight(p: Place, trees: Float) = (1f - trees) * (1f - exp(-LIGHT_K * shrubLeaf(p, 1f - trees)))
+    private fun herbLight(p: Place, trees: Float) = (1f - trees - shrubLight(p, trees)) * (1f - exp(-LIGHT_K * herbLeaf(p, 1f - trees)))
     /** Cover to hide in at place [p], 0..1: scrub and forest. */
     fun cover(p: Place) = min(1f, shrub[p] / 2f + canopy(p))
     /** Cover on the ground at place [p], 0..1, that small game hides in: standing grass and herbs (full at their most) and scrub; fire and grazing take it off. */
@@ -452,7 +459,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             // (they drown), so the woods of the rest of the place do not shade it.
             val active = (1 - shaded) * (if (cured[p]) perennialShare[p] else 1f) + shaded * (if (curedShade[p]) perennialShare[p] else 1f)
             val sodden = min(wetShare, hydro.saturatedFloor(p))
-            val meadow = 1f - exp(-LIGHT_K * max(herbLeaf(p), MEADOW_LAI))
+            val meadow = 1f - exp(-LIGHT_K * max(herbLeaf(p, 1f), MEADOW_LAI))
             val herbWater = openShare * growing * active * hydro.transpired[0][p] +
                 hydro.demandMm[p] * (meadow * (HexHydrology.SEEP_SHARE * seepGrowth + sodden * wetGrowth) + herbs * (wetShare - sodden) * wetGrowth)
             val gHerb = WUE_KG_PER_MM * soil(p) * herbWater * (1f - 0.5f * lawn - 0.2f * rooted)
@@ -602,7 +609,6 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
          * germinates after the first soaking autumn rain of about 20 mm (a "germination rain").
          */
         const val GERMINATION_MM = 20f
-        /** Share of shrubs' and trees' standing mass renewed as leaves and twigs a year (as shed into the litter). */
         /** Light extinction of a stand's leaves (Beer's law): about 0.5 for most canopies (Monsi & Saeki 1953, from memory). */
         const val LIGHT_K = 0.5f
         /**
@@ -617,6 +623,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
          */
         const val SHRUB_LAI_MAX = 3f
         const val SHRUB_CLOSED_KG = 1f
+        /** Share of shrubs' and trees' standing mass renewed as leaves and twigs a year (as shed into the litter). */
         const val SHRUB_RENEWAL = 0.2f
         const val TREE_RENEWAL = 0.04f
         /** Share of the green herbs renewed as leaves a year (shed to the litter as new leaves grow); a guess to source. */
@@ -631,8 +638,8 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
         /** The tree stand, kg/m², whose crowns take 1-1/e of the light ([treeLight]): young stands close their canopy at a few kg. A guess to source. */
         const val TREE_CLOSED_KG = 3f
         /**
-         * Share of even a closed forest open to the sky in gaps where old trees have fallen, where its shrubs and herbs grow
-         * ([treeLight]): about a tenth of old-growth broadleaf forest (Runkle 1982, Ecology 63:1533, from memory). Without
+         * Share of even a closed forest's ground open to the sky in gaps where old trees have fallen, where its shrubs and
+         * herbs grow in full light ([treeLight], [lightShares]): about a tenth of old-growth broadleaf forest (Runkle 1982, Ecology 63:1533, from memory). Without
          * it the understory of closed forest starved toward nothing (meadow-ab: temperate forest shrubs 1.34 -> 0.22 kg/m²
          * in 10 years and still falling).
          */
