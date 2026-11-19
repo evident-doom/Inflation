@@ -919,5 +919,8 @@ private fun HexGroups.bookPackHunger(g: HexGroup, hazards: List<Hazard>) {
     if (g.home.none) add(PackHunger.HOMELESS_YEARS, w)
     if (!g.stepKilled) add(PackHunger.NO_KILL_YEARS, w)
     add(PackHunger.KILLS_EXPECTED, w * g.stepKillsExpected)
+    add(when (g.stepStop) { 0 -> PackHunger.STOP_FED; 1 -> PackHunger.STOP_DAYS; else -> PackHunger.STOP_PASSES }, w)
+    add(PackHunger.PASSES, w * g.stepPasses); add(PackHunger.WORK_DAYS, w * g.stepWorkDays); add(PackHunger.OWED_DAYS, w * g.stepOwed)
+    add(PackHunger.BUSY_DAYS, w * g.stepBusy); add(PackHunger.SEARCH_DAYS, w * g.stepSearch); add(PackHunger.KILLS_FIRST_PASS, w * g.stepKills0)
     add(PackHunger.GROWN_HUNGER, grown * min(1f, ha)); add(PackHunger.YOUNG_HUNGER, g.young * min(1f, hy))
 }

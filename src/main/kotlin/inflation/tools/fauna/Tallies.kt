@@ -818,6 +818,13 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
                             at(b, PackHunger.FED) / y, at(b, PackHunger.ON_FAT) / y, at(b, PackHunger.FAT_DAYS) / y, at(b, PackHunger.SPENT_DAYS) / y,
                             1000.0 * at(b, PackHunger.GROWN_HUNGER) / y, 1000.0 * at(b, PackHunger.YOUNG_HUNGER) / yy,
                             100.0 * at(b, PackHunger.HOMELESS_YEARS) / y, 100.0 * at(b, PackHunger.NO_KILL_YEARS) / y, at(b, PackHunger.KILLS_EXPECTED) / y) })
+                println("     %s's forage passes by how fed (stopped fed, out of days, out of passes; passes, work days, owed from the step before, handling, searching, kills expected in the first pass): ".format(sp.name) +
+                    (0 until PackHunger.BUCKETS).joinToString(", ") { b ->
+                        val y = at(b, PackHunger.HEAD_YEARS).coerceAtLeast(1e-9)
+                        "%s: %.0f%%, %.0f%%, %.0f%%; %.1f, %.1f, %.1f, %.1f, %.1f, %.2f".format(names[b],
+                            100.0 * at(b, PackHunger.STOP_FED) / y, 100.0 * at(b, PackHunger.STOP_DAYS) / y, 100.0 * at(b, PackHunger.STOP_PASSES) / y,
+                            at(b, PackHunger.PASSES) / y, at(b, PackHunger.WORK_DAYS) / y, at(b, PackHunger.OWED_DAYS) / y, at(b, PackHunger.BUSY_DAYS) / y,
+                            at(b, PackHunger.SEARCH_DAYS) / y, at(b, PackHunger.KILLS_FIRST_PASS) / y) })
             }
         }
         val hex = sim.hex
