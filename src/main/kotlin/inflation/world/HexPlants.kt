@@ -8,6 +8,7 @@ import inflation.KgM2
 import inflation.Tuning
 
 import kotlin.math.exp
+import kotlin.math.ln
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
@@ -194,12 +195,26 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
      * Share of each place's ground in glades, 0..1: of its ground open to the sky between the trees' crowns ([treeLight]), the
      * part gathered into openings wide enough to lie in full sun; the rest lies scattered between the crowns, in their shade
      * much of the day. It is how unevenly the woods stand: none, an even, thin wood; all the open ground, groves and open
-     * glades. Fire opens glades where it kills trees ([HexFires.burn]); new crowns close the open ground where its light is
-     * ([closeGlades]); it never falls below the gaps old trees leave as they fall, or the crags ([gladeFloor]). One number
+     * glades. Fire opens glades where it kills trees ([HexFires.burn]), and so do trees that fall where hooves and browsers
+     * keep their saplings down; new crowns close the open ground where its light is, the glades as far as their seedlings
+     * come through the herds that feed there ([closeGlades]); it never falls below the gaps old trees leave as they fall,
+     * or the crags ([gladeFloor]). A new world's glades are as dry country has them ([startGlade]). One number
      * for a place's mosaic, which keeps the plants one stock each: the rules that bend sharply on cover read the place as its
      * glades and its wood ([understoryLight], [HexFires], [overCover]).
      */
-    val glade = FloatArray(n) { p -> gladeFloor(Place(p), treeLight(Place(p))) }
+    val glade = FloatArray(n) { p -> startGlade(Place(p)) }
+    /** Whether the glades have been set; a world saved before they were kept gets its first guess on its own trees ([startGlade]) at its first step. */
+    private var gladeSet = false
+    /**
+     * Place [p]'s glades in a new world, with no history of fire or herds to have shaped them: of its open ground, as much as
+     * its climate is dry ([moisture]; none where it is wet through). Dry woods stand in clumps and groves with open grass between
+     * (the tree-grass mosaics of savanna and steppe woodland, Scholes and Archer 1997, from memory); wet ones close evenly.
+     * A first guess the fires and herds then work on, at least the [gladeFloor].
+     */
+    private fun startGlade(p: Place): Float {
+        val crowns = treeLight(p)
+        return max(gladeFloor(p, crowns), (1f - crowns) * (1f - moisture[p]).coerceIn(0f, 1f))
+    }
     /**
      * The least of place [p]'s ground in glades where the trees' crowns cover [crowns] of it: the gaps fallen trees open in a
      * stand, [GAP_SHARE] of its own ground, and the crags (slopes over 45%, [HexLand.crag]) as far as they lie open; never more
@@ -208,18 +223,39 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
     fun gladeFloor(p: Place, crowns: Float): Float =
         min(1f - crowns, max(crowns * GAP_SHARE / (1f - GAP_SHARE), land.crag[p] * (1f - crowns)))
     /**
-     * Closes place [p]'s glades as its crowns spread from [before] to [after] (shares of its ground): new crowns, the seedlings'
-     * and the old trees' spreading alike, take the open ground where its light is, the glades by their share of the light
-     * reaching the open ground ([understoryLight]). Thinning (drought, frost, cutting) opens the ground between crowns and
-     * leaves the glades as they were. Then keeps the glades within their floor and the open ground.
+     * Opens and closes place [p]'s glades over a step of [years], as its crowns spread or thin from [before] to [after] (shares
+     * of its ground), under herds that trod [trodRate] of the ground in a seedling's [SEEDLING_YEARS] and browsed [browsed]
+     * of the shoots ([step]). The herds walk where they feed, on the herbs and shrubs, so they tread the glades as much more
+     * than the ground at large as the understory there is thicker ([gladeUnderstory]); the browsers take the same share of
+     * every shoot wherever it stands. A seedling comes through where hoof and mouth spare it ([seedlingsLive]).
+     * - Old trees fall, [GAP_FALL] of the crowns a year: a gap is open, lit ground like a glade, and fills again from the
+     *   saplings in it as far as they come through; the rest is left open and joins the glades.
+     * - New crowns take the open ground where its light is, the glades by their share of the light reaching it
+     *   ([understoryLight]), as far as seedlings come through there; the rest spreads into the openings between crowns.
+     *   Thinning (drought, frost) opens the ground between crowns and leaves the glades as they were.
+     * - The crowns cannot stand in glades the herds hold open: where these leave too little ground, the trees are cut back to
+     *   the rest ([crownsAt]), what dies falling to the litter. Then the glades are kept within their floor and the open ground.
+     * Without herds the glades close to their floor; under them they open as far as the trees' falling and the seedlings that
+     * come through balance: the herds' hold on the shape of the woods (the shifting mosaics of grazed wood pasture, Olff et al.
+     * 1999, Vera 2000, from memory; how far it held in Europe's prehistoric woods is disputed).
      */
-    private fun closeGlades(p: Place, before: Float, after: Float) {
+    private fun closeGlades(p: Place, before: Float, after: Float, years: Float, trodRate: Float, browsed: Float) {
+        val g = gladeArea(p); val m = gladeUnderstory(p)
+        val live = seedlingsLive(trodRate * (if (g > 1e-6f) m / g else 1f), browsed)
+        glade[p] += before * GAP_FALL * years * (1f - live)
         if (after > before) {
             val lit = understoryLight(p, before)
-            if (lit > 1e-6f) glade[p] -= (after - before) * min(glade[p], 1f - before) / lit
+            if (lit > 1e-6f) glade[p] -= (after - before) * min(glade[p], 1f - before) / lit * live
         }
-        glade[p] = glade[p].coerceIn(gladeFloor(p, after), 1f - after)
+        glade[p] = max(glade[p], gladeFloor(p, after)).coerceAtMost(1f)
+        if (after > 1f - glade[p]) { tree[p] = min(tree[p], crownsAt(1f - glade[p])); glade[p] = max(glade[p], gladeFloor(p, treeLight(p))) }
+        glade[p] = glade[p].coerceAtMost(1f - treeLight(p))
     }
+    /** Share of tree and shrub seedlings that live where [trodRate] of the ground is trodden over their growing years and [browsed] of the shoots eaten ([step]). */
+    private fun seedlingsLive(trodRate: Float, browsed: Float) = exp(-trodRate) * (1f - 0.9f * min(1f, browsed))
+    /** The tree biomass, kg/m², whose crowns cover [share] of the ground ([treeLight]); any where it is beyond their reach. */
+    private fun crownsAt(share: Float): Float =
+        if (share >= 1f - GAP_SHARE) Float.MAX_VALUE else -TREE_CLOSED_KG * ln(1f - max(0f, share) / (1f - GAP_SHARE))
     /** Share of place [p]'s ground in glades ([glade], within its open ground). */
     fun gladeArea(p: Place) = min(glade[p], 1f - treeLight(p))
     /** Share of place [p]'s shrubs and herbs that grow in its glades: they grow where the light is ([understoryLight]). */
@@ -424,6 +460,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             }
             shootsSet = true
         }
+        if (!gladeSet) { for (p in land.places) glade[p] = startGlade(p); gladeSet = true }
         val shootsKept = exp(-years)
         // (The rules set as a share a tick at [SET_AT_DAYS] a tick, as a rate a day: the same at that tick, and as much in
         // a month at any other. The plants' warmth rises halfway to a warmer tick's in one; frost and floods take their share.)
@@ -495,7 +532,8 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             val shrubSeedHere = max(shrubSeed[p], animalSeed[p]) * (1f + 1.5f * rooted)
             // Hooves kill the seedlings they come down on: a seedling lives if no hoof falls on its spot in the years it
             // takes to grow up out of their way, the share of the ground stepped on in a year being last week's at its rate.
-            val trod = exp(-trodden[p] / land.areaM2[p] / years * SEEDLING_YEARS).let { if (it.isNaN()) 1f else it }
+            val trodRate = (trodden[p] / land.areaM2[p] / years * SEEDLING_YEARS).let { if (it.isNaN()) 0f else it }
+            val trod = exp(-trodRate)
             // (The residents' treading is a tick's walking, set once a step: it falls again each tick of the step, [HexLand.lastTick].)
             if (land.lastTick) trodden[p] = 0f
             // The plants grow by the water they transpired ([HexHydrology.transpired]), at [WUE_KG_PER_MM], in growing weather
@@ -520,7 +558,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             val treeShort = shortOfWater(droughtTree, p, trees, hydro.transpired[2][p] + table * trees, season, days)
             grew += growBy(tree, p, gTree, TREE_RENEWAL * years)
             tree[p] *= 1f - treeShort * DROUGHT_DEATH[1] * days / 7f
-            closeGlades(p, crowns, treeLight(p))
+            closeGlades(p, crowns, treeLight(p), years, trodRate, browsed)
             val sGrow = shrub[p]
             // (What the browsers eat of a grown stand comes off it ([eatBrowse]), and with it the leaves it would have grown on.)
             val gShrub = made * (hydro.transpired[1][p] + table * shrubs) * (1f - 0.6f * land.waterlogged[p]) +
@@ -727,6 +765,11 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
          * in 10 years and still falling).
          */
         const val GAP_SHARE = 0.1f
+        /**
+         * Share of a stand's crowns that fall a year, opening gaps ([closeGlades]): about 1% of old-growth broadleaf forest's
+         * ground a year (Runkle 1982, from memory), a turnover of some hundred years.
+         */
+        const val GAP_FALL = 0.01f
         /**
          * The sward's leaf, kg/m², that greens wherever the ground does whatever was grazed or weathered off it: the perennials'
          * tillers sprout from their crowns and roots, the annuals from the seed in the soil, so a sward's leaf area in a green
