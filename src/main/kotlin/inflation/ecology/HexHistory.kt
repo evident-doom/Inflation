@@ -59,6 +59,13 @@ class HexHistory {
         const val SOIL_WATER = "weather/soil water mm"
         /** Of it, the top layer's, the herbs' root zone ([inflation.world.HexHydrology.soilTop]). */
         const val SOIL_TOP = "weather/top soil water mm"
+        /**
+         * The air's evaporative demand on the land this step, and what the herbs, shrubs and trees transpired of it, mm
+         * ([inflation.world.HexHydrology.transpired]); and how far the soil lets the plants grow on the water, 0.3..1.
+         */
+        const val DEMAND = "weather/evaporative demand mm"
+        val TRANSPIRED = listOf("weather/transpired by herbs mm", "weather/transpired by shrubs mm", "weather/transpired by trees mm")
+        const val SOIL_FERTILITY = "plants/soil factor"
         const val DROUGHTS = "weather/droughts under way"
         /** What a [biome] series measures besides a kind's head count. */
         const val AREA = "area km²"
@@ -275,6 +282,9 @@ class HexHistory {
         put(Key.DROUGHTS, w.droughtCount().toFloat())
         put(Key.SOIL_WATER, mean { land.hydro.soil[it] })
         put(Key.SOIL_TOP, mean { land.hydro.soilTop[it] })
+        put(Key.DEMAND, mean { land.hydro.demandMm[it] })
+        for (k in 0..2) put(Key.TRANSPIRED[k], mean { land.hydro.transpired[k][it] })
+        put(Key.SOIL_FERTILITY, mean { land.plants.soil(Place(it)) })
         // By kind of country: its area, plants per km² and head counts (and the whole land's area, to set worlds of other sizes beside each other).
         val biomeArea = DoubleArray(Biome.entries.size)
         for (p in 0 until n) biomeArea[biomeOf(sim, Place(p))] += area[p].toDouble()
