@@ -214,6 +214,7 @@ class Tuning(
      * round it (an estimate); 0 all of every place.
      */
     val coverReach = f("coverReach", 1f)
+    val weakCatch = f("weakCatch", 1f)
     /**
      * Residents: weeks between their moves (up and down the slopes, and spilling to the hexes about): the plant-eaters
      * flow a step each move, the hunters shift and spill what that many weeks' would ([inflation.ecology.HexFauna.spill]).
