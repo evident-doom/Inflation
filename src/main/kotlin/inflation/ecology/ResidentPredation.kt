@@ -25,7 +25,7 @@ fun HexFauna.killed(p: Place, kg: Kg) { fear[p] += kg.v / land.areaKm2[p] }
 fun HexFauna.residentKillOdds(kg: Float, p: Place, young: Boolean = false): Float {
     val rates = killRate
     var v = 0f
-    for (k in kindIds) { val r = rates[k] ?: continue; if (r[p] > 0f) v += r[p] * kinds[k].preySize(kg, young, tuning.preySpread) }
+    for (k in kindIds) { val r = rates[k] ?: continue; if (r[p] > 0f) v += r[p] * kinds[k].preySize(kg, young) }
     return v
 }
 
@@ -237,7 +237,7 @@ fun HexFauna.preyBiomass(s: Species, p: Place): Float {
         val a = adults[j][p]; val y = young[j][p]
         if (a + y <= 0f) continue
         val ym = youngKg(j.i)
-        v += a * ps.massKg * s.preySize(ps.massKg, spread = tuning.preySpread) + y * ym * s.preySize(ym, young = true, spread = tuning.preySpread)
+        v += a * ps.massKg * s.preySize(ps.massKg) + y * ym * s.preySize(ym, young = true)
     }
     return v
 }
@@ -251,7 +251,7 @@ fun HexFauna.catchable(s: Species, ps: Species, massKg: Float, p: Place): Float 
 
 /** [catchable], given [shelter], [ps]'s [preyShelter] at [p]: for a caller that weighs its grown and young, or many hunters, alike. */
 fun HexFauna.catchable(s: Species, ps: Species, massKg: Float, p: Place, shelter: Float): Float =
-    (s.preySize(massKg, young = massKg < ps.massKg, spread = tuning.preySpread) * (1f - youngDefence(ps, massKg) * condition(ps, p)) * closingIn(s, ps, massKg, p, shelter)).coerceIn(0f, 1f)
+    (s.preySize(massKg, young = massKg < ps.massKg) * (1f - youngDefence(ps, massKg) * condition(ps, p)) * closingIn(s, ps, massKg, p, shelter)).coerceIn(0f, 1f)
 
 /**
  * How much of its kind's defence game of kind [ps] at place [p] still has, 0..1, by how it has fed there ([HexFauna.fed]):
