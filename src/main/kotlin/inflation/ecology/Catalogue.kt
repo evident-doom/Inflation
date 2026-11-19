@@ -123,7 +123,10 @@ object Catalogue {
         foresight = 0.5f,
         domestication = floatArrayOf(0.9f, 0.9f, 0.8f, 0.4f, 0.6f, 0.6f), // became the pig
         habitat = Habitat(cover = 0.8f, wet = 0.6f),
-        defence = 0.6f,
+        // (At 0.6 the residents' hunters took 49 a thousand of them a year and lived on the other game; at 0.4 they take 58,
+        // the boar no fewer (what the hunters take, hunger and sickness would), roe 1.28x, deer 1.11x, the cats' hunger
+        // halved: boar-defence-ab, 2026-11-19. An estimate: wolves live much on boar in the oak woods, from memory.)
+        defence = 0.4f,
         fibreDigestion = 0.5f,
         activity = floatArrayOf(0.2f, 0.05f, 0.25f, 0.5f),
         shelters = setOf(Niches.Shelter.THICKET, Niches.Shelter.WATER),
