@@ -198,7 +198,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
         out[0] = herbLight(p, trees); out[1] = shrubLight(p, trees); out[2] = trees
     }
     /** Leaf area of place [p]'s shrubs, and of its herbs in leaf ([inLeaf]): these on at least [HERB_SWARD] kg/m² (see there). */
-    private fun shrubLeaf(p: Place) = SHRUB_LAI_PER_KG * shrub[p]
+    private fun shrubLeaf(p: Place) = SHRUB_LAI_MAX * (1f - exp(-shrub[p] / SHRUB_CLOSED_KG))
     private fun herbLeaf(p: Place) = HERB_LAI_PER_KG * max(herb[p], HERB_SWARD) * max(green[p], inLeaf(p))
     /**
      * The share of place [p]'s sward in leaf, 0..1: all of it in growing weather, but for the annuals that have cured (their
@@ -580,11 +580,17 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
         /** Light extinction of a stand's leaves (Beer's law): about 0.5 for most canopies (Monsi & Saeki 1953, from memory). */
         const val LIGHT_K = 0.5f
         /**
-         * Leaf area per kg/m² of green herbs (their specific leaf area, about 20 m² a kg) and per kg/m² of a shrub stand (about
-         * a sixth of it leaf, at about 8 m² a kg). Guesses to source.
+         * Leaf area per kg/m² of green herbs (their specific leaf area, about 20 m² a kg). A guess to source.
          */
         const val HERB_LAI_PER_KG = 20f
-        const val SHRUB_LAI_PER_KG = 1.3f
+        /**
+         * A shrub stand's leaf area: young and sparse shrubs are mostly leaf, a closed thicket mostly wood, so its leaf area
+         * levels off at [SHRUB_LAI_MAX] as the stand thickens past [SHRUB_CLOSED_KG] kg/m² (it was 1.3 per kg throughout, a
+         * sixth of the stand leaf: then a sparse stand grew too little on its few leaves to make good what it shed, and
+         * shrubs died out everywhere over 25 years, plants-final-ab2). Guesses to source (maquis leaf area some 2-4).
+         */
+        const val SHRUB_LAI_MAX = 3f
+        const val SHRUB_CLOSED_KG = 1f
         const val SHRUB_RENEWAL = 0.2f
         const val TREE_RENEWAL = 0.04f
         /** Share of the green herbs renewed as leaves a year (shed to the litter as new leaves grow); a guess to source. */
