@@ -97,7 +97,7 @@ class StocksTest {
             // the week's carcasses pass to the carrion within the step (booked as a flow each way); what is left to
             // graze or browse is part of the plants.
             // The soil's top layer is part of the soil water; the light shares are scratch.
-            "HexHydrology.soilTop", "HexHydrology.soilTopShade", "HexHydrology.light", "HexHydrology.lastTranspired", "HexHydrology.transpired", "HexHydrology.demandMm",
+            "HexHydrology.soilTop", "HexHydrology.soilTopShade", "HexHydrology.light", "HexHydrology.lastTranspired", "HexHydrology.transpired", "HexHydrology.demandMm", "HexHydrology.evaporatedMm",
             "HexSmallLife.young", "HexSmallLife.birds", "HexFauna.carcassKg", "HexFauna.grazeLeft", "HexFauna.browseLeft",
             // Counted as heads, not mass (a boundary choice): eagles.
             "HexSmallLife.eagles",
