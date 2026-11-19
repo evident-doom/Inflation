@@ -114,6 +114,11 @@ object TestWorlds {
         Entry("w1119-1", 1, 1000, 2000, "the full map, settled on 4ba9a64a"),
         Entry("w1119-2", 2, 1000, 2000, "the full map, settled on 4ba9a64a"),
         Entry("w1119-3", 3, 1000, 2000, "the full map, settled on 4ba9a64a"),
+        // The same seeds settled again for 30 years weekly on main 91e837cc (the shrub and glade work) from t.startDay=150
+        // with night1118-kept-last (Olli 2026-11-19 "settle new worlds and use the latest shrub version").
+        Entry("w1119b-1", 1, 1000, 2000, "the full map, settled on 91e837cc"),
+        Entry("w1119b-2", 2, 1000, 2000, "the full map, settled on 91e837cc"),
+        Entry("w1119b-3", 3, 1000, 2000, "the full map, settled on 91e837cc"),
         // New seeds 4..6, settled for 30 years on main 2afaf7c4 from t.startDay=150 with the default nets of 2026-11-14
         // (night1114-kept-last): Olli 2026-11-14 "reseed a new world" for the overnight training and its checks.
         Entry("s6-4", 4, 1000, 2000, "the full map, new seed 4"),
