@@ -194,9 +194,10 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
     fun treeLight(p: Place) = (1f - GAP_SHARE) * (1f - exp(-tree[p] / TREE_CLOSED_KG))
     /**
      * The shares of the light at place [p] taken by the leaves of its herbs, shrubs and trees, into [out] in that order (the
-     * rest falls on bare ground): the trees' crowns first ([treeLight]); under and between them the shrubs and the green herbs
-     * side by side, as one layer by Beer's law on their leaf areas together ([LIGHT_K]), each by its share of that leaf area.
-     * What each takes is its share of the water the place gives to the air ([HexHydrology.step]).
+     * rest falls on bare ground): the trees' crowns first ([treeLight]), then the shrubs under and between them, standing over
+     * the herbs, then the herbs in leaf in what light is left, each by Beer's law on its leaf area ([LIGHT_K]). What each takes
+     * is its share of the water the place gives to the air ([HexHydrology.step]). (With shrubs and herbs as one layer split by
+     * leaf area, a sparse shrub stand's few leaves lost to the sward's many and shrubs died out everywhere: plants-final-ab.)
      */
     fun lightShares(p: Place, out: FloatArray) {
         val trees = treeLight(p)
@@ -215,16 +216,9 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
         val shaded = land.slopeShade[p]
         return (1 - shaded) * (if (cured[p]) perennialShare[p] else 1f) + shaded * (if (curedShade[p]) perennialShare[p] else 1f)
     }
-    /** The light the shrubs and the herbs take together under the trees' [trees] share. */
-    private fun understory(trees: Float, leaf: Float) = (1f - trees) * (1f - exp(-LIGHT_K * leaf))
-    private fun shrubLight(p: Place, trees: Float): Float {
-        val s = shrubLeaf(p); val h = herbLeaf(p)
-        return if (s + h > 0f) understory(trees, s + h) * s / (s + h) else 0f
-    }
-    private fun herbLight(p: Place, trees: Float): Float {
-        val s = shrubLeaf(p); val h = herbLeaf(p)
-        return if (s + h > 0f) understory(trees, s + h) * h / (s + h) else 0f
-    }
+    /** The light the shrubs take under the trees' [trees] share, and the herbs under both. */
+    private fun shrubLight(p: Place, trees: Float) = (1f - trees) * (1f - exp(-LIGHT_K * shrubLeaf(p)))
+    private fun herbLight(p: Place, trees: Float) = (1f - trees - shrubLight(p, trees)) * (1f - exp(-LIGHT_K * herbLeaf(p)))
     /** Cover to hide in at place [p], 0..1: scrub and forest. */
     fun cover(p: Place) = min(1f, shrub[p] / 2f + canopy(p))
     /** Cover on the ground at place [p], 0..1, that small game hides in: standing grass and herbs (full at their most) and scrub; fire and grazing take it off. */
