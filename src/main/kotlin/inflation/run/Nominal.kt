@@ -318,13 +318,16 @@ object Nominal {
                 k == Key.TEMPERATURE -> { weekly(TEMPERATURE_WEEK_MIN, TEMPERATURE_WEEK_MAX, "°C"); eachYear(TEMPERATURE_YEAR_MIN, TEMPERATURE_YEAR_MAX, "°C") }
                 k == Key.RAIN -> { weekly(0.0, RAIN_WEEK_MAX * WorldConfig().stepsPerYear / w, "mm a row"); eachYear(RAIN_YEAR_MIN, RAIN_YEAR_MAX, "mm a year") }
                 k == Key.SNOW -> { weekly(0.0, SNOW_MAX_MM, "mm"); drift(t, k, years, ::yearly, SNOW, gone = false) }
-                k == Key.SOIL_WATER -> weekly(0.0, SOIL_WATER_MAX_MM, "mm")
-                k == Key.LAND_AREA || Key.biomeWhat(k) == Key.AREA -> {
+                k == Key.SOIL_WATER || k == Key.SOIL_TOP -> weekly(0.0, SOIL_WATER_MAX_MM, "mm")
+                // (Each kind of country's area follows its plants and water, so only the whole land's must hold still.)
+                Key.biomeWhat(k) == Key.AREA -> {}
+                k == Key.LAND_AREA -> {
                     var lo = Double.MAX_VALUE; var hi = -Double.MAX_VALUE
                     for (i in first until s.size) { val v = s[i].toDouble(); if (!v.isNaN()) { lo = min(lo, v); hi = max(hi, v) } }
                     t.check(hi - lo <= AREA_DRIFT * hi, k) { "changed from %s to %s km² over the run".format(fmt(lo), fmt(hi)) }
                 }
-                Key.biomeWhat(k) == Key.PLANTS -> weekly(0.0, BIOME_PLANTS_MAX_KG_M2, "kg/m²")
+                Key.biomeWhat(k) == Key.PLANTS || Key.biomeWhat(k) == Key.HERBS || Key.biomeWhat(k) == Key.SHRUBS -> weekly(0.0, BIOME_PLANTS_MAX_KG_M2, "kg/m²")
+                Key.biomeWhat(k) == Key.CANOPY || Key.biomeWhat(k) == Key.MOISTURE || k == Key.WATERLOGGED || k == Key.PALATABLE -> weekly(0.0, 1.0, "")
                 // (Each kind's numbers.)
                 Key.animalKind(k) != null -> {
                     val kind = Key.animalKind(k)!!

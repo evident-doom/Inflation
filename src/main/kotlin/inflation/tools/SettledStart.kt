@@ -23,12 +23,10 @@ fun main(args: Array<String>) {
     a.done()
     val history = HexHistory.readCsv(File(files[0]))
     val out = File(files[1])
-    // The area of each kind of country on the map the history was run on.
+    // The land on the map the history was run on.
     val sim = HexSim(World.generate(cfg))
     val land = sim.land
-    val area = DoubleArray(Biome.entries.size)
-    for (p in 0 until land.n) area[sim.hw.placeBiome[p]] += land.areaKm2[p].toDouble()
-    val total = area.sum()
+    val total = (0 until land.n).sumOf { land.areaKm2[it].toDouble() }
     val last = history.year[history.weeks - 1]
     val first = if (fromYear >= 0f) history.year[0] + fromYear else last - 40f
     fun mean(key: String): Double {
@@ -37,6 +35,8 @@ fun main(args: Array<String>) {
         for (i in 0 until history.weeks) if (history.year[i] >= first && !s[i].isNaN()) { sum += s[i]; c++ }
         return if (c == 0) 0.0 else sum / c
     }
+    // The area of each kind of country over those years, as the run's history has it (the kinds follow the plants and water).
+    val area = DoubleArray(Biome.entries.size) { mean(HexHistory.Key.biome(Biome.entries[it], HexHistory.Key.AREA)) }
     val lines = ArrayList<String>()
     lines += "# Where each kind settled: animals per 1000 km² of land, and of each kind of country (kind@country),"
     lines += "# the mean of the years from ${first.toInt()} of a run on seed ${cfg.seed}. Written by SettledStart."

@@ -67,8 +67,8 @@ class StocksTest {
             "HexDrinkingWater.nearRiver", "HexDrinkingWater.nearLake", "HexDrinkingWater.nearSpring", "HexDrinkingWater.waterKmMean",
             "HexDrinkingWater.nearBed", "HexDrinkingWater.bedM2", "HexDrinkingWater.streamKm", "HexDrinkingWater.stillKmMean", "HexDrinkingWater.riverClassKmMean", "HexDrinkingWater.riverClassKmLeast", "HexDrinkingWater.lakeKmLeast", "HexDrinkingWater.springKmLeast", "HexDrinkingWater.campKm", "HexPlants.annualGdd", "HexPlants.warmth",
             "HexPlants.fertility", "HexPlants.organicFertility", "HexPlants.warmest", "HexPlants.coldest", "HexPlants.perennialShare", "HexFood.cerealGround", "HexFood.foodTrees",
-            "HexFood.cereal", "HexSmallLife.eagleCrags", "HexSmallLife.rockKopje", "HexSmallLife.rockChukar", "HexSmallLife.rockHides", "HexSmallLife.wetland",
-            "HexSmallLife.waterfowl", "HexSmallLife.meanTemp", "HexSmallLife.annualRain", "HexSmallLife.soilReach", "HexFauna.groundShelter",
+            "HexFood.cereal", "HexSmallLife.eagleCrags", "HexSmallLife.rockKopje", "HexSmallLife.rockChukar", "HexSmallLife.rockHides",
+            "HexSmallLife.meanTemp", "HexSmallLife.annualRain", "HexSmallLife.soilReach", "HexFauna.groundShelter",
             // Rates and the week's passing water: flows over a step, not water held.
             "HexHydrology.lakeRain", "HexHydrology.lakeEvap", "HexHydrology.flow", "HexHydrology.flood", "HexHydrology.soak",
             "HexHydrology.soakTarget", "HexHydrology.runoffMm", "HexPlants.litterfall", "HexPlants.browsing", "HexPlants.grazing",
@@ -91,9 +91,13 @@ class StocksTest {
             // Ash is mm of rock, not living or dead matter; the grass that fell to the litter is a memory of the stand (the
             // litter holds its mass).
             "HexPlants.ash", "HexPlants.hayFallen",
+            // Weeks of drought the woody plants have had, not matter.
+            "HexPlants.droughtShrub", "HexPlants.droughtTree",
             // Part of a stock already counted, or a sum of stocks: the nests are part of their kinds; birds sum [bird];
             // the week's carcasses pass to the carrion within the step (booked as a flow each way); what is left to
             // graze or browse is part of the plants.
+            // The soil's top layer is part of the soil water; the light shares are scratch.
+            "HexHydrology.soilTop", "HexHydrology.soilTopShade", "HexHydrology.light", "HexHydrology.lastTranspired", "HexHydrology.transpired", "HexHydrology.demandMm",
             "HexSmallLife.young", "HexSmallLife.birds", "HexFauna.carcassKg", "HexFauna.grazeLeft", "HexFauna.browseLeft",
             // Counted as heads, not mass (a boundary choice): eagles.
             "HexSmallLife.eagles",

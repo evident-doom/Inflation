@@ -199,6 +199,9 @@ private fun HexFauna.eatPlants(p: Place, weather: Weather, grass: Float, browse:
         z.got[k] = b.got / want
         z.gotFruit[k] = (b.fruit + b.fruit2) * Nourishment.FRUIT * s.needScale / want
         z.gotUnder[k] = (b.roots + b.roots2) * Nourishment.ROOTS * s.needScale / want
+        z.gotGrass[k] = (b.grass + b.grass2 * s.fibreDigestion) * b.q * s.needScale / want
+        z.gotBrowse[k] = (b.browse + b.browse2 * s.fibreDigestion) * b.q * s.needScale / want
+        z.browseKg[k] = b.browse + b.browse2
         z.eatG += b.grass + b.grass2; z.eatB += b.browse + b.browse2
         z.eatF += b.fruit + b.fruit2; z.eatR += b.roots + b.roots2
         z.ateKg[k] = b.eaten; z.proteinKg[k] = protein(b, s.selected(gp), s.selected(bp))
@@ -260,6 +263,8 @@ private fun HexFauna.feedKinds(p: Place, weather: Weather, z: Grazing, ff: Doubl
                 // (Fruit and roots as shares of what the plants met, so the parts add up to it.)
                 val part = if (z.got[k] > 0f) min(1f, z.got[k]) * ps * heads / z.got[k] else 0f
                 ff[i + Fed.FRUIT.ordinal] += (z.gotFruit[k] * part).toDouble(); ff[i + Fed.UNDERGROUND.ordinal] += (z.gotUnder[k] * part).toDouble()
+                ff[i + Fed.GRASS.ordinal] += (z.gotGrass[k] * part).toDouble(); ff[i + Fed.BROWSE.ordinal] += (z.gotBrowse[k] * part).toDouble()
+                ff[i + Fed.BROWSE_KG.ordinal] += (z.browseKg[k] * land.areaM2[p]).toDouble()
                 ff[i + Fed.ANIMAL.ordinal] += (min(1f, animal) * (1f - ps) * heads).toDouble(); ff[i + Fed.HEADS.ordinal] += heads.toDouble()
                 ff[i + Fed.MEAT.ordinal] += (z.gotMeat[k.i] * heads).toDouble(); ff[i + Fed.SMALL_PREY.ordinal] += (z.gotSmall[k.i] * heads).toDouble()
                 ff[i + Fed.CARRION.ordinal] += (z.gotCarrion[k.i] * heads).toDouble()

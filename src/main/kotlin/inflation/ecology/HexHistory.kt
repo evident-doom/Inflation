@@ -22,7 +22,7 @@ import java.io.File
  * - "deaths/<kind>": deaths of that kind in the week by cause (and for people, "adult deaths/" and "young deaths/" apart); "births": young born to residents, packs
  *   and bands; "kills": animals killed by hunters, by prey kind;
  * - "weather": mean temperature, rain, snow lying, droughts under way;
- * - "biome/<biome>": for each kind of country, plants per km² and the head count of each kind.
+ * - "biome/<biome>": for each kind of country as it is now ([inflation.world.HexCountry]), its area, plants, herbs and shrubs per m², canopy and the head count of each kind.
  *
  * Counts of things that happen (deaths, births, kills, rain) add up over a month or year; states
  * (head counts, biomass, temperature) are averaged. The history can be written to and read from a
@@ -57,10 +57,27 @@ class HexHistory {
         const val RAIN = "weather/rain mm"
         const val SNOW = "weather/snow lying mm"
         const val SOIL_WATER = "weather/soil water mm"
+        /** Of it, the top layer's, the herbs' root zone ([inflation.world.HexHydrology.soilTop]). */
+        const val SOIL_TOP = "weather/top soil water mm"
+        /**
+         * The air's evaporative demand on the land this step, and what the herbs, shrubs and trees transpired of it, mm
+         * ([inflation.world.HexHydrology.transpired]); and how far the soil lets the plants grow on the water, 0.3..1.
+         */
+        const val DEMAND = "weather/evaporative demand mm"
+        val TRANSPIRED = listOf("weather/transpired by herbs mm", "weather/transpired by shrubs mm", "weather/transpired by trees mm")
+        const val SOIL_FERTILITY = "plants/soil factor"
         const val DROUGHTS = "weather/droughts under way"
         /** What a [biome] series measures besides a kind's head count. */
         const val AREA = "area km²"
         const val PLANTS = "plants kg per m²"
+        const val HERBS = "herbs kg per m²"
+        const val SHRUBS = "shrubs kg per m²"
+        const val CANOPY = "canopy share"
+        /** Soil moisture the plants have known over the last months, 0..1 ([inflation.world.HexPlants.moisture]): what sets their ceilings. */
+        const val MOISTURE = "moisture share"
+        /** Share of the land waterlogged, and the land's mean edible share of its plants (by area). */
+        const val WATERLOGGED = "land/waterlogged share"
+        const val PALATABLE = "land/edible share"
         /** Head count of [kind] (residents, or packs and bands). */
         fun animals(kind: String) = ANIMALS + kind
         /** The kind an [animals] key counts, or null for any other key. */
@@ -272,12 +289,28 @@ class HexHistory {
         put(Key.SNOW, mean { w.snowpack[it] })
         put(Key.DROUGHTS, w.droughtCount().toFloat())
         put(Key.SOIL_WATER, mean { land.hydro.soil[it] })
+        put(Key.SOIL_TOP, mean { land.hydro.soilTop[it] })
+        put(Key.DEMAND, mean { land.hydro.demandMm[it] })
+        for (k in 0..2) put(Key.TRANSPIRED[k], mean { land.hydro.transpired[k][it] })
+        put(Key.SOIL_FERTILITY, mean { land.plants.soil(Place(it)) })
         // By kind of country: its area, plants per km² and head counts (and the whole land's area, to set worlds of other sizes beside each other).
         val biomeArea = DoubleArray(Biome.entries.size)
         for (p in 0 until n) biomeArea[biomeOf(sim, Place(p))] += area[p].toDouble()
         put(Key.LAND_AREA, biomeArea.sum().toFloat())
         val plants = DoubleArray(Biome.entries.size)
         for (p in 0 until n) plants[biomeOf(sim, Place(p))] += (land.plants.biomass(Place(p)) * area[p]).toDouble()
+        // (And its herbs, shrubs and canopy apart: what makes it the kind it is.)
+        val herbs = DoubleArray(Biome.entries.size); val shrubs = DoubleArray(Biome.entries.size); val canopy = DoubleArray(Biome.entries.size)
+        val moisture = DoubleArray(Biome.entries.size)
+        var wet = 0.0; var edible = 0.0
+        for (p in 0 until n) {
+            val b = biomeOf(sim, Place(p)); val a = area[p].toDouble()
+            herbs[b] += land.plants.herb[p] * a; shrubs[b] += land.plants.shrub[p] * a; canopy[b] += land.plants.canopy(Place(p)) * a
+            moisture[b] += land.plants.moisture[p] * a
+            wet += land.waterlogged[p] * a; edible += land.palatable[p] * a
+        }
+        put(Key.WATERLOGGED, (wet / biomeArea.sum()).toFloat())
+        put(Key.PALATABLE, (edible / biomeArea.sum()).toFloat())
         val heads = TreeMap<String, DoubleArray>()
         for ((k, s) in fauna.kinds.withIndex()) {
             val a = heads.getOrPut(s.name) { DoubleArray(Biome.entries.size) }
@@ -288,6 +321,10 @@ class HexHistory {
             if (biomeArea[b.ordinal] <= 0.0) continue
             put(Key.biome(b, Key.AREA), biomeArea[b.ordinal].toFloat())
             put(Key.biome(b, Key.PLANTS), (plants[b.ordinal] / biomeArea[b.ordinal]).toFloat())
+            put(Key.biome(b, Key.HERBS), (herbs[b.ordinal] / biomeArea[b.ordinal]).toFloat())
+            put(Key.biome(b, Key.SHRUBS), (shrubs[b.ordinal] / biomeArea[b.ordinal]).toFloat())
+            put(Key.biome(b, Key.CANOPY), (canopy[b.ordinal] / biomeArea[b.ordinal]).toFloat())
+            put(Key.biome(b, Key.MOISTURE), (moisture[b.ordinal] / biomeArea[b.ordinal]).toFloat())
             for ((kind, a) in heads) put(Key.biome(b, kind), a[b.ordinal].toFloat())
         }
         // Keep every series as long as the record.
@@ -295,7 +332,7 @@ class HexHistory {
     }
 
     /** The kind of country most of place [p] is. */
-    private fun biomeOf(sim: HexSim, p: Place): Int = sim.hw.placeBiome[p]
+    private fun biomeOf(sim: HexSim, p: Place): Int = sim.land.country.kind[p]
 
     /** How the weeks are grouped: by week, month or year. */
     enum class Period(val label: String) { WEEK("week"), MONTH("month"), YEAR("year") }

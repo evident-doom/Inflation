@@ -74,7 +74,7 @@ class Diagnostics(private val sim: HexSim) {
         val p = land.plants
         var stand = 0.0; var cap = 0.0
         for (i in 0 until hw.placeHex.size) { stand += p.shrub[i] * land.areaM2[i].toDouble(); cap += p.ceiling(inflation.world.LifeForm.SHRUB, Place(i)) * land.areaM2[i].toDouble() }
-        println("   shrubDiag %s (tonnes over the map): standing %.4g, ceiling %.4g".format(weather.date, stand / 1000, cap / 1000))
+        println("   shrubDiag %s (tonnes over the map): standing %.4g, old climate ceiling %.4g".format(weather.date, stand / 1000, cap / 1000))
         for ((i, name) in inflation.world.HexPlants.SHRUB_PARTS.withIndex()) println("      %-50s %+.4g".format(name, book[i].sumThenReset() / 1000))
         val n = inflation.world.HexPlants.SHRUB_PARTS.size
         val res = book[n].sumThenReset()

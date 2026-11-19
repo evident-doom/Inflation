@@ -1,6 +1,7 @@
 package inflation.ecology
 
 import inflation.Part
+import inflation.world.Biome
 import inflation.world.Date
 import inflation.world.Hex
 import inflation.world.Place
@@ -102,13 +103,15 @@ internal fun HexGroups.tendParties(date: Date, weather: inflation.world.Weather)
 }
 
 /**
- * How different country [h] is from [home], 0 alike: the share of its land of other kinds ([inflation.world.Biome]), its height
+ * How different country [h] is from [home], 0 alike: the share of its land of other kinds as they are now ([inflation.world.HexCountry.kind]), its height
  * against [PARTY_HEIGHT_M], and the sea or a lake where home has none, each up to 1. What a party sets out to see: the mountains,
  * the sea, a lake, another kind of country (Olli 2026-11-06), the places that might feed the band if its own ground gives out.
  */
 internal fun HexGroups.difference(h: Hex, home: Hex): Float {
+    val there = FloatArray(Biome.entries.size); val here = FloatArray(Biome.entries.size)
+    land.country.sharesOf(h, there); land.country.sharesOf(home, here)
     var kinds = 0f
-    for (b in hw.biome) kinds += kotlin.math.abs(b[h] - b[home])
+    for (k in there.indices) kinds += kotlin.math.abs(there[k] - here[k])
     val height = min(1f, kotlin.math.abs(hw.elevationM[h] - hw.elevationM[home]) / PARTY_HEIGHT_M)
     val sea = if (hw.coast[h] && !hw.coast[home]) 1f else 0f
     val lake = if (hw.lake[h] >= PARTY_LAKE && hw.lake[home] < PARTY_LAKE) 1f else 0f

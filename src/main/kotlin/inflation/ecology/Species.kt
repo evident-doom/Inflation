@@ -278,12 +278,13 @@ class Species(
 
     /**
      * Standing food, kg/m², at which it crops all but 1/e of its want in its feeding day ([cropRate]): [CROP_HALF] for a
-     * 100 kg kind going 5 km a day, growing with the square root of its mass (its bite holds more, and it needs a fuller
+     * 100 kg kind going 5 km a day, growing with the fourth root of its mass (its bite holds more, and it needs a fuller
      * sward to fill it) and falling with the square root of its day's going (it searches more ground for the scattered
-     * good bites). A gazelle 0.005, an onager 0.010, an aurochs 0.026. (The exponents are a reading of the bite-size and
-     * search-rate rules, not measured.)
+     * good bites). A gazelle 0.007, an onager 0.008, an aurochs 0.016. (The exponents are a reading of the bite-size and
+     * search-rate rules, not measured. At the square root of its mass the aurochs, hippo and wild horse could not live on
+     * the plant model's sward once they no longer made up their grass with browse, eval 2026-11-19.)
      */
-    val cropHalfKgM2: Float get() = CROP_HALF * (massKg / 100f).pow(0.5f) * (5f / dailyTravelKm.coerceAtLeast(1f)).pow(0.5f)
+    val cropHalfKgM2: Float get() = CROP_HALF * (massKg / 100f).pow(0.25f) * (5f / dailyTravelKm.coerceAtLeast(1f)).pow(0.5f)
 
     /**
      * How far its coat stretches the cold end in [month] (from the winter solstice), °C: a winter coat
