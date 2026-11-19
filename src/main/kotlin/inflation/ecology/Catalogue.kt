@@ -123,7 +123,7 @@ object Catalogue {
         foresight = 0.5f,
         domestication = floatArrayOf(0.9f, 0.9f, 0.8f, 0.4f, 0.6f, 0.6f), // became the pig
         habitat = Habitat(cover = 0.8f, wet = 0.6f),
-        defence = 0.6f,
+        defence = 0.4f,
         fibreDigestion = 0.5f,
         activity = floatArrayOf(0.2f, 0.05f, 0.25f, 0.5f),
         shelters = setOf(Niches.Shelter.THICKET, Niches.Shelter.WATER),
