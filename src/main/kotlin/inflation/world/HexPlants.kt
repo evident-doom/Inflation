@@ -202,9 +202,19 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
         val trees = treeLight(p)
         out[0] = herbLight(p, trees); out[1] = shrubLight(p, trees); out[2] = trees
     }
-    /** Leaf area of place [p]'s shrubs, and of its green herbs: these on at least [HERB_SWARD] kg/m² (see there). */
+    /** Leaf area of place [p]'s shrubs, and of its herbs in leaf ([inLeaf]): these on at least [HERB_SWARD] kg/m² (see there). */
     private fun shrubLeaf(p: Place) = SHRUB_LAI_PER_KG * shrub[p]
-    private fun herbLeaf(p: Place) = HERB_LAI_PER_KG * max(herb[p], HERB_SWARD) * green[p]
+    private fun herbLeaf(p: Place) = HERB_LAI_PER_KG * max(herb[p], HERB_SWARD) * max(green[p], inLeaf(p))
+    /**
+     * The share of place [p]'s sward in leaf, 0..1: all of it in growing weather, but for the annuals that have cured (their
+     * perennials stay in leaf). [green] says how fast the sward grows; this, how much of it has leaves out to take the light,
+     * however slowly it grows in the cool of spring.
+     */
+    private fun inLeaf(p: Place): Float {
+        if (growthWarmth(p, warmth[p]) <= 0f) return 0f
+        val shaded = land.slopeShade[p]
+        return (1 - shaded) * (if (cured[p]) perennialShare[p] else 1f) + shaded * (if (curedShade[p]) perennialShare[p] else 1f)
+    }
     /** The light the shrubs and the herbs take together under the trees' [trees] share. */
     private fun understory(trees: Float, leaf: Float) = (1f - trees) * (1f - exp(-LIGHT_K * leaf))
     private fun shrubLight(p: Place, trees: Float): Float {
