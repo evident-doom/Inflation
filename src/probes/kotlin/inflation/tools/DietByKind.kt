@@ -28,7 +28,7 @@ fun main(args: Array<String>) {
         if (s < (years - 1) * perYear) continue
         for (k in eaters) {
             val ff = fauna.fedFrom[k]; val v = acc[k][qtr]
-            for ((i, f) in parts.withIndex()) v[i] += ff[f].sum()
+            for ((i, f) in parts.withIndex()) v[i] += ff[f.ordinal].sum()
             var fh = 0.0; var hh = 0.0
             for (p in 0 until sim.land.n) { val h = (fauna.adults[k][p] + fauna.young[k][p]).toDouble() * sim.land.areaKm2[p]; hh += h; fh += h * fauna.fed[k][p] }
             v[parts.size] += fh; v[parts.size + 1] += hh
