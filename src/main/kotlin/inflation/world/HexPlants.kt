@@ -231,9 +231,8 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
     /**
      * Opens and closes place [p]'s glades over a step of [years], as its crowns spread or thin from [before] to [after] (shares
      * of its ground), under herds that trod [trodRate] of the ground in a seedling's [SEEDLING_YEARS] and browsed [browsed]
-     * of the shoots ([step]). The herds feed on the herbs and shrubs, so the treading of their feeding ([TREAD_FEEDING] of it)
-     * falls on the glades as much more than on the ground at large as the understory there is thicker ([gladeUnderstory]);
-     * the rest, their going between, falls evenly. The browsers take the same share of
+     * of the shoots ([step]). The herds walk where they feed, on the herbs and shrubs, so they tread the glades as much more
+     * than the ground at large as the understory there is thicker ([gladeUnderstory]); the browsers take the same share of
      * every shoot wherever it stands. A seedling comes through where hoof and mouth spare it ([seedlingsLive]), and better
      * in the scrub of the glades ([NURSE]), where hooves do not go and browsers reach it through the thorns only in part.
      * - Old trees fall, [GAP_FALL] of the crowns a year: a gap is open, lit ground like a glade, and fills again from the
@@ -251,8 +250,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
     private fun closeGlades(p: Place, before: Float, after: Float, years: Float, trodRate: Float, browsed: Float) {
         val g = gladeArea(p); val m = gladeUnderstory(p)
         val scrub = if (g > 1e-6f) min(1f, shrub[p] * m / g / 2f) else 0f
-        val inGlades = if (g > 1e-6f) TREAD_FEEDING * m / g + (1f - TREAD_FEEDING) else 1f
-        val live = (1f - scrub) * seedlingsLive(trodRate * inGlades, browsed) + scrub * seedlingsLive(0f, browsed * (1f - NURSE))
+        val live = (1f - scrub) * seedlingsLive(trodRate * (if (g > 1e-6f) m / g else 1f), browsed) + scrub * seedlingsLive(0f, browsed * (1f - NURSE))
         val fell = before * GAP_FALL * years * (1f - live)
         val g0 = glade[p] + fell
         glade[p] = g0; gladeFell[p] = fell / years; gladeBurnt[p] = 0f
@@ -791,14 +789,6 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
          * way groves come back on grazed pasture (associational resistance; Olff et al. 1999, Vera 2000, from memory). An estimate.
          */
         const val NURSE = 0.7f
-        /**
-         * Share of the herds' treading done feeding, which falls where the forage is, the rest in going between ([closeGlades]):
-         * grazers spend about half the day feeding and walk between patches and to water (from memory); an estimate. (All of it
-         * by the forage trod a closed wood's gaps some eight times the place's mean, the seedlings in them died, and in its
-         * first 20 years glade-long lost a third of the temperate forest, while the gaps' scrub that shelters them was still
-         * coming up on a world settled before the understory: 16.8% of the land to 11.5%, against 18% without glades.)
-         */
-        const val TREAD_FEEDING = 0.5f
         /**
          * The sward's leaf, kg/m², that greens wherever the ground does whatever was grazed or weathered off it: the perennials'
          * tillers sprout from their crowns and roots, the annuals from the seed in the soil, so a sward's leaf area in a green
