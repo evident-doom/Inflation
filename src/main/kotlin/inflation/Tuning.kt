@@ -185,8 +185,6 @@ class Tuning(
      * falling from about 6% to 3% over a dry season of four to five months, from memory). 0: no weathering.
      */
     val hayWeathering = f("hayWeathering", 1.8f)
-    /** Browsing, kg/km²/day, at which seedlings and saplings are mostly eaten (a few deer per km²). */
-    val browseScale = f("browseScale", 3f)
     /**
      * Share of the herbs a place loses a step for each unit of trampling over it (see
      * [inflation.world.HexPlants.trample]). (Shrubs and trees lose only their seedlings, see [inflation.world.HexPlants.tread].)
