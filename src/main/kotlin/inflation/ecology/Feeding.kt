@@ -99,10 +99,15 @@ internal fun grassUnderSnow(s: Species, snowMm: Float): Float = (1f - snowMm / s
     // 2017, and the DNA barcoding after. Grass that fell short otherwise, eaten out or poor, is still made up as far as
     // the gut holds: capping that too starved grazers and wild sheep wherever the lean season comes without snow.)
     val buried = (1f - underSnow) * want * fill * d.grass / total * q
-    if (gap > 0f && d.browse > 0f) {
+    // (Made up first from the forage it mostly lives on, as it leans for protein ([HexFauna.leanDiet]), then from the other,
+    // as a hunter makes up its meat: made up browse first, the grazers short of energy on cured grass ate the shoots away
+    // from the browsers while the grass stood uneaten, eval 2026-11-19 diet-by-kind: aurochs took 41-47% of all the
+    // residents' browse, horses and gazelle met a third to two thirds of their need with it, roe and deer starved.)
+    fun makeBrowse() { if (gap > 0f && d.browse > 0f) {
         browse2 = pantry.browse(cropB * min(min(gap / qf, room), max(0f, gap - buried) / qf + SWITCH * want * fill * d.browse / total))
-        gap -= browse2 * qf; room -= browse2 }
-    if (gap > 0f && d.grass > 0f && underSnow > 0f) { grass2 = pantry.grass(cropG * underSnow * min(gap / qf, room)); gap -= grass2 * qf; room -= grass2 }
+        gap -= browse2 * qf; room -= browse2 } }
+    fun makeGrass() { if (gap > 0f && d.grass > 0f && underSnow > 0f) { grass2 = pantry.grass(cropG * underSnow * min(gap / qf, room)); gap -= grass2 * qf; room -= grass2 } }
+    if (d.grass >= d.browse) { makeGrass(); makeBrowse() } else { makeBrowse(); makeGrass() }
     if (gap > 0f && d.fruit > 0f) { fruit2 = pantry.fruit(gap / Nourishment.FRUIT); gap -= fruit2 * Nourishment.FRUIT }
     if (gap > 0f && d.roots > 0f && underSnow > 0f) { roots2 = pantry.roots(underSnow * gap / Nourishment.ROOTS); gap -= roots2 * Nourishment.ROOTS }
     val short = max(0f, gap) * s.needScale
