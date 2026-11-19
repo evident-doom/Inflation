@@ -80,7 +80,7 @@ class StocksTest {
             "HexDrinkingWater.water", "HexDrinkingWater.waterKm", "HexDrinkingWater.deep", "HexDrinkingWater.dug", "HexDrinkingWater.well", "HexDrinkingWater.snowWater", "HexDrinkingWater.iced", "HexPlants.gdd", "HexPlants.moisture", "HexPlants.opened",
             "HexPlants.shrubShoots", "HexPlants.treeShoots", "HexPlants.animalSeed", "HexPlants.green", "HexPlants.hayFresh", "HexPlants.grassAge",
             "HexPlants.growFrom", "HexPlants.growSpan", "HexPlants.greenOpen", "HexPlants.greenSeep", "HexPlants.greenWet",
-            "HexPlants.greenShade", "HexPlants.trails", "HexPlants.treeSeed", "HexPlants.shrubSeed", "HexFires.burnt", "HexFires.burning", "HexFires.stepBurning", "HexFires.wholeBurning",
+            "HexPlants.greenShade", "HexPlants.glade", "HexPlants.gladeFell", "HexPlants.gladeBurnt", "HexPlants.gladeClosed", "HexPlants.trails", "HexPlants.treeSeed", "HexPlants.shrubSeed", "HexFires.burnt", "HexFires.burning", "HexFires.stepBurning", "HexFires.wholeBurning",
             "HexFauna.waterC", "HexFauna.fed", "HexFauna.protein", "HexFauna.fear", "HexFauna.peopleNear", "HexFauna.persecuted", "HexFauna.usual", "HexFauna.forageSodiumAt", "HexFauna.outbreak", "HexFauna.damp", "HexFauna.youngShare", "HexFauna.sharers", "HexFauna.shared", "HexFauna.gameMean", "HexFauna.foodMean", "HexFauna.foodRef", "HexFauna.foodRefWeights",
             "HexFauna.fedByMonth", "HexFauna.reserve", "HexFauna.autumnFed", "HexFauna.dry", "HexFauna.arrive", "HexFauna.worth", "HexFauna.moverYoung", "HexFauna.bred", "HexFauna.moverFat", "HexFauna.moverSpent", "HexFauna.spent", "HexFauna.bold", "HexFauna.leaving", "HexFood.domestic", "HexFood.fieldDomestic", "HexFood.fieldPulse", "HexFood.ripePulse", "HexFood.fieldDays", "HexFood.fieldStress", "HexFood.fieldSoil", "HexFood.fieldWorn", "HexFood.fieldCover", "HexFood.cleared", "HexFood.croppedNow", "HexFood.wildCover", "HexSmallLife.pollination",
             "HexSmallLife.insectFrom", "HexSmallLife.harass", "HexSmallLife.spreadWeight", "HexSmallLife.returning",
@@ -97,7 +97,7 @@ class StocksTest {
             // the week's carcasses pass to the carrion within the step (booked as a flow each way); what is left to
             // graze or browse is part of the plants.
             // The soil's top layer is part of the soil water; the light shares are scratch.
-            "HexHydrology.soilTop", "HexHydrology.soilTopShade", "HexHydrology.light", "HexHydrology.lastTranspired", "HexHydrology.transpired", "HexHydrology.demandMm",
+            "HexHydrology.soilTop", "HexHydrology.soilTopShade", "HexHydrology.light", "HexHydrology.lastTranspired", "HexHydrology.transpired", "HexHydrology.demandMm", "HexHydrology.evaporatedMm",
             "HexSmallLife.young", "HexSmallLife.birds", "HexFauna.carcassKg", "HexFauna.grazeLeft", "HexFauna.browseLeft",
             // Counted as heads, not mass (a boundary choice): eagles.
             "HexSmallLife.eagles",

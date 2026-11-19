@@ -248,9 +248,11 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
             val sunny = layered(p, soil[p], soilTop[p], rain + weather.meltSun[p], sunDemand)
             val sunnyTop = lastTop; val sunnySurplus = lastSurplus
             for (k in 0..2) transpired[k][p] = (1 - f0) * lastTranspired[k]
+            evaporatedMm[p] = (1 - f0) * lastTranspired[3]
             val shady = layered(p, soilShade[p], soilTopShade[p], rain + weather.meltShade[p], shadeDemand)
             val shadyTop = lastTop; val shadySurplus = lastSurplus
             for (k in 0..2) transpired[k][p] += f0 * lastTranspired[k]
+            evaporatedMm[p] += f0 * lastTranspired[3]
             demandMm[p] = (1 - f0) * sunDemand + f0 * shadeDemand
             soil[p] = sunny - sunnySurplus; soilShade[p] = shady - shadySurplus
             soilTop[p] = sunnyTop; soilTopShade[p] = shadyTop
@@ -488,11 +490,12 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
         lastTranspired[0] = topPart * herbs
         lastTranspired[1] = topPart * TOP_ROOTS[1] * shrubs + deepPart * (1f - TOP_ROOTS[1]) * shrubs
         lastTranspired[2] = topPart * TOP_ROOTS[2] * trees + deepPart * (1f - TOP_ROOTS[2]) * trees
+        lastTranspired[3] = if (fromTop > 0f) demand * skinStress * bare * gotTop / fromTop else 0f
         return top + deep
     }
-    /** Scratch for [layered]: the light shares of herbs, shrubs and trees, and what each transpired on the slope, mm. */
+    /** Scratch for [layered]: the light shares of herbs, shrubs and trees, and what each transpired on the slope, mm (and, last, what its bare ground evaporated). */
     @Transient private val light = FloatArray(3)
-    @Transient private val lastTranspired = FloatArray(3)
+    @Transient private val lastTranspired = FloatArray(4)
     /**
      * What the herbs, shrubs and trees of each place transpired from its soil this tick, mm (its sunny and shaded slopes by
      * their shares): what [HexPlants] grows on. Set before the plants' turn each tick ([HexLand] runs water before plants).
@@ -500,6 +503,8 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
     @Transient val transpired = Array(3) { FloatArray(n) }
     /** The evaporative demand on each place this tick, mm (its slopes by their shares): the most its leaves could transpire. */
     @Transient val demandMm = FloatArray(n)
+    /** What each place's bare ground evaporated from its soil this tick, mm (its slopes by their shares). */
+    @Transient val evaporatedMm = FloatArray(n)
 
     private fun soakTo(p: Place, h: Hex): Float {
         var to = 0f

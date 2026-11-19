@@ -5,6 +5,8 @@ import inflation.ecology.HexFauna.Companion.ASH_HARM_MM
 import inflation.ecology.HexFauna.Companion.BREED_SHIFT_GAIN
 import inflation.ecology.HexFauna.Companion.FIRE_ADULT
 import inflation.ecology.HexFauna.Companion.FIRE_YOUNG
+import inflation.ecology.HexFauna.Companion.FIRE_PEOPLE
+import inflation.ecology.HexFauna.Companion.FIRE_PEOPLE_YOUNG
 import inflation.ecology.HexFauna.Companion.FLOOD_ADULT
 import inflation.ecology.HexFauna.Companion.FLOOD_DROWN_M
 import inflation.ecology.HexFauna.Companion.FLOOD_YOUNG
@@ -140,7 +142,10 @@ internal fun HexFauna.shiftBreeding() {
  * than a kind can dig through starves and exhausts it.
  */
 fun HexFauna.calamities(s: Species, p: Place, weather: Weather, young: Boolean): Calamities {
-    val fire = land.fire.stepBurning[p] * (if (young) FIRE_YOUNG else FIRE_ADULT)
+    // (People see a grass fire coming and step round it or onto burnt ground, and set their own with the wind: few die of
+    // them, against a share of the slow and the young beasts caught. Read as the beasts', a band lost some 0.7 of its people
+    // to each fire it set to burn off the grass about its camp, 5-8 a 1000 a year: fire-ab2, glade-long, 2026-11-19.)
+    val fire = land.fire.stepBurning[p] * (if (s.human) (if (young) FIRE_PEOPLE_YOUNG else FIRE_PEOPLE) else if (young) FIRE_YOUNG else FIRE_ADULT)
     val flood = if (s.maxWaterKm.isFinite() || land.hydro.flood[p] <= FLOOD_DROWN_M) 0f
         else land.floodShare[p] * (if (young) FLOOD_YOUNG else FLOOD_ADULT)
     val over = weather.snowpack[p] / s.snowLimitMm
@@ -157,14 +162,15 @@ fun HexFauna.calamities(s: Species, p: Place, weather: Weather, young: Boolean):
  */
 fun HexFauna.suits(s: Species, p: Place): Float {
     val h = s.habitat
-    val cover = land.plants.cover(p)
     val wet = land.floodShare[p]
-    if (h.rugged == 0f) return exp(HABITAT * (h.cover * (cover - 0.5f) + h.wet * (wet - 0.2f)))
+    // (A kind keeps to the part of the place it likes, the groves or the glades: it suits as the mean over them, [HexPlants.overCover].)
+    val byCover = land.plants.overCover(p) { exp(HABITAT * h.cover * (it - 0.5f)) } * exp(HABITAT * h.wet * (wet - 0.2f))
+    if (h.rugged == 0f) return byCover
     // (The ground it likes is a share of the place: the valley floors of a rough hex for a plains kind,
     // its crags for a wild goat; it suits as the mean over its ground, see [HexLand.ruggedSpread].)
     val fits = ruggedFitOf ?: arrayOfNulls<FloatArray>(Catalogue.all.size).also { ruggedFitOf = it }
     val fit = fits[s.index] ?: ruggedFit(h.rugged).also { fits[s.index] = it }
-    return exp(HABITAT * (h.cover * (cover - 0.5f) + h.wet * (wet - 0.2f))) * fit[p]
+    return byCover * fit[p]
 }
 
 internal fun HexFauna.ruggedFit(rugged: Float): FloatArray = (ruggedFits ?: ConcurrentHashMap<Float, FloatArray>().also { ruggedFits = it }).getOrPut(rugged) {
