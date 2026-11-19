@@ -641,6 +641,8 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         val got = FloatArray(nk); val surplus = FloatArray(nk)
         // (For the check: of what it got of plants, the shares of its need from fruit and from roots and mast.)
         val gotFruit = FloatArray(nk); val gotUnder = FloatArray(nk)
+        // (For the check: the shares of its need from grass and from browse, and the browse it ate, kg/m².)
+        val gotGrass = FloatArray(nk); val gotBrowse = FloatArray(nk); val browseKg = FloatArray(nk)
         // (For the check: of its need, the shares from game it killed, small prey, and carrion and bones.)
         val gotMeat = FloatArray(nk); val gotSmall = FloatArray(nk); val gotCarrion = FloatArray(nk)
         /** Trace: kg/m² of carrion (not bones) each kind ate, and its whole need then, kg/m² of prey ([Fed.CARRION_KG]). */
@@ -655,7 +657,7 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         val b = Bites()
         /** Zeroes what a place's week fills in, for the next place (the spare food, [access] and the eaten totals are set before they are read, [b] by each [forage]). */
         fun clear() {
-            need.fill(0f); each.fill(0f); avail.fill(0f); got.fill(0f); surplus.fill(0f); gotFruit.fill(0f); gotUnder.fill(0f); gotMeat.fill(0f); gotSmall.fill(0f); gotCarrion.fill(0f); carrionKg.fill(0f); needKg.fill(0f); ateKg.fill(0f); proteinKg.fill(0f)
+            need.fill(0f); each.fill(0f); avail.fill(0f); got.fill(0f); surplus.fill(0f); gotFruit.fill(0f); gotUnder.fill(0f); gotGrass.fill(0f); gotBrowse.fill(0f); browseKg.fill(0f); gotMeat.fill(0f); gotSmall.fill(0f); gotCarrion.fill(0f); carrionKg.fill(0f); needKg.fill(0f); ateKg.fill(0f); proteinKg.fill(0f)
             eatG = 0f; eatB = 0f; eatF = 0f; eatR = 0f
             askG.fill(0f); askB.fill(0f); askF.fill(0f); askR.fill(0f); mode = FREE
         }
@@ -988,7 +990,7 @@ enum class ResidentDeath(val cause: DeathCause) {
 enum class Stuck { HEADS, STUCK, AT_EDGE, PEAK }
 
 /** Where residents' food came from ([HexFauna.fedFrom]): fresh plants, prey and carrion, reserves; and the animals counted. */
-enum class Fed { PLANTS, ANIMAL, RESERVES, HEADS, FRUIT, UNDERGROUND, MEAT, SMALL_PREY, CARRION, CARRION_KG, NEED_KG }
+enum class Fed { PLANTS, ANIMAL, RESERVES, HEADS, FRUIT, UNDERGROUND, MEAT, SMALL_PREY, CARRION, CARRION_KG, NEED_KG, GRASS, BROWSE, BROWSE_KG }
 internal val FED = Fed.entries.size
 @Suppress("NOTHING_TO_INLINE") inline operator fun Array<DoubleAdder>.get(f: Fed) = this[f.ordinal]
 
