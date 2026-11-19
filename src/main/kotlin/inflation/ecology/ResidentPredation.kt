@@ -251,7 +251,22 @@ fun HexFauna.catchable(s: Species, ps: Species, massKg: Float, p: Place): Float 
 
 /** [catchable], given [shelter], [ps]'s [preyShelter] at [p]: for a caller that weighs its grown and young, or many hunters, alike. */
 fun HexFauna.catchable(s: Species, ps: Species, massKg: Float, p: Place, shelter: Float): Float =
-    (s.preySize(massKg, young = massKg < ps.massKg) * (1f - youngDefence(ps, massKg)) * closingIn(s, ps, massKg, p, shelter)).coerceIn(0f, 1f)
+    (s.preySize(massKg, young = massKg < ps.massKg) * (1f - youngDefence(ps, massKg) * condition(ps, p)) * closingIn(s, ps, massKg, p, shelter)).coerceIn(0f, 1f)
+
+/**
+ * How much of its kind's defence game of kind [ps] at place [p] still has, 0..1, by how it has fed there ([HexFauna.fed]):
+ * a hunter tests the herd and takes the weak, and the share of them grows as the food fails. All of it fed in full; at
+ * fed f, 1 - [inflation.Tuning.weakCatch] x (1 - f). Wolves' kills run to the old, the young and those in poor marrow
+ * (from memory: the Isle Royale moose, the Yellowstone elk), so the hunters take most where hunger would have taken
+ * them, and least where the game is well fed. 1 for a kind not living here as residents.
+ */
+internal fun HexFauna.condition(ps: Species, p: Place): Float {
+    val w = tuning.weakCatch
+    if (w <= 0f) return 1f
+    val k = slots[ps.index]
+    if (k < 0) return 1f
+    return (1f - w * (1f - fed[k][p].coerceIn(0f, 1f))).coerceIn(0f, 1f)
+}
 
 /**
  * How well an animal of kind [ps] weighing [massKg] fends off a hunter, 0..1: its kind's [Species.defence] for a grown one,

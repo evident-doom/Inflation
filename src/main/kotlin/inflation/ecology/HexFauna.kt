@@ -215,16 +215,19 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         return (f / r).pow(power).coerceIn(USUAL_FOOD_LEAST, USUAL_FOOD_MOST)
     }
     /**
-     * The share of place [p] that plant-eater [k] can live on, if it is one that hides in thickets ([Niches.Shelter.THICKET]):
-     * the ground its shelter covers there ([preyShelter]: the scrub and woods, and the reeds and water for those that take
-     * to them), as far as [Tuning.coverReach] times it, at least [HIDING_LEAST]. A place's cover is a mean over its ground:
-     * at a third, a boar, a deer or an elk lies up in the third that is thicket and feeds out from it, and the open rest
-     * is not its country; counted as all of it, the boar held the steppe as thick as the oak woods (cover 0.56 where they
-     * stood on the steppe, shrubs 1 kg/m²). 1 for every other kind.
+     * The share of place [p] that plant-eater [k] can live on, if it is one that hides in thickets ([Niches.Shelter.THICKET])
+     * or escapes up crags ([Niches.Shelter.CRAG]): the ground its shelter covers there ([preyShelter]: the scrub and woods,
+     * the cliffs and broken ground, and the reeds and water for those that take to them), as far as [Tuning.coverReach]
+     * times it, at least [HIDING_LEAST]. A place's cover is a mean over its ground: at a third, a boar, a deer or an elk
+     * lies up in the third that is thicket and feeds out from it, and the open rest is not its country; counted as all of
+     * it, the boar held the steppe as thick as the oak woods (cover 0.56 where they stood on the steppe, shrubs 1 kg/m²).
+     * So with the crags: without them the wild goat, a cliff kind, stood at 5-13 a km² on the flat steppe and in the woods
+     * (eval 2026-11-19), its liking for broken ground counted only where the residents were first set down ([suits]).
+     * 1 for every other kind.
      */
     internal fun hidingShare(k: Int, p: Place): Float {
         val reach = tuning.coverReach; val s = kinds[k]
-        if (reach <= 0f || s.carnivore || Niches.Shelter.THICKET !in s.shelters) return 1f
+        if (reach <= 0f || s.carnivore || (Niches.Shelter.THICKET !in s.shelters && Niches.Shelter.CRAG !in s.shelters)) return 1f
         return (reach * preyShelter(s, p)).coerceIn(HIDING_LEAST, 1f)
     }
     /** Reckons [foodRef] from [foodMean] ([foodScale]). */
@@ -956,6 +959,13 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         /** Fire: share of adults and of young caught on ground that burns entirely. */
         const val FIRE_ADULT = 0.05f
         const val FIRE_YOUNG = 0.3f
+        /**
+         * Fire: share of people, grown and children, caught on ground that burns entirely. Burns are a small part of
+         * foragers' accidental deaths, and mostly from camp fires, not grass fires (Hill and Hurtado, Gurven and Kaplan 2007,
+         * from memory); an estimate.
+         */
+        const val FIRE_PEOPLE = 0.001f
+        const val FIRE_PEOPLE_YOUNG = 0.003f
         /** Floods: depth over the floodplain that drowns animals, m; share of adults and of young drowned on a fully flooded place. */
         const val FLOOD_DROWN_M = 2f
         const val FLOOD_ADULT = 0.05f

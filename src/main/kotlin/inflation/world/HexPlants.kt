@@ -8,6 +8,7 @@ import inflation.KgM2
 import inflation.Tuning
 
 import kotlin.math.exp
+import kotlin.math.ln
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
@@ -155,8 +156,14 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
     val grassAge = FloatArray(n) { p -> degreeDaysBefore(Place(p), 0f) }
     /** How ripe the grass of place [p] is, 0..1: leafy at 0, gone to stem and seed at 1 (see [grassAge]). */
     fun maturity(p: Place) = ((grassAge[p] - LEAFY_DD) / (RIPE_DD - LEAFY_DD)).coerceIn(0f, 1f)
-    /** How much of the forage in place [p] is fresh, leafy growth, 0..1: the green part of it, less as it ripens. */
-    fun leafy(p: Place) = green[p] * (1f - maturity(p))
+    /**
+     * How much of the forage in place [p] is fresh, leafy growth, 0..1: the part of the sward in leaf ([inLeaf]), or growing
+     * ([green]), less as it ripens. A sward in leaf is green leaf however slowly it grows: young grass in a cool spring is as
+     * digestible as in a warm one (above 80%, Ball et al. 2001, from memory). (It was [green] alone, how fast the sward
+     * grows, so that slow spring growth read as stale forage and plant-eaters picked forage of 0.64-0.80 of fresh in
+     * April-June: birth-limits, 2026-11-19.)
+     */
+    fun leafy(p: Place) = max(green[p], inLeaf(p)) * (1f - maturity(p))
 
     /**
      * Nourishment per kg of forage in place [p] this week, against fresh growth: about two thirds when just dry, dormant or
@@ -184,28 +191,142 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
         seedSources()
     }
 
+    /**
+     * Share of each place's ground in glades, 0..1: of its ground open to the sky between the trees' crowns ([treeLight]), the
+     * part gathered into openings wide enough to lie in full sun; the rest lies scattered between the crowns, in their shade
+     * much of the day. It is how unevenly the woods stand: none, an even, thin wood; all the open ground, groves and open
+     * glades. Fire opens glades where it kills trees ([HexFires.burn]), and so do trees that fall where hooves and browsers
+     * keep their saplings down; new crowns close the open ground where its light is, the glades as far as their seedlings
+     * come through the herds that feed there ([closeGlades]); it never falls below the gaps old trees leave as they fall,
+     * or the crags ([gladeFloor]). A new world's glades are as dry country has them ([startGlade]). One number
+     * for a place's mosaic, which keeps the plants one stock each: the rules that bend sharply on cover read the place as its
+     * glades and its wood ([understoryLight], [HexFires], [overCover]).
+     */
+    val glade = FloatArray(n) { p -> startGlade(Place(p)) }
+    /**
+     * What opened and closed each place's glades over the last step, shares of its ground a year, for the reports: trees fallen
+     * whose gaps the herds kept open, fire, and crowns closing them ([closeGlades], [burntOpen]).
+     */
+    @Transient val gladeFell = FloatArray(n); @Transient val gladeBurnt = FloatArray(n); @Transient val gladeClosed = FloatArray(n)
+    @Transient private var stepYears = 1f
+    /** Whether the glades have been set; a world saved before they were kept gets its first guess on its own trees ([startGlade]) at its first step. */
+    private var gladeSet = false
+    /**
+     * Place [p]'s glades in a new world, with no history of fire or herds to have shaped them: of its open ground, as much as
+     * its climate is dry ([moisture]; none where it is wet through). Dry woods stand in clumps and groves with open grass between
+     * (the tree-grass mosaics of savanna and steppe woodland, Scholes and Archer 1997, from memory); wet ones close evenly.
+     * A first guess the fires and herds then work on, at least the [gladeFloor].
+     */
+    private fun startGlade(p: Place): Float {
+        val crowns = treeLight(p)
+        return max(gladeFloor(p, crowns), (1f - crowns) * (1f - moisture[p]).coerceIn(0f, 1f))
+    }
+    /**
+     * The least of place [p]'s ground in glades where the trees' crowns cover [crowns] of it: the gaps fallen trees open in a
+     * stand, [GAP_SHARE] of its own ground, and the crags (slopes over 45%, [HexLand.crag]) as far as they lie open; never more
+     * than the open ground.
+     */
+    fun gladeFloor(p: Place, crowns: Float): Float =
+        min(1f - crowns, max(crowns * GAP_SHARE / (1f - GAP_SHARE), land.crag[p] * (1f - crowns)))
+    /**
+     * Opens and closes place [p]'s glades over a step of [years], as its crowns spread or thin from [before] to [after] (shares
+     * of its ground), under herds that trod [trodRate] of the ground in a seedling's [SEEDLING_YEARS] and browsed [browsed]
+     * of the shoots ([step]). The herds walk where they feed, on the herbs and shrubs, so they tread the glades as much more
+     * than the ground at large as the understory there is thicker ([gladeUnderstory]); the browsers take the same share of
+     * every shoot wherever it stands. A seedling comes through where hoof and mouth spare it ([seedlingsLive]), and better
+     * in the scrub of the glades ([NURSE]), where hooves do not go and browsers reach it through the thorns only in part.
+     * - Old trees fall, [GAP_FALL] of the crowns a year: a gap is open, lit ground like a glade, and fills again from the
+     *   saplings in it as far as they come through; the rest is left open and joins the glades.
+     * - New crowns take the open ground where its light is, the glades by their share of the light reaching it
+     *   ([understoryLight]), as far as seedlings come through there; the rest spreads into the openings between crowns.
+     *   Thinning (drought, frost) opens the ground between crowns and leaves the glades as they were.
+     * - The crowns cannot stand in glades the herds hold open: where these leave too little ground, the trees are cut back to
+     *   the rest ([crownsAt]), what dies falling to the litter. Then the glades are kept within their floor and the open ground.
+     * Without herds the glades close to their floor; under them they open as far as the trees' falling and the seedlings that
+     * come through balance, and close again as scrub grows up in them and shelters the young trees, unless the browsers
+     * keep the scrub down too: the herds' hold on the shape of the woods (the shifting mosaics of grazed wood pasture, Olff et al.
+     * 1999, Vera 2000, from memory; how far it held in Europe's prehistoric woods is disputed).
+     */
+    private fun closeGlades(p: Place, before: Float, after: Float, years: Float, trodRate: Float, browsed: Float) {
+        val g = gladeArea(p); val m = gladeUnderstory(p)
+        val scrub = if (g > 1e-6f) min(1f, shrub[p] * m / g / 2f) else 0f
+        val live = (1f - scrub) * seedlingsLive(trodRate * (if (g > 1e-6f) m / g else 1f), browsed) + scrub * seedlingsLive(0f, browsed * (1f - NURSE))
+        val fell = before * GAP_FALL * years * (1f - live)
+        val g0 = glade[p] + fell
+        glade[p] = g0; gladeFell[p] = fell / years; gladeBurnt[p] = 0f
+        if (after > before) {
+            val lit = understoryLight(p, before)
+            if (lit > 1e-6f) glade[p] -= (after - before) * min(glade[p], 1f - before) / lit * live
+        }
+        glade[p] = max(glade[p], gladeFloor(p, after)).coerceAtMost(1f)
+        if (after > 1f - glade[p]) { tree[p] = min(tree[p], crownsAt(1f - glade[p])); glade[p] = max(glade[p], gladeFloor(p, treeLight(p))) }
+        glade[p] = glade[p].coerceAtMost(1f - treeLight(p))
+        gladeClosed[p] = max(0f, g0 - glade[p]) / years
+    }
+    /** Share of tree and shrub seedlings that live where [trodRate] of the ground is trodden over their growing years and [browsed] of the shoots eaten ([step]). */
+    private fun seedlingsLive(trodRate: Float, browsed: Float) = exp(-trodRate) * (1f - 0.9f * min(1f, browsed))
+    /** The tree biomass, kg/m², whose crowns cover [share] of the ground ([treeLight]); any where it is beyond their reach. */
+    private fun crownsAt(share: Float): Float =
+        if (share >= 1f - GAP_SHARE) Float.MAX_VALUE else -TREE_CLOSED_KG * ln(1f - max(0f, share) / (1f - GAP_SHARE))
+    /** Share of place [p]'s ground in glades ([glade], within its open ground). */
+    fun gladeArea(p: Place) = min(glade[p], 1f - treeLight(p))
+    /** Share of place [p]'s shrubs and herbs that grow in its glades: they grow where the light is ([understoryLight]). */
+    fun gladeUnderstory(p: Place): Float { val lit = understoryLight(p, treeLight(p)); return if (lit > 1e-6f) min(1f, gladeArea(p) / lit) else 0f }
+    /**
+     * The mean of [f] of the cover over place [p] read as its glades and its wood, for a rule that bends sharply on cover
+     * (a kind's liking for thickets or the open, say): the trees stand in the wood, the shrubs lie where they grow
+     * ([gladeUnderstory]). An even wood gives [f] of [cover]; groves and glades each their own.
+     */
+    inline fun overCover(p: Place, f: (Float) -> Float): Float {
+        val g = gladeArea(p); val m = gladeUnderstory(p); val w = 1f - g
+        val inGlades = if (g > 0f) min(1f, shrub[p] * m / g / 2f) else 0f
+        val inWood = if (w > 0f) min(1f, (canopy(p) + shrub[p] * (1f - m) / 2f) / w) else 0f
+        return g * f(inGlades) + w * f(inWood)
+    }
+    /** Fire at place [p] killed trees whose crowns covered [before] of it: the ground it opened is glade. */
+    internal fun burntOpen(p: Place, before: Float) {
+        val after = treeLight(p); val g0 = glade[p]
+        glade[p] = (glade[p] + max(0f, before - after)).coerceIn(gladeFloor(p, after), 1f - after)
+        gladeBurnt[p] += max(0f, glade[p] - g0) / stepYears
+    }
+
     fun biomass(p: Place) = herb[p] + shrub[p] + tree[p]
     fun canopy(p: Place) = min(1f, tree[p] / (0.4f * LifeForm.TREE.maxBiomass))
     /**
-     * The share of the light at place [p] the trees' leaves take: a stand's leaf mass levels off once its crowns close, so
-     * the light it takes grows with its mass only while it is young ([TREE_CLOSED_KG]); the wood it lays on after does not
-     * add to it. ([canopy], the cover the crowns give, is the forest's structure for the animals and stays as it was.)
+     * The share of the light at place [p] the trees' leaves take, which is the share of its ground under their crowns (the
+     * crowns let little through; the rest of the ground is open to the sky): a stand's leaf mass levels off once its crowns
+     * close, so the light it takes grows with its mass only while it is young ([TREE_CLOSED_KG]); the wood it lays on after
+     * does not add to it. ([canopy], the cover the crowns give, is the forest's structure for the animals and stays as it was.)
      */
     fun treeLight(p: Place) = (1f - GAP_SHARE) * (1f - exp(-tree[p] / TREE_CLOSED_KG))
     /**
      * The shares of the light at place [p] taken by the leaves of its herbs, shrubs and trees, into [out] in that order (the
-     * rest falls on bare ground): the trees' crowns first ([treeLight]), then the shrubs under and between them, standing over
-     * the herbs, then the herbs in leaf in what light is left, each by Beer's law on its leaf area ([LIGHT_K]). What each takes
+     * rest falls on bare ground): the trees' crowns first ([treeLight]), then the shrubs on the ground open to the sky between
+     * them, standing over the herbs, then the herbs in leaf in what light is left, each by Beer's law on its leaf area
+     * ([LIGHT_K]). The shrubs and herbs grow where the light is, so their leaf area is that of their mass on the open ground,
+     * not spread over the ground the crowns shade. (Spread under the crowns as dim light, a sparse understory's few leaves
+     * took a ninth of what they take in the open, and closed forest's shrubs starved to 0.03 kg/m²: plants-final-ab3.) What each takes
      * is its share of the water the place gives to the air ([HexHydrology.step]). (With shrubs and herbs as one layer split by
      * leaf area, a sparse shrub stand's few leaves lost to the sward's many and shrubs died out everywhere: plants-final-ab.)
      */
     fun lightShares(p: Place, out: FloatArray) {
         val trees = treeLight(p)
-        out[0] = herbLight(p, trees); out[1] = shrubLight(p, trees); out[2] = trees
+        out[0] = herbLight(p, trees); out[1] = shrubLight(p, trees); out[2] = treeShade(p, trees)
     }
-    /** Leaf area of place [p]'s shrubs, and of its herbs in leaf ([inLeaf]): these on at least [HERB_SWARD] kg/m² (see there). */
-    private fun shrubLeaf(p: Place) = SHRUB_LAI_MAX * (1f - exp(-shrub[p] / SHRUB_CLOSED_KG))
-    private fun herbLeaf(p: Place) = HERB_LAI_PER_KG * max(herb[p], HERB_SWARD) * max(green[p], inLeaf(p))
+    /**
+     * The light reaching the ground open between the crowns at place [p] where they cover [trees] of it: full in its glades
+     * ([glade]); in the openings scattered between crowns, as much as the wood about them is open (a clumped stand takes less
+     * of the light than an even one of the same crowns: the clumping of canopy radiation models, Nilson 1971, from memory).
+     */
+    internal fun understoryLight(p: Place, trees: Float): Float { val open = 1f - trees; val g = min(glade[p], open); return g + (open - g) * open }
+    /** The light the trees' crowns take at [p] where they cover [trees] of it: their own ground's, and the side light they keep off the openings between them. */
+    private fun treeShade(p: Place, trees: Float) = 1f - understoryLight(p, trees)
+    /**
+     * Leaf area of place [p]'s shrubs, and of its herbs in leaf ([inLeaf]), on the [open] share of its ground they stand on:
+     * the herbs on at least [HERB_SWARD] kg/m² of it (see there).
+     */
+    private fun shrubLeaf(p: Place, open: Float) = SHRUB_LAI_MAX * (1f - exp(-shrub[p] / open / SHRUB_CLOSED_KG))
+    private fun herbLeaf(p: Place, open: Float) = HERB_LAI_PER_KG * max(herb[p] / open, HERB_SWARD) * max(green[p], inLeaf(p))
     /**
      * The share of place [p]'s sward in leaf, 0..1: all of it in growing weather, but for the annuals that have cured (their
      * perennials stay in leaf). [green] says how fast the sward grows; this, how much of it has leaves out to take the light,
@@ -216,13 +337,25 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
         val shaded = land.slopeShade[p]
         return (1 - shaded) * (if (cured[p]) perennialShare[p] else 1f) + shaded * (if (curedShade[p]) perennialShare[p] else 1f)
     }
-    /** The light the shrubs take under the trees' [trees] share, and the herbs under both. */
-    private fun shrubLight(p: Place, trees: Float) = (1f - trees) * (1f - exp(-LIGHT_K * shrubLeaf(p)))
-    private fun herbLight(p: Place, trees: Float) = (1f - trees - shrubLight(p, trees)) * (1f - exp(-LIGHT_K * herbLeaf(p)))
-    /** Cover to hide in at place [p], 0..1: scrub and forest. */
-    fun cover(p: Place) = min(1f, shrub[p] / 2f + canopy(p))
-    /** Cover on the ground at place [p], 0..1, that small game hides in: standing grass and herbs (full at their most) and scrub; fire and grazing take it off. */
-    fun groundCover(p: Place) = min(1f, herb[p] / LifeForm.HERB.maxBiomass + shrub[p] / 2f)
+    /** The light the shrubs take on the ground open between the trees' crowns (their [trees] share), and the herbs under the shrubs. */
+    private fun shrubLight(p: Place, trees: Float) = understoryLight(p, trees) * (1f - exp(-LIGHT_K * shrubLeaf(p, 1f - trees)))
+    private fun herbLight(p: Place, trees: Float) = (understoryLight(p, trees) - shrubLight(p, trees)) * (1f - exp(-LIGHT_K * herbLeaf(p, 1f - trees)))
+    /**
+     * Cover to hide in at place [p], 0..1: scrub and forest, the mean of its glades' and its wood's ([overCover]), each full at
+     * most. (One reading of the whole place filled the glades with the wood's cover: a wood with a fifth of it glade was
+     * cover through and through once its crowns closed.) The rules that read it bend evenly on it (sight, going, a chase's
+     * room, wind), so the mean is theirs; one that bends sharply reads [overCover] itself.
+     */
+    fun cover(p: Place) = overCover(p) { it }
+    /**
+     * Cover on the ground at place [p], 0..1, that small game hides in: standing grass and herbs (full at their most) and scrub,
+     * the mean of its glades' and its wood's as for [cover]; fire and grazing take it off.
+     */
+    fun groundCover(p: Place): Float {
+        val g = gladeArea(p); val m = gladeUnderstory(p); val w = 1f - g
+        val under = herb[p] / LifeForm.HERB.maxBiomass + shrub[p] / 2f
+        return (if (g > 0f) g * min(1f, under * m / g) else 0f) + (if (w > 0f) w * min(1f, under * (1f - m) / w) else 0f)
+    }
 
     /**
      * The stand of [form] place [p]'s climate and soil would once have carried: only where a new world's plants start
@@ -329,7 +462,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             if (weather.date.month == 0 && weather.date.dayOfMonth <= days) { gdd[p] = 0f; grassAge[p] = 0f }
             gdd[p] += max(0f, weather.temperature[p] - 5f) * days
         }
-        val years = Date.years(days)
+        val years = Date.years(days); stepYears = years
         val memory = 1 - exp(-days / 360f)
         // (Seed sources afresh every [SEED_SOURCE_DAYS], at any tick length.)
         if (stepCount++ % max(1, (SEED_SOURCE_DAYS / days).toInt()) == 0) seedSources()
@@ -340,6 +473,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             }
             shootsSet = true
         }
+        if (!gladeSet) { for (p in land.places) glade[p] = startGlade(p); gladeSet = true }
         val shootsKept = exp(-years)
         // (The rules set as a share a tick at [SET_AT_DAYS] a tick, as a rate a day: the same at that tick, and as much in
         // a month at any other. The plants' warmth rises halfway to a warmer tick's in one; frost and floods take their share.)
@@ -399,20 +533,26 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             greenSeep[p] += (seepGrowth - greenSeep[p]) * GREEN_RATE
             greenWet[p] += (wetGrowth - greenWet[p]) * GREEN_RATE
             green[p] = openShare * ((1 - shaded) * greenOpen[p] + shaded * greenShade[p]) + HexHydrology.SEEP_SHARE * greenSeep[p] + wetShare * greenWet[p]
-            val browsed = 1f - exp(-browsing[p] / tuning.browseScale)
+            // The share of the shoots in reach the browsers take, of all that befalls them (eaten, or shed in their time,
+            // [shootsKept]): where the browsers eat most of what grows, the saplings' leaders and the seedlings go with it;
+            // where a lush wood grows more than they can eat, most come through. (It was a fixed kg/km² a day, saturated at
+            // a deer or so a km², so that any browsers at all held the woods' young back as hard as many: 2026-11-19.)
+            val eatenB = browsing[p] * days * 1e-6f
+            val browsed = if (eatenB > 0f) eatenB / (eatenB + browse(p) * (1f - shootsKept)) else 0f
             val young = 1f - min(1f, tree[p] / YOUNG_STAND_KG)
             val rooted = 1f - exp(-rooting[p] / ROOT_SCALE)
             val treeSeedHere = max(treeSeed[p], 0.5f * animalSeed[p]) * (1f + 1.5f * rooted)
             val shrubSeedHere = max(shrubSeed[p], animalSeed[p]) * (1f + 1.5f * rooted)
             // Hooves kill the seedlings they come down on: a seedling lives if no hoof falls on its spot in the years it
             // takes to grow up out of their way, the share of the ground stepped on in a year being last week's at its rate.
-            val trod = exp(-trodden[p] / land.areaM2[p] / years * SEEDLING_YEARS).let { if (it.isNaN()) 1f else it }
+            val trodRate = (trodden[p] / land.areaM2[p] / years * SEEDLING_YEARS).let { if (it.isNaN()) 0f else it }
+            val trod = exp(-trodRate)
             // (The residents' treading is a tick's walking, set once a step: it falls again each tick of the step, [HexLand.lastTick].)
             if (land.lastTick) trodden[p] = 0f
             // The plants grow by the water they transpired ([HexHydrology.transpired]), at [WUE_KG_PER_MM], in growing weather
             // and as the soil feeds them: no ceiling but the light their leaves take and the water. (The warmth is in the
             // water already: the air takes more of it the warmer it is. Below the plants' growing warmth they grow nothing.)
-            val trees = treeLight(p); val shrubs = shrubLight(p, trees); val herbs = herbLight(p, trees)
+            val crowns = treeLight(p); val trees = treeShade(p, crowns); val shrubs = shrubLight(p, crowns); val herbs = herbLight(p, crowns)
             val growing = if (season > 0f) 1f else 0f
             val made = WUE_KG_PER_MM * growing * soil(p)
             // Woody roots reach the water table under the wet valley floor where it is not sodden: there the shrubs and
@@ -431,8 +571,10 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             val treeShort = shortOfWater(droughtTree, p, trees, hydro.transpired[2][p] + table * trees, season, days)
             grew += growBy(tree, p, gTree, TREE_RENEWAL * years)
             tree[p] *= 1f - treeShort * DROUGHT_DEATH[1] * days / 7f
+            closeGlades(p, crowns, treeLight(p), years, trodRate, browsed)
             val sGrow = shrub[p]
-            val gShrub = made * (hydro.transpired[1][p] + table * shrubs) * (1f - 0.6f * land.waterlogged[p]) * (1 - 0.5f * browsed) +
+            // (What the browsers eat of a grown stand comes off it ([eatBrowse]), and with it the leaves it would have grown on.)
+            val gShrub = made * (hydro.transpired[1][p] + table * shrubs) * (1f - 0.6f * land.waterlogged[p]) +
                 ESTABLISH_SHRUB * sprouting * shrubSeedHere * (1 - 0.8f * browsed)
             val shrubShort = shortOfWater(droughtShrub, p, shrubs, hydro.transpired[1][p] + table * shrubs, season, days)
             grew += growBy(shrub, p, gShrub, SHRUB_RENEWAL * years)
@@ -444,7 +586,6 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             // In the cold the deciduous leaves fall: through the winter only twigs and buds are left to browse.
             // (Where winters are mild enough to grow on, the leaves stay, as on the evergreen scrub of the south.)
             if (tuning.leafFall > 0f && season <= 0f && t < growFrom[p]) { val k = exp(-tuning.leafFall * years); shrubShoots[p] *= k; treeShoots[p] *= k }
-            val lawn = 1f - exp(-grazing[p] / LAWN_SCALE)
             val herb0 = herb[p]
             // The herbs of the open ground transpire from its soil while they grow (the annuals not once cured); those of the
             // seeps and the wet valley floor as far as their water flows ([seepGrowth], [wetGrowth], warmth in them). The seeps
@@ -452,10 +593,10 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             // (they drown), so the woods of the rest of the place do not shade it.
             val active = (1 - shaded) * (if (cured[p]) perennialShare[p] else 1f) + shaded * (if (curedShade[p]) perennialShare[p] else 1f)
             val sodden = min(wetShare, hydro.saturatedFloor(p))
-            val meadow = 1f - exp(-LIGHT_K * max(herbLeaf(p), MEADOW_LAI))
+            val meadow = 1f - exp(-LIGHT_K * max(herbLeaf(p, 1f), MEADOW_LAI))
             val herbWater = openShare * growing * active * hydro.transpired[0][p] +
                 hydro.demandMm[p] * (meadow * (HexHydrology.SEEP_SHARE * seepGrowth + sodden * wetGrowth) + herbs * (wetShare - sodden) * wetGrowth)
-            val gHerb = WUE_KG_PER_MM * soil(p) * herbWater * (1f - 0.5f * lawn - 0.2f * rooted)
+            val gHerb = WUE_KG_PER_MM * soil(p) * herbWater * (1f - 0.2f * rooted)
             // Green leaves are renewed as they grow, the old shed to the litter.
             grew += growBy(herb, p, gHerb, HERB_RENEWAL * years * green[p])
             // Cured grass weathers where it stands: the dead stems break and fall into the litter, and what
@@ -602,7 +743,6 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
          * germinates after the first soaking autumn rain of about 20 mm (a "germination rain").
          */
         const val GERMINATION_MM = 20f
-        /** Share of shrubs' and trees' standing mass renewed as leaves and twigs a year (as shed into the litter). */
         /** Light extinction of a stand's leaves (Beer's law): about 0.5 for most canopies (Monsi & Saeki 1953, from memory). */
         const val LIGHT_K = 0.5f
         /**
@@ -617,6 +757,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
          */
         const val SHRUB_LAI_MAX = 3f
         const val SHRUB_CLOSED_KG = 1f
+        /** Share of shrubs' and trees' standing mass renewed as leaves and twigs a year (as shed into the litter). */
         const val SHRUB_RENEWAL = 0.2f
         const val TREE_RENEWAL = 0.04f
         /** Share of the green herbs renewed as leaves a year (shed to the litter as new leaves grow); a guess to source. */
@@ -631,12 +772,23 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
         /** The tree stand, kg/m², whose crowns take 1-1/e of the light ([treeLight]): young stands close their canopy at a few kg. A guess to source. */
         const val TREE_CLOSED_KG = 3f
         /**
-         * Share of even a closed forest open to the sky in gaps where old trees have fallen, where its shrubs and herbs grow
-         * ([treeLight]): about a tenth of old-growth broadleaf forest (Runkle 1982, Ecology 63:1533, from memory). Without
+         * Share of even a closed forest's ground open to the sky in gaps where old trees have fallen, where its shrubs and
+         * herbs grow in full light ([treeLight], [lightShares]): about a tenth of old-growth broadleaf forest (Runkle 1982, Ecology 63:1533, from memory). Without
          * it the understory of closed forest starved toward nothing (meadow-ab: temperate forest shrubs 1.34 -> 0.22 kg/m²
          * in 10 years and still falling).
          */
         const val GAP_SHARE = 0.1f
+        /**
+         * Share of a stand's crowns that fall a year, opening gaps ([closeGlades]): about 1% of old-growth broadleaf forest's
+         * ground a year (Runkle 1982, from memory), a turnover of some hundred years.
+         */
+        const val GAP_FALL = 0.01f
+        /**
+         * Share of the browsing a tree seedling in scrub is spared ([closeGlades]): the herds walk round thickets, and thorny
+         * shrubs (blackthorn, hawthorn, rose, juniper) keep browsers off the young oaks and ashes growing up through them, the
+         * way groves come back on grazed pasture (associational resistance; Olff et al. 1999, Vera 2000, from memory). An estimate.
+         */
+        const val NURSE = 0.7f
         /**
          * The sward's leaf, kg/m², that greens wherever the ground does whatever was grazed or weathered off it: the perennials'
          * tillers sprout from their crowns and roots, the annuals from the seed in the soil, so a sward's leaf area in a green
@@ -708,8 +860,6 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
         /** Ash depth that smothers most of the herb layer within weeks, mm; fertility added per mm of ash a year as it weathers. */
         const val ASH_SMOTHER_MM = 50f
         const val ASH_FERTILITY = 0.002f
-        /** Grazing, kg/km²/day, that over years turns grassland into short lawn. */
-        const val LAWN_SCALE = 8f
         /**
          * Rooting, kg/km²/day, at which most of the ground is churned: wild boar at a few a km², digging most of a kilo a
          * day each, turn over about a tenth of the ground in a year (8-11% of a Pannonian oak forest's floor a year:
