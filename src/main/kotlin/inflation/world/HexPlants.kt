@@ -655,7 +655,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
          * spell is not set by the dead stand left standing. Its mass grows from the water as all growth does ([herbLeaf]). A
          * guess: a steppe sward's green leaf area in spring of about 1 (to source).
          */
-        const val HERB_SWARD = 0.06f
+        const val HERB_SWARD = 0.03f
         /**
          * Leaf area of the closed sward of wet meadows, seeps and sodden valley floors (a guess to source: closed grass and sedge
          * swards stand at a leaf area of some 3-6). Floodplain meadows of the Ob stand up to 1.45 kg/m² above ground in the
