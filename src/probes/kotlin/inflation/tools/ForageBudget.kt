@@ -1,12 +1,11 @@
 package inflation.tools
 
 import inflation.tools.fauna.FaunaCheckOptions
-import inflation.world.Biome
 import inflation.world.Phase
 import inflation.world.Place
 
 /**
- * Where the plant-eaters' food goes, by kind of country and quarter of the last year: each phase of the step (the plants'
+ * Where the plant-eaters' food goes, by kind of country as its plants stand ([VegClass]) and quarter of the last year: each phase of the step (the plants'
  * growth, the residents' grazing, the soil and small life, the food stocks' seed and roots, the bands ...) and what it
  * added to or took from the herbs standing and the browse (the shoots within reach), g/m² over the quarter, area-weighted.
  * The phases are wrapped as they run: herbs and browse at every place before and after each. Then by kind of country the
@@ -18,13 +17,13 @@ fun main(args: Array<String>) {
     val years = args.indexOf("--years").takeIf { it >= 0 }?.let { args[it + 1].toInt() } ?: 1
     val rest = args.toMutableList().also { i -> val j = i.indexOf("--years"); if (j >= 0) { i.removeAt(j); i.removeAt(j) } }
     val sim = FaunaCheckOptions.parse((rest + listOf("--years", "1")).toTypedArray()).start()
-    val land = sim.land; val fauna = sim.fauna; val hw = sim.hw; val n = land.n
-    val biomes = Biome.entries
-    val area = DoubleArray(biomes.size)
-    for (p in 0 until n) area[hw.placeBiome[p]] += land.areaKm2[p].toDouble()
-    val shown = biomes.indices.filter { area[it] > 0.02 * area.sum() }.sortedByDescending { area[it] }
+    val land = sim.land; val fauna = sim.fauna; val n = land.n
+    // (Places by their plants as they stand at the start of the reported year, [VegClass].)
+    val names0 = VegClass.names
+    val cls = IntArray(n)
+    val area = DoubleArray(names0.size)
     val names = ArrayList<String>()
-    // [phase][biome][quarter][herb, browse]: kg added (area km² x kg/m²), summed over the quarter's steps.
+    // [phase][class][quarter][herb, browse]: kg added (area km² x kg/m²), summed over the quarter's steps.
     val flows = ArrayList<Array<Array<DoubleArray>>>()
     var recording = false
     var qtr = 0
@@ -33,14 +32,14 @@ fun main(args: Array<String>) {
         @Suppress("UNCHECKED_CAST") val ml = list as MutableList<Phase>
         for (i in ml.indices) {
             val ph = ml[i]
-            val idx = names.indexOf(ph.name).let { if (it >= 0) it else { names += ph.name; flows += Array(biomes.size) { Array(4) { DoubleArray(2) } }; names.size - 1 } }
+            val idx = names.indexOf(ph.name).let { if (it >= 0) it else { names += ph.name; flows += Array(names0.size) { Array(4) { DoubleArray(2) } }; names.size - 1 } }
             ml[i] = Phase(ph.name) { w ->
                 if (recording) for (p in 0 until n) { herb0[p] = land.plants.herb[p].toDouble(); browse0[p] = land.plants.browse(Place(p)).toDouble() }
                 ph.run(w)
                 if (recording) {
                     val f = flows[idx]
                     for (p in 0 until n) {
-                        val a = land.areaKm2[p].toDouble(); val v = f[hw.placeBiome[p]][qtr]
+                        val a = land.areaKm2[p].toDouble(); val v = f[cls[p]][qtr]
                         v[0] += a * (land.plants.herb[p] - herb0[p]); v[1] += a * (land.plants.browse(Place(p)) - browse0[p])
                     }
                 }
@@ -49,21 +48,22 @@ fun main(args: Array<String>) {
     }
     wrap(sim.tickPhases); wrap(sim.slowPhases)
     val eaters = fauna.kinds.indices.filter { !fauna.kinds[it].carnivore }
-    // [kind][biome]: heads (area x density, summed over steps), heads x fed; [biome]: weight kg (summed over steps), steps.
-    val heads = Array(fauna.kinds.size) { DoubleArray(biomes.size) }; val fed = Array(fauna.kinds.size) { DoubleArray(biomes.size) }
-    val stock = Array(biomes.size) { Array(4) { DoubleArray(3) } }
-    // Small life standing, kg/km² x area summed over steps [biome][quarter]: insects, rodents, hares, hyrax, tortoises, locusts.
-    val small = Array(biomes.size) { Array(4) { DoubleArray(6) } }
+    // [kind][class]: heads (area x density, summed over steps), heads x fed; [class]: weight kg (summed over steps), steps.
+    val heads = Array(fauna.kinds.size) { DoubleArray(names0.size) }; val fed = Array(fauna.kinds.size) { DoubleArray(names0.size) }
+    val stock = Array(names0.size) { Array(4) { DoubleArray(3) } }
+    // Small life standing, kg/km² x area summed over steps [class][quarter]: insects, rodents, hares, hyrax, tortoises, locusts.
+    val small = Array(names0.size) { Array(4) { DoubleArray(6) } }
     val stepsIn = IntArray(4); var steps = 0
     val perYear = sim.stepsPerYear
     for (s in 0 until years * perYear) {
         recording = s >= (years - 1) * perYear
+        if (s == (years - 1) * perYear) for (p in 0 until n) { cls[p] = VegClass.of(land, p); area[cls[p]] += land.areaKm2[p].toDouble() }
         qtr = sim.weather.date.month / 3
         sim.step()
         if (!recording) continue
         stepsIn[qtr]++; steps++
         for (p in 0 until n) {
-            val b = hw.placeBiome[p]; val a = land.areaKm2[p].toDouble()
+            val b = cls[p]; val a = land.areaKm2[p].toDouble()
             val st = stock[b][qtr]; st[0] += a * land.plants.herb[p]; st[1] += a * land.palatable[p] * land.plants.herb[p]; st[2] += a * land.plants.browse(Place(p))
             val sl = fauna.small; val sm = small[b][qtr]
             sm[0] += a * sl.insects[p]; sm[1] += a * sl.rodents[p]; sm[2] += a * sl.hares[p]; sm[3] += a * sl.hyrax[p]; sm[4] += a * sl.tortoises[p]; sm[5] += a * sl.locusts[p]
@@ -71,10 +71,11 @@ fun main(args: Array<String>) {
                 heads[k][b] += h; fed[k][b] += h * fauna.fed[k][p] }
         }
     }
-    println("forage-budget: last of $years years")
+    val shown = names0.indices.filter { area[it] > 0.02 * area.sum() }.sortedByDescending { area[it] }
+    println("forage-budget: last of $years years, by kind of country as its plants stood at the year's start (tree canopy, shrubs)")
     for (b in shown) {
         println()
-        println("${biomes[b].label} (%.1f%% of land): by quarter (Jan-Mar, Apr-Jun, Jul-Sep, Oct-Dec)".format(100 * area[b] / area.sum()))
+        println("${names0[b]} (%.1f%% of land): by quarter (Jan-Mar, Apr-Jun, Jul-Sep, Oct-Dec)".format(100 * area[b] / area.sum()))
         println("  standing, g/m² (mean): herbs / edible herbs / browse within reach")
         for (q in 0 until 4) { val st = stock[b][q]; val d = area[b] * stepsIn[q].coerceAtLeast(1) / 1000.0
             println("    Q${q + 1}  %.1f / %.1f / %.2f".format(st[0] / d, st[1] / d, st[2] / d)) }
