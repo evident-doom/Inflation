@@ -71,7 +71,13 @@ internal fun grassUnderSnow(s: Species, snowMm: Float): Float = (1f - snowMm / s
     // of its need it goes without; where food is plenty it still eats its fill.)
     // (And as far as it can crop the grass and browse where they stand as thick as they do: [cropG] and [cropB], [cropRate].)
     val grass = pantry.grass(cropG * underSnow * want * fill * d.grass / total)
-    val browse = pantry.browse(cropB * want * fill * d.browse / total)
+    // (Browse at most (1 + SWITCH) times its share of the kind's own diet, however it leans for protein or makes up a
+    // shortfall: a grazer on poor grass loses condition rather than turning browser. Without the bound the aurochs, a
+    // grazer of 0.2 browse, met 0.53-0.63 of its need with shoots and ate 41-47% of all the residents' browse, and roe,
+    // elk and deer starved (eval 2026-11-19, the plant model with real shrub and herb weights).)
+    val sd = s.diet
+    val browseMost = (1f + SWITCH) * want * fill * sd.browse / (sd.grass + sd.browse + sd.fruit + sd.roots).coerceAtLeast(1e-6f)
+    val browse = pantry.browse(min(cropB * want * fill * d.browse / total, browseMost))
     val fruit = pantry.fruit(want * d.fruit / total / Nourishment.FRUIT)
     // (Roots and the mast on the ground lie under the snow as the grass does, and are dug out the same way: boar root less
     // the deeper the snow, keep to oak woods under 40 cm of it and still find acorns there, Chiyojima et al., Mammalian
@@ -104,7 +110,7 @@ internal fun grassUnderSnow(s: Species, snowMm: Float): Float = (1f - snowMm / s
     // from the browsers while the grass stood uneaten, eval 2026-11-19 diet-by-kind: aurochs took 41-47% of all the
     // residents' browse, horses and gazelle met a third to two thirds of their need with it, roe and deer starved.)
     fun makeBrowse() { if (gap > 0f && d.browse > 0f) {
-        browse2 = pantry.browse(cropB * min(min(gap / qf, room), max(0f, gap - buried) / qf + SWITCH * want * fill * d.browse / total))
+        browse2 = pantry.browse(min(max(0f, browseMost - browse), cropB * min(min(gap / qf, room), max(0f, gap - buried) / qf + SWITCH * want * fill * d.browse / total)))
         gap -= browse2 * qf; room -= browse2 } }
     fun makeGrass() { if (gap > 0f && d.grass > 0f && underSnow > 0f) { grass2 = pantry.grass(cropG * underSnow * min(gap / qf, room)); gap -= grass2 * qf; room -= grass2 } }
     if (d.grass >= d.browse) { makeGrass(); makeBrowse() } else { makeBrowse(); makeGrass() }
