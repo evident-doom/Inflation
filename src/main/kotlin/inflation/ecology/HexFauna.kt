@@ -956,6 +956,13 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         /** Fire: share of adults and of young caught on ground that burns entirely. */
         const val FIRE_ADULT = 0.05f
         const val FIRE_YOUNG = 0.3f
+        /**
+         * Fire: share of people, grown and children, caught on ground that burns entirely. Burns are a small part of
+         * foragers' accidental deaths, and mostly from camp fires, not grass fires (Hill and Hurtado, Gurven and Kaplan 2007,
+         * from memory); an estimate.
+         */
+        const val FIRE_PEOPLE = 0.001f
+        const val FIRE_PEOPLE_YOUNG = 0.003f
         /** Floods: depth over the floodplain that drowns animals, m; share of adults and of young drowned on a fully flooded place. */
         const val FLOOD_DROWN_M = 2f
         const val FLOOD_ADULT = 0.05f

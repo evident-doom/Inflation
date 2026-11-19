@@ -5,6 +5,8 @@ import inflation.ecology.HexFauna.Companion.ASH_HARM_MM
 import inflation.ecology.HexFauna.Companion.BREED_SHIFT_GAIN
 import inflation.ecology.HexFauna.Companion.FIRE_ADULT
 import inflation.ecology.HexFauna.Companion.FIRE_YOUNG
+import inflation.ecology.HexFauna.Companion.FIRE_PEOPLE
+import inflation.ecology.HexFauna.Companion.FIRE_PEOPLE_YOUNG
 import inflation.ecology.HexFauna.Companion.FLOOD_ADULT
 import inflation.ecology.HexFauna.Companion.FLOOD_DROWN_M
 import inflation.ecology.HexFauna.Companion.FLOOD_YOUNG
@@ -140,7 +142,10 @@ internal fun HexFauna.shiftBreeding() {
  * than a kind can dig through starves and exhausts it.
  */
 fun HexFauna.calamities(s: Species, p: Place, weather: Weather, young: Boolean): Calamities {
-    val fire = land.fire.stepBurning[p] * (if (young) FIRE_YOUNG else FIRE_ADULT)
+    // (People see a grass fire coming and step round it or onto burnt ground, and set their own with the wind: few die of
+    // them, against a share of the slow and the young beasts caught. Read as the beasts', a band lost some 0.7 of its people
+    // to each fire it set to burn off the grass about its camp, 5-8 a 1000 a year: fire-ab2, glade-long, 2026-11-19.)
+    val fire = land.fire.stepBurning[p] * (if (s.human) (if (young) FIRE_PEOPLE_YOUNG else FIRE_PEOPLE) else if (young) FIRE_YOUNG else FIRE_ADULT)
     val flood = if (s.maxWaterKm.isFinite() || land.hydro.flood[p] <= FLOOD_DROWN_M) 0f
         else land.floodShare[p] * (if (young) FLOOD_YOUNG else FLOOD_ADULT)
     val over = weather.snowpack[p] / s.snowLimitMm
