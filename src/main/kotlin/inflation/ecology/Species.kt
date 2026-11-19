@@ -297,7 +297,16 @@ class Species(
      * it, and falling off evenly between. (The even fall is a simplification: the record gives the preferred and the
      * accessible range, not the shape.)
      */
-    fun preySize(kg: Float, young: Boolean = false): Float {
+    fun preySize(kg: Float, young: Boolean = false, spread: Float = 0f): Float {
+        // (Over game whose weights spread [spread] either way of its kind's (sex, age and condition), the mean of the light,
+        // the middling and the heavy, 1:2:1: a hunter at the edge of its range takes the smaller of a kind just past it
+        // and passes over the bigger, rather than all or none of them.)
+        if (spread > 0f) return 0.25f * hardPreySize(kg * (1f - spread), young) + 0.5f * hardPreySize(kg, young) +
+            0.25f * hardPreySize(kg * (1f + spread), young)
+        return hardPreySize(kg, young)
+    }
+
+    private fun hardPreySize(kg: Float, young: Boolean): Float {
         val r = kg / massKg
         // (The young it comes on lying hidden it takes down to [YOUNG_PREY_FROM] of its weight, however small its game:
         // newborn fawns, kids and calves are much of a wolf's early-summer food, found in the grass, not run down.)
