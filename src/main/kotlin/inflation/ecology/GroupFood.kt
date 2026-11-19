@@ -200,6 +200,8 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     // a weekly pack's was ten weeks' re-planned ones: same mean, ten times the lean tail, and hunger deaths 10-20 times the
     // weekly; trace740, Olli 2026-11-12 "study starving steps".)
     val passes = if (w.band == null) foragePasses * ticks else foragePasses
+    // (Census only, [WeekStats.packHunger]: how a beast's passes went and why they stopped: 0 fed, 1 out of days, 2 out of passes.)
+    if (w.band == null) { g.stepStop = 2; g.stepPasses = 0; g.stepOwed = w.busy; g.stepKills0 = 0f }
     for (pass in 0 until passes) {
         // (A beast plans on what its kills were expected to feed it, not on its luck at them: [ForageWeek.killLuck]. But only within
         // a week's worth of passes: after it, as in the next week, what it got is what it has, and a lean run is hunted on after.)
@@ -209,9 +211,10 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         // then and hunts on with the days left, as a weekly one would the weeks after: the loop stopped here before the luck was
         // ever counted, and lean 60-day packs left 30% of their days unused, trace742/743.)
         if (left <= 0.01f * w.wantAll && w.band == null && ticks > 1 && w.killLuck < -0.01f * w.wantAll) { w.killLuck = 0f; left = w.aim - w.fed }
-        if (left <= 0.01f * w.wantAll) break
+        if (left <= 0.01f * w.wantAll) { if (w.band == null) g.stepStop = 0; break }
         // (Nor, over a long step, once its days are all spent: the passes left would take nothing.)
-        if (w.band == null && ticks > 1 && w.workDays - w.busy - w.searchUsed <= 0f) break
+        if (w.band == null && ticks > 1 && w.workDays - w.busy - w.searchUsed <= 0f) { g.stepStop = 1; break }
+        if (w.band == null) g.stepPasses++
         offerFoods(w, o); w.carrionNoted = true
         o.takeUp()
         if (pass == 0 && w.band != null) noteUnused(w, o)
@@ -290,9 +293,11 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         }
         // (A beast's search took the days of the pass not spent handling: [Offers.spent] is days a day of searching asks.)
         if (w.band == null) w.searchUsed += f * w.workDays / o.spent[0]
+        if (w.band == null && pass == 0) g.stepKills0 = w.killsExpected
         time?.spend(Activity.FOOD, (w.busy - busy0) * w.hands)
     }
     if (w.band != null && w.time == null) planWeek(w, 0f, 0f, 0f)
+    if (w.band == null) { g.stepWorkDays = w.workDays; g.stepBusy = w.busy; g.stepSearch = w.searchUsed }
     // (What a day's foraging brought it this week, kg of its need, kept month by month as a mean over the years: what a
     // herder's day must bring to be worth it, [herdPays]. Its days foraging only: not the water dug for nor the grain
     // ground, which go in the food's time too. With them, a week of hardly any foraging, the band living on its stores,
