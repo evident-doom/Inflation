@@ -227,7 +227,8 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
      * of its ground), under herds that trod [trodRate] of the ground in a seedling's [SEEDLING_YEARS] and browsed [browsed]
      * of the shoots ([step]). The herds walk where they feed, on the herbs and shrubs, so they tread the glades as much more
      * than the ground at large as the understory there is thicker ([gladeUnderstory]); the browsers take the same share of
-     * every shoot wherever it stands. A seedling comes through where hoof and mouth spare it ([seedlingsLive]).
+     * every shoot wherever it stands. A seedling comes through where hoof and mouth spare it ([seedlingsLive]), and better
+     * in the scrub of the glades ([NURSE]), where hooves do not go and browsers reach it through the thorns only in part.
      * - Old trees fall, [GAP_FALL] of the crowns a year: a gap is open, lit ground like a glade, and fills again from the
      *   saplings in it as far as they come through; the rest is left open and joins the glades.
      * - New crowns take the open ground where its light is, the glades by their share of the light reaching it
@@ -236,12 +237,14 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
      * - The crowns cannot stand in glades the herds hold open: where these leave too little ground, the trees are cut back to
      *   the rest ([crownsAt]), what dies falling to the litter. Then the glades are kept within their floor and the open ground.
      * Without herds the glades close to their floor; under them they open as far as the trees' falling and the seedlings that
-     * come through balance: the herds' hold on the shape of the woods (the shifting mosaics of grazed wood pasture, Olff et al.
+     * come through balance, and close again as scrub grows up in them and shelters the young trees, unless the browsers
+     * keep the scrub down too: the herds' hold on the shape of the woods (the shifting mosaics of grazed wood pasture, Olff et al.
      * 1999, Vera 2000, from memory; how far it held in Europe's prehistoric woods is disputed).
      */
     private fun closeGlades(p: Place, before: Float, after: Float, years: Float, trodRate: Float, browsed: Float) {
         val g = gladeArea(p); val m = gladeUnderstory(p)
-        val live = seedlingsLive(trodRate * (if (g > 1e-6f) m / g else 1f), browsed)
+        val scrub = if (g > 1e-6f) min(1f, shrub[p] * m / g / 2f) else 0f
+        val live = (1f - scrub) * seedlingsLive(trodRate * (if (g > 1e-6f) m / g else 1f), browsed) + scrub * seedlingsLive(0f, browsed * (1f - NURSE))
         glade[p] += before * GAP_FALL * years * (1f - live)
         if (after > before) {
             val lit = understoryLight(p, before)
@@ -770,6 +773,12 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
          * ground a year (Runkle 1982, from memory), a turnover of some hundred years.
          */
         const val GAP_FALL = 0.01f
+        /**
+         * Share of the browsing a tree seedling in scrub is spared ([closeGlades]): the herds walk round thickets, and thorny
+         * shrubs (blackthorn, hawthorn, rose, juniper) keep browsers off the young oaks and ashes growing up through them, the
+         * way groves come back on grazed pasture (associational resistance; Olff et al. 1999, Vera 2000, from memory). An estimate.
+         */
+        const val NURSE = 0.7f
         /**
          * The sward's leaf, kg/m², that greens wherever the ground does whatever was grazed or weathered off it: the perennials'
          * tillers sprout from their crowns and roots, the annuals from the seed in the soil, so a sward's leaf area in a green
