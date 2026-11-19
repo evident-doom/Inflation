@@ -157,14 +157,15 @@ fun HexFauna.calamities(s: Species, p: Place, weather: Weather, young: Boolean):
  */
 fun HexFauna.suits(s: Species, p: Place): Float {
     val h = s.habitat
-    val cover = land.plants.cover(p)
     val wet = land.floodShare[p]
-    if (h.rugged == 0f) return exp(HABITAT * (h.cover * (cover - 0.5f) + h.wet * (wet - 0.2f)))
+    // (A kind keeps to the part of the place it likes, the groves or the glades: it suits as the mean over them, [HexPlants.overCover].)
+    val byCover = land.plants.overCover(p) { exp(HABITAT * h.cover * (it - 0.5f)) } * exp(HABITAT * h.wet * (wet - 0.2f))
+    if (h.rugged == 0f) return byCover
     // (The ground it likes is a share of the place: the valley floors of a rough hex for a plains kind,
     // its crags for a wild goat; it suits as the mean over its ground, see [HexLand.ruggedSpread].)
     val fits = ruggedFitOf ?: arrayOfNulls<FloatArray>(Catalogue.all.size).also { ruggedFitOf = it }
     val fit = fits[s.index] ?: ruggedFit(h.rugged).also { fits[s.index] = it }
-    return exp(HABITAT * (h.cover * (cover - 0.5f) + h.wet * (wet - 0.2f))) * fit[p]
+    return byCover * fit[p]
 }
 
 internal fun HexFauna.ruggedFit(rugged: Float): FloatArray = (ruggedFits ?: ConcurrentHashMap<Float, FloatArray>().also { ruggedFits = it }).getOrPut(rugged) {

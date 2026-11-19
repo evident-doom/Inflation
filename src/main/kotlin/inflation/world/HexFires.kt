@@ -39,6 +39,19 @@ class HexFires(land: HexLand) : HexLandPart(land) {
      * stood, and under 0.06% of the land burnt a year: fire-ab, 2026-11-19.)
      */
     private fun fuel(p: Place) = plants.herb[p] + 0.5f * plants.shrub[p]
+    /**
+     * Place [p]'s fuel lies where its herbs and shrubs grow, in its glades thicker than in its wood ([HexPlants.gladeUnderstory]):
+     * kg/m² of its glades' ground, and of its wood's.
+     */
+    private fun gladeFuel(p: Place): Float { val g = plants.gladeArea(p); return if (g > 0f) fuel(p) * plants.gladeUnderstory(p) / g else 0f }
+    private fun woodFuel(p: Place): Float { val g = plants.gladeArea(p); return if (g < 1f) fuel(p) * (1f - plants.gladeUnderstory(p)) / (1f - g) else 0f }
+    /** The fuel at place [p] in the parts thick enough to carry a fire ([BURNS_KG]), kg/m² of the whole place. */
+    private fun burnable(p: Place): Float {
+        val g = plants.gladeArea(p); val gf = gladeFuel(p); val wf = woodFuel(p)
+        return (if (gf >= BURNS_KG) g * gf else 0f) + (if (wf >= BURNS_KG) (1f - g) * wf else 0f)
+    }
+    /** Share of a part with [fuel] kg/m² a fire burns: most of it where it is thick with dry grass, a little where sparse. */
+    private fun partBurns(fuel: Float) = if (fuel < BURNS_KG) 0f else (0.1f + 0.6f * min(1f, fuel / 1.5f)).coerceAtMost(0.7f)
 
     /**
      * Whether place [p] would burn this week if lit: fuel enough, not flooded, a dry surface, warm and rainless. Dead grass, litter and
@@ -50,7 +63,7 @@ class HexFires(land: HexLand) : HexLandPart(land) {
      * 5 mm, so bands all but stopped burning off; lim810: their fire deaths 2.07 a 1000 a year weekly, 0.01 at 30 days).
      */
     internal fun canBurn(p: Place, weather: Weather) =
-        hydro.flood[p] <= 0f && fuel(p) >= 0.2f && hydro.soilTop[p] / hydro.topCap(p) < 0.3f && weather.temperature[p] > 15f && weather.tickPrecipitation(p) < 5f
+        hydro.flood[p] <= 0f && burnable(p) > 0f && hydro.soilTop[p] / hydro.topCap(p) < 0.3f && weather.temperature[p] > 15f && weather.tickPrecipitation(p) < 5f
 
     /** Fires people have set, to be lit next step: the places' indices (saved: a queue of them would be left out of a save, and the fires lost with it). */
     private var lit = IntArray(0)
@@ -72,7 +85,7 @@ class HexFires(land: HexLand) : HexLandPart(land) {
             val p = Place(i)
             if (burning[p] > 0f || !canBurn(p, weather)) continue
             val heat = ((weather.temperature[p] - 15f) / 20f).coerceIn(0f, 1f)
-            val chance = tuning.ignitionsPerKm2Year * land.areaKm2[p] * years * min(1f, fuel(p) / 1.5f) * heat
+            val chance = tuning.ignitionsPerKm2Year * land.areaKm2[p] * years * min(1f, burnable(p) / 1.5f) * heat
             if (p !in set && hash(p, 0) >= chance) continue
             var km2 = 0f
             val queue = ArrayDeque<Place>(); queue += p
@@ -93,7 +106,7 @@ class HexFires(land: HexLand) : HexLandPart(land) {
                     val len = kotlin.math.hypot(dx, dy)
                     val along = if (speed > 0.1f && len > 0f) (dx * u + dy * v) / (speed * len) else 0f
                     val wind = 0.2f + 0.4f * min(1f, speed / 8f) * along
-                    if (hash(nb, c.i) >= wind * burning[c] * min(1f, fuel(nb))) continue
+                    if (hash(nb, c.i) >= wind * burning[c] * min(1f, burnable(nb))) continue
                     burning[nb] = burnShare(nb); km2 += burning[nb] * land.areaKm2[nb]; queue += nb
                 }
             }
@@ -123,14 +136,22 @@ class HexFires(land: HexLand) : HexLandPart(land) {
         return false
     }
 
-    /** Share of place [p] a fire burns: most of a place thick with dry grass, a little of a sparse one. */
-    private fun burnShare(p: Place) = (0.1f + 0.6f * min(1f, fuel(p) / 1.5f)).coerceAtMost(0.7f)
+    /** Share of place [p] a fire burns: of its glades and its wood, each as thick as its fuel there ([partBurns]). */
+    private fun burnShare(p: Place): Float { val g = plants.gladeArea(p); return g * partBurns(gladeFuel(p)) + (1f - g) * partBurns(woodFuel(p)) }
 
+    /**
+     * Burns [share] of place [p]: its glades and its wood each by its fuel ([burnShare], scaled to [share]), the herbs and shrubs
+     * by where they grow, the trees in the wood only. The ground opened where trees died is glade ([HexPlants.burntOpen]).
+     */
     internal fun burn(p: Place, share: Float): Float {
-        val before = plants.biomass(p)
-        plants.herb[p] *= 1f - 0.9f * share; plants.shrub[p] *= 1f - 0.8f * share; plants.tree[p] *= 1f - 0.3f * share
+        val before = plants.biomass(p); val crowns = plants.treeLight(p)
+        val whole = burnShare(p); val k = if (whole > 0f) share / whole else 0f
+        val inGlades = min(1f, k * partBurns(gladeFuel(p))); val inWood = min(1f, k * partBurns(woodFuel(p)))
+        val m = plants.gladeUnderstory(p); val under = inGlades * m + inWood * (1f - m)
+        plants.herb[p] *= 1f - 0.9f * under; plants.shrub[p] *= 1f - 0.8f * under; plants.tree[p] *= 1f - 0.3f * inWood
         // (What burnt of the grass grows back as new leaf.)
-        plants.grassAge[p] *= 1f - 0.9f * share
+        plants.grassAge[p] *= 1f - 0.9f * under
+        plants.burntOpen(p, crowns)
         burnt[p] = max(burnt[p], share)
         plants.fertility[p] = min(1f, plants.fertility[p] + 0.01f * share)
         return before - plants.biomass(p)
@@ -148,6 +169,8 @@ class HexFires(land: HexLand) : HexLandPart(land) {
     companion object {
         /** How far a fire front can run in a day, km. */
         const val SPREAD_KM_PER_DAY = 5f
+        /** Dry fuel, kg/m² of ground, below which a fire does not carry (a grass fire needs about two tonnes a hectare of fine fuel: savanna fire studies, from memory). */
+        const val BURNS_KG = 0.2f
         /**
          * The width of river, m, that stops a fire front: embers carry a grass fire over a stream, but a break of a few tens of
          * metres of open ground or water holds it (fire lines cut against grass fires are 10-30 m; an estimate). Some 36 m³/s
