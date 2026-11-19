@@ -210,7 +210,6 @@ class Tuning(
      * it lives in ([inflation.ecology.HexFauna.foodScale]), as a power: 0 the same everywhere (Damuth's rule by its size alone), 1 in proportion.
      */
     val usualByFood = f("usualByFood", 1f)
-    val birthsByFed = f("birthsByFed", 1f)
     /**
      * Residents: the share of a place a plant-eater that hides in thickets lives on, as so many times the share its shelter
      * covers ([inflation.ecology.HexFauna.hidingShare]): 1 the covered ground alone, more as it feeds out into the open

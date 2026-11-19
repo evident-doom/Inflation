@@ -18,7 +18,6 @@ import inflation.world.Date
 import inflation.world.Weather
 import kotlin.math.max
 import kotlin.math.min
-import kotlin.math.pow
 
 // The residents' births and deaths: the young born in season, what kills grown and young, and the books of their deaths.
 
@@ -285,28 +284,9 @@ internal fun HexFauna.stepDamp() {
     }
 }
 
-/**
- * The young a mother of kind [k] at place [p] is due this step, its [share] of her season, among [heads] of her kind per
- * km², fed [protein] of her need for it ([youngDue]), as far as her sodium there allows ([saltBreeding]), and as her
- * year's feeding there left her in condition to conceive and carry ([bredCondition]).
- */
+/** The young a mother of kind [k] at place [p] is due this step, its [share] of her season, among [heads] of her kind per km², fed [protein] of her need for it ([youngDue]), and as far as her sodium there allows ([saltBreeding]). */
 internal fun HexFauna.dueYoung(k: FaunaKind, p: Place, heads: Float, protein: Float, share: Float) =
-    youngDue(kinds[k], heads, usualAt(k.i, p), tuning.breedSpacing, protein * saltBreeding(kinds[k], p) * bredCondition(k, p), share)
-
-/**
- * How a mother's year of feeding at place [p] bears on her conceiving and carrying young: her kind's [fedByMonth] there
- * over the twelve months, to the power [inflation.Tuning.birthsByFed]. Short of food, hoofed mothers first bear fewer
- * young and only then die themselves: hinds in poor condition in the autumn fail to conceive (red deer on Rum, Albon,
- * Mitchell and Guinness 1983, from memory). Without it, births took no notice of the food and hunger alone held the
- * numbers: on the plant model with real sward weights grazers died of it at 260-720 per 1000 a year (eval 2026-11-19).
- */
-internal fun HexFauna.bredCondition(k: FaunaKind, p: Place): Float {
-    val t = tuning.birthsByFed
-    if (t <= 0f) return 1f
-    val fm = fedByMonth[k.i]; val o = p.i * 12
-    var sum = 0f; for (m in 0 until 12) sum += fm[o + m]
-    return (sum / 12f).coerceIn(0f, 1f).pow(t)
-}
+    youngDue(kinds[k], heads, usualAt(k.i, p), tuning.breedSpacing, protein * saltBreeding(kinds[k], p), share)
 
 /**
  * The month kind [s]'s mothers start their year again ([bred]): the middle of the months outside its season as it
