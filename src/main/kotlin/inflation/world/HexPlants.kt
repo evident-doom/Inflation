@@ -453,10 +453,14 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             val lawn = 1f - exp(-grazing[p] / LAWN_SCALE)
             val herb0 = herb[p]
             // The herbs of the open ground transpire from its soil while they grow (the annuals not once cured); those of the
-            // seeps and the wet valley floor as far as their water flows ([seepGrowth], [wetGrowth], warmth in them).
+            // seeps and the wet valley floor as far as their water flows ([seepGrowth], [wetGrowth], warmth in them). The seeps
+            // and the sodden floor are open meadow, a closed sward in full light ([MEADOW_LAI]): no shrub or tree stands there
+            // (they drown), so the woods of the rest of the place do not shade it.
             val active = (1 - shaded) * (if (cured[p]) perennialShare[p] else 1f) + shaded * (if (curedShade[p]) perennialShare[p] else 1f)
+            val sodden = min(wetShare, hydro.saturatedFloor(p))
+            val meadow = 1f - exp(-LIGHT_K * max(herbLeaf(p), MEADOW_LAI))
             val herbWater = openShare * growing * active * hydro.transpired[0][p] +
-                hydro.demandMm[p] * herbs * (HexHydrology.SEEP_SHARE * seepGrowth + wetShare * wetGrowth)
+                hydro.demandMm[p] * (meadow * (HexHydrology.SEEP_SHARE * seepGrowth + sodden * wetGrowth) + herbs * (wetShare - sodden) * wetGrowth)
             val gHerb = WUE_KG_PER_MM * soil(p) * herbWater * (1f - 0.5f * lawn - 0.2f * rooted)
             // Green leaves are renewed as they grow, the old shed to the litter.
             grew += growBy(herb, p, gHerb, HERB_RENEWAL * years * green[p])
@@ -633,6 +637,12 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
          * guess: a steppe sward's green leaf area in spring of about 1 (to source).
          */
         const val HERB_SWARD = 0.06f
+        /**
+         * Leaf area of the closed sward of wet meadows, seeps and sodden valley floors (a guess to source: closed grass and sedge
+         * swards stand at a leaf area of some 3-6). Floodplain meadows of the Ob stand up to 1.45 kg/m² above ground in the
+         * sedge hollows (Water 15:1083, 2023, abstract); hay meadows some 0.3-1 kg/m² (from memory).
+         */
+        const val MEADOW_LAI = 3f
         /**
          * Seedlings of shrubs and trees that take in one soaking rain ([GERMINATION_MM]) of growing weather on a wet soil, under
          * a full seed rain, kg/m²: some few a year in a wet year, none in a dry one. Guesses to source.
