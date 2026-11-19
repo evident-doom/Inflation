@@ -43,6 +43,7 @@ import kotlin.math.min
 import kotlin.random.Random
 import inflation.ecology.HexFeatures as Feature
 import inflation.world.Biome
+import inflation.world.placeList
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicIntegerArray
@@ -208,7 +209,7 @@ class HexGroups(
                         repeat(KNOWN_AT_START) { ring = hex.nextRing(ring, seen) }
                         for (h in seen) b.learn(h, hex.size)
                         // And the plants of the country round it.
-                        for (h in seen) for (k in Biome.entries) if (hw.biome[k.ordinal][h] > 0.1f) b.plants[k] = 0.9f
+                        for (h in seen) for (q in hw.placeList(h)) b.plants[Biome.entries[land.country.kind[q]]] = 0.9f
                     }
                 }
                 if (s.lifeway == Lifeway.PACK && s !in Catalogue.roamingResidents) claimGround(g, hw.placeHex[p]) else inheritSeasons(g)
@@ -799,8 +800,8 @@ class HexGroups(
         return weight * toward(g, ap.hex, here, h, weather)
     }
 
-    /** The main kind of country of each place. */
-    internal val biomeOfPlace: IntArray get() = hw.placeBiome
+    /** The main kind of country of each place, as it is now ([inflation.world.HexCountry.kind]). */
+    internal val biomeOfPlace: IntArray get() = land.country.kind
     /** A kind's usual group as an agent. */
     internal fun unitSize(s: Species) = s.groupSize
 
@@ -910,18 +911,18 @@ class HexGroups(
 
 }
 
-/** How well band [b] knows the plants of hex [h]'s country: [PLANT_FLOOR] for a stranger to 1. */
+/** How well band [b] knows the plants of hex [h]'s country (its places' kinds as they are now, by area): [PLANT_FLOOR] for a stranger to 1. */
 internal fun GroupWorld.plantKnow(b: Band, h: Hex): Float {
     var s = 0f; var w = 0f
-    for (k in Biome.entries) { val share = hw.biome[k.ordinal][h]; if (share > 0f) { s += share * b.plants[k]; w += share } }
+    for (p in hw.placeList(h)) { val a = land.areaKm2[p]; s += a * b.plants[Biome.entries[land.country.kind[p]]]; w += a }
     return PLANT_FLOOR + (1f - PLANT_FLOOR) * (if (w > 0f) s / w else 0f)
 }
 
-/** A week's gathering in hex [h] teaches band [b] its country's plants. */
+/** A week's gathering in hex [h] teaches band [b] its country's plants (its places' kinds as they are now, by area). */
 internal fun GroupWorld.learnPlants(b: Band, h: Hex) {
     var w = 0f
-    for (k in Biome.entries) w += hw.biome[k.ordinal][h]
+    for (p in hw.placeList(h)) w += land.areaKm2[p]
     if (w <= 0f) return
-    for (k in Biome.entries) { val share = hw.biome[k.ordinal][h] / w; if (share > 0f) b.plants[k] += overTicks(PLANT_LEARN * share) * (1f - b.plants[k]) }
+    for (p in hw.placeList(h)) { val k = Biome.entries[land.country.kind[p]]; b.plants[k] += overTicks(PLANT_LEARN * land.areaKm2[p] / w) * (1f - b.plants[k]) }
 }
 
