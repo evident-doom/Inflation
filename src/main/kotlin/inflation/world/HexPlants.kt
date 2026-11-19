@@ -181,13 +181,19 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
     fun biomass(p: Place) = herb[p] + shrub[p] + tree[p]
     fun canopy(p: Place) = min(1f, tree[p] / (0.4f * LifeForm.TREE.maxBiomass))
     /**
+     * The share of the light at place [p] the trees' leaves take: a stand's leaf mass levels off once its crowns close, so
+     * the light it takes grows with its mass only while it is young ([TREE_CLOSED_KG]); the wood it lays on after does not
+     * add to it. ([canopy], the cover the crowns give, is the forest's structure for the animals and stays as it was.)
+     */
+    fun treeLight(p: Place) = 1f - exp(-tree[p] / TREE_CLOSED_KG)
+    /**
      * The shares of the light at place [p] taken by the leaves of its herbs, shrubs and trees, into [out] in that order (the
-     * rest falls on bare ground): the trees' crowns first ([canopy]); under and between them the shrubs and the green herbs
+     * rest falls on bare ground): the trees' crowns first ([treeLight]); under and between them the shrubs and the green herbs
      * side by side, as one layer by Beer's law on their leaf areas together ([LIGHT_K]), each by its share of that leaf area.
      * What each takes is its share of the water the place gives to the air ([HexHydrology.step]).
      */
     fun lightShares(p: Place, out: FloatArray) {
-        val trees = canopy(p)
+        val trees = treeLight(p)
         out[0] = herbLight(p, trees); out[1] = shrubLight(p, trees); out[2] = trees
     }
     /** Leaf area of place [p]'s shrubs, and of its green herbs: these on at least [HERB_SWARD] kg/m² (see there). */
@@ -396,7 +402,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             // The plants grow by the water they transpired ([HexHydrology.transpired]), at [WUE_KG_PER_MM], in growing weather
             // and as the soil feeds them: no ceiling but the light their leaves take and the water. (The warmth is in the
             // water already: the air takes more of it the warmer it is. Below the plants' growing warmth they grow nothing.)
-            val trees = canopy(p); val shrubs = shrubLight(p, trees); val herbs = herbLight(p, trees)
+            val trees = treeLight(p); val shrubs = shrubLight(p, trees); val herbs = herbLight(p, trees)
             val growing = if (season > 0f) 1f else 0f
             val made = WUE_KG_PER_MM * growing * soil(p)
             // Woody roots reach the water table under the wet valley floor where it is not sodden: there the shrubs and
@@ -576,11 +582,14 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
         /** Share of the green herbs renewed as leaves a year (shed to the litter as new leaves grow); a guess to source. */
         const val HERB_RENEWAL = 1f
         /**
-         * Aboveground dry matter grown per mm transpired, kg/m²: C3 plants make some 2-3 g of dry matter per kg of water, about
-         * half of it above ground (from memory; to source). Dryland production of some 0.3-0.5 g/m² per mm of rain (Le Houérou,
-         * from memory), with a third to a half of the rain transpired, agrees.
+         * Aboveground dry matter grown per mm transpired, kg/m², on the best soil ([soil] scales it down to 0.3 of it): crops
+         * reach some 5 g/m² a mm (wheat's 55 kg/ha per mm of water used beyond soil evaporation, Sadras & Angus 2006, from
+         * memory); dryland range grows some 0.3-0.6 g/m² per mm of rain (Le Houérou, from memory) with a third to a half of it
+         * transpired, 1-2 g. At 1.2 g the woods could not hold their stands against their shedding (water-eval-ab, 2026-11-19).
          */
-        const val WUE_KG_PER_MM = 0.0012f
+        const val WUE_KG_PER_MM = 0.002f
+        /** The tree stand, kg/m², whose crowns take 1-1/e of the light ([treeLight]): young stands close their canopy at a few kg. A guess to source. */
+        const val TREE_CLOSED_KG = 3f
         /**
          * The sward's leaf, kg/m², that greens wherever the ground does whatever was grazed or weathered off it: the perennials'
          * tillers sprout from their crowns and roots, the annuals from the seed in the soil, so a sward's leaf area in a green
