@@ -191,7 +191,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
      * the light it takes grows with its mass only while it is young ([TREE_CLOSED_KG]); the wood it lays on after does not
      * add to it. ([canopy], the cover the crowns give, is the forest's structure for the animals and stays as it was.)
      */
-    fun treeLight(p: Place) = 1f - exp(-tree[p] / TREE_CLOSED_KG)
+    fun treeLight(p: Place) = (1f - GAP_SHARE) * (1f - exp(-tree[p] / TREE_CLOSED_KG))
     /**
      * The shares of the light at place [p] taken by the leaves of its herbs, shrubs and trees, into [out] in that order (the
      * rest falls on bare ground): the trees' crowns first ([treeLight]); under and between them the shrubs and the green herbs
@@ -630,6 +630,13 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
         const val WUE_KG_PER_MM = 0.002f
         /** The tree stand, kg/m², whose crowns take 1-1/e of the light ([treeLight]): young stands close their canopy at a few kg. A guess to source. */
         const val TREE_CLOSED_KG = 3f
+        /**
+         * Share of even a closed forest open to the sky in gaps where old trees have fallen, where its shrubs and herbs grow
+         * ([treeLight]): about a tenth of old-growth broadleaf forest (Runkle 1982, Ecology 63:1533, from memory). Without
+         * it the understory of closed forest starved toward nothing (meadow-ab: temperate forest shrubs 1.34 -> 0.22 kg/m²
+         * in 10 years and still falling).
+         */
+        const val GAP_SHARE = 0.1f
         /**
          * The sward's leaf, kg/m², that greens wherever the ground does whatever was grazed or weathered off it: the perennials'
          * tillers sprout from their crowns and roots, the annuals from the seed in the soil, so a sward's leaf area in a green
