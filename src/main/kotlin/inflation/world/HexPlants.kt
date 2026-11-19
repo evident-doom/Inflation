@@ -203,6 +203,12 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
      * glades and its wood ([understoryLight], [HexFires], [overCover]).
      */
     val glade = FloatArray(n) { p -> startGlade(Place(p)) }
+    /**
+     * What opened and closed each place's glades over the last step, shares of its ground a year, for the reports: trees fallen
+     * whose gaps the herds kept open, fire, and crowns closing them ([closeGlades], [burntOpen]).
+     */
+    @Transient val gladeFell = FloatArray(n); @Transient val gladeBurnt = FloatArray(n); @Transient val gladeClosed = FloatArray(n)
+    @Transient private var stepYears = 1f
     /** Whether the glades have been set; a world saved before they were kept gets its first guess on its own trees ([startGlade]) at its first step. */
     private var gladeSet = false
     /**
@@ -245,7 +251,9 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
         val g = gladeArea(p); val m = gladeUnderstory(p)
         val scrub = if (g > 1e-6f) min(1f, shrub[p] * m / g / 2f) else 0f
         val live = (1f - scrub) * seedlingsLive(trodRate * (if (g > 1e-6f) m / g else 1f), browsed) + scrub * seedlingsLive(0f, browsed * (1f - NURSE))
-        glade[p] += before * GAP_FALL * years * (1f - live)
+        val fell = before * GAP_FALL * years * (1f - live)
+        val g0 = glade[p] + fell
+        glade[p] = g0; gladeFell[p] = fell / years; gladeBurnt[p] = 0f
         if (after > before) {
             val lit = understoryLight(p, before)
             if (lit > 1e-6f) glade[p] -= (after - before) * min(glade[p], 1f - before) / lit * live
@@ -253,6 +261,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
         glade[p] = max(glade[p], gladeFloor(p, after)).coerceAtMost(1f)
         if (after > 1f - glade[p]) { tree[p] = min(tree[p], crownsAt(1f - glade[p])); glade[p] = max(glade[p], gladeFloor(p, treeLight(p))) }
         glade[p] = glade[p].coerceAtMost(1f - treeLight(p))
+        gladeClosed[p] = max(0f, g0 - glade[p]) / years
     }
     /** Share of tree and shrub seedlings that live where [trodRate] of the ground is trodden over their growing years and [browsed] of the shoots eaten ([step]). */
     private fun seedlingsLive(trodRate: Float, browsed: Float) = exp(-trodRate) * (1f - 0.9f * min(1f, browsed))
@@ -276,8 +285,9 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
     }
     /** Fire at place [p] killed trees whose crowns covered [before] of it: the ground it opened is glade. */
     internal fun burntOpen(p: Place, before: Float) {
-        val after = treeLight(p)
+        val after = treeLight(p); val g0 = glade[p]
         glade[p] = (glade[p] + max(0f, before - after)).coerceIn(gladeFloor(p, after), 1f - after)
+        gladeBurnt[p] += max(0f, glade[p] - g0) / stepYears
     }
 
     fun biomass(p: Place) = herb[p] + shrub[p] + tree[p]
@@ -452,7 +462,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             if (weather.date.month == 0 && weather.date.dayOfMonth <= days) { gdd[p] = 0f; grassAge[p] = 0f }
             gdd[p] += max(0f, weather.temperature[p] - 5f) * days
         }
-        val years = Date.years(days)
+        val years = Date.years(days); stepYears = years
         val memory = 1 - exp(-days / 360f)
         // (Seed sources afresh every [SEED_SOURCE_DAYS], at any tick length.)
         if (stepCount++ % max(1, (SEED_SOURCE_DAYS / days).toInt()) == 0) seedSources()

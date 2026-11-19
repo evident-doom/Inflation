@@ -306,6 +306,8 @@ class HexHistory {
         val moisture = DoubleArray(Biome.entries.size)
         // (And how much of its ground lies in glades, [HexPlants.gladeArea]: how unevenly its woods stand.)
         val glades = DoubleArray(Biome.entries.size)
+        // (And what opened and closed them, shares of the ground a year: fallen trees the herds kept from regrowing, fire, crowns.)
+        val gladeFlows = Array(3) { DoubleArray(Biome.entries.size) }
         // (And its water: rain, the air's demand, what each form transpired and the bare ground evaporated, the runoff, mm; the soil factor.)
         val water = Array(WATER_KEYS.size) { DoubleArray(Biome.entries.size) }
         val hy = land.hydro
@@ -314,6 +316,7 @@ class HexHistory {
             val b = biomeOf(sim, Place(p)); val a = area[p].toDouble()
             herbs[b] += land.plants.herb[p] * a; shrubs[b] += land.plants.shrub[p] * a; canopy[b] += land.plants.canopy(Place(p)) * a
             moisture[b] += land.plants.moisture[p] * a; glades[b] += land.plants.gladeArea(Place(p)) * a
+            gladeFlows[0][b] += land.plants.gladeFell[p] * a; gladeFlows[1][b] += land.plants.gladeBurnt[p] * a; gladeFlows[2][b] += land.plants.gladeClosed[p] * a
             val got = floatArrayOf(w.precipitation[p], hy.demandMm[p], hy.transpired[0][p], hy.transpired[1][p], hy.transpired[2][p],
                 hy.evaporatedMm[p], hy.runoffMm[p], land.plants.soil(Place(p)))
             for (i in got.indices) water[i][b] += got[i] * a
@@ -336,6 +339,7 @@ class HexHistory {
             put(Key.biome(b, Key.CANOPY), (canopy[b.ordinal] / biomeArea[b.ordinal]).toFloat())
             put(Key.biome(b, Key.MOISTURE), (moisture[b.ordinal] / biomeArea[b.ordinal]).toFloat())
             put(Key.biome(b, Key.GLADES), (glades[b.ordinal] / biomeArea[b.ordinal]).toFloat())
+            for ((i, what) in GLADE_FLOW_KEYS.withIndex()) put(Key.biome(b, what), (gladeFlows[i][b.ordinal] / biomeArea[b.ordinal]).toFloat())
             for ((i, what) in WATER_KEYS.withIndex()) put(Key.biome(b, what), (water[i][b.ordinal] / biomeArea[b.ordinal]).toFloat())
             for ((kind, a) in heads) put(Key.biome(b, kind), a[b.ordinal].toFloat())
         }
@@ -344,6 +348,7 @@ class HexHistory {
     }
 
     /** The per-kind water series ([record]): mm a tick, but for the soil factor. */
+    private val GLADE_FLOW_KEYS = listOf("glade opened by falls a year", "glade opened by fire a year", "glade closed a year")
     private val WATER_KEYS = listOf("rain mm", "demand mm", "transpired by herbs mm", "transpired by shrubs mm", "transpired by trees mm",
         "bare ground evaporated mm", "runoff mm", "soil factor")
 
