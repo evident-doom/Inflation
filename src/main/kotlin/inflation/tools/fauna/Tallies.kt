@@ -811,12 +811,13 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
                 fun at(b: Int, e: PackHunger) = v[PackHunger.at(b, e)]
                 val all = (0 until PackHunger.BUCKETS).sumOf { at(it, PackHunger.HEAD_YEARS) }
                 if (all <= 0.0) continue
-                println("     %s by how fed over the step, fat drawn on (share of grown head-years: fed, with fat, fat d, protein burnt d at start; hunger deaths per 1000 a year grown, young; %.0f grown head-years): ".format(sp.name, all) +
+                println("     %s by how fed over the step, fat drawn on (share of grown head-years: fed, with fat, fat d, protein burnt d at start; hunger deaths per 1000 a year grown, young; homeless, no kill of its own in the step; kills expected a step; %.0f grown head-years): ".format(sp.name, all) +
                     (0 until PackHunger.BUCKETS).joinToString(", ") { b ->
                         val y = at(b, PackHunger.HEAD_YEARS).coerceAtLeast(1e-9); val yy = at(b, PackHunger.YOUNG_YEARS).coerceAtLeast(1e-9)
-                        "%s %.1f%%: %.3f, %.3f, %.1f, %.2f; %.1f, %.1f".format(names[b], 100.0 * at(b, PackHunger.HEAD_YEARS) / all,
+                        "%s %.1f%%: %.3f, %.3f, %.1f, %.2f; %.1f, %.1f; %.0f%%, %.0f%%; %.2f".format(names[b], 100.0 * at(b, PackHunger.HEAD_YEARS) / all,
                             at(b, PackHunger.FED) / y, at(b, PackHunger.ON_FAT) / y, at(b, PackHunger.FAT_DAYS) / y, at(b, PackHunger.SPENT_DAYS) / y,
-                            1000.0 * at(b, PackHunger.GROWN_HUNGER) / y, 1000.0 * at(b, PackHunger.YOUNG_HUNGER) / yy) })
+                            1000.0 * at(b, PackHunger.GROWN_HUNGER) / y, 1000.0 * at(b, PackHunger.YOUNG_HUNGER) / yy,
+                            100.0 * at(b, PackHunger.HOMELESS_YEARS) / y, 100.0 * at(b, PackHunger.NO_KILL_YEARS) / y, at(b, PackHunger.KILLS_EXPECTED) / y) })
             }
         }
         val hex = sim.hex

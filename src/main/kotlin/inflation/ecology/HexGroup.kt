@@ -59,6 +59,9 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
     var mergedSize = -1
     /** The group it merged into, the step it did (else -1): for following what became of its members. Not saved: read in the same step. */
     @Transient var mergedInto = -1
+    /** Census only ([WeekStats.packHunger]): whether a beast group made a kill of its own this step, and the kills its plan expected. Not saved. */
+    @Transient var stepKilled = true
+    @Transient var stepKillsExpected = 0f
     /**
      * A band's luck in its own week's births and deaths, summed since it began: born less died as
      * drawn, against as expected from the week's odds (for training, which judges people by what

@@ -773,9 +773,10 @@ object Tally {
 /**
  * The pack-hunger ledger's entries ([WeekStats.packHunger]), each per bucket of fed with fat drawn on (under half, half to
  * [WELL_FED], [WELL_FED] and over): grown head-years; grown-weighted sums of fed, fed with fat, fat (days), protein burnt
- * as the step began (days); hunger deaths expected, grown and young; young head-years.
+ * as the step began (days); hunger deaths expected, grown and young; young head-years; grown head-years homeless and with
+ * no kill of its own in the step; grown-weighted kills its plan expected in the step.
  */
-enum class PackHunger { HEAD_YEARS, FED, ON_FAT, FAT_DAYS, SPENT_DAYS, GROWN_HUNGER, YOUNG_HUNGER, YOUNG_YEARS;
+enum class PackHunger { HEAD_YEARS, FED, ON_FAT, FAT_DAYS, SPENT_DAYS, GROWN_HUNGER, YOUNG_HUNGER, YOUNG_YEARS, HOMELESS_YEARS, NO_KILL_YEARS, KILLS_EXPECTED;
     companion object { const val BUCKETS = 3; fun bucket(onFat: Float) = if (onFat < 0.5f) 0 else if (onFat < WELL_FED) 1 else 2
         fun at(bucket: Int, e: PackHunger) = bucket * entries.size + e.ordinal }
 }
