@@ -127,8 +127,9 @@ internal fun HexGroups.eatTheWeek(w: ForageWeek) {
     g.fed = (eaten / wantAll).coerceIn(0f, 1f)
     if (band != null && g.fed < Thresholds.HUNGRY) countHungryWeek(w, band)
     if (band != null) countSmallGame(w)
+    if (band == null) { g.stepKilled = meat + w.killFat > g.meatMet + w.heldKg; g.stepKillsExpected = w.killsExpected }
     if (HUNT_DIAG && band == null) {
-        val killed = meat + w.killFat > g.meatMet + w.heldKg
+        val killed = g.stepKilled
         if (!killed) diag(s, HuntStep.PACK_WEEKS_NO_KILL, 1f)
         if (g.fed < WELL_FED) diag(s, if (killed) HuntStep.PACK_WEEKS_HUNGRY_WITH_KILL else HuntStep.PACK_WEEKS_HUNGRY_NO_KILL, 1f)
         diag(s, HuntStep.PACK_PASSES, w.passes.toFloat()); diag(s, HuntStep.PACK_SEARCH_DAYS, w.searchDays); diag(s, HuntStep.PACK_KILLS_EXPECTED, w.killsExpected)

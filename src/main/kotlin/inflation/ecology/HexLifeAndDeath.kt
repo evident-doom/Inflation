@@ -916,5 +916,8 @@ private fun HexGroups.bookPackHunger(g: HexGroup, hazards: List<Hazard>) {
     val w = grown * years
     add(PackHunger.FED, w * g.fed); add(PackHunger.ON_FAT, w * onFat); add(PackHunger.FAT_DAYS, w * g.fat)
     add(PackHunger.SPENT_DAYS, w * g.spent)
+    if (g.home.none) add(PackHunger.HOMELESS_YEARS, w)
+    if (!g.stepKilled) add(PackHunger.NO_KILL_YEARS, w)
+    add(PackHunger.KILLS_EXPECTED, w * g.stepKillsExpected)
     add(PackHunger.GROWN_HUNGER, grown * min(1f, ha)); add(PackHunger.YOUNG_HUNGER, g.young * min(1f, hy))
 }
