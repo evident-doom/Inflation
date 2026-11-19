@@ -73,6 +73,8 @@ class HexHistory {
         const val HERBS = "herbs kg per m²"
         const val SHRUBS = "shrubs kg per m²"
         const val CANOPY = "canopy share"
+        /** Share of the ground in glades ([inflation.world.HexPlants.gladeArea]): how unevenly the woods stand. */
+        const val GLADES = "glade share"
         /** Soil moisture the plants have known over the last months, 0..1 ([inflation.world.HexPlants.moisture]): what sets their ceilings. */
         const val MOISTURE = "moisture share"
         /** Share of the land waterlogged, and the land's mean edible share of its plants (by area). */
@@ -302,6 +304,8 @@ class HexHistory {
         // (And its herbs, shrubs and canopy apart: what makes it the kind it is.)
         val herbs = DoubleArray(Biome.entries.size); val shrubs = DoubleArray(Biome.entries.size); val canopy = DoubleArray(Biome.entries.size)
         val moisture = DoubleArray(Biome.entries.size)
+        // (And how much of its ground lies in glades, [HexPlants.gladeArea]: how unevenly its woods stand.)
+        val glades = DoubleArray(Biome.entries.size)
         // (And its water: rain, the air's demand, what each form transpired and the bare ground evaporated, the runoff, mm; the soil factor.)
         val water = Array(WATER_KEYS.size) { DoubleArray(Biome.entries.size) }
         val hy = land.hydro
@@ -309,7 +313,7 @@ class HexHistory {
         for (p in 0 until n) {
             val b = biomeOf(sim, Place(p)); val a = area[p].toDouble()
             herbs[b] += land.plants.herb[p] * a; shrubs[b] += land.plants.shrub[p] * a; canopy[b] += land.plants.canopy(Place(p)) * a
-            moisture[b] += land.plants.moisture[p] * a
+            moisture[b] += land.plants.moisture[p] * a; glades[b] += land.plants.gladeArea(Place(p)) * a
             val got = floatArrayOf(w.precipitation[p], hy.demandMm[p], hy.transpired[0][p], hy.transpired[1][p], hy.transpired[2][p],
                 hy.evaporatedMm[p], hy.runoffMm[p], land.plants.soil(Place(p)))
             for (i in got.indices) water[i][b] += got[i] * a
@@ -331,6 +335,7 @@ class HexHistory {
             put(Key.biome(b, Key.SHRUBS), (shrubs[b.ordinal] / biomeArea[b.ordinal]).toFloat())
             put(Key.biome(b, Key.CANOPY), (canopy[b.ordinal] / biomeArea[b.ordinal]).toFloat())
             put(Key.biome(b, Key.MOISTURE), (moisture[b.ordinal] / biomeArea[b.ordinal]).toFloat())
+            put(Key.biome(b, Key.GLADES), (glades[b.ordinal] / biomeArea[b.ordinal]).toFloat())
             for ((i, what) in WATER_KEYS.withIndex()) put(Key.biome(b, what), (water[i][b.ordinal] / biomeArea[b.ordinal]).toFloat())
             for ((kind, a) in heads) put(Key.biome(b, kind), a[b.ordinal].toFloat())
         }
