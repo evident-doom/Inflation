@@ -155,8 +155,14 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
     val grassAge = FloatArray(n) { p -> degreeDaysBefore(Place(p), 0f) }
     /** How ripe the grass of place [p] is, 0..1: leafy at 0, gone to stem and seed at 1 (see [grassAge]). */
     fun maturity(p: Place) = ((grassAge[p] - LEAFY_DD) / (RIPE_DD - LEAFY_DD)).coerceIn(0f, 1f)
-    /** How much of the forage in place [p] is fresh, leafy growth, 0..1: the green part of it, less as it ripens. */
-    fun leafy(p: Place) = green[p] * (1f - maturity(p))
+    /**
+     * How much of the forage in place [p] is fresh, leafy growth, 0..1: the part of the sward in leaf ([inLeaf]), or growing
+     * ([green]), less as it ripens. A sward in leaf is green leaf however slowly it grows: young grass in a cool spring is as
+     * digestible as in a warm one (above 80%, Ball et al. 2001, from memory). (It was [green] alone, how fast the sward
+     * grows, so that slow spring growth read as stale forage and plant-eaters picked forage of 0.64-0.80 of fresh in
+     * April-June: birth-limits, 2026-11-19.)
+     */
+    fun leafy(p: Place) = max(green[p], inLeaf(p)) * (1f - maturity(p))
 
     /**
      * Nourishment per kg of forage in place [p] this week, against fresh growth: about two thirds when just dry, dormant or
@@ -406,7 +412,12 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             greenSeep[p] += (seepGrowth - greenSeep[p]) * GREEN_RATE
             greenWet[p] += (wetGrowth - greenWet[p]) * GREEN_RATE
             green[p] = openShare * ((1 - shaded) * greenOpen[p] + shaded * greenShade[p]) + HexHydrology.SEEP_SHARE * greenSeep[p] + wetShare * greenWet[p]
-            val browsed = 1f - exp(-browsing[p] / tuning.browseScale)
+            // The share of the shoots in reach the browsers take, of all that befalls them (eaten, or shed in their time,
+            // [shootsKept]): where the browsers eat most of what grows, the saplings' leaders and the seedlings go with it;
+            // where a lush wood grows more than they can eat, most come through. (It was a fixed kg/km² a day, saturated at
+            // a deer or so a km², so that any browsers at all held the woods' young back as hard as many: 2026-11-19.)
+            val eatenB = browsing[p] * days * 1e-6f
+            val browsed = if (eatenB > 0f) eatenB / (eatenB + browse(p) * (1f - shootsKept)) else 0f
             val young = 1f - min(1f, tree[p] / YOUNG_STAND_KG)
             val rooted = 1f - exp(-rooting[p] / ROOT_SCALE)
             val treeSeedHere = max(treeSeed[p], 0.5f * animalSeed[p]) * (1f + 1.5f * rooted)
@@ -439,7 +450,8 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             grew += growBy(tree, p, gTree, TREE_RENEWAL * years)
             tree[p] *= 1f - treeShort * DROUGHT_DEATH[1] * days / 7f
             val sGrow = shrub[p]
-            val gShrub = made * (hydro.transpired[1][p] + table * shrubs) * (1f - 0.6f * land.waterlogged[p]) * (1 - 0.5f * browsed) +
+            // (What the browsers eat of a grown stand comes off it ([eatBrowse]), and with it the leaves it would have grown on.)
+            val gShrub = made * (hydro.transpired[1][p] + table * shrubs) * (1f - 0.6f * land.waterlogged[p]) +
                 ESTABLISH_SHRUB * sprouting * shrubSeedHere * (1 - 0.8f * browsed)
             val shrubShort = shortOfWater(droughtShrub, p, shrubs, hydro.transpired[1][p] + table * shrubs, season, days)
             grew += growBy(shrub, p, gShrub, SHRUB_RENEWAL * years)
@@ -451,7 +463,6 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             // In the cold the deciduous leaves fall: through the winter only twigs and buds are left to browse.
             // (Where winters are mild enough to grow on, the leaves stay, as on the evergreen scrub of the south.)
             if (tuning.leafFall > 0f && season <= 0f && t < growFrom[p]) { val k = exp(-tuning.leafFall * years); shrubShoots[p] *= k; treeShoots[p] *= k }
-            val lawn = 1f - exp(-grazing[p] / LAWN_SCALE)
             val herb0 = herb[p]
             // The herbs of the open ground transpire from its soil while they grow (the annuals not once cured); those of the
             // seeps and the wet valley floor as far as their water flows ([seepGrowth], [wetGrowth], warmth in them). The seeps
@@ -462,7 +473,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             val meadow = 1f - exp(-LIGHT_K * max(herbLeaf(p, 1f), MEADOW_LAI))
             val herbWater = openShare * growing * active * hydro.transpired[0][p] +
                 hydro.demandMm[p] * (meadow * (HexHydrology.SEEP_SHARE * seepGrowth + sodden * wetGrowth) + herbs * (wetShare - sodden) * wetGrowth)
-            val gHerb = WUE_KG_PER_MM * soil(p) * herbWater * (1f - 0.5f * lawn - 0.2f * rooted)
+            val gHerb = WUE_KG_PER_MM * soil(p) * herbWater * (1f - 0.2f * rooted)
             // Green leaves are renewed as they grow, the old shed to the litter.
             grew += growBy(herb, p, gHerb, HERB_RENEWAL * years * green[p])
             // Cured grass weathers where it stands: the dead stems break and fall into the litter, and what
@@ -715,8 +726,6 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
         /** Ash depth that smothers most of the herb layer within weeks, mm; fertility added per mm of ash a year as it weathers. */
         const val ASH_SMOTHER_MM = 50f
         const val ASH_FERTILITY = 0.002f
-        /** Grazing, kg/km²/day, that over years turns grassland into short lawn. */
-        const val LAWN_SCALE = 8f
         /**
          * Rooting, kg/km²/day, at which most of the ground is churned: wild boar at a few a km², digging most of a kilo a
          * day each, turn over about a tenth of the ground in a year (8-11% of a Pannonian oak forest's floor a year:
