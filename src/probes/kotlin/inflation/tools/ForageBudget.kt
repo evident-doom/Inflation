@@ -52,6 +52,8 @@ fun main(args: Array<String>) {
     // [kind][biome]: heads (area x density, summed over steps), heads x fed; [biome]: weight kg (summed over steps), steps.
     val heads = Array(fauna.kinds.size) { DoubleArray(biomes.size) }; val fed = Array(fauna.kinds.size) { DoubleArray(biomes.size) }
     val stock = Array(biomes.size) { Array(4) { DoubleArray(3) } }
+    // Small life standing, kg/km² x area summed over steps [biome][quarter]: insects, rodents, hares, hyrax, tortoises, locusts.
+    val small = Array(biomes.size) { Array(4) { DoubleArray(6) } }
     val stepsIn = IntArray(4); var steps = 0
     val perYear = sim.stepsPerYear
     for (s in 0 until years * perYear) {
@@ -63,6 +65,8 @@ fun main(args: Array<String>) {
         for (p in 0 until n) {
             val b = hw.placeBiome[p]; val a = land.areaKm2[p].toDouble()
             val st = stock[b][qtr]; st[0] += a * land.plants.herb[p]; st[1] += a * land.palatable[p] * land.plants.herb[p]; st[2] += a * land.plants.browse(Place(p))
+            val sl = fauna.small; val sm = small[b][qtr]
+            sm[0] += a * sl.insects[p]; sm[1] += a * sl.rodents[p]; sm[2] += a * sl.hares[p]; sm[3] += a * sl.hyrax[p]; sm[4] += a * sl.tortoises[p]; sm[5] += a * sl.locusts[p]
             for (k in eaters) { val h = (fauna.adults[k][p] + fauna.young[k][p]).toDouble() * a; if (h <= 0.0) continue
                 heads[k][b] += h; fed[k][b] += h * fauna.fed[k][p] }
         }
@@ -81,6 +85,9 @@ fun main(args: Array<String>) {
             println("    %-34s herbs ".format(nm) + (0 until 4).joinToString(" | ") { "%+.2f".format(1000 * f[it][0] / area[b]) } +
                 "   browse " + (0 until 4).joinToString(" | ") { "%+.3f".format(1000 * f[it][1] / area[b]) })
         }
+        println("  small life standing, kg/km²: insects / rodents / hares / hyrax / tortoises / locusts")
+        for (q in 0 until 4) { val sm = small[b][q]; val d = area[b] * stepsIn[q].coerceAtLeast(1)
+            println("    Q${q + 1}  " + (0 until 6).joinToString(" / ") { "%.0f".format(sm[it] / d) }) }
         println("  plant-eaters: heads/km² (fed), year mean")
         println("    " + eaters.filter { heads[it][b] / steps / area[b] > 1e-3 }.joinToString(", ") { k ->
             "${fauna.kinds[k].name} %.2f (%.2f)".format(heads[k][b] / steps / area[b], fed[k][b] / heads[k][b]) })
