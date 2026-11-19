@@ -4,7 +4,6 @@ import inflation.drawUnit
 import inflation.Stream
 import inflation.Config
 
-import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.min
 
@@ -33,7 +32,13 @@ class HexFires(land: HexLand) : HexLandPart(land) {
     @Transient private var peopleKm2Year = 0.0
     @Transient private var wildKm2Year = 0.0
 
-    private fun fuel(p: Place) = (plants.herb[p] + 0.5f * plants.shrub[p]) * (1f - 0.8f * (1f - exp(-plants.grazing[p] / GRAZE_SCALE)))
+    /**
+     * The dry fuel at place [p], kg/m²: its herbs and half its shrubs (their fine twigs and dead wood). What grazers eat comes off
+     * the herbs ([HexPlants.consume]), so the fuel falls with it. (It was cut by a further 1-exp(-grazing/5 kg/km² a day), up to
+     * 80%, shrubs too: saturated at a few grazers a km², it held scrub with fuel enough under the threshold wherever goats
+     * stood, and under 0.06% of the land burnt a year: fire-ab, 2026-11-19.)
+     */
+    private fun fuel(p: Place) = plants.herb[p] + 0.5f * plants.shrub[p]
 
     /**
      * Whether place [p] would burn this week if lit: fuel enough, not flooded, a dry surface, warm and rainless. Dead grass, litter and
@@ -141,8 +146,6 @@ class HexFires(land: HexLand) : HexLandPart(land) {
     }
 
     companion object {
-        /** Grazing, kg/km²/day, at which most dry fuel is gone. */
-        const val GRAZE_SCALE = 5f
         /** How far a fire front can run in a day, km. */
         const val SPREAD_KM_PER_DAY = 5f
         /**
