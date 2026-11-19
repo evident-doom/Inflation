@@ -155,8 +155,14 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
     val grassAge = FloatArray(n) { p -> degreeDaysBefore(Place(p), 0f) }
     /** How ripe the grass of place [p] is, 0..1: leafy at 0, gone to stem and seed at 1 (see [grassAge]). */
     fun maturity(p: Place) = ((grassAge[p] - LEAFY_DD) / (RIPE_DD - LEAFY_DD)).coerceIn(0f, 1f)
-    /** How much of the forage in place [p] is fresh, leafy growth, 0..1: the green part of it, less as it ripens. */
-    fun leafy(p: Place) = green[p] * (1f - maturity(p))
+    /**
+     * How much of the forage in place [p] is fresh, leafy growth, 0..1: the part of the sward in leaf ([inLeaf]), or growing
+     * ([green]), less as it ripens. A sward in leaf is green leaf however slowly it grows: young grass in a cool spring is as
+     * digestible as in a warm one (above 80%, Ball et al. 2001, from memory). (It was [green] alone, how fast the sward
+     * grows, so that slow spring growth read as stale forage and plant-eaters picked forage of 0.64-0.80 of fresh in
+     * April-June: birth-limits, 2026-11-19.)
+     */
+    fun leafy(p: Place) = max(green[p], inLeaf(p)) * (1f - maturity(p))
 
     /**
      * Nourishment per kg of forage in place [p] this week, against fresh growth: about two thirds when just dry, dormant or
