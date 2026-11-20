@@ -42,7 +42,8 @@ fun main(args: Array<String>) {
     report("open woodland now") { land.country.kind[it] == Biome.OPEN_WOODLAND.ordinal }
 
     val humid = (0 until n).filter { land.country.kind[it] == Biome.STEPPE.ordinal && land.mean(it) { i -> c.aridity(i) } >= HUMID }
-    if (humid.isEmpty()) return
+    // (And the dry steppe of world-gen, rain under [DRY] of the demand: where the trees should stay out.)
+    val dry = (0 until n).filter { land.hw.placeBiome[it] == Biome.STEPPE.ordinal && land.mean(it) { i -> c.aridity(i) } < DRY }
     val ha = humid.sumOf { land.areaKm2[it].toDouble() }
     println("\nsteppe now with aridity >= $HUMID: %.1f%% of land; its world-gen kinds: ".format(100 * ha / (0 until n).sumOf { land.areaKm2[it].toDouble() }) +
         humid.groupBy { land.hw.placeBiome[it] }.mapValues { e -> e.value.sumOf { land.areaKm2[it].toDouble() } }.entries.sortedByDescending { it.value }
@@ -60,22 +61,34 @@ fun main(args: Array<String>) {
     for (s in 0 until steps) {
         sim.step()
         for (p in forest) { drought[p] += pl.droughtTree[p].toDouble(); watch(p) }
-        for (p in humid) watch(p)
-        for (p in humid) { browse[p] += pl.browsing[p].toDouble(); graze[p] += pl.grazing[p].toDouble(); burnt[p] += land.fire.burning[p].toDouble()
+        for (p in humid + dry) watch(p)
+        for (p in humid + dry) { browse[p] += pl.browsing[p].toDouble(); graze[p] += pl.grazing[p].toDouble(); burnt[p] += land.fire.burning[p].toDouble()
             drought[p] += pl.droughtTree[p].toDouble(); tTree[p] += land.hydro.transpired[2][p].toDouble() }
     }
-    println("  over a year, by the trees' change: area%, tree kg/m² start->end, browsing and grazing kg/km²/day, share burnt, tree drought (mean), trees transpired mm, opened, moisture, soil, dry months")
-    val groups = listOf("fell over 10%" to { d: Float -> d < -0.1f }, "within 10%" to { d: Float -> d >= -0.1f && d <= 0.1f }, "grew over 10%" to { d: Float -> d > 0.1f })
+    fun drivers(title: String, set: List<Int>) {
+    if (set.isEmpty()) return
+    val sa = set.sumOf { land.areaKm2[it].toDouble() }
+    println(title)
+    println("  over a year, by the trees at the start and their change: area%, tree kg/m² start->end, browsing and grazing kg/km²/day, share burnt, tree drought (mean), trees transpired mm, opened, moisture, soil, dry months")
+    // (By the trees at the start too: none to speak of, thin, a stand.)
+    val groups = listOf(
+        "none, came up" to { p: Int -> tree0[p] < 0.1f && pl.tree[p] >= 0.1f }, "none, stayed" to { p: Int -> tree0[p] < 0.1f && pl.tree[p] < 0.1f },
+        "thin, fell" to { p: Int -> tree0[p] in 0.1f..4f && pl.tree[p] < 0.9f * tree0[p] }, "thin, held" to { p: Int -> tree0[p] in 0.1f..4f && pl.tree[p] in 0.9f * tree0[p]..1.1f * tree0[p] },
+        "thin, grew" to { p: Int -> tree0[p] in 0.1f..4f && pl.tree[p] > 1.1f * tree0[p] }, "stand > 4" to { p: Int -> tree0[p] > 4f })
     for ((name, test) in groups) {
-        val ps = humid.filter { tree0[it] > 1e-3f && test((pl.tree[it] - tree0[it]) / tree0[it]) }; if (ps.isEmpty()) continue
+        val ps = set.filter(test); if (ps.isEmpty()) continue
         val a = ps.sumOf { land.areaKm2[it].toDouble() }
         fun m(f: (Int) -> Double) = ps.sumOf { f(it) * land.areaKm2[it] } / a
-        println("  %-14s %5.1f%%  %.2f->%.2f  %7.0f %7.0f  %.3f  %.2f  %5.0f  %.2f  %.2f  %.2f".format(name, 100 * a / ha, m { tree0[it].toDouble() }, m { pl.tree[it].toDouble() },
+        println("  %-14s %5.1f%%  %.2f->%.2f  %7.0f %7.0f  %.3f  %.2f  %5.0f  %.2f  %.2f  %.2f".format(name, 100 * a / sa, m { tree0[it].toDouble() }, m { pl.tree[it].toDouble() },
             m { browse[it] / steps }, m { graze[it] / steps }, m { burnt[it] }, m { drought[it] / steps }, m { tTree[it] }, m { pl.opened[it].toDouble() },
             m { pl.moisture[it].toDouble() }, m { pl.soil(Place(it)).toDouble() }) + "  %.1f".format(m { dryMonths(it).toDouble() }) +
             "  deep fill mean %.2f min %.2f; light herbs/shrubs/trees %.2f/%.2f/%.2f; shrubs %.2f kg/m²".format(m { deepMean[it] / steps }, m { deepMin[it] },
-                m { herbLight[it] / steps }, m { shrubLight[it] / steps }, m { treeShade[it] / steps }, m { pl.shrub[it].toDouble() }))
+                m { herbLight[it] / steps }, m { shrubLight[it] / steps }, m { treeShade[it] / steps }, m { pl.shrub[it].toDouble() }) +
+            "; aridity %.2f, wet floor %.2f, waterlogged %.2f".format(m { land.mean(it) { i -> c.aridity(i) }.toDouble() }, m { land.hydro.wetFloor(Place(it)).toDouble() }, m { land.waterlogged[it].toDouble() }))
     }
+    }
+    drivers("humid steppe now (aridity >= $HUMID)", humid)
+    drivers("\ndry world-gen steppe (aridity < $DRY)", dry)
     if (forest.isNotEmpty()) {
         val a = forest.sumOf { land.areaKm2[it].toDouble() }
         fun m(f: (Int) -> Double) = forest.sumOf { f(it) * land.areaKm2[it] } / a
@@ -88,3 +101,5 @@ fun main(args: Array<String>) {
 
 /** Rain over evaporative demand from which a place counts as humid for [main]'s second part. */
 private const val HUMID = 0.65f
+/** Rain over evaporative demand under which world-gen steppe counts as dry for [main]'s second part (UNEP semi-arid and drier). */
+private const val DRY = 0.45f
