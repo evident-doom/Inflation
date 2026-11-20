@@ -591,7 +591,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             // comes far on the wind and down the river ([FLOOR_SEED]), not only from the trees at hand.
             val floorSprouting = if (season > 0f && (soaked || hydro.flood[p] > 0f)) season * rootedFloor * woody * trod else 0f
             val gTree = made * treeGot * (1f - 0.95f * land.waterlogged[p]) * (1 - 0.8f * browsed * young) +
-                ESTABLISH_TREE * (sprouting * treeSeedHere + 0f * floorSprouting * max(treeSeedHere, FLOOR_SEED)) * (1 - 0.9f * browsed)
+                ESTABLISH_TREE * (sprouting * treeSeedHere + floorSprouting * max(treeSeedHere, FLOOR_SEED)) * (1 - 0.9f * browsed)
             val treeShort = shortOfWater(droughtTree, p, trees, treeGot, season, days, usualDryWeeks[p])
             grew += growBy(tree, p, gTree, TREE_RENEWAL * years)
             tree[p] *= 1f - treeShort * DROUGHT_DEATH[1] * days / 7f
@@ -599,7 +599,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             val sGrow = shrub[p]
             // (What the browsers eat of a grown stand comes off it ([eatBrowse]), and with it the leaves it would have grown on.)
             val gShrub = made * shrubGot * (1f - 0.6f * land.waterlogged[p]) +
-                ESTABLISH_SHRUB * (sprouting * shrubSeedHere + 0f * floorSprouting * max(shrubSeedHere, FLOOR_SEED)) * (1 - 0.8f * browsed)
+                ESTABLISH_SHRUB * (sprouting * shrubSeedHere + floorSprouting * max(shrubSeedHere, FLOOR_SEED)) * (1 - 0.8f * browsed)
             val shrubShort = shortOfWater(droughtShrub, p, shrubs, shrubGot, season, days)
             grew += growBy(shrub, p, gShrub, SHRUB_RENEWAL * years)
             shrubNote(if (shrub[p] >= sGrow) ShrubPart.GREW else ShrubPart.DIED_BACK, p, sGrow)
@@ -833,13 +833,13 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
          * a full seed rain, kg/m²: some few a year in a wet year, none in a dry one. Guesses to source.
          */
         const val ESTABLISH_SHRUB = 0.005f
-        const val ESTABLISH_TREE = 0.0081f
+        const val ESTABLISH_TREE = 0.008f
         /**
          * Seed rain on the rooted valley floor where no trees or shrubs stand near, as a share of a full one: poplar, willow and
          * tamarisk seed is light, carried kilometres on the wind and down the rivers, so that a gallery seeds the floors along
          * its river. A guess to source.
          */
-        const val FLOOR_SEED = 0.3f
+        const val FLOOR_SEED = 0.25f
         /**
          * Woody drought: a growing week in which the soil gives a form under this share of what the air asks of its leaves
          * counts as short of water; past [DROUGHT_WEEKS] of them (each other week taking [DROUGHT_RECOVERY] off) the form
