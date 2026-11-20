@@ -50,31 +50,28 @@ internal class TerrainPainter(private val sim: HexSim) {
         if (u < 4f) return
         val stroke = g.stroke
         val plants = land.plants
-        val glade = if (glades) perHex { plants.glade[it] } else null
-        val crowns = if (glades) perHex { plants.treeLight(it) } else null
-        val rough = if (rugged) perHex { land.ruggedness[it] } else null
         val deposits = if (resources) materials.map { m -> m to (m.deposit?.invoke(land)?.let { d -> perHex { d[it] } } ?: FloatArray(hex.size)) } else emptyList()
         // (As many marks as fit the hex's size on screen, at most [MOST_MARKS].)
         val most = (u * u / 10f).coerceIn(6f, MOST_MARKS.toFloat())
         val dot = max(1, (0.07f * u).roundToInt())
+        val hexKm2 = hex.areaKm2.toFloat()
         for (h in hex.all) {
             if (!onScreen(h, 1)) continue
             val (cx, cy) = hex.centreKm(h)
             val x = sx(cx.toFloat()); val y = sy(cy.toFloat())
-            if (glade != null && crowns != null) {
-                val gl = glade[h.i]; val cr = crowns[h.i]
-                if (!gl.isNaN() && cr >= WOODED_FROM && gl > 0.01f) {
+            // (Glades and rugged ground place by place (high and low ground apart), on the place's own 1 km cells.)
+            for (p in hw.placesOf(h)) {
+                val pl = Place(p); val share = land.areaKm2[pl] / hexKm2
+                if (glades && plants.treeLight(pl) >= WOODED_FROM && plants.glade[pl] > 0.01f) {
                     g.color = GLADE
-                    spots(h, 1, (gl * most).roundToInt(), u) { px, py -> g.fillOval(x + px - dot / 2, y + py - dot / 2, dot, dot) }
+                    cellSpots(pl, 1, (plants.glade[pl] * share * most).roundToInt()) { kx, ky -> g.fillOval(sx(kx) - dot / 2, sy(ky) - dot / 2, dot, dot) }
                 }
-            }
-            if (rough != null) {
-                val r = rough[h.i]
-                if (!r.isNaN() && r > 0f) {
-                    val k = ((r / roughest).coerceAtMost(1f) * most / 3f).roundToInt()
+                if (rugged && land.ruggedness[pl] > 0f) {
+                    val k = ((land.ruggedness[pl] / roughest).coerceAtMost(1f) * share * most / 3f).roundToInt()
                     val s = max(2, (0.08f * u).roundToInt())
                     g.color = RUGGED; g.stroke = BasicStroke(max(0.8f, 0.03f * u))
-                    spots(h, 2, k, u) { px, py -> g.drawPolyline(intArrayOf(x + px - s, x + px, x + px + s), intArrayOf(y + py + s / 2, y + py - s / 2, y + py + s / 2), 3) }
+                    cellSpots(pl, 2, k) { kx, ky -> val px = sx(kx); val py = sy(ky)
+                        g.drawPolyline(intArrayOf(px - s, px, px + s), intArrayOf(py + s / 2, py - s / 2, py + s / 2), 3) }
                 }
             }
             if (deposits.isNotEmpty()) {
@@ -91,17 +88,19 @@ internal class TerrainPainter(private val sim: HexSim) {
     }
 
     /**
-     * [count] spots (at most [MOST_MARKS]) inside hex [h], each the same every time for that hex and [salt]: offsets from its
-     * centre in pixels for a corner radius of [u], within the circle the hex's sides touch, kept off its rim.
+     * [count] spots (at most [MOST_MARKS]) on place [p]'s own ground: each on one of its 1 km cells drawn at random, somewhere
+     * in that cell, in km; the same every time for that place and [salt], so the picture does not flicker, and never on water
+     * or on another place's ground.
      */
-    private fun spots(h: Hex, salt: Int, count: Int, u: Float, at: (Int, Int) -> Unit) {
-        var s = (h.i.toLong() * 6364136223846793005L + salt * 1442695040888963407L) or 1L
+    private fun cellSpots(p: Place, salt: Int, count: Int, at: (Float, Float) -> Unit) {
+        val cells = hw.placeCells[p.i]
+        if (cells.isEmpty() || count <= 0) return
+        var s = (p.i.toLong() * 6364136223846793005L + salt * 1442695040888963407L) or 1L
         fun next(): Float { s = s * 6364136223846793005L + 1442695040888963407L; return ((s ushr 40).toInt() and 0xFFFFFF) / 16777216f }
-        val r = 0.78f * u
+        val grid = sim.world.grid; val km = grid.cellKm.toFloat()
         for (k in 0 until min(count, MOST_MARKS)) {
-            // (Even over the disc: the square root of a uniform draw for the radius.)
-            val d = r * sqrt(next()); val a = 2 * Math.PI * next()
-            at((d * kotlin.math.cos(a)).toInt(), (d * kotlin.math.sin(a)).toInt())
+            val c = cells[(next() * cells.size).toInt().coerceIn(0, cells.size - 1)]
+            at((grid.x(c) + next()) * km, (c / grid.width + next()) * km)
         }
     }
 
