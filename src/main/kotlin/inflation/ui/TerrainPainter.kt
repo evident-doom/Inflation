@@ -14,11 +14,10 @@ import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
 /**
- * The ground's own make-up drawn into each hex, over the map's background: the glades in its woods ([inflation.world.HexPlants.glade])
- * as sunlit flecks, more of them the more of the ground lies open in glades; how broken it is ([inflation.world.HexLand.ruggedness])
+ * The ground's own make-up drawn into each hex, over the map's background: how broken it is ([inflation.world.HexLand.ruggedness])
  * as small dark chevrons, more for rougher ground; and where the materials bands dig or gather crop out ([Material.deposit]) as
- * small marks along the hex's foot, one for each. The flecks and chevrons fall at the same spots each time (a hex's own draws),
- * so the picture does not flicker; how many there are is the grade. Read from the world as it stands; call only while it
+ * small marks along the hex's foot, one for each. The chevrons fall at the same spots each time (a place's own draws), so the
+ * picture does not flicker; how many there are is the grade. Read from the world as it stands; call only while it
  * stands still (see [WorldLock]).
  */
 internal class TerrainPainter(private val sim: HexSim) {
@@ -40,32 +39,26 @@ internal class TerrainPainter(private val sim: HexSim) {
     }
 
     /**
-     * Draws what is asked ([glades], [rugged], [resources]) in each hex on screen ([onScreen]), [sx] and [sy] taking km to the
+     * Draws what is asked ([rugged], [resources]) in each hex on screen ([onScreen]), [sx] and [sy] taking km to the
      * screen at [kmPx] pixels a km. Nothing when the hexes are too small on screen to hold marks.
      */
     fun paint(g: Graphics2D, kmPx: Double, sx: (Float) -> Int, sy: (Float) -> Int, onScreen: (Hex, Int) -> Boolean,
-              glades: Boolean, rugged: Boolean, resources: Boolean) {
+              rugged: Boolean, resources: Boolean) {
         // The hex's corner radius on screen; the marks are laid out in fractions of it.
         val u = (hex.hexKm / sqrt(3.0) * kmPx).toFloat()
         if (u < 4f) return
         val stroke = g.stroke
-        val plants = land.plants
         val deposits = if (resources) materials.map { m -> m to (m.deposit?.invoke(land)?.let { d -> perHex { d[it] } } ?: FloatArray(hex.size)) } else emptyList()
         // (As many marks as fit the hex's size on screen, at most [MOST_MARKS].)
         val most = (u * u / 10f).coerceIn(6f, MOST_MARKS.toFloat())
-        val dot = max(1, (0.07f * u).roundToInt())
         val hexKm2 = hex.areaKm2.toFloat()
         for (h in hex.all) {
             if (!onScreen(h, 1)) continue
             val (cx, cy) = hex.centreKm(h)
             val x = sx(cx.toFloat()); val y = sy(cy.toFloat())
-            // (Glades and rugged ground place by place (high and low ground apart), on the place's own 1 km cells.)
+            // (Rugged ground place by place (high and low ground apart), on the place's own 1 km cells.)
             for (p in hw.placesOf(h)) {
                 val pl = Place(p); val share = land.areaKm2[pl] / hexKm2
-                if (glades && plants.treeLight(pl) >= WOODED_FROM && plants.glade[pl] > 0.01f) {
-                    g.color = GLADE
-                    cellSpots(pl, 1, (plants.glade[pl] * share * most).roundToInt()) { kx, ky -> g.fillOval(sx(kx) - dot / 2, sy(ky) - dot / 2, dot, dot) }
-                }
                 if (rugged && land.ruggedness[pl] > 0f) {
                     val k = ((land.ruggedness[pl] / roughest).coerceAtMost(1f) * share * most / 3f).roundToInt()
                     val s = max(2, (0.08f * u).roundToInt())
@@ -119,13 +112,8 @@ internal class TerrainPainter(private val sim: HexSim) {
         }
     }
 
-    fun legend(glades: Boolean, rugged: Boolean, resources: Boolean): MapLegend {
+    fun legend(rugged: Boolean, resources: Boolean): MapLegend {
         val parts = ArrayList<String>(); val swatches = ArrayList<MapLegend.Swatch>()
-        if (glades) {
-            parts += "Glades: sunlit flecks in the woods (where trees' crowns cover at least ${(100 * WOODED_FROM).toInt()}% of the ground), the more " +
-                "flecks the more of the ground lies open in glades, opened by fire and by herds that keep saplings down, closed by new crowns"
-            swatches += MapLegend.Swatch(GLADE, "glades")
-        }
         if (rugged) {
             parts += "Rugged ground: dark chevrons, more for rougher ground, full at the roughest 5% of the land"
             swatches += MapLegend.Swatch(RUGGED, "rugged")
@@ -138,13 +126,10 @@ internal class TerrainPainter(private val sim: HexSim) {
     }
 
     companion object {
-        /** Trees' crowns over at least this share of the ground make a wood whose glades are drawn. */
-        const val WOODED_FROM = 0.15f
-        /** Most flecks or chevrons in one hex. */
+        /** Most chevrons in one hex. */
         const val MOST_MARKS = 90
         /** A material is marked in a hex where it crops out on at least this share of its ground. */
         const val RESOURCE_SHOWN = 0.005f
-        val GLADE = Color(1f, 0.95f, 0.55f, 0.8f)
         val RUGGED = Color(0.22f, 0.15f, 0.1f, 0.75f)
         private val EDGE = Color(1f, 1f, 1f, 0.85f)
         private val EDGE_DARK = Color(0f, 0f, 0f, 0.6f)
