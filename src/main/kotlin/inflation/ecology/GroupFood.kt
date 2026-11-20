@@ -85,7 +85,10 @@ internal fun HexGroups.hunt(weather: Weather) {
             // go at once, so any two that could touch the same ground go in the order they always did, and the week comes
             // out as it would one by one. (A square of one colour's parties keep apart from another's, as before.)
             val waves = forageWaves(squares.map { it.value })
-            for (wave in waves) Par.forEach("foraging: parties", wave.size) { i -> forageOne(wave[i]) }
+            for ((wi, wave) in waves.withIndex()) {
+                Par.forEach("foraging: parties", wave.size) { i -> forageOne(wave[i]) }
+                ForageDigest.parties?.let { q -> ForageDigest.report(q, "day $day ${if (squareKm == HUNT_FINE_KM) "near" else "far"} colour $colour wave $wi", wave) { g -> forageGround(g) } }
+            }
         }
     }
     val (near, far) = hunters.partition { g ->
@@ -299,6 +302,10 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         if (w.band == null && pass == 0) g.stepKills0 = w.killsExpected
         time?.spend(Activity.FOOD, (w.busy - busy0) * w.hands)
     }
+    // (Diagnostic, with stateHashes: what this party got, bit for bit, for [ForageDigest].)
+    ForageDigest.parties?.add(longArrayOf(g.id.toLong(), (w.fed.toRawBits().toLong() shl 32) xor w.busy.toRawBits().toLong(),
+        (w.meat.toRawBits().toLong() shl 32) xor w.fish.toRawBits().toLong(), (w.smallGot.toRawBits().toLong() shl 32) xor w.scraps.toRawBits().toLong(),
+        (w.plants.toRawBits().toLong() shl 32) xor w.searchUsed.toRawBits().toLong()))
     if (w.band != null && w.time == null) planWeek(w, 0f, 0f, 0f)
     if (w.band == null) { g.stepWorkDays = w.workDays; g.stepBusy = w.busy; g.stepSearch = w.searchUsed }
     // (What a day's foraging brought it this week, kg of its need, kept month by month as a mean over the years: what a
@@ -834,4 +841,22 @@ internal fun notFinite(o: Any): String {
     }
     walk(o, o.javaClass.simpleName, 0)
     return out.toString().ifEmpty { "none" }
+}
+
+/**
+ * Diagnostic, on while stateHashes covers the month ([HexSim]): after each wave of [hunt]'s parallel foraging, a line for each
+ * party of what it got, bit for bit (sorted by id, so two runs compare line by line), with its place, way and the hexes
+ * its foraging may touch; to find the wave, and the parties, where two runs that should repeat first part.
+ */
+internal object ForageDigest {
+    @JvmField var parties: java.util.concurrent.ConcurrentLinkedQueue<LongArray>? = null
+    fun report(q: java.util.concurrent.ConcurrentLinkedQueue<LongArray>, head: String, wave: List<HexGroup>, ground: (HexGroup) -> Set<Hex>) {
+        val got = HashMap<Long, LongArray>(); while (true) { val a = q.poll() ?: break; got[a[0]] = a }
+        for (g in wave.sortedBy { it.id }) {
+            val a = got[g.id.toLong()]
+            println("forage digest $head id ${g.id} ${g.species.name} place ${g.place.i} " +
+                (if (a == null) "none" else (1 until a.size).joinToString(" ") { "%016x".format(a[it]) }) +
+                " path ${(0 until g.path.size).joinToString(",") { g.path[it].i.toString() }} ground ${ground(g).map { it.i }.sorted().joinToString(",")}")
+        }
+    }
 }

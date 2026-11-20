@@ -75,6 +75,8 @@ class HexSim(
             var n = 0
             inflation.world.PhaseWatch.after = { phase ->
                 val d = weather.date; val ym = d.year * 12 + d.month
+                // (On for the next step's foraging too, while still in the span: [ForageDigest].)
+                ForageDigest.parties = if (ym in a..b) ForageDigest.parties ?: java.util.concurrent.ConcurrentLinkedQueue() else null
                 if (ym in a..b) println("state hash ${n++} day ${d.absoluteDay} y${d.year} m${d.month} after '$phase': " +
                     HexSnapshot.fingerprints(this).joinToString(" ") { (k, v) -> "$k=%08x".format(v) })
             }
