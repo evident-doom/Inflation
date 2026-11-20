@@ -119,6 +119,11 @@ object TestWorlds {
         Entry("w1119b-1", 1, 1000, 2000, "the full map, settled on 91e837cc"),
         Entry("w1119b-2", 2, 1000, 2000, "the full map, settled on 91e837cc"),
         Entry("w1119b-3", 3, 1000, 2000, "the full map, settled on 91e837cc"),
+        // The same seeds settled again for 30 years weekly on main ac85a89a (canopy as crown share, wet-topsoil bypass,
+        // #785) from t.startDay=150 with night1119-kept-last (Olli 2026-11-20 "repopulate worlds").
+        Entry("w1120-1", 1, 1000, 2000, "the full map, settled on ac85a89a"),
+        Entry("w1120-2", 2, 1000, 2000, "the full map, settled on ac85a89a"),
+        Entry("w1120-3", 3, 1000, 2000, "the full map, settled on ac85a89a"),
         // New seeds 4..6, settled for 30 years on main 2afaf7c4 from t.startDay=150 with the default nets of 2026-11-14
         // (night1114-kept-last): Olli 2026-11-14 "reseed a new world" for the overnight training and its checks.
         Entry("s6-4", 4, 1000, 2000, "the full map, new seed 4"),
