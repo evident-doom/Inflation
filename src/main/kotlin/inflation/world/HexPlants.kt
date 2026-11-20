@@ -569,15 +569,8 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             val growing = if (season > 0f) 1f else 0f
             val made = WUE_KG_PER_MM * growing * soil(p)
             // Woody roots reach the water table under the wet valley floor where it is not sodden: there the shrubs and
-            // trees transpire as much as the air takes, whatever the weather (the gallery forests of dry country). What trees
-            // a place has stand on that floor first, and its shrubs on what floor the trees leave: in dry country the woods
-            // keep to the water (poplar, willow and tamarisk along the rivers, the hills bare). (They were spread evenly over
-            // the place, so that a treeless dry place's floor got no table water at all, and few trees only their even share
-            // of it: no gallery could grow along a river through steppe. 2026-11-20.)
-            val rootedFloor = max(0f, wetShare - hydro.saturatedFloor(p))
-            val treeFloor = min(rootedFloor, trees); val shrubFloor = min(rootedFloor - treeFloor, shrubs)
-            val treeGot = min(hydro.demandMm[p] * trees, hydro.transpired[2][p] + hydro.demandMm[p] * treeFloor)
-            val shrubGot = min(hydro.demandMm[p] * shrubs, hydro.transpired[1][p] + hydro.demandMm[p] * shrubFloor)
+            // trees transpire as much as the air takes, whatever the weather (the gallery forests of dry country).
+            val table = hydro.demandMm[p] * max(0f, wetShare - hydro.saturatedFloor(p))
             val woody = 1f - opened[p]
             // Seedlings of shrubs and trees take only in a soaking rain in growing weather on a wet top soil, and live through
             // their first dry season as far as the deep soil holds water for their roots, and hooves and browsers spare them:
@@ -586,21 +579,17 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             val deepFill = (hydro.soil[p] - hydro.soilTop[p]) / (hydro.soilCap[p] - hydro.topCap(p))
             val sprouting = if (season > 0f && soaked && topFill >= HexHydrology.UNSTRESSED)
                 season * (deepFill / HexHydrology.UNSTRESSED).coerceIn(0f, 1f) * woody * trod else 0f
-            // On the rooted valley floor they take after a flood or a soaking rain, and the water table carries them through
-            // the dry season: the bars a flood leaves, where the poplars and willows of the galleries come up. Their seed
-            // comes far on the wind and down the river ([FLOOR_SEED]), not only from the trees at hand.
-            val floorSprouting = if (season > 0f && (soaked || hydro.flood[p] > 0f)) season * rootedFloor * woody * trod else 0f
-            val gTree = made * treeGot * (1f - 0.95f * land.waterlogged[p]) * (1 - 0.8f * browsed * young) +
-                ESTABLISH_TREE * (sprouting * treeSeedHere + floorSprouting * max(treeSeedHere, FLOOR_SEED)) * (1 - 0.9f * browsed)
-            val treeShort = shortOfWater(droughtTree, p, trees, treeGot, season, days, usualDryWeeks[p])
+            val gTree = made * (hydro.transpired[2][p] + table * trees) * (1f - 0.95f * land.waterlogged[p]) * (1 - 0.8f * browsed * young) +
+                ESTABLISH_TREE * sprouting * treeSeedHere * (1 - 0.9f * browsed)
+            val treeShort = shortOfWater(droughtTree, p, trees, hydro.transpired[2][p] + table * trees, season, days, usualDryWeeks[p])
             grew += growBy(tree, p, gTree, TREE_RENEWAL * years)
             tree[p] *= 1f - treeShort * DROUGHT_DEATH[1] * days / 7f
             closeGlades(p, crowns, treeLight(p), years, trodRate, browsed)
             val sGrow = shrub[p]
             // (What the browsers eat of a grown stand comes off it ([eatBrowse]), and with it the leaves it would have grown on.)
-            val gShrub = made * shrubGot * (1f - 0.6f * land.waterlogged[p]) +
-                ESTABLISH_SHRUB * (sprouting * shrubSeedHere + floorSprouting * max(shrubSeedHere, FLOOR_SEED)) * (1 - 0.8f * browsed)
-            val shrubShort = shortOfWater(droughtShrub, p, shrubs, shrubGot, season, days)
+            val gShrub = made * (hydro.transpired[1][p] + table * shrubs) * (1f - 0.6f * land.waterlogged[p]) +
+                ESTABLISH_SHRUB * sprouting * shrubSeedHere * (1 - 0.8f * browsed)
+            val shrubShort = shortOfWater(droughtShrub, p, shrubs, hydro.transpired[1][p] + table * shrubs, season, days)
             grew += growBy(shrub, p, gShrub, SHRUB_RENEWAL * years)
             shrubNote(if (shrub[p] >= sGrow) ShrubPart.GREW else ShrubPart.DIED_BACK, p, sGrow)
             val sDry = shrub[p]; shrub[p] *= 1f - shrubShort * DROUGHT_DEATH[0] * days / 7f; shrubNote(ShrubPart.DROUGHT, p, sDry)
@@ -834,12 +823,6 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
          */
         const val ESTABLISH_SHRUB = 0.005f
         const val ESTABLISH_TREE = 0.008f
-        /**
-         * Seed rain on the rooted valley floor where no trees or shrubs stand near, as a share of a full one: poplar, willow and
-         * tamarisk seed is light, carried kilometres on the wind and down the rivers, so that a gallery seeds the floors along
-         * its river. A guess to source.
-         */
-        const val FLOOR_SEED = 0.3f
         /**
          * Woody drought: a growing week in which the soil gives a form under this share of what the air asks of its leaves
          * counts as short of water; past [DROUGHT_WEEKS] of them (each other week taking [DROUGHT_RECOVERY] off) the form
