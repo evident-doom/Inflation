@@ -298,12 +298,18 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
     }
 
     fun biomass(p: Place) = herb[p] + shrub[p] + tree[p]
-    fun canopy(p: Place) = min(1f, tree[p] / (0.4f * LifeForm.TREE.maxBiomass))
+    /**
+     * The share of place [p]'s ground under the trees' crowns, as the labels, the cover and the animals read it: the crowns
+     * the light reads ([treeLight]). (It was the trees' mass against 10 kg/m², a second measure of the same crowns: a stand
+     * of 2 kg/m² was a fifth canopy to the labels and over two fifths crowns to the light, so that a sixth of the land with
+     * crowns over 0.15 was called steppe: steppe-trees, 2026-11-20.)
+     */
+    fun canopy(p: Place) = treeLight(p)
     /**
      * The share of the light at place [p] the trees' leaves take, which is the share of its ground under their crowns (the
      * crowns let little through; the rest of the ground is open to the sky): a stand's leaf mass levels off once its crowns
      * close, so the light it takes grows with its mass only while it is young ([TREE_CLOSED_KG]); the wood it lays on after
-     * does not add to it. ([canopy], the cover the crowns give, is the forest's structure for the animals and stays as it was.)
+     * does not add to it.
      */
     fun treeLight(p: Place) = (1f - GAP_SHARE) * (1f - exp(-tree[p] / TREE_CLOSED_KG))
     /**
