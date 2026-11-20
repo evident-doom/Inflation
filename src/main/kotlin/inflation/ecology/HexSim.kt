@@ -79,6 +79,23 @@ class HexSim(
                     HexSnapshot.fingerprints(this).joinToString(" ") { (k, v) -> "$k=%08x".format(v) })
             }
         }
+        // (Diagnostic nanWatch=ID@Y.M: from that month on, after every phase, the fields of group ID and its band that are
+        // not finite ([notFinite]), each time they change; to find the phase where a NaN first enters a band.)
+        inflation.Config.string(inflation.Config.Key.NAN_WATCH)?.let { spec ->
+            val id = spec.substringBefore('@').trim().toInt()
+            val from = spec.substringAfter('@').split('.').let { it[0].toLong() * 12 + it[1].toLong() }
+            val before = inflation.world.PhaseWatch.after
+            var last = ""
+            inflation.world.PhaseWatch.after = { phase ->
+                before?.invoke(phase)
+                val d = weather.date
+                if (d.year * 12 + d.month >= from) {
+                    val g = groups.groups.firstOrNull { it.id == id }
+                    val now = if (g == null) "gone" else "band ${g.band?.let { notFinite(it) } ?: "-"}; group ${notFinite(g)}"
+                    if (now != last) { println("nan watch day ${d.absoluteDay} $d after '$phase': group $id $now"); last = now }
+                }
+            }
+        }
     }
 
     /** Every stock of water and matter in the model, as each part names them (the books start from them as the first step finds them, after a save is loaded). */
