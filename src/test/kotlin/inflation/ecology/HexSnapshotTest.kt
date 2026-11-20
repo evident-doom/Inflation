@@ -45,26 +45,6 @@ class HexSnapshotTest {
     }
 
     @Test
-    fun `lockstep diagnosis - first step a loaded world parts from the one that ran on`() {
-        val a = HexSim(World.generate(cfg))
-        repeat(30) { a.step() }
-        val f = File.createTempFile("hexsnap", ".hexs")
-        try {
-            HexSnapshot.save(a, f)
-            val b = HexSim(World.generate(cfg))
-            HexSnapshot.load(b, f)
-            val x0 = bytes(a); val y0 = bytes(b)
-            if (!x0.contentEquals(y0)) fail("differs right after load, in:\n" + StateDiff().of(a, b).joinToString("\n"))
-            val log = StringBuilder("transient and saved fields that differ right after load:\n" + StateDiff(true, 400).of(a, b).joinToString(", ") + "\n"); var parted = false
-            for (k in 1..30) {
-                a.step(); b.step()
-                if (!bytes(a).contentEquals(bytes(b))) { parted = true; log.append("step $k: ").append(StateDiff().of(a, b).joinToString(", ")).append('\n') }
-            }
-            fail("parted=$parted; by step after load:\n$log")
-        } finally { f.delete() }
-    }
-
-    @Test
     fun `a save with enum entries in another order is refused, one with fewer at the end is not`() {
         val skills = Skill.entries.map { it.name }
         assertEquals(null, HexSnapshot.orderProblem(Skill::class.java.name, skills))
@@ -133,11 +113,11 @@ class HexSnapshotTest {
  * The fields in which two models differ, walked by reflection over everything the model's own classes
  * save (what lazy fields hold too), so that a failed comparison names what was lost.
  */
-private class StateDiff(private val transients: Boolean = false, private val cap: Int = 30) {
+private class StateDiff {
     private val out = ArrayList<String>()
     private val seen = IdentityHashMap<Any, Boolean>()
 
-    fun of(a: Any, b: Any): List<String> { walk("sim", a, b); return out.map { it.replace(INDEX, "[]") }.distinct().take(cap) }
+    fun of(a: Any, b: Any): List<String> { walk("sim", a, b); return out.map { it.replace(INDEX, "[]") }.distinct().take(30) }
     private val INDEX = Regex("""\[\d+]""")
 
     private fun walk(path: String, x: Any?, y: Any?) {
@@ -163,7 +143,7 @@ private class StateDiff(private val transients: Boolean = false, private val cap
                 if (c.isSynthetic || c.name.contains("Lambda") || !c.name.startsWith("inflation.")) return
                 var k: Class<*>? = c
                 while (k != null && k != Any::class.java) {
-                    for (f in k.declaredFields) if (!Modifier.isStatic(f.modifiers) && (transients || !Modifier.isTransient(f.modifiers))) {
+                    for (f in k.declaredFields) if (!Modifier.isStatic(f.modifiers) && !Modifier.isTransient(f.modifiers)) {
                         f.isAccessible = true
                         walk("$path.${f.name}", f.get(x), f.get(y))
                     }
