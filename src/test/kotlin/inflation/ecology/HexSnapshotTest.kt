@@ -67,8 +67,12 @@ class HexSnapshotTest {
                     val (name, ma) = ha[i]; val mb = hb.getOrNull(i)?.second ?: break
                     val differ = ma.keys.filter { ma[it] != mb[it] }
                     if (differ.isNotEmpty()) { out.append("step $k, after phase '$name' (#$i of ${ha.size}): ${differ.take(40).joinToString(", ")}\n")
-                        if (k == 1) for (ga in a.groups.groups) { val gb = b.groups.groups.firstOrNull { it.id == ga.id }
-                            if (gb == null || gb.place != ga.place) out.append("  group ${ga.id} ${ga.species.name} band=${ga.band != null} a.place=${ga.place} b.place=${gb?.place}\n") }
+                        if (k == 1) {
+                            out.append("  ids in order a: ${a.groups.groups.map { it.id }}\n  ids in order b: ${b.groups.groups.map { it.id }}\n")
+                            for (ga in a.groups.groups) { val gb = b.groups.groups.firstOrNull { it.id == ga.id }
+                                if (gb == null || gb.place != ga.place || !gb.path.a.contentEquals(ga.path.a) || !gb.days.contentEquals(ga.days) || gb.climbedM != ga.climbedM)
+                                    out.append("  group ${ga.id} ${ga.species.name} band=${ga.band != null} alive=${ga.alive} place ${ga.place}/${gb?.place} path ${ga.path.a.toList()}/${gb?.path?.a?.toList()} days ${ga.days.toList()}/${gb?.days?.toList()} climbed ${ga.climbedM}/${gb?.climbedM}\n") }
+                        }
                         break }
                 }
             }
