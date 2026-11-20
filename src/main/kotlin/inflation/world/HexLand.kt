@@ -108,10 +108,20 @@ class HexLand(internal val hw: HexWorld, internal val seed: Long, /** The run's 
     /** The month at place [p] as its seasons go ([seasonLag]): [month] of the calendar, less the months its seasons run behind. */
     fun localMonth(p: Place, month: Int): Int = Math.floorMod(month - seasonLag[p.i], 12)
     /**
-     * Share of the ground where rock for grinding stones lies bare (not under more than [BARE_ROCK_M] of sediment), by how well
-     * it grinds ([GRINDING_ROCK]): mortars, pestles and querns were pecked from basalt, sandstone and limestone, not from flint.
+     * Share of the ground where rock fit for grinding stones lies bare (not under more than [BARE_ROCK_M] of sediment), by how
+     * well it grinds ([GRINDING_ROCK]): mortars, pestles and querns were pecked from basalt, sandstone and granite, not from
+     * flint. Only some beds of a rock serve ([QUERN_BEDS]): the rest is too soft, too fine, too cracked or too weathered, so
+     * good grinding rock lies in patches some kilometres across, and between them none is to be had but by giving on.
      */
-    @Transient val groundStone = FloatArray(n) { p -> mean(p) { if (world.geology.sediment[it] > BARE_ROCK_M) 0f else GRINDING_ROCK[world.geology.rock[it].ordinal] } }
+    @Transient val groundStone = run {
+        val beds = Noise(world.config.seed + QUERN_SEED)
+        FloatArray(n) { p -> mean(p) { i ->
+            val rock = world.geology.rock[i].ordinal
+            if (world.geology.sediment[i] > BARE_ROCK_M ||
+                beds.fbm(grid.x(i).toDouble(), grid.y(i).toDouble(), QUERN_PATCH_KM / grid.cellKm, 3) <= QUERN_BEDS[rock]) 0f
+            else GRINDING_ROCK[rock]
+        } }
+    }
     /** Share of floodplain, which a river in spate covers. */
     @Transient val floodShare = FloatArray(n) { p -> mean(p) { if (world.floodplain.isFloodplain[it]) 1f else 0f } }
     @Transient internal val pet = Array(12) { m -> FloatArray(n) { p -> mean(p) { world.climate.monthlyPet[m][it] } } }
@@ -230,8 +240,29 @@ internal val GRINDING_ROCK = FloatArray(Rock.entries.size) { when (Rock.entries[
     Rock.METAMORPHIC -> 0.2f
     Rock.SHALE, Rock.ALLUVIUM, Rock.EVAPORITE -> 0f
 } }
-/** Sediment over bedrock beyond which no rock lies bare for the taking, m (as erosion counts bedrock covered, [Erosion]). */
-internal const val BARE_ROCK_M = 2f
+/**
+ * Which beds of each surface rock ([Rock]) give grinding stones: the level a patch noise must pass, so about half of a lava
+ * field (the rough, vesicular flows), a fifth of sandstone (the hard, well-cemented, middling to coarse beds), a tenth of
+ * granite (coarse and unweathered), a twenty-fifth of the metamorphic rocks (quartzite) and of limestone (the hard beds the
+ * Natufians cut mortars in); none of the soft and loose rocks. The shares are estimates; that querns were pecked from a few
+ * known outcrops and carried tens of kilometres from them (the basalt of the Golan and Galilee in the Levant; the Eifel lava) is not.
+ */
+internal val QUERN_BEDS = FloatArray(Rock.entries.size) { when (Rock.entries[it]) {
+    Rock.BASALT, Rock.VOLCANIC -> 0f
+    Rock.SANDSTONE -> 0.15f
+    Rock.GRANITE -> 0.25f
+    Rock.METAMORPHIC, Rock.LIMESTONE -> 0.35f
+    Rock.SHALE, Rock.ALLUVIUM, Rock.EVAPORITE -> Float.MAX_VALUE
+} }
+/** The wavelength of the patches of grinding rock ([QUERN_BEDS]), km: beds and flows a few kilometres across. An estimate. */
+internal const val QUERN_PATCH_KM = 15.0
+/** Offset to the world's seed for the patches of grinding rock ([QUERN_BEDS]), so they fall apart from its other noises. */
+private const val QUERN_SEED = 7_919L
+/**
+ * Sediment over bedrock beyond which no rock lies bare for the taking, m: rock is got where it crops out, in scree and in
+ * stream beds, not dug from under soil. (Erosion counts bedrock as bare under up to [Erosion.COVER].) An estimate.
+ */
+internal const val BARE_ROCK_M = 0.5f
 
 /** The mean temperature, °C, a place reaches as its spring comes ([HexLand.seasonLag]): when the grass and the insects wake. An estimate. */
 const val SPRING_C = 10f
