@@ -87,6 +87,13 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
      */
     val droughtShrub = FloatArray(n); val droughtTree = FloatArray(n)
     /**
+     * Weeks of each place's ordinary dry season: the months of the normal year warm enough to grow (over 10 °C) with rain under
+     * half the demand. The trees of a place are its own climate's, deep-rooted and shutting down through the summer drought it
+     * always has (the oaks and pines of summer-dry country); they die back only of drought beyond it ([shortOfWater]).
+     */
+    @Transient val usualDryWeeks = FloatArray(n) { p -> mean(p) { i -> val c = world.climate
+        (0 until 12).count { m -> c.monthlyTemp[m][i] > 10f && c.monthlyPrecip[m][i] < 0.5f * c.monthlyPet[m][i] }.toFloat() } * 30f / 7f }
+    /**
      * Ground stepped on at each place, m² (see [tread]): the seedlings of shrubs and trees it kills. Trodden in the week's grazing
      * and counted, then cleared, in the next week's plant step (the plants grow before the animals feed).
      */
@@ -568,7 +575,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
                 season * (deepFill / HexHydrology.UNSTRESSED).coerceIn(0f, 1f) * woody * trod else 0f
             val gTree = made * (hydro.transpired[2][p] + table * trees) * (1f - 0.95f * land.waterlogged[p]) * (1 - 0.8f * browsed * young) +
                 ESTABLISH_TREE * sprouting * treeSeedHere * (1 - 0.9f * browsed)
-            val treeShort = shortOfWater(droughtTree, p, trees, hydro.transpired[2][p] + table * trees, season, days)
+            val treeShort = shortOfWater(droughtTree, p, trees, hydro.transpired[2][p] + table * trees, season, days, usualDryWeeks[p])
             grew += growBy(tree, p, gTree, TREE_RENEWAL * years)
             tree[p] *= 1f - treeShort * DROUGHT_DEATH[1] * days / 7f
             closeGlades(p, crowns, treeLight(p), years, trodRate, browsed)
@@ -674,13 +681,15 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
     /**
      * Counts place [p]'s weeks of drought for a woody form ([droughtShrub], [droughtTree]) over a tick of [days]: the form's
      * leaves take [light] of the light, so the air asks that share of the demand of them, and the soil gave [got] mm.
-     * Returns 1 when the form has gone short past [DROUGHT_WEEKS] (it dies back this tick), else 0.
+     * Returns 1 when the form has gone short past [DROUGHT_WEEKS] and the [usual] weeks of its place's dry season (it dies
+     * back this tick), else 0. (The trees bore no dry season at all: on grassy ground in humid country with three or four dry
+     * months they died back every summer and the grass held it, 16% of the land; steppe-trees, bypass-ab, 2026-11-20.)
      */
-    private fun shortOfWater(weeks: FloatArray, p: Place, light: Float, got: Float, season: Float, days: Int): Float {
+    private fun shortOfWater(weeks: FloatArray, p: Place, light: Float, got: Float, season: Float, days: Int, usual: Float = 0f): Float {
         val asked = hydro.demandMm[p] * light
         val short = season > 0f && asked > 1e-4f && got < DROUGHT_SUPPLY * asked
         weeks[p] = if (short) weeks[p] + days / 7f else max(0f, weeks[p] - DROUGHT_RECOVERY * days / 7f)
-        return if (weeks[p] > DROUGHT_WEEKS) 1f else 0f
+        return if (weeks[p] > DROUGHT_WEEKS + usual) 1f else 0f
     }
 
     /**
