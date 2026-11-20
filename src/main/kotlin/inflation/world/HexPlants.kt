@@ -839,7 +839,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
          * tamarisk seed is light, carried kilometres on the wind and down the rivers, so that a gallery seeds the floors along
          * its river. A guess to source.
          */
-        const val FLOOR_SEED = 0.25f
+        const val FLOOR_SEED = 0.3f
         /**
          * Woody drought: a growing week in which the soil gives a form under this share of what the air asks of its leaves
          * counts as short of water; past [DROUGHT_WEEKS] of them (each other week taking [DROUGHT_RECOVERY] off) the form
