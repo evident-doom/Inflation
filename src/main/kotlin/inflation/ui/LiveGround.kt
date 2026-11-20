@@ -8,6 +8,7 @@ import inflation.world.RiverClass
 import inflation.world.get
 import java.awt.image.BufferedImage
 import kotlin.math.exp
+import kotlin.math.max
 import kotlin.math.min
 
 /**
@@ -17,7 +18,8 @@ import kotlin.math.min
  * state for a place, so where its trees stand inside it is drawn, not modelled: they are put on the place's cells that would
  * hold trees first ([treeFirst]: floodplain and stream sides and wetter ground, broken into patches by fixed noise), as
  * closed wood on as many cells as the crowns fill, never on more than its glades ([inflation.world.HexPlants.glade]) leave
- * open; the rest shows its open ground. So a river place's trees line its streams instead of tinting the whole place. Water, ice, salt and wetlands keep world-gen's
+ * open; the rest shows its open ground. So a river place's trees line its streams instead of tinting the whole place. The
+ * places' values are blended over a few km across their borders, so the hexes' outlines do not show in the ground. Water, ice, salt and wetlands keep world-gen's
  * colours; the relief shading, height tint and hex borders are [HexPicture]'s as before. Worked out on the simulation's thread
  * (call only while the world stands still) into a new picture each time, the whole map at [px] pixels a km, as the viewer's.
  */
@@ -41,8 +43,13 @@ internal class LiveGround(private val sim: HexSim, private val px: Int) {
             1.5f * river + 0.5f * wet + NOISE_WEIGHT * noise[i]
         }
     }
-    /** Each place's cells' [treeFirst], sorted: the share of a place drawn wooded is a quantile of it. */
-    private val sortedFirst = Array(hw.placeCells.size) { p -> FloatArray(hw.placeCells[p].size) { treeFirst[hw.placeCells[p][it]] }.also { it.sort() } }
+    /** Each cell's rank by [treeFirst] among its place's cells, 0 (last to hold trees) to 1 (first): a cell is wooded where its rank is above 1 less the wooded share there. */
+    private val rank = FloatArray(grid.size).also { r ->
+        for (cells in hw.placeCells) {
+            val order = cells.sortedBy { treeFirst[it] }
+            for ((k, c) in order.withIndex()) r[c] = (k + 0.5f) / order.size
+        }
+    }
 
     /** Each cell's distance to the nearest stream or river cell, km (4-neighbour steps, capped). */
     private fun riverDistanceKm(): FloatArray {
@@ -66,9 +73,8 @@ internal class LiveGround(private val sim: HexSim, private val px: Int) {
     fun render(): BufferedImage {
         val plants = land.plants
         val n = hw.placeCells.size
-        // Per place: the open ground's colour, how thick its wood is drawn on the cells it covers, and the [treeFirst] threshold
-        // above which a cell is wooded.
-        val open = IntArray(n); val wood = FloatArray(n); val threshold = FloatArray(n)
+        // Per place: the open ground's colour, the share of its ground drawn wooded, and how thick that wood is.
+        val open = IntArray(n); val wooded = FloatArray(n); val wood = FloatArray(n)
         for (p in 0 until n) {
             val pl = Place(p)
             val herbF = 1f - exp(-plants.herb[pl] / HERB_FULL_KG)
@@ -78,17 +84,52 @@ internal class LiveGround(private val sim: HexSim, private val px: Int) {
             // (Trees stand on at most the ground the glades leave, and gather there on the best of it: as thick as a closed wood
             // until they would cover all of it.)
             val crowns = plants.treeLight(pl); val glade = plants.glade[pl].coerceIn(0f, 1f)
-            val wooded = if (crowns < 0.02f) 0f else min(1f - glade, crowns / CLOSED_CROWNS).coerceIn(0f, 1f)
-            wood[p] = if (wooded <= 0f) 0f else (crowns / wooded).coerceIn(0f, 1f)
-            val s = sortedFirst[p]
-            threshold[p] = if (s.isEmpty() || wooded <= 0f) Float.POSITIVE_INFINITY else s[(((1f - wooded) * s.size).toInt()).coerceIn(0, s.size - 1)]
+            wooded[p] = if (crowns < 0.02f) 0f else min(1f - glade, crowns / CLOSED_CROWNS).coerceIn(0f, 1f)
+            wood[p] = if (wooded[p] <= 0f) 0f else (crowns / wooded[p]).coerceIn(0f, 1f)
         }
+        // The places' values cell by cell, blended over [BLEND_KM] across their borders (land cells only), so no edge between
+        // two places shows as a line.
+        val fields = Array(5) { FloatArray(grid.size) }; val weight = FloatArray(grid.size)
+        for (i in 0 until grid.size) {
+            val p = placeOf[i]; if (p < 0) continue
+            weight[i] = 1f
+            fields[0][i] = wooded[p]; fields[1][i] = wood[p]
+            fields[2][i] = ((open[p] shr 16) and 255).toFloat(); fields[3][i] = ((open[p] shr 8) and 255).toFloat(); fields[4][i] = (open[p] and 255).toFloat()
+        }
+        val r = (BLEND_KM / grid.cellKm).toInt().coerceAtLeast(1)
+        val blended = fields.map { f -> FloatArray(grid.size) { f[it] * weight[it] }.also { blur(it, r); blur(it, r) } }
+        val w = weight.copyOf().also { blur(it, r); blur(it, r) }
         return HexPicture.render(world, sim.hex, 0.0, 0.0, world.config.widthKm.toDouble(), world.config.heightKm.toDouble(), px, rivers = false) { i ->
             val p = placeOf[i]; val b = world.biome[i]
-            if (p < 0 || b !in LIVE) b.rgb else {
+            if (p < 0 || b !in LIVE || w[i] <= 0f) b.rgb else {
+                fun at(k: Int) = blended[k][i] / w[i]
+                val ground = (at(2).toInt().coerceIn(0, 255) shl 16) or (at(3).toInt().coerceIn(0, 255) shl 8) or at(4).toInt().coerceIn(0, 255)
                 val forest = if (b == Biome.CONIFER_FOREST) Biome.CONIFER_FOREST.rgb else Biome.TEMPERATE_FOREST.rgb
-                if (treeFirst[i] < threshold[p]) open[p] else mix(open[p], forest, wood[p])
+                if (rank[i] < 1f - at(0)) ground else mix(ground, forest, at(1))
             }
+        }
+    }
+
+    /** Box blur of [a] (a field over the grid) [r] cells each way, across then down, in place. */
+    private fun blur(a: FloatArray, r: Int) {
+        val wd = grid.width; val ht = grid.height; val line = FloatArray(max(wd, ht))
+        for (y in 0 until ht) {
+            var sum = 0f; for (x in 0..min(r, wd - 1)) sum += a[y * wd + x]
+            for (x in 0 until wd) {
+                line[x] = sum / (2 * r + 1)
+                if (x + r + 1 < wd) sum += a[y * wd + x + r + 1]
+                if (x - r >= 0) sum -= a[y * wd + x - r]
+            }
+            for (x in 0 until wd) a[y * wd + x] = line[x]
+        }
+        for (x in 0 until wd) {
+            var sum = 0f; for (y in 0..min(r, ht - 1)) sum += a[y * wd + x]
+            for (y in 0 until ht) {
+                line[y] = sum / (2 * r + 1)
+                if (y + r + 1 < ht) sum += a[(y + r + 1) * wd + x]
+                if (y - r >= 0) sum -= a[(y - r) * wd + x]
+            }
+            for (y in 0 until ht) a[y * wd + x] = line[y]
         }
     }
 
@@ -105,6 +146,8 @@ internal class LiveGround(private val sim: HexSim, private val px: Int) {
         const val MAX_RIVER_KM = 8f
         /** Crown share of a closed wood: a place's trees are drawn this thick on as few cells as hold them. */
         const val CLOSED_CROWNS = 0.7f
+        /** How far either way the places' plants are blended across their borders, km (a box blur done twice). */
+        const val BLEND_KM = 4.0
         const val BARE = 0xcdb98a
         const val HERB_GREEN = 0x93ad55
         const val HERB_DRY = 0xc4b273
