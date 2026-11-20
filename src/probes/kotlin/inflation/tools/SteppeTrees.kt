@@ -58,8 +58,13 @@ fun main(args: Array<String>) {
     fun watch(p: Int) { val d = deepFill(p); deepMean[p] += d; deepMin[p] = minOf(deepMin[p], d); pl.lightShares(Place(p), ls); herbLight[p] += ls[0].toDouble(); shrubLight[p] += ls[1].toDouble(); treeShade[p] += ls[2].toDouble() }
     val browse = DoubleArray(n); val graze = DoubleArray(n); val burnt = DoubleArray(n); val drought = DoubleArray(n); val tTree = DoubleArray(n)
     val steps = sim.stepsPerYear
+    // (Dry places, rain under [DRY] of the demand, with a floodplain: where gallery woods along the rivers should stand.)
+    val valleys = (0 until n).filter { land.floodShare[it] > 0f && land.mean(it) { i -> c.aridity(i) } < DRY }
+    val rootedMean = DoubleArray(n); val wetMean = DoubleArray(n); val tableMean = DoubleArray(n); val floorDrought = DoubleArray(n)
     for (s in 0 until steps) {
         sim.step()
+        for (p in valleys) { val pp = Place(p); val h = land.hydro
+            wetMean[p] += h.wetFloor(pp).toDouble(); rootedMean[p] += maxOf(0f, h.wetFloor(pp) - h.saturatedFloor(pp)).toDouble(); tableMean[p] += h.floorTableM(pp).toDouble(); floorDrought[p] += pl.droughtTree[p].toDouble() }
         for (p in forest) { drought[p] += pl.droughtTree[p].toDouble(); watch(p) }
         for (p in humid + dry) watch(p)
         for (p in humid + dry) { browse[p] += pl.browsing[p].toDouble(); graze[p] += pl.grazing[p].toDouble(); burnt[p] += land.fire.burning[p].toDouble()
@@ -96,6 +101,19 @@ fun main(args: Array<String>) {
             m { drought[it] / steps }, m { dryMonths(it).toDouble() }, m { land.mean(it) { i -> c.aridity(i) }.toDouble() }) +
             "; deep fill mean %.2f min %.2f; light herbs/shrubs/trees %.2f/%.2f/%.2f; shrubs %.2f kg/m²".format(m { deepMean[it] / steps }, m { deepMin[it] },
                 m { herbLight[it] / steps }, m { shrubLight[it] / steps }, m { treeShade[it] / steps }, m { pl.shrub[it].toDouble() }))
+    }
+    if (valleys.isNotEmpty()) {
+        val all = valleys.sumOf { land.areaKm2[it].toDouble() }
+        println("\ndry places (aridity < $DRY) with a floodplain: %.1f%% of land; over the year, by floodplain share: area%%, floodplain, wet floor, rooted floor (wet, not sodden), floor table m, tree kg/m², crowns, shrubs kg/m², tree drought".format(
+            100 * all / (0 until n).sumOf { land.areaKm2[it].toDouble() }))
+        for ((lo, hi) in listOf(0f to 0.05f, 0.05f to 0.15f, 0.15f to 0.3f, 0.3f to 1.01f)) {
+            val ps = valleys.filter { land.floodShare[it] > lo && land.floodShare[it] <= hi }; if (ps.isEmpty()) continue
+            val a = ps.sumOf { land.areaKm2[it].toDouble() }
+            fun m(f: (Int) -> Double) = ps.sumOf { f(it) * land.areaKm2[it] } / a
+            println("  %4.2f-%4.2f %6.1f %6.3f %6.3f %6.3f %6.2f %6.2f %6.3f %6.2f %6.2f".format(lo, minOf(hi, 1f), 100 * a / all, m { land.floodShare[it].toDouble() },
+                m { wetMean[it] / steps }, m { rootedMean[it] / steps }, m { tableMean[it] / steps }, m { pl.tree[it].toDouble() },
+                m { pl.treeLight(Place(it)).toDouble() }, m { pl.shrub[it].toDouble() }, m { floorDrought[it] / steps }))
+        }
     }
 }
 
