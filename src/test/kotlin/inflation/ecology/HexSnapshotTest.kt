@@ -53,7 +53,9 @@ class HexSnapshotTest {
             HexSnapshot.save(a, f)
             val b = HexSim(World.generate(cfg))
             HexSnapshot.load(b, f)
-            val out = StringBuilder()
+            val g = a.groups
+            val out = StringBuilder("at save: parties ${g.parties.size} ${g.parties.keys}, partyOut ${g.partyOut}, rested ${g.rested}, rites ${g.riteGatherings.mapValues { e -> e.value.map { it.id } }}, " +
+                "recruitedAt ${g.recruitedAt.size}, beaten ${g.beaten.size}, merged ${g.merged.size}\n")
             for (k in 1..3) {
                 val ha = ArrayList<Pair<String, Map<String, Int>>>(); val hb = ArrayList<Pair<String, Map<String, Int>>>()
                 inflation.world.afterPhase = { name -> ha += name to StateHash().of(a) }
@@ -64,7 +66,10 @@ class HexSnapshotTest {
                 for (i in ha.indices) {
                     val (name, ma) = ha[i]; val mb = hb.getOrNull(i)?.second ?: break
                     val differ = ma.keys.filter { ma[it] != mb[it] }
-                    if (differ.isNotEmpty()) { out.append("step $k, after phase '$name' (#$i of ${ha.size}): ${differ.take(40).joinToString(", ")}\n"); break }
+                    if (differ.isNotEmpty()) { out.append("step $k, after phase '$name' (#$i of ${ha.size}): ${differ.take(40).joinToString(", ")}\n")
+                        if (k == 1) for (ga in a.groups.groups) { val gb = b.groups.groups.firstOrNull { it.id == ga.id }
+                            if (gb == null || gb.place != ga.place) out.append("  group ${ga.id} ${ga.species.name} band=${ga.band != null} a.place=${ga.place} b.place=${gb?.place}\n") }
+                        break }
                 }
             }
             fail("phases (always fails: diagnosis):\n$out")
