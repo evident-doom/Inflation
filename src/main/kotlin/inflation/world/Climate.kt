@@ -13,9 +13,9 @@ private fun cos(x: Double) = StrictMath.cos(x)
 private fun hypot(x: Double, y: Double) = StrictMath.hypot(x, y)
 private fun Double.pow(y: Double) = StrictMath.pow(this, y)
 private fun Double.pow(y: Int) = StrictMath.pow(this, y.toDouble())
-@Suppress("unused") private fun exp(x: Float) = StrictMath.exp(x.toDouble()).toFloat()
-@Suppress("unused") private fun Float.pow(y: Float) = StrictMath.pow(toDouble(), y.toDouble()).toFloat()
-@Suppress("unused") private fun hypot(x: Float, y: Float) = StrictMath.hypot(x.toDouble(), y.toDouble()).toFloat()
+private fun exp(x: Float) = StrictMath.exp(x.toDouble()).toFloat()
+private fun Float.pow(y: Float) = StrictMath.pow(toDouble(), y.toDouble()).toFloat()
+private fun hypot(x: Float, y: Float) = StrictMath.hypot(x.toDouble(), y.toDouble()).toFloat()
 
 /**
  * Long-term monthly climate normals. Temperature follows latitude, elevation (6.5 °C/km lapse
