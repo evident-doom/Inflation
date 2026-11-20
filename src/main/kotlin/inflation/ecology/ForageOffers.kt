@@ -341,8 +341,14 @@ internal fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
 @Part("foraging: take foods")
 internal fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
     val g = w.g; val band = w.band; val haul = w.haul
+    // (A diagnostic for the NaN in food time (galleries-ab A r1): the food after which the sums first stop being numbers.)
+    var prev = -1; var told = !(w.fed.isFinite() && w.busy.isFinite())
+    fun nanCheck() { if (!told && prev >= 0 && !(w.fed.isFinite() && w.busy.isFinite() && w.meat.isFinite())) { told = true; System.err.println(
+        "takeFoods NaN: group ${g.id} after ${o.type[prev].label} k${o.kind[prev]} who${o.who[prev]} rate ${o.rate[prev]} kg ${o.kg[prev]} value ${o.value[prev]} " +
+        "time ${o.time[prev]} spent ${o.spent[o.who[prev]]} f $f workDays ${w.workDays} party ${w.party[o.who[prev]]} haul kg ${haul.kg} fat ${haul.fat} busy ${haul.busy} fed ${w.fed} busy ${w.busy}") } }
     for (r in 0 until o.used) {
-        val i = o.order[r]
+        nanCheck()
+        val i = o.order[r]; prev = i
         val expected = w.workDays * o.rate[i] / o.spent[o.who[i]] * f
         val p = o.place[i]
         // (Days of work counted for the whole band: each party's days in its share of the hands.)
@@ -441,6 +447,7 @@ internal fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
         }
         w.fedBy[o.who[i]] += w.fed - fedBefore
     }
+    nanCheck()
 }
 
 /**
