@@ -831,6 +831,12 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
                         "%s: %.2f, %.0f, %.1f, %.1f; %.1f; %.1f".format(names[b], k / y, at(b, PackHunger.GAME_KG) / k.coerceAtLeast(1e-9),
                             at(b, PackHunger.GAME_DAYS) / y, at(b, PackHunger.GAME_DAYS) / k.coerceAtLeast(1e-9), at(b, PackHunger.OTHER_DAYS) / y,
                             at(b, PackHunger.SCAVENGED_DAYS) / y) })
+                println("     %s's small foods by how fed (days handling, kg expected, kg got, a step: small game; carrion; bones): ".format(sp.name) +
+                    (0 until PackHunger.BUCKETS).joinToString(", ") { b ->
+                        val y = at(b, PackHunger.HEAD_YEARS).coerceAtLeast(1e-9)
+                        fun t(d: PackHunger, e: PackHunger, g: PackHunger) = "%.1f, %.1f, %.1f".format(at(b, d) / y, at(b, e) / y, at(b, g) / y)
+                        "%s: %s; %s; %s".format(names[b], t(PackHunger.SMALL_DAYS, PackHunger.SMALL_EXP, PackHunger.SMALL_GOT),
+                            t(PackHunger.CARRION_DAYS, PackHunger.CARRION_EXP, PackHunger.CARRION_GOT), t(PackHunger.BONE_DAYS, PackHunger.BONE_EXP, PackHunger.BONE_GOT)) })
             }
         }
         val hex = sim.hex

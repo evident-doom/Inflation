@@ -924,5 +924,8 @@ private fun HexGroups.bookPackHunger(g: HexGroup, hazards: List<Hazard>) {
     add(PackHunger.BUSY_DAYS, w * g.stepBusy); add(PackHunger.SEARCH_DAYS, w * g.stepSearch); add(PackHunger.KILLS_FIRST_PASS, w * g.stepKills0)
     add(PackHunger.GAME_DAYS, w * g.stepGameDays); add(PackHunger.GAME_KILLS, w * g.stepGameKills); add(PackHunger.GAME_KG, w * g.stepGameKg)
     add(PackHunger.OTHER_DAYS, w * g.stepOtherDays); add(PackHunger.SCAVENGED_DAYS, w * g.stepScavDays)
+    add(PackHunger.SMALL_DAYS, w * g.stepSmallDays); add(PackHunger.SMALL_EXP, w * g.stepSmallExp); add(PackHunger.SMALL_GOT, w * g.stepSmallGot)
+    add(PackHunger.CARRION_DAYS, w * g.stepCarrionDays); add(PackHunger.CARRION_EXP, w * g.stepCarrionExp); add(PackHunger.CARRION_GOT, w * g.stepCarrionGot)
+    add(PackHunger.BONE_DAYS, w * g.stepBoneDays); add(PackHunger.BONE_EXP, w * g.stepBoneExp); add(PackHunger.BONE_GOT, w * g.stepBoneGot)
     add(PackHunger.GROWN_HUNGER, grown * min(1f, ha)); add(PackHunger.YOUNG_HUNGER, g.young * min(1f, hy))
 }

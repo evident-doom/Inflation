@@ -202,7 +202,9 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     val passes = if (w.band == null) foragePasses * ticks else foragePasses
     // (Census only, [WeekStats.packHunger]: how a beast's passes went and why they stopped: 0 fed, 1 out of days, 2 out of passes.)
     if (w.band == null) { g.stepStop = 2; g.stepPasses = 0; g.stepOwed = w.busy; g.stepKills0 = 0f
-        g.stepGameDays = 0f; g.stepGameKills = 0; g.stepGameKg = 0f; g.stepOtherDays = 0f; g.stepScavDays = 0f }
+        g.stepGameDays = 0f; g.stepGameKills = 0; g.stepGameKg = 0f; g.stepOtherDays = 0f; g.stepScavDays = 0f
+        g.stepSmallDays = 0f; g.stepSmallExp = 0f; g.stepSmallGot = 0f; g.stepCarrionDays = 0f; g.stepCarrionExp = 0f; g.stepCarrionGot = 0f
+        g.stepBoneDays = 0f; g.stepBoneExp = 0f; g.stepBoneGot = 0f }
     for (pass in 0 until passes) {
         // (A beast plans on what its kills were expected to feed it, not on its luck at them: [ForageWeek.killLuck]. But only within
         // a week's worth of passes: after it, as in the next week, what it got is what it has, and a lean run is hunted on after.)
