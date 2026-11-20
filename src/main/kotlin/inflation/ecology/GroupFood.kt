@@ -194,6 +194,11 @@ private fun countHands(u: DialUse, g: HexGroup, b: Band, hands: Int) {
 @Part("foraging: one group")
 internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather: Weather) {
     val w = ForageWeek(this, g, sweep, packKg, weather)
+    val watch = ForageDigest.parties != null && g.id == FORAGE_WATCH
+    if (watch) println("forage watch ${g.id} start: adults ${g.adults} young ${g.young} fed ${g.fed} fat ${g.fat} spent ${g.spent} meatMet ${g.meatMet} " +
+        "killHeld ${g.killHeld} huntOwed ${g.huntOwed} place ${g.place.i} path ${(0 until g.path.size).map { g.path[it].i }} days ${g.days.toList()} " +
+        "sweep $sweep packKg $packKg workDays ${w.workDays} wantAll ${w.wantAll} aim ${w.aim} smallSweep ${w.smallSweep} smallDays ${w.smallDays} eats ${w.eats} " +
+        "killLuck ${w.killLuck} busy ${w.busy} fed ${w.fed}")
     if (w.band == null && g.killHeld > 0f) takeHeldKill(w, weather)
     if (w.band == null) { w.busy = min(w.workDays, g.huntOwed); g.huntOwed = 0f }
     huntingOdds(w)
@@ -226,6 +231,8 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         if (w.band == null) g.stepPasses++
         offerFoods(w, o); w.carrionNoted = true
         o.takeUp()
+        if (watch) println("forage watch ${g.id} pass $pass: fed ${w.fed} busy ${w.busy} searchUsed ${w.searchUsed} killLuck ${w.killLuck} gain ${o.gain.toList()} spent ${o.spent.toList()} used ${o.used}; " +
+            (0 until o.m).joinToString("; ") { i -> "${o.type[i].label} k${o.kind[i]} p${o.place[i]} r=${o.rate[i]} e=${o.kg[i]} v=${o.value[i]} w=${o.weight[i]} h=${o.time[i]}" })
         if (pass == 0 && w.band != null) noteUnused(w, o)
         if (HUNT_DIAG && pass == 0 && w.band == null && w.herds.isNotEmpty()) {
             val cut = o.gain[0] / o.spent[0]
@@ -820,6 +827,9 @@ internal fun GroupWorld.recordFood(g: HexGroup, band: Band, w: ForageWeek) {
  * party of what it got, bit for bit (sorted by id, so two runs compare line by line), with its place, way and the hexes
  * its foraging may touch; to find the wave, and the parties, where two runs that should repeat first part.
  */
+/** Diagnostic key forageWatch=ID: with stateHashes on, every pass of that party's foraging, its inputs and offers in full ([forage]). */
+internal val FORAGE_WATCH: Int = Config.string(Config.Key.FORAGE_WATCH)?.trim()?.toInt() ?: -1
+
 internal object ForageDigest {
     @JvmField var parties: java.util.concurrent.ConcurrentLinkedQueue<LongArray>? = null
     fun report(q: java.util.concurrent.ConcurrentLinkedQueue<LongArray>, head: String, wave: List<HexGroup>, ground: (HexGroup) -> Set<Hex>) {
