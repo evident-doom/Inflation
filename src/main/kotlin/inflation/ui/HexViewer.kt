@@ -1071,7 +1071,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                 land.plants.herb[p], land.plants.shrub[p], land.plants.tree[p], 100 * land.plants.green[p],
                 land.ruggedness[p], land.bestDefence[p], land.bestViewKm[p]))
             sb.appendLine("   now %s: crowns over %.0f%% of the ground, glades %.0f%%, crags %.0f%%, burnt lately %.0f%%%s".format(
-                Biome.entries[land.country.kind[p]].label, 100 * land.plants.treeLight(p), 100 * land.plants.glade[p], 100 * land.crag[p], 100 * land.fire.burnt[p],
+                Biome.entries[land.country.kind[p]].label, 100 * land.plants.treeLight(Place(p)), 100 * land.plants.glade[p], 100 * land.crag[p], 100 * land.fire.burnt[p],
                 Material.entries.mapNotNull { m -> m.deposit?.invoke(land)?.get(p)?.takeIf { it >= 0.001f }?.let { "%s %.1f%%".format(m.name.lowercase().replace('_', ' '), 100 * it) } }
                     .joinToString(", ").let { if (it.isEmpty()) "" else "; crops out: $it" }))
             sb.appendLine("   rain %.0f mm this week, wind %.1f m/s; drinking water within reach of %.0f%% (walk %.1f km)".format(
