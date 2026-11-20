@@ -60,20 +60,7 @@ class SlowEvent : Event() {
 object Par {
     inline fun forEach(name: String, n: Int, crossinline body: (Int) -> Unit) {
         val job = IntConsumer { body(it) }   // (one copy of the body, whichever way it runs)
-        if (SERIAL.isNotEmpty() && serial(name)) { for (i in 0 until n) job.accept(i); return }
         if (!Profile.JFR) IntStream.range(0, n).parallel().forEach(job) else measured(name, n, job)
-    }
-
-    /**
-     * Diagnostic (serialParts): the loops run one job after another, in order, where their name starts with one of the
-     * comma-separated prefixes ("all": every loop), to find which loop's threads make a run differ from itself.
-     * "list" runs nothing serially and prints each loop's name the first time it runs.
-     */
-    @PublishedApi internal val SERIAL: List<String> = Config.string(Config.Key.SERIAL_PARTS)?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList()
-    private val listed = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
-    @PublishedApi internal fun serial(name: String): Boolean {
-        if ("list" in SERIAL) { if (listed.add(name)) System.err.println("par loop: $name"); return false }
-        return "all" in SERIAL || SERIAL.any { name.startsWith(it) }
     }
 
     /** [forEach] over the places `0 until n`, each as a [Place]. */

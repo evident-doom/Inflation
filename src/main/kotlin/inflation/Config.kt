@@ -98,7 +98,6 @@ object Config {
         FED_DIAG("fedDiag"),
         SHRUB_DIAG("shrubDiag"),
         HUNT_STEPS("huntSteps"),
-        SERIAL_PARTS("serialParts"),
         STATE_HASHES("stateHashes"),
         NAN_WATCH("nanWatch"),
         AUDIT("audit"),
