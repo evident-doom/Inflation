@@ -98,6 +98,7 @@ object Config {
         FED_DIAG("fedDiag"),
         SHRUB_DIAG("shrubDiag"),
         HUNT_STEPS("huntSteps"),
+        SERIAL_PARTS("serialParts"),
         AUDIT("audit"),
         CENSUS("census"),
         /** An era profile: eras/NAME.properties, whose keys the config file's own lay over ([eraFile]). */
