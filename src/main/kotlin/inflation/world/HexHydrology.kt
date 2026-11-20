@@ -461,7 +461,7 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
 
     /**
      * One slope of place [p] through the step: its soil water [soil0] mm, [top0] of it in the top layer, takes in [inflow]
-     * mm (the top layer first, the rest soaking down), and gives to the air what the plants on it transpire and its bare
+     * mm ([BYPASS] of it, as far as the top layer is already wet, straight down to the deep layer, the rest to the top layer first and its overflow soaking down), and gives to the air what the plants on it transpire and its bare
      * ground evaporates against [demand] mm (the step's evaporative demand on that slope): each form by the share of the
      * light its leaves take ([HexPlants.lightShares]) from the layers its roots reach ([TOP_ROOTS]), each at full rate until its
      * layer is [UNSTRESSED] full, then less as it dries; bare ground from the uppermost [SKIN_SHARE] of the top layer only,
@@ -473,7 +473,9 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
         val tc = topCap(p); val dc = soilCap[p] - tc
         // (A save from before the layers holds no top layer of its own: keep it within what the soil holds.)
         val t0 = topWithin(top0, soil0, tc, dc)
-        var top = t0 + inflow; var deep = soil0 - t0
+        // (The bypass runs as the top layer is wet: the channels carry water down once the soil about them is soaked.)
+        val bypass = if (tc > 0f) BYPASS * (t0 / tc).coerceIn(0f, 1f) else 0f
+        var top = t0 + (1f - bypass) * inflow; var deep = soil0 - t0 + bypass * inflow
         if (top > tc) { deep += top - tc; top = tc }
         plants.lightShares(p, light)
         val herbs = light[0]; val shrubs = light[1]; val trees = light[2]; val bare = max(0f, 1f - herbs - shrubs - trees)
@@ -583,6 +585,18 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
          * top, shrubs and trees mostly below it (Walter's two-layer model of dry grassland). Guesses to source.
          */
         val TOP_ROOTS = floatArrayOf(1f, 0.3f, 0.1f)
+        /**
+         * Share of the water soaking in that runs down root channels, worm burrows and cracks past the top layer to the deep one
+         * ([layered]), whether or not the top is full: preferential flow, commonly 10-40% of infiltration (from memory). Without
+         * it the grass drank every rain before any reached the deep soil, so that the trees on grassy ground in humid country
+         * died back each summer and the grass held it: 16% of the land, forest at world-gen, near treeless at rain 450-590 mm
+         * (steppe-trees4, 2026-11-20: deep soil 29-32% full over the year against 51% under forest).
+         * It runs as far as the top layer is wet when the water comes: macropores carry water once the soil about them is
+         * soaked, while a small rain on dry ground wets only the top few cm, and the deep soil under dry grassland stays dry
+         * for years (from memory). Running whatever the top's wetness, it filled the deep soil under dry steppe, where nothing
+         * drinks it, from 17% to 31% in 25 years, and the trees seeded into it (drysteppe-probe, 2026-11-20).
+         */
+        const val BYPASS = 0.25f
         /** How moist the water table keeps the ground round fresh lakes and springs, as a share of a full soil. */
         const val WATER_TABLE = 0.6f
         /**

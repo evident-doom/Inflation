@@ -87,6 +87,13 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
      */
     val droughtShrub = FloatArray(n); val droughtTree = FloatArray(n)
     /**
+     * Weeks of each place's ordinary dry season: the months of the normal year warm enough to grow (over 10 °C) with rain under
+     * half the demand. The trees of a place are its own climate's, deep-rooted and shutting down through the summer drought it
+     * always has (the oaks and pines of summer-dry country); they die back only of drought beyond it ([shortOfWater]).
+     */
+    @Transient val usualDryWeeks = FloatArray(n) { p -> mean(p) { i -> val c = world.climate
+        (0 until 12).count { m -> c.monthlyTemp[m][i] > 10f && c.monthlyPrecip[m][i] < 0.5f * c.monthlyPet[m][i] }.toFloat() } * 30f / 7f }
+    /**
      * Ground stepped on at each place, m² (see [tread]): the seedlings of shrubs and trees it kills. Trodden in the week's grazing
      * and counted, then cleared, in the next week's plant step (the plants grow before the animals feed).
      */
@@ -291,12 +298,18 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
     }
 
     fun biomass(p: Place) = herb[p] + shrub[p] + tree[p]
-    fun canopy(p: Place) = min(1f, tree[p] / (0.4f * LifeForm.TREE.maxBiomass))
+    /**
+     * The share of place [p]'s ground under the trees' crowns, as the labels, the cover and the animals read it: the crowns
+     * the light reads ([treeLight]). (It was the trees' mass against 10 kg/m², a second measure of the same crowns: a stand
+     * of 2 kg/m² was a fifth canopy to the labels and over two fifths crowns to the light, so that a sixth of the land with
+     * crowns over 0.15 was called steppe: steppe-trees, 2026-11-20.)
+     */
+    fun canopy(p: Place) = treeLight(p)
     /**
      * The share of the light at place [p] the trees' leaves take, which is the share of its ground under their crowns (the
      * crowns let little through; the rest of the ground is open to the sky): a stand's leaf mass levels off once its crowns
      * close, so the light it takes grows with its mass only while it is young ([TREE_CLOSED_KG]); the wood it lays on after
-     * does not add to it. ([canopy], the cover the crowns give, is the forest's structure for the animals and stays as it was.)
+     * does not add to it.
      */
     fun treeLight(p: Place) = (1f - GAP_SHARE) * (1f - exp(-tree[p] / TREE_CLOSED_KG))
     /**
@@ -568,7 +581,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
                 season * (deepFill / HexHydrology.UNSTRESSED).coerceIn(0f, 1f) * woody * trod else 0f
             val gTree = made * (hydro.transpired[2][p] + table * trees) * (1f - 0.95f * land.waterlogged[p]) * (1 - 0.8f * browsed * young) +
                 ESTABLISH_TREE * sprouting * treeSeedHere * (1 - 0.9f * browsed)
-            val treeShort = shortOfWater(droughtTree, p, trees, hydro.transpired[2][p] + table * trees, season, days)
+            val treeShort = shortOfWater(droughtTree, p, trees, hydro.transpired[2][p] + table * trees, season, days, usualDryWeeks[p])
             grew += growBy(tree, p, gTree, TREE_RENEWAL * years)
             tree[p] *= 1f - treeShort * DROUGHT_DEATH[1] * days / 7f
             closeGlades(p, crowns, treeLight(p), years, trodRate, browsed)
@@ -674,13 +687,15 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
     /**
      * Counts place [p]'s weeks of drought for a woody form ([droughtShrub], [droughtTree]) over a tick of [days]: the form's
      * leaves take [light] of the light, so the air asks that share of the demand of them, and the soil gave [got] mm.
-     * Returns 1 when the form has gone short past [DROUGHT_WEEKS] (it dies back this tick), else 0.
+     * Returns 1 when the form has gone short past [DROUGHT_WEEKS] and the [usual] weeks of its place's dry season (it dies
+     * back this tick), else 0. (The trees bore no dry season at all: on grassy ground in humid country with three or four dry
+     * months they died back every summer and the grass held it, 16% of the land; steppe-trees, bypass-ab, 2026-11-20.)
      */
-    private fun shortOfWater(weeks: FloatArray, p: Place, light: Float, got: Float, season: Float, days: Int): Float {
+    private fun shortOfWater(weeks: FloatArray, p: Place, light: Float, got: Float, season: Float, days: Int, usual: Float = 0f): Float {
         val asked = hydro.demandMm[p] * light
         val short = season > 0f && asked > 1e-4f && got < DROUGHT_SUPPLY * asked
         weeks[p] = if (short) weeks[p] + days / 7f else max(0f, weeks[p] - DROUGHT_RECOVERY * days / 7f)
-        return if (weeks[p] > DROUGHT_WEEKS) 1f else 0f
+        return if (weeks[p] > DROUGHT_WEEKS + usual) 1f else 0f
     }
 
     /**

@@ -166,7 +166,10 @@ class HexCountry(land: HexLand) : HexLandPart(land) {
         const val HERB_EDIBLE = 0.7f
         /** Cut in the herbs' edible share on waterlogged ground (bog had 0.2, marsh 0.5: sedge, rush, moss). */
         const val WET_HERB_CUT = 0.5f
-        /** Canopy over which a place is forest, and over which woodland (the FAO's forest is canopy over 10%; these are for closed and open woods, a guess). */
+        /**
+         * Crown share ([HexPlants.canopy]) over which a place is forest, and over which woodland (the FAO's forest is crowns over
+         * 10%; closed forest over 60%, woodland from a fifth, a guess). About 3.3 and 0.75 kg/m² of trees.
+         */
         const val FOREST_CANOPY = 0.6f
         const val WOODLAND_CANOPY = 0.2f
         /** Herbs, kg/m², that cover their ground (as the erosion test in [HexPlants] has it). */
