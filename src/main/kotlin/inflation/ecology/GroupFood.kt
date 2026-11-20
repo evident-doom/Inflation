@@ -13,6 +13,7 @@ import inflation.Trace
 import inflation.world.Date
 import inflation.world.get
 import inflation.world.Hex
+import inflation.world.Place
 import inflation.world.set
 import inflation.world.Weather
 import kotlin.math.exp
@@ -73,7 +74,9 @@ internal fun HexGroups.hunt(weather: Weather) {
             // The ground it searches this week, shared over the hexes it passed.
             val sweep = searchKm2(g, g.place, weather) / g.path.size.coerceAtLeast(1)
             val t0 = Profile.mark()
-            Profile.kind("foraging", if (s.human) "bands" else s.name) { forage(g, sweep, max(1, g.adults) * s.massKg, weather) }
+            if (ForageDigest.parties != null) GroundCheck.enter(g, forageGround(g), hw.placeHex)
+            try { Profile.kind("foraging", if (s.human) "bands" else s.name) { forage(g, sweep, max(1, g.adults) * s.massKg, weather) } }
+            finally { GroundCheck.exit() }
             Profile.slow(if (s.human) "forage: band" else "forage: " + s.name, t0, weather.date.absoluteDay) { g.probe(weather.date.absoluteDay) }
         }
         for (colour in 0 until 9) {
@@ -827,5 +830,29 @@ internal object ForageDigest {
                 (if (a == null) "none" else (1 until a.size).joinToString(" ") { "%016x".format(a[it]) }) +
                 " path ${(0 until g.path.size).joinToString(",") { g.path[it].i.toString() }} ground ${ground(g).map { it.i }.sorted().joinToString(",")}")
         }
+    }
+}
+
+/**
+ * Diagnostic, on with [ForageDigest]: while a party forages in a wave, the places and hexes its foraging may touch
+ * ([forageGround]); the model's place reads and writes during foraging that fall outside them are printed, the first few
+ * of each kind for each party, with where in the code. Two parties of one wave that touch the same place race.
+ */
+internal object GroundCheck {
+    private val places = ThreadLocal<BooleanArray?>()
+    private val hexes = ThreadLocal<Set<Hex>?>()
+    private val party = ThreadLocal<HexGroup?>()
+    private val told = java.util.concurrent.ConcurrentHashMap.newKeySet<Long>()
+    fun enter(g: HexGroup, ground: Set<Hex>, placeHex: inflation.world.HexArray) {
+        places.set(BooleanArray(placeHex.size) { placeHex[it] in ground }); hexes.set(ground); party.set(g)
+    }
+    fun exit() { places.set(null); hexes.set(null); party.set(null) }
+    fun place(p: Place, what: Int) { val a = places.get() ?: return; if (p.i in a.indices && !a[p.i]) tell(what, "place ${p.i}") }
+    fun hex(h: Hex, what: Int) { val a = hexes.get() ?: return; if (h !in a) tell(what, "hex ${h.i}") }
+    private fun tell(what: Int, at: String) {
+        val g = party.get() ?: return
+        if (told.size > 400 || !told.add(g.id.toLong() * 64 + what)) return
+        println("ground check: party ${g.id} ${g.species.name} touched #$what at $at outside its ground; " +
+            Thread.currentThread().stackTrace.drop(2).take(7).joinToString(" < ") { "${it.fileName}:${it.lineNumber}" })
     }
 }

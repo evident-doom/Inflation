@@ -97,6 +97,7 @@ internal class Offers(n: Int) {
 private fun HexGroups.offer(w: ForageWeek, o: Offers, t: Food, k: Int, p: Place, r: Float, e: Float, h: Float, spared: Float = 0f, herd: Int = -1, rich: Float = 1f,
     danger: Float = 0f, seek: Float = 0f, walk: Float = 0f, child: Boolean = false) {
     val band = w.band
+    GroundCheck.place(p, 7)
     val keen = if (band != null && t != Food.BIG_GAME) band.effort[t] else 1f
     if (band != null && t != Food.BIG_GAME && r > 0f && !child) dialUse?.let { u -> val f = FoodEfforts.slot(t)
         u.amount(DialSite.EFFORT_RANK, keen, keen, 1f, dial = f) }
@@ -200,7 +201,7 @@ internal fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
             val held = min(small.groupCarrion[p], foundShare(w, p) * small.groupCarrionFound[p])
             offer(w, o, Food.CARRION, 0, p, (KgM2(found * small.carrion[p]).perKm2.over(swept).v + KgM2(held).perKm2.over(area).v) / days, 1f, w.carrionDays)
             // (How fast its search comes on carrion as it lies, a day, for the next step's share of it: [HexSmallLife.groupCarrionRate].)
-            if (!w.carrionNoted) small.groupCarrionRate[p] += carrionRate(w, p)
+            if (!w.carrionNoted) { GroundCheck.place(p, 9); small.groupCarrionRate[p] += carrionRate(w, p) }
             if (Niches.cracksBones(w.s)) offer(w, o, Food.BONES, 0, p, KgM2(found * small.bones[p]).perKm2.over(swept).v / days, 1f, w.eats * BONE_DAYS)
             else if (band != null && w.worth(Food.BONES) > 0f)
                 offer(w, o, Food.BONES, 0, p, KgM2(found * small.bones[p]).perKm2.over(swept).v / days, 1f, w.renderDays + w.eats * GREASE_YIELD)
@@ -523,6 +524,7 @@ internal fun Band.reapedDomestic(d: Float): Float { val sel = SICKLE_SELECT * ha
  * is ground and food cooked or leached, what they weigh, and the party-days the leaching took ([hands] at it).
  */
 internal fun GroupWorld.gather(g: HexGroup, t: Food, kind: Int, p: Place, expected: Float, hands: Int, out: Haul) {
+    GroundCheck.place(p, 8)
     val s = g.species; val band = g.band
     out.busy = 0f
     val food = fauna.food

@@ -51,6 +51,7 @@ internal fun HexSmallLife.reachable(stock: Float, y: Float, adults: Float) = if 
  * vertebrate hunting by sight can pick them up ([INSECT_CATCH]). Returns what was caught.
  */
 fun HexSmallLife.catchSmall(p: Place, want: KgKm2, weather: Weather, most: Float = 0.5f, who: Taker = Taker.GROUPS, style: SmallHunt = SmallHunt.PEOPLE): KgKm2 {
+    GroundCheck.place(p, 2)
     val t = weather.temperature[p]
     val herpsOut = herpsActive(t, land.hydro.soil[p])
     val tortOut = t in 14f..33f
@@ -134,6 +135,7 @@ fun HexSmallLife.catchSmallIn(p: Place, want: Kg, sweptKm2: Float, weather: Weat
 
 /** A scavenger searching [sweptKm2] of place [p] takes up to [want] of carrion, at most half of what lies on the ground it searched; returns what was taken. */
 fun HexSmallLife.scavengeIn(p: Place, want: Kg, sweptKm2: Float, foundShare: Float = 0f): Kg {
+    GroundCheck.place(p, 5)
     val area = land.areaKm2[p]; val m2 = area * 1e6f
     val searched = min(sweptKm2, area)
     if (want.v <= 0f || searched <= 0f) return Kg.ZERO
@@ -182,7 +184,7 @@ fun HexSmallLife.crackBonesIn(p: Place, want: Kg, sweptKm2: Float): Kg {
 fun HexSmallLife.smallPreyKg(p: Place) = rodents[p] + hares[p] + hyrax[p] + birds[p] + herps[p] + tortoises[p] + locusts[p] + INSECT_CATCH * (insects[p] + pollinators[p])
 
 /** Takes up to [want] of carrion in place [p]; returns what was taken. */
-fun HexSmallLife.scavenge(p: Place, want: KgM2): KgM2 { val t = min(carrion[p], want.v); carrion[p] -= t; flow(CarrionFlow.TAKEN, p, t); record?.let { it.carrionGone[p] += t }; return KgM2(t) }
+fun HexSmallLife.scavenge(p: Place, want: KgM2): KgM2 { GroundCheck.place(p, 3); val t = min(carrion[p], want.v); carrion[p] -= t; flow(CarrionFlow.TAKEN, p, t); record?.let { it.carrionGone[p] += t }; return KgM2(t) }
 
 /** Takes up to [want] of bones in place [p] (for bone-crackers); returns what was taken. */
-fun HexSmallLife.crackBones(p: Place, want: KgM2): KgM2 { val t = min(bones[p], want.v); bones[p] -= t; record?.let { it.bonesGone[p] += t }; return KgM2(t) }
+fun HexSmallLife.crackBones(p: Place, want: KgM2): KgM2 { GroundCheck.place(p, 4); val t = min(bones[p], want.v); bones[p] -= t; record?.let { it.bonesGone[p] += t }; return KgM2(t) }
