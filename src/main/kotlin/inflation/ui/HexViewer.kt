@@ -174,8 +174,12 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
     /** What people have made in the land, one mark for each thing standing (see [WorksPainter]). */
     private val worksBox = JCheckBox("Works", true)
     private val works = WorksPainter(sim)
-    /** The ground's make-up drawn into the hexes: glades, rugged ground, resources (see [TerrainPainter]). */
-    private val gladesBox = JCheckBox("Glades", true)
+    /** The ground drawn from the plants as they stand, glades and all ([LiveGround]), redrawn each month; off, world-gen's fixed picture. */
+    private val liveBox = JCheckBox("Live ground", true).apply { toolTipText = "Colour the ground from the plants as they stand now (herbs, shrubs, tree crowns, glades as open patches), redrawn each month; off: world-gen's fixed picture" }
+    private val live by lazy { LiveGround(sim, px) }
+    @Volatile private var liveImage: BufferedImage? = null
+    private var liveMonth = -1
+    /** The ground's make-up drawn into the hexes: rugged ground, resources (see [TerrainPainter]). */
     private val ruggedBox = JCheckBox("Rugged", false)
     private val resourcesBox = JCheckBox("Resources", false)
     private val terrain = TerrainPainter(sim)
@@ -288,7 +292,9 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         pathsBox.addActionListener { map.repaint() }
         namesBox.addActionListener { map.repaint() }
         worksBox.addActionListener { map.repaint() }
-        for (box in listOf(gladesBox, ruggedBox, resourcesBox)) box.addActionListener { map.repaint() }
+        for (box in listOf(ruggedBox, resourcesBox)) box.addActionListener { map.repaint() }
+        liveBox.addActionListener { if (liveBox.isSelected && liveImage == null) commands += { refreshLive() }; map.repaint() }
+        commands += { refreshLive() }
         groundBox.addActionListener { map.repaint() }
         dealingsBox.addActionListener { map.repaint() }
         blocsBox.addActionListener { map.repaint() }
@@ -298,7 +304,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         shows.add(JLabel("Tint:")); shows.add(tintChoice); shows.add(modeChoice); shows.add(causeChoice)
         shows.add(JLabel("  Kind:")); shows.add(residentChoice); shows.add(flowBox); shows.add(heightBox); shows.add(pullChoice)
         shows.add(JLabel("  Draw:"))
-        for (box in listOf(peopleBox, huntersBox, worksBox, gladesBox, ruggedBox, resourcesBox, groundBox, dealingsBox, blocsBox, pathsBox, namesBox, riversBox, windBox)) shows.add(box)
+        for (box in listOf(peopleBox, huntersBox, worksBox, liveBox, ruggedBox, resourcesBox, groundBox, dealingsBox, blocsBox, pathsBox, namesBox, riversBox, windBox)) shows.add(box)
         val graphs = JButton("History…"); graphs.addActionListener { HexHistoryPanel.show(history, live = true, title = "History, seed ${cfg.seed}") }
         // Save the world as it stands, or carry on one saved before.
         val save = JButton("Save…")
@@ -371,6 +377,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             useNetworks()
             lastDrawn.clear()
             snapshot()
+            refreshLive()
         } catch (e: Exception) {
             SwingUtilities.invokeLater { JOptionPane.showMessageDialog(this, "Could not load ${f.name}: ${e.message}") }
         }
@@ -387,7 +394,16 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         layers.dealings(relations.thisWeek)
         blocs.week()
         snapshot()
+        if (sim.weather.date.month != liveMonth) refreshLive()
         control.weekDone()
+    }
+
+    /** Redraws the live ground ([LiveGround]) if it is shown; on the simulation's thread, the world standing still. */
+    private fun refreshLive() {
+        liveMonth = sim.weather.date.month
+        if (!liveBox.isSelected) { liveImage = null; return }
+        liveImage = live.render()
+        SwingUtilities.invokeLater { map.repaint() }
     }
 
     /** The model: learned networks ([nets], [waysFile], see [LearnedModel]). */
@@ -545,7 +561,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         private fun paintMap(g: Graphics2D) {
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
             val plain = Measure.entries[tintChoice.selectedIndex] == Measure.LAND_WATER
-            g.drawImage(if (plain) plainGround else ground, ox.toInt(), oy.toInt(), (ground.width * scale).toInt(), (ground.height * scale).toInt(), null)
+            g.drawImage(if (plain) plainGround else if (liveBox.isSelected) liveImage ?: ground else ground, ox.toInt(), oy.toInt(), (ground.width * scale).toInt(), (ground.height * scale).toInt(), null)
             val kmPx = px * scale
             rivers.draw(g, ox, oy, kmPx, width, height)
             fun sx(km: Float) = (ox + km * kmPx).toInt()
@@ -755,7 +771,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                     "bays and straits, peninsulas, isthmuses and islands (narrower than the ground one place draws on, or than a range). The larger the feature, the larger its name; a name is written only where it fits along its river or across its country.", note = features.summary(),
                     swatches = HexGeography.Kind.entries.map { MapLegend.Swatch(featureColour(it), it.label) })
             }
-            // The ground's make-up (glades, rugged ground, resources) and people's works, small inside their hexes.
+            // The ground's make-up (rugged ground, resources) and people's works, small inside their hexes.
             paintGroundMarks(g, kmPx, ::sx, ::sy, ::onScreen, legends)
             val t = min(1f, frame.toFloat() / frames)
             paintBands(g, t, kmPx, ::sx, ::sy, ::onScreen, legends)
@@ -806,12 +822,12 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             MapLegend.draw(g, legends, width)
         }
 
-        /** The ground's make-up ([terrain]: [gladesBox], [ruggedBox], [resourcesBox]) and people's works ([worksBox]), inside their hexes. */
+        /** The ground's make-up ([terrain]: [ruggedBox], [resourcesBox]) and people's works ([worksBox]), inside their hexes. */
         private fun paintGroundMarks(g: Graphics2D, kmPx: Double, sx: (Float) -> Int, sy: (Float) -> Int, onScreen: (Hex, Int) -> Boolean, legends: MutableList<MapLegend>) {
-            val gl = gladesBox.isSelected; val ru = ruggedBox.isSelected; val re = resourcesBox.isSelected
-            if (gl || ru || re) {
-                terrain.paint(g, kmPx, sx, sy, onScreen, gl, ru, re)
-                legends += terrain.legend(gl, ru, re)
+            val ru = ruggedBox.isSelected; val re = resourcesBox.isSelected
+            if (ru || re) {
+                terrain.paint(g, kmPx, sx, sy, onScreen, ru, re)
+                legends += terrain.legend(ru, re)
             }
             if (worksBox.isSelected) {
                 works.paint(g, kmPx, sx, sy, onScreen)
