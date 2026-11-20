@@ -160,6 +160,31 @@ object HexSnapshot {
     /** Kinds are saved by name: the code defines them. */
     private val SPECIES = Named(Species::class.java, { it.name }, { n -> Catalogue.all.firstOrNull { it.name == n } })
 
+    /**
+     * Diagnostic (stateHashes): a CRC of each saved field of each root, as a save would write it, to find the first phase
+     * where two runs that should repeat part. Fields left out of saves (@Transient) are left out here too.
+     */
+    internal fun fingerprints(sim: HexSim): List<Pair<String, Long>> {
+        val all = ArrayList<Pair<String, Long>>()
+        for ((name, root) in roots(sim)) {
+            var c: Class<*>? = root.javaClass
+            while (c != null && c != Any::class.java) {
+                for (f in c.declaredFields) {
+                    val m = f.modifiers
+                    if (java.lang.reflect.Modifier.isStatic(m) || java.lang.reflect.Modifier.isTransient(m) || f.isSynthetic) continue
+                    if (!f.trySetAccessible()) continue
+                    val v = f.get(root) ?: continue
+                    val crc = java.util.zip.CRC32()
+                    DataOutputStream(java.util.zip.CheckedOutputStream(java.io.OutputStream.nullOutputStream(), crc)).use { out ->
+                        Writer(out, ::saved, lazies = false, SPECIES).value(v); out.flush() }
+                    all += "$name.${f.name}" to crc.value
+                }
+                c = c.superclass
+            }
+        }
+        return all
+    }
+
     internal fun roots(sim: HexSim) = listOf("weather" to sim.weather, "land" to sim.land, "fauna" to sim.fauna, "groups" to sim.groups,
         "eruptions" to sim.eruptions)
 

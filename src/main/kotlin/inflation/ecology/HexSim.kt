@@ -66,6 +66,21 @@ class HexSim(
 
     init { if (Books.ON) books = Books() }
 
+    // (Diagnostic, stateHashes=Y.M-Y.M (years and months as the census counts them, both ends kept): after every phase in
+    // that span, a line of each saved field's CRC ([HexSnapshot.fingerprints]); two runs that should repeat are compared
+    // line by line to find the first phase where they part.)
+    init {
+        inflation.Config.string(inflation.Config.Key.STATE_HASHES)?.let { span ->
+            val (a, b) = span.split('-').map { e -> e.split('.').let { it[0].toLong() * 12 + it[1].toLong() } }
+            var n = 0
+            inflation.world.PhaseWatch.after = { phase ->
+                val d = weather.date; val ym = d.year * 12 + d.month
+                if (ym in a..b) println("state hash ${n++} day ${d.absoluteDay} y${d.year} m${d.month} after '$phase': " +
+                    HexSnapshot.fingerprints(this).joinToString(" ") { (k, v) -> "$k=%08x".format(v) })
+            }
+        }
+    }
+
     /** Every stock of water and matter in the model, as each part names them (the books start from them as the first step finds them, after a save is loaded). */
     fun stocks(): Stocks = Stocks().also { s ->
         val n = land.n
