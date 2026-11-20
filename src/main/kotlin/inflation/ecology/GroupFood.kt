@@ -280,17 +280,6 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         if (time != null) f = min(f, time.leftFor(Activity.FOOD) / (w.hands * w.workDays).coerceAtLeast(1e-6f))
         // (A beast's party keeps no plan of its days: each pass has only the days the passes before it left.)
         else if (w.band == null) f = min(f, max(0f, w.workDays - w.busy - w.searchUsed) / w.workDays.coerceAtLeast(1e-6f))
-        // (A diagnostic for the NaN in food time (galleries-ab A r1, Year 33 month 2): the pass's sums and offers, the first time one is not a number.)
-        if (!f.isFinite() || !intake.isFinite() || !w.fed.isFinite() || !w.busy.isFinite()) System.err.println(
-            "forage NaN: group ${g.id} ${g.species.name} at ${weather.date} pass $pass: f $f left $left intake $intake fed ${w.fed} busy ${w.busy} " +
-            "workDays ${w.workDays} hands ${w.hands} room ${w.room} foodLeft ${time?.leftFor(Activity.FOOD)} wantAll ${w.wantAll} aim ${w.aim}; " +
-            "gain ${o.gain.toList()} fed ${o.fed.toList()} spent ${o.spent.toList()}; offers ${o.m}: " + (0 until o.m).joinToString("; ") { i ->
-                "${o.type[i].label} k${o.kind[i]} who${o.who[i]} rate ${o.rate[i]} kg ${o.kg[i]} value ${o.value[i]} weight ${o.weight[i]} time ${o.time[i]}" })
-        if (pass == 0 && (0 until o.m).any { !o.rate[it].isFinite() }) w.band?.let { b -> System.err.println(
-            "forage NaN band ${g.id}: skill HUNT ${b.skill(Skill.HUNT)} edge STALK ${b.edge(Skill.STALK)} spear ${b.has(Tool.SPEAR)} bow ${b.has(Tool.BOW)} " +
-            "dogs ${b.dogs.dogShare} huntEdge ${(0 until w.nk).map { b.huntEdge(fauna.kinds[it], tuning) }} hunt ${w.hunt} huntHeads ${w.huntHeads} " +
-            "carryDaysPerKg ${w.carryDaysPerKg}; odds ${w.odds.take(w.nk)} stalks ${w.stalks.take(w.nk)} met ${w.met.take(w.nk)} km2 ${(0 until w.ground.size).map { w.ground.km2[it] }}; " +
-            "not finite: band ${notFinite(b)}; group ${notFinite(g)}") }
         val busy0 = w.busy
         if (pass == 0) w.searched = f
         if (HUNT_DIAG && w.band == null) { w.passes++; w.searchDays += f * w.workDays }
