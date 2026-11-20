@@ -128,8 +128,7 @@ private fun HexGroups.forageWaves(squares: List<List<HexGroup>>): List<List<HexG
 
 /**
  * The hexes whose ground party [g]'s foraging can touch this step: those of its way and the six round each, where its hunting
- * ground spills over ([huntGround]), its fishers go ([HexWater.fishFor]) and the game and herds it may come on stand; and a
- * band's herd's pasture away from its camp.
+ * ground spills over ([huntGround]), its fishers go ([HexWater.fishFor]) and the game and herds it may come on stand.
  */
 private fun HexGroups.forageGround(g: HexGroup): Set<Hex> {
     val out = LinkedHashSet<Hex>()
@@ -137,10 +136,6 @@ private fun HexGroups.forageGround(g: HexGroup): Set<Hex> {
     // (A pack that holds its ground hunts its footprint, [footGround]: those hexes and the six round each, to be safe.)
     g.footprint?.let { f -> for (h in f.hexes) { out += h; for (d in 0 until 6) { val q = hex.neighbour(h, d); if (!q.none) out += q } } }
     out += hw.placeHex[g.place]
-    // (A band's herd kept at a pasture away from its camp ([Herd.at]): the beasts of prey whose ground holds it read the band's
-    // herd and guard and kill from it ([herdOdds]), while the band's own foraging changes them; so the band goes in no wave with
-    // them. Without it the two raced: 30-day runs parted at random, 1 in 6, det1120d-g.)
-    g.band?.let { b -> b.herds.at.takeIf { !it.none }?.let { out += hw.placeHex[it] } }
     return out
 }
 
