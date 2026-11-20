@@ -346,7 +346,7 @@ internal fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
         val expected = w.workDays * o.rate[i] / o.spent[o.who[i]] * f
         val p = o.place[i]
         // (Days of work counted for the whole band: each party's days in its share of the hands.)
-        if (o.type[i] != Food.BIG_GAME) { val d = expected * w.party[o.who[i]]; w.busy += d * o.time[i]
+        if (o.type[i] != Food.BIG_GAME) { val d = expected * w.party[o.who[i]]; w.busy += d * o.time[i]; if (band == null) g.stepOtherDays += d * o.time[i]
             if (band != null) { w.gatherHandle += d * o.time[i]; w.plantSeek += d * o.seek[i]; w.plantWalk += d * o.walk[i]
                 if (o.type[i] == Food.GRAIN) { if (o.kind[i] == FIELD_KIND) w.fieldDays += d * o.time[i] else w.wildDays += d * o.time[i] } } }
         when (o.type[i]) {
@@ -373,13 +373,14 @@ internal fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
                     stats.meeting(Met.BANDS_ATE_THEIR_TOTEM)
                 }
                 w.busy += kills1 * o.time[i] * w.party[0]
+                if (band == null) { g.stepGameDays += kills1 * o.time[i] * w.party[0]; g.stepGameKills += kills1; g.stepGameKg += haul.kg }
                 if (band != null) w.huntHandle += kills1 * o.time[i] * w.party[0]
                 if (HUNT_DIAG && band == null) {
                     diag(g.species, HuntStep.PACK_KILLS, fauna.kinds[o.kind[i]], kills1.toFloat())
                     diag(g.species, HuntStep.PACK_KILL_KG, fauna.kinds[o.kind[i]], haul.kg) }
                 // (Stronger scavengers may come on a beast's kills and take of them; the days it would have spent eating
                 // what they took are its own again, to hunt in.)
-                if (band == null) w.busy -= scavengedAtKill(g, Place(p), kills1, haul, w.rnd) * w.eats * w.party[0]
+                if (band == null) { val back = scavengedAtKill(g, Place(p), kills1, haul, w.rnd) * w.eats * w.party[0]; w.busy -= back; g.stepScavDays += back }
                 // (Its fat feeds as grease, the rest as lean meat; for the census, the kills by month and by prey kind, lean and fat by weight.)
                 w.meat += haul.kg - haul.fat; w.killFat += haul.fat
                 w.fed += (haul.kg - haul.fat) * w.feeds(Food.BIG_GAME) + haul.fat * w.fatFeeds

@@ -778,7 +778,8 @@ object Tally {
  * stopped fed, out of days, out of passes, and grown-weighted passes, work days, days owed, handling, searching, first-pass kills.
  */
 enum class PackHunger { HEAD_YEARS, FED, ON_FAT, FAT_DAYS, SPENT_DAYS, GROWN_HUNGER, YOUNG_HUNGER, YOUNG_YEARS, HOMELESS_YEARS, NO_KILL_YEARS, KILLS_EXPECTED,
-    STOP_FED, STOP_DAYS, STOP_PASSES, PASSES, WORK_DAYS, OWED_DAYS, BUSY_DAYS, SEARCH_DAYS, KILLS_FIRST_PASS;
+    STOP_FED, STOP_DAYS, STOP_PASSES, PASSES, WORK_DAYS, OWED_DAYS, BUSY_DAYS, SEARCH_DAYS, KILLS_FIRST_PASS,
+    GAME_DAYS, GAME_KILLS, GAME_KG, OTHER_DAYS, SCAVENGED_DAYS;
     companion object { const val BUCKETS = 3; fun bucket(onFat: Float) = if (onFat < 0.5f) 0 else if (onFat < WELL_FED) 1 else 2
         fun at(bucket: Int, e: PackHunger) = bucket * entries.size + e.ordinal }
 }

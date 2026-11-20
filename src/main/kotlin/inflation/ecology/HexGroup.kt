@@ -70,6 +70,12 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
     @Transient var stepBusy = 0f
     @Transient var stepSearch = 0f
     @Transient var stepKills0 = 0f
+    /** Census only: a beast group's days handling its big-game kills this step, those kills and their kg, days handling other foods, and the eating days stronger scavengers gave back. Not saved. */
+    @Transient var stepGameDays = 0f
+    @Transient var stepGameKills = 0
+    @Transient var stepGameKg = 0f
+    @Transient var stepOtherDays = 0f
+    @Transient var stepScavDays = 0f
     /**
      * A band's luck in its own week's births and deaths, summed since it began: born less died as
      * drawn, against as expected from the week's odds (for training, which judges people by what
