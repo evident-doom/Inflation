@@ -135,7 +135,7 @@ internal class TerrainPainter(private val sim: HexSim) {
         private val EDGE_DARK = Color(0f, 0f, 0f, 0.6f)
         fun colourOf(m: Material): Color = when (m) {
             Material.STONE -> Color(0.7f, 0.7f, 0.75f)
-            Material.OBSIDIAN -> Color(0.08f, 0.08f, 0.1f)
+            Material.OBSIDIAN -> Color(0.45f, 0.2f, 0.55f)
             Material.OCHRE -> Color(0.75f, 0.25f, 0.1f)
             Material.SALT -> Color(0.97f, 0.97f, 0.97f)
             Material.GROUND_STONE -> Color(0.5f, 0.45f, 0.4f)
