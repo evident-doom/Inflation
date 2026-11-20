@@ -286,6 +286,11 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
             "workDays ${w.workDays} hands ${w.hands} room ${w.room} foodLeft ${time?.leftFor(Activity.FOOD)} wantAll ${w.wantAll} aim ${w.aim}; " +
             "gain ${o.gain.toList()} fed ${o.fed.toList()} spent ${o.spent.toList()}; offers ${o.m}: " + (0 until o.m).joinToString("; ") { i ->
                 "${o.type[i].label} k${o.kind[i]} who${o.who[i]} rate ${o.rate[i]} kg ${o.kg[i]} value ${o.value[i]} weight ${o.weight[i]} time ${o.time[i]}" })
+        if (pass == 0 && (0 until o.m).any { !o.rate[it].isFinite() }) w.band?.let { b -> System.err.println(
+            "forage NaN band ${g.id}: skill HUNT ${b.skill(Skill.HUNT)} edge STALK ${b.edge(Skill.STALK)} spear ${b.has(Tool.SPEAR)} bow ${b.has(Tool.BOW)} " +
+            "dogs ${b.dogs.dogShare} huntEdge ${(0 until w.nk).map { b.huntEdge(fauna.kinds[it], tuning) }} hunt ${w.hunt} huntHeads ${w.huntHeads} " +
+            "carryDaysPerKg ${w.carryDaysPerKg}; odds ${w.odds.take(w.nk)} stalks ${w.stalks.take(w.nk)} met ${w.met.take(w.nk)} km2 ${(0 until w.ground.size).map { w.ground.km2[it] }}; " +
+            "not finite: band ${notFinite(b)}; group ${notFinite(g)}") }
         val busy0 = w.busy
         if (pass == 0) w.searched = f
         if (HUNT_DIAG && w.band == null) { w.passes++; w.searchDays += f * w.workDays }
@@ -809,4 +814,35 @@ internal fun GroupWorld.recordFood(g: HexGroup, band: Band, w: ForageWeek) {
     // (Days a hand, as the week's busy days are: the band's are its hands'.)
     work(ToolWork.PLANT_DAYS, w.plantWorkDays * w.hands); work(ToolWork.SEED_DAYS, w.seedWorkDays * w.hands)
     work(ToolWork.SEED_FOOD, w.plantFrom[PlantFrom.SEED] + w.plantFrom[PlantFrom.GRAIN])
+}
+
+/**
+ * A diagnostic: the fields of [o], and of the objects of this code's own classes it holds (two deep), whose value or any
+ * of whose floats is not finite, with the first few such places in each.
+ */
+internal fun notFinite(o: Any): String {
+    val out = StringBuilder(); val seen = java.util.Collections.newSetFromMap(java.util.IdentityHashMap<Any, Boolean>())
+    fun walk(x: Any, path: String, depth: Int) {
+        if (!seen.add(x)) return
+        var c: Class<*>? = x.javaClass
+        while (c != null && c != Any::class.java) {
+            for (f in c.declaredFields) {
+                if (java.lang.reflect.Modifier.isStatic(f.modifiers) || !f.trySetAccessible()) continue
+                val v = f.get(x) ?: continue
+                val at = "$path.${f.name}"
+                when (v) {
+                    is Float -> if (!v.isFinite()) out.append("$at=$v ")
+                    is Double -> if (!v.isFinite()) out.append("$at=$v ")
+                    is FloatArray -> { val bad = v.indices.filter { !v[it].isFinite() }
+                        if (bad.isNotEmpty()) out.append("$at[${bad.size}/${v.size}: ${bad.take(6).joinToString { "$it=${v[it]}" }}] ") }
+                    is DoubleArray -> { val bad = v.indices.filter { !v[it].isFinite() }
+                        if (bad.isNotEmpty()) out.append("$at[${bad.size}/${v.size}: ${bad.take(6).joinToString { "$it=${v[it]}" }}] ") }
+                    else -> if (depth < 2 && v.javaClass.name.startsWith("inflation.") && !v.javaClass.isEnum) walk(v, at, depth + 1)
+                }
+            }
+            c = c.superclass
+        }
+    }
+    walk(o, o.javaClass.simpleName, 0)
+    return out.toString().ifEmpty { "none" }
 }
