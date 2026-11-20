@@ -92,7 +92,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
      * always has (the oaks and pines of summer-dry country); they die back only of drought beyond it ([shortOfWater]).
      */
     @Transient val usualDryWeeks = FloatArray(n) { p -> mean(p) { i -> val c = world.climate
-        (0 until 12).count { m -> c.monthlyTemp[m][i] > 10f && c.monthlyPrecip[m][i] < 0.5f * c.monthlyPet[m][i] }.toFloat() }.coerceAtMost(DRY_SEASON_MOST_MONTHS) * 30f / 7f }
+        (0 until 12).count { m -> c.monthlyTemp[m][i] > 10f && c.monthlyPrecip[m][i] < 0.5f * c.monthlyPet[m][i] }.toFloat() } * 30f / 7f }
     /**
      * Ground stepped on at each place, m² (see [tread]): the seedlings of shrubs and trees it kills. Trodden in the week's grazing
      * and counted, then cleared, in the next week's plant step (the plants grow before the animals feed).
@@ -829,13 +829,6 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
          * dies back by [DROUGHT_DEATH] a week, shrubs then trees, to the litter. Guesses to source against the die-offs of
          * dwarf shrubs in Negev and Sahel droughts.
          */
-        /**
-         * The longest dry season, months, trees bear as their place's usual ([usualDryWeeks]): the summer-dry woods of the
-         * Mediterranean and the Near East stand through four or five rainless months, but where the dry season runs longer
-         * trees give way to steppe and desert scrub (the woodland edge near 300-400 mm, from memory). Unbounded, the trees crept
-         * into dry steppe: canopy-ab, 2026-11-20, world-gen steppe at 270 mm under 0.1 kg/m² of trees 81-83% -> 69%.
-         */
-        const val DRY_SEASON_MOST_MONTHS = 4f
         const val DROUGHT_SUPPLY = 0.2f
         const val DROUGHT_WEEKS = 8f
         const val DROUGHT_RECOVERY = 0.5f
