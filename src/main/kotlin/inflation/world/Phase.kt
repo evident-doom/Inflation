@@ -14,9 +14,5 @@ fun runPhases(phases: List<Phase>, weather: Weather, books: Books?) {
     for (p in phases) {
         Profile.time(p.name) { p.run(weather) }
         books?.check(p.name)
-        afterPhase?.invoke(p.name)
     }
 }
-
-/** For a test only: called after each phase with its name (null in runs). Diagnosis of a save/load gap, to remove. */
-@Volatile var afterPhase: ((String) -> Unit)? = null
