@@ -202,3 +202,34 @@ object HexSnapshot {
         return n.startsWith("inflation.") || n.startsWith("kotlin.random.")
     }
 }
+
+/**
+ * A diagnostic: the fields of [o], and of the objects of this code's own classes it holds (two deep), whose value or any
+ * of whose floats is not finite, with the first few such places in each.
+ */
+internal fun notFinite(o: Any): String {
+    val out = StringBuilder(); val seen = java.util.Collections.newSetFromMap(java.util.IdentityHashMap<Any, Boolean>())
+    fun walk(x: Any, path: String, depth: Int) {
+        if (!seen.add(x)) return
+        var c: Class<*>? = x.javaClass
+        while (c != null && c != Any::class.java) {
+            for (f in c.declaredFields) {
+                if (java.lang.reflect.Modifier.isStatic(f.modifiers) || !f.trySetAccessible()) continue
+                val v = f.get(x) ?: continue
+                val at = "$path.${f.name}"
+                when (v) {
+                    is Float -> if (!v.isFinite()) out.append("$at=$v ")
+                    is Double -> if (!v.isFinite()) out.append("$at=$v ")
+                    is FloatArray -> { val bad = v.indices.filter { !v[it].isFinite() }
+                        if (bad.isNotEmpty()) out.append("$at[${bad.size}/${v.size}: ${bad.take(6).joinToString { "$it=${v[it]}" }}] ") }
+                    is DoubleArray -> { val bad = v.indices.filter { !v[it].isFinite() }
+                        if (bad.isNotEmpty()) out.append("$at[${bad.size}/${v.size}: ${bad.take(6).joinToString { "$it=${v[it]}" }}] ") }
+                    else -> if (depth < 2 && v.javaClass.name.startsWith("inflation.") && !v.javaClass.isEnum) walk(v, at, depth + 1)
+                }
+            }
+            c = c.superclass
+        }
+    }
+    walk(o, o.javaClass.simpleName, 0)
+    return out.toString().ifEmpty { "none" }
+}

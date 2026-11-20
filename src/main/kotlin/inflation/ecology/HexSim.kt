@@ -84,8 +84,9 @@ class HexSim(
         // (Diagnostic nanWatch=ID@Y.M: from that month on, after every phase, the fields of group ID and its band that are
         // not finite ([notFinite]), each time they change; to find the phase where a NaN first enters a band.)
         inflation.Config.string(inflation.Config.Key.NAN_WATCH)?.let { spec ->
-            val id = spec.substringBefore('@').trim().toInt()
-            val from = spec.substringAfter('@').split('.').let { it[0].toLong() * 12 + it[1].toLong() }
+            val (idText, at) = spec.split('@')
+            val id = idText.trim().toInt()
+            val from = at.split('.').let { it[0].toLong() * 12 + it[1].toLong() }
             val before = inflation.world.PhaseWatch.after
             var last = ""
             inflation.world.PhaseWatch.after = { phase ->
