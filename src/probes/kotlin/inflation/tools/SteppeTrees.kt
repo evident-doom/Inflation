@@ -102,6 +102,15 @@ fun main(args: Array<String>) {
             "; deep fill mean %.2f min %.2f; light herbs/shrubs/trees %.2f/%.2f/%.2f; shrubs %.2f kg/m²".format(m { deepMean[it] / steps }, m { deepMin[it] },
                 m { herbLight[it] / steps }, m { shrubLight[it] / steps }, m { treeShade[it] / steps }, m { pl.shrub[it].toDouble() }))
     }
+    // (And dry places along a river or stream with no floodplain mapped in them: the narrow valleys the wet floor misses.)
+    val noFloor = (0 until n).filter { land.floodShare[it] <= 0f && land.drink.nearRiver[it] >= 0.3f && land.mean(it) { i -> c.aridity(i) } < DRY }
+    if (noFloor.isNotEmpty()) {
+        val a = noFloor.sumOf { land.areaKm2[it].toDouble() }
+        fun m(f: (Int) -> Double) = noFloor.sumOf { f(it) * land.areaKm2[it] } / a
+        println("\ndry places by a stream (near-river share >= 0.3) with no floodplain: %.1f%% of land; tree %.2f kg/m², crowns %.2f, under 0.1 kg/m² %.1f%%, near-river share %.2f".format(
+            100 * a / (0 until n).sumOf { land.areaKm2[it].toDouble() }, m { pl.tree[it].toDouble() }, m { pl.treeLight(Place(it)).toDouble() },
+            100 * noFloor.filter { pl.tree[it] < 0.1f }.sumOf { land.areaKm2[it].toDouble() } / a, m { land.drink.nearRiver[it].toDouble() }))
+    }
     if (valleys.isNotEmpty()) {
         val all = valleys.sumOf { land.areaKm2[it].toDouble() }
         println("\ndry places (aridity < $DRY) with a floodplain: %.1f%% of land; over the year, by floodplain share: area%%, floodplain, wet floor, rooted floor (wet, not sodden), floor table m, tree kg/m², crowns, shrubs kg/m², tree drought".format(
