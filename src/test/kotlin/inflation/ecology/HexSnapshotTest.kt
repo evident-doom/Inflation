@@ -55,10 +55,12 @@ class HexSnapshotTest {
             HexSnapshot.load(b, f)
             val x0 = bytes(a); val y0 = bytes(b)
             if (!x0.contentEquals(y0)) fail("differs right after load, in:\n" + StateDiff().of(a, b).joinToString("\n"))
+            val log = StringBuilder(); var parted = false
             for (k in 1..30) {
                 a.step(); b.step()
-                if (!bytes(a).contentEquals(bytes(b))) fail("parts at step $k after load, in:\n" + StateDiff().of(a, b).joinToString("\n"))
+                if (!bytes(a).contentEquals(bytes(b))) { parted = true; log.append("step $k: ").append(StateDiff().of(a, b).joinToString(", ")).append('\n') }
             }
+            if (parted) fail("by step after load:\n$log")
         } finally { f.delete() }
     }
 
