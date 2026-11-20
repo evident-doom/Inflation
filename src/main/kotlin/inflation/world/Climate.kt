@@ -2,20 +2,12 @@ package inflation.world
 
 import inflation.Par
 import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.exp
+import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
-
-// (World-gen's climate in StrictMath, the same to the last bit wherever and whenever it runs: java.lang.Math's exp and pow may
-// differ by an ulp between interpreted and compiled code, and the parallel loops here met both, so a world's rain could come
-// out an ulp apart from run to run, det1120.)
-private fun exp(x: Double) = StrictMath.exp(x)
-private fun cos(x: Double) = StrictMath.cos(x)
-private fun hypot(x: Double, y: Double) = StrictMath.hypot(x, y)
-private fun Double.pow(y: Double) = StrictMath.pow(this, y)
-private fun Double.pow(y: Int) = StrictMath.pow(this, y.toDouble())
-private fun exp(x: Float) = StrictMath.exp(x.toDouble()).toFloat()
-private fun Float.pow(y: Float) = StrictMath.pow(toDouble(), y.toDouble()).toFloat()
-private fun hypot(x: Float, y: Float) = StrictMath.hypot(x.toDouble(), y.toDouble()).toFloat()
+import kotlin.math.pow
 
 /**
  * Long-term monthly climate normals. Temperature follows latitude, elevation (6.5 °C/km lapse
