@@ -14,9 +14,5 @@ fun runPhases(phases: List<Phase>, weather: Weather, books: Books?) {
     for (p in phases) {
         Profile.time(p.name) { p.run(weather) }
         books?.check(p.name)
-        PhaseWatch.after?.invoke(p.name)
     }
 }
-
-/** Diagnostic hook run after every phase ([runPhases]): null unless a diagnostic sets it (stateHashes, [inflation.ecology.HexSim]). */
-object PhaseWatch { @JvmField var after: ((String) -> Unit)? = null }

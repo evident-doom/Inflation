@@ -73,7 +73,7 @@ class HexSim(
         inflation.Config.string(inflation.Config.Key.STATE_HASHES)?.let { span ->
             val (a, b) = span.split('-').map { e -> e.split('.').let { it[0].toLong() * 12 + it[1].toLong() } }
             var n = 0
-            inflation.world.PhaseWatch.after = { phase ->
+            PhaseWatch.after = { phase ->
                 val d = weather.date; val ym = d.year * 12 + d.month
                 // (On for the next step's foraging too, while still in the span: [ForageDigest].)
                 ForageDigest.parties = if (ym in a..b) ForageDigest.parties ?: java.util.concurrent.ConcurrentLinkedQueue() else null
@@ -87,9 +87,9 @@ class HexSim(
             val (idText, at) = spec.split('@')
             val id = idText.trim().toInt()
             val from = at.split('.').let { it[0].toLong() * 12 + it[1].toLong() }
-            val before = inflation.world.PhaseWatch.after
+            val before = PhaseWatch.after
             var last = ""
-            inflation.world.PhaseWatch.after = { phase ->
+            PhaseWatch.after = { phase ->
                 before?.invoke(phase)
                 val d = weather.date
                 if (d.year * 12 + d.month >= from) {
@@ -112,14 +112,16 @@ class HexSim(
     }
 
     /** The tick, in order: the weather and what falls from the sky, the water and plants ([HexLand.phases]). */
-    @Transient val tickPhases: List<Phase> = listOf(
+    @Transient val tickPhases: List<Phase> = PhaseWatch.watched(listOf(
         Phase("weather") { weather.step(); bookSnow() },
         Phase("ash and eruptions") { fallingAsh() },
-    ) + land.phases
+    ) + land.phases)
 
     /** The slow parts of a step, in order, once a step whatever its length: the residents and small life ([HexFauna.phases]), and the groups ([HexGroups.phases]). */
-    @Transient val slowPhases: List<Phase> = listOf(Phase("people: herds for the beasts") { fauna.keptAt = groups.herdsForBeasts(); groups.fillPackGame() }) +
-        fauna.phases + groups.phases
+    @Transient val slowPhases: List<Phase> = PhaseWatch.watched(listOf(Phase("people: herds for the beasts") { fauna.keptAt = groups.herdsForBeasts(); groups.fillPackGame() })) +
+        PhaseWatch.watched(fauna.phases + groups.phases)
+    /** [HexGroups.phases], as [slowPhases] has them (watched by the diagnostics, [PhaseWatch]). */
+    @Transient private val groupPhases: List<Phase> = slowPhases.takeLast(groups.phases.size)
 
     /** Of [slowPhases], the residents' and small life's (with the herds they may raid): all but the groups'. */
     @Transient private val residentPhases: List<Phase> = slowPhases.dropLast(groups.phases.size)
@@ -162,7 +164,7 @@ class HexSim(
         // (The slow parts read the step's weather whole: its mean air, all that fell and melted, and the coldest tick.)
         weather.settleStep()
         // (Their date is the step's start and a tick, as at one tick a step, not its end: [Weather.slowParts].)
-        weather.slowParts { runPhases(if (perTick && !whole) groups.phases else slowPhases, weather, books) }
+        weather.slowParts { runPhases(if (perTick && !whole) groupPhases else slowPhases, weather, books) }
         // (The carrion held for the groups and left goes back on the ground: [HexSmallLife.groupCarrion].)
         fauna.small.settleGroupCarrion()
     }
@@ -187,4 +189,15 @@ class HexSim(
         }) { c, mm -> val p = cellPlace[c]; if (p >= 0) land.plants.ash[p] += mm / hw.placeCells[p].size }
         for (e in now) weather.volcanicForcing(e.vei, e.volcano.x, e.volcano.y)
     }
+}
+
+/**
+ * Diagnostic hook run after every phase of the step: null unless a diagnostic sets it (stateHashes, nanWatch: [HexSim]),
+ * and then the phases are built [watched]. (Kept out of the world's own phase runner, whose code keys the saved worlds.)
+ */
+internal object PhaseWatch {
+    @JvmField var after: ((String) -> Unit)? = null
+    /** [phases] each followed by [after], when a diagnostic has set it before the step's phases are built; else as they are. */
+    fun watched(phases: List<Phase>): List<Phase> =
+        if (after == null) phases else phases.map { p -> Phase(p.name) { w -> p.run(w); after?.invoke(p.name) } }
 }
