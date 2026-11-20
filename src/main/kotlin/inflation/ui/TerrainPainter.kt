@@ -68,7 +68,7 @@ internal class TerrainPainter(private val sim: HexSim) {
                 }
             }
             if (deposits.isNotEmpty()) {
-                val here = deposits.filter { (_, d) -> d[h.i] >= RESOURCE_SHOWN }
+                val here = deposits.filter { (m, d) -> d[h.i] >= shownFrom(m) }
                 if (here.isNotEmpty()) {
                     val r = max(2, (0.08f * u).roundToInt()); val gap = 2 * r + max(1, r / 2)
                     var mx = x - (here.size - 1) * gap / 2; val my = y + (0.62f * u).toInt()
@@ -119,7 +119,7 @@ internal class TerrainPainter(private val sim: HexSim) {
             swatches += MapLegend.Swatch(RUGGED, "rugged")
         }
         if (resources) {
-            parts += "Resources: where materials crop out on at least ${"%.1f".format(100 * RESOURCE_SHOWN)}% of a hex's ground, a mark each along its foot"
+            parts += "Resources: where materials crop out on at least ${"%.1f".format(100 * RESOURCE_SHOWN)}% of a hex's ground (ground stone: ${"%.0f".format(100 * GROUND_STONE_SHOWN)}%, weighted by how well the rock grinds), a mark each along its foot"
             for (m in materials) swatches += MapLegend.Swatch(colourOf(m), m.name.lowercase().replace('_', ' ')) { g, x, y, r -> mark(g, m, x, y, r) }
         }
         return MapLegend("Terrain", parts.joinToString(". ") + ".", swatches = swatches)
@@ -130,6 +130,9 @@ internal class TerrainPainter(private val sim: HexSim) {
         const val MOST_MARKS = 90
         /** A material is marked in a hex where it crops out on at least this share of its ground. */
         const val RESOURCE_SHOWN = 0.005f
+        /** Ground stone (bare grinding rock, weighted by how well it grinds) is marked only from this share: it lies bare in most hilly hexes. */
+        const val GROUND_STONE_SHOWN = 0.1f
+        fun shownFrom(m: Material) = if (m == Material.GROUND_STONE) GROUND_STONE_SHOWN else RESOURCE_SHOWN
         val RUGGED = Color(0.22f, 0.15f, 0.1f, 0.75f)
         private val EDGE = Color(1f, 1f, 1f, 0.85f)
         private val EDGE_DARK = Color(0f, 0f, 0f, 0.6f)
