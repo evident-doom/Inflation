@@ -55,6 +55,10 @@ internal class ViewLayers(private val sim: HexSim) {
         BONES_WEEKS("Weeks to clear: bones", "weeks", 0.8f, 0.8f, 0.7f), ORGANIC_WEEKS("Weeks to clear: soil organic matter", "weeks", 0.35f, 0.2f, 0.05f),
         /** Each hex in the colour of the cultural region with the most people there ([inflation.ecology.cultureRegions]). */
         CULTURES("Cultural regions", "", 0f, 0f, 0f),
+        /** Each hex in the colour of the kind of country covering most of it as its plants and water stand now ([inflation.world.HexCountry.kind]). */
+        COUNTRY("Kind of country now", "", 0f, 0f, 0f),
+        /** Share of the ground burnt lately, fading over a few years ([inflation.world.HexFires.burnt]). */
+        BURNT("Burnt lately", "share of the ground", 0.9f, 0.35f, 0.05f),
         /** Raids over about the last year at the raided band's camp, coloured by the share across cultural regions ([ViewLayers.dealings]). */
         RAIDS("Raids, within and across cultures", "raids over about the last year", 0.9f, 0.1f, 0.2f),
         /** The ground bands' hunters searched in their last week of foraging ([inflation.ecology.Band.huntSeen]), a running mean. */
@@ -181,6 +185,16 @@ internal class ViewLayers(private val sim: HexSim) {
         return ids
     }
 
+    /** Each hex's kind of country now ([inflation.world.HexCountry.kind]): the kind over most of its ground, as a [inflation.world.Biome] ordinal. */
+    private fun countryNow(): FloatArray {
+        val kinds = inflation.world.Biome.entries.size
+        val km2 = DoubleArray(nh * kinds)
+        for (p in 0 until n) km2[hw.placeHex[p].i * kinds + land.country.kind[p]] += land.areaKm2[p].toDouble()
+        return FloatArray(nh) { h -> var best = -1; var most = 0.0
+            for (k in 0 until kinds) if (km2[h * kinds + k] > most) { most = km2[h * kinds + k]; best = k }
+            if (best >= 0) best.toFloat() else Float.NaN }
+    }
+
     /** After each week: works out every measure and adds it to the month. */
     fun week() {
         val area = DoubleArray(nh)
@@ -221,6 +235,8 @@ internal class ViewLayers(private val sim: HexSim) {
             now[Measure.CULTURES.name] = FloatArray(nh) { if (hr[it] >= 0) (ids[hr[it]] ?: hr[it]).toFloat() else Float.NaN }
         }
         raidsNow()
+        now[Measure.BURNT.name] = hexMean { land.fire.burnt[it] }
+        now[Measure.COUNTRY.name] = countryNow()
         now[Measure.RESIDENTS.name] = hexMean { p -> var v = 0f; for (k in fauna.kinds.indices) v += fauna.adults[k][p] + fauna.young[k][p]; v }
 
         // Deaths: this week's, by cause, as a running mean over about a month (a single week is mostly noise).

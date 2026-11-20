@@ -174,6 +174,11 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
     /** What people have made in the land, one mark for each thing standing (see [WorksPainter]). */
     private val worksBox = JCheckBox("Works", true)
     private val works = WorksPainter(sim)
+    /** The ground's make-up drawn into the hexes: glades, rugged ground, resources (see [TerrainPainter]). */
+    private val gladesBox = JCheckBox("Glades", true)
+    private val ruggedBox = JCheckBox("Rugged", false)
+    private val resourcesBox = JCheckBox("Resources", false)
+    private val terrain = TerrainPainter(sim)
     /** The ground of the band picked in the list, or the one followed (see [BandGroundPainter]). */
     private val groundBox = JCheckBox("Band's ground", true)
     private val bandGround = BandGroundPainter(sim)
@@ -283,6 +288,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         pathsBox.addActionListener { map.repaint() }
         namesBox.addActionListener { map.repaint() }
         worksBox.addActionListener { map.repaint() }
+        for (box in listOf(gladesBox, ruggedBox, resourcesBox)) box.addActionListener { map.repaint() }
         groundBox.addActionListener { map.repaint() }
         dealingsBox.addActionListener { map.repaint() }
         blocsBox.addActionListener { map.repaint() }
@@ -292,7 +298,7 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
         shows.add(JLabel("Tint:")); shows.add(tintChoice); shows.add(modeChoice); shows.add(causeChoice)
         shows.add(JLabel("  Kind:")); shows.add(residentChoice); shows.add(flowBox); shows.add(heightBox); shows.add(pullChoice)
         shows.add(JLabel("  Draw:"))
-        for (box in listOf(peopleBox, huntersBox, worksBox, groundBox, dealingsBox, blocsBox, pathsBox, namesBox, riversBox, windBox)) shows.add(box)
+        for (box in listOf(peopleBox, huntersBox, worksBox, gladesBox, ruggedBox, resourcesBox, groundBox, dealingsBox, blocsBox, pathsBox, namesBox, riversBox, windBox)) shows.add(box)
         val graphs = JButton("History…"); graphs.addActionListener { HexHistoryPanel.show(history, live = true, title = "History, seed ${cfg.seed}") }
         // Save the world as it stands, or carry on one saved before.
         val save = JButton("Save…")
@@ -749,11 +755,8 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                     "bays and straits, peninsulas, isthmuses and islands (narrower than the ground one place draws on, or than a range). The larger the feature, the larger its name; a name is written only where it fits along its river or across its country.", note = features.summary(),
                     swatches = HexGeography.Kind.entries.map { MapLegend.Swatch(featureColour(it), it.label) })
             }
-            // People's works, small inside their hexes.
-            if (worksBox.isSelected) {
-                works.paint(g, kmPx, ::sx, ::sy, ::onScreen)
-                legends += WorksPainter.legend
-            }
+            // The ground's make-up (glades, rugged ground, resources) and people's works, small inside their hexes.
+            paintGroundMarks(g, kmPx, ::sx, ::sy, ::onScreen, legends)
             val t = min(1f, frame.toFloat() / frames)
             paintBands(g, t, kmPx, ::sx, ::sy, ::onScreen, legends)
             // The hex being inspected.
@@ -801,6 +804,19 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             }
             // What the tints' colours mean, in the top right corner.
             MapLegend.draw(g, legends, width)
+        }
+
+        /** The ground's make-up ([terrain]: [gladesBox], [ruggedBox], [resourcesBox]) and people's works ([worksBox]), inside their hexes. */
+        private fun paintGroundMarks(g: Graphics2D, kmPx: Double, sx: (Float) -> Int, sy: (Float) -> Int, onScreen: (Hex, Int) -> Boolean, legends: MutableList<MapLegend>) {
+            val gl = gladesBox.isSelected; val ru = ruggedBox.isSelected; val re = resourcesBox.isSelected
+            if (gl || ru || re) {
+                terrain.paint(g, kmPx, sx, sy, onScreen, gl, ru, re)
+                legends += terrain.legend(gl, ru, re)
+            }
+            if (worksBox.isSelected) {
+                works.paint(g, kmPx, sx, sy, onScreen)
+                legends += WorksPainter.legend
+            }
         }
 
         /** The bands' layers ([groundBox], [blocsBox], [dealingsBox]), at [t] of the way through the week's moves. */
@@ -872,6 +888,15 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
                         { x -> if (x <= 0f) null else rgba(tint.r, tint.g, tint.b, 0.05f + 0.75f * x) },
                         listOf(0f to "0", ln(1f + 4f) / full to "4", ln(1f + 20f) / full to "20", 1f to "104+"),
                         "weeks to clear (log scale); full: accumulating")
+                }
+                if (tint == Measure.COUNTRY) {
+                    fun colour(k: Int) = Color((Biome.entries[k].rgb and 0xFFFFFF) or (200 shl 24), true)
+                    val count = IntArray(Biome.entries.size)
+                    for (h in v.indices) if (!v[h].isNaN()) { out[h] = colour(v[h].toInt()); count[v[h].toInt()]++ }
+                    val shown = count.indices.filter { count[it] > 0 }.sortedByDescending { count[it] }
+                    return MapLegend(title, "Kind of country now: each hex in the colour of the kind over most of its ground, as its plants and water stand " +
+                        "this week (woods cleared or burnt open, grass grazed off, ground drying out or getting wet), not as the climate first made it.",
+                        note = "${shown.size} kinds", swatches = shown.map { MapLegend.Swatch(colour(it), "%s, %d hexes".format(Biome.entries[it].label, count[it])) })
                 }
                 if (tint == Measure.CULTURES) {
                     val cr = layers.cultures ?: return waiting("waiting for the first week")
@@ -1045,6 +1070,10 @@ class HexViewer(world: World, load: File? = null, private val nets: String? = nu
             sb.appendLine("   herbs %.2f shrubs %.2f trees %.1f kg/m², green %.0f%%, rugged %.2f, refuge %.2f, lookout %.0f km".format(
                 land.plants.herb[p], land.plants.shrub[p], land.plants.tree[p], 100 * land.plants.green[p],
                 land.ruggedness[p], land.bestDefence[p], land.bestViewKm[p]))
+            sb.appendLine("   now %s: crowns over %.0f%% of the ground, glades %.0f%%, crags %.0f%%, burnt lately %.0f%%%s".format(
+                Biome.entries[land.country.kind[p]].label, 100 * land.plants.treeLight(Place(p)), 100 * land.plants.glade[p], 100 * land.crag[p], 100 * land.fire.burnt[p],
+                Material.entries.mapNotNull { m -> m.deposit?.invoke(land)?.get(p)?.takeIf { it >= 0.001f }?.let { "%s %.1f%%".format(m.name.lowercase().replace('_', ' '), 100 * it) } }
+                    .joinToString(", ").let { if (it.isEmpty()) "" else "; crops out: $it" }))
             sb.appendLine("   rain %.0f mm this week, wind %.1f m/s; drinking water within reach of %.0f%% (walk %.1f km)".format(
                 weather.precipitation[p], hypot(weather.windEast(p), weather.windSouth(p)), 100 * land.drink.water[p], land.drink.waterKm[p]))
             val sl = fauna.small
