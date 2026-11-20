@@ -51,11 +51,16 @@ fun main(args: Array<String>) {
     fun dryMonths(p: Int) = land.mean(p) { i -> (0 until 12).count { m -> c.monthlyTemp[m][i] > 10f && c.monthlyPrecip[m][i] < 0.5f * c.monthlyPet[m][i] }.toFloat() }
     val forest = (0 until n).filter { land.country.kind[it] == Biome.TEMPERATE_FOREST.ordinal || land.country.kind[it] == Biome.CONIFER_FOREST.ordinal }
     val tree0 = FloatArray(n) { pl.tree[it] }
+    val deepMean = DoubleArray(n); val deepMin = DoubleArray(n) { 1.0 }; val shrubLight = DoubleArray(n); val treeShade = DoubleArray(n); val herbLight = DoubleArray(n)
+    val ls = FloatArray(3)
+    fun deepFill(p: Int): Double { val pp = Place(p); val h = land.hydro; return ((h.soil[p] - h.soilTop[p]) / (h.soilCap[p] - h.topCap(pp))).toDouble() }
+    fun watch(p: Int) { val d = deepFill(p); deepMean[p] += d; deepMin[p] = minOf(deepMin[p], d); pl.lightShares(Place(p), ls); herbLight[p] += ls[0].toDouble(); shrubLight[p] += ls[1].toDouble(); treeShade[p] += ls[2].toDouble() }
     val browse = DoubleArray(n); val graze = DoubleArray(n); val burnt = DoubleArray(n); val drought = DoubleArray(n); val tTree = DoubleArray(n)
     val steps = sim.stepsPerYear
     for (s in 0 until steps) {
         sim.step()
-        for (p in forest) drought[p] += pl.droughtTree[p].toDouble()
+        for (p in forest) { drought[p] += pl.droughtTree[p].toDouble(); watch(p) }
+        for (p in humid) watch(p)
         for (p in humid) { browse[p] += pl.browsing[p].toDouble(); graze[p] += pl.grazing[p].toDouble(); burnt[p] += land.fire.burning[p].toDouble()
             drought[p] += pl.droughtTree[p].toDouble(); tTree[p] += land.hydro.transpired[2][p].toDouble() }
     }
@@ -67,13 +72,17 @@ fun main(args: Array<String>) {
         fun m(f: (Int) -> Double) = ps.sumOf { f(it) * land.areaKm2[it] } / a
         println("  %-14s %5.1f%%  %.2f->%.2f  %7.0f %7.0f  %.3f  %.2f  %5.0f  %.2f  %.2f  %.2f".format(name, 100 * a / ha, m { tree0[it].toDouble() }, m { pl.tree[it].toDouble() },
             m { browse[it] / steps }, m { graze[it] / steps }, m { burnt[it] }, m { drought[it] / steps }, m { tTree[it] }, m { pl.opened[it].toDouble() },
-            m { pl.moisture[it].toDouble() }, m { pl.soil(Place(it)).toDouble() }) + "  %.1f".format(m { dryMonths(it).toDouble() }))
+            m { pl.moisture[it].toDouble() }, m { pl.soil(Place(it)).toDouble() }) + "  %.1f".format(m { dryMonths(it).toDouble() }) +
+            "  deep fill mean %.2f min %.2f; light herbs/shrubs/trees %.2f/%.2f/%.2f; shrubs %.2f kg/m²".format(m { deepMean[it] / steps }, m { deepMin[it] },
+                m { herbLight[it] / steps }, m { shrubLight[it] / steps }, m { treeShade[it] / steps }, m { pl.shrub[it].toDouble() }))
     }
     if (forest.isNotEmpty()) {
         val a = forest.sumOf { land.areaKm2[it].toDouble() }
         fun m(f: (Int) -> Double) = forest.sumOf { f(it) * land.areaKm2[it] } / a
         println("  forest now, for comparison: tree %.2f kg/m², tree drought (mean) %.2f, dry months %.1f, aridity %.2f".format(m { pl.tree[it].toDouble() },
-            m { drought[it] / steps }, m { dryMonths(it).toDouble() }, m { land.mean(it) { i -> c.aridity(i) }.toDouble() }))
+            m { drought[it] / steps }, m { dryMonths(it).toDouble() }, m { land.mean(it) { i -> c.aridity(i) }.toDouble() }) +
+            "; deep fill mean %.2f min %.2f; light herbs/shrubs/trees %.2f/%.2f/%.2f; shrubs %.2f kg/m²".format(m { deepMean[it] / steps }, m { deepMin[it] },
+                m { herbLight[it] / steps }, m { shrubLight[it] / steps }, m { treeShade[it] / steps }, m { pl.shrub[it].toDouble() }))
     }
 }
 
