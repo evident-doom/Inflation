@@ -843,12 +843,15 @@ internal object GroundCheck {
     private val hexes = ThreadLocal<Set<Hex>?>()
     private val party = ThreadLocal<HexGroup?>()
     private val told = java.util.concurrent.ConcurrentHashMap.newKeySet<Long>()
+    /** Set once a party is checked: until then the checks cost a field read. */
+    @Volatile @JvmField var on = false
     fun enter(g: HexGroup, ground: Set<Hex>, placeHex: inflation.world.HexArray) {
+        on = true
         places.set(BooleanArray(placeHex.size) { placeHex[it] in ground }); hexes.set(ground); party.set(g)
     }
     fun exit() { places.set(null); hexes.set(null); party.set(null) }
-    fun place(p: Place, what: Int) { val a = places.get() ?: return; if (p.i in a.indices && !a[p.i]) tell(what, "place ${p.i}") }
-    fun hex(h: Hex, what: Int) { val a = hexes.get() ?: return; if (h !in a) tell(what, "hex ${h.i}") }
+    fun place(p: Place, what: Int) { if (!on) return; val a = places.get() ?: return; if (p.i in a.indices && !a[p.i]) tell(what, "place ${p.i}") }
+    fun hex(h: Hex, what: Int) { if (!on) return; val a = hexes.get() ?: return; if (h !in a) tell(what, "hex ${h.i}") }
     private fun tell(what: Int, at: String) {
         val g = party.get() ?: return
         if (told.size > 400 || !told.add(g.id.toLong() * 64 + what)) return
