@@ -120,7 +120,7 @@ internal class TerrainPainter(private val sim: HexSim) {
         }
         if (resources) {
             parts += "Resources: where materials crop out on at least ${"%.1f".format(100 * RESOURCE_SHOWN)}% of a hex's ground, a mark each along its foot"
-            for (m in materials) swatches += MapLegend.Swatch(colourOf(m), m.name.lowercase().replace('_', ' '))
+            for (m in materials) swatches += MapLegend.Swatch(colourOf(m), m.name.lowercase().replace('_', ' ')) { g, x, y, r -> mark(g, m, x, y, r) }
         }
         return MapLegend("Terrain", parts.joinToString(". ") + ".", swatches = swatches)
     }
