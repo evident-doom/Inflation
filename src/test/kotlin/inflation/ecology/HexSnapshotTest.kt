@@ -45,6 +45,33 @@ class HexSnapshotTest {
     }
 
     @Test
+    fun `per-phase diagnosis - first phase a loaded world parts from the one that ran on`() {
+        val a = HexSim(World.generate(cfg))
+        repeat(30) { a.step() }
+        val f = File.createTempFile("hexsnap", ".hexs")
+        try {
+            HexSnapshot.save(a, f)
+            val b = HexSim(World.generate(cfg))
+            HexSnapshot.load(b, f)
+            val out = StringBuilder()
+            for (k in 1..3) {
+                val ha = ArrayList<Pair<String, Map<String, Int>>>(); val hb = ArrayList<Pair<String, Map<String, Int>>>()
+                inflation.world.afterPhase = { name -> ha += name to StateHash().of(a) }
+                a.step()
+                inflation.world.afterPhase = { name -> hb += name to StateHash().of(b) }
+                b.step()
+                inflation.world.afterPhase = null
+                for (i in ha.indices) {
+                    val (name, ma) = ha[i]; val mb = hb.getOrNull(i)?.second ?: break
+                    val differ = ma.keys.filter { ma[it] != mb[it] }
+                    if (differ.isNotEmpty()) { out.append("step $k, after phase '$name' (#$i of ${ha.size}): ${differ.take(40).joinToString(", ")}\n"); break }
+                }
+            }
+            fail("phases (always fails: diagnosis):\n$out")
+        } finally { inflation.world.afterPhase = null; f.delete() }
+    }
+
+    @Test
     fun `a save with enum entries in another order is refused, one with fewer at the end is not`() {
         val skills = Skill.entries.map { it.name }
         assertEquals(null, HexSnapshot.orderProblem(Skill::class.java.name, skills))
@@ -146,6 +173,48 @@ private class StateDiff {
                     for (f in k.declaredFields) if (!Modifier.isStatic(f.modifiers) && !Modifier.isTransient(f.modifiers)) {
                         f.isAccessible = true
                         walk("$path.${f.name}", f.get(x), f.get(y))
+                    }
+                    k = k.superclass
+                }
+            }
+        }
+    }
+}
+
+/** Hashes of each saved field of a model, by path (as [StateDiff] walks it), for the per-phase diagnosis. */
+private class StateHash {
+    private val out = LinkedHashMap<String, Int>()
+    private val seen = IdentityHashMap<Any, Boolean>()
+    private val INDEX = Regex("""\[\d+]""")
+
+    fun of(x: Any): Map<String, Int> { walk("sim", x); return out }
+    private fun put(path: String, h: Int) { val k = path.replace(INDEX, "[]"); out[k] = 31 * (out[k] ?: 0) + h }
+
+    private fun walk(path: String, x: Any?) {
+        if (x == null) { put(path, 0); return }
+        if (seen.put(x, true) != null) return
+        when (x) {
+            is FloatArray -> put(path, x.contentHashCode())
+            is IntArray -> put(path, x.contentHashCode())
+            is DoubleArray -> put(path, x.contentHashCode())
+            is LongArray -> put(path, x.contentHashCode())
+            is ShortArray -> put(path, x.contentHashCode())
+            is ByteArray -> put(path, x.contentHashCode())
+            is BooleanArray -> put(path, x.contentHashCode())
+            is Array<*> -> { put(path, x.size); x.indices.forEach { walk("$path[$it]", x[it]) } }
+            is List<*> -> { put(path, x.size); x.indices.forEach { walk("$path[$it]", x[it]) } }
+            is Set<*> -> { put(path, x.size); walk(path, x.toList()) }
+            is Map<*, *> -> { put(path, x.size); walk(path, x.entries.map { listOf(it.key, it.value) }) }
+            is Int, is Long, is Float, is Double, is Short, is Byte, is String, is Boolean, is Char, is Enum<*> -> put(path, x.hashCode())
+            is Lazy<*> -> if (x.isInitialized()) walk(path, x.value)
+            else -> {
+                val c = x.javaClass
+                if (c.isSynthetic || c.name.contains("Lambda") || !c.name.startsWith("inflation.")) return
+                var k: Class<*>? = c
+                while (k != null && k != Any::class.java) {
+                    for (f in k.declaredFields) if (!Modifier.isStatic(f.modifiers) && !Modifier.isTransient(f.modifiers)) {
+                        f.isAccessible = true
+                        walk("$path.${f.name}", f.get(x))
                     }
                     k = k.superclass
                 }
