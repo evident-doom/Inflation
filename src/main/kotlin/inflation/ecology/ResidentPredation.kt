@@ -272,9 +272,16 @@ internal fun HexFauna.condition(ps: Species, p: Place): Float {
  * How well an animal of kind [ps] weighing [massKg] fends off a hunter, 0..1: its kind's [Species.defence] for a grown one,
  * less for the young by the square root of their weight against the grown's. A calf is guarded by its mother and the herd
  * but is no bull: lions take buffalo calves far more readily than grown buffalo, wolves moose calves than cows (from
- * memory). At [YOUNG_WEIGHT] of the grown's weight, about half the grown's defence.
+ * memory). At [YOUNG_WEIGHT] of the grown's weight, about half the grown's defence. A mother of a litter guards each of
+ * her young the less, the more she has: by the square root of her litter ([Species.youngPerFemale]). A sow with five
+ * striped piglets at heel cannot stand over them all, and wolves, lynx and eagles take many of them in their first months
+ * (Jędrzejewski et al. 1992 on piglets in Białowieża's wolves' and lynx's prey, from memory); with the calf's rule alone the
+ * boar's young were as safe as a red deer calf.
  */
-fun youngDefence(ps: Species, massKg: Float): Float = ps.defence * kotlin.math.sqrt((massKg / ps.massKg).coerceIn(0f, 1f))
+fun youngDefence(ps: Species, massKg: Float): Float {
+    val r = (massKg / ps.massKg).coerceIn(0f, 1f)
+    return if (r >= 1f) ps.defence else ps.defence * kotlin.math.sqrt(r) / kotlin.math.sqrt(max(1f, ps.youngPerFemale))
+}
 
 /** How well game of kind [ps] can shelter at place [p] now ([Niches.shelter]), its ground's part as worked out for the run. */
 fun HexFauna.preyShelter(ps: Species, p: Place): Float {
