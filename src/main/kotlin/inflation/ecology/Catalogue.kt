@@ -120,7 +120,7 @@ object Catalogue {
         // months in Kampinos, and 80-90% in hard years, Jezierski 1977 Acta Theriol 22:337 citing Lebedev 1956. The
         // price of its big litters: at the calf's 0.2 a sow raised four of her five, and the boar stood 3-4 times as
         // thick as in Białowieża: dens1121, piglets-ab.)
-        backgroundMortality = 0.08f, firstYearLost = 0.65f,
+        backgroundMortality = 0.08f, firstYearLost = HOOFED_YOUNG_LOST,
         snowLimitMm = 110f,
         products = Products(meat = 45f, fat = 8f, hide = 5f, bone = 9f, sinew = 0.5f, hornOrAntler = 0.5f),
         comfortC = -8f..34f, winterCoat = true,
