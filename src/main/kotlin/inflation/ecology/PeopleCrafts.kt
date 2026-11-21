@@ -504,12 +504,14 @@ internal const val TOOLLESS = 0.2f
  * Two bands that meet show each other the tools and ways of working one of them does not know, the more readily the better
  * they understand each other ([understood]). Bands take up a stranger's tool or way the less readily the more their customs
  * differ, and the more readily from a band that does better than they do ([aDoesBetter]). The idea comes freely; making
- * the tool well ([Band.makeQuality]) and working the way well come only with practice and teachers.
+ * the tool well ([Band.makeQuality]) and working the way well come only with practice and teachers. Boats and their skills are
+ * taken up only by bands by water a boat could use ([Band.byBoatWater]; Olli 2026-11-21).
  */
 internal fun GroupWorld.teach(a: Band, b: Band, understood: Float, aDoesBetter: Float = 0f) {
     val alike = 1f - CONFORMITY * Tradition.entries.count { a.holds(it) != b.holds(it) }.toFloat() / Tradition.entries.size
     fun prestige(fromA: Boolean) = (1f + PRESTIGE * (if (fromA) aDoesBetter else -aDoesBetter)).coerceIn(0.2f, 2f)
-    for (k in Tool.entries) if (a.knows[k] != b.knows[k] &&
+    // (Boats are taken up only by a band by water a boat could use ([boatWater]): elsewhere there is nothing to learn them on.)
+    for (k in Tool.entries) if (a.knows[k] != b.knows[k] && (k != Tool.BOAT || (if (a.knows[k]) b else a).byBoatWater) &&
         rnd.nextFloat() < TEACH * (0.5f + 0.5f * understood) * alike * prestige(a.knows[k])) {
         a.knows[k] = true; b.knows[k] = true
         stats.meeting(Met.Of.LEARNED, k.name.lowercase())
@@ -517,6 +519,7 @@ internal fun GroupWorld.teach(a: Band, b: Band, understood: Float, aDoesBetter: 
     // And ways of working: the one that knows a way shows it; the other starts on it as a beginner.
     for (k in Skill.entries) if (a.knowsSkill[k] != b.knowsSkill[k]) {
         val (from, to) = if (a.knowsSkill[k]) a to b else b to a
+        if (k in BOAT_SKILLS && !to.byBoatWater) continue
         val need = k.needs
         if (need != null && (!to.knowsSkill[need] || to.skills[need] < NEEDS_LEVEL)) continue
         val prestige = prestige(from === a)
