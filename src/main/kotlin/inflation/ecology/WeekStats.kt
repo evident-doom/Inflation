@@ -264,6 +264,7 @@ enum class Met(val label: String) {
     APPOINTMENTS_GATHERED("appointments kept by gatherings of bands"),
     BANDS_AT_APPOINTMENTS("bands at appointments' gatherings"),
     ORNAMENTS_GIVEN("ornaments given"),
+    ORNAMENTS_GIVEN_TO_REPAY("ornaments given to repay a debt"),
     PACK_GAVE_WAY("pack gave way"),
     /** Parties a band sent for a rare material its own ground does not give ([taskTrips]). */
     TASK_TRIPS("task trips for stone, salt, ochre or shell"),

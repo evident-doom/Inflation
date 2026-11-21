@@ -453,10 +453,27 @@ class Band(kinds: Int, totems: Int = kinds) {
     var ornamentWorth = 0f
     /** The worth of [n] of its ornaments, in their share. */
     fun ornamentWorthOf(n: Float) = if (ornaments > 0f) ornamentWorth * min(1f, n / ornaments) else 0f
-    /** Takes [n] of its ornaments, shell and worth among them in their shares; returns the shell ones taken. */
+    /**
+     * Of its ornaments, how many are of wood, hide and fibre ([OrnamentKind.soft]), which wear out faster ([SOFT_WEAR]); and
+     * in whose style its ornaments were made ([artMix], trait x [STYLE_VARIANTS] + variant: each trait's share of their worth in
+     * each variant, summing to 1, or all 0 for none yet), from which their strangeness to another band is read ([artStrangeness];
+     * [inflation.Tuning.art]). Pieces keep their makers' style as they are given on; a band's own work is in its own style.
+     */
+    var soft = 0f
+    /**
+     * For the census, since its last print ([inflation.tools.fauna.Tallies.printBands]): favours it earned by each [FavourKind],
+     * new credit beyond what it owed the taker ([favoursMade]) and what settled its own debts ([favoursSettled]); and the
+     * person-days of worth of the ornaments it made ([ornamentsMadeWorth]). Report only, not carried.
+     */
+    @Transient val favoursMade = FloatArray(FavourKind.entries.size)
+    @Transient val favoursSettled = FloatArray(FavourKind.entries.size)
+    @Transient var ornamentsMadeWorth = 0f
+    val artMix = FloatArray(STYLE_TRAITS * STYLE_VARIANTS)
+    /** Takes [n] of its ornaments, shell, soft pieces and worth among them in their shares; returns the shell ones taken. */
     @IgnorableReturnValue fun takeOrnaments(n: Float): Float {
         val share = if (ornaments > 0f) exotic / ornaments else 0f
         val shell = n * share
+        if (soft > 0f) soft = max(0f, soft - n * (if (ornaments > 0f) min(1f, soft / ornaments) else 0f))
         ornamentWorth = max(0f, ornamentWorth - ornamentWorthOf(n))
         ornaments -= n; exotic -= shell
         return shell
@@ -1010,6 +1027,7 @@ class Band(kinds: Int, totems: Int = kinds) {
         for (t in Tool.entries) { o.spare[t] = spare[t] * share; spare[t] -= o.spare[t] }
         o.ornaments = ornaments * share; ornaments -= o.ornaments; o.exotic = exotic * share; exotic -= o.exotic
         o.ornamentWorth = ornamentWorth * share; ornamentWorth -= o.ornamentWorth
+        o.soft = soft * share; soft -= o.soft; artMix.copyInto(o.artMix)
         o.elders = elders * adults / (stay + adults).coerceAtLeast(1); elders -= o.elders
         // Its practised people go one way or the other: a craft held by one or two may go wholly with either half.
         val go = adults.toFloat() / (stay + adults).coerceAtLeast(1)
@@ -1067,7 +1085,9 @@ class Band(kinds: Int, totems: Int = kinds) {
         blendWarning(a, b, w)
         // (Its larder as last seen, a person's days: the two larders are put together, so near enough the two blended.)
         a.larderSeen += w * (b.larderSeen - a.larderSeen)
-        a.ornaments += b.ornaments; a.exotic += b.exotic; a.ornamentWorth += b.ornamentWorth
+        // (In whose style their ornaments were made: blended by their worth, before the worth is added.)
+        b.ensureArt(); a.blendArt(b.artMix, a.ornamentWorth, b.ornamentWorth)
+        a.ornaments += b.ornaments; a.exotic += b.exotic; a.ornamentWorth += b.ornamentWorth; a.soft += b.soft
         for ((k, v) in b.labourFrom) a.labourFrom.merge(k, v, Float::plus)
         a.herds.absorb(b.herds)
         a.renown = max(a.renown, b.renown)
