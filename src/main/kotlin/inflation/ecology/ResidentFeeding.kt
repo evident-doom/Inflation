@@ -83,7 +83,7 @@ internal fun watchesInOpen(s: Species) = !(s.carnivore || s.defence >= COVER_DEF
     Niches.Shelter.TREE in s.shelters || Niches.Shelter.CRAG in s.shelters)
 
 /** [inSight]: the feeding time a runner of the open plains loses in full cover; an estimate. */
-internal const val COVER_WATCH = 0.5f
+internal const val COVER_WATCH = 0.8f
 /** [inSight]: the defence from which a kind stands its ground in cover rather than watching for a stalker. */
 internal const val COVER_DEFENCE = 0.5f
 
