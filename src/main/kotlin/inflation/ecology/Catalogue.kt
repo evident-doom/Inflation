@@ -756,10 +756,11 @@ object Catalogue {
 
     /**
      * How far a kind will swim open water, km: elk, hippos, red deer, boar and bears cross straits of
-     * ten or more; most others a few; people none (until boats). From memory of the record, mild.
+     * ten or more; most others a few; people as other walkers do (Olli 2026-11-21: the animals' rules for crossing water
+     * are people's too; boats go further, [boatEdges]). From memory of the record, mild.
      */
     fun swimKm(s: Species): Float = swimByIndex[s.index]
-    private val swimByIndex by lazy { FloatArray(all.size) { i -> val s = all[i]; s.swimKm.takeIf { it >= 0f } ?: if (s.human) 0f else when (travel(s)) {
+    private val swimByIndex by lazy { FloatArray(all.size) { i -> val s = all[i]; s.swimKm.takeIf { it >= 0f } ?: when (travel(s)) {
         HexMap.Travel.SWIM -> 8f; HexMap.Travel.CLIMB -> 2f; else -> 3f } } }
 
     /** How a kind crosses hex borders: climbers over crags, big plant-eaters swim rivers, the rest walk. */

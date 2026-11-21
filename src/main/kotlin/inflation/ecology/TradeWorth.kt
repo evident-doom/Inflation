@@ -61,7 +61,7 @@ internal fun HexGroups.worthDaysPerKg(g: HexGroup, b: Band, m: Material, weather
         val crow = hexKm(here, h).toFloat()
         // (No need to search the ground for a source that could not beat the best even as the crow flies.)
         if (fetchDaysPerKg(crow, rateAt(m, h)) >= best) continue
-        val r = reach ?: searchedAtLeast(g.species, hw.placeBand[g.place], here, GOAL_GOING_KM, weather).also { reach = it }
+        val r = reach ?: searchedAtLeast(g, here, GOAL_GOING_KM, weather).also { reach = it }
         val km = r.km(h, GOAL_GOING_KM) ?: max(GOAL_GOING_KM, crow)
         best = min(best, fetchDaysPerKg(km, rateAt(m, h)))
     }

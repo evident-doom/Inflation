@@ -124,7 +124,7 @@ internal fun HexGroups.difference(h: Hex, home: Hex): Float {
  */
 internal fun HexGroups.destination(g: HexGroup, home: Hex, rangeKm: Float, weather: inflation.world.Weather): Hex {
     var best = home; var top = 0f; var bestKm = 0f
-    searchedAtLeast(g.species, hw.placeBand[g.place], home, rangeKm, weather).forEachWithin(rangeKm) { h, km ->
+    searchedAtLeast(g, home, rangeKm, weather).forEachWithin(rangeKm) { h, km ->
         if (h == home || hw.land[h] < 0.5f) return@forEachWithin
         val d = difference(h, home) * (1f + PARTY_FAR * km / rangeKm.coerceAtLeast(1f))
         if (d > top || (d == top && km > bestKm)) { top = d; best = h; bestKm = km }

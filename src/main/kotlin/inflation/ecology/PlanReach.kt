@@ -24,7 +24,7 @@ internal fun GroupPlanner.searchReach(g: HexGroup, here: Hex, reach: Float, rest
     val dist = buf.dist; val via = buf.via; val reached = buf.reached
     for (i in 0 until reached.size) { val h = reached[i]; dist[h] = Float.MAX_VALUE; via[h] = Hex.NONE }
     reached.clear()
-    val shared = gs.reachOf(g.species, gs.hw.placeBand[g.place], here, reach, weather)
+    val shared = gs.reachOf(g, here, reach, weather)
     for (i in shared.hexes.indices) {
         if (shared.dist[i] > reach) continue
         val h = shared.hexes[i]; reached += h; dist[h] = shared.dist[i]; via[h] = shared.via[i]

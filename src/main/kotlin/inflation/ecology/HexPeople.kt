@@ -150,7 +150,7 @@ internal fun HexGroups.bandWeek(g: HexGroup, weather: Weather, date: Date) {
     taskTrips(g, b, time, weather, date.month)
     time.release(Activity.MATERIALS)
     val living0 = b.livingGoods()
-    wearAndInvent(b, years)
+    wearAndInvent(b, years, h)
     // Making and mending takes the time still to spare, the tools it ranks first first (the
     // scaffold: the most worn); each as far as the time, the scarcest material and the skill allow.
     dialUse?.amount(DialSite.SHELTERS, b.shelterWill, b.shelterWill, 1f)
