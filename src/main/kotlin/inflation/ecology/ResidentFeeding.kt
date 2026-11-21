@@ -77,12 +77,10 @@ internal fun HexFauna.reachOf(s: Species, p: Place) = HexFood.access(s, land.cra
  * runners of the open plains keep to them: from memory of the vigilance record). Without it onagers and ostriches stood
  * thickest in the woodland and the swamp forest.
  */
-internal fun HexFauna.inSight(s: Species, p: Place): Float = sightIn(s, land.plants.cover(p))
-/** [inSight] in [cover] 0..1. */
-internal fun sightIn(s: Species, cover: Float): Float {
+internal fun HexFauna.inSight(s: Species, p: Place): Float {
     if (s.carnivore || s.defence >= COVER_DEFENCE || Niches.Shelter.THICKET in s.shelters || Niches.Shelter.TREE in s.shelters ||
         Niches.Shelter.CRAG in s.shelters) return 1f
-    return 1f - COVER_WATCH * cover
+    return 1f - COVER_WATCH * land.plants.cover(p)
 }
 
 /** [inSight]: the feeding time a runner of the open plains loses in full cover; an estimate. */
@@ -143,30 +141,10 @@ internal fun HexFauna.graze(weather: Weather) {
 /**
  * The shares of its want of grass and of browse kind [s] can crop at place [p] ([cropRate]), by how thick they stand:
  * the edible herbs, and the shoots within reach counted as the standing plants that would give as much in a week ([REACH]);
- * less in cover for a kind that watches for stalkers there rather than feeding ([inSight]). Read part by part, its glades
- * and its wood ([byParts]): the herbs and the shrubs' shoots lie where the light is ([inflation.world.HexPlants.gladeUnderstory]),
- * the trees' shoots in the wood.
+ * less in cover for a kind that watches for stalkers there rather than feeding ([inSight]).
  */
-internal fun HexFauna.cropGrass(s: Species, p: Place) = byParts(s, p, land.palatable[p] * land.plants.herb[p], 0f)
-internal fun HexFauna.cropBrowse(s: Species, p: Place) =
-    byParts(s, p, max(0f, land.plants.shrubShoots[p]) / REACH, max(0f, land.plants.treeShoots[p]) / REACH)
-
-/**
- * [s]'s crop of a food at place [p] fed on in its glades and its wood apart: [under] kg/m² (over the place) growing where the
- * light is, [gladeUnderstory] of it in the glades, and [woodOnly] in the wood alone. Each part gives its own crop, by how
- * thick the food stands there and how much cover a watcher has there ([inSight]); the kind feeds in each by its ground
- * there and what it crops on it, going where it crops best (a kind on the move goes where it gets most, as deer keep to
- * the glades and edges of a wood: from memory). An even wood is read as before.
- */
-private fun HexFauna.byParts(s: Species, p: Place, under: Float, woodOnly: Float): Float {
-    val pl = land.plants
-    val g = pl.gladeArea(p); val w = 1f - g; val m = pl.gladeUnderstory(p)
-    val shrub = pl.shrub[p]
-    val rG = if (g > 1e-6f) cropRate(s, under * m / g) * sightIn(s, min(1f, shrub * m / g / 2f)) else 0f
-    val rW = if (w > 1e-6f) cropRate(s, (under * (1f - m) + woodOnly) / w) * sightIn(s, min(1f, (pl.canopy(p) + shrub * (1f - m) / 2f) / w)) else 0f
-    val sum = g * rG + w * rW
-    return if (sum > 0f) (g * rG * rG + w * rW * rW) / sum else 0f
-}
+internal fun HexFauna.cropGrass(s: Species, p: Place) = cropRate(s, land.palatable[p] * land.plants.herb[p]) * inSight(s, p)
+internal fun HexFauna.cropBrowse(s: Species, p: Place) = cropRate(s, land.plants.browse(p) / REACH) * inSight(s, p)
 
 /**
  * [graze]'s plants at place [p] ([grass] and [browse] of them within reach), into [z], shared out among the kinds there by
