@@ -73,7 +73,9 @@ internal fun carryRules(): Map<String, Pair<OnSplit, OnJoin>> {
     rule(OnSplit.FRESH, OnJoin.SUM, "favours", "labourFrom")
     rule(OnSplit.FRESH, OnJoin.LOST, "buildShort", "labourUsed")
     // Wealth and animals.
-    rule(OnSplit.SHARED, OnJoin.SUM, "ornaments", "exotic", "ornamentWorth")
+    rule(OnSplit.SHARED, OnJoin.SUM, "ornaments", "exotic", "ornamentWorth", "soft")
+    // (In whose style its ornaments were made: the offshoot takes pieces in the same mix; joined, blended by their worth.)
+    rule(OnSplit.COPIED, OnJoin.BLENDED, "artMix")
     rule(OnSplit.COPIED, OnJoin.BLENDED, "seedDomestic", "seedPulse", "grainDomestic")
     rule(OnSplit.SHARED, OnJoin.SUM, "seedCorn")
     // (The salt a step its people's want takes: split with the people, added on joining.)
