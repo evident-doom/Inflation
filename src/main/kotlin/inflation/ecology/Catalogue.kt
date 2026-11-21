@@ -115,7 +115,12 @@ object Catalogue {
         birthMonth = 4, birthMonths = 2, youngPerFemale = 5f, yearsToMaturity = 1.5f,
         // Piglets and adults die mostly by hunting, then hard winters; few of other causes (Keuling et al. 2013,
         // Jędrzejewski et al. 1992), so the unmodelled adult rate is that of other hoofed kinds of its size.
-        backgroundMortality = 0.08f, firstYearLost = HOOFED_YOUNG_LOST,
+        // (Half its litter is lost young of chill, hunger and being lain on, before any hunter: 56% of radio-tagged
+        // piglets dead by six weeks, most within ten days, Chinn et al. 2021 Sci Rep 11:11033; a third in the first three
+        // months in Kampinos, and 80-90% in hard years, Jezierski 1977 Acta Theriol 22:337 citing Lebedev 1956. The
+        // price of its big litters: at the calf's 0.2 a sow raised four of her five, and the boar stood 3-4 times as
+        // thick as in Białowieża: dens1121, piglets-ab.)
+        backgroundMortality = 0.08f, firstYearLost = 0.5f,
         snowLimitMm = 110f,
         products = Products(meat = 45f, fat = 8f, hide = 5f, bone = 9f, sinew = 0.5f, hornOrAntler = 0.5f),
         comfortC = -8f..34f, winterCoat = true,
