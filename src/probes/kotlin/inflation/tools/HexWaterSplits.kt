@@ -59,10 +59,10 @@ fun main(args: Array<String>) {
                 all++; val e = hex.edge(h, d)
                 if (cross[e].isFinite()) continue
                 if (ground[e].isFinite()) river++ else rock++ } }
-        val links = hex.all.sumOf { gs.seaLinks[it].size }
-        val within10 = hex.all.sumOf { h -> gs.seaGaps[h].count { it <= 10f } }
+        var links = 0; var within10 = 0; var swum = 0
+        for (h in hex.all) { links += gs.seaLinks[h].size; for (g in gs.seaGaps[h]) { if (g <= 10f) within10++; if (g <= swim) swum++ } }
         println("land borders: %d; closed by a river only %d (%.1f%%), by the ground %d (%.1f%%); straits (both ways) %d, of them up to 10 km %d, up to %.0f km (swum) %d".format(
-            all, river, 100.0 * river / all, rock, 100.0 * rock / all, links, within10, swim, hex.all.sumOf { h -> gs.seaGaps[h].count { it <= swim } }))
+            all, river, 100.0 * river / all, rock, 100.0 * rock / all, links, within10, swim, swum))
         println("bands camped by boat water (a lake or the sea beside, or a river of 5 m3/s and more): %d of %d".format(at.count { gs.boatWater(it) }, bands.size))
     }
 
