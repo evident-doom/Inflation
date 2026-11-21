@@ -105,6 +105,8 @@ class Band(kinds: Int, totems: Int = kinds) {
      * choose ([GroupPlanner.beginChoosing]), so every search of the ground in the step sees the same ([reachOf]).
      */
     @Transient var craft = 0
+    /** Whether its camp lies by water a boat could use, as of its last week ([learnBoats]): only there does it make boats or hit on their ways. */
+    @Transient var byBoatWater = false
     /** What it ate last step from each source ([FoodFrom] order), kg a person a day, for the doom trace ([traceDoomed]); null until it has eaten. */
     @Transient var stepFood: FloatArray? = null
     /** Its larder at last week's [foresee], days of its people's need before keeping warm (NaN for not yet seen). */

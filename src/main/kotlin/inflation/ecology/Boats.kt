@@ -78,7 +78,8 @@ internal fun GroupWorld.boatWater(h: Hex): Boolean {
  * boatmaking). Elsewhere the ways spread only by teaching, and fade unused.
  */
 internal fun GroupWorld.learnBoats(b: Band, h: Hex) {
-    if (b.campWeeks < houseAfterWeeks(b) || !boatWater(h)) return
+    b.byBoatWater = boatWater(h)
+    if (b.campWeeks < houseAfterWeeks(b) || !b.byBoatWater) return
     for (s in BOAT_SKILLS) if (!b.knowsSkill[s]) {
         b.knowsSkill[s] = true; b.skills[s] = maxOf(b.skills[s], BOAT_BASE); b.lastUsed[s] = b.weeks
         stats.meeting(Met.Of.HIT_ON, s.name.lowercase())
@@ -86,7 +87,7 @@ internal fun GroupWorld.learnBoats(b: Band, h: Hex) {
     if (!b.knows[Tool.BOAT]) { b.knows[Tool.BOAT] = true; stats.meeting(Met.Of.HIT_ON, Tool.BOAT.name.lowercase()) }
 }
 
-private val BOAT_SKILLS = listOf(Skill.BOATBUILDING, Skill.PADDLING)
+internal val BOAT_SKILLS = listOf(Skill.BOATBUILDING, Skill.PADDLING)
 
 /**
  * Whether [way] goes over water: a strait (a step between hexes that are not neighbours: across open water, or down or up a

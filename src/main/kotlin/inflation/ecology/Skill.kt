@@ -201,7 +201,7 @@ enum class Skill(val domain: Domain, val floor: Float, val start: Float = 0f, va
      */
     val share: Float get() = when (this) {
         GATHER, FIRE, ROASTING -> 1f
-        SMALL_GAME, FISH, HUNT, STORE, SMOKING, SALTING, SEWING, TRACK, STALK, BUTCHER, STONE_BOILING, EARTH_OVEN, LEACHING, CULTIVATION, PADDLING -> 0.5f
+        SMALL_GAME, FISH, HUNT, STORE, SMOKING, SALTING, SEWING, TRACK, STALK, BUTCHER, STONE_BOILING, EARTH_OVEN, LEACHING, CULTIVATION -> 0.5f
         HERBS, MIDWIFERY, LORE, TINKER, TENDING -> 0.1f
         SHOWING -> 0.3f
         else -> 0.2f

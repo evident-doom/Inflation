@@ -196,7 +196,7 @@ internal fun GroupWorld.wearAndInvent(b: Band, years: Float, h: Hex) {
         if (b.spare[t] > 0f) b.spare[t] = max(0f, b.spare[t] * (1f - t.wearPerYear * years * IDLE_WEAR))
         // A band that has a use for a tool now and then hits on it: bows where game is shy and
         // fast, sickles and grinding stones where it reaps seed, and so on.
-        if (!b.knows[t] && (t != Tool.PICK || b.knowsSkill[Skill.WELLS]) && rnd.nextFloat() < INVENT * b.edge(Skill.TINKER) * years * (0.5f + b.skills[t.serves])) {
+        if (!b.knows[t] && (t != Tool.PICK || b.knowsSkill[Skill.WELLS]) && (t != Tool.BOAT || b.byBoatWater) && rnd.nextFloat() < INVENT * b.edge(Skill.TINKER) * years * (0.5f + b.skills[t.serves])) {
             b.knows[t] = true
             stats.meeting(Met.Of.HIT_ON, t.name.lowercase())
         }
@@ -208,6 +208,7 @@ internal fun GroupWorld.wearAndInvent(b: Band, years: Float, h: Hex) {
         (s != Skill.WELLS || b.waterShort > 0f) &&
         (s != Skill.FORTIFYING || b.sinceRaided < ticksPerYear) &&
         (s != Skill.WEIRS || b.weirPull > 0.5f) &&
+        (s !in BOAT_SKILLS || b.byBoatWater) &&
         (s != Skill.TENDING || b.herds.keepsAnimals()) &&
         s.needs.let { it == null || (b.knowsSkill[it] && b.skills[it] >= NEEDS_LEVEL) } &&
         rnd.nextFloat() < s.invent * INVENT * b.edge(Skill.TINKER) * years * (0.5f + b.skill(s.domain))) {
@@ -230,7 +231,8 @@ internal fun HexGroups.makeTools(b: Band, people: Float, time: BandTime?, only: 
     var asked = 0f
     // (A planning band makes with its tools' days its clothes first, then only the tools it reckons worth them ([toolRates]).)
     val plans = only == null && b.mind.days == DaySplit.TIERED
-    val order = Tool.entries.filter { (only == null || it == only) && b.knows[it] && b.kit[it] < 1f &&
+    // (Boats are made only by water a boat could use: [Band.byBoatWater].)
+    val order = Tool.entries.filter { (only == null || it == only) && b.knows[it] && b.kit[it] < 1f && (it != Tool.BOAT || b.byBoatWater) &&
         (!plans || it == Tool.CLOTHES || b.toolPays[it]) }
         .sortedByDescending { if (plans && it == Tool.CLOTHES) Float.MAX_VALUE else b.makeFirst[it] * (1f - b.kit[it]) }
     if (time != null && only == null) dialUse?.let { u -> if (order.size > 1) {

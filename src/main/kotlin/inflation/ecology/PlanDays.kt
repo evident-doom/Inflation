@@ -402,7 +402,7 @@ private fun HexGroups.toolRates(g: HexGroup, b: Band, perDay: Float, skip: Tool?
     for (t in Tool.entries) {
         if (t == skip) continue
         b.toolPays[t] = false
-        if (!b.knows[t] || t == Tool.CLOTHES || t == Tool.PICK || people <= 0f) continue
+        if (!b.knows[t] || t == Tool.CLOTHES || t == Tool.PICK || (t == Tool.BOAT && !b.byBoatWater) || people <= 0f) continue
         val k = b.has(t)
         if (k >= 1f) continue
         // (A year's days saved by a whole kit against the kit it has.)
