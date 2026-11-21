@@ -141,10 +141,10 @@ internal fun HexGroups.boatEdges(le: LeastEffort, h: Hex, at: Float, craft: Int,
 }
 
 /** For each hex, the hexes whose main river flows into it ([inflation.world.HexHydrology.down]). */
-internal fun upstreamOf(down: HexArray, size: Int): Array<HexArray> {
-    val ups = Array(size) { ArrayList<Hex>(2) }
-    for (i in 0 until size) { val d = down[i]; if (!d.none) ups[d.i] += Hex(i) }
-    return Array(size) { ups[it].toHexArray() }
+internal fun upstreamOf(down: HexArray, hex: HexMap): Array<HexArray> {
+    val ups = Array(hex.size) { ArrayList<Hex>(2) }
+    for (h in hex.all) { val d = down[h]; if (!d.none) ups[d.i] += h }
+    return Array(hex.size) { ups[it].toHexArray() }
 }
 
 /** What fish boats would bring in more, as the planners weigh a whole kit against what it has ([PlanDays] toolRates): [fishKg] a year with [k] of a kit. */
