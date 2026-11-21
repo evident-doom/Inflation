@@ -381,13 +381,21 @@ internal fun GroupWorld.makeOrnaments(b: Band, people: Float, time: BandTime, fe
  * pieces of obsidian (blades and mirrors), beads of sea shell and pendants of bone. Days and skills not measured; estimates.
  */
 enum class OrnamentKind(val label: String, val days: Float, val material: Material, val kgEach: Float, val domain: Domain, val least: Float,
-                         val master: Float = least) {
+                         val master: Float = least, val soft: Boolean = false) {
     FIGURINE("stone figurines", 8f, Material.GROUND_STONE, 0.3f, Domain.GROUND_STONE, 0.6f, master = 0.85f),
     STONE_BEAD("drilled stone beads", 6f, Material.GROUND_STONE, 0.03f, Domain.GROUND_STONE, 0.5f, master = 0.75f),
+    // (Art of common materials, made only with [inflation.Tuning.art]: carved and painted wood, painted and fringed hides, fine
+    // cordage and baskets, carved bone and antler. Soft ones rot and wear out faster ([SOFT_WEAR]). Days, kg and skills estimates.)
+    PAINTED_HIDE("painted hides", 6f, Material.HIDE, 1f, Domain.HIDEWORK, 0.5f, master = 0.7f, soft = true),
+    CARVED_WOOD("carved wood", 5f, Material.WOOD, 1f, Domain.WOODWORK, 0.5f, master = 0.7f, soft = true),
+    CARVED_BONE("carved bone and antler", 5f, Material.BONE, 0.2f, Domain.BONEWORK, 0.5f, master = 0.7f),
+    FINE_CORDAGE("fine cordage and baskets", 4f, Material.FIBRE, 0.5f, Domain.CORDAGE, 0.5f, master = 0.65f, soft = true),
     OBSIDIAN_PIECE("obsidian pieces", 4f, Material.OBSIDIAN, 0.1f, Domain.KNAPPING, 0.5f, master = 0.65f),
     SHELL_BEAD("shell beads", ORNAMENT_DAYS, Material.SHELL, SHELL_EACH, Domain.BONEWORK, 0f),
     BONE_PENDANT("bone pendants", ORNAMENT_DAYS, Material.BONE, BONE_EACH, Domain.BONEWORK, 0f);
 
+    /** Whether it is art of a common material, made only with [inflation.Tuning.art]. */
+    val common get() = material == Material.HIDE || material == Material.WOOD || material == Material.FIBRE || (material == Material.BONE && least > 0f)
     /** Whether it is finery: a kind only skilled hands make ([master] above [least] or a least at all), made for worth with [inflation.Tuning.finery]. */
     val fine get() = least > 0f
     /** The skill its makers need: [least], or with finery [master], a specialist's ([inflation.Tuning.finery]). */
@@ -417,9 +425,14 @@ internal fun fineryLeft(time: BandTime, people: Float, fed: Float): Float =
 @IgnorableReturnValue
 internal fun wearOrnaments(b: Band, years: Float): Float {
     if (b.ornaments <= 0f) return 0f
-    val n = b.ornaments * min(1f, FINERY_WEAR * years)
+    // (The soft pieces ([Band.soft]) wear faster: their extra loss taken at the pieces' mean worth, as their own is not kept.)
+    val n = min(b.ornaments, b.ornaments * min(1f, FINERY_WEAR * years) + b.soft * min(1f, max(0f, SOFT_WEAR - FINERY_WEAR) * years))
     val worth = b.ornamentWorthOf(n)
+    val softShare = if (b.ornaments > 0f) b.soft / b.ornaments else 0f
+    val softGone = min(b.soft, b.soft * min(1f, SOFT_WEAR * years))
     b.takeOrnaments(n)
+    // (Of those lost, the soft ones as they wear, not in their share: [takeOrnaments] took them in their share.)
+    b.soft = max(0f, b.soft + n * softShare - softGone)
     return worth
 }
 
@@ -427,7 +440,11 @@ internal fun wearOrnaments(b: Band, years: Float): Float {
  * Where ornaments' worth comes from and goes, for the census (person-days of worth): made, worn out and broken
  * ([wearOrnaments]), buried with the dead, given at meetings (a move between bands, not an end). Report only.
  */
-enum class OrnamentFlow(val label: String) { MADE("made"), BROKEN("worn out and broken"), BURIED("buried"), GIVEN("given") }
+enum class OrnamentFlow(val label: String) {
+    MADE("made"), BROKEN("worn out and broken"), BURIED("buried"), GIVEN("given"),
+    /** Of those given, to settle a debt ([artRepaid]); and what the given were worth to their takers beyond their days ([perceivedWorth]). */
+    REPAID("given to repay"), PERCEIVED("given, worth to the taker beyond its days"),
+}
 
 @OptIn(RawKey::class)
 internal fun ornamentFlowKey(f: OrnamentFlow) = TallyKey.raw("ornament worth:${f.label}, days/10")
@@ -450,18 +467,24 @@ private fun GroupWorld.makeCrafted(b: Band, people: Float, time: BandTime, fed: 
     var fineLeft = if (finery) fineryLeft(time, people, fed) else 0f
     var want = ORNAMENTS_PER_PERSON * people - b.ornaments
     if (left <= 0f || people <= 0f || (want <= 0f && !finery)) return
+    val art = tuning.art > 0f
     for (k in OrnamentKind.entries) {
         if (left <= 0f) break
+        if (k.common && !art) continue
         val hands = b.skill(k.domain)
         if (hands <= 0f || hands < k.needs(finery)) continue
         // (With finery the fine kinds are made for their worth, up to [FINERY_WORTH] a person; the plain ones up to the count.)
         val room = if (finery && k.fine) min((FINERY_WORTH * people - b.ornamentWorth) / (k.days * hands), fineLeft / k.days) else want
-        val made = minOf(room, left / k.days, gd[k.material] / k.kgEach)
+        // (Art of common materials only of what its kit and clothes do not need: [artKeepKg].)
+        val material = if (k.common) max(0f, gd[k.material] - artKeepKg(b, k.material, people)) else gd[k.material]
+        val made = minOf(room, left / k.days, material / k.kgEach)
         if (made <= 0f) continue
         if (finery && k.fine) fineLeft -= made * k.days
         gd[k.material] = max(0f, gd[k.material] - made * k.kgEach)
-        b.ornaments += made; if (k.material == Material.SHELL) b.exotic += made
-        b.ornamentWorth += made * k.days * hands
+        // (Its own work, in its own style: [Band.artMix].)
+        if (art) b.addOwnArt(made * k.days * hands)
+        b.ornaments += made; if (k.material == Material.SHELL) b.exotic += made; if (k.soft) b.soft += made
+        b.ornamentWorth += made * k.days * hands; b.ornamentsMadeWorth += made * k.days * hands
         noteOrnaments(OrnamentFlow.MADE, made * k.days * hands)
         time.spend(Activity.ORNAMENTS, made * k.days)
         want -= made; left -= made * k.days
