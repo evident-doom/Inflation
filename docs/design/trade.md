@@ -191,6 +191,7 @@ Olli (21 Nov): decoration and art as a general use of free time, so that bands f
 - **Art of common materials.** Painted hides, carved wood, carved bone and antler, fine cordage and baskets (`OrnamentKind`), made as finery is, of leisure only and by a master's hands, of what the band holds beyond a set of every tool it knows (`artKeepKg`). Wood, hide and fibre pieces wear out at `SOFT_WEAR` (0.3 a year) against 0.1.
 - **Debts paid in art.** A band that owes the other (tie at least `FEUD_GIFT`) gives ornaments to settle it, as many as at their worth to the creditor meet the debt, at most half of what it holds, as fully as it repays (`artRepaid`). Every ornament gift makes favours by its worth to the taker.
 - The census adds, under ornaments' worth: given to repay, and worth to the takers beyond their days.
+- A/B (w1120-1..3, 10 y, 2 replicates): art made and repaid as meant, but credit gathered more (Gini 0.79 to 0.86-0.87, top tenth 62% to 75-79%), people -0.4 to -0.7%. The credit census (art790b) showed a ratchet: debtors made the art and repaid in it, creditors near the sources hoarded it (52-63 days a person, making almost none) and gave 3% of the hoard to friends at each meeting, each gift a new debt. So with art, ornaments given to friends bind and make no favours (hxaro); only ornaments that repay make them.
 
 ## Checks against the record
 

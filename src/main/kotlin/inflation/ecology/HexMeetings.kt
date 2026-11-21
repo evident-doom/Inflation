@@ -717,10 +717,14 @@ private fun HexGroups.giveOrnaments(a: HexGroup, b: HexGroup, weather: Weather, 
         tb.ornaments += given; tb.exotic += shell; tb.soft += given * softShare; tb.ornamentWorth += worth; noteOrnaments(OrnamentFlow.GIVEN, worth)
         if (art) { noteOrnaments(OrnamentFlow.PERCEIVED, seen - worth); if (repaid > gift * fresh) noteOrnaments(OrnamentFlow.REPAID, worth) }
         tb.befriend(giver.id, 0.5f * TIE_GIFT)
-        // (With crafted goods worth their days, a gift of them makes favours by its worth, on the log scale: [favoursOfGift].)
-        if (tuning.craftWorth > 0f && worth > 0f) helpedBy(giver, taker,
+        // (With crafted goods worth their days, a gift of them makes favours by its worth, on the log scale: [favoursOfGift]. With
+        // art, a gift to friends binds them and makes none, as hxaro gifts keep a bond open rather than make a claim: made, the
+        // creditors gave on the art they were repaid in as new debts, a ratchet that gathered credit (art790b, 2026-11-21). Only
+        // ornaments that repay a debt make favours, at their worth to the taker.)
+        val repaying = repaid > gift * fresh
+        if (tuning.craftWorth > 0f && worth > 0f && (!art || repaying)) helpedBy(giver, taker,
             favoursOfGift(favoursOfDays(seen, tb.recentYield(weather.date, days), taker.adults, taker.size), tuning.logFavours > 0f),
-            if (repaid > gift * fresh) FavourKind.ORNAMENTS_REPAYING else FavourKind.ORNAMENTS)
+            if (repaying) FavourKind.ORNAMENTS_REPAYING else FavourKind.ORNAMENTS)
         stats.meeting(if (repaid > gift * fresh) Met.ORNAMENTS_GIVEN_TO_REPAY else Met.ORNAMENTS_GIVEN); dealt(Dealing.Kind.ORNAMENTS, giver, taker)
     }
 }
