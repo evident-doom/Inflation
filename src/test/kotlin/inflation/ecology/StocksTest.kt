@@ -62,7 +62,7 @@ class StocksTest {
         /** Tables that hold no water or matter of their own, by why. */
         val NOT_STOCKS = listOf(
             // Fixed facts of the place: capacities, shares, distances and settled levels.
-            "HexHydrology.meanFlow", "HexHydrology.bankShare", "HexHydrology.iceCapMm", "HexHydrology.soilCap", "HexHydrology.intake", "HexHydrology.aquiferCap", "HexHydrology.aquiferM",
+            "HexHydrology.meanFlow", "HexHydrology.iceCapMm", "HexHydrology.soilCap", "HexHydrology.intake", "HexHydrology.aquiferCap", "HexHydrology.aquiferM",
             "HexHydrology.drain", "HexHydrology.lakeM2", "HexHydrology.lakeFull", "HexHydrology.lakeHold", "HexHydrology.usualGround",
             "HexDrinkingWater.nearRiver", "HexDrinkingWater.nearLake", "HexDrinkingWater.nearSpring", "HexDrinkingWater.waterKmMean",
             "HexDrinkingWater.nearBed", "HexDrinkingWater.bedM2", "HexDrinkingWater.streamKm", "HexDrinkingWater.stillKmMean", "HexDrinkingWater.riverClassKmMean", "HexDrinkingWater.riverClassKmLeast", "HexDrinkingWater.lakeKmLeast", "HexDrinkingWater.springKmLeast", "HexDrinkingWater.campKm", "HexPlants.annualGdd", "HexPlants.warmth",
