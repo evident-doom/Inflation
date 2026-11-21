@@ -160,6 +160,31 @@ object HexSnapshot {
     /** Kinds are saved by name: the code defines them. */
     private val SPECIES = Named(Species::class.java, { it.name }, { n -> Catalogue.all.firstOrNull { it.name == n } })
 
+    /**
+     * Diagnostic (stateHashes): a CRC of each saved field of each root, as a save would write it, to find the first phase
+     * where two runs that should repeat part. Fields left out of saves (@Transient) are left out here too.
+     */
+    internal fun fingerprints(sim: HexSim): List<Pair<String, Long>> {
+        val all = ArrayList<Pair<String, Long>>()
+        for ((name, root) in roots(sim)) {
+            var c: Class<*>? = root.javaClass
+            while (c != null && c != Any::class.java) {
+                for (f in c.declaredFields) {
+                    val m = f.modifiers
+                    if (java.lang.reflect.Modifier.isStatic(m) || java.lang.reflect.Modifier.isTransient(m) || f.isSynthetic) continue
+                    if (!f.trySetAccessible()) continue
+                    val v = f.get(root) ?: continue
+                    val crc = java.util.zip.CRC32()
+                    DataOutputStream(java.util.zip.CheckedOutputStream(java.io.OutputStream.nullOutputStream(), crc)).use { out ->
+                        Writer(out, ::saved, lazies = false, SPECIES).value(v); out.flush() }
+                    all += "$name.${f.name}" to crc.value
+                }
+                c = c.superclass
+            }
+        }
+        return all
+    }
+
     internal fun roots(sim: HexSim) = listOf("weather" to sim.weather, "land" to sim.land, "fauna" to sim.fauna, "groups" to sim.groups,
         "eruptions" to sim.eruptions)
 
@@ -176,4 +201,35 @@ object HexSnapshot {
         if (HexPolicy::class.java.isAssignableFrom(c)) return false
         return n.startsWith("inflation.") || n.startsWith("kotlin.random.")
     }
+}
+
+/**
+ * A diagnostic: the fields of [o], and of the objects of this code's own classes it holds (two deep), whose value or any
+ * of whose floats is not finite, with the first few such places in each.
+ */
+internal fun notFinite(o: Any): String {
+    val out = StringBuilder(); val seen = java.util.Collections.newSetFromMap(java.util.IdentityHashMap<Any, Boolean>())
+    fun walk(x: Any, path: String, depth: Int) {
+        if (!seen.add(x)) return
+        var c: Class<*>? = x.javaClass
+        while (c != null && c != Any::class.java) {
+            for (f in c.declaredFields) {
+                if (java.lang.reflect.Modifier.isStatic(f.modifiers) || !f.trySetAccessible()) continue
+                val v = f.get(x) ?: continue
+                val at = "$path.${f.name}"
+                when (v) {
+                    is Float -> if (!v.isFinite()) out.append("$at=$v ")
+                    is Double -> if (!v.isFinite()) out.append("$at=$v ")
+                    is FloatArray -> { val bad = v.indices.filter { !v[it].isFinite() }
+                        if (bad.isNotEmpty()) out.append("$at[${bad.size}/${v.size}: ${bad.take(6).joinToString { "$it=${v[it]}" }}] ") }
+                    is DoubleArray -> { val bad = v.indices.filter { !v[it].isFinite() }
+                        if (bad.isNotEmpty()) out.append("$at[${bad.size}/${v.size}: ${bad.take(6).joinToString { "$it=${v[it]}" }}] ") }
+                    else -> if (depth < 2 && v.javaClass.name.startsWith("inflation.") && !v.javaClass.isEnum) walk(v, at, depth + 1)
+                }
+            }
+            c = c.superclass
+        }
+    }
+    walk(o, o.javaClass.simpleName, 0)
+    return out.toString().ifEmpty { "none" }
 }

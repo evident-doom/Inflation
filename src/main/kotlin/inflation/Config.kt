@@ -98,6 +98,9 @@ object Config {
         FED_DIAG("fedDiag"),
         SHRUB_DIAG("shrubDiag"),
         HUNT_STEPS("huntSteps"),
+        STATE_HASHES("stateHashes"),
+        NAN_WATCH("nanWatch"),
+        FORAGE_WATCH("forageWatch"),
         AUDIT("audit"),
         CENSUS("census"),
         /** An era profile: eras/NAME.properties, whose keys the config file's own lay over ([eraFile]). */

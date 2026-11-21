@@ -66,6 +66,41 @@ class HexSim(
 
     init { if (Books.ON) books = Books() }
 
+    // (Diagnostic, stateHashes=Y.M-Y.M (years and months as the census counts them, both ends kept): after every phase in
+    // that span, a line of each saved field's CRC ([HexSnapshot.fingerprints]); two runs that should repeat are compared
+    // line by line to find the first phase where they part.)
+    init {
+        inflation.Config.string(inflation.Config.Key.STATE_HASHES)?.let { span ->
+            val (a, b) = span.split('-').map { e -> e.split('.').let { it[0].toLong() * 12 + it[1].toLong() } }
+            var n = 0
+            PhaseWatch.after = { phase ->
+                val d = weather.date; val ym = d.year * 12 + d.month
+                // (On for the next step's foraging too, while still in the span: [ForageDigest].)
+                ForageDigest.parties = if (ym in a..b) ForageDigest.parties ?: java.util.concurrent.ConcurrentLinkedQueue() else null
+                if (ym in a..b) println("state hash ${n++} day ${d.absoluteDay} y${d.year} m${d.month} after '$phase': " +
+                    HexSnapshot.fingerprints(this).joinToString(" ") { (k, v) -> "$k=%08x".format(v) })
+            }
+        }
+        // (Diagnostic nanWatch=ID@Y.M: from that month on, after every phase, the fields of group ID and its band that are
+        // not finite ([notFinite]), each time they change; to find the phase where a NaN first enters a band.)
+        inflation.Config.string(inflation.Config.Key.NAN_WATCH)?.let { spec ->
+            val (idText, at) = spec.split('@')
+            val id = idText.trim().toInt()
+            val from = at.split('.').let { it[0].toLong() * 12 + it[1].toLong() }
+            val before = PhaseWatch.after
+            var last = ""
+            PhaseWatch.after = { phase ->
+                before?.invoke(phase)
+                val d = weather.date
+                if (d.year * 12 + d.month >= from) {
+                    val g = groups.groups.firstOrNull { it.id == id }
+                    val now = if (g == null) "gone" else "band ${g.band?.let { notFinite(it) } ?: "-"}; group ${notFinite(g)}"
+                    if (now != last) { println("nan watch day ${d.absoluteDay} $d after '$phase': group $id $now"); last = now }
+                }
+            }
+        }
+    }
+
     /** Every stock of water and matter in the model, as each part names them (the books start from them as the first step finds them, after a save is loaded). */
     fun stocks(): Stocks = Stocks().also { s ->
         val n = land.n
@@ -77,14 +112,16 @@ class HexSim(
     }
 
     /** The tick, in order: the weather and what falls from the sky, the water and plants ([HexLand.phases]). */
-    @Transient val tickPhases: List<Phase> = listOf(
+    @Transient val tickPhases: List<Phase> = PhaseWatch.watched(listOf(
         Phase("weather") { weather.step(); bookSnow() },
         Phase("ash and eruptions") { fallingAsh() },
-    ) + land.phases
+    ) + land.phases)
 
     /** The slow parts of a step, in order, once a step whatever its length: the residents and small life ([HexFauna.phases]), and the groups ([HexGroups.phases]). */
-    @Transient val slowPhases: List<Phase> = listOf(Phase("people: herds for the beasts") { fauna.keptAt = groups.herdsForBeasts(); groups.fillPackGame() }) +
-        fauna.phases + groups.phases
+    @Transient val slowPhases: List<Phase> = PhaseWatch.watched(listOf(Phase("people: herds for the beasts") { fauna.keptAt = groups.herdsForBeasts(); groups.fillPackGame() })) +
+        PhaseWatch.watched(fauna.phases + groups.phases)
+    /** [HexGroups.phases], as [slowPhases] has them (watched by the diagnostics, [PhaseWatch]). */
+    @Transient private val groupPhases: List<Phase> = slowPhases.takeLast(groups.phases.size)
 
     /** Of [slowPhases], the residents' and small life's (with the herds they may raid): all but the groups'. */
     @Transient private val residentPhases: List<Phase> = slowPhases.dropLast(groups.phases.size)
@@ -127,7 +164,7 @@ class HexSim(
         // (The slow parts read the step's weather whole: its mean air, all that fell and melted, and the coldest tick.)
         weather.settleStep()
         // (Their date is the step's start and a tick, as at one tick a step, not its end: [Weather.slowParts].)
-        weather.slowParts { runPhases(if (perTick && !whole) groups.phases else slowPhases, weather, books) }
+        weather.slowParts { runPhases(if (perTick && !whole) groupPhases else slowPhases, weather, books) }
         // (The carrion held for the groups and left goes back on the ground: [HexSmallLife.groupCarrion].)
         fauna.small.settleGroupCarrion()
     }
@@ -152,4 +189,15 @@ class HexSim(
         }) { c, mm -> val p = cellPlace[c]; if (p >= 0) land.plants.ash[p] += mm / hw.placeCells[p].size }
         for (e in now) weather.volcanicForcing(e.vei, e.volcano.x, e.volcano.y)
     }
+}
+
+/**
+ * Diagnostic hook run after every phase of the step: null unless a diagnostic sets it (stateHashes, nanWatch: [HexSim]),
+ * and then the phases are built [watched]. (Kept out of the world's own phase runner, whose code keys the saved worlds.)
+ */
+internal object PhaseWatch {
+    @JvmField var after: ((String) -> Unit)? = null
+    /** [phases] each followed by [after], when a diagnostic has set it before the step's phases are built; else as they are. */
+    fun watched(phases: List<Phase>): List<Phase> =
+        if (after == null) phases else phases.map { p -> Phase(p.name) { w -> p.run(w); after?.invoke(p.name) } }
 }

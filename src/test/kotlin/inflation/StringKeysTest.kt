@@ -66,7 +66,7 @@ class StringKeysTest {
         "ecology/HexHistory.kt" to (20 to "history series by prefix: the CSV columns are text (reports only)"),
         "ecology/WeekStats.kt" to (8 to "the Tally builders' own parsing"),
         "ecology/HuntDiag.kt" to (2 to "the hunt steps' own prefix"),
-        "ecology/HexSnapshot.kt" to (2 to "class names when saving"),
+        "ecology/HexSnapshot.kt" to (3 to "class names when saving; the nanWatch diagnostic walks only the model's own classes"),
         "ecology/HexGeography.kt" to (1 to "a name for a landmark"),
         "world/FreeAir.kt" to (1 to "comment lines of a data file"),
         "world/WorldCaches.kt" to (6 to "class and file names for the world key"),
@@ -105,6 +105,7 @@ class StringKeysTest {
     @Test
     fun `no new Any`() = check("""(?::\s*Any\??\b|<Any\??>|vararg \w+: Any)""", mapOf(
         "Books.kt" to (4 to "the stock registry takes the tables it sums, of several array types, only for the audit"),
+        "ecology/HexSnapshot.kt" to (2 to "the nanWatch diagnostic walks any saved object's fields by reflection"),
         "run/Nominal.kt" to (1 to "walks a part's tables by reflection"),
         "store/ObjectStore.kt" to (18 to "saves are by field name and runtime type; boxed value classes go as the value they wrap; hash map keys ordered as they come"),
         "ui/GroupControlWindow.kt" to (1 to "Swing's table model"),
@@ -116,7 +117,7 @@ class StringKeysTest {
     @Test
     fun `no new reflection`() = check("""java\.lang\.reflect|::class\.java|getDeclaredField|\.declaredFields|Class\.forName|javaClass""", mapOf(
         "ecology/Catalogue.kt" to (1 to "the kinds' list, read from the file's own object"),
-        "ecology/HexSnapshot.kt" to (22 to "saves are by field name: the order and roster checks"),
+        "ecology/HexSnapshot.kt" to (34 to "saves are by field name: the order and roster checks, and the stateHashes/nanWatch diagnostics over the saved fields"),
         "run/Nominal.kt" to (4 to "lists a part's tables for the check"),
         "Profile.kt" to (6 to "profile=jfr registers the model's own event classes and reads the jar's profile.jfc"),
         "tools/ProfileReport.kt" to (4 to "finds the @Part labels by reflection over the program's own classes"),

@@ -327,9 +327,11 @@ internal fun GroupWorld.giveTools(giver: HexGroup, gb: Band, taker: HexGroup, tb
         val lack = (1f - tb.kit[t]) * taker.adults
         if (lack <= 0f) continue
         val gift = min(spare, lack * min(1f, gb.giveWill))
-        if (gift <= 0f) continue
-        gb.spare[t] -= gift
+        // (A gift too small to come to anything a person, the share rounding to nothing, is not given: the make's mean below
+        // would be 0/0 for a tool the taker has none of, and a NaN make leaves its hunting edge NaN, the galleries-ab crash.)
         val add = gift / taker.adults
+        if (!(add > 0f)) continue
+        gb.spare[t] -= gift
         val k = tb.kit[t]
         tb.made[t] = (k * tb.made[t] + add) / (k + add)
         tb.fine[t] = (k * tb.fine[t] + add) / (k + add)

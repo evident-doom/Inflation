@@ -97,6 +97,7 @@ internal class Offers(n: Int) {
 private fun HexGroups.offer(w: ForageWeek, o: Offers, t: Food, k: Int, p: Place, r: Float, e: Float, h: Float, spared: Float = 0f, herd: Int = -1, rich: Float = 1f,
     danger: Float = 0f, seek: Float = 0f, walk: Float = 0f, child: Boolean = false) {
     val band = w.band
+    GroundCheck.place(p, 7)
     val keen = if (band != null && t != Food.BIG_GAME) band.effort[t] else 1f
     if (band != null && t != Food.BIG_GAME && r > 0f && !child) dialUse?.let { u -> val f = FoodEfforts.slot(t)
         u.amount(DialSite.EFFORT_RANK, keen, keen, 1f, dial = f) }
@@ -200,7 +201,7 @@ internal fun HexGroups.offerFoods(w: ForageWeek, o: Offers) {
             val held = min(small.groupCarrion[p], foundShare(w, p) * small.groupCarrionFound[p])
             offer(w, o, Food.CARRION, 0, p, (KgM2(found * small.carrion[p]).perKm2.over(swept).v + KgM2(held).perKm2.over(area).v) / days, 1f, w.carrionDays)
             // (How fast its search comes on carrion as it lies, a day, for the next step's share of it: [HexSmallLife.groupCarrionRate].)
-            if (!w.carrionNoted) small.groupCarrionRate[p] += carrionRate(w, p)
+            if (!w.carrionNoted) { GroundCheck.place(p, 9); small.groupCarrionRate[p] += carrionRate(w, p) }
             if (Niches.cracksBones(w.s)) offer(w, o, Food.BONES, 0, p, KgM2(found * small.bones[p]).perKm2.over(swept).v / days, 1f, w.eats * BONE_DAYS)
             else if (band != null && w.worth(Food.BONES) > 0f)
                 offer(w, o, Food.BONES, 0, p, KgM2(found * small.bones[p]).perKm2.over(swept).v / days, 1f, w.renderDays + w.eats * GREASE_YIELD)
@@ -346,7 +347,7 @@ internal fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
         val expected = w.workDays * o.rate[i] / o.spent[o.who[i]] * f
         val p = o.place[i]
         // (Days of work counted for the whole band: each party's days in its share of the hands.)
-        if (o.type[i] != Food.BIG_GAME) { val d = expected * w.party[o.who[i]]; w.busy += d * o.time[i]
+        if (o.type[i] != Food.BIG_GAME) { val d = expected * w.party[o.who[i]]; w.busy += d * o.time[i]; if (band == null) g.stepOtherDays += d * o.time[i]
             if (band != null) { w.gatherHandle += d * o.time[i]; w.plantSeek += d * o.seek[i]; w.plantWalk += d * o.walk[i]
                 if (o.type[i] == Food.GRAIN) { if (o.kind[i] == FIELD_KIND) w.fieldDays += d * o.time[i] else w.wildDays += d * o.time[i] } } }
         when (o.type[i]) {
@@ -373,13 +374,14 @@ internal fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
                     stats.meeting(Met.BANDS_ATE_THEIR_TOTEM)
                 }
                 w.busy += kills1 * o.time[i] * w.party[0]
+                if (band == null) { g.stepGameDays += kills1 * o.time[i] * w.party[0]; g.stepGameKills += kills1; g.stepGameKg += haul.kg }
                 if (band != null) w.huntHandle += kills1 * o.time[i] * w.party[0]
                 if (HUNT_DIAG && band == null) {
                     diag(g.species, HuntStep.PACK_KILLS, fauna.kinds[o.kind[i]], kills1.toFloat())
                     diag(g.species, HuntStep.PACK_KILL_KG, fauna.kinds[o.kind[i]], haul.kg) }
                 // (Stronger scavengers may come on a beast's kills and take of them; the days it would have spent eating
                 // what they took are its own again, to hunt in.)
-                if (band == null) w.busy -= scavengedAtKill(g, Place(p), kills1, haul, w.rnd) * w.eats * w.party[0]
+                if (band == null) { val back = scavengedAtKill(g, Place(p), kills1, haul, w.rnd) * w.eats * w.party[0]; w.busy -= back; g.stepScavDays += back }
                 // (Its fat feeds as grease, the rest as lean meat; for the census, the kills by month and by prey kind, lean and fat by weight.)
                 w.meat += haul.kg - haul.fat; w.killFat += haul.fat
                 w.fed += (haul.kg - haul.fat) * w.feeds(Food.BIG_GAME) + haul.fat * w.fatFeeds
@@ -393,11 +395,11 @@ internal fun HexGroups.takeFoods(w: ForageWeek, o: Offers, f: Float) {
                     stats.tally(Tally.bandKillsOf(prey, Tally.KillPart.FAT_KG), haul.fat.roundToInt()) }
             }
             Food.SMALL_GAME -> small.catchSmallIn(Place(p), Kg(expected), min(land.areaKm2[p] * ticks, (if (o.who[i] == 2) w.childSmallSweep else w.smallSweep) * smallSeen(Place(p))), w.weather).v.let { w.smallGot += it; if (o.who[i] == 2) w.kidsSmall += it; w.fed += it * w.feeds(Food.SMALL_GAME)
-                if (band == null) diag(g.species, HuntStep.PACK_SMALL_GAME_KG, it) }
+                if (band == null) { diag(g.species, HuntStep.PACK_SMALL_GAME_KG, it); g.stepSmallDays += expected * w.party[o.who[i]] * o.time[i]; g.stepSmallExp += expected; g.stepSmallGot += it } }
             Food.CARRION -> scavenge(g, Place(p), expected, w.sweep, w.rnd, foundShare(w, Place(p))).let { w.scraps += it; w.fed += it * w.feeds(Food.CARRION)
-                if (band == null) diag(g.species, HuntStep.PACK_CARRION_KG, it) }
+                if (band == null) { diag(g.species, HuntStep.PACK_CARRION_KG, it); g.stepCarrionDays += expected * w.party[o.who[i]] * o.time[i]; g.stepCarrionExp += expected; g.stepCarrionGot += it } }
             Food.BONES -> small.crackBonesIn(Place(p), Kg(expected), min(land.areaKm2[p], w.sweep)).v.let { kg ->
-                if (band == null) { w.scraps += kg; w.fed += kg * w.worth(Food.BONES) }
+                if (band == null) { w.scraps += kg; w.fed += kg * w.worth(Food.BONES); g.stepBoneDays += expected * w.party[o.who[i]] * o.time[i]; g.stepBoneExp += expected; g.stepBoneGot += kg }
                 else if (kg > 0f) {
                     // (The boiled bone, its grease taken, is thrown out at the camp.)
                     val grease = kg * greaseOf(band); val fed = kg * w.worth(Food.BONES)
@@ -522,6 +524,7 @@ internal fun Band.reapedDomestic(d: Float): Float { val sel = SICKLE_SELECT * ha
  * is ground and food cooked or leached, what they weigh, and the party-days the leaching took ([hands] at it).
  */
 internal fun GroupWorld.gather(g: HexGroup, t: Food, kind: Int, p: Place, expected: Float, hands: Int, out: Haul) {
+    GroundCheck.place(p, 8)
     val s = g.species; val band = g.band
     out.busy = 0f
     val food = fauna.food

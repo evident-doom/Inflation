@@ -13,6 +13,7 @@ import inflation.Trace
 import inflation.world.Date
 import inflation.world.get
 import inflation.world.Hex
+import inflation.world.Place
 import inflation.world.set
 import inflation.world.Weather
 import kotlin.math.exp
@@ -73,7 +74,9 @@ internal fun HexGroups.hunt(weather: Weather) {
             // The ground it searches this week, shared over the hexes it passed.
             val sweep = searchKm2(g, g.place, weather) / g.path.size.coerceAtLeast(1)
             val t0 = Profile.mark()
-            Profile.kind("foraging", if (s.human) "bands" else s.name) { forage(g, sweep, max(1, g.adults) * s.massKg, weather) }
+            if (ForageDigest.parties != null) GroundCheck.enter(g, forageGround(g), hw.placeHex)
+            try { Profile.kind("foraging", if (s.human) "bands" else s.name) { forage(g, sweep, max(1, g.adults) * s.massKg, weather) } }
+            finally { GroundCheck.exit() }
             Profile.slow(if (s.human) "forage: band" else "forage: " + s.name, t0, weather.date.absoluteDay) { g.probe(weather.date.absoluteDay) }
         }
         for (colour in 0 until 9) {
@@ -85,7 +88,10 @@ internal fun HexGroups.hunt(weather: Weather) {
             // go at once, so any two that could touch the same ground go in the order they always did, and the week comes
             // out as it would one by one. (A square of one colour's parties keep apart from another's, as before.)
             val waves = forageWaves(squares.map { it.value })
-            for (wave in waves) Par.forEach("foraging: parties", wave.size) { i -> forageOne(wave[i]) }
+            for ((wi, wave) in waves.withIndex()) {
+                Par.forEach("foraging: parties", wave.size) { i -> forageOne(wave[i]) }
+                ForageDigest.parties?.let { q -> ForageDigest.report(q, "day $day ${if (squareKm == HUNT_FINE_KM) "near" else "far"} colour $colour wave $wi", wave) { g -> forageGround(g) } }
+            }
         }
     }
     val (near, far) = hunters.partition { g ->
@@ -122,7 +128,8 @@ private fun HexGroups.forageWaves(squares: List<List<HexGroup>>): List<List<HexG
 
 /**
  * The hexes whose ground party [g]'s foraging can touch this step: those of its way and the six round each, where its hunting
- * ground spills over ([huntGround]), its fishers go ([HexWater.fishFor]) and the game and herds it may come on stand.
+ * ground spills over ([huntGround]), its fishers go ([HexWater.fishFor]) and the game and herds it may come on stand; and a
+ * band's herd's pasture away from its camp.
  */
 private fun HexGroups.forageGround(g: HexGroup): Set<Hex> {
     val out = LinkedHashSet<Hex>()
@@ -130,6 +137,10 @@ private fun HexGroups.forageGround(g: HexGroup): Set<Hex> {
     // (A pack that holds its ground hunts its footprint, [footGround]: those hexes and the six round each, to be safe.)
     g.footprint?.let { f -> for (h in f.hexes) { out += h; for (d in 0 until 6) { val q = hex.neighbour(h, d); if (!q.none) out += q } } }
     out += hw.placeHex[g.place]
+    // (A band's herd kept at a pasture away from its camp ([Herd.at]): the beasts of prey whose ground holds it read the band's
+    // herd and guard and kill from it ([herdOdds]), while the band's own foraging changes them; so the band goes in no wave with
+    // them. Without it the two raced: 30-day runs parted at random, 1 in 6, det1120d-g.)
+    g.band?.let { b -> b.herds.at.takeIf { !it.none }?.let { out += hw.placeHex[it] } }
     return out
 }
 
@@ -188,6 +199,11 @@ private fun countHands(u: DialUse, g: HexGroup, b: Band, hands: Int) {
 @Part("foraging: one group")
 internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather: Weather) {
     val w = ForageWeek(this, g, sweep, packKg, weather)
+    val watch = ForageDigest.parties != null && g.id == FORAGE_WATCH
+    if (watch) println("forage watch ${g.id} start: adults ${g.adults} young ${g.young} fed ${g.fed} fat ${g.fat} spent ${g.spent} meatMet ${g.meatMet} " +
+        "killHeld ${g.killHeld} huntOwed ${g.huntOwed} place ${g.place.i} path ${(0 until g.path.size).map { g.path[it].i }} days ${g.days.toList()} " +
+        "sweep $sweep packKg $packKg workDays ${w.workDays} wantAll ${w.wantAll} aim ${w.aim} smallSweep ${w.smallSweep} smallDays ${w.smallDays} eats ${w.eats} " +
+        "killLuck ${w.killLuck} busy ${w.busy} fed ${w.fed}")
     if (w.band == null && g.killHeld > 0f) takeHeldKill(w, weather)
     if (w.band == null) { w.busy = min(w.workDays, g.huntOwed); g.huntOwed = 0f }
     huntingOdds(w)
@@ -200,6 +216,11 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
     // a weekly pack's was ten weeks' re-planned ones: same mean, ten times the lean tail, and hunger deaths 10-20 times the
     // weekly; trace740, Olli 2026-11-12 "study starving steps".)
     val passes = if (w.band == null) foragePasses * ticks else foragePasses
+    // (Census only, [WeekStats.packHunger]: how a beast's passes went and why they stopped: 0 fed, 1 out of days, 2 out of passes.)
+    if (w.band == null) { g.stepStop = 2; g.stepPasses = 0; g.stepOwed = w.busy; g.stepKills0 = 0f
+        g.stepGameDays = 0f; g.stepGameKills = 0; g.stepGameKg = 0f; g.stepOtherDays = 0f; g.stepScavDays = 0f
+        g.stepSmallDays = 0f; g.stepSmallExp = 0f; g.stepSmallGot = 0f; g.stepCarrionDays = 0f; g.stepCarrionExp = 0f; g.stepCarrionGot = 0f
+        g.stepBoneDays = 0f; g.stepBoneExp = 0f; g.stepBoneGot = 0f }
     for (pass in 0 until passes) {
         // (A beast plans on what its kills were expected to feed it, not on its luck at them: [ForageWeek.killLuck]. But only within
         // a week's worth of passes: after it, as in the next week, what it got is what it has, and a lean run is hunted on after.)
@@ -209,11 +230,14 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         // then and hunts on with the days left, as a weekly one would the weeks after: the loop stopped here before the luck was
         // ever counted, and lean 60-day packs left 30% of their days unused, trace742/743.)
         if (left <= 0.01f * w.wantAll && w.band == null && ticks > 1 && w.killLuck < -0.01f * w.wantAll) { w.killLuck = 0f; left = w.aim - w.fed }
-        if (left <= 0.01f * w.wantAll) break
+        if (left <= 0.01f * w.wantAll) { if (w.band == null) g.stepStop = 0; break }
         // (Nor, over a long step, once its days are all spent: the passes left would take nothing.)
-        if (w.band == null && ticks > 1 && w.workDays - w.busy - w.searchUsed <= 0f) break
+        if (w.band == null && ticks > 1 && w.workDays - w.busy - w.searchUsed <= 0f) { g.stepStop = 1; break }
+        if (w.band == null) g.stepPasses++
         offerFoods(w, o); w.carrionNoted = true
         o.takeUp()
+        if (watch) println("forage watch ${g.id} pass $pass: fed ${w.fed} busy ${w.busy} searchUsed ${w.searchUsed} killLuck ${w.killLuck} gain ${o.gain.toList()} spent ${o.spent.toList()} used ${o.used}; " +
+            (0 until o.m).joinToString("; ") { i -> "${o.type[i].label} k${o.kind[i]} p${o.place[i]} r=${o.rate[i]} e=${o.kg[i]} v=${o.value[i]} w=${o.weight[i]} h=${o.time[i]}" })
         if (pass == 0 && w.band != null) noteUnused(w, o)
         if (HUNT_DIAG && pass == 0 && w.band == null && w.herds.isNotEmpty()) {
             val cut = o.gain[0] / o.spent[0]
@@ -290,9 +314,15 @@ internal fun HexGroups.forage(g: HexGroup, sweep: Float, packKg: Float, weather:
         }
         // (A beast's search took the days of the pass not spent handling: [Offers.spent] is days a day of searching asks.)
         if (w.band == null) w.searchUsed += f * w.workDays / o.spent[0]
+        if (w.band == null && pass == 0) g.stepKills0 = w.killsExpected
         time?.spend(Activity.FOOD, (w.busy - busy0) * w.hands)
     }
+    // (Diagnostic, with stateHashes: what this party got, bit for bit, for [ForageDigest].)
+    ForageDigest.parties?.add(longArrayOf(g.id.toLong(), (w.fed.toRawBits().toLong() shl 32) xor w.busy.toRawBits().toLong(),
+        (w.meat.toRawBits().toLong() shl 32) xor w.fish.toRawBits().toLong(), (w.smallGot.toRawBits().toLong() shl 32) xor w.scraps.toRawBits().toLong(),
+        (w.plants.toRawBits().toLong() shl 32) xor w.searchUsed.toRawBits().toLong()))
     if (w.band != null && w.time == null) planWeek(w, 0f, 0f, 0f)
+    if (w.band == null) { g.stepWorkDays = w.workDays; g.stepBusy = w.busy; g.stepSearch = w.searchUsed }
     // (What a day's foraging brought it this week, kg of its need, kept month by month as a mean over the years: what a
     // herder's day must bring to be worth it, [herdPays]. Its days foraging only: not the water dug for nor the grain
     // ground, which go in the food's time too. With them, a week of hardly any foraging, the band living on its stores,
@@ -795,4 +825,52 @@ internal fun GroupWorld.recordFood(g: HexGroup, band: Band, w: ForageWeek) {
     // (Days a hand, as the week's busy days are: the band's are its hands'.)
     work(ToolWork.PLANT_DAYS, w.plantWorkDays * w.hands); work(ToolWork.SEED_DAYS, w.seedWorkDays * w.hands)
     work(ToolWork.SEED_FOOD, w.plantFrom[PlantFrom.SEED] + w.plantFrom[PlantFrom.GRAIN])
+}
+
+/**
+ * Diagnostic, on while stateHashes covers the month ([HexSim]): after each wave of [hunt]'s parallel foraging, a line for each
+ * party of what it got, bit for bit (sorted by id, so two runs compare line by line), with its place, way and the hexes
+ * its foraging may touch; to find the wave, and the parties, where two runs that should repeat first part.
+ */
+/** Diagnostic key forageWatch=ID: with stateHashes on, every pass of that party's foraging, its inputs and offers in full ([forage]). */
+internal val FORAGE_WATCH: Int = Config.string(Config.Key.FORAGE_WATCH)?.trim()?.toInt() ?: -1
+
+internal object ForageDigest {
+    @JvmField var parties: java.util.concurrent.ConcurrentLinkedQueue<LongArray>? = null
+    fun report(q: java.util.concurrent.ConcurrentLinkedQueue<LongArray>, head: String, wave: List<HexGroup>, ground: (HexGroup) -> Set<Hex>) {
+        val got = HashMap<Long, LongArray>(); while (true) { val a = q.poll() ?: break; got[a[0]] = a }
+        for (g in wave.sortedBy { it.id }) {
+            val a = got[g.id.toLong()]
+            println("forage digest $head id ${g.id} ${g.species.name} place ${g.place.i} " +
+                (if (a == null) "none" else (1 until a.size).joinToString(" ") { "%016x".format(a[it]) }) +
+                " path ${(0 until g.path.size).joinToString(",") { g.path[it].i.toString() }} ground ${ground(g).map { it.i }.sorted().joinToString(",")}")
+        }
+    }
+}
+
+/**
+ * Diagnostic, on with [ForageDigest]: while a party forages in a wave, the places and hexes its foraging may touch
+ * ([forageGround]); the model's place reads and writes during foraging that fall outside them are printed, the first few
+ * of each kind for each party, with where in the code. Two parties of one wave that touch the same place race.
+ */
+internal object GroundCheck {
+    private val places = ThreadLocal<BooleanArray?>()
+    private val hexes = ThreadLocal<Set<Hex>?>()
+    private val party = ThreadLocal<HexGroup?>()
+    private val told = java.util.concurrent.ConcurrentHashMap.newKeySet<Long>()
+    /** Set once a party is checked: until then the checks cost a field read. */
+    @Volatile @JvmField var on = false
+    fun enter(g: HexGroup, ground: Set<Hex>, placeHex: inflation.world.HexArray) {
+        on = true
+        places.set(BooleanArray(placeHex.size) { placeHex[it] in ground }); hexes.set(ground); party.set(g)
+    }
+    fun exit() { places.set(null); hexes.set(null); party.set(null) }
+    fun place(p: Place, what: Int) { if (!on) return; val a = places.get() ?: return; if (p.i in a.indices && !a[p.i]) tell(what, "place ${p.i}") }
+    fun hex(h: Hex, what: Int) { if (!on) return; val a = hexes.get() ?: return; if (h !in a) tell(what, "hex ${h.i}") }
+    private fun tell(what: Int, at: String) {
+        val g = party.get() ?: return
+        if (told.size > 400 || !told.add(g.id.toLong() * 64 + what)) return
+        println("ground check: party ${g.id} ${g.species.name} touched #$what at $at outside its ground; " +
+            Thread.currentThread().stackTrace.drop(2).take(7).joinToString(" < ") { "${it.fileName}:${it.lineNumber}" })
+    }
 }

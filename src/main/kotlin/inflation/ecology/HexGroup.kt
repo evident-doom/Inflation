@@ -59,6 +59,33 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
     var mergedSize = -1
     /** The group it merged into, the step it did (else -1): for following what became of its members. Not saved: read in the same step. */
     @Transient var mergedInto = -1
+    /** Census only ([WeekStats.packHunger]): whether a beast group made a kill of its own this step, and the kills its plan expected. Not saved. */
+    @Transient var stepKilled = true
+    @Transient var stepKillsExpected = 0f
+    /** Census only: a beast group's forage passes this step, why they stopped (0 fed, 1 out of days, 2 out of passes), its work days, days owed from the step before, days handling, days searching, and the kills expected in its first pass (huntSteps). Not saved. */
+    @Transient var stepStop = 0
+    @Transient var stepPasses = 0
+    @Transient var stepWorkDays = 0f
+    @Transient var stepOwed = 0f
+    @Transient var stepBusy = 0f
+    @Transient var stepSearch = 0f
+    @Transient var stepKills0 = 0f
+    /** Census only: a beast group's days handling its big-game kills this step, those kills and their kg, days handling other foods, and the eating days stronger scavengers gave back. Not saved. */
+    @Transient var stepGameDays = 0f
+    @Transient var stepGameKills = 0
+    @Transient var stepGameKg = 0f
+    @Transient var stepOtherDays = 0f
+    @Transient var stepScavDays = 0f
+    /** Census only: a beast group's days handling small game, carrion and bones this step, the kg it expected of each, and the kg it got. Not saved. */
+    @Transient var stepSmallDays = 0f
+    @Transient var stepSmallExp = 0f
+    @Transient var stepSmallGot = 0f
+    @Transient var stepCarrionDays = 0f
+    @Transient var stepCarrionExp = 0f
+    @Transient var stepCarrionGot = 0f
+    @Transient var stepBoneDays = 0f
+    @Transient var stepBoneExp = 0f
+    @Transient var stepBoneGot = 0f
     /**
      * A band's luck in its own week's births and deaths, summed since it began: born less died as
      * drawn, against as expected from the week's odds (for training, which judges people by what
