@@ -207,7 +207,27 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
      * of roots, so that its turf and reeds grow on through a dry summer as long as it is growing weather
      * (the river meadows and marshes that stay green when the hills have cured).
      */
-    fun wetFloor(p: Place) = min(1f - SEEP_SHARE, land.floodShare[p] * (1f - floorTableM(p) / ROOT_REACH_M).coerceIn(0f, 1f))
+    fun wetFloor(p: Place) = min(1f - SEEP_SHARE, land.floodShare[p] * (1f - floorTableM(p) / ROOT_REACH_M).coerceIn(0f, 1f) +
+        bankShare[p] * (1f - bankTableM(p) / ROOT_REACH_M).coerceIn(0f, 1f))
+    /**
+     * Share of place [p] that is stream bank beyond its mapped floodplain: a strip [BANK_KM] wide on each side of its streams,
+     * too narrow for the floodplain's 1 km cells (the willow, poplar and tamarisk along a creek through steppe). The streams'
+     * length per km² is about 1/(4 d), d their mean distance from the place's ground ([HexDrinkingWater.streamKm]): parallel
+     * streams at spacing S lie S/4 from the ground on average and run 1/S km to the km². At most [BANK_MOST]. (Dry places by a
+     * stream with no floodplain mapped were 10% of the land and 96% treeless: galleries-steppetrees2, 2026-11-20.)
+     */
+    @Transient private val bankShare = FloatArray(n) { p ->
+        val d = drink.streamKm[p]
+        if (d <= 0f) 0f else max(0f, min(BANK_MOST, BANK_KM / (2f * d)) - land.floodShare[p])
+    }
+    /**
+     * Depth of the water table under place [p]'s stream banks, m: while the hex's waters run, at the streams' level, [BANK_TABLE_M]
+     * below the bank; where they have stopped, the ground water under the place.
+     */
+    private fun bankTableM(p: Place): Float {
+        val h = hw.placeHex[p]; val regional = waterTableM(p)
+        return if (meanFlow[h] > 0f && flow[h] > 0f) min(regional, BANK_TABLE_M) else regional
+    }
     /** Share of place [p] that is valley floor with the water table so near the surface ([SATURATED_M]) that its soil is sodden. */
     fun saturatedFloor(p: Place) = min(wetFloor(p), land.floodShare[p] * (1f - floorTableM(p) / SATURATED_M).coerceIn(0f, 1f))
     /** Share of place [p] whose soil is sodden this week, without air in it: marsh and bog, a flooded floodplain, or a valley floor over a high water table. */
@@ -621,6 +641,12 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
         const val BED_CONDUCTIVITY = 0.1
         /** Depth to which phreatophytes (tamarisk, poplar, acacia, date palm) reach the water table, m (often 5-10 m, from memory). */
         const val ROOT_REACH_M = 5f
+        /** Width of the strip of bank on each side of a stream whose roots reach its water ([bankShare]), km: some 30 m (a guess to source). */
+        const val BANK_KM = 0.03f
+        /** The most of a place that is stream bank ([bankShare]). */
+        const val BANK_MOST = 0.1f
+        /** How far below the bank the water table stands while a stream runs ([bankTableM]), m: about a creek's depth (a guess). */
+        const val BANK_TABLE_M = 1.5f
         /** Depth of water table the turf of a valley floor still draws on, m: grass roots and the capillary rise above the table (about 1-1.5 m, from memory). */
         const val TURF_REACH_M = 1.5f
         /**
