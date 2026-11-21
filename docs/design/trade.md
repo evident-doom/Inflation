@@ -182,6 +182,16 @@ Labour was made to cost the debtors their rest only: they come only when they at
 - What it makes: some 280 monuments standing after five years, 290,000 person-days of work in them, the largest 9,700; 350 houses adorned; 1.6 person-days a person a year of monument work of the builders' own rest, and 1.4 of debtors' labour from some 200 bands a year, fed at 1.8 kg a person a year. Renown stays as it was (49 against 45), higher at the sources (52 against 29 further).
 - The labour rules alone (labour off against on, no ceremony): people −0.65%, mixed; labour a trickle without monuments (0.12 person-days a person a year pledged, 0.06 used).
 
+### Art: goods of perceived worth (2026-11-21)
+
+Olli (21 Nov): decoration and art as a general use of free time, so that bands far from the sources can give things of like worth back, and worth measured beyond survival (the needs tiers' standing tier). Design: Claude Doc "Art and goods of perceived value". Step 2 built (`t.art`, 1; 0 none of it; [Art.kt](../../src/main/kotlin/inflation/ecology/Art.kt)):
+
+- **Worth to the taker.** A piece's worth to the band that takes it is its days of skilled work times 1 + `ART_STRANGE` (1) times its strangeness: the share of the four style traits ([Band.style], already copied at meetings and drifting) in which the pieces' style is not the taker's own. Things from far away carry worth because they are far (Helms 1988); bead styles mark peoples and are read by strangers (Vanhaeren and d'Errico 2006; Kuhn and Stiner 2007). From memory, to check.
+- **Pieces keep their makers' style.** Each band keeps the worth-weighted mix of styles its ornaments were made in (`Band.artMix`); its own work goes in in its own style, gifts carry the giver's mix, joins blend by worth.
+- **Art of common materials.** Painted hides, carved wood, carved bone and antler, fine cordage and baskets (`OrnamentKind`), made as finery is, of leisure only and by a master's hands, of what the band holds beyond a set of every tool it knows (`artKeepKg`). Wood, hide and fibre pieces wear out at `SOFT_WEAR` (0.3 a year) against 0.1.
+- **Debts paid in art.** A band that owes the other (tie at least `FEUD_GIFT`) gives ornaments to settle it, as many as at their worth to the creditor meet the debt, at most half of what it holds, as fully as it repays (`artRepaid`). Every ornament gift makes favours by its worth to the taker.
+- The census adds, under ornaments' worth: given to repay, and worth to the takers beyond their days.
+
 ## Checks against the record
 
 - **Falloff**: what each band holds of each traded good against its distance from the nearest source, by year. Down-the-line exchange shows an exponential fall beyond a supply zone of a few hundred km; directional trade shows plateaus. The coast against inland shell tally ([Tallies.kt](../../src/main/kotlin/inflation/tools/fauna/Tallies.kt)) is a first, coarse form.
