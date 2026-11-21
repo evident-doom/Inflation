@@ -699,12 +699,12 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
     private fun creditors(bands: List<HexGroup>): String {
         val groups = sim.groups; val hw = sim.hw
         val traded = groups.tradedNow().filter { it == Material.STONE || it == Material.SALT || it == Material.OBSIDIAN }
-        val ranked = bands.sortedByDescending { g -> g.band!!.favours.values.sumOf { it.toDouble() } }
+        val ranked = bands.filter { it.band != null }.sortedByDescending { g -> g.band?.favours?.values?.sumOf { it.toDouble() } ?: 0.0 }
         val tenth = (ranked.size / 10).coerceAtLeast(1)
         val parts = listOf("most owed" to ranked.take(tenth), "middle" to ranked.drop(tenth).dropLast(tenth), "most owing" to ranked.takeLast(tenth))
         val out = parts.filter { it.second.isNotEmpty() }.joinToString(" | ") { (name, l) ->
             val n = l.size.toDouble(); val people = l.sumOf { it.size.toDouble() }.coerceAtLeast(1.0)
-            val bs = l.map { it.band!! }
+            val bs = l.mapNotNull { it.band }
             fun kinds(a: (Band) -> FloatArray) = FavourKind.entries.joinToString(", ") { k -> "%s %.2f".format(k.label, bs.sumOf { a(it)[k.ordinal].toDouble() } / n) }
             "%s: %d bands, %.0f people a band, net favours %.2f, within %.0f km %.0f%%, settled %.0f%%, renown %.1f, goods %.0f kg, ornament worth %.1f, made %.2f a person; earned new credit %s; settled debts %s".format(
                 name, l.size, people / n, bs.sumOf { b -> b.favours.values.sumOf { it.toDouble() } } / n, WEALTH_SOURCE_KM,
@@ -713,7 +713,7 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
                 bs.sumOf { it.renown.toDouble() } / n, bs.sumOf { it.goods.sum().toDouble() } / people, bs.sumOf { it.ornamentWorth.toDouble() } / people,
                 bs.sumOf { it.ornamentsMadeWorth.toDouble() } / people, kinds { it.favoursMade }, kinds { it.favoursSettled })
         }
-        for (g in bands) g.band!!.let { b -> b.favoursMade.fill(0f); b.favoursSettled.fill(0f); b.ornamentsMadeWorth = 0f }
+        for (g in bands) g.band?.let { b -> b.favoursMade.fill(0f); b.favoursSettled.fill(0f); b.ornamentsMadeWorth = 0f }
         return out
     }
 
