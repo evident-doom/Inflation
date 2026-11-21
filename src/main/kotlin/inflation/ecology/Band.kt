@@ -460,6 +460,14 @@ class Band(kinds: Int, totems: Int = kinds) {
      * [inflation.Tuning.art]). Pieces keep their makers' style as they are given on; a band's own work is in its own style.
      */
     var soft = 0f
+    /**
+     * For the census, since its last print ([inflation.tools.fauna.Tallies.printBands]): favours it earned by each [FavourKind],
+     * new credit beyond what it owed the taker ([favoursMade]) and what settled its own debts ([favoursSettled]); and the
+     * person-days of worth of the ornaments it made ([ornamentsMadeWorth]). Report only, not carried.
+     */
+    @Transient val favoursMade = FloatArray(FavourKind.entries.size)
+    @Transient val favoursSettled = FloatArray(FavourKind.entries.size)
+    @Transient var ornamentsMadeWorth = 0f
     val artMix = FloatArray(STYLE_TRAITS * STYLE_VARIANTS)
     /** Takes [n] of its ornaments, shell, soft pieces and worth among them in their shares; returns the shell ones taken. */
     @IgnorableReturnValue fun takeOrnaments(n: Float): Float {

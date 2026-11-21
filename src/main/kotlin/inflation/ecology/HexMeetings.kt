@@ -719,7 +719,8 @@ private fun HexGroups.giveOrnaments(a: HexGroup, b: HexGroup, weather: Weather, 
         tb.befriend(giver.id, 0.5f * TIE_GIFT)
         // (With crafted goods worth their days, a gift of them makes favours by its worth, on the log scale: [favoursOfGift].)
         if (tuning.craftWorth > 0f && worth > 0f) helpedBy(giver, taker,
-            favoursOfGift(favoursOfDays(seen, tb.recentYield(weather.date, days), taker.adults, taker.size), tuning.logFavours > 0f))
+            favoursOfGift(favoursOfDays(seen, tb.recentYield(weather.date, days), taker.adults, taker.size), tuning.logFavours > 0f),
+            if (repaid > gift * fresh) FavourKind.ORNAMENTS_REPAYING else FavourKind.ORNAMENTS)
         stats.meeting(if (repaid > gift * fresh) Met.ORNAMENTS_GIVEN_TO_REPAY else Met.ORNAMENTS_GIVEN); dealt(Dealing.Kind.ORNAMENTS, giver, taker)
     }
 }

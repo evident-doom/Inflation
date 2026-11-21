@@ -34,6 +34,15 @@ internal fun favoursOfGift(weeks: Float, log: Boolean): Float = if (!log) weeks 
 internal fun weeksOfFavours(f: Float, log: Boolean): Float = if (!log) f else sqrt(exp(2f * min(f, 40f)) - 1f)
 
 /**
+ * What a favour was earned by, for the census ([Band.favoursMade], [Band.favoursSettled]): food to a hungry band at a meeting,
+ * food to hungry kin, goods (stone, salt, ochre, tools), ornaments given to friends, ornaments given to settle a debt
+ * ([artRepaid]), labour lent. Report only.
+ */
+enum class FavourKind(val label: String) {
+    FOOD("food"), KIN("food to kin"), GOODS("goods"), ORNAMENTS("ornaments to friends"), ORNAMENTS_REPAYING("ornaments repaying"), LABOUR("labour"),
+}
+
+/**
  * A band's ledger ([Band.favours]) put on the log scale once ([Band.favoursLog]): each balance as if one gift. Saves from
  * before it hold weeks; a band from a world begun with it has nothing to change.
  */

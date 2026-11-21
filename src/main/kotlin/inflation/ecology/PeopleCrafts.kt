@@ -484,7 +484,7 @@ private fun GroupWorld.makeCrafted(b: Band, people: Float, time: BandTime, fed: 
         // (Its own work, in its own style: [Band.artMix].)
         if (art) b.addOwnArt(made * k.days * hands)
         b.ornaments += made; if (k.material == Material.SHELL) b.exotic += made; if (k.soft) b.soft += made
-        b.ornamentWorth += made * k.days * hands
+        b.ornamentWorth += made * k.days * hands; b.ornamentsMadeWorth += made * k.days * hands
         noteOrnaments(OrnamentFlow.MADE, made * k.days * hands)
         time.spend(Activity.ORNAMENTS, made * k.days)
         want -= made; left -= made * k.days
