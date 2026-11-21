@@ -80,7 +80,7 @@ internal fun HexGroups.gaveGoods(giver: HexGroup, taker: HexGroup, days: Float, 
     val tb = taker.band ?: return 0f
     if (days <= 0f) return 0f
     val f = tuning.goodsFavours * favoursOfGift(favoursOfDays(days, tb.recentYield(weather.date, this.days), taker.adults, taker.size), tuning.logFavours > 0f)
-    helpedBy(giver, taker, f)
+    helpedBy(giver, taker, f, FavourKind.GOODS)
     return f
 }
 

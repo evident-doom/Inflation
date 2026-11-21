@@ -393,7 +393,7 @@ internal fun HexGroups.visitKin(weather: Weather) {
         land.books?.flow(inflation.Books.Stuff.MATTER, "eaten", -meal.ateKg.toDouble())
         // Who was helped remembers: grudges against the helpers' people fade, and it owes them a favour.
         g.band!!.amends(o.band!!, 0.5f)
-        helped(o, g, gift)
+        helped(o, g, gift, FavourKind.KIN)
         stats.meeting(Met.HUNGRY_BANDS_FED_BY_KIN); dealt(Dealing.Kind.FED_KIN, o, g)
     }
 }
@@ -405,18 +405,21 @@ internal const val FAVOUR_DAYS = 7f
  * [giver] helped [taker] with [kg] of food: [taker] owes it favours, the more the more of its needs the
  * help met; help to a band that is owed favours settles them first.
  */
-internal fun HexGroups.helped(giver: HexGroup, taker: HexGroup, kg: Float) {
+internal fun HexGroups.helped(giver: HexGroup, taker: HexGroup, kg: Float, kind: FavourKind = FavourKind.FOOD) {
     if (kg <= 0f) return
-    helpedBy(giver, taker, favoursOfGift(kg / max(1e-3f, FAVOUR_DAYS * taker.dailyNeedKg), tuning.logFavours > 0f))
+    helpedBy(giver, taker, favoursOfGift(kg / max(1e-3f, FAVOUR_DAYS * taker.dailyNeedKg), tuning.logFavours > 0f), kind)
 }
 
 /**
  * [giver] helped [taker] by [f] favours, of food ([helped]) or goods ([gaveGoods]): [taker] owes it them; help to a band
  * that is owed favours settles them first.
  */
-internal fun helpedBy(giver: HexGroup, taker: HexGroup, f: Float) {
+internal fun helpedBy(giver: HexGroup, taker: HexGroup, f: Float, kind: FavourKind) {
     val gb = giver.band ?: return; val tb = taker.band ?: return
     if (f <= 0f) return
+    // (For the census: what of it settled what the giver owed, and what is new credit, by what it was: [Band.favoursMade].)
+    val settled = min(f, gb.owesTo(taker.id))
+    gb.favoursSettled[kind.ordinal] += settled; gb.favoursMade[kind.ordinal] += f - settled
     fun add(b: Band, other: Int, by: Float) { val v = (b.favours[other] ?: 0f) + by; if (abs(v) < 0.01f) b.favours.remove(other) else b.favours[other] = v }
     add(gb, taker.id, f); add(tb, giver.id, -f)
 }

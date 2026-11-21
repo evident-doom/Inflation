@@ -295,7 +295,10 @@ private fun HexFauna.closingIn(s: Species, ps: Species, massKg: Float, p: Place,
     // a courser's chance falls with the square of their speeds: a chase is won or lost on the gap, and a wolf rarely runs
     // down a grown ostrich or onager in the open. Linear, a hunter a sixth slower than its quarry still closed in nine
     // times in ten.)
-    val ratio = min(1f, s.speedKmh / ps.speedKmh)
+    // (A runner of the open plains ([watchesInOpen]) outruns only what it sees coming from afar: in thick cover a hunter is on
+    // it at a bound, and its speed counts for the less, the thicker the cover. Without it gazelle, onagers, horses and
+    // ostriches stood thick in the woods: dens1121.)
+    val ratio = min(1f, s.speedKmh / ps.speedKmh).let { if (watchesInOpen(ps)) 1f - (1f - it) * (1f - land.plants.cover(p)) else it }
     val speed = s.stalking + (1f - s.stalking) * ratio * ratio
     // And it needs room to run: in thick woods and scrub a chase ends at the first tangle.
     val room = 1f - COURSING_COVER * (1f - s.stalking) * land.plants.cover(p)

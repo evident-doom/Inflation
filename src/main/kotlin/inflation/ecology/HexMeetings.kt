@@ -588,24 +588,8 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
         note(poor) { "was given %.0f kg of food by band #%d".format(gift, rich.id) }
         }
     }
-    // Gifts: bands close to each other give each other ornaments, which travel on along the ties.
-    for ((giver, taker) in listOf(a to b, b to a)) {
-        val gb = giver.band ?: continue; val tb = taker.band ?: continue
-        if (!Regard(gb, taker.id, tb, map = hex).friend || gb.ornaments < 1f) continue
-        val gift = min(1f, ORNAMENT_GIFT * gb.giveWill) * gb.ornaments
-        dialUse?.amount(DialSite.GIVE_ORNAMENTS, gb.giveWill, gift, min(1f, ORNAMENT_GIFT) * gb.ornaments, cut = ORNAMENT_GIFT * gb.giveWill > 1f)
-        // (Less at a meeting soon after the last: gifts mark meetings after time apart, [meetingFresh].)
-        val given = gift * fresh
-        if (given <= 0f) continue
-        val worth = gb.ornamentWorthOf(given)
-        val shell = gb.takeOrnaments(given)
-        tb.ornaments += given; tb.exotic += shell; tb.ornamentWorth += worth; noteOrnaments(OrnamentFlow.GIVEN, worth)
-        tb.befriend(giver.id, 0.5f * TIE_GIFT)
-        // (With crafted goods worth their days, a gift of them makes favours by its worth, on the log scale: [favoursOfGift].)
-        if (tuning.craftWorth > 0f && worth > 0f) helpedBy(giver, taker,
-            favoursOfGift(favoursOfDays(worth, tb.recentYield(weather.date, days), taker.adults, taker.size), tuning.logFavours > 0f))
-        stats.meeting(Met.ORNAMENTS_GIVEN); dealt(Dealing.Kind.ORNAMENTS, giver, taker)
-    }
+    // Gifts: bands close to each other give each other ornaments, which travel on along the ties ([giveOrnaments]).
+    giveOrnaments(a, b, weather, fresh)
     // Useful gifts: a band gives of the good stone, salt and ochre it has beyond its own needs to
     // a band that lacks them. The more the gift meets the other's want, the more it binds them both, and
     // the giver's name goes about among the bands. The taker owes the giver favours for the days the goods
@@ -702,6 +686,47 @@ internal fun HexGroups.bandsMeet(a: HexGroup, b: HexGroup, weather: Weather, rit
     // Word of where the other did better this month.
     val ab = a.band; val bb = b.band
     if (ab != null && bb != null) ab.shareSeasons(bb)
+}
+
+/**
+ * Gifts at a meeting of [a] and [b], [fresh] as new ([meetingFresh]): bands close to each other give each other ornaments, which
+ * travel on along the ties; with art a band also gives them to the band it owes, to settle the debt.
+ */
+private fun HexGroups.giveOrnaments(a: HexGroup, b: HexGroup, weather: Weather, fresh: Float) {
+    // (With art ([inflation.Tuning.art]) a band that owes the other also gives ornaments to settle the debt, as far as their
+    // worth to the other meets it ([artRepaid]); and a gift makes favours by its worth to the taker, the stranger the more: [perceivedWorth].)
+    val art = tuning.art > 0f && tuning.craftWorth > 0f
+    for ((giver, taker) in listOf(a to b, b to a)) {
+        val gb = giver.band ?: continue; val tb = taker.band ?: continue
+        if (gb.ornaments < 1f) continue
+        val r = Regard(gb, taker.id, tb, map = hex)
+        val friend = r.friend
+        val owedDays = if (art && r.tie >= FEUD_GIFT) goodsOwedDays(gb, taker, tb, weather) else 0f
+        if (!friend && owedDays <= 0f) continue
+        val gift = if (friend) min(1f, ORNAMENT_GIFT * gb.giveWill) * gb.ornaments else 0f
+        if (friend) dialUse?.amount(DialSite.GIVE_ORNAMENTS, gb.giveWill, gift, min(1f, ORNAMENT_GIFT) * gb.ornaments, cut = ORNAMENT_GIFT * gb.giveWill > 1f)
+        // (Less at a meeting soon after the last: gifts mark meetings after time apart, [meetingFresh].)
+        val repaid = artRepaid(gb, tb, owedDays, fresh)
+        val given = max(gift * fresh, repaid)
+        if (given <= 0f) continue
+        val worth = gb.ornamentWorthOf(given)
+        val seen = if (art) perceivedWorth(worth, gb, tb) else worth
+        if (art) { gb.ensureArt(); tb.blendArt(gb.artMix, tb.ornamentWorth, worth) }
+        val softShare = if (gb.ornaments > 0f) gb.soft / gb.ornaments else 0f
+        val shell = gb.takeOrnaments(given)
+        tb.ornaments += given; tb.exotic += shell; tb.soft += given * softShare; tb.ornamentWorth += worth; noteOrnaments(OrnamentFlow.GIVEN, worth)
+        if (art) { noteOrnaments(OrnamentFlow.PERCEIVED, seen - worth); if (repaid > gift * fresh) noteOrnaments(OrnamentFlow.REPAID, worth) }
+        tb.befriend(giver.id, 0.5f * TIE_GIFT)
+        // (With crafted goods worth their days, a gift of them makes favours by its worth, on the log scale: [favoursOfGift]. With
+        // art, a gift to friends binds them and makes none, as hxaro gifts keep a bond open rather than make a claim: made, the
+        // creditors gave on the art they were repaid in as new debts, a ratchet that gathered credit (art790b, 2026-11-21). Only
+        // ornaments that repay a debt make favours, at their worth to the taker.)
+        val repaying = repaid > gift * fresh
+        if (tuning.craftWorth > 0f && worth > 0f && (!art || repaying)) helpedBy(giver, taker,
+            favoursOfGift(favoursOfDays(seen, tb.recentYield(weather.date, days), taker.adults, taker.size), tuning.logFavours > 0f),
+            if (repaying) FavourKind.ORNAMENTS_REPAYING else FavourKind.ORNAMENTS)
+        stats.meeting(if (repaid > gift * fresh) Met.ORNAMENTS_GIVEN_TO_REPAY else Met.ORNAMENTS_GIVEN); dealt(Dealing.Kind.ORNAMENTS, giver, taker)
+    }
 }
 
 /**

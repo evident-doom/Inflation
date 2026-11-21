@@ -98,7 +98,7 @@ private fun HexGroups.settleLabour(c: HexGroup, cb: Band, byId: Map<Int, HexGrou
         db.labourOwed += work
         val fed = min(work * perPerson, c.larder)
         moveFood(c, d, fed, LarderMove.FEAST)
-        helpedBy(d, c, favoursOfGift(favoursOfDays(work, y, c.adults, c.size), log))
+        helpedBy(d, c, favoursOfGift(favoursOfDays(work, y, c.adults, c.size), log), FavourKind.LABOUR)
         stats.tally(labourKey(LabourCount.USED), Math.round(10f * work)); stats.tally(labourKey(LabourCount.FED), Math.round(10f * fed))
         note(c) { "band #%d, which owed it, built for it %.1f person-days, fed at its feast".format(d.id, work) }
     }

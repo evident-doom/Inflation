@@ -397,6 +397,11 @@ class Tuning(
     val craftWorth = f("craftWorth", 1f)
     /** Finery: the fine ornaments need a master's hands, are made for worth beyond the plain ones of leisure only, and wear out (1; 0 made up to a count, as by any hands skilled enough), as [inflation.ecology.fineryLeft] has it. */
     val finery = f("finery", 1f)
+    /**
+     * Art as goods of perceived worth: fine crafts of wood, hide, fibre and bone from leisure, a piece worth more to a taker the
+     * stranger its style, and debts paid in ornaments (1; 0 none of it), as [inflation.ecology.perceivedWorth] has it.
+     */
+    val art = f("art", 1f)
     /** A band short of days for its houses and hall calls on the bands near it that owe it, to build for it, fed at its feast (1; 0 none), as [inflation.ecology.callInLabour] has it. */
     val labourFavours = f("labourFavours", 1f)
     /** Ceremonial work of leisure and lent days: a monument at holy home ground, else the houses adorned (1; 0 none), as [inflation.ecology.ceremonialWork] has it. */

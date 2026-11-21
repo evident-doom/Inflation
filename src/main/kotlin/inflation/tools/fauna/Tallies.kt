@@ -20,6 +20,7 @@ import inflation.ecology.Thresholds
 import inflation.ecology.DeathCause
 import inflation.ecology.WeekStats
 import inflation.ecology.Band
+import inflation.ecology.FavourKind
 import inflation.ecology.Built
 import inflation.ecology.FoodFrom
 import inflation.ecology.HerdFlow
@@ -417,6 +418,7 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
         println("     bands: " + skillsAndKit(bands, bs) + houses(bands, bs) + goods(bands, bs) + gatherings(bands, bs))
         println("     favours between bands (a favour is a week of the helped band's need): " + debts(bs))
         println("     wealth, a person (mean; Gini across bands; the tenth best-off bands' share of all): " + wealth(bands))
+        println("     who holds the credit (bands by net favours: the tenth most owed, the middle, the tenth most owing; since the last census): " + creditors(bands))
         println("     bands by km from the nearest source of each good as the crow flies (share of bands; kg an adult held; days a kg as they reckon it): " + bySource(bands))
         println("     bands by fish within reach of their camp, thirds from least to most: " + fishing(bands) + weirs(bands))
     }
@@ -684,6 +686,35 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
         return "held: " + part(0 until standingFrom) + " | standing, a band weighted by its people: " + part(standingFrom until names.size) +
             " | within %.0f km of good stone, salt or obsidian (%.0f%% of bands) against further: ".format(WEALTH_SOURCE_KM, 100.0 * near.size / ws.size) +
             names.indices.joinToString(", ") { i -> "%s %.2f/%.2f".format(names[i], perPerson(near, i), perPerson(far, i)) }
+    }
+
+    /**
+     * Who holds the credit (art design, step 2 A/B: credit gathered more with art): bands ranked by their net favours
+     * ([Band.favours]) into the tenth most owed, the middle and the tenth most owing, and for each: bands, people a band, net
+     * favours a band, the share within [WEALTH_SOURCE_KM] of good stone, salt or obsidian, the share settled, renown, goods kg
+     * and ornament worth a person, the worth of ornaments made a person since the last census ([Band.ornamentsMadeWorth]),
+     * and the favours earned a band since then by what they were for ([FavourKind]), new credit against debts settled
+     * ([Band.favoursMade], [Band.favoursSettled]). Then the counts start again. Report only.
+     */
+    private fun creditors(bands: List<HexGroup>): String {
+        val groups = sim.groups; val hw = sim.hw
+        val traded = groups.tradedNow().filter { it == Material.STONE || it == Material.SALT || it == Material.OBSIDIAN }
+        val ranked = bands.filter { it.band != null }.sortedByDescending { g -> g.band?.favours?.values?.sumOf { it.toDouble() } ?: 0.0 }
+        val tenth = (ranked.size / 10).coerceAtLeast(1)
+        val parts = listOf("most owed" to ranked.take(tenth), "middle" to ranked.drop(tenth).dropLast(tenth), "most owing" to ranked.takeLast(tenth))
+        val out = parts.filter { it.second.isNotEmpty() }.joinToString(" | ") { (name, l) ->
+            val n = l.size.toDouble(); val people = l.sumOf { it.size.toDouble() }.coerceAtLeast(1.0)
+            val bs = l.mapNotNull { it.band }
+            fun kinds(a: (Band) -> FloatArray) = FavourKind.entries.joinToString(", ") { k -> "%s %.2f".format(k.label, bs.sumOf { a(it)[k.ordinal].toDouble() } / n) }
+            "%s: %d bands, %.0f people a band, net favours %.2f, within %.0f km %.0f%%, settled %.0f%%, renown %.1f, goods %.0f kg, ornament worth %.1f, made %.2f a person; earned new credit %s; settled debts %s".format(
+                name, l.size, people / n, bs.sumOf { b -> b.favours.values.sumOf { it.toDouble() } } / n, WEALTH_SOURCE_KM,
+                100.0 * l.count { g -> traded.any { m -> groups.nearestSourceKm(hw.placeHex[g.place], m) < WEALTH_SOURCE_KM } } / n,
+                100.0 * bs.count { groups.bandLiving(it) == Tally.Living.SETTLED } / n,
+                bs.sumOf { it.renown.toDouble() } / n, bs.sumOf { it.goods.sum().toDouble() } / people, bs.sumOf { it.ornamentWorth.toDouble() } / people,
+                bs.sumOf { it.ornamentsMadeWorth.toDouble() } / people, kinds { it.favoursMade }, kinds { it.favoursSettled })
+        }
+        for (g in bands) g.band?.let { b -> b.favoursMade.fill(0f); b.favoursSettled.fill(0f); b.ornamentsMadeWorth = 0f }
+        return out
     }
 
     /**
