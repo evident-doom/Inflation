@@ -280,7 +280,7 @@ internal fun HexFauna.condition(ps: Species, p: Place): Float {
  */
 fun youngDefence(ps: Species, massKg: Float): Float {
     val r = (massKg / ps.massKg).coerceIn(0f, 1f)
-    return if (r >= 1f) ps.defence else ps.defence * r / kotlin.math.sqrt(max(1f, ps.youngPerFemale))
+    return if (r >= 1f) ps.defence else ps.defence * kotlin.math.sqrt(r) / kotlin.math.sqrt(max(1f, ps.youngPerFemale))
 }
 
 /** How well game of kind [ps] can shelter at place [p] now ([Niches.shelter]), its ground's part as worked out for the run. */
