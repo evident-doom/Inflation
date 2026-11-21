@@ -461,6 +461,15 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
         }
     }
 
+    /** How much of the land has grinding rock ([inflation.world.HexLand.groundStone]) at all, by area, and how many bands live on it. */
+    private fun groundStoneAt(bands: List<HexGroup>): String {
+        val land = sim.land
+        var area = 0.0; var stone = 0.0
+        for (p in 0 until land.n) { area += land.areaKm2[p]; if (land.groundStone[p] > 0f) stone += land.areaKm2[p] }
+        return " | ground stone on %.1f%% of land, under %.0f%% of bands".format(100.0 * stone / area.coerceAtLeast(1e-9),
+            100.0 * bands.count { land.groundStone[it.place.i] > 0f } / bands.size.coerceAtLeast(1))
+    }
+
     private fun skillsAndKit(bands: List<HexGroup>, bs: List<Band>): String {
         val groups = sim.groups; val hex = sim.hex
         return "skills " + Skill.entries.joinToString(", ") { f -> "%s %.2f".format(f.name.lowercase(), bs.map { it.skills[f] }.average()) } +
@@ -469,6 +478,7 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
                 bs.sumOf { (it.kit[t] * it.made[t]).toDouble() } / bs.sumOf { it.kit[t].toDouble() }.coerceAtLeast(1e-9)) } +
             " | spare tool sets held " + Tool.entries.joinToString(", ") { t -> "%s %.0f in %d bands".format(t.name.lowercase(),
                 bs.sumOf { it.spare[t].toDouble() }, bs.count { it.spare[t] > 0.01f }) } +
+            groundStoneAt(bands) +
             " | customs " + Tradition.entries.joinToString(", ") { t -> "%s %.0f%%".format(t.name.lowercase(), 100.0 * bs.count { it.holds(t) } / bs.size) } +
             " | elders %.0f%% of adults, children inbred %.3f".format(100.0 * bs.sumOf { it.elders } / bands.sumOf { it.adults }.coerceAtLeast(1),
                 bs.map { it.inbred.toDouble() }.average()) +
