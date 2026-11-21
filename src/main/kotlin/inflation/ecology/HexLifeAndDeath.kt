@@ -616,6 +616,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     // (Illness is the deadlier the more its people have burnt of their bodies: [famineIllness], before the step's burning is booked.)
     val famine = famineIllness(g, g.fed)
     val spentBefore = g.spent
+    if (!s.human) bookPackHunger(g, hazards)
     g.spent = Hazards.spentAfter(s, g.spent, g.fed, days)
     // (No beast to blame, none taken: a hazard of none weighs nothing in sharing the deaths, and is left out.)
     hazards.addAll(listOfNotNull(
@@ -899,3 +900,32 @@ internal fun HexGroups.remember(date: Date) {
 
 /** The hunger cases a year the census lists ([HexGroups.hungerCases]). */
 internal const val HUNGER_CASES = 30
+
+/** Census ([WeekStats.packHunger]): a beast group's step by how fed it was with its fat drawn on, before the step's burning is booked. Report only. */
+private fun HexGroups.bookPackHunger(g: HexGroup, hazards: List<Hazard>) {
+    val s = g.species
+    val onFat = Hazards.onFatOf(s, g.fed, g.fat, days)
+    val b = PackHunger.bucket(onFat)
+    val a = stats.packHunger.computeIfAbsent(s) { Array(PackHunger.BUCKETS * PackHunger.entries.size) { java.util.concurrent.atomic.DoubleAdder() } }
+    fun add(e: PackHunger, v: Float) = a[PackHunger.at(b, e)].add(v.toDouble())
+    val grown = g.adults.toFloat()
+    var ha = 0f; var hy = 0f
+    for (h in hazards) if (h.cause == DeathCause.HUNGER) { ha += h.adult; hy += h.young }
+    add(PackHunger.HEAD_YEARS, grown * years); add(PackHunger.YOUNG_YEARS, g.young * years)
+    // (Weighted by head-years, so their means over [PackHunger.HEAD_YEARS] do not grow with the steps in a year.)
+    val w = grown * years
+    add(PackHunger.FED, w * g.fed); add(PackHunger.ON_FAT, w * onFat); add(PackHunger.FAT_DAYS, w * g.fat)
+    add(PackHunger.SPENT_DAYS, w * g.spent)
+    if (g.home.none) add(PackHunger.HOMELESS_YEARS, w)
+    if (!g.stepKilled) add(PackHunger.NO_KILL_YEARS, w)
+    add(PackHunger.KILLS_EXPECTED, w * g.stepKillsExpected)
+    add(when (g.stepStop) { 0 -> PackHunger.STOP_FED; 1 -> PackHunger.STOP_DAYS; else -> PackHunger.STOP_PASSES }, w)
+    add(PackHunger.PASSES, w * g.stepPasses); add(PackHunger.WORK_DAYS, w * g.stepWorkDays); add(PackHunger.OWED_DAYS, w * g.stepOwed)
+    add(PackHunger.BUSY_DAYS, w * g.stepBusy); add(PackHunger.SEARCH_DAYS, w * g.stepSearch); add(PackHunger.KILLS_FIRST_PASS, w * g.stepKills0)
+    add(PackHunger.GAME_DAYS, w * g.stepGameDays); add(PackHunger.GAME_KILLS, w * g.stepGameKills); add(PackHunger.GAME_KG, w * g.stepGameKg)
+    add(PackHunger.OTHER_DAYS, w * g.stepOtherDays); add(PackHunger.SCAVENGED_DAYS, w * g.stepScavDays)
+    add(PackHunger.SMALL_DAYS, w * g.stepSmallDays); add(PackHunger.SMALL_EXP, w * g.stepSmallExp); add(PackHunger.SMALL_GOT, w * g.stepSmallGot)
+    add(PackHunger.CARRION_DAYS, w * g.stepCarrionDays); add(PackHunger.CARRION_EXP, w * g.stepCarrionExp); add(PackHunger.CARRION_GOT, w * g.stepCarrionGot)
+    add(PackHunger.BONE_DAYS, w * g.stepBoneDays); add(PackHunger.BONE_EXP, w * g.stepBoneExp); add(PackHunger.BONE_GOT, w * g.stepBoneGot)
+    add(PackHunger.GROWN_HUNGER, grown * min(1f, ha)); add(PackHunger.YOUNG_HUNGER, g.young * min(1f, hy))
+}

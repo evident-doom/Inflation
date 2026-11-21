@@ -471,6 +471,7 @@ class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, @Transi
     enum class DeadPool { CARRION, LITTER, DUNG }
     /** Lays [kgM2] of dead matter into [pool] at place [p]. */
     fun deposit(pool: DeadPool, p: Place, kgM2: KgM2) {
+        GroundCheck.place(p, 1)
         when (pool) { DeadPool.CARRION -> { carrion[p] += kgM2.v; flow(CarrionFlow.DIRECT_IN, p, kgM2.v) }; DeadPool.LITTER -> litter[p] += kgM2.v; DeadPool.DUNG -> dung[p] += kgM2.v }
     }
     /** Lays [kg] of the buried dead into the ground at place [p]: they rot into the soil's organic matter, out of the scavengers' reach. */

@@ -1,6 +1,7 @@
 package inflation.tools.fauna
 
 import inflation.ecology.Famine
+import inflation.ecology.PackHunger
 import inflation.EnumFloats
 import inflation.enumFloats
 import inflation.world.Hex
@@ -461,6 +462,15 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
         }
     }
 
+    /** How much of the land has grinding rock ([inflation.world.HexLand.groundStone]) at all, by area, and how many bands live on it. */
+    private fun groundStoneAt(bands: List<HexGroup>): String {
+        val land = sim.land
+        var area = 0.0; var stone = 0.0
+        for (p in 0 until land.n) { area += land.areaKm2[p]; if (land.groundStone[p] > 0f) stone += land.areaKm2[p] }
+        return " | ground stone on %.1f%% of land, under %.0f%% of bands".format(100.0 * stone / area.coerceAtLeast(1e-9),
+            100.0 * bands.count { land.groundStone[it.place.i] > 0f } / bands.size.coerceAtLeast(1))
+    }
+
     private fun skillsAndKit(bands: List<HexGroup>, bs: List<Band>): String {
         val groups = sim.groups; val hex = sim.hex
         return "skills " + Skill.entries.joinToString(", ") { f -> "%s %.2f".format(f.name.lowercase(), bs.map { it.skills[f] }.average()) } +
@@ -469,6 +479,7 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
                 bs.sumOf { (it.kit[t] * it.made[t]).toDouble() } / bs.sumOf { it.kit[t].toDouble() }.coerceAtLeast(1e-9)) } +
             " | spare tool sets held " + Tool.entries.joinToString(", ") { t -> "%s %.0f in %d bands".format(t.name.lowercase(),
                 bs.sumOf { it.spare[t].toDouble() }, bs.count { it.spare[t] > 0.01f }) } +
+            groundStoneAt(bands) +
             " | customs " + Tradition.entries.joinToString(", ") { t -> "%s %.0f%%".format(t.name.lowercase(), 100.0 * bs.count { it.holds(t) } / bs.size) } +
             " | elders %.0f%% of adults, children inbred %.3f".format(100.0 * bs.sumOf { it.elders } / bands.sumOf { it.adults }.coerceAtLeast(1),
                 bs.map { it.inbred.toDouble() }.average()) +
@@ -800,6 +811,43 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
                 per(v(Famine.GROWN_HUNGER), Famine.YEARS_GROWN), per(v(Famine.GROWN_ILLNESS), Famine.YEARS_GROWN), per(v(Famine.GROWN_OTHER), Famine.YEARS_GROWN),
                 per(v(Famine.YOUNG_HUNGER), Famine.YEARS_YOUNG), per(v(Famine.YOUNG_ILLNESS), Famine.YEARS_YOUNG), per(v(Famine.YOUNG_OTHER), Famine.YEARS_YOUNG),
                 per(v(Famine.ELDERS_ALL), Famine.YEARS_ELDERS), 1000.0 * (grownAll - v(Famine.ELDERS_ALL)) / primeYears))
+        }
+        run {
+            // (Beasts in groups by how fed over the step with their fat drawn on: share of grown head-years, mean fed, fed with
+            // fat, fat days, protein burnt as the step began, and hunger deaths per 1000 a year, grown and young, from the odds.)
+            val names = arrayOf("under half", "half to 0.9", "0.9 and over")
+            for ((sp, arr) in sim.groups.stats.packHunger.entries.sortedBy { it.key.name }) {
+                val v = arr.map { it.sumThenReset() }
+                fun at(b: Int, e: PackHunger) = v[PackHunger.at(b, e)]
+                val all = (0 until PackHunger.BUCKETS).sumOf { at(it, PackHunger.HEAD_YEARS) }
+                if (all <= 0.0) continue
+                println("     %s by how fed over the step, fat drawn on (share of grown head-years: fed, with fat, fat d, protein burnt d at start; hunger deaths per 1000 a year grown, young; homeless, no kill of its own in the step; kills expected a step; %.0f grown head-years): ".format(sp.name, all) +
+                    (0 until PackHunger.BUCKETS).joinToString(", ") { b ->
+                        val y = at(b, PackHunger.HEAD_YEARS).coerceAtLeast(1e-9); val yy = at(b, PackHunger.YOUNG_YEARS).coerceAtLeast(1e-9)
+                        "%s %.1f%%: %.3f, %.3f, %.1f, %.2f; %.1f, %.1f; %.0f%%, %.0f%%; %.2f".format(names[b], 100.0 * at(b, PackHunger.HEAD_YEARS) / all,
+                            at(b, PackHunger.FED) / y, at(b, PackHunger.ON_FAT) / y, at(b, PackHunger.FAT_DAYS) / y, at(b, PackHunger.SPENT_DAYS) / y,
+                            1000.0 * at(b, PackHunger.GROWN_HUNGER) / y, 1000.0 * at(b, PackHunger.YOUNG_HUNGER) / yy,
+                            100.0 * at(b, PackHunger.HOMELESS_YEARS) / y, 100.0 * at(b, PackHunger.NO_KILL_YEARS) / y, at(b, PackHunger.KILLS_EXPECTED) / y) })
+                println("     %s's forage passes by how fed (stopped fed, out of days, out of passes; passes, work days, owed from the step before, handling, searching, kills expected in the first pass): ".format(sp.name) +
+                    (0 until PackHunger.BUCKETS).joinToString(", ") { b ->
+                        val y = at(b, PackHunger.HEAD_YEARS).coerceAtLeast(1e-9)
+                        "%s: %.0f%%, %.0f%%, %.0f%%; %.1f, %.1f, %.1f, %.1f, %.1f, %.2f".format(names[b],
+                            100.0 * at(b, PackHunger.STOP_FED) / y, 100.0 * at(b, PackHunger.STOP_DAYS) / y, 100.0 * at(b, PackHunger.STOP_PASSES) / y,
+                            at(b, PackHunger.PASSES) / y, at(b, PackHunger.WORK_DAYS) / y, at(b, PackHunger.OWED_DAYS) / y, at(b, PackHunger.BUSY_DAYS) / y,
+                            at(b, PackHunger.SEARCH_DAYS) / y, at(b, PackHunger.KILLS_FIRST_PASS) / y) })
+                println("     %s's handling by how fed (big-game kills a step, kg a kill, days handling them, days a kill; days handling other foods; eating days scavengers gave back): ".format(sp.name) +
+                    (0 until PackHunger.BUCKETS).joinToString(", ") { b ->
+                        val y = at(b, PackHunger.HEAD_YEARS).coerceAtLeast(1e-9); val k = at(b, PackHunger.GAME_KILLS)
+                        "%s: %.2f, %.0f, %.1f, %.1f; %.1f; %.1f".format(names[b], k / y, at(b, PackHunger.GAME_KG) / k.coerceAtLeast(1e-9),
+                            at(b, PackHunger.GAME_DAYS) / y, at(b, PackHunger.GAME_DAYS) / k.coerceAtLeast(1e-9), at(b, PackHunger.OTHER_DAYS) / y,
+                            at(b, PackHunger.SCAVENGED_DAYS) / y) })
+                println("     %s's small foods by how fed (days handling, kg expected, kg got, a step: small game; carrion; bones): ".format(sp.name) +
+                    (0 until PackHunger.BUCKETS).joinToString(", ") { b ->
+                        val y = at(b, PackHunger.HEAD_YEARS).coerceAtLeast(1e-9)
+                        fun t(d: PackHunger, e: PackHunger, g: PackHunger) = "%.1f, %.1f, %.1f".format(at(b, d) / y, at(b, e) / y, at(b, g) / y)
+                        "%s: %s; %s; %s".format(names[b], t(PackHunger.SMALL_DAYS, PackHunger.SMALL_EXP, PackHunger.SMALL_GOT),
+                            t(PackHunger.CARRION_DAYS, PackHunger.CARRION_EXP, PackHunger.CARRION_GOT), t(PackHunger.BONE_DAYS, PackHunger.BONE_EXP, PackHunger.BONE_GOT)) })
+            }
         }
         val hex = sim.hex
         // (Bouts a 1000 a year: the people-weeks sick over the weeks a bout lasts, per person-year. Shigellosis 0.6-107 a 1000 a

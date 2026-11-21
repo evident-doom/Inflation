@@ -303,6 +303,7 @@ internal fun HexGroups.huntGame(g: HexGroup, k: Int, p: Place, expected: Float, 
     val s = g.species; val band = g.band
     val ps = fauna.kinds[k]
     val area = land.areaKm2[p]
+    GroundCheck.place(p, 6)
     // (Of a kind that also roams, the grown of its packs standing here are come on as its settled are: [HexFauna.packGrown].)
     val pack = fauna.packAt(k, p)
     val settled = fauna.adults[k][p] + fauna.young[k][p]

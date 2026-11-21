@@ -51,8 +51,9 @@ object HexPicture {
     }
 
     /** The picture of the [w] × [h] km from (x0, y0), at [px] pixels per km; without [rivers], the river courses are left for the
-     * viewer to draw by their flow. */
-    fun render(world: World, hex: HexMap, x0: Double, y0: Double, wKm: Double, hKm: Double, px: Int, rivers: Boolean = true): BufferedImage {
+     * viewer to draw by their flow; [cover] gives each land cell's colour before shading (by default its world-gen kind's). */
+    fun render(world: World, hex: HexMap, x0: Double, y0: Double, wKm: Double, hKm: Double, px: Int, rivers: Boolean = true,
+               cover: (Int) -> Int = { world.biome[it].rgb }): BufferedImage {
         val g = world.grid
         val ck = g.cellKm
         val w = min(wKm, g.width * ck - x0); val h = min(hKm, g.height * ck - y0)
@@ -61,7 +62,7 @@ object HexPicture {
         for (py in 0 until img.height) for (pxi in 0 until img.width) {
             val cx = ((x0 + pxi.toDouble() / px) / ck).toInt().coerceIn(0, g.width - 1)
             val cy = ((y0 + py.toDouble() / px) / ck).toInt().coerceIn(0, g.height - 1)
-            img.setRGB(pxi, py, cellColour(world, cx, cy))
+            img.setRGB(pxi, py, cellColour(world, cx, cy, cover))
         }
         val gr = img.createGraphics()
         gr.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
@@ -129,7 +130,7 @@ object HexPicture {
         return img
     }
 
-    private fun cellColour(world: World, x: Int, y: Int): Int {
+    private fun cellColour(world: World, x: Int, y: Int, cover: (Int) -> Int): Int {
         val g = world.grid
         val i = g.index(x, y)
         if (world.isSea[i]) return 0x30506e
@@ -138,7 +139,7 @@ object HexPicture {
         val ex = world.elevation[g.index(min(x + 1, g.width - 1), y)] - world.elevation[g.index(max(x - 1, 0), y)]
         val ey = world.elevation[g.index(x, min(y + 1, g.height - 1))] - world.elevation[g.index(x, max(y - 1, 0))]
         val shade = (0.78f - (ex + ey) / (3f * g.cellM.toFloat())).coerceIn(0.25f, 1.1f)
-        val base = world.biome[i].rgb
+        val base = cover(i)
         val hgt = (e / 3500f).coerceIn(0f, 1f)
         fun ch(c: Int) = ((c * (1 - 0.5f * hgt) + 230 * 0.5f * hgt) * shade).toInt().coerceIn(0, 255)
         val cliff = world.terrain.cliff[i]

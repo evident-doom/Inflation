@@ -699,6 +699,7 @@ class HexWater(private val hw: HexWorld, private val land: HexLand, @Transient p
         // stock [search] times what it wants (less for skilled hands) gives it half (Holling).
         fun take(stock: FloatArray, q: Hex, areaKm2: Float, search: Float, flow: String) {
             if (left <= 0f || areaKm2 <= 0f) return
+            GroundCheck.hex(q, 10)
             val s = stock[q] * areaKm2
             if (s <= 0f) return
             // (Over the step's days in closed form, the same at any step length: [takenOver].)

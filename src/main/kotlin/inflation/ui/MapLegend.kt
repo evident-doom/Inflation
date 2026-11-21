@@ -16,8 +16,8 @@ import kotlin.math.abs
 internal class MapLegend(val title: String, val text: String, val ramp: ((Float) -> Color?)? = null,
                          val ticks: List<Pair<Float, String>> = emptyList(), val note: String = "",
                          val swatches: List<Swatch> = emptyList()) {
-    /** A mark on the map, a dot (or a triangle), its colour and what it stands for. */
-    class Swatch(val color: Color, val label: String, val triangle: Boolean = false)
+    /** A mark on the map, a dot (or a triangle, or drawn by [mark] at x, y with half-size r as on the map), its colour and what it stands for. */
+    class Swatch(val color: Color, val label: String, val triangle: Boolean = false, val mark: ((Graphics2D, Int, Int, Int) -> Unit)? = null)
 
     companion object {
         private const val WIDTH = 230
@@ -98,7 +98,9 @@ internal class MapLegend(val title: String, val text: String, val ramp: ((Float)
             for (sw in swatches) {
                 val mx = x + PAD + r; val my = cy + textH / 2
                 g.color = sw.color
-                if (sw.triangle) g.fillPolygon(intArrayOf(mx - r, mx, mx + r), intArrayOf(my + r, my - r, my + r), 3)
+                val mark = sw.mark
+                if (mark != null) { g.stroke = BasicStroke(1f); mark(g, mx, my, r) }
+                else if (sw.triangle) g.fillPolygon(intArrayOf(mx - r, mx, mx + r), intArrayOf(my + r, my - r, my + r), 3)
                 else g.fillOval(mx - r, my - r, 2 * r, 2 * r)
                 g.color = Color.WHITE; g.drawString(sw.label, x + PAD + 2 * r + 6, cy + g.fontMetrics.ascent)
                 cy += textH
