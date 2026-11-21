@@ -796,7 +796,7 @@ internal fun GroupWorld.practise(g: HexGroup, band: Band, hunted: Boolean, small
     if (hunted) band.practise(Skill.HUNT)
     if (smallGot > 0f) band.practise(Skill.SMALL_GAME)
     if (plants > 0f) { band.practise(Skill.GATHER); learnPlants(band, hw.placeHex[g.place]) }
-    if (fish > 0f) band.practise(Skill.FISH)
+    if (fish > 0f) { band.practise(Skill.FISH); if (band.has(Tool.BOAT) > 0f) band.practise(Skill.PADDLING) }
     if (band.fire > 0f) band.practise(Skill.ROASTING)
     stats.tally(Tally.of(g.species, Tally.OfKind.FISH), fish.toInt())
 }

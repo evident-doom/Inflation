@@ -71,24 +71,29 @@ internal class Reach(val from: Hex, val reach: Float, val hexes: HexArray, val d
  * Safe on all cores: two that search at once keep the one that went further, and their answers agree within the shorter.
  */
 @Part("reach: least-effort search")
-internal fun HexGroups.reachOf(s: Species, band: Int, from: Hex, most: Float, weather: Weather): Reach =
-    searchedAtLeast(s, band, from, most, weather).within(most)
+internal fun HexGroups.reachOf(s: Species, band: Int, from: Hex, most: Float, weather: Weather, craft: Int = 0): Reach =
+    searchedAtLeast(s, band, from, most, weather, craft).within(most)
 
 /**
  * A search of the ground about [from] that went at least [most] km ([reachOf]), perhaps further, as it is kept: for a caller
  * that reads it only within [most] itself ([Reach.km] and [Reach.wayTo] with [most], [Reach.forEachWithin]), sparing the
  * copy [Reach.within] makes. What it reads so is the same on every run.
  */
-internal fun HexGroups.searchedAtLeast(s: Species, band: Int, from: Hex, most: Float, weather: Weather): Reach {
-    val key = (s.index.toLong() * 8 + band) * hex.size + from.i
+internal fun HexGroups.searchedAtLeast(s: Species, band: Int, from: Hex, most: Float, weather: Weather, craft: Int = 0): Reach {
+    val boats = if (s.human) craft.coerceIn(0, CRAFT_LEVELS) else 0
+    val key = ((s.index.toLong() * 8 + band) * (CRAFT_LEVELS + 1) + boats) * hex.size + from.i
     planner.reachCache[key]?.let { if (it.reach >= most) return it }
-    val mine = searchFrom(s, band, from, most, weather)
+    val mine = searchFrom(s, band, from, most, weather, boats)
     return planner.reachCache.merge(key, mine) { a, b -> if (a.reach >= b.reach) a else b } ?: mine
 }
 
+/** As [searchedAtLeast], for group [g]: its kind, the height band of its place, and its band's going by water ([craftOf]). */
+internal fun HexGroups.searchedAtLeast(g: HexGroup, from: Hex, most: Float, weather: Weather): Reach =
+    searchedAtLeast(g.species, hw.placeBand[g.place], from, most, weather, craftOf(g))
+
 /** The km of easy going from [from] to [to] for group [g], if within [most] ([reachOf]); else null. A point query: no copy is made. */
 internal fun HexGroups.goingKm(g: HexGroup, from: Hex, to: Hex, most: Float, weather: Weather): Float? =
-    searchedAtLeast(g.species, hw.placeBand[g.place], from, most, weather).km(to, most)
+    searchedAtLeast(g, from, most, weather).km(to, most)
 
 /**
  * How far hex [h] is from the [goal] group [g] is drawn to, for the pulls toward goals (its season's place, its appointment,
@@ -116,7 +121,7 @@ internal fun HexGroups.toward(g: HexGroup, goal: Hex, here: Hex, h: Hex, weather
  */
 internal fun HexGroups.saltKnown(g: HexGroup, b: Band, here: Hex, weather: Weather): Hex {
     if (b.saltFrom == here) return b.saltAt
-    val reach = searchedAtLeast(g.species, hw.placeBand[g.place], here, GOAL_GOING_KM, weather)
+    val reach = searchedAtLeast(g, here, GOAL_GOING_KM, weather)
     return bands.saltKnown(b, here) { h -> reach.km(h, GOAL_GOING_KM)?.toDouble() ?: max(GOAL_GOING_KM.toDouble(), hexKm(here, h)) }
 }
 
@@ -129,18 +134,23 @@ internal const val GOAL_GOING_KM = 6f * DAY_WALK_KM
  */
 internal fun GroupWorld.kinReachKm(): Float = DAY_WALK_KM
 
-/** [reachOf]'s reach for group [g] from hex [from]: its kind, the height band of its place. */
+/** [reachOf]'s reach for group [g] from hex [from]: its kind, the height band of its place, its band's going by water ([craftOf]). */
 internal fun HexGroups.reachOf(g: HexGroup, from: Hex, most: Float, weather: Weather): Reach =
-    reachOf(g.species, hw.placeBand[g.place], from, most, weather)
+    reachOf(g.species, hw.placeBand[g.place], from, most, weather, craftOf(g))
 
-/** The search itself ([reachOf]): least effort first, of equals the lower hex, so it is the same on every run and every core. */
-private fun HexGroups.searchFrom(s: Species, band: Int, from: Hex, most: Float, weather: Weather): Reach {
+/**
+ * The search itself ([reachOf]): least effort first, of equals the lower hex, so it is the same on every run and every core.
+ * People with boats ([craft] above 0) have the ways by water besides ([boatEdges]).
+ */
+private fun HexGroups.searchFrom(s: Species, band: Int, from: Hex, most: Float, weather: Weather, craft: Int): Reach {
     val le = hex.searcher(); le.start(from)
-    val effort = planner.stepEffort(Catalogue.travel(s).ordinal, band, weather)
+    val travel = Catalogue.travel(s).ordinal
+    val effort = planner.stepEffort(travel, band, weather)
     val swim = Catalogue.swimKm(s)
     while (true) {
         val h = le.next(); if (h.none) break
         le.across(hex, h, effort, most)
+        if (craft > 0) boatEdges(le, h, le.dist(h), craft, travel, effort, weather, most)
         // Swimmers may cross a strait they can cover, at a great effort.
         if (swim > 0f) for (i in seaLinks[h].indices) {
             val gapKm = seaGaps[h][i]

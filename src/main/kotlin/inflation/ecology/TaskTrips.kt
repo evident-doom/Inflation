@@ -33,7 +33,7 @@ internal fun HexGroups.taskTrips(g: HexGroup, b: Band, time: BandTime?, weather:
     var reach: Reach? = null
     for ((k, m) in PlaceMemory.RARE.withIndex()) {
         if (lacking(g, b, m) < TASK_LACK || taskRate(m, g.place, here, month) > 0f) continue
-        val r = reach ?: searchedAtLeast(g.species, hw.placeBand[g.place], here, TASK_KM, weather).also { reach = it }
+        val r = reach ?: searchedAtLeast(g, here, TASK_KM, weather).also { reach = it }
         var at = Hex.NONE; var km = Float.MAX_VALUE
         for (i in 0 until PlaceMemory.MEMORY_SLOTS) {
             val h = mem.hex[i]

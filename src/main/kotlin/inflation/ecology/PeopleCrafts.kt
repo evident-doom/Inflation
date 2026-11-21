@@ -185,7 +185,8 @@ internal fun GroupWorld.nurseDays(b: Band, people: Float) =
 
 /** [b]'s tools wear out in use (slowly lying idle); a band with a use for a tool or practised at a kind of work now and then hits on a new one. */
 @Part("people: wear and invent")
-internal fun GroupWorld.wearAndInvent(b: Band, years: Float) {
+internal fun GroupWorld.wearAndInvent(b: Band, years: Float, h: Hex) {
+    learnBoats(b, h)
     for (t in Tool.entries) {
         // Tools wear out in use; lying idle, slowly (cords rot, hafts dry and crack).
         val inUse = t == Tool.CLOTHES || t.uses.any { b.weeks - b.lastUsed[it] <= 1 }

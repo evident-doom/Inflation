@@ -315,7 +315,7 @@ internal fun HexGroups.homeReachKm(id: Int) = HOMES_KM * (1f + HOMES_FAME_REACH 
  * reckoned from ([homeKm]).
  */
 internal fun HexGroups.homesReach(g: HexGroup, weather: inflation.world.Weather): Reach =
-    searchedAtLeast(g.species, hw.placeBand[g.place], hw.placeHex[g.place], HOMES_KM.toFloat(), weather)
+    searchedAtLeast(g, hw.placeHex[g.place], HOMES_KM.toFloat(), weather)
 
 /**
  * How far home [hh] of band [id] lies from [from] for knowing of it, km, if it is worth knowing of ([homeReachKm]); else
@@ -744,7 +744,7 @@ internal fun HexGroups.cultureWeek(g: HexGroup, rnd: kotlin.random.Random, day: 
     // Country far from where it now lives, by the going ([REMEMBERED_KM]), fades from memory, a share of it a year.
     if (rnd.nextFloat() < years) {
         val here = hw.placeHex[g.place]
-        val near = searchedAtLeast(g.species, hw.placeBand[g.place], here, REMEMBERED_KM.toFloat(), weather)
+        val near = searchedAtLeast(g, here, REMEMBERED_KM.toFloat(), weather)
         for (w in b.known.indices) { var bits = b.known[w]; while (bits != 0L) { val i = java.lang.Long.numberOfTrailingZeros(bits); bits = bits and (bits - 1)
             val h = Hex(w * 64 + i)
             if (near.km(h, REMEMBERED_KM.toFloat()) == null && rnd.nextFloat() < 0.5f * routes.forgetShare(h)) b.known[w] = b.known[w] and (1L shl i).inv() } }

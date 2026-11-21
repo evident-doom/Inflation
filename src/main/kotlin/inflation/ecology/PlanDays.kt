@@ -417,6 +417,8 @@ private fun HexGroups.toolRates(g: HexGroup, b: Band, perDay: Float, skip: Tool?
             Tool.SPEAR -> more(meatKg, WEAPONLESS + (1f - WEAPONLESS) * k, 1f)
             Tool.BOW -> more(meatKg, 1f + 0.5f * BOW_GAIN * k, 1f + 0.5f * BOW_GAIN)
             Tool.NET -> more(netKg, 1f + NET_GAIN * k, 1f + NET_GAIN)
+            // (Boats weighed for their fish alone; the ways by water they open are not reckoned here.)
+            Tool.BOAT -> boatFishMore(b.foodFrom[FoodFrom.FISH] * perYear, k, b.skill(Skill.PADDLING), perDay)
         }
         val lasts = (1f / t.wearPerYear).let { if (t.heavy) min(it, keepYears(b, ticksPerYear)) else it }
         val whole = t.makeDays * people / b.makeSkill(t).coerceAtLeast(1e-3f)

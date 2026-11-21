@@ -66,6 +66,7 @@ internal fun HexGroups.tripAlong(g: HexGroup, way: Way, people: Float, paid: Wal
     if (way.hexes.size < 2 || times <= 0) return
     wearWay(way, people * g.species.massKg, times, back = true)
     val b = g.band ?: return
+    if (b.craft > 0 && overWater(way)) b.practise(Skill.PADDLING)
     val owed = visitDays(people * times, way.km.toDouble())
     when (paid) {
         WalkPaid.NEXT_STEP -> b.raidWalkOwed += owed
@@ -83,7 +84,7 @@ internal fun HexGroups.tripAlong(g: HexGroup, way: Way, people: Float, paid: Wal
     val way = findWay(g, hw.placeHex[g.place], to, weather) ?: return null
     if (way.hexes.size < 2) return way
     wearWay(way, g.size * g.species.massKg, 1, back = false)
-    g.band?.let { b -> b.raidWalkOwed += g.adults * way.km / DAY_WALK_KM }
+    g.band?.let { b -> b.raidWalkOwed += g.adults * way.km / DAY_WALK_KM; if (b.craft > 0 && overWater(way)) b.practise(Skill.PADDLING) }
     return way
 }
 

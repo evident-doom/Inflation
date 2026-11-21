@@ -59,6 +59,10 @@ enum class Domain {
     WEIRS,
     /** Growing grain: keeping seed corn through the year, clearing and hoeing, sowing in time, reaping before the ears shed. */
     FARMING,
+    /** Making boats: hollowing a trunk with adze and fire, or sewing bark or hide over a frame; how well it floats and lasts. */
+    BOATBUILDING,
+    /** Handling a boat: paddling and poling, reading the current, the swell and the weather, landing safely. */
+    BOATING,
 }
 
 /**
@@ -173,6 +177,20 @@ enum class Skill(val domain: Domain, val floor: Float, val start: Float = 0f, va
      * take longer at the field work ([Band.lapse] against [ref]).
      */
     CULTIVATION(Domain.FARMING, CRAFT_FLOOR, known = false, invent = 0f, teach = 0.1f, ref = PRACTISED_LEVEL),
+    /**
+     * Making a boat ([Tool.BOAT]): one dial for now, whatever the design (a dugout, a bark or a skin boat; Olli 2026-11-21:
+     * the designs are not named yet, the making and the handling are dials). Watercraft are far older than the model's start
+     * (Sahul was reached across open water 50,000 years ago or more; Natufian-age visits to Cyprus), though the oldest boat
+     * found is the Pesse logboat, about 8000 BC (dates from memory, to check). Known to bands that have settled by water a
+     * boat could use ([boatWater]); others learn it from them.
+     */
+    BOATBUILDING(Domain.BOATBUILDING, CRAFT_FLOOR, known = false, ref = PRACTISED_LEVEL),
+    /**
+     * Handling a boat: with [BOATBUILDING]'s boat, crossing rivers, short open water and, with skill, travelling up and
+     * down rivers and along the coast as the water and the weather allow ([boatEdges]); and fishing further out
+     * ([Band.fishing]). Known as [BOATBUILDING] is.
+     */
+    PADDLING(Domain.BOATING, 0.1f, known = false, ref = PRACTISED_LEVEL),
     ;
 
     /**
@@ -183,7 +201,7 @@ enum class Skill(val domain: Domain, val floor: Float, val start: Float = 0f, va
      */
     val share: Float get() = when (this) {
         GATHER, FIRE, ROASTING -> 1f
-        SMALL_GAME, FISH, HUNT, STORE, SMOKING, SALTING, SEWING, TRACK, STALK, BUTCHER, STONE_BOILING, EARTH_OVEN, LEACHING, CULTIVATION -> 0.5f
+        SMALL_GAME, FISH, HUNT, STORE, SMOKING, SALTING, SEWING, TRACK, STALK, BUTCHER, STONE_BOILING, EARTH_OVEN, LEACHING, CULTIVATION, PADDLING -> 0.5f
         HERBS, MIDWIFERY, LORE, TINKER, TENDING -> 0.1f
         SHOWING -> 0.3f
         else -> 0.2f
