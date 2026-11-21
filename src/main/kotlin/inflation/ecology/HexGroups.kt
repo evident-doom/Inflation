@@ -153,9 +153,11 @@ class HexGroups(
     @Transient var dialUse: DialUse? = null
     /**
      * The bands that held a rite at each site this month and last ([gatherAtRite]), keyed by the rite's month (counted from
-     * the world's start) and its site. Not saved: a gathering under way when a save is taken is forgotten.
+     * the world's start) and its site. Saved, so that a gathering under way when a save is taken goes on after a load: those
+     * coming later still meet those already there. (It was not, and a loaded world parted from the one that ran on whenever a
+     * save fell in a rite's month: HexSnapshotTest, 2026-11-20.)
      */
-    @Transient internal val riteGatherings = HashMap<Long, MutableList<HexGroup>>()
+    internal val riteGatherings = HashMap<Long, MutableList<HexGroup>>()
     /** How packs set their ways each week ([AnimalWays]); null for the hand-written ways. */
     @Transient var hunterWays: AnimalWays? = null
     /** The packs of each kind that also lives settled standing at each place, as [fillPackGame] last found them (place × 64 + kind slot). Not saved. */
