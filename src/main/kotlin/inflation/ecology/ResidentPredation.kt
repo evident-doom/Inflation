@@ -227,14 +227,20 @@ fun HexFauna.game(s: Species, p: Place): Float {
 
 /**
  * The food hunter [s] lives on at place [p], kg per km², what its numbers follow ([HexFauna.usualAt]): the game of its size
- * ([preyBiomass]) for a hunter that lives mainly on game; for one that lives on small prey and carrion, that game as far as it
- * takes any and the small prey it reaches ([HexSmallLife.smallPreyReached]).
+ * ([preyBiomass]) for a hunter that lives mainly on game; for one that lives on small prey and carrion, each of its animal
+ * foods as far as it lives on it: the game of its size, the small prey it reaches ([HexSmallLife.smallPreyReached]) and the
+ * carrion lying there, weighed by their shares of its diet. (Counted whole, the game held a striped hyena, a tenth of whose
+ * food it is, as if it lived on nothing else: settled 30 years, hyenas stood 10-14 times as thick as before and took more
+ * boar, gazelle and roe than any other hunter, w1122 2026-11-23.)
  */
 fun HexFauna.huntersFood(s: Species, p: Place): Float {
     if (HexFauna.holdsByPrey(s)) return preyBiomass(s, p)
     val d = s.diet
-    return (if (d.meat > 0f) preyBiomass(s, p) else 0f) +
-        (if (d.smallPrey > 0f) small.smallPreyReached(p, if (d.roots > 0f) SmallHunt.ROOT else SmallHunt.STALK) else 0f)
+    var food = 0f; var shares = 0f
+    if (d.meat > 0f) { food += d.meat * preyBiomass(s, p); shares += d.meat }
+    if (d.smallPrey > 0f) { food += d.smallPrey * small.smallPreyReached(p, if (d.roots > 0f) SmallHunt.ROOT else SmallHunt.STALK); shares += d.smallPrey }
+    if (d.carrion > 0f) { food += d.carrion * small.carrion[p.i] * 1e6f; shares += d.carrion }
+    return if (shares > 0f) food / shares else 0f
 }
 
 /**
