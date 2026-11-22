@@ -177,6 +177,12 @@ class Species(
     /** For predators: land per animal at the start, km². */
     val startKm2PerAnimal: Float = 0f,
     /**
+     * Heads per km² that field counts find where it lives, over the kind of country it lives in most: what a run's numbers
+     * are held against ([inflation.run.Nominal.FIELD_SLACK], the probe LimitsCheck). Null where the record has none (kinds
+     * gone wild long ago, or a relict here). Each with its source in the catalogue, "from memory" where recalled.
+     */
+    val fieldKm2: ClosedFloatingPointRange<Float>? = null,
+    /**
      * Weekly mean air temperatures it is comfortable in, °C. Outside them it needs more food and
      * the young and weak die; a [winterCoat] stretches the cold end as it grows in.
      */

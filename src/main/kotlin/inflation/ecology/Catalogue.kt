@@ -28,6 +28,8 @@ object Catalogue {
     /** Mountain gazelle: the staple prey of Natufian hunters. Mixed grazer and browser of open land. */
     val GAZELLE = Species(
         id = 0, name = "gazelle", massKg = 20f,
+        // (Field counts: mountain gazelle 10-31 in one small Israeli park (Ramat Hanadiv surveys), goitered gazelle 0.5-5 on the steppe, from memory.)
+        fieldKm2 = 0.3f..15f,
         fearOfPeople = 0.8f, boldShare = 0.03f,
         diet = Diet(grass = 0.6f, browse = 0.4f),
         groupSize = 12, maxGroupSize = 40,
@@ -55,6 +57,8 @@ object Catalogue {
      */
     val DEER = Species(
         id = 1, name = "deer", massKg = 90f,
+        // (Field counts: red deer in Białowieża 0-5.4 (Jędrzejewska et al. 1997), 2-3.5 (Kamler et al. 2007, Wildl. Biol. 13:48).)
+        fieldKm2 = 0.3f..6f,
         // (Acorns and beechnuts where the oaks and beeches bear, berries less: red deer fatten on fallen mast in autumn;
         // from memory of the record, not checked.)
         diet = Diet(grass = 0.45f, browse = 0.45f, fruit = 0.03f, mast = 0.07f),
@@ -85,6 +89,8 @@ object Catalogue {
      */
     val ROE_DEER = Species(
         id = 22, name = "roe deer", massKg = 25f,
+        // (Field counts: Białowieża 0.6-4.8 (Jędrzejewska et al. 1997), spring 1.2-3.2 (Theuerkauf et al. 2008); up to 20-30 on farmland without their hunters, from memory.)
+        fieldKm2 = 0.5f..10f,
         // (Berries and fallen acorns alike in autumn; from memory of the record, not checked.)
         diet = Diet(grass = 0.2f, browse = 0.7f, fruit = 0.05f, mast = 0.05f),
         groupSize = 3, maxGroupSize = 6,
@@ -110,6 +116,8 @@ object Catalogue {
     /** Wild boar: omnivore of forest, thicket and marsh; roots, acorns, bulbs; large litters. */
     val BOAR = Species(
         id = 2, name = "wild boar", massKg = 90f,
+        // (Field counts: Białowieża 0.2-3.8 over a century (Jędrzejewska et al. 1997, Acta Theriol. 42:399), spring 2.2-4.3 (Theuerkauf et al. 2008, Ann. Zool. Fenn. 45); more after a mast.)
+        fieldKm2 = 0.2f..5f,
         fearOfPeople = 0.6f, boldShare = 0.1f,
         // (Mast, acorns and beechnuts, the most of a boar's food through autumn and winter where it falls; roots, bulbs and
         // tubers dug the year round; fleshy fruit a little: as the reviews of the boar's diet have it, from memory, not
@@ -150,6 +158,8 @@ object Catalogue {
     /** Aurochs: huge wild cattle of wet lowlands, floodplains and open woodland; formidable when cornered. */
     val AUROCHS = Species(
         id = 3, name = "aurochs", massKg = 750f,
+        // (Field counts: none for the aurochs; European bison in Białowieża some 0.5-1, from memory.)
+        fieldKm2 = 0.1f..2f,
         fearOfPeople = 0.6f, boldShare = 0.05f,
         diet = Diet(grass = 0.8f, browse = 0.2f),
         groupSize = 15, maxGroupSize = 40,
@@ -173,6 +183,8 @@ object Catalogue {
     /** Onager (Asiatic wild ass): fast grazer of steppe and semi-desert, needs to drink often. */
     val ONAGER = Species(
         id = 4, name = "onager", massKg = 230f,
+        // (Field counts: khulan and onager some 0.05-0.6, from memory.)
+        fieldKm2 = 0.03f..1f,
         diet = Diet(grass = 0.9f, browse = 0.1f),
         groupSize = 8, maxGroupSize = 30,
         dailyTravelKm = 15f, maxDailyTravelKm = 50f, senseKm = 4f,
@@ -229,6 +241,8 @@ object Catalogue {
      */
     val BEAR = Species(
         id = 6, name = "brown bear", massKg = 150f,
+        // (Field counts: European brown bears some 0.01-0.1, the Carpathians to 0.2, from memory.)
+        fieldKm2 = 0.01f..0.2f,
         fearOfPeople = 0.6f, boldShare = 0.05f,
         // (Berries in summer, hard mast, beechnuts and acorns, in autumn to fatten for the winter sleep; from memory, not checked.)
         diet = Diet(grass = 0.1f, browse = 0.1f, roots = 0.2f, fruit = 0.15f, mast = 0.15f, meat = 0.1f, smallPrey = 0.1f, carrion = 0.1f),
@@ -265,6 +279,8 @@ object Catalogue {
      */
     val WOLF = Species(
         id = 15, name = "wolf", massKg = 22f,
+        // (Field counts: Białowieża some 0.02-0.03, from memory.)
+        fieldKm2 = 0.005f..0.06f,
         fearOfPeople = 0.5f, boldShare = 0.15f,
         diet = Diet(meat = 0.6f, smallPrey = 0.25f, carrion = 0.15f),
         groupSize = 3, maxGroupSize = 8,
@@ -297,6 +313,8 @@ object Catalogue {
      */
     val LION = Species(
         id = 16, name = "lion", massKg = 150f,
+        // (Field counts: from memory: 0.01-0.03 on poor ground, 0.1 on the richest.)
+        fieldKm2 = 0.003f..0.1f,
         fearOfPeople = 0.6f, boldShare = 0.05f,
         diet = Diet(meat = 0.9f, carrion = 0.1f),
         groupSize = 5, maxGroupSize = 12,
@@ -326,6 +344,8 @@ object Catalogue {
     /** Leopard: a solitary stalker of broken and wooded ground; caches kills away from bigger rivals. */
     val LEOPARD = Species(
         id = 17, name = "leopard", massKg = 45f,
+        // (Field counts: Persian and Arabian leopards some 0.01-0.03, from memory.)
+        fieldKm2 = 0.003f..0.05f,
         fearOfPeople = 0.7f, boldShare = 0.03f,
         diet = Diet(meat = 0.6f, smallPrey = 0.35f, carrion = 0.05f),
         groupSize = 2, maxGroupSize = 4,
@@ -358,6 +378,8 @@ object Catalogue {
     /** Striped hyena: mostly a scavenger, cracking the bones others leave; also takes small prey and young. */
     val HYENA = Species(
         id = 18, name = "striped hyena", massKg = 35f,
+        // (Field counts: from memory: some 0.01-0.1.)
+        fieldKm2 = 0.005f..0.1f,
         fearOfPeople = 0.5f, boldShare = 0.1f,
         diet = Diet(meat = 0.1f, smallPrey = 0.25f, carrion = 0.55f, fruit = 0.1f),
         groupSize = 2, maxGroupSize = 5,
@@ -389,6 +411,8 @@ object Catalogue {
     /** Golden jackal: pairs living on rodents, carrion and the young of gazelle and deer. */
     val JACKAL = Species(
         id = 19, name = "jackal", massKg = 10f,
+        // (Field counts: golden jackals about one family group a km² in Europe, 0.1-5 in the record (Arnold et al. 2012, Mammal Rev.; from the review as found), 0.06-0.11 groups on average over four Balkan countries; a group two to six.)
+        fieldKm2 = 0.2f..5f,
         fearOfPeople = 0.4f, boldShare = 0.15f,
         diet = Diet(meat = 0.1f, smallPrey = 0.5f, carrion = 0.25f, fruit = 0.15f),
         groupSize = 2, maxGroupSize = 6,
@@ -424,6 +448,8 @@ object Catalogue {
      */
     val ELK = Species(
         id = 7, name = "elk", massKg = 400f,
+        // (Field counts: moose with wolves some 0.1-1, up to 2 managed, from memory.)
+        fieldKm2 = 0.1f..2f,
         // (Its summer water plants are browse here: it does not dig bulbs or pick up acorns, and the model's roots are those.)
         diet = Diet(grass = 0.1f, browse = 0.9f),
         groupSize = 2, maxGroupSize = 5,
@@ -452,6 +478,8 @@ object Catalogue {
      */
     val WILD_GOAT = Species(
         id = 8, name = "wild goat", massKg = 40f,
+        // (Field counts: bezoar goats some 1-5 on their crags, from memory.)
+        fieldKm2 = 0.3f..5f,
         fearOfPeople = 0.75f, boldShare = 0.05f,
         diet = Diet(grass = 0.5f, browse = 0.5f),
         groupSize = 10, maxGroupSize = 50,
@@ -478,6 +506,8 @@ object Catalogue {
      */
     val HORSE = Species(
         id = 9, name = "wild horse", massKg = 300f,
+        // (Field counts: Przewalski's horses some 0.1-0.5 where set back, from memory.)
+        fieldKm2 = 0.05f..1f,
         fearOfPeople = 0.7f, boldShare = 0.05f,
         diet = Diet(grass = 0.9f, browse = 0.1f),
         groupSize = 10, maxGroupSize = 25,
@@ -507,6 +537,8 @@ object Catalogue {
      */
     val MOUFLON = Species(
         id = 10, name = "mouflon", massKg = 40f,
+        // (Field counts: from memory: a few to ten a km² on good ground.)
+        fieldKm2 = 0.3f..10f,
         fearOfPeople = 0.7f, boldShare = 0.06f,
         diet = Diet(grass = 0.8f, browse = 0.2f),
         groupSize = 10, maxGroupSize = 40,
@@ -536,6 +568,8 @@ object Catalogue {
      */
     val ORYX = Species(
         id = 11, name = "oryx", massKg = 70f,
+        // (Field counts: Arabian oryx some 0.01-0.1, more on better ground, from memory.)
+        fieldKm2 = 0.01f..0.5f,
         diet = Diet(grass = 0.7f, browse = 0.3f),
         groupSize = 10, maxGroupSize = 30,
         dailyTravelKm = 10f, maxDailyTravelKm = 40f, senseKm = 4f,
@@ -559,6 +593,8 @@ object Catalogue {
      */
     val OSTRICH = Species(
         id = 12, name = "ostrich", massKg = 110f,
+        // (Field counts: Maasai ostrich 0.03-0.08 around Amboseli and Natron (African Wildlife Foundation surveys, 2016).)
+        fieldKm2 = 0.02f..0.5f,
         // A picky feeder on green shoots, flowers, seeds and fruit, not a bulk grazer; it does not dig (the seeds and flowers
         // are counted with the fruit).
         diet = Diet(grass = 0.2f, browse = 0.4f, fruit = 0.4f),
@@ -646,6 +682,8 @@ object Catalogue {
      */
     val CHEETAH = Species(
         id = 20, name = "cheetah", massKg = 45f,
+        // (Field counts: from memory: some 0.005-0.02.)
+        fieldKm2 = 0.001f..0.02f,
         fearOfPeople = 0.7f, boldShare = 0.08f,
         diet = Diet(meat = 0.8f, smallPrey = 0.2f),
         groupSize = 2, maxGroupSize = 4,

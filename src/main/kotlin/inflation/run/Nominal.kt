@@ -210,6 +210,12 @@ object Nominal {
      * 1976 at 1000 mm), for a season's crowding on the best ground.
      */
     const val RESIDENTS_MAX_T_KM2 = 50.0
+    /**
+     * How far a kind's heads per km², over the kind of country it lives in most, may stand from what field counts find
+     * there ([inflation.ecology.Species.fieldKm2]), as a factor either way: lax at first, as the field ranges are wide and
+     * some from memory.
+     */
+    const val FIELD_SLACK = 2.0
     /** Any place's temperature over a week, °C: the coldest and hottest weeks on Earth's land are near -60 and 45 °C. */
     const val PLACE_TEMPERATURE_MIN = -60.0; const val PLACE_TEMPERATURE_MAX = 50.0
     /** What a table of a stock may hold below zero, as a share of its largest value (float rounding). */
@@ -542,6 +548,48 @@ object Nominal {
             }
         }
         return Result(t.findings, t.tried, "state at the end, ${sim.weather.date}")
+    }
+
+    /**
+     * Each kind against the field ([fieldDensity], [inflation.ecology.Species.fieldKm2], within [FIELD_SLACK]): apart from
+     * [state], as a kind off the field is the model's balance to work at, not a run gone wrong.
+     */
+    fun field(sim: HexSim): Result {
+        val t = Tally()
+        for ((s, d) in fieldDensity(sim)) { val f = s.fieldKm2 ?: continue
+            t.check(d.perKm2 >= f.start / FIELD_SLACK && d.perKm2 <= f.endInclusive * FIELD_SLACK, s.name) {
+                "%s a km² in %s, the field %s..%s".format(fmt(d.perKm2), d.country, fmt(f.start.toDouble()), fmt(f.endInclusive.toDouble())) } }
+        return Result(t.findings, t.tried, "kinds against the field, ${sim.weather.date}")
+    }
+
+    /** A kind's heads per km² over the kind of country it lives in most, and that country's name. */
+    class FieldDensity(val perKm2: Double, val country: String)
+
+    /**
+     * Each kind's heads per km² over the kind of country holding most of them ([inflation.world.HexCountry.kind]):
+     * residents as they stand, and the hunting packs (not the bands: people have [PEOPLE_MAX_KM2]). Kinds with no heads
+     * are left out.
+     */
+    fun fieldDensity(sim: HexSim): Map<inflation.ecology.Species, FieldDensity> {
+        val land = sim.land; val fauna = sim.fauna; val kind = land.country.kind
+        val nb = inflation.world.Biome.entries.size
+        val area = DoubleArray(nb); for (p in 0 until land.n) area[kind[p]] += land.areaKm2[p].toDouble()
+        val out = LinkedHashMap<inflation.ecology.Species, FieldDensity>()
+        fun put(s: inflation.ecology.Species, heads: DoubleArray) {
+            val b = heads.indices.maxByOrNull { heads[it] } ?: return
+            if (heads[b] > 0.0 && area[b] > 0.0) out[s] = FieldDensity(heads[b] / area[b], inflation.world.Biome.entries[b].label)
+        }
+        for ((k, s) in fauna.kinds.withIndex()) {
+            val heads = DoubleArray(nb)
+            for (p in 0 until land.n) heads[kind[p]] += ((fauna.adults[k][p] + fauna.young[k][p]) * land.areaKm2[p]).toDouble()
+            put(s, heads)
+        }
+        for (s in sim.groups.kinds) if (s.lifeway == Lifeway.PACK && s !in fauna.kinds) {
+            val heads = DoubleArray(nb)
+            for (g in sim.groups.groups) if (g.alive && g.species == s) heads[kind[g.place.i]] += g.size.toDouble()
+            put(s, heads)
+        }
+        return out
     }
 
     /** The tables of numbers [part] keeps (as the stocks' test finds them): fields holding arrays of floats or doubles, or arrays of those. */
