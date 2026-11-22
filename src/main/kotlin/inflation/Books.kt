@@ -160,6 +160,7 @@ enum class StockName(val label: String) {
     BITING_INSECTS("biting insects"),
     BITING_INSECTS_WAITING("biting insects waiting"),
     RODENTS("rodents"),
+    ROOT_DIGGERS("root diggers"),
     REPTILES_AND_AMPHIBIANS("reptiles and amphibians"),
     POLLINATORS("pollinators"),
     POLLINATORS_WAITING("pollinators waiting"),
