@@ -13,6 +13,8 @@ import inflation.run.TestWorlds
 import inflation.world.Date
 import inflation.world.Place
 import inflation.world.WorldCache
+import inflation.world.WorldConfig
+import inflation.Tuning
 
 /**
  * What holds each kind where it is, from a test world over [weeks]: its heads per km² over the country it lives in most
@@ -21,19 +23,25 @@ import inflation.world.WorldCache
  * hunter, past what its territories hold ([HexFauna.STRIFE_CROWD] times them); how well fed; and its deaths over the run
  * by what killed them: food and weather (hunger, thirst, cold, heat, snow, fire, flood, short of protein), sickness, the
  * hunters and people, its own kind's rivals, and age. The limit is the biggest of them but age. Then the small life against
- * the field (rodents, hares, foxes, owls, kg/km² over all the land), and the hares against their room.
+ * the field (rodents, hares, foxes, owls, root diggers, kg/km² over all the land), and the hares against their room.
  *
- * Usage: limits-check --world NAME [--weeks N]
+ * On a fresh world instead of a test world, [--seed] and [--warm] years first (the old test worlds' saves do not load
+ * once the kinds change): the world as [HexSim] starts it, carried on that long before the weeks are counted.
+ *
+ * Usage: limits-check --world NAME [--weeks N] | limits-check --seed N --warm YEARS [--weeks N]
  */
 fun main(args: Array<String>) {
-    val a = Args(args, "limits-check --world NAME [--weeks N]")
-    val named = TestWorlds.named(a.string("--world") ?: error("--world NAME"))
-    val cfg = named.config
+    val a = Args(args, "limits-check --world NAME [--weeks N] | limits-check --seed N --warm YEARS [--weeks N]")
+    val named = a.string("--world")?.let { TestWorlds.named(it) }
+    val cfg = named?.config ?: WorldConfig(seed = a.long("--seed", 1L))
+    val warm = a.int("--warm", 0)
     val weeks = a.int("--weeks", Date.DAYS_PER_YEAR / cfg.daysPerStep)
     a.done()
     val sim = HexSim(WorldCache.load(cfg) { })
-    TestWorlds.check(named, sim); HexSnapshot.load(sim, named.state); println("carrying on ${named.state} at ${sim.weather.date}")
+    if (named != null) { TestWorlds.check(named, sim); HexSnapshot.load(sim, named.state); println("carrying on ${named.state} at ${sim.weather.date}") }
+    Tuning.changed().takeIf { it.isNotEmpty() }?.let { println("tuning: $it") }
     LearnedModel.fromConfig(sim.groups) { println(it) }
+    if (warm > 0) { repeat(warm * Date.DAYS_PER_YEAR / cfg.daysPerStep) { sim.step() }; println("fresh world seed ${cfg.seed} warmed $warm years, to ${sim.weather.date}") }
     val land = sim.land; val fauna = sim.fauna; val sl = fauna.small; val n = land.n
     val nk = fauna.kinds.size
     val deaths = Array(nk) { HashMap<Cause, Double>() }
@@ -58,7 +66,7 @@ fun main(args: Array<String>) {
         }
         for (p in 0 until n) {
             val a2 = land.areaKm2[p].toDouble()
-            small[0] += sl.rodents[p] * a2; small[1] += sl.hares[p] * a2; small[2] += sl.foxes[p] * a2; small[3] += sl.owls[p] * a2
+            small[0] += sl.rodents[p] * a2; small[1] += sl.hares[p] * a2; small[2] += sl.foxes[p] * a2; small[3] += sl.owls[p] * a2; small[4] += sl.diggers[p] * a2
             val room = sl.hareCapacity(Place(p)); if (room > 0f) { hareRoomShare += sl.hares[p] / room * a2; hareWeeks += a2 }
         }
     }
@@ -134,4 +142,5 @@ private val SMALL = listOf(
     SmallField("hares", 10.0..100.0, "brown hares 3-60 a km² on farmland, of 3.5 kg, fewer on poor and wooded land"),
     SmallField("foxes", 1.0..18.0, "red foxes 0.2-3 a km², Eurasian winter mean 0.21, of 6 kg"),
     SmallField("owls", 0.2..2.0, "owls and small hawks, from memory"),
+    SmallField("diggers", 10.0..150.0, "blind mole-rats 1-15 a ha of 150 g where they live, porcupines 0.5-2 a km² of 13 kg, from memory"),
 )

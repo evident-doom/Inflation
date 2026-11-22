@@ -154,6 +154,11 @@ class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, @Transi
     /** Biting insects waiting as eggs and larvae in the mud and water, kg/km² (as the adults they will become). */
     val dormantBiting = FloatArray(n)
     val rodents = FloatArray(n) { p -> 150f * min(1f, land.plants.herb[p] / 0.4f) }
+    /**
+     * The root diggers, kg/km², one label for the slot: blind mole-rats, crested porcupines, and the digging of ground
+     * squirrels and water voles, living on the bulbs, roots and tubers they dig ([stepDiggers]).
+     */
+    val diggers = FloatArray(n) { p -> 50f * min(1f, land.plants.herb[p] / 0.4f) }
     val herps = FloatArray(n) { p -> 20f * min(1f, land.plants.herb[p] / 0.4f) }
     val pollinators = FloatArray(n) { p -> 10f * min(1f, land.plants.herb[p] / 0.4f) }
     /** Pollinators waiting out the cold and the flowerless months as eggs, larvae and pupae, kg/km² (as the active ones they will become). */
@@ -355,6 +360,7 @@ class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, @Transi
             val active = stepInsects(p, t)
             stepBiting(p, active, soilWater, weather)
             stepRodents(p, t, food, snow)
+            stepDiggers(p)
             stepHerps(p, t, soilWater)
             val b = land.fire.stepBurning[p]
             burnSmallLife(p, b)
@@ -509,7 +515,7 @@ class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, @Transi
         // (The small animals on the land, as against those in the soil and the migrants away.)
         stocks.within(StockName.SMALL_ANIMALS) {
             perKm2(StockName.INSECTS, insects); perKm2(StockName.INSECTS_WAITING, dormantInsects)
-            perKm2(StockName.BITING_INSECTS, biting); perKm2(StockName.BITING_INSECTS_WAITING, dormantBiting); perKm2(StockName.RODENTS, rodents); perKm2(StockName.REPTILES_AND_AMPHIBIANS, herps)
+            perKm2(StockName.BITING_INSECTS, biting); perKm2(StockName.BITING_INSECTS_WAITING, dormantBiting); perKm2(StockName.RODENTS, rodents); perKm2(StockName.ROOT_DIGGERS, diggers); perKm2(StockName.REPTILES_AND_AMPHIBIANS, herps)
             perKm2(StockName.POLLINATORS, pollinators); perKm2(StockName.POLLINATORS_WAITING, dormantPollinators); perKm2(StockName.HARES, hares); perKm2(StockName.HYRAX, hyrax)
             perKm2(StockName.TORTOISES, tortoises); perKm2(StockName.FOXES, foxes); perKm2(StockName.OWLS, owls); perKm2(StockName.LOCUSTS, locusts)
             for (k in BIRDS.indices) stocks.perKm2(BIRDS[k].name, bird[k], land.areaKm2)
@@ -544,6 +550,19 @@ class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, @Transi
     companion object {
         /** Share of rodents and of hares a fire kills where it burns all of a place (the rest bolt). Not measured. */
         const val RODENTS_BURNT = 0.5f
+        /**
+         * The root diggers ([stepDiggers]): the most a place holds, kg/km², where the ground is open and its roots stand
+         * thick (blind mole-rats some 1-15 a hectare of 150 g on good ground, crested porcupines 0.5-2 a km² of 13 kg: from
+         * memory, not checked); the roots standing, kg/m², at which they hold half of it; what they eat a day for their weight
+         * (a mole-rat's few tens of grams of bulbs, less than a mouse's for its size: it lives slow underground); their young
+         * a year per head; and their deaths a year, of age and, wholly unfed, of hunger.
+         */
+        const val DIGGER_MOST = 300f
+        const val DIGGER_HALF = 0.002f
+        const val DIGGER_INTAKE = 0.05f
+        const val DIGGER_YOUNG = 1.2f
+        const val DIGGER_DEATH = 0.4f
+        const val DIGGER_HUNGER = 3f
         /** Hares on open ground with herbs aplenty, kg/km² ([hareCapacity]): some thirty hares a km², the top of good farmland. */
         const val HARE_MOST = 100f
         /** Standing herbs, kg/m², at which open ground holds half [HARE_MOST] ([hareCapacity]). */
