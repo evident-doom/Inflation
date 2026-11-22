@@ -116,6 +116,7 @@ object Catalogue {
     /** Wild boar: omnivore of forest, thicket and marsh; roots, acorns, bulbs; large litters. */
     val BOAR = Species(
         id = 2, name = "wild boar", massKg = 90f,
+        robsNests = true,
         // (Field counts: Białowieża 0.2-3.8 over a century (Jędrzejewska et al. 1997, Acta Theriol. 42:399), spring 2.2-4.3 (Theuerkauf et al. 2008, Ann. Zool. Fenn. 45); more after a mast.)
         fieldKm2 = 0.2f..5f,
         fearOfPeople = 0.6f, boldShare = 0.1f,
@@ -241,6 +242,7 @@ object Catalogue {
      */
     val BEAR = Species(
         id = 6, name = "brown bear", massKg = 150f,
+        robsNests = true,
         // (Field counts: European brown bears some 0.01-0.1, the Carpathians to 0.2, from memory.)
         fieldKm2 = 0.01f..0.2f,
         fearOfPeople = 0.6f, boldShare = 0.05f,
@@ -378,6 +380,7 @@ object Catalogue {
     /** Striped hyena: mostly a scavenger, cracking the bones others leave; also takes small prey and young. */
     val HYENA = Species(
         id = 18, name = "striped hyena", massKg = 35f,
+        robsNests = true,
         // (Field counts: from memory: some 0.01-0.1.)
         fieldKm2 = 0.005f..0.1f,
         fearOfPeople = 0.5f, boldShare = 0.1f,
@@ -411,6 +414,7 @@ object Catalogue {
     /** Golden jackal: pairs living on rodents, carrion and the young of gazelle and deer. */
     val JACKAL = Species(
         id = 19, name = "jackal", massKg = 10f,
+        robsNests = true,
         // (Field counts: golden jackals about one family group a km² in Europe, 0.1-5 in the record (Arnold et al. 2012, Mammal Rev.; from the review as found), 0.06-0.11 groups on average over four Balkan countries; a group two to six.)
         fieldKm2 = 0.2f..5f,
         fearOfPeople = 0.4f, boldShare = 0.15f,
@@ -641,8 +645,9 @@ object Catalogue {
         groupSize = 5, maxGroupSize = 30,
         dailyTravelKm = 15f, maxDailyTravelKm = 50f, senseKm = 5f,
         daysWithoutWater = 7, waterFromFood = 0.8f,
-        // A hen lays 10-20 eggs; about three chicks a hen live through their first weeks.
-        birthMonth = 5, birthMonths = 3, youngPerFemale = 3f, yearsToMaturity = 3f,
+        // A hen lays 10-20 eggs, some of them pushed out of the nest the major hen sits; a nest unrobbed hatches some six
+        // chicks a hen. The nest lies 42 days on open ground, where most are robbed ([nestDays], [HexFauna.hatching]).
+        birthMonth = 5, birthMonths = 3, youngPerFemale = 6f, yearsToMaturity = 3f, nestDays = 42f,
         backgroundMortality = 0.07f, youngMortality = 0.7f,
         snowLimitMm = 30f,
         products = Products(meat = 50f, fat = 3f, hide = 10f, bone = 10f, sinew = 1f),

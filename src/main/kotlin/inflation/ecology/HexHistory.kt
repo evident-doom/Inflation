@@ -20,7 +20,7 @@ import java.io.File
  *   they make up (plants, small animals, resident animals, packs and bands); and the fish;
  * - "small life" and "water life": the fields of each, in tonnes or head counts;
  * - "deaths/<kind>": deaths of that kind in the week by cause (and for people, "adult deaths/" and "young deaths/" apart); "births": young born to residents, packs
- *   and bands; "kills": animals killed by hunters, by prey kind;
+ *   and bands; "eggs taken": eggs of the ground nesters the nest robbers took; "kills": animals killed by hunters, by prey kind;
  * - "weather": mean temperature, rain, snow lying, droughts under way;
  * - "biome/<biome>": for each kind of country as it is now ([inflation.world.HexCountry]), its area, plants, herbs and shrubs per m², canopy and the head count of each kind.
  *
@@ -42,6 +42,7 @@ class HexHistory {
         private const val ADULT_DEATHS = "adult deaths/"
         private const val YOUNG_DEATHS = "young deaths/"
         private const val BIRTHS = "births/"
+        private const val EGGS_TAKEN = "eggs taken/"
         private const val KILLS = "kills/"
         private const val FISH_FLOWS = "fish flows/"
         private const val SMALL_LIFE = "small life/"
@@ -102,6 +103,7 @@ class HexHistory {
         fun youngDeaths(kind: String, cause: String) = "$YOUNG_DEATHS$kind/$cause"
         /** Young of [kind] born in the week. */
         fun births(kind: String) = BIRTHS + kind
+        fun eggsTaken(kind: String) = EGGS_TAKEN + kind
         /** Animals of [kind] killed by hunters in the week. */
         fun kills(kind: String) = KILLS + kind
         /** Tonnes of sea and lake fish gone one [way] in the week. */
@@ -278,6 +280,7 @@ class HexHistory {
         for ((s, v) in groups.stats.births) births.merge(s.name, v.toDouble(), Double::plus)
         for ((k, s) in fauna.kinds.withIndex()) if (fauna.bornThisWeek[k] > 0.0) births.merge(s.name, fauna.bornThisWeek[k], Double::plus)
         for ((key, v) in births) put(Key.births(key), v.toFloat())
+        for ((k, s) in fauna.kinds.withIndex()) if (fauna.eggsTakenThisWeek[k] > 0.0) put(Key.eggsTaken(s.name), fauna.eggsTakenThisWeek[k].toFloat())
         for ((s, v) in groups.stats.kills) put(Key.kills(s.name), v.toFloat())
         val taken = groups.bands.takenWeek
         for ((k, v) in taken.withIndex()) if (v > 0f) put(Key.keptTaken(fauna.kinds[k].name), v)
