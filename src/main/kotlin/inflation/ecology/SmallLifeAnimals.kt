@@ -30,30 +30,46 @@ import kotlin.math.min
 
 /**
  * Rodents (a female raises some twenty young a year): they eat ~10% of their mass a day, and a mouse or vole
- * lasts only a few days without food, so the share that found none in the week dies. They breed on fresh growth
- * (young shoots and seeds carry the protein a litter needs), logistic on food; losses to cold and deep snow.
- * Fallen acorns and nuts they eat first, as far as there are any, then the herbs: wood mice took 99% of holm, cork and
+ * lasts only a few days without food, so the share that found none in the week dies. Losses to cold and deep snow.
+ * Fallen acorns and nuts they eat first, as far as there are any, then ripe grass seed, then of what is still short a
+ * share ([RODENT_ROOTS]) from the roots and bulbs they dig, the rest herbs: wood mice took 99% of holm, cork and
  * kermes oak acorns laid out under Spanish oaks, half within a week (Pons and Pausas 2007, Ecol Res 22:535), and of holm
  * oak acorns rodents handled, 1.3% were alive the next spring (Gómez, Puerta-Piñero and Schupp 2008, Oecologia 155:529).
+ *
+ * They breed on rich food, logistic on the room it gives: fresh growth while it is warm, and seed (the fallen mast and the
+ * grass seed standing) whenever it is not freezing, each kg of seed worth [SEED_WORTH] of herbs. Forest mice and voles
+ * follow the seed crop: after a mast of oak, hornbeam or beech they breed through the winter and are several times as many
+ * the next spring (Pucek et al. 1993, J. Anim. Ecol. 62:528, Białowieża; Jensen 1982, Oecologia 54:184).
  */
 @Part("small life: rodents")
 internal fun HexSmallLife.stepRodents(p: Place, t: Float, food: Float, snow: Float) {
     var r = rodents[p]
     val need = KgKm2(r * 0.1f * days).perM2
-    val nuts = takeMast?.invoke(p, need) ?: KgM2(0f)
-    val eaten = nuts + land.plants.consume(p, LifeForm.HERB, need - nuts)
+    val f = this.food
+    val nuts = f?.takeMast(HexFood.MastFate.SMALL_LIFE, p, need) ?: KgM2(0f)
+    val seed = f?.take(f.seeds, p, need - nuts) ?: KgM2(0f)
+    val short = need - nuts - seed
+    val dug = f?.take(f.roots, p, KgM2(min(RODENT_ROOTS * short.v, f.diggable(p)))) ?: KgM2(0f)
+    val eaten = nuts + seed + dug + land.plants.consume(p, LifeForm.HERB, short - dug)
     litter[p] += FRASS * eaten.v
     ateM2(p, eaten.v); dropped(p, FRASS * eaten.v)
     val fed = if (need.v > 0f) eaten / need else 1f
-    val fresh = food * land.plants.green[p]
-    val birth = if (t > 5f) 10f * years * fed * fresh / (fresh + 0.05f) else 0f // (half the most at 0.05 kg/m² of green forage)
+    // (The seed left standing after their week's meal, kg/m², in herbs' worth.)
+    val seedWorth = SEED_WORTH * (if (f != null) f.mast[p] + f.seeds[p] else 0f)
+    val rich = (if (t > 5f) food * land.plants.green[p] else 0f) + (if (t > 0f) seedWorth else 0f)
+    val birth = 10f * years * fed * rich / (rich + 0.05f) // (half the most at 0.05 kg/m² of green forage, or 2 g/m² of seed)
     val death = tuning.rodentDeath * years + (if (snow > 30f || t < -5f) 3f * years else 0f)
     val starved = r * (1f - fed)
-    val ceil = 600f * food / (food + 0.3f)
+    val room = food + seedWorth
+    val ceil = 600f * room / (room + 0.3f)
     // (What a place holds for rodents wandering in: room on its food, less what the cold and deep snow kill; fire, below.)
     rodentRoom[p] = ceil * (1f - death).coerceAtLeast(0f)
     val bornR = r * birth * (1 - r / ceil.coerceAtLeast(1f))
     if (bornR > 0f) grew(p, bornR) else crowdLeak?.add(bornR * land.areaKm2[p].toDouble())
+    val led = rodentLedger; val cold = if (snow > 30f || t < -5f) 3f * years else 0f
+    led[RodentLedger.BORN][p] += max(0f, bornR); led[RodentLedger.DIED][p] += r * (death - cold); led[RodentLedger.COLD][p] += r * cold
+    led[RodentLedger.STARVED][p] += starved; led[RodentLedger.NEEDED][p] += need.v * 1e6f; led[RodentLedger.ATE][p] += eaten.v * 1e6f
+    led[RodentLedger.MAST][p] += nuts.v * 1e6f; led[RodentLedger.SEED][p] += seed.v * 1e6f; led[RodentLedger.ROOTS][p] += dug.v * 1e6f
     r += bornR - r * death - starved
     // (Starving below none: those dead are all there were.)
     smallDead[p] += rodents[p] * death + starved + min(0f, r)
@@ -293,3 +309,16 @@ internal fun HexSmallLife.spreadToward(f: FloatArray, room: FloatArray) {
         f[p] = max(0f, old[p] + delta)
     }
 }
+
+/**
+ * What a kg of seed (fallen mast, ripe grass seed) is worth to rodents against a kg of the herbs standing, for their breeding
+ * and the room a place has for them ([stepRodents]). Seed holds some two to three times the energy of a kg of herbage and
+ * the protein a litter needs, and of the herbs they eat only the shoots, a small part of what stands (an estimate, not
+ * measured): so 2 g/m² of seed breeds them as 50 g/m² of green herbage does.
+ */
+internal const val SEED_WORTH = 25f
+/**
+ * Share of what seed does not cover that rodents dig from roots and bulbs, the rest herbs: voles live on roots and bulbs much
+ * of the winter, blind mole-rats on little else, wood mice dig few (an estimate over the kinds, from memory of the record).
+ */
+internal const val RODENT_ROOTS = 0.3f

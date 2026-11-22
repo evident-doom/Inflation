@@ -372,10 +372,10 @@ class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, @Transi
     }
 
     /**
-     * Takes up to the asked kg/m² of fallen mast at a place, returning what was taken: set by [HexFauna], which holds the
-     * stock ([HexFood.mast]).
+     * The plant food stocks the rodents eat from besides the herbs: the fallen mast, the ripe grass seed and the roots and
+     * bulbs ([HexFood]): set by [HexFauna], which holds them.
      */
-    @Transient var takeMast: ((Place, KgM2) -> KgM2)? = null
+    @Transient var food: HexFood? = null
 
     /** The rate in the breeding months that gives [perYear] young a head a year when they last [months] months. */
     internal fun inSeason(perYear: Float, months: Int) = perYear * 12f / months
@@ -514,6 +514,8 @@ class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, @Transi
      */
     @delegate:Transient internal val rodentRoom by lazy { FloatArray(n) }
     @delegate:Transient internal val hareRoom by lazy { FloatArray(n) }
+    /** What became of the rodents of each place and what they ate since the ledger was last cleared, kg/km² ([RodentLedger]): for checks, not saved. */
+    @delegate:Transient val rodentLedger by lazy { enumTables<RodentLedger>(n) }
 
     /**
      * The share of the difference with each neighbour that crosses in a step: [SPREAD] a month, over
@@ -717,6 +719,9 @@ class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, @Transi
 
 /** Slots of [HexSmallLife.herpLedger]. */
 enum class HerpLedger { BORN, DIED_OUT, HUNGER, LYING_UP, HUNTED, ATE, NEEDED, EATEN_BY_BIRDS }
+
+/** Slots of [HexSmallLife.rodentLedger]: born, died of age and the rest, of cold and deep snow, of hunger; what they needed and ate, of it mast, grass seed and roots. */
+enum class RodentLedger { BORN, DIED, COLD, STARVED, NEEDED, ATE, MAST, SEED, ROOTS }
 
 /** Slots of [HexSmallLife.tortLedger]. */
 enum class TortLedger { GROWN, DIED, CROWDED, HUNTED, BURNT, BREEDING_DAYS, DAYS_OUT }
