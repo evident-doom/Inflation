@@ -262,7 +262,16 @@ class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, @Transi
     }
 
     internal fun open(p: Place) = 1f - min(1f, land.plants.canopy(p) + 0.5f * min(1f, land.plants.shrub[p] / 1.5f))
-    internal fun hareCapacity(p: Place) = 40f * land.plants.herb[p] / (land.plants.herb[p] + 0.3f) * open(p)
+    /**
+     * The hares a place holds, kg/km²: up to [HARE_MOST] on open ground with herbs, half that at [HARE_HERB_HALF] of them.
+     * Brown hares run 3-60 a km² on European farmland, 4-48 in Germany and Poland, 20-50 in autumn in protected ground in
+     * northern Italy and 0-5 where hunted (BMC Ecol. 2019, doi:10.1186/s12898-019-0247-7; PMC3536980; Eur. J. Wildl. Res.
+     * 2020, doi:10.1007/s10344-020-01405-x), some 3.5 kg each (from memory). A hare eats about a seventh of its weight a day: even 100 kg/km² of them take some 0.015 g/m² of herbs a day,
+     * nothing against the standing herbs, so what holds them is open ground with herbs to graze, not how much stands; the half
+     * point is where the herbs thin to the patchy cover of dry steppe. (Half at 0.3 kg/m² and 40 kg/km² at most, it held them
+     * to 2-4 kg/km² on open land, about one hare a km², with 25-45 g/m² of herbs standing.)
+     */
+    internal fun hareCapacity(p: Place) = HARE_MOST * land.plants.herb[p] / (land.plants.herb[p] + HARE_HERB_HALF) * open(p)
     internal fun hyraxCapacity(p: Place) = 80f * rockKopje[p] * min(1f, land.plants.shrub[p] / 0.5f + 0.2f)
     internal fun birdCapacity(k: Int, p: Place): Float {
         val grass = land.plants.herb[p] / (land.plants.herb[p] + 0.2f)
@@ -372,10 +381,10 @@ class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, @Transi
     }
 
     /**
-     * Takes up to the asked kg/m² of fallen mast at a place, returning what was taken: set by [HexFauna], which holds the
-     * stock ([HexFood.mast]).
+     * The plant food stocks the rodents eat from besides the herbs: the fallen mast, the ripe grass seed and the roots and
+     * bulbs ([HexFood]): set by [HexFauna], which holds them.
      */
-    @Transient var takeMast: ((Place, KgM2) -> KgM2)? = null
+    @Transient var food: HexFood? = null
 
     /** The rate in the breeding months that gives [perYear] young a head a year when they last [months] months. */
     internal fun inSeason(perYear: Float, months: Int) = perYear * 12f / months
@@ -514,6 +523,8 @@ class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, @Transi
      */
     @delegate:Transient internal val rodentRoom by lazy { FloatArray(n) }
     @delegate:Transient internal val hareRoom by lazy { FloatArray(n) }
+    /** What became of the rodents of each place and what they ate since the ledger was last cleared, kg/km² ([RodentLedger]): for checks, not saved. */
+    @delegate:Transient val rodentLedger by lazy { enumTables<RodentLedger>(n) }
 
     /**
      * The share of the difference with each neighbour that crosses in a step: [SPREAD] a month, over
@@ -529,6 +540,10 @@ class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, @Transi
     companion object {
         /** Share of rodents and of hares a fire kills where it burns all of a place (the rest bolt). Not measured. */
         const val RODENTS_BURNT = 0.5f
+        /** Hares on open ground with herbs aplenty, kg/km² ([hareCapacity]): some thirty hares a km², the top of good farmland. */
+        const val HARE_MOST = 100f
+        /** Standing herbs, kg/m², at which open ground holds half [HARE_MOST] ([hareCapacity]). */
+        const val HARE_HERB_HALF = 0.05f
         const val HARES_BURNT = 0.3f
         /** Share of what small plant-eaters eat that becomes their own growth (about a tenth for warm-blooded animals, Lindeman's rule). */
         const val SMALL_EFFICIENCY = 0.1f
@@ -717,6 +732,9 @@ class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, @Transi
 
 /** Slots of [HexSmallLife.herpLedger]. */
 enum class HerpLedger { BORN, DIED_OUT, HUNGER, LYING_UP, HUNTED, ATE, NEEDED, EATEN_BY_BIRDS }
+
+/** Slots of [HexSmallLife.rodentLedger]: born, died of age and the rest, of cold and deep snow, of hunger; what they needed and ate, of it mast, grass seed and roots. */
+enum class RodentLedger { BORN, DIED, COLD, STARVED, NEEDED, ATE, MAST, SEED, ROOTS }
 
 /** Slots of [HexSmallLife.tortLedger]. */
 enum class TortLedger { GROWN, DIED, CROWDED, HUNTED, BURNT, BREEDING_DAYS, DAYS_OUT }
