@@ -28,12 +28,13 @@ internal const val FAT_EFFICIENCY = 0.6f
 /** A newborn's weight against its mother's, paid from her reserves. */
 internal const val NEWBORN_SHARE = 0.08f
 /**
- * Eggs in a nest on the ground taken a year, as a share of them, for each kg/km² of nest robbers ([HexFauna.hatching]):
- * set so that some three nests in four are lost over an ostrich's 42 days where jackals, hyenas and foxes stand at their
- * field numbers (some 17 kg/km²). Most ostrich nests are robbed before they hatch, by Egyptian vultures, hyenas and
+ * Eggs in a nest on the ground taken a year, as a share of them, for each kg/km² of nest robbers ([HexFauna.hatching],
+ * each robbing kind by its small-prey share): set so that some three nests in four are lost over an ostrich's 42 days
+ * where jackals, hyenas and foxes stand at their field numbers (some 10 kg/km² so weighed: jackals 10 kg/km² at half,
+ * hyenas 2 at a quarter, foxes 5). Most ostrich nests are robbed before they hatch, by Egyptian vultures, hyenas and
  * jackals (Bertram 1992, The Ostrich Communal Nesting System; from memory, not checked).
  */
-internal const val NEST_ROB_RATE = 0.7f
+internal const val NEST_ROB_RATE = 1.2f
 /**
  * The food a mother gives in milk to nurse a young to weaning, against her own weight: a quarter. A wild sow weans her
  * piglets at some 8-10 kg after three months, about a tenth of her weight each, out of milk worth some two to three times

@@ -516,7 +516,7 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
     @Transient val eggsTakenThisWeek = DoubleArray(kinds.size)
     /** The kinds that rob nests ([Species.robsNests]). */
     @Transient internal val nestRobberKinds = kinds.indices.filter { kinds[it].robsNests }
-    /** The nest robbers at each place as the step began, kg/km²: those kinds and the small life's foxes ([HexFauna.hatching]). */
+    /** The nest robbers at each place as the step began, kg/km²: those kinds by their small-prey share, and the small life's foxes ([HexFauna.hatching]). */
     @Transient internal val nestRobbers = FloatArray(n)
 
     init {

@@ -61,14 +61,16 @@ internal fun HexFauna.breedAndDie(weather: Weather, date: Date) {
                 bred[k][p] += share
                 fun bornAt(heads: Float): Float { val due = dueYoung(k, p, heads, protein[k][p], share); return 0.5f * a[p] * due * breeding(s, due, reserve[k][p], f[p], days) }
                 crowdHeads += 0.5f * bornAt(crowdHeads)
-                val due = dueYoung(k, p, crowdHeads, protein[k][p], share)
+                val hatch = hatching(s, p)
+                val laid = dueLaid(k, p, crowdHeads, protein[k][p], share); val due = laid * hatch
                 val born = 0.5f * a[p] * due * breeding(s, due, reserve[k][p], f[p], days)
                 y[p] += born
                 bornHere = born
                 // (The eggs the robbers took are left as carrion at the nest, as the hens made them.)
-                if (s.nestDays > 0f && born > 0f) { val h = hatching(s, p)
-                    if (h > 1e-4f) { val robbed = born * (1f / h - 1f) * area; val eggKg = HexFauna.newbornShare(s, s.birthMonth) * s.massKg
-                        carcassKg[p] += robbed * eggKg; bornBook?.add((robbed * eggKg).toDouble()); eggsTakenThisWeek[k] += robbed.toDouble() } }
+                // (As many of the eggs as of the hatched the hens' food and reserves build: [breeding]'s share of them.)
+                if (hatch < 1f && laid > 0f) { val robbed = 0.5f * a[p] * laid * (1f - hatch) * breeding(s, due, reserve[k][p], f[p], days) * area
+                    val eggKg = HexFauna.newbornShare(s, s.birthMonth) * s.massKg
+                    carcassKg[p] += robbed * eggKg; bornBook?.add((robbed * eggKg).toDouble()); eggsTakenThisWeek[k] += robbed.toDouble() }
                 bornThisWeek[k] += (born * area).toDouble()
                 bornBook?.add((born * area * youngShare[k.i] * s.massKg).toDouble())
                 // The young are made of what their mothers ate: what the week's food did not build comes off the mothers' reserves (as in groups).
@@ -253,7 +255,7 @@ internal fun HexFauna.reckonShared() {
         // thicket kinds on the ground they hide in. Reckoned once a kind, as the step began.)
         val u = usuals.get(); for (k in kinds.indices) u[k] = usualAt(k, p)
         // (And the nest robbers here: [HexFauna.hatching].)
-        var rob = small.foxes[p.i]; for (k in nestRobberKinds) rob += (adults[k][p] + young[k][p]) * kinds[k].massKg; nestRobbers[p.i] = rob
+        var rob = small.foxes[p.i]; for (k in nestRobberKinds) rob += (adults[k][p] + young[k][p]) * kinds[k].massKg * kinds[k].diet.smallPrey; nestRobbers[p.i] = rob
         for (k in kinds.indices) {
             val row = sharers[k]; var sum = 0f
             for (j in row.indices) { val w = row[j]; if (j == k || w <= 0f) continue
@@ -297,12 +299,17 @@ internal fun HexFauna.stepDamp() {
 
 /** The young a mother of kind [k] at place [p] is due this step, its [share] of her season, among [heads] of her kind per km², fed [protein] of her need for it ([youngDue]), and as far as her sodium there allows ([saltBreeding]). */
 internal fun HexFauna.dueYoung(k: FaunaKind, p: Place, heads: Float, protein: Float, share: Float) =
-    youngDue(kinds[k], heads, usualAt(k.i, p), tuning.breedSpacing, protein * saltBreeding(kinds[k], p), share) * hatching(kinds[k], p)
+    dueLaid(k, p, heads, protein, share) * hatching(kinds[k], p)
+
+/** [dueYoung] before the nest robbers' take: the eggs a hen of a kind that lays is due, the young of one that bears them live. */
+internal fun HexFauna.dueLaid(k: FaunaKind, p: Place, heads: Float, protein: Float, share: Float) =
+    youngDue(kinds[k], heads, usualAt(k.i, p), tuning.breedSpacing, protein * saltBreeding(kinds[k], p), share)
 
 /**
  * The share of [s]'s eggs at [p] that hatch rather than are robbed: 1 for a kind that bears its young live; else its
  * eggs lie [Species.nestDays] in the nest, taken at [NEST_ROB_RATE] a year for each kg/km² of the nest robbers there
- * ([HexFauna.nestRobbers]). (What the hens spent on the robbed eggs is not charged them.)
+ * ([HexFauna.nestRobbers]: each robbing kind by the share of its food it hunts as small prey, the ground's small finds a
+ * nest is found among; the small life's foxes all of theirs). (What the hens spent on the robbed eggs is not charged them.)
  */
 internal fun HexFauna.hatching(s: Species, p: Place): Float =
     if (s.nestDays <= 0f) 1f else exp(-NEST_ROB_RATE * nestRobbers[p.i] * s.nestDays / Date.DAYS_PER_YEAR)
