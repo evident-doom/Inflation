@@ -624,6 +624,8 @@ class HexGroups(
      */
     @delegate:Transient val seaLinks: Array<HexArray> by lazy { links().to }
     @delegate:Transient val seaGaps: Array<FloatArray> by lazy { links().gapKm }
+    /** For each hex, the hexes whose main river flows into it: the ways up a river that boats travel ([boatEdges]). */
+    @delegate:Transient val upstream: Array<HexArray> by lazy { upstreamOf(land.hydro.down, hex) }
     /** Each core's working arrays for the searches of the ground ([reachOf]). */
     /** For each hex, the hexes across the sea from it ([to]) and the open water to each ([gapKm]). */
     class SeaCrossings(val to: Array<HexArray>, val gapKm: Array<FloatArray>)

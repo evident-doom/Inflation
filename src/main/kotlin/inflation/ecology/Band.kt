@@ -100,6 +100,13 @@ class Band(kinds: Int, totems: Int = kinds) {
     var visitShare = 1f
     /** The ticks of the step it is living through ([inflation.world.StepClock.ticks]), set as its week begins ([bandWeek]): for [practise]. */
     @Transient var stepTicks = 1
+    /**
+     * How well it goes by water this step, in [CRAFT_LEVELS] steps of [boating] (0: not at all), set as the groups begin to
+     * choose ([GroupPlanner.beginChoosing]), so every search of the ground in the step sees the same ([reachOf]).
+     */
+    @Transient var craft = 0
+    /** Whether its camp lies by water a boat could use, as of its last week ([learnBoats]): only there does it make boats or hit on their ways. */
+    @Transient var byBoatWater = false
     /** What it ate last step from each source ([FoodFrom] order), kg a person a day, for the doom trace ([traceDoomed]); null until it has eaten. */
     @Transient var stepFood: FloatArray? = null
     /** Its larder at last week's [foresee], days of its people's need before keeping warm (NaN for not yet seen). */
@@ -1184,6 +1191,7 @@ class Band(kinds: Int, totems: Int = kinds) {
         Skill.FISH -> max(TOOLLESS, max(has(Tool.NET), max(has(Tool.SPEAR), has(Tool.BASKET))))
         Skill.SMALL_GAME -> max(TOOLLESS, max(has(Tool.NET), has(Tool.BOW)))
         Skill.STONE_BOILING, Skill.LEACHING -> max(TOOLLESS, has(Tool.BASKET))
+        Skill.PADDLING -> max(TOOLLESS, has(Tool.BOAT))
         else -> 1f
     }
     /** How fast its practice teaches it, against a start band's: good teachers bring the young on faster. */
@@ -1225,7 +1233,13 @@ class Band(kinds: Int, totems: Int = kinds) {
 
     /** Small game and fish: snare lines and nets, in practised hands. */
     fun snares() = (1f + NET_GAIN * has(Tool.NET)) * skill(Skill.SMALL_GAME)
-    fun fishing() = (1f + NET_GAIN * has(Tool.NET)) / (1f + NET_GAIN) * skill(Skill.FISH)
+    /** Fishing: nets, in practised hands, and boats that take them out past the shore ([BOAT_FISH_GAIN]). */
+    fun fishing() = (1f + NET_GAIN * has(Tool.NET)) / (1f + NET_GAIN) * skill(Skill.FISH) * (1f + BOAT_FISH_GAIN * boating())
+    /**
+     * How well it goes by water, 0..1: its boats (as far as it has them for all), as well as they were made, in hands as
+     * practised as its paddlers' ([Skill.PADDLING]). Each a dial (Olli 2026-11-21).
+     */
+    fun boating() = if (kit[Tool.BOAT] <= 0f) 0f else min(1f, kit[Tool.BOAT]) * made[Tool.BOAT] * skill(Skill.PADDLING)
 
     /** How much more (above 1) or less a skill's work leaves undone than a start band's: the sick die, infants are lost. */
     fun lapse(s: Skill) = (s.floor + (1f - s.floor) * s.ref) / skill(s)

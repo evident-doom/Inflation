@@ -429,6 +429,8 @@ internal class GroupPlanner(internal val gs: HexGroups) {
     internal fun beginChoosing(predatorKg: FloatArray, month: Int, weather: Weather) {
         valuePlaces(predatorKg, month)
         reachCache.clear(); stepEffort.clear()
+        // (Each band's going by water for the step, read once here, so every search in it sees the same: [Band.craft].)
+        for (g in gs.groups) if (g.alive) g.band?.let { it.craft = craftLevel(it) }
         // (The week's crossing efforts are worked out here, once for each way of going and height band the groups have, not by
         // whichever group asks first: that one held the others up while it worked, and they stood waiting in the planning.)
         val done = HashSet<Int>()

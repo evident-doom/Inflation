@@ -91,5 +91,14 @@ enum class Tool(val recipe: Map<Material, Float>, val skill: Skill, val wearPerY
      * Neolithic Europe; the recipe and wear are estimates. Hit on only by a band that knows wells.
      */
     PICK(mapOf(Material.BONE to 1f, Material.WOOD to 0.5f, Material.SINEW to 0.05f), Skill.BONE_TOOLS, 0.5f, 1f, listOf(Skill.WELLS), Skill.WELLS, hafted = true),
+    /**
+     * Boats, about one for three people, of no named design (a dugout, a bark or a skin boat: [Skill.BOATBUILDING]); how well
+     * made ([Band.made]) is a dial of its own. The hull is worked where its trunk or bark is found, so the recipe counts only
+     * what is carried in: some wood for paddles and ribs, cord, resin to seal. Too heavy to take along when the camp moves
+     * overland. Six days a person's share, lasting about five years in use: estimates (a small dugout is a few people's
+     * weeks with adze and fire; from memory). Last, so saves made before it load.
+     */
+    BOAT(mapOf(Material.WOOD to 5f, Material.FIBRE to 0.5f, Material.RESIN to 0.1f), Skill.BOATBUILDING, 0.2f, 6f, listOf(Skill.PADDLING), Skill.PADDLING,
+        heavy = true),
 }
 

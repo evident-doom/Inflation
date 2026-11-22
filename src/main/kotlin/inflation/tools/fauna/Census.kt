@@ -1,5 +1,7 @@
 package inflation.tools.fauna
 
+import inflation.ecology.HexGroup
+import inflation.ecology.searchedAtLeast
 import inflation.ecology.HUNGER_CASES
 import inflation.ecology.REGION_CUSTOMS_APART
 import inflation.ecology.STYLE_TRAITS
@@ -1543,7 +1545,32 @@ class Census(private val sim: HexSim) {
                     100.0 * count[big] / n, 100.0 * heads[big] / heads.sum().coerceAtLeast(1.0), sizes.drop(1).take(4).joinToString("/"), sizes.count { it == 1 }))
             }
             println("     clusters of %s (%d)%s".format(if (bandsOnly) "bands" else "all groups", n, line))
+            if (bandsOnly) printClustersByGoing(gs, at)
         }
+    }
+
+    /**
+     * As [printClusters] for bands [gs] at hexes [at], joined by the going rather than the straight line: a band joins those it
+     * can reach within so many km of easy going, each by its own way over the ground and water ([searchedAtLeast]: its boats'
+     * ways too, [boatEdges]). The straight-line clusters cannot show what water or rock parts (boats thread, 2026-11-21).
+     */
+    private fun printClustersByGoing(gs: List<HexGroup>, at: Array<Hex>) {
+        val n = gs.size
+        val byHex = HashMap<Hex, MutableList<Int>>()
+        for (i in 0 until n) byHex.getOrPut(at[i]) { ArrayList() } += i
+        val line = StringBuilder()
+        for (km in floatArrayOf(30f, 60f)) {
+            val parent = IntArray(n) { it }
+            fun root(i: Int): Int { var r = i; while (parent[r] != r) r = parent[r]; var j = i; while (parent[j] != r) { val nx = parent[j]; parent[j] = r; j = nx }; return r }
+            for (i in 0 until n) groups.searchedAtLeast(gs[i], at[i], km, weather).forEachWithin(km) { h, _ ->
+                byHex[h]?.forEach { j -> val ri = root(i); val rj = root(j); if (ri != rj) parent[ri] = rj } }
+            val count = IntArray(n)
+            for (i in 0 until n) count[root(i)]++
+            val sizes = (0 until n).filter { count[it] > 0 }.map { count[it] }.sortedDescending()
+            line.append("; within %.0f km: %d clusters, largest %.0f%% of bands, next %s, %d alone".format(km, sizes.size,
+                100.0 * sizes[0] / n, sizes.drop(1).take(4).joinToString("/"), sizes.count { it == 1 }))
+        }
+        println("     clusters of bands by the going (%d)%s".format(n, line))
     }
 
     fun printIdentity(thisYear: Map<TallyKey, Int>, metYear: Map<TallyKey, Int>) {

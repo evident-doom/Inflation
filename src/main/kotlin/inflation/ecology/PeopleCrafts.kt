@@ -185,7 +185,8 @@ internal fun GroupWorld.nurseDays(b: Band, people: Float) =
 
 /** [b]'s tools wear out in use (slowly lying idle); a band with a use for a tool or practised at a kind of work now and then hits on a new one. */
 @Part("people: wear and invent")
-internal fun GroupWorld.wearAndInvent(b: Band, years: Float) {
+internal fun GroupWorld.wearAndInvent(b: Band, years: Float, h: Hex) {
+    learnBoats(b, h)
     for (t in Tool.entries) {
         // Tools wear out in use; lying idle, slowly (cords rot, hafts dry and crack).
         val inUse = t == Tool.CLOTHES || t.uses.any { b.weeks - b.lastUsed[it] <= 1 }
@@ -195,7 +196,7 @@ internal fun GroupWorld.wearAndInvent(b: Band, years: Float) {
         if (b.spare[t] > 0f) b.spare[t] = max(0f, b.spare[t] * (1f - t.wearPerYear * years * IDLE_WEAR))
         // A band that has a use for a tool now and then hits on it: bows where game is shy and
         // fast, sickles and grinding stones where it reaps seed, and so on.
-        if (!b.knows[t] && (t != Tool.PICK || b.knowsSkill[Skill.WELLS]) && rnd.nextFloat() < INVENT * b.edge(Skill.TINKER) * years * (0.5f + b.skills[t.serves])) {
+        if (!b.knows[t] && (t != Tool.PICK || b.knowsSkill[Skill.WELLS]) && (t != Tool.BOAT || b.byBoatWater) && rnd.nextFloat() < INVENT * b.edge(Skill.TINKER) * years * (0.5f + b.skills[t.serves])) {
             b.knows[t] = true
             stats.meeting(Met.Of.HIT_ON, t.name.lowercase())
         }
@@ -207,6 +208,7 @@ internal fun GroupWorld.wearAndInvent(b: Band, years: Float) {
         (s != Skill.WELLS || b.waterShort > 0f) &&
         (s != Skill.FORTIFYING || b.sinceRaided < ticksPerYear) &&
         (s != Skill.WEIRS || b.weirPull > 0.5f) &&
+        (s !in BOAT_SKILLS || b.byBoatWater) &&
         (s != Skill.TENDING || b.herds.keepsAnimals()) &&
         s.needs.let { it == null || (b.knowsSkill[it] && b.skills[it] >= NEEDS_LEVEL) } &&
         rnd.nextFloat() < s.invent * INVENT * b.edge(Skill.TINKER) * years * (0.5f + b.skill(s.domain))) {
@@ -229,7 +231,8 @@ internal fun HexGroups.makeTools(b: Band, people: Float, time: BandTime?, only: 
     var asked = 0f
     // (A planning band makes with its tools' days its clothes first, then only the tools it reckons worth them ([toolRates]).)
     val plans = only == null && b.mind.days == DaySplit.TIERED
-    val order = Tool.entries.filter { (only == null || it == only) && b.knows[it] && b.kit[it] < 1f &&
+    // (Boats are made only by water a boat could use: [Band.byBoatWater].)
+    val order = Tool.entries.filter { (only == null || it == only) && b.knows[it] && b.kit[it] < 1f && (it != Tool.BOAT || b.byBoatWater) &&
         (!plans || it == Tool.CLOTHES || b.toolPays[it]) }
         .sortedByDescending { if (plans && it == Tool.CLOTHES) Float.MAX_VALUE else b.makeFirst[it] * (1f - b.kit[it]) }
     if (time != null && only == null) dialUse?.let { u -> if (order.size > 1) {
@@ -524,12 +527,14 @@ internal const val TOOLLESS = 0.2f
  * Two bands that meet show each other the tools and ways of working one of them does not know, the more readily the better
  * they understand each other ([understood]). Bands take up a stranger's tool or way the less readily the more their customs
  * differ, and the more readily from a band that does better than they do ([aDoesBetter]). The idea comes freely; making
- * the tool well ([Band.makeQuality]) and working the way well come only with practice and teachers.
+ * the tool well ([Band.makeQuality]) and working the way well come only with practice and teachers. Boats and their skills are
+ * taken up only by bands by water a boat could use ([Band.byBoatWater]; Olli 2026-11-21).
  */
 internal fun GroupWorld.teach(a: Band, b: Band, understood: Float, aDoesBetter: Float = 0f) {
     val alike = 1f - CONFORMITY * Tradition.entries.count { a.holds(it) != b.holds(it) }.toFloat() / Tradition.entries.size
     fun prestige(fromA: Boolean) = (1f + PRESTIGE * (if (fromA) aDoesBetter else -aDoesBetter)).coerceIn(0.2f, 2f)
-    for (k in Tool.entries) if (a.knows[k] != b.knows[k] &&
+    // (Boats are taken up only by a band by water a boat could use ([boatWater]): elsewhere there is nothing to learn them on.)
+    for (k in Tool.entries) if (a.knows[k] != b.knows[k] && (k != Tool.BOAT || (if (a.knows[k]) b else a).byBoatWater) &&
         rnd.nextFloat() < TEACH * (0.5f + 0.5f * understood) * alike * prestige(a.knows[k])) {
         a.knows[k] = true; b.knows[k] = true
         stats.meeting(Met.Of.LEARNED, k.name.lowercase())
@@ -537,6 +542,7 @@ internal fun GroupWorld.teach(a: Band, b: Band, understood: Float, aDoesBetter: 
     // And ways of working: the one that knows a way shows it; the other starts on it as a beginner.
     for (k in Skill.entries) if (a.knowsSkill[k] != b.knowsSkill[k]) {
         val (from, to) = if (a.knowsSkill[k]) a to b else b to a
+        if (k in BOAT_SKILLS && !to.byBoatWater) continue
         val need = k.needs
         if (need != null && (!to.knowsSkill[need] || to.skills[need] < NEEDS_LEVEL)) continue
         val prestige = prestige(from === a)

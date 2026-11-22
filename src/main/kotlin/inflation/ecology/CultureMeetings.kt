@@ -220,7 +220,7 @@ private fun HexGroups.tellOfCountry(a: HexGroup, bandA: Band, b: HexGroup, bandB
     // (The country about it is what its people walk, by the ground ([toldKm]): not across a strait or a cliff they cannot go.)
     val told = toldKm()
     for ((home, who) in if (hb == h0) arrayOf(h0 to a) else arrayOf(h0 to a, hb to b)) {
-        searchedAtLeast(who.species, hw.placeBand[who.place], home, told, weather).forEachWithin(told) { h, _ ->
+        searchedAtLeast(who, home, told, weather).forEachWithin(told) { h, _ ->
             if (bandA.knows(h)) bandB.learn(h, hex.size); if (bandB.knows(h)) bandA.learn(h, hex.size) }
     }
     stats.meeting(Met.BANDS_TOLD_OF_COUNTRY); dealt(Dealing.Kind.TOLD, a, b)
