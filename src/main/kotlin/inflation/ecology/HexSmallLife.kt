@@ -164,6 +164,10 @@ class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, @Transi
     val hares = FloatArray(n)
     val hyrax = FloatArray(n)
     val tortoises = FloatArray(n)
+    /**
+     * The small carnivores, kg/km², one label for the slot: red foxes, wildcats, martens, mongooses and genets, on rodents,
+     * hares, birds, insects and carrion, and the newborn of the hoofed animals ([HexFauna.foxesOnYoung]).
+     */
     val foxes = FloatArray(n)
     /** Owls, kestrels, buzzards and kites hunting rodents, kg/km². */
     val owls = FloatArray(n)
@@ -665,6 +669,13 @@ class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, @Transi
         /** Foxes and wildcats eat about a fourteenth of their weight a day; prey on the ground (kg/km²) at which they get half of it. */
         const val FOX_INTAKE = 0.07f
         const val FOX_HALF = 3f
+        /**
+         * Yearly share of the newborn hoofed young ([FOX_PREY_KG], their first month or two) the foxes and small carnivores take, for
+         * each kg/km² of them: where red foxes ran about one a km² (6 kg/km²) they were the main killer of roe fawns, taking some
+         * two fifths of them in their first weeks (Aanes and Andersen 1996, Norway; from memory, not checked): two fifths in a
+         * sixth of a year at 6 kg/km².
+         */
+        const val FOX_YOUNG_RATE = 0.4f
         /**
          * Locusts: where they swarm (rain under this, mm a year); yearly chance a greened place
          * raises a swarm; a swarm, kg/km²; share dying a week in season.

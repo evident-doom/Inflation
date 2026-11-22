@@ -525,6 +525,8 @@ internal const val MOON_DARK = 0.3f
 internal const val DISPERSAL_DEATHS = 0.4f
 /** Young up to this weight now, kg, are taken by eagles: as the young of hoofed kinds up to some 80 kg grown were at three tenths of their weight; now the first weeks' piglets and calves of the bigger kinds too, as they are light ([HexFauna.youngShare]). */
 internal const val EAGLE_PREY_KG = 24f
+/** Young up to this weight now, kg, foxes and the small carnivores take ([foxesOnYoung]): the newborn of roe deer, gazelle, sheep and goats and piglets, in their first weeks. */
+internal const val FOX_PREY_KG = 6f
 /** Strength ratio beyond which the weaker pack gives way without a fight. */
 internal const val FIGHT_RATIO = 1.5f
 

@@ -438,6 +438,8 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
      * stocks always matches its flows. By the kind's own birth month, the same everywhere, so moving changes no weight.
      */
     val youngShare = FloatArray(kinds.size) { YOUNG_WEIGHT }
+    /** The month (0 from midwinter) [youngShare] was last brought to ([stepYoungShare]): the newborn's age by it ([newbornShare]). */
+    @Transient internal var youngMonth = 0
     /** A young of kind [k]'s weight now, kg ([youngShare]). */
     internal fun youngKg(k: Int) = youngShare[k] * kinds[k].massKg
     /** A young of [s]'s weight now, kg, for a kind kept as residents; the groups' fixed [YOUNG_WEIGHT] for any other. */
@@ -845,6 +847,23 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
          * growing. Piglets weigh 1-2 kg in their first weeks, when foxes, jackals and eagles take them, and some 35-45 kg at
          * a year (from memory); counted at a fixed three tenths of a sow all year, no small hunter could take one.
          */
+        /**
+         * Of [s]'s young in [month], this year's newborn: their weight as a share of a grown one's, and their share of the young
+         * (the young of the years to maturity alike: [youngShareIn]'s cohorts). 1 and 0 when this year's are grown already.
+         */
+        fun newbornShare(s: Species, month: Int): Float {
+            val born = (NEWBORN_SHARE / max(1f, s.youngPerFemale)).coerceAtMost(1f)
+            val grow = 12f * s.yearsToMaturity.coerceAtLeast(0.1f)
+            val since = (((month - s.birthMonth) % 12 + 12) % 12).toFloat()
+            return if (since < grow) born + (1f - born) * (since / grow) else 1f
+        }
+        fun newbornOfYoung(s: Species, month: Int): Float {
+            val grow = 12f * s.yearsToMaturity.coerceAtLeast(0.1f)
+            var age = (((month - s.birthMonth) % 12 + 12) % 12).toFloat()
+            if (age >= grow) return 0f
+            var cohorts = 0; while (age < grow) { cohorts++; age += 12f }
+            return 1f / cohorts
+        }
         fun youngShareIn(s: Species, month: Int): Float {
             val born = (NEWBORN_SHARE / max(1f, s.youngPerFemale)).coerceAtMost(1f)
             val grow = 12f * s.yearsToMaturity.coerceAtLeast(0.1f)
@@ -1009,7 +1028,8 @@ internal val FADED_OUT = DeathCause.OTHER
 enum class ResidentDeath(val cause: DeathCause) {
     AGE(DeathCause.AGE), HUNGER(DeathCause.HUNGER), COLD(DeathCause.COLD), HEAT(DeathCause.HEAT), DISEASE(DeathCause.DISEASE), EAGLES(DeathCause.EAGLES),
     FIRE(DeathCause.FIRE), FLOOD(DeathCause.FLOOD), SNOW(DeathCause.SNOW), CROCODILES(DeathCause.CROCODILES), THIRST(DeathCause.THIRST),
-    SHORT_OF_PROTEIN(DeathCause.SHORT_OF_PROTEIN), RIVALS(DeathCause.RIVALS), YOUNG_KILLED_BY_RIVALS(DeathCause.YOUNG_KILLED_BY_RIVALS)
+    SHORT_OF_PROTEIN(DeathCause.SHORT_OF_PROTEIN), RIVALS(DeathCause.RIVALS), YOUNG_KILLED_BY_RIVALS(DeathCause.YOUNG_KILLED_BY_RIVALS),
+    FOXES(DeathCause.FOXES)
 }
 @Suppress("NOTHING_TO_INLINE") internal inline operator fun DoubleArray.get(d: ResidentDeath) = this[d.ordinal]
 @Suppress("NOTHING_TO_INLINE") internal inline operator fun DoubleArray.set(d: ResidentDeath, v: Double) { this[d.ordinal] = v }

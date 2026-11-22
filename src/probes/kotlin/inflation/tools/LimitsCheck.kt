@@ -120,7 +120,7 @@ private fun cause(label: String): Cause = when {
     label == "disease" || label == "outbreak" -> Cause.SICKNESS
     "rivals" in label -> Cause.RIVALS
     label.startsWith("young killed by") || label.startsWith("killed by") || label.startsWith("taken by") || label == "resident hunters" ||
-        label == "hunted" || label == "eagles" || label == "crocodiles" || label == "prey fought back" -> Cause.HUNTERS
+        label == "hunted" || label == "eagles" || label == "foxes" || label == "crocodiles" || label == "prey fought back" -> Cause.HUNTERS
     else -> Cause.FOOD
 }
 

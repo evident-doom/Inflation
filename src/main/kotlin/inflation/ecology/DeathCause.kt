@@ -28,7 +28,9 @@ enum class DeathCause(override val label: String, override val shown: PlaceRecor
     YOUNG_KILLED_BY_RIVALS("young killed by rivals", PlaceRecord.Cause.KILLED),
     RESIDENT_HUNTERS("resident hunters", PlaceRecord.Cause.KILLED),
     /** The hurricane test ([HexHurricane]): a group that ended its move where a storm stood, or crossed its reach on the way. */
-    HURRICANE("hurricane", PlaceRecord.Cause.KILLED), HURRICANE_CROSSING("hurricane crossing", PlaceRecord.Cause.KILLED);
+    HURRICANE("hurricane", PlaceRecord.Cause.KILLED), HURRICANE_CROSSING("hurricane crossing", PlaceRecord.Cause.KILLED),
+    /** Newborn hoofed young taken by the foxes and the other small carnivores ([HexFauna.foxesOnYoung]). */
+    FOXES("foxes", PlaceRecord.Cause.KILLED);
 
     override fun toString() = label
 }

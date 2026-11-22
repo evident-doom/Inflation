@@ -85,7 +85,7 @@ internal fun HexFauna.breedAndDie(weather: Weather, date: Date) {
             val fireA = hz[Danger.FIRE_A]; val floodA = hz[Danger.FLOOD_A]; val snowA = hz[Danger.SNOW_A]
             val adultSum = s.backgroundMortality * years + hunger + cold + heat + thirst + disease + fireA + floodA + snowA + hz[Danger.STRIFE]
             val adultOdds = adultSum.coerceIn(0f, Hazards.MAX_GROWN_ODDS)
-            val eagle = eagleOdds(s, p); val croc = crocodileOdds(p, weather)
+            val eagle = youngTakenOdds(s, p); val croc = crocodileOdds(p, weather)
             val starved = starvedOdds(protein[k][p])
             val youngSum = youngSum(s, hz, eagle, croc, starved)
             val youngOdds = youngSum.coerceIn(0f, Hazards.MAX_YOUNG_ODDS)
@@ -150,7 +150,9 @@ private fun HexFauna.bookDeaths(k: FaunaKind, p: Place, ca: Float, cy: Float, hz
     dd[ResidentDeath.COLD] += (ca + Hazards.YOUNG_HARDER * cy) * cold
     dd[ResidentDeath.HEAT] += (ca + Hazards.YOUNG_HARDER * cy) * heat
     dd[ResidentDeath.DISEASE] += (ca + cy) * disease
-    dd[ResidentDeath.EAGLES] += cy * eagle
+    // (Of the small hunters' share, [youngTakenOdds], the eagles' and the foxes'.)
+    val byEagles = eaglesOnYoung(s, p); val byFoxes = eagle - byEagles
+    dd[ResidentDeath.EAGLES] += cy * byEagles; dd[ResidentDeath.FOXES] += cy * byFoxes
     dd[ResidentDeath.FIRE] += ca * fireA + cy * fireY
     dd[ResidentDeath.FLOOD] += ca * floodA + cy * floodY
     dd[ResidentDeath.SNOW] += ca * snowA + cy * snowY
@@ -303,14 +305,31 @@ internal fun HexFauna.offSeason(s: Species) = offSeason(s, s.birthMonth)
  */
 private fun HexFauna.seasonShare(k: FaunaKind, p: Place, date: Date) = seasonShare(kinds[k], birthStart[k][p.i].toInt(), max(0f, 1f - bred[k][p]), date, days)
 
+/** The share of [s]'s young at [p] the small hunters take in a step: eagles ([eaglesOnYoung]) and foxes ([foxesOnYoung]). */
+internal fun HexFauna.youngTakenOdds(s: Species, p: Place) = eaglesOnYoung(s, p) + foxesOnYoung(s, p)
+
 /** Eagles take the young of the smaller hoofed animals in the open: the share of [s]'s young at [p] they take in a step. */
-internal fun HexFauna.eagleOdds(s: Species, p: Place) = if (youngKgOf(s) <= EAGLE_PREY_KG) small.eagleRisk(p) * years else 0f
+internal fun HexFauna.eaglesOnYoung(s: Species, p: Place) = if (youngKgOf(s) <= EAGLE_PREY_KG) small.eagleRisk(p) * years else 0f
+
+/**
+ * Foxes and the other small carnivores (wildcats, martens, mongooses) find the young of the hoofed animals lying hidden in
+ * their first weeks, as light as [FOX_PREY_KG]: the share of [s]'s young at [p] they take in a step, as many foxes as
+ * there are ([HexSmallLife.foxRisk]), as far as the mother does not drive them off ([Species.defence]). What they kill
+ * lies as carrion, which they and the jackals find first.
+ */
+internal fun HexFauna.foxesOnYoung(s: Species, p: Place): Float {
+    // (By the newborn's own weight, not the mean of the young of all the years they take to grow: a roe's fawn weighs a kilo
+    // or two, the yearlings beside it a dozen. Of the young, only the newborn's share is at risk.)
+    if (s.massKg * HexFauna.newbornShare(s, youngMonth) > FOX_PREY_KG) return 0f
+    return small.foxRisk(p) * (1f - s.defence).coerceAtLeast(0f) * HexFauna.newbornOfYoung(s, youngMonth) * years
+}
 
 /**
  * Brings each kind's young's weight ([HexFauna.youngShare]) to [date]'s, booking what they put on (or, as the year's
  * young join the last year's, the mean's fall) into [book] as growth: the young's weight in the stocks matches its flows.
  */
 internal fun HexFauna.stepYoungShare(date: Date, book: java.util.concurrent.atomic.DoubleAdder?) {
+    youngMonth = date.month
     for ((k, s) in kinds.withKinds()) {
         val now = HexFauna.youngShareIn(s, date.month); val d = now - youngShare[k.i]
         if (d == 0f) continue

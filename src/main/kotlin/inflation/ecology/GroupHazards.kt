@@ -142,7 +142,7 @@ internal fun GroupWorld.placeHazards(g: HexGroup, p: Place, weather: Weather, fe
     // An outbreak raging where it is kills its share.
     val plague = fauna.outbreakDeaths(s, p)
     // Eagles take the young of the smaller hoofed animals in the open.
-    val eagle = if (s.human) 0f else fauna.eagleOdds(s, p)
+    val eagle = if (s.human) 0f else fauna.youngTakenOdds(s, p)
     val (fireA, floodA, snowA) = fauna.calamities(s, p, weather, false)
     val (fireY, floodY, snowY) = fauna.calamities(s, p, weather, true)
     val croc = if (s.human) 0f else fauna.crocodileOdds(p, weather)

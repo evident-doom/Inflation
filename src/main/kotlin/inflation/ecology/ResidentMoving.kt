@@ -149,7 +149,7 @@ private fun HexFauna.growthFor(k: FaunaKind, parts: EnumFloats<Growth>, youngPer
                          f: Float = fedAt(k, p, weather), heads: Float = adults[k][p] + young[k][p] + arrivingKm2(k)): Float {
     val s = kinds[k]
     val protein = forageProtein(s, p)
-    return growthOf(k, p, grownFixed(s, out), youngFixed(s, out, eagleOdds(s, p), crocodileOdds(p, weather), starvedOdds(protein)),
+    return growthOf(k, p, grownFixed(s, out), youngFixed(s, out, youngTakenOdds(s, p), crocodileOdds(p, weather), starvedOdds(protein)),
         huntedOdds(k, p, true), protein, youngPerGrown, carried, f, heads, parts)
 }
 
@@ -896,7 +896,7 @@ internal fun HexFauna.fix(k: FaunaKind, p: Place, weather: Weather, out: EnumFlo
     out[Danger.HUNTED] = huntedLately[k][p]
     val protein = forageProtein(s, p)
     w.grown[p] = grownFixed(s, out); w.protein[p] = protein; w.huntedYoung[p] = huntedYoungLately[k][p]
-    w.young[p] = youngFixed(s, out, eagleOdds(s, p), crocodileOdds(p, weather), starvedOdds(protein))
+    w.young[p] = youngFixed(s, out, youngTakenOdds(s, p), crocodileOdds(p, weather), starvedOdds(protein))
 }
 
 /**
