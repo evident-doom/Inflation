@@ -226,6 +226,18 @@ fun HexFauna.game(s: Species, p: Place): Float {
 }
 
 /**
+ * The food hunter [s] lives on at place [p], kg per km², what its numbers follow ([HexFauna.usualAt]): the game of its size
+ * ([preyBiomass]) for a hunter that lives mainly on game; for one that lives on small prey and carrion, that game as far as it
+ * takes any and the small prey it reaches ([HexSmallLife.smallPreyReached]).
+ */
+fun HexFauna.huntersFood(s: Species, p: Place): Float {
+    if (HexFauna.holdsByPrey(s)) return preyBiomass(s, p)
+    val d = s.diet
+    return (if (d.meat > 0f) preyBiomass(s, p) else 0f) +
+        (if (d.smallPrey > 0f) small.smallPreyReached(p, if (d.roots > 0f) SmallHunt.ROOT else SmallHunt.STALK) else 0f)
+}
+
+/**
  * The prey of a size hunter [s] takes standing at place [p], kg per km²: every other kind there but the beasts of prey,
  * grown and young (at [YOUNG_WEIGHT]), by its weight as far as it is of a size [s] takes ([Species.preySize]), however
  * well it defends or hides itself. What hunters' numbers follow ([HexFauna.usualAt]), as the record measures it.
