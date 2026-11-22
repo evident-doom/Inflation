@@ -162,7 +162,12 @@ private fun HexFauna.growthFor(k: FaunaKind, parts: EnumFloats<Growth>, youngPer
                      carried: Float, f: Float, heads: Float, parts: EnumFloats<Growth>?): Float {
     val s = kinds[k]
     val hunger = Hazards.hunger(s, moverSpent[k], Hazards.onFat(f, carried, days, 1f), days); val sick = Hazards.crowdBackstop(Hazards.crowding(heads + sharersKm2(k, p), usualAt(k.i, p)), f, years) + wetSickness(s, p, f) * years
-    val due = dueYoung(k, p, heads, protein, min(1f, days / (s.birthMonths * Date.DAYS_PER_MONTH.toFloat())))
+    // (The births all year, as [growthFor] weighs them; but the nest robbers' take only in the place's season, while the
+    // eggs lie there: out of it a hen does not leave her ground for ground without robbers, where her kind crowded into
+    // sickness all year for a nest of a few weeks, arms F/H 2026-11-22.)
+    val weekOfSeason = min(1f, days / (s.birthMonths * Date.DAYS_PER_MONTH.toFloat()))
+    val nesting = inflation.monthsFrom(birthStart[k.i][p.i].toInt(), youngMonth) < s.birthMonths
+    val due = if (nesting) dueYoung(k, p, heads, protein, weekOfSeason) else dueLaid(k, p, heads, protein, weekOfSeason)
     val born = 0.5f * due * breeding(s, due, carried, f, days)
     val grownDie = (grownFixed + hunger + sick).coerceIn(0f, Hazards.MAX_GROWN_ODDS)
     val youngDie = min(Hazards.MAX_YOUNG_ODDS, (youngFixed + Hazards.YOUNG_HARDER * hunger + sick).coerceIn(0f, Hazards.MAX_YOUNG_ODDS) + huntedYoung)
@@ -295,6 +300,7 @@ private fun HexFauna.recordFlow(h: Hex, to: Hex, heads: Float) {
  */
 @Part("residents: spreading to neighbouring hexes")
 internal fun HexFauna.spill(weather: Weather) {
+    youngMonth = weather.date.month
     // (The swimmers drowned this week, kind by kind: their weight as grown animals by place, and their heads.)
     val drowned = Array(kinds.size) { FloatArray(n) }; val drownedHeads = DoubleArray(kinds.size)
     // (And the heads of places left too thin to count, which go with the drowned: [fadedOut].)
