@@ -55,7 +55,9 @@ object Catalogue {
      */
     val DEER = Species(
         id = 1, name = "deer", massKg = 90f,
-        diet = Diet(grass = 0.45f, browse = 0.45f, fruit = 0.1f),
+        // (Acorns and beechnuts where the oaks and beeches bear, berries less: red deer fatten on fallen mast in autumn;
+        // from memory of the record, not checked.)
+        diet = Diet(grass = 0.45f, browse = 0.45f, fruit = 0.03f, mast = 0.07f),
         groupSize = 6, maxGroupSize = 25,
         dailyTravelKm = 5f, maxDailyTravelKm = 30f, senseKm = 2.5f,
         daysWithoutWater = 3, waterFromFood = 0.55f,
@@ -83,7 +85,8 @@ object Catalogue {
      */
     val ROE_DEER = Species(
         id = 22, name = "roe deer", massKg = 25f,
-        diet = Diet(grass = 0.2f, browse = 0.7f, fruit = 0.1f),
+        // (Berries and fallen acorns alike in autumn; from memory of the record, not checked.)
+        diet = Diet(grass = 0.2f, browse = 0.7f, fruit = 0.05f, mast = 0.05f),
         groupSize = 3, maxGroupSize = 6,
         dailyTravelKm = 3f, maxDailyTravelKm = 20f, senseKm = 1f,
         daysWithoutWater = 4, waterFromFood = 0.9f,
@@ -108,7 +111,10 @@ object Catalogue {
     val BOAR = Species(
         id = 2, name = "wild boar", massKg = 90f,
         fearOfPeople = 0.6f, boldShare = 0.1f,
-        diet = Diet(grass = 0.15f, browse = 0.1f, roots = 0.45f, fruit = 0.2f, smallPrey = 0.05f, carrion = 0.05f),
+        // (Mast, acorns and beechnuts, the most of a boar's food through autumn and winter where it falls; roots, bulbs and
+        // tubers dug the year round; fleshy fruit a little: as the reviews of the boar's diet have it, from memory, not
+        // checked. The three together as the roots and fruit were before mast was a food of its own.)
+        diet = Diet(grass = 0.15f, browse = 0.1f, roots = 0.25f, mast = 0.3f, fruit = 0.1f, smallPrey = 0.05f, carrion = 0.05f),
         groupSize = 6, maxGroupSize = 20,
         dailyTravelKm = 5f, maxDailyTravelKm = 20f, senseKm = 1.5f,
         daysWithoutWater = 2, waterFromFood = 0.4f,
@@ -224,7 +230,8 @@ object Catalogue {
     val BEAR = Species(
         id = 6, name = "brown bear", massKg = 150f,
         fearOfPeople = 0.6f, boldShare = 0.05f,
-        diet = Diet(grass = 0.1f, browse = 0.1f, roots = 0.2f, fruit = 0.3f, meat = 0.1f, smallPrey = 0.1f, carrion = 0.1f),
+        // (Berries in summer, hard mast, beechnuts and acorns, in autumn to fatten for the winter sleep; from memory, not checked.)
+        diet = Diet(grass = 0.1f, browse = 0.1f, roots = 0.2f, fruit = 0.15f, mast = 0.15f, meat = 0.1f, smallPrey = 0.1f, carrion = 0.1f),
         fibreDigestion = 0.5f, // a bear digests cellulose poorly (captive grizzlies on high-fibre feed); set as the boar
         groupSize = 2, maxGroupSize = 4,
         dailyTravelKm = 8f, maxDailyTravelKm = 30f, senseKm = 4f,

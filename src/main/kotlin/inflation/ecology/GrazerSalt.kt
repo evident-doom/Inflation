@@ -54,7 +54,7 @@ internal fun leached(rainMm: Float, leachMm: Float) = if (leachMm <= 0f || rainM
  */
 internal fun sodiumMet(s: Species, forage: Float): Float {
     val d = s.diet
-    val plants = d.grass + d.browse + d.roots + d.fruit
+    val plants = d.plants
     if (plants <= 0f) return 1f
     val animal = d.animal
     val share = plants / (plants + animal)

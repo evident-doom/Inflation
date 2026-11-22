@@ -8,25 +8,33 @@ import kotlin.math.min
 data class Diet(
     val grass: Float = 0f,
     val browse: Float = 0f,
-    /** Dug and gleaned plant food: bulbs, roots, tubers, fallen acorns and nuts. */
+    /** Dug plant food: bulbs, roots and tubers ([HexFood.diggable]). */
     val roots: Float = 0f,
-    /** Fruit, berries, seeds and nuts while they last, summer to autumn. */
+    /** Fleshy fruit and berries picked off the shrubs while they last, summer to autumn ([HexFood.fruit]). */
     val fruit: Float = 0f,
+    /**
+     * Fallen mast, acorns and nuts picked up off the ground through autumn and winter ([HexFood.mast]): eaten raw only by
+     * the kinds that bear their tannins and crack their shells (deer, pigs, bears; not the dogs nor the ostrich). People
+     * gather it, shell it and leach it ([ForageOffers]).
+     */
+    val mast: Float = 0f,
     val meat: Float = 0f,
     val smallPrey: Float = 0f,
     val carrion: Float = 0f,
 ) {
     /** Share of animal food: meat, small prey and carrion. */
     val animal: Float get() = meat + smallPrey + carrion
-    /** Share of plant food: grass, browse, fruit and roots. */
-    val plants: Float get() = grass + browse + fruit + roots
+    /** Share of plant food: grass, browse, fruit, mast and roots. */
+    val plants: Float get() = grass + browse + fruit + mast + roots
+    /** The food stocks of it, fruit, mast and roots: what the networks see as one ([inflation.learning.HexPpo]). */
+    val stocks: Float get() = fruit + mast + roots
     /** All the shares (1 for a full diet). */
-    val total: Float get() = grass + browse + fruit + roots + meat + smallPrey + carrion
+    val total: Float get() = grass + browse + fruit + mast + roots + meat + smallPrey + carrion
     /** How much of this diet [o] eats too, 0..1: the shares the two have in common (each of its whole). */
     fun overlap(o: Diet): Float {
         val a = total.coerceAtLeast(1e-6f); val b = o.total.coerceAtLeast(1e-6f)
         return min(grass / a, o.grass / b) + min(browse / a, o.browse / b) + min(roots / a, o.roots / b) + min(fruit / a, o.fruit / b) +
-            min(meat / a, o.meat / b) + min(smallPrey / a, o.smallPrey / b) + min(carrion / a, o.carrion / b)
+            min(mast / a, o.mast / b) + min(meat / a, o.meat / b) + min(smallPrey / a, o.smallPrey / b) + min(carrion / a, o.carrion / b)
     }
 }
 

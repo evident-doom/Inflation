@@ -169,7 +169,9 @@ private fun HexFauna.eatPlants(p: Place, weather: Weather, grass: Float, browse:
         // (Biting insects harassing them cost them feeding time.)
         avail[k] = reachOf(s, p)
     }
-    z.spareG = grass; z.spareB = browse; z.spareF = food.fruit[p]; z.spareR = food.underground(p)
+    // (Fruit off the shrubs, the fallen mast picked up off the ground, and the roots dug: three stocks, each shared by those
+    // that eat it.)
+    z.spareG = grass; z.spareB = browse; z.spareF = food.fruit[p]; z.spareM = food.mast[p]; z.spareR = food.diggable(p)
     val b = z.b
     val gp = grassProtein(p); val bp = browseProtein(p)
     // (Each kind's crop of the grass and browse as they stand, and its depth of snow, the same in every turn.)
@@ -188,7 +190,7 @@ private fun HexFauna.eatPlants(p: Place, weather: Weather, grass: Float, browse:
         val r = if (sum > spare && sum > 0f) spare / sum else 1f
         for (k in byMass) cap[k] = r * asked[k]
     }
-    share(z.askG, z.capG, z.spareG); share(z.askB, z.capB, z.spareB); share(z.askF, z.capF, z.spareF); share(z.askR, z.capR, z.spareR)
+    share(z.askG, z.capG, z.spareG); share(z.askB, z.capB, z.spareB); share(z.askF, z.capF, z.spareF); share(z.askM, z.capM, z.spareM); share(z.askR, z.capR, z.spareR)
     z.mode = Grazing.SHARES
     for (k in byMass) {
         val s = kinds[k]
@@ -197,12 +199,13 @@ private fun HexFauna.eatPlants(p: Place, weather: Weather, grass: Float, browse:
         eat(k)
         z.got[k] = b.got / want
         z.gotFruit[k] = (b.fruit + b.fruit2) * Nourishment.FRUIT * s.needScale / want
-        z.gotUnder[k] = (b.roots + b.roots2) * Nourishment.ROOTS * s.needScale / want
+        z.gotUnder[k] = ((b.roots + b.roots2) * Nourishment.ROOTS + (b.mast + b.mast2) * Nourishment.MAST) * s.needScale / want
         z.gotGrass[k] = (b.grass + b.grass2 * s.fibreDigestion) * b.q * s.needScale / want
         z.gotBrowse[k] = (b.browse + b.browse2 * s.fibreDigestion) * b.q * s.needScale / want
         z.browseKg[k] = b.browse + b.browse2
         z.eatG += b.grass + b.grass2; z.eatB += b.browse + b.browse2
-        z.eatF += b.fruit + b.fruit2; z.eatR += b.roots + b.roots2
+        z.eatF += b.fruit + b.fruit2; z.eatM += b.mast + b.mast2; z.eatR += b.roots + b.roots2
+        if (s.diet.roots > 0f) z.eatMRooting += b.mast + b.mast2
         z.ateKg[k] = b.eaten; z.proteinKg[k] = protein(b, s.selected(gp), s.selected(bp))
     }
     // Then the fed lay on fat from what is left.
@@ -224,7 +227,7 @@ private fun HexFauna.eatPlants(p: Place, weather: Weather, grass: Float, browse:
     }
     // What is left, for [roomFor] (how well a band coming here would be fed on it) to reckon on when they move.
     spareGrass[p] = max(0f, z.spareG); spareBrowse[p] = max(0f, z.spareB); spareFruit[p] = max(0f, z.spareF)
-    spareRoots[p] = max(0f, z.spareR)
+    spareMast[p] = max(0f, z.spareM); spareRoots[p] = max(0f, z.spareR)
 }
 
 /**
@@ -430,11 +433,12 @@ private fun HexFauna.placeEffects(p: Place, grass: Float, browse: Float, z: Graz
     val eatG = z.eatG; val eatB = z.eatB
     // What is left of the week's grazing and browsing ([grazeLeft]).
     grazeLeft[p] = max(0f, grass - eatG); browseLeft[p] = max(0f, browse - eatB)
-    val dug = food.takeUnderground(p, KgM2(z.eatR)).v
+    val dug = food.take(food.roots, p, KgM2(z.eatR)).v
+    val gleaned = food.takeMast(HexFood.MastFate.ANIMALS, p, KgM2(z.eatM)).v
     val ate = food.take(food.fruit, p, KgM2(z.eatF)).v
     val eaten = land.plants.consume(p, LifeForm.HERB, KgM2(eatG)).v +
         land.plants.eatBrowse(p, KgM2(eatB)).v +
-        ate + dug
+        ate + gleaned + dug
     // Fruit-eaters drop the seed where they go: shrubs and trees come up away from any parent.
     // (Over a step of several ticks the seed is dropped tick by tick and fades as it would each tick: S k^n + I (1 - k^n) / (1 - k), I a tick's.)
     land.plants.animalSeed[p] = min(1f, if (clock.ticks == 1) land.plants.animalSeed[p] * SEED_KEEP + ate * 1e6f / SEED_KG
@@ -449,15 +453,15 @@ private fun HexFauna.placeEffects(p: Place, grass: Float, browse: Float, z: Graz
     small.deposit(DeadPool.DUNG, p, KgM2(HexSmallLife.DUNG * eaten))
     if (ateBook != null) { val m2 = land.areaM2[p].toDouble(); ateBook!!.add(-eaten * m2); droppedBook!!.add(HexSmallLife.DUNG * eaten * m2) }
     land.plants.grazing[p] = eatG * 1e6f / days; land.plants.browsing[p] = eatB * 1e6f / days
-    // Rooting churns the ground: kg of roots dug per km2 a day.
-    land.plants.rooting[p] = dug * 1e6f / days
+    // Rooting churns the ground: kg of roots dug per km2 a day, and of the mast the rooters turned the litter over for.
+    land.plants.rooting[p] = (dug + z.eatMRooting) * 1e6f / days
 }
 
 /** How well kind [s]'s diet at place [p] would meet its need for protein, 0..1 (see [proteinMet]). */
 fun HexFauna.forageProtein(s: Species, p: Place): Float {
-    val d = leanDiet(s, p); val plants = d.grass + d.browse + d.fruit + d.roots
+    val d = leanDiet(s, p); val plants = d.plants
     if (plants <= 0f) return 1f
-    val share = (d.grass * s.selected(grassProtein(p)) + d.browse * s.selected(browseProtein(p)) + (d.fruit + d.roots) * PROTEIN_FRUIT) / plants
+    val share = (d.grass * s.selected(grassProtein(p)) + d.browse * s.selected(browseProtein(p)) + d.stocks * PROTEIN_FRUIT) / plants
     val ps = plantShare(s)
     return proteinMet(ps * share + (1f - ps))
 }

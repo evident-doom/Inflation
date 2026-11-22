@@ -9,6 +9,7 @@ import inflation.ecology.Prey
 import inflation.ecology.RodentLedger
 import inflation.ecology.Taker
 import inflation.ecology.get
+import inflation.ecology.fruitSet
 import inflation.learning.LearnedModel
 import inflation.run.TestWorlds
 import inflation.world.Date
@@ -43,6 +44,8 @@ fun main(args: Array<String>) {
 
     val wk = IntArray(12); val rod = Array(2) { DoubleArray(12) }; val mast = DoubleArray(12); val seed = DoubleArray(12); val roots = DoubleArray(12)
     val bHeads = DoubleArray(12); val bFed = DoubleArray(12)
+    // (Fruit: the season's pollination share and moisture factor in scrub (shrubs over [SCRUB] kg/m²), Jul-Oct.)
+    var setW = 0.0; var moistW = 0.0; var fruitW = 0.0
     val hare = Array(2) { DoubleArray(12) }; val hareK = Array(2) { DoubleArray(12) }; val herb = Array(2) { DoubleArray(12) }; val hareFull = DoubleArray(12)
     println("boar at the start %.0f, rodents %.0f t".format(fauna.count(FaunaKind(boar)), (0 until n).sumOf { (sl.rodents[it] * land.areaKm2[it]).toDouble() } / 1000))
     repeat(weeks) {
@@ -53,6 +56,7 @@ fun main(args: Array<String>) {
             rod[c][m] += sl.rodents[p] * a2
             val hk = sl.hareCapacity(Place(p)); hare[c][m] += sl.hares[p] * a2; hareK[c][m] += hk * a2; herb[c][m] += land.plants.herb[p] * a2
             if (sl.hares[p] > 0.9f * hk) hareFull[m] += sl.hares[p] * a2
+            if (m in 6..9 && land.plants.shrub[p] > SCRUB) { setW += sl.fruitSet(Place(p)) * a2; moistW += minOf(1f, land.plants.moisture[p] / 0.5f) * a2; fruitW += a2 }
             if (c == 0) { mast[m] += food.mast[p] * a2; seed[m] += food.seeds[p] * a2; roots[m] += food.roots[p] * a2 }
             val d = fauna.adults[boar][p] + fauna.young[boar][p]
             if (d > 0f) { bHeads[m] += d * a2; bFed[m] += d * a2 * fauna.fed[boar][p] }
@@ -76,6 +80,15 @@ fun main(args: Array<String>) {
         else -> fauna.kinds.getOrNull(i)?.name ?: "" } }
     println("rodents taken, t (woods / the rest): " + (0 until Taker.ALL).map { Triple(names[it], sum(taken[it], 0), sum(taken[it], 1)) }
         .filter { it.second + it.third > 0.5 }.sortedByDescending { it.second + it.third }.joinToString(", ") { "%s %.0f / %.0f".format(it.first, it.second, it.third) })
+    if (food.fruitYears > 0) {
+        val groups = listOf("scrub" to { q: Int -> land.plants.shrub[Place(q)] > SCRUB }, "woods" to { q: Int -> woods[q] && land.plants.shrub[Place(q)] <= SCRUB },
+            "the rest" to { q: Int -> !woods[q] && land.plants.shrub[Place(q)] <= SCRUB })
+        println("shrub fruit borne in the last whole year, kg/ha (area, shrubs kg/m²): " + groups.joinToString(", ") { (name, f) ->
+            val ps = (0 until n).filter(f); val a3 = ps.sumOf { land.areaKm2[it].toDouble() }.coerceAtLeast(1e-9)
+            "%s %.2f (%.0f km², %.2f)".format(name, ps.sumOf { food.shrubFruitLastYear[it] * 1e4 * land.areaKm2[it].toDouble() } / a3, a3,
+                ps.sumOf { land.plants.shrub[Place(it)] * land.areaKm2[it].toDouble() } / a3) })
+    }
+    println("in scrub, July-October: fruit set %.2f, moisture factor %.2f".format(setW / fruitW.coerceAtLeast(1e-9), moistW / fruitW.coerceAtLeast(1e-9)))
     val hTaken = sl.preyTakenBy[Prey.HARES.ordinal]
     println("hares taken, t (woods / the rest): " + (0 until Taker.ALL).map { Triple(names[it], sum(hTaken[it], 0), sum(hTaken[it], 1)) }
         .filter { it.second + it.third > 0.05 }.sortedByDescending { it.second + it.third }.joinToString(", ") { "%s %.1f / %.1f".format(it.first, it.second, it.third) })
@@ -87,3 +100,5 @@ fun main(args: Array<String>) {
 
 /** Trees, kg/m², over which a place counts as woods. */
 private const val WOODS = 5f
+/** Shrubs, kg/m², over which a place counts as scrub. */
+private const val SCRUB = 0.8f

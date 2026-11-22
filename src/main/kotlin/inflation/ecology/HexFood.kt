@@ -258,7 +258,9 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
      * Fruit-bearing plants at [p] in a year of mast crop [crop], kg/m²: the edible share of the shrubs ([HexLand.palatable])
      * and the fruiting share of trees ([treeBearing]).
      */
-    private fun bearing(p: Place, crop: EnumFloats<MastTrees>) = land.palatable[p] * 0.5f * land.plants.shrub[p] + treeBearing(p, crop)
+    private fun bearing(p: Place, crop: EnumFloats<MastTrees>) = shrubBearing(p) + treeBearing(p, crop)
+    /** The fruit-bearing share of [p]'s shrubs, kg/m²: the edible share of them ([HexLand.palatable]), by [SHRUB_BEARING]. */
+    private fun shrubBearing(p: Place) = SHRUB_BEARING * land.palatable[p] * land.plants.shrub[p]
     private fun rootsCap(p: Place) = ROOTS_SHARE * land.palatable[p] * land.plants.herb[p] + REED_ROOTS * land.waterlogged[p]
 
     private var standYear = -1
@@ -315,7 +317,7 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
             val ripe = if (season in FRUIT_FROM..FRUIT_TO) FRUIT_SHARE * bearing(p, weather.mastCrop) * small.fruitSet(p) *
                 min(1f, land.plants.moisture[p] / 0.5f) / FRUIT_DAYS else 0f
             // (It grows on the shrubs and trees that bear it, and comes off them.)
-            val shrubBears = land.palatable[p] * 0.5f * land.plants.shrub[p]; val treeBears = treeBearing(p, weather.mastCrop)
+            val shrubBears = shrubBearing(p); val treeBears = treeBearing(p, weather.mastCrop)
             val fromShrub = if (shrubBears + treeBears > 0f) shrubBears / (shrubBears + treeBears) else 1f
             val newFruit = days * ripe
             val bore = if (newFruit > 0f) (land.plants.consume(p, LifeForm.SHRUB, KgM2(newFruit * fromShrub)) +
@@ -516,6 +518,14 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
     companion object {
         /** Ripe fruit at the season's peak, per kg/m² of fruit-bearing plants; days it lasts before it falls. */
         const val FRUIT_SHARE = 0.0008f
+        /**
+         * The fruit-bearing share of the edible shrubs ([shrubBearing]). Scrub (shrubs over 0.8 kg/m²) bears some 11 kg/ha dry
+         * of fleshy fruit a year, the woods' understory some 2.6: Mediterranean scrub bears 6-100 kg/ha (Herrera 1995, Annu. Rev.
+         * Ecol. Syst. 26:705), mature temperate understory 0.5-2 and young or open stands 5-20 times that (USDA Forest Service,
+         * Appalachian stands). (At 0.5, carried over from the 1 km model, scrub bore 3.6 and the woods 0.86.) The trees' mast
+         * goes by [TREE_BEARING].
+         */
+        const val SHRUB_BEARING = 1.5f
         const val FRUIT_DAYS = 30f
         /** When each ripens, as the share of a normal year's warmth (degree-days above 5 °C since midwinter) had so far. */
         const val SEED_FROM = 0.25f; const val SEED_TO = 0.45f

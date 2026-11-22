@@ -217,15 +217,15 @@ fun HexFauna.fareFor(s: Species, p: Place): Float {
 
 /**
  * Food for [s] in place [p] from its diet, as standing plants, kg/m²: grass from herbs, and the
- * browse (shoots), fruit and roots stocks (counted as the standing plants that would give as much
+ * browse (shoots), fruit, mast and roots stocks (counted as the standing plants that would give as much
  * in a week); less on cliffs it cannot climb.
  */
 fun HexFauna.foodFor(s: Species, p: Place): Float {
     val d = s.diet
-    val total = d.grass + d.browse + d.fruit + d.roots
+    val total = d.plants
     if (total <= 0f) return 0f
     val plants = land.palatable[p] * d.grass * land.plants.herb[p] +
-        (d.browse * land.plants.browse(p) + d.fruit * food.fruit[p] + d.roots * food.underground(p)) / REACH
+        (d.browse * land.plants.browse(p) + d.fruit * food.fruit[p] + d.mast * food.mast[p] + d.roots * food.diggable(p)) / REACH
     return plants / total * HexFood.access(s, land.crag[p])
 }
 
