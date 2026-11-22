@@ -439,6 +439,46 @@ object Catalogue {
         shelters = setOf(Niches.Shelter.DEN, Niches.Shelter.THICKET),
     )
 
+    /**
+     * Lynx, and with it the caracal: the middle-sized cats, solitary stalkers of forest, scrub and broken ground, the roe
+     * deer's chief hunter in the woods and the gazelle's and the hare's on the dry hills (a roe or a young gazelle a week or
+     * so, with hares, birds and rodents between); a mother keeps her kits with her through their first winter. One label
+     * for the slot: the Eurasian lynx in the woods and the mountains, the caracal in the scrub and the steppe.
+     */
+    val LYNX = Species(
+        id = 23, name = "lynx", massKg = 18f,
+        // (Field counts: Eurasian lynx some 1-3 to the 100 km² (Białowieża about 3, Jędrzejewski et al.), caracal about the
+        // same where it is not hunted down; from memory, not checked.)
+        fieldKm2 = 0.005f..0.05f,
+        fearOfPeople = 0.9f, boldShare = 0.01f,
+        diet = Diet(meat = 0.7f, smallPrey = 0.27f, carrion = 0.03f),
+        groupSize = 1, maxGroupSize = 4,
+        dailyTravelKm = 8f, maxDailyTravelKm = 25f, senseKm = 3f,
+        // (The caracal lives in dry country, on what its prey holds of water.)
+        daysWithoutWater = 6, waterFromFood = 0.8f,
+        // (Kept as a resident: a litter of two or three a year.)
+        birthMonth = 5, birthMonths = 1, youngPerFemale = 2.5f, yearsToMaturity = 2f,
+        backgroundMortality = 0.1f, youngMortality = 0.5f, snowLimitMm = 900f,
+        products = Products(meat = 8f, fat = 0.3f, hide = 1.5f, bone = 2f, sinew = 0.1f, fur = true),
+        // (The lynx's winters to the caracal's summers.)
+        comfortC = -30f..38f, winterCoat = true,
+        speedKmh = 50f,
+        domestication = floatArrayOf(0.1f, 0.3f, 0.1f, 0.0f, 0.2f, 0.0f),
+        habitat = Habitat(cover = 0.3f, rugged = 0.5f),
+        // (It lies up in thickets and among rocks and climbs out of a wolf's reach.)
+        shelters = setOf(Niches.Shelter.CRAG, Niches.Shelter.THICKET, Niches.Shelter.TREE),
+        stalking = 1f,
+        // (A lynx holds its own against animals its size and kills foxes and the young of others; from memory, not checked.)
+        ferocity = 0.9f,
+        // (A lynx fights back with teeth and claws: an estimate between the onager's kicks (0.4) and the boar's tusks (0.6).)
+        defence = 0.5f,
+        // (Roe deer of 20-30 kg most of all, chamois and young deer, a caracal gazelle of its own weight; from memory.)
+        preyUpTo = 2f, preyPreferredUpTo = 1.4f,
+        startKm2PerAnimal = 60f,
+        activity = floatArrayOf(0.3f, 0.05f, 0.3f, 0.35f),
+        hidesYoung = true,
+    )
+
     // ---------------------------------------------------------------- the cold north
 
     /**
@@ -757,7 +797,7 @@ object Catalogue {
         ROE_DEER,
     )
     // (A new kind takes the next free [Species.id], so every kind keeps its index, and saved networks their identities.)
-    val predators = listOf(WOLF, LION, LEOPARD, HYENA, JACKAL, CHEETAH, HUMAN)
+    val predators = listOf(WOLF, LION, LEOPARD, HYENA, JACKAL, CHEETAH, HUMAN, LYNX)
 
     /**
      * Plant-eaters that follow the seasons over long distances; the others live out their lives in small home ranges.
@@ -775,7 +815,7 @@ object Catalogue {
      * breeding spacing, and they rose some fivefold in ten years (review/2026-10-31-ab-residents.md). (They stay in
      * [predators], so every kind keeps its index.)
      */
-    val residentHunters by lazy { setOf(JACKAL, HYENA) }
+    val residentHunters by lazy { setOf(JACKAL, HYENA, LYNX) }
 
     /**
      * Hunters that live both ways (docs/design/roaming-packs.md, Olli 2026-11-02): most settled on their ground as residents,
@@ -793,7 +833,7 @@ object Catalogue {
      * The resident hunters keep out of the way of a much stronger party ([HexFauna.strongest]). (Bears and hyenas rob a
      * pack's kills they come on by scent: [scavengedAtKill].)
      */
-    val residentRivals by lazy { setOf(JACKAL, HYENA, BEAR) }
+    val residentRivals by lazy { setOf(JACKAL, HYENA, LYNX, BEAR) }
 
     /**
      * Beasts of prey, the hunters and the bear: other hunters kill them as rivals and kill their young ([Danger.STRIFE],
