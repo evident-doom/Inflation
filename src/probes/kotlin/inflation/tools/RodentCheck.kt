@@ -43,6 +43,7 @@ fun main(args: Array<String>) {
 
     val wk = IntArray(12); val rod = Array(2) { DoubleArray(12) }; val mast = DoubleArray(12); val seed = DoubleArray(12); val roots = DoubleArray(12)
     val bHeads = DoubleArray(12); val bFed = DoubleArray(12)
+    val hare = Array(2) { DoubleArray(12) }; val hareK = Array(2) { DoubleArray(12) }; val herb = Array(2) { DoubleArray(12) }; val hareFull = DoubleArray(12)
     println("boar at the start %.0f, rodents %.0f t".format(fauna.count(FaunaKind(boar)), (0 until n).sumOf { (sl.rodents[it] * land.areaKm2[it]).toDouble() } / 1000))
     repeat(weeks) {
         sim.step()
@@ -50,6 +51,8 @@ fun main(args: Array<String>) {
         for (p in 0 until n) {
             val a2 = land.areaKm2[p].toDouble(); val c = if (woods[p]) 0 else 1
             rod[c][m] += sl.rodents[p] * a2
+            val hk = sl.hareCapacity(Place(p)); hare[c][m] += sl.hares[p] * a2; hareK[c][m] += hk * a2; herb[c][m] += land.plants.herb[p] * a2
+            if (sl.hares[p] > 0.9f * hk) hareFull[m] += sl.hares[p] * a2
             if (c == 0) { mast[m] += food.mast[p] * a2; seed[m] += food.seeds[p] * a2; roots[m] += food.roots[p] * a2 }
             val d = fauna.adults[boar][p] + fauna.young[boar][p]
             if (d > 0f) { bHeads[m] += d * a2; bFed[m] += d * a2 * fauna.fed[boar][p] }
@@ -59,6 +62,11 @@ fun main(args: Array<String>) {
     for (m in 0 until 12) if (wk[m] > 0) { val k = wk[m].toDouble()
         println("%5d  %8.1f %8.1f | %10.2f %5.2f %6.2f | %10.0f %4.2f".format(m + 1, rod[0][m] / k / km2[0], rod[1][m] / k / km2[1],
             1000 * mast[m] / k / km2[0], 1000 * seed[m] / k / km2[0], 1000 * roots[m] / k / km2[0], bHeads[m] / k, bFed[m] / bHeads[m].coerceAtLeast(1e-9))) }
+    println("\nmonth  hares kg/km² woods / open | their room woods / open | herbs g/m² woods / open | hares within 10% of their room")
+    for (m in 0 until 12) if (wk[m] > 0) { val k = wk[m].toDouble()
+        println("%5d  %6.2f %6.2f | %6.2f %6.2f | %6.1f %6.1f | %3.0f%%".format(m + 1, hare[0][m] / k / km2[0], hare[1][m] / k / km2[1],
+            hareK[0][m] / k / km2[0], hareK[1][m] / k / km2[1], 1000 * herb[0][m] / k / km2[0], 1000 * herb[1][m] / k / km2[1],
+            100 * hareFull[m] / (hare[0][m] + hare[1][m]).coerceAtLeast(1e-9))) }
 
     fun sum(t: FloatArray, c: Int) = (0 until n).filter { (if (woods[it]) 0 else 1) == c }.sumOf { (t[it] * land.areaKm2[it]).toDouble() } / 1000
     println("\nrodents over the run, t: woods / the rest")
@@ -68,6 +76,9 @@ fun main(args: Array<String>) {
         else -> fauna.kinds.getOrNull(i)?.name ?: "" } }
     println("rodents taken, t (woods / the rest): " + (0 until Taker.ALL).map { Triple(names[it], sum(taken[it], 0), sum(taken[it], 1)) }
         .filter { it.second + it.third > 0.5 }.sortedByDescending { it.second + it.third }.joinToString(", ") { "%s %.0f / %.0f".format(it.first, it.second, it.third) })
+    val hTaken = sl.preyTakenBy[Prey.HARES.ordinal]
+    println("hares taken, t (woods / the rest): " + (0 until Taker.ALL).map { Triple(names[it], sum(hTaken[it], 0), sum(hTaken[it], 1)) }
+        .filter { it.second + it.third > 0.05 }.sortedByDescending { it.second + it.third }.joinToString(", ") { "%s %.1f / %.1f".format(it.first, it.second, it.third) })
     val l = food.mastLedger.map { it.sumThenReset() }; val fell = l[HexFood.MastFate.FELL.ordinal].coerceAtLeast(1e-9)
     println("mast: fell %.0f t; animals %.1f%%, small life %.1f%%, people %.1f%%, rotted %.1f%%".format(fell / 1000,
         100 * l[HexFood.MastFate.ANIMALS.ordinal] / fell, 100 * l[HexFood.MastFate.SMALL_LIFE.ordinal] / fell, 100 * l[HexFood.MastFate.PEOPLE.ordinal] / fell, 100 * l[HexFood.MastFate.ROTTED.ordinal] / fell))
