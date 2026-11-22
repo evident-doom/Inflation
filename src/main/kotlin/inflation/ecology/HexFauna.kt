@@ -315,10 +315,11 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
             }
         }
     }
-    /** The food left uneaten at each place after every kind has eaten this week, kg per m², as far as the eaters could reach it: grass, browse, fruit and roots ([roomFor]). */
+    /** The food left uneaten at each place after every kind has eaten this week, kg per m², as far as the eaters could reach it: grass, browse, fruit, mast and roots ([roomFor]). */
     @Transient internal val spareGrass = FloatArray(n)
     @Transient internal val spareBrowse = FloatArray(n)
     @Transient internal val spareFruit = FloatArray(n)
+    @Transient internal val spareMast = FloatArray(n)
     @Transient internal val spareRoots = FloatArray(n)
 
     /**
@@ -657,23 +658,25 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         // (What each kind ate this week, kg per m2, and the protein in it: fresh growth full, cured grass
         // little; see [proteinMet]. What it ate to fatten is left out.)
         val ateKg = FloatArray(nk); val proteinKg = FloatArray(nk)
-        var spareG = 0f; var spareB = 0f; var spareF = 0f; var spareR = 0f
+        var spareG = 0f; var spareB = 0f; var spareF = 0f; var spareM = 0f; var spareR = 0f
         // (The share of the food the kind eating now can get at.)
         var access = 0f
-        var eatG = 0f; var eatB = 0f; var eatF = 0f; var eatR = 0f
+        var eatG = 0f; var eatB = 0f; var eatF = 0f; var eatM = 0f; var eatR = 0f
+        /** Of [eatM], what the kinds that root ate: they turn the ground over for it ([HexPlants.rooting]). */
+        var eatMRooting = 0f
         val b = Bites()
         /** Zeroes what a place's week fills in, for the next place (the spare food, [access] and the eaten totals are set before they are read, [b] by each [forage]). */
         fun clear() {
             need.fill(0f); each.fill(0f); avail.fill(0f); got.fill(0f); surplus.fill(0f); gotFruit.fill(0f); gotUnder.fill(0f); gotGrass.fill(0f); gotBrowse.fill(0f); browseKg.fill(0f); gotMeat.fill(0f); gotSmall.fill(0f); gotCarrion.fill(0f); carrionKg.fill(0f); needKg.fill(0f); ateKg.fill(0f); proteinKg.fill(0f)
-            eatG = 0f; eatB = 0f; eatF = 0f; eatR = 0f
-            askG.fill(0f); askB.fill(0f); askF.fill(0f); askR.fill(0f); mode = FREE
+            eatG = 0f; eatB = 0f; eatF = 0f; eatM = 0f; eatR = 0f; eatMRooting = 0f
+            askG.fill(0f); askB.fill(0f); askF.fill(0f); askM.fill(0f); askR.fill(0f); mode = FREE
         }
         // (The feeding is shared out in turns, [eatPlants]: first each kind asks what it would eat of the food there
         // ([ASKING]: noted in [askG] and the rest, nothing eaten), then each eats its share of what was asked of each food
         // ([SHARES]: at most [capG] and the rest), then the fed lay on fat from what is left ([FREE]).)
         var mode = FREE; var kind = 0
-        val askG = FloatArray(nk); val askB = FloatArray(nk); val askF = FloatArray(nk); val askR = FloatArray(nk)
-        val capG = FloatArray(nk); val capB = FloatArray(nk); val capF = FloatArray(nk); val capR = FloatArray(nk)
+        val askG = FloatArray(nk); val askB = FloatArray(nk); val askF = FloatArray(nk); val askM = FloatArray(nk); val askR = FloatArray(nk)
+        val capG = FloatArray(nk); val capB = FloatArray(nk); val capF = FloatArray(nk); val capM = FloatArray(nk); val capR = FloatArray(nk)
         private inline fun take(kg: Float, spare: Float, ask: FloatArray, cap: FloatArray, eat: (Float) -> Unit): Float {
             var t = min(kg, access * spare)
             when (mode) {
@@ -685,6 +688,7 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         override fun grass(kg: Float): Float = take(kg, spareG, askG, capG) { spareG -= it }
         override fun browse(kg: Float): Float = take(kg, spareB, askB, capB) { spareB -= it }
         override fun fruit(kg: Float): Float = take(kg, spareF, askF, capF) { spareF -= it }
+        override fun mast(kg: Float): Float = take(kg, spareM, askM, capM) { spareM -= it }
         override fun roots(kg: Float): Float = take(kg, spareR, askR, capR) { spareR -= it }
         companion object { const val ASKING = 0; const val SHARES = 1; const val FREE = 2 }
     }
@@ -944,8 +948,8 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         const val DAMP_WEEK = 1f / 26f
         /** The share of two diets that is of the same sorts of food, 0..1 (Schoener's overlap). */
         fun dietOverlap(a: Diet, b: Diet): Float {
-            val ta = (a.grass + a.browse + a.fruit + a.roots).coerceAtLeast(1e-6f); val tb = (b.grass + b.browse + b.fruit + b.roots).coerceAtLeast(1e-6f)
-            return min(a.grass / ta, b.grass / tb) + min(a.browse / ta, b.browse / tb) + min(a.fruit / ta, b.fruit / tb) + min(a.roots / ta, b.roots / tb)
+            val ta = a.plants.coerceAtLeast(1e-6f); val tb = b.plants.coerceAtLeast(1e-6f)
+            return min(a.grass / ta, b.grass / tb) + min(a.browse / ta, b.browse / tb) + min(a.fruit / ta, b.fruit / tb) + min(a.mast / ta, b.mast / tb) + min(a.roots / ta, b.roots / tb)
         }
         /** Seed carried by fruit-eaters: kg of fruit eaten per km² that seeds a place fully; share kept from week to week. */
         const val SEED_KG = 200f

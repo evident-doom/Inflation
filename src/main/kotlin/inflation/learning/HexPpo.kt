@@ -58,7 +58,7 @@ class SharedMover(val net: Mlp, val identity: FloatArray) {
         into[i++] = ln(s.dailyTravelKm) / 3f - 1f
         into[i++] = ln(s.groupSize.toFloat()) / 3f
         val d = s.diet
-        into[i++] = d.grass; into[i++] = d.browse; into[i++] = d.fruit + d.roots
+        into[i++] = d.grass; into[i++] = d.browse; into[i++] = d.stocks
         into[i++] = d.meat; into[i++] = d.smallPrey; into[i++] = d.carrion
         into[i++] = if (s in Catalogue.migratory) 1f else 0f
         into[i++] = if (s.carnivore) 1f else 0f

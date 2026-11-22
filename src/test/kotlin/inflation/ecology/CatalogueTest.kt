@@ -25,7 +25,7 @@ class CatalogueTest {
     fun `every kind's record adds up`() {
         for (s in Catalogue.all) {
             val d = s.diet
-            val diet = d.grass + d.browse + d.roots + d.fruit + d.meat + d.smallPrey + d.carrion
+            val diet = d.total
             assertTrue(kotlin.math.abs(diet - 1f) < 1e-3f, "${s.name}: diet shares sum to $diet")
             s.activity?.let { assertTrue(kotlin.math.abs(it.sum() - 1f) < 1e-3f, "${s.name}: activity sums to ${it.sum()}") }
             // (A carcass is less than the animal: guts, blood and the rest are not in it.)

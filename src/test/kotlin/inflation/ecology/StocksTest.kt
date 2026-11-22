@@ -75,7 +75,7 @@ class StocksTest {
             "HexPlants.rooting", "HexPlants.trampling", "HexPlants.trodden", "HexSmallLife.washedKg", "HexSmallLife.laidKgM2", "HexSmallLife.leaving",
             "HexSmallLife.newborn", "HexFauna.bornThisWeek", "HexSmallLife.groupCarrionRate", "HexSmallLife.groupCarrionFound", "HexSmallLife.groupCarrionRateLast", "HexSmallLife.carrionFlow", "HexSmallLife.residentCarrionRate", "HexSmallLife.vultureCarrionRate", "HexSmallLife.vultureColonyRates", "HexSmallLife.carrionRotRate", "HexFauna.groupKilled", "HexFauna.huntedLately", "HexFauna.huntedYoungLately",
             // The week's food left uneaten, a reading of the plants' stocks, not one of its own.
-            "HexFauna.spareGrass", "HexFauna.spareBrowse", "HexFauna.spareFruit", "HexFauna.spareRoots",
+            "HexFauna.spareGrass", "HexFauna.spareBrowse", "HexFauna.spareFruit", "HexFauna.spareMast", "HexFauna.spareRoots",
             // Shares, states and memories, 0..1 or days or degrees.
             "HexDrinkingWater.water", "HexDrinkingWater.waterKm", "HexDrinkingWater.deep", "HexDrinkingWater.dug", "HexDrinkingWater.well", "HexDrinkingWater.snowWater", "HexDrinkingWater.iced", "HexPlants.gdd", "HexPlants.moisture", "HexPlants.opened",
             "HexPlants.shrubShoots", "HexPlants.treeShoots", "HexPlants.animalSeed", "HexPlants.green", "HexPlants.hayFresh", "HexPlants.grassAge",

@@ -68,7 +68,7 @@ internal fun HexGroups.animalInputs(g: HexGroup, weather: Weather, into: FloatAr
     // What it is: its weight, and what it eats.
     val d = s.diet
     into[x.MASS] = ln(s.massKg.coerceAtLeast(1f)) / 5f
-    into[x.GRASS] = d.grass; into[x.BROWSE] = d.browse; into[x.FRUIT_AND_ROOTS] = d.fruit + d.roots
+    into[x.GRASS] = d.grass; into[x.BROWSE] = d.browse; into[x.FRUIT_AND_ROOTS] = d.stocks
     into[x.MEAT] = d.meat; into[x.SMALL_PREY] = d.smallPrey; into[x.CARRION] = d.carrion
     // Its temperament.
     for (k in 0 until Temperament.AXES) into[x.TEMPER + k] = g.temper.getOrElse(k) { 0f }

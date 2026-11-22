@@ -154,6 +154,7 @@ class FaunaCheck(private val sim: HexSim, private val options: FaunaCheckOptions
             .format(stepNs / 1e6 / steps, groups.meetNs / 1e6 / steps, (groups.bearings.updateNs + sim.fauna.bearings.updateNs) / 1e6 / steps))
         // Whether the run stayed within nominal limits (reported only): the state it ends in, and its history if one was kept.
         println(Nominal.state(sim).report())
+        println(Nominal.field(sim).report())
         println(if (options.historyFile != null) Nominal.history(history).report() else "within nominal limits (series): not checked, no history kept (--history FILE)")
     }
 }

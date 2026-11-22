@@ -557,7 +557,7 @@ internal class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, pack
     val smallCatch = smallCatch(s)
     val smallDays = SMALL_HANDLING_DAYS_PER_KG / gatherHands * (band?.slowness(Skill.SMALL_GAME) ?: 1f) + eats
     // Plant food: picked, dug or reaped by all hands, and carried home (baskets carry more at a time).
-    val eatsPlants = d.fruit + d.roots > 0f
+    val eatsPlants = d.stocks > 0f
     val carry = 1f + BASKET_GAIN * (band?.has(Tool.BASKET) ?: 0f)
     // (A band's children gather too, near camp and slower than grown hands: fruit, roots, small finds and seed.)
     val gatherers = gatherHands + (if (band != null) CHILD_GATHER * g.young else 0f)

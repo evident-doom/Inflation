@@ -54,7 +54,7 @@ internal fun HexFauna.fedOnSpare(s: Species, p: Place, heads: Float, each: Float
     val want = heads / land.areaKm2[p] * each
     if (!(want > 0f)) return 1f
     dry.reach = reach; dry.grass = spareGrass[p]; dry.browse = spareBrowse[p]
-    dry.fruit = spareFruit[p]; dry.roots = spareRoots[p]
+    dry.fruit = spareFruit[p]; dry.mast = spareMast[p]; dry.roots = spareRoots[p]
     return (forage(s, leanDiet(s, p), land.plants.nourishment(p), want, grassUnderSnow(s, snowMm), dry, b, cropGrass(s, p), cropBrowse(s, p)).got / want).coerceIn(0f, 1f)
 }
 
@@ -209,10 +209,10 @@ internal fun HexFauna.appeal(k: FaunaKind, p: Place, weather: Weather): Float {
     val m = weather.date.month
     val discomfort = ((1f - s.foresight) * s.discomfortC(feltC(s, p, weather.temperature[p]), m) +
         s.foresight * s.discomfortC(feltC(s, p, weather.forecastTemp(p.i)), m)) / 10f
-    // (A plant-eater weighs the snow as it feeds under it: its grass and roots by the share it gets at, see [grassUnderSnow].)
+    // (A plant-eater weighs the snow as it feeds under it: its grass, mast and roots by the share it gets at, see [grassUnderSnow].)
     val snowed = if (s.carnivore) { if (weather.snowpack[p] > s.snowLimitMm) 0.3f else 1f } else s.diet.let { d ->
-        val plants = d.grass + d.browse + d.fruit + d.roots
-        if (plants <= 0f) 1f else 1f - (d.grass + d.roots) * (1f - grassUnderSnow(s, weather.snowpack[p])) / plants }
+        val plants = d.plants
+        if (plants <= 0f) 1f else 1f - (d.grass + d.mast + d.roots) * (1f - grassUnderSnow(s, weather.snowpack[p])) / plants }
     // (Plant-eaters weigh their forage by how fresh it is and how well it would meet their need for
     // protein: so they go up to the green high pasture in summer and down for the winter.)
     val fresh = if (s.carnivore) 1f else land.plants.nourishment(p) * forageProtein(s, p)
