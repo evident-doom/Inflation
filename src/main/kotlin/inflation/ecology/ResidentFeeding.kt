@@ -175,10 +175,13 @@ private fun HexFauna.eatPlants(p: Place, weather: Weather, grass: Float, browse:
     val gp = grassProtein(p); val bp = browseProtein(p)
     // (Each kind's crop of the grass and browse as they stand, and its depth of snow, the same in every turn.)
     val snow = weather.snowpack[p]
+    // (The roots to be dug as they lie before anyone digs this week: what each kind finds by its search, [rootingMost].)
+    val roots0 = z.spareR
     fun eat(k: Int) {
         val s = kinds[k]
         z.kind = k; z.access = avail[k]
-        forage(s, leanDiet(s, p), quality, need[k], grassUnderSnow(s, snow), z, b, cropGrass(s, p), cropBrowse(s, p))
+        val dig = if (s.diet.roots > 0f) rootingMost(s, adults[k][p] + young[k][p], avail[k] * roots0, days) else Float.POSITIVE_INFINITY
+        forage(s, leanDiet(s, p), quality, need[k], grassUnderSnow(s, snow), z, b, cropGrass(s, p), cropBrowse(s, p), dig)
     }
     // What each asks of each food.
     z.mode = Grazing.ASKING

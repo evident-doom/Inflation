@@ -55,7 +55,9 @@ internal fun HexFauna.fedOnSpare(s: Species, p: Place, heads: Float, each: Float
     if (!(want > 0f)) return 1f
     dry.reach = reach; dry.grass = spareGrass[p]; dry.browse = spareBrowse[p]
     dry.fruit = spareFruit[p]; dry.mast = spareMast[p]; dry.roots = spareRoots[p]
-    return (forage(s, leanDiet(s, p), land.plants.nourishment(p), want, grassUnderSnow(s, snowMm), dry, b, cropGrass(s, p), cropBrowse(s, p)).got / want).coerceIn(0f, 1f)
+    // (As those there find their roots: by search, from what they left, [rootingMost].)
+    val dig = if (s.diet.roots > 0f) rootingMost(s, heads / land.areaKm2[p], reach * spareRoots[p], days) else Float.POSITIVE_INFINITY
+    return (forage(s, leanDiet(s, p), land.plants.nourishment(p), want, grassUnderSnow(s, snowMm), dry, b, cropGrass(s, p), cropBrowse(s, p), dig).got / want).coerceIn(0f, 1f)
 }
 
 /** [fedOnSpare] for [heads] of plant-eating kind [k] coming to place [p] this week. */

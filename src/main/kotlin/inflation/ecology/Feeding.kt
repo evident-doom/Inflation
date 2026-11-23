@@ -52,16 +52,41 @@ internal class Bites {
 internal fun grassUnderSnow(s: Species, snowMm: Float): Float = (1f - snowMm / s.snowLimitMm).coerceIn(0f, 1f)
 
 /**
+ * Rooting: the ground an animal of [ROOTING_MASS_KG] searches for roots and bulbs in a day, m², and the days it takes to dig
+ * out a kg of them (in [Nourishment.ROOTS]' kg). An estimate: in a Hungarian oak forest wild boar turned over 8-11% of the
+ * floor in a year (Calosi et al. 2025 and the rooting studies they cite), some 50 m² dug a boar a day at a few boar a km², and
+ * they nose over more than they dig; rooting took about three quarters of their foraging time in autumn and winter (a fenced
+ * Highland study, as cited there). The ground searched goes with the body as mass^0.75. To tune.
+ */
+internal const val ROOTING_M2_PER_DAY = 100f
+internal const val ROOTING_DAYS_PER_KG = 0.2f
+internal const val ROOTING_MASS_KG = 90f
+
+/**
+ * The most roots animals of [s] at [perKm2] a km² dig in [days], kg per m² of their place, where [rootsKgM2] can be dug
+ * there: each finds them as it searches its ground ([ROOTING_M2_PER_DAY]) and spends time digging each kg out
+ * ([ROOTING_DAYS_PER_KG]), a Holling disc: a R / (1 + a h R) a day. So roots thin on the ground are found slowly, and a
+ * place dug over feeds less and less, however much else fell short (docs: Olli 2026-11-23, rooting by search, not a bound on
+ * switching).
+ */
+internal fun rootingMost(s: Species, perKm2: Float, rootsKgM2: Float, days: Int): Float {
+    if (!(perKm2 > 0f) || !(rootsKgM2 > 0f)) return 0f
+    val a = ROOTING_M2_PER_DAY * kotlin.math.sqrt(kotlin.math.sqrt((s.massKg / ROOTING_MASS_KG).let { it * it * it }))
+    return perKm2 * 1e-6f * days * a * rootsKgM2 / (1f + a * ROOTING_DAYS_PER_KG * rootsKgM2)
+}
+
+/**
  * How animals of [s] eating diet [d] feed where the forage nourishes [placeQ] (as it picks it over, [selected]), asking [need] kg per m² this week, from
  * [pantry]: grass, mast and roots (as far as it gets at them under the snow, [underSnow], see [grassUnderSnow]), browse as far as the gut fills at that nourishment, fruit, then
  * switching between them for a shortfall; into [out]. The standing straw is the cured grass, eaten as grass at what it
  * nourishes ([HexPlants.nourishment]). Each food feeds by its energy ([Nourishment]): grass and browse at [q], fruit, mast and roots
  * at theirs, all by [Species.needScale] in kg of its need ([Bites.got], [Bites.short]). The one rule for the residents' week's grazing
  * ([HexFauna.graze]) and for the room they reckon a place has for more of them ([HexFauna.roomFor]). [cropG] and [cropB] are
- * the shares of its want of grass and of browse it can crop where they stand ([cropRate]).
+ * the shares of its want of grass and of browse it can crop where they stand ([cropRate]); [digMost] the roots it can find
+ * and dig out in the week, kg per m² ([rootingMost]).
  */
 @IgnorableReturnValue internal fun forage(s: Species, d: Diet, placeQ: Float, need: Float, underSnow: Float, pantry: Pantry, out: Bites,
-    cropG: Float = 1f, cropB: Float = 1f): Bites {
+    cropG: Float = 1f, cropB: Float = 1f, digMost: Float = Float.POSITIVE_INFINITY): Bites {
     // (The forage as it picks it over, [selected]: a small kind eats better than the place's mean.)
     val q = s.selected(placeQ)
     // (Worked in energy, [Nourishment]'s units: a kg of green forage feeds a unit.)
@@ -85,7 +110,8 @@ internal fun grassUnderSnow(s: Species, snowMm: Float): Float = (1f - snowMm / s
     // the deeper the snow, keep to oak woods under 40 cm of it and still find acorns there, Chiyojima et al., Mammalian
     // Science 2022; deep snow stops their rooting and starves them, Okarma et al., Acta Theriologica 1995.)
     val mast = pantry.mast(underSnow * want * d.mast / total / Nourishment.MAST)
-    val roots = pantry.roots(underSnow * want * d.roots / total / Nourishment.ROOTS)
+    // (Roots as far as it finds and digs them out in the week, [digMost], [rootingMost].)
+    val roots = pantry.roots(min(digMost, underSnow * want * d.roots / total / Nourishment.ROOTS))
     // Diet switching: a food that fell short is made up from the others: grass and browse as far as the gut holds,
     // fruit, mast and roots as far as the place has them (a hungry animal eats what of its foods it finds; an ostrich out of
     // fruit season picks more shoots and leaves).
@@ -119,7 +145,7 @@ internal fun grassUnderSnow(s: Species, snowMm: Float): Float = (1f - snowMm / s
     if (d.grass >= d.browse) { makeGrass(); makeBrowse() } else { makeBrowse(); makeGrass() }
     if (gap > 0f && d.fruit > 0f) { fruit2 = pantry.fruit(gap / Nourishment.FRUIT); gap -= fruit2 * Nourishment.FRUIT }
     if (gap > 0f && d.mast > 0f && underSnow > 0f) { mast2 = pantry.mast(underSnow * gap / Nourishment.MAST); gap -= mast2 * Nourishment.MAST }
-    if (gap > 0f && d.roots > 0f && underSnow > 0f) { roots2 = pantry.roots(underSnow * gap / Nourishment.ROOTS); gap -= roots2 * Nourishment.ROOTS }
+    if (gap > 0f && d.roots > 0f && underSnow > 0f) { roots2 = pantry.roots(min(max(0f, digMost - roots), underSnow * gap / Nourishment.ROOTS)); gap -= roots2 * Nourishment.ROOTS }
     val short = max(0f, gap) * s.needScale
     // Grass and browse nourish fully only when green; fruit, mast and roots keep their value. (What it switched to, as its gut
     // digests fibre, [qf], as the gap was reckoned: counted at [q], a boar's or a bear's switched forage fed it twice what
