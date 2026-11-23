@@ -180,7 +180,7 @@ private fun HexFauna.eatPlants(p: Place, weather: Weather, grass: Float, browse:
     fun eat(k: Int) {
         val s = kinds[k]
         z.kind = k; z.access = avail[k]
-        val dig = if (s.diet.roots > 0f) rootingMost(s, adults[k][p] + young[k][p], avail[k] * roots0, days) else Float.POSITIVE_INFINITY
+        val dig = if (s.diet.roots > 0f) rootingMost(s, adults[k][p] + young[k][p], avail[k] * roots0, days, tuning.rootingM2PerDay) else Float.POSITIVE_INFINITY
         forage(s, leanDiet(s, p), quality, need[k], grassUnderSnow(s, snow), z, b, cropGrass(s, p), cropBrowse(s, p), dig)
     }
     // What each asks of each food.

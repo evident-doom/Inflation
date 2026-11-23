@@ -52,26 +52,25 @@ internal class Bites {
 internal fun grassUnderSnow(s: Species, snowMm: Float): Float = (1f - snowMm / s.snowLimitMm).coerceIn(0f, 1f)
 
 /**
- * Rooting: the ground an animal of [ROOTING_MASS_KG] searches for roots and bulbs in a day, m², and the days it takes to dig
+ * Rooting: the ground an animal of [ROOTING_MASS_KG] searches for roots and bulbs in a day, m² ([inflation.Tuning.rootingM2PerDay]), and the days it takes to dig
  * out a kg of them (in [Nourishment.ROOTS]' kg). An estimate: in a Hungarian oak forest wild boar turned over 8-11% of the
  * floor in a year (Calosi et al. 2025 and the rooting studies they cite), some 50 m² dug a boar a day at a few boar a km², and
  * they nose over more than they dig; rooting took about three quarters of their foraging time in autumn and winter (a fenced
  * Highland study, as cited there). The ground searched goes with the body as mass^0.75. To tune.
  */
-internal const val ROOTING_M2_PER_DAY = 100f
 internal const val ROOTING_DAYS_PER_KG = 0.2f
 internal const val ROOTING_MASS_KG = 90f
 
 /**
  * The most roots animals of [s] at [perKm2] a km² dig in [days], kg per m² of their place, where [rootsKgM2] can be dug
- * there: each finds them as it searches its ground ([ROOTING_M2_PER_DAY]) and spends time digging each kg out
+ * there: each finds them as it searches its ground ([searchM2], m² a day, [inflation.Tuning.rootingM2PerDay]) and spends time digging each kg out
  * ([ROOTING_DAYS_PER_KG]), a Holling disc: a R / (1 + a h R) a day. So roots thin on the ground are found slowly, and a
  * place dug over feeds less and less, however much else fell short (docs: Olli 2026-11-23, rooting by search, not a bound on
  * switching).
  */
-internal fun rootingMost(s: Species, perKm2: Float, rootsKgM2: Float, days: Int): Float {
+internal fun rootingMost(s: Species, perKm2: Float, rootsKgM2: Float, days: Int, searchM2: Float): Float {
     if (!(perKm2 > 0f) || !(rootsKgM2 > 0f)) return 0f
-    val a = ROOTING_M2_PER_DAY * kotlin.math.sqrt(kotlin.math.sqrt((s.massKg / ROOTING_MASS_KG).let { it * it * it }))
+    val a = searchM2 * kotlin.math.sqrt(kotlin.math.sqrt((s.massKg / ROOTING_MASS_KG).let { it * it * it }))
     return perKm2 * 1e-6f * days * a * rootsKgM2 / (1f + a * ROOTING_DAYS_PER_KG * rootsKgM2)
 }
 

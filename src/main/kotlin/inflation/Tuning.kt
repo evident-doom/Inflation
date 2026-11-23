@@ -230,6 +230,11 @@ class Tuning(
      */
     val residentFloor = f("residentFloor", 0.01f)
     /**
+     * Rooting residents: the ground an animal of 90 kg searches for roots and bulbs in a day, m² ([inflation.ecology.rootingMost]):
+     * an estimate from the ground wild boar turn over (8-11% of an oak forest's floor a year at a few boar a km²).
+     */
+    val rootingM2PerDay = f("rootingM2PerDay", 100f).also { require(it > 0f) { "t.rootingM2PerDay is $it: it must be above 0" } }
+    /**
      * Wolves and lions settled with roaming packs (docs/design/roaming-packs.md, [inflation.ecology.Catalogue.roamingResidents]):
      * their settled's usual numbers, in packs of their usual size a hex; the times those numbers past which they fight their own
      * kind ([inflation.ecology.HexFauna.STRIFE_CROWD] for other resident hunters); and the share of their young growing up that
