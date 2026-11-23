@@ -183,6 +183,12 @@ class Species(
      */
     val fieldKm2: ClosedFloatingPointRange<Float>? = null,
     /**
+     * A resident hunter's kg a km² for each kg a km² of the game it catches ([HexFauna.usualAt], the ground its territories
+     * hold): null for its kind's rule, [HexFauna.PREY_SUPPORT] for the big hunters of game, [HexFauna.SMALL_HUNTER_SUPPORT]
+     * for the rest.
+     */
+    val preySupport: Float? = null,
+    /**
      * Weekly mean air temperatures it is comfortable in, °C. Outside them it needs more food and
      * the young and weak die; a [winterCoat] stretches the cold end as it grows in.
      */

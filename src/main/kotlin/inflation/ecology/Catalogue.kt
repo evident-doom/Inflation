@@ -454,6 +454,11 @@ object Catalogue {
         // (Field counts: Eurasian lynx some 1-3 to the 100 km² (Białowieża about 3, Jędrzejewski et al.), caracal about the
         // same where it is not hunted down; from memory, not checked.)
         fieldKm2 = 0.005f..0.05f,
+        // (Its ground held by its game as Carbone and Gittleman's rule has it, some 90 kg of a carnivore kind for 10,000 kg of
+        // its prey ([HexFauna.SMALL_HUNTER_SUPPORT]), not the wolves' fit ([HexFauna.PREY_SUPPORT], 4-5 times less): Białowieża's
+        // lynx, some 3 to the 100 km² on roe at 1-3 a km² and the hares and small game beside, come out near it. On the wolves'
+        // figure lynx sat at 0.016 a km² fed and fought over their ground while roe stood at 7 a km² in the woods (roe1123).)
+        preySupport = HexFauna.SMALL_HUNTER_SUPPORT,
         fearOfPeople = 0.9f, boldShare = 0.01f,
         diet = Diet(meat = 0.7f, smallPrey = 0.27f, carrion = 0.03f),
         groupSize = 1, maxGroupSize = 4,

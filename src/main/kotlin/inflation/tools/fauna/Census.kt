@@ -1,5 +1,6 @@
 package inflation.tools.fauna
 
+import inflation.ecology.huntedOdds
 import inflation.ecology.HexGroup
 import inflation.ecology.searchedAtLeast
 import inflation.ecology.HUNGER_CASES
@@ -149,6 +150,40 @@ class Census(private val sim: HexSim) {
     private val biomeOf: IntArray get() = land.country.kind
 
     /** Animals of resident kind [k] at place [pl] (adults and young). */
+    /**
+     * What sets each plant-eating resident's numbers in the kinds of country where most of them live (any with a tenth of
+     * them or more): its heads a km² there; the crowding ceiling it is held against ([inflation.ecology.HexFauna.usualAt]:
+     * its usual numbers, times the food there ([inflation.ecology.HexFauna.foodScale]) and the cover it hides in
+     * ([inflation.ecology.HexFauna.hidingShare])); how many times that ceiling it stands at; how well fed; and the share
+     * of its grown the hunters and parties would kill in a year at this week's odds ([inflation.ecology.huntedOdds]).
+     * All head-weighted over the country's places. (Olli 2026-11-23: one density by country hides what sets it.)
+     */
+    private fun printWhatSetsNumbers() {
+        val kinds = inflation.world.Biome.entries
+        val perYear = groups.stepsPerYear.toDouble()
+        println("     what sets the plant-eaters' numbers, by country (heads a km²; ceiling a km² = usual x food x cover; heads against it; fed; hunted a year): " +
+            fauna.kinds.indices.filter { !fauna.kinds[it].carnivore }.mapNotNull { k ->
+                val nb = kinds.size
+                val area = DoubleArray(nb); val heads = DoubleArray(nb); val ceil = DoubleArray(nb); val food = DoubleArray(nb); val cover = DoubleArray(nb)
+                val crowd = DoubleArray(nb); val fed = DoubleArray(nb); val hunted = DoubleArray(nb)
+                val fk = inflation.ecology.FaunaKind(k)
+                for (pl in 0 until land.n) {
+                    val b = land.country.kind[pl]; val ar = land.areaKm2[pl].toDouble(); area[b] += ar
+                    val r = residents(k, pl); if (r <= 0.0) continue
+                    val p = inflation.world.Place(pl); val u = fauna.usualAt(k, p).toDouble()
+                    heads[b] += r; ceil[b] += r * u; food[b] += r * fauna.foodScale(k, p); cover[b] += r * fauna.hidingShare(k, p)
+                    crowd[b] += r * (if (u > 0.0) r / ar / u else 0.0); fed[b] += r * fauna.fed[k][pl]
+                    hunted[b] += r * (1.0 - Math.pow((1.0 - fauna.huntedOdds(fk, p, false).toDouble()).coerceIn(0.0, 1.0), perYear))
+                }
+                val all = heads.sum(); if (all <= 0.0) return@mapNotNull null
+                val parts = (0 until nb).filter { heads[it] >= 0.1 * all }.sortedByDescending { heads[it] }.joinToString("; ") { b ->
+                    val h = heads[b]
+                    "%s %.2f: ceiling %.2f (food %.2f, cover %.2f), at %.2f, fed %.2f, hunted %.0f%%".format(kinds[b].label, h / area[b].coerceAtLeast(1e-9),
+                        ceil[b] / h, food[b] / h, cover[b] / h, crowd[b] / h, fed[b] / h, 100.0 * hunted[b] / h) }
+                "${fauna.kinds[k].name} [$parts]"
+            }.joinToString(", "))
+    }
+
     private fun residents(k: Int, pl: Int) = ((fauna.adults[k][pl] + fauna.young[k][pl]) * land.areaKm2[pl]).toDouble()
 
     /** How well this month's climate suits each kind where its groups are, by head count. */
@@ -222,6 +257,7 @@ class Census(private val sim: HexSim) {
                 val us = fauna.usualAt(k, inflation.world.Place(pl)).toDouble(); val r = residents(k, pl)
                 a += ar; g += m * ar; u += us * ar; h += r; gh += m * r; uh += us * r }
             "%s %.0f / %.0f, %.4f / %.4f, %.4f".format(fauna.kinds[k].name, g / a, gh / h.coerceAtLeast(1e-9), u / a, uh / h.coerceAtLeast(1e-9), h / a) })
+        printWhatSetsNumbers()
         println("     residents fed from (fresh plants / prey and carrion / reserves, shares of need per animal this year): " +
             fauna.kinds.indices.joinToString(", ") { k ->
             val ff = fauna.fedFrom[k]; val h = ff[Fed.HEADS].sum().coerceAtLeast(1e-9)
