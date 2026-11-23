@@ -183,6 +183,20 @@ fun HexSmallLife.crackBonesIn(p: Place, want: Kg, sweptKm2: Float): Kg {
  */
 fun HexSmallLife.smallPreyKg(p: Place) = rodents[p] + hares[p] + hyrax[p] + birds[p] + herps[p] + tortoises[p] + locusts[p] + INSECT_CATCH * (insects[p] + pollinators[p])
 
+/**
+ * Small prey at [p] that a hunter of [style] can reach, kg/km²: as [catchSmall] weighs each kind ([reach], the young in the
+ * nest all), whatever the week's weather keeps in or out. What a hunter that lives on small prey holds ground by
+ * ([HexFauna.usualAt]).
+ */
+fun HexSmallLife.smallPreyReached(p: Place, style: SmallHunt): Float =
+    reachable(rodents[p], young[Nest.RODENTS][p], reach(style, SmallPrey.RODENTS, p)) * rodents[p] +
+        reachable(hares[p], young[Nest.HARES][p], reach(style, SmallPrey.HARES, p)) * hares[p] +
+        reachable(hyrax[p], young[Nest.HYRAX][p], reach(style, SmallPrey.HYRAX, p)) * hyrax[p] +
+        reachable(birds[p], young[Nest.BIRDS][p], reach(style, SmallPrey.BIRDS, p)) * birds[p] +
+        reachable(herps[p], young[Nest.HERPS][p], reach(style, SmallPrey.HERPS, p)) * herps[p] +
+        reachable(tortoises[p], young[Nest.TORTOISES][p], reach(style, SmallPrey.TORTOISES, p)) * tortoises[p] +
+        locusts[p] + reach(style, SmallPrey.INSECTS, p) * (insects[p] + pollinators[p])
+
 /** Takes up to [want] of carrion in place [p]; returns what was taken. */
 fun HexSmallLife.scavenge(p: Place, want: KgM2): KgM2 { GroundCheck.place(p, 3); val t = min(carrion[p], want.v); carrion[p] -= t; flow(CarrionFlow.TAKEN, p, t); record?.let { it.carrionGone[p] += t }; return KgM2(t) }
 

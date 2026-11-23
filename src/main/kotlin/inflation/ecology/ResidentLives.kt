@@ -16,6 +16,7 @@ import inflation.world.set
 import inflation.Books
 import inflation.world.Date
 import inflation.world.Weather
+import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.min
 
@@ -60,10 +61,16 @@ internal fun HexFauna.breedAndDie(weather: Weather, date: Date) {
                 bred[k][p] += share
                 fun bornAt(heads: Float): Float { val due = dueYoung(k, p, heads, protein[k][p], share); return 0.5f * a[p] * due * breeding(s, due, reserve[k][p], f[p], days) }
                 crowdHeads += 0.5f * bornAt(crowdHeads)
-                val due = dueYoung(k, p, crowdHeads, protein[k][p], share)
+                val hatch = hatching(s, p)
+                val laid = dueLaid(k, p, crowdHeads, protein[k][p], share); val due = laid * hatch
                 val born = 0.5f * a[p] * due * breeding(s, due, reserve[k][p], f[p], days)
                 y[p] += born
                 bornHere = born
+                // (The eggs the robbers took are left as carrion at the nest, as the hens made them.)
+                // (As many of the eggs as of the hatched the hens' food and reserves build: [breeding]'s share of them.)
+                if (hatch < 1f && laid > 0f) { val robbed = 0.5f * a[p] * laid * (1f - hatch) * breeding(s, due, reserve[k][p], f[p], days) * area
+                    val eggKg = HexFauna.newbornShare(s, s.birthMonth) * s.massKg
+                    carcassKg[p] += robbed * eggKg; bornBook?.add((robbed * eggKg).toDouble()); eggsTakenThisWeek[k] += robbed.toDouble() }
                 bornThisWeek[k] += (born * area).toDouble()
                 bornBook?.add((born * area * youngShare[k.i] * s.massKg).toDouble())
                 // The young are made of what their mothers ate: what the week's food did not build comes off the mothers' reserves (as in groups).
@@ -85,7 +92,7 @@ internal fun HexFauna.breedAndDie(weather: Weather, date: Date) {
             val fireA = hz[Danger.FIRE_A]; val floodA = hz[Danger.FLOOD_A]; val snowA = hz[Danger.SNOW_A]
             val adultSum = s.backgroundMortality * years + hunger + cold + heat + thirst + disease + fireA + floodA + snowA + hz[Danger.STRIFE]
             val adultOdds = adultSum.coerceIn(0f, Hazards.MAX_GROWN_ODDS)
-            val eagle = eagleOdds(s, p); val croc = crocodileOdds(p, weather)
+            val eagle = youngTakenOdds(s, p); val croc = crocodileOdds(p, weather)
             val starved = starvedOdds(protein[k][p])
             val youngSum = youngSum(s, hz, eagle, croc, starved)
             val youngOdds = youngSum.coerceIn(0f, Hazards.MAX_YOUNG_ODDS)
@@ -150,7 +157,9 @@ private fun HexFauna.bookDeaths(k: FaunaKind, p: Place, ca: Float, cy: Float, hz
     dd[ResidentDeath.COLD] += (ca + Hazards.YOUNG_HARDER * cy) * cold
     dd[ResidentDeath.HEAT] += (ca + Hazards.YOUNG_HARDER * cy) * heat
     dd[ResidentDeath.DISEASE] += (ca + cy) * disease
-    dd[ResidentDeath.EAGLES] += cy * eagle
+    // (Of the small hunters' share, [youngTakenOdds], the eagles' and the foxes'.)
+    val byEagles = eaglesOnYoung(s, p); val byFoxes = eagle - byEagles
+    dd[ResidentDeath.EAGLES] += cy * byEagles; dd[ResidentDeath.FOXES] += cy * byFoxes
     dd[ResidentDeath.FIRE] += ca * fireA + cy * fireY
     dd[ResidentDeath.FLOOD] += ca * floodA + cy * floodY
     dd[ResidentDeath.SNOW] += ca * snowA + cy * snowY
@@ -238,11 +247,15 @@ internal fun HexFauna.sharersKm2(k: FaunaKind, p: Place): Float = shared[k.i][p.
 /** Reckons [HexFauna.shared] from the numbers now ([sharersKm2]). */
 internal fun HexFauna.reckonShared() {
     val rate = overTicks(HexFauna.GAME_WEEK); val foodRate = overTicks(HexFauna.USUAL_FOOD_WEEK)
+    // (A save from before every hunter held ground by its food has none kept for the small hunters: begin it now.)
+    for (k in kinds.indices) if (kinds[k].carnivore && gameMean[k].isEmpty()) gameMean[k] = FloatArray(n) { Float.NaN }
     val usuals = ThreadLocal.withInitial { FloatArray(kinds.size) }
     Par.forEachPlace("residents: shared crowding", n) { p ->
         // (Each against its usual numbers at the place, [usualAt]: on the ground's food for the plant-eaters, and the
         // thicket kinds on the ground they hide in. Reckoned once a kind, as the step began.)
         val u = usuals.get(); for (k in kinds.indices) u[k] = usualAt(k, p)
+        // (And the nest robbers here: [HexFauna.hatching].)
+        var rob = small.foxes[p.i]; for (k in nestRobberKinds) rob += (adults[k][p] + young[k][p]) * kinds[k].massKg * kinds[k].diet.smallPrey; nestRobbers[p.i] = rob
         for (k in kinds.indices) {
             val row = sharers[k]; var sum = 0f
             for (j in row.indices) { val w = row[j]; if (j == k || w <= 0f) continue
@@ -250,7 +263,7 @@ internal fun HexFauna.reckonShared() {
             shared[k][p.i] = sum * u[k]
             // (And the prey of its size a hunter that holds ground by it has here, lately: [HexFauna.usualAt].)
             val g = gameMean[k]
-            if (g.isNotEmpty()) { val now = preyBiomass(kinds[k], p); val m = g[p.i]; g[p.i] = if (m.isNaN()) now else m + (now - m) * rate }
+            if (g.isNotEmpty()) { val now = huntersFood(kinds[k], p); val m = g[p.i]; g[p.i] = if (m.isNaN()) now else m + (now - m) * rate }
             // (And a plant-eater's food here, about a year's mean: [HexFauna.foodScale].)
             val fm = foodMean[k]
             if (fm.isNotEmpty()) { val now = foodFor(kinds[k], p); val m = fm[p.i]; fm[p.i] = if (m.isNaN()) now else m + (now - m) * foodRate }
@@ -286,7 +299,20 @@ internal fun HexFauna.stepDamp() {
 
 /** The young a mother of kind [k] at place [p] is due this step, its [share] of her season, among [heads] of her kind per km², fed [protein] of her need for it ([youngDue]), and as far as her sodium there allows ([saltBreeding]). */
 internal fun HexFauna.dueYoung(k: FaunaKind, p: Place, heads: Float, protein: Float, share: Float) =
+    dueLaid(k, p, heads, protein, share) * hatching(kinds[k], p)
+
+/** [dueYoung] before the nest robbers' take: the eggs a hen of a kind that lays is due, the young of one that bears them live. */
+internal fun HexFauna.dueLaid(k: FaunaKind, p: Place, heads: Float, protein: Float, share: Float) =
     youngDue(kinds[k], heads, usualAt(k.i, p), tuning.breedSpacing, protein * saltBreeding(kinds[k], p), share)
+
+/**
+ * The share of [s]'s eggs at [p] that hatch rather than are robbed: 1 for a kind that bears its young live; else its
+ * eggs lie [Species.nestDays] in the nest, taken at [NEST_ROB_RATE] a year for each kg/km² of the nest robbers there
+ * ([HexFauna.nestRobbers]: each robbing kind by the share of its food it hunts as small prey, the ground's small finds a
+ * nest is found among; the small life's foxes all of theirs). (What the hens spent on the robbed eggs is not charged them.)
+ */
+internal fun HexFauna.hatching(s: Species, p: Place): Float =
+    if (s.nestDays <= 0f) 1f else exp(-NEST_ROB_RATE * nestRobbers[p.i] * s.nestDays / Date.DAYS_PER_YEAR)
 
 /**
  * The month kind [s]'s mothers start their year again ([bred]): the middle of the months outside its season as it
@@ -301,14 +327,31 @@ internal fun HexFauna.offSeason(s: Species) = offSeason(s, s.birthMonth)
  */
 private fun HexFauna.seasonShare(k: FaunaKind, p: Place, date: Date) = seasonShare(kinds[k], birthStart[k][p.i].toInt(), max(0f, 1f - bred[k][p]), date, days)
 
+/** The share of [s]'s young at [p] the small hunters take in a step: eagles ([eaglesOnYoung]) and foxes ([foxesOnYoung]). */
+internal fun HexFauna.youngTakenOdds(s: Species, p: Place) = eaglesOnYoung(s, p) + foxesOnYoung(s, p)
+
 /** Eagles take the young of the smaller hoofed animals in the open: the share of [s]'s young at [p] they take in a step. */
-internal fun HexFauna.eagleOdds(s: Species, p: Place) = if (youngKgOf(s) <= EAGLE_PREY_KG) small.eagleRisk(p) * years else 0f
+internal fun HexFauna.eaglesOnYoung(s: Species, p: Place) = if (youngKgOf(s) <= EAGLE_PREY_KG) small.eagleRisk(p) * years else 0f
+
+/**
+ * Foxes and the other small carnivores (wildcats, martens, mongooses) find the young of the hoofed animals lying hidden in
+ * their first weeks, as light as [FOX_PREY_KG]: the share of [s]'s young at [p] they take in a step, as many foxes as
+ * there are ([HexSmallLife.foxRisk]), as far as the mother does not drive them off ([Species.defence]). What they kill
+ * lies as carrion, which they and the jackals find first.
+ */
+internal fun HexFauna.foxesOnYoung(s: Species, p: Place): Float {
+    // (By the newborn's own weight, not the mean of the young of all the years they take to grow: a roe's fawn weighs a kilo
+    // or two, the yearlings beside it a dozen. Of the young, only the newborn's share is at risk.)
+    if (s.massKg * HexFauna.newbornShare(s, youngMonth) > FOX_PREY_KG) return 0f
+    return small.foxRisk(p) * (1f - s.defence).coerceAtLeast(0f) * HexFauna.newbornOfYoung(s, youngMonth) * years
+}
 
 /**
  * Brings each kind's young's weight ([HexFauna.youngShare]) to [date]'s, booking what they put on (or, as the year's
  * young join the last year's, the mean's fall) into [book] as growth: the young's weight in the stocks matches its flows.
  */
 internal fun HexFauna.stepYoungShare(date: Date, book: java.util.concurrent.atomic.DoubleAdder?) {
+    youngMonth = date.month
     for ((k, s) in kinds.withKinds()) {
         val now = HexFauna.youngShareIn(s, date.month); val d = now - youngShare[k.i]
         if (d == 0f) continue

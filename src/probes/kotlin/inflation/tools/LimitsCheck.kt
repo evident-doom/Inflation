@@ -13,6 +13,8 @@ import inflation.run.TestWorlds
 import inflation.world.Date
 import inflation.world.Place
 import inflation.world.WorldCache
+import inflation.world.WorldConfig
+import inflation.Tuning
 
 /**
  * What holds each kind where it is, from a test world over [weeks]: its heads per km² over the country it lives in most
@@ -21,19 +23,25 @@ import inflation.world.WorldCache
  * hunter, past what its territories hold ([HexFauna.STRIFE_CROWD] times them); how well fed; and its deaths over the run
  * by what killed them: food and weather (hunger, thirst, cold, heat, snow, fire, flood, short of protein), sickness, the
  * hunters and people, its own kind's rivals, and age. The limit is the biggest of them but age. Then the small life against
- * the field (rodents, hares, foxes, owls, kg/km² over all the land), and the hares against their room.
+ * the field (rodents, hares, foxes, owls, root diggers, kg/km² over all the land), and the hares against their room.
  *
- * Usage: limits-check --world NAME [--weeks N]
+ * On a fresh world instead of a test world, [--seed] and [--warm] years first (the old test worlds' saves do not load
+ * once the kinds change): the world as [HexSim] starts it, carried on that long before the weeks are counted.
+ *
+ * Usage: limits-check --world NAME [--weeks N] | limits-check --seed N --warm YEARS [--weeks N]
  */
 fun main(args: Array<String>) {
-    val a = Args(args, "limits-check --world NAME [--weeks N]")
-    val named = TestWorlds.named(a.string("--world") ?: error("--world NAME"))
-    val cfg = named.config
+    val a = Args(args, "limits-check --world NAME [--weeks N] | limits-check --seed N --warm YEARS [--weeks N]")
+    val named = a.string("--world")?.let { TestWorlds.named(it) }
+    val cfg = named?.config ?: WorldConfig(seed = a.long("--seed", 1L))
+    val warm = a.int("--warm", 0)
     val weeks = a.int("--weeks", Date.DAYS_PER_YEAR / cfg.daysPerStep)
     a.done()
     val sim = HexSim(WorldCache.load(cfg) { })
-    TestWorlds.check(named, sim); HexSnapshot.load(sim, named.state); println("carrying on ${named.state} at ${sim.weather.date}")
+    if (named != null) { TestWorlds.check(named, sim); HexSnapshot.load(sim, named.state); println("carrying on ${named.state} at ${sim.weather.date}") }
+    Tuning.changed().takeIf { it.isNotEmpty() }?.let { println("tuning: $it") }
     LearnedModel.fromConfig(sim.groups) { println(it) }
+    if (warm > 0) { repeat(warm * Date.DAYS_PER_YEAR / cfg.daysPerStep) { sim.step() }; println("fresh world seed ${cfg.seed} warmed $warm years, to ${sim.weather.date}") }
     val land = sim.land; val fauna = sim.fauna; val sl = fauna.small; val n = land.n
     val nk = fauna.kinds.size
     val deaths = Array(nk) { HashMap<Cause, Double>() }
@@ -58,7 +66,7 @@ fun main(args: Array<String>) {
         }
         for (p in 0 until n) {
             val a2 = land.areaKm2[p].toDouble()
-            small[0] += sl.rodents[p] * a2; small[1] += sl.hares[p] * a2; small[2] += sl.foxes[p] * a2; small[3] += sl.owls[p] * a2
+            small[0] += sl.rodents[p] * a2; small[1] += sl.hares[p] * a2; small[2] += sl.foxes[p] * a2; small[3] += sl.owls[p] * a2; small[4] += sl.diggers[p] * a2
             val room = sl.hareCapacity(Place(p)); if (room > 0f) { hareRoomShare += sl.hares[p] / room * a2; hareWeeks += a2 }
         }
     }
@@ -77,6 +85,23 @@ fun main(args: Array<String>) {
     }
     for (s in sim.groups.kinds) if (s.lifeway == Lifeway.PACK && s !in fauna.kinds) { val fd = field[s] ?: continue
         println("%-14s %8.4f %-20s | %s | (packs)".format(s.name, fd.perKm2, fd.country, verdict(s, fd.perKm2))) }
+    // The three marks of a food web held from above: hunters' weight against the plant-eaters', the hunters' share of the
+    // deaths of prey under [SMALL_PREY_KG], and how little of the plant-eaters' time stands past their crowding sickness.
+    run {
+        var plantKg = 0.0; var hunterKg = 0.0
+        for (k in 0 until nk) { val s = fauna.kinds[k]; if (s.human) continue
+            val kg = (0 until n).sumOf { ((fauna.adults[k][it] + fauna.young[k][it]) * land.areaKm2[it]).toDouble() } * s.massKg
+            if (s.carnivore) hunterKg += kg else if (s.diet.animal < s.diet.plants) plantKg += kg }
+        for (g in sim.groups.groups) if (g.alive && !g.species.human) hunterKg += g.size * g.species.massKg.toDouble()
+        var died = 0.0; var hunted = 0.0; var sickW = 0.0; var allW = 0.0
+        for (k in 0 until nk) { val s = fauna.kinds[k]; if (s.carnivore || s.human) continue
+            if (s.massKg < SMALL_PREY_KG) { died += deaths[k].values.sum(); hunted += deaths[k][Cause.HUNTERS] ?: 0.0 }
+            sickW += crowded[k]; allW += headWeeks[k] }
+        println("\nheld from above? (marks of a food web whose hunters hold their prey):")
+        println("  plant-eaters' weight to the hunters': %.0f to 1 (the field some 100-200 to 1: Carbone and Gittleman 2002, about 90 kg of each carnivore kind for 10,000 kg of its prey)".format(plantKg / hunterKg.coerceAtLeast(1e-9)))
+        println("  deaths of plant-eaters under %.0f kg by hunters and people: %.0f%% (the field: most of them, Sinclair, Mduma and Brashares 2003)".format(SMALL_PREY_KG, pct(hunted, died)))
+        println("  plant-eaters' head-weeks past their crowding sickness: %.0f%% (a backstop: a few at most)".format(pct(sickW, allW)))
+    }
     val landKm2 = (0 until n).sumOf { land.areaKm2[it].toDouble() }
     println("\nsmall life, kg/km² over all the land (mean over the run) against the field:")
     for ((i, sm) in SMALL.withIndex()) { val v = small[i] / weeks / landKm2
@@ -84,6 +109,9 @@ fun main(args: Array<String>) {
             when { v < sm.field.start / Nominal.FIELD_SLACK -> "LOW"; v > sm.field.endInclusive * Nominal.FIELD_SLACK -> "HIGH"; else -> "in range" })) }
     println("  hares at %.0f%% of their room on average".format(100 * hareRoomShare / hareWeeks.coerceAtLeast(1e-9)))
 }
+
+/** Prey under this weight, kg, are held by their hunters where hunters of many sizes take them (Sinclair et al. 2003, Nature 425:288). */
+private const val SMALL_PREY_KG = 150f
 
 /** [s]'s density [d] against its field range: in range, low or high, past [Nominal.FIELD_SLACK]; and the range. */
 private fun verdict(s: Species, d: Double): String {
@@ -100,7 +128,7 @@ private fun cause(label: String): Cause = when {
     label == "disease" || label == "outbreak" -> Cause.SICKNESS
     "rivals" in label -> Cause.RIVALS
     label.startsWith("young killed by") || label.startsWith("killed by") || label.startsWith("taken by") || label == "resident hunters" ||
-        label == "hunted" || label == "eagles" || label == "crocodiles" || label == "prey fought back" -> Cause.HUNTERS
+        label == "hunted" || label == "eagles" || label == "foxes" || label == "crocodiles" || label == "prey fought back" -> Cause.HUNTERS
     else -> Cause.FOOD
 }
 
@@ -114,4 +142,5 @@ private val SMALL = listOf(
     SmallField("hares", 10.0..100.0, "brown hares 3-60 a km² on farmland, of 3.5 kg, fewer on poor and wooded land"),
     SmallField("foxes", 1.0..18.0, "red foxes 0.2-3 a km², Eurasian winter mean 0.21, of 6 kg"),
     SmallField("owls", 0.2..2.0, "owls and small hawks, from memory"),
+    SmallField("diggers", 10.0..150.0, "blind mole-rats 1-15 a ha of 150 g where they live, porcupines 0.5-2 a km² of 13 kg, from memory"),
 )

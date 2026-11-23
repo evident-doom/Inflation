@@ -2,6 +2,12 @@ package inflation.ecology
 
 import inflation.ecology.HexSmallLife.Companion.BIRD_INTAKE
 import inflation.ecology.HexSmallLife.Companion.BIRDS
+import inflation.ecology.HexSmallLife.Companion.DIGGER_DEATH
+import inflation.ecology.HexSmallLife.Companion.DIGGER_HALF
+import inflation.ecology.HexSmallLife.Companion.DIGGER_HUNGER
+import inflation.ecology.HexSmallLife.Companion.DIGGER_INTAKE
+import inflation.ecology.HexSmallLife.Companion.DIGGER_MOST
+import inflation.ecology.HexSmallLife.Companion.DIGGER_YOUNG
 import inflation.ecology.HexSmallLife.Companion.DUNG
 import inflation.ecology.HexSmallLife.Companion.FRASS
 import inflation.ecology.HexSmallLife.Companion.HARES_BURNT
@@ -75,6 +81,32 @@ internal fun HexSmallLife.stepRodents(p: Place, t: Float, food: Float, snow: Flo
     smallDead[p] += rodents[p] * death + starved + min(0f, r)
     rodents[p] = capped(p, r, 3000f)
     nest(p, Nest.RODENTS, rodents[p], max(0f, bornR))
+}
+
+/**
+ * The root diggers ([HexSmallLife.diggers]): they live on the bulbs, roots and tubers in the ground, the same the boar and
+ * the bears dig and people grub up, but from their burrows, so the dry crust and the frost keep them off none of it
+ * (mole-rats store bulbs for the winter, from memory). They breed as far as they are fed, logistic on the room the roots
+ * there give, more on open ground. Few hunters take them (mole-rats keep below ground, porcupines have their quills), so
+ * none do here; their food holds them.
+ */
+@Part("small life: root diggers")
+internal fun HexSmallLife.stepDiggers(p: Place) {
+    val f = this.food ?: return
+    var d = diggers[p]
+    val need = KgKm2(d * DIGGER_INTAKE * days).perM2
+    // (At most half the roots there a tick: over a step of several ticks, compounded.)
+    val dug = f.take(f.roots, p, KgM2(min(need.v, overTicks(0.5f) * f.roots[p])))
+    litter[p] += FRASS * dug.v
+    ateM2(p, dug.v); dropped(p, FRASS * dug.v)
+    val fed = if (need.v > 0f) dug / need else 1f
+    val room = DIGGER_MOST * f.roots[p] / (f.roots[p] + DIGGER_HALF) * (0.3f + 0.7f * open(p))
+    val born = d * DIGGER_YOUNG * years * fed * max(0f, 1f - d / room.coerceAtLeast(1e-3f))
+    val died = d * (DIGGER_DEATH + DIGGER_HUNGER * (1f - fed)) * years
+    if (born > 0f) grew(p, born)
+    d += born - died
+    smallDead[p] += died + min(0f, d)
+    diggers[p] = capped(p, d, 3000f)
 }
 
 /**

@@ -168,10 +168,11 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
      */
     @Transient internal val shared = Array(kinds.size) { FloatArray(n) }
     /**
-     * For each resident hunter that lives mainly on game it kills ([holdsByPrey]), the prey of its size at each place, kg
-     * per km² ([preyBiomass]), a mean of some half a year ([GAME_WEEK]); empty for every other kind. NaN until the first step.
+     * For each resident hunter, the food it lives on at each place ([huntersFood]), kg per km², a mean of some half a year
+     * ([GAME_WEEK]); empty for every other kind. NaN until the first step. (A save from before the small hunters held ground
+     * by their food keeps theirs empty: [reckonShared] makes them.)
      */
-    val gameMean: Array<FloatArray> = Array(kinds.size) { k -> if (holdsByPrey(kinds[k])) FloatArray(n) { Float.NaN } else FloatArray(0) }
+    val gameMean: Array<FloatArray> = Array(kinds.size) { k -> if (kinds[k].carnivore) FloatArray(n) { Float.NaN } else FloatArray(0) }
     /**
      * For each plant-eater (each kind not holding ground by its prey, [gameMean], nor a hunter), its food at each place,
      * kg/m² as [foodFor] has it, a mean of about a year ([USUAL_FOOD_WEEK]); empty for every other kind. NaN until the
@@ -190,16 +191,18 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
      */
     @Transient private var foodRefWeights: Array<FloatArray>? = null
     /**
-     * The density at place [p] at which kind [k] holds all the ground there is, heads per km²: for a hunter that lives
-     * mainly on game it kills, as many as the prey of its size there lately holds at [PREY_SUPPORT] of its weight in
-     * hunters (territories shrink where game is rich and spread where it is thin: wolves' numbers follow their prey's
-     * biomass, Fuller 1989, lions' theirs, Hayward et al. 2007); for every other kind its [usual] density, the same everywhere.
+     * The density at place [p] at which kind [k] holds all the ground there is, heads per km²: for a hunter, as many as the
+     * food it lives on there lately holds ([huntersFood], [gameMean]): at [PREY_SUPPORT] of its weight in hunters for a hunter
+     * of game (territories shrink where game is rich and spread where it is thin: wolves' numbers follow their prey's
+     * biomass, Fuller 1989, lions' theirs, Hayward et al. 2007), at [SMALL_HUNTER_SUPPORT] for one living on small prey
+     * and carrion; for every other kind its [usual] density, by its food and cover.
      */
     internal fun usualAt(k: Int, p: Place): Float {
         val g = gameMean[k]
         if (g.isEmpty()) return usual[k] * foodScale(k, p) * hidingShare(k, p)
         val m = g[p.i]
-        return if (m.isNaN()) usual[k] else max(TERRITORY_LEAST, PREY_SUPPORT * m / kinds[k].massKg)
+        val support = if (holdsByPrey(kinds[k])) PREY_SUPPORT else SMALL_HUNTER_SUPPORT
+        return if (m.isNaN()) usual[k] else max(TERRITORY_LEAST, support * m / kinds[k].massKg)
     }
     /**
      * How many times its [usual] numbers place [p] holds of plant-eater [k]: its food there ([foodMean]) against its
@@ -435,6 +438,8 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
      * stocks always matches its flows. By the kind's own birth month, the same everywhere, so moving changes no weight.
      */
     val youngShare = FloatArray(kinds.size) { YOUNG_WEIGHT }
+    /** The month (0 from midwinter) [youngShare] was last brought to ([stepYoungShare]): the newborn's age by it ([newbornShare]). */
+    @Transient internal var youngMonth = 0
     /** A young of kind [k]'s weight now, kg ([youngShare]). */
     internal fun youngKg(k: Int) = youngShare[k] * kinds[k].massKg
     /** A young of [s]'s weight now, kg, for a kind kept as residents; the groups' fixed [YOUNG_WEIGHT] for any other. */
@@ -507,6 +512,12 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
     @Transient internal val travel = kinds.map { Catalogue.travel(it) }
     /** Young born to the residents this step (all its ticks: [HexSim.step] clears it), by kind. */
     @Transient val bornThisWeek = DoubleArray(kinds.size)
+    /** Eggs of the ground-nesting kinds ([Species.nestDays]) the nest robbers took this step, by kind. */
+    @Transient val eggsTakenThisWeek = DoubleArray(kinds.size)
+    /** The kinds that rob nests ([Species.robsNests]). */
+    @Transient internal val nestRobberKinds = kinds.indices.filter { kinds[it].robsNests }
+    /** The nest robbers at each place as the step began, kg/km²: those kinds by their small-prey share, and the small life's foxes ([HexFauna.hatching]). */
+    @Transient internal val nestRobbers = FloatArray(n)
 
     init {
         // Start below what the land can carry, so that each kind grows into its country rather than
@@ -842,6 +853,23 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
          * growing. Piglets weigh 1-2 kg in their first weeks, when foxes, jackals and eagles take them, and some 35-45 kg at
          * a year (from memory); counted at a fixed three tenths of a sow all year, no small hunter could take one.
          */
+        /**
+         * Of [s]'s young in [month], this year's newborn: their weight as a share of a grown one's, and their share of the young
+         * (the young of the years to maturity alike: [youngShareIn]'s cohorts). 1 and 0 when this year's are grown already.
+         */
+        fun newbornShare(s: Species, month: Int): Float {
+            val born = (NEWBORN_SHARE / max(1f, s.youngPerFemale)).coerceAtMost(1f)
+            val grow = 12f * s.yearsToMaturity.coerceAtLeast(0.1f)
+            val since = (((month - s.birthMonth) % 12 + 12) % 12).toFloat()
+            return if (since < grow) born + (1f - born) * (since / grow) else 1f
+        }
+        fun newbornOfYoung(s: Species, month: Int): Float {
+            val grow = 12f * s.yearsToMaturity.coerceAtLeast(0.1f)
+            var age = (((month - s.birthMonth) % 12 + 12) % 12).toFloat()
+            if (age >= grow) return 0f
+            var cohorts = 0; while (age < grow) { cohorts++; age += 12f }
+            return 1f / cohorts
+        }
         fun youngShareIn(s: Species, month: Int): Float {
             val born = (NEWBORN_SHARE / max(1f, s.youngPerFemale)).coerceAtMost(1f)
             val grow = 12f * s.yearsToMaturity.coerceAtLeast(0.1f)
@@ -926,6 +954,13 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
          * defence, cover and shelter leave it), only a few hundred kg a km², the ground held a wolf a third of the record's.
          */
         const val PREY_SUPPORT = 0.002f
+        /**
+         * [usualAt]: the same for a hunter living on small prey and carrion (jackals, hyenas), on the game of its size and
+         * the small prey it reaches ([huntersFood]): some 90 kg of a carnivore kind for each 10,000 kg of its prey, whatever
+         * its size (Carbone and Gittleman 2002, Science 295:2273), for want of a figure of its own. (Held instead to a fixed
+         * usual density, jackals fought each other down to 0.2 a km² wherever they lived, well fed.)
+         */
+        const val SMALL_HUNTER_SUPPORT = 0.009f
         /** [usualAt]'s least, heads per km², where there is next to no game: a territory of some 10,000 km². */
         const val TERRITORY_LEAST = 1e-4f
         /** [gameMean]: the share of the way to the week's game it goes a week, about half a year's memory. */
@@ -999,7 +1034,8 @@ internal val FADED_OUT = DeathCause.OTHER
 enum class ResidentDeath(val cause: DeathCause) {
     AGE(DeathCause.AGE), HUNGER(DeathCause.HUNGER), COLD(DeathCause.COLD), HEAT(DeathCause.HEAT), DISEASE(DeathCause.DISEASE), EAGLES(DeathCause.EAGLES),
     FIRE(DeathCause.FIRE), FLOOD(DeathCause.FLOOD), SNOW(DeathCause.SNOW), CROCODILES(DeathCause.CROCODILES), THIRST(DeathCause.THIRST),
-    SHORT_OF_PROTEIN(DeathCause.SHORT_OF_PROTEIN), RIVALS(DeathCause.RIVALS), YOUNG_KILLED_BY_RIVALS(DeathCause.YOUNG_KILLED_BY_RIVALS)
+    SHORT_OF_PROTEIN(DeathCause.SHORT_OF_PROTEIN), RIVALS(DeathCause.RIVALS), YOUNG_KILLED_BY_RIVALS(DeathCause.YOUNG_KILLED_BY_RIVALS),
+    FOXES(DeathCause.FOXES)
 }
 @Suppress("NOTHING_TO_INLINE") internal inline operator fun DoubleArray.get(d: ResidentDeath) = this[d.ordinal]
 @Suppress("NOTHING_TO_INLINE") internal inline operator fun DoubleArray.set(d: ResidentDeath, v: Double) { this[d.ordinal] = v }

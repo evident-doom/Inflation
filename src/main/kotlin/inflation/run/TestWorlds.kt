@@ -124,6 +124,12 @@ object TestWorlds {
         Entry("w1120-1", 1, 1000, 2000, "the full map, settled on ac85a89a"),
         Entry("w1120-2", 2, 1000, 2000, "the full map, settled on ac85a89a"),
         Entry("w1120-3", 3, 1000, 2000, "the full map, settled on ac85a89a"),
+        // The same seeds settled again for 30 years weekly on claude/hunters-by-food (the predator slots: hunters by their
+        // food, lynx, foxes on newborn, eggs, root diggers, frozen-ground digging; the lynx makes older saves refuse) from
+        // t.startDay=150 with night1120-kept-last (Olli 2026-11-22 "start and populate new worlds on kata").
+        Entry("w1122-1", 1, 1000, 2000, "the full map, settled on claude/hunters-by-food"),
+        Entry("w1122-2", 2, 1000, 2000, "the full map, settled on claude/hunters-by-food"),
+        Entry("w1122-3", 3, 1000, 2000, "the full map, settled on claude/hunters-by-food"),
         // New seeds 4..6, settled for 30 years on main 2afaf7c4 from t.startDay=150 with the default nets of 2026-11-14
         // (night1114-kept-last): Olli 2026-11-14 "reseed a new world" for the overnight training and its checks.
         Entry("s6-4", 4, 1000, 2000, "the full map, new seed 4"),

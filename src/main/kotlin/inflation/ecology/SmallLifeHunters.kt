@@ -95,6 +95,9 @@ private fun HexSmallLife.scavengeFirst(p: Place, dead: Float, need: Float, half:
 /** Yearly share of the young of small hoofed animals eagles take in place [p]. */
 fun HexSmallLife.eagleRisk(p: Place) = EAGLE_RATE * eagles[p] * open(p)
 
+/** Yearly share of the newborn of the hoofed animals the foxes and small carnivores of place [p] take, by their kg/km² ([FOX_YOUNG_RATE]). */
+fun HexSmallLife.foxRisk(p: Place) = HexSmallLife.FOX_YOUNG_RATE * foxes[p]
+
 /**
  * Vultures soar out from their colony each day and find the carcasses within reach, before most
  * other scavengers; a colony grows when they eat well and shrinks when not. They quarter the

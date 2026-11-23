@@ -80,7 +80,9 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
      * The bulbs and roots at [p] that can be dug this week, kg/m²: none while the ground is frozen, and only part where it
      * is baked dry ([softness]).
      */
-    fun diggable(p: Place) = if (frozen[p]) 0f else roots[p] * softness(p)
+    fun diggable(p: Place) = roots[p] * digShare(p)
+    /** The share of the ground at [p] a snout gets into this week: none while it is frozen, else its [softness]. */
+    fun digShare(p: Place) = if (frozen[p]) 0f else softness(p)
     /**
      * How much of a place's ground a snout or a digging stick gets into this week, 0..1: all where the soil holds
      * [SOFT_SOIL] of the water it can or more, less as it dries. A summer-baked crust keeps boar to the damp spots by the

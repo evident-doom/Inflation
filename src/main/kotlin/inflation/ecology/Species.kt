@@ -246,6 +246,14 @@ class Species(
     val takesPeople: Float = 0f,
     /** Its mothers hide their young and move them from lair to lair in their first months, as the cats do ([youngHidden]). */
     val hidesYoung: Boolean = false,
+    /**
+     * Days its eggs lie in the nest on the ground before they hatch, open to the nest robbers ([robsNests],
+     * [HexFauna.hatching]); 0 for a kind that bears its young live. Its [youngPerFemale] are then the chicks a hen's nest
+     * hatches where no one robs it.
+     */
+    val nestDays: Float = 0f,
+    /** It finds and eats the eggs of birds nesting on the ground ([nestDays]), as the small life's foxes do: jackals, hyenas, wild boar, bears. */
+    val robsNests: Boolean = false,
     /** How far its dispersers go, km: the scale of nearness their settling weighs ([disperse]); an estimate. */
     val dispersalKm: Float = 60f,
     /** The days its dispersers take to settle where there is room enough ([disperse]); an estimate. */

@@ -116,6 +116,7 @@ object Catalogue {
     /** Wild boar: omnivore of forest, thicket and marsh; roots, acorns, bulbs; large litters. */
     val BOAR = Species(
         id = 2, name = "wild boar", massKg = 90f,
+        robsNests = true,
         // (Field counts: Białowieża 0.2-3.8 over a century (Jędrzejewska et al. 1997, Acta Theriol. 42:399), spring 2.2-4.3 (Theuerkauf et al. 2008, Ann. Zool. Fenn. 45); more after a mast.)
         fieldKm2 = 0.2f..5f,
         fearOfPeople = 0.6f, boldShare = 0.1f,
@@ -241,6 +242,7 @@ object Catalogue {
      */
     val BEAR = Species(
         id = 6, name = "brown bear", massKg = 150f,
+        robsNests = true,
         // (Field counts: European brown bears some 0.01-0.1, the Carpathians to 0.2, from memory.)
         fieldKm2 = 0.01f..0.2f,
         fearOfPeople = 0.6f, boldShare = 0.05f,
@@ -378,6 +380,7 @@ object Catalogue {
     /** Striped hyena: mostly a scavenger, cracking the bones others leave; also takes small prey and young. */
     val HYENA = Species(
         id = 18, name = "striped hyena", massKg = 35f,
+        robsNests = true,
         // (Field counts: from memory: some 0.01-0.1.)
         fieldKm2 = 0.005f..0.1f,
         fearOfPeople = 0.5f, boldShare = 0.1f,
@@ -411,6 +414,7 @@ object Catalogue {
     /** Golden jackal: pairs living on rodents, carrion and the young of gazelle and deer. */
     val JACKAL = Species(
         id = 19, name = "jackal", massKg = 10f,
+        robsNests = true,
         // (Field counts: golden jackals about one family group a km² in Europe, 0.1-5 in the record (Arnold et al. 2012, Mammal Rev.; from the review as found), 0.06-0.11 groups on average over four Balkan countries; a group two to six.)
         fieldKm2 = 0.2f..5f,
         fearOfPeople = 0.4f, boldShare = 0.15f,
@@ -437,6 +441,46 @@ object Catalogue {
         followsPeople = true,
         activity = floatArrayOf(0.25f, 0.1f, 0.25f, 0.4f),
         shelters = setOf(Niches.Shelter.DEN, Niches.Shelter.THICKET),
+    )
+
+    /**
+     * Lynx, and with it the caracal: the middle-sized cats, solitary stalkers of forest, scrub and broken ground, the roe
+     * deer's chief hunter in the woods and the gazelle's and the hare's on the dry hills (a roe or a young gazelle a week or
+     * so, with hares, birds and rodents between); a mother keeps her kits with her through their first winter. One label
+     * for the slot: the Eurasian lynx in the woods and the mountains, the caracal in the scrub and the steppe.
+     */
+    val LYNX = Species(
+        id = 23, name = "lynx", massKg = 18f,
+        // (Field counts: Eurasian lynx some 1-3 to the 100 km² (Białowieża about 3, Jędrzejewski et al.), caracal about the
+        // same where it is not hunted down; from memory, not checked.)
+        fieldKm2 = 0.005f..0.05f,
+        fearOfPeople = 0.9f, boldShare = 0.01f,
+        diet = Diet(meat = 0.7f, smallPrey = 0.27f, carrion = 0.03f),
+        groupSize = 1, maxGroupSize = 4,
+        dailyTravelKm = 8f, maxDailyTravelKm = 25f, senseKm = 3f,
+        // (The caracal lives in dry country, on what its prey holds of water.)
+        daysWithoutWater = 6, waterFromFood = 0.8f,
+        // (Kept as a resident: a litter of two or three a year.)
+        birthMonth = 5, birthMonths = 1, youngPerFemale = 2.5f, yearsToMaturity = 2f,
+        backgroundMortality = 0.1f, youngMortality = 0.5f, snowLimitMm = 900f,
+        products = Products(meat = 8f, fat = 0.3f, hide = 1.5f, bone = 2f, sinew = 0.1f, fur = true),
+        // (The lynx's winters to the caracal's summers.)
+        comfortC = -30f..38f, winterCoat = true,
+        speedKmh = 50f,
+        domestication = floatArrayOf(0.1f, 0.3f, 0.1f, 0.0f, 0.2f, 0.0f),
+        habitat = Habitat(cover = 0.3f, rugged = 0.5f),
+        // (It lies up in thickets and among rocks and climbs out of a wolf's reach.)
+        shelters = setOf(Niches.Shelter.CRAG, Niches.Shelter.THICKET, Niches.Shelter.TREE),
+        stalking = 1f,
+        // (A lynx holds its own against animals its size and kills foxes and the young of others; from memory, not checked.)
+        ferocity = 0.9f,
+        // (A lynx fights back with teeth and claws: an estimate between the onager's kicks (0.4) and the boar's tusks (0.6).)
+        defence = 0.5f,
+        // (Roe deer of 20-30 kg most of all, chamois and young deer, a caracal gazelle of its own weight; from memory.)
+        preyUpTo = 2f, preyPreferredUpTo = 1.4f,
+        startKm2PerAnimal = 60f,
+        activity = floatArrayOf(0.3f, 0.05f, 0.3f, 0.35f),
+        hidesYoung = true,
     )
 
     // ---------------------------------------------------------------- the cold north
@@ -601,8 +645,9 @@ object Catalogue {
         groupSize = 5, maxGroupSize = 30,
         dailyTravelKm = 15f, maxDailyTravelKm = 50f, senseKm = 5f,
         daysWithoutWater = 7, waterFromFood = 0.8f,
-        // A hen lays 10-20 eggs; about three chicks a hen live through their first weeks.
-        birthMonth = 5, birthMonths = 3, youngPerFemale = 3f, yearsToMaturity = 3f,
+        // A hen lays 10-20 eggs, some of them pushed out of the nest the major hen sits; a nest unrobbed hatches some six
+        // chicks a hen. The nest lies 42 days on open ground, where most are robbed ([nestDays], [HexFauna.hatching]).
+        birthMonth = 5, birthMonths = 3, youngPerFemale = 6f, yearsToMaturity = 3f, nestDays = 42f,
         backgroundMortality = 0.07f, youngMortality = 0.7f,
         snowLimitMm = 30f,
         products = Products(meat = 50f, fat = 3f, hide = 10f, bone = 10f, sinew = 1f),
@@ -757,7 +802,7 @@ object Catalogue {
         ROE_DEER,
     )
     // (A new kind takes the next free [Species.id], so every kind keeps its index, and saved networks their identities.)
-    val predators = listOf(WOLF, LION, LEOPARD, HYENA, JACKAL, CHEETAH, HUMAN)
+    val predators = listOf(WOLF, LION, LEOPARD, HYENA, JACKAL, CHEETAH, HUMAN, LYNX)
 
     /**
      * Plant-eaters that follow the seasons over long distances; the others live out their lives in small home ranges.
@@ -775,7 +820,7 @@ object Catalogue {
      * breeding spacing, and they rose some fivefold in ten years (review/2026-10-31-ab-residents.md). (They stay in
      * [predators], so every kind keeps its index.)
      */
-    val residentHunters by lazy { setOf(JACKAL, HYENA) }
+    val residentHunters by lazy { setOf(JACKAL, HYENA, LYNX) }
 
     /**
      * Hunters that live both ways (docs/design/roaming-packs.md, Olli 2026-11-02): most settled on their ground as residents,
@@ -793,7 +838,7 @@ object Catalogue {
      * The resident hunters keep out of the way of a much stronger party ([HexFauna.strongest]). (Bears and hyenas rob a
      * pack's kills they come on by scent: [scavengedAtKill].)
      */
-    val residentRivals by lazy { setOf(JACKAL, HYENA, BEAR) }
+    val residentRivals by lazy { setOf(JACKAL, HYENA, LYNX, BEAR) }
 
     /**
      * Beasts of prey, the hunters and the bear: other hunters kill them as rivals and kill their young ([Danger.STRIFE],
