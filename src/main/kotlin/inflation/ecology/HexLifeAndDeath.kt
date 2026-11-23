@@ -792,15 +792,19 @@ internal fun HexGroups.mergeAndPair(date: Date, weather: Weather) {
     val lone = HashMap<Int, ArrayList<HexGroup>>()
     for (g in groups) if (g.alive && g.species.lifeway == Lifeway.PACK && g.adults == 1) lone.getOrPut(g.species.index) { ArrayList() } += g
     for ((_, list) in lone) {
-        val used = HashSet<Int>()
-        for (a in list) {
-            if (a.id in used) continue
+        // (Paired already, by place in the list: a group is in it once.)
+        val used = BooleanArray(list.size)
+        for ((ai, a) in list.withIndex()) {
+            if (used[ai]) continue
             // (As far as it chooses to look, by the ground its kind can cross ([reachOf]); and only among its own lineage while
             // variants are weighed against each other.)
             val most = (MATE_SEARCH_KM * a.will[AnimalWay.MATE]).toFloat()
             val reach = reachOf(a, hw.placeHex[a.place], most, weather)
-            val b = list.firstOrNull { it.id != a.id && it.id !in used && it.tag == a.tag && reach.km(hw.placeHex[it.place], most) != null } ?: continue
-            used += a.id; used += b.id
+            var bi = -1
+            for (j in list.indices) { val c = list[j]; if (j != ai && !used[j] && c.tag == a.tag && reach.km(hw.placeHex[c.place], most) != null) { bi = j; break } }
+            if (bi < 0) continue
+            val b = list[bi]
+            used[ai] = true; used[bi] = true
             a.adults += b.adults; a.young += b.young
             a.fed = (a.fed + b.fed) / 2f; a.fat = (a.fat + b.fat) / 2f; a.spent = (a.spent + b.spent) / 2f; a.bred = (a.bred + b.bred) / 2f
             if (a.home.none) claimGround(a, b.home)

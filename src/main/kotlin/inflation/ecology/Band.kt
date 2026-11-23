@@ -884,7 +884,17 @@ class Band(kinds: Int, totems: Int = kinds) {
     var known = LongArray(0)
 
     fun knows(h: Hex) = h.i / 64 < known.size && (known[h.i / 64] ushr (h.i % 64)) and 1L == 1L
-    fun learn(h: Hex, size: Int) { if (known.size * 64 < size) known = known.copyOf((size + 63) / 64); known[h.i / 64] = known[h.i / 64] or (1L shl (h.i % 64)) }
+    fun learn(h: Hex, size: Int) {
+        if (known.size * 64 < size) known = known.copyOf((size + 63) / 64)
+        val w = known[h.i / 64]; val now = w or (1L shl (h.i % 64))
+        if (now != w) { known[h.i / 64] = now; knownStamp++ }
+    }
+    /** Hex [h] fades from the country it knows. */
+    fun forget(h: Hex) { if (knows(h)) { known[h.i / 64] = known[h.i / 64] and (1L shl (h.i % 64)).inv(); knownStamp++ } }
+    /** Counts the changes to [known] ([learn], [forget], merging): what a reckoning from the known country checks it against ([KnownSources]). */
+    @Transient internal var knownStamp = 0
+    /** The sources of the traded goods it knows, as of a [knownStamp] ([HexGroups.knownSources]). Not saved. */
+    @Transient internal var knownSources: KnownSources? = null
 
     /**
      * Its rites: for each month, the place it holds sacred then (-1: none) — the graves of its dead, where
@@ -1118,6 +1128,7 @@ class Band(kinds: Int, totems: Int = kinds) {
         for (t in Tool.entries) a.spare[t] += b.spare[t]
         if (a.known.size < b.known.size) a.known = a.known.copyOf(b.known.size)
         for (i in b.known.indices) a.known[i] = a.known[i] or b.known[i]
+        a.knownStamp++
         a.dogs.absorb(b.dogs)
         a.inbred += w * (b.inbred - a.inbred); a.elders += b.elders
         a.unevenness += w * (b.unevenness - a.unevenness)

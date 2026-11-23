@@ -747,7 +747,7 @@ internal fun HexGroups.cultureWeek(g: HexGroup, rnd: kotlin.random.Random, day: 
         val near = searchedAtLeast(g, here, REMEMBERED_KM.toFloat(), weather)
         for (w in b.known.indices) { var bits = b.known[w]; while (bits != 0L) { val i = java.lang.Long.numberOfTrailingZeros(bits); bits = bits and (bits - 1)
             val h = Hex(w * 64 + i)
-            if (near.km(h, REMEMBERED_KM.toFloat()) == null && rnd.nextFloat() < 0.5f * routes.forgetShare(h)) b.known[w] = b.known[w] and (1L shl i).inv() } }
+            if (near.km(h, REMEMBERED_KM.toFloat()) == null && rnd.nextFloat() < 0.5f * routes.forgetShare(h)) b.forget(h) } }
     }
     b.inbred += (1f - b.inbred) / (2f * max(2, g.adults)) * years / GENERATION_YEARS
     unevenYear(g, b)

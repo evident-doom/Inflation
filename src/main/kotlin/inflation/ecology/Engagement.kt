@@ -320,10 +320,16 @@ internal fun GroupWorld.sightings(a: HexGroup, stA: Stance, b: HexGroup, stB: St
  * does not hide); whether a sees b, and b sees a, drawn by [r].
  */
 internal fun sightingsOf(senseA: Float, hideA: Float, senseB: Float, hideB: Float, r: Random): Pair<Boolean, Boolean> {
-    if (r.nextFloat() < (1f - 1f / hideA) * (1f - 1f / hideB)) return false to false
+    if (r.nextFloat() < (1f - 1f / hideA) * (1f - 1f / hideB)) return NEITHER_SAW
     val wa = senseA / hideB; val wb = senseB / hideA
-    return if (r.nextFloat() < wa / (wa + wb)) true to (r.nextFloat() < 1f / hideA) else (r.nextFloat() < 1f / hideB) to true
+    return if (r.nextFloat() < wa / (wa + wb)) (if (r.nextFloat() < 1f / hideA) BOTH_SAW else ONLY_A_SAW) else (if (r.nextFloat() < 1f / hideB) BOTH_SAW else ONLY_B_SAW)
 }
+
+/** The four answers of [sightingsOf], made once: it is asked millions of times a step. */
+internal val BOTH_SAW = true to true
+private val NEITHER_SAW = false to false
+private val ONLY_A_SAW = true to false
+private val ONLY_B_SAW = false to true
 
 /** What a side does at an engagement ([engage]). */
 internal enum class Act { FIGHT, WITHDRAW, LIE_LOW }
@@ -410,7 +416,7 @@ internal fun HexGroups.engage(met: Encounter, contested: HexArray, r: Random, we
     // there; raiders know where they are going, the raided may not see them coming.)
     val aware = intent == Intent.VISIT || intent == Intent.GATHERING
     // (Raiders come on the raided as stealthily as they can: as one keeping out of sight.)
-    val (aSaw, bSaw) = if (aware) true to true else sightings(a, if (raid) Stance.AMBUSH else stA, b, stB, p, r)
+    val (aSaw, bSaw) = if (aware) BOTH_SAW else sightings(a, if (raid) Stance.AMBUSH else stA, b, stB, p, r)
     val aSees = aware || raid || aSaw; val bSees = aware || bSaw
     // (What each saw of the other it remembers: a scout's watching is for this.)
     if (aSees) noteSeen(a, b, day); if (bSees) noteSeen(b, a, day)

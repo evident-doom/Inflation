@@ -1,6 +1,7 @@
 package inflation.ecology
 
 import inflation.world.Hex
+import inflation.world.HexArray
 import inflation.world.Weather
 import inflation.world.get
 import kotlin.math.max
@@ -39,13 +40,15 @@ internal fun favoursOfDays(days: Float, recentYield: Float, adults: Int, size: I
     return needDays / FAVOUR_DAYS
 }
 
-/** What a person-day gets of [m] at a source in hex [h], kg (sea salt is made, slower than a pan's crust is scraped); NaN for a good not got at sources. */
-private fun HexGroups.rateAt(m: Material, h: Hex): Float = when (m) {
-    Material.STONE, Material.GROUND_STONE, Material.OBSIDIAN -> STONE_A_DAY
-    Material.OCHRE -> OCHRE_A_DAY
-    Material.SALT -> if (hw.coast[h] && h !in bands.materialSources.getValue(Material.SALT)) SEA_SALT_A_DAY else SALT_A_DAY
-    else -> Float.NaN
-}
+/** A traded good's sources ([Bands.materialSources], for salt [Bands.saltSources]) and what a person-day gets at each ([Bands.sourceRate]). */
+internal class SourceTable(val hexes: HexArray, val rates: FloatArray)
+
+/** The sources of each traded good a band knows, as indices into its [SourceTable] by the good's ordinal, as of its [Band.knownStamp] [stamp]. */
+internal class KnownSources(val stamp: Int, val of: Array<IntArray>)
+
+internal val NO_SOURCES = IntArray(0)
+/** The [SourceTable] of a good not got at sources. */
+internal val NO_TABLE = SourceTable(HexArray(0), FloatArray(0))
 
 /**
  * Person-days a kg of [m] ([TRADED]) is worth to group [g]'s band [b], camped where it is: the cheapest of the sources of
@@ -54,18 +57,20 @@ private fun HexGroups.rateAt(m: Material, h: Hex): Float = when (m) {
  */
 internal fun HexGroups.worthDaysPerKg(g: HexGroup, b: Band, m: Material, weather: Weather): Float {
     val here = hw.placeHex[g.place]
-    val sources = if (m == Material.SALT) bands.saltSources else bands.materialSources.getValue(m)
+    val t = bands.sourceTables[m.ordinal]
     var reach: Reach? = null
     var best = Float.MAX_VALUE
-    for (h in sources) if (b.knows(h)) {
+    // (The sources it knows, in the table's order: [Bands.knownSources].)
+    for (i in bands.knownSources(b).of[m.ordinal]) {
+        val h = t.hexes[i]; val rate = t.rates[i]
         val crow = hexKm(here, h).toFloat()
         // (No need to search the ground for a source that could not beat the best even as the crow flies.)
-        if (fetchDaysPerKg(crow, rateAt(m, h)) >= best) continue
+        if (fetchDaysPerKg(crow, rate) >= best) continue
         val r = reach ?: searchedAtLeast(g, here, GOAL_GOING_KM, weather).also { reach = it }
         val km = r.km(h, GOAL_GOING_KM) ?: max(GOAL_GOING_KM, crow)
-        best = min(best, fetchDaysPerKg(km, rateAt(m, h)))
+        best = min(best, fetchDaysPerKg(km, rate))
     }
-    return if (best < Float.MAX_VALUE) best else fetchDaysPerKg(UNKNOWN_SOURCE_KM, rateAt(m, sources.firstOrNull() ?: here))
+    return if (best < Float.MAX_VALUE) best else fetchDaysPerKg(UNKNOWN_SOURCE_KM, if (t.hexes.isEmpty()) bands.sourceRate(m, here) else t.rates[0])
 }
 
 /** Person-days a person's set of tool [t] is worth to group [g]'s band [b]: its making, and the good stone it takes at what that is worth to it. */

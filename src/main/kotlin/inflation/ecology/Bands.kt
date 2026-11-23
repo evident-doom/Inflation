@@ -166,6 +166,40 @@ class Bands internal constructor(private val world: GroupWorld) {
         (materialSources.getValue(Material.SALT).toList() + shore.values).distinct().sorted().toHexArray()
     }
 
+    /** Each traded good's sources and what a person-day gets at each ([sourceRate]), by the good's ordinal; none for a good not traded. Not saved. */
+    @delegate:Transient internal val sourceTables: Array<SourceTable> by lazy {
+        Array(Material.entries.size) { mi -> val m = Material.entries[mi]
+            if (m !in TRADED) NO_TABLE else {
+                val hexes = if (m == Material.SALT) saltSources else materialSources.getValue(m)
+                SourceTable(hexes, FloatArray(hexes.size) { i -> sourceRate(m, hexes[i]) })
+            }
+        }
+    }
+
+    /** What a person-day gets of [m] at a source in hex [h], kg (sea salt is made, slower than a pan's crust is scraped); NaN for a good not got at sources. */
+    internal fun sourceRate(m: Material, h: Hex): Float = when (m) {
+        Material.STONE, Material.GROUND_STONE, Material.OBSIDIAN -> STONE_A_DAY
+        Material.OCHRE -> OCHRE_A_DAY
+        Material.SALT -> if (hw.coast[h] && materialSources.getValue(Material.SALT).binarySearch(h) < 0) SEA_SALT_A_DAY else SALT_A_DAY
+        else -> Float.NaN
+    }
+
+    /**
+     * The sources of each traded good band [b] knows ([Band.knows]), as indices into the good's [sourceTables] in their order:
+     * reckoned again only when what it knows has changed ([Band.knownStamp]).
+     */
+    internal fun knownSources(b: Band): KnownSources {
+        b.knownSources?.let { if (it.stamp == b.knownStamp) return it }
+        val stamp = b.knownStamp
+        val of = Array(Material.entries.size) { mi ->
+            val t = sourceTables[mi]; if (t.hexes.isEmpty()) return@Array NO_SOURCES
+            var c = 0; for (i in 0 until t.hexes.size) if (b.knows(t.hexes[i])) c++
+            val out = IntArray(c); c = 0; for (i in 0 until t.hexes.size) if (b.knows(t.hexes[i])) out[c++] = i
+            out
+        }
+        return KnownSources(stamp, of).also { b.knownSources = it }
+    }
+
     /**
      * The nearest of the [saltSources] band [b] knows, from hex [here], by [km] (from [here] to a source: [HexGroups.saltKnown]
      * gives the going), or -1 if it knows none (kept on the band till it moves on).
@@ -173,7 +207,8 @@ class Bands internal constructor(private val world: GroupWorld) {
     internal fun saltKnown(b: Band, here: Hex, km: (Hex) -> Double): Hex {
         if (b.saltFrom == here) return b.saltAt
         var best = Hex.NONE; var bestKm = Double.MAX_VALUE
-        for (h in saltSources) if (b.knows(h)) { val d = km(h); if (d < bestKm) { bestKm = d; best = h } }
+        val salt = sourceTables[Material.SALT.ordinal].hexes
+        for (i in knownSources(b).of[Material.SALT.ordinal]) { val h = salt[i]; val d = km(h); if (d < bestKm) { bestKm = d; best = h } }
         b.saltFrom = here; b.saltAt = best
         return best
     }
