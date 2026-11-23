@@ -79,8 +79,7 @@ internal fun HexFauna.reachOf(s: Species, p: Place) = HexFood.access(s, land.cra
  */
 internal fun HexFauna.inSight(s: Species, p: Place): Float = if (watchesInOpen(s)) 1f - COVER_WATCH * land.plants.cover(p) else 1f
 /** Whether [s] escapes by seeing danger early and outrunning it, the runners of the open plains ([inSight]), not by hiding, climbing or fighting. */
-internal fun watchesInOpen(s: Species) = !(s.carnivore || s.defence >= COVER_DEFENCE || Niches.Shelter.THICKET in s.shelters ||
-    Niches.Shelter.TREE in s.shelters || Niches.Shelter.CRAG in s.shelters)
+internal fun watchesInOpen(s: Species) = s.runsInOpen
 
 /** [inSight]: the feeding time a runner of the open plains loses in full cover; an estimate. */
 internal const val COVER_WATCH = 0.8f

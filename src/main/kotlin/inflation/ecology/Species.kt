@@ -270,6 +270,9 @@ class Species(
     override fun compareTo(other: Species) = id.compareTo(other.id)
     /** [shelters] as an array, for [Niches.shelter]'s loop. */
     internal val shelterArray: Array<Niches.Shelter> = shelters.toTypedArray()
+    /** Whether it escapes by seeing danger early and outrunning it ([inflation.ecology.watchesInOpen]), worked out once: it is read in the hunters' innermost loops. */
+    internal val runsInOpen: Boolean = !(diet.animal > 0.5f || defence >= COVER_DEFENCE || Niches.Shelter.THICKET in shelters ||
+        Niches.Shelter.TREE in shelters || Niches.Shelter.CRAG in shelters)
     /** Mostly eats animals. */
     val carnivore: Boolean get() = diet.animal > 0.5f
     /** What kind of group it lives in, for the kinds that live in groups: a band of people or a pack of hunters. */

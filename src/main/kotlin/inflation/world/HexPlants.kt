@@ -276,18 +276,22 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
     private fun crownsAt(share: Float): Float =
         if (share >= 1f - GAP_SHARE) Float.MAX_VALUE else -TREE_CLOSED_KG * ln(1f - max(0f, share) / (1f - GAP_SHARE))
     /** Share of place [p]'s ground in glades ([glade], within its open ground). */
-    fun gladeArea(p: Place) = min(glade[p], 1f - treeLight(p))
+    fun gladeArea(p: Place) = gladeArea(p, treeLight(p))
+    /** [gladeArea], given the crowns' share [trees] ([treeLight]) at [p]: for a reader that has it already. */
+    fun gladeArea(p: Place, trees: Float) = min(glade[p], 1f - trees)
     /** Share of place [p]'s shrubs and herbs that grow in its glades: they grow where the light is ([understoryLight]). */
-    fun gladeUnderstory(p: Place): Float { val lit = understoryLight(p, treeLight(p)); return if (lit > 1e-6f) min(1f, gladeArea(p) / lit) else 0f }
+    fun gladeUnderstory(p: Place): Float = gladeUnderstory(p, treeLight(p))
+    /** [gladeUnderstory], given the crowns' share [trees] ([treeLight]) at [p]. */
+    fun gladeUnderstory(p: Place, trees: Float): Float { val lit = understoryLight(p, trees); return if (lit > 1e-6f) min(1f, gladeArea(p, trees) / lit) else 0f }
     /**
      * The mean of [f] of the cover over place [p] read as its glades and its wood, for a rule that bends sharply on cover
      * (a kind's liking for thickets or the open, say): the trees stand in the wood, the shrubs lie where they grow
      * ([gladeUnderstory]). An even wood gives [f] of [cover]; groves and glades each their own.
      */
     inline fun overCover(p: Place, f: (Float) -> Float): Float {
-        val g = gladeArea(p); val m = gladeUnderstory(p); val w = 1f - g
+        val t = treeLight(p); val g = gladeArea(p, t); val m = gladeUnderstory(p, t); val w = 1f - g
         val inGlades = if (g > 0f) min(1f, shrub[p] * m / g / 2f) else 0f
-        val inWood = if (w > 0f) min(1f, (canopy(p) + shrub[p] * (1f - m) / 2f) / w) else 0f
+        val inWood = if (w > 0f) min(1f, (t + shrub[p] * (1f - m) / 2f) / w) else 0f
         return g * f(inGlades) + w * f(inWood)
     }
     /** Fire at place [p] killed trees whose crowns covered [before] of it: the ground it opened is glade. */
@@ -365,7 +369,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
      * the mean of its glades' and its wood's as for [cover]; fire and grazing take it off.
      */
     fun groundCover(p: Place): Float {
-        val g = gladeArea(p); val m = gladeUnderstory(p); val w = 1f - g
+        val t = treeLight(p); val g = gladeArea(p, t); val m = gladeUnderstory(p, t); val w = 1f - g
         val under = herb[p] / LifeForm.HERB.maxBiomass + shrub[p] / 2f
         return (if (g > 0f) g * min(1f, under * m / g) else 0f) + (if (w > 0f) w * min(1f, under * (1f - m) / w) else 0f)
     }

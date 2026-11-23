@@ -104,7 +104,7 @@ internal fun HexFauna.huntResidents(k: FaunaKind, p: Place, meat: KgM2, weather:
     var game = 0f
     fun offer(j: Int, pt: Int, c: Int, d: Float, kg: Float, ps: Species, guard: Float, groupHeads: Float, shelter: Float) {
         if (d <= 0f) return
-        val catchKg = catchable(hunter, ps, kg, p, shelter)
+        val catchKg = catchable(hunter, ps, kg, p, shelter, cover)
         game += d * kg * catchKg
         val success = killChance(catchKg, 1f) * guard
         if (!(success > 0f)) return
@@ -215,12 +215,13 @@ fun HexFauna.afraid(p: Place) = fear[p] / (fear[p] + FEAR_HALF)
  */
 fun HexFauna.game(s: Species, p: Place): Float {
     var v = 0f
+    val cover = land.plants.cover(p)
     for ((j, ps) in kinds.withKinds()) {
         if (ps === s || Catalogue.beastOfPrey(ps)) continue
         val a = adults[j][p]; val y = young[j][p]
         if (a + y <= 0f) continue
         val ym = youngKg(j.i); val sh = preyShelter(ps, p)
-        v += a * ps.massKg * catchable(s, ps, ps.massKg, p, sh) + y * ym * catchable(s, ps, ym, p, sh)
+        v += a * ps.massKg * catchable(s, ps, ps.massKg, p, sh, cover) + y * ym * catchable(s, ps, ym, p, sh, cover)
     }
     return v
 }
@@ -268,8 +269,11 @@ fun HexFauna.preyBiomass(s: Species, p: Place): Float {
 fun HexFauna.catchable(s: Species, ps: Species, massKg: Float, p: Place): Float = catchable(s, ps, massKg, p, preyShelter(ps, p))
 
 /** [catchable], given [shelter], [ps]'s [preyShelter] at [p]: for a caller that weighs its grown and young, or many hunters, alike. */
-fun HexFauna.catchable(s: Species, ps: Species, massKg: Float, p: Place, shelter: Float): Float =
-    (s.preySize(massKg, young = massKg < ps.massKg) * (1f - youngDefence(ps, massKg) * condition(ps, p)) * closingIn(s, ps, massKg, p, shelter)).coerceIn(0f, 1f)
+fun HexFauna.catchable(s: Species, ps: Species, massKg: Float, p: Place, shelter: Float): Float = catchable(s, ps, massKg, p, shelter, land.plants.cover(p))
+
+/** [catchable], given [shelter] and the [cover] at [p] ([inflation.world.HexPlants.cover]): for a caller that weighs many kinds at one place. */
+fun HexFauna.catchable(s: Species, ps: Species, massKg: Float, p: Place, shelter: Float, cover: Float): Float =
+    (s.preySize(massKg, young = massKg < ps.massKg) * (1f - youngDefence(ps, massKg) * condition(ps, p)) * closingIn(s, ps, massKg, shelter, cover)).coerceIn(0f, 1f)
 
 /**
  * How much of its kind's defence game of kind [ps] at place [p] still has, 0..1, by how it has fed there ([HexFauna.fed]):
@@ -300,13 +304,13 @@ fun HexFauna.preyShelter(ps: Species, p: Place): Float {
     return if (k >= 0) Niches.shelter(ps, p, land, groundShelter[k][p]) else Niches.shelter(ps, p, land)
 }
 
-private fun HexFauna.closingIn(s: Species, ps: Species, massKg: Float, p: Place, shelter: Float): Float {
+private fun HexFauna.closingIn(s: Species, ps: Species, massKg: Float, shelter: Float, cover: Float): Float {
     // Shelter: crags, dens, thickets and trees, as the prey uses them ([preyShelter]); small prey hide in any cover.
     // (Hunters that follow the scent find much of what hides; shelter counts for half against them.)
     // (But crags are a wild goat's whole defence: no hunter follows it up a cliff.)
     val refuge = 1f - (if (ps.climbing >= 0.5f) 1f else 0.5f) * SHELTER_EFFECT * shelter
     // Small prey hide in thick cover from hunters that run them down; a stalker uses the same cover to get close.
-    val hide = 1f - HIDING * land.plants.cover(p) * (1f - s.stalking) * max(0f, 1f - massKg / HIDING_KG)
+    val hide = 1f - HIDING * cover * (1f - s.stalking) * max(0f, 1f - massKg / HIDING_KG)
     // Stalkers hunt by night: dark weeks around the new moon hide them, bright ones give them away.
     val dark = 1f + MOON_DARK * s.stalking * (1f - 2f * moon)
     // A courser must run its quarry down; a stalker gets close unseen and needs no speed. (Against quarry faster than it,
@@ -316,10 +320,10 @@ private fun HexFauna.closingIn(s: Species, ps: Species, massKg: Float, p: Place,
     // (A runner of the open plains ([watchesInOpen]) outruns only what it sees coming from afar: in thick cover a hunter is on
     // it at a bound, and its speed counts for the less, the thicker the cover. Without it gazelle, onagers, horses and
     // ostriches stood thick in the woods: dens1121.)
-    val ratio = min(1f, s.speedKmh / ps.speedKmh).let { if (watchesInOpen(ps)) 1f - (1f - it) * (1f - land.plants.cover(p)) else it }
+    val ratio = min(1f, s.speedKmh / ps.speedKmh).let { if (watchesInOpen(ps)) 1f - (1f - it) * (1f - cover) else it }
     val speed = s.stalking + (1f - s.stalking) * ratio * ratio
     // And it needs room to run: in thick woods and scrub a chase ends at the first tangle.
-    val room = 1f - COURSING_COVER * (1f - s.stalking) * land.plants.cover(p)
+    val room = 1f - COURSING_COVER * (1f - s.stalking) * cover
     return refuge * hide * dark * speed * room
 }
 

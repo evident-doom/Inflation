@@ -33,20 +33,25 @@ fun HexFauna.fatShare(k: Int, p: Place): Float {
 
 internal fun HexFauna.breedAndDie(weather: Weather, date: Date) {
     stepDamp(); reckonShared()
-    val dead = Array(kinds.size) { DoubleArray(ResidentDeath.entries.size) }
-    val faded = DoubleArray(kinds.size)
+    // (Each kind's places in [BREED_BLOCKS] blocks that keep a hex whole, each block on its own core with its own tallies, added
+    // up after in block order: the blocks do not depend on the cores, so a run is the same on any number of them.)
+    val blocks = BREED_BLOCKS; val bounds = breedBounds(blocks)
+    val deadB = Array(kinds.size * blocks) { DoubleArray(ResidentDeath.entries.size) }
+    val fadedB = DoubleArray(kinds.size * blocks); val bornB = DoubleArray(kinds.size * blocks); val eggsB = DoubleArray(kinds.size * blocks)
     // Each kind on its own core, with its own carcasses, added up after.
     val carcasses = Array(kinds.size) { FloatArray(n) }
     val bornBook = land.books?.adder(Books.Stuff.MATTER, "residents born and grew up")
     stepYoungShare(date, bornBook)
-    Par.forEach("residents: births, deaths", kindIds.toList()) { k -> Profile.kind("residents: births, deaths", kinds[k].name) {
+    val ids = kindIds.toList()
+    Par.forEach("residents: births, deaths", ids.size * blocks) { job -> val k = ids[job / blocks]; val blk = job % blocks; val kb = k.i * blocks + blk
+        Profile.kind("residents: births, deaths", kinds[k].name) {
         val s = kinds[k]
         val carcassKg = carcasses[k]
         val grow = years / s.yearsToMaturity
         val thinGone = if (tuning.thinFadeDays > 0f) HexFauna.EXTINCT_FLOOR else EXTINCT
         val a = adults[k]; val y = young[k]; val f = fed[k]; val dk = dry[k]; val leavingK = leaving[k]
         val hz = enumFloats<Danger>()
-        for (p in land.places) {
+        for (pi in bounds[blk] until bounds[blk + 1]) { val p = Place(pi)
             if (a[p] + y[p] <= 0f) { dk[p] = 0f; continue }
             val area = land.areaKm2[p]
             // Births: half the adults are mothers; a mother bears what her food and reserves can build.
@@ -70,8 +75,8 @@ internal fun HexFauna.breedAndDie(weather: Weather, date: Date) {
                 // (As many of the eggs as of the hatched the hens' food and reserves build: [breeding]'s share of them.)
                 if (hatch < 1f && laid > 0f) { val robbed = 0.5f * a[p] * laid * (1f - hatch) * breeding(s, due, reserve[k][p], f[p], days) * area
                     val eggKg = HexFauna.newbornShare(s, s.birthMonth) * s.massKg
-                    carcassKg[p] += robbed * eggKg; bornBook?.add((robbed * eggKg).toDouble()); eggsTakenThisWeek[k] += robbed.toDouble() }
-                bornThisWeek[k] += (born * area).toDouble()
+                    carcassKg[p] += robbed * eggKg; bornBook?.add((robbed * eggKg).toDouble()); eggsB[kb] += robbed.toDouble() }
+                bornB[kb] += (born * area).toDouble()
                 bornBook?.add((born * area * youngShare[k.i] * s.massKg).toDouble())
                 // The young are made of what their mothers ate: what the week's food did not build comes off the mothers' reserves (as in groups).
                 if (born > 0f && a[p] > 0f) reserve[k][p] = max(0f, reserve[k][p] - fromReserves(s, born / (0.5f * a[p]), f[p], days))
@@ -102,7 +107,7 @@ internal fun HexFauna.breedAndDie(weather: Weather, date: Date) {
             // (The causes are booked as shares of the deaths that happen: where the odds are capped, each cause is cut alike.)
             val ca = if (adultSum > 0f) a[p] * adultOdds / adultSum * area else 0f
             val cy = if (youngSum > 0f) yExposed * youngOdds / youngSum * area else 0f
-            bookDeaths(k, p, ca, cy, hz, eagle, croc, starved, dead[k])
+            bookDeaths(k, p, ca, cy, hz, eagle, croc, starved, deadB[kb])
             sickBook[3 * k.i].add(((ca + cy) * hz[Danger.OUTBREAK]).toDouble())
             sickBook[3 * k.i + 1].add(((a[p] + y[p]) * area).toDouble()); sickBook[3 * k.i + 2].add(((a[p] + y[p]) * area * crowd * crowd).toDouble())
             a[p] -= da; y[p] -= dy
@@ -114,9 +119,12 @@ internal fun HexFauna.breedAndDie(weather: Weather, date: Date) {
             leavingK?.let { it[hw.placeHex[p]] += up * area * leaveShare(a[p] + y[p], usualAt(k.i, p)) }
             bornBook?.add((up * area * (1f - youngShare[k.i]) * s.massKg).toDouble())
             // (Too thin to hold on: gone below the floor here, fading when they spill, [EXTINCT]; with t.thinFadeDays=0 gone below EXTINCT.)
-            if (a[p] + y[p] < thinGone) { faded[k] += ((a[p] + y[p]) * area).toDouble(); carcassKg[p] += (a[p] + 0.3f * y[p]) * area * s.massKg; a[p] = 0f; y[p] = 0f }
+            if (a[p] + y[p] < thinGone) { fadedB[kb] += ((a[p] + y[p]) * area).toDouble(); carcassKg[p] += (a[p] + 0.3f * y[p]) * area * s.massKg; a[p] = 0f; y[p] = 0f }
         }
     } }
+    val dead = Array(kinds.size) { k -> DoubleArray(ResidentDeath.entries.size).also { d -> for (b in 0 until blocks) { val src = deadB[k * blocks + b]; for (c in d.indices) d[c] += src[c] } } }
+    val faded = DoubleArray(kinds.size) { k -> var s = 0.0; for (b in 0 until blocks) s += fadedB[k * blocks + b]; s }
+    for (k in kindIds) for (b in 0 until blocks) { bornThisWeek[k.i] += bornB[k.i * blocks + b]; eggsTakenThisWeek[k.i] += eggsB[k.i * blocks + b] }
     for (c in carcasses) for (p in land.places) carcassKg[p] += c[p]
     land.books?.let { b -> var sum = 0.0; for (p in land.places) sum += carcassKg[p]; b.flow(Books.Stuff.MATTER, "carcasses (to the soil)", -sum) }
     record?.foldResidents()
@@ -404,4 +412,19 @@ internal fun HexFauna.stayOdds(k: FaunaKind, p: Place, weather: Weather, out: En
     val dryNext = if (drinks(s, p)) 0f else dry[k][p] + Hazards.dryDays(s, days, f, land.plants.green[p])
     hazards(k, p, weather, weather.date.month, f, dryNext, adults[k][p] + young[k][p] + keptKm2(k, p), out)
     return adultShare(out)
+}
+
+/** How many blocks of places [breedAndDie] splits each kind's into, for the cores: a fixed number, so a run is the same on any number of cores. */
+private const val BREED_BLOCKS = 32
+
+/** The first place of each of [blocks] blocks of about as many places, and [n] after the last; no hex's places are parted. */
+private fun HexFauna.breedBounds(blocks: Int): IntArray {
+    val b = IntArray(blocks + 1)
+    for (i in 1 until blocks) {
+        var q = max(b[i - 1], (n.toLong() * i / blocks).toInt())
+        while (q in 1 until n && hw.placeHex[q] == hw.placeHex[q - 1]) q++
+        b[i] = q
+    }
+    b[blocks] = n
+    return b
 }
