@@ -12,6 +12,15 @@ object Catalogue {
      * Clutton-Brock and Albon 1978). Hunger, cold, crowding sickness, eagles and hunters come on top, each modelled.
      */
     const val HOOFED_YOUNG_LOST = 0.2f
+    /**
+     * Share of the hunters' young lost in their first year to causes not modelled (stillbirth, whole litters deserted or
+     * starved as the mother fails, defects, falls), as [HOOFED_YOUNG_LOST] is the hoofed kinds': the killing by lions,
+     * hyenas, leopards, rivals and foxes, and hunger and cold, come on top, each modelled. An estimate, a little above the
+     * hoofed kinds', as carnivores lose whole litters. (In place of 0.3-0.5 a year through all their years as young, booked
+     * as age: with the killings counted too, survival to grown from those alone was about a third, and wolves, lions and lynx
+     * stood at a third to a fourteenth of what their ground held, births barely covering deaths: steppe1124.)
+     */
+    const val CARNIVORE_YOUNG_LOST = 0.25f
 
     /**
      * Where each kind settled in a long run, animals per 1000 km² of land (settled-start.properties);
@@ -298,7 +307,7 @@ object Catalogue {
         dailyTravelKm = 15f, maxDailyTravelKm = 50f, senseKm = 8f,
         daysWithoutWater = 3, waterFromFood = 0.5f,
         birthMonth = 4, birthMonths = 1, youngPerFemale = 2.5f, yearsToMaturity = 2f,
-        backgroundMortality = 0.15f, youngMortality = 0.4f, snowLimitMm = 400f,
+        backgroundMortality = 0.15f, firstYearLost = CARNIVORE_YOUNG_LOST, snowLimitMm = 400f,
         products = Products(meat = 9f, fat = 0.4f, hide = 1.5f, bone = 2.2f, sinew = 0.2f, fur = true),
         comfortC = -20f..30f, winterCoat = true,
         speedKmh = 60f,
@@ -334,7 +343,7 @@ object Catalogue {
         dailyTravelKm = 12f, maxDailyTravelKm = 30f, senseKm = 8f,
         daysWithoutWater = 4, waterFromFood = 0.6f,
         birthMonth = 5, birthMonths = 1, youngPerFemale = 1.5f, yearsToMaturity = 3f,
-        backgroundMortality = 0.1f, youngMortality = 0.4f, snowLimitMm = 200f,
+        backgroundMortality = 0.1f, firstYearLost = CARNIVORE_YOUNG_LOST, snowLimitMm = 200f,
         products = Products(meat = 60f, fat = 5f, hide = 8f, bone = 18f, sinew = 1f, fur = true),
         comfortC = 0f..38f, 
         speedKmh = 60f,
@@ -371,7 +380,7 @@ object Catalogue {
         birthMonth = 6, birthMonths = 1, youngPerFemale = 1.5f, yearsToMaturity = 2.5f,
         // (Breeds the year round where it can: a mother who loses her cubs bears again some four months on, gestation about 96 days.)
         rebreedMonths = 4,
-        backgroundMortality = 0.07f, youngMortality = 0.4f, snowLimitMm = 300f,
+        backgroundMortality = 0.07f, firstYearLost = CARNIVORE_YOUNG_LOST, snowLimitMm = 300f,
         products = Products(meat = 18f, fat = 1f, hide = 3f, bone = 5f, sinew = 0.3f, fur = true),
         comfortC = -8f..35f, winterCoat = true,
         // (Its winter fur grows to some 70 mm on the back, against 20-25 in summer: Heptner and Sludskij 1972.)
@@ -409,7 +418,7 @@ object Catalogue {
         dailyTravelKm = 12f, maxDailyTravelKm = 40f, senseKm = 10f,
         daysWithoutWater = 4, waterFromFood = 0.6f,
         birthMonth = 5, birthMonths = 2, youngPerFemale = 2f, yearsToMaturity = 2f,
-        backgroundMortality = 0.07f, youngMortality = 0.3f, snowLimitMm = 200f,
+        backgroundMortality = 0.07f, firstYearLost = CARNIVORE_YOUNG_LOST, snowLimitMm = 200f,
         products = Products(meat = 14f, fat = 1f, hide = 2.5f, bone = 4f, sinew = 0.2f, fur = true),
         comfortC = 0f..38f, winterCoat = true,
         // (A dense, soft winter coat with underfur, shed for a coarse summer one: Heptner and Sludskii 1992.)
@@ -443,7 +452,7 @@ object Catalogue {
         daysWithoutWater = 4, waterFromFood = 0.6f,
         // (Kept as a resident: a litter of four to six a year.)
         birthMonth = 5, birthMonths = 1, youngPerFemale = 5f, yearsToMaturity = 1f,
-        backgroundMortality = 0.25f, youngMortality = 0.4f, snowLimitMm = 150f,
+        backgroundMortality = 0.25f, firstYearLost = CARNIVORE_YOUNG_LOST, snowLimitMm = 150f,
         products = Products(meat = 4f, fat = 0.2f, hide = 0.6f, bone = 1f, sinew = 0.1f, fur = true),
         comfortC = -5f..38f, winterCoat = true,
         speedKmh = 45f,
@@ -488,7 +497,7 @@ object Catalogue {
         daysWithoutWater = 6, waterFromFood = 0.8f,
         // (Kept as a resident: a litter of two or three a year.)
         birthMonth = 5, birthMonths = 1, youngPerFemale = 2.5f, yearsToMaturity = 2f,
-        backgroundMortality = 0.1f, youngMortality = 0.5f, snowLimitMm = 900f,
+        backgroundMortality = 0.1f, firstYearLost = CARNIVORE_YOUNG_LOST, snowLimitMm = 900f,
         products = Products(meat = 8f, fat = 0.3f, hide = 1.5f, bone = 2f, sinew = 0.1f, fur = true),
         // (The lynx's winters to the caracal's summers.)
         comfortC = -30f..38f, winterCoat = true,
@@ -770,7 +779,7 @@ object Catalogue {
         // (Lions kill most cheetah cubs; a mother who loses hers comes into heat again within weeks and bears some three months
         // on, gestation 90-95 days: so cheetahs keep up beside lions. Bred once a year, they fell 8% a year from any start, roe1123.)
         rebreedMonths = 4,
-        backgroundMortality = 0.1f, youngMortality = 0.4f, snowLimitMm = 50f,
+        backgroundMortality = 0.1f, firstYearLost = CARNIVORE_YOUNG_LOST, snowLimitMm = 50f,
         products = Products(meat = 20f, fat = 1f, hide = 3f, bone = 5f, sinew = 0.3f, fur = true),
         comfortC = 3f..42f,
         speedKmh = 105f,
