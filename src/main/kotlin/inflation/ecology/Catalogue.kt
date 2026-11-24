@@ -741,7 +741,9 @@ object Catalogue {
         groupSize = 2, maxGroupSize = 4,
         dailyTravelKm = 8f, maxDailyTravelKm = 30f, senseKm = 6f,
         daysWithoutWater = 10, waterFromFood = 0.8f,
-        birthMonth = 5, birthMonths = 2, youngPerFemale = 2f, yearsToMaturity = 2f,
+        // (Litters of 3-5, some 3.5 on the mean (Laurenson 1994 in the Serengeti, from memory, not checked); at 2 they fell
+        // behind what lions took even breeding again after a loss, roe1123.)
+        birthMonth = 5, birthMonths = 2, youngPerFemale = 3.5f, yearsToMaturity = 2f,
         // (Lions kill most cheetah cubs; a mother who loses hers comes into heat again within weeks and bears some three months
         // on, gestation 90-95 days: so cheetahs keep up beside lions. Bred once a year, they fell 8% a year from any start, roe1123.)
         rebreedMonths = 4,
