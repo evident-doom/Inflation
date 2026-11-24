@@ -124,6 +124,8 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
     var birthMonth = -1
     /** Share of this year's birth season its mothers have borne (as [HexFauna]'s residents keep it). */
     var bred = 0f
+    /** Whether it had young at the start of last week: so that losing the last of them is seen ([Species.rebreedMonths]). */
+    var hadYoung = false
     /** For a pack: its ways this week, 1 the hand-written way (see [AnimalWay]). */
     val will = FloatArray(ANIMAL_WAYS_OUT) { 1f }
     /** For a band: food on hand, kg, by kind ([Store]). */

@@ -356,6 +356,8 @@ object Catalogue {
         dailyTravelKm = 6f, maxDailyTravelKm = 20f, senseKm = 4f,
         daysWithoutWater = 6, waterFromFood = 0.8f,
         birthMonth = 6, birthMonths = 1, youngPerFemale = 1.5f, yearsToMaturity = 2.5f,
+        // (Breeds the year round where it can: a mother who loses her cubs bears again some four months on, gestation about 96 days.)
+        rebreedMonths = 4,
         backgroundMortality = 0.07f, youngMortality = 0.4f, snowLimitMm = 300f,
         products = Products(meat = 18f, fat = 1f, hide = 3f, bone = 5f, sinew = 0.3f, fur = true),
         comfortC = -8f..35f, winterCoat = true,
@@ -740,6 +742,9 @@ object Catalogue {
         dailyTravelKm = 8f, maxDailyTravelKm = 30f, senseKm = 6f,
         daysWithoutWater = 10, waterFromFood = 0.8f,
         birthMonth = 5, birthMonths = 2, youngPerFemale = 2f, yearsToMaturity = 2f,
+        // (Lions kill most cheetah cubs; a mother who loses hers comes into heat again within weeks and bears some three months
+        // on, gestation 90-95 days: so cheetahs keep up beside lions. Bred once a year, they fell 8% a year from any start, roe1123.)
+        rebreedMonths = 4,
         backgroundMortality = 0.1f, youngMortality = 0.4f, snowLimitMm = 50f,
         products = Products(meat = 20f, fat = 1f, hide = 3f, bone = 5f, sinew = 0.3f, fur = true),
         comfortC = 3f..42f,

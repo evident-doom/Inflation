@@ -548,6 +548,12 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     val s = g.species
     feedOnReserves(g)
     if (g.birthMonth < 0) g.birthMonth = s.birthMonth
+    // (A mother of a kind that breeds again after losing her young ([Species.rebreedMonths]) bears again that many months
+    // after the last of them is gone, dead or grown, out of her kind's season: her group's birth month moves there.)
+    if (s.rebreedMonths > 0) {
+        if (g.hadYoung && g.young == 0 && g.adults >= 2) { g.birthMonth = (date.month + s.rebreedMonths) % Date.MONTHS_PER_YEAR; g.bred = 0f }
+        g.hadYoung = g.young > 0
+    }
     if (date.holdsMonthStart(days, offSeason(s, g.birthMonth))) g.bred = 0f
     val inSeason = seasonDays(s, g.birthMonth, date, days) > 0
     var bornNow = 0

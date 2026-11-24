@@ -209,6 +209,13 @@ class Species(
     /** Breeds as a pack: one litter a year from the breeding pair, of this size in good condition. */
     val packLitter: Int = 0,
     /**
+     * Months from a mother losing her young (dead or grown) to her next litter, out of her kind's season: she comes back into
+     * heat within weeks and bears after her gestation ([HexGroup.birthMonth] moves there). 0: she waits for the next season.
+     * The cats that lose most of their cubs to lions and hyenas keep up so (a cheetah has her next litter months after losing
+     * one; from memory of Laurenson 1994 and Caro 1994, not checked).
+     */
+    val rebreedMonths: Int = 0,
+    /**
      * How many of a group's grown go about together, foraging, and so meet others and stand up to them ([HexGroups.strength]);
      * 0 where all of them do. A kind that rests in pairs but forages alone has 1.
      */
