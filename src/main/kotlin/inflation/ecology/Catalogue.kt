@@ -126,6 +126,8 @@ object Catalogue {
         // (Mast, acorns and beechnuts, the most of a boar's food through autumn and winter where it falls; roots, bulbs and
         // tubers dug the year round; fleshy fruit a little: as the reviews of the boar's diet have it, from memory, not
         // checked. The three together as the roots and fruit were before mast was a food of its own.)
+        // (Eats carrion as old as carcasses some days old: [Species.carrionAgeDays].)
+        carrionAgeDays = 6f,
         diet = Diet(grass = 0.15f, browse = 0.1f, roots = 0.25f, mast = 0.3f, fruit = 0.1f, smallPrey = 0.05f, carrion = 0.05f),
         groupSize = 6, maxGroupSize = 20,
         dailyTravelKm = 5f, maxDailyTravelKm = 20f, senseKm = 1.5f,
@@ -250,6 +252,8 @@ object Catalogue {
         fieldKm2 = 0.01f..0.2f,
         fearOfPeople = 0.6f, boldShare = 0.05f,
         // (Berries in summer, hard mast, beechnuts and acorns, in autumn to fatten for the winter sleep; from memory, not checked.)
+        // (Eats carrion as old as old carcasses, the winter-killed ones of spring above all: [Species.carrionAgeDays].)
+        carrionAgeDays = 8f,
         diet = Diet(grass = 0.1f, browse = 0.1f, roots = 0.2f, fruit = 0.15f, mast = 0.15f, meat = 0.1f, smallPrey = 0.1f, carrion = 0.1f),
         fibreDigestion = 0.5f, // a bear digests cellulose poorly (captive grizzlies on high-fibre feed); set as the boar
         groupSize = 2, maxGroupSize = 4,
@@ -287,6 +291,8 @@ object Catalogue {
         // (Field counts: Białowieża some 0.02-0.03, from memory.)
         fieldKm2 = 0.005f..0.06f,
         fearOfPeople = 0.5f, boldShare = 0.15f,
+        // (Eats carrion as old as carcasses some days old, winter-kills that kept in the cold: [Species.carrionAgeDays].)
+        carrionAgeDays = 5f,
         diet = Diet(meat = 0.6f, smallPrey = 0.25f, carrion = 0.15f),
         groupSize = 3, maxGroupSize = 8,
         dailyTravelKm = 15f, maxDailyTravelKm = 50f, senseKm = 8f,
@@ -321,6 +327,8 @@ object Catalogue {
         // (Field counts: from memory: 0.01-0.03 on poor ground, 0.1 on the richest.)
         fieldKm2 = 0.003f..0.1f,
         fearOfPeople = 0.6f, boldShare = 0.05f,
+        // (Eats carrion as old as fresh kills, often taken from hyenas and cheetahs, seldom old carcasses: [Species.carrionAgeDays].)
+        carrionAgeDays = 3f,
         diet = Diet(meat = 0.9f, carrion = 0.1f),
         groupSize = 5, maxGroupSize = 12,
         dailyTravelKm = 12f, maxDailyTravelKm = 30f, senseKm = 8f,
@@ -352,6 +360,8 @@ object Catalogue {
         // (Field counts: Persian and Arabian leopards some 0.01-0.03, from memory.)
         fieldKm2 = 0.003f..0.05f,
         fearOfPeople = 0.7f, boldShare = 0.03f,
+        // (Eats carrion as old as its own kills and fresh ones: [Species.carrionAgeDays].)
+        carrionAgeDays = 1.5f,
         diet = Diet(meat = 0.6f, smallPrey = 0.35f, carrion = 0.05f),
         groupSize = 2, maxGroupSize = 4,
         // (Solitary: grown leopards live and hunt alone, a mother with her cubs aside; pairs only to mate. From memory.)
@@ -389,6 +399,8 @@ object Catalogue {
         // (Field counts: from memory: some 0.01-0.1.)
         fieldKm2 = 0.005f..0.1f,
         fearOfPeople = 0.5f, boldShare = 0.1f,
+        // (Eats carrion as old as a bone-cracker with a stomach as acid as a vulture's: carcasses to the bone: [Species.carrionAgeDays].)
+        carrionAgeDays = 30f,
         diet = Diet(meat = 0.1f, smallPrey = 0.25f, carrion = 0.55f, fruit = 0.1f),
         groupSize = 2, maxGroupSize = 5,
         // (They rest in pairs, now and then up to four, but forage alone; several may come to a carcass, not together:
@@ -423,6 +435,8 @@ object Catalogue {
         // (Field counts: golden jackals about one family group a km² in Europe, 0.1-5 in the record (Arnold et al. 2012, Mammal Rev.; from the review as found), 0.06-0.11 groups on average over four Balkan countries; a group two to six.)
         fieldKm2 = 0.2f..5f,
         fearOfPeople = 0.4f, boldShare = 0.15f,
+        // (Eats carrion as old as carcasses some days old: [Species.carrionAgeDays].)
+        carrionAgeDays = 6f,
         diet = Diet(meat = 0.1f, smallPrey = 0.5f, carrion = 0.25f, fruit = 0.15f),
         groupSize = 2, maxGroupSize = 6,
         dailyTravelKm = 8f, maxDailyTravelKm = 25f, senseKm = 4f,
@@ -465,6 +479,8 @@ object Catalogue {
         // figure lynx sat at 0.016 a km² fed and fought over their ground while roe stood at 7 a km² in the woods (roe1123).)
         preySupport = HexFauna.SMALL_HUNTER_SUPPORT,
         fearOfPeople = 0.9f, boldShare = 0.01f,
+        // (Eats carrion as old as its own kills and fresh ones: a cat passes up old meat: [Species.carrionAgeDays].)
+        carrionAgeDays = 1f,
         diet = Diet(meat = 0.7f, smallPrey = 0.27f, carrion = 0.03f),
         groupSize = 1, maxGroupSize = 4,
         dailyTravelKm = 8f, maxDailyTravelKm = 25f, senseKm = 3f,
@@ -789,6 +805,8 @@ object Catalogue {
         fearOfPeople = 0.0f, boldShare = 0.0f,
         // Natufian middens and plant remains suggest plant food (nuts, acorns, seeds, pulses, roots)
         // made up as much of the diet as game; hunting is a little over a third.
+        // (Eats carrion as old as fresh kills, scavenged off lions and cooked; not rotten meat: [Species.carrionAgeDays].)
+        carrionAgeDays = 2f,
         diet = Diet(meat = 0.35f, smallPrey = 0.12f, carrion = 0.04f, roots = 0.19f, fruit = 0.30f),
         groupSize = 25, maxGroupSize = 50,
         dailyTravelKm = 10f, maxDailyTravelKm = 40f, senseKm = 10f,

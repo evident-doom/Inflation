@@ -202,3 +202,17 @@ fun HexSmallLife.scavenge(p: Place, want: KgM2): KgM2 { GroundCheck.place(p, 3);
 
 /** Takes up to [want] of bones in place [p] (for bone-crackers); returns what was taken. */
 fun HexSmallLife.crackBones(p: Place, want: KgM2): KgM2 { GroundCheck.place(p, 4); val t = min(bones[p], want.v); bones[p] -= t; record?.let { it.bonesGone[p] += t }; return KgM2(t) }
+
+
+/**
+ * The share of the carrion lying at place [p] (at [tempC]) young enough for kind [s] to eat ([Species.carrionAgeDays]):
+ * carcasses come and go at a steady rate, so their ages spread as e^(-rate x age), the rate being how fast the place's
+ * carrion rots ([HexSmallLife.CARRION_ROT], by [spoilWarmth]) and is eaten (by the residents, the groups and the vultures,
+ * as they last fed), and a carcass rots by [spoilWarmth] for each day it lies. In frost none rots: all of it is fresh.
+ */
+fun HexSmallLife.freshShare(s: Species, p: Place, tempC: Float): Float {
+    val warm = spoilWarmth(tempC)
+    if (warm <= 0f || s.carrionAgeDays.isInfinite()) return 1f
+    val rate = HexSmallLife.CARRION_ROT * warm + residentCarrionRate[p] + groupCarrionRate[p] + vultureCarrionRate[p]
+    return 1f - kotlin.math.exp(-rate * s.carrionAgeDays / warm)
+}

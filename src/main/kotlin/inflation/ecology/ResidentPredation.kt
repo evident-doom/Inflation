@@ -203,6 +203,7 @@ internal fun HexFauna.huntResidents(k: FaunaKind, p: Place, meat: KgM2, weather:
     }
     // (The kg it killed of the game as catchable, for the odds of being hunted: [residentKillOdds].)
     if (game > 0f) killRate[k]?.let { it[p] += killedKg / area / game }
+    if (killedKg > 0f) killedKgByCountry[k.i * inflation.world.Biome.entries.size + land.country.kind[p]].add(killedKg.toDouble())
     // (Those its game killed die, left where they fell; their meat is no longer to be found.)
     if (fought > 0f) {
         val dead = min(fought, adults[k][p])

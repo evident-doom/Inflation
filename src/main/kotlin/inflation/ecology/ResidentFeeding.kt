@@ -369,10 +369,13 @@ private fun HexFauna.animalFood(k: FaunaKind, p: Place, weather: Weather, z: Gra
         val animalNeed = needAll * (1f - ps)
         val plantGap = if (ps > 0f) needAll * ps * max(0f, 1f - z.got[k]) else 0f
         // Carrion first, where it eats any: a carcass lying there costs no chase and no digging, so
-        // it eats what it finds (at most half of what lies there) before it hunts or makes up plants.
+        // it eats what it finds (at most half of what lies there) before it hunts or makes up plants;
+        // but only what is fresh enough for it ([freshShare]): a lynx passes up a carcass days old.
         // (What they found as it lay goes to each kind by the weekly rule on a tick's worth: [foundShares].)
         var mine = found.share?.get(k.i) ?: 0f
-        fun scavengeMine(want: Float): Float { val (got, held) = small.scavengeHeld(p, want, mine); mine -= held; return got }
+        val fresh = if (d.carrion > 0f) small.freshShare(s, p, weather.temperature[p]) else 0f
+        fun scavengeMine(want: Float): Float {
+            val (got, held) = small.scavengeHeld(p, min(want, fresh * (mine + 0.5f * small.carrion[p])), mine); mine -= held; return got }
         var gotCarrion = if (d.carrion > 0f) scavengeMine(animalNeed + plantGap) else 0f
         // (Over a step of several ticks, taken whole: the residents that eat carrion come on it as it lies at the rate their
         // weekly feeding takes it, half of what lies each tick (ln 2 a tick), for the step's soil ([stepSoil]); at one tick a

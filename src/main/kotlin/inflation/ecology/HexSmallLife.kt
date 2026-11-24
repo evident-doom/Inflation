@@ -266,7 +266,7 @@ class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, @Transi
             val (cx, cy) = hex.centreKm(hw.placeHex[c])
             fun dist(q: Place): Double { val (x, y) = hex.centreKm(hw.placeHex[q]); return hypot(x - cx, y - cy) }
             val near = (0 until n).filter { dist(Place(it)) <= VULTURE_RANGE_KM }.sortedBy { dist(Place(it)) }
-            vulturePlace += c; vultures += 40f; vultureReach += near.toIntArray()
+            vulturePlace += c; vultures += VULTURE_START; vultureReach += near.toIntArray()
         }
     }
 
@@ -598,9 +598,30 @@ class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, @Transi
          * from spring to early autumn, greylag geese from autumn to early spring.
          */
         val BIRDS = listOf(CHUKAR, QUAIL, SANDGROUSE, ROCK_DOVE, MALLARD, GREYLAG_GOOSE, CRANE, WHITE_STORK, SONGBIRDS)
-        /** How far vultures soar from the colony for carcasses, km; land per colony at most, km. */
+        /**
+         * How far vultures soar from the colony for carcasses, km; land per colony at most, km (colonies on the cliffs some
+         * 20-40 km apart where there are cliffs, the vultures of several kinds: griffon, black, lappet-faced and Egyptian
+         * vultures and the lammergeier; from memory). Birds a colony starts with, and the most it holds: food, not the cliff,
+         * sets their numbers. (One colony to 80 km, started at 40 and held to 2000, the vultures were still growing half again a
+         * year after 8 years and could have eaten at most a sixth of the carcasses: steppe1124.)
+         */
         const val VULTURE_RANGE_KM = 80.0
-        const val VULTURE_SPACING_KM = 80.0
+        const val VULTURE_SPACING_KM = 40.0
+        const val VULTURE_START = 1000f
+        const val VULTURE_MOST = 50000f
+        /**
+         * The most of the carrion lying in open ground the vultures find and strip in a week: soaring, they see a carcass on
+         * open ground from afar within hours of its death, and a flock strips one in an hour; under trees they find little
+         * ([open]). (At most half everywhere, the ground scavengers came first.) An estimate.
+         */
+        const val VULTURE_FIND = 0.9f
+        /**
+         * Young fledged a year for each vulture of a colony, well fed: a pair lays one egg a year and fledges some 0.6 of them,
+         * and some 0.6 of the birds are old enough to breed (from five years): 0.5 x 0.6 x 0.6. With 8% dying a year, a colony
+         * grows a tenth a year at most (griffon vultures, from memory, not checked). (At 0.5, half again a year, they ran to 1.4
+         * birds a km² and starved back down: steppe1124.)
+         */
+        const val VULTURE_YOUNG = 0.18f
         /**
          * Eagles: what the eagles over a place eat at full strength (a pair to [EAGLE_KM2]), kg/km²
          * a day; yearly share of young taken in open crag country.

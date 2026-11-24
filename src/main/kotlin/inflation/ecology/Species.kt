@@ -267,6 +267,14 @@ class Species(
      */
     val liesOut: Boolean = false,
     /**
+     * How old a carcass it will still eat, in days of rotting at 15 °C (faster in the warmth, none in frost: [spoilWarmth]):
+     * past that the bacteria and their poisons would sicken it, and it passes it up. The vultures and hyenas, with
+     * stomachs as acid as battery acid, eat it to the bone; wolves, jackals, bears and boar a carcass some days old; the cats
+     * and people (cooked) only fresh ones. ([HexSmallLife.freshShare]: the share of the carrion lying about it will eat.
+     * From memory of the record, not checked.)
+     */
+    val carrionAgeDays: Float = 3f,
+    /**
      * Days its eggs lie in the nest on the ground before they hatch, open to the nest robbers ([robsNests],
      * [HexFauna.hatching]); 0 for a kind that bears its young live. Its [youngPerFemale] are then the chicks a hen's nest
      * hatches where no one robs it.

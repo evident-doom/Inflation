@@ -184,6 +184,33 @@ class Census(private val sim: HexSim) {
             }.joinToString(", "))
     }
 
+    /**
+     * The resident hunters against their game, by kind of country, since the last census: the plant-eaters' kg a km² (grown,
+     * and young at their weight), each hunter's heads a km² and the kg a km² of game it killed there in the year, and all the
+     * kills as the share of the game's weight a year. (Olli 2026-11-24: what the hunters do on the steppe.)
+     */
+    private fun printKillsByCountry() {
+        val biomes = inflation.world.Biome.entries; val nb = biomes.size
+        val area = DoubleArray(nb); val game = DoubleArray(nb)
+        val hunters = fauna.kinds.indices.filter { fauna.kinds[it].carnivore }
+        val heads = Array(fauna.kinds.size) { DoubleArray(nb) }
+        for (pl in 0 until land.n) {
+            val b = land.country.kind[pl]; val ar = land.areaKm2[pl].toDouble(); area[b] += ar
+            for (k in fauna.kinds.indices) {
+                val s = fauna.kinds[k]
+                if (s.carnivore) heads[k][b] += residents(k, pl)
+                else game[b] += ar * (fauna.adults[k][pl] * s.massKg + fauna.young[k][pl] * fauna.youngKg(k)).toDouble()
+            }
+        }
+        val killed = Array(fauna.kinds.size) { k -> DoubleArray(nb) { b -> fauna.killedKgByCountry[k * nb + b].sumThenReset() } }
+        println("     hunters and their game, by country (game kg/km²; each hunter heads/km² and kg/km² it killed this year; kills as share of the game a year): " +
+            (0 until nb).filter { area[it] >= 0.05 * area.sum() }.joinToString("; ") { b ->
+                val all = hunters.sumOf { killed[it][b] }
+                "%s game %.0f, %s, all %.0f%%".format(biomes[b].label, game[b] / area[b], hunters.filter { heads[it][b] > 0.0 || killed[it][b] > 0.0 }.joinToString(", ") { k ->
+                    "%s %.4f/%.1f".format(fauna.kinds[k].name, heads[k][b] / area[b], killed[k][b] / area[b]) }, 100.0 * all / game[b].coerceAtLeast(1e-9))
+            })
+    }
+
     private fun residents(k: Int, pl: Int) = ((fauna.adults[k][pl] + fauna.young[k][pl]) * land.areaKm2[pl]).toDouble()
 
     /** How well this month's climate suits each kind where its groups are, by head count. */
@@ -258,6 +285,7 @@ class Census(private val sim: HexSim) {
                 a += ar; g += m * ar; u += us * ar; h += r; gh += m * r; uh += us * r }
             "%s %.0f / %.0f, %.4f / %.4f, %.4f".format(fauna.kinds[k].name, g / a, gh / h.coerceAtLeast(1e-9), u / a, uh / h.coerceAtLeast(1e-9), h / a) })
         printWhatSetsNumbers()
+        printKillsByCountry()
         println("     residents fed from (fresh plants / prey and carrion / reserves, shares of need per animal this year): " +
             fauna.kinds.indices.joinToString(", ") { k ->
             val ff = fauna.fedFrom[k]; val h = ff[Fed.HEADS].sum().coerceAtLeast(1e-9)

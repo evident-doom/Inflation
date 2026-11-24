@@ -13,6 +13,10 @@ import inflation.ecology.HexSmallLife.Companion.OWL_HALF
 import inflation.ecology.HexSmallLife.Companion.OWL_INTAKE
 import inflation.ecology.HexSmallLife.Companion.OWL_SEED
 import inflation.ecology.HexSmallLife.Companion.ROCK_DOVE_AT
+import inflation.ecology.HexSmallLife.Companion.VULTURE_FIND
+import inflation.ecology.HexSmallLife.Companion.VULTURE_MOST
+import inflation.ecology.HexSmallLife.Companion.VULTURE_YOUNG
+import kotlin.math.ln
 import inflation.Part
 import inflation.world.Place
 import inflation.world.get
@@ -125,23 +129,25 @@ internal fun HexSmallLife.stepVultures(weather: Weather) {
                 vultureCarrion[q] -= t; flow(CarrionFlow.VULTURES, Place(q), t); got += t * land.m2(Place(q))
             }
         }
+        // (What lies in reach as they see it: all of it on open ground, little under trees, [open] by [VULTURE_FIND].)
         var lying = 0.0
-        for (q in vultureReach[k]) lying += carrion[q].toDouble() * land.m2(Place(q))
-        // (Over a weekly step, or what they still need after what they found as it lay: the same share of what lies in every
-        // place in reach, at most half.)
-        val share = if (lying > 0.0 && rk <= 0f) min(0.5, need / lying).toFloat() else 0f
+        for (q in vultureReach[k]) lying += carrion[q].toDouble() * land.m2(Place(q)) * VULTURE_FIND * open(Place(q))
+        // (Over a weekly step, or what they still need after what they found as it lay: the same share of what they see in every
+        // place in reach, as far as they need it.)
+        val share = if (lying > 0.0 && rk <= 0f) min(1.0, need / lying).toFloat() else 0f
         if (share > 0f) for (q in vultureReach[k]) {
-            if (carrion[q] > 0f) { val m2 = land.m2(Place(q)); val t = scavenge(Place(q), KgM2(share * carrion[q])); flow(CarrionFlow.VULTURES, Place(q), t.v); got += t.over(m2).v }
+            if (carrion[q] > 0f) { val m2 = land.m2(Place(q)); val t = scavenge(Place(q), KgM2(share * VULTURE_FIND * open(Place(q)) * carrion[q])); flow(CarrionFlow.VULTURES, Place(q), t.v); got += t.over(m2).v }
         }
-        // (Their rate for the next step's carrion as it lies: their day's need of what lies in their range now, at most half a
-        // tick's worth (as the half a week they take at most), the same in every place in reach.)
-        if (ticks > 1) rates[k] = if (lying > 0.0) min(0.6931472f / tickDays, (vultures[k] * 0.5 / lying).toFloat()) else 0f
+        // (Their rate for the next step's carrion as it lies: their day's need of what they see in their range now, at most a
+        // tick's worth of [VULTURE_FIND], the same in every place in reach as they see it.)
+        if (ticks > 1) rates[k] = if (lying > 0.0) min(-ln(1f - VULTURE_FIND) / tickDays, (vultures[k] * 0.5 / lying).toFloat()) else 0f
         ateBook?.add(-got.toDouble())
         val fed = if (need > 0f) min(1f, got / need) else 1f
         var b = vultures[k]
-        if (month in 1..2) b += b * 0.5f * fed * years * 6f // one chick a pair, hatched in late winter
+        // (Young fledged in late winter, [VULTURE_YOUNG] a bird a year as they are fed.)
+        if (month in 1..2) b += b * VULTURE_YOUNG * fed * years * 6f
         b -= b * (0.08f * years + 0.4f * years * (1f - fed))
-        vultures[k] = if (b < 2f) 0f else min(b, 2000f) // a colony below a pair is gone
+        vultures[k] = if (b < 2f) 0f else min(b, VULTURE_MOST) // a colony below a pair is gone
     }
     // (What they found and left goes back on the ground; their rates over each place for the next step.)
     // (Found through the step, it lay half the step on average: what has rotted by its end goes as rot does, [stepSoil].)
@@ -155,5 +161,5 @@ internal fun HexSmallLife.stepVultures(weather: Weather) {
         record?.let { it.carrionGone[q] += gone }
     }
     vultureCarrionRate.fill(0f)
-    if (ticks > 1) for (k in vulturePlace.indices) if (vultures[k] > 0f && rates[k] > 0f) for (q in vultureReach[k]) vultureCarrionRate[q] += rates[k]
+    if (ticks > 1) for (k in vulturePlace.indices) if (vultures[k] > 0f && rates[k] > 0f) for (q in vultureReach[k]) vultureCarrionRate[q] += rates[k] * VULTURE_FIND * open(Place(q))
 }
