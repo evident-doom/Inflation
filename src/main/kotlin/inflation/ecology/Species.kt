@@ -260,6 +260,13 @@ class Species(
     /** Its mothers hide their young and move them from lair to lair in their first months, as the cats do ([youngHidden]). */
     val hidesYoung: Boolean = false,
     /**
+     * Its young lie out alone and still in the grass or the thicket for their first months ([LIE_OUT_MONTHS]), as gazelle,
+     * deer and wild goats' do: a hunter comes on each by itself, not as its mother's herd, and they do not see it coming
+     * and run, they lie close; only cover keeps them ([HexFauna.huntResidents]). (Hiders, against the followers that run
+     * at their mothers' heels from birth: horses, asses, aurochs.)
+     */
+    val liesOut: Boolean = false,
+    /**
      * Days its eggs lie in the nest on the ground before they hatch, open to the nest robbers ([robsNests],
      * [HexFauna.hatching]); 0 for a kind that bears its young live. Its [youngPerFemale] are then the chicks a hen's nest
      * hatches where no one robs it.
@@ -368,6 +375,8 @@ class Species(
          * the young put the first months' fawns and kids out of every wolf's reach, and the small kinds boomed.)
          */
         const val YOUNG_PREY_FROM = 0.05f
+        /** Months from birth a lying-out kind's young lie out alone ([liesOut]); an estimate (gazelle and roe fawns some two). */
+        const val LIE_OUT_MONTHS = 2
     }
 }
 

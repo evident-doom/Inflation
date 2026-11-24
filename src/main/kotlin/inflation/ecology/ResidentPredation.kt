@@ -73,7 +73,8 @@ internal fun HexFauna.noteHunted() {
  * also by the days its danger costs ([dangerDays]); the party takes the best first while they raise its rate (Charnov's
  * rule, as [Offers.takeUp]) for as many of the week's days as it needs ([spent]: the party-days its hunting took this
  * week so far). Its search image of each kind is a pack's at as many meetings as it has here ([SEARCH_HALF]).
- * Of each kill it eats what a party can (a beast's whole prey, gorging included: [Nourishment.PREY]); what it cannot,
+ * Of each kill it eats what a party can (a beast's whole prey, gorging included: [Nourishment.PREY]), the best of it first
+ * ([bestFirst]), after the scavengers about have had their share ([scavengedShare]); what it cannot,
  * and the parts it leaves ([MEAT_SHARE]), are left as carrion. Returns what it ate.
  */
 internal fun HexFauna.huntResidents(k: FaunaKind, p: Place, meat: KgM2, weather: Weather, spent: FloatArray): KgM2 {
@@ -93,6 +94,9 @@ internal fun HexFauna.huntResidents(k: FaunaKind, p: Place, meat: KgM2, weather:
     val clear = 0.5f + 0.5f * seen / (1f - SIGHT_COVER * cover).coerceAtLeast(0.1f)
     val partyKg = partyHeads * hunter.massKg
     val eats = 1f / (partyKg * EATING_RATE)
+    // (What the scavengers about take of each kill before the hunter has eaten it: [scavengedShare]. It goes on hunting
+    // the sooner, and what they took lies as carrion for them.)
+    val lost = scavengedShare(k, p)
     val most = max(partyHeads * hunter.dailyIntakeKg * days, partyKg * EATING_RATE * days)
     // The game on offer: each kind's grown (part 0), young (1) and packs' grown (2), and each camp's kept herds, grown
     // (3) and young (4); heads per km², each one's weight, its kills a party-day of searching, and the days each takes.
@@ -100,15 +104,19 @@ internal fun HexFauna.huntResidents(k: FaunaKind, p: Place, meat: KgM2, weather:
     val cap = 3 * kinds.size + (camps?.sumOf { 2 * it.herds.herd.size } ?: 0)
     val kindOf = IntArray(cap); val part = IntArray(cap); val campOf = IntArray(cap)
     val dens = FloatArray(cap); val mass = FloatArray(cap); val rate = FloatArray(cap); val time = FloatArray(cap); val eat = FloatArray(cap)
+    // (What the eaten share of each kill is worth, in kg of its meat as the whole carcass is: [bestFirst].)
+    val worth = FloatArray(cap)
     var m = 0
     var game = 0f
-    fun offer(j: Int, pt: Int, c: Int, d: Float, kg: Float, ps: Species, guard: Float, groupHeads: Float, shelter: Float) {
+    // (The young of a kind that lie out ([Species.liesOut]) in their first months: come on one by one, and not watching.)
+    val month = weather.date.month
+    fun offer(j: Int, pt: Int, c: Int, d: Float, kg: Float, ps: Species, guard: Float, groupHeads: Float, shelter: Float, alone: Boolean = false) {
         if (d <= 0f) return
         val catchKg = catchable(hunter, ps, kg, p, shelter, cover)
         game += d * kg * catchKg
         val success = killChance(catchKg, 1f) * guard
         if (!(success > 0f)) return
-        val met = (0.5f + 0.5f * Niches.overlap(hunter, ps)) * (1f - seenFirst(open, clear, null, ps)) / groupHeads.coerceAtLeast(1f)
+        val met = (0.5f + 0.5f * Niches.overlap(hunter, ps)) * (if (alone) 1f else (1f - seenFirst(open, clear, null, ps)) / groupHeads.coerceAtLeast(1f))
         // (Its search image of the kind, by the packs' rule, m / (m + SEARCH_HALF): m the meetings with it over SEARCH_DAYS, as
         // often as it comes on them here. A resident lives its life on this ground and knows its game: it keeps to the kinds it
         // meets often and passes up what has grown rare there, the switching that lets scarce game recover.)
@@ -116,8 +124,8 @@ internal fun HexFauna.huntResidents(k: FaunaKind, p: Place, meat: KgM2, weather:
         val known = meets * SEARCH_DAYS.toFloat()
         val r = meets * success * known / (known + SEARCH_HALF)
         if (!(r > 0f)) return
-        val meat1 = min(kg, most)
-        kindOf[m] = j; part[m] = pt; campOf[m] = c; dens[m] = d; mass[m] = kg; rate[m] = r; eat[m] = meat1
+        val meat1 = min(kg * (1f - lost), most)
+        kindOf[m] = j; part[m] = pt; campOf[m] = c; dens[m] = d; mass[m] = kg; rate[m] = r; eat[m] = meat1; worth[m] = meat1 * bestFirst(meat1 / kg)
         time[m] = handlingDays(hunter, kg) + STALK_DAYS / success.coerceIn(1e-3f, 1f) + meat1 * eats + dangerDays(hunter, ps, kg, partyHeads)
         m++
     }
@@ -129,7 +137,7 @@ internal fun HexFauna.huntResidents(k: FaunaKind, p: Place, meat: KgM2, weather:
         // (Its shelter there once for its grown, young and packs: the ground does not change while one hunts.)
         val sh = preyShelter(s, p)
         offer(j.i, 0, -1, adults[j][p], s.massKg, s, 1f, s.groupSize.toFloat(), sh)
-        offer(j.i, 1, -1, young[j][p], ym, s, 1f, s.groupSize.toFloat(), sh)
+        offer(j.i, 1, -1, young[j][p], ym, s, 1f, s.groupSize.toFloat(), sh, alone = s.liesOut && inflation.monthsFrom(s.birthMonth, month) < Species.LIE_OUT_MONTHS)
         offer(j.i, 2, -1, packAt(j.i, p), s.massKg, s, 1f, s.groupSize.toFloat(), sh)
     }
     // (The herds kept at bands' camps there, as their kind in the wild, come on as one band of all their heads, through
@@ -146,11 +154,11 @@ internal fun HexFauna.huntResidents(k: FaunaKind, p: Place, meat: KgM2, weather:
     }
     if (m == 0) return KgM2.ZERO
     // (Best first by kg a day of handling; taken while each raises the party's rate.)
-    val order = (0 until m).sortedByDescending { eat[it] / time[it] }
+    val order = (0 until m).sortedByDescending { worth[it] / time[it] }
     var gain = 0f; var spentRate = 1f; var used = 0
     for (i in order) {
-        if (eat[i] / time[i] <= gain / spentRate) break
-        gain += rate[i] * eat[i]; spentRate += rate[i] * time[i]; used++
+        if (worth[i] / time[i] <= gain / spentRate) break
+        gain += rate[i] * worth[i]; spentRate += rate[i] * time[i]; used++
     }
     // (The days it hunts: as many as the meat asked for takes at that rate, as far as the week goes.)
     val intake = gain / spentRate
@@ -187,7 +195,8 @@ internal fun HexFauna.huntResidents(k: FaunaKind, p: Place, meat: KgM2, weather:
         fought += perKm2 * foughtBack(hunter, s, kg)
         killedKg += kills * kg
         val eaten = kills * eat[i]
-        ate += eaten
+        // (It eats the best of each kill first, so what it ate is worth more a kg the less of the kill it had: [bestFirst].)
+        ate += kills * worth[i]
         // (What it could not eat of each kill, and the parts it leaves of what it did, lie as carrion.)
         small.deposit(DeadPool.CARRION, p, KgKm2((kills * (kg - eat[i]) + eaten * (1f - MEAT_SHARE)) / area).perM2)
         ateBook?.add(-(eaten * MEAT_SHARE).toDouble())
@@ -338,3 +347,49 @@ internal fun HexFauna.outranked(s: Species, p: Place): Float {
     if (s !in Catalogue.residentRivals) return 0f
     return if (strongest[p] > 2f * residentStrength(s)) AVOID_STRONGER else 0f
 }
+
+
+/**
+ * The share of each kill resident hunter [k] makes at place [p] that scavengers take before it has eaten it: the small ones
+ * everywhere ([SMALL_SCAVENGED]: ravens, crows, vultures, eagles, foxes), and the big resident ones about ([BIG_SCAVENGED_MOST]
+ * of it as their kg a km² come to [BIG_SCAVENGED_HALF]): each kind that eats carrion, by its share of carrion in its diet and by
+ * its weight against the hunter's (a bear drives a lynx off its kill, a jackal waits its turn). Real hunters kill two to three
+ * times what they eat: Yellowstone's wolves killed 6-17 kg a wolf a day in winter of which some 3.3 was theirs once the
+ * scavengers had theirs (NPS; Smith et al.), lynx a roe every 5-6 days (Okarma et al. 1997). The shares are estimates.
+ */
+internal fun HexFauna.scavengedShare(k: FaunaKind, p: Place): Float {
+    val hunter = kinds[k]
+    var kg = 0f
+    for ((j, s) in kinds.withKinds()) {
+        if (j == k || s.diet.carrion <= 0f) continue
+        val heads = adults[j][p] + young[j][p]
+        if (heads <= 0f) continue
+        kg += heads * s.massKg * s.diet.carrion / s.diet.total.coerceAtLeast(1e-6f) * (s.massKg / (s.massKg + hunter.massKg))
+    }
+    val big = BIG_SCAVENGED_MOST * kg / (kg + BIG_SCAVENGED_HALF)
+    return 1f - (1f - SMALL_SCAVENGED) * (1f - big)
+}
+
+/** [scavengedShare]: what the small scavengers take of a kill wherever it lies; the most the big ones take, and their kg a km² (weighed) at which they take half that. Estimates. */
+internal const val SMALL_SCAVENGED = 0.15f
+internal const val BIG_SCAVENGED_MOST = 0.5f
+internal const val BIG_SCAVENGED_HALF = 2f
+
+
+/**
+ * What a kg a hunter eats of a kill is worth against a kg of the whole carcass, when it eats [share] of it (0..1) and the
+ * best first: the organs, the fat about the gut and the marrow ([BEST_SHARE] of the carcass), [BEST_WORTH] times a kg of
+ * the muscle, then the muscle. 1 when it eats the whole kill; more the less of it it had, as scavengers take the poorer meat.
+ * (A carnivore opens the belly and takes the liver, heart and fat first: they hold most of the fat, vitamin A and B12 and
+ * iron it needs; lean muscle alone cannot feed it. The shares are estimates, from memory of the record.)
+ */
+internal fun bestFirst(share: Float): Float {
+    val x = share.coerceIn(1e-3f, 1f)
+    val whole = BEST_WORTH * BEST_SHARE + (1f - BEST_SHARE)
+    val got = if (x <= BEST_SHARE) BEST_WORTH * x else BEST_WORTH * BEST_SHARE + (x - BEST_SHARE)
+    return got / x / whole
+}
+
+/** [bestFirst]: the share of a carcass that is organs, gut fat and marrow, and what a kg of it is worth against a kg of muscle. Estimates. */
+internal const val BEST_SHARE = 0.15f
+internal const val BEST_WORTH = 2.5f
