@@ -51,6 +51,8 @@ internal fun HexGroups.hunt(weather: Weather) {
     where.build(this, WhoIsWhere.Moment.MOVED)
     // (Without a ways network the bands keep the scaffold's ways, not those a saved world's bands last had from theirs.)
     // (A planning band reads no ways: it keeps the scaffold's, [planDays].)
+    // (Bands' time over their ground follows their food first, for their foraging: [flowSpreads].)
+    flowSpreads(weather)
     if (ways != null) setBandWays(hunters, weather, ways, inputs, out)
     else for (g in hunters) g.band?.scaffoldWays()
     dialUse?.let { u -> for (g in hunters) if (g.band != null) u.bandWeeks.increment() }
@@ -588,6 +590,29 @@ internal class ForageWeek(gs: HexGroups, val g: HexGroup, val sweep: Float, pack
             gs.hex.neighbour(h0, d).takeIf { !it.none }?.let { gs.hw.placeNear(g.place, it) }?.takeIf { !it.none && it.i !in gatherAt }?.i
         } } else emptyList()
     val roundShare = band?.let { b -> gs.dialed(DialSite.GATHER_RING, b.gatherRange, RING_REACH * b.gatherRange) { RING_REACH } } ?: 0f
+    /**
+     * For a band living at its home hex, how much of each place of [gatherAt] then [roundCamp] its gatherers work as its
+     * camps lay over its ground ([spreadParts], [Band.spread]), in place of 1 for its camp and [roundShare] round it; and the
+     * share of each worked from a camp in another hex, walked out to ([spreadOff]). Null otherwise: as before the spread.
+     */
+    val spreadPart: FloatArray?
+    val spreadOff: FloatArray?
+    init {
+        val b = band
+        if (b != null && gs.staysHome(g) && g.path.size <= 1 && gatherAt.size == 1 && b.spreadHex == gs.hw.placeHex[g.place].i) {
+            val part = FloatArray(SPREAD_SIZE); val off = FloatArray(SPREAD_SIZE)
+            spreadParts(b, roundShare, part, off)
+            // (The places of [roundCamp] by their direction from the camp's hex, as it was laid out above.)
+            val h0 = gs.hw.placeHex[g.place]
+            val p = FloatArray(1 + roundCamp.size); val o = FloatArray(1 + roundCamp.size)
+            p[0] = part[SPREAD_HOME]; o[0] = off[SPREAD_HOME]
+            for ((k, q) in roundCamp.withIndex()) {
+                val d = (0 until 6).first { gs.hex.neighbour(h0, it) == gs.hw.placeHex[q] }
+                p[1 + k] = part[1 + d]; o[1 + k] = off[1 + d]
+            }
+            spreadPart = p; spreadOff = o
+        } else { spreadPart = null; spreadOff = null }
+    }
     // (Which of the band's parties takes each food, [Offers.who]: its share of the hands.)
     val party = floatArrayOf(hunt, 1f - hunt, 0f)
     /** The heads of its hunting party, over whom a life lost to game is shared in the days a kill costs ([dangerDays]). */

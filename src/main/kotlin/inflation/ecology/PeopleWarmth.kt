@@ -175,14 +175,17 @@ internal fun GroupWorld.warmthNeed(w: Warmth, fire: Float) = (1f + tuning.coldCo
 internal fun HexGroups.buildHouse(g: HexGroup, b: Band, p: Place, h: Hex, people: Float, time: BandTime?): Float {
     val gd = b.goods
     val left = time?.leftFor(Activity.HOUSES) ?: Float.MAX_VALUE
-    // (Only where the camp keeps it well fed and its stores filled: building is worth it where staying pays.)
+    // (Only where the camp keeps it well fed and its stores filled, and where houses would pay for their building over the
+    // years it keeps the place, for the time it is at home ([housePays]; a band holding its home hex, [staysHome]); else, as
+    // before the spread, after it has kept its camp a while ([houseAfterWeeks]).)
+    fun pays(will: Float) = if (staysHome(g)) housePays(g, b, will) else b.campWeeks >= HOUSE_AFTER_YEARS * ticksPerYear / will.coerceAtLeast(0.1f)
     if (time != null) dialUse?.let { u -> if (left > 0f && people > 0f && g.fed >= 0.9f) {
-        val longEnough = b.campWeeks >= houseAfterWeeks(b)
+        val longEnough = pays(b.houseWill)
         val stocked = g.larder >= 0.5f * b.storeAim * g.dailyNeedKg
-        u.choice(DialSite.HOUSES, b.houseWill, longEnough && stocked, b.campWeeks >= HOUSE_AFTER_YEARS * ticksPerYear && stocked, cut = b.houseWill < 0.1f)
+        u.choice(DialSite.HOUSES, b.houseWill, longEnough && stocked, pays(1f) && stocked, cut = b.houseWill < 0.1f)
         u.choice(DialSite.STORE_HOUSES, b.storeShare, longEnough && stocked, longEnough && g.larder >= 0.5f * b.storeAimAt1 * g.dailyNeedKg)
     } }
-    if (b.campWeeks < houseAfterWeeks(b) || left <= 0f || people <= 0f || g.fed < 0.9f || g.larder < 0.5f * b.storeAim * g.dailyNeedKg) return 0f
+    if (left <= 0f || people <= 0f || g.fed < 0.9f || g.larder < 0.5f * b.storeAim * g.dailyNeedKg || !pays(b.houseWill)) return 0f
     val sheltered = housesAt(g, h)
     if (sheltered >= 1f) return 0f
     // It builds the way it knows that its stone, timber and clay go furthest with, as keen as it is on each (or goes on with

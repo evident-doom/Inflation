@@ -360,6 +360,18 @@ class Band(kinds: Int, totems: Int = kinds) {
     /** Over about a year of its weeks at home, the share of its hands' days a well there would have spared it against digging soaks or carrying its water home ([wellSpares]). */
     var waterShort = 0f
     var campPlace = Place.NONE
+    /**
+     * Its spread over its ground ([flowSpreads], docs/design/band-flow.md): the share of its time camped at its home hex
+     * ([SPREAD_HOME]) and at each hex beside it (1 + the direction), summing to 1; for the hex [spreadHex] (its index), and
+     * all at home again once it lives elsewhere.
+     */
+    val spread = FloatArray(SPREAD_SIZE).also { it[SPREAD_HOME] = 1f }
+    var spreadHex = -1
+    /** The share of its time it has camped at its home hex ([spread]), a running mean over about a year: what a house there is worth to it ([housePays]). */
+    var homeTime = 1f
+    /** The food a year houses at its camp would save each of its people ([houseFoodAYear]), kg, worked out at most monthly ([flowSpreads]) on the day [houseKgDay]; NaN until then. */
+    @Transient var houseKgYear = Float.NaN
+    @Transient var houseKgDay = Long.MIN_VALUE
     /** Food it left in a cache at an old camp, kg, and where (-1 for none). */
     val cache = enumFloats<Store>()
     val cacheKg get() = cache.sum()
@@ -1034,7 +1046,7 @@ class Band(kinds: Int, totems: Int = kinds) {
         o.totem = totem; o.marksChosen = marksChosen; o.heardTotem = heardTotem.copyOf(); o.totemBroken = totemBroken
         o.raidDeathRate = raidDeathRate; o.heldLivelihood = heldLivelihood; o.livelihoodHold = livelihoodHold; o.livedOther = livedOther; o.livelihoodChosen = livelihoodChosen; heardLivelihood.copyInto(o.heardLivelihood)
         o.burialWay = burialWay; o.disputeWay = disputeWay; heardBurial.copyInto(o.heardBurial); style.copyInto(o.style); heardStyle.copyInto(o.heardStyle); o.styleChosen = styleChosen; words.copyInto(o.words); lineage.copyInto(o.lineage); grudge.copyInto(o.grudge)
-        o.inbred = inbred; o.campWeeks = campWeeks; o.campPlace = campPlace; o.known = known.copyOf()
+        o.inbred = inbred; o.campWeeks = campWeeks; o.campPlace = campPlace; o.homeTime = homeTime; o.known = known.copyOf()
         copyRest(o)
         copied(o)
         // (Its kept animals go by their contracts' own rules.)
@@ -1261,7 +1273,8 @@ class Band(kinds: Int, totems: Int = kinds) {
     /** The insulation of the clothes its people wear by day, clo: a whole kit at [CLOTHES_CLO], as well sewn as its hands sew. */
     fun clothesClo(clothes: Float = has(Tool.CLOTHES)) = CLOTHES_CLO * clothes * skill(Skill.SEWING)
     /** How far houses shelter it where it is: its home's, at home. */
-    fun homeShelter() = if (atHome) house else 0f
+    /** The share of a whole house it lives under: its houses as they stand, for the share of its time it camps at home ([spread]; all of it before it has one). */
+    fun homeShelter() = if (atHome) house * (if (spreadHex >= 0) spread[SPREAD_HOME] else 1f) else 0f
     /** How much warmer than [t] °C outside its houses keep: by the wood their hearths burn ([fire], [FIRE_HOUSE_KG_C]), and the ground's warmth through sunken walls. */
     fun houseWarmC(t: Float, fire: Float = 1f) = fire * HEARTH_WOOD / FIRE_HOUSE_KG_C + homeEarth * max(0f, homeGroundC - t)
     /** What it has against the cold at [t] °C with a fire of [fire] and houses sheltering it as far as [home] ([BodyHeat]), in a kit of [clothes]. */
