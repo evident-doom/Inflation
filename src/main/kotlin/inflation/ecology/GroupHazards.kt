@@ -270,7 +270,8 @@ internal fun GroupWorld.shareDeaths(hazards: List<Hazard>, adults: Int, young: I
  * What a whole house where [g]'s band is would have done for it this week, against the houses it has, by the week's own rules
  * ([placeHazards], [warmthNeed], [stalkRate]): the cold and exposure deaths it would have averted, and those to beasts of prey
  * ([stalked], this week's) behind its walls (its own houses', or solid ones), and the food keeping warm takes that it
- * would have saved; with what its stores and raids added this week ([keepWorth], [raidWorth]), folded into the band's running
+ * would have saved, and the work and craft days it would have given back from the cold as the food they would bring
+ * ([handDayKg]); with what its stores and raids added this week ([keepWorth], [raidWorth]), folded into the band's running
  * worth of a house ([Band.houseLives], [Band.houseFood]) a person a year, over about a year. Changes nothing else.
  */
 internal fun HexGroups.houseWorthWeek(g: HexGroup, b: Band, weather: Weather, stalked: Float) {
@@ -292,8 +293,13 @@ internal fun HexGroups.houseWorthWeek(g: HexGroup, b: Band, weather: Weather, st
     w[HouseWorth.EXPOSURE] += exposure; w[HouseWorth.STALKED] += beasts; w[HouseWorth.WARM_KG] += warmKg
     w[HouseWorth.SHELTER_EXPOSURE] += lives(max(0f, bare.odds - b.warmth(air, fire, 0f, days, 1f).odds))
     w[HouseWorth.BARE_EXPOSURE] += lives(max(0f, bare.odds - whole.odds))
-    w[HouseWorth.WORK_DAYS] += g.adults * days * max(0f, whole.pace - had.pace)
-    w[HouseWorth.CRAFT_DAYS] += g.adults * days * max(0f, whole.campPace - had.campPace)
+    val workDays = g.adults * days * max(0f, whole.pace - had.pace)
+    val craftDays = g.adults * days * max(0f, whole.campPace - had.campPace)
+    w[HouseWorth.WORK_DAYS] += workDays
+    w[HouseWorth.CRAFT_DAYS] += craftDays
+    // (And the days its hands would have had back from the cold, out at work and at crafts about the camp, as the food a day
+    // of foraging brings ([handDayKg]): docs/design/band-flow.md, step 3, what houses are worth.)
+    b.houseFoodWeek += (workDays + craftDays) * handDayKg(g, b)
     // (And its food in lives: the hunger deaths it would have averted this week by the week's own rule ([placeHazards]),
     // and the days of body protein it would have spared against hunger later ([Hazards.spentAfter]).)
     val more = b.houseFoodWeek / max(1e-3f, g.dailyNeedKg * days)

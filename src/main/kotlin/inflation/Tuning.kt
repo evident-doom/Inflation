@@ -142,6 +142,12 @@ class Tuning(
      */
     val bandsStay = read("t.bandsStay")?.toBooleanStrict() ?: true
     /**
+     * With [bandsStay]: weeks over which a band's spread over its ground ([inflation.ecology.flowSpreads]) closes on where
+     * food a head now draws it, the time constant of the flow (docs/design/band-flow.md): about the weeks foragers kept a
+     * camp, some 4 near the middle of 5 to 60 moves a year (Kelly 1995, from memory). To become a ways dial.
+     */
+    val bandFlowWeeks = f("bandFlowWeeks", 4f).also { require(it > 0f) { "t.bandFlowWeeks is $it: it must be above 0" } }
+    /**
      * With [bandsStay]: how many times a year two bands in hexes side by side meet ([inflation.ecology.neighboursMeet]: friends
      * and kin, news of the country, gifts, words, customs), half as often for each hex further apart, out to five. Weekly
      * between neighbours, a week of the model's calendar (6 days: 60 a year; Olli, 8 Nov 2026).

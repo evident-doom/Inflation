@@ -63,6 +63,10 @@ internal fun carryRules(): Map<String, Pair<OnSplit, OnJoin>> {
     rule(OnSplit.SHARED, OnJoin.SUM, "elders", "ageStage", "goods", "spare")
     rule(OnSplit.COPIED, OnJoin.BLENDED, "raidDeathRate", "kit", "fine", "glassy", "made", "salted", "dryDepth", "pests", "leanLost", "sodiumShort", "sodiumWant", "lineage", "inbred", "sisu")
     // Camp, home and raids.
+    // (Its spread over its ground: a new band starts wholly at its own home, [flowSpreads]; a band joined keeps its own.)
+    rule(OnSplit.FRESH, OnJoin.LOST, "spread", "spreadHex")
+    // (Its time at home goes with the households that leave, as its weeks at camp do.)
+    rule(OnSplit.COPIED, OnJoin.LOST, "homeTime")
     rule(OnSplit.COPIED, OnJoin.LOST, "campWeeks", "stayWeeks", "campPlace", "appointment", "houseHex", "house", "drivenFrom", "drivenBy", "homeEarth", "homeWalls", "homeGroundC", "palisade", "fire",
         "houseLives", "houseFood", "foodFrom", "fishPull", "weaningFood", "waterShort")
     rule(OnSplit.FRESH, OnJoin.LOST, "cache", "cacheKgPer", "cachePlace", "raid", "unlucky",

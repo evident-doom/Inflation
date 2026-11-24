@@ -293,6 +293,11 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
     private val worked = HashMap<Int, HashSet<Hex>>()
     /** Camp moves and band-weeks since last read, of bands without houses [0] and with [1]. */
     private val movesHouse = LongArray(2); private val bandWeeksHouse = LongArray(2)
+    /** People-weeks of bands by the yearly rain where they live (under 300 mm, 300-600, over 600), and of them those camped away from their home hex ([inflation.ecology.Band.spread]). */
+    private val spreadHeads = DoubleArray(3); private val spreadAway = DoubleArray(3)
+    /** Each hex's yearly rain, mm, worked out when first wanted. */
+    private val yearRain by lazy { FloatArray(sim.hex.size) { h -> (0 until 12).sumOf { m -> sim.hw.precip[m][h].toDouble() }.toFloat() } }
+    private fun rainClass(h: inflation.world.Hex) = yearRain[h.i].let { if (it < 300f) 0 else if (it < 600f) 1 else 2 }
     /** Appointments due and kept since last read: of bands in their appointment's month, how many are at its hex. */
     private var apptDue = 0L; private var apptKept = 0L
     /**
@@ -344,6 +349,8 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
             lastCamp.put(g.id, h)?.let { if (it != h) moves++ }
             // (A camp shifted within its hex is a camp move too, as foragers' moves of a few km mostly are: t.bandsStay.)
             g.band?.let { b ->
+                // (Its time away from its home hex, as its spread has it: [inflation.ecology.flowSpreads].)
+                if (b.spreadHex == h.i) { val r = rainClass(h); spreadHeads[r] += g.size.toDouble(); spreadAway[r] += g.size * (1.0 - b.spread[inflation.ecology.SPREAD_HOME]) }
                 moves += b.shiftsUncounted
                 movesHouse[if (b.house >= Thresholds.HOUSE_STANDING) 1 else 0] += b.shiftsUncounted.toLong()
                 b.shiftsUncounted = 0
@@ -511,7 +518,16 @@ class PeopleTally(private val sim: HexSim, private val stepsPerYear: Int) {
                 val inRain = bands.filter { val h = hw.placeHex[it.place]; val r = (0 until 12).sumOf { m -> hw.precip[m][h].toDouble() }; r >= lo && r < hi }
                 "%s %.0f%% of %d".format(if (hi > 1e8f) ">600 mm" else "%.0f-%.0f mm".format(lo, hi),
                     100.0 * inRain.count { it.band!!.house >= Thresholds.HOUSE_STANDING } / inRain.size.coerceAtLeast(1), inRain.size) } +
-            designs(bands, bs)
+            designs(bands, bs) + away()
+    }
+
+    /** The share of people-weeks bands spent camped away from their home hex, by the yearly rain where they live (clearing those sums). */
+    private fun away(): String {
+        val all = spreadHeads.sum()
+        val out = " | away from home by yearly rain: " + listOf("0-300 mm", "300-600 mm", ">600 mm").withIndex().joinToString(", ") { (i, l) ->
+            "%s %.0f%%".format(l, 100.0 * spreadAway[i] / spreadHeads[i].coerceAtLeast(1.0)) } + ", all %.0f%% of people-weeks".format(100.0 * spreadAway.sum() / all.coerceAtLeast(1.0))
+        spreadHeads.fill(0.0); spreadAway.fill(0.0)
+        return out
     }
 
     /**
