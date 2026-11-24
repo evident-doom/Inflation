@@ -130,6 +130,11 @@ object TestWorlds {
         Entry("w1122-1", 1, 1000, 2000, "the full map, settled on claude/hunters-by-food"),
         Entry("w1122-2", 2, 1000, 2000, "the full map, settled on claude/hunters-by-food"),
         Entry("w1122-3", 3, 1000, 2000, "the full map, settled on claude/hunters-by-food"),
+        // The same seeds settled again for 30 years weekly on main d2582a4f (hyena fix, rooting by search, fawns lying out,
+        // carrion and vultures, band-flow) from t.startDay=150 with night1123-kept-last (bal1124, 2026-11-24).
+        Entry("w1124-1", 1, 1000, 2000, "the full map, settled on d2582a4f"),
+        Entry("w1124-2", 2, 1000, 2000, "the full map, settled on d2582a4f"),
+        Entry("w1124-3", 3, 1000, 2000, "the full map, settled on d2582a4f"),
         // New seeds 4..6, settled for 30 years on main 2afaf7c4 from t.startDay=150 with the default nets of 2026-11-14
         // (night1114-kept-last): Olli 2026-11-14 "reseed a new world" for the overnight training and its checks.
         Entry("s6-4", 4, 1000, 2000, "the full map, new seed 4"),

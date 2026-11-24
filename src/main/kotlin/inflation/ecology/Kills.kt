@@ -370,6 +370,7 @@ internal fun HexGroups.huntGame(g: HexGroup, k: Int, p: Place, expected: Float, 
     note(g) { "killed %d %s".format(kills1, ps.name) }
     fauna.killed(p, Kg(kills1 * ps.massKg))
     stats.keep(Tally.of(s, Tally.OfKind.KILLS_OF_RESIDENTS), kills1)
+    if (s.human) stats.keep(Tally.of(ps, Tally.OfKind.KILLED_BY_PEOPLE), kills1)
     diag(ps, HuntStep.RESIDENT_KILLS, kills1.toFloat())
     return kills1
 }
