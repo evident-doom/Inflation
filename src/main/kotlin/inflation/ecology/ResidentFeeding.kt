@@ -280,6 +280,7 @@ private fun HexFauna.feedKinds(p: Place, weather: Weather, z: Grazing, ff: Doubl
         // Reserves carry them through lean weeks; they are laid on from what was eaten beyond need. (Any week short of
         // its need is paid from the fat, however little short: the body's balance has no slack in it.)
         val r = reserve[k]
+        fedByFood[k][p] = f
         if (!sleeping) {
             if (f < 1f) { val draw = min(r[p], (1f - f) * days); r[p] -= draw; f = min(1f, f + draw / days)
                 val heads = adults[k][p] + 0.5f * young[k][p]; if (heads > 0f) ff[k.i * FED + Fed.RESERVES.ordinal] += (draw / days * heads).toDouble() }

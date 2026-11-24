@@ -64,16 +64,16 @@ internal fun HexFauna.breedAndDie(weather: Weather, date: Date) {
             var bornHere = 0f
             if (share > 0f) {
                 bred[k][p] += share
-                fun bornAt(heads: Float): Float { val due = dueYoung(k, p, heads, protein[k][p], share); return 0.5f * a[p] * due * breeding(s, due, reserve[k][p], f[p], days) }
+                fun bornAt(heads: Float): Float { val due = dueYoung(k, p, heads, protein[k][p], share); return 0.5f * a[p] * due * breeding(s, due, reserve[k][p], fedByFood[k][p], days) }
                 crowdHeads += 0.5f * bornAt(crowdHeads)
                 val hatch = hatching(s, p)
                 val laid = dueLaid(k, p, crowdHeads, protein[k][p], share); val due = laid * hatch
-                val born = 0.5f * a[p] * due * breeding(s, due, reserve[k][p], f[p], days)
+                val born = 0.5f * a[p] * due * breeding(s, due, reserve[k][p], fedByFood[k][p], days)
                 y[p] += born
                 bornHere = born
                 // (The eggs the robbers took are left as carrion at the nest, as the hens made them.)
                 // (As many of the eggs as of the hatched the hens' food and reserves build: [breeding]'s share of them.)
-                if (hatch < 1f && laid > 0f) { val robbed = 0.5f * a[p] * laid * (1f - hatch) * breeding(s, due, reserve[k][p], f[p], days) * area
+                if (hatch < 1f && laid > 0f) { val robbed = 0.5f * a[p] * laid * (1f - hatch) * breeding(s, due, reserve[k][p], fedByFood[k][p], days) * area
                     val eggKg = HexFauna.newbornShare(s, s.birthMonth) * s.massKg
                     carcassKg[p] += robbed * eggKg; bornBook?.add((robbed * eggKg).toDouble()); eggsB[kb] += robbed.toDouble() }
                 bornB[kb] += (born * area).toDouble()
