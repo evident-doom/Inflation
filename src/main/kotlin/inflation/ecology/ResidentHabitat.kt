@@ -229,5 +229,23 @@ fun HexFauna.foodFor(s: Species, p: Place): Float {
     return plants / total * HexFood.access(s, land.crag[p])
 }
 
+/**
+ * What place [p] grows a year of [s]'s plant food, kg/m² a year, by its diet: the palatable herbs for its grazing, the
+ * shoots in reach for its browsing, the fruit, mast and the roots it can dig ([inflation.world.HexPlants.grassMade],
+ * [HexFood.fruitMade]); less on cliffs it cannot climb. On one scale for every kind, as [foodFor] is not (it counts
+ * browse, fruit, mast and roots standing at [HexFauna.REACH] times their weight).
+ */
+fun HexFauna.madeFor(s: Species, p: Place): Float {
+    val d = s.diet
+    val total = d.plants
+    if (total <= 0f) return 0f
+    val pl = land.plants
+    val made = d.grass * pl.grassMade[p] + d.browse * pl.browseMade[p] + d.fruit * food.fruitMade[p] + d.mast * food.mastMade[p] + d.roots * food.rootsMade[p]
+    return made / total * HexFood.access(s, land.crag[p])
+}
+
+/** Whether a year of what places grow has been gathered ([madeFor]). */
+fun HexFauna.madeKnown() = land.plants.madeYears >= HexFauna.MADE_YEAR && food.madeYears >= HexFauna.MADE_YEAR
+
 /** How much a newcomer of [s], resident or group, is drawn to place [p]: its ground, the climate and water in an ordinary year, by its area. */
 fun HexFauna.startWeight(s: Species, p: Place) = land.areaKm2[p] * suits(s, p) * climateSuits(s, p) * usualTether(s, p)

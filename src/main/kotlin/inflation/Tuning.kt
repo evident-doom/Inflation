@@ -215,6 +215,13 @@ class Tuning(
      */
     val usualByFood = f("usualByFood", 1f)
     /**
+     * Residents: the plant food a place grows a year, kg/m² ([inflation.ecology.HexFauna.madeFor]), at which a plant-eater
+     * has its usual numbers (Damuth's rule by its size): one yardstick for every kind, so poor country holds fewer of
+     * every kind ([inflation.ecology.HexFauna.foodScale], as far as [usualByFood]). 0: against the food over the kind's
+     * own country instead, so a dry-country kind averages Damuth's numbers however little grows there.
+     */
+    val usualMade = f("usualMade", 0f)
+    /**
      * Residents: the share of a place a plant-eater that hides in thickets lives on, as so many times the share its shelter
      * covers ([inflation.ecology.HexFauna.hidingShare]): 1 the covered ground alone, more as it feeds out into the open
      * round it (an estimate); 0 all of every place.
