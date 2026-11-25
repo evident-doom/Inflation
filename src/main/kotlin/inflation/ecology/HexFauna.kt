@@ -108,6 +108,12 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
     /** Last week's share of its wants each kind found in each place, 0..1. */
     val fed = Array(kinds.size) { FloatArray(n) { 1f } }
     /**
+     * The week's share of its wants each kind found in each place by eating, before its fat made up the rest ([fed] is
+     * after): what a mother builds her young of beyond her reserves ([breeding]), so that the fat is not counted twice.
+     * Not saved: set by the week's grazing before the births.
+     */
+    @Transient val fedByFood = Array(kinds.size) { FloatArray(n) { 1f } }
+    /**
      * How well each kind's diet in each place met its need for protein over the last weeks, 0..1 (see
      * [proteinMet]): what mothers make milk of and the young grow on.
      */

@@ -16,6 +16,8 @@ class HexGroup(val id: Int, val species: Species, var place: Place, var adults: 
     val alive get() = adults > 0
     /** Fed last week, 0..1; body reserves, days of food. */
     var fed = 1f
+    /** This week's [fed] by eating, before [feedOnReserves] made up the rest from [fat]: what a mother builds her young of beyond her fat ([breeding]). Not saved: set each week before the births. */
+    @Transient var fedByFood = 1f
     var fat = 0f
     /** Days of its body's protein it has burnt, its fat spent ([Hazards.hunger]); won back before fat. */
     var spent = 0f

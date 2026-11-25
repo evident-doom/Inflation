@@ -351,6 +351,8 @@ object Tally {
     enum class OfKind(val label: String) {
         KILLS_OF_RESIDENTS("kills of residents"), KILLS_OF_KEPT("kills of kept animals"), CHILDREN_DIED("children died"), MEAT_EATEN("meat eaten, kg"),
         PLANTS_EATEN("plants eaten, kg"), GRAIN_REAPED("grain reaped, kg"), PLANTS_LEACHED("plants leached, kg"), FISH("fish, kg"),
+        /** Of the prey kind: heads of it bands killed (a part of [WeekStats.kills], which counts packs' kills too). */
+        KILLED_BY_PEOPLE("killed by people"),
     }
 
     /** What a hunting kind's diet asked for ([ASKED]) and got of each part, kg (meat includes fish). */

@@ -22,7 +22,9 @@ import inflation.Tuning
  * past its crowding sickness ([HexFauna.CROWDED] times its usual numbers at the place, [HexFauna.usualAt]) and, for a
  * hunter, past what its territories hold ([HexFauna.STRIFE_CROWD] times them); how well fed; and its deaths over the run
  * by what killed them: food and weather (hunger, thirst, cold, heat, snow, fire, flood, short of protein), sickness, the
- * hunters and people, its own kind's rivals, and age. The limit is the biggest of them but age. Then the small life against
+ * beasts of prey (resident hunters, packs, crocodiles, prey that fought back), the small hunters on the young (foxes,
+ * eagles), people, its own kind's rivals, and age. The kills of packs and bands are in the groups' ledger
+ * ([inflation.ecology.WeekStats.kills], people's part [Tally.OfKind.KILLED_BY_PEOPLE]), not the residents' deaths. The limit is the biggest of them but age. Then the small life against
  * the field (rodents, hares, foxes, owls, root diggers, kg/km² over all the land), and the hares against their room.
  *
  * On a fresh world instead of a test world, [--seed] and [--warm] years first (the old test worlds' saves do not load
@@ -54,6 +56,11 @@ fun main(args: Array<String>) {
             val k = byName[Tally.kindOf(key)] ?: continue
             deaths[k].merge(cause(Tally.whatOf(key)), v, Double::plus)
         }
+        val gs = sim.groups.stats
+        for ((ps, v) in gs.kills) { val k = byName[ps.name] ?: continue
+            val people = (gs.hunting[Tally.of(ps, Tally.OfKind.KILLED_BY_PEOPLE)] ?: 0).toDouble()
+            deaths[k].merge(Cause.PEOPLE, people, Double::plus); deaths[k].merge(Cause.PREDATORS, v - people, Double::plus)
+        }
         for (k in 0 until nk) {
             val s = fauna.kinds[k]
             for (p in 0 until n) {
@@ -72,16 +79,19 @@ fun main(args: Array<String>) {
     }
     val field = Nominal.fieldDensity(sim)
     fun pct(x: Double, of: Double) = if (of > 0.0) 100.0 * x / of else 0.0
-    println("\nkind            heads/km² where most | field (x${"%.0f".format(Nominal.FIELD_SLACK)} slack) | fed | crowd-sick / past territories, head-weeks | deaths: food&weather sickness hunters&people rivals age | held by")
+    println("\nkind            heads/km² where most | field (x${"%.0f".format(Nominal.FIELD_SLACK)} slack) | fed | crowd-sick / past territories, head-weeks | deaths: food&weather sickness predators foxes&eagles people rivals age | held by")
     for (k in 0 until nk) {
         val s = fauna.kinds[k]; val fd = field[s] ?: continue
         val d = deaths[k]; val all = d.values.sum()
-        val food = d[Cause.FOOD] ?: 0.0; val sick = d[Cause.SICKNESS] ?: 0.0; val hunt = d[Cause.HUNTERS] ?: 0.0
+        val food = d[Cause.FOOD] ?: 0.0; val sick = d[Cause.SICKNESS] ?: 0.0; val pred = d[Cause.PREDATORS] ?: 0.0
+        val smallH = d[Cause.SMALL_HUNTERS] ?: 0.0; val ppl = d[Cause.PEOPLE] ?: 0.0
         val riv = d[Cause.RIVALS] ?: 0.0; val age = d[Cause.AGE] ?: 0.0
-        val held = listOf("food and weather" to food, "sickness" to sick, "hunters and people" to hunt, "rivals" to riv).maxByOrNull { it.second }!!.first
-        println("%-14s %8.3f %-20s | %s | %.2f | %3.0f%% / %s | %3.0f%% %3.0f%% %3.0f%% %3.0f%% %3.0f%% | %s".format(s.name, fd.perKm2, fd.country,
+        val held = listOf("food and weather" to food, "sickness" to sick, "beasts of prey" to pred, "foxes and eagles" to smallH,
+            "people" to ppl, "rivals" to riv).maxByOrNull { it.second }!!.first
+        println("%-14s %8.3f %-20s | %s | %.2f | %3.0f%% / %s | %3.0f%% %3.0f%% %3.0f%% %3.0f%% %3.0f%% %3.0f%% %3.0f%% | %s".format(s.name, fd.perKm2, fd.country,
             verdict(s, fd.perKm2), fedW[k] / headWeeks[k].coerceAtLeast(1e-9), pct(crowded[k], headWeeks[k]),
-            if (s.carnivore) "%3.0f%%".format(pct(strife[k], headWeeks[k])) else "  -", pct(food, all), pct(sick, all), pct(hunt, all), pct(riv, all), pct(age, all), held))
+            if (s.carnivore) "%3.0f%%".format(pct(strife[k], headWeeks[k])) else "  -", pct(food, all), pct(sick, all), pct(pred, all),
+            pct(smallH, all), pct(ppl, all), pct(riv, all), pct(age, all), held))
     }
     for (s in sim.groups.kinds) if (s.lifeway == Lifeway.PACK && s !in fauna.kinds) { val fd = field[s] ?: continue
         println("%-14s %8.4f %-20s | %s | (packs)".format(s.name, fd.perKm2, fd.country, verdict(s, fd.perKm2))) }
@@ -95,7 +105,8 @@ fun main(args: Array<String>) {
         for (g in sim.groups.groups) if (g.alive && !g.species.human) hunterKg += g.size * g.species.massKg.toDouble()
         var died = 0.0; var hunted = 0.0; var sickW = 0.0; var allW = 0.0
         for (k in 0 until nk) { val s = fauna.kinds[k]; if (s.carnivore || s.human) continue
-            if (s.massKg < SMALL_PREY_KG) { died += deaths[k].values.sum(); hunted += deaths[k][Cause.HUNTERS] ?: 0.0 }
+            if (s.massKg < SMALL_PREY_KG) { died += deaths[k].values.sum()
+                hunted += listOf(Cause.PREDATORS, Cause.SMALL_HUNTERS, Cause.PEOPLE).sumOf { deaths[k][it] ?: 0.0 } }
             sickW += crowded[k]; allW += headWeeks[k] }
         println("\nheld from above? (marks of a food web whose hunters hold their prey):")
         println("  plant-eaters' weight to the hunters': %.0f to 1 (the field some 100-200 to 1: Carbone and Gittleman 2002, about 90 kg of each carnivore kind for 10,000 kg of its prey)".format(plantKg / hunterKg.coerceAtLeast(1e-9)))
@@ -121,14 +132,15 @@ private fun verdict(s: Species, d: Double): String {
 }
 
 /** What killed them, in groups. */
-private enum class Cause { FOOD, SICKNESS, HUNTERS, RIVALS, AGE }
+private enum class Cause { FOOD, SICKNESS, PREDATORS, SMALL_HUNTERS, PEOPLE, RIVALS, AGE }
 
 private fun cause(label: String): Cause = when {
     label == "age" || label == "old age" -> Cause.AGE
     label == "disease" || label == "outbreak" -> Cause.SICKNESS
     "rivals" in label -> Cause.RIVALS
+    label == "eagles" || label == "foxes" -> Cause.SMALL_HUNTERS
     label.startsWith("young killed by") || label.startsWith("killed by") || label.startsWith("taken by") || label == "resident hunters" ||
-        label == "hunted" || label == "eagles" || label == "foxes" || label == "crocodiles" || label == "prey fought back" -> Cause.HUNTERS
+        label == "crocodiles" || label == "prey fought back" -> Cause.PREDATORS
     else -> Cause.FOOD
 }
 
