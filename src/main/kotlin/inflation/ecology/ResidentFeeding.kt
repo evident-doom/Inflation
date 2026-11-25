@@ -231,7 +231,22 @@ private fun HexFauna.eatPlants(p: Place, weather: Weather, grass: Float, browse:
         val r = if (sum > spare && sum > 0f) spare / sum else 1f
         for (k in byMass) cap[k] = r * asked[k]
     }
-    share(z.askG, z.capG, z.spareG); share(z.askB, z.capB, z.spareB); share(z.askF, z.capF, z.spareF); share(z.askM, z.capM, z.spareM); share(z.askR, z.capR, z.spareR)
+    // (Grass and browse short: the kinds that crop thin pickings best get the more of what they asked ([Tuning.swardEdge]):
+    // on a sward eaten short a small grazer still fills its mouth bite by bite where a big one walks between bites and goes
+    // short, Illius and Gordon 1987: at each kind's [Species.cropHalfKgM2] against a 100 kg kind's walking 5 km a day's, to
+    // that power, each gets the same share r of its asked times that edge, up to all it asked, r such that it all goes.)
+    val edge = tuning.swardEdge
+    fun shareByEdge(asked: FloatArray, cap: FloatArray, spare: Float) {
+        var sum = 0f; for (k in byMass) sum += asked[k]
+        if (edge <= 0f || sum <= spare || !(sum > 0f)) { share(asked, cap, spare); return }
+        val c = z.edge
+        var hi = 0f
+        for (k in byMass) { c[k] = (Species.CROP_HALF / kinds[k].cropHalfKgM2).pow(edge); if (asked[k] > 0f) hi = max(hi, 1f / c[k]) }
+        var lo = 0f
+        repeat(30) { val r = 0.5f * (lo + hi); var got = 0f; for (k in byMass) got += asked[k] * min(1f, r * c[k]); if (got > spare) hi = r else lo = r }
+        for (k in byMass) cap[k] = asked[k] * min(1f, lo * c[k])
+    }
+    shareByEdge(z.askG, z.capG, z.spareG); shareByEdge(z.askB, z.capB, z.spareB); share(z.askF, z.capF, z.spareF); share(z.askM, z.capM, z.spareM); share(z.askR, z.capR, z.spareR)
     z.mode = Grazing.SHARES
     for (k in byMass) {
         val s = kinds[k]

@@ -701,6 +701,8 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         var mode = FREE; var kind = 0
         val askG = FloatArray(nk); val askB = FloatArray(nk); val askF = FloatArray(nk); val askM = FloatArray(nk); val askR = FloatArray(nk)
         val capG = FloatArray(nk); val capB = FloatArray(nk); val capF = FloatArray(nk); val capM = FloatArray(nk); val capR = FloatArray(nk)
+        /** Each kind's edge on thin pickings in sharing short grass and browse ([Tuning.swardEdge]); scratch. */
+        val edge = FloatArray(nk)
         private inline fun take(kg: Float, spare: Float, ask: FloatArray, cap: FloatArray, eat: (Float) -> Unit): Float {
             var t = min(kg, access * spare)
             when (mode) {

@@ -235,6 +235,12 @@ class Tuning(
      */
     val crowdWellFed = f("crowdWellFed", 1f)
     /**
+     * Residents: where the plant-eaters at a place ask more grass or browse than there is, how far the kinds that crop thin
+     * pickings best (small and wide-ranging ones, [inflation.ecology.Species.cropHalfKgM2]) get more of what they asked,
+     * as a power of their edge on a 100 kg kind's. 0: each gets the same share of what it asked.
+     */
+    val swardEdge = f("swardEdge", 0f)
+    /**
      * Residents: the share of a place a plant-eater that hides in thickets lives on, as so many times the share its shelter
      * covers ([inflation.ecology.HexFauna.hidingShare]): 1 the covered ground alone, more as it feeds out into the open
      * round it (an estimate); 0 all of every place.
