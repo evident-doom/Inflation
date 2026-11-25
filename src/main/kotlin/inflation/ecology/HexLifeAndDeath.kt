@@ -580,7 +580,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
                 g.bred += share
                 // (Meat is rich in protein: their young are short of none. Plant-eaters' are short of sodium where their forage is: [saltBreeding].)
                 val due = youngDue(s, kinKm2(g, kinNow), HexFauna.usualDensity(s), tuning.breedSpacing, fauna.saltBreeding(s, g.place), share)
-                due * breeding(s, due, g.fat, g.fed, days) * (1f + GRANDMOTHERS * help)
+                due * breeding(s, due, g.fat, g.fedByFood, days) * (1f + GRANDMOTHERS * help)
             }
             bornExpected = mothersExact * rate
             // (A big litter over a short season is more than one a mother a week: the whole ones, and the rest by chance.)
@@ -730,6 +730,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
 /** Reserves carry [g] through lean weeks; a group that ate (nearly) its fill lays them on, most in late summer and autumn. */
 private fun GroupWorld.feedOnReserves(g: HexGroup) {
     val s = g.species
+    g.fedByFood = g.fed
     val drew = g.fed < WELL_FED && g.fat > 0f
     // (What its people save by spending less when short, [Hazards.economy], the fat need not pay.)
     if (g.fed < WELL_FED) { val e = Hazards.economy(s); val draw = Hazards.fatDrawn(g.fed, g.fat, days, economy = e)
