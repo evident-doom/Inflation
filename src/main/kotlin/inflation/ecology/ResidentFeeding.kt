@@ -62,8 +62,46 @@ fun HexFauna.proteinMet(share: Float) = min(1f, share / PROTEIN_NEED)
 internal fun HexFauna.plantWant(k: FaunaKind, p: Place, weather: Weather): Float {
     val s = kinds[k]
     return if (asleep(k, p)) 0f else s.dailyIntakeKg * coldNeed(s, feltC(s, p, weather.temperature[p]), weather.date.month, tuning) *
-        days / 1e6f * plantShare(s)
+        waterWalkNeed(s, p) * days / 1e6f * plantShare(s)
 }
+
+/**
+ * How often an animal of kind [s] at place [p] goes to water and back, times a day: as often as it goes dry ([Hazards.dryDays]:
+ * less the more water its green food holds) over half the days it can last without drinking, and at least daily (cattle
+ * drink once or twice a day, camels go a week and more: from memory). None for a kind that lives at the water's edge, or
+ * that eats snow for its water ([HexDrinkingWater.animalWaterKm] is then none).
+ */
+internal fun HexFauna.waterTrips(s: Species, p: Place): Float {
+    if (s.maxWaterKm.isFinite()) return 0f
+    val dry = max(0f, 1f - s.waterFromFood * (0.5f + 0.5f * land.plants.green[p]))
+    return dry / max(1f, s.daysWithoutWater / 2f)
+}
+
+/** The km an animal of kind [s] at place [p] walks a day to water and back ([waterTrips]), from the place's ground on average. */
+internal fun HexFauna.waterWalkKm(s: Species, p: Place) = 2f * land.drink.animalWaterKm(p) * waterTrips(s, p)
+
+/**
+ * The share of its feeding day kind [s] keeps at place [p] for its walks to water ([waterWalkKm]): walking at [WATER_WALK_KMH]
+ * out of a feeding day of [FEED_HOURS]. Cattle far from water graze less and walk more (the piosphere: from memory of the
+ * rangeland record). Not counted: what they crop on the way.
+ */
+internal fun HexFauna.atWater(s: Species, p: Place): Float = (1f - waterWalkKm(s, p) / (WATER_WALK_KMH * FEED_HOURS)).coerceIn(0f, 1f)
+
+/**
+ * What its walks to water ([waterWalkKm]) add to the food kind [s] needs at place [p], as a factor: walking on the level costs
+ * 10.7 M^-0.316 J per kg per m (Taylor, Heglund & Maloiy 1982), against its day's need ([Species.dailyIntakeKg], fed at
+ * [Species.needScale] of [Nourishment.UNIT_KCAL] a kg). For an aurochs walking 10 km a day, some 8%.
+ */
+internal fun HexFauna.waterWalkNeed(s: Species, p: Place): Float {
+    val km = waterWalkKm(s, p)
+    if (!(km > 0f)) return 1f
+    val kcalPerKm = 10.7f * s.massKg.pow(0.684f) * 1000f / 4184f
+    return 1f + km * kcalPerKm / (s.dailyIntakeKg / s.needScale * Nourishment.UNIT_KCAL)
+}
+
+/** [atWater]: the pace of a walk to water, km/h; the hours of a grazer's feeding day (cattle graze some 8-11 h: from memory). Estimates. */
+internal const val WATER_WALK_KMH = 4f
+internal const val FEED_HOURS = 10f
 
 /** How much of the food at place [p] kind [s] can get at: cliffs keep all but climbers off some of it, a kind that must drink often uses only the ground within reach of water, and biting insects cost it feeding time ([unbitten]). */
 internal fun HexFauna.reachOf(s: Species, p: Place) = HexFood.access(s, land.crag[p]) * tether(s, p) * unbitten(p)
@@ -139,10 +177,11 @@ internal fun HexFauna.graze(weather: Weather) {
 /**
  * The shares of its want of grass and of browse kind [s] can crop at place [p] ([cropRate]), by how thick they stand:
  * the edible herbs, and the shoots within reach counted as the standing plants that would give as much in a week ([REACH]);
- * less in cover for a kind that watches for stalkers there rather than feeding ([inSight]).
+ * less in cover for a kind that watches for stalkers there rather than feeding ([inSight]), and the less of its day it walks
+ * to water ([atWater]).
  */
-internal fun HexFauna.cropGrass(s: Species, p: Place) = cropRate(s, land.palatable[p] * land.plants.herb[p]) * inSight(s, p)
-internal fun HexFauna.cropBrowse(s: Species, p: Place) = cropRate(s, land.plants.browse(p) / REACH) * inSight(s, p)
+internal fun HexFauna.cropGrass(s: Species, p: Place) = cropRate(s, land.palatable[p] * land.plants.herb[p]) * inSight(s, p) * atWater(s, p)
+internal fun HexFauna.cropBrowse(s: Species, p: Place) = cropRate(s, land.plants.browse(p) / REACH) * inSight(s, p) * atWater(s, p)
 
 /**
  * [graze]'s plants at place [p] ([grass] and [browse] of them within reach), into [z], shared out among the kinds there by
