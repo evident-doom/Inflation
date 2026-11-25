@@ -12,37 +12,48 @@ import inflation.world.Place
  * whether thin herbs in steppe come from the water going elsewhere, the light, or the grazing (2026-11-25: world-gen steppe
  * held 22 g/m² of edible herbs against 30-230 g/m² peak standing in real steppe).
  *
- * Usage: herb-budget (--world NAME | --seed N) — runs one year from the start and reports it.
+ * Also the climate's normals there (world-gen rain and Thornthwaite PET, mm/yr; mean air, °C), height (m) and latitude, to
+ * judge the year's rain against the normal the aridity is reckoned from.
+ *
+ * Usage: herb-budget (--world NAME | --seed N) [--years N] — runs N years (1) from the start and reports their yearly mean.
  */
 fun main(args: Array<String>) {
-    val sim = FaunaCheckOptions.parse((args.toList() + listOf("--years", "1")).toTypedArray()).start()
+    val years = args.indexOf("--years").takeIf { it >= 0 }?.let { args[it + 1].toInt() } ?: 1
+    val rest = args.toMutableList().also { i -> val j = i.indexOf("--years"); if (j >= 0) { i.removeAt(j); i.removeAt(j) } }
+    val sim = FaunaCheckOptions.parse((rest + listOf("--years", "1")).toTypedArray()).start()
     val land = sim.land; val pl = land.plants; val hy = land.hydro; val n = land.n; val c = land.hw.world.climate
     val fauna = sim.fauna; val eaters = fauna.kinds.indices.filter { !fauna.kinds[it].carnivore }
     val herbMean = DoubleArray(n); val herbPeak = DoubleArray(n); val rain = DoubleArray(n); val evap = DoubleArray(n)
     val tr = Array(3) { DoubleArray(n) }; val runoff = DoubleArray(n); val herbLight = DoubleArray(n); val grazed = DoubleArray(n); val eatersKg = DoubleArray(n)
     val ls = FloatArray(3)
-    val steps = sim.stepsPerYear
+    val perYear = sim.stepsPerYear; val steps = years * perYear; val y = years.toDouble()
     for (s in 0 until steps) {
         sim.step()
         val days = sim.clock.days.toDouble()
         for (p in 0 until n) {
             val h = pl.herb[p].toDouble(); herbMean[p] += h / steps; if (h > herbPeak[p]) herbPeak[p] = h
-            rain[p] += sim.weather.precipitation[p].toDouble()
-            evap[p] += hy.evaporatedMm[p].toDouble(); for (k in 0..2) tr[k][p] += hy.transpired[k][p].toDouble(); runoff[p] += hy.runoffMm[p].toDouble()
+            rain[p] += sim.weather.precipitation[p] / y
+            evap[p] += hy.evaporatedMm[p] / y; for (k in 0..2) tr[k][p] += hy.transpired[k][p] / y; runoff[p] += hy.runoffMm[p] / y
             pl.lightShares(Place(p), ls); herbLight[p] += ls[0].toDouble() / steps
-            grazed[p] += pl.grazing[p] * days / 1000.0
+            grazed[p] += pl.grazing[p] * days / 1000.0 / y
             var w = 0.0; for (k in eaters) w += (fauna.adults[k][p] + 0.3f * fauna.young[k][p]) * fauna.kinds[k].massKg
             eatersKg[p] += w / steps
         }
     }
+    val hw = land.hw
+    val normal = DoubleArray(n) { p -> land.mean(p) { i -> c.annualPrecip[i] }.toDouble() }
+    val pet = DoubleArray(n) { p -> land.mean(p) { i -> c.annualPet[i] }.toDouble() }
+    val air = DoubleArray(n) { p -> land.mean(p) { i -> c.meanTemp(i) }.toDouble() }
+    val lat = DoubleArray(n) { p -> hw.placeCells[p].sumOf { c.latitude[hw.world.grid.y(it)] } / hw.placeCells[p].size }
     val all = (0 until n).sumOf { land.areaKm2[it].toDouble() }
     fun report(title: String, ps: List<Int>) {
         if (ps.isEmpty()) return
         val a = ps.sumOf { land.areaKm2[it].toDouble() }
         fun m(f: (Int) -> Double) = ps.sumOf { f(it) * land.areaKm2[it] } / a
-        println("%-34s %5.1f%% rain %4.0f arid %.2f | tree %5.2f shrub %.2f herb %.3f peak %.3f | evap %4.0f herbs %4.0f shrubs %4.0f trees %4.0f runoff %4.0f | herb light %.2f | grazed %5.1f g/m² | eaters %5.0f kg/km²".format(
+        println("%-34s %5.1f%% rain %4.0f arid %.2f | tree %5.2f shrub %.2f herb %.3f peak %.3f | evap %4.0f herbs %4.0f shrubs %4.0f trees %4.0f runoff %4.0f | herb light %.2f | grazed %5.1f g/m² | eaters %5.0f kg/km² | normal rain %4.0f PET %4.0f air %4.1f height %4.0f lat %4.1f".format(
             title, 100 * a / all, m { rain[it] }, m { land.mean(it) { i -> c.aridity(i) }.toDouble() }, m { pl.tree[it].toDouble() }, m { pl.shrub[it].toDouble() },
-            m { herbMean[it] }, m { herbPeak[it] }, m { evap[it] }, m { tr[0][it] }, m { tr[1][it] }, m { tr[2][it] }, m { runoff[it] }, m { herbLight[it] }, m { grazed[it] }, m { eatersKg[it] }))
+            m { herbMean[it] }, m { herbPeak[it] }, m { evap[it] }, m { tr[0][it] }, m { tr[1][it] }, m { tr[2][it] }, m { runoff[it] }, m { herbLight[it] }, m { grazed[it] }, m { eatersKg[it] },
+            m { normal[it] }, m { pet[it] }, m { air[it] }, m { hw.placeElevationM[it].toDouble() }, m { lat[it] }))
     }
     println("by kind of country now:")
     for (b in listOf(Biome.STEPPE, Biome.SHRUBLAND, Biome.SEMI_DESERT, Biome.OPEN_WOODLAND, Biome.MEDITERRANEAN_WOODLAND, Biome.TEMPERATE_FOREST))
