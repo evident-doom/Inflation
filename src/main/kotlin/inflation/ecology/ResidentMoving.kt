@@ -57,7 +57,7 @@ internal fun HexFauna.fedOnSpare(s: Species, p: Place, heads: Float, each: Float
     dry.fruit = spareFruit[p]; dry.mast = spareMast[p]; dry.roots = spareRoots[p]
     // (As those there find their roots: by search, from what they left, [rootingMost].)
     val dig = if (s.diet.roots > 0f) rootingMost(s, heads / land.areaKm2[p], reach * spareRoots[p], days, tuning.rootingM2PerDay) else Float.POSITIVE_INFINITY
-    return (forage(s, leanDiet(s, p), land.plants.nourishment(p), want, grassUnderSnow(s, snowMm), dry, b, cropGrass(s, p), cropBrowse(s, p), dig).got / want).coerceIn(0f, 1f)
+    return (forage(s, leanDiet(s, p), foragedQuality(p), want, grassUnderSnow(s, snowMm), dry, b, cropGrass(s, p), cropBrowse(s, p), dig).got / want).coerceIn(0f, 1f)
 }
 
 /** [fedOnSpare] for [heads] of plant-eating kind [k] coming to place [p] this week. */
@@ -222,7 +222,7 @@ internal fun HexFauna.appeal(k: FaunaKind, p: Place, weather: Weather): Float {
         if (plants <= 0f) 1f else 1f - (d.grass + d.mast + d.roots) * (1f - grassUnderSnow(s, weather.snowpack[p])) / plants }
     // (Plant-eaters weigh their forage by how fresh it is and how well it would meet their need for
     // protein: so they go up to the green high pasture in summer and down for the winter.)
-    val fresh = if (s.carnivore) 1f else land.plants.nourishment(p) * forageProtein(s, p)
+    val fresh = if (s.carnivore) 1f else foragedQuality(p) * forageProtein(s, p)
     return fareFor(s, p) * fresh * tether(s, p) * unbitten(p) * snowed * (1f - FEAR_WEIGHT * (if (s.carnivore) pressure(k, p) else shy(s, p))) * (1f - outranked(s, p)) *
         (1f - land.fire.stepBurning[p] * FIRE_ADULT) * (1f - outbreakDeaths(s, p)) /
         (1f + Hazards.crowding(heads, usualAt(k.i, p))) / (1f + discomfort)

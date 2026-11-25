@@ -244,6 +244,25 @@ fun HexFauna.madeFor(s: Species, p: Place): Float {
     return made / total * HexFood.access(s, land.crag[p])
 }
 
+/**
+ * The nourishment of place [p]'s forage as its plant-eaters find it ([HexPlants.nourishment]): its leafy part thinned
+ * the more, the more of what the place grows of grass and browse a year ([HexPlants.grassMade], [HexPlants.browseMade])
+ * they took lately ([HexPlants.grazing], [HexPlants.browsing]): they pick the young leaves and shoots first, so the
+ * more of them feed on a place, the more of what is left is old and cured, and the less each is fed of its fill
+ * (density dependence by food quality: the green bite is what is short, not the bulk). At a take of [Tuning.leafTake]
+ * of the year's growth half the leafy part is gone. The place's own with [Tuning.leafTake] at 0, or until a year of
+ * growth is gathered ([madeKnown]).
+ */
+fun HexFauna.foragedQuality(p: Place): Float {
+    val pl = land.plants; val q = pl.nourishment(p); val half = tuning.leafTake
+    if (half <= 0f || !madeKnown()) return q
+    val made = pl.grassMade[p] + pl.browseMade[p]
+    if (!(made > 0f)) return q
+    val take = (pl.grazing[p] + pl.browsing[p]) * inflation.world.Date.DAYS_PER_YEAR * 1e-6f / made
+    val dry = pl.dryNourishment(p)
+    return dry + max(0f, q - dry) / (1f + take / half)
+}
+
 /** Whether a year of what places grow has been gathered ([madeFor]). */
 fun HexFauna.madeKnown() = land.plants.madeYears >= HexFauna.MADE_YEAR && food.madeYears >= HexFauna.MADE_YEAR
 

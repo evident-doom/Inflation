@@ -153,7 +153,7 @@ internal fun HexFauna.cropBrowse(s: Species, p: Place) = cropRate(s, land.plants
  * what is left and lay the surplus on.
  */
 private fun HexFauna.eatPlants(p: Place, weather: Weather, grass: Float, browse: Float, z: Grazing) {
-    val quality = land.plants.nourishment(p)
+    val quality = foragedQuality(p)
     val need = z.need; val each = z.each; val avail = z.avail
     for ((k, s) in kinds.withKinds()) {
         killRate[k]?.set(p, 0f)

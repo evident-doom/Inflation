@@ -186,9 +186,11 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
      * ripe, falling toward straw's as the cured grass weathers ([hayFresh]): the lean end of a dry season or a winter.
      */
     fun nourishment(p: Place): Float {
-        val dry = tuning.strawValue + (tuning.dryValue - tuning.strawValue) * hayFresh[p]
+        val dry = dryNourishment(p)
         return dry + (1f - dry) * leafy(p)
     }
+    /** [nourishment] with no leafy growth in it: the cured forage's, by how weathered it is ([hayFresh]). */
+    fun dryNourishment(p: Place) = tuning.strawValue + (tuning.dryValue - tuning.strawValue) * hayFresh[p]
 
     /** Volcanic ash lying on each place, mm (set from the eruptions each week). */
     val ash = FloatArray(n)
