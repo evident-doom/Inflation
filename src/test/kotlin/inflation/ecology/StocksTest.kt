@@ -70,7 +70,7 @@ class StocksTest {
             "HexFood.cereal", "HexSmallLife.eagleCrags", "HexSmallLife.rockKopje", "HexSmallLife.rockChukar", "HexSmallLife.rockHides",
             "HexSmallLife.meanTemp", "HexSmallLife.annualRain", "HexSmallLife.soilReach", "HexFauna.groundShelter",
             // Rates and the week's passing water: flows over a step, not water held.
-            "HexHydrology.lakeRain", "HexHydrology.lakeEvap", "HexHydrology.flow", "HexHydrology.flood", "HexHydrology.soak",
+            "HexHydrology.lakeRain", "HexHydrology.lakeEvap", "HexHydrology.flow", "HexHydrology.localFlow", "HexHydrology.localMeanFlow", "HexHydrology.flood", "HexHydrology.soak",
             "HexHydrology.soakTarget", "HexHydrology.runoffMm", "HexPlants.litterfall", "HexPlants.browsing", "HexPlants.grazing",
             "HexPlants.rooting", "HexPlants.trampling", "HexPlants.trodden", "HexSmallLife.washedKg", "HexSmallLife.laidKgM2", "HexSmallLife.leaving",
             "HexSmallLife.newborn", "HexFauna.bornThisWeek", "HexFauna.eggsTakenThisWeek", "HexSmallLife.groupCarrionRate", "HexSmallLife.groupCarrionFound", "HexSmallLife.groupCarrionRateLast", "HexSmallLife.carrionFlow", "HexSmallLife.residentCarrionRate", "HexSmallLife.vultureCarrionRate", "HexSmallLife.vultureColonyRates", "HexSmallLife.carrionRotRate", "HexFauna.groupKilled", "HexFauna.huntedLately", "HexFauna.huntedYoungLately",

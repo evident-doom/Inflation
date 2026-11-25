@@ -176,19 +176,24 @@ class HexDrinkingWater(land: HexLand) : HexLandPart(land) {
         for (p in land.places) {
             val h = hw.placeHex[p]
             // The streams within reach are the hex's main river and its creeks (from 0.1 m³/s in a usual
-            // year); they shrink with the main river, and a bed holds drinkable pools while a trickle runs.
-            val running = if (hydro.meanFlow[h] > 0f) (hydro.flow[h] / hydro.meanFlow[h] * HexHydrology.CREEK / HexHydrology.TRICKLE).coerceIn(0f, 1f) else 0f
+            // year); a bed holds drinkable pools while a trickle runs. The main river, and any as big, shrink with the
+            // main river's flow; the creeks smaller than it with what the hex's own ground gives them ([HexHydrology.localFlow]):
+            // in dry country they run after rain and in the wet season and dry up in summer, while a river fed from far
+            // away runs on.
+            val mainShare = if (hydro.meanFlow[h] > 0f) hydro.flow[h] / hydro.meanFlow[h] else 0f
+            val localShare = if (hydro.localMeanFlow[h] > 0f) hydro.localFlow[h] / hydro.localMeanFlow[h] else mainShare
+            val running = (mainShare * HexHydrology.CREEK / HexHydrology.TRICKLE).coerceIn(0f, 1f)
+            val k = runningClass(mainShare, localShare, hydro.meanFlow[h])
+            val creeks = if (k == 0) 1f else (localShare * HexHydrology.CREEK / HexHydrology.TRICKLE).coerceIn(0f, 1f)
             val thawed = weather.temperature[p] > THAW_C
             val wet = hydro.soil[p] / hydro.soilCap[p]
             // Springs run on the ground water under the place: they weaken when it runs low after years of drought.
             val springs = nearSpring[p] * hydro.springFlow(p)
             val pools = if (thawed && (wet >= POOL_WETNESS || weather.precipitation[p] / days >= 3f)) 1f else 0f
             val flooded = if (hydro.flood[p] > 0f) land.floodShare[p] else 0f
-            val lasting = nearRiver[p] * running + nearLake[p] + (if (thawed) springs else 0f)
+            val lasting = nearRiver[p] * creeks + nearLake[p] + (if (thawed) springs else 0f)
             water[p] = max(pools, min(1f, lasting + flooded))
             deep[p] = min(1f, (if (hydro.meanFlow[h] >= DEEP_RIVER_M3S) nearRiver[p] * running else 0f) + nearLake[p] + flooded)
-            // (The streams still running at this week's share of a usual year's flow: those whose usual flow keeps a trickle.)
-            val k = runningClass(if (hydro.meanFlow[h] > 0f) hydro.flow[h] / hydro.meanFlow[h] else 0f)
             waterKm[p] = if (pools > 0f) 0f else if (k >= 0) riverClassKmMean[k][p] else stillKmMean[p]
             val near = min(if (k >= 0) riverClassKmLeast[k][p] else MAX_WATER_KM, min(lakeKmLeast[p], if (thawed && springs > 0f) springKmLeast[p] else MAX_WATER_KM))
             campKm[p] = if (pools > 0f) 0f else if (near < MAX_WATER_KM) near else waterKm[p]
@@ -225,6 +230,20 @@ class HexDrinkingWater(land: HexLand) : HexLandPart(land) {
             val least = max(HexHydrology.CREEK, HexHydrology.TRICKLE / share)
             for ((k, m3s) in RIVER_CLASS_M3S.withIndex()) if (m3s >= least) return k
             return -1
+        }
+
+        /**
+         * The smallest size of stream ([RIVER_CLASS_M3S]) still running in a hex whose main river, of [mainFlow] m³/s in a usual
+         * year, carries [mainShare] of that flow and whose own ground gives its creeks [localShare] of a usual year's: the
+         * creeks smaller than the main river run by [localShare]; the main river, and those as big, by [mainShare]. -1 when none runs.
+         */
+        fun runningClass(mainShare: Float, localShare: Float, mainFlow: Float): Int {
+            val small = runningClass(localShare)
+            // (A hex whose main river is less than a creek has only the creeks of its ground.)
+            val big = if (mainFlow < HexHydrology.CREEK) -1 else runningClass(mainShare).let { k ->
+                if (k < 0) -1 else max(k, RIVER_CLASS_M3S.indexOfLast { it <= mainFlow })
+            }
+            return when { small < 0 -> big; big < 0 -> small; else -> min(small, big) }
         }
 
         /** Drinking water: an easy walk to it, km; furthest counted, km; soil wetness at which pools stand everywhere. */
