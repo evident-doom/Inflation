@@ -120,8 +120,11 @@ object Catalogue {
     val BOAR = Species(
         id = 2, name = "wild boar", massKg = 90f,
         robsNests = true,
-        // (Field counts: Białowieża 0.2-3.8 over a century (Jędrzejewska et al. 1997, Acta Theriol. 42:399), spring 2.2-4.3 (Theuerkauf et al. 2008, Ann. Zool. Fenn. 45); more after a mast.)
-        fieldKm2 = 0.2f..5f,
+        // (Field counts: Białowieża 0.2-3.8 over a century (Jędrzejewska et al. 1997, Acta Theriol. 42:399), spring 2.2-4.3 (Theuerkauf et al. 2008, Ann. Zool. Fenn. 45); more after a mast.
+        // Białowieża is cold and hunted: camera traps in 19 European areas 0.35-15.25 a km², no bioregion apart (ENETWILD,
+        // EFSA Supporting Publ. 2022:EN-7214); 0.18-74 across Europe, the most where little hunted and food plenty (Smith et
+        // al. 2026, Eur. J. Wildl. Res.).)
+        fieldKm2 = 0.2f..15f,
         fearOfPeople = 0.6f, boldShare = 0.1f,
         // (Mast, acorns and beechnuts, the most of a boar's food through autumn and winter where it falls; roots, bulbs and
         // tubers dug the year round; fleshy fruit a little: as the reviews of the boar's diet have it, from memory, not
