@@ -199,18 +199,6 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
     @Transient private val usualGround = FloatArray(n) { max(1f, groundwater[it]) }
     /** Flow of each hex's river over the last step, m³/s. */
     val flow = meanFlow.copyOf()
-    /**
-     * What each hex's own ground gave its streams over the last step, m³/s: what ran off it, what seeped out of its beds' sands,
-     * and its ground water draining out (with what comes up from the hexes above as springs), not the river that comes down from
-     * them. The creeks of a hex are fed by it alone, so they run dry in a dry season while the main river, fed from far
-     * away (from snow, or wetter hills), still runs ([HexDrinkingWater.step]).
-     */
-    @Transient val localFlow = FloatArray(hex.size)
-    /** What each hex's own ground gives its streams in a usual year, m³/s: the climate's runoff over its land. */
-    @Transient val localMeanFlow = FloatArray(hex.size).also { f ->
-        val perSecond = 1.0 / (Date.DAYS_PER_YEAR * 86_400.0) / 1000.0
-        for (p in land.places) f[hw.placeHex[p]] += (mean(p.i) { world.climate.runoff[it] } * land.areaM2[p] * perSecond).toFloat()
-    }
     /** Flood depth over each place's floodplain during the last step, m. */
     val flood = FloatArray(n)
 
@@ -301,11 +289,10 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
                 sandIn[p.i] = (mm - into) / 1000.0 * land.areaM2[p]
             } else sandIn[p.i] = Double.NaN
         }
-        val local = DoubleArray(hex.size)
         for (p in land.places) {
             val h = hw.placeHex[p]
-            volume[h] += runIn[p.i]; local[h] += runIn[p.i]
-            if (!sandIn[p.i].isNaN()) { volume[h] += sandIn[p.i]; local[h] += sandIn[p.i] }
+            volume[h] += runIn[p.i]
+            if (!sandIn[p.i].isNaN()) volume[h] += sandIn[p.i]
             if (rainAt != null && airAt != null) { rainIn += rainAt[p.i]; toAir += airAt[p.i] }
         }
         var outflow = 0.0
@@ -320,16 +307,15 @@ class HexHydrology(land: HexLand) : HexLandPart(land) {
                 // What the valley's aquifer has no room for comes up as seeps and springs.
                 groundwater[v] += min(mm, room)
                 val over = max(0f, mm - room) / 1000.0 * land.areaM2[v]
-                volume[h] += over; local[h] += over
+                volume[h] += over
             }
             val d = down[h]
             for (p in hw.placeList(h)) {
                 val out = groundwater[p] * drain[p]
                 groundwater[p] -= out
                 val m3 = out / 1000.0 * land.areaM2[p]
-                if (!stream[h] && !d.none) underground[d] += m3 else { volume[h] += m3; local[h] += m3 }
+                if (!stream[h] && !d.none) underground[d] += m3 else volume[h] += m3
             }
-            localFlow[h] = (local[h] / land.stepSeconds).toFloat()
             // The lakes take what runs in, with the rain on their beds, and give up what the sun takes from their open
             // water, which shrinks as they sink; full, they pass on what comes in beyond it.
             if (lakeM2[h] > 0.0) {
