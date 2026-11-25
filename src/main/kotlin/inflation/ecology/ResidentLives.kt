@@ -93,7 +93,8 @@ internal fun HexFauna.breedAndDie(weather: Weather, date: Date) {
             val crowd = hz[Danger.CROWD]
             // Where they are crowded far past the usual, now and then a plague breaks out among them.
             val over = crowd - 1f
-            if (over > 0f && hash(p, k) < OUTBREAK_START * over * over * years) startOutbreak(s, hw.placeHex[p])
+            // (Mostly where they are hungry too, as their sickness of crowding: [Hazards.crowdStarts], [inflation.Tuning.crowdWellFed].)
+            if (over > 0f && hash(p, k) < OUTBREAK_START * over * over * years * Hazards.crowdStarts(f[p], tuning.crowdWellFed)) startOutbreak(s, hw.placeHex[p])
             val fireA = hz[Danger.FIRE_A]; val floodA = hz[Danger.FLOOD_A]; val snowA = hz[Danger.SNOW_A]
             val adultSum = s.backgroundMortality * years + hunger + cold + heat + thirst + disease + fireA + floodA + snowA + hz[Danger.STRIFE]
             val adultOdds = adultSum.coerceIn(0f, Hazards.MAX_GROWN_ODDS)

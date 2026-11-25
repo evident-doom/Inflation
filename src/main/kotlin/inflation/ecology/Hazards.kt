@@ -195,6 +195,16 @@ object Hazards {
     fun crowdDisease(crowd: Float, fed: Float, years: Float, wellFed: Float = 1f) = HexFauna.DISEASE * crowd * crowd * years * (wellFed + HexFauna.MALNOURISHED * (1f - fed))
 
     /**
+     * How much more seldom a plague breaks out where a crowd is fed [fed] than it did before [inflation.Tuning.crowdWellFed]
+     * ([wellFed]): as its sickness of crowding is cut, [wellFed] among the well fed and less among the underfed; 1 at [wellFed] 1.
+     */
+    fun crowdStarts(fed: Float, wellFed: Float): Float {
+        if (wellFed >= 1f) return 1f
+        val short = HexFauna.MALNOURISHED * (1f - fed).coerceIn(0f, 1f)
+        return (wellFed + short) / (1f + short)
+    }
+
+    /**
      * The residents' sickness of crowding, over [years], at [crowd] ([crowding]), fed [fed]: a backstop for the worst
      * crowds only, none up to [HexFauna.CROWDED] times the usual density and growing with the square of the excess beyond,
      * as fast as [crowdDisease] at twice its crowd (so at 1.5 some 0.3 a year among the well fed, at [wellFed] 1). Food and the hunters are

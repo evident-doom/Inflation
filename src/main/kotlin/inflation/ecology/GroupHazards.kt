@@ -93,7 +93,7 @@ internal fun HexGroups.sicknessWeek(g: HexGroup, weather: Weather, kinNow: HashM
     val usual = HexFauna.usualDensity(s)
     // (Hunters by their kind's numbers over the ground they range over, as residents by theirs in their place.)
     val packs = Hazards.crowding(kinKm2(g, kinNow), usual)
-    if (r.nextFloat() < HexFauna.OUTBREAK_START * packs * packs * years)
+    if (r.nextFloat() < HexFauna.OUTBREAK_START * packs * packs * years * Hazards.crowdStarts(g.fed, tuning.crowdWellFed))
         outbreaksStarting += s.index.toLong() * hex.size + hw.placeHex[g.place].i
     // Hunters catch mange, distemper and rabies where their kind crowds the ground.
     return Hazards.crowdDisease(packs, g.fed, years, tuning.crowdWellFed)
