@@ -396,17 +396,21 @@ private fun HexFauna.animalFood(k: FaunaKind, p: Place, weather: Weather, z: Gra
         var gotSmall = if (left > 0f) smallFood(k, p, KgM2(min(left, needAll * d.smallPrey / all) * avail[k]), weather).v else 0f
         var gap = left - gotSmall
         // (The shortfall is made up first from the food it mostly lives on, then from the others, as far as the place
-        // has them: a hungry hunter takes what of its foods it finds. Only the surplus it lays on as fat keeps to at
-        // most (1 + SWITCH) times each food's usual share.)
+        // has them: a hungry hunter takes what of its foods it finds, but no more game it kills than (1 + SWITCH) times its
+        // usual share, as the surplus it lays on as fat: a bear short of plants in spring does not turn wolf (small prey
+        // and carrion stay uncapped: capping all, bearcap, left boar at 2%, as they live through spring on them) (preydiet1125:
+        // bears killed twice the boar the wolves did, 330,000 hoofed kills by 27,000 bears in a year).)
         val most = (1f + SWITCH) * needAll / all
         fun share(food: AnimalFood) = when (food) { AnimalFood.MEAT -> d.meat; AnimalFood.SMALL_PREY -> d.smallPrey; AnimalFood.CARRION -> d.carrion }
         val order = AnimalFood.entries.filter { share(it) > 0f }.sortedByDescending { share(it) }
         for (food in order) {
             if (gap <= 0f) break
+            val had = when (food) { AnimalFood.MEAT -> gotMeat; AnimalFood.SMALL_PREY -> gotSmall; AnimalFood.CARRION -> gotCarrion }
+            val want = if (food == AnimalFood.MEAT) min(gap, max(0f, most * share(food) - had)) else gap
             val x = when (food) {
-                AnimalFood.MEAT -> gap.let { if (it > 0f) huntResidents(k, p, KgM2(it * avail[k]), weather, huntDays).v else 0f }
-                AnimalFood.SMALL_PREY -> gap.let { if (it > 0f) smallFood(k, p, KgM2(it * avail[k]), weather).v else 0f }
-                AnimalFood.CARRION -> scavengeMine(gap)
+                AnimalFood.MEAT -> want.let { if (it > 0f) huntResidents(k, p, KgM2(it * avail[k]), weather, huntDays).v else 0f }
+                AnimalFood.SMALL_PREY -> want.let { if (it > 0f) smallFood(k, p, KgM2(it * avail[k]), weather).v else 0f }
+                AnimalFood.CARRION -> if (want > 0f) scavengeMine(want) else 0f
             }
             when (food) { AnimalFood.MEAT -> gotMeat += x; AnimalFood.SMALL_PREY -> gotSmall += x; AnimalFood.CARRION -> gotCarrion += x }
             gap -= x
