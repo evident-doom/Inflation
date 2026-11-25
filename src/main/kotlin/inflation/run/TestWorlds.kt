@@ -135,6 +135,11 @@ object TestWorlds {
         Entry("w1124-1", 1, 1000, 2000, "the full map, settled on d2582a4f"),
         Entry("w1124-2", 2, 1000, 2000, "the full map, settled on d2582a4f"),
         Entry("w1124-3", 3, 1000, 2000, "the full map, settled on d2582a4f"),
+        // The same seeds settled again for 30 years weekly on main e471e54a (fat counted once in breeding, #798; hungry
+        // omnivores' game make-up capped, #799) from t.startDay=150 with night1123-kept-last (bal1125, 2026-11-25).
+        Entry("w1125-1", 1, 1000, 2000, "the full map, settled on e471e54a"),
+        Entry("w1125-2", 2, 1000, 2000, "the full map, settled on e471e54a"),
+        Entry("w1125-3", 3, 1000, 2000, "the full map, settled on e471e54a"),
         // New seeds 4..6, settled for 30 years on main 2afaf7c4 from t.startDay=150 with the default nets of 2026-11-14
         // (night1114-kept-last): Olli 2026-11-14 "reseed a new world" for the overnight training and its checks.
         Entry("s6-4", 4, 1000, 2000, "the full map, new seed 4"),
