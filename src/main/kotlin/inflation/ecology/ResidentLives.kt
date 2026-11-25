@@ -214,8 +214,10 @@ internal fun HexFauna.hazards(k: FaunaKind, p: Place, weather: Weather, month: I
     // (Over a step of several ticks the crowd thins as they sicken: [Hazards.fallingOver].) And damp ground breeds flukes
     // and foot rot in the kinds that do not bear it ([wetSickness]).
     // (Only past the worst crowding: [Hazards.crowdBackstop].)
-    out[Danger.SICK] = (if (clock.ticks == 1) Hazards.crowdBackstop(crowd, fed, years)
-        else Hazards.fallingOver(heads, clock.ticks, years / clock.ticks) { n -> Hazards.crowdBackstop(Hazards.crowding(n + others, u), fed, 1f) }) +
+    // (The well fed sicken at [inflation.Tuning.crowdWellFed] of the rate: crowding kills through hunger's weakness.)
+    val wellFed = tuning.crowdWellFed
+    out[Danger.SICK] = (if (clock.ticks == 1) Hazards.crowdBackstop(crowd, fed, years, wellFed)
+        else Hazards.fallingOver(heads, clock.ticks, years / clock.ticks) { n -> Hazards.crowdBackstop(Hazards.crowding(n + others, u), fed, 1f, wellFed) }) +
         wetSickness(s, p, fed) * years
     out[Danger.OUTBREAK] = outbreakDeaths(s, p)
     // Hunters hold ground: past the numbers their territories hold, they fight their own kind and kill its young.

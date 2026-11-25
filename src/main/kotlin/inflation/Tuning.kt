@@ -228,6 +228,13 @@ class Tuning(
      */
     val leafTake = f("leafTake", 0f)
     /**
+     * Residents and packs: the share of their sickness of crowding ([inflation.ecology.Hazards.crowdBackstop],
+     * [inflation.ecology.Hazards.crowdDisease]) the well fed still take; the underfed take as much more as before
+     * ([inflation.ecology.HexFauna.MALNOURISHED] times how short they are). 1: as before; toward 0, crowding kills through
+     * hunger, so food (and the hunters) rather than a density set by size hold the numbers.
+     */
+    val crowdWellFed = f("crowdWellFed", 1f)
+    /**
      * Residents: the share of a place a plant-eater that hides in thickets lives on, as so many times the share its shelter
      * covers ([inflation.ecology.HexFauna.hidingShare]): 1 the covered ground alone, more as it feeds out into the open
      * round it (an estimate); 0 all of every place.

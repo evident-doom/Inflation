@@ -163,7 +163,7 @@ private fun HexFauna.growthFor(k: FaunaKind, parts: EnumFloats<Growth>, youngPer
 @IgnorableReturnValue private fun HexFauna.growthOf(k: FaunaKind, p: Place, grownFixed: Float, youngFixed: Float, huntedYoung: Float, protein: Float, youngPerGrown: Float,
                      carried: Float, f: Float, heads: Float, parts: EnumFloats<Growth>?): Float {
     val s = kinds[k]
-    val hunger = Hazards.hunger(s, moverSpent[k], Hazards.onFat(f, carried, days, 1f), days); val sick = Hazards.crowdBackstop(Hazards.crowding(heads + sharersKm2(k, p), usualAt(k.i, p)), f, years) + wetSickness(s, p, f) * years
+    val hunger = Hazards.hunger(s, moverSpent[k], Hazards.onFat(f, carried, days, 1f), days); val sick = Hazards.crowdBackstop(Hazards.crowding(heads + sharersKm2(k, p), usualAt(k.i, p)), f, years, tuning.crowdWellFed) + wetSickness(s, p, f) * years
     // (The births all year, as [growthFor] weighs them; but the nest robbers' take only in the place's season, while the
     // eggs lie there: out of it a hen does not leave her ground for ground without robbers, where her kind crowded into
     // sickness all year for a nest of a few weeks, arms F/H 2026-11-22.)

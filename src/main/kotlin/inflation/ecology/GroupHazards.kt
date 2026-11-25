@@ -96,7 +96,7 @@ internal fun HexGroups.sicknessWeek(g: HexGroup, weather: Weather, kinNow: HashM
     if (r.nextFloat() < HexFauna.OUTBREAK_START * packs * packs * years)
         outbreaksStarting += s.index.toLong() * hex.size + hw.placeHex[g.place].i
     // Hunters catch mange, distemper and rabies where their kind crowds the ground.
-    return Hazards.crowdDisease(packs, g.fed, years)
+    return Hazards.crowdDisease(packs, g.fed, years, tuning.crowdWellFed)
 }
 
 /**

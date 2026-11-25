@@ -188,18 +188,21 @@ object Hazards {
         return 1f - exp(-perYear(mid) * years)
     }
 
-    /** Sickness from crowding, over [years] (a week's share of a year), at [crowd] times its kind's usual density, fed [fed]: worse when underfed. */
-    fun crowdDisease(crowd: Float, fed: Float, years: Float) = HexFauna.DISEASE * crowd * crowd * years * (1f + HexFauna.MALNOURISHED * (1f - fed))
+    /**
+     * Sickness from crowding, over [years] (a week's share of a year), at [crowd] times its kind's usual density, fed [fed]:
+     * worse when underfed, the well fed taking [wellFed] of the sickness they took before ([inflation.Tuning.crowdWellFed]).
+     */
+    fun crowdDisease(crowd: Float, fed: Float, years: Float, wellFed: Float = 1f) = HexFauna.DISEASE * crowd * crowd * years * (wellFed + HexFauna.MALNOURISHED * (1f - fed))
 
     /**
      * The residents' sickness of crowding, over [years], at [crowd] ([crowding]), fed [fed]: a backstop for the worst
      * crowds only, none up to [HexFauna.CROWDED] times the usual density and growing with the square of the excess beyond,
-     * as fast as [crowdDisease] at twice its crowd (so at 1.5 some 0.3 a year among the well fed). Food and the hunters are
+     * as fast as [crowdDisease] at twice its crowd (so at 1.5 some 0.3 a year among the well fed, at [wellFed] 1). Food and the hunters are
      * what hold wild herds in the ordinary run of years; the plagues come where they have let numbers run far past them.
      */
-    fun crowdBackstop(crowd: Float, fed: Float, years: Float): Float {
+    fun crowdBackstop(crowd: Float, fed: Float, years: Float, wellFed: Float = 1f): Float {
         val over = crowd - 1f
-        return if (over > 0f) 4f * HexFauna.DISEASE * over * over * years * (1f + HexFauna.MALNOURISHED * (1f - fed)) else 0f
+        return if (over > 0f) 4f * HexFauna.DISEASE * over * over * years * (wellFed + HexFauna.MALNOURISHED * (1f - fed)) else 0f
     }
 
     /** The share of animals of [s] that drown swimming [gapKm] of open water, before any cap. */
