@@ -12,6 +12,9 @@ import inflation.world.Place
  * whether thin herbs in steppe come from the water going elsewhere, the light, or the grazing (2026-11-25: world-gen steppe
  * held 22 g/m² of edible herbs against 30-230 g/m² peak standing in real steppe).
  *
+ * Also the shoots of shrubs and trees within reach (browse): standing (year mean, g/m²), browsed by the residents (g/m² a
+ * year, [inflation.world.HexPlants.browsing]) and made (g/m² a year: browsed plus what the standing shoots shed, about
+ * 1 - e^-years of them a step; their change over the year left out).
  * Also the climate's normals there (world-gen rain and Thornthwaite PET, mm/yr; mean air, °C), height (m) and latitude, to
  * judge the year's rain against the normal the aridity is reckoned from.
  *
@@ -25,6 +28,7 @@ fun main(args: Array<String>) {
     val fauna = sim.fauna; val eaters = fauna.kinds.indices.filter { !fauna.kinds[it].carnivore }
     val herbMean = DoubleArray(n); val herbPeak = DoubleArray(n); val rain = DoubleArray(n); val evap = DoubleArray(n)
     val tr = Array(3) { DoubleArray(n) }; val runoff = DoubleArray(n); val herbLight = DoubleArray(n); val grazed = DoubleArray(n); val eatersKg = DoubleArray(n)
+    val browseMean = DoubleArray(n); val browsed = DoubleArray(n); val browseMade = DoubleArray(n)
     val ls = FloatArray(3)
     val perYear = sim.stepsPerYear; val steps = years * perYear; val y = years.toDouble()
     for (s in 0 until steps) {
@@ -36,6 +40,9 @@ fun main(args: Array<String>) {
             evap[p] += hy.evaporatedMm[p] / y; for (k in 0..2) tr[k][p] += hy.transpired[k][p] / y; runoff[p] += hy.runoffMm[p] / y
             pl.lightShares(Place(p), ls); herbLight[p] += ls[0].toDouble() / steps
             grazed[p] += pl.grazing[p] * days / 1000.0 / y
+            val b = pl.browse(Place(p)).toDouble(); browseMean[p] += 1000.0 * b / steps
+            val eatenB = pl.browsing[p] * days / 1000.0 / y; browsed[p] += eatenB
+            browseMade[p] += eatenB + 1000.0 * b * (1.0 - kotlin.math.exp(-days / 360.0)) / y
             var w = 0.0; for (k in eaters) w += (fauna.adults[k][p] + 0.3f * fauna.young[k][p]) * fauna.kinds[k].massKg
             eatersKg[p] += w / steps
         }
@@ -50,9 +57,9 @@ fun main(args: Array<String>) {
         if (ps.isEmpty()) return
         val a = ps.sumOf { land.areaKm2[it].toDouble() }
         fun m(f: (Int) -> Double) = ps.sumOf { f(it) * land.areaKm2[it] } / a
-        println("%-34s %5.1f%% rain %4.0f arid %.2f | tree %5.2f shrub %.2f herb %.3f peak %.3f | evap %4.0f herbs %4.0f shrubs %4.0f trees %4.0f runoff %4.0f | herb light %.2f | grazed %5.1f g/m² | eaters %5.0f kg/km² | normal rain %4.0f PET %4.0f air %4.1f height %4.0f lat %4.1f".format(
+        println("%-34s %5.1f%% rain %4.0f arid %.2f | tree %5.2f shrub %.2f herb %.3f peak %.3f | evap %4.0f herbs %4.0f shrubs %4.0f trees %4.0f runoff %4.0f | herb light %.2f | grazed %5.1f g/m² | browse %5.1f g/m² browsed %5.1f made %5.1f g/m² | eaters %5.0f kg/km² | normal rain %4.0f PET %4.0f air %4.1f height %4.0f lat %4.1f".format(
             title, 100 * a / all, m { rain[it] }, m { land.mean(it) { i -> c.aridity(i) }.toDouble() }, m { pl.tree[it].toDouble() }, m { pl.shrub[it].toDouble() },
-            m { herbMean[it] }, m { herbPeak[it] }, m { evap[it] }, m { tr[0][it] }, m { tr[1][it] }, m { tr[2][it] }, m { runoff[it] }, m { herbLight[it] }, m { grazed[it] }, m { eatersKg[it] },
+            m { herbMean[it] }, m { herbPeak[it] }, m { evap[it] }, m { tr[0][it] }, m { tr[1][it] }, m { tr[2][it] }, m { runoff[it] }, m { herbLight[it] }, m { grazed[it] }, m { browseMean[it] }, m { browsed[it] }, m { browseMade[it] }, m { eatersKg[it] },
             m { normal[it] }, m { pet[it] }, m { air[it] }, m { hw.placeElevationM[it].toDouble() }, m { lat[it] }))
     }
     println("by kind of country now:")
