@@ -198,6 +198,16 @@ object Hazards {
      * How much more seldom a plague breaks out where a crowd is fed [fed] than it did before [inflation.Tuning.crowdWellFed]
      * ([wellFed]): as its sickness of crowding is cut, [wellFed] among the well fed and less among the underfed; 1 at [wellFed] 1.
      */
+    /**
+     * How sound an animal fed [fed] this week is against crowd sickness, 0..1, with [fatDays] of reserves on it of the
+     * [maxFatDays] it can carry: short of food only as far as it is also thin (a fat one eating less this week is in
+     * good condition; crowd sickness takes the thin, [inflation.Tuning.crowdWellFed]).
+     */
+    fun condition(fed: Float, fatDays: Float, maxFatDays: Float): Float {
+        val fat = if (maxFatDays > 0f) (fatDays / maxFatDays).coerceIn(0f, 1f) else 0f
+        return 1f - (1f - fed.coerceIn(0f, 1f)) * (1f - fat)
+    }
+
     fun crowdStarts(fed: Float, wellFed: Float): Float {
         if (wellFed >= 1f) return 1f
         val short = HexFauna.MALNOURISHED * (1f - fed).coerceIn(0f, 1f)

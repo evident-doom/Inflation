@@ -94,7 +94,7 @@ internal fun HexFauna.breedAndDie(weather: Weather, date: Date) {
             // Where they are crowded far past the usual, now and then a plague breaks out among them.
             val over = crowd - 1f
             // (Mostly where they are hungry too, as their sickness of crowding: [Hazards.crowdStarts], [inflation.Tuning.crowdWellFed].)
-            if (over > 0f && hash(p, k) < OUTBREAK_START * over * over * years * Hazards.crowdStarts(f[p], tuning.crowdWellFed)) startOutbreak(s, hw.placeHex[p])
+            if (over > 0f && hash(p, k) < OUTBREAK_START * over * over * years * Hazards.crowdStarts(Hazards.condition(f[p], reserve[k][p], s.maxFatDays), tuning.crowdWellFed)) startOutbreak(s, hw.placeHex[p])
             val fireA = hz[Danger.FIRE_A]; val floodA = hz[Danger.FLOOD_A]; val snowA = hz[Danger.SNOW_A]
             val adultSum = s.backgroundMortality * years + hunger + cold + heat + thirst + disease + fireA + floodA + snowA + hz[Danger.STRIFE]
             val adultOdds = adultSum.coerceIn(0f, Hazards.MAX_GROWN_ODDS)
@@ -216,9 +216,11 @@ internal fun HexFauna.hazards(k: FaunaKind, p: Place, weather: Weather, month: I
     // and foot rot in the kinds that do not bear it ([wetSickness]).
     // (Only past the worst crowding: [Hazards.crowdBackstop].)
     // (The well fed sicken at [inflation.Tuning.crowdWellFed] of the rate: crowding kills through hunger's weakness.)
+    // (And then by their condition, not the week's eating alone: those with fat on them are sound ([Hazards.condition]).)
     val wellFed = tuning.crowdWellFed
-    out[Danger.SICK] = (if (clock.ticks == 1) Hazards.crowdBackstop(crowd, fed, years, wellFed)
-        else Hazards.fallingOver(heads, clock.ticks, years / clock.ticks) { n -> Hazards.crowdBackstop(Hazards.crowding(n + others, u), fed, 1f, wellFed) }) +
+    val sound = if (wellFed < 1f) Hazards.condition(fed, reserve[k][p], s.maxFatDays) else fed
+    out[Danger.SICK] = (if (clock.ticks == 1) Hazards.crowdBackstop(crowd, sound, years, wellFed)
+        else Hazards.fallingOver(heads, clock.ticks, years / clock.ticks) { n -> Hazards.crowdBackstop(Hazards.crowding(n + others, u), sound, 1f, wellFed) }) +
         wetSickness(s, p, fed) * years
     out[Danger.OUTBREAK] = outbreakDeaths(s, p)
     // Hunters hold ground: past the numbers their territories hold, they fight their own kind and kill its young.
