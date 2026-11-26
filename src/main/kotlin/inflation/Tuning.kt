@@ -241,6 +241,12 @@ class Tuning(
      */
     val swardEdge = f("swardEdge", 0f)
     /**
+     * Residents: the forage quality (against fresh green growth, 1) at which a plant-eater's gut just holds its need
+     * ([inflation.ecology.forage]); on better it fills its need and lays on fat, on worse it goes short. At 0.8 only the
+     * leafiest weeks fill it, and plant-eaters stood about 0.75 fed the year round at any numbers (2026-11-25).
+     */
+    val gutQRef = f("gutQRef", 0.8f)
+    /**
      * Residents: the share of a place a plant-eater that hides in thickets lives on, as so many times the share its shelter
      * covers ([inflation.ecology.HexFauna.hidingShare]): 1 the covered ground alone, more as it feeds out into the open
      * round it (an estimate); 0 all of every place.

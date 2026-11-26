@@ -957,8 +957,6 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         const val SPILL_HUNGER = 0.1f
         /** Share of its usual density a kind starts at. */
         const val START_SHARE = 0.5f
-        /** Forage quality (against green, 1) at which a herbivore's gut just holds its need: middling forage. */
-        const val GUT_QREF = 0.8f
         /** [sharers]: how far another kind that shares its parasites crowds it, at a diet the same as its own. (At 0.3 the cud-chewers
          * crowded each other past the backstop at half their own numbers: a modest share, as their worms are mostly their own.) */
         const val SHARED_SICK = 0.1f

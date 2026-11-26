@@ -118,8 +118,8 @@ internal fun rootingMost(s: Species, perKm2: Float, rootsKgM2: Float, days: Int,
     var grass2 = 0f; var browse2 = 0f; var fruit2 = 0f; var mast2 = 0f; var roots2 = 0f
     // But the gut holds only so much bulk a day: on poor forage a ruminant cannot make up by eating
     // more of it (switching shifts what it eats, not how much its gut takes).
-    // (Its need is reckoned in forage of middling quality, [HexFauna.GUT_QREF]: on that it fills its need exactly.)
-    var room = max(0f, want * fill / HexFauna.GUT_QREF - (grass + browse))
+    // (Its need is reckoned in forage of middling quality, [inflation.Tuning.gutQRef]: on that it fills its need exactly.)
+    var room = max(0f, want * fill / inflation.Tuning.config.gutQRef - (grass + browse))
     // (A kind that digests fibre poorly, a pig or a bear, makes up a shortfall with grass and browse only to (1 + SWITCH)
     // times their share of its diet: it cannot fill up on forage when its mast, roots and fruit fail, and goes hungry
     // with green forage about it, as wild boar do after a poor mast or under snow. Made up as far as the gut held, a
