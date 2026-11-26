@@ -110,17 +110,15 @@ internal fun HexFauna.reachOf(s: Species, p: Place) = HexFood.access(s, land.cra
  * The share of its feeding time kind [s] keeps at place [p] for the cover there: all for a kind that hides in thickets
  * or trees, escapes up crags (the wild goats and sheep, as much of the oak scrub as of the cliffs) or stands and fights
  * ([COVER_DEFENCE]); for one that escapes by seeing danger early and outrunning it
- * (gazelle, wild asses and horses, oryx, ostriches), less the thicker the cover, by [COVER_WATCH] at full cover. In the
+ * (gazelle, wild asses and horses, oryx, ostriches), less the thicker the cover, by [inflation.Tuning.coverWatch] at full cover. In the
  * woods it cannot see a stalker coming and spends its time watching, and it leaves such ground to the hiders (the
  * runners of the open plains keep to them: from memory of the vigilance record). Without it onagers and ostriches stood
  * thickest in the woodland and the swamp forest.
  */
-internal fun HexFauna.inSight(s: Species, p: Place): Float = if (watchesInOpen(s)) 1f - COVER_WATCH * land.plants.cover(p) else 1f
+internal fun HexFauna.inSight(s: Species, p: Place): Float = if (watchesInOpen(s)) 1f - tuning.coverWatch * land.plants.cover(p) else 1f
 /** Whether [s] escapes by seeing danger early and outrunning it, the runners of the open plains ([inSight]), not by hiding, climbing or fighting. */
 internal fun watchesInOpen(s: Species) = s.runsInOpen
 
-/** [inSight]: the feeding time a runner of the open plains loses in full cover; an estimate. */
-internal const val COVER_WATCH = 0.8f
 /** [inSight]: the defence from which a kind stands its ground in cover rather than watching for a stalker. */
 internal const val COVER_DEFENCE = 0.5f
 
