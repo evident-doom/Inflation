@@ -242,6 +242,12 @@ class Tuning(
     // ([inflation.ecology.Hazards.hungerLine]): lineab1126, bearlong1126.)
     val crowdWellFed = f("crowdWellFed", 0f)
     /**
+     * Resident plant-eaters: their sickness of crowding past [inflation.ecology.HexFauna.CROWDED] times their usual numbers
+     * ([inflation.ecology.Hazards.crowdBackstop]) as a share of its rate. 1: as before; 0: none, so only food, the hunters,
+     * the weather and the plagues hold them.
+     */
+    val crowdSickness = f("crowdSickness", 1f)
+    /**
      * Residents: where the plant-eaters at a place ask more grass or browse than there is, how far the kinds that crop thin
      * pickings best (small and wide-ranging ones, [inflation.ecology.Species.cropHalfKgM2]) get more of what they asked,
      * as a power of their edge on a 100 kg kind's. 0: each gets the same share of what it asked.

@@ -167,7 +167,7 @@ private fun HexFauna.growthFor(k: FaunaKind, parts: EnumFloats<Growth>, youngPer
     // (Plant-eaters only, short of food as reckoned from their [Hazards.hungerLine], as in [hazards].)
     val wellFed = if (s.carnivore) 1f else tuning.crowdWellFed
     val sound = if (wellFed < 1f) Hazards.condition(f, carried, s.maxFatDays, Hazards.hungerLine(s)) else f
-    val sick = Hazards.crowdBackstop(Hazards.crowding(heads + sharersKm2(k, p), usualAt(k.i, p)), sound, years, wellFed) + wetSickness(s, p, f) * years
+    val sick = (if (s.carnivore) 1f else tuning.crowdSickness) * Hazards.crowdBackstop(Hazards.crowding(heads + sharersKm2(k, p), usualAt(k.i, p)), sound, years, wellFed) + wetSickness(s, p, f) * years
     // (The births all year, as [growthFor] weighs them; but the nest robbers' take only in the place's season, while the
     // eggs lie there: out of it a hen does not leave her ground for ground without robbers, where her kind crowded into
     // sickness all year for a nest of a few weeks, arms F/H 2026-11-22.)
