@@ -272,6 +272,7 @@ object Catalogue {
         domestication = floatArrayOf(0.9f, 0.2f, 0.2f, 0.1f, 0.2f, 0.1f),
         habitat = Habitat(cover = 0.5f, rugged = 0.4f),
         defence = 0.8f,
+        holdsGround = true,
         hibernates = true,
         startKm2PerAnimal = 60f,
         activity = floatArrayOf(0.3f, 0.2f, 0.3f, 0.2f),

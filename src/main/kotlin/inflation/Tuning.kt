@@ -286,6 +286,12 @@ class Tuning(
     val roamerStrifeCrowd = f("roamerStrifeCrowd", 2f)
     val roamerLeaveBase = f("roamerLeaveBase", 0.5f)
     /**
+     * The times its usual numbers past which a plant-eating kind that holds ground ([inflation.ecology.Species.holdsGround]:
+     * the brown bear) fights its own kind and kills its young, as the resident hunters do past [inflation.ecology.HexFauna.STRIFE_CROWD];
+     * 0, none (as before).
+     */
+    val holderStrifeCrowd = f("holderStrifeCrowd", 0f)
+    /**
      * Protein in cured grass and in straw, against fresh growth (see [inflation.ecology.HexFauna.PROTEIN_NEED]): cured grass
      * and straw keep some of their energy but lose most of their protein (about 4% crude protein against 16% green, though grazers
      * pick the best of it and get about 6%; 3% of straw); and the young's deaths a year from want of protein, at none.
