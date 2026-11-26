@@ -188,18 +188,49 @@ object Hazards {
         return 1f - exp(-perYear(mid) * years)
     }
 
-    /** Sickness from crowding, over [years] (a week's share of a year), at [crowd] times its kind's usual density, fed [fed]: worse when underfed. */
-    fun crowdDisease(crowd: Float, fed: Float, years: Float) = HexFauna.DISEASE * crowd * crowd * years * (1f + HexFauna.MALNOURISHED * (1f - fed))
+    /**
+     * Sickness from crowding, over [years] (a week's share of a year), at [crowd] times its kind's usual density, fed [fed]:
+     * worse when underfed, the well fed taking [wellFed] of the sickness they took before ([inflation.Tuning.crowdWellFed]).
+     */
+    fun crowdDisease(crowd: Float, fed: Float, years: Float, wellFed: Float = 1f) = HexFauna.DISEASE * crowd * crowd * years * (wellFed + HexFauna.MALNOURISHED * (1f - fed))
+
+    /**
+     * How much more seldom a plague breaks out where a crowd is fed [fed] than it did before [inflation.Tuning.crowdWellFed]
+     * ([wellFed]): as its sickness of crowding is cut, [wellFed] among the well fed and less among the underfed; 1 at [wellFed] 1.
+     */
+    /**
+     * How sound an animal fed [fed] this week is against crowd sickness, 0..1, with [fatDays] of reserves on it of the
+     * [maxFatDays] it can carry: short of food only as far as it is also thin (a fat one eating less this week is in
+     * good condition; crowd sickness takes the thin, [inflation.Tuning.crowdWellFed]). Short of food as reckoned from its
+     * [line] ([hungerLine]): fed at or above it, it is not short at all.
+     */
+    fun condition(fed: Float, fatDays: Float, maxFatDays: Float, line: Float = 1f): Float {
+        val fat = if (maxFatDays > 0f) (fatDays / maxFatDays).coerceIn(0f, 1f) else 0f
+        return 1f - (1f - (fed / line).coerceIn(0f, 1f)) * (1f - fat)
+    }
+
+    /**
+     * The share of its need below which an animal of [s] is hungry: where it starts burning its body ([spentAfter]), what
+     * it saves by spending less ([economy]) short of all it needs. Plant-eaters crop some 0.7 of their need as their
+     * forage stands and live and breed on it; reckoned against the whole need, every one of them counted as underfed.
+     */
+    fun hungerLine(s: Species) = 1f - economy(s)
+
+    fun crowdStarts(fed: Float, wellFed: Float): Float {
+        if (wellFed >= 1f) return 1f
+        val short = HexFauna.MALNOURISHED * (1f - fed).coerceIn(0f, 1f)
+        return (wellFed + short) / (1f + short)
+    }
 
     /**
      * The residents' sickness of crowding, over [years], at [crowd] ([crowding]), fed [fed]: a backstop for the worst
      * crowds only, none up to [HexFauna.CROWDED] times the usual density and growing with the square of the excess beyond,
-     * as fast as [crowdDisease] at twice its crowd (so at 1.5 some 0.3 a year among the well fed). Food and the hunters are
+     * as fast as [crowdDisease] at twice its crowd (so at 1.5 some 0.3 a year among the well fed, at [wellFed] 1). Food and the hunters are
      * what hold wild herds in the ordinary run of years; the plagues come where they have let numbers run far past them.
      */
-    fun crowdBackstop(crowd: Float, fed: Float, years: Float): Float {
+    fun crowdBackstop(crowd: Float, fed: Float, years: Float, wellFed: Float = 1f): Float {
         val over = crowd - 1f
-        return if (over > 0f) 4f * HexFauna.DISEASE * over * over * years * (1f + HexFauna.MALNOURISHED * (1f - fed)) else 0f
+        return if (over > 0f) 4f * HexFauna.DISEASE * over * over * years * (wellFed + HexFauna.MALNOURISHED * (1f - fed)) else 0f
     }
 
     /** The share of animals of [s] that drown swimming [gapKm] of open water, before any cap. */

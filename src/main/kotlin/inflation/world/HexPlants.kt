@@ -72,6 +72,15 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
     val shrubShoots = FloatArray(n); val treeShoots = FloatArray(n)
     /** Whether the shoots have been set; a world saved before they were kept gets a year's worth from its plants. */
     private var shootsSet = false
+    /**
+     * What each place grows that plant-eaters eat, kg/m² a year, over about the last year: herbs at their palatable share
+     * ([grassMade]), and the shoots put out in browsers' reach ([browseMade]). A plain mean of the steps since the run (or a
+     * world saved before these were kept) began until [madeYears] reaches a year, then running at a year's memory. For the
+     * plant-eaters' usual numbers ([inflation.ecology.HexFauna.foodScale]): how much food grows at a place, not how much stands.
+     */
+    val grassMade = FloatArray(n); val browseMade = FloatArray(n)
+    /** The years [grassMade] and [browseMade] have gathered, up to 2. */
+    var madeYears = 0f; private set
     /** Set by the ecology: browsing, grazing and rooting lately, kg/km²/day; seed carried by animals, 0..1; trampling. */
     val browsing = FloatArray(n); val grazing = FloatArray(n); val rooting = FloatArray(n); val animalSeed = FloatArray(n)
     private val trampling = FloatArray(n)
@@ -177,9 +186,11 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
      * ripe, falling toward straw's as the cured grass weathers ([hayFresh]): the lean end of a dry season or a winter.
      */
     fun nourishment(p: Place): Float {
-        val dry = tuning.strawValue + (tuning.dryValue - tuning.strawValue) * hayFresh[p]
+        val dry = dryNourishment(p)
         return dry + (1f - dry) * leafy(p)
     }
+    /** [nourishment] with no leafy growth in it: the cured forage's, by how weathered it is ([hayFresh]). */
+    fun dryNourishment(p: Place) = tuning.strawValue + (tuning.dryValue - tuning.strawValue) * hayFresh[p]
 
     /** Volcanic ash lying on each place, mm (set from the eruptions each week). */
     val ash = FloatArray(n)
@@ -492,6 +503,9 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
         }
         if (!gladeSet) { for (p in land.places) glade[p] = startGlade(p); gladeSet = true }
         val shootsKept = exp(-years)
+        // (The weight of this step in [grassMade] and [browseMade]: a plain mean over their first year, then a year's memory.)
+        val madeWeight = years / min(1f, madeYears + years)
+        madeYears = min(2f, madeYears + years)
         // (The rules set as a share a tick at [SET_AT_DAYS] a tick, as a rate a day: the same at that tick, and as much in
         // a month at any other. The plants' warmth rises halfway to a warmer tick's in one; frost and floods take their share.)
         val perSet = days / SET_AT_DAYS
@@ -600,6 +614,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             // New shoots: what the woody plants grew (their new leaves and twigs, which the old ones are shed against).
             shrubShoots[p] = shrubShoots[p] * shootsKept + land.palatable[p] * SHRUB_IN_REACH * SHRUB_BROWSE * gShrub
             treeShoots[p] = treeShoots[p] * shootsKept + land.palatable[p] * TREE_IN_REACH * gTree
+            browseMade[p] += (land.palatable[p] * (SHRUB_IN_REACH * SHRUB_BROWSE * gShrub + TREE_IN_REACH * gTree) / years - browseMade[p]) * madeWeight
             // In the cold the deciduous leaves fall: through the winter only twigs and buds are left to browse.
             // (Where winters are mild enough to grow on, the leaves stay, as on the evergreen scrub of the south.)
             if (tuning.leafFall > 0f && season <= 0f && t < growFrom[p]) { val k = exp(-tuning.leafFall * years); shrubShoots[p] *= k; treeShoots[p] *= k }
@@ -614,6 +629,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             val herbWater = openShare * growing * active * hydro.transpired[0][p] +
                 hydro.demandMm[p] * (meadow * (HexHydrology.SEEP_SHARE * seepGrowth + sodden * wetGrowth) + herbs * (wetShare - sodden) * wetGrowth)
             val gHerb = WUE_KG_PER_MM * soil(p) * herbWater * (1f - 0.2f * rooted)
+            grassMade[p] += (land.palatable[p] * gHerb / years - grassMade[p]) * madeWeight
             // Green leaves are renewed as they grow, the old shed to the litter.
             grew += growBy(herb, p, gHerb, HERB_RENEWAL * years * green[p])
             // Cured grass weathers where it stands: the dead stems break and fall into the litter, and what

@@ -57,7 +57,7 @@ internal fun HexFauna.fedOnSpare(s: Species, p: Place, heads: Float, each: Float
     dry.fruit = spareFruit[p]; dry.mast = spareMast[p]; dry.roots = spareRoots[p]
     // (As those there find their roots: by search, from what they left, [rootingMost].)
     val dig = if (s.diet.roots > 0f) rootingMost(s, heads / land.areaKm2[p], reach * spareRoots[p], days, tuning.rootingM2PerDay) else Float.POSITIVE_INFINITY
-    return (forage(s, leanDiet(s, p), land.plants.nourishment(p), want, grassUnderSnow(s, snowMm), dry, b, cropGrass(s, p), cropBrowse(s, p), dig).got / want).coerceIn(0f, 1f)
+    return (forage(s, leanDiet(s, p), foragedQuality(p), want, grassUnderSnow(s, snowMm), dry, b, cropGrass(s, p), cropBrowse(s, p), dig).got / want).coerceIn(0f, 1f)
 }
 
 /** [fedOnSpare] for [heads] of plant-eating kind [k] coming to place [p] this week. */
@@ -163,7 +163,11 @@ private fun HexFauna.growthFor(k: FaunaKind, parts: EnumFloats<Growth>, youngPer
 @IgnorableReturnValue private fun HexFauna.growthOf(k: FaunaKind, p: Place, grownFixed: Float, youngFixed: Float, huntedYoung: Float, protein: Float, youngPerGrown: Float,
                      carried: Float, f: Float, heads: Float, parts: EnumFloats<Growth>?): Float {
     val s = kinds[k]
-    val hunger = Hazards.hunger(s, moverSpent[k], Hazards.onFat(f, carried, days, 1f), days); val sick = Hazards.crowdBackstop(Hazards.crowding(heads + sharersKm2(k, p), usualAt(k.i, p)), f, years) + wetSickness(s, p, f) * years
+    val hunger = Hazards.hunger(s, moverSpent[k], Hazards.onFat(f, carried, days, 1f), days)
+    // (Plant-eaters only, short of food as reckoned from their [Hazards.hungerLine], as in [hazards].)
+    val wellFed = if (s.carnivore) 1f else tuning.crowdWellFed
+    val sound = if (wellFed < 1f) Hazards.condition(f, carried, s.maxFatDays, Hazards.hungerLine(s)) else f
+    val sick = Hazards.crowdBackstop(Hazards.crowding(heads + sharersKm2(k, p), usualAt(k.i, p)), sound, years, wellFed) + wetSickness(s, p, f) * years
     // (The births all year, as [growthFor] weighs them; but the nest robbers' take only in the place's season, while the
     // eggs lie there: out of it a hen does not leave her ground for ground without robbers, where her kind crowded into
     // sickness all year for a nest of a few weeks, arms F/H 2026-11-22.)
@@ -222,7 +226,7 @@ internal fun HexFauna.appeal(k: FaunaKind, p: Place, weather: Weather): Float {
         if (plants <= 0f) 1f else 1f - (d.grass + d.mast + d.roots) * (1f - grassUnderSnow(s, weather.snowpack[p])) / plants }
     // (Plant-eaters weigh their forage by how fresh it is and how well it would meet their need for
     // protein: so they go up to the green high pasture in summer and down for the winter.)
-    val fresh = if (s.carnivore) 1f else land.plants.nourishment(p) * forageProtein(s, p)
+    val fresh = if (s.carnivore) 1f else foragedQuality(p) * forageProtein(s, p)
     return fareFor(s, p) * fresh * tether(s, p) * unbitten(p) * snowed * (1f - FEAR_WEIGHT * (if (s.carnivore) pressure(k, p) else shy(s, p))) * (1f - outranked(s, p)) *
         (1f - land.fire.stepBurning[p] * FIRE_ADULT) * (1f - outbreakDeaths(s, p)) /
         (1f + Hazards.crowding(heads, usualAt(k.i, p))) / (1f + discomfort)

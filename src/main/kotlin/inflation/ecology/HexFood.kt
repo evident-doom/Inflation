@@ -72,6 +72,14 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
     /** Fallen mast, kg/m²: acorns and nuts on the ground, the trees' crop as it drops ([fruit] is the shrubs' alone); rots or sprouts as old roots rot. */
     val mast = FloatArray(n)
     /**
+     * What each place grows a year of the shrubs' fruit ([fruitMade]), the trees' mast ([mastMade]) and the roots and bulbs
+     * a digger can get at ([rootsMade], at [digShare]), kg/m² a year, over about the last year, as
+     * [inflation.world.HexPlants.grassMade] (a plain mean over the first year, [madeYears], then a year's memory).
+     */
+    val fruitMade = FloatArray(n); val mastMade = FloatArray(n); val rootsMade = FloatArray(n)
+    /** The years [fruitMade], [mastMade] and [rootsMade] have gathered, up to 2. */
+    var madeYears = 0f; private set
+    /**
      * This week, whether the ground at each place is frozen too hard to dig: a week's mean air below [HexDrinkingWater.THAW_C],
      * the rule a soak in a dry bed goes by. Bulbs and roots cannot be had then; the mast lying on it can.
      */
@@ -307,6 +315,9 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
             if (!first) { val (dT, rain) = weather.shock()
                 Par.forEachPlace("food: cereal stands", n) { p -> cereal[p] += STAND_SHIFT * (cerealShare(p, dT, rain) - cereal[p]) } }
         }
+        val years = Date.years(days)
+        val madeWeight = years / min(1f, madeYears + years)
+        madeYears = min(2f, madeYears + years)
         Par.forEachPlace("food: week", n) { p ->
             // The season as the plants feel it: the share of a normal year's warmth they have had since
             // midwinter. Seed ripens early, fruit from midsummer to autumn, roots and bulbs fill as the
@@ -346,6 +357,9 @@ class HexFood(private val land: HexLand, private val small: HexSmallLife, @Trans
             val mastRotted = lostOver(mast[p], treeIn, lossShare(ROOTS_DAYS))
             mastLedger[MastFate.FELL.ordinal].add(treeIn.toDouble() * land.areaM2[p]); mastLedger[MastFate.ROTTED.ordinal].add(mastRotted.toDouble() * land.areaM2[p])
             mast[p] = max(0f, mast[p] + treeIn - mastRotted)
+            fruitMade[p] += (shrubIn / years - fruitMade[p]) * madeWeight
+            mastMade[p] += (treeIn / years - mastMade[p]) * madeWeight
+            rootsMade[p] += (rootsIn * digShare(p) / years - rootsMade[p]) * madeWeight
             small.deposit(DeadPool.LITTER, p, KgM2(rotted + mastRotted))
             // Wild cereals ripen with the other grasses; ears that shatter shed their grain within weeks,
             // those that hold it keep it for months. Sown fields ripen with them.

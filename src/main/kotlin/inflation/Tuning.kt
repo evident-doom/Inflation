@@ -205,15 +205,56 @@ class Tuning(
 
     // Plant-eaters and the hunters that live as residents.
     /**
-     * Residents: how many times their usual numbers can each hold a breeding range. At 1.5 roe deer level off at
-     * about 20-25 a km² of their forest, the high end of what is seen.
+     * Residents: how many times their usual numbers can each hold a breeding range. At 1.5 roe deer levelled off at
+     * about 20-25 a km² of their forest, the high end of what is seen, but the plant-eaters were held by this rather than by
+     * food and the hunters. At 3, with the crowd sickness on the hungry only and the bears holding ground, food binds them
+     * by year 35-45 without a crash, most in the field's range (bearlong1126, limitslong1126); at 4-5 aurochs and bears ran
+     * on and the others fell (spaceab1126).
      */
-    val breedSpacing = f("breedSpacing", 1.5f)
+    val breedSpacing = f("breedSpacing", 3f)
+    /** Hunters, resident and in packs: [breedSpacing] for them (plant-eaters keep [breedSpacing]). */
+    val hunterBreedSpacing = f("hunterBreedSpacing", 1.5f)
     /**
      * Residents: how far a plant-eater's usual numbers at a place follow its food there against its food over the country
      * it lives in ([inflation.ecology.HexFauna.foodScale]), as a power: 0 the same everywhere (Damuth's rule by its size alone), 1 in proportion.
      */
     val usualByFood = f("usualByFood", 1f)
+    /**
+     * Residents: the plant food a place grows a year, kg/m² ([inflation.ecology.HexFauna.madeFor]), at which a plant-eater
+     * has its usual numbers (Damuth's rule by its size): one yardstick for every kind, so poor country holds fewer of
+     * every kind ([inflation.ecology.HexFauna.foodScale], as far as [usualByFood]). 0: against the food over the kind's
+     * own country instead, so a dry-country kind averages Damuth's numbers however little grows there.
+     */
+    val usualMade = f("usualMade", 0f)
+    /**
+     * Residents: the share of a year's growth of grass and browse eaten at which plant-eaters have picked off half the
+     * leafy part of a place's forage ([inflation.ecology.foragedQuality]): the more of them feed there, the poorer what each
+     * finds. 0: the forage is as good however many eat it.
+     */
+    val leafTake = f("leafTake", 0f)
+    /**
+     * Resident plant-eaters: the share of their sickness of crowding ([inflation.ecology.Hazards.crowdBackstop],
+     * [inflation.ecology.Hazards.crowdDisease]) the well fed still take; the underfed take as much more as before
+     * ([inflation.ecology.HexFauna.MALNOURISHED] times how short they are). 1: as before; toward 0, crowding kills through
+     * hunger, so food (and the hunters) rather than a density set by size hold the numbers.
+     */
+    // (0: the crowd sickness takes only plant-eaters short of food below their hunger line, as far as they are thin
+    // ([inflation.ecology.Hazards.hungerLine]): lineab1126, bearlong1126.)
+    val crowdWellFed = f("crowdWellFed", 0f)
+    /**
+     * Residents: where the plant-eaters at a place ask more grass or browse than there is, how far the kinds that crop thin
+     * pickings best (small and wide-ranging ones, [inflation.ecology.Species.cropHalfKgM2]) get more of what they asked,
+     * as a power of their edge on a 100 kg kind's. 0: each gets the same share of what it asked.
+     */
+    val swardEdge = f("swardEdge", 1f)
+    /**
+     * Residents: the forage quality (against fresh green growth, 1) at which a plant-eater's gut just holds its need
+     * ([inflation.ecology.forage]); on better it fills its need and lays on fat, on worse it goes short. At 0.8 only the
+     * leafiest weeks fill it, and plant-eaters stood about 0.75 fed the year round at any numbers (2026-11-25).
+     */
+    val gutQRef = f("gutQRef", 0.8f)
+    /** Residents: the feeding time a runner of the open plains loses in full cover, watching for stalkers ([inflation.ecology.inSight]); an estimate. */
+    val coverWatch = f("coverWatch", 0.8f)
     /**
      * Residents: the share of a place a plant-eater that hides in thickets lives on, as so many times the share its shelter
      * covers ([inflation.ecology.HexFauna.hidingShare]): 1 the covered ground alone, more as it feeds out into the open
@@ -249,6 +290,12 @@ class Tuning(
     val roamerUsual = f("roamerUsual", 1f)
     val roamerStrifeCrowd = f("roamerStrifeCrowd", 2f)
     val roamerLeaveBase = f("roamerLeaveBase", 0.5f)
+    /**
+     * The times its usual numbers past which a plant-eating kind that holds ground ([inflation.ecology.Species.holdsGround]:
+     * the brown bear) fights its own kind and kills its young, as the resident hunters do past [inflation.ecology.HexFauna.STRIFE_CROWD];
+     * 0, none. At 2 the bears stand at some 0.4 of their numbers before and the plant-eaters they held down rise (bearab1126).
+     */
+    val holderStrifeCrowd = f("holderStrifeCrowd", 2f)
     /**
      * Protein in cured grass and in straw, against fresh growth (see [inflation.ecology.HexFauna.PROTEIN_NEED]): cured grass
      * and straw keep some of their energy but lose most of their protein (about 4% crude protein against 16% green, though grazers

@@ -116,6 +116,13 @@ class Species(
     /** How well adults fight off or outlast predators, 0 (not at all) to 1 (adults practically safe). */
     val defence: Float = 0f,
     /**
+     * Holds ground against its own kind though it eats mostly plants: past the numbers its ranges hold it fights its own
+     * and kills their young, as the resident hunters do ([inflation.ecology.HexFauna.strife], [inflation.Tuning.holderStrifeCrowd]).
+     * Brown bear males kill cubs not their own, and cub losses rise with the bears' numbers (Swenson et al. 1997, Nature
+     * 386:450, from memory).
+     */
+    val holdsGround: Boolean = false,
+    /**
      * For predators: how much cover helps it get close, 0 (a coursing hunter like the wolf, which
      * runs prey down in the open) to 1 (a stalker like the leopard, which needs cover to strike).
      */

@@ -93,7 +93,8 @@ internal fun HexFauna.breedAndDie(weather: Weather, date: Date) {
             val crowd = hz[Danger.CROWD]
             // Where they are crowded far past the usual, now and then a plague breaks out among them.
             val over = crowd - 1f
-            if (over > 0f && hash(p, k) < OUTBREAK_START * over * over * years) startOutbreak(s, hw.placeHex[p])
+            // (Mostly where they are hungry too, as their sickness of crowding: [Hazards.crowdStarts], [inflation.Tuning.crowdWellFed].)
+            if (over > 0f && hash(p, k) < OUTBREAK_START * over * over * years * Hazards.crowdStarts(Hazards.condition(f[p], reserve[k][p], s.maxFatDays, Hazards.hungerLine(s)), if (s.carnivore) 1f else tuning.crowdWellFed)) startOutbreak(s, hw.placeHex[p])
             val fireA = hz[Danger.FIRE_A]; val floodA = hz[Danger.FLOOD_A]; val snowA = hz[Danger.SNOW_A]
             val adultSum = s.backgroundMortality * years + hunger + cold + heat + thirst + disease + fireA + floodA + snowA + hz[Danger.STRIFE]
             val adultOdds = adultSum.coerceIn(0f, Hazards.MAX_GROWN_ODDS)
@@ -214,12 +215,19 @@ internal fun HexFauna.hazards(k: FaunaKind, p: Place, weather: Weather, month: I
     // (Over a step of several ticks the crowd thins as they sicken: [Hazards.fallingOver].) And damp ground breeds flukes
     // and foot rot in the kinds that do not bear it ([wetSickness]).
     // (Only past the worst crowding: [Hazards.crowdBackstop].)
-    out[Danger.SICK] = (if (clock.ticks == 1) Hazards.crowdBackstop(crowd, fed, years)
-        else Hazards.fallingOver(heads, clock.ticks, years / clock.ticks) { n -> Hazards.crowdBackstop(Hazards.crowding(n + others, u), fed, 1f) }) +
+    // (The well fed sicken at [inflation.Tuning.crowdWellFed] of the rate: crowding kills through hunger's weakness.)
+    // (And then by their condition, not the week's eating alone: those with fat on them are sound ([Hazards.condition]).)
+    // (Plant-eaters only: the hunters' crowding is their territories' and their kills', [strife].)
+    val wellFed = if (s.carnivore) 1f else tuning.crowdWellFed
+    val sound = if (wellFed < 1f) Hazards.condition(fed, reserve[k][p], s.maxFatDays, Hazards.hungerLine(s)) else fed
+    out[Danger.SICK] = (if (clock.ticks == 1) Hazards.crowdBackstop(crowd, sound, years, wellFed)
+        else Hazards.fallingOver(heads, clock.ticks, years / clock.ticks) { n -> Hazards.crowdBackstop(Hazards.crowding(n + others, u), sound, 1f, wellFed) }) +
         wetSickness(s, p, fed) * years
     out[Danger.OUTBREAK] = outbreakDeaths(s, p)
     // Hunters hold ground: past the numbers their territories hold, they fight their own kind and kill its young.
-    out[Danger.STRIFE] = if (s.carnivore) strife(heads, u, if (s in Catalogue.roamingResidents) tuning.roamerStrifeCrowd else STRIFE_CROWD) else 0f
+    out[Danger.STRIFE] = if (s.carnivore) strife(heads, u, if (s in Catalogue.roamingResidents) tuning.roamerStrifeCrowd else STRIFE_CROWD)
+        // (And the plant-eaters that hold ground as they do: the bear, [Species.holdsGround].)
+        else if (s.holdsGround && tuning.holderStrifeCrowd > 0f) strife(heads, u, tuning.holderStrifeCrowd) else 0f
     val (fireA, floodA, snowA) = calamities(s, p, weather, false)
     val (fireY, floodY, snowY) = calamities(s, p, weather, true)
     out[Danger.FIRE_A] = fireA; out[Danger.FLOOD_A] = floodA; out[Danger.SNOW_A] = if (sleeping) 0f else snowA
@@ -311,7 +319,7 @@ internal fun HexFauna.dueYoung(k: FaunaKind, p: Place, heads: Float, protein: Fl
 
 /** [dueYoung] before the nest robbers' take: the eggs a hen of a kind that lays is due, the young of one that bears them live. */
 internal fun HexFauna.dueLaid(k: FaunaKind, p: Place, heads: Float, protein: Float, share: Float) =
-    youngDue(kinds[k], heads, usualAt(k.i, p), tuning.breedSpacing, protein * saltBreeding(kinds[k], p), share)
+    youngDue(kinds[k], heads, usualAt(k.i, p), if (kinds[k].carnivore) tuning.hunterBreedSpacing else tuning.breedSpacing, protein * saltBreeding(kinds[k], p), share)
 
 /**
  * The share of [s]'s eggs at [p] that hatch rather than are robbed: 1 for a kind that bears its young live; else its

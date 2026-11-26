@@ -110,17 +110,15 @@ internal fun HexFauna.reachOf(s: Species, p: Place) = HexFood.access(s, land.cra
  * The share of its feeding time kind [s] keeps at place [p] for the cover there: all for a kind that hides in thickets
  * or trees, escapes up crags (the wild goats and sheep, as much of the oak scrub as of the cliffs) or stands and fights
  * ([COVER_DEFENCE]); for one that escapes by seeing danger early and outrunning it
- * (gazelle, wild asses and horses, oryx, ostriches), less the thicker the cover, by [COVER_WATCH] at full cover. In the
+ * (gazelle, wild asses and horses, oryx, ostriches), less the thicker the cover, by [inflation.Tuning.coverWatch] at full cover. In the
  * woods it cannot see a stalker coming and spends its time watching, and it leaves such ground to the hiders (the
  * runners of the open plains keep to them: from memory of the vigilance record). Without it onagers and ostriches stood
  * thickest in the woodland and the swamp forest.
  */
-internal fun HexFauna.inSight(s: Species, p: Place): Float = if (watchesInOpen(s)) 1f - COVER_WATCH * land.plants.cover(p) else 1f
+internal fun HexFauna.inSight(s: Species, p: Place): Float = if (watchesInOpen(s)) 1f - tuning.coverWatch * land.plants.cover(p) else 1f
 /** Whether [s] escapes by seeing danger early and outrunning it, the runners of the open plains ([inSight]), not by hiding, climbing or fighting. */
 internal fun watchesInOpen(s: Species) = s.runsInOpen
 
-/** [inSight]: the feeding time a runner of the open plains loses in full cover; an estimate. */
-internal const val COVER_WATCH = 0.8f
 /** [inSight]: the defence from which a kind stands its ground in cover rather than watching for a stalker. */
 internal const val COVER_DEFENCE = 0.5f
 
@@ -192,7 +190,7 @@ internal fun HexFauna.cropBrowse(s: Species, p: Place) = cropRate(s, land.plants
  * what is left and lay the surplus on.
  */
 private fun HexFauna.eatPlants(p: Place, weather: Weather, grass: Float, browse: Float, z: Grazing) {
-    val quality = land.plants.nourishment(p)
+    val quality = foragedQuality(p)
     val need = z.need; val each = z.each; val avail = z.avail
     for ((k, s) in kinds.withKinds()) {
         killRate[k]?.set(p, 0f)
@@ -231,7 +229,22 @@ private fun HexFauna.eatPlants(p: Place, weather: Weather, grass: Float, browse:
         val r = if (sum > spare && sum > 0f) spare / sum else 1f
         for (k in byMass) cap[k] = r * asked[k]
     }
-    share(z.askG, z.capG, z.spareG); share(z.askB, z.capB, z.spareB); share(z.askF, z.capF, z.spareF); share(z.askM, z.capM, z.spareM); share(z.askR, z.capR, z.spareR)
+    // (Grass and browse short: the kinds that crop thin pickings best get the more of what they asked ([Tuning.swardEdge]):
+    // on a sward eaten short a small grazer still fills its mouth bite by bite where a big one walks between bites and goes
+    // short, Illius and Gordon 1987: at each kind's [Species.cropHalfKgM2] against a 100 kg kind's walking 5 km a day's, to
+    // that power, each gets the same share r of its asked times that edge, up to all it asked, r such that it all goes.)
+    val edge = tuning.swardEdge
+    fun shareByEdge(asked: FloatArray, cap: FloatArray, spare: Float) {
+        var sum = 0f; for (k in byMass) sum += asked[k]
+        if (edge <= 0f || sum <= spare || !(sum > 0f)) { share(asked, cap, spare); return }
+        val c = z.edge
+        var hi = 0f
+        for (k in byMass) { c[k] = (Species.CROP_HALF / kinds[k].cropHalfKgM2).pow(edge); if (asked[k] > 0f) hi = max(hi, 1f / c[k]) }
+        var lo = 0f
+        repeat(30) { val r = 0.5f * (lo + hi); var got = 0f; for (k in byMass) got += asked[k] * min(1f, r * c[k]); if (got > spare) hi = r else lo = r }
+        for (k in byMass) cap[k] = asked[k] * min(1f, lo * c[k])
+    }
+    shareByEdge(z.askG, z.capG, z.spareG); shareByEdge(z.askB, z.capB, z.spareB); share(z.askF, z.capF, z.spareF); share(z.askM, z.capM, z.spareM); share(z.askR, z.capR, z.spareR)
     z.mode = Grazing.SHARES
     for (k in byMass) {
         val s = kinds[k]

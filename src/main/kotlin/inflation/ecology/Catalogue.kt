@@ -272,6 +272,7 @@ object Catalogue {
         domestication = floatArrayOf(0.9f, 0.2f, 0.2f, 0.1f, 0.2f, 0.1f),
         habitat = Habitat(cover = 0.5f, rugged = 0.4f),
         defence = 0.8f,
+        holdsGround = true,
         hibernates = true,
         startKm2PerAnimal = 60f,
         activity = floatArrayOf(0.3f, 0.2f, 0.3f, 0.2f),
@@ -695,6 +696,11 @@ object Catalogue {
         hindgut = true,
         activity = floatArrayOf(0.2f, 0.6f, 0.2f, 0f),
         dampTolerance = 0.3f,
+        // (Its usual numbers from the field, not Damuth's rule: that rule is for mammals, and gave a 110 kg ostrich 2.8 a km²,
+        // six times the field's most (0.5) and some 40 times the Maasai ostrich's 0.03-0.08; the ostrich stood 3-4 times over
+        // the field on the test worlds, 5-14 times with the breeding ranges loosened: limitslong1126. One in 10 km², the
+        // middle of the field's range.)
+        startKm2PerAnimal = 10f,
     )
 
 

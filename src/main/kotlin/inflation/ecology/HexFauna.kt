@@ -219,6 +219,11 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
     internal fun foodScale(k: Int, p: Place): Float {
         val power = tuning.usualByFood; val m = foodMean[k]
         if (power <= 0f || m.isEmpty()) return 1f
+        // (Against one yardstick for every kind, what the place grows of its food a year ([madeFor]) against
+        // [Tuning.usualMade], once a year of it is gathered: poor country holds fewer of every kind, however poor all its
+        // country is. Until then, and with the yardstick at 0, against the kind's own country's food.)
+        val ref = tuning.usualMade
+        if (ref > 0f && madeKnown()) return (madeFor(kinds[k], p) / ref).pow(power).coerceIn(USUAL_MADE_LEAST, USUAL_FOOD_MOST)
         val f = m[p.i]; val r = foodRef[k]
         if (f.isNaN() || !(r > 0f)) return 1f
         return (f / r).pow(power).coerceIn(USUAL_FOOD_LEAST, USUAL_FOOD_MOST)
@@ -696,6 +701,8 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         var mode = FREE; var kind = 0
         val askG = FloatArray(nk); val askB = FloatArray(nk); val askF = FloatArray(nk); val askM = FloatArray(nk); val askR = FloatArray(nk)
         val capG = FloatArray(nk); val capB = FloatArray(nk); val capF = FloatArray(nk); val capM = FloatArray(nk); val capR = FloatArray(nk)
+        /** Each kind's edge on thin pickings in sharing short grass and browse ([Tuning.swardEdge]); scratch. */
+        val edge = FloatArray(nk)
         private inline fun take(kg: Float, spare: Float, ask: FloatArray, cap: FloatArray, eat: (Float) -> Unit): Float {
             var t = min(kg, access * spare)
             when (mode) {
@@ -950,8 +957,6 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         const val SPILL_HUNGER = 0.1f
         /** Share of its usual density a kind starts at. */
         const val START_SHARE = 0.5f
-        /** Forage quality (against green, 1) at which a herbivore's gut just holds its need: middling forage. */
-        const val GUT_QREF = 0.8f
         /** [sharers]: how far another kind that shares its parasites crowds it, at a diet the same as its own. (At 0.3 the cud-chewers
          * crowded each other past the backstop at half their own numbers: a modest share, as their worms are mostly their own.) */
         const val SHARED_SICK = 0.1f
@@ -980,6 +985,13 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         /** [hidingShare]'s least: a thicket kind holds a twentieth of its usual numbers on the openest ground (an estimate, so its crowding stays finite). */
         const val HIDING_LEAST = 0.05f
         const val USUAL_FOOD_MOST = 4f
+        /**
+         * [foodScale]'s least against what grows ([Tuning.usualMade]): a fiftieth of a kind's usual numbers (an estimate,
+         * low enough for goitered gazelle on the Gobi, some 0.4 a km² against Damuth's 10).
+         */
+        const val USUAL_MADE_LEAST = 0.02f
+        /** [madeKnown]: the years of what places grow gathered before the usual numbers go by it (a year, less rounding). */
+        const val MADE_YEAR = 0.999f
         /** Whether resident kind [s] holds ground by the game it kills ([usualAt]): a hunter with game most of its diet. */
         fun holdsByPrey(s: Species) = s.carnivore && s.diet.meat > 0.5f * (s.diet.meat + s.diet.smallPrey + s.diet.carrion + s.diet.plants)
         /**
