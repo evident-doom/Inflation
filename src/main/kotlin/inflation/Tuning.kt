@@ -209,6 +209,8 @@ class Tuning(
      * about 20-25 a km² of their forest, the high end of what is seen.
      */
     val breedSpacing = f("breedSpacing", 1.5f)
+    /** Hunters, resident and in packs: [breedSpacing] for them (plant-eaters keep [breedSpacing]). */
+    val hunterBreedSpacing = f("hunterBreedSpacing", 1.5f)
     /**
      * Residents: how far a plant-eater's usual numbers at a place follow its food there against its food over the country
      * it lives in ([inflation.ecology.HexFauna.foodScale]), as a power: 0 the same everywhere (Damuth's rule by its size alone), 1 in proportion.
@@ -228,7 +230,7 @@ class Tuning(
      */
     val leafTake = f("leafTake", 0f)
     /**
-     * Residents and packs: the share of their sickness of crowding ([inflation.ecology.Hazards.crowdBackstop],
+     * Resident plant-eaters: the share of their sickness of crowding ([inflation.ecology.Hazards.crowdBackstop],
      * [inflation.ecology.Hazards.crowdDisease]) the well fed still take; the underfed take as much more as before
      * ([inflation.ecology.HexFauna.MALNOURISHED] times how short they are). 1: as before; toward 0, crowding kills through
      * hunger, so food (and the hunters) rather than a density set by size hold the numbers.
