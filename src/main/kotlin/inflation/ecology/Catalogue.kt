@@ -716,6 +716,9 @@ object Catalogue {
      */
     val DROMEDARY = Species(
         id = 13, name = "dromedary", massKg = 450f,
+        // (Field counts: no wild dromedary is left; wild Bactrian camels in the Gobi some 0.01-0.05 a km², Australia's feral
+        // dromedaries some 0.1-0.5 where thickest; from memory, not checked.)
+        fieldKm2 = 0.01f..0.5f,
         diet = Diet(grass = 0.3f, browse = 0.7f),
         groupSize = 8, maxGroupSize = 20,
         dailyTravelKm = 15f, maxDailyTravelKm = 60f, senseKm = 4f,
@@ -734,6 +737,9 @@ object Catalogue {
         activity = floatArrayOf(0.2f, 0.5f, 0.2f, 0.1f),
         // (Camels carry the stomach worms of the cud-chewers.)
         kin = Kin.RUMINANTS, dampTolerance = 0f,
+        // (Its usual numbers from the field's middle, not Damuth's rule (0.6 a km² at 450 kg): on that it rose half again every
+        // decade for 30 years in every arm (equidab1127).)
+        startKm2PerAnimal = 15f,
     )
 
     /**
