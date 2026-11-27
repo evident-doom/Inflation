@@ -233,14 +233,6 @@ class Tuning(
      */
     val leafTake = f("leafTake", 0f)
     /**
-     * Residents: the share of the grass and browse within reach that is the leaves, buds and herbs a small plant-eater picks
-     * out ([inflation.ecology.HexFauna.picks]): what small kinds pick, they pick away for each other, and it grows back at
-     * [pickRenew]. 0: picking is as good however many pick (as before).
-     */
-    val pickShare = f("pickShare", 0f)
-    /** Residents: the share of what was picked away ([pickShare]) that grows back in a week of full green growth. */
-    val pickRenew = f("pickRenew", 0.3f)
-    /**
      * Resident plant-eaters: the share of their sickness of crowding ([inflation.ecology.Hazards.crowdBackstop],
      * [inflation.ecology.Hazards.crowdDisease]) the well fed still take; the underfed take as much more as before
      * ([inflation.ecology.HexFauna.MALNOURISHED] times how short they are). 1: as before; toward 0, crowding kills through

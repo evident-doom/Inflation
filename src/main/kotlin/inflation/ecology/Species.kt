@@ -415,8 +415,8 @@ fun gutFill(s: Species, quality: Float): Float {
  * 1974, Bell 1971, Hofmann 1989). Of the gap to fresh growth, [SELECTION] of the share its gut falls short of a 100 kg
  * kind's: a gazelle about a sixth, a goat a tenth, a deer none.
  */
-fun Species.selected(q: Float, picks: Float = 1f): Float {
-    val picked = q + (1f - q) * SELECTION * selectivity * picks
+fun Species.selected(q: Float): Float {
+    val picked = q + (1f - q) * SELECTION * (1f - gutSize).coerceIn(0f, 1f)
     // (A hindgut fermenter passes its food fast and gets less of the fibre out of it than a cud-chewer: as much of fresh
     // growth, some 70% of straw ([HINDGUT_LOSS]). It makes up by eating its fill of poor forage, [gutFill]; with as much
     // from each kilo as well, horses and onagers had the best of both in every lean season and crowded the cud-chewers out.)
@@ -430,12 +430,6 @@ fun Species.selected(q: Float, picks: Float = 1f): Float {
  * half that, as they also lose out on gut and crop.
  */
 const val HINDGUT_LOSS = 0.25f
-
-/**
- * How much a kind picks over its forage rather than cropping it as it stands, 0..1: the share its gut falls short of a
- * 100 kg kind's ([Species.gutSize]); none for 100 kg and over. See [selected].
- */
-val Species.selectivity: Float get() = (1f - gutSize).coerceIn(0f, 1f)
 
 /** [selected]: how far a small kind's picking closes the gap to fresh growth, at a gut none at all against a 100 kg kind's; an estimate. */
 const val SELECTION = 0.5f

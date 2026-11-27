@@ -85,10 +85,9 @@ internal fun rootingMost(s: Species, perKm2: Float, rootsKgM2: Float, days: Int,
  * and dig out in the week, kg per m² ([rootingMost]).
  */
 @IgnorableReturnValue internal fun forage(s: Species, d: Diet, placeQ: Float, need: Float, underSnow: Float, pantry: Pantry, out: Bites,
-    cropG: Float = 1f, cropB: Float = 1f, digMost: Float = Float.POSITIVE_INFINITY, picks: Float = 1f): Bites {
-    // (The forage as it picks it over, [selected]: a small kind eats better than the place's mean, as far as the pickings
-    // the small kinds there left it allow, [HexFauna.picks].)
-    val q = s.selected(placeQ, picks)
+    cropG: Float = 1f, cropB: Float = 1f, digMost: Float = Float.POSITIVE_INFINITY): Bites {
+    // (The forage as it picks it over, [selected]: a small kind eats better than the place's mean.)
+    val q = s.selected(placeQ)
     // (Worked in energy, [Nourishment]'s units: a kg of green forage feeds a unit.)
     val want = need / s.needScale
     val total = d.plants.coerceAtLeast(1e-6f)
