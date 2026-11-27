@@ -211,6 +211,10 @@ object Catalogue {
         hindgut = true,
         activity = floatArrayOf(0.25f, 0.35f, 0.2f, 0.2f),
         kin = Kin.EQUIDS, dampTolerance = 0.2f,
+        // (Its usual numbers from the field, the middle of its range (0.03-1 a km²), not Damuth's rule (1.6 a km² at 230 kg):
+        // on that the onager filled the open country for 60 years on end, eight times its numbers, food never binding (loose1127,
+        // openab1127). The field range stands for the wild asses as a whole.)
+        startKm2PerAnimal = 6f,
     )
 
     /**
@@ -604,6 +608,8 @@ object Catalogue {
         hindgut = true,
         activity = floatArrayOf(0.25f, 0.35f, 0.2f, 0.2f),
         kin = Kin.EQUIDS, dampTolerance = 0.4f,
+        // (Its usual numbers from the field, the middle of its range (0.05-1 a km²), not Damuth's rule: as the onager's.)
+        startKm2PerAnimal = 4.5f,
     )
 
     /**
