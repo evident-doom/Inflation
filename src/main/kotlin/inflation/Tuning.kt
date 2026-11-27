@@ -267,6 +267,11 @@ class Tuning(
      * round it (an estimate); 0 all of every place.
      */
     val coverReach = f("coverReach", 1f)
+    /**
+     * Residents: the share of a place a plant-eater of the open (one that outruns its stalkers and shuns cover) lives on, as so
+     * many times its open share, 1 - cover ([inflation.ecology.HexFauna.hidingShare]); 0 all of every place (as before).
+     */
+    val openReach = f("openReach", 0f)
     val weakCatch = f("weakCatch", 1f)
     /**
      * Residents: weeks between their moves (up and down the slopes, and spilling to the hexes about): the plant-eaters

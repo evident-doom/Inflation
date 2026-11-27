@@ -241,7 +241,16 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
      */
     internal fun hidingShare(k: Int, p: Place): Float {
         val reach = tuning.coverReach; val s = kinds[k]
-        if (reach <= 0f || s.carnivore || (Niches.Shelter.THICKET !in s.shelters && Niches.Shelter.CRAG !in s.shelters)) return 1f
+        if (s.carnivore) return 1f
+        // (And the other way about, a kind that sees its stalkers coming and outruns them and shuns cover ([Species.runsInOpen],
+        // [Habitat.cover] below 0): the open share of the place, as far as [Tuning.openReach] times it. Counted as all of it, the
+        // onager's food in the oak woods' glades was as good as the steppe's against its own country, and onager and horses
+        // spread into the forests and shrublands for 60 years on end, eight times their numbers (loose1127, onager1127).)
+        if (Niches.Shelter.THICKET !in s.shelters && Niches.Shelter.CRAG !in s.shelters) {
+            val open = tuning.openReach
+            return if (open > 0f && s.runsInOpen && s.habitat.cover < 0f) (open * (1f - land.plants.cover(p))).coerceIn(HIDING_LEAST, 1f) else 1f
+        }
+        if (reach <= 0f) return 1f
         return (reach * preyShelter(s, p)).coerceIn(HIDING_LEAST, 1f)
     }
     /** Reckons [foodRef] from [foodMean] ([foodScale]). */
