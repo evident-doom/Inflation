@@ -272,6 +272,11 @@ class Tuning(
      * many times its open share, 1 - cover ([inflation.ecology.HexFauna.hidingShare]); 0 all of every place (as before).
      */
     val openReach = f("openReach", 0f)
+    /**
+     * Residents: the shrubs' weight, kg per m², at which scrub stands as dense thicket that a big body pushes through to only
+     * part of the shoots in it ([inflation.ecology.thicketReach]); 0: every kind crops all the browse it stands in (as before).
+     */
+    val thicketFull = f("thicketFull", 0f)
     val weakCatch = f("weakCatch", 1f)
     /**
      * Residents: weeks between their moves (up and down the slopes, and spilling to the hexes about): the plant-eaters
