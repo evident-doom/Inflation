@@ -342,11 +342,13 @@ internal fun HexFauna.splitPatches(p: Place, grass: Float, browse: Float, z: Gra
     z.patchG[PATCH_OPEN] = dry * m * grass; z.patchG[PATCH_WOOD] = dry * (1f - m) * grass; z.patchG[PATCH_WET] = wet * grass; z.patchG[PATCH_CANOPY] = 0f
     z.patchB[PATCH_OPEN] = dry * g * sb; z.patchB[PATCH_WOOD] = dry * ((1f - g) * sb + low); z.patchB[PATCH_WET] = wet * (sb + low); z.patchB[PATCH_CANOPY] = high
     for (q in 0 until PATCHES) { z.patchF[q] = area[q] * fruit; z.patchM[q] = area[q] * mast; z.patchR[q] = area[q] * roots }
-    val like = z.patchLike
+    val like = z.patchLike; val sharp = tuning.patches
     for (k in kinds.indices) {
         val s = kinds[k]; val h = s.habitat; val d = s.diet
         like[PATCH_OPEN] = max(LIKE_LEAST, 0.5f * (1f - h.cover)); like[PATCH_WOOD] = max(LIKE_LEAST, 0.5f * (1f + h.cover))
         like[PATCH_WET] = max(LIKE_LEAST, 0.5f * (1f + h.wet)); like[PATCH_CANOPY] = if (s.massKg >= TALL_KG) like[PATCH_WOOD] else 0f
+        // (How strongly each keeps to the ground it likes: the likings to the power [Tuning.patches].)
+        if (sharp != 1f) for (q in 0 until PATCHES) like[q] = like[q].pow(sharp)
         var sum = 0f
         for (q in 0 until PATCHES) {
             val eats = d.grass * z.patchG[q] + d.browse * z.patchB[q] + d.fruit * z.patchF[q] + d.mast * z.patchM[q] + d.roots * z.patchR[q]
