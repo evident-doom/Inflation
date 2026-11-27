@@ -338,6 +338,17 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
             }
         }
     }
+    /**
+     * The pickings at each place: how much of the leaves, buds and herbs small plant-eaters pick out of the grass and browse is
+     * left, against an untouched sward and thicket (1), [Tuning.pickShare] of what stands within reach. Small kinds pick them
+     * away for each other (big ones crop the sward as it stands and leave its make-up as it was), and they grow back with the
+     * green growth ([Tuning.pickRenew]), never below [PICK_FLOOR] (rosettes pressed to the ground, buds in the thorns: what
+     * no mouth gets at). Their own staple for the small selective kinds, limited by their own numbers rather than the bulk
+     * feeders' (Jarman 1974, Hofmann 1989: the small live on thin, good food). 1 everywhere with [Tuning.pickShare] at 0.
+     */
+    val picks = FloatArray(n) { 1f }
+    /** [picks] at [p] as the feeding reads it: 1 with [Tuning.pickShare] at 0. */
+    internal fun picksAt(p: Place) = if (tuning.pickShare > 0f) picks[p.i] else 1f
     /** The food left uneaten at each place after every kind has eaten this week, kg per m², as far as the eaters could reach it: grass, browse, fruit, mast and roots ([roomFor]). */
     @Transient internal val spareGrass = FloatArray(n)
     @Transient internal val spareBrowse = FloatArray(n)

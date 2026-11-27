@@ -191,6 +191,8 @@ internal fun HexFauna.cropBrowse(s: Species, p: Place) = cropRate(s, land.plants
  */
 private fun HexFauna.eatPlants(p: Place, weather: Weather, grass: Float, browse: Float, z: Grazing) {
     val quality = foragedQuality(p)
+    // (The pickings the small kinds left, [picks]; and the forage they picked over this week, kg per m², by how much they pick.)
+    val pk = picksAt(p); var picked = 0f
     val need = z.need; val each = z.each; val avail = z.avail
     for ((k, s) in kinds.withKinds()) {
         killRate[k]?.set(p, 0f)
@@ -218,7 +220,7 @@ private fun HexFauna.eatPlants(p: Place, weather: Weather, grass: Float, browse:
         val s = kinds[k]
         z.kind = k; z.access = avail[k]
         val dig = if (s.diet.roots > 0f) rootingMost(s, adults[k][p] + young[k][p], avail[k] * roots0, days, tuning.rootingM2PerDay) else Float.POSITIVE_INFINITY
-        forage(s, leanDiet(s, p), quality, need[k], grassUnderSnow(s, snow), z, b, cropGrass(s, p), cropBrowse(s, p), dig)
+        forage(s, leanDiet(s, p), quality, need[k], grassUnderSnow(s, snow), z, b, cropGrass(s, p), cropBrowse(s, p), dig, pk)
     }
     // What each asks of each food.
     z.mode = Grazing.ASKING
@@ -260,7 +262,8 @@ private fun HexFauna.eatPlants(p: Place, weather: Weather, grass: Float, browse:
         z.eatG += b.grass + b.grass2; z.eatB += b.browse + b.browse2
         z.eatF += b.fruit + b.fruit2; z.eatM += b.mast + b.mast2; z.eatR += b.roots + b.roots2
         if (s.diet.roots > 0f) z.eatMRooting += b.mast + b.mast2
-        z.ateKg[k] = b.eaten; z.proteinKg[k] = protein(b, s.selected(gp), s.selected(bp))
+        z.ateKg[k] = b.eaten; z.proteinKg[k] = protein(b, s.selected(gp, pk), s.selected(bp, pk))
+        picked += (b.grass + b.grass2 + b.browse + b.browse2) * s.selectivity
     }
     // Then the fed lay on fat from what is left.
     z.mode = Grazing.FREE
@@ -273,12 +276,14 @@ private fun HexFauna.eatPlants(p: Place, weather: Weather, grass: Float, browse:
         // (In energy, as [forage] works: see [Species.needScale]; as far as it can crop them, as it fed.)
         val extra = surplusShare(FaunaKind(k), p) * want / s.needScale
         val gb = (d.grass + d.browse).coerceAtLeast(1e-6f)
-        val qs = s.selected(quality)
+        val qs = s.selected(quality, pk)
         val grass3 = if (d.grass > 0f) z.grass(cropGrass(s, p) * grassUnderSnow(s, snow) * extra / qs * d.grass / gb) else 0f
         val browse3 = if (d.browse > 0f) z.browse(cropBrowse(s, p) * extra / qs * d.browse / gb) else 0f
         z.surplus[k] = (grass3 + browse3) * qs * s.needScale / want
         z.eatG += grass3; z.eatB += browse3
+        picked += (grass3 + browse3) * s.selectivity
     }
+    pickOver(p, grass + browse, picked)
     // What is left, for [roomFor] (how well a band coming here would be fed on it) to reckon on when they move.
     spareGrass[p] = max(0f, z.spareG); spareBrowse[p] = max(0f, z.spareB); spareFruit[p] = max(0f, z.spareF)
     spareMast[p] = max(0f, z.spareM); spareRoots[p] = max(0f, z.spareR)
@@ -519,11 +524,34 @@ private fun HexFauna.placeEffects(p: Place, grass: Float, browse: Float, z: Graz
     land.plants.rooting[p] = (dug + z.eatMRooting) * 1e6f / days
 }
 
+/**
+ * The pickings at [p] ([HexFauna.picks]) after a week in which the small kinds picked over [picked] kg per m² of the
+ * [stands] kg per m² of grass and browse within reach (each kg by its [Species.selectivity]): what they picked out of
+ * [Tuning.pickShare] of what stands is gone, and of what is gone, [Tuning.pickRenew] grows back in a week of full green
+ * growth. They pick in proportion to what is left: the fewer pickings, the less of each mouthful they are, so the
+ * pickings thin out towards [PICK_FLOOR] rather than run out.
+ */
+private fun HexFauna.pickOver(p: Place, stands: Float, picked: Float) {
+    val share = tuning.pickShare
+    if (share <= 0f) return
+    var v = picks[p]
+    if (stands > 0f) v *= 1f - min(1f, picked / (share * stands))
+    v += (1f - v) * overTicks(tuning.pickRenew * land.plants.green[p])
+    picks[p] = max(PICK_FLOOR, v)
+}
+
+/**
+ * [HexFauna.picks]: the least of the pickings that is always left, rosettes pressed to the ground and buds among thorns and
+ * stems that no mouth gets at. An estimate.
+ */
+internal const val PICK_FLOOR = 0.2f
+
 /** How well kind [s]'s diet at place [p] would meet its need for protein, 0..1 (see [proteinMet]). */
 fun HexFauna.forageProtein(s: Species, p: Place): Float {
     val d = leanDiet(s, p); val plants = d.plants
     if (plants <= 0f) return 1f
-    val share = (d.grass * s.selected(grassProtein(p)) + d.browse * s.selected(browseProtein(p)) + d.stocks * PROTEIN_FRUIT) / plants
+    val pk = picksAt(p)
+    val share = (d.grass * s.selected(grassProtein(p), pk) + d.browse * s.selected(browseProtein(p), pk) + d.stocks * PROTEIN_FRUIT) / plants
     val ps = plantShare(s)
     return proteinMet(ps * share + (1f - ps))
 }
