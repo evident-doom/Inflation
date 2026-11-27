@@ -737,7 +737,7 @@ object Catalogue {
         activity = floatArrayOf(0.2f, 0.5f, 0.2f, 0.1f),
         // (Camels carry the stomach worms of the cud-chewers.)
         kin = Kin.RUMINANTS, dampTolerance = 0f,
-        // (Its usual numbers from the field's middle, not Damuth's rule (0.6 a km² at 450 kg): on that it rose half again every
+        // (Its usual numbers from the field's middle, not Damuth's rule (about 1 a km² at 450 kg): on that it rose half again every
         // decade for 30 years in every arm (equidab1127).)
         startKm2PerAnimal = 15f,
     )
