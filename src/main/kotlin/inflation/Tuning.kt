@@ -21,11 +21,8 @@ class Tuning(
      * picked as berries and the day's walk out was charged by the full load; both since fixed, 2026-11-10.)
      */
     val plantHandling = f("plantHandling", 1f)
-    /**
-     * Chance a much stronger hunter kills another kind's young, against [inflation.ecology.INTRAGUILD_KILL_YOUNG]. 0 (Olli
-     * 2026-11-27): hunters are held by their food, not by killing each other's young at an unsourced rate.
-     */
-    val intraguildYoung = f("intraguildYoung", 0f)
+    /** Chance a much stronger hunter kills another kind's young, against [inflation.ecology.INTRAGUILD_KILL_YOUNG]. */
+    val intraguildYoung = f("intraguildYoung", 1f)
     /** People's deaths of age and ordinary illness, of children, of thirst, and from camp fouling, against their present rates. */
     val humanOther = f("humanOther", 1f)
     val humanYoung = f("humanYoung", 1f)
