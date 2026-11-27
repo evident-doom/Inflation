@@ -712,6 +712,13 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         val capG = FloatArray(nk); val capB = FloatArray(nk); val capF = FloatArray(nk); val capM = FloatArray(nk); val capR = FloatArray(nk)
         /** Each kind's edge on thin pickings in sharing short grass and browse ([Tuning.swardEdge]); scratch. */
         val edge = FloatArray(nk)
+        /** The place's patches ([splitPatches]): each one's food, kg/m² of the place; what is left of it after the shares; its area; scratch. */
+        val patchG = FloatArray(PATCHES); val patchB = FloatArray(PATCHES); val patchF = FloatArray(PATCHES); val patchM = FloatArray(PATCHES); val patchR = FloatArray(PATCHES)
+        val leftG = FloatArray(PATCHES); val leftB = FloatArray(PATCHES); val leftF = FloatArray(PATCHES); val leftM = FloatArray(PATCHES); val leftR = FloatArray(PATCHES)
+        val patchArea = FloatArray(PATCHES); val patchLike = FloatArray(PATCHES)
+        /** Each kind's share of its feeding in each patch, kind by kind ([weight]); and its want in the patch being shared out. */
+        val patchW = FloatArray(nk * PATCHES); val pneed = FloatArray(nk)
+        fun weight(k: Int, q: Int) = patchW[k * PATCHES + q]
         private inline fun take(kg: Float, spare: Float, ask: FloatArray, cap: FloatArray, eat: (Float) -> Unit): Float {
             var t = min(kg, access * spare)
             when (mode) {

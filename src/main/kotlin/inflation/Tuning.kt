@@ -272,6 +272,12 @@ class Tuning(
      * many times its open share, 1 - cover ([inflation.ecology.HexFauna.hidingShare]); 0 all of every place (as before).
      */
     val openReach = f("openReach", 0f)
+    /**
+     * Residents: 1 shares each place's food out patch by patch, the glade's open ground, the wood's floor, the floodplain's wet
+     * floor and the high browse in the crowns ([inflation.ecology.splitPatches]), each kind feeding in each by its liking for
+     * the ground and its food there; 0 shares it as one (as before).
+     */
+    val patches = f("patches", 0f)
     val weakCatch = f("weakCatch", 1f)
     /**
      * Residents: weeks between their moves (up and down the slopes, and spilling to the hexes about): the plant-eaters
