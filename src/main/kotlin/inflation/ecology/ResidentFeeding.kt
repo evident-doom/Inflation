@@ -179,27 +179,7 @@ internal fun HexFauna.graze(weather: Weather) {
  * to water ([atWater]).
  */
 internal fun HexFauna.cropGrass(s: Species, p: Place) = cropRate(s, land.palatable[p] * land.plants.herb[p]) * inSight(s, p) * atWater(s, p)
-internal fun HexFauna.cropBrowse(s: Species, p: Place) = cropRate(s, land.plants.browse(p) / REACH) * inSight(s, p) * atWater(s, p) * thicketReach(s, p)
-
-/**
- * The share of the browse at place [p] kind [s] gets at, where part of it is shrubs' shoots in dense thicket
- * ([Tuning.thicketFull]): a kind built for thicket (it shelters there, [Niches.Shelter.THICKET]: roe, deer, elk) and a
- * small one slip in among the stems and reach it all; a big body shoulders in to only so much of it, as
- * ([THICKET_BODY_KG] / mass)^(1/3) (its breadth against the gaps between stems). The trees' shoots, above and among the
- * crowns, stand open to all. An estimate of a known edge: small browsers live in the thickets big ones skirt (Jarman 1974;
- * Gordon and Illius 1989 on body size and food access); the numbers are not from a measurement.
- */
-internal fun HexFauna.thicketReach(s: Species, p: Place): Float {
-    val full = tuning.thicketFull
-    if (full <= 0f || Niches.Shelter.THICKET in s.shelters || s.massKg <= THICKET_BODY_KG) return 1f
-    val pl = land.plants; val browse = pl.browse(p)
-    if (!(browse > 0f)) return 1f
-    val dense = (pl.shrub[p] / full).coerceIn(0f, 1f) * max(0f, pl.shrubShoots[p]) / browse
-    return 1f - dense * (1f - kotlin.math.cbrt(THICKET_BODY_KG / s.massKg))
-}
-
-/** [thicketReach]: the body that still slips through dense thicket to all its shoots, kg (a goat's or a roe's); an estimate. */
-internal const val THICKET_BODY_KG = 40f
+internal fun HexFauna.cropBrowse(s: Species, p: Place) = cropRate(s, land.plants.browse(p) / REACH) * inSight(s, p) * atWater(s, p)
 
 /**
  * [graze]'s plants at place [p] ([grass] and [browse] of them within reach), into [z], shared out among the kinds there by
