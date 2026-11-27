@@ -718,7 +718,7 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         val patchArea = FloatArray(PATCHES); val patchLike = FloatArray(PATCHES)
         /** Each kind's share of its feeding in each patch, kind by kind ([weight]); and its want in the patch being shared out. */
         val patchW = FloatArray(nk * PATCHES); val pneed = FloatArray(nk)
-        fun weight(k: Int, q: Int) = patchW[k * PATCHES + q]
+        fun weight(k: Int, patch: Int) = patchW[k * PATCHES + patch]
         private inline fun take(kg: Float, spare: Float, ask: FloatArray, cap: FloatArray, eat: (Float) -> Unit): Float {
             var t = min(kg, access * spare)
             when (mode) {

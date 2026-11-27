@@ -243,22 +243,22 @@ private fun HexFauna.eatPlants(p: Place, weather: Weather, grass: Float, browse:
         repeat(30) { val r = 0.5f * (lo + hi); var got = 0f; for (k in byMass) got += asked[k] * min(1f, r * c[k]); if (got > spare) hi = r else lo = r }
         for (k in byMass) cap[k] = asked[k] * min(1f, lo * c[k])
     }
-    for (q in 0 until np) {
-        z.spareG = z.patchG[q]; z.spareB = z.patchB[q]; z.spareF = z.patchF[q]; z.spareM = z.patchM[q]; z.spareR = z.patchR[q]
+    // One round of shares of the food now in [z]'s spare: each kind with [pneed] of it ([w] of its heads feeding there)
+    // asks, each food is shared by what was asked, and each eats its share.
+    fun shareRound(w: (Int) -> Float) {
         roots0 = z.spareR
-        for (k in byMass) pneed[k] = need[k] * z.weight(k, q)
         z.askG.fill(0f); z.askB.fill(0f); z.askF.fill(0f); z.askM.fill(0f); z.askR.fill(0f)
         // What each asks of each food.
         z.mode = Grazing.ASKING
-        for (k in byMass) if (pneed[k] > 0f) eat(k, pneed[k], z.weight(k, q))
+        for (k in byMass) if (pneed[k] > 0f) eat(k, pneed[k], w(k))
         shareByEdge(z.askG, z.capG, z.spareG); shareByEdge(z.askB, z.capB, z.spareB); share(z.askF, z.capF, z.spareF); share(z.askM, z.capM, z.spareM); share(z.askR, z.capR, z.spareR)
         z.mode = Grazing.SHARES
         for (k in byMass) {
             val s = kinds[k]
-            // (Each share of its need counted against all its need, so the patches' shares add up to the week's.)
+            // (Each share of its need counted against all its need, so the rounds' shares add up to the week's.)
             val want = need[k]
             if (pneed[k] <= 0f) continue
-            eat(k, pneed[k], z.weight(k, q))
+            eat(k, pneed[k], w(k))
             z.got[k] += b.got / want
             z.gotFruit[k] += (b.fruit + b.fruit2) * Nourishment.FRUIT * s.needScale / want
             z.gotUnder[k] += ((b.roots + b.roots2) * Nourishment.ROOTS + (b.mast + b.mast2) * Nourishment.MAST) * s.needScale / want
@@ -270,21 +270,40 @@ private fun HexFauna.eatPlants(p: Place, weather: Weather, grass: Float, browse:
             if (s.diet.roots > 0f) z.eatMRooting += b.mast + b.mast2
             z.ateKg[k] += b.eaten; z.proteinKg[k] += protein(b, s.selected(gp), s.selected(bp))
         }
+    }
+    // Each patch's food shared among those feeding there, each kind by its share of its feeding in it ([splitPatches]).
+    for (q in 0 until np) {
+        z.spareG = z.patchG[q]; z.spareB = z.patchB[q]; z.spareF = z.patchF[q]; z.spareM = z.patchM[q]; z.spareR = z.patchR[q]
+        for (k in byMass) pneed[k] = need[k] * z.weight(k, q)
+        shareRound { z.weight(it, q) }
         z.leftG[q] = z.spareG; z.leftB[q] = z.spareB; z.leftF[q] = z.spareF; z.leftM[q] = z.spareM; z.leftR[q] = z.spareR
     }
-    // Then the fed lay on fat from what is left, in each patch as they feed there.
+    // Then what each still lacks it seeks in what is left of the other patches it reaches, all of them as one: its own
+    // ground first, the rest after those whose ground it is (the high browse stays the tall's alone). So a patch is the
+    // first call of those it suits, not a fence.
+    var highG = 0f; var highB = 0f; var highF = 0f; var highM = 0f; var highR = 0f
+    if (np > 1) {
+        z.spareG = 0f; z.spareB = 0f; z.spareF = 0f; z.spareM = 0f; z.spareR = 0f
+        for (q in 0 until np) {
+            if (q == PATCH_CANOPY) { highG = z.leftG[q]; highB = z.leftB[q]; highF = z.leftF[q]; highM = z.leftM[q]; highR = z.leftR[q]; continue }
+            z.spareG += max(0f, z.leftG[q]); z.spareB += max(0f, z.leftB[q]); z.spareF += max(0f, z.leftF[q]); z.spareM += max(0f, z.leftM[q]); z.spareR += max(0f, z.leftR[q])
+        }
+        for (k in byMass) pneed[k] = if (need[k] > 0f) need[k] * max(0f, 1f - z.got[k]) else 0f
+        shareRound { if (need[it] > 0f) pneed[it] / need[it] else 0f }
+    }
+    // Then the fed lay on fat from what is left.
     z.mode = Grazing.FREE
-    var leftG = 0f; var leftB = 0f; var leftF = 0f; var leftM = 0f; var leftR = 0f
-    for (q in 0 until np) {
-        z.spareG = z.leftG[q]; z.spareB = z.leftB[q]; z.spareF = z.leftF[q]; z.spareM = z.leftM[q]; z.spareR = z.leftR[q]
+    var leftG = highG; var leftB = highB; var leftF = highF; var leftM = highM; var leftR = highR
+    run {
+        if (np == 1) { z.spareG = z.leftG[0]; z.spareB = z.leftB[0]; z.spareF = z.leftF[0]; z.spareM = z.leftM[0]; z.spareR = z.leftR[0] }
         for (k in byMass) {
             val s = kinds[k]
-            val want = need[k]; val w = z.weight(k, q)
-            if (want <= 0f || w <= 0f || z.got[k] < 1f || reserve[k][p] >= s.maxFatDays) continue
+            val want = need[k]
+            if (want <= 0f || z.got[k] < 1f || reserve[k][p] >= s.maxFatDays) continue
             val d = s.diet
             z.access = avail[k]
             // (In energy, as [forage] works: see [Species.needScale]; as far as it can crop them, as it fed.)
-            val extra = surplusShare(FaunaKind(k), p) * want * w / s.needScale
+            val extra = surplusShare(FaunaKind(k), p) * want / s.needScale
             val gb = (d.grass + d.browse).coerceAtLeast(1e-6f)
             val qs = s.selected(quality)
             val grass3 = if (d.grass > 0f) z.grass(cropGrass(s, p) * grassUnderSnow(s, snow) * extra / qs * d.grass / gb) else 0f
