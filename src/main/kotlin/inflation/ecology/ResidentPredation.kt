@@ -372,7 +372,7 @@ internal fun HexFauna.outranked(s: Species, p: Place): Float {
 /**
  * The share of each kill resident hunter [k] makes at place [p] that scavengers take before it has eaten it: the small ones
  * everywhere ([SMALL_SCAVENGED]: ravens, crows, vultures, eagles, foxes), and the big resident ones about ([BIG_SCAVENGED_MOST]
- * of it as their kg a km² come to [BIG_SCAVENGED_HALF]): each kind that eats carrion, by its share of carrion in its diet and by
+ * of it as their kg a km² come to [inflation.Tuning.bigScavengedHalf]): each kind that eats carrion, by its share of carrion in its diet and by
  * its weight against the hunter's (a bear drives a lynx off its kill, a jackal waits its turn). Real hunters kill two to three
  * times what they eat: Yellowstone's wolves killed 6-17 kg a wolf a day in winter of which some 3.3 was theirs once the
  * scavengers had theirs (NPS; Smith et al.), lynx a roe every 5-6 days (Okarma et al. 1997). The shares are estimates.
