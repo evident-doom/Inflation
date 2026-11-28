@@ -612,7 +612,7 @@ internal fun HexGroups.liveWeek(g: HexGroup, weather: Weather, date: Date, kinNo
     val sick = sicknessWeek(g, weather, kinNow, r)
     val disease = fauna.outbreakDeaths(s, g.place) + sick
     // Packs without ground of their own die more: fights, injuries and hunger on others' ground.
-    val homeless = if (s.lifeway == Lifeway.PACK && g.home.none) DISPERSAL_DEATHS * years else 0f
+    val homeless = if (s.lifeway == Lifeway.PACK && g.home.none) tuning.homelessDeaths * years else 0f
     // Every hazard of the week, once: its cause and the odds it adds for a grown one and for a young one.
     val hazards = arrayListOf(
         Hazard(DeathCause.OTHER, backgroundOdds(s, band) * years,

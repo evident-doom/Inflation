@@ -529,8 +529,6 @@ internal const val HIDING_KG = 70f
 internal const val HIDING = 0.8f
 /** How much dark or moonlit nights change a stalker's chances. */
 internal const val MOON_DARK = 0.3f
-/** Extra yearly deaths among packs without ground of their own. */
-internal const val DISPERSAL_DEATHS = 0.4f
 /** Young up to this weight now, kg, are taken by eagles: as the young of hoofed kinds up to some 80 kg grown were at three tenths of their weight; now the first weeks' piglets and calves of the bigger kinds too, as they are light ([HexFauna.youngShare]). */
 internal const val EAGLE_PREY_KG = 24f
 /** Young up to this weight now, kg, foxes and the small carnivores take ([foxesOnYoung]): the newborn of roe deer, gazelle, sheep and goats and piglets, in their first weeks. */
