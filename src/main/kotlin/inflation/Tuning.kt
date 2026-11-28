@@ -265,6 +265,13 @@ class Tuning(
      */
     val hunterStrife = f("hunterStrife", 1f)
     /**
+     * Resident hunters: the ground their prey holds for them ([inflation.ecology.HexFauna.usualAt]) as so many single
+     * species' worth. The support per kg of prey is a single species' (wolves, Fuller 1989; lions, Hayward et al. 2007),
+     * but each hunter here stands for a whole family (Olli 2026-11-26/28): "lion" lions and tigers, "wolf" wolves and
+     * dholes, "lynx" lynx, caracal and jungle cat. 1: one species.
+     */
+    val hunterFamily = f("hunterFamily", 1f)
+    /**
      * Residents: where the plant-eaters at a place ask more grass or browse than there is, how far the kinds that crop thin
      * pickings best (small and wide-ranging ones, [inflation.ecology.Species.cropHalfKgM2]) get more of what they asked,
      * as a power of their edge on a 100 kg kind's. 0: each gets the same share of what it asked.

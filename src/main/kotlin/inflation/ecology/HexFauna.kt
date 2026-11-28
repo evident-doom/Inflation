@@ -208,7 +208,7 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
         if (g.isEmpty()) return usual[k] * foodScale(k, p) * hidingShare(k, p)
         val m = g[p.i]
         val support = kinds[k].preySupport ?: if (holdsByPrey(kinds[k])) PREY_SUPPORT else SMALL_HUNTER_SUPPORT
-        return if (m.isNaN()) usual[k] else max(TERRITORY_LEAST, support * m / kinds[k].massKg)
+        return if (m.isNaN()) usual[k] else max(TERRITORY_LEAST, tuning.hunterFamily * support * m / kinds[k].massKg)
     }
     /**
      * How many times its [usual] numbers place [p] holds of plant-eater [k]: its food there ([foodMean]) against its
