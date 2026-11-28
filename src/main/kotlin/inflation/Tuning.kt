@@ -272,7 +272,7 @@ class Tuning(
      */
     val hunterFamily = f("hunterFamily", 1f)
     /** Eagles: the room for those that nest in trees or on the ground, 0..1 a place ([inflation.ecology.HexSmallLife.eagleRoom]); 0: the golden eagles of the crags alone. */
-    val eagleNests = f("eagleNests", 0f)
+    val eagleNests = f("eagleNests", 1f)
     /**
      * Resident hunters: the big scavengers' kg a km² about a kill (each by its share of carrion in its diet and its weight
      * against the hunter's, [inflation.ecology.scavengedShare]) at which they take half their most of it. At 2 the boar of
