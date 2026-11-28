@@ -279,7 +279,7 @@ class Tuning(
      * any wood (some 9 a km², a twentieth carrion) took near half of every leopard's and lion's kill; leopards lose some
      * 5-10% of theirs, cheetahs 10-14% to hyenas and lions (from memory).
      */
-    val bigScavengedHalf = f("bigScavengedHalf", 2f)
+    val bigScavengedHalf = f("bigScavengedHalf", 100f)
     /**
      * Residents: where the plant-eaters at a place ask more grass or browse than there is, how far the kinds that crop thin
      * pickings best (small and wide-ranging ones, [inflation.ecology.Species.cropHalfKgM2]) get more of what they asked,
