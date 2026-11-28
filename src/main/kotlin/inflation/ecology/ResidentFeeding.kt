@@ -322,7 +322,7 @@ private fun HexFauna.eatPlants(p: Place, weather: Weather, grass: Float, browse:
  * floodplain, and the browse high in the trees' crowns, each with its own grass, browse, fruit, mast and roots out of the
  * place's ([grass] and [browse] within reach), into [z]; and each kind's share of its feeding in each ([Grazing.weight]):
  * by how it likes each ground ([Habitat.cover], [Habitat.wet]) times the food of its diet there. The high browse is for
- * the tall alone ([TALL_KG]). Shared out patch by patch, the kinds of the open and of the wood each meet mostly their own
+ * the tall alone ([TALL_KG]: elk, camels, aurochs, elephants). Shared out patch by patch, the kinds of the open and of the wood each meet mostly their own
  * kind at their food. With [Tuning.patches] at 0, one patch of all of it, as before. Returns the number of patches.
  */
 internal fun HexFauna.splitPatches(p: Place, grass: Float, browse: Float, z: Grazing): Int {
@@ -367,8 +367,13 @@ internal const val PATCHES = 4
 internal const val PATCH_OPEN = 0; internal const val PATCH_WOOD = 1; internal const val PATCH_WET = 2; internal const val PATCH_CANOPY = 3
 /** [splitPatches]: the share of the trees' shoots out of reach of all but the tall (above some 2 m); an estimate. */
 internal const val CANOPY_HIGH = 0.5f
-/** [splitPatches]: the kinds that reach the high browse: an elephant's weight and over (du Toit 1990, browse height by body size; from memory). */
-internal const val TALL_KG = 2000f
+/**
+ * [splitPatches]: the kinds that reach the high browse, kg and over: elk, camels, aurochs and elephants browse up to 2.5-6 m,
+ * roe, deer and goats to some 1-2 m (du Toit 1990, browse height by body size; from memory). At an elephant's weight alone,
+ * the high half of the trees' shoots stood uneaten wherever there were no elephants, half the browse of a temperate wood
+ * gone from elk and deer (patchab1127b: elk hunger deaths 28 -> 52 a 1000).
+ */
+internal const val TALL_KG = 350f
 /** [splitPatches]: the least a kind feeds on ground it dislikes, against its liking for it. An estimate. */
 internal const val LIKE_LEAST = 0.05f
 
