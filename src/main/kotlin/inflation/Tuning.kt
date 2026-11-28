@@ -285,7 +285,7 @@ class Tuning(
      * Was 0.4. Leopards in southern Africa's protected areas (Swanepoel et al. 2014, Oryx): subadults, the dispersing age,
      * lived 0.86 of a year, adults 0.88; so the dispersers' extra is at most some 0.1.
      */
-    val homelessDeaths = f("homelessDeaths", 0.4f)
+    val homelessDeaths = f("homelessDeaths", 0.1f)
     /**
      * Residents: where the plant-eaters at a place ask more grass or browse than there is, how far the kinds that crop thin
      * pickings best (small and wide-ranging ones, [inflation.ecology.Species.cropHalfKgM2]) get more of what they asked,

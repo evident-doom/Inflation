@@ -379,7 +379,11 @@ object Catalogue {
         birthMonth = 6, birthMonths = 1, youngPerFemale = 1.5f, yearsToMaturity = 2.5f,
         // (Breeds the year round where it can: a mother who loses her cubs bears again some four months on, gestation about 96 days.)
         rebreedMonths = 4,
-        backgroundMortality = 0.07f, youngMortality = 0.4f, snowLimitMm = 300f,
+        // (Cubs in southern Africa's reserves lived 0.39 of their first year, three quarters of their deaths at the hands of
+        // their own kind, half of those infanticide, and a few by lions and hyenas; a sixth of unknown natural causes
+        // (Swanepoel et al. 2014, Oryx). Their kind and the other hunters kill them here on their own ([Danger.STRIFE],
+        // [inflation.Tuning.intraguildYoung]), so what is left to the residual is some 0.15. (Was 0.4, unsourced.))
+        backgroundMortality = 0.07f, youngMortality = 0.15f, snowLimitMm = 300f,
         products = Products(meat = 18f, fat = 1f, hide = 3f, bone = 5f, sinew = 0.3f, fur = true),
         comfortC = -8f..35f, winterCoat = true,
         // (Its winter fur grows to some 70 mm on the back, against 20-25 in summer: Heptner and Sludskij 1972.)
