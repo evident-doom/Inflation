@@ -638,7 +638,7 @@ class HexPlants(land: HexLand) : HexLandPart(land) {
             val grown = max(0f, herb[p] - herb0)
             hayFallen[p] = max(0f, hayFallen[p] - grown)
             if (tuning.hayWeathering > 0f) {
-                val kept = exp(-tuning.hayWeathering * years)
+                val kept = exp(-tuning.hayWeathering * (1f + tuning.shadeLitter * canopy(p)) * years)
                 val fell = herb[p] * (1f - green[p]) * (1f - kept)
                 herb[p] -= fell; hayFallen[p] += fell
                 hayFresh[p] = if (herb[p] > 1e-6f) ((herb[p] - grown).coerceAtLeast(0f) * hayFresh[p] * kept + grown) / herb[p] else 1f

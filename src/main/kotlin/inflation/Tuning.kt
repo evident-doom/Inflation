@@ -192,6 +192,14 @@ class Tuning(
      */
     val hayWeathering = f("hayWeathering", 1.8f)
     /**
+     * How much faster the dead herbs fall and rot under the trees' crowns, as times [hayWeathering] per share of crowns
+     * ([inflation.world.HexPlants.canopy]): the woodland floor's forbs and sedges do not stand as hay but die back into the
+     * litter, the trees' fallen leaves over them. Bobek et al. 1972 (Acta Theriol 17:187, deciduous Niepołomice Forest):
+     * in winter "leaves, grasses and herbs ... are lacking", herbs 0.2 g dry/m² in early spring against 17-35 in summer.
+     * 0: as the open sward.
+     */
+    val shadeLitter = f("shadeLitter", 0f)
+    /**
      * Share of the herbs a place loses a step for each unit of trampling over it (see
      * [inflation.world.HexPlants.trample]). (Shrubs and trees lose only their seedlings, see [inflation.world.HexPlants.tread].)
      */
