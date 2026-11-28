@@ -221,7 +221,7 @@ internal fun HexFauna.hazards(k: FaunaKind, p: Place, weather: Weather, month: I
     val wellFed = if (s.carnivore) 1f else tuning.crowdWellFed
     val sound = if (wellFed < 1f) Hazards.condition(fed, reserve[k][p], s.maxFatDays, Hazards.hungerLine(s)) else fed
     // (Plant-eaters' crowd sickness at [inflation.Tuning.crowdSickness] of its rate: 0, none, their numbers held by food and hunters.)
-    val backstop = if (s.carnivore) 1f else tuning.crowdSickness
+    val backstop = if (s.carnivore) tuning.hunterCrowdSickness else tuning.crowdSickness
     out[Danger.SICK] = backstop * (if (clock.ticks == 1) Hazards.crowdBackstop(crowd, sound, years, wellFed)
         else Hazards.fallingOver(heads, clock.ticks, years / clock.ticks) { n -> Hazards.crowdBackstop(Hazards.crowding(n + others, u), sound, 1f, wellFed) }) +
         wetSickness(s, p, fed) * years
