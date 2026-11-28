@@ -272,6 +272,20 @@ class Tuning(
     /** Residents: the feeding time a runner of the open plains loses in full cover, watching for stalkers ([inflation.ecology.inSight]); an estimate. */
     val coverWatch = f("coverWatch", 0.8f)
     /**
+     * Residents: how each plant-eater reckons its danger at a place ([inflation.ecology.huntedOdds]). 0: by its weight
+     * alone, as the hunters there take game of its size; 1: as they catch its own kind there ([inflation.ecology.catchable]:
+     * its shelter (crags, thickets, trees, water), its speed against theirs, how far it sees them coming), so that each
+     * kind knows which ground keeps it safe, and leaves the ground where its kind is killed (Olli 2026-11-28).
+     */
+    val ownDanger = f("ownDanger", 0f)
+    /**
+     * Residents: the share of its feeding time a plant-eater gives to watching, per its yearly odds of being killed there
+     * as it has known them lately ([inflation.ecology.watching]), at most [inflation.ecology.WATCH_MOST]. Elk spent about
+     * twice the time on watch where wolves came back (some 10% to 20-25% of feeding time, Laundré et al. 2001, from memory),
+     * where wolves took perhaps a tenth of them a year: about 1. 0: none.
+     */
+    val watchCost = f("watchCost", 0f)
+    /**
      * Residents: the share of a place a plant-eater that hides in thickets lives on, as so many times the share its shelter
      * covers ([inflation.ecology.HexFauna.hidingShare]): 1 the covered ground alone, more as it feeds out into the open
      * round it (an estimate); 0 all of every place.

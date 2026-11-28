@@ -44,7 +44,26 @@ internal fun HexFauna.keptKm2(k: FaunaKind, p: Place): Float {
  */
 fun HexFauna.huntedOdds(k: FaunaKind, p: Place, young: Boolean): Float {
     val s = kinds[k]
-    return residentKillOdds(if (young) youngKg(k.i) else s.massKg, p, young) + groupKilled[k][p]
+    val kg = if (young) youngKg(k.i) else s.massKg
+    val own = tuning.ownDanger
+    val bySize = if (own < 1f) residentKillOdds(kg, p, young) else 0f
+    val byKind = if (own > 0f) ownKillOdds(s, kg, p) else 0f
+    return (1f - own) * bySize + own * byKind + groupKilled[k][p]
+}
+
+/**
+ * The odds that an animal of kind [ps] weighing [kg] at place [p] is killed by the residents' hunters in a week, as they
+ * hunted there this week: each hunter's take per kg of the game it could catch there ([killRate], reckoned on
+ * [catchable] kg) times how catchable this one is to it there ([catchable]: its shelter, speed and watchfulness on this
+ * ground). So a wild goat by its crags, a roe in its thickets and an onager on the open plain know themselves safer
+ * there than where they are caught.
+ */
+fun HexFauna.ownKillOdds(ps: Species, kg: Float, p: Place): Float {
+    val rates = killRate
+    val sh = preyShelter(ps, p); val cover = land.plants.cover(p)
+    var v = 0f
+    for (h in kindIds) { val r = rates[h] ?: continue; if (r[p] > 0f && kinds[h] !== ps) v += r[p] * catchable(kinds[h], ps, kg, p, sh, cover) }
+    return v
 }
 
 /**

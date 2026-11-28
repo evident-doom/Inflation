@@ -178,8 +178,26 @@ internal fun HexFauna.graze(weather: Weather) {
  * less in cover for a kind that watches for stalkers there rather than feeding ([inSight]), and the less of its day it walks
  * to water ([atWater]).
  */
-internal fun HexFauna.cropGrass(s: Species, p: Place) = cropRate(s, land.palatable[p] * land.plants.herb[p]) * inSight(s, p) * atWater(s, p)
-internal fun HexFauna.cropBrowse(s: Species, p: Place) = cropRate(s, land.plants.browse(p) / REACH) * inSight(s, p) * atWater(s, p)
+internal fun HexFauna.cropGrass(s: Species, p: Place) = cropRate(s, land.palatable[p] * land.plants.herb[p]) * inSight(s, p) * atWater(s, p) * watching(s, p)
+internal fun HexFauna.cropBrowse(s: Species, p: Place) = cropRate(s, land.plants.browse(p) / REACH) * inSight(s, p) * atWater(s, p) * watching(s, p)
+
+/**
+ * The share of its feeding time kind [s] keeps at place [p] from watching for hunters: less the likelier it has known
+ * itself to be killed there lately ([HexFauna.huntedLately], as odds over a year), by [inflation.Tuning.watchCost], at
+ * most [WATCH_MOST] lost. The fear that keeps game off dangerous ground costs it food there, so that it feeds where it is
+ * safe (the "landscape of fear").
+ */
+internal fun HexFauna.watching(s: Species, p: Place): Float {
+    val c = tuning.watchCost
+    if (c <= 0f || s.carnivore) return 1f
+    val k = slots[s.index]
+    if (k < 0) return 1f
+    val week = huntedLately[k][p].coerceIn(0f, 0.99f)
+    val year = 1f - (1f - week).pow(inflation.DAYS_PER_YEAR / days.toFloat())
+    return 1f - min(WATCH_MOST, c * year)
+}
+/** [watching]'s most: half its feeding time. */
+internal const val WATCH_MOST = 0.5f
 
 /**
  * [graze]'s plants at place [p] ([grass] and [browse] of them within reach), into [z], shared out among the kinds there by
