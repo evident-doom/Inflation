@@ -222,8 +222,8 @@ class Tuning(
      * and [crowdSickness] off nothing ran away, hunger took the crowd deaths one for one; Olli 2026-11-28).
      */
     val breedSpacing = f("breedSpacing", 100f)
-    /** Hunters, resident and in packs: [breedSpacing] for them (plant-eaters keep [breedSpacing]). */
-    val hunterBreedSpacing = f("hunterBreedSpacing", 1.5f)
+    /** Hunters, resident and in packs: [breedSpacing] for them (plant-eaters keep [breedSpacing]). 100, off, since huntab1128: freeing them changed little; rivals and want of ground hold them. */
+    val hunterBreedSpacing = f("hunterBreedSpacing", 100f)
     /**
      * Residents: how far a plant-eater's usual numbers at a place follow its food there against its food over the country
      * it lives in ([inflation.ecology.HexFauna.foodScale]), as a power: 0 the same everywhere (Damuth's rule by its size alone), 1 in proportion.
@@ -257,8 +257,8 @@ class Tuning(
      * the weather and the plagues hold them (the default since nosick1128, see [breedSpacing]).
      */
     val crowdSickness = f("crowdSickness", 0f)
-    /** Resident hunters: [crowdSickness] for them (plant-eaters keep [crowdSickness]). 1: as before. */
-    val hunterCrowdSickness = f("hunterCrowdSickness", 1f)
+    /** Resident hunters: [crowdSickness] for them (plant-eaters keep [crowdSickness]). 1: as before; 0 since huntab1128 (null: rivals hold them). */
+    val hunterCrowdSickness = f("hunterCrowdSickness", 0f)
     /**
      * Residents: where the plant-eaters at a place ask more grass or browse than there is, how far the kinds that crop thin
      * pickings best (small and wide-ranging ones, [inflation.ecology.Species.cropHalfKgM2]) get more of what they asked,
