@@ -227,7 +227,7 @@ internal fun HexFauna.hazards(k: FaunaKind, p: Place, weather: Weather, month: I
         wetSickness(s, p, fed) * years
     out[Danger.OUTBREAK] = outbreakDeaths(s, p)
     // Hunters hold ground: past the numbers their territories hold, they fight their own kind and kill its young.
-    out[Danger.STRIFE] = if (s.carnivore) strife(heads, u, if (s in Catalogue.roamingResidents) tuning.roamerStrifeCrowd else STRIFE_CROWD)
+    out[Danger.STRIFE] = if (s.carnivore) tuning.hunterStrife * strife(heads, u, if (s in Catalogue.roamingResidents) tuning.roamerStrifeCrowd else STRIFE_CROWD)
         // (And the plant-eaters that hold ground as they do: the bear, [Species.holdsGround].)
         else if (s.holdsGround && tuning.holderStrifeCrowd > 0f) strife(heads, u, tuning.holderStrifeCrowd) else 0f
     val (fireA, floodA, snowA) = calamities(s, p, weather, false)
