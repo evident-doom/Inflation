@@ -669,6 +669,10 @@ object Catalogue {
         defence = 0.4f,
         activity = floatArrayOf(0.3f, 0.3f, 0.3f, 0.1f),
         kin = Kin.RUMINANTS, dampTolerance = 0f,
+        // (Its usual numbers from the field, the middle of its range (0.01-0.5 a km², taken on a log scale), not Damuth's rule
+        // (some 4 a km² at 70 kg): fed first in the open with the patches shared out (t.patches), oryx stood 2-3 a km² on the
+        // steppe, 4-6 times the field top (patchab1127b). The range stands for the desert antelopes as a whole.)
+        startKm2PerAnimal = 14f,
     )
 
     /**
