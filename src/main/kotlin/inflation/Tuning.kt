@@ -271,6 +271,8 @@ class Tuning(
      * dholes, "lynx" lynx, caracal and jungle cat. 1: one species.
      */
     val hunterFamily = f("hunterFamily", 1f)
+    /** Eagles: the room for those that nest in trees or on the ground, 0..1 a place ([inflation.ecology.HexSmallLife.eagleRoom]); 0: the golden eagles of the crags alone. */
+    val eagleNests = f("eagleNests", 0f)
     /**
      * Residents: where the plant-eaters at a place ask more grass or browse than there is, how far the kinds that crop thin
      * pickings best (small and wide-ranging ones, [inflation.ecology.Species.cropHalfKgM2]) get more of what they asked,

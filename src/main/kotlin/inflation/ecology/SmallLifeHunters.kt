@@ -84,7 +84,7 @@ internal fun HexSmallLife.stepEagles(p: Place, month: Int) {
     noteTaken(p, Taker.EAGLES, r0, ha0, hy0, b0)
     // Fawns and kids make up much of what the small game does not.
     val fed = if (need > 0f) min(1f, got / need + 0.3f) else 1f
-    eagles[p] = logistic(p, eagles[p], if (month in 4..6) 0.6f * fed else 0f, 0.1f + 0.6f * (1f - fed), eagleCrags[p],
+    eagles[p] = logistic(p, eagles[p], if (month in 4..6) 0.6f * fed else 0f, 0.1f + 0.6f * (1f - fed), eagleRoom(p),
         counted = false) // (an index, not kg: their dead are not counted)
 }
 

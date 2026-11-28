@@ -185,6 +185,12 @@ class HexSmallLife(private val hw: HexWorld, internal val land: HexLand, @Transi
     @Transient internal val eagleCrags = land.overGround { min(1f, 2f * it) }
     val eagles = eagleCrags.copyOf()
     /**
+     * How many eagles place [p] can hold, 0..1: as its crags allow, or, as [inflation.Tuning.eagleNests], the eagles that
+     * nest in trees or on the ground (the steppe, imperial, spotted and white-tailed eagles beside the golden: the
+     * eagles stand for the family).
+     */
+    internal fun eagleRoom(p: Place) = max(eagleCrags[p], tuning.eagleNests)
+    /**
      * Rock for the small life of broken ground, the mean over each place's ground (see
      * [HexLand.overGround]): hyrax and rock doves, chukar, and the cracks and screes reptiles and
      * small mammals hide in.

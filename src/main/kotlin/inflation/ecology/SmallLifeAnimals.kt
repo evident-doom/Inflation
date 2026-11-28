@@ -164,7 +164,7 @@ internal fun HexSmallLife.stepGame(p: Place, t: Float, month: Int, burnt: Float)
     val active = stepTortoises(p, t, month)
     smallGrazing(p, all, active)
     stepFoxesAndOwls(p, month)
-    if (eagleCrags[p] > 0f) stepEagles(p, month)
+    if (eagleRoom(p) > 0f) stepEagles(p, month)
     // Fire: tortoises die where it burns; the rest bolt and many young die.
     if (burnt > 0f) {
         smallDead[p] += tortoises[p] * 0.6f * burnt + hares[p] * HARES_BURNT * burnt + birds[p] * 0.3f * burnt
@@ -303,7 +303,7 @@ internal fun HexSmallLife.spread(f: FloatArray, where: (Int) -> Boolean) {
 @Part("small life: spreading to neighbours")
 internal fun HexSmallLife.spreadToNeighbours() {
     spread(spreaders)
-    spread(eagles) { eagleCrags[it] > 0f }
+    spread(eagles) { eagleRoom(it) > 0f }
     spreadToward(rodents, rodentRoom); spreadToward(hares, hareRoom)
 }
 
