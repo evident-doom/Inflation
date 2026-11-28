@@ -292,9 +292,10 @@ class Tuning(
      * crags for a wild goat, cover for roe, open ground for aurochs and the runners of the plains), as a power of it on
      * what it would grow by there. Animals know which ground is best for them without first being killed on the rest
      * (Olli 2026-11-28); the liking was read only where they were first set down, and through the breeding-range cap.
-     * 0: none.
+     * 0: none. At 0.5 (likeab1128) goat, gazelle, onager and mouflon left the temperate forest for their own ground, roe
+     * doubled there, and plant-eaters fell to 0.55-0.68 of their weight in the forest; elk and aurochs about halved.
      */
-    val groundLiking = f("groundLiking", 0f)
+    val groundLiking = f("groundLiking", 0.5f)
     /**
      * Residents: the share of a place a plant-eater that hides in thickets lives on, as so many times the share its shelter
      * covers ([inflation.ecology.HexFauna.hidingShare]): 1 the covered ground alone, more as it feeds out into the open
