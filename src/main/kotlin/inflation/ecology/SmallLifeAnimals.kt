@@ -303,7 +303,7 @@ internal fun HexSmallLife.spread(f: FloatArray, where: (Int) -> Boolean) {
 @Part("small life: spreading to neighbours")
 internal fun HexSmallLife.spreadToNeighbours() {
     spread(spreaders)
-    spread(eagles) { eagleRoom(it) > 0f }
+    spread(eagles) { eagleRoom(Place(it)) > 0f }
     spreadToward(rodents, rodentRoom); spreadToward(hares, hareRoom)
 }
 
