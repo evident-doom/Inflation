@@ -71,6 +71,9 @@ class SavedStateTest {
         "land.plants.treeSeed",
         // (Fires people have set wait here only from the end of one step to the plants phase of the next: at the year's edges nothing may be waiting.)
         "land.fire.lit",
+        // (Grass seed ripens in early summer and is shed over the weeks after: a year from April to April may begin and end
+        // with none lying, once the woods' dead herbs fall and rot under the crowns ([inflation.Tuning.shadeLitter]).)
+        "fauna.food.seeds",
     )
 
     @Test

@@ -286,6 +286,14 @@ class Tuning(
      */
     val watchCost = f("watchCost", 0f)
     /**
+     * Residents: how far a plant-eater weighs places by its inborn liking for their ground ([inflation.ecology.suits]: the
+     * crags for a wild goat, cover for roe, open ground for aurochs and the runners of the plains), as a power of it on
+     * what it would grow by there. Animals know which ground is best for them without first being killed on the rest
+     * (Olli 2026-11-28); the liking was read only where they were first set down, and through the breeding-range cap.
+     * 0: none.
+     */
+    val groundLiking = f("groundLiking", 0f)
+    /**
      * Residents: the share of a place a plant-eater that hides in thickets lives on, as so many times the share its shelter
      * covers ([inflation.ecology.HexFauna.hidingShare]): 1 the covered ground alone, more as it feeds out into the open
      * round it (an estimate); 0 all of every place.

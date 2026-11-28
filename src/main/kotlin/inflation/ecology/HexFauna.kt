@@ -823,6 +823,8 @@ class HexFauna(internal val hw: HexWorld, internal val land: HexLand, @Transient
     internal class WeekFixed(n: Int) {
         val done = BooleanArray(n); val drinks = BooleanArray(n)
         val grown = FloatArray(n); val young = FloatArray(n); val huntedYoung = FloatArray(n); val protein = FloatArray(n)
+        /** The kind's inborn liking for the place's ground as it weighs places ([inflation.Tuning.groundLiking]): 1 for none. */
+        val liking = FloatArray(n)
     }
 
     /** One thread's working arrays for weighing places ([fillArrive], [flow]): every use fills what it reads first. */

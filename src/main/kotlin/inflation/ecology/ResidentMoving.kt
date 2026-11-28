@@ -895,7 +895,7 @@ internal fun HexFauna.placeWorth(k: FaunaKind, p: Place, fixed: WeekFixed, heads
     if (!fixed.drinks[p]) return 0f
     val f = if (heads > 0f) min(1f, food / heads) else if (food > 0f) 1f else 0f
     growthOf(k, p, fixed.grown[p], fixed.young[p], fixed.huntedYoung[p], fixed.protein[p], moverYoung[k], moverFat[k], f, heads / land.areaKm2[p], parts)
-    return worthOrNothing(growthFor(k, parts, moverYoung[k]))
+    return worthOrNothing(growthFor(k, parts, moverYoung[k]) * fixed.liking[p])
 }
 
 /** Fills [w] at place [p] for kind [k] this week, by [hazards] (its parts that do not change with numbers or food). */
@@ -908,6 +908,11 @@ internal fun HexFauna.fix(k: FaunaKind, p: Place, weather: Weather, out: EnumFlo
     out[Danger.HUNTED] = huntedLately[k][p]
     val protein = forageProtein(s, p)
     w.grown[p] = grownFixed(s, out); w.protein[p] = protein; w.huntedYoung[p] = huntedYoungLately[k][p]
+    // (Its inborn sense of its ground, [inflation.Tuning.groundLiking]: a wild goat keeps to its crags, a roe to its thickets,
+    // an onager to the open plain, without first seeing its kind die on the ground it shuns; crowded and hungry, it goes
+    // where it must.)
+    val like = tuning.groundLiking
+    w.liking[p] = if (like > 0f) suits(s, p).pow(like) else 1f
     w.young[p] = youngFixed(s, out, youngTakenOdds(s, p), crocodileOdds(p, weather), starvedOdds(protein))
 }
 
