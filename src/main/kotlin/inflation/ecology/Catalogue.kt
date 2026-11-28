@@ -302,6 +302,8 @@ object Catalogue {
         fearOfPeople = 0.5f, boldShare = 0.15f,
         // (Eats carrion as old as carcasses some days old, winter-kills that kept in the cold: [Species.carrionAgeDays].)
         carrionAgeDays = 5f,
+        // (Its young lie in a den for their first months, out of the way of the stronger hunters: [Species.hidesYoung].)
+        hidesYoung = true,
         diet = Diet(meat = 0.6f, smallPrey = 0.25f, carrion = 0.15f),
         groupSize = 3, maxGroupSize = 8,
         dailyTravelKm = 15f, maxDailyTravelKm = 50f, senseKm = 8f,
@@ -361,6 +363,10 @@ object Catalogue {
         hidesYoung = true,
         // (A pride's young males roam some 30 km before settling, and take a year or so to win a pride: an estimate.)
         dispersalKm = 30f, dispersalDays = 300f,
+        // (Young males roam two or three years as nomads before they take a pride, in coalitions, and some two in three live
+        // through it; most young females stay in their mothers' pride (Schaller 1972, Pusey and Packer, from memory, not checked).
+        // At a wolf's 0.005 a day, three in four dispersing lions died before they found ground: homeless 0.13 a lion a year, steppe1124.)
+        dispersalDeath = 0.001f,
     )
 
     /** Leopard: a solitary stalker of broken and wooded ground; caches kills away from bigger rivals. */
@@ -410,6 +416,8 @@ object Catalogue {
         fearOfPeople = 0.5f, boldShare = 0.1f,
         // (Eats carrion as old as a bone-cracker with a stomach as acid as a vulture's: carcasses to the bone: [Species.carrionAgeDays].)
         carrionAgeDays = 30f,
+        // (Its young lie in a den for their first months, out of the way of the stronger hunters: [Species.hidesYoung].)
+        hidesYoung = true,
         diet = Diet(meat = 0.1f, smallPrey = 0.25f, carrion = 0.55f, fruit = 0.1f),
         groupSize = 2, maxGroupSize = 5,
         // (They rest in pairs, now and then up to four, but forage alone; several may come to a carcass, not together:
@@ -446,6 +454,8 @@ object Catalogue {
         fearOfPeople = 0.4f, boldShare = 0.15f,
         // (Eats carrion as old as carcasses some days old: [Species.carrionAgeDays].)
         carrionAgeDays = 6f,
+        // (Its young lie in a den for their first months, out of the way of the stronger hunters: [Species.hidesYoung].)
+        hidesYoung = true,
         diet = Diet(meat = 0.1f, smallPrey = 0.5f, carrion = 0.25f, fruit = 0.15f),
         groupSize = 2, maxGroupSize = 6,
         dailyTravelKm = 8f, maxDailyTravelKm = 25f, senseKm = 4f,
