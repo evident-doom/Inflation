@@ -196,9 +196,10 @@ class Tuning(
      * ([inflation.world.HexPlants.canopy]): the woodland floor's forbs and sedges do not stand as hay but die back into the
      * litter, the trees' fallen leaves over them. Bobek et al. 1972 (Acta Theriol 17:187, deciduous Niepołomice Forest):
      * in winter "leaves, grasses and herbs ... are lacking", herbs 0.2 g dry/m² in early spring against 17-35 in summer.
-     * 0: as the open sward.
+     * 0: as the open sward. At 4 (litterab1128) closed forest's edible herbs fell to 4-8 g/m² in Jan-Jun from 20, its
+     * plant-eaters to 1.4 t/km² from 2.6 (Bialowieza's species peaks add to ~1.9 t), people a third fewer and hungrier.
      */
-    val shadeLitter = f("shadeLitter", 0f)
+    val shadeLitter = f("shadeLitter", 4f)
     /**
      * Share of the herbs a place loses a step for each unit of trampling over it (see
      * [inflation.world.HexPlants.trample]). (Shrubs and trees lose only their seedlings, see [inflation.world.HexPlants.tread].)
