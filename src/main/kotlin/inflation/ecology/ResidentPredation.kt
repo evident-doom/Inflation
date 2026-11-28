@@ -386,14 +386,13 @@ internal fun HexFauna.scavengedShare(k: FaunaKind, p: Place): Float {
         if (heads <= 0f) continue
         kg += heads * s.massKg * s.diet.carrion / s.diet.total.coerceAtLeast(1e-6f) * (s.massKg / (s.massKg + hunter.massKg))
     }
-    val big = BIG_SCAVENGED_MOST * kg / (kg + BIG_SCAVENGED_HALF)
+    val big = BIG_SCAVENGED_MOST * kg / (kg + tuning.bigScavengedHalf)
     return 1f - (1f - SMALL_SCAVENGED) * (1f - big)
 }
 
-/** [scavengedShare]: what the small scavengers take of a kill wherever it lies; the most the big ones take, and their kg a km² (weighed) at which they take half that. Estimates. */
+/** [scavengedShare]: what the small scavengers take of a kill wherever it lies, and the most the big ones take (at [inflation.Tuning.bigScavengedHalf] of their kg a km², weighed, half that). Estimates. */
 internal const val SMALL_SCAVENGED = 0.15f
 internal const val BIG_SCAVENGED_MOST = 0.5f
-internal const val BIG_SCAVENGED_HALF = 2f
 
 
 /**

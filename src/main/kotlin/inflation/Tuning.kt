@@ -274,6 +274,13 @@ class Tuning(
     /** Eagles: the room for those that nest in trees or on the ground, 0..1 a place ([inflation.ecology.HexSmallLife.eagleRoom]); 0: the golden eagles of the crags alone. */
     val eagleNests = f("eagleNests", 0f)
     /**
+     * Resident hunters: the big scavengers' kg a km² about a kill (each by its share of carrion in its diet and its weight
+     * against the hunter's, [inflation.ecology.scavengedShare]) at which they take half their most of it. At 2 the boar of
+     * any wood (some 9 a km², a twentieth carrion) took near half of every leopard's and lion's kill; leopards lose some
+     * 5-10% of theirs, cheetahs 10-14% to hyenas and lions (from memory).
+     */
+    val bigScavengedHalf = f("bigScavengedHalf", 2f)
+    /**
      * Residents: where the plant-eaters at a place ask more grass or browse than there is, how far the kinds that crop thin
      * pickings best (small and wide-ranging ones, [inflation.ecology.Species.cropHalfKgM2]) get more of what they asked,
      * as a power of their edge on a 100 kg kind's. 0: each gets the same share of what it asked.
