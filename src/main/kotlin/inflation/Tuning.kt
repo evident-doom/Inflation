@@ -209,9 +209,10 @@ class Tuning(
      * about 20-25 a km² of their forest, the high end of what is seen, but the plant-eaters were held by this rather than by
      * food and the hunters. At 3, with the crowd sickness on the hungry only and the bears holding ground, food binds them
      * by year 35-45 without a crash, most in the field's range (bearlong1126, limitslong1126); at 4-5 aurochs and bears ran
-     * on and the others fell (spaceab1126).
+     * on and the others fell (spaceab1126). 100: off in effect, so food and the hunters hold them (nosick1128: with this
+     * and [crowdSickness] off nothing ran away, hunger took the crowd deaths one for one; Olli 2026-11-28).
      */
-    val breedSpacing = f("breedSpacing", 3f)
+    val breedSpacing = f("breedSpacing", 100f)
     /** Hunters, resident and in packs: [breedSpacing] for them (plant-eaters keep [breedSpacing]). */
     val hunterBreedSpacing = f("hunterBreedSpacing", 1.5f)
     /**
@@ -244,9 +245,9 @@ class Tuning(
     /**
      * Resident plant-eaters: their sickness of crowding past [inflation.ecology.HexFauna.CROWDED] times their usual numbers
      * ([inflation.ecology.Hazards.crowdBackstop]) as a share of its rate. 1: as before; 0: none, so only food, the hunters,
-     * the weather and the plagues hold them.
+     * the weather and the plagues hold them (the default since nosick1128, see [breedSpacing]).
      */
-    val crowdSickness = f("crowdSickness", 1f)
+    val crowdSickness = f("crowdSickness", 0f)
     /**
      * Residents: where the plant-eaters at a place ask more grass or browse than there is, how far the kinds that crop thin
      * pickings best (small and wide-ranging ones, [inflation.ecology.Species.cropHalfKgM2]) get more of what they asked,
