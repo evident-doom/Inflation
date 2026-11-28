@@ -161,7 +161,8 @@ private fun HexFauna.bookDeaths(k: FaunaKind, p: Place, ca: Float, cy: Float, hz
     val hunger = hz[Danger.HUNGER]; val cold = hz[Danger.COLD]; val heat = hz[Danger.HEAT]; val thirst = hz[Danger.THIRST]; val disease = hz.disease()
     val fireA = hz[Danger.FIRE_A]; val floodA = hz[Danger.FLOOD_A]; val snowA = hz[Danger.SNOW_A]
     val fireY = hz[Danger.FIRE_Y]; val floodY = hz[Danger.FLOOD_Y]; val snowY = hz[Danger.SNOW_Y]
-    dd[ResidentDeath.AGE] += ca * s.backgroundMortality * years + cy * s.youngMortality * years
+    dd[ResidentDeath.AGE] += ca * s.backgroundMortality * years
+    dd[ResidentDeath.YOUNG_LOST] += cy * s.youngMortality * years
     dd[ResidentDeath.HUNGER] += (ca + Hazards.YOUNG_HARDER * cy) * hunger
     dd[ResidentDeath.COLD] += (ca + Hazards.YOUNG_HARDER * cy) * cold
     dd[ResidentDeath.HEAT] += (ca + Hazards.YOUNG_HARDER * cy) * heat

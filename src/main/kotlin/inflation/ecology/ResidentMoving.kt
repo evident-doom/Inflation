@@ -503,7 +503,7 @@ fun HexFauna.addDispersing(k: FaunaKind, h: Hex, heads: Float) {
  * The grown young of kind [k] dispersing from their natal ground over the step's days ([HexGroups.roamersLeave]): from the
  * hex they left they settle in at a rate a day of one in [Species.dispersalDays] (as far as there is room about: the room within
  * [DISPERSAL_REACH] times [Species.dispersalKm], nearer counting more, against all the ground there), and die on the way at
- * [DISPERSAL_DEATH] a day; in closed form over the days, the same at any step length. Those that settle join the settled
+ * [Species.dispersalDeath] a day; in closed form over the days, the same at any step length. Those that settle join the settled
  * where the room is, nearer first by exp(-distance / [Species.dispersalKm]), never back on the hex they left, each hex at most to
  * its [HexFauna.usual]; the dead lie where they left. (Dispersal as a pool, not as lone packs: estimates of the magnitude,
  * wolves dispersing a few months over tens of km, lions longer and nearer, with about a third lost on the way;
@@ -530,7 +530,7 @@ private fun HexFauna.disperseAtOnce(k: FaunaKind, pool: FloatArray, carcass: Flo
     // weigh, waiting in the pool, die on the way as they would, the last few hundredths of a head all of them, where
     // they wait. One pass over the map on this kind's core: each hex is a few sums, less than a parallel loop's start.)
     val room = FloatArray(hex.size); val died = FloatArray(hex.size); val holdsOf = FloatArray(hex.size)
-    val dying = 1f - exp(-DISPERSAL_DEATH * days)
+    val dying = 1f - exp(-s.dispersalDeath * days)
     val sourceList = HexList(); val unknownList = HexList()
     for (h in hex.all) {
         var heads = 0f; var area = 0f
@@ -552,7 +552,7 @@ private fun HexFauna.disperseAtOnce(k: FaunaKind, pool: FloatArray, carcass: Flo
         var roomW = 0f; var allW = 0f
         for (i in 0 until ground.hexes.size) { val w = ground.weight[i]; allW += w * holdsOf[ground.hexes[i]]; roomW += w * room[ground.hexes[i]] }
         val settle = if (allW > 0f) settleRate * roomW / allW else 0f
-        val out = settle + DISPERSAL_DEATH
+        val out = settle + s.dispersalDeath
         val gone = pool[sources[j]] * (1f - exp(-out * days))
         settles[j] = if (roomW > 0f) gone * settle / out else 0f; roomWs[j] = roomW; died[sources[j]] = gone - gone * settle / out
     }
@@ -690,8 +690,6 @@ private fun HexFauna.pressureOnHex(k: FaunaKind, h: Hex): Float = hw.firstPlaceI
 
 /** How far out a disperser looks for room, in [Species.dispersalKm]. */
 private const val DISPERSAL_REACH = 2f
-/** The share of dispersers that die a day on the way, all causes ([disperse]): about a third lost over a wolf's three months; an estimate. */
-private const val DISPERSAL_DEATH = 0.005f
 /** The least heads dispersing from a hex worth working out ([disperse]): fewer wait in the pool. */
 private const val DISPERSAL_LEAST = 0.05f
 /** Fewer heads than this waiting in a hex's pool die out on the way ([disperseAtOnce]): else the drift leaves crumbs everywhere. */

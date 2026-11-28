@@ -1073,7 +1073,9 @@ enum class ResidentDeath(val cause: DeathCause) {
     AGE(DeathCause.AGE), HUNGER(DeathCause.HUNGER), COLD(DeathCause.COLD), HEAT(DeathCause.HEAT), DISEASE(DeathCause.DISEASE), EAGLES(DeathCause.EAGLES),
     FIRE(DeathCause.FIRE), FLOOD(DeathCause.FLOOD), SNOW(DeathCause.SNOW), CROCODILES(DeathCause.CROCODILES), THIRST(DeathCause.THIRST),
     SHORT_OF_PROTEIN(DeathCause.SHORT_OF_PROTEIN), RIVALS(DeathCause.RIVALS), YOUNG_KILLED_BY_RIVALS(DeathCause.YOUNG_KILLED_BY_RIVALS),
-    FOXES(DeathCause.FOXES)
+    FOXES(DeathCause.FOXES),
+    /** The young's deaths of causes not modelled ([Species.youngMortality]): not of age, as they were booked. */
+    YOUNG_LOST(DeathCause.OTHER)
 }
 @Suppress("NOTHING_TO_INLINE") internal inline operator fun DoubleArray.get(d: ResidentDeath) = this[d.ordinal]
 @Suppress("NOTHING_TO_INLINE") internal inline operator fun DoubleArray.set(d: ResidentDeath, v: Double) { this[d.ordinal] = v }

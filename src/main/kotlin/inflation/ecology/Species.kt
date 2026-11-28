@@ -264,7 +264,7 @@ class Species(
     val cracksBones: Boolean = false,
     /** How readily it takes people (leopards 1.2, lions 1, bears 0.4, wolves and hyenas 0.3; 0: never), see [STALKED]. */
     val takesPeople: Float = 0f,
-    /** Its mothers hide their young and move them from lair to lair in their first months, as the cats do ([youngHidden]). */
+    /** Its mothers hide their young in their first months, the cats moving them from lair to lair, the wolves, jackals and hyenas in dens ([youngHidden]). */
     val hidesYoung: Boolean = false,
     /**
      * Its young lie out alone and still in the grass or the thicket for their first months ([LIE_OUT_MONTHS]), as gazelle,
@@ -293,6 +293,11 @@ class Species(
     val dispersalKm: Float = 60f,
     /** The days its dispersers take to settle where there is room enough ([disperse]); an estimate. */
     val dispersalDays: Float = 90f,
+    /**
+     * The share of its dispersers that die a day on the way, all causes ([disperse]): by default about a third lost over a
+     * wolf's three months, an estimate. Lions roam for years as nomads, the young males in coalitions, and most live through it.
+     */
+    val dispersalDeath: Float = 0.005f,
     /**
      * A kind it keeps off the ground of, losing its kills and young to it: it starts away from where that kind starts
      * ([HexGroups]' start). Null: none.
